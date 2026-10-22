@@ -7,10 +7,27 @@ const grid = { x: 6, y: 54, w: 178 };
 
 test("the grid lays out the count it will have after the drop", () => {
   assert.deepEqual(pinGrid(3, 178), { columns: 3, width: 55 });
-  assert.deepEqual(pinGrid(4, 178), { columns: 3, width: 55 });
+  assert.deepEqual(pinGrid(4, 178), { columns: 2, width: 86 });
   assert.deepEqual(pinGrid(2, 178), { columns: 2, width: 86 });
   assert.deepEqual(pinGrid(4, 240), { columns: 4, width: 55.5 });
   assert.deepEqual(pinGrid(0, 178), { columns: 1, width: 178 });
+});
+
+test("the rows stay balanced as in Arc, at most four across", () => {
+  const columns = (n, w) => pinGrid(n, w).columns;
+  assert.equal(columns(5, 451), 3);
+  assert.equal(columns(5, 295), 3);
+  assert.equal(columns(5, 147), 2);
+  assert.equal(columns(4, 408), 4);
+  assert.equal(columns(4, 261), 4);
+  assert.equal(columns(4, 168), 2);
+  assert.equal(columns(9, 432), 3);
+  assert.equal(columns(9, 290), 3);
+  assert.equal(columns(9, 180), 3);
+  assert.equal(columns(9, 144), 2);
+  assert.equal(columns(7, 400), 4);
+  assert.equal(columns(6, 400), 3);
+  assert.equal(columns(3, 400), 3);
 });
 
 test("a full row never overflows the grid", () => {
@@ -26,9 +43,11 @@ test("the slot under the pointer is the tile's index after the drop", () => {
   assert.equal(pinSlot(grid, 3, TILE, 95, 74), 1);
   assert.equal(pinSlot(grid, 3, TILE, 155, 74), 2);
   assert.equal(pinSlot(grid, 3, TILE, 155, 105), 2);
-  assert.equal(pinSlot(grid, 4, TILE, 155, 74), 2);
-  assert.equal(pinSlot(grid, 4, TILE, 30, 120), 3);
+  assert.equal(pinSlot(grid, 4, TILE, 155, 74), 1);
+  assert.equal(pinSlot(grid, 4, TILE, 30, 120), 2);
   assert.equal(pinSlot(grid, 4, TILE, 155, 120), 3);
+  assert.equal(pinSlot(grid, 5, TILE, 155, 74), 2);
+  assert.equal(pinSlot(grid, 5, TILE, 155, 160), 4);
   assert.equal(pinSlot(grid, 4, TILE, -40, 10), 0);
 });
 

@@ -1,11 +1,14 @@
 export const TILE_GAP = 6;
 export const MIN_TILE = 50;
+export const MAX_COLUMNS = 4;
 export const PIN_ZONE_HYSTERESIS = 6;
 
 type Area = { x: number; y: number; w: number };
 
 export function pinGrid(count: number, innerWidth: number) {
-  const columns = Math.max(1, Math.min(count || 1, Math.floor((innerWidth + TILE_GAP) / (MIN_TILE + TILE_GAP))));
+  const fit = Math.max(1, Math.min(MAX_COLUMNS, Math.floor((innerWidth + TILE_GAP) / (MIN_TILE + TILE_GAP))));
+  const rows = Math.ceil((count || 1) / fit);
+  const columns = Math.ceil((count || 1) / rows);
   const width = Math.floor(((innerWidth - TILE_GAP * (columns - 1)) / columns) * 2) / 2;
   return { columns, width };
 }
