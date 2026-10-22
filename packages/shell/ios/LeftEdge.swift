@@ -36,6 +36,7 @@ final class LeftEdgeWatcher {
   }
 
   private func check(_ point: NSPoint, live: Bool) {
+    lazy var onDock = live && NSApp.isActive && Self.isOnDock(point)
     for (id, hold) in watched {
       guard let window = WindowManager.shared.windows[id] else {
         watched[id] = nil
@@ -44,6 +45,7 @@ final class LeftEdgeWatcher {
         continue
       }
       let now = isOver(point, of: window, hold: hold, live: live)
+        || (onDock && (over.contains(id) || isOver(point, of: window, hold: hold, live: false)))
       let fresh = unreported.remove(id) != nil
       guard fresh || now != over.contains(id) else { continue }
       if now { over.insert(id) } else { over.remove(id) }
@@ -80,6 +82,16 @@ final class LeftEdgeWatcher {
       number = below
     }
     return number
+  }
+
+  private static func isOnDock(_ point: NSPoint) -> Bool {
+    let number = windowNumber(at: point)
+    guard number > 0, NSApp.window(withWindowNumber: number) == nil,
+      let dock = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock").first,
+      let info = CGWindowListCopyWindowInfo(.optionIncludingWindow, CGWindowID(number)) as? [[String: Any]],
+      let owner = info.first?[kCGWindowOwnerPID as String] as? pid_t
+    else { return false }
+    return owner == dock.processIdentifier
   }
 
   private static func besideScreenEdge(_ window: NSWindow, _ screen: NSScreen) -> Bool {
@@ -128,14 +140,14 @@ final class LeftEdgeWatcher {
     }
     if observers.isEmpty {
       let center = NotificationCenter.default
-      for name in [
-        NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification,
-        NSApplication.didChangeScreenParametersNotification,
-      ] {
+      for name in [NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification] {
         observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-          self?.updateGlobalMonitor()
+          self?.checkPointer()
         })
       }
+      observers.append(center.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
+        self?.updateGlobalMonitor()
+      })
       for name in [NSWindow.didMoveNotification, NSWindow.didResizeNotification, NSWindow.didChangeScreenNotification] {
         observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
           guard let self, let window = note.object as? NSWindow, self.isWatched(window) else { return }
