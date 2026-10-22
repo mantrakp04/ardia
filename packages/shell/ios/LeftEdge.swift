@@ -12,6 +12,9 @@ final class LeftEdgeWatcher {
   private var localMonitor: Any?
   private var globalMonitor: Any?
   private var observers: [NSObjectProtocol] = []
+  private var dockApp: NSRunningApplication?
+  private var lastHitWindow = 0
+  private var lastHitIsDock = false
   #if DEBUG
   private(set) var wakes: [String: Int] = ["global": 0, "local": 0]
   var stats: [String: Any] { ["wakes": wakes, "global": globalMonitor != nil, "local": localMonitor != nil, "watched": watched.count] }
@@ -36,7 +39,7 @@ final class LeftEdgeWatcher {
   }
 
   private func check(_ point: NSPoint, live: Bool) {
-    lazy var onDock = live && NSApp.isActive && Self.isOnDock(point)
+    lazy var onDock = live && NSApp.isActive && isOnDock(point)
     for (id, hold) in watched {
       guard let window = WindowManager.shared.windows[id] else {
         watched[id] = nil
@@ -45,7 +48,8 @@ final class LeftEdgeWatcher {
         continue
       }
       let now = isOver(point, of: window, hold: hold, live: live)
-        || (onDock && (over.contains(id) || isOver(point, of: window, hold: hold, live: false)))
+        || (window.screen?.frame.contains(point) == true
+          && (over.contains(id) || isOver(point, of: window, hold: hold, live: false)) && onDock)
       let fresh = unreported.remove(id) != nil
       guard fresh || now != over.contains(id) else { continue }
       if now { over.insert(id) } else { over.remove(id) }
@@ -84,14 +88,25 @@ final class LeftEdgeWatcher {
     return number
   }
 
-  private static func isOnDock(_ point: NSPoint) -> Bool {
-    let number = windowNumber(at: point)
-    guard number > 0, NSApp.window(withWindowNumber: number) == nil,
-      let dock = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock").first,
+  private func isOnDock(_ point: NSPoint) -> Bool {
+    let number = Self.windowNumber(at: point)
+    guard number > 0, NSApp.window(withWindowNumber: number) == nil else { return false }
+    if number != lastHitWindow {
+      lastHitWindow = number
+      lastHitIsDock = isDockWindow(number)
+    }
+    return lastHitIsDock
+  }
+
+  private func isDockWindow(_ number: Int) -> Bool {
+    if dockApp?.isTerminated ?? true {
+      dockApp = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock").first
+    }
+    guard let dockApp,
       let info = CGWindowListCopyWindowInfo(.optionIncludingWindow, CGWindowID(number)) as? [[String: Any]],
       let owner = info.first?[kCGWindowOwnerPID as String] as? pid_t
     else { return false }
-    return owner == dock.processIdentifier
+    return owner == dockApp.processIdentifier
   }
 
   private static func besideScreenEdge(_ window: NSWindow, _ screen: NSScreen) -> Bool {
