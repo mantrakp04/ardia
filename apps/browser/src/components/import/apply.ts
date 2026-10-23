@@ -174,11 +174,10 @@ function pageKey(url: string): string {
 }
 
 function openPages(profileId: string): Set<string> {
-  return new Set(
-    Object.values(useBrowser.getState().tabs)
-      .filter((t) => t.profileId === profileId)
-      .flatMap((t) => [t.url, t.pinnedUrl ?? ""].filter(Boolean).map(pageKey)),
-  );
+  const s = useBrowser.getState();
+  const open = Object.values(s.tabs).filter((t) => t.profileId === profileId);
+  const parked = s.parkedPins[profileId]?.tabs ?? [];
+  return new Set([...open, ...parked].flatMap((t) => [t.url, t.pinnedUrl ?? ""].filter(Boolean).map(pageKey)));
 }
 
 export function importDiaProfile(profileId: string, profile: DiaTabsProfile, what: { pinned: boolean; open: boolean }): number {
