@@ -17,6 +17,7 @@ export type ThemeLook = {
   grain: number;
   texture: ThemeTexture;
   translucency: number;
+  angle?: number;
 };
 
 export type ProfileTheme = ThemeLook & {

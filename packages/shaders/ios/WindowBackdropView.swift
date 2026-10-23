@@ -169,6 +169,7 @@ struct ThemeGradient: Equatable {
   var grain: CGFloat = 0
   var texture = "grain"
   var appearance = "auto"
+  var angle: CGFloat = ArcGradientLayer.defaultAngle
 
   var isEmpty: Bool { colors.isEmpty }
 
@@ -190,6 +191,7 @@ struct ThemeGradient: Equatable {
 final class ArcGradientLayer: CALayer {
   static let samples = 16
   static let reach: CGFloat = 0.75
+  static let defaultAngle: CGFloat = 135
   private static let space = CGColorSpace(name: CGColorSpace.extendedSRGB)!
   private static let still: [String: CAAction] = [
     "bounds": NSNull(), "position": NSNull(), "colors": NSNull(), "locations": NSNull(), "startPoint": NSNull(),
@@ -199,6 +201,7 @@ final class ArcGradientLayer: CALayer {
   private let base = CAGradientLayer()
   private let overlay = CAGradientLayer()
   var flipped = false { didSet { setNeedsLayout() } }
+  var angle = ArcGradientLayer.defaultAngle { didSet { if angle != oldValue { setNeedsLayout() } } }
 
   override init() {
     super.init()
@@ -242,16 +245,18 @@ final class ArcGradientLayer: CALayer {
     base.frame = bounds
     overlay.frame = bounds
     let w = max(bounds.width, 1), h = max(bounds.height, 1)
-    let short = min(w, h), long = max(w, h)
-    let c0 = short / 2 - short * short / (2 * long)
-    let c1 = long + short / 2 + short * short / (2 * long)
-    let cE = c0 + Self.reach * (c1 - c0)
-    let norm = w * w + h * h
     let unit = { (u: CGFloat, v: CGFloat) in CGPoint(x: u, y: self.flipped ? v : 1 - v) }
-    base.startPoint = unit(c0 * w / norm, c0 * h / norm)
-    base.endPoint = unit(cE * w / norm, cE * h / norm)
-    overlay.startPoint = unit(0.5, 0)
-    overlay.endPoint = unit(0.5, 1)
+    func place(_ layer: CAGradientLayer, degrees: CGFloat, reach: CGFloat, half: (CGFloat, CGFloat) -> CGFloat) {
+      let r = degrees * .pi / 180, dx = sin(r), dy = -cos(r)
+      let length = half(dx, dy)
+      let ax = w * dx, ay = h * dy
+      let scale = 2 * length * reach / (ax * ax + ay * ay)
+      let u = 0.5 - length * dx / w, v = 0.5 - length * dy / h
+      layer.startPoint = unit(u, v)
+      layer.endPoint = unit(u + ax * scale, v + ay * scale)
+    }
+    place(base, degrees: angle, reach: Self.reach) { dx, dy in hypot(w * dx, h * dy) * hypot(w, h) / (2 * max(w, h)) }
+    place(overlay, degrees: angle + 45, reach: 1) { dx, dy in (w * abs(dx) + h * abs(dy)) / 2 }
   }
 
   private static func cgColor(_ c: SIMD4<Float>) -> CGColor {
@@ -382,6 +387,7 @@ final class WindowTreatmentView: NSView {
       guard custom != oldValue else { return }
       if custom?.appearance != oldValue?.appearance { appearance = custom?.forcedAppearance }
       if custom?.colors != oldValue?.colors { themeLayer.setColors(custom?.colors ?? []) }
+      themeLayer.angle = custom?.angle ?? ArcGradientLayer.defaultAngle
       updateAppearance()
       updateTint()
     }
@@ -534,6 +540,10 @@ final class ThemeSwatchView: ExpoView {
 
   func setTexture(_ value: String) {
     grain.texture = value
+  }
+
+  func setAngle(_ degrees: Double) {
+    themeLayer.angle = CGFloat(degrees)
   }
 
   func setPadLightness(_ value: Double) {

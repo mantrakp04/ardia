@@ -6,6 +6,7 @@ export const THEME_TEXTURES: ThemeTexture[] = ["grain", "sand", "denim", "tweed"
 
 const TEXTURE_STRENGTH: Record<ThemeTexture, number> = { grain: 0.8, sand: 0.15, denim: 0.6, tweed: 0.4 };
 const BASE_REACH = 0.75;
+export const DEFAULT_THEME_ANGLE = 135;
 
 export type ThemeBackdropProps = {
   themeColors: number[];
@@ -14,6 +15,7 @@ export type ThemeBackdropProps = {
   themeGrain: number;
   themeTexture: ThemeTexture;
   themeAppearance: ThemeMode;
+  themeAngle: number;
 };
 
 export const PRESET_BACKDROP: ThemeBackdropProps = {
@@ -23,6 +25,7 @@ export const PRESET_BACKDROP: ThemeBackdropProps = {
   themeGrain: 0,
   themeTexture: "grain",
   themeAppearance: "auto",
+  themeAngle: DEFAULT_THEME_ANGLE,
 };
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
@@ -105,15 +108,20 @@ export function mixOklab(a: ThemeColor, b: ThemeColor, t: number): [number, numb
   return fromOklab(la.map((v, i) => v + (lb[i]! - v) * t) as Lab);
 }
 
+function alongAngle(degrees: number, x: number, y: number, width: number, height: number, half: (dx: number, dy: number) => number): number {
+  const r = (degrees * Math.PI) / 180, dx = Math.sin(r), dy = -Math.cos(r);
+  return ((x - width / 2) * dx + (y - height / 2) * dy) / (2 * half(dx, dy)) + 0.5;
+}
+
 export function themeArea(theme: ProfileTheme, x: number, y: number, width: number, height: number): [number, number, number] {
   const [c0, c1 = c0, c2] = theme.stops.map((s) => s.color) as [ThemeColor, ThemeColor?, ThemeColor?];
-  const short = Math.min(width, height), long = Math.max(width, height);
-  const start = short / 2 - (short * short) / (2 * long);
-  const end = long + short / 2 + (short * short) / (2 * long);
-  const t = clamp01((x + y - start) / (end - start) / BASE_REACH);
+  const angle = theme.angle ?? DEFAULT_THEME_ANGLE;
+  const baseHalf = (dx: number, dy: number) => (Math.hypot(width * dx, height * dy) * Math.hypot(width, height)) / (2 * Math.max(width, height));
+  const t = clamp01(alongAngle(angle, x, y, width, height, baseHalf) / BASE_REACH);
   const base = mixOklab(c0, c1, t);
   if (!c2) return base;
-  const a = clamp01(y / height) * c2.a;
+  const overlayHalf = (dx: number, dy: number) => (width * Math.abs(dx) + height * Math.abs(dy)) / 2;
+  const a = clamp01(alongAngle(angle + 45, x, y, width, height, overlayHalf)) * c2.a;
   return base.map((v, i) => v + ((i === 0 ? c2.r : i === 1 ? c2.g : c2.b) - v) * a) as [number, number, number];
 }
 
@@ -123,7 +131,9 @@ export function themeDark(theme: ProfileTheme, appDark: boolean): boolean {
 
 export function resolveTheme(theme: ProfileTheme, dark: boolean): ProfileTheme {
   const { dark: darkLook, ...base } = theme;
-  return dark && darkLook ? { ...base, ...darkLook } : base;
+  if (!dark || !darkLook) return base;
+  const { angle: _lightAngle, ...light } = base;
+  return { ...light, ...darkLook };
 }
 
 export function arcLayerAlpha(intensity: number): number {
@@ -155,6 +165,7 @@ export function themeBackdrop(theme: ProfileTheme, dark: boolean): ThemeBackdrop
     themeGrain: themeGrainAlpha(theme),
     themeTexture: theme.texture,
     themeAppearance: theme.mode,
+    themeAngle: theme.angle ?? DEFAULT_THEME_ANGLE,
   };
 }
 
@@ -235,6 +246,7 @@ function sanitizeLook(v: unknown): ThemeLook | null {
     grain: clamp01(num(t.grain, 0)),
     texture: THEME_TEXTURES.includes(t.texture as ThemeTexture) ? (t.texture as ThemeTexture) : "grain",
     translucency: clamp01(num(t.translucency, 1)),
+    ...(typeof t.angle === "number" && Number.isFinite(t.angle) ? { angle: ((t.angle % 360) + 360) % 360 } : {}),
   };
 }
 
