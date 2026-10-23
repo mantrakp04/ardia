@@ -5,7 +5,7 @@ export const GET: APIRoute = async ({ site }) => {
   const home = new URL(import.meta.env.BASE_URL, site);
   const notes = await getCollection("releaseNotes");
   const lastmod = notes.map((n) => n.data.date.toISOString().slice(0, 10)).sort().at(-1);
-  const urls = ["", "release-notes/"].map(
+  const urls = ["", "release-notes/", "press/"].map(
     (path) => `  <url><loc>${new URL(path, home)}</loc>${lastmod ? `<lastmod>${lastmod}</lastmod>` : ""}</url>`,
   );
   return new Response(
