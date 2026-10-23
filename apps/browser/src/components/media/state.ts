@@ -102,10 +102,10 @@ export const hasTrackControls = (session: Session) => session.actions.includes("
 
 export const SKIP_SECONDS = 15;
 
-export function isTabShown(s: BrowserState, tabId: string): boolean {
+export function isTabShown(s: BrowserState, tabId: string, profileId?: string): boolean {
   const windowId = s.tabs[tabId]?.windowId;
   if (!windowId) return false;
-  const active = activeTabId(s, windowId);
+  const active = activeTabId(s, windowId, profileId);
   if (!active) return false;
   return active === tabId || !!splitOf(s, active)?.tabIds.includes(tabId);
 }
