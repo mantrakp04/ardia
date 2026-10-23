@@ -1,12 +1,13 @@
 import { Surface, Symbol } from "@ardia/shell";
-import { useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { AccessibilityInfo, Animated, Easing, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ICON_CATALOG, ICON_STYLES, iconValue, parseCustomIcon, type IconStyle } from "../../lib/iconCatalog";
 import { hex, useTheme } from "../../lib/theme";
 import { useLive } from "../../live/store";
 import { useBrowser } from "../../store/browser";
 import { setIcon } from "./actions";
 import { setSidebarUi, useSidebarUi } from "./state";
-import { SYMBOL_PREFIX } from "./TabIcon";
+import { CustomIcon } from "../icons/CustomIcon";
 
 const EMOJI: [string, string][] = [
   ["⭐️", "star favorite"], ["🔥", "fire hot"], ["❤️", "heart love"], ["✅", "check done"], ["📌", "pin"], ["🚀", "rocket launch ship"],
@@ -29,43 +30,17 @@ const EMOJI: [string, string][] = [
   ["🔴", "red circle"], ["🟠", "orange circle"], ["🟡", "yellow circle"], ["🟢", "green circle"], ["🔵", "blue circle"], ["🟣", "purple circle"],
 ];
 
-const SYMBOLS: [string, string, string?][] = [
-  ["star", "Star", "favorite"], ["heart", "Heart", "love"], ["bookmark", "Bookmark", "saved"], ["flag", "Flag"],
-  ["pin", "Pin"], ["bolt", "Lightning", "fast bolt"], ["flame", "Flame", "fire hot"], ["leaf", "Leaf", "nature plant"],
-  ["globe", "Globe", "world earth"], ["house", "Home", "house"], ["briefcase", "Briefcase", "work"], ["cart", "Shopping cart"], ["bag", "Shopping bag"],
-  ["creditcard", "Credit card", "payment"], ["dollarsign.circle", "Money", "dollar finance"], ["chart.bar", "Bar chart", "data"],
-  ["chart.line.uptrend.xyaxis", "Growth chart", "stocks trend finance"], ["calendar", "Calendar", "date"], ["clock", "Clock", "time"], ["alarm", "Alarm"],
-  ["envelope", "Mail", "email envelope"], ["bubble.left", "Chat", "message conversation"], ["phone", "Phone", "call"], ["video", "Video"],
-  ["music.note", "Music", "song"], ["headphones", "Headphones", "music audio"], ["gamecontroller", "Games", "play controller"],
-  ["paintbrush", "Paintbrush", "art design"], ["camera", "Camera", "photo"], ["film", "Film", "movie"], ["tv", "TV", "television watch"],
-  ["airplane", "Airplane", "travel flight"], ["map", "Map", "travel"], ["car", "Car", "drive"], ["fork.knife", "Food", "restaurant dining"],
-  ["cup.and.saucer", "Coffee", "cup tea"], ["figure.run", "Running", "fitness gym exercise"], ["sportscourt", "Sports", "court"],
-  ["pawprint", "Pets", "animal paw"], ["tree", "Tree", "nature"], ["sun.max", "Sun", "day weather"], ["moon", "Moon", "night"],
-  ["cloud", "Cloud", "weather"], ["snowflake", "Snowflake", "snow cold"], ["sparkles", "Sparkles"], ["gift", "Gift", "present"],
-  ["trophy", "Trophy", "win award"], ["target", "Target", "goal"], ["brain", "Brain", "think"], ["eye", "Eye", "look"],
-  ["laptopcomputer", "Laptop", "computer code"], ["desktopcomputer", "Desktop", "computer monitor"], ["keyboard", "Keyboard", "type"],
-  ["hammer", "Hammer", "tools build"], ["wrench.and.screwdriver", "Tools", "fix repair"], ["gearshape", "Settings", "gear"],
-  ["testtube.2", "Science", "test lab research"], ["ant", "Bug", "ant insect"], ["lock", "Lock", "secure privacy"], ["key", "Key"],
-  ["puzzlepiece", "Puzzle", "extension"], ["shippingbox", "Package", "box shipping"], ["folder", "Folder", "files"],
-  ["archivebox", "Archive", "storage"], ["newspaper", "News", "paper"], ["link", "Link"], ["magnifyingglass", "Search", "find"],
-  ["safari", "Compass", "explore browser"], ["tag", "Tag", "label"], ["lightbulb", "Idea", "light bulb"],
-  ["questionmark.circle", "Question", "help"], ["exclamationmark.triangle", "Warning", "important"], ["book", "Book", "read study"],
-  ["graduationcap", "Education", "school study graduate"], ["doc.text", "Document", "note write"], ["list.bullet", "List", "tasks"],
-  ["checkmark.circle", "Checkmark", "done complete"], ["person.2", "People", "team group"],
-];
-
 const COLUMNS = 8;
 const CELL = 34;
 const SCROLLBAR_GUTTER = 16;
 const WIDTH = COLUMNS * CELL + 24 + SCROLLBAR_GUTTER;
+const TRANSITION_MS = 160;
+const STYLE_ROW_HEIGHT = 38;
 
 type IconOption = { value: string; label: string; keywords: string };
 type PickerTab = "symbols" | "emoji";
 
-const ICON_OPTIONS: Record<PickerTab, IconOption[]> = {
-  symbols: SYMBOLS.map(([name, label, keywords = ""]) => ({ value: SYMBOL_PREFIX + name, label, keywords: `${name} ${keywords}` })),
-  emoji: EMOJI.map(([value, words]) => ({ value, label: words[0]!.toUpperCase() + words.slice(1), keywords: words })),
-};
+const EMOJI_OPTIONS: IconOption[] = EMOJI.map(([value, words]) => ({ value, label: words[0]!.toUpperCase() + words.slice(1), keywords: words }));
 
 export function IconPicker({ windowId, sidebarWidth }: { windowId: string; sidebarWidth: number }) {
   const picker = useSidebarUi((u) => (u.iconPicker?.windowId === windowId ? u.iconPicker : null));
@@ -78,12 +53,17 @@ function PickerPanel({ picker, sidebarWidth }: { picker: Picker; sidebarWidth: n
   const theme = useTheme();
   const liveIcon = useLive((s) => (picker.kind === "live" ? s.folders[picker.id.split("|")[1] ?? ""]?.icon : null));
   const current = useBrowser((s) => (picker.kind === "tab" ? s.tabs[picker.id]?.customIcon : picker.kind === "live" ? liveIcon : s.groups[picker.id]?.icon) ?? null);
-  const [tab, setTab] = useState<PickerTab>(current && !current.startsWith(SYMBOL_PREFIX) ? "emoji" : "symbols");
+  const currentIcon = current ? parseCustomIcon(current) : null;
+  const [tab, setTab] = useState<PickerTab>(current && !currentIcon ? "emoji" : "symbols");
+  const [style, setStyle] = useState<IconStyle>(currentIcon?.style ?? "symbols");
   const [query, setQuery] = useState("");
+  const reduceMotion = useReducedMotion();
+  const styleHeight = usePickerHeight(tab === "symbols" ? STYLE_ROW_HEIGHT : 0, reduceMotion);
   const items = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return ICON_OPTIONS[tab].filter(({ value, label, keywords }) => !q || `${label} ${keywords} ${tab === "emoji" ? value : ""}`.toLowerCase().includes(q));
-  }, [tab, query]);
+    const options = tab === "emoji" ? EMOJI_OPTIONS : ICON_CATALOG.map(({ name, label, keywords }) => ({ value: iconValue(style, name), label, keywords: `${name} ${keywords}` }));
+    return options.filter(({ value, label, keywords }) => !q || `${label} ${keywords} ${tab === "emoji" ? value : ""}`.toLowerCase().includes(q));
+  }, [tab, style, query]);
   const close = () => setSidebarUi({ iconPicker: null });
   const choose = (icon: string | null) => {
     setIcon(picker, icon);
@@ -104,16 +84,28 @@ function PickerPanel({ picker, sidebarWidth }: { picker: Picker; sidebarWidth: n
         shadowOpacity={theme.panelShadowOpacity}
         shadowRadius={20}
         shadowOffset={[0, 8]}
-        style={{ position: "absolute", top, left, width: WIDTH, padding: 12, gap: 10 }}
+        style={{ position: "absolute", top, left, width: WIDTH, padding: 12 }}
       >
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
           <Text style={{ fontSize: 13, fontWeight: "600", color: theme.textPrimary }}>Edit icon</Text>
           <View style={{ flexDirection: "row", padding: 2, borderRadius: 8, backgroundColor: theme.urlPill }}>
             <ModeButton label="Icons" selected={tab === "symbols"} onPress={() => setTab("symbols")} />
             <ModeButton label="Emoji" selected={tab === "emoji"} onPress={() => setTab("emoji")} />
           </View>
         </View>
-        <View style={{ height: 30, borderRadius: 8, backgroundColor: theme.urlPill, flexDirection: "row", alignItems: "center", paddingHorizontal: 9 }}>
+        <Animated.View
+          pointerEvents={tab === "symbols" ? "auto" : "none"}
+          accessibilityElementsHidden={tab !== "symbols"}
+          importantForAccessibility={tab === "symbols" ? "auto" : "no-hide-descendants"}
+          style={{ height: styleHeight, opacity: styleHeight.interpolate({ inputRange: [0, STYLE_ROW_HEIGHT], outputRange: [0, 1] }), overflow: "hidden" }}
+        >
+          <View style={{ flexDirection: "row", padding: 2, borderRadius: 8, backgroundColor: theme.urlPill }}>
+            {ICON_STYLES.map(({ id, label }) => (
+              <ModeButton key={id} label={label} selected={style === id} disabled={tab !== "symbols"} expand onPress={() => setStyle(id)} />
+            ))}
+          </View>
+        </Animated.View>
+        <View style={{ height: 30, borderRadius: 8, backgroundColor: theme.urlPill, flexDirection: "row", alignItems: "center", paddingHorizontal: 9, marginBottom: 10 }}>
           <Symbol name="magnifyingglass" size={12} color={theme.icon} style={{ width: 14, height: 14 }} />
           <TextInput
             autoFocus
@@ -130,22 +122,9 @@ function PickerPanel({ picker, sidebarWidth }: { picker: Picker; sidebarWidth: n
             style={{ flex: 1, fontSize: 12, marginLeft: 7, color: theme.textPrimary, paddingVertical: 0 }}
           />
         </View>
-        <ScrollView key={tab} style={{ maxHeight: CELL * 6 }} showsVerticalScrollIndicator>
-          {items.length ? (
-            <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-              {items.map((item) => (
-                <Cell key={item.value} item={item} selected={item.value === current} onPress={() => choose(item.value)} />
-              ))}
-            </View>
-          ) : (
-            <View style={{ minHeight: CELL * 3, alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 12 }}>
-              <Text style={{ fontSize: 12, fontWeight: "500", color: theme.textPrimary }}>{tab === "emoji" ? "No emoji found" : "No icons found"}</Text>
-              <Text style={{ fontSize: 12, color: theme.dark ? "#FFFFFFB3" : "#00000099", textAlign: "center" }}>Try a different search.</Text>
-            </View>
-          )}
-        </ScrollView>
+        <GridTransition items={items} tab={tab} iconStyle={style} current={current} reduceMotion={reduceMotion} onChoose={choose} />
         {current ? (
-          <View style={{ borderTopWidth: 0.5, borderTopColor: theme.divider, paddingTop: 8 }}>
+          <View style={{ borderTopWidth: 0.5, borderTopColor: theme.divider, paddingTop: 8, marginTop: 10 }}>
             <Pressable accessibilityRole="button" accessibilityLabel="Reset icon" onAccessibilityTap={() => choose(null)} onPress={() => choose(null)}>
               {({ pressed }) => (
                 <View style={{ height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center", backgroundColor: pressed ? theme.rowSelected : theme.urlPill }}>
@@ -160,11 +139,129 @@ function PickerPanel({ picker, sidebarWidth }: { picker: Picker; sidebarWidth: n
   );
 }
 
-function ModeButton({ label, selected, onPress }: { label: string; selected: boolean; onPress(): void }) {
+function useReducedMotion() {
+  const [enabled, setEnabled] = useState(true);
+  useEffect(() => {
+    let mounted = true;
+    let changed = false;
+    const subscription = AccessibilityInfo.addEventListener("reduceMotionChanged", (value) => {
+      changed = true;
+      if (mounted) setEnabled(value);
+    });
+    AccessibilityInfo.isReduceMotionEnabled().then(
+      (value) => mounted && !changed && setEnabled(value),
+      () => {},
+    );
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, []);
+  return enabled;
+}
+
+function usePickerHeight(target: number, reduceMotion: boolean) {
+  const height = useRef(new Animated.Value(target)).current;
+  useEffect(() => {
+    if (reduceMotion) {
+      height.setValue(target);
+      return;
+    }
+    const animation = Animated.timing(height, { toValue: target, duration: TRANSITION_MS, easing: Easing.out(Easing.cubic), useNativeDriver: false });
+    animation.start();
+    return () => animation.stop();
+  }, [height, target, reduceMotion]);
+  return height;
+}
+
+type GridSnapshot = { key: string; items: IconOption[]; tab: PickerTab; opacity: Animated.Value };
+
+function gridHeight(items: IconOption[]) {
+  return items.length ? Math.min(6, Math.ceil(items.length / COLUMNS)) * CELL : CELL * 3;
+}
+
+function GridTransition({ items, tab, iconStyle, current, reduceMotion, onChoose }: {
+  items: IconOption[];
+  tab: PickerTab;
+  iconStyle: IconStyle;
+  current: string | null;
+  reduceMotion: boolean;
+  onChoose(icon: string): void;
+}) {
+  const key = `${tab}:${iconStyle}`;
+  const [layers, setLayers] = useState<GridSnapshot[]>(() => [{ key, items, tab, opacity: new Animated.Value(1) }]);
+  const height = usePickerHeight(gridHeight(items), reduceMotion);
+  useLayoutEffect(() => {
+    setLayers((existing) => existing.some((layer) => layer.key === key)
+      ? existing.map((layer) => layer.key === key ? { ...layer, items, tab } : layer)
+      : [...existing, { key, items, tab, opacity: new Animated.Value(0) }]);
+  }, [key, items, tab]);
+  const removeLayer = useCallback((hiddenKey: string) => setLayers((existing) => existing.filter((layer) => layer.key !== hiddenKey)), []);
+  return (
+    <Animated.View style={{ height, overflow: "hidden" }}>
+      {layers.map((layer) => (
+        <GridLayer key={layer.key} layer={layer} active={layer.key === key} current={current} reduceMotion={reduceMotion} onChoose={onChoose} onHidden={removeLayer} />
+      ))}
+    </Animated.View>
+  );
+}
+
+function GridLayer({ layer, active, current, reduceMotion, onChoose, onHidden }: {
+  layer: GridSnapshot;
+  active: boolean;
+  current: string | null;
+  reduceMotion: boolean;
+  onChoose(icon: string): void;
+  onHidden(key: string): void;
+}) {
+  const theme = useTheme();
+  const { key, opacity, items, tab } = layer;
+  useEffect(() => {
+    if (reduceMotion) {
+      opacity.setValue(active ? 1 : 0);
+      if (!active) onHidden(key);
+      return;
+    }
+    let cancelled = false;
+    const animation = Animated.timing(opacity, { toValue: active ? 1 : 0, duration: TRANSITION_MS, easing: Easing.out(Easing.cubic), useNativeDriver: true });
+    animation.start(({ finished }) => {
+      if (finished && !active && !cancelled) onHidden(key);
+    });
+    return () => {
+      cancelled = true;
+      animation.stop();
+    };
+  }, [active, reduceMotion, opacity, key, onHidden]);
+  return (
+    <Animated.View
+      pointerEvents={active ? "auto" : "none"}
+      accessibilityElementsHidden={!active}
+      importantForAccessibility={active ? "auto" : "no-hide-descendants"}
+      style={{ position: "absolute", left: 0, right: 0, top: 0, height: gridHeight(items), opacity }}
+    >
+      <ScrollView style={{ height: gridHeight(items) }} showsVerticalScrollIndicator>
+        {items.length ? (
+          <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+            {items.map((item) => (
+              <Cell key={item.value} item={item} selected={item.value === current} disabled={!active} onPress={() => onChoose(item.value)} />
+            ))}
+          </View>
+        ) : (
+          <View style={{ minHeight: CELL * 3, alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 12 }}>
+            <Text style={{ fontSize: 12, fontWeight: "500", color: theme.textPrimary }}>{tab === "emoji" ? "No emoji found" : "No icons found"}</Text>
+            <Text style={{ fontSize: 12, color: theme.dark ? "#FFFFFFB3" : "#00000099", textAlign: "center" }}>Try a different search.</Text>
+          </View>
+        )}
+      </ScrollView>
+    </Animated.View>
+  );
+}
+
+function ModeButton({ label, selected, disabled = false, expand = false, onPress }: { label: string; selected: boolean; disabled?: boolean; expand?: boolean; onPress(): void }) {
   const theme = useTheme();
   const [hovered, setHovered] = useState(false);
   return (
-    <Pressable accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected }} onAccessibilityTap={onPress} onPress={onPress}>
+    <Pressable accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected, disabled }} disabled={disabled} focusable={!disabled} onAccessibilityTap={disabled ? undefined : onPress} onPress={disabled ? undefined : onPress} style={expand ? { flex: 1 } : undefined}>
       {({ pressed }) => (
         <View
           onMouseEnter={() => setHovered(true)}
@@ -186,17 +283,19 @@ function ModeButton({ label, selected, onPress }: { label: string; selected: boo
   );
 }
 
-function Cell({ item, selected, onPress }: { item: IconOption; selected: boolean; onPress(): void }) {
+function Cell({ item, selected, disabled, onPress }: { item: IconOption; selected: boolean; disabled: boolean; onPress(): void }) {
   const theme = useTheme();
   const [hovered, setHovered] = useState(false);
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={item.label}
-      accessibilityState={{ selected }}
+      accessibilityState={{ selected, disabled }}
+      disabled={disabled}
+      focusable={!disabled}
       tooltip={item.label}
-      onAccessibilityTap={onPress}
-      onPress={onPress}
+      onAccessibilityTap={disabled ? undefined : onPress}
+      onPress={disabled ? undefined : onPress}
       style={{ width: CELL, height: CELL, padding: 2 }}
     >
       {({ pressed }) => (
@@ -213,8 +312,8 @@ function Cell({ item, selected, onPress }: { item: IconOption; selected: boolean
             backgroundColor: selected || pressed ? theme.rowSelected : hovered ? theme.rowHover : undefined,
           }}
         >
-          {item.value.startsWith(SYMBOL_PREFIX) ? (
-            <Symbol name={item.value.slice(SYMBOL_PREFIX.length)} size={17} weight="regular" color={theme.icon} style={{ width: 22, height: 22 }} />
+          {parseCustomIcon(item.value) ? (
+            <CustomIcon value={item.value} size={22} glyphSize={17} weight="regular" />
           ) : (
             <Text style={{ fontSize: 20 }}>{item.value}</Text>
           )}

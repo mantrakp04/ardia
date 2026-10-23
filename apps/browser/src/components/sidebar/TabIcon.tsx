@@ -1,12 +1,12 @@
-import { Symbol } from "@ardia/shell";
 import { memo } from "react";
 import { Text, View } from "react-native";
+import { isVectorIcon, parseCustomIcon } from "../../lib/iconCatalog";
 import { useIsSleeping } from "../../lib/tabLifecycle";
-import { useTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
+import { CustomIcon } from "../icons/CustomIcon";
 import { Favicon } from "../primitives";
 
-export const SYMBOL_PREFIX = "symbol:";
+export { SYMBOL_PREFIX } from "../../lib/iconCatalog";
 
 export const TabIcon = memo(function TabIcon({
   tabId,
@@ -60,11 +60,10 @@ function Icon({
   profileId?: string;
   direct?: boolean;
 }) {
-  const theme = useTheme();
-  if (icon?.startsWith(SYMBOL_PREFIX)) {
-    return <Symbol name={icon.slice(SYMBOL_PREFIX.length)} size={size - 3} weight="medium" color={color ?? theme.icon} style={{ width: size, height: size }} />;
+  if (icon && parseCustomIcon(icon)) {
+    return <CustomIcon value={icon} size={size} glyphSize={size - 3} weight="medium" color={color} />;
   }
-  if (icon) {
+  if (icon && !isVectorIcon(icon)) {
     return (
       <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
         <Text style={{ fontSize: size - 3, lineHeight: size }}>{icon}</Text>
