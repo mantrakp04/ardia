@@ -1,6 +1,7 @@
 """Ardia's logo assets from the oil-painted "hills" (source/, picked 2026-10-10). Run from the repo root;
 the results go to output/brand/ardia/final/, then to their slots (see README.md)."""
 from pathlib import Path
+import json
 import numpy as np
 from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
@@ -14,20 +15,23 @@ def clean_alpha(im, floor=16):
     """Drop the faint flecks around a cut-out and trim to the art."""
     im = im.convert("RGBA")
     a = np.array(im.getchannel("A")).astype(np.int32)
-    a = np.where(a < floor, 0, np.clip((a - floor) * 255 // (255 - floor), 0, 255))
+    a = np.where(a < floor, 0, np.clip(
+        (a - floor) * 255 // (255 - floor), 0, 255))
     im.putalpha(Image.fromarray(a.astype(np.uint8)))
     return im.crop(im.getbbox())
 
 
 def rounded_mask(size, box, radius, ss=4):
     m = Image.new("L", (size * ss, size * ss), 0)
-    ImageDraw.Draw(m).rounded_rectangle([v * ss for v in box], radius * ss, fill=255)
+    ImageDraw.Draw(m).rounded_rectangle(
+        [v * ss for v in box], radius * ss, fill=255)
     return m.resize((size, size), LZ)
 
 
 src = Image.open(SRC / "app-icon.png").convert("RGBA")
 art = src.crop((131, 133, 893, 891))
-parchment = tuple(int(v) for v in np.median(np.array(art)[8:40, 300:460, :3].reshape(-1, 3), axis=0))
+parchment = tuple(int(v) for v in np.median(
+    np.array(art)[8:40, 300:460, :3].reshape(-1, 3), axis=0))
 flat = Image.new("RGBA", art.size, parchment + (255,))
 flat.alpha_composite(art)
 square = flat.resize((1024, 1024), LZ)
@@ -38,7 +42,8 @@ icon = Image.new("RGBA", (1024, 1024), (0, 0, 0, 0))
 body = (100, 100, 924, 924)
 mask = rounded_mask(1024, body, 185.4)
 shadow = Image.new("RGBA", (1024, 1024), (0, 0, 0, 0))
-shadow.putalpha(ImageChops.offset(mask, 0, 10).point(lambda v: v * 0.3).filter(ImageFilter.GaussianBlur(12)))
+shadow.putalpha(ImageChops.offset(mask, 0, 10).point(
+    lambda v: v * 0.3).filter(ImageFilter.GaussianBlur(12)))
 icon.alpha_composite(shadow)
 tile = square.resize((824, 824), LZ)
 canvas = Image.new("RGBA", (1024, 1024), (0, 0, 0, 0))
@@ -67,7 +72,8 @@ def fit(im, size, width_frac, bottom=None):
 
 
 for scale in (1, 2, 3):
-    fit(mark, 100 * scale, 0.94, bottom=0).save(OUT / f"ntp-mark{'' if scale == 1 else f'@{scale}x'}.png")
+    fit(mark, 100 * scale, 0.94, bottom=0).save(OUT /
+                                                f"ntp-mark{'' if scale == 1 else f'@{scale}x'}.png")
 
 fit(mark, 1024, 0.96).save(OUT / "plate-mark-1024.png")
 
@@ -90,13 +96,15 @@ sy, sx = np.nonzero(sun)
 sun_r = np.sqrt(sun.sum() / np.pi)
 yy, xx = np.mgrid[: sun.shape[0], : sun.shape[1]]
 small_sun = np.hypot(xx - sx.mean(), yy - sy.mean()) <= sun_r - pt * 0.3
-cut = (grow(light, gap) & grow(dark, gap)) | (grow(sun, 2 * round(pt * 0.25) + 1) & ~sun) | (sun & ~small_sun)
+cut = (grow(light, gap) & grow(dark, gap)) | (
+    grow(sun, 2 * round(pt * 0.25) + 1) & ~sun) | (sun & ~small_sun)
 glyph_a = np.where(cut, 0, alpha)
 glyph = Image.new("RGBA", flat_mark.size, (0, 0, 0, 255))
 glyph.putalpha(Image.fromarray(glyph_a.astype(np.uint8)))
 glyph = glyph.crop(glyph.getbbox())
 for scale in (1, 2, 3):
-    fit(glyph, 16 * scale, 1.0).save(OUT / f"new-tab-mark{'' if scale == 1 else f'@{scale}x'}.png")
+    fit(glyph, 16 * scale, 1.0).save(OUT /
+                                     f"new-tab-mark{'' if scale == 1 else f'@{scale}x'}.png")
 fit(glyph, 512, 1.0).save(OUT / "new-tab-mark-512.png")
 
 square.convert("RGB").resize((180, 180), LZ).save(OUT / "apple-touch-icon.png")
@@ -121,23 +129,29 @@ def tinted_marks(base, names=PROFILE_SWATCHES):
 
     def soft(mask, median, blur):
         size = max(3, int(median * scale) // 2 * 2 + 1)
-        img = Image.fromarray((mask * 255).astype(np.uint8)).filter(ImageFilter.MedianFilter(size))
+        img = Image.fromarray((mask * 255).astype(np.uint8)
+                              ).filter(ImageFilter.MedianFilter(size))
         return np.array(img.filter(ImageFilter.GaussianBlur(blur))).astype(np.float32) / 255
 
-    sun = soft((h > 0.06) & (h < 0.18) & (s > 0.35) & (v > 0.5), 5, 1.2 * scale)
+    sun = soft((h > 0.06) & (h < 0.18) & (
+        s > 0.35) & (v > 0.5), 5, 1.2 * scale)
     hill = 1 - sun
     lum = rgb @ np.array([0.2126, 0.7152, 0.0722])
     solid = (hill > 0.9) & (al > 0.5)
     lo, hi = np.percentile(lum[solid], 1), np.percentile(lum[solid], 99.5)
-    light_hill = soft((h > 0.15) & (h < 0.33) & (al > 0.5) & (sun < 0.5), 9, 2 * scale)
-    t = np.clip((lum - lo) / (hi - lo) + 0.18 * light_hill - 0.1 * (1 - light_hill), 0, 1)
+    light_hill = soft((h > 0.15) & (h < 0.33) & (
+        al > 0.5) & (sun < 0.5), 9, 2 * scale)
+    t = np.clip((lum - lo) / (hi - lo) + 0.18 *
+                light_hill - 0.1 * (1 - light_hill), 0, 1)
 
     def ramp(color):
-        stops = [(0.0, color * 0.4), (0.55, color * 0.78), (1.0, color + (1 - color) * 0.6)]
+        stops = [(0.0, color * 0.4), (0.55, color * 0.78),
+                 (1.0, color + (1 - color) * 0.6)]
         out = np.zeros(t.shape + (3,))
         for (t0, c0), (t1, c1) in zip(stops, stops[1:]):
             k = np.clip((t - t0) / (t1 - t0), 0, 1)[..., None]
-            out = np.where(((t >= t0) & (t <= t1))[..., None], c0 + (c1 - c0) * k, out)
+            out = np.where(((t >= t0) & (t <= t1))
+                           [..., None], c0 + (c1 - c0) * k, out)
         return out
 
     sun_lum = np.percentile(lum[sun > 0.9], 70)
@@ -145,7 +159,8 @@ def tinted_marks(base, names=PROFILE_SWATCHES):
         color = hsvlib.to_rgb(PROFILE_SWATCHES[name])
         if name == "neutral":
             color = np.full(3, color @ np.array([0.2126, 0.7152, 0.0722]))
-        sun_rgb = rgb if name not in SUNS else np.clip(hsvlib.to_rgb(SUNS[name]) * (lum / sun_lum)[..., None], 0, 1)
+        sun_rgb = rgb if name not in SUNS else np.clip(
+            hsvlib.to_rgb(SUNS[name]) * (lum / sun_lum)[..., None], 0, 1)
         out = ramp(color) * hill[..., None] + sun_rgb * sun[..., None]
         yield name, Image.fromarray((np.dstack([np.clip(out, 0, 1), al]) * 255).astype(np.uint8))
 
@@ -159,7 +174,33 @@ blobs, _ = nd.label(painting[..., 3] > 0.06)
 hills_blob = blobs == np.bincount(blobs[blobs > 0]).argmax()
 dark = nd.median_filter(hsvlib.rgb_to_hsv(painting[..., :3])[..., 0] > 0.34, 9)
 labels = np.where(hills_blob, np.where(dark, FRONT, BACK), SUN)
-labels = labels[tuple(nd.distance_transform_edt(~known, return_distances=False, return_indices=True))]
+labels = labels[tuple(nd.distance_transform_edt(
+    ~known, return_distances=False, return_indices=True))]
+
+APP_ICON = Path("apps/browser/macos/Ardia-macOS/AppIcon.icon")
+APP_ICON_ASSETS = APP_ICON / "Assets"
+APP_ICON_ASSETS.mkdir(parents=True, exist_ok=True)
+icon_alpha = np.array(mark.getchannel("A"))
+icon_layers = []
+for name, label in (("Back hill", BACK), ("Front hill", FRONT), ("Sun", SUN)):
+    layer = mark.copy()
+    layer.putalpha(Image.fromarray(
+        (icon_alpha * (labels == label)).astype(np.uint8)))
+    filename = f"{name.lower().replace(' ', '-')}.png"
+    fit(layer, 1024, 0.78, bottom=0).save(
+        APP_ICON_ASSETS / filename, optimize=True)
+    icon_layers.append({"name": name, "image-name": filename, "glass": True})
+
+icon_document = {
+    "fill": {"solid": "extended-srgb:0.97647,0.96078,0.89020,1.00000"},
+    "fill-specializations": [
+        {"appearance": "dark", "value": "system-dark"},
+        {"appearance": "tinted", "value": "none"},
+    ],
+    "groups": [{"name": "Ardia", "lighting": "individual", "layers": icon_layers}],
+    "supported-platforms": {"squares": ["macOS"]},
+}
+(APP_ICON / "icon.json").write_text(json.dumps(icon_document, indent=2) + "\n")
 
 
 def fit_mask(m, size):
@@ -167,8 +208,10 @@ def fit_mask(m, size):
     w = round(size * 0.94)
     h = round(mark.height * w / mark.width)
     out = np.zeros((size, size), np.float32)
-    small = Image.fromarray((m * 255).astype(np.uint8)).resize((w, h), Image.BOX)
-    out[size - h:, (size - w) // 2:(size - w) // 2 + w] = np.array(small, np.float32) / 255
+    small = Image.fromarray((m * 255).astype(np.uint8)
+                            ).resize((w, h), Image.BOX)
+    out[size - h:, (size - w) // 2:(size - w) // 2 +
+        w] = np.array(small, np.float32) / 255
     return out
 
 
@@ -187,9 +230,11 @@ def split_layers(comp, size):
     slope = np.polyfit(near, top[near], 1)[0]
     x = np.arange(size)
     ridge = np.where(x > notch, top[notch] + slope * (x - notch), top)
-    under = (np.arange(size)[:, None] >= ridge[None, :]) & (x >= cols.min())[None, :]
+    under = (np.arange(size)[:, None] >= ridge[None, :]) & (
+        x >= cols.min())[None, :]
     fill = under & (front > 0.998) & (cover > 0.97)
-    back = np.where(fill, a, np.where(cover * front < 0.999, a * (1 - front) / np.maximum(1 - cover * front, 1e-6), 0.0))
+    back = np.where(fill, a, np.where(cover * front < 0.999, a *
+                    (1 - front) / np.maximum(1 - cover * front, 1e-6), 0.0))
     return back * (1 - sun), a * front * (1 - sun), a * sun, core, fill
 
 
@@ -221,16 +266,22 @@ def layer(rgb, alpha):
 for scale in (1, 2, 3):
     suffix = "" if scale == 1 else f"@{scale}x"
     base = Image.open(OUT / f"ntp-mark{suffix}.png")
-    back, front, sun, core, fill = split_layers(np.array(base).astype(np.float32) / 255, 100 * scale)
-    variants = [("", base)] + [(f"-{name}", im) for name, im in tinted_marks(base)]
+    back, front, sun, core, fill = split_layers(
+        np.array(base).astype(np.float32) / 255, 100 * scale)
+    variants = [("", base)] + [(f"-{name}", im)
+                               for name, im in tinted_marks(base)]
     for name, im in variants:
         im.save(OUT / f"ntp-mark{name}{suffix}.png", optimize=True)
         comp = np.array(im).astype(np.float32) / 255
-        layer(paint_back(comp, core, fill), back).save(OUT / f"ntp-mark{name}-back{suffix}.png", optimize=True)
-        layer(comp, front).save(OUT / f"ntp-mark{name}-front{suffix}.png", optimize=True)
-        layer(comp, sun).save(OUT / f"ntp-mark{name}-sun{suffix}.png", optimize=True)
+        layer(paint_back(comp, core, fill), back).save(
+            OUT / f"ntp-mark{name}-back{suffix}.png", optimize=True)
+        layer(comp, front).save(
+            OUT / f"ntp-mark{name}-front{suffix}.png", optimize=True)
+        layer(comp, sun).save(
+            OUT / f"ntp-mark{name}-sun{suffix}.png", optimize=True)
     if scale == 3:
-        print("layer tops (pt):", [round(np.nonzero((m > 0.02).any(1))[0].min() / 3, 1) for m in (back, front, sun)])
+        print("layer tops (pt):", [round(np.nonzero((m > 0.02).any(1))[
+              0].min() / 3, 1) for m in (back, front, sun)])
 print("tinted marks")
 
 import shutil  # noqa: E402
@@ -245,11 +296,12 @@ for name, im in tinted_marks(Image.open(slots["AppIconMark"]), ("plum", "blue", 
 for slot, path in slots.items():
     folder = XCASSETS / f"{slot}.imageset"
     folder.mkdir(exist_ok=True)
-    Image.open(path).resize((PLATE_MARK_PX, PLATE_MARK_PX), LZ).save(folder / "mark.png", optimize=True)
+    Image.open(path).resize((PLATE_MARK_PX, PLATE_MARK_PX),
+                            LZ).save(folder / "mark.png", optimize=True)
     (folder / "Contents.json").write_text(IMAGESET)
 print("plate marks")
 
-import base64, io, subprocess, tempfile  # noqa: E401, E402
+import tempfile  # noqa: E401, E402
 
 ENGINE = Path("engine/chromium/src")
 BLEED = 0.92
@@ -275,14 +327,18 @@ for size in (16, 24, 48, 64, 128, 256):
     put(f"chrome/app/theme/chromium/product_logo_{size}.png", logo(size))
 for scale in (1, 2):
     for size in (16, 32):
-        put(f"chrome/app/theme/default_{scale}00_percent/chromium/product_logo_{size}.png", logo(size * scale))
-    put(f"components/resources/default_{scale}00_percent/chromium/favicon_product.png", logo(16 * scale))
+        put(f"chrome/app/theme/default_{scale}00_percent/chromium/product_logo_{size}.png", logo(
+            size * scale))
+    put(f"components/resources/default_{scale}00_percent/chromium/favicon_product.png", logo(
+        16 * scale))
 
 for scale in (1, 2):
     for name in ("product_logo_name_22", "product_logo_name_22_white"):
-        put(f"chrome/app/theme/default_{scale}00_percent/chromium/{name}.png", logo(22 * scale))
+        put(f"chrome/app/theme/default_{scale}00_percent/chromium/{name}.png", logo(
+            22 * scale))
     for name in ("product_logo", "product_logo_white"):
-        put(f"components/resources/default_{scale}00_percent/chromium/{name}.png", logo(32 * scale))
+        put(f"components/resources/default_{scale}00_percent/chromium/{name}.png", logo(
+            32 * scale))
 
 png = io.BytesIO()
 logo(256).save(png, format="PNG", optimize=True)
@@ -296,7 +352,8 @@ with tempfile.TemporaryDirectory() as tmp:
     catalog = Path(tmp) / "Assets.xcassets"
     appicon = catalog / "AppIcon.appiconset"
     appicon.mkdir(parents=True)
-    (catalog / "Contents.json").write_text('{\n  "info" : {\n    "author" : "xcode",\n    "version" : 1\n  }\n}\n')
+    (catalog / "Contents.json").write_text(
+        '{\n  "info" : {\n    "author" : "xcode",\n    "version" : 1\n  }\n}\n')
     entries = []
     for pt in (16, 32, 128):
         for scale in (1, 2):

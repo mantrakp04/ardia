@@ -1,0 +1,43 @@
+{
+  "fill": {
+    "solid": "extended-srgb:0.97647,0.96078,0.89020,1.00000"
+  },
+  "fill-specializations": [
+    {
+      "appearance": "dark",
+      "value": "system-dark"
+    },
+    {
+      "appearance": "tinted",
+      "value": "none"
+    }
+  ],
+  "groups": [
+    {
+      "name": "Ardia",
+      "lighting": "individual",
+      "layers": [
+        {
+          "name": "Back hill",
+          "image-name": "back-hill.png",
+          "glass": true
+        },
+        {
+          "name": "Front hill",
+          "image-name": "front-hill.png",
+          "glass": true
+        },
+        {
+          "name": "Sun",
+          "image-name": "sun.png",
+          "glass": true
+        }
+      ]
+    }
+  ],
+  "supported-platforms": {
+    "squares": [
+      "macOS"
+    ]
+  }
+}
