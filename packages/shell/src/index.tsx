@@ -335,6 +335,8 @@ export const WindowDragRegion = requireNativeViewManager<ViewProps & { titleBarD
 
 export const OutsidePressArea = requireNativeViewManager<ViewProps & { onOutsidePress?: () => void }>("ArdiaOutsidePressArea");
 
+export const CursorOwner = requireNativeViewManager<ViewProps>("ArdiaCursorOwner");
+
 export type SymbolProps = ViewProps & {
   name: string;
   size?: number;

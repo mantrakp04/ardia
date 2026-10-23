@@ -3,8 +3,10 @@ import { useEffect, useState } from "react";
 import { Surface } from "@ardia/shell";
 import { AccessibilityInfo, Animated, StyleSheet, View } from "react-native";
 import { hex, layout, useTheme } from "../lib/theme";
+import { useWindowId } from "../store/hooks";
 import { springParams } from "./layout/swipeMotion";
 import { NewTabExtras } from "./ntp";
+import { useOnboarding } from "./onboarding/state";
 import { Omnibox } from "./Omnibox";
 
 const BAR_HEIGHT = 112;
@@ -46,6 +48,8 @@ export function barWidth(viewWidth: number) {
 
 export function NewTabPage({ tabId, toolbar = true }: { tabId: string; toolbar?: boolean }) {
   const theme = useTheme();
+  const windowId = useWindowId();
+  const coveredByOnboarding = useOnboarding((s) => s.windowId === windowId);
   const [size, setSizeState] = useState<Size | null>(lastSize);
   const setSize = (next: Size) => {
     lastSize = next;
@@ -127,7 +131,7 @@ export function NewTabPage({ tabId, toolbar = true }: { tabId: string; toolbar?:
           borderColor={hex(theme.ntpBarBorder)}
           borderWidth={0.5}
         >
-          <Omnibox variant="hero" tabId={tabId} />
+          {coveredByOnboarding ? <View style={{ height: BAR_HEIGHT }} /> : <Omnibox variant="hero" tabId={tabId} />}
         </Surface>
       </View>
       <NewTabExtras size={size} bar={bar} />

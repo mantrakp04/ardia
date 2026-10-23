@@ -188,6 +188,7 @@ export function CheckMark({ on, size = 18 }: { on: boolean; size?: number }) {
   }, [on]);
   return (
     <View
+      mouseDownCanMoveWindow={false}
       style={{
         width: size,
         height: size,
@@ -201,6 +202,7 @@ export function CheckMark({ on, size = 18 }: { on: boolean; size?: number }) {
       }}
     >
       <Animated.View
+        mouseDownCanMoveWindow={false}
         style={{
           position: "absolute",
           left: -1.5,
@@ -238,7 +240,6 @@ export function CheckRow({
 }) {
   const colors = useOnboardingColors();
   const { hovered, hoverProps } = useHover();
-  const cursor = disabled ? "auto" : "pointer";
   return (
     <View {...hoverProps} style={{ opacity: disabled ? 0.5 : 1 }}>
       <Pressable disabled={disabled} onPress={() => onChange(!value)} accessibilityRole="checkbox" accessibilityState={{ checked: value, disabled }} accessibilityLabel={title}>
@@ -254,7 +255,6 @@ export function CheckRow({
             backgroundColor: hovered && !disabled ? colors.button : colors.row,
             borderWidth: StyleSheet.hairlineWidth * 2,
             borderColor: colors.rowBorder,
-            cursor,
           }}
         >
           {icon ? (
@@ -263,8 +263,8 @@ export function CheckRow({
             </View>
           ) : null}
           <View mouseDownCanMoveWindow={false} style={{ flex: 1, gap: 2 }}>
-            <Text style={{ fontSize: 13, fontWeight: "500", color: colors.title, cursor }}>{title}</Text>
-            <Text numberOfLines={2} style={{ fontSize: 12, color: colors.rowSubtitle, cursor }}>{subtitle}</Text>
+            <Text style={{ fontSize: 13, fontWeight: "500", color: colors.title }}>{title}</Text>
+            <Text numberOfLines={2} style={{ fontSize: 12, color: colors.rowSubtitle }}>{subtitle}</Text>
           </View>
           <CheckMark on={value} />
         </View>

@@ -1,4 +1,4 @@
-import { Surface, VisualEffect, WindowDragRegion } from "@ardia/shell";
+import { CursorOwner, Surface, VisualEffect, WindowDragRegion } from "@ardia/shell";
 import { useEffect, useRef, useState } from "react";
 import { Animated, Easing, StyleSheet, View } from "react-native";
 import { hex } from "../../lib/theme";
@@ -61,45 +61,47 @@ function Overlay({ session }: { session: number }) {
       <VisualEffect material="fullScreenUI" blendingMode="withinWindow" style={StyleSheet.absoluteFill} />
       <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.overlay }]} />
       <WindowDragRegion style={StyleSheet.absoluteFill} />
-      {step !== "intro" && width > 0 && (
-        <View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }]} pointerEvents="box-none">
-          <Animated.View
-            mouseDownCanMoveWindow={false}
-            style={{
-              width,
-              height,
-              opacity: card.interpolate({ inputRange: [0, 1, 2], outputRange: [0, 1, 0] }),
-              transform: [
-                { translateY: card.interpolate({ inputRange: [0, 1, 2], outputRange: [24, 0, 0] }) },
-                { scale: card.interpolate({ inputRange: [0, 1, 2], outputRange: [0.97, 1, 1.03] }) },
-              ],
-            }}
-          >
-            <Surface
-              fill={hex(colors.card)}
-              cornerRadius={20}
-              borderColor={hex(colors.cardBorder)}
-              borderWidth={0.5}
-              shadowColor="#000000"
-              shadowOpacity={0.28}
-              shadowRadius={40}
-              shadowOffset={[0, 18]}
-              style={{ flex: 1, overflow: "hidden" }}
+      <CursorOwner style={StyleSheet.absoluteFill}>
+        {step !== "intro" && width > 0 && (
+          <View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }]} pointerEvents="box-none">
+            <Animated.View
+              mouseDownCanMoveWindow={false}
+              style={{
+                width,
+                height,
+                opacity: card.interpolate({ inputRange: [0, 1, 2], outputRange: [0, 1, 0] }),
+                transform: [
+                  { translateY: card.interpolate({ inputRange: [0, 1, 2], outputRange: [24, 0, 0] }) },
+                  { scale: card.interpolate({ inputRange: [0, 1, 2], outputRange: [0.97, 1, 1.03] }) },
+                ],
+              }}
             >
-              <View key={step} style={{ flex: 1 }}>
-                {step === "defaultBrowser" && <DefaultBrowserStep />}
-                {step === "personalize" && <PersonalizeStep />}
-                {step === "import" && <ImportStep />}
-                {step === "pinnedTabs" && <PinnedTabsStep />}
-                {step === "privacy" && <PrivacyStep />}
-                {step === "cli" && <CliStep />}
-                {step === "outro" && <OutroStep />}
-              </View>
-            </Surface>
-          </Animated.View>
-        </View>
-      )}
-      {step === "intro" && <Intro onDone={() => useOnboarding.getState().go("defaultBrowser")} />}
+              <Surface
+                fill={hex(colors.card)}
+                cornerRadius={20}
+                borderColor={hex(colors.cardBorder)}
+                borderWidth={0.5}
+                shadowColor="#000000"
+                shadowOpacity={0.28}
+                shadowRadius={40}
+                shadowOffset={[0, 18]}
+                style={{ flex: 1, overflow: "hidden" }}
+              >
+                <View key={step} style={{ flex: 1 }}>
+                  {step === "defaultBrowser" && <DefaultBrowserStep />}
+                  {step === "personalize" && <PersonalizeStep />}
+                  {step === "import" && <ImportStep />}
+                  {step === "pinnedTabs" && <PinnedTabsStep />}
+                  {step === "privacy" && <PrivacyStep />}
+                  {step === "cli" && <CliStep />}
+                  {step === "outro" && <OutroStep />}
+                </View>
+              </Surface>
+            </Animated.View>
+          </View>
+        )}
+        {step === "intro" && <Intro onDone={() => useOnboarding.getState().go("defaultBrowser")} />}
+      </CursorOwner>
     </Animated.View>
   );
 }
