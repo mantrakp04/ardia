@@ -830,7 +830,7 @@ def pbes2(plain, global_salt, password, entry_salt, iv14, iterations=10000):
 CKA_ID = b"\xf8" + b"\0" * 14 + b"\x01"
 
 
-def key4(path, global_salt, password, login_key):
+def key4(path, global_salt, password, login_key, rust_key=None):
     db = new_db(path)
     db.executescript("""
         CREATE TABLE metaData (id PRIMARY KEY UNIQUE ON CONFLICT REPLACE, item1, item2);
@@ -839,6 +839,9 @@ def key4(path, global_salt, password, login_key):
     check = pbes2(b"password-check", global_salt, password, b"C" * 32, b"c" * 14)
     db.execute("INSERT INTO metaData VALUES ('Version', 1, NULL)")
     db.execute("INSERT INTO metaData VALUES ('password', ?, ?)", (global_salt, check))
+    if rust_key:
+        db.execute("INSERT INTO nssPrivate (id, a3, a11) VALUES (0, ?, ?)",
+                   (b"as-logins-key", pbes2(rust_key, global_salt, password, b"R" * 32, b"r" * 14)))
     decoy = pbes2(b"D" * 24, global_salt, password, b"E" * 32, b"e" * 14)
     db.execute("INSERT INTO nssPrivate (id, a11, a102) VALUES (1, ?, ?)", (decoy, b"\x01" * 16))
     db.execute("INSERT INTO nssPrivate (id, a11, a102) VALUES (2, ?, ?)",
@@ -870,6 +873,30 @@ def logins_json(path, key, rows):
                        "timePasswordChanged": (BASE_UNIX - 86400) * 1000, "timesUsed": i})
     write_json(path, {"nextId": len(rows) + 1, "logins": logins, "potentiallyVulnerablePasswords": [],
                       "dismissedBreachAlertsByLoginGUID": {}, "version": 3})
+
+
+def jwe(value, key, nonce):
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    b64 = lambda b: base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+    header = b64(b'{"alg":"dir","enc":"A256GCM"}')
+    sealed = AESGCM(key).encrypt(nonce, json.dumps(value).encode(), header.encode())
+    return ".".join([header, "", b64(nonce), b64(sealed[:-16]), b64(sealed[-16:])])
+
+
+def logins_db(path, key, local, mirror):
+    db = new_db(path)
+    columns = "origin, httpRealm, formActionOrigin, timesUsed, timeCreated, timeLastUsed, timePasswordChanged, secFields, guid"
+    db.executescript(f"""
+        CREATE TABLE loginsL (id INTEGER PRIMARY KEY AUTOINCREMENT, {columns}, is_deleted TINYINT NOT NULL DEFAULT 0);
+        CREATE TABLE loginsM (id INTEGER PRIMARY KEY AUTOINCREMENT, {columns}, is_overridden TINYINT NOT NULL DEFAULT 0);
+    """)
+    for table, flag, rows in (("loginsL", "is_deleted", local), ("loginsM", "is_overridden", mirror)):
+        for i, (origin, action, user, password, flagged) in enumerate(rows, 1):
+            db.execute(f"INSERT INTO {table} ({columns}, {flag}) VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)",
+                       (origin, action, i, (BASE_UNIX - 86400) * 1000, BASE_UNIX * 1000, (BASE_UNIX - 86400) * 1000,
+                        jwe({"u": user, "p": password}, key, bytes([len(table), i]) * 6), f"{table}-{i}", flagged))
+    db.commit()
+    db.close()
 
 
 def lz4_literals(data):
@@ -1114,6 +1141,16 @@ Locked=1
         ],
     }
     write(os.path.join(d, "zen-sessions.jsonlz4"), mozlz4(session))
+    rust_key = bytes(range(200, 232))
+    key4(os.path.join(d, "key4.db"), b"Z" * 20, b"", bytes(range(1, 33)), rust_key)
+    logins_db(os.path.join(d, "logins.db"), rust_key, [
+        ("https://zen.example", "https://zen.example", "zen@example.com", "workspace pass", 0),
+        ("https://gone.example", "", "old", "deleted", 1),
+        ("chrome://FirefoxAccounts", None, "sync", "token", 0),
+    ], [
+        ("https://synced.example", "", "synced", "from sync", 0),
+        ("https://zen.example", "https://zen.example", "zen@example.com", "stale mirror", 1),
+    ])
 
 
 BOOKMARKS_HTML_SAFARI = """<!DOCTYPE NETSCAPE-Bookmark-file-1>

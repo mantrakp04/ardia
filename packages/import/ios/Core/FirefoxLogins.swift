@@ -10,7 +10,9 @@ public enum FirefoxLogins {
   static let oid3DESCBC = "1.2.840.113549.3.7"
   static let ckaId = Data([0xF8] + [UInt8](repeating: 0, count: 14) + [0x01])
 
-  public static func masterKey(key4: URL, primaryPassword: String = "") throws -> Data {
+  static let rustKeyLabel = Data("as-logins-key".utf8)
+
+  public static func masterKey(key4: URL, primaryPassword: String = "", label: Data? = nil) throws -> Data {
     let db = try SQLiteSnapshot(copying: key4)
     guard db.tableExists("metaData"), db.tableExists("nssPrivate") else {
       throw ImportError.unsupported("key4.db has an unexpected layout")
@@ -29,24 +31,92 @@ public enum FirefoxLogins {
       throw ImportError.locked("Wrong Firefox primary password")
     }
     var encryptedKey: Data?
-    try db.query("SELECT a11, a102 FROM nssPrivate") { row in
+    try db.query("SELECT a11, a102, a3 FROM nssPrivate") { row in
       guard let a11 = row.blob(0) else { return true }
+      if let label {
+        if row.blob(2) == label { encryptedKey = a11 }
+        return encryptedKey == nil
+      }
+      if row.blob(2) == rustKeyLabel { return true }
       if encryptedKey == nil || row.blob(1) == ckaId { encryptedKey = a11 }
       return row.blob(1) != ckaId
     }
-    guard let encryptedKey else { throw ImportError.unreadable("key4.db holds no login key") }
+    guard let encryptedKey else {
+      if label != nil { throw ImportError.notFound("key4.db has no logins.db key") }
+      throw ImportError.unreadable("key4.db holds no login key")
+    }
     let key = try decryptPBE(DER.parse(encryptedKey), globalSalt: globalSalt, password: password)
-    guard key.count >= 24 else { throw ImportError.unreadable("key4.db login key is malformed") }
+    guard key.count >= (label == nil ? 24 : 32) else { throw ImportError.unreadable("key4.db login key is malformed") }
     return key
   }
 
   public static func logins(profile: URL, primaryPassword: String = "", cancellation: Cancellation = .init()) throws -> [Credential] {
     let json = profile.appendingPathComponent("logins.json")
+    let database = profile.appendingPathComponent("logins.db")
     let key4 = profile.appendingPathComponent("key4.db")
-    guard FileManager.default.fileExists(atPath: json.path) else { throw ImportError.notFound("No saved logins in this profile") }
-    guard FileManager.default.fileExists(atPath: key4.path) else { throw ImportError.unsupported("This profile has no key4.db") }
+    let fm = FileManager.default
+    guard fm.fileExists(atPath: json.path) || fm.fileExists(atPath: database.path) else {
+      throw ImportError.notFound("No saved logins in this profile")
+    }
+    guard fm.fileExists(atPath: key4.path) else { throw ImportError.unsupported("This profile has no key4.db") }
+    if fm.fileExists(atPath: database.path) {
+      do {
+        let key = try masterKey(key4: key4, primaryPassword: primaryPassword, label: rustKeyLabel)
+        return try logins(database: database, key: key, cancellation: cancellation)
+      } catch ImportError.notFound {
+        guard fm.fileExists(atPath: json.path) else { throw ImportError.notFound("No saved logins in this profile") }
+      }
+    }
     let key = try masterKey(key4: key4, primaryPassword: primaryPassword)
     return try logins(json: Data(contentsOf: json), key: key, cancellation: cancellation)
+  }
+
+  public static func logins(database: URL, key: Data, cancellation: Cancellation = .init()) throws -> [Credential] {
+    let db = try SQLiteSnapshot(copying: database)
+    guard db.tableExists("loginsL") else { throw ImportError.unreadable("logins.db has no logins") }
+    let mirror = db.tableExists("loginsM")
+      ? " UNION ALL SELECT origin, httpRealm, formActionOrigin, timesUsed, timeCreated, timeLastUsed, secFields FROM loginsM WHERE is_overridden = 0"
+      : ""
+    var out: [Credential] = []
+    var seen = 0
+    try db.query("""
+      SELECT origin, httpRealm, formActionOrigin, timesUsed, timeCreated, timeLastUsed, secFields FROM loginsL WHERE is_deleted = 0\(mirror)
+      """) { row in
+      seen += 1
+      if seen % 64 == 0 { try cancellation.check() }
+      guard let origin = row.text(0), !origin.hasPrefix("chrome://"),
+            let fields = row.text(6).flatMap({ decryptJWE($0, key: key) }),
+            let secure = try? JSONSerialization.jsonObject(with: fields) as? [String: Any],
+            let pass = secure["p"] as? String, !pass.isEmpty else { return true }
+      out.append(Credential(
+        url: row.text(2).flatMap { $0.isEmpty ? nil : $0 } ?? origin,
+        username: secure["u"] as? String ?? "",
+        password: pass,
+        realm: row.text(1) ?? origin,
+        created: row.isNull(4) ? nil : Double(row.int(4)),
+        lastUsed: row.isNull(5) ? nil : Double(row.int(5)),
+        timesUsed: Int(row.int(3))
+      ))
+      return true
+    }
+    return out
+  }
+
+  static func decryptJWE(_ compact: String, key: Data) -> Data? {
+    let parts = compact.split(separator: ".", omittingEmptySubsequences: false).map(String.init)
+    guard parts.count == 5, let header = base64URL(parts[0]),
+          let alg = try? JSONSerialization.jsonObject(with: header) as? [String: Any],
+          alg["alg"] as? String == "dir", alg["enc"] as? String == "A256GCM",
+          let iv = base64URL(parts[2]), let cipher = base64URL(parts[3]), let tag = base64URL(parts[4]),
+          let nonce = try? CryptoKit.AES.GCM.Nonce(data: iv),
+          let box = try? CryptoKit.AES.GCM.SealedBox(nonce: nonce, ciphertext: cipher, tag: tag) else { return nil }
+    return try? CryptoKit.AES.GCM.open(box, using: SymmetricKey(data: key.prefix(32)), authenticating: Data(parts[0].utf8))
+  }
+
+  static func base64URL(_ text: String) -> Data? {
+    var s = text.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+    s += String(repeating: "=", count: (4 - s.count % 4) % 4)
+    return Data(base64Encoded: s)
   }
 
   public static func logins(json: Data, key: Data, cancellation: Cancellation = .init()) throws -> [Credential] {

@@ -11,7 +11,7 @@ final class ZenTests: XCTestCase {
     XCTAssertEqual(zen.profiles.map(\.id), [id])
     let profile = zen.profiles[0]
     XCTAssertTrue(profile.isDefault)
-    XCTAssertEqual(Set(profile.available), [.bookmarks, .history, .tabs, .spaces, .pinnedTabs, .favorites])
+    XCTAssertEqual(Set(profile.available), [.bookmarks, .history, .tabs, .passwords, .spaces, .pinnedTabs, .favorites])
     XCTAssertEqual(profile.available.filter { $0 == .tabs }.count, 1)
     XCTAssertEqual(profile.spaces?.map(\.name), ["Work", "Space 2"])
     XCTAssertEqual(profile.spaces?.map(\.pinnedCount), [3, 1])
@@ -58,5 +58,19 @@ final class ZenTests: XCTestCase {
     let sidebar = try ZenSidebar.parse(JSONSerialization.data(withJSONObject: ["windows": [window, window]]), profileId: "x")
     XCTAssertEqual(sidebar.spaces.map { $0.pinned.count }, [1])
     XCTAssertEqual(try ZenSidebar.parse(Data("{}".utf8), profileId: "x"), ArcSidebar())
+  }
+
+  func testPasswordsComeFromLoginsDatabase() throws {
+    let importer = Importer(discovery: Fixtures.discovery())
+    try importer.unlock(browserId: "zen")
+    let result = try importer.importData(browserId: "zen", profileId: id, kinds: [.passwords])
+    XCTAssertEqual(result.failed, [])
+    XCTAssertEqual(result.credentials.map { "\($0.username)@\($0.url)=\($0.password)" }, [
+      "zen@example.com@https://zen.example=workspace pass",
+      "synced@https://synced.example=from sync",
+    ])
+    XCTAssertEqual(result.credentials[0].realm, "https://zen.example")
+    XCTAssertEqual(result.credentials[0].lastUsed, Double(1788220800) * 1000)
+    XCTAssertNil(FirefoxLogins.decryptJWE("a.b.c", key: Data(count: 32)))
   }
 }
