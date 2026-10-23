@@ -292,6 +292,8 @@ ARDIACORE_EXPORT
 - (void)goToOffset:(int)offset;
 - (void)reloadIgnoringCache;
 - (void)closeNow;
+@property(nonatomic) BOOL temporary;
+- (void)setTemporarySource:(nullable ArdiaCoreTab*)source;
 @property(readonly) NSArray<NSDictionary<NSString*, id>*>* navigationEntries;
 - (void)executeJavaScript:(NSString*)code;
 - (void)executeJavaScript:(NSString*)code userGesture:(BOOL)userGesture;

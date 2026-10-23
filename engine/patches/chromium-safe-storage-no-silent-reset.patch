@@ -1,0 +1,554 @@
+diff --git a/crypto/apple/keychain_v2.h b/crypto/apple/keychain_v2.h
+--- a/crypto/apple/keychain_v2.h
++++ b/crypto/apple/keychain_v2.h
+@@ -73,6 +73,10 @@ class CRYPTO_EXPORT KeychainV2 {
+   virtual base::expected<std::vector<uint8_t>, OSStatus> FindGenericPassword(
+       std::string_view service_name,
+       std::string_view account_name);
++  virtual OSStatus AddGenericPasswordIfAbsent(
++      std::string_view service_name,
++      std::string_view account_name,
++      base::span<const uint8_t> password);
+ 
+ #if !BUILDFLAG(IS_IOS)
+   // TaskCopyValueForEntitlement wraps the |SecTaskCopyValueForEntitlement|
+diff --git a/crypto/apple/keychain_v2.mm b/crypto/apple/keychain_v2.mm
+--- a/crypto/apple/keychain_v2.mm
++++ b/crypto/apple/keychain_v2.mm
+@@ -210,6 +210,16 @@
+   return status;
+ }
+ 
++OSStatus KeychainV2::AddGenericPasswordIfAbsent(
++    std::string_view service_name,
++    std::string_view account_name,
++    base::span<const uint8_t> password) {
++  base::apple::ScopedCFTypeRef<CFDictionaryRef> keychain_data =
++      MakeKeychainData(service_name, account_name, password,
++                       kKeychainActionCreate);
++  return ItemAdd(keychain_data.get(), /*result=*/nullptr);
++}
++
+ base::expected<std::vector<uint8_t>, OSStatus> KeychainV2::FindGenericPassword(
+     std::string_view service_name,
+     std::string_view account_name) {
+diff --git a/crypto/apple/fake_keychain_v2.h b/crypto/apple/fake_keychain_v2.h
+--- a/crypto/apple/fake_keychain_v2.h
++++ b/crypto/apple/fake_keychain_v2.h
+@@ -58,6 +58,10 @@ class CRYPTO_EXPORT FakeKeychainV2 : public KeychainV2 {
+   base::expected<std::vector<uint8_t>, OSStatus> FindGenericPassword(
+       std::string_view service_name,
+       std::string_view account_name) override;
++  OSStatus AddGenericPasswordIfAbsent(
++      std::string_view service_name,
++      std::string_view account_name,
++      base::span<const uint8_t> password) override;
+ 
+   // Returns the password used to generate the encryption key.
+   std::string GetEncryptionPassword() const;
+diff --git a/crypto/apple/fake_keychain_v2.mm b/crypto/apple/fake_keychain_v2.mm
+--- a/crypto/apple/fake_keychain_v2.mm
++++ b/crypto/apple/fake_keychain_v2.mm
+@@ -392,6 +392,19 @@ void IncrementKeychainAccessHistogram() {
+   return noErr;
+ }
+ 
++OSStatus FakeKeychainV2::AddGenericPasswordIfAbsent(
++    std::string_view service_name,
++    std::string_view account_name,
++    base::span<const uint8_t> password) {
++  IncrementKeychainAccessHistogram();
++  called_add_generic_ = true;
++  DCHECK(!password.empty());
++  if (find_generic_result_ == noErr) {
++    return errSecDuplicateItem;
++  }
++  return noErr;
++}
++
+ std::string FakeKeychainV2::GetEncryptionPassword() const {
+   IncrementKeychainAccessHistogram();
+   return kPassword;
+diff --git a/components/os_crypt/common/keychain_password_mac.mm b/components/os_crypt/common/keychain_password_mac.mm
+--- a/components/os_crypt/common/keychain_password_mac.mm
++++ b/components/os_crypt/common/keychain_password_mac.mm
+@@ -3,6 +3,7 @@
+ // found in the LICENSE file.
+ 
+ #include "components/os_crypt/common/keychain_password_mac.h"
++#include "ardia/core/ac_content_hooks.h"  // nogncheck
+ 
+ #import <Security/Security.h>
+ 
+@@ -58,8 +59,16 @@
+   const int kBytes = 128 / 8;
+   std::string password = base::Base64Encode(base::RandBytesAsVector(kBytes));
+ 
+-  OSStatus error = keychain.AddGenericPassword(service_name, account_name,
+-                                               base::as_byte_span(password));
++  OSStatus error = keychain.AddGenericPasswordIfAbsent(
++      service_name, account_name, base::as_byte_span(password));
++
++  if (error == errSecDuplicateItem) {
++    auto existing = keychain.FindGenericPassword(service_name, account_name);
++    if (!existing.has_value()) {
++      return base::unexpected(existing.error());
++    }
++    return std::string(base::as_string_view(*existing));
++  }
+ 
+   if (error != noErr) {
+     OSSTATUS_DLOG(ERROR, error) << "Keychain add failed";
+@@ -71,6 +80,8 @@
+ 
+ }  // namespace
+ 
++bool (*g_ardia_safe_storage_key_may_be_created)() = nullptr;
++
+ // static
+ KeychainPassword::KeychainNameType& KeychainPassword::GetServiceName() {
+   static KeychainNameContainerType service_name(kDefaultServiceName);
+@@ -110,6 +121,10 @@
+ 
+   if (password.error() == errSecItemNotFound) {
+     uma_result = FindGenericPasswordResult::kPasswordNotFound;
++    if (g_ardia_safe_storage_key_may_be_created &&
++        !g_ardia_safe_storage_key_may_be_created()) {
++      return base::unexpected(errSecItemNotFound);
++    }
+     return AddRandomPasswordToKeychain(*keychain_, GetServiceName(),
+                                        GetAccountName());
+   }
+diff --git a/components/os_crypt/async/browser/keychain_key_provider.h b/components/os_crypt/async/browser/keychain_key_provider.h
+--- a/components/os_crypt/async/browser/keychain_key_provider.h
++++ b/components/os_crypt/async/browser/keychain_key_provider.h
+@@ -39,6 +39,7 @@ class COMPONENT_EXPORT(OS_CRYPT_ASYNC) KeychainKeyProvider
+ 
+  private:
+   friend class KeychainKeyProviderCompatTest;
++  friend class KeychainKeyProviderNoResetTest;
+   FRIEND_TEST_ALL_PREFIXES(KeychainKeyProviderTest, GetKey_Success);
+   FRIEND_TEST_ALL_PREFIXES(KeychainKeyProviderTest, GetKey_NotFound);
+   FRIEND_TEST_ALL_PREFIXES(KeychainKeyProviderTest, GetKey_Failure_AuthFailed);
+@@ -46,6 +47,8 @@ class COMPONENT_EXPORT(OS_CRYPT_ASYNC) KeychainKeyProvider
+ 
+   // For testing.
+   explicit KeychainKeyProvider(crypto::apple::KeychainV2* keychain);
++  KeychainKeyProvider(crypto::apple::KeychainV2* keychain,
++                      base::OnceClosure on_failure);
+ 
+   // os_crypt_async::KeyProvider interface.
+   void GetKey(KeyCallback callback) override;
+diff --git a/components/os_crypt/async/browser/keychain_key_provider.mm b/components/os_crypt/async/browser/keychain_key_provider.mm
+--- a/components/os_crypt/async/browser/keychain_key_provider.mm
++++ b/components/os_crypt/async/browser/keychain_key_provider.mm
+@@ -3,6 +3,7 @@
+ // found in the LICENSE file.
+ 
+ #include "components/os_crypt/async/browser/keychain_key_provider.h"
++#include "ardia/core/ac_content_hooks.h"  // nogncheck
+ 
+ #include <array>
+ #include <memory>
+@@ -24,6 +25,11 @@
+ #include "crypto/kdf.h"
+ #include "crypto/subtle_passkey.h"
+ 
++void (*g_ardia_safe_storage_unreadable)(int status,
++                                       base::OnceClosure retry) = nullptr;
++
++crypto::apple::KeychainV2* (*g_ardia_test_keychain)() = nullptr;
++
+ namespace os_crypt_async {
+ 
+ namespace {
+@@ -47,9 +53,14 @@
+   if (!keychain_to_use) {
+     if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+             os_crypt::switches::kUseMockKeychain)) {
+-      scoped_fake_keychain =
+-          std::make_unique<crypto::apple::FakeKeychainV2>("test-access-group");
+-      keychain_to_use = scoped_fake_keychain.get();
++      if (g_ardia_test_keychain) {
++        keychain_to_use = g_ardia_test_keychain();
++      }
++      if (!keychain_to_use) {
++        scoped_fake_keychain = std::make_unique<crypto::apple::FakeKeychainV2>(
++            "test-access-group");
++        keychain_to_use = scoped_fake_keychain.get();
++      }
+     } else {
+       keychain_to_use = &crypto::apple::KeychainV2::GetInstance();
+     }
+@@ -84,6 +95,13 @@
+     crypto::apple::KeychainV2* keychain_for_testing)
+     : keychain_for_testing_(keychain_for_testing) {}
+ 
++KeychainKeyProvider::KeychainKeyProvider(
++    crypto::apple::KeychainV2* keychain_for_testing,
++    base::OnceClosure on_failure)
++    : keychain_for_testing_(keychain_for_testing),
++      fail_closed_on_error_(true),
++      on_failure_(std::move(on_failure)) {}
++
+ KeychainKeyProvider::~KeychainKeyProvider() = default;
+ 
+ void KeychainKeyProvider::GetKey(KeyCallback callback) {
+@@ -135,6 +153,14 @@
+   // Deliberately do not run the key callback: that would let data loading proceed
+   // without a key and could delete cookies or reset protected preferences.
+   // Keep it waiting while the browser shows the error and exits.
++  if (g_ardia_safe_storage_unreadable) {
++    g_ardia_safe_storage_unreadable(
++        key.error(),
++        base::BindOnce(&KeychainKeyProvider::GetKeyWithRetries,
++                       weak_factory_.GetWeakPtr(), std::move(callback),
++                       kMaxKeychainRetries));
++    return;
++  }
+   if (on_failure_) {
+     std::move(on_failure_).Run();
+   }
+diff --git a/components/os_crypt/async/browser/keychain_key_provider_unittest.mm b/components/os_crypt/async/browser/keychain_key_provider_unittest.mm
+--- a/components/os_crypt/async/browser/keychain_key_provider_unittest.mm
++++ b/components/os_crypt/async/browser/keychain_key_provider_unittest.mm
+@@ -3,11 +3,21 @@
+ // found in the LICENSE file.
+ 
+ #include "components/os_crypt/async/browser/keychain_key_provider.h"
++#include "ardia/core/ac_content_hooks.h"  // nogncheck
+ 
++#include <deque>
++#include <memory>
++#include <string>
++#include <utility>
+ #include <vector>
+ 
++#include "base/containers/to_vector.h"
++#include "base/functional/bind.h"
++#include "base/memory/ptr_util.h"
++#include "base/strings/string_view_util.h"
+ #include "base/test/task_environment.h"
+ #include "base/test/test_future.h"
++#include "components/os_crypt/async/common/algorithm.mojom.h"
+ #include "components/os_crypt/async/common/encryptor.h"
+ #include "crypto/apple/fake_keychain_v2.h"
+ #include "testing/gtest/include/gtest/gtest.h"
+@@ -94,4 +104,317 @@
+   EXPECT_FALSE(mock_keychain.called_add_generic());
+ }
+ 
++namespace {
++
++class ScriptedKeychain : public crypto::apple::FakeKeychainV2 {
++ public:
++  ScriptedKeychain() : FakeKeychainV2("test-access-group") {}
++
++  void QueueFind(base::expected<std::string, OSStatus> result) {
++    finds_.push_back(std::move(result));
++  }
++  void QueueAdd(OSStatus result) { adds_.push_back(result); }
++
++  base::expected<std::vector<uint8_t>, OSStatus> FindGenericPassword(
++      std::string_view service_name,
++      std::string_view account_name) override {
++    ++find_count_;
++    base::expected<std::string, OSStatus> result = finds_.front();
++    if (finds_.size() > 1) {
++      finds_.pop_front();
++    }
++    if (!result.has_value()) {
++      return base::unexpected(result.error());
++    }
++    return base::ToVector(base::as_byte_span(*result));
++  }
++
++  OSStatus AddGenericPasswordIfAbsent(
++      std::string_view service_name,
++      std::string_view account_name,
++      base::span<const uint8_t> password) override {
++    ++add_if_absent_count_;
++    OSStatus result = adds_.empty() ? noErr : adds_.front();
++    if (adds_.size() > 1) {
++      adds_.pop_front();
++    }
++    if (result == noErr) {
++      added_ = std::string(base::as_string_view(password));
++    }
++    return result;
++  }
++
++  OSStatus AddGenericPassword(std::string_view service_name,
++                              std::string_view account_name,
++                              base::span<const uint8_t> password) override {
++    ++add_or_update_count_;
++    return noErr;
++  }
++
++  OSStatus ItemUpdate(CFDictionaryRef query,
++                      CFDictionaryRef keychain_data) override {
++    ++item_update_count_;
++    return noErr;
++  }
++
++  int find_count() const { return find_count_; }
++  int add_if_absent_count() const { return add_if_absent_count_; }
++  int add_or_update_count() const { return add_or_update_count_; }
++  int item_update_count() const { return item_update_count_; }
++  const std::string& added() const { return added_; }
++
++ private:
++  std::deque<base::expected<std::string, OSStatus>> finds_;
++  std::deque<OSStatus> adds_;
++  int find_count_ = 0;
++  int add_if_absent_count_ = 0;
++  int add_or_update_count_ = 0;
++  int item_update_count_ = 0;
++  std::string added_;
++};
++
++bool g_test_key_may_be_created = false;
++bool g_test_start_over_allowed = false;
++base::OnceClosure* g_test_start_over = nullptr;
++int g_test_unreadable_status = noErr;
++
++bool TestKeyMayBeCreated() {
++  return g_test_key_may_be_created ||
++         std::exchange(g_test_start_over_allowed, false);
++}
++
++void TestSafeStorageUnreadable(int status, base::OnceClosure retry) {
++  g_test_unreadable_status = status;
++  *g_test_start_over = std::move(retry);
++}
++
++constexpr char kSecretA[] = "mock_password";
++
++using KeyFuture =
++    base::test::TestFuture<const std::string&,
++                           base::expected<Encryptor::Key, KeyProvider::KeyError>>;
++
++}
++
++class KeychainKeyProviderNoResetTest : public ::testing::Test {
++ protected:
++  void SetUp() override {
++    g_ardia_safe_storage_key_may_be_created = &TestKeyMayBeCreated;
++    g_test_key_may_be_created = false;
++    g_test_start_over_allowed = false;
++    g_test_unreadable_status = noErr;
++  }
++  void TearDown() override {
++    g_ardia_safe_storage_key_may_be_created = nullptr;
++    g_ardia_safe_storage_unreadable = nullptr;
++    g_test_start_over = nullptr;
++  }
++
++  std::unique_ptr<KeychainKeyProvider> MakeProvider(
++      crypto::apple::KeychainV2* keychain) {
++    return base::WrapUnique(new KeychainKeyProvider(
++        keychain, base::BindOnce([](int* count) { ++*count; },
++                                 &on_failure_count_)));
++  }
++
++  void GetKey(KeychainKeyProvider& provider,
++              KeyProvider::KeyCallback callback) {
++    provider.GetKey(std::move(callback));
++  }
++
++  static Encryptor::Key SecretAKey() {
++    const std::vector<uint8_t> bytes = {0xAF, 0x0F, 0x76, 0x2A, 0xAF, 0x6D,
++                                        0x7D, 0x11, 0x58, 0x1B, 0x7A, 0xA8,
++                                        0xCE, 0x72, 0x18, 0xDE};
++    return Encryptor::Key(bytes, mojom::Algorithm::kAES128CBC);
++  }
++
++  Encryptor::Key KeyFor(const std::string& secret) {
++    ScriptedKeychain keychain;
++    keychain.QueueFind(secret);
++    std::unique_ptr<KeychainKeyProvider> provider = MakeProvider(&keychain);
++    KeyFuture future;
++    GetKey(*provider, future.GetCallback());
++    auto [tag, key] = future.Take();
++    CHECK(key.has_value());
++    return std::move(*key);
++  }
++
++  base::test::TaskEnvironment task_environment_{
++      base::test::TaskEnvironment::MainThreadType::UI,
++      base::test::TaskEnvironment::TimeSource::MOCK_TIME};
++  int on_failure_count_ = 0;
++};
++
++TEST_F(KeychainKeyProviderNoResetTest, ExistingDataItemBrieflyMissing) {
++  ScriptedKeychain keychain;
++  keychain.QueueFind(base::unexpected(errSecItemNotFound));
++  keychain.QueueFind(kSecretA);
++  std::unique_ptr<KeychainKeyProvider> provider = MakeProvider(&keychain);
++
++  KeyFuture future;
++  GetKey(*provider, future.GetCallback());
++  auto& [tag, key] = future.Get();
++
++  ASSERT_TRUE(key.has_value());
++  EXPECT_EQ(*key, SecretAKey());
++  EXPECT_EQ(keychain.find_count(), 2);
++  EXPECT_EQ(keychain.add_if_absent_count(), 0);
++  EXPECT_EQ(keychain.add_or_update_count(), 0);
++  EXPECT_EQ(keychain.item_update_count(), 0);
++  EXPECT_EQ(on_failure_count_, 0);
++}
++
++TEST_F(KeychainKeyProviderNoResetTest, ExistingDataItemMissingFailsClosed) {
++  ScriptedKeychain keychain;
++  keychain.QueueFind(base::unexpected(errSecItemNotFound));
++  std::unique_ptr<KeychainKeyProvider> provider = MakeProvider(&keychain);
++
++  bool key_delivered = false;
++  GetKey(*provider, base::BindOnce(
++                        [](bool* delivered, const std::string&,
++                           base::expected<Encryptor::Key, KeyProvider::KeyError>) {
++                          *delivered = true;
++                        },
++                        &key_delivered));
++  task_environment_.FastForwardBy(base::Seconds(10));
++
++  EXPECT_FALSE(key_delivered);
++  EXPECT_EQ(on_failure_count_, 1);
++  EXPECT_EQ(keychain.find_count(), 4);
++  EXPECT_EQ(keychain.add_if_absent_count(), 0);
++  EXPECT_EQ(keychain.add_or_update_count(), 0);
++  EXPECT_EQ(keychain.item_update_count(), 0);
++}
++
++TEST_F(KeychainKeyProviderNoResetTest, FreshDirItemAppearsDuringAdd) {
++  g_test_key_may_be_created = true;
++  ScriptedKeychain keychain;
++  keychain.QueueFind(base::unexpected(errSecItemNotFound));
++  keychain.QueueFind(kSecretA);
++  keychain.QueueAdd(errSecDuplicateItem);
++  std::unique_ptr<KeychainKeyProvider> provider = MakeProvider(&keychain);
++
++  KeyFuture future;
++  GetKey(*provider, future.GetCallback());
++  auto& [tag, key] = future.Get();
++
++  ASSERT_TRUE(key.has_value());
++  EXPECT_EQ(*key, SecretAKey());
++  EXPECT_EQ(keychain.add_if_absent_count(), 1);
++  EXPECT_EQ(keychain.add_or_update_count(), 0);
++  EXPECT_EQ(keychain.item_update_count(), 0);
++  EXPECT_EQ(on_failure_count_, 0);
++}
++
++TEST_F(KeychainKeyProviderNoResetTest, FreshDirItemMissingAddsOnce) {
++  g_test_key_may_be_created = true;
++  ScriptedKeychain keychain;
++  keychain.QueueFind(base::unexpected(errSecItemNotFound));
++  std::unique_ptr<KeychainKeyProvider> provider = MakeProvider(&keychain);
++
++  KeyFuture future;
++  GetKey(*provider, future.GetCallback());
++  auto [tag, key] = future.Take();
++
++  ASSERT_TRUE(key.has_value());
++  EXPECT_EQ(keychain.add_if_absent_count(), 1);
++  EXPECT_EQ(keychain.add_or_update_count(), 0);
++  EXPECT_EQ(keychain.item_update_count(), 0);
++  EXPECT_EQ(keychain.added().size(), 24u);
++  EXPECT_FALSE(*key == SecretAKey());
++  EXPECT_EQ(*key, KeyFor(keychain.added()));
++}
++
++TEST_F(KeychainKeyProviderNoResetTest, StartOverMakesOneNewKey) {
++  base::OnceClosure start_over;
++  g_test_start_over = &start_over;
++  g_ardia_safe_storage_unreadable = &TestSafeStorageUnreadable;
++  ScriptedKeychain keychain;
++  keychain.QueueFind(base::unexpected(errSecItemNotFound));
++  std::unique_ptr<KeychainKeyProvider> provider = MakeProvider(&keychain);
++
++  KeyFuture future;
++  GetKey(*provider, future.GetCallback());
++  task_environment_.FastForwardBy(base::Seconds(10));
++
++  ASSERT_TRUE(start_over);
++  EXPECT_EQ(g_test_unreadable_status, errSecItemNotFound);
++  EXPECT_FALSE(future.IsReady());
++  EXPECT_EQ(on_failure_count_, 0);
++  EXPECT_EQ(keychain.find_count(), 4);
++  EXPECT_EQ(keychain.add_if_absent_count(), 0);
++
++  g_test_start_over_allowed = true;
++  std::move(start_over).Run();
++  auto& [tag, key] = future.Get();
++
++  ASSERT_TRUE(key.has_value());
++  EXPECT_FALSE(g_test_start_over_allowed);
++  EXPECT_EQ(keychain.find_count(), 5);
++  EXPECT_EQ(keychain.add_if_absent_count(), 1);
++  EXPECT_EQ(keychain.add_or_update_count(), 0);
++  EXPECT_EQ(keychain.item_update_count(), 0);
++  EXPECT_EQ(on_failure_count_, 0);
++}
++
++TEST_F(KeychainKeyProviderNoResetTest, StartOverKeepsAnItemThatReturned) {
++  base::OnceClosure start_over;
++  g_test_start_over = &start_over;
++  g_ardia_safe_storage_unreadable = &TestSafeStorageUnreadable;
++  ScriptedKeychain keychain;
++  for (int i = 0; i < 5; ++i) {
++    keychain.QueueFind(base::unexpected(errSecItemNotFound));
++  }
++  keychain.QueueFind(kSecretA);
++  keychain.QueueAdd(errSecDuplicateItem);
++  std::unique_ptr<KeychainKeyProvider> provider = MakeProvider(&keychain);
++
++  KeyFuture future;
++  GetKey(*provider, future.GetCallback());
++  task_environment_.FastForwardBy(base::Seconds(10));
++  ASSERT_TRUE(start_over);
++
++  g_test_start_over_allowed = true;
++  std::move(start_over).Run();
++  auto& [tag, key] = future.Get();
++
++  ASSERT_TRUE(key.has_value());
++  EXPECT_EQ(*key, SecretAKey());
++  EXPECT_EQ(keychain.add_if_absent_count(), 1);
++  EXPECT_EQ(keychain.add_or_update_count(), 0);
++  EXPECT_EQ(keychain.item_update_count(), 0);
++}
++
++TEST_F(KeychainKeyProviderNoResetTest, UndecodableItemOnlyRetries) {
++  base::OnceClosure retry;
++  g_test_start_over = &retry;
++  g_ardia_safe_storage_unreadable = &TestSafeStorageUnreadable;
++  g_test_start_over_allowed = true;
++  ScriptedKeychain keychain;
++  keychain.QueueFind(base::unexpected(errSecDecode));
++  std::unique_ptr<KeychainKeyProvider> provider = MakeProvider(&keychain);
++
++  KeyFuture future;
++  GetKey(*provider, future.GetCallback());
++  task_environment_.FastForwardBy(base::Seconds(10));
++
++  ASSERT_TRUE(retry);
++  EXPECT_EQ(g_test_unreadable_status, errSecDecode);
++  EXPECT_FALSE(future.IsReady());
++  EXPECT_EQ(keychain.find_count(), 4);
++
++  std::move(retry).Run();
++  task_environment_.FastForwardBy(base::Seconds(10));
++
++  ASSERT_TRUE(retry);
++  EXPECT_FALSE(future.IsReady());
++  EXPECT_TRUE(g_test_start_over_allowed);
++  EXPECT_EQ(keychain.find_count(), 8);
++  EXPECT_EQ(keychain.add_if_absent_count(), 0);
++  EXPECT_EQ(keychain.add_or_update_count(), 0);
++  EXPECT_EQ(keychain.item_update_count(), 0);
++  EXPECT_EQ(on_failure_count_, 0);
++}
++
+ }  // namespace os_crypt_async

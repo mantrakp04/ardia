@@ -10,7 +10,7 @@
                                                  remake a patch: edit there, diff against --until the line above)
   series.py files                                every path the series touches, by step
 
-The base is the tree as ungoogled-chromium and domain substitution leave it, before any line of
+The base is the tree as Helium, its substitutions and resources (step 3) leave it, before any line of
 `series`: ~/chromium-build/series-base (AC_SERIES_BASE), one file per touched path, relative to chromium/src.
 `check` exits 0 when every step applies strictly (git apply: no fuzz) and the result equals the
 tree; 1 with a report otherwise. It writes nothing outside its scratch directory.
@@ -48,7 +48,6 @@ class Step:
         return os.path.join(HERE, self.name)
 
     def created(self):
-        """Paths (relative to chromium/src) the step's patch creates: they aren't in the tree before it."""
         if self.kind != "chromium":
             return set()
         out, new = set(), False
@@ -61,7 +60,6 @@ class Step:
         return out
 
     def paths(self):
-        """(path relative to chromium/src, is_dir) for everything the step writes."""
         if self.kind == "chromium":
             out = []
             for line in open(self.patch, encoding="utf-8", errors="surrogateescape"):
@@ -82,15 +80,12 @@ def dedupe(items):
 
 
 def layer_paths(layer):
-    """What a layer's apply.sh writes: the directories it mirrors from <layer>/src (copied whole), each
-    Chromium file it hooks (`"$src/<path>"`), and each Chromium file it replaces (a file under <layer>/src
-    outside those directories)."""
     script = open(os.path.join(layer, "apply.sh")).read()
     out = []
     m = re.search(r"^owned=\(([^)]*)\)", script, re.M)
     dirs = m.group(1).split() if m else []
     for path in re.findall(r'"\$src/([A-Za-z0-9_./-]+)"', script):
-        path = path.rstrip("/")  # "$src/ardia/" (an rsync target) is the directory "ardia"
+        path = path.rstrip("/")
         if os.path.isdir(os.path.join(layer, "src", path)):
             dirs.append(path)
         else:
@@ -134,8 +129,6 @@ def run(cmd, cwd, env=None, check=False):
 
 
 def apply_step(step, tree, strict=True):
-    """Applies one step to `tree` (a chromium/src or a scratch copy of its touched files). Returns an error or
-    None. strict: git apply (exact context, offsets allowed, no fuzz)."""
     if step.kind == "layer":
         env = dict(os.environ, CHROMIUM_SRC=tree)
         p = run([os.path.join(REPO, step.name, "apply.sh")], REPO, env)
@@ -146,8 +139,6 @@ def apply_step(step, tree, strict=True):
         return None
     if strict:
         return p.stderr.strip()
-    # Dry run first: on a tree where the patch is partly in already (later patches moved its context), a real run
-    # would skip those hunks and apply the rest a second time.
     p = run(["patch", "-p1", "--forward", "--dry-run", "-s", "-i", step.patch], cwd)
     if p.returncode != 0:
         return (p.stdout + p.stderr).strip()
@@ -165,7 +156,6 @@ def is_applied(step, tree):
 
 
 def phase_of(step):
-    """Every line is step 4's: the whole series goes in after ungoogled and domain substitution."""
     return "chromium"
 
 
@@ -193,8 +183,6 @@ def copy_path(src_root, dst_root, path, is_dir, missing_ok=True):
 
 
 def base_from_git(path, out):
-    """A touched file the base doesn't have (a hook added after the base was captured): the checkout's own
-    git HEAD, right when nothing upstream (ungoogled, domain substitution) changes it."""
     p = subprocess.run(["git", "show", f"HEAD:{path}"], cwd=SRC, capture_output=True)
     if p.returncode:
         return False
@@ -205,7 +193,6 @@ def base_from_git(path, out):
     return True
 
 
-# Commands
 
 
 def cmd_files(args):
@@ -226,7 +213,6 @@ def cmd_apply(args):
         if error:
             sys.exit(f"error: {step} does not apply:\n{error}")
         print(f"applied {step}")
-    # The offline page chromium-neterror-game.patch names is generated, not patched in.
     run([os.path.join(HERE, "build", "game-resource.sh"), "--apply"], HERE, env=dict(os.environ, CHROMIUM_SRC=SRC), check=True)
 
 
@@ -236,7 +222,7 @@ def cmd_capture_base(args):
     count = 0
     for path, is_dir in touched(steps):
         if is_dir or path in created:
-            continue  # A layer's own directory, or a file a patch adds: absent before the series.
+            continue
         if os.path.exists(os.path.join(BASE, path)) and not args.force:
             continue
         copy_path(SRC, BASE, path, False)
@@ -245,7 +231,6 @@ def cmd_capture_base(args):
 
 
 def materialize(steps, out, until=None, report=None):
-    """Copies the base into `out` and applies `steps` in order (stopping after `until`). Returns errors."""
     paths = touched(steps)
     for path, is_dir in paths:
         if is_dir:
@@ -259,7 +244,7 @@ def materialize(steps, out, until=None, report=None):
         error = apply_step(step, out, strict=True)
         if error:
             errors.append(f"{step} (series:{step.line}) does not apply cleanly:\n    " + error.replace("\n", "\n    "))
-            apply_step(step, out, strict=False)  # Keep going to report every problem.
+            apply_step(step, out, strict=False)
         elif report:
             report(f"ok  {step}")
         if until and step.name == until:

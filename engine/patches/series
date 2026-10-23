@@ -44,6 +44,7 @@ chromium chromium-branding.patch
 # Load-bearing for every user's data: the Safe Storage item ("Ardia Safe Storage" / "Ardia") holds the key to
 # their saved passwords and cookies. It must survive any re-sync (plain Chromium for ArdiaCore, a version bump), unchanged.
 chromium chromium-safe-storage-name.patch
+chromium chromium-safe-storage-no-silent-reset.patch
 chromium chromium-password-bubble-hook.patch
 chromium chromium-password-generation-local.patch
 chromium chromium-window-docked-devtools.patch
@@ -56,6 +57,8 @@ chromium chromium-begin-frame-warm-up.patch
 chromium chromium-main-frame-throttle-after-show.patch
 chromium chromium-main-frame-full-rate-on-input.patch
 chromium chromium-thaw-live-connections.patch
+chromium chromium-temporary-tab-restore-hook.patch
+chromium chromium-hosted-browsers-no-session-service.patch
 chromium chromium-battery-saver-full-rate-on-input.patch
 chromium chromium-angle-metal-shader-cache.patch
 chromium chromium-ungoogled-disable-default-extensions.patch

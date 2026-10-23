@@ -57,6 +57,8 @@ public class CefModule: Module {
     AsyncFunction("isTracing") { ArdiaCoreHost.isTracing }.runOnQueue(.main)
     AsyncFunction("setSearchEngineName") { (name: String) in ArdiaCoreWebView.setSearchEngineName(name) }.runOnQueue(.main)
     AsyncFunction("setDisplayMediaPicker") { (enabled: Bool) in ArdiaCoreWebView.setDisplayMediaPicker(enabled) }.runOnQueue(.main)
+    AsyncFunction("setPeekModifier") { (modifier: String) in ArdiaCoreWebView.setPeekModifier(modifier) }.runOnQueue(.main)
+    AsyncFunction("devPostPeekMouseUp") { (keys: String, tabId: String) in ArdiaCoreWebView.devPostPeekMouseUp(keys, over: tabId) }.runOnQueue(.main)
     AsyncFunction("setAutoPictureInPicture") { (enabled: Bool) in ArdiaCoreWebView.setAutoPictureInPictureEnabled(enabled) }.runOnQueue(.main)
     AsyncFunction("setVideoUpscaling") { (enabled: Bool) in ArdiaCoreWebView.setVideoUpscalingEnabled(enabled) }.runOnQueue(.main)
     AsyncFunction("setVideoUpscalingTestConditions") { (conditions: [String: Bool]) in
@@ -223,6 +225,8 @@ public class CefModule: Module {
       Prop("adoptId") { (view: CefWebView, id: String?) in view.browser.adoptId = id }
       Prop("transferKey") { (view: CefWebView, key: String?) in view.browser.transferKey = key }
       Prop("standalone") { (view: CefWebView, standalone: Bool?) in view.browser.standalone = standalone ?? false }
+      Prop("temporary") { (view: CefWebView, temporary: Bool?) in view.browser.temporary = temporary ?? false }
+      Prop("temporarySource") { (view: CefWebView, source: String?) in view.browser.temporarySource = source }
       Prop("extensionHost") { (view: CefWebView, kind: String?) in view.browser.extensionHost = kind }
       Prop("visible") { (view: CefWebView, visible: Bool?) in view.browser.visible = visible ?? true }
       Prop("warm") { (view: CefWebView, warm: Bool?) in view.browser.warm = warm ?? false }

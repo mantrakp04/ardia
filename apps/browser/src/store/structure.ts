@@ -7,7 +7,7 @@ export function groupIndex(groups: Record<string, TabGroup>): Map<string, TabGro
   let index = groupIndexes.get(groups);
   if (!index) {
     index = new Map();
-    for (const g of Object.values(groups)) for (const id of g.tabIds) if (!index.has(id)) index.set(id, g);
+    for (const g of Object.values(groups)) if (!g.parentId) for (const id of g.tabIds) if (!index.has(id)) index.set(id, g);
     groupIndexes.set(groups, index);
   }
   return index;

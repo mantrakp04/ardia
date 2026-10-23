@@ -615,7 +615,148 @@
     return paused;
   };
 
+  let peekKey = null;
+  let peekTrace = false;
+  handlers.peekConfig = (config) => {
+    peekKey = config && (config.modifier === "alt" || config.modifier === "shift") ? config.modifier : null;
+    peekTrace = !!(config && config.trace);
+  };
+  try {
+    const getter = (proto, name) => {
+      const get = Object.getOwnPropertyDescriptor(proto, name).get;
+      return (o) => apply(get, o, []);
+    };
+    const [clientX, clientY, button, altKey, shiftKey, metaKey, ctrlKey] = ["clientX", "clientY", "button", "altKey", "shiftKey", "metaKey", "ctrlKey"].map((n) =>
+      getter(MouseEvent.prototype, n),
+    );
+    const nodeType = getter(Node.prototype, "nodeType");
+    const localName = getter(Element.prototype, "localName");
+    const anchorHref = getter(HTMLAnchorElement.prototype, "href");
+    const areaHref = getter(HTMLAreaElement.prototype, "href");
+    const baseURI = getter(Node.prototype, "baseURI");
+    const ratio = getter(window, "devicePixelRatio");
+    const composedPath = Event.prototype.composedPath;
+    const preventDefault = Event.prototype.preventDefault;
+    const stopImmediatePropagation = Event.prototype.stopImmediatePropagation;
+    const hasAttribute = Element.prototype.hasAttribute;
+    const getAttribute = Element.prototype.getAttribute;
+    const getAttributeNS = Element.prototype.getAttributeNS;
+    const test = RegExp.prototype.test;
+    const includes = Array.prototype.includes;
+    const { hypot } = Math;
+    const URLCtor = URL;
+    const SVG = "http://www.w3.org/2000/svg";
+    const PRESS_SLOP = 5;
+    const namespace = getter(Element.prototype, "namespaceURI");
+    const timeStamp = getter(Event.prototype, "timeStamp");
+    const persisted = getter(PageTransitionEvent.prototype, "persisted");
+    const pageOrigin = location.origin;
+    const now = () => apply(dateNow, Date, []);
+    const linkUrl = (el) => {
+      const name = localName(el);
+      if (name !== "a" && name !== "area") return null;
+      if (namespace(el) === SVG) {
+        const raw = apply(getAttribute, el, ["href"]) ?? apply(getAttributeNS, el, ["http://www.w3.org/1999/xlink", "href"]);
+        return raw === null ? "" : new URLCtor(raw, baseURI(el)).href;
+      }
+      if (!apply(hasAttribute, el, ["href"])) return "";
+      return name === "a" ? anchorHref(el) : areaHref(el);
+    };
+    const linkAt = (e) => {
+      const path = apply(composedPath, e, []);
+      for (let i = 0; i < path.length; i++) {
+        const node = path[i];
+        if (node === window || node === document || nodeType(node) !== 1) continue;
+        const url = linkUrl(node);
+        if (url !== null) return { link: node, url, path };
+      }
+      return null;
+    };
+    const XHTML = "http://www.w3.org/1999/xhtml";
+    const isContentEditable = getter(HTMLElement.prototype, "isContentEditable");
+    const createElement = Document.prototype.createElement;
+    const setAttribute = Element.prototype.setAttribute;
+    const clickElement = HTMLElement.prototype.click;
+    const inEditable = (path) => {
+      for (let i = 0; i < path.length; i++) {
+        const node = path[i];
+        if (node === window || node === document || nodeType(node) !== 1) continue;
+        if (namespace(node) === XHTML) return isContentEditable(node);
+      }
+      return false;
+    };
+    const peekable = (hit) =>
+      !!hit && !!hit.url && !apply(hasAttribute, hit.link, ["download"]) && apply(test, /^https?:/i, [hit.url]) && !inEditable(hit.path);
+    const keys = (e) => ({ alt: altKey(e), shift: shiftKey(e), meta: metaKey(e), ctrl: ctrlKey(e) });
+    const chosen = (e) => {
+      if (metaKey(e) || ctrlKey(e)) return false;
+      if (peekKey === "alt") return altKey(e) && !shiftKey(e);
+      if (peekKey === "shift") return shiftKey(e) && !altKey(e);
+      return false;
+    };
+    const trace = (what, data) => peekTrace && send("peekTrace", { what, key: peekKey, ...data });
+    let press = null;
+    let peeked = null;
+    let sent = null;
+    handlers.peekRefused = (refusal) => {
+      const gesture = sent;
+      if (!gesture || !refusal || !refusal.download || refusal.url !== gesture.url || now() - gesture.at > 60000) return;
+      sent = null;
+      trace("native refused, downloading as the click would have", { url: gesture.url, reason: refusal.reason });
+      const a = apply(createElement, document, ["a"]);
+      apply(setAttribute, a, ["href", gesture.url]);
+      apply(setAttribute, a, ["download", ""]);
+      apply(clickElement, a, []);
+    };
+    addEventListener(
+      "mousedown",
+      guard((e) => {
+        press = null;
+        peeked = null;
+        if (!e.isTrusted || button(e) !== 0) return;
+        const hit = linkAt(e);
+        if (!peekable(hit)) return;
+        press = { link: hit.link, url: hit.url, x: clientX(e), y: clientY(e) };
+        if (!peekKey) trace("no key chosen yet", { url: hit.url, ...keys(e) });
+      }),
+      true,
+    );
+    addEventListener(
+      "mouseup",
+      guard((e) => {
+        const pressed = press;
+        press = null;
+        if (!pressed || !peekKey || !e.isTrusted || button(e) !== 0) return;
+        if (!chosen(e)) return trace("other keys", { url: pressed.url, ...keys(e) });
+        const hit = linkAt(e);
+        const moved = hypot(clientX(e) - pressed.x, clientY(e) - pressed.y);
+        if (!hit || hit.link !== pressed.link) return trace("released off the link", { url: pressed.url, moved });
+        if (!peekable(hit)) return trace("the link changed during the press", { url: hit.url, moved });
+        if (moved > PRESS_SLOP) return trace("moved too far", { url: hit.url, moved });
+        peeked = { link: hit.link, stamp: timeStamp(e) };
+        sent = { url: hit.url, at: now() };
+        const scale = ratio(window);
+        send("peek", { url: hit.url, key: peekKey, origin: pageOrigin, x: clientX(e) * scale, y: clientY(e) * scale, moved });
+      }),
+      true,
+    );
+    addEventListener(
+      "click",
+      guard((e) => {
+        const shown = peeked;
+        if (!shown || !e.isTrusted || timeStamp(e) !== shown.stamp || !apply(includes, apply(composedPath, e, []), [shown.link])) return;
+        peeked = null;
+        apply(preventDefault, e, []);
+        apply(stopImmediatePropagation, e, []);
+      }),
+      true,
+    );
+    addEventListener("pageshow", guard((e) => e.isTrusted && persisted(e) && send("peekHello", {})));
+    addEventListener("pagehide", guard((e) => e.isTrusted && send("peekGone", {})));
+  } catch (e) {}
+
   handlers.config = (config) => {
+    handlers.peekConfig({ modifier: config.peek, trace: config.peekTrace });
     blockAutoplay = !!config.blockAutoplay;
     if (blockAutoplay)
       pauseUnasked([...playingMedia, ...document.querySelectorAll("video, audio")], !!(navigator.userActivation && navigator.userActivation.hasBeenActive));

@@ -11,6 +11,7 @@ export type LiveFolder = {
   sources: LiveSourceId[];
   filters: { authored: boolean; reviewRequests: boolean };
   createdAt: number;
+  after?: string | null;
 };
 
 export type PullRequestSection = "authored" | "review" | "team";

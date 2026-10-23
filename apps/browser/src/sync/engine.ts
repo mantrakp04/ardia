@@ -30,6 +30,7 @@ import {
   historyExpired,
   passwordsAdapter,
   pinnedAdapter,
+  pinnedOrderAdapter,
   pinnedRowsAdapter,
   profilesAdapter,
   settingsAdapter,
@@ -283,7 +284,7 @@ function profileAdapters(profileId: string, retiring: boolean): Adapter[] {
   let passwords = passwordAdapters.get(profileId);
   if (!passwords) passwordAdapters.set(profileId, (passwords = passwordsAdapter(profileId, () => forcePasswords)));
   return [
-    ...(t.pinned ? [pinnedRowsAdapter(profileId), inTodaysNames(pinnedAdapter(profileId))] : []),
+    ...(t.pinned ? [pinnedRowsAdapter(profileId), pinnedOrderAdapter(profileId), inTodaysNames(pinnedAdapter(profileId))] : []),
     ...(t.bookmarks && ownsData ? [inTodaysNames(bookmarksAdapter(profileId))] : []),
     ...(t.history && ownsData ? [inTodaysNames(historyAdapter(profileId))] : []),
     inTodaysNames(deviceTabsAdapter(profileId, id, deviceName, !t.tabs)),

@@ -11,10 +11,10 @@ import { MeetingTimeLabel, useMeetingCountdown } from "../live/MeetingCountdown"
 import { HoverSlot } from "../HoverSlot";
 import { IconButton } from "../primitives";
 import { commitRename, endRename, startRename } from "./actions";
-import { useDragItem, useDropInto } from "./dnd";
+import { useDragFolded, useDragItem, useDropInto } from "./dnd";
 import { useShift, type EntryMotion } from "./entryMotion";
 import { Fold, useFold } from "./Fold";
-import { GROUP_BORDER, GROUP_HEADER_RADIUS, GROUP_PAD, GROUP_RADIUS, keptEntry } from "./geometry";
+import { entryHeight, GROUP_BORDER, GROUP_HEADER_RADIUS, GROUP_PAD, GROUP_RADIUS, keptEntry } from "./geometry";
 import { groupEntries } from "./entries";
 import { dismissHover, useRowHover } from "./hover";
 import { capture, GhostSlot, ListMotionContext, newCapture, useGroupMotion } from "./listMotion";
@@ -25,12 +25,26 @@ import { RenameField, SplitRowItem, TabRowItem } from "./TabRow";
 import { GROUP_COLORS, useSidebarTokens, withAlpha } from "./tokens";
 
 const PAD = GROUP_PAD;
+const NESTED_INDENT = 16;
 
-export const GroupBlock = memo(function GroupBlock({ groupId, section, motion: own = null }: { groupId: string; section: "list" | "pinnedGroups"; motion?: EntryMotion | null }) {
+export const GroupBlock = memo(function GroupBlock({
+  groupId,
+  section,
+  parentGroup,
+  motion: own = null,
+  background,
+}: {
+  groupId: string;
+  section: "list" | "pinnedGroups";
+  parentGroup?: string;
+  motion?: EntryMotion | null;
+  background?: IconBackground;
+}) {
   const theme = useTheme();
   const windowId = useWindowId();
   const tokens = useSidebarTokens();
-  const collapsed = useBrowser((s) => !!s.groups[groupId]?.collapsed);
+  const stored = useBrowser((s) => !!s.groups[groupId]?.collapsed);
+  const collapsed = useDragFolded(`g:${groupId}`) || stored;
   const color = useBrowser((s) => s.groups[groupId]?.color ?? null);
   const tabIds = useBrowser((s) => s.groups[groupId]?.tabIds.join(",") ?? "");
   const [captured] = useState(newCapture);
@@ -46,23 +60,29 @@ export const GroupBlock = memo(function GroupBlock({ groupId, section, motion: o
   });
   const profileId = usePageProfileId();
   const activeEntry = useBrowser((s) => keptEntry(s, windowId, profileId, entries));
-  const { wrapper, handle, headerRef } = useDragItem(`g:${groupId}`, { kind: "group", tabIds: tabIds.split(",").filter(Boolean), section, groupId, collapsed }, undefined, own?.clip);
+  const foldedHeight = () => {
+    const s = useBrowser.getState();
+    const kept = keptEntry(s, windowId, profileId, groupEntries(s, groupId));
+    return GROUP_BORDER * 2 + layout.rowHeight + (kept ? entryHeight(s, windowId, profileId, kept) + PAD : 0);
+  };
+  const { wrapper, handle, headerRef } = useDragItem(`g:${groupId}`, { kind: "group", tabIds: tabIds.split(",").filter(Boolean), section, groupId, collapsed: stored, foldedHeight, parentGroup }, undefined, own?.clip);
   const tail = useDragItem(`tail:group:${groupId}`, { kind: "tail", tabIds: [], section, parentGroup: groupId });
 
   const fold = useFold(collapsed);
   const scope = useContext(ListMotionContext);
-  const motion = useGroupMotion(windowId, profileId, groupId, entries, captured, section === "list" ? scope : { enabled: scope.enabled, slideBelow: null }, scope.enabled && !collapsed);
+  const motion = useGroupMotion(windowId, profileId, groupId, entries, captured, section === "list" && !parentGroup ? scope : { enabled: scope.enabled, slideBelow: null }, scope.enabled && !collapsed);
   const [moved, movedRef] = useShift(own?.shift ?? null);
 
   const spec = color ? GROUP_COLORS[color] : null;
   const fill = spec ? withAlpha(spec.hex, 0.16) : tokens.groupFill;
+  const iconBackground = iconSurfaces(background ?? theme.windowTint, fill);
   const stroke = spec ? withAlpha(spec.hex, 0.3) : tokens.groupStroke;
 
   return (
     <Animated.View ref={wrapper.ref} style={wrapper.style}>
       <View {...moved} ref={movedRef} style={[{ borderRadius: GROUP_RADIUS, backgroundColor: fill, borderWidth: GROUP_BORDER, borderColor: stroke, paddingHorizontal: PAD }, moved.style as object]}>
         <View ref={headerRef} {...handle} style={{ marginHorizontal: -PAD }}>
-          <GroupHeader groupId={groupId} windowId={windowId} collapsed={collapsed} open={fold.open} />
+          <GroupHeader groupId={groupId} windowId={windowId} collapsed={collapsed} open={fold.open} background={iconBackground} />
         </View>
         <Fold
           fold={fold}
@@ -73,14 +93,15 @@ export const GroupBlock = memo(function GroupBlock({ groupId, section, motion: o
               : {
                   key: slot.entry,
                   node: (
-                    <Entry entry={slot.entry} section={section} groupId={groupId} motion={motion.motion(slot.entry)} background={iconSurfaces(theme.windowTint, fill)} />
+                    <Entry entry={slot.entry} section={section} groupId={groupId} motion={motion.motion(slot.entry)} background={iconBackground} />
                   ),
                 },
           )}
           keep={activeEntry}
           gap={layout.rowGap}
-          rowHeight={layout.rowHeight}
+          rowHeight={(key) => entryHeight(useBrowser.getState(), windowId, profileId, key)}
           padBottom={PAD}
+          indent={parentGroup ? NESTED_INDENT : 0}
           mountClosed={selectedInside}
           footer={<Animated.View ref={tail.wrapper.ref} style={tail.wrapper.style} />}
         />
@@ -91,6 +112,7 @@ export const GroupBlock = memo(function GroupBlock({ groupId, section, motion: o
 });
 
 const Entry = memo(function Entry({ entry, section, groupId, motion, background }: { entry: string; section: "list" | "pinnedGroups"; groupId: string; motion: EntryMotion | null; background: IconBackground }) {
+  if (entry.startsWith("g:")) return <GroupBlock groupId={entry.slice(2)} section={section} parentGroup={groupId} motion={motion} background={background} />;
   return entry.startsWith("s:") ? (
     <SplitRowItem splitId={entry.slice(2)} section={section} parentGroup={groupId} motion={motion} background={background} />
   ) : (
@@ -98,7 +120,7 @@ const Entry = memo(function Entry({ entry, section, groupId, motion, background 
   );
 });
 
-function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; windowId: string; collapsed: boolean; open: Animated.Value }) {
+function GroupHeader({ groupId, windowId, collapsed, open, background }: { groupId: string; windowId: string; collapsed: boolean; open: Animated.Value; background: IconBackground }) {
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const group = useBrowser((s) => s.groups[groupId]);
@@ -137,7 +159,7 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
               style={{ height: layout.rowHeight, flexDirection: "row", alignItems: "center", paddingLeft: 9 + PAD, paddingRight: 6 }}
             >
               {group.icon || firstTab ? (
-                <TabIcon url={firstTab?.url ?? ""} favicon={firstTab?.favicon} icon={group.icon ?? firstTab?.customIcon} profileId={firstTab?.profileId} background={iconSurfaces(theme.windowTint, group.color ? withAlpha(GROUP_COLORS[group.color].hex, 0.16) : tokens.groupFill, dropInto || pressed ? theme.tabPressed : hovered ? tokens.groupHeaderHover : null)} />
+                <TabIcon url={firstTab?.url ?? ""} favicon={firstTab?.favicon} icon={group.icon ?? firstTab?.customIcon} profileId={firstTab?.profileId} background={iconSurfaces(background, dropInto || pressed ? theme.tabPressed : hovered ? tokens.groupHeaderHover : null)} />
               ) : (
                 <View style={{ width: 16 }} />
               )}

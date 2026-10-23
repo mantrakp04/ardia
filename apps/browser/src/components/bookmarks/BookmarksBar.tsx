@@ -2,6 +2,7 @@ import { cleanUrl } from "@ardia/core";
 import { ContextMenuArea, copyText, MouseArea, prompt, showMenu, Symbol, type MenuItem } from "@ardia/shell";
 import { memo, useMemo, useRef, useState } from "react";
 import { Animated, PanResponder, Pressable, StyleSheet, Text, View, type LayoutRectangle } from "react-native";
+import { addFolderToSidebar, restorableArcHolder, makesGroup, restoreArcFolders } from "../../lib/bookmarkGroups";
 import { useTheme } from "../../lib/theme";
 import { folderChildren, folderLinks } from "../../store/bookmarks";
 import { useBrowser } from "../../store/browser";
@@ -12,6 +13,7 @@ import type { BookmarkNode } from "../../store/types";
 import { openInternalPage } from "../pages/urls";
 import { Favicon, useHover } from "../primitives";
 import { openImport } from "../settings/windows";
+import { useSidebarWidth } from "../sidebar/tokens";
 import { openFolder, openModeFor, openUrl } from "./actions";
 import { editBookmark } from "./edit";
 
@@ -120,7 +122,7 @@ function Bar({ windowId }: { windowId: string }) {
               hidden={!fits(id)}
               highlighted={drop?.into === id}
               onLayout={(r) => setFrames((prev) => (sameRect(prev[id], r) ? prev : { ...prev, [id]: r }))}
-              onDragMove={(dx) => setDrop(dropAt(id, dx))}
+              onDragMove={(dx) => setDrop(Number.isFinite(dx) ? dropAt(id, dx) : null)}
               onDragEnd={(dx) => onDrop(id, dropAt(id, dx))}
             />
           ))
@@ -175,9 +177,19 @@ function BarItem({
   onDragEnd: (dx: number) => void;
 }) {
   const node = useBrowser((s) => s.bookmarks.nodes[id]);
+  const width = useSidebarWidth(windowId);
+  const sidebarEdge = useBrowser((s) => {
+    const w = s.windows[windowId];
+    return w?.sidebarOpen && (w.tabLayout ?? s.settings.tabLayout) !== "top" ? width : 0;
+  });
+  const edge = useRef(sidebarEdge);
+  edge.current = sidebarEdge;
   const dx = useRef(new Animated.Value(0)).current;
+  const left = useRef(0);
   const [dragging, setDragging] = useState(false);
+  const [overSidebar, setOverSidebar] = useState(false);
   const handlers = useRef({ onDragMove, onDragEnd });
+  const folder = useRef(false);
   handlers.current = { onDragMove, onDragEnd };
   const responder = useMemo(
     () =>
@@ -185,23 +197,33 @@ function BarItem({
         onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 4,
         onPanResponderGrant: () => setDragging(true),
         onPanResponderMove: (_, g) => {
-          dx.setValue(g.dx);
-          handlers.current.onDragMove(g.dx);
+          const toSidebar = folder.current && g.moveX < edge.current;
+          dx.setValue(toSidebar ? -left.current : g.dx);
+          setOverSidebar(toSidebar);
+          handlers.current.onDragMove(toSidebar ? Infinity : g.dx);
         },
         onPanResponderRelease: (_, g) => {
           dx.setValue(0);
           setDragging(false);
+          setOverSidebar(false);
+          if (folder.current && g.moveX < edge.current) {
+            handlers.current.onDragMove(Infinity);
+            addFolderToSidebar(id, windowId);
+            return;
+          }
           handlers.current.onDragEnd(g.dx);
         },
         onPanResponderTerminate: () => {
           dx.setValue(0);
           setDragging(false);
+          setOverSidebar(false);
           handlers.current.onDragMove(0);
           handlers.current.onDragEnd(0);
         },
       }),
     [],
   );
+  folder.current = node?.kind === "folder";
   if (!node) return null;
   const open = (e: { metaKey?: boolean; shiftKey?: boolean; altKey?: boolean; middle?: boolean }) =>
     node.kind === "url" ? openUrl(node.url, windowId, openModeFor(e)) : void openFolderMenu(windowId, node.children, undefined, node.id);
@@ -209,7 +231,10 @@ function BarItem({
   return (
     <Animated.View
       {...responder.panHandlers}
-      onLayout={(e) => onLayout(e.nativeEvent.layout)}
+      onLayout={(e) => {
+        left.current = e.nativeEvent.layout.x;
+        onLayout(e.nativeEvent.layout);
+      }}
       pointerEvents={hidden ? "none" : "auto"}
       style={{ opacity: hidden ? 0 : dragging ? 0.85 : 1, zIndex: dragging ? 10 : 0, transform: [{ translateX: dx }] }}
     >
@@ -220,7 +245,7 @@ function BarItem({
             icon={node.kind === "folder" ? "folder" : undefined}
             title={node.title || (node.kind === "url" ? node.url : "")}
             tooltip={node.kind === "url" ? `${node.title}\n${node.url}` : node.title}
-            highlighted={highlighted}
+            highlighted={highlighted || overSidebar}
             onPress={(e) => open(e)}
           />
         </MouseArea>
@@ -319,6 +344,7 @@ async function openFolderMenu(windowId: string, ids: string[], _e?: ClickMods, f
         { id: `openAll:${parent}`, title: `Open All (${links})` },
         { id: `openAllWindow:${parent}`, title: "Open All in New Window" },
         { id: `openAllIncognito:${parent}`, title: "Open All in Incognito Window" },
+        { id: `addGroup:${parent}`, title: "Add to Sidebar as Group", enabled: !!parent && makesGroup(useBrowser.getState(), parent) },
       );
     }
     return items;
@@ -331,6 +357,7 @@ async function openFolderMenu(windowId: string, ids: string[], _e?: ClickMods, f
   if (action === "openAll" && id) void openFolder(id, windowId, "tabs");
   if (action === "openAllWindow" && id) void openFolder(id, windowId, "window");
   if (action === "openAllIncognito" && id) void openFolder(id, windowId, "incognito");
+  if (action === "addGroup" && id) addFolderToSidebar(id, windowId);
 }
 
 const splitChoice = (choice: string): [string, string] => {
@@ -360,6 +387,8 @@ async function openBarMenu(windowId: string, profileId: string, node: BookmarkNo
       { id: "openAll", title: `Open All (${n})`, enabled: n > 0 },
       { id: "openAllWindow", title: "Open All in New Window", enabled: n > 0 },
       { id: "openAllIncognito", title: "Open All in Incognito Window", enabled: n > 0 },
+      { id: "addGroup", title: "Add to Sidebar as Group", enabled: makesGroup(s, node.id) },
+      ...(restorableArcHolder(s, node.id) ? [{ id: "restoreArc", title: "Restore Arc Folders as Groups" }] : []),
       { separator: true },
       { id: "rename", title: "Rename…" },
       { id: "delete", title: "Delete" },
@@ -397,6 +426,8 @@ async function openBarMenu(windowId: string, profileId: string, node: BookmarkNo
     if (choice === "openAllWindow") void openFolder(node.id, windowId, "window");
     if (choice === "openAllIncognito") void openFolder(node.id, windowId, "incognito");
     if (choice === "rename") void editBookmark(node.id, windowId);
+    if (choice === "addGroup") addFolderToSidebar(node.id, windowId);
+    if (choice === "restoreArc") restoreArcFolders(node.id, windowId);
   }
   if (choice === "delete" && node) useBrowser.getState().removeBookmark(node.id);
   const parentId = node?.parentId ?? bar;

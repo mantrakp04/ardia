@@ -134,6 +134,9 @@ extern bool (*g_ardia_cast_dialog)(content::WebContents* initiator,
 extern bool (*g_ardia_hidden_from_extensions)(
     const BrowserWindowInterface* browser);
 
+extern bool (*g_ardia_omits_from_session_service)(
+    const BrowserWindowInterface* browser);
+
 extern bool (*g_ardia_extension_install_prompt)(
     Profile* profile,
     content::WebContents* parent,

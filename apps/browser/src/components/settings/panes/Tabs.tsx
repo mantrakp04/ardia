@@ -3,8 +3,14 @@ import { Pressable, Text, View } from "react-native";
 import { useTheme } from "../../../lib/theme";
 import { useBrowser } from "../../../store/browser";
 import { tabLayoutOf } from "../../../store/model";
-import type { Settings } from "../../../store/settings";
+import { peekModifierOf, type PeekModifier, type Settings } from "../../../store/settings";
 import { Checkbox, Group, PopUp, Row, SectionHeader, Toggle, useFormColors } from "../controls";
+
+const PEEK_WITH: { value: PeekModifier; title: string }[] = [
+  { value: "shift", title: "⇧-click" },
+  { value: "alt", title: "⌥-click" },
+  { value: "off", title: "Off" },
+];
 
 const CLEAN_UP = [
   { value: "12", title: "12 hours" },
@@ -57,6 +63,13 @@ export function TabsPane() {
         {toggle("sidebarMediaControls", "tabs.sidebarMediaControls")}
         {toggle("autoPictureInPicture", "tabs.autoPictureInPicture")}
         {toggle("videoUpscaling", "tabs.videoUpscaling")}
+      </Group>
+
+      <SectionHeader title="Links" />
+      <Group>
+        <Row anchor="tabs.peekModifier">
+          <PopUp value={peekModifierOf(settings)} options={PEEK_WITH} onChange={(peekModifier) => update({ peekModifier })} />
+        </Row>
       </Group>
 
       <SectionHeader title="Tab groups" />

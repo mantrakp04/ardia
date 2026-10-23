@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 # Step 1: check out Chromium $CHROMIUM_VERSION (env.sh) for the Mac, without history, and run its
-# hooks; no build. Then step 3 (ungoogled-chromium), step 4 (domain substitution and our series),
-# step 2 (GN args) and step 5 (build).
+# hooks; no build. Then step 3 (Helium and its substitutions), step 4 (our series), step 2 (GN args)
+# and step 5 (build).
 set -euo pipefail
 source "$(dirname "$0")/step-guard.sh" "$@"
 source "$(dirname "$0")/env.sh"
-# A new checkout needs a new base for `series.py check` (step 4 captures it).
 rm -rf "$CB/series-base"
 mkdir -p "$CB/chromium_git/chromium"
 cd "$CB/chromium_git/chromium"

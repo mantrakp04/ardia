@@ -1,6 +1,7 @@
 import { cancelFocusMove, type CommandEvent } from "@ardia/shell";
 import { useBrowser } from "../store/browser";
 import { resolveWindowId } from "../store/model";
+import { peekTabId } from "../store/peek";
 import { cancelAbandonedFocus, claimFocusTag, commandBarFocus, expectFocus, findFocus, heroBarFocus, pageFocus, runFocusMove } from "./focusClaims";
 import { webviews } from "./webviews";
 
@@ -38,8 +39,12 @@ function stillPossible(windowId: string, destination: string): boolean {
   const active = activeTab(windowId);
   if (!active) return false;
   if (destination === commandBarFocus) return !!s.windowUi[windowId]?.panel.open;
-  if (destination === findFocus(active)) return !!s.find[active]?.open;
-  return destination === heroBarFocus(active) || destination === pageFocus(active);
+  const peek = peekTabId(s, windowId);
+  for (const page of peek ? [active, peek] : [active]) {
+    if (destination === findFocus(page)) return !!s.find[page]?.open;
+    if (destination === pageFocus(page)) return true;
+  }
+  return destination === heroBarFocus(active);
 }
 
 export function cancelAbandonedFocusMoves() {

@@ -1,7 +1,3 @@
-# Files left out of ungoogled-chromium's domain substitution so the Chrome Web
-# Store works: installing from chromewebstore.google.com (webstorePrivate),
-# CRX downloads and extension auto-updates (clients2.google.com /
-# clients2.googleusercontent.com). fnmatch patterns, relative to chromium/src.
 extensions/common/extension_urls.*
 extensions/common/api/_*features.json
 chrome/common/extensions/api/_*features.json

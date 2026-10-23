@@ -1,6 +1,6 @@
 import { WebView, type OpenWindowRequest } from "@ardia/ardiacore";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Animated, StyleSheet, View } from "react-native";
+import { Animated, StyleSheet, View, type ViewStyle } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { focus, switchToTab } from "../lib/actions";
 import { noteFavicon } from "../lib/favicons";
@@ -62,6 +62,8 @@ import "./layout/devExpose";
 import { closeWebNotification, showWebNotification } from "../lib/webNotifications";
 import { isSmallWindow } from "../store/small";
 import { closeLittleArdiaOnEscape } from "./littleArdia/actions";
+import { PeekOverlay } from "./peek/PeekOverlay";
+import { closePeekOnEscape, dismissPeek, startPeeks } from "./peek/actions";
 
 export function ContentCard() {
   const windowId = useWindowId();
@@ -81,6 +83,12 @@ export function ContentCard() {
   useEffect(startChromeTabs, []);
   useEffect(startMedia, []);
   useEffect(startSelectionTools, []);
+  useEffect(startPeeks, []);
+  const peekId = useBrowser((s) => s.peeks[windowId]?.tabId);
+  const peekFullscreen = !!peekId && fullscreenTab === peekId;
+  useEffect(() => {
+    if (fullscreenTab && peekId && !peekFullscreen) dismissPeek(windowId);
+  }, [fullscreenTab, peekId, peekFullscreen, windowId]);
 
   const mountedMemo = useRef<{ tabIds?: string[]; tabs?: object; ids: string[]; seen: (Tab | undefined)[]; wants: boolean[] }>({ ids: [], seen: [], wants: [] });
   const mounted = useBrowser(
@@ -282,6 +290,16 @@ export function ContentCard() {
       )}
       {split && !fullscreenTab && <SplitDividers split={split} dividers={dividers} width={size.width} height={size.height} />}
       {!fullscreenTab && <DropTargets panes={panes} origin={origin} />}
+      {(!fullscreenTab || peekFullscreen) && !small && (
+        <PeekOverlay
+          windowId={windowId}
+          width={size.width}
+          height={size.height}
+          origin={origin}
+          fullscreen={peekFullscreen}
+          page={(tabId, sourceId, width) => <PeekPage tabId={tabId} sourceId={sourceId} windowId={windowId} width={width} fullscreen={peekFullscreen} />}
+        />
+      )}
       <SplitToast windowId={windowId} />
     </View>
   );
@@ -332,8 +350,6 @@ const TabPane = memo(function TabPane({
   const own = useTabValue(tabId, paneTab, shallowEqual);
   const isNewTab = !own.url;
   const emptyCard = useBrowser((s) => isNewTab && s.settings.newTabOpens === "commandBar");
-  const zoom = own.zoom;
-  const popover = useStoreWhile(usePages, visible, (s) => s.popover[tabId] ?? null);
   const newTabShown = useStoreWhile(usePages, live, (s) => !!s.pages[tabId]?.newTabShown);
   const inSomeSplit = useStoreWhile(useBrowser, !!warm, (s) => !!warm && !!splitOf(s, tabId));
   const inSplit = visible ? inActiveSplit : inSomeSplit;
@@ -389,26 +405,16 @@ const TabPane = memo(function TabPane({
             {visible && isNewTab && !small && (inSplit ? <SplitEmptyState tabId={tabId} focused={focused} /> : emptyCard ? <EmptyCard windowId={windowId} tabId={tabId} /> : <NewTabPage key={tabId} tabId={tabId} toolbar={toolbar} />)}
             {visible && <InternalPage tabId={tabId} />}
             {visible && (
-              <>
-                <FindBar tabId={tabId} />
-                {fullscreen && <CliControlPill />}
-                <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, autoLayout && motion.bottomStyle]}>
-                  <StatusBubble tabId={tabId} maxWidth={Math.max(160, frame.width / 2)} />
-                </Animated.View>
-                <SadTab tabId={tabId} />
-                {!newTabShown && <PermissionPrompt tabId={tabId} left={Math.max(POPOVER_MARGIN, Math.min(geometry.urlLeft, frame.width - 308))} top={POPOVER_MARGIN} />}
-                <PasswordPrompt tabId={tabId} right={POPOVER_MARGIN} top={POPOVER_MARGIN} />
-                <AutofillPrompt tabId={tabId} right={POPOVER_MARGIN} top={POPOVER_MARGIN} />
-                {!newTabShown && <ExternalAppPrompt tabId={tabId} left={Math.max(POPOVER_MARGIN, Math.min(geometry.urlLeft, frame.width - 348))} top={POPOVER_MARGIN} />}
-                <SiteControls tabId={tabId} open={popover === "siteControls"} {...(toolbar ? { right: POPOVER_MARGIN } : { left: POPOVER_MARGIN })} top={POPOVER_MARGIN} />
-                {popover === "popups" && <BlockedPopupsPrompt tabId={tabId} {...(toolbar ? { right: POPOVER_MARGIN } : { left: POPOVER_MARGIN })} top={POPOVER_MARGIN} />}
-                {popover === "zoom" && <ZoomPopover tabId={tabId} {...(toolbar ? { right: POPOVER_MARGIN } : { left: POPOVER_MARGIN })} top={POPOVER_MARGIN} />}
-                <SharePicker tabId={tabId} paneWidth={frame.width} />
-                {!newTabShown && <DeviceChooser tabId={tabId} left={Math.max(POPOVER_MARGIN, Math.min(geometry.urlLeft, frame.width - 348))} top={POPOVER_MARGIN} />}
-                <CastPicker tabId={tabId} paneWidth={frame.width} />
-                <NavigationOverlays tabId={tabId} windowId={windowId} geometry={geometry} />
-                <SelectionPopover tabId={tabId} zoom={zoom} />
-              </>
+              <PageOverlays
+                tabId={tabId}
+                windowId={windowId}
+                width={frame.width}
+                geometry={geometry}
+                toolbar={toolbar}
+                fullscreen={fullscreen}
+                newTabShown={newTabShown}
+                statusStyle={autoLayout ? motion.bottomStyle : undefined}
+              />
             )}
           </View>
         </View>
@@ -419,14 +425,68 @@ const TabPane = memo(function TabPane({
   );
 });
 
-const paneTab = (t: Tab | undefined) => ({ exists: !!t, url: t?.url ?? "", zoom: t?.zoom ?? 1 });
+function PageOverlays({
+  tabId,
+  windowId,
+  width,
+  geometry,
+  toolbar,
+  fullscreen,
+  newTabShown,
+  statusStyle,
+}: {
+  tabId: string;
+  windowId: string;
+  width: number;
+  geometry: ToolbarGeometry;
+  toolbar: boolean;
+  fullscreen: boolean;
+  newTabShown: boolean;
+  statusStyle?: Animated.WithAnimatedValue<ViewStyle>;
+}) {
+  const popover = usePages((s) => s.popover[tabId] ?? null);
+  const zoom = useTabValue(tabId, (t) => t?.zoom ?? 1);
+  return (
+    <>
+      <FindBar tabId={tabId} />
+      {fullscreen && <CliControlPill />}
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, statusStyle]}>
+        <StatusBubble tabId={tabId} maxWidth={Math.max(160, width / 2)} />
+      </Animated.View>
+      <SadTab tabId={tabId} />
+      {!newTabShown && <PermissionPrompt tabId={tabId} left={Math.max(POPOVER_MARGIN, Math.min(geometry.urlLeft, width - 308))} top={POPOVER_MARGIN} />}
+      <PasswordPrompt tabId={tabId} right={POPOVER_MARGIN} top={POPOVER_MARGIN} />
+      <AutofillPrompt tabId={tabId} right={POPOVER_MARGIN} top={POPOVER_MARGIN} />
+      {!newTabShown && <ExternalAppPrompt tabId={tabId} left={Math.max(POPOVER_MARGIN, Math.min(geometry.urlLeft, width - 348))} top={POPOVER_MARGIN} />}
+      <SiteControls tabId={tabId} open={popover === "siteControls"} {...(toolbar ? { right: POPOVER_MARGIN } : { left: POPOVER_MARGIN })} top={POPOVER_MARGIN} />
+      {popover === "popups" && <BlockedPopupsPrompt tabId={tabId} {...(toolbar ? { right: POPOVER_MARGIN } : { left: POPOVER_MARGIN })} top={POPOVER_MARGIN} />}
+      {popover === "zoom" && <ZoomPopover tabId={tabId} {...(toolbar ? { right: POPOVER_MARGIN } : { left: POPOVER_MARGIN })} top={POPOVER_MARGIN} />}
+      <SharePicker tabId={tabId} paneWidth={width} />
+      {!newTabShown && <DeviceChooser tabId={tabId} left={Math.max(POPOVER_MARGIN, Math.min(geometry.urlLeft, width - 348))} top={POPOVER_MARGIN} />}
+      <CastPicker tabId={tabId} paneWidth={width} />
+      <NavigationOverlays tabId={tabId} windowId={windowId} geometry={geometry} />
+      <SelectionPopover tabId={tabId} zoom={zoom} />
+    </>
+  );
+}
+
+function PeekPage({ tabId, sourceId, windowId, width, fullscreen }: { tabId: string; sourceId: string; windowId: string; width: number; fullscreen: boolean }) {
+  return (
+    <>
+      <TabWebView tabId={tabId} visible warm={false} peekOf={sourceId} />
+      <PageOverlays tabId={tabId} windowId={windowId} width={width} geometry={NO_TOOLBAR} toolbar={false} fullscreen={fullscreen} newTabShown={false} />
+    </>
+  );
+}
+
+const paneTab = (t: Tab | undefined) => ({ exists: !!t, url: t?.url ?? "" });
 const webViewTab = (t: Tab | undefined) => ({ navigation: t?.navigation, adoptId: t?.adoptId, profileId: t?.profileId ?? "", shownUrl: t?.url ?? "" });
 
 const isBlank = (url: string) => !url || url === "about:blank";
 const pageKey = (url: string) => url.replace(/#.*$/, "");
 const hostOf = (url: string) => url.match(/^[a-z][\w+.-]*:\/\/([^/?#]*)/i)?.[1]?.toLowerCase() ?? "";
 
-const TabWebView = memo(function TabWebView({ tabId, visible, warm }: { tabId: string; visible: boolean; warm: boolean }) {
+const TabWebView = memo(function TabWebView({ tabId, visible, warm, peekOf }: { tabId: string; visible: boolean; warm: boolean; peekOf?: string }) {
   const { navigation, adoptId, profileId, shownUrl } = useTabValue(tabId, webViewTab, shallowEqual);
   const neighbour = useStoreWhile(useBrowser, warm, (s) => warm && s.windows[s.tabs[tabId]?.windowId ?? ""]?.profileId !== profileId);
   const tab = () => useBrowser.getState().tabs[tabId];
@@ -490,6 +550,8 @@ const TabWebView = memo(function TabWebView({ tabId, visible, warm }: { tabId: s
       profile={engineProfile(profileId)}
       adoptId={adoptId}
       transferKey={tabId}
+      temporary={peekOf !== undefined}
+      temporarySource={peekOf}
       visible={visible}
       warm={warm}
       neighbour={neighbour}
@@ -602,7 +664,7 @@ const TabWebView = memo(function TabWebView({ tabId, visible, warm }: { tabId: s
         if (command === "search") searchSelection(tabId, text, modifiers);
         else if (command === "copyLinkToHighlight") void copyLinkToSelection(tabId);
         else if (command === "escape" && usePages.getState().popover[tabId]) setPopover(tabId, null);
-        else if (command === "escape") closeLittleArdiaOnEscape(tabId);
+        else if (command === "escape" && !closePeekOnEscape(tabId)) closeLittleArdiaOnEscape(tabId);
       }}
       onPageMessage={(kind, data) => {
         if (kind === "selection") setPageSelection(tabId, data as PageSelection | null);

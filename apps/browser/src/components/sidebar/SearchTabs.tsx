@@ -7,6 +7,7 @@ import { switchToTab } from "../../lib/actions";
 import { hex, useTheme } from "../../lib/theme";
 import { useBrowser, type BrowserState } from "../../store/browser";
 import { tabLabel } from "../../store/model";
+import { isPeekTab } from "../../store/peek";
 import { tabTitle } from "./actions";
 import { setSidebarUi, useSidebarUi } from "./state";
 import { TabIcon } from "./TabIcon";
@@ -25,7 +26,7 @@ function candidates(s: BrowserState, windowId: string): { open: Row[]; closed: R
   const profileId = w.profileId;
   const windowNumber = (id: string) => s.windowOrder.filter((x) => !s.windows[x]?.incognito || x === windowId).indexOf(id) + 1;
   const open: Row[] = Object.values(s.tabs)
-    .filter((t) => t.profileId === profileId)
+    .filter((t) => t.profileId === profileId && !isPeekTab(s, t.id))
     .sort((a, b) => b.lastActiveAt - a.lastActiveAt)
     .map((t) => ({
       kind: "tab",

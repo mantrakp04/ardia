@@ -5,6 +5,7 @@ import { webviews } from "../../lib/webviews";
 import { useBrowser } from "../../store/browser";
 import type { BrowserState } from "../../store/browser";
 import { activeTabId } from "../../store/model";
+import { peekTabId } from "../../store/peek";
 import { splitOf } from "../../store/splits";
 
 export type Session = NowPlaying & {
@@ -107,7 +108,7 @@ export function isTabShown(s: BrowserState, tabId: string): boolean {
   if (!windowId) return false;
   const active = activeTabId(s, windowId);
   if (!active) return false;
-  return active === tabId || !!splitOf(s, active)?.tabIds.includes(tabId);
+  return active === tabId || peekTabId(s, windowId) === tabId || !!splitOf(s, active)?.tabIds.includes(tabId);
 }
 
 export function playerTabFor(m: Pick<Store, "sessions" | "dismissed">, tabIds: string[], current?: string): string | undefined {

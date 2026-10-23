@@ -1,4 +1,5 @@
 import type { BrowserState } from "./browser";
+import { ancestorIds } from "./groups";
 import { inPinnedContainer } from "./model";
 import { groupOf, pinnedChildGroup } from "./organize";
 import { splitOf } from "./splits";
@@ -68,10 +69,15 @@ export function switchKeepsOpeners(s: BrowserState, from: string, to: string): b
   return a === b || b === from || a === to;
 }
 
+const hiddenInGroup = (s: BrowserState, id: string) => {
+  const g = groupOf(s, id);
+  return !!g && (g.collapsed || ancestorIds(s.groups, g.id).some((x) => s.groups[x]!.collapsed));
+};
+
 export function openerSuccessor(s: BrowserState, closed: string, order: string[], left: string[]): string | undefined {
   const at = order.indexOf(closed);
   const candidates = [...left.filter((id) => order.indexOf(id) > at), ...left.filter((id) => order.indexOf(id) < at).reverse()].filter(
-    (id) => !s.tabs[id]!.unloaded && !groupOf(s, id)?.collapsed,
+    (id) => !s.tabs[id]!.unloaded && !hiddenInGroup(s, id),
   );
   const opener = s.tabs[closed]?.openerId;
   return (

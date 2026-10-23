@@ -5,10 +5,12 @@ import { calendarConnected, connectCalendar, setCalendarHidden, useCalendar } fr
 import { deleteLiveFolder, newLiveFolder, openLiveItem, refreshFolder, statusText } from "../../live/engine";
 import { ALERT_LEADS } from "../../live/meetings";
 import { SOURCES } from "../../live/sources";
-import { live, markRead, moveFolder, setLive, updateCalendarSettings, updateFolder } from "../../live/store";
+import { live, markRead, setLive, updateCalendarSettings, updateFolder } from "../../live/store";
 import type { LiveItem, LiveSourceId } from "../../live/types";
+import { useBrowser } from "../../store/browser";
 import { openSettings } from "../settings/windows";
 import { openIconPicker } from "./actions";
+import { LIVE, moveLiveFolder, pinnedSequence } from "./pinnedOrder";
 
 const sep = { separator: true } as const;
 
@@ -40,7 +42,9 @@ export async function openLiveFolderMenu(windowId: string, folderId: string) {
   const s = live();
   const folder = s.folders[folderId];
   if (!folder) return;
-  const index = s.folderOrder.indexOf(folderId);
+  const b = useBrowser.getState();
+  const sequence = pinnedSequence(b, s.folders, s.folderOrder, windowId, folder.profileId);
+  const index = sequence.indexOf(`${LIVE}${folderId}`);
   const pr = folder.kind === "pullRequests";
   const status = s.status[folderId];
   const choice = await showMenu([
@@ -70,7 +74,7 @@ export async function openLiveFolderMenu(windowId: string, folderId: string) {
     { id: "read", title: "Mark All as Read", symbol: "circle", enabled: (s.unread[folderId]?.length ?? 0) > 0 },
     { id: "collapse", title: folder.collapsed ? "Expand" : "Collapse", symbol: folder.collapsed ? "chevron.down" : "chevron.up" },
     { id: "up", title: "Move Up", enabled: index > 0 },
-    { id: "down", title: "Move Down", enabled: index < s.folderOrder.length - 1 },
+    { id: "down", title: "Move Down", enabled: index >= 0 && index < sequence.length - 1 },
     sep,
     { id: "settings", title: "Live Folder Settings…", symbol: "gearshape" },
     { id: "delete", title: "Delete Live Folder", symbol: "trash" },
@@ -93,8 +97,8 @@ export async function openLiveFolderMenu(windowId: string, folderId: string) {
   } else if (choice === "icon") void openIconPicker(windowId, { kind: "live", id: `livefolder|${folderId}` });
   else if (choice === "read") markRead(folderId);
   else if (choice === "collapse") updateFolder(folderId, { collapsed: !folder.collapsed });
-  else if (choice === "up") moveFolder(folderId, -1);
-  else if (choice === "down") moveFolder(folderId, 1);
+  else if (choice === "up") moveLiveFolder(windowId, folderId, -1);
+  else if (choice === "down") moveLiveFolder(windowId, folderId, 1);
   else if (choice === "settings") openSettings("liveFolders");
   else if (choice === "delete") deleteLiveFolder(folderId);
 }

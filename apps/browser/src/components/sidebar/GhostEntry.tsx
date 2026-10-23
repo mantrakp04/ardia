@@ -21,7 +21,7 @@ type GroupShot = {
   color: string | null;
   icon: { url: string; favicon?: string | null; icon?: string | null; profileId?: string } | null;
   collapsed: boolean;
-  members: (TabShot | SplitShot)[];
+  members: (TabShot | SplitShot | GroupShot)[];
 };
 export type EntrySnapshot = TabShot | SplitShot | GroupShot;
 
@@ -50,8 +50,6 @@ function splitShot(s: BrowserState, splitId: string): SplitShot {
   return { kind: "split", key: `s:${splitId}`, panes: panes.flatMap((id) => tabShot(s, id, false) ?? []) };
 }
 
-const memberShot = (s: BrowserState, entry: string) => (entry.startsWith("s:") ? splitShot(s, entry.slice(2)) : tabShot(s, entry.slice(2), false));
-
 export function snapshotEntry(s: BrowserState, windowId: string, profileId: string, entry: string): EntrySnapshot | null {
   const id = entry.slice(2);
   if (entry.startsWith("s:")) return splitShot(s, id);
@@ -68,7 +66,7 @@ export function snapshotEntry(s: BrowserState, windowId: string, profileId: stri
     color: group.color ?? null,
     icon: group.icon || first ? { url: first?.url ?? "", favicon: first?.favicon, icon: group.icon ?? first?.customIcon, profileId: first?.profileId } : null,
     collapsed: !!group.collapsed,
-    members: (group.collapsed ? (kept ? [kept] : []) : entries).flatMap((e) => memberShot(s, e) ?? []),
+    members: (group.collapsed ? (kept ? [kept] : []) : entries).flatMap((e) => (e.startsWith("t:") ? tabShot(s, e.slice(2), false) : snapshotEntry(s, windowId, profileId, e)) ?? []),
   };
 }
 
@@ -144,7 +142,7 @@ function GroupGhost({ shot }: { shot: GroupShot }) {
           <Symbol name="chevron.down" size={9} weight="semibold" color={withAlpha(tokens.groupTitle, 0.5)} style={{ width: 10, height: 10 }} />
         </View>
       </View>
-      <View style={{ gap: layout.rowGap, paddingBottom: pad }}>{shot.members.map((m) => (m.kind === "split" ? <SplitGhost key={m.key} shot={m} /> : tabGhost(m, theme)))}</View>
+      <View style={{ gap: layout.rowGap, paddingBottom: pad }}>{shot.members.map((m) => (m.kind === "split" ? <SplitGhost key={m.key} shot={m} /> : m.kind === "group" ? <GroupGhost key={m.key} shot={m} /> : tabGhost(m, theme)))}</View>
     </View>
   );
 }

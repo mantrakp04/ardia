@@ -1,5 +1,5 @@
 import type { BrowserState } from "./browser";
-import { orderSections, syncGroupOrder } from "./groups";
+import { ancestorIds, depthOf, orderSections, syncGroupOrder, withParent } from "./groups";
 import { IDLE_LIVE, isIncognitoProfile, makeTab, newId, pendingRestore, pinnedFirst, restoreId, snapshotTab, without } from "./model";
 import { samePage } from "./organize";
 import { pinKeyOf } from "./pinMirror";
@@ -19,8 +19,10 @@ const homeOf = (t: { url: string; pinnedUrl?: string | null }) => t.pinnedUrl ||
 
 export function parkWindowPins(parked: Record<string, ParkedPins>, w: BrowserWindow, s: PinSource): Record<string, ParkedPins> {
   if (w.incognito) return parked;
+  const own = Object.values(s.groups).filter((g) => g.pinned && g.windowId === w.id);
+  const ownIds = new Set(own.map((g) => g.id));
   const groupOf = new Map<string, TabGroup>();
-  for (const g of Object.values(s.groups)) if (g.pinned && g.windowId === w.id) for (const id of g.tabIds) groupOf.set(id, g);
+  for (const g of own.map((g) => [g, depthOf(s.groups, g.id)] as const).sort((a, z) => a[1] - z[1]).map(([g]) => g)) for (const id of g.tabIds) groupOf.set(id, g);
   let next = parked;
   const profiles = new Set(w.tabIds.map((id) => s.tabs[id]?.profileId).filter((p): p is string => !!p));
   const shownElsewhere = (profileId: string) =>
@@ -34,7 +36,7 @@ export function parkWindowPins(parked: Record<string, ParkedPins>, w: BrowserWin
     const homes = old.tabs.filter((p) => !p.groupId).map(homeOf);
     const groups = [...old.groups];
     const tiles: ParkedPins["tabs"] = [];
-    const members: ParkedPins["tabs"] = [];
+    const rest: ParkedPins["tabs"] = [];
     const pending = (t: Tab, moved: boolean) => {
       const from = !moved && !isIncognitoProfile(t.profileId) ? pendingRestore(t) : undefined;
       return from ? { restoreFrom: from } : {};
@@ -47,15 +49,19 @@ export function parkWindowPins(parked: Record<string, ParkedPins>, w: BrowserWin
         const tile = { ...snapshotTab(t), ...back, ...pending(t, !!back.url), id: pinKeyOf(t), groupId: null };
         if (homes.some((h) => samePage(h, homeOf(tile)))) continue;
         homes.push(homeOf(tile));
-        tiles.push(tile);
+        (t.pinnedAsRow ? rest : tiles).push(tile);
       } else if (g) {
-        if (!groups.some((x) => x.id === pinKeyOf(g))) groups.push({ id: pinKeyOf(g), name: g.name, icon: g.icon, color: g.color, collapsed: g.collapsed });
-        members.push({ ...snapshotTab(t), ...pending(t, false), id: pinKeyOf(t), groupId: pinKeyOf(g) });
+        const chain = [...ancestorIds(s.groups, g.id).filter((id) => ownIds.has(id)).reverse().map((id) => s.groups[id]!), g];
+        chain.forEach((x, i) => {
+          if (groups.some((y) => y.id === pinKeyOf(x))) return;
+          const parent = chain[i - 1];
+          groups.push({ id: pinKeyOf(x), name: x.name, icon: x.icon, color: x.color, collapsed: x.collapsed, ...(parent ? { parentId: pinKeyOf(parent) } : {}) });
+        });
+        rest.push({ ...snapshotTab(t), ...pending(t, false), id: pinKeyOf(t), groupId: pinKeyOf(g) });
       }
     }
-    const oldTiles = old.tabs.filter((p) => !p.groupId);
-    const oldMembers = old.tabs.filter((p) => p.groupId);
-    next = { ...next, [profileId]: { tabs: [...oldTiles, ...tiles, ...oldMembers, ...members], groups } };
+    const isTile = (p: ParkedPins["tabs"][number]) => !p.groupId && !p.pinnedAsRow;
+    next = { ...next, [profileId]: { tabs: [...old.tabs.filter(isTile), ...tiles, ...old.tabs.filter((p) => !isTile(p)), ...rest], groups } };
   }
   return next;
 }
@@ -67,7 +73,7 @@ export function adoptParkedPins(s: BrowserState, windowId: string, profileId: st
   const tabs = { ...s.tabs };
   const live = { ...s.live };
   const homes = w.tabIds.map((id) => tabs[id]).filter((t): t is Tab => !!t?.pinned && t.profileId === profileId).map(homeOf);
-  const members = new Map<string, string[]>();
+  const keyOf = new Map<string, string>();
   const added: string[] = [];
   for (const { id, groupId, restoreFrom, ...snap } of park.tabs) {
     const home = homeOf(snap);
@@ -82,16 +88,32 @@ export function adoptParkedPins(s: BrowserState, windowId: string, profileId: st
     tabs[tab.id] = tab;
     live[tab.id] = IDLE_LIVE;
     added.push(tab.id);
-    if (groupId) members.set(groupId, [...(members.get(groupId) ?? []), tab.id]);
+    if (groupId) keyOf.set(tab.id, groupId);
   }
+  const parentOf = new Map(park.groups.map((g) => [g.id, g.parentId]));
+  const within = (key: string | undefined, target: string) => {
+    const seen = new Set<string>();
+    for (let k = key; k && !seen.has(k); k = parentOf.get(k)) {
+      if (k === target) return true;
+      seen.add(k);
+    }
+    return false;
+  };
   let groups = { ...s.groups };
-  for (const g of park.groups) {
-    const tabIds = members.get(g.id);
-    if (!tabIds?.length) continue;
+  const idOf = new Map<string, string>();
+  for (const { parentId: _, ...g } of park.groups) {
+    const tabIds = added.filter((id) => within(keyOf.get(id), g.id));
+    if (!tabIds.length) continue;
     const id = groups[g.id] ? newId("g") : g.id;
+    idOf.set(g.id, id);
     groups[id] = { ...g, id, ...(id === g.id ? {} : { pinKey: g.id }), windowId, profileId, pinned: true, tabIds, createdAt: Date.now() };
   }
-  const window = { ...w, tabIds: orderSections(pinnedFirst([...added, ...w.tabIds], tabs), tabs, groups) };
+  for (const g of park.groups) {
+    const id = idOf.get(g.id);
+    const parent = g.parentId ? idOf.get(g.parentId) : undefined;
+    if (id && parent) groups[id] = withParent(groups[id]!, parent);
+  }
+  const window = { ...w, tabIds: orderSections(pinnedFirst([...added, ...w.tabIds], tabs, groups), tabs, groups) };
   groups = syncGroupOrder(groups, window);
   return { ...s, tabs, live, groups, windows: { ...s.windows, [windowId]: window }, parkedPins: without(s.parkedPins, [profileId]) };
 }

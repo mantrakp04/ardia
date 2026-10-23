@@ -19,7 +19,8 @@ import { confirm, showMenu } from "@ardia/shell";
 import { openWindow } from "../../lib/actions";
 import { webviews } from "../../lib/webviews";
 import { useBrowser, type BrowserState } from "../../store/browser";
-import { activeTabId, engineProfile } from "../../store/model";
+import { engineProfile } from "../../store/model";
+import { shownPageId } from "../../store/peek";
 import { openSettings } from "../settings/windows";
 import { closeSidePanelsOf, toggleSidePanel } from "./sidePanels";
 import { browserIdOf, extensionProfile, pageProfile, shownIn, useExtensions, windowExtensions, type Anchor } from "./store";
@@ -200,13 +201,17 @@ export const openPinDialog = (windowId: string) => useExtensions.setState({ pinD
 export const openWebStore = (windowId: string) =>
   useBrowser.getState().newTab(windowId, { url: "https://chromewebstore.google.com/category/extensions" });
 
-export async function activateExtension(windowId: string, ext: InstalledExtension, anchor: Anchor, state?: ActionState | null) {
+export async function activateExtension(
+  windowId: string,
+  ext: InstalledExtension,
+  anchor: Anchor,
+  state?: ActionState | null,
+  tabId = shownPageId(useBrowser.getState(), windowId),
+) {
   const current = useExtensions.getState().popup;
   if (current?.windowId === windowId && current.extensionId === ext.id) return closeExtensionPopup();
   if (!ext.enabled) return void showExtensionMenu(windowId, ext);
   if (!shownIn(windowId, ext.id)) return;
-  const s = useBrowser.getState();
-  const tabId = activeTabId(s, windowId);
   const web = tabId ? webviews.get(tabId) : undefined;
   const result = web ? await web.executeExtensionAction(ext.id) : null;
   const browserId = browserIdOf(tabId);
@@ -224,9 +229,9 @@ let popupRequests = 0;
 
 export async function openActionPopup(windowId: string, extensionId: string, anchor: Anchor, browserId: number) {
   const request = ++popupRequests;
-  const tabId = activeTabId(useBrowser.getState(), windowId);
+  const tabId = shownPageId(useBrowser.getState(), windowId);
   const url = (await extensionActionStates(browserId, [extensionId]))[extensionId]?.popup ?? "";
-  if (request !== popupRequests || activeTabId(useBrowser.getState(), windowId) !== tabId)
+  if (request !== popupRequests || shownPageId(useBrowser.getState(), windowId) !== tabId)
     return console.warn(`action.openPopup for ${extensionId}: the tab changed or another call came first`);
   if (!url) return console.warn(`action.openPopup for ${extensionId}: no popup for the tab`);
   useExtensions.setState({ popup: { windowId, pageProfile: pageProfile(useBrowser.getState(), windowId), extensionId, url, anchor, opened: request } });

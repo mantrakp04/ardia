@@ -7,6 +7,7 @@
 #include <string>
 #include <string_view>
 
+#include "base/functional/callback_forward.h"
 #include "extensions/common/extension_id.h"
 
 class GURL;
@@ -24,6 +25,16 @@ extern bool g_ardia_opacity_from_default_color;
 bool ArdiaHasAccessedInitialMainDocument(WebContents* contents);
 }
 
+namespace crypto::apple {
+class KeychainV2;
+}
+
+class SessionID;
+
+namespace sessions {
+class LiveTab;
+}
+
 namespace extensions {
 struct WebRequestInfo;
 namespace declarative_net_request {
@@ -32,6 +43,13 @@ struct RequestAction;
 }
 
 extern int g_ardia_disk_space_check_seconds;
+
+extern bool (*g_ardia_safe_storage_key_may_be_created)();
+
+extern void (*g_ardia_safe_storage_unreadable)(int status,
+                                              base::OnceClosure retry);
+
+extern crypto::apple::KeychainV2* (*g_ardia_test_keychain)();
 
 extern bool g_ardia_lazy_storage_usage;
 
@@ -52,6 +70,9 @@ extern bool g_ardia_begin_frame_bridge;
 
 extern void (*g_ardia_initial_main_document_accessed)(
     content::WebContents* contents);
+
+extern bool (*g_ardia_live_tab_skips_restore)(sessions::LiveTab* live_tab,
+                                              SessionID* source);
 
 extern int (*g_ardia_permission_tab_shown)(content::WebContents*);
 

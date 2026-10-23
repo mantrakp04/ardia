@@ -732,7 +732,7 @@ enum MainMenu {
       addBookmarks(state.recentBookmarks, to: bookmarks)
       bookmarks.addItem(.separator())
     }
-    bookmarks.addItem(folderItem("Bookmarks Bar", state.bookmarksBar))
+    bookmarks.addItem(folderItem("Bookmarks Bar", state.bookmarksBar, holdsArcHolders: true))
     bookmarks.addItem(folderItem("Other Bookmarks", state.otherBookmarks))
   }
 
@@ -773,6 +773,7 @@ enum MainMenu {
   ]
   private static let dynamicCommands: Set<String> = [
     "openBookmark", "restoreClosed", "moveTabToProfile", "moveTabToWindow", "addBookmarkToFolder",
+    "addFolderToSidebar", "restoreArcFolders",
   ]
 
   private static func walk(_ menu: NSMenu?, path: [String] = [], _ visit: (NSMenuItem, [String]) -> Void) {
@@ -906,20 +907,35 @@ enum MainMenu {
     return item
   }
 
-  private static func folderItem(_ title: String, _ children: [MenuState.Bookmark]) -> NSMenuItem {
+  private static func folderItem(_ title: String, _ children: [MenuState.Bookmark], id: String? = nil, holdsArcHolders: Bool = false, arcHolder: Bool = false) -> NSMenuItem {
     let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
     let menu = NSMenu(title: title)
-    addBookmarks(children, to: menu)
+    addBookmarks(children, to: menu, holdsArcHolders: holdsArcHolders)
     if children.isEmpty { menu.addItem(emptyItem()) }
+    if let id, hasGroupLinks(children) {
+      menu.addItem(.separator())
+      menu.addItem(CommandItem("Add to Sidebar as Group", "addFolderToSidebar", arg: id))
+      if arcHolder && children.contains(where: { $0.children.map(hasGroupLinks) ?? false }) {
+        menu.addItem(CommandItem("Restore Arc Folders as Groups", "restoreArcFolders", arg: id))
+      }
+    }
     item.submenu = menu
     item.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)
     return item
   }
 
-  private static func addBookmarks(_ nodes: [MenuState.Bookmark], to menu: NSMenu) {
+  private static func hasGroupLinks(_ nodes: [MenuState.Bookmark]) -> Bool {
+    nodes.contains { node in
+      if let children = node.children { return hasGroupLinks(children) }
+      let url = (node.url ?? "").lowercased()
+      return url.hasPrefix("http:") || url.hasPrefix("https:") || url.hasPrefix("file:")
+    }
+  }
+
+  private static func addBookmarks(_ nodes: [MenuState.Bookmark], to menu: NSMenu, holdsArcHolders: Bool = false) {
     for node in nodes {
       if let children = node.children {
-        menu.addItem(folderItem(node.title, children))
+        menu.addItem(folderItem(node.title, children, id: node.id, arcHolder: holdsArcHolders && node.title.hasSuffix(" (Arc)")))
       } else {
         menu.addItem(CommandItem(node.title.isEmpty ? (node.url ?? "") : node.title, "openBookmark", arg: node.id))
       }

@@ -271,7 +271,10 @@ and sent only when changed, progress at most 10 times a second, a held report fl
 | `resolveUnresponsive` | partial | See `onUnresponsive` |
 
 The app closes a tab by unmounting its WebView; ArdiaCore closes it at once without beforeunload
-(`-[ArdiaCoreTab closeNow]`, as CEF's `CloseBrowser(true)`), recording Chrome's closed-tab entry first.
+(`-[ArdiaCoreTab closeNow]`, as CEF's `CloseBrowser(true)`), recording Chrome's closed-tab entry first. A WebView with
+`temporary` (the Peek's) marks its tab `ArdiaCoreTab.temporary`, and Chrome records no closed-tab or closed-window
+entry for it however it closes (`chromium-temporary-tab-restore-hook.patch`); `temporarySource` (the tab it was opened
+over, `-[ArdiaCoreTab setTemporarySource:]`) is the tab a closed window's entry selects when the temporary one was selected.
 
 ## `ArdiaCEF` module (`packages/ardiacore/src/native.ts`, `module.ts`)
 

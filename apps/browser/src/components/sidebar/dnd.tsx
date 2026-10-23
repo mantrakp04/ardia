@@ -2,13 +2,16 @@ import { hapticTick, onAppEvent, setDragEscapeCapture } from "@ardia/shell";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Animated, Easing, PanResponder, type ScrollView, type View } from "react-native";
 import { create, useStore } from "zustand";
+import { useShallow } from "zustand/react/shallow";
 import { layout, useTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
 import { useWindowId } from "../../store/hooks";
-import type { TabPlacement } from "../../store/organize";
+import { descendantIds } from "../../store/groups";
+import { canMoveGroup, type GroupPlacement, type TabPlacement } from "../../store/organize";
 import { SLIDE } from "../layout/stripReorder";
 import { beginTabDrag, cancelTabDrag, endTabDrag, setDragPicture, updateTabDrag, useTabDrag } from "../layout/tabDrag";
 import { useClipped, type ClipSource } from "./entryMotion";
+import { arrangeLive } from "./pinnedOrder";
 import { suppressHover } from "./hover";
 import { overPins, pinGridHeight, pinSlot, TILE_GAP } from "./pinZone";
 import { SCROLL_EDGE } from "./ScrollEdge";
@@ -17,12 +20,14 @@ type Frame = { x: number; y: number; w: number; h: number };
 type Section = "tiles" | "pinnedRows" | "pinnedGroups" | "list";
 
 type ItemSpec = {
-  kind: "tile" | "row" | "group" | "split" | "tail";
+  kind: "tile" | "row" | "group" | "split" | "tail" | "live";
   tabIds: string[];
   section: Section;
   groupId?: string;
   parentGroup?: string;
   collapsed?: boolean;
+  foldedHeight?: () => number;
+  liveFolderId?: string;
 };
 
 type Item = ItemSpec & {
@@ -36,10 +41,15 @@ type Item = ItemSpec & {
 };
 
 type Drop =
-  | { type: "tabs"; placement: TabPlacement }
-  | { type: "group"; placement: { pinned: boolean; beforeId?: string | null } }
+  | { type: "tabs"; placement: TabPlacement; sequence?: string[] }
+  | { type: "group"; placement: GroupPlacement; sequence?: string[] }
+  | { type: "live"; sequence: string[] }
   | { type: "onto"; targetId: string }
   | { type: "none" };
+
+const blockKind = (i: Item) => i.kind === "row" || i.kind === "group" || i.kind === "live";
+const pinnedBlock = (i: Item) => (i.section === "pinnedRows" || i.section === "pinnedGroups") && !i.parentGroup && blockKind(i);
+const boxed = (i: Item) => i.kind === "group" || i.kind === "live";
 
 export type Ghost = { item: Item; count: number; width: number; height: number; position: Animated.ValueXY; landing?: boolean };
 
@@ -54,8 +64,8 @@ const measure = (view: View | null): Promise<Frame | null> =>
     ? new Promise((resolve) => view.measureInWindow((x, y, w, h) => resolve(w || h ? { x, y, w, h } : null)))
     : Promise.resolve(null);
 
-type Marks = { sources: Set<string>; dropInto: string | null; onto: string | null; landing: string | null; pins: boolean; pinCount: number };
-const NO_MARKS: Marks = { sources: new Set(), dropInto: null, onto: null, landing: null, pins: false, pinCount: 0 };
+type Marks = { sources: Set<string>; dropInto: string | null; onto: string | null; landing: string | null; pins: boolean; pinCount: number; pinBefore: string | null; folded: string | null };
+const NO_MARKS: Marks = { sources: new Set(), dropInto: null, onto: null, landing: null, pins: false, pinCount: 0, pinBefore: null, folded: null };
 const noMarks = create<Marks>()(() => NO_MARKS);
 const NO_DROP: Drop = { type: "none" };
 
@@ -127,7 +137,7 @@ class DragController {
     const frame = item.frame ?? { x, y, w: 176, h: 33 };
     this.grab = { x: x - frame.x, y: y - frame.y };
     const count = new Set(this.sources.flatMap((s) => s.tabIds)).size;
-    const height = item.kind === "group" ? Math.min(frame.h, item.headerFrame?.h ?? 33) : frame.h;
+    const height = boxed(item) ? Math.min(frame.h, item.headerFrame?.h ?? 33) : frame.h;
     if (seq) setDragPicture(seq, () => [this.pointer.x - this.grab.x, this.pointer.y - this.grab.y, frame.w, height], [x, y]);
     this.ghost = {
       item,
@@ -136,11 +146,13 @@ class DragController {
       height,
       position: new Animated.ValueXY({ x: frame.x - this.rootFrame.x, y: frame.y - this.rootFrame.y }),
     };
-    for (const s of this.sources) s.size.setValue(s.kind === "tile" ? (s.frame?.w ?? 0) : (s.frame?.h ?? 0));
+    const closing = this.sources.filter((s) => s.kind !== "tile");
+    for (const s of closing) s.size.setValue(s.frame?.h ?? 0);
     this.setLanding(null);
     this.setSources(new Set(this.sources.map((s) => s.key)));
     this.setGhost(this.ghost);
-    Animated.parallel(this.sources.map((s) => spring(s.size, 0))).start();
+    if (boxed(item) && !item.collapsed) this.marks.setState({ folded: item.key });
+    Animated.parallel(closing.map((s) => spring(s.size, 0))).start();
     this.measured = true;
     this.move(this.pointer.x, this.pointer.y);
   }
@@ -199,7 +211,7 @@ class DragController {
     this.pointer = { x, y };
     updateTabDrag(x, y);
     if (!this.measured || (!this.ghost && !this.external)) return;
-    this.ghost?.position.setValue({ x: x - this.grab.x - this.rootFrame.x, y: y - this.grab.y - this.rootFrame.y });
+    if (this.ghost) this.ghost.position.setValue({ x: this.ghostX(x), y: y - this.grab.y - this.rootFrame.y });
     this.autoScroll(y);
     this.retarget();
   }
@@ -211,6 +223,10 @@ class DragController {
     const drop = this.drop;
     const ghost = this.ghost;
     const splitDrop = commit ? endTabDrag() : (cancelTabDrag(), false);
+    const folded = this.marks.getState().folded;
+    const unfold = () => {
+      if (folded && this.marks.getState().folded === folded) this.marks.setState({ folded: null });
+    };
     const spot =
       !splitDrop && this.measured && ghost && sources.length === 1 && sources[0]!.kind !== "tile" && !this.into && drop.type !== "onto"
         ? this.landingSpot(commit ? drop : { type: "none" })
@@ -221,25 +237,28 @@ class DragController {
       if (drop.type === "tabs") s.placeTabs(ids, drop.placement);
       else if (drop.type === "group" && sources[0]!.groupId) s.moveGroup(sources[0]!.groupId, drop.placement);
       else if (drop.type === "onto") s.groupOnto(ids, drop.targetId);
+      if ((drop.type === "tabs" || drop.type === "group" || drop.type === "live") && drop.sequence) arrangeLive(drop.sequence);
     }
     this.reset();
     if (!spot || !ghost) {
       this.token = null;
       this.setLanding(null);
       this.setGhost(null);
+      unfold();
       return;
     }
     const token = (this.token = {});
     this.setLanding(ghost.item.key);
     this.setGhost({ ...ghost, landing: true });
     const done = () => {
+      unfold();
       if (this.token !== token) return;
       this.token = null;
       this.setLanding(null);
       this.setGhost(null);
     };
     void spot.then((at) => {
-      if (this.token !== token) return;
+      if (this.token !== token) return unfold();
       if (__DEV__) this.landed = at && { key: ghost.item.key, x: at.x, y: at.y };
       if (!at) return done();
       Animated.spring(ghost.position, { toValue: { x: at.x - this.rootFrame.x, y: at.y - this.rootFrame.y }, ...SLIDE }).start(done);
@@ -269,7 +288,7 @@ class DragController {
     this.escapable = false;
     suppressHover(false);
     this.setSources(new Set());
-    this.marks.setState({ dropInto: null, onto: null, pins: false, pinCount: 0 });
+    this.marks.setState({ dropInto: null, onto: null, pins: false, pinCount: 0, pinBefore: null });
   }
 
   private landingSpot(drop: Drop): Promise<{ x: number; y: number } | null> | null {
@@ -314,6 +333,14 @@ class DragController {
     }, 16);
   }
 
+  private ghostX(x: number): number {
+    const left = x - this.grab.x - this.rootFrame.x;
+    const source = this.sources[0];
+    const home = source?.frame;
+    if (!home || !source || !boxed(source)) return left;
+    return home.x - this.rootFrame.x;
+  }
+
   private still(i: Item): boolean {
     return this.tilesFixed && i.section === "tiles";
   }
@@ -342,7 +369,10 @@ class DragController {
     const { x, y } = this.pointer;
     const source = this.sources[0]!;
     const sourceKeys = new Set(this.sources.map((s) => s.key));
-    const live = [...this.items.values()].filter((i) => !sourceKeys.has(i.key) && i.frame);
+    const subtree = source.kind === "group" && source.groupId ? new Set([source.groupId, ...descendantIds(useBrowser.getState().groups, source.groupId)]) : null;
+    const live = [...this.items.values()].filter(
+      (i) => !sourceKeys.has(i.key) && i.frame && !(subtree && ((i.parentGroup && subtree.has(i.parentGroup)) || (i.groupId && subtree.has(i.groupId)))),
+    );
     const cy = (i: Item) => {
       const f = this.shown(i);
       return f.y + Math.min(f.h, i.headerFrame?.h ?? f.h) / 2;
@@ -352,7 +382,19 @@ class DragController {
     const firstTab = (i: Item | undefined) => i?.tabIds.find((id) => !dragged.has(id)) ?? null;
     const tabsDrag = source.kind === "row" || source.kind === "tile";
     const count = this.external || dragged.size;
-    const rowPitch = (source.kind === "group" ? (source.frame?.h ?? layout.rowHeight) : layout.rowHeight * Math.max(1, this.ghost?.count ?? this.external ?? 1)) + ROW_GAP;
+    const rowPitch = (boxed(source) ? (source.foldedHeight?.() ?? this.ghost?.height ?? layout.rowHeight) : layout.rowHeight * Math.max(1, this.ghost?.count ?? this.external ?? 1)) + ROW_GAP;
+    const blocks = live.filter(pinnedBlock).sort(byY);
+    const rest = blocks.map((b) => b.key);
+    const moved = this.sources
+      .filter((s) => s.frame)
+      .sort(byY)
+      .flatMap((s) => (s.kind === "group" || s.kind === "live" ? [s.key] : s.tabIds.map((id) => `t:${id}`)));
+    const pinnedAt = (): { before: Item | undefined; beforeId: string | null; sequence: string[] } => {
+      const before = blocks.find((b) => cy(b) > y);
+      const at = before ? blocks.indexOf(before) : blocks.length;
+      const next = blocks.slice(at).find((b) => firstTab(b) !== null);
+      return { before, beforeId: firstTab(next), sequence: [...rest.slice(0, at), ...moved, ...rest.slice(at)] };
+    };
     let drop: Drop = { type: "none" };
     let gapKey: string | null = null;
     let pitch = rowPitch;
@@ -366,55 +408,67 @@ class DragController {
     const overTiles = !away && tabsDrag && !!tiles && (this.gridBase ? overPins(y, this.pinFloor(live, tiles), this.pinning) : inside(tiles, x, y, 6));
     if (this.gridBase)
       this.gridGrowth = Math.min(pinGridHeight(cells.length + (overTiles ? count : 0), this.gridBase.w, layout.pinnedHeight), this.tilesFixed ? this.tilesRoom : Infinity) - this.gridBase.h;
+    const list = this.at(this.regionFrames.get("list") ?? null);
+    const inPinned = !!list && y < list.y;
     if (away) {
       drop = { type: "none" };
     } else if (overTiles && tiles) {
       const before = this.gridBase ? cells[Math.min(cells.length, pinSlot(tiles, cells.length + count, layout.pinnedHeight, x, y))] : undefined;
-      drop = { type: "tabs", placement: { pinned: true, row: false, beforeId: firstTab(before) } };
+      drop = { type: "tabs", placement: { pinned: true, row: false, beforeId: firstTab(before) }, sequence: rest };
       gapKey = before?.key ?? "tail:tiles";
-      pitch = this.gridBase ? count : PIN_SLOT;
+      pitch = PIN_SLOT;
     } else {
-      const groups = live.filter((i) => i.kind === "group");
-      const box = tabsDrag
-        ? groups.find((g) => {
-            const f = this.shown(g);
-            const start = this.at(g.headerFrame);
-            const header = start && { ...start, y: start.y + f.y - this.at(g.frame)!.y };
-            if (g.collapsed) return !!header && inside(header, x, y) && Math.abs(y - (header.y + header.h / 2)) < header.h / 3;
-            return inside(f, x, y) && (!header || y > header.y + header.h / 2);
-          })
-        : undefined;
-      if (box?.collapsed) {
-        drop = { type: "tabs", placement: { pinned: false, groupId: box.groupId!, beforeId: null } };
-        into = box.groupId!;
-      } else if (box) {
-        const members = live.filter((i) => i.kind === "row" && i.parentGroup === box.groupId).sort(byY);
+      const hits =
+        tabsDrag || source.kind === "group"
+          ? live
+              .filter((i) => i.kind === "group")
+              .flatMap((g) => {
+                const f = this.shown(g);
+                const start = this.at(g.headerFrame);
+                const header = start && { ...start, y: start.y + f.y - this.at(g.frame)!.y };
+                const onHeader = !!header && inside(header, x, y) && Math.abs(y - (header.y + header.h / 2)) < header.h / 3;
+                if (g.collapsed || (source.kind === "group" && onHeader)) return onHeader ? [{ g, into: true, h: f.h }] : [];
+                return inside(f, x, y) && (!header || y > header.y + header.h / 2) ? [{ g, into: false, h: f.h }] : [];
+              })
+              .sort((a, z) => a.h - z.h)
+          : [];
+      const hit = hits[0];
+      const nestAt = (groupId: string, beforeId: string | null): Drop =>
+        tabsDrag
+          ? { type: "tabs", placement: { pinned: false, groupId, beforeId }, sequence: rest }
+          : { type: "group", placement: { pinned: false, parentId: groupId, beforeId }, sequence: rest };
+      if (hit?.into) {
+        drop = nestAt(hit.g.groupId!, null);
+        into = hit.g.groupId!;
+      } else if (hit) {
+        const members = live.filter((i) => (i.kind === "row" || i.kind === "group" || i.kind === "split") && i.parentGroup === hit.g.groupId).sort(byY);
         const before = members.find((m) => cy(m) > y);
-        drop = { type: "tabs", placement: { pinned: false, groupId: box.groupId!, beforeId: firstTab(before) } };
-        gapKey = before?.key ?? `tail:group:${box.groupId}`;
+        drop = nestAt(hit.g.groupId!, firstTab(before));
+        gapKey = before?.key ?? `tail:group:${hit.g.groupId}`;
       } else if (tabsDrag && this.overPinnedRows(y)) {
-        const rows = live.filter((i) => i.section === "pinnedRows" && i.kind === "row").sort(byY);
-        const before = rows.find((r) => cy(r) > y && firstTab(r) !== null);
-        drop = { type: "tabs", placement: { pinned: true, row: true, beforeId: firstTab(before) } };
-        gapKey = before?.key ?? "tail:pinnedRows";
+        const { before, beforeId, sequence } = pinnedAt();
+        drop = { type: "tabs", placement: { pinned: true, row: true, beforeId, ...(beforeId ? {} : { last: true }) }, sequence };
+        gapKey = before?.key ?? "tail:pinnedGroups";
       } else if ((onto = tabsDrag && !this.external ? this.ontoTarget(live, y) : null)) {
         drop = { type: "onto", targetId: this.items.get(onto)!.tabIds[0]! };
         gapKey = this.gapKey;
         pitch = this.pitch;
-      } else {
-        const list = this.at(this.regionFrames.get("list") ?? null);
-        const pinned = source.kind === "group" && !!list && y < list.y;
-        const section: Section = pinned ? "pinnedGroups" : "list";
-        const blocks = live.filter((i) => i.section === section && !i.parentGroup && i.kind !== "tail" && i.kind !== "tile").sort(byY);
-        const before = blocks.find((b) => cy(b) > y && firstTab(b) !== null);
-        gapKey = before?.key ?? `tail:${section}`;
+      } else if ((source.kind === "group" || source.kind === "live") && inPinned) {
+        const { before, beforeId, sequence } = pinnedAt();
+        drop = source.kind === "live" ? { type: "live", sequence } : { type: "group", placement: { pinned: true, parentId: null, beforeId }, sequence };
+        gapKey = before?.key ?? "tail:pinnedGroups";
+      } else if (source.kind !== "live") {
+        const items = live.filter((i) => i.section === "list" && !i.parentGroup && i.kind !== "tail" && i.kind !== "tile").sort(byY);
+        const before = items.find((b) => cy(b) > y && firstTab(b) !== null);
+        gapKey = before?.key ?? "tail:list";
         drop =
           source.kind === "group"
-            ? { type: "group", placement: { pinned, beforeId: firstTab(before) } }
-            : { type: "tabs", placement: { pinned: false, beforeId: firstTab(before) } };
+            ? { type: "group", placement: { pinned: false, parentId: null, beforeId: firstTab(before) }, sequence: rest }
+            : { type: "tabs", placement: { pinned: false, beforeId: firstTab(before) }, sequence: rest };
       }
     }
-    if (source.kind === "split" && drop.type === "tabs" && (drop.placement.pinned || drop.placement.groupId)) {
+    const refused = drop.type === "group" && !!source.groupId && !canMoveGroup(useBrowser.getState().groups, source.groupId, drop.placement);
+    if (refused || (source.kind === "split" && drop.type === "tabs" && (drop.placement.pinned || drop.placement.groupId))) {
       drop = { type: "none" };
       gapKey = null;
       into = null;
@@ -428,16 +482,19 @@ class DragController {
     this.drop = drop;
     this.into = into;
     const pins = drop.type === "tabs" && drop.placement.pinned && !drop.placement.row;
-    this.marks.setState({ dropInto: into, onto, pins, pinCount: pins ? count : 0 });
+    this.marks.setState({ dropInto: into, onto, pins, pinCount: pins ? count : 0, pinBefore: pins ? gapKey : null });
     if (gapKey !== this.gapKey) {
       const prev = this.gapKey && this.items.get(this.gapKey);
-      if (prev && prev.section === "tiles" && this.gridBase && !this.pinning) prev.gap.setValue(0);
-      else if (prev) spring(prev.gap, 0).start();
+      if (prev && !this.inGrid(prev)) spring(prev.gap, 0).start();
       const next = gapKey && this.items.get(gapKey);
-      if (next) spring(next.gap, pitch).start();
+      if (next && !this.inGrid(next)) spring(next.gap, pitch).start();
       this.gapKey = gapKey;
       this.pitch = pitch;
     }
+  }
+
+  private inGrid(i: Item) {
+    return i.section === "tiles" && !!this.gridBase;
   }
 
   private get pinning() {
@@ -534,8 +591,21 @@ export const useDragController = () => useContext(DragContext) ?? undefined;
 export const useDropInto = () => useStore(useContext(DragContext)?.marks ?? noMarks, (m) => m.dropInto);
 export const useDropOnto = (key: string) => useStore(useContext(DragContext)?.marks ?? noMarks, (m) => m.onto === key);
 export const useDropPins = () => useStore(useContext(DragContext)?.marks ?? noMarks, (m) => m.pins);
+export const usePinSlots = (tabIds: string[]) =>
+  useStore(
+    useContext(DragContext)?.marks ?? noMarks,
+    useShallow((m) => {
+      let slot = 0;
+      return tabIds.map((id) => {
+        const key = `t:${id}`;
+        if (m.pinBefore === key) slot += m.pinCount;
+        return m.sources.has(key) ? slot : slot++;
+      });
+    }),
+  );
 export const usePinnedCount = (tabIds: string[]) =>
   useStore(useContext(DragContext)?.marks ?? noMarks, (m) => tabIds.reduce((n, id) => n + (m.sources.has(`t:${id}`) ? 0 : 1), 0) + m.pinCount);
+export const useDragFolded = (key: string) => useStore(useContext(DragContext)?.marks ?? noMarks, (m) => m.folded === key);
 export const useDragging = () => useStore(useContext(DragContext)?.marks ?? noMarks, (m) => m.sources.size > 0);
 
 export function useDragItem(key: string, spec: ItemSpec, selection: () => string[] = () => [], clip: ClipSource | null = null) {
@@ -586,12 +656,7 @@ export function useDragItem(key: string, spec: ItemSpec, selection: () => string
         ...(horizontal ? null : { marginTop: spec.kind === "tail" ? tailOffset! : item.gap }),
         ...(source
           ? horizontal
-            ? {
-                width: item.size,
-                marginRight: item.size.interpolate({ inputRange: [0, Math.max(1, item.frame?.w ?? 0)], outputRange: [0, TILE_GAP], extrapolate: "clamp" }),
-                opacity: 0,
-                overflow: "hidden" as const,
-              }
+            ? { opacity: 0 }
             : { height: item.size, marginBottom: -ROW_GAP, opacity: 0, overflow: "hidden" as const }
           : landing
             ? { opacity: 0 }

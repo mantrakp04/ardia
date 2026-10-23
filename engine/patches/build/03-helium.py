@@ -367,7 +367,7 @@ def stage_brand_namesub(ctx):
         print('skipped (--no-brand)')
         return
     if not script.exists():
-        raise StageError(f'{script} is missing (helium-brand\'s); --no-brand skips the Ardia branding')
+        raise StageError(f'{script} is missing; --no-brand skips the Ardia branding')
     p = subprocess.run([sys.executable, str(script), '--tree', str(ctx.tree), '--helium', str(ctx.hc)],
                        cwd=ctx.work, capture_output=True, text=True)
     if p.returncode:
@@ -435,7 +435,7 @@ def stage_resources(ctx):
         print('Ardia resources skipped (--no-brand)')
         return
     if not listing.exists():
-        raise StageError(f'{listing} is missing (helium-brand\'s); --no-brand skips the Ardia branding')
+        raise StageError(f'{listing} is missing; --no-brand skips the Ardia branding')
     roots = list(dict.fromkeys([REPO, HERE.parent.parent.parent]))
     print(f'Ardia: {copy_resources(ctx, listing, roots)} resources')
 
@@ -465,10 +465,6 @@ def holds_lock_for(path):
     if pathguard.reaches(path):
         return pathguard.real_lock_held()
     return pathguard.chromium_lock_held()
-
-
-def real_chromium_build():
-    return pathguard.real_chromium_build()
 
 
 def main():
@@ -532,7 +528,7 @@ def main():
               f'({marker}); start again from a fresh tree', file=sys.stderr)
         return 1
     if 'patches' in stages and 'patches' not in done and (ctx.tree / 'chrome/browser/ungoogled_flag_choices.h').exists():
-        print(f'{ctx.tree} is already patched (ungoogled-chromium or Helium); this step runs once, on a fresh '
+        print(f'{ctx.tree} is already patched by Helium; this step runs once, on a fresh '
               f'checkout', file=sys.stderr)
         return 1
     for stage in stages:

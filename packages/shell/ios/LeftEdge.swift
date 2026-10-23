@@ -12,6 +12,9 @@ final class LeftEdgeWatcher {
   private var localMonitor: Any?
   private var globalMonitor: Any?
   private var observers: [NSObjectProtocol] = []
+  private var dockApp: NSRunningApplication?
+  private var lastHitWindow = 0
+  private var lastHitIsDock = false
   #if DEBUG
   private(set) var wakes: [String: Int] = ["global": 0, "local": 0]
   var stats: [String: Any] { ["wakes": wakes, "global": globalMonitor != nil, "local": localMonitor != nil, "watched": watched.count] }
@@ -36,6 +39,7 @@ final class LeftEdgeWatcher {
   }
 
   private func check(_ point: NSPoint, live: Bool) {
+    lazy var onDock = live && NSApp.isActive && isOnDock(point)
     for (id, hold) in watched {
       guard let window = WindowManager.shared.windows[id] else {
         watched[id] = nil
@@ -43,7 +47,10 @@ final class LeftEdgeWatcher {
         unreported.remove(id)
         continue
       }
+      let inColumn = point.x < window.frame.minX + hold && window.screen?.frame.contains(point) == true
       let now = isOver(point, of: window, hold: hold, live: live)
+        || (inColumn && over.contains(id) && onDock)
+        || (inColumn && isOver(point, of: window, hold: hold, live: false) && onDock && isTopBeneathDock(point, of: window))
       let fresh = unreported.remove(id) != nil
       guard fresh || now != over.contains(id) else { continue }
       if now { over.insert(id) } else { over.remove(id) }
@@ -72,14 +79,51 @@ final class LeftEdgeWatcher {
     return NSApp.isActive || Self.besideScreenEdge(window, screen)
   }
 
-  private static func windowNumber(at point: NSPoint) -> Int {
-    var number = NSWindow.windowNumber(at: point, belowWindowWithWindowNumber: 0)
+  private static func windowNumber(at point: NSPoint, below start: Int = 0) -> Int {
+    var number = NSWindow.windowNumber(at: point, belowWindowWithWindowNumber: start)
     while let passThrough = NSApp.window(withWindowNumber: number), passThrough.ignoresMouseEvents {
       let below = NSWindow.windowNumber(at: point, belowWindowWithWindowNumber: number)
       guard below != number else { break }
       number = below
     }
     return number
+  }
+
+  private func isOnDock(_ point: NSPoint) -> Bool {
+    isDock(Self.windowNumber(at: point))
+  }
+
+  private func isTopBeneathDock(_ point: NSPoint, of window: NSWindow) -> Bool {
+    let probe = NSPoint(x: max(point.x, window.frame.minX + 1), y: point.y)
+    var number = Self.windowNumber(at: probe)
+    while isDock(number) {
+      let below = Self.windowNumber(at: probe, below: number)
+      guard below != number else { break }
+      number = below
+    }
+    let hit = NSApp.window(withWindowNumber: number)
+    return hit === window || hit?.parent === window
+  }
+
+  private func isDock(_ number: Int) -> Bool {
+    guard number > 0, NSApp.window(withWindowNumber: number) == nil else { return false }
+    if number != lastHitWindow {
+      lastHitWindow = number
+      lastHitIsDock = isDockWindow(number)
+    }
+    return lastHitIsDock
+  }
+
+  private func isDockWindow(_ number: Int) -> Bool {
+    if dockApp?.isTerminated ?? true {
+      dockApp = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock").first
+    }
+    guard let dockApp,
+      let info = CGWindowListCopyWindowInfo(.optionIncludingWindow, CGWindowID(number)) as? [[String: Any]],
+      let owner = info.first?[kCGWindowOwnerPID as String] as? pid_t,
+      let layer = info.first?[kCGWindowLayer as String] as? Int
+    else { return false }
+    return owner == dockApp.processIdentifier && layer >= Int(CGWindowLevelForKey(.dockWindow))
   }
 
   private static func besideScreenEdge(_ window: NSWindow, _ screen: NSScreen) -> Bool {
@@ -128,14 +172,14 @@ final class LeftEdgeWatcher {
     }
     if observers.isEmpty {
       let center = NotificationCenter.default
-      for name in [
-        NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification,
-        NSApplication.didChangeScreenParametersNotification,
-      ] {
+      for name in [NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification] {
         observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-          self?.updateGlobalMonitor()
+          self?.checkPointer()
         })
       }
+      observers.append(center.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
+        self?.updateGlobalMonitor()
+      })
       for name in [NSWindow.didMoveNotification, NSWindow.didResizeNotification, NSWindow.didChangeScreenNotification] {
         observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
           guard let self, let window = note.object as? NSWindow, self.isWatched(window) else { return }

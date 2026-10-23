@@ -129,6 +129,16 @@ const ROWS: Record<SettingsPane, Section[]> = {
       },
     },
     {
+      section: "Links",
+      rows: {
+        peekModifier: {
+          title: "Peek a link with",
+          description: "Opens the link in a preview over the page. Open as Tab or Split View keeps it; Esc closes it. ⌥⇧-click still opens a split.",
+          keywords: ["peek", "preview", "shift click", "option click", "arc"],
+        },
+      },
+    },
+    {
       section: "Tab groups",
       rows: {
         cmdClickCreatesTabGroup: { title: "⌘-clicking links creates tab groups", keywords: ["command click", "cmd click"] },

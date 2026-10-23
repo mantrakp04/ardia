@@ -15,7 +15,6 @@ export type LocalExtensions = { ready: boolean; extensions: LocalExtension[]; pe
 
 export type ExtensionState = { on: boolean; inc: boolean; pin: boolean };
 export type ExtensionRemoval = { removed: true };
-export type ExtensionRecord = ExtensionState | ExtensionRemoval;
 export type ExtensionApproval = { v: string; fps: string[] };
 
 export type ExtensionIntent = { kind: "installed" | "uninstalled"; g: number };

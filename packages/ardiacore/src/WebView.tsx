@@ -36,7 +36,7 @@ export type NowPlaying = {
 export type MediaCommand = "play" | "pause" | "toggle" | "next" | "previous" | "seekBy" | "seekTo" | "stop";
 export type MediaAccess = { camera: boolean; microphone: boolean; screen: boolean };
 
-export type OpenDisposition = "foreground" | "background" | "window" | "popup" | "incognito" | "current" | "split";
+export type OpenDisposition = "foreground" | "background" | "window" | "popup" | "incognito" | "current" | "split" | "peek";
 
 export type OpenWindowRequest = {
   url: string;
@@ -45,6 +45,7 @@ export type OpenWindowRequest = {
   userGesture?: boolean;
   postBody?: boolean;
   profile?: string;
+  point?: { x: number; y: number };
 };
 
 export type BlockedPopup = { id: string; url: string; origin: string };
@@ -142,6 +143,8 @@ export type WebViewProps = ViewProps & {
   profile?: string;
   adoptId?: string;
   transferKey?: string;
+  temporary?: boolean;
+  temporarySource?: string;
   standalone?: boolean;
   extensionHost?: "popup" | "sidePanel";
   visible?: boolean;

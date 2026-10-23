@@ -232,7 +232,7 @@ function SiteControlsPanel({
       <View style={{ paddingTop: PANEL.inset }}>
         <TileRow>{tiles}</TileRow>
 
-        <SiteExtensions windowId={tab.windowId} columns={gridColumns(tiles.length)} onClose={close} />
+        <SiteExtensions windowId={tab.windowId} tabId={tab.id} columns={gridColumns(tiles.length)} onClose={close} />
 
         {origin ? (
           <>

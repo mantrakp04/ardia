@@ -2477,6 +2477,25 @@ TabSharingInfoBarDelegate* TabSharingDelegateFor(content::WebContents* contents,
   }
 }
 
+- (BOOL)temporary {
+  return _contents && ardiacore::TabBridge::GetOrCreate(_contents)->temporary();
+}
+
+- (void)setTemporary:(BOOL)temporary {
+  if (_contents) {
+    ardiacore::TabBridge::GetOrCreate(_contents)->SetTemporary(temporary);
+  }
+}
+
+- (void)setTemporarySource:(ArdiaCoreTab*)source {
+  if (_contents) {
+    ardiacore::TabBridge::GetOrCreate(_contents)->SetTemporarySource(
+        source && source->_contents
+            ? sessions::SessionTabHelper::IdForTab(source->_contents).id()
+            : 0);
+  }
+}
+
 - (void)closeNow {
   if (ardiacore::IsNotifyingTabStrip() || ardiacore::IsNotifyingNavigation()) {
     dispatch_async(dispatch_get_main_queue(), ^{

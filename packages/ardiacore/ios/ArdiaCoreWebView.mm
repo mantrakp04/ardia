@@ -6,6 +6,7 @@
 
 #import <IOKit/IOKitLib.h>
 #import <QuartzCore/QuartzCore.h>
+#import <Security/Security.h>
 #import <dlfcn.h>
 #import <objc/message.h>
 #import <objc/runtime.h>
@@ -238,6 +239,88 @@ void NoteEvent(int browserId, NSString *name, NSDictionary *payload) {
 
 NSString *gSearchEngineName = @"Google";
 BOOL gDisplayMediaPicker = NO;
+NSString *gPeekModifier = @"shift";
+static const NSEventModifierFlags kPeekKeyMask = NSEventModifierFlagOption | NSEventModifierFlagShift | NSEventModifierFlagCommand | NSEventModifierFlagControl;
+static NSEventModifierFlags gPeekUpKeys = 0;
+static CFTimeInterval gPeekUpAt = -1;
+static __weak ArdiaCoreWebView *gPeekUpView;
+static NSUInteger gPeekUpSeq = 0;
+static NSUInteger gPeekUsedSeq = 0;
+static BOOL gPeekPressedSinceUp = NO;
+static const CFTimeInterval kPeekGestureLifetime = 10;
+static const CFTimeInterval kPeekFallbackLifetime = 60;
+static char kScriptFramesKey;
+
+static ArdiaCoreWebView *PageViewUnder(NSEvent *event) {
+  NSView *content = event.window.contentView;
+  NSView *root = content.superview ?: content;
+  NSView *hit = root ? [root hitTest:[root convertPoint:event.locationInWindow fromView:nil]] : nil;
+  for (NSView *view = hit; view; view = view.superview)
+    if ([view isKindOfClass:ArdiaCoreWebView.class]) return (ArdiaCoreWebView *)view;
+  return nil;
+}
+
+static void InstallPeekMonitor() {
+  static id monitor;
+  if (monitor) return;
+  monitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskLeftMouseDown | NSEventMaskLeftMouseUp
+                                                  handler:^NSEvent *(NSEvent *event) {
+                                                    if (event.type == NSEventTypeLeftMouseDown) {
+                                                      gPeekPressedSinceUp = YES;
+                                                      return event;
+                                                    }
+                                                    gPeekUpKeys = event.modifierFlags & kPeekKeyMask;
+                                                    gPeekUpAt = CACurrentMediaTime();
+                                                    gPeekUpView = PageViewUnder(event);
+                                                    gPeekPressedSinceUp = NO;
+                                                    gPeekUpSeq++;
+                                                    return event;
+                                                  }];
+}
+
+static BOOL SignedForDistribution() {
+  static const BOOL distribution = [] {
+    SecCodeRef code = nullptr;
+    if (SecCodeCopySelf(kSecCSDefaultFlags, &code) != errSecSuccess) return YES;
+    SecRequirementRef requirement = nullptr;
+    OSStatus made = SecRequirementCreateWithString(CFSTR("anchor apple generic and "
+                                                         "(certificate leaf[field.1.2.840.113635.100.6.1.9] exists or "
+                                                         "certificate 1[field.1.2.840.113635.100.6.2.6] exists and "
+                                                         "certificate leaf[field.1.2.840.113635.100.6.1.13] exists)"),
+                                                   kSecCSDefaultFlags, &requirement);
+    const BOOL signedFor = made != errSecSuccess || SecCodeCheckValidity(code, kSecCSDefaultFlags, requirement) == errSecSuccess;
+    if (requirement) CFRelease(requirement);
+    CFRelease(code);
+    return signedFor;
+  }();
+  return distribution;
+}
+
+static BOOL PeekTestHooks() {
+  static const BOOL on = [] {
+    const char *dir = getenv("ARDIA_DATA_DIR");
+    return ardiacore_host::Background() && dir && *dir && !SignedForDistribution();
+  }();
+  return on;
+}
+
+static BOOL PeekTracing() {
+#if DEBUG
+  return YES;
+#else
+  return PeekTestHooks();
+#endif
+}
+
+static NSString *PeekKeyNames(NSEventModifierFlags flags) {
+  NSMutableString *names = [NSMutableString string];
+  if (flags & NSEventModifierFlagControl) [names appendString:@"⌃"];
+  if (flags & NSEventModifierFlagOption) [names appendString:@"⌥"];
+  if (flags & NSEventModifierFlagShift) [names appendString:@"⇧"];
+  if (flags & NSEventModifierFlagCommand) [names appendString:@"⌘"];
+  return names;
+}
+
 BOOL TracingPictureInPicture() {
   static const BOOL tracing = getenv("ARDIA_TRACE_PIP") != nullptr;
   return tracing;
@@ -315,6 +398,21 @@ NSString *JSONString(id value) {
   return data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : @"null";
 }
 
+static void PeekTrace(NSDictionary *entry) {
+  const char *dir = getenv("ARDIA_DATA_DIR");
+  if (!PeekTracing() || !dir) return;
+  NSString *path = [[NSString stringWithUTF8String:dir] stringByAppendingPathComponent:@"peek.log"];
+  NSData *line = [[NSString stringWithFormat:@"%@ %@\n", NSDate.date, JSONString(entry)] dataUsingEncoding:NSUTF8StringEncoding];
+  NSFileHandle *file = [NSFileHandle fileHandleForWritingAtPath:path];
+  if (!file) return (void)[line writeToFile:path atomically:NO];
+  if ([file seekToEndOfFile] < (2 << 20)) [file writeData:line];
+  [file closeFile];
+}
+
+static NSString *PeekConfigJSON() {
+  return JSONString(@{@"modifier" : gPeekModifier, @"trace" : @(PeekTracing())});
+}
+
 const char kPageReportsKey = 0;
 
 const char kDropTypesKey = 0;
@@ -349,6 +447,8 @@ static void AnswerHello(ArdiaCoreTab *tab, NSString *profile, NSDictionary *hell
     if (gDisplayMediaPicker && [ArdiaCoreEngine respondsToSelector:@selector(allowDesktopCapture:tab:frame:origin:)])
       config[@"displayMediaPicker"] = @YES;
     if (main && ACFieldTimingEnabled()) config[@"fieldTiming"] = @YES;
+    config[@"peek"] = gPeekModifier;
+    if (PeekTracing()) config[@"peekTrace"] = @YES;
     static const BOOL fixedAudioPoll = [@(getenv("ARDIA_WEB_AUDIO_POLL") ?: "") isEqualToString:@"fixed"];
     if (fixedAudioPoll) config[@"fixedAudioPoll"] = @YES;
     static const BOOL broadThemeObserver = [@(getenv("ARDIA_THEME_OBSERVER") ?: "") isEqualToString:@"broad"];
@@ -1015,6 +1115,8 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
   _tab = tab;
   tab.delegate = self;
   [ArdiaCoreTabs setView:self forTab:tab];
+  [self markTemporary];
+  [self pushPeekModifier];
   [self bindRestoreKey];
   [self takePageReports];
   [self userSightChanged];
@@ -1337,6 +1439,26 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
     ArdiaCoreWebView *now = [ArdiaCoreTabs viewForTab:tab];
     if (!now.seenByUser) [tab noteShownByHost:NO];
   });
+}
+
+- (void)setTemporary:(BOOL)temporary {
+  _temporary = temporary;
+  [self markTemporary];
+}
+
+- (void)setTemporarySource:(NSString *)temporarySource {
+  _temporarySource = [temporarySource copy];
+  [self markTemporary];
+}
+
+- (void)markTemporary {
+  if ([_tab respondsToSelector:@selector(setTemporary:)] && _tab.temporary != _temporary) _tab.temporary = _temporary;
+  if (![_tab respondsToSelector:@selector(setTemporarySource:)]) return;
+  ArdiaCoreTab *source = nil;
+  if (_temporary && _temporarySource.length)
+    for (ArdiaCoreWebView *view in LiveViews().allObjects)
+      if ([view.transferKey isEqualToString:_temporarySource]) source = view->_tab;
+  [_tab setTemporarySource:source];
 }
 
 - (void)setVisible:(BOOL)visible {
@@ -1701,6 +1823,40 @@ void ArdiaCoreWebViewsSetFieldTiming(BOOL on) {
   gDisplayMediaPicker = enabled;
 }
 
++ (BOOL)devPostPeekMouseUp:(NSString *)keys over:(NSString *)transferKey {
+  if (!PeekTestHooks()) return NO;
+  ArdiaCoreWebView *target = nil;
+  for (ArdiaCoreWebView *view in LiveViews().allObjects)
+    if (view->_visible && view.window && (!transferKey.length || [view.transferKey isEqualToString:transferKey])) target = view;
+  NSWindow *window = target.window;
+  if (!window) return NO;
+  NSEventModifierFlags flags = 0;
+  if ([keys containsString:@"⌥"]) flags |= NSEventModifierFlagOption;
+  if ([keys containsString:@"⇧"]) flags |= NSEventModifierFlagShift;
+  if ([keys containsString:@"⌘"]) flags |= NSEventModifierFlagCommand;
+  if ([keys containsString:@"⌃"]) flags |= NSEventModifierFlagControl;
+  const NSPoint at = [target convertPoint:NSMakePoint(NSMidX(target.bounds), NSMidY(target.bounds)) toView:nil];
+  NSEvent *up = [NSEvent mouseEventWithType:NSEventTypeLeftMouseUp location:at modifierFlags:flags
+                                  timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:window.windowNumber
+                                    context:nil eventNumber:0 clickCount:1 pressure:0];
+  [NSApp postEvent:up atStart:NO];
+  if ([keys containsString:@"+press"]) {
+    NSEvent *down = [NSEvent mouseEventWithType:NSEventTypeLeftMouseDown location:at modifierFlags:0
+                                      timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:window.windowNumber
+                                        context:nil eventNumber:0 clickCount:1 pressure:1];
+    [NSApp postEvent:down atStart:NO];
+  }
+  return YES;
+}
+
++ (void)setPeekModifier:(NSString *)modifier {
+  InstallPeekMonitor();
+  NSString *next = [@[ @"alt", @"shift" ] containsObject:modifier ?: @""] ? modifier : @"off";
+  if ([next isEqualToString:gPeekModifier]) return;
+  gPeekModifier = [next copy];
+  for (ArdiaCoreWebView *view in LiveViews().allObjects) [view pushPeekModifier];
+}
+
 + (void)setAutoPictureInPictureEnabled:(BOOL)enabled {
   if ([ArdiaCoreEngine respondsToSelector:@selector(setAutoPictureInPicture:)]) [ArdiaCoreEngine setAutoPictureInPicture:enabled];
 }
@@ -1884,7 +2040,18 @@ void ArdiaCoreWebViewsSetFieldTiming(BOOL on) {
   if ([kind isEqualToString:@"hello"]) {
     if (main) [self resetPageMedia];
     if (main && ![(Text(dict, @"url", 8192) ?: @"about:") hasPrefix:@"about:"]) _requestedURL = nil;
+    [self noteScriptFrame:frameId main:main];
+    [self callFrame:frameId kind:@"peekConfig" json:PeekConfigJSON()];
     AnswerHello(tab, _profile, dict, frameId, main);
+  } else if ([kind isEqualToString:@"peek"] && dict) {
+    [self peekLink:dict frame:frameId main:main];
+  } else if ([kind isEqualToString:@"peekHello"]) {
+    [self noteScriptFrame:frameId main:main];
+    [self callFrame:frameId kind:@"peekConfig" json:PeekConfigJSON()];
+  } else if ([kind isEqualToString:@"peekGone"]) {
+    [self forgetScriptFrame:frameId];
+  } else if ([kind isEqualToString:@"peekTrace"] && dict) {
+    PeekTrace(@{@"event" : @"page", @"main" : @(main), @"page" : dict});
   } else if ([kind isEqualToString:@"selection"] && main) {
     [self emit:@"pageMessage" payload:@{@"kind" : @"selection", @"data" : SelectionState(dict) ?: NSNull.null}];
   } else if ([kind isEqualToString:@"linkDrop"] && main) {
@@ -1997,6 +2164,113 @@ void ArdiaCoreWebViewsSetFieldTiming(BOOL on) {
 
 - (void)tab:(ArdiaCoreTab *)tab didReceivePageMessage:(NSString *)kind json:(NSString *)json {
   [self tab:tab didReceivePageMessage:kind json:json frame:@"" main:YES];
+}
+
+static NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
+  if (!tab) return nil;
+  NSMutableOrderedSet *frames = objc_getAssociatedObject(tab, &kScriptFramesKey);
+  if (!frames) {
+    frames = [NSMutableOrderedSet orderedSet];
+    objc_setAssociatedObject(tab, &kScriptFramesKey, frames, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  }
+  return frames;
+}
+
+- (void)noteScriptFrame:(NSString *)frameId main:(BOOL)main {
+  InstallPeekMonitor();
+  NSMutableOrderedSet<NSString *> *frames = ScriptFramesOf(_tab);
+  if (!frames || !frameId.length) return;
+  [frames removeObject:frameId];
+  [frames addObject:frameId];
+  while (frames.count > 512) [frames removeObjectAtIndex:0];
+}
+
+- (void)forgetScriptFrame:(NSString *)frameId {
+  if (frameId.length) [ScriptFramesOf(_tab) removeObject:frameId];
+}
+
+- (void)pushPeekModifier {
+  if (!_tab) return;
+  NSString *json = PeekConfigJSON();
+  [self callFrame:@"" kind:@"peekConfig" json:json];
+  for (NSString *frameId in [ScriptFramesOf(_tab) copy]) [self callFrame:frameId kind:@"peekConfig" json:json];
+}
+
+- (void)fallBackFromPeek:(NSDictionary *)dict url:(NSString *)url frame:(NSString *)frameId reason:(NSString *)reason test:(BOOL)test {
+  NSString *key = Text(dict, @"key", 8) ?: @"";
+  const NSEventModifierFlags pageFlag = [key isEqualToString:@"alt"] ? NSEventModifierFlagOption : [key isEqualToString:@"shift"] ? NSEventModifierFlagShift : 0;
+  NSString *scheme = (url.length ? [NSURL URLWithString:url].scheme.lowercaseString : nil) ?: @"";
+  const BOOL fresh = gPeekUpAt >= 0 && CACurrentMediaTime() - gPeekUpAt <= kPeekFallbackLifetime && !gPeekPressedSinceUp;
+  const BOOL userClicked = test || (fresh && gPeekUpSeq != gPeekUsedSeq && gPeekUpView == self && gPeekUpKeys == pageFlag);
+  const BOOL fallsBack = pageFlag && [@[ @"http", @"https" ] containsObject:scheme] && userClicked;
+  NSString *origin = Text(dict, @"origin", 1024).lowercaseString;
+  const BOOL sameOrigin = origin.length && [OriginOf(url).lowercaseString isEqualToString:origin];
+  NSString *action = !fallsBack ? @"none" : pageFlag == NSEventModifierFlagShift ? @"new window" : sameOrigin ? @"page download" : @"background tab";
+  PeekTrace(@{@"event" : @"fallback", @"url" : url ?: @"", @"key" : key, @"reason" : reason, @"userClicked" : @(userClicked), @"action" : action});
+  if (!fallsBack) return;
+  if (!test) gPeekUsedSeq = gPeekUpSeq;
+  if (pageFlag == NSEventModifierFlagShift) return [self emit:@"openWindow" payload:@{@"url" : url, @"disposition" : @"window", @"userGesture" : @YES}];
+  if (sameOrigin) return [self callFrame:frameId kind:@"peekRefused" json:JSONString(@{@"url" : url, @"reason" : reason, @"download" : @YES})];
+  [self emit:@"openWindow" payload:@{@"url" : url, @"disposition" : @"background", @"userGesture" : @YES}];
+}
+
+static NSEventModifierFlags PeekModifierFlag() {
+  if ([gPeekModifier isEqualToString:@"alt"]) return NSEventModifierFlagOption;
+  if ([gPeekModifier isEqualToString:@"shift"]) return NSEventModifierFlagShift;
+  return 0;
+}
+
+- (void)peekLink:(NSDictionary *)dict frame:(NSString *)frameId main:(BOOL)main {
+  NSString *url = Text(dict, @"url", 8192);
+  NSString *scheme = (url.length ? [NSURL URLWithString:url].scheme.lowercaseString : nil) ?: @"";
+  NSWindow *window = self.window;
+  const NSEventModifierFlags flag = PeekModifierFlag();
+  const CFTimeInterval sinceUp = gPeekUpAt < 0 ? -1 : CACurrentMediaTime() - gPeekUpAt;
+  static const BOOL strict = getenv("ARDIA_PEEK_STRICT") != nullptr;
+  const BOOL test = PeekTestHooks() && !strict;
+  NSString *refused = nil;
+  if (!flag) refused = @"peek is off";
+  else if (!_visible || !window) refused = @"page not shown";
+  else if (![@[ @"http", @"https" ] containsObject:scheme]) refused = @"not http(s)";
+  else if (!test && gPeekUpAt < 0) refused = @"no left mouse-up yet";
+  else if (!test && gPeekUpSeq == gPeekUsedSeq) refused = @"that mouse-up already opened a peek";
+  else if (!test && gPeekPressedSinceUp) refused = @"the mouse was pressed again since that mouse-up";
+  else if (!test && sinceUp > kPeekGestureLifetime) refused = @"the last mouse-up is too old";
+  else if (!test && gPeekUpView != self) refused = @"the mouse-up wasn't over this page";
+  else if (!test && gPeekUpKeys != flag) refused = @"the mouse-up's keys aren't the chosen key alone";
+  PeekTrace(@{
+    @"event" : @"peek",
+    @"url" : url ?: @"",
+    @"main" : @(main),
+    @"chosen" : gPeekModifier,
+    @"refused" : refused ?: NSNull.null,
+    @"mouseUpKeys" : PeekKeyNames(gPeekUpKeys),
+    @"sinceMouseUp" : @(sinceUp),
+    @"pressedSince" : @(gPeekPressedSinceUp),
+    @"mouseUpOverThisPage" : @(gPeekUpView == self),
+    @"mouseUpPage" : gPeekUpView.transferKey ?: NSNull.null,
+    @"thisPage" : _transferKey ?: NSNull.null,
+    @"keysNow" : PeekKeyNames(NSEvent.modifierFlags & kPeekKeyMask),
+    @"buttonsNow" : @(NSEvent.pressedMouseButtons),
+    @"moved" : [dict[@"moved"] isKindOfClass:NSNumber.class] ? dict[@"moved"] : NSNull.null,
+    @"testInstance" : @(test),
+  });
+  if (refused) return [self fallBackFromPeek:dict url:url frame:frameId reason:refused test:test];
+  if (!test) gPeekUsedSeq = gPeekUpSeq;
+  double x, y;
+  NSPoint point;
+  if (main && Finite(dict, @"x", &x) && Finite(dict, @"y", &y)) {
+    const CGFloat scale = window.backingScaleFactor > 0 ? window.backingScaleFactor : 1;
+    point = NSMakePoint(x / scale, y / scale);
+  } else {
+    point = [self convertPoint:[window convertPointFromScreen:NSEvent.mouseLocation] fromView:nil];
+  }
+  point.x = MIN(MAX(point.x, 0), NSWidth(self.bounds));
+  point.y = MIN(MAX(point.y, 0), NSHeight(self.bounds));
+  const NSPoint inWindow = [self convertPoint:point toView:nil];
+  const CGFloat top = window.contentView.frame.size.height - inWindow.y;
+  [self emit:@"openWindow"
+      payload:@{@"url" : url, @"disposition" : @"peek", @"userGesture" : @YES, @"point" : @{@"x" : @(inWindow.x), @"y" : @(top)}}];
 }
 
 - (void)callFrame:(NSString *)frameId kind:(NSString *)kind json:(NSString *)json {

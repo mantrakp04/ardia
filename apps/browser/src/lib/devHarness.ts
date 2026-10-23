@@ -46,6 +46,9 @@ export function startDevHarness() {
     get translate(): typeof import("../components/site/translate") {
       return require("../components/site/translate");
     },
+    get peek(): typeof import("../components/peek/actions") {
+      return require("../components/peek/actions");
+    },
     get toasts(): typeof import("../components/layout/splitActions").useToasts {
       return require("../components/layout/splitActions").useToasts;
     },
