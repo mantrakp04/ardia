@@ -1,7 +1,7 @@
 import { appUrlOrigin, displayHost } from "@ardia/core";
 import type { BrowserState } from "./browser";
 import { DEFAULT_PROFILE_ID } from "./settings";
-import type { BrowserWindow, Profile, Tab, TabLive, TabSnapshot } from "./types";
+import type { BrowserWindow, Profile, Tab, TabGroup, TabLive, TabSnapshot } from "./types";
 
 
 const launch = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -94,11 +94,14 @@ export const isPinnedRow = (t: Pick<Tab, "pinned" | "pinnedAsRow"> | undefined):
 export type PinSection = "tile" | "row" | "none";
 export const pinSection = (t: Pick<Tab, "pinned" | "pinnedAsRow"> | undefined): PinSection => (!t?.pinned ? "none" : t.pinnedAsRow ? "row" : "tile");
 
-export function pinnedFirst(ids: string[], tabs: Record<string, Tab>): string[] {
+export function pinnedFirst(ids: string[], tabs: Record<string, Tab>, groups?: Record<string, TabGroup>): string[] {
+  const pinnedGroup = new Set(groups ? Object.values(groups).filter((g) => g.pinned).flatMap((g) => g.tabIds) : []);
+  const inPinnedGroup = (id: string) => !tabs[id]?.pinned && pinnedGroup.has(id);
   return [
     ...ids.filter((id) => pinSection(tabs[id]) === "tile"),
     ...ids.filter((id) => pinSection(tabs[id]) === "row"),
-    ...ids.filter((id) => !tabs[id]?.pinned),
+    ...ids.filter(inPinnedGroup),
+    ...ids.filter((id) => !tabs[id]?.pinned && !inPinnedGroup(id)),
   ];
 }
 

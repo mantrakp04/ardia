@@ -3,7 +3,7 @@ import type { StateCreator } from "zustand";
 import { fromLegacyUrl } from "../legacy";
 import { startNavigation } from "../lib/earlyNavigate";
 import type { BrowserState } from "./browser";
-import { leaveGroups, syncGroupOrder } from "./groups";
+import { ancestorIds, innermostGroupOf, leaveGroups, syncGroupOrder } from "./groups";
 import {
   activeTabId,
   closesWindow,
@@ -122,7 +122,8 @@ export function removeTabs(s: BrowserState, ids: string[], record: boolean): Bro
       w.tabIds.forEach((id, index) => {
         const t = s.tabs[id];
         if (!t || !gone.has(id) || (!t.url && !t.pinned)) return;
-        const group = Object.values(s.groups).find((g) => g.tabIds.includes(id));
+        const group = innermostGroupOf(s.groups, id);
+        const parents = group ? ancestorIds(s.groups, group.id).map((x) => s.groups[x]!).map((p) => ({ id: p.id, name: p.name, icon: p.icon, color: p.color })) : [];
         closed.push({
           kind: "tab",
           id: newId("ct"),
@@ -132,6 +133,7 @@ export function removeTabs(s: BrowserState, ids: string[], record: boolean): Bro
           windowId: w.id,
           index,
           group: group ? { id: group.id, name: group.name, icon: group.icon, color: group.color } : null,
+          ...(parents.length ? { parents } : {}),
           closedAt: now,
           ...(w.kind === "small" ? { small: true } : {}),
         });
@@ -286,7 +288,7 @@ export function withNewTab(s: BrowserState, windowId: string, o: NewTabOptions =
   tabIds.splice(Math.min(at, tabIds.length), 0, tab.id);
   const window: BrowserWindow = {
     ...w,
-    tabIds: pinnedFirst(tabIds, tabs),
+    tabIds: pinnedFirst(tabIds, tabs, s.groups),
     activeTabIds: w.activeTabIds[profileId] ? w.activeTabIds : { ...w.activeTabIds, [profileId]: tab.id },
   };
   let next: BrowserState = {

@@ -1,6 +1,6 @@
 import type { StateCreator } from "zustand";
 import type { BrowserState } from "./browser";
-import { leaveGroups, syncGroupOrder } from "./groups";
+import { innermostGroupOf, leaveGroups, syncGroupOrder } from "./groups";
 import { newId } from "./model";
 import { choose } from "./settings";
 import { activated, apply, removeTabs, withNewTab } from "./tabs";
@@ -110,7 +110,7 @@ function gather(s: BrowserState, anchorId: string, members: string[]): BrowserSt
   tabIds.splice(tabIds.indexOf(anchorId), 1, ...block);
   const window: BrowserWindow = { ...w, tabIds };
   let groups = leaveGroups(s.groups, moving);
-  const group = Object.values(s.groups).find((g) => g.tabIds.includes(anchorId));
+  const group = innermostGroupOf(s.groups, anchorId);
   if (group && groups[group.id]) groups = { ...groups, [group.id]: { ...groups[group.id]!, tabIds: [...groups[group.id]!.tabIds, ...moving] } };
   return { ...s, windows: { ...s.windows, [w.id]: window }, groups: syncGroupOrder(groups, window) };
 }

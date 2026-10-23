@@ -36,7 +36,7 @@ function computeEntries(s: BrowserState, windowId: string, profileId?: string): 
   const pinnedGroups: string[] = [];
   const list: string[] = [];
   const groupOf = new Map<string, string>();
-  for (const g of Object.values(s.groups)) if (g.windowId === windowId) g.tabIds.forEach((id) => groupOf.set(id, g.id));
+  for (const g of Object.values(s.groups)) if (g.windowId === windowId && !g.parentId) g.tabIds.forEach((id) => groupOf.set(id, g.id));
   const splits = splitIndex(s.splits);
   const seen = new Set<string>();
   for (const id of viewTabIds(s, windowId, profileId)) {
@@ -71,25 +71,27 @@ export function numberedTabs(s: BrowserState, windowId: string): string[] {
   return [...tiles, ...pinnedRows, ...pinnedGroups.flatMap((id) => rowTab(`g:${id}`)), ...list.flatMap(rowTab)];
 }
 
-const groupMemo = new WeakMap<object, { tabs: BrowserState["tabs"]; splits: BrowserState["splits"]; result: string[] }>();
+const groupMemo = new WeakMap<object, { tabs: BrowserState["tabs"]; splits: BrowserState["splits"]; groups: BrowserState["groups"]; result: string[] }>();
 
 export function groupEntries(s: BrowserState, groupId: string): string[] {
   const g = s.groups[groupId];
   if (!g) return [];
   const cached = groupMemo.get(g);
-  if (cached && cached.tabs === s.tabs && cached.splits === s.splits) return cached.result;
+  if (cached && cached.tabs === s.tabs && cached.splits === s.splits && cached.groups === s.groups) return cached.result;
   const splits = splitIndex(s.splits);
+  const children = Object.values(s.groups).filter((c) => c.parentId === groupId);
   const seen = new Set<string>();
   const out: string[] = [];
   for (const id of g.tabIds) {
-    const entry = splitEntry(s, id, splits);
+    const child = children.find((c) => c.tabIds.includes(id));
+    const entry = child ? `g:${child.id}` : splitEntry(s, id, splits);
     if (!seen.has(entry)) {
       seen.add(entry);
       out.push(entry);
     }
   }
   const result = stableList(cached?.result, out);
-  groupMemo.set(g, { tabs: s.tabs, splits: s.splits, result });
+  groupMemo.set(g, { tabs: s.tabs, splits: s.splits, groups: s.groups, result });
   return result;
 }
 

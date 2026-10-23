@@ -1,7 +1,7 @@
 import { create, type StateCreator } from "zustand";
 import { createBookmarksSlice, ensureRoots, type BookmarksSlice } from "./bookmarks";
 import { changedIds } from "./changes";
-import { createGroupsSlice, type GroupsSlice } from "./groups";
+import { createGroupsSlice, settleNesting, type GroupsSlice } from "./groups";
 import { createHistorySlice, type HistorySlice } from "./history";
 import { IDLE_LIVE, isIncognitoProfile, pinnedFirst } from "./model";
 import { createOrganizeSlice, forgetClosedPrivateWindows, keptDeletedGroups, livePinTable, notePinChoices, type OrganizeSlice } from "./organize";
@@ -114,7 +114,7 @@ export const useBrowser = create<BrowserState>()(transactions.middleware(batched
     }
     const windows: Record<string, BrowserWindow> = {};
     for (const w of Object.values(rawWindows)) {
-      const tabIds = pinnedFirst(w.tabIds.filter((id) => tabs[id]?.windowId === w.id), tabs);
+      const tabIds = pinnedFirst(w.tabIds.filter((id) => tabs[id]?.windowId === w.id), tabs, data.groups ?? {});
       if (!tabIds.length) continue;
       const activeTabIds = Object.fromEntries(Object.entries(w.activeTabIds).filter(([p, id]) => tabs[id]?.profileId === p));
       const profileId = tabIds.some((id) => tabs[id]!.profileId === w.profileId) ? w.profileId : tabs[tabIds[0]!]!.profileId;
@@ -177,6 +177,12 @@ export const useBrowser = create<BrowserState>()(transactions.middleware(batched
     set(next);
   },
 }))));
+
+useBrowser.subscribe((s, prev) => {
+  if (s.groups === prev.groups && s.windows === prev.windows) return;
+  const settled = settleNesting(s);
+  if (settled) useBrowser.setState(settled);
+});
 
 useBrowser.subscribe((s, prev) => {
   const patch = s.windows !== prev.windows && forgetClosedPrivateWindows(s);
