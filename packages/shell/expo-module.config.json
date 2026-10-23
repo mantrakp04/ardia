@@ -10,7 +10,6 @@
       "ActivitySpinnerModule",
       "ContextMenuAreaModule",
       "OutsidePressAreaModule",
-      "CursorOwnerModule",
       "SurfaceModule",
       "VisualEffectModule",
       "GlassEffectModule",

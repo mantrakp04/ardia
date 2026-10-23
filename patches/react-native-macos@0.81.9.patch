@@ -643,10 +643,10 @@ index 3edcc9670a8ccb5eef44524e78445117d2416ed8..1f7951f616996941706f11b380c12051
    if (sendIdleEvents) {
      [self startTimers];
 diff --git a/React/Views/RCTView.m b/React/Views/RCTView.m
-index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..1563748b8359c5867a9ef7d9b59cdc99befa144f 100644
+index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..34447fbb3fe6fd5e16c1320e5395090665bcc402 100644
 --- a/React/Views/RCTView.m
 +++ b/React/Views/RCTView.m
-@@ -136,6 +136,24 @@ static NSString *RCTRecursiveAccessibilityLabel(RCTUIView *view) // [macOS]
+@@ -136,6 +136,24 @@ - (RCTPlatformView *)react_findClipView // [macOS]
    return str;
  }
  
@@ -671,7 +671,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..1563748b8359c5867a9ef7d9b59cdc99
  @implementation RCTView {
    RCTUIColor *_backgroundColor; // [macOS]
    id<RCTEventDispatcherProtocol> _eventDispatcher; // [macOS]
-@@ -143,6 +161,9 @@ static NSString *RCTRecursiveAccessibilityLabel(RCTUIView *view) // [macOS]
+@@ -143,6 +161,9 @@ @implementation RCTView {
    NSTrackingArea *_trackingArea;
    BOOL _hasMouseOver;
    BOOL _mouseDownCanMoveWindow;
@@ -681,7 +681,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..1563748b8359c5867a9ef7d9b59cdc99
  #endif // macOS]
    NSMutableDictionary<NSString *, NSDictionary *> *accessibilityActionsNameMap;
    NSMutableDictionary<NSString *, NSDictionary *> *accessibilityActionsLabelMap;
-@@ -784,60 +805,39 @@ RCT_NOT_IMPLEMENTED(-(instancetype)initWithCoder : unused)
+@@ -784,60 +805,39 @@ - (void)viewDidMoveToWindow
    // scroll event occurs either due to trackpad/gesture based scrolling or a scrollwheel event
    // both of which would not cause the mouseExited to be invoked.
  
@@ -760,7 +760,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..1563748b8359c5867a9ef7d9b59cdc99
  }
  #endif // macOS]
  
-@@ -951,6 +951,9 @@ RCT_NOT_IMPLEMENTED(-(instancetype)initWithCoder : unused)
+@@ -951,6 +951,9 @@ - (void)setRemoveClippedSubviews:(BOOL)removeClippedSubviews
  
  - (void)didUpdateReactSubviews
  {
@@ -770,7 +770,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..1563748b8359c5867a9ef7d9b59cdc99
    if (_removeClippedSubviews) {
      [self updateClippedSubviews];
    } else {
-@@ -1196,10 +1199,18 @@ static CGFloat RCTDefaultIfNegativeTo(CGFloat defaultValue, CGFloat x)
+@@ -1196,10 +1199,18 @@ - (void)reactSetFrame:(CGRect)frame
    // be rendered as a stretchable image, we'll need to re-render.
    // TODO: detect up-front if re-rendering is necessary
    CGSize oldSize = self.bounds.size;
@@ -789,7 +789,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..1563748b8359c5867a9ef7d9b59cdc99
  }
  
  - (void)displayLayer:(CALayer *)layer
-@@ -1248,17 +1259,8 @@ static CGFloat RCTDefaultIfNegativeTo(CGFloat defaultValue, CGFloat x)
+@@ -1248,17 +1259,8 @@ - (void)displayLayer:(CALayer *)layer
    RCTUIColor *backgroundColor = _backgroundColor;
  #endif // macOS]
  
@@ -809,24 +809,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..1563748b8359c5867a9ef7d9b59cdc99
  
    if (useIOSBorderRendering) {
      layer.cornerRadius = cornerRadii.topLeftHorizontal;
-@@ -1493,6 +1495,16 @@ setBorderColor() setBorderColor(Top) setBorderColor(Right) setBorderColor(Bottom
- 
- #pragma mark - macOS Event Handler
- 
-+// [Ardia: a cursor that changes after the view is in a window takes effect; AppKit asks for cursor rects only when it thinks they changed. Ardia]
-+- (void)setCursor:(RCTCursor)cursor
-+{
-+  if (_cursor == cursor) {
-+    return;
-+  }
-+  _cursor = cursor;
-+  [self.window invalidateCursorRectsForView:self];
-+}
-+
- - (void)resetCursorRects
- {
-   [self discardCursorRects];
-@@ -1514,6 +1526,20 @@ setBorderColor() setBorderColor(Top) setBorderColor(Right) setBorderColor(Bottom
+@@ -1514,6 +1516,20 @@ - (BOOL)acceptsFirstResponder
  	return [self focusable] || [super acceptsFirstResponder];
  }
  
@@ -847,7 +830,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..1563748b8359c5867a9ef7d9b59cdc99
  - (void)updateTrackingAreas
  {
    BOOL hasMouseHoverEvent = self.onMouseEnter || self.onMouseLeave;
-@@ -1522,6 +1548,13 @@ setBorderColor() setBorderColor(Top) setBorderColor(Right) setBorderColor(Bottom
+@@ -1522,6 +1538,13 @@ - (void)updateTrackingAreas
    if (!wouldRecreateIdenticalTrackingArea) {
      if (_trackingArea) {
        [self removeTrackingArea:_trackingArea];
@@ -861,7 +844,7 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..1563748b8359c5867a9ef7d9b59cdc99
      }
  
      if (hasMouseHoverEvent) {
-@@ -1533,9 +1566,173 @@ setBorderColor() setBorderColor(Top) setBorderColor(Right) setBorderColor(Bottom
+@@ -1533,9 +1556,173 @@ - (void)updateTrackingAreas
      }
    }
  
