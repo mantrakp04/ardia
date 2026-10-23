@@ -73,18 +73,32 @@ export function numberedTabs(s: BrowserState, windowId: string): string[] {
 
 const groupMemo = new WeakMap<object, { tabs: BrowserState["tabs"]; splits: BrowserState["splits"]; groups: BrowserState["groups"]; result: string[] }>();
 
+const childIndex = new WeakMap<object, Map<string, BrowserState["groups"][string][]>>();
+const NO_CHILDREN: BrowserState["groups"][string][] = [];
+
+function childGroups(groups: BrowserState["groups"], parentId: string): BrowserState["groups"][string][] {
+  let index = childIndex.get(groups);
+  if (!index) {
+    index = new Map();
+    for (const g of Object.values(groups)) if (g.parentId) index.set(g.parentId, [...(index.get(g.parentId) ?? []), g]);
+    childIndex.set(groups, index);
+  }
+  return index.get(parentId) ?? NO_CHILDREN;
+}
+
 export function groupEntries(s: BrowserState, groupId: string): string[] {
   const g = s.groups[groupId];
   if (!g) return [];
   const cached = groupMemo.get(g);
   if (cached && cached.tabs === s.tabs && cached.splits === s.splits && cached.groups === s.groups) return cached.result;
   const splits = splitIndex(s.splits);
-  const children = Object.values(s.groups).filter((c) => c.parentId === groupId);
+  const childOf = new Map<string, string>();
+  for (const c of childGroups(s.groups, groupId)) for (const id of c.tabIds) childOf.set(id, c.id);
   const seen = new Set<string>();
   const out: string[] = [];
   for (const id of g.tabIds) {
-    const child = children.find((c) => c.tabIds.includes(id));
-    const entry = child ? `g:${child.id}` : splitEntry(s, id, splits);
+    const child = childOf.get(id);
+    const entry = child ? `g:${child}` : splitEntry(s, id, splits);
     if (!seen.has(entry)) {
       seen.add(entry);
       out.push(entry);
