@@ -226,8 +226,12 @@ BOOL IsPager(NSView<ACSwipeTarget> *target) {
   return [target respondsToSelector:@selector(isPager)] && target.isPager;
 }
 
+BOOL OffersNewPage(NSView<ACSwipeTarget> *target) {
+  return [target respondsToSelector:@selector(offersNewPage)] && target.offersNewPage;
+}
+
 BOOL HasNativePager(NSView<ACSwipeTarget> *target) {
-  return IsPager(target) && [target respondsToSelector:@selector(hasNativePager)] && target.hasNativePager &&
+  return (IsPager(target) || OffersNewPage(target)) && [target respondsToSelector:@selector(hasNativePager)] && target.hasNativePager &&
          [target respondsToSelector:@selector(pagerInput:distance:direction:timestamp:)];
 }
 
@@ -450,7 +454,7 @@ void Begin(NSWindow *window, NSPoint location, BOOL ignoreSystemPreference, NSTi
       @"ignorePreference" : @(ignoreSystemPreference),
     });
   }
-  if (!target || (!NSEvent.isSwipeTrackingFromScrollEventsEnabled && !ignoreSystemPreference && !IsPager(target))) {
+  if (!target || (!NSEvent.isSwipeTrackingFromScrollEventsEnabled && !ignoreSystemPreference && !IsPager(target) && !OffersNewPage(target))) {
     Diag(@{@"diag" : @"reject", @"seq" : @(gGesture.seq), @"reason" : target ? @"systemPreferenceOff" : (hit ? @"noTarget" : @"noHit")});
     gGesture.state = State::Ignored;
     ReleasePrepared(timestamp);
@@ -487,7 +491,7 @@ BOOL ShouldTrack() {
   NSView<ACSwipeTarget> *target = gGesture.target;
   const CGFloat verticalIntent = IsPager(target) ? 3 * kStartDistance : kStartDistance;
   if (fabs(dy) >= verticalIntent && kCancelDominance * fabs(dx) < fabs(dy)) return Reject(@"verticalIntent");
-  const BOOL below = HasNativePager(target) ? dx == 0 : fabs(dx) < kStartDistance;
+  const BOOL below = IsPager(target) && HasNativePager(target) ? dx == 0 : fabs(dx) < kStartDistance;
   if (below || kStartDominance * fabs(dx) < fabs(dy)) return Wait(@"belowStart");
   int direction = dx > 0 ? 1 : -1;
 
@@ -508,7 +512,8 @@ BOOL ShouldTrack() {
   }
 
   BOOL available = direction > 0 ? target.canSwipeBack : target.canSwipeForward;
-  if (!available && !target.tracksUnavailableDirections) return Reject(@"unavailable", gTrace ? @{@"direction" : @(direction)} : nil);
+  const BOOL pullsNewPage = direction < 0 && OffersNewPage(target);
+  if (!available && !target.tracksUnavailableDirections && !pullsNewPage) return Reject(@"unavailable", gTrace ? @{@"direction" : @(direction)} : nil);
   gGesture.direction = direction;
   gGesture.available = available;
   Diag(@{@"diag" : @"track", @"seq" : @(gGesture.seq), @"direction" : @(direction), @"available" : @(available), @"dx" : @(dx), @"dy" : @(dy),

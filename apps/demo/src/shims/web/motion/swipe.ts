@@ -23,6 +23,7 @@ export type SwipeTarget = {
   tracksUnavailableDirections: () => boolean;
   allowsVerticalMotion: () => boolean;
   isPager: () => boolean;
+  offersNewPage: () => boolean;
   pager: () => { pager: Pager; area: PagerArea } | null;
   onSwipe: (event: SwipeEvent) => void;
 };
@@ -66,7 +67,7 @@ export function addSwipeTarget(target: SwipeTarget) {
 }
 
 const isPager = (t: SwipeTarget) => t.isPager();
-const hasNativePager = (t: SwipeTarget) => t.isPager() && !!t.pager();
+const hasNativePager = (t: SwipeTarget) => (t.isPager() || t.offersNewPage()) && !!t.pager();
 
 function visible(node: HTMLElement) {
   if (!node.isConnected || !node.getClientRects().length) return false;
@@ -168,12 +169,13 @@ function shouldTrack() {
   if (!target) return false;
   const verticalIntent = isPager(target) ? 3 * START_DISTANCE : START_DISTANCE;
   if (Math.abs(dy) >= verticalIntent && CANCEL_DOMINANCE * Math.abs(dx) < Math.abs(dy)) return reject();
-  const below = hasNativePager(target) ? dx === 0 : Math.abs(dx) < START_DISTANCE;
+  const below = isPager(target) && hasNativePager(target) ? dx === 0 : Math.abs(dx) < START_DISTANCE;
   if (below || START_DOMINANCE * Math.abs(dx) < Math.abs(dy)) return false;
   const direction = dx > 0 ? 1 : -1;
   if (contentScrolls(gesture.hit, target.node()?.parentElement ?? null, direction)) return reject();
   const available = direction > 0 ? target.canSwipeBack() : target.canSwipeForward();
-  if (!available && !target.tracksUnavailableDirections()) return reject();
+  const pullsNewPage = direction < 0 && target.offersNewPage();
+  if (!available && !target.tracksUnavailableDirections() && !pullsNewPage) return reject();
   gesture.direction = direction;
   gesture.available = available;
   return true;

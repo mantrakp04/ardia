@@ -301,6 +301,7 @@ export function TextField({
   onBlur,
   selectOnFocus,
   style,
+  inputRef,
 }: {
   value: string;
   onChangeText: (text: string) => void;
@@ -312,6 +313,7 @@ export function TextField({
   onBlur?: () => void;
   selectOnFocus?: boolean;
   style?: StyleProp<ViewStyle>;
+  inputRef?: Ref<TextInput>;
 }) {
   const theme = useTheme();
   const colors = useFormColors();
@@ -331,6 +333,7 @@ export function TextField({
       ]}
     >
       <TextInput
+        ref={inputRef}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}

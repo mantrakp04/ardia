@@ -52,6 +52,7 @@ public class SwipeModule: Module {
       Prop("tracksUnavailableDirections") { (view: SwipeArea, value: Bool?) in view.tracksUnavailableDirections = value ?? false }
       Prop("allowsVerticalMotion") { (view: SwipeArea, value: Bool?) in view.allowsVerticalMotion = value ?? false }
       Prop("isPager") { (view: SwipeArea, value: Bool?) in view.isPager = value ?? false }
+      Prop("offersNewPage") { (view: SwipeArea, value: Bool?) in view.offersNewPage = value ?? false }
       Prop("nativePager") { (view: SwipeArea, value: [String: Any]?) in view.configurePager(value) }
       AsyncFunction("devLocate") { (view: SwipeArea) -> [String: Any]? in
         guard let window = view.window, let content = window.contentView else { return nil }
@@ -72,6 +73,7 @@ final class SwipeArea: ExpoView, ACSwipeTarget {
   var tracksUnavailableDirections = false
   var allowsVerticalMotion = false
   @objc var isPager = false
+  @objc var offersNewPage = false
   private(set) var pager: ACPager?
   private var pagerWidth: CGFloat = 0
 
@@ -136,6 +138,7 @@ private let trackingScale = 0.5
 private let rubberDimension = 255.0
 private let rubberCoefficient = 0.15
 private let flickVelocity = 5.0
+private let newPageReveal = 0.5
 private let omega = 2 * Double.pi / 0.25
 private let restDisplacement = 0.003
 private let restSpeed = 0.1
@@ -164,7 +167,7 @@ final class ACPager {
   enum Phase: String { case idle, tracking, holding, settling }
 
   private struct Drag {
-    var start = 0.0, lo = 0, hi = 0, home = 0, detent = 0
+    var start = 0.0, lo = 0, hi = 0, home = 0, detent = 0, last = 0
     weak var area: SwipeArea?
   }
 
@@ -257,6 +260,12 @@ final class ACPager {
       return
     }
     if count != self.count || (newOrder != nil && newOrder != order) {
+      if selected == self.count, propSelected == selected {
+        self.count = count
+        setOrder(newOrder)
+        publish()
+        return
+      }
       var index = propSelected
       let old = orderIds
       self.count = count
@@ -332,9 +341,10 @@ final class ACPager {
     stopSpring()
     let home = selected
     let x = position
+    let last = area.offersNewPage ? count : count - 1
     let lo = max(0, min(home - 1, Int(x.rounded(.down))))
-    let hi = min(count - 1, max(home + 1, Int(x.rounded(.up))))
-    drag = Drag(start: x, lo: lo, hi: hi, home: home, detent: min(max(Int(x.rounded()), lo), hi), area: area)
+    let hi = min(last, max(home + 1, Int(x.rounded(.up))))
+    drag = Drag(start: x, lo: lo, hi: hi, home: home, detent: min(max(Int(x.rounded()), lo), hi), last: last, area: area)
     history = []
     velocity = 0
     phase = .tracking
@@ -382,7 +392,8 @@ final class ACPager {
     if !cancelled {
       let flick = abs(v * width) >= flickVelocity
       target = !flick ? Int(position.rounded()) : v > 0 ? Int(position.rounded(.down)) + 1 : Int(position.rounded(.up)) - 1
-      target = max(0, home - 1, min(count - 1, home + 1, target))
+      target = max(0, home - 1, min(drag.last, home + 1, target))
+      if target == count, position - Double(count - 1) < newPageReveal { target = home }
     }
     settle(to: target, velocity: towards(target, v), from: area)
   }
@@ -406,7 +417,7 @@ final class ACPager {
     guard let newOrder, newOrder != order else { return }
     let ids = newOrder.components(separatedBy: "\n")
     guard !ids.isEmpty else { return }
-    let current = orderIds.flatMap { selected < $0.count ? $0[selected] : nil }
+    let current = orderIds.flatMap { selected < $0.count ? $0[selected] : nil } ?? (selected == count && selected < ids.count ? ids[selected] : nil)
     let id = current.flatMap { ids.contains($0) ? $0 : nil } ?? ids[min(max(propSelected, 0), ids.count - 1)]
     _ = select(id, order: newOrder)
   }

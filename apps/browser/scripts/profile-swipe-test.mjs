@@ -501,6 +501,219 @@ try {
       await ac('ac.store.getState().reorderProfiles(["default","work"]); return true;');
     }
   });
+  const pull = (distance) => {
+    const steps = [{ phase: "began", dx: 0, dy: 0 }];
+    for (let left = distance; left > 0; left -= 12) steps.push({ phase: "changed", dx: -Math.min(12, left), dy: 0 });
+    steps.push({ phase: "ended", dx: 0, dy: 0 });
+    return steps.map((step, index) => ({ ...step, atMs: index * 16, timestampMs: index * 16 }));
+  };
+  async function onLastProfile() {
+    await ac('ac.store.getState().switchProfile("w1","work"); return true;');
+    await waitProfile("work");
+    await sleep(350);
+  }
+  const settingsShown = () => ac('return ac.shell.windowIds().then((ids) => ({ open: ids.includes("settings"), ...ac.settingsNav.getState() }));');
+  async function waitSettingsOn(profileId) {
+    let shown;
+    for (let start = Date.now(); Date.now() - start < 2000; await sleep(50)) {
+      shown = await settingsShown();
+      if (shown.open && shown.pane === "profiles" && shown.profileId === profileId) return shown;
+    }
+    assert.fail(`Settings should open on ${profileId}'s editor, got ${JSON.stringify({ open: shown.open, pane: shown.pane, profileId: shown.profileId })}`);
+  }
+  const closeSettings = () => ac('return ac.shell.closeWindow("settings").then(() => true);');
+  const settingsResponder = () => ac('return ac.shell.devKeyEquivalent("settings", { key: "x", keyCode: 7, dry: true, wait: 0 }).then((r) => r.firstResponder ?? r.error);');
+  const editsText = (responder) => /TextView|TextField|FieldEditor/.test(responder);
+  async function waitNameFieldFocused() {
+    let responder;
+    for (let start = Date.now(); Date.now() - start < 2000; await sleep(50)) if (editsText(responder = await settingsResponder())) return responder;
+    assert.fail(`the Name field should be focused, Settings' first responder is ${responder}`);
+  }
+  async function typeInSettings(text) {
+    await ac(`return ac.shell.devTypeKeys("settings", ${JSON.stringify(text)}, 20).then(() => true);`);
+    await ac('return ac.shell.devTypeKeys("settings", "\\r", 20).then(() => true);');
+    await sleep(300);
+  }
+  async function textsShownMidPull(distance) {
+    const held = pull(distance).slice(0, -1);
+    const releaseAt = held.at(-1).atMs + 1200;
+    const steps = [...held, { phase: "ended", dx: 0, dy: 0, atMs: releaseAt, timestampMs: releaseAt }];
+    return ac(`
+      const hook = globalThis.__REACT_DEVTOOLS_GLOBAL_HOOK__;
+      const texts = () => {
+        const found = new Set();
+        for (const id of hook.renderers.keys()) for (const root of hook.getFiberRoots(id)) {
+          const stack = [root.current];
+          while (stack.length) {
+            const f = stack.pop();
+            if (typeof f.memoizedProps === "string") found.add(f.memoizedProps);
+            for (let c = f.child; c; c = c.sibling) stack.push(c);
+          }
+        }
+        return found;
+      };
+      const before = texts();
+      const run = globalThis.acSwipe.sidebar("w1").devSimulate(${JSON.stringify(steps)}, {ignorePreference:true});
+      const shown = new Set();
+      const poll = (until) => new Promise((resolve) => {
+        const tick = () => {
+          for (const t of texts()) if (!before.has(t)) shown.add(t);
+          if (Date.now() >= until) resolve();
+          else setTimeout(tick, 50);
+        };
+        tick();
+      });
+      return poll(Date.now() + ${releaseAt - 100}).then(() => run).then(() => [...shown]);
+    `);
+  }
+  await test("the page past the last profile reads New Profile while pulled, and a held short pull springs back", async () => {
+    await onLastProfile();
+    const shown = await textsShownMidPull(120);
+    assert.ok(shown.includes("New Profile"), `the page should read New Profile, showed ${JSON.stringify(shown)}`);
+    assert.ok(!shown.includes("New Space"), "the page should not say Space");
+    await sleep(500);
+    assert.deepEqual(await ac("return ac.store.getState().profileOrder;"), ["default", "work"]);
+    assert.equal(await profile(), "work");
+    return shown;
+  });
+  await test("pulling the New Profile page halfway in past the last profile makes a profile sharing its data and opens its editor with the Name field focused and selected", async () => {
+    await onLastProfile();
+    const result = await nativeBatch(pull(300));
+    const s = await ac('const s=ac.store.getState(); return { order:s.profileOrder, profiles:s.profiles, shown:s.windows.w1.profileId };');
+    const created = s.order[2];
+    try {
+      assert.equal(s.order.length, 3, "the pull should add a profile after the last one");
+      assert.equal(s.shown, created, "the window should page to the new profile");
+      assert.equal(s.profiles[created].dataId, "work", "the new profile shares the last profile's data");
+      assert.equal(s.profiles[created].name, "Profile 3");
+      assert.equal(new Set(s.order.map((id) => s.profiles[id].color)).size, 3, "the new profile takes an unused colour");
+      assert.equal(result.state.profileId, created);
+      assert.equal(result.state.selected, 2);
+      assert.equal(result.state.count, 3);
+      assert.equal(result.state.phase, "idle");
+      assert.ok(Math.abs(result.state.position - 2) < 0.003, "the slide should finish on the new profile");
+      const editor = await waitSettingsOn(created);
+      const responder = await waitNameFieldFocused();
+      await typeInSettings("Trips");
+      const renamed = await ac(`return ac.store.getState().profiles[${JSON.stringify(created)}].name;`);
+      assert.notEqual(renamed, "Profile 3", "typing should reach the Name field");
+      assert.equal(renamed, "Trips", "typing should replace the selected name, not add to it");
+      return { result, created: s.profiles[created], editor: { pane: editor.pane, profileId: editor.profileId }, responder, renamed };
+    } finally {
+      await closeSettings();
+      await ac(`ac.store.getState().switchProfile("w1","default"); ac.store.getState().deleteProfile(${JSON.stringify(created ?? "")}); return true;`);
+      await waitProfile("default");
+    }
+  });
+  await test("with Settings already open on another pane, a pull-made profile's editor still gets its Name field focused and selected", async () => {
+    await onLastProfile();
+    await ac('ac.settingsNav.getState().go("general"); ac.runCommand({ command: "openSettings" }); return true;');
+    for (let start = Date.now(); !(await settingsShown()).open && Date.now() - start < 2000;) await sleep(50);
+    await sleep(600);
+    const before = await settingsResponder();
+    assert.ok(!editsText(before), `Settings › General should open with no field focused, first responder ${before}`);
+    await nativeBatch(pull(300));
+    const created = (await ac("return ac.store.getState().profileOrder;"))[2];
+    try {
+      await waitSettingsOn(created);
+      const responder = await waitNameFieldFocused();
+      await typeInSettings("Trips");
+      assert.equal(await ac(`return ac.store.getState().profiles[${JSON.stringify(created)}].name;`), "Trips", "typing should replace the selected name");
+      return { created, before, responder };
+    } finally {
+      await closeSettings();
+      await ac(`ac.store.getState().switchProfile("w1","default"); ac.store.getState().deleteProfile(${JSON.stringify(created ?? "")}); return true;`);
+      await waitProfile("default");
+    }
+  });
+  await test("a flick short of half the New Profile page springs back and makes nothing", async () => {
+    await onLastProfile();
+    const result = await nativeBatch(pull(120));
+    const ended = (result.result?.acks ?? []).find((a) => a.diag === "emit" && a.phase === "ended");
+    assert.ok(Math.abs(ended?.velocity ?? 0) >= 5, "the release should be a flick");
+    assert.deepEqual(await ac("return ac.store.getState().profileOrder;"), ["default", "work"]);
+    assert.equal(result.profile, "work");
+    assert.equal(result.state.selected, 1);
+    assert.equal(result.state.phase, "idle");
+    assert.ok(Math.abs(result.state.position - 1) < 0.003, "the pages should spring back to the last profile");
+    return result;
+  });
+  await test("a discrete swipe past the last profile passes through and makes nothing", async () => {
+    await onLastProfile();
+    const result = await simulate([{ phase: "swipe", dx: -3 }]);
+    await sleep(400);
+    assert.equal(result.events?.[0]?.swallowed, false, "a discrete forward swipe on the last profile must reach the responder chain, as before");
+    assert.deepEqual(await ac("return ac.store.getState().profileOrder;"), ["default", "work"]);
+    assert.equal(await profile(), "work");
+    return result.events;
+  });
+  await test("switching profiles during the slide onto a new profile drops its editor, even after paging back to it", async () => {
+    await onLastProfile();
+    const first = await ac(`
+      const store = ac.store;
+      const unsubscribe = store.subscribe((s, prev) => {
+        if (s.profileOrder.length <= prev.profileOrder.length) return;
+        unsubscribe();
+        queueMicrotask(() => store.getState().switchProfile("w1", "work"));
+      });
+      return globalThis.acSwipe.sidebar("w1").devSimulate(${JSON.stringify(pull(300))}, {ignorePreference:true})
+        .then(() => new Promise((resolve) => setTimeout(resolve, 900)))
+        .then(() => ac.shell.windowIds())
+        .then((ids) => ({ order: store.getState().profileOrder, shown: store.getState().windows.w1.profileId, settings: ids.includes("settings") }));
+    `);
+    const created = first.order[2];
+    try {
+      assert.equal(first.order.length, 3, "the pull should still make the profile");
+      assert.equal(first.shown, "work", "the switch during the slide should win");
+      assert.equal(first.settings, false, "no editor after switching away mid-slide");
+      const back = await nativeBatch(gesture(-1));
+      assert.equal(back.profile, created, "a swipe should page to the new profile");
+      await sleep(500);
+      assert.equal((await settingsShown()).open, false, "paging back later must not open the editor");
+      return { first, back: back.state };
+    } finally {
+      await closeSettings();
+      await ac(`ac.store.getState().switchProfile("w1","default"); ac.store.getState().deleteProfile(${JSON.stringify(created ?? "")}); return true;`);
+      await waitProfile("default");
+    }
+  });
+  await test("Settings › Profiles opened any other way leaves the Name field unfocused, even reopened on a pull-made profile", async () => {
+    await onLastProfile();
+    await nativeBatch(pull(300));
+    const created = (await ac("return ac.store.getState().profileOrder;"))[2];
+    try {
+      await waitSettingsOn(created);
+      await sleep(600);
+      await closeSettings();
+      await ac('ac.runCommand({ command: "openSettings" }); return true;');
+      await waitSettingsOn(created);
+      await sleep(600);
+      const reopened = await settingsResponder();
+      assert.ok(!editsText(reopened), `reopening Settings must not focus the Name field again, first responder ${reopened}`);
+      await closeSettings();
+      await ac('ac.settingsNav.getState().go("profiles", "work"); ac.runCommand({ command: "openSettings" }); return true;');
+      await waitSettingsOn("work");
+      await sleep(600);
+      const edited = await settingsResponder();
+      assert.ok(!editsText(edited), `Settings opened on a profile's editor, as Edit Profiles… opens it, must not focus the Name field, first responder ${edited}`);
+      return { created, reopened, edited };
+    } finally {
+      await closeSettings();
+      await ac(`ac.store.getState().switchProfile("w1","default"); ac.store.getState().deleteProfile(${JSON.stringify(created ?? "")}); return true;`);
+      await waitProfile("default");
+    }
+  });
+  await test("a private window's sidebar has no New Profile page", async () => {
+    const id = await ac('return ac.store.getState().createWindow({ incognito: true, background: true });');
+    try {
+      await sleep(500);
+      assert.equal(await ac(`return !!ac.store.getState().windows[${JSON.stringify(id)}]?.incognito;`), true);
+      assert.equal(await ac(`return !!globalThis.acSwipe.sidebar(${JSON.stringify(id)});`), false, "a private window's sidebar must not page");
+      return { id };
+    } finally {
+      await ac(`ac.store.getState().closeWindow(${JSON.stringify(id)}); return true;`);
+    }
+  });
   await test("removing the other profile keeps the remaining sidebar at its origin", async () => {
     await ac('ac.store.getState().switchProfile("w1","work"); return true;');
     await waitProfile("work");
@@ -515,6 +728,48 @@ try {
     assert.equal(result.phase, "idle");
     assert.ok(result.areas >= 1);
     return result;
+  });
+  await test("the only profile's sidebar still scrolls, even from a leftward jitter, and ignores a back swipe", async () => {
+    const scroll = await simulate([{ phase: "began", dy: 5 }, { phase: "changed", dy: 16 }, { phase: "changed", dy: 20 }, { phase: "ended" }]);
+    assert.ok(scroll.events.every((e) => !e.swallowed), "vertical events must reach the scroll view");
+    const jitter = await nativeBatch([{ phase: "began", dx: 0, dy: 0 }, { phase: "changed", dx: -1, dy: 1 }, { phase: "changed", dx: 0, dy: 16 }, { phase: "changed", dx: 0, dy: 20 }, { phase: "ended", dx: 0, dy: 0 }]
+      .map((step, index) => ({ ...step, atMs: index * 16, timestampMs: index * 16 })));
+    assert.ok(jitter.result.events.every((e) => !e.swallowed), "a scroll starting with a 1 pt leftward jitter must stay a scroll, not a New Profile pull");
+    assert.equal(jitter.state.phase, "idle");
+    assert.ok(Math.abs(jitter.state.position) < 0.003, "the sidebar should not move");
+    const back = await nativeBatch(pull(300).map((step) => ({ ...step, dx: -step.dx })));
+    assert.ok(back.result.events.every((e) => !e.swallowed), "a back swipe on the only profile must not be tracked");
+    assert.deepEqual(await ac("return ac.store.getState().profileOrder;"), ["work"]);
+    assert.equal(back.state.selected, 0);
+    assert.equal(back.state.phase, "idle");
+    assert.ok(Math.abs(back.state.position) < 0.003, "the sidebar should not move");
+    return { scroll, jitter, back };
+  });
+  await test("the only profile's sidebar passes a horizontal wheel and a discrete forward swipe through, as before", async () => {
+    const result = await simulate([{ phase: "wheel", dx: 1 }, { phase: "wheel", dx: -1 }, { phase: "swipe", dx: -3 }]);
+    await sleep(400);
+    assert.deepEqual(result.events.map((e) => [e.phase, e.swallowed]), [["wheel", false], ["wheel", false], ["swipe", false]],
+      "with no other profile to page to, these must reach the responder chain");
+    assert.deepEqual(await ac("return ac.store.getState().profileOrder;"), ["work"]);
+    assert.equal(await profile(), "work");
+    return result.events;
+  });
+  await test("the only profile's sidebar offers the New Profile page too", async () => {
+    try {
+      const result = await nativeBatch(pull(300));
+      const s = await ac('const s=ac.store.getState(); return { order:s.profileOrder, profiles:s.profiles, shown:s.windows.w1.profileId };');
+      assert.equal(s.order.length, 2, "the pull should add a second profile");
+      assert.equal(s.shown, s.order[1]);
+      assert.equal(s.profiles[s.order[1]].dataId, "work");
+      assert.equal(result.state.selected, 1);
+      assert.equal(result.state.count, 2);
+      assert.equal(result.state.phase, "idle");
+      assert.ok(Math.abs(result.state.position - 1) < 0.003, "the slide should finish on the new profile");
+      await waitSettingsOn(s.order[1]);
+      return result;
+    } finally {
+      await closeSettings();
+    }
   });
   stage = "the snapshot";
   evidence.snapshot = { path: join(data, "profile-swipe.png"),

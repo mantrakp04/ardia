@@ -1,6 +1,6 @@
 import { ContextMenuArea, hapticTick, showMenu, Symbol } from "@ardia/shell";
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Animated, Easing, PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Animated, Easing, PanResponder, Pressable, StyleSheet, Text, View, type TextInput } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { createProfile, deleteProfile } from "../../../lib/actions";
 import { hex, profileAccent, useTheme } from "../../../lib/theme";
@@ -14,7 +14,7 @@ import { useHover } from "../../primitives";
 import { ColorStack } from "../../profiles/CreateProfile";
 import { iconMenuItems, PROFILE_SYMBOLS, ProfileBadge, profileSymbol } from "../../profiles/icons";
 import { Button, Group, PopUp, Row, SectionHeader, TextField, useFormColors } from "../controls";
-import { closeSettingsSheet, showSettingsSheet } from "../sheet";
+import { closeSettingsSheet, showSettingsSheet, useSettingsSheet } from "../sheet";
 import { ThemeSection } from "../ThemeEditor";
 import { useSettingsNav } from "../windows";
 
@@ -248,6 +248,14 @@ export function ProfileDetailsPane({ profileId }: { profileId: string }) {
     return `${plural((s.history[profileId] ?? []).length, "page")} in history · ${plural(bookmarks, "bookmark")}`;
   });
   const [name, setName] = useState(profile?.name ?? "");
+  const nameField = useRef<TextInput>(null);
+  useEffect(() => {
+    if (useSettingsNav.getState().focusNameOf !== profileId) return;
+    useSettingsNav.setState({ focusNameOf: null });
+    if (useSettingsSheet.getState().sheet) return;
+    nameField.current?.focus();
+    nameField.current?.setSelection(0, name.length);
+  }, []);
   if (!profile) return null;
   const update = (patch: Partial<Pick<Profile, "name" | "color" | "icon">>) => useBrowser.getState().updateProfile(profileId, patch);
   const commitName = () => (name.trim() ? update({ name: name.trim() }) : setName(profile.name));
@@ -270,7 +278,7 @@ export function ProfileDetailsPane({ profileId }: { profileId: string }) {
       <SectionHeader title="Profile" />
       <Group>
         <Row title="Name">
-          <TextField value={name} onChangeText={setName} onSubmit={commitName} onBlur={commitName} style={{ width: 220 }} />
+          <TextField inputRef={nameField} value={name} onChangeText={setName} onSubmit={commitName} onBlur={commitName} style={{ width: 220 }} />
         </Row>
         <Row title="Icon" description={iconTitle(profile.icon)}>
           <Button title="Change…" onPress={() => void pickIcon()} />
