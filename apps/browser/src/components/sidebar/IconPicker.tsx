@@ -7,7 +7,6 @@ import { useBrowser } from "../../store/browser";
 import { setIcon } from "./actions";
 import { setSidebarUi, useSidebarUi } from "./state";
 import { SYMBOL_PREFIX } from "./TabIcon";
-import { useSidebarTokens } from "./tokens";
 
 const EMOJI: [string, string][] = [
   ["⭐️", "star favorite"], ["🔥", "fire hot"], ["❤️", "heart love"], ["✅", "check done"], ["📌", "pin"], ["🚀", "rocket launch ship"],
@@ -30,19 +29,43 @@ const EMOJI: [string, string][] = [
   ["🔴", "red circle"], ["🟠", "orange circle"], ["🟡", "yellow circle"], ["🟢", "green circle"], ["🔵", "blue circle"], ["🟣", "purple circle"],
 ];
 
-const SYMBOLS = [
-  "star", "heart", "bookmark", "flag", "pin", "bolt", "flame", "leaf", "globe", "house", "briefcase", "cart", "bag", "creditcard",
-  "dollarsign.circle", "chart.bar", "chart.line.uptrend.xyaxis", "calendar", "clock", "alarm", "envelope", "bubble.left", "phone", "video",
-  "music.note", "headphones", "gamecontroller", "paintbrush", "camera", "film", "tv", "airplane", "map", "car", "fork.knife", "cup.and.saucer",
-  "figure.run", "sportscourt", "pawprint", "tree", "sun.max", "moon", "cloud", "snowflake", "sparkles", "gift", "trophy", "target", "brain",
-  "eye", "laptopcomputer", "desktopcomputer", "keyboard", "hammer", "wrench.and.screwdriver", "gearshape", "testtube.2", "ant", "lock",
-  "key", "puzzlepiece", "shippingbox", "folder", "archivebox", "newspaper", "link", "magnifyingglass", "safari", "tag", "lightbulb",
-  "questionmark.circle", "exclamationmark.triangle", "book", "graduationcap", "doc.text", "list.bullet", "checkmark.circle", "person.2",
+const SYMBOLS: [string, string, string?][] = [
+  ["star", "Star", "favorite"], ["heart", "Heart", "love"], ["bookmark", "Bookmark", "saved"], ["flag", "Flag"],
+  ["pin", "Pin"], ["bolt", "Lightning", "fast bolt"], ["flame", "Flame", "fire hot"], ["leaf", "Leaf", "nature plant"],
+  ["globe", "Globe", "world earth"], ["house", "Home", "house"], ["briefcase", "Briefcase", "work"], ["cart", "Shopping cart"], ["bag", "Shopping bag"],
+  ["creditcard", "Credit card", "payment"], ["dollarsign.circle", "Money", "dollar finance"], ["chart.bar", "Bar chart", "data"],
+  ["chart.line.uptrend.xyaxis", "Growth chart", "stocks trend finance"], ["calendar", "Calendar", "date"], ["clock", "Clock", "time"], ["alarm", "Alarm"],
+  ["envelope", "Mail", "email envelope"], ["bubble.left", "Chat", "message conversation"], ["phone", "Phone", "call"], ["video", "Video"],
+  ["music.note", "Music", "song"], ["headphones", "Headphones", "music audio"], ["gamecontroller", "Games", "play controller"],
+  ["paintbrush", "Paintbrush", "art design"], ["camera", "Camera", "photo"], ["film", "Film", "movie"], ["tv", "TV", "television watch"],
+  ["airplane", "Airplane", "travel flight"], ["map", "Map", "travel"], ["car", "Car", "drive"], ["fork.knife", "Food", "restaurant dining"],
+  ["cup.and.saucer", "Coffee", "cup tea"], ["figure.run", "Running", "fitness gym exercise"], ["sportscourt", "Sports", "court"],
+  ["pawprint", "Pets", "animal paw"], ["tree", "Tree", "nature"], ["sun.max", "Sun", "day weather"], ["moon", "Moon", "night"],
+  ["cloud", "Cloud", "weather"], ["snowflake", "Snowflake", "snow cold"], ["sparkles", "Sparkles"], ["gift", "Gift", "present"],
+  ["trophy", "Trophy", "win award"], ["target", "Target", "goal"], ["brain", "Brain", "think"], ["eye", "Eye", "look"],
+  ["laptopcomputer", "Laptop", "computer code"], ["desktopcomputer", "Desktop", "computer monitor"], ["keyboard", "Keyboard", "type"],
+  ["hammer", "Hammer", "tools build"], ["wrench.and.screwdriver", "Tools", "fix repair"], ["gearshape", "Settings", "gear"],
+  ["testtube.2", "Science", "test lab research"], ["ant", "Bug", "ant insect"], ["lock", "Lock", "secure privacy"], ["key", "Key"],
+  ["puzzlepiece", "Puzzle", "extension"], ["shippingbox", "Package", "box shipping"], ["folder", "Folder", "files"],
+  ["archivebox", "Archive", "storage"], ["newspaper", "News", "paper"], ["link", "Link"], ["magnifyingglass", "Search", "find"],
+  ["safari", "Compass", "explore browser"], ["tag", "Tag", "label"], ["lightbulb", "Idea", "light bulb"],
+  ["questionmark.circle", "Question", "help"], ["exclamationmark.triangle", "Warning", "important"], ["book", "Book", "read study"],
+  ["graduationcap", "Education", "school study graduate"], ["doc.text", "Document", "note write"], ["list.bullet", "List", "tasks"],
+  ["checkmark.circle", "Checkmark", "done complete"], ["person.2", "People", "team group"],
 ];
 
 const COLUMNS = 8;
-const CELL = 30;
-const WIDTH = COLUMNS * CELL + 16;
+const CELL = 34;
+const SCROLLBAR_GUTTER = 16;
+const WIDTH = COLUMNS * CELL + 24 + SCROLLBAR_GUTTER;
+
+type IconOption = { value: string; label: string; keywords: string };
+type PickerTab = "symbols" | "emoji";
+
+const ICON_OPTIONS: Record<PickerTab, IconOption[]> = {
+  symbols: SYMBOLS.map(([name, label, keywords = ""]) => ({ value: SYMBOL_PREFIX + name, label, keywords: `${name} ${keywords}` })),
+  emoji: EMOJI.map(([value, words]) => ({ value, label: words[0]!.toUpperCase() + words.slice(1), keywords: words })),
+};
 
 export function IconPicker({ windowId, sidebarWidth }: { windowId: string; sidebarWidth: number }) {
   const picker = useSidebarUi((u) => (u.iconPicker?.windowId === windowId ? u.iconPicker : null));
@@ -53,16 +76,13 @@ type Picker = NonNullable<ReturnType<typeof useSidebarUi.getState>["iconPicker"]
 
 function PickerPanel({ picker, sidebarWidth }: { picker: Picker; sidebarWidth: number }) {
   const theme = useTheme();
-  const tokens = useSidebarTokens();
   const liveIcon = useLive((s) => (picker.kind === "live" ? s.folders[picker.id.split("|")[1] ?? ""]?.icon : null));
   const current = useBrowser((s) => (picker.kind === "tab" ? s.tabs[picker.id]?.customIcon : picker.kind === "live" ? liveIcon : s.groups[picker.id]?.icon) ?? null);
-  const [tab, setTab] = useState<"emoji" | "symbols">(current?.startsWith(SYMBOL_PREFIX) ? "symbols" : "emoji");
+  const [tab, setTab] = useState<PickerTab>(current && !current.startsWith(SYMBOL_PREFIX) ? "emoji" : "symbols");
   const [query, setQuery] = useState("");
   const items = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return tab === "emoji"
-      ? EMOJI.filter(([, words]) => !q || words.includes(q)).map(([e]) => e)
-      : SYMBOLS.filter((name) => !q || name.includes(q)).map((name) => SYMBOL_PREFIX + name);
+    return ICON_OPTIONS[tab].filter(({ value, label, keywords }) => !q || `${label} ${keywords} ${tab === "emoji" ? value : ""}`.toLowerCase().includes(q));
   }, [tab, query]);
   const close = () => setSidebarUi({ iconPicker: null });
   const choose = (icon: string | null) => {
@@ -84,78 +104,122 @@ function PickerPanel({ picker, sidebarWidth }: { picker: Picker; sidebarWidth: n
         shadowOpacity={theme.panelShadowOpacity}
         shadowRadius={20}
         shadowOffset={[0, 8]}
-        style={{ position: "absolute", top, left, width: WIDTH, padding: 8, gap: 8 }}
+        style={{ position: "absolute", top, left, width: WIDTH, padding: 12, gap: 10 }}
       >
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <View style={{ flex: 1, height: 26, borderRadius: 8, backgroundColor: theme.urlPill, flexDirection: "row", alignItems: "center", paddingHorizontal: 7 }}>
-            <Symbol name="magnifyingglass" size={11} color={theme.textSecondary} style={{ width: 14, height: 14 }} />
-            <TextInput
-              autoFocus
-              value={query}
-              onChangeText={setQuery}
-              placeholder={tab === "emoji" ? "Search emoji" : "Search icons"}
-              placeholderTextColor={theme.placeholder}
-              enableFocusRing={false}
-              keyDownEvents={[{ key: "Escape" }]}
-              onKeyDown={(e) => e.nativeEvent.key === "Escape" && close()}
-              onSubmitEditing={() => items[0] && choose(items[0])}
-              style={{ flex: 1, fontSize: 12, marginLeft: 5, color: theme.textPrimary, paddingVertical: 0 }}
-            />
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <Text style={{ fontSize: 13, fontWeight: "600", color: theme.textPrimary }}>Edit icon</Text>
+          <View style={{ flexDirection: "row", padding: 2, borderRadius: 8, backgroundColor: theme.urlPill }}>
+            <ModeButton label="Icons" selected={tab === "symbols"} onPress={() => setTab("symbols")} />
+            <ModeButton label="Emoji" selected={tab === "emoji"} onPress={() => setTab("emoji")} />
           </View>
-          {(["emoji", "symbols"] as const).map((t) => (
-            <Pressable key={t} onPress={() => setTab(t)}>
-              <View style={{ width: 28, height: 26, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: tab === t ? tokens.pickerCellHover : undefined }}>
-                <Symbol name={t === "emoji" ? "face.smiling" : "star.square.on.square"} size={13} color={theme.icon} style={{ width: 16, height: 16 }} />
-              </View>
-            </Pressable>
-          ))}
         </View>
-        <ScrollView style={{ maxHeight: CELL * 6 }} showsVerticalScrollIndicator={false}>
-          <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-            {items.map((icon) => (
-              <Cell key={icon} icon={icon} selected={icon === current} onPress={() => choose(icon)} />
-            ))}
-            {items.length === 0 ? <Text style={{ padding: 8, fontSize: 12, color: theme.textTertiary }}>No matches</Text> : null}
-          </View>
+        <View style={{ height: 30, borderRadius: 8, backgroundColor: theme.urlPill, flexDirection: "row", alignItems: "center", paddingHorizontal: 9 }}>
+          <Symbol name="magnifyingglass" size={12} color={theme.icon} style={{ width: 14, height: 14 }} />
+          <TextInput
+            autoFocus
+            value={query}
+            onChangeText={setQuery}
+            accessibilityLabel={tab === "emoji" ? "Search emoji" : "Search icons"}
+            placeholder={tab === "emoji" ? "Search emoji" : "Search icons"}
+            placeholderTextColor={theme.dark ? "#FFFFFFB3" : "#00000099"}
+            selectionColor={theme.selection}
+            enableFocusRing={false}
+            keyDownEvents={[{ key: "Escape" }]}
+            onKeyDown={(e) => e.nativeEvent.key === "Escape" && close()}
+            onSubmitEditing={() => items[0] && choose(items[0].value)}
+            style={{ flex: 1, fontSize: 12, marginLeft: 7, color: theme.textPrimary, paddingVertical: 0 }}
+          />
+        </View>
+        <ScrollView key={tab} style={{ maxHeight: CELL * 6 }} showsVerticalScrollIndicator>
+          {items.length ? (
+            <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+              {items.map((item) => (
+                <Cell key={item.value} item={item} selected={item.value === current} onPress={() => choose(item.value)} />
+              ))}
+            </View>
+          ) : (
+            <View style={{ minHeight: CELL * 3, alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 12 }}>
+              <Text style={{ fontSize: 12, fontWeight: "500", color: theme.textPrimary }}>{tab === "emoji" ? "No emoji found" : "No icons found"}</Text>
+              <Text style={{ fontSize: 12, color: theme.dark ? "#FFFFFFB3" : "#00000099", textAlign: "center" }}>Try a different search.</Text>
+            </View>
+          )}
         </ScrollView>
         {current ? (
-          <Pressable onPress={() => choose(null)}>
-            {({ pressed }) => (
-              <View style={{ height: 26, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: pressed ? tokens.pickerCellHover : theme.urlPill }}>
-                <Text style={{ fontSize: 12, color: theme.textPrimary }}>Reset Icon</Text>
-              </View>
-            )}
-          </Pressable>
+          <View style={{ borderTopWidth: 0.5, borderTopColor: theme.divider, paddingTop: 8 }}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Reset icon" onAccessibilityTap={() => choose(null)} onPress={() => choose(null)}>
+              {({ pressed }) => (
+                <View style={{ height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center", backgroundColor: pressed ? theme.rowSelected : theme.urlPill }}>
+                  <Text style={{ fontSize: 12, color: theme.textPrimary }}>Reset icon</Text>
+                </View>
+              )}
+            </Pressable>
+          </View>
         ) : null}
       </Surface>
     </>
   );
 }
 
-function Cell({ icon, selected, onPress }: { icon: string; selected: boolean; onPress(): void }) {
+function ModeButton({ label, selected, onPress }: { label: string; selected: boolean; onPress(): void }) {
   const theme = useTheme();
-  const tokens = useSidebarTokens();
   const [hovered, setHovered] = useState(false);
   return (
-    <Pressable onPress={onPress}>
-      <View
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        style={{
-          width: CELL,
-          height: CELL,
-          borderRadius: 8,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: hovered || selected ? tokens.pickerCellHover : undefined,
-        }}
-      >
-        {icon.startsWith(SYMBOL_PREFIX) ? (
-          <Symbol name={icon.slice(SYMBOL_PREFIX.length)} size={15} color={theme.icon} style={{ width: 20, height: 20 }} />
-        ) : (
-          <Text style={{ fontSize: 18 }}>{icon}</Text>
-        )}
-      </View>
+    <Pressable accessibilityRole="tab" accessibilityLabel={label} accessibilityState={{ selected }} onAccessibilityTap={onPress} onPress={onPress}>
+      {({ pressed }) => (
+        <View
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+          style={{
+            minWidth: 58,
+            height: 24,
+            paddingHorizontal: 10,
+            borderRadius: 6,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: selected ? theme.panel : pressed || hovered ? theme.rowHover : undefined,
+          }}
+        >
+          <Text style={{ fontSize: 12, fontWeight: selected ? "600" : "400", color: theme.textPrimary }}>{label}</Text>
+        </View>
+      )}
+    </Pressable>
+  );
+}
+
+function Cell({ item, selected, onPress }: { item: IconOption; selected: boolean; onPress(): void }) {
+  const theme = useTheme();
+  const [hovered, setHovered] = useState(false);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={item.label}
+      accessibilityState={{ selected }}
+      tooltip={item.label}
+      onAccessibilityTap={onPress}
+      onPress={onPress}
+      style={{ width: CELL, height: CELL, padding: 2 }}
+    >
+      {({ pressed }) => (
+        <View
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+          style={{
+            flex: 1,
+            borderRadius: 7,
+            borderWidth: 1,
+            borderColor: selected ? theme.textSecondary : "transparent",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: selected || pressed ? theme.rowSelected : hovered ? theme.rowHover : undefined,
+          }}
+        >
+          {item.value.startsWith(SYMBOL_PREFIX) ? (
+            <Symbol name={item.value.slice(SYMBOL_PREFIX.length)} size={17} weight="regular" color={theme.icon} style={{ width: 22, height: 22 }} />
+          ) : (
+            <Text style={{ fontSize: 20 }}>{item.value}</Text>
+          )}
+        </View>
+      )}
     </Pressable>
   );
 }
