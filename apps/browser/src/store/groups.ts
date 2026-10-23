@@ -90,13 +90,15 @@ export const withParent = (g: TabGroup, parentId: string | undefined): TabGroup 
 };
 
 export function depthOf(groups: Record<string, TabGroup>, id: string): number {
-  return ancestorIds(groups, id).length;
+  const seen = new Set<string>();
+  for (let g = groups[id]; g?.parentId && groups[g.parentId] && !seen.has(g.parentId); g = groups[g.parentId]) seen.add(g.parentId);
+  return seen.size;
 }
 
 export function ancestorIds(groups: Record<string, TabGroup>, id: string): string[] {
-  const out: string[] = [];
-  for (let g = groups[id]; g?.parentId && groups[g.parentId] && !out.includes(g.parentId); g = groups[g.parentId]) out.push(g.parentId);
-  return out;
+  const seen = new Set<string>();
+  for (let g = groups[id]; g?.parentId && groups[g.parentId] && !seen.has(g.parentId); g = groups[g.parentId]) seen.add(g.parentId);
+  return [...seen];
 }
 
 export function rootOf(groups: Record<string, TabGroup>, id: string): TabGroup | undefined {

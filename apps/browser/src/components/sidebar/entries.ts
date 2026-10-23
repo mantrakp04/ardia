@@ -80,7 +80,12 @@ function childGroups(groups: BrowserState["groups"], parentId: string): BrowserS
   let index = childIndex.get(groups);
   if (!index) {
     index = new Map();
-    for (const g of Object.values(groups)) if (g.parentId) index.set(g.parentId, [...(index.get(g.parentId) ?? []), g]);
+    for (const g of Object.values(groups)) {
+      if (!g.parentId) continue;
+      const siblings = index.get(g.parentId);
+      if (siblings) siblings.push(g);
+      else index.set(g.parentId, [g]);
+    }
     childIndex.set(groups, index);
   }
   return index.get(parentId) ?? NO_CHILDREN;
