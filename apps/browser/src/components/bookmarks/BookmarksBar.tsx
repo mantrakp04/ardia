@@ -207,7 +207,7 @@ function BarItem({
           setDragging(false);
           setOverSidebar(false);
           if (folder.current && g.moveX < edge.current) {
-            handlers.current.onDragMove(0);
+            handlers.current.onDragMove(Infinity);
             addFolderToSidebar(id, windowId);
             return;
           }

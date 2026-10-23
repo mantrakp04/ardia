@@ -235,14 +235,14 @@ export function withGroupsPlaced<S extends Pick<BrowserState, "groups" | "window
   return { ...s, windows: { ...s.windows, [windowId]: window }, groups: syncGroupOrder(groups, window) };
 }
 
-export function settleNesting(s: Pick<BrowserState, "groups" | "windows">): Pick<BrowserState, "groups" | "windows"> | null {
+export function settleNesting(s: Pick<BrowserState, "groups" | "windows" | "tabs">): Pick<BrowserState, "groups" | "windows"> | null {
   if (!Object.values(s.groups).some((g) => g.parentId)) return null;
   let groups = nestGroups(s.groups);
   let windows = s.windows;
   for (const windowId of new Set(Object.values(groups).filter((g) => g.parentId).map((g) => g.windowId))) {
     const w = windows[windowId];
     if (!w) continue;
-    const tabIds = placeGroups(w.tabIds, groups, windowId);
+    const tabIds = orderSections(placeGroups(w.tabIds, groups, windowId), s.tabs, groups);
     const window = tabIds.every((id, i) => id === w.tabIds[i]) ? w : { ...w, tabIds };
     if (window !== w) windows = { ...windows, [windowId]: window };
     groups = syncGroupOrder(groups, window);

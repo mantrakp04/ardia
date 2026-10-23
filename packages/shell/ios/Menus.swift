@@ -915,7 +915,9 @@ enum MainMenu {
     if let id, hasGroupLinks(children) {
       menu.addItem(.separator())
       menu.addItem(CommandItem("Add to Sidebar as Group", "addFolderToSidebar", arg: id))
-      if arcHolder { menu.addItem(CommandItem("Restore Arc Folders as Groups", "restoreArcFolders", arg: id)) }
+      if arcHolder && children.contains(where: { $0.children.map(hasGroupLinks) ?? false }) {
+        menu.addItem(CommandItem("Restore Arc Folders as Groups", "restoreArcFolders", arg: id))
+      }
     }
     item.submenu = menu
     item.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)

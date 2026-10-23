@@ -284,3 +284,19 @@ test("a saved or synced nested group pinned unlike its root settles to the root'
   assert.equal(S().groups[inner].pinned, false);
   assert.ok(sectionsInOrder(w) && contiguous(w, outer));
 });
+
+test("settling a nested group pinned unlike its root keeps pinned groups ahead of the list", async () => {
+  const { settleNesting } = await import("./groups.ts");
+  const tab = (id, extra = {}) => ({ id, windowId: "w", profileId: "default", url: `https://${id}.example/`, pinned: false, ...extra });
+  const tabs = { e: tab("e", { pinned: true, pinnedAsRow: true }), b: tab("b"), c: tab("c"), p: tab("p"), a: tab("a"), d: tab("d") };
+  const group = (id, tabIds, extra = {}) => ({ id, windowId: "w", profileId: "default", name: id, icon: null, color: null, collapsed: false, pinned: false, tabIds, createdAt: 0, ...extra });
+  const groups = {
+    O: group("O", ["b", "c", "a", "d"]),
+    I: group("I", ["b", "c"], { parentId: "O", pinned: true }),
+    P: group("P", ["p"], { pinned: true }),
+  };
+  const windows = { w: { id: "w", profileId: "default", tabIds: ["e", "b", "c", "p", "a", "d"], activeTabIds: {} } };
+  const settled = settleNesting({ tabs, groups, windows });
+  assert.equal(settled.groups.I.pinned, false);
+  assert.deepEqual(settled.windows.w.tabIds, ["e", "p", "b", "c", "a", "d"]);
+});
