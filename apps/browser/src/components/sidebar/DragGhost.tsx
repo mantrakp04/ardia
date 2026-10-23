@@ -18,6 +18,7 @@ export function DragGhost({ ghost }: { ghost: Ghost }) {
   const tab = useBrowser((s) => s.tabs[item.tabIds[0] ?? ""]);
   const folder = useLive((s) => (item.liveFolderId ? s.folders[item.liveFolderId] : undefined));
   const liveIcon = folder ? liveFolderIcon(folder) : null;
+  const groupIcon = useBrowser((s) => (item.kind === "group" && item.groupId ? (s.groups[item.groupId]?.icon ?? null) : null));
   const label = useBrowser((s) => folder?.name ?? (item.groupId && s.groups[item.groupId] ? groupLabel(s, s.groups[item.groupId]!) : tab ? tabTitle(tab) : ""));
   const tile = item.kind === "tile";
   const onPage = useTabDrag((d) => d.onPage);
@@ -44,7 +45,7 @@ export function DragGhost({ ghost }: { ghost: Ghost }) {
         }}
       >
         {liveIcon ? <TabIcon url={liveIcon.site} icon={liveIcon.icon} /> : null}
-        {tab ? <TabIcon url={tab.url} favicon={tab.favicon} icon={item.kind === "group" ? null : tab.customIcon} profileId={tab.profileId} /> : null}
+        {groupIcon || tab ? <TabIcon url={tab?.url ?? ""} favicon={tab?.favicon} icon={groupIcon ?? tab?.customIcon} profileId={tab?.profileId} /> : null}
         {!tile ? <FadeLabel text={label} fontSize={13} weight={item.kind === "group" || item.kind === "live" ? "medium" : "regular"} color={theme.textPrimary} style={{ flex: 1, height: 18, marginLeft: 7 }} /> : null}
       </Surface>
       {count > 1 ? (
