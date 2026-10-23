@@ -24,6 +24,7 @@ import { RenameField, SplitRowItem, TabRowItem } from "./TabRow";
 import { GROUP_COLORS, useSidebarTokens, withAlpha } from "./tokens";
 
 const PAD = GROUP_PAD;
+const NESTED_INDENT = 16;
 
 export const GroupBlock = memo(function GroupBlock({
   groupId,
@@ -89,6 +90,7 @@ export const GroupBlock = memo(function GroupBlock({
           gap={layout.rowGap}
           rowHeight={(key) => entryHeight(useBrowser.getState(), windowId, profileId, key)}
           padBottom={PAD}
+          indent={parentGroup ? NESTED_INDENT : 0}
           mountClosed={selectedInside}
           footer={<Animated.View ref={tail.wrapper.ref} style={tail.wrapper.style} />}
         />
