@@ -8,7 +8,9 @@ import { useBrowser } from "../store/browser";
 import { PageProfileContext, useSettings, useWindowId, useWindowProfileId } from "../store/hooks";
 import { activeTabId } from "../store/model";
 import { downloadsIn } from "../store/ui";
-import { cleanedTabsFor, cleanUpCandidates } from "../store/organize";
+import { cleanedTabsFor, cleanUpCandidates, groupOf } from "../store/organize";
+import { ancestorIds } from "../store/groups";
+import { splitOf } from "../store/splits";
 import { openNewTabInSplit } from "./layout/splitActions";
 import { listTopGap, SIDEBAR_FIELD, SIDEBAR_FOOTER_DOWNLOADS, SIDEBAR_HEADER_WITH_FIELD, useAddressBarInSidebar } from "./layout/windowLayout";
 import { SIDEBAR_PLAYER_HEIGHT, SidebarPlayer, useSidebarPlayerTab } from "./media/SidebarPlayer";
@@ -476,7 +478,12 @@ function useRevealTabs(windowId: string, scroll: RefObject<ScrollView | null>, s
       const liveAbove = span?.section === "pinnedGroups" && live().folderOrder.some((id) => live().folders[id]?.profileId === profileId);
       if (span && !liveAbove) return show(geometry.current.pad + regions[span.section] + span.top, span.height);
       const view = scroll.current as unknown as View;
-      void measureRow(windowId, tabId).then((row) =>
+      const split = splitOf(s, tabId);
+      const inner = groupOf(s, tabId);
+      const keys = [split ? `s:${split.id}` : tabId, ...(inner ? [inner.id, ...ancestorIds(s.groups, inner.id)] : [])];
+      const firstShown = (i: number): Promise<Awaited<ReturnType<typeof measureRow>>> =>
+        i >= keys.length ? Promise.resolve(null) : measureRow(windowId, keys[i]!).then((row) => row ?? firstShown(i + 1));
+      void firstShown(0).then((row) =>
         view.measureInWindow((_x, y) => row && mine === reveals && show(row.y - y + (scrollY.current ?? 0), row.height)),
       );
     };
