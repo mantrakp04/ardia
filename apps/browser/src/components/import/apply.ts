@@ -111,7 +111,7 @@ export function importTabs(
   let s = useBrowser.getState();
   const pinnedPages = pinnedUrls(s, profileId);
   const usable = tabs.filter((t) => {
-    if (!/^(https?|file):/.test(t.url)) return false;
+    if (!/^(https?|file):/i.test(t.url)) return false;
     if (!t.pinned) return true;
     if (pinnedPages.has(pageKey(t.url))) return false;
     pinnedPages.add(pageKey(t.url));

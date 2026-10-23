@@ -48,3 +48,11 @@ test("an import skips pages already pinned as a tile, in a pinned group or parke
   const space = { id: "s3", name: "Home", profileId: P, tabs: [{ url: "https://tile.example/", title: "Tile" }], pinned: pins.map((p) => ({ type: "url", ...p })) };
   assert.equal(importArcSpace(P, space).tabs, 0, "parked pins count, for pins and open tabs alike");
 });
+
+test("a link whose scheme is in capitals imports, and counts as the same page", () => {
+  S().hydrate({});
+  S().createWindow({ url: "https://home.example/" });
+  assert.equal(importTabs(P, [{ url: "HTTPS://Upper.example/", title: "Upper", pinned: true }], null), 1);
+  assert.equal(importTabs(P, [{ url: "https://upper.example/", title: "Upper", pinned: true }], null), 0);
+  assert.equal(importTabs(P, [{ url: "FILE:///tmp/a.html", title: "File", pinned: false }], null), 1);
+});
