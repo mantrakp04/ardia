@@ -65,6 +65,8 @@ const github: LiveSource = {
   },
 };
 
+const BITBUCKET_STATE_BATCH = 10;
+
 const bitbucketAuth = async () => basic(live().config.bitbucketUser, await secret("bitbucket"));
 
 const bitbucket: LiveSource = {
@@ -89,6 +91,21 @@ const bitbucket: LiveSource = {
         return mapBitbucket(pr, statuses);
       }),
     );
+  },
+  async resolveGone(items) {
+    const auth = await bitbucketAuth();
+    const out: Record<string, CompletionState> = {};
+    const prs = items.flatMap((it) => (it.pr ? [{ id: it.id, repo: it.pr.repo, number: it.pr.number }] : []));
+    for (let i = 0; i < prs.length; i += BITBUCKET_STATE_BATCH) {
+      await Promise.all(
+        prs.slice(i, i + BITBUCKET_STATE_BATCH).map(async ({ id, repo, number }) => {
+          const pr = await request<{ state: string }>(`${endpoints.bitbucket}/repositories/${repo}/pullrequests/${number}`, { headers: { Authorization: auth } }).catch(() => null);
+          if (pr?.state === "MERGED") out[id] = "merged";
+          else if (pr?.state === "DECLINED" || pr?.state === "SUPERSEDED") out[id] = "closed";
+        }),
+      );
+    }
+    return out;
   },
 };
 

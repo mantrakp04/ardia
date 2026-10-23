@@ -3,15 +3,16 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Text, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { useTheme } from "../../../lib/theme";
-import { deleteLiveFolder, refreshFolder, statusText } from "../../../live/engine";
+import { deleteLiveFolder, manualRefresh, statusText } from "../../../live/engine";
 import { connectGoogleDrive } from "../../../live/googleAuth";
 import { isMocked } from "../../../live/net";
 import { connectBitbucket, connectConfluence, connectGithub, connectNotion, disconnect, SOURCES, startGithubDeviceFlow, type DeviceFlow } from "../../../live/sources";
-import { live, updateConfig, useLive } from "../../../live/store";
-import type { LiveAccount, LiveSourceId } from "../../../live/types";
+import { live, updateConfig, updateFolder, useLive } from "../../../live/store";
+import type { LiveAccount, LiveFolder, LiveSourceId } from "../../../live/types";
 import { useBrowser } from "../../../store/browser";
 import { Favicon } from "../../primitives";
-import { Button, Group, Row, SectionHeader, Sheet, TextField } from "../controls";
+import { Button, Group, Row, SectionHeader, Sheet, TextField, Toggle } from "../controls";
+import { setting } from "../settingsIndex";
 import { closeSettingsSheet, showSettingsSheet } from "../sheet";
 
 const DESCRIPTIONS: Record<LiveSourceId, string> = {
@@ -34,24 +35,19 @@ export function LiveFoldersPane() {
   const folders = useLive(useShallow((s) => s.folderOrder.map((id) => s.folders[id]!).filter(Boolean)));
   const profiles = useBrowser((s) => s.profiles);
   useLive((s) => s.status);
+  useLive((s) => s.hidden);
+  const firstPullRequests = folders.find((f) => f.kind === "pullRequests")?.id;
   return (
     <View>
       <SectionHeader
         anchor="liveFolders.folders"
         description="Right-click empty space in the sidebar and choose New Live Folder to add one. Live folders refresh every few minutes; items open as tabs that stay in the folder."
       />
-      {folders.length ? (
-        <Group>
-          {folders.map((f) => (
-            <Row key={f.id} title={f.name} description={`${profiles[f.profileId]?.name ?? "Profile"} · ${f.sources.map((s) => SOURCES[s].name).join(", ")} · ${statusText(f.id)}`}>
-              <View style={{ flexDirection: "row", gap: 6 }}>
-                <Button title="Refresh" onPress={() => void refreshFolder(f.id)} />
-                <Button title="Delete" kind="destructive" onPress={() => deleteLiveFolder(f.id)} />
-              </View>
-            </Row>
-          ))}
-        </Group>
-      ) : null}
+      <View style={{ gap: 14 }}>
+        {folders.map((f) => (
+          <FolderGroup key={f.id} folder={f} profileName={profiles[f.profileId]?.name ?? "Profile"} searchable={f.id === firstPullRequests} />
+        ))}
+      </View>
 
       <SectionHeader title="Pull Requests" />
       <Group>
@@ -67,6 +63,34 @@ export function LiveFoldersPane() {
       </Group>
       {isMocked ? <Text style={{ marginTop: 10, fontSize: 11, color: "#D29922" }}>Development build: services are served by ARDIA_LIVE_MOCK.</Text> : null}
     </View>
+  );
+}
+
+function FolderGroup({ folder, profileName, searchable }: { folder: LiveFolder; profileName: string; searchable: boolean }) {
+  return (
+    <Group>
+      <Row title={folder.name} description={`${profileName} · ${folder.sources.map((s) => SOURCES[s].name).join(", ")} · ${statusText(folder.id)}`}>
+        <View style={{ flexDirection: "row", gap: 6 }}>
+          <Button title="Refresh" onPress={() => void manualRefresh(folder.id)} />
+          <Button title="Delete" kind="destructive" onPress={() => deleteLiveFolder(folder.id)} />
+        </View>
+      </Row>
+      {folder.kind === "pullRequests"
+        ? [
+            <FolderOption key="stacks" id="liveFolders.groupStacks" searchable={searchable} value={folder.groupStacks} onChange={(v) => updateFolder(folder.id, { groupStacks: v })} />,
+            <FolderOption key="completed" id="liveFolders.showCompleted" searchable={searchable} value={folder.showCompleted} onChange={(v) => updateFolder(folder.id, { showCompleted: v })} />,
+          ]
+        : null}
+    </Group>
+  );
+}
+
+function FolderOption({ id, searchable, value, onChange }: { id: string; searchable: boolean; value: boolean; onChange(value: boolean): void }) {
+  const { title, description } = setting(id);
+  return (
+    <Row anchor={searchable ? id : undefined} title={title} description={description}>
+      <Toggle value={value} onChange={onChange} />
+    </Row>
   );
 }
 

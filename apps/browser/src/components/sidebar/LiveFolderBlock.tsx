@@ -4,7 +4,7 @@ import { Animated, Easing, Pressable, Text, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { closeTab } from "../../lib/actions";
 import { hex, layout, useTheme } from "../../lib/theme";
-import { COMPLETION_MS, errorText, openLiveItem, refreshFolder, statusText } from "../../live/engine";
+import { COMPLETION_MS, errorText, manualRefresh, openLiveItem, statusText } from "../../live/engine";
 import { prBadge } from "../../live/github";
 import { folderRows, type FolderRow } from "../../live/rows";
 import { SOURCES } from "../../live/sources";
@@ -21,7 +21,7 @@ import { clickMods, TabRow } from "./TabRow";
 import { Fold, useFold, type FoldEntry } from "./Fold";
 import { GROUP_BORDER, GROUP_HEADER_RADIUS, GROUP_PAD, GROUP_RADIUS } from "./geometry";
 import { dismissHover, useRowHover } from "./hover";
-import { openLiveFolderMenu, openLiveItemMenu } from "./liveMenus";
+import { openLiveFolderMenu, openLiveItemMenu, openLiveStackMenu } from "./liveMenus";
 import { registerRow } from "./state";
 import { TabIcon } from "./TabIcon";
 import { useSidebarTokens } from "./tokens";
@@ -29,6 +29,7 @@ import { useSidebarTokens } from "./tokens";
 const PAD = GROUP_PAD;
 const EMPTY: LiveItem[] = [];
 const NONE: string[] = [];
+const NONE_COMPLETED: CompletedItem[] = [];
 
 const liveRowKey = (folderId: string, itemId: string) => `live|${folderId}|${itemId}`;
 
@@ -102,8 +103,10 @@ function FolderRowView({ row, folderId, windowId }: { row: FolderRow; folderId: 
 function FolderNote({ folderId }: { folderId: string }) {
   const status = useLive((s) => s.status[folderId]);
   const kind = useLive((s) => s.folders[folderId]?.kind);
+  const hidden = useLive((s) => s.hidden[folderId]?.length ?? 0);
   if (!status || status.state === "initializing" || (status.state === "updating" && !status.lastFetch)) return <NoteRow text="Loading…" spinner />;
   if (status.error) return <NoteRow text={errorText(status.error.kind, status.error.source)} onPress={() => openSettings("liveFolders")} icon="exclamationmark.triangle.fill" />;
+  if (hidden) return <NoteRow text={`${hidden} hidden until you refresh`} onPress={() => void manualRefresh(folderId)} />;
   return <NoteRow text={kind === "pullRequests" ? "No open pull requests" : "No recent documents"} />;
 }
 
@@ -151,10 +154,10 @@ function FolderHeader({ folderId, windowId, collapsed }: { folderId: string; win
               <HoverSlot
                 hovered={hovered && !updating}
                 width={22}
-                hover={<RefreshButton spinning={false} tooltip={statusText(folderId)} onPress={() => void refreshFolder(folderId)} />}
+                hover={<RefreshButton spinning={false} tooltip={statusText(folderId)} onPress={() => void manualRefresh(folderId)} />}
               >
                 {updating ? (
-                  <RefreshButton spinning tooltip={statusText(folderId)} onPress={() => void refreshFolder(folderId)} />
+                  <RefreshButton spinning tooltip={statusText(folderId)} onPress={() => void manualRefresh(folderId)} />
                 ) : collapsed ? (
                   <View style={{ flexDirection: "row", alignItems: "center", marginRight: 2, gap: 5 }}>
                     {unread ? <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: colors.pip }} /> : null}
@@ -262,26 +265,33 @@ function StackRow({ folderId, windowId, stack }: { folderId: string; windowId: s
   return (
     <View>
       <View {...hoverProps}>
-        <Pressable
-          onPress={() => setLive((s) => ({ expandedStacks: { ...s.expandedStacks, [stack.id]: collapsed } }))}
-          accessibilityLabel={collapsed ? "Expand pull request stack" : "Collapse pull request stack"}
+        <ContextMenuArea
+          onContextMenu={() => {
+            dismissHover();
+            void openLiveStackMenu(folderId, stack.id);
+          }}
         >
-          <View style={{ height: 26, borderRadius: 8, flexDirection: "row", alignItems: "center", paddingLeft: 9, paddingRight: 8, backgroundColor: hovered ? theme.rowHover : undefined }}>
-            <Symbol name="square.stack.3d.up" size={11} color={theme.textSecondary} style={{ width: 16, height: 16 }} />
-            <Text numberOfLines={1} style={{ flex: 1, marginLeft: 5, fontSize: 12, fontWeight: "500", color: theme.textSecondary }}>
-              {repo} stack
-            </Text>
-            <View style={{ minWidth: 18, height: 16, borderRadius: 8, paddingHorizontal: 5, backgroundColor: tokens.countPill, alignItems: "center", justifyContent: "center", marginRight: 4 }}>
-              <Text style={{ fontSize: 10, fontWeight: "600", color: theme.textTab, fontVariant: ["tabular-nums"] }}>{stack.items.length}</Text>
+          <Pressable
+            onPress={() => setLive((s) => ({ expandedStacks: { ...s.expandedStacks, [stack.id]: collapsed } }))}
+            accessibilityLabel={collapsed ? "Expand pull request stack" : "Collapse pull request stack"}
+          >
+            <View style={{ height: 26, borderRadius: 8, flexDirection: "row", alignItems: "center", paddingLeft: 9, paddingRight: 8, backgroundColor: hovered ? theme.rowHover : undefined }}>
+              <Symbol name="square.stack.3d.up" size={11} color={theme.textSecondary} style={{ width: 16, height: 16 }} />
+              <Text numberOfLines={1} style={{ flex: 1, marginLeft: 5, fontSize: 12, fontWeight: "500", color: theme.textSecondary }}>
+                {repo} stack
+              </Text>
+              <View style={{ minWidth: 18, height: 16, borderRadius: 8, paddingHorizontal: 5, backgroundColor: tokens.countPill, alignItems: "center", justifyContent: "center", marginRight: 4 }}>
+                <Text style={{ fontSize: 10, fontWeight: "600", color: theme.textTab, fontVariant: ["tabular-nums"] }}>{stack.items.length}</Text>
+              </View>
+              <Symbol name={collapsed ? "chevron.right" : "chevron.down"} size={9} weight="semibold" color={theme.textSecondary} style={{ width: 12, height: 12 }} />
             </View>
-            <Symbol name={collapsed ? "chevron.right" : "chevron.down"} size={9} weight="semibold" color={theme.textSecondary} style={{ width: 12, height: 12 }} />
-          </View>
-        </Pressable>
+          </Pressable>
+        </ContextMenuArea>
       </View>
       <Fold
         fold={fold}
         collapsed={collapsed}
-        entries={stack.items.map((item) => ({ key: item.id, node: <LiveItemRow folderId={folderId} item={item} windowId={windowId} indent={10} /> }))}
+        entries={stack.items.map((item) => ({ key: item.id, node: <LiveItemRow folderId={folderId} item={item} windowId={windowId} inStack /> }))}
         gap={layout.rowGap}
         rowHeight={layout.rowHeight}
         padTop={layout.rowGap}
@@ -290,7 +300,8 @@ function StackRow({ folderId, windowId, stack }: { folderId: string; windowId: s
   );
 }
 
-function LiveItemRow({ folderId, item, windowId, indent = 0 }: { folderId: string; item: LiveItem; windowId: string; indent?: number }) {
+function LiveItemRow({ folderId, item, windowId, inStack = false }: { folderId: string; item: LiveItem; windowId: string; inStack?: boolean }) {
+  const indent = inStack ? 10 : 0;
   const theme = useTheme();
   const colors = useLiveColors();
   const key = liveRowKey(folderId, item.id);
@@ -347,7 +358,7 @@ function LiveItemRow({ folderId, item, windowId, indent = 0 }: { folderId: strin
                   color={active ? theme.tabSelectedText : completion ? theme.textSecondary : theme.textTab}
                   style={{ flex: 1, height: 18, marginLeft: 5 }}
                 />
-                {item.pr?.stack ? <PositionChip position={item.pr.stack.position} /> : null}
+                {inStack && item.pr?.stack ? <PositionChip position={item.pr.stack.position} /> : null}
                 <HoverSlot
                   hovered={hovered && !!tabId && !completion}
                   width={22}
@@ -433,6 +444,7 @@ function Trailing({ item, completion, colors }: { item: LiveItem; completion: Co
 function useCompletedShown(folderId: string): CompletedItem[] {
   return useLive(
     useShallow((s) => {
+      if (!s.folders[folderId]?.showCompleted) return NONE_COMPLETED;
       const completing = s.completing[folderId] ?? NONE;
       return (s.completed[folderId] ?? []).filter((c) => Date.now() - c.at < 24 * 3_600_000 && !completing.includes(c.item.id));
     }),
