@@ -55,7 +55,8 @@ export const GroupBlock = memo(function GroupBlock({
   });
   const profileId = usePageProfileId();
   const activeEntry = useBrowser((s) => keptEntry(s, windowId, profileId, entries));
-  const { wrapper, handle, headerRef } = useDragItem(`g:${groupId}`, { kind: "group", tabIds: tabIds.split(",").filter(Boolean), section, groupId, collapsed, parentGroup }, undefined, own?.clip);
+  const foldedHeight = useBrowser((s) => GROUP_BORDER * 2 + layout.rowHeight + (activeEntry ? entryHeight(s, windowId, profileId, activeEntry) + PAD : 0));
+  const { wrapper, handle, headerRef } = useDragItem(`g:${groupId}`, { kind: "group", tabIds: tabIds.split(",").filter(Boolean), section, groupId, collapsed, foldedHeight, parentGroup }, undefined, own?.clip);
   const tail = useDragItem(`tail:group:${groupId}`, { kind: "tail", tabIds: [], section, parentGroup: groupId });
 
   const fold = useFold(collapsed);

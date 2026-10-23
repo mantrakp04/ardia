@@ -25,6 +25,7 @@ type ItemSpec = {
   groupId?: string;
   parentGroup?: string;
   collapsed?: boolean;
+  foldedHeight?: number;
   liveFolderId?: string;
 };
 
@@ -98,6 +99,7 @@ class DragController {
   private gridBase: Frame | null = null;
   private gridGrowth = 0;
   private token: object | null = null;
+  private foldedGroup: string | null = null;
   private external = 0;
   private escapable = false;
   landed: { key: string; x: number; y: number } | null = null;
@@ -148,6 +150,10 @@ class DragController {
     this.setLanding(null);
     this.setSources(new Set(this.sources.map((s) => s.key)));
     this.setGhost(this.ghost);
+    if (item.kind === "group" && item.groupId && !item.collapsed) {
+      this.foldedGroup = item.groupId;
+      useBrowser.getState().updateGroup(item.groupId, { collapsed: true });
+    }
     Animated.parallel(this.sources.map((s) => spring(s.size, 0))).start();
     this.measured = true;
     this.move(this.pointer.x, this.pointer.y);
@@ -219,6 +225,9 @@ class DragController {
     const drop = this.drop;
     const ghost = this.ghost;
     const splitDrop = commit ? endTabDrag() : (cancelTabDrag(), false);
+    const folded = this.foldedGroup;
+    this.foldedGroup = null;
+    if (folded && (!commit || splitDrop || drop.type === "none")) useBrowser.getState().updateGroup(folded, { collapsed: false });
     const spot =
       !splitDrop && this.measured && ghost && sources.length === 1 && sources[0]!.kind !== "tile" && !this.into && drop.type !== "onto"
         ? this.landingSpot(commit ? drop : { type: "none" })
@@ -372,7 +381,7 @@ class DragController {
     const firstTab = (i: Item | undefined) => i?.tabIds.find((id) => !dragged.has(id)) ?? null;
     const tabsDrag = source.kind === "row" || source.kind === "tile";
     const count = this.external || dragged.size;
-    const rowPitch = (boxed(source) ? (source.frame?.h ?? layout.rowHeight) : layout.rowHeight * Math.max(1, this.ghost?.count ?? this.external ?? 1)) + ROW_GAP;
+    const rowPitch = (boxed(source) ? (source.kind === "group" ? (source.foldedHeight ?? this.ghost?.height) : source.frame?.h) ?? layout.rowHeight : layout.rowHeight * Math.max(1, this.ghost?.count ?? this.external ?? 1)) + ROW_GAP;
     const blocks = live.filter(pinnedBlock).sort(byY);
     const rest = blocks.map((b) => b.key);
     const moved = this.sources
