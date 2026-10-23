@@ -184,9 +184,10 @@ const PinnedTile = memo(function PinnedTile({ tabId, width, sliding, x, y }: { t
                 clickTab(windowId, tabId, clickMods(e));
               }}
             >
-              {({ pressed }) =>
-                liquidGlass ? (
-                  <GlassTile tabId={tabId} width={width} active={active} selected={selected} hovered={hovered} pressed={pressed} tileTheme={tileTheme} />
+              {({ pressed }) => {
+                const restingFill = pressed ? theme.tabPressed : hovered || selected ? theme.tabHover : theme.pinnedResting;
+                return liquidGlass ? (
+                  <GlassTile tabId={tabId} width={width} active={active} selected={selected} pressed={pressed} fill={active ? theme.pinnedSelectedFill : restingFill} tileTheme={tileTheme} />
                 ) : active && tileTheme ? (
                   <DockSelection
                     image={tileTheme.image}
@@ -243,18 +244,18 @@ const PinnedTile = memo(function PinnedTile({ tabId, width, sliding, x, y }: { t
                       borderRadius: radius,
                       borderWidth: selected ? 1 : 0.5,
                       borderColor: selected ? tokens.dragBorder : theme.pinnedRestingStroke,
-                      backgroundColor: pressed ? theme.tabPressed : hovered || selected ? theme.tabHover : theme.pinnedResting,
+                      backgroundColor: restingFill,
                       alignItems: "center",
                       justifyContent: "center",
                     }}
                   >
                     <View>
-                      <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} background={iconSurfaces(theme.windowTint, pressed ? theme.tabPressed : hovered || selected ? theme.tabHover : theme.pinnedResting)} />
+                      <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} background={iconSurfaces(theme.windowTint, restingFill)} />
                       <TabBadges tabId={tabId} />
                     </View>
                   </View>
-                )
-              }
+                );
+              }}
             </Pressable>
           </ContextMenuArea>
         </MouseArea>
@@ -274,16 +275,16 @@ function GlassTile({
   width,
   active,
   selected,
-  hovered,
   pressed,
+  fill,
   tileTheme,
 }: {
   tabId: string;
   width: number;
   active: boolean;
   selected: boolean;
-  hovered: boolean;
   pressed: boolean;
+  fill: string;
   tileTheme: TileTheme | null;
 }) {
   const theme = useTheme();
@@ -291,7 +292,6 @@ function GlassTile({
   const tab = useTab(tabId);
   if (!tab) return null;
   const radius = 10;
-  const fill = active ? theme.pinnedSelectedFill : pressed ? theme.tabPressed : hovered || selected ? theme.tabHover : theme.pinnedResting;
   return (
     <View style={{ width, height: layout.pinnedHeight, alignItems: "center", justifyContent: "center" }}>
       <GlassFill radius={radius} fill={fill} raised={active && !pressed} />

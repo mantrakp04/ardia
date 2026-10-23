@@ -809,9 +809,16 @@ function TabChip({ tabId, width, tuck, dragged, background }: { tabId: string; w
   const playing = useTabLive(tabId, (l) => l.playingAudio);
   const { palette, band } = useWebsiteBand(tabId);
   const { hovered, hoverProps } = useHover();
+  const onBand = active && !floating && !!palette.background;
+  const iconBase = dragged ? theme.windowTint[0] : background ?? theme.windowTint;
+  const iconCard = active ? theme.card : null;
+  const iconBand = onBand ? palette.background : null;
+  const idleIconFill = !active && (hovered || dragged) ? theme.tabHover : null;
+  const pressedIconFill = !active ? theme.tabPressed : null;
+  const iconBackground = useMemo(() => iconSurfaces(iconBase, iconCard, iconBand, idleIconFill), [iconBase, iconCard, iconBand, idleIconFill]);
+  const pressedIconBackground = useMemo(() => iconSurfaces(iconBase, iconCard, iconBand, pressedIconFill), [iconBase, iconCard, iconBand, pressedIconFill]);
   if (!tab) return null;
   const title = tab.customTitle || tab.title || tab.url || "New Tab";
-  const onBand = active && !floating && !!palette.background;
   return (
     <View {...hoverProps} tooltip={tab.url ? `${title}\n${tab.url}` : title} style={{ width, height: TOP_STRIP_HEIGHT }}>
       {active && <SelectedTab width={width} band={band} opaque={dragged} />}
@@ -823,7 +830,7 @@ function TabChip({ tabId, width, tuck, dragged, background }: { tabId: string; w
           {({ pressed }) => (
             <ItemRow hovered={(hovered || dragged) && !active} pressed={pressed && !active}>
               <View pointerEvents="none">
-                <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} background={iconSurfaces(dragged ? theme.windowTint[0] : background ?? theme.windowTint, active ? theme.card : null, onBand ? palette.background : null, !active ? pressed ? theme.tabPressed : hovered || dragged ? theme.tabHover : null : null)} />
+                <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} background={pressed ? pressedIconBackground : iconBackground} />
                 <TabBadges tabId={tab.id} pip={false} />
               </View>
               {(playing || tab.muted) && (
@@ -1000,6 +1007,9 @@ function PinnedDock({ tabIds }: { tabIds: string[] }) {
 function PinnedFace({ tabId, active, hovered, pressed, docked = false }: { tabId: string; active: boolean; hovered: boolean; pressed: boolean; docked?: boolean }) {
   const theme = useTheme();
   const tab = useTab(tabId);
+  const iconBaseFill = docked ? theme.pinnedResting : null;
+  const iconFill = pressed ? theme.tabPressed : active ? theme.pinnedSelectedFill : hovered ? theme.tabHover : null;
+  const iconBackground = useMemo(() => iconSurfaces(theme.windowTint, iconBaseFill, iconFill), [theme.windowTint, iconBaseFill, iconFill]);
   if (!tab) return null;
   return (
     <View style={{ width: PINNED_CELL, height: ITEM_HEIGHT - 1, alignItems: "center", justifyContent: "center" }}>
@@ -1017,7 +1027,7 @@ function PinnedFace({ tabId, active, hovered, pressed, docked = false }: { tabId
         />
       )}
       <View pointerEvents="none">
-        <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} background={iconSurfaces(theme.windowTint, docked ? theme.pinnedResting : null, pressed ? theme.tabPressed : active ? theme.pinnedSelectedFill : hovered ? theme.tabHover : null)} />
+        <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} background={iconBackground} />
         <TabBadges tabId={tab.id} pip={false} />
       </View>
     </View>
@@ -1144,8 +1154,10 @@ function StripGroup({
     },
   });
   const tail = useMemo(() => Animated.add(size, -(TAIL_EXPANDED - 2.25)), []);
+  const tint = group?.color ? GROUP_COLORS[group.color].hex : null;
+  const iconFill = tint ? withAlpha(tint, hovered ? 0.24 : 0.18) : hovered ? tokens.groupHeaderHover : tokens.groupFill;
+  const iconBackground = useMemo(() => iconSurfaces(theme.windowTint, iconFill), [theme.windowTint, iconFill]);
   if (!group) return null;
-  const tint = group.color ? GROUP_COLORS[group.color].hex : null;
   const divider = theme.dark ? "rgba(255,255,255,0.16)" : "rgba(0,0,0,0.12)";
   const tuck = () => {
     const s = useBrowser.getState();
@@ -1176,7 +1188,7 @@ function StripGroup({
         <GroupMember
           key={m.id}
           member={m}
-          background={iconSurfaces(theme.windowTint, tint ? withAlpha(tint, hovered ? 0.24 : 0.18) : hovered ? tokens.groupHeaderHover : tokens.groupFill)}
+          background={iconBackground}
           width={widths[i]!}
           start={chipSize + MEMBERS_INSET}
           offset={offsets[i]!}
@@ -1209,7 +1221,7 @@ function StripGroup({
             onPress={() => useBrowser.getState().updateGroup(entry.id, { collapsed: expanded })}
             style={{ height: ITEM_HEIGHT, flexDirection: "row", alignItems: "center", paddingLeft: 8.5, paddingRight: 7 }}
           >
-            {group.icon ? isVectorIcon(group.icon) ? <TabIcon url="" icon={group.icon} size={13} background={iconSurfaces(theme.windowTint, tint ? withAlpha(tint, hovered ? 0.24 : 0.18) : hovered ? tokens.groupHeaderHover : tokens.groupFill)} /> : <Text style={{ width: 13, fontSize: 12, textAlign: "center" }}>{group.icon}</Text> : <GroupGlyph color={tint ?? (theme.dark ? NEUTRAL_GROUP_SWATCH.dark : NEUTRAL_GROUP_SWATCH.light)} />}
+            {group.icon ? isVectorIcon(group.icon) ? <TabIcon url="" icon={group.icon} size={13} background={iconBackground} /> : <Text style={{ width: 13, fontSize: 12, textAlign: "center" }}>{group.icon}</Text> : <GroupGlyph color={tint ?? (theme.dark ? NEUTRAL_GROUP_SWATCH.dark : NEUTRAL_GROUP_SWATCH.light)} />}
             <Text numberOfLines={1} style={{ marginLeft: 12.5, maxWidth: 120, fontSize: 12, fontWeight: "600", color: tint ?? (shown >= 0 ? theme.tabSelectedText : theme.textTab) }}>
               {group.name || `${group.tabIds.length} Tabs`}
             </Text>
@@ -1301,8 +1313,11 @@ function FolderChip({ groupId, holding, background }: { groupId: string; holding
   const group = useBrowser((s) => s.groups[groupId]);
   const label = useBrowser((s) => (s.groups[groupId] ? groupLabel(s, s.groups[groupId]!) : ""));
   const { hovered, hoverProps } = useHover();
+  const tint = group?.color ? GROUP_COLORS[group.color].hex : null;
+  const idleIconFill = tint ? withAlpha(tint, hovered ? 0.3 : 0.22) : hovered ? tokens.groupHeaderHover : tokens.groupFill;
+  const iconBackground = useMemo(() => iconSurfaces(background, idleIconFill), [background, idleIconFill]);
+  const pressedIconBackground = useMemo(() => iconSurfaces(background, theme.tabPressed), [background, theme.tabPressed]);
   if (!group) return null;
-  const tint = group.color ? GROUP_COLORS[group.color].hex : null;
   const ink = tint ?? (holding ? theme.tabSelectedText : theme.textTab);
   return (
     <View
@@ -1328,7 +1343,7 @@ function FolderChip({ groupId, holding, background }: { groupId: string; holding
                 backgroundColor: pressed ? theme.tabPressed : tint ? withAlpha(tint, hovered ? 0.3 : 0.22) : hovered ? tokens.groupHeaderHover : tokens.groupFill,
               }}
             >
-              {group.icon ? isVectorIcon(group.icon) ? <TabIcon url="" icon={group.icon} size={13} background={iconSurfaces(background, pressed ? theme.tabPressed : tint ? withAlpha(tint, hovered ? 0.3 : 0.22) : hovered ? tokens.groupHeaderHover : tokens.groupFill)} /> : <Text style={{ width: 13, fontSize: 12, textAlign: "center" }}>{group.icon}</Text> : <GroupGlyph color={tint ?? (theme.dark ? NEUTRAL_GROUP_SWATCH.dark : NEUTRAL_GROUP_SWATCH.light)} />}
+              {group.icon ? isVectorIcon(group.icon) ? <TabIcon url="" icon={group.icon} size={13} background={pressed ? pressedIconBackground : iconBackground} /> : <Text style={{ width: 13, fontSize: 12, textAlign: "center" }}>{group.icon}</Text> : <GroupGlyph color={tint ?? (theme.dark ? NEUTRAL_GROUP_SWATCH.dark : NEUTRAL_GROUP_SWATCH.light)} />}
               <Text numberOfLines={1} style={{ marginLeft: 7, maxWidth: 110, fontSize: 12, fontWeight: "600", color: ink }}>
                 {label}
               </Text>
@@ -1362,6 +1377,11 @@ function SplitChip({ tabIds, width, geometry, from, group, background }: { tabId
   const ink = active && !floating && palette.background ? palette : null;
   const { hovered, hoverProps } = useHover();
   const drag = useStripDrag({ tabId: null, ids: () => tabIds, pinned: false, groupId: group, geometry, from, width, gap: GAP, axis: "x" });
+  const iconBase = active && drag.dragging ? theme.windowTint[0] : background ?? theme.windowTint;
+  const iconCard = active ? theme.card : null;
+  const iconBand = ink?.background;
+  const iconFill = hovered && !active ? theme.tabHover : null;
+  const iconBackground = useMemo(() => iconSurfaces(iconBase, iconCard, iconBand, iconFill), [iconBase, iconCard, iconBand, iconFill]);
   return (
     <Animated.View ref={drag.ref} {...drag.panHandlers} mouseDownCanMoveWindow={false} style={{ ...drag.style, zIndex: drag.dragging ? 10 : active ? 1 : 0 }}>
       <View {...hoverProps} style={{ width, height: TOP_STRIP_HEIGHT }}>
@@ -1369,7 +1389,7 @@ function SplitChip({ tabIds, width, geometry, from, group, background }: { tabId
         <ItemRow hovered={hovered && !active} pressed={false}>
           <Symbol name="rectangle.split.2x1" size={11} color={ink?.secondary ?? theme.textSecondary} style={{ width: 14, height: 16, marginRight: 4 }} />
           {tabIds.map((id, i) => (
-            <SplitPart key={id} tabId={id} first={i === 0} ink={ink} background={iconSurfaces(active && drag.dragging ? theme.windowTint[0] : background ?? theme.windowTint, active ? theme.card : null, ink?.background, hovered && !active ? theme.tabHover : null)} />
+            <SplitPart key={id} tabId={id} first={i === 0} ink={ink} background={iconBackground} />
           ))}
         </ItemRow>
       </View>

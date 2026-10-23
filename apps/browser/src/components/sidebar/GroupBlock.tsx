@@ -1,6 +1,6 @@
 import { iconSurfaces, type IconBackground } from "../../lib/iconColors";
 import { ContextMenuArea, FadeLabel, Surface, Symbol } from "@ardia/shell";
-import { memo, useContext, useState } from "react";
+import { memo, useContext, useMemo, useState } from "react";
 import { Animated, Pressable, Text, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { hex, layout, useTheme } from "../../lib/theme";
@@ -75,7 +75,7 @@ export const GroupBlock = memo(function GroupBlock({
 
   const spec = color ? GROUP_COLORS[color] : null;
   const fill = spec ? withAlpha(spec.hex, 0.16) : tokens.groupFill;
-  const iconBackground = iconSurfaces(background ?? theme.windowTint, fill);
+  const iconBackground = useMemo(() => iconSurfaces(background ?? theme.windowTint, fill), [background, theme.windowTint, fill]);
   const stroke = spec ? withAlpha(spec.hex, 0.3) : tokens.groupStroke;
 
   return (
