@@ -54,8 +54,8 @@ const measure = (view: View | null): Promise<Frame | null> =>
     ? new Promise((resolve) => view.measureInWindow((x, y, w, h) => resolve(w || h ? { x, y, w, h } : null)))
     : Promise.resolve(null);
 
-type Marks = { sources: Set<string>; dropInto: string | null; onto: string | null; landing: string | null; pins: boolean; pinCount: number };
-const NO_MARKS: Marks = { sources: new Set(), dropInto: null, onto: null, landing: null, pins: false, pinCount: 0 };
+type Marks = { sources: Set<string>; dropInto: string | null; onto: string | null; landing: string | null; pins: boolean; pinCount: number; pinBefore: string | null };
+const NO_MARKS: Marks = { sources: new Set(), dropInto: null, onto: null, landing: null, pins: false, pinCount: 0, pinBefore: null };
 const noMarks = create<Marks>()(() => NO_MARKS);
 const NO_DROP: Drop = { type: "none" };
 
@@ -136,11 +136,11 @@ class DragController {
       height,
       position: new Animated.ValueXY({ x: frame.x - this.rootFrame.x, y: frame.y - this.rootFrame.y }),
     };
-    for (const s of this.sources) s.size.setValue(s.kind === "tile" ? (s.frame?.w ?? 0) : (s.frame?.h ?? 0));
+    for (const s of this.sources) s.size.setValue(s.kind === "tile" ? 0 : (s.frame?.h ?? 0));
     this.setLanding(null);
     this.setSources(new Set(this.sources.map((s) => s.key)));
     this.setGhost(this.ghost);
-    Animated.parallel(this.sources.map((s) => spring(s.size, 0))).start();
+    Animated.parallel(this.sources.filter((s) => s.kind !== "tile").map((s) => spring(s.size, 0))).start();
     this.measured = true;
     this.move(this.pointer.x, this.pointer.y);
   }
@@ -253,7 +253,10 @@ class DragController {
       i.gap.stopAnimation();
       i.gap.setValue(0);
     }
-    for (const i of this.sources) i.size.stopAnimation();
+    for (const i of this.sources) {
+      i.size.stopAnimation();
+      if (i.kind === "tile") i.size.setValue(i.frame?.w ?? 0);
+    }
     this.sources = [];
     this.gapKey = null;
     this.pitch = 0;
@@ -269,7 +272,7 @@ class DragController {
     this.escapable = false;
     suppressHover(false);
     this.setSources(new Set());
-    this.marks.setState({ dropInto: null, onto: null, pins: false, pinCount: 0 });
+    this.marks.setState({ dropInto: null, onto: null, pins: false, pinCount: 0, pinBefore: null });
   }
 
   private landingSpot(drop: Drop): Promise<{ x: number; y: number } | null> | null {
@@ -428,13 +431,14 @@ class DragController {
     this.drop = drop;
     this.into = into;
     const pins = drop.type === "tabs" && drop.placement.pinned && !drop.placement.row;
-    this.marks.setState({ dropInto: into, onto, pins, pinCount: pins ? count : 0 });
+    this.marks.setState({ dropInto: into, onto, pins, pinCount: pins ? count : 0, pinBefore: pins ? gapKey : null });
     if (gapKey !== this.gapKey) {
       const prev = this.gapKey && this.items.get(this.gapKey);
-      if (prev && prev.section === "tiles" && this.gridBase && !this.pinning) prev.gap.setValue(0);
+      if (prev && prev.section === "tiles" && this.gridBase) prev.gap.setValue(0);
       else if (prev) spring(prev.gap, 0).start();
       const next = gapKey && this.items.get(gapKey);
-      if (next) spring(next.gap, pitch).start();
+      if (next && next.section === "tiles" && this.gridBase) next.gap.setValue(pitch);
+      else if (next) spring(next.gap, pitch).start();
       this.gapKey = gapKey;
       this.pitch = pitch;
     }
@@ -534,6 +538,7 @@ export const useDragController = () => useContext(DragContext) ?? undefined;
 export const useDropInto = () => useStore(useContext(DragContext)?.marks ?? noMarks, (m) => m.dropInto);
 export const useDropOnto = (key: string) => useStore(useContext(DragContext)?.marks ?? noMarks, (m) => m.onto === key);
 export const useDropPins = () => useStore(useContext(DragContext)?.marks ?? noMarks, (m) => m.pins);
+export const usePinBefore = () => useStore(useContext(DragContext)?.marks ?? noMarks, (m) => m.pinBefore);
 export const usePinnedCount = (tabIds: string[]) =>
   useStore(useContext(DragContext)?.marks ?? noMarks, (m) => tabIds.reduce((n, id) => n + (m.sources.has(`t:${id}`) ? 0 : 1), 0) + m.pinCount);
 export const useDragging = () => useStore(useContext(DragContext)?.marks ?? noMarks, (m) => m.sources.size > 0);

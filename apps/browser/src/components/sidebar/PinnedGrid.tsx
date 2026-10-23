@@ -1,17 +1,18 @@
 import { ContextMenuArea, DockSelection, MouseArea, Surface, Symbol } from "@ardia/shell";
-import { Fragment, memo, useMemo } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { closeTab } from "../../lib/actions";
 import { hex, layout, useTheme } from "../../lib/theme";
 import { useTileTheme, type TileTheme } from "../../lib/tileTheme";
 import { GlassFill, liquidGlass } from "../glass";
 import { listTopGap, useAddressBarInSidebar } from "../layout/windowLayout";
+import { SLIDE } from "../layout/stripReorder";
 import { useBrowser } from "../../store/browser";
 import { useIsActiveTab, useTab, useTabLive, useWindowId } from "../../store/hooks";
 import { activeTabId } from "../../store/model";
 import { NextMeetingBadge } from "../live/NextMeetingBadge";
 import { clickTab } from "./actions";
-import { PIN_SLOT, useDragController, useDragging, useDragItem, useDropPins, usePinnedCount } from "./dnd";
+import { PIN_SLOT, useDragController, useDragging, useDragItem, useDropPins, usePinBefore, usePinnedCount } from "./dnd";
 import { dismissHover, useRowHover } from "./hover";
 import { openTabMenu } from "./menus";
 import { pinGrid, pinGridHeight, TILE_GAP } from "./pinZone";
@@ -28,12 +29,15 @@ const TILE_SPACING = { marginRight: TILE_GAP };
 export const PinnedGrid = memo(function PinnedGrid({ tabs, innerWidth, flush = false }: { tabs: string[]; innerWidth: number; flush?: boolean }) {
   const controller = useDragController();
   const count = usePinnedCount(tabs);
-  const { width } = pinGrid(count, innerWidth);
+  const { columns, width } = pinGrid(count, innerWidth);
+  const before = usePinBefore();
+  const marks = controller?.marks.getState();
   const tail = useDragItem("tail:tiles", { kind: "tail", tabIds: [], section: "tiles" });
   const dragging = useDragging();
   const addressBar = useAddressBarInSidebar();
   const topGap = listTopGap(addressBar);
   if (!tabs.length) return dragging && !addressBar && tail.gap ? <Animated.View style={{ height: tail.gap }} /> : null;
+  let slot = 0;
   return (
     <View
       ref={(v) => {
@@ -41,24 +45,19 @@ export const PinnedGrid = memo(function PinnedGrid({ tabs, innerWidth, flush = f
       }}
       style={{ marginTop: flush ? 0 : topGap }}
     >
-      <View style={{ height: pinGridHeight(count, innerWidth, layout.pinnedHeight), flexDirection: "row", flexWrap: "wrap", rowGap: TILE_GAP, marginRight: -TILE_GAP }}>
-        {tabs.map((id) => (
-          <Fragment key={id}>
-            {dragging ? <PinCell gap={controller?.items.get(`t:${id}`)?.gap} width={width} /> : null}
-            <PinnedTile tabId={id} width={width} />
-          </Fragment>
-        ))}
-        {dragging ? <PinCell gap={tail.gap} width={width} /> : null}
+      <View style={{ height: pinGridHeight(count, innerWidth, layout.pinnedHeight) }}>
+        {tabs.map((id) => {
+          const key = `t:${id}`;
+          if (before === key) slot += marks?.pinCount ?? 0;
+          const at = Math.min(slot, Math.max(0, count - 1));
+          if (!marks?.sources.has(key)) slot++;
+          return <PinnedTile key={id} tabId={id} width={width} x={(at % columns) * (width + TILE_GAP)} y={Math.floor(at / columns) * (layout.pinnedHeight + TILE_GAP)} />;
+        })}
       </View>
       <Animated.View ref={tail.wrapper.ref} style={{ position: "absolute", right: 0, bottom: 0, width: 0, height: 0 }} />
     </View>
   );
 });
-
-function PinCell({ gap, width }: { gap: Animated.Value | undefined; width: number }) {
-  const cell = useMemo(() => gap && Animated.multiply(gap, width + TILE_GAP), [gap, width]);
-  return cell ? <Animated.View style={{ width: cell, height: layout.pinnedHeight }} /> : null;
-}
 
 export function PinFieldZone({ top, height }: { top: number; height: number }) {
   const tokens = useSidebarTokens();
@@ -147,7 +146,7 @@ function backToPinnedUrl(windowId: string, tabId: string) {
   if (activeTabId(s, windowId) === tabId) s.returnToPinnedUrl(tabId);
 }
 
-const PinnedTile = memo(function PinnedTile({ tabId, width }: { tabId: string; width: number }) {
+const PinnedTile = memo(function PinnedTile({ tabId, width, x, y }: { tabId: string; width: number; x: number; y: number }) {
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const windowId = useWindowId();
@@ -156,13 +155,21 @@ const PinnedTile = memo(function PinnedTile({ tabId, width }: { tabId: string; w
   const selected = useBrowser((s) => (s.selection[windowId] ?? []).includes(tabId));
   const playing = useTabLive(tabId, (l) => l.playingAudio);
   const { hovered, hoverProps } = useRowHover(windowId, { kind: "tab", id: tabId });
-  const { wrapper, handle } = useDragItem(`t:${tabId}`, { kind: "tile", tabIds: [tabId], section: "tiles" }, () => useBrowser.getState().selection[windowId] ?? []);
+  const { wrapper, handle, dragging } = useDragItem(`t:${tabId}`, { kind: "tile", tabIds: [tabId], section: "tiles" }, () => useBrowser.getState().selection[windowId] ?? []);
+  const position = useMemo(() => new Animated.ValueXY({ x, y }), []);
+  const hidden = useRef(dragging);
+  useLayoutEffect(() => {
+    if (dragging || hidden.current) position.setValue({ x, y });
+    else Animated.spring(position, { toValue: { x, y }, ...SLIDE }).start();
+    hidden.current = dragging;
+  }, [x, y, dragging, position]);
+  useEffect(() => () => position.stopAnimation(), [position]);
   const tileTheme = useTileTheme(tab?.url ?? "", tab?.favicon, tab?.customIcon, tab?.profileId ?? "");
   if (!tab) return null;
   const radius = 10;
 
   return (
-    <Animated.View ref={wrapper.ref} style={[TILE_SPACING, wrapper.style]} {...handle}>
+    <Animated.View ref={wrapper.ref} style={[TILE_SPACING, { position: "absolute", ...position.getLayout() }, wrapper.style]} {...handle}>
       <View
         ref={(v) => registerRow(windowId, tabId, v)}
         {...hoverProps}
