@@ -1,7 +1,7 @@
 import { create, type StateCreator } from "zustand";
 import { createBookmarksSlice, ensureRoots, type BookmarksSlice } from "./bookmarks";
 import { changedIds } from "./changes";
-import { createGroupsSlice, type GroupsSlice } from "./groups";
+import { createGroupsSlice, syncPinnedUrls, type GroupsSlice } from "./groups";
 import { createHistorySlice, type HistorySlice } from "./history";
 import { IDLE_LIVE, isIncognitoProfile, pinnedFirst } from "./model";
 import { createOrganizeSlice, forgetClosedPrivateWindows, keptDeletedGroups, livePinTable, notePinChoices, type OrganizeSlice } from "./organize";
@@ -144,7 +144,7 @@ export const useBrowser = create<BrowserState>()(transactions.middleware(batched
       settings,
       windows,
       windowOrder,
-      tabs,
+      tabs: syncPinnedUrls(tabs, groups),
       live: Object.fromEntries(Object.keys(tabs).map((id) => [id, IDLE_LIVE])),
       groups,
       splits,

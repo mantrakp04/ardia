@@ -1,6 +1,6 @@
 import type { StateCreator } from "zustand";
 import type { BrowserState } from "./browser";
-import { leaveGroups, syncGroupOrder } from "./groups";
+import { leaveGroups, syncGroupOrder, syncPinnedUrls } from "./groups";
 import { newId } from "./model";
 import { choose } from "./settings";
 import { activated, apply, removeTabs, withNewTab } from "./tabs";
@@ -112,7 +112,7 @@ function gather(s: BrowserState, anchorId: string, members: string[]): BrowserSt
   let groups = leaveGroups(s.groups, moving);
   const group = Object.values(s.groups).find((g) => g.tabIds.includes(anchorId));
   if (group && groups[group.id]) groups = { ...groups, [group.id]: { ...groups[group.id]!, tabIds: [...groups[group.id]!.tabIds, ...moving] } };
-  return { ...s, windows: { ...s.windows, [w.id]: window }, groups: syncGroupOrder(groups, window) };
+  return { ...s, tabs: syncPinnedUrls(s.tabs, groups, w.tabIds), windows: { ...s.windows, [w.id]: window }, groups: syncGroupOrder(groups, window) };
 }
 
 function withPane(existing: SplitView | undefined, anchorId: string, tabId: string, side: SplitSide, windowId: string): SplitView | null {

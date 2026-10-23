@@ -69,7 +69,7 @@ class Device {
       const p = await run(
         profileId === "default" ? "p" : `p:${profileId}`,
         [
-          ...(this.legacy ? [] : [adapters.pinnedRowsAdapter(profileId)]),
+          ...(this.legacy ? [] : [adapters.pinnedReferencesAdapter(profileId), adapters.pinnedRowsAdapter(profileId)]),
           adapters.pinnedAdapter(profileId),
           adapters.bookmarksAdapter(profileId),
           adapters.historyAdapter(profileId),
@@ -361,6 +361,26 @@ test("a Mac on an older version sees rows as tiles, and its edits never turn a r
   c.with(() => S().createWindow({ url: "https://c-home.example/" }));
   await syncAll([c]);
   assert.deepEqual(rowsOf(c), { tiles: ["https://mail.example/"], rows: ["https://docs.example/ Docs"] }, "a new Mac gets the row");
+});
+
+test("legacy devices publish pin records without newer row or reference records", async () => {
+  const folder = new Folder();
+  const old = new Device("legacyPinReferences", folder, { legacy: true });
+  old.with(() => {
+    const w = S().createWindow({ url: "https://home.example/" });
+    const tab = S().newTab(w, { url: "https://docs.example/home" });
+    S().groupTabs([tab]);
+    S().pinTabs([S().newTab(w, { url: "https://row.example/" })], true, true);
+  });
+  await old.sync();
+  await old.sync();
+  const keys = [...folder.files.values()].filter((file) => file.scope === "p").flatMap((file) => {
+    const payload = JSON.parse(file.payload);
+    return payload.kind === "log" ? payload.ops.map((op) => op.k) : Object.keys(payload.records);
+  });
+  assert.ok(keys.some((key) => key.startsWith("pin:t:")), "the legacy fixture published its pin");
+  assert.equal(keys.some((key) => key.startsWith("pinrow:")), false);
+  assert.equal(keys.some((key) => key.startsWith("pinref:")), false);
 });
 
 test("a row mark that arrives before its pinned tab still makes a row, and isn't deleted meanwhile", async () => {
@@ -1071,4 +1091,120 @@ test("bookmarks: a Mac on old ids and one on Chrome's UUIDs keep one tree", asyn
   assert.equal(now.with(() => S().bookmarks.nodes[bookmarkUuidFor("bm-b")]), undefined, "a deletion on the old Mac reaches the UUID node");
   assertTreeWhole(now);
   assertTreeWhole(old);
+});
+
+test("group pin sync carries its reference separately from its current URL", async () => {
+  const folder = new Folder();
+  const a = new Device("pinRefA", folder);
+  const b = new Device("pinRefB", folder);
+  let id;
+  a.with(() => {
+    const w = S().createWindow({ url: "https://home.example/" });
+    id = S().newTab(w, { url: "https://docs.example/home" });
+    S().groupTabs([id]);
+    S().updateTab(id, { url: "https://docs.example/away" });
+    const values = adapters.pinnedAdapter("default").extract(() => undefined, () => false, Date.now()).values;
+    assert.equal(values.get(`pin:t:${id}`).u, "https://docs.example/away");
+    const refs = adapters.pinnedReferencesAdapter("default").extract(() => undefined).values;
+    assert.equal(refs.get(`pinref:${id}`), "https://docs.example/home");
+  });
+  b.with(() => S().createWindow({ url: "https://b.example/" }));
+  await syncAll([a, b]);
+  b.with(() => {
+    const t = Object.values(S().tabs).find((t) => t.id === id || t.pinKey === id);
+    assert.equal(t.pinned, false);
+    assert.equal(t.pinnedUrl, "https://docs.example/home");
+    assert.equal(t.url, "https://docs.example/away");
+    S().setPinnedUrl(t.id, "https://docs.example/replaced");
+  });
+  await syncAll([b, a]);
+  a.with(() => {
+    assert.equal(S().tabs[id].pinnedUrl, "https://docs.example/replaced");
+    assert.equal(S().tabs[id].url, "https://docs.example/away");
+  });
+});
+
+test("legacy pin payload omission preserves a known group reference and initializes only new ones", () => {
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://home.example/" });
+  const id = S().newTab(w, { url: "https://docs.example/home" });
+  const g = S().groupTabs([id]);
+  const adapter = adapters.pinnedAdapter("default");
+  const values = adapter.extract(() => undefined, () => false, Date.now()).values;
+  const original = values.get(`pin:t:${id}`);
+  const legacy = original;
+  values.set(`pin:t:${id}`, { ...legacy, u: "https://docs.example/legacy-page" });
+  values.set("pin:t:new-legacy-pin", { ...legacy, u: "https://docs.example/new" });
+  adapter.apply(values, new Set(values.keys()), (k) => values.get(k), { now: Date.now(), horizon: 1000, known: () => true });
+  assert.equal(S().tabs[id].pinnedUrl, "https://docs.example/home");
+  assert.equal(S().tabs["new-legacy-pin"].pinnedUrl, "https://docs.example/new");
+  assert.equal(S().groups[g].pinned, true);
+  values.set(`pinref:${id}`, "https://docs.example/explicit-edit");
+  adapter.apply(values, new Set(values.keys()), (k) => values.get(k), { now: Date.now(), horizon: 1000, known: () => true });
+  assert.equal(S().tabs[id].pinnedUrl, "https://docs.example/explicit-edit");
+});
+
+test("a reference delivered before its group survives the provisional standalone pin", () => {
+  S().hydrate({});
+  S().createWindow({ url: "https://home.example/" });
+  const pin = { g: "late-group", u: "https://docs.example/away", t: null, i: null, ti: "", pos: "V" };
+  const values = new Map([["pin:t:late-member", pin], ["pinref:late-member", "https://docs.example/home"]]);
+  const refs = adapters.pinnedReferencesAdapter("default");
+  const base = (key) => values.get(key);
+  const records = { now: Date.now(), horizon: 1000, known: (key) => values.has(key) };
+  assert.equal(refs.extract(() => undefined).ignore("pinref:late-member"), true);
+  adapters.pinnedAdapter("default").apply(new Map([["pin:t:late-member", pin]]), new Set(["pin:t:late-member"]), base, records);
+  assert.equal(S().tabs["late-member"].pinnedUrl, "https://docs.example/home");
+  assert.equal(refs.extract(base).values.get("pinref:late-member"), "https://docs.example/home");
+  const group = { n: "Late", i: null, c: null, pos: "V" };
+  values.set("pin:g:late-group", group);
+  adapters.pinnedAdapter("default").apply(new Map([["pin:t:late-member", pin], ["pin:g:late-group", group]]), new Set(["pin:g:late-group"]), base, records);
+  assert.equal(S().tabs["late-member"].pinned, false);
+  assert.equal(S().tabs["late-member"].pinnedUrl, "https://docs.example/home");
+});
+
+test("a profile sync removes references moved to an unsynced profile without publishing its URL", async () => {
+  const folder = new Folder();
+  const device = new Device("profile-reference", folder);
+  let id;
+  let other;
+  device.with(() => {
+    const w = S().createWindow({ url: "https://source.example/" });
+    id = S().newTab(w, { url: "https://source.example/reference" });
+    S().groupTabs([id]);
+  });
+  await device.sync();
+  await device.sync();
+  assert.equal(device.scopes.p.records[`pinref:${id}`].v, "https://source.example/reference");
+  device.with(() => {
+    S().pinTabs([id], true);
+    other = S().createProfile({ name: "Other" });
+    S().moveTabToProfile(id, other);
+    S().setPinnedUrl(id, "https://other.example/private-reference");
+  });
+  await device.sync();
+  assert.equal(device.with(() => S().tabs[id].profileId), other);
+  assert.equal(device.scopes.p.records[`pinref:${id}`].v, null);
+  assert.equal(device.scopes.p.records[`pin:t:${id}`].v, null);
+  assert.equal([...folder.files.values()].some((f) => f.scope === "p" && f.payload.includes("https://other.example/private-reference")), false);
+  device.with(() => S().pinTabs([id], false));
+  await device.sync();
+  await device.sync();
+  assert.equal(device.scopes.p.records[`pinref:${id}`].v, null);
+});
+
+test("foreign-profile aliases cannot replace an earlier profile's live or parked reference", () => {
+  for (const parked of [false, true]) {
+    S().hydrate({});
+    const other = S().createProfile({ name: "Other" });
+    const otherWindow = S().createWindow({ profileId: other, url: "https://other.example/" });
+    const foreign = S().newTab(otherWindow, { profileId: other, url: "https://other.example/private-reference", pinned: true });
+    const w = S().createWindow({ url: "https://source.example/" });
+    const id = S().newTab(w, { url: "https://source.example/reference" });
+    S().groupTabs([id]);
+    S().updateTab(foreign, { pinKey: id });
+    if (parked) S().closeWindow(w);
+    const refs = adapters.pinnedReferencesAdapter("default").extract((key) => key === `pinref:${id}` ? "https://source.example/reference" : undefined).values;
+    assert.deepEqual([...refs], [[`pinref:${id}`, "https://source.example/reference"]]);
+  }
 });

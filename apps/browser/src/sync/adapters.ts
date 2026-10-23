@@ -29,6 +29,7 @@ export const SYNCED_SETTINGS = [
   "newTabPosition",
   "newTabOpens",
   "warnBeforeClosingLastTab",
+  "warnBeforeClosingTabGroup",
   "warnBeforeMovingTabsToProfile",
   "tabReorderHaptics",
   "extendWebsiteColor",
@@ -606,11 +607,13 @@ export function pinnedAdapter(profileId: string): Adapter {
       for (const [id, v] of pins) {
         const group = v.g && groupValues.has(v.g) && groups[v.g] ? groups[v.g]! : null;
         const old = tabs[id];
+        const reference = base(`pinref:${keyOfLocal.get(id) ?? pinKeyOf(old ?? { id })}`);
+        const pinnedUrl = group || v.g ? (typeof reference === "string" && reference) || old?.pinnedUrl || v.u : v.u;
         if (old) {
           tabs[id] = {
             ...old,
             pinned: !group,
-            pinnedUrl: group ? null : v.u,
+            pinnedUrl,
             ...(group ? { pinnedAsRow: undefined } : old.pinned ? {} : { pinnedAsRow: marked(pinKeyOf(old)) }),
             customTitle: v.t,
             customIcon: v.i,
@@ -626,7 +629,7 @@ export function pinnedAdapter(profileId: string): Adapter {
           ...makeTab(windowId, profileId, v.u, { title: v.ti, pinned: !group, customTitle: v.t, customIcon: v.i }),
           id,
           ...pinKeyField(id),
-          pinnedUrl: group ? null : v.u,
+          pinnedUrl,
           ...(!group && marked(keyOfLocal.get(id) ?? id) ? { pinnedAsRow: true as const } : {}),
           navigation: null,
           unloaded: true,
@@ -664,13 +667,13 @@ export function pinnedAdapter(profileId: string): Adapter {
             tabIds.push(id);
           } else if (windows[windowId]) {
             const copy: Tab = {
-              ...makeTab(windowId, profileId, t.url, { title: t.title, favicon: t.favicon, customTitle: t.customTitle, customIcon: t.customIcon }),
+              ...makeTab(windowId, profileId, t.url, { title: t.title, favicon: t.favicon, pinnedUrl: t.pinnedUrl, customTitle: t.customTitle, customIcon: t.customIcon }),
               pinKey: pinKeyOf(t),
               navigation: null,
               unloaded: true,
             };
             tabs[copy.id] = copy;
-            tabs[id] = { ...t, pinKey: undefined };
+            tabs[id] = { ...t, pinnedUrl: null, pinKey: undefined };
             windows[windowId] = { ...windows[windowId]!, tabIds: [...windows[windowId]!.tabIds, copy.id] };
             tabIds.push(copy.id);
             copied.set(id, copy.id);
@@ -703,6 +706,52 @@ export function pinnedAdapter(profileId: string): Adapter {
       const { find, splits, selection, windowOrder, windowUi } = s;
       const pinSync = noted.size ? { ...s.pinSync, [profileId]: { ...s.pinSync[profileId], ...Object.fromEntries(noted) } } : s.pinSync;
       useBrowser.setState({ tabs, windows, groups, live, find, splits, selection, windowOrder, windowUi, parkedPins, pinSync });
+    },
+  };
+}
+
+const PIN_REFERENCE = "pinref:";
+
+export function pinnedReferencesAdapter(profileId: string): Adapter {
+  return {
+    prefix: PIN_REFERENCE,
+    extract: (base) => {
+      const s = store();
+      const values = new Map<string, unknown>();
+      const members = new Set(Object.values(s.groups).filter((g) => g.pinned && g.profileId === profileId).flatMap((g) => g.tabIds));
+      for (const t of Object.values(s.tabs)) {
+        if (t.profileId !== profileId) continue;
+        const key = `${PIN_REFERENCE}${pinKeyOf(t)}`;
+        if ((!members.has(t.id) && !(t.pinned && base(key) !== undefined)) || !t.pinnedUrl) continue;
+        if (!values.has(key)) values.set(key, t.pinnedUrl);
+      }
+      for (const t of s.parkedPins[profileId]?.tabs ?? []) {
+        const key = `${PIN_REFERENCE}${t.id}`;
+        if ((t.groupId || base(key) !== undefined) && t.pinnedUrl && !values.has(key)) values.set(key, t.pinnedUrl);
+      }
+      return { values, ignore: (key) => !values.has(key) && base(`pin:t:${key.slice(PIN_REFERENCE.length)}`) === undefined };
+    },
+    apply: (visible, changed) => {
+      const s = store();
+      const members = new Set(Object.values(s.groups).filter((g) => g.pinned && g.profileId === profileId).flatMap((g) => g.tabIds));
+      const tabs = { ...s.tabs };
+      let edited = false;
+      for (const t of Object.values(tabs)) {
+        const key = `${PIN_REFERENCE}${pinKeyOf(t)}`;
+        const reference = visible.get(key);
+        if (!members.has(t.id) || !changed.has(key) || typeof reference !== "string" || !reference || reference === t.pinnedUrl) continue;
+        tabs[t.id] = { ...t, pinnedUrl: reference };
+        edited = true;
+      }
+      const park = s.parkedPins[profileId];
+      const parked = park?.tabs.map((t) => {
+        const key = `${PIN_REFERENCE}${t.id}`;
+        const reference = visible.get(key);
+        return t.groupId && changed.has(key) && typeof reference === "string" && reference && reference !== t.pinnedUrl ? { ...t, pinnedUrl: reference } : t;
+      });
+      const parkEdited = !!park && parked!.some((t, i) => t !== park.tabs[i]);
+      if (edited || parkEdited) useBrowser.setState({ tabs, ...(parkEdited ? { parkedPins: { ...s.parkedPins, [profileId]: { ...park!, tabs: parked! } } } : {}) });
+      return true;
     },
   };
 }

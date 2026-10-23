@@ -33,6 +33,7 @@ export type Settings = {
   newTabPosition: "top" | "bottom";
   newTabOpens: "page" | "commandBar";
   warnBeforeClosingLastTab: boolean;
+  warnBeforeClosingTabGroup: boolean;
   warnBeforeMovingTabsToProfile: boolean;
   tabReorderHaptics: boolean;
   extendWebsiteColor: boolean;
@@ -87,6 +88,7 @@ export const DEFAULT_SETTINGS: Settings = {
   newTabPosition: "bottom",
   newTabOpens: "page",
   warnBeforeClosingLastTab: true,
+  warnBeforeClosingTabGroup: true,
   warnBeforeMovingTabsToProfile: true,
   tabReorderHaptics: true,
   extendWebsiteColor: true,

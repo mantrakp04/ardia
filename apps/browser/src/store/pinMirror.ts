@@ -30,7 +30,7 @@ function sectionOf(s: Pick<BrowserState, "tabs" | "groups">, w: BrowserWindow, p
 }
 
 const tileSig = (t: Tab) => `${pinKeyOf(t)}\u0001${t.pinnedUrl ?? ""}\u0001${t.customTitle ?? ""}\u0001${t.customIcon ?? ""}\u0001${t.pinnedAsRow ? "r" : ""}`;
-const memberSig = (t: Tab) => `${pinKeyOf(t)}\u0001${t.customTitle ?? ""}\u0001${t.customIcon ?? ""}`;
+const memberSig = (t: Tab) => `${pinKeyOf(t)}\u0001${t.pinnedUrl ?? ""}\u0001${t.customTitle ?? ""}\u0001${t.customIcon ?? ""}`;
 const signature = (x: Section) =>
   [
     ...x.tiles.map(tileSig),
@@ -106,7 +106,7 @@ function copyOf(src: Tab, windowId: string, tile: boolean): Tab {
       title: atSource ? src.title : "",
       favicon: atSource ? src.favicon : null,
       pinned: tile,
-      pinnedUrl: tile ? src.pinnedUrl || src.url || null : null,
+      pinnedUrl: src.pinnedUrl || src.url || null,
       ...(tile && src.pinnedAsRow ? { pinnedAsRow: true as const } : {}),
       customTitle: src.customTitle,
       customIcon: src.customIcon,
@@ -141,10 +141,12 @@ function conform(s: BrowserState, windowId: string, profileId: string, spec: Spe
     }
     used.add(t.id);
     const patch: Partial<Tab> = { ...keyField(t.id, key), pinned: tile, pinnedAsRow: tile && src.pinnedAsRow ? true : undefined, customTitle: src.customTitle, customIcon: src.customIcon };
-    if (tile) {
-      patch.pinnedUrl = src.pinnedUrl || src.url || null;
-      if (!hasPage(t) && !samePage(t.url, homeOf(src))) Object.assign(patch, { url: homeOf(src), title: src.title, favicon: src.favicon });
-    } else patch.pinnedUrl = null;
+    patch.pinnedUrl = src.pinnedUrl || src.url || null;
+    if (!hasPage(t) && (tile || samePage(t.url, homeOf(t))) && !samePage(t.url, homeOf(src))) {
+      const url = homeOf(src);
+      const atSource = samePage(src.url, url);
+      Object.assign(patch, { url, title: atSource ? src.title : "", favicon: atSource ? src.favicon : null });
+    }
     tabs[t.id] = { ...t, ...patch };
     return t.id;
   };
@@ -264,7 +266,7 @@ export function settleMovedPins(before: BrowserState, after: BrowserState, moved
     tabIds = tabIds.filter((id) => id !== m.id);
     tabIds[tabIds.indexOf(copy)] = m.id;
     if (hasPage(tabs[copy]!) || Object.values(target.activeTabIds).includes(copy)) {
-      tabs[copy] = { ...tabs[copy]!, pinKey: undefined };
+      tabs[copy] = { ...tabs[copy]!, pinnedUrl: null, pinKey: undefined };
       tabIds.push(copy);
     } else gone.push(copy);
   }

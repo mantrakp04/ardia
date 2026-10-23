@@ -11,6 +11,7 @@ import { markdownLink } from "@ardia/core";
 import { useBrowser } from "../store/browser";
 import { activeTabId, bookmarkProfileId, isPinnedRow, pinSection, resolveWindowId } from "../store/model";
 import {
+  closeGroup,
   closeTab,
   createProfile,
   cycleProfile,
@@ -243,7 +244,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     }
     case "closeTabGroup": {
       const group = groupOf(s, tabId);
-      return group ? s.closeGroup(group.id) : undefined;
+      return group ? closeGroup(group.id) : undefined;
     }
     case "openProfileMenu":
       return s.windows[windowId]?.incognito ? undefined : void openProfileMenu(windowId);

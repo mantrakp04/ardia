@@ -2,7 +2,7 @@ import { cleanUrl, markdownLink } from "@ardia/core";
 import { copyText, prompt } from "@ardia/shell";
 import { updateFolder } from "../../live/store";
 import { useBrowser } from "../../store/browser";
-import { activeTabId, bookmarkProfileId, tabLayoutOf, viewTabIds } from "../../store/model";
+import { activeTabId, bookmarkProfileId, inPinnedContainer, tabLayoutOf, viewTabIds } from "../../store/model";
 import { groupLabel, groupOf, selectedTabIds } from "../../store/organize";
 import type { Tab } from "../../store/types";
 import { measureRow, setSidebarUi, sidebarUi, type Target } from "./state";
@@ -145,7 +145,7 @@ export async function bookmarkTabs(windowId: string, ids: string[], folder: stri
 
 export async function editPinnedPage(windowId: string, tabId: string) {
   const tab = store().tabs[tabId];
-  if (!tab?.pinned) return;
+  if (!tab || !inPinnedContainer(store(), tabId)) return;
   const url = await prompt({
     title: "Edit Pinned Page",
     value: tab.pinnedUrl ?? tab.url,

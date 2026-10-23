@@ -72,7 +72,7 @@ class Mac {
           scope: `p:${p}`,
           state: (this.scopes[p] ??= emptyScope()),
           transport: this.folder.transport(),
-          adapters: this.legacy ? [shippedPinnedAdapter(p)] : [adapters.pinnedRowsAdapter(p), adapters.pinnedAdapter(p)],
+          adapters: this.legacy ? [shippedPinnedAdapter(p)] : [adapters.pinnedReferencesAdapter(p), adapters.pinnedRowsAdapter(p), adapters.pinnedAdapter(p)],
           clock: this.clock,
           device: this.id,
           now: () => wall,
@@ -879,4 +879,25 @@ test("known residual: a log that never arrives keeps its gap and the logs after 
   assert.ok(b.scopes.default.extra.lateA?.length, "documented in docs/sync.md: the gap stays open");
   const fromA = [...folder.files.values()].filter((f) => f.scope === "p:default" && JSON.parse(f.payload).kind === "log" && JSON.parse(f.payload).device === "lateA");
   assert.ok(fromA.length >= 1, "and A's later logs stay in the folder");
+});
+
+test("a shipped legacy Mac retains reference records without rewriting them", async () => {
+  const base = await world(false);
+  const folder = base.folder.clone();
+  const a = base.a.fork(folder);
+  const b = base.b.fork(folder);
+  const old = base.old.fork(folder);
+  const key = base.k.M;
+  a.with(() => {
+    S().updateTab(tabFor(key).id, { url: "https://m.example/away" });
+    S().setPinnedUrl(tabFor(key).id, "https://m.example/new-home");
+  });
+  for (let i = 0; i < 3; i++) for (const mac of [a, b, old]) await mac.sync();
+  old.with(() => S().updateTab(tabFor(key).id, { customTitle: "Renamed on legacy" }));
+  for (let i = 0; i < 3; i++) for (const mac of [old, a, b]) await mac.sync();
+  for (const mac of [a, b]) {
+    mac.with(() => assert.equal(tabFor(key).pinnedUrl, "https://m.example/new-home"));
+    assert.equal(record(mac, "default", `pinref:${key}`), "https://m.example/new-home");
+  }
+  for (const mac of [a, b, old]) assert.equal(await mac.sync(), 0, `${mac.id}: ${JSON.stringify(mac.sent.slice(-4))}`);
 });

@@ -73,7 +73,7 @@ export function adoptParkedPins(s: BrowserState, windowId: string, profileId: st
     const home = homeOf(snap);
     if (!groupId && homes.some((h) => samePage(h, home))) continue;
     const tab: Tab = {
-      ...makeTab(windowId, profileId, snap.url, { ...snap, profileId, pinned: !groupId, pinnedUrl: groupId ? null : home || null }),
+      ...makeTab(windowId, profileId, snap.url, { ...snap, profileId, pinned: !groupId, pinnedUrl: home || null }),
       ...(tabs[id] ? { id: newId("tab"), pinKey: id } : { id }),
       navigation: null,
       unloaded: true,

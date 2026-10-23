@@ -51,8 +51,10 @@ modules before using them — this is a summary from the agent that built it.
   pinned URL and without a web view until selected; the window selects its last-used regular tab, else the loaded
   pinned tab it showed last, else a New Tab page, and ⇧⌘T restores the page into the tile. Closing the last tab closes
   the window, unloaded pinned tiles aside (`closesWindow`), so holding ⌘W ends there instead of waking them. Unpin
-  removes a pinned tab. A tab of a pinned group (Dia's pinned container, `inPinnedContainer`) unloads the same way, on
-  the page it showed, and stays in its group.
+  removes a pinned tab. A tab of a pinned group (`inPinnedContainer`) also keeps its own `pinnedUrl` while its `pinned` flag stays false.
+  It unloads at that reference URL and stays in its group. Favicon reset navigates to the reference without unloading.
+  Entering a pinned container captures the current URL if no reference exists; leaving the pinned area clears the
+  reference without navigating. Legacy grouped tabs without one use their current URL as the initial reference.
   `duplicateTab` and Reopen Closed Tab set `adoptId` to `clone:<tab id>` / `restore:<tab id>` (`ClosedTab.tabId`):
   the engine copies or restores that tab's back/forward list, else the tab loads its URL.
 - Groups: `createGroup`, `addTabsToGroup`, …

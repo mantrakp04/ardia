@@ -1,9 +1,11 @@
 import { ContextMenuArea, FadeLabel, raiseView, setTrafficLightsCenter, Surface, Symbol, WindowDragRegion } from "@ardia/shell";
 import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, findNodeHandle, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, type ViewStyle } from "react-native";
-import { closeTab, toggleMute } from "../../lib/actions";
+import { closeGroup, closeTab, toggleMute } from "../../lib/actions";
 import { hex, layout, ThemeScope, useTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
+import { inPinnedContainer } from "../../store/model";
+import { awayFromPin } from "../../store/organize";
 import { PageProfileContext, useIsActiveTab, usePageProfileId, useSettings, useTab, useTabLive, useWindowId, useWindowProfileId } from "../../store/hooks";
 import { ProfileIndicator, useProfileIndicatorWidth } from "../ProfileIndicator";
 import { HoverSlot } from "../HoverSlot";
@@ -793,7 +795,11 @@ function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width: number
   const playing = useTabLive(tabId, (l) => l.playingAudio);
   const { palette, band } = useWebsiteBand(tabId);
   const { hovered, hoverProps } = useHover();
+  const retained = useBrowser((s) => inPinnedContainer(s, tabId));
+  const backToPin = useHover();
   if (!tab) return null;
+  const resettable = retained && awayFromPin(tab);
+  const resetting = resettable && backToPin.hovered;
   const title = tab.customTitle || tab.title || tab.url || "New Tab";
   const onBand = active && !floating && !!palette.background;
   return (
@@ -806,10 +812,27 @@ function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width: number
         <Pressable onPress={(e) => clickTab(windowId, tab.id, modifiersOf(e))} style={{ flex: 1 }}>
           {({ pressed }) => (
             <ItemRow hovered={(hovered || dragged) && !active} pressed={pressed && !active}>
-              <View pointerEvents="none">
-                <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
-                <TabBadges tabId={tab.id} pip={false} />
-              </View>
+              {resettable ? (
+                <View {...backToPin.hoverProps}>
+                  <Pressable onPress={() => useBrowser.getState().returnToPinnedUrl(tab.id)} accessibilityLabel="Back to Pinned URL">
+                    {resetting ? (
+                      <View style={{ width: 16, height: 16, alignItems: "center", justifyContent: "center" }}>
+                        <Symbol name="arrow.uturn.backward" size={11} weight="semibold" color={onBand ? palette.icon : active ? theme.tabSelectedText : theme.textTab} style={{ width: 16, height: 16 }} />
+                      </View>
+                    ) : (
+                      <View>
+                        <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
+                        <TabBadges tabId={tab.id} pip={false} />
+                      </View>
+                    )}
+                  </Pressable>
+                </View>
+              ) : (
+                <View pointerEvents="none">
+                  <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
+                  <TabBadges tabId={tab.id} pip={false} />
+                </View>
+              )}
               {(playing || tab.muted) && (
                 <Pressable onPress={() => toggleMute(tab.id)} style={{ marginLeft: 5 }} tooltip={tab.muted ? "Unmute" : "Mute"}>
                   <Symbol name={tab.muted ? "speaker.slash" : "speaker.wave.2"} size={11} color={onBand ? palette.icon : theme.textTab} style={{ width: 16, height: 16 }} />
@@ -824,18 +847,18 @@ function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width: number
               <HoverSlot
                 hovered={hovered}
                 width={20}
-                hover={
+                hover={(!retained || !tab.unloaded || !!tuck) && (
                   <IconButton
-                    icon={tuck ? "minus" : "xmark"}
+                    icon={tuck || retained ? "minus" : "xmark"}
                     size={9}
                     weight="semibold"
                     box={20}
                     radius={5}
                     color={onBand ? palette.icon : undefined}
                     onPress={tuck ?? (() => void closeTab(tab.id))}
-                    tooltip={tuck ? "Hide in Group" : "Close Tab"}
+                    tooltip={tuck ? "Hide in Group" : retained ? "Unload Tab" : "Close Tab"}
                   />
-                }
+                )}
               />
             </ItemRow>
           )}
@@ -1074,6 +1097,7 @@ function StripGroup({
   const windowId = useWindowId();
   const profileId = usePageProfileId();
   const group = useBrowser((s) => s.groups[entry.id]);
+  const hasLoadedTabs = useBrowser((s) => s.groups[entry.id]?.tabIds.some((id) => s.tabs[id] && !s.tabs[id]!.unloaded) ?? false);
   const { hovered, hoverProps } = useHover();
   const expanded = !entry.collapsed;
   const widths = entry.members.map((m) => chip * units(m));
@@ -1170,7 +1194,9 @@ function StripGroup({
       ))}
       <Animated.View pointerEvents={expanded ? "box-none" : "none"} mouseDownCanMoveWindow={false} style={{ position: "absolute", top: ITEM_TOP, height: ITEM_HEIGHT, left: tail, flexDirection: "row", alignItems: "center", opacity: fade }}>
         <View style={{ width: 0.5, height: 15, backgroundColor: divider }} />
-        <IconButton icon="xmark" size={9} weight="semibold" box={24} radius={6} style={{ marginLeft: 1 }} onPress={() => useBrowser.getState().closeGroup(entry.id)} tooltip="Close Group" />
+        {(!group.pinned || hasLoadedTabs) && (
+          <IconButton icon={group.pinned ? "minus" : "xmark"} size={9} weight="semibold" box={24} radius={6} style={{ marginLeft: 1 }} onPress={() => group.pinned ? useBrowser.getState().closeTabs(group.tabIds) : void closeGroup(entry.id)} tooltip={group.pinned ? "Unload Tabs" : "Close Group"} />
+        )}
       </Animated.View>
       <View
         {...hoverProps}

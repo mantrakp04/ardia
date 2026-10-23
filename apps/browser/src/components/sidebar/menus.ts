@@ -1,8 +1,8 @@
 import { showMenu, type MenuItem } from "@ardia/shell";
-import { closeTab, moveTabToProfile, moveTabToWindow, switchToTab, toggleMute } from "../../lib/actions";
+import { closeGroup, closeTab, moveTabToProfile, moveTabToWindow, switchToTab, toggleMute } from "../../lib/actions";
 import { folderChildren } from "../../store/bookmarks";
 import { useBrowser } from "../../store/browser";
-import { bookmarkProfileId, isIncognitoProfile, isPinnedRow, plural, tabLabel, viewTabIds, windowTitle } from "../../store/model";
+import { bookmarkProfileId, inPinnedContainer, isIncognitoProfile, isPinnedRow, plural, tabLabel, viewTabIds, windowTitle } from "../../store/model";
 import { awayFromPin, cleanedTabsFor, groupLabel, groupOf, keptDeletedGroups, selectedTabIds } from "../../store/organize";
 import { splitOf } from "../../store/splits";
 import type { GroupColor, Tab } from "../../store/types";
@@ -89,7 +89,7 @@ export async function openTabMenu(windowId: string, tab: Tab) {
   const groups = moveToGroupItems(windowId, group?.id);
 
   const choice = await showMenu([
-    ...(tab.pinned
+    ...(inPinnedContainer(s, tab.id)
       ? [
           { id: "backToPin", title: "Back to Pinned URL", symbol: "arrow.uturn.backward", enabled: away, ...hint("\r", "command") },
           { id: "replacePin", title: "Replace Pin with Current Page", symbol: "pin", enabled: away },
@@ -259,7 +259,7 @@ export async function openGroupMenu(windowId: string, groupId: string) {
   else if (choice === "copyMd") copyUrls(g.tabIds, true);
   else if (choice === "ungroup") s.ungroup(groupId);
   else if (choice === "bookmarkBar") s.moveGroupToBookmarksBar(groupId);
-  else if (choice === "close") s.closeGroup(groupId);
+  else if (choice === "close") await closeGroup(groupId);
   else if (choice === "delete") s.deleteGroup(groupId);
 }
 

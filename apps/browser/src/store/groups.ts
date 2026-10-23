@@ -58,6 +58,20 @@ export function leaveGroups(groups: Record<string, TabGroup>, ids: Set<string>):
   return next;
 }
 
+export function syncPinnedUrls(tabs: Record<string, Tab>, groups: Record<string, TabGroup>, ids = Object.keys(tabs)): Record<string, Tab> {
+  const members = new Set(Object.values(groups).filter((g) => g.pinned).flatMap((g) => g.tabIds));
+  let next = tabs;
+  for (const id of ids) {
+    const t = tabs[id];
+    if (!t) continue;
+    const pinnedUrl = t.pinned || members.has(id) ? t.pinnedUrl || t.url || null : null;
+    if (t.pinnedUrl === pinnedUrl) continue;
+    if (next === tabs) next = { ...tabs };
+    next[id] = { ...t, pinnedUrl };
+  }
+  return next;
+}
+
 export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> = (set, get) => ({
   groups: {},
 
@@ -81,7 +95,8 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
       tabIds: window.tabIds.filter((id) => members.has(id)),
       createdAt: Date.now(),
     };
-    set({ groups: { ...leaveGroups(s.groups, members), [group.id]: group }, windows: { ...s.windows, [w.id]: window } });
+    const groups = { ...leaveGroups(s.groups, members), [group.id]: group };
+    set({ groups, tabs: syncPinnedUrls(s.tabs, groups, w.tabIds), windows: { ...s.windows, [w.id]: window } });
     return group.id;
   },
 
@@ -93,7 +108,7 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
       const w = s.windows[g.windowId];
       if (patch.pinned === undefined || patch.pinned === g.pinned || !w) return { groups };
       const window = { ...w, tabIds: orderSections(w.tabIds, s.tabs, groups) };
-      return { groups: syncGroupOrder(groups, window), windows: { ...s.windows, [w.id]: window } };
+      return { groups: syncGroupOrder(groups, window), tabs: syncPinnedUrls(s.tabs, groups, g.tabIds), windows: { ...s.windows, [w.id]: window } };
     });
   },
 
@@ -109,7 +124,7 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
       const w = s.windows[group.windowId]!;
       const window = { ...w, tabIds: placeBlock(w.tabIds, [...group.tabIds, ...adding]) };
       const groups = { ...leaveGroups(s.groups, new Set(adding)), [groupId]: { ...group, tabIds: [...group.tabIds, ...adding] } };
-      return { groups, windows: { ...s.windows, [w.id]: window } };
+      return { groups, tabs: syncPinnedUrls(s.tabs, groups, w.tabIds), windows: { ...s.windows, [w.id]: window } };
     });
   },
 
@@ -132,14 +147,14 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
         windows[g.windowId] = { ...w, tabIds };
         groups[g.id] = { ...g, tabIds: kept };
       }
-      return { groups, windows };
+      return { groups, tabs: syncPinnedUrls(s.tabs, groups, tabIds), windows };
     });
   },
 
   ungroup(groupId) {
     set((s) => {
       const { [groupId]: _, ...groups } = s.groups;
-      return { groups };
+      return { groups, tabs: syncPinnedUrls(s.tabs, groups, s.groups[groupId]?.tabIds ?? []) };
     });
   },
 

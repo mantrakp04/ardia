@@ -7,7 +7,7 @@ import { useBrowser } from "../../store/browser";
 import { useIsActiveTab, usePageProfileId, useTab, useWindowId } from "../../store/hooks";
 import { HoverSlot } from "../HoverSlot";
 import { IconButton, useHover } from "../primitives";
-import { isPinnedRow } from "../../store/model";
+import { inPinnedContainer } from "../../store/model";
 import { awayFromPin } from "../../store/organize";
 import { clickTab, commitRename, endRename, startRename, tabTitle } from "./actions";
 import { useDragItem, useDropOnto } from "./dnd";
@@ -54,6 +54,7 @@ export const TabRow = memo(function TabRow({ tabId, onto = false, shift = null }
   const tokens = useSidebarTokens();
   const windowId = useWindowId();
   const { tab, flags } = useRowState(tabId, windowId);
+  const retained = useBrowser((s) => inPinnedContainer(s, tabId));
   const active = !!(flags & ACTIVE);
   const selected = !!(flags & SELECTED);
   const playingAudio = !!(flags & PLAYING);
@@ -63,9 +64,9 @@ export const TabRow = memo(function TabRow({ tabId, onto = false, shift = null }
   const [moved, movedRef] = useShift(shift, useCallback((v: View | null) => registerRow(windowId, tabId, v), [windowId, tabId]));
   const backToPin = useHover();
   if (!tab) return null;
-  const resettable = isPinnedRow(tab) && awayFromPin(tab);
+  const resettable = retained && awayFromPin(tab);
   const resetting = resettable && backToPin.hovered && !renaming;
-  const title = resetting ? "Back to Pinned URL" : tabTitle(tab);
+  const title = tabTitle(tab);
   const fill = active ? theme.tabSelected : selected ? tokens.multiSelected : hovered ? theme.tabHover : "rgba(0,0,0,0)";
   const border = active || selected ? 0.5 : 0;
 
@@ -105,7 +106,7 @@ export const TabRow = memo(function TabRow({ tabId, onto = false, shift = null }
               >
                 {resettable ? (
                   <View {...backToPin.hoverProps}>
-                    <Pressable onPress={() => useBrowser.getState().returnToPinnedUrl(tab.id)} tooltip="Back to Pinned URL (⌘↩)">
+                    <Pressable onPress={() => useBrowser.getState().returnToPinnedUrl(tab.id)} accessibilityLabel="Back to Pinned URL">
                       {resetting ? (
                         <View style={{ width: 16, height: 16, alignItems: "center", justifyContent: "center" }}>
                           <Symbol name="arrow.uturn.backward" size={11} weight="semibold" color={active ? theme.tabSelectedText : theme.textTab} style={{ width: 16, height: 16 }} />
@@ -142,7 +143,7 @@ export const TabRow = memo(function TabRow({ tabId, onto = false, shift = null }
                 <HoverSlot
                   hovered={hovered && !renaming}
                   width={22}
-                  hover={<IconButton icon="xmark" size={10} weight="semibold" box={22} radius={6} onPress={() => void closeTab(tab.id)} tooltip="Close Tab (⌘W)" />}
+                  hover={(!retained || !tab.unloaded) && <IconButton icon={retained ? "minus" : "xmark"} size={10} weight="semibold" box={22} radius={6} onPress={() => void closeTab(tab.id)} tooltip={retained ? "Unload Tab (⌘W)" : "Close Tab (⌘W)"} />}
                 >
                   {loading && <ActivitySpinner style={{ width: 12, height: 12, marginRight: 2 }} />}
                 </HoverSlot>

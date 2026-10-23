@@ -17,6 +17,7 @@ import {
   viewTabIds,
   without,
 } from "./model";
+import { syncPinnedUrls } from "./groups";
 import { nextPinChoice, placeChoiceKey, restoringGroup } from "./organize";
 import { adoptParkedPins, parkWindowPins } from "./parkedPins";
 import { settleMovedPins } from "./pinMirror";
@@ -253,7 +254,7 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
     const base = next.windows[w.id] ?? { ...w, tabIds: [], activeTabIds: {} };
     const loaded = !!tab.url && (!!tab.navigation || !!tab.adoptId);
     const { adoptId: _, wakeAdoptId: _w, ...rest } = tab;
-    const moved: Tab = { ...rest, profileId, navigation: loaded ? navigationTo(tab.url) : null, lastActiveAt: Date.now() };
+    const moved: Tab = { ...rest, pinnedUrl: tab.pinned ? tab.pinnedUrl : null, profileId, navigation: loaded ? navigationTo(tab.url) : null, lastActiveAt: Date.now() };
     const movedKey = moved.pinKey ?? moved.id;
     const pinChoices = tab.pinned
       ? { ...next.pinChoices, [profileId]: { ...next.pinChoices[profileId], [movedKey]: nextPinChoice(), [placeChoiceKey(movedKey)]: nextPinChoice() } }
@@ -405,7 +406,9 @@ function restoreTab(s: BrowserState, entry: ClosedTab, requested?: string | null
   if (g) {
     const existing = next.groups[g.id];
     if (existing && existing.windowId === windowId && existing.profileId === profileId) {
-      next = { ...next, groups: { ...next.groups, [g.id]: { ...existing, tabIds: [...existing.tabIds, tabId] } } };
+      const groups = { ...next.groups, [g.id]: { ...existing, tabIds: [...existing.tabIds, tabId] } };
+      const tabs = { ...next.tabs, [tabId]: { ...next.tabs[tabId]!, pinnedUrl: entry.tab.pinnedUrl ?? null } };
+      next = { ...next, tabs: syncPinnedUrls(tabs, groups, [tabId]), groups };
     } else if (!existing) {
       next = { ...next, groups: restoreGroup(next.groups, { ...g, windowId, profileId, collapsed: false, pinned: false, createdAt: Date.now() }, [tabId]) };
     }
