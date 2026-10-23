@@ -96,15 +96,30 @@ export function openInWebStore(profileId: string, urls: string[]) {
   urls.forEach((url, i) => useBrowser.getState().newTab(windowId, { url, profileId, background: i > 0 }));
 }
 
+function pinnedUrls(s: ReturnType<typeof useBrowser.getState>, profileId: string): Set<string> {
+  const inPinnedGroup = new Set(Object.values(s.groups).filter((g) => g.pinned && g.profileId === profileId).flatMap((g) => g.tabIds));
+  const open = Object.values(s.tabs).filter((t) => t.profileId === profileId && (t.pinned || inPinnedGroup.has(t.id)));
+  const parked = s.parkedPins[profileId]?.tabs ?? [];
+  return new Set([...open, ...parked].flatMap((t) => [t.url, t.pinnedUrl].filter((u): u is string => !!u).map(pageKey)));
+}
+
 export function importTabs(
   profileId: string,
   tabs: (Pick<ImportedTab, "url" | "title" | "pinned" | "customTitle"> & { row?: boolean })[],
   group: string | null,
 ): number {
-  const usable = tabs.filter((t) => /^(https?|file):/.test(t.url));
+  let s = useBrowser.getState();
+  const pinnedPages = pinnedUrls(s, profileId);
+  const usable = tabs.filter((t) => {
+    if (!/^(https?|file):/.test(t.url)) return false;
+    if (!t.pinned) return true;
+    if (pinnedPages.has(pageKey(t.url))) return false;
+    pinnedPages.add(pageKey(t.url));
+    return true;
+  });
   if (!usable.length) return 0;
   const windowId = windowFor(profileId);
-  let s = useBrowser.getState();
+  s = useBrowser.getState();
   const unpinned: string[] = [];
   for (const t of usable) {
     const after = t.pinned ? undefined : unpinned.at(-1);
@@ -133,7 +148,8 @@ export function importArcSpace(profileId: string, space: SpaceSuggestion, spaceN
     links.map((n) => ({ url: n.url!, title: n.pageTitle ?? n.title, pinned: true, row: true, customTitle: n.pageTitle ? n.title : undefined })),
     null,
   );
-  tabs += importTabs(profileId, space.tabs.map((t) => ({ ...t, pinned: false })), "Imported");
+  const open = openPages(profileId);
+  tabs += importTabs(profileId, space.tabs.filter((t) => !open.has(pageKey(t.url))).map((t) => ({ ...t, pinned: false })), "Imported");
   const theme = space.theme ? parseArcTheme(space.theme) : null;
   if (theme) {
     adoptProfileTheme(profileId);
@@ -157,12 +173,16 @@ function pageKey(url: string): string {
   return `${m[1]!.toLowerCase()}${m[2]!.toLowerCase()}${rest.replace(/#$/, "")}`;
 }
 
-export function importDiaProfile(profileId: string, profile: DiaTabsProfile, what: { pinned: boolean; open: boolean }): number {
-  const have = new Set(
+function openPages(profileId: string): Set<string> {
+  return new Set(
     Object.values(useBrowser.getState().tabs)
       .filter((t) => t.profileId === profileId)
       .flatMap((t) => [t.url, t.pinnedUrl ?? ""].filter(Boolean).map(pageKey)),
   );
+}
+
+export function importDiaProfile(profileId: string, profile: DiaTabsProfile, what: { pinned: boolean; open: boolean }): number {
+  const have = openPages(profileId);
   const fresh = (tabs: ImportedTab[]) => tabs.filter((t) => !have.has(pageKey(t.url)));
   let n = what.pinned ? importTabs(profileId, fresh(profile.pinned), null) : 0;
   if (what.open) n += importTabs(profileId, fresh(profile.tabs).map((t) => ({ ...t, pinned: false })), "Imported");
