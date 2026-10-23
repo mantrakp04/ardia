@@ -59,6 +59,12 @@ public final class Importer: @unchecked Sendable {
     var arc: ArcSidebar?
     func arcSidebar() throws -> ArcSidebar {
       if let arc { return arc }
+      if def.isZen {
+        let parsed = try ZenSidebar.load(profile: dir, profileId: profileId)
+        arc = parsed
+        return parsed
+      }
+      guard def.family == .arc else { throw ImportError.unsupported("\(def.name) has no spaces") }
       let url = discovery.arcSidebarURL()
       guard FileManager.default.fileExists(atPath: url.path) else { throw ImportError.notFound("No Arc sidebar data") }
       let parsed = try ArcSidebar.parse(Data(contentsOf: url))
@@ -94,13 +100,13 @@ public final class Importer: @unchecked Sendable {
           result.tabs = session.tabs
           result.tabGroups = session.groups
           count = session.tabs.count
-        case (.tabs, .firefox):
+        case (.tabs, .firefox) where !def.isZen:
           let session = try Firefox.loadSession(profile: dir)
           result.tabs = session.tabs
           result.tabGroups = session.groups
           count = session.tabs.count
 
-        case (.spaces, .arc), (.pinnedTabs, .arc), (.tabs, .arc):
+        case (.spaces, .arc), (.pinnedTabs, .arc), (.tabs, .arc), (.spaces, .firefox), (.pinnedTabs, .firefox), (.tabs, .firefox):
           let spaces = try arcSidebar().spaces.filter { $0.profileId == profileId && (options.spaceIds?.contains($0.id) ?? true) }
           result.spaces = spaces.map { space in
             var s = space
@@ -117,7 +123,7 @@ public final class Importer: @unchecked Sendable {
           default:
             count = spaces.count
           }
-        case (.favorites, .arc):
+        case (.favorites, .arc), (.favorites, .firefox):
           result.favorites = try arcSidebar().favorites[profileId] ?? []
           count = result.favorites.count
 

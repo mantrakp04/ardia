@@ -57,7 +57,7 @@ public enum FirefoxLogins {
     var out: [Credential] = []
     for row in rows {
       try cancellation.check()
-      guard let host = row["hostname"] as? String,
+      guard let host = row["hostname"] as? String, !host.hasPrefix("chrome://"),
             let user = (row["encryptedUsername"] as? String).flatMap({ decryptField($0, key: key) }),
             let pass = (row["encryptedPassword"] as? String).flatMap({ decryptField($0, key: key) }),
             !pass.isEmpty else { continue }

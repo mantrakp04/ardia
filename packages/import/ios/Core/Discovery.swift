@@ -21,6 +21,7 @@ public struct BrowserDefinition: Sendable {
     dia,
     .init(id: "safari", name: "Safari", family: .safari, bundleIds: ["com.apple.Safari"]),
     .init(id: "firefox", name: "Firefox", family: .firefox, bundleIds: ["org.mozilla.firefox"], dataPath: "Firefox"),
+    .init(id: "zen", name: "Zen", family: .firefox, bundleIds: ["app.zen-browser.zen"], dataPath: "zen"),
     chromium("edge", "Microsoft Edge", ["com.microsoft.edgemac"], "Microsoft Edge", "Microsoft Edge"),
     chromium("brave", "Brave", ["com.brave.Browser"], "BraveSoftware/Brave-Browser", "Brave"),
     BrowserDefinition(id: "helium", name: "Helium", family: .chromium, bundleIds: ["net.imput.helium"],
@@ -52,6 +53,8 @@ public struct BrowserDefinition: Sendable {
   public static func find(_ id: String) -> BrowserDefinition? { all.first { $0.id == id } }
 
   public var isChromiumBased: Bool { family == .chromium || family == .arc }
+
+  public var isZen: Bool { id == "zen" }
 }
 
 public struct SpaceSummary: Codable, Equatable, Sendable {
@@ -124,6 +127,7 @@ public struct BrowserDiscovery {
       guard app != nil else { return nil }
     case .firefox:
       profiles = firefoxProfiles(def)
+      if def.isZen { attachZenSpaces(&profiles) }
     case .chromium, .arc:
       profiles = chromiumProfiles(def)
       if def.family == .arc { attachArcSpaces(&profiles) }
@@ -252,14 +256,23 @@ public struct BrowserDiscovery {
 
   func attachArcSpaces(_ profiles: inout [BrowserProfile]) {
     guard let data = try? Data(contentsOf: arcSidebarURL()), let sidebar = try? ArcSidebar.parse(data) else { return }
+    attachSpaces(&profiles) { _ in sidebar }
+  }
+
+  func attachZenSpaces(_ profiles: inout [BrowserProfile]) {
+    attachSpaces(&profiles) { try? ZenSidebar.load(profile: URL(fileURLWithPath: $0.path), profileId: $0.id) }
+  }
+
+  func attachSpaces(_ profiles: inout [BrowserProfile], sidebar: (BrowserProfile) -> ArcSidebar?) {
     for i in profiles.indices {
+      guard let sidebar = sidebar(profiles[i]) else { continue }
       let spaces = sidebar.spaces.filter { $0.profileId == profiles[i].id }
       profiles[i].spaces = spaces.map {
         SpaceSummary(id: $0.id, name: $0.name, color: $0.color, emoji: $0.emoji, icon: $0.icon,
                      pinnedCount: $0.pinned.reduce(0) { $0 + $1.linkCount }, tabCount: $0.tabs.count, theme: $0.theme)
       }
       var kinds = profiles[i].available
-      if !spaces.isEmpty { kinds += [.spaces, .pinnedTabs, .tabs] }
+      if !spaces.isEmpty { kinds += [.spaces, .pinnedTabs, .tabs].filter { !kinds.contains($0) } }
       if sidebar.favorites[profiles[i].id]?.isEmpty == false { kinds.append(.favorites) }
       profiles[i].available = kinds
     }
@@ -279,6 +292,7 @@ public struct BrowserDiscovery {
       if Firefox.sessionFile(profile: dir) != nil { kinds.append(.tabs) }
       if has("logins.json") { kinds.append(.passwords) }
       if has("cookies.sqlite") { kinds.append(.cookies) }
+      guard !kinds.isEmpty else { return nil }
       return BrowserProfile(id: p.path, name: p.name, path: dir.path, email: nil, avatarPath: nil, color: nil,
                             isDefault: p.isDefault, available: kinds, spaces: nil)
     }

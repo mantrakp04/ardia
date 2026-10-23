@@ -23,6 +23,7 @@ the file and its WAL before opening it.
 | Source | Files | What it reads |
 |---|---|---|
 | Discovery (which browsers and profiles exist) | `Discovery.swift` (`BrowserDefinition.all`: IDs, data paths, Keychain items), `AppIcons.swift` | Chromium `Local State`; Firefox `profiles.ini` (`Firefox.profiles`) |
+| Zen | Same as Firefox (`zen/profiles.ini`), plus `ZenSidebar.swift` | Workspaces become `spaces` (pinned tabs and folders → `pinned`, other tabs → `tabs`) and Essentials become `favorites`, from `zen-sessions.jsonlz4` (else the Firefox session store) |
 | Dia | Same as the Chromium family (`Dia/User Data`) | Dia's sidebar (spaces, pinned tiles) is a SQLCipher `tabs.db` that isn't read |
 | Dia open and pinned tabs (`diaTabs`) | `DiaAppleEvents.swift` (Apple Events, `DiaAutomation` permission) → `DiaTabs.swift` (`DiaTabsImport.build`) | Each Dia window's tabs over AppleScript; needs Dia running and Automation permission |
 | Safari direct (needs Full Disk Access) | `SafariDirect.swift`, `SafariCookies.swift` | `~/Library/Safari/{Bookmarks.plist, History.db, LastSession.plist}`, `~/Library/Containers/com.apple.Safari/Data/Library/Cookies/Cookies.binarycookies` |
@@ -82,6 +83,7 @@ sqlite3 CLI: it checkpoints the WAL the tests depend on.
 | `build_safari_cookies` | `home/Library/Containers/com.apple.Safari/Data/Library/Cookies/Cookies.binarycookies`, `misc/binarycookies/*` (malformed) |
 | `build_arc` | `home/Library/Application Support/Arc/` (`User Data/`, `StorableSidebar.json`) |
 | `build_firefox` | `home/Library/Application Support/Firefox/` (`profiles.ini`, `Profiles/*`), `misc/nss-legacy-pbe.json` |
+| `build_zen` | `home/Library/Application Support/zen/` (`profiles.ini`, `Profiles/*`: `places.sqlite`, `zen-sessions.jsonlz4`) |
 | `build_exports` | `safari/Safari Export/`, `safari/Safari Export.zip`, `safari/not-an-export.zip`, `csv/*.csv`, `html/chrome-bookmarks.html` |
 
 ## Commands

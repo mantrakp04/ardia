@@ -1033,6 +1033,7 @@ Locked=1
     logins_json(os.path.join(d, "logins.json"), login_key, [
         ("https://accounts.mozilla.example", "https://accounts.mozilla.example", "fox@example.com", "fire & fox"),
         ("https://unicode.example", "", "ユーザー", "パスワード🔒"),
+        ("chrome://FirefoxAccounts", "", "sync-user", "sync-token"),
     ])
 
     w = os.path.join(root, "Profiles", "zzzz9999.work")
@@ -1055,6 +1056,64 @@ Locked=1
     write_json(os.path.join(MISC, "nss-legacy-pbe.json"), {
         "globalSalt": base64.b64encode(gs).decode(), "password": pw.decode(),
         "der": base64.b64encode(blob).decode(), "plain": "password-check"})
+
+
+def build_zen():
+    root = os.path.join(SUPPORT, "zen")
+    write(os.path.join(root, "profiles.ini"), b"""[Profile0]
+Name=Default (release)
+IsRelative=1
+Path=Profiles/zen12345.Default (release)
+
+[Profile1]
+Name=Empty
+IsRelative=1
+Path=Profiles/empty000.Empty
+
+[Install6ED35B3CA1B5D3AF]
+Default=Profiles/zen12345.Default (release)
+Locked=1
+""")
+    write_json(os.path.join(root, "Profiles", "empty000.Empty", "times.json"), {})
+    d = os.path.join(root, "Profiles", "zen12345.Default (release)")
+    places(os.path.join(d, "places.sqlite"))
+    work, home = "{work-space}", "{home-space}"
+    def tab(url, title, workspace=None, pinned=False, essential=False, initial=None, **extra):
+        t = {"entries": [{"url": url, "title": title}], "index": 1, "pinned": pinned, "hidden": False,
+             "zenWorkspace": workspace, "zenEssential": essential, "zenSyncId": url, "zenIsEmpty": False,
+             "lastAccessed": BASE_UNIX * 1000}
+        if initial: t["_zenPinnedInitialState"] = {"entry": {"url": initial[0], "title": initial[1]}}
+        t.update(extra)
+        return t
+    session = {
+        "lastCollected": BASE_UNIX * 1000,
+        "spaces": [
+            {"uuid": work, "name": "Work", "icon": "\U0001F4BC",
+             "theme": {"type": "gradient", "gradientColors": [
+                 {"c": [16, 32, 48], "isPrimary": False}, {"c": [255, 128, 0], "isPrimary": True}]}},
+            {"uuid": home, "name": "", "icon": "chrome://browser/skin/zen-icons/selectable/heart.svg", "theme": {}},
+        ],
+        "folders": [
+            {"id": "f-docs", "name": "Docs", "workspaceId": work, "parentId": None},
+            {"id": "f-specs", "name": "Specs", "workspaceId": work, "parentId": "f-docs"},
+            {"id": "f-empty", "name": "Empty", "workspaceId": home, "parentId": None},
+        ],
+        "groups": [],
+        "tabs": [
+            tab("https://mail.example/u/0", "Mail now", pinned=True, essential=True, initial=("https://mail.example/", "Mail")),
+            tab("https://mail.example/u/0", "Mail dup", pinned=True, essential=True, zenSyncId="https://mail.example/u/0"),
+            tab("https://calendar.example/", "Calendar", work, pinned=True, zenStaticLabel="Cal"),
+            tab("https://docs.example/a", "Doc A", work, pinned=True, groupId="f-docs"),
+            tab("https://docs.example/spec", "Spec", work, pinned=True, groupId="f-specs"),
+            tab("https://news.example/", "News", work),
+            tab("https://recipes.example/", "Recipes", home, pinned=True),
+            tab("https://shop.example/", "Shop", home),
+            tab("https://orphan.example/", "Orphan", "{gone}"),
+            tab("about:blank", "", home, zenIsEmpty=True),
+            tab("https://glance.example/", "Glance", home, zenIsGlance=True),
+        ],
+    }
+    write(os.path.join(d, "zen-sessions.jsonlz4"), mozlz4(session))
 
 
 BOOKMARKS_HTML_SAFARI = """<!DOCTYPE NETSCAPE-Bookmark-file-1>
@@ -1196,6 +1255,7 @@ def main():
     build_safari_cookies()
     build_arc()
     build_firefox()
+    build_zen()
     build_exports()
     write_json(os.path.join(HERE, "secrets.json"), {
         "chromiumSafeStorageSecret": CHROMIUM_SECRET.decode(),
