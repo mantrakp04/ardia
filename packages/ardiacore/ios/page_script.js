@@ -804,6 +804,7 @@
     for (const q of metaMedia) apply(listen, q, ["change", onChange]);
   };
   const metaColor = (onMediaChange) => {
+    if (location.hostname === "mail.google.com") return null;
     const queries = [];
     let color = null;
     for (const m of document.querySelectorAll('meta[name="theme-color"]')) {
