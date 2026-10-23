@@ -227,7 +227,9 @@ class DragController {
     const splitDrop = commit ? endTabDrag() : (cancelTabDrag(), false);
     const folded = this.foldedGroup;
     this.foldedGroup = null;
-    if (folded && (!commit || splitDrop || drop.type === "none")) useBrowser.getState().updateGroup(folded, { collapsed: false });
+    const reopen = () => {
+      if (folded && useBrowser.getState().groups[folded]) useBrowser.getState().updateGroup(folded, { collapsed: false });
+    };
     const spot =
       !splitDrop && this.measured && ghost && sources.length === 1 && sources[0]!.kind !== "tile" && !this.into && drop.type !== "onto"
         ? this.landingSpot(commit ? drop : { type: "none" })
@@ -245,19 +247,21 @@ class DragController {
       this.token = null;
       this.setLanding(null);
       this.setGhost(null);
+      reopen();
       return;
     }
     const token = (this.token = {});
     this.setLanding(ghost.item.key);
     this.setGhost({ ...ghost, landing: true });
     const done = () => {
+      reopen();
       if (this.token !== token) return;
       this.token = null;
       this.setLanding(null);
       this.setGhost(null);
     };
     void spot.then((at) => {
-      if (this.token !== token) return;
+      if (this.token !== token) return reopen();
       if (__DEV__) this.landed = at && { key: ghost.item.key, x: at.x, y: at.y };
       if (!at) return done();
       Animated.spring(ghost.position, { toValue: { x: at.x - this.rootFrame.x, y: at.y - this.rootFrame.y }, ...SLIDE }).start(done);
