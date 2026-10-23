@@ -5,7 +5,7 @@ import { useBrowser } from "../../../store/browser";
 import { tabLayoutOf } from "../../../store/model";
 import type { Settings } from "../../../store/settings";
 import { useHover } from "../../primitives";
-import { SectionHeader, useFormColors } from "../controls";
+import { Group, Row, SectionHeader, Toggle, useFormColors } from "../controls";
 import { APP_ICON_SIZE, appIconChoices } from "../paneData";
 import { store, useResource } from "../resources";
 
@@ -17,6 +17,7 @@ const MODES: { value: Settings["appearance"]; title: string; description: string
 
 export function AppearancePane() {
   const appearance = useBrowser((s) => s.settings.appearance);
+  const showProfileDots = useBrowser((s) => s.settings.showProfileDots);
   const choose = (mode: Settings["appearance"]) => {
     useBrowser.getState().updateSettings({ appearance: mode });
     void setAppearance(mode);
@@ -30,6 +31,12 @@ export function AppearancePane() {
         ))}
       </View>
       <AddressBarPicker />
+      <SectionHeader title="Sidebar" />
+      <Group>
+        <Row anchor="appearance.profileDots">
+          <Toggle value={showProfileDots} onChange={(v) => useBrowser.getState().updateSettings({ showProfileDots: v })} />
+        </Row>
+      </Group>
       <AppIconPicker />
     </View>
   );

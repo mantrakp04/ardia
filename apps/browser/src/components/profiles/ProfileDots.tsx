@@ -18,7 +18,8 @@ const IDLE = 0.2;
 export function useProfileDotsShown() {
   const incognito = useIsIncognito();
   const count = useBrowser((s) => s.profileOrder.length);
-  return !incognito && count > 1;
+  const enabled = useBrowser((s) => s.settings.showProfileDots);
+  return enabled && !incognito && count > 1;
 }
 
 export function ProfileDots({ windowId }: { windowId: string }) {

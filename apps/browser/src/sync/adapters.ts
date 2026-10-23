@@ -44,6 +44,7 @@ export const SYNCED_SETTINGS = [
   "bookmarksBar",
   "appearance",
   "addressBar",
+  "showProfileDots",
   "shortcuts",
 ] as const satisfies readonly (keyof Settings)[];
 
