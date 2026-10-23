@@ -46,12 +46,12 @@ export function rgbToHsl(r: number, g: number, b: number): [number, number, numb
   return [h / 6, s, l];
 }
 
-export function padColor(x: number, y: number): ThemeColor {
+export function padColor(x: number, y: number, lightness = PAD_LIGHTNESS): ThemeColor {
   const dx = clamp01(x) - 0.5, dy = clamp01(y) - 0.5;
   let hue = Math.atan2(dy, dx) / (2 * Math.PI);
   if (hue < 0) hue += 1;
   const sat = Math.min(1, Math.hypot(dx, dy) / 0.5);
-  const [r, g, b] = hslToRgb(hue, sat, PAD_LIGHTNESS);
+  const [r, g, b] = hslToRgb(hue, sat, clamp01(lightness));
   return { r, g, b, a: 1 };
 }
 
@@ -175,8 +175,17 @@ export function opaqueThemeTint(theme: ProfileTheme, dark: boolean): [string, st
   return [over(themeArea(theme, 0, 0, 1, 1)), over(themeArea(theme, 1, 1, 1, 1))];
 }
 
+export function stopLightness(stop: ThemeStop): number {
+  return rgbToHsl(clamp01(stop.color.r), clamp01(stop.color.g), clamp01(stop.color.b))[2];
+}
+
 export function withStopAt(theme: ProfileTheme, index: number, x: number, y: number): ProfileTheme {
-  const stops = theme.stops.map((s, i) => (i === index ? { x, y, color: padColor(x, y) } : s));
+  const stops = theme.stops.map((s, i) => (i === index ? { x, y, color: { ...padColor(x, y, stopLightness(s)), a: s.color.a } } : s));
+  return { ...theme, stops };
+}
+
+export function withStopLightness(theme: ProfileTheme, index: number, lightness: number): ProfileTheme {
+  const stops = theme.stops.map((s, i) => (i === index ? { ...s, color: { ...padColor(s.x, s.y, lightness), a: s.color.a } } : s));
   return { ...theme, stops };
 }
 
