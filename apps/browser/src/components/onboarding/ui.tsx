@@ -121,6 +121,7 @@ export function StepTitle({ title, subtitle }: { title: string; subtitle?: strin
 export function PrimaryButton({ title, onPress, disabled, icon }: { title: string; onPress: () => void; disabled?: boolean; icon?: string }) {
   const colors = useOnboardingColors();
   const { hovered, hoverProps } = useHover();
+  const cursor = disabled ? "auto" : "pointer";
   return (
     <View {...hoverProps} style={{ opacity: disabled ? 0.4 : 1 }}>
       <Pressable disabled={disabled} onPress={onPress} accessibilityRole="button" accessibilityLabel={title}>
@@ -137,9 +138,10 @@ export function PrimaryButton({ title, onPress, disabled, icon }: { title: strin
               gap: 6,
               backgroundColor: hovered && !disabled ? colors.primaryHover : colors.primary,
               transform: [{ scale: pressed ? 0.98 : 1 }],
+              cursor,
             }}
           >
-            <Text style={{ fontSize: 13, fontWeight: "600", color: colors.primaryText }}>{title}</Text>
+            <Text style={{ fontSize: 13, fontWeight: "600", color: colors.primaryText, cursor }}>{title}</Text>
             {icon ? <Symbol name={icon} size={11} weight="semibold" color={colors.primaryText} style={{ width: 12, height: 12 }} /> : null}
           </View>
         )}
@@ -167,9 +169,10 @@ export function SecondaryButton({ title, onPress, filled }: { title: string; onP
               borderWidth: filled ? 0 : 1,
               borderColor: colors.noThanksBorder,
               transform: [{ scale: pressed ? 0.98 : 1 }],
+              cursor: "pointer",
             }}
           >
-            <Text style={{ fontSize: 13, fontWeight: "500", color: filled ? colors.buttonText : colors.noThanksText }}>{title}</Text>
+            <Text style={{ fontSize: 13, fontWeight: "500", color: filled ? colors.buttonText : colors.noThanksText, cursor: "pointer" }}>{title}</Text>
           </View>
         )}
       </Pressable>
@@ -235,6 +238,7 @@ export function CheckRow({
 }) {
   const colors = useOnboardingColors();
   const { hovered, hoverProps } = useHover();
+  const cursor = disabled ? "auto" : "pointer";
   return (
     <View {...hoverProps} style={{ opacity: disabled ? 0.5 : 1 }}>
       <Pressable disabled={disabled} onPress={() => onChange(!value)} accessibilityRole="checkbox" accessibilityState={{ checked: value, disabled }} accessibilityLabel={title}>
@@ -250,6 +254,7 @@ export function CheckRow({
             backgroundColor: hovered && !disabled ? colors.button : colors.row,
             borderWidth: StyleSheet.hairlineWidth * 2,
             borderColor: colors.rowBorder,
+            cursor,
           }}
         >
           {icon ? (
@@ -258,8 +263,8 @@ export function CheckRow({
             </View>
           ) : null}
           <View mouseDownCanMoveWindow={false} style={{ flex: 1, gap: 2 }}>
-            <Text style={{ fontSize: 13, fontWeight: "500", color: colors.title }}>{title}</Text>
-            <Text numberOfLines={2} style={{ fontSize: 12, color: colors.rowSubtitle }}>{subtitle}</Text>
+            <Text style={{ fontSize: 13, fontWeight: "500", color: colors.title, cursor }}>{title}</Text>
+            <Text numberOfLines={2} style={{ fontSize: 12, color: colors.rowSubtitle, cursor }}>{subtitle}</Text>
           </View>
           <CheckMark on={value} />
         </View>
