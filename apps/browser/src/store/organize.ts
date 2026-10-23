@@ -11,6 +11,7 @@ export type TabPlacement = {
   row?: boolean;
   beforeId?: string | null;
   groupId?: string | null;
+  last?: boolean;
 };
 
 export type GroupPlacement = { pinned: boolean; beforeId?: string | null; parentId?: string | null };
@@ -516,7 +517,8 @@ export function placing(s: BrowserState, ids: string[], p: TabPlacement): Browse
     at = kept.length ? rest.indexOf(kept.at(-1)!) + 1 : Math.min(order.get(target.tabIds[0]!)!, rest.length);
   } else if (p.pinned) {
     const toRow = !!tabs[moving[0]!]!.pinnedAsRow;
-    at = rest.reduce((last, id, i) => (tabs[id]?.pinned && (toRow || !tabs[id]!.pinnedAsRow) ? i + 1 : last), 0);
+    const pinnedGroup = toRow && p.last ? new Set(Object.values(s.groups).filter((g) => g.pinned).flatMap((g) => g.tabIds)) : null;
+    at = rest.reduce((last, id, i) => ((tabs[id]?.pinned && (toRow || !tabs[id]!.pinnedAsRow)) || pinnedGroup?.has(id) ? i + 1 : last), 0);
   } else at = rest.length;
   rest.splice(at, 0, ...moving);
 

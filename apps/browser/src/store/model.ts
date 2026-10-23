@@ -96,12 +96,11 @@ export const pinSection = (t: Pick<Tab, "pinned" | "pinnedAsRow"> | undefined): 
 
 export function pinnedFirst(ids: string[], tabs: Record<string, Tab>, groups?: Record<string, TabGroup>): string[] {
   const pinnedGroup = new Set(groups ? Object.values(groups).filter((g) => g.pinned).flatMap((g) => g.tabIds) : []);
-  const inPinnedGroup = (id: string) => !tabs[id]?.pinned && pinnedGroup.has(id);
+  const pinnedArea = (id: string) => pinSection(tabs[id]) === "row" || (!tabs[id]?.pinned && pinnedGroup.has(id));
   return [
     ...ids.filter((id) => pinSection(tabs[id]) === "tile"),
-    ...ids.filter((id) => pinSection(tabs[id]) === "row"),
-    ...ids.filter(inPinnedGroup),
-    ...ids.filter((id) => !tabs[id]?.pinned && !inPinnedGroup(id)),
+    ...ids.filter(pinnedArea),
+    ...ids.filter((id) => !tabs[id]?.pinned && !pinnedArea(id)),
   ];
 }
 

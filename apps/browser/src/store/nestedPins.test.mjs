@@ -38,10 +38,10 @@ function pinnedTree() {
   return { w, outer, inner, other };
 }
 
-const TREE = ["tile:tile", "row:r1", "row:r2", "Outer:o1", "Outer/Inner:i1", "Outer/Inner:i2", "Outer:o2", "Other:x"];
+const TREE = ["tile:tile", "row:r1", "Outer:o1", "Outer/Inner:i1", "Outer/Inner:i2", "Outer:o2", "row:r2", "Other:x"];
 const groupIn = (w, name) => Object.values(S().groups).find((g) => g.windowId === w && g.name === name);
 
-test("a pinned group with a nested group mirrors to another window with its nesting, and rows move in both", () => {
+test("a pinned group with a nested group mirrors to another window with its nesting and the rows between groups", () => {
   reset();
   const { w: a } = pinnedTree();
   assert.deepEqual(pinnedArea(a), TREE);
@@ -53,15 +53,15 @@ test("a pinned group with a nested group mirrors to another window with its nest
   assert.equal(inner.pinned, true);
   assert.deepEqual(outer.tabIds.map(host), ["o1", "i1", "i2", "o2"], "the parent holds its whole subtree");
 
-  const [r1, r2] = ["r1", "r2"].map((h) => model.viewTabIds(S(), b).find((id) => host(id) === h));
-  S().placeTabs([r2], { pinned: true, row: true, beforeId: r1 });
-  const moved = ["tile:tile", "row:r2", "row:r1", "Outer:o1", "Outer/Inner:i1", "Outer/Inner:i2", "Outer:o2", "Other:x"];
+  const r2 = model.viewTabIds(S(), b).find((id) => host(id) === "r2");
+  S().placeTabs([r2], { pinned: true, row: true, beforeId: outer.tabIds[0] });
+  const moved = ["tile:tile", "row:r1", "row:r2", "Outer:o1", "Outer/Inner:i1", "Outer/Inner:i2", "Outer:o2", "Other:x"];
   assert.deepEqual(pinnedArea(b), moved);
-  assert.deepEqual(pinnedArea(a), moved, "a row moved in B moves in A");
+  assert.deepEqual(pinnedArea(a), moved, "a row moved between groups in B moves in A");
 
   const o2 = groupIn(a, "Outer").tabIds.find((id) => host(id) === "o2");
   S().placeTabs([o2], { pinned: false, groupId: groupIn(a, "Inner").id, beforeId: null });
-  const nested = ["tile:tile", "row:r2", "row:r1", "Outer:o1", "Outer/Inner:i1", "Outer/Inner:i2", "Outer/Inner:o2", "Other:x"];
+  const nested = ["tile:tile", "row:r1", "row:r2", "Outer:o1", "Outer/Inner:i1", "Outer/Inner:i2", "Outer/Inner:o2", "Other:x"];
   assert.deepEqual(pinnedArea(a), nested);
   assert.deepEqual(pinnedArea(b), nested, "a tab moved into the nested group in A moves in B");
 

@@ -158,14 +158,16 @@ export function removeFolder(id: string) {
   }));
 }
 
-export function moveFolder(id: string, delta: -1 | 1) {
+export function arrangeFolders(placed: { id: string; after: string | null }[]) {
   setLive((s) => {
-    const order = [...s.folderOrder];
-    const i = order.indexOf(id);
-    const j = i + delta;
-    if (i < 0 || j < 0 || j >= order.length) return {};
-    [order[i], order[j]] = [order[j]!, order[i]!];
-    return { folderOrder: order };
+    const ids = placed.map((p) => p.id).filter((id) => s.folders[id]);
+    if (!ids.length) return {};
+    const folders = { ...s.folders };
+    for (const p of placed) if (folders[p.id] && folders[p.id]!.after !== p.after) folders[p.id] = { ...folders[p.id]!, after: p.after };
+    const slots = s.folderOrder.map((id, i) => (ids.includes(id) ? i : -1)).filter((i) => i >= 0);
+    const folderOrder = [...s.folderOrder];
+    slots.forEach((slot, i) => (folderOrder[slot] = ids[i]!));
+    return { folders, folderOrder };
   });
 }
 

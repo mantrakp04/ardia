@@ -1104,9 +1104,9 @@ function buildPinnedTree(d) {
   });
 }
 
-const PIN_TREE = ["tile:tile", "row:r1", "row:r2", "Outer:o1", "Outer/Inner:i1", "Outer/Inner:i2", "Outer:o2", "Other:x"];
+const PIN_TREE = ["tile:tile", "row:r1", "Outer:o1", "Outer/Inner:i1", "Outer/Inner:i2", "Outer:o2", "row:r2", "Other:x"];
 
-test("nested pinned groups sync with their nesting and the order of their rows, both ways", async () => {
+test("nested pinned groups sync with their nesting and the order of rows between groups, both ways", async () => {
   const folder = new Folder();
   const a = new Device("devA", folder);
   const b = new Device("devB", folder);
@@ -1121,16 +1121,15 @@ test("nested pinned groups sync with their nesting and the order of their rows, 
   b.with(() => {
     const groupNamed = (n) => Object.values(S().groups).find((g) => g.name === n);
     assert.equal(groupNamed("Inner").parentId, groupNamed("Outer").id);
-    const r1 = Object.values(S().tabs).find((t) => t.pinnedUrl === "https://r1.example/").id;
     const r2 = Object.values(S().tabs).find((t) => t.pinnedUrl === "https://r2.example/").id;
-    S().placeTabs([r2], { pinned: true, row: true, beforeId: r1 });
+    S().placeTabs([r2], { pinned: true, row: true, beforeId: groupNamed("Outer").tabIds[0] });
     const o2 = groupNamed("Outer").tabIds.find((id) => pinHost(id) === "o2");
     S().placeTabs([o2], { pinned: false, groupId: groupNamed("Inner").id, beforeId: null });
   });
-  const moved = ["tile:tile", "row:r2", "row:r1", "Outer:o1", "Outer/Inner:i1", "Outer/Inner:i2", "Outer/Inner:o2", "Other:x"];
+  const moved = ["tile:tile", "row:r1", "row:r2", "Outer:o1", "Outer/Inner:i1", "Outer/Inner:i2", "Outer/Inner:o2", "Other:x"];
   assert.deepEqual(pinnedAreaOf(b), moved);
   await syncAll([b, a]);
-  assert.deepEqual(pinnedAreaOf(a), moved, "A follows the moved row and the tab moved into the nested group");
+  assert.deepEqual(pinnedAreaOf(a), moved, "A follows the row moved between groups and the tab moved into the nested group");
   assert.equal((await a.sync()).published + (await b.sync()).published, 0, "settled");
 });
 

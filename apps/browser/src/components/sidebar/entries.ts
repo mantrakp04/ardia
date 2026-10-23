@@ -3,7 +3,7 @@ import { activeTabId, viewTabIds } from "../../store/model";
 import { hiddenEmptyCard } from "../../store/newTabBar";
 import { splitIndex, stableList } from "../../store/structure";
 
-type SidebarEntries = { tiles: string[]; pinnedRows: string[]; pinnedGroups: string[]; list: string[] };
+type SidebarEntries = { tiles: string[]; pinnedRows: string[]; pinnedGroups: string[]; pinned: string[]; list: string[] };
 
 const memo = new Map<string, { inputs: unknown[]; result: SidebarEntries }>();
 
@@ -19,11 +19,12 @@ export function sidebarEntries(s: BrowserState, windowId: string, profileId?: st
     const tiles = same(result.tiles, was.tiles) ? was.tiles : result.tiles;
     const pinnedRows = same(result.pinnedRows, was.pinnedRows) ? was.pinnedRows : result.pinnedRows;
     const pinnedGroups = same(result.pinnedGroups, was.pinnedGroups) ? was.pinnedGroups : result.pinnedGroups;
+    const pinned = same(result.pinned, was.pinned) ? was.pinned : result.pinned;
     const list = same(result.list, was.list) ? was.list : result.list;
     result =
-      tiles === was.tiles && pinnedRows === was.pinnedRows && pinnedGroups === was.pinnedGroups && list === was.list
+      tiles === was.tiles && pinnedRows === was.pinnedRows && pinnedGroups === was.pinnedGroups && pinned === was.pinned && list === was.list
         ? was
-        : { tiles, pinnedRows, pinnedGroups, list };
+        : { tiles, pinnedRows, pinnedGroups, pinned, list };
   }
   memo.set(key, { inputs, result });
   if (memo.size > 8) for (const k of memo.keys()) if (!s.windows[k.split("|")[0]!]) memo.delete(k);
@@ -34,6 +35,7 @@ function computeEntries(s: BrowserState, windowId: string, profileId?: string): 
   const tiles: string[] = [];
   const pinnedRows: string[] = [];
   const pinnedGroups: string[] = [];
+  const pinned: string[] = [];
   const list: string[] = [];
   const groupOf = new Map<string, string>();
   for (const g of Object.values(s.groups)) if (g.windowId === windowId && !g.parentId) g.tabIds.forEach((id) => groupOf.set(id, g.id));
@@ -44,20 +46,21 @@ function computeEntries(s: BrowserState, windowId: string, profileId?: string): 
     if ((tab.liveItem && !tab.pinned) || hiddenEmptyCard(s, tab)) continue;
     if (tab.pinned) {
       (tab.pinnedAsRow ? pinnedRows : tiles).push(id);
+      if (tab.pinnedAsRow) pinned.push(`t:${id}`);
       continue;
     }
     const groupId = groupOf.get(id);
     const entry = groupId ? `g:${groupId}` : splitEntry(s, id, splits);
     if (seen.has(entry)) continue;
     seen.add(entry);
-    if (groupId && s.groups[groupId]!.pinned) pinnedGroups.push(groupId);
+    if (groupId && s.groups[groupId]!.pinned) (pinnedGroups.push(groupId), pinned.push(entry));
     else list.push(entry);
   }
-  return { tiles, pinnedRows, pinnedGroups, list };
+  return { tiles, pinnedRows, pinnedGroups, pinned, list };
 }
 
 export function numberedTabs(s: BrowserState, windowId: string): string[] {
-  const { tiles, pinnedRows, pinnedGroups, list } = sidebarEntries(s, windowId);
+  const { tiles, pinned, list } = sidebarEntries(s, windowId);
   const active = activeTabId(s, windowId);
   const rowTab = (entry: string): string[] => {
     const id = entry.slice(2);
@@ -68,7 +71,7 @@ export function numberedTabs(s: BrowserState, windowId: string): string[] {
     const last = panes.reduce<string | undefined>((a, b) => (!a || s.tabs[b]!.lastActiveAt > s.tabs[a]!.lastActiveAt ? b : a), undefined);
     return last ? [last] : [];
   };
-  return [...tiles, ...pinnedRows, ...pinnedGroups.flatMap((id) => rowTab(`g:${id}`)), ...list.flatMap(rowTab)];
+  return [...tiles, ...pinned.flatMap(rowTab), ...list.flatMap(rowTab)];
 }
 
 const groupMemo = new WeakMap<object, { tabs: BrowserState["tabs"]; splits: BrowserState["splits"]; groups: BrowserState["groups"]; result: string[] }>();
