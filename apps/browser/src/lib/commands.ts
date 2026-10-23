@@ -43,6 +43,7 @@ import { requestAutofill } from "../components/site/Autofill";
 import { copyPageUrl, jumpToSelection } from "../components/site/selection";
 import { shareTab } from "../components/site/share";
 import { openProfileMenu } from "../components/ProfileIndicator";
+import { LITTLE_DESTINATION, opensExternalLinksInLittle, RECENT_DESTINATION, withDefaultDestination } from "../store/linkRouting";
 import { groupOf } from "../store/organize";
 import { isSmall, mainWindowFor, originalProfile } from "../store/small";
 import { closeLittleArdia, openInMainWindow, openLittleArdia } from "../components/littleArdia/actions";
@@ -66,7 +67,9 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     case "newLittleArdia":
       return void openLittleArdia();
     case "toggleOpenLinksInLittleArdia":
-      return s.updateSettings({ openLinksInLittleArdia: !s.settings.openLinksInLittleArdia });
+      return s.updateSettings({
+        linkRouting: withDefaultDestination(s.settings.linkRouting, opensExternalLinksInLittle(s.settings.linkRouting) ? RECENT_DESTINATION : LITTLE_DESTINATION),
+      });
     case "reopenClosedWindow":
       return s.reopenClosedWindow();
     case "setAppearance":
@@ -85,6 +88,8 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
       return openSettings();
     case "keyboardShortcuts":
       return openSettings("shortcuts");
+    case "openLinkPreferences":
+      return openSettings("links");
     case "importBrowserData":
       return openImport();
     case "openFile":

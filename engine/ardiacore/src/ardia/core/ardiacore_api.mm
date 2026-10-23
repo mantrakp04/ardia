@@ -86,6 +86,7 @@
 #include "ardia/core/ac_content_hooks.h"
 #include "ardia/core/ac_browser_window.h"
 #include "ardia/core/ac_extension_view.h"
+#include "ardia/core/ac_navigation_routing.h"
 #include "ardia/core/ac_installed_bubble.h"
 #include "ardia/core/ac_lifetime.h"
 #include "ardia/core/ac_main_delegate.h"
@@ -443,6 +444,23 @@ bool IsProfileDeleting(const Profile* profile) {
   return profile && std::ranges::any_of(DeletingProfiles(), [&](const base::WeakPtr<Profile>& p) {
            return p.get() == profile;
          });
+}
+
+void LoadLinkProfile(const std::string& engine, base::OnceCallback<void(Profile*)> done) {
+  if (![g_delegate respondsToSelector:@selector(engine:loadLinkProfile:completion:)]) {
+    std::move(done).Run(nullptr);
+    return;
+  }
+  auto pending = std::make_shared<base::OnceCallback<void(Profile*)>>(std::move(done));
+  [g_delegate engine:g_engine
+      loadLinkProfile:NS(engine)
+           completion:^(ArdiaCoreProfile* profile) {
+             if (!*pending) {
+               return;
+             }
+             Profile* loaded = profile && !profile.destroyed ? profile.chromeProfile : nullptr;
+             std::move(*pending).Run(loaded && !IsProfileDying(loaded) ? loaded : nullptr);
+           }];
 }
 
 void HostPermissionRequest(content::WebContents* contents, NSDictionary* request) {
@@ -909,6 +927,20 @@ void WatchTracingStart(std::shared_ptr<TracingStart> start, int checks_left) {
   ardiacore::SetVideoUpscalingEnabled(enabled);
 }
 
++ (void)setLinkRouting:(NSDictionary<NSString*, id>*)config live:(BOOL)live {
+  ardiacore::InstallLinkRouting(config, live);
+}
+
++ (NSDictionary<NSString*, id>*)routeLink:(NSString*)url origin:(NSString*)origin profile:(NSString*)profileId {
+  const ardiacore::LinkOrigin from = [origin isEqualToString:@"external"] ? ardiacore::LinkOrigin::kExternal
+                                     : [origin isEqualToString:@"typed"]  ? ardiacore::LinkOrigin::kTyped
+                                                                          : ardiacore::LinkOrigin::kPage;
+  std::optional<ardiacore::LinkDecision> decision =
+      ardiacore::DecideLink(*ardiacore::InstalledLinkRouting(), base::SysNSStringToUTF8(url ?: @""), from,
+                            base::SysNSStringToUTF8(profileId ?: @""));
+  return decision ? ardiacore::LinkDecisionDictionary(*decision) : nil;
+}
+
 + (void)setVideoUpscalingTestConditions:(NSDictionary<NSString*, NSNumber*>*)conditions {
   NSNumber* low_power = conditions[@"lowPower"];
   NSNumber* thermal = conditions[@"thermalPressure"];
@@ -1279,6 +1311,13 @@ void WatchTracingStart(std::shared_ptr<TracingStart> start, int checks_left) {
 - (ArdiaCoreTab*)openTab:(NSString*)url
               profile:(ArdiaCoreProfile*)profile
            foreground:(BOOL)foreground {
+  return [self openTab:url profile:profile foreground:foreground sidebar:@""];
+}
+
+- (ArdiaCoreTab*)openTab:(NSString*)url
+              profile:(ArdiaCoreProfile*)profile
+           foreground:(BOOL)foreground
+              sidebar:(NSString*)sidebar {
   Browser* browser = _host->BrowserFor(profile.chromeProfile);
   if (!browser) {
     return nil;
@@ -1290,7 +1329,9 @@ void WatchTracingStart(std::shared_ptr<TracingStart> start, int checks_left) {
                                   : WindowOpenDisposition::NEW_BACKGROUND_TAB;
   params.window_action = NavigateParams::WindowAction::kNoAction;
   base::AutoReset<ardiacore::WindowHost::PendingOpen> pending(
-      &_host->pending_open(), ardiacore::WindowHost::PendingOpen{params.disposition, nullptr});
+      &_host->pending_open(),
+      ardiacore::WindowHost::PendingOpen{params.disposition, nullptr, std::nullopt, profile.chromeProfile,
+                                         base::SysNSStringToUTF8(sidebar ?: @"")});
   Navigate(&params);
   content::WebContents* contents = params.navigated_or_inserted_contents;
   if (!contents) {
@@ -1461,6 +1502,13 @@ void WatchTracingStart(std::shared_ptr<TracingStart> start, int checks_left) {
 - (ArdiaCoreTab*)restoreTab:(NSString*)state
                  profile:(ArdiaCoreProfile*)profile
               foreground:(BOOL)foreground {
+  return [self restoreTab:state profile:profile foreground:foreground sidebar:@""];
+}
+
+- (ArdiaCoreTab*)restoreTab:(NSString*)state
+                 profile:(ArdiaCoreProfile*)profile
+              foreground:(BOOL)foreground
+                 sidebar:(NSString*)sidebar {
   if (ardiacore::IsNotifyingTabStrip()) {
     return nil;
   }
@@ -1491,7 +1539,7 @@ void WatchTracingStart(std::shared_ptr<TracingStart> start, int checks_left) {
       ardiacore::WindowHost::PendingOpen{
           foreground ? WindowOpenDisposition::NEW_FOREGROUND_TAB
                      : WindowOpenDisposition::NEW_BACKGROUND_TAB,
-          nullptr});
+          nullptr, std::nullopt, profile.chromeProfile, base::SysNSStringToUTF8(sidebar ?: @"")});
   content::WebContents* contents = chrome::AddRestoredTab(
       browser, navigations, browser->GetTabStripModel()->count(), selected,
       std::string(), std::nullopt, foreground,
@@ -1679,6 +1727,35 @@ std::optional<bool> RunPageCommand(content::WebContents* contents, int command) 
   }
   content::NavigationEntry* entry = _contents->GetController().GetLastCommittedEntry();
   return !entry || entry->IsInitialEntry();
+}
+
+- (NSString*)sidebarProfile {
+  return _contents ? base::SysUTF8ToNSString(ardiacore::TabSidebar(_contents)) : @"";
+}
+
+- (void)setSidebarProfile:(NSString*)sidebarProfile {
+  if (_contents) {
+    ardiacore::SetTabSidebar(_contents, base::SysNSStringToUTF8(sidebarProfile ?: @""));
+  }
+}
+
+- (NSDictionary<NSString*, id>*)takeRoutedPlacement {
+  std::optional<ardiacore::RoutedPlacement> placement =
+      _contents ? ardiacore::TakeRoutedPlacement(_contents) : std::nullopt;
+  if (!placement) {
+    return nil;
+  }
+  NSString* disposition = placement->disposition == WindowOpenDisposition::NEW_BACKGROUND_TAB ? @"background"
+                          : placement->disposition == WindowOpenDisposition::NEW_WINDOW       ? @"window"
+                          : placement->disposition == WindowOpenDisposition::NEW_POPUP        ? @"popup"
+                                                                                              : @"foreground";
+  return @{
+    @"profileId" : base::SysUTF8ToNSString(placement->sidebar),
+    @"engine" : base::SysUTF8ToNSString(placement->engine),
+    @"action" : placement->little ? @"little" : @"tab",
+    @"disposition" : disposition,
+    @"url" : base::SysUTF8ToNSString(placement->url),
+  };
 }
 
 + (NSString*)originForURL:(NSString*)url {
@@ -2435,11 +2512,13 @@ TabSharingInfoBarDelegate* TabSharingDelegateFor(content::WebContents* contents,
 
 - (void)stop {
   if (_contents) {
+    ardiacore::CancelRoutedOpens(_contents);
     _contents->Stop();
   }
 }
 
 - (void)closeNow {
+  ardiacore::CancelRoutedOpens(_contents);
   if (ardiacore::IsNotifyingTabStrip() || ardiacore::IsNotifyingNavigation()) {
     dispatch_async(dispatch_get_main_queue(), ^{
       [self closeNow];
@@ -2469,6 +2548,7 @@ TabSharingInfoBarDelegate* TabSharingDelegateFor(content::WebContents* contents,
 }
 
 - (void)close {
+  ardiacore::CancelRoutedOpens(_contents);
   if (ardiacore::IsNotifyingTabStrip() || ardiacore::IsNotifyingNavigation()) {
     dispatch_async(dispatch_get_main_queue(), ^{
       [self close];

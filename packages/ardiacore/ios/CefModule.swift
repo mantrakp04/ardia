@@ -45,7 +45,11 @@ public class CefModule: Module {
     Function("revealTab") { (key: String) in ArdiaCoreWebView.revealTab(key) }
     Function("dropTabReveals") { (key: String) in ArdiaCoreWebView.dropTabReveals(key) }
     Function("revealOffered") { (adoptId: String, key: String) in ArdiaCoreWebView.revealOffered(adoptId, over: key) }
-    AsyncFunction("routeLinkTabs") { (urls: [String]) -> [String: Any] in ArdiaCoreWebView.routeLinkTabs(urls) }.runOnQueue(.main)
+    AsyncFunction("setLinkRouting") { (config: [String: Any]) in ArdiaCoreWebView.setLinkRouting(config) }.runOnQueue(.main)
+    AsyncFunction("routeTypedLink") { (url: String, profileId: String) -> [String: Any]? in
+      ArdiaCoreWebView.routeTypedLink(url, profile: profileId)
+    }.runOnQueue(.main)
+    AsyncFunction("routeExternalLinks") { (urls: [String]) -> [Any] in ArdiaCoreWebView.routeExternalLinks(urls) }.runOnQueue(.main)
     AsyncFunction("tabStripCommand") { (id: Int, command: [String: Any]) in ArdiaCoreTabStrip.command(id, command: command) }
       .runOnQueue(.main)
     AsyncFunction("tabStrips") { ArdiaCoreTabStrip.allStrips }.runOnQueue(.main)
@@ -218,12 +222,14 @@ public class CefModule: Module {
     View(CefWebView.self) {
       Events(CefWebView.events)
 
-      Prop("url") { (view: CefWebView, url: String?) in view.browser.initialURL = url }
-      Prop("profile") { (view: CefWebView, profile: String?) in view.browser.profile = profile ?? "" }
-      Prop("adoptId") { (view: CefWebView, id: String?) in view.browser.adoptId = id }
-      Prop("transferKey") { (view: CefWebView, key: String?) in view.browser.transferKey = key }
-      Prop("standalone") { (view: CefWebView, standalone: Bool?) in view.browser.standalone = standalone ?? false }
-      Prop("extensionHost") { (view: CefWebView, kind: String?) in view.browser.extensionHost = kind }
+      Prop("url") { (view: CefWebView, url: String?) in view.stageOwnership("url", url) }
+      Prop("profile") { (view: CefWebView, profile: String?) in view.stageOwnership("profile", profile ?? "") }
+      Prop("sidebarProfile") { (view: CefWebView, profile: String?) in view.stageOwnership("sidebarProfile", profile ?? "") }
+      Prop("adoptId") { (view: CefWebView, id: String?) in view.stageOwnership("adoptId", id) }
+      Prop("requiresAdoption") { (view: CefWebView, required: Bool?) in view.stageOwnership("requiresAdoption", required ?? false) }
+      Prop("transferKey") { (view: CefWebView, key: String?) in view.stageOwnership("transferKey", key) }
+      Prop("standalone") { (view: CefWebView, standalone: Bool?) in view.stageOwnership("standalone", standalone ?? false) }
+      Prop("extensionHost") { (view: CefWebView, kind: String?) in view.stageOwnership("extensionHost", kind) }
       Prop("visible") { (view: CefWebView, visible: Bool?) in view.browser.visible = visible ?? true }
       Prop("warm") { (view: CefWebView, warm: Bool?) in view.browser.warm = warm ?? false }
       Prop("neighbour") { (view: CefWebView, neighbour: Bool?) in view.browser.neighbour = neighbour ?? false }
@@ -403,6 +409,7 @@ final class CefWebView: ExpoView, ArdiaCoreWebViewDelegate {
   let onPreferredSize = EventDispatcher()
 
   private var propsReady = false
+  private var ownership: [String: Any] = [:]
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
@@ -415,7 +422,17 @@ final class CefWebView: ExpoView, ArdiaCoreWebViewDelegate {
     browser.frame = bounds
   }
 
+  func stageOwnership(_ key: String, _ value: Any?) {
+    if ownership.isEmpty { browser.beginOwnershipChange() }
+    ownership[key] = value ?? NSNull()
+  }
+
   func propsDidUpdate() {
+    if !ownership.isEmpty {
+      let changes = ownership
+      ownership = [:]
+      browser.commitOwnership(changes)
+    }
     guard !propsReady else { return }
     propsReady = true
     browser.frame = bounds

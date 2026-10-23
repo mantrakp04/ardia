@@ -17,6 +17,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy, nullable) NSString *transferKey;
 @property (nonatomic) BOOL standalone;
 @property (nonatomic, copy, nullable) NSString *extensionHost;
+@property (nonatomic, copy, readonly, nullable) NSString *sidebarProfile;
+@property (nonatomic, readonly) BOOL requiresAdoption;
 @property (nonatomic, strong, nullable) NSColor *pageBackgroundColor;
 @property (nonatomic, copy, nullable) NSString *pageColor;
 @property (nonatomic, copy, nullable) NSString *shownURL;
@@ -30,13 +32,15 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (void)prepareTransfer:(NSString *)transferKey;
 + (void)releaseTransfer:(NSString *)transferKey;
-+ (void)startLaunchTab:(NSString *)transferKey url:(NSString *)url profile:(NSString *)profile;
++ (void)startLaunchTab:(NSString *)transferKey url:(NSString *)url profile:(NSString *)profile sidebar:(NSString *)sidebar;
 + (void)claimLaunchTab:(NSString *)transferKey url:(NSString *)url profile:(NSString *)profile;
 + (void)revealTab:(NSString *)transferKey;
 + (void)dropTabReveals:(NSString *)transferKey;
 + (void)revealOffered:(NSString *)adoptId over:(NSString *)transferKey;
-+ (void)startLinkTabs:(NSArray<NSString *> *)urls profile:(NSString *)profile;
-+ (NSDictionary<NSString *, id> *)routeLinkTabs:(NSArray<NSString *> *)urls;
++ (void)startLinkTabs:(NSArray<NSString *> *)urls;
++ (NSArray *)routeExternalLinks:(NSArray<NSString *> *)urls;
++ (void)setLinkRouting:(NSDictionary<NSString *, id> *)config;
++ (nullable NSDictionary<NSString *, id> *)routeTypedLink:(NSString *)url profile:(NSString *)profileId;
 + (void)setSearchEngineName:(NSString *)name;
 + (void)installScrollZoom;
 + (void)installSwitchPrewarm;
@@ -55,6 +59,8 @@ NS_ASSUME_NONNULL_BEGIN
 + (NSString *)devPictureInPictureAction:(NSString *)action NS_SWIFT_NAME(devPictureInPictureAction(_:));
 + (BOOL)devFocusPageOfBrowser:(int)browserId NS_SWIFT_NAME(devFocusPage(browserId:));
 
+- (void)beginOwnershipChange;
+- (void)commitOwnership:(NSDictionary<NSString *, id> *)changes;
 - (void)loadURL:(NSString *)url;
 - (void)loadURL:(NSString *)url userInitiated:(BOOL)userInitiated NS_SWIFT_NAME(loadURL(_:userInitiated:));
 - (void)goBack;

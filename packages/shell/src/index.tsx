@@ -13,6 +13,7 @@ export type BrowserCommand =
   | "newIncognitoWindow"
   | "newLittleArdia"
   | "toggleOpenLinksInLittleArdia"
+  | "openLinkPreferences"
   | "reopenClosedTab"
   | "reopenClosedWindow"
   | "restoreClosed"

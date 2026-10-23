@@ -92,8 +92,19 @@ export const claimLaunchTab = (transferKey: string, url: string, profile: string
 export const revealTab = (transferKey: string) => Cef.revealTab?.(transferKey);
 export const dropTabReveals = (transferKey: string) => Cef.dropTabReveals?.(transferKey);
 export const revealOffered = (adoptId: string, overTransferKey: string) => Cef.revealOffered?.(adoptId, overTransferKey);
-export type LinkRoute = { profile?: string; adoptIds?: (string | null)[]; dismissed?: number[] };
-export const routeLinkTabs = (urls: string[]): Promise<LinkRoute> => Cef.routeLinkTabs?.(urls) ?? Promise.resolve({});
+export type LinkRoutingDestination = { kind: "little" } | { kind: "recent" } | { kind: "profile"; profileId: string };
+export type LinkRoutingConfig = {
+  rules: { match: "contains" | "equals"; text: string; destination: LinkRoutingDestination }[];
+  defaultDestination: LinkRoutingDestination;
+  profiles: Record<string, string>;
+  recent: string;
+};
+export type LinkAction = "tab" | "little";
+export type LinkDecision = { action: "none" } | { action: "same" | LinkAction; profileId: string; engine: string };
+export type ExternalLink = { action: LinkAction; profileId: string; engine: string; adoptId?: string; requiresAdoption?: boolean } | { dismissed: true };
+export const setLinkRouting = (config: LinkRoutingConfig): Promise<void> => Cef.setLinkRouting(config);
+export const routeTypedLink = (url: string, profileId: string): Promise<LinkDecision | null> => Cef.routeTypedLink(url, profileId);
+export const routeExternalLinks = (urls: string[]): Promise<(ExternalLink | null)[]> => Cef.routeExternalLinks(urls);
 export const listComponents = () => Cef.components();
 
 export const beginTracing = () => Cef.beginTracing();

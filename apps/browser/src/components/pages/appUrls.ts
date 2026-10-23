@@ -5,6 +5,7 @@ import { openSettings, type SettingsPane } from "../settings/windows";
 
 const PANES: Record<string, SettingsPane> = {
   general: "general",
+  links: "links",
   profiles: "profiles",
   people: "profiles",
   manageprofile: "profiles",

@@ -89,8 +89,11 @@ NSMutableSet<NSString *> *ClosedLaunch() {
   return keys;
 }
 
+void DropHeldRoutedTabs(ArdiaCoreTab *source);
+
 void CloseTab(ArdiaCoreTab *tab) {
   if (!tab || tab.closed) return;
+  DropHeldRoutedTabs(tab);
   if ([tab respondsToSelector:@selector(closeNow)]) [tab closeNow];
   else [tab close];
 }
@@ -369,10 +372,51 @@ static void AnswerHello(ArdiaCoreTab *tab, NSString *profile, NSDictionary *hell
 @property (nonatomic, copy) NSString *profile;
 @property (nonatomic, readonly) BOOL closedByChrome;
 - (void)replayTo:(ArdiaCoreWebView *)view tab:(ArdiaCoreTab *)tab;
+- (BOOL)holdRoutedTab:(ArdiaCoreTab *)tab placement:(NSDictionary *)placement;
+- (NSArray *)takeHeldRoutedTab;
+- (void)dropRoutedTabs;
 @end
+
+constexpr NSUInteger kMaxHeldRoutedTabs = 8;
+constexpr int64_t kHeldRoutedTabSeconds = 30;
 
 @implementation ArdiaCoreLaunchTabHolder {
   NSMutableArray<NSInvocation *> *_calls;
+  NSMutableArray<NSArray *> *_routed;
+}
+
+- (void)dealloc {
+  [self dropRoutedTabs];
+}
+
+- (BOOL)holdRoutedTab:(ArdiaCoreTab *)tab placement:(NSDictionary *)placement {
+  if (_closedByChrome || _routed.count >= kMaxHeldRoutedTabs) return NO;
+  if (!_routed) _routed = [NSMutableArray array];
+  NSArray *entry = @[ tab, [placement copy] ];
+  [_routed addObject:entry];
+  __weak ArdiaCoreLaunchTabHolder *weakSelf = self;
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, kHeldRoutedTabSeconds * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+    [weakSelf expireHeldRoutedTab:entry];
+  });
+  return YES;
+}
+
+- (void)expireHeldRoutedTab:(NSArray *)entry {
+  if (!_routed || [_routed indexOfObjectIdenticalTo:entry] == NSNotFound) return;
+  [_routed removeObjectIdenticalTo:entry];
+  CloseTab(entry[0]);
+}
+
+- (NSArray *)takeHeldRoutedTab {
+  NSArray *entry = _routed.firstObject;
+  if (entry) [_routed removeObjectAtIndex:0];
+  return entry;
+}
+
+- (void)dropRoutedTabs {
+  NSArray<NSArray *> *routed = _routed;
+  _routed = nil;
+  for (NSArray *held in routed) CloseTab(held[0]);
 }
 
 static BOOL HeldSelector(SEL selector) {
@@ -432,6 +476,7 @@ static BOOL HeldSelector(SEL selector) {
 - (void)tabWillClose:(ArdiaCoreTab *)tab {
   _closedByChrome = YES;
   [ArdiaCoreEarlyWindow dropPage:tab];
+  [self dropRoutedTabs];
 }
 
 - (void)replayTo:(ArdiaCoreWebView *)view tab:(ArdiaCoreTab *)tab {
@@ -445,6 +490,15 @@ static BOOL HeldSelector(SEL selector) {
 }
 
 @end
+
+namespace {
+
+void DropHeldRoutedTabs(ArdiaCoreTab *source) {
+  ArdiaCoreLaunchTabHolder *held = source ? objc_getAssociatedObject(source, &kLaunchHolderKey) : nil;
+  [held dropRoutedTabs];
+}
+
+}
 
 @implementation ArdiaCoreWebView {
   ArdiaCoreTab *_tab;
@@ -505,6 +559,8 @@ static BOOL HeldSelector(SEL selector) {
   BOOL _keepsOutgoingFocus;
   CFTimeInterval _focusActivatedAt;
   __weak NSWindow *_focusActivatedIn;
+  BOOL _ownershipPending;
+  BOOL _ownershipDeferred;
 }
 
 + (void)prepareTransfer:(NSString *)transferKey {
@@ -526,12 +582,11 @@ static BOOL HeldSelector(SEL selector) {
     ArdiaCoreTab *tab = Parked()[key];
     if (!tab) return;
     [Parked() removeObjectForKey:key];
-    if ([tab respondsToSelector:@selector(closeNow)]) [tab closeNow];
-    else [tab close];
+    CloseTab(tab);
   });
 }
 
-static ArdiaCoreTab *StartParkedPage(NSString *url, NSString *profileName) {
+static ArdiaCoreTab *StartParkedPage(NSString *url, NSString *profileName, NSString *sidebar) {
   if (!url.length || !ArdiaCoreHost.isStarted) return nil;
   NSString *scheme = [NSURLComponents componentsWithString:url].scheme.lowercaseString;
   if (![scheme isEqualToString:@"http"] && ![scheme isEqualToString:@"https"]) return nil;
@@ -542,7 +597,7 @@ static ArdiaCoreTab *StartParkedPage(NSString *url, NSString *profileName) {
   ArdiaCoreWindowController *keeper = [ArdiaCoreWindowController strayWindowForProfile:profile];
   if (!keeper) return nil;
   keeper.hostChanges++;
-  ArdiaCoreTab *tab = [keeper.coreWindow openTab:url profile:profile foreground:NO];
+  ArdiaCoreTab *tab = [keeper.coreWindow openTab:url profile:profile foreground:NO sidebar:sidebar ?: @""];
   keeper.hostChanges--;
   if (!tab) {
     [keeper.coreWindow close];
@@ -561,9 +616,9 @@ static NSMutableDictionary<NSNumber *, ArdiaCoreTab *> *LinkTabs() {
   static NSMutableDictionary *tabs = [NSMutableDictionary dictionary];
   return tabs;
 }
-static NSMutableDictionary<NSNumber *, NSString *> *LinkURLs() {
-  static NSMutableDictionary *urls = [NSMutableDictionary dictionary];
-  return urls;
+static NSMutableDictionary<NSNumber *, NSDictionary *> *LinkStarts() {
+  static NSMutableDictionary *starts = [NSMutableDictionary dictionary];
+  return starts;
 }
 static NSMutableArray<NSString *> *DismissedLinks() {
   static NSMutableArray *urls = [NSMutableArray array];
@@ -573,7 +628,6 @@ static NSMutableSet<NSString *> *DismissedLinkMarks() {
   static NSMutableSet *marks = [NSMutableSet set];
   return marks;
 }
-static NSString *gLinkProfile;
 static BOOL gLinkTabsStarted;
 constexpr NSUInteger kMaxLinkTabs = 4;
 constexpr int64_t kLinkTabsBackstopSeconds = 300;
@@ -581,7 +635,6 @@ constexpr int64_t kLinkTabsBackstopSeconds = 300;
 static void CloseLinkTabs() {
   NSArray<ArdiaCoreTab *> *left = LinkTabs().allValues;
   [LinkTabs() removeAllObjects];
-  [LinkURLs() removeAllObjects];
   for (ArdiaCoreTab *tab in left) {
     [ArdiaCoreEarlyWindow dropPage:tab];
     CloseTab(tab);
@@ -596,9 +649,9 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
   });
 }
 
-+ (void)startLaunchTab:(NSString *)transferKey url:(NSString *)url profile:(NSString *)profileName {
++ (void)startLaunchTab:(NSString *)transferKey url:(NSString *)url profile:(NSString *)profileName sidebar:(NSString *)sidebar {
   if (gLaunchTab || gLaunchClaimed || !transferKey.length) return;
-  ArdiaCoreTab *tab = StartParkedPage(url, profileName);
+  ArdiaCoreTab *tab = StartParkedPage(url, profileName, sidebar);
   if (!tab) return;
   profileName = profileName ?: @"";
   gLaunchTab = tab;
@@ -629,16 +682,33 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
   else dispatch_async(dispatch_get_main_queue(), claim);
 }
 
-+ (void)startLinkTabs:(NSArray<NSString *> *)urls profile:(NSString *)profileName {
+static NSDictionary *ExternalLinkDecision(NSString *url) {
+  if (![ArdiaCoreEngine respondsToSelector:@selector(routeLink:origin:profile:)]) return nil;
+  NSDictionary *decision = [ArdiaCoreEngine routeLink:url origin:@"external" profile:@""];
+  NSString *action = decision[@"action"];
+  const BOOL opens = [action isEqualToString:@"tab"] || [action isEqualToString:@"little"];
+  return opens && [decision[@"profileId"] isKindOfClass:NSString.class] && [decision[@"engine"] isKindOfClass:NSString.class] ? decision : nil;
+}
+
++ (void)setLinkRouting:(NSDictionary<NSString *, id> *)config {
+  if ([ArdiaCoreEngine respondsToSelector:@selector(setLinkRouting:live:)]) [ArdiaCoreEngine setLinkRouting:config live:YES];
+}
+
++ (NSDictionary<NSString *, id> *)routeTypedLink:(NSString *)url profile:(NSString *)profileId {
+  if (![ArdiaCoreEngine respondsToSelector:@selector(routeLink:origin:profile:)]) return nil;
+  return [ArdiaCoreEngine routeLink:url origin:@"typed" profile:profileId ?: @""];
+}
+
++ (void)startLinkTabs:(NSArray<NSString *> *)urls {
   if (gLinkTabsStarted) return;
   gLinkTabsStarted = YES;
-  gLinkProfile = [profileName copy] ?: @"";
   NSUInteger index = 0;
   for (NSString *url in urls) {
     if (index >= kMaxLinkTabs) break;
-    if (ArdiaCoreTab *tab = StartParkedPage(url, gLinkProfile)) {
+    NSDictionary *decision = ExternalLinkDecision(url);
+    if (ArdiaCoreTab *tab = decision ? StartParkedPage(url, decision[@"engine"], decision[@"profileId"]) : nil) {
       LinkTabs()[@(index)] = tab;
-      LinkURLs()[@(index)] = [url copy];
+      LinkStarts()[@(index)] = @{@"url" : [url copy], @"decision" : decision};
     }
     index++;
   }
@@ -654,7 +724,7 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
 
 + (NSString *)linkMarkForTab:(ArdiaCoreTab *)tab {
   for (NSNumber *index in LinkTabs())
-    if (LinkTabs()[index] == tab && LinkURLs()[index]) return [NSString stringWithFormat:@"link:%@", index];
+    if (LinkTabs()[index] == tab && LinkStarts()[index]) return [NSString stringWithFormat:@"link:%@", index];
   return nil;
 }
 
@@ -662,40 +732,49 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
   for (NSNumber *index in LinkTabs().allKeys) {
     if (LinkTabs()[index] != tab) continue;
     [LinkTabs() removeObjectForKey:index];
-    if (NSString *url = LinkURLs()[index]) [DismissedLinks() addObject:url];
+    if (NSString *url = LinkStarts()[index][@"url"]) [DismissedLinks() addObject:url];
     [DismissedLinkMarks() addObject:[NSString stringWithFormat:@"link:%@", index]];
-    [LinkURLs() removeObjectForKey:index];
+    [LinkStarts() removeObjectForKey:index];
     [ArdiaCoreEarlyWindow dropPage:tab];
     CloseTab(tab);
     return;
   }
 }
 
-+ (NSDictionary<NSString *, id> *)routeLinkTabs:(NSArray<NSString *> *)urls {
-  NSMutableArray *marks = [NSMutableArray array];
++ (BOOL)holdRoutedTab:(ArdiaCoreTab *)tab placement:(NSDictionary *)placement source:(ArdiaCoreTab *)source {
+  ArdiaCoreLaunchTabHolder *held = source && !source.closed ? objc_getAssociatedObject(source, &kLaunchHolderKey) : nil;
+  return [held holdRoutedTab:tab placement:placement];
+}
+
++ (NSDictionary *)linkDecisionForTab:(ArdiaCoreTab *)tab {
+  for (NSNumber *index in LinkTabs())
+    if (LinkTabs()[index] == tab) return LinkStarts()[index][@"decision"];
+  return nil;
+}
+
++ (NSArray *)routeExternalLinks:(NSArray<NSString *> *)urls {
+  NSMutableArray *links = [NSMutableArray array];
   NSMutableSet<NSNumber *> *used = [NSMutableSet set];
-  NSMutableArray<NSNumber *> *dismissed = [NSMutableArray array];
-  BOOL any = NO;
   for (NSString *url in urls) {
-    id mark = NSNull.null;
     if (const NSUInteger at = [DismissedLinks() indexOfObject:url]; at != NSNotFound) {
       [DismissedLinks() removeObjectAtIndex:at];
-      [dismissed addObject:@(marks.count)];
-      [marks addObject:mark];
+      [links addObject:@{@"dismissed" : @YES}];
       continue;
     }
-    for (NSNumber *index in [LinkURLs().allKeys sortedArrayUsingSelector:@selector(compare:)]) {
-      if ([used containsObject:index] || ![LinkURLs()[index] isEqualToString:url] || !LinkTabs()[index]) continue;
+    NSDictionary *started = nil;
+    for (NSNumber *index in [LinkStarts().allKeys sortedArrayUsingSelector:@selector(compare:)]) {
+      if ([used containsObject:index] || ![LinkStarts()[index][@"url"] isEqualToString:url]) continue;
       [used addObject:index];
-      mark = [NSString stringWithFormat:@"link:%@", index];
-      any = YES;
+      NSMutableDictionary *link = [LinkStarts()[index][@"decision"] mutableCopy];
+      link[@"adoptId"] = [NSString stringWithFormat:@"link:%@", index];
+      link[@"requiresAdoption"] = @YES;
+      started = link;
       break;
     }
-    [marks addObject:mark];
+    [links addObject:started ?: ExternalLinkDecision(url) ?: NSNull.null];
   }
-  if (!any) return dismissed.count ? @{@"dismissed" : dismissed} : @{};
-  for (NSNumber *index in used) [LinkURLs() removeObjectForKey:index];
-  return @{@"profile" : gLinkProfile ?: @"", @"adoptIds" : marks, @"dismissed" : dismissed};
+  for (NSNumber *index in used) [LinkStarts() removeObjectForKey:index];
+  return links;
 }
 
 - (BOOL)takeLinkTab:(NSString *)adoptId {
@@ -796,6 +875,43 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
   _sightObserver = [NSNotificationCenter.defaultCenter addObserverForName:ArdiaCoreWindowSeenDidChange object:self.window queue:nil
                                                                usingBlock:^(NSNotification *) { [weakSelf userSightChanged]; }];
   [self userSightChanged];
+  if (_ownershipPending) {
+    _ownershipDeferred = YES;
+    return;
+  }
+  if (_tab) [self adoptIntoWindow];
+  else [self ensureTab];
+}
+
+- (void)beginOwnershipChange {
+  _ownershipPending = YES;
+}
+
+- (void)commitOwnership:(NSDictionary<NSString *, id> *)changes {
+  id (^value)(NSString *) = ^id(NSString *key) {
+    id given = changes[key];
+    return given == NSNull.null ? nil : given;
+  };
+  if (changes[@"url"]) _initialURL = [value(@"url") copy];
+  if (changes[@"profile"]) _profile = [value(@"profile") copy] ?: @"";
+  if (changes[@"sidebarProfile"]) _sidebarProfile = [value(@"sidebarProfile") copy] ?: @"";
+  if (changes[@"adoptId"]) _adoptId = [value(@"adoptId") copy];
+  if (changes[@"requiresAdoption"]) _requiresAdoption = [value(@"requiresAdoption") boolValue];
+  if (changes[@"transferKey"]) _transferKey = [value(@"transferKey") copy];
+  if (changes[@"standalone"]) _standalone = [value(@"standalone") boolValue];
+  if (changes[@"extensionHost"]) {
+    _extensionHost = [value(@"extensionHost") copy];
+    if (_extensionHost.length) _standalone = YES;
+  }
+  const BOOL restarted = _creating && changes.count > 0;
+  if (restarted) {
+    _creating = NO;
+    _createGeneration++;
+  }
+  if (_tab && changes[@"sidebarProfile"] && [_tab respondsToSelector:@selector(setSidebarProfile:)]) _tab.sidebarProfile = _sidebarProfile ?: @"";
+  const BOOL resume = _ownershipDeferred || restarted || changes[@"adoptId"] || changes[@"requiresAdoption"];
+  _ownershipPending = _ownershipDeferred = NO;
+  if (!resume || !self.window) return;
   if (_tab) [self adoptIntoWindow];
   else [self ensureTab];
 }
@@ -810,7 +926,27 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
   if (self.window) [self ensureTab];
 }
 
+- (void)failRequiredAdoption {
+  _adoptId = nil;
+  _offerClosed = YES;
+  __weak ArdiaCoreWebView *weakSelf = self;
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [weakSelf emit:@"windowClose" payload:@{}];
+  });
+}
+
+- (BOOL)takesRoutedTab:(ArdiaCoreTab *)tab {
+  if (![self canTake:tab]) return NO;
+  if (!_requiresAdoption) return YES;
+  NSString *seeded = [tab respondsToSelector:@selector(sidebarProfile)] ? tab.sidebarProfile : nil;
+  return seeded.length && [seeded isEqualToString:_sidebarProfile ?: @""];
+}
+
 - (void)ensureTab {
+  if (_ownershipPending) {
+    _ownershipDeferred = YES;
+    return;
+  }
   if (_tab || _creating || _offerClosed || !self.window || !ArdiaCoreHost.isStarted || !self.controller) return;
   if ([self takeTransferredTab]) return;
   if ([_adoptId hasPrefix:@"link:"]) {
@@ -838,12 +974,13 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
       });
       return;
     }
-    if (offered && ![self canTake:offered]) {
+    if (offered && ![self takesRoutedTab:offered]) {
       if (!offered.closed) [offered closeNow];
       offered = nil;
     }
     if (offered && !offered.closed) return [self attach:offered];
   }
+  if (_requiresAdoption) return [self failRequiredAdoption];
   NSString *kind = nil, *key = nil;
   NSRange colon = _adoptId ? [_adoptId rangeOfString:@":"] : NSMakeRange(NSNotFound, 0);
   if (colon.location != NSNotFound) {
@@ -859,6 +996,7 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
     if (!view || view->_createGeneration != generation) return;
     view->_creating = NO;
     ArdiaCoreWindowController *controller = view.controller;
+    if (view->_requiresAdoption) return [view failRequiredAdoption];
     if (!profile || view->_tab || !controller) return;
     const BOOL standalone = view->_standalone;
     NSString *url = view->_pendingURL ?: view->_initialURL;
@@ -873,7 +1011,7 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
     if (standalone) controller = [ArdiaCoreWindowController standaloneWindowForProfile:profile] ?: controller;
     if (!standalone && [kind isEqualToString:@"clone"] && [view cloneTab:key profile:profile]) return;
     if (!standalone && [kind isEqualToString:@"restore"] && url.length && !ardiacore_host::IsIncognito(view->_profile) &&
-        [controller.coreWindow respondsToSelector:@selector(restoreTab:profile:foreground:)]) {
+        [controller.coreWindow respondsToSelector:@selector(restoreTab:profile:foreground:sidebar:)]) {
       view->_creating = YES;
       [ArdiaCoreServices call:@"ac_tab_restore_take" profile:view->_profile args:@{@"key" : key}
                 completion:^(NSDictionary *result) {
@@ -885,8 +1023,9 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
                   NSString *state = [result[@"state"] isKindOfClass:NSString.class] ? result[@"state"] : nil;
                   ArdiaCoreTab *tab = nil;
                   now.hostChanges++;
-                  if (state.length) tab = [now.coreWindow restoreTab:state profile:profile foreground:NO];
-                  if (!tab) tab = [now.coreWindow openTab:url profile:profile foreground:NO];
+                  NSString *sidebar = later->_sidebarProfile ?: @"";
+                  if (state.length) tab = [now.coreWindow restoreTab:state profile:profile foreground:NO sidebar:sidebar];
+                  if (!tab) tab = [now.coreWindow openTab:url profile:profile foreground:NO sidebar:sidebar];
                   now.hostChanges--;
                   if (tab) [later attach:tab];
                 }];
@@ -895,7 +1034,8 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
     if (url.length && [view skipsNavigationDownload:url userInitiated:view->_pendingUserInitiated]) url = nil;
     if (url.length) ACFieldMarkNow(view->_transferKey, @"request");
     controller.hostChanges++;
-    ArdiaCoreTab *tab = [controller.coreWindow openTab:url.length ? url : @"" profile:profile foreground:NO];
+    ArdiaCoreTab *tab = [controller.coreWindow openTab:url.length ? url : @"" profile:profile foreground:NO
+                                               sidebar:view->_sidebarProfile ?: @""];
     controller.hostChanges--;
     if (url.length && tab.loading) ACFieldMarkNow(view->_transferKey, @"start");
     if (tab) [view attach:tab];
@@ -965,12 +1105,12 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
     }
     return YES;
   }
-  if (tab && ![self canTake:tab]) return NO;
+  if (tab && ![self takesRoutedTab:tab]) return NO;
   if (tab) [Parked() removeObjectForKey:_transferKey];
   if (!tab) {
     for (ArdiaCoreWebView *other in LiveViews().allObjects) {
       if (other == self || ![other.transferKey isEqualToString:_transferKey] || !other->_tab) continue;
-      if (![self canTake:other->_tab]) return NO;
+      if (![self takesRoutedTab:other->_tab]) return NO;
       tab = other->_tab;
       [other detach];
       break;
@@ -989,11 +1129,24 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
     _requestedURL = launch.url;
     [launch replayTo:self tab:tab];
     [self focusAfterLoad];
+    while (NSArray *held = [launch takeHeldRoutedTab]) {
+      ArdiaCoreTab *destination = held[0];
+      if (_tab != tab || tab.closed) {
+        CloseTab(destination);
+        [launch dropRoutedTabs];
+        break;
+      }
+      if (!destination.closed) ardiacore_host::AnnounceRoutedTab(destination, self, held[1]);
+    }
   }
   return YES;
 }
 
 - (void)adoptIntoWindow {
+  if (_ownershipPending) {
+    _ownershipDeferred = YES;
+    return;
+  }
   if (_standalone) return;
   ArdiaCoreWindowController *controller = self.controller;
   if (!controller || ![controller.coreWindow respondsToSelector:@selector(adoptTab:)]) return;
@@ -1013,6 +1166,8 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
   if (TraceVisibility()) NSLog(@"[ardiacore-vis] %@ attach tab=%d visible=%d", _transferKey, (int)tab.tabId, _visible);
   [LiveViews() addObject:self];
   _tab = tab;
+  _requiresAdoption = NO;
+  if ([tab respondsToSelector:@selector(setSidebarProfile:)]) tab.sidebarProfile = _sidebarProfile ?: @"";
   tab.delegate = self;
   [ArdiaCoreTabs setView:self forTab:tab];
   [self bindRestoreKey];
@@ -1151,6 +1306,19 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
 
 - (void)openedTab:(ArdiaCoreTab *)tab adoptId:(NSString *)adoptId disposition:(NSString *)disposition {
   [self announceOpenedTab:tab adoptId:adoptId disposition:disposition tries:0];
+}
+
+- (void)openedRoutedTab:(ArdiaCoreTab *)tab placement:(NSDictionary<NSString *, id> *)placement {
+  if (tab.closed) return;
+  NSString *url = [placement[@"url"] isKindOfClass:NSString.class] ? placement[@"url"] : tab.url;
+  [self emit:@"openWindow"
+      payload:@{
+        @"url" : url ?: @"",
+        @"disposition" : placement[@"disposition"] ?: @"foreground",
+        @"adoptId" : [ArdiaCoreTabs offerTab:tab],
+        @"requiresAdoption" : @YES,
+        @"placement" : @{@"profileId" : placement[@"profileId"] ?: @"", @"engine" : placement[@"engine"] ?: @"", @"action" : placement[@"action"] ?: @"tab"},
+      }];
 }
 
 - (void)announceOpenedTab:(ArdiaCoreTab *)tab adoptId:(NSString *)adoptId disposition:(NSString *)disposition tries:(int)tries {

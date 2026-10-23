@@ -1,0 +1,31 @@
+diff --git a/content/renderer/render_frame_impl.cc b/content/renderer/render_frame_impl.cc
+--- a/content/renderer/render_frame_impl.cc
++++ b/content/renderer/render_frame_impl.cc
+@@ -256,6 +256,12 @@
+ #include "v8/include/v8-local-handle.h"
+ #include "v8/include/v8-microtask-queue.h"
+ 
++#include "ardia/core/ac_content_hooks.h"  // nogncheck
++
++bool (*g_ardia_open_navigation_in_browser)(
++    content::RenderFrame* frame,
++    const blink::WebNavigationInfo& info) = nullptr;
++
+ #if BUILDFLAG(IS_ANDROID)
+ #include <cpu-features.h>
+ 
+@@ -5749,9 +5755,11 @@ void RenderFrameImpl::BeginNavigation(
+ 
+   // If the browser is interested, then give it a chance to look at the request.
+   if (IsTopLevelNavigation(frame_) &&
+-      GetWebView()
+-          ->GetRendererPreferences()
+-          .browser_handles_all_top_level_requests) {
++      (GetWebView()
++           ->GetRendererPreferences()
++           .browser_handles_all_top_level_requests ||
++       (g_ardia_open_navigation_in_browser &&
++        g_ardia_open_navigation_in_browser(this, *info)))) {
+     OpenURL(std::move(info));
+     return;  // Suppress the load here.
+   }
