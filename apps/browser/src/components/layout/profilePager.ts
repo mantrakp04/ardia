@@ -4,6 +4,7 @@ import { Animated, unstable_batchedUpdates } from "react-native";
 import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import { useBrowser } from "../../store/browser";
+import { renameProfileInSettings } from "../settings/windows";
 
 export type PagerPage = { id: string; slot: number; resting?: boolean };
 
@@ -21,7 +22,7 @@ const WHEEL_COOLDOWN_MS = 250;
 
 class ProfilePager {
   readonly pos: Animated.Value;
-  readonly state = create<{ pages: PagerPage[] | null; ack: number }>(() => ({ pages: null, ack: 0 }));
+  readonly state = create<{ pages: PagerPage[] | null; ack: number; fromLast: boolean }>(() => ({ pages: null, ack: 0, fromLast: false }));
   private surfaces = 0;
   private switching = false;
   private unsubscribe: () => void;
@@ -29,6 +30,7 @@ class ProfilePager {
   private wheelState = { sum: 0, last: 0, trigger: 0 };
   private external = 0;
   private externalGeneration = 0;
+  private created: string | null = null;
 
   constructor(readonly windowId: string) {
     this.pos = new Animated.Value(Math.max(0, this.index()), { useNativeDriver: true });
@@ -36,6 +38,7 @@ class ProfilePager {
     this.unsubscribe = useBrowser.subscribe((s, prev) => {
       const w = s.windows[windowId];
       if (!w) return this.dispose();
+      if (this.created && w.profileId !== this.created) this.created = null;
       const was = prev.windows[windowId];
       if (w.profileId !== was?.profileId || w.incognito !== was?.incognito || s.profileOrder !== prev.profileOrder) {
         this.state.setState({ pages: this.warmPages() });
@@ -50,9 +53,17 @@ class ProfilePager {
   }
 
   readonly onNativeState = (event: PagerStateEvent) => {
+    if (event.phase !== "selected") this.state.setState({ fromLast: event.phase === "began" && this.onLastProfile() });
     if (this.external) return;
     this.commitNative(pagerState(this.windowId) ?? event, event);
+    if (event.phase === "settled") this.editCreatedProfile();
   };
+
+  private editCreatedProfile() {
+    const id = this.created;
+    this.created = null;
+    if (id) renameProfileInSettings(id);
+  }
 
   private selectExternal(profileId: string, order: string[]) {
     const index = order.indexOf(profileId);
@@ -73,17 +84,25 @@ class ProfilePager {
     const s = useBrowser.getState();
     const w = s.windows[this.windowId];
     const id = snapshot.profileId !== undefined ? snapshot.profileId : s.profileOrder[snapshot.selected];
+    const newPage = snapshot.profileId === null && snapshot.selected === s.profileOrder.length;
     unstable_batchedUpdates(() => {
-      if (w && !w.incognito && id && s.profiles[id] && id !== w.profileId) {
+      if (w && !w.incognito && (newPage || (id && s.profiles[id] && id !== w.profileId))) {
         this.switching = true;
         try {
-          s.switchProfile(this.windowId, id);
+          const target = newPage ? s.createProfile({ name: "", shareWith: w.profileId }) : id!;
+          if (newPage) this.created = target;
+          s.switchProfile(this.windowId, target);
         } finally {
           this.switching = false;
         }
       }
       this.state.setState({ ack: snapshot.sequence });
     });
+  }
+
+  private onLastProfile() {
+    const i = this.index();
+    return i >= 0 && i === useBrowser.getState().profileOrder.length - 1;
   }
 
   private index() {

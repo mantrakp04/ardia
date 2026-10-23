@@ -27,6 +27,7 @@ import { sidebarEntries } from "./sidebar/entries";
 import { GroupBlock } from "./sidebar/GroupBlock";
 import { dismissHover, dismissHoverIn } from "./sidebar/hover";
 import { LiveFolders } from "./sidebar/LiveFolderBlock";
+import { NewProfilePage } from "./sidebar/NewProfilePage";
 import { capture, GhostSlot, ListMotionContext, newCapture, useListMotion } from "./sidebar/listMotion";
 import { openOverflowMenu, openSidebarMenu } from "./sidebar/menus";
 import { PinFieldZone, PinnedGrid, PinSlotZone } from "./sidebar/PinnedGrid";
@@ -123,6 +124,7 @@ export function Sidebar({ width }: { width: number }) {
                 }}
               />
             ))}
+            {paging ? <NewProfilePage slot={pages.length} width={width} /> : null}
           </View>
 
           {playerTab ? (

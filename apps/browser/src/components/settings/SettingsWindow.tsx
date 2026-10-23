@@ -72,6 +72,7 @@ export function SettingsWindow() {
   const title = shown ? (shown.pane === "profiles" && profileName ? profileName : PANES.find((p) => p.id === shown.pane)!.title) : "";
   const sheet = useSettingsSheet((s) => s.sheet);
   useEffect(() => trackSettingsSection(nav.pane), [nav.pane]);
+  useEffect(() => () => useSettingsNav.setState({ focusNameOf: null }), []);
   const scroller = useRef<ScrollView>(null);
   const key = shown ? shownKey(shown) : "";
   useLayoutEffect(() => scroller.current?.scrollTo({ y: 0, animated: false }), [key]);

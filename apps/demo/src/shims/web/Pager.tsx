@@ -15,16 +15,17 @@ export const pagerState = (key: string): PagerSnapshot | null => Pager.existing(
 export const devPagerState = async (key: string) => Pager.existing(key)?.debug() ?? null;
 
 export const SwipeArea = forwardRef<SwipeAreaHandle, SwipeAreaProps>(function SwipeArea(
-  { onSwipe, onPagerState, onPagerPosition, nativePager, canSwipeBack, canSwipeForward, tracksUnavailableDirections, allowsVerticalMotion, isPager, ...props },
+  { onSwipe, onPagerState, onPagerPosition, nativePager, canSwipeBack, canSwipeForward, tracksUnavailableDirections, allowsVerticalMotion, isPager, offersNewPage, ...props },
   ref,
 ) {
   const node = useRef<HTMLElement | null>(null);
-  const latest = useRef({ onSwipe, onPagerState, onPagerPosition, nativePager, canSwipeBack, canSwipeForward, tracksUnavailableDirections, allowsVerticalMotion, isPager });
-  latest.current = { onSwipe, onPagerState, onPagerPosition, nativePager, canSwipeBack, canSwipeForward, tracksUnavailableDirections, allowsVerticalMotion, isPager };
+  const latest = useRef({ onSwipe, onPagerState, onPagerPosition, nativePager, canSwipeBack, canSwipeForward, tracksUnavailableDirections, allowsVerticalMotion, isPager, offersNewPage });
+  latest.current = { onSwipe, onPagerState, onPagerPosition, nativePager, canSwipeBack, canSwipeForward, tracksUnavailableDirections, allowsVerticalMotion, isPager, offersNewPage };
   const pager = useRef<Pager | null>(null);
 
   const area = useRef<PagerArea>({
     pageWidth: () => latest.current.nativePager?.width || node.current?.getBoundingClientRect().width || 0,
+    offersNewPage: () => !!latest.current.offersNewPage,
     attached: () => !!node.current?.isConnected,
     onPosition: (position) => (latest.current.onPagerPosition as ((e: unknown) => void) | undefined)?.({ nativeEvent: { position } }),
     onState: (event) => latest.current.onPagerState?.(event),
@@ -37,6 +38,7 @@ export const SwipeArea = forwardRef<SwipeAreaHandle, SwipeAreaProps>(function Sw
     tracksUnavailableDirections: () => !!latest.current.tracksUnavailableDirections,
     allowsVerticalMotion: () => !!latest.current.allowsVerticalMotion,
     isPager: () => !!latest.current.isPager,
+    offersNewPage: () => !!latest.current.offersNewPage,
     pager: () => (pager.current ? { pager: pager.current, area } : null),
     onSwipe: (event) => latest.current.onSwipe?.(event),
   }).current;

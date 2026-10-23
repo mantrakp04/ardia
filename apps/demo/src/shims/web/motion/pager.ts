@@ -4,6 +4,7 @@ const TRACKING_SCALE = 0.5;
 const RUBBER_DIMENSION = 255;
 const RUBBER_COEFFICIENT = 0.15;
 const FLICK_VELOCITY = 5;
+const NEW_PAGE_REVEAL = 0.5;
 const OMEGA = (2 * Math.PI) / 0.25;
 const REST_DISPLACEMENT = 0.003;
 const REST_SPEED = 0.1;
@@ -16,12 +17,13 @@ export type PagerInput = "prepare" | "abandon" | "began" | "changed" | "ended" |
 
 export type PagerArea = {
   pageWidth: () => number;
+  offersNewPage: () => boolean;
   attached: () => boolean;
   onPosition: (position: number) => void;
   onState: (event: PagerStateEvent) => void;
 };
 
-type Drag = { start: number; lo: number; hi: number; home: number; detent: number; area: PagerArea | null };
+type Drag = { start: number; lo: number; hi: number; home: number; detent: number; last: number; area: PagerArea | null };
 type Spring = { from: number; target: number; velocity: number; start: number };
 
 const now = () => performance.now() / 1000;
@@ -46,7 +48,7 @@ export class Pager {
   private selectionSequence = 0;
   private propSelected = 0;
   private propAck = 0;
-  private drag: Drag = { start: 0, lo: 0, hi: 0, home: 0, detent: 0, area: null };
+  private drag: Drag = { start: 0, lo: 0, hi: 0, home: 0, detent: 0, last: 0, area: null };
   private history: { time: number; position: number }[] = [];
   private spring: Spring | null = null;
   private frameId = 0;
@@ -92,6 +94,11 @@ export class Pager {
       return;
     }
     if (count !== this.count || (newOrder !== null && newOrder !== this.order)) {
+      if (this.selected === this.count && this.propSelected === this.selected) {
+        this.count = count;
+        this.setOrder(newOrder);
+        return;
+      }
       let index = this.propSelected;
       const old = this.orderIds;
       this.count = count;
@@ -158,9 +165,10 @@ export class Pager {
     this.stopSpring();
     const home = this.selected;
     const x = this.position;
+    const last = area.offersNewPage() ? this.count : this.count - 1;
     const lo = Math.max(0, Math.min(home - 1, Math.floor(x)));
-    const hi = Math.min(this.count - 1, Math.max(home + 1, Math.ceil(x)));
-    this.drag = { start: x, lo, hi, home, detent: clamp(Math.round(x), lo, hi), area };
+    const hi = Math.min(last, Math.max(home + 1, Math.ceil(x)));
+    this.drag = { start: x, lo, hi, home, detent: clamp(Math.round(x), lo, hi), last, area };
     this.history = [];
     this.velocity = 0;
     this.phase = "tracking";
@@ -202,7 +210,8 @@ export class Pager {
     if (!cancelled) {
       const flick = Math.abs(v * width) >= FLICK_VELOCITY;
       target = !flick ? Math.round(this.position) : v > 0 ? Math.floor(this.position) + 1 : Math.ceil(this.position) - 1;
-      target = Math.max(0, home - 1, Math.min(this.count - 1, home + 1, target));
+      target = Math.max(0, home - 1, Math.min(this.drag.last, home + 1, target));
+      if (target === this.count && this.position - (this.count - 1) < NEW_PAGE_REVEAL) target = home;
     }
     this.settle(target, this.towards(target, v));
   }
@@ -226,7 +235,9 @@ export class Pager {
     if (order === undefined || order === this.order) return;
     const ids = order.split("\n");
     if (!ids.length) return;
-    const current = this.orderIds && this.selected < this.orderIds.length ? this.orderIds[this.selected] : undefined;
+    const current =
+      (this.orderIds && this.selected < this.orderIds.length ? this.orderIds[this.selected] : undefined) ??
+      (this.selected === this.count && this.selected < ids.length ? ids[this.selected] : undefined);
     const id = current !== undefined && ids.includes(current) ? current : ids[clamp(this.propSelected, 0, ids.length - 1)]!;
     this.select(id, order);
   }

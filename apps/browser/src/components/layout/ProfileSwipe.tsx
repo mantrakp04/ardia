@@ -6,6 +6,8 @@ import { useShallow } from "zustand/react/shallow";
 import { profileTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
 import { useWindowId } from "../../store/hooks";
+import { tabLayoutOf } from "../../store/model";
+import { unusedProfileColor } from "../../store/profiles";
 import { pagerFor, usePagerNativeConfig, usePagerPages, usePagerSurface } from "./profilePager";
 
 
@@ -51,6 +53,7 @@ export function ProfileSwipeArea({ surface, style, pageWidth }: { surface: "side
   }, [windowId, surface]);
 
   if (!multiple && !nativePager) return null;
+  const offersNewPage = surface === "sidebar" && !!nativePager;
   return (
     <SwipeArea
       ref={area}
@@ -59,6 +62,7 @@ export function ProfileSwipeArea({ surface, style, pageWidth }: { surface: "side
       canSwipeForward={next}
       tracksUnavailableDirections={multiple}
       isPager={multiple}
+      offersNewPage={offersNewPage}
       onSwipe={onSwipe}
       nativePager={nativePager}
       onPagerPosition={nativePager && onPagerPosition}
@@ -71,14 +75,16 @@ export function ProfileTint() {
   const windowId = useWindowId();
   const { pages, paging, pager } = usePagerPages(windowId);
   const themes = useBrowser(useShallow((s) => pages.map((p) => profileTheme(s.profiles[p.id], s.ui.appDark))));
+  const fromLast = pager.state((s) => s.fromLast);
+  const newPageTheme = useBrowser((s) => (fromLast && tabLayoutOf(s, windowId) === "sidebar" ? profileTheme({ color: unusedProfileColor(s.profiles) }, s.ui.appDark) : null));
   if (!paging) return null;
+  const layers = [...pages.map((page, k) => ({ key: page.id, slot: page.slot, theme: themes[k]! })), ...(newPageTheme ? [{ key: "new-page", slot: pages.length, theme: newPageTheme }] : [])];
   return (
     <>
-      {pages.map((page, k) => {
-        const theme = themes[k]!;
-        const opacity = k === 0 ? 1 : pager.pos.interpolate({ inputRange: [pages[k - 1]!.slot, page.slot], outputRange: [0, 1], extrapolate: "clamp" });
+      {layers.map(({ key, slot, theme }, k) => {
+        const opacity = k === 0 ? 1 : pager.pos.interpolate({ inputRange: [layers[k - 1]!.slot, slot], outputRange: [0, 1], extrapolate: "clamp" });
         return (
-          <Animated.View key={page.id} pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity }]}>
+          <Animated.View key={key} pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity }]}>
             <WindowBackdrop vibrancy {...theme.backdrop} colors={theme.windowTint} grainOpacity={theme.grain} style={StyleSheet.absoluteFill} />
           </Animated.View>
         );
