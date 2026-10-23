@@ -3,8 +3,10 @@ import { focus, openWindow } from "../../lib/actions";
 import { routedLinks, type RoutedLinks } from "../../lib/linkRoutes";
 import { runsJavaScript } from "../../lib/scriptUrls";
 import { useBrowser } from "../../store/browser";
-import { activeTabId } from "../../store/model";
+import { linkRuleProfile } from "../../store/linkRules";
+import { activeTabId, engineProfile } from "../../store/model";
 import { isSmall, lastActiveProfile, mainWindowFor } from "../../store/small";
+import { trackExternalLinksOpened } from "../../telemetry/track";
 
 const store = () => useBrowser.getState();
 
@@ -38,10 +40,22 @@ function openRoutedUrls(urls: string[], route: LinkRoute) {
 }
 
 function openUrlsFromApps(urls: string[], routed: RoutedLinks) {
+  const s = store();
   const [url] = urls;
-  const profileId = routed.profileId ?? lastActiveProfile(store());
-  if (store().settings.openLinksInLittleArdia && urls.length === 1 && url && opensInLittleArdia(url)) return void openLittleArdia(url, profileId, routed.adoptIds[0]);
-  openLinksInMainWindow(urls, profileId, routed.adoptIds);
+  const fallback = routed.profileId ?? lastActiveProfile(s);
+  const ruled = urls.map((link) => linkRuleProfile(s, link));
+  const profileIds = ruled.map((profileId) => profileId ?? fallback);
+  const adoptIds = routed.adoptIds.map((adoptId, i) => (engineProfile(profileIds[i]!) === engineProfile(fallback) ? adoptId : undefined));
+  trackExternalLinksOpened(urls.length, ruled.some((profileId) => profileId !== null));
+  if (s.settings.openLinksInLittleArdia && urls.length === 1 && url && opensInLittleArdia(url)) return void openLittleArdia(url, profileIds[0], adoptIds[0]);
+  for (const profileId of new Set(profileIds)) {
+    const picked = urls.flatMap((_, i) => (profileIds[i] === profileId ? [i] : []));
+    openLinksInMainWindow(
+      picked.map((i) => urls[i]!),
+      profileId,
+      picked.map((i) => adoptIds[i]),
+    );
+  }
 }
 
 function openLinksInMainWindow(urls: string[], profileId: string, adoptIds: (string | undefined)[]) {

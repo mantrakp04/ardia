@@ -157,13 +157,48 @@ static NSDictionary *SavedSession(NSString *dir) {
   return [session isKindOfClass:NSDictionary.class] ? session : nil;
 }
 
+static NSString *LinkRuleProfile(NSURL *link, NSDictionary *session) {
+  NSArray *rules = [session[@"linkRules"] isKindOfClass:NSArray.class] ? session[@"linkRules"] : nil;
+  NSString *scheme = link.scheme.lowercaseString;
+  if (!rules.count || !([scheme isEqualToString:@"http"] || [scheme isEqualToString:@"https"])) return nil;
+  NSURLComponents *parts = [NSURLComponents componentsWithURL:link resolvingAgainstBaseURL:NO];
+  NSString *host = parts.percentEncodedHost.lowercaseString ?: @"";
+  if ([host hasSuffix:@"."]) host = [host substringToIndex:host.length - 1];
+  NSString *path = parts.percentEncodedPath.lowercaseString ?: @"";
+  for (NSDictionary *rule in rules) {
+    if (![rule isKindOfClass:NSDictionary.class]) continue;
+    NSString *ruleHost = rule[@"host"], *rulePath = rule[@"path"], *profile = rule[@"profile"];
+    if (![ruleHost isKindOfClass:NSString.class] || !ruleHost.length || ![rulePath isKindOfClass:NSString.class] ||
+        ![profile isKindOfClass:NSString.class])
+      continue;
+    if (![host isEqualToString:ruleHost] && ![host hasSuffix:[@"." stringByAppendingString:ruleHost]]) continue;
+    if (rulePath.length && ![path isEqualToString:rulePath] && ![path hasPrefix:[rulePath stringByAppendingString:@"/"]]) continue;
+    return profile;
+  }
+  return nil;
+}
+
+static NSString *SavedLinkProfile(NSDictionary *session) {
+  return [session[@"linkProfile"] isKindOfClass:NSString.class] ? session[@"linkProfile"] : nil;
+}
+
+static NSString *LinkProfileFor(NSArray<NSURL *> *links, NSDictionary *session) {
+  NSString *chosen = nil;
+  for (NSURL *link in links) {
+    NSString *profile = LinkRuleProfile(link, session) ?: SavedLinkProfile(session);
+    if (!profile || (chosen && ![chosen isEqualToString:profile])) return nil;
+    chosen = profile;
+  }
+  return chosen ?: SavedLinkProfile(session);
+}
+
 static void ParkLaunchLinks(NSArray<NSURL *> *links, NSString *dir, NSDictionary *session) {
-  NSString *linkProfile = [session[@"linkProfile"] isKindOfClass:NSString.class] ? session[@"linkProfile"] : nil;
-  if (!links.count || !linkProfile || LaunchTabSwitchedOff(dir)) return;
-  NSMutableArray<NSString *> *urls = [NSMutableArray array];
+  NSMutableArray<NSURL *> *webLinks = [NSMutableArray array];
   for (NSURL *link in links)
-    if (!link.isFileURL && link.absoluteString.length) [urls addObject:link.absoluteString];
-  [ArdiaCoreWebView startLinkTabs:urls profile:linkProfile];
+    if (!link.isFileURL && link.absoluteString.length) [webLinks addObject:link];
+  NSString *linkProfile = LinkProfileFor(webLinks, session);
+  if (!links.count || !linkProfile || LaunchTabSwitchedOff(dir)) return;
+  [ArdiaCoreWebView startLinkTabs:[webLinks valueForKey:@"absoluteString"] profile:linkProfile];
 }
 
 static void LinksArrived(NSArray<NSURL *> *urls) {
@@ -337,7 +372,9 @@ static void TryEarlyLittleWindow() {
   NSDictionary *session = SavedSession(dir);
   NSDictionary *settings = [session[@"settings"] isKindOfClass:NSDictionary.class] ? session[@"settings"] : @{};
   if ([settings[@"openLinksInLittleArdia"] isEqual:@NO]) return;
-  NSString *profile = [session[@"linkProfile"] isKindOfClass:NSString.class] ? session[@"linkProfile"] : nil;
+  NSString *profile = SavedLinkProfile(session);
+  NSString *ruleProfile = LinkRuleProfile(link, session);
+  if (ruleProfile && ![ruleProfile isEqualToString:profile ?: @""]) return;
   NSDictionary *backdrop = [session[@"launchBackdrop"] isKindOfClass:NSDictionary.class] ? session[@"launchBackdrop"] : nil;
   const bool dark = [[NSApp.effectiveAppearance bestMatchFromAppearancesWithNames:@[ NSAppearanceNameDarkAqua, NSAppearanceNameAqua ]]
       isEqualToString:NSAppearanceNameDarkAqua];

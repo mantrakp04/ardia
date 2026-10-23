@@ -15,6 +15,8 @@ import type { BrowserState } from "./browser";
 
 export type SearchEngineId = string;
 
+export type LinkRule = { id: string; pattern: string; profileId: string };
+
 export type BatterySaverWhen = "lowBattery" | "unplugged" | "never";
 
 export type Settings = {
@@ -65,6 +67,7 @@ export type Settings = {
 
   openLinksInLittleArdia: boolean;
   littleArdiaSize: [number, number];
+  linkRules: LinkRule[];
 
   chosen?: string[];
   inferred?: string[];
@@ -114,6 +117,7 @@ export const DEFAULT_SETTINGS: Settings = {
   shortcuts: {},
   openLinksInLittleArdia: true,
   littleArdiaSize: [900, 640],
+  linkRules: [],
 };
 
 const NO_CUSTOM_ENGINES: CustomSearchEngine[] = [];

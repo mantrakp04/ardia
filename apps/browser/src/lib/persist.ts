@@ -3,6 +3,7 @@ import { readDocument, writeDocument } from "@ardia/shell";
 import { useBrowser, type BrowserState, type HydrateData } from "../store/browser";
 import { inPinnedContainer, isIncognitoProfile, newId, privateSession, snapshotTab } from "../store/model";
 import { earlyLaunchTabOn, launchTab, linkProfile, type LaunchTab } from "../store/launchTab";
+import { savedLinkRules, type SavedLinkRule } from "../store/linkRules";
 import { launchBackdrop, type LaunchBackdrop } from "./launchBackdrop";
 import { parkWindowPins } from "../store/parkedPins";
 import type { BrowserWindow, ClosedTab, Tab } from "../store/types";
@@ -59,6 +60,7 @@ const DOCS: Doc[] = [
         launchTab: earlyLaunchTabOn() ? launchTab(s, focusedWindowId) : null,
         launchBackdrop: earlyLaunchTabOn() ? launchBackdrop(s, focusedWindowId) : null,
         linkProfile: earlyLaunchTabOn() ? linkProfile(s) : null,
+        linkRules: earlyLaunchTabOn() ? savedLinkRules(s) : null,
         tabs: Object.values(s.tabs).filter((t) => kept.has(t.windowId)).map(persistedTab),
         groups: Object.values(s.groups).filter((g) => kept.has(g.windowId)),
         splits: Object.values(s.splits).filter((v) => kept.has(v.windowId)),
@@ -119,6 +121,7 @@ type SessionV2 = {
   launchTab?: LaunchTab | null;
   launchBackdrop?: LaunchBackdrop | null;
   linkProfile?: string | null;
+  linkRules?: SavedLinkRule[] | null;
 };
 
 let droppedPrivateDownloads = false;

@@ -22,6 +22,8 @@ function suggestionType(s: SuggestionLike): SuggestionType {
 
 export const trackSuggestionChosen = (s: SuggestionLike) => capture("suggestion_chosen", { type: suggestionType(s) });
 
+export const trackExternalLinksOpened = (links: number, ruleMatched: boolean) => capture("external_links_opened", { links, rule_matched: ruleMatched });
+
 export const trackSettingsSection = (section: string) => capture("settings_section_opened", { section });
 
 const SAMPLE_EVERY = 5;

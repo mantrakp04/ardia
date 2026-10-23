@@ -40,6 +40,16 @@ const ROWS: Record<SettingsPane, Section[]> = {
       },
     },
     {
+      section: "Links from other apps",
+      rows: {
+        linkRules: {
+          title: "Link rules",
+          description: "A link from another app to a site in this list opens in that site's profile. The first match wins.",
+          keywords: ["air traffic control", "route links", "profile rules", "site rules", "external links", "arc"],
+        },
+      },
+    },
+    {
       section: `When quitting ${APP}:`,
       rows: {
         windowsAndTabs: {
@@ -74,7 +84,7 @@ const ROWS: Record<SettingsPane, Section[]> = {
     },
   ],
   profiles: [
-    { section: "New windows open with", rows: { defaultProfile: { title: "Default profile", description: "Used for new windows. Links from other apps open in the profile you used last.", keywords: ["new window"] } } },
+    { section: "New windows open with", rows: { defaultProfile: { title: "Default profile", description: "Used for new windows. Links from other apps open in the profile you used last, unless a link rule in General picks one.", keywords: ["new window"] } } },
     { section: "Profiles", rows: { list: { title: "Profiles", description: "Drag to reorder. ⌃1–⌃9 switch to the first nine.", keywords: ["create profile", "new profile", "delete profile", "reorder", "work", "personal"] } } },
   ],
   sync: [

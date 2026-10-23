@@ -114,6 +114,7 @@ export const createProfilesSlice: StateCreator<BrowserState, [], [], ProfilesSli
         ...s.settings,
         defaultProfileId: s.settings.defaultProfileId === id ? fallback : s.settings.defaultProfileId,
         neverTranslateSites: without(s.settings.neverTranslateSites ?? {}, [id]),
+        linkRules: (s.settings.linkRules ?? []).filter((rule) => rule.profileId !== id),
       };
       const shared = sharingProfiles(s, id).length > 0;
       const engine = engineIdOf(s.profiles[id]!);
