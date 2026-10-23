@@ -2,9 +2,10 @@ import { cancelDownload, type Download } from "@ardia/ardiacore";
 import { readDocument, writeDocument } from "@ardia/shell";
 import { useBrowser, type BrowserState, type HydrateData } from "../store/browser";
 import { inPinnedContainer, isIncognitoProfile, newId, privateSession, snapshotTab } from "../store/model";
-import { earlyLaunchTabOn, launchTab, linkProfile, type LaunchTab } from "../store/launchTab";
+import { earlyLaunchTabOn, launchTab, type LaunchTab } from "../store/launchTab";
 import { launchBackdrop, type LaunchBackdrop } from "./launchBackdrop";
 import { parkWindowPins } from "../store/parkedPins";
+import { lastActiveProfile } from "../store/small";
 import type { BrowserWindow, ClosedTab, Tab } from "../store/types";
 import { downloadSession } from "../store/ui";
 import { startFavicons } from "./favicons";
@@ -22,7 +23,7 @@ const serialized =
   (s: BrowserState): string =>
     JSON.stringify(serialize(s));
 
-const persistedTab = ({ navigation: _n, adoptId: _a, wakeAdoptId, pageIn, ...tab }: Tab) => {
+const persistedTab = ({ navigation: _n, adoptId: _a, requiresAdoption: _r, wakeAdoptId, pageIn, ...tab }: Tab) => {
   const t = pageIn ? { ...tab, unloaded: true as const } : tab;
   return wakeAdoptId?.startsWith("restore:") && !isIncognitoProfile(t.profileId) ? { ...t, wakeAdoptId } : t;
 };
@@ -58,7 +59,7 @@ const DOCS: Doc[] = [
         lastProfileId: s.ui.lastProfileId,
         launchTab: earlyLaunchTabOn() ? launchTab(s, focusedWindowId) : null,
         launchBackdrop: earlyLaunchTabOn() ? launchBackdrop(s, focusedWindowId) : null,
-        linkProfile: earlyLaunchTabOn() ? linkProfile(s) : null,
+        linkProfileId: lastActiveProfile(s),
         tabs: Object.values(s.tabs).filter((t) => kept.has(t.windowId)).map(persistedTab),
         groups: Object.values(s.groups).filter((g) => kept.has(g.windowId)),
         splits: Object.values(s.splits).filter((v) => kept.has(v.windowId)),
@@ -118,7 +119,7 @@ type SessionV2 = {
   cleanedTabs?: BrowserState["cleanedTabs"];
   launchTab?: LaunchTab | null;
   launchBackdrop?: LaunchBackdrop | null;
-  linkProfile?: string | null;
+  linkProfileId?: string;
 };
 
 let droppedPrivateDownloads = false;

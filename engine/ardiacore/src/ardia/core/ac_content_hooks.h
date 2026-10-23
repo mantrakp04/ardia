@@ -7,17 +7,30 @@
 #include <string>
 #include <string_view>
 
+#include "base/functional/callback.h"
+#include "base/functional/callback_helpers.h"
 #include "extensions/common/extension_id.h"
 
 class GURL;
+
+namespace blink {
+struct WebNavigationInfo;
+namespace mojom {
+class WindowFeatures;
+}
+}
 
 namespace content {
 class BrowserContext;
 class DevToolsAgentHost;
 class DevToolsAgentHostClient;
 class DevToolsSocketFactory;
+class RenderFrame;
 class RenderFrameHost;
 class WebContents;
+namespace mojom {
+class CreateNewWindowParams;
+}
 
 extern bool g_ardia_opacity_from_default_color;
 
@@ -52,6 +65,22 @@ extern bool g_ardia_begin_frame_bridge;
 
 extern void (*g_ardia_initial_main_document_accessed)(
     content::WebContents* contents);
+
+extern bool (*g_ardia_open_navigation_in_browser)(
+    content::RenderFrame* frame,
+    const blink::WebNavigationInfo& info);
+
+using ArdiaConsumeNewWindow = base::OnceCallback<void(
+    blink::mojom::WindowFeatures,
+    base::ScopedClosureRunner)>;
+
+extern ArdiaConsumeNewWindow (*g_ardia_route_new_window)(
+    content::WebContents* source,
+    content::RenderFrameHost* opener,
+    const content::mojom::CreateNewWindowParams& params,
+    bool is_new_browsing_instance,
+    bool has_user_gesture,
+    base::OnceCallback<void(content::WebContents*)>* prepare_created_contents);
 
 extern int (*g_ardia_permission_tab_shown)(content::WebContents*);
 

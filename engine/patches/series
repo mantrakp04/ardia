@@ -17,6 +17,9 @@ chromium chromium-cast-dialog-hook.patch
 chromium chromium-side-panel-hook.patch
 chromium chromium-ntp-promo-without-side-panel.patch
 chromium chromium-initial-document-access.patch
+chromium chromium-open-url-form-download.patch
+chromium chromium-renderer-navigation-forwarding.patch
+chromium chromium-new-window-routing-hook.patch
 chromium chromium-hidden-window-current-window.patch
 chromium chromium-devtools-redock-display.patch
 chromium chromium-devtools-window-title.patch

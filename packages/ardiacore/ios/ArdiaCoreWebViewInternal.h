@@ -5,6 +5,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface ArdiaCoreWebView ()
 - (void)openedTab:(ArdiaCoreTab *)tab adoptId:(NSString *)adoptId disposition:(NSString *)disposition;
+- (void)openedRoutedTab:(ArdiaCoreTab *)tab placement:(NSDictionary<NSString *, id> *)placement;
 - (void)tabRemovedFromWindow:(ArdiaCoreWindow *)window;
 - (void)tabActivatedByChrome:(BOOL)chromes;
 - (void)requestFocusRestore;
@@ -16,6 +17,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property(class, nonatomic, readonly, nullable) ArdiaCoreTab *launchTab;
 @property(class, nonatomic, readonly, nullable) ArdiaCoreTab *firstLinkTab;
 + (nullable NSString *)linkMarkForTab:(ArdiaCoreTab *)tab;
++ (nullable NSDictionary *)linkDecisionForTab:(ArdiaCoreTab *)tab;
++ (BOOL)holdRoutedTab:(ArdiaCoreTab *)tab placement:(NSDictionary *)placement source:(nullable ArdiaCoreTab *)source;
 + (void)dismissLinkTab:(ArdiaCoreTab *)tab;
 @end
 

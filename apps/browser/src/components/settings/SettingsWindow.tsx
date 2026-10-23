@@ -14,6 +14,7 @@ import { AdvancedPane } from "./panes/Advanced";
 import { AppearancePane } from "./panes/Appearance";
 import { CalendarPane } from "./panes/Calendar";
 import { GeneralPane } from "./panes/General";
+import { LinksPane } from "./panes/Links";
 import { LiveFoldersPane } from "./panes/LiveFolders";
 import { ExtensionsPane } from "./panes/Extensions";
 import { PasswordsPane } from "./panes/Passwords";
@@ -174,6 +175,8 @@ function Pane({ pane, profileId }: { pane: SettingsPane; profileId: string | nul
       return <ShortcutsPane />;
     case "liveFolders":
       return <LiveFoldersPane />;
+    case "links":
+      return <LinksPane />;
     case "calendar":
       return <CalendarPane />;
     case "advanced":

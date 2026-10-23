@@ -931,6 +931,34 @@ static NSMapTable<ArdiaCoreTab *, NSNumber *> *FullScreenChanges() {
 
 namespace {
 
+NSDictionary *RoutedPlacement(ArdiaCoreTab *tab) {
+  return [tab respondsToSelector:@selector(takeRoutedPlacement)] ? [tab takeRoutedPlacement] : nil;
+}
+
+void AnnounceInsertedRoutedTab(ArdiaCoreTab *tab, ArdiaCoreWebView *sourceView, ArdiaCoreWebView *fallback, NSDictionary *placement,
+                               ArdiaCoreTab *source) {
+  if (!sourceView && [ArdiaCoreWebView holdRoutedTab:tab placement:placement source:source]) return;
+  ardiacore_host::AnnounceRoutedTab(tab, sourceView ?: fallback, placement);
+}
+
+}
+
+namespace ardiacore_host {
+
+void AnnounceRoutedTab(ArdiaCoreTab *tab, ArdiaCoreWebView *view, NSDictionary *placement) {
+  if (!view) return [tab closeNow];
+  const BOOL popup = [placement[@"disposition"] isEqual:@"popup"] && ![placement[@"action"] isEqual:@"little"];
+  if (popup && [tab respondsToSelector:@selector(popupFeatures)] && ardiacore_host::ShowPopupWindow(tab, view)) return;
+  if (!popup) return [view openedRoutedTab:tab placement:placement];
+  NSMutableDictionary *tabbed = [placement mutableCopy];
+  tabbed[@"disposition"] = @"foreground";
+  [view openedRoutedTab:tab placement:tabbed];
+}
+
+}
+
+namespace {
+
 void AnnounceStrayTab(ArdiaCoreTab *tab, int tries) {
   if (tab.closed) return;
   NSString *url = tab.url;
@@ -1165,6 +1193,8 @@ NSMapTable<ArdiaCoreProfile *, ArdiaCoreWindowController *> *StandaloneWindows()
     return;
   }
   if ([ArdiaCoreTabs viewForTab:tab]) return;
+  if (NSDictionary *placement = RoutedPlacement(tab))
+    return AnnounceInsertedRoutedTab(tab, [self viewFor:opener], [self anyView], placement, opener);
   if (_stray) return HandOffTab(tab);
   ArdiaCoreWebView *openerView = [self viewFor:opener];
   if ([disposition isEqualToString:@"popup"] && [tab respondsToSelector:@selector(popupFeatures)]) {
@@ -1403,6 +1433,8 @@ NSString *HostOf(NSString *url) {
 
 - (void)window:(ArdiaCoreWindow *)window didInsertTab:(ArdiaCoreTab *)tab opener:(ArdiaCoreTab *)opener disposition:(NSString *)disposition {
   if (_adopting || tab == _tab) return;
+  if (NSDictionary *placement = RoutedPlacement(tab))
+    return AnnounceInsertedRoutedTab(tab, _opener, [ArdiaCoreWindowController hostingViewForProfile:tab.profile], placement, opener);
   if ([disposition isEqualToString:@"popup"]) return ardiacore_host::OpenPopupWindow(tab, _opener);
   ArdiaCoreWebView *view = _opener ?: [ArdiaCoreWindowController hostingViewForProfile:tab.profile];
   if (view) [view openedTab:tab adoptId:[ArdiaCoreTabs offerTab:tab] disposition:ardiacore_host::AppDisposition(disposition)];
@@ -1438,15 +1470,18 @@ bool IsReservedBinding(NSString *key, NSString *unshiftedKey, NSEventModifierFla
   return unshiftedKey.length && ReservedMenuItem(NSApp.mainMenu, unshiftedKey.lowercaseString, modifiers);
 }
 
-void OpenPopupWindow(ArdiaCoreTab *tab, ArdiaCoreWebView *opener) {
+bool ShowPopupWindow(ArdiaCoreTab *tab, ArdiaCoreWebView *opener) {
   ArdiaCorePopupWindow *popup = [[ArdiaCorePopupWindow alloc] initWithTab:tab opener:opener];
-  if (!popup) {
-    if (opener) [opener openedTab:tab adoptId:[ArdiaCoreTabs offerTab:tab] disposition:@"foreground"];
-    return;
-  }
+  if (!popup) return false;
   [PopupWindows() addObject:popup];
   __weak ArdiaCorePopupWindow *weakPopup = popup;
   dispatch_async(dispatch_get_main_queue(), ^{ [weakPopup takeTab]; });
+  return true;
+}
+
+void OpenPopupWindow(ArdiaCoreTab *tab, ArdiaCoreWebView *opener) {
+  if (ShowPopupWindow(tab, opener)) return;
+  if (opener) [opener openedTab:tab adoptId:[ArdiaCoreTabs offerTab:tab] disposition:@"foreground"];
 }
 
 NSUInteger PopupWindowCount() {

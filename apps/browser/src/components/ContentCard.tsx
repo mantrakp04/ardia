@@ -420,14 +420,20 @@ const TabPane = memo(function TabPane({
 });
 
 const paneTab = (t: Tab | undefined) => ({ exists: !!t, url: t?.url ?? "", zoom: t?.zoom ?? 1 });
-const webViewTab = (t: Tab | undefined) => ({ navigation: t?.navigation, adoptId: t?.adoptId, profileId: t?.profileId ?? "", shownUrl: t?.url ?? "" });
+const webViewTab = (t: Tab | undefined) => ({
+  navigation: t?.navigation,
+  adoptId: t?.adoptId,
+  requiresAdoption: !!t?.requiresAdoption,
+  profileId: t?.profileId ?? "",
+  shownUrl: t?.url ?? "",
+});
 
 const isBlank = (url: string) => !url || url === "about:blank";
 const pageKey = (url: string) => url.replace(/#.*$/, "");
 const hostOf = (url: string) => url.match(/^[a-z][\w+.-]*:\/\/([^/?#]*)/i)?.[1]?.toLowerCase() ?? "";
 
 const TabWebView = memo(function TabWebView({ tabId, visible, warm }: { tabId: string; visible: boolean; warm: boolean }) {
-  const { navigation, adoptId, profileId, shownUrl } = useTabValue(tabId, webViewTab, shallowEqual);
+  const { navigation, adoptId, requiresAdoption, profileId, shownUrl } = useTabValue(tabId, webViewTab, shallowEqual);
   const neighbour = useStoreWhile(useBrowser, warm, (s) => warm && s.windows[s.tabs[tabId]?.windowId ?? ""]?.profileId !== profileId);
   const tab = () => useBrowser.getState().tabs[tabId];
   const store = () => useBrowser.getState();
@@ -488,7 +494,9 @@ const TabWebView = memo(function TabWebView({ tabId, visible, warm }: { tabId: s
       style={StyleSheet.absoluteFill}
       url={navigation?.url ?? (adoptId ? tab()?.url : undefined)}
       profile={engineProfile(profileId)}
+      sidebarProfile={isIncognitoProfile(profileId) ? "" : profileId}
       adoptId={adoptId}
+      requiresAdoption={requiresAdoption}
       transferKey={tabId}
       visible={visible}
       warm={warm}
@@ -502,6 +510,7 @@ const TabWebView = memo(function TabWebView({ tabId, visible, warm }: { tabId: s
         noteChromeTab(tabId, chromeTabId);
         noteReady(tabId);
         if (tab()?.muted) void webviews.get(tabId)?.setMuted(true);
+        if (tab()?.requiresAdoption) store().updateTab(tabId, { requiresAdoption: undefined });
       }}
       onNavigationChange={({ url: reported, title, canGoBack, canGoForward, isLoading, themeColor, themeColorSource, initialDocumentAccessed, committedInitial }) => {
         const url = initialDocumentAccessed && committedInitial ? "about:blank" : reported;

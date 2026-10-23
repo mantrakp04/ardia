@@ -42,6 +42,8 @@ export type OpenWindowRequest = {
   url: string;
   disposition: OpenDisposition;
   adoptId?: string;
+  requiresAdoption?: boolean;
+  placement?: { profileId: string; engine: string; action: "tab" | "little" };
   userGesture?: boolean;
   postBody?: boolean;
   profile?: string;
@@ -140,7 +142,9 @@ export type ExtensionActionResult = "none" | "popup" | "sidePanel";
 export type WebViewProps = ViewProps & {
   url?: string;
   profile?: string;
+  sidebarProfile?: string;
   adoptId?: string;
+  requiresAdoption?: boolean;
   transferKey?: string;
   standalone?: boolean;
   extensionHost?: "popup" | "sidePanel";

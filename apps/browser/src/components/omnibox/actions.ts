@@ -78,6 +78,7 @@ const DEFS: ActionDef[] = [
   { command: "clearBrowsingData", title: "Clear Browsing Data", icon: "trash", keywords: ["clear history", "clear cache", "clear cookies"] },
   { command: "importBrowserData", title: "Import Browser Data", icon: "square.and.arrow.down", keywords: ["import bookmarks", "import passwords"] },
   { command: "keyboardShortcuts", title: "Keyboard Shortcuts", icon: "keyboard", keywords: ["shortcuts", "hotkeys"] },
+  { command: "openLinkPreferences", title: "Open Link Preferences", icon: "link", keywords: ["air traffic control", "atc", "routes", "link routing"] },
   { command: "mergeAllWindows", title: "Merge All Windows", icon: "rectangle.stack", needs: "profiles" },
   { command: "newProfile", title: "New Profile", icon: "person.crop.circle.badge.plus", keywords: ["create profile"], needs: "profiles" },
   { command: "setAppearance", arg: "dark", title: "Dark Appearance", icon: "moon", keywords: ["dark mode"] },

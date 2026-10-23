@@ -1,0 +1,175 @@
+diff --git a/chrome/browser/ui/navigator/browser_navigator_params.cc b/chrome/browser/ui/navigator/browser_navigator_params.cc
+--- a/chrome/browser/ui/navigator/browser_navigator_params.cc
++++ b/chrome/browser/ui/navigator/browser_navigator_params.cc
+@@ -83,6 +83,8 @@ void NavigateParams::FillNavigateParamsFromOpenURLParams(
+   this->internal_scroll_to_text_fragment =
+       params.internal_scroll_to_text_fragment;
+   this->started_by_ad = params.started_by_ad;
++  this->is_form_submission = params.is_form_submission;
++  this->download_policy = params.download_policy;
+ 
+   // Implementation notes:
+   //   The following NavigateParams don't have an equivalent in OpenURLParams:
+diff --git a/chrome/browser/ui/navigator/browser_navigator_params.h b/chrome/browser/ui/navigator/browser_navigator_params.h
+--- a/chrome/browser/ui/navigator/browser_navigator_params.h
++++ b/chrome/browser/ui/navigator/browser_navigator_params.h
+@@ -27,6 +27,7 @@
+ #include "content/public/common/referrer.h"
+ #include "services/network/public/cpp/resource_request_body.h"
+ #include "services/network/public/cpp/shared_url_loader_factory.h"
++#include "third_party/blink/public/common/navigation/navigation_policy.h"
+ #include "third_party/blink/public/common/tokens/tokens.h"
+ #include "third_party/blink/public/mojom/navigation/was_activated_option.mojom.h"
+ #include "third_party/blink/public/mojom/window_features/window_features.mojom.h"
+@@ -386,6 +387,10 @@ struct NavigateParams {
+   // Indicates whether this navigation was started by an ad.
+   bool started_by_ad = false;
+ 
++  bool is_form_submission = false;
++
++  blink::NavigationDownloadPolicy download_policy;
++
+   // An optional struct containing data webapps needs for navigation. Usually
+   // nullopt.
+   std::optional<webapps::NavigationData> web_app_navigation_data;
+diff --git a/chrome/browser/ui/navigator/browser_navigator_params_utils.cc b/chrome/browser/ui/navigator/browser_navigator_params_utils.cc
+--- a/chrome/browser/ui/navigator/browser_navigator_params_utils.cc
++++ b/chrome/browser/ui/navigator/browser_navigator_params_utils.cc
+@@ -58,6 +58,8 @@ content::NavigationController::LoadURLParams LoadURLParamsFromNavigateParams(
+   load_url_params.internal_scroll_to_text_fragment =
+       params->internal_scroll_to_text_fragment;
+   load_url_params.started_by_ad = params->started_by_ad;
++  load_url_params.is_form_submission = params->is_form_submission;
++  load_url_params.download_policy = params->download_policy;
+ 
+   if (params->post_data) {
+     load_url_params.load_type =
+diff --git a/content/browser/renderer_host/navigator.cc b/content/browser/renderer_host/navigator.cc
+--- a/content/browser/renderer_host/navigator.cc
++++ b/content/browser/renderer_host/navigator.cc
+@@ -1085,7 +1085,9 @@ void Navigator::RequestOpenURL(
+     const std::string& href_translate,
+     scoped_refptr<network::SharedURLLoaderFactory> blob_url_loader_factory,
+     bool has_rel_opener,
+-    bool started_by_ad) {
++    bool started_by_ad,
++    bool is_form_submission,
++    const blink::NavigationDownloadPolicy& download_policy) {
+   // Note: This can be called for subframes (even when OOPIFs are not possible)
+   // if the disposition calls for a different window.
+ 
+@@ -1137,6 +1139,8 @@ void Navigator::RequestOpenURL(
+   params.initiator_process_id = initiator_process_id;
+   params.initiator_navigation_state = initiator_navigation_state;
+   params.started_by_ad = started_by_ad;
++  params.is_form_submission = is_form_submission;
++  params.download_policy = download_policy;
+ 
+   // RequestOpenURL is used only for local frames, so we can get here only if
+   // the navigation is initiated by a frame in the same SiteInstance as this
+diff --git a/content/browser/renderer_host/navigator.h b/content/browser/renderer_host/navigator.h
+--- a/content/browser/renderer_host/navigator.h
++++ b/content/browser/renderer_host/navigator.h
+@@ -140,7 +140,9 @@ class CONTENT_EXPORT Navigator {
+       const std::string& href_translate,
+       scoped_refptr<network::SharedURLLoaderFactory> blob_url_loader_factory,
+       bool has_rel_opener,
+-      bool started_by_ad);
++      bool started_by_ad,
++      bool is_form_submission,
++      const blink::NavigationDownloadPolicy& download_policy);
+ 
+   // Called when a document requests a navigation in another document through a
+   // `blink::RemoteFrame`. If `method` is "POST", then `post_body` needs to
+diff --git a/content/browser/renderer_host/render_frame_host_impl.cc b/content/browser/renderer_host/render_frame_host_impl.cc
+--- a/content/browser/renderer_host/render_frame_host_impl.cc
++++ b/content/browser/renderer_host/render_frame_host_impl.cc
+@@ -10437,7 +10437,8 @@ void RenderFrameHostImpl::OpenURL(blink::mojom::OpenURLParamsPtr params) {
+       params->disposition, params->should_replace_current_entry,
+       params->user_gesture, params->triggering_event_info,
+       params->href_translate, std::move(blob_url_loader_factory),
+-      params->has_rel_opener, params->started_by_ad);
++      params->has_rel_opener, params->started_by_ad,
++      params->is_form_submission, params->download_policy);
+ }
+ 
+ void RenderFrameHostImpl::GetAssociatedInterface(
+diff --git a/content/browser/security_exploit_browsertest.cc b/content/browser/security_exploit_browsertest.cc
+--- a/content/browser/security_exploit_browsertest.cc
++++ b/content/browser/security_exploit_browsertest.cc
+@@ -210,7 +210,7 @@ RenderFrameHostImpl* PrepareToDuplicateHosts(Shell* shell,
+       false /* should_replace_current_entry */, true /* user_gesture */,
+       blink::mojom::TriggeringEventInfo::kFromTrustedEvent, std::string(),
+       nullptr /* blob_url_loader_factory */, false /* has_rel_opener */,
+-      false /* started_by_ad */);
++      false /* started_by_ad */, false, blink::NavigationDownloadPolicy());
+   navigation_manager.WaitForSpeculativeRenderFrameHostCreation();
+ 
+   // Since the navigation above requires a cross-process swap, there will be a
+diff --git a/content/browser/service_worker/service_worker_client_utils.cc b/content/browser/service_worker/service_worker_client_utils.cc
+--- a/content/browser/service_worker/service_worker_client_utils.cc
++++ b/content/browser/service_worker/service_worker_client_utils.cc
+@@ -48,6 +48,7 @@
+ #include "services/network/public/cpp/connection_allowlist.h"
+ #include "services/network/public/cpp/features.h"
+ #include "services/network/public/mojom/network_context.mojom.h"
++#include "third_party/blink/public/common/navigation/navigation_policy.h"
+ #include "third_party/blink/public/common/storage_key/storage_key.h"
+ #include "third_party/blink/public/mojom/loader/request_context_frame_type.mojom.h"
+ #include "ui/base/window_open_disposition.h"
+@@ -694,7 +695,8 @@ void NavigateClient(
+       false /* should_replace_current_entry */, false /* user_gesture */,
+       blink::mojom::TriggeringEventInfo::kUnknown,
+       std::string() /* href_translate */, nullptr /* blob_url_loader_factory */,
+-      false /* has_rel_opener */, false /* started_by_ad */);
++      false /* has_rel_opener */, false /* started_by_ad */,
++      false, blink::NavigationDownloadPolicy());
+ }
+ 
+ void GetClient(ServiceWorkerClient* service_worker_client,
+diff --git a/content/public/browser/navigation_controller.cc b/content/public/browser/navigation_controller.cc
+--- a/content/public/browser/navigation_controller.cc
++++ b/content/public/browser/navigation_controller.cc
+@@ -51,6 +51,8 @@ NavigationController::LoadURLParams::LoadURLParams(const OpenURLParams& input)
+ #if DCHECK_IS_ON()
+   DCHECK(input.Valid());
+ #endif
++  is_form_submission = input.is_form_submission;
++  download_policy = input.download_policy;
+   // A non-null |source_site_instance| is important for picking the right
+   // renderer process for hosting about:blank and/or data: URLs (their origin's
+   // precursor is based on |initiator_origin|).
+diff --git a/content/public/browser/page_navigator.h b/content/public/browser/page_navigator.h
+--- a/content/public/browser/page_navigator.h
++++ b/content/public/browser/page_navigator.h
+@@ -23,6 +23,7 @@
+ #include "content/public/browser/reload_type.h"
+ #include "content/public/common/referrer.h"
+ #include "ipc/constants.mojom-forward.h"
++#include "third_party/blink/public/common/navigation/navigation_policy.h"
+ #include "third_party/blink/public/common/tokens/tokens.h"
+ #include "third_party/blink/public/mojom/frame/triggering_event_info.mojom-shared.h"
+ #include "ui/base/page_transition_types.h"
+@@ -157,6 +158,10 @@ struct CONTENT_EXPORT OpenURLParams {
+   // Indicates whether this navigation was started by an ad.
+   bool started_by_ad = false;
+ 
++  bool is_form_submission = false;
++
++  blink::NavigationDownloadPolicy download_policy;
++
+   // Whether the call to OpenURL was triggered by an Event, and what the
+   // isTrusted flag of the event was.
+   blink::mojom::TriggeringEventInfo triggering_event_info =
+diff --git a/content/renderer/render_frame_impl.cc b/content/renderer/render_frame_impl.cc
+--- a/content/renderer/render_frame_impl.cc
++++ b/content/renderer/render_frame_impl.cc
+@@ -6188,6 +6188,8 @@ void RenderFrameImpl::OpenURL(std::unique_ptr<blink::WebNavigationInfo> info) {
+   params->started_by_ad =
+       info->initiator_frame_is_ad || info->is_ad_script_in_stack;
+   params->has_rel_opener = info->has_rel_opener;
++  params->is_form_submission =
++      info->url_request.IsFormSubmission() || !info->form.IsNull();
+ 
+   GetFrameHost()->OpenURL(std::move(params));
+ }

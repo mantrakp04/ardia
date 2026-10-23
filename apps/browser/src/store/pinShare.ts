@@ -74,7 +74,7 @@ export function swapPinPage(s: BrowserState, id: string): { state: BrowserState;
   const tabs = { ...s.tabs };
   const { pageIn: _held, ...moving } = holder;
   tabs[a] = { ...moving, windowId: to, ...(holder.navigation ? { navigation: { ...holder.navigation, url: holder.url || holder.navigation.url } } : {}) };
-  const { unloaded: _u, navigation: _n, adoptId: _a, ...staying } = copy;
+  const { unloaded: _u, navigation: _n, adoptId: _a, requiresAdoption: _r, ...staying } = copy;
   tabs[b] = { ...staying, ...shownFields(holder), windowId: from, navigation: null, pageIn: a };
   for (const t of Object.values(s.tabs)) {
     if (t.id === a || t.id === b || !t.openerId) continue;
@@ -163,7 +163,7 @@ function oneOwnerPerPin(s: BrowserState, prev: BrowserState): BrowserState {
   let tabs = s.tabs;
   const freeze = (loser: Tab, keeper: Tab) => {
     if (tabs === s.tabs) tabs = { ...s.tabs };
-    const { navigation: _n, adoptId: _a, unloaded: _u, ...rest } = loser;
+    const { navigation: _n, adoptId: _a, requiresAdoption: _r, unloaded: _u, ...rest } = loser;
     tabs[loser.id] = { ...rest, ...shownFields(keeper), navigation: null, pageIn: keeper.id };
     for (const t of Object.values(tabs)) if (t.pageIn === loser.id) tabs[t.id] = { ...t, pageIn: keeper.id };
   };

@@ -65,6 +65,7 @@ export type Tab = {
   pinnedAsRow?: true;
   navigation: { url: string; seq: number; userInitiated?: boolean } | null;
   adoptId?: string;
+  requiresAdoption?: true;
   openerId: string | null;
   wakeAdoptId?: string;
   liveItem?: { folderId: string; itemId: string };

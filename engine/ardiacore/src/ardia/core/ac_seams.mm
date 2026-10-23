@@ -16,6 +16,7 @@
 #include "ardia/core/ac_cast_dialog.h"
 #include "ardia/core/ac_browser_window.h"
 #include "ardia/core/ac_device_chooser.h"
+#include "ardia/core/ac_navigation_routing.h"
 
 namespace ardiacore {
 
@@ -96,6 +97,7 @@ void InstallChromeHooks() {
   g_ardia_devtools_dock_changed = &DevToolsDockChanged;
   g_ardia_create_web_contents_delegate = &CreateWebContentsDelegate;
   g_ardia_initial_main_document_accessed = &InitialMainDocumentAccessed;
+  g_ardia_route_new_window = &RouteNewWindow;
   g_ardia_viewless_browsers = true;
 }
 
