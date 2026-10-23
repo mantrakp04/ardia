@@ -139,7 +139,7 @@ function PullRequestPreview({ item, folderId, windowId }: { item: LiveItem; fold
           </Text>
         </Pressable>
         {pr.additions || pr.deletions ? (
-          <Text style={{ maxWidth: "100%", fontSize: 11.5, fontVariant: ["tabular-nums"], color: theme.textSecondary }}>
+          <Text style={{ marginLeft: "auto", maxWidth: "100%", fontSize: 11.5, fontVariant: ["tabular-nums"], color: theme.textSecondary }}>
             <Text style={{ color: colors.success }}>+{pr.additions}</Text> <Text style={{ color: colors.failure }}>−{pr.deletions}</Text>
             {pr.changedFiles ? ` · ${pr.changedFiles} ${pr.changedFiles === 1 ? "file" : "files"}` : ""}
           </Text>
