@@ -566,3 +566,32 @@ test("Chrome's own pin or move of a group's tab while a rename of the group is o
     assert.equal(chrome.strips.get(win.strip).groups.get([...chrome.strips.get(win.strip).groups.keys()].at(-1)).title, "Renamed");
   }
 });
+
+test("a nested group projects as its root's one Chrome group, and Chrome's moves inside it keep the nesting", async () => {
+  const win = windowWith("a", "b", "c", "d", "e");
+  await settle(win);
+  const id = (u) => S().windows[win.w].tabIds.find((t) => urlOf(t) === u);
+  const outer = S().groupTabs([id("a"), id("b"), id("c"), id("d")], { pinned: false, name: "Outer" });
+  const inner = S().groupTabs([id("b"), id("c")], { name: "Inner" });
+  assert.equal(S().groups[inner].parentId, outer);
+  await settle(win);
+  const strip = chrome.strips.get(win.strip);
+  const tokens = new Set(strip.tabs.filter((t) => ["a", "b", "c", "d"].includes(urlOf(t.key))).map((t) => t.group));
+  assert.equal(tokens.size, 1, "one Chrome group for the whole tree");
+  const token = [...tokens][0];
+  assert.ok(token);
+  assert.equal(strip.tabs.find((t) => urlOf(t.key) === "e").group ?? null, null);
+  assert.equal(strip.groups.get(token).title, "Outer", "Chrome shows the root's look");
+  assert.equal(chrome.strips.get(win.strip).groups.size, 1, "the nested group makes no Chrome group of its own");
+  chrome.retitle(token, "Renamed");
+  await settle(win);
+  assert.equal(S().groups[outer].name, "Renamed");
+  assert.equal(S().groups[inner].name, "Inner");
+  chrome.move(id("d"), 1);
+  await settle(win);
+  assert.equal(S().groups[inner]?.parentId, outer, "still nested");
+  assert.deepEqual(S().groups[inner].tabIds.map(urlOf), ["b", "c"]);
+  assert.deepEqual(S().groups[outer].tabIds.map(urlOf).sort(), ["a", "b", "c", "d"]);
+  assert.deepEqual(chromeOrder(win.strip), order(win.w));
+  assert.equal(chrome.strips.get(win.strip).groups.size, 1);
+});

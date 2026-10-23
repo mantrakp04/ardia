@@ -1072,3 +1072,198 @@ test("bookmarks: a Mac on old ids and one on Chrome's UUIDs keep one tree", asyn
   assertTreeWhole(now);
   assertTreeWhole(old);
 });
+
+const pinHost = (id) => new URL(S().tabs[id].pinnedUrl || S().tabs[id].url).hostname.replace(".example", "");
+const pinnedAreaOf = (d, w) =>
+  d.with(() => {
+    const s = S();
+    const depth = (g) => (g.parentId && s.groups[g.parentId] ? 1 + depth(s.groups[g.parentId]) : 0);
+    const path = (g) => (g.parentId && s.groups[g.parentId] ? `${path(s.groups[g.parentId])}/${g.name}` : g.name);
+    const win = w ?? Object.values(s.windows).find((x) => x.profileId === "default").id;
+    return model.viewTabIds(s, win).filter((id) => model.inPinnedContainer(s, id)).map((id) => {
+      const t = s.tabs[id];
+      if (t.pinned) return `${t.pinnedAsRow ? "row" : "tile"}:${pinHost(id)}`;
+      const g = Object.values(s.groups).filter((x) => x.tabIds.includes(id)).sort((a, z) => depth(z) - depth(a))[0];
+      return `${path(g)}:${pinHost(id)}`;
+    });
+  });
+
+function buildPinnedTree(d) {
+  return d.with(() => {
+    const w = S().createWindow({ url: "https://home.example/" });
+    const open = (h) => S().newTab(w, { url: `https://${h}.example/`, background: true });
+    const [tile, r1, o1, i1, i2, o2, r2, x] = ["tile", "r1", "o1", "i1", "i2", "o2", "r2", "x"].map(open);
+    S().pinTabs([tile], true);
+    S().pinTabs([r1], true, true);
+    const outer = S().groupTabs([o1, i1, i2, o2], { pinned: true, name: "Outer" });
+    const inner = S().groupTabs([i1, i2], { name: "Inner" });
+    S().pinTabs([r2], true, true);
+    S().groupTabs([x], { pinned: true, name: "Other" });
+    S().placeTabs([r2], { pinned: true, row: true, beforeId: x });
+    return { w, outer, inner };
+  });
+}
+
+const PIN_TREE = ["tile:tile", "row:r1", "row:r2", "Outer:o1", "Outer/Inner:i1", "Outer/Inner:i2", "Outer:o2", "Other:x"];
+
+test("nested pinned groups sync with their nesting and the order of their rows, both ways", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder);
+  const b = new Device("devB", folder);
+  const { outer, inner } = buildPinnedTree(a);
+  b.with(() => S().createWindow({ url: "https://b-home.example/" }));
+  await syncAll([a, b]);
+  assert.deepEqual(pinnedAreaOf(a), PIN_TREE);
+  assert.deepEqual(pinnedAreaOf(b), PIN_TREE);
+  assert.equal(a.scopes.p.records[`pinn:g:${inner}`]?.v.p, outer, "the nested group names its parent, in a record older Macs don't read");
+  assert.equal(a.scopes.p.records[`pin:g:${inner}`], undefined, "older Macs see no nested group");
+  assert.deepEqual(Object.keys(a.scopes.p.records[`pin:g:${outer}`].v).sort(), ["c", "i", "n", "pos"], "a root group's record is shaped as before");
+  b.with(() => {
+    const groupNamed = (n) => Object.values(S().groups).find((g) => g.name === n);
+    assert.equal(groupNamed("Inner").parentId, groupNamed("Outer").id);
+    const r1 = Object.values(S().tabs).find((t) => t.pinnedUrl === "https://r1.example/").id;
+    const r2 = Object.values(S().tabs).find((t) => t.pinnedUrl === "https://r2.example/").id;
+    S().placeTabs([r2], { pinned: true, row: true, beforeId: r1 });
+    const o2 = groupNamed("Outer").tabIds.find((id) => pinHost(id) === "o2");
+    S().placeTabs([o2], { pinned: false, groupId: groupNamed("Inner").id, beforeId: null });
+  });
+  const moved = ["tile:tile", "row:r2", "row:r1", "Outer:o1", "Outer/Inner:i1", "Outer/Inner:i2", "Outer/Inner:o2", "Other:x"];
+  assert.deepEqual(pinnedAreaOf(b), moved);
+  await syncAll([b, a]);
+  assert.deepEqual(pinnedAreaOf(a), moved, "A follows the moved row and the tab moved into the nested group");
+  assert.equal((await a.sync()).published + (await b.sync()).published, 0, "settled");
+});
+
+test("a parked nested pinned group syncs and comes back nested", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder);
+  const b = new Device("devB", folder);
+  const { w } = buildPinnedTree(a);
+  a.with(() => S().closeWindow(w));
+  b.with(() => S().createWindow({ url: "https://b-home.example/" }));
+  await syncAll([a, b]);
+  assert.deepEqual(pinnedAreaOf(b), PIN_TREE);
+  const nw = a.with(() => S().createWindow({ url: "https://again.example/" }));
+  assert.deepEqual(pinnedAreaOf(a, nw), PIN_TREE);
+  await syncAll([a, b]);
+  assert.deepEqual(pinnedAreaOf(a, nw), PIN_TREE);
+  assert.deepEqual(pinnedAreaOf(b), PIN_TREE);
+  assert.equal((await a.sync()).published + (await b.sync()).published, 0, "settled");
+});
+
+test("a pinned group record without a parent, as older versions write it, loads as a root group", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder);
+  a.with(() => S().createWindow({ url: "https://home.example/" }));
+  await a.sync();
+  const clock = new Clock("devOld");
+  await syncScope({
+    scope: "p",
+    state: emptyScope(),
+    transport: folder.transport(),
+    adapters: [
+      {
+        prefix: "pin:",
+        extract: () => ({
+          values: new Map([
+            ["pin:g:oldg", { n: "Old", i: null, c: null, pos: "a0V" }],
+            ["pin:t:oldm", { g: "oldg", u: "https://m.example/", t: null, i: null, ti: "M", pos: "a0V" }],
+            ["pin:t:oldt", { g: null, u: "https://t.example/", t: null, i: null, ti: "T", pos: "a0V" }],
+          ]),
+        }),
+        apply: () => true,
+      },
+    ],
+    clock,
+    device: "devOld",
+  });
+  await syncAll([a]);
+  assert.deepEqual(pinnedAreaOf(a), ["tile:t", "Old:m"]);
+  assert.equal(a.with(() => Object.values(S().groups).find((g) => g.name === "Old").parentId), undefined);
+});
+
+const shippedScope = await import("../../../../packages/sync/src/fixtures/scope-v0.2.38.ts");
+const { pinnedAdapter: shippedPinnedAdapter } = await import("./fixtures/pinned-v0.2.38.ts");
+
+class OldMac extends Device {
+  async sync() {
+    stub.current.device = this.id;
+    useBrowser.setState(this.browser, true);
+    try {
+      return await shippedScope.syncScope({ scope: "p", state: this.scopes.p, transport: this.folder.transport(), adapters: [shippedPinnedAdapter("default")], clock: this.clock, device: this.id });
+    } finally {
+      this.browser = S();
+    }
+  }
+}
+
+const pinnedGroupsOf = (d) =>
+  d.with(() =>
+    Object.values(S().groups)
+      .filter((g) => g.pinned)
+      .map((g) => `${g.name}<${g.parentId ? S().groups[g.parentId]?.name : "root"}>${g.tabIds.map(pinHost).join(",")}`)
+      .sort(),
+  );
+
+test("a Mac on v0.2.38 in the sync set sees each pinned tree as one group, and leaves the nesting alone", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder);
+  const old = new OldMac("devOld", folder);
+  a.with(() => {
+    const w = S().createWindow({ url: "https://home.example/" });
+    const open = (h) => S().newTab(w, { url: `https://${h}.example/`, background: true });
+    const [o1, i1, o2, c1] = ["o1", "i1", "o2", "c1"].map(open);
+    S().groupTabs([o1, i1, o2], { pinned: true, name: "Outer" });
+    S().groupTabs([i1], { name: "Inner" });
+    S().groupTabs([c1], { pinned: true, name: "Shell" });
+    S().groupTabs([c1], { name: "Core" });
+  });
+  const tree = ["Core<Shell>c1", "Inner<Outer>i1", "Outer<root>o1,i1,o2", "Shell<root>c1"];
+  assert.deepEqual(pinnedGroupsOf(a), tree);
+  old.with(() => S().createWindow({ url: "https://old-home.example/" }));
+  for (let i = 0; i < 4; i++) for (const d of [a, old]) await d.sync();
+  assert.deepEqual(pinnedGroupsOf(old), ["Outer<root>o1,i1,o2", "Shell<root>c1"], "the old Mac shows each tree flat, the group with only a nested group included");
+  assert.deepEqual(pinnedGroupsOf(a), tree, "the nesting survives the old Mac's cycles");
+  const deleted = Object.entries(a.scopes.p.records).filter(([k, r]) => k.startsWith("pin") && r.v === null).map(([k]) => k);
+  assert.deepEqual(deleted, [], "nothing pinned is deleted");
+  const b = new Device("devB", folder);
+  b.with(() => S().createWindow({ url: "https://b-home.example/" }));
+  for (let i = 0; i < 2; i++) for (const d of [old, a, b]) await d.sync();
+  assert.deepEqual(pinnedGroupsOf(b), tree, "a new Mac joining later gets the nesting");
+  old.with(() => {
+    const o2 = Object.values(S().tabs).find((t) => t.url === "https://o2.example/").id;
+    const outer = Object.values(S().groups).find((g) => g.name === "Outer");
+    S().placeTabs([o2], { pinned: false, groupId: outer.id, beforeId: outer.tabIds[0] });
+  });
+  for (let i = 0; i < 2; i++) for (const d of [old, a, b]) await d.sync();
+  assert.deepEqual(pinnedGroupsOf(a), ["Core<Shell>c1", "Inner<Outer>i1", "Outer<root>o2,o1,i1", "Shell<root>c1"], "a reorder on the old Mac lands, nesting kept");
+  assert.deepEqual(pinnedGroupsOf(b), pinnedGroupsOf(a));
+});
+
+test("two Macs nesting two groups into each other concurrently agree, and a group nested below them keeps its parent", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder);
+  const b = new Device("devB", folder);
+  a.with(() => {
+    const w = S().createWindow({ url: "https://home.example/" });
+    const open = (h) => S().newTab(w, { url: `https://${h}.example/`, background: true });
+    const [x, z, y] = ["x", "z", "y"].map(open);
+    S().groupTabs([x, z], { pinned: true, name: "GA" });
+    S().groupTabs([z], { name: "GX" });
+    S().groupTabs([y], { pinned: true, name: "GB" });
+  });
+  b.with(() => S().createWindow({ url: "https://b-home.example/" }));
+  await syncAll([a, b]);
+  assert.deepEqual(pinnedGroupsOf(b), ["GA<root>x,z", "GB<root>y", "GX<GA>z"]);
+  const named = (n) => Object.values(S().groups).find((g) => g.name === n && g.pinned);
+  a.with(() => S().moveGroup(named("GA").id, { pinned: true, parentId: named("GB").id }));
+  b.with(() => S().moveGroup(named("GB").id, { pinned: true, parentId: named("GA").id }));
+  await syncAll([a, b], 4);
+  assert.deepEqual(pinnedGroupsOf(a), pinnedGroupsOf(b), "both Macs settle on the same tree");
+  const parents = Object.fromEntries(a.with(() => Object.values(S().groups).filter((g) => g.pinned).map((g) => [g.name, g.parentId ? S().groups[g.parentId].name : null])));
+  assert.equal(parents.GX, "GA", "the group below the loop keeps its parent");
+  assert.equal([parents.GA, parents.GB].filter((p) => p === null).length, 1, "exactly one of the two loses its parent");
+  const keyOf = (n) => a.with(() => named(n).pinKey ?? named(n).id);
+  assert.equal(parents[keyOf("GA") < keyOf("GB") ? "GA" : "GB"], null, "the one with the smaller key");
+  assert.equal((await a.sync()).published + (await b.sync()).published, 0, "settled");
+});
