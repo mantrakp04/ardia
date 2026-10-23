@@ -48,7 +48,7 @@ export const ICON_CATALOG = [
   { name: "car", label: "Car", keywords: "drive" },
   { name: "fork.knife", label: "Food", keywords: "restaurant dining" },
   { name: "cup.and.saucer", label: "Coffee", keywords: "cup tea" },
-  { name: "figure.run", label: "Running", keywords: "fitness gym exercise" },
+  { name: "figure.run", label: "Fitness", keywords: "running run fitness gym exercise" },
   { name: "sportscourt", label: "Sports", keywords: "court" },
   { name: "pawprint", label: "Pets", keywords: "animal paw" },
   { name: "tree", label: "Tree", keywords: "nature" },

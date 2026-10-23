@@ -2,6 +2,7 @@ import { Surface, Symbol } from "@ardia/shell";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Easing, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { ICON_CATALOG, ICON_STYLES, iconValue, normalizeIconColor, parseCustomIcon, type IconStyle } from "../../lib/iconCatalog";
+import { iconSurfaces } from "../../lib/iconColors";
 import { hex, useTheme } from "../../lib/theme";
 import { useLive } from "../../live/store";
 import { useBrowser } from "../../store/browser";
@@ -72,11 +73,14 @@ function PickerPanel({ picker, sidebarWidth, width, height }: { picker: Picker; 
     const options = tab === "emoji" ? EMOJI_OPTIONS : ICON_CATALOG.map(({ name, label, keywords }) => ({ value: iconValue(style, name, draftColor), label, keywords: `${name} ${keywords}` }));
     return options.filter(({ value, label, keywords }) => !q || `${label} ${keywords} ${tab === "emoji" ? value : ""}`.toLowerCase().includes(q));
   }, [tab, style, query, draftColor]);
-  const changeColor = (value: string | null) => {
+  const changeColor = (value: string | null, settle = true) => {
     const normalized = normalizeIconColor(value);
     if (value !== null && !normalized) return;
     setDraftColor(normalized);
-    if (currentIcon) setIcon(picker, iconValue(currentIcon.style, currentIcon.name, normalized));
+    if (settle && currentIcon) {
+      const next = iconValue(currentIcon.style, currentIcon.name, normalized);
+      if (next !== current) setIcon(picker, next);
+    }
   };
   const close = () => setSidebarUi({ iconPicker: null });
   const choose = (icon: string | null) => {
@@ -141,7 +145,7 @@ function PickerPanel({ picker, sidebarWidth, width, height }: { picker: Picker; 
             onChangeText={setQuery}
             accessibilityLabel={tab === "emoji" ? "Search emoji" : "Search icons"}
             placeholder={tab === "emoji" ? "Search emoji" : "Search icons"}
-            placeholderTextColor={theme.dark ? "#FFFFFFB3" : "#00000099"}
+            placeholderTextColor={theme.textHint}
             selectionColor={theme.selection}
             enableFocusRing={false}
             keyDownEvents={[{ key: "Escape" }]}
@@ -252,6 +256,7 @@ function GridLayer({ layer, active, current, reduceMotion, maxHeight, onChoose, 
 }) {
   const theme = useTheme();
   const { key, opacity, items, tab } = layer;
+  const currentIcon = parseCustomIcon(current);
   useEffect(() => {
     if (reduceMotion) {
       opacity.setValue(active ? 1 : 0);
@@ -278,14 +283,16 @@ function GridLayer({ layer, active, current, reduceMotion, maxHeight, onChoose, 
       <ScrollView style={{ height: gridHeight(items, maxHeight) }} showsVerticalScrollIndicator>
         {items.length ? (
           <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
-            {items.map((item) => (
-              <Cell key={parseCustomIcon(item.value)?.name ?? item.value} item={item} selected={item.value === current} disabled={!active} onPress={() => onChoose(item.value)} />
-            ))}
+            {items.map((item) => {
+              const icon = parseCustomIcon(item.value);
+              const selected = item.value === current || !!(icon && currentIcon && icon.style === currentIcon.style && icon.name === currentIcon.name);
+              return <Cell key={icon?.name ?? item.value} item={item} selected={selected} disabled={!active} onPress={() => onChoose(item.value)} />;
+            })}
           </View>
         ) : (
           <View style={{ minHeight: CELL * 3, alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 12 }}>
             <Text style={{ fontSize: 12, fontWeight: "500", color: theme.textPrimary }}>{tab === "emoji" ? "No emoji found" : "No icons found"}</Text>
-            <Text style={{ fontSize: 12, color: theme.dark ? "#FFFFFFB3" : "#00000099", textAlign: "center" }}>Try a different search.</Text>
+            <Text style={{ fontSize: 12, color: theme.textHint, textAlign: "center" }}>Try a different search.</Text>
           </View>
         )}
       </ScrollView>
@@ -349,7 +356,7 @@ function Cell({ item, selected, disabled, onPress }: { item: IconOption; selecte
           }}
         >
           {parseCustomIcon(item.value) ? (
-            <CustomIcon value={item.value} size={22} glyphSize={17} weight="regular" />
+            <CustomIcon value={item.value} size={22} glyphSize={17} weight="regular" background={iconSurfaces(theme.panel, selected || pressed ? theme.rowSelected : hovered ? theme.rowHover : null)} />
           ) : (
             <Text style={{ fontSize: 20 }}>{item.value}</Text>
           )}

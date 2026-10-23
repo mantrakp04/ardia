@@ -1,3 +1,4 @@
+import { iconSurfaces } from "../../lib/iconColors";
 import { displayUrl, fuzzyScore } from "@ardia/core";
 import { FadeLabel, Surface, Symbol } from "@ardia/shell";
 import { useMemo, useRef, useState } from "react";
@@ -184,7 +185,7 @@ function ResultRow({ row, selected, onHover, onPress }: { row: Row; selected: bo
         onMouseEnter={onHover}
         style={{ height: ROW, borderRadius: 10, flexDirection: "row", alignItems: "center", paddingHorizontal: 10, gap: 10, backgroundColor: selected ? theme.rowSelected : undefined }}
       >
-        <TabIcon url={row.url} favicon={row.favicon} icon={row.icon} />
+        <TabIcon url={row.url} favicon={row.favicon} icon={row.icon} background={iconSurfaces(theme.panel, selected ? theme.rowSelected : null)} />
         <View style={{ flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 }}>
           <FadeLabel text={row.title} fontSize={14} color={theme.textPrimary} style={{ flex: 3, height: 19 }} />
           {row.url ? <FadeLabel text={`— ${displayUrl(row.url)}`} fontSize={14} color={theme.textSecondary} style={{ flex: 2, height: 19, marginLeft: 5 }} /> : null}

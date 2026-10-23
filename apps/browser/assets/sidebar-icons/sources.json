@@ -5,12 +5,14 @@
   "lucide": {
     "repository": "https://github.com/lucide-icons/lucide",
     "commit": "9f20b2b8f99cd9fe89bbfcbe883ee5b664ebb595",
-    "license": "LICENSE-lucide.txt"
+    "license": "LICENSE-lucide.txt",
+    "licenseSha256": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57"
   },
   "duotone": {
     "repository": "https://github.com/phosphor-icons/core",
     "commit": "2b75f3ad12b420c9504ef05df8d2564a28f8500e",
-    "license": "LICENSE-phosphor.txt"
+    "license": "LICENSE-phosphor.txt",
+    "licenseSha256": "b5b1f1da112d18ea2147decfd48ddc1bf2b5aeb6c265381579340e95b15a2bb2"
   },
   "icons": [
     {
@@ -195,13 +197,13 @@
     },
     {
       "name": "figure.run",
-      "lucide": "activity",
+      "lucide": "person-standing",
       "duotone": "person-simple-run"
     },
     {
       "name": "sportscourt",
       "lucide": "volleyball",
-      "duotone": "basketball"
+      "duotone": "volleyball"
     },
     {
       "name": "pawprint",
@@ -403,5 +405,6 @@
       "lucide": "users",
       "duotone": "users"
     }
-  ]
+  ],
+  "sourcesSha256": "aab4d68bd23912e9799434e0f1ddd07dcf0f3f80499747bc787890eeebf6439f"
 }

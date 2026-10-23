@@ -259,7 +259,7 @@ function DocumentPreview({ item }: { item: LiveItem }) {
   return (
     <View style={{ gap: 6 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        {item.icon && /^https?:/.test(item.icon) ? <TabIcon url={item.url} favicon={item.icon} direct /> : <TabIcon url={item.url} icon={item.icon} />}
+        {item.icon && /^https?:/.test(item.icon) ? <TabIcon url={item.url} favicon={item.icon} direct /> : <TabIcon url={item.url} icon={item.icon} background={theme.panel} />}
         <Text numberOfLines={2} style={{ flex: 1, fontSize: 13.5, lineHeight: 18, fontWeight: "600", color: theme.textPrimary }}>
           {item.title}
         </Text>

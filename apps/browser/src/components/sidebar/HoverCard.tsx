@@ -1,3 +1,4 @@
+import { iconSurfaces } from "../../lib/iconColors";
 import { FadeLabel, Surface, Symbol } from "@ardia/shell";
 import { useLayoutEffect, useState } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
@@ -86,7 +87,7 @@ function TabCard({ tabId, windowId, anchor }: { tabId: string; windowId: string;
   return (
     <Card anchor={anchor}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <TabIcon tabId={tabId} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
+        <TabIcon tabId={tabId} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} background={theme.panel} />
         <FadeLabel text={tabTitle(tab)} fontSize={13} weight="medium" color={theme.textPrimary} style={{ flex: 1, height: 18 }} />
       </View>
       {tab.url ? (
@@ -204,7 +205,7 @@ function PeekRow({ tabId, windowId }: { tabId: string; windowId: string }) {
         onMouseLeave={() => setHovered(false)}
         style={{ height: 28, borderRadius: 7, flexDirection: "row", alignItems: "center", paddingHorizontal: 5, backgroundColor: hovered ? theme.rowHover : undefined }}
       >
-        <TabIcon url={tab.url} favicon={tab.favicon} icon={tab.customIcon} size={14} profileId={tab.profileId} />
+        <TabIcon url={tab.url} favicon={tab.favicon} icon={tab.customIcon} size={14} profileId={tab.profileId} background={iconSurfaces(theme.panel, hovered ? theme.rowHover : null)} />
         <FadeLabel text={tabTitle(tab)} fontSize={12.5} color={theme.textTab} style={{ flex: 1, height: 17, marginLeft: 7 }} />
       </View>
     </Pressable>

@@ -1,3 +1,4 @@
+import { iconSurfaces, type IconBackground } from "../../lib/iconColors";
 import { ActivitySpinner, ContextMenuArea, FadeLabel, MouseArea, Surface, Symbol } from "@ardia/shell";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Animated, Pressable, TextInput, View, type GestureResponderEvent } from "react-native";
@@ -31,11 +32,13 @@ export const TabRowItem = memo(function TabRowItem({
   tabId,
   section,
   parentGroup,
+  background,
   motion = null,
 }: {
   tabId: string;
   section: "list" | "pinnedRows" | "pinnedGroups";
   parentGroup?: string;
+  background?: IconBackground;
   motion?: EntryMotion | null;
 }) {
   const windowId = useWindowId();
@@ -44,12 +47,12 @@ export const TabRowItem = memo(function TabRowItem({
   const onto = useDropOnto(`t:${tabId}`);
   return (
     <Animated.View ref={wrapper.ref} style={wrapper.style} {...handle}>
-      <TabRow tabId={tabId} onto={onto} shift={motion?.shift ?? null} />
+      <TabRow tabId={tabId} onto={onto} shift={motion?.shift ?? null} background={background} />
     </Animated.View>
   );
 });
 
-export const TabRow = memo(function TabRow({ tabId, onto = false, shift = null }: { tabId: string; onto?: boolean; shift?: Animated.Value | null }) {
+export const TabRow = memo(function TabRow({ tabId, onto = false, shift = null, background }: { tabId: string; onto?: boolean; shift?: Animated.Value | null; background?: IconBackground }) {
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const windowId = useWindowId();
@@ -112,7 +115,7 @@ export const TabRow = memo(function TabRow({ tabId, onto = false, shift = null }
                         </View>
                       ) : (
                         <View>
-                          <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} />
+                          <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} background={iconSurfaces(background ?? theme.windowTint, onto || (!active && pressed) ? theme.tabPressed : fill)} />
                           <TabBadges tabId={tab.id} />
                         </View>
                       )}
@@ -120,7 +123,7 @@ export const TabRow = memo(function TabRow({ tabId, onto = false, shift = null }
                   </View>
                 ) : (
                   <View>
-                    <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} />
+                    <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} background={iconSurfaces(background ?? theme.windowTint, onto || (!active && pressed) ? theme.tabPressed : fill)} />
                     <TabBadges tabId={tab.id} />
                   </View>
                 )}
@@ -206,11 +209,13 @@ export const SplitRowItem = memo(function SplitRowItem({
   splitId,
   section,
   parentGroup,
+  background,
   motion = null,
 }: {
   splitId: string;
   section: "list" | "pinnedGroups";
   parentGroup?: string;
+  background?: IconBackground;
   motion?: EntryMotion | null;
 }) {
   const windowId = useWindowId();
@@ -239,7 +244,7 @@ export const SplitRowItem = memo(function SplitRowItem({
           {tabIds.map((id, i) => (
             <View key={id} style={{ flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 }}>
               {i > 0 && <View style={{ width: 1, height: 16, backgroundColor: theme.divider, marginRight: 2 }} />}
-              <SplitPane tabId={id} windowId={windowId} />
+              <SplitPane tabId={id} windowId={windowId} background={iconSurfaces(background ?? theme.windowTint, active ? theme.tabSelected : hovered ? theme.tabHover : null)} />
             </View>
           ))}
         </Surface>
@@ -248,7 +253,7 @@ export const SplitRowItem = memo(function SplitRowItem({
   );
 });
 
-function SplitPane({ tabId, windowId }: { tabId: string; windowId: string }) {
+function SplitPane({ tabId, windowId, background }: { tabId: string; windowId: string; background: IconBackground }) {
   const theme = useTheme();
   const tab = useTab(tabId);
   const active = useIsActiveTab(tabId);
@@ -268,7 +273,7 @@ function SplitPane({ tabId, windowId }: { tabId: string; windowId: string }) {
               backgroundColor: hovered && !active ? theme.rowHover : undefined,
             }}
           >
-            <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} size={14} />
+            <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} size={14} background={iconSurfaces(background, hovered && !active ? theme.rowHover : null)} />
             <FadeLabel text={tabTitle(tab)} fontSize={12} color={active ? theme.tabSelectedText : theme.textTab} style={{ flex: 1, height: 16, marginLeft: 5 }} />
           </View>
         </Pressable>

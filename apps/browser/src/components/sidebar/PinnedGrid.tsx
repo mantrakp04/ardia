@@ -1,3 +1,4 @@
+import { iconSurfaces } from "../../lib/iconColors";
 import { ContextMenuArea, DockSelection, MouseArea, Surface, Symbol } from "@ardia/shell";
 import { Fragment, memo, useMemo } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
@@ -227,7 +228,7 @@ const PinnedTile = memo(function PinnedTile({ tabId, width }: { tabId: string; w
                       }}
                     >
                       <View>
-                        <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
+                        <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} background={iconSurfaces(theme.windowTint, theme.pinnedSelectedRim, theme.pinnedSelectedFill)} />
                         <TabBadges tabId={tabId} />
                       </View>
                     </View>
@@ -246,7 +247,7 @@ const PinnedTile = memo(function PinnedTile({ tabId, width }: { tabId: string; w
                     }}
                   >
                     <View>
-                      <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
+                      <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} background={iconSurfaces(theme.windowTint, pressed ? theme.tabPressed : hovered || selected ? theme.tabHover : theme.pinnedResting)} />
                       <TabBadges tabId={tabId} />
                     </View>
                   </View>
@@ -308,7 +309,7 @@ function GlassTile({
         <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: radius, borderWidth: 1, borderColor: tokens.dragBorder }]} />
       ) : null}
       <View>
-        <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
+        <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} background={iconSurfaces(theme.windowTint, fill)} />
         <TabBadges tabId={tabId} />
       </View>
     </View>

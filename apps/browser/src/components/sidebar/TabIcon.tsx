@@ -1,6 +1,8 @@
 import { memo } from "react";
 import { Text, View } from "react-native";
 import { isVectorIcon, parseCustomIcon } from "../../lib/iconCatalog";
+import type { IconBackground } from "../../lib/iconColors";
+import { useTheme } from "../../lib/theme";
 import { useIsSleeping } from "../../lib/tabLifecycle";
 import { useBrowser } from "../../store/browser";
 import { CustomIcon } from "../icons/CustomIcon";
@@ -15,6 +17,7 @@ export const TabIcon = memo(function TabIcon({
   icon,
   size = 16,
   color,
+  background,
   profileId: profile,
   direct,
 }: {
@@ -24,11 +27,12 @@ export const TabIcon = memo(function TabIcon({
   icon?: string | null;
   size?: number;
   color?: string;
+  background?: IconBackground;
   profileId?: string;
   direct?: boolean;
 }) {
   const sleeping = useIsSleeping(tabId ?? "");
-  const props = { url, favicon, icon, size, color, direct };
+  const props = { url, favicon, icon, size, color, background, direct };
   return (
     <View style={{ opacity: sleeping ? SLEEPING_OPACITY : 1 }}>
       {profile || !tabId ? <Icon {...props} profileId={profile} /> : <TabProfileIcon {...props} tabId={tabId} />}
@@ -49,6 +53,7 @@ function Icon({
   icon,
   size = 16,
   color,
+  background,
   profileId,
   direct,
 }: {
@@ -57,11 +62,13 @@ function Icon({
   icon?: string | null;
   size?: number;
   color?: string;
+  background?: IconBackground;
   profileId?: string;
   direct?: boolean;
 }) {
+  const theme = useTheme();
   if (icon && parseCustomIcon(icon)) {
-    return <CustomIcon value={icon} size={size} glyphSize={size - 3} weight="medium" color={color} />;
+    return <CustomIcon value={icon} size={size} glyphSize={size - 3} weight="medium" color={color} background={background ?? theme.windowTint} />;
   }
   if (icon && !isVectorIcon(icon)) {
     return (

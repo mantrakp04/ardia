@@ -21,6 +21,13 @@ if (new Set(entries.map(({ name }) => name)).size !== entries.length || entries.
   throw new Error("Invalid icon catalog");
 }
 
+function verifyPin(contents, expected, label) {
+  if (!/^[0-9a-f]{64}$/.test(expected ?? "")) throw new Error(`Missing SHA-256 pin for ${label}`);
+  const actual = createHash("sha256").update(contents).digest("hex");
+  if (actual !== expected) throw new Error(`SHA-256 mismatch for ${label}: expected ${expected}, received ${actual}`);
+  return actual;
+}
+
 async function fetchText(url) {
   const response = await fetch(url, { signal: AbortSignal.timeout(20000) });
   if (!response.ok) throw new Error(`${response.status} ${url}`);
@@ -43,17 +50,31 @@ if (process.argv.includes("--fetch")) {
     }
   }));
   if (failures.length) throw new Error(failures.join("\n"));
+  const fetchedLicenses = {};
   for (const style of ["lucide", "duotone"]) {
-    const { repository, commit, license } = manifest[style];
+    const { repository, commit, license, licenseSha256 } = manifest[style];
     const url = `${repository.replace("https://github.com/", "https://raw.githubusercontent.com/")}/${commit}/LICENSE`;
-    await writeFile(new URL(license, directory), await fetchText(url));
+    fetchedLicenses[style] = await fetchText(url);
+    verifyPin(fetchedLicenses[style], licenseSha256, license);
     sources[style] = Object.fromEntries(entries.map((entry) => [entry[style], sources[style][entry[style]]]));
   }
-  await writeFile(sourcesPath, JSON.stringify(sources, null, 2) + "\n");
+  const sourceText = JSON.stringify(sources, null, 2) + "\n";
+  verifyPin(sourceText, manifest.sourcesSha256, "svg-sources.json");
+  for (const style of ["lucide", "duotone"]) {
+    await writeFile(new URL(manifest[style].license, directory), fetchedLicenses[style]);
+  }
+  await writeFile(sourcesPath, sourceText);
 }
 
-const sources = JSON.parse(await readFile(sourcesPath, "utf8"));
-const sourceHash = createHash("sha256").update(await readFile(sourcesPath)).digest("hex");
+const sourceText = await readFile(sourcesPath, "utf8");
+const sourceHash = verifyPin(sourceText, manifest.sourcesSha256, "svg-sources.json");
+const sources = JSON.parse(sourceText);
+const licenses = {};
+for (const style of ["lucide", "duotone"]) {
+  const { license, licenseSha256 } = manifest[style];
+  licenses[style] = await readFile(new URL(license, directory), "utf8");
+  verifyPin(licenses[style], licenseSha256, license);
+}
 const render = (svg) => new Resvg(svg, { font: { loadSystemFonts: false } }).render();
 
 function embedLicense(png, license) {
@@ -130,9 +151,8 @@ for (const variant of variants) {
     }
     if (visible !== (index < entries.length)) throw new Error(`Invalid ${variant.name} atlas tile ${index}`);
   }
-  const license = await readFile(new URL(manifest[variant.source].license, directory), "utf8");
-  const png = embedLicense(rendered.asPng(), license);
+  const png = embedLicense(rendered.asPng(), licenses[variant.source]);
   await writeFile(output, png);
   console.log(`${fileURLToPath(output)}: ${atlasWidth}×${atlasHeight}, ${entries.length} nonempty tiles, ${png.length} bytes`);
 }
-console.log(`Pinned SVG source SHA-256: ${sourceHash}`);
+console.log(`Verified pinned SVG source SHA-256: ${sourceHash}`);

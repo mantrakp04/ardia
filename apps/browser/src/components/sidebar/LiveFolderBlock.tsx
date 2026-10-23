@@ -1,3 +1,4 @@
+import { iconSurfaces } from "../../lib/iconColors";
 import { ContextMenuArea, FadeLabel, Surface, Symbol } from "@ardia/shell";
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Animated, Easing, Pressable, Text, View } from "react-native";
@@ -47,6 +48,7 @@ export const LiveFolders = memo(function LiveFolders({ windowId, spaced }: { win
 });
 
 function LiveFolderBlock({ folderId, windowId }: { folderId: string; windowId: string }) {
+  const theme = useTheme();
   const tokens = useSidebarTokens();
   const folder = useLive((s) => s.folders[folderId]);
   const items = useLive((s) => s.items[folderId] ?? EMPTY);
@@ -70,7 +72,7 @@ function LiveFolderBlock({ folderId, windowId }: { folderId: string; windowId: s
   const entries: FoldEntry[] = rows.length
     ? rows.map((row) => ({ key: row.key, node: <FolderRowView row={row} folderId={folderId} windowId={windowId} /> }))
     : [{ key: "note", node: <FolderNote folderId={folderId} /> }];
-  for (const id of strays) entries.push({ key: `stray:${id}`, node: <TabRow tabId={id} /> });
+  for (const id of strays) entries.push({ key: `stray:${id}`, node: <TabRow tabId={id} background={iconSurfaces(theme.windowTint, tokens.groupFill)} /> });
   if (completed) entries.push({ key: "completed", node: <CompletedFooter folderId={folderId} windowId={windowId} /> });
   const keep = !activeTab
     ? null
@@ -141,7 +143,7 @@ function FolderHeader({ folderId, windowId, collapsed }: { folderId: string; win
               cornerRadius={GROUP_HEADER_RADIUS}
               style={{ height: layout.rowHeight, flexDirection: "row", alignItems: "center", paddingLeft: 9 + PAD, paddingRight: 6 }}
             >
-              <TabIcon url={sourceSite} icon={icon} />
+              <TabIcon url={sourceSite} icon={icon} background={iconSurfaces(theme.windowTint, tokens.groupFill, pressed ? theme.tabPressed : hovered ? tokens.groupHeaderHover : null)} />
               <FadeLabel text={folder.name} fontSize={13} weight="medium" color={tokens.groupTitle} style={{ flex: 1, height: 18, marginLeft: 5 }} />
               {status?.error ? (
                 <Pressable onPress={() => openSettings("liveFolders")} tooltip={errorText(status.error.kind, status.error.source)} style={{ marginRight: 2 }}>

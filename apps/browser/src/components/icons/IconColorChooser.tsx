@@ -28,7 +28,7 @@ export function IconColorChooser({ value, disabled, expanded, onExpandedChange, 
   disabled: boolean;
   expanded: boolean;
   onExpandedChange(expanded: boolean): void;
-  onChange(value: string | null): void;
+  onChange(value: string | null, settle?: boolean): void;
   onDismiss(): void;
 }) {
   const theme = useTheme();
@@ -89,7 +89,7 @@ function ColorButton({ label, title, selected, disabled, expanded, onPress }: {
   );
 }
 
-function ColorEditor({ value, disabled, onChange, onDismiss }: { value: string | null; disabled: boolean; onChange(value: string): void; onDismiss(): void }) {
+function ColorEditor({ value, disabled, onChange, onDismiss }: { value: string | null; disabled: boolean; onChange(value: string, settle?: boolean): void; onDismiss(): void }) {
   const theme = useTheme();
   const primary = theme.custom && theme.powerUpPalette?.length
     ? theme.powerUpPalette[0]
@@ -101,24 +101,41 @@ function ColorEditor({ value, disabled, onChange, onDismiss }: { value: string |
   const latest = useRef(hsl);
   const emitted = useRef<string | null>(null);
   const sliderWidth = useRef(1);
+  const dragging = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      dragging.current = false;
+    };
+  }, []);
   latest.current = hsl;
   useEffect(() => {
     setDraft(value ?? fallback);
     if (value !== null && value === emitted.current) return;
+    dragging.current = false;
     const color = hexColor(value ?? fallback);
     const next = rgbToHsl(color.r, color.g, color.b);
     latest.current = next;
     setHsl(next);
   }, [value, fallback]);
-  const change = (next: Hsl) => {
-    if (disabled) return;
+  const change = (next: Hsl, settle = true) => {
+    if (disabled || !mounted.current) return;
+    if (settle) dragging.current = false;
     latest.current = next;
     setHsl(next);
     const [r, g, b] = hslToRgb(...next);
     const color = colorHex({ r, g, b, a: 1 });
     emitted.current = color;
     setDraft(color);
-    onChange(color);
+    onChange(color, settle);
+  };
+  const finishGesture = () => {
+    if (!dragging.current || !mounted.current) return;
+    dragging.current = false;
+    const [r, g, b] = hslToRgb(...latest.current);
+    onChange(colorHex({ r, g, b, a: 1 }), true);
   };
   const wheel = (event: GestureResponderEvent) => {
     const x = event.nativeEvent.locationX / PAD - 0.5;
@@ -127,9 +144,9 @@ function ColorEditor({ value, disabled, onChange, onDismiss }: { value: string |
     const scale = radius > 0.5 ? 0.5 / radius : 1;
     const color = padColor(0.5 + x * scale, 0.5 + y * scale);
     const [h, s] = rgbToHsl(color.r, color.g, color.b);
-    change([h, s, latest.current[2]]);
+    change([h, s, latest.current[2]], false);
   };
-  const lightness = (event: GestureResponderEvent) => change([latest.current[0], latest.current[1], clamp01(event.nativeEvent.locationX / sliderWidth.current)]);
+  const lightness = (event: GestureResponderEvent) => change([latest.current[0], latest.current[1], clamp01(event.nativeEvent.locationX / sliderWidth.current)], false);
   const shiftHue = (delta: number) => change([(latest.current[0] + delta + 1) % 1, latest.current[1], latest.current[2]]);
   const shiftLightness = (delta: number) => change([latest.current[0], latest.current[1], clamp01(latest.current[2] + delta)]);
   const [r, g, b] = hslToRgb(...hsl);
@@ -138,12 +155,13 @@ function ColorEditor({ value, disabled, onChange, onDismiss }: { value: string |
   const position = padPosition({ r: pr, g: pg, b: pb, a: 1 });
   const invalid = normalizeIconColor(draft) === null;
   const applyHex = (text: string) => {
-    if (disabled) return;
+    if (disabled || !mounted.current) return;
     setDraft(text);
     const normalized = normalizeIconColor(text);
     if (!normalized) return;
     const next = hexColor(normalized);
     emitted.current = null;
+    dragging.current = false;
     const nextHsl = rgbToHsl(next.r, next.g, next.b);
     latest.current = nextHsl;
     setHsl(nextHsl);
@@ -169,9 +187,18 @@ function ColorEditor({ value, disabled, onChange, onDismiss }: { value: string |
         acceptsFirstMouse={!disabled}
         mouseDownCanMoveWindow={false}
         onStartShouldSetResponder={() => !disabled}
-        onResponderGrant={wheel}
-        onResponderMove={wheel}
-        onResponderRelease={wheel}
+        onResponderGrant={(event) => {
+          if (disabled || !mounted.current) return;
+          dragging.current = true;
+          wheel(event);
+        }}
+        onResponderMove={(event) => dragging.current && wheel(event)}
+        onResponderRelease={(event) => {
+          if (!dragging.current) return;
+          wheel(event);
+          finishGesture();
+        }}
+        onResponderTerminate={finishGesture}
         style={{ width: PAD, height: PAD }}
       >
         <View pointerEvents="none" style={{ width: PAD, height: PAD, borderRadius: PAD / 2, overflow: "hidden" }}>
@@ -205,9 +232,18 @@ function ColorEditor({ value, disabled, onChange, onDismiss }: { value: string |
             acceptsFirstMouse={!disabled}
             mouseDownCanMoveWindow={false}
             onStartShouldSetResponder={() => !disabled}
-            onResponderGrant={lightness}
-            onResponderMove={lightness}
-            onResponderRelease={lightness}
+            onResponderGrant={(event) => {
+              if (disabled || !mounted.current) return;
+              dragging.current = true;
+              lightness(event);
+            }}
+            onResponderMove={(event) => dragging.current && lightness(event)}
+            onResponderRelease={(event) => {
+              if (!dragging.current) return;
+              lightness(event);
+              finishGesture();
+            }}
+            onResponderTerminate={finishGesture}
             style={{ height: 24, justifyContent: "center" }}
           >
             <View pointerEvents="none" style={{ height: 6, borderRadius: 3, overflow: "hidden", flexDirection: "row" }}>

@@ -1,3 +1,4 @@
+import { iconSurfaces, type IconBackground } from "../../lib/iconColors";
 import { ContextMenuArea, FadeLabel, Surface, Symbol } from "@ardia/shell";
 import { memo, useContext, useState } from "react";
 import { Animated, Pressable, Text, View } from "react-native";
@@ -26,6 +27,7 @@ import { GROUP_COLORS, useSidebarTokens, withAlpha } from "./tokens";
 const PAD = GROUP_PAD;
 
 export const GroupBlock = memo(function GroupBlock({ groupId, section, motion: own = null }: { groupId: string; section: "list" | "pinnedGroups"; motion?: EntryMotion | null }) {
+  const theme = useTheme();
   const windowId = useWindowId();
   const tokens = useSidebarTokens();
   const collapsed = useBrowser((s) => !!s.groups[groupId]?.collapsed);
@@ -71,7 +73,7 @@ export const GroupBlock = memo(function GroupBlock({ groupId, section, motion: o
               : {
                   key: slot.entry,
                   node: (
-                    <Entry entry={slot.entry} section={section} groupId={groupId} motion={motion.motion(slot.entry)} />
+                    <Entry entry={slot.entry} section={section} groupId={groupId} motion={motion.motion(slot.entry)} background={iconSurfaces(theme.windowTint, fill)} />
                   ),
                 },
           )}
@@ -88,11 +90,11 @@ export const GroupBlock = memo(function GroupBlock({ groupId, section, motion: o
   );
 });
 
-const Entry = memo(function Entry({ entry, section, groupId, motion }: { entry: string; section: "list" | "pinnedGroups"; groupId: string; motion: EntryMotion | null }) {
+const Entry = memo(function Entry({ entry, section, groupId, motion, background }: { entry: string; section: "list" | "pinnedGroups"; groupId: string; motion: EntryMotion | null; background: IconBackground }) {
   return entry.startsWith("s:") ? (
-    <SplitRowItem splitId={entry.slice(2)} section={section} parentGroup={groupId} motion={motion} />
+    <SplitRowItem splitId={entry.slice(2)} section={section} parentGroup={groupId} motion={motion} background={background} />
   ) : (
-    <TabRowItem tabId={entry.slice(2)} section={section} parentGroup={groupId} motion={motion} />
+    <TabRowItem tabId={entry.slice(2)} section={section} parentGroup={groupId} motion={motion} background={background} />
   );
 });
 
@@ -135,7 +137,7 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
               style={{ height: layout.rowHeight, flexDirection: "row", alignItems: "center", paddingLeft: 9 + PAD, paddingRight: 6 }}
             >
               {group.icon || firstTab ? (
-                <TabIcon url={firstTab?.url ?? ""} favicon={firstTab?.favicon} icon={group.icon ?? firstTab?.customIcon} profileId={firstTab?.profileId} />
+                <TabIcon url={firstTab?.url ?? ""} favicon={firstTab?.favicon} icon={group.icon ?? firstTab?.customIcon} profileId={firstTab?.profileId} background={iconSurfaces(theme.windowTint, group.color ? withAlpha(GROUP_COLORS[group.color].hex, 0.16) : tokens.groupFill, dropInto || pressed ? theme.tabPressed : hovered ? tokens.groupHeaderHover : null)} />
               ) : (
                 <View style={{ width: 16 }} />
               )}
