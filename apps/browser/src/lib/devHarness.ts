@@ -43,6 +43,12 @@ export function startDevHarness() {
     get permissions(): typeof import("../components/site/permissions") {
       return require("../components/site/permissions");
     },
+    get liveStore(): typeof import("../live/store") {
+      return require("../live/store");
+    },
+    get pinnedOrder(): typeof import("../components/sidebar/pinnedOrder") {
+      return require("../components/sidebar/pinnedOrder");
+    },
     get translate(): typeof import("../components/site/translate") {
       return require("../components/site/translate");
     },

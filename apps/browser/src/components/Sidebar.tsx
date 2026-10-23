@@ -26,7 +26,9 @@ import { useClipped, useShift, type ClipSource, type EntryMotion } from "./sideb
 import { sidebarEntries } from "./sidebar/entries";
 import { GroupBlock } from "./sidebar/GroupBlock";
 import { dismissHover, dismissHoverIn } from "./sidebar/hover";
-import { LiveFolders } from "./sidebar/LiveFolderBlock";
+import { LiveFolderBlock } from "./sidebar/LiveFolderBlock";
+import { LIVE, usePinnedSequence } from "./sidebar/pinnedOrder";
+import { live } from "../live/store";
 import { capture, GhostSlot, ListMotionContext, newCapture, useListMotion } from "./sidebar/listMotion";
 import { openOverflowMenu, openSidebarMenu } from "./sidebar/menus";
 import { PinFieldZone, PinnedGrid, PinSlotZone } from "./sidebar/PinnedGrid";
@@ -334,7 +336,7 @@ type PageRowsProps = {
 
 function PageRows({ windowId, profileId, current, rows, lazy, offScreen, tiles, innerWidth, inlineNewTab, controller, geometry, onListHeight }: PageRowsProps) {
   const [captured] = useState(newCapture);
-  const { pinnedRows, pinnedGroups, list: all } = useBrowser((s) => {
+  const { list: all } = useBrowser((s) => {
     const entries = sidebarEntries(s, windowId, profileId);
     return capture(captured, s, entries.list, entries);
   });
@@ -352,7 +354,8 @@ function PageRows({ windowId, profileId, current, rows, lazy, offScreen, tiles, 
   const list = limit === undefined ? all : all.slice(0, limit);
   const pending = useBrowser((s) => (growing ? entriesHeight(s, windowId, profileId, all.slice(mountedRows)) : 0));
   const divided = !offScreen && all.length > 0;
-  const pinnedSection = pinnedRows.length + pinnedGroups.length > 0;
+  const pinned = usePinnedSequence(windowId, profileId, offScreen);
+  const pinnedSection = pinned.length > 0;
   const newTabsAtTop = useSettings((s) => s.newTabPosition === "top");
   const animated = current && !offScreen;
   const motion = useListMotion(windowId, profileId, all, captured, animated);
@@ -379,16 +382,11 @@ function PageRows({ windowId, profileId, current, rows, lazy, offScreen, tiles, 
           onLayout={geometry ? (e) => void (geometry.current.regions.pinnedGroups = e.nativeEvent.layout.y) : undefined}
           style={{ marginTop: tiles.length ? 6 : 0, gap: layout.rowGap }}
         >
-          {(offScreen ? NONE : pinnedRows).map((id) => (
-            <TabRowItem key={id} tabId={id} section="pinnedRows" />
-          ))}
-          <Tail id="tail:pinnedRows" section="pinnedRows" />
-          {(offScreen ? NONE : pinnedGroups).map((id) => (
-            <GroupBlock key={id} groupId={id} section="pinnedGroups" />
+          {pinned.map((entry) => (
+            <PinnedEntry key={entry} entry={entry} windowId={windowId} />
           ))}
           <Tail id="tail:pinnedGroups" section="pinnedGroups" />
         </View>
-        {offScreen ? null : <LiveFolders windowId={windowId} spaced={pinnedSection} />}
         {divided ? <ClearDivider windowId={windowId} spaced={pinnedSection} /> : null}
         <View
           ref={(v) => {
@@ -429,6 +427,13 @@ function PageContent({ children }: { children: (controller: ReturnType<typeof us
   return <>{children(useDragController())}</>;
 }
 
+const PinnedEntry = memo(function PinnedEntry({ entry, windowId }: { entry: string; windowId: string }) {
+  const id = entry.slice(entry.indexOf(":") + 1);
+  if (entry.startsWith(LIVE)) return <LiveFolderBlock folderId={id} windowId={windowId} />;
+  if (entry.startsWith("g:")) return <GroupBlock groupId={id} section="pinnedGroups" />;
+  return <TabRowItem tabId={id} section="pinnedRows" />;
+});
+
 const ListEntry = memo(function ListEntry({ entry, motion }: { entry: string; motion: EntryMotion | null }) {
   const id = entry.slice(2);
   if (entry.startsWith("g:")) return <GroupBlock groupId={id} section="list" motion={motion} />;
@@ -468,7 +473,8 @@ function useRevealTabs(windowId: string, scroll: RefObject<ScrollView | null>, s
       if (geometry.current.tilesFixed && pinned?.pinned && !pinned.pinnedAsRow) return;
       const { regions, newTabAtTop } = geometry.current;
       const span = rowSpan(s, windowId, profileId, tabId, newTabAtTop);
-      if (span) return show(geometry.current.pad + regions[span.section] + span.top, span.height);
+      const liveAbove = span?.section === "pinnedGroups" && live().folderOrder.some((id) => live().folders[id]?.profileId === profileId);
+      if (span && !liveAbove) return show(geometry.current.pad + regions[span.section] + span.top, span.height);
       const view = scroll.current as unknown as View;
       void measureRow(windowId, tabId).then((row) =>
         view.measureInWindow((_x, y) => row && mine === reveals && show(row.y - y + (scrollY.current ?? 0), row.height)),

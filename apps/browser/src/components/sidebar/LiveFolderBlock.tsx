@@ -8,8 +8,8 @@ import { COMPLETION_MS, errorText, openLiveItem, refreshFolder, statusText } fro
 import { prBadge } from "../../live/github";
 import { folderRows, type FolderRow } from "../../live/rows";
 import { SOURCES } from "../../live/sources";
-import { setLive, updateFolder, useLive, profileFolders } from "../../live/store";
-import type { CompletedItem, LiveItem } from "../../live/types";
+import { setLive, updateFolder, useLive } from "../../live/store";
+import type { CompletedItem, LiveFolder, LiveItem } from "../../live/types";
 import { useBrowser } from "../../store/browser";
 import { usePageProfileId } from "../../store/hooks";
 import { activeTabId, viewTabIds } from "../../store/model";
@@ -20,6 +20,7 @@ import { useLiveColors, type LiveColors } from "../live/colors";
 import { clickMods, TabRow } from "./TabRow";
 import { Fold, useFold, type FoldEntry } from "./Fold";
 import { GROUP_BORDER, GROUP_HEADER_RADIUS, GROUP_PAD, GROUP_RADIUS } from "./geometry";
+import { useDragItem } from "./dnd";
 import { dismissHover, useRowHover } from "./hover";
 import { openLiveFolderMenu, openLiveItemMenu } from "./liveMenus";
 import { registerRow } from "./state";
@@ -30,23 +31,13 @@ const PAD = GROUP_PAD;
 const EMPTY: LiveItem[] = [];
 const NONE: string[] = [];
 
+export function liveFolderIcon(folder: LiveFolder): { site: string; icon: string | null } {
+  return { site: SOURCES[folder.sources[0] ?? "github"].site, icon: folder.icon ?? (folder.sources.length > 1 && folder.kind === "documents" ? "symbol:doc.text" : null) };
+}
+
 const liveRowKey = (folderId: string, itemId: string) => `live|${folderId}|${itemId}`;
 
-export const LiveFolders = memo(function LiveFolders({ windowId, spaced }: { windowId: string; spaced: boolean }) {
-  const page = usePageProfileId();
-  const profileId = useBrowser((s) => (s.windows[windowId]?.incognito ? "" : page));
-  const ids = useLive(useShallow((s) => profileFolders(s, profileId)));
-  if (!ids.length) return null;
-  return (
-    <View style={{ marginTop: spaced ? 7 : 0, marginBottom: 7, gap: layout.rowGap }}>
-      {ids.map((id) => (
-        <LiveFolderBlock key={id} folderId={id} windowId={windowId} />
-      ))}
-    </View>
-  );
-});
-
-function LiveFolderBlock({ folderId, windowId }: { folderId: string; windowId: string }) {
+export const LiveFolderBlock = memo(function LiveFolderBlock({ folderId, windowId }: { folderId: string; windowId: string }) {
   const tokens = useSidebarTokens();
   const folder = useLive((s) => s.folders[folderId]);
   const items = useLive((s) => s.items[folderId] ?? EMPTY);
@@ -65,6 +56,7 @@ function LiveFolderBlock({ folderId, windowId }: { folderId: string; windowId: s
   const activeItem = useBrowser((s) => (activeTab ? (s.tabs[activeTab]?.liveItem?.itemId ?? null) : null));
   const completed = useCompletedShown(folderId).length > 0;
   const fold = useFold(collapsed);
+  const { wrapper, handle, headerRef } = useDragItem(`lf:${folderId}`, { kind: "live", tabIds: NONE, section: "pinnedGroups", liveFolderId: folderId, collapsed });
   if (!folder) return null;
 
   const entries: FoldEntry[] = rows.length
@@ -79,12 +71,16 @@ function LiveFolderBlock({ folderId, windowId }: { folderId: string; windowId: s
       : (rows.find((r) => (r.kind === "item" && r.item.id === activeItem) || (r.kind === "stack" && r.items.some((i) => i.id === activeItem)))?.key ?? null);
 
   return (
-    <View style={{ borderRadius: GROUP_RADIUS, backgroundColor: tokens.groupFill, borderWidth: GROUP_BORDER, borderColor: tokens.groupStroke, paddingHorizontal: PAD }}>
-      <FolderHeader folderId={folderId} windowId={windowId} collapsed={collapsed} />
-      <Fold fold={fold} collapsed={collapsed} entries={entries} keep={keep} gap={layout.rowGap} padBottom={PAD} />
-    </View>
+    <Animated.View ref={wrapper.ref} style={wrapper.style}>
+      <View style={{ borderRadius: GROUP_RADIUS, backgroundColor: tokens.groupFill, borderWidth: GROUP_BORDER, borderColor: tokens.groupStroke, paddingHorizontal: PAD }}>
+        <View ref={headerRef} {...handle} style={{ marginHorizontal: -PAD }}>
+          <FolderHeader folderId={folderId} windowId={windowId} collapsed={collapsed} />
+        </View>
+        <Fold fold={fold} collapsed={collapsed} entries={entries} keep={keep} gap={layout.rowGap} padBottom={PAD} />
+      </View>
+    </Animated.View>
   );
-}
+});
 
 function FolderRowView({ row, folderId, windowId }: { row: FolderRow; folderId: string; windowId: string }) {
   switch (row.kind) {
@@ -118,11 +114,10 @@ function FolderHeader({ folderId, windowId, collapsed }: { folderId: string; win
   const { hovered, hoverProps } = useHover();
   if (!folder) return null;
   const updating = status?.state === "updating" || status?.state === "initializing";
-  const sourceSite = SOURCES[folder.sources[0] ?? "github"].site;
-  const icon = folder.icon ?? (folder.sources.length > 1 && folder.kind === "documents" ? "symbol:doc.text" : null);
+  const { site: sourceSite, icon } = liveFolderIcon(folder);
 
   return (
-    <View ref={(v) => registerRow(windowId, `livefolder|${folderId}`, v)} {...hoverProps} style={{ marginHorizontal: -PAD }}>
+    <View ref={(v) => registerRow(windowId, `livefolder|${folderId}`, v)} {...hoverProps}>
       <ContextMenuArea
         onContextMenu={() => {
           dismissHover();

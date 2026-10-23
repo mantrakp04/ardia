@@ -1,11 +1,13 @@
 import { FadeLabel, Surface } from "@ardia/shell";
 import { Animated, Text, View } from "react-native";
 import { hex, layout, useTheme } from "../../lib/theme";
+import { useLive } from "../../live/store";
 import { useBrowser } from "../../store/browser";
 import { groupLabel } from "../../store/organize";
 import { tabTitle } from "./actions";
 import { useTabDrag } from "../layout/tabDrag";
 import type { Ghost } from "./dnd";
+import { liveFolderIcon } from "./LiveFolderBlock";
 import { TabIcon } from "./TabIcon";
 import { useSidebarTokens } from "./tokens";
 
@@ -14,7 +16,9 @@ export function DragGhost({ ghost }: { ghost: Ghost }) {
   const tokens = useSidebarTokens();
   const { item, count, width, height, position } = ghost;
   const tab = useBrowser((s) => s.tabs[item.tabIds[0] ?? ""]);
-  const label = useBrowser((s) => (item.groupId && s.groups[item.groupId] ? groupLabel(s, s.groups[item.groupId]!) : tab ? tabTitle(tab) : ""));
+  const folder = useLive((s) => (item.liveFolderId ? s.folders[item.liveFolderId] : undefined));
+  const liveIcon = folder ? liveFolderIcon(folder) : null;
+  const label = useBrowser((s) => folder?.name ?? (item.groupId && s.groups[item.groupId] ? groupLabel(s, s.groups[item.groupId]!) : tab ? tabTitle(tab) : ""));
   const tile = item.kind === "tile";
   const onPage = useTabDrag((d) => d.onPage);
   return (
@@ -39,8 +43,9 @@ export function DragGhost({ ghost }: { ghost: Ghost }) {
           opacity: 0.96,
         }}
       >
+        {liveIcon ? <TabIcon url={liveIcon.site} icon={liveIcon.icon} /> : null}
         {tab ? <TabIcon url={tab.url} favicon={tab.favicon} icon={item.kind === "group" ? null : tab.customIcon} profileId={tab.profileId} /> : null}
-        {!tile ? <FadeLabel text={label} fontSize={13} weight={item.kind === "group" ? "medium" : "regular"} color={theme.textPrimary} style={{ flex: 1, height: 18, marginLeft: 7 }} /> : null}
+        {!tile ? <FadeLabel text={label} fontSize={13} weight={item.kind === "group" || item.kind === "live" ? "medium" : "regular"} color={theme.textPrimary} style={{ flex: 1, height: 18, marginLeft: 7 }} /> : null}
       </Surface>
       {count > 1 ? (
         <View style={{ position: "absolute", top: -6, right: -4, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, backgroundColor: theme.accent, alignItems: "center", justifyContent: "center" }}>
