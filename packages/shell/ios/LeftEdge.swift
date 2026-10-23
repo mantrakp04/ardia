@@ -47,9 +47,10 @@ final class LeftEdgeWatcher {
         unreported.remove(id)
         continue
       }
+      let onScreen = window.screen?.frame.contains(point) == true
       let now = isOver(point, of: window, hold: hold, live: live)
-        || (window.screen?.frame.contains(point) == true
-          && (over.contains(id) || isOver(point, of: window, hold: hold, live: false)) && onDock)
+        || (onScreen && over.contains(id) && onDock)
+        || (onScreen && isOver(point, of: window, hold: hold, live: false) && onDock && isTopBeneathDock(point, of: window))
       let fresh = unreported.remove(id) != nil
       guard fresh || now != over.contains(id) else { continue }
       if now { over.insert(id) } else { over.remove(id) }
@@ -78,8 +79,8 @@ final class LeftEdgeWatcher {
     return NSApp.isActive || Self.besideScreenEdge(window, screen)
   }
 
-  private static func windowNumber(at point: NSPoint) -> Int {
-    var number = NSWindow.windowNumber(at: point, belowWindowWithWindowNumber: 0)
+  private static func windowNumber(at point: NSPoint, below start: Int = 0) -> Int {
+    var number = NSWindow.windowNumber(at: point, belowWindowWithWindowNumber: start)
     while let passThrough = NSApp.window(withWindowNumber: number), passThrough.ignoresMouseEvents {
       let below = NSWindow.windowNumber(at: point, belowWindowWithWindowNumber: number)
       guard below != number else { break }
@@ -89,7 +90,22 @@ final class LeftEdgeWatcher {
   }
 
   private func isOnDock(_ point: NSPoint) -> Bool {
-    let number = Self.windowNumber(at: point)
+    isDock(Self.windowNumber(at: point))
+  }
+
+  private func isTopBeneathDock(_ point: NSPoint, of window: NSWindow) -> Bool {
+    let probe = NSPoint(x: max(point.x, window.frame.minX + 1), y: point.y)
+    var number = Self.windowNumber(at: probe)
+    while isDock(number) {
+      let below = Self.windowNumber(at: probe, below: number)
+      guard below != number else { break }
+      number = below
+    }
+    let hit = NSApp.window(withWindowNumber: number)
+    return hit === window || hit?.parent === window
+  }
+
+  private func isDock(_ number: Int) -> Bool {
     guard number > 0, NSApp.window(withWindowNumber: number) == nil else { return false }
     if number != lastHitWindow {
       lastHitWindow = number
