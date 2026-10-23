@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 const { useBrowser } = await import("./browser.ts");
 const { groupEntries, sidebarEntries, numberedTabs } = await import("../components/sidebar/entries.ts");
+const { orderSections } = await import("./groups.ts");
+const { canMoveGroup } = await import("./organize.ts");
 
 const S = () => useBrowser.getState();
 const reset = () => S().hydrate({});
@@ -173,9 +175,15 @@ test("moving a group into the parent that holds only it keeps the parent; taking
   S().moveGroup(inner, { pinned: false, parentId: outer });
   assert.equal(S().groups[outer].tabIds.length, 2);
   assert.equal(S().groups[inner].parentId, outer);
+  assert.equal(canMoveGroup(S().groups, inner, { parentId: null }), false, "the drag knows it's refused, so it plays no landing");
+  assert.equal(canMoveGroup(S().groups, inner, { parentId: outer }), true);
   S().moveGroup(inner, { pinned: false, parentId: null });
   assert.ok(S().groups[outer], "Outer isn't deleted behind the user's back");
   assert.equal(S().groups[inner].parentId, outer);
+  S().groupTabs([ids[0]], { name: "Other" });
+  const other = Object.values(S().groups).find((g) => g.name === "Other").id;
+  assert.equal(canMoveGroup(S().groups, outer, { parentId: inner }), false, "a group can't go inside its own child");
+  assert.equal(canMoveGroup(S().groups, other, { parentId: inner }), true);
 });
 
 test("a reopened tab goes back to its group wherever it is now, in one chain only", () => {
@@ -299,4 +307,24 @@ test("settling a nested group pinned unlike its root keeps pinned groups ahead o
   const settled = settleNesting({ tabs, groups, windows });
   assert.equal(settled.groups.I.pinned, false);
   assert.deepEqual(settled.windows.w.tabIds, ["e", "p", "b", "c", "a", "d"]);
+});
+
+test("a tab leaving a pinned group, or a pinned group ungrouped, goes to the list and the window keeps its sections in order", () => {
+  reset();
+  const { w, ids } = windowWith("a", "b", "c", "d", "e");
+  const [a, b, c, d, e] = ids;
+  const one = S().groupTabs([a, b], { pinned: true, name: "One" });
+  S().groupTabs([c], { pinned: true, name: "Two" });
+  S().pinTabs([d], true, true);
+  const settled = () => {
+    const s = S();
+    return JSON.stringify(orderSections(s.windows[w].tabIds, s.tabs, s.groups)) === JSON.stringify(s.windows[w].tabIds);
+  };
+  assert.ok(settled());
+  S().removeTabsFromGroup([a]);
+  assert.ok(settled(), "the tab that left One sits in the list, after every pinned row and group");
+  assert.ok(sidebarEntries(S(), w).list.includes(`t:${a}`));
+  S().ungroup(one);
+  assert.ok(settled(), "One's last tab goes to the list too");
+  assert.ok(sidebarEntries(S(), w).list.includes(`t:${b}`));
 });

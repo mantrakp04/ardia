@@ -536,21 +536,27 @@ export function placing(s: BrowserState, ids: string[], p: TabPlacement): Browse
   return { ...s, tabs, pinChoices, pinSync, groups: syncGroupOrder(groups, window), windows: { ...s.windows, [w.id]: window } };
 }
 
+export function canMoveGroup(groups: Record<string, TabGroup>, groupId: string, p: Pick<GroupPlacement, "parentId" | "beforeId">): boolean {
+  const g = groups[groupId];
+  if (!g || (p.beforeId && g.tabIds.includes(p.beforeId))) return false;
+  if (p.parentId && (!groups[p.parentId] || !canNest(groups, groupId, p.parentId))) return false;
+  const staying = new Set(p.parentId ? [p.parentId, ...ancestorIds(groups, p.parentId)] : []);
+  const moving = new Set(g.tabIds);
+  return ancestorIds(groups, groupId).every((a) => staying.has(a) || groups[a]!.tabIds.some((id) => !moving.has(id)));
+}
+
 export function movingGroup(s: BrowserState, groupId: string, p: GroupPlacement): Partial<BrowserState> {
   const g = s.groups[groupId];
   const w = g && s.windows[g.windowId];
-  if (!g || !w || (p.beforeId && g.tabIds.includes(p.beforeId))) return {};
+  if (!g || !w || !canMoveGroup(s.groups, groupId, p)) return {};
   const parent = p.parentId ? s.groups[p.parentId] : undefined;
-  if (p.parentId && (!parent || !canNest(s.groups, groupId, p.parentId))) return {};
   const pinned = parent ? parent.pinned : p.pinned;
   const moving = new Set(g.tabIds);
   let groups = { ...s.groups };
   const staying = new Set(parent ? [parent.id, ...ancestorIds(s.groups, parent.id)] : []);
   for (const a of ancestorIds(s.groups, groupId)) {
     if (staying.has(a)) continue;
-    const tabIds = groups[a]!.tabIds.filter((id) => !moving.has(id));
-    if (!tabIds.length) return {};
-    groups[a] = { ...groups[a]!, tabIds };
+    groups[a] = { ...groups[a]!, tabIds: groups[a]!.tabIds.filter((id) => !moving.has(id)) };
   }
   groups[groupId] = withParent({ ...g, pinned }, parent?.id);
   groups = nestGroups(reparent(groups, s.groups));

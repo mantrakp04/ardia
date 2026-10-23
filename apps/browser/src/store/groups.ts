@@ -108,9 +108,12 @@ export function rootOf(groups: Record<string, TabGroup>, id: string): TabGroup |
 export const childGroups = (groups: Record<string, TabGroup>, id: string): TabGroup[] => Object.values(groups).filter((g) => g.parentId === id);
 
 export function descendantIds(groups: Record<string, TabGroup>, id: string): string[] {
+  const children = new Map<string, string[]>();
+  for (const g of Object.values(groups)) if (g.parentId) children.set(g.parentId, [...(children.get(g.parentId) ?? []), g.id]);
+  const seen = new Set<string>([id]);
   const out: string[] = [];
   const walk = (parent: string) => {
-    for (const g of childGroups(groups, parent)) if (!out.includes(g.id) && g.id !== id) (out.push(g.id), walk(g.id));
+    for (const child of children.get(parent) ?? []) if (!seen.has(child)) (seen.add(child), out.push(child), walk(child));
   };
   walk(id);
   return out;
@@ -310,10 +313,12 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
     set((s) => {
       let groups = s.groups;
       const windows = { ...s.windows };
+      const touched = new Set<string>();
       for (const id of tabIds) {
         const g = innermostGroupOf(groups, id);
         const w = g && windows[g.windowId];
         if (!g || !w) continue;
+        touched.add(w.id);
         const kept = g.tabIds.filter((x) => x !== id);
         if (kept.length) {
           const order = w.tabIds.filter((x) => x !== id);
@@ -325,15 +330,21 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
           groups = reparent(rest, groups);
         }
       }
-      for (const w of Object.values(windows)) if (w !== s.windows[w.id]) groups = syncGroupOrder(groups, w);
-      return { groups, windows };
+      let next = { tabs: s.tabs, windows, groups };
+      for (const windowId of touched) next = withGroupsPlaced(next, windowId, next.groups);
+      return { groups: next.groups, windows: next.windows };
     });
   },
 
   ungroup(groupId) {
     set((s) => {
-      const { [groupId]: _, ...groups } = s.groups;
-      return { groups: reparent(groups, s.groups) };
+      const group = s.groups[groupId];
+      if (!group) return {};
+      const { [groupId]: _, ...rest } = s.groups;
+      const groups = reparent(rest, s.groups);
+      if (!s.windows[group.windowId]) return { groups };
+      const next = withGroupsPlaced(s, group.windowId, groups);
+      return { groups: next.groups, windows: next.windows };
     });
   },
 

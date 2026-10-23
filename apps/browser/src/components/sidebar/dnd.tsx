@@ -6,7 +6,7 @@ import { layout, useTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
 import { useWindowId } from "../../store/hooks";
 import { descendantIds } from "../../store/groups";
-import type { GroupPlacement, TabPlacement } from "../../store/organize";
+import { canMoveGroup, type GroupPlacement, type TabPlacement } from "../../store/organize";
 import { SLIDE } from "../layout/stripReorder";
 import { beginTabDrag, cancelTabDrag, endTabDrag, setDragPicture, updateTabDrag, useTabDrag } from "../layout/tabDrag";
 import { useClipped, type ClipSource } from "./entryMotion";
@@ -427,7 +427,8 @@ class DragController {
             : { type: "tabs", placement: { pinned: false, beforeId: firstTab(before) } };
       }
     }
-    if (source.kind === "split" && drop.type === "tabs" && (drop.placement.pinned || drop.placement.groupId)) {
+    const refused = drop.type === "group" && !!source.groupId && !canMoveGroup(useBrowser.getState().groups, source.groupId, drop.placement);
+    if (refused || (source.kind === "split" && drop.type === "tabs" && (drop.placement.pinned || drop.placement.groupId))) {
       drop = { type: "none" };
       gapKey = null;
       into = null;
