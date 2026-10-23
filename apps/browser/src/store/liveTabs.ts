@@ -238,8 +238,13 @@ function placeLike(
   const own = groupOf(s, key)?.id;
   const around = [groupOf(s, prior)?.id, groupOf(s, next)?.id];
   const guessed = around[0] && around[0] === around[1] ? around[0] : own && around.includes(own) ? own : null;
+  const root = own ? rootOf(s.groups, own) : undefined;
+  if (!pinned && beforeId === null && own && root && root.id !== own && root.id === group) {
+    const last = root.tabIds.filter((id) => !moving.includes(id)).at(-1);
+    return placing(s, moving, { pinned, beforeId, groupId: last && s.groups[own]!.tabIds.includes(last) ? own : root.id });
+  }
   const wanted = group !== undefined ? (beforeId === null ? null : group) : guessed;
-  const groupId = pinned ? null : own && wanted && wanted !== own && rootOf(s.groups, own)?.id === wanted && group !== undefined ? own : wanted;
+  const groupId = pinned ? null : own && wanted && wanted !== own && root?.id === wanted && group !== undefined ? own : wanted;
   return placing(s, moving, { pinned, beforeId, groupId });
 }
 

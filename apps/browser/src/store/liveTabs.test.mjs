@@ -589,9 +589,31 @@ test("a nested group projects as its root's one Chrome group, and Chrome's moves
   assert.equal(S().groups[inner].name, "Inner");
   chrome.move(id("d"), 1);
   await settle(win);
+  assert.deepEqual(order(win.w), ["a", "d", "b", "c", "e"]);
   assert.equal(S().groups[inner]?.parentId, outer, "still nested");
   assert.deepEqual(S().groups[inner].tabIds.map(urlOf), ["b", "c"]);
   assert.deepEqual(S().groups[outer].tabIds.map(urlOf).sort(), ["a", "b", "c", "d"]);
   assert.deepEqual(chromeOrder(win.strip), order(win.w));
+  chrome.move(id("c"), 2);
+  await settle(win);
+  assert.deepEqual(order(win.w), ["a", "d", "c", "b", "e"]);
+  assert.deepEqual(S().groups[inner].tabIds.map(urlOf), ["c", "b"], "a nested member moved inside its group stays in it");
+  assert.equal(S().groups[inner]?.parentId, outer);
+  assert.deepEqual(chromeOrder(win.strip), order(win.w));
   assert.equal(chrome.strips.get(win.strip).groups.size, 1);
+});
+
+test("a nested group's tab moved by Chrome to the end of the strip, still in its root's Chrome group, stays in the tree", async () => {
+  const win = windowWith("a", "b", "c", "d", "e");
+  await settle(win);
+  const id = (u) => S().windows[win.w].tabIds.find((t) => urlOf(t) === u);
+  const outer = S().groupTabs([id("b"), id("c"), id("d"), id("e")], { pinned: false, name: "Outer" });
+  const inner = S().groupTabs([id("d"), id("e")], { name: "Inner" });
+  await settle(win);
+  chrome.move(id("d"), 4);
+  await settle(win);
+  assert.deepEqual(order(win.w), ["a", "b", "c", "e", "d"]);
+  assert.deepEqual(S().groups[outer].tabIds.map(urlOf), ["b", "c", "e", "d"], "still in the root");
+  assert.deepEqual(S().groups[inner].tabIds.map(urlOf), ["e", "d"], "and in its own group");
+  assert.deepEqual(chromeOrder(win.strip), order(win.w));
 });
