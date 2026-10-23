@@ -3,7 +3,7 @@ export const SYMBOL_PREFIX = "symbol:";
 export type IconStyle = "symbols" | "lucide" | "duotone";
 
 export const ICON_STYLES = [
-  { id: "symbols", label: "SF Symbols" },
+  { id: "symbols", label: "Native" },
   { id: "lucide", label: "Lucide" },
   { id: "duotone", label: "Duotone" },
 ] as const;
