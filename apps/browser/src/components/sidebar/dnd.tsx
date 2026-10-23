@@ -47,6 +47,7 @@ const ROW_GAP = layout.rowGap;
 export const PIN_SLOT = layout.pinnedHeight + TILE_GAP;
 const EDGE = 28;
 const spring = (value: Animated.Value, toValue: number) => Animated.spring(value, { toValue, ...SLIDE });
+const fullSize = (item: Item) => (item.kind === "tile" ? (item.frame?.w ?? 0) : (item.frame?.h ?? 0));
 
 const inside = (f: Frame, x: number, y: number, slop = 0) => x >= f.x - slop && x <= f.x + f.w + slop && y >= f.y - slop && y <= f.y + f.h + slop;
 const measure = (view: View | null): Promise<Frame | null> =>
@@ -136,7 +137,7 @@ class DragController {
       height,
       position: new Animated.ValueXY({ x: frame.x - this.rootFrame.x, y: frame.y - this.rootFrame.y }),
     };
-    for (const s of this.sources) s.size.setValue(s.kind === "tile" ? (s.frame?.w ?? 0) : (s.frame?.h ?? 0));
+    for (const s of this.sources) s.size.setValue(fullSize(s));
     this.setLanding(null);
     this.setSources(new Set(this.sources.map((s) => s.key)));
     this.setGhost(this.ghost);
@@ -253,7 +254,7 @@ class DragController {
       i.gap.stopAnimation();
       i.gap.setValue(0);
     }
-    for (const i of this.sources) i.size.stopAnimation();
+    for (const i of this.sources) i.size.setValue(fullSize(i));
     this.sources = [];
     this.gapKey = null;
     this.pitch = 0;

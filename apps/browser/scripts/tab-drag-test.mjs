@@ -418,6 +418,27 @@ try {
     }
   });
 
+  await check("sidebar: pinned tiles that trade places keep the 6 pt gap between every tile", async () => {
+    const ids = await run(`const ids = loose("w1").slice(0, 3); st().placeTabs(ids, { pinned: true, beforeId: null }); return settle(1200).then(() => ids);`);
+    try {
+      const firstRow = () => run(`return Promise.all([...globalThis.sidebarDrag.items.values()].filter((i) => i.kind === "tile" && i.view).map((i) => new Promise((r) => i.view.measureInWindow((x, y, w, h) => r({ id: i.tabIds[0], x, y, w, h })))));`)
+        .then((tiles) => tiles.filter((t) => Math.abs(t.y - Math.min(...tiles.map((u) => u.y))) < 1).sort((a, b) => a.x - b.x));
+      const start = await firstRow();
+      assert.ok(start.length >= 3, JSON.stringify(start));
+      const [, second, third] = start;
+      const y = Math.round(third.y + third.h / 2), from = Math.round(third.x + third.w / 2), to = Math.round(second.x + second.w / 2);
+      await run(`return act("w1", "drag:${from},${y};${from - 4},${y};${from - 12},${y};${to + 10},${y};${to},${y};${to},${y}").then(() => settle(${6 * 12 * 16 + 900}));`);
+      const end = await firstRow();
+      assert.deepEqual(end.slice(1, 3).map((t) => t.id), [third.id, second.id], `the tiles traded places: ${JSON.stringify(end)}`);
+      for (let i = 1; i < end.length; i++) {
+        const gap = end[i].x - end[i - 1].x - end[i - 1].w;
+        assert.ok(Math.abs(gap - 6) < 0.5, `${end[i].id} sits ${gap} pt after ${end[i - 1].id}`);
+      }
+    } finally {
+      await run(`st().placeTabs(${JSON.stringify(ids)}, { pinned: false, beforeId: null }); return settle(800);`);
+    }
+  });
+
   await check("sidebar: a row let go between two others settles into its place, where the row then is", async () => {
     await run(`st().newTab("w1"); st().newTab("w1"); st().newTab("w1"); return settle(1200);`);
     const rows = await run(`return Promise.all([...globalThis.sidebarDrag.items.values()].filter((i) => i.kind === "row" && !i.parentGroup && i.view).map((i) => new Promise((r) => i.view.measureInWindow((x, y, w, h) => r({ id: i.tabIds[0], x, y, w, h })))));`);
