@@ -1,5 +1,5 @@
 import { useBrowser, type BrowserState } from "../store/browser";
-import { bookmarkDraft, withDraftGroups, type GroupDraft } from "../store/draftGroups";
+import { bookmarkDraft, hasLinks, withDraftGroups, type GroupDraft } from "../store/draftGroups";
 import { bookmarkProfileId } from "../store/model";
 import { mainWindowFor } from "../store/small";
 
@@ -22,6 +22,11 @@ export function addGroupsFromDrafts(profileId: string, drafts: GroupDraft[], nea
 export function profileOfWindow(windowId: string | null | undefined): string {
   const s = useBrowser.getState();
   return bookmarkProfileId(s, windowId ? s.windows[windowId] : undefined);
+}
+
+export function makesGroup(s: Pick<BrowserState, "bookmarks">, folderId: string): boolean {
+  const draft = bookmarkDraft(s.bookmarks, folderId);
+  return !!draft && hasLinks(draft);
 }
 
 export function addFolderToSidebar(folderId: string, windowId: string | null): string[] {
@@ -51,9 +56,13 @@ export function restoreArcFolders(holderId: string, windowId: string | null): st
   const owner = holderProfile(s, holderId);
   if (!owner) return [];
   const profileId = s.profiles[owner] ? owner : profileOfWindow(windowId);
-  const children = bookmarkDraft(s.bookmarks, holderId)?.children ?? [];
+  const holder = s.bookmarks.nodes[holderId];
+  const folders = holder?.kind === "folder" ? holder.children.filter((id) => makesGroup(s, id)) : [];
   const near = windowId && s.windows[windowId]?.profileId === profileId ? windowId : null;
-  const made = addGroupsFromDrafts(profileId, children.filter((c) => !c.url), near);
-  if (children.every((c) => !c.url)) useBrowser.getState().removeBookmark(holderId);
+  const made = addGroupsFromDrafts(profileId, folders.map((id) => bookmarkDraft(s.bookmarks, id)!), near);
+  const b = useBrowser.getState();
+  for (const id of folders) b.removeBookmark(id);
+  const left = useBrowser.getState().bookmarks.nodes[holderId];
+  if (left?.kind === "folder" && !left.children.length) useBrowser.getState().removeBookmark(holderId);
   return made;
 }

@@ -7,7 +7,7 @@ import type { BookmarkFolder, Bookmarks, TabGroup } from "./types";
 export type GroupDraft = { title: string; url?: string; customTitle?: string; children?: GroupDraft[] };
 
 const opens = (url: string | undefined): url is string => !!url && /^(https?|file):/i.test(url);
-const hasLinks = (d: GroupDraft): boolean => !!d.children?.some((c) => (c.url ? opens(c.url) : hasLinks(c)));
+export const hasLinks = (d: GroupDraft): boolean => !!d.children?.some((c) => (c.url ? opens(c.url) : hasLinks(c)));
 const draftUrls = (d: GroupDraft): string[] => (d.url ? (opens(d.url) ? [d.url] : []) : (d.children ?? []).flatMap(draftUrls));
 const signature = (name: string, urls: string[]) => `${name}\u0001${[...urls].sort().join("\u0001")}`;
 

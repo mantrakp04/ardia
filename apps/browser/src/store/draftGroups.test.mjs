@@ -25,7 +25,7 @@ const tree = (groupId) => {
 const roots = (w) => sidebarEntries(S(), w).pinnedGroups;
 
 function start() {
-  S().hydrate({});
+  S().hydrate({ bookmarks: { nodes: {}, roots: {} } });
   const w = S().createWindow({ url: "https://home.example/" });
   const bar = S().bookmarks.roots[P]?.bar ?? (S().addBookmark({ profileId: P, url: "https://seed.example/", title: "seed" }), S().bookmarks.roots[P].bar);
   return { w, bar };
@@ -117,4 +117,25 @@ test("Arc import puts a space's pinned folders straight into nested pinned group
   assert.equal(repo.customTitle, "Renamed");
   importArcSpace(P, { ...space, pinned: space.pinned.filter((n) => n.type === "folder") });
   assert.equal(roots(w).length, 1, "a re-import adds no second group");
+});
+
+test("restoring keeps the holder with what couldn't become a group, and moves only the folders that did", () => {
+  const { w, bar } = start();
+  const holder = S().addBookmarkFolder({ profileId: P, title: "Kept (Arc)", parentId: bar });
+  const reading = folderTree(holder, "Reading");
+  const empty = S().addBookmarkFolder({ profileId: P, title: "Empty", parentId: holder });
+  const scripts = S().addBookmarkFolder({ profileId: P, title: "Scripts", parentId: holder });
+  S().addBookmark({ profileId: P, url: "javascript:void(0)", title: "Bookmarklet", parentId: scripts });
+  assert.equal(restoreArcFolders(holder, w).length, 1);
+  assert.ok(S().bookmarks.nodes[holder], "the holder stays");
+  assert.equal(S().bookmarks.nodes[reading], undefined, "the folder that became a group leaves it");
+  assert.deepEqual(S().bookmarks.nodes[holder].children, [empty, scripts]);
+});
+
+test("an Arc import counts the tabs of the groups it made, not of folders it skipped", () => {
+  start();
+  const folder = (title, url) => ({ type: "folder", title, children: [{ type: "url", title, url }, { type: "url", title: "Script", url: "javascript:void(0)" }] });
+  const space = { id: "s3", name: "Home", profileId: P, tabs: [], pinned: [folder("One", "https://one.example/")] };
+  assert.equal(importArcSpace(P, space).tabs, 1);
+  assert.equal(importArcSpace(P, { ...space, pinned: [folder("One", "https://one.example/"), folder("Two", "https://two.example/")] }).tabs, 1);
 });

@@ -164,7 +164,11 @@ export function importArcSpace(profileId: string, space: SpaceSuggestion): { tab
     adoptProfileTheme(profileId);
     useBrowser.getState().updateProfile(profileId, { theme });
   }
-  if (folders.length && addGroupsFromDrafts(profileId, folders.map(toGroupDraft), windowFor(profileId)).length) tabs += linkCount(folders);
+  if (folders.length) {
+    const made = addGroupsFromDrafts(profileId, folders.map(toGroupDraft), windowFor(profileId));
+    const groups = useBrowser.getState().groups;
+    tabs += made.reduce((n, id) => n + (groups[id]?.tabIds.length ?? 0), 0);
+  }
   return { tabs, bookmarks: 0 };
 }
 

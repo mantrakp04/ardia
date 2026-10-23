@@ -95,6 +95,10 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     case "setBookmarksBar":
       if (arg === "always" || arg === "newTab" || arg === "never") s.updateSettings({ bookmarksBar: arg });
       return;
+    case "addFolderToSidebar":
+      return arg ? void addFolderToSidebar(arg, resolveWindowId(s, requested) ?? null) : undefined;
+    case "restoreArcFolders":
+      return arg ? void restoreArcFolders(arg, resolveWindowId(s, requested) ?? null) : undefined;
     case "toggleBookmarksBar": {
       const mode = s.settings.bookmarksBar;
       const target = resolveWindowId(s, requested);
@@ -273,10 +277,6 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     case "clearBrowsingData":
       openInternalPage("history", windowId);
       return useClearDataRequest.getState().request(windowId);
-    case "addFolderToSidebar":
-      return arg ? void addFolderToSidebar(arg, windowId) : undefined;
-    case "restoreArcFolders":
-      return arg ? void restoreArcFolders(arg, windowId) : undefined;
     case "manageBookmarks":
       return openInternalPage("bookmarks", windowId);
     case "bookmarkAllTabs":
