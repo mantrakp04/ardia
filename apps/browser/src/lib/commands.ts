@@ -104,6 +104,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     }
   }
 
+  const invokedFrom = requested;
   if (isSmall(s, requested) && !LITTLE_ARDIA_PAGE_COMMANDS.has(command)) {
     requested = mainWindowFor(s, s.windows[requested!]!.profileId) ?? null;
     if (requested) focus(requested);
@@ -111,7 +112,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
 
   if (command === "addFolderToSidebar" || command === "restoreArcFolders") {
     if (!arg) return;
-    const target = resolveWindowId(s, requested) ?? null;
+    const target = resolveWindowId(s, invokedFrom) ?? null;
     return void (command === "addFolderToSidebar" ? addFolderToSidebar(arg, target) : restoreArcFolders(arg, target));
   }
 
