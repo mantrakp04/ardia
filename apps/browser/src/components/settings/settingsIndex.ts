@@ -167,6 +167,16 @@ const ROWS: Record<SettingsPane, Section[]> = {
       rows: { theme: { title: "Appearance Theme", description: "Also in View › Appearance. Incognito windows are always dark.", keywords: ["dark mode", "light mode", "automatic", "night", "system"] } },
     },
     { section: "Address Bar", rows: { addressBar: { title: "Address Bar", description: "In the toolbar or in the sidebar.", keywords: ["url bar", "location bar", "toolbar"] } } },
+    {
+      section: "Sidebar",
+      rows: {
+        showClearButton: {
+          title: "Show Clear button",
+          description: "The ↓ Clear button and its line between your pins and your tabs. ⇧⌘K and the menus still clear unpinned tabs.",
+          keywords: ["clear", "close all", "clear unpinned", "today", "divider"],
+        },
+      },
+    },
     { section: "App Icon", rows: { appIcon: { title: "App Icon", description: "Shown in the Dock and the app switcher. The Dock keeps it after you quit.", keywords: ["dock icon", "logo"] } } },
   ],
   privacy: [

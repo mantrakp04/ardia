@@ -28,6 +28,7 @@ export const SYNCED_SETTINGS = [
   "tabLayout",
   "hideToolbarWhileScrolling",
   "showSidebarButton",
+  "showClearButton",
   "newTabPosition",
   "newTabOpens",
   "warnBeforeClosingLastTab",
