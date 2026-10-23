@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 import XCTest
 @testable import ArdiaImportCore
 
@@ -8,7 +9,8 @@ final class ZenTests: XCTestCase {
   func testDiscoveryListsZenWorkspacesAndSkipsEmptyProfiles() throws {
     let zen = try XCTUnwrap(Fixtures.discovery().source(BrowserDefinition.find("zen")!))
     XCTAssertEqual(zen.family, .firefox)
-    XCTAssertEqual(zen.profiles.map(\.id), [id])
+    XCTAssertEqual(zen.profiles.map(\.id), [id, "Profiles/dev00000.Default (unofficial)"])
+    XCTAssertEqual(zen.profiles.map(\.isDefault), [true, false])
     let profile = zen.profiles[0]
     XCTAssertTrue(profile.isDefault)
     XCTAssertEqual(Set(profile.available), [.bookmarks, .history, .tabs, .passwords, .spaces, .pinnedTabs, .favorites])
@@ -72,5 +74,46 @@ final class ZenTests: XCTestCase {
     XCTAssertEqual(result.credentials[0].realm, "https://zen.example")
     XCTAssertEqual(result.credentials[0].lastUsed, Double(1788220800) * 1000)
     XCTAssertNil(FirefoxLogins.decryptJWE("a.b.c", key: Data(count: 32)))
+  }
+
+  func testTabIconsComeFromTheSourceProfile() throws {
+    let result = try Importer(discovery: Fixtures.discovery())
+      .importData(browserId: "zen", profileId: id, kinds: [.tabs, .spaces, .pinnedTabs, .favorites])
+    XCTAssertEqual(result.favicons.mapValues(\.icon), [
+      "https://mail.example/": "https://mail.example/favicon.ico",
+      "https://calendar.example/": "https://calendar.example/cal-32.png",
+      "https://docs.example/a": "https://docs.example/d.png",
+      "https://docs.example/spec": "https://docs.example/d.png",
+      "https://recipes.example/": "https://recipes.example/favicon.ico",
+      "https://shop.example/": "https://shop.example/favicon.ico",
+    ])
+    func size(_ page: String) -> Int? {
+      let png = Data(base64Encoded: result.favicons[page]!.png)!
+      let source = CGImageSourceCreateWithData(png as CFData, nil)!
+      return (CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any])?[kCGImagePropertyPixelWidth] as? Int
+    }
+    XCTAssertEqual(size("https://recipes.example/"), 64)
+    XCTAssertEqual(size("https://shop.example/"), 16)
+    for f in result.favicons.values {
+      XCTAssertEqual(Data(base64Encoded: f.png)?.prefix(4), Data([0x89, 0x50, 0x4E, 0x47]))
+    }
+    let profile = Fixtures.support("zen/Profiles/zen12345.Default (release)")
+    XCTAssertEqual(try FaviconReader.load(.firefox, profile: profile, pages: ["https://vector.example/", "about:blank"]), [:])
+
+    let chrome = try FaviconReader.load(.chromium, profile: Fixtures.support("Google/Chrome/Default"),
+                                        pages: ["https://example.com/", "https://other.example/x", "https://none.example/"])
+    XCTAssertEqual(chrome.mapValues(\.icon), [
+      "https://example.com/": "https://example.com/favicon.ico",
+      "https://other.example/x": "https://other.example/icon.png",
+    ])
+  }
+
+  func testEveryInstallDefaultStaysWhenNoProfileWasLastRunByTheApp() throws {
+    let zen = BrowserDefinition.find("zen")!
+    let own = BrowserDiscovery(applicationSupport: Fixtures.support).firefoxProfiles(zen)
+    XCTAssertEqual(own.map(\.isDefault), [true, true])
+    let elsewhere = BrowserDiscovery(applicationSupport: Fixtures.support)
+      .firefoxProfiles(zen, app: URL(fileURLWithPath: "/Applications/Other.app"))
+    XCTAssertEqual(elsewhere.map(\.isDefault), [true, true])
   }
 }

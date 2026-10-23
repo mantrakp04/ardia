@@ -29,6 +29,7 @@ import struct
 import subprocess
 import tempfile
 import zipfile
+import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUPPORT = os.path.join(HERE, "home", "Library", "Application Support")
@@ -444,6 +445,10 @@ def build_chrome():
     ])
     chromium_cookies_old(os.path.join(MISC, "Cookies-v23"))
     chromium_web_data(os.path.join(d, "Web Data"))
+    chromium_favicons(os.path.join(d, "Favicons"), [
+        ("https://example.com/", "https://example.com/favicon.ico", [(16, tiny_png((1, 2, 3))), (32, tiny_png((4, 5, 6), 32))]),
+        ("https://other.example/page", "https://other.example/icon.png", [(64, tiny_png((7, 8, 9), 64))]),
+    ])
 
     cmds = session_commands()
     sessions = os.path.join(d, "Sessions")
@@ -899,6 +904,52 @@ def logins_db(path, key, local, mirror):
     db.close()
 
 
+def tiny_png(rgb, size=2):
+    def chunk(kind, body):
+        return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body))
+    rows = b"".join(b"\0" + bytes(rgb) * size for _ in range(size))
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b""))
+
+
+def chromium_favicons(path, mappings):
+    db = new_db(path)
+    db.executescript("""
+        CREATE TABLE favicons (id INTEGER PRIMARY KEY, url LONGVARCHAR NOT NULL, icon_type INTEGER DEFAULT 1);
+        CREATE TABLE favicon_bitmaps (id INTEGER PRIMARY KEY, icon_id INTEGER NOT NULL, last_updated INTEGER DEFAULT 0,
+            image_data BLOB, width INTEGER DEFAULT 0, height INTEGER DEFAULT 0, last_requested INTEGER DEFAULT 0);
+        CREATE TABLE icon_mapping (id INTEGER PRIMARY KEY, page_url LONGVARCHAR NOT NULL, icon_id INTEGER);
+    """)
+    for i, (page, icon, bitmaps) in enumerate(mappings, 1):
+        db.execute("INSERT INTO favicons (id, url) VALUES (?, ?)", (i, icon))
+        db.execute("INSERT INTO icon_mapping (page_url, icon_id) VALUES (?, ?)", (page, i))
+        for width, data in bitmaps:
+            db.execute("INSERT INTO favicon_bitmaps (icon_id, image_data, width, height) VALUES (?, ?, ?, ?)", (i, data, width, width))
+    db.commit()
+    db.close()
+
+
+def firefox_favicons(path, pages, roots):
+    db = new_db(path)
+    db.executescript("""
+        CREATE TABLE moz_icons (id INTEGER PRIMARY KEY, icon_url TEXT NOT NULL, fixed_icon_url_hash INTEGER NOT NULL DEFAULT 0,
+            width INTEGER NOT NULL DEFAULT 0, root INTEGER NOT NULL DEFAULT 0, color INTEGER, expire_ms INTEGER NOT NULL DEFAULT 0,
+            flags INTEGER NOT NULL DEFAULT 0, data BLOB);
+        CREATE TABLE moz_pages_w_icons (id INTEGER PRIMARY KEY, page_url TEXT NOT NULL, page_url_hash INTEGER NOT NULL DEFAULT 0);
+        CREATE TABLE moz_icons_to_pages (page_id INTEGER NOT NULL, icon_id INTEGER NOT NULL, expire_ms INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (page_id, icon_id)) WITHOUT ROWID;
+    """)
+    for page, icons in pages:
+        page_id = db.execute("INSERT INTO moz_pages_w_icons (page_url) VALUES (?)", (page,)).lastrowid
+        for icon, width, data in icons:
+            icon_id = db.execute("INSERT INTO moz_icons (icon_url, width, data) VALUES (?, ?, ?)", (icon, width, data)).lastrowid
+            db.execute("INSERT INTO moz_icons_to_pages (page_id, icon_id) VALUES (?, ?)", (page_id, icon_id))
+    for icon, width, data in roots:
+        db.execute("INSERT INTO moz_icons (icon_url, width, root, data) VALUES (?, ?, 1, ?)", (icon, width, data))
+    db.commit()
+    db.close()
+
+
 def lz4_literals(data):
     n = len(data)
     if n < 15:
@@ -1092,6 +1143,15 @@ Name=Default (release)
 IsRelative=1
 Path=Profiles/zen12345.Default (release)
 
+[Profile2]
+Name=Default (unofficial)
+IsRelative=1
+Path=Profiles/dev00000.Default (unofficial)
+
+[Install1111111111111111]
+Default=Profiles/dev00000.Default (unofficial)
+Locked=1
+
 [Profile1]
 Name=Empty
 IsRelative=1
@@ -1102,9 +1162,26 @@ Default=Profiles/zen12345.Default (release)
 Locked=1
 """)
     write_json(os.path.join(root, "Profiles", "empty000.Empty", "times.json"), {})
+    dev = os.path.join(root, "Profiles", "dev00000.Default (unofficial)")
+    places(os.path.join(dev, "places.sqlite"))
+    write(os.path.join(dev, "compatibility.ini"),
+          b"[Compatibility]\nLastPlatformDir=/Users/someone/zen-browser-desktop/engine/obj/dist/Nightly.app/Contents/Resources\n")
     d = os.path.join(root, "Profiles", "zen12345.Default (release)")
     places(os.path.join(d, "places.sqlite"))
+    write(os.path.join(d, "compatibility.ini"),
+          b"[Compatibility]\nLastVersion=1.23.4b\nLastPlatformDir=/Applications/app.zen-browser.zen.app/Contents/Resources\n")
+    svg = b'<svg xmlns="http://www.w3.org/2000/svg"/>'
+    firefox_favicons(os.path.join(d, "favicons.sqlite"), [
+        ("https://calendar.example/", [("https://calendar.example/cal.svg", 65535, svg),
+                                       ("https://calendar.example/cal-16.png", 16, tiny_png((10, 20, 30))),
+                                       ("https://calendar.example/cal-32.png", 32, tiny_png((40, 50, 60), 32))]),
+        ("https://docs.example/elsewhere", [("https://docs.example/d.png", 16, tiny_png((70, 80, 90)))]),
+        ("https://vector.example/", [("https://vector.example/v.svg", 65535, svg)]),
+    ], [("https://mail.example/favicon.ico", 16, tiny_png((100, 110, 120)))])
     work, home = "{work-space}", "{home-space}"
+    big = tiny_png((200, 100, 50), 128)
+    ico = struct.pack("<HHHBBBBHHII", 0, 1, 1, 16, 16, 0, 0, 1, 32, len(tiny_png((5, 6, 7), 16)), 22) + tiny_png((5, 6, 7), 16)
+    data_uri = lambda kind, data: f"data:image/{kind};base64," + base64.b64encode(data).decode()
     def tab(url, title, workspace=None, pinned=False, essential=False, initial=None, **extra):
         t = {"entries": [{"url": url, "title": title}], "index": 1, "pinned": pinned, "hidden": False,
              "zenWorkspace": workspace, "zenEssential": essential, "zenSyncId": url, "zenIsEmpty": False,
@@ -1132,9 +1209,11 @@ Locked=1
             tab("https://calendar.example/", "Calendar", work, pinned=True, zenStaticLabel="Cal"),
             tab("https://docs.example/a", "Doc A", work, pinned=True, groupId="f-docs"),
             tab("https://docs.example/spec", "Spec", work, pinned=True, groupId="f-specs"),
-            tab("https://news.example/", "News", work),
-            tab("https://recipes.example/", "Recipes", home, pinned=True),
-            tab("https://shop.example/", "Shop", home),
+            tab("https://news.example/", "News", work, image=data_uri("svg+xml", b"<svg/>")),
+            tab("https://recipes.example/", "Recipes", home, pinned=True, image=data_uri("png", tiny_png((1, 1, 1))),
+                _zenPinnedInitialState={"entry": {"url": "https://recipes.example/", "title": "Recipes"},
+                                        "image": data_uri("png", big)}),
+            tab("https://shop.example/", "Shop", home, image=data_uri("x-icon", ico)),
             tab("https://orphan.example/", "Orphan", "{gone}"),
             tab("about:blank", "", home, zenIsEmpty=True),
             tab("https://glance.example/", "Glance", home, zenIsGlance=True),

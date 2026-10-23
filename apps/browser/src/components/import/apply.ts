@@ -1,4 +1,4 @@
-import { savePassword } from "@ardia/ardiacore";
+import { savePassword, storeFavicon } from "@ardia/ardiacore";
 import type { BookmarkNode as ImportedNode, Credential, DiaTabsProfile, ImportedTab, ImportKind, ImportResult, SafariExport, SpaceSuggestion } from "@ardia/import";
 import { addGroupsFromDrafts } from "../../lib/bookmarkGroups";
 import type { BookmarkDraft } from "../../store/bookmarks";
@@ -9,6 +9,7 @@ import { openPages, pageKey, pinnedPages } from "../../store/pageKeys";
 import { withNewTab } from "../../store/tabs";
 import type { ProfileColor } from "../../store/types";
 import { importModule } from "./module";
+import { pageKey as faviconPage } from "../../lib/favicons";
 import { adoptProfileTheme } from "../../sync/engine";
 import { parseArcTheme } from "./arcTheme";
 import { newProfileLiveFolder } from "../../live/engine";
@@ -163,7 +164,20 @@ export function importTabs(
   return usable.length;
 }
 
-export function importArcSpace(profileId: string, space: SpaceSuggestion): { tabs: number; bookmarks: number; skipped: number } {
+async function importFavicons(profileId: string, favicons: ImportResult["favicons"], urls: string[]) {
+  if (isIncognitoProfile(profileId)) return;
+  const pages = new Map(urls.filter((u) => favicons[u]).map((u) => [faviconPage(u), favicons[u]!]));
+  await Promise.all([...pages].map(([page, f]) => storeFavicon(engineProfile(profileId), page, f.icon, f.png).catch(() => null)));
+}
+
+const linkUrls = (nodes: ImportedNode[]): string[] => nodes.flatMap((n) => (n.url ? [n.url] : linkUrls(n.children ?? [])));
+
+export async function importArcSpace(
+  profileId: string,
+  space: SpaceSuggestion,
+  favicons: ImportResult["favicons"],
+): Promise<{ tabs: number; bookmarks: number; skipped: number }> {
+  await importFavicons(profileId, favicons, [...linkUrls(space.pinned), ...space.tabs.map((t) => t.url)]);
   const links = space.pinned.filter((n) => n.type === "url" && n.url);
   importPullRequestsFolders(profileId, space.pinned);
   const folders = withoutLiveFolders(space.pinned.filter((n) => n.type === "folder"));
@@ -203,6 +217,7 @@ export async function applyResult(
   counts.bookmarks += importBookmarks(profileId, result.bookmarks, browserName);
   if (result.history.length) counts.history += importHistory(profileId, result.history);
   Object.assign(counts, await importNative(profileId, result.vaultToken, ["cookies", "autofill"], onFailed));
+  await importFavicons(profileId, result.favicons ?? {}, [...result.favorites, ...(result.spaces.length ? [] : result.tabs)].map((t) => t.url));
   if (result.tabs.length && !result.spaces.length) counts.tabs += importTabs(profileId, result.tabs, "Imported");
   if (result.favorites.length) counts.tabs += importTabs(profileId, result.favorites.map((t) => ({ ...t, pinned: true })), null);
   if (result.credentials.length) counts.passwords += await importPasswords(profileId, result.credentials);

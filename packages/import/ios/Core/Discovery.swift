@@ -126,7 +126,7 @@ public struct BrowserDiscovery {
     case .safari:
       guard app != nil else { return nil }
     case .firefox:
-      profiles = firefoxProfiles(def)
+      profiles = firefoxProfiles(def, app: app)
       if def.isZen { attachZenSpaces(&profiles) }
     case .chromium, .arc:
       profiles = chromiumProfiles(def)
@@ -278,11 +278,11 @@ public struct BrowserDiscovery {
     }
   }
 
-  func firefoxProfiles(_ def: BrowserDefinition) -> [BrowserProfile] {
+  func firefoxProfiles(_ def: BrowserDefinition, app: URL? = nil) -> [BrowserProfile] {
     guard let root = dataDirectory(def),
           let ini = try? String(contentsOf: root.appendingPathComponent("profiles.ini"), encoding: .utf8) else { return [] }
     let fm = FileManager.default
-    return Firefox.profiles(ini: ini).compactMap { p in
+    let profiles: [BrowserProfile] = Firefox.profiles(ini: ini).compactMap { p in
       guard !p.path.hasPrefix("/") else { return nil }
       let dir = root.appendingPathComponent(p.path, isDirectory: true)
       guard fm.fileExists(atPath: dir.path) else { return nil }
@@ -296,5 +296,15 @@ public struct BrowserDiscovery {
       return BrowserProfile(id: p.path, name: p.name, path: dir.path, email: nil, avatarPath: nil, color: nil,
                             isDefault: p.isDefault, available: kinds, spaces: nil)
     }
+    guard let app, profiles.filter(\.isDefault).count > 1 else { return profiles }
+    let ours = Set(profiles.filter { $0.isDefault && Self.lastRunBy(app, profile: URL(fileURLWithPath: $0.path)) }.map(\.id))
+    guard !ours.isEmpty else { return profiles }
+    return profiles.map { var p = $0; p.isDefault = ours.contains(p.id); return p }
+  }
+
+  static func lastRunBy(_ app: URL, profile: URL) -> Bool {
+    guard let ini = try? String(contentsOf: profile.appendingPathComponent("compatibility.ini"), encoding: .utf8) else { return false }
+    let dir = ini.split(whereSeparator: \.isNewline).first { $0.hasPrefix("LastPlatformDir=") }?.dropFirst("LastPlatformDir=".count)
+    return dir.map { URL(fileURLWithPath: String($0)).standardizedFileURL.path.hasPrefix(app.standardizedFileURL.path + "/") } ?? false
   }
 }

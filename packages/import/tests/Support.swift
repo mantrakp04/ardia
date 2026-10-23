@@ -25,7 +25,7 @@ enum Fixtures {
       locateApp: { ids in
         let installed = ["com.google.Chrome", "company.thebrowser.Browser", "company.thebrowser.dia",
                          "org.mozilla.firefox", "com.apple.Safari", "com.brave.Browser",
-                         "com.operasoftware.Opera", "net.imput.helium"]
+                         "com.operasoftware.Opera", "net.imput.helium", "app.zen-browser.zen"]
         return ids.first(where: installed.contains).map { URL(fileURLWithPath: "/Applications/\($0).app") }
       },
       iconFor: { _, id in "/tmp/icons/\(id).png" }

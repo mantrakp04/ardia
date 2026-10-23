@@ -121,8 +121,9 @@ export function ImportWindow() {
   const choose = (b: BrowserSource) => {
     setSource(b);
     const defaults = b.profiles.filter((p) => p.isDefault);
-    setSourceProfiles((defaults.length ? defaults : b.profiles.slice(0, 1)).map((p) => p.id));
-    setSpaces(b.profiles.flatMap((p) => p.spaces ?? []).map((s) => s.id));
+    const preferred = defaults.length ? defaults : b.profiles.slice(0, 1);
+    setSourceProfiles(preferred.map((p) => p.id));
+    setSpaces((b.family === "arc" ? b.profiles : preferred).flatMap((p) => p.spaces ?? []).map((s) => s.id));
     const available: ImportKind[] = b.requiresExport
       ? ["bookmarks", "history", "passwords"]
       : b.family === "automation"
@@ -243,7 +244,7 @@ export function ImportWindow() {
           const name = space.name || "Space";
           const dest = await destination(destinationIndex++, name, space.color, space.emoji, first);
           first ??= dest;
-          const r = importArcSpace(dest, space);
+          const r = await importArcSpace(dest, space, result.favicons ?? {});
           add({ ...emptyCounts(), tabs: r.tabs, bookmarks: r.bookmarks });
           if (r.skipped) left.push(`${plural(r.skipped, "link")} in ${name}'s folders weren't imported: each folder brings up to ${MAX_DRAFT_LINKS.toLocaleString("en-US")} links.`);
         }

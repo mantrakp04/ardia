@@ -18,6 +18,7 @@ the file and its WAL before opening it.
 | cookies | `ChromiumSecrets.swift`: `Network/Cookies` (or `Cookies`) | same as Chromium | `Firefox.swift`: `cookies.sqlite` |
 | autofill (addresses, cards) | `ChromiumAutofill.swift`: `Web Data` | same as Chromium | none |
 | extensions (listed, never installed) | `ChromiumExtensions.swift`: `Preferences`, `Secure Preferences`, `Extensions/*/manifest.json` | same as Chromium | none |
+| tab icons (`favicons` on the result) | `FaviconReader.swift`: `Favicons` | same as Chromium | `FaviconReader.swift`: `favicons.sqlite`; Zen also its session's tab images |
 | spaces, pinnedTabs, favorites | none | `ArcSidebar.swift`: `<Application Support>/Arc/StorableSidebar.json` | none |
 
 | Source | Files | What it reads |

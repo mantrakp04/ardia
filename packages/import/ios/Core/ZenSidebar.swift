@@ -48,11 +48,13 @@ public enum ZenSidebar {
         let entries = tab["entries"] as? [[String: Any]] ?? []
         let current = entries.isEmpty ? nil : entries[min(max((tab["index"] as? Int ?? entries.count) - 1, 0), entries.count - 1)]
         let pinned = tab["pinned"] as? Bool == true
-        let initial = (tab["_zenPinnedInitialState"] as? [String: Any])?["entry"] as? [String: Any]
+        let initialState = tab["_zenPinnedInitialState"] as? [String: Any]
+        let initial = initialState?["entry"] as? [String: Any]
         let page = pinned ? initial ?? current : current
         guard let url = page?["url"] as? String, !url.isEmpty else { continue }
         let title = page?["title"] as? String ?? ""
         let label = (tab["zenStaticLabel"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        if out.icons[url] == nil, let image = imageData((pinned ? initialState?["image"] : nil) ?? tab["image"]) { out.icons[url] = image }
 
         if !pinned {
           spaces[spaceIndex(tab["zenWorkspace"] as? String)].tabs.append(ImportedTab(
@@ -86,6 +88,16 @@ public enum ZenSidebar {
     }
     out.spaces = spaces
     return out
+  }
+
+  static func imageData(_ value: Any?) -> Data? {
+    guard var text = value as? String else { return nil }
+    if text.hasPrefix("moz-remote-image:"), let inner = URLComponents(string: text)?.queryItems?.first(where: { $0.name == "url" })?.value {
+      text = inner
+    }
+    guard text.hasPrefix("data:image/"), !text.hasPrefix("data:image/svg"), let comma = text.firstIndex(of: ","),
+          text[..<comma].hasSuffix(";base64") else { return nil }
+    return Data(base64Encoded: String(text[text.index(after: comma)...]))
   }
 
   static func gradient(_ theme: Any?) -> [String] {
