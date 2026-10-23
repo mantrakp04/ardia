@@ -104,17 +104,29 @@ export function iconIndex(name: string): number {
   return ICON_INDEX.get(name) ?? -1;
 }
 
-export function iconValue(style: IconStyle, name: string): string {
-  return PREFIXES[style] + name;
+export function normalizeIconColor(value: string | null | undefined): string | null {
+  if (!value || !/^#?[0-9a-f]{6}$/i.test(value)) return null;
+  return `#${value.replace(/^#/, "").toUpperCase()}`;
 }
 
-export function parseCustomIcon(value: string | null | undefined): { style: IconStyle; name: string } | null {
+export function iconValue(style: IconStyle, name: string, color?: string | null): string {
+  const normalized = normalizeIconColor(color);
+  return PREFIXES[style] + name + (normalized ? `|${normalized}` : "");
+}
+
+export function parseCustomIcon(value: string | null | undefined): { style: IconStyle; name: string; color?: string } | null {
   if (!value) return null;
   for (const { id } of ICON_STYLES) {
     const prefix = PREFIXES[id];
     if (!value.startsWith(prefix)) continue;
-    const name = value.slice(prefix.length);
-    return name && (id === "symbols" || ICON_INDEX.has(name)) ? { style: id, name } : null;
+    const parts = value.slice(prefix.length).split("|");
+    const name = parts[0];
+    if (!name || parts.length > 2 || (id !== "symbols" && !ICON_INDEX.has(name))) return null;
+    if (parts.length === 1) return { style: id, name };
+    const rawColor = parts[1];
+    if (!rawColor || !/^#[0-9a-f]{6}$/i.test(rawColor)) return null;
+    const color = normalizeIconColor(rawColor);
+    return color ? { style: id, name, color } : null;
   }
   return null;
 }

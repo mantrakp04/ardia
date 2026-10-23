@@ -18,10 +18,10 @@ export function CustomIcon({ value, size, glyphSize = size, color, weight = "reg
   const theme = useTheme();
   const icon = parseCustomIcon(value);
   if (!icon || icon.style === "symbols") {
-    return <Symbol name={icon?.name ?? "questionmark.circle"} size={glyphSize} weight={weight} color={color ?? theme.icon} style={{ width: size, height: size }} />;
+    return <Symbol name={icon?.name ?? "questionmark.circle"} size={glyphSize} weight={weight} color={icon?.color ?? color ?? theme.icon} style={{ width: size, height: size }} />;
   }
   const index = iconIndex(icon.name);
-  const palette = theme.custom && theme.powerUpPalette?.length
+  const palette = icon.color ? [icon.color] : theme.custom && theme.powerUpPalette?.length
     ? theme.powerUpPalette
     : [theme.profileColor === "incognito" ? theme.icon : PROFILE_COLORS[theme.profileColor].swatch];
   const tones = duotoneColors(palette, theme.panel, theme.dark);
@@ -29,7 +29,7 @@ export function CustomIcon({ value, size, glyphSize = size, color, weight = "reg
     <View accessible={false} pointerEvents="none" style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
       <View style={{ width: glyphSize, height: glyphSize, overflow: "hidden" }}>
         {icon.style === "lucide" ? (
-          <AtlasGlyph source={LUCIDE} index={index} size={glyphSize} color={color ?? theme.icon} />
+          <AtlasGlyph source={LUCIDE} index={index} size={glyphSize} color={icon.color ?? color ?? theme.icon} />
         ) : (
           <>
             <AtlasGlyph source={DUOTONE_FILL} index={index} size={glyphSize} color={tones.fill} opacity={0.28} />

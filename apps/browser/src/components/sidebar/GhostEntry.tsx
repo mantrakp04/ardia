@@ -9,7 +9,7 @@ import { groupEntries } from "./entries";
 import { GROUP_BORDER, GROUP_PAD, keptEntry } from "./geometry";
 import { pointerOnRow } from "./hover";
 import { FaviconFallback, NewTabIcon } from "../primitives";
-import { SYMBOL_PREFIX, TabIcon } from "./TabIcon";
+import { TabIcon } from "./TabIcon";
 import { GROUP_COLORS, useSidebarTokens, withAlpha } from "./tokens";
 
 type TabShot = { kind: "tab"; key: string; title: string; url: string; favicon?: string | null; icon?: string | null; profileId: string; uri: string | null; template: boolean; sound: "muted" | "playing" | null; hovered: boolean };
@@ -78,7 +78,6 @@ export function ghostEntry(snapshot: EntrySnapshot, theme: ReturnType<typeof use
 }
 
 function ghostIcon(shot: TabShot, theme: ReturnType<typeof useTheme>) {
-  if (shot.icon?.startsWith(SYMBOL_PREFIX)) return <Symbol name={shot.icon.slice(SYMBOL_PREFIX.length)} size={13} weight="medium" color={theme.icon} style={{ width: 16, height: 16 }} />;
   if (shot.icon) return <TabIcon url={shot.url} icon={shot.icon} profileId={shot.profileId} />;
   if (shot.uri) return <Image source={{ uri: shot.uri }} style={{ width: 16, height: 16, borderRadius: 3, tintColor: shot.template && !theme.dark ? theme.textPrimary : undefined }} />;
   return shot.url ? <FaviconFallback url={shot.url} /> : <NewTabIcon />;
