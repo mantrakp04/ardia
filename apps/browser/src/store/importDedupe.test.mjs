@@ -65,6 +65,9 @@ test("an import skips open tabs whose page is already open in the profile, and r
     { url: "https://a.example/", title: "A", pinned: false },
     { url: "https://A.example/#", title: "A again", pinned: false },
   ];
+  const urls = () => Object.values(S().tabs).map((t) => t.url).sort();
   assert.equal(importTabs(P, open, null), 1, "only the new page, once");
+  assert.deepEqual(urls(), ["https://a.example/", "https://home.example/"]);
   assert.equal(importTabs(P, open, null), 0, "a second import adds nothing");
+  assert.deepEqual(urls(), ["https://a.example/", "https://home.example/"]);
 });
