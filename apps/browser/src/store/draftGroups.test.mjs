@@ -31,16 +31,19 @@ function start() {
   return { w, bar };
 }
 
-function folderTree(parentId, title) {
+function folderTree(parentId, title, { extras = true } = {}) {
   const f = S().addBookmarkFolder({ profileId: P, title, parentId });
   S().addBookmark({ profileId: P, url: "https://a.example/", title: "A", parentId: f });
   const sub = S().addBookmarkFolder({ profileId: P, title: "Sub", parentId: f });
   S().addBookmark({ profileId: P, url: "https://b.example/", title: "B", parentId: sub });
-  S().addBookmarkFolder({ profileId: P, title: "Empty", parentId: f });
-  S().addBookmark({ profileId: P, url: "javascript:void(0)", title: "Bookmarklet", parentId: f });
+  if (extras) {
+    S().addBookmarkFolder({ profileId: P, title: "Empty", parentId: f });
+    S().addBookmark({ profileId: P, url: "javascript:void(0)", title: "Bookmarklet", parentId: f });
+  }
   S().addBookmark({ profileId: P, url: "https://c.example/", title: "C", parentId: f });
   return f;
 }
+const titlesIn = (id) => S().bookmarks.nodes[id].children.map((c) => S().bookmarks.nodes[c].title);
 
 test("Add to Sidebar as Group: a pinned group with nested groups, unloaded pinned tabs, bookmarks kept", () => {
   const { w, bar } = start();
@@ -64,8 +67,8 @@ test("Add to Sidebar as Group: a pinned group with nested groups, unloaded pinne
 test("Restore Arc Folders as Groups unwraps the holder into top-level pinned groups and deletes it", () => {
   const { w, bar } = start();
   const holder = S().addBookmarkFolder({ profileId: P, title: "Home (Arc)", parentId: bar });
-  folderTree(holder, "Reading");
-  folderTree(holder, "Dev");
+  folderTree(holder, "Reading", { extras: false });
+  folderTree(holder, "Dev", { extras: false });
   const other = S().addBookmarkFolder({ profileId: P, title: "Notes (Arc) old", parentId: bar });
   S().addBookmark({ profileId: P, url: "https://x.example/", title: "X", parentId: other });
   assert.deepEqual(allArcHolders(S()), [holder]);
@@ -122,7 +125,7 @@ test("Arc import puts a space's pinned folders straight into nested pinned group
 test("restoring keeps the holder with what couldn't become a group, and moves only the folders that did", () => {
   const { w, bar } = start();
   const holder = S().addBookmarkFolder({ profileId: P, title: "Kept (Arc)", parentId: bar });
-  const reading = folderTree(holder, "Reading");
+  const reading = folderTree(holder, "Reading", { extras: false });
   const empty = S().addBookmarkFolder({ profileId: P, title: "Empty", parentId: holder });
   const scripts = S().addBookmarkFolder({ profileId: P, title: "Scripts", parentId: holder });
   S().addBookmark({ profileId: P, url: "javascript:void(0)", title: "Bookmarklet", parentId: scripts });
@@ -153,4 +156,32 @@ test("Restore is offered only for a holder with a folder that can become a group
   assert.equal(restorableArcHolder(S(), loose), false);
   assert.equal(restorableArcHolder(S(), full), true);
   assert.deepEqual(allArcHolders(S()), [full]);
+});
+
+test("restoring takes out only the links that became tabs: bookmarklets and empty folders stay where they were", () => {
+  const { w, bar } = start();
+  const holder = S().addBookmarkFolder({ profileId: P, title: "Home (Arc)", parentId: bar });
+  const reading = folderTree(holder, "Reading");
+  assert.equal(restoreArcFolders(holder, w).length, 1);
+  assert.deepEqual(tree(roots(w)[0]), ["https://a.example/", { Sub: ["https://b.example/"] }, "https://c.example/"]);
+  assert.deepEqual(titlesIn(holder), ["Reading"]);
+  assert.deepEqual(titlesIn(reading), ["Empty", "Bookmarklet"], "the bookmarklet and the empty folder are kept");
+});
+
+test("restoring a folder that matches a group already there adds none and still keeps what that group can't hold", () => {
+  const { w, bar } = start();
+  addFolderToSidebar(folderTree(bar, "Reading"), w);
+  const holder = S().addBookmarkFolder({ profileId: P, title: "Home (Arc)", parentId: bar });
+  const reading = folderTree(holder, "Reading");
+  assert.deepEqual(restoreArcFolders(holder, w), []);
+  assert.equal(roots(w).length, 1);
+  assert.deepEqual(titlesIn(reading), ["Empty", "Bookmarklet"]);
+});
+
+test("a folder with no title is recognised on a second add, like a named one", () => {
+  const { w, bar } = start();
+  const f = folderTree(bar, "", { extras: false });
+  assert.equal(addFolderToSidebar(f, w).length, 1);
+  assert.deepEqual(addFolderToSidebar(f, w), [], "the same untitled folder again adds nothing");
+  assert.equal(roots(w).length, 1);
 });

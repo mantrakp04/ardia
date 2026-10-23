@@ -1,12 +1,12 @@
 import type { BrowserState } from "./browser";
 import { nestGroups, orderSections, syncGroupOrder } from "./groups";
-import { groupLabel, groupChoiceKey, nextPinChoice, placeChoiceKey } from "./organize";
+import { groupChoiceKey, nextPinChoice, placeChoiceKey } from "./organize";
 import { IDLE_LIVE, isIncognitoProfile, makeTab, newId } from "./model";
 import type { BookmarkFolder, Bookmarks, TabGroup } from "./types";
 
 export type GroupDraft = { title: string; url?: string; customTitle?: string; children?: GroupDraft[] };
 
-const opens = (url: string | undefined): url is string => !!url && /^(https?|file):/i.test(url);
+export const opens = (url: string | undefined): url is string => !!url && /^(https?|file):/i.test(url);
 export const hasLinks = (d: GroupDraft): boolean => !!d.children?.some((c) => (c.url ? opens(c.url) : hasLinks(c)));
 const draftUrls = (d: GroupDraft): string[] => (d.url ? (opens(d.url) ? [d.url] : []) : (d.children ?? []).flatMap(draftUrls));
 const signature = (name: string, urls: string[]) => `${name}\u0001${[...urls].sort().join("\u0001")}`;
@@ -29,7 +29,7 @@ export function withDraftGroups(s: BrowserState, windowId: string, profileId: st
   const have = new Set(
     Object.values(s.groups)
       .filter((g) => g.pinned && !g.parentId && g.windowId === windowId && g.profileId === profileId)
-      .map((g) => signature(groupLabel(s, g), g.tabIds.map((id) => s.tabs[id]?.url ?? ""))),
+      .map((g) => signature(g.name, g.tabIds.map((id) => s.tabs[id]?.url ?? ""))),
   );
   const tabs = { ...s.tabs };
   const live = { ...s.live };

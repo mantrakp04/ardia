@@ -1,5 +1,5 @@
 import { useBrowser, type BrowserState } from "../store/browser";
-import { bookmarkDraft, hasLinks, withDraftGroups, type GroupDraft } from "../store/draftGroups";
+import { bookmarkDraft, hasLinks, opens, withDraftGroups, type GroupDraft } from "../store/draftGroups";
 import { bookmarkProfileId } from "../store/model";
 import { mainWindowFor } from "../store/small";
 
@@ -54,6 +54,14 @@ export function arcHolders(s: Pick<BrowserState, "bookmarks">, profileId: string
   return root?.kind === "folder" ? root.children.filter((id) => restorableArcHolder(s, id)) : [];
 }
 
+function converted(b: BrowserState["bookmarks"], id: string): { whole: boolean; ids: string[] } {
+  const node = b.nodes[id];
+  if (!node) return { whole: false, ids: [] };
+  if (node.kind === "url") return opens(node.url) ? { whole: true, ids: [id] } : { whole: false, ids: [] };
+  const parts = node.children.map((c) => converted(b, c));
+  return node.children.length && parts.every((p) => p.whole) ? { whole: true, ids: [id] } : { whole: false, ids: parts.flatMap((p) => p.ids) };
+}
+
 export function restoreArcFolders(holderId: string, windowId: string | null): string[] {
   const s = useBrowser.getState();
   const owner = holderProfile(s, holderId);
@@ -64,7 +72,7 @@ export function restoreArcFolders(holderId: string, windowId: string | null): st
   const near = windowId && s.windows[windowId]?.profileId === profileId ? windowId : null;
   const made = addGroupsFromDrafts(profileId, folders.map((id) => bookmarkDraft(s.bookmarks, id)!), near);
   const b = useBrowser.getState();
-  for (const id of folders) b.removeBookmark(id);
+  b.removeBookmarks(folders.flatMap((id) => converted(b.bookmarks, id).ids));
   const left = useBrowser.getState().bookmarks.nodes[holderId];
   if (left?.kind === "folder" && !left.children.length) useBrowser.getState().removeBookmark(holderId);
   return made;
