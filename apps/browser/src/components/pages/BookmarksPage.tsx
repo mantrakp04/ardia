@@ -1,3 +1,4 @@
+import { addFolderToSidebar, isArcHolder, restoreArcFolders } from "../../lib/bookmarkGroups";
 import { cleanUrl } from "@ardia/core";
 import { ContextMenuArea, copyText, MouseArea, showMenu, Symbol, type MenuItem } from "@ardia/shell";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -326,6 +327,8 @@ function BookmarkRow({
         : [
             { id: "openAll", title: `Open All (${folderLinks(useBrowser.getState().bookmarks, node.id).length})` },
             { id: "openAllWindow", title: "Open All in New Window" },
+            { id: "addGroup", title: "Add to Sidebar as Group" },
+            ...(isArcHolder(useBrowser.getState(), node.id) ? [{ id: "restoreArc", title: "Restore Arc Folders as Groups" }] : []),
             { separator: true },
             { id: "edit", title: "Rename…" },
           ];
@@ -340,6 +343,8 @@ function BookmarkRow({
     if (choice === "edit") editBookmark(node.id, windowId, { profileId });
     if (choice === "openAll") void openFolder(node.id, windowId);
     if (choice === "openAllWindow") void openFolder(node.id, windowId, "window");
+    if (choice === "addGroup") addFolderToSidebar(node.id, windowId);
+    if (choice === "restoreArc") restoreArcFolders(node.id, windowId);
     if (choice === "show" && node.parentId) onOpenFolder(node.parentId);
     if (choice === "delete") onDelete();
   };

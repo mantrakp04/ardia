@@ -1,0 +1,120 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+const { useBrowser } = await import("./browser.ts");
+const { addFolderToSidebar, allArcHolders, restoreArcFolders } = await import("../lib/bookmarkGroups.ts");
+const { importArcSpace } = await import("../components/import/apply.ts");
+const { sidebarEntries } = await import("../components/sidebar/entries.ts");
+
+const S = () => useBrowser.getState();
+const P = "default";
+
+const tree = (groupId) => {
+  const s = S();
+  const g = s.groups[groupId];
+  const kids = Object.values(s.groups).filter((x) => x.parentId === groupId);
+  const out = [];
+  const seen = new Set();
+  for (const id of g.tabIds) {
+    const k = kids.find((x) => x.tabIds.includes(id));
+    if (k) {
+      if (!seen.has(k.id)) (seen.add(k.id), out.push({ [k.name]: tree(k.id) }));
+    } else out.push(s.tabs[id].url);
+  }
+  return out;
+};
+const roots = (w) => sidebarEntries(S(), w).pinnedGroups;
+
+function start() {
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://home.example/" });
+  const bar = S().bookmarks.roots[P]?.bar ?? (S().addBookmark({ profileId: P, url: "https://seed.example/", title: "seed" }), S().bookmarks.roots[P].bar);
+  return { w, bar };
+}
+
+function folderTree(parentId, title) {
+  const f = S().addBookmarkFolder({ profileId: P, title, parentId });
+  S().addBookmark({ profileId: P, url: "https://a.example/", title: "A", parentId: f });
+  const sub = S().addBookmarkFolder({ profileId: P, title: "Sub", parentId: f });
+  S().addBookmark({ profileId: P, url: "https://b.example/", title: "B", parentId: sub });
+  S().addBookmarkFolder({ profileId: P, title: "Empty", parentId: f });
+  S().addBookmark({ profileId: P, url: "javascript:void(0)", title: "Bookmarklet", parentId: f });
+  S().addBookmark({ profileId: P, url: "https://c.example/", title: "C", parentId: f });
+  return f;
+}
+
+test("Add to Sidebar as Group: a pinned group with nested groups, unloaded pinned tabs, bookmarks kept", () => {
+  const { w, bar } = start();
+  const f = folderTree(bar, "Work");
+  const before = Object.keys(S().bookmarks.nodes).length;
+  const [g] = addFolderToSidebar(f, w);
+  assert.ok(g);
+  assert.equal(S().groups[g].name, "Work");
+  assert.equal(S().groups[g].pinned, true);
+  assert.deepEqual(tree(g), ["https://a.example/", { Sub: ["https://b.example/"] }, "https://c.example/"]);
+  for (const id of S().groups[g].tabIds) {
+    const t = S().tabs[id];
+    assert.equal(t.unloaded, true);
+    assert.equal(t.navigation, null);
+  }
+  assert.equal(Object.keys(S().bookmarks.nodes).length, before, "the bookmarks stay");
+  assert.deepEqual(roots(w), [g]);
+  assert.deepEqual(addFolderToSidebar(f, w), [], "the same folder again adds nothing");
+});
+
+test("Restore Arc Folders as Groups unwraps the holder into top-level pinned groups and deletes it", () => {
+  const { w, bar } = start();
+  const holder = S().addBookmarkFolder({ profileId: P, title: "Home (Arc)", parentId: bar });
+  folderTree(holder, "Reading");
+  folderTree(holder, "Dev");
+  const other = S().addBookmarkFolder({ profileId: P, title: "Notes (Arc) old", parentId: bar });
+  S().addBookmark({ profileId: P, url: "https://x.example/", title: "X", parentId: other });
+  assert.deepEqual(allArcHolders(S()), [holder]);
+  const made = restoreArcFolders(holder, w);
+  assert.deepEqual(made.map((id) => S().groups[id].name), ["Reading", "Dev"]);
+  assert.deepEqual(roots(w), made);
+  assert.equal(S().bookmarks.nodes[holder], undefined, "the holder is gone");
+  assert.ok(S().bookmarks.nodes[other], "other folders are left alone");
+  assert.deepEqual(restoreArcFolders(other, w), []);
+});
+
+test("a holder that also holds links is kept after restoring its folders", () => {
+  const { w, bar } = start();
+  const holder = S().addBookmarkFolder({ profileId: P, title: "Mixed (Arc)", parentId: bar });
+  folderTree(holder, "Reading");
+  S().addBookmark({ profileId: P, url: "https://loose.example/", title: "Loose", parentId: holder });
+  assert.equal(restoreArcFolders(holder, w).length, 1);
+  assert.ok(S().bookmarks.nodes[holder]);
+});
+
+test("Arc import puts a space's pinned folders straight into nested pinned groups, once", () => {
+  const { w } = start();
+  const space = {
+    id: "s1",
+    name: "Home",
+    profileId: P,
+    tabs: [],
+    pinned: [
+      { type: "url", title: "Mail", url: "https://mail.example/" },
+      {
+        type: "folder",
+        title: "Projects",
+        children: [
+          { type: "url", title: "Renamed", pageTitle: "Repo", url: "https://repo.example/" },
+          { type: "folder", title: "Inner", children: [{ type: "url", title: "Doc", url: "https://doc.example/" }] },
+        ],
+      },
+    ],
+  };
+  const bookmarksBefore = Object.keys(S().bookmarks.nodes).length;
+  const first = importArcSpace(P, space);
+  assert.equal(first.bookmarks, 0);
+  assert.equal(first.tabs, 3);
+  assert.equal(Object.keys(S().bookmarks.nodes).length, bookmarksBefore, "no (Arc) bookmark folder");
+  const [g] = roots(w);
+  assert.equal(S().groups[g].name, "Projects");
+  assert.deepEqual(tree(g), ["https://repo.example/", { Inner: ["https://doc.example/"] }]);
+  const repo = Object.values(S().tabs).find((t) => t.url === "https://repo.example/");
+  assert.equal(repo.customTitle, "Renamed");
+  importArcSpace(P, { ...space, pinned: space.pinned.filter((n) => n.type === "folder") });
+  assert.equal(roots(w).length, 1, "a re-import adds no second group");
+});

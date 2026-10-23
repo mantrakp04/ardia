@@ -1,6 +1,8 @@
 import { savePassword } from "@ardia/ardiacore";
 import type { BookmarkNode as ImportedNode, Credential, DiaTabsProfile, ImportedTab, ImportKind, ImportResult, SafariExport, SpaceSuggestion } from "@ardia/import";
+import { addGroupsFromDrafts } from "../../lib/bookmarkGroups";
 import type { BookmarkDraft } from "../../store/bookmarks";
+import type { GroupDraft } from "../../store/draftGroups";
 import { useBrowser } from "../../store/browser";
 import { engineProfile, isIncognitoProfile } from "../../store/model";
 import { withNewTab } from "../../store/tabs";
@@ -17,6 +19,11 @@ const toDraft = (n: ImportedNode): BookmarkDraft =>
   n.type === "url"
     ? { title: n.title || n.url || "", url: n.url ?? "", addedAt: n.dateAdded }
     : { title: n.title, addedAt: n.dateAdded, children: (n.children ?? []).map(toDraft) };
+
+const toGroupDraft = (n: ImportedNode): GroupDraft =>
+  n.type === "url"
+    ? { title: n.pageTitle ?? n.title, url: n.url ?? "", ...(n.pageTitle ? { customTitle: n.title } : {}) }
+    : { title: n.title, children: (n.children ?? []).map(toGroupDraft) };
 
 const linkCount = (nodes: ImportedNode[]): number => nodes.reduce((n, c) => n + (c.type === "url" ? 1 : linkCount(c.children ?? [])), 0);
 
@@ -142,7 +149,7 @@ export function importTabs(
   return usable.length;
 }
 
-export function importArcSpace(profileId: string, space: SpaceSuggestion, spaceName: string): { tabs: number; bookmarks: number } {
+export function importArcSpace(profileId: string, space: SpaceSuggestion): { tabs: number; bookmarks: number } {
   const links = space.pinned.filter((n) => n.type === "url" && n.url);
   const folders = space.pinned.filter((n) => n.type === "folder");
   let tabs = importTabs(
@@ -157,15 +164,8 @@ export function importArcSpace(profileId: string, space: SpaceSuggestion, spaceN
     adoptProfileTheme(profileId);
     useBrowser.getState().updateProfile(profileId, { theme });
   }
-  let bookmarks = 0;
-  if (folders.length) {
-    const roots = useBrowser.getState().bookmarks.roots[profileId];
-    if (roots) {
-      useBrowser.getState().addBookmarkTree(profileId, [{ title: `${spaceName} (Arc)`, children: folders.map(toDraft) }], roots.bar);
-      bookmarks = linkCount(folders);
-    }
-  }
-  return { tabs, bookmarks };
+  if (folders.length && addGroupsFromDrafts(profileId, folders.map(toGroupDraft), windowFor(profileId)).length) tabs += linkCount(folders);
+  return { tabs, bookmarks: 0 };
 }
 
 function pageKey(url: string): string {

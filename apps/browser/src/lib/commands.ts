@@ -1,3 +1,4 @@
+import { addFolderToSidebar, restoreArcFolders } from "./bookmarkGroups";
 import {
   closeWindow as closeNativeWindow,
   copyText,
@@ -272,6 +273,10 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     case "clearBrowsingData":
       openInternalPage("history", windowId);
       return useClearDataRequest.getState().request(windowId);
+    case "addFolderToSidebar":
+      return arg ? void addFolderToSidebar(arg, windowId) : undefined;
+    case "restoreArcFolders":
+      return arg ? void restoreArcFolders(arg, windowId) : undefined;
     case "manageBookmarks":
       return openInternalPage("bookmarks", windowId);
     case "bookmarkAllTabs":

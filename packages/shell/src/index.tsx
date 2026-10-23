@@ -62,6 +62,8 @@ export type BrowserCommand =
   | "bookmarkPage"
   | "addBookmarkToFolder"
   | "openBookmark"
+  | "addFolderToSidebar"
+  | "restoreArcFolders"
   | "toggleMute"
   | "downloads"
   | "mergeAllWindows"

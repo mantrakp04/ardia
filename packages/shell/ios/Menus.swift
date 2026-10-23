@@ -773,6 +773,7 @@ enum MainMenu {
   ]
   private static let dynamicCommands: Set<String> = [
     "openBookmark", "restoreClosed", "moveTabToProfile", "moveTabToWindow", "addBookmarkToFolder",
+    "addFolderToSidebar", "restoreArcFolders",
   ]
 
   private static func walk(_ menu: NSMenu?, path: [String] = [], _ visit: (NSMenuItem, [String]) -> Void) {
@@ -906,11 +907,16 @@ enum MainMenu {
     return item
   }
 
-  private static func folderItem(_ title: String, _ children: [MenuState.Bookmark]) -> NSMenuItem {
+  private static func folderItem(_ title: String, _ children: [MenuState.Bookmark], id: String? = nil) -> NSMenuItem {
     let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
     let menu = NSMenu(title: title)
     addBookmarks(children, to: menu)
     if children.isEmpty { menu.addItem(emptyItem()) }
+    if let id, !children.isEmpty {
+      menu.addItem(.separator())
+      menu.addItem(CommandItem("Add to Sidebar as Group", "addFolderToSidebar", arg: id))
+      if title.hasSuffix(" (Arc)") { menu.addItem(CommandItem("Restore Arc Folders as Groups", "restoreArcFolders", arg: id)) }
+    }
     item.submenu = menu
     item.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil)
     return item
@@ -919,7 +925,7 @@ enum MainMenu {
   private static func addBookmarks(_ nodes: [MenuState.Bookmark], to menu: NSMenu) {
     for node in nodes {
       if let children = node.children {
-        menu.addItem(folderItem(node.title, children))
+        menu.addItem(folderItem(node.title, children, id: node.id))
       } else {
         menu.addItem(CommandItem(node.title.isEmpty ? (node.url ?? "") : node.title, "openBookmark", arg: node.id))
       }
