@@ -1,0 +1,63 @@
+diff --git a/content/browser/web_contents/web_contents_impl.cc b/content/browser/web_contents/web_contents_impl.cc
+--- a/content/browser/web_contents/web_contents_impl.cc
++++ b/content/browser/web_contents/web_contents_impl.cc
+@@ -289,6 +289,15 @@
+ 
+ #include "ardia/core/ac_content_hooks.h"  // nogncheck
+ 
++ArdiaConsumeNewWindow (*g_ardia_route_new_window)(
++    content::WebContents* source,
++    content::RenderFrameHost* opener,
++    const content::mojom::CreateNewWindowParams& params,
++    bool is_new_browsing_instance,
++    bool has_user_gesture,
++    base::OnceCallback<void(content::WebContents*)>* prepare_created_contents) =
++    nullptr;
++
+ namespace content {
+ 
+ namespace {
+@@ -5639,6 +5648,32 @@ FrameTree* WebContentsImpl::CreateNewWindow(
+     return nullptr;
+   }
+ 
++  base::OnceCallback<void(WebContents*)> ardia_prepare_created_contents;
++  if (g_ardia_route_new_window) {
++    base::WeakPtr<WebContentsImpl> weak_source = weak_factory_.GetWeakPtr();
++    base::WeakPtr<RenderFrameHostImpl> weak_opener = opener->GetWeakPtr();
++    const blink::DocumentToken opener_document = opener->GetDocumentToken();
++    ArdiaConsumeNewWindow consume = g_ardia_route_new_window(
++        this, opener, params, is_new_browsing_instance, has_user_gesture,
++        &ardia_prepare_created_contents);
++    if (consume) {
++      blink::mojom::WindowFeatures features = *params.features;
++      std::optional<base::ScopedClosureRunner> fullscreen_block(std::in_place);
++      if (!is_new_browsing_instance) {
++        const int64_t display_id = AdjustWindowRect(&features.bounds, opener);
++        fullscreen_block = ForSecurityDropFullscreen(display_id);
++      }
++      if (!fullscreen_block || !weak_source || !weak_opener ||
++          !weak_opener->IsActive() || !weak_opener->IsRenderFrameLive() ||
++          weak_opener->GetDocumentToken() != opener_document ||
++          !weak_source->GetDelegate()) {
++        return nullptr;
++      }
++      std::move(consume).Run(std::move(features), std::move(*fullscreen_block));
++      return nullptr;
++    }
++  }
++
+   content::ChildProcessId render_process_id = opener->GetProcess()->GetID();
+   SiteInstanceImpl* source_site_instance = opener->GetSiteInstance();
+   const auto& partition_config =
+@@ -5779,6 +5814,10 @@ FrameTree* WebContentsImpl::CreateNewWindow(
+   // Sets the newly created WebContents WindowOpenDisposition.
+   new_contents_impl->original_window_open_disposition_ = params.disposition;
+ 
++  if (ardia_prepare_created_contents) {
++    std::move(ardia_prepare_created_contents).Run(new_contents_impl);
++  }
++
+   // If the new frame has a name, make sure any SiteInstances that can find
+   // this named frame have proxies for it.  Must be called after
+   // SetSessionStorageNamespace, since this calls CreateRenderView, which uses

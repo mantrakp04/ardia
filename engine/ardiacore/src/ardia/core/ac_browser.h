@@ -30,6 +30,7 @@
 #include "ui/base/window_open_disposition.h"
 #include "ui/gfx/geometry/rect.h"
 #include "url/gurl.h"
+#include "ardia/core/ac_navigation_routing.h"
 
 @class ArdiaCoreTab;
 @class NSDictionary;
@@ -100,6 +101,9 @@ class WindowHost : public TabStripModelObserver,
   struct PendingOpen {
     std::optional<WindowOpenDisposition> disposition;
     base::WeakPtr<content::WebContents> source;
+    std::optional<RoutedPlacement> placement;
+    raw_ptr<content::BrowserContext> seed_context = nullptr;
+    std::string sidebar;
   };
   PendingOpen& pending_open() { return pending_open_; }
 

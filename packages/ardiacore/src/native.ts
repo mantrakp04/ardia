@@ -3,7 +3,7 @@ import type { ContentBlockerState, ContentBlockerStats } from "./contentBlocker"
 import type { DisplayMediaSource } from "./WebView";
 import type { ExternalAppAllowance } from "./externalApps";
 import type { FaviconImage } from "./favicons";
-import type { BrowsingDataType, Download, EngineComponent, EngineInfo, EngineTask, ChromeWindowState, PermissionRequest, PermissionResult, SystemState } from "./module";
+import type { BrowsingDataType, Download, EngineComponent, EngineInfo, EngineTask, ChromeWindowState, ExternalLink, LinkDecision, LinkRoutingConfig, PermissionRequest, PermissionResult, SystemState } from "./module";
 import type { PasswordExportStatus, SavedPassword } from "./passwords";
 import type { TabStripCommand, TabStripTransaction } from "./tabStrip";
 import type { AddressInput, CardInput, SavedAddress, SavedCard } from "./autofill";
@@ -35,7 +35,9 @@ export const Cef = requireNativeModule<{
   revealTab?(key: string): void;
   dropTabReveals?(key: string): void;
   revealOffered?(adoptId: string, key: string): void;
-  routeLinkTabs?(urls: string[]): Promise<{ profile?: string; adoptIds?: (string | null)[] }>;
+  setLinkRouting(config: LinkRoutingConfig): Promise<void>;
+  routeTypedLink(url: string, profileId: string): Promise<LinkDecision | null>;
+  routeExternalLinks(urls: string[]): Promise<(ExternalLink | null)[]>;
   addListener(name: "onTabStrip", listener: (tx: TabStripTransaction) => void): EventSubscription;
   tabStripCommand(id: number, command: TabStripCommand): Promise<void>;
   tabStrips(): Promise<TabStripTransaction>;

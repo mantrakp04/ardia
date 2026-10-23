@@ -17,6 +17,7 @@ import { claimFocusTag, commandBarFocus, heroBarFocus } from "../lib/focusClaims
 import { registerHeroBar, savedNtpQuery, saveNtpQuery, type BarDismissal, type BarSnapshot } from "./omnibox/barState";
 import { dispositionFor, openFromBar, switchFromBar, type Disposition } from "./omnibox/open";
 import { openFromNewTabBar } from "./omnibox/newTabBar";
+import { routeTyped } from "./omnibox/typedRoutes";
 import type { NewTabTarget } from "../store/types";
 import { clipboardPasteAction, pasteMenuItem, pasteTarget, readClipboard } from "./omnibox/paste";
 import { ScopeChip } from "./omnibox/ScopeChip";
@@ -180,10 +181,21 @@ export function Omnibox({
   const go = (url: string, disposition: Disposition = "current") => {
     bangEnter.cancel();
     if (!url) return;
-    if (opensTab && disposition !== "newWindow") return openFromNewTabBar(windowId, opensTab, url);
-    if (disposition === "current") journeyNavigate(tabId);
-    openFromBar(url, tabId, disposition);
-    if (disposition !== "current") dismiss();
+    const source = opensTab ? (opensTab.kind === "into" ? opensTab.tabId : undefined) : tabId;
+    routeTyped(
+      url,
+      { windowId, tabId: source, disposition },
+      () => {
+        if (opensTab && disposition !== "newWindow") return openFromNewTabBar(windowId, opensTab, url);
+        if (disposition === "current") journeyNavigate(tabId);
+        openFromBar(url, tabId, disposition);
+        if (disposition !== "current") dismiss();
+      },
+      () => {
+        useBrowser.getState().closePanel(windowId);
+        dismiss();
+      },
+    );
   };
 
   const choose = (s: Suggestion | undefined, disposition: Disposition = "current", byEnter = false) => {
@@ -205,7 +217,7 @@ export function Omnibox({
     }
     switch (s.kind) {
       case "page":
-        if (s.tabId && !(opensTab && disposition === "newTab")) {
+        if (s.tabId && disposition === "current") {
           switchFromBar(s.tabId, s.url, tabId, disposition);
           if (hero && disposition === "current") reset();
           return;

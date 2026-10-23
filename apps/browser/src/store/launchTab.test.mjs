@@ -143,8 +143,8 @@ test("switched off (launchTab): no hint is saved, so the engine starts nothing",
 test("session.json names the profile the next launch opens links from other apps in", () => {
   hydrate([win("w1", ["a"], "a")], [tab("a", "w1", "https://a.com/")], { focusedWindowId: "w1", lastProfileId: "work" });
   flushPersistence();
-  assert.equal(JSON.parse(stub.docs.get("session.json")).linkProfile, "work");
+  assert.equal(JSON.parse(stub.docs.get("session.json")).linkProfileId, "work");
   hydrate([win("w1", ["a"], "a")], [tab("a", "w1", "https://a.com/")], { focusedWindowId: "w1" });
   flushPersistence();
-  assert.equal(JSON.parse(stub.docs.get("session.json")).linkProfile, "");
+  assert.equal(JSON.parse(stub.docs.get("session.json")).linkProfileId, "default");
 });

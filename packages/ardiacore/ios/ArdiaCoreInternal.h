@@ -36,6 +36,8 @@ void ActToggleFullScreen(NSWindow *window);
 void InstallTestCrashGuard(NSString *_Nullable dataDir);
 
 void OpenPopupWindow(ArdiaCoreTab *tab, ArdiaCoreWebView *_Nullable opener);
+bool ShowPopupWindow(ArdiaCoreTab *tab, ArdiaCoreWebView *_Nullable opener);
+void AnnounceRoutedTab(ArdiaCoreTab *tab, ArdiaCoreWebView *_Nullable view, NSDictionary *placement);
 bool IsReservedKeyEvent(NSEvent *event);
 bool IsReservedBinding(NSString *key, NSString *unshiftedKey, NSEventModifierFlags modifiers);
 NSUInteger PopupWindowCount();

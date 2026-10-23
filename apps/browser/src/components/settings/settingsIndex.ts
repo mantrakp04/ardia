@@ -3,6 +3,7 @@ import type { SettingsPane } from "./windows";
 
 export const PANES: { id: SettingsPane; title: string; icon: string }[] = [
   { id: "general", title: "General", icon: "gearshape" },
+  { id: "links", title: "Links", icon: "link" },
   { id: "profiles", title: "Profiles", icon: "person.2" },
   { id: "sync", title: "Sync", icon: "arrow.triangle.2.circlepath" },
   { id: "tabs", title: "Tabs", icon: "square.on.square" },
@@ -37,7 +38,7 @@ const ROWS: Record<SettingsPane, Section[]> = {
           description: "Asks before ⇧⌘W or the close button closes its tabs.",
           keywords: ["close window", "confirm"],
         },
-        openLinksFrom: { title: "Open links from other apps in", keywords: ["little ardia", "external links", "mini window", "discord", "slack", "mail"] },
+        openLinksFrom: { title: "Open links from other apps in", keywords: ["little ardia", "external links", "mini window", "most recent", "discord", "slack", "mail"] },
       },
     },
     {
@@ -83,6 +84,24 @@ const ROWS: Record<SettingsPane, Section[]> = {
           description: "Bookmarks, history, passwords, tabs and Arc spaces from Chrome, Arc, Safari, Firefox and more.",
           keywords: ["migrate", "switch", "transfer"],
         },
+      },
+    },
+  ],
+  links: [
+    {
+      section: "Air Traffic Control",
+      rows: {
+        routes: {
+          title: "Routes",
+          description: "A link that matches a route opens in its profile or in Little Ardia.",
+          keywords: ["air traffic control", "atc", "route", "rules", "link preferences", "open link preferences", "spaces", "contains", "equal"],
+        },
+      },
+    },
+    {
+      section: "Links from other apps",
+      rows: {
+        otherApps: { title: "Open links from other apps in", keywords: ["little ardia", "external links", "most recent", "default", "discord", "slack", "mail"] },
       },
     },
   ],

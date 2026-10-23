@@ -25,8 +25,10 @@
 #include "mojo/public/cpp/bindings/associated_receiver.h"
 #include "mojo/public/cpp/bindings/associated_receiver_set.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
+#include "ardia/core/ac_content_hooks.h"
 #include "ardia/core/ac_page_limits.h"
 #include "ardia/core/mojom/ardiacore.mojom.h"
+#include "chrome/renderer/process_state.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_registry.h"
 #include "third_party/blink/public/platform/scheduler/web_agent_group_scheduler.h"
@@ -35,6 +37,7 @@
 #include "third_party/blink/public/web/web_document.h"
 #include "third_party/blink/public/web/web_document_loader.h"
 #include "third_party/blink/public/web/web_local_frame.h"
+#include "third_party/blink/public/web/web_navigation_params.h"
 #include "third_party/blink/public/mojom/frame/user_activation_notification_type.mojom.h"
 #include "third_party/blink/public/mojom/script/script_evaluation_params.mojom.h"
 #include "third_party/blink/public/web/web_script_execution_callback.h"
@@ -451,7 +454,36 @@ class ACRenderThreadObserver : public content::RenderThreadObserver,
   mojo::AssociatedReceiverSet<mojom::ACRendererConfig> receivers_;
 };
 
-ACContentRendererClient::ACContentRendererClient() = default;
+namespace {
+
+bool OpensNavigationInBrowser(content::RenderFrame* frame,
+                              const blink::WebNavigationInfo& info) {
+  if (!frame || !frame->GetWebFrame()->IsOutermostMainFrame() ||
+      process_state::IsIncognitoProcess() ||
+      info.navigation_policy != blink::kWebNavigationPolicyCurrentTab ||
+      info.url_request.IsFormSubmission() || !info.form.IsNull()) {
+    return false;
+  }
+  if (info.navigation_type != blink::kWebNavigationTypeLinkClicked &&
+      info.navigation_type != blink::kWebNavigationTypeOther) {
+    return false;
+  }
+  if (info.frame_load_type != blink::WebFrameLoadType::kStandard &&
+      info.frame_load_type != blink::WebFrameLoadType::kReplaceCurrentItem) {
+    return false;
+  }
+  const GURL url = info.url_request.Url();
+  return url.is_valid() && url.SchemeIsHTTPOrHTTPS() &&
+         info.url_request.HttpMethod().Utf8() == "GET" &&
+         info.url_request.HttpBody().IsNull();
+}
+
+}
+
+ACContentRendererClient::ACContentRendererClient() {
+  g_ardia_open_navigation_in_browser = &OpensNavigationInBrowser;
+}
+
 ACContentRendererClient::~ACContentRendererClient() = default;
 
 void ACContentRendererClient::RenderThreadStarted() {

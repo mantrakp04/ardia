@@ -32,6 +32,7 @@ export type CreateWindowOptions = {
   incognito?: boolean;
   url?: string;
   adoptId?: string;
+  requiresAdoption?: boolean;
   tabIds?: string[];
   frame?: Frame | null;
   small?: boolean;
@@ -98,9 +99,9 @@ export function moveTabsInto(s: BrowserState, ids: string[], targetId: string): 
   const tabs = { ...next.tabs };
   const live = { ...next.live };
   const activeTabIds = { ...w.activeTabIds };
-  for (const { adoptId, ...t } of moving) {
+  for (const { adoptId, requiresAdoption, ...t } of moving) {
     const loaded = !!t.url && (!!t.navigation || !!adoptId);
-    tabs[t.id] = { ...t, windowId: targetId, navigation: loaded ? navigationTo(t.url) : null };
+    tabs[t.id] = requiresAdoption ? { ...t, adoptId, requiresAdoption, windowId: targetId } : { ...t, windowId: targetId, navigation: loaded ? navigationTo(t.url) : null };
     live[t.id] = IDLE_LIVE;
     activeTabIds[t.profileId] ??= t.id;
   }
@@ -145,7 +146,7 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
     if (o.chromeWindow && !small) w.chromeWindow = o.chromeWindow;
     let next = withWindow(s, w);
     if (o.tabIds?.length && !small) next = moveTabsInto(next, o.tabIds, id);
-    if (!next.windows[id]!.tabIds.length) next = withNewTab(next, id, { url: o.url, adoptId: o.adoptId })[0];
+    if (!next.windows[id]!.tabIds.length) next = withNewTab(next, id, { url: o.url, adoptId: o.adoptId, requiresAdoption: o.requiresAdoption })[0];
     const first = next.windows[id]!.tabIds[0]!;
     const shown = next.windows[id]!.activeTabIds[next.tabs[first]!.profileId] ?? first;
     if (!small) next = adoptParkedPins(next, id, next.tabs[shown]!.profileId);
@@ -252,7 +253,7 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
     const s = get();
     const tab = s.tabs[tabId];
     const w = tab && s.windows[tab.windowId];
-    if (!tab || !w || w.incognito || !s.profiles[profileId] || tab.profileId === profileId) return;
+    if (!tab || !w || w.incognito || !s.profiles[profileId] || tab.profileId === profileId || tab.requiresAdoption) return;
     let next = removeTabs(s, [tabId], false);
     const base = next.windows[w.id] ?? { ...w, tabIds: [], activeTabIds: {} };
     const loaded = !!tab.url && (!!tab.navigation || !!tab.adoptId);

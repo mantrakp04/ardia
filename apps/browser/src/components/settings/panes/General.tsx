@@ -15,18 +15,29 @@ import { AppState, Text, View } from "react-native";
 import { useTheme } from "../../../lib/theme";
 import { useBrowser } from "../../../store/browser";
 import { useProfiles } from "../../../store/hooks";
+import type { LinkDestination } from "../../../store/linkRouting";
 import { engineProfile } from "../../../store/model";
 import { SHARING_COPY } from "../../../telemetry/copy";
 import { Anchor, Button, Group, PopUp, Row, SectionHeader, Toggle, useFormColors } from "../controls";
 import { defaultBrowser, downloadSettings, loginItem, updater } from "../paneData";
 import { store, useResource } from "../resources";
 import { openImport } from "../windows";
+import { LinkDefaultPopUp } from "./Links";
 
 const APP = "Ardia";
+
+function externalLinksDescription(destination: LinkDestination, profileName: (id: string) => string | undefined): string {
+  const routes = "Routes in Links come first.";
+  if (destination.kind === "little") return `A link from Discord, Slack or Mail opens in Little Ardia, a small window of its own. ⌘O moves it into ${APP}; closing it throws it away. ${routes}`;
+  const name = destination.kind === "profile" ? profileName(destination.profileId) : undefined;
+  return `A link from Discord, Slack or Mail opens as a new tab in ${name ?? "the profile you used last"}. ${routes}`;
+}
 
 export function GeneralPane() {
   const settings = useBrowser((s) => s.settings);
   const update = useBrowser((s) => s.updateSettings);
+  const profiles = useBrowser((s) => s.profiles);
+  const profileName = (id: string) => profiles[id]?.name;
   const [loginStatus = "notRegistered", refreshLogin] = useResource(loginItem);
 
   return (
@@ -50,23 +61,8 @@ export function GeneralPane() {
         <Row anchor="general.warnBeforeClosingWindow">
           <Toggle value={settings.warnBeforeClosingWindow} onChange={(v) => update({ warnBeforeClosingWindow: v })} />
         </Row>
-        <Row
-          anchor="general.openLinksFrom"
-          description={
-            settings.openLinksInLittleArdia
-              ? `A link from Discord, Slack or Mail opens in Little Ardia, a small window of its own. ⌘O moves it into ${APP}; closing it throws it away.`
-              : `A link from Discord, Slack or Mail opens as a new tab in the ${APP} window you used last.`
-          }
-        >
-          <PopUp
-            value={settings.openLinksInLittleArdia ? "small" : "tab"}
-            options={[
-              { value: "small", title: "Little Ardia" },
-              { value: "tab", title: "A new tab" },
-            ]}
-            onChange={(v) => update({ openLinksInLittleArdia: v === "small" })}
-            minWidth={190}
-          />
+        <Row anchor="general.openLinksFrom" description={externalLinksDescription(settings.linkRouting.defaultDestination, profileName)}>
+          <LinkDefaultPopUp />
         </Row>
       </Group>
 

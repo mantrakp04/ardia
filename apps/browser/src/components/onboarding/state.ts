@@ -24,7 +24,6 @@ export const PRESETS: Record<Preset, Partial<Settings>> = {
     balancedTopApps: false,
     shareTabsAcrossWindows: false,
     cleanUpInactiveTabsAfterHours: null,
-    openLinksInLittleArdia: true,
   },
   arc: {
     addressBar: "sidebar",
@@ -34,7 +33,6 @@ export const PRESETS: Record<Preset, Partial<Settings>> = {
     balancedTopApps: true,
     shareTabsAcrossWindows: true,
     cleanUpInactiveTabsAfterHours: 12,
-    openLinksInLittleArdia: true,
   },
 };
 
@@ -92,7 +90,7 @@ const QUESTIONS: Record<Exclude<OnboardingStep, "intro">, Question[]> = {
   pins: [{ id: "pins", keys: [] }],
   home: [
     { id: "default", keys: [] },
-    { id: "links", keys: ["openLinksInLittleArdia"] },
+    { id: "links", keys: ["linkRouting"] },
   ],
   outro: [{ id: "outro", keys: [] }],
 };

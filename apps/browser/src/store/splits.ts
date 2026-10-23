@@ -31,6 +31,7 @@ export type OpenPaneOptions = {
   side?: SplitSide;
   background?: boolean;
   adoptId?: string;
+  requiresAdoption?: boolean;
 };
 export type OpenPaneResult = { ok: true; tabId: string; splitId: string } | { ok: false; reason: "max" | "invalid" };
 
@@ -212,7 +213,7 @@ export const createSplitsSlice: StateCreator<BrowserState, [], [], SplitsSlice> 
       if (!t || tabId === anchor.id || t.windowId !== windowId || t.profileId !== anchor.profileId) return { ok: false, reason: "invalid" };
       s = { ...s, splits: removeFromSplits(s.splits, new Set([tabId])) };
     } else {
-      [s, tabId] = withNewTab(s, windowId, { url: o.url, adoptId: o.url ? o.adoptId : undefined, profileId: anchor.profileId, openerId: o.url ? anchor.id : undefined, background: true });
+      [s, tabId] = withNewTab(s, windowId, { url: o.url, adoptId: o.url ? o.adoptId : undefined, requiresAdoption: o.requiresAdoption, profileId: anchor.profileId, openerId: o.url ? anchor.id : undefined, background: true });
     }
     const current = existing && s.splits[existing.id];
     const split = withPane(current, anchor.id, tabId, o.side ?? "right", windowId);

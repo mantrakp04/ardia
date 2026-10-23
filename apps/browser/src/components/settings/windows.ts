@@ -9,6 +9,7 @@ export const isUtilityWindowId = (id: string | null | undefined) =>
 
 export type SettingsPane =
   | "general"
+  | "links"
   | "profiles"
   | "sync"
   | "tabs"
