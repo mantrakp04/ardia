@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 const { useBrowser } = await import("./browser.ts");
-const { addFolderToSidebar, allArcHolders, restoreArcFolders } = await import("../lib/bookmarkGroups.ts");
+const { addFolderToSidebar, allArcHolders, restorableArcHolder, restoreArcFolders } = await import("../lib/bookmarkGroups.ts");
 const { importArcSpace } = await import("../components/import/apply.ts");
 const { sidebarEntries } = await import("../components/sidebar/entries.ts");
 
@@ -138,4 +138,19 @@ test("an Arc import counts the tabs of the groups it made, not of folders it ski
   const space = { id: "s3", name: "Home", profileId: P, tabs: [], pinned: [folder("One", "https://one.example/")] };
   assert.equal(importArcSpace(P, space).tabs, 1);
   assert.equal(importArcSpace(P, { ...space, pinned: [folder("One", "https://one.example/"), folder("Two", "https://two.example/")] }).tabs, 1);
+});
+
+test("Restore is offered only for a holder with a folder that can become a group", () => {
+  const { bar } = start();
+  const empty = S().addBookmarkFolder({ profileId: P, title: "Empty (Arc)", parentId: bar });
+  S().addBookmarkFolder({ profileId: P, title: "Nothing", parentId: empty });
+  const loose = S().addBookmarkFolder({ profileId: P, title: "Loose (Arc)", parentId: bar });
+  S().addBookmark({ profileId: P, url: "https://loose.example/", title: "Loose", parentId: loose });
+  const full = S().addBookmarkFolder({ profileId: P, title: "Full (Arc)", parentId: bar });
+  const kept = S().addBookmarkFolder({ profileId: P, title: "Kept", parentId: full });
+  S().addBookmark({ profileId: P, url: "https://kept.example/", title: "Kept", parentId: kept });
+  assert.equal(restorableArcHolder(S(), empty), false);
+  assert.equal(restorableArcHolder(S(), loose), false);
+  assert.equal(restorableArcHolder(S(), full), true);
+  assert.deepEqual(allArcHolders(S()), [full]);
 });

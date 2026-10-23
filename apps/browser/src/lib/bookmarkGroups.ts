@@ -41,14 +41,17 @@ function holderProfile(s: Pick<BrowserState, "bookmarks">, folderId: string): st
   return Object.entries(s.bookmarks.roots).find(([, r]) => r.bar === node.parentId)?.[0];
 }
 
-export const isArcHolder = (s: Pick<BrowserState, "bookmarks">, folderId: string) => !!holderProfile(s, folderId);
+export function restorableArcHolder(s: Pick<BrowserState, "bookmarks">, folderId: string): boolean {
+  const node = s.bookmarks.nodes[folderId];
+  return !!holderProfile(s, folderId) && node?.kind === "folder" && node.children.some((id) => makesGroup(s, id));
+}
 
 export const allArcHolders = (s: Pick<BrowserState, "bookmarks">) => Object.keys(s.bookmarks.roots).flatMap((p) => arcHolders(s, p));
 
 export function arcHolders(s: Pick<BrowserState, "bookmarks">, profileId: string): string[] {
   const bar = s.bookmarks.roots[profileId]?.bar;
   const root = bar ? s.bookmarks.nodes[bar] : undefined;
-  return root?.kind === "folder" ? root.children.filter((id) => isArcHolder(s, id)) : [];
+  return root?.kind === "folder" ? root.children.filter((id) => restorableArcHolder(s, id)) : [];
 }
 
 export function restoreArcFolders(holderId: string, windowId: string | null): string[] {

@@ -2,7 +2,7 @@ import { cleanUrl } from "@ardia/core";
 import { ContextMenuArea, copyText, MouseArea, prompt, showMenu, Symbol, type MenuItem } from "@ardia/shell";
 import { memo, useMemo, useRef, useState } from "react";
 import { Animated, PanResponder, Pressable, StyleSheet, Text, View, type LayoutRectangle } from "react-native";
-import { addFolderToSidebar, isArcHolder, makesGroup, restoreArcFolders } from "../../lib/bookmarkGroups";
+import { addFolderToSidebar, restorableArcHolder, makesGroup, restoreArcFolders } from "../../lib/bookmarkGroups";
 import { useTheme } from "../../lib/theme";
 import { folderChildren, folderLinks } from "../../store/bookmarks";
 import { useBrowser } from "../../store/browser";
@@ -388,7 +388,7 @@ async function openBarMenu(windowId: string, profileId: string, node: BookmarkNo
       { id: "openAllWindow", title: "Open All in New Window", enabled: n > 0 },
       { id: "openAllIncognito", title: "Open All in Incognito Window", enabled: n > 0 },
       { id: "addGroup", title: "Add to Sidebar as Group", enabled: makesGroup(s, node.id) },
-      ...(isArcHolder(s, node.id) ? [{ id: "restoreArc", title: "Restore Arc Folders as Groups" }] : []),
+      ...(restorableArcHolder(s, node.id) ? [{ id: "restoreArc", title: "Restore Arc Folders as Groups" }] : []),
       { separator: true },
       { id: "rename", title: "Rename…" },
       { id: "delete", title: "Delete" },

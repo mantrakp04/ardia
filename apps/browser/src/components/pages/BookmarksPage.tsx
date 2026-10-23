@@ -1,4 +1,4 @@
-import { addFolderToSidebar, isArcHolder, makesGroup, restoreArcFolders } from "../../lib/bookmarkGroups";
+import { addFolderToSidebar, restorableArcHolder, makesGroup, restoreArcFolders } from "../../lib/bookmarkGroups";
 import { cleanUrl } from "@ardia/core";
 import { ContextMenuArea, copyText, MouseArea, showMenu, Symbol, type MenuItem } from "@ardia/shell";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -328,7 +328,7 @@ function BookmarkRow({
             { id: "openAll", title: `Open All (${folderLinks(useBrowser.getState().bookmarks, node.id).length})` },
             { id: "openAllWindow", title: "Open All in New Window" },
             { id: "addGroup", title: "Add to Sidebar as Group", enabled: makesGroup(useBrowser.getState(), node.id) },
-            ...(isArcHolder(useBrowser.getState(), node.id) ? [{ id: "restoreArc", title: "Restore Arc Folders as Groups" }] : []),
+            ...(restorableArcHolder(useBrowser.getState(), node.id) ? [{ id: "restoreArc", title: "Restore Arc Folders as Groups" }] : []),
             { separator: true },
             { id: "edit", title: "Rename…" },
           ];

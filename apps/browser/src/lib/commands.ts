@@ -95,10 +95,6 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     case "setBookmarksBar":
       if (arg === "always" || arg === "newTab" || arg === "never") s.updateSettings({ bookmarksBar: arg });
       return;
-    case "addFolderToSidebar":
-      return arg ? void addFolderToSidebar(arg, resolveWindowId(s, requested) ?? null) : undefined;
-    case "restoreArcFolders":
-      return arg ? void restoreArcFolders(arg, resolveWindowId(s, requested) ?? null) : undefined;
     case "toggleBookmarksBar": {
       const mode = s.settings.bookmarksBar;
       const target = resolveWindowId(s, requested);
@@ -111,6 +107,12 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
   if (isSmall(s, requested) && !LITTLE_ARDIA_PAGE_COMMANDS.has(command)) {
     requested = mainWindowFor(s, s.windows[requested!]!.profileId) ?? null;
     if (requested) focus(requested);
+  }
+
+  if (command === "addFolderToSidebar" || command === "restoreArcFolders") {
+    if (!arg) return;
+    const target = resolveWindowId(s, requested) ?? null;
+    return void (command === "addFolderToSidebar" ? addFolderToSidebar(arg, target) : restoreArcFolders(arg, target));
   }
 
   const windowId = resolveWindowId(s, requested);
