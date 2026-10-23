@@ -6,7 +6,7 @@ import type { BrowserState } from "../../store/browser";
 import { groupLabel } from "../../store/organize";
 import { tabTitle } from "./actions";
 import { groupEntries } from "./entries";
-import { GROUP_BORDER, GROUP_PAD, keptEntry } from "./geometry";
+import { GROUP_BORDER, GROUP_MEMBER_INSET, GROUP_PAD, keptEntry } from "./geometry";
 import { pointerOnRow } from "./hover";
 import { FaviconFallback, NewTabIcon } from "../primitives";
 import { SYMBOL_PREFIX, TabIcon } from "./TabIcon";
@@ -145,7 +145,7 @@ function GroupGhost({ shot }: { shot: GroupShot }) {
           <Symbol name="chevron.down" size={9} weight="semibold" color={withAlpha(tokens.groupTitle, 0.5)} style={{ width: 10, height: 10 }} />
         </View>
       </View>
-      <View style={{ gap: layout.rowGap, paddingBottom: pad }}>{shot.members.map((m) => (m.kind === "split" ? <SplitGhost key={m.key} shot={m} /> : tabGhost(m, theme)))}</View>
+      <View style={{ gap: layout.rowGap, paddingBottom: pad, paddingLeft: GROUP_MEMBER_INSET }}>{shot.members.map((m) => (m.kind === "split" ? <SplitGhost key={m.key} shot={m} /> : tabGhost(m, theme)))}</View>
     </View>
   );
 }

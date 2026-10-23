@@ -13,7 +13,7 @@ import { commitRename, endRename, startRename } from "./actions";
 import { useDragItem, useDropInto } from "./dnd";
 import { useShift, type EntryMotion } from "./entryMotion";
 import { Fold, useFold } from "./Fold";
-import { GROUP_BORDER, GROUP_HEADER_RADIUS, GROUP_PAD, GROUP_RADIUS, keptEntry } from "./geometry";
+import { GROUP_BORDER, GROUP_HEADER_RADIUS, GROUP_MEMBER_INSET, GROUP_PAD, GROUP_RADIUS, keptEntry } from "./geometry";
 import { groupEntries } from "./entries";
 import { dismissHover, useRowHover } from "./hover";
 import { capture, GhostSlot, ListMotionContext, newCapture, useGroupMotion } from "./listMotion";
@@ -58,8 +58,8 @@ export const GroupBlock = memo(function GroupBlock({ groupId, section, motion: o
 
   return (
     <Animated.View ref={wrapper.ref} style={wrapper.style}>
-      <View {...moved} ref={movedRef} style={[{ borderRadius: GROUP_RADIUS, backgroundColor: fill, borderWidth: GROUP_BORDER, borderColor: stroke, paddingHorizontal: PAD }, moved.style as object]}>
-        <View ref={headerRef} {...handle} style={{ marginHorizontal: -PAD }}>
+      <View {...moved} ref={movedRef} style={[{ borderRadius: GROUP_RADIUS, backgroundColor: fill, borderWidth: GROUP_BORDER, borderColor: stroke, paddingLeft: PAD + GROUP_MEMBER_INSET, paddingRight: PAD }, moved.style as object]}>
+        <View ref={headerRef} {...handle} style={{ marginLeft: -(PAD + GROUP_MEMBER_INSET), marginRight: -PAD }}>
           <GroupHeader groupId={groupId} windowId={windowId} collapsed={collapsed} open={fold.open} />
         </View>
         <Fold

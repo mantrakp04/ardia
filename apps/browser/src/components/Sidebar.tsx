@@ -18,7 +18,7 @@ import { PROFILE_INDICATOR_X, ProfileIndicator } from "./ProfileIndicator";
 import { usePageStyle, usePagerPages } from "./layout/profilePager";
 import { PROFILE_DOTS_HEIGHT, ProfileDots, useProfileDotsShown } from "./profiles/ProfileDots";
 import { SidebarAddressRow, SidebarHeaderTools } from "./sidebar/AddressBar";
-import { ClearDivider } from "./sidebar/ClearDivider";
+import { ClearDivider, SidebarHover } from "./sidebar/ClearDivider";
 import { DragGhost } from "./sidebar/DragGhost";
 import { DragProvider, DragScope, useDragController, useDragging, useDragItem, usePinnedCount, type Ghost } from "./sidebar/dnd";
 import { SidebarDropArea } from "./sidebar/fileDrop";
@@ -79,103 +79,105 @@ export function Sidebar({ width }: { width: number }) {
   useLayoutEffect(() => dismissHoverIn(windowId), [windowId, current, paging]);
 
   return (
-    <DragProvider>
-      {(ghost: Ghost | null, controller) => (
-        <SidebarDropArea
-          ref={(v) => {
-            controller.root = v;
-          }}
-          style={{ width, height: "100%" }}
-        >
-          <View
-            style={{
-              position: "absolute",
-              left: 0,
-              right: 0,
-              top: header - glowRoom,
-              bottom: (docked ? DOCK : 0) + playerHeight + footer,
-              overflow: paging ? "hidden" : "visible",
+    <SidebarHover width={width}>
+      <DragProvider>
+        {(ghost: Ghost | null, controller) => (
+          <SidebarDropArea
+            ref={(v) => {
+              controller.root = v;
             }}
-            onLayout={(e) => setAvailable(e.nativeEvent.layout.height + (docked ? DOCK : 0))}
+            style={{ width, height: "100%" }}
           >
-            {pages.map((page) => (
-              <SidebarPage
-                key={page.id}
-                profileId={page.id}
-                slot={page.slot}
-                width={width}
-                current={page.id === current}
-                resting={!!page.resting}
-                docked={docked}
-                glowRoom={glowRoom}
-                height={available}
-                rows={page.id === current ? undefined : Math.ceil(available / ROW_PITCH) + 1}
-                geometry={page.id === current ? geometry : undefined}
-                onListHeight={onListHeight}
-                onScrollView={(v) => {
-                  scroll.current = v;
-                  controller.scroll = v;
-                }}
-                onScrollY={(y) => {
-                  scrollY.current = y;
-                  controller.scrollY = y;
-                  dismissHover();
-                }}
-              />
-            ))}
-          </View>
-
-          {playerTab ? (
-            <View style={{ position: "absolute", left: layout.sidebarInset, right: layout.sidebarInset, bottom: (docked ? DOCK : 8) + footer }}>
-              <SidebarPlayer tabId={playerTab} />
+            <View
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                top: header - glowRoom,
+                bottom: (docked ? DOCK : 0) + playerHeight + footer,
+                overflow: paging ? "hidden" : "visible",
+              }}
+              onLayout={(e) => setAvailable(e.nativeEvent.layout.height + (docked ? DOCK : 0))}
+            >
+              {pages.map((page) => (
+                <SidebarPage
+                  key={page.id}
+                  profileId={page.id}
+                  slot={page.slot}
+                  width={width}
+                  current={page.id === current}
+                  resting={!!page.resting}
+                  docked={docked}
+                  glowRoom={glowRoom}
+                  height={available}
+                  rows={page.id === current ? undefined : Math.ceil(available / ROW_PITCH) + 1}
+                  geometry={page.id === current ? geometry : undefined}
+                  onListHeight={onListHeight}
+                  onScrollView={(v) => {
+                    scroll.current = v;
+                    controller.scroll = v;
+                  }}
+                  onScrollY={(y) => {
+                    scrollY.current = y;
+                    controller.scrollY = y;
+                    dismissHover();
+                  }}
+                />
+              ))}
             </View>
-          ) : null}
 
-          {docked ? (
-            <View style={{ position: "absolute", left: layout.sidebarInset, right: layout.sidebarInset, bottom: DOCKED_BOTTOM + footer }}>
-              <NewTabRow windowId={windowId} />
-            </View>
-          ) : null}
-
-          {footer ? (
-            <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: footer }}>
-              {dots ? <ProfileDots windowId={windowId} /> : null}
-              {footerDownloads ? (
-                <View style={{ position: "absolute", left: layout.sidebarInset, bottom: SIDEBAR_FOOTER_DOWNLOADS.bottom }}>
-                  <DownloadsButton windowId={windowId} />
-                </View>
-              ) : null}
-            </View>
-          ) : null}
-
-          <View style={{ height: header }}>
-            <WindowDragRegion style={StyleSheet.absoluteFill} />
-            {addressBar ? (
-              <>
-                <SidebarHeaderTools width={width} />
-                <SidebarAddressRow width={width} />
-              </>
-            ) : (
-              <View pointerEvents="box-none" style={{ height: layout.sidebarHeader, flexDirection: "row", alignItems: "flex-start", paddingLeft: PROFILE_INDICATOR_X, paddingRight: 7, paddingTop: 27 - 17 }}>
-                <ProfileIndicator room={width - PROFILE_INDICATOR_X - 7 - (hasDownloads ? 34 + 2 : 0)} />
-                <View pointerEvents="none" style={{ flex: 1 }} />
-                {hasDownloads ? <DownloadsButton windowId={windowId} /> : null}
+            {playerTab ? (
+              <View style={{ position: "absolute", left: layout.sidebarInset, right: layout.sidebarInset, bottom: (docked ? DOCK : 8) + footer }}>
+                <SidebarPlayer tabId={playerTab} />
               </View>
-            )}
-          </View>
+            ) : null}
 
-          <ResizeHandle windowId={windowId} />
-          {ghost && !ghost.landing && nothingPinned ? (
-            addressBar ? (
-              <PinFieldZone top={SIDEBAR_FIELD.top} height={SIDEBAR_FIELD.height} />
-            ) : (
-              <PinSlotZone />
-            )
-          ) : null}
-          {ghost ? <DragGhost ghost={ghost} /> : null}
-        </SidebarDropArea>
-      )}
-    </DragProvider>
+            {docked ? (
+              <View style={{ position: "absolute", left: layout.sidebarInset, right: layout.sidebarInset, bottom: DOCKED_BOTTOM + footer }}>
+                <NewTabRow windowId={windowId} />
+              </View>
+            ) : null}
+
+            {footer ? (
+              <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: footer }}>
+                {dots ? <ProfileDots windowId={windowId} /> : null}
+                {footerDownloads ? (
+                  <View style={{ position: "absolute", left: layout.sidebarInset, bottom: SIDEBAR_FOOTER_DOWNLOADS.bottom }}>
+                    <DownloadsButton windowId={windowId} />
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+
+            <View style={{ height: header }}>
+              <WindowDragRegion style={StyleSheet.absoluteFill} />
+              {addressBar ? (
+                <>
+                  <SidebarHeaderTools width={width} />
+                  <SidebarAddressRow width={width} />
+                </>
+              ) : (
+                <View pointerEvents="box-none" style={{ height: layout.sidebarHeader, flexDirection: "row", alignItems: "flex-start", paddingLeft: PROFILE_INDICATOR_X, paddingRight: 7, paddingTop: 27 - 17 }}>
+                  <ProfileIndicator room={width - PROFILE_INDICATOR_X - 7 - (hasDownloads ? 34 + 2 : 0)} />
+                  <View pointerEvents="none" style={{ flex: 1 }} />
+                  {hasDownloads ? <DownloadsButton windowId={windowId} /> : null}
+                </View>
+              )}
+            </View>
+
+            <ResizeHandle windowId={windowId} />
+            {ghost && !ghost.landing && nothingPinned ? (
+              addressBar ? (
+                <PinFieldZone top={SIDEBAR_FIELD.top} height={SIDEBAR_FIELD.height} />
+              ) : (
+                <PinSlotZone />
+              )
+            ) : null}
+            {ghost ? <DragGhost ghost={ghost} /> : null}
+          </SidebarDropArea>
+        )}
+      </DragProvider>
+    </SidebarHover>
   );
 }
 
@@ -389,7 +391,7 @@ function PageRows({ windowId, profileId, current, rows, lazy, offScreen, tiles, 
           <Tail id="tail:pinnedGroups" section="pinnedGroups" />
         </View>
         {offScreen ? null : <LiveFolders windowId={windowId} spaced={pinnedSection} />}
-        {divided ? <ClearDivider windowId={windowId} spaced={pinnedSection} /> : null}
+        {divided ? <ClearDivider windowId={windowId} current={current} spaced={pinnedSection} /> : null}
         <View
           ref={(v) => {
             controller?.regions.set("list", v);

@@ -7,6 +7,7 @@ import { useBrowser } from "../../store/browser";
 import { PageProfileContext, useIsActiveTab, usePageProfileId, useSettings, useTab, useTabLive, useWindowId, useWindowProfileId } from "../../store/hooks";
 import { ProfileIndicator, useProfileIndicatorWidth } from "../ProfileIndicator";
 import { HoverSlot } from "../HoverSlot";
+import { TabPressFeedback } from "../TabPressFeedback";
 import { IconButton, useHover } from "../primitives";
 import { clickTab } from "../sidebar/actions";
 import { openGroupMenu, openTabMenu } from "../sidebar/menus";
@@ -805,39 +806,41 @@ function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width: number
       <ContextMenuArea onContextMenu={() => void openTabMenu(windowId, tab)} style={StyleSheet.absoluteFill}>
         <Pressable onPress={(e) => clickTab(windowId, tab.id, modifiersOf(e))} style={{ flex: 1 }}>
           {({ pressed }) => (
-            <ItemRow hovered={(hovered || dragged) && !active} pressed={pressed && !active}>
-              <View pointerEvents="none">
-                <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
-                <TabBadges tabId={tab.id} pip={false} />
-              </View>
-              {(playing || tab.muted) && (
-                <Pressable onPress={() => toggleMute(tab.id)} style={{ marginLeft: 5 }} tooltip={tab.muted ? "Unmute" : "Mute"}>
-                  <Symbol name={tab.muted ? "speaker.slash" : "speaker.wave.2"} size={11} color={onBand ? palette.icon : theme.textTab} style={{ width: 16, height: 16 }} />
-                </Pressable>
-              )}
-              <FadeLabel
-                text={title}
-                fontSize={12}
-                color={onBand ? palette.text : active ? theme.tabSelectedText : theme.textTab}
-                style={{ flex: 1, height: 16, marginLeft: 5 }}
-              />
-              <HoverSlot
-                hovered={hovered}
-                width={20}
-                hover={
-                  <IconButton
-                    icon={tuck ? "minus" : "xmark"}
-                    size={9}
-                    weight="semibold"
-                    box={20}
-                    radius={5}
-                    color={onBand ? palette.icon : undefined}
-                    onPress={tuck ?? (() => void closeTab(tab.id))}
-                    tooltip={tuck ? "Hide in Group" : "Close Tab"}
-                  />
-                }
-              />
-            </ItemRow>
+            <TabPressFeedback pressed={pressed} style={{ flex: 1 }}>
+              <ItemRow hovered={(hovered || dragged) && !active} pressed={pressed && !active}>
+                <View pointerEvents="none">
+                  <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
+                  <TabBadges tabId={tab.id} pip={false} />
+                </View>
+                {(playing || tab.muted) && (
+                  <Pressable onPress={() => toggleMute(tab.id)} style={{ marginLeft: 5 }} tooltip={tab.muted ? "Unmute" : "Mute"}>
+                    <Symbol name={tab.muted ? "speaker.slash" : "speaker.wave.2"} size={11} color={onBand ? palette.icon : theme.textTab} style={{ width: 16, height: 16 }} />
+                  </Pressable>
+                )}
+                <FadeLabel
+                  text={title}
+                  fontSize={12}
+                  color={onBand ? palette.text : active ? theme.tabSelectedText : theme.textTab}
+                  style={{ flex: 1, height: 16, marginLeft: 5 }}
+                />
+                <HoverSlot
+                  hovered={hovered}
+                  width={20}
+                  hover={
+                    <IconButton
+                      icon={tuck ? "minus" : "xmark"}
+                      size={9}
+                      weight="semibold"
+                      box={20}
+                      radius={5}
+                      color={onBand ? palette.icon : undefined}
+                      onPress={tuck ?? (() => void closeTab(tab.id))}
+                      tooltip={tuck ? "Hide in Group" : "Close Tab"}
+                    />
+                  }
+                />
+              </ItemRow>
+            </TabPressFeedback>
           )}
         </Pressable>
       </ContextMenuArea>
@@ -1039,7 +1042,7 @@ function PinnedCell({ tabId, geometry, from }: { tabId: string; geometry: DragGe
       <View {...hoverProps} style={{ opacity: drag.crossed ? 0 : 1 }} tooltip={`${tab.customTitle || tab.title || tab.url}${tab.url ? `\n${tab.url}` : ""}`}>
         <ContextMenuArea onContextMenu={() => void openTabMenu(windowId, tab)}>
           <Pressable onPress={(e) => clickTab(windowId, tab.id, modifiersOf(e))}>
-            {({ pressed }) => <PinnedFace tabId={tabId} active={active} hovered={hovered} pressed={pressed} />}
+            {({ pressed }) => <TabPressFeedback pressed={pressed}><PinnedFace tabId={tabId} active={active} hovered={hovered} pressed={pressed} /></TabPressFeedback>}
           </Pressable>
         </ContextMenuArea>
       </View>

@@ -316,9 +316,9 @@ export const UrlField = memo(function UrlField({
     >
       {liquidGlass ? (
         sidebar ? (
-          <GlassFill radius={SIDEBAR_FIELD.radius} border={StyleSheet.hairlineWidth * 2} fill={hovered ? theme.tabHover : theme.pinnedResting} />
+          <GlassFill tint={null} opacity={0.45} radius={SIDEBAR_FIELD.radius} border={StyleSheet.hairlineWidth * 2} fill={hovered ? theme.tabHover : theme.pinnedResting} />
         ) : (
-          <GlassFill radius={8} fill={hovered ? palette.pressed : palette.pill} dark={palette.background ? palette.text.startsWith("#FFFFFF") : undefined} />
+          <GlassFill tint={null} opacity={0.45} radius={8} fill={hovered ? palette.pressed : palette.pill} dark={palette.background ? palette.text.startsWith("#FFFFFF") : undefined} />
         )
       ) : null}
       {insecure && (

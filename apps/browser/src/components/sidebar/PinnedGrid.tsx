@@ -18,6 +18,7 @@ import { pinGrid, pinGridHeight, TILE_GAP } from "./pinZone";
 import { registerRow } from "./state";
 import { TabIcon } from "./TabIcon";
 import { TabBadges } from "../media/TabBadges";
+import { TabPressFeedback } from "../TabPressFeedback";
 import { clickMods } from "./TabRow";
 import { useSidebarTokens } from "./tokens";
 
@@ -181,47 +182,67 @@ const PinnedTile = memo(function PinnedTile({ tabId, width }: { tabId: string; w
                 clickTab(windowId, tabId, clickMods(e));
               }}
             >
-              {({ pressed }) =>
-                liquidGlass ? (
-                  <GlassTile tabId={tabId} width={width} active={active} selected={selected} hovered={hovered} pressed={pressed} tileTheme={tileTheme} />
-                ) : active && tileTheme ? (
-                  <DockSelection
-                    image={tileTheme.image}
-                    emoji={tileTheme.emoji}
-                    theme={tileTheme.theme.kind}
-                    fill={tileTheme.theme.kind === "template" ? tileTheme.theme.fill : undefined}
-                    stroke={tileTheme.theme.kind === "template" ? tileTheme.theme.stroke : undefined}
-                    cornerRadius={radius}
-                    strokeWidth={SELECTION_STROKE}
-                    dark={theme.dark}
-                    style={{ width, height: layout.pinnedHeight, alignItems: "center", justifyContent: "center" }}
-                  >
-                    <View>
-                      {tileTheme.theme.kind === "template" ? (
-                        <View style={{ width: 16, height: 16 }} />
-                      ) : (
-                        <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
-                      )}
-                      <TabBadges tabId={tabId} />
-                    </View>
-                  </DockSelection>
-                ) : active ? (
-                  <Surface
-                    fill={hex(theme.pinnedSelectedRim)}
-                    cornerRadius={radius}
-                    shadowColor={theme.dark ? "#FFFFFF" : "#000000"}
-                    shadowOpacity={theme.dark ? 0.15 : 0.12}
-                    shadowRadius={1.5}
-                    shadowOffset={[0, 0.5]}
-                    style={{ width, height: layout.pinnedHeight, padding: 1 }}
-                  >
+              {({ pressed }) => (
+                <TabPressFeedback pressed={pressed}>
+                  {liquidGlass ? (
+                    <GlassTile tabId={tabId} width={width} active={active} selected={selected} hovered={hovered} pressed={pressed} tileTheme={tileTheme} />
+                  ) : active && tileTheme ? (
+                    <DockSelection
+                      image={tileTheme.image}
+                      emoji={tileTheme.emoji}
+                      theme={tileTheme.theme.kind}
+                      fill={tileTheme.theme.kind === "template" ? tileTheme.theme.fill : undefined}
+                      stroke={tileTheme.theme.kind === "template" ? tileTheme.theme.stroke : undefined}
+                      cornerRadius={radius}
+                      strokeWidth={SELECTION_STROKE}
+                      dark={theme.dark}
+                      style={{ width, height: layout.pinnedHeight, alignItems: "center", justifyContent: "center" }}
+                    >
+                      <View>
+                        {tileTheme.theme.kind === "template" ? (
+                          <View style={{ width: 16, height: 16 }} />
+                        ) : (
+                          <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
+                        )}
+                        <TabBadges tabId={tabId} />
+                      </View>
+                    </DockSelection>
+                  ) : active ? (
+                    <Surface
+                      fill={hex(theme.pinnedSelectedRim)}
+                      cornerRadius={radius}
+                      shadowColor={theme.dark ? "#FFFFFF" : "#000000"}
+                      shadowOpacity={theme.dark ? 0.15 : 0.12}
+                      shadowRadius={1.5}
+                      shadowOffset={[0, 0.5]}
+                      style={{ width, height: layout.pinnedHeight, padding: 1 }}
+                    >
+                      <View
+                        style={{
+                          flex: 1,
+                          borderRadius: radius - 1,
+                          backgroundColor: theme.pinnedSelectedFill,
+                          borderTopWidth: 1,
+                          borderColor: theme.pinnedSelectedOutline,
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <View>
+                          <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
+                          <TabBadges tabId={tabId} />
+                        </View>
+                      </View>
+                    </Surface>
+                  ) : (
                     <View
                       style={{
-                        flex: 1,
-                        borderRadius: radius - 1,
-                        backgroundColor: theme.pinnedSelectedFill,
-                        borderTopWidth: 1,
-                        borderColor: theme.pinnedSelectedOutline,
+                        width,
+                        height: layout.pinnedHeight,
+                        borderRadius: radius,
+                        borderWidth: selected ? 1 : 0.5,
+                        borderColor: selected ? tokens.dragBorder : theme.pinnedRestingStroke,
+                        backgroundColor: pressed ? theme.tabPressed : hovered || selected ? theme.tabHover : theme.pinnedResting,
                         alignItems: "center",
                         justifyContent: "center",
                       }}
@@ -231,27 +252,9 @@ const PinnedTile = memo(function PinnedTile({ tabId, width }: { tabId: string; w
                         <TabBadges tabId={tabId} />
                       </View>
                     </View>
-                  </Surface>
-                ) : (
-                  <View
-                    style={{
-                      width,
-                      height: layout.pinnedHeight,
-                      borderRadius: radius,
-                      borderWidth: selected ? 1 : 0.5,
-                      borderColor: selected ? tokens.dragBorder : theme.pinnedRestingStroke,
-                      backgroundColor: pressed ? theme.tabPressed : hovered || selected ? theme.tabHover : theme.pinnedResting,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <View>
-                      <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
-                      <TabBadges tabId={tabId} />
-                    </View>
-                  </View>
-                )
-              }
+                  )}
+                </TabPressFeedback>
+              )}
             </Pressable>
           </ContextMenuArea>
         </MouseArea>
