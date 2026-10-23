@@ -47,7 +47,7 @@ export function Fold({
   entries: FoldEntry[];
   keep?: string | null;
   gap: number;
-  rowHeight?: number;
+  rowHeight?: number | ((key: string) => number);
   padTop?: number;
   padBottom?: number;
   mountClosed?: boolean;
@@ -61,7 +61,7 @@ export function Fold({
   const folding = !!kept && (collapsed || moving);
   const state = useRef({ moving, folding, kept });
   state.current = { moving, folding, kept };
-  const heightOf = (key: string) => rowHeight ?? measured[key] ?? 0;
+  const heightOf = (key: string) => (typeof rowHeight === "function" ? rowHeight(key) : (rowHeight ?? measured[key] ?? 0));
   const rows = entries.filter((e) => !e.ghost);
   const total = rows.reduce((sum, e) => sum + heightOf(e.key), 0) + gap * Math.max(0, rows.length - 1) + padTop + padBottom;
   const foldingStyle = (height: number) => {

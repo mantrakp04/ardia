@@ -5,7 +5,8 @@ import { create, useStore } from "zustand";
 import { layout, useTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
 import { useWindowId } from "../../store/hooks";
-import type { TabPlacement } from "../../store/organize";
+import { descendantIds } from "../../store/groups";
+import type { GroupPlacement, TabPlacement } from "../../store/organize";
 import { SLIDE } from "../layout/stripReorder";
 import { beginTabDrag, cancelTabDrag, endTabDrag, setDragPicture, updateTabDrag, useTabDrag } from "../layout/tabDrag";
 import { useClipped, type ClipSource } from "./entryMotion";
@@ -37,7 +38,7 @@ type Item = ItemSpec & {
 
 type Drop =
   | { type: "tabs"; placement: TabPlacement }
-  | { type: "group"; placement: { pinned: boolean; beforeId?: string | null } }
+  | { type: "group"; placement: GroupPlacement }
   | { type: "onto"; targetId: string }
   | { type: "none" };
 
@@ -342,7 +343,10 @@ class DragController {
     const { x, y } = this.pointer;
     const source = this.sources[0]!;
     const sourceKeys = new Set(this.sources.map((s) => s.key));
-    const live = [...this.items.values()].filter((i) => !sourceKeys.has(i.key) && i.frame);
+    const subtree = source.kind === "group" && source.groupId ? new Set([source.groupId, ...descendantIds(useBrowser.getState().groups, source.groupId)]) : null;
+    const live = [...this.items.values()].filter(
+      (i) => !sourceKeys.has(i.key) && i.frame && !(subtree && ((i.parentGroup && subtree.has(i.parentGroup)) || (i.groupId && subtree.has(i.groupId)))),
+    );
     const cy = (i: Item) => {
       const f = this.shown(i);
       return f.y + Math.min(f.h, i.headerFrame?.h ?? f.h) / 2;
@@ -374,24 +378,33 @@ class DragController {
       gapKey = before?.key ?? "tail:tiles";
       pitch = this.gridBase ? count : PIN_SLOT;
     } else {
-      const groups = live.filter((i) => i.kind === "group");
-      const box = tabsDrag
-        ? groups.find((g) => {
-            const f = this.shown(g);
-            const start = this.at(g.headerFrame);
-            const header = start && { ...start, y: start.y + f.y - this.at(g.frame)!.y };
-            if (g.collapsed) return !!header && inside(header, x, y) && Math.abs(y - (header.y + header.h / 2)) < header.h / 3;
-            return inside(f, x, y) && (!header || y > header.y + header.h / 2);
-          })
-        : undefined;
-      if (box?.collapsed) {
-        drop = { type: "tabs", placement: { pinned: false, groupId: box.groupId!, beforeId: null } };
-        into = box.groupId!;
-      } else if (box) {
-        const members = live.filter((i) => i.kind === "row" && i.parentGroup === box.groupId).sort(byY);
+      const hits =
+        tabsDrag || source.kind === "group"
+          ? live
+              .filter((i) => i.kind === "group")
+              .flatMap((g) => {
+                const f = this.shown(g);
+                const start = this.at(g.headerFrame);
+                const header = start && { ...start, y: start.y + f.y - this.at(g.frame)!.y };
+                const onHeader = !!header && inside(header, x, y) && Math.abs(y - (header.y + header.h / 2)) < header.h / 3;
+                if (g.collapsed || (source.kind === "group" && onHeader)) return onHeader ? [{ g, into: true, h: f.h }] : [];
+                return inside(f, x, y) && (!header || y > header.y + header.h / 2) ? [{ g, into: false, h: f.h }] : [];
+              })
+              .sort((a, z) => a.h - z.h)
+          : [];
+      const hit = hits[0];
+      const nestAt = (groupId: string, beforeId: string | null): Drop =>
+        tabsDrag
+          ? { type: "tabs", placement: { pinned: false, groupId, beforeId } }
+          : { type: "group", placement: { pinned: false, parentId: groupId, beforeId } };
+      if (hit?.into) {
+        drop = nestAt(hit.g.groupId!, null);
+        into = hit.g.groupId!;
+      } else if (hit) {
+        const members = live.filter((i) => (i.kind === "row" || i.kind === "group" || i.kind === "split") && i.parentGroup === hit.g.groupId).sort(byY);
         const before = members.find((m) => cy(m) > y);
-        drop = { type: "tabs", placement: { pinned: false, groupId: box.groupId!, beforeId: firstTab(before) } };
-        gapKey = before?.key ?? `tail:group:${box.groupId}`;
+        drop = nestAt(hit.g.groupId!, firstTab(before));
+        gapKey = before?.key ?? `tail:group:${hit.g.groupId}`;
       } else if (tabsDrag && this.overPinnedRows(y)) {
         const rows = live.filter((i) => i.section === "pinnedRows" && i.kind === "row").sort(byY);
         const before = rows.find((r) => cy(r) > y && firstTab(r) !== null);
@@ -410,7 +423,7 @@ class DragController {
         gapKey = before?.key ?? `tail:${section}`;
         drop =
           source.kind === "group"
-            ? { type: "group", placement: { pinned, beforeId: firstTab(before) } }
+            ? { type: "group", placement: { pinned, parentId: null, beforeId: firstTab(before) } }
             : { type: "tabs", placement: { pinned: false, beforeId: firstTab(before) } };
       }
     }

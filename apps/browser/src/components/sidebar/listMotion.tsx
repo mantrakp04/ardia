@@ -11,7 +11,6 @@ export const SLIDE_MS = 140;
 export const FADE_MS = 100;
 export const SLIDE_EASING = Easing.bezier(0.25, 0.1, 0.25, 1);
 export const FADE_EASING = Easing.bezier(0, 0, 0.58, 1);
-const ROW = layout.rowHeight;
 const GAP = layout.rowGap;
 const TAIL = "~tail";
 const FRAME_SLACK_MS = 50;
@@ -355,9 +354,9 @@ export function useListMotion(windowId: string, profileId: string, entries: stri
   return useMotion({ devKey: windowId, entries, from, planner, height: (e) => height(useBrowser.getState(), e), enabled, native: true });
 }
 
-const rowHeight: Height = () => ROW;
 
 export function useGroupMotion(windowId: string, profileId: string, groupId: string, entries: string[], from: Capture, scope: ListMotionScope, enabled: boolean) {
+  const height: Height = (s, e) => entryHeight(s, windowId, profileId, e);
   const planner: Planner = (before, after, slides, ghosts, t) => {
     const was = before.state.groups[groupId];
     const now = after.state.groups[groupId];
@@ -368,8 +367,8 @@ export function useGroupMotion(windowId: string, profileId: string, groupId: str
     const added = after.list.filter((e) => !had.has(e));
     if (!removed.length === !added.length) return null;
     if (!removed.every(closedIn(before.state, after.state)) || !added.every(openedIn(before.state, after.state))) return null;
-    const old = offsets(before.state, before.list, rowHeight);
-    const next = offsets(after.state, after.list, rowHeight);
+    const old = offsets(before.state, before.list, height);
+    const next = offsets(after.state, after.list, height);
     const snapshot = (e: string) => snapshotEntry(before.state, windowId, profileId, e);
     const atEnd = !removed.length && groupGrowsAtEnd(before.state, after.state, groupId);
     const plan = buildPlan({ before, after, old, next, removed, added, slides, ghosts, t, tail: !atEnd, snapshot, clipAfter: [], start: 0 });
@@ -377,7 +376,7 @@ export function useGroupMotion(windowId: string, profileId: string, groupId: str
     return { ...(plan ?? { moves: [], ghosts: [], clipped: [] }), below: old.end - next.end };
   };
   const below = scope.slideBelow ? (delta: number) => scope.slideBelow?.(`g:${groupId}`, delta) : null;
-  return useMotion({ devKey: `${windowId}:${groupId}`, entries, from, planner, height: () => ROW, enabled, native: false, below });
+  return useMotion({ devKey: `${windowId}:${groupId}`, entries, from, planner, height: (e) => height(useBrowser.getState(), e), enabled, native: false, below });
 }
 
 export const GhostSlot = memo(function GhostSlot({ snapshot, top, opacity }: { snapshot: EntrySnapshot; top: number; opacity: Animated.Value }) {
