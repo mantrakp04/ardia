@@ -205,3 +205,82 @@ test("nesting repair keeps a tab in a single chain", () => {
   assert.equal(S().groups[two].tabIds.includes(ids[1]), false);
   assert.ok(S().groups[inner].tabIds.includes(ids[1]) && S().groups[one].tabIds.includes(ids[1]));
 });
+
+const sectionsInOrder = (w) => {
+  const s = S();
+  const pinnedMember = new Set(Object.values(s.groups).filter((g) => g.pinned).flatMap((g) => g.tabIds));
+  const rank = (id) => (s.tabs[id].pinned ? (s.tabs[id].pinnedAsRow ? 1 : 0) : pinnedMember.has(id) ? 2 : 3);
+  const ranks = s.windows[w].tabIds.map(rank);
+  return ranks.every((r, i) => i === 0 || ranks[i - 1] <= r);
+};
+const contiguous = (w, groupId) => {
+  const ids = S().windows[w].tabIds;
+  const at = S().groups[groupId].tabIds.map((id) => ids.indexOf(id));
+  return at.every((x, i) => i === 0 || x === at[i - 1] + 1);
+};
+
+test("pinning a nested group under an unpinned parent leaves its tabs in the list, in order", () => {
+  reset();
+  const { w, inner, outer } = nested();
+  S().pinTabs([S().windows[w].tabIds.at(-1)], true, true);
+  S().updateGroup(inner, { pinned: true });
+  assert.equal(S().groups[inner].pinned, false);
+  assert.ok(sectionsInOrder(w), "tiles, rows, pinned groups, then the list");
+  assert.ok(contiguous(w, outer) && contiguous(w, inner));
+});
+
+test("a new tab in a pinned group, or a new nested group in one, lands inside the group with a pinned group after it", () => {
+  reset();
+  const { w, ids } = windowWith("a", "b", "c", "d");
+  const one = S().groupTabs([ids[0], ids[1]], { pinned: true, name: "One" });
+  const two = S().groupTabs([ids[2]], { pinned: true, name: "Two" });
+  const t = S().newTabInGroup(one);
+  assert.equal(S().windows[w].tabIds.indexOf(t), S().windows[w].tabIds.indexOf(ids[1]) + 1);
+  const child = S().newNestedGroup(one);
+  assert.ok(contiguous(w, one) && contiguous(w, two) && contiguous(w, child));
+  assert.ok(sectionsInOrder(w));
+});
+
+test("a cleaned-up duplicate from a nested group comes back inside its chain", () => {
+  reset();
+  const { w, a, b, c, outer, inner } = nested();
+  S().removeTabsFromGroup([b]);
+  const twin = S().newTab(w, { url: "https://c.com/", background: true });
+  S().activate(a);
+  for (const id of S().windows[w].tabIds) S().updateTab(id, { lastActiveAt: Date.now() });
+  S().updateTab(c, { lastActiveAt: 1 });
+  assert.equal(S().cleanUpTabs(w, { inactiveForMs: 1e12 }), 1);
+  assert.equal(S().tabs[c], undefined);
+  assert.equal(S().groups[inner], undefined, "the nested group went with its last tab");
+  S().restoreCleaned();
+  const back = Object.values(S().tabs).find((t) => t.url === "https://c.com/" && t.id !== twin).id;
+  const chain = Object.values(S().groups).filter((g) => g.tabIds.includes(back)).map((g) => g.name).sort();
+  assert.deepEqual(chain, ["Inner", "Outer"]);
+  assert.ok(contiguous(w, outer));
+});
+
+test("nesting deeper than 64 levels keeps every level", () => {
+  reset();
+  const { w, ids } = windowWith("a", "b");
+  let parent = S().groupTabs([ids[0]], { pinned: false, name: "L0" });
+  for (let i = 1; i <= 70; i++) parent = S().groupTabs([ids[0]], { name: `L${i}` });
+  assert.equal(S().groups[parent].name, "L70");
+  let depth = 0;
+  for (let g = S().groups[parent]; g.parentId; g = S().groups[g.parentId]) depth++;
+  assert.equal(depth, 70);
+  assert.ok(contiguous(w, parent));
+});
+
+test("a saved or synced nested group pinned unlike its root settles to the root's pin and its section", () => {
+  reset();
+  const { w, outer, inner } = nested();
+  S().pinTabs([S().windows[w].tabIds.at(-1)], true, true);
+  const data = { windows: S().windows, windowOrder: S().windowOrder, tabs: S().tabs, profiles: S().profiles, groups: { ...S().groups, [inner]: { ...S().groups[inner], pinned: true } } };
+  S().hydrate(JSON.parse(JSON.stringify(data)));
+  assert.equal(S().groups[inner].pinned, false);
+  assert.ok(sectionsInOrder(w));
+  assert.ok(contiguous(w, outer) && contiguous(w, inner));
+  useBrowser.setState({ groups: { ...S().groups, [inner]: { ...S().groups[inner], pinned: true } } });
+  assert.equal(S().groups[inner].pinned, false);
+  assert.ok(sectionsInOrder(w) && contiguous(w, outer));
+});

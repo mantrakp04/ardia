@@ -90,9 +90,7 @@ export const withParent = (g: TabGroup, parentId: string | undefined): TabGroup 
 };
 
 export function depthOf(groups: Record<string, TabGroup>, id: string): number {
-  let depth = 0;
-  for (let g = groups[id]; g?.parentId && groups[g.parentId] && depth < 64; g = groups[g.parentId]) depth++;
-  return depth;
+  return ancestorIds(groups, id).length;
 }
 
 export function ancestorIds(groups: Record<string, TabGroup>, id: string): string[] {
@@ -228,6 +226,13 @@ export function rejoinGroups(
   return nestGroups(next);
 }
 
+export function withGroupsPlaced<S extends Pick<BrowserState, "groups" | "windows" | "tabs">>(s: S, windowId: string, groups: Record<string, TabGroup>): S {
+  const w = s.windows[windowId]!;
+  const tabIds = orderSections(placeGroups(w.tabIds, groups, windowId), s.tabs, groups);
+  const window = tabIds.every((id, i) => id === w.tabIds[i]) ? w : { ...w, tabIds };
+  return { ...s, windows: { ...s.windows, [windowId]: window }, groups: syncGroupOrder(groups, window) };
+}
+
 export function settleNesting(s: Pick<BrowserState, "groups" | "windows">): Pick<BrowserState, "groups" | "windows"> | null {
   if (!Object.values(s.groups).some((g) => g.parentId)) return null;
   let groups = nestGroups(s.groups);
@@ -349,8 +354,8 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
       createdAt: Date.now(),
       parentId,
     };
-    const groups = { ...next.groups, [parentId]: { ...p, collapsed: false }, [group.id]: group };
-    set({ ...next, groups: syncGroupOrder(groups, next.windows[w.id]!) });
+    const groups = nestGroups({ ...next.groups, [parentId]: { ...p, collapsed: false }, [group.id]: group });
+    set(withGroupsPlaced(next, w.id, groups));
     return group.id;
   },
 

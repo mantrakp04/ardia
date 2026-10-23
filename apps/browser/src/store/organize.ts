@@ -1,7 +1,7 @@
 import type { StateCreator } from "zustand";
 import type { BrowserState } from "./browser";
 import { autoGroupName } from "./groupNames";
-import { ancestorIds, canNest, commonGroup, descendantIds, innermostGroupOf, leaveGroups, nestGroups, orderSections, placeBlock, placeGroups, rejoinGroups, reparent, syncGroupOrder, withParent } from "./groups";
+import { ancestorIds, canNest, commonGroup, descendantIds, innermostGroupOf, leaveGroups, nestGroups, orderSections, placeBlock, placeGroups, rejoinGroups, reparent, syncGroupOrder, withGroupsPlaced, withParent } from "./groups";
 import { activeTabId, bookmarkProfileId, inPinnedContainer, isIncognitoProfile, newId, pendingRestore, restoreId, snapshotTab, viewTabIds, without } from "./model";
 import { activated, apply, removeTabs, withNewTab } from "./tabs";
 import type { BrowserWindow, ClosedGroup, ClosedTab, NestedGroupSnapshot, Tab, TabGroup } from "./types";
@@ -722,9 +722,8 @@ export const createOrganizeSlice: StateCreator<BrowserState, [], [], OrganizeSli
     const w = g && s.windows[g.windowId];
     if (!g || !w) return "";
     const [next, id] = withNewTab(s, w.id, { profileId: g.profileId, index: w.tabIds.indexOf(g.tabIds.at(-1)!) + 1 });
-    const window = next.windows[w.id]!;
-    const groups = { ...next.groups, [groupId]: { ...g, collapsed: false, tabIds: [...g.tabIds, id] } };
-    set({ ...next, groups: syncGroupOrder(groups, window) });
+    const groups = nestGroups({ ...next.groups, [groupId]: { ...g, collapsed: false, tabIds: [...g.tabIds, id] } });
+    set(withGroupsPlaced(next, w.id, groups));
     return id;
   },
 
@@ -784,13 +783,7 @@ export const createOrganizeSlice: StateCreator<BrowserState, [], [], OrganizeSli
       if (!windowId || (isIncognitoProfile(e.tab.profileId) && e.windowId !== windowId)) continue;
       const [restored, [id]] = restoreSnapshots(next, windowId, [{ tab: e.tab, tabId: e.restoreFrom ?? e.tabId, index: windowId === e.windowId ? e.index : undefined }]);
       next = restored;
-      const g = e.group && next.groups[e.group.id];
-      if (id && g && g.windowId === windowId) {
-        const w = next.windows[windowId]!;
-        const members = [...g.tabIds, id];
-        const window = { ...w, tabIds: placeBlock(w.tabIds, w.tabIds.filter((t) => members.includes(t))) };
-        next = { ...next, windows: { ...next.windows, [windowId]: window }, groups: syncGroupOrder({ ...next.groups, [g.id]: { ...g, tabIds: members } }, window) };
-      }
+      if (id && e.group) next = regroupRestored(next, windowId, [e], [id]);
       if (id && entryId) next = apply(next, activated(next, id));
     }
     set(next);

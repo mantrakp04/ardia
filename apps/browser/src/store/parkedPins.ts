@@ -92,7 +92,11 @@ export function adoptParkedPins(s: BrowserState, windowId: string, profileId: st
   }
   const parentOf = new Map(park.groups.map((g) => [g.id, g.parentId]));
   const within = (key: string | undefined, target: string) => {
-    for (let k = key, n = 0; k && n < 64; k = parentOf.get(k), n++) if (k === target) return true;
+    const seen = new Set<string>();
+    for (let k = key; k && !seen.has(k); k = parentOf.get(k)) {
+      if (k === target) return true;
+      seen.add(k);
+    }
     return false;
   };
   let groups = { ...s.groups };
