@@ -110,11 +110,13 @@ export function importTabs(
 ): number {
   let s = useBrowser.getState();
   const pinnedPages = pinnedUrls(s, profileId);
+  const openPagesNow = openPages(profileId);
   const usable = tabs.filter((t) => {
     if (!/^(https?|file):/i.test(t.url)) return false;
-    if (!t.pinned) return true;
-    if (pinnedPages.has(pageKey(t.url))) return false;
-    pinnedPages.add(pageKey(t.url));
+    const seen = t.pinned ? pinnedPages : openPagesNow;
+    const key = pageKey(t.url);
+    if (seen.has(key)) return false;
+    seen.add(key);
     return true;
   });
   if (!usable.length) return 0;

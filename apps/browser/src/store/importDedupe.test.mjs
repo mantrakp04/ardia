@@ -56,3 +56,15 @@ test("a link whose scheme is in capitals imports, and counts as the same page", 
   assert.equal(importTabs(P, [{ url: "https://upper.example/", title: "Upper", pinned: true }], null), 0);
   assert.equal(importTabs(P, [{ url: "FILE:///tmp/a.html", title: "File", pinned: false }], null), 1);
 });
+
+test("an import skips open tabs whose page is already open in the profile, and repeats within it", () => {
+  S().hydrate({});
+  S().createWindow({ url: "https://home.example/" });
+  const open = [
+    { url: "https://home.example/", title: "Home", pinned: false },
+    { url: "https://a.example/", title: "A", pinned: false },
+    { url: "https://A.example/#", title: "A again", pinned: false },
+  ];
+  assert.equal(importTabs(P, open, null), 1, "only the new page, once");
+  assert.equal(importTabs(P, open, null), 0, "a second import adds nothing");
+});
