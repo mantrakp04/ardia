@@ -1267,3 +1267,43 @@ test("two Macs nesting two groups into each other concurrently agree, and a grou
   assert.equal(parents[keyOf("GA") < keyOf("GB") ? "GA" : "GB"], null, "the one with the smaller key");
   assert.equal((await a.sync()).published + (await b.sync()).published, 0, "settled");
 });
+
+test("a nested pinned group ungrouped, deleted or emptied on one Mac goes on the other", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder);
+  const b = new Device("devB", folder);
+  const { inner } = buildPinnedTree(a);
+  b.with(() => S().createWindow({ url: "https://b-home.example/" }));
+  await syncAll([a, b]);
+  const named = (d, n) => d.with(() => Object.values(S().groups).find((g) => g.name === n));
+  assert.ok(named(b, "Inner"));
+  a.with(() => S().ungroup(inner));
+  await syncAll([a, b]);
+  assert.equal(named(b, "Inner"), undefined, "ungrouped on A, gone on B");
+  assert.deepEqual(pinnedAreaOf(b), pinnedAreaOf(a));
+  const again = a.with(() => {
+    const outer = Object.values(S().groups).find((g) => g.name === "Outer");
+    const [i1, i2] = outer.tabIds.filter((id) => ["i1", "i2"].includes(pinHost(id)));
+    return S().groupTabs([i1, i2], { name: "Again" });
+  });
+  await syncAll([a, b]);
+  assert.ok(named(b, "Again"));
+  a.with(() => S().deleteGroup(again));
+  await syncAll([a, b]);
+  assert.equal(named(b, "Again"), undefined, "deleted on A, gone on B");
+  assert.deepEqual(pinnedAreaOf(b), pinnedAreaOf(a));
+  const last = a.with(() => {
+    const outer = Object.values(S().groups).find((g) => g.name === "Outer");
+    const o1 = outer.tabIds.find((id) => pinHost(id) === "o1");
+    const g = S().groupTabs([o1], { name: "Lone" });
+    return [g, o1];
+  });
+  await syncAll([a, b]);
+  assert.ok(named(b, "Lone"));
+  a.with(() => S().placeTabs([last[1]], { pinned: true, row: false, beforeId: null }));
+  await syncAll([a, b]);
+  assert.equal(named(a, "Lone"), undefined);
+  assert.equal(named(b, "Lone"), undefined, "its last tab pinned as a tile on A, the group is gone on B");
+  assert.deepEqual(pinnedAreaOf(b), pinnedAreaOf(a));
+  assert.equal((await a.sync()).published + (await b.sync()).published, 0, "settled");
+});

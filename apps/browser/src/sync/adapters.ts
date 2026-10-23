@@ -684,8 +684,9 @@ export function pinnedAdapter(profileId: string): Adapter {
       for (const id of goneTabs) if (tabs[id]) tabs[id] = { ...tabs[id]!, pinned: false, pinnedUrl: null, pinnedAsRow: undefined, pinKey: undefined };
       let groups = { ...s.groups };
       for (const k of changed) {
-        if (!k.startsWith("pin:g:") || visible.has(k) || all.has(gid(k.slice(6)))) continue;
-        if (groups[gid(k.slice(6))]?.pinned && scope.has(groups[gid(k.slice(6))]!.windowId)) delete groups[gid(k.slice(6))];
+        const key = k.startsWith("pin:g:") ? k.slice(6) : k.startsWith(`${PIN_NEST}g:`) ? k.slice(PIN_NEST.length + 2) : null;
+        if (key === null || visible.has(k) || all.has(gid(key))) continue;
+        if (groups[gid(key)]?.pinned && scope.has(groups[gid(key)]!.windowId)) delete groups[gid(key)];
       }
       const windows = { ...s.windows };
 
