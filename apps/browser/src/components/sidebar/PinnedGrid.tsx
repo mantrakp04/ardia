@@ -7,7 +7,7 @@ import { useTileTheme, type TileTheme } from "../../lib/tileTheme";
 import { GlassFill, liquidGlass } from "../glass";
 import { listTopGap, useAddressBarInSidebar } from "../layout/windowLayout";
 import { useBrowser } from "../../store/browser";
-import { useIsActiveTab, useTab, useTabLive, useWindowId } from "../../store/hooks";
+import { useIsActiveTab, useSettings, useTab, useTabLive, useWindowId } from "../../store/hooks";
 import { activeTabId } from "../../store/model";
 import { NextMeetingBadge } from "../live/NextMeetingBadge";
 import { clickTab } from "./actions";
@@ -158,6 +158,7 @@ const PinnedTile = memo(function PinnedTile({ tabId, width }: { tabId: string; w
   const { hovered, hoverProps } = useRowHover(windowId, { kind: "tab", id: tabId });
   const { wrapper, handle } = useDragItem(`t:${tabId}`, { kind: "tile", tabIds: [tabId], section: "tiles" }, () => useBrowser.getState().selection[windowId] ?? []);
   const tileTheme = useTileTheme(tab?.url ?? "", tab?.favicon, tab?.customIcon, tab?.profileId ?? "");
+  const iconRing = useSettings((s) => s.pinnedTabIconRing);
   if (!tab) return null;
   const radius = 10;
 
@@ -182,7 +183,7 @@ const PinnedTile = memo(function PinnedTile({ tabId, width }: { tabId: string; w
               }}
             >
               {({ pressed }) =>
-                liquidGlass ? (
+                liquidGlass && !(iconRing && active && tileTheme) ? (
                   <GlassTile tabId={tabId} width={width} active={active} selected={selected} hovered={hovered} pressed={pressed} tileTheme={tileTheme} />
                 ) : active && tileTheme ? (
                   <DockSelection

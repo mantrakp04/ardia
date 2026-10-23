@@ -18,7 +18,9 @@ export const PANES: { id: SettingsPane; title: string; icon: string }[] = [
   { id: "advanced", title: "Advanced", icon: "slider.horizontal.3" },
 ];
 
-type Row = { title: string; description?: string; keywords?: string[] };
+export type SettingWhere = { liquidGlass: boolean; tabsOnTop: boolean };
+
+type Row = { title: string; description?: string; keywords?: string[]; shown?: (where: SettingWhere) => boolean };
 type Section = { section: string; rows: Record<string, Row> };
 
 const APP = "Ardia";
@@ -97,6 +99,12 @@ const ROWS: Record<SettingsPane, Section[]> = {
           keywords: ["auto hide", "compact"],
         },
         showSidebarButton: { title: "Show sidebar button", description: "⌘S and View › Auto-Hide Tabs still hide and show the sidebar.", keywords: ["toggle sidebar"] },
+        pinnedTabIconRing: {
+          title: "Highlight pinned tabs in their icon's colors",
+          description: "The pinned tab you're on gets Dia's ring and tint from its icon, instead of the glass highlight.",
+          keywords: ["dia", "liquid glass", "favicon", "colour", "ring", "tint", "gradient"],
+          shown: ({ liquidGlass, tabsOnTop }) => liquidGlass && !tabsOnTop,
+        },
       },
     },
     {
@@ -330,7 +338,7 @@ const ROWS: Record<SettingsPane, Section[]> = {
   ],
 };
 
-export type SettingEntry = Searchable & { pane: SettingsPane };
+export type SettingEntry = Searchable & { pane: SettingsPane; shown?: (where: SettingWhere) => boolean };
 
 const paneTitle = (pane: SettingsPane) => PANES.find((p) => p.id === pane)!.title;
 
@@ -349,3 +357,7 @@ export function setting(id: string): SettingEntry {
 }
 
 export const SETTINGS_INDEX = prepare(SETTINGS);
+
+export const settingShown = (id: string, where: SettingWhere) => setting(id).shown?.(where) ?? true;
+
+export const searchIndex = (where: SettingWhere) => SETTINGS_INDEX.filter((p) => p.entry.shown?.(where) ?? true);

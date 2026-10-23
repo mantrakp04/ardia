@@ -2,10 +2,13 @@ import { Symbol } from "@ardia/shell";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, View, type TextInput } from "react-native";
 import { useTheme } from "../../lib/theme";
+import { useBrowser } from "../../store/browser";
+import { tabLayoutOf } from "../../store/model";
+import { liquidGlass } from "../glass";
 import { SearchField, useFormColors } from "./controls";
 import { groupByPane, search } from "./searchMatch";
 import { revealSetting, setSettingsQuery, useSettingsSearch } from "./searchState";
-import { PANES, SETTINGS_INDEX, type SettingEntry } from "./settingsIndex";
+import { PANES, searchIndex, type SettingEntry } from "./settingsIndex";
 
 export function SettingsSearchField() {
   const query = useSettingsSearch((s) => s.query);
@@ -39,17 +42,23 @@ export function SettingsSearchField() {
   );
 }
 
-let cached: { query: string; results: SettingEntry[] } = { query: "", results: [] };
+let cached: { query: string; tabsOnTop: boolean; results: SettingEntry[] } = { query: "", tabsOnTop: false, results: [] };
 
-export function settingsResults(query: string): SettingEntry[] {
-  if (cached.query !== query) cached = { query, results: groupByPane(search(SETTINGS_INDEX, query)).flatMap((g) => g.hits.map((h) => h.entry)) };
+export function settingsResults(query: string, tabsOnTop = tabLayoutOf(useBrowser.getState()) === "top"): SettingEntry[] {
+  if (cached.query !== query || cached.tabsOnTop !== tabsOnTop) {
+    cached = { query, tabsOnTop, results: groupByPane(search(searchIndex({ liquidGlass, tabsOnTop }), query)).flatMap((g) => g.hits.map((h) => h.entry)) };
+  }
   return cached.results;
 }
 
 export function SettingsSearchResults({ query }: { query: string }) {
   const theme = useTheme();
   const selected = useSettingsSearch((s) => s.selected);
-  const results = settingsResults(query);
+  const tabsOnTop = useBrowser((s) => tabLayoutOf(s) === "top");
+  const results = settingsResults(query, tabsOnTop);
+  useEffect(() => {
+    useSettingsSearch.setState({ selected: 0 });
+  }, [tabsOnTop]);
   const groups = useMemo(() => {
     const out: { pane: (typeof PANES)[number]; rows: { entry: SettingEntry; index: number }[] }[] = [];
     results.forEach((entry, index) => {

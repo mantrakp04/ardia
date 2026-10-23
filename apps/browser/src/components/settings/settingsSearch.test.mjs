@@ -2,10 +2,17 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import { editDistance, groupByPane, search } from "./searchMatch.ts";
-import { SETTINGS, SETTINGS_INDEX } from "./settingsIndex.ts";
+import { SETTINGS, SETTINGS_INDEX, searchIndex } from "./settingsIndex.ts";
 
 const ids = (query) => search(SETTINGS_INDEX, query).map((h) => h.entry.id);
 const first = (query) => ids(query)[0];
+
+test("a row its pane hides stays out of search", () => {
+  const finds = (where) => search(searchIndex(where), "icon colors").some((h) => h.entry.id === "tabs.pinnedTabIconRing");
+  assert.ok(finds({ liquidGlass: true, tabsOnTop: false }), "macOS 26, tabs in the sidebar");
+  assert.ok(!finds({ liquidGlass: false, tabsOnTop: false }), "before macOS 26");
+  assert.ok(!finds({ liquidGlass: true, tabsOnTop: true }), "tabs on top");
+});
 
 test("synonyms find the setting they stand for", () => {
   assert.equal(first("cookies"), "privacy.blockCookieBanners");
