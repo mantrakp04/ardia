@@ -17,6 +17,7 @@ public enum FaviconReader {
   }
 
   static let maxPages = 2_000
+  static let maxBytes = 1 << 20
   static let wantedWidth: Int64 = 32
 
   public static func load(_ flavor: Flavor, profile: URL, pages: [String]) throws -> [String: ImportedFavicon] {
@@ -65,7 +66,9 @@ public enum FaviconReader {
     }
 
     var pngs: [Int64: String] = [:]
-    let sql = flavor == .chromium ? "SELECT image_data FROM favicon_bitmaps WHERE id = ?" : "SELECT data FROM moz_icons WHERE id = ?"
+    let sql = flavor == .chromium
+      ? "SELECT image_data FROM favicon_bitmaps WHERE id = ? AND length(image_data) <= \(maxBytes)"
+      : "SELECT data FROM moz_icons WHERE id = ? AND length(data) <= \(maxBytes)"
     var out: [String: ImportedFavicon] = [:]
     for (page, c) in chosen {
       if pngs[c.id] == nil {

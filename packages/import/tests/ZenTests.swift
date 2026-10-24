@@ -116,4 +116,17 @@ final class ZenTests: XCTestCase {
       .firefoxProfiles(zen, app: URL(fileURLWithPath: "/Applications/Other.app"))
     XCTAssertEqual(elsewhere.map(\.isDefault), [true, true])
   }
+
+  func testFoldersInAParentCycleStillComeThrough() throws {
+    let pin: (String, String) -> [String: Any] = { url, group in
+      ["entries": [["url": url, "title": url]], "index": 1, "pinned": true, "zenWorkspace": "s", "zenSyncId": url, "groupId": group]
+    }
+    let session: [String: Any] = [
+      "spaces": [["uuid": "s", "name": "S"]],
+      "folders": [["id": "a", "name": "A", "parentId": "b"], ["id": "b", "name": "B", "parentId": "a"]],
+      "tabs": [pin("https://a.example/", "a"), pin("https://b.example/", "b")],
+    ]
+    let sidebar = try ZenSidebar.parse(JSONSerialization.data(withJSONObject: session), profileId: "x")
+    XCTAssertEqual(sidebar.spaces[0].pinned.reduce(0) { $0 + $1.linkCount }, 2)
+  }
 }

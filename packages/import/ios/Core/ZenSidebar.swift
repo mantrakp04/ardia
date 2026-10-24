@@ -77,12 +77,16 @@ public enum ZenSidebar {
       }
     }
 
+    var placed = Set<String>()
     func build(_ id: String, depth: Int) -> BookmarkNode {
+      placed.insert(id)
       let title = folders.first { $0.id == id }?.title ?? "Folder"
-      let subfolders = depth < 16 ? folders.filter { $0.parent == id }.map { build($0.id, depth: depth + 1) } : []
+      let children = depth < 16 ? folders.filter { $0.parent == id && !placed.contains($0.id) } : []
+      let subfolders = children.map { build($0.id, depth: depth + 1) }
       return .folder(title, subfolders.filter { $0.linkCount > 0 } + (folderLinks[id] ?? []))
     }
-    for folder in folders where folder.parent.map({ p in !folders.contains { $0.id == p } }) ?? true {
+    let roots = folders.filter { f in f.parent.map { p in !folders.contains { $0.id == p } } ?? true }
+    for folder in roots + folders where !placed.contains(folder.id) {
       let node = build(folder.id, depth: 0)
       if node.linkCount > 0 { spaces[spaceIndex(folder.space)].pinned.append(node) }
     }
