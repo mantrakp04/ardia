@@ -13,7 +13,7 @@ import { ClearDataDialog } from "../../pages/ClearDataDialog";
 import { useHover } from "../../primitives";
 import { ColorStack } from "../../profiles/CreateProfile";
 import { iconMenuItems, PROFILE_SYMBOLS, ProfileBadge, profileSymbol } from "../../profiles/icons";
-import { Button, Group, PopUp, Row, SectionHeader, TextField, useFormColors } from "../controls";
+import { Button, Group, PopUp, Row, SectionHeader, TextField, Toggle, useFormColors } from "../controls";
 import { closeSettingsSheet, showSettingsSheet } from "../sheet";
 import { ThemeSection } from "../ThemeEditor";
 import { useSettingsNav } from "../windows";
@@ -33,6 +33,7 @@ export function ProfilesPane() {
   const theme = useTheme();
   const profiles = useProfiles();
   const defaultId = useBrowser((s) => s.settings.defaultProfileId);
+  const shareTopApps = useBrowser((s) => s.settings.shareTopApps);
 
   return (
     <View>
@@ -50,6 +51,13 @@ export function ProfilesPane() {
             onChange={(id) => useBrowser.getState().setDefaultProfile(id)}
             minWidth={160}
           />
+        </Row>
+      </Group>
+
+      <SectionHeader title="Shared data" />
+      <Group>
+        <Row anchor="profiles.shareTopApps">
+          <Toggle value={shareTopApps} onChange={(v) => useBrowser.getState().updateSettings({ shareTopApps: v })} />
         </Row>
       </Group>
 

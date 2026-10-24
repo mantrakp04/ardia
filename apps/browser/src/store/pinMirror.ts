@@ -4,6 +4,7 @@ import { ancestorIds, depthOf, orderSections, syncGroupOrder, withParent } from 
 import { IDLE_LIVE, isIncognitoProfile, makeTab, newId, pinnedFirst } from "./model";
 import { samePage } from "./organize";
 import { removeTabs } from "./tabs";
+import { isTopApp, topAppCircles } from "./topApps";
 import type { BrowserWindow, Tab, TabGroup } from "./types";
 
 type Keyed = { id: string; pinKey?: string };
@@ -165,11 +166,11 @@ function treeOrder(x: Pick<Section, "items" | "groups">): Item[] {
 
 const keyField = (id: string, key: string) => (id === key ? { pinKey: undefined } : { pinKey: key });
 
-function copyOf(src: Tab, windowId: string, tile: boolean): Tab {
+function copyOf(src: Tab, windowId: string, tile: boolean, profileId = src.profileId): Tab {
   const url = tile ? homeOf(src) : src.url;
   const atSource = samePage(src.url, url);
   return {
-    ...makeTab(windowId, src.profileId, url, {
+    ...makeTab(windowId, profileId, url, {
       title: atSource ? src.title : "",
       favicon: atSource ? src.favicon : null,
       pinned: tile,
@@ -203,7 +204,7 @@ function conform(s: BrowserState, windowId: string, profileId: string, spec: Sec
     let t = same.find(hasPage) ?? same[0];
     if (!t && tile) t = mine.find((m) => m.pinned && !used.has(m.id) && samePage(homeOf(m), homeOf(src)));
     if (!t) {
-      const copy = copyOf(src, windowId, tile);
+      const copy = copyOf(src, windowId, tile, profileId);
       tabs[copy.id] = copy;
       live[copy.id] = IDLE_LIVE;
       used.add(copy.id);
@@ -247,7 +248,8 @@ function conform(s: BrowserState, windowId: string, profileId: string, spec: Sec
 
   const shown = new Set(Object.values(w.activeTabIds));
   const leaving = mine.filter((t) => !used.has(t.id));
-  const demoted = leaving.filter((t) => hasPage(t) || shown.has(t.id)).map((t) => t.id);
+  const offScreenCopy = (t: Tab) => !!t.pageIn && t.profileId !== w.profileId;
+  const demoted = leaving.filter((t) => hasPage(t) || (shown.has(t.id) && !offScreenCopy(t))).map((t) => t.id);
   const stays = new Set(demoted);
   const gone = leaving.filter((t) => !stays.has(t.id)).map((t) => t.id);
   for (const id of demoted) tabs[id] = { ...tabs[id]!, pinned: false, pinnedUrl: null, pinnedAsRow: undefined, tileFolder: undefined, pinKey: undefined };
@@ -297,6 +299,45 @@ export function mirrorPins(s: BrowserState, prev: BrowserState): BrowserState | 
       if (id === source || (want !== null && sigs.get(id) === want) || !next.windows[id]) continue;
       next = conform(next, id, profileId, spec);
     }
+  }
+  return next === s ? null : next;
+}
+
+const topAppItems = (x: Section) => x.items.filter((i) => !i.group && isTopApp(i.tab));
+const topAppSig = (x: Section) => topAppItems(x).map((i) => tileSig(i.tab)).join("\n");
+
+export function mirrorTopApps(s: BrowserState, prev: BrowserState): BrowserState | null {
+  const circles = topAppCircles(s);
+  if (!circles.length) return null;
+  const turnedOn = s.settings.shareTopApps !== prev.settings.shareTopApps || s.profiles !== prev.profiles;
+  if (!turnedOn && !pinsMayDiffer(s, prev)) return null;
+  const order = [...new Set([...s.ui.focusOrder, ...s.windowOrder])].filter((id) => mirrored(s.windows[id]));
+  const prevGroups = pinnedGroupsOf(prev);
+  let next = s;
+  for (const circle of circles) {
+    const places = circle.flatMap((p) => order.filter((w) => profilesOf(next, next.windows[w]!).has(p)).map((w) => [w, p] as const));
+    if (places.length < 2) continue;
+    const nowGroups = pinnedGroupsOf(next);
+    const sections = places.map(([w, p]) => sectionOf(next, next.windows[w]!, p, nowGroups));
+    const sigs = sections.map(topAppSig);
+    if (new Set(sigs).size === 1) continue;
+    const was = (w: string, p: string) => {
+      const before = prev.windows[w];
+      return mirrored(before) && profilesOf(prev, before).has(p) ? topAppSig(sectionOf(prev, before, p, prevGroups)) : null;
+    };
+    const source = turnedOn ? -1 : places.findIndex(([w, p], i) => {
+      const before = was(w, p);
+      return before !== null && before !== sigs[i];
+    });
+    const old = places.map(([w, p], i) => (was(w, p) === null ? null : i)).filter((i): i is number => i !== null);
+    const ranked = source >= 0 ? [source] : old.length ? old : places.map((_, i) => i);
+    const tiles = topAppItems(source >= 0 ? sections[source]! : union(ranked.map((i) => ({ ...sections[i]!, items: topAppItems(sections[i]!) }))));
+    const want = tiles.map((i) => tileSig(i.tab)).join("\n");
+    places.forEach(([w, p], i) => {
+      if (i === source || sigs[i] === want || !next.windows[w]) return;
+      const own = sectionOf(next, next.windows[w]!, p, pinnedGroupsOf(next));
+      next = conform(next, w, p, { ...own, items: [...own.items.filter((x) => x.group || !isTopApp(x.tab)), ...tiles] });
+    });
   }
   return next === s ? null : next;
 }

@@ -20,10 +20,11 @@ import {
 } from "./model";
 import { nextPinChoice, placeChoiceKey, restoringGroup } from "./organize";
 import { adoptParkedPins, parkWindowPins } from "./parkedPins";
-import { settleMovedPins } from "./pinMirror";
+import { pinKeyOf, settleMovedPins } from "./pinMirror";
 import { holderOf, returnSharedPages, swapPinPage } from "./pinShare";
 import { isSmall, isSmallWindow, lastActiveProfile, mainWindowFor, originalProfile } from "./small";
 import { activated, apply, removeTabs, withNewTab } from "./tabs";
+import { isTopApp, topAppsShared } from "./topApps";
 import type { BrowserWindow, ClosedTab, ClosedWindow, Frame, ParkedPins, Tab, TabGroup } from "./types";
 
 export type CreateWindowOptions = {
@@ -228,6 +229,9 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
     let target = remembered && s.tabs[remembered]?.windowId === windowId ? remembered : undefined;
     target ??= s.windows[windowId]!.tabIds.find((id) => s.tabs[id]?.profileId === profileId && !s.tabs[id]!.unloaded);
     if (!target) [s, target] = withNewTab(s, windowId, { profileId, background: true });
+    const held = s.tabs[target]!;
+    const swapped = !held.navigation && !held.adoptId && holderOf(s, target)?.windowId === windowId ? swapPinPage(s, target) : null;
+    if (swapped) [s, target] = [swapped.state, swapped.holderId];
     s = apply(s, activated(s, target));
     if (s.ui.focusedWindowId === windowId) s = { ...s, ui: { ...s.ui, lastProfileId: profileId } };
     set(s);
@@ -252,6 +256,12 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
     const tab = s.tabs[tabId];
     const w = tab && s.windows[tab.windowId];
     if (!tab || !w || w.incognito || !s.profiles[profileId] || tab.profileId === profileId) return;
+    if (isTopApp(tab) && topAppsShared(s, tab.profileId, profileId)) {
+      get().switchProfile(w.id, profileId);
+      const now = get();
+      const copy = now.windows[w.id]?.tabIds.find((id) => now.tabs[id]?.profileId === profileId && isTopApp(now.tabs[id]!) && pinKeyOf(now.tabs[id]!) === pinKeyOf(tab));
+      if (copy) return get().activate(copy);
+    }
     let next = removeTabs(s, [tabId], false);
     const base = next.windows[w.id] ?? { ...w, tabIds: [], activeTabIds: {} };
     const loaded = !!tab.url && (!!tab.navigation || !!tab.adoptId);
