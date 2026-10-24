@@ -146,7 +146,13 @@ export function Sidebar({ width }: { width: number }) {
 
           {footer ? (
             <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: footer }}>
-              {dots ? <ProfileDots windowId={windowId} /> : null}
+              {dots ? (
+                <ProfileDots
+                  windowId={windowId}
+                  width={width}
+                  sideRoom={footerDownloads ? layout.sidebarInset + SIDEBAR_FOOTER_DOWNLOADS.size + 4 : 12}
+                />
+              ) : null}
               {footerDownloads ? (
                 <View style={{ position: "absolute", left: layout.sidebarInset, bottom: SIDEBAR_FOOTER_DOWNLOADS.bottom }}>
                   <DownloadsButton windowId={windowId} />
