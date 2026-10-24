@@ -29,3 +29,16 @@ test("preselection leaves out sites already pinned", () => {
   assert.deepEqual(preselectedSites(history), ["gmail", "github"]);
   assert.deepEqual(preselectedSites(history, new Set(["mail.google.com"])), ["github"]);
 });
+
+test("a pinned row counts by its pinned page, not the page it has wandered to", () => {
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://home.example/" });
+  const row = S().newTab(w, { url: "https://github.com/" });
+  S().pinTabs([row], true, true);
+  S().updateTab(row, { url: "https://mail.google.com/mail/u/0/" });
+  assert.deepEqual([...pinnedHosts(w)], ["github.com"]);
+  const before = Object.values(S().tabs).filter((t) => t.pinned).length;
+  pinSites(w, ["github", "gmail"]);
+  const pinned = Object.values(S().tabs).filter((t) => t.pinned);
+  assert.equal(pinned.length, before + 1, "the row's GitHub is kept, Gmail is new");
+});
