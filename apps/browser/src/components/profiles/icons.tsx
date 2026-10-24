@@ -46,6 +46,8 @@ export function iconMenuItems(current: string | null): MenuItem[] {
   ];
 }
 
+export const profileInitial = (name: string) => (name.trim()[0] ?? "?").toUpperCase();
+
 export function ProfileBadge({ profile, size = 26 }: { profile: Pick<Profile, "name" | "color" | "icon"> & Partial<Pick<Profile, "theme">>; size?: number }) {
   const swatch = profileAccent(profile);
   const symbol = profileSymbol(profile.icon);
@@ -66,7 +68,7 @@ export function ProfileBadge({ profile, size = 26 }: { profile: Pick<Profile, "n
         <Symbol name={symbol} size={size * 0.5} weight="semibold" color="#FFFFFF" style={{ width: size, height: size }} />
       ) : (
         <Text style={{ fontSize: profile.icon ? size * 0.55 : size * 0.46, fontWeight: "600", color: "#FFFFFF" }}>
-          {profile.icon ?? (profile.name.trim()[0] ?? "?").toUpperCase()}
+          {profile.icon ?? profileInitial(profile.name)}
         </Text>
       )}
     </View>
