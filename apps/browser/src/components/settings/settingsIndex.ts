@@ -114,6 +114,11 @@ const ROWS: Record<SettingsPane, Section[]> = {
           description: "As in Arc: up to four tiles across in balanced rows, and a wider sidebar makes them larger. Off, as in Dia, each row fills with as many tiles as fit.",
           keywords: ["pinned tiles", "favorites", "grid", "columns", "rows", "arc"],
         },
+        fadeUnloadedTabs: {
+          title: "Fade icons of unloaded tabs",
+          description: "A tab whose page isn't loaded, like a closed pinned tab or one restored after a relaunch, shows a faded icon, as sleeping tabs do. Click it and the page loads.",
+          keywords: ["unloaded", "asleep", "sleeping", "discarded", "dim", "grey", "inactive", "pinned"],
+        },
       },
     },
     {

@@ -4,6 +4,7 @@ import { Text, View } from "react-native";
 import { useIsSleeping } from "../../lib/tabLifecycle";
 import { useTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
+import { isPageUnloaded } from "../../store/pinShare";
 import { Favicon } from "../primitives";
 
 export const SYMBOL_PREFIX = "symbol:";
@@ -28,9 +29,10 @@ export const TabIcon = memo(function TabIcon({
   direct?: boolean;
 }) {
   const sleeping = useIsSleeping(tabId ?? "");
+  const unloaded = useBrowser((s) => s.settings.fadeUnloadedTabs && !!tabId && isPageUnloaded(s, tabId));
   const props = { url, favicon, icon, size, color, direct };
   return (
-    <View style={{ opacity: sleeping ? SLEEPING_OPACITY : 1 }}>
+    <View style={{ opacity: sleeping || unloaded ? SLEEPING_OPACITY : 1 }}>
       {profile || !tabId ? <Icon {...props} profileId={profile} /> : <TabProfileIcon {...props} tabId={tabId} />}
     </View>
   );

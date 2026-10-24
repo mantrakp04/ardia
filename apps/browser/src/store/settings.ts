@@ -51,6 +51,7 @@ export type Settings = {
   sidebarWidth: number;
   showSidebarButton: boolean;
   balancedTopApps: boolean;
+  fadeUnloadedTabs: boolean;
   batterySaverWhen: BatterySaverWhen;
   extensionSidePanelWidth: number;
 
@@ -115,6 +116,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sidebarWidth: 190,
   showSidebarButton: true,
   balancedTopApps: false,
+  fadeUnloadedTabs: false,
   batterySaverWhen: "lowBattery",
   extensionSidePanelWidth: 360,
   showFullUrl: false,

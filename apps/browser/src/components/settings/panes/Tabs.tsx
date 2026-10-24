@@ -40,6 +40,7 @@ export function TabsPane() {
         {toggle("hideToolbarWhileScrolling", "tabs.hideToolbarWhileScrolling")}
         {!top && toggle("showSidebarButton", "tabs.showSidebarButton")}
         {!top && toggle("balancedTopApps", "tabs.balancedTopApps")}
+        {toggle("fadeUnloadedTabs", "tabs.fadeUnloadedTabs")}
       </Group>
 
       <SectionHeader title="General" />
