@@ -1,6 +1,6 @@
 import { Surface, Symbol } from "@ardia/shell";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Animated, Easing, Pressable, Text, View } from "react-native";
+import { AccessibilityInfo, Animated, Easing, Pressable, Text, View } from "react-native";
 import { useStore } from "zustand";
 import { cliDisclosure, stopCliControl } from "../lib/cliControl";
 import { hex, useTheme } from "../lib/theme";
@@ -20,6 +20,10 @@ import {
 } from "./layout/cliPillLayout";
 import { useHover } from "./primitives";
 
+let reduceMotion = false;
+AccessibilityInfo.isReduceMotionEnabled().then((on) => (reduceMotion = on), () => {});
+AccessibilityInfo.addEventListener("reduceMotionChanged", (on) => (reduceMotion = on));
+
 export const useCliDisclosed = () => useStore(cliDisclosure, (s) => s.shown);
 
 export const useCliPillPlacements = <T,>(select: (placements: CliPillPlacements) => T) => useStore(cliPillPlacements, select);
@@ -32,7 +36,7 @@ export function useCliToastLift(lift: number): Animated.Value {
       first.current = false;
       return;
     }
-    const animation = Animated.timing(offset, { toValue: -lift, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: true });
+    const animation = Animated.timing(offset, { toValue: -lift, duration: reduceMotion ? 0 : 180, easing: Easing.out(Easing.cubic), useNativeDriver: true });
     animation.start();
     return () => animation.stop();
   }, [lift]);
@@ -104,7 +108,9 @@ function ShownCliControlPill({
         style={{
           maxWidth: "100%",
           opacity: appear,
-          transform: [{ translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }, { scale: appear.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }],
+          transform: reduceMotion
+            ? []
+            : [{ translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }, { scale: appear.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }],
         }}
       >
         <Surface
