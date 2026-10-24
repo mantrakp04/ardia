@@ -174,29 +174,55 @@ final class ZenTests: XCTestCase {
 
   func testAnOversizedPreferredIconFallsBackToASmallerOne() throws {
     let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: dir) }
+    let small = try XCTUnwrap(Self.png(width: 16, height: 16))
+    try Self.chromiumFavicons(at: dir, [
+      ("https://big.example/", 32, Data(count: FaviconReader.maxBytes + 1)),
+      ("https://big.example/", 16, small),
+    ])
+    let icons = try FaviconReader.load(.chromium, profile: dir, pages: ["https://big.example/"])
+    XCTAssertEqual(icons["https://big.example/"].flatMap { Data(base64Encoded: $0.png) }, small)
+  }
+
+  func testAPageWhoseIconWontDecodeGetsItsSitesIcon() throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let small = try XCTUnwrap(Self.png(width: 16, height: 16))
+    try Self.chromiumFavicons(at: dir, [
+      ("https://site.example/broken", 32, Data("not an image".utf8)),
+      ("https://site.example/", 16, small),
+    ])
+    let icons = try FaviconReader.load(.chromium, profile: dir, pages: ["https://site.example/broken"])
+    XCTAssertEqual(icons["https://site.example/broken"].flatMap { Data(base64Encoded: $0.png) }, small)
+  }
+
+  static func chromiumFavicons(at dir: URL, _ bitmaps: [(page: String, width: Int, blob: Data)]) throws {
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     var db: OpaquePointer?
     XCTAssertEqual(sqlite3_open(dir.appendingPathComponent("Favicons").path, &db), SQLITE_OK)
+    defer { sqlite3_close(db) }
     XCTAssertEqual(sqlite3_exec(db, """
       CREATE TABLE favicons (id INTEGER PRIMARY KEY, url TEXT, icon_type INTEGER);
       CREATE TABLE favicon_bitmaps (id INTEGER PRIMARY KEY, icon_id INTEGER, image_data BLOB, width INTEGER);
       CREATE TABLE icon_mapping (id INTEGER PRIMARY KEY, page_url TEXT, icon_id INTEGER);
-      INSERT INTO favicons VALUES (1, 'https://big.example/favicon.ico', 1);
-      INSERT INTO icon_mapping VALUES (1, 'https://big.example/', 1);
       """, nil, nil, nil), SQLITE_OK)
-    let small = try XCTUnwrap(Self.png(width: 16, height: 16))
-    for (width, blob) in [(32, Data(count: FaviconReader.maxBytes + 1)), (16, small)] {
+    let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+    for (id, bitmap) in bitmaps.enumerated() {
       var stmt: OpaquePointer?
-      sqlite3_prepare_v2(db, "INSERT INTO favicon_bitmaps (icon_id, image_data, width) VALUES (1, ?, ?)", -1, &stmt, nil)
-      _ = blob.withUnsafeBytes { sqlite3_bind_blob(stmt, 1, $0.baseAddress, Int32(blob.count), nil) }
-      sqlite3_bind_int(stmt, 2, Int32(width))
+      for sql in ["INSERT INTO favicons VALUES (?1, ?2, 1)", "INSERT INTO icon_mapping (page_url, icon_id) VALUES (?2, ?1)"] {
+        sqlite3_prepare_v2(db, sql, -1, &stmt, nil)
+        sqlite3_bind_int(stmt, 1, Int32(id + 1))
+        sqlite3_bind_text(stmt, 2, bitmap.page, -1, transient)
+        XCTAssertEqual(sqlite3_step(stmt), SQLITE_DONE)
+        sqlite3_finalize(stmt)
+      }
+      sqlite3_prepare_v2(db, "INSERT INTO favicon_bitmaps (icon_id, image_data, width) VALUES (?, ?, ?)", -1, &stmt, nil)
+      sqlite3_bind_int(stmt, 1, Int32(id + 1))
+      _ = bitmap.blob.withUnsafeBytes { sqlite3_bind_blob(stmt, 2, $0.baseAddress, Int32(bitmap.blob.count), transient) }
+      sqlite3_bind_int(stmt, 3, Int32(bitmap.width))
       XCTAssertEqual(sqlite3_step(stmt), SQLITE_DONE)
       sqlite3_finalize(stmt)
     }
-    sqlite3_close(db)
-    let icons = try FaviconReader.load(.chromium, profile: dir, pages: ["https://big.example/"])
-    XCTAssertEqual(icons["https://big.example/"].flatMap { Data(base64Encoded: $0.png) }, small)
   }
 
   static func png(width: Int, height: Int) -> Data? {

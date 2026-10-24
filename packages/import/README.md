@@ -84,7 +84,7 @@ sqlite3 CLI: it checkpoints the WAL the tests depend on.
 | `build_safari_cookies` | `home/Library/Containers/com.apple.Safari/Data/Library/Cookies/Cookies.binarycookies`, `misc/binarycookies/*` (malformed) |
 | `build_arc` | `home/Library/Application Support/Arc/` (`User Data/`, `StorableSidebar.json`) |
 | `build_firefox` | `home/Library/Application Support/Firefox/` (`profiles.ini`, `Profiles/*`), `misc/nss-legacy-pbe.json` |
-| `build_zen` | `home/Library/Application Support/zen/` (`profiles.ini`; `Profiles/*`: a release profile with `places.sqlite`, `zen-sessions.jsonlz4`, `favicons.sqlite`, `key4.db`, `logins.db`; a self-built Zen's profile; one with only a Firefox session and no workspaces; one with only `zen-sessions.jsonlz4`) |
+| `build_zen` | `home/Library/Application Support/zen/` (`profiles.ini`; `Profiles/*`: a release profile with `places.sqlite`, `zen-sessions.jsonlz4`, `favicons.sqlite`, `key4.db`, `logins.db`; a self-built Zen's profile; one with only a Firefox session and no workspaces; one with `zen-sessions.jsonlz4` and `logins.db` but no `places.sqlite` or `key4.db`) |
 | `build_exports` | `safari/Safari Export/`, `safari/Safari Export.zip`, `safari/not-an-export.zip`, `csv/*.csv`, `html/chrome-bookmarks.html` |
 
 ## Commands

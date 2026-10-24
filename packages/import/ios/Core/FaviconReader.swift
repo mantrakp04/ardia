@@ -79,7 +79,7 @@ public enum FaviconReader {
     var out: [String: ImportedFavicon] = [:]
     for page in wanted {
       let exact = byPage[page] ?? byPage[page.replacingOccurrences(of: #"#.*$"#, with: "", options: .regularExpression)]
-      for c in ranked(exact ?? host(page).flatMap { byHost[$0] } ?? []) {
+      for c in ranked(exact ?? []) + ranked(host(page).flatMap { byHost[$0] } ?? []) {
         let png = try encoded(c)
         if !png.isEmpty {
           out[page] = ImportedFavicon(icon: c.url, png: png)
