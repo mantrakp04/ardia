@@ -3,7 +3,7 @@ import { useShallow } from "zustand/react/shallow";
 import { switchProfile } from "../../lib/actions";
 import { useTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
-import { useIsIncognito } from "../../store/hooks";
+import { useIsIncognito, useWindowUi } from "../../store/hooks";
 import { usePagerPages, type PagerPage } from "../layout/profilePager";
 import { useHover } from "../primitives";
 
@@ -37,6 +37,7 @@ export function ProfileDots({ windowId }: { windowId: string }) {
 
 function Dot({ id, windowId, page, pos }: { id: string; windowId: string; page: PagerPage | undefined; pos: Animated.Value }) {
   const theme = useTheme();
+  const downloadsOpen = useWindowUi().downloadsOpen;
   const name = useBrowser((s) => s.profiles[id]?.name ?? "");
   const { hovered, hoverProps } = useHover();
   const rest = hovered ? HOVERED : IDLE;
@@ -44,7 +45,7 @@ function Dot({ id, windowId, page, pos }: { id: string; windowId: string; page: 
     ? pos.interpolate({ inputRange: [page.slot - 1, page.slot, page.slot + 1], outputRange: [rest, SELECTED, rest], extrapolate: "clamp" })
     : rest;
   return (
-    <View {...hoverProps} tooltip={name}>
+    <View {...hoverProps} tooltip={downloadsOpen ? undefined : name}>
       <Pressable accessibilityRole="button" accessibilityLabel={name} onPress={() => switchProfile(windowId, id, true)}>
         <View style={{ width: CELL, height: BAND, alignItems: "center", justifyContent: "center" }}>
           <Animated.View style={{ width: DOT, height: DOT, borderRadius: DOT / 2, backgroundColor: theme.dark ? "#FFFFFF" : "#000000", opacity }} />

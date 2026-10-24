@@ -81,17 +81,44 @@ const MATERIAL_FILL: Record<string, string> = {
   underWindowBackground: "rgba(240,240,240,0.4)",
 };
 
-export type VisualEffectProps = ViewProps & { material?: string; blendingMode?: "withinWindow" | "behindWindow"; cornerRadius?: number };
+export type VisualEffectProps = ViewProps & {
+  liquidGlass?: boolean;
+  material?: string;
+  blendingMode?: "withinWindow" | "behindWindow";
+  cornerRadius?: number;
+  pointerEdge?: "top" | "bottom";
+  pointerX?: number;
+  dark?: boolean;
+  dismissEnabled?: boolean;
+  onDismiss?: () => void;
+};
 
-export function VisualEffect({ material = "popover", cornerRadius, style, ...props }: VisualEffectProps) {
+export function VisualEffect({ liquidGlass: _liquidGlass, material = "popover", blendingMode: _blendingMode, cornerRadius, pointerEdge: _pointerEdge, pointerX: _pointerX, dark, dismissEnabled = false, onDismiss, style, ...props }: VisualEffectProps) {
+  const host = useRef<HTMLElement | null>(null);
+  const dismiss = useRef(onDismiss);
+  dismiss.current = onDismiss;
+  const canDismiss = dismissEnabled && !!onDismiss;
+  useEffect(() => {
+    const owner = host.current?.ownerDocument;
+    if (!owner || !canDismiss) return;
+    const keydown = (event: KeyboardEvent) => {
+      const handler = dismiss.current;
+      if (event.key !== "Escape" || !handler) return;
+      event.preventDefault();
+      event.stopPropagation();
+      handler();
+    };
+    owner.addEventListener("keydown", keydown, true);
+    return () => owner.removeEventListener("keydown", keydown, true);
+  }, [canDismiss]);
   const glass: Style = {
-    backgroundColor: MATERIAL_FILL[material] ?? "rgba(246,246,246,0.6)",
+    backgroundColor: dark ? "rgba(30,30,30,0.72)" : MATERIAL_FILL[material] ?? "rgba(246,246,246,0.6)",
     backdropFilter: "blur(24px) saturate(180%)",
     WebkitBackdropFilter: "blur(24px) saturate(180%)",
     borderRadius: cornerRadius,
     overflow: cornerRadius ? "hidden" : undefined,
   };
-  return <View {...props} style={[glass, style]} />;
+  return <View {...props} ref={(view) => void (host.current = view as unknown as HTMLElement | null)} style={[glass, style]} />;
 }
 
 export type GlassEffectProps = ViewProps & { cornerRadius?: number; tint?: string; glassStyle?: "regular" | "clear"; dark?: boolean };

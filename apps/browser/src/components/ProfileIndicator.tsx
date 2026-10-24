@@ -3,7 +3,7 @@ import { Pressable, Text, View } from "react-native";
 import { createProfile, switchProfile } from "../lib/actions";
 import { profileAccent, profileNameColor, useTheme } from "../lib/theme";
 import { useBrowser } from "../store/browser";
-import { useIsIncognito, useProfiles, useWindowId, useWindowProfile } from "../store/hooks";
+import { useIsIncognito, useProfiles, useWindowId, useWindowUi, useWindowProfile } from "../store/hooks";
 import { setMeasuredWidth, useMeasuredWidth } from "./layout/measuredWidths";
 import { useHover } from "./primitives";
 import { openSettings } from "./settings/windows";
@@ -34,12 +34,13 @@ export const useProfileIndicatorWidth = (room: number) => useIndicator(room).wid
 export function ProfileIndicator({ room }: { room: number }) {
   const theme = useTheme();
   const windowId = useWindowId();
+  const downloadsOpen = useWindowUi().downloadsOpen;
   const { hovered, hoverProps } = useHover();
   const { incognito, title, textWidth, shown, showName, width, color } = useIndicator(room);
   if (!shown) return null;
 
   return (
-    <View {...hoverProps} tooltip={incognito ? undefined : "Switch between profiles"} style={{ marginTop: 0.5 }}>
+    <View {...hoverProps} tooltip={incognito || downloadsOpen ? undefined : "Switch between profiles"} style={{ marginTop: 0.5 }}>
       <View pointerEvents="none" style={{ position: "absolute", width: 1000, height: 0, overflow: "hidden", opacity: 0 }}>
         <Text
           numberOfLines={1}

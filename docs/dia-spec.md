@@ -960,3 +960,7 @@ model at 120 Hz ticks: 26–36 % of the way at 0.1 s, 58–73 % at 0.25 s, 92–
   (a, b clamped from `self+0x14` / `self+0x94`), each lit or unlit by its dot product with the light direction
   (−0.2, −1, −0.55)/√1.34, joined into a closed CGPath: the unlit crescent of the rim. Not rendered at 84 pt yet.
 - Light appearance of everything above (the user's Dia runs dark).
+
+## Downloads bubble (owner reference, 2026-10-23)
+
+The owner supplied a 614×858 pixel Dia screenshot; its Dia version is unknown. These are image pixels, not screen points: the body spans approximately x65–585, y100–831 (520 wide), the pointer peaks near x326/y80, and file-row centres are approximately 74 pixels apart. Normalizing by panel width gives row height 0.142, filename left inset about 0.156, and file icons roughly 0.05 of the width. The reference shows smoked translucency, blurred content through the body and pointer, a luminous inset edge and rounded Finder badges. The screenshot does not establish which native material API Dia uses.

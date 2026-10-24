@@ -423,6 +423,12 @@ export function Surface({ shadowColor, shadowOpacity, shadowRadius, shadowOffset
 }
 
 export type VisualEffectProps = ViewProps & {
+  liquidGlass?: boolean;
+  pointerEdge?: "top" | "bottom";
+  onDismiss?: () => void;
+  dismissEnabled?: boolean;
+  pointerX?: number;
+  dark?: boolean;
   material?: string;
   blendingMode?: "withinWindow" | "behindWindow";
   cornerRadius?: number;

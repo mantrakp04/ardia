@@ -1,18 +1,18 @@
 import { cancelDownload, pauseDownload, resumeDownload, type Download } from "@ardia/ardiacore";
-import { ContextMenuArea, copyText, fileExists, fileIcon, MouseArea, moveToTrash, openFile, revealFile, showMenu, Surface, Symbol, VisualEffect, type MenuItem } from "@ardia/shell";
+import { ActivitySpinner, ContextMenuArea, copyText, fileExists, fileIcon, MouseArea, moveToTrash, openFile, revealFile, showMenu, Symbol, VisualEffect, type MenuItem } from "@ardia/shell";
 import { memo, useEffect, useRef, useState } from "react";
-import { Animated, Easing, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { hex, layout, useTheme } from "../lib/theme";
+import { AccessibilityInfo, Animated, Easing, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { layout, useTheme } from "../lib/theme";
 import { useShallow } from "zustand/react/shallow";
 import { useBrowser } from "../store/browser";
 import { useSidebarOpen, useWindowId, useWindowUi } from "../store/hooks";
 import { downloadsIn, downloadVisibleIn } from "../store/ui";
 import { SIDEBAR_FOOTER_DOWNLOADS, useAddressBarInSidebar, useTabLayout } from "./layout/windowLayout";
-import { PROFILE_DOTS_HEIGHT } from "./profiles/ProfileDots";
 import { openInternalPage } from "./pages/urls";
 import { useSidebarWidth } from "./sidebar/tokens";
-import { HoverSlot } from "./HoverSlot";
-import { PANEL, POPOVER_MOTION, PopoverSeparator, usePopoverPresence } from "./layout/controls";
+import { PANEL, POPOVER_MOTION, usePopoverPresence } from "./layout/controls";
+import { DOWNLOADS_LAYOUT, downloadsGeometry } from "./layout/downloadsGeometry";
+import { useDownloadsAnchors } from "./layout/downloadsAnchor";
 import { IconButton, useHover } from "./primitives";
 
 function formatBytes(n: number) {
@@ -38,6 +38,7 @@ export function downloadStatus(d: Download, exists = true) {
   if (d.state === "cancelled") return "Cancelled";
   const progress = d.total > 0 ? `${formatBytes(d.received)} of ${formatBytes(d.total)}` : formatBytes(d.received);
   if (d.paused) return `${progress} — Paused`;
+  if (d.received === 0 && d.speed <= 0) return "Starting…";
   if (d.speed > 0 && d.total > 0) return `${progress}, ${formatBytes(d.speed)}/s — ${formatDuration((d.total - d.received) / d.speed)}`;
   return progress;
 }
@@ -119,18 +120,13 @@ export const FileIcon = memo(function FileIcon({ path, size = 28 }: { path: stri
   );
 });
 
-const WIDTH = 300;
-const HEADER = 24;
-const ROW = 40;
-const FILE_ICON = 24;
-const ROW_BUTTON = 22;
-const ROW_BUTTON_BEARING = (ROW_BUTTON - PANEL.iconSize) / 2;
-const VISIBLE_ROWS = 8;
-const TEXT_BUTTON_PAD = 7;
-const INK_INSET = PANEL.inset + 1;
-const HEADER_CAP_TOP = 7.5;
-const FOOTER_TEXT_DROP = 12;
-const CHEVRON_BEARING = 3;
+const HEADER = DOWNLOADS_LAYOUT.header;
+const ROW = DOWNLOADS_LAYOUT.row;
+const FILE_ICON = 22;
+const ROW_BUTTON = 26;
+const POINTER = DOWNLOADS_LAYOUT.pointer;
+const RADIUS = 18;
+const TEXT_BUTTON_PAD = 10;
 
 function rowFill(dark: boolean, hovered: boolean, pressed: boolean) {
   if (!hovered && !pressed) return undefined;
@@ -154,7 +150,23 @@ function DownloadsPanel({ windowId, closing, onClosed }: { windowId: string; clo
   const { ids, clearable } = shownList.current;
   const top = useTabLayout() === "top";
   const addressBar = useAddressBarInSidebar();
+  const sidebarOpen = useSidebarOpen();
+  const sidebarWidth = useSidebarWidth(windowId);
+  const measuredAnchor = useDownloadsAnchors((s) => s[windowId]);
+  const [bounds, setBounds] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  const root = useRef<View>(null);
+  const anchor = measuredAnchor && measuredAnchor.y >= bounds.y && measuredAnchor.y + measuredAnchor.height <= bounds.y + bounds.height && measuredAnchor.x >= bounds.x && measuredAnchor.x + measuredAnchor.width <= bounds.x + bounds.width ? measuredAnchor : undefined;
+  const anchorX = anchor ? anchor.x - bounds.x + anchor.width / 2 : top ? bounds.width - 25 : addressBar ? layout.sidebarInset + 17 : sidebarOpen ? sidebarWidth - 24 : 24;
+  const anchorY = anchor ? anchor.y - bounds.y : addressBar ? bounds.height - SIDEBAR_FOOTER_DOWNLOADS.bottom - 34 : 10;
+  const { width, below, edge, left, pointerX, maxHeight } = downloadsGeometry(bounds, { x: anchorX, y: anchorY, height: anchor?.height ?? 34 }, addressBar);
   const setOpen = (value: boolean) => useBrowser.getState().setDownloadsOpen(windowId, value);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  useEffect(() => {
+    let live = true;
+    void AccessibilityInfo.isReduceMotionEnabled().then((on) => live && setReduceMotion(on), () => {});
+    const subscription = AccessibilityInfo.addEventListener("reduceMotionChanged", setReduceMotion);
+    return () => { live = false; subscription.remove(); };
+  }, []);
   const appear = useRef(new Animated.Value(0)).current;
   const closed = useRef(onClosed);
   closed.current = onClosed;
@@ -166,36 +178,31 @@ function DownloadsPanel({ windowId, closing, onClosed }: { windowId: string; clo
   }, [closing]);
 
   return (
-    <View pointerEvents={closing ? "none" : "auto"} style={StyleSheet.absoluteFill}>
+    <View ref={root} collapsable={false} pointerEvents={closing ? "none" : "auto"} style={StyleSheet.absoluteFill} onLayout={(e) => {
+      const { width, height } = e.nativeEvent.layout;
+      root.current?.measureInWindow((x, y) => setBounds({ x, y, width, height }));
+    }}>
       <Pressable style={StyleSheet.absoluteFill} onPress={() => setOpen(false)} />
       <Animated.View
         style={{
           position: "absolute",
-          ...(addressBar ? { bottom: PROFILE_DOTS_HEIGHT + 2 } : { top: 44 }),
-          ...(top ? { right: 8 } : { left: 10 }),
-          opacity: appear,
-          transformOrigin: `${addressBar ? "bottom" : "top"} ${top ? "right" : "left"}`,
-          transform: [
+          ...(below ? { top: edge } : { bottom: edge }),
+          left,
+          width,
+          paddingTop: below ? POINTER : 0,
+          paddingBottom: below ? 0 : POINTER,
+          opacity: bounds.width ? appear : 0,
+          transformOrigin: `${pointerX}px ${below ? "top" : "bottom"}`,
+          transform: reduceMotion ? [] : [
             { scale: appear.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) },
-            { translateY: appear.interpolate({ inputRange: [0, 1], outputRange: addressBar ? [4, 0] : [-4, 0] }) },
+            { translateY: appear.interpolate({ inputRange: [0, 1], outputRange: below ? [-4, 0] : [4, 0] }) },
           ],
         }}
       >
-        <Surface
-          fill={hex(theme.dark ? "rgba(38,36,37,0.94)" : "rgba(252,251,252,0.96)")}
-          cornerRadius={PANEL.radius}
-          borderColor={hex(theme.dark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.12)")}
-          borderWidth={0.5}
-          shadowColor="#000000"
-          shadowOpacity={theme.dark ? 0.45 : 0.16}
-          shadowRadius={18}
-          shadowOffset={[0, 8]}
-          style={{ width: WIDTH, paddingTop: INK_INSET - HEADER_CAP_TOP, paddingBottom: INK_INSET - FOOTER_TEXT_DROP }}
-        >
-          <VisualEffect material="menu" cornerRadius={PANEL.radius} style={StyleSheet.absoluteFill} />
-          <View style={{ ...StyleSheet.absoluteFillObject, borderRadius: PANEL.radius, backgroundColor: theme.dark ? "rgba(38,36,37,0.72)" : "rgba(252,251,252,0.7)" }} />
-          <View style={{ flexDirection: "row", alignItems: "center", paddingLeft: PANEL.inset, paddingRight: PANEL.inset - TEXT_BUTTON_PAD, height: HEADER }}>
-            <Text style={{ flex: 1, fontSize: PANEL.subtitleSize, fontWeight: "600", letterSpacing: 0.4, color: theme.textSecondary }}>
+        <VisualEffect liquidGlass material="popover" dark={theme.dark} cornerRadius={RADIUS} pointerEdge={below ? "top" : "bottom"} pointerX={pointerX} dismissEnabled={!closing} onDismiss={() => setOpen(false)} style={StyleSheet.absoluteFill} />
+        <View style={{ paddingTop: DOWNLOADS_LAYOUT.bodyTop, paddingBottom: DOWNLOADS_LAYOUT.bodyBottom }}>
+          <View style={{ flexDirection: "row", alignItems: "center", paddingLeft: PANEL.inset, paddingRight: PANEL.inset, height: HEADER }}>
+            <Text style={{ flex: 1, fontSize: 12.5, fontWeight: "600", letterSpacing: 0.2, color: theme.textSecondary }}>
               RECENT DOWNLOADS
             </Text>
             {clearable && (
@@ -209,17 +216,19 @@ function DownloadsPanel({ windowId, closing, onClosed }: { windowId: string; clo
             )}
           </View>
           {ids.length === 0 ? (
-            <View style={{ height: PANEL.rowHeight, paddingHorizontal: PANEL.inset, justifyContent: "center" }}>
-              <Text style={{ fontSize: PANEL.titleSize, color: theme.textSecondary }}>No downloads yet</Text>
+            <View style={{ height: 118, gap: 8, alignItems: "center", justifyContent: "center", paddingHorizontal: PANEL.inset }}>
+              <Symbol name="arrow.down.circle" size={28} color={theme.textTertiary} style={{ width: 32, height: 32 }} />
+              <Text style={{ fontSize: 13, fontWeight: "500", color: theme.textPrimary }}>No downloads yet</Text>
+              <Text style={{ fontSize: 12, color: theme.textSecondary }}>Your recent files will appear here.</Text>
             </View>
           ) : (
-            <ScrollView style={{ maxHeight: VISIBLE_ROWS * ROW }} contentContainerStyle={{ paddingHorizontal: PANEL.rowInset }}>
+            <ScrollView showsVerticalScrollIndicator style={{ maxHeight }} contentContainerStyle={{ paddingHorizontal: PANEL.rowInset }}>
               {ids.map((id) => (
                 <DownloadRowItem key={id} id={id} windowId={windowId} />
               ))}
             </ScrollView>
           )}
-          <PopoverSeparator />
+          <View style={{ height: DOWNLOADS_LAYOUT.separator, marginHorizontal: PANEL.inset, marginTop: DOWNLOADS_LAYOUT.separatorTop, marginBottom: DOWNLOADS_LAYOUT.separatorBottom, backgroundColor: theme.dark ? "rgba(255,255,255,0.13)" : "rgba(0,0,0,0.12)" }} />
           <FooterButton
             title="View all downloads"
             onPress={() => {
@@ -227,7 +236,7 @@ function DownloadsPanel({ windowId, closing, onClosed }: { windowId: string; clo
               openInternalPage("downloads", windowId);
             }}
           />
-        </Surface>
+        </View>
       </Animated.View>
     </View>
   );
@@ -238,9 +247,9 @@ function TextButton({ title, onPress }: { title: string; onPress: () => void }) 
   const { hovered, hoverProps } = useHover();
   return (
     <View {...hoverProps}>
-      <Pressable onPress={onPress}>
-        <View style={{ height: 22, paddingHorizontal: TEXT_BUTTON_PAD, borderRadius: 6, justifyContent: "center", backgroundColor: hovered ? theme.toolbarHover : undefined }}>
-          <Text style={{ fontSize: 12, color: theme.textSecondary }}>{title}</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress}>
+        <View style={{ height: 25, paddingHorizontal: TEXT_BUTTON_PAD, borderRadius: 12.5, justifyContent: "center", backgroundColor: theme.dark ? `rgba(255,255,255,${hovered ? 0.14 : 0.09})` : `rgba(0,0,0,${hovered ? 0.1 : 0.06})` }}>
+          <Text style={{ fontSize: 12, fontWeight: "500", color: theme.textPrimary }}>{title}</Text>
         </View>
       </Pressable>
     </View>
@@ -252,11 +261,11 @@ function FooterButton({ title, onPress }: { title: string; onPress: () => void }
   const { hovered, hoverProps } = useHover();
   return (
     <View {...hoverProps} style={{ paddingHorizontal: PANEL.rowInset }}>
-      <Pressable onPress={onPress}>
+      <Pressable accessibilityRole="button" accessibilityLabel={title} onPress={onPress}>
         {({ pressed }) => (
           <View
             style={{
-              height: PANEL.rowHeight,
+              height: DOWNLOADS_LAYOUT.footer,
               paddingHorizontal: PANEL.rowPadding,
               borderRadius: PANEL.rowRadius,
               flexDirection: "row",
@@ -264,8 +273,8 @@ function FooterButton({ title, onPress }: { title: string; onPress: () => void }
               backgroundColor: rowFill(theme.dark, hovered, pressed),
             }}
           >
-            <Text style={{ flex: 1, fontSize: PANEL.titleSize, color: hovered ? theme.textPrimary : theme.textSecondary }}>{title}</Text>
-            <Symbol name="chevron.right" size={9} weight="semibold" color={theme.textTertiary} style={{ width: 12, height: 12, marginRight: -CHEVRON_BEARING }} />
+            <Text style={{ flex: 1, fontSize: 14, fontWeight: "500", color: theme.textPrimary }}>{title}</Text>
+            <Symbol name="arrow.up.right" size={12} weight="semibold" color={theme.icon} style={{ width: 12, height: 12, marginRight: 1 }} />
           </View>
         )}
       </Pressable>
@@ -274,7 +283,7 @@ function FooterButton({ title, onPress }: { title: string; onPress: () => void }
 }
 
 function RowButton({ icon, onPress, tooltip }: { icon: string; onPress: () => void; tooltip: string }) {
-  return <IconButton icon={icon} size={PANEL.iconSize} box={ROW_BUTTON} radius={6} onPress={onPress} tooltip={tooltip} />;
+  return <IconButton icon={icon} size={icon === "magnifyingglass.circle.fill" ? 16 : PANEL.iconSize} box={ROW_BUTTON} radius={6} onPress={onPress} tooltip={tooltip} />;
 }
 
 const DownloadRowItem = memo(function DownloadRowItem({ id, windowId }: { id: string; windowId: string }) {
@@ -302,7 +311,7 @@ function DownloadRow({ d, windowId }: { d: Download; windowId: string }) {
       if (s.downloads !== prev.downloads) check();
     });
   }, [finishedPath]);
-  const progress = d.total > 0 ? d.received / d.total : 0;
+  const progress = d.total > 0 ? Math.max(0, Math.min(1, d.received / d.total)) : 0;
   const done = d.state === "finished" && exists;
   return (
     <View {...hoverProps}>
@@ -314,10 +323,10 @@ function DownloadRow({ d, windowId }: { d: Download; windowId: string }) {
                 style={{
                   flexDirection: "row",
                   alignItems: "center",
-                  gap: PANEL.iconGap,
+                  gap: 10,
                   paddingHorizontal: PANEL.rowPadding,
                   height: ROW,
-                  borderRadius: PANEL.rowRadius,
+                  borderRadius: 10,
                   backgroundColor: rowFill(theme.dark, hovered, pressed && done),
                 }}
               >
@@ -328,27 +337,31 @@ function DownloadRow({ d, windowId }: { d: Download; windowId: string }) {
                   <Text
                     numberOfLines={1}
                     style={{
-                      fontSize: PANEL.titleSize,
-                      lineHeight: PANEL.titleLine,
+                      fontSize: 14,
+                      fontWeight: "500",
+                      lineHeight: 18,
                       color: exists ? theme.textPrimary : theme.textSecondary,
                       textDecorationLine: exists ? "none" : "line-through",
                     }}
                   >
                     {d.filename || "Preparing…"}
                   </Text>
-                  {d.state === "downloading" ? (
+                  {d.state === "downloading" && d.total > 0 ? (
                     <View style={{ height: 3, borderRadius: 1.5, marginTop: 3, marginBottom: 2, backgroundColor: progressTrack(theme.dark) }}>
                       <View
-                        style={{ width: `${Math.max(progress, 0.03) * 100}%`, height: 3, borderRadius: 1.5, backgroundColor: d.paused ? theme.textTertiary : theme.accent }}
+                        style={{ width: `${progress * 100}%`, height: 3, borderRadius: 1.5, backgroundColor: d.paused ? theme.textTertiary : theme.accent }}
                       />
                     </View>
                   ) : null}
-                  <Text numberOfLines={1} style={{ fontSize: PANEL.subtitleSize, lineHeight: PANEL.subtitleLine, color: theme.textSecondary }}>
-                    {downloadStatus(d, exists)}
-                  </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                    {d.state === "downloading" && d.total <= 0 && !d.paused ? <ActivitySpinner style={{ width: 10, height: 10 }} /> : null}
+                    <Text numberOfLines={1} style={{ flex: 1, fontSize: PANEL.subtitleSize, lineHeight: PANEL.subtitleLine, color: d.state === "failed" ? (theme.dark ? "#FF9E94" : "#B6372D") : (theme.dark ? "#FFFFFF99" : "#00000099") }}>
+                      {d.state === "finished" && exists && d.filename.includes(".") ? `${d.filename.split(".").pop()!.toUpperCase()} · ${downloadStatus(d, exists)}` : downloadStatus(d, exists)}
+                    </Text>
+                  </View>
                 </View>
                 {d.state === "downloading" ? (
-                  <View style={{ flexDirection: "row", marginRight: -ROW_BUTTON_BEARING }}>
+                  <View style={{ flexDirection: "row" }}>
                     <RowButton
                       icon={d.paused ? "play.circle.fill" : "pause.circle.fill"}
                       onPress={() => void (d.paused ? resumeDownload(d.id) : pauseDownload(d.id))}
@@ -357,12 +370,7 @@ function DownloadRow({ d, windowId }: { d: Download; windowId: string }) {
                     <RowButton icon="xmark.circle.fill" onPress={() => void cancelDownload(d.id)} tooltip="Cancel" />
                   </View>
                 ) : done ? (
-                  <HoverSlot
-                    hovered={hovered}
-                    width={ROW_BUTTON}
-                    style={{ marginRight: -ROW_BUTTON_BEARING }}
-                    hover={<RowButton icon="magnifyingglass.circle.fill" onPress={() => void revealFile(d.path)} tooltip="Show in Finder" />}
-                  />
+                  <RowButton icon="magnifyingglass.circle.fill" onPress={() => void revealFile(d.path)} tooltip="Show in Finder" />
                 ) : null}
               </View>
             )}

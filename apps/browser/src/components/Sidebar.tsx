@@ -1,3 +1,4 @@
+import { DownloadsButton } from "./layout/downloadsAnchor";
 import { ContextMenuArea, FadeLabel, Symbol, WindowDragRegion } from "@ardia/shell";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
@@ -520,21 +521,6 @@ function useRevealTabs(windowId: string, scroll: RefObject<ScrollView | null>, s
   }, [windowId]);
 }
 
-function DownloadsButton({ windowId }: { windowId: string }) {
-  return (
-    <IconButton
-      icon="arrow.down.circle"
-      size={16}
-      box={34}
-      radius={10}
-      tooltip="Downloads (⇧⌘J)"
-      onPress={() => {
-        const s = useBrowser.getState();
-        s.setDownloadsOpen(windowId, !s.windowUi[windowId]?.downloadsOpen);
-      }}
-    />
-  );
-}
 
 const CLIPPED = { marginTop: -layout.rowGap, paddingTop: layout.rowGap, overflow: "hidden" } as const;
 const NEW_TAB_LABEL_X = 30;

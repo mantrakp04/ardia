@@ -1,6 +1,7 @@
 import AppKit
 import Carbon.HIToolbox
 import ExpoModulesCore
+import SwiftUI
 
 public enum OpenURLInbox {
   static var pending: [String] = []
@@ -1518,6 +1519,12 @@ public class VisualEffectModule: Module {
     Name("ArdiaVisualEffect")
 
     View(VisualEffect.self) {
+      Events("onDismiss")
+      Prop("dismissEnabled") { (view: VisualEffect, enabled: Bool) in view.dismissEnabled = enabled }
+      Prop("liquidGlass") { (view: VisualEffect, enabled: Bool) in view.liquidGlass = enabled }
+      Prop("pointerEdge") { (view: VisualEffect, edge: String?) in view.pointerEdge = edge }
+      Prop("pointerX") { (view: VisualEffect, x: Double) in view.pointerX = x }
+      Prop("dark") { (view: VisualEffect, dark: Bool?) in view.appearance = dark.map { NSAppearance(named: $0 ? .darkAqua : .aqua) } ?? nil }
       Prop("material") { (view: VisualEffect, name: String) in view.setMaterial(name) }
       Prop("blendingMode") { (view: VisualEffect, name: String) in
         view.effect.blendingMode = name == "behindWindow" ? .behindWindow : .withinWindow
@@ -1529,10 +1536,23 @@ public class VisualEffectModule: Module {
 
 final class VisualEffect: ExpoView {
   let effect = NSVisualEffectView()
+  var liquidGlass = false { didSet { if liquidGlass != oldValue { applyCorners() } } }
+  private var glassHost: NSView?
+  private var glassState: BubbleGlassState?
   var cornerRadius: Double = 0 { didSet { applyCorners() } }
+  var pointerEdge: String? { didSet { applyCorners(); updateDismissMonitor() } }
+  let onDismiss = EventDispatcher()
+  var dismissEnabled = false { didSet { updateDismissMonitor() } }
+  private var dismissMonitor: Any?
+  var pointerX: Double = 40 { didSet { applyCorners() } }
+  private let bubbleShadow = CAShapeLayer()
+  private let bubbleShadowMask = CAShapeLayer()
+  private let bubbleRim = CAGradientLayer()
+  private let bubbleStroke = CAShapeLayer()
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
+    wantsLayer = true
     effect.state = .active
     effect.blendingMode = .withinWindow
     effect.material = .hudWindow
@@ -1550,10 +1570,157 @@ final class VisualEffect: ExpoView {
     effect.material = materials[name] ?? .hudWindow
   }
 
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    updateDismissMonitor()
+  }
+
+  private func updateDismissMonitor() {
+    if let dismissMonitor { NSEvent.removeMonitor(dismissMonitor) }
+    dismissMonitor = nil
+    guard dismissEnabled, window != nil else { return }
+    dismissMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+      guard let self, let window = self.window, event.window === window, event.keyCode == 53 else { return event }
+      self.onDismiss([:])
+      return nil
+    }
+  }
+
+  deinit {
+    if let dismissMonitor { NSEvent.removeMonitor(dismissMonitor) }
+  }
+
+  private func bubblePath(in rect: CGRect, flipped: Bool) -> CGPath {
+    let w = rect.width
+    let h = rect.height
+    let r = min(CGFloat(cornerRadius), max(0, (h - 10) / 2), w / 2)
+    let x = min(max(CGFloat(pointerX), r + 14), w - r - 14)
+    let tip = min(max(CGFloat(pointerX), 8), w - 8)
+    let path = CGMutablePath()
+    path.move(to: CGPoint(x: 0, y: 10 + r))
+    if tip < r + 14 {
+      path.addCurve(to: CGPoint(x: tip - 5, y: 4), control1: CGPoint(x: 0, y: 10), control2: CGPoint(x: tip - 8, y: 10))
+    } else {
+      path.addQuadCurve(to: CGPoint(x: r, y: 10), control: CGPoint(x: 0, y: 10))
+      path.addLine(to: CGPoint(x: x - 14, y: 10))
+      path.addCurve(to: CGPoint(x: tip - 5, y: 4), control1: CGPoint(x: x - 9, y: 10), control2: CGPoint(x: tip - 7, y: 6))
+    }
+    path.addQuadCurve(to: CGPoint(x: tip + 5, y: 4), control: CGPoint(x: tip, y: -3))
+    if tip > w - r - 14 {
+      path.addCurve(to: CGPoint(x: w, y: 10 + r), control1: CGPoint(x: tip + 8, y: 10), control2: CGPoint(x: w, y: 10))
+    } else {
+      path.addCurve(to: CGPoint(x: x + 14, y: 10), control1: CGPoint(x: tip + 7, y: 6), control2: CGPoint(x: x + 9, y: 10))
+      path.addLine(to: CGPoint(x: w - r, y: 10))
+      path.addQuadCurve(to: CGPoint(x: w, y: 10 + r), control: CGPoint(x: w, y: 10))
+    }
+    path.addLine(to: CGPoint(x: w, y: h - r))
+    path.addQuadCurve(to: CGPoint(x: w - r, y: h), control: CGPoint(x: w, y: h))
+    path.addLine(to: CGPoint(x: r, y: h))
+    path.addQuadCurve(to: CGPoint(x: 0, y: h - r), control: CGPoint(x: 0, y: h))
+    path.addLine(to: CGPoint(x: 0, y: 10 + r))
+    path.closeSubpath()
+    let reverse = (pointerEdge == "bottom") != !flipped
+    var transform = reverse ? CGAffineTransform(translationX: 0, y: h).scaledBy(x: 1, y: -1) : .identity
+    return path.copy(using: &transform) ?? path
+  }
+
   private func applyCorners() {
-    effect.layer?.cornerRadius = cornerRadius
-    effect.layer?.cornerCurve = .continuous
-    effect.layer?.masksToBounds = cornerRadius > 0
+    guard bounds.width > 0, bounds.height > 0 else { return }
+    if #available(macOS 26.0, *), liquidGlass, pointerEdge == "top" || pointerEdge == "bottom" {
+      applyLiquidGlass()
+      return
+    }
+    glassHost?.isHidden = true
+    effect.isHidden = false
+    guard pointerEdge == "top" || pointerEdge == "bottom" else {
+      effect.maskImage = nil
+      effect.layer?.cornerRadius = cornerRadius
+      effect.layer?.cornerCurve = .continuous
+      effect.layer?.masksToBounds = cornerRadius > 0
+      bubbleShadow.isHidden = true
+      bubbleRim.isHidden = true
+      return
+    }
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    effect.layer?.cornerRadius = 0
+    effect.layer?.masksToBounds = false
+    let size = bounds.size
+    let imagePath = bubblePath(in: bounds, flipped: false)
+    effect.maskImage = NSImage(size: size, flipped: false) { _ in
+      NSColor.white.setFill()
+      let shape = NSBezierPath(cgPath: imagePath)
+      shape.fill()
+      return true
+    }
+    if bubbleShadow.superlayer !== layer {
+      layer?.insertSublayer(bubbleShadow, at: 0)
+    }
+    if bubbleRim.superlayer !== layer {
+      layer?.addSublayer(bubbleRim)
+      bubbleStroke.fillColor = nil
+      bubbleStroke.strokeColor = NSColor.white.cgColor
+      bubbleRim.mask = bubbleStroke
+    }
+    let flipped = layer?.isGeometryFlipped == true || isFlipped
+    let path = bubblePath(in: bounds, flipped: flipped)
+    let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+    bubbleShadow.frame = bounds
+    bubbleShadow.path = path
+    bubbleShadow.fillColor = nil
+    bubbleShadow.shadowPath = path
+    bubbleShadow.shadowColor = NSColor.black.cgColor
+    bubbleShadow.shadowOpacity = dark ? 0.42 : 0.22
+    bubbleShadow.shadowRadius = 18
+    bubbleShadow.shadowOffset = CGSize(width: 0, height: flipped ? 8 : -8)
+    let shadowOutset: CGFloat = 18 * 3 + 8 + 4
+    let shadowCutout = CGMutablePath()
+    shadowCutout.addRect(bounds.insetBy(dx: -shadowOutset, dy: -shadowOutset))
+    shadowCutout.addPath(path)
+    bubbleShadowMask.fillRule = .evenOdd
+    bubbleShadowMask.frame = bounds
+    bubbleShadowMask.path = shadowCutout
+    bubbleShadow.mask = bubbleShadowMask
+    bubbleShadow.isHidden = false
+    bubbleRim.frame = bounds
+    bubbleRim.colors = [NSColor.white.withAlphaComponent(dark ? 0.34 : 0.8).cgColor, NSColor.white.withAlphaComponent(dark ? 0.08 : 0.18).cgColor, NSColor.white.withAlphaComponent(dark ? 0.17 : 0.42).cgColor]
+    bubbleRim.startPoint = CGPoint(x: 0.3, y: flipped ? 0 : 1)
+    bubbleRim.endPoint = CGPoint(x: 0.7, y: flipped ? 1 : 0)
+    bubbleStroke.frame = bounds
+    bubbleStroke.path = path
+    bubbleStroke.lineWidth = 1
+    bubbleRim.isHidden = false
+    CATransaction.commit()
+  }
+
+  @available(macOS 26.0, *)
+  private func applyLiquidGlass() {
+    effect.isHidden = true
+    bubbleShadow.isHidden = true
+    bubbleRim.isHidden = true
+    let state = BubbleGlassState(size: bounds.size, radius: cornerRadius, pointerX: pointerX, pointerEdge: pointerEdge, dark: effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua)
+    let host: NSHostingView<BubbleGlassBackground>
+    if let existing = glassHost as? NSHostingView<BubbleGlassBackground> {
+      host = existing
+      if glassState != state {
+        host.rootView = BubbleGlassBackground(path: Path(bubblePath(in: bounds, flipped: true)), dark: state.dark)
+      }
+    } else {
+      host = NSHostingView(rootView: BubbleGlassBackground(path: Path(bubblePath(in: bounds, flipped: true)), dark: state.dark))
+      host.sizingOptions = []
+      host.safeAreaRegions = []
+      host.clipsToBounds = false
+      addSubview(host)
+      glassHost = host
+    }
+    glassState = state
+    host.frame = bounds
+    host.isHidden = false
+  }
+
+  override func viewDidChangeEffectiveAppearance() {
+    super.viewDidChangeEffectiveAppearance()
+    applyCorners()
   }
 
   override func setFrameSize(_ newSize: NSSize) {
@@ -1563,6 +1730,35 @@ final class VisualEffect: ExpoView {
   }
 
   override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
+private struct BubbleGlassState: Equatable {
+  let size: CGSize
+  let radius: Double
+  let pointerX: Double
+  let pointerEdge: String?
+  let dark: Bool
+}
+
+@available(macOS 26.0, *)
+private struct BubbleGlassShape: Shape {
+  let outline: Path
+
+  func path(in rect: CGRect) -> Path { outline }
+}
+
+@available(macOS 26.0, *)
+private struct BubbleGlassBackground: SwiftUI.View {
+  let path: Path
+  let dark: Bool
+
+  var body: some SwiftUI.View {
+    Color.clear
+      .glassEffect(.regular, in: BubbleGlassShape(outline: path))
+      .environment(\.colorScheme, dark ? .dark : .light)
+      .ignoresSafeArea()
+      .allowsHitTesting(false)
+  }
 }
 
 public class GlassEffectModule: Module {
