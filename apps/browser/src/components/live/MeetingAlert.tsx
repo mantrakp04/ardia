@@ -7,8 +7,10 @@ import { useCalendar, useNow } from "../../live/calendar";
 import { attendeesLabel, guestsLabel, isCalendarUrl, joinLink, joinTitle, relatedLinks, relativeTime, timeRange, type CalendarEvent } from "../../live/meetings";
 import { useBrowser } from "../../store/browser";
 import { viewTabIds } from "../../store/model";
+import { useSideSwitches } from "../layout/trafficLights";
 import { IconButton } from "../primitives";
 import { measureRow, type Anchor } from "../sidebar/state";
+import { useSidebarOnRight, useSidebarWidth } from "../sidebar/tokens";
 import { OverlappingAvatars } from "./CalendarPreview";
 import { useLiveColors } from "./colors";
 import { SmallButton } from "./LiveItemCard";
@@ -28,18 +30,22 @@ function AlertCard({ event, windowId, windowWidth }: { event: CalendarEvent; win
   const now = useNow(15_000);
   const calendarTab = useBrowser((s) => viewTabIds(s, windowId).find((id) => s.tabs[id]?.pinned && isCalendarUrl(s.tabs[id]!.pinnedUrl ?? s.tabs[id]!.url)));
   const sidebarShown = useBrowser((s) => !!s.windows[windowId]?.sidebarOpen);
+  const right = useSidebarOnRight(windowId);
+  const sidebarWidth = useSidebarWidth(windowId);
   const calendarName = useCalendar((s) => s.calendars.find((c) => c.id === event.calendarId)?.title);
-  const [anchor, setAnchor] = useState<Anchor | null>(null);
+  const switching = useSideSwitches((r) => !!r[windowId]);
+  const [anchor, setAnchor] = useState<(Anchor & { right: boolean }) | null>(null);
   const appear = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    if (switching) return;
     let cancelled = false;
-    if (calendarTab && sidebarShown) void measureRow(windowId, calendarTab).then((a) => !cancelled && setAnchor(a));
+    if (calendarTab && sidebarShown) void measureRow(windowId, calendarTab).then((a) => !cancelled && setAnchor(a && { ...a, right }));
     else setAnchor(null);
     return () => {
       cancelled = true;
     };
-  }, [calendarTab, sidebarShown, windowWidth]);
+  }, [calendarTab, sidebarShown, windowWidth, right, right ? sidebarWidth : 0, switching]);
   useEffect(() => {
     Animated.spring(appear, { toValue: 1, speed: 14, bounciness: 6, useNativeDriver: true }).start();
   }, []);
@@ -49,7 +55,13 @@ function AlertCard({ event, windowId, windowWidth }: { event: CalendarEvent; win
   const running = event.start <= now;
   const people = event.attendees.filter((a) => !a.me);
   const who = attendeesLabel(event);
-  const position = anchor ? { left: anchor.x + anchor.width + 8, top: Math.max(8, anchor.y - 4) } : { left: Math.max(8, windowWidth - WIDTH - 14), top: 52 };
+  const position = (anchor?.right ?? right)
+    ? anchor
+      ? { left: anchor.x - 8 - WIDTH, top: Math.max(8, anchor.y - 4) }
+      : { left: Math.max(8, windowWidth - (sidebarShown ? sidebarWidth : 0) - WIDTH - 14), top: 52 }
+    : anchor
+      ? { left: anchor.x + anchor.width + 8, top: Math.max(8, anchor.y - 4) }
+      : { left: Math.max(8, windowWidth - WIDTH - 14), top: 52 };
 
   return (
     <Animated.View

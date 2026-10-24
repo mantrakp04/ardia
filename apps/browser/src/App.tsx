@@ -20,6 +20,8 @@ import { WindowProfile } from "./components/layout/WindowProfile";
 import { DockedLayout } from "./components/layout/SidebarDock";
 import { LittleArdiaWindow } from "./components/littleArdia/LittleArdiaWindow";
 import { SidebarOverlays } from "./components/sidebar/Overlays";
+import { SidebarMovePreview } from "./components/layout/SidebarMoveDrag";
+import { CardNotchFrame } from "./components/layout/CardNotchFrame";
 import { layout, ThemeScope, useTheme } from "./lib/theme";
 import { useBrowser } from "./store/browser";
 import { useWindowId, WindowContext } from "./store/hooks";
@@ -55,7 +57,9 @@ function BrowserWindow() {
   const [width, setWidth] = useState(0);
   const card = (
     <>
-      <ContentCard />
+      <CardNotchFrame windowId={windowId}>
+        <ContentCard />
+      </CardNotchFrame>
       {!fullscreen && <ExtensionSidePanel />}
     </>
   );
@@ -90,6 +94,7 @@ function BrowserWindow() {
       <EditBookmarkDialog />
       <CreateProfileHost />
       <SidebarOverlays windowWidth={width} />
+      <SidebarMovePreview />
       <OnboardingOverlay />
     </View>
   );

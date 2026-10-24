@@ -217,6 +217,16 @@ test("the peek panel covers the page up to its right edge, only while it's out",
   assert.equal(dm.overPeek("w1", 120), false);
 });
 
+test("a peek panel docked at the right covers the page from its left edge to the window's right", () => {
+  dm.setPeekShown("w1", true, Infinity, 1280 - 5 - 240);
+  assert.equal(dm.overPeek("w1", 1034.5), false);
+  assert.equal(dm.overPeek("w1", 1035), true);
+  assert.equal(dm.overPeek("w1", 1279), true);
+  assert.equal(dm.overPeek("w1", 120), false);
+  dm.setPeekShown("w1", false);
+  assert.equal(dm.overPeek("w1", 1100), false);
+});
+
 test("Arc's layout keeps the address bar in a hidden sidebar (no toolbar on the card); Dia's layout and the switch off don't", async () => {
   const { addressBarInSidebar } = await import("./windowLayout.ts");
   const { reloadSwitches } = await import("../../lib/killSwitches.ts");

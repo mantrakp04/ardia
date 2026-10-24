@@ -313,6 +313,7 @@ const BODIES: readonly string[] = [
   "<path d=\"M12 19a1 1 0 0 1 .993 .883l.007 .117v1a1 1 0 0 1 -1.993 .117l-.007 -.117v-1a1 1 0 0 1 1 -1z\" /><path d=\"M18.313 16.91l.094 .083l.7 .7a1 1 0 0 1 -1.32 1.497l-.094 -.083l-.7 -.7a1 1 0 0 1 1.218 -1.567l.102 .07z\" /><path d=\"M7.007 16.993a1 1 0 0 1 .083 1.32l-.083 .094l-.7 .7a1 1 0 0 1 -1.497 -1.32l.083 -.094l.7 -.7a1 1 0 0 1 1.414 0z\" /><path d=\"M4 11a1 1 0 0 1 .117 1.993l-.117 .007h-1a1 1 0 0 1 -.117 -1.993l.117 -.007h1z\" /><path d=\"M21 11a1 1 0 0 1 .117 1.993l-.117 .007h-1a1 1 0 0 1 -.117 -1.993l.117 -.007h1z\" /><path d=\"M6.213 4.81l.094 .083l.7 .7a1 1 0 0 1 -1.32 1.497l-.094 -.083l-.7 -.7a1 1 0 0 1 1.217 -1.567l.102 .07z\" /><path d=\"M19.107 4.893a1 1 0 0 1 .083 1.32l-.083 .094l-.7 .7a1 1 0 0 1 -1.497 -1.32l.083 -.094l.7 -.7a1 1 0 0 1 1.414 0z\" /><path d=\"M12 2a1 1 0 0 1 .993 .883l.007 .117v1a1 1 0 0 1 -1.993 .117l-.007 -.117v-1a1 1 0 0 1 1 -1z\" /><path d=\"M12 7a5 5 0 1 1 -4.995 5.217l-.005 -.217l.005 -.217a5 5 0 0 1 4.995 -4.783z\" />",
   "<rect x=\"5.72\" y=\"5.72\" width=\"20.56\" height=\"20.56\" rx=\"2.99\"/>",
   "<path d=\"M8.51 16.51A0.51 0.51 0 0 1 9.02 16H22.98A0.51 0.51 0 0 1 23.49 16.51\" fill=\"none\"/><path d=\"M11.05 13.04A0.51 0.51 0 0 1 11.56 12.54H20.44A0.51 0.51 0 0 1 20.95 13.04\" fill=\"none\"/>",
+  "<rect x=\"3.02\" y=\"6.1\" width=\"25.96\" height=\"19.8\" rx=\"3.99\"/><path d=\"M12.13 6.1L12.13 25.9\"/><path d=\"M6.29 10.78L8.91 10.78\" stroke-width=\"1.23\"/><path d=\"M6.29 13.81L8.91 13.81\" stroke-width=\"1.23\"/><path d=\"M6.29 16.85L8.91 16.85\" stroke-width=\"1.23\"/>",
 ];
 
 const ENCODED: Record<string, readonly EncodedLayer[]> = {
@@ -547,6 +548,7 @@ const ENCODED: Record<string, readonly EncodedLayer[]> = {
   "shield.lefthalf.filled": [[245,24,1,1,0,[[1.1012,1.015,0.0204,-0.0145,0,0,1],[1.1087,1,-0.0096,-0.0249,0,0,1],[1.1106,1.01,-0.0096,-0.0295,0.0127,0,1],[1.105,1.0075,-0.0068,-0.0324,0.0173,0,1],[1.1088,1.01,-0.0021,0.0014,0.024,0,1]]]],
   "shippingbox": [[246,24,0,1,0,[[1.1967,1.0225,-0.0122,-0.0108,0.0597,0,1],[1.191,1.0175,-0.0075,0.0164,0.0778,0,1],[1.191,1.0175,-0.0037,0.0127,0.0913,0,1],[1.1835,1.0175,0.0019,0.0089,0.1018,0,1],[1.1817,1.0175,0.0047,0.0052,0.1153,0,1]]]],
   "sidebar.left": [[247,32,0,1,0,[[1.3408,1,-0.0103,0.0009,0.0575,0,1],[1.3333,1,0,-0.0075,0.077,0,1],[1.3221,1,0.0075,-0.0131,0.0973,0,1],[1.309,0.995,0.0075,-0.0188,0.1123,0,1],[1.2958,0.995,0.0094,0.0131,0.128,0,1]]]],
+  "sidebar.right": [[309,32,0,1,0,[[1.3408,1.01,0.0038,0,0.0657,0,-1],[1.3333,1,0,-0.0075,0.077,0,-1],[1.3183,0.9975,0,-0.0141,0.0988,0,-1],[1.3108,0.9925,0,-0.0169,0.1123,0,-1],[1.2996,0.9875,0.0038,0.015,0.1295,0,-1]]]],
   "slider.horizontal.3": [[248,32,0,1,0,[[1.3315,0.9725,-0.0103,0,0.0522,0,1],[1.3333,0.9725,-0.0075,-0.0075,0.0672,0,1],[1.3708,0.9725,0.0047,0.015,0.0808,0,1],[1.4065,0.9925,0.0131,0.0066,0.0793,0,1],[1.3933,0.97,-0.0112,-0.0066,0.104,0,1]]]],
   "snowflake": [[249,24,0,1,0,[[1.0567,0.98,0.007,-0.0061,0.0538,0,1],[1.068,0.98,0.0145,-0.0117,0.068,0,1],[1.0792,0.9775,-0.0164,0.0183,0.0763,0,1],[1.0848,0.98,-0.0117,0.0145,0.083,0,1],[1.0961,0.98,-0.0023,0.007,0.0905,0,1]]]],
   "sparkles": [[250,24,0,1,0,[[0.8892,0.9725,-0.0401,0.0647,0.0935,0,1],[0.9192,0.9975,-0.0391,0.06,0.101,0,1],[0.9492,1.0575,-0.0391,0.0563,0.107,0,1],[0.9304,0.9575,-0.0569,0.0431,0.116,0,1],[0.9567,1.0075,-0.0579,0.0412,0.1235,0,1]]]],
@@ -857,6 +859,7 @@ const NUDGES: Record<string, string> = {
   "shield.lefthalf.filled": "eaaadeaccaffabefdfgcbgfc9dghah9ebeaffaaadebcdbgfbbffeg9cdggcad9hchaedecffaaaeebcdb9fcbffefacdg9cbdahdhbeeedfffbfebc9ef9bdfgbfbbfebafcfbaeadefeed",
   "shippingbox": "ccgcc7adcbg6cahegdc9gcc8g7gac9ccgbgaccgcc7adcbgfcagdhdc9gcc8g7gad9cchbgacc8cc8adcb8eca7d7db98cc8778ac9cc8b8acc8cc7adcb8fca8d8dc88cc8878ac9cc8b8a",
   "sidebar.left": "9cecb99gbcf9ce99abefbcfgc9efbfccaebe9cdcbh9fbdf9be8a8befacfgbhdeafbc8cad9cecah8fbdfhce9a9bdfacfgchdebgcc9cae99e9ad8cbageca9e9eebb7fbdbe7c8cc9cbd",
+  "sidebar.right": "9ceca98gacf9ce9a9befbcfgc9efbfcc9eae9cecah9fbdg9ce9a9befbcfgdheebfccacbd9becah9ebdghce9b9begbcffdheecfdcadbd99e9ae9bb9geca9d9edba6fbcbd8a7cc9cad",
   "slider.horizontal.3": "cefecb9bcgfebaffffccfhbefffdbebcfcffbc7cb997bd7abe7a7bb87cb87977b7bc6666bc8cb99fbd8abf7b7bb87ba8797eb8ac6e6eecace9cffdbafebbbbgfccggd9deafacfcfe",
   "snowflake": "b9e9ed8b99de8abe7e6aaedacb7f5fcc7c6cdf9fhab8degacegababdf9adidd9d8ccfcfbef9e9ab8degacegac9bdf9bdadd8d8ccgbfbdf9f9ab8cegacefababdf9adadd8c8ccbbeb",
   "sparkles": "cdgdcgeegckfjbfejegakdkhkgjbnbnejdjcddhdcgfegcdflbhelehaldlhlglchboemdmdeeidehgfidfgfcjgnfkjofojoioemlmgogoffdjdfhhfjcgggckghgljhfojoiolologogon",

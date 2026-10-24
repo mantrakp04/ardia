@@ -12,9 +12,12 @@ import { toolbarPalette, type ToolbarPalette } from "../layout/toolbarColors";
 import { ToolbarButton, type ButtonHit } from "../layout/controls";
 import { addressBarInSidebar, setUrlAnchor, SIDEBAR_FIELD } from "../layout/windowLayout";
 import { FIELD_GLASS_HOVER_OPACITY, FIELD_GLASS_OPACITY, GlassFill, liquidGlass } from "../glass";
+import { useSidebarOnRight } from "./tokens";
+import { useSideSwitchAnchor } from "./sideSwitchAnchor";
 import { useHover } from "../primitives";
 import { GLYPH, HistoryButton, ReloadButton, UrlField, useToolbarTab } from "../Toolbar";
-import { ARC_LIGHTS_CENTER, HEADER_TOOLS, navButtonsFitting, type HeaderButton } from "../layout/dockMotion";
+import { ARC_LIGHTS_CENTER, dockMoving, HEADER_TOOLS, navButtonsFitting, type HeaderButton } from "../layout/dockMotion";
+import { SidebarToggleButton } from "../layout/SidebarToggle";
 
 const BUTTON = layout.toolbarButton;
 const { toggleX: TOGGLE_X, edge: EDGE } = HEADER_TOOLS;
@@ -27,11 +30,13 @@ export function SidebarHeaderTools({ width }: { width: number }) {
   const tab = useToolbarTab(useActiveTabId());
   const palette = toolbarPalette(useTheme(), null);
   const toggle = useBrowser((s) => s.settings.showSidebarButton !== false);
-  const { buttons, step } = navButtonsFitting(width, BUTTON, toggle);
+  const right = useSidebarOnRight(windowId);
+  const toggleX = right ? EDGE + BUTTON / 2 : TOGGLE_X;
+  const { buttons, step } = navButtonsFitting(width, BUTTON, toggle, toggleX);
   const shown = tab ? buttons : [];
   const last = width - EDGE - BUTTON / 2;
   const centres = shown.map((_, i) => last - (shown.length - 1 - i) * step);
-  const at = toggle ? [TOGGLE_X, ...centres] : centres;
+  const at = toggle ? [toggleX, ...centres] : centres;
   const place = (center: number) => ({
     style: { position: "absolute" as const, top: LIGHTS_Y - PLATE / 2, left: center - PLATE / 2 },
     hit: { width: PLATE, height: PLATE, plateX: 0, plateY: 0, box: PLATE, radius: PLATE_RADIUS },
@@ -39,13 +44,11 @@ export function SidebarHeaderTools({ width }: { width: number }) {
   return (
     <>
       {toggle && (
-        <ToolbarButton
+        <SidebarToggleButton
           {...place(at[0]!)}
+          windowId={windowId}
           palette={palette}
-          icon="sidebar.left"
           size={GLYPH}
-          onPress={() => useBrowser.getState().toggleSidebar(windowId)}
-          tooltip="Auto-Hide Tabs (⌘S)"
         />
       )}
       {tab ? <NavigationButtons tab={tab} palette={palette} buttons={shown} slots={at.slice(toggle ? 1 : 0).map(place)} /> : null}
@@ -94,10 +97,12 @@ export function SidebarAddressRow({ width }: { width: number }) {
   const windowId = useWindowId();
   const tab = useToolbarTab(useActiveTabId());
   const field = useRef<View>(null);
+  const right = useSidebarOnRight(windowId);
   const anchor = () =>
     field.current?.measureInWindow((x, y, width, height) => {
-      if (width && addressBarInSidebar(useBrowser.getState(), windowId)) setUrlAnchor(windowId, { left: x, top: y, width, sidebar: { height } });
+      if (width && !(right && dockMoving(windowId)) && addressBarInSidebar(useBrowser.getState(), windowId)) setUrlAnchor(windowId, { left: x, top: y, width, sidebar: { height } });
     });
+  useSideSwitchAnchor(windowId, right, anchor);
 
   return (
     <View

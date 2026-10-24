@@ -6,6 +6,8 @@ import { activeTab, bookmarkProfileId, isPinnedRow, pinnedSectionTitle } from ".
 import { canTidyPins } from "../../store/tidyPins";
 import type { Tab } from "../../store/types";
 import { organizeActions } from "./organizeActions";
+import { sidebarGlyph } from "../layout/sidebarMove";
+import { sidebarOnRight } from "../sidebar/tokens";
 
 type Context = { s: BrowserState; windowId: string; tab: Tab | undefined };
 
@@ -13,7 +15,7 @@ type ActionDef = {
   command: BrowserCommand;
   arg?: string;
   title: string | ((c: Context) => string);
-  icon: string;
+  icon: string | ((c: Context) => string);
   hint?: string;
   keywords?: string[];
   needs?: "page" | "tab" | "profiles" | "pins";
@@ -71,7 +73,7 @@ const DEFS: ActionDef[] = [
   { command: "zoomReset", title: "Actual Size", icon: "1.magnifyingglass", hint: "⌘0", keywords: ["reset zoom"], needs: page },
   { command: "devTools", title: "Developer Tools", icon: "hammer", hint: "⌥⌘I", keywords: ["inspect", "devtools", "console"], needs: page },
   { command: "toggleFullUrl", title: ({ s }) => (s.settings.showFullUrl ? "Hide Full URL" : "Show Full URL"), icon: "text.alignleft" },
-  { command: "toggleSidebar", title: "Auto-Hide Tabs", icon: "sidebar.left", hint: "⌘S", keywords: ["toggle sidebar", "hide sidebar", "show sidebar", "focus mode"] },
+  { command: "toggleSidebar", title: "Auto-Hide Tabs", icon: ({ s, windowId }) => sidebarGlyph(sidebarOnRight(s, windowId)), hint: "⌘S", keywords: ["toggle sidebar", "hide sidebar", "show sidebar", "focus mode"] },
   { command: "toggleBookmarksBar", title: "Toggle Bookmarks Bar", icon: "menubar.rectangle", hint: "⇧⌘B", keywords: ["bookmarks bar"] },
   { command: "downloads", title: "Downloads", icon: "arrow.down.circle", hint: "⇧⌘J", keywords: ["show downloads", "dl"] },
   { command: "showHistory", title: "History", icon: "clock", hint: "⌘Y", keywords: ["show history"] },
@@ -102,7 +104,7 @@ export function barActions(s: BrowserState, windowId: string): CommandAction[] {
     out.push({
       id: actionId(d),
       title: typeof d.title === "string" ? d.title : d.title(c),
-      icon: d.icon,
+      icon: typeof d.icon === "string" ? d.icon : d.icon(c),
       ...(d.hint ? { hint: d.hint } : {}),
       ...(d.keywords ? { keywords: d.keywords } : {}),
     });

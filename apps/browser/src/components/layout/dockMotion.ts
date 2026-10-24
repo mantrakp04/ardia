@@ -39,7 +39,7 @@ export function lightsCenter(offset: number, down = 0, base: readonly [number, n
 
 export const cardLeft = (dock: number, width: number, inset: number) => inset + (width - inset) * dock;
 
-type DockMotion = { moving: Record<string, true>; peeks: Record<string, number> };
+type DockMotion = { moving: Record<string, true>; peeks: Record<string, readonly [number, number]> };
 export const useDockMotion = create<DockMotion>()(() => ({ moving: {}, peeks: {} }));
 
 export const dockMoving = (windowId: string) => !!useDockMotion.getState().moving[windowId];
@@ -53,15 +53,22 @@ export function setDockMoving(windowId: string, moving: boolean) {
   });
 }
 
-export function setPeekShown(windowId: string, shown: boolean, rightEdge = 0) {
+export function setPeekShown(windowId: string, shown: boolean, rightEdge = 0, leftEdge = -Infinity) {
   const current = useDockMotion.getState().peeks;
-  if (shown ? current[windowId] === rightEdge : !(windowId in current)) return;
+  const span = current[windowId];
+  if (shown ? span?.[0] === leftEdge && span[1] === rightEdge : !span) return;
   const { [windowId]: _, ...rest } = current;
-  useDockMotion.setState({ peeks: shown ? { ...current, [windowId]: rightEdge } : rest });
+  useDockMotion.setState({ peeks: shown ? { ...current, [windowId]: [leftEdge, rightEdge] } : rest });
 }
 export const peekShown = (windowId: string) => windowId in useDockMotion.getState().peeks;
-export const overPeek = (windowId: string, x: number) => x < (useDockMotion.getState().peeks[windowId] ?? -Infinity);
-export const usePeekEdge = (windowId: string): number | undefined => useDockMotion((m) => m.peeks[windowId]);
+export const overPeek = (windowId: string, x: number) => {
+  const span = useDockMotion.getState().peeks[windowId];
+  return !!span && x >= span[0] && x < span[1];
+};
+export const usePeekEdge = (windowId: string): number | undefined =>
+  useDockMotion((m) => (m.peeks[windowId]?.[0] === -Infinity ? m.peeks[windowId]![1] : undefined));
+export const usePeekStart = (windowId: string): number | undefined =>
+  useDockMotion((m) => (m.peeks[windowId]?.[1] === Infinity ? m.peeks[windowId]![0] : undefined));
 export const devPeeks: Record<string, { show(): void; hide(): void }> = {};
 
 export const HEADER_TOOLS = { toggleX: 70.75 + 27, pitch: 35, edge: 7, lightsRight: 70.75 + 7 } as const;
@@ -70,8 +77,8 @@ export const HEADER_MIN_GAP = 2;
 
 export type HeaderButton = "back" | "forward" | "reload";
 
-export function navButtonsFitting(width: number, button = 30, toggle = true): { buttons: HeaderButton[]; step: number } {
-  const { toggleX, pitch, edge } = HEADER_TOOLS;
+export function navButtonsFitting(width: number, button = 30, toggle = true, toggleX = HEADER_TOOLS.toggleX): { buttons: HeaderButton[]; step: number } {
+  const { pitch, edge } = HEADER_TOOLS;
   const span = width - edge - button / 2 - (toggle ? toggleX : toggleX - pitch);
   const count = Math.max(0, Math.min(3, Math.floor(span / (button + HEADER_MIN_GAP))));
   const buttons: HeaderButton[] = count === 3 ? ["back", "forward", "reload"] : count === 2 ? ["back", "forward"] : count === 1 ? ["back"] : [];

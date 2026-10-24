@@ -1,5 +1,6 @@
+import { switchOn } from "../../lib/killSwitches";
 import { layout, useTheme } from "../../lib/theme";
-import { useBrowser } from "../../store/browser";
+import { useBrowser, type BrowserState } from "../../store/browser";
 import type { GroupColor } from "../../store/types";
 import { useSidebarUi } from "./state";
 
@@ -106,6 +107,18 @@ export function withAlpha(hex: string, alpha: number): string {
 
 export const SIDEBAR_MIN_WIDTH = 160;
 export const SIDEBAR_MAX_WIDTH = 400;
+
+export function sidebarMayDockRight(s: BrowserState): boolean {
+  return s.settings.addressBar === "sidebar" && switchOn("sidebarSlide");
+}
+
+export function sidebarOnRight(s: BrowserState, windowId: string): boolean {
+  return s.settings.sidebarSide === "right" && sidebarMayDockRight(s) && (s.windows[windowId]?.tabLayout ?? s.settings.tabLayout) === "sidebar";
+}
+
+export function useSidebarOnRight(windowId: string): boolean {
+  return useBrowser((s) => sidebarOnRight(s, windowId));
+}
 
 export function useSidebarWidth(windowId: string): number {
   const saved = useBrowser((s) => s.settings.sidebarWidth ?? layout.sidebarWidth);

@@ -14,7 +14,7 @@ import { focusHeroBar } from "../omnibox/barState";
 import { clickTab, tabTitle } from "./actions";
 import { byRecentUse, groupTabIds, matchingRows, type GroupPanelTab } from "./groupPanelRows";
 import { cardHoverProps, dismissHover, holdHover } from "./hover";
-import { hoverCardOrigin } from "./hoverMotion";
+import { hoverCardOrigin, useLeftwardWidth } from "./hoverMotion";
 import { useSidebarUi, type Anchor } from "./state";
 import { TabIcon } from "./TabIcon";
 
@@ -68,7 +68,8 @@ export function GroupPanel({ groupId, windowId, anchor, windowHeight }: { groupI
   const current = Math.max(0, Math.min(selected, rows.length - 1));
   const listHeight = LIST_PAD * 2 + Math.max(1, Math.min(MAX_ROWS, all.length)) * ROW;
   const panelHeight = SEARCH_ROW + SEPARATOR + listHeight;
-  const at = hoverCardOrigin(anchor);
+  const leftward = useLeftwardWidth(WIDTH, anchor);
+  const at = hoverCardOrigin(anchor, undefined, leftward);
   const top = Math.max(EDGE, Math.min(at.top, windowHeight - panelHeight - EDGE));
 
   const takeFocus = () => {

@@ -285,6 +285,10 @@ final class MenuTarget: NSObject, NSMenuItemValidation {
       return Self.validateForwarded(menuItem, action)
     }
     if menuItem.action == #selector(closeWindow(_:)) { return WindowManager.shared.closableWindow != nil }
+    if let action = menuItem.action, let button = Self.windowButtons[action] {
+      guard let window = TrafficLights.hiddenButton(NSApp.target(forAction: action), button) else { return Self.validateForwarded(menuItem, action) }
+      return window.styleMask.contains(button == .zoomButton ? .resizable : .miniaturizable)
+    }
     if menuItem.action == #selector(toggleKeepOnTop(_:)) {
       guard let window = WindowManager.shared.keyBrowserWindow else { return false }
       menuItem.state = window.level == .floating ? .on : .off
@@ -312,7 +316,21 @@ final class MenuTarget: NSObject, NSMenuItemValidation {
   @objc func quit(_ sender: Any?) { WindowManager.shared.confirmQuit() }
   @objc func arrangeWindowsInFront(_ sender: Any?) { NSApp.arrangeInFront(sender) }
   @objc func toggleKeepOnTop(_ sender: Any?) { WindowManager.shared.toggleKeepOnTop() }
-  @objc func closeWindow(_ sender: Any?) { WindowManager.shared.closableWindow?.performClose(sender) }
+  @objc func closeWindow(_ sender: Any?) { TrafficLights.performClose(WindowManager.shared.closableWindow, sender: sender) }
+  @objc func performMiniaturize(_ sender: Any?) { performWindowButton(#selector(NSWindow.performMiniaturize(_:)), sender) { $0.miniaturize(sender) } }
+  @objc func performZoom(_ sender: Any?) { performWindowButton(#selector(NSWindow.performZoom(_:)), sender) { $0.zoom(sender) } }
+
+  private static let windowButtons: [Selector: NSWindow.ButtonType] = [
+    #selector(NSWindow.performMiniaturize(_:)): .miniaturizeButton, #selector(NSWindow.performZoom(_:)): .zoomButton,
+  ]
+
+  private func performWindowButton(_ action: Selector, _ sender: Any?, whileHidden: (NSWindow) -> Void) {
+    guard let button = Self.windowButtons[action], let window = TrafficLights.hiddenButton(NSApp.target(forAction: action), button) else {
+      NSApp.sendAction(action, to: nil, from: sender)
+      return
+    }
+    whileHidden(window)
+  }
 
   @objc func pasteAndMatchStyle(_ sender: Any?) {
     let web = Selector(("pasteAndMatchStyle:"))
@@ -603,15 +621,19 @@ enum MainMenu {
 
     profilesItem = sub("Profiles", [], menu: profiles)
     let minimizeAll = std("Minimize All", #selector(NSApplication.miniaturizeAll(_:)), "m", [.command, .option])
+    let minimize = std("Minimize", #selector(NSWindow.performMiniaturize(_:)), "m")
+    minimize.target = MenuTarget.shared
+    let zoom = std("Zoom", #selector(NSWindow.performZoom(_:)))
+    zoom.target = MenuTarget.shared
     let arrange = std("Arrange in Front", #selector(MenuTarget.arrangeWindowsInFront(_:)))
     arrange.target = MenuTarget.shared
     let keepOnTop = std("Keep Window on Top", #selector(MenuTarget.toggleKeepOnTop(_:)))
     keepOnTop.target = MenuTarget.shared
     minimizeAll.isAlternate = true
     let windowMenu = top("Window", [
-      std("Minimize", #selector(NSWindow.performMiniaturize(_:)), "m"),
+      minimize,
       minimizeAll,
-      std("Zoom", #selector(NSWindow.performZoom(_:))),
+      zoom,
       arrange,
       keepOnTop,
       .separator(),

@@ -131,6 +131,11 @@ const ROWS: Record<SettingsPane, Section[]> = {
           description: "A tab whose page isn't loaded, like a closed pinned tab or one restored after a relaunch, shows its icon faded, as sleeping tabs do. Clicking it loads the page.",
           keywords: ["unloaded", "asleep", "sleeping", "discarded", "dim", "grey", "gray", "inactive", "pinned", "closed"],
         },
+        sidebarSide: {
+          title: "Sidebar position",
+          description: "Which side of the window the sidebar docks on. Right needs the address bar in the sidebar (Appearance).",
+          keywords: ["right sidebar", "left sidebar", "dock", "side", "arc"],
+        },
       },
     },
     {

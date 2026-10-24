@@ -1,7 +1,9 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Animated, Easing } from "react-native";
+import { useWindowId } from "../../store/hooks";
 import { springConfig } from "../layout/dockMotion";
 import type { Anchor } from "./state";
+import { useSidebarOnRight } from "./tokens";
 
 export const HOVER_CARD_GAP = 8;
 export const HOVER_CARD_FROM_SCALE = 0.92;
@@ -12,8 +14,22 @@ export const HOVER_CARD_OUT_SPRING = { response: 0.2, damping: 0.6 } as const;
 
 const fade = Easing.bezier(...HOVER_CARD_FADE_CURVE);
 
-export function hoverCardOrigin(anchor: Anchor, edge = anchor.x + anchor.width): { left: number; top: number } {
-  return { left: edge + HOVER_CARD_GAP, top: Math.max(8, anchor.y - 6) };
+const measuredOnRight = new WeakMap<Anchor, boolean>();
+
+export function useAnchorOnRight(windowId: string, anchor: Anchor | undefined): boolean {
+  const right = useSidebarOnRight(windowId);
+  if (!anchor) return right;
+  if (!measuredOnRight.has(anchor)) measuredOnRight.set(anchor, right);
+  return measuredOnRight.get(anchor)!;
+}
+
+export function useLeftwardWidth(cardWidth: number, anchor: Anchor | undefined): number | undefined {
+  return useAnchorOnRight(useWindowId(), anchor) ? cardWidth : undefined;
+}
+
+export function hoverCardOrigin(anchor: Anchor, edge?: number, leftwardWidth?: number): { left: number; top: number } {
+  if (leftwardWidth !== undefined) return { left: (edge ?? anchor.x) - HOVER_CARD_GAP - leftwardWidth, top: Math.max(8, anchor.y - 6) };
+  return { left: (edge ?? anchor.x + anchor.width) + HOVER_CARD_GAP, top: Math.max(8, anchor.y - 6) };
 }
 
 function createMotion() {

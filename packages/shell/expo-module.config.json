@@ -26,7 +26,8 @@
       "TranslateModule",
       "WindowProfileModule",
       "CliModule",
-      "UserScriptsModule"
+      "UserScriptsModule",
+      "CardNotchModule"
     ]
   }
 }

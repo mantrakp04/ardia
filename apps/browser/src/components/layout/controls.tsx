@@ -6,14 +6,15 @@ import { Switch, switchEasing } from "../Switch";
 import { useHover } from "../primitives";
 import type { ToolbarPalette } from "./toolbarColors";
 
-export type ClickModifiers = { metaKey: boolean; altKey: boolean; shiftKey: boolean };
+export type ClickModifiers = { metaKey: boolean; altKey: boolean; shiftKey: boolean; ctrlKey?: boolean };
 export function modifiersOf(e: GestureResponderEvent | undefined): ClickModifiers {
   const n = (e?.nativeEvent ?? {}) as Partial<ClickModifiers>;
-  return { metaKey: !!n.metaKey, altKey: !!n.altKey, shiftKey: !!n.shiftKey };
+  return { metaKey: !!n.metaKey, altKey: !!n.altKey, shiftKey: !!n.shiftKey, ctrlKey: !!n.ctrlKey };
 }
 
 export function ToolbarButton({
   icon,
+  glyph,
   onPress,
   onLongPress,
   onContextMenu,
@@ -30,6 +31,7 @@ export function ToolbarButton({
   hit,
 }: {
   icon: string;
+  glyph?: ReactNode;
   onPress?: (modifiers: ClickModifiers) => void;
   onLongPress?: () => void;
   onContextMenu?: () => void;
@@ -60,7 +62,7 @@ export function ToolbarButton({
         backgroundColor: disabled ? undefined : pressed || active ? palette.pressed : hovered ? palette.hover : undefined,
       }}
     >
-      <Symbol name={icon} size={size} weight={weight} color={color ?? (disabled ? palette.iconDisabled : palette.icon)} style={{ width: hit?.box ?? box, height: hit?.box ?? box }} />
+      {glyph ?? <Symbol name={icon} size={size} weight={weight} color={color ?? (disabled ? palette.iconDisabled : palette.icon)} style={{ width: hit?.box ?? box, height: hit?.box ?? box }} />}
     </View>
   );
   const button = (
