@@ -26,8 +26,6 @@ export const PROFILE_SYMBOLS: { name: string; title: string }[] = [
   { name: "moon.stars.fill", title: "Evenings" },
 ];
 
-const EMOJI = ["😀", "😎", "🤓", "🧑‍💻", "💼", "🏠", "🎓", "🎨", "🎮", "🎵", "📚", "✈️", "🌱", "🔥", "⭐️", "🚀", "🐶", "🐱", "🦊", "🍀"];
-
 const SYMBOL_PREFIX = "symbol:";
 export const profileSymbol = (icon: string | null) => (icon?.startsWith(SYMBOL_PREFIX) ? icon.slice(SYMBOL_PREFIX.length) : null);
 
@@ -37,12 +35,7 @@ export function iconMenuItems(current: string | null): MenuItem[] {
     { separator: true },
     ...PROFILE_SYMBOLS.map((s) => ({ id: `icon:${SYMBOL_PREFIX}${s.name}`, title: s.title, symbol: s.name, checked: current === SYMBOL_PREFIX + s.name })),
     { separator: true },
-    {
-      id: "emoji",
-      title: "Emoji",
-      checked: !!current && !profileSymbol(current),
-      children: EMOJI.map((e) => ({ id: `icon:${e}`, title: e, checked: current === e })),
-    },
+    { id: "emoji", title: "Emoji…", checked: !!current && !profileSymbol(current) },
   ];
 }
 

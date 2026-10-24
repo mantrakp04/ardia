@@ -18,6 +18,8 @@ export type ShortcutModifier = "control" | "option" | "shift" | "command" | "fun
 
 type LaunchAtLoginStatus = "enabled" | "requiresApproval" | "notRegistered" | "notFound";
 
+export type EmojiAnchor = { x: number; y: number; width: number; height: number };
+
 const System = requireNativeModule<{
   backgroundInstance?: boolean;
   isDefaultBrowser(): Promise<boolean>;
@@ -34,6 +36,11 @@ const System = requireNativeModule<{
   menuShortcuts(): Promise<MenuShortcut[]>;
   recordShortcut(): Promise<{ key: string; modifiers: ShortcutModifier[] } | null>;
   cancelRecording(): Promise<void>;
+  pickEmoji(anchor: EmojiAnchor | null): Promise<string | null>;
+  cancelEmojiPick(): Promise<void>;
+  devInsertEmoji(text: string): Promise<boolean>;
+  devDismissEmojiPalette(): Promise<boolean>;
+  devEmojiReceiverState(): Promise<{ pending: boolean; receiverIsFirstResponder: boolean; hasView: boolean; receiverHit: boolean }>;
 }>("ArdiaSystem");
 
 export const backgroundInstance = System.backgroundInstance === true;
@@ -52,6 +59,11 @@ export const hapticTick = () => System.hapticTick();
 export const menuShortcuts = () => System.menuShortcuts();
 export const recordShortcut = () => System.recordShortcut();
 export const cancelShortcutRecording = () => System.cancelRecording();
+export const pickEmoji = (anchor: EmojiAnchor | null = null) => System.pickEmoji(anchor);
+export const cancelEmojiPick = () => System.cancelEmojiPick();
+export const devInsertEmoji = (text: string) => System.devInsertEmoji(text);
+export const devDismissEmojiPalette = () => System.devDismissEmojiPalette();
+export const devEmojiReceiverState = () => System.devEmojiReceiverState();
 
 export type MiddleClickEvent = { shiftKey: boolean; altKey: boolean; metaKey: boolean };
 

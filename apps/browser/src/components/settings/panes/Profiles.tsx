@@ -1,5 +1,5 @@
-import { ContextMenuArea, hapticTick, showMenu, Symbol } from "@ardia/shell";
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { cancelEmojiPick, ContextMenuArea, type EmojiAnchor, hapticTick, pickEmoji, showMenu, Symbol } from "@ardia/shell";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { createProfile, deleteProfile } from "../../../lib/actions";
@@ -248,6 +248,15 @@ export function ProfileDetailsPane({ profileId }: { profileId: string }) {
     return `${plural((s.history[profileId] ?? []).length, "page")} in history · ${plural(bookmarks, "bookmark")}`;
   });
   const [name, setName] = useState(profile?.name ?? "");
+  const iconAnchor = useRef<View>(null);
+  const pickGeneration = useRef(0);
+  useEffect(
+    () => () => {
+      pickGeneration.current++;
+      void cancelEmojiPick();
+    },
+    [profileId],
+  );
   if (!profile) return null;
   const update = (patch: Partial<Pick<Profile, "name" | "color" | "icon">>) => useBrowser.getState().updateProfile(profileId, patch);
   const commitName = () => (name.trim() ? update({ name: name.trim() }) : setName(profile.name));
@@ -255,7 +264,20 @@ export function ProfileDetailsPane({ profileId }: { profileId: string }) {
 
   const pickIcon = async () => {
     const choice = await showMenu(iconMenuItems(profile.icon));
-    if (choice?.startsWith("icon:")) update({ icon: choice.slice("icon:".length) || null });
+    if (choice === "emoji") {
+      const generation = pickGeneration.current;
+      const anchor = await new Promise<EmojiAnchor | null>((resolve) => {
+        const fallback = setTimeout(() => resolve(null), 500);
+        if (!iconAnchor.current) return resolve(null);
+        iconAnchor.current.measureInWindow((x, y, width, height) => {
+          clearTimeout(fallback);
+          resolve({ x, y, width, height });
+        });
+      });
+      if (generation !== pickGeneration.current) return;
+      const emoji = await pickEmoji(anchor);
+      if (emoji) update({ icon: emoji });
+    } else if (choice?.startsWith("icon:")) update({ icon: choice.slice("icon:".length) || null });
   };
 
   return (
@@ -273,7 +295,9 @@ export function ProfileDetailsPane({ profileId }: { profileId: string }) {
           <TextField value={name} onChangeText={setName} onSubmit={commitName} onBlur={commitName} style={{ width: 220 }} />
         </Row>
         <Row title="Icon" description={iconTitle(profile.icon)}>
-          <Button title="Change…" onPress={() => void pickIcon()} />
+          <View ref={iconAnchor} collapsable={false}>
+            <Button title="Change…" onPress={() => void pickIcon()} />
+          </View>
         </Row>
       </Group>
 
