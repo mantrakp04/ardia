@@ -161,6 +161,10 @@ const PinnedTile = memo(function PinnedTile({ tabId, width, sliding, x, y }: { t
   }, [x, y, width, sliding, dragging, position]);
   useEffect(() => () => position.stopAnimation(), [position]);
   const tileTheme = useTileTheme(tab?.url ?? "", tab?.favicon, tab?.customIcon, tab?.profileId ?? "");
+  const idleFill = hovered || selected ? theme.tabHover : theme.pinnedResting;
+  const idleBackground = useMemo(() => iconSurfaces(theme.windowTint, idleFill), [theme.windowTint, idleFill]);
+  const pressedBackground = useMemo(() => iconSurfaces(theme.windowTint, theme.tabPressed), [theme.windowTint, theme.tabPressed]);
+  const activeBackground = useMemo(() => iconSurfaces(theme.windowTint, theme.pinnedSelectedRim, theme.pinnedSelectedFill), [theme.windowTint, theme.pinnedSelectedRim, theme.pinnedSelectedFill]);
   if (!tab) return null;
   const radius = 10;
 
@@ -185,7 +189,8 @@ const PinnedTile = memo(function PinnedTile({ tabId, width, sliding, x, y }: { t
               }}
             >
               {({ pressed }) => {
-                const restingFill = pressed ? theme.tabPressed : hovered || selected ? theme.tabHover : theme.pinnedResting;
+                const restingFill = pressed ? theme.tabPressed : idleFill;
+                const restingBackground = pressed ? pressedBackground : idleBackground;
                 return liquidGlass ? (
                   <GlassTile tabId={tabId} width={width} active={active} selected={selected} pressed={pressed} fill={active ? theme.pinnedSelectedFill : restingFill} tileTheme={tileTheme} />
                 ) : active && tileTheme ? (
@@ -231,7 +236,7 @@ const PinnedTile = memo(function PinnedTile({ tabId, width, sliding, x, y }: { t
                       }}
                     >
                       <View>
-                        <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} background={iconSurfaces(theme.windowTint, theme.pinnedSelectedRim, theme.pinnedSelectedFill)} />
+                        <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} background={activeBackground} />
                         <TabBadges tabId={tabId} />
                       </View>
                     </View>
@@ -250,7 +255,7 @@ const PinnedTile = memo(function PinnedTile({ tabId, width, sliding, x, y }: { t
                     }}
                   >
                     <View>
-                      <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} background={iconSurfaces(theme.windowTint, restingFill)} />
+                      <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} background={restingBackground} />
                       <TabBadges tabId={tabId} />
                     </View>
                   </View>
@@ -290,6 +295,7 @@ function GlassTile({
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const tab = useTab(tabId);
+  const background = useMemo(() => iconSurfaces(theme.windowTint, fill), [theme.windowTint, fill]);
   if (!tab) return null;
   const radius = 10;
   return (
@@ -311,7 +317,7 @@ function GlassTile({
         <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: radius, borderWidth: 1, borderColor: tokens.dragBorder }]} />
       ) : null}
       <View>
-        <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} background={iconSurfaces(theme.windowTint, fill)} />
+        <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} background={background} />
         <TabBadges tabId={tabId} />
       </View>
     </View>
