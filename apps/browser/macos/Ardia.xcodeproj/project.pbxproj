@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		2FF0A6F31D6FB76878E63C5F /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 3E0CAE61008516DE07A12694 /* PrivacyInfo.xcprivacy */; };
+		3A851248431A4CC99AE8DF61 /* ArdiaDevIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 0D4D3FADE8794D388E625203 /* ArdiaDevIcon.icon */; };
 		32CC817DBABC4088BF1F2895 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 42108ADD054F481A9B60EC2B /* AppIcon.icon */; };
 		3FF132665BBAFDDFE46449C0 /* DisableFusebox.mm in Sources */ = {isa = PBXBuildFile; fileRef = E9A15241E979C9B4F4BB79D8 /* DisableFusebox.mm */; };
 		514201522437B4B40078DB4F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 514201512437B4B40078DB4F /* Assets.xcassets */; };
@@ -20,6 +21,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0D4D3FADE8794D388E625203 /* ArdiaDevIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = ArdiaDevIcon.icon; sourceTree = "<group>"; };
 		3E0CAE61008516DE07A12694 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = ../PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		42108ADD054F481A9B60EC2B /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		4F6F34DACD396890604E4F3F /* Ardia.sdef */ = {isa = PBXFileReference; includeInIndex = 1; path = Ardia.sdef; sourceTree = "<group>"; };
@@ -80,6 +82,7 @@
 			children = (
 				514201512437B4B40078DB4F /* Assets.xcassets */,
 				42108ADD054F481A9B60EC2B /* AppIcon.icon */,
+				0D4D3FADE8794D388E625203 /* ArdiaDevIcon.icon */,
 				514201562437B4B40078DB4F /* Info.plist */,
 				514201592437B4B40078DB4F /* Ardia.entitlements */,
 				DE21821D6B4527B7E023B602 /* main.swift */,
@@ -189,6 +192,7 @@
 			files = (
 				514201522437B4B40078DB4F /* Assets.xcassets in Resources */,
 				32CC817DBABC4088BF1F2895 /* AppIcon.icon in Resources */,
+				3A851248431A4CC99AE8DF61 /* ArdiaDevIcon.icon in Resources */,
 				2FF0A6F31D6FB76878E63C5F /* PrivacyInfo.xcprivacy in Resources */,
 				EB6C4E3A222E6D1BF85AB612 /* Ardia.sdef in Resources */,
 			);
@@ -380,13 +384,15 @@
 			buildSettings = {
 				ARCHS = arm64;
 				ARDIACORE_STAGE_DIR = "$(OBJROOT)/ArdiaCoreFramework";
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ARDIA_APP_NAME = "Ardia Dev";
+				ASSETCATALOG_COMPILER_APPICON_NAME = ArdiaDevIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "Ardia-macOS/Ardia.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 86;
 				DEAD_CODE_STRIPPING = NO;
+				EXCLUDED_SOURCE_FILE_NAMES = "$(inherited) AppIcon.icon";
 				DEVELOPMENT_TEAM = U5L5T3NGVV;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -401,7 +407,7 @@
 					"\"$(ARDIACORE_STAGE_DIR)/Chromium Framework.framework/Chromium Framework\"",
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
-				PRODUCT_BUNDLE_IDENTIFIER = com.ardia.browser;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ardia.browser.dev;
 				PRODUCT_NAME = Ardia;
 				SDKROOT = macosx;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -415,6 +421,7 @@
 			buildSettings = {
 				ARCHS = arm64;
 				ARDIACORE_STAGE_DIR = "$(OBJROOT)/ArdiaCoreFramework";
+				ARDIA_APP_NAME = Ardia;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = "Ardia-macOS/Ardia.entitlements";
@@ -422,6 +429,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 86;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				EXCLUDED_SOURCE_FILE_NAMES = "$(inherited) ArdiaDevIcon.icon";
 				DEVELOPMENT_TEAM = U5L5T3NGVV;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
