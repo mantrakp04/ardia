@@ -1,4 +1,5 @@
 import AppKit
+import Carbon
 import ExpoModulesCore
 import UniformTypeIdentifiers
 import ServiceManagement
@@ -119,7 +120,249 @@ public class SystemModule: Module {
 
     AsyncFunction("recordShortcut") { (promise: Promise) in ShortcutRecorder.shared.record(promise) }.runOnQueue(.main)
     AsyncFunction("cancelRecording") { ShortcutRecorder.shared.finish(nil) }.runOnQueue(.main)
+
+    AsyncFunction("pickEmoji") { (anchor: [String: Double]?, promise: Promise) in EmojiReceiver.shared.pick(anchor, promise) }.runOnQueue(.main)
+    AsyncFunction("cancelEmojiPick") { EmojiReceiver.shared.finish(nil) }.runOnQueue(.main)
+    AsyncFunction("devInsertEmoji") { (text: String) -> Bool in
+      #if DEBUG
+      return EmojiReceiver.shared.insert(text)
+      #else
+      return false
+      #endif
+    }.runOnQueue(.main)
+    AsyncFunction("devDismissEmojiPalette") { () -> Bool in
+      #if DEBUG
+      return EmojiReceiver.shared.dismissed()
+      #else
+      return false
+      #endif
+    }.runOnQueue(.main)
+    AsyncFunction("devEmojiReceiverState") { () -> [String: Any] in
+      #if DEBUG
+      return EmojiReceiver.shared.state()
+      #else
+      return [:]
+      #endif
+    }.runOnQueue(.main)
   }
+}
+
+enum EmojiText {
+  static func firstEmoji(in text: String) -> String? {
+    guard !text.isEmpty, text.allSatisfy(isEmoji) else { return nil }
+    return text.first.map(String.init)
+  }
+
+  private static func isModifier(_ scalar: Unicode.Scalar) -> Bool { (0x1F3FB...0x1F3FF).contains(scalar.value) }
+
+  private static func isEmoji(_ character: Character) -> Bool {
+    let scalars = character.unicodeScalars
+    guard let base = scalars.first(where: { $0.properties.isEmoji && ![0xFE0F, 0x200D, 0x20E3].contains($0.value) && !isModifier($0) }) else { return false }
+    return base.properties.isEmojiPresentation
+      || scalars.contains { $0.value == 0xFE0F || $0.value == 0x200D || $0.value == 0x20E3 || isModifier($0) }
+  }
+}
+
+final class EmojiReceiver {
+  static let shared = EmojiReceiver()
+  private static let background = ProcessInfo.processInfo.environment["ARDIA_BACKGROUND"] == "1"
+  private static let timeout: TimeInterval = 300
+  private var promise: Promise?
+  private var view: EmojiReceiverView?
+  private var monitor: Any?
+  private var timer: Timer?
+  private var poll: Timer?
+  private var paletteSeen = false
+  private var paletteMisses = 0
+  private var palettePids: Set<Int32> = []
+  private var closeObserver: NSObjectProtocol?
+  private weak var previous: NSResponder?
+  private var previousSelection: NSRange?
+
+  func pick(_ anchor: [String: Double]?, _ promise: Promise) {
+    finish(nil)
+    guard let window = WindowManager.shared.windows["settings"], window.isKeyWindow || Self.background, let content = window.contentView else {
+      promise.resolve(nil)
+      return
+    }
+    let width = anchor?["width"] ?? 1, height = anchor?["height"] ?? 1
+    let x = anchor?["x"] ?? 0
+    let top = anchor?["y"] ?? 0
+    let frame = NSRect(x: x, y: content.isFlipped ? top : content.bounds.height - top - height, width: max(width, 1), height: max(height, 1))
+    let receiver = EmojiReceiverView(frame: frame)
+    receiver.onText = { [weak self] text in
+      guard let self, !self.insert(text), !(self.promise != nil && !Self.background && Self.paletteVisible(pids: self.palettePids)) else { return }
+      self.finish(nil, replaying: NSApp.currentEvent)
+    }
+    receiver.onCommand = { [weak self] in self?.finish(nil, replaying: NSApp.currentEvent) }
+    let editor = window.firstResponder as? NSText
+    previous = (editor?.delegate as? NSResponder) ?? window.firstResponder
+    previousSelection = editor?.selectedRange
+    content.addSubview(receiver)
+    self.promise = promise
+    view = receiver
+    window.makeFirstResponder(receiver)
+    closeObserver = NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { [weak self] _ in
+      self?.finish(nil)
+    }
+    monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] event in
+      if event.type != .keyDown || event.keyCode == 53 { self?.finish(nil) }
+      return event
+    }
+    timer = Timer.scheduledTimer(withTimeInterval: Self.timeout, repeats: false) { [weak self] _ in self?.finish(nil) }
+    if Self.background {
+      NSLog("[emoji] palette not opened in a background instance")
+    } else {
+      paletteSeen = false
+      paletteMisses = 0
+      palettePids = Self.palettePids()
+      let healed = Self.stuckPaletteSource(selected: Self.paletteSelected(), windowShown: Self.paletteVisible(pids: palettePids))
+      if healed { Self.closePalette() }
+      poll = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in self?.watchPalette() }
+      DispatchQueue.main.asyncAfter(deadline: .now() + (healed ? 0.15 : 0)) { [weak self] in
+        if self?.promise != nil { NSApp.orderFrontCharacterPalette(nil) }
+      }
+    }
+  }
+
+  private static let paletteInputSourceID = "com.apple.CharacterPaletteIM"
+
+  private static func paletteSources() -> [TISInputSource] {
+    let filter = [kTISPropertyInputSourceID as String: paletteInputSourceID] as CFDictionary
+    return TISCreateInputSourceList(filter, true)?.takeRetainedValue() as? [TISInputSource] ?? []
+  }
+
+  static func paletteSelected() -> Bool {
+    paletteSources().contains { source in
+      guard let value = TISGetInputSourceProperty(source, kTISPropertyInputSourceIsSelected) else { return false }
+      return (Unmanaged<AnyObject>.fromOpaque(value).takeUnretainedValue() as? NSNumber)?.boolValue ?? false
+    }
+  }
+
+  static func palettePids() -> Set<Int32> {
+    Set(NSRunningApplication.runningApplications(withBundleIdentifier: paletteInputSourceID).map(\.processIdentifier))
+  }
+
+  private static func displayBounds() -> [CGRect] {
+    var count: UInt32 = 0
+    CGGetActiveDisplayList(0, nil, &count)
+    var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
+    CGGetActiveDisplayList(count, &ids, &count)
+    return ids.prefix(Int(count)).map { CGDisplayBounds($0) }
+  }
+
+  static func paletteVisible(pids: Set<Int32>) -> Bool {
+    guard !pids.isEmpty else { return false }
+    let windows = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
+    let displays = displayBounds()
+    return windows.contains { window in
+      guard let pid = window[kCGWindowOwnerPID as String] as? Int32, pids.contains(pid),
+        let boundsInfo = window[kCGWindowBounds as String] as? [String: Double],
+        let bounds = CGRect(dictionaryRepresentation: boundsInfo as CFDictionary),
+        bounds.width > 40, bounds.height > 40
+      else { return false }
+      if window[kCGWindowIsOnscreen as String] as? Bool == true { return true }
+      return displays.contains { $0.contains(bounds) }
+    }
+  }
+
+  static func stuckPaletteSource(selected: Bool, windowShown: Bool) -> Bool { selected && !windowShown }
+
+  private func watchPalette() {
+    if palettePids.isEmpty { palettePids = Self.palettePids() }
+    if Self.paletteVisible(pids: palettePids) {
+      paletteSeen = true
+      paletteMisses = 0
+    } else if paletteSeen {
+      paletteMisses += 1
+      if paletteMisses >= 2 { finish(nil) }
+    }
+  }
+
+  static func closePalette() {
+    for source in paletteSources() { TISDeselectInputSource(source) }
+  }
+
+  @discardableResult
+  func insert(_ text: String) -> Bool {
+    guard promise != nil, let emoji = EmojiText.firstEmoji(in: text) else { return false }
+    finish(emoji)
+    if !Self.background { Self.closePalette() }
+    return true
+  }
+
+  func dismissed() -> Bool {
+    guard promise != nil else { return false }
+    finish(nil)
+    return true
+  }
+
+  func state() -> [String: Any] {
+    let window = WindowManager.shared.windows["settings"]
+    var hit = false
+    if let view, let superview = view.superview { hit = superview.hitTest(NSPoint(x: view.frame.midX, y: view.frame.midY)) === view }
+    return ["pending": promise != nil, "receiverIsFirstResponder": view != nil && window?.firstResponder === view, "hasView": view != nil, "receiverHit": hit]
+  }
+
+  func finish(_ emoji: String?, replaying event: NSEvent? = nil) {
+    let pending = promise
+    promise = nil
+    if let monitor { NSEvent.removeMonitor(monitor) }
+    monitor = nil
+    timer?.invalidate()
+    timer = nil
+    poll?.invalidate()
+    poll = nil
+    if let closeObserver { NotificationCenter.default.removeObserver(closeObserver) }
+    closeObserver = nil
+    let receiver = view
+    view = nil
+    receiver?.onText = nil
+    receiver?.onCommand = nil
+    if let receiver, let window = receiver.window {
+      if window.firstResponder === receiver {
+        window.makeFirstResponder(previous)
+        if let editor = window.firstResponder as? NSText, let range = previousSelection, NSMaxRange(range) <= (editor.string as NSString).length {
+          editor.selectedRange = range
+        }
+      }
+    }
+    let replay = event?.type == .keyDown ? event : nil
+    DispatchQueue.main.async {
+      receiver?.removeFromSuperview()
+      if let replay { NSApp.sendEvent(replay) }
+    }
+    previous = nil
+    previousSelection = nil
+    pending?.resolve(emoji)
+  }
+}
+
+final class EmojiReceiverView: NSView, NSTextInputClient {
+  var onText: ((String) -> Void)?
+  var onCommand: (() -> Void)?
+
+  override var acceptsFirstResponder: Bool { true }
+  override func hitTest(_ point: NSPoint) -> NSView? { nil }
+  override func doCommand(by selector: Selector) { onCommand?() }
+  override func keyDown(with event: NSEvent) { interpretKeyEvents([event]) }
+
+  func insertText(_ string: Any, replacementRange: NSRange) {
+    let text = (string as? NSAttributedString)?.string ?? (string as? String) ?? ""
+    onText?(text)
+  }
+  func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {}
+  func unmarkText() {}
+  func selectedRange() -> NSRange { NSRange(location: NSNotFound, length: 0) }
+  func markedRange() -> NSRange { NSRange(location: NSNotFound, length: 0) }
+  func hasMarkedText() -> Bool { false }
+  func attributedSubstring(forProposedRange range: NSRange, actualRange: NSRangePointer?) -> NSAttributedString? { nil }
+  func validAttributesForMarkedText() -> [NSAttributedString.Key] { [] }
+  func firstRect(forCharacterRange range: NSRange, actualRange: NSRangePointer?) -> NSRect {
+    guard let window else { return .zero }
+    return window.convertToScreen(convert(bounds, to: nil))
+  }
+  func characterIndex(for point: NSPoint) -> Int { NSNotFound }
 }
 
 final class ShortcutRecorder {
