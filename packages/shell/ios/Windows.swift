@@ -404,8 +404,8 @@ final class WindowManager: NSObject, NSWindowDelegate {
       return completion()
     }
     closingWindows[id] = [completion]
-    unrevealed.removeValue(forKey: id)
     if keyOnReveal === window { keyOnReveal = nil }
+    if let waiting = unrevealed.removeValue(forKey: id) { waiting.forEach { $0() } }
     if typeAhead?.window === window { endTypeAhead(send: false) }
     let finish: () -> Void = { [weak self] in
       guard let self else { return completion() }

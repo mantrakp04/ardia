@@ -1757,6 +1757,9 @@ NSView *ACWindowRootView(NSWindow *window) {
   [CATransaction commit];
   [CATransaction flush];
   window.alphaValue = 1;
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    SettleLittleEntrance(weakWindow, weakEntrance);
+  });
 }
 
 + (BOOL)prepareLittlePageReveal:(NSView *)page {

@@ -777,7 +777,9 @@ enum KeyEquivalents {
     let hit = content.superview.flatMap { $0.hitTest(point) }
     var result: [String: Any] = ["firstResponder": responderName(), "hit": hit.map { String(describing: type(of: $0)) } ?? "nil"]
     let restoreKeyWindow = click["asKey"] as? Bool == false ? nil : standInKeyWindow(window)
-    let drag = (click["drag"] as? [Double]).flatMap { $0.count == 2 ? NSPoint(x: point.x + $0[0], y: point.y - $0[1]) : nil }
+    if click["drag"] != nil, (click["drag"] as? [Double])?.count != 2 { restoreKeyWindow?(); return done(["error": "drag must be [dx, dy]"]) }
+    let drag = (click["drag"] as? [Double]).map { NSPoint(x: point.x + $0[0], y: point.y - $0[1]) }
+    let queued = click["queued"] as? Bool == true || drag != nil
     let steps: [(NSEvent.EventType, NSPoint)] = [(.leftMouseDown, point)] + (drag.map { [(.leftMouseDragged, $0)] } ?? []) + [(.leftMouseUp, drag ?? point)]
     for (type, location) in steps {
       guard let event = NSEvent.mouseEvent(
@@ -785,7 +787,7 @@ enum KeyEquivalents {
         windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: type == .leftMouseUp ? 0 : 1)
       else { return done(["error": "no mouse event"]) }
       if type == .leftMouseUp { result["at"] = event.timestamp * 1000 }
-      if click["queued"] as? Bool == true { NSApp.postEvent(event, atStart: false) } else { NSApp.sendEvent(event) }
+      if queued { NSApp.postEvent(event, atStart: false) } else { NSApp.sendEvent(event) }
     }
     result["firstResponderOnClick"] = responderName()
     DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(click["wait"] as? Int ?? 250)) {

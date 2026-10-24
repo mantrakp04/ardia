@@ -540,7 +540,7 @@
     if (littlePagePainted) return send("littlePageReady", { url: location.href });
     if (littlePaintObserver) return;
     const ready = () => {
-      if (littlePaintObserver) littlePaintObserver.disconnect();
+      if (littlePaintObserver) apply(disconnect, littlePaintObserver, []);
       littlePagePainted = true;
       send("littlePageReady", { url: location.href });
     };
