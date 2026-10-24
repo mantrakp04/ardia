@@ -418,3 +418,15 @@ test("Clear keeps the selected tab's split and tabs playing audio, and opens no 
   assert.equal(S().clearUnpinnedTabs(w), null, "the selected tab alone has nothing to clear");
   assert.deepEqual(hosts(w), ["e"]);
 });
+
+test("Clear keeps an unpinned pane split with the selected pinned tab", () => {
+  reset();
+  const [w, a, b, c] = setup("a", "b", "c");
+  S().pinTabs([a], true);
+  S().createSplit([a, b]);
+  S().activate(a);
+  assert.deepEqual(organize.clearedTabIds(S(), w), [c]);
+  S().clearUnpinnedTabs(w);
+  assert.ok(S().tabs[b], "the split's other pane stays");
+  assert.ok(Object.values(S().splits).some((v) => v.tabIds.includes(a) && v.tabIds.includes(b)), "the split stays whole");
+});

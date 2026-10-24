@@ -110,10 +110,9 @@ export function unpinnedTabIds(s: BrowserState, windowId: string): string[] {
 }
 
 export function clearedTabIds(s: BrowserState, windowId: string): string[] {
-  const unpinned = unpinnedTabIds(s, windowId);
   const active = activeTabId(s, windowId);
-  const kept = new Set(unpinned.filter((id) => id === active || s.live[id]?.playingAudio).flatMap((id) => splitOf(s, id)?.tabIds ?? [id]));
-  return unpinned.filter((id) => !kept.has(id));
+  const kept = new Set(viewTabIds(s, windowId).filter((id) => id === active || s.live[id]?.playingAudio).flatMap((id) => splitOf(s, id)?.tabIds ?? [id]));
+  return unpinnedTabIds(s, windowId).filter((id) => !kept.has(id));
 }
 
 const CLEAN_UP_AFTER_MS = 12 * 60 * 60 * 1000;
