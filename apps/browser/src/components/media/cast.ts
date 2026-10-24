@@ -9,7 +9,8 @@ import {
 } from "@ardia/ardiacore";
 import { create } from "zustand";
 import { useBrowser, type BrowserState } from "../../store/browser";
-import { activeTabId, engineProfile } from "../../store/model";
+import { engineProfile } from "../../store/model";
+import { shownPageId } from "../../store/peek";
 import { browserIdOf } from "../extensions/state";
 import { tabForBrowser } from "../layout/pageState";
 
@@ -59,8 +60,7 @@ export function startCast() {
   });
 }
 
-export async function toggleCastPicker(windowId: string) {
-  const tabId = activeTabId(useBrowser.getState(), windowId);
+export async function toggleCastPicker(windowId: string, tabId = shownPageId(useBrowser.getState(), windowId)) {
   if (!tabId) return;
   const open = useCast.getState().dialogs[tabId];
   if (open) return closeCastPicker(tabId);

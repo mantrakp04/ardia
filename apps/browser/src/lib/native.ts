@@ -22,6 +22,7 @@ import { Appearance } from "react-native";
 import { folderChildren, isBookmarked } from "../store/bookmarks";
 import { useBrowser, type BrowserState } from "../store/browser";
 import { activeTab, bookmarkProfileId, engineProfile, IDLE_LIVE, tabLabel, windowTitle } from "../store/model";
+import { peekTabId } from "../store/peek";
 import { splitOf } from "../store/splits";
 import { canGoBack, canGoForward } from "../components/layout/history";
 import type { Bookmarks, BookmarkNode } from "../store/types";
@@ -226,7 +227,9 @@ export function menuState(s: BrowserState): MenuState {
   const windowId = s.ui.focusedWindowId && s.windows[s.ui.focusedWindowId] ? s.ui.focusedWindowId : undefined;
   const w = windowId ? s.windows[windowId] : undefined;
   const tab = windowId ? activeTab(s, windowId) : undefined;
-  const live = tab ? s.live[tab.id] : undefined;
+  const peek = windowId ? peekTabId(s, windowId) : undefined;
+  const page = peek ? s.tabs[peek] : tab;
+  const live = page ? s.live[page.id] : undefined;
   const bookmarkProfile = bookmarkProfileId(s, w);
   const regularWindows = s.windowOrder.filter((id) => !s.windows[id]!.incognito && s.windows[id]!.kind !== "small");
 
@@ -235,10 +238,10 @@ export function menuState(s: BrowserState): MenuState {
   if (w && (w.tabLayout ?? s.settings.tabLayout) === "top") disabled.push("toggleAddressBar");
   if (!w) disabled.push(...WINDOW_COMMANDS, "toggleTabLayout", "openSplitPane");
   else {
-    if (!tab?.url) disabled.push(...PAGE_COMMANDS);
-    else if (isInternalTab(tab)) disabled.push(...PAGE_COMMANDS.filter((c) => !INTERNAL_PAGE_COMMANDS.includes(c)));
-    if (!tab || !canGoBack(tab.id, live ?? IDLE_LIVE)) disabled.push("back");
-    if (!tab || !canGoForward(tab.id, live ?? IDLE_LIVE)) disabled.push("forward");
+    if (!page?.url) disabled.push(...PAGE_COMMANDS);
+    else if (isInternalTab(page)) disabled.push(...PAGE_COMMANDS.filter((c) => !INTERNAL_PAGE_COMMANDS.includes(c)));
+    if (!page || !canGoBack(page.id, live ?? IDLE_LIVE)) disabled.push("back");
+    if (!page || !canGoForward(page.id, live ?? IDLE_LIVE)) disabled.push("forward");
     if (!live?.isLoading) disabled.push("stop");
     if (w.incognito) disabled.push("moveTabToProfile", "moveTabToWindow", "switchProfile", "nextProfile", "previousProfile");
     else if (tab) disabled.push(`moveTabToProfile:${tab.profileId}`);
@@ -257,8 +260,8 @@ export function menuState(s: BrowserState): MenuState {
 
   const titles: Record<string, string> = {};
   if (tab?.pinned) titles.togglePin = "Unpin";
-  if (tab?.muted) titles.toggleMute = "Unmute Site";
-  if (tab?.url && isBookmarked(s.bookmarks, bookmarkProfile, tab.url)) {
+  if (page?.muted) titles.toggleMute = "Unmute Site";
+  if (page?.url && isBookmarked(s.bookmarks, bookmarkProfile, page.url)) {
     titles.bookmarkPage = "Edit Bookmark…";
   }
 
@@ -267,6 +270,10 @@ export function menuState(s: BrowserState): MenuState {
   const sidebar = sidebarMenuState(s, windowId);
   disabled.push(...sidebar.disabled);
   Object.assign(titles, sidebar.titles);
+  if (peek) {
+    titles.openFile = "Open Peek as Tab";
+    titles.closeTab = "Close Peek";
+  }
   if (w?.kind === "small") {
     disabled.push(...LITTLE_ARDIA_DISABLED_COMMANDS);
     titles.openFile = "Open in Ardia";

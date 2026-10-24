@@ -2,6 +2,7 @@ import { cleanUrl, markdownLink } from "@ardia/core";
 import { copyText, prompt } from "@ardia/shell";
 import { updateFolder } from "../../live/store";
 import { useBrowser } from "../../store/browser";
+import { ancestorIds } from "../../store/groups";
 import { activeTabId, bookmarkProfileId, tabLayoutOf, viewTabIds } from "../../store/model";
 import { groupLabel, groupOf, selectedTabIds } from "../../store/organize";
 import type { Tab } from "../../store/types";
@@ -66,7 +67,9 @@ export async function startRename(windowId: string, target: Target) {
       return;
     }
     const group = groupOf(s, tab.id);
-    if (group?.collapsed && activeTabId(s, windowId) !== tab.id) s.updateGroup(group.id, { collapsed: false });
+    if (group && activeTabId(s, windowId) !== tab.id) {
+      for (const id of [group.id, ...ancestorIds(s.groups, group.id)]) if (s.groups[id]!.collapsed) s.updateGroup(id, { collapsed: false });
+    }
   }
   if (target.kind === "group" && !sidebarShows(windowId)) return renameGroupInSheet(windowId, target.id);
   setSidebarUi({ renaming: { windowId, ...target } });

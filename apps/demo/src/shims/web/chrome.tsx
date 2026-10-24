@@ -227,13 +227,13 @@ export function ContextMenuArea({ onContextMenu, captureDescendants: _capture, .
   );
 }
 
-export function OutsidePressArea({ onOutsidePress, ...props }: ViewProps & { onOutsidePress?: () => void; children?: ReactNode }) {
+export function OutsidePressArea({ onOutsidePress, ...props }: ViewProps & { onOutsidePress?: (event: { nativeEvent: { timestamp?: number } }) => void; children?: ReactNode }) {
   const node = useRef<HTMLElement | null>(null);
   const latest = useRef(onOutsidePress);
   latest.current = onOutsidePress;
   useEffect(() => {
     const down = (e: PointerEvent) => {
-      if (node.current && e.target instanceof Node && !node.current.contains(e.target)) latest.current?.();
+      if (node.current && e.target instanceof Node && !node.current.contains(e.target)) latest.current?.({ nativeEvent: { timestamp: e.timeStamp } });
     };
     document.addEventListener("pointerdown", down, true);
     return () => document.removeEventListener("pointerdown", down, true);

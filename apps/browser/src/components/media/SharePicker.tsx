@@ -122,6 +122,8 @@ export function SharePicker({ tabId, paneWidth }: { tabId: string; paneWidth: nu
     if (sources.some((s) => s.id === id)) answerDisplayMedia(tabId, id);
   };
   const cancel = () => answerDisplayMedia(tabId, null);
+  const frameHost = request.frameOrigin ? hostOf(request.frameOrigin) : "";
+  const receiver = frameHost && frameHost !== hostOf(request.origin) ? `${frameHost}, a frame on this page,` : "The site";
   const width = Math.min(WIDTH, paneWidth - 24);
 
   return (
@@ -138,10 +140,10 @@ export function SharePicker({ tabId, paneWidth }: { tabId: string; paneWidth: nu
           title={`Share your screen with ${hostOf(request.origin)}`}
           subtitle={
             !request.audio
-              ? "The site will see what you choose."
+              ? `${receiver} will see what you choose.`
               : isTab(selected)
-                ? "The site will see and hear the tab you choose."
-                : "The site will see what you choose. Only tabs share their audio."
+                ? `${receiver} will see and hear the tab you choose.`
+                : `${receiver} will see what you choose. Only tabs share their audio.`
           }
           subtitleLines={2}
         />

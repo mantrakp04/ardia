@@ -57,6 +57,9 @@ chromium chromium-begin-frame-warm-up.patch
 chromium chromium-main-frame-throttle-after-show.patch
 chromium chromium-main-frame-full-rate-on-input.patch
 chromium chromium-thaw-live-connections.patch
+chromium chromium-temporary-tab-restore-hook.patch
+chromium chromium-hosted-browsers-no-session-service.patch
+chromium chromium-auto-pip-global-switch.patch
 chromium chromium-battery-saver-full-rate-on-input.patch
 chromium chromium-angle-metal-shader-cache.patch
 chromium chromium-ungoogled-disable-default-extensions.patch

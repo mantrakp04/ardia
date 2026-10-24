@@ -1,29 +1,24 @@
-import { ContextMenuArea, DockSelection, MouseArea, Surface, Symbol } from "@ardia/shell";
-import { memo, useEffect, useLayoutEffect, useMemo, useRef } from "react";
-import { Animated, Pressable, StyleSheet, View } from "react-native";
+import { ContextMenuArea, MouseArea, Symbol } from "@ardia/shell";
+import { memo } from "react";
+import { Animated, Pressable, View } from "react-native";
 import { closeTab } from "../../lib/actions";
-import { hex, layout, useTheme } from "../../lib/theme";
-import { useTileTheme, type TileTheme } from "../../lib/tileTheme";
-import { GlassFill, liquidGlass } from "../glass";
+import { layout, useTheme } from "../../lib/theme";
 import { listTopGap, useAddressBarInSidebar } from "../layout/windowLayout";
-import { SLIDE } from "../layout/stripReorder";
 import { useBrowser } from "../../store/browser";
 import { useIsActiveTab, useTab, useTabLive, useWindowId } from "../../store/hooks";
 import { activeTabId } from "../../store/model";
 import { NextMeetingBadge } from "../live/NextMeetingBadge";
 import { clickTab } from "./actions";
-import { PIN_SLOT, useDragController, useDragging, useDragItem, useDropPins, usePinnedCount, usePinSlots } from "./dnd";
+import { cellKey, PIN_SLOT, useDragController, useDragging, useDragItem, useDropPins, useFolderTarget, usePinnedCount, usePinSlots } from "./dnd";
+import { FolderTile } from "./FolderTile";
 import { dismissHover, useRowHover } from "./hover";
 import { openTabMenu } from "./menus";
 import { pinGrid, pinGridHeight, TILE_GAP } from "./pinZone";
 import { registerRow } from "./state";
-import { TabIcon } from "./TabIcon";
-import { TabBadges } from "../media/TabBadges";
 import { clickMods } from "./TabRow";
+import { FolderDropRing, TileFace, useSlotPosition } from "./TileFace";
+import { folderIdOfCell } from "../../store/tileFolders";
 import { useSidebarTokens } from "./tokens";
-
-const SELECTION_STROKE = 3;
-const GLASS_RIM = 1;
 
 export const PinnedGrid = memo(function PinnedGrid({ tabs, innerWidth, flush = false }: { tabs: string[]; innerWidth: number; flush?: boolean }) {
   const controller = useDragController();
@@ -43,9 +38,16 @@ export const PinnedGrid = memo(function PinnedGrid({ tabs, innerWidth, flush = f
       style={{ marginTop: flush ? 0 : topGap }}
     >
       <View style={{ height: pinGridHeight(count, innerWidth, layout.pinnedHeight) }}>
-        {tabs.map((id, i) => (
-          <PinnedTile key={id} tabId={id} width={width} sliding={dragging} x={(slots[i]! % columns) * (width + TILE_GAP)} y={Math.floor(slots[i]! / columns) * PIN_SLOT} />
-        ))}
+        {tabs.map((cell, i) => {
+          const x = (slots[i]! % columns) * (width + TILE_GAP);
+          const y = Math.floor(slots[i]! / columns) * PIN_SLOT;
+          const folderId = folderIdOfCell(cell);
+          return folderId ? (
+            <FolderTile key={cellKey(cell)} folderId={folderId} width={width} sliding={dragging} x={x} y={y} />
+          ) : (
+            <PinnedTile key={cellKey(cell)} tabId={cell} width={width} sliding={dragging} x={x} y={y} />
+          );
+        })}
       </View>
       <Animated.View ref={tail.wrapper.ref} style={{ position: "absolute", right: 0, bottom: 0, width: 0, height: 0 }} />
     </View>
@@ -141,7 +143,6 @@ function backToPinnedUrl(windowId: string, tabId: string) {
 
 const PinnedTile = memo(function PinnedTile({ tabId, width, sliding, x, y }: { tabId: string; width: number; sliding: boolean; x: number; y: number }) {
   const theme = useTheme();
-  const tokens = useSidebarTokens();
   const windowId = useWindowId();
   const tab = useTab(tabId);
   const active = useIsActiveTab(tabId);
@@ -149,22 +150,13 @@ const PinnedTile = memo(function PinnedTile({ tabId, width, sliding, x, y }: { t
   const playing = useTabLive(tabId, (l) => l.playingAudio);
   const { hovered, hoverProps } = useRowHover(windowId, { kind: "tab", id: tabId });
   const { wrapper, handle, dragging } = useDragItem(`t:${tabId}`, { kind: "tile", tabIds: [tabId], section: "tiles" }, () => useBrowser.getState().selection[windowId] ?? []);
-  const position = useMemo(() => new Animated.ValueXY({ x, y }), []);
-  const placedWidth = useRef(width);
-  useLayoutEffect(() => {
-    if (dragging) return;
-    const resized = placedWidth.current !== width;
-    placedWidth.current = width;
-    if (sliding && !resized) Animated.spring(position, { toValue: { x, y }, ...SLIDE }).start();
-    else position.setValue({ x, y });
-  }, [x, y, width, sliding, dragging, position]);
-  useEffect(() => () => position.stopAnimation(), [position]);
-  const tileTheme = useTileTheme(tab?.url ?? "", tab?.favicon, tab?.customIcon, tab?.profileId ?? "");
+  const target = useFolderTarget(`t:${tabId}`);
+  const position = useSlotPosition(x, y, width, sliding, dragging);
   if (!tab) return null;
-  const radius = 10;
 
   return (
     <Animated.View ref={wrapper.ref} style={[{ position: "absolute", ...position.getLayout() }, wrapper.style]} {...handle}>
+      <FolderDropRing on={target} />
       <View
         ref={(v) => registerRow(windowId, tabId, v)}
         {...hoverProps}
@@ -183,77 +175,7 @@ const PinnedTile = memo(function PinnedTile({ tabId, width, sliding, x, y }: { t
                 clickTab(windowId, tabId, clickMods(e));
               }}
             >
-              {({ pressed }) =>
-                liquidGlass ? (
-                  <GlassTile tabId={tabId} width={width} active={active} selected={selected} hovered={hovered} pressed={pressed} tileTheme={tileTheme} />
-                ) : active && tileTheme ? (
-                  <DockSelection
-                    image={tileTheme.image}
-                    emoji={tileTheme.emoji}
-                    theme={tileTheme.theme.kind}
-                    fill={tileTheme.theme.kind === "template" ? tileTheme.theme.fill : undefined}
-                    stroke={tileTheme.theme.kind === "template" ? tileTheme.theme.stroke : undefined}
-                    cornerRadius={radius}
-                    strokeWidth={SELECTION_STROKE}
-                    dark={theme.dark}
-                    style={{ width, height: layout.pinnedHeight, alignItems: "center", justifyContent: "center" }}
-                  >
-                    <View>
-                      {tileTheme.theme.kind === "template" ? (
-                        <View style={{ width: 16, height: 16 }} />
-                      ) : (
-                        <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
-                      )}
-                      <TabBadges tabId={tabId} />
-                    </View>
-                  </DockSelection>
-                ) : active ? (
-                  <Surface
-                    fill={hex(theme.pinnedSelectedRim)}
-                    cornerRadius={radius}
-                    shadowColor={theme.dark ? "#FFFFFF" : "#000000"}
-                    shadowOpacity={theme.dark ? 0.15 : 0.12}
-                    shadowRadius={1.5}
-                    shadowOffset={[0, 0.5]}
-                    style={{ width, height: layout.pinnedHeight, padding: 1 }}
-                  >
-                    <View
-                      style={{
-                        flex: 1,
-                        borderRadius: radius - 1,
-                        backgroundColor: theme.pinnedSelectedFill,
-                        borderTopWidth: 1,
-                        borderColor: theme.pinnedSelectedOutline,
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <View>
-                        <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
-                        <TabBadges tabId={tabId} />
-                      </View>
-                    </View>
-                  </Surface>
-                ) : (
-                  <View
-                    style={{
-                      width,
-                      height: layout.pinnedHeight,
-                      borderRadius: radius,
-                      borderWidth: selected ? 1 : 0.5,
-                      borderColor: selected ? tokens.dragBorder : theme.pinnedRestingStroke,
-                      backgroundColor: pressed ? theme.tabPressed : hovered || selected ? theme.tabHover : theme.pinnedResting,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <View>
-                      <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
-                      <TabBadges tabId={tabId} />
-                    </View>
-                  </View>
-                )
-              }
+              {({ pressed }) => <TileFace tabId={tabId} width={width} active={active} selected={selected} hovered={hovered} pressed={pressed} />}
             </Pressable>
           </ContextMenuArea>
         </MouseArea>
@@ -267,52 +189,3 @@ const PinnedTile = memo(function PinnedTile({ tabId, width, sliding, x, y }: { t
     </Animated.View>
   );
 });
-
-function GlassTile({
-  tabId,
-  width,
-  active,
-  selected,
-  hovered,
-  pressed,
-  tileTheme,
-}: {
-  tabId: string;
-  width: number;
-  active: boolean;
-  selected: boolean;
-  hovered: boolean;
-  pressed: boolean;
-  tileTheme: TileTheme | null;
-}) {
-  const theme = useTheme();
-  const tokens = useSidebarTokens();
-  const tab = useTab(tabId);
-  if (!tab) return null;
-  const radius = 10;
-  const fill = active ? theme.pinnedSelectedFill : pressed ? theme.tabPressed : hovered || selected ? theme.tabHover : theme.pinnedResting;
-  return (
-    <View style={{ width, height: layout.pinnedHeight, alignItems: "center", justifyContent: "center" }}>
-      <GlassFill radius={radius} fill={fill} raised={active && !pressed} />
-      {active ? (
-        <DockSelection
-          image={tileTheme?.image}
-          emoji={tileTheme?.emoji}
-          theme={tileTheme?.theme.kind}
-          fill={tileTheme?.theme.kind === "template" ? tileTheme.theme.fill : undefined}
-          cornerRadius={radius}
-          strokeWidth={GLASS_RIM}
-          dark={theme.dark}
-          glass
-          style={StyleSheet.absoluteFill}
-        />
-      ) : selected ? (
-        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: radius, borderWidth: 1, borderColor: tokens.dragBorder }]} />
-      ) : null}
-      <View>
-        <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
-        <TabBadges tabId={tabId} />
-      </View>
-    </View>
-  );
-}

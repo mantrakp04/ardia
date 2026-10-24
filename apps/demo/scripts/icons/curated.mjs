@@ -114,6 +114,7 @@ export const CURATED = {
   flag: "L:flag T:flag P:flag I:triangle-flag M:flag-outline",
   flame: "L:flame T:flame P:flame I:fire-flame M:fire",
   folder: "L:folder T:folder P:folder-simple I:folder M:folder-outline P:folder",
+  "folder.fill": "PF:folder-simple-fill TF:folder M:folder PF:folder-fill IS:folder",
   "folder.badge.minus": "L:folder-minus T:folder-minus P:folder-simple-minus M:folder-minus-outline P:folder-minus",
   "folder.badge.plus": "L:folder-plus T:folder-plus P:folder-simple-plus M:folder-plus-outline P:folder-plus I:add-folder",
   "fork.knife": "L:utensils T:tools-kitchen-2 P:fork-knife M:silverware-fork-knife",

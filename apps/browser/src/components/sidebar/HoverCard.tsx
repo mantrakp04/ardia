@@ -1,12 +1,15 @@
 import { FadeLabel, Surface, Symbol } from "@ardia/shell";
 import { useLayoutEffect, useState } from "react";
-import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Pressable, StyleSheet, Text, View, type AccessibilityActionEvent, type GestureResponderEvent } from "react-native";
 import { displayUrl } from "@ardia/core";
 import { hex, useTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
 import { useStoreWhile } from "../../store/tabWatch";
 import { useIsBookmarked } from "../../store/hooks";
-import { activeTabId, bookmarkProfileId } from "../../store/model";
+import { activeTabId, bookmarkProfileId, plural } from "../../store/model";
+import { folderIn, folderLabel, folderMembers } from "../../store/tileFolders";
+import { useShallow } from "zustand/react/shallow";
+import { useFolderPanel } from "./tileFolderUi";
 import { awayFromPin, groupLabel } from "../../store/organize";
 import { openInSplit } from "../layout/splitActions";
 import { CalendarPreview, useIsCalendarTab } from "../live/CalendarPreview";
@@ -25,7 +28,11 @@ const WIDTH = 264;
 
 export function HoverCard({ windowId, width, height }: { windowId: string; width: number; height: number }) {
   const hover = useSidebarUi((u) => (u.hover?.windowId === windowId ? u.hover : null));
-  const orphaned = useStoreWhile(useBrowser, !!hover, (s) => (hover?.kind === "tab" && !s.tabs[hover.id]) || (hover?.kind === "group" && !s.groups[hover.id]));
+  const orphaned = useStoreWhile(
+    useBrowser,
+    !!hover,
+    (s) => (hover?.kind === "tab" && !s.tabs[hover.id]) || (hover?.kind === "group" && !s.groups[hover.id]) || (hover?.kind === "folder" && !folderIn(s, windowId, hover.id)),
+  );
   useLayoutEffect(() => {
     if (orphaned) dismissHover();
   }, [orphaned]);
@@ -49,6 +56,7 @@ function HoverContent({ hover, windowId, player }: { hover: Hover; windowId: str
   if (hover.kind === "live") return <LiveItemCard id={hover.id} windowId={windowId} anchor={hover.anchor} />;
   if (hover.kind === "tab" && player) return <HoverPlayer tabId={hover.id} windowId={windowId} anchor={hover.anchor} />;
   if (hover.kind === "tab" && calendar) return <CalendarPreview tabId={hover.id} windowId={windowId} anchor={hover.anchor} />;
+  if (hover.kind === "folder") return <FolderPeek folderId={hover.id} windowId={windowId} anchor={hover.anchor} />;
   return hover.kind === "tab" ? <TabCard tabId={hover.id} windowId={windowId} anchor={hover.anchor} /> : <GroupPeek groupId={hover.id} windowId={windowId} anchor={hover.anchor} />;
 }
 
@@ -140,12 +148,20 @@ function TabCard({ tabId, windowId, anchor }: { tabId: string; windowId: string;
   );
 }
 
-function Action({ icon, label, onPress }: { icon: string; label: string; onPress(): void }) {
+const ACTIVATE = [{ name: "activate" }];
+
+function Action({ icon, label, onPress }: { icon: string; label: string; onPress(press: GestureResponderEvent | AccessibilityActionEvent): void }) {
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   return (
     <View {...hoverProps} style={{ flex: 1 }}>
-      <Pressable onPress={onPress}>
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityActions={ACTIVATE}
+        onAccessibilityAction={(event) => event.nativeEvent.actionName === "activate" && onPress(event)}
+      >
         {({ pressed }) => (
           <View
             style={{
@@ -180,6 +196,26 @@ function GroupPeek({ groupId, windowId, anchor }: { groupId: string; windowId: s
         {label} · {group.tabIds.length === 1 ? "1 tab" : `${group.tabIds.length} tabs`}
       </Text>
       {group.tabIds.slice(0, PEEK_ROWS).map((id) => (
+        <PeekRow key={id} tabId={id} windowId={windowId} />
+      ))}
+      {more > 0 ? <Text style={{ fontSize: 11.5, color: theme.textTertiary, marginTop: 4, marginLeft: 4 }}>and {more} more</Text> : null}
+    </Card>
+  );
+}
+
+function FolderPeek({ folderId, windowId, anchor }: { folderId: string; windowId: string; anchor: Anchor }) {
+  const theme = useTheme();
+  const members = useBrowser(useShallow((s) => folderMembers(s, windowId, folderId)));
+  const label = useBrowser((s) => folderLabel(folderIn(s, windowId, folderId)));
+  const open = useFolderPanel((u) => u.open?.windowId === windowId && u.open.folderId === folderId);
+  if (open || !members.length) return null;
+  const more = members.length - PEEK_ROWS;
+  return (
+    <Card anchor={anchor}>
+      <Text style={{ fontSize: 12, fontWeight: "600", color: theme.textSecondary, marginBottom: 4, marginLeft: 4 }}>
+        {label} · {plural(members.length, "tab")}
+      </Text>
+      {members.slice(0, PEEK_ROWS).map((id) => (
         <PeekRow key={id} tabId={id} windowId={windowId} />
       ))}
       {more > 0 ? <Text style={{ fontSize: 11.5, color: theme.textTertiary, marginTop: 4, marginLeft: 4 }}>and {more} more</Text> : null}

@@ -81,6 +81,29 @@ type NativeFileDropAreaProps = ViewProps & {
 const fileDropBuilt = !!NativeModules.NativeUnimoduleProxy?.viewManagersMetadata?.ArdiaFileDrop;
 const NativeFileDropArea = fileDropBuilt ? requireNativeViewManager<NativeFileDropAreaProps>("ArdiaFileDrop") : null;
 
+export type MagnifyPhase = "began" | "changed" | "ended" | "cancelled";
+export type MagnifyUpdate = { phase: MagnifyPhase; magnification: number };
+export type MagnifyAreaProps = ViewProps & {
+  enabled?: boolean;
+  onMagnify?: (e: MagnifyUpdate) => void;
+};
+
+type NativeMagnifyAreaProps = ViewProps & { enabled?: boolean; onMagnify?: (e: { nativeEvent: MagnifyUpdate }) => void };
+
+const magnifyBuilt = !!NativeModules.NativeUnimoduleProxy?.viewManagersMetadata?.ArdiaMagnifyArea;
+const NativeMagnifyArea = magnifyBuilt ? requireNativeViewManager<NativeMagnifyAreaProps>("ArdiaMagnifyArea") : null;
+const MagnifyModule = requireOptionalNativeModule<{
+  devMagnify(windowId: string, x: number, y: number, steps: MagnifyUpdate[]): Promise<{ claimed?: boolean[]; hit?: string; error?: string }>;
+}>("ArdiaMagnifyArea");
+
+export function MagnifyArea({ onMagnify, enabled = true, ...props }: MagnifyAreaProps) {
+  if (!NativeMagnifyArea) return <View {...props} />;
+  return <NativeMagnifyArea enabled={enabled} onMagnify={onMagnify && ((e) => onMagnify(e.nativeEvent))} {...props} />;
+}
+
+export const devMagnify = (windowId: string, at: { x: number; y: number }, steps: MagnifyUpdate[]) =>
+  MagnifyModule ? MagnifyModule.devMagnify(windowId, at.x, at.y, steps) : Promise.resolve({ error: "MagnifyArea isn't built" });
+
 function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
   if (typeof ref === "function") ref(value);
   else if (ref) (ref as { current: T | null }).current = value;

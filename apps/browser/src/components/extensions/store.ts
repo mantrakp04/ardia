@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { create } from "zustand";
 import { useBrowser, type BrowserState } from "../../store/browser";
 import { activeTabId, engineProfile, privateSession } from "../../store/model";
+import { shownPageId } from "../../store/peek";
 import { usePages } from "../layout/pageState";
 
 export type Anchor = { x: number; y: number; width: number; height: number };
@@ -74,4 +75,4 @@ export function browserIdOf(tabId: string | undefined): number {
   return 0;
 }
 
-export const activeBrowserId = (windowId: string) => browserIdOf(activeTabId(useBrowser.getState(), windowId));
+export const shownBrowserId = (windowId: string) => browserIdOf(shownPageId(useBrowser.getState(), windowId));

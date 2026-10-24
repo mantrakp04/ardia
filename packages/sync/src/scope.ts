@@ -89,6 +89,8 @@ export interface Adapter {
     queued: (key: string) => boolean,
     now: number,
     known: (key: string) => boolean,
+    remote: (key: string) => unknown,
+    stamp: (key: string) => HLC | undefined,
   ): Extraction | null | Promise<Extraction | null>;
   apply(visible: Map<string, unknown>, changed: Set<string>, base: (key: string) => unknown, records: ApplyRecords): boolean | void | Promise<boolean | void>;
   editedAt?(value: unknown): number | undefined;
@@ -208,7 +210,7 @@ async function publishAdapter(state: ScopeState, adapter: Adapter, clock: Clock,
   if (adapter.publishAfterPull && waitingAfterPull.get(state) !== false) return published;
   let pending: Set<string> | null = null;
   const queued = (key: string) => (pending ??= new Set([...state.outbox, ...(state.journal ?? []).flatMap((f) => f.ops)].map((op) => op.k))).has(key);
-  const extraction = await adapter.extract((key) => parseBase(state.base[key]), queued, now, (key) => key in state.records);
+  const extraction = await adapter.extract((key) => parseBase(state.base[key]), queued, now, (key) => key in state.records, (key) => state.records[key]?.v, (key) => state.records[key]?.h);
   if (!extraction) return published;
   const put = (key: string, value: unknown) => {
     const known = state.records[key];

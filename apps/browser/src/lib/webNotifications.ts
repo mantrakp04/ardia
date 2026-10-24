@@ -16,7 +16,21 @@ const shown = new Map<string, string>();
 
 const macId = (n: WebNotification) => (n.tag ? `web:${n.origin}#${n.tag}` : `web:${n.id}`);
 
+const received = new Map<string, WebNotification>();
+const RECEIVED_KEPT = 50;
+if (__DEV__) (globalThis as { acWebNotifications?: unknown }).acWebNotifications = { received: () => [...received.values()] };
+
+function noteReceived(n: WebNotification) {
+  received.delete(macId(n));
+  received.set(macId(n), n);
+  for (const id of received.keys()) {
+    if (received.size <= RECEIVED_KEPT) break;
+    received.delete(id);
+  }
+}
+
 export function showWebNotification(tabId: string, n: WebNotification) {
+  if (__DEV__) noteReceived(n);
   const s = useBrowser.getState();
   const tab = s.tabs[tabId];
   const window = tab ? s.windows[tab.windowId] : undefined;
@@ -59,6 +73,7 @@ async function iconFor(tabId: string, url: string): Promise<string | undefined> 
 }
 
 export function closeWebNotification(engineId: string) {
+  if (__DEV__) for (const [id, n] of received) if (n.id === engineId) received.delete(id);
   for (const [id, shownId] of shown) {
     if (shownId !== engineId) continue;
     shown.delete(id);

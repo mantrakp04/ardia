@@ -2,8 +2,9 @@ import { showMenu, type MenuItem } from "@ardia/shell";
 import { closeTab, moveTabToProfile, moveTabToWindow, switchToTab, toggleMute } from "../../lib/actions";
 import { folderChildren } from "../../store/bookmarks";
 import { useBrowser } from "../../store/browser";
-import { bookmarkProfileId, isIncognitoProfile, isPinnedRow, plural, tabLabel, viewTabIds, windowTitle } from "../../store/model";
+import { bookmarkProfileId, isIncognitoProfile, isPinnedRow, pinSection, plural, tabLabel, viewTabIds, windowTitle } from "../../store/model";
 import { awayFromPin, cleanedTabsFor, groupLabel, groupOf, keptDeletedGroups, selectedTabIds } from "../../store/organize";
+import { groupPath } from "../../store/groups";
 import { splitOf } from "../../store/splits";
 import type { GroupColor, Tab } from "../../store/types";
 import {
@@ -24,6 +25,7 @@ import { canShare, shareTab } from "../site/share";
 import { calendarMenuItem, newLiveFolderMenuItem, runCalendarMenu, runNewLiveFolder } from "./liveMenus";
 import { openSyncedTab, syncedDevicesMenuItem } from "../../sync/menu";
 import { setSidebarUi } from "./state";
+import { newFolderWithTab, removeFromFolder } from "./tileFolderUi";
 import { toggleNewTabBar } from "../omnibox/newTabBar";
 import { GROUP_COLORS, NEUTRAL_GROUP_SWATCH, nearestGroupColor } from "./tokens";
 
@@ -61,7 +63,9 @@ function moveToGroupItems(windowId: string, exclude: string | undefined): MenuIt
   const s = store();
   const w = s.windows[windowId];
   const groups = Object.values(s.groups).filter((g) => g.windowId === windowId && g.profileId === w?.profileId && g.id !== exclude);
-  return groups.map((g) => ({ id: `group:${g.id}`, title: groupLabel(s, g), symbol: g.pinned ? "pin" : "square.on.square" }));
+  return groups
+    .map((g) => ({ id: `group:${g.id}`, title: groupPath(s.groups, g.id).map((id) => groupLabel(s, s.groups[id]!)).join(" › "), symbol: g.pinned ? "pin" : "square.on.square" }))
+    .sort((a, z) => (a.title < z.title ? -1 : a.title > z.title ? 1 : 0));
 }
 
 export async function openTabMenu(windowId: string, tab: Tab) {
@@ -107,6 +111,11 @@ export async function openTabMenu(windowId: string, tab: Tab) {
     isPinnedRow(tab)
       ? { id: "pinTile", title: "Move to Top Apps", symbol: "app" }
       : { id: "pinRow", title: "Move to Pinned Tabs", symbol: "list.bullet" },
+    ...(pinSection(tab) !== "tile"
+      ? []
+      : tab.tileFolder
+        ? [{ id: "leaveFolder", title: "Remove from Folder", symbol: "folder.badge.minus" }]
+        : [{ id: "newFolder", title: "New Folder with Tab", symbol: "folder.badge.plus" }]),
     { id: "duplicate", title: "Duplicate", symbol: "plus.square.on.square" },
     ...(tab.pinned
       ? []
@@ -146,6 +155,8 @@ export async function openTabMenu(windowId: string, tab: Tab) {
   else if (choice === "pin") s.togglePin(tab.id);
   else if (choice === "pinTile") s.pinTabs([tab.id], true, false);
   else if (choice === "pinRow") s.pinTabs([tab.id], true, true);
+  else if (choice === "newFolder") newFolderWithTab(windowId, tab.id);
+  else if (choice === "leaveFolder") removeFromFolder(tab.id);
   else if (choice === "duplicate") s.duplicateTab(tab.id);
   else if (choice === "ungroupTab") s.removeTabsFromGroup([tab.id]);
   else if (choice === "newGroup") newGroupWithSelection(windowId, [tab.id]);
@@ -230,7 +241,8 @@ export async function openGroupMenu(windowId: string, groupId: string) {
     },
     sep,
     { id: "newTab", title: "New Tab in Group", symbol: "plus", ...hint("t", "option", "command") },
-    { id: "pin", title: g.pinned ? "Unpin Group" : "Pin Group", symbol: g.pinned ? "pin.slash" : "pin" },
+    { id: "nest", title: "New Nested Group", symbol: "plus.rectangle.on.rectangle" },
+    ...(g.parentId ? [] : [{ id: "pin", title: g.pinned ? "Unpin Group" : "Pin Group", symbol: g.pinned ? "pin.slash" : "pin" }]),
     { id: "duplicate", title: "Duplicate Group", symbol: "plus.square.on.square" },
     { id: "collapse", title: g.collapsed ? "Expand Group" : "Collapse Group", symbol: g.collapsed ? "chevron.down" : "chevron.up" },
     sep,
@@ -252,7 +264,12 @@ export async function openGroupMenu(windowId: string, groupId: string) {
     const id = s.newTabInGroup(groupId);
     if (id) store().activate(id);
   }
-  else if (choice === "pin") s.moveGroup(groupId, { pinned: !g.pinned });
+  else if (choice === "nest") {
+    const child = s.newNestedGroup(groupId);
+    const tabId = store().groups[child]?.tabIds[0];
+    if (tabId) store().activate(tabId);
+    if (child) void startRename(windowId, { kind: "group", id: child });
+  } else if (choice === "pin") s.moveGroup(groupId, { pinned: !g.pinned });
   else if (choice === "duplicate") s.duplicateGroup(groupId);
   else if (choice === "collapse") s.updateGroup(groupId, { collapsed: !g.collapsed });
   else if (choice === "copy") copyUrls(g.tabIds, false);

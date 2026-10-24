@@ -383,3 +383,104 @@ test("a failed write is retried as the same batch, even when the file did land",
   const files = [...folder.scope("s").values()].map((e) => e.payload);
   assert.equal(files.length, new Set(files).size + 1, "only the batch whose write threw after landing is there twice");
 });
+
+test("a local edit typed while files are read still wins over a deletion in that read", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder);
+  const b = new Device("devB", folder);
+  a.store.set("x:k", "old");
+  await syncAll([a, b]);
+  folder.now += 10;
+  a.store.delete("x:k");
+  await a.sync();
+  folder.now += 10;
+  b.onRead = () => {
+    b.store.set("x:k", "B, typed during the read");
+    b.onRead = undefined;
+  };
+  await b.sync();
+  assert.equal(b.store.get("x:k"), "B, typed during the read");
+  await syncAll([a, b]);
+  assert.equal(a.store.get("x:k"), "B, typed during the read");
+});
+
+class Slow extends Device {
+  pausedRead?: () => void;
+  readings = 0;
+  others = new Map<string, unknown>();
+  override adapters(): Adapter[] {
+    return [
+      ...super.adapters(),
+      {
+        prefix: "y:",
+        extract: async () => {
+          this.readings++;
+          this.pausedRead?.();
+          return { values: new Map(this.others) };
+        },
+        apply: (visible, changed) => {
+          for (const k of changed) visible.has(k) ? this.others.set(k, visible.get(k)) : this.others.delete(k);
+        },
+      },
+    ];
+  }
+}
+
+test("an edit made while another adapter reads, after a pull that deleted it, isn't lost", async () => {
+  const folder = new Folder();
+  const a = new Slow("devA", folder);
+  const b = new Slow("devB", folder);
+  a.store.set("x:k", "item");
+  a.others.set("y:z", "other");
+  await syncAll([a, b]);
+  folder.now += 10;
+  a.store.delete("x:k");
+  a.others.delete("y:z");
+  await a.sync();
+  folder.now += 10;
+  b.readings = 0;
+  b.pausedRead = () => {
+    if (b.readings !== 2) return;
+    b.store.set("x:k", "B, renamed meanwhile");
+    b.pausedRead = undefined;
+  };
+  await b.sync();
+  await syncAll([b, a]);
+  assert.equal(b.store.get("x:k"), "B, renamed meanwhile");
+  assert.equal(a.store.get("x:k"), "B, renamed meanwhile");
+});
+
+class Choosy extends Device {
+  chosen = new Set<string>();
+  override adapters(): Adapter[] {
+    const [items, ...rest] = super.adapters();
+    return [
+      {
+        ...items!,
+        extract: () => ({ values: new Map(this.store), republish: (k) => this.chosen.has(k), published: (keys) => keys.forEach((k) => this.chosen.delete(k)) }),
+      },
+      ...rest,
+    ];
+  }
+}
+
+test("an item chosen again with the same value while its deletion is pulled is kept", async () => {
+  const folder = new Folder();
+  const a = new Choosy("devA", folder);
+  const b = new Choosy("devB", folder);
+  a.store.set("x:pin", "same");
+  await syncAll([a, b]);
+  folder.now += 10;
+  a.store.delete("x:pin");
+  await a.sync();
+  folder.now += 10;
+  b.onRead = () => {
+    b.store.set("x:pin", "same");
+    b.chosen.add("x:pin");
+    b.onRead = undefined;
+  };
+  await b.sync();
+  await syncAll([b, a]);
+  assert.equal(b.store.get("x:pin"), "same", "B keeps what it chose");
+  assert.equal(a.store.get("x:pin"), "same", "and A takes it back");
+});

@@ -5,7 +5,7 @@ import { Animated, Easing, findNodeHandle, Image, Pressable, ScrollView, StyleSh
 import { hex, useTheme } from "../../lib/theme";
 import { webviews } from "../../lib/webviews";
 import { useBrowser } from "../../store/browser";
-import { activeTabId } from "../../store/model";
+import { shownPageId } from "../../store/peek";
 import { useWindowId } from "../../store/hooks";
 import { openFromPage, pageProfileId } from "../layout/openFromPage";
 import { PANEL, PromptButton } from "../layout/controls";
@@ -84,7 +84,7 @@ function ActionPopup({ windowId, pageProfile, url, anchor }: { windowId: string;
     };
   }, []);
 
-  const tabId = useBrowser((s) => activeTabId(s, windowId));
+  const tabId = useBrowser((s) => shownPageId(s, windowId));
   const openedOn = useRef(tabId);
   useEffect(() => {
     if (tabId !== openedOn.current) closeExtensionPopup();
@@ -283,7 +283,7 @@ function Dialog({ windowId, onDismiss, onSubmit, children }: { windowId: string;
     Animated.timing(appear, { toValue: 1, duration: 170, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
     keys.current?.focus();
     return () => {
-      const tabId = activeTabId(useBrowser.getState(), windowId);
+      const tabId = shownPageId(useBrowser.getState(), windowId);
       if (tabId) void webviews.get(tabId)?.focus();
     };
   }, []);

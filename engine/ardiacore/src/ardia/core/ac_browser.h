@@ -276,6 +276,9 @@ class TabBridge : public content::WebContentsObserver,
   void NoteRuleMatched(bool block, const GURL& url);
 
   void set_closed_by_host() { closed_by_host_ = true; }
+  void SetTemporary(bool temporary);
+  void SetTemporarySource(int32_t source_id);
+  bool temporary() const { return temporary_id_ != 0; }
   void set_made_ahead() { made_ahead_ = true; }
   bool made_ahead() const { return made_ahead_; }
   void ReportWillClose();
@@ -338,6 +341,8 @@ class TabBridge : public content::WebContentsObserver,
   base::WeakPtrFactory<TabBridge> weak_factory_{this};
   float pinch_scale_ = 1;
   bool closed_by_host_ = false;
+  int32_t temporary_id_ = 0;
+  int32_t temporary_source_id_ = 0;
   bool made_ahead_ = false;
   void NoteBlocked(const GURL& url);
   void ReportBlocked();
@@ -353,6 +358,8 @@ class TabBridge : public content::WebContentsObserver,
   raw_ptr<find_in_page::FindTabHelper> find_helper_ = nullptr;
   WEB_CONTENTS_USER_DATA_KEY_DECL();
 };
+
+bool IsTemporaryTabId(int32_t session_id, int32_t* source_id);
 
 }
 

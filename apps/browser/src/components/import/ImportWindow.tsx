@@ -1,10 +1,12 @@
 import type { BrowserProfile, BrowserSource, DiaAutomationStatus, DiaTabsResult, ImportedExtension, ImportKind, ImportResult, SpaceSummary } from "@ardia/import";
 import { closeWindow, confirm, Symbol, VisualEffect, WindowDragRegion } from "@ardia/shell";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, Animated, AppState, Easing, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { allArcHolders, restoreArcFolders } from "../../lib/bookmarkGroups";
 import { useTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
 import { useProfiles } from "../../store/hooks";
+import { MAX_DRAFT_LINKS } from "../../store/draftGroups";
 import { plural } from "../../store/model";
 import type { ProfileColor } from "../../store/types";
 import { useHover } from "../primitives";
@@ -56,6 +58,8 @@ export function ImportWindow() {
   const [fullDiskAccess, setFullDiskAccess] = useState(false);
   const [safariCookies, setSafariCookies] = useState(true);
   const [notes, setNotes] = useState<string[]>([]);
+  const bookmarks = useBrowser((s) => s.bookmarks);
+  const arcHolders = useMemo(() => allArcHolders({ bookmarks }), [bookmarks]);
   const [extensions, setExtensions] = useState<{ profileId: string; list: ImportedExtension[]; opened: boolean }>({ profileId: "", list: [], opened: false });
   const onboarding = useOnboarding((s) => s.windowId !== null);
   const [diaStatus, setDiaStatus] = useState<DiaAutomationStatus | "checking" | "reading">("checking");
@@ -239,8 +243,9 @@ export function ImportWindow() {
           const name = space.name || "Space";
           const dest = await destination(destinationIndex++, name, space.color, space.emoji);
           first ??= dest;
-          const r = importArcSpace(dest, space, name);
+          const r = importArcSpace(dest, space);
           add({ ...emptyCounts(), tabs: r.tabs, bookmarks: r.bookmarks });
+          if (r.skipped) left.push(`${plural(r.skipped, "link")} in ${name}'s folders weren't imported: each folder brings up to ${MAX_DRAFT_LINKS.toLocaleString("en-US")} links.`);
         }
         const dest = first ?? (await destination(destinationIndex++, result.profile?.name ?? profile.name, result.profile?.color));
         add(await applyResult(dest, result, source.name, refused));
@@ -826,6 +831,14 @@ export function ImportWindow() {
         </Text>
         {leftBehind}
         {extensionList}
+        {arcHolders.length ? (
+          <Button
+            title="Restore Arc Folders as Groups"
+            onPress={() => {
+              for (const id of arcHolders) restoreArcFolders(id, null);
+            }}
+          />
+        ) : null}
       </View>
     );
     footer = (

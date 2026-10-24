@@ -10,7 +10,9 @@ interface ACPageHost {
 
 interface ACPage {
   CallPage(string kind, string json);
-  Execute(string code, bool user_gesture);
-  Evaluate(string code, bool user_gesture) => (string? json);
+  Execute(string code);
+  Evaluate(string code) => (string? json);
+  PictureInPictureDocument() => (string? document);
+  EnterPictureInPictureForUser(string document) => (bool opened);
   SetPageColor(string color);
 };

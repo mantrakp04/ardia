@@ -2,6 +2,7 @@ import type { AutofillPrompt, BlockedPopup, CrashInfo, ExternalAppRequest, Media
 import { create } from "zustand";
 import { useBrowser } from "../../store/browser";
 import { activeTabId } from "../../store/model";
+import { peekTabId } from "../../store/peek";
 import { splitOf } from "../../store/splits";
 
 export type PageState = {
@@ -92,7 +93,8 @@ export function useFullscreenTab(windowId: string): string | undefined {
   return useBrowser((s) => {
     if (!fullscreen) return undefined;
     const active = activeTabId(s, windowId);
-    const shown = active ? (splitOf(s, active)?.tabIds ?? [active]) : [];
+    const peek = peekTabId(s, windowId);
+    const shown = [...(peek ? [peek] : []), ...(active ? (splitOf(s, active)?.tabIds ?? [active]) : [])];
     return shown.find((id) => fullscreen.split("\n").includes(id));
   });
 }

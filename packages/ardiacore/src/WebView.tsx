@@ -36,7 +36,7 @@ export type NowPlaying = {
 export type MediaCommand = "play" | "pause" | "toggle" | "next" | "previous" | "seekBy" | "seekTo" | "stop";
 export type MediaAccess = { camera: boolean; microphone: boolean; screen: boolean };
 
-export type OpenDisposition = "foreground" | "background" | "window" | "popup" | "incognito" | "current" | "split";
+export type OpenDisposition = "foreground" | "background" | "window" | "popup" | "incognito" | "current" | "split" | "peek";
 
 export type OpenWindowRequest = {
   url: string;
@@ -45,6 +45,7 @@ export type OpenWindowRequest = {
   userGesture?: boolean;
   postBody?: boolean;
   profile?: string;
+  point?: { x: number; y: number };
 };
 
 export type BlockedPopup = { id: string; url: string; origin: string };
@@ -96,6 +97,7 @@ export type WebNotification = {
 };
 
 export type PictureInPictureState = { kind: "video" | "document"; active: boolean };
+export type ControlPress = { clickAt: number; control: number };
 export type ActivateRequest = { reason: "pictureInPicture" };
 export type DisplayMediaSource = {
   id: string;
@@ -106,7 +108,7 @@ export type DisplayMediaSource = {
   width: number;
   height: number;
 };
-export type DisplayMediaRequest = { id: string; origin: string; audio: boolean; sources: DisplayMediaSource[] };
+export type DisplayMediaRequest = { id: string; origin: string; frameOrigin?: string; audio: boolean; sources: DisplayMediaSource[] };
 
 export type ZoomState = { zoom: number; host: string; isDefault: boolean; pinchScale: number };
 export type ContentBlockedState = { count: number; url: string };
@@ -142,6 +144,8 @@ export type WebViewProps = ViewProps & {
   profile?: string;
   adoptId?: string;
   transferKey?: string;
+  temporary?: boolean;
+  temporarySource?: string;
   standalone?: boolean;
   extensionHost?: "popup" | "sidePanel";
   visible?: boolean;
@@ -213,7 +217,8 @@ export type WebViewHandle = {
   downloadImage(url: string, maxPixels: number): Promise<FaviconImage | null>;
 
   mediaCommand(action: MediaCommand, seconds?: number): Promise<void>;
-  requestPictureInPicture(): Promise<boolean>;
+  requestPictureInPicture(press: ControlPress): Promise<boolean>;
+  takeControlPress(press: ControlPress): Promise<boolean>;
   exitPictureInPicture(): Promise<void>;
 
   getSecurityInfo(): Promise<SecurityInfo | null>;
@@ -314,8 +319,10 @@ const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<
 
 type NativeHandle = Omit<
   WebViewHandle,
-  "evaluate" | "loadUrl" | "downloadFavicon" | "resolvePasswordPrompt" | "discard" | "nativeTag"
+  "evaluate" | "loadUrl" | "downloadFavicon" | "resolvePasswordPrompt" | "discard" | "nativeTag" | "requestPictureInPicture" | "takeControlPress"
 > & {
+  requestPictureInPicture(clickAt: number, control: number): Promise<boolean>;
+  takeControlPress(clickAt: number, control: number): Promise<boolean>;
   evaluate(code: string): Promise<string | null>;
   downloadFavicon(url: string): Promise<FaviconImage | null>;
   loadUrl(url: string, userInitiated?: boolean): Promise<void>;
@@ -379,7 +386,8 @@ export const WebView = forwardRef<WebViewHandle, WebViewProps>(function WebView(
       downloadImage: (url, maxPixels) => call(null, (n) => n.downloadImage(url, maxPixels)),
       downloadFavicon: (url) => call(null, (n) => n.downloadFavicon(url)),
       mediaCommand: (action, seconds) => call(undefined, (n) => n.mediaCommand(action, seconds)),
-      requestPictureInPicture: () => call(false, (n) => n.requestPictureInPicture()),
+      requestPictureInPicture: (press) => call(false, (n) => n.requestPictureInPicture(press.clickAt, press.control)),
+      takeControlPress: (press) => call(false, (n) => n.takeControlPress(press.clickAt, press.control)),
       exitPictureInPicture: () => call(undefined, (n) => n.exitPictureInPicture()),
       getSecurityInfo: () => call(null, (n) => n.getSecurityInfo()),
       openBlockedPopup: (id, always) => call(undefined, (n) => n.openBlockedPopup(id, always)),

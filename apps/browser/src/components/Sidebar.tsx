@@ -2,13 +2,16 @@ import { ContextMenuArea, FadeLabel, Symbol, WindowDragRegion } from "@ardia/she
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { switchOn } from "../lib/killSwitches";
+import { live } from "../live/store";
 import { everySlowly } from "../lib/slowTimers";
 import { layout, ThemeScope, useTheme } from "../lib/theme";
 import { useBrowser } from "../store/browser";
 import { PageProfileContext, useSettings, useWindowId, useWindowProfileId } from "../store/hooks";
 import { activeTabId } from "../store/model";
 import { downloadsIn } from "../store/ui";
-import { cleanedTabsFor, cleanUpCandidates } from "../store/organize";
+import { ancestorIds } from "../store/groups";
+import { cleanedTabsFor, cleanUpCandidates, groupOf } from "../store/organize";
+import { splitOf } from "../store/splits";
 import { openNewTabInSplit } from "./layout/splitActions";
 import { listTopGap, SIDEBAR_FIELD, SIDEBAR_FOOTER_DOWNLOADS, SIDEBAR_HEADER_WITH_FIELD, useAddressBarInSidebar } from "./layout/windowLayout";
 import { SIDEBAR_PLAYER_HEIGHT, SidebarPlayer, useSidebarPlayerTab } from "./media/SidebarPlayer";
@@ -24,18 +27,21 @@ import { DragProvider, DragScope, useDragController, useDragging, useDragItem, u
 import { SidebarDropArea } from "./sidebar/fileDrop";
 import { useClipped, useShift, type ClipSource, type EntryMotion } from "./sidebar/entryMotion";
 import { sidebarEntries } from "./sidebar/entries";
+import { FolderPanel } from "./sidebar/FolderPanel";
 import { GroupBlock } from "./sidebar/GroupBlock";
 import { dismissHover, dismissHoverIn } from "./sidebar/hover";
-import { LiveFolders } from "./sidebar/LiveFolderBlock";
 import { capture, GhostSlot, ListMotionContext, newCapture, useListMotion } from "./sidebar/listMotion";
+import { LiveFolderBlock } from "./sidebar/LiveFolderBlock";
 import { openOverflowMenu, openSidebarMenu } from "./sidebar/menus";
 import { PinFieldZone, PinnedGrid, PinSlotZone } from "./sidebar/PinnedGrid";
+import { LIVE, usePinnedSequence } from "./sidebar/pinnedOrder";
 import { pinGridHeight } from "./sidebar/pinZone";
 import { ResizeHandle } from "./sidebar/ResizeHandle";
 import { SCROLL_EDGE, ScrollEdgeLine, useScrollEdge } from "./sidebar/ScrollEdge";
 import { entriesHeight, firstPaintEntries, rowSpan, startsOffScreen, type Section } from "./sidebar/geometry";
 import { measureRow } from "./sidebar/state";
 import { SplitRowItem, TabRowItem } from "./sidebar/TabRow";
+import { closeFolderPanel } from "./sidebar/tileFolderUi";
 import { useSidebarTokens } from "./sidebar/tokens";
 import { toggleNewTabBar } from "./omnibox/newTabBar";
 
@@ -120,6 +126,7 @@ export function Sidebar({ width }: { width: number }) {
                   scrollY.current = y;
                   controller.scrollY = y;
                   dismissHover();
+                  closeFolderPanel();
                 }}
               />
             ))}
@@ -172,6 +179,7 @@ export function Sidebar({ width }: { width: number }) {
               <PinSlotZone />
             )
           ) : null}
+          <FolderPanel windowId={windowId} />
           {ghost ? <DragGhost ghost={ghost} /> : null}
         </SidebarDropArea>
       )}
@@ -207,7 +215,7 @@ function SidebarPage({ profileId, slot, width, current, resting, docked, glowRoo
     return () => cancelAnimationFrame(frame);
   }, [beside]);
   const offScreen = beside && !current;
-  const tiles = useBrowser((s) => (offScreen ? NONE : sidebarEntries(s, windowId, profileId).tiles));
+  const tiles = useBrowser((s) => (offScreen ? NONE : sidebarEntries(s, windowId, profileId).cells));
   const innerWidth = width - layout.sidebarInset * 2;
   const dragging = useDragging() && current;
   const previewed = usePinnedCount(tiles);
@@ -334,7 +342,7 @@ type PageRowsProps = {
 
 function PageRows({ windowId, profileId, current, rows, lazy, offScreen, tiles, innerWidth, inlineNewTab, controller, geometry, onListHeight }: PageRowsProps) {
   const [captured] = useState(newCapture);
-  const { pinnedRows, pinnedGroups, list: all } = useBrowser((s) => {
+  const { list: all } = useBrowser((s) => {
     const entries = sidebarEntries(s, windowId, profileId);
     return capture(captured, s, entries.list, entries);
   });
@@ -352,7 +360,8 @@ function PageRows({ windowId, profileId, current, rows, lazy, offScreen, tiles, 
   const list = limit === undefined ? all : all.slice(0, limit);
   const pending = useBrowser((s) => (growing ? entriesHeight(s, windowId, profileId, all.slice(mountedRows)) : 0));
   const divided = !offScreen && all.length > 0;
-  const pinnedSection = pinnedRows.length + pinnedGroups.length > 0;
+  const pinned = usePinnedSequence(windowId, profileId, offScreen);
+  const pinnedSection = pinned.length > 0;
   const newTabsAtTop = useSettings((s) => s.newTabPosition === "top");
   const animated = current && !offScreen;
   const motion = useListMotion(windowId, profileId, all, captured, animated);
@@ -379,16 +388,11 @@ function PageRows({ windowId, profileId, current, rows, lazy, offScreen, tiles, 
           onLayout={geometry ? (e) => void (geometry.current.regions.pinnedGroups = e.nativeEvent.layout.y) : undefined}
           style={{ marginTop: tiles.length ? 6 : 0, gap: layout.rowGap }}
         >
-          {(offScreen ? NONE : pinnedRows).map((id) => (
-            <TabRowItem key={id} tabId={id} section="pinnedRows" />
-          ))}
-          <Tail id="tail:pinnedRows" section="pinnedRows" />
-          {(offScreen ? NONE : pinnedGroups).map((id) => (
-            <GroupBlock key={id} groupId={id} section="pinnedGroups" />
+          {pinned.map((entry) => (
+            <PinnedEntry key={entry} entry={entry} windowId={windowId} />
           ))}
           <Tail id="tail:pinnedGroups" section="pinnedGroups" />
         </View>
-        {offScreen ? null : <LiveFolders windowId={windowId} spaced={pinnedSection} />}
         {divided ? <ClearDivider windowId={windowId} spaced={pinnedSection} /> : null}
         <View
           ref={(v) => {
@@ -429,6 +433,13 @@ function PageContent({ children }: { children: (controller: ReturnType<typeof us
   return <>{children(useDragController())}</>;
 }
 
+const PinnedEntry = memo(function PinnedEntry({ entry, windowId }: { entry: string; windowId: string }) {
+  const id = entry.slice(entry.indexOf(":") + 1);
+  if (entry.startsWith(LIVE)) return <LiveFolderBlock folderId={id} windowId={windowId} />;
+  if (entry.startsWith("g:")) return <GroupBlock groupId={id} section="pinnedGroups" />;
+  return <TabRowItem tabId={id} section="pinnedRows" />;
+});
+
 const ListEntry = memo(function ListEntry({ entry, motion }: { entry: string; motion: EntryMotion | null }) {
   const id = entry.slice(2);
   if (entry.startsWith("g:")) return <GroupBlock groupId={id} section="list" motion={motion} />;
@@ -468,9 +479,15 @@ function useRevealTabs(windowId: string, scroll: RefObject<ScrollView | null>, s
       if (geometry.current.tilesFixed && pinned?.pinned && !pinned.pinnedAsRow) return;
       const { regions, newTabAtTop } = geometry.current;
       const span = rowSpan(s, windowId, profileId, tabId, newTabAtTop);
-      if (span) return show(geometry.current.pad + regions[span.section] + span.top, span.height);
+      const pinnedHasLive = span?.section === "pinnedGroups" && live().folderOrder.some((id) => live().folders[id]?.profileId === profileId);
+      if (span && !pinnedHasLive) return show(geometry.current.pad + regions[span.section] + span.top, span.height);
       const view = scroll.current as unknown as View;
-      void measureRow(windowId, tabId).then((row) =>
+      const split = splitOf(s, tabId);
+      const inner = groupOf(s, tabId);
+      const keys = [tabId, ...(split ? [`s:${split.id}`] : []), ...(inner ? [inner.id, ...ancestorIds(s.groups, inner.id)] : [])];
+      const firstShown = (i: number): Promise<Awaited<ReturnType<typeof measureRow>>> =>
+        i >= keys.length ? Promise.resolve(null) : measureRow(windowId, keys[i]!).then((row) => row ?? firstShown(i + 1));
+      void firstShown(0).then((row) =>
         view.measureInWindow((_x, y) => row && mine === reveals && show(row.y - y + (scrollY.current ?? 0), row.height)),
       );
     };

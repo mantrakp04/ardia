@@ -204,8 +204,8 @@ function SiteControlsPanel({
         icon={pip ? "pip.exit" : "pip.enter"}
         label={pip ? "Exit Picture in Picture" : "Picture in Picture"}
         active={pip}
-        onPress={() => {
-          togglePip();
+        onPress={(press) => {
+          togglePip(press);
           close();
         }}
       />
@@ -232,7 +232,7 @@ function SiteControlsPanel({
       <View style={{ paddingTop: PANEL.inset }}>
         <TileRow>{tiles}</TileRow>
 
-        <SiteExtensions windowId={tab.windowId} columns={gridColumns(tiles.length)} onClose={close} />
+        <SiteExtensions windowId={tab.windowId} tabId={tab.id} columns={gridColumns(tiles.length)} onClose={close} />
 
         {origin ? (
           <>
