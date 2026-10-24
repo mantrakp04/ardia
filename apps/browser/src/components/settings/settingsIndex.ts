@@ -199,6 +199,16 @@ const ROWS: Record<SettingsPane, Section[]> = {
         },
       },
     },
+    {
+      section: "Window",
+      rows: {
+        showPageFrame: {
+          title: "Show page frame",
+          description: "Keep the inset and rounded corners around pages. Turn off to give pages more room.",
+          keywords: ["borderless", "border", "margin", "rounded corners", "edge to edge"],
+        },
+      },
+    },
     { section: "App Icon", rows: { appIcon: { title: "App Icon", description: "Shown in the Dock and the app switcher. The Dock keeps it after you quit.", keywords: ["dock icon", "logo"] } } },
   ],
   privacy: [

@@ -5,7 +5,7 @@ import { useBrowser } from "../../../store/browser";
 import { tabLayoutOf } from "../../../store/model";
 import type { Settings } from "../../../store/settings";
 import { useHover } from "../../primitives";
-import { Group, PopUp, Row, SectionHeader, useFormColors } from "../controls";
+import { Group, PopUp, Row, SectionHeader, Toggle, useFormColors } from "../controls";
 import { APP_ICON_SIZE, appIconChoices } from "../paneData";
 import { store, useResource } from "../resources";
 
@@ -17,6 +17,7 @@ const MODES: { value: Settings["appearance"]; title: string; description: string
 
 export function AppearancePane() {
   const appearance = useBrowser((s) => s.settings.appearance);
+  const showPageFrame = useBrowser((s) => s.settings.showPageFrame !== false);
   const choose = (mode: Settings["appearance"]) => {
     useBrowser.getState().updateSettings({ appearance: mode });
     void setAppearance(mode);
@@ -30,6 +31,12 @@ export function AppearancePane() {
         ))}
       </View>
       <AddressBarPicker />
+      <SectionHeader title="Window" />
+      <Group>
+        <Row anchor="appearance.showPageFrame">
+          <Toggle value={showPageFrame} onChange={(v) => useBrowser.getState().updateSettings({ showPageFrame: v })} />
+        </Row>
+      </Group>
       <AppIconPicker />
     </View>
   );

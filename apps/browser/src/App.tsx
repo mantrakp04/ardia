@@ -18,9 +18,10 @@ import { TOP_CARD_INSET, TOP_STRIP_HEIGHT, TopStripPeek, TopTabStrip } from "./c
 import { useTabLayout } from "./components/layout/windowLayout";
 import { WindowProfile } from "./components/layout/WindowProfile";
 import { DockedLayout } from "./components/layout/SidebarDock";
+import { pageFrameInsets } from "./components/layout/pageFrame";
 import { LittleArdiaWindow } from "./components/littleArdia/LittleArdiaWindow";
 import { SidebarOverlays } from "./components/sidebar/Overlays";
-import { layout, ThemeScope, useTheme } from "./lib/theme";
+import { ThemeScope, useTheme } from "./lib/theme";
 import { useBrowser } from "./store/browser";
 import { useWindowId, WindowContext } from "./store/hooks";
 
@@ -51,6 +52,7 @@ function BrowserWindow() {
   const windowId = useWindowId();
   const topTabs = useTabLayout() === "top";
   const showStrip = useBrowser((s) => topTabs && !!s.windows[windowId]?.sidebarOpen);
+  const showPageFrame = useBrowser((s) => s.settings.showPageFrame !== false);
   const fullscreen = !!useFullscreenTab(windowId);
   const [width, setWidth] = useState(0);
   const card = (
@@ -68,11 +70,7 @@ function BrowserWindow() {
       <DockedLayout
         fullscreen={fullscreen}
         topTabs={topTabs}
-        inset={
-          showStrip
-            ? { top: TOP_STRIP_HEIGHT, right: TOP_CARD_INSET, bottom: TOP_CARD_INSET, left: TOP_CARD_INSET }
-            : { top: layout.cardTop, right: layout.cardInset, bottom: layout.cardInset, left: layout.cardInset }
-        }
+        inset={pageFrameInsets(showPageFrame, showStrip ? TOP_STRIP_HEIGHT : 0, TOP_CARD_INSET)}
       >
         {card}
       </DockedLayout>

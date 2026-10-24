@@ -61,6 +61,7 @@ export type Settings = {
   hideBookmarksBarImport: boolean;
 
   appearance: "auto" | "light" | "dark";
+  showPageFrame: boolean;
   addressBar: "toolbar" | "sidebar";
   commandBarPlacement: "field" | "centred";
 
@@ -123,6 +124,7 @@ export const DEFAULT_SETTINGS: Settings = {
   bookmarksBar: "never",
   hideBookmarksBarImport: false,
   appearance: "auto",
+  showPageFrame: true,
   addressBar: "toolbar",
   commandBarPlacement: "field",
   defaultProfileId: DEFAULT_PROFILE_ID,

@@ -90,13 +90,14 @@ export function DockedLayout({
   children: ReactNode;
 }) {
   const windowId = useWindowId();
-  const [open, savedWidth, addressBar] = useBrowser(
+  const [open, savedWidth, addressBar, showPageFrame] = useBrowser(
     useShallow(
       (s) =>
         [
           s.windows[windowId]?.sidebarOpen ?? true,
           s.settings.sidebarWidth ?? layout.sidebarWidth,
           s.settings.addressBar === "sidebar",
+          s.settings.showPageFrame !== false,
         ] as const,
     ),
   );
@@ -128,10 +129,10 @@ export function DockedLayout({
               }
         }
       >
-        {!fullscreen && <WindowDragRegion style={StyleSheet.absoluteFill} />}
+        {!fullscreen && showPageFrame && <WindowDragRegion style={StyleSheet.absoluteFill} />}
         {children}
       </Animated.View>
-      {!topTabs && <SidebarDock dock={dock} open={open} width={width} fullscreen={fullscreen} arc={arc} lights={lights} />}
+      {!topTabs && <SidebarDock dock={dock} open={open} width={width} fullscreen={fullscreen} arc={arc} lights={lights} showPageFrame={showPageFrame} />}
     </>
   );
 }
@@ -143,6 +144,7 @@ function SidebarDock({
   fullscreen,
   arc,
   lights,
+  showPageFrame,
 }: {
   dock: Animated.Value;
   open: boolean;
@@ -150,6 +152,7 @@ function SidebarDock({
   fullscreen: boolean;
   arc: boolean;
   lights: readonly [number, number];
+  showPageFrame: boolean;
 }) {
   const theme = useTheme();
   const windowId = useWindowId();
@@ -235,14 +238,14 @@ function SidebarDock({
       )}
       {strip.current && (
         <View
-          pointerEvents={!open && !fullscreen ? "auto" : "none"}
+          pointerEvents={showPageFrame && !open && !fullscreen ? "auto" : "none"}
           onMouseEnter={peek.show}
           onMouseLeave={leaveStrip}
           style={{
             position: "absolute",
             left: 0,
             top: 0,
-            bottom: layout.cardInset,
+            bottom: showPageFrame ? layout.cardInset : 0,
             width: !open && !fullscreen ? STRIP_WIDTH : 0,
           }}
         />
