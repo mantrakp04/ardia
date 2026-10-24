@@ -72,7 +72,7 @@ class Mac {
           scope: `p:${p}`,
           state: (this.scopes[p] ??= emptyScope()),
           transport: this.folder.transport(),
-          adapters: this.legacy ? [shippedPinnedAdapter(p)] : [adapters.pinnedRowsAdapter(p), adapters.pinnedOrderAdapter(p), adapters.pinnedAdapter(p)],
+          adapters: this.legacy ? [shippedPinnedAdapter(p)] : [adapters.pinnedRowsAdapter(p), adapters.pinnedHomesAdapter(p), adapters.pinnedOrderAdapter(p), adapters.pinnedAdapter(p)],
           clock: this.clock,
           device: this.id,
           now: () => wall,
@@ -879,4 +879,32 @@ test("known residual: a log that never arrives keeps its gap and the logs after 
   assert.ok(b.scopes.default.extra.lateA?.length, "documented in docs/sync.md: the gap stays open");
   const fromA = [...folder.files.values()].filter((f) => f.scope === "p:default" && JSON.parse(f.payload).kind === "log" && JSON.parse(f.payload).device === "lateA");
   assert.ok(fromA.length >= 1, "and A's later logs stay in the folder");
+});
+
+test("a folder page keeps its home when a Mac on 0.2.38 sends the member back without it", async () => {
+  const folder = new Folder();
+  const a = freshMac("devA", folder);
+  const old = freshMac("devOld", folder, true);
+  let x;
+  a.with(() => {
+    const w = Object.values(S().windows).find((win) => win.profileId === "default").id;
+    x = S().newTab(w, { url: "https://x.example/" });
+    S().pinTabs([x], true, true);
+    S().newFolder([x], "Docs");
+    S().updateTab(x, { url: "https://x.example/deep" });
+  });
+  const homeOn = (mac) =>
+    mac.with(() => Object.values(S().groups).filter((g) => g.pinned && g.profileId === "default").flatMap((g) => g.tabIds.map((id) => S().tabs[id].pinnedUrl)));
+  for (let i = 0; i < 4; i++) {
+    await a.sync(["default"]);
+    await old.sync(["default"]);
+  }
+  assert.deepEqual(homeOn(a), ["https://x.example/"]);
+  assert.equal((await a.sync(["default"])) + (await old.sync(["default"])), 0, "settled");
+  a.with(() => S().setPinnedUrl(x, "https://x.example/new"));
+  for (let i = 0; i < 3; i++) {
+    await a.sync(["default"]);
+    await old.sync(["default"]);
+  }
+  assert.deepEqual(homeOn(a), ["https://x.example/new"]);
 });

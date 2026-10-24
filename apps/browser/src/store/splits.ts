@@ -2,6 +2,7 @@ import type { StateCreator } from "zustand";
 import type { BrowserState } from "./browser";
 import { innermostGroupOf, leaveGroups, syncGroupOrder } from "./groups";
 import { newId } from "./model";
+import { withoutStrayHomes } from "./organize";
 import { choose } from "./settings";
 import { activated, apply, removeTabs, withNewTab } from "./tabs";
 import type { BrowserWindow, SplitView, Tab } from "./types";
@@ -112,7 +113,7 @@ function gather(s: BrowserState, anchorId: string, members: string[]): BrowserSt
   let groups = leaveGroups(s.groups, moving);
   const group = innermostGroupOf(s.groups, anchorId);
   if (group && groups[group.id]) groups = { ...groups, [group.id]: { ...groups[group.id]!, tabIds: [...groups[group.id]!.tabIds, ...moving] } };
-  return { ...s, windows: { ...s.windows, [w.id]: window }, groups: syncGroupOrder(groups, window) };
+  return { ...s, tabs: withoutStrayHomes({ tabs: s.tabs, groups }, [...moving]), windows: { ...s.windows, [w.id]: window }, groups: syncGroupOrder(groups, window) };
 }
 
 function withPane(existing: SplitView | undefined, anchorId: string, tabId: string, side: SplitSide, windowId: string): SplitView | null {

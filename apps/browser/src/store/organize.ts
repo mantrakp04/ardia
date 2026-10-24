@@ -1,8 +1,8 @@
 import type { StateCreator } from "zustand";
 import type { BrowserState } from "./browser";
 import { autoGroupName } from "./groupNames";
-import { ancestorIds, canNest, commonGroup, descendantIds, innermostGroupOf, insertAll, leaveGroups, nestGroups, orderSections, placeBlock, placeGroups, rejoinGroups, reparent, syncGroupOrder, withGroupsPlaced, withParent } from "./groups";
-import { activeTabId, bookmarkProfileId, inPinnedContainer, isIncognitoProfile, newId, pendingRestore, restoreId, snapshotTab, viewTabIds, without } from "./model";
+import { ancestorIds, canNest, commonGroup, descendantIds, innermostGroupOf, insertAll, leaveGroups, nestGroups, orderSections, placeBlock, placeGroups, rejoinGroups, reparent, rootOf, syncGroupOrder, withGroupsPlaced, withParent } from "./groups";
+import { activeTabId, bookmarkProfileId, inPinnedContainer, isIncognitoProfile, isPinnedRow, newId, pendingRestore, restoreId, snapshotTab, viewTabIds, without } from "./model";
 import { activated, apply, removeTabs, withNewTab } from "./tabs";
 import type { BrowserWindow, ClosedGroup, ClosedTab, NestedGroupSnapshot, Tab, TabGroup, TileFolder } from "./types";
 
@@ -89,6 +89,9 @@ export type OrganizeSlice = {
 
   groupTabs(ids: string[], options?: { pinned?: boolean; name?: string }): string;
   groupOnto(ids: string[], targetId: string): string;
+  newFolder(ids: string[], name?: string): string;
+  removeFromFolder(ids: string[]): void;
+  releaseFolder(groupId: string): void;
   moveGroup(groupId: string, placement: GroupPlacement): void;
   duplicateGroup(groupId: string): string;
   newTabInGroup(groupId: string): string;
@@ -137,22 +140,59 @@ export function samePage(a: string, b: string): boolean {
   return norm(a) === norm(b);
 }
 
-export const awayFromPin = (t: Pick<Tab, "pinned" | "url" | "pinnedUrl">) =>
-  t.pinned && !!t.pinnedUrl && !!t.url && !samePage(t.url, t.pinnedUrl);
+export const awayFromPin = (t: Pick<Tab, "pinned" | "url" | "pinnedUrl">, member = false) =>
+  (t.pinned || member) && !!t.pinnedUrl && !!t.url && !samePage(t.url, t.pinnedUrl);
+
+type Pins = Pick<BrowserState, "tabs" | "groups">;
+
+const holdsHome = (s: Pins, g: TabGroup): boolean => g.pinned && g.tabIds.some((id) => !!s.tabs[id]?.pinnedUrl);
+
+export const isFolder = (s: Pins, g: TabGroup | undefined): boolean => {
+  if (!g?.pinned) return false;
+  const root = g.parentId ? (rootOf(s.groups, g.id) ?? g) : g;
+  return holdsHome(s, root);
+};
+
+let memberCache: { groups: object; tabs: object; ids: Set<string> } | null = null;
+
+function folderMembers(s: Pins): Set<string> {
+  if (memberCache && memberCache.groups === s.groups && memberCache.tabs === s.tabs) return memberCache.ids;
+  const ids = new Set<string>();
+  for (const g of Object.values(s.groups)) if (!g.parentId && holdsHome(s, g)) for (const id of g.tabIds) ids.add(id);
+  memberCache = { groups: s.groups, tabs: s.tabs, ids };
+  return ids;
+}
+
+export const inFolder = (s: Pins, tabId: string | undefined): boolean => !!tabId && folderMembers(s).has(tabId);
+
+export function withoutStrayHomes(s: Pins, ids: string[]): Record<string, Tab> {
+  const inPinned = new Set(Object.values(s.groups).filter((g) => g.pinned).flatMap((g) => g.tabIds));
+  return withoutHomes(s.tabs, ids.filter((id) => !inPinned.has(id)));
+}
+
+export const hasPinnedPage = (s: Pins, t: Pick<Tab, "id" | "pinned" | "pinnedUrl">): boolean =>
+  t.pinned || (!!t.pinnedUrl && Object.values(s.groups).some((g) => g.pinned && g.tabIds.includes(t.id)));
+
+export const foldersOf = (s: Pick<BrowserState, "groups">, windowId: string, profileId: string, except?: string): TabGroup[] =>
+  Object.values(s.groups).filter((g) => g.pinned && g.windowId === windowId && g.profileId === profileId && g.id !== except);
+
+export const canFold = (s: Pins, id: string): boolean => isPinnedRow(s.tabs[id]) || inFolder(s, id);
 
 const autoLabels = new WeakMap<TabGroup, { tabs: object; members: (Tab | undefined)[]; label: string }>();
 
-export function groupLabel(s: Pick<BrowserState, "tabs">, g: TabGroup): string {
+const fallbackLabel = (s: Pins, g: TabGroup) => (isFolder(s, g) ? "New Folder" : "New Group");
+
+export function groupLabel(s: Pins, g: TabGroup): string {
   if (g.name) return g.name;
   const cached = autoLabels.get(g);
   if (cached && (cached.tabs === s.tabs || g.tabIds.every((id, i) => s.tabs[id] === cached.members[i]))) {
     cached.tabs = s.tabs;
-    return cached.label;
+    return cached.label || fallbackLabel(s, g);
   }
   const members = g.tabIds.map((id) => s.tabs[id]);
-  const label = autoGroupName(members.filter((t): t is Tab => !!t?.url)) || "New Group";
+  const label = autoGroupName(members.filter((t): t is Tab => !!t?.url));
   autoLabels.set(g, { tabs: s.tabs, members, label });
-  return label;
+  return label || fallbackLabel(s, g);
 }
 
 function isSiteMuted(s: Pick<BrowserState, "settings" | "privateSiteMutes">, tab: Pick<Tab, "windowId" | "profileId">, host: string): boolean {
@@ -227,6 +267,10 @@ export function withGroup(
       : asked && asked.windowId === w.id && asked.profileId === first.profileId
         ? asked
         : undefined;
+  if (!container?.pinned && tabs.some((t) => inFolder(s, t.id))) {
+    return withGroup(s, tabs.filter((t) => !inFolder(s, t.id)).map((t) => t.id), o);
+  }
+  const stray = tabs.filter((t) => !inFolder(s, t.id)).map((t) => t.id);
   const keep = new Set(container ? [container.id, ...ancestorIds(s.groups, container.id)] : []);
   let tabIds = placeBlock(w.tabIds, w.tabIds.filter((id) => members.has(id)));
   const group: TabGroup = {
@@ -247,7 +291,7 @@ export function withGroup(
   const groups = nestGroups({ ...leaveGroups(s.groups, members, keep), [group.id]: group });
   tabIds = orderSections(placeGroups(tabIds, groups, w.id), s.tabs, groups);
   const window = { ...w, tabIds };
-  return [{ ...s, groups: syncGroupOrder(groups, window), windows: { ...s.windows, [w.id]: window } }, group.id];
+  return [{ ...s, tabs: withoutHomes(s.tabs, stray), groups: syncGroupOrder(groups, window), windows: { ...s.windows, [w.id]: window } }, group.id];
 }
 
 function closedEntries(s: BrowserState, ids: string[]): ClosedTab[] {
@@ -352,6 +396,26 @@ export function rebuildNested(s: BrowserState, rootId: string, rootKey: string, 
   return { ...s, groups: syncGroupOrder(settled, window), windows: { ...s.windows, [w.id]: window } };
 }
 
+export function withoutHomes(tabs: Record<string, Tab>, ids: string[]): Record<string, Tab> {
+  let next = tabs;
+  for (const id of ids) {
+    const t = tabs[id];
+    if (!t || t.pinned || !t.pinnedUrl) continue;
+    if (next === tabs) next = { ...tabs };
+    next[id] = { ...t, pinnedUrl: null };
+  }
+  return next;
+}
+
+function withHomes(s: BrowserState, ids: string[], snapshots: { pinnedUrl?: string | null }[]): BrowserState {
+  const tabs = { ...s.tabs };
+  ids.forEach((id, i) => {
+    const home = snapshots[i]?.pinnedUrl;
+    if (home && tabs[id]) tabs[id] = { ...tabs[id]!, pinnedUrl: home };
+  });
+  return { ...s, tabs };
+}
+
 function restoreSnapshots(
   s: BrowserState,
   windowId: string,
@@ -437,6 +501,7 @@ export function restoringGroup(s: BrowserState, entry: ClosedGroup, requested?: 
     next = { ...next, groups: { ...next.groups, [groupId]: { ...next.groups[groupId]!, icon: entry.group.icon, color: entry.group.color } } };
     next = rebuildNested(next, groupId, entry.group.id, ids, entry.nested);
     if (index !== undefined && entry.group.pinned && !parent) next = atSavedIndex(next, windowId, next.groups[groupId]!.tabIds, index);
+    if (next.groups[groupId]?.pinned) next = withHomes(next, ids, entry.tabs);
   }
   return ids[0] ? apply(next, activated(next, ids[0])) : next;
 }
@@ -486,6 +551,13 @@ export function recentTabIds(s: BrowserState, windowId: string, now = Date.now()
   return sorted.filter((t, i) => i < 2 || now - t.lastActiveAt < staleAfterMs).map((t) => t.id);
 }
 
+function pinnedHome(t: Tab, toPinned: boolean, toFolder: boolean, fromFolder: boolean): string | null {
+  const kept = t.pinnedUrl || t.url || null;
+  if (toPinned) return t.pinned || fromFolder ? kept : t.url || null;
+  if (toFolder) return t.pinned ? kept : fromFolder ? t.pinnedUrl : null;
+  return null;
+}
+
 export function placing(s: BrowserState, ids: string[], p: TabPlacement): BrowserState {
   const first = s.tabs[ids[0] ?? ""];
   const w = first && s.windows[first.windowId];
@@ -509,7 +581,8 @@ export function placing(s: BrowserState, ids: string[], p: TabPlacement): Browse
   const intoPinnedGroup = target?.pinned ? target.id : null;
   for (const id of moving) {
     const t = tabs[id]!;
-    if (t.pinned !== p.pinned) tabs[id] = { ...t, pinned: p.pinned, pinnedUrl: p.pinned ? t.url || null : null };
+    const home = pinnedHome(t, p.pinned, !!intoPinnedGroup, pinnedGroupOf(id) !== null);
+    if (t.pinned !== p.pinned || t.pinnedUrl !== home) tabs[id] = { ...t, pinned: p.pinned, pinnedUrl: home };
     const row = p.pinned && (p.row ?? (t.pinned && !!t.pinnedAsRow));
     const placed = t.pinned !== p.pinned || (!p.pinned && pinnedGroupOf(id) !== intoPinnedGroup);
     if (placed || !!t.pinnedAsRow !== row) {
@@ -591,6 +664,7 @@ export function movingGroup(s: BrowserState, groupId: string, p: GroupPlacement)
     for (const id of g.tabIds) if (s.tabs[id]) mine[placeChoiceKey(s.tabs[id]!.pinKey ?? id)] = nextPinChoice();
     pinChoices = { ...pinChoices, [g.profileId]: mine };
   }
+  const tabs = pinned ? withoutHomes(s.tabs, g.pinned ? [] : g.tabIds.filter((id) => !inFolder(s, id))) : withoutHomes(s.tabs, g.tabIds);
   const rest = w.tabIds.filter((id) => !moving.has(id));
   let at: number;
   if (p.beforeId && rest.includes(p.beforeId)) {
@@ -606,8 +680,8 @@ export function movingGroup(s: BrowserState, groupId: string, p: GroupPlacement)
     at = rest.reduce((last, id, i) => (s.tabs[id]?.pinned || pinnedGroup.has(id) ? i + 1 : last), 0);
   } else at = rest.length;
   insertAll(rest, at, g.tabIds);
-  const window = { ...w, tabIds: orderSections(placeGroups(rest, groups, w.id), s.tabs, groups) };
-  return { groups: syncGroupOrder(groups, window), windows: { ...s.windows, [w.id]: window }, pinChoices };
+  const window = { ...w, tabIds: orderSections(placeGroups(rest, groups, w.id), tabs, groups) };
+  return { tabs, groups: syncGroupOrder(groups, window), windows: { ...s.windows, [w.id]: window }, pinChoices };
 }
 
 export function forgetClosedPrivateWindows(s: BrowserState): Partial<BrowserState> | null {
@@ -661,7 +735,7 @@ export const createOrganizeSlice: StateCreator<BrowserState, [], [], OrganizeSli
   setPinnedUrl(tabId, url) {
     const t = get().tabs[tabId];
     const next = url ?? t?.url;
-    if (!t?.pinned || !next) return;
+    if (!t || !hasPinnedPage(get(), t) || !next) return;
     get().updateTab(tabId, { pinnedUrl: next });
     if (url && !samePage(t.url, url)) get().navigate(tabId, url);
   },
@@ -714,12 +788,55 @@ export const createOrganizeSlice: StateCreator<BrowserState, [], [], OrganizeSli
     const target = s.tabs[targetId];
     const w = target && s.windows[target.windowId];
     if (!w || target.pinned || groupOf(s, targetId)) return "";
-    const moving = ids.filter((id) => id !== targetId && s.tabs[id]?.windowId === w.id && s.tabs[id]?.profileId === target.profileId);
+    const moving = ids.filter((id) => id !== targetId && !inFolder(s, id) && s.tabs[id]?.windowId === w.id && s.tabs[id]?.profileId === target.profileId);
     if (!moving.length) return "";
     const after = w.tabIds.slice(w.tabIds.indexOf(targetId) + 1).find((id) => !moving.includes(id)) ?? null;
     const [next, id] = withGroup(placing(s, moving, { pinned: false, beforeId: after }), [targetId, ...moving], { pinned: false });
     if (id) set({ ...next, selection: { ...next.selection, [w.id]: [] } });
     return id;
+  },
+
+  newFolder(ids, name = "") {
+    const s = get();
+    const tabs = [...new Set(ids)].map((id) => s.tabs[id]).filter((t): t is Tab => !!t && canFold(s, t.id));
+    const first = tabs[0];
+    const w = first && s.windows[first.windowId];
+    if (!first || !w || tabs.some((t) => t.windowId !== first.windowId || t.profileId !== first.profileId)) return "";
+    const group: TabGroup = {
+      id: newId("g"),
+      windowId: w.id,
+      profileId: first.profileId,
+      name,
+      icon: "🗂️",
+      color: null,
+      collapsed: false,
+      pinned: true,
+      tabIds: [first.id],
+      createdAt: Date.now(),
+    };
+    let next = placing({ ...s, groups: { ...s.groups, [group.id]: group } }, tabs.map((t) => t.id), { pinned: false, groupId: group.id });
+    if (!next.groups[group.id]) return "";
+    if (!isIncognitoProfile(group.profileId)) {
+      const mine = { ...next.pinChoices[group.profileId], [groupChoiceKey(group.id)]: nextPinChoice() };
+      next = { ...next, pinChoices: { ...next.pinChoices, [group.profileId]: mine } };
+    }
+    set({ ...next, selection: { ...next.selection, [w.id]: [] } });
+    return group.id;
+  },
+
+  removeFromFolder(ids) {
+    const s = get();
+    const leaving = ids.filter((id) => inFolder(s, id));
+    if (leaving.length) set(placing(s, leaving, { pinned: true, row: true }));
+  },
+
+  releaseFolder(groupId) {
+    const s = get();
+    const g = s.groups[groupId];
+    if (!g || !isFolder(s, g)) return;
+    const family = [...descendantIds(s.groups, groupId).reverse(), groupId];
+    get().removeFromFolder(g.tabIds.filter((id) => !!s.tabs[id]?.pinnedUrl));
+    for (const id of family) if (get().groups[id]) get().ungroup(id);
   },
 
   moveGroup(groupId, p) {
@@ -742,6 +859,7 @@ export const createOrganizeSlice: StateCreator<BrowserState, [], [], OrganizeSli
     if (groupId2) {
       s = { ...s, groups: { ...s.groups, [groupId2]: { ...s.groups[groupId2]!, icon: g.icon, color: g.color } } };
       s = rebuildNested(s, groupId2, g.id, ids, nestedSnapshot(get(), g));
+      if (s.groups[groupId2]?.pinned) s = withHomes(s, ids, g.tabIds.map((id) => get().tabs[id]!));
     }
     set(s);
     return groupId2;

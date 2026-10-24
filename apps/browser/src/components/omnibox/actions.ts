@@ -4,6 +4,7 @@ import { runCommand } from "../../lib/commands";
 import { isBookmarked } from "../../store/bookmarks";
 import { useBrowser, type BrowserState } from "../../store/browser";
 import { activeTab, bookmarkProfileId, isPinnedRow } from "../../store/model";
+import { inFolder } from "../../store/organize";
 import type { Tab } from "../../store/types";
 
 type Context = { s: BrowserState; windowId: string; tab: Tab | undefined };
@@ -29,7 +30,7 @@ const DEFS: ActionDef[] = [
   { command: "reopenClosedTab", title: "Reopen Closed Tab", icon: "arrow.uturn.backward", hint: "⇧⌘T", keywords: ["undo close", "restore tab"] },
   {
     command: "togglePin",
-    title: ({ tab }) => (isPinnedRow(tab) ? "Unpin Tab" : tab?.pinned ? "Unpin from Top Apps" : "Move to Top Apps"),
+    title: ({ s, tab }) => (isPinnedRow(tab) || (tab && inFolder(s, tab.id)) ? "Unpin Tab" : tab?.pinned ? "Unpin from Top Apps" : "Move to Top Apps"),
     icon: "pin",
     keywords: ["pin", "unpin", "pin tab", "unpin tab", "remove from top apps", "favorites"],
     needs: "tab",

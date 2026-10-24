@@ -98,7 +98,7 @@ export function moveTabsInto(s: BrowserState, ids: string[], targetId: string): 
   const activeTabIds = { ...w.activeTabIds };
   for (const { adoptId, ...t } of moving) {
     const loaded = !!t.url && (!!t.navigation || !!adoptId);
-    tabs[t.id] = { ...t, windowId: targetId, navigation: loaded ? navigationTo(t.url) : null };
+    tabs[t.id] = { ...t, windowId: targetId, pinnedUrl: t.pinned ? t.pinnedUrl : null, navigation: loaded ? navigationTo(t.url) : null };
     live[t.id] = IDLE_LIVE;
     activeTabIds[t.profileId] ??= t.id;
   }
@@ -254,7 +254,7 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
     const base = next.windows[w.id] ?? { ...w, tabIds: [], activeTabIds: {} };
     const loaded = !!tab.url && (!!tab.navigation || !!tab.adoptId);
     const { adoptId: _, wakeAdoptId: _w, ...rest } = tab;
-    const moved: Tab = { ...rest, profileId, navigation: loaded ? navigationTo(tab.url) : null, lastActiveAt: Date.now() };
+    const moved: Tab = { ...rest, profileId, pinnedUrl: tab.pinned ? tab.pinnedUrl : null, navigation: loaded ? navigationTo(tab.url) : null, lastActiveAt: Date.now() };
     const movedKey = moved.pinKey ?? moved.id;
     const pinChoices = tab.pinned
       ? { ...next.pinChoices, [profileId]: { ...next.pinChoices[profileId], [movedKey]: nextPinChoice(), [placeChoiceKey(movedKey)]: nextPinChoice() } }

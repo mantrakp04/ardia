@@ -1,6 +1,6 @@
 import { useBrowser, type BrowserState } from "../../store/browser";
 import { activeTab } from "../../store/model";
-import { groupOf, selectedTabIds } from "../../store/organize";
+import { groupOf, inFolder, selectedTabIds } from "../../store/organize";
 import { pinKeyOf } from "../../store/pinMirror";
 import type { Tab } from "../../store/types";
 
@@ -10,7 +10,7 @@ const listSpots = new Map<string, ListSpot>();
 let spotOrder = 0;
 const store = () => useBrowser.getState();
 
-export const movePinnedTitle = (tab: Tab | undefined) => (tab?.pinned ? "Move out of Pinned" : "Move to Pinned");
+export const movePinnedTitle = (tab: Tab | undefined, member = false) => (tab?.pinned || member ? "Move out of Pinned" : "Move to Pinned");
 
 const listTabIds = (s: BrowserState, windowId: string, profileId: string, except: Set<string>) =>
   (s.windows[windowId]?.tabIds ?? []).filter((id) => {
@@ -23,8 +23,9 @@ export function togglePinnedRows(windowId: string) {
   const tab = activeTab(s, windowId);
   if (!tab) return;
   const selected = selectedTabIds(s, windowId).map((id) => s.tabs[id]!).filter((t) => t.profileId === tab.profileId);
-  if (!tab.pinned) return moveToPinnedRows(s, windowId, selected.filter((t) => !t.pinned));
-  moveOutOfPinned(selected.filter((t) => t.pinned));
+  const pinnedLike = (t: Tab) => t.pinned || inFolder(s, t.id);
+  if (!pinnedLike(tab)) return moveToPinnedRows(s, windowId, selected.filter((t) => !pinnedLike(t)));
+  moveOutOfPinned(selected.filter(pinnedLike));
 }
 
 function moveToPinnedRows(s: BrowserState, windowId: string, tabs: Tab[]) {

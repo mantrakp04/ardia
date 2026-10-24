@@ -10,7 +10,7 @@ import { activeTabId, bookmarkProfileId, plural } from "../../store/model";
 import { folderIn, folderLabel, folderMembers } from "../../store/tileFolders";
 import { useShallow } from "zustand/react/shallow";
 import { useFolderPanel } from "./tileFolderUi";
-import { awayFromPin, groupLabel } from "../../store/organize";
+import { awayFromPin, groupLabel, inFolder } from "../../store/organize";
 import { openInSplit } from "../layout/splitActions";
 import { CalendarPreview, useIsCalendarTab } from "../live/CalendarPreview";
 import { LiveItemCard } from "../live/LiveItemCard";
@@ -88,9 +88,10 @@ function TabCard({ tabId, windowId, anchor }: { tabId: string; windowId: string;
   const video = useMedia((m) => !!m.sessions[tabId]?.hasVideo || !!m.pipOpen[tabId]);
   const [pip, togglePip] = usePictureInPicture(tabId);
   const sleeping = useIsSleeping(tabId);
+  const folderMember = useBrowser((s) => inFolder(s, tabId));
   if (!tab) return null;
   const s = () => useBrowser.getState();
-  const away = awayFromPin(tab);
+  const away = awayFromPin(tab, folderMember);
   return (
     <Card anchor={anchor}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -114,7 +115,7 @@ function TabCard({ tabId, windowId, anchor }: { tabId: string; windowId: string;
         </Text>
       ) : null}
       <View style={{ flexDirection: "row", gap: 4, marginTop: 8 }}>
-        <Action icon={tab.pinned ? "pin.slash" : "pin"} label={tab.pinned ? "Unpin" : "Pin"} onPress={() => s().togglePin(tabId)} />
+        <Action icon={tab.pinned || folderMember ? "pin.slash" : "pin"} label={tab.pinned || folderMember ? "Unpin" : "Pin"} onPress={() => s().togglePin(tabId)} />
         {tab.url ? (
           <Action
             icon={bookmarked ? "bookmark.fill" : "bookmark"}

@@ -7,6 +7,7 @@ import { connectCalendar, refreshCalendar, useCalendar, useNow } from "../../liv
 import { isCalendarUrl, isMeeting, joinLink, joinTitle, relativeTime, timeRange, type CalendarEvent } from "../../live/meetings";
 import { useLive } from "../../live/store";
 import { useBrowser } from "../../store/browser";
+import { hasPinnedPage } from "../../store/organize";
 import { IconButton, useHover } from "../primitives";
 import { dismissHover } from "../sidebar/hover";
 import type { Anchor } from "../sidebar/state";
@@ -16,7 +17,7 @@ import { useLiveColors } from "./colors";
 export function useIsCalendarTab(tabId: string | null): boolean {
   const pinnedCalendar = useBrowser((s) => {
     const t = tabId ? s.tabs[tabId] : undefined;
-    return !!t?.pinned && isCalendarUrl(t.pinnedUrl ?? t.url);
+    return !!t && hasPinnedPage(s, t) && isCalendarUrl(t.pinnedUrl ?? t.url);
   });
   const on = useLive((s) => s.calendar.showPreview);
   return pinnedCalendar && on;

@@ -5,13 +5,14 @@ import { useCalendar, useNow } from "../../live/calendar";
 import { badgeText, isCalendarUrl } from "../../live/meetings";
 import { useLive } from "../../live/store";
 import { useBrowser } from "../../store/browser";
+import { hasPinnedPage } from "../../store/organize";
 import { useSidebarTokens } from "../sidebar/tokens";
 import { useLiveColors } from "./colors";
 
 export const NextMeetingBadge = memo(function NextMeetingBadge({ tabId }: { tabId: string }) {
   const pinnedUrl = useBrowser((s) => {
     const t = s.tabs[tabId];
-    return t?.pinned ? (t.pinnedUrl ?? t.url) : null;
+    return t && hasPinnedPage(s, t) ? (t.pinnedUrl ?? t.url) : null;
   });
   const calendar = pinnedUrl !== null && isCalendarUrl(pinnedUrl);
   const on = useLive((s) => s.calendar.showTimeToNext);

@@ -22,7 +22,7 @@ import {
   without,
 } from "./model";
 import { forgetOpeners, insertionIndex, openerSuccessor, switchKeepsOpeners } from "./openers";
-import { groupWithOpener, onUrlChange, pruneSelection, samePage } from "./organize";
+import { groupWithOpener, inFolder, onUrlChange, pruneSelection, samePage } from "./organize";
 import { searchUrlPrefix } from "./settings";
 import { mainWindowFor } from "./small";
 import { leavesEmptyWindow } from "./newTabBar";
@@ -462,7 +462,7 @@ export const createTabsSlice: StateCreator<BrowserState, [], [], TabsSlice> = (s
 
   togglePin(id) {
     const tab = get().tabs[id];
-    if (tab) get().pinTabs([id], !tab.pinned);
+    if (tab) get().pinTabs([id], !(tab.pinned || inFolder(get(), id)));
   },
 
   moveTab(id, toIndex) {
