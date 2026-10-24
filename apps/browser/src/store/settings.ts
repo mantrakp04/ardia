@@ -34,6 +34,7 @@ export type Settings = {
   newTabOpens: "page" | "commandBar";
   warnBeforeClosingLastTab: boolean;
   warnBeforeMovingTabsToProfile: boolean;
+  shareTopApps: boolean;
   tabReorderHaptics: boolean;
   extendWebsiteColor: boolean;
   cmdClickCreatesTabGroup: boolean;
@@ -94,6 +95,7 @@ export const DEFAULT_SETTINGS: Settings = {
   newTabOpens: "page",
   warnBeforeClosingLastTab: true,
   warnBeforeMovingTabsToProfile: true,
+  shareTopApps: true,
   tabReorderHaptics: true,
   extendWebsiteColor: true,
   cmdClickCreatesTabGroup: true,

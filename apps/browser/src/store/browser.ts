@@ -6,7 +6,7 @@ import { createHistorySlice, type HistorySlice } from "./history";
 import { IDLE_LIVE, isIncognitoProfile, pinnedFirst } from "./model";
 import { createOrganizeSlice, forgetClosedPrivateWindows, keptCleanedTabs, keptDeletedGroups, livePinTable, notePinChoices, type OrganizeSlice } from "./organize";
 import { createPeekSlice, settlePeeks, type PeekSlice } from "./peek";
-import { mirrorPins } from "./pinMirror";
+import { mirrorPins, mirrorTopApps } from "./pinMirror";
 import { settleSharedPins } from "./pinShare";
 import { settleTileFolders } from "./tileFolders";
 import { createProfilesSlice, DEFAULT_PROFILE, engineIdOf, type ProfilesSlice } from "./profiles";
@@ -217,7 +217,8 @@ useBrowser.subscribe((s, prev) => {
   if (mirroring > 3) return;
   const shared = settleSharedPins(s, prev);
   const settled = settleTileFolders(shared ?? s, prev) ?? shared;
-  const next = mirrorPins(settled ?? s, prev) ?? settled;
+  const mirrored = mirrorPins(settled ?? s, prev) ?? settled;
+  const next = mirrorTopApps(mirrored ?? s, prev) ?? mirrored;
   if (!next) return;
   mirroring++;
   try {
