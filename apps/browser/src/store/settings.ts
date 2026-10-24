@@ -70,6 +70,7 @@ export type Settings = {
   appearance: "auto" | "light" | "dark";
   addressBar: "toolbar" | "sidebar";
   commandBarPlacement: "field" | "centred";
+  followSystemAppearance: boolean;
 
   defaultProfileId: string;
 
@@ -151,6 +152,7 @@ export const DEFAULT_SETTINGS: Settings = {
   appearance: "auto",
   addressBar: "toolbar",
   commandBarPlacement: "field",
+  followSystemAppearance: true,
   defaultProfileId: DEFAULT_PROFILE_ID,
   shortcuts: {},
   openLinksInLittleArdia: true,

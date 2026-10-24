@@ -148,6 +148,10 @@ export function resolveTheme(theme: ProfileTheme, dark: boolean): ProfileTheme {
   return { ...light, ...darkLook };
 }
 
+export function darkenedLook(theme: ProfileTheme, keep = 0.4): ProfileTheme {
+  return { ...theme, stops: theme.stops.map((s) => ({ ...s, color: { ...s.color, r: s.color.r * keep, g: s.color.g * keep, b: s.color.b * keep } })) };
+}
+
 export function arcLayerAlpha(intensity: number): number {
   return 0.2 + 0.55 * clamp01(intensity);
 }

@@ -12,10 +12,10 @@ export type LaunchBackdrop = ThemeBackdropProps & {
   grainOpacity: number;
 };
 
-export function launchBackdrop(s: Pick<BrowserState, "windows" | "profiles" | "ui">, windowId: string | null | undefined): LaunchBackdrop | null {
+export function launchBackdrop(s: Pick<BrowserState, "windows" | "profiles" | "ui" | "settings">, windowId: string | null | undefined): LaunchBackdrop | null {
   const w = windowId ? s.windows[windowId] : undefined;
   if (!w || w.incognito || w.kind === "small") return null;
   const dark = s.ui.appDark;
-  const theme = profileTheme(s.profiles[w.profileId], dark);
+  const theme = profileTheme(s.profiles[w.profileId], dark, s.settings.followSystemAppearance);
   return { dark, vibrancy: true, colors: theme.windowTint, ...theme.backdrop, grainOpacity: theme.grain };
 }

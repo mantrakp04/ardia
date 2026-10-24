@@ -3,7 +3,7 @@ import { createContext, createElement, useContext, type ReactNode } from "react"
 import { useBrowser, type BrowserState } from "../store/browser";
 import { PageProfileContext, WindowContext } from "../store/hooks";
 import type { Profile, ProfileColor, ProfileTheme } from "../store/types";
-import { opaqueThemeTint, PRESET_BACKDROP, readableDark, resolveTheme, rgbToHsl, themeAccent, themeBackdrop, themeDark, themePalette, type ThemeBackdropProps } from "./profileTheme";
+import { darkenedLook, opaqueThemeTint, PRESET_BACKDROP, readableDark, resolveTheme, rgbToHsl, themeAccent, themeBackdrop, themeDark, themePalette, type ThemeBackdropProps } from "./profileTheme";
 import { backdropTint, opaqueTint, tintForHue, type BackdropTint } from "./windowTint";
 
 export type Theme = typeof dark & {
@@ -216,7 +216,8 @@ function customTheme(custom: ProfileTheme, color: ProfileColor, appDark: boolean
   if (!byKey) customCache.set(custom, (byKey = new Map()));
   let theme = byKey.get(key);
   if (!theme) {
-    const look = resolveTheme(custom, requested);
+    const resolved = resolveTheme(custom, requested);
+    const look = followApp && requested && !themeDark(custom, false) && !custom.dark ? darkenedLook(resolved) : resolved;
     const dark = followApp ? requested : readableDark(look, requested);
     const preset = themeFor(`${color}:${dark ? "dark" : "light"}`);
     const accent = themeAccent(look);
@@ -227,7 +228,7 @@ function customTheme(custom: ProfileTheme, color: ProfileColor, appDark: boolean
       backdrop: {
         ...backdropTint(accent, false),
         ...themeBackdrop(look, dark),
-        ...(dark === requested ? {} : { themeAppearance: dark ? ("dark" as const) : ("light" as const) }),
+        ...(followApp ? { themeAppearance: "auto" as const } : dark === requested ? {} : { themeAppearance: dark ? ("dark" as const) : ("light" as const) }),
       },
       windowTint: opaqueThemeTint(look, dark),
       powerUpColor: accent,
@@ -253,7 +254,7 @@ export function profileAccent(profile: Pick<Profile, "color" | "theme"> | undefi
 function themeOf(s: BrowserState, windowId: string | null, page: string | null): Theme {
   const w = s.windows[windowId ?? s.ui.focusedWindowId ?? ""];
   if (w?.incognito) return themeFor("incognito");
-  return profileTheme(s.profiles[page ?? w?.profileId ?? s.settings.defaultProfileId], s.ui.appDark, !windowId);
+  return profileTheme(s.profiles[page ?? w?.profileId ?? s.settings.defaultProfileId], s.ui.appDark, !windowId || s.settings.followSystemAppearance);
 }
 
 const ThemeContext = createContext<Theme | null>(null);
