@@ -1,12 +1,14 @@
-import { Symbol } from "@ardia/shell";
 import { memo } from "react";
 import { Text, View } from "react-native";
-import { useIsSleeping } from "../../lib/tabLifecycle";
+import { isVectorIcon, parseCustomIcon } from "../../lib/iconCatalog";
+import type { IconBackground } from "../../lib/iconColors";
 import { useTheme } from "../../lib/theme";
+import { useIsSleeping } from "../../lib/tabLifecycle";
 import { useBrowser } from "../../store/browser";
+import { CustomIcon } from "../icons/CustomIcon";
 import { Favicon } from "../primitives";
 
-export const SYMBOL_PREFIX = "symbol:";
+export { SYMBOL_PREFIX } from "../../lib/iconCatalog";
 
 export const TabIcon = memo(function TabIcon({
   tabId,
@@ -15,6 +17,7 @@ export const TabIcon = memo(function TabIcon({
   icon,
   size = 16,
   color,
+  background,
   profileId: profile,
   direct,
 }: {
@@ -24,11 +27,12 @@ export const TabIcon = memo(function TabIcon({
   icon?: string | null;
   size?: number;
   color?: string;
+  background?: IconBackground;
   profileId?: string;
   direct?: boolean;
 }) {
   const sleeping = useIsSleeping(tabId ?? "");
-  const props = { url, favicon, icon, size, color, direct };
+  const props = { url, favicon, icon, size, color, background, direct };
   return (
     <View style={{ opacity: sleeping ? SLEEPING_OPACITY : 1 }}>
       {profile || !tabId ? <Icon {...props} profileId={profile} /> : <TabProfileIcon {...props} tabId={tabId} />}
@@ -49,6 +53,7 @@ function Icon({
   icon,
   size = 16,
   color,
+  background,
   profileId,
   direct,
 }: {
@@ -57,14 +62,15 @@ function Icon({
   icon?: string | null;
   size?: number;
   color?: string;
+  background?: IconBackground;
   profileId?: string;
   direct?: boolean;
 }) {
   const theme = useTheme();
-  if (icon?.startsWith(SYMBOL_PREFIX)) {
-    return <Symbol name={icon.slice(SYMBOL_PREFIX.length)} size={size - 3} weight="medium" color={color ?? theme.icon} style={{ width: size, height: size }} />;
+  if (icon && parseCustomIcon(icon)) {
+    return <CustomIcon value={icon} size={size} glyphSize={size - 3} weight="medium" color={color} background={background ?? theme.windowTint} />;
   }
-  if (icon) {
+  if (icon && !isVectorIcon(icon)) {
     return (
       <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
         <Text style={{ fontSize: size - 3, lineHeight: size }}>{icon}</Text>

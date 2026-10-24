@@ -1,5 +1,6 @@
+import { iconSurfaces, type IconBackground } from "../../lib/iconColors";
 import { ContextMenuArea, FadeLabel, Surface, Symbol } from "@ardia/shell";
-import { memo, useContext, useState } from "react";
+import { memo, useContext, useMemo, useState } from "react";
 import { Animated, Pressable, Text, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { hex, layout, useTheme } from "../../lib/theme";
@@ -31,12 +32,15 @@ export const GroupBlock = memo(function GroupBlock({
   section,
   parentGroup,
   motion: own = null,
+  background,
 }: {
   groupId: string;
   section: "list" | "pinnedGroups";
   parentGroup?: string;
   motion?: EntryMotion | null;
+  background?: IconBackground;
 }) {
+  const theme = useTheme();
   const windowId = useWindowId();
   const tokens = useSidebarTokens();
   const stored = useBrowser((s) => !!s.groups[groupId]?.collapsed);
@@ -71,13 +75,14 @@ export const GroupBlock = memo(function GroupBlock({
 
   const spec = color ? GROUP_COLORS[color] : null;
   const fill = spec ? withAlpha(spec.hex, 0.16) : tokens.groupFill;
+  const iconBackground = useMemo(() => iconSurfaces(background ?? theme.windowTint, fill), [background, theme.windowTint, fill]);
   const stroke = spec ? withAlpha(spec.hex, 0.3) : tokens.groupStroke;
 
   return (
     <Animated.View ref={wrapper.ref} style={wrapper.style}>
       <View {...moved} ref={movedRef} style={[{ borderRadius: GROUP_RADIUS, backgroundColor: fill, borderWidth: GROUP_BORDER, borderColor: stroke, paddingHorizontal: PAD }, moved.style as object]}>
         <View ref={headerRef} {...handle} style={{ marginHorizontal: -PAD }}>
-          <GroupHeader groupId={groupId} windowId={windowId} collapsed={collapsed} open={fold.open} />
+          <GroupHeader groupId={groupId} windowId={windowId} collapsed={collapsed} open={fold.open} background={iconBackground} />
         </View>
         <Fold
           fold={fold}
@@ -88,7 +93,7 @@ export const GroupBlock = memo(function GroupBlock({
               : {
                   key: slot.entry,
                   node: (
-                    <Entry entry={slot.entry} section={section} groupId={groupId} motion={motion.motion(slot.entry)} />
+                    <Entry entry={slot.entry} section={section} groupId={groupId} motion={motion.motion(slot.entry)} background={iconBackground} />
                   ),
                 },
           )}
@@ -106,16 +111,16 @@ export const GroupBlock = memo(function GroupBlock({
   );
 });
 
-const Entry = memo(function Entry({ entry, section, groupId, motion }: { entry: string; section: "list" | "pinnedGroups"; groupId: string; motion: EntryMotion | null }) {
-  if (entry.startsWith("g:")) return <GroupBlock groupId={entry.slice(2)} section={section} parentGroup={groupId} motion={motion} />;
+const Entry = memo(function Entry({ entry, section, groupId, motion, background }: { entry: string; section: "list" | "pinnedGroups"; groupId: string; motion: EntryMotion | null; background: IconBackground }) {
+  if (entry.startsWith("g:")) return <GroupBlock groupId={entry.slice(2)} section={section} parentGroup={groupId} motion={motion} background={background} />;
   return entry.startsWith("s:") ? (
-    <SplitRowItem splitId={entry.slice(2)} section={section} parentGroup={groupId} motion={motion} />
+    <SplitRowItem splitId={entry.slice(2)} section={section} parentGroup={groupId} motion={motion} background={background} />
   ) : (
-    <TabRowItem tabId={entry.slice(2)} section={section} parentGroup={groupId} motion={motion} />
+    <TabRowItem tabId={entry.slice(2)} section={section} parentGroup={groupId} motion={motion} background={background} />
   );
 });
 
-function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; windowId: string; collapsed: boolean; open: Animated.Value }) {
+function GroupHeader({ groupId, windowId, collapsed, open, background }: { groupId: string; windowId: string; collapsed: boolean; open: Animated.Value; background: IconBackground }) {
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const group = useBrowser((s) => s.groups[groupId]);
@@ -154,7 +159,7 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
               style={{ height: layout.rowHeight, flexDirection: "row", alignItems: "center", paddingLeft: 9 + PAD, paddingRight: 6 }}
             >
               {group.icon || firstTab ? (
-                <TabIcon url={firstTab?.url ?? ""} favicon={firstTab?.favicon} icon={group.icon ?? firstTab?.customIcon} profileId={firstTab?.profileId} />
+                <TabIcon url={firstTab?.url ?? ""} favicon={firstTab?.favicon} icon={group.icon ?? firstTab?.customIcon} profileId={firstTab?.profileId} background={iconSurfaces(background, dropInto || pressed ? theme.tabPressed : hovered ? tokens.groupHeaderHover : null)} />
               ) : (
                 <View style={{ width: 16 }} />
               )}

@@ -1,3 +1,4 @@
+import { iconSurfaces } from "../../lib/iconColors";
 import { FadeLabel, Surface } from "@ardia/shell";
 import { useEffect } from "react";
 import { Pressable, Text, View } from "react-native";
@@ -64,7 +65,7 @@ function SwitcherRow({ tabId, focused, index, focusFill, outline }: { tabId: str
           borderColor: outline,
         }}
       >
-        <TabIcon url={tab.url} favicon={tab.favicon} icon={tab.customIcon} size={18} profileId={tab.profileId} />
+        <TabIcon url={tab.url} favicon={tab.favicon} icon={tab.customIcon} size={18} profileId={tab.profileId} background={iconSurfaces(theme.panel, focused ? focusFill : null)} />
         <View style={{ flex: 1 }}>
           <FadeLabel text={tabTitle(tab)} fontSize={13} weight={focused ? "medium" : "regular"} color={theme.textPrimary} style={{ height: 17 }} />
           {tab.url ? <FadeLabel text={displayUrl(tab.url)} fontSize={11} color={theme.textSecondary} style={{ height: 14 }} /> : null}
