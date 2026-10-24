@@ -20,5 +20,6 @@ final class ArcKeyBindingsTests: XCTestCase {
 
   func testMalformedDataGivesNothing() {
     XCTAssertEqual(ArcKeyBindings.parse(Data("[]".utf8)), [])
+    XCTAssertEqual(ArcKeyBindings.parse(Data("{".utf8)), [])
   }
 }

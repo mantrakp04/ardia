@@ -71,7 +71,8 @@ public class ExtensionsModule: Module {
 enum WebStoreDownload {
   static func crx(id: String, completion: @escaping (String?, String?) -> Void) {
     guard id.range(of: "^[a-p]{32}$", options: .regularExpression) != nil else { return completion(nil, "Not an extension ID.") }
-    let chrome = Bundle.main.object(forInfoDictionaryKey: "ACChromiumVersion") as? String ?? "155.0.0.0"
+    let running = ArdiaCoreHost.engineInfo["chromiumVersion"] as? String ?? ""
+    let chrome = running.isEmpty ? "155.0.0.0" : running
     var url = URLComponents(string: "https://clients2.google.com/service/update2/crx")!
     url.queryItems = [
       URLQueryItem(name: "response", value: "redirect"),

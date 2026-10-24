@@ -221,7 +221,7 @@ export function importDiaProfile(profileId: string, profile: DiaTabsProfile, wha
   return n;
 }
 
-const ARC_SHORTCUT_COMMANDS: Record<string, string> = { showSidebar: "toggleSidebar" };
+const ARC_SHORTCUT_COMMANDS: Record<string, string> = { showSidebar: "toggleSidebar", newTab: "newTab" };
 
 export function importArcShortcuts(shortcuts: readonly ImportedShortcut[]): number {
   const current = useBrowser.getState().settings.shortcuts;

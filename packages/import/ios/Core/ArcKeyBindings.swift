@@ -13,7 +13,7 @@ public struct ImportedShortcut: Codable, Equatable, Sendable {
 }
 
 public enum ArcKeyBindings {
-  static let modifierBits: [(String, Int)] = [("control", 1 << 18), ("option", 1 << 19), ("shift", 1 << 17), ("command", 1 << 20)]
+  static let modifierBits: [(String, Int)] = [("control", 1 << 18), ("option", 1 << 19), ("shift", 1 << 17), ("command", 1 << 20), ("function", 1 << 23)]
 
   public static func parse(_ data: Data) -> [ImportedShortcut] {
     guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -22,9 +22,9 @@ public enum ArcKeyBindings {
     return overrides.compactMap { entry in
       guard let action = (entry["action"] as? [String: Any])?["identifier"] as? String,
         let valid = ((entry["state"] as? [String: Any])?["valid"] as? [String: Any])?["_0"] as? [String: Any],
-        let key = valid["keyEquivalent"] as? String, !key.isEmpty
+        let key = valid["keyEquivalent"] as? String, !key.isEmpty,
+        let flags = valid["deviceIndependentModifierFlags"] as? Int
       else { return nil }
-      let flags = valid["deviceIndependentModifierFlags"] as? Int ?? 0
       return ImportedShortcut(action: action, key: key, modifiers: modifierBits.filter { flags & $0.1 != 0 }.map(\.0))
     }
   }
