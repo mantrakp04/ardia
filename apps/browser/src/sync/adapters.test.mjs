@@ -122,6 +122,21 @@ const relaunch = (device, settings) =>
     useBrowser.setState({ historyReady: { default: true }, bookmarksReady: { default: true } });
   });
 
+test("settings: profile icons survive relaunch and sync, including switching back to dots", async () => {
+  const folder = new Folder();
+  const a = new Device("A", folder);
+  const b = new Device("B", folder);
+  assert.equal(a.with(() => S().settings.profileSwitcher), "dots");
+  a.with(() => S().updateSettings({ profileSwitcher: "icons" }));
+  relaunch(a, a.with(() => S().settings));
+  assert.equal(a.with(() => S().settings.profileSwitcher), "icons");
+  await syncAll([a, b]);
+  assert.equal(b.with(() => S().settings.profileSwitcher), "icons");
+  b.with(() => S().updateSettings({ profileSwitcher: "dots" }));
+  await syncAll([b, a]);
+  assert.equal(a.with(() => S().settings.profileSwitcher), "dots");
+});
+
 test("settings: what a Mac only has by default isn't sent; nulls from another Mac are no say; Never and an explicit off apply", async () => {
   const folder = new Folder();
   const a = new Device("A", folder);

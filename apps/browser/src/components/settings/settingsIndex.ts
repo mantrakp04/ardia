@@ -167,6 +167,7 @@ const ROWS: Record<SettingsPane, Section[]> = {
       rows: { theme: { title: "Appearance Theme", description: "Also in View › Appearance. Incognito windows are always dark.", keywords: ["dark mode", "light mode", "automatic", "night", "system"] } },
     },
     { section: "Address Bar", rows: { addressBar: { title: "Address Bar", description: "In the toolbar or in the sidebar.", keywords: ["url bar", "location bar", "toolbar"] } } },
+    { section: "Profiles", rows: { profileSwitcher: { title: "Profile switcher", description: "Show dots or profile icons in the sidebar.", keywords: ["profile icons", "dots", "emoji", "spaces"] } } },
     { section: "App Icon", rows: { appIcon: { title: "App Icon", description: "Shown in the Dock and the app switcher. The Dock keeps it after you quit.", keywords: ["dock icon", "logo"] } } },
   ],
   privacy: [

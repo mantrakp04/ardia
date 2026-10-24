@@ -14,6 +14,8 @@ test("synonyms find the setting they stand for", () => {
   assert.equal(first("adblock"), "privacy.blockAds");
   assert.equal(first("pip"), "tabs.autoPictureInPicture");
   assert.equal(first("vertical tabs"), "tabs.layout");
+  assert.equal(first("profile icons"), "appearance.profileSwitcher");
+  assert.equal(first("dots"), "appearance.profileSwitcher");
   assert.equal(first("1password"), "passwords.managerApps");
 });
 
