@@ -45,14 +45,15 @@ export function CliControlPill({ tabId, paneWidth }: { tabId: string; paneWidth:
   const [appearAtOnce, setAppearAtOnce] = useState(shown);
   const [mounted, setMounted] = useState(shown);
   const [width, setWidth] = useState(() => cliPillWidthSeed(windowId, shown));
+  const [owner] = useState(() => ({}));
   useEffect(() => {
     if (shown) setMounted(true);
   }, [shown]);
   useLayoutEffect(() => {
-    if (shown && mounted && width > 0) placeCliPill(windowId, tabId, width);
-    else withdrawCliPill(windowId, tabId);
+    if (shown && mounted && width > 0) placeCliPill(windowId, owner, tabId, width);
+    else withdrawCliPill(windowId, owner);
   }, [shown, mounted, width, windowId, tabId]);
-  useLayoutEffect(() => () => withdrawCliPill(windowId, tabId), [windowId, tabId]);
+  useLayoutEffect(() => () => withdrawCliPill(windowId, owner), [windowId]);
   if (!mounted && !shown) return null;
   return (
     <ShownCliControlPill

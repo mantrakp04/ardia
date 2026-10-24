@@ -44,20 +44,41 @@ export type CliPillPlacements = Record<string, CliPillPlacement>;
 
 export const cliPillPlacements = createStore<CliPillPlacements>(() => ({}));
 
-export function placeCliPill(windowId: string, tabId: string, width: number) {
-  const current = cliPillPlacements.getState()[windowId];
-  if (current?.tabId === tabId && current.width === width) return;
-  cliPillPlacements.setState({ [windowId]: { tabId, width } });
+const cliPillOwners = new Map<string, Map<object, CliPillPlacement>>();
+
+function publishCliPill(windowId: string) {
+  const owners = cliPillOwners.get(windowId);
+  const latest = owners ? [...owners.values()].at(-1) : undefined;
+  const placements = cliPillPlacements.getState();
+  const current = placements[windowId];
+  if (latest && current?.tabId === latest.tabId && current.width === latest.width) return;
+  if (!latest && !current) return;
+  const next = { ...placements };
+  if (latest) next[windowId] = latest;
+  else delete next[windowId];
+  cliPillPlacements.setState(next, true);
+}
+
+export function placeCliPill(windowId: string, owner: object, tabId: string, width: number) {
+  const owners = cliPillOwners.get(windowId) ?? new Map<object, CliPillPlacement>();
+  cliPillOwners.set(windowId, owners);
+  owners.delete(owner);
+  owners.set(owner, { tabId, width });
+  publishCliPill(windowId);
 }
 
 export const cliPillWidthSeed = (windowId: string, shown: boolean): number => (shown ? (cliPillPlacements.getState()[windowId]?.width ?? 0) : 0);
 
-export function withdrawCliPill(windowId: string, tabId: string) {
-  const placements = cliPillPlacements.getState();
-  if (placements[windowId]?.tabId !== tabId) return;
-  const rest = { ...placements };
-  delete rest[windowId];
-  cliPillPlacements.setState(rest, true);
+export function withdrawCliPill(windowId: string, owner: object) {
+  const owners = cliPillOwners.get(windowId);
+  if (!owners?.delete(owner)) return;
+  if (!owners.size) cliPillOwners.delete(windowId);
+  publishCliPill(windowId);
+}
+
+export function resetCliPillPlacements() {
+  cliPillOwners.clear();
+  cliPillPlacements.setState({}, true);
 }
 
 export const cliPillWidthIn = (placements: CliPillPlacements, windowId: string, tabId: string): number =>
@@ -66,23 +87,25 @@ export const cliPillWidthIn = (placements: CliPillPlacements, windowId: string, 
 export const pageToastLift = (placements: CliPillPlacements, windowId: string, tabId: string, toastBottom: number): number =>
   cliPillWidthIn(placements, windowId, tabId) > 0 ? Math.max(0, CLI_PILL_CLEARANCE - toastBottom) : 0;
 
-type Span = { x: number; width: number };
+type PaneRect = { x: number; y: number; width: number; height: number };
 
 export const windowPillWidth = (placements: CliPillPlacements, windowId: string): number => placements[windowId]?.width ?? 0;
 
 export function windowToastLift(
   placements: CliPillPlacements,
   windowId: string,
-  pill: { hostTab: string | undefined; panes: Record<string, Span | undefined> },
-  toast: { width: number; containerWidth: number; bottom: number },
+  pill: { hostTab: string | undefined; panes: Record<string, PaneRect | undefined> },
+  toast: { width: number; height: number; containerWidth: number; containerHeight: number; bottom: number },
 ): number {
   const pillWidth = windowPillWidth(placements, windowId);
   const pane = pill.hostTab ? pill.panes[pill.hostTab] : undefined;
   if (!pane || pillWidth <= 0) return 0;
   const pillLeft = pane.x + (pane.width - pillWidth) / 2;
   const toastLeft = (toast.containerWidth - toast.width) / 2;
-  const overlaps = pillLeft < toastLeft + toast.width && toastLeft < pillLeft + pillWidth;
-  return overlaps ? Math.max(0, CLI_PILL_CLEARANCE - toast.bottom) : 0;
+  const pillBottom = Math.max(0, toast.containerHeight - (pane.y + pane.height)) + CLI_PILL_BOTTOM;
+  const acrossOverlap = pillLeft < toastLeft + toast.width && toastLeft < pillLeft + pillWidth;
+  const upOverlap = toast.bottom < pillBottom + CLI_PILL_HEIGHT && pillBottom < toast.bottom + toast.height;
+  return acrossOverlap && upOverlap ? Math.max(0, pillBottom - CLI_PILL_BOTTOM + CLI_PILL_CLEARANCE - toast.bottom) : 0;
 }
 
 type PillTheme = { dark: boolean; panel: string; panelBorder: string; textPrimary: string };

@@ -66,6 +66,7 @@ import { closeWebNotification, showWebNotification } from "../lib/webNotificatio
 import { isSmallWindow } from "../store/small";
 import { closeLittleArdiaOnEscape } from "./littleArdia/actions";
 import { PeekOverlay } from "./peek/PeekOverlay";
+import { peekPageRect } from "./peek/peekGeometry";
 import { closePeekOnEscape, dismissPeek, startPeeks } from "./peek/actions";
 
 export function ContentCard() {
@@ -207,6 +208,11 @@ export function ContentCard() {
     }),
   );
 
+  const cliPillPanes = useMemo(
+    () => (peekShown && peekId && !peekFullscreen && size.width > 0 ? { ...panes, [peekId]: peekPageRect(size.width, size.height) } : panes),
+    [panes, peekShown, peekId, peekFullscreen, size.width, size.height],
+  );
+
   const geometryFor = (rect: Rect | undefined): ToolbarGeometry => {
     if (addressInSidebar || small) return NO_TOOLBAR;
     const leading = !!rect && rect.x === 0 && rect.y === 0;
@@ -290,7 +296,7 @@ export function ContentCard() {
               barMode={barMode}
               windowToolbar={windowToolbar}
               popovers={tabId !== popoversOverCard}
-              cliPill={tabId === cliPillTab && !cliPillOverFrozen}
+              cliPill={tabId === cliPillTab && !cliPillOverFrozen && !(peekShown && tabId === peekId)}
             />
           );
         })}
@@ -325,7 +331,7 @@ export function ContentCard() {
           page={(tabId, sourceId, width) => <PeekPage tabId={tabId} sourceId={sourceId} windowId={windowId} width={width} fullscreen={peekFullscreen} />}
         />
       )}
-      <SplitToast windowId={windowId} panes={panes} width={size.width} cliPillTab={cliPillTab} />
+      <SplitToast windowId={windowId} panes={cliPillPanes} width={size.width} height={size.height} cliPillTab={cliPillTab} />
     </View>
   );
 }
