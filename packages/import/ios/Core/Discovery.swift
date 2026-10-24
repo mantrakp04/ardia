@@ -299,6 +299,10 @@ public struct BrowserDiscovery {
     applicationSupport.appendingPathComponent("Arc/StorableSidebar.json")
   }
 
+  public func arcKeyBindingsURL() -> URL {
+    applicationSupport.appendingPathComponent("Arc/StorableKeyBindings.json")
+  }
+
   func attachArcSpaces(_ profiles: inout [BrowserProfile]) {
     guard let data = try? Data(contentsOf: arcSidebarURL()), let sidebar = try? ArcSidebar.parse(data) else { return }
     for i in profiles.indices {

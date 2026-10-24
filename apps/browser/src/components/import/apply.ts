@@ -1,5 +1,5 @@
-import { savePassword } from "@ardia/ardiacore";
-import type { BookmarkNode as ImportedNode, Credential, DiaTabsProfile, ImportedFavicon, ImportedTab, ImportKind, ImportResult, SafariExport, SpaceSuggestion } from "@ardia/import";
+import { installFromWebStore, savePassword } from "@ardia/ardiacore";
+import type { BookmarkNode as ImportedNode, Credential, DiaTabsProfile, ImportedFavicon, ImportedShortcut, ImportedTab, ImportKind, ImportResult, SafariExport, SpaceSuggestion } from "@ardia/import";
 import { addGroupsFromDrafts } from "../../lib/bookmarkGroups";
 import { adoptFavicons, pageKey as faviconPage } from "../../lib/favicons";
 import type { BookmarkDraft } from "../../store/bookmarks";
@@ -127,6 +127,22 @@ function windowFor(profileId: string): string {
   return regular ?? s.createWindow({ profileId });
 }
 
+export async function installAllFromWebStore(
+  profileId: string,
+  ids: string[],
+  onEach: (id: string, outcome: "installed" | "failed", error?: string) => void,
+): Promise<void> {
+  const engine = engineProfile(profileId);
+  for (const id of ids) {
+    try {
+      await installFromWebStore(id, engine);
+      onEach(id, "installed");
+    } catch (e) {
+      onEach(id, "failed", e instanceof Error ? e.message : String(e));
+    }
+  }
+}
+
 export function openInWebStore(profileId: string, urls: string[]) {
   if (!urls.length) return;
   const windowId = windowFor(profileId);
@@ -205,6 +221,22 @@ export function importDiaProfile(profileId: string, profile: DiaTabsProfile, wha
   return n;
 }
 
+const ARC_SHORTCUT_COMMANDS: Record<string, string> = { showSidebar: "toggleSidebar" };
+
+export function importArcShortcuts(shortcuts: readonly ImportedShortcut[]): number {
+  const current = useBrowser.getState().settings.shortcuts;
+  const next = { ...current };
+  let added = 0;
+  for (const s of shortcuts) {
+    const command = ARC_SHORTCUT_COMMANDS[s.action];
+    if (!command || next[command]) continue;
+    next[command] = [s.key, ...s.modifiers];
+    added++;
+  }
+  if (added) useBrowser.getState().updateSettings({ shortcuts: next });
+  return added;
+}
+
 export async function applyResult(
   profileId: string,
   result: ImportResult,
@@ -221,6 +253,7 @@ export async function applyResult(
   Object.assign(counts, await importNative(profileId, result.vaultToken, native, onFailed));
   if (result.tabs.length && !result.spaces.length) counts.tabs += importTabs(profileId, result.tabs, "Imported");
   if (result.favorites.length) counts.tabs += importTabs(profileId, result.favorites.map((t) => ({ ...t, pinned: true })), null, "tiles");
+  if (result.shortcuts?.length) importArcShortcuts(result.shortcuts);
   if (result.credentials.length) counts.passwords += await importPasswords(profileId, result.credentials);
   return counts;
 }

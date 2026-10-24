@@ -163,6 +163,7 @@ public final class Importer: @unchecked Sendable {
         case (.favorites, .arc):
           result.favorites = try arcSidebar().favorites[profileId] ?? []
           count = result.favorites.count
+          if let data = try? Data(contentsOf: discovery.arcKeyBindingsURL()) { result.shortcuts = ArcKeyBindings.parse(data) }
         case (.favorites, .firefox):
           guard def.sidebar == .zen else { throw ImportError.unsupported("\(def.name) has no \(kind.rawValue) to import") }
           result.favorites = try zenSidebar().essentials

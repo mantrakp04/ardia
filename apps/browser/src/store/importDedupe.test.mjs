@@ -116,3 +116,23 @@ test("Arc favorites land as tiles after the space's rows and folders came in", a
   const tiles = Object.values(S().tabs).filter((t) => t.pinned && !t.pinnedAsRow).map((t) => t.url).sort();
   assert.deepEqual(tiles, ["https://row.example/", "https://www.youtube.com/"]);
 });
+
+test("Arc's own shortcuts come along unless Ardia already has one for that command", async () => {
+  const { importArcShortcuts } = await import("../components/import/apply.ts");
+  S().hydrate({});
+  S().createWindow({ url: "https://home.example/" });
+  assert.equal(importArcShortcuts([{ action: "showSidebar", key: "\\", modifiers: ["command"] }, { action: "unknownArcThing", key: "k", modifiers: ["command"] }]), 1);
+  assert.deepEqual(S().settings.shortcuts.toggleSidebar, ["\\", "command"]);
+  S().updateSettings({ shortcuts: { toggleSidebar: ["s", "command", "option"] } });
+  assert.equal(importArcShortcuts([{ action: "showSidebar", key: "\\", modifiers: ["command"] }]), 0, "a choice made in Ardia wins");
+});
+
+test("Install All asks the engine for each imported extension in turn and carries on past a failure", async () => {
+  const stub = await import("@ardia/ardiacore");
+  const { installAllFromWebStore } = await import("../components/import/apply.ts");
+  stub.webStoreInstalls.length = 0;
+  const seen = [];
+  await installAllFromWebStore(P, ["a".repeat(32), "b".repeat(32)], (id, outcome) => seen.push([id, outcome]));
+  assert.deepEqual(stub.webStoreInstalls.map((x) => x.id), ["a".repeat(32), "b".repeat(32)]);
+  assert.deepEqual(seen, [["a".repeat(32), "installed"], ["b".repeat(32), "installed"]]);
+});

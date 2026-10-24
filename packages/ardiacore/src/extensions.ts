@@ -104,6 +104,7 @@ type NativeExtensions = {
   list(profile: string): Promise<Result<{ extensions: InstalledExtension[] }>>;
   inspectUnpacked(path: string): Promise<Result<ExtensionPackage>>;
   install(path: string, profile: string): Promise<Result<{ id: string }>>;
+  installFromWebStore?(id: string, profile: string): Promise<Result<{ id: string }>>;
   setEnabled(id: string, profile: string, enabled: boolean): Promise<Result<{ ok: true }>>;
   uninstall(id: string, profile: string): Promise<Result<{ ok: true }>>;
   reload(id: string, profile: string): Promise<Result<{ ok: true }>>;
@@ -151,6 +152,11 @@ export async function listExtensions(profile: string): Promise<InstalledExtensio
 
 export async function inspectUnpackedExtension(path: string): Promise<ExtensionPackage> {
   return unwrap(await Native.inspectUnpacked(path));
+}
+
+export async function installFromWebStore(id: string, profile: string): Promise<string> {
+  if (!Native.installFromWebStore) throw new Error("This build can't install from the Chrome Web Store.");
+  return unwrap(await Native.installFromWebStore(id, profile)).id;
 }
 
 export async function installExtension(pkg: Pick<ExtensionPackage, "path">, profile: string): Promise<string> {

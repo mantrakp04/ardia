@@ -13,7 +13,7 @@ import { useHover } from "../primitives";
 import { Button, Checkbox, PopUp, useFormColors } from "../settings/controls";
 import { useOnboarding } from "../onboarding/state";
 import { IMPORT_WINDOW_ID, takePreferredImportSource } from "../settings/windows";
-import { applyResult, applySafari, emptyCounts, importArcSpace, importBookmarks, importDiaProfile, openInWebStore, profileColorFor, type ImportCounts } from "./apply";
+import { applyResult, applySafari, emptyCounts, importArcSpace, importBookmarks, importDiaProfile, installAllFromWebStore, openInWebStore, profileColorFor, type ImportCounts } from "./apply";
 import { importModule } from "./module";
 
 const APP = "Ardia";
@@ -61,6 +61,7 @@ export function ImportWindow() {
   const bookmarks = useBrowser((s) => s.bookmarks);
   const arcHolders = useMemo(() => allArcHolders({ bookmarks }), [bookmarks]);
   const [extensions, setExtensions] = useState<{ profileId: string; list: ImportedExtension[]; opened: boolean }>({ profileId: "", list: [], opened: false });
+  const [installs, setInstalls] = useState<{ running: boolean; done: Record<string, "installed" | "failed"> }>({ running: false, done: {} });
   const onboarding = useOnboarding((s) => s.windowId !== null);
   const [diaStatus, setDiaStatus] = useState<DiaAutomationStatus | "checking" | "reading">("checking");
   const [dia, setDia] = useState<DiaTabsResult | null>(null);
@@ -802,12 +803,34 @@ export function ImportWindow() {
     const extensionList = extensions.list.length ? (
       <View style={{ alignSelf: "stretch", marginTop: 14, gap: 8 }}>
         <Text style={{ fontSize: 12, color: theme.textSecondary, textAlign: "center" }}>
-          {`${source?.name ?? "Your browser"} has ${plural(extensions.list.length, "extension")} from the Chrome Web Store. Add the ones you want there:`}
+          {`${source?.name ?? "Your browser"} has ${plural(extensions.list.length, "extension")} from the Chrome Web Store. ${APP} can install them for you, asking before each one:`}
         </Text>
         <Text style={{ fontSize: 12, color: theme.textPrimary, textAlign: "center" }} numberOfLines={3}>
           {extensions.list.map((e) => e.name).join(", ")}
         </Text>
-        {extensions.opened ? (
+        {installs.running || Object.keys(installs.done).length ? (
+          <Text style={{ fontSize: 12, color: theme.textSecondary, textAlign: "center" }}>
+            {installs.running
+              ? `Installing ${Object.keys(installs.done).length + 1} of ${extensions.list.length}. Approve each one in the prompt.`
+              : `Installed ${Object.values(installs.done).filter((o) => o === "installed").length} of ${extensions.list.length}.${Object.values(installs.done).includes("failed") ? " The rest were declined or couldn't be downloaded; add them from the Chrome Web Store." : ""}`}
+          </Text>
+        ) : null}
+        {!installs.running && !Object.keys(installs.done).length && (
+          <View style={{ alignItems: "center" }}>
+            <Button
+              title={extensions.list.length === 1 ? "Install Extension" : `Install All ${extensions.list.length}`}
+              onPress={() => {
+                setInstalls({ running: true, done: {} });
+                void installAllFromWebStore(
+                  extensions.profileId || target,
+                  extensions.list.map((e) => e.id),
+                  (id, outcome) => setInstalls((x) => ({ ...x, done: { ...x.done, [id]: outcome } })),
+                ).then(() => setInstalls((x) => ({ ...x, running: false })));
+              }}
+            />
+          </View>
+        )}
+        {installs.running ? null : extensions.opened ? (
           <Text style={{ fontSize: 12, color: theme.textSecondary, textAlign: "center" }}>
             {`${extensions.list.length === 1 ? "Its page is" : "Their pages are"} open in your sidebar${onboarding ? ", ready when you finish setting up" : ""}. Click Add to ${APP} on each one you want.`}
           </Text>
