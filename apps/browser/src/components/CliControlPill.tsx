@@ -1,0 +1,136 @@
+import { Surface, Symbol } from "@ardia/shell";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Animated, Easing, Pressable, Text, View } from "react-native";
+import { useStore } from "zustand";
+import { cliDisclosure, stopCliControl } from "../lib/cliControl";
+import { hex, useTheme } from "../lib/theme";
+import { useWindowId } from "../store/hooks";
+import { CLI_PILL_BOTTOM, CLI_PILL_HEIGHT, CLI_PILL_INSET, cliPillColors, cliPillPlacements, placeCliPill, withdrawCliPill, type CliPillPlacements } from "./layout/cliPillLayout";
+import { useHover } from "./primitives";
+
+export const useCliDisclosed = () => useStore(cliDisclosure, (s) => s.shown);
+
+export const useCliPillPlacements = <T,>(select: (placements: CliPillPlacements) => T) => useStore(cliPillPlacements, select);
+
+export function useCliToastLift(lift: number): Animated.Value {
+  const offset = useRef(new Animated.Value(-lift)).current;
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    const animation = Animated.timing(offset, { toValue: -lift, duration: 180, easing: Easing.out(Easing.cubic), useNativeDriver: true });
+    animation.start();
+    return () => animation.stop();
+  }, [lift]);
+  return offset;
+}
+
+export function CliControlPill({ tabId }: { tabId: string }) {
+  const windowId = useWindowId();
+  const shown = useCliDisclosed();
+  const [shownAtMount] = useState(shown);
+  const [mounted, setMounted] = useState(shown);
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    if (shown) setMounted(true);
+  }, [shown]);
+  useLayoutEffect(() => {
+    if (shown && mounted && width > 0) placeCliPill(windowId, tabId, width);
+    else withdrawCliPill(windowId, tabId);
+  }, [shown, mounted, width, windowId, tabId]);
+  useLayoutEffect(() => () => withdrawCliPill(windowId, tabId), [windowId, tabId]);
+  if (!mounted && !shown) return null;
+  return (
+    <ShownCliControlPill
+      shown={shown}
+      appearAtOnce={shownAtMount}
+      onHidden={() => {
+        setMounted(false);
+        setWidth(0);
+      }}
+      onWidth={setWidth}
+    />
+  );
+}
+
+function ShownCliControlPill({ shown, appearAtOnce, onHidden, onWidth }: { shown: boolean; appearAtOnce: boolean; onHidden: () => void; onWidth: (width: number) => void }) {
+  const theme = useTheme();
+  const colors = cliPillColors(theme);
+  const appear = useRef(new Animated.Value(appearAtOnce ? 1 : 0)).current;
+  useEffect(() => {
+    const animation = Animated.timing(
+      appear,
+      shown
+        ? { toValue: 1, duration: 160, easing: Easing.out(Easing.cubic), useNativeDriver: true }
+        : { toValue: 0, duration: 200, easing: Easing.in(Easing.quad), useNativeDriver: true },
+    );
+    animation.start(({ finished }) => finished && !shown && onHidden());
+    return () => animation.stop();
+  }, [shown]);
+  return (
+    <View pointerEvents="box-none" style={{ position: "absolute", left: CLI_PILL_INSET, right: CLI_PILL_INSET, bottom: CLI_PILL_BOTTOM, alignItems: "center" }}>
+      <Animated.View
+        pointerEvents={shown ? "auto" : "none"}
+        onLayout={(e) => onWidth(e.nativeEvent.layout.width)}
+        style={{
+          maxWidth: "100%",
+          opacity: appear,
+          transform: [{ translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }, { scale: appear.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }],
+        }}
+      >
+        <Surface
+          fill={hex(colors.fill)}
+          cornerRadius={CLI_PILL_HEIGHT / 2}
+          borderColor={hex(colors.border)}
+          borderWidth={0.5}
+          shadowColor="#000000"
+          shadowOpacity={theme.panelShadowOpacity}
+          shadowRadius={14}
+          shadowOffset={[0, 4]}
+        >
+          <View
+            accessibilityRole="alert"
+            accessibilityLabel="The ardia command is controlling Ardia"
+            style={{ height: CLI_PILL_HEIGHT, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 6, paddingRight: 4 }}
+          >
+            <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: colors.glyphFill, alignItems: "center", justifyContent: "center" }}>
+              <Symbol name="terminal.fill" size={9} weight="bold" color={colors.glyph} style={{ width: 14, height: 14 }} />
+            </View>
+            <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 12, color: colors.detail }}>
+              <Text style={{ fontWeight: "600", color: colors.title }}>ardia</Text>
+              {" is controlling Ardia"}
+            </Text>
+            <StopButton colors={colors} />
+          </View>
+        </Surface>
+      </Animated.View>
+    </View>
+  );
+}
+
+function StopButton({ colors }: { colors: ReturnType<typeof cliPillColors> }) {
+  const { hovered, hoverProps } = useHover();
+  return (
+    <View {...hoverProps}>
+      <Pressable onPress={stopCliControl} accessibilityRole="button" accessibilityLabel="Stop">
+        {({ pressed }) => (
+          <View
+            style={{
+              height: CLI_PILL_HEIGHT - 8,
+              paddingHorizontal: 10,
+              borderRadius: (CLI_PILL_HEIGHT - 8) / 2,
+              justifyContent: "center",
+              backgroundColor: colors.stopFill(pressed ? "pressed" : hovered ? "hovered" : "rest"),
+            }}
+          >
+            <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: "500", color: colors.stopText }}>
+              Stop
+            </Text>
+          </View>
+        )}
+      </Pressable>
+    </View>
+  );
+}

@@ -7,7 +7,7 @@ import { webviews } from "../../lib/webviews";
 import { PromptButton } from "./controls";
 import { patchPage, usePage } from "./pageState";
 
-export function StatusBubble({ tabId, maxWidth }: { tabId: string; maxWidth: number }) {
+export function StatusBubble({ tabId, maxWidth, bottom = 6 }: { tabId: string; maxWidth: number; bottom?: number }) {
   const theme = useTheme();
   const status = usePage(tabId, (p) => p.status);
   const [shown, setShown] = useState(status);
@@ -27,7 +27,7 @@ export function StatusBubble({ tabId, maxWidth }: { tabId: string; maxWidth: num
   }, [status]);
   if (!shown) return null;
   return (
-    <Animated.View pointerEvents="none" style={{ position: "absolute", left: 6, bottom: 6, maxWidth, opacity }}>
+    <Animated.View pointerEvents="none" style={{ position: "absolute", left: 6, bottom, maxWidth, opacity }}>
       <Surface
         fill={hex(theme.dark ? "rgba(40,38,39,0.96)" : "rgba(250,249,250,0.97)")}
         cornerRadius={7}

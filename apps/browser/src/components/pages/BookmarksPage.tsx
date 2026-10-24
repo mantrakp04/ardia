@@ -16,6 +16,8 @@ import { Button, useFormColors } from "../settings/controls";
 import { openImport } from "../settings/windows";
 import { DropTargets } from "./dropTargets";
 import { EmptyState, hostLabel, matchesQuery, PageHeader } from "./PageLayout";
+import { useCliPillPlacements, useCliToastLift } from "../CliControlPill";
+import { pageToastLift } from "../layout/cliPillLayout";
 
 const ROW = 36;
 
@@ -226,6 +228,8 @@ export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: 
       </View>
       {undo && (
         <UndoToast
+          tabId={tabId}
+          windowId={windowId}
           message={`${plural(undo.count, "item")} deleted`}
           onUndo={() => {
             useBrowser.getState().restoreBookmarks(undo.removed);
@@ -393,10 +397,14 @@ function BookmarkRow({
   );
 }
 
-function UndoToast({ message, onUndo }: { message: string; onUndo: () => void }) {
+const UNDO_TOAST_BOTTOM = 24;
+
+function UndoToast({ tabId, windowId, message, onUndo }: { tabId: string; windowId: string; message: string; onUndo: () => void }) {
   const theme = useTheme();
+  const lift = useCliPillPlacements((placements) => pageToastLift(placements, windowId, tabId, UNDO_TOAST_BOTTOM));
+  const offset = useCliToastLift(lift);
   return (
-    <View pointerEvents="box-none" style={{ position: "absolute", left: 0, right: 0, bottom: 24, alignItems: "center" }}>
+    <Animated.View pointerEvents="box-none" style={{ position: "absolute", left: 0, right: 0, bottom: UNDO_TOAST_BOTTOM, alignItems: "center", transform: [{ translateY: offset }] }}>
       <View
         style={{
           flexDirection: "row",
@@ -414,6 +422,6 @@ function UndoToast({ message, onUndo }: { message: string; onUndo: () => void })
           <Text style={{ fontSize: 13, fontWeight: "600", color: "#64A8FF" }}>Undo</Text>
         </Pressable>
       </View>
-    </View>
+    </Animated.View>
   );
 }

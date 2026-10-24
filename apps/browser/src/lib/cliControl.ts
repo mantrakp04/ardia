@@ -6,6 +6,7 @@ import { shownPageId } from "../store/peek";
 import { pageOf, usePages } from "../components/layout/pageState";
 import { isInternalTab } from "../components/pages";
 import { afterFirstWindow } from "./afterFirstWindow";
+import { createCliDisclosureStore } from "./cliDisclosure";
 
 const DOC = "ardia-cli.json";
 const UPGRADE_DELAY_MS = 8000;
@@ -50,6 +51,8 @@ export const useCli = create<CliState>(() => ({
   binPath: saved.binPath ?? null,
   error: saved.error ?? null,
 }));
+
+export const cliDisclosure = createCliDisclosureStore(useCli);
 
 let running: Promise<CliInstallResult> | null = null;
 
@@ -167,4 +170,4 @@ export function startCliControl() {
   afterFirstWindow(() => setTimeout(upgradeIfBehind, UPGRADE_DELAY_MS));
 }
 
-if (__DEV__) (globalThis as { acCli?: unknown }).acCli = { store: useCli, install: installCliInBackground, upgradeIfBehind };
+if (__DEV__) (globalThis as { acCli?: unknown }).acCli = { store: useCli, disclosure: cliDisclosure, install: installCliInBackground, upgradeIfBehind };

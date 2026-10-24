@@ -7,6 +7,8 @@ import { useBrowser } from "../../store/browser";
 import type { SplitView } from "../../store/types";
 import { resize, type Divider, type Rect } from "./geometry";
 import { useHover } from "../primitives";
+import { useCliPillPlacements, useCliToastLift } from "../CliControlPill";
+import { windowToastLift } from "./cliPillLayout";
 import { hideToast, useToasts } from "./splitActions";
 import { useWindowId } from "../../store/hooks";
 import { overPeek } from "./dockMotion";
@@ -233,11 +235,16 @@ function DropZone({ pane, side, shown, stage, pointerX, onHidden }: { pane: Rect
   );
 }
 
-export const SplitToast = memo(function SplitToast({ windowId }: { windowId: string }) {
+const TOAST_BOTTOM = 22;
+
+export const SplitToast = memo(function SplitToast({ windowId, panes, width }: { windowId: string; panes: Record<string, Rect>; width: number }) {
   const theme = useTheme();
   const toast = useToasts((s) => s.toasts[windowId] ?? null);
   const appear = useRef(new Animated.Value(0)).current;
   const [shown, setShown] = useState(toast);
+  const [toastWidth, setToastWidth] = useState(0);
+  const lift = useCliPillPlacements((placements) => windowToastLift(placements, windowId, panes, { width: toastWidth, containerWidth: width, bottom: TOAST_BOTTOM }));
+  const offset = useCliToastLift(lift);
   useEffect(() => {
     if (toast) return setShown(toast);
     if (!shown?.sticky) return;
@@ -262,8 +269,8 @@ export const SplitToast = memo(function SplitToast({ windowId }: { windowId: str
   }, [toast?.id]);
   if (!shown) return null;
   return (
-    <View pointerEvents={shown.action ? "box-none" : "none"} style={{ position: "absolute", left: 0, right: 0, bottom: 22, alignItems: "center" }}>
-      <Animated.View style={{ opacity: appear, transform: [{ translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }, { scale: appear.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }] }}>
+    <Animated.View pointerEvents={shown.action ? "box-none" : "none"} style={{ position: "absolute", left: 0, right: 0, bottom: TOAST_BOTTOM, alignItems: "center", transform: [{ translateY: offset }] }}>
+      <Animated.View onLayout={(e) => setToastWidth(e.nativeEvent.layout.width)} style={{ opacity: appear, transform: [{ translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }, { scale: appear.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }] }}>
         <Surface
           fill={hex(theme.dark ? "rgba(44,42,43,0.9)" : "rgba(255,255,255,0.92)")}
           cornerRadius={14}
@@ -293,7 +300,7 @@ export const SplitToast = memo(function SplitToast({ windowId }: { windowId: str
           ) : null}
         </Surface>
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 });
 
