@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 const { CLI_PILL_BOTTOM, CLI_PILL_HEIGHT, statusBubblePlacement, statusBubbleWidth } = await import("./cliPillLayout.ts");
@@ -206,18 +207,17 @@ test("a crashed or hung tab clears the pill by the pill's own clearance, and the
   assert.ok(CLI_PILL_CLEARANCE > CLI_PILL_BOTTOM + CLI_PILL_HEIGHT);
 });
 
-test("a crashed or hung tab lays out as the pane's own flex column, so it follows the pane through every resize", async () => {
-  const { sadTabColumn, SAD_TAB_SPACER, SAD_TAB_CONTENT } = await import("./cliPillLayout.ts");
-  for (const pillShown of [false, true]) {
-    for (const base of [0, 24]) {
-      const column = sadTabColumn(pillShown, base);
-      assert.equal("position" in column, false);
-      assert.equal("minHeight" in column, false);
-      assert.equal("height" in column, false);
-      assert.equal(column.justifyContent, "flex-end");
-      assert.equal(column.alignItems, "center");
-      assert.equal(column.paddingBottom, pillShown ? Math.max(base, CLI_PILL_CLEARANCE) : base);
-    }
+test("a crashed or hung tab lays out as an in-flow flex column inside a clipping frame, so it follows the pane through every resize", async () => {
+  const { sadTabColumn, sadTabLift, SAD_TAB_FRAME, SAD_TAB_SPACER, SAD_TAB_CONTENT } = await import("./cliPillLayout.ts");
+  assert.deepEqual(SAD_TAB_FRAME, { overflow: "hidden" });
+  for (const base of [0, 24]) {
+    const column = sadTabColumn(base);
+    for (const key of ["position", "top", "bottom", "minHeight", "height"]) assert.equal(key in column, false);
+    assert.equal(column.flexGrow, 1);
+    assert.equal(column.flexBasis, 0);
+    assert.equal(column.justifyContent, "flex-end");
+    assert.equal(column.alignItems, "center");
+    for (const pillShown of [false, true]) assert.equal("height" in sadTabLift(pillShown, base), false);
   }
   assert.deepEqual(SAD_TAB_SPACER, { flexGrow: 1, flexShrink: 1, flexBasis: 0 });
   assert.equal(SAD_TAB_CONTENT.flexShrink, 0);
@@ -226,16 +226,30 @@ test("a crashed or hung tab lays out as the pane's own flex column, so it follow
 
 test("a crashed or hung tab's column is a scroll container, so Yoga measures its content at full height in a short pane", async () => {
   const { sadTabColumn } = await import("./cliPillLayout.ts");
-  for (const pillShown of [false, true]) {
-    for (const base of [0, 24]) assert.equal(sadTabColumn(pillShown, base).overflow, "scroll");
+  for (const base of [0, 24]) assert.equal(sadTabColumn(base).overflow, "scroll");
+});
+
+test("a crashed or hung tab keeps the same padding whether or not the pill shows, so a tall pane does not jump", async () => {
+  const { sadTabColumn } = await import("./cliPillLayout.ts");
+  for (const base of [0, 24]) {
+    const column = sadTabColumn(base);
+    assert.equal(column.paddingTop, base);
+    assert.equal(column.paddingBottom, base);
   }
 });
 
-test("a crashed tab centres in the whole pane without the pill and in the area above the pill with it", async () => {
-  const { sadTabColumn } = await import("./cliPillLayout.ts");
-  const bare = sadTabColumn(false, 24);
-  assert.equal(bare.paddingTop, bare.paddingBottom);
-  const lifted = sadTabColumn(true, 24);
-  assert.equal(lifted.paddingTop, 0);
-  assert.equal(lifted.paddingBottom, CLI_PILL_CLEARANCE);
+test("the space under a crashed or hung tab's content never drops below the pill's clearance while the pill shows", async () => {
+  const { sadTabColumn, sadTabLift } = await import("./cliPillLayout.ts");
+  for (const base of [0, 24]) {
+    assert.equal(sadTabLift(false, base).minHeight, 0);
+    assert.equal(sadTabColumn(base).paddingBottom + sadTabLift(true, base).minHeight, CLI_PILL_CLEARANCE);
+    assert.equal(sadTabLift(true, base).flexGrow, 1);
+    assert.equal(sadTabLift(true, base).flexBasis, 0);
+  }
+});
+
+test("a crashed or hung tab measures the pill's clearance from the same bottom edge as the pill", () => {
+  const source = readFileSync(new URL("../ContentCard.tsx", import.meta.url), "utf8");
+  assert.match(source, /<SadTab [^>]*bottomStyle=\{statusStyle\}/);
+  assert.match(source, /<Animated\.View pointerEvents="box-none" style=\{\[StyleSheet\.absoluteFill, statusStyle\]\}>\s*<CliControlPill /);
 });

@@ -50,7 +50,7 @@ export function CliControlPill({ tabId, paneWidth }: { tabId: string; paneWidth:
     if (shown) setMounted(true);
   }, [shown]);
   useLayoutEffect(() => {
-    if (shown && mounted && width > 0) placeCliPill(windowId, owner, tabId, width);
+    if (mounted && width > 0) placeCliPill(windowId, owner, tabId, width);
     else withdrawCliPill(windowId, owner);
   }, [shown, mounted, width, windowId, tabId]);
   useLayoutEffect(() => () => withdrawCliPill(windowId, owner), [windowId]);

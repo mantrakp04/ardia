@@ -1,10 +1,10 @@
 import { toAppUrl, urlForDisplay } from "@ardia/core";
 import { Surface, Symbol } from "@ardia/shell";
 import { useEffect, useRef, useState } from "react";
-import { Animated, Easing, StyleSheet, Text, View } from "react-native";
+import { Animated, Easing, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import { hex, useTheme } from "../../lib/theme";
 import { webviews } from "../../lib/webviews";
-import { SAD_TAB_CONTENT, SAD_TAB_SPACER, sadTabColumn } from "./cliPillLayout";
+import { SAD_TAB_CONTENT, SAD_TAB_SPACER, SAD_TAB_FRAME, sadTabColumn, sadTabLift } from "./cliPillLayout";
 import { PromptButton } from "./controls";
 import { patchPage, usePage } from "./pageState";
 
@@ -56,69 +56,71 @@ function displayUrl(url: string) {
   return out;
 }
 
-export function SadTab({ tabId, pillShown = false }: { tabId: string; pillShown?: boolean }) {
+export function SadTab({ tabId, pillShown = false, bottomStyle }: { tabId: string; pillShown?: boolean; bottomStyle?: Animated.WithAnimatedValue<ViewStyle> }) {
   const theme = useTheme();
   const crashed = usePage(tabId, (p) => !!p.crashed);
   const unresponsive = usePage(tabId, (p) => p.unresponsive);
   if (crashed) {
     return (
-      <View style={[StyleSheet.absoluteFill, sadTabColumn(pillShown, 24), { backgroundColor: theme.dark ? "#1C1A1B" : "#F6F5F6", paddingHorizontal: 24 }]}>
-        <View style={SAD_TAB_SPACER} />
-        <View style={SAD_TAB_CONTENT}>
-          <Symbol name="exclamationmark.triangle" size={30} weight="light" color={theme.textSecondary} style={{ width: 44, height: 40, marginBottom: 14 }} />
-          <Text style={{ fontSize: 17, fontWeight: "600", color: theme.textPrimary, marginBottom: 6 }}>This tab needs to reload</Text>
-          <Text style={{ fontSize: 13, color: theme.textSecondary, textAlign: "center", maxWidth: 340, marginBottom: 18 }}>
-            Something went wrong with this tab. Reloading often fixes it.
-          </Text>
-          <PromptButton
-            title="Reload"
-            primary
-            onPress={() => {
-              patchPage(tabId, { crashed: null });
-              void webviews.get(tabId)?.reload();
-            }}
-          />
-        </View>
-        <View style={SAD_TAB_SPACER} />
+      <View style={[StyleSheet.absoluteFill, SAD_TAB_FRAME, { backgroundColor: theme.dark ? "#1C1A1B" : "#F6F5F6" }]}>
+        <Animated.View style={[sadTabColumn(24), { paddingHorizontal: 24 }, bottomStyle]}>
+          <View style={SAD_TAB_SPACER} />
+          <View style={SAD_TAB_CONTENT}>
+            <Symbol name="exclamationmark.triangle" size={30} weight="light" color={theme.textSecondary} style={{ width: 44, height: 40, marginBottom: 14 }} />
+            <Text style={{ fontSize: 17, fontWeight: "600", color: theme.textPrimary, marginBottom: 6 }}>This tab needs to reload</Text>
+            <Text style={{ fontSize: 13, color: theme.textSecondary, textAlign: "center", maxWidth: 340, marginBottom: 18 }}>Something went wrong with this tab. Reloading often fixes it.</Text>
+            <PromptButton
+              title="Reload"
+              primary
+              onPress={() => {
+                patchPage(tabId, { crashed: null });
+                void webviews.get(tabId)?.reload();
+              }}
+            />
+          </View>
+          <View style={sadTabLift(pillShown, 24)} />
+        </Animated.View>
       </View>
     );
   }
   if (!unresponsive) return null;
   return (
-    <View style={[StyleSheet.absoluteFill, sadTabColumn(pillShown), { backgroundColor: theme.dark ? "rgba(0,0,0,0.35)" : "rgba(0,0,0,0.12)", paddingHorizontal: 16 }]}>
-      <View style={SAD_TAB_SPACER} />
-      <Surface
-        fill={hex(theme.panel)}
-        cornerRadius={14}
-        borderColor={hex(theme.panelBorder)}
-        borderWidth={0.5}
-        shadowColor="#000000"
-        shadowOpacity={theme.panelShadowOpacity}
-        shadowRadius={20}
-        shadowOffset={[0, 8]}
-        style={{ width: 320, maxWidth: "100%", padding: 18, gap: 6, flexShrink: 0 }}
-      >
-        <Text style={{ fontSize: 14, fontWeight: "600", color: theme.textPrimary }}>Page Unresponsive</Text>
-        <Text style={{ fontSize: 12, color: theme.textSecondary, marginBottom: 10 }}>You can wait for it to become responsive or exit the page.</Text>
-        <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8 }}>
-          <PromptButton
-            title="Exit Page"
-            onPress={() => {
-              patchPage(tabId, { unresponsive: false });
-              void webviews.get(tabId)?.resolveUnresponsive(true);
-            }}
-          />
-          <PromptButton
-            title="Wait"
-            primary
-            onPress={() => {
-              patchPage(tabId, { unresponsive: false });
-              void webviews.get(tabId)?.resolveUnresponsive(false);
-            }}
-          />
-        </View>
-      </Surface>
-      <View style={SAD_TAB_SPACER} />
+    <View style={[StyleSheet.absoluteFill, SAD_TAB_FRAME, { backgroundColor: theme.dark ? "rgba(0,0,0,0.35)" : "rgba(0,0,0,0.12)" }]}>
+      <Animated.View style={[sadTabColumn(), { paddingHorizontal: 16 }, bottomStyle]}>
+        <View style={SAD_TAB_SPACER} />
+        <Surface
+          fill={hex(theme.panel)}
+          cornerRadius={14}
+          borderColor={hex(theme.panelBorder)}
+          borderWidth={0.5}
+          shadowColor="#000000"
+          shadowOpacity={theme.panelShadowOpacity}
+          shadowRadius={20}
+          shadowOffset={[0, 8]}
+          style={{ width: 320, maxWidth: "100%", padding: 18, gap: 6, flexShrink: 0 }}
+        >
+          <Text style={{ fontSize: 14, fontWeight: "600", color: theme.textPrimary }}>Page Unresponsive</Text>
+          <Text style={{ fontSize: 12, color: theme.textSecondary, marginBottom: 10 }}>You can wait for it to become responsive or exit the page.</Text>
+          <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8 }}>
+            <PromptButton
+              title="Exit Page"
+              onPress={() => {
+                patchPage(tabId, { unresponsive: false });
+                void webviews.get(tabId)?.resolveUnresponsive(true);
+              }}
+            />
+            <PromptButton
+              title="Wait"
+              primary
+              onPress={() => {
+                patchPage(tabId, { unresponsive: false });
+                void webviews.get(tabId)?.resolveUnresponsive(false);
+              }}
+            />
+          </View>
+        </Surface>
+        <View style={sadTabLift(pillShown)} />
+      </Animated.View>
     </View>
   );
 }

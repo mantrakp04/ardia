@@ -89,14 +89,21 @@ export const cliPillClearance = (pillShown: boolean, base = 0): number => (pillS
 export const SAD_TAB_SPACER = { flexGrow: 1, flexShrink: 1, flexBasis: 0 } as const;
 export const SAD_TAB_CONTENT = { alignItems: "center", flexShrink: 0 } as const;
 
-export const sadTabColumn = (pillShown: boolean, base = 0) =>
+export const SAD_TAB_FRAME = { overflow: "hidden" } as const;
+
+export const sadTabColumn = (base = 0) =>
   ({
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
     overflow: "scroll",
     alignItems: "center",
     justifyContent: "flex-end",
-    paddingTop: pillShown ? 0 : base,
-    paddingBottom: cliPillClearance(pillShown, base),
+    paddingTop: base,
+    paddingBottom: base,
   }) as const;
+
+export const sadTabLift = (pillShown: boolean, base = 0) => ({ ...SAD_TAB_SPACER, minHeight: cliPillClearance(pillShown, base) - base }) as const;
 
 export const pageToastLift = (placements: CliPillPlacements, windowId: string, tabId: string, toastBottom: number): number =>
   cliPillWidthIn(placements, windowId, tabId) > 0 ? Math.max(0, CLI_PILL_CLEARANCE - toastBottom) : 0;
