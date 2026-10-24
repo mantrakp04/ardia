@@ -524,6 +524,7 @@ enum MainMenu {
       .separator(),
       cmd("Show Full URL", "toggleFullUrl"),
       cmd("Show Address Bar in Sidebar", "toggleAddressBar"),
+      cmd("Library", "library", "l", [.command, .control]),
       cmd("Cast…", "cast"),
       cmd("Open Page in WebKit", "togglePageEngine"),
       .separator(),

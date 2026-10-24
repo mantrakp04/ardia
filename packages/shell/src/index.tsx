@@ -39,6 +39,7 @@ export type BrowserCommand =
   | "toggleFullUrl"
   | "toggleJavaScriptFromAppleEvents"
   | "toggleAddressBar"
+  | "library"
   | "cast"
   | "zoomReset"
   | "zoomIn"

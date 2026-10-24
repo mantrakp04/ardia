@@ -74,6 +74,26 @@ public class SystemModule: Module {
       return true
     }.runOnQueue(.main)
 
+    AsyncFunction("copyFile") { (path: String) -> Bool in
+      guard FileManager.default.fileExists(atPath: path) else { return false }
+      let pasteboard = NSPasteboard.general
+      pasteboard.clearContents()
+      return pasteboard.writeObjects([URL(fileURLWithPath: path) as NSURL])
+    }.runOnQueue(.main)
+
+    AsyncFunction("openInPreview") { (path: String) -> Bool in
+      guard FileManager.default.fileExists(atPath: path) else { return false }
+      if FileDropView.background {
+        NSLog("ArdiaSystem: background instance, not previewing %@", path)
+        return true
+      }
+      guard let preview = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Preview") else {
+        return NSWorkspace.shared.open(URL(fileURLWithPath: path))
+      }
+      NSWorkspace.shared.open([URL(fileURLWithPath: path)], withApplicationAt: preview, configuration: NSWorkspace.OpenConfiguration())
+      return true
+    }.runOnQueue(.main)
+
     AsyncFunction("moveToTrash") { (path: String) -> Bool in
       guard FileManager.default.fileExists(atPath: path) else { return false }
       do {

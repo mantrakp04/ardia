@@ -28,6 +28,8 @@ const System = requireNativeModule<{
   openFile(path: string): Promise<boolean>;
   revealFile(path: string): Promise<boolean>;
   moveToTrash(path: string): Promise<boolean>;
+  copyFile?(path: string): Promise<boolean>;
+  openInPreview?(path: string): Promise<boolean>;
   fileIcon(path: string, size: number): Promise<string | null>;
   appIcon(pid: number, size: number): Promise<string | null>;
   hapticTick(): void;
@@ -46,6 +48,8 @@ export const fileExists = (path: string) => System.fileExists(path);
 export const openFile = (path: string) => System.openFile(path);
 export const revealFile = (path: string) => System.revealFile(path);
 export const moveToTrash = (path: string) => System.moveToTrash(path);
+export const copyFile = (path: string) => System.copyFile?.(path) ?? Promise.resolve(false);
+export const openInPreview = (path: string) => System.openInPreview?.(path) ?? System.openFile(path);
 export const fileIcon = (path: string, size = 32) => System.fileIcon(path, size);
 export const runningAppIcon = (pid: number, size = 32) => System.appIcon(pid, size);
 export const hapticTick = () => System.hapticTick();
