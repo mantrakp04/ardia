@@ -251,8 +251,9 @@ function placeCard(stop: TourStop | undefined, spot: Hole, size: { width: number
   if (!stop?.anchor || !spot.width) return centre;
   switch (stop.placement) {
     case "right": {
-      const x = spot.x + spot.width + GAP;
-      if (x + CARD_WIDTH > size.width - MARGIN) return { x: clampX(spot.x), y: clampY(spot.y + spot.height + GAP) };
+      const leftward = spot.x + spot.width / 2 > size.width / 2;
+      const x = leftward ? spot.x - GAP - CARD_WIDTH : spot.x + spot.width + GAP;
+      if (x < MARGIN || x + CARD_WIDTH > size.width - MARGIN) return { x: clampX(spot.x), y: clampY(spot.y + spot.height + GAP) };
       return { x, y: clampY(spot.y + spot.height / 2 - 36) };
     }
     case "inside":

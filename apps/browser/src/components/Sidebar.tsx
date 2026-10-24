@@ -13,7 +13,8 @@ import { ancestorIds } from "../store/groups";
 import { cleanedTabsFor, cleanUpCandidates, groupOf } from "../store/organize";
 import { splitOf } from "../store/splits";
 import { openNewTabInSplit } from "./layout/splitActions";
-import { listTopGap, SIDEBAR_FIELD, SIDEBAR_FOOTER_DOWNLOADS, SIDEBAR_HEADER_WITH_FIELD, useAddressBarInSidebar } from "./layout/windowLayout";
+import { HEADER_TOOLS } from "./layout/dockMotion";
+import { listTopGap, SIDEBAR_FIELD, SIDEBAR_FOOTER_DOWNLOADS, SIDEBAR_HEADER_WITH_FIELD, useAddressBarInSidebar, useSidebarSide } from "./layout/windowLayout";
 import { SIDEBAR_PLAYER_HEIGHT, SidebarPlayer, useSidebarPlayerTab } from "./media/SidebarPlayer";
 import { HoverSlot } from "./HoverSlot";
 import { IconButton, useHover } from "./primitives";
@@ -74,6 +75,7 @@ export function Sidebar({ width }: { width: number }) {
   const playerHeight = playerTab ? SIDEBAR_PLAYER_HEIGHT : 0;
   const addressBar = useAddressBarInSidebar();
   const header = addressBar ? SIDEBAR_HEADER_WITH_FIELD : layout.sidebarHeader;
+  const indicatorX = useSidebarSide() === "right" ? HEADER_TOOLS.edge : PROFILE_INDICATOR_X;
   const glowRoom = addressBar ? 0 : GLOW_ROOM;
   const hasDownloads = useBrowser((s) => downloadsIn(s, windowId).length > 0);
   const dots = useProfileDotsShown();
@@ -163,8 +165,8 @@ export function Sidebar({ width }: { width: number }) {
                 <SidebarAddressRow width={width} />
               </>
             ) : (
-              <View pointerEvents="box-none" style={{ height: layout.sidebarHeader, flexDirection: "row", alignItems: "flex-start", paddingLeft: PROFILE_INDICATOR_X, paddingRight: 7, paddingTop: 27 - 17 }}>
-                <ProfileIndicator room={width - PROFILE_INDICATOR_X - 7 - (hasDownloads ? 34 + 2 : 0)} />
+              <View pointerEvents="box-none" style={{ height: layout.sidebarHeader, flexDirection: "row", alignItems: "flex-start", paddingLeft: indicatorX, paddingRight: 7, paddingTop: 27 - 17 }}>
+                <ProfileIndicator room={width - indicatorX - 7 - (hasDownloads ? 34 + 2 : 0)} />
                 <View pointerEvents="none" style={{ flex: 1 }} />
                 {hasDownloads ? <DownloadsButton windowId={windowId} /> : null}
               </View>

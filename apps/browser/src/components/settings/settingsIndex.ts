@@ -97,6 +97,11 @@ const ROWS: Record<SettingsPane, Section[]> = {
           keywords: ["auto hide", "compact"],
         },
         showSidebarButton: { title: "Show sidebar button", description: "⌘S and View › Auto-Hide Tabs still hide and show the sidebar.", keywords: ["toggle sidebar"] },
+        sidebarSide: {
+          title: "Sidebar on the right",
+          description: "The traffic lights hide with it; point at the top edge of the window to bring them back.",
+          keywords: ["right sidebar", "left sidebar", "sidebar position", "move sidebar", "side"],
+        },
       },
     },
     {

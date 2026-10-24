@@ -5,7 +5,7 @@ import ExpoModulesCore
 public class AppModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ArdiaApp")
-    Constant("apiVersion") { () -> Int in 13 }
+    Constant("apiVersion") { () -> Int in 14 }
     Events("onNotificationResponse", "onScriptCommand")
 
     OnCreate {
@@ -303,26 +303,26 @@ public class AppModule: Module {
       #endif
     }.runOnQueue(.main)
 
-    AsyncFunction("devLeftEdgePointer") { (windowId: String, x: Double, y: Double, on: Bool) -> Bool in
+    AsyncFunction("devSidebarEdgePointer") { (windowId: String, x: Double, y: Double, on: Bool) -> Bool in
       #if DEBUG
       guard on else {
-        LeftEdgeWatcher.shared.pointerOverride = nil
-        LeftEdgeWatcher.shared.checkPointer()
+        SidebarEdgeWatcher.shared.pointerOverride = nil
+        SidebarEdgeWatcher.shared.checkPointer()
         return true
       }
       guard let window = WindowManager.shared.windows[windowId] else { return false }
-      LeftEdgeWatcher.shared.pointerOverride = NSPoint(x: window.frame.minX + x, y: window.frame.maxY - y)
-      LeftEdgeWatcher.shared.checkPointer()
+      SidebarEdgeWatcher.shared.pointerOverride = NSPoint(x: window.frame.minX + x, y: window.frame.maxY - y)
+      SidebarEdgeWatcher.shared.checkPointer()
       return true
       #else
       return false
       #endif
     }.runOnQueue(.main)
 
-    AsyncFunction("devLeftEdgeStats") { (reset: Bool) -> [String: Any] in
+    AsyncFunction("devSidebarEdgeStats") { (reset: Bool) -> [String: Any] in
       #if DEBUG
-      let stats = LeftEdgeWatcher.shared.stats
-      if reset { LeftEdgeWatcher.shared.resetStats() }
+      let stats = SidebarEdgeWatcher.shared.stats
+      if reset { SidebarEdgeWatcher.shared.resetStats() }
       return stats
       #else
       return [:]

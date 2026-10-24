@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { switchOn } from "../../lib/killSwitches";
-import { ARC_LIGHTS_CENTER, LIGHTS_CENTER, lightsCenter, TOP_STRIP_LIGHTS_CENTER } from "./dockMotion";
+import { ARC_LIGHTS_CENTER, LIGHTS_CENTER, lightsCenter, lightsBarCenter, TOP_STRIP_LIGHTS_CENTER } from "./dockMotion";
 import { layout } from "../../lib/theme";
 import { useBrowser, type BrowserState } from "../../store/browser";
 import { useWindowId } from "../../store/hooks";
@@ -8,6 +8,18 @@ import { useWindowId } from "../../store/hooks";
 export function useTabLayout(): "sidebar" | "top" {
   const windowId = useWindowId();
   return useBrowser((s) => s.windows[windowId]?.tabLayout ?? s.settings.tabLayout);
+}
+
+export type SidebarSide = "left" | "right";
+
+export function sidebarSideOf(s: BrowserState, windowId: string): SidebarSide {
+  const w = s.windows[windowId];
+  return w && w.kind !== "small" && (w.tabLayout ?? s.settings.tabLayout) === "sidebar" && s.settings.sidebarSide === "right" ? "right" : "left";
+}
+
+export function useSidebarSide(): SidebarSide {
+  const windowId = useWindowId();
+  return useBrowser((s) => sidebarSideOf(s, windowId));
 }
 
 export function addressBarInSidebar(s: BrowserState, windowId: string): boolean {
@@ -30,6 +42,7 @@ export function openingLightsCenter(s: BrowserState, windowId: string): [number,
   if (!w) return null;
   const open = w.sidebarOpen ?? true;
   if ((w.tabLayout ?? s.settings.tabLayout) === "top") return open ? [...TOP_STRIP_LIGHTS_CENTER] : lightsCenter(layout.sidebarWidth);
+  if (sidebarSideOf(s, windowId) === "right") return lightsBarCenter(0);
   return lightsCenter(open ? 0 : (s.settings.sidebarWidth ?? layout.sidebarWidth), 0, s.settings.addressBar === "sidebar" ? ARC_LIGHTS_CENTER : LIGHTS_CENTER);
 }
 

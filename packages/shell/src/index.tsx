@@ -29,6 +29,7 @@ export type BrowserCommand =
   | "reload"
   | "forceReload"
   | "toggleTabLayout"
+  | "toggleSidebarSide"
   | "toggleSidebar"
   | "openSplitPane"
   | "useSelectionForFind"
@@ -124,7 +125,7 @@ export type WindowEvent =
   | { type: "focus"; id: string }
   | { type: "close"; id: string }
   | { type: "frame"; id: string; frame: [number, number, number, number] }
-  | { type: "leftEdge"; id: string; over: boolean; point: [number, number] }
+  | { type: "sidebarEdge"; id: string; over: boolean; point: [number, number] }
   | { type: "closeRequest"; id: string };
 
 export type AppEvent =
@@ -237,7 +238,7 @@ const Shell = requireNativeModule<{
   closeWindow(id: string): Promise<void>;
   focusWindow(id: string): Promise<void>;
   setTrafficLightsCenter(id: string, center: [number, number] | null): Promise<void>;
-  watchLeftEdge?(id: string, on: boolean, hold: number): Promise<void>;
+  watchSidebarEdge?(id: string, on: boolean, hold: number, side: "left" | "right"): Promise<void>;
   dragPreviewBegin?(windowId: string, chip: Rect4, grab: [number, number]): Promise<void>;
   dragPreviewPage?(base64: string, frame: Rect4): Promise<void>;
   dragPreviewUpdate?(shape: DragPreviewShape, point: [number, number]): Promise<void>;
@@ -310,7 +311,7 @@ export const focusWindow = (id: string) => Shell.focusWindow(id);
 export const setWindowTitle = (id: string, title: string) => Shell.setWindowTitle(id, title);
 export const setTrafficLightsCenter = (id: string, center: [number, number] | null) =>
   Shell.setTrafficLightsCenter(id, center);
-export const watchLeftEdge = (id: string, on: boolean, hold = 0) => void Shell.watchLeftEdge?.(id, on, hold);
+export const watchSidebarEdge = (id: string, on: boolean, hold = 0, side: "left" | "right" = "left") => void Shell.watchSidebarEdge?.(id, on, hold, side);
 type Rect4 = [number, number, number, number];
 export type DragPreviewShape = "hidden" | "pill" | "card";
 export const dragPreview = {

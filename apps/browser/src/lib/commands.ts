@@ -203,6 +203,8 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
       return void (tabId && withLivePage(tabId, (page) => page.forceReload()));
     case "toggleTabLayout":
       return s.toggleTabLayout(windowId);
+    case "toggleSidebarSide":
+      return s.updateSettings({ sidebarSide: s.settings.sidebarSide === "right" ? "left" : "right" });
     case "openSplitPane":
       return void openSplitPane(windowId);
     case "focusNextPane":

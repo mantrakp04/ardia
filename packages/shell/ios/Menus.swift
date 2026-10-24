@@ -444,6 +444,7 @@ enum MainMenu {
       cmd("Force Refresh the Page", "forceReload", "r", [.command, .shift]).alternate(),
       .separator(),
       cmd("Show Tabs in Sidebar", "toggleTabLayout", "s", [.command, .shift]),
+      cmd("Sidebar on the Right", "toggleSidebarSide"),
       cmd("Auto-Hide Tabs", "toggleSidebar", "s"),
       cmd("Auto-Hide Tabs", "toggleSidebar", "l", [.command, .shift]).hiddenShortcut(),
       cmd("Auto-Hide Tabs", "toggleSidebar", "f", [.command, .shift]).hiddenShortcut(),

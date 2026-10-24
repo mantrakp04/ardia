@@ -3,6 +3,7 @@ import { hex, layout, useTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
 import { clickTab } from "../sidebar/actions";
 import { cardHoverProps, dismissHover } from "../sidebar/hover";
+import { useSidebarSide } from "../layout/windowLayout";
 import { hoverCardOrigin } from "../sidebar/hoverMotion";
 import { measureRow, setSidebarUi, type Anchor } from "../sidebar/state";
 import { useSidebarWidth } from "../sidebar/tokens";
@@ -19,15 +20,20 @@ export function useShowsMiniPlayer(tabId: string | undefined): boolean {
   return pinned && hasSession;
 }
 
-export function usePlayerEdge(windowId: string, anchor: Anchor | undefined): number {
+export function usePlayerEdge(windowId: string, anchor: Anchor | undefined, windowWidth: number): number {
   const sidebarWidth = useSidebarWidth(windowId);
-  return anchor ? Math.max(anchor.x + anchor.width, sidebarWidth - layout.sidebarInset) : 0;
+  const side = useSidebarSide();
+  if (!anchor) return 0;
+  return side === "right"
+    ? Math.min(anchor.x, windowWidth - sidebarWidth + layout.sidebarInset)
+    : Math.max(anchor.x + anchor.width, sidebarWidth - layout.sidebarInset);
 }
 
-export function HoverPlayer({ tabId, windowId, anchor }: { tabId: string; windowId: string; anchor: Anchor }) {
+export function HoverPlayer({ tabId, windowId, anchor, windowWidth }: { tabId: string; windowId: string; anchor: Anchor; windowWidth: number }) {
   const theme = useTheme();
   const tokens = useMediaTokens();
-  const edge = usePlayerEdge(windowId, anchor);
+  const side = useSidebarSide();
+  const edge = usePlayerEdge(windowId, anchor, windowWidth);
   return (
     <Surface
       {...cardHoverProps}
@@ -39,7 +45,7 @@ export function HoverPlayer({ tabId, windowId, anchor }: { tabId: string; window
       shadowOpacity={theme.panelShadowOpacity * 0.8}
       shadowRadius={16}
       shadowOffset={[0, 6]}
-      style={{ position: "absolute", ...hoverCardOrigin(anchor, edge), width: MINI_PLAYER_WIDTH, height: MINI_PLAYER_HEIGHT }}
+      style={{ position: "absolute", ...hoverCardOrigin(anchor, MINI_PLAYER_WIDTH, side, edge), width: MINI_PLAYER_WIDTH, height: MINI_PLAYER_HEIGHT }}
     >
       <MiniPlayer
         tabId={tabId}

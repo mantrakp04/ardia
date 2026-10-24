@@ -18,7 +18,8 @@ import { useIsSleeping } from "../../lib/tabLifecycle";
 import { useHover } from "../primitives";
 import { clickTab, tabTitle } from "./actions";
 import { cardHoverProps, dismissHover, setHoverSpace } from "./hover";
-import { hoverCardOrigin, useHoverCardMotion, useHoverCardPlacement } from "./hoverMotion";
+import { useSidebarSide } from "../layout/windowLayout";
+import { hoverCardOrigin, hoverCardPivot, useHoverCardMotion, useHoverCardPlacement } from "./hoverMotion";
 import { useSidebarUi, type Anchor, type Hover } from "./state";
 import { TabIcon } from "./TabIcon";
 import { HoverPlayer, usePlayerEdge, useShowsMiniPlayer } from "../media/HoverPlayer";
@@ -41,20 +42,21 @@ export function HoverCard({ windowId, width, height }: { windowId: string; width
   const { drawn, leaving, entering, motion } = useHoverCardMotion(windowId, target);
   const shown = drawn ?? target;
   const player = useShowsMiniPlayer(shown?.kind === "tab" ? shown.id : undefined);
-  const edge = usePlayerEdge(windowId, shown?.anchor);
-  useHoverCardPlacement(motion, shown ? hoverCardOrigin(shown.anchor, player ? edge : undefined) : null, { width, height });
+  const side = useSidebarSide();
+  const edge = usePlayerEdge(windowId, shown?.anchor, width);
+  useHoverCardPlacement(motion, shown ? hoverCardPivot(shown.anchor, side, player ? edge : undefined) : null, { width, height });
   if (!shown) return null;
   return (
     <Animated.View pointerEvents={leaving || entering ? "none" : "box-none"} style={[StyleSheet.absoluteFill, motion.style]}>
-      <HoverContent hover={shown} windowId={windowId} player={player} />
+      <HoverContent hover={shown} windowId={windowId} player={player} windowWidth={width} />
     </Animated.View>
   );
 }
 
-function HoverContent({ hover, windowId, player }: { hover: Hover; windowId: string; player: boolean }) {
+function HoverContent({ hover, windowId, player, windowWidth }: { hover: Hover; windowId: string; player: boolean; windowWidth: number }) {
   const calendar = useIsCalendarTab(hover.kind === "tab" ? hover.id : null);
   if (hover.kind === "live") return <LiveItemCard id={hover.id} windowId={windowId} anchor={hover.anchor} />;
-  if (hover.kind === "tab" && player) return <HoverPlayer tabId={hover.id} windowId={windowId} anchor={hover.anchor} />;
+  if (hover.kind === "tab" && player) return <HoverPlayer tabId={hover.id} windowId={windowId} anchor={hover.anchor} windowWidth={windowWidth} />;
   if (hover.kind === "tab" && calendar) return <CalendarPreview tabId={hover.id} windowId={windowId} anchor={hover.anchor} />;
   if (hover.kind === "folder") return <FolderPeek folderId={hover.id} windowId={windowId} anchor={hover.anchor} />;
   return hover.kind === "tab" ? <TabCard tabId={hover.id} windowId={windowId} anchor={hover.anchor} /> : <GroupPeek groupId={hover.id} windowId={windowId} anchor={hover.anchor} />;
@@ -62,6 +64,7 @@ function HoverContent({ hover, windowId, player }: { hover: Hover; windowId: str
 
 function Card({ anchor, children }: { anchor: Anchor; children: React.ReactNode }) {
   const theme = useTheme();
+  const side = useSidebarSide();
   return (
     <Surface
       {...cardHoverProps}
@@ -73,7 +76,7 @@ function Card({ anchor, children }: { anchor: Anchor; children: React.ReactNode 
       shadowOpacity={theme.panelShadowOpacity * 0.8}
       shadowRadius={16}
       shadowOffset={[0, 6]}
-      style={{ position: "absolute", ...hoverCardOrigin(anchor), width: WIDTH, padding: 10 }}
+      style={{ position: "absolute", ...hoverCardOrigin(anchor, WIDTH, side), width: WIDTH, padding: 10 }}
     >
       {children}
     </Surface>

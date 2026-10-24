@@ -28,6 +28,13 @@ export const LIGHTS_CENTER: readonly [number, number] = [25, 27];
 export const ARC_LIGHTS_CENTER: readonly [number, number] = [25, 24];
 export const TOP_STRIP_LIGHTS_CENTER: readonly [number, number] = [20.75, 20.75];
 
+export const LIGHTS_BAR = { height: 34, lights: [18, 17] as const, ms: 150, hideDelayMs: 120 } as const;
+
+export function lightsBarCenter(shown: number): [number, number] {
+  const [x, y] = LIGHTS_BAR.lights;
+  return [x, Math.round((y - LIGHTS_BAR.height * (1 - shown)) * 2) / 2];
+}
+
 export const PEEK_ORIGIN: readonly [number, number] = [5, 5];
 export const PEEK_BOTTOM = 5;
 export const PEEK_RADIUS = 12;
@@ -39,29 +46,38 @@ export function lightsCenter(offset: number, down = 0, base: readonly [number, n
 
 export const cardLeft = (dock: number, width: number, inset: number) => inset + (width - inset) * dock;
 
-type DockMotion = { moving: Record<string, true>; peeks: Record<string, number> };
-export const useDockMotion = create<DockMotion>()(() => ({ moving: {}, peeks: {} }));
+export type PeekSpan = { from: number; to: number };
+type DockMotion = { moving: Record<string, true>; revealing: Record<string, true>; peeks: Record<string, PeekSpan> };
+export const useDockMotion = create<DockMotion>()(() => ({ moving: {}, revealing: {}, peeks: {} }));
 
-export const dockMoving = (windowId: string) => !!useDockMotion.getState().moving[windowId];
+export const dockMoving = (windowId: string) => {
+  const m = useDockMotion.getState();
+  return !!m.moving[windowId] || !!m.revealing[windowId];
+};
 
-export function setDockMoving(windowId: string, moving: boolean) {
-  const current = useDockMotion.getState().moving;
-  if (!!current[windowId] === moving) return;
+function flag(key: "moving" | "revealing", windowId: string, on: boolean) {
+  const current = useDockMotion.getState()[key];
+  if (!!current[windowId] === on) return;
   const { [windowId]: _, ...rest } = current;
-  useDockMotion.setState({
-    moving: moving ? { ...current, [windowId]: true } : rest,
-  });
+  useDockMotion.setState({ [key]: on ? { ...current, [windowId]: true } : rest });
 }
 
-export function setPeekShown(windowId: string, shown: boolean, rightEdge = 0) {
+export const setDockMoving = (windowId: string, moving: boolean) => flag("moving", windowId, moving);
+export const setLightsBarMoving = (windowId: string, moving: boolean) => flag("revealing", windowId, moving);
+
+export function setPeekShown(windowId: string, shown: boolean, from = -Infinity, to = 0) {
   const current = useDockMotion.getState().peeks;
-  if (shown ? current[windowId] === rightEdge : !(windowId in current)) return;
+  const was = current[windowId];
+  if (shown ? was?.from === from && was.to === to : !was) return;
   const { [windowId]: _, ...rest } = current;
-  useDockMotion.setState({ peeks: shown ? { ...current, [windowId]: rightEdge } : rest });
+  useDockMotion.setState({ peeks: shown ? { ...current, [windowId]: { from, to } } : rest });
 }
 export const peekShown = (windowId: string) => windowId in useDockMotion.getState().peeks;
-export const overPeek = (windowId: string, x: number) => x < (useDockMotion.getState().peeks[windowId] ?? -Infinity);
-export const usePeekEdge = (windowId: string): number | undefined => useDockMotion((m) => m.peeks[windowId]);
+export const overPeek = (windowId: string, x: number) => {
+  const span = useDockMotion.getState().peeks[windowId];
+  return !!span && x >= span.from && x < span.to;
+};
+export const usePeekSpan = (windowId: string): PeekSpan | undefined => useDockMotion((m) => m.peeks[windowId]);
 export const devPeeks: Record<string, { show(): void; hide(): void }> = {};
 
 export const HEADER_TOOLS = { toggleX: 70.75 + 27, pitch: 35, edge: 7, lightsRight: 70.75 + 7 } as const;
@@ -70,8 +86,8 @@ export const HEADER_MIN_GAP = 2;
 
 export type HeaderButton = "back" | "forward" | "reload";
 
-export function navButtonsFitting(width: number, button = 30, toggle = true): { buttons: HeaderButton[]; step: number } {
-  const { toggleX, pitch, edge } = HEADER_TOOLS;
+export function navButtonsFitting(width: number, button = 30, toggle = true, toggleX: number = HEADER_TOOLS.toggleX): { buttons: HeaderButton[]; step: number } {
+  const { pitch, edge } = HEADER_TOOLS;
   const span = width - edge - button / 2 - (toggle ? toggleX : toggleX - pitch);
   const count = Math.max(0, Math.min(3, Math.floor(span / (button + HEADER_MIN_GAP))));
   const buttons: HeaderButton[] = count === 3 ? ["back", "forward", "reload"] : count === 2 ? ["back", "forward"] : count === 1 ? ["back"] : [];

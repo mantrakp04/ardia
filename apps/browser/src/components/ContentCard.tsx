@@ -35,11 +35,11 @@ import { DropTargets, SplitDividers, SplitToast } from "./layout/SplitChrome";
 import { SplitEmptyState } from "./layout/SplitEmptyState";
 import { pagerFor } from "./layout/profilePager";
 import { openFromPage } from "./layout/openFromPage";
-import { dockMoving, useDockMotion, usePeekEdge } from "./layout/dockMotion";
+import { dockMoving, useDockMotion, usePeekSpan } from "./layout/dockMotion";
 import { FrozenPage } from "./layout/frozenPage";
 import { holderOf } from "../store/pinShare";
 import { closeFolderPanelIn } from "./sidebar/tileFolderUi";
-import { setCardAnchor, setUrlAnchor, useAddressBarInSidebar, useTabLayout, useToolbarExtensionsWidths } from "./layout/windowLayout";
+import { addressBarInSidebar, setCardAnchor, setUrlAnchor, sidebarSideOf, useAddressBarInSidebar, useTabLayout, useToolbarExtensionsWidths } from "./layout/windowLayout";
 import { NewTabPage } from "./NewTabPage";
 import { EmptyCard } from "./EmptyCard";
 import { InternalPage } from "./pages";
@@ -245,9 +245,9 @@ export function ContentCard() {
   );
 
   const windowToolbar = !split && !fullscreenTab && !addressInSidebar && !small;
-  const peekEdge = usePeekEdge(windowId);
+  const peekSpan = usePeekSpan(windowId);
   const activeRect = activeId ? panes[activeId] : undefined;
-  const popoversOverCard = peekEdge !== undefined && addressInSidebar && !small && !fullscreenTab && origin && activeRect ? activeId : undefined;
+  const popoversOverCard = peekSpan !== undefined && addressInSidebar && !small && !fullscreenTab && origin && activeRect ? activeId : undefined;
 
   return (
     <View
@@ -295,10 +295,14 @@ export function ContentCard() {
         <FrozenPage windowId={windowId} tabId={activeId} top={(!addressInSidebar && !small && !hideWhileScrolling ? layout.toolbarHeight : 0) + (barMode === "always" && !small && !hideWhileScrolling ? BOOKMARKS_BAR_HEIGHT : 0)} />
       )}
       {split && !fullscreenTab && <SplitDividers split={split} dividers={dividers} width={size.width} height={size.height} />}
-      {size.width > 0 && popoversOverCard && origin && activeRect && peekEdge !== undefined && (
+      {size.width > 0 && popoversOverCard && origin && activeRect && peekSpan !== undefined && (
         <BesidePeekPopovers
           tabId={popoversOverCard}
-          left={Math.max(activeRect.x, peekEdge - origin.x) + POPOVER_MARGIN}
+          beside={
+            peekSpan.to === Infinity
+              ? { right: Math.min(activeRect.x + activeRect.width, peekSpan.from - origin.x) - POPOVER_MARGIN }
+              : { left: Math.max(activeRect.x, peekSpan.to - origin.x) + POPOVER_MARGIN }
+          }
           top={activeRect.y + POPOVER_MARGIN}
           room={size.width}
         />
@@ -465,7 +469,8 @@ function PageOverlays({
 }) {
   const popover = usePages((s) => s.popover[tabId] ?? null);
   const zoom = useTabValue(tabId, (t) => t?.zoom ?? 1);
-  const popoverSide = toolbar ? { right: POPOVER_MARGIN } : { left: POPOVER_MARGIN };
+  const sidebarRight = useBrowser((s) => addressBarInSidebar(s, windowId) && sidebarSideOf(s, windowId) === "right");
+  const popoverSide = toolbar || sidebarRight ? { right: POPOVER_MARGIN } : { left: POPOVER_MARGIN };
   return (
     <>
       <FindBar tabId={tabId} />
@@ -490,9 +495,12 @@ function PageOverlays({
   );
 }
 
-function BesidePeekPopovers({ tabId, left, top, room }: { tabId: string; left: number; top: number; room: number }) {
+function BesidePeekPopovers({ tabId, beside, top, room }: { tabId: string; beside: { left: number } | { right: number }; top: number; room: number }) {
   const popover = usePages((s) => s.popover[tabId] ?? null);
-  const fit = (width: number) => ({ left: Math.max(POPOVER_MARGIN, Math.min(left, room - width - POPOVER_MARGIN)), top });
+  const fit = (width: number) => {
+    const left = "left" in beside ? beside.left : beside.right - width;
+    return { left: Math.max(POPOVER_MARGIN, Math.min(left, room - width - POPOVER_MARGIN)), top };
+  };
   return (
     <>
       <SiteControls tabId={tabId} open={popover === "siteControls"} {...fit(SITE_PANEL.width)} />

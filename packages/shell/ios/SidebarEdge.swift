@@ -1,12 +1,17 @@
 import AppKit
 
-final class LeftEdgeWatcher {
-  static let shared = LeftEdgeWatcher()
+final class SidebarEdgeWatcher {
+  struct Watch {
+    let hold: CGFloat
+    let right: Bool
+  }
+
+  static let shared = SidebarEdgeWatcher()
   static let reach: CGFloat = 24
 
   var emit: ((String, [String: Any]) -> Void)?
   var pointerOverride: NSPoint?
-  private var watched: [String: CGFloat] = [:]
+  private var watched: [String: Watch] = [:]
   private var over: Set<String> = []
   private var unreported: Set<String> = []
   private var localMonitor: Any?
@@ -25,8 +30,8 @@ final class LeftEdgeWatcher {
     .mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged, .leftMouseUp, .rightMouseUp, .otherMouseUp,
   ]
 
-  func watch(id: String, on: Bool, hold: CGFloat) {
-    watched[id] = on ? max(0, hold) : nil
+  func watch(id: String, on: Bool, hold: CGFloat, right: Bool) {
+    watched[id] = on ? Watch(hold: max(0, hold), right: right) : nil
     if on { unreported.insert(id) } else { over.remove(id) }
     if watched.isEmpty { return stop() }
     start()
@@ -40,43 +45,59 @@ final class LeftEdgeWatcher {
 
   private func check(_ point: NSPoint, live: Bool) {
     lazy var onDock = live && NSApp.isActive && isOnDock(point)
-    for (id, hold) in watched {
+    for (id, watch) in watched {
       guard let window = WindowManager.shared.windows[id] else {
         watched[id] = nil
         over.remove(id)
         unreported.remove(id)
         continue
       }
-      let inColumn = point.x < window.frame.minX + hold && window.screen?.frame.contains(point) == true
-      let now = isOver(point, of: window, hold: hold, live: live)
+      let inColumn = Self.inColumn(point, of: window.frame, watch) && window.screen?.frame.contains(point) == true
+      let now = isOver(point, of: window, watch, live: live)
         || (inColumn && over.contains(id) && onDock)
-        || (inColumn && isOver(point, of: window, hold: hold, live: false) && onDock && isTopBeneathDock(point, of: window))
+        || (inColumn && isOver(point, of: window, watch, live: false) && onDock && isTopBeneathDock(point, of: window, right: watch.right))
       let fresh = unreported.remove(id) != nil
       guard fresh || now != over.contains(id) else { continue }
       if now { over.insert(id) } else { over.remove(id) }
       let frame = window.frame
-      emit?("onWindowEvent", ["type": "leftEdge", "id": id, "over": now, "point": [point.x - frame.minX, frame.maxY - point.y]])
+      emit?("onWindowEvent", ["type": "sidebarEdge", "id": id, "over": now, "point": [point.x - frame.minX, frame.maxY - point.y]])
     }
     if watched.isEmpty { return stop() }
     updateGlobalMonitor()
   }
 
-  private func isOver(_ point: NSPoint, of window: NSWindow, hold: CGFloat, live: Bool) -> Bool {
+  private static func inColumn(_ point: NSPoint, of frame: NSRect, _ watch: Watch) -> Bool {
+    watch.right ? point.x >= frame.maxX - watch.hold : point.x < frame.minX + watch.hold
+  }
+
+  private static func inBand(_ point: NSPoint, of frame: NSRect, _ watch: Watch) -> Bool {
+    watch.right
+      ? point.x >= frame.maxX - watch.hold && point.x < frame.maxX
+      : point.x >= frame.minX && point.x < frame.minX + watch.hold
+  }
+
+  private static func inReach(_ point: NSPoint, of frame: NSRect, on screen: NSRect, right: Bool) -> Bool {
+    right
+      ? point.x >= frame.maxX && point.x < min(screen.maxX, frame.maxX + reach)
+      : point.x < frame.minX && point.x >= max(screen.minX, frame.minX - reach)
+  }
+
+  private func isOver(_ point: NSPoint, of window: NSWindow, _ watch: Watch, live: Bool) -> Bool {
     guard window.isVisible, !window.isMiniaturized, !window.styleMask.contains(.fullScreen), let screen = window.screen else { return false }
     let frame = window.frame
     guard point.y >= frame.minY, point.y < frame.maxY else { return false }
-    if point.x >= frame.minX, point.x < frame.minX + hold {
+    if Self.inBand(point, of: frame, watch) {
       guard live else { return true }
       let hit = NSApp.window(withWindowNumber: Self.windowNumber(at: point))
       return hit === window || hit?.parent === window
     }
-    guard point.x < frame.minX, point.x >= max(screen.frame.minX, frame.minX - Self.reach) else { return false }
+    guard Self.inReach(point, of: frame, on: screen.frame, right: watch.right) else { return false }
     guard live else { return true }
-    let edge = NSPoint(x: frame.minX + 1, y: point.y)
+    let edge = NSPoint(x: watch.right ? frame.maxX - 1 : frame.minX + 1, y: point.y)
     guard Self.windowNumber(at: edge) == window.windowNumber else { return false }
     let under = Self.windowNumber(at: point)
     if under != window.windowNumber, NSApp.window(withWindowNumber: under) != nil { return false }
-    return NSApp.isActive || Self.besideScreenEdge(window, screen)
+    return NSApp.isActive || Self.besideScreenEdge(window, screen, right: watch.right)
   }
 
   private static func windowNumber(at point: NSPoint, below start: Int = 0) -> Int {
@@ -93,8 +114,8 @@ final class LeftEdgeWatcher {
     isDock(Self.windowNumber(at: point))
   }
 
-  private func isTopBeneathDock(_ point: NSPoint, of window: NSWindow) -> Bool {
-    let probe = NSPoint(x: max(point.x, window.frame.minX + 1), y: point.y)
+  private func isTopBeneathDock(_ point: NSPoint, of window: NSWindow, right: Bool) -> Bool {
+    let probe = NSPoint(x: right ? min(point.x, window.frame.maxX - 1) : max(point.x, window.frame.minX + 1), y: point.y)
     var number = Self.windowNumber(at: probe)
     while isDock(number) {
       let below = Self.windowNumber(at: probe, below: number)
@@ -126,17 +147,17 @@ final class LeftEdgeWatcher {
     return owner == dockApp.processIdentifier && layer >= Int(CGWindowLevelForKey(.dockWindow))
   }
 
-  private static func besideScreenEdge(_ window: NSWindow, _ screen: NSScreen) -> Bool {
-    window.frame.minX - screen.frame.minX <= reach
+  private static func besideScreenEdge(_ window: NSWindow, _ screen: NSScreen, right: Bool) -> Bool {
+    right ? screen.frame.maxX - window.frame.maxX <= reach : window.frame.minX - screen.frame.minX <= reach
   }
 
   private var needsGlobalMonitor: Bool {
     if NSApp.isActive || !over.isEmpty { return true }
-    return watched.contains { id, hold in
+    return watched.contains { id, watch in
       guard let window = WindowManager.shared.windows[id] else { return false }
-      if hold > 0 { return true }
+      if watch.hold > 0 { return true }
       guard let screen = window.screen else { return false }
-      return Self.besideScreenEdge(window, screen)
+      return Self.besideScreenEdge(window, screen, right: watch.right)
     }
   }
 

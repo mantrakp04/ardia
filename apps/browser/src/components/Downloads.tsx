@@ -7,7 +7,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useBrowser } from "../store/browser";
 import { useSidebarOpen, useWindowId, useWindowUi } from "../store/hooks";
 import { downloadsIn, downloadVisibleIn } from "../store/ui";
-import { SIDEBAR_FOOTER_DOWNLOADS, useAddressBarInSidebar, useTabLayout } from "./layout/windowLayout";
+import { SIDEBAR_FOOTER_DOWNLOADS, useAddressBarInSidebar, useSidebarSide, useTabLayout } from "./layout/windowLayout";
 import { PROFILE_DOTS_HEIGHT } from "./profiles/ProfileDots";
 import { openInternalPage } from "./pages/urls";
 import { useSidebarWidth } from "./sidebar/tokens";
@@ -154,6 +154,10 @@ function DownloadsPanel({ windowId, closing, onClosed }: { windowId: string; clo
   const { ids, clearable } = shownList.current;
   const top = useTabLayout() === "top";
   const addressBar = useAddressBarInSidebar();
+  const side = useSidebarSide();
+  const rightSide = top || side === "right";
+  const sidebarWidth = useSidebarWidth(windowId);
+  const besideFooter = addressBar && side === "right" ? sidebarWidth - 10 - WIDTH : 0;
   const setOpen = (value: boolean) => useBrowser.getState().setDownloadsOpen(windowId, value);
   const appear = useRef(new Animated.Value(0)).current;
   const closed = useRef(onClosed);
@@ -172,9 +176,9 @@ function DownloadsPanel({ windowId, closing, onClosed }: { windowId: string; clo
         style={{
           position: "absolute",
           ...(addressBar ? { bottom: PROFILE_DOTS_HEIGHT + 2 } : { top: 44 }),
-          ...(top ? { right: 8 } : { left: 10 }),
+          ...(top ? { right: 8 } : besideFooter > 10 ? { right: besideFooter } : rightSide ? { right: 10 } : { left: 10 }),
           opacity: appear,
-          transformOrigin: `${addressBar ? "bottom" : "top"} ${top ? "right" : "left"}`,
+          transformOrigin: `${addressBar ? "bottom" : "top"} ${rightSide && besideFooter <= 10 ? "right" : "left"}`,
           transform: [
             { scale: appear.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) },
             { translateY: appear.interpolate({ inputRange: [0, 1], outputRange: addressBar ? [4, 0] : [-4, 0] }) },
@@ -379,6 +383,7 @@ export function DownloadMagnet() {
   const sidebarWidth = useSidebarWidth(windowId);
   const topStrip = useTabLayout() === "top";
   const addressBar = useAddressBarInSidebar();
+  const right = useSidebarSide() === "right";
   const [flight, setFlight] = useState<{ id: string; path: string } | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const t = useRef(new Animated.Value(0)).current;
@@ -398,9 +403,15 @@ export function DownloadMagnet() {
   }, [windowId]);
 
   const sidebar = !topStrip && sidebarOpen ? sidebarWidth : 0;
-  const footer = { x: layout.sidebarInset + SIDEBAR_FOOTER_DOWNLOADS.size / 2, y: size.height - SIDEBAR_FOOTER_DOWNLOADS.bottom - SIDEBAR_FOOTER_DOWNLOADS.size / 2 };
-  const target = topStrip ? { x: size.width - 25, y: 21 } : addressBar ? footer : sidebarOpen ? { x: sidebarWidth - 24, y: 27 } : { x: 24, y: 24 };
-  const start = { x: sidebar + (size.width - sidebar) / 2, y: size.height * 0.45 };
+  const footer = { x: (right ? size.width - sidebarWidth : 0) + layout.sidebarInset + SIDEBAR_FOOTER_DOWNLOADS.size / 2, y: size.height - SIDEBAR_FOOTER_DOWNLOADS.bottom - SIDEBAR_FOOTER_DOWNLOADS.size / 2 };
+  const target = topStrip
+    ? { x: size.width - 25, y: 21 }
+    : addressBar
+      ? footer
+      : sidebarOpen
+        ? { x: right ? size.width - 24 : sidebarWidth - 24, y: 27 }
+        : { x: right ? size.width - 24 : 24, y: 24 };
+  const start = { x: (right ? 0 : sidebar) + (size.width - sidebar) / 2, y: size.height * 0.45 };
   const icon = 44;
   const steps = [0, 0.25, 0.5, 0.75, 1];
   const x = t.interpolate({ inputRange: steps, outputRange: steps.map((p) => start.x + (target.x - start.x) * p - icon / 2) });

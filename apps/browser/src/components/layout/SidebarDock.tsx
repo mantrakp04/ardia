@@ -1,4 +1,4 @@
-import { onWindowEvent, setTrafficLightsCenter, Surface, watchLeftEdge, WindowDragRegion } from "@ardia/shell";
+import { onWindowEvent, setTrafficLightsCenter, Surface, watchSidebarEdge, WindowDragRegion } from "@ardia/shell";
 import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import { AccessibilityInfo, Animated, Easing, StyleSheet, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
@@ -16,6 +16,7 @@ import {
   ARC_LIGHTS_CENTER,
   devPeeks,
   DOCK_SPRING,
+  LIGHTS_BAR,
   LIGHTS_CENTER,
   lightsCenter,
   PEEK_BOTTOM,
@@ -27,8 +28,10 @@ import {
   springConfig,
   useDockMotion,
 } from "./dockMotion";
+import { LightsBarZone, useLightsBar } from "./LightsBar";
 import { useTabDrag } from "./tabDrag";
 import { usePeek } from "./usePeek";
+import { sidebarSideOf, type SidebarSide } from "./windowLayout";
 
 let reduceMotion = false;
 AccessibilityInfo.isReduceMotionEnabled().then(
@@ -82,35 +85,45 @@ export function DockedLayout({
   fullscreen,
   topTabs,
   inset,
+  windowWidth,
   children,
 }: {
   fullscreen: boolean;
   topTabs: boolean;
   inset: Inset;
+  windowWidth: number;
   children: ReactNode;
 }) {
   const windowId = useWindowId();
-  const [open, savedWidth, addressBar] = useBrowser(
+  const [open, savedWidth, addressBar, side] = useBrowser(
     useShallow(
       (s) =>
         [
           s.windows[windowId]?.sidebarOpen ?? true,
           s.settings.sidebarWidth ?? layout.sidebarWidth,
           s.settings.addressBar === "sidebar",
+          sidebarSideOf(s, windowId),
         ] as const,
     ),
   );
   const width = useSidebarUi((u) => u.dragWidth[windowId]) ?? savedWidth;
+  const right = side === "right" && !topTabs;
   const arc = addressBar && !topTabs && switchOn("sidebarSlide");
   const lights = addressBar && !topTabs ? ARC_LIGHTS_CENTER : LIGHTS_CENTER;
   const dock = useSidebarDock(open, !topTabs && !fullscreen, arc);
-  const left = useMemo(
+  const bar = useLightsBar(windowId, right && !fullscreen);
+  const rest = right ? inset.right : inset.left;
+  const edge = useMemo(
     () =>
       dock.interpolate({
         inputRange: [0, 1],
-        outputRange: [inset.left, width],
+        outputRange: [rest, width],
       }),
-    [dock, width, inset.left],
+    [dock, width, rest],
+  );
+  const top = useMemo(
+    () => bar.shown.interpolate({ inputRange: [0, 1], outputRange: [inset.top, LIGHTS_BAR.height] }),
+    [bar.shown, inset.top],
   );
   return (
     <>
@@ -121,17 +134,29 @@ export function DockedLayout({
             : {
                 flex: 1,
                 flexDirection: "row",
-                paddingTop: inset.top,
-                paddingRight: inset.right,
+                paddingTop: right ? top : inset.top,
+                paddingRight: right ? edge : inset.right,
                 paddingBottom: inset.bottom,
-                paddingLeft: topTabs ? inset.left : left,
+                paddingLeft: topTabs || right ? inset.left : edge,
               }
         }
       >
         {!fullscreen && <WindowDragRegion style={StyleSheet.absoluteFill} />}
         {children}
       </Animated.View>
-      {!topTabs && <SidebarDock dock={dock} open={open} width={width} fullscreen={fullscreen} arc={arc} lights={lights} />}
+      {right && !fullscreen && <LightsBarZone bar={bar} rest={inset.top} right={edge} />}
+      {!topTabs && (
+        <SidebarDock
+          dock={dock}
+          open={open}
+          width={width}
+          fullscreen={fullscreen}
+          arc={arc}
+          lights={lights}
+          side={right ? "right" : "left"}
+          windowWidth={windowWidth}
+        />
+      )}
     </>
   );
 }
@@ -143,6 +168,8 @@ function SidebarDock({
   fullscreen,
   arc,
   lights,
+  side,
+  windowWidth,
 }: {
   dock: Animated.Value;
   open: boolean;
@@ -150,6 +177,8 @@ function SidebarDock({
   fullscreen: boolean;
   arc: boolean;
   lights: readonly [number, number];
+  side: SidebarSide;
+  windowWidth: number;
 }) {
   const theme = useTheme();
   const windowId = useWindowId();
@@ -159,9 +188,12 @@ function SidebarDock({
   const latestPeek = useRef(peek);
   latestPeek.current = peek;
   useEffect(() => (peek.live ? watchPeekHolds(() => latestPeek.current.recheck()) : undefined), [peek.live]);
+  const right = side === "right";
+  const mirror = right ? -1 : 1;
   const holdWidth = PEEK_ORIGIN[0] + width + HOLD_SLACK;
   const holdHeight = useRef(Infinity);
-  const inHold = (x: number, y: number) => x >= 0 && x < holdWidth && y >= 0 && y < holdHeight.current;
+  const inHold = (x: number, y: number) =>
+    (right ? x >= windowWidth - holdWidth && x < windowWidth : x >= 0 && x < holdWidth) && y >= 0 && y < holdHeight.current;
   const peeking = !open && !fullscreen && peek.live;
   const shown = fullscreen ? "fullscreen" : open ? "docked" : peek.live ? "peek" : "away";
   useLayoutEffect(() => () => dismissHoverIn(windowId), [windowId, shown]);
@@ -171,30 +203,36 @@ function SidebarDock({
   useEffect(() => {
     if (!watching) return;
     const sub = onWindowEvent((e) => {
-      if (e.type !== "leftEdge" || e.id !== windowId) return;
+      if (e.type !== "sidebarEdge" || e.id !== windowId) return;
       edgeOver.current = e.over;
       if (e.over) latestPeek.current.show();
       else latestPeek.current.hide();
     });
-    watchLeftEdge(windowId, true, nativeHold);
+    watchSidebarEdge(windowId, true, nativeHold, side);
     return () => {
       sub.remove();
-      watchLeftEdge(windowId, false);
+      watchSidebarEdge(windowId, false, 0, side);
       edgeOver.current = false;
     };
-  }, [windowId, watching, nativeHold]);
-  useEffect(() => setPeekShown(windowId, peek.live, PEEK_ORIGIN[0] + width), [windowId, peek.live, width]);
+  }, [windowId, watching, nativeHold, side]);
+  useEffect(
+    () =>
+      right
+        ? setPeekShown(windowId, peek.live, windowWidth - PEEK_ORIGIN[0] - width, Infinity)
+        : setPeekShown(windowId, peek.live, -Infinity, PEEK_ORIGIN[0] + width),
+    [windowId, peek.live, width, right, windowWidth],
+  );
   if (__DEV__) devPeeks[windowId] = peek;
   useEffect(() => () => setPeekShown(windowId, false), [windowId]);
   const panel = useRef(false);
   if (peeking) panel.current = true;
   const away = fullscreen || (!open && !moving && !peek.live);
-  const slideOut = useMemo(() => dock.interpolate({ inputRange: [0, 1], outputRange: [-width, 0] }), [dock, width]);
+  const slideOut = useMemo(() => dock.interpolate({ inputRange: [0, 1], outputRange: [-width * mirror, 0] }), [dock, width, mirror]);
   const peekIn = useMemo(
-    () => peek.slide.interpolate({ inputRange: [0, 1], outputRange: [-12, width] }),
-    [peek.slide, width],
+    () => peek.slide.interpolate({ inputRange: [0, 1], outputRange: [-12 * mirror, width * mirror] }),
+    [peek.slide, width, mirror],
   );
-  useTrafficLights(windowId, dock, peek.slide, { width, peeking, fullscreen, lights });
+  useTrafficLights(windowId, dock, peek.slide, { width, peeking, fullscreen, lights, active: !right });
   const sidebar = useMemo(
     () => (
       <ProfileSwipe>
@@ -230,7 +268,7 @@ function SidebarDock({
           onMouseEnter={peek.show}
           onMouseLeave={peek.hide}
           onLayout={(e) => (holdHeight.current = e.nativeEvent.layout.height)}
-          style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: holdWidth }}
+          style={{ position: "absolute", [side]: 0, top: 0, bottom: 0, width: holdWidth }}
         />
       )}
       {strip.current && (
@@ -240,7 +278,7 @@ function SidebarDock({
           onMouseLeave={leaveStrip}
           style={{
             position: "absolute",
-            left: 0,
+            [side]: 0,
             top: 0,
             bottom: layout.cardInset,
             width: !open && !fullscreen ? STRIP_WIDTH : 0,
@@ -251,7 +289,7 @@ function SidebarDock({
         pointerEvents={fullscreen || moving || (!open && !peeking) ? "none" : "auto"}
         style={{
           position: "absolute",
-          left: away ? -10_000 : peeking ? PEEK_ORIGIN[0] : 0,
+          [side]: away ? -10_000 : peeking ? PEEK_ORIGIN[0] : 0,
           top: peeking ? PEEK_ORIGIN[1] : 0,
           bottom: peeking ? PEEK_BOTTOM : 0,
           width,
@@ -288,7 +326,7 @@ function useTrafficLights(
   windowId: string,
   dock: Animated.Value,
   slide: Animated.Value,
-  o: { width: number; peeking: boolean; fullscreen: boolean; lights: readonly [number, number] },
+  o: { width: number; peeking: boolean; fullscreen: boolean; lights: readonly [number, number]; active: boolean },
 ) {
   const values = useRef({ dock: 1, slide: 0 });
   const apply = useRef<() => void>(() => {});
@@ -303,6 +341,7 @@ function useTrafficLights(
     void setTrafficLightsCenter(windowId, center);
   };
   useEffect(() => {
+    if (!o.active) return;
     values.current.dock = (dock as unknown as { __getValue(): number }).__getValue();
     const a = dock.addListener(({ value }) => {
       values.current.dock = value;
@@ -314,14 +353,14 @@ function useTrafficLights(
       sent.current = undefined;
       void setTrafficLightsCenter(windowId, null);
     };
-  }, [windowId, dock]);
+  }, [windowId, dock, o.active]);
   useEffect(() => {
-    if (!o.peeking) return;
+    if (!o.peeking || !o.active) return;
     const b = slide.addListener(({ value }) => {
       values.current.slide = value;
       apply.current();
     });
     return () => slide.removeListener(b);
-  }, [slide, o.peeking]);
-  useEffect(() => apply.current(), [o.width, o.peeking, o.fullscreen, o.lights]);
+  }, [slide, o.peeking, o.active]);
+  useEffect(() => void (o.active && apply.current()), [o.width, o.peeking, o.fullscreen, o.lights, o.active]);
 }

@@ -8,7 +8,7 @@ import { activeTabId } from "../store/model";
 import { useStoreWhile } from "../store/tabWatch";
 import { usePage } from "./layout/pageState";
 import { dismissHover, setRowsCovered } from "./sidebar/hover";
-import { useCardAnchors, useUrlAnchors } from "./layout/windowLayout";
+import { useCardAnchors, useSidebarSide, useUrlAnchors } from "./layout/windowLayout";
 import { barWidth } from "./NewTabPage";
 import { closeNewTabBar } from "./omnibox/newTabBar";
 import type { NewTabTarget } from "../store/types";
@@ -48,6 +48,7 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
   const insecure = usePage(activeId, (p) => !!insecureLevel(p));
   const anchor = useUrlAnchors((s) => (panel.open ? s[windowId] : undefined));
   const card = useCardAnchors((s) => (panel.newTab ? s[windowId] : undefined));
+  const right = useSidebarSide() === "right";
   const overRows = panel.open && !panel.newTab && !!anchor?.sidebar;
   useEffect(() => {
     if (panel.open) dismissHover();
@@ -63,9 +64,14 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
   const surface = (radius: number) => panelSurface(theme, radius);
 
   if (anchor.sidebar) {
-    const shown = anchor.left >= 0;
-    const left = shown ? anchor.left : WINDOW_MARGIN;
-    const width = Math.min(Math.max(DROPDOWN_MIN_WIDTH, anchor.width + DROPDOWN_PAST_FIELD), room(left, DROPDOWN_MIN_WIDTH));
+    const shown = anchor.left >= 0 && (windowWidth <= 0 || anchor.left + anchor.width <= windowWidth);
+    const wanted = Math.max(DROPDOWN_MIN_WIDTH, anchor.width + DROPDOWN_PAST_FIELD);
+    const width = right && windowWidth > 0 ? Math.min(wanted, windowWidth - WINDOW_MARGIN * 2) : Math.min(wanted, room(shown ? anchor.left : WINDOW_MARGIN, DROPDOWN_MIN_WIDTH));
+    const left = right && windowWidth > 0
+      ? Math.max(WINDOW_MARGIN, (shown ? anchor.left + anchor.width : windowWidth - WINDOW_MARGIN) - width)
+      : shown
+        ? anchor.left
+        : WINDOW_MARGIN;
     const from = shown ? { left, top: anchor.top, width: anchor.width, height: anchor.sidebar.height } : null;
     return (
       <Grow from={from} frame={{ left, top: anchor.top, width }} openHeight={anchor.sidebar.height} radius={DROPDOWN_RADIUS} surface={surface(DROPDOWN_RADIUS)}>

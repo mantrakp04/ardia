@@ -10,6 +10,7 @@ import type { LiveItem, PullRequestCheck } from "../../live/types";
 import { useBrowser } from "../../store/browser";
 import { useHover } from "../primitives";
 import { cardHoverProps, dismissHover } from "../sidebar/hover";
+import { useSidebarSide } from "../layout/windowLayout";
 import { hoverCardOrigin } from "../sidebar/hoverMotion";
 import type { Anchor } from "../sidebar/state";
 import { TabIcon } from "../sidebar/TabIcon";
@@ -17,8 +18,9 @@ import { useLiveColors, type LiveColors } from "./colors";
 
 export function HoverSurface({ anchor, width, children }: { anchor: Anchor; width: number; children: ReactNode }) {
   const theme = useTheme();
+  const side = useSidebarSide();
   return (
-    <View onLayout={cardHoverProps.onLayout} style={{ position: "absolute", ...hoverCardOrigin(anchor), width }}>
+    <View onLayout={cardHoverProps.onLayout} style={{ position: "absolute", ...hoverCardOrigin(anchor, width, side), width }}>
       <Surface
         onMouseEnter={cardHoverProps.onMouseEnter}
         onMouseLeave={cardHoverProps.onMouseLeave}

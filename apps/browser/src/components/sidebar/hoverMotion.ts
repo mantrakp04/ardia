@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Animated, Easing } from "react-native";
 import { springConfig } from "../layout/dockMotion";
+import type { SidebarSide } from "../layout/windowLayout";
 import type { Anchor } from "./state";
 
 export const HOVER_CARD_GAP = 8;
@@ -12,8 +13,14 @@ export const HOVER_CARD_OUT_SPRING = { response: 0.2, damping: 0.6 } as const;
 
 const fade = Easing.bezier(...HOVER_CARD_FADE_CURVE);
 
-export function hoverCardOrigin(anchor: Anchor, edge = anchor.x + anchor.width): { left: number; top: number } {
-  return { left: edge + HOVER_CARD_GAP, top: Math.max(8, anchor.y - 6) };
+export function hoverCardPivot(anchor: Anchor, side: SidebarSide, edge?: number): { left: number; top: number } {
+  const top = Math.max(8, anchor.y - 6);
+  return side === "right" ? { left: (edge ?? anchor.x) - HOVER_CARD_GAP, top } : { left: (edge ?? anchor.x + anchor.width) + HOVER_CARD_GAP, top };
+}
+
+export function hoverCardOrigin(anchor: Anchor, width: number, side: SidebarSide, edge?: number): { left: number; top: number } {
+  const pivot = hoverCardPivot(anchor, side, edge);
+  return side === "right" ? { ...pivot, left: pivot.left - width } : pivot;
 }
 
 function createMotion() {

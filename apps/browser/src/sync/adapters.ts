@@ -28,6 +28,7 @@ export const SYNCED_SETTINGS = [
   "searchSuggestions",
   "commandBarPreference",
   "tabLayout",
+  "sidebarSide",
   "hideToolbarWhileScrolling",
   "showSidebarButton",
   "newTabPosition",

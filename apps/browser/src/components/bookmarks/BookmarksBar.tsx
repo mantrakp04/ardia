@@ -14,6 +14,7 @@ import { openInternalPage } from "../pages/urls";
 import { Favicon, useHover } from "../primitives";
 import { openImport } from "../settings/windows";
 import { useSidebarWidth } from "../sidebar/tokens";
+import { sidebarSideOf, useCardAnchors } from "../layout/windowLayout";
 import { openFolder, openModeFor, openUrl } from "./actions";
 import { editBookmark } from "./edit";
 
@@ -178,12 +179,17 @@ function BarItem({
 }) {
   const node = useBrowser((s) => s.bookmarks.nodes[id]);
   const width = useSidebarWidth(windowId);
-  const sidebarEdge = useBrowser((s) => {
+  const shown = useBrowser((s) => {
     const w = s.windows[windowId];
-    return w?.sidebarOpen && (w.tabLayout ?? s.settings.tabLayout) !== "top" ? width : 0;
+    return !!w?.sidebarOpen && (w.tabLayout ?? s.settings.tabLayout) !== "top";
   });
-  const edge = useRef(sidebarEdge);
-  edge.current = sidebarEdge;
+  const right = useBrowser((s) => sidebarSideOf(s, windowId) === "right");
+  const overSidebarAt = (x: number) => {
+    const card = useCardAnchors.getState()[windowId];
+    return shown && (right ? !!card && x > card.left + card.width : x < width);
+  };
+  const edge = useRef({ over: overSidebarAt, right });
+  edge.current = { over: overSidebarAt, right };
   const dx = useRef(new Animated.Value(0)).current;
   const left = useRef(0);
   const [dragging, setDragging] = useState(false);
@@ -197,8 +203,8 @@ function BarItem({
         onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 4,
         onPanResponderGrant: () => setDragging(true),
         onPanResponderMove: (_, g) => {
-          const toSidebar = folder.current && g.moveX < edge.current;
-          dx.setValue(toSidebar ? -left.current : g.dx);
+          const toSidebar = folder.current && edge.current.over(g.moveX);
+          dx.setValue(toSidebar && !edge.current.right ? -left.current : g.dx);
           setOverSidebar(toSidebar);
           handlers.current.onDragMove(toSidebar ? Infinity : g.dx);
         },
@@ -206,7 +212,7 @@ function BarItem({
           dx.setValue(0);
           setDragging(false);
           setOverSidebar(false);
-          if (folder.current && g.moveX < edge.current) {
+          if (folder.current && edge.current.over(g.moveX)) {
             handlers.current.onDragMove(Infinity);
             addFolderToSidebar(id, windowId);
             return;

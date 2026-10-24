@@ -208,13 +208,40 @@ test("a peek that's out is remembered per window (Arc docks from it at once)", (
 
 test("the peek panel covers the page up to its right edge, only while it's out", () => {
   assert.equal(dm.overPeek("w1", 0), false);
-  dm.setPeekShown("w1", true, 5 + 240);
+  dm.setPeekShown("w1", true, -Infinity, 5 + 240);
   assert.equal(dm.overPeek("w1", 120), true);
   assert.equal(dm.overPeek("w1", 244.5), true);
   assert.equal(dm.overPeek("w1", 245), false);
   assert.equal(dm.overPeek("w2", 120), false);
   dm.setPeekShown("w1", false);
   assert.equal(dm.overPeek("w1", 120), false);
+});
+
+test("a right-hand peek panel covers the page from its left edge to the window's right", () => {
+  dm.setPeekShown("w1", true, 1200 - 5 - 240, Infinity);
+  assert.deepEqual(dm.useDockMotion.getState().peeks.w1, { from: 955, to: Infinity }, "its span is what the page's panels move clear of");
+  assert.equal(dm.overPeek("w1", 954), false);
+  assert.equal(dm.overPeek("w1", 955), true);
+  assert.equal(dm.overPeek("w1", 1199), true);
+  assert.equal(dm.overPeek("w1", 120), false);
+  dm.setPeekShown("w1", false);
+  assert.equal(dm.overPeek("w1", 1100), false);
+});
+
+test("the lights bar slides the traffic lights down from above the window to Zen's spot", () => {
+  assert.deepEqual(dm.lightsBarCenter(1), [18, 17]);
+  assert.deepEqual(dm.lightsBarCenter(0), [18, 17 - 34]);
+  assert.ok(dm.lightsBarCenter(0)[1] + 7 < 0, "hidden lights are wholly above the window");
+  assert.deepEqual(dm.lightsBarCenter(0.5), [18, 0]);
+});
+
+test("the dock and the lights bar each hold the card's measuring until both settle", () => {
+  dm.setDockMoving("w1", true);
+  dm.setLightsBarMoving("w1", true);
+  dm.setDockMoving("w1", false);
+  assert.equal(dm.dockMoving("w1"), true);
+  dm.setLightsBarMoving("w1", false);
+  assert.equal(dm.dockMoving("w1"), false);
 });
 
 test("Arc's layout keeps the address bar in a hidden sidebar (no toolbar on the card); Dia's layout and the switch off don't", async () => {
@@ -238,4 +265,22 @@ test("Arc's layout keeps the address bar in a hidden sidebar (no toolbar on the 
   assert.equal(addressBarInSidebar(S(), w), true, "switch off, shown: in the sidebar");
   stub.docs.clear();
   reloadSwitches();
+});
+
+test("the sidebar goes right only in the sidebar layout, and a window opening there starts with its lights hidden above it", async () => {
+  const { openingLightsCenter, sidebarSideOf } = await import("./windowLayout.ts");
+  S().hydrate({});
+  const w = S().createWindow({ url: "a.com" });
+  S().updateSettings({ addressBar: "toolbar", tabLayout: "sidebar", sidebarSide: "left" });
+  assert.equal(sidebarSideOf(S(), w), "left");
+  assert.equal(openingLightsCenter(S(), w), null, "Dia's own spot");
+  S().updateSettings({ sidebarSide: "right" });
+  assert.equal(sidebarSideOf(S(), w), "right");
+  assert.deepEqual(openingLightsCenter(S(), w), dm.lightsBarCenter(0));
+  assert.equal(sidebarSideOf({ ...S(), windows: { ...S().windows, [w]: { ...S().windows[w], kind: "small" } } }, w), "left", "Little Ardia has no sidebar");
+  S().toggleTabLayout(w);
+  assert.equal(sidebarSideOf(S(), w), "left", "tabs across the top have no side");
+  assert.deepEqual(openingLightsCenter(S(), w), [...dm.TOP_STRIP_LIGHTS_CENTER]);
+  S().toggleTabLayout(w);
+  S().updateSettings({ sidebarSide: "left", tabLayout: "sidebar" });
 });

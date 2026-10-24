@@ -39,6 +39,11 @@ export function TabsPane() {
       <Group style={{ marginTop: 14 }}>
         {toggle("hideToolbarWhileScrolling", "tabs.hideToolbarWhileScrolling")}
         {!top && toggle("showSidebarButton", "tabs.showSidebarButton")}
+        {!top && (
+          <Row anchor="tabs.sidebarSide">
+            <Toggle value={settings.sidebarSide === "right"} onChange={(v) => update({ sidebarSide: v ? "right" : "left" })} />
+          </Row>
+        )}
       </Group>
 
       <SectionHeader title="General" />
