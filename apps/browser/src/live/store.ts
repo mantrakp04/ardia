@@ -167,14 +167,21 @@ export function removeFolder(id: string) {
   }));
 }
 
-export function moveFolder(id: string, delta: -1 | 1) {
+export function arrangeFolders(placed: { id: string; after: string | null }[]) {
   setLive((s) => {
-    const order = [...s.folderOrder];
-    const i = order.indexOf(id);
-    const j = i + delta;
-    if (i < 0 || j < 0 || j >= order.length) return {};
-    [order[i], order[j]] = [order[j]!, order[i]!];
-    return { folderOrder: order };
+    const ids = placed.map((p) => p.id).filter((id) => s.folders[id]);
+    if (!ids.length) return {};
+    const moved = placed.filter((p) => s.folders[p.id] && s.folders[p.id]!.after !== p.after);
+    const folders = moved.length ? { ...s.folders } : s.folders;
+    for (const p of moved) folders[p.id] = { ...folders[p.id]!, after: p.after };
+    const slots = s.folderOrder.flatMap((id, i) => (ids.includes(id) ? [i] : []));
+    const folderOrder = [...s.folderOrder];
+    slots.forEach((slot, i) => {
+      folderOrder[slot] = ids[i]!;
+    });
+    const reordered = folderOrder.some((id, i) => id !== s.folderOrder[i]);
+    if (!moved.length && !reordered) return {};
+    return { folders, folderOrder: reordered ? folderOrder : s.folderOrder };
   });
 }
 
@@ -280,4 +287,3 @@ export function setMeetingGroup(group: MeetingGroup | null, groupId?: string) {
   });
 }
 
-export const profileFolders = (s: LiveState, profileId: string) => s.folderOrder.filter((id) => s.folders[id]?.profileId === profileId);

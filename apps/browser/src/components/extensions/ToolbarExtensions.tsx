@@ -68,11 +68,11 @@ export const ToolbarExtensions = memo(function ToolbarExtensions({
   if (!pinned.length && !overflow && !routes.length) return null;
   return (
     <View style={{ position: "absolute", top, right, flexDirection: "row", gap: GAP }}>
-      {routes.length ? <CastButton windowId={windowId} routes={routes} palette={palette} /> : null}
+      {routes.length ? <CastButton windowId={windowId} tabId={tabId} routes={routes} palette={palette} /> : null}
       {pinned.map((ext) => (
-        <ExtensionButton key={ext.id} ext={ext} windowId={windowId} browserId={browserId} palette={palette} />
+        <ExtensionButton key={ext.id} ext={ext} windowId={windowId} tabId={tabId} browserId={browserId} palette={palette} />
       ))}
-      {overflow && <OverflowButton windowId={windowId} palette={palette} />}
+      {overflow && <OverflowButton windowId={windowId} tabId={tabId} palette={palette} />}
     </View>
   );
 });
@@ -92,7 +92,7 @@ function useAnchor(key: string) {
   return { ref, measure };
 }
 
-function ExtensionButton({ ext, windowId, browserId, palette }: { ext: InstalledExtension; windowId: string; browserId: number; palette: ToolbarPalette }) {
+function ExtensionButton({ ext, windowId, tabId, browserId, palette }: { ext: InstalledExtension; windowId: string; tabId: string; browserId: number; palette: ToolbarPalette }) {
   const fetched = useExtensions((e) => (browserId ? e.actions[browserId] : undefined));
   const held = useRef<ActionState | undefined>(undefined);
   if (fetched) held.current = fetched[ext.id];
@@ -107,7 +107,7 @@ function ExtensionButton({ ext, windowId, browserId, palette }: { ext: Installed
   return (
     <View ref={ref} tooltip={title} {...hoverProps} onLayout={() => void measure()}>
       <ContextMenuArea onContextMenu={() => void showExtensionMenu(windowId, ext)}>
-        <Pressable onPress={async () => activateExtension(windowId, ext, await measure(), fetched?.[ext.id])}>
+        <Pressable onPress={async () => activateExtension(windowId, ext, await measure(), fetched?.[ext.id], tabId)}>
           {({ pressed }) => (
             <View
               style={{
@@ -166,7 +166,7 @@ function contrastText(hex: string) {
   return 0.299 * r + 0.587 * g + 0.114 * b > 160 ? "#000000" : "#FFFFFF";
 }
 
-function CastButton({ windowId, routes, palette }: { windowId: string; routes: CastRoute[]; palette: ToolbarPalette }) {
+function CastButton({ windowId, tabId, routes, palette }: { windowId: string; tabId: string; routes: CastRoute[]; palette: ToolbarPalette }) {
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   const tooltip = routes.map((r) => (r.description ? `${r.description} on ${r.sink}` : `Casting to ${r.sink}`)).join("\n");
@@ -182,7 +182,7 @@ function CastButton({ windowId, routes, palette }: { windowId: string; routes: C
   return (
     <View tooltip={tooltip} {...hoverProps}>
       <ContextMenuArea onContextMenu={() => void menu()}>
-        <Pressable onPress={() => void toggleCastPicker(windowId)}>
+        <Pressable onPress={() => void toggleCastPicker(windowId, tabId)}>
           {({ pressed }) => (
             <View
               style={{
@@ -203,7 +203,7 @@ function CastButton({ windowId, routes, palette }: { windowId: string; routes: C
   );
 }
 
-function OverflowButton({ windowId, palette }: { windowId: string; palette: ToolbarPalette }) {
+function OverflowButton({ windowId, tabId, palette }: { windowId: string; tabId: string; palette: ToolbarPalette }) {
   const { hovered, hoverProps } = useHover();
   const { ref, measure } = useAnchor(`${windowId}|*`);
   const onPress = async () => {
@@ -220,7 +220,7 @@ function OverflowButton({ windowId, palette }: { windowId: string; palette: Tool
     if (choice === "manage") return openManageExtensions();
     if (choice === "add") return openWebStore(windowId);
     const ext = choice?.startsWith("open:") ? enabled.find((x) => x.id === choice.slice(5)) : undefined;
-    if (ext) void activateExtension(windowId, ext, anchor);
+    if (ext) void activateExtension(windowId, ext, anchor, undefined, tabId);
   };
   return (
     <View ref={ref} tooltip="Extensions" {...hoverProps} onLayout={() => void measure()}>

@@ -1,0 +1,79 @@
+diff --git a/components/sessions/core/tab_restore_service_helper.cc b/components/sessions/core/tab_restore_service_helper.cc
+--- a/components/sessions/core/tab_restore_service_helper.cc
++++ b/components/sessions/core/tab_restore_service_helper.cc
+@@ -46,6 +46,11 @@
+ #include "components/tab_groups/tab_group_visual_data.h"
+ #include "ui/base/mojom/window_show_state.mojom.h"
+ #include "ui/base/window_open_disposition.h"
++
++#include "ardia/core/ac_content_hooks.h"  // nogncheck
++
++bool (*g_ardia_live_tab_skips_restore)(sessions::LiveTab* live_tab,
++                                       SessionID* source) = nullptr;
+ 
+ namespace sessions {
+ namespace {
+@@ -321,13 +326,37 @@
+   window->user_title = context->GetUserTitle();
+   window->extra_data = context->GetExtraDataForWindow();
+ 
++  const int selected = window->selected_tab_index;
++  SessionID selected_source = SessionID::InvalidValue();
++  int kept_selected = -1;
++  int kept_source = -1;
++  int kept_before = -1;
++  int kept_after = -1;
++  if (g_ardia_live_tab_skips_restore && selected >= 0 &&
++      selected < context->GetTabCount()) {
++    g_ardia_live_tab_skips_restore(context->GetLiveTabAt(selected),
++                                   &selected_source);
++  }
+   for (int tab_index = 0; tab_index < context->GetTabCount(); ++tab_index) {
+     auto tab = std::make_unique<Tab>();
+-    PopulateTab(tab.get(), tab_index, context,
+-                context->GetLiveTabAt(tab_index));
++    LiveTab* live_tab = context->GetLiveTabAt(tab_index);
++    PopulateTab(tab.get(), tab_index, context, live_tab);
+     if (tab->navigations.empty()) {
+       continue;
+     }
++    const int kept = static_cast<int>(window->tabs.size());
++    if (tab_index == selected) {
++      kept_selected = kept;
++    } else if (tab_index < selected) {
++      kept_before = kept;
++    } else if (kept_after < 0) {
++      kept_after = kept;
++    }
++    if (selected_source.is_valid() &&
++        live_tab->GetSessionID() == selected_source) {
++      kept_source = kept;
++    }
++    tab->tabstrip_index = kept;
+     tab->browser_id = context->GetSessionID().id();
+ 
+     if (tab->group.has_value() &&
+@@ -351,6 +380,11 @@
+     return;
+   }
+ 
++  window->selected_tab_index = kept_selected >= 0 ? kept_selected
++                               : kept_source >= 0 ? kept_source
++                               : kept_after >= 0  ? kept_after
++                               : kept_before >= 0 ? kept_before
++                                                  : 0;
+   window->selected_tab_index = std::min(
+       static_cast<int>(window->tabs.size() - 1), window->selected_tab_index);
+   AddEntry(std::move(window), true, true);
+@@ -1513,7 +1547,10 @@
+                                           LiveTabContext* context,
+                                           LiveTab* live_tab) {
+   tab->current_navigation_index = 0;
+-  if (!live_tab->IsInitialBlankNavigation() && live_tab->GetEntryCount() > 0) {
++  const bool skips_restore = g_ardia_live_tab_skips_restore &&
++                             g_ardia_live_tab_skips_restore(live_tab, nullptr);
++  if (!skips_restore && !live_tab->IsInitialBlankNavigation() &&
++      live_tab->GetEntryCount() > 0) {
+     AddSerializedNavigationEntries(
+         live_tab, AddBehavior::kCurrentAndPreceedingEntries, tab->navigations);
+     if (!tab->navigations.empty()) {

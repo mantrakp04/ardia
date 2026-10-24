@@ -2,7 +2,7 @@ import type { View } from "react-native";
 import { create } from "zustand";
 
 export type Anchor = { x: number; y: number; width: number; height: number };
-export type Target = { kind: "tab" | "group" | "live"; id: string };
+export type Target = { kind: "tab" | "group" | "live" | "folder"; id: string };
 export type Hover = Target & { windowId: string; anchor: Anchor };
 
 type SidebarUi = {

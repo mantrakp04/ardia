@@ -76,13 +76,6 @@ export const useBookmarkDialog = create<{ open: BookmarkDialogState | null; set(
   set: (open) => set({ open }),
 }));
 
-export function bookmarkActivePage(windowId: string | null | undefined) {
-  const s = useBrowser.getState();
-  const id = resolveWindowId(s, windowId);
-  const tabId = id ? activeTabId(s, id) : undefined;
-  if (id && tabId) bookmarkTab(id, tabId);
-}
-
 export function bookmarkTab(windowId: string, tabId: string) {
   const s = useBrowser.getState();
   const id = windowId;

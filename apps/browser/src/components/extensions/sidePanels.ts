@@ -1,6 +1,6 @@
 import { extensionSidePanelUrl } from "@ardia/ardiacore";
 import { useBrowser } from "../../store/browser";
-import { activeBrowserId, extensionProfile, isPrivate, pageProfile, shownIn, useExtensions } from "./store";
+import { shownBrowserId, extensionProfile, isPrivate, pageProfile, shownIn, useExtensions } from "./store";
 
 const wanted = new Map<string, string>();
 const fetches = new Map<string, number>();
@@ -45,7 +45,7 @@ export async function syncSidePanel(windowId: string): Promise<void> {
   const extensionId = wanted.get(windowId);
   if (!extensionId) return;
   const ticket = nextFetch(windowId);
-  const browserId = activeBrowserId(windowId);
+  const browserId = shownBrowserId(windowId);
   const shown = useExtensions.getState().sidePanels[windowId];
   if (!browserId && shown?.extensionId === extensionId) return;
   const ext = shownIn(windowId, extensionId);

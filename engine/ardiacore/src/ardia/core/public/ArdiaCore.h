@@ -207,6 +207,12 @@ ARDIACORE_EXPORT
                      json:(NSString*)json
                     frame:(NSString*)frameId
                      main:(BOOL)main;
+- (void)tab:(ArdiaCoreTab*)tab
+    didReceivePageMessage:(NSString*)kind
+                     json:(NSString*)json
+                    frame:(NSString*)frameId
+                     main:(BOOL)main
+                   origin:(NSString*)origin;
 - (void)tabWillClose:(ArdiaCoreTab*)tab;
 - (void)tab:(ArdiaCoreTab*)tab rendererGone:(NSString*)status code:(int)code;
 - (void)tab:(ArdiaCoreTab*)tab didFailLoad:(NSString*)url code:(int)code description:(NSString*)text;
@@ -292,14 +298,17 @@ ARDIACORE_EXPORT
 - (void)goToOffset:(int)offset;
 - (void)reloadIgnoringCache;
 - (void)closeNow;
+@property(nonatomic) BOOL temporary;
+- (void)setTemporarySource:(nullable ArdiaCoreTab*)source;
+- (void)deliverHeldPageMessages;
 @property(readonly) NSArray<NSDictionary<NSString*, id>*>* navigationEntries;
 - (void)executeJavaScript:(NSString*)code;
-- (void)executeJavaScript:(NSString*)code userGesture:(BOOL)userGesture;
 - (void)executeJavaScript:(NSString*)code frame:(NSString*)frameId;
 - (void)evaluate:(NSString*)code completion:(void (^)(NSString* _Nullable json))completion;
-- (void)evaluate:(NSString*)code
-     userGesture:(BOOL)userGesture
-      completion:(void (^)(NSString* _Nullable json))completion;
+- (void)exitPictureInPicture;
+- (void)enterPictureInPictureForClickAt:(NSTimeInterval)clickTime
+                             completion:(void (^)(NSString* route, BOOL opened))completion;
+- (BOOL)hasLiveFrame:(NSString*)frameId;
 - (void)callPage:(NSString*)kind json:(NSString*)json;
 
 @property(readonly) NSDictionary<NSString*, id>* securityInfo;

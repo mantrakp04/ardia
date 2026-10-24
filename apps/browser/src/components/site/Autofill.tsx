@@ -6,9 +6,9 @@ import { activeTabId } from "../../store/model";
 import { browserIdOf } from "../extensions/state";
 import { openSettings } from "../settings/windows";
 
-export async function requestAutofill(windowId: string, arg: string | null) {
+export async function requestAutofill(windowId: string, arg: string | null, tabId = activeTabId(useBrowser.getState(), windowId)) {
   const passwords = arg === "passwords";
-  const browserId = browserIdOf(activeTabId(useBrowser.getState(), windowId));
+  const browserId = browserIdOf(tabId);
   if (browserId && (await showAutofillSuggestions(browserId, passwords ? "passwords" : "field"))) return;
   const s = useBrowser.getState();
   const w = s.windows[windowId];

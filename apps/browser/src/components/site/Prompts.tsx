@@ -73,6 +73,8 @@ export function PermissionPrompt({ tabId, left, top }: { tabId: string; left: nu
   );
 }
 
+export const BLOCKED_POPUPS_WIDTH = 360;
+
 export function BlockedPopupsPrompt({ tabId, right, left, top }: { tabId: string; right?: number; left?: number; top: number }) {
   const theme = useTheme();
   const popups = usePage(tabId, (p) => p.popups);
@@ -87,7 +89,7 @@ export function BlockedPopupsPrompt({ tabId, right, left, top }: { tabId: string
   };
   const profile = () => engineProfile(useBrowser.getState().tabs[tabId]?.profileId ?? "");
   return (
-    <Popover width={360} top={top} right={right} left={left} onDismiss={close}>
+    <Popover width={BLOCKED_POPUPS_WIDTH} top={top} right={right} left={left} onDismiss={close}>
       <View style={{ paddingBottom: PANEL.listPadding }}>
         <PromptBody
           icons={["macwindow.badge.plus"]}

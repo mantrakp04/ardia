@@ -2,7 +2,8 @@ import { cleanUrl, markdownLink } from "@ardia/core";
 import { copyText, prompt } from "@ardia/shell";
 import { updateFolder } from "../../live/store";
 import { useBrowser } from "../../store/browser";
-import { activeTabId, bookmarkProfileId, tabLayoutOf, viewTabIds } from "../../store/model";
+import { ancestorIds } from "../../store/groups";
+import { activeTabId, bookmarkProfileId, pinSection, tabLayoutOf, viewTabIds } from "../../store/model";
 import { groupLabel, groupOf, selectedTabIds } from "../../store/organize";
 import type { Tab } from "../../store/types";
 import { measureRow, setSidebarUi, sidebarUi, type Target } from "./state";
@@ -66,7 +67,9 @@ export async function startRename(windowId: string, target: Target) {
       return;
     }
     const group = groupOf(s, tab.id);
-    if (group?.collapsed && activeTabId(s, windowId) !== tab.id) s.updateGroup(group.id, { collapsed: false });
+    if (group && activeTabId(s, windowId) !== tab.id) {
+      for (const id of [group.id, ...ancestorIds(s.groups, group.id)]) if (s.groups[id]!.collapsed) s.updateGroup(id, { collapsed: false });
+    }
   }
   if (target.kind === "group" && !sidebarShows(windowId)) return renameGroupInSheet(windowId, target.id);
   setSidebarUi({ renaming: { windowId, ...target } });
@@ -113,7 +116,7 @@ export function setIcon(target: Target, icon: string | null) {
 }
 
 export function newGroupWithSelection(windowId: string, ids = selectedTabIds(store(), windowId)) {
-  const groupId = store().groupTabs(ids.filter((id) => !store().tabs[id]?.pinned));
+  const groupId = store().groupTabs(ids.filter((id) => pinSection(store().tabs[id]) !== "tile"));
   if (groupId && sidebarShows(windowId)) void startRename(windowId, { kind: "group", id: groupId });
   return groupId;
 }

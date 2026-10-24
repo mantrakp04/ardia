@@ -130,7 +130,7 @@ SOFTWARE.
 
 ==============================================================================
 Material Design Icons (Pictogrammers) (@mdi/svg 7.4.47, Apache-2.0) https://pictogrammers.com/library/mdi
-Icons used: account, account-multiple-outline, brain, briefcase, bug-outline, camera, close-circle, coffee-outline, cursor-default, hammer, headphones, home, link-variant, music-note, pause-circle, pencil-outline, piano, pin, run, school, shield-half-full, shield-lock-outline, silverware-fork-knife, skip-next, skip-previous, soccer-field, star, star-outline, web, zip-box-outline
+Icons used: account, account-multiple-outline, brain, briefcase, bug-outline, camera, close-circle, coffee-outline, cursor-default, folder, hammer, headphones, home, link-variant, music-note, pause-circle, pencil-outline, piano, pin, run, school, shield-half-full, shield-lock-outline, silverware-fork-knife, skip-next, skip-previous, soccer-field, star, star-outline, web, zip-box-outline
 ------------------------------------------------------------------------------
 Pictogrammers Free License
 --------------------------

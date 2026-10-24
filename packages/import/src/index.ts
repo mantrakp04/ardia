@@ -48,7 +48,7 @@ export type BrowserSource = {
   profiles: BrowserProfile[];
 };
 
-export type BookmarkRole = "toolbar" | "other" | "mobile" | "menu" | "readingList";
+export type BookmarkRole = "toolbar" | "other" | "mobile" | "menu" | "readingList" | "liveGitHubPullRequests" | "liveBitbucketPullRequests";
 
 export type BookmarkNode = {
   type: "folder" | "url";

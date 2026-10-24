@@ -4,11 +4,15 @@ import ExpoModulesCore
 
 public enum OpenURLInbox {
   static var pending: [String] = []
-  static var deliver: (([String]) -> Void)?
+  static var pendingPointer = NSPoint.zero
+  static var deliver: (([String], NSPoint) -> Void)?
 
   public static func receive(_ urls: [URL]) {
+    let pointer = NSEvent.mouseLocation
     let strings = urls.map { $0.isFileURL ? $0.absoluteString : $0.absoluteString }
-    if let deliver { deliver(strings) } else { pending += strings }
+    if let deliver { return deliver(strings, pointer) }
+    pending += strings
+    pendingPointer = pointer
   }
 }
 
@@ -292,11 +296,11 @@ public class ShellModule: Module {
 
     OnStartObserving("onOpenURLs") {
       DispatchQueue.main.async { [weak self] in
-        OpenURLInbox.deliver = { urls in self?.sendEvent("onOpenURLs", ["urls": urls]) }
+        OpenURLInbox.deliver = { urls, pointer in self?.sendEvent("onOpenURLs", ["urls": urls, "pointer": [pointer.x, pointer.y]]) }
         if !OpenURLInbox.pending.isEmpty {
           let urls = OpenURLInbox.pending
           OpenURLInbox.pending = []
-          OpenURLInbox.deliver?(urls)
+          OpenURLInbox.deliver?(urls, OpenURLInbox.pendingPointer)
         }
       }
     }
@@ -313,7 +317,8 @@ public class ShellModule: Module {
         size: options["size"] as? [Double],
         behind: options["behind"] as? String,
         chromeWindow: options["chromeWindow"] as? String,
-        claim: options["claim"] as? String)
+        claim: options["claim"] as? String,
+        pointer: (options["pointer"] as? [Double]).flatMap { $0.count == 2 ? NSPoint(x: $0[0], y: $0[1]) : nil })
     }.runOnQueue(.main)
 
     AsyncFunction("closeWindow") { (id: String) in WindowManager.shared.close(id: id) }.runOnQueue(.main)
@@ -439,6 +444,17 @@ public class ShellModule: Module {
       panel.begin { response in
         promise.resolve(response == .OK ? panel.urls.map(\.absoluteString) : [])
       }
+    }.runOnQueue(.main)
+
+    AsyncFunction("pickFolder") { (current: String?, prompt: String?, promise: Promise) in
+      let panel = NSOpenPanel()
+      panel.canChooseFiles = false
+      panel.canChooseDirectories = true
+      panel.canCreateDirectories = true
+      panel.allowsMultipleSelection = false
+      if let prompt { panel.prompt = prompt }
+      if let current { panel.directoryURL = URL(fileURLWithPath: current, isDirectory: true) }
+      panel.begin { response in promise.resolve(response == .OK ? panel.url?.path : nil) }
     }.runOnQueue(.main)
 
     Function("readDocument") { (name: String) -> String? in DocumentStore.read(name) }
@@ -1283,7 +1299,7 @@ final class OutsidePressArea: ExpoView {
   fileprivate func pressed(_ event: NSEvent) {
     guard let window, event.window === window, !isHiddenOrHasHiddenAncestor else { return }
     if let hit = window.contentView?.superview?.hitTest(event.locationInWindow), hit.isDescendant(of: self) { return }
-    onOutsidePress([:])
+    onOutsidePress(["timestamp": event.timestamp * 1000])
   }
 }
 
@@ -1291,6 +1307,86 @@ let installOutsidePressMonitor: Void = {
   _ = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { event in
     OutsidePressArea.tellAreas(event)
     return event
+  }
+}()
+
+public class MagnifyAreaModule: Module {
+  public func definition() -> ModuleDefinition {
+    Name("ArdiaMagnifyArea")
+
+    AsyncFunction("devMagnify") { (windowId: String, x: Double, y: Double, steps: [[String: Any]]) -> [String: Any] in
+      #if DEBUG
+      return MagnifyArea.devMagnify(windowId: windowId, x: x, y: y, steps: steps)
+      #else
+      return ["error": "DEV builds only"]
+      #endif
+    }.runOnQueue(.main)
+
+    View(MagnifyArea.self) {
+      Prop("enabled") { (view: MagnifyArea, on: Bool) in view.enabled = on }
+      Events("onMagnify")
+    }
+  }
+}
+
+final class MagnifyArea: ExpoView {
+  let onMagnify = EventDispatcher()
+  var enabled = true
+  private static let areas = NSHashTable<MagnifyArea>.weakObjects()
+  private static weak var owner: MagnifyArea?
+  private static var claimed = false
+  private static var total = 0.0
+
+  required init(appContext: AppContext? = nil) {
+    super.init(appContext: appContext)
+    _ = installMagnifyMonitor
+  }
+
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    if window != nil { Self.areas.add(self) } else { Self.areas.remove(self) }
+  }
+
+  private static func area(at location: NSPoint, in window: NSWindow) -> MagnifyArea? {
+    guard let hit = window.contentView?.superview?.hitTest(location) else { return nil }
+    return areas.allObjects.first { $0.enabled && $0.window === window && !$0.isHiddenOrHasHiddenAncestor && hit.isDescendant(of: $0) }
+  }
+
+  static func route(window: NSWindow?, location: NSPoint, phase: NSEvent.Phase, magnification: Double) -> Bool {
+    if phase.contains(.began) {
+      owner = window.flatMap { area(at: location, in: $0) }
+      claimed = owner != nil
+      total = 0
+    }
+    guard claimed else { return false }
+    total += magnification
+    let finished = phase.contains(.ended) || phase.contains(.cancelled)
+    let name = phase.contains(.ended) ? "ended" : phase.contains(.cancelled) ? "cancelled" : phase.contains(.began) ? "began" : "changed"
+    owner?.onMagnify(["phase": name, "magnification": total])
+    if finished {
+      owner = nil
+      claimed = false
+    }
+    return true
+  }
+
+  static func devMagnify(windowId: String, x: Double, y: Double, steps: [[String: Any]]) -> [String: Any] {
+    guard let window = WindowManager.shared.windows[windowId], let content = window.contentView else { return ["error": "no window \(windowId)"] }
+    let location = content.convert(NSPoint(x: x, y: content.isFlipped ? y : content.bounds.height - y), to: nil)
+    let hit = content.superview?.hitTest(location)
+    let phases: [String: NSEvent.Phase] = ["began": .began, "changed": .changed, "ended": .ended, "cancelled": .cancelled]
+    var claims: [Bool] = []
+    for step in steps {
+      let phase = phases[step["phase"] as? String ?? ""] ?? .changed
+      claims.append(route(window: window, location: location, phase: phase, magnification: step["magnification"] as? Double ?? 0))
+    }
+    return ["claimed": claims, "hit": hit.map { String(describing: type(of: $0)) } ?? "nil"]
+  }
+}
+
+let installMagnifyMonitor: Void = {
+  _ = NSEvent.addLocalMonitorForEvents(matching: [.magnify]) { event in
+    MagnifyArea.route(window: event.window, location: event.locationInWindow, phase: event.phase, magnification: Double(event.magnification)) ? nil : event
   }
 }()
 

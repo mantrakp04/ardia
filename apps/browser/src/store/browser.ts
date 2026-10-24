@@ -1,12 +1,15 @@
 import { create, type StateCreator } from "zustand";
 import { createBookmarksSlice, ensureRoots, type BookmarksSlice } from "./bookmarks";
 import { changedIds } from "./changes";
-import { createGroupsSlice, type GroupsSlice } from "./groups";
+import { createGroupsSlice, settleNesting, type GroupsSlice } from "./groups";
 import { createHistorySlice, type HistorySlice } from "./history";
 import { IDLE_LIVE, isIncognitoProfile, pinnedFirst } from "./model";
-import { createOrganizeSlice, forgetClosedPrivateWindows, keptDeletedGroups, livePinTable, notePinChoices, type OrganizeSlice } from "./organize";
+import { createOrganizeSlice, forgetClosedPrivateWindows, keptCleanedTabs, keptDeletedGroups, livePinTable, notePinChoices, type OrganizeSlice } from "./organize";
+import { createPeekSlice, settlePeeks, type PeekSlice } from "./peek";
 import { mirrorPins } from "./pinMirror";
 import { settleSharedPins } from "./pinShare";
+import { mirrorTabs, pagesIntoSplits, unshareTabs } from "./tabShare";
+import { settleTileFolders } from "./tileFolders";
 import { createProfilesSlice, DEFAULT_PROFILE, engineIdOf, type ProfilesSlice } from "./profiles";
 import { createSettingsSlice, DEFAULT_SETTINGS, migrateSavedSettings, type SettingsSlice } from "./settings";
 import { createSplitsSlice, sanitizeSplits, type SplitsSlice } from "./splits";
@@ -25,7 +28,8 @@ export type BrowserState = ProfilesSlice &
   HistorySlice &
   BookmarksSlice &
   SettingsSlice &
-  UiSlice & {
+  UiSlice &
+  PeekSlice & {
     hydrate(data: HydrateData): void;
   };
 
@@ -88,6 +92,7 @@ export const useBrowser = create<BrowserState>()(transactions.middleware(batched
   ...createBookmarksSlice(...a),
   ...createSettingsSlice(...a),
   ...createUiSlice(...a),
+  ...createPeekSlice(...a),
 
   hydrate(data) {
     const [set, get] = a;
@@ -109,12 +114,18 @@ export const useBrowser = create<BrowserState>()(transactions.middleware(batched
     for (const t of Object.values(data.tabs ?? {})) {
       if (!rawWindows[t.windowId] || !profileOk(t.profileId)) continue;
       const { adoptId: _, pageIn: _held, ...rest } = t;
-      const { pinnedAsRow, ...kept } = rest;
-      tabs[t.id] = { ...kept, ...(pinnedAsRow && kept.pinned ? { pinnedAsRow } : {}), navigation: null, pinnedUrl: kept.pinnedUrl ?? (kept.pinned ? kept.url || null : null) };
+      const { pinnedAsRow, tileFolder, ...kept } = rest;
+      tabs[t.id] = {
+        ...kept,
+        ...(pinnedAsRow && kept.pinned ? { pinnedAsRow } : {}),
+        ...(tileFolder && kept.pinned && !pinnedAsRow ? { tileFolder } : {}),
+        navigation: null,
+        pinnedUrl: kept.pinnedUrl ?? (kept.pinned ? kept.url || null : null),
+      };
     }
     const windows: Record<string, BrowserWindow> = {};
     for (const w of Object.values(rawWindows)) {
-      const tabIds = pinnedFirst(w.tabIds.filter((id) => tabs[id]?.windowId === w.id), tabs);
+      const tabIds = pinnedFirst(w.tabIds.filter((id) => tabs[id]?.windowId === w.id), tabs, data.groups ?? {});
       if (!tabIds.length) continue;
       const activeTabIds = Object.fromEntries(Object.entries(w.activeTabIds).filter(([p, id]) => tabs[id]?.profileId === p));
       const profileId = tabIds.some((id) => tabs[id]!.profileId === w.profileId) ? w.profileId : tabs[tabIds[0]!]!.profileId;
@@ -155,7 +166,7 @@ export const useBrowser = create<BrowserState>()(transactions.middleware(batched
       pinSync: Object.fromEntries(Object.entries(data.pinSync ?? {}).filter(([p]) => profiles[p])),
       closedGroups: data.closedGroups ?? [],
       deletedGroups: keptDeletedGroups(data.deletedGroups ?? []),
-      cleanedTabs: (data.cleanedTabs ?? []).filter((c) => !isIncognitoProfile(c.tab.profileId)),
+      cleanedTabs: keptCleanedTabs((data.cleanedTabs ?? []).filter((c) => !isIncognitoProfile(c.tab.profileId))),
       privateCleanedTabs: {},
       privateSiteMutes: {},
       selection: {},
@@ -165,6 +176,7 @@ export const useBrowser = create<BrowserState>()(transactions.middleware(batched
       bookmarksReady: Object.fromEntries(Object.keys(data.bookmarks?.roots ?? {}).filter((p) => profiles[p]).map((p) => [p, true as const])),
       downloads: data.downloads ?? [],
       windowUi: {},
+      peeks: {},
       find: {},
       ui: {
         ...s.ui,
@@ -184,17 +196,32 @@ useBrowser.subscribe((s, prev) => {
 });
 
 useBrowser.subscribe((s, prev) => {
+  if (s.groups === prev.groups && Object.values(s.windows).every((w) => w.tabIds === prev.windows[w.id]?.tabIds)) return;
+  const settled = settleNesting(s);
+  if (settled) useBrowser.setState(settled);
+});
+
+useBrowser.subscribe((s, prev) => {
   if (s.pinChoices === prev.pinChoices && s.pinSync === prev.pinSync && s.tabs === prev.tabs && s.groups === prev.groups && s.parkedPins === prev.parkedPins && s.profiles === prev.profiles) return;
   const pinChoices = livePinTable(s.pinChoices, s);
   const pinSync = livePinTable(s.pinSync, s);
   if (pinChoices !== s.pinChoices || pinSync !== s.pinSync) useBrowser.setState({ pinChoices, pinSync });
 });
 
+useBrowser.subscribe((s, prev) => {
+  const next = settlePeeks(s, prev);
+  if (next) useBrowser.setState(next);
+});
+
 let mirroring = 0;
 useBrowser.subscribe((s, prev) => {
   if (mirroring > 3) return;
-  const settled = settleSharedPins(s, prev);
-  const next = mirrorPins(settled ?? s, prev) ?? settled;
+  const unshared = unshareTabs(s, prev) ?? pagesIntoSplits(s, prev);
+  const base = unshared ?? s;
+  const shared = settleSharedPins(base, prev) ?? unshared;
+  const settled = settleTileFolders(shared ?? base, prev) ?? shared;
+  const pinned = mirrorPins(settled ?? base, prev) ?? settled;
+  const next = mirrorTabs(pinned ?? base, prev) ?? pinned;
   if (!next) return;
   mirroring++;
   try {

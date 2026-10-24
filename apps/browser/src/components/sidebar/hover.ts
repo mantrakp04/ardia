@@ -88,6 +88,7 @@ export const cardHoverProps = {
 };
 
 export const pointerOnRow = (id: string) => underPointer === id;
+export const pointerOnCard = () => onCard;
 
 const panelOpen = (windowId: string) => !!useBrowser.getState().windowUi[windowId]?.panel?.open;
 const covered = new Set<string>();

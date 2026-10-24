@@ -1,5 +1,7 @@
+import { setDownloadSettings, type DownloadSettings } from "@ardia/ardiacore";
 import {
   checkForUpdates,
+  pickFolder,
   setAsDefaultBrowser,
   setAutomaticUpdateChecks,
   setAutomaticUpdateDownloads,
@@ -8,13 +10,15 @@ import {
   Symbol,
   type UpdateChannel,
 } from "@ardia/shell";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { AppState, Text, View } from "react-native";
 import { useTheme } from "../../../lib/theme";
 import { useBrowser } from "../../../store/browser";
+import { useProfiles } from "../../../store/hooks";
+import { engineProfile } from "../../../store/model";
 import { SHARING_COPY } from "../../../telemetry/copy";
 import { Anchor, Button, Group, PopUp, Row, SectionHeader, Toggle, useFormColors } from "../controls";
-import { defaultBrowser, loginItem, updater } from "../paneData";
+import { defaultBrowser, downloadSettings, loginItem, updater } from "../paneData";
 import { store, useResource } from "../resources";
 import { openImport } from "../windows";
 
@@ -96,6 +100,8 @@ export function GeneralPane() {
         </Row>
       </Group>
 
+      <DownloadsSection />
+
       <UpdatesSection />
 
       <SectionHeader title="Import" />
@@ -105,6 +111,57 @@ export function GeneralPane() {
         </Row>
       </Group>
     </View>
+  );
+}
+
+const homeRelative = (path: string) => path.replace(/^\/Users\/[^/]+(?=\/|$)/, "~");
+
+function DownloadsSection() {
+  const profiles = useProfiles();
+  const [profileId, setProfileId] = useState(() => useBrowser.getState().settings.defaultProfileId);
+  const profile = engineProfile(profileId);
+  const [current] = useResource(downloadSettings, profile);
+  const others = [...new Set(profiles.map((p) => engineProfile(p.id)))].filter((p) => p !== profile);
+  const apply = (patch: Partial<Pick<DownloadSettings, "folder" | "askWhereToSave">>, targets = [profile]) =>
+    void Promise.all(targets.map((p) => setDownloadSettings(patch, p).then((next) => store(downloadSettings, [p], next), () => {})));
+  const change = async () => {
+    if (!current) return;
+    const folder = await pickFolder(current.folder, "Use Folder");
+    if (folder) apply({ folder });
+  };
+
+  return (
+    <>
+      <SectionHeader
+        title="Downloads"
+        description={profiles.length > 1 ? "Each profile saves to its own folder." : undefined}
+        action={
+          profiles.length > 1 ? (
+            <PopUp value={profileId} options={profiles.map((p) => ({ value: p.id, title: p.name }))} onChange={setProfileId} />
+          ) : undefined
+        }
+      />
+      <Group>
+        <Row
+          anchor="general.downloadsFolder"
+          description={current ? (current.managed ? `${homeRelative(current.folder)}, set by your organization.` : homeRelative(current.folder)) : undefined}
+        >
+          <Button title="Change…" disabled={!current || current.managed} onPress={() => void change()} />
+        </Row>
+        <Row anchor="general.askWhereToSave">
+          <Toggle value={current?.askWhereToSave ?? false} disabled={!current || current.managed} onChange={(v) => apply({ askWhereToSave: v })} />
+        </Row>
+        {others.length > 0 && (
+          <Row anchor="general.downloadsAllProfiles">
+            <Button
+              title="Use for All Profiles"
+              disabled={!current || current.managed}
+              onPress={() => current && apply({ folder: current.folder, askWhereToSave: current.askWhereToSave }, others)}
+            />
+          </Row>
+        )}
+      </Group>
+    </>
   );
 }
 

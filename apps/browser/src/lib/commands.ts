@@ -21,7 +21,7 @@ import {
   switchProfile,
   toggleMute,
 } from "./actions";
-import { bookmarkActivePage, bookmarkAllTabs } from "../components/bookmarks/actions";
+import { bookmarkAllTabs, bookmarkTab } from "../components/bookmarks/actions";
 import { useClearDataRequest } from "../components/pages/ClearDataDialog";
 import { openInternalPage } from "../components/pages/urls";
 import { isUtilityWindowId, openImport, openSettings, SETTINGS_WINDOW_ID } from "../components/settings/windows";
@@ -29,7 +29,8 @@ import { focusSettingsSearch } from "../components/settings/searchState";
 import { closePanelToHeroBar, focusHeroBar } from "../components/omnibox/barState";
 import { closeNewTabBar, isEmptyCardTab, showNewTabBar, toggleNewTabBar } from "../components/omnibox/newTabBar";
 import { NEW_TAB_BAR_POLICY } from "../store/newTabBar";
-import { addressBarInSidebar } from "../components/layout/windowLayout";
+import { addressBarInSidebar, commandBarCentred } from "../components/layout/windowLayout";
+import { addFolderToSidebar, restoreArcFolders } from "./bookmarkGroups";
 import { withLivePage } from "./livePage";
 import { webviews } from "./webviews";
 import { goBack, goForward } from "../components/layout/history";
@@ -45,7 +46,16 @@ import { shareTab } from "../components/site/share";
 import { openProfileMenu } from "../components/ProfileIndicator";
 import { groupOf } from "../store/organize";
 import { isSmall, mainWindowFor, originalProfile } from "../store/small";
-import { closeLittleArdia, openInMainWindow, openLittleArdia } from "../components/littleArdia/actions";
+import {
+  closeLittleArdia,
+  cycleLittleArdiaProfile,
+  moveLittleArdiaToProfile,
+  openInMainWindow,
+  openLittleArdia,
+  openLittleArdiaProfileMenu,
+} from "../components/littleArdia/actions";
+import { runPeekCommand } from "../components/peek/actions";
+import { peekTabId } from "../store/peek";
 import { expectFocus, findFocus } from "./focusClaims";
 
 export function runCommand({ command, arg, windowId: requested }: CommandEvent) {
@@ -56,7 +66,8 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     if (command === "findInPage" && requested === SETTINGS_WINDOW_ID) return focusSettingsSearch();
     requested = null;
   }
-  if (isSmall(s, requested) && runLittleArdiaCommand(command, requested!)) return;
+  if (isSmall(s, requested) && runLittleArdiaCommand(command, arg, requested!)) return;
+  if (runPeekCommand(command, resolveWindowId(s, requested) ?? "")) return;
 
   switch (command) {
     case "newWindow":
@@ -64,7 +75,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     case "newIncognitoWindow":
       return void openWindow({ incognito: true, profileId: originalProfile(s, s.windows[requested ?? ""]) });
     case "newLittleArdia":
-      return void openLittleArdia();
+      return void openLittleArdia(undefined, arg ?? undefined);
     case "toggleOpenLinksInLittleArdia":
       return s.updateSettings({ openLinksInLittleArdia: !s.settings.openLinksInLittleArdia });
     case "reopenClosedWindow":
@@ -103,9 +114,17 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     }
   }
 
+  const invokedFrom = requested;
   if (isSmall(s, requested) && !LITTLE_ARDIA_PAGE_COMMANDS.has(command)) {
     requested = mainWindowFor(s, s.windows[requested!]!.profileId) ?? null;
     if (requested) focus(requested);
+  }
+
+  if (command === "addFolderToSidebar" || command === "restoreArcFolders") {
+    const target = resolveWindowId(s, invokedFrom) ?? null;
+    if (arg && command === "addFolderToSidebar") addFolderToSidebar(arg, target);
+    else if (arg) restoreArcFolders(arg, target);
+    return;
   }
 
   const windowId = resolveWindowId(s, requested);
@@ -117,7 +136,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     }
     return;
   }
-  const tabId = activeTabId(s, windowId);
+  const tabId = (LITTLE_ARDIA_PAGE_COMMANDS.has(command) && peekTabId(s, windowId)) || activeTabId(s, windowId);
   const tab = tabId ? s.tabs[tabId] : undefined;
   const page = tab?.url ? tab : undefined;
   const web = tabId ? webviews.get(tabId) : undefined;
@@ -136,7 +155,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     case "focusCommandBar":
       if (page) return s.openPanel(windowId, page.url);
       if (isEmptyCardTab(s, tab) && showNewTabBar(windowId)) return;
-      if (tab && addressBarInSidebar(s, windowId)) return s.openPanel(windowId, "");
+      if (tab && addressBarInSidebar(s, windowId) && !commandBarCentred(s, windowId)) return s.openPanel(windowId, "");
       if (!focusHeroBar(windowId, tabId)) return tab ? s.openPanel(windowId, "") : undefined;
       return ui?.panel.open ? s.closePanel(windowId) : undefined;
     case "closeTab":
@@ -254,9 +273,9 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     case "moveTabToWindow":
       return tab && arg ? moveTabToWindow(tab.id, arg) : undefined;
     case "bookmarkPage":
-      return page ? bookmarkActivePage(windowId) : undefined;
+      return page ? bookmarkTab(windowId, page.id) : undefined;
     case "addBookmarkToFolder":
-      return page && arg ? void addBookmarkToFolder(windowId, arg) : undefined;
+      return page && arg ? void addBookmarkToFolder(windowId, page.id, arg) : undefined;
     case "openBookmark": {
       const node = arg ? s.bookmarks.nodes[arg] : undefined;
       return node?.kind === "url" && tab ? s.navigate(tab.id, node.url) : undefined;
@@ -266,7 +285,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     case "downloads":
       return s.setDownloadsOpen(windowId, !ui?.downloadsOpen);
     case "cast":
-      return void toggleCastPicker(windowId);
+      return void toggleCastPicker(windowId, tabId);
     case "showHistory":
       return openInternalPage("history", windowId);
     case "clearBrowsingData":
@@ -285,13 +304,13 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     case "previousProfile":
       return cycleProfile(windowId, -1);
     case "openExtension":
-      return arg ? openExtensionFromMenu(windowId, arg) : undefined;
+      return arg ? openExtensionFromMenu(windowId, arg, tabId) : undefined;
     case "addExtension":
       return void openWebStore(windowId);
     case "pinExtensions":
       return openPinDialog(windowId);
     case "autofill":
-      return void requestAutofill(windowId, arg);
+      return void requestAutofill(windowId, arg, tabId);
     case "newProfile":
       return void createProfile(windowId).then((id) => id && switchProfile(windowId, id));
   }
@@ -305,7 +324,7 @@ const LITTLE_ARDIA_PAGE_COMMANDS = new Set<string>([
   "cast", "openExtension", "addExtension", "autofill", "reopenClosedTab", "restoreClosed", "downloads",
 ]);
 
-function runLittleArdiaCommand(command: string, windowId: string): boolean {
+function runLittleArdiaCommand(command: string, arg: string | null | undefined, windowId: string): boolean {
   const s = useBrowser.getState();
   const tabId = activeTabId(s, windowId);
   const tab = tabId ? s.tabs[tabId] : undefined;
@@ -320,14 +339,25 @@ function runLittleArdiaCommand(command: string, windowId: string): boolean {
     case "openFile":
       openInMainWindow(windowId);
       return true;
+    case "switchProfile":
+      if (arg) moveLittleArdiaToProfile(windowId, arg);
+      return true;
+    case "nextProfile":
+      cycleLittleArdiaProfile(windowId, 1);
+      return true;
+    case "previousProfile":
+      cycleLittleArdiaProfile(windowId, -1);
+      return true;
+    case "openProfileMenu":
+      void openLittleArdiaProfileMenu(windowId);
+      return true;
   }
   return false;
 }
 
-async function addBookmarkToFolder(windowId: string, folder: string) {
+async function addBookmarkToFolder(windowId: string, tabId: string, folder: string) {
   const s = useBrowser.getState();
-  const tabId = activeTabId(s, windowId);
-  const tab = tabId ? s.tabs[tabId] : undefined;
+  const tab = s.tabs[tabId];
   if (!tab?.url) return;
   const profileId = bookmarkProfileId(s, s.windows[windowId]);
   let parentId = folder;

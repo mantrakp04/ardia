@@ -1,0 +1,67 @@
+A hidden test instance (ARDIA_BACKGROUND=1) never makes itself a system default: shell_integration's
+SetAsDefaultBrowser, SetAsDefaultClientForScheme and SetAsDefaultHandlerForUTType log a line and return false. Every
+Chrome path goes through them (chrome://settings' Make default, the default browser prompt, a protocol handler made
+default), so an agent's click in a scratch copy can't change the owner's default browser, mail client or PDF reader,
+and SetAsDefaultBrowser no longer activates CoreServicesUIAgent over the owner's work.
+
+--- a/chrome/browser/shell_integration_mac.mm
++++ b/chrome/browser/shell_integration_mac.mm
+@@ -6,11 +6,14 @@
+ 
+ #include <AppKit/AppKit.h>
+ #include <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
++#include <stdlib.h>
++#include <string.h>
+ 
+ #include "base/apple/bridging.h"
+ #include "base/apple/bundle_locations.h"
+ #include "base/apple/foundation_util.h"
+ #include "base/apple/scoped_cftyperef.h"
++#include "base/logging.h"
+ #include "base/mac/mac_util.h"
+ #include "base/strings/sys_string_conversions.h"
+ #include "build/branding_buildflags.h"
+@@ -53,9 +56,22 @@
+   return [NSBundle bundleWithURL:default_app_url].bundleIdentifier;
+ }
+ 
++bool ArdiaBackgroundInstanceRefuses(const char* change) {
++  const char* background = getenv("ARDIA_BACKGROUND");
++  if (!background || strcmp(background, "1")) {
++    return false;
++  }
++  LOG(WARNING) << "Ardia: background instance, not " << change;
++  return true;
++}
++
+ }  // namespace
+ 
+ bool SetAsDefaultBrowser() {
++  if (ArdiaBackgroundInstanceRefuses("setting the default browser")) {
++    return false;
++  }
++
+   // We really do want the outer bundle here, not the main bundle since
+   // setting a shortcut to Chrome as the default browser doesn't make sense.
+   NSURL* app_bundle = base::apple::OuterBundleURL();
+@@ -119,6 +135,10 @@ bool SetAsDefaultClientForScheme(const std::string& scheme) {
+     return false;
+   }
+ 
++  if (ArdiaBackgroundInstanceRefuses("setting a scheme handler")) {
++    return false;
++  }
++
+   if (GetDefaultSchemeClientSetPermission() != SET_DEFAULT_UNATTENDED) {
+     return false;
+   }
+@@ -146,6 +166,9 @@ bool SetAsDefaultHandlerForUTType(const std::string& type) {
+   if (type.empty()) {
+     return false;
+   }
++  if (ArdiaBackgroundInstanceRefuses("setting a file type handler")) {
++    return false;
++  }
+   UTType* uttype = [UTType typeWithIdentifier:base::SysUTF8ToNSString(type)];
+   if (!uttype) {
+     return false;

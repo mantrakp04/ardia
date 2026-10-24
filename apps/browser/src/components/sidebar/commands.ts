@@ -1,12 +1,13 @@
 import type { BrowserCommand, MenuEntry } from "@ardia/shell";
 import { useBrowser, type BrowserState } from "../../store/browser";
-import { activeTabId, plural } from "../../store/model";
+import { activeTabId, pinSection, plural } from "../../store/model";
 import { awayFromPin, groupOf, selectedTabIds } from "../../store/organize";
 import { newGroupWithSelection, openIconPicker, startRename } from "./actions";
 import { closeAllTabs } from "./menus";
 import { toggleNewTabBar } from "../omnibox/newTabBar";
 import { movePinnedTitle, togglePinnedRows } from "./movePinned";
 import { setSidebarUi } from "./state";
+import { tidyPins } from "./tidyPinsUi";
 import { switcherStep } from "./switcher";
 
 export function runSidebarCommand(command: BrowserCommand, arg: string | null, windowId: string): boolean {
@@ -28,6 +29,9 @@ export function runSidebarCommand(command: BrowserCommand, arg: string | null, w
       return true;
     case "closeAllTabs":
       closeAllTabs(windowId);
+      return true;
+    case "tidyPins":
+      tidyPins(windowId);
       return true;
     case "searchTabs":
       setSidebarUi({ searchTabs: windowId, hover: null });
@@ -64,7 +68,7 @@ export function sidebarMenuState(s: BrowserState, windowId: string | undefined) 
   else {
     if (!tab || !awayFromPin(tab)) disabled.push("returnToPinnedUrl");
     titles.togglePinnedRow = movePinnedTitle(tab);
-    const selected = selectedTabIds(s, windowId).filter((id) => !s.tabs[id]?.pinned);
+    const selected = selectedTabIds(s, windowId).filter((id) => pinSection(s.tabs[id]) !== "tile");
     if (!selected.length) disabled.push("newGroupWithTabs");
     if (selected.length > 1) titles.newGroupWithTabs = `New Group with ${plural(selected.length, "Tab")}`;
   }

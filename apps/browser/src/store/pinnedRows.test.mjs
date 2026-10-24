@@ -12,7 +12,7 @@ const url = (id) => S().tabs[id].pinnedUrl || S().tabs[id].url;
 const urls = (ids) => ids.map(url);
 const entries = (w) => {
   const e = sidebarEntries(S(), w);
-  return { tiles: urls(e.tiles), rows: urls(e.pinnedRows) };
+  return { tiles: urls(e.tiles), rows: urls(e.pinned.filter((x) => x.startsWith("t:")).map((x) => x.slice(2))) };
 };
 const kindChoices = (profileId = "default") => Object.keys(S().pinChoices[profileId] ?? {}).filter((k) => !k.includes(":"));
 const tileOf = (w, u) => model.viewTabIds(S(), w).find((id) => S().tabs[id].pinned && S().tabs[id].pinnedUrl === u);

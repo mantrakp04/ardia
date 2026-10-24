@@ -7,6 +7,7 @@
 #include <algorithm>
 
 #include "base/auto_reset.h"
+#include "base/containers/flat_map.h"
 #include "base/no_destructor.h"
 #include "base/functional/bind.h"
 #include "base/strings/sys_string_conversions.h"
@@ -29,6 +30,7 @@
 #include "chrome/browser/ui/passwords/passwords_model_delegate.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/favicon/content/content_favicon_driver.h"
+#include "components/sessions/content/session_tab_helper.h"
 #include "components/find_in_page/find_notification_details.h"
 #include "components/find_in_page/find_tab_helper.h"
 #include "components/password_manager/core/browser/password_form.h"
@@ -106,6 +108,11 @@ namespace {
 std::vector<WindowHost*>& Hosts() {
   static base::NoDestructor<std::vector<WindowHost*>> hosts;
   return *hosts;
+}
+
+base::flat_map<int32_t, int32_t>& TemporaryTabIds() {
+  static base::NoDestructor<base::flat_map<int32_t, int32_t>> ids;
+  return *ids;
 }
 
 class HostClientView : public views::ClientView {
@@ -1140,6 +1147,7 @@ TabBridge::TabBridge(content::WebContents* contents)
       content::WebContentsUserData<TabBridge>(*contents) {
   content::g_ardia_opacity_from_default_color = true;
   tab_ = [[ArdiaCoreTab alloc] initWithContents:contents];
+  PageChannel::GetOrCreate(contents);
 }
 
 TabBridge::~TabBridge() = default;
@@ -1624,7 +1632,38 @@ void TabBridge::WebContentsDestroyed() {
     }
     observing_favicon_ = false;
   }
+  SetTemporary(false);
   [tab_ contentsDestroyed];
+}
+
+void TabBridge::SetTemporary(bool temporary) {
+  if (temporary_id_) {
+    TemporaryTabIds().erase(temporary_id_);
+    temporary_id_ = 0;
+  }
+  const int32_t id = sessions::SessionTabHelper::IdForTab(web_contents()).id();
+  if (temporary && id > 0) {
+    temporary_id_ = id;
+    TemporaryTabIds()[id] = temporary_source_id_;
+  }
+}
+
+void TabBridge::SetTemporarySource(int32_t source_id) {
+  temporary_source_id_ = source_id > 0 ? source_id : 0;
+  if (temporary_id_) {
+    TemporaryTabIds()[temporary_id_] = temporary_source_id_;
+  }
+}
+
+bool IsTemporaryTabId(int32_t session_id, int32_t* source_id) {
+  auto it = TemporaryTabIds().find(session_id);
+  if (session_id <= 0 || it == TemporaryTabIds().end()) {
+    return false;
+  }
+  if (source_id) {
+    *source_id = it->second;
+  }
+  return true;
 }
 
 void TabBridge::OnFaviconUpdated(favicon::FaviconDriver* favicon_driver,

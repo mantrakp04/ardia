@@ -10,6 +10,7 @@ export function usePeek(enabled: boolean, arc = false, held: () => boolean = () 
   const slide = useRef(new Animated.Value(0)).current;
   const [live, setLive] = useState(false);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const heldBack = useRef(false);
   const animate = (to: number, done?: () => void) =>
     (arc
       ? to > 0
@@ -23,13 +24,22 @@ export function usePeek(enabled: boolean, arc = false, held: () => boolean = () 
   };
   const show = () => {
     clearTimeout(hideTimer.current);
+    heldBack.current = false;
     if (!enabled) return;
     setLive(true);
     animate(1);
   };
   const hide = () => {
     clearTimeout(hideTimer.current);
-    hideTimer.current = setTimeout(() => !held() && slideOut(), HIDE_DELAY_MS);
+    hideTimer.current = setTimeout(() => {
+      heldBack.current = held();
+      if (!heldBack.current) slideOut();
+    }, HIDE_DELAY_MS);
+  };
+  const recheck = () => {
+    if (!heldBack.current || held()) return;
+    heldBack.current = false;
+    hide();
   };
   useEffect(() => {
     if (enabled) return;
@@ -37,5 +47,5 @@ export function usePeek(enabled: boolean, arc = false, held: () => boolean = () 
     if (live) slideOut();
   }, [enabled]);
   useEffect(() => () => clearTimeout(hideTimer.current), []);
-  return { slide, live, show, hide };
+  return { slide, live, show, hide, recheck };
 }

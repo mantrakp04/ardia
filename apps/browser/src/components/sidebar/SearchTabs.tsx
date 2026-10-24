@@ -6,6 +6,9 @@ import { switchToTab } from "../../lib/actions";
 import { hex, useTheme } from "../../lib/theme";
 import { useBrowser, type BrowserState } from "../../store/browser";
 import { tabLabel } from "../../store/model";
+import { isPeekTab } from "../../store/peek";
+import { sharedTabsIn, sharesTabs } from "../../store/tabShare";
+import type { Tab } from "../../store/types";
 import { tabTitle } from "./actions";
 import { setSidebarUi, useSidebarUi } from "./state";
 import { TabIcon } from "./TabIcon";
@@ -22,10 +25,12 @@ function candidates(s: BrowserState, windowId: string): { open: Row[]; closed: R
   const w = s.windows[windowId];
   if (!w) return { open: [], closed: [] };
   const profileId = w.profileId;
+  const shared = sharesTabs(s) ? sharedTabsIn(s.tabs, windowId) : null;
+  const lastUsed = (t: Tab) => shared?.lastUsed(t) ?? t.lastActiveAt;
   const windowNumber = (id: string) => s.windowOrder.filter((x) => !s.windows[x]?.incognito || x === windowId).indexOf(id) + 1;
   const open: Row[] = Object.values(s.tabs)
-    .filter((t) => t.profileId === profileId)
-    .sort((a, b) => b.lastActiveAt - a.lastActiveAt)
+    .filter((t) => t.profileId === profileId && !isPeekTab(s, t.id) && !shared?.elsewhere(t))
+    .sort((a, b) => lastUsed(b) - lastUsed(a))
     .map((t) => ({
       kind: "tab",
       id: t.id,

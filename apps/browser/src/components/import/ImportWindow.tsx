@@ -1,10 +1,12 @@
 import type { BrowserProfile, BrowserSource, DiaAutomationStatus, DiaTabsResult, ImportedExtension, ImportKind, ImportResult, SpaceSummary } from "@ardia/import";
 import { closeWindow, confirm, Symbol, VisualEffect, WindowDragRegion } from "@ardia/shell";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, Animated, AppState, Easing, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { allArcHolders, restoreArcFolders } from "../../lib/bookmarkGroups";
 import { useTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
 import { useProfiles } from "../../store/hooks";
+import { MAX_DRAFT_LINKS } from "../../store/draftGroups";
 import { plural } from "../../store/model";
 import type { ProfileColor } from "../../store/types";
 import { useHover } from "../primitives";
@@ -56,6 +58,8 @@ export function ImportWindow() {
   const [fullDiskAccess, setFullDiskAccess] = useState(false);
   const [safariCookies, setSafariCookies] = useState(true);
   const [notes, setNotes] = useState<string[]>([]);
+  const bookmarks = useBrowser((s) => s.bookmarks);
+  const arcHolders = useMemo(() => allArcHolders({ bookmarks }), [bookmarks]);
   const [extensions, setExtensions] = useState<{ profileId: string; list: ImportedExtension[]; opened: boolean }>({ profileId: "", list: [], opened: false });
   const onboarding = useOnboarding((s) => s.windowId !== null);
   const [diaStatus, setDiaStatus] = useState<DiaAutomationStatus | "checking" | "reading">("checking");
@@ -169,7 +173,7 @@ export function ImportWindow() {
     }
   };
 
-  const destination = async (index: number, name: string, color?: string, emoji?: string): Promise<string> => {
+  const destination = async (index: number, name: string, color?: string, emoji?: string, shareWith?: string | null): Promise<string> => {
     if (index === 0) return target;
     const s = useBrowser.getState();
     const clash = s.profileOrder.find((id) => s.profiles[id]!.name.trim().toLowerCase() === name.trim().toLowerCase());
@@ -183,7 +187,7 @@ export function ImportWindow() {
       });
       if (!confirmed) return clash;
     }
-    return s.createProfile({ name, color: profileColorFor(color) as ProfileColor | undefined, icon: emoji ?? null });
+    return s.createProfile({ name, color: profileColorFor(color) as ProfileColor | undefined, icon: emoji ?? null, shareWith });
   };
 
   const run = async (wanted: Set<ImportKind>) => {
@@ -237,10 +241,11 @@ export function ImportWindow() {
         let first: string | null = null;
         for (const space of profileSpaces) {
           const name = space.name || "Space";
-          const dest = await destination(destinationIndex++, name, space.color, space.emoji);
+          const dest = await destination(destinationIndex++, name, space.color, space.emoji, first);
           first ??= dest;
-          const r = importArcSpace(dest, space, name);
+          const r = importArcSpace(dest, space);
           add({ ...emptyCounts(), tabs: r.tabs, bookmarks: r.bookmarks });
+          if (r.skipped) left.push(`${plural(r.skipped, "link")} in ${name}'s folders weren't imported: each folder brings up to ${MAX_DRAFT_LINKS.toLocaleString("en-US")} links.`);
         }
         const dest = first ?? (await destination(destinationIndex++, result.profile?.name ?? profile.name, result.profile?.color));
         add(await applyResult(dest, result, source.name, refused));
@@ -512,7 +517,7 @@ export function ImportWindow() {
     body = isArc ? (
       <>
         <Title title="Select spaces to import" subtitle={`We'll import your Arc spaces, tabs, and folders to ${APP}.`} />
-        <Text style={{ fontSize: 12, color: theme.textSecondary, marginBottom: 10 }}>{`Customize which spaces to bring over to ${APP}. Each space becomes a profile.`}</Text>
+        <Text style={{ fontSize: 12, color: theme.textSecondary, marginBottom: 10 }}>{`Customize which spaces to bring over to ${APP}. Each space becomes a profile, and the spaces of one Arc profile share its logins, cookies, extensions and history, as in Arc.`}</Text>
         <View style={{ gap: 6 }}>
           {allSpaces.map((s) => (
             <SelectRow
@@ -826,6 +831,14 @@ export function ImportWindow() {
         </Text>
         {leftBehind}
         {extensionList}
+        {arcHolders.length ? (
+          <Button
+            title="Restore Arc Folders as Groups"
+            onPress={() => {
+              for (const id of arcHolders) restoreArcFolders(id, null);
+            }}
+          />
+        ) : null}
       </View>
     );
     footer = (

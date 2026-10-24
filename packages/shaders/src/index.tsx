@@ -1,4 +1,4 @@
-import { requireNativeViewManager } from "expo-modules-core";
+import { requireNativeViewManager, requireOptionalNativeModule } from "expo-modules-core";
 import { View, type ViewProps } from "react-native";
 
 export const DIA_SPECTRUM = ["#0358F7", "#5092C7", "#E1E1FE", "#FFD400", "#FA3D1D", "#FD02F5"];
@@ -25,6 +25,12 @@ export type WindowBackdropProps = ViewProps & {
 };
 
 const NativeBackdrop = requireNativeViewManager<WindowBackdropProps>("ArdiaWindowBackdrop");
+
+const BackdropModule = requireOptionalNativeModule<{ holdKeyLook?: (on: boolean) => Promise<void> }>("ArdiaWindowBackdrop");
+
+export function holdThemedWindowsKeyLook(on: boolean) {
+  void BackdropModule?.holdKeyLook?.(on);
+}
 
 export function WindowBackdrop({ angle = 180, grainOpacity = 0.09, grainScale = 1, ...props }: WindowBackdropProps) {
   return <NativeBackdrop pointerEvents="none" angle={angle} grainOpacity={grainOpacity} grainScale={grainScale} {...props} />;

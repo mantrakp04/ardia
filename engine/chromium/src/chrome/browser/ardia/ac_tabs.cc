@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "base/command_line.h"
 #include "base/no_destructor.h"
 #include "base/scoped_observation.h"
 #include "base/strings/utf_string_conversions.h"
@@ -268,4 +269,11 @@ AC_ENGINE_CALL(ac_tabs_group) {
     model->ChangeTabGroupVisuals(*group, visuals);
   }
   out.Send(base::DictValue().Set("group", group->ToString()));
+}
+
+AC_ENGINE_CALL(ac_tabs_last_tab_policy) {
+  ardia::Reply out(reply, context);
+  out.Send(base::DictValue().Set(
+      "closesWindow", base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
+                          "close-window-with-last-tab") != "never"));
 }

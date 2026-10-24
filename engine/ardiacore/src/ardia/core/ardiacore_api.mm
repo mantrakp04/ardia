@@ -65,6 +65,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/favicon/content/content_favicon_driver.h"
 #include "components/sessions/content/session_tab_helper.h"
+#include "content/public/browser/media_session.h"
 #include "components/version_info/version_info.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_entry.h"
@@ -117,6 +118,7 @@
 #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
 #include "chrome/browser/media/webrtc/media_stream_capture_indicator.h"
 #include "chrome/browser/picture_in_picture/auto_picture_in_picture_tab_helper.h"
+#include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/tracing_controller.h"
 #include "content/public/browser/web_contents_media_capture_id.h"
@@ -270,6 +272,7 @@ NSString* PngDataURL(const gfx::Image& image) {
 bool g_auto_picture_in_picture = true;
 
 void ApplyAutoPictureInPicture(Profile* profile) {
+  g_ardia_auto_picture_in_picture_off = !g_auto_picture_in_picture;
   HostContentSettingsMapFactory::GetForProfile(profile)->SetDefaultContentSetting(
       ContentSettingsType::AUTO_PICTURE_IN_PICTURE,
       g_auto_picture_in_picture ? CONTENT_SETTING_ALLOW : CONTENT_SETTING_BLOCK);
@@ -499,6 +502,14 @@ bool HostExtensionInstallPrompt(Profile* profile,
   if (!extension || !done_callback || done_callback->is_null() ||
       ![g_delegate respondsToSelector:@selector(engine:extensionInstallPrompt:tab:)]) {
     return false;
+  }
+  if (prompt.type() == extensions::InstallPromptData::EXTERNAL_INSTALL_PROMPT) {
+    using Payload = extensions::ExtensionInstallPromptClient::DoneCallbackPayload;
+    using Result = extensions::ExtensionInstallPromptClient::Result;
+    content::GetUIThreadTaskRunner({})->PostTask(
+        FROM_HERE,
+        base::BindOnce(std::move(*done_callback), Payload(Result::ABORTED)));
+    return true;
   }
   static int last_id = 0;
   const std::string request_id = "install" + std::to_string(++last_id);
@@ -926,6 +937,7 @@ void WatchTracingStart(std::shared_ptr<TracingStart> start, int checks_left) {
 
 + (void)setAutoPictureInPicture:(BOOL)enabled {
   g_auto_picture_in_picture = enabled;
+  g_ardia_auto_picture_in_picture_off = !enabled;
   for (Profile* profile : g_browser_process->profile_manager()->GetLoadedProfiles()) {
     if (!profile->IsOffTheRecord()) {
       ApplyAutoPictureInPicture(profile);
@@ -1795,14 +1807,10 @@ std::optional<bool> RunPageCommand(content::WebContents* contents, int command) 
 }
 
 - (void)executeJavaScript:(NSString*)code {
-  [self executeJavaScript:code userGesture:NO];
-}
-
-- (void)executeJavaScript:(NSString*)code userGesture:(BOOL)userGesture {
   if (_contents) {
     ardiacore::EndAheadBlank(_contents);
     ardiacore::PageChannel::GetOrCreate(_contents)->Execute(
-        base::SysNSStringToUTF8(code), userGesture);
+        base::SysNSStringToUTF8(code));
   }
 }
 
@@ -2221,7 +2229,8 @@ std::optional<bool> RunPageCommand(content::WebContents* contents, int command) 
   }
   const GURL& url = _contents->GetLastCommittedURL();
   Profile* profile = Profile::FromBrowserContext(_contents->GetBrowserContext());
-  return helper->HasAutoPictureInPictureBeenRegistered() &&
+  return !g_ardia_auto_picture_in_picture_off &&
+         helper->HasAutoPictureInPictureBeenRegistered() &&
          (url.SchemeIs(url::kHttpsScheme) || url.SchemeIsFile()) &&
          MediaCaptureDevicesDispatcher::GetInstance()
              ->GetMediaStreamCaptureIndicator()
@@ -2307,24 +2316,63 @@ TabSharingInfoBarDelegate* TabSharingDelegateFor(content::WebContents* contents,
 }
 
 - (void)evaluate:(NSString*)code completion:(void (^)(NSString*))completion {
-  [self evaluate:code userGesture:NO completion:completion];
-}
-
-- (void)evaluate:(NSString*)code
-     userGesture:(BOOL)userGesture
-      completion:(void (^)(NSString*))completion {
   if (!_contents) {
     completion(nil);
     return;
   }
   ardiacore::EndAheadBlank(_contents);
   ardiacore::PageChannel::GetOrCreate(_contents)->Evaluate(
-      base::SysNSStringToUTF8(code), userGesture,
+      base::SysNSStringToUTF8(code),
       base::BindOnce(
           [](void (^completion)(NSString*), const std::optional<std::string>& json) {
             completion(json ? NS(*json) : nil);
           },
           completion));
+}
+
+- (void)enterPictureInPictureForClickAt:(NSTimeInterval)clickTime
+                             completion:(void (^)(NSString* route, BOOL opened))completion {
+  if (!_contents) {
+    completion(@"none", NO);
+    return;
+  }
+  const ardiacore::PictureInPictureRoute route =
+      ardiacore::PageChannel::GetOrCreate(_contents)->EnterPictureInPictureForClick(
+          clickTime > 0 ? std::optional<base::TimeTicks>(base::TimeTicks() +
+                                                         base::Seconds(clickTime))
+                        : std::nullopt,
+          base::BindOnce(
+              [](void (^completion)(NSString*, BOOL), bool opened) {
+                completion(@"element", opened);
+              },
+              completion));
+  if (route == ardiacore::PictureInPictureRoute::kMediaSession) {
+    completion(@"session", NO);
+  } else if (route == ardiacore::PictureInPictureRoute::kNone) {
+    completion(@"none", NO);
+  }
+}
+
+- (void)exitPictureInPicture {
+  if (!_contents) {
+    return;
+  }
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(
+                     [](base::WeakPtr<content::WebContents> contents) {
+                       PictureInPictureWindowManager* manager =
+                           PictureInPictureWindowManager::GetInstance();
+                       if (contents && manager->GetWebContents() == contents.get()) {
+                         manager->ExitPictureInPicture();
+                       }
+                     },
+                     _contents->GetWeakPtr()));
+}
+
+- (BOOL)hasLiveFrame:(NSString*)frameId {
+  return _contents && (!frameId.length ||
+                       ardiacore::PageChannel::GetOrCreate(_contents)->HasFrame(
+                           base::SysNSStringToUTF8(frameId)));
 }
 
 - (void)callPage:(NSString*)kind json:(NSString*)json {
@@ -2474,6 +2522,31 @@ TabSharingInfoBarDelegate* TabSharingDelegateFor(content::WebContents* contents,
 - (void)stop {
   if (_contents) {
     _contents->Stop();
+  }
+}
+
+- (BOOL)temporary {
+  return _contents && ardiacore::TabBridge::GetOrCreate(_contents)->temporary();
+}
+
+- (void)setTemporary:(BOOL)temporary {
+  if (_contents) {
+    ardiacore::TabBridge::GetOrCreate(_contents)->SetTemporary(temporary);
+  }
+}
+
+- (void)deliverHeldPageMessages {
+  if (_contents) {
+    ardiacore::PageChannel::GetOrCreate(_contents)->DeliverHeld();
+  }
+}
+
+- (void)setTemporarySource:(ArdiaCoreTab*)source {
+  if (_contents) {
+    ardiacore::TabBridge::GetOrCreate(_contents)->SetTemporarySource(
+        source && source->_contents
+            ? sessions::SessionTabHelper::IdForTab(source->_contents).id()
+            : 0);
   }
 }
 

@@ -166,11 +166,20 @@ export function themePalette(theme: ProfileTheme): string[] {
   return theme.stops.map((s) => colorHex(s.color));
 }
 
-export function opaqueThemeTint(theme: ProfileTheme, dark: boolean): [string, string] {
-  const a = themeLayerAlpha(theme);
+function underGrey(theme: ProfileTheme, dark: boolean): number {
   const u = themeUnderlayAlpha(theme, dark);
   const blur = dark ? 0.16 : 0.92;
-  const under = (dark ? 0 : 1) * u + blur * (1 - u);
+  return (dark ? 0 : 1) * u + blur * (1 - u);
+}
+
+export function themeUnderColor(theme: ProfileTheme, dark: boolean): string {
+  const grey = underGrey(theme, dark);
+  return toHex([grey, grey, grey]);
+}
+
+export function opaqueThemeTint(theme: ProfileTheme, dark: boolean): [string, string] {
+  const a = themeLayerAlpha(theme);
+  const under = underGrey(theme, dark);
   const over = (c: number[]) => toHex(c.map((v) => a * clamp01(v) + (1 - a) * under));
   return [over(themeArea(theme, 0, 0, 1, 1)), over(themeArea(theme, 1, 1, 1, 1))];
 }

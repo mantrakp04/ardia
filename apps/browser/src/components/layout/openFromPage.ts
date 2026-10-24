@@ -2,17 +2,24 @@ import type { OpenWindowRequest } from "@ardia/ardiacore";
 import { openWindow } from "../../lib/actions";
 import { useBrowser } from "../../store/browser";
 import { engineProfile } from "../../store/model";
+import { peekSourceOf } from "../../store/peek";
 import { isSmall, originalProfile, privateWindowProfile } from "../../store/small";
 import { openLinkInSplit, openSplitPane } from "./splitActions";
 
-export function openFromPage({ url, adoptId, disposition, profile }: OpenWindowRequest, from: { windowId: string; profileId: string; tabId?: string }) {
+export function openFromPage({ url, adoptId, disposition, profile, point }: OpenWindowRequest, page: { windowId: string; profileId: string; tabId?: string }) {
   const s = useBrowser.getState();
-  const w = s.windows[from.windowId];
+  const w = s.windows[page.windowId];
   if (!w) return;
-  if (disposition === "current") {
-    if (from.tabId) s.navigate(from.tabId, url, { userInitiated: false });
+  const peekSource = peekSourceOf(s, page.tabId);
+  if (disposition === "current" || (disposition === "peek" && (peekSource || isSmall(s, w.id)))) {
+    if (page.tabId) s.navigate(page.tabId, url, { userInitiated: false });
     return;
   }
+  if (disposition === "peek") {
+    if (page.tabId) s.openPeek(page.tabId, url, point ?? null);
+    return;
+  }
+  const from = peekSource ? { ...page, tabId: peekSource } : page;
   if (isSmall(s, w.id) && disposition !== "window" && disposition !== "incognito") {
     return void s.newTab(w.id, { url, adoptId, openerId: from.tabId, profileId: from.profileId, background: true });
   }

@@ -197,5 +197,7 @@ finding before acting on it. Check the agent's diff yourself before you open the
 
 ## License
 
-Ardia's own files are Apache-2.0, and Ardia as distributed is GPL-3.0 (see NOTICE). By contributing you agree your
-work is released under Apache-2.0, and so may ship in the GPL-3.0 app.
+Ardia's own files are Apache-2.0, and Ardia as distributed is GPL-3.0 (see NOTICE). Before your first pull request
+is merged you sign the [Contributor License Agreement](CLA.md): you keep the copyright in your work and license it to
+the project, including the right to relicense it, commercially as well. The CLA bot asks on your pull request, and
+signing is one comment.

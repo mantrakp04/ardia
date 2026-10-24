@@ -2,13 +2,16 @@ import { ContextMenuArea, FadeLabel, Symbol, WindowDragRegion } from "@ardia/she
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { switchOn } from "../lib/killSwitches";
+import { live } from "../live/store";
 import { everySlowly } from "../lib/slowTimers";
 import { layout, ThemeScope, useTheme } from "../lib/theme";
 import { useBrowser } from "../store/browser";
 import { PageProfileContext, useSettings, useWindowId, useWindowProfileId } from "../store/hooks";
 import { activeTabId } from "../store/model";
 import { downloadsIn } from "../store/ui";
-import { cleanedTabsFor, cleanUpCandidates } from "../store/organize";
+import { ancestorIds } from "../store/groups";
+import { cleanedTabsFor, cleanUpCandidates, groupOf } from "../store/organize";
+import { splitOf } from "../store/splits";
 import { openNewTabInSplit } from "./layout/splitActions";
 import { listTopGap, SIDEBAR_FIELD, SIDEBAR_FOOTER_DOWNLOADS, SIDEBAR_HEADER_WITH_FIELD, useAddressBarInSidebar } from "./layout/windowLayout";
 import { SIDEBAR_PLAYER_HEIGHT, SidebarPlayer, useSidebarPlayerTab } from "./media/SidebarPlayer";
@@ -19,23 +22,27 @@ import { usePageStyle, usePagerPages } from "./layout/profilePager";
 import { PROFILE_DOTS_HEIGHT, ProfileDots, useProfileDotsShown } from "./profiles/ProfileDots";
 import { SidebarAddressRow, SidebarHeaderTools } from "./sidebar/AddressBar";
 import { ClearDivider } from "./sidebar/ClearDivider";
+import { canTidyPins } from "../store/tidyPins";
 import { DragGhost } from "./sidebar/DragGhost";
 import { DragProvider, DragScope, useDragController, useDragging, useDragItem, usePinnedCount, type Ghost } from "./sidebar/dnd";
 import { SidebarDropArea } from "./sidebar/fileDrop";
 import { useClipped, useShift, type ClipSource, type EntryMotion } from "./sidebar/entryMotion";
 import { sidebarEntries } from "./sidebar/entries";
+import { FolderPanel } from "./sidebar/FolderPanel";
 import { GroupBlock } from "./sidebar/GroupBlock";
 import { dismissHover, dismissHoverIn } from "./sidebar/hover";
-import { LiveFolders } from "./sidebar/LiveFolderBlock";
 import { capture, GhostSlot, ListMotionContext, newCapture, useListMotion } from "./sidebar/listMotion";
+import { LiveFolderBlock } from "./sidebar/LiveFolderBlock";
 import { openOverflowMenu, openSidebarMenu } from "./sidebar/menus";
 import { PinFieldZone, PinnedGrid, PinSlotZone } from "./sidebar/PinnedGrid";
+import { LIVE, usePinnedSequence } from "./sidebar/pinnedOrder";
 import { pinGridHeight } from "./sidebar/pinZone";
 import { ResizeHandle } from "./sidebar/ResizeHandle";
 import { SCROLL_EDGE, ScrollEdgeLine, useScrollEdge } from "./sidebar/ScrollEdge";
 import { entriesHeight, firstPaintEntries, rowSpan, startsOffScreen, type Section } from "./sidebar/geometry";
 import { measureRow } from "./sidebar/state";
 import { SplitRowItem, TabRowItem } from "./sidebar/TabRow";
+import { closeFolderPanel } from "./sidebar/tileFolderUi";
 import { useSidebarTokens } from "./sidebar/tokens";
 import { toggleNewTabBar } from "./omnibox/newTabBar";
 
@@ -120,6 +127,7 @@ export function Sidebar({ width }: { width: number }) {
                   scrollY.current = y;
                   controller.scrollY = y;
                   dismissHover();
+                  closeFolderPanel();
                 }}
               />
             ))}
@@ -172,6 +180,7 @@ export function Sidebar({ width }: { width: number }) {
               <PinSlotZone />
             )
           ) : null}
+          <FolderPanel windowId={windowId} />
           {ghost ? <DragGhost ghost={ghost} /> : null}
         </SidebarDropArea>
       )}
@@ -207,12 +216,13 @@ function SidebarPage({ profileId, slot, width, current, resting, docked, glowRoo
     return () => cancelAnimationFrame(frame);
   }, [beside]);
   const offScreen = beside && !current;
-  const tiles = useBrowser((s) => (offScreen ? NONE : sidebarEntries(s, windowId, profileId).tiles));
+  const tiles = useBrowser((s) => (offScreen ? NONE : sidebarEntries(s, windowId, profileId).cells));
   const innerWidth = width - layout.sidebarInset * 2;
   const dragging = useDragging() && current;
   const previewed = usePinnedCount(tiles);
   const dockRoom = height ? height * DOCK_SHARE - topGap - SCROLL_EDGE.gap - SCROLL_EDGE.line : Infinity;
-  const gridHeight = (count: number) => pinGridHeight(count, innerWidth, layout.pinnedHeight);
+  const balanced = useBrowser((s) => s.settings.balancedTopApps);
+  const gridHeight = (count: number) => pinGridHeight(count, innerWidth, layout.pinnedHeight, balanced);
   const placedFixed = useRef(true);
   if (!dragging) placedFixed.current = !tiles.length || gridHeight(tiles.length) <= dockRoom;
   const dockFixed = placedFixed.current;
@@ -334,7 +344,7 @@ type PageRowsProps = {
 
 function PageRows({ windowId, profileId, current, rows, lazy, offScreen, tiles, innerWidth, inlineNewTab, controller, geometry, onListHeight }: PageRowsProps) {
   const [captured] = useState(newCapture);
-  const { pinnedRows, pinnedGroups, list: all } = useBrowser((s) => {
+  const { list: all } = useBrowser((s) => {
     const entries = sidebarEntries(s, windowId, profileId);
     return capture(captured, s, entries.list, entries);
   });
@@ -351,8 +361,11 @@ function PageRows({ windowId, profileId, current, rows, lazy, offScreen, tiles, 
   const limit = cap ?? (growing ? mountedRows : undefined);
   const list = limit === undefined ? all : all.slice(0, limit);
   const pending = useBrowser((s) => (growing ? entriesHeight(s, windowId, profileId, all.slice(mountedRows)) : 0));
-  const divided = !offScreen && all.length > 0;
-  const pinnedSection = pinnedRows.length + pinnedGroups.length > 0;
+  const clearable = !offScreen && all.length > 0;
+  const tidy = useBrowser((s) => !offScreen && canTidyPins(s, windowId, profileId));
+  const divided = clearable || tidy;
+  const pinned = usePinnedSequence(windowId, profileId, offScreen);
+  const pinnedSection = pinned.length > 0;
   const newTabsAtTop = useSettings((s) => s.newTabPosition === "top");
   const animated = current && !offScreen;
   const motion = useListMotion(windowId, profileId, all, captured, animated);
@@ -379,17 +392,12 @@ function PageRows({ windowId, profileId, current, rows, lazy, offScreen, tiles, 
           onLayout={geometry ? (e) => void (geometry.current.regions.pinnedGroups = e.nativeEvent.layout.y) : undefined}
           style={{ marginTop: tiles.length ? 6 : 0, gap: layout.rowGap }}
         >
-          {(offScreen ? NONE : pinnedRows).map((id) => (
-            <TabRowItem key={id} tabId={id} section="pinnedRows" />
-          ))}
-          <Tail id="tail:pinnedRows" section="pinnedRows" />
-          {(offScreen ? NONE : pinnedGroups).map((id) => (
-            <GroupBlock key={id} groupId={id} section="pinnedGroups" />
+          {pinned.map((entry) => (
+            <PinnedEntry key={entry} entry={entry} windowId={windowId} />
           ))}
           <Tail id="tail:pinnedGroups" section="pinnedGroups" />
         </View>
-        {offScreen ? null : <LiveFolders windowId={windowId} spaced={pinnedSection} />}
-        {divided ? <ClearDivider windowId={windowId} spaced={pinnedSection} /> : null}
+        {divided ? <ClearDivider windowId={windowId} profileId={profileId} spaced={pinnedSection} clear={clearable} tidy={tidy} /> : null}
         <View
           ref={(v) => {
             controller?.regions.set("list", v);
@@ -428,6 +436,14 @@ function TilesPlacement({ controller, fixed, room, children }: { controller: Ret
 function PageContent({ children }: { children: (controller: ReturnType<typeof useDragController>) => ReactNode }) {
   return <>{children(useDragController())}</>;
 }
+
+const PinnedEntry = memo(function PinnedEntry({ entry, windowId }: { entry: string; windowId: string }) {
+  const id = entry.slice(entry.indexOf(":") + 1);
+  if (entry.startsWith(LIVE)) return <LiveFolderBlock folderId={id} windowId={windowId} />;
+  if (entry.startsWith("g:")) return <GroupBlock groupId={id} section="pinnedGroups" />;
+  if (entry.startsWith("s:")) return <SplitRowItem splitId={id} section="pinnedRows" />;
+  return <TabRowItem tabId={id} section="pinnedRows" />;
+});
 
 const ListEntry = memo(function ListEntry({ entry, motion }: { entry: string; motion: EntryMotion | null }) {
   const id = entry.slice(2);
@@ -468,9 +484,15 @@ function useRevealTabs(windowId: string, scroll: RefObject<ScrollView | null>, s
       if (geometry.current.tilesFixed && pinned?.pinned && !pinned.pinnedAsRow) return;
       const { regions, newTabAtTop } = geometry.current;
       const span = rowSpan(s, windowId, profileId, tabId, newTabAtTop);
-      if (span) return show(geometry.current.pad + regions[span.section] + span.top, span.height);
+      const pinnedHasLive = span?.section === "pinnedGroups" && live().folderOrder.some((id) => live().folders[id]?.profileId === profileId);
+      if (span && !pinnedHasLive) return show(geometry.current.pad + regions[span.section] + span.top, span.height);
       const view = scroll.current as unknown as View;
-      void measureRow(windowId, tabId).then((row) =>
+      const split = splitOf(s, tabId);
+      const inner = groupOf(s, tabId);
+      const keys = [tabId, ...(split ? [`s:${split.id}`] : []), ...(inner ? [inner.id, ...ancestorIds(s.groups, inner.id)] : [])];
+      const firstShown = (i: number): Promise<Awaited<ReturnType<typeof measureRow>>> =>
+        i >= keys.length ? Promise.resolve(null) : measureRow(windowId, keys[i]!).then((row) => row ?? firstShown(i + 1));
+      void firstShown(0).then((row) =>
         view.measureInWindow((_x, y) => row && mine === reveals && show(row.y - y + (scrollY.current ?? 0), row.height)),
       );
     };
@@ -515,6 +537,10 @@ function DownloadsButton({ windowId }: { windowId: string }) {
 }
 
 const CLIPPED = { marginTop: -layout.rowGap, paddingTop: layout.rowGap, overflow: "hidden" } as const;
+const NEW_TAB_LABEL_X = 30;
+const CLEANED_HINT_RIGHT = 30;
+const CLEANED_HINT_GAP = 8;
+const MEASURE_OFFSCREEN = { position: "absolute", width: 1000, height: 0, overflow: "hidden", opacity: 0 } as const;
 
 const NewTabRow = memo(function NewTabRow({ windowId, shift = null, clip = null }: { windowId: string; shift?: Animated.Value | null; clip?: ClipSource | null }) {
   const theme = useTheme();
@@ -524,8 +550,25 @@ const NewTabRow = memo(function NewTabRow({ windowId, shift = null, clip = null 
   const [moved, movedRef] = useShift(shift);
   const [movedButtons, movedButtonsRef] = useShift(shift);
   const clipped = useClipped(clip);
+  const [widths, setWidths] = useState({ row: 0, label: 0, hint: 0 });
+  const measure = (key: keyof typeof widths) => (e: LayoutChangeEvent) => {
+    const width = Math.ceil(e.nativeEvent.layout.width);
+    setWidths((w) => (w[key] === width ? w : { ...w, [key]: width }));
+  };
+  const hint = `${cleaned} cleaned`;
+  const hintFits = widths.hint > 0 && NEW_TAB_LABEL_X + widths.label + CLEANED_HINT_GAP + widths.hint <= widths.row - CLEANED_HINT_RIGHT;
   return (
-    <View {...hoverProps} style={[{ flexDirection: "row", alignItems: "center" }, clipped ? CLIPPED : null]}>
+    <View {...hoverProps} onLayout={measure("row")} style={[{ flexDirection: "row", alignItems: "center" }, clipped ? CLIPPED : null]}>
+      <View pointerEvents="none" style={MEASURE_OFFSCREEN}>
+        <Text numberOfLines={1} style={{ alignSelf: "flex-start", fontSize: 13 }} onLayout={measure("label")}>
+          New Tab
+        </Text>
+        {cleaned > 0 ? (
+          <Text numberOfLines={1} style={{ alignSelf: "flex-start", fontSize: 11 }} onLayout={measure("hint")}>
+            {hint}
+          </Text>
+        ) : null}
+      </View>
       <Pressable
         style={{ flex: 1 }}
         onPress={(e) => {
@@ -556,7 +599,7 @@ const NewTabRow = memo(function NewTabRow({ windowId, shift = null, clip = null 
         )}
       </Pressable>
       <View {...movedButtons} ref={movedButtonsRef} style={[{ position: "absolute", right: 6, flexDirection: "row", alignItems: "center" }, movedButtons.style as object]}>
-        <HoverSlot hovered={hovered && cleaned > 0} width={0} hover={<Text style={{ fontSize: 11, color: theme.textTertiary, marginRight: 2 }}>{cleaned} cleaned</Text>} />
+        <HoverSlot hovered={hovered && cleaned > 0 && hintFits} width={0} hover={<Text style={{ fontSize: 11, color: theme.textTertiary, marginRight: 2 }}>{hint}</Text>} />
         <IconButton
           icon="chevron.down"
           size={10}

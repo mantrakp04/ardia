@@ -40,6 +40,7 @@ class ArdiaVideoOverlayWindow : public VideoOverlayWindowViews {
   void SetUpViews() override;
 
   void OnCloseButtonPressed();
+  void HideIdleControlsUnlessPointerOnControl();
   void MaybeSaveBounds();
   void FinishHide();
 

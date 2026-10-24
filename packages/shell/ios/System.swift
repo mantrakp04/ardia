@@ -7,6 +7,8 @@ public class SystemModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ArdiaSystem")
 
+    Constant("backgroundInstance") { () -> Bool in FileDropView.background }
+
     AsyncFunction("isDefaultBrowser") { () -> Bool in
       guard let probe = URL(string: "https://example.com"),
             let handler = NSWorkspace.shared.urlForApplication(toOpen: probe) else { return false }
@@ -14,6 +16,10 @@ public class SystemModule: Module {
     }.runOnQueue(.main)
 
     AsyncFunction("setAsDefaultBrowser") { (promise: Promise) in
+      if FileDropView.background {
+        NSLog("ArdiaSystem: background instance, not setting the default browser")
+        return promise.resolve(false)
+      }
       let app = Bundle.main.bundleURL
       NSWorkspace.shared.setDefaultApplication(at: app, toOpenURLsWithScheme: "http") { error in
         guard error == nil else { return promise.resolve(false) }
@@ -36,6 +42,10 @@ public class SystemModule: Module {
     }.runOnQueue(.main)
 
     AsyncFunction("setLaunchAtLogin") { (enabled: Bool) in
+      if FileDropView.background {
+        NSLog("ArdiaSystem: background instance, not changing launch at login")
+        return
+      }
       if enabled {
         try SMAppService.mainApp.register()
       } else {
@@ -109,7 +119,10 @@ public class SystemModule: Module {
     }.runOnQueue(.main)
 
     Function("hapticTick") {
-      DispatchQueue.main.async { NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now) }
+      DispatchQueue.main.async {
+        NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+        HapticLog.note("alignment")
+      }
     }
 
     AsyncFunction("menuShortcuts") { () -> [[String: Any]] in MainMenu.shortcutList() }.runOnQueue(.main)
@@ -221,6 +234,30 @@ final class FileDragView: ExpoView, NSDraggingSource {
   }
 }
 
+enum HapticLog {
+  private static let path: String? = {
+    let env = ProcessInfo.processInfo.environment
+    guard env["ARDIA_BACKGROUND"] == "1", let dir = env["ARDIA_DATA_DIR"] else { return nil }
+    return (dir as NSString).appendingPathComponent("haptics.log")
+  }()
+
+  private static let queue = DispatchQueue(label: "ardia.haptic-log", qos: .utility)
+  private static let maxBytes: UInt64 = 64 * 1024
+
+  static func note(_ pattern: String) {
+    guard let path else { return }
+    let line = "\(Date()) \(pattern)\n"
+    queue.async {
+      guard let data = line.data(using: .utf8) else { return }
+      guard let file = FileHandle(forWritingAtPath: path) else {
+        FileManager.default.createFile(atPath: path, contents: data)
+        return
+      }
+      defer { file.closeFile() }
+      if file.seekToEndOfFile() < maxBytes { file.write(data) }
+    }
+  }
+}
 public class FileDropModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ArdiaFileDrop")

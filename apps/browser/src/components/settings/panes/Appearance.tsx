@@ -5,7 +5,7 @@ import { useBrowser } from "../../../store/browser";
 import { tabLayoutOf } from "../../../store/model";
 import type { Settings } from "../../../store/settings";
 import { useHover } from "../../primitives";
-import { SectionHeader, useFormColors } from "../controls";
+import { Group, PopUp, Row, SectionHeader, useFormColors } from "../controls";
 import { APP_ICON_SIZE, appIconChoices } from "../paneData";
 import { store, useResource } from "../resources";
 
@@ -37,6 +37,7 @@ export function AppearancePane() {
 
 function AddressBarPicker() {
   const addressBar = useBrowser((s) => s.settings.addressBar);
+  const placement = useBrowser((s) => s.settings.commandBarPlacement);
   const topTabs = useBrowser((s) => tabLayoutOf(s) === "top");
   const choose = (value: Settings["addressBar"]) => useBrowser.getState().updateSettings({ addressBar: value });
   return (
@@ -53,6 +54,19 @@ function AddressBarPicker() {
         <AddressBarChoice value="toolbar" title="In the toolbar" selected={addressBar !== "sidebar"} onPress={() => choose("toolbar")} />
         <AddressBarChoice value="sidebar" title="In the sidebar" selected={addressBar === "sidebar"} onPress={() => choose("sidebar")} />
       </View>
+      <Group style={{ marginTop: 14 }}>
+        <Row anchor="appearance.commandBarPlacement">
+          <PopUp
+            value={placement}
+            options={[
+              { value: "field", title: "At the address" },
+              { value: "centred", title: "In the centre" },
+            ]}
+            onChange={(v) => useBrowser.getState().updateSettings({ commandBarPlacement: v })}
+            minWidth={160}
+          />
+        </Row>
+      </Group>
     </>
   );
 }

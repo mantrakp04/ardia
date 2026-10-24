@@ -13,6 +13,7 @@ export type LiveFolder = {
   groupStacks: boolean;
   showCompleted: boolean;
   createdAt: number;
+  after?: string | null;
 };
 
 export type PullRequestSection = "authored" | "review" | "team";

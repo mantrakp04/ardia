@@ -5,14 +5,14 @@ import type { View } from "react-native";
 import { activateExtension, openManageExtensions, openPinDialog, openWebStore, showExtensionMenu, useWindowExtensions, type Anchor } from "../extensions/state";
 import { ExtensionTile, SectionTitle, TileGrid } from "./SiteControlsParts";
 
-export function SiteExtensions({ windowId, columns, onClose }: { windowId: string; columns: number; onClose: () => void }) {
+export function SiteExtensions({ windowId, tabId, columns, onClose }: { windowId: string; tabId: string; columns: number; onClose: () => void }) {
   const extensions = useWindowExtensions(windowId);
   return (
     <>
       <SectionTitle title="Extensions" />
       <TileGrid columns={columns}>
         {extensions.map((ext) => (
-          <ExtensionGridTile key={ext.id} ext={ext} windowId={windowId} onClose={onClose} />
+          <ExtensionGridTile key={ext.id} ext={ext} windowId={windowId} tabId={tabId} onClose={onClose} />
         ))}
         <ExtensionTile
           name="Add Extension"
@@ -29,7 +29,7 @@ export function SiteExtensions({ windowId, columns, onClose }: { windowId: strin
   );
 }
 
-function ExtensionGridTile({ ext, windowId, onClose }: { ext: InstalledExtension; windowId: string; onClose: () => void }) {
+function ExtensionGridTile({ ext, windowId, tabId, onClose }: { ext: InstalledExtension; windowId: string; tabId: string; onClose: () => void }) {
   const ref = useRef<View>(null);
   const anchor = () =>
     new Promise<Anchor>((resolve) => {
@@ -44,7 +44,7 @@ function ExtensionGridTile({ ext, windowId, onClose }: { ext: InstalledExtension
       onPress={async () => {
         const at = await anchor();
         onClose();
-        void activateExtension(windowId, ext, at);
+        void activateExtension(windowId, ext, at, undefined, tabId);
       }}
       onContextMenu={() => void showExtensionMenu(windowId, ext)}
     />

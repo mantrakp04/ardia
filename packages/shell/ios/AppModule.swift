@@ -5,7 +5,7 @@ import ExpoModulesCore
 public class AppModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ArdiaApp")
-    Constant("apiVersion") { () -> Int in 12 }
+    Constant("apiVersion") { () -> Int in 13 }
     Events("onNotificationResponse", "onScriptCommand")
 
     OnCreate {
@@ -681,6 +681,10 @@ enum KeyEquivalents {
     case "window": window.makeFirstResponder(nil)
     case "page": if let page = pageViews(in: window).first { window.makeFirstResponder(page) }
     case "devtools": if let devTools = pageViews(in: window).first(where: isDevTools) { window.makeFirstResponder(devTools) }
+    case let focus? where focus.hasPrefix("label:"):
+      var control = window.contentView.flatMap { labeledView(String(focus.dropFirst(6)), in: $0) }
+      while let view = control, !view.acceptsFirstResponder { control = view.superview }
+      guard let control, window.makeFirstResponder(control) else { return done(["error": "can't focus \(focus)"]) }
     default: break
     }
     if let settle = press["settle"] as? Int, settle > 0 {
@@ -707,11 +711,23 @@ enum KeyEquivalents {
     var result: [String: Any] = ["firstResponder": window.firstResponder.map { String(describing: type(of: $0)) } ?? "nil"]
     if press["send"] as? Bool == true {
       NSApp.sendEvent(current)
-      if let up = NSEvent.keyEvent(
-        with: .keyUp, location: .zero, modifierFlags: mods, timestamp: ProcessInfo.processInfo.systemUptime,
-        windowNumber: window.windowNumber, context: nil, characters: press["characters"] as? String ?? key,
-        charactersIgnoringModifiers: key, isARepeat: false, keyCode: UInt16(press["keyCode"] as? Int ?? 0)) {
-        NSApp.sendEvent(up)
+      let keyEvent = { (type: NSEvent.EventType, repeated: Bool) in
+        NSEvent.keyEvent(
+          with: type, location: .zero, modifierFlags: mods, timestamp: ProcessInfo.processInfo.systemUptime,
+          windowNumber: window.windowNumber, context: nil, characters: press["characters"] as? String ?? key,
+          charactersIgnoringModifiers: key, isARepeat: repeated, keyCode: UInt16(press["keyCode"] as? Int ?? 0))
+      }
+      let repeats = press["repeats"] as? Int ?? 0
+      let every = press["repeatEvery"] as? Int ?? 50
+      if repeats > 0 {
+        for index in 1...repeats {
+          DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(index * every)) {
+            keyEvent(.keyDown, true).map { NSApp.sendEvent($0) }
+            if index == repeats { keyEvent(.keyUp, false).map { NSApp.sendEvent($0) } }
+          }
+        }
+      } else {
+        keyEvent(.keyUp, false).map { NSApp.sendEvent($0) }
       }
       result["handledBy"] = "sent"
     } else if !window.isKeyWindow, let page = window.firstResponder, String(describing: type(of: page)) == "RenderWidgetHostViewCocoa" {
@@ -746,7 +762,11 @@ enum KeyEquivalents {
       return done(["error": "no window \(windowId)"])
     }
     var origin = NSPoint.zero
-    if click["in"] as? String == "page" {
+    if let label = click["label"] as? String {
+      guard let target = labeledView(label, in: content) else { return done(["error": "no view labeled \(label)"]) }
+      let frame = target.convert(target.bounds, to: content)
+      origin = NSPoint(x: frame.midX, y: content.isFlipped ? frame.midY : content.bounds.height - frame.midY)
+    } else if click["in"] as? String == "page" {
       guard let page = pageViews(in: window).first else { return done(["error": "no page in \(windowId)"]) }
       let frame = page.convert(page.bounds, to: content)
       origin = NSPoint(x: frame.minX, y: content.isFlipped ? frame.minY : content.bounds.height - frame.maxY)
@@ -762,7 +782,8 @@ enum KeyEquivalents {
         with: type, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
         windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0)
       else { return done(["error": "no mouse event"]) }
-      NSApp.sendEvent(event)
+      if type == .leftMouseUp { result["at"] = event.timestamp * 1000 }
+      if click["queued"] as? Bool == true { NSApp.postEvent(event, atStart: false) } else { NSApp.sendEvent(event) }
     }
     result["firstResponderOnClick"] = responderName()
     DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(click["wait"] as? Int ?? 250)) {
@@ -855,6 +876,14 @@ enum KeyEquivalents {
     return { [weak window, weak previous] in
       if let window, NSApp.keyWindow === window, previous !== window { previous?.makeKey() }
     }
+  }
+
+  private static func labeledView(_ label: String, in root: NSView) -> NSView? {
+    guard !root.isHidden, root.alphaValue > 0 else { return nil }
+    for child in root.subviews.reversed() {
+      if let found = labeledView(label, in: child) { return found }
+    }
+    return root.accessibilityLabel() == label && !root.visibleRect.isEmpty ? root : nil
   }
 
   private static func pageViews(in window: NSWindow) -> [NSView] {

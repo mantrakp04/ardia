@@ -5,6 +5,7 @@ import { inPinnedContainer, isIncognitoProfile, newId, privateSession, snapshotT
 import { earlyLaunchTabOn, launchTab, linkProfile, type LaunchTab } from "../store/launchTab";
 import { launchBackdrop, type LaunchBackdrop } from "./launchBackdrop";
 import { parkWindowPins } from "../store/parkedPins";
+import { isPeekTab } from "../store/peek";
 import type { BrowserWindow, ClosedTab, Tab } from "../store/types";
 import { downloadSession } from "../store/ui";
 import { startFavicons } from "./favicons";
@@ -59,7 +60,7 @@ const DOCS: Doc[] = [
         launchTab: earlyLaunchTabOn() ? launchTab(s, focusedWindowId) : null,
         launchBackdrop: earlyLaunchTabOn() ? launchBackdrop(s, focusedWindowId) : null,
         linkProfile: earlyLaunchTabOn() ? linkProfile(s) : null,
-        tabs: Object.values(s.tabs).filter((t) => kept.has(t.windowId)).map(persistedTab),
+        tabs: Object.values(s.tabs).filter((t) => kept.has(t.windowId) && !isPeekTab(s, t.id)).map(persistedTab),
         groups: Object.values(s.groups).filter((g) => kept.has(g.windowId)),
         splits: Object.values(s.splits).filter((v) => kept.has(v.windowId)),
         closedTabs: s.closedTabs.filter((c) => publicTab(c.tab)),
@@ -152,7 +153,7 @@ export function loadSession(): HydrateData | null {
   };
   if (session.settings && session.settings.restoreSession === false) {
     const now = Date.now();
-    const pinSource = { tabs: data.tabs ?? {}, groups: data.groups ?? {}, history: {} };
+    const pinSource = { tabs: data.tabs ?? {}, groups: data.groups ?? {}, splits: data.splits ?? {}, history: {} };
     for (const w of session.windows) data.parkedPins = parkWindowPins(data.parkedPins ?? {}, w, pinSource);
     data.closedWindows = [
       ...(data.closedWindows ?? []),

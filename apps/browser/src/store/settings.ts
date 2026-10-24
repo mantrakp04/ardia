@@ -33,11 +33,14 @@ export type Settings = {
   newTabPosition: "top" | "bottom";
   newTabOpens: "page" | "commandBar";
   warnBeforeClosingLastTab: boolean;
+  undoReopensClosedTab: boolean;
   warnBeforeMovingTabsToProfile: boolean;
+  shareTabsAcrossWindows: boolean;
   tabReorderHaptics: boolean;
   extendWebsiteColor: boolean;
   cmdClickCreatesTabGroup: boolean;
   optShiftClickOpensInGroup: boolean;
+  peekModifier: PeekModifier;
   autoGroupMeetingTabs: boolean;
   cleanUpInactiveTabsAfterHours: number | null;
   mutedSites: string[];
@@ -47,6 +50,7 @@ export type Settings = {
   sidebarMediaControls: boolean;
   sidebarWidth: number;
   showSidebarButton: boolean;
+  balancedTopApps: boolean;
   batterySaverWhen: BatterySaverWhen;
   extensionSidePanelWidth: number;
 
@@ -58,6 +62,7 @@ export type Settings = {
 
   appearance: "auto" | "light" | "dark";
   addressBar: "toolbar" | "sidebar";
+  commandBarPlacement: "field" | "centred";
 
   defaultProfileId: string;
 
@@ -69,6 +74,11 @@ export type Settings = {
   chosen?: string[];
   inferred?: string[];
 };
+
+export type PeekModifier = "alt" | "shift" | "off";
+export const PEEK_MODIFIERS: readonly PeekModifier[] = ["alt", "shift", "off"];
+export const peekModifierOf = (settings: Pick<Settings, "peekModifier">): PeekModifier =>
+  PEEK_MODIFIERS.includes(settings.peekModifier) ? settings.peekModifier : DEFAULT_SETTINGS.peekModifier;
 
 export const DEFAULT_PROFILE_ID = "default";
 
@@ -87,11 +97,14 @@ export const DEFAULT_SETTINGS: Settings = {
   newTabPosition: "bottom",
   newTabOpens: "page",
   warnBeforeClosingLastTab: true,
+  undoReopensClosedTab: false,
   warnBeforeMovingTabsToProfile: true,
+  shareTabsAcrossWindows: false,
   tabReorderHaptics: true,
   extendWebsiteColor: true,
   cmdClickCreatesTabGroup: true,
   optShiftClickOpensInGroup: true,
+  peekModifier: "shift",
   autoGroupMeetingTabs: true,
   cleanUpInactiveTabsAfterHours: null,
   mutedSites: [],
@@ -101,6 +114,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sidebarMediaControls: true,
   sidebarWidth: 190,
   showSidebarButton: true,
+  balancedTopApps: false,
   batterySaverWhen: "lowBattery",
   extensionSidePanelWidth: 360,
   showFullUrl: false,
@@ -110,6 +124,7 @@ export const DEFAULT_SETTINGS: Settings = {
   hideBookmarksBarImport: false,
   appearance: "auto",
   addressBar: "toolbar",
+  commandBarPlacement: "field",
   defaultProfileId: DEFAULT_PROFILE_ID,
   shortcuts: {},
   openLinksInLittleArdia: true,

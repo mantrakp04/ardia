@@ -29,11 +29,13 @@ export const ZoomIndicator = memo(function ZoomIndicator({ tabId, zoom, palette,
   );
 });
 
+export const ZOOM_POPOVER_WIDTH = 236;
+
 export function ZoomPopover({ tabId, right, left, top }: { tabId: string; right?: number; left?: number; top: number }) {
   const theme = useTheme();
   const zoom = useTab(tabId)?.zoom ?? 1;
   return (
-    <Popover width={236} top={top} right={right} left={left} onDismiss={() => setPopover(tabId, null)}>
+    <Popover width={ZOOM_POPOVER_WIDTH} top={top} right={right} left={left} onDismiss={() => setPopover(tabId, null)}>
       <View style={{ flexDirection: "row", alignItems: "center", height: ZOOM_BAR, paddingLeft: PANEL.inset, paddingRight: (ZOOM_BAR - 28) / 2, gap: 8 }}>
         <Text style={{ flex: 1, fontSize: 13, fontVariant: ["tabular-nums"], color: theme.textPrimary }}>{`Zoom: ${Math.round(zoom * 100)}%`}</Text>
         <ZoomStepper tabId={tabId} zoom={zoom} percent={false} />

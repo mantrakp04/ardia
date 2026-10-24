@@ -6,7 +6,7 @@ import { useBrowser } from "../../../store/browser";
 import { openUrls } from "../../../lib/actions";
 import { IconButton, useHover } from "../../primitives";
 import { matchesQuery } from "../../pages/PageLayout";
-import { Anchor, Button, Group, PopUp, Row, SearchField, SectionHeader, useFormColors } from "../controls";
+import { Anchor, Button, Group, PopUp, Row, SearchField, SectionHeader, Toggle, useFormColors } from "../controls";
 import { shortcutItems } from "../paneData";
 import { useResource } from "../resources";
 
@@ -47,6 +47,7 @@ const comboId = (c: Combo) => (c.key ? `${[...c.modifiers].sort().join("+")}+${c
 export function ShortcutsPane() {
   const theme = useTheme();
   const overrides = useBrowser((s) => s.settings.shortcuts);
+  const undoReopensClosedTab = useBrowser((s) => s.settings.undoReopensClosedTab);
   const [loaded] = useResource(shortcutItems);
   const items = loaded ?? null;
   const [query, setQuery] = useState("");
@@ -107,6 +108,11 @@ export function ShortcutsPane() {
       <Text style={{ marginTop: 20, fontSize: 12.5, lineHeight: 17, color: theme.textSecondary }}>
         Perform common actions in Ardia faster and from anywhere. Select an action to customize its keyboard shortcut.
       </Text>
+      <Group style={{ marginTop: 14 }}>
+        <Row anchor="shortcuts.undoReopensClosedTab">
+          <Toggle value={undoReopensClosedTab} onChange={(v) => useBrowser.getState().updateSettings({ undoReopensClosedTab: v })} />
+        </Row>
+      </Group>
       <Anchor id="shortcuts.actions" radius={8} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 14 }}>
         <SearchField value={query} onChangeText={setQuery} placeholder="Search actions" style={{ flex: 1 }} />
         <PopUp

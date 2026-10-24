@@ -39,6 +39,7 @@ export function Fold({
   rowHeight,
   padTop = 0,
   padBottom = 0,
+  indent = 0,
   mountClosed = false,
   footer,
 }: {
@@ -47,9 +48,10 @@ export function Fold({
   entries: FoldEntry[];
   keep?: string | null;
   gap: number;
-  rowHeight?: number;
+  rowHeight?: number | ((key: string) => number);
   padTop?: number;
   padBottom?: number;
+  indent?: number;
   mountClosed?: boolean;
   footer?: ReactNode;
 }) {
@@ -61,7 +63,7 @@ export function Fold({
   const folding = !!kept && (collapsed || moving);
   const state = useRef({ moving, folding, kept });
   state.current = { moving, folding, kept };
-  const heightOf = (key: string) => rowHeight ?? measured[key] ?? 0;
+  const heightOf = (key: string) => (typeof rowHeight === "function" ? rowHeight(key) : (rowHeight ?? measured[key] ?? 0));
   const rows = entries.filter((e) => !e.ghost);
   const total = rows.reduce((sum, e) => sum + heightOf(e.key), 0) + gap * Math.max(0, rows.length - 1) + padTop + padBottom;
   const foldingStyle = (height: number) => {
@@ -89,7 +91,7 @@ export function Fold({
 
   return (
     <Animated.View style={outer} pointerEvents={collapsed ? "box-none" : "auto"}>
-      <View style={[{ gap, paddingTop: padTop, paddingBottom: padBottom }, measuring && outer && !moving ? { position: "absolute", left: 0, right: 0, top: 0 } : null]}>
+      <View style={[{ gap, paddingTop: padTop, paddingBottom: padBottom, paddingLeft: indent }, measuring && outer && !moving ? { position: "absolute", left: 0, right: 0, top: 0 } : null]}>
         {entries.map(({ key, node }) => {
           const stays = key === kept;
           if (!stays && !mountAll) return null;

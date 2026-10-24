@@ -1,10 +1,12 @@
-import type { DisplayMediaRequest, MediaCommand, NowPlaying, PictureInPictureState } from "@ardia/ardiacore";
+import type { ControlPress, DisplayMediaRequest, MediaCommand, NowPlaying, PictureInPictureState } from "@ardia/ardiacore";
 import { useEffect, useState } from "react";
+import type { AccessibilityActionEvent, GestureResponderEvent } from "react-native";
 import { create } from "zustand";
 import { webviews } from "../../lib/webviews";
 import { useBrowser } from "../../store/browser";
 import type { BrowserState } from "../../store/browser";
 import { activeTabId } from "../../store/model";
+import { peekTabId } from "../../store/peek";
 import { splitOf } from "../../store/splits";
 
 export type Session = NowPlaying & {
@@ -107,7 +109,7 @@ export function isTabShown(s: BrowserState, tabId: string): boolean {
   if (!windowId) return false;
   const active = activeTabId(s, windowId);
   if (!active) return false;
-  return active === tabId || !!splitOf(s, active)?.tabIds.includes(tabId);
+  return active === tabId || peekTabId(s, windowId) === tabId || !!splitOf(s, active)?.tabIds.includes(tabId);
 }
 
 export function playerTabFor(m: Pick<Store, "sessions" | "dismissed">, tabIds: string[], current?: string): string | undefined {
@@ -144,14 +146,15 @@ export function exitPictureInPicture(tabId: string) {
   setPip(tabId, null);
 }
 
-async function togglePictureInPicture(tabId: string): Promise<boolean> {
+async function togglePictureInPicture(tabId: string, press: ControlPress): Promise<boolean> {
   const view = webviews.get(tabId);
   if (!view) return false;
   if (useMedia.getState().pipOpen[tabId] || (await inPictureInPicture(tabId))) {
+    if (!press.clickAt && !(await view.takeControlPress(press))) return false;
     exitPictureInPicture(tabId);
     return false;
   }
-  const ok = await view.requestPictureInPicture();
+  const ok = await view.requestPictureInPicture(press);
   if (ok) setPip(tabId, "manual");
   return ok;
 }
@@ -166,9 +169,16 @@ function setPip(tabId: string, kind: Store["pip"][string] | null) {
   });
 }
 
-export function usePictureInPicture(tabId: string): [boolean, () => void] {
+function controlPress(press: GestureResponderEvent | AccessibilityActionEvent): ControlPress {
+  const native = press.nativeEvent as { key?: unknown; target?: unknown; timestamp?: unknown; actionName?: unknown; actionTarget?: unknown };
+  if (native.actionName === "activate") return { clickAt: 0, control: typeof native.actionTarget === "number" ? native.actionTarget : 0 };
+  if (native.key === " " || native.key === "Enter") return { clickAt: 0, control: typeof native.target === "number" ? native.target : 0 };
+  return { clickAt: typeof native.timestamp === "number" ? native.timestamp : 0, control: 0 };
+}
+
+export function usePictureInPicture(tabId: string): [boolean, (press: GestureResponderEvent | AccessibilityActionEvent) => void] {
   const on = useMedia((s) => !!s.pipOpen[tabId]);
-  return [on, () => void togglePictureInPicture(tabId)];
+  return [on, (press) => void togglePictureInPicture(tabId, controlPress(press))];
 }
 
 useBrowser.subscribe((s, prev) => {

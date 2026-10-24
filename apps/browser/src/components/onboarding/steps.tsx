@@ -1,5 +1,6 @@
 import {
   addToDock,
+  backgroundInstance,
   fileExists,
   fileIcon,
   isDefaultBrowser,
@@ -64,7 +65,7 @@ type SystemState = { isDefault: boolean; inDock: boolean; loginEnabled: boolean 
 export function DefaultBrowserStep() {
   const next = useOnboarding((s) => s.next);
   const [system, setSystem] = useState<SystemState | null>(null);
-  const [setDefault, setSetDefault] = useState(true);
+  const [setDefault, setSetDefault] = useState(!backgroundInstance);
   const [trial, setTrial] = useState(false);
   const [dock, setDock] = useState(true);
   const [login, setLogin] = useState(false);

@@ -228,6 +228,7 @@ const shown = (w) => urlOf(model.activeTabId(S(), w));
 const shownIn = (w) => urlOf(S().windows[w].activeTabIds[S().windows[w].profileId]);
 const order = (w) => S().windows[w].tabIds.map(urlOf);
 const chromeOrder = (strip) => chrome.strips.get(strip).tabs.map((t) => urlOf(t.key));
+const chromeGroupOf = (strip, url) => chrome.strips.get(strip).tabs.find((t) => urlOf(t.key) === url)?.group ?? null;
 const chromeShown = (strip) => urlOf(chrome.strips.get(strip).tabs.find((t) => t.browser === chrome.strips.get(strip).active).key);
 
 let nextStrip = 1;
@@ -565,4 +566,76 @@ test("Chrome's own pin or move of a group's tab while a rename of the group is o
     assert.deepEqual(chromeOrder(win.strip), order(win.w));
     assert.equal(chrome.strips.get(win.strip).groups.get([...chrome.strips.get(win.strip).groups.keys()].at(-1)).title, "Renamed");
   }
+});
+
+test("a nested group projects as its root's one Chrome group, and Chrome's moves inside it keep the nesting", async () => {
+  const win = windowWith("a", "b", "c", "d", "e");
+  await settle(win);
+  const id = (u) => S().windows[win.w].tabIds.find((t) => urlOf(t) === u);
+  const outer = S().groupTabs([id("a"), id("b"), id("c"), id("d")], { pinned: false, name: "Outer" });
+  const inner = S().groupTabs([id("b"), id("c")], { name: "Inner" });
+  assert.equal(S().groups[inner].parentId, outer);
+  await settle(win);
+  const strip = chrome.strips.get(win.strip);
+  const tokens = new Set(strip.tabs.filter((t) => ["a", "b", "c", "d"].includes(urlOf(t.key))).map((t) => t.group));
+  assert.equal(tokens.size, 1, "one Chrome group for the whole tree");
+  const token = [...tokens][0];
+  assert.ok(token);
+  assert.equal(strip.tabs.find((t) => urlOf(t.key) === "e").group ?? null, null);
+  assert.equal(strip.groups.get(token).title, "Outer", "Chrome shows the root's look");
+  assert.equal(chrome.strips.get(win.strip).groups.size, 1, "the nested group makes no Chrome group of its own");
+  chrome.retitle(token, "Renamed");
+  await settle(win);
+  assert.equal(S().groups[outer].name, "Renamed");
+  assert.equal(S().groups[inner].name, "Inner");
+  chrome.move(id("d"), 1);
+  await settle(win);
+  assert.deepEqual(order(win.w), ["a", "d", "b", "c", "e"]);
+  assert.equal(S().groups[inner]?.parentId, outer, "still nested");
+  assert.deepEqual(S().groups[inner].tabIds.map(urlOf), ["b", "c"]);
+  assert.deepEqual(S().groups[outer].tabIds.map(urlOf).sort(), ["a", "b", "c", "d"]);
+  assert.deepEqual(chromeOrder(win.strip), order(win.w));
+  assert.equal(chromeGroupOf(win.strip, "d"), token, "the moved tab keeps the root's Chrome group");
+  chrome.move(id("c"), 2);
+  await settle(win);
+  assert.deepEqual(order(win.w), ["a", "d", "c", "b", "e"]);
+  assert.deepEqual(S().groups[inner].tabIds.map(urlOf), ["c", "b"], "a nested member moved inside its group stays in it");
+  assert.equal(S().groups[inner]?.parentId, outer);
+  assert.deepEqual(chromeOrder(win.strip), order(win.w));
+  assert.deepEqual(["a", "b", "c", "d"].map((u) => chromeGroupOf(win.strip, u)), [token, token, token, token]);
+  assert.equal(chrome.strips.get(win.strip).groups.size, 1);
+});
+
+test("a nested group's tab moved by Chrome to the end of the strip, still in its root's Chrome group, stays in the tree", async () => {
+  const win = windowWith("a", "b", "c", "d", "e");
+  await settle(win);
+  const id = (u) => S().windows[win.w].tabIds.find((t) => urlOf(t) === u);
+  const outer = S().groupTabs([id("b"), id("c"), id("d"), id("e")], { pinned: false, name: "Outer" });
+  const inner = S().groupTabs([id("d"), id("e")], { name: "Inner" });
+  await settle(win);
+  chrome.move(id("d"), 4);
+  await settle(win);
+  assert.deepEqual(order(win.w), ["a", "b", "c", "e", "d"]);
+  assert.deepEqual(S().groups[outer].tabIds.map(urlOf), ["b", "c", "e", "d"], "still in the root");
+  assert.deepEqual(S().groups[inner].tabIds.map(urlOf), ["e", "d"], "and in its own group");
+  assert.deepEqual(chromeOrder(win.strip), order(win.w));
+  const token = chromeGroupOf(win.strip, "b");
+  assert.ok(token);
+  assert.deepEqual(["c", "e", "d"].map((u) => chromeGroupOf(win.strip, u)), [token, token, token], "the moved tab keeps the root's Chrome group");
+});
+
+test("Chrome selecting a Peek's source dismisses the Peek instead of bouncing back to it", async () => {
+  const win = windowWith("a", "b");
+  await settle(win);
+  const [a] = S().windows[win.w].tabIds;
+  const peek = S().openPeek(a, "https://p.com/");
+  chrome.create(win.strip, peek);
+  await settle(win);
+  assert.equal(chromeShown(win.strip), "p");
+  chrome.activate(a);
+  await settle(win);
+  assert.equal(S().peeks[win.w], undefined);
+  assert.equal(S().tabs[peek], undefined);
+  assert.equal(shown(win.w), "a");
+  assert.equal(chromeShown(win.strip), "a");
 });

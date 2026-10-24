@@ -3,9 +3,15 @@
 #import <Foundation/Foundation.h>
 
 #include <algorithm>
+#include <map>
+#include <string_view>
 #include <utility>
+#include <vector>
 
 #include "base/functional/bind.h"
+#include "base/json/json_reader.h"
+#include "base/json/json_writer.h"
+#include "base/values.h"
 #include "base/task/bind_post_task.h"
 #include "base/no_destructor.h"
 #include "base/strings/strcat.h"
@@ -18,7 +24,11 @@
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/navigation_throttle.h"
 #include "content/public/browser/navigation_throttle_registry.h"
+#include "content/public/browser/browser_context.h"
+#include "content/public/browser/media_session.h"
 #include "content/public/browser/page.h"
+#include "content/public/browser/permission_controller.h"
+#include "content/public/browser/permission_descriptor_util.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents.h"
@@ -26,9 +36,14 @@
 #include "mojo/public/cpp/bindings/associated_remote.h"
 #include "mojo/public/cpp/bindings/callback_helpers.h"
 #include "ardia/core/ac_browser.h"
+#include "ardia/core/ac_content_hooks.h"
+#include "ardia/core/ac_page_limits.h"
 #import "ardia/core/ardiacore_internal.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_registry.h"
+#include "third_party/blink/public/common/permissions/permission_utils.h"
+#include "third_party/blink/public/mojom/permissions/permission_status.mojom.h"
+#include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
@@ -39,6 +54,42 @@ namespace {
 std::string& Script() {
   static base::NoDestructor<std::string> script;
   return *script;
+}
+
+constexpr size_t kMaxHeld = 64;
+constexpr size_t kMaxHeldBytes = 16 * 1024;
+constexpr size_t kMaxHeldTotalBytes = 256 * 1024;
+
+
+const std::vector<std::string_view>* HeldFields(const std::string& kind) {
+  static const base::NoDestructor<std::map<std::string, std::vector<std::string_view>>>
+      fields({
+          {"hello", {"top", "url"}},
+          {"theme", {"color", "source"}},
+          {"media", {"frame", "playing"}},
+          {"nowPlaying",
+           {"frame", "title", "artist", "album", "artwork", "playbackState",
+            "position", "duration", "playbackRate", "hasVideo", "actions",
+            "controllable", "timestamp"}},
+      });
+  auto it = fields->find(kind);
+  return it == fields->end() ? nullptr : &it->second;
+}
+
+bool MayShowNotification(content::RenderFrameHost& frame) {
+  return frame.GetBrowserContext()
+             ->GetPermissionController()
+             ->GetPermissionStatusForCurrentDocument(
+                 content::PermissionDescriptorUtil::
+                     CreatePermissionDescriptorForPermissionType(
+                         blink::PermissionType::NOTIFICATIONS),
+                 &frame) == blink::mojom::PermissionStatus::GRANTED;
+}
+
+bool MayRequestDisplayMedia(content::RenderFrameHost& frame) {
+  return frame.IsFeatureEnabled(
+             network::mojom::PermissionsPolicyFeature::kDisplayCapture) &&
+         frame.HasTransientUserActivation();
 }
 
 mojo::AssociatedRemote<mojom::ACPage> PageOf(content::RenderFrameHost* frame) {
@@ -157,10 +208,54 @@ void AddAppSchemeThrottle(content::NavigationThrottleRegistry& registry) {
 PageChannel::PageChannel(content::WebContents* contents)
     : content::WebContentsObserver(contents),
       content::WebContentsUserData<PageChannel>(*contents),
-      receivers_(contents, this) {}
+      receivers_(contents, this),
+      main_document_at_(base::TimeTicks::Now()) {
+  contents->ForEachRenderFrameHost(
+      [&](content::RenderFrameHost* frame) { FrameDocumentChanged(frame); });
+}
+
+void PageChannel::MainDocumentChanged() {
+  main_document_at_ = base::TimeTicks::Now();
+}
+
+void PageChannel::FrameDocumentChanged(content::RenderFrameHost* frame) {
+  document_at_[frame->GetGlobalId()] = base::TimeTicks::Now();
+}
+
+bool PageChannel::FrameDocumentUnchangedSince(content::RenderFrameHost* frame,
+                                              base::TimeTicks click) {
+  if (!frame || !frame->IsRenderFrameLive() || !frame->GetPage().IsPrimary()) {
+    return false;
+  }
+  auto it = document_at_.find(frame->GetGlobalId());
+  if (it == document_at_.end() || it->second >= click) {
+    return false;
+  }
+  const content::FrameTreeNodeId node = frame->GetFrameTreeNodeId();
+  return std::ranges::none_of(commits_pending_, [&](const auto& pending) {
+    return pending.second == node;
+  });
+}
+
+bool PageChannel::MainDocumentUnchangedSince(base::TimeTicks click) {
+  return main_document_at_ < click &&
+         FrameDocumentUnchangedSince(GetWebContents().GetPrimaryMainFrame(),
+                                     click);
+}
+
+void PageChannel::PrimaryMainFrameRenderProcessGone(
+    base::TerminationStatus status) {
+  MainDocumentChanged();
+  main_page_.reset();
+  held_.clear();
+  held_bytes_ = 0;
+}
 
 void PageChannel::PrimaryPageChanged(content::Page& page) {
+  MainDocumentChanged();
   main_page_.reset();
+  held_.clear();
+  held_bytes_ = 0;
   if (auto remote = PageOf(&page.GetMainDocument())) {
     remote->SetPageColor(page_color_);
   }
@@ -169,6 +264,16 @@ void PageChannel::PrimaryPageChanged(content::Page& page) {
 void PageChannel::ReadyToCommitNavigation(
     content::NavigationHandle* navigation) {
   content::RenderFrameHost* frame = navigation->GetRenderFrameHost();
+  if (!navigation->IsSameDocument()) {
+    commits_pending_[navigation->GetNavigationId()] =
+        navigation->GetFrameTreeNodeId();
+    if (frame) {
+      FrameDocumentChanged(frame);
+    }
+    if (navigation->IsInPrimaryMainFrame()) {
+      MainDocumentChanged();
+    }
+  }
   if (frame && !frame->GetParentOrOuterDocument()) {
     if (auto remote = PageOf(frame)) {
       remote->SetPageColor(page_color_);
@@ -177,6 +282,10 @@ void PageChannel::ReadyToCommitNavigation(
 }
 
 void PageChannel::RenderFrameCreated(content::RenderFrameHost* frame) {
+  FrameDocumentChanged(frame);
+  if (frame->IsInPrimaryMainFrame()) {
+    MainDocumentChanged();
+  }
   if (!page_color_.empty() && !frame->GetParentOrOuterDocument()) {
     if (auto remote = PageOf(frame)) {
       remote->SetPageColor(page_color_);
@@ -223,11 +332,40 @@ void PageChannel::Bind(content::RenderFrameHost* frame,
 
 void PageChannel::Post(const std::string& kind, const std::string& json) {
   content::RenderFrameHost& frame = receivers_.CurrentTargetFrame();
+  if (kind.size() > kMaxPageMessageKind ||
+      json.size() > MaxPageMessageBytes(kind)) {
+    return;
+  }
+  if (kind == "notification" && !MayShowNotification(frame)) {
+    return;
+  }
+  if (kind == "displayMedia" && !MayRequestDisplayMedia(frame)) {
+    return;
+  }
+  if (!Deliver(frame, kind, json)) {
+    Hold(frame, kind, json);
+  }
+}
+
+bool PageChannel::Deliver(content::RenderFrameHost& frame,
+                          const std::string& kind,
+                          const std::string& json) {
   const bool main = frame.IsInPrimaryMainFrame();
   ArdiaCoreTab* tab = TabBridge::GetOrCreate(&GetWebContents())->tab();
   id<ArdiaCoreTabDelegate> delegate = tab.delegate;
   NSString* ns_kind = base::SysUTF8ToNSString(kind);
   NSString* ns_json = base::SysUTF8ToNSString(json);
+  if ([delegate respondsToSelector:@selector
+                (tab:didReceivePageMessage:json:frame:main:origin:)]) {
+    [delegate tab:tab
+        didReceivePageMessage:ns_kind
+                         json:ns_json
+                        frame:base::SysUTF8ToNSString(FrameId(&frame))
+                         main:main
+                       origin:base::SysUTF8ToNSString(
+                                  frame.GetLastCommittedOrigin().Serialize())];
+    return true;
+  }
   if ([delegate respondsToSelector:@selector
                 (tab:didReceivePageMessage:json:frame:main:)]) {
     [delegate tab:tab
@@ -235,9 +373,120 @@ void PageChannel::Post(const std::string& kind, const std::string& json) {
                          json:ns_json
                         frame:base::SysUTF8ToNSString(FrameId(&frame))
                          main:main];
-  } else if (main && [delegate respondsToSelector:@selector
-                               (tab:didReceivePageMessage:json:)]) {
+    return true;
+  }
+  if (main && [delegate respondsToSelector:@selector
+                        (tab:didReceivePageMessage:json:)]) {
     [delegate tab:tab didReceivePageMessage:ns_kind json:ns_json];
+    return true;
+  }
+  return false;
+}
+
+void PageChannel::Hold(content::RenderFrameHost& frame,
+                       const std::string& kind,
+                       const std::string& json) {
+  if (!frame.GetPage().IsPrimary()) {
+    return;
+  }
+  const std::vector<std::string_view>* fields = HeldFields(kind);
+  if (!fields || json.size() > kMaxHeldBytes) {
+    return;
+  }
+  std::optional<base::Value> value =
+      base::JSONReader::Read(json, base::JSON_PARSE_RFC);
+  if (kind == "nowPlaying" && value && value->is_none()) {
+    const std::string cleared = base::StrCat({FrameId(&frame), "|", kind});
+    if (auto it = held_.find(cleared); it != held_.end()) {
+      held_bytes_ -= it->second.json.size();
+      held_.erase(it);
+    }
+    return;
+  }
+  if (!value || !value->is_dict()) {
+    return;
+  }
+  base::DictValue kept;
+  for (std::string_view field : *fields) {
+    if (const base::Value* found = value->GetDict().Find(field)) {
+      kept.Set(field, found->Clone());
+    }
+  }
+  std::string kept_json;
+  if (!base::JSONWriter::Write(kept, &kept_json) ||
+      kept_json.size() > kMaxHeldBytes) {
+    return;
+  }
+  const std::string frame_id = FrameId(&frame);
+  std::string key = base::StrCat({frame_id, "|", kind});
+  if (kind == "media") {
+    const std::string* media_frame = kept.FindString("frame");
+    if (!media_frame || media_frame->size() > 64) {
+      return;
+    }
+    key = base::StrCat({key, "|", *media_frame});
+  }
+  auto it = held_.find(key);
+  const size_t replaced = it == held_.end() ? 0 : it->second.json.size();
+  if (it == held_.end() && held_.size() >= kMaxHeld) {
+    return;
+  }
+  if (held_bytes_ - replaced + kept_json.size() > kMaxHeldTotalBytes) {
+    return;
+  }
+  held_bytes_ = held_bytes_ - replaced + kept_json.size();
+  held_[key] = Held{frame_id, kind, std::move(kept_json)};
+}
+
+void PageChannel::ForgetHeld(const std::string& frame_id) {
+  std::erase_if(held_, [&](const auto& entry) {
+    if (entry.second.frame_id != frame_id) {
+      return false;
+    }
+    held_bytes_ -= entry.second.json.size();
+    return true;
+  });
+}
+
+void PageChannel::DeliverHeld() {
+  std::map<std::string, Held> held = std::move(held_);
+  held_.clear();
+  held_bytes_ = 0;
+  for (const char* kind : {"hello", "theme", "media", "nowPlaying"}) {
+    for (const auto& [key, entry] : held) {
+      if (entry.kind != kind) {
+        continue;
+      }
+      content::RenderFrameHost* frame = FindFrame(entry.frame_id);
+      if (frame && frame->IsRenderFrameLive() && frame->GetPage().IsPrimary() &&
+          !Deliver(*frame, entry.kind, entry.json)) {
+        Hold(*frame, entry.kind, entry.json);
+      }
+    }
+  }
+}
+
+void PageChannel::RenderFrameDeleted(content::RenderFrameHost* frame) {
+  document_at_.erase(frame->GetGlobalId());
+  if (frame->IsInPrimaryMainFrame()) {
+    MainDocumentChanged();
+  }
+  ForgetHeld(FrameId(frame));
+}
+
+void PageChannel::DidFinishNavigation(content::NavigationHandle* navigation) {
+  commits_pending_.erase(navigation->GetNavigationId());
+  if (!navigation->IsSameDocument() && navigation->HasCommitted()) {
+    if (navigation->GetRenderFrameHost()) {
+      FrameDocumentChanged(navigation->GetRenderFrameHost());
+    }
+    if (navigation->IsInPrimaryMainFrame()) {
+      MainDocumentChanged();
+    }
+  }
+  if (navigation->HasCommitted() && !navigation->IsSameDocument() &&
+      navigation->GetRenderFrameHost()) {
+    ForgetHeld(FrameId(navigation->GetRenderFrameHost()));
   }
 }
 
@@ -281,7 +530,7 @@ void PageChannel::ExecuteInFrame(const std::string& frame_id,
   if (target->IsInPrimaryMainFrame()) {
     Execute(code);
   } else if (auto page = PageOf(target)) {
-    page->Execute(code, false);
+    page->Execute(code);
   }
 }
 
@@ -299,15 +548,60 @@ void PageChannel::CallFrame(const std::string& frame_id,
   }
 }
 
-void PageChannel::Execute(const std::string& code, bool user_gesture) {
+void PageChannel::Execute(const std::string& code) {
   if (mojom::ACPage* page = MainPage()) {
-    page->Execute(code, user_gesture);
+    page->Execute(code);
   }
+}
+
+bool PageChannel::HasFrame(const std::string& frame_id) {
+  content::RenderFrameHost* frame = FindFrame(frame_id);
+  return frame && frame->IsRenderFrameLive();
+}
+
+PictureInPictureRoute PageChannel::EnterPictureInPictureForClick(
+    std::optional<base::TimeTicks> click,
+    base::OnceCallback<void(bool)> element_opened) {
+  if (!click || !MainDocumentUnchangedSince(*click)) {
+    return PictureInPictureRoute::kNone;
+  }
+  if (content::ArdiaMainFrameHandlesEnterPictureInPicture(&GetWebContents())) {
+    content::MediaSession::Get(&GetWebContents())->EnterPictureInPicture();
+    return PictureInPictureRoute::kMediaSession;
+  }
+  mojom::ACPage* page = MainPage();
+  if (!page) {
+    return PictureInPictureRoute::kNone;
+  }
+  auto opened = mojo::WrapCallbackWithDefaultInvokeIfNotRun(
+      base::BindPostTaskToCurrentDefault(std::move(element_opened)), false);
+  page->PictureInPictureDocument(base::BindOnce(
+      &PageChannel::EnterPictureInPictureInDocument, weak_factory_.GetWeakPtr(),
+      GetWebContents().GetPrimaryMainFrame()->GetGlobalId(), *click,
+      std::move(opened)));
+  return PictureInPictureRoute::kElement;
+}
+
+void PageChannel::EnterPictureInPictureInDocument(
+    content::GlobalRenderFrameHostId frame,
+    base::TimeTicks click,
+    base::OnceCallback<void(bool)> opened,
+    const std::optional<std::string>& document) {
+  content::RenderFrameHost* main = GetWebContents().GetPrimaryMainFrame();
+  mojom::ACPage* page = nullptr;
+  if (document && main->GetGlobalId() == frame &&
+      MainDocumentUnchangedSince(click)) {
+    page = MainPage();
+  }
+  if (!page) {
+    std::move(opened).Run(false);
+    return;
+  }
+  page->EnterPictureInPictureForUser(*document, std::move(opened));
 }
 
 void PageChannel::Evaluate(
     const std::string& code,
-    bool user_gesture,
     base::OnceCallback<void(const std::optional<std::string>&)> callback) {
   auto answer = mojo::WrapCallbackWithDefaultInvokeIfNotRun(
       base::BindPostTaskToCurrentDefault(std::move(callback)), std::nullopt);
@@ -316,7 +610,7 @@ void PageChannel::Evaluate(
     std::move(answer).Run(std::nullopt);
     return;
   }
-  page->Evaluate(code, user_gesture, std::move(answer));
+  page->Evaluate(code, std::move(answer));
 }
 
 WEB_CONTENTS_USER_DATA_KEY_IMPL(PageChannel);

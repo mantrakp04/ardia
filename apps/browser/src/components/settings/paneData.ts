@@ -2,6 +2,7 @@ import {
   engineInfo,
   getAutofillSettings,
   getContentBlocker,
+  getDownloadSettings,
   getExternalAppAllowances,
   getPasswordAutofill,
   getSiteSettingsOrigins,
@@ -39,6 +40,7 @@ export const cards = resource("cards", (profile: string) => listCards(profile).c
 export const autofillEnabled = resource("autofillEnabled", (profile: string) =>
   load(addresses, [profile]).then(() => getAutofillSettings(profile).catch(() => ({ addresses: true, cards: true }))),
 );
+export const downloadSettings = resource("downloadSettings", (profile: string) => getDownloadSettings(profile).catch(() => null));
 export const extensionList = resource("extensions", (profile: string) => refreshExtensions(profile));
 export const shortcutItems = resource("menuShortcuts", () => menuShortcuts().catch(() => []));
 export const engineVersion = resource("engineInfo", () => engineInfo().catch(() => null));
@@ -55,7 +57,7 @@ export function paneNeeds(pane: SettingsPane, profileId: string | null): Needed[
   const profile = profileId ? engineProfile(profileId) : defaultProfile();
   switch (pane) {
     case "general":
-      return [need(loginItem), need(defaultBrowser), need(updater)];
+      return [need(loginItem), need(defaultBrowser), need(updater), need(downloadSettings, profile)];
     case "sync":
       return [need(syncFolder, useSync.getState().folder ?? null)];
     case "appearance":

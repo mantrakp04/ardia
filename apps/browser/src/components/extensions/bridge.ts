@@ -18,6 +18,7 @@ import { webviews } from "../../lib/webviews";
 import { useBrowser, type BrowserState } from "../../store/browser";
 import { changedIds } from "../../store/changes";
 import { activeTabId, engineProfile } from "../../store/model";
+import { shownPageId } from "../../store/peek";
 import { tabForBrowser, usePages } from "../layout/pageState";
 import { refreshActionStates } from "./actions";
 import { startExtensionSearchEngines } from "./searchEngines";
@@ -112,9 +113,9 @@ function moveIntoChromeMadeWindow(request: TabsRequest, chromeWindow: string, ta
   s.createWindow({ profileId: tab.profileId, tabIds: [tabId], chromeWindow, background: request.focused === false });
 }
 
-export function openExtensionFromMenu(windowId: string, extensionId: string) {
+export function openExtensionFromMenu(windowId: string, extensionId: string, tabId?: string) {
   const ext = findExtension(extensionProfile(useBrowser.getState(), windowId), extensionId);
-  if (ext) void activateExtension(windowId, ext, toolbarAnchor(windowId, ext.id));
+  if (ext) void activateExtension(windowId, ext, toolbarAnchor(windowId, ext.id), undefined, tabId);
 }
 
 export const toolbarAnchors = new Map<string, import("./state").Anchor>();
@@ -216,7 +217,7 @@ function startActionPopups() {
   onExtensionActionShortcut(({ browserId, extensionId }) => {
     const tabId = tabForBrowser(browserId);
     const windowId = tabId ? useBrowser.getState().tabs[tabId]?.windowId : undefined;
-    if (windowId) openExtensionFromMenu(windowId, extensionId);
+    if (windowId) openExtensionFromMenu(windowId, extensionId, tabId);
   });
 }
 
@@ -228,7 +229,7 @@ function startSidePanels() {
     if (open) void openSidePanel(windowId, extensionId);
     else closeSidePanel(windowId, extensionId);
   });
-  const active = (s: BrowserState) => s.windowOrder.map((id) => `${id}:${activeTabId(s, id) ?? ""}`).join(",");
+  const active = (s: BrowserState) => s.windowOrder.map((id) => `${id}:${shownPageId(s, id) ?? ""}`).join(",");
   useBrowser.subscribe((s, prev) => {
     if (s.windows === prev.windows && s.tabs === prev.tabs) return;
     if (active(s) === active(prev)) return;

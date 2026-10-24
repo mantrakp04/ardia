@@ -9,6 +9,7 @@ import { openSettings } from "../components/settings/windows";
 import { useBrowser, type BrowserState } from "../store/browser";
 import type { BatterySaverWhen } from "../store/settings";
 import { activeTabId, engineProfile, isIncognitoProfile, wake } from "../store/model";
+import { peekTabId } from "../store/peek";
 import { holderOf } from "../store/pinShare";
 import { splitOf } from "../store/splits";
 import { switchOn } from "./killSwitches";
@@ -66,6 +67,8 @@ function shownTabIds(s: BrowserState): Set<string> {
     const id = activeTabId(s, w.id);
     if (!id) continue;
     shown.add(id);
+    const peek = peekTabId(s, w.id);
+    if (peek) shown.add(peek);
     const held = s.tabs[id]?.pageIn;
     if (held) shown.add(held);
     for (const pane of splitOf(s, id)?.tabIds ?? []) shown.add(pane);

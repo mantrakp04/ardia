@@ -229,7 +229,9 @@ export type KeyPress = {
   keyCode: number;
   modifiers?: ("command" | "shift" | "option" | "control" | "function")[];
   characters?: string;
-  focus?: "window" | "page" | "devtools";
+  focus?: "window" | "page" | "devtools" | `label:${string}`;
+  repeats?: number;
+  repeatEvery?: number;
   asKey?: boolean;
   settle?: number;
   wait?: number;
@@ -245,7 +247,7 @@ export type KeyPressResult = {
 };
 export const devKeyEquivalent = (windowId: string, press: KeyPress): Promise<KeyPressResult> =>
   App.devKeyEquivalent(windowId, press);
-export type Click = { x: number; y: number; in?: "window" | "page"; asKey?: boolean; wait?: number };
-export type ClickResult = { hit?: string; firstResponder?: string; firstResponderOnClick?: string; firstResponderAfter?: string; error?: string };
+export type Click = { x: number; y: number; in?: "window" | "page"; label?: string; queued?: boolean; asKey?: boolean; wait?: number };
+export type ClickResult = { hit?: string; at?: number; firstResponder?: string; firstResponderOnClick?: string; firstResponderAfter?: string; error?: string };
 export const devClick = (windowId: string, click: Click): Promise<ClickResult> => App.devClick(windowId, click);
 export const devMenuCommand = (command: string, arg: string | null = null) => App.devMenuCommand(command, arg);
