@@ -61,7 +61,8 @@ export function Sidebar({ width }: { width: number }) {
   const [available, setAvailable] = useState(0);
   const listHeight = useRef(0);
   const [, setDockChanges] = useState(0);
-  const dockedAt = (list: number) => available > 0 && list + ROW_PITCH + 12 > available;
+  const newTabAtTop = useSettings((s) => s.newTabPosition === "top");
+  const dockedAt = (list: number) => !newTabAtTop && available > 0 && list + ROW_PITCH + 12 > available;
   const docked = dockedAt(listHeight.current);
   const onListHeight = (height: number) => {
     const before = dockedAt(listHeight.current);
