@@ -10,7 +10,7 @@ import { PageProfileContext, useSettings, useWindowId, useWindowProfileId } from
 import { activeTabId } from "../store/model";
 import { downloadsIn } from "../store/ui";
 import { ancestorIds } from "../store/groups";
-import { cleanedTabsFor, cleanUpCandidates, groupOf } from "../store/organize";
+import { cleanedTabsFor, cleanUpCandidates, clearableTabIds, groupOf } from "../store/organize";
 import { splitOf } from "../store/splits";
 import { openNewTabInSplit } from "./layout/splitActions";
 import { listTopGap, SIDEBAR_FIELD, SIDEBAR_FOOTER_DOWNLOADS, SIDEBAR_HEADER_WITH_FIELD, useAddressBarInSidebar } from "./layout/windowLayout";
@@ -361,7 +361,7 @@ function PageRows({ windowId, profileId, current, rows, lazy, offScreen, tiles, 
   const limit = cap ?? (growing ? mountedRows : undefined);
   const list = limit === undefined ? all : all.slice(0, limit);
   const pending = useBrowser((s) => (growing ? entriesHeight(s, windowId, profileId, all.slice(mountedRows)) : 0));
-  const clearable = !offScreen && all.length > 0;
+  const clearable = useBrowser((s) => !offScreen && clearableTabIds(s, windowId).length > 0);
   const tidy = useBrowser((s) => !offScreen && canTidyPins(s, windowId, profileId));
   const divided = clearable || tidy;
   const pinned = usePinnedSequence(windowId, profileId, offScreen);

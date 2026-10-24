@@ -103,10 +103,24 @@ export type OrganizeSlice = {
   closeAbandonedNewTabs(): void;
 };
 
-export type ClearedTabs = { windowId: string; entries: ClosedTab[]; shownTabId: string | null; blankTabId: string | null };
+export type ClearedTabs = { windowId: string; entries: ClosedTab[]; blankTabId: string | null };
 
 export function unpinnedTabIds(s: BrowserState, windowId: string): string[] {
   return viewTabIds(s, windowId).filter((id) => !inPinnedContainer(s, id));
+}
+
+export function clearableTabIds(s: BrowserState, windowId: string): string[] {
+  const kept = tabsKeptByClear(s, windowId);
+  return unpinnedTabIds(s, windowId).filter((id) => !kept.has(id));
+}
+
+function tabsKeptByClear(s: BrowserState, windowId: string): Set<string> {
+  const kept = new Set<string>();
+  const active = activeTabId(s, windowId);
+  if (active) kept.add(active);
+  for (const id of viewTabIds(s, windowId)) if (s.live[id]?.playingAudio) kept.add(id);
+  for (const id of [...kept]) for (const pane of splitOf(s, id)?.tabIds ?? []) kept.add(pane);
+  return kept;
 }
 
 const CLEAN_UP_AFTER_MS = 12 * 60 * 60 * 1000;
@@ -851,16 +865,15 @@ export const createOrganizeSlice: StateCreator<BrowserState, [], [], OrganizeSli
 
   clearUnpinnedTabs(windowId) {
     const s = get();
-    const ids = unpinnedTabIds(s, windowId);
+    const ids = clearableTabIds(s, windowId);
     if (!ids.length) return null;
-    const shown = activeTabId(s, windowId);
     const entries = closedEntries(s, ids);
     get().closeTabs(ids);
     const blankTabId = viewTabIds(get(), windowId).find((id) => !s.tabs[id]) ?? null;
-    return { windowId, entries, shownTabId: shown && ids.includes(shown) ? shown : null, blankTabId };
+    return { windowId, entries, blankTabId };
   },
 
-  undoClearTabs({ windowId, entries, shownTabId, blankTabId }) {
+  undoClearTabs({ windowId, entries, blankTabId }) {
     const s = get();
     const target = s.windows[windowId] ? windowId : restoreTarget(s, windowId);
     const back = target ? entries.filter((e) => !isIncognitoProfile(e.tab.profileId) || e.windowId === target) : [];
@@ -879,7 +892,7 @@ export const createOrganizeSlice: StateCreator<BrowserState, [], [], OrganizeSli
       back.map((e) => ({ tab: e.tab, tabId: e.restoreFrom ?? e.tabId, index: target === e.windowId ? e.index : undefined })),
     );
     next = regroupRestored(restored, target, back, ids);
-    const shown = ids[back.findIndex((e) => e.tabId === shownTabId)] ?? (dropBlank && activeTabId(next, target) === blankTabId ? ids[0] : undefined);
+    const shown = dropBlank && activeTabId(next, target) === blankTabId ? ids[0] : undefined;
     if (shown) next = apply(next, activated(next, shown));
     if (dropBlank) next = removeTabs(next, [blankTabId!], false);
     set(next);

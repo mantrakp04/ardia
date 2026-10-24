@@ -60,7 +60,7 @@ test("moving a row up or down stays among the rows", () => {
   assert.deepEqual(entries(w), { tiles: ["https://a.com/"], rows: ["https://c.com/", "https://b.com/"] });
 });
 
-test("closing a row unloads it and keeps it; Close All Tabs keeps rows", () => {
+test("closing a row unloads it and keeps it; Close All Tabs keeps rows and the selected tab", () => {
   reset();
   const { w, ids: [a, b, c] } = windowWith("a", "b", "c");
   S().pinTabs([a], true, true);
@@ -69,10 +69,12 @@ test("closing a row unloads it and keeps it; Close All Tabs keeps rows", () => {
   assert.ok(S().tabs[a], "still there");
   assert.equal(!!S().tabs[a].navigation || !!S().tabs[a].adoptId, false, "unloaded");
   assert.deepEqual(entries(w).rows, ["https://a.com/"]);
+  const selected = model.activeTabId(S(), w);
+  assert.ok([b, c].includes(selected));
   S().clearUnpinnedTabs(w);
   assert.deepEqual(entries(w).rows, ["https://a.com/"]);
-  assert.equal(S().tabs[b], undefined);
-  assert.equal(S().tabs[c], undefined);
+  assert.ok(S().tabs[selected], "the selected tab stays");
+  assert.equal(S().tabs[selected === b ? c : b], undefined);
 });
 
 test("rows are the profile's: a second window mirrors them, a change in one shows in the other", () => {

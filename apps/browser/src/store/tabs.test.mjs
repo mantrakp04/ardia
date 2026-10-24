@@ -365,7 +365,7 @@ test("closing the mini player lasts until its tab plays again", async () => {
   assert.equal(M().sessions[b], undefined);
 });
 
-test("Clear closes every unpinned tab into Recently Closed, keeps pinned tabs and pinned groups, and undoes", () => {
+test("Clear keeps the selected tab, closes the other unpinned tabs into Recently Closed, keeps pinned tabs and pinned groups, and undoes", () => {
   reset();
   const [w, a, b, c, d, e, f] = setup("a", "b", "c", "d", "e", "f");
   S().pinTabs([a], true);
@@ -375,14 +375,15 @@ test("Clear closes every unpinned tab into Recently Closed, keeps pinned tabs an
   S().activate(e);
   const before = hosts(w);
   assert.deepEqual(organize.unpinnedTabIds(S(), w), [c, d, e, f]);
+  assert.deepEqual(organize.clearableTabIds(S(), w), [c, d, f]);
   const cleared = S().clearUnpinnedTabs(w);
-  assert.equal(cleared.entries.length, 4);
-  assert.equal(cleared.shownTabId, e);
+  assert.equal(cleared.entries.length, 3);
   assert.equal(cleared.blankTabId, null);
-  assert.deepEqual(hosts(w), ["a", "b"]);
+  assert.deepEqual(hosts(w), ["a", "b", "e"]);
+  assert.equal(shown(w), "e", "the selected tab stays selected");
   assert.ok(S().groups[pinnedGroup], "the pinned group stays");
-  assert.equal(S().groups[g], undefined);
-  assert.deepEqual(S().closedTabs.slice(-4).map((x) => short(x.tab.url)), ["c", "d", "e", "f"]);
+  assert.deepEqual(S().groups[g].tabIds, [e], "the selected tab keeps its group");
+  assert.deepEqual(S().closedTabs.slice(-3).map((x) => short(x.tab.url)), ["c", "d", "f"]);
   S().undoClearTabs(cleared);
   assert.deepEqual(hosts(w), before);
   assert.equal(shown(w), "e");
@@ -390,25 +391,59 @@ test("Clear closes every unpinned tab into Recently Closed, keeps pinned tabs an
   assert.deepEqual(back.tabIds.map((id) => short(S().tabs[id].url)), ["d", "e"]);
   assert.equal(back.color, "blue");
   assert.equal(S().closedTabs.length, 0, "undone tabs leave Recently Closed");
-  assert.equal(S().clearUnpinnedTabs(w).entries.length, 4);
+  assert.equal(S().clearUnpinnedTabs(w).entries.length, 3);
   S().reopenClosedTab(w);
-  assert.deepEqual(hosts(w), ["a", "b", "f"], "⇧⌘T brings the last one back");
+  assert.deepEqual(hosts(w), ["a", "b", "e", "f"], "⇧⌘T brings the last one back");
 });
 
-test("Clear with nothing pinned opens a New Tab page, and undo puts the tabs back without it", () => {
-  reset({ newTabPosition: "top" });
-  const [w, , b] = setup("a", "b");
+test("Clear keeps tabs playing media", () => {
+  reset();
+  const [w, a, b, c] = setup("a", "b", "c");
+  S().updateLive(c, { playingAudio: true });
+  S().activate(a);
+  assert.deepEqual(organize.clearableTabIds(S(), w), [b]);
+  const cleared = S().clearUnpinnedTabs(w);
+  assert.equal(cleared.entries.length, 1);
+  assert.deepEqual(hosts(w), ["a", "c"]);
+  S().undoClearTabs(cleared);
+  assert.deepEqual(hosts(w), ["a", "b", "c"]);
+});
+
+test("Clear keeps the whole split of the selected tab or of a playing tab", () => {
+  reset();
+  const [w, a, b, c, d] = setup("a", "b", "c", "d");
+  S().createSplit([c, d]);
+  S().activate(a);
+  assert.deepEqual(organize.clearableTabIds(S(), w), [b, c, d]);
+  S().activate(c);
+  assert.deepEqual(organize.clearableTabIds(S(), w), [a, b], "the selected pane keeps its split partner");
+  S().activate(a);
+  S().updateLive(d, { playingAudio: true });
+  assert.deepEqual(organize.clearableTabIds(S(), w), [b], "a playing pane keeps its split partner");
+});
+
+test("Clear with only the selected tab left does nothing", () => {
+  reset();
+  const [w, a, b] = setup("a", "b");
   S().activate(b);
+  S().closeTab(a);
+  assert.deepEqual(organize.clearableTabIds(S(), w), []);
+  assert.equal(S().clearUnpinnedTabs(w), null);
+  assert.deepEqual(hosts(w), ["b"]);
+});
+
+test("Clear with a pinned tab selected closes every unpinned tab, and undo puts them back", () => {
+  reset({ newTabPosition: "top" });
+  const [w, a, b, c] = setup("a", "b", "c");
+  S().pinTabs([a], true);
+  S().activate(a);
   const before = hosts(w);
   const cleared = S().clearUnpinnedTabs(w);
-  assert.ok(cleared.blankTabId);
-  assert.deepEqual(S().windows[w].tabIds, [cleared.blankTabId]);
-  assert.equal(model.activeTabId(S(), w), cleared.blankTabId);
+  assert.equal(cleared.entries.length, 2);
+  assert.equal(cleared.blankTabId, null);
+  assert.deepEqual(hosts(w), ["a"]);
+  assert.equal(shown(w), "a");
   S().undoClearTabs(cleared);
   assert.deepEqual(hosts(w), before);
-  assert.equal(shown(w), "b");
-  assert.equal(S().tabs[cleared.blankTabId], undefined);
-  S().closeTabs([S().windows[w].tabIds[0]]);
-  assert.equal(S().clearUnpinnedTabs(w).entries.length, 1);
-  assert.equal(S().clearUnpinnedTabs(w).entries.length, 0, "a lone New Tab page has nothing to bring back");
+  assert.equal(shown(w), "a");
 });
