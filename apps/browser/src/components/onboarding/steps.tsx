@@ -14,7 +14,7 @@ import { useBrowser } from "../../store/browser";
 import { Favicon, useHover } from "../primitives";
 import { CONTENT_WIDTH, ChoiceList, useMockFocus, type ChoiceOption } from "./choices";
 import { MockPanel, useScreen } from "./screen";
-import { PINNABLE_SITES, pinSites, preselectedSites } from "./sites";
+import { PINNABLE_SITES, pinnedHosts, pinSites, preselectedSites } from "./sites";
 import { finishOnboarding, QUESTION_ORDER, recordDefaultBrowserTrial, STEPS, useOnboarding } from "./state";
 import { BackButton, CheckMark, CheckRow, PrimaryButton, Reveal, SecondaryButton, StepProgress, StepTitle, useOnboardingColors } from "./ui";
 
@@ -255,7 +255,7 @@ export function PinnedTabsStep() {
   const chosen = useOnboarding((s) => s.extras.pins);
   const history = useBrowser((s) => s.history[s.windows[windowId ?? ""]?.profileId ?? ""]);
   const suggested = useRef<string[] | null>(null);
-  if (!chosen) suggested.current = preselectedSites(history ?? []);
+  if (!chosen) suggested.current = preselectedSites(history ?? [], windowId ? pinnedHosts(windowId) : undefined);
   const selected = chosen ?? suggested.current ?? [];
 
   const toggle = (id: string) =>

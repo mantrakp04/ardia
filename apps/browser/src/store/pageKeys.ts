@@ -18,6 +18,12 @@ export function pinnedPages(s: Pick<BrowserState, "tabs" | "groups" | "parkedPin
   return pageKeys([...pinned, ...(s.parkedPins[profileId]?.tabs ?? [])]);
 }
 
+export function tilePages(s: Pick<BrowserState, "tabs" | "groups" | "parkedPins">, profileId: string): Set<string> {
+  const inGroup = new Set(Object.values(s.groups).flatMap((g) => g.tabIds));
+  const tiles = Object.values(s.tabs).filter((t) => t.profileId === profileId && t.pinned && !t.pinnedAsRow && !inGroup.has(t.id));
+  return pageKeys([...tiles, ...(s.parkedPins[profileId]?.tabs ?? []).filter((t) => !t.pinnedAsRow && !t.groupId)]);
+}
+
 export function openPages(s: Pick<BrowserState, "tabs" | "parkedPins">, profileId: string): Set<string> {
   const open = Object.values(s.tabs).filter((t) => t.profileId === profileId);
   return pageKeys([...open, ...(s.parkedPins[profileId]?.tabs ?? [])]);

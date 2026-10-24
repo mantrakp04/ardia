@@ -71,3 +71,21 @@ test("an import skips open tabs whose page is already open in the profile, and r
   assert.equal(importTabs(P, open, null), 0, "a second import adds nothing");
   assert.deepEqual(urls(), ["https://a.example/", "https://home.example/"]);
 });
+
+test("an Arc favorite imports even when the same page sits in a pinned folder or a pinned row, but not twice as a tile", () => {
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://home.example/" });
+  const grouped = S().newTab(w, { url: "https://www.youtube.com/", profileId: P });
+  const g = S().createGroup([grouped]);
+  S().updateGroup(g, { pinned: true });
+  const row = S().newTab(w, { url: "https://row.example/", profileId: P });
+  S().pinTabs([row], true);
+  S().updateTab(row, { pinnedAsRow: true });
+  const favorites = [
+    { url: "https://www.youtube.com/", title: "YouTube", pinned: true },
+    { url: "https://row.example/", title: "Row", pinned: true },
+  ];
+  assert.equal(importTabs(P, favorites, null, "tiles"), 2);
+  assert.equal(importTabs(P, favorites, null, "tiles"), 0, "a second import adds no tile");
+  assert.equal(importTabs(P, favorites, null), 0, "pinned rows still skip pages pinned anywhere");
+});
