@@ -81,6 +81,38 @@ Measured materials (our own non-activating panels over solid backdrops; sRGB; ac
 | 13 `.hudWindow` | dark | 33 / 44 / 72 / 182 | (58, 54, 53) |
 | 2 `.dark` (for reference) | any | 54 / 54 / 62 / 170 | 40 |
 
+### Window translucency in 1.54.2 (2026-10-23, re-read from the binary)
+
+The stack is unchanged from 1.50.1. `PlatformWindowViewController` still owns `backgroundBaseView` and
+`backgroundOverlayTintView` (WindowTreatment). The new `WindowBackground*` classes (`ContainerView`,
+`ViewExperimental`, `TranslucencyViewAppKit`, `ViewLegacy`) are the Arc-era module again, not this window's stack.
+
+| Value | 1.50.1 | 1.54.2 | Where in 1.54.2 |
+|---|---|---|---|
+| Blur material | 29 dark / 13 light | 29 / 13 | `WindowBackgroundBaseView.updateLayer`, `0x103d7f4c0` (`csel` 0x1d / 0xd) |
+| Blur setup | behind window, emphasized, follows active state | same | lazy getter `0x103d7f138` (blendingMode 0, emphasized 1) |
+| `WindowBackground/BaseTint` | black 0.4 / white 0.8 | black 0.4 / white 0.8 | `BoostBrowser_WindowTreatment.bundle` Assets.car |
+| `gradientAlpha` | 0.36, neutral 0.12 | 0.36, neutral 0.12 | `0x1040304d8` (`backgroundTintInfo?.isNeutral`; no tint info also gives 0.36); setter default `0x103d7fda8` |
+| `gradientLightnessDelta` | rebrand 0.25 : 0.4 | rebrand 0.25 : 0.4 | `0x104030410`, `0x1058231c4`, `0x1058233d0`; init stores 0.4 and 0.12 (`0x103d7fddc`) |
+| Gradient | start (0.5, 0), end (0.5, 1) | same | `0x103d7f624` |
+| Overlay view `alphaValue` | 0.5 dark / 0.75 light | 0.5 / 0.75 | `updateLayer` `0x103d8043c` (`fmov` 0.75 / 0.5) |
+| Content card fill (rebrand) | #121212 at 0.5 / white 0.7 | #121212 at 0.5 / white 0.7 | `0x103d81118` (the "#121212" literal, 0.5; white 0.7) |
+| `WindowContent/BaseTint` asset (no rebrand) | #121212 at 0.6 / white 0.8 | same | Assets.car |
+
+Two things are new and not identified: a set of `BaseTint/primary…quaternary` colours in the same asset catalogue (dark black
+0.5 / 0.35 / 0.2 / 0.05, light white 0.65 / 0.5 / 0.35 / 0.05), and a call at `0x104030544` that hands the content fill
+plus a value of 0.15 or 0, chosen by a flag, to the content container. Neither is in the sidebar's stack.
+
+No capture: Dia's only window (2304 × 1296) was off screen (another Space) and Ghostty was in front, so a composite
+over the desktop wasn't possible without bringing Dia forward.
+
+The impression that Dia's sidebar shows more wallpaper than Ardia's fits the theme, not a change in Dia. With a
+neutral tint (`isNeutral`, 0.12) the dark composite is `0.06·tint + 0.94·0.6·blur`. With a coloured preset (0.36) it is
+`0.18·tint + 0.82·0.6·blur`. So the colour cast is a third as strong and the blurred desktop 15 % stronger. For the
+New Tab tint #B25B6B that is about (11, 5, 6) instead of (32, 16, 19) added to every sidebar pixel. A bluish, neutral-looking
+Dia profile is probably the system accent (blue) shown at 0.12. The same profile in Ardia with a colour preset gets 0.36. An inactive
+window is opaque in both, so comparing an active window with an inactive one also makes a sidebar look flatter.
+
 ## Content card
 
 - Frame: x = sidebar width, top 6, right 7, bottom 7. Radius 10.
