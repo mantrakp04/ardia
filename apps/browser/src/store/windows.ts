@@ -1,4 +1,5 @@
 import type { StateCreator } from "zustand";
+import { closeWindow as closeNativeWindow } from "@ardia/shell";
 import type { BrowserState } from "./browser";
 import { rejoinGroups } from "./groups";
 import {
@@ -47,7 +48,7 @@ export type WindowsSlice = {
   parkedPins: Record<string, ParkedPins>;
 
   createWindow(options?: CreateWindowOptions): string;
-  closeWindow(id: string): void;
+  closeWindow(id: string, options?: { replacedBy?: string }): void;
   setWindowFrame(id: string, frame: Frame): void;
   toggleSidebar(windowId: string): void;
   switchProfile(windowId: string, profileId: string): void;
@@ -61,6 +62,7 @@ export type WindowsSlice = {
 };
 
 const MAX_CLOSED_WINDOWS = 10;
+const closingSmallWindows = new Map<string, "animating" | "finished">();
 
 function emptyWindow(id: string, profileId: string, incognito: boolean, frame: Frame | null = null): BrowserWindow {
   return { id, profileId, incognito, tabIds: [], activeTabIds: {}, sidebarOpen: true, frame, createdAt: Date.now() };
@@ -161,7 +163,18 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
     return id;
   },
 
-  closeWindow(id) {
+  closeWindow(id, { replacedBy } = {}) {
+    if (isSmallWindow(get().windows[id]) && closingSmallWindows.get(id) !== "finished") {
+      if (closingSmallWindows.has(id)) return;
+      closingSmallWindows.set(id, "animating");
+      const finish = () => {
+        closingSmallWindows.set(id, "finished");
+        get().closeWindow(id, { replacedBy });
+        closingSmallWindows.delete(id);
+      };
+      void closeNativeWindow(id, replacedBy ?? null).then(finish, finish);
+      return;
+    }
     const s = returnSharedPages(get(), id);
     const w = s.windows[id];
     if (!w) return;
@@ -183,7 +196,7 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
       };
       closedWindows = [...closedWindows, entry].slice(-MAX_CLOSED_WINDOWS);
     }
-    const next = removeTabs(s, w.tabIds, small);
+    const next = removeTabs(s, w.tabIds, small && !replacedBy);
     set({
       ...next,
       windows: without(next.windows, [id]),

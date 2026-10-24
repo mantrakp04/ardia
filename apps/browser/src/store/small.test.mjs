@@ -96,7 +96,7 @@ test("a private window opened from Personal counts as Personal", () => {
   assert.equal(lastActiveProfile(S()), "default");
 });
 
-test("the window in front closing hands over to the next most recent window's profile", () => {
+test("the window in front closing hands over to the next most recent window's profile", async () => {
   const { work, a, b } = twoProfilesTwoWindows();
   const c = S().createWindow({ url: "https://c.example/" });
   S().setFocusedWindow(b);
@@ -108,6 +108,7 @@ test("the window in front closing hands over to the next most recent window's pr
   openExternalUrls(["https://after-close.example/"]);
   assert.equal(lastSmall().profileId, "default");
   S().closeWindow(lastSmall().id);
+  await Promise.resolve();
   S().setFocusedWindow(b);
   S().switchProfile(b, work);
   S().closeWindow(c);

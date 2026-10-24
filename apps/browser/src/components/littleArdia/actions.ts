@@ -89,8 +89,7 @@ export function moveLittleArdiaToProfile(windowId: string, profileId: string) {
   const url = (tabId ? s.tabs[tabId]?.url : undefined) || undefined;
   const id = store().createWindow({ small: true, url, profileId, frame: w.frame });
   if (!url) store().openPanel(id, "");
-  store().closeWindow(windowId);
-  if (tabId) useBrowser.setState((now) => ({ closedTabs: now.closedTabs.filter((c) => c.tabId !== tabId) }));
+  store().closeWindow(windowId, { replacedBy: id });
 }
 
 export function cycleLittleArdiaProfile(windowId: string, delta: 1 | -1) {

@@ -87,11 +87,13 @@ export function startNativeSync() {
       if (quitting) return;
       open.delete(e.id);
       s.closeWindow(e.id);
+      if (store.getState().windows[e.id]) closedNatively.add(e.id);
       releaseIfIncognito(e.id, s);
     }
   });
 
   const open = new Set<string>();
+  const closedNatively = new Set<string>();
   const titles = new Map<string, string>();
 
   const releaseIfIncognito = (id: string, s: BrowserState) => {
@@ -100,7 +102,8 @@ export function startNativeSync() {
   };
 
   const syncWindows = (s: BrowserState, prev?: BrowserState) => {
-    const opens = windowOpens(s, s.windowOrder.filter((id) => !open.has(id)), !prev);
+    for (const id of closedNatively) if (!s.windows[id]) closedNatively.delete(id);
+    const opens = windowOpens(s, s.windowOrder.filter((id) => !open.has(id) && !closedNatively.has(id)), !prev);
     for (const { id, focus, behind } of opens) {
       const w = s.windows[id]!;
       open.add(id);

@@ -533,6 +533,26 @@
     };
     apply(listen, document, ["visibilitychange", state.onVisibility]);
   };
+  let littlePaintObserver = null;
+  let littlePagePainted = false;
+  handlers.littlePageReveal = () => {
+    if (!isTop) return;
+    if (littlePagePainted) return send("littlePageReady", { url: location.href });
+    if (littlePaintObserver) return;
+    const ready = () => {
+      if (littlePaintObserver) apply(disconnect, littlePaintObserver, []);
+      littlePagePainted = true;
+      send("littlePageReady", { url: location.href });
+    };
+    try {
+      littlePaintObserver = new PO((list) => {
+        if (list.getEntries().some((entry) => entry.name === "first-contentful-paint")) ready();
+      });
+      littlePaintObserver.observe({ type: "paint", buffered: true });
+    } catch (e) {
+      onReady(() => apply(raf, window, [ready]));
+    }
+  };
   handlers.fieldTiming = (message) => setFieldTiming(!!(message && message.on));
   handlers.wakeFrames = () => apply(raf, window, [() => {}]);
 

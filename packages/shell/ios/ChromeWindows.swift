@@ -41,6 +41,34 @@ enum ChromeWindows {
     return unsafeBitCast(take, to: Take.self)(host, selector, appWindow as NSString).boolValue
   }
 
+  static func prepareLittleEntrance(in window: NSWindow) {
+    host?.perform(NSSelectorFromString("prepareLittleWindowEntrance:"), with: window)
+  }
+
+  static func stopScalingLittle(_ window: NSWindow) {
+    host?.perform(NSSelectorFromString("stopScalingLittleWindow:"), with: window)
+  }
+
+  static func revealLittleEntrance(in window: NSWindow) {
+    host?.perform(NSSelectorFromString("revealLittleWindowEntrance:"), with: window)
+  }
+
+  static func afterLittleEntrance(of window: NSWindow, run: @escaping () -> Void) {
+    guard let host else { return run() }
+    let selector = NSSelectorFromString("afterLittleWindowEntrance:run:")
+    guard (host as AnyObject).responds(to: selector) else { return run() }
+    let block: @convention(block) () -> Void = run
+    host.perform(selector, with: window, with: block)
+  }
+
+  static func animateLittleClose(in window: NSWindow, completion: @escaping () -> Void) {
+    guard let host else { return completion() }
+    let selector = NSSelectorFromString("animateLittleWindowClose:completion:")
+    guard (host as AnyObject).responds(to: selector) else { return completion() }
+    let done: @convention(block) () -> Void = completion
+    host.perform(selector, with: window, with: done)
+  }
+
   static func forgetLaunchPictures() {
     guard let host, (host as AnyObject).responds(to: NSSelectorFromString("forgetLaunchPictures")) else { return }
     host.perform(NSSelectorFromString("forgetLaunchPictures"))
