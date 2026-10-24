@@ -185,12 +185,20 @@ NSString *StateOf(NSDictionary *session, NSString *windowId) {
     if ([w isKindOfClass:NSDictionary.class] && [w[@"id"] isEqual:windowId]) window = w;
   if (!window) return nil;
   NSMutableDictionary *state = [NSMutableDictionary dictionary];
-  for (NSString *key in @[ @"tabLayout", @"addressBar", @"sidebarWidth", @"bookmarksBar", @"appearance", @"hideToolbarWhileScrolling", @"showFullUrl" ])
+  for (NSString *key in @[ @"tabLayout", @"addressBar", @"sidebarWidth", @"sidebarSide", @"bookmarksBar", @"appearance", @"hideToolbarWhileScrolling", @"showFullUrl" ])
     if (settings[key]) state[[@"s." stringByAppendingString:key]] = settings[key];
   for (NSString *key in @[ @"sidebarOpen", @"tabLayout", @"profileId", @"incognito" ])
     if (window[key]) state[[@"w." stringByAppendingString:key]] = window[key];
   NSData *data = [NSJSONSerialization dataWithJSONObject:state options:NSJSONWritingSortedKeys error:nil];
   return data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : nil;
+}
+
+BOOL SidebarOnRight(NSDictionary *session, NSString *windowId) {
+  NSDictionary *settings = [session[@"settings"] isKindOfClass:NSDictionary.class] ? session[@"settings"] : @{};
+  if (![settings[@"sidebarSide"] isEqual:@"right"]) return NO;
+  for (NSDictionary *w in [session[@"windows"] isKindOfClass:NSArray.class] ? session[@"windows"] : @[])
+    if ([w isKindOfClass:NSDictionary.class] && [w[@"id"] isEqual:windowId]) return ![(w[@"tabLayout"] ?: settings[@"tabLayout"]) isEqual:@"top"];
+  return NO;
 }
 
 NSString *ContentOf(NSDictionary *session, NSString *windowId) {
@@ -582,7 +590,9 @@ NSDictionary *WindowLayout(ArdiaCoreWindowController *controller, NSDictionary *
     @"content" : ContentOf(session, controller.appWindowId) ?: @"",
   } mutableCopy];
   if (web.transferKey.length) layout[@"tab"] = web.transferKey;
-  if (NSValue *lights = ACTrafficLightsCenter(window)) layout[@"lights"] = @[ @(lights.pointValue.x), @(lights.pointValue.y) ];
+  if (NSValue *lights = ACTrafficLightsCenter(window))
+    layout[@"lights"] = SidebarOnRight(session, controller.appWindowId) ? @[ @(lights.pointValue.x - NSWidth(window.frame)), @(lights.pointValue.y), @YES ]
+                                                                        : @[ @(lights.pointValue.x), @(lights.pointValue.y) ];
   if (window.appearance.name) layout[@"appearance"] = window.appearance.name;
   if (NSColor *color = [web.pageBackgroundColor colorUsingColorSpace:NSColorSpace.sRGBColorSpace])
     layout[@"pageColor"] = @[ @(color.redComponent), @(color.greenComponent), @(color.blueComponent), @(color.alphaComponent) ];
@@ -1042,8 +1052,11 @@ void Shield(ACEarlyShown *s) {
 
 void ApplyLights(NSWindow *window, NSDictionary *layout) {
   NSArray *lights = layout[@"lights"];
-  if ([lights isKindOfClass:NSArray.class] && lights.count == 2 && [lights[0] isKindOfClass:NSNumber.class] && [lights[1] isKindOfClass:NSNumber.class])
-    [ACChromeWindowHost setTrafficLightsCenter:[NSValue valueWithPoint:NSMakePoint([lights[0] doubleValue], [lights[1] doubleValue])] inWindow:window];
+  if (![lights isKindOfClass:NSArray.class] || lights.count < 2 || lights.count > 3) return;
+  for (id value in lights)
+    if (![value isKindOfClass:NSNumber.class]) return;
+  const CGFloat x = [lights[0] doubleValue] + (lights.count == 3 && [lights[2] boolValue] ? NSWidth(window.frame) : 0);
+  [ACChromeWindowHost setTrafficLightsCenter:[NSValue valueWithPoint:NSMakePoint(x, [lights[1] doubleValue])] inWindow:window];
 }
 
 void FreePages(void *, const void *data, size_t size) {

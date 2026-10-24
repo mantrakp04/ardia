@@ -228,6 +228,7 @@ export const CURATED = {
   "shield.lefthalf.filled": "L:shield-half T:shield-half-filled P:shield M:shield-half-full TF:shield",
   shippingbox: "L:package T:package P:package I:box-iso M:package-variant-closed",
   "sidebar.left": "L:panel-left T:layout-sidebar P:sidebar-simple M:dock-left I:sidebar-collapse",
+  "sidebar.right": "L:panel-right T:layout-sidebar-right P:sidebar-simple M:dock-right",
   "slider.horizontal.3": "L:sliders-horizontal T:adjustments-horizontal P:sliders-horizontal M:tune-variant I:filter-list",
   snowflake: "L:snowflake T:snowflake P:snowflake I:snow-flake M:snowflake",
   sparkles: "L:sparkles T:sparkles P:sparkle I:sparks M:creation-outline",

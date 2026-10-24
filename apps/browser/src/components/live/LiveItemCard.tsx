@@ -8,6 +8,7 @@ import { ago } from "../../live/meetings";
 import { useLive } from "../../live/store";
 import type { LiveItem, PullRequestCheck } from "../../live/types";
 import { useBrowser } from "../../store/browser";
+import { useSidebarOnRight } from "../layout/windowLayout";
 import { useHover } from "../primitives";
 import { cardHoverProps, dismissHover } from "../sidebar/hover";
 import { hoverCardOrigin } from "../sidebar/hoverMotion";
@@ -17,8 +18,9 @@ import { useLiveColors, type LiveColors } from "./colors";
 
 export function HoverSurface({ anchor, width, children }: { anchor: Anchor; width: number; children: ReactNode }) {
   const theme = useTheme();
+  const right = useSidebarOnRight();
   return (
-    <View onLayout={cardHoverProps.onLayout} style={{ position: "absolute", ...hoverCardOrigin(anchor), width }}>
+    <View onLayout={cardHoverProps.onLayout} style={{ position: "absolute", ...hoverCardOrigin(anchor, right, width), width }}>
       <Surface
         onMouseEnter={cardHoverProps.onMouseEnter}
         onMouseLeave={cardHoverProps.onMouseLeave}

@@ -1,11 +1,11 @@
 import { Surface } from "@ardia/shell";
-import { hex, layout, useTheme } from "../../lib/theme";
+import { hex, useTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
 import { clickTab } from "../sidebar/actions";
 import { cardHoverProps, dismissHover } from "../sidebar/hover";
+import { useSidebarOnRight } from "../layout/windowLayout";
 import { hoverCardOrigin } from "../sidebar/hoverMotion";
-import { measureRow, setSidebarUi, type Anchor } from "../sidebar/state";
-import { useSidebarWidth } from "../sidebar/tokens";
+import { measureForHover, setSidebarUi, type Anchor } from "../sidebar/state";
 import { MINI_PLAYER_HEIGHT, MINI_PLAYER_WIDTH, MiniPlayer } from "./MiniPlayer";
 import { useMedia } from "./state";
 import { useMediaTokens } from "./tokens";
@@ -19,15 +19,10 @@ export function useShowsMiniPlayer(tabId: string | undefined): boolean {
   return pinned && hasSession;
 }
 
-export function usePlayerEdge(windowId: string, anchor: Anchor | undefined): number {
-  const sidebarWidth = useSidebarWidth(windowId);
-  return anchor ? Math.max(anchor.x + anchor.width, sidebarWidth - layout.sidebarInset) : 0;
-}
-
-export function HoverPlayer({ tabId, windowId, anchor }: { tabId: string; windowId: string; anchor: Anchor }) {
+export function HoverPlayer({ tabId, windowId, anchor, edge }: { tabId: string; windowId: string; anchor: Anchor; edge: number }) {
   const theme = useTheme();
   const tokens = useMediaTokens();
-  const edge = usePlayerEdge(windowId, anchor);
+  const right = useSidebarOnRight();
   return (
     <Surface
       {...cardHoverProps}
@@ -39,7 +34,7 @@ export function HoverPlayer({ tabId, windowId, anchor }: { tabId: string; window
       shadowOpacity={theme.panelShadowOpacity * 0.8}
       shadowRadius={16}
       shadowOffset={[0, 6]}
-      style={{ position: "absolute", ...hoverCardOrigin(anchor, edge), width: MINI_PLAYER_WIDTH, height: MINI_PLAYER_HEIGHT }}
+      style={{ position: "absolute", ...hoverCardOrigin(anchor, right, MINI_PLAYER_WIDTH, edge), width: MINI_PLAYER_WIDTH, height: MINI_PLAYER_HEIGHT }}
     >
       <MiniPlayer
         tabId={tabId}
@@ -55,8 +50,8 @@ export function HoverPlayer({ tabId, windowId, anchor }: { tabId: string; window
 if (__DEV__) {
   (globalThis as { acMediaHover?: unknown }).acMediaHover = async (windowId: string, tabId: string | null) => {
     if (!tabId) return setSidebarUi({ hover: null });
-    const anchor = await measureRow(windowId, tabId);
-    if (anchor) setSidebarUi({ hover: { windowId, kind: "tab", id: tabId, anchor } });
-    return anchor;
+    const measured = await measureForHover(windowId, tabId);
+    if (measured) setSidebarUi({ hover: { windowId, kind: "tab", id: tabId, ...measured } });
+    return measured?.anchor ?? null;
   };
 }

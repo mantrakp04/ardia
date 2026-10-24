@@ -96,6 +96,7 @@ const ROWS: Record<SettingsPane, Section[]> = {
           description: "Scrolling down tucks the toolbar into a thin strip with the site's name. Scroll up, or click the strip, to bring it back.",
           keywords: ["auto hide", "compact"],
         },
+        sidebarSide: { title: "Sidebar position", description: "Which side of the window the sidebar docks to.", keywords: ["sidebar on the right", "right sidebar", "left sidebar", "side", "dock", "position"] },
         showSidebarButton: { title: "Show sidebar button", description: "⌘S and View › Auto-Hide Tabs still hide and show the sidebar.", keywords: ["toggle sidebar"] },
       },
     },

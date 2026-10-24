@@ -24,10 +24,12 @@ type Light = keyof (typeof ART)["light"];
 const LIGHTS: Light[] = ["close", "minimize", "zoom"];
 
 let center: [number, number] | null = DEFAULT_CENTER;
+let fromRight = false;
 const watchers = new Set<() => void>();
 
-export function setTrafficLightsCenter(_windowId: string, next: [number, number] | null) {
+export function setTrafficLightsCenter(_windowId: string, next: [number, number] | null, right = false) {
   center = next ?? DEFAULT_CENTER;
+  fromRight = right && !!next;
   for (const watcher of watchers) watcher();
   return Promise.resolve();
 }
@@ -63,7 +65,7 @@ export function TrafficLights() {
   const theme = useBrowser((s) => (s.ui.appDark ? "dark" : "light"));
   if (!at) return null;
   return (
-    <div aria-hidden style={{ position: "absolute", left: 0, top: 0, pointerEvents: "none", zIndex: 1000 }}>
+    <div aria-hidden style={{ position: "absolute", left: fromRight ? "100%" : 0, top: 0, pointerEvents: "none", zIndex: 1000 }}>
       {LIGHTS.map((name, i) => (
         <div key={name} style={{ position: "absolute", left: at[0] + i * SPACING - DIAMETER / 2, top: at[1] - DIAMETER / 2 }}>
           <TrafficLight name={name} theme={theme} />

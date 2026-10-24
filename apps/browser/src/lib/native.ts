@@ -28,7 +28,7 @@ import { splitOf } from "../store/splits";
 import { canGoBack, canGoForward } from "../components/layout/history";
 import type { Bookmarks, BookmarkNode } from "../store/types";
 import { isUtilityWindowId } from "../components/settings/windows";
-import { openingLightsCenter } from "../components/layout/windowLayout";
+import { openingLightsCenter, sidebarOnRight } from "../components/layout/windowLayout";
 import { isInternalTab } from "../components/pages/urls";
 import { sidebarMenuState } from "../components/sidebar/commands";
 import { openWindow as createWindow } from "./actions";
@@ -111,7 +111,7 @@ export function startNativeSync() {
         ? { kind: "small" as const, size: s.settings.littleArdiaSize, ...(claim?.startsWith("link:") ? { claim } : {}), ...(w.linkPointer ? { pointer: w.linkPointer } : {}) }
         : {};
       const made = w.chromeWindow ? { chromeWindow: w.chromeWindow } : {};
-      if (w.kind !== "small") void setTrafficLightsCenter(id, openingLightsCenter(s, id));
+      if (w.kind !== "small") void setTrafficLightsCenter(id, openingLightsCenter(s, id), sidebarOnRight(s, id));
       void openWindow(id, { frame: w.frame, incognito: w.incognito, title: titles.get(id), focus, profile, ...(behind ? { behind } : {}), ...small, ...made });
     }
     for (const id of [...open]) {

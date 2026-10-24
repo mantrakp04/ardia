@@ -91,3 +91,7 @@ export function rowSpan(
   }
   return null;
 }
+
+export function playerEdge(anchor: { x: number; width: number }, sidebarWidth: number, windowWidth: number, right: boolean): number {
+  return right ? Math.min(anchor.x, windowWidth - sidebarWidth + layout.sidebarInset) : Math.max(anchor.x + anchor.width, sidebarWidth - layout.sidebarInset);
+}

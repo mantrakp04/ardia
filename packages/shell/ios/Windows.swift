@@ -123,7 +123,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     if let smallSize { placeSmall(window, size: smallSize, pointer: smallPointer) } else if frame != nil || !window.isVisible { place(window, frame: frame) }
     relayoutRoot(window)
     windows[id] = window
-    if let center = lightsCenters[id] { ChromeWindows.setTrafficLightsCenter(center, in: window) }
+    if lightsCenters[id] != nil { ChromeWindows.setTrafficLightsCenter(lightsCenter(id, in: window), in: window, animated: false) }
     if smallSize == nil { lastPlaced = window }
     if window.isMiniaturized {
       observeFrame(window)
@@ -300,17 +300,30 @@ final class WindowManager: NSObject, NSWindowDelegate {
   }
 
   private var lightsCenters: [String: NSPoint] = [:]
+  private var lightsFromRight = Set<String>()
 
-  func setTrafficLightsCenter(id: String, center: NSPoint?) {
+  func setTrafficLightsCenter(id: String, center: NSPoint?, fromRight: Bool) {
     lightsCenters[id] = center
+    if fromRight && center != nil { lightsFromRight.insert(id) } else { lightsFromRight.remove(id) }
     guard let window = windows[id] else { return }
-    ChromeWindows.setTrafficLightsCenter(center, in: window)
+    ChromeWindows.setTrafficLightsCenter(lightsCenter(id, in: window), in: window)
+  }
+
+  private func lightsCenter(_ id: String, in window: NSWindow) -> NSPoint? {
+    guard let center = lightsCenters[id] else { return nil }
+    return lightsFromRight.contains(id) ? NSPoint(x: window.frame.width + center.x, y: center.y) : center
+  }
+
+  private func forgetLights(_ id: String) {
+    lightsCenters[id] = nil
+    lightsFromRight.remove(id)
   }
 
   private func adopt(from: NSWindow, to: NSWindow) {
     guard let id = id(of: from) else { return }
     NotificationCenter.default.removeObserver(self, name: nil, object: from)
     windows[id] = to
+    if lightsCenters[id] != nil { ChromeWindows.setTrafficLightsCenter(lightsCenter(id, in: to), in: to, animated: false) }
     if lastPlaced === from { lastPlaced = to }
     observeDelegateNotifications(to)
     observeFrame(to)
@@ -386,6 +399,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
   func close(id: String) {
     if pendingOpens.removeValue(forKey: id) != nil {
       pendingOrder.removeAll { $0 == id }
+      forgetLights(id)
       return
     }
     contentShown.remove(id)
@@ -399,7 +413,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
       CATransaction.flush()
       if let waiting = unrevealed.removeValue(forKey: id) { waiting.forEach { $0() } }
       stopKeepingContentSized(id)
-      lightsCenters[id] = nil
+      forgetLights(id)
       auxKinds[id] = nil
       smallIds.remove(id)
       ChromeWindows.close(window)
@@ -443,7 +457,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     NotificationCenter.default.removeObserver(self, name: nil, object: window)
     windows[id] = nil
     stopKeepingContentSized(id)
-    lightsCenters[id] = nil
+    forgetLights(id)
     auxKinds[id] = nil
     smallIds.remove(id)
     if closingFromJS.remove(id) == nil {
@@ -458,7 +472,11 @@ final class WindowManager: NSObject, NSWindowDelegate {
   private static let resizeReportDelay: TimeInterval = 0.25
 
   @objc private func sizeChanged(_ notification: Notification) {
-    guard let window = notification.object as? NSWindow, !window.inLiveResize else { return }
+    guard let window = notification.object as? NSWindow else { return }
+    if let id = id(of: window), lightsFromRight.contains(id) {
+      ChromeWindows.setTrafficLightsCenter(lightsCenter(id, in: window), in: window, animated: false)
+    }
+    guard !window.inLiveResize else { return }
     relayoutRoot(window)
     NSObject.cancelPreviousPerformRequests(withTarget: self, selector: #selector(reportResized(_:)), object: window)
     perform(#selector(reportResized(_:)), with: window, afterDelay: Self.resizeReportDelay)

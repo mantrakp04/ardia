@@ -3,8 +3,9 @@ import type { LayoutChangeEvent } from "react-native";
 import { markHoverProps } from "../../lib/hoverShift";
 import { useBrowser } from "../../store/browser";
 import { PageProfileContext } from "../../store/hooks";
+import { sidebarOnRight } from "../layout/windowLayout";
 import { cardReach, type Point, type Rect } from "./hoverAim";
-import { measureRow, setSidebarUi, sidebarUi, type Target } from "./state";
+import { measureForHover, moveHoverLayout, setSidebarUi, sidebarUi, type Target } from "./state";
 
 const SHOW_DELAY_MS = 500;
 const HIDE_DELAY_MS = 160;
@@ -41,7 +42,7 @@ function hideCard() {
   exitPoint = null;
   waiting = null;
   clearTimeout(aimTimer);
-  setSidebarUi({ hover: null });
+  if (sidebarUi().hover) setSidebarUi({ hover: null });
 }
 
 function cardHeldFor(windowId: string, target: Target | null, event: PointerEvent) {
@@ -115,11 +116,11 @@ export function suppressHover(value: boolean) {
 }
 
 async function show(windowId: string, target: Target, mine: number) {
-  const anchor = await measureRow(windowId, target.id);
-  if (mine !== ticket || suppressed || !anchor || panelOpen(windowId) || sidebarUi().iconPicker || sidebarUi().renaming) return;
+  const measured = await measureForHover(windowId, target.id);
+  if (mine !== ticket || suppressed || !measured || panelOpen(windowId) || sidebarUi().iconPicker || sidebarUi().renaming) return;
   if (onCard && sidebarUi().hover) return;
   exitPoint = null;
-  setSidebarUi({ hover: { windowId, ...target, anchor } });
+  setSidebarUi({ hover: { windowId, ...target, ...measured } });
 }
 
 export function hoverEnter(windowId: string, target: Target) {
@@ -157,12 +158,21 @@ export function dismissHover() {
   ticket++;
   clearTimeout(showTimer);
   clearTimeout(hideTimer);
-  if (sidebarUi().hover) hideCard();
+  hideCard();
 }
 
 export function dismissHoverIn(windowId: string) {
   if (ownerWindow === windowId || sidebarUi().hover?.windowId === windowId) dismissHover();
 }
+
+useBrowser.subscribe((s, prev) => {
+  if (s.settings !== prev.settings || s.windows !== prev.windows)
+    for (const id of Object.keys(s.windows))
+      if (sidebarOnRight(s, id) !== sidebarOnRight(prev, id)) {
+        moveHoverLayout(id);
+        dismissHoverIn(id);
+      }
+});
 
 function releaseAnchor(windowId: string, id: string) {
   if (underPointer === id) underPointer = null;

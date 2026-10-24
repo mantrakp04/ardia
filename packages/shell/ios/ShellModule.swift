@@ -322,11 +322,11 @@ public class ShellModule: Module {
     }.runOnQueue(.main)
 
     AsyncFunction("closeWindow") { (id: String) in WindowManager.shared.close(id: id) }.runOnQueue(.main)
-    AsyncFunction("setTrafficLightsCenter") { (id: String, center: [Double]?) in
-      WindowManager.shared.setTrafficLightsCenter(id: id, center: center.flatMap { $0.count == 2 ? NSPoint(x: $0[0], y: $0[1]) : nil })
+    AsyncFunction("setTrafficLightsCenter") { (id: String, center: [Double]?, fromRight: Bool) in
+      WindowManager.shared.setTrafficLightsCenter(id: id, center: center.flatMap { $0.count == 2 ? NSPoint(x: $0[0], y: $0[1]) : nil }, fromRight: fromRight)
     }.runOnQueue(.main)
-    AsyncFunction("watchLeftEdge") { (id: String, on: Bool, hold: Double) in
-      LeftEdgeWatcher.shared.watch(id: id, on: on, hold: CGFloat(hold))
+    AsyncFunction("watchLeftEdge") { (id: String, on: Bool, hold: Double, right: Bool) in
+      LeftEdgeWatcher.shared.watch(id: id, on: on, hold: CGFloat(hold), right: right)
     }.runOnQueue(.main)
     AsyncFunction("focusWindow") { (id: String) in WindowManager.shared.focus(id: id) }.runOnQueue(.main)
     AsyncFunction("dragPreviewBegin") { (windowId: String, chip: [Double], grab: [Double]) in

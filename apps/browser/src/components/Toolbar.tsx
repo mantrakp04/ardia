@@ -18,7 +18,7 @@ import { closeHistoryMenu, goBack, goForward, historyItems, openHistoryMenu, use
 import { openModeFor, openUrl } from "./bookmarks/actions";
 import { closePane, openSplitPane, showSplitMenu } from "./layout/splitActions";
 import { toolbarPalette, useEasedColor, type ToolbarPalette } from "./layout/toolbarColors";
-import { setToolbarExtensionsWidth, SIDEBAR_FIELD } from "./layout/windowLayout";
+import { setToolbarExtensionsWidth, SIDEBAR_FIELD, useSidebarOnRight } from "./layout/windowLayout";
 import { showUrlBarMenu } from "./omnibox/paste";
 import { useHover } from "./primitives";
 import { ToolbarExtensions, useToolbarExtensionsWidth } from "./extensions/ToolbarExtensions";
@@ -60,6 +60,7 @@ export function Toolbar({
   const isLoading = useTabLive(tabId, (l) => l.isLoading);
   const themeColor = useTabLive(tabId, (l) => l.themeColor);
   const extendColor = useSettings((s) => s.extendWebsiteColor);
+  const sidebarRight = useSidebarOnRight();
   const website = extendColor && tab?.url ? themeColor : null;
   const palette = toolbarPalette(theme, website);
   const band = useEasedColor(bare ? null : palette.background);
@@ -95,7 +96,7 @@ export function Toolbar({
           <ToolbarButton
             style={at.sidebarButton}
             palette={palette}
-            icon="sidebar.left"
+            icon={sidebarRight ? "sidebar.right" : "sidebar.left"}
             size={GLYPH}
             onPress={() => useBrowser.getState().toggleSidebar(windowId)}
             tooltip="Auto-Hide Tabs (⌘S)"

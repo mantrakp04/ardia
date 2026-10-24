@@ -39,7 +39,7 @@ import { dockMoving, useDockMotion, usePeekEdge } from "./layout/dockMotion";
 import { FrozenPage } from "./layout/frozenPage";
 import { holderOf } from "../store/pinShare";
 import { closeFolderPanelIn } from "./sidebar/tileFolderUi";
-import { setCardAnchor, setUrlAnchor, useAddressBarInSidebar, useTabLayout, useToolbarExtensionsWidths } from "./layout/windowLayout";
+import { setCardAnchor, setUrlAnchor, useAddressBarInSidebar, useSidebarOnRight, useTabLayout, useToolbarExtensionsWidths } from "./layout/windowLayout";
 import { NewTabPage } from "./NewTabPage";
 import { EmptyCard } from "./EmptyCard";
 import { InternalPage } from "./pages";
@@ -245,7 +245,8 @@ export function ContentCard() {
   );
 
   const windowToolbar = !split && !fullscreenTab && !addressInSidebar && !small;
-  const peekEdge = usePeekEdge(windowId);
+  const right = useSidebarOnRight();
+  const peekEdge = usePeekEdge(windowId, right);
   const activeRect = activeId ? panes[activeId] : undefined;
   const popoversOverCard = peekEdge !== undefined && addressInSidebar && !small && !fullscreenTab && origin && activeRect ? activeId : undefined;
 
@@ -298,9 +299,10 @@ export function ContentCard() {
       {size.width > 0 && popoversOverCard && origin && activeRect && peekEdge !== undefined && (
         <BesidePeekPopovers
           tabId={popoversOverCard}
-          left={Math.max(activeRect.x, peekEdge - origin.x) + POPOVER_MARGIN}
+          left={right ? Math.min(activeRect.x + activeRect.width, peekEdge - origin.x) - POPOVER_MARGIN : Math.max(activeRect.x, peekEdge - origin.x) + POPOVER_MARGIN}
           top={activeRect.y + POPOVER_MARGIN}
           room={size.width}
+          right={right}
         />
       )}
       {!fullscreenTab && <DropTargets panes={panes} origin={origin} />}
@@ -465,7 +467,8 @@ function PageOverlays({
 }) {
   const popover = usePages((s) => s.popover[tabId] ?? null);
   const zoom = useTabValue(tabId, (t) => t?.zoom ?? 1);
-  const popoverSide = toolbar ? { right: POPOVER_MARGIN } : { left: POPOVER_MARGIN };
+  const right = useSidebarOnRight();
+  const popoverSide = toolbar || right ? { right: POPOVER_MARGIN } : { left: POPOVER_MARGIN };
   return (
     <>
       <FindBar tabId={tabId} />
@@ -490,9 +493,9 @@ function PageOverlays({
   );
 }
 
-function BesidePeekPopovers({ tabId, left, top, room }: { tabId: string; left: number; top: number; room: number }) {
+function BesidePeekPopovers({ tabId, left, top, room, right }: { tabId: string; left: number; top: number; room: number; right: boolean }) {
   const popover = usePages((s) => s.popover[tabId] ?? null);
-  const fit = (width: number) => ({ left: Math.max(POPOVER_MARGIN, Math.min(left, room - width - POPOVER_MARGIN)), top });
+  const fit = (width: number) => ({ left: Math.max(POPOVER_MARGIN, Math.min(right ? left - width : left, room - width - POPOVER_MARGIN)), top });
   return (
     <>
       <SiteControls tabId={tabId} open={popover === "siteControls"} {...fit(SITE_PANEL.width)} />

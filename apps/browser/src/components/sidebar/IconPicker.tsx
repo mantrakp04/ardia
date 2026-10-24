@@ -4,6 +4,7 @@ import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { hex, useTheme } from "../../lib/theme";
 import { useLive } from "../../live/store";
 import { useBrowser } from "../../store/browser";
+import { useSidebarOnRight } from "../layout/windowLayout";
 import { setIcon } from "./actions";
 import { setSidebarUi, useSidebarUi } from "./state";
 import { SYMBOL_PREFIX } from "./TabIcon";
@@ -44,14 +45,15 @@ const COLUMNS = 8;
 const CELL = 30;
 const WIDTH = COLUMNS * CELL + 16;
 
-export function IconPicker({ windowId, sidebarWidth }: { windowId: string; sidebarWidth: number }) {
+export function IconPicker({ windowId, sidebarWidth, windowWidth }: { windowId: string; sidebarWidth: number; windowWidth: number }) {
   const picker = useSidebarUi((u) => (u.iconPicker?.windowId === windowId ? u.iconPicker : null));
-  return picker ? <PickerPanel key={picker.id} picker={picker} sidebarWidth={sidebarWidth} /> : null;
+  return picker ? <PickerPanel key={picker.id} picker={picker} sidebarWidth={sidebarWidth} windowWidth={windowWidth} /> : null;
 }
 
 type Picker = NonNullable<ReturnType<typeof useSidebarUi.getState>["iconPicker"]>;
 
-function PickerPanel({ picker, sidebarWidth }: { picker: Picker; sidebarWidth: number }) {
+function PickerPanel({ picker, sidebarWidth, windowWidth }: { picker: Picker; sidebarWidth: number; windowWidth: number }) {
+  const right = useSidebarOnRight();
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const liveIcon = useLive((s) => (picker.kind === "live" ? s.folders[picker.id.split("|")[1] ?? ""]?.icon : null));
@@ -70,7 +72,8 @@ function PickerPanel({ picker, sidebarWidth }: { picker: Picker; sidebarWidth: n
     close();
   };
   const top = Math.max(8, (picker.anchor?.y ?? 60) - 8);
-  const left = picker.anchor ? Math.max(8, Math.min(sidebarWidth + 6, picker.anchor.x + picker.anchor.width + 6)) : sidebarWidth + 6;
+  const inset = Math.max(8, Math.min(sidebarWidth + 6, picker.anchor ? (right ? windowWidth - picker.anchor.x : picker.anchor.x + picker.anchor.width) + 6 : Infinity));
+  const left = right ? windowWidth - WIDTH - inset : inset;
 
   return (
     <>

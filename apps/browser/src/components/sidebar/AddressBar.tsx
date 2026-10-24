@@ -10,7 +10,7 @@ import { extensionsFitting, ToolbarExtensions, useToolbarExtensionsWidth } from 
 import { useHistoryAvailability } from "../layout/history";
 import { toolbarPalette, type ToolbarPalette } from "../layout/toolbarColors";
 import { ToolbarButton, type ButtonHit } from "../layout/controls";
-import { addressBarInSidebar, setUrlAnchor, SIDEBAR_FIELD } from "../layout/windowLayout";
+import { addressBarInSidebar, setUrlAnchor, SIDEBAR_FIELD, useSidebarOnRight } from "../layout/windowLayout";
 import { GlassFill, liquidGlass } from "../glass";
 import { useHover } from "../primitives";
 import { GLYPH, HistoryButton, ReloadButton, UrlField, useToolbarTab } from "../Toolbar";
@@ -27,11 +27,12 @@ export function SidebarHeaderTools({ width }: { width: number }) {
   const tab = useToolbarTab(useActiveTabId());
   const palette = toolbarPalette(useTheme(), null);
   const toggle = useBrowser((s) => s.settings.showSidebarButton !== false);
+  const right = useSidebarOnRight();
   const { buttons, step } = navButtonsFitting(width, BUTTON, toggle);
   const shown = tab ? buttons : [];
   const last = width - EDGE - BUTTON / 2;
-  const centres = shown.map((_, i) => last - (shown.length - 1 - i) * step);
-  const at = toggle ? [TOGGLE_X, ...centres] : centres;
+  const centres = shown.map((_, i) => (right ? EDGE + BUTTON / 2 + i * step : last - (shown.length - 1 - i) * step));
+  const at = toggle ? [right ? width - TOGGLE_X : TOGGLE_X, ...centres] : centres;
   const place = (center: number) => ({
     style: { position: "absolute" as const, top: LIGHTS_Y - PLATE / 2, left: center - PLATE / 2 },
     hit: { width: PLATE, height: PLATE, plateX: 0, plateY: 0, box: PLATE, radius: PLATE_RADIUS },
@@ -42,7 +43,7 @@ export function SidebarHeaderTools({ width }: { width: number }) {
         <ToolbarButton
           {...place(at[0]!)}
           palette={palette}
-          icon="sidebar.left"
+          icon={right ? "sidebar.right" : "sidebar.left"}
           size={GLYPH}
           onPress={() => useBrowser.getState().toggleSidebar(windowId)}
           tooltip="Auto-Hide Tabs (⌘S)"

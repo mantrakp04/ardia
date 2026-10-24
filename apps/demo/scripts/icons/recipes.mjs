@@ -25,6 +25,7 @@ export const RECIPES = {
   "menubar.rectangle": one(O("menubar.rectangle")),
   "dock.rectangle": one(O("dock.rectangle")),
   "sidebar.left": one(O("sidebar.left")),
+  "sidebar.right": one(O("sidebar.left", { flip: -1 })),
   "rectangle.inset.filled": one(O("rectangle.inset.filled")),
   "rectangle.lefthalf.filled": one(O("rectangle.half.filled")),
   "rectangle.righthalf.filled": one(O("rectangle.half.filled", { flip: -1 })),

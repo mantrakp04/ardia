@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 const { useBrowser } = await import("../../store/browser.ts");
 const { sidebarEntries } = await import("./entries.ts");
-const { entriesHeight, entriesWithin, entryHeight, firstPaintEntries, startsOffScreen, FIRST_PAINT_HEIGHT } = await import("./geometry.ts");
+const { entriesHeight, entriesWithin, entryHeight, firstPaintEntries, playerEdge, startsOffScreen, FIRST_PAINT_HEIGHT } = await import("./geometry.ts");
 await import("../../test-native-stub.mjs");
 
 const S = () => useBrowser.getState();
@@ -67,4 +67,12 @@ test("lazySidebarRows off: 64 entries at first, and no page waits", () => {
   assert.equal(firstPaintEntries(S(), "w", "default", list, false), 64);
   assert.equal(startsOffScreen(false, false), false);
   assert.equal(startsOffScreen(false, true), false);
+});
+
+test("a pinned tile's mini player opens beside the sidebar, never over it, on either side, docked or peeking", () => {
+  const outerTile = { x: 1133, width: 40 };
+  assert.equal(playerEdge(outerTile, 190, 1200, true), 1200 - 190 + 6, "right: the sidebar's inner edge, not the outer tile, even with the card stretched under a peek");
+  assert.equal(playerEdge({ x: 900, width: 40 }, 190, 1200, true), 900, "right: an anchor already clear of the sidebar keeps its own edge");
+  assert.equal(playerEdge({ x: 27, width: 40 }, 190, 1200, false), 190 - 6, "left: the mirror image");
+  assert.equal(playerEdge({ x: 150, width: 40 }, 190, 1200, false), 190, "left: an anchor reaching past it keeps its own edge");
 });

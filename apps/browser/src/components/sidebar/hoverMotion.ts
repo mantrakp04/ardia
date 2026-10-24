@@ -12,8 +12,8 @@ export const HOVER_CARD_OUT_SPRING = { response: 0.2, damping: 0.6 } as const;
 
 const fade = Easing.bezier(...HOVER_CARD_FADE_CURVE);
 
-export function hoverCardOrigin(anchor: Anchor, edge = anchor.x + anchor.width): { left: number; top: number } {
-  return { left: edge + HOVER_CARD_GAP, top: Math.max(8, anchor.y - 6) };
+export function hoverCardOrigin(anchor: Anchor, right = false, width = 0, edge = right ? anchor.x : anchor.x + anchor.width): { left: number; top: number } {
+  return { left: right ? edge - HOVER_CARD_GAP - width : edge + HOVER_CARD_GAP, top: Math.max(8, anchor.y - 6) };
 }
 
 function createMotion() {

@@ -124,7 +124,7 @@ export type WindowEvent =
   | { type: "focus"; id: string }
   | { type: "close"; id: string }
   | { type: "frame"; id: string; frame: [number, number, number, number] }
-  | { type: "leftEdge"; id: string; over: boolean; point: [number, number] }
+  | { type: "leftEdge"; id: string; over: boolean; right: boolean; point: [number, number] }
   | { type: "closeRequest"; id: string };
 
 export type AppEvent =
@@ -236,8 +236,8 @@ const Shell = requireNativeModule<{
   openWindow(id: string, options: OpenWindowOptions): Promise<void>;
   closeWindow(id: string): Promise<void>;
   focusWindow(id: string): Promise<void>;
-  setTrafficLightsCenter(id: string, center: [number, number] | null): Promise<void>;
-  watchLeftEdge?(id: string, on: boolean, hold: number): Promise<void>;
+  setTrafficLightsCenter(id: string, center: [number, number] | null, fromRight: boolean): Promise<void>;
+  watchLeftEdge?(id: string, on: boolean, hold: number, right: boolean): Promise<void>;
   dragPreviewBegin?(windowId: string, chip: Rect4, grab: [number, number]): Promise<void>;
   dragPreviewPage?(base64: string, frame: Rect4): Promise<void>;
   dragPreviewUpdate?(shape: DragPreviewShape, point: [number, number]): Promise<void>;
@@ -308,9 +308,9 @@ export const WindowProfile = requireNativeViewManager<WindowProfileProps>("Ardia
 export const closeWindow = (id: string) => Shell.closeWindow(id);
 export const focusWindow = (id: string) => Shell.focusWindow(id);
 export const setWindowTitle = (id: string, title: string) => Shell.setWindowTitle(id, title);
-export const setTrafficLightsCenter = (id: string, center: [number, number] | null) =>
-  Shell.setTrafficLightsCenter(id, center);
-export const watchLeftEdge = (id: string, on: boolean, hold = 0) => void Shell.watchLeftEdge?.(id, on, hold);
+export const setTrafficLightsCenter = (id: string, center: [number, number] | null, fromRight = false) =>
+  Shell.setTrafficLightsCenter(id, center, fromRight);
+export const watchLeftEdge = (id: string, on: boolean, hold = 0, right = false) => void Shell.watchLeftEdge?.(id, on, hold, right);
 type Rect4 = [number, number, number, number];
 export type DragPreviewShape = "hidden" | "pill" | "card";
 export const dragPreview = {

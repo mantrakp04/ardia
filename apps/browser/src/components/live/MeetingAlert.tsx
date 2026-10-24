@@ -7,6 +7,7 @@ import { useCalendar, useNow } from "../../live/calendar";
 import { attendeesLabel, guestsLabel, isCalendarUrl, joinLink, joinTitle, relatedLinks, relativeTime, timeRange, type CalendarEvent } from "../../live/meetings";
 import { useBrowser } from "../../store/browser";
 import { viewTabIds } from "../../store/model";
+import { useSidebarOnRight } from "../layout/windowLayout";
 import { IconButton } from "../primitives";
 import { measureRow, type Anchor } from "../sidebar/state";
 import { OverlappingAvatars } from "./CalendarPreview";
@@ -29,17 +30,19 @@ function AlertCard({ event, windowId, windowWidth }: { event: CalendarEvent; win
   const calendarTab = useBrowser((s) => viewTabIds(s, windowId).find((id) => s.tabs[id]?.pinned && isCalendarUrl(s.tabs[id]!.pinnedUrl ?? s.tabs[id]!.url)));
   const sidebarShown = useBrowser((s) => !!s.windows[windowId]?.sidebarOpen);
   const calendarName = useCalendar((s) => s.calendars.find((c) => c.id === event.calendarId)?.title);
-  const [anchor, setAnchor] = useState<Anchor | null>(null);
+  const [measured, setAnchor] = useState<(Anchor & { right: boolean }) | null>(null);
+  const right = useSidebarOnRight();
+  const anchor = measured?.right === right ? measured : null;
   const appear = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     let cancelled = false;
-    if (calendarTab && sidebarShown) void measureRow(windowId, calendarTab).then((a) => !cancelled && setAnchor(a));
+    if (calendarTab && sidebarShown) void measureRow(windowId, calendarTab).then((a) => !cancelled && setAnchor(a && { ...a, right }));
     else setAnchor(null);
     return () => {
       cancelled = true;
     };
-  }, [calendarTab, sidebarShown, windowWidth]);
+  }, [calendarTab, sidebarShown, windowWidth, right]);
   useEffect(() => {
     Animated.spring(appear, { toValue: 1, speed: 14, bounciness: 6, useNativeDriver: true }).start();
   }, []);
@@ -49,7 +52,7 @@ function AlertCard({ event, windowId, windowWidth }: { event: CalendarEvent; win
   const running = event.start <= now;
   const people = event.attendees.filter((a) => !a.me);
   const who = attendeesLabel(event);
-  const position = anchor ? { left: anchor.x + anchor.width + 8, top: Math.max(8, anchor.y - 4) } : { left: Math.max(8, windowWidth - WIDTH - 14), top: 52 };
+  const position = anchor ? { left: right ? anchor.x - 8 - WIDTH : anchor.x + anchor.width + 8, top: Math.max(8, anchor.y - 4) } : { left: right ? 14 : Math.max(8, windowWidth - WIDTH - 14), top: 52 };
 
   return (
     <Animated.View
