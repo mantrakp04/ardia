@@ -301,6 +301,23 @@ the final RC and said ship).
 
 A release without `--phased` goes to everyone at once, as before.
 
+### 5c. Homebrew cask (stable only)
+
+`Casks/ardia.rb` makes this repo a Homebrew tap (`brew tap mantrakp04/ardia https://github.com/mantrakp04/ardia`,
+then `brew install --cask ardia`). It points at the stable DMG, so a nightly leaves it alone. After the release is up,
+set its version and the DMG's SHA-256, and push:
+
+```bash
+sum=$(shasum -a 256 dist/<version>/Ardia-<version>.dmg | cut -d' ' -f1)
+sed -i '' "s/^  version \".*\"/  version \"<version>\"/; s/^  sha256 \".*\"/  sha256 \"$sum\"/" Casks/ardia.rb
+gh api repos/mantrakp04/ardia/releases/tags/v<version> -q '.assets[] | select(.name|endswith(".dmg")) | .digest'   # must be sha256:$sum
+git add Casks/ardia.rb && git commit -m "Cask: <version>" && git push origin main
+```
+
+The cask has `auto_updates true`, so Sparkle updates installed copies and `brew upgrade` skips them. A user who
+installed with Homebrew before this push gets the update from Sparkle as usual. Submitting the cask to
+homebrew/homebrew-cask is a public action: ask the owner first.
+
 ## 6. Deploy the site
 
 The download button builds its URL from `VERSION` (`releases/latest/download/Ardia-<VERSION>.dmg`),
