@@ -27,6 +27,7 @@ import { CliControlBar, CliControlPill } from "./CliControlBar";
 import { FindBar } from "./FindBar";
 import { POPOVER_MARGIN } from "./layout/controls";
 import { NO_TOOLBAR, splitGeometry, toolbarGeometry, type Rect, type ToolbarGeometry } from "./layout/geometry";
+import { pageFrameRadius } from "./layout/pageFrame";
 import { dismissPermissions, startPermissionPrompts } from "./site/permissions";
 import { patchPage, pageOf, setBrowserId, setPopover, useFullscreenTab, usePages } from "./layout/pageState";
 import { useTabDrag } from "./layout/tabDrag";
@@ -362,6 +363,7 @@ const TabPane = memo(function TabPane({
 }) {
   const theme = useTheme();
   const visible = !!rect;
+  const showPageFrame = useBrowser((s) => s.settings.showPageFrame !== false);
   const live = visible || !!warm;
   const own = useTabValue(tabId, paneTab, shallowEqual);
   const isNewTab = !own.url;
@@ -397,7 +399,7 @@ const TabPane = memo(function TabPane({
       style={{
         position: "absolute",
         ...(fills ? { left: 0, top: 0, right: 0, bottom: 0 } : { left: frame.x, top: frame.y, width: frame.width, height: frame.height }),
-        borderRadius: fullscreen ? 0 : layout.cardRadius,
+        borderRadius: pageFrameRadius(showPageFrame, fullscreen, small),
         overflow: "hidden",
         opacity: covered ? 0 : 1,
         backgroundColor: visible && !fullscreen ? theme.card : undefined,

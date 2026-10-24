@@ -50,6 +50,7 @@ export const SYNCED_SETTINGS = [
   "showFullUrl",
   "bookmarksBar",
   "appearance",
+  "showPageFrame",
   "addressBar",
   "commandBarPlacement",
   "shortcuts",

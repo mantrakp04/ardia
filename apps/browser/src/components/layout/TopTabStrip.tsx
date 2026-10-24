@@ -1541,6 +1541,7 @@ const PEEK_TOP = 4;
 export function TopStripPeek({ windowWidth, enabled }: { windowWidth: number; enabled: boolean }) {
   const theme = useTheme();
   const windowId = useWindowId();
+  const showPageFrame = useBrowser((s) => s.settings.showPageFrame !== false);
   const { slide, live, show, hide } = usePeek(enabled);
   useEffect(() => {
     if (!enabled) return;
@@ -1559,6 +1560,7 @@ export function TopStripPeek({ windowWidth, enabled }: { windowWidth: number; en
     <>
       {enabled ? (
         <View
+          pointerEvents={showPageFrame ? "auto" : "none"}
           onMouseEnter={show}
           onMouseLeave={leaveStrip}
           style={{ position: "absolute", left: layout.trafficLightsWidth, right: PEEK_LEFT, top: 0, height: HOVER_HEIGHT }}
