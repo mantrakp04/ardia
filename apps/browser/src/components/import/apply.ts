@@ -1,5 +1,5 @@
-import { savePassword } from "@ardia/ardiacore";
-import type { BookmarkNode as ImportedNode, Credential, DiaTabsProfile, ImportedTab, ImportKind, ImportResult, SafariExport, SpaceSuggestion } from "@ardia/import";
+import { savePassword, storeFavicon } from "@ardia/ardiacore";
+import type { BookmarkNode as ImportedNode, Credential, DiaTabsProfile, ImportedFavicon, ImportedTab, ImportKind, ImportResult, SafariExport, SpaceSuggestion } from "@ardia/import";
 import { addGroupsFromDrafts } from "../../lib/bookmarkGroups";
 import type { BookmarkDraft } from "../../store/bookmarks";
 import type { GroupDraft } from "../../store/draftGroups";
@@ -14,6 +14,7 @@ import { parseArcTheme } from "./arcTheme";
 import { newProfileLiveFolder } from "../../live/engine";
 import { live } from "../../live/store";
 import type { LiveSourceId } from "../../live/types";
+import { pageKey as faviconPageKey } from "../../lib/favicons";
 
 export type ImportCounts = { bookmarks: number; history: number; tabs: number; passwords: number; cookies: number; addresses: number; cards: number };
 
@@ -26,7 +27,7 @@ const toDraft = (n: ImportedNode): BookmarkDraft =>
 
 const toGroupDraft = (n: ImportedNode): GroupDraft =>
   n.type === "url"
-    ? { title: n.pageTitle ?? n.title, url: n.url ?? "", ...(n.pageTitle ? { customTitle: n.title } : {}) }
+    ? { title: n.pageTitle ?? n.title, url: n.url ?? "", favicon: fallbackFavicon(n.url ?? ""), ...(n.pageTitle ? { customTitle: n.title } : {}) }
     : { title: n.title, children: (n.children ?? []).map(toGroupDraft) };
 
 const LIVE_SOURCES: Partial<Record<NonNullable<ImportedNode["role"]>, LiveSourceId>> = {
@@ -124,6 +125,29 @@ export function openInWebStore(profileId: string, urls: string[]) {
   urls.forEach((url, i) => useBrowser.getState().newTab(windowId, { url, profileId, background: i > 0 }));
 }
 
+export async function importFavicons(profileId: string, favicons: ImportedFavicon[], pages: string[], written: Set<string>): Promise<void> {
+  if (!favicons.length || isIncognitoProfile(profileId) || !useBrowser.getState().profiles[profileId]) return;
+  const wanted = new Set(pages.map(faviconPageKey));
+  for (const { page, icon, png } of favicons) {
+    const key = faviconPageKey(page);
+    const entry = JSON.stringify([profileId, key]);
+    if (!wanted.has(key) || written.has(entry)) continue;
+    written.add(entry);
+    try {
+      await storeFavicon(engineProfile(profileId), key, icon, png);
+    } catch {}
+  }
+}
+
+function fallbackFavicon(url: string): string | null {
+  try {
+    const page = new URL(url);
+    return page.protocol === "http:" || page.protocol === "https:" ? `${page.origin}/favicon.ico` : null;
+  } catch {
+    return null;
+  }
+}
+
 export function importTabs(
   profileId: string,
   tabs: (Pick<ImportedTab, "url" | "title" | "pinned" | "customTitle"> & { row?: boolean })[],
@@ -151,7 +175,7 @@ export function importTabs(
       profileId,
       background: true,
       pinned: t.pinned,
-      snapshot: { title: t.title, customTitle: t.customTitle ?? null, ...(t.pinned && t.row ? { pinnedAsRow: true as const } : {}) },
+      snapshot: { favicon: fallbackFavicon(t.url), title: t.title, customTitle: t.customTitle ?? null, ...(t.pinned && t.row ? { pinnedAsRow: true as const } : {}) },
       index: after ? next.windows[windowId]!.tabIds.indexOf(after) + 1 : undefined,
     });
     if (!id) continue;
@@ -161,6 +185,11 @@ export function importTabs(
   useBrowser.setState(next);
   if (group && unpinned.length) useBrowser.getState().createGroup(unpinned, { name: group });
   return usable.length;
+}
+
+export function arcSpacePages(space: SpaceSuggestion): string[] {
+  const urls = (nodes: ImportedNode[]): string[] => nodes.flatMap((n) => n.type === "url" ? (n.url ? [n.url] : []) : urls(n.children ?? []));
+  return [...urls(space.pinned), ...space.tabs.map((t) => t.url)];
 }
 
 export function importArcSpace(profileId: string, space: SpaceSuggestion): { tabs: number; bookmarks: number; skipped: number } {
@@ -198,7 +227,10 @@ export async function applyResult(
   result: ImportResult,
   browserName: string,
   onFailed?: (kind: ImportKind) => void,
+  written: Set<string> = new Set(),
 ): Promise<ImportCounts> {
+  const pages = [...result.favorites, ...(result.spaces.length ? [] : result.tabs)].map((t) => t.url);
+  await importFavicons(profileId, result.favicons, pages, written);
   const counts = emptyCounts();
   counts.bookmarks += importBookmarks(profileId, result.bookmarks, browserName);
   if (result.history.length) counts.history += importHistory(profileId, result.history);

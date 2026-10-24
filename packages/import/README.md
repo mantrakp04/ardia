@@ -29,6 +29,8 @@ the file and its WAL before opening it.
 | Safari export (.zip or folder) | `SafariExport.swift`, `ZipArchive.swift`, `NetscapeBookmarks.swift`, `PasswordsCSV.swift` | `*.html` bookmarks, `*.csv` passwords, `*.json` history and extensions (names only, by `metadata.data_type`), `payment_cards` JSON. No cookies |
 | A bookmarks HTML file or passwords CSV | `NetscapeBookmarks.swift`, `PasswordsCSV.swift` | Any Netscape bookmarks file; any password CSV with url and password columns (Chrome, Firefox, Bitwarden…) |
 
+`ChromiumFavicons.swift` copies bounded PNG favicons for imported Chromium and Arc pages from the profile’s `Favicons` database.
+
 Shared code: `Model.swift` (`ImportKind`, `ImportResult` and the other result types, `ImportError`), `ChromiumCrypto.swift`
 (v10 AES-CBC, `SafeStorageKeychain`), `SecretBytes.swift` (wipeable buffers), `Wire.swift` (JSON for the engine).
 

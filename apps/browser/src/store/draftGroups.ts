@@ -5,7 +5,7 @@ import { IDLE_LIVE, isIncognitoProfile, makeTab, newId } from "./model";
 import { pageKey, pinnedPages } from "./pageKeys";
 import type { BookmarkFolder, Bookmarks, TabGroup } from "./types";
 
-export type GroupDraft = { title: string; url?: string; customTitle?: string; id?: string; children?: GroupDraft[] };
+export type GroupDraft = { title: string; url?: string; customTitle?: string; favicon?: string | null; id?: string; children?: GroupDraft[] };
 export type DraftGroups = { made: string[]; carried: Set<string>; skipped: number };
 
 export const MAX_DRAFT_LINKS = 5000;
@@ -54,7 +54,7 @@ export function withDraftGroups(s: BrowserState, windowId: string, profileId: st
       }
       seen.add(pageKey(c.url));
       taken++;
-      const t = { ...makeTab(windowId, profileId, c.url, { title: c.title, customTitle: c.customTitle ?? null }), navigation: null, unloaded: true as const };
+      const t = { ...makeTab(windowId, profileId, c.url, { title: c.title, customTitle: c.customTitle ?? null, ...(c.favicon ? { favicon: c.favicon } : {}) }), navigation: null, unloaded: true as const };
       tabs[t.id] = t;
       live[t.id] = IDLE_LIVE;
       order.push(t.id);

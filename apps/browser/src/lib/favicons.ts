@@ -150,21 +150,41 @@ function remember(key: string, page: string, src: string, uri: string) {
 }
 
 const failedFetches = new Set<string>();
+const MAX_FALLBACK_FETCHES = 4;
+const fallbackQueue: (() => void)[] = [];
+let activeFallbackFetches = 0;
+
+function drainFallbacks() {
+  while (activeFallbackFetches < MAX_FALLBACK_FETCHES && fallbackQueue.length) {
+    activeFallbackFetches++;
+    fallbackQueue.shift()!();
+  }
+}
 
 function fetchMissing(profileId: string, url: string, src: string) {
   const key = cacheKey(profileId);
   if (isIncognitoProfile(profileId) || !/^https?:/i.test(src)) return;
   const id = `${key}|${src}`;
   if (inflight.has(id) || failedFetches.has(id)) return;
-  const pending = fetchFavicon(src, key, pageKey(url))
-    .then((image) => image?.uri ?? null)
-    .catch(() => null);
+  const pending = new Promise<string | null>((resolve) => {
+    fallbackQueue.push(() => {
+      void Promise.resolve()
+        .then(() => fetchFavicon(src, key, pageKey(url)))
+        .then((image) => resolve(image?.uri ?? null))
+        .catch(() => resolve(null))
+        .finally(() => {
+          activeFallbackFetches--;
+          drainFallbacks();
+        });
+    });
+  });
   inflight.set(id, pending);
   void pending.then((uri) => {
     inflight.delete(id);
     if (uri) remember(key, pageKey(url), src, uri);
     else failedFetches.add(id);
   });
+  drainFallbacks();
 }
 
 export function faviconFailed(profileId: string, uri: string) {

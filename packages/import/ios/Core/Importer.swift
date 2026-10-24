@@ -182,6 +182,15 @@ public final class Importer: @unchecked Sendable {
       }
       if kind != .history || !succeeded { observer.progress(ImportProgress(kind: kind, phase: .end, processed: count, total: count)) }
     }
+    if def.family == .chromium || def.family == .arc {
+      func pinnedURLs(_ node: BookmarkNode) -> [String] {
+        if node.type == .url { return node.url.map { [$0] } ?? [] }
+        return (node.children ?? []).flatMap(pinnedURLs)
+      }
+      let pages = result.tabs.map(\.url) + result.favorites.map(\.url)
+        + result.spaces.flatMap { $0.pinned.flatMap(pinnedURLs) + $0.tabs.map(\.url) }
+      if !pages.isEmpty { result.favicons = ChromiumFavicons.read(profile: dir, pages: pages) }
+    }
     return result
   }
 

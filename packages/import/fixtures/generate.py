@@ -29,6 +29,7 @@ import struct
 import subprocess
 import tempfile
 import zipfile
+import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUPPORT = os.path.join(HERE, "home", "Library", "Application Support")
@@ -364,6 +365,32 @@ PNG_1PX = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==")
 
 
+def favicon_png(size):
+    def chunk(kind, data):
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+    pixels = (b"\x00" + bytes([size, 80, 160, 255]) * size) * size
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 6, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(pixels)) + chunk(b"IEND", b""))
+
+
+def chromium_favicons(path, rows):
+    db = new_db(path)
+    db.executescript("""
+        CREATE TABLE favicons(id INTEGER PRIMARY KEY, url TEXT, icon_type INTEGER);
+        CREATE TABLE favicon_bitmaps(id INTEGER PRIMARY KEY, icon_id INTEGER, last_updated INTEGER,
+            image_data BLOB, width INTEGER, height INTEGER, last_requested INTEGER);
+        CREATE TABLE icon_mapping(id INTEGER PRIMARY KEY, page_url TEXT, icon_id INTEGER, page_url_hash INTEGER);
+    """)
+    for icon_id, (page, bitmaps) in enumerate(rows, 1):
+        db.execute("INSERT INTO favicons VALUES (?, ?, 1)", (icon_id, "/".join(page.split("/")[:3]) + "/favicon.png"))
+        db.execute("INSERT INTO icon_mapping VALUES (?, ?, ?, 0)", (icon_id, page, icon_id))
+        for width, png in bitmaps:
+            db.execute("INSERT INTO favicon_bitmaps(icon_id, image_data, width, height) VALUES (?, ?, ?, ?)",
+                       (icon_id, png, width, width))
+    db.commit()
+    db.close()
+
+
 def build_chrome():
     root = os.path.join(SUPPORT, "Google", "Chrome")
     chromium_local_state(root, {
@@ -378,6 +405,7 @@ def build_chrome():
     d = os.path.join(root, "Default")
     write_json(os.path.join(d, "Preferences"), {"profile": {"name": "Personal"}})
     write(os.path.join(d, "Google Profile Picture.png"), PNG_1PX)
+    chromium_favicons(os.path.join(d, "Favicons"), [("https://mail.example.com/", [(32, favicon_png(32))])])
     t = BASE_UNIX - 86400 * 100
     chromium_bookmarks(os.path.join(d, "Bookmarks"),
                        bar=[bookmark("Ardia", "https://ardia.example/", t, "00000000-0000-4000-8000-000000000101"),
@@ -693,6 +721,13 @@ def build_arc():
     d = os.path.join(root, "Default")
     write_json(os.path.join(d, "Preferences"), {})
     chromium_history(os.path.join(d, "History"), [("https://arc-history.example/", "Arc history", 2, 0, BASE_UNIX - 30, 0)])
+    chromium_favicons(os.path.join(d, "Favicons"), [
+        ("https://calendar.example/", [(size, favicon_png(size)) for size in (16, 32, 64)]),
+        ("https://blog.example/post", [(16, favicon_png(16))]),
+        ("https://mail.example.com/", [(32, favicon_png(32))]),
+        ("https://unimported.example/", [(32, favicon_png(32))]),
+        ("https://later.example/", [(32, b"not a PNG")]),
+    ])
     chromium_logins(os.path.join(d, "Login Data"), [
         ("https://arc-login.example/", "https://arc-login.example/", "arc-user", v10(b"arc-pass"), 0, 1)])
     p1 = os.path.join(root, "Profile 1")

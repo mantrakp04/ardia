@@ -110,6 +110,8 @@ export type ImportWarning = {
   message: string;
 };
 
+export type ImportedFavicon = { page: string; icon: string; png: string };
+
 export type ImportResult = {
   browserId: string;
   profileId: string;
@@ -126,6 +128,7 @@ export type ImportResult = {
   vaultToken?: string;
   spaces: SpaceSuggestion[];
   favorites: ImportedTab[];
+  favicons: ImportedFavicon[];
   failed: ImportKind[];
   warnings: ImportWarning[];
 };

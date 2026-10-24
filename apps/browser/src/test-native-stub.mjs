@@ -30,6 +30,7 @@ export const onAppEvent = () => ({ remove() {} });
 export const postNotification = () => Promise.resolve(null);
 export const removeNotifications = () => Promise.resolve();
 export const fetchFavicon = () => Promise.resolve(null);
+export const storeFavicon = (profile, page, icon, png) => engineCall("ac_favicons_set", profile, { page, icon, png });
 export const iconTheme = () => Promise.resolve(null);
 export const cancelledDownloads = [];
 export const cancelDownload = (id) => (cancelledDownloads.push(id), Promise.resolve());

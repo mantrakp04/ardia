@@ -227,6 +227,12 @@ public struct ImportWarning: Codable, Equatable, Sendable {
   }
 }
 
+public struct ImportedFavicon: Codable, Equatable, Sendable {
+  public var page: String
+  public var icon: String
+  public var png: String
+}
+
 public struct ImportResult: Codable, Equatable, Sendable {
   public var browserId: String
   public var profileId: String
@@ -239,6 +245,7 @@ public struct ImportResult: Codable, Equatable, Sendable {
   public var credentials: [Credential] = []
   public var spaces: [SpaceSuggestion] = []
   public var favorites: [ImportedTab] = []
+  public var favicons: [ImportedFavicon] = []
   public var failed: [ImportKind] = []
   public var warnings: [ImportWarning] = []
   public var vaultToken: String?
@@ -251,7 +258,7 @@ public struct ImportResult: Codable, Equatable, Sendable {
   public private(set) var cardCount = 0
 
   enum CodingKeys: String, CodingKey {
-    case browserId, profileId, profile, bookmarks, history, historyCount, tabs, tabGroups, credentials, spaces, favorites,
+    case browserId, profileId, profile, bookmarks, history, historyCount, tabs, tabGroups, credentials, spaces, favorites, favicons,
          failed, warnings, vaultToken, cookieCount, addressCount, cardCount
   }
 

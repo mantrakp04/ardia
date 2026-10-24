@@ -13,7 +13,7 @@ import { useHover } from "../primitives";
 import { Button, Checkbox, PopUp, useFormColors } from "../settings/controls";
 import { useOnboarding } from "../onboarding/state";
 import { IMPORT_WINDOW_ID } from "../settings/windows";
-import { applyResult, applySafari, emptyCounts, importArcSpace, importBookmarks, importDiaProfile, openInWebStore, profileColorFor, type ImportCounts } from "./apply";
+import { arcSpacePages, applyResult, applySafari, emptyCounts, importArcSpace, importFavicons, importBookmarks, importDiaProfile, openInWebStore, profileColorFor, type ImportCounts } from "./apply";
 import { importModule } from "./module";
 
 const APP = "Ardia";
@@ -211,6 +211,7 @@ export function ImportWindow() {
       await api.unlockBrowser(source.id).catch(() => {});
     }
 
+    const written = new Set<string>();
     for (const profile of selected) {
       let result: ImportResult;
       try {
@@ -243,16 +244,17 @@ export function ImportWindow() {
           const name = space.name || "Space";
           const dest = await destination(destinationIndex++, name, space.color, space.emoji, first);
           first ??= dest;
+          await importFavicons(dest, result.favicons, arcSpacePages(space), written);
           const r = importArcSpace(dest, space);
           add({ ...emptyCounts(), tabs: r.tabs, bookmarks: r.bookmarks });
           if (r.skipped) left.push(`${plural(r.skipped, "link")} in ${name}'s folders weren't imported: each folder brings up to ${MAX_DRAFT_LINKS.toLocaleString("en-US")} links.`);
         }
         const dest = first ?? (await destination(destinationIndex++, result.profile?.name ?? profile.name, result.profile?.color));
-        add(await applyResult(dest, result, source.name, refused));
+        add(await applyResult(dest, result, source.name, refused, written));
         extensionsProfile ||= dest;
       } else {
         const dest = await destination(destinationIndex++, result.profile?.name ?? profile.name, result.profile?.color ?? profile.color);
-        add(await applyResult(dest, result, source.name, refused));
+        add(await applyResult(dest, result, source.name, refused, written));
         extensionsProfile ||= dest;
       }
       if (source.family === "chromium" || source.family === "arc") {
