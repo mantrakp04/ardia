@@ -26,6 +26,7 @@ export type Settings = {
   customSearchEngines: CustomSearchEngine[];
   extensionSearchEngines: ExtensionSearchEngine[];
   searchSuggestions: boolean;
+  showSelectionSearch: boolean;
   commandBarPreference: "website" | "search";
 
   tabLayout: "sidebar" | "top";
@@ -91,6 +92,7 @@ export const DEFAULT_SETTINGS: Settings = {
   customSearchEngines: [],
   extensionSearchEngines: [],
   searchSuggestions: true,
+  showSelectionSearch: true,
   commandBarPreference: "website",
   tabLayout: "sidebar",
   hideToolbarWhileScrolling: true,

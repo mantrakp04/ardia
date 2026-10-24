@@ -71,6 +71,13 @@ export function SearchPane() {
           <Toggle value={settings.searchSuggestions} onChange={(v) => useBrowser.getState().updateSettings({ searchSuggestions: v })} />
         </Row>
       </Group>
+
+      <SectionHeader title="Text selection" />
+      <Group>
+        <Row anchor="search.showSelectionSearch">
+          <Toggle value={settings.showSelectionSearch} onChange={(v) => useBrowser.getState().updateSettings({ showSelectionSearch: v })} />
+        </Row>
+      </Group>
     </View>
   );
 }

@@ -26,6 +26,7 @@ export const SYNCED_SETTINGS = [
   "customSearchUrl",
   "customSearchEngines",
   "searchSuggestions",
+  "showSelectionSearch",
   "commandBarPreference",
   "tabLayout",
   "hideToolbarWhileScrolling",

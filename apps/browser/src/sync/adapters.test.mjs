@@ -143,6 +143,28 @@ test("settings: what a Mac only has by default isn't sent; nulls from another Ma
   b.with(() => assert.equal(S().settings.cmdClickCreatesTabGroup, false, "an explicit off is taken"));
 });
 
+test("settings: selection search choices sync between Macs without publishing defaults", async () => {
+  const folder = new Folder();
+  const a = new Device("A", folder);
+  const b = new Device("B", folder);
+  assert.equal(a.with(() => S().settings.showSelectionSearch), true);
+  assert.equal(b.with(() => S().settings.showSelectionSearch), true);
+  await syncAll([a, b]);
+  assert.equal(a.scopes.app.records["set:showSelectionSearch"], undefined, "the untouched default isn't published");
+  assert.equal(b.scopes.app.records["set:showSelectionSearch"], undefined, "the untouched default isn't received");
+  a.with(() => S().updateSettings({ showSelectionSearch: false }));
+  await syncAll([a, b]);
+  assert.equal(b.with(() => S().settings.showSelectionSearch), false, "A's explicit off reaches B");
+  assert.ok(!b.with(() => S().settings.chosen ?? []).includes("showSelectionSearch"), "receiving the choice doesn't make it a local choice");
+  assert.equal((await b.sync()).published, 0, "receiving the choice doesn't republish it");
+  b.with(() => S().updateSettings({ showSelectionSearch: true }));
+  await syncAll([b, a]);
+  assert.equal(a.with(() => S().settings.showSelectionSearch), true, "B's explicit reset reaches A");
+  assert.equal(b.with(() => S().settings.showSelectionSearch), true);
+  assert.equal((await a.sync()).published, 0, "A has settled");
+  assert.equal((await b.sync()).published, 0, "B has settled");
+});
+
 test("settings: a joined Mac relaunched with a setting it never had doesn't overwrite another Mac's choice; its own reset does", async () => {
   const folder = new Folder();
   const a = new Device("A", folder);

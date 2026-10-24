@@ -278,6 +278,16 @@ const ROWS: Record<SettingsPane, Section[]> = {
       rows: { otherEngines: { title: "Other search engines", description: "Type a shortcut and press Tab in the command bar to search a site directly.", keywords: ["custom search", "site search", "keyword"] } },
     },
     { section: "Suggestions", rows: { suggestions: { title: "Show search suggestions", description: "Sends what you type to your search engine to suggest searches.", keywords: ["autocomplete"] } } },
+    {
+      section: "Text selection",
+      rows: {
+        showSelectionSearch: {
+          title: "Show search button when selecting text",
+          description: "Shows a Search button above text you select on a page.",
+          keywords: ["selection", "selected text", "popover", "popup", "toolbar", "highlight"],
+        },
+      },
+    },
   ],
   shortcuts: [
     {

@@ -12,16 +12,17 @@ const GAP = 6;
 const SHOW_DELAY = 150;
 
 export function SelectionPopover({ tabId, zoom }: { tabId: string; zoom: number }) {
+  const enabled = useBrowser((s) => s.settings.showSelectionSearch);
   const selection = usePageSelection((s) => s[tabId] ?? null);
   const [shown, setShown] = useState<PageSelection | null>(null);
   const [area, setArea] = useState({ width: 0, height: 0 });
   useEffect(() => {
-    if (!selection) return setShown(null);
+    if (!enabled || !selection) return setShown(null);
     const timer = setTimeout(() => setShown(selection), SHOW_DELAY);
     return () => clearTimeout(timer);
-  }, [selection]);
+  }, [enabled, selection]);
   useEffect(() => () => setPageSelection(tabId, null), [tabId]);
-  if (!selection && !shown) return null;
+  if (!enabled || (!selection && !shown)) return null;
 
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill} onLayout={(e) => setArea(e.nativeEvent.layout)}>
