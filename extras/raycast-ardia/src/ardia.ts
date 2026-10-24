@@ -2,7 +2,6 @@ import { runAppleScript, useCachedPromise } from "@raycast/utils";
 import {
   activateScript,
   closeTabScript,
-  findProfile,
   focusProfileScript,
   focusTabScript,
   listProfilesScript,
@@ -11,6 +10,7 @@ import {
   newWindowScript,
   parseProfiles,
   parseTabs,
+  profileNamed,
   type NewWindowOptions,
   type Profile,
   type Tab,
@@ -44,11 +44,7 @@ export function useProfiles() {
 }
 
 export async function profileIdNamed(name: string) {
-  const profiles = await getProfiles();
-  const profile = findProfile(profiles, name);
-  if (profile) return profile.id;
-  const names = profiles.map((p) => p.name).join(", ");
-  throw new Error(`No profile is named “${name.trim()}”. Ardia has ${names}.`);
+  return profileNamed(await getProfiles(), name).id;
 }
 
 export async function focusProfile(profile: Profile) {

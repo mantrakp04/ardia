@@ -149,7 +149,7 @@ lose or leak data, or when the bug is invisible by eye and has shipped before.
 | `packages/core/src/suggest.test.ts` | Inline completion never fills a long sign-in URL; free text never autocompletes; open tabs switchable; frecency ranking; a newer fetch aborts the older one | Omnibox ranking |
 | `packages/sync` | The 9 convergence cases above, and the crypto's 5 (`docs/sync.md` › Tests) | Sync correctness and encryption |
 | `packages/import/tests/ImportTests.swift` | Importing never writes to the source profile, never leaves its data folder, decrypts logins only with the right key and only after consent | Another browser's data and secrets |
-| `extras/raycast-ardia` | Tab and profile ids, and what's typed into New Tab, are quoted in the AppleScript it sends; its answer reads back into the right tabs and profiles; a profile name matches whole, then by its start, ignoring case | Script injection; New Window opening the wrong profile |
+| `extras/raycast-ardia` | Tab and profile ids, and what's typed into New Tab, are quoted in the AppleScript it sends; its answer reads back into the right tabs and profiles; a profile name matches whole, then by a start only one profile has, ignoring case, and a start several share names them instead of picking one | Script injection; New Window opening the wrong profile |
 
 ## What went, and why
 

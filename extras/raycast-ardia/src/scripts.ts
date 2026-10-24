@@ -108,11 +108,15 @@ export function parseProfiles(output: string): Profile[] {
   }));
 }
 
-export function findProfile(profiles: Profile[], name: string) {
-  const wanted = name.trim().toLowerCase();
-  return (
-    profiles.find((profile) => profile.name.toLowerCase() === wanted) ??
-    profiles.find((profile) => profile.name.toLowerCase().startsWith(wanted))
+export function profileNamed(profiles: Profile[], name: string): Profile {
+  const wanted = name.trim();
+  const lower = wanted.toLowerCase();
+  const exact = profiles.filter((profile) => profile.name.toLowerCase() === lower);
+  const matches = exact.length ? exact : profiles.filter((profile) => profile.name.toLowerCase().startsWith(lower));
+  if (matches.length === 1) return matches[0];
+  const names = (matches.length ? matches : profiles).map((profile) => profile.name).join(", ");
+  throw new Error(
+    matches.length ? `“${wanted}” matches ${names}.` : `No profile is named “${wanted}”. Ardia has ${names}.`,
   );
 }
 

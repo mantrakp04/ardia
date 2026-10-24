@@ -27,7 +27,8 @@ window number when more than one is open. Type to filter by title or URL.
 its command bar does, with your search engine; give it nothing and you get a blank tab.
 
 **New Window** opens a window in your default profile, or in the profile you name (case doesn't
-matter, and the start of a name is enough). **New Incognito Window** opens an incognito one.
+matter, and the start of a name is enough when no other profile starts the same way; when several
+do, it names them and opens nothing). **New Incognito Window** opens an incognito one.
 
 It talks to Ardia through its AppleScript dictionary (`Ardia.sdef` in the app), so
 Ardia has to be running. The first time, macOS asks whether Raycast may control Ardia

@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   closeTabScript,
-  findProfile,
   focusProfileScript,
   focusTabScript,
   listProfilesScript,
@@ -11,6 +10,7 @@ import {
   newWindowScript,
   parseProfiles,
   parseTabs,
+  profileNamed,
   quote,
 } from "./scripts.ts";
 
@@ -42,13 +42,19 @@ test("reads tabs and profiles from the separated answer", () => {
   assert.deepEqual(parseProfiles(""), []);
 });
 
-test("finds a profile by its name, then by how it starts", () => {
+test("finds a profile by its name, or by a start no other profile shares", () => {
   const profiles = parseProfiles(
     `p-1${fs}Work Archive${fs}0${fs}false${rs}p-2${fs}Work${fs}0${fs}false${rs}p-3${fs}Personal${fs}0${fs}false${rs}`,
   );
-  assert.equal(findProfile(profiles, " work ")?.id, "p-2");
-  assert.equal(findProfile(profiles, "pers")?.id, "p-3");
-  assert.equal(findProfile(profiles, "School"), undefined);
+  assert.equal(profileNamed(profiles, " work ").id, "p-2");
+  assert.equal(profileNamed(profiles, "pers").id, "p-3");
+  assert.equal(profileNamed(profiles, "work a").id, "p-1");
+  assert.throws(() => profileNamed(profiles, " wo "), { message: "“wo” matches Work Archive, Work." });
+  assert.throws(() => profileNamed(profiles, "School"), {
+    message: "No profile is named “School”. Ardia has Work Archive, Work, Personal.",
+  });
+  const twins = parseProfiles(`p-1${fs}Work${fs}0${fs}false${rs}p-2${fs}work${fs}0${fs}false${rs}`);
+  assert.throws(() => profileNamed(twins, "Work"), { message: "“Work” matches Work, work." });
 });
 
 test("shows a profile and makes windows in one", () => {

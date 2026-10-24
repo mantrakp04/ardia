@@ -182,7 +182,8 @@ string doesn't matter. Afterwards: `kill %1` for the server, quit the app, `rm -
     another in the front window; ⌘↵ opens it in a new window. Run "New Tab" with `ardia.dev`, then with
     `hay wain`: the first opens the site, the second searches with your engine, both in the front window.
     Run "New Window" empty, then with the start of a profile's name, and "New Incognito Window": each opens
-    the window it says and brings Ardia forward; an unknown name shows a toast listing your profiles.
+    the window it says and brings Ardia forward. A start two profiles share (`wo` for Work and Work
+    Archive) opens nothing and names both; an unknown name opens nothing and lists your profiles.
 15. **Sync over iCloud Drive** (§13, §20, §22; needs two Macs signed in to the same iCloud account with iCloud Drive
     on, each running this build without `ARDIA_DATA_DIR`, so they use the real Keychain and iCloud Drive). On Mac
     1: ⌘, › Sync › Turn On Sync. Pass: the Recovery Kit sheet; Save… writes "Ardia Recovery Kit.pdf" with the 24
