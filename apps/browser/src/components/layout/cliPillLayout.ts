@@ -84,6 +84,8 @@ export function resetCliPillPlacements() {
 export const cliPillWidthIn = (placements: CliPillPlacements, windowId: string, tabId: string): number =>
   placements[windowId]?.tabId === tabId ? (placements[windowId]?.width ?? 0) : 0;
 
+export const cliPillClearance = (pillShown: boolean, base = 0): number => (pillShown ? Math.max(base, CLI_PILL_CLEARANCE) : base);
+
 export const pageToastLift = (placements: CliPillPlacements, windowId: string, tabId: string, toastBottom: number): number =>
   cliPillWidthIn(placements, windowId, tabId) > 0 ? Math.max(0, CLI_PILL_CLEARANCE - toastBottom) : 0;
 

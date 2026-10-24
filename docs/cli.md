@@ -206,7 +206,9 @@ hold is one store for the whole app (`cliDisclosure` in `lib/cliControl.ts`, bui
 pill that mounts during the hold (a tab switch, a new focused split pane, another window) shows at once, and only
 that first show skips the fade-in. A pill moving to another card keeps the window's measured width, and the
 split-view toast follows the card the pill is in, so neither drops for a frame. While it's up in a card, that card's
-link status bubble ends before it (or sits above it in a narrow pane) and the Bookmarks undo toast sits above it;
+link status bubble ends before it (or sits above it in a narrow pane), the Bookmarks undo toast sits above it, and a
+crashed or hung tab's message keeps its Reload, Exit Page and Wait buttons above it (in a pane too short for both, the
+message's top is cut off instead);
 the window's toast rises only when the pill in its window is under it, a Peek's pill included (`layout/cliPillLayout.ts`).
 
 ## Install and upgrade

@@ -196,3 +196,19 @@ test("a pill moving to another card in its window starts from the window's measu
   assert.equal(lifts.at(-1), CLI_PILL_CLEARANCE - 24);
   resetCliPillPlacements();
 });
+
+test("a crashed or hung tab's buttons sit above the pill in its card, however short the pane", async () => {
+  const { cliPillClearance } = await import("./cliPillLayout.ts");
+  assert.equal(cliPillClearance(false, 24), 24);
+  assert.equal(cliPillClearance(false), 0);
+  assert.equal(cliPillClearance(true, 24), CLI_PILL_CLEARANCE);
+  assert.equal(cliPillClearance(true), CLI_PILL_CLEARANCE);
+  const pillTop = CLI_PILL_BOTTOM + CLI_PILL_HEIGHT;
+  for (const [top, base, content] of [[24, 24, 150], [0, 0, 110]]) {
+    for (const paneHeight of [806, 400, 237, 188, 132, 90]) {
+      const bottomPadding = cliPillClearance(true, base);
+      const contentBottom = bottomPadding + Math.max(0, (paneHeight - top - bottomPadding - content) / 2);
+      assert.ok(contentBottom >= pillTop + 8, `pane ${paneHeight}, content ${content}: bottom ${contentBottom}`);
+    }
+  }
+});

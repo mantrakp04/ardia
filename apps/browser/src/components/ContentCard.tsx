@@ -25,7 +25,7 @@ import type { SplitView, Tab } from "../store/types";
 import { BOOKMARKS_BAR_HEIGHT, BookmarksBar, bookmarksBarShown, useBookmarksBarMode, type BookmarksBarMode } from "./bookmarks/BookmarksBar";
 import { CliControlPill, useCliPillPlacements } from "./CliControlPill";
 import { FindBar } from "./FindBar";
-import { cliPillHost, statusBubblePlacement, windowPillWidth } from "./layout/cliPillLayout";
+import { cliPillHost, cliPillWidthIn, statusBubblePlacement, windowPillWidth } from "./layout/cliPillLayout";
 import { POPOVER_MARGIN } from "./layout/controls";
 import { NO_TOOLBAR, splitGeometry, toolbarGeometry, type Rect, type ToolbarGeometry } from "./layout/geometry";
 import { dismissPermissions, startPermissionPrompts } from "./site/permissions";
@@ -487,6 +487,7 @@ function PageOverlays({
   const popover = usePages((s) => s.popover[tabId] ?? null);
   const zoom = useTabValue(tabId, (t) => t?.zoom ?? 1);
   const cliPillWidth = useCliPillPlacements((placements) => (cliPill ? windowPillWidth(placements, windowId) : 0));
+  const cliPillShownHere = useCliPillPlacements((placements) => cliPill && cliPillWidthIn(placements, windowId, tabId) > 0);
   const bubble = statusBubblePlacement(width, cliPillWidth);
   const popoverSide = toolbar ? { right: POPOVER_MARGIN } : { left: POPOVER_MARGIN };
   return (
@@ -495,7 +496,7 @@ function PageOverlays({
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, statusStyle]}>
         <StatusBubble tabId={tabId} maxWidth={bubble.maxWidth} bottom={bubble.bottom} />
       </Animated.View>
-      <SadTab tabId={tabId} />
+      <SadTab tabId={tabId} pillShown={cliPillShownHere} />
       {!newTabShown && <PermissionPrompt tabId={tabId} left={Math.max(POPOVER_MARGIN, Math.min(geometry.urlLeft, width - 308))} top={POPOVER_MARGIN} />}
       <PasswordPrompt tabId={tabId} right={POPOVER_MARGIN} top={POPOVER_MARGIN} />
       <AutofillPrompt tabId={tabId} right={POPOVER_MARGIN} top={POPOVER_MARGIN} />
