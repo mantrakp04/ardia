@@ -38,7 +38,7 @@ export function collectAppSymbols(vocabulary) {
     const relative = file.slice(REPO.length);
     if (relative.endsWith("IconPicker.tsx")) for (const name of pickerSymbols(source)) add(name, `${relative} SYMBOLS`);
     source.split("\n").forEach((rawLine, index) => {
-      const line = rawLine.replace(/hint\([^)]*\)/g, "").replace(/modifiers:\s*\[[^\]]*\]/g, "");
+      const line = rawLine.replace(/hint\([^)]*\)/g, "").replace(/(?:modifiers|keywords):\s*\[[^\]]*\]/g, "");
       const symbolish = SYMBOL_CONTEXT.test(line) || SYMBOL_FILES.test(relative);
       if (!symbolish || (NOT_A_SYMBOL.test(line) && !/symbol:|icon:|name=|icons=/.test(line))) return;
       for (const match of line.matchAll(LITERAL)) {

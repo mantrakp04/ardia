@@ -4,10 +4,22 @@ import { test } from "node:test";
 import { mount } from "../../test-hooks.mjs";
 
 globalThis.__DEV__ = false;
+const uiActions = {
+  "@ardia/shell": "prompt,showMenu",
+  "../../lib/actions": "moveTabToProfile",
+  "../layout/splitActions": "openSplitPane",
+  "../settings/windows": "openSettings",
+  "../sidebar/actions": "tabTitle",
+};
 registerHooks({
   resolve(specifier, context, next) {
     if (context.parentURL?.endsWith("/omnibox/actions.ts") && specifier === "../../lib/commands")
       return { url: `data:text/javascript,${encodeURIComponent("export const runCommand = () => {};")}`, shortCircuit: true };
+    if (context.parentURL?.endsWith("/omnibox/organizeActions.ts") && uiActions[specifier]) {
+      const source = uiActions[specifier].split(",").map((name) =>
+        `export const ${name} = () => { throw new Error("suggestions must not execute UI actions"); };`).join("\n");
+      return { url: `data:text/javascript,${encodeURIComponent(source)}`, shortCircuit: true };
+    }
     return next(specifier, context);
   },
 });

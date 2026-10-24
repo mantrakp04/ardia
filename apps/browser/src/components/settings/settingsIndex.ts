@@ -205,7 +205,13 @@ const ROWS: Record<SettingsPane, Section[]> = {
     {
       section: "Content blocking",
       rows: {
+        contentBlocker: { title: "Blocker", keywords: ["ad blocker", "ublock origin", "adnauseam", "extension"] },
         blockAds: { title: "Block ads", keywords: ["ad blocker", "adblock", "ublock origin", "easylist"] },
+        clickAds: {
+          title: "Background ad clicking",
+          description: "Included with AdNauseam for active obfuscation. Choose uBlock Origin for blocking without clicking.",
+          keywords: ["adnauseam", "ad clicks", "obfuscation"],
+        },
         blockTrackers: { title: "Block trackers", keywords: ["tracking", "easyprivacy", "fingerprinting"] },
         blockCookieBanners: { title: "Block cookie banners", keywords: ["cookies", "consent", "gdpr", "popups"] },
         filterLists: {

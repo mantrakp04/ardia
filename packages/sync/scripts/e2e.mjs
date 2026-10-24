@@ -356,6 +356,11 @@ try {
   await inHistory("C", `${W}/openc.html?nne2e=tabC`);
   check("C joins", text(await ev("C", `return acSync.enterRecoveryPhrase(${JSON.stringify(FOLDER)}, ${JSON.stringify(phrase)})`)) === '{"ok":true}');
   await sync("C", "C", "A", "B", "C");
+  await until("three devices to converge", async () => {
+    const [a, b, c] = await Promise.all([state("A"), state("B"), state("C")]);
+    const devices = text([a.deviceId, b.deviceId, c.deviceId].sort());
+    return same(a, b) && same(a, c) && [a, b, c].every(peer => text([...peer.devices].sort()) === devices);
+  }, ["A", "B", "C"]);
   const c = await state("C");
   a = await state("A");
   check("C converges with A", same(a, c), text({ a: data(a), c: data(c) }));

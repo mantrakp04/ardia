@@ -6,6 +6,7 @@ import { useWindowId } from "../../store/hooks";
 import { Intro } from "./Intro";
 import { dismissOnboarding, useOnboarding } from "./state";
 import { DefaultBrowserStep, ImportStep, OutroStep, PersonalizeStep, PinnedTabsStep } from "./steps";
+import { BlockerStep } from "./blockerStep";
 import { CliStep } from "./cliStep";
 import { PrivacyStep } from "./privacyStep";
 import { ToolTour } from "./tour/ToolTour";
@@ -91,6 +92,7 @@ function Overlay({ session }: { session: number }) {
                 {step === "personalize" && <PersonalizeStep />}
                 {step === "import" && <ImportStep />}
                 {step === "pinnedTabs" && <PinnedTabsStep />}
+                {step === "blocker" && <BlockerStep />}
                 {step === "privacy" && <PrivacyStep />}
                 {step === "cli" && <CliStep />}
                 {step === "outro" && <OutroStep />}

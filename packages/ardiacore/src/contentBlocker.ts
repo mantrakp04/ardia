@@ -21,9 +21,16 @@ export type ContentBlockerStats = {
   lookups: number;
   averageLookupMicros: number;
   maxLookupMicros: number;
+  error?: string;
 };
 
+export type ContentBlockerProvider = "ublock" | "adnauseam";
+
 export type ContentBlockerState = {
+  provider: ContentBlockerProvider;
+  selectedProvider: ContentBlockerProvider;
+  availableProviders: ContentBlockerProvider[];
+  clickAds: boolean;
   enabled: boolean;
   version: string;
   lists: FilterList[];
@@ -36,5 +43,6 @@ export const setContentBlockerEnabled = (enabled: boolean) => Cef.setContentBloc
 export const setFilterListEnabled = (id: string, enabled: boolean) => Cef.setFilterListEnabled(id, enabled);
 export const isContentBlockerAllowed = (host: string) => Cef.isContentBlockerAllowed(host);
 export const setContentBlockerAllowed = (host: string, allowed: boolean) => Cef.setContentBlockerAllowed(host, allowed);
+export const setContentBlockerProvider = (provider: ContentBlockerProvider, clickConsent: boolean) => Cef.setContentBlockerProvider(provider, clickConsent);
 export const onContentBlockerChange = (listener: (stats: ContentBlockerStats) => void) =>
   Cef.addListener("onContentBlocker", listener);

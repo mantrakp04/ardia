@@ -169,6 +169,8 @@ mkdir -p "$dist"
 echo "==> Content blocker"
 "$ardiacore/scripts/ubo.sh"
 [ -f "$ardiacore/vendor/ubo/ext/manifest.json" ] || die "uBlock Origin isn't installed ($ardiacore/scripts/ubo.sh)"
+"$ardiacore/scripts/adnauseam.sh"
+[ -f "$ardiacore/vendor/adnauseam/ext/manifest.json" ] || die "AdNauseam isn't installed ($ardiacore/scripts/adnauseam.sh)"
 
 echo "==> Archive"
 (cd "$app_dir" && ARDIACORE_FRAMEWORK="$framework_src" "$root/scripts/agent/locked" pod --wait 1800 -- \
@@ -255,6 +257,7 @@ done
 [ -d "$app/Contents/PlugIns/ArdiaDockTile.plugin" ] || die "no dock tile plug-in"
 [ -f "$app/Contents/embedded.provisionprofile" ] || die "no Developer ID provisioning profile (keychain groups need it)"
 [ -f "$app/Contents/Resources/Extensions/ublock/manifest.json" ] || die "no uBlock Origin in the app"
+[ -f "$app/Contents/Resources/Extensions/adnauseam/manifest.json" ] || die "no AdNauseam in the app"
 for file in "$root"/LICENSE* "$root/NOTICE"; do
   cmp -s "$file" "$app/Contents/Resources/Licenses/$(basename "$file")" || die "the app lacks $(basename "$file") in Contents/Resources/Licenses"
 done

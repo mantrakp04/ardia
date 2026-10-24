@@ -664,7 +664,7 @@ try {
         await evalApp(`ac.actions.focus(${JSON.stringify(win)}); return true`);
         await sleep(300);
         const path = `/made-${steps.length}`;
-        await ext(`chrome.windows.create({ url: "${origin()}${path}?t=Made" }).then(() => true)`);
+        await ext(`chrome.tabs.create({ url: "${origin()}${path}?t=Made" }).then(() => true)`);
         const placed = await until(`the made tab in the app`, () => evalApp(`return Object.values(ac.store.getState().tabs).find((t) => t.url?.includes(${JSON.stringify(path)}))?.windowId ?? null`), 15000);
         steps.push({ front: name, landed: placed === mainWindow ? "A" : placed === other ? "B" : placed });
         await evalApp(`const t = Object.values(ac.store.getState().tabs).find((t) => t.url?.includes(${JSON.stringify(path)})); if (t) ac.store.getState().closeTab(t.id); return true`);

@@ -1,3 +1,4 @@
+import { getContentBlocker, type ContentBlockerState } from "@ardia/ardiacore";
 import {
   addToDock,
   backgroundInstance,
@@ -11,7 +12,9 @@ import {
   Symbol,
 } from "@ardia/shell";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { providerStatusText } from "../../lib/contentBlockerProvider";
+import { onBlockerSettingsChange } from "../../lib/contentBlockerSelection";
 import { PROFILE_COLORS, themeFor, useTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
 import { Favicon, useHover } from "../primitives";
@@ -23,17 +26,24 @@ import { CheckMark, CheckRow, PrimaryButton, Reveal, SecondaryButton, StepProgre
 
 const ICON = require("../../../assets/app-icon.png");
 
-export function StepLayout({ children, actions, preview }: { children: ReactNode; actions: ReactNode; preview: ReactNode }) {
+export function StepLayout({ children, actions, preview, scrollable = false }: { children: ReactNode; actions: ReactNode; preview: ReactNode; scrollable?: boolean }) {
   const colors = useOnboardingColors();
+  const content = (
+    <>
+      <Reveal><StepProgress /></Reveal>
+      {children}
+    </>
+  );
   return (
     <View style={{ flex: 1, flexDirection: "row" }}>
       <View style={{ width: 460, paddingHorizontal: 40, paddingTop: 34, paddingBottom: 32, justifyContent: "space-between" }}>
-        <View style={{ gap: 20 }}>
-          <Reveal>
-            <StepProgress />
-          </Reveal>
-          {children}
-        </View>
+        {scrollable ? (
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 20, paddingBottom: 20 }}>
+            {content}
+          </ScrollView>
+        ) : (
+          <View style={{ gap: 20 }}>{content}</View>
+        )}
         <Reveal delay={240} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
           {actions}
         </Reveal>
@@ -431,6 +441,22 @@ function PinnedPreview({ selected }: { selected: string[] }) {
 
 export function OutroStep() {
   const colors = useOnboardingColors();
+  const [blocker, setBlocker] = useState<ContentBlockerState | null>(null);
+  useEffect(() => {
+    let live = true;
+    let request = 0;
+    const load = () => {
+      const id = ++request;
+      getContentBlocker().then((s) => live && id === request && setBlocker(s), () => {});
+    };
+    load();
+    const sub = onBlockerSettingsChange(load);
+    return () => {
+      live = false;
+      sub.remove();
+    };
+  }, []);
+  const reminder = blocker ? providerStatusText(blocker) : "";
   return (
     <StepLayout
       actions={
@@ -457,6 +483,14 @@ export function OutroStep() {
             <Text style={{ fontSize: 13, color: colors.subtitle }}>{label}</Text>
           </View>
         ))}
+        {reminder ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 6 }}>
+            <View style={{ minWidth: 38, alignItems: "center" }}>
+              <Symbol name={blocker?.stats.ready && blocker.enabled && blocker.provider === blocker.selectedProvider ? "checkmark.circle" : "info.circle"} size={13} color={colors.title} style={{ width: 16, height: 16 }} />
+            </View>
+            <Text style={{ flex: 1, fontSize: 12, lineHeight: 17, color: colors.subtitle }}>{reminder}</Text>
+          </View>
+        ) : null}
       </Reveal>
     </StepLayout>
   );

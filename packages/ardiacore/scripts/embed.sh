@@ -33,7 +33,9 @@ if ! [[ -f "$stamp" && "$(cat "$stamp")" == "$want" && -d "$frameworks/Chromium 
 fi
 
 "$here/ubo.sh"
+"$here/adnauseam.sh"
 ubo="$repo/packages/ardiacore/vendor/ubo/ext"
+adnauseam="$repo/packages/ardiacore/vendor/adnauseam/ext"
 if [ -n "${UNLOCALIZED_RESOURCES_FOLDER_PATH:-}" ] && [ -f "$ubo/manifest.json" ]; then
   extensions="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Extensions"
   mkdir -p "$extensions"
@@ -42,4 +44,5 @@ if [ -n "${UNLOCALIZED_RESOURCES_FOLDER_PATH:-}" ] && [ -f "$ubo/manifest.json" 
   (cd "$extensions/ublock" && find . -type f ! -path './_metadata/*' -print0 | LC_ALL=C sort -z \
     | xargs -0 shasum -a 256 | shasum -a 256 | cut -d' ' -f1) > "$extensions/ublock.fingerprint"
   rsync -a --delete "$repo/packages/ardiacore/extensions/ublock-lite-settings/" "$extensions/ublock-lite-settings/"
+  rsync -a --delete "$adnauseam/" "$extensions/adnauseam/"
 fi

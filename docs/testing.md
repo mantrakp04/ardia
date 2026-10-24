@@ -1,15 +1,16 @@
 # Testing
 
-`pnpm test` at the root runs every unit test (333 cases, 2026-10-12). Turbo caches the results; a cold run spends most
+`pnpm test` at the root runs the package unit suites below, including the AdNauseam consent tests. Turbo caches the results; a cold run spends most
 of its time in `swift test`'s first build. Each package also runs its own:
 
 | Package | Command | Cases |
 | --- | --- | --- |
-| `apps/browser` | `pnpm --filter @ardia/browser test` | 228 |
-| `packages/core` | `pnpm --filter @ardia/core test` | 32 |
-| `packages/sync` | `pnpm --filter @ardia/sync test` (`swift test`, `node --test`, then the rename's launch migration end to end, `scripts/legacy-migration-e2e.mjs`) | 66 + 9 |
-| `packages/import` | `pnpm --filter @ardia/import test` (`swift test`) | 26 |
-| `packages/ardiacore` | `pnpm --filter @ardia/ardiacore test` (`tests/pip-zoom.test.cc`, compiled with `clang++`) | 1 program |
+| `apps/browser` | `pnpm --filter @ardia/browser test` | 685 |
+| `packages/core` | `pnpm --filter @ardia/core test` | 70 |
+| `packages/sync` | `pnpm --filter @ardia/sync test` (`swift test`, `node --test`, then the rename's launch migration end to end, `scripts/legacy-migration-e2e.mjs`) | 66 + 34 |
+| `packages/import` | `pnpm --filter @ardia/import test` (`swift test`) | 33 |
+| `packages/ardiacore` | `pnpm --filter @ardia/ardiacore test` (provisions the pinned extension with `scripts/adnauseam.sh`, then `tests/pip-zoom.test.cc` and `tests/pip-throw.test.cc`, compiled with `clang++`; then `tests/content-blocker-clicks.test.mjs`, which runs the content blocker's own page scripts from `ArdiaCoreContentBlocker.mm` on stubs, plus `tests/adnauseam-clicks.test.mjs`) | 2 programs + 21 |
+| AdNauseam's click switch | `bash packages/ardiacore/scripts/adnauseam.sh && node --test packages/ardiacore/tests/adnauseam-clicks.test.mjs` (the setup step fetches and patches the pinned extension before test collection; the tests run its patched `core.js` and `vapi-background.js` on stubs, with Ardia's own revoke and grant scripts) | 7 |
 | `extras/raycast-ardia` | `node --test extras/raycast-ardia/src/scripts.test.ts` | 1 |
 
 `apps/browser` runs its TypeScript under plain Node: `src/test-loader.mjs` maps `@ardia/shell`,
@@ -34,6 +35,8 @@ holds the rest.
 | Onboarding | `node apps/browser/scripts/onboarding-test.mjs <Debug app>` | No text field sits behind the onboarding card, a click on the first row's checkbox toggles it, another window keeps its New Tab field meanwhile, and the New Tab field is back and focused once it ends, in a bar of the same height (the hidden New Tab field took the first row's cursor and its checkbox clicks) |
 | Sidebar scroll | `node apps/browser/scripts/sidebar-scroll-test.mjs <Debug app>` | The pinned tiles hold still while the tabs scroll (Dia's dock), with the address field in the sidebar and without: a row dragged onto a tile after a scroll pins it there, selecting a tile while scrolled leaves the list put, and a dock too tall for the window scrolls with the tabs |
 | Sync | `node packages/sync/scripts/e2e.mjs <Debug app>` | Two and three hidden instances through one folder (`docs/sync.md`) |
+| Blocker startup fallback | `node packages/ardiacore/scripts/blocker-startup-test.mjs <Debug app>` | Six hidden startup checks with a disposable app copy: missing AdNauseam, consent reset, writable and unwritable preferences, relaunch and bundle restoration |
+| Blocker live switching | `node packages/ardiacore/scripts/blocker-switch-test.mjs <Debug app>` | Four hidden checks across two profiles: pause preservation after restart, resumed protection, unreadable settings, failed activation, partial and complete fallback failures, and complete recovery on retry; faults affect only a disposable app copy |
 | Import | `node packages/import/scripts/e2e.mjs <Debug app> <scratch dir>` | Cookies, addresses and cards from a fake Chrome home (`packages/import/README.md`) |
 | Video upscaling | `node apps/browser/scripts/video-upscaling-test.mjs <Debug app> [--keep] [check…]` (`--list`) | What the GPU process upscales in every state the gate decides (playing, paused, native size, background tab, app inactive, occluded, Low Power, thermal, PiP, HDR, full screen, Little Ardia, setting off), from its `ArdiaVSR.*` trace events and `videoUpscalingState()` |
 | Engine patches | `python3 engine/patches/series.py check` | The patch series reproduces the Chromium tree (`docs/engine-build.md`) |

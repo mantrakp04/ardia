@@ -96,6 +96,7 @@ typedef void (^ArdiaCoreResult)(NSDictionary<NSString *, id> *result);
 + (void)setList:(NSString *)listId enabled:(BOOL)enabled completion:(void (^)(NSString *_Nullable error))completion NS_SWIFT_NAME(setList(_:enabled:completion:));
 + (void)isAllowedOnHost:(NSString *)host completion:(void (^)(BOOL allowed))completion NS_SWIFT_NAME(isAllowed(host:completion:));
 + (void)setAllowed:(BOOL)allowed onHost:(NSString *)host completion:(void (^)(NSString *_Nullable error))completion NS_SWIFT_NAME(setAllowed(_:host:completion:));
++ (void)setProvider:(NSString *)provider clickConsent:(BOOL)clickConsent completion:(void (^)(NSString *_Nullable error))completion NS_SWIFT_NAME(setProvider(_:clickConsent:completion:));
 + (void)devFailNextMessage;
 + (void)devDelayNextLoad:(double)ms;
 @end

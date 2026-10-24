@@ -225,6 +225,7 @@ export function CheckRow({
   onChange,
   disabled,
   icon,
+  role = "checkbox",
 }: {
   title: string;
   subtitle: string;
@@ -232,12 +233,13 @@ export function CheckRow({
   onChange: (value: boolean) => void;
   disabled?: boolean;
   icon?: string;
+  role?: "checkbox" | "radio";
 }) {
   const colors = useOnboardingColors();
   const { hovered, hoverProps } = useHover();
   return (
     <View {...hoverProps} style={{ opacity: disabled ? 0.5 : 1 }}>
-      <Pressable disabled={disabled} onPress={() => onChange(!value)} accessibilityRole="checkbox" accessibilityState={{ checked: value, disabled }} accessibilityLabel={title}>
+      <Pressable disabled={disabled} onPress={() => onChange(role === "radio" || !value)} accessibilityRole={role} accessibilityState={{ checked: value, disabled }} accessibilityLabel={title}>
         <View
           mouseDownCanMoveWindow={false}
           style={{
