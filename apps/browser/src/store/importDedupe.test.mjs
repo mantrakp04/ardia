@@ -127,12 +127,30 @@ test("Arc's own shortcuts come along unless Ardia already has one for that comma
   assert.equal(importArcShortcuts([{ action: "showSidebar", key: "\\", modifiers: ["command"] }]), 0, "a choice made in Ardia wins");
 });
 
-test("Install All asks the engine for each imported extension in turn and carries on past a failure", async () => {
+test("Install All installs each extension into the space it came from and carries on past a failure", async () => {
   const stub = await import("@ardia/ardiacore");
   const { installAllFromWebStore } = await import("../components/import/apply.ts");
   stub.webStoreInstalls.length = 0;
+  stub.webStoreFailures.clear();
+  const a = "a".repeat(32);
+  const b = "b".repeat(32);
+  stub.webStoreFailures.add(a);
   const seen = [];
-  await installAllFromWebStore(P, ["a".repeat(32), "b".repeat(32)], (id, outcome) => seen.push([id, outcome]));
-  assert.deepEqual(stub.webStoreInstalls.map((x) => x.id), ["a".repeat(32), "b".repeat(32)]);
-  assert.deepEqual(seen, [["a".repeat(32), "installed"], ["b".repeat(32), "installed"]]);
+  const work = S().createProfile({ name: "Work" });
+  await installAllFromWebStore(
+    [
+      { id: a, profileId: P },
+      { id: b, profileId: P },
+      { id: b, profileId: work },
+    ],
+    (t, outcome) => seen.push([t.id, t.profileId, outcome]),
+  );
+  assert.deepEqual(stub.webStoreInstalls.map((x) => x.id), [a, b, b]);
+  assert.notEqual(stub.webStoreInstalls[1].profile, stub.webStoreInstalls[2].profile, "each install goes to its own space's engine profile");
+  assert.deepEqual(seen, [
+    [a, P, "failed"],
+    [b, P, "installed"],
+    [b, work, "installed"],
+  ]);
+  stub.webStoreFailures.clear();
 });

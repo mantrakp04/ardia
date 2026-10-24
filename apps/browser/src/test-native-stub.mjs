@@ -251,6 +251,11 @@ export const onUserScriptsChange = (listener) => (userScripts().change = listene
 export const listExtensions = (profile) => userScripts().engine.list(profile);
 export const installExtension = (pkg, profile) => userScripts().engine.install(pkg.path, profile);
 export const webStoreInstalls = [];
-export const installFromWebStore = async (id, profile) => (webStoreInstalls.push({ id, profile }), id);
+export const webStoreFailures = new Set();
+export const installFromWebStore = async (id, profile) => {
+  webStoreInstalls.push({ id, profile });
+  if (webStoreFailures.has(id)) throw new Error("declined");
+  return id;
+};
 export const reloadExtension = (id, profile) => userScripts().engine.reload(id, profile);
 export const uninstallExtension = (id, profile) => userScripts().engine.uninstall(id, profile);

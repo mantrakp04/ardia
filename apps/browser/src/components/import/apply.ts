@@ -127,18 +127,20 @@ function windowFor(profileId: string): string {
   return regular ?? s.createWindow({ profileId });
 }
 
+export type WebStoreTarget = { id: string; profileId: string };
+
+export const webStoreTargetKey = (t: WebStoreTarget) => `${t.profileId}:${t.id}`;
+
 export async function installAllFromWebStore(
-  profileId: string,
-  ids: string[],
-  onEach: (id: string, outcome: "installed" | "failed", error?: string) => void,
+  targets: readonly WebStoreTarget[],
+  onEach: (target: WebStoreTarget, outcome: "installed" | "failed", error?: string) => void,
 ): Promise<void> {
-  const engine = engineProfile(profileId);
-  for (const id of ids) {
+  for (const target of targets) {
     try {
-      await installFromWebStore(id, engine);
-      onEach(id, "installed");
+      await installFromWebStore(target.id, engineProfile(target.profileId));
+      onEach(target, "installed");
     } catch (e) {
-      onEach(id, "failed", e instanceof Error ? e.message : String(e));
+      onEach(target, "failed", e instanceof Error ? e.message : String(e));
     }
   }
 }
