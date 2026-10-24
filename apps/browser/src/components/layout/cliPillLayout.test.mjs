@@ -208,7 +208,7 @@ test("a crashed or hung tab clears the pill by the pill's own clearance, and the
 });
 
 test("a crashed or hung tab lays out as an in-flow flex column inside a clipping frame, so it follows the pane through every resize", async () => {
-  const { sadTabColumn, sadTabLift, SAD_TAB_FRAME, SAD_TAB_SPACER, SAD_TAB_CONTENT } = await import("./cliPillLayout.ts");
+  const { sadTabColumn, sadTabSpacer, SAD_TAB_FRAME, SAD_TAB_SPACER, SAD_TAB_CONTENT } = await import("./cliPillLayout.ts");
   assert.deepEqual(SAD_TAB_FRAME, { overflow: "hidden" });
   for (const base of [0, 24]) {
     const column = sadTabColumn(base);
@@ -217,7 +217,7 @@ test("a crashed or hung tab lays out as an in-flow flex column inside a clipping
     assert.equal(column.flexBasis, 0);
     assert.equal(column.justifyContent, "flex-end");
     assert.equal(column.alignItems, "center");
-    for (const pillShown of [false, true]) assert.equal("height" in sadTabLift(pillShown, base), false);
+    for (const pillShown of [false, true]) assert.equal("height" in sadTabSpacer(pillShown, base), false);
   }
   assert.deepEqual(SAD_TAB_SPACER, { flexGrow: 1, flexShrink: 1, flexBasis: 0 });
   assert.equal(SAD_TAB_CONTENT.flexShrink, 0);
@@ -238,14 +238,16 @@ test("a crashed or hung tab keeps the same padding whether or not the pill shows
   }
 });
 
-test("the space under a crashed or hung tab's content never drops below the pill's clearance while the pill shows", async () => {
-  const { sadTabColumn, sadTabLift } = await import("./cliPillLayout.ts");
+test("both spacers around a crashed or hung tab's content keep the pill's clearance as a floor, so Yoga splits a tall pane evenly and pins a short one above the pill", async () => {
+  const { sadTabColumn, sadTabSpacer } = await import("./cliPillLayout.ts");
   for (const base of [0, 24]) {
-    assert.equal(sadTabLift(false, base).minHeight, 0);
-    assert.equal(sadTabColumn(base).paddingBottom + sadTabLift(true, base).minHeight, CLI_PILL_CLEARANCE);
-    assert.equal(sadTabLift(true, base).flexGrow, 1);
-    assert.equal(sadTabLift(true, base).flexBasis, 0);
+    assert.equal(sadTabSpacer(false, base).minHeight, 0);
+    assert.equal(sadTabColumn(base).paddingBottom + sadTabSpacer(true, base).minHeight, CLI_PILL_CLEARANCE);
+    assert.deepEqual({ ...sadTabSpacer(true, base), minHeight: 0 }, { flexGrow: 1, flexShrink: 1, flexBasis: 0, minHeight: 0 });
   }
+  const source = readFileSync(new URL("./PaneOverlays.tsx", import.meta.url), "utf8");
+  assert.equal(source.match(/sadTabSpacer\(pillShown, 24\)/g)?.length, 2);
+  assert.equal(source.match(/sadTabSpacer\(pillShown\)/g)?.length, 2);
 });
 
 test("a crashed or hung tab measures the pill's clearance from the same bottom edge as the pill", () => {

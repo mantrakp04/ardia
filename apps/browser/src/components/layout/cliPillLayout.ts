@@ -103,7 +103,7 @@ export const sadTabColumn = (base = 0) =>
     paddingBottom: base,
   }) as const;
 
-export const sadTabLift = (pillShown: boolean, base = 0) => ({ ...SAD_TAB_SPACER, minHeight: cliPillClearance(pillShown, base) - base }) as const;
+export const sadTabSpacer = (pillShown: boolean, base = 0) => ({ ...SAD_TAB_SPACER, minHeight: cliPillClearance(pillShown, base) - base }) as const;
 
 export const pageToastLift = (placements: CliPillPlacements, windowId: string, tabId: string, toastBottom: number): number =>
   cliPillWidthIn(placements, windowId, tabId) > 0 ? Math.max(0, CLI_PILL_CLEARANCE - toastBottom) : 0;

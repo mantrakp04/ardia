@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Animated, Easing, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import { hex, useTheme } from "../../lib/theme";
 import { webviews } from "../../lib/webviews";
-import { SAD_TAB_CONTENT, SAD_TAB_SPACER, SAD_TAB_FRAME, sadTabColumn, sadTabLift } from "./cliPillLayout";
+import { SAD_TAB_CONTENT, SAD_TAB_FRAME, sadTabColumn, sadTabSpacer } from "./cliPillLayout";
 import { PromptButton } from "./controls";
 import { patchPage, usePage } from "./pageState";
 
@@ -64,7 +64,7 @@ export function SadTab({ tabId, pillShown = false, bottomStyle }: { tabId: strin
     return (
       <View style={[StyleSheet.absoluteFill, SAD_TAB_FRAME, { backgroundColor: theme.dark ? "#1C1A1B" : "#F6F5F6" }]}>
         <Animated.View style={[sadTabColumn(24), { paddingHorizontal: 24 }, bottomStyle]}>
-          <View style={SAD_TAB_SPACER} />
+          <View style={sadTabSpacer(pillShown, 24)} />
           <View style={SAD_TAB_CONTENT}>
             <Symbol name="exclamationmark.triangle" size={30} weight="light" color={theme.textSecondary} style={{ width: 44, height: 40, marginBottom: 14 }} />
             <Text style={{ fontSize: 17, fontWeight: "600", color: theme.textPrimary, marginBottom: 6 }}>This tab needs to reload</Text>
@@ -78,7 +78,7 @@ export function SadTab({ tabId, pillShown = false, bottomStyle }: { tabId: strin
               }}
             />
           </View>
-          <View style={sadTabLift(pillShown, 24)} />
+          <View style={sadTabSpacer(pillShown, 24)} />
         </Animated.View>
       </View>
     );
@@ -87,7 +87,7 @@ export function SadTab({ tabId, pillShown = false, bottomStyle }: { tabId: strin
   return (
     <View style={[StyleSheet.absoluteFill, SAD_TAB_FRAME, { backgroundColor: theme.dark ? "rgba(0,0,0,0.35)" : "rgba(0,0,0,0.12)" }]}>
       <Animated.View style={[sadTabColumn(), { paddingHorizontal: 16 }, bottomStyle]}>
-        <View style={SAD_TAB_SPACER} />
+        <View style={sadTabSpacer(pillShown)} />
         <Surface
           fill={hex(theme.panel)}
           cornerRadius={14}
@@ -119,7 +119,7 @@ export function SadTab({ tabId, pillShown = false, bottomStyle }: { tabId: strin
             />
           </View>
         </Surface>
-        <View style={sadTabLift(pillShown)} />
+        <View style={sadTabSpacer(pillShown)} />
       </Animated.View>
     </View>
   );
