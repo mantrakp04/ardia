@@ -198,8 +198,8 @@ While the CLI has a connection open, Ardia shows a pill floating over the page a
 (`components/CliControlPill.tsx`). There's one per window, in the focused card of a split, the full screen page or
 an open Peek (a Peek whose page is full screen too). It's drawn after every other page overlay (the crashed-tab page and prompts included), and over the
 frozen snapshot a window shows while another window holds its pinned tab's page, so Stop stays reachable. In a
-narrow pane it reads "ardia is in control", then drops the glyph, then shows just "ardia" and Stop, so no text is
-cut off (`cliPillLabel`). It never moves or resizes the page, and only the pill takes clicks. It shows at once on
+narrow pane it reads "ardia is in control", then drops the glyph, then shows the glyph with just "ardia", then just
+"ardia", always with Stop, so no text is cut off (`cliPillLabel`). It never moves or resizes the page, and only the pill takes clicks. It shows at once on
 the first connection and stays 3 s after the last one closes, so a burst of `ardia exec` calls shows it once and
 hides it once; a new connection during the hold cancels the hide, and turning the setting off hides it at once. The
 hold is one store for the whole app (`cliDisclosure` in `lib/cliControl.ts`, built by `lib/cliDisclosure.ts`), so a
