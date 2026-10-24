@@ -129,10 +129,10 @@ function cycleTarget(windowId: string, delta: 1 | -1) {
   return s.profileOrder[(i + delta + s.profileOrder.length) % s.profileOrder.length]!;
 }
 
-export function openUrls(urls: string[], windowId?: string | null) {
+export function openUrls(urls: string[], windowId?: string | null, options: { notify?: boolean } = {}) {
   let target = resolveWindowId(store(), windowId);
   for (const url of urls) {
     if (!target || store().windows[target]?.incognito) target = openWindow({ url });
-    else store().newTab(target, { url });
+    else store().newTab(target, { url, notify: options.notify });
   }
 }

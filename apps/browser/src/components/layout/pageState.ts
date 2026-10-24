@@ -1,4 +1,4 @@
-import type { AutofillPrompt, BlockedPopup, CrashInfo, ExternalAppRequest, MediaAccess, NavigationState, PasswordPrompt, PermissionRequest, SecurityInfo } from "@ardia/ardiacore";
+import type { AutofillPrompt, BlockedPopup, CrashInfo, ExternalAppRequest, MediaAccess, NavigationState, PageLayout, PasswordPrompt, PermissionRequest, SecurityInfo } from "@ardia/ardiacore";
 import { create } from "zustand";
 import { useBrowser } from "../../store/browser";
 import { activeTabId } from "../../store/model";
@@ -10,6 +10,7 @@ export type PageState = {
   crashed: CrashInfo | null;
   unresponsive: boolean;
   fullscreen: boolean;
+  pageLayout: PageLayout | null;
   security: SecurityInfo | null;
   blocked: number;
   themeColorSource: NavigationState["themeColorSource"];
@@ -29,6 +30,7 @@ const IDLE_PAGE: PageState = {
   crashed: null,
   unresponsive: false,
   fullscreen: false,
+  pageLayout: null,
   security: null,
   blocked: 0,
   themeColorSource: null,
@@ -61,6 +63,10 @@ export function patchPage(tabId: string, patch: Partial<PageState>) {
     }
     return s;
   });
+}
+
+export function setPageLayout(tabId: string, pageLayout: PageLayout | null) {
+  if (useBrowser.getState().tabs[tabId]) patchPage(tabId, { pageLayout });
 }
 
 export const pageOf = (tabId: string | undefined): PageState => (tabId && usePages.getState().pages[tabId]) || IDLE_PAGE;

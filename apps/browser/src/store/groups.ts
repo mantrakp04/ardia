@@ -4,6 +4,7 @@ import { newId } from "./model";
 import { closingGroup } from "./organize";
 import { withSplitRows } from "./splits";
 import { withNewTab } from "./tabs";
+import { newTabToasts } from "./newTabToasts";
 import type { BrowserWindow, GroupColor, Tab, TabGroup } from "./types";
 
 export type GroupsSlice = {
@@ -404,6 +405,7 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
     };
     const groups = nestGroups({ ...next.groups, [parentId]: { ...p, collapsed: false }, [group.id]: group });
     set(withGroupsPlaced(next, w.id, groups));
+    newTabToasts.add(get().tabs[tabId]);
     return group.id;
   },
 

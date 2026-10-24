@@ -26,6 +26,7 @@ import { groupWithOpener, onUrlChange, pruneSelection, samePage } from "./organi
 import { searchUrlPrefix } from "./settings";
 import { mainWindowFor } from "./small";
 import { leavesEmptyWindow } from "./newTabBar";
+import { newTabToasts } from "./newTabToasts";
 import { holderOf, swapPinPage, withSharedFamily } from "./pinShare";
 import { removeFromSplits, splitOf } from "./splits";
 import type { BrowserWindow, ClosedTab, Tab, TabLive, TabSnapshot } from "./types";
@@ -40,6 +41,7 @@ export type NewTabOptions = {
   snapshot?: Partial<TabSnapshot>;
   index?: number;
   wakeAdoptId?: string;
+  notify?: boolean;
 };
 
 let pinHandoff: (tabId: string, commit: () => void) => void = (_, commit) => commit();
@@ -313,7 +315,9 @@ export const createTabsSlice: StateCreator<BrowserState, [], [], TabsSlice> = (s
       const main = mainWindowFor(get(), profileId);
       if (!main) {
         const created = get().createWindow({ profileId, url: options?.url, adoptId: options?.adoptId ?? options?.wakeAdoptId, background: options?.background });
-        return activeTabId(get(), created) ?? "";
+        const id = activeTabId(get(), created) ?? "";
+        if (options?.notify !== false) newTabToasts.add(get().tabs[id]);
+        return id;
       }
       return get().newTab(main, { ...options, profileId, index: undefined });
     }
@@ -321,6 +325,7 @@ export const createTabsSlice: StateCreator<BrowserState, [], [], TabsSlice> = (s
     let [next, id] = withNewTab(get(), windowId, options);
     if (id && options?.openerId) next = groupWithOpener(next, id, options.openerId, !!options.background);
     set(next);
+    if (options?.notify !== false) newTabToasts.add(get().tabs[id]);
     return id;
   },
 
@@ -457,6 +462,7 @@ export const createTabsSlice: StateCreator<BrowserState, [], [], TabsSlice> = (s
       adoptId: source.url ? `clone:${id}` : undefined,
     });
     set(next);
+    newTabToasts.add(get().tabs[copy]);
     return copy;
   },
 

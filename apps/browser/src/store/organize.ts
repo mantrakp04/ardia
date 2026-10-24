@@ -6,6 +6,7 @@ import { activeTabId, bookmarkProfileId, inPinnedContainer, isIncognitoProfile, 
 import { splitOf, splitRowHead, splitRowPanes, withSplitRows } from "./splits";
 import { lastUsedOf, sharedLastUsed } from "./tabShare";
 import { activated, apply, removeTabs, withNewTab } from "./tabs";
+import { newTabToasts } from "./newTabToasts";
 import type { BrowserWindow, ClosedGroup, ClosedTab, NestedGroupSnapshot, Tab, TabGroup, TileFolder } from "./types";
 
 export type TabPlacement = {
@@ -771,6 +772,7 @@ export const createOrganizeSlice: StateCreator<BrowserState, [], [], OrganizeSli
       s = rebuildNested(s, groupId2, g.id, ids, nestedSnapshot(get(), g));
     }
     set(s);
+    for (const id of ids) newTabToasts.add(get().tabs[id]);
     return groupId2;
   },
 
@@ -782,6 +784,7 @@ export const createOrganizeSlice: StateCreator<BrowserState, [], [], OrganizeSli
     const [next, id] = withNewTab(s, w.id, { profileId: g.profileId, index: w.tabIds.indexOf(g.tabIds.at(-1)!) + 1 });
     const groups = nestGroups({ ...next.groups, [groupId]: { ...g, collapsed: false, tabIds: [...g.tabIds, id] } });
     set(withGroupsPlaced(next, w.id, groups));
+    newTabToasts.add(get().tabs[id]);
     return id;
   },
 

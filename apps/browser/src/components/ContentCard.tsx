@@ -28,7 +28,7 @@ import { FindBar } from "./FindBar";
 import { POPOVER_MARGIN } from "./layout/controls";
 import { NO_TOOLBAR, splitGeometry, toolbarGeometry, type Rect, type ToolbarGeometry } from "./layout/geometry";
 import { dismissPermissions, startPermissionPrompts } from "./site/permissions";
-import { patchPage, pageOf, setBrowserId, setPopover, useFullscreenTab, usePages } from "./layout/pageState";
+import { patchPage, pageOf, setBrowserId, setPageLayout, setPopover, useFullscreenTab, usePages } from "./layout/pageState";
 import { useTabDrag } from "./layout/tabDrag";
 import { SadTab, StatusBubble } from "./layout/PaneOverlays";
 import { DropTargets, SplitDividers, SplitToast } from "./layout/SplitChrome";
@@ -42,7 +42,8 @@ import { closeFolderPanelIn } from "./sidebar/tileFolderUi";
 import { setCardAnchor, setUrlAnchor, useAddressBarInSidebar, useTabLayout, useToolbarExtensionsWidths } from "./layout/windowLayout";
 import { NewTabPage } from "./NewTabPage";
 import { EmptyCard } from "./EmptyCard";
-import { InternalPage } from "./pages";
+import { NewTabCreatedToasts } from "./NewTabCreatedToasts";
+import { InternalPage, isInternalTab } from "./pages";
 import { AutofillPrompt, BLOCKED_POPUPS_WIDTH, BlockedPopupsPrompt, ExternalAppPrompt, PasswordPrompt, PermissionPrompt, answerExternalApp, shouldPromptForPopups, showAutofillPrompt, showPasswordPrompt } from "./site/Prompts";
 import { SiteControls } from "./site/SiteControls";
 import { SITE_PANEL } from "./site/SiteControlsParts";
@@ -420,6 +421,7 @@ const TabPane = memo(function TabPane({
             {(mounted || prewarmed) && <TabWebView tabId={tabId} visible={visible && !newTabShown && !isNewTab} warm={!!warm && !newTabShown && !isNewTab} />}
             {visible && isNewTab && !small && (inSplit ? <SplitEmptyState tabId={tabId} focused={focused} /> : emptyCard ? <EmptyCard windowId={windowId} tabId={tabId} /> : <NewTabPage key={tabId} tabId={tabId} toolbar={toolbar} />)}
             {visible && <InternalPage tabId={tabId} />}
+            {visible && focused && !fullscreen && !covered && !small && <NewTabCreatedToasts windowId={windowId} tabId={tabId} nativePage={!isNewTab && !own.internal && !newTabShown} />}
             {visible && (
               <PageOverlays
                 tabId={tabId}
@@ -511,7 +513,7 @@ function PeekPage({ tabId, sourceId, windowId, width, fullscreen }: { tabId: str
   );
 }
 
-const paneTab = (t: Tab | undefined) => ({ exists: !!t, url: t?.url ?? "" });
+const paneTab = (t: Tab | undefined) => ({ exists: !!t, url: t?.url ?? "", internal: !!t && isInternalTab(t) });
 const webViewTab = (t: Tab | undefined) => ({ navigation: t?.navigation, adoptId: t?.adoptId, profileId: t?.profileId ?? "", shownUrl: t?.url ?? "" });
 
 const isBlank = (url: string) => !url || url === "about:blank";
@@ -524,6 +526,15 @@ const TabWebView = memo(function TabWebView({ tabId, visible, warm, peekOf }: { 
   const tab = () => useBrowser.getState().tabs[tabId];
   const store = () => useBrowser.getState();
   const ref = useMemo(() => webviewRef(tabId), [tabId]);
+  const layoutLive = useRef(true);
+  useLayoutEffect(() => {
+    layoutLive.current = true;
+    setPageLayout(tabId, null);
+    return () => {
+      layoutLive.current = false;
+      setPageLayout(tabId, null);
+    };
+  }, [tabId]);
   const autoPictureInPicture = useAutoPictureInPicture(tabId, visible);
   const pageColor = useProfilesValue(profileId, (profiles) => (isIncognitoProfile(profileId) ? "incognito" : (profiles[profileId]?.color ?? "plum")));
   const theme = useTheme();
@@ -591,6 +602,9 @@ const TabWebView = memo(function TabWebView({ tabId, visible, warm, peekOf }: { 
       pageColor={pageColor}
       contentsBackgroundColor={backdrop}
       shownUrl={shownUrl}
+      onPageLayout={(pageLayout) => {
+        if (layoutLive.current) setPageLayout(tabId, pageLayout);
+      }}
       onReady={(browserId, chromeTabId) => {
         setBrowserId(tabId, browserId);
         noteChromeTab(tabId, chromeTabId);

@@ -18,6 +18,7 @@ import { transactional } from "./transaction";
 import type { BrowserWindow, Tab } from "./types";
 import { createUiSlice, type UiSlice } from "./ui";
 import { createWindowsSlice, type WindowsSlice } from "./windows";
+import { newTabToasts } from "./newTabToasts";
 
 export type BrowserState = ProfilesSlice &
   WindowsSlice &
@@ -95,6 +96,7 @@ export const useBrowser = create<BrowserState>()(transactions.middleware(batched
   ...createPeekSlice(...a),
 
   hydrate(data) {
+    newTabToasts.clear();
     const [set, get] = a;
     const s = get();
     const profiles = data.profiles && Object.keys(data.profiles).length ? data.profiles : { [DEFAULT_PROFILE.id]: DEFAULT_PROFILE };
@@ -232,3 +234,7 @@ useBrowser.subscribe((s, prev) => {
 });
 
 export type { CreateWindowOptions } from "./windows";
+
+useBrowser.subscribe((s, prev) => {
+  if (s.tabs !== prev.tabs || s.windows !== prev.windows) newTabToasts.prune(s);
+});

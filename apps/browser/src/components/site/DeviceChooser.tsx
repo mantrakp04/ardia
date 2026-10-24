@@ -17,6 +17,11 @@ import { tabForBrowser } from "../layout/pageState";
 import { useHover } from "../primitives";
 
 const useChoosers = create<{ byTab: Record<string, Chooser> }>()(() => ({ byTab: {} }));
+
+export function useDeviceChooserOpen(tabId: string): boolean {
+  return useChoosers((s) => !!s.byTab[tabId]);
+}
+
 if (__DEV__) (globalThis as { acDeviceChoosers?: unknown }).acDeviceChoosers = { useChoosers, selectDevice, cancelDeviceChooser };
 
 let started = false;

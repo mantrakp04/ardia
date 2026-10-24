@@ -364,6 +364,7 @@ final class CefWebView: ExpoView, ArdiaCoreWebViewDelegate {
     "onPageFocus",
     "onPageMessage",
     "onReady",
+    "onPageLayout",
     "onDiscarded",
     "onPasswordPrompt",
     "onAutofillPrompt",
@@ -403,6 +404,7 @@ final class CefWebView: ExpoView, ArdiaCoreWebViewDelegate {
   let onPageFocus = EventDispatcher()
   let onPageMessage = EventDispatcher()
   let onReady = EventDispatcher()
+  let onPageLayout = EventDispatcher()
   let onDiscarded = EventDispatcher()
   let onPasswordPrompt = EventDispatcher()
   let onAutofillPrompt = EventDispatcher()
@@ -465,6 +467,7 @@ final class CefWebView: ExpoView, ArdiaCoreWebViewDelegate {
     case "focus": onPageFocus(payload)
     case "pageMessage": onPageMessage(payload)
     case "ready": onReady(payload)
+    case "pageLayout": onPageLayout(payload)
     case "discarded": onDiscarded(payload)
     case "passwordPrompt": onPasswordPrompt(payload)
     case "autofillPrompt": onAutofillPrompt(payload)

@@ -5,6 +5,7 @@ import { isPinnedRow, newId } from "./model";
 import { placing } from "./organize";
 import { choose } from "./settings";
 import { activated, apply, removeTabs, withNewTab } from "./tabs";
+import { newTabToasts } from "./newTabToasts";
 import type { BrowserWindow, SplitView, Tab } from "./types";
 
 export type SplitsSlice = {
@@ -214,6 +215,7 @@ export const createSplitsSlice: StateCreator<BrowserState, [], [], SplitsSlice> 
     s = gather({ ...s, splits: { ...s.splits, [split.id]: split } }, anchor.id, split.tabIds);
     if (!o.background) s = apply(s, activated(s, tabId));
     set(s);
+    if (!o.tabId) newTabToasts.add(get().tabs[tabId]);
     return { ok: true, tabId, splitId: split.id };
   },
 

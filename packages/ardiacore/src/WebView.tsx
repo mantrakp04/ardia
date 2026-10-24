@@ -19,6 +19,8 @@ export type NavigationState = {
 
 export type MediaState = { playing: boolean; muted: boolean };
 
+export type PageLayout = { x: number; y: number; width: number; height: number; containerWidth: number; containerHeight: number };
+
 export type NowPlaying = {
   title: string;
   artist: string;
@@ -185,6 +187,7 @@ export type WebViewProps = ViewProps & {
   onPageFocus?: () => void;
   onPageMessage?: (kind: string, data: unknown) => void;
   onReady?: (browserId: number, chromeTabId: number) => void;
+  onPageLayout?: (layout: PageLayout | null) => void;
   onDiscarded?: (url: string) => void;
   onPasswordPrompt?: (prompt: PasswordPrompt) => void;
   onAutofillPrompt?: (prompt: AutofillPrompt | null, id: number) => void;
@@ -271,6 +274,7 @@ type NativeEvents = {
   onPageFocus: object;
   onPageMessage: { kind: string; data: unknown };
   onReady: { browserId: number; tabId?: number };
+  onPageLayout: { layout: PageLayout | null };
   onDiscarded: { url: string };
   onPasswordPrompt: PasswordPrompt;
   onAutofillPrompt: AutofillPrompt | { id: number; closed: true };
@@ -310,6 +314,7 @@ const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<
   onPageFocus: () => [],
   onPageMessage: (e) => [e.kind, e.data],
   onReady: (e) => [e.browserId, e.tabId ?? 0],
+  onPageLayout: (e) => [e.layout],
   onDiscarded: (e) => [toAppUrl(e.url)],
   onPasswordPrompt: (e) => [e],
   onAutofillPrompt: (e) => ("closed" in e ? [null, e.id] : [e, e.id]),

@@ -744,6 +744,7 @@ static BOOL HeldSelector(SEL selector) {
   NSString *_lastBlocked;
   BOOL _blockedEmitQueued;
   NSDictionary *_sentNavigation;
+  NSDictionary *_sentPageLayout;
   NSString *_lastFavicon;
   CFTimeInterval _sentProgressAt;
   double _sentProgress;
@@ -1284,6 +1285,7 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
   [LiveViews() addObject:self];
   InstallControlPressMonitor();
   _tab = tab;
+  _sentPageLayout = nil;
   tab.delegate = self;
   [ArdiaCoreTabs setView:self forTab:tab];
   [self markTemporary];
@@ -1341,6 +1343,7 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
   [self endReveal];
   [self dropFront];
   _tab = nil;
+  [self emitPageLayout];
   _focusOnActivate = NO;
   _pageFocus = ACPageFocus::Unknown;
   _focusedDevTools = nil;
@@ -1512,7 +1515,10 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
 - (void)layoutPage {
   if (NSView *fronted = _frontedPage; fronted.superview == self) fronted.frame = self.bounds;
   NSView *page = _tab.view;
-  if (!page || page.superview != self) return;
+  if (!page || page.superview != self) {
+    [self emitPageLayout];
+    return;
+  }
   if (_devtoolsView) {
     NSRect devtools = NSZeroRect, pageFrame = self.bounds;
     [_tab devToolsLayoutForSize:self.bounds.size devTools:&devtools page:&pageFrame];
@@ -1521,6 +1527,29 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
   } else {
     page.frame = self.bounds;
   }
+  [self emitPageLayout];
+}
+
+- (void)emitPageLayout {
+  NSView *page = _tab.view;
+  NSDictionary *layout = nil;
+  if (page.superview == self && !_tab.discarded) {
+    const NSRect bounds = self.bounds;
+    const NSRect rect = NSIntersectionRect(page.frame, bounds);
+    const CGFloat x = NSMinX(rect) - NSMinX(bounds);
+    const CGFloat y = self.isFlipped ? NSMinY(rect) - NSMinY(bounds) : NSMaxY(bounds) - NSMaxY(rect);
+    if (std::isfinite(x) && std::isfinite(y) && std::isfinite(NSWidth(rect)) && std::isfinite(NSHeight(rect)) &&
+        std::isfinite(NSWidth(bounds)) && std::isfinite(NSHeight(bounds)) && NSWidth(bounds) > 0 && NSHeight(bounds) > 0) {
+      layout = @{
+        @"x" : @(x), @"y" : @(y), @"width" : @(MAX(0, NSWidth(rect))), @"height" : @(MAX(0, NSHeight(rect))),
+        @"containerWidth" : @(NSWidth(bounds)), @"containerHeight" : @(NSHeight(bounds)),
+      };
+    }
+  }
+  NSDictionary *payload = @{ @"layout" : layout ?: NSNull.null };
+  if ([_sentPageLayout isEqualToDictionary:payload]) return;
+  _sentPageLayout = payload;
+  [self emit:@"pageLayout" payload:payload];
 }
 
 - (BOOL)paints {
@@ -2938,6 +2967,7 @@ static NSEventModifierFlags PeekModifierFlag() {
 - (void)tabDidChangeDiscarded:(ArdiaCoreTab *)tab {
   if (tab.discarded) [self emit:@"discarded" payload:@{@"url" : tab.url ?: @""}];
   else [self emit:@"ready" payload:@{@"browserId" : @(ardiacore_host::BrowserId(tab)), @"tabId" : @(tab.tabId)}];
+  [self layoutPage];
 }
 
 - (void)tabBecameUnresponsive:(ArdiaCoreTab *)tab {

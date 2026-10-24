@@ -25,6 +25,7 @@ import { holderOf, returnSharedPages, swapPinPage } from "./pinShare";
 import { sharedElsewhere, sharesTabs } from "./tabShare";
 import { isSmall, isSmallWindow, lastActiveProfile, linkProfileOf, mainWindowFor } from "./small";
 import { activated, apply, removeTabs, withNewTab } from "./tabs";
+import { newTabToasts } from "./newTabToasts";
 import type { BrowserWindow, ClosedTab, ClosedWindow, Frame, ParkedPins, Tab, TabGroup } from "./types";
 
 export type CreateWindowOptions = {
@@ -326,11 +327,12 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
     const s = get();
     if (isSmall(s, windowId)) windowId = mainWindowFor(s) ?? null;
     const closedTab = s.closedTabs.find((c) => c.id === entryId);
-    if (closedTab) return set(restoreTab(s, closedTab, windowId));
     const closedWindow = s.closedWindows.find((c) => c.id === entryId);
-    if (closedWindow) return set(restoreWindow(s, closedWindow));
     const closedGroup = s.closedGroups.find((c) => c.id === entryId) ?? s.deletedGroups.find((c) => c.id === entryId);
-    if (closedGroup) set(restoringGroup(s, closedGroup, windowId));
+    const restored = closedTab ? restoreTab(s, closedTab, windowId) : closedWindow ? restoreWindow(s, closedWindow) : closedGroup ? restoringGroup(s, closedGroup, windowId) : null;
+    if (!restored) return;
+    set(restored);
+    for (const tab of Object.values(restored.tabs)) if (!s.tabs[tab.id]) newTabToasts.add(get().tabs[tab.id]);
   },
 });
 

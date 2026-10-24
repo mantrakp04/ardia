@@ -50,7 +50,7 @@ function edit() {
   const w = windowId ? s.windows[windowId] : undefined;
   if (!w) return;
   const mine = w.tabIds.filter((id) => s.tabs[id]?.profileId === w.profileId && !s.tabs[id]?.pinned);
-  const added = s.newTab(w.id, { url: "about:blank#layout-edit", background: true });
+  const added = s.newTab(w.id, { url: "about:blank#layout-edit", background: true, notify: false });
   s.moveTab(added, 0);
   const closed = mine[3];
   if (closed) s.closeTab(closed);
