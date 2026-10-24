@@ -361,7 +361,7 @@ function PageRows({ windowId, profileId, current, rows, lazy, offScreen, tiles, 
   const limit = cap ?? (growing ? mountedRows : undefined);
   const list = limit === undefined ? all : all.slice(0, limit);
   const pending = useBrowser((s) => (growing ? entriesHeight(s, windowId, profileId, all.slice(mountedRows)) : 0));
-  const clearable = useBrowser((s) => !offScreen && clearableTabIds(s, windowId).length > 0);
+  const clearable = useBrowser((s) => !offScreen && clearableTabIds(s, windowId, profileId).length > 0);
   const tidy = useBrowser((s) => !offScreen && canTidyPins(s, windowId, profileId));
   const divided = clearable || tidy;
   const pinned = usePinnedSequence(windowId, profileId, offScreen);

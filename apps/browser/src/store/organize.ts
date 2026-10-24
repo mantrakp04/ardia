@@ -105,20 +105,20 @@ export type OrganizeSlice = {
 
 export type ClearedTabs = { windowId: string; entries: ClosedTab[]; blankTabId: string | null };
 
-export function unpinnedTabIds(s: BrowserState, windowId: string): string[] {
-  return viewTabIds(s, windowId).filter((id) => !inPinnedContainer(s, id));
+export function unpinnedTabIds(s: BrowserState, windowId: string, profileId?: string): string[] {
+  return viewTabIds(s, windowId, profileId).filter((id) => !inPinnedContainer(s, id));
 }
 
-export function clearableTabIds(s: BrowserState, windowId: string): string[] {
-  const kept = tabsKeptByClear(s, windowId);
-  return unpinnedTabIds(s, windowId).filter((id) => !kept.has(id));
+export function clearableTabIds(s: BrowserState, windowId: string, profileId?: string): string[] {
+  const kept = tabsKeptByClear(s, windowId, profileId);
+  return unpinnedTabIds(s, windowId, profileId).filter((id) => !kept.has(id));
 }
 
-function tabsKeptByClear(s: BrowserState, windowId: string): Set<string> {
+function tabsKeptByClear(s: BrowserState, windowId: string, profileId?: string): Set<string> {
   const kept = new Set<string>();
-  const active = activeTabId(s, windowId);
+  const active = activeTabId(s, windowId, profileId);
   if (active) kept.add(active);
-  for (const id of viewTabIds(s, windowId)) if (s.live[id]?.playingAudio) kept.add(id);
+  for (const id of viewTabIds(s, windowId, profileId)) if (s.live[id]?.playingAudio) kept.add(id);
   for (const id of [...kept]) for (const pane of splitOf(s, id)?.tabIds ?? []) kept.add(pane);
   return kept;
 }

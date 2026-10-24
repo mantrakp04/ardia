@@ -271,7 +271,7 @@ Arc, not Dia. From Arc's binary: the divider is `UnpinnedSectionDividerCellView`
 "arrow pointing down", and `SidebarClearButton`: an image and a label in a stack view, handling only mouseDown/mouseUp);
 its state is `clearTabAction` (`clearAll`, `clearOthers` = "Clear unselected Today tabs", `tidyAndClear`),
 `shouldShowAutoOrgButton` and `buttons` (`clear`, `moveToMainWindow`, `custom`), with no hover state, so the button
-shows with the section, not on hover. Ours is `clearOthers`: Clear keeps the selected tab, its split partner and tabs playing media (Arc's 2022 release notes: "We no longer archive or clear tabs playing media"), and the button shows only while something would close. Button title "Clear", tooltip "Clear unpinned tabs in this space". The menu item is
+shows with the section, not on hover. Ours is `clearOthers`: Clear keeps the selected tab and tabs playing audio (Chrome's audible state; Arc's 2022 release notes: "We no longer archive or clear tabs playing media"), each with its split partner, and the button shows only while something would close. Button title "Clear", tooltip "Clear unpinned tabs in this space". The menu item is
 "Clear Unpinned Tabs" (`clearUnpinnedTabs:`, ⇧⌘K, SF Symbol `bubbles.and.sparkles`, search terms "Close Unpinned Tabs;
 Clear Tabs; Clear Today"); a toast confirms the clear and offers Undo. Measured on the screenshot (scale from the 36 pt row
 pitch, about 6.3 px/pt): the line is 1 pt at about white 0.08 and starts at the favicons' left edge; it ends 7.5 pt before
