@@ -65,13 +65,24 @@ test("the window's split toast lifts only when the pill in that window sits unde
   const toast = { width: 300, containerWidth: 1200, bottom: 22 };
   const full = { a: { x: 0, width: 1200 } };
   const lift = CLI_PILL_CLEARANCE - 22;
-  assert.equal(windowToastLift({ w1: { tabId: "a", width: 230 } }, "w1", full, toast), lift);
-  assert.equal(windowToastLift({}, "w1", full, toast), 0);
-  assert.equal(windowToastLift({ w2: { tabId: "a", width: 230 } }, "w1", full, toast), 0);
+  assert.equal(windowToastLift({ w1: { tabId: "a", width: 230 } }, "w1", { hostTab: "a", panes: full }, toast), lift);
+  assert.equal(windowToastLift({}, "w1", { hostTab: "a", panes: full }, toast), 0);
+  assert.equal(windowToastLift({ w2: { tabId: "a", width: 230 } }, "w1", { hostTab: "a", panes: full }, toast), 0);
   const split = { a: { x: 0, width: 400 }, b: { x: 400, width: 400 }, c: { x: 800, width: 400 } };
-  assert.equal(windowToastLift({ w1: { tabId: "a", width: 230 } }, "w1", split, toast), 0);
-  assert.equal(windowToastLift({ w1: { tabId: "b", width: 230 } }, "w1", split, toast), lift);
-  assert.equal(windowToastLift({ w1: { tabId: "peek", width: 230 } }, "w1", split, toast), 0);
+  assert.equal(windowToastLift({ w1: { tabId: "a", width: 230 } }, "w1", { hostTab: "a", panes: split }, toast), 0);
+  assert.equal(windowToastLift({ w1: { tabId: "b", width: 230 } }, "w1", { hostTab: "b", panes: split }, toast), lift);
+  assert.equal(windowToastLift({ w1: { tabId: "peek", width: 230 } }, "w1", { hostTab: "peek", panes: split }, toast), 0);
+});
+
+test("while the pill moves to another card the toast follows the card it is moving to, not the placement it is leaving", () => {
+  const toast = { width: 300, containerWidth: 1200, bottom: 22 };
+  const lift = CLI_PILL_CLEARANCE - 22;
+  const leaving = { w1: { tabId: "old", width: 230 } };
+  assert.equal(windowToastLift(leaving, "w1", { hostTab: "new", panes: { new: { x: 0, width: 1200 } } }, toast), lift);
+  const split = { a: { x: 0, width: 600 }, b: { x: 600, width: 600 } };
+  assert.equal(windowToastLift({ w1: { tabId: "b", width: 230 } }, "w1", { hostTab: "a", panes: split }, { ...toast, width: 200 }), 0);
+  assert.equal(windowPillWidth(leaving, "w1"), 230);
+  assert.equal(windowPillWidth(leaving, "w2"), 0);
 });
 
 const channel = (v) => {
@@ -111,4 +122,36 @@ test("every piece of pill text meets WCAG AA (4.5:1) in light and dark", async (
       assert.ok(ratio >= 4.5, `${key} ${name}: ${ratio.toFixed(2)}`);
     }
   }
+});
+
+const { CLI_PILL_INSET, CLI_PILL_LABELS, cliPillLabel, cliPillWidthSeed, windowPillWidth } = await import("./cliPillLayout.ts");
+
+test("a pane too narrow for the full sentence gets a shorter whole one, then loses the glyph, then keeps just the name and Stop", () => {
+  const full = CLI_PILL_LABELS[0];
+  assert.deepEqual(cliPillLabel(1200), { detail: " is controlling Ardia", glyph: true });
+  assert.deepEqual(cliPillLabel(full.width + 2 * CLI_PILL_INSET), { detail: full.detail, glyph: true });
+  assert.deepEqual(cliPillLabel(231), { detail: " is in control", glyph: true });
+  assert.deepEqual(cliPillLabel(CLI_PILL_LABELS[1].width + 2 * CLI_PILL_INSET - 1), { detail: " is in control", glyph: false });
+  assert.deepEqual(cliPillLabel(155), { detail: "", glyph: true });
+  assert.deepEqual(cliPillLabel(80), { detail: "", glyph: false });
+  for (let i = 1; i < CLI_PILL_LABELS.length; i++) assert.ok(CLI_PILL_LABELS[i].width < CLI_PILL_LABELS[i - 1].width);
+});
+
+test("a pill moving to another card in its window starts from the window's measured width, so toasts don't drop for a frame", () => {
+  cliPillPlacements.setState({}, true);
+  placeCliPill("w1", "a", 232);
+  withdrawCliPill("w1", "a");
+  assert.equal(cliPillWidthSeed("w1", true), 0);
+  placeCliPill("w1", "a", 232);
+  const seed = cliPillWidthSeed("w1", true);
+  assert.equal(seed, 232);
+  assert.equal(cliPillWidthSeed("w1", false), 0);
+  assert.equal(cliPillWidthSeed("w2", true), 0);
+  const lifts = [];
+  const unsubscribe = cliPillPlacements.subscribe((p) => lifts.push(pageToastLift(p, "w1", "b", 24)));
+  withdrawCliPill("w1", "a");
+  placeCliPill("w1", "b", seed);
+  unsubscribe();
+  assert.equal(lifts.at(-1), CLI_PILL_CLEARANCE - 24);
+  cliPillPlacements.setState({}, true);
 });

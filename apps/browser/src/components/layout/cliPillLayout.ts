@@ -19,6 +19,22 @@ export function statusBubblePlacement(paneWidth: number, pillWidth: number): { m
   return { maxWidth, bottom: CLI_PILL_BOTTOM + CLI_PILL_HEIGHT + STATUS_BUBBLE_GAP };
 }
 
+export type CliPillLabel = { detail: string; glyph: boolean };
+
+export const CLI_PILL_LABELS: readonly (CliPillLabel & { width: number })[] = [
+  { detail: " is controlling Ardia", glyph: true, width: 236 },
+  { detail: " is in control", glyph: true, width: 196 },
+  { detail: " is in control", glyph: false, width: 172 },
+  { detail: "", glyph: true, width: 128 },
+  { detail: "", glyph: false, width: 104 },
+];
+
+export function cliPillLabel(paneWidth: number): CliPillLabel {
+  const room = paneWidth - 2 * CLI_PILL_INSET;
+  const label = CLI_PILL_LABELS.find((l) => l.width <= room) ?? CLI_PILL_LABELS[CLI_PILL_LABELS.length - 1]!;
+  return { detail: label.detail, glyph: label.glyph };
+}
+
 export function cliPillHost({ activeId, fullscreenTab, peekId }: { activeId?: string; fullscreenTab?: string | null; peekId?: string }): string | undefined {
   return peekId ?? fullscreenTab ?? activeId;
 }
@@ -33,6 +49,8 @@ export function placeCliPill(windowId: string, tabId: string, width: number) {
   if (current?.tabId === tabId && current.width === width) return;
   cliPillPlacements.setState({ [windowId]: { tabId, width } });
 }
+
+export const cliPillWidthSeed = (windowId: string, shown: boolean): number => (shown ? (cliPillPlacements.getState()[windowId]?.width ?? 0) : 0);
 
 export function withdrawCliPill(windowId: string, tabId: string) {
   const placements = cliPillPlacements.getState();
@@ -50,18 +68,20 @@ export const pageToastLift = (placements: CliPillPlacements, windowId: string, t
 
 type Span = { x: number; width: number };
 
+export const windowPillWidth = (placements: CliPillPlacements, windowId: string): number => placements[windowId]?.width ?? 0;
+
 export function windowToastLift(
   placements: CliPillPlacements,
   windowId: string,
-  panes: Record<string, Span | undefined>,
+  pill: { hostTab: string | undefined; panes: Record<string, Span | undefined> },
   toast: { width: number; containerWidth: number; bottom: number },
 ): number {
-  const placement = placements[windowId];
-  const pane = placement ? panes[placement.tabId] : undefined;
-  if (!placement || !pane || placement.width <= 0) return 0;
-  const pillLeft = pane.x + (pane.width - placement.width) / 2;
+  const pillWidth = windowPillWidth(placements, windowId);
+  const pane = pill.hostTab ? pill.panes[pill.hostTab] : undefined;
+  if (!pane || pillWidth <= 0) return 0;
+  const pillLeft = pane.x + (pane.width - pillWidth) / 2;
   const toastLeft = (toast.containerWidth - toast.width) / 2;
-  const overlaps = pillLeft < toastLeft + toast.width && toastLeft < pillLeft + placement.width;
+  const overlaps = pillLeft < toastLeft + toast.width && toastLeft < pillLeft + pillWidth;
   return overlaps ? Math.max(0, CLI_PILL_CLEARANCE - toast.bottom) : 0;
 }
 

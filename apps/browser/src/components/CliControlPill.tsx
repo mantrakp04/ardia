@@ -5,7 +5,19 @@ import { useStore } from "zustand";
 import { cliDisclosure, stopCliControl } from "../lib/cliControl";
 import { hex, useTheme } from "../lib/theme";
 import { useWindowId } from "../store/hooks";
-import { CLI_PILL_BOTTOM, CLI_PILL_HEIGHT, CLI_PILL_INSET, cliPillColors, cliPillPlacements, placeCliPill, withdrawCliPill, type CliPillPlacements } from "./layout/cliPillLayout";
+import {
+  CLI_PILL_BOTTOM,
+  CLI_PILL_HEIGHT,
+  CLI_PILL_INSET,
+  cliPillColors,
+  cliPillLabel,
+  cliPillPlacements,
+  cliPillWidthSeed,
+  placeCliPill,
+  withdrawCliPill,
+  type CliPillLabel,
+  type CliPillPlacements,
+} from "./layout/cliPillLayout";
 import { useHover } from "./primitives";
 
 export const useCliDisclosed = () => useStore(cliDisclosure, (s) => s.shown);
@@ -27,12 +39,12 @@ export function useCliToastLift(lift: number): Animated.Value {
   return offset;
 }
 
-export function CliControlPill({ tabId }: { tabId: string }) {
+export function CliControlPill({ tabId, paneWidth }: { tabId: string; paneWidth: number }) {
   const windowId = useWindowId();
   const shown = useCliDisclosed();
-  const [shownAtMount] = useState(shown);
+  const [appearAtOnce, setAppearAtOnce] = useState(shown);
   const [mounted, setMounted] = useState(shown);
-  const [width, setWidth] = useState(0);
+  const [width, setWidth] = useState(() => cliPillWidthSeed(windowId, shown));
   useEffect(() => {
     if (shown) setMounted(true);
   }, [shown]);
@@ -45,17 +57,31 @@ export function CliControlPill({ tabId }: { tabId: string }) {
   return (
     <ShownCliControlPill
       shown={shown}
-      appearAtOnce={shownAtMount}
+      appearAtOnce={appearAtOnce}
+      label={cliPillLabel(paneWidth)}
       onHidden={() => {
         setMounted(false);
         setWidth(0);
+        setAppearAtOnce(false);
       }}
       onWidth={setWidth}
     />
   );
 }
 
-function ShownCliControlPill({ shown, appearAtOnce, onHidden, onWidth }: { shown: boolean; appearAtOnce: boolean; onHidden: () => void; onWidth: (width: number) => void }) {
+function ShownCliControlPill({
+  shown,
+  appearAtOnce,
+  label,
+  onHidden,
+  onWidth,
+}: {
+  shown: boolean;
+  appearAtOnce: boolean;
+  label: CliPillLabel;
+  onHidden: () => void;
+  onWidth: (width: number) => void;
+}) {
   const theme = useTheme();
   const colors = cliPillColors(theme);
   const appear = useRef(new Animated.Value(appearAtOnce ? 1 : 0)).current;
@@ -95,12 +121,14 @@ function ShownCliControlPill({ shown, appearAtOnce, onHidden, onWidth }: { shown
             accessibilityLabel="The ardia command is controlling Ardia"
             style={{ height: CLI_PILL_HEIGHT, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 6, paddingRight: 4 }}
           >
-            <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: colors.glyphFill, alignItems: "center", justifyContent: "center" }}>
-              <Symbol name="terminal.fill" size={9} weight="bold" color={colors.glyph} style={{ width: 14, height: 14 }} />
-            </View>
-            <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 12, color: colors.detail }}>
+            {label.glyph ? (
+              <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: colors.glyphFill, alignItems: "center", justifyContent: "center" }}>
+                <Symbol name="terminal.fill" size={9} weight="bold" color={colors.glyph} style={{ width: 14, height: 14 }} />
+              </View>
+            ) : null}
+            <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 12, color: colors.detail, marginLeft: label.glyph ? 0 : 6 }}>
               <Text style={{ fontWeight: "600", color: colors.title }}>ardia</Text>
-              {" is controlling Ardia"}
+              {label.detail}
             </Text>
             <StopButton colors={colors} />
           </View>

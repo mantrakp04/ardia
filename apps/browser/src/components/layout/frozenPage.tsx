@@ -7,6 +7,12 @@ import { notePainted, startPinHandoff, useFrozenPages } from "./pinHandoff";
 const LIGHT_WASH = "rgba(255,255,255,0.4)";
 const DARK_WASH = "rgba(0,0,0,0.25)";
 
+export function useFrozenPageShown(windowId: string, tabId: string | undefined, enabled: boolean): boolean {
+  const frozen = useBrowser((s) => enabled && !!tabId && !!s.tabs[tabId]?.pageIn);
+  const passing = useFrozenPages((f) => enabled && !!f.bridges[windowId]);
+  return frozen || passing;
+}
+
 export function FrozenPage({ windowId, tabId, top }: { windowId: string; tabId: string | undefined; top: number }) {
   const theme = useTheme();
   useEffect(startPinHandoff, []);

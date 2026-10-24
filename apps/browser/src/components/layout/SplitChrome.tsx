@@ -237,13 +237,13 @@ function DropZone({ pane, side, shown, stage, pointerX, onHidden }: { pane: Rect
 
 const TOAST_BOTTOM = 22;
 
-export const SplitToast = memo(function SplitToast({ windowId, panes, width }: { windowId: string; panes: Record<string, Rect>; width: number }) {
+export const SplitToast = memo(function SplitToast({ windowId, panes, width, cliPillTab }: { windowId: string; panes: Record<string, Rect>; width: number; cliPillTab: string | undefined }) {
   const theme = useTheme();
   const toast = useToasts((s) => s.toasts[windowId] ?? null);
   const appear = useRef(new Animated.Value(0)).current;
   const [shown, setShown] = useState(toast);
   const [toastWidth, setToastWidth] = useState(0);
-  const lift = useCliPillPlacements((placements) => windowToastLift(placements, windowId, panes, { width: toastWidth, containerWidth: width, bottom: TOAST_BOTTOM }));
+  const lift = useCliPillPlacements((placements) => windowToastLift(placements, windowId, { hostTab: cliPillTab, panes }, { width: toastWidth, containerWidth: width, bottom: TOAST_BOTTOM }));
   const offset = useCliToastLift(lift);
   useEffect(() => {
     if (toast) return setShown(toast);

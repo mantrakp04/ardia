@@ -196,14 +196,18 @@ two parts with an explicit flush between them gets through; that gap is accepted
 While the CLI has a connection open, Ardia shows a pill floating over the page at the bottom centre of the tab card
 (12 pt up): a terminal glyph, "ardia is controlling Ardia" and Stop, which turns the setting off
 (`components/CliControlPill.tsx`). There's one per window, in the focused card of a split, the full screen page or
-an open Peek, drawn after every other page overlay (the crashed-tab page and prompts included) so Stop stays
-reachable. It never moves or resizes the page, and only the pill takes clicks. It shows at once on the first
-connection and stays 3 s after the last one closes, so a burst of `ardia exec` calls shows it once and hides it once;
-a new connection during the hold cancels the hide, and turning the setting off hides it at once. The hold is one
-store for the whole app (`cliDisclosure` in `lib/cliControl.ts`, built by `lib/cliDisclosure.ts`), so a pill that
-mounts during the hold (a tab switch, a new focused split pane, another window) shows too. While it's up in a card,
-that card's link status bubble ends before it (or sits above it in a narrow pane) and the Bookmarks undo toast sits
-above it; the split-view toast rises only when the pill in its window is under it (`layout/cliPillLayout.ts`).
+an open Peek. It's drawn after every other page overlay (the crashed-tab page and prompts included), and over the
+frozen snapshot a window shows while another window holds its pinned tab's page, so Stop stays reachable. In a
+narrow pane it reads "ardia is in control", then drops the glyph, then shows just "ardia" and Stop, so no text is
+cut off (`cliPillLabel`). It never moves or resizes the page, and only the pill takes clicks. It shows at once on
+the first connection and stays 3 s after the last one closes, so a burst of `ardia exec` calls shows it once and
+hides it once; a new connection during the hold cancels the hide, and turning the setting off hides it at once. The
+hold is one store for the whole app (`cliDisclosure` in `lib/cliControl.ts`, built by `lib/cliDisclosure.ts`), so a
+pill that mounts during the hold (a tab switch, a new focused split pane, another window) shows at once, and only
+that first show skips the fade-in. A pill moving to another card keeps the window's measured width, and the
+split-view toast follows the card the pill is in, so neither drops for a frame. While it's up in a card, that card's
+link status bubble ends before it (or sits above it in a narrow pane) and the Bookmarks undo toast sits above it;
+the split-view toast rises only when the pill in its window is under it (`layout/cliPillLayout.ts`).
 
 ## Install and upgrade
 

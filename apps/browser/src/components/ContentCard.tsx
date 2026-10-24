@@ -25,7 +25,7 @@ import type { SplitView, Tab } from "../store/types";
 import { BOOKMARKS_BAR_HEIGHT, BookmarksBar, bookmarksBarShown, useBookmarksBarMode, type BookmarksBarMode } from "./bookmarks/BookmarksBar";
 import { CliControlPill, useCliPillPlacements } from "./CliControlPill";
 import { FindBar } from "./FindBar";
-import { cliPillHost, cliPillWidthIn, statusBubblePlacement } from "./layout/cliPillLayout";
+import { cliPillHost, statusBubblePlacement, windowPillWidth } from "./layout/cliPillLayout";
 import { POPOVER_MARGIN } from "./layout/controls";
 import { NO_TOOLBAR, splitGeometry, toolbarGeometry, type Rect, type ToolbarGeometry } from "./layout/geometry";
 import { dismissPermissions, startPermissionPrompts } from "./site/permissions";
@@ -37,7 +37,7 @@ import { SplitEmptyState } from "./layout/SplitEmptyState";
 import { pagerFor } from "./layout/profilePager";
 import { openFromPage } from "./layout/openFromPage";
 import { dockMoving, useDockMotion, usePeekEdge } from "./layout/dockMotion";
-import { FrozenPage } from "./layout/frozenPage";
+import { FrozenPage, useFrozenPageShown } from "./layout/frozenPage";
 import { holderOf } from "../store/pinShare";
 import { closeFolderPanelIn } from "./sidebar/tileFolderUi";
 import { setCardAnchor, setUrlAnchor, useAddressBarInSidebar, useTabLayout, useToolbarExtensionsWidths } from "./layout/windowLayout";
@@ -91,6 +91,8 @@ export function ContentCard() {
   const peekFullscreen = !!peekId && fullscreenTab === peekId;
   const peekShown = !!peekId && (!fullscreenTab || peekFullscreen) && !small;
   const cliPillTab = cliPillHost({ activeId, fullscreenTab, peekId: peekShown ? peekId : undefined });
+  const frozenShown = useFrozenPageShown(windowId, activeId, size.width > 0 && !split && !fullscreenTab);
+  const cliPillOverFrozen = frozenShown && !!activeId && cliPillTab === activeId;
   useEffect(() => {
     if (fullscreenTab && peekId && !peekFullscreen) dismissPeek(windowId);
   }, [fullscreenTab, peekId, peekFullscreen, windowId]);
@@ -288,7 +290,7 @@ export function ContentCard() {
               barMode={barMode}
               windowToolbar={windowToolbar}
               popovers={tabId !== popoversOverCard}
-              cliPill={tabId === cliPillTab}
+              cliPill={tabId === cliPillTab && !cliPillOverFrozen}
             />
           );
         })}
@@ -297,6 +299,11 @@ export function ContentCard() {
       )}
       {size.width > 0 && !split && !fullscreenTab && (
         <FrozenPage windowId={windowId} tabId={activeId} top={(!addressInSidebar && !small && !hideWhileScrolling ? layout.toolbarHeight : 0) + (barMode === "always" && !small && !hideWhileScrolling ? BOOKMARKS_BAR_HEIGHT : 0)} />
+      )}
+      {cliPillOverFrozen && activeId && (
+        <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+          <CliControlPill tabId={activeId} paneWidth={size.width} />
+        </View>
       )}
       {split && !fullscreenTab && <SplitDividers split={split} dividers={dividers} width={size.width} height={size.height} />}
       {size.width > 0 && popoversOverCard && origin && activeRect && peekEdge !== undefined && (
@@ -318,7 +325,7 @@ export function ContentCard() {
           page={(tabId, sourceId, width) => <PeekPage tabId={tabId} sourceId={sourceId} windowId={windowId} width={width} fullscreen={peekFullscreen} />}
         />
       )}
-      <SplitToast windowId={windowId} panes={panes} width={size.width} />
+      <SplitToast windowId={windowId} panes={panes} width={size.width} cliPillTab={cliPillTab} />
     </View>
   );
 }
@@ -473,8 +480,8 @@ function PageOverlays({
 }) {
   const popover = usePages((s) => s.popover[tabId] ?? null);
   const zoom = useTabValue(tabId, (t) => t?.zoom ?? 1);
-  const cliPillWidth = useCliPillPlacements((placements) => cliPillWidthIn(placements, windowId, tabId));
-  const bubble = statusBubblePlacement(width, cliPill ? cliPillWidth : 0);
+  const cliPillWidth = useCliPillPlacements((placements) => (cliPill ? windowPillWidth(placements, windowId) : 0));
+  const bubble = statusBubblePlacement(width, cliPillWidth);
   const popoverSide = toolbar ? { right: POPOVER_MARGIN } : { left: POPOVER_MARGIN };
   return (
     <>
@@ -497,7 +504,7 @@ function PageOverlays({
       <SelectionPopover tabId={tabId} zoom={zoom} />
       {cliPill && (
         <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, statusStyle]}>
-          <CliControlPill tabId={tabId} />
+          <CliControlPill tabId={tabId} paneWidth={width} />
         </Animated.View>
       )}
     </>
