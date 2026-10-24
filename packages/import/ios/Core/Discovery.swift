@@ -21,6 +21,7 @@ public struct BrowserDefinition: Sendable {
     dia,
     .init(id: "safari", name: "Safari", family: .safari, bundleIds: ["com.apple.Safari"]),
     .init(id: "firefox", name: "Firefox", family: .firefox, bundleIds: ["org.mozilla.firefox"], dataPath: "Firefox"),
+    .init(id: "zen", name: "Zen", family: .firefox, bundleIds: ["app.zen-browser.zen"], dataPath: "zen"),
     chromium("edge", "Microsoft Edge", ["com.microsoft.edgemac"], "Microsoft Edge", "Microsoft Edge"),
     chromium("brave", "Brave", ["com.brave.Browser"], "BraveSoftware/Brave-Browser", "Brave"),
     BrowserDefinition(id: "helium", name: "Helium", family: .chromium, bundleIds: ["net.imput.helium"],
@@ -52,6 +53,8 @@ public struct BrowserDefinition: Sendable {
   public static func find(_ id: String) -> BrowserDefinition? { all.first { $0.id == id } }
 
   public var isChromiumBased: Bool { family == .chromium || family == .arc }
+
+  public var isZen: Bool { id == "zen" }
 }
 
 public struct SpaceSummary: Codable, Equatable, Sendable {
@@ -123,7 +126,8 @@ public struct BrowserDiscovery {
     case .safari:
       guard app != nil else { return nil }
     case .firefox:
-      profiles = firefoxProfiles(def)
+      profiles = firefoxProfiles(def, app: app)
+      if def.isZen { attachZenSpaces(&profiles) }
     case .chromium, .arc:
       profiles = chromiumProfiles(def)
       if def.family == .arc { attachArcSpaces(&profiles) }
@@ -252,35 +256,55 @@ public struct BrowserDiscovery {
 
   func attachArcSpaces(_ profiles: inout [BrowserProfile]) {
     guard let data = try? Data(contentsOf: arcSidebarURL()), let sidebar = try? ArcSidebar.parse(data) else { return }
+    attachSpaces(&profiles) { _ in sidebar }
+  }
+
+  func attachZenSpaces(_ profiles: inout [BrowserProfile]) {
+    attachSpaces(&profiles) { try? ZenSidebar.load(profile: URL(fileURLWithPath: $0.path), profileId: $0.id) }
+  }
+
+  func attachSpaces(_ profiles: inout [BrowserProfile], sidebar: (BrowserProfile) -> ArcSidebar?) {
     for i in profiles.indices {
+      guard let sidebar = sidebar(profiles[i]) else { continue }
       let spaces = sidebar.spaces.filter { $0.profileId == profiles[i].id }
       profiles[i].spaces = spaces.map {
         SpaceSummary(id: $0.id, name: $0.name, color: $0.color, emoji: $0.emoji, icon: $0.icon,
                      pinnedCount: $0.pinned.reduce(0) { $0 + $1.linkCount }, tabCount: $0.tabs.count, theme: $0.theme)
       }
       var kinds = profiles[i].available
-      if !spaces.isEmpty { kinds += [.spaces, .pinnedTabs, .tabs] }
+      if !spaces.isEmpty { kinds += [.spaces, .pinnedTabs, .tabs].filter { !kinds.contains($0) } }
       if sidebar.favorites[profiles[i].id]?.isEmpty == false { kinds.append(.favorites) }
       profiles[i].available = kinds
     }
   }
 
-  func firefoxProfiles(_ def: BrowserDefinition) -> [BrowserProfile] {
+  func firefoxProfiles(_ def: BrowserDefinition, app: URL? = nil) -> [BrowserProfile] {
     guard let root = dataDirectory(def),
           let ini = try? String(contentsOf: root.appendingPathComponent("profiles.ini"), encoding: .utf8) else { return [] }
     let fm = FileManager.default
-    return Firefox.profiles(ini: ini).compactMap { p in
+    let profiles: [BrowserProfile] = Firefox.profiles(ini: ini).compactMap { p in
       guard !p.path.hasPrefix("/") else { return nil }
       let dir = root.appendingPathComponent(p.path, isDirectory: true)
       guard fm.fileExists(atPath: dir.path) else { return nil }
       func has(_ name: String) -> Bool { fm.fileExists(atPath: dir.appendingPathComponent(name).path) }
       var kinds: [ImportKind] = []
       if has("places.sqlite") { kinds += [.bookmarks, .history] }
-      if Firefox.sessionFile(profile: dir) != nil { kinds.append(.tabs) }
-      if has("logins.json") { kinds.append(.passwords) }
+      if (def.isZen ? ZenSidebar.sessionFile(profile: dir) : Firefox.sessionFile(profile: dir)) != nil { kinds.append(.tabs) }
+      if (has("logins.json") || has("logins.db")) && has("key4.db") { kinds.append(.passwords) }
       if has("cookies.sqlite") { kinds.append(.cookies) }
+      guard !kinds.isEmpty else { return nil }
       return BrowserProfile(id: p.path, name: p.name, path: dir.path, email: nil, avatarPath: nil, color: nil,
                             isDefault: p.isDefault, available: kinds, spaces: nil)
     }
+    guard let app, profiles.filter(\.isDefault).count > 1 else { return profiles }
+    let ours = Set(profiles.filter { $0.isDefault && Self.lastRunBy(app, profile: URL(fileURLWithPath: $0.path)) }.map(\.id))
+    guard !ours.isEmpty else { return profiles }
+    return profiles.map { var p = $0; p.isDefault = ours.contains(p.id); return p }
+  }
+
+  static func lastRunBy(_ app: URL, profile: URL) -> Bool {
+    guard let ini = try? String(contentsOf: profile.appendingPathComponent("compatibility.ini"), encoding: .utf8) else { return false }
+    let dir = ini.split(whereSeparator: \.isNewline).first { $0.hasPrefix("LastPlatformDir=") }?.dropFirst("LastPlatformDir=".count)
+    return dir.map { URL(fileURLWithPath: String($0)).standardizedFileURL.path.hasPrefix(app.standardizedFileURL.path + "/") } ?? false
   }
 }

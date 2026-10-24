@@ -59,6 +59,12 @@ public final class Importer: @unchecked Sendable {
     var arc: ArcSidebar?
     func arcSidebar() throws -> ArcSidebar {
       if let arc { return arc }
+      if def.isZen {
+        let parsed = try ZenSidebar.load(profile: dir, profileId: profileId)
+        arc = parsed
+        return parsed
+      }
+      guard def.family == .arc else { throw ImportError.unsupported("\(def.name) has no spaces") }
       let url = discovery.arcSidebarURL()
       guard FileManager.default.fileExists(atPath: url.path) else { throw ImportError.notFound("No Arc sidebar data") }
       let parsed = try ArcSidebar.parse(Data(contentsOf: url))
@@ -94,13 +100,13 @@ public final class Importer: @unchecked Sendable {
           result.tabs = session.tabs
           result.tabGroups = session.groups
           count = session.tabs.count
-        case (.tabs, .firefox):
+        case (.tabs, .firefox) where !def.isZen || (try? arcSidebar())?.spaces.isEmpty != false:
           let session = try Firefox.loadSession(profile: dir)
           result.tabs = session.tabs
           result.tabGroups = session.groups
           count = session.tabs.count
 
-        case (.spaces, .arc), (.pinnedTabs, .arc), (.tabs, .arc):
+        case (.spaces, .arc), (.pinnedTabs, .arc), (.tabs, .arc), (.spaces, .firefox), (.pinnedTabs, .firefox), (.tabs, .firefox):
           let spaces = try arcSidebar().spaces.filter { $0.profileId == profileId && (options.spaceIds?.contains($0.id) ?? true) }
           result.spaces = spaces.map { space in
             var s = space
@@ -117,7 +123,7 @@ public final class Importer: @unchecked Sendable {
           default:
             count = spaces.count
           }
-        case (.favorites, .arc):
+        case (.favorites, .arc), (.favorites, .firefox):
           result.favorites = try arcSidebar().favorites[profileId] ?? []
           count = result.favorites.count
 
@@ -182,7 +188,20 @@ public final class Importer: @unchecked Sendable {
       }
       if kind != .history || !succeeded { observer.progress(ImportProgress(kind: kind, phase: .end, processed: count, total: count)) }
     }
+    try cancellation.check()
+    let pages = Self.tabPages(result)
+    result.favicons = (try? FaviconReader.load(def.family == .firefox ? .firefox : .chromium, profile: dir, pages: pages)) ?? [:]
+    for page in pages where result.favicons[page] == nil {
+      guard let data = arc?.icons[page], let png = FaviconReader.png(data), let origin = FaviconReader.host(page) else { continue }
+      result.favicons[page] = ImportedFavicon(icon: "\(origin)/favicon.ico", png: png.base64EncodedString())
+    }
     return result
+  }
+
+  static func tabPages(_ result: ImportResult) -> [String] {
+    func links(_ nodes: [BookmarkNode]) -> [String] { nodes.flatMap { $0.url.map { [$0] } ?? links($0.children ?? []) } }
+    return (result.tabs + result.favorites).map(\.url)
+      + result.spaces.flatMap { links($0.pinned) + $0.tabs.map(\.url) }
   }
 
   static func count(_ n: Int, _ word: String) -> String { "\(n) \(word)\(n == 1 ? "" : "s")" }

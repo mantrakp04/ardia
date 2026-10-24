@@ -29,6 +29,7 @@ import struct
 import subprocess
 import tempfile
 import zipfile
+import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SUPPORT = os.path.join(HERE, "home", "Library", "Application Support")
@@ -444,6 +445,10 @@ def build_chrome():
     ])
     chromium_cookies_old(os.path.join(MISC, "Cookies-v23"))
     chromium_web_data(os.path.join(d, "Web Data"))
+    chromium_favicons(os.path.join(d, "Favicons"), [
+        ("https://example.com/", "https://example.com/favicon.ico", [(16, tiny_png((1, 2, 3))), (32, tiny_png((4, 5, 6), 32))]),
+        ("https://other.example/page", "https://other.example/icon.png", [(64, tiny_png((7, 8, 9), 64))]),
+    ])
 
     cmds = session_commands()
     sessions = os.path.join(d, "Sessions")
@@ -830,7 +835,7 @@ def pbes2(plain, global_salt, password, entry_salt, iv14, iterations=10000):
 CKA_ID = b"\xf8" + b"\0" * 14 + b"\x01"
 
 
-def key4(path, global_salt, password, login_key):
+def key4(path, global_salt, password, login_key, rust_key=None):
     db = new_db(path)
     db.executescript("""
         CREATE TABLE metaData (id PRIMARY KEY UNIQUE ON CONFLICT REPLACE, item1, item2);
@@ -839,6 +844,9 @@ def key4(path, global_salt, password, login_key):
     check = pbes2(b"password-check", global_salt, password, b"C" * 32, b"c" * 14)
     db.execute("INSERT INTO metaData VALUES ('Version', 1, NULL)")
     db.execute("INSERT INTO metaData VALUES ('password', ?, ?)", (global_salt, check))
+    if rust_key:
+        db.execute("INSERT INTO nssPrivate (id, a3, a11) VALUES (0, ?, ?)",
+                   (b"as-logins-key", pbes2(rust_key, global_salt, password, b"R" * 32, b"r" * 14)))
     decoy = pbes2(b"D" * 24, global_salt, password, b"E" * 32, b"e" * 14)
     db.execute("INSERT INTO nssPrivate (id, a11, a102) VALUES (1, ?, ?)", (decoy, b"\x01" * 16))
     db.execute("INSERT INTO nssPrivate (id, a11, a102) VALUES (2, ?, ?)",
@@ -870,6 +878,97 @@ def logins_json(path, key, rows):
                        "timePasswordChanged": (BASE_UNIX - 86400) * 1000, "timesUsed": i})
     write_json(path, {"nextId": len(rows) + 1, "logins": logins, "potentiallyVulnerablePasswords": [],
                       "dismissedBreachAlertsByLoginGUID": {}, "version": 3})
+
+
+def gf_mult(x, y):
+    z = 0
+    for i in range(127, -1, -1):
+        if (x >> i) & 1:
+            z ^= y
+        y = (y >> 1) ^ (0xE1 << 120) if y & 1 else y >> 1
+    return z
+
+
+def aes_gcm(key, nonce, plain, aad):
+    block = lambda data: openssl("aes-256-ecb", key, b"\0" * 16, data, nopad=True)
+    cipher = openssl("aes-256-ctr", key, nonce + b"\0\0\0\2", plain)
+    h = int.from_bytes(block(b"\0" * 16), "big")
+    padded = lambda b: b + b"\0" * (-len(b) % 16)
+    data = padded(aad) + padded(cipher) + struct.pack(">QQ", len(aad) * 8, len(cipher) * 8)
+    tag = 0
+    for i in range(0, len(data), 16):
+        tag = gf_mult(tag ^ int.from_bytes(data[i:i + 16], "big"), h)
+    tag ^= int.from_bytes(block(nonce + b"\0\0\0\1"), "big")
+    return cipher, tag.to_bytes(16, "big")
+
+
+def jwe(value, key, nonce):
+    b64 = lambda b: base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+    header = b64(b'{"alg":"dir","enc":"A256GCM"}')
+    cipher, tag = aes_gcm(key, nonce, json.dumps(value).encode(), header.encode())
+    return ".".join([header, "", b64(nonce), b64(cipher), b64(tag)])
+
+
+def logins_db(path, key, local, mirror):
+    db = new_db(path)
+    columns = "origin, httpRealm, formActionOrigin, timesUsed, timeCreated, timeLastUsed, timePasswordChanged, secFields, guid"
+    db.executescript(f"""
+        CREATE TABLE loginsL (id INTEGER PRIMARY KEY AUTOINCREMENT, {columns}, is_deleted TINYINT NOT NULL DEFAULT 0);
+        CREATE TABLE loginsM (id INTEGER PRIMARY KEY AUTOINCREMENT, {columns}, is_overridden TINYINT NOT NULL DEFAULT 0);
+    """)
+    for table, flag, rows in (("loginsL", "is_deleted", local), ("loginsM", "is_overridden", mirror)):
+        for i, (origin, action, user, password, flagged) in enumerate(rows, 1):
+            db.execute(f"INSERT INTO {table} ({columns}, {flag}) VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)",
+                       (origin, action, i, (BASE_UNIX - 86400) * 1000, BASE_UNIX * 1000, (BASE_UNIX - 86400) * 1000,
+                        jwe({"u": user, "p": password}, key, bytes([len(table), i]) * 6), f"{table}-{i}", flagged))
+    db.commit()
+    db.close()
+
+
+def tiny_png(rgb, size=2):
+    def chunk(kind, body):
+        return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body))
+    rows = b"".join(b"\0" + bytes(rgb) * size for _ in range(size))
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b""))
+
+
+def chromium_favicons(path, mappings):
+    db = new_db(path)
+    db.executescript("""
+        CREATE TABLE favicons (id INTEGER PRIMARY KEY, url LONGVARCHAR NOT NULL, icon_type INTEGER DEFAULT 1);
+        CREATE TABLE favicon_bitmaps (id INTEGER PRIMARY KEY, icon_id INTEGER NOT NULL, last_updated INTEGER DEFAULT 0,
+            image_data BLOB, width INTEGER DEFAULT 0, height INTEGER DEFAULT 0, last_requested INTEGER DEFAULT 0);
+        CREATE TABLE icon_mapping (id INTEGER PRIMARY KEY, page_url LONGVARCHAR NOT NULL, icon_id INTEGER);
+    """)
+    for i, (page, icon, bitmaps) in enumerate(mappings, 1):
+        db.execute("INSERT INTO favicons (id, url) VALUES (?, ?)", (i, icon))
+        db.execute("INSERT INTO icon_mapping (page_url, icon_id) VALUES (?, ?)", (page, i))
+        for width, data in bitmaps:
+            db.execute("INSERT INTO favicon_bitmaps (icon_id, image_data, width, height) VALUES (?, ?, ?, ?)", (i, data, width, width))
+    db.commit()
+    db.close()
+
+
+def firefox_favicons(path, pages, roots):
+    db = new_db(path)
+    db.executescript("""
+        CREATE TABLE moz_icons (id INTEGER PRIMARY KEY, icon_url TEXT NOT NULL, fixed_icon_url_hash INTEGER NOT NULL DEFAULT 0,
+            width INTEGER NOT NULL DEFAULT 0, root INTEGER NOT NULL DEFAULT 0, color INTEGER, expire_ms INTEGER NOT NULL DEFAULT 0,
+            flags INTEGER NOT NULL DEFAULT 0, data BLOB);
+        CREATE TABLE moz_pages_w_icons (id INTEGER PRIMARY KEY, page_url TEXT NOT NULL, page_url_hash INTEGER NOT NULL DEFAULT 0);
+        CREATE TABLE moz_icons_to_pages (page_id INTEGER NOT NULL, icon_id INTEGER NOT NULL, expire_ms INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (page_id, icon_id)) WITHOUT ROWID;
+    """)
+    for page, icons in pages:
+        page_id = db.execute("INSERT INTO moz_pages_w_icons (page_url) VALUES (?)", (page,)).lastrowid
+        for icon, width, data in icons:
+            icon_id = db.execute("INSERT INTO moz_icons (icon_url, width, data) VALUES (?, ?, ?)", (icon, width, data)).lastrowid
+            db.execute("INSERT INTO moz_icons_to_pages (page_id, icon_id) VALUES (?, ?)", (page_id, icon_id))
+    for icon, width, data in roots:
+        db.execute("INSERT INTO moz_icons (icon_url, width, root, data) VALUES (?, ?, 1, ?)", (icon, width, data))
+    db.commit()
+    db.close()
 
 
 def lz4_literals(data):
@@ -1033,6 +1132,7 @@ Locked=1
     logins_json(os.path.join(d, "logins.json"), login_key, [
         ("https://accounts.mozilla.example", "https://accounts.mozilla.example", "fox@example.com", "fire & fox"),
         ("https://unicode.example", "", "ユーザー", "パスワード🔒"),
+        ("chrome://FirefoxAccounts", "", "sync-user", "sync-token"),
     ])
 
     w = os.path.join(root, "Profiles", "zzzz9999.work")
@@ -1055,6 +1155,121 @@ Locked=1
     write_json(os.path.join(MISC, "nss-legacy-pbe.json"), {
         "globalSalt": base64.b64encode(gs).decode(), "password": pw.decode(),
         "der": base64.b64encode(blob).decode(), "plain": "password-check"})
+
+
+def build_zen():
+    root = os.path.join(SUPPORT, "zen")
+    write(os.path.join(root, "profiles.ini"), b"""[Profile0]
+Name=Default (release)
+IsRelative=1
+Path=Profiles/zen12345.Default (release)
+
+[Profile2]
+Name=Default (unofficial)
+IsRelative=1
+Path=Profiles/dev00000.Default (unofficial)
+
+[Profile3]
+Name=No workspaces
+IsRelative=1
+Path=Profiles/old00000.No workspaces
+
+[Profile4]
+Name=Tabs only
+IsRelative=1
+Path=Profiles/tabs0000.Tabs only
+
+[Install1111111111111111]
+Default=Profiles/dev00000.Default (unofficial)
+Locked=1
+
+[Profile1]
+Name=Empty
+IsRelative=1
+Path=Profiles/empty000.Empty
+
+[Install6ED35B3CA1B5D3AF]
+Default=Profiles/zen12345.Default (release)
+Locked=1
+""")
+    write_json(os.path.join(root, "Profiles", "empty000.Empty", "times.json"), {})
+    old = os.path.join(root, "Profiles", "old00000.No workspaces")
+    write(os.path.join(old, "sessionstore-backups", "recovery.jsonlz4"), mozlz4({"windows": [{"selected": 1, "tabs": [
+        {"entries": [{"url": "https://plain.example/", "title": "Plain"}], "index": 1},
+        {"entries": [{"url": "https://pinned-plain.example/", "title": "Pinned"}], "index": 1, "pinned": True},
+    ]}]}))
+    only = os.path.join(root, "Profiles", "tabs0000.Tabs only")
+    write(os.path.join(only, "zen-sessions.jsonlz4"), mozlz4({"spaces": [{"uuid": "{only}", "name": "Only"}], "tabs": [
+        {"entries": [{"url": "https://only.example/", "title": "Only"}], "index": 1, "zenWorkspace": "{only}"}]}))
+    logins_db(os.path.join(only, "logins.db"), bytes(32), [("https://only.example", "", "u", "p", 0)], [])
+    dev = os.path.join(root, "Profiles", "dev00000.Default (unofficial)")
+    places(os.path.join(dev, "places.sqlite"))
+    write(os.path.join(dev, "compatibility.ini"),
+          b"[Compatibility]\nLastPlatformDir=/Users/someone/zen-browser-desktop/engine/obj/dist/Nightly.app/Contents/Resources\n")
+    d = os.path.join(root, "Profiles", "zen12345.Default (release)")
+    places(os.path.join(d, "places.sqlite"))
+    write(os.path.join(d, "compatibility.ini"),
+          b"[Compatibility]\nLastVersion=1.23.4b\nLastPlatformDir=/Applications/app.zen-browser.zen.app/Contents/Resources\n")
+    svg = b'<svg xmlns="http://www.w3.org/2000/svg"/>'
+    firefox_favicons(os.path.join(d, "favicons.sqlite"), [
+        ("https://calendar.example/", [("https://calendar.example/cal.svg", 65535, svg),
+                                       ("https://calendar.example/cal-16.png", 16, tiny_png((10, 20, 30))),
+                                       ("https://calendar.example/cal-32.png", 32, tiny_png((40, 50, 60), 32))]),
+        ("https://docs.example/elsewhere", [("https://docs.example/d.png", 16, tiny_png((70, 80, 90)))]),
+        ("https://vector.example/", [("https://vector.example/v.svg", 65535, svg)]),
+    ], [("https://mail.example/favicon.ico", 16, tiny_png((100, 110, 120)))])
+    work, home = "{work-space}", "{home-space}"
+    big = tiny_png((200, 100, 50), 128)
+    ico = struct.pack("<HHHBBBBHHII", 0, 1, 1, 16, 16, 0, 0, 1, 32, len(tiny_png((5, 6, 7), 16)), 22) + tiny_png((5, 6, 7), 16)
+    data_uri = lambda kind, data: f"data:image/{kind};base64," + base64.b64encode(data).decode()
+    def tab(url, title, workspace=None, pinned=False, essential=False, initial=None, **extra):
+        t = {"entries": [{"url": url, "title": title}], "index": 1, "pinned": pinned, "hidden": False,
+             "zenWorkspace": workspace, "zenEssential": essential, "zenSyncId": url, "zenIsEmpty": False,
+             "lastAccessed": BASE_UNIX * 1000}
+        if initial: t["_zenPinnedInitialState"] = {"entry": {"url": initial[0], "title": initial[1]}}
+        t.update(extra)
+        return t
+    session = {
+        "lastCollected": BASE_UNIX * 1000,
+        "spaces": [
+            {"uuid": work, "name": "Work", "icon": "\U0001F4BC",
+             "theme": {"type": "gradient", "gradientColors": [
+                 {"c": [16, 32, 48], "isPrimary": False}, {"c": [255, 128, 0], "isPrimary": True}]}},
+            {"uuid": home, "name": "", "icon": "chrome://browser/skin/zen-icons/selectable/heart.svg", "theme": {}},
+        ],
+        "folders": [
+            {"id": "f-docs", "name": "Docs", "workspaceId": work, "parentId": None},
+            {"id": "f-specs", "name": "Specs", "workspaceId": work, "parentId": "f-docs"},
+            {"id": "f-empty", "name": "Empty", "workspaceId": home, "parentId": None},
+        ],
+        "groups": [],
+        "tabs": [
+            tab("https://mail.example/u/0", "Mail now", pinned=True, essential=True, initial=("https://mail.example/", "Mail")),
+            tab("https://mail.example/u/0", "Mail dup", pinned=True, essential=True, zenSyncId="https://mail.example/u/0"),
+            tab("https://calendar.example/", "Calendar", work, pinned=True, zenStaticLabel="Cal"),
+            tab("https://docs.example/a", "Doc A", work, pinned=True, groupId="f-docs"),
+            tab("https://docs.example/spec", "Spec", work, pinned=True, groupId="f-specs"),
+            tab("https://news.example/", "News", work, image=data_uri("svg+xml", b"<svg/>")),
+            tab("https://recipes.example/", "Recipes", home, pinned=True, image=data_uri("png", tiny_png((1, 1, 1))),
+                _zenPinnedInitialState={"entry": {"url": "https://recipes.example/", "title": "Recipes"},
+                                        "image": data_uri("png", big)}),
+            tab("https://shop.example/", "Shop", home, image=data_uri("x-icon", ico)),
+            tab("https://orphan.example/", "Orphan", "{gone}"),
+            tab("about:blank", "", home, zenIsEmpty=True),
+            tab("https://glance.example/", "Glance", home, zenIsGlance=True),
+        ],
+    }
+    write(os.path.join(d, "zen-sessions.jsonlz4"), mozlz4(session))
+    rust_key = bytes(range(200, 232))
+    key4(os.path.join(d, "key4.db"), b"Z" * 20, b"", bytes(range(1, 33)), rust_key)
+    logins_db(os.path.join(d, "logins.db"), rust_key, [
+        ("https://zen.example", "https://zen.example", "zen@example.com", "workspace pass", 0),
+        ("https://gone.example", "", "old", "deleted", 1),
+        ("chrome://FirefoxAccounts", None, "sync", "token", 0),
+    ], [
+        ("https://synced.example", "", "synced", "from sync", 0),
+        ("https://zen.example", "https://zen.example", "zen@example.com", "stale mirror", 1),
+    ])
 
 
 BOOKMARKS_HTML_SAFARI = """<!DOCTYPE NETSCAPE-Bookmark-file-1>
@@ -1196,6 +1411,7 @@ def main():
     build_safari_cookies()
     build_arc()
     build_firefox()
+    build_zen()
     build_exports()
     write_json(os.path.join(HERE, "secrets.json"), {
         "chromiumSafeStorageSecret": CHROMIUM_SECRET.decode(),

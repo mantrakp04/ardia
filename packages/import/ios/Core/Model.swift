@@ -239,6 +239,7 @@ public struct ImportResult: Codable, Equatable, Sendable {
   public var credentials: [Credential] = []
   public var spaces: [SpaceSuggestion] = []
   public var favorites: [ImportedTab] = []
+  public var favicons: [String: ImportedFavicon] = [:]
   public var failed: [ImportKind] = []
   public var warnings: [ImportWarning] = []
   public var vaultToken: String?
@@ -252,7 +253,7 @@ public struct ImportResult: Codable, Equatable, Sendable {
 
   enum CodingKeys: String, CodingKey {
     case browserId, profileId, profile, bookmarks, history, historyCount, tabs, tabGroups, credentials, spaces, favorites,
-         failed, warnings, vaultToken, cookieCount, addressCount, cardCount
+         favicons, failed, warnings, vaultToken, cookieCount, addressCount, cardCount
   }
 
   public init(browserId: String, profileId: String) {

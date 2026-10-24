@@ -1,5 +1,5 @@
 {
-  "nextId": 3,
+  "nextId": 4,
   "logins": [
     {
       "id": 1,
@@ -32,6 +32,22 @@
       "timeLastUsed": 1788220800000,
       "timePasswordChanged": 1788134400000,
       "timesUsed": 2
+    },
+    {
+      "id": 3,
+      "hostname": "chrome://FirefoxAccounts",
+      "httpRealm": null,
+      "formSubmitURL": "",
+      "usernameField": "user",
+      "passwordField": "pass",
+      "encryptedUsername": "MDoEEPgAAAAAAAAAAAAAAAAAAAEwFAYIKoZIhvcNAwcECDEyMzQ1Njc4BBBkLZaORrnC9Cx0wjuRj1Ed",
+      "encryptedPassword": "MDoEEPgAAAAAAAAAAAAAAAAAAAEwFAYIKoZIhvcNAwcECDEyMzQ1Njc4BBDrPdzpxpo1XcXk+ID1Vaxl",
+      "guid": "{00000000-0000-4000-8000-000000000003}",
+      "encType": 1,
+      "timeCreated": 1788134400000,
+      "timeLastUsed": 1788220800000,
+      "timePasswordChanged": 1788134400000,
+      "timesUsed": 3
     }
   ],
   "potentiallyVulnerablePasswords": [],

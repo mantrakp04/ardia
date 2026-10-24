@@ -126,6 +126,7 @@ export type ImportResult = {
   vaultToken?: string;
   spaces: SpaceSuggestion[];
   favorites: ImportedTab[];
+  favicons: Record<string, { icon: string; png: string }>;
   failed: ImportKind[];
   warnings: ImportWarning[];
 };

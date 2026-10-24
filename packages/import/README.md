@@ -14,15 +14,17 @@ the file and its WAL before opening it.
 | bookmarks | `ChromiumBookmarks.swift`: `Bookmarks`, `AccountBookmarks` | same as Chromium | `Firefox.swift`: `places.sqlite` |
 | history | `HistoryReader.swift`: `History` | same as Chromium | `HistoryReader.swift`: `places.sqlite` |
 | tabs | `ChromiumSessions.swift`: `Sessions/Session_*` (newest), `Sessions_Encrypted/`, legacy `Current Session` | `ArcSidebar.swift` | `Firefox.swift`: `sessionstore-backups/recovery.jsonlz4`, `sessionstore.jsonlz4` |
-| passwords | `ChromiumSecrets.swift`: `Login Data`, `Login Data For Account` (key from `ChromiumCrypto.swift`) | same as Chromium | `FirefoxLogins.swift`: `key4.db` + `logins.json` |
+| passwords | `ChromiumSecrets.swift`: `Login Data`, `Login Data For Account` (key from `ChromiumCrypto.swift`) | same as Chromium | `FirefoxLogins.swift`: `key4.db` + `logins.db` (else `logins.json`) |
 | cookies | `ChromiumSecrets.swift`: `Network/Cookies` (or `Cookies`) | same as Chromium | `Firefox.swift`: `cookies.sqlite` |
 | autofill (addresses, cards) | `ChromiumAutofill.swift`: `Web Data` | same as Chromium | none |
 | extensions (listed, never installed) | `ChromiumExtensions.swift`: `Preferences`, `Secure Preferences`, `Extensions/*/manifest.json` | same as Chromium | none |
+| tab icons (`favicons` on the result) | `FaviconReader.swift`: `Favicons` | same as Chromium | `FaviconReader.swift`: `favicons.sqlite`; Zen also its session's tab images |
 | spaces, pinnedTabs, favorites | none | `ArcSidebar.swift`: `<Application Support>/Arc/StorableSidebar.json` | none |
 
 | Source | Files | What it reads |
 |---|---|---|
 | Discovery (which browsers and profiles exist) | `Discovery.swift` (`BrowserDefinition.all`: IDs, data paths, Keychain items), `AppIcons.swift` | Chromium `Local State`; Firefox `profiles.ini` (`Firefox.profiles`) |
+| Zen | Same as Firefox (`zen/profiles.ini`), plus `ZenSidebar.swift` | Workspaces become `spaces` (pinned tabs and folders → `pinned`, other tabs → `tabs`) and Essentials become `favorites`, from `zen-sessions.jsonlz4` (else the Firefox session store) |
 | Dia | Same as the Chromium family (`Dia/User Data`) | Dia's sidebar (spaces, pinned tiles) is a SQLCipher `tabs.db` that isn't read |
 | Dia open and pinned tabs (`diaTabs`) | `DiaAppleEvents.swift` (Apple Events, `DiaAutomation` permission) → `DiaTabs.swift` (`DiaTabsImport.build`) | Each Dia window's tabs over AppleScript; needs Dia running and Automation permission |
 | Safari direct (needs Full Disk Access) | `SafariDirect.swift`, `SafariCookies.swift` | `~/Library/Safari/{Bookmarks.plist, History.db, LastSession.plist}`, `~/Library/Containers/com.apple.Safari/Data/Library/Cookies/Cookies.binarycookies` |
@@ -82,6 +84,7 @@ sqlite3 CLI: it checkpoints the WAL the tests depend on.
 | `build_safari_cookies` | `home/Library/Containers/com.apple.Safari/Data/Library/Cookies/Cookies.binarycookies`, `misc/binarycookies/*` (malformed) |
 | `build_arc` | `home/Library/Application Support/Arc/` (`User Data/`, `StorableSidebar.json`) |
 | `build_firefox` | `home/Library/Application Support/Firefox/` (`profiles.ini`, `Profiles/*`), `misc/nss-legacy-pbe.json` |
+| `build_zen` | `home/Library/Application Support/zen/` (`profiles.ini`; `Profiles/*`: a release profile with `places.sqlite`, `zen-sessions.jsonlz4`, `favicons.sqlite`, `key4.db`, `logins.db`; a self-built Zen's profile; one with only a Firefox session and no workspaces; one with `zen-sessions.jsonlz4` and `logins.db` but no `places.sqlite` or `key4.db`) |
 | `build_exports` | `safari/Safari Export/`, `safari/Safari Export.zip`, `safari/not-an-export.zip`, `csv/*.csv`, `html/chrome-bookmarks.html` |
 
 ## Commands
