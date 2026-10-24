@@ -197,20 +197,13 @@ test("a pill moving to another card in its window starts from the window's measu
   resetCliPillPlacements();
 });
 
-test("a crashed or hung tab's buttons sit above the pill in its card, however short the pane", async () => {
+test("a crashed or hung tab clears the pill by the pill's own clearance, and the base margin without it", async () => {
   const { cliPillClearance } = await import("./cliPillLayout.ts");
   assert.equal(cliPillClearance(false, 24), 24);
   assert.equal(cliPillClearance(false), 0);
   assert.equal(cliPillClearance(true, 24), CLI_PILL_CLEARANCE);
   assert.equal(cliPillClearance(true), CLI_PILL_CLEARANCE);
-  const pillTop = CLI_PILL_BOTTOM + CLI_PILL_HEIGHT;
-  for (const [top, base, content] of [[24, 24, 150], [0, 0, 110]]) {
-    for (const paneHeight of [806, 400, 237, 188, 132, 90]) {
-      const bottomPadding = cliPillClearance(true, base);
-      const contentBottom = bottomPadding + Math.max(0, (paneHeight - top - bottomPadding - content) / 2);
-      assert.ok(contentBottom >= pillTop + 8, `pane ${paneHeight}, content ${content}: bottom ${contentBottom}`);
-    }
-  }
+  assert.ok(CLI_PILL_CLEARANCE > CLI_PILL_BOTTOM + CLI_PILL_HEIGHT);
 });
 
 test("a crashed or hung tab lays out as the pane's own flex column, so it follows the pane through every resize", async () => {
@@ -221,7 +214,6 @@ test("a crashed or hung tab lays out as the pane's own flex column, so it follow
       assert.equal("position" in column, false);
       assert.equal("minHeight" in column, false);
       assert.equal("height" in column, false);
-      assert.equal(column.overflow, "hidden");
       assert.equal(column.justifyContent, "flex-end");
       assert.equal(column.alignItems, "center");
       assert.equal(column.paddingBottom, pillShown ? Math.max(base, CLI_PILL_CLEARANCE) : base);
@@ -229,4 +221,21 @@ test("a crashed or hung tab lays out as the pane's own flex column, so it follow
   }
   assert.deepEqual(SAD_TAB_SPACER, { flexGrow: 1, flexShrink: 1, flexBasis: 0 });
   assert.equal(SAD_TAB_CONTENT.flexShrink, 0);
+  assert.equal("minHeight" in SAD_TAB_SPACER, false);
+});
+
+test("a crashed or hung tab's column is a scroll container, so Yoga measures its content at full height in a short pane", async () => {
+  const { sadTabColumn } = await import("./cliPillLayout.ts");
+  for (const pillShown of [false, true]) {
+    for (const base of [0, 24]) assert.equal(sadTabColumn(pillShown, base).overflow, "scroll");
+  }
+});
+
+test("a crashed tab centres in the whole pane without the pill and in the area above the pill with it", async () => {
+  const { sadTabColumn } = await import("./cliPillLayout.ts");
+  const bare = sadTabColumn(false, 24);
+  assert.equal(bare.paddingTop, bare.paddingBottom);
+  const lifted = sadTabColumn(true, 24);
+  assert.equal(lifted.paddingTop, 0);
+  assert.equal(lifted.paddingBottom, CLI_PILL_CLEARANCE);
 });
