@@ -69,10 +69,11 @@ test("closing a row unloads it and keeps it; Close All Tabs keeps rows", () => {
   assert.ok(S().tabs[a], "still there");
   assert.equal(!!S().tabs[a].navigation || !!S().tabs[a].adoptId, false, "unloaded");
   assert.deepEqual(entries(w).rows, ["https://a.com/"]);
+  S().activate(c);
   S().clearUnpinnedTabs(w);
   assert.deepEqual(entries(w).rows, ["https://a.com/"]);
   assert.equal(S().tabs[b], undefined);
-  assert.equal(S().tabs[c], undefined);
+  assert.ok(S().tabs[c], "the selected tab stays");
 });
 
 test("rows are the profile's: a second window mirrors them, a change in one shows in the other", () => {

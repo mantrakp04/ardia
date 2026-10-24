@@ -278,6 +278,10 @@ pitch, about 6.3 px/pt): the line is 1 pt at about white 0.08 and starts at the 
 the arrow; the arrow is 7 pt wide and 8 pt tall, 3 pt from the text; "Clear" is semibold with a cap height 0.75 of the
 tab titles' (10 pt beside our 13 pt titles) and ends where the titles do; the line's centre is 25 pt above the first
 row's centre. Ours: `components/sidebar/ClearDivider.tsx`, a 16 pt row with Dia's `divider` colour and secondary text.
+Ours clears as `clearOthers`: Clear and ⇧⌘K keep the selected tab with its split partner, and tabs playing audio (Arc's
+2022 release notes: "We no longer archive or clear tabs playing media"). Dia's own "Close All", which shows on hovering the
+line above its tabs, keeps the selected tab too (issue #149's recording); there the cleared rows fade and the rest slide up
+in about 100 ms (3 frames at 30 fps); ours take about 120 ms (7 frames at 60 fps, a hidden instance's window capture).
 
 ## New Tab page
 
