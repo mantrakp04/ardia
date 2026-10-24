@@ -880,12 +880,33 @@ def logins_json(path, key, rows):
                       "dismissedBreachAlertsByLoginGUID": {}, "version": 3})
 
 
+def gf_mult(x, y):
+    z = 0
+    for i in range(127, -1, -1):
+        if (x >> i) & 1:
+            z ^= y
+        y = (y >> 1) ^ (0xE1 << 120) if y & 1 else y >> 1
+    return z
+
+
+def aes_gcm(key, nonce, plain, aad):
+    block = lambda data: openssl("aes-256-ecb", key, b"\0" * 16, data, nopad=True)
+    cipher = openssl("aes-256-ctr", key, nonce + b"\0\0\0\2", plain)
+    h = int.from_bytes(block(b"\0" * 16), "big")
+    padded = lambda b: b + b"\0" * (-len(b) % 16)
+    data = padded(aad) + padded(cipher) + struct.pack(">QQ", len(aad) * 8, len(cipher) * 8)
+    tag = 0
+    for i in range(0, len(data), 16):
+        tag = gf_mult(tag ^ int.from_bytes(data[i:i + 16], "big"), h)
+    tag ^= int.from_bytes(block(nonce + b"\0\0\0\1"), "big")
+    return cipher, tag.to_bytes(16, "big")
+
+
 def jwe(value, key, nonce):
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     b64 = lambda b: base64.urlsafe_b64encode(b).rstrip(b"=").decode()
     header = b64(b'{"alg":"dir","enc":"A256GCM"}')
-    sealed = AESGCM(key).encrypt(nonce, json.dumps(value).encode(), header.encode())
-    return ".".join([header, "", b64(nonce), b64(sealed[:-16]), b64(sealed[-16:])])
+    cipher, tag = aes_gcm(key, nonce, json.dumps(value).encode(), header.encode())
+    return ".".join([header, "", b64(nonce), b64(cipher), b64(tag)])
 
 
 def logins_db(path, key, local, mirror):
@@ -1148,6 +1169,16 @@ Name=Default (unofficial)
 IsRelative=1
 Path=Profiles/dev00000.Default (unofficial)
 
+[Profile3]
+Name=No workspaces
+IsRelative=1
+Path=Profiles/old00000.No workspaces
+
+[Profile4]
+Name=Tabs only
+IsRelative=1
+Path=Profiles/tabs0000.Tabs only
+
 [Install1111111111111111]
 Default=Profiles/dev00000.Default (unofficial)
 Locked=1
@@ -1162,6 +1193,15 @@ Default=Profiles/zen12345.Default (release)
 Locked=1
 """)
     write_json(os.path.join(root, "Profiles", "empty000.Empty", "times.json"), {})
+    old = os.path.join(root, "Profiles", "old00000.No workspaces")
+    write(os.path.join(old, "sessionstore-backups", "recovery.jsonlz4"), mozlz4({"windows": [{"selected": 1, "tabs": [
+        {"entries": [{"url": "https://plain.example/", "title": "Plain"}], "index": 1},
+        {"entries": [{"url": "https://pinned-plain.example/", "title": "Pinned"}], "index": 1, "pinned": True},
+    ]}]}))
+    only = os.path.join(root, "Profiles", "tabs0000.Tabs only")
+    write(os.path.join(only, "zen-sessions.jsonlz4"), mozlz4({"spaces": [{"uuid": "{only}", "name": "Only"}], "tabs": [
+        {"entries": [{"url": "https://only.example/", "title": "Only"}], "index": 1, "zenWorkspace": "{only}"}]}))
+    logins_db(os.path.join(only, "logins.db"), bytes(32), [("https://only.example", "", "u", "p", 0)], [])
     dev = os.path.join(root, "Profiles", "dev00000.Default (unofficial)")
     places(os.path.join(dev, "places.sqlite"))
     write(os.path.join(dev, "compatibility.ini"),

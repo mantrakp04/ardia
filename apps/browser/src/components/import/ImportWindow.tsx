@@ -13,7 +13,7 @@ import { useHover } from "../primitives";
 import { Button, Checkbox, PopUp, useFormColors } from "../settings/controls";
 import { useOnboarding } from "../onboarding/state";
 import { IMPORT_WINDOW_ID } from "../settings/windows";
-import { applyResult, applySafari, emptyCounts, importArcSpace, importBookmarks, importDiaProfile, openInWebStore, profileColorFor, type ImportCounts } from "./apply";
+import { applyResult, applySafari, emptyCounts, importArcSpace, importBookmarks, importDiaProfile, importFavicons, openInWebStore, profileColorFor, spaceUrls, type ImportCounts } from "./apply";
 import { importModule } from "./module";
 
 const APP = "Ardia";
@@ -244,7 +244,8 @@ export function ImportWindow() {
           const name = space.name || "Space";
           const dest = await destination(destinationIndex++, name, space.color, space.emoji, first);
           first ??= dest;
-          const r = await importArcSpace(dest, space, result.favicons ?? {});
+          await importFavicons(dest, result.favicons ?? {}, spaceUrls(space));
+          const r = importArcSpace(dest, space);
           add({ ...emptyCounts(), tabs: r.tabs, bookmarks: r.bookmarks });
           if (r.skipped) left.push(`${plural(r.skipped, "link")} in ${name}'s folders weren't imported: each folder brings up to ${MAX_DRAFT_LINKS.toLocaleString("en-US")} links.`);
         }
@@ -445,6 +446,24 @@ export function ImportWindow() {
 
   let body: ReactNode = null;
   let footer: ReactNode = null;
+  const profileRow = (p: BrowserProfile) => (
+    <SelectRow
+      key={p.id}
+      selected={sourceProfiles.includes(p.id)}
+      onToggle={(v) => setSourceProfiles((prev) => (v ? [...prev, p.id] : prev.filter((x) => x !== p.id)))}
+      icon={
+        p.avatarPath ? (
+          <Image source={{ uri: `file://${p.avatarPath}` }} style={{ width: 28, height: 28, borderRadius: 14 }} />
+        ) : (
+          <Monogram name={p.name} color={p.color} />
+        )
+      }
+      title={p.name}
+      subtitle={isDiaTabs ? diaProfileSummary(dia, p.id) : (p.email ?? (p.isDefault ? "Default profile" : undefined))}
+    />
+  );
+  const spacelessProfiles = (source?.profiles ?? []).filter((p) => !p.spaces?.length);
+
   const targetPicker =
     profiles.length > 1 ? (
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -530,6 +549,7 @@ export function ImportWindow() {
               subtitle={`${plural(s.pinnedCount, "pinned tab")} · ${plural(s.tabCount, "tab")}`}
             />
           ))}
+          {spacelessProfiles.map(profileRow)}
         </View>
       </>
     ) : (
@@ -541,22 +561,7 @@ export function ImportWindow() {
         )}
         <Text style={{ fontSize: 12, color: theme.textSecondary, marginBottom: 10 }}>{`Customize which profiles to bring over to ${APP}. The first goes into your selected profile; the others become new profiles.`}</Text>
         <View style={{ gap: 6 }}>
-          {source.profiles.map((p) => (
-            <SelectRow
-              key={p.id}
-              selected={sourceProfiles.includes(p.id)}
-              onToggle={(v) => setSourceProfiles((prev) => (v ? [...prev, p.id] : prev.filter((x) => x !== p.id)))}
-              icon={
-                p.avatarPath ? (
-                  <Image source={{ uri: `file://${p.avatarPath}` }} style={{ width: 28, height: 28, borderRadius: 14 }} />
-                ) : (
-                  <Monogram name={p.name} color={p.color} />
-                )
-              }
-              title={p.name}
-              subtitle={isDiaTabs ? diaProfileSummary(dia, p.id) : (p.email ?? (p.isDefault ? "Default profile" : undefined))}
-            />
-          ))}
+          {source.profiles.map(profileRow)}
         </View>
       </>
     );
@@ -565,7 +570,7 @@ export function ImportWindow() {
         <Button title="Back" onPress={() => setStep("choose")} />
         <View style={{ flex: 1 }} />
         {targetPicker}
-        <Button title="Continue" kind="primary" disabled={hasSpaces ? !spaces.length : !sourceProfiles.length} onPress={next} />
+        <Button title="Continue" kind="primary" disabled={hasSpaces ? !spaces.length && !spacelessProfiles.some((p) => sourceProfiles.includes(p.id)) : !sourceProfiles.length} onPress={next} />
       </>
     );
   } else if (step === "unlock" && source) {

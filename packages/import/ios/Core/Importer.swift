@@ -100,7 +100,7 @@ public final class Importer: @unchecked Sendable {
           result.tabs = session.tabs
           result.tabGroups = session.groups
           count = session.tabs.count
-        case (.tabs, .firefox) where !def.isZen:
+        case (.tabs, .firefox) where !def.isZen || (try? arcSidebar())?.spaces.isEmpty != false:
           let session = try Firefox.loadSession(profile: dir)
           result.tabs = session.tabs
           result.tabGroups = session.groups

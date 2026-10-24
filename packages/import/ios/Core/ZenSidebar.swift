@@ -99,7 +99,8 @@ public enum ZenSidebar {
     if text.hasPrefix("moz-remote-image:"), let inner = URLComponents(string: text)?.queryItems?.first(where: { $0.name == "url" })?.value {
       text = inner
     }
-    guard text.hasPrefix("data:image/"), !text.hasPrefix("data:image/svg"), let comma = text.firstIndex(of: ","),
+    guard text.utf8.count <= (FaviconReader.maxBytes / 3 + 1) * 4 + 64,
+          text.hasPrefix("data:image/"), !text.hasPrefix("data:image/svg"), let comma = text.firstIndex(of: ","),
           text[..<comma].hasSuffix(";base64") else { return nil }
     return Data(base64Encoded: String(text[text.index(after: comma)...]))
   }

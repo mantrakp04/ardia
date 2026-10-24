@@ -164,7 +164,7 @@ export function importTabs(
   return usable.length;
 }
 
-async function importFavicons(profileId: string, favicons: ImportResult["favicons"], urls: string[]) {
+export async function importFavicons(profileId: string, favicons: ImportResult["favicons"], urls: string[]) {
   if (isIncognitoProfile(profileId)) return;
   const pages = new Map(urls.filter((u) => favicons[u]).map((u) => [faviconPage(u), favicons[u]!]));
   await Promise.all([...pages].map(([page, f]) => storeFavicon(engineProfile(profileId), page, f.icon, f.png).catch(() => null)));
@@ -172,12 +172,9 @@ async function importFavicons(profileId: string, favicons: ImportResult["favicon
 
 const linkUrls = (nodes: ImportedNode[]): string[] => nodes.flatMap((n) => (n.url ? [n.url] : linkUrls(n.children ?? [])));
 
-export async function importArcSpace(
-  profileId: string,
-  space: SpaceSuggestion,
-  favicons: ImportResult["favicons"],
-): Promise<{ tabs: number; bookmarks: number; skipped: number }> {
-  await importFavicons(profileId, favicons, [...linkUrls(space.pinned), ...space.tabs.map((t) => t.url)]);
+export const spaceUrls = (space: SpaceSuggestion) => [...linkUrls(space.pinned), ...space.tabs.map((t) => t.url)];
+
+export function importArcSpace(profileId: string, space: SpaceSuggestion): { tabs: number; bookmarks: number; skipped: number } {
   const links = space.pinned.filter((n) => n.type === "url" && n.url);
   importPullRequestsFolders(profileId, space.pinned);
   const folders = withoutLiveFolders(space.pinned.filter((n) => n.type === "folder"));

@@ -289,8 +289,8 @@ public struct BrowserDiscovery {
       func has(_ name: String) -> Bool { fm.fileExists(atPath: dir.appendingPathComponent(name).path) }
       var kinds: [ImportKind] = []
       if has("places.sqlite") { kinds += [.bookmarks, .history] }
-      if Firefox.sessionFile(profile: dir) != nil { kinds.append(.tabs) }
-      if has("logins.json") || has("logins.db") { kinds.append(.passwords) }
+      if (def.isZen ? ZenSidebar.sessionFile(profile: dir) : Firefox.sessionFile(profile: dir)) != nil { kinds.append(.tabs) }
+      if (has("logins.json") || has("logins.db")) && has("key4.db") { kinds.append(.passwords) }
       if has("cookies.sqlite") { kinds.append(.cookies) }
       guard !kinds.isEmpty else { return nil }
       return BrowserProfile(id: p.path, name: p.name, path: dir.path, email: nil, avatarPath: nil, color: nil,

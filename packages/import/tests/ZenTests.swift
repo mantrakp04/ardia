@@ -1,16 +1,19 @@
 import Foundation
 import ImageIO
+import SQLite3
 import XCTest
 @testable import ArdiaImportCore
 
 final class ZenTests: XCTestCase {
   let id = "Profiles/zen12345.Default (release)"
+  let old = "Profiles/old00000.No workspaces"
+  let only = "Profiles/tabs0000.Tabs only"
 
   func testDiscoveryListsZenWorkspacesAndSkipsEmptyProfiles() throws {
     let zen = try XCTUnwrap(Fixtures.discovery().source(BrowserDefinition.find("zen")!))
     XCTAssertEqual(zen.family, .firefox)
-    XCTAssertEqual(zen.profiles.map(\.id), [id, "Profiles/dev00000.Default (unofficial)"])
-    XCTAssertEqual(zen.profiles.map(\.isDefault), [true, false])
+    XCTAssertEqual(zen.profiles.map(\.id), [id, "Profiles/dev00000.Default (unofficial)", old, only])
+    XCTAssertEqual(zen.profiles.map(\.isDefault), [true, false, false, false])
     let profile = zen.profiles[0]
     XCTAssertTrue(profile.isDefault)
     XCTAssertEqual(Set(profile.available), [.bookmarks, .history, .tabs, .passwords, .spaces, .pinnedTabs, .favorites])
@@ -111,10 +114,10 @@ final class ZenTests: XCTestCase {
   func testEveryInstallDefaultStaysWhenNoProfileWasLastRunByTheApp() throws {
     let zen = BrowserDefinition.find("zen")!
     let own = BrowserDiscovery(applicationSupport: Fixtures.support).firefoxProfiles(zen)
-    XCTAssertEqual(own.map(\.isDefault), [true, true])
+    XCTAssertEqual(own.map(\.isDefault), [true, true, false, false])
     let elsewhere = BrowserDiscovery(applicationSupport: Fixtures.support)
       .firefoxProfiles(zen, app: URL(fileURLWithPath: "/Applications/Other.app"))
-    XCTAssertEqual(elsewhere.map(\.isDefault), [true, true])
+    XCTAssertEqual(elsewhere.map(\.isDefault), [true, true, false, false])
   }
 
   func testFoldersInAParentCycleStillComeThrough() throws {
@@ -127,6 +130,82 @@ final class ZenTests: XCTestCase {
       "tabs": [pin("https://a.example/", "a"), pin("https://b.example/", "b")],
     ]
     let sidebar = try ZenSidebar.parse(JSONSerialization.data(withJSONObject: session), profileId: "x")
-    XCTAssertEqual(sidebar.spaces[0].pinned.reduce(0) { $0 + $1.linkCount }, 2)
+    let a = try XCTUnwrap(sidebar.spaces[0].pinned.first)
+    XCTAssertEqual(sidebar.spaces[0].pinned.count, 1)
+    XCTAssertEqual(a.title, "A")
+    XCTAssertEqual(a.children?.map(\.title), ["B", "https://a.example/"])
+    XCTAssertEqual(a.children?.first?.children?.map(\.url), ["https://b.example/"])
+  }
+
+  func testZenWithoutWorkspacesImportsTabsFromTheFirefoxSession() throws {
+    let profile = try XCTUnwrap(Fixtures.discovery().source(BrowserDefinition.find("zen")!)?.profiles.first { $0.id == old })
+    XCTAssertEqual(profile.available, [.tabs])
+    XCTAssertEqual(profile.spaces ?? [], [])
+    let result = try Importer(discovery: Fixtures.discovery()).importData(browserId: "zen", profileId: old, kinds: [.tabs])
+    XCTAssertEqual(result.failed, [])
+    XCTAssertEqual(result.tabs.map(\.url), ["https://plain.example/", "https://pinned-plain.example/"])
+    XCTAssertEqual(result.tabs.map(\.pinned), [false, true])
+  }
+
+  func testTabsOnlyProfileIsListedAndLoginsNeedKey4() throws {
+    let profile = try XCTUnwrap(Fixtures.discovery().source(BrowserDefinition.find("zen")!)?.profiles.first { $0.id == only })
+    XCTAssertEqual(Set(profile.available), [.tabs, .spaces, .pinnedTabs])
+    XCTAssertEqual(profile.spaces?.map(\.name), ["Only"])
+  }
+
+  func testSessionImagesOverTheIconCapAreSkipped() {
+    let small = "data:image/png;base64," + Data([0x89, 0x50, 0x4E, 0x47]).base64EncodedString()
+    XCTAssertNotNil(ZenSidebar.imageData(small))
+    let huge = "data:image/png;base64," + String(repeating: "A", count: FaviconReader.maxBytes * 2)
+    XCTAssertNil(ZenSidebar.imageData(huge))
+  }
+
+  func testIconHostsIgnoreSchemeCase() {
+    XCTAssertEqual(FaviconReader.host("HTTPS://Example.COM/x"), "https://example.com")
+  }
+
+  func testTallIconsAreShrunkToo() throws {
+    let tall = try XCTUnwrap(Self.png(width: 16, height: 128))
+    let out = try XCTUnwrap(FaviconReader.png(tall))
+    let source = try XCTUnwrap(CGImageSourceCreateWithData(out as CFData, nil))
+    let props = try XCTUnwrap(CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any])
+    XCTAssertEqual(props[kCGImagePropertyPixelHeight] as? Int, 64)
+  }
+
+  func testAnOversizedPreferredIconFallsBackToASmallerOne() throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    var db: OpaquePointer?
+    XCTAssertEqual(sqlite3_open(dir.appendingPathComponent("Favicons").path, &db), SQLITE_OK)
+    XCTAssertEqual(sqlite3_exec(db, """
+      CREATE TABLE favicons (id INTEGER PRIMARY KEY, url TEXT, icon_type INTEGER);
+      CREATE TABLE favicon_bitmaps (id INTEGER PRIMARY KEY, icon_id INTEGER, image_data BLOB, width INTEGER);
+      CREATE TABLE icon_mapping (id INTEGER PRIMARY KEY, page_url TEXT, icon_id INTEGER);
+      INSERT INTO favicons VALUES (1, 'https://big.example/favicon.ico', 1);
+      INSERT INTO icon_mapping VALUES (1, 'https://big.example/', 1);
+      """, nil, nil, nil), SQLITE_OK)
+    let small = try XCTUnwrap(Self.png(width: 16, height: 16))
+    for (width, blob) in [(32, Data(count: FaviconReader.maxBytes + 1)), (16, small)] {
+      var stmt: OpaquePointer?
+      sqlite3_prepare_v2(db, "INSERT INTO favicon_bitmaps (icon_id, image_data, width) VALUES (1, ?, ?)", -1, &stmt, nil)
+      _ = blob.withUnsafeBytes { sqlite3_bind_blob(stmt, 1, $0.baseAddress, Int32(blob.count), nil) }
+      sqlite3_bind_int(stmt, 2, Int32(width))
+      XCTAssertEqual(sqlite3_step(stmt), SQLITE_DONE)
+      sqlite3_finalize(stmt)
+    }
+    sqlite3_close(db)
+    let icons = try FaviconReader.load(.chromium, profile: dir, pages: ["https://big.example/"])
+    XCTAssertEqual(icons["https://big.example/"].flatMap { Data(base64Encoded: $0.png) }, small)
+  }
+
+  static func png(width: Int, height: Int) -> Data? {
+    guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+          let image = context.makeImage() else { return nil }
+    let out = NSMutableData()
+    guard let dest = CGImageDestinationCreateWithData(out, "public.png" as CFString, 1, nil) else { return nil }
+    CGImageDestinationAddImage(dest, image, nil)
+    return CGImageDestinationFinalize(dest) ? out as Data : nil
   }
 }
