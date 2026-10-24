@@ -1279,9 +1279,11 @@ CGImageRef TakePrefetched(NSString *windowId) {
                                                                    DropPictures(closing);
                                                                    Forget(closing);
                                                                  }];
+  if (gLittleLayout) [ACChromeWindowHost prepareLittleWindowEntrance:window];
   [window makeKeyAndOrderFront:nil];
   [window displayIfNeeded];
   [CATransaction flush];
+  if (gLittleLayout) [ACChromeWindowHost revealLittleWindowEntrance:window];
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kUnclaimedSeconds * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
     ACEarlyShown *still = weakShown;
     if (!still || still.claimed || ![Shown() containsObject:still]) return;
@@ -1302,6 +1304,7 @@ CGImageRef TakePrefetched(NSString *windowId) {
     [page removeFromSuperview];
     page.frame = s.pageRect;
     [s.cover addSubview:page];
+    [ACChromeWindowHost prepareLittlePageReveal:page];
     [CATransaction commit];
     s.tab = tab;
     if (!ShowsLaunchOrigin(tab, s.expectedURL ?: gLaunchURL)) Shield(s);

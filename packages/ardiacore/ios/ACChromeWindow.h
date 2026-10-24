@@ -13,6 +13,14 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)recordLaunchLayout;
 + (void)forgetLaunchPictures;
 + (BOOL)takeDismissedAppWindow:(NSString *)appWindow;
++ (void)prepareLittleWindowEntrance:(NSWindow *)window;
++ (void)stopScalingLittleWindow:(NSWindow *)window;
++ (void)afterLittleWindowEntrance:(NSWindow *)window run:(void (^)(void))run;
++ (void)revealLittleWindowEntrance:(NSWindow *)window;
++ (void)animateLittleWindowClose:(NSWindow *)window completion:(void (^)(void))completion;
++ (BOOL)prepareLittlePageReveal:(NSView *)page;
++ (void)revealLittlePage:(NSView *)page;
++ (void)restoreLittlePage:(NSView *)page;
 
 + (void)embedRootView:(NSView *)root inWindow:(NSWindow *)window;
 

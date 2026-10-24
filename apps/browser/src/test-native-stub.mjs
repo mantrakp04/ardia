@@ -26,6 +26,7 @@ export const keychainSet = () => Promise.resolve(true);
 export const keychainDelete = () => Promise.resolve(true);
 export const confirm = () => Promise.resolve({ confirmed: false, suppressed: false });
 export const onWindowEvent = () => ({ remove() {} });
+export const closeWindow = () => Promise.resolve();
 export const onAppEvent = () => ({ remove() {} });
 export const postNotification = () => Promise.resolve(null);
 export const removeNotifications = () => Promise.resolve();

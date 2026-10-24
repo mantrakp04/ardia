@@ -5,7 +5,7 @@ import ExpoModulesCore
 public class AppModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ArdiaApp")
-    Constant("apiVersion") { () -> Int in 13 }
+    Constant("apiVersion") { () -> Int in 14 }
     Events("onNotificationResponse", "onScriptCommand")
 
     OnCreate {
@@ -777,10 +777,12 @@ enum KeyEquivalents {
     let hit = content.superview.flatMap { $0.hitTest(point) }
     var result: [String: Any] = ["firstResponder": responderName(), "hit": hit.map { String(describing: type(of: $0)) } ?? "nil"]
     let restoreKeyWindow = click["asKey"] as? Bool == false ? nil : standInKeyWindow(window)
-    for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
+    let drag = (click["drag"] as? [Double]).flatMap { $0.count == 2 ? NSPoint(x: point.x + $0[0], y: point.y - $0[1]) : nil }
+    let steps: [(NSEvent.EventType, NSPoint)] = [(.leftMouseDown, point)] + (drag.map { [(.leftMouseDragged, $0)] } ?? []) + [(.leftMouseUp, drag ?? point)]
+    for (type, location) in steps {
       guard let event = NSEvent.mouseEvent(
-        with: type, location: point, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
-        windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: type == .leftMouseDown ? 1 : 0)
+        with: type, location: location, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
+        windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: type == .leftMouseUp ? 0 : 1)
       else { return done(["error": "no mouse event"]) }
       if type == .leftMouseUp { result["at"] = event.timestamp * 1000 }
       if click["queued"] as? Bool == true { NSApp.postEvent(event, atStart: false) } else { NSApp.sendEvent(event) }

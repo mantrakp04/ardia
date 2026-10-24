@@ -11,7 +11,71 @@
 
 #include <initializer_list>
 
+@interface ACLittleWindowEntrance : NSObject
+@property(nonatomic) BOOL started;
+@property(nonatomic) BOOL settled;
+@property(nonatomic, strong) id closeObserver;
+@property(nonatomic, strong) NSMutableArray *whenSettled;
+@property(nonatomic, weak) NSView *frameView;
+@property(nonatomic) BOOL wasOpaque;
+@property(nonatomic) BOOL hadShadow;
+@property(nonatomic) BOOL scales;
+@end
+
+@implementation ACLittleWindowEntrance
+- (void)dealloc {
+  if (_closeObserver) [NSNotificationCenter.defaultCenter removeObserver:_closeObserver];
+}
+@end
+
+@interface ACLittlePageReveal : NSObject
+@property(nonatomic) float opacity;
+@property(nonatomic) BOOL revealed;
+@end
+
+@implementation ACLittlePageReveal
+@end
+
 namespace {
+
+const void *kLittlePageReveal = &kLittlePageReveal;
+const void *kLittleWindowEntrance = &kLittleWindowEntrance;
+NSString *const kLittleEntranceAnimation = @"ardia.little.entrance";
+constexpr CGFloat kLittleEntranceScale = 0.97;
+constexpr CGFloat kLittleCloseScale = 0.985;
+
+CAMediaTimingFunction *LittleCurve() {
+  return [CAMediaTimingFunction functionWithControlPoints:0.23 :1 :0.32 :1];
+}
+
+CATransform3D LittleScaleAboutCenter(CALayer *layer, CGFloat factor) {
+  const CGRect bounds = layer.bounds;
+  CATransform3D scale = CATransform3DMakeScale(factor, factor, 1);
+  scale.m41 = (CGRectGetMidX(bounds) - (CGRectGetMinX(bounds) + layer.anchorPoint.x * bounds.size.width)) * (1 - factor);
+  scale.m42 = (CGRectGetMidY(bounds) - (CGRectGetMinY(bounds) + layer.anchorPoint.y * bounds.size.height)) * (1 - factor);
+  return CATransform3DConcat(scale, layer.transform);
+}
+
+void SettleLittleEntrance(NSWindow *window, ACLittleWindowEntrance *entrance) {
+  if (!entrance || entrance.settled) return;
+  entrance.settled = YES;
+  entrance.started = YES;
+  NSArray *whenSettled = [entrance.whenSettled copy];
+  entrance.whenSettled = nil;
+  NSView *frameView = entrance.frameView;
+  [CATransaction begin];
+  [CATransaction setDisableActions:YES];
+  [frameView.layer removeAnimationForKey:kLittleEntranceAnimation];
+  frameView.alphaValue = 1;
+  [CATransaction commit];
+  if (window) {
+    window.alphaValue = 1;
+    window.opaque = entrance.wasOpaque;
+    window.hasShadow = entrance.hadShadow;
+    if (entrance.hadShadow) [window invalidateShadow];
+  }
+  for (void (^run)(void) in whenSettled) run();
+}
 
 BOOL (^gShouldClose)(NSWindow *);
 BOOL (^gRefusesUnhandledKey)(NSWindow *, NSEvent *);
@@ -1615,6 +1679,180 @@ NSView *ACWindowRootView(NSWindow *window) {
 }
 
 @implementation ACChromeWindowHost
+
++ (void)prepareLittleWindowEntrance:(NSWindow *)window {
+  if (!window || window.visible || objc_getAssociatedObject(window, kLittleWindowEntrance)) return;
+  NSView *frameView = window.contentView.superview ?: window.contentView;
+  if (!frameView) return;
+  window.animationBehavior = NSWindowAnimationBehaviorNone;
+  ACLittleWindowEntrance *entrance = [ACLittleWindowEntrance new];
+  entrance.scales = !NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceMotion;
+  frameView.wantsLayer = YES;
+  entrance.frameView = frameView;
+  entrance.wasOpaque = window.opaque;
+  entrance.hadShadow = window.hasShadow;
+  objc_setAssociatedObject(window, kLittleWindowEntrance, entrance, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  __weak NSWindow *weakWindow = window;
+  __weak ACLittleWindowEntrance *weakEntrance = entrance;
+  entrance.closeObserver = [NSNotificationCenter.defaultCenter addObserverForName:NSWindowWillCloseNotification object:window queue:nil
+      usingBlock:^(NSNotification *) {
+        SettleLittleEntrance(weakWindow, weakEntrance);
+      }];
+  window.alphaValue = 0;
+  window.opaque = NO;
+  window.hasShadow = NO;
+  [CATransaction begin];
+  [CATransaction setDisableActions:YES];
+  frameView.alphaValue = 0;
+  [CATransaction commit];
+}
+
++ (void)afterLittleWindowEntrance:(NSWindow *)window run:(void (^)(void))run {
+  ACLittleWindowEntrance *entrance = objc_getAssociatedObject(window, kLittleWindowEntrance);
+  if (!entrance || entrance.settled) return run();
+  if (!entrance.whenSettled) entrance.whenSettled = [NSMutableArray array];
+  [entrance.whenSettled addObject:[run copy]];
+}
+
++ (void)stopScalingLittleWindow:(NSWindow *)window {
+  ACLittleWindowEntrance *entrance = objc_getAssociatedObject(window, kLittleWindowEntrance);
+  entrance.scales = NO;
+}
+
++ (void)revealLittleWindowEntrance:(NSWindow *)window {
+  ACLittleWindowEntrance *entrance = objc_getAssociatedObject(window, kLittleWindowEntrance);
+  if (!entrance) {
+    window.alphaValue = 1;
+    return;
+  }
+  if (entrance.started) return;
+  NSView *frameView = entrance.frameView;
+  CALayer *layer = frameView.layer;
+  if (!window.visible || !layer) return SettleLittleEntrance(window, entrance);
+  entrance.started = YES;
+  CABasicAnimation *fade = [CABasicAnimation animationWithKeyPath:@"opacity"];
+  fade.fromValue = @0;
+  fade.toValue = @1;
+  NSMutableArray<CAAnimation *> *animations = [NSMutableArray arrayWithObject:fade];
+  if (entrance.scales) {
+    CABasicAnimation *grow = [CABasicAnimation animationWithKeyPath:@"transform"];
+    grow.fromValue = [NSValue valueWithCATransform3D:LittleScaleAboutCenter(layer, kLittleEntranceScale)];
+    grow.toValue = [NSValue valueWithCATransform3D:layer.transform];
+    [animations addObject:grow];
+  }
+  CAAnimationGroup *group = [CAAnimationGroup animation];
+  group.animations = animations;
+  group.duration = 0.2;
+  group.timingFunction = LittleCurve();
+  group.fillMode = kCAFillModeBackwards;
+  __weak NSWindow *weakWindow = window;
+  __weak ACLittleWindowEntrance *weakEntrance = entrance;
+  [CATransaction begin];
+  [CATransaction setDisableActions:YES];
+  [CATransaction setCompletionBlock:^{
+    SettleLittleEntrance(weakWindow, weakEntrance);
+  }];
+  frameView.alphaValue = 1;
+  [layer addAnimation:group forKey:kLittleEntranceAnimation];
+  [CATransaction commit];
+  [CATransaction flush];
+  window.alphaValue = 1;
+}
+
++ (BOOL)prepareLittlePageReveal:(NSView *)page {
+  if (!page) return NO;
+  if (![page.window.identifier isEqualToString:@"ardia.window.small"]) {
+    if (page.window) [self restoreLittlePage:page];
+    return NO;
+  }
+  ACLittlePageReveal *state = objc_getAssociatedObject(page, kLittlePageReveal);
+  if (state) return !state.revealed;
+  page.wantsLayer = YES;
+  state = [ACLittlePageReveal new];
+  state.opacity = page.layer.opacity;
+  objc_setAssociatedObject(page, kLittlePageReveal, state, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  [CATransaction begin];
+  [CATransaction setDisableActions:YES];
+  page.layer.opacity = 0;
+  [CATransaction commit];
+  __weak NSView *weakPage = page;
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC), dispatch_get_main_queue(), ^{
+    NSView *live = weakPage;
+    if (live && objc_getAssociatedObject(live, kLittlePageReveal) == state) [self revealLittlePage:live];
+  });
+  return YES;
+}
+
++ (void)revealLittlePage:(NSView *)page {
+  ACLittlePageReveal *state = objc_getAssociatedObject(page, kLittlePageReveal);
+  if (!state || state.revealed) return;
+  state.revealed = YES;
+  CALayer *layer = page.layer;
+  [CATransaction begin];
+  [CATransaction setDisableActions:YES];
+  layer.opacity = state.opacity;
+  if ([page.window.identifier isEqualToString:@"ardia.window.small"]) {
+    CABasicAnimation *fade = [CABasicAnimation animationWithKeyPath:@"opacity"];
+    fade.fromValue = @0;
+    fade.toValue = @(state.opacity);
+    fade.duration = 0.16;
+    fade.timingFunction = LittleCurve();
+    [layer addAnimation:fade forKey:@"ardia.little.page"];
+  }
+  [CATransaction commit];
+}
+
++ (void)restoreLittlePage:(NSView *)page {
+  ACLittlePageReveal *state = objc_getAssociatedObject(page, kLittlePageReveal);
+  if (!state) return;
+  [CATransaction begin];
+  [CATransaction setDisableActions:YES];
+  [page.layer removeAnimationForKey:@"ardia.little.page"];
+  page.layer.opacity = state.opacity;
+  [CATransaction commit];
+  if (!state.revealed) objc_setAssociatedObject(page, kLittlePageReveal, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
++ (void)animateLittleWindowClose:(NSWindow *)window completion:(void (^)(void))completion {
+  ACLittleWindowEntrance *entrance = objc_getAssociatedObject(window, kLittleWindowEntrance);
+  if (!entrance || !window.visible) return completion();
+  NSView *frameView = entrance.frameView;
+  CALayer *layer = frameView.layer;
+  CALayer *shown = layer.presentationLayer ?: layer;
+  const CATransform3D from = shown.transform;
+  const float opacity = shown.opacity;
+  SettleLittleEntrance(window, entrance);
+  CABasicAnimation *fade = [CABasicAnimation animationWithKeyPath:@"opacity"];
+  fade.fromValue = @(opacity);
+  fade.toValue = @0;
+  NSMutableArray *animations = [NSMutableArray arrayWithObject:fade];
+  if (entrance.scales) {
+    CABasicAnimation *shrink = [CABasicAnimation animationWithKeyPath:@"transform"];
+    shrink.fromValue = [NSValue valueWithCATransform3D:from];
+    shrink.toValue = [NSValue valueWithCATransform3D:LittleScaleAboutCenter(layer, kLittleCloseScale)];
+    [animations addObject:shrink];
+  }
+  CAAnimationGroup *group = [CAAnimationGroup animation];
+  group.animations = animations;
+  group.duration = 0.15;
+  group.timingFunction = LittleCurve();
+  window.opaque = NO;
+  window.hasShadow = NO;
+  __block void (^finish)(void) = [completion copy];
+  void (^finished)(void) = ^{
+    if (!finish) return;
+    void (^done)(void) = finish;
+    finish = nil;
+    done();
+  };
+  [CATransaction begin];
+  [CATransaction setDisableActions:YES];
+  [CATransaction setCompletionBlock:finished];
+  frameView.alphaValue = 0;
+  [layer addAnimation:group forKey:@"ardia.little.close"];
+  [CATransaction commit];
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), finished);
+}
 
 + (NSWindow *)makeWindowForProfile:(NSString *)profile {
   if (!ArdiaCoreHost.isStarted) return nil;

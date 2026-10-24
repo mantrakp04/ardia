@@ -1,7 +1,7 @@
 import { WindowBackdrop } from "@ardia/shaders";
 import { ContextMenuArea, setTrafficLightsCenter, WindowDragRegion } from "@ardia/shell";
 import { useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { useTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
 import { useActiveTab, useWindowId, useWindowProfile, useWindowUi } from "../../store/hooks";
@@ -93,9 +93,9 @@ function PageField({ tab, windowId, hidden }: { tab: Tab; windowId: string; hidd
   return (
     <View ref={field} onLayout={anchor} {...hoverProps} style={{ flex: 1, opacity: hidden ? 0 : 1 }}>
       <ContextMenuArea style={{ flex: 1 }} onContextMenu={() => tab.url && void showUrlBarMenu(tab)}>
-        <Pressable onPress={() => useBrowser.getState().openPanel(windowId, tab.url)} style={{ flex: 1 }}>
+        <WindowDragRegion clickable onRegionClick={() => useBrowser.getState().openPanel(windowId, tab.url)} style={{ flex: 1 }}>
           <PageLabel tab={tab} hovered={hovered} />
-        </Pressable>
+        </WindowDragRegion>
       </ContextMenuArea>
     </View>
   );

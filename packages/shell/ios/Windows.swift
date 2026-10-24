@@ -102,7 +102,8 @@ final class WindowManager: NSObject, NSWindowDelegate {
       ChromeWindows.onSwap { [weak self] from, to in self?.adopt(from: from, to: to) }
       observeDelegateNotifications(chromeWindow)
       if small { configureSmall(chromeWindow) }
-      return show(chromeWindow, id: id, frame: frame, title: title, focus: focus, smallSize: small ? size ?? [] : nil, smallPointer: pointer, behind: behind)
+      return show(chromeWindow, id: id, frame: frame, title: title, focus: focus, smallSize: small ? size ?? [] : nil, smallPointer: pointer,
+        smallEntrance: small, behind: behind)
     }
     let window = makeWindow()
     let controller = NSViewController()
@@ -112,12 +113,13 @@ final class WindowManager: NSObject, NSWindowDelegate {
     window.delegate = self
     if incognito { window.appearance = NSAppearance(named: .darkAqua) }
     if small { configureSmall(window) }
-    show(window, id: id, frame: frame, title: title, focus: focus, smallSize: small ? size ?? [] : nil, smallPointer: pointer)
+    show(window, id: id, frame: frame, title: title, focus: focus, smallSize: small ? size ?? [] : nil, smallPointer: pointer,
+      smallEntrance: small)
   }
 
   private func show(
     _ window: NSWindow, id: String, frame: [Double]?, title: String, focus: Bool, smallSize: [Double]? = nil, smallPointer: NSPoint? = nil,
-    behind: String? = nil
+    smallEntrance: Bool = false, behind: String? = nil
   ) {
     window.title = title
     if let smallSize, frame == nil { placeSmall(window, size: smallSize, pointer: smallPointer) } else if frame != nil || !window.isVisible { place(window, frame: frame) }
@@ -128,6 +130,10 @@ final class WindowManager: NSObject, NSWindowDelegate {
     if window.isMiniaturized {
       observeFrame(window)
       return reportFrame(window)
+    }
+    if smallEntrance {
+      ChromeWindows.prepareLittleEntrance(in: window)
+      if frame != nil { ChromeWindows.stopScalingLittle(window) }
     }
     if focus, unrevealed[id] != nil {
       window.orderFront(nil)
@@ -148,6 +154,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     } else {
       window.orderFront(nil)
     }
+    if smallEntrance, unrevealed[id] == nil { ChromeWindows.revealLittleEntrance(in: window) }
     observeFrame(window)
     reportFrame(window)
   }
@@ -156,7 +163,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
   private var unrevealed: [String: [() -> Void]] = [:]
 
   private func holdUntilContent(_ window: NSWindow, id: String, root: NSView) {
-    guard !window.isVisible, windows.values.contains(where: { $0.isVisible && isBrowserWindow($0) }) else { return }
+    guard !window.isVisible, smallIds.contains(id) || windows.values.contains(where: { $0.isVisible && isBrowserWindow($0) }) else { return }
     window.alphaValue = 0
     unrevealed[id] = []
     var observer: NSObjectProtocol?
@@ -164,7 +171,9 @@ final class WindowManager: NSObject, NSWindowDelegate {
       if let observer { NotificationCenter.default.removeObserver(observer) }
       observer = nil
       guard let self, let waiting = self.unrevealed.removeValue(forKey: id) else { return }
-      window?.alphaValue = 1
+      if let window {
+        if self.smallIds.contains(id) { ChromeWindows.revealLittleEntrance(in: window) } else { window.alphaValue = 1 }
+      }
       CATransaction.flush()
       waiting.forEach { $0() }
     }
@@ -383,7 +392,35 @@ final class WindowManager: NSObject, NSWindowDelegate {
     }
   }
 
-  func close(id: String) {
+  private var closingWindows: [String: [() -> Void]] = [:]
+
+  func close(id: String, replacedBy: String? = nil, completion: @escaping () -> Void = {}) {
+    if closingWindows[id] != nil {
+      closingWindows[id]!.append(completion)
+      return
+    }
+    guard smallIds.contains(id), let window = windows[id], window.isVisible else {
+      finishClose(id: id)
+      return completion()
+    }
+    closingWindows[id] = [completion]
+    unrevealed.removeValue(forKey: id)
+    if keyOnReveal === window { keyOnReveal = nil }
+    if typeAhead?.window === window { endTypeAhead(send: false) }
+    let finish: () -> Void = { [weak self] in
+      guard let self else { return completion() }
+      self.finishClose(id: id)
+      let callbacks = self.closingWindows.removeValue(forKey: id) ?? []
+      callbacks.forEach { $0() }
+    }
+    if let replacedBy, let replacement = windows[replacedBy] {
+      ChromeWindows.afterLittleEntrance(of: replacement, run: finish)
+    } else {
+      ChromeWindows.animateLittleClose(in: window, completion: finish)
+    }
+  }
+
+  private func finishClose(id: String) {
     if pendingOpens.removeValue(forKey: id) != nil {
       pendingOrder.removeAll { $0 == id }
       return
@@ -427,7 +464,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
   }
 
   func windowShouldClose(_ sender: NSWindow) -> Bool {
-    guard let id = id(of: sender), auxKinds[id] == nil, !smallIds.contains(id), appEventsObserved, let emit else { return true }
+    guard let id = id(of: sender), auxKinds[id] == nil, appEventsObserved, let emit else { return true }
     emit("onWindowEvent", ["type": "closeRequest", "id": id])
     return false
   }

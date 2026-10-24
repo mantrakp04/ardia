@@ -1,4 +1,5 @@
 #import "ArdiaCoreWebView.h"
+#import "ACChromeWindow.h"
 #import "ArdiaCoreWebViewInternal.h"
 #import "ArdiaCoreEarlyWindow.h"
 #import "ArdiaCorePictureInPicture.h"
@@ -1334,6 +1335,7 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
   [ArdiaCoreTabs setView:nil forTab:_tab];
   [ArdiaCoreWebView noteShown:_tab];
   [self stashPageReports];
+  [ACChromeWindowHost restoreLittlePage:_tab.view];
   AcceptDrops(_tab.view, YES);
   if (_tab.view.superview == self) [_tab.view removeFromSuperview];
   [self dropDevTools];
@@ -1578,7 +1580,14 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
     if (view->_warm && view.window == window) [view schedulePainting];
 }
 
+- (void)prepareLittlePageReveal {
+  NSString *url = _pendingURL ?: _requestedURL ?: _tab.url;
+  if (!url.length || [url isEqualToString:@"about:blank"] || _tab.view.superview != self) return;
+  if ([ACChromeWindowHost prepareLittlePageReveal:_tab.view]) [self callFrame:@"" kind:@"littlePageReveal" json:@"{}"];
+}
+
 - (void)applyPainting {
+  [self prepareLittlePageReveal];
   self.alphaValue = _visible || _revealed || !(_warm || _leaving) ? 1 : 0;
   const BOOL shown = self.paints;
   for (NSView *sub in self.subviews) {
@@ -2138,6 +2147,7 @@ void ArdiaCoreWebViewsSetFieldTiming(BOOL on) {
 }
 
 - (void)tabDidChangeLoading:(ArdiaCoreTab *)tab {
+  if (!tab.loading) [ACChromeWindowHost revealLittlePage:tab.view];
   if (tab.loading) [self resetBlocked:YES];
   if (tab.loading) ACFieldMarkNow(_transferKey, @"start");
   [self queueNavigation];
@@ -2161,6 +2171,7 @@ void ArdiaCoreWebViewsSetFieldTiming(BOOL on) {
 }
 
 - (void)tabDidCommitDocument:(ArdiaCoreTab *)tab {
+  [self prepareLittlePageReveal];
   ACFieldMarkNow(_transferKey, @"commit");
   [ArdiaCoreEarlyWindow pageCommitted:tab shownURL:_shownURL];
   _pageTheme = nil;
@@ -2229,6 +2240,10 @@ void ArdiaCoreWebViewsSetFieldTiming(BOOL on) {
     [self noteScriptFrame:frameId main:main];
     [self callFrame:frameId kind:@"peekConfig" json:PeekConfigJSON()];
     AnswerHello(tab, _profile, dict, frameId, main);
+    if (main) [self prepareLittlePageReveal];
+  } else if ([kind isEqualToString:@"littlePageReady"] && main) {
+    NSString *url = Text(dict, @"url", 8192);
+    if (url.length && SamePage(url, tab.url)) [ACChromeWindowHost revealLittlePage:tab.view];
   } else if ([kind isEqualToString:@"peek"] && dict) {
     [self peekLink:dict frame:frameId main:main];
   } else if ([kind isEqualToString:@"peekHello"]) {
@@ -2544,6 +2559,7 @@ static NSEventModifierFlags PeekModifierFlag() {
 
 - (void)loadNow:(NSString *)url userInitiated:(BOOL)userInitiated {
   if ([self skipsNavigationDownload:url userInitiated:userInitiated]) return;
+  [self prepareLittlePageReveal];
   ACFieldMarkNow(_transferKey, @"request");
   if ([_tab respondsToSelector:@selector(loadURL:userInitiated:)]) [_tab loadURL:url userInitiated:userInitiated];
   else [_tab loadURL:url];
