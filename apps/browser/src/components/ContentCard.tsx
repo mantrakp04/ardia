@@ -1,4 +1,5 @@
 import { WebView, type OpenWindowRequest, type PageEngine } from "@ardia/ardiacore";
+import { notePinchScale } from "./tabOverview/state";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Animated, StyleSheet, View, type ViewStyle } from "react-native";
 import { useShallow } from "zustand/react/shallow";
@@ -682,7 +683,10 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
         store().updateTab(tabId, { url: "", title: "", favicon: null });
       }}
       onProgress={(progress) => !prewarmOnly() && setPageProgress(tabId, progress)}
-      onZoom={({ zoom }) => store().updateTab(tabId, { zoom })}
+      onZoom={({ zoom, pinchScale }) => {
+        notePinchScale(tabId, pinchScale);
+        store().updateTab(tabId, { zoom });
+      }}
       onFindResult={({ count, active }) => store().setFind(tabId, { count, active })}
       onFavicon={(favicon) => {
         if (!favicon || !tab()) return;

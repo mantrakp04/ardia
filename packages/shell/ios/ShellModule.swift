@@ -261,6 +261,7 @@ public class ShellModule: Module {
           FocusHandoff.shared.afterPendingUI = { block in queue.async { DispatchQueue.main.async(execute: block) } }
         }
         LeftEdgeWatcher.shared.emit = { name, body in self?.sendEvent(name, body) }
+        PinchWatcher.shared.emit = { name, body in self?.sendEvent(name, body) }
         WindowManager.shared.runtime = self.map(ObjectIdentifier.init)
         NSApp.mainMenu = MainMenu.build()
         self?.appearanceObservation = NSApp.observe(\.effectiveAppearance) { _, _ in
@@ -332,6 +333,7 @@ public class ShellModule: Module {
     AsyncFunction("watchLeftEdge") { (id: String, on: Bool, hold: Double) in
       LeftEdgeWatcher.shared.watch(id: id, on: on, hold: CGFloat(hold))
     }.runOnQueue(.main)
+    AsyncFunction("watchPinch") { (on: Bool) in PinchWatcher.shared.watch(on) }.runOnQueue(.main)
     AsyncFunction("focusWindow") { (id: String) in WindowManager.shared.focus(id: id) }.runOnQueue(.main)
     AsyncFunction("restoreFullScreen") { (ids: [String], focus: String?) in
       WindowManager.shared.restoreFullScreen(ids: ids, focus: focus)

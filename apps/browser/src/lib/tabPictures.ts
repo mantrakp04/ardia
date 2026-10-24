@@ -14,10 +14,16 @@ export function lastPicture(tabId: string): Picture | null {
   return pictures.get(tabId) ?? null;
 }
 
-function remember(tabId: string) {
-  void webviews
-    .get(tabId)
-    ?.capturePicture(0.25)
+export function rememberPicture(tabId: string): Promise<void> {
+  return remember(tabId);
+}
+
+function remember(tabId: string): Promise<void> {
+  if (isIncognitoProfile(useBrowser.getState().tabs[tabId]?.profileId ?? "")) return Promise.resolve();
+  const view = webviews.get(tabId);
+  if (!view) return Promise.resolve();
+  return view
+    .capturePicture(0.25)
     .then((picture) => {
       if (!picture || !useBrowser.getState().tabs[tabId]) return;
       pictures.delete(tabId);
