@@ -28,7 +28,7 @@ import { setSidebarUi } from "./state";
 import { hasOwnGroupIcon } from "./TabIcon";
 import { newFolderWithTab, removeFromFolder } from "./tileFolderUi";
 import { toggleNewTabBar } from "../omnibox/newTabBar";
-import { GROUP_COLORS, NEUTRAL_GROUP_SWATCH, nearestGroupColor } from "./tokens";
+import { GROUP_COLORS, NEUTRAL_GROUP_SWATCH, nearestGroupColor, type GroupTint } from "./tokens";
 
 const store = () => useBrowser.getState();
 const sep = { separator: true } as const;
@@ -229,7 +229,7 @@ export async function openGroupMenu(windowId: string, groupId: string) {
   const s = store();
   const g = s.groups[groupId];
   if (!g) return;
-  const colors: GroupColor[] = ["grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange"];
+  const colors: GroupTint[] = ["grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange"];
   const siteColor = g.tabIds.map((id) => s.live[id]?.themeColor).find(Boolean);
   const matched = siteColor ? nearestGroupColor(siteColor) : null;
   const choice = await showMenu([
@@ -240,6 +240,7 @@ export async function openGroupMenu(windowId: string, groupId: string) {
       title: "Color",
       symbol: "paintpalette",
       children: [
+        { id: "color:none", title: "None", swatch: "#00000000", checked: g.color === "none" },
         { id: "color:", title: "Neutral", swatch: NEUTRAL_GROUP_SWATCH.light, swatchDark: NEUTRAL_GROUP_SWATCH.dark, checked: !g.color },
         { id: `color:${matched ?? ""}`, title: "Match Site Color", enabled: !!matched, swatch: matched ? GROUP_COLORS[matched].hex : undefined },
         sep,

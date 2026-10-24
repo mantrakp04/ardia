@@ -1,5 +1,6 @@
 import type { StripGroup, StripState, StripTab } from "@ardia/ardiacore";
 import type { BrowserState } from "./browser";
+import type { TabGroup } from "./types";
 import { rootOf } from "./groups";
 import { engineProfile, pinnedFirst } from "./model";
 import { forgetOpeners, switchKeepsOpeners } from "./openers";
@@ -18,6 +19,8 @@ const chromeGroupOf = (s: BrowserState, key: string | undefined) => {
 };
 
 const madeByChrome = (s: BrowserState, key: string) => !!s.tabs[key]?.adoptId?.startsWith("tab:");
+const CHROME_COLORS = new Set<string>(["grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange"] satisfies StripGroup["color"][]);
+const chromeColor = (color: TabGroup["color"]): StripGroup["color"] => (color && CHROME_COLORS.has(color) ? (color as StripGroup["color"]) : "grey");
 
 export type Pending = { arranged: ReadonlySet<string>; grouped?: ReadonlySet<string>; regrouped?: ReadonlySet<string>; active: boolean };
 const NOTHING_PENDING: Pending = { arranged: new Set(), active: false };
@@ -144,7 +147,7 @@ function regroupInPlace(s: BrowserState, key: string, groupId: string | null): B
 function withLook(s: BrowserState, id: string, look: StripGroup | undefined): BrowserState {
   const g = s.groups[id];
   if (!g || !look) return s;
-  const color = look.color === "grey" && !g.color ? null : look.color;
+  const color = look.color === chromeColor(g.color) ? g.color : look.color;
   if (g.name === look.title && g.color === color && g.collapsed === look.collapsed) return s;
   return { ...s, groups: { ...s.groups, [id]: { ...g, name: look.title, color, collapsed: look.collapsed } } };
 }
@@ -169,7 +172,7 @@ export function groupStep(s: BrowserState, strip: StripState, bound: GroupBindin
   for (const g of storeGroups) {
     const keys = tabs.filter((t) => chromeGroupOf(s, t.key)?.id === g!.id).map((t) => t.key);
     const token = tokenOf(g!.id);
-    const look = { title: g!.name, color: g!.color ?? "grey", collapsed: g!.collapsed } as const;
+    const look = { title: g!.name, color: chromeColor(g!.color), collapsed: g!.collapsed };
     if (!token) return { keys, group: "new", ...look, makes: g!.id };
     const missing = tabs.filter((t) => keys.includes(t.key) && t.group !== token).map((t) => t.key);
     if (missing.length) return { keys: missing, group: token };

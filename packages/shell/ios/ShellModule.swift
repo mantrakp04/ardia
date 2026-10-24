@@ -620,7 +620,8 @@ public class ShellModule: Module {
         entry.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
       } else if let hex = item["swatch"] as? String, let light = NSColor(hex: hex) {
         let dark = (item["swatchDark"] as? String).flatMap { NSColor(hex: $0) } ?? light
-        entry.image = swatch(NSColor(name: nil) { $0.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light })
+        entry.image = light.alphaComponent == 0
+          ? emptySwatch() : swatch(NSColor(name: nil) { $0.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light })
         if #available(macOS 27.0, *) { entry.preferredImageVisibility = .visible }
       }
       menu.addItem(entry)
@@ -633,6 +634,14 @@ public class ShellModule: Module {
       color.setFill()
       NSBezierPath(ovalIn: rect.insetBy(dx: 0.5, dy: 0.5)).fill()
       NSColor.black.withAlphaComponent(0.15).setStroke()
+      NSBezierPath(ovalIn: rect.insetBy(dx: 0.5, dy: 0.5)).stroke()
+      return true
+    }
+  }
+
+  static func emptySwatch() -> NSImage {
+    NSImage(size: NSSize(width: 12, height: 12), flipped: false) { rect in
+      NSColor.tertiaryLabelColor.setStroke()
       NSBezierPath(ovalIn: rect.insetBy(dx: 0.5, dy: 0.5)).stroke()
       return true
     }

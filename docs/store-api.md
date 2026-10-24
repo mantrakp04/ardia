@@ -12,7 +12,8 @@ modules before using them — this is a summary from the agent that built it.
   profile share a session (`privateSession(profileId)`, the regular engine name), another profile's never. Downloads
   carry `offTheRecord` and their regular profile (`downloadSession`, store/ui.ts); a session's go with its last window.
 - `tabs` (persisted) vs `live` (loading/progress/back-forward/audio/theme colour; never persisted).
-- `groups`: `{ windowId, profileId, name, icon, color, collapsed, pinned, tabIds }` (members contiguous).
+- `groups`: `{ windowId, profileId, name, icon, color, collapsed, pinned, tabIds }` (members contiguous). `color` is
+  `null` for Neutral, `"none"` for a transparent group, or one of Chrome's nine group colours.
 - `splits` (store/splits.ts): `{ windowId, tabIds (2–3, pane order), orientation, sizes, stack? }` — `stack` = two panes sharing a slot the other way (Add Bottom Split). Members are contiguous in `window.tabIds`; the window's active tab is the focused pane. A split is one sidebar row (`splitRowPanes`): its panes are all unpinned, or all pinned rows; `placing`, `withGroup`, `createGroup`, `addTabsToGroup` and `removeTabsFromGroup` take every pane of a row they're given one of (`withSplitRows`), pinned panes are always rows, and a pinned split is mirrored to the profile's windows (pinMirror) and parked with them (`ParkedPins.splits`). `window.tabLayout` ("sidebar" | "top", unset = Settings).
 - `history[profileId]`: a view of Chrome's history (HistoryService), one entry per URL, not saved; `historyReady[profileId]`
   once it has been read (lib/history.ts). `bookmarks`: `{ nodes, roots[profileId]: { bar, other } }`.
@@ -203,7 +204,7 @@ ordered transaction that names its cause. There are no echo windows, timers or "
 - After every store change and transaction, `stripPlan` gives what the store wants each strip to be (the store's
   tabs in it in window order, pinned first; the shown profile's active tab) and the app sends the command that
   closes the gap: `activate` first, then `arrange`, then `group` (a Chrome group for a store group that has none,
-  missing members, title, color and collapsed, as Dia's engine mirrors it; Chrome's model keeps the active tab when
+  missing members, title, color (Neutral and `"none"` go as grey, and Chrome's grey back keeps them) and collapsed, as Dia's engine mirrors it; Chrome's model keeps the active tab when
   its group collapses);
   one command per strip at a time; no `activate` while Chrome's active tab has no key (a tab Chrome made in front,
   before the app adopts it: its activation is Chrome's, above); the same command isn't sent

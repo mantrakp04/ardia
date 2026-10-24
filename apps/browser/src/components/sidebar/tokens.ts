@@ -57,7 +57,9 @@ export function useSidebarTokens(): SidebarTokens {
   return useTheme().dark ? DARK : LIGHT;
 }
 
-export const GROUP_COLORS: Record<GroupColor, { name: string; hex: string }> = {
+export type GroupTint = Exclude<GroupColor, "none">;
+
+export const GROUP_COLORS: Record<GroupTint, { name: string; hex: string }> = {
   grey: { name: "Grey", hex: "#8E8E93" },
   blue: { name: "Blue", hex: "#4C8DF6" },
   red: { name: "Red", hex: "#E5534B" },
@@ -71,7 +73,17 @@ export const GROUP_COLORS: Record<GroupColor, { name: string; hex: string }> = {
 
 export const NEUTRAL_GROUP_SWATCH = { light: "#0000004D", dark: "#FFFFFF4D" };
 
-export function nearestGroupColor(color: string): GroupColor | null {
+export function groupTint(color: GroupColor | null | undefined): string | null {
+  return color && color !== "none" ? (GROUP_COLORS[color]?.hex ?? null) : null;
+}
+
+export function groupSurface(color: GroupColor | null | undefined, tokens: SidebarTokens): { fill: string; stroke: string } {
+  if (color === "none") return { fill: "transparent", stroke: "transparent" };
+  const tint = groupTint(color);
+  return tint ? { fill: withAlpha(tint, 0.16), stroke: withAlpha(tint, 0.3) } : { fill: tokens.groupFill, stroke: tokens.groupStroke };
+}
+
+export function nearestGroupColor(color: string): GroupTint | null {
   const m = color.trim().match(/^#?([0-9a-f]{6})/i) ?? color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
   if (!m) return null;
   const rgb = m.length === 2 ? [0, 2, 4].map((i) => parseInt(m[1]!.slice(i, i + 2), 16)) : [+m[1]!, +m[2]!, +m[3]!];
@@ -87,9 +99,9 @@ export function nearestGroupColor(color: string): GroupColor | null {
   };
   const target = hsl(rgb[0]!, rgb[1]!, rgb[2]!);
   if (target.s < 0.18 || target.l < 0.12 || target.l > 0.92) return null;
-  let best: GroupColor | null = null;
+  let best: GroupTint | null = null;
   let bestDistance = Infinity;
-  for (const [id, { hex }] of Object.entries(GROUP_COLORS) as [GroupColor, { hex: string }][]) {
+  for (const [id, { hex }] of Object.entries(GROUP_COLORS) as [GroupTint, { hex: string }][]) {
     if (id === "grey") continue;
     const n = parseInt(hex.slice(1), 16);
     const c = hsl((n >> 16) & 255, (n >> 8) & 255, n & 255);

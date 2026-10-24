@@ -21,7 +21,7 @@ import { openGroupMenu } from "./menus";
 import { registerRow, useSidebarUi } from "./state";
 import { TabIcon } from "./TabIcon";
 import { RenameField, SplitRowItem, TabRowItem } from "./TabRow";
-import { GROUP_COLORS, useSidebarTokens, withAlpha } from "./tokens";
+import { groupSurface, useSidebarTokens, withAlpha } from "./tokens";
 
 const PAD = GROUP_PAD;
 const NESTED_INDENT = 16;
@@ -69,9 +69,7 @@ export const GroupBlock = memo(function GroupBlock({
   const motion = useGroupMotion(windowId, profileId, groupId, entries, captured, section === "list" && !parentGroup ? scope : { enabled: scope.enabled, slideBelow: null }, scope.enabled && !collapsed);
   const [moved, movedRef] = useShift(own?.shift ?? null);
 
-  const spec = color ? GROUP_COLORS[color] : null;
-  const fill = spec ? withAlpha(spec.hex, 0.16) : tokens.groupFill;
-  const stroke = spec ? withAlpha(spec.hex, 0.3) : tokens.groupStroke;
+  const { fill, stroke } = groupSurface(color, tokens);
 
   return (
     <Animated.View ref={wrapper.ref} style={wrapper.style}>

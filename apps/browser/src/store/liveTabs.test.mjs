@@ -388,6 +388,18 @@ test("an extension's tab groups reach the sidebar, and the sidebar's groups reac
   S().updateGroup(mine, { name: "Renamed" });
   await settle(win);
   assert.equal(chrome.strips.get(win.strip).groups.get(token).title, "Renamed");
+  S().updateGroup(mine, { color: "none" });
+  await settle(win);
+  assert.equal(chrome.strips.get(win.strip).groups.get(token).color, "grey");
+  assert.equal(S().groups[mine].color, "none");
+  chrome.retitle(token, "From Chrome");
+  await settle(win);
+  assert.equal(S().groups[mine].name, "From Chrome");
+  assert.equal(S().groups[mine].color, "none");
+  S().updateGroup(mine, { color: "magenta" });
+  await settle(win);
+  assert.equal(chrome.strips.get(win.strip).groups.get(token).color, "grey");
+  assert.equal(S().groups[mine].color, "magenta");
 });
 
 test("an extension that closes the shown tab and shows another in one go is obeyed", async () => {

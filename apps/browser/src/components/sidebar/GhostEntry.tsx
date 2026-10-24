@@ -3,6 +3,7 @@ import { Image, Text, View } from "react-native";
 import { resolveFavicon, useFavicons } from "../../lib/favicons";
 import { layout, useTheme } from "../../lib/theme";
 import type { BrowserState } from "../../store/browser";
+import type { GroupColor } from "../../store/types";
 import { groupLabel } from "../../store/organize";
 import { splitRowPanes } from "../../store/splits";
 import { tabTitle } from "./actions";
@@ -11,7 +12,7 @@ import { GROUP_BORDER, GROUP_PAD, keptEntry } from "./geometry";
 import { pointerOnRow } from "./hover";
 import { FaviconFallback, NewTabIcon } from "../primitives";
 import { SYMBOL_PREFIX, TabIcon } from "./TabIcon";
-import { GROUP_COLORS, useSidebarTokens, withAlpha } from "./tokens";
+import { groupSurface, useSidebarTokens, withAlpha } from "./tokens";
 
 type TabShot = { kind: "tab"; key: string; title: string; url: string; favicon?: string | null; icon?: string | null; profileId: string; uri: string | null; template: boolean; sound: "muted" | "playing" | null; hovered: boolean };
 type SplitShot = { kind: "split"; key: string; panes: TabShot[] };
@@ -19,7 +20,7 @@ type GroupShot = {
   kind: "group";
   key: string;
   label: string;
-  color: string | null;
+  color: GroupColor | null;
   icon: { url: string; favicon?: string | null; icon?: string | null; profileId?: string } | null;
   collapsed: boolean;
   members: (TabShot | SplitShot | GroupShot)[];
@@ -126,9 +127,7 @@ function SplitGhost({ shot }: { shot: SplitShot }) {
 function GroupGhost({ shot }: { shot: GroupShot }) {
   const theme = useTheme();
   const tokens = useSidebarTokens();
-  const spec = shot.color ? GROUP_COLORS[shot.color as keyof typeof GROUP_COLORS] : null;
-  const fill = spec ? withAlpha(spec.hex, 0.16) : tokens.groupFill;
-  const stroke = spec ? withAlpha(spec.hex, 0.3) : tokens.groupStroke;
+  const { fill, stroke } = groupSurface(shot.color, tokens);
   const pad = shot.members.length || !shot.collapsed ? GROUP_PAD : 0;
   return (
     <View style={{ borderRadius: 12, backgroundColor: fill, borderWidth: GROUP_BORDER, borderColor: stroke, paddingHorizontal: GROUP_PAD }}>
