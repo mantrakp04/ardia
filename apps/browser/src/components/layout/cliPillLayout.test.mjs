@@ -212,3 +212,21 @@ test("a crashed or hung tab's buttons sit above the pill in its card, however sh
     }
   }
 });
+
+test("a crashed or hung tab lays out as the pane's own flex column, so it follows the pane through every resize", async () => {
+  const { sadTabColumn, SAD_TAB_SPACER, SAD_TAB_CONTENT } = await import("./cliPillLayout.ts");
+  for (const pillShown of [false, true]) {
+    for (const base of [0, 24]) {
+      const column = sadTabColumn(pillShown, base);
+      assert.equal("position" in column, false);
+      assert.equal("minHeight" in column, false);
+      assert.equal("height" in column, false);
+      assert.equal(column.overflow, "hidden");
+      assert.equal(column.justifyContent, "flex-end");
+      assert.equal(column.alignItems, "center");
+      assert.equal(column.paddingBottom, pillShown ? Math.max(base, CLI_PILL_CLEARANCE) : base);
+    }
+  }
+  assert.deepEqual(SAD_TAB_SPACER, { flexGrow: 1, flexShrink: 1, flexBasis: 0 });
+  assert.equal(SAD_TAB_CONTENT.flexShrink, 0);
+});
