@@ -28,6 +28,7 @@ import { Button, Checkbox, Group, PopUp, Row, SectionHeader, Sheet, Toggle } fro
 import { appLinks, contentBlocker, siteOrigins, zoomLevels } from "../paneData";
 import { useResource } from "../resources";
 import { closeSettingsSheet, showSettingsSheet } from "../sheet";
+import { CustomFiltersSection } from "./CustomFilters";
 import { ShareDiagnosticsSection } from "./ShareDiagnostics";
 
 const CATEGORIES: { id: FilterListCategory; toggle: string; section: string; anchor?: string }[] = [
@@ -58,7 +59,8 @@ async function setCategory(s: ContentBlockerState, c: FilterListCategory, on: bo
   const usual = lists.filter((l) => l.defaultOn || l.enabled);
   const starters = usual.length ? usual : lists.filter((l) => /easylist|fanboy/.test(l.id));
   for (const l of on ? (starters.length ? starters : lists) : lists.filter((l) => l.enabled)) await setFilterListEnabled(l.id, on);
-  const anyOn = CATEGORIES.some((x) => (x.id === c ? on : categoryOn(s, x.id)));
+  const ownOn = (s.customLists ?? []).some((l) => l.enabled) || (s.userFilters ?? 0) > 0;
+  const anyOn = ownOn || CATEGORIES.some((x) => (x.id === c ? on : categoryOn(s, x.id)));
   if (anyOn !== s.enabled) await setContentBlockerEnabled(anyOn);
 }
 
@@ -142,6 +144,7 @@ function FilterListsSheet() {
       <Text style={{ fontSize: 15, fontWeight: "600", color: theme.textPrimary }}>Advanced Ad Block Settings</Text>
       <Text style={{ fontSize: 12, marginTop: 4, color: theme.textSecondary }}>Block common components found across the web by using additional rules and filters.</Text>
       <ScrollView style={{ maxHeight: 420, marginTop: 8 }}>
+        <CustomFiltersSection blocker={blocker} refresh={refresh} back={() => showSettingsSheet(<FilterListsSheet />)} />
         {CATEGORIES.map((c) => {
           const lists = blocker?.lists.filter((l) => l.category === c.id) ?? [];
           if (!lists.length) return null;

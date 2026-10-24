@@ -123,6 +123,25 @@ public class CefModule: Module {
     AsyncFunction("setContentBlockerAllowed") { (host: String, allowed: Bool, promise: Promise) in
       ArdiaCoreContentBlocker.setAllowed(allowed, host: host) { CefModule.settle(promise, $0) }
     }.runOnQueue(.main)
+    AsyncFunction("addFilterList") { (url: String, promise: Promise) in
+      ArdiaCoreContentBlocker.addList(url) { list, error in
+        if let error { promise.reject("ERR_CONTENT_BLOCKER", error) } else { promise.resolve(list) }
+      }
+    }.runOnQueue(.main)
+    AsyncFunction("removeFilterList") { (id: String, promise: Promise) in
+      ArdiaCoreContentBlocker.removeList(id) { CefModule.settle(promise, $0) }
+    }.runOnQueue(.main)
+    AsyncFunction("updateFilterList") { (id: String, promise: Promise) in
+      ArdiaCoreContentBlocker.updateList(id) { CefModule.settle(promise, $0) }
+    }.runOnQueue(.main)
+    AsyncFunction("getUserFilters") { (promise: Promise) in
+      ArdiaCoreContentBlocker.userFilters { text, error in
+        if let error { promise.reject("ERR_CONTENT_BLOCKER", error) } else { promise.resolve(text) }
+      }
+    }.runOnQueue(.main)
+    AsyncFunction("setUserFilters") { (text: String, promise: Promise) in
+      ArdiaCoreContentBlocker.setUserFilters(text) { CefModule.settle(promise, $0) }
+    }.runOnQueue(.main)
     AsyncFunction("devContentBlockerFailNextMessage") { ArdiaCoreContentBlocker.devFailNextMessage() }.runOnQueue(.main)
     AsyncFunction("devContentBlockerDelayNextLoad") { (ms: Double) in ArdiaCoreContentBlocker.devDelayNextLoad(ms) }.runOnQueue(.main)
 
