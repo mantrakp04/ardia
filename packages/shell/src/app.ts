@@ -110,6 +110,7 @@ type AppModule = {
   addListener(name: "onNotificationResponse", listener: (e: NotificationResponse) => void): EventSubscription;
   addListener(name: "onScriptCommand", listener: (e: ScriptCommand) => void): EventSubscription;
   updaterState(): Promise<UpdaterState>;
+  userFullName?(): string;
   checkForUpdates(): Promise<void>;
   setAutomaticUpdateChecks(on: boolean): Promise<void>;
   setAutomaticUpdateDownloads(on: boolean): Promise<void>;
@@ -156,6 +157,7 @@ type AppModule = {
 const App = requireNativeModule<AppModule>("ArdiaApp");
 
 export const updaterState = () => App.updaterState();
+export const userFullName = (): string => App.userFullName?.() ?? "";
 export const checkForUpdates = () => App.checkForUpdates();
 export const setAutomaticUpdateChecks = (on: boolean) => App.setAutomaticUpdateChecks(on);
 export const setAutomaticUpdateDownloads = (on: boolean) => App.setAutomaticUpdateDownloads(on);

@@ -70,6 +70,11 @@ export type Settings = {
   appearance: "auto" | "light" | "dark";
   addressBar: "toolbar" | "sidebar";
   commandBarPlacement: "field" | "centred";
+  greetingName: string;
+  ntpGreetingName: boolean;
+  ntpSuggestions: boolean;
+  ntpBackground: string;
+  ntpBackgroundPath: string;
 
   defaultProfileId: string;
 
@@ -151,6 +156,11 @@ export const DEFAULT_SETTINGS: Settings = {
   appearance: "auto",
   addressBar: "toolbar",
   commandBarPlacement: "field",
+  greetingName: "",
+  ntpGreetingName: true,
+  ntpSuggestions: true,
+  ntpBackground: "none",
+  ntpBackgroundPath: "",
   defaultProfileId: DEFAULT_PROFILE_ID,
   shortcuts: {},
   openLinksInLittleArdia: true,

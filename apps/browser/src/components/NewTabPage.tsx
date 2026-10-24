@@ -3,10 +3,13 @@ import { useEffect, useState } from "react";
 import { Surface } from "@ardia/shell";
 import { AccessibilityInfo, Animated, StyleSheet, View } from "react-native";
 import { hex, layout, useTheme } from "../lib/theme";
+import { useBrowser } from "../store/browser";
 import { useWindowId } from "../store/hooks";
 import { useCardAnchors } from "./layout/windowLayout";
 import { springParams } from "./layout/swipeMotion";
 import { NewTabExtras } from "./ntp";
+import { NtpBackdrop } from "./ntp/Backdrop";
+import { Greeting, HomeSections } from "./ntp/HomeSections";
 import { useOnboarding } from "./onboarding/state";
 import { Omnibox } from "./Omnibox";
 
@@ -56,6 +59,7 @@ export function NewTabPage({ tabId, toolbar = true }: { tabId: string; toolbar?:
   const theme = useTheme();
   const windowId = useWindowId();
   const onboarding = useOnboarding((s) => s.windowId === windowId);
+  const incognito = useBrowser((s) => !!s.windows[windowId]?.incognito);
   const card = useCardAnchors((s) => s[windowId]);
   const [size, setSizeState] = useState<Size | null>(() => (lastSize && (!card || sameSize(lastSize.card, card)) ? lastSize.size : null));
   const setSize = (next: Size) => setSizeState((prev) => (prev && sameSize(prev, next) ? prev : next));
@@ -95,6 +99,7 @@ export function NewTabPage({ tabId, toolbar = true }: { tabId: string; toolbar?:
 
   return (
     <View style={{ flex: 1 }} onLayout={(e) => setSize(e.nativeEvent.layout)}>
+      <NtpBackdrop radius={layout.cardRadius} />
       {playIntro && theme.powerUpPalette && (
         <PowerUp
           style={StyleSheet.absoluteFill}
@@ -129,6 +134,7 @@ export function NewTabPage({ tabId, toolbar = true }: { tabId: string; toolbar?:
           />
         ))}
       </View>
+      {!onboarding && !incognito && <Greeting left={x} top={top - MARK_ABOVE_BAR - 52} width={width} />}
       <View onLayout={(e) => setPanelHeight(e.nativeEvent.layout.height)} style={{ position: "absolute", left: x, top, width }}>
         <Surface style={StyleSheet.absoluteFill} fill="#00000000" cornerRadius={20} shadowColor="#000000" shadowOpacity={0.08} shadowRadius={2} shadowOffset={[0, 0.5]} />
         <Surface style={StyleSheet.absoluteFill} fill="#00000000" cornerRadius={20} shadowColor="#000000" shadowOpacity={0.04} shadowRadius={1} shadowOffset={[0, 2]} />
@@ -141,6 +147,7 @@ export function NewTabPage({ tabId, toolbar = true }: { tabId: string; toolbar?:
           {onboarding ? <View style={{ height: BAR_HEIGHT - 2 * BAR_BORDER }} /> : <Omnibox variant="hero" tabId={tabId} />}
         </Surface>
       </View>
+      {!onboarding && <HomeSections tabId={tabId} left={x + 6} top={top + panelHeight + 30} width={width - 12} />}
       <NewTabExtras size={size} bar={bar} />
     </View>
   );

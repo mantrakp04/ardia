@@ -8,6 +8,8 @@ public class AppModule: Module {
     Constant("apiVersion") { () -> Int in 16 }
     Events("onNotificationResponse", "onScriptCommand")
 
+    Function("userFullName") { () -> String in NSFullUserName() }
+
     OnCreate {
       DispatchQueue.main.async {
         NotificationHub.shared.install()
