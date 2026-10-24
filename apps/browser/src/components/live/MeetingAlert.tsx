@@ -6,6 +6,7 @@ import { dismiss, joinEvent, useMeetingAlert } from "../../live/alerts";
 import { useCalendar, useNow } from "../../live/calendar";
 import { attendeesLabel, guestsLabel, isCalendarUrl, joinLink, joinTitle, relatedLinks, relativeTime, timeRange, type CalendarEvent } from "../../live/meetings";
 import { useBrowser } from "../../store/browser";
+import { hasPinnedPage } from "../../store/organize";
 import { viewTabIds } from "../../store/model";
 import { IconButton } from "../primitives";
 import { measureRow, type Anchor } from "../sidebar/state";
@@ -26,7 +27,7 @@ function AlertCard({ event, windowId, windowWidth }: { event: CalendarEvent; win
   const theme = useTheme();
   const colors = useLiveColors();
   const now = useNow(15_000);
-  const calendarTab = useBrowser((s) => viewTabIds(s, windowId).find((id) => s.tabs[id]?.pinned && isCalendarUrl(s.tabs[id]!.pinnedUrl ?? s.tabs[id]!.url)));
+  const calendarTab = useBrowser((s) => viewTabIds(s, windowId).find((id) => hasPinnedPage(s, s.tabs[id]!) && isCalendarUrl(s.tabs[id]!.pinnedUrl ?? s.tabs[id]!.url)));
   const sidebarShown = useBrowser((s) => !!s.windows[windowId]?.sidebarOpen);
   const calendarName = useCalendar((s) => s.calendars.find((c) => c.id === event.calendarId)?.title);
   const [anchor, setAnchor] = useState<Anchor | null>(null);

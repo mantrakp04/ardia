@@ -1,8 +1,8 @@
 import type { StateCreator } from "zustand";
 import type { BrowserState } from "./browser";
 import { newId } from "./model";
-import { closingGroup } from "./organize";
-import { withNewTab } from "./tabs";
+import { closingGroup, inFolder, isFolder, withoutHomes, withoutStrayHomes } from "./organize";
+import { unloadPinnedTabs, withNewTab } from "./tabs";
 import type { BrowserWindow, GroupColor, Tab, TabGroup } from "./types";
 
 export type GroupsSlice = {
@@ -292,7 +292,7 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
 
   createGroup(tabIds, options = {}) {
     const s = get();
-    const tabs = tabIds.map((id) => s.tabs[id]).filter((t) => t && !t.pinned);
+    const tabs = tabIds.map((id) => s.tabs[id]).filter((t) => t && !t.pinned && !inFolder(s, t.id));
     const first = tabs[0];
     if (!first || tabs.some((t) => t!.windowId !== first.windowId || t!.profileId !== first.profileId)) return "";
     const w = s.windows[first.windowId]!;
@@ -321,8 +321,9 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
       const groups = { ...s.groups, [id]: { ...g, ...patch } };
       const w = s.windows[g.windowId];
       if (patch.pinned === undefined || patch.pinned === g.pinned || !w) return { groups };
-      const window = { ...w, tabIds: orderSections(w.tabIds, s.tabs, groups) };
-      return { groups: syncGroupOrder(groups, window), windows: { ...s.windows, [w.id]: window } };
+      const tabs = patch.pinned ? withoutHomes(s.tabs, g.pinned ? [] : g.tabIds.filter((id) => !inFolder(s, id))) : withoutHomes(s.tabs, g.tabIds);
+      const window = { ...w, tabIds: orderSections(w.tabIds, tabs, groups) };
+      return { tabs, groups: syncGroupOrder(groups, window), windows: { ...s.windows, [w.id]: window } };
     });
   },
 
@@ -332,14 +333,15 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
       if (!group) return {};
       const adding = tabIds.filter((id) => {
         const t = s.tabs[id];
-        return t && !t.pinned && t.windowId === group.windowId && t.profileId === group.profileId && !group.tabIds.includes(id);
+        return t && !t.pinned && (group.pinned || !inFolder(s, t.id)) && t.windowId === group.windowId && t.profileId === group.profileId && !group.tabIds.includes(id);
       });
       if (!adding.length) return {};
       const w = s.windows[group.windowId]!;
       const block = placeBlock(w.tabIds, [...group.tabIds, ...adding]);
       const groups = nestGroups({ ...leaveGroups(s.groups, new Set(adding)), [groupId]: { ...group, tabIds: [...group.tabIds, ...adding] } });
+      const tabs = withoutHomes(s.tabs, adding.filter((id) => !inFolder(s, id)));
       const window = { ...w, tabIds: placeGroups(block, groups, w.id) };
-      return { groups: syncGroupOrder(groups, window), windows: { ...s.windows, [w.id]: window } };
+      return { tabs, groups: syncGroupOrder(groups, window), windows: { ...s.windows, [w.id]: window } };
     });
   },
 
@@ -376,9 +378,10 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
       if (!group) return {};
       const { [groupId]: _, ...rest } = s.groups;
       const groups = reparent(rest, s.groups);
-      if (!s.windows[group.windowId]) return { groups };
-      const next = withGroupsPlaced(s, group.windowId, groups);
-      return { groups: next.groups, windows: next.windows };
+      const tabs = withoutStrayHomes({ tabs: s.tabs, groups }, group.tabIds);
+      if (!s.windows[group.windowId]) return { tabs, groups };
+      const next = withGroupsPlaced({ ...s, tabs, groups: s.groups }, group.windowId, groups);
+      return { tabs, groups: next.groups, windows: next.windows };
     });
   },
 
@@ -407,7 +410,9 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
   },
 
   closeGroup(groupId) {
-    set(closingGroup(get(), groupId));
+    const g = get().groups[groupId];
+    if (g && isFolder(get(), g)) set(unloadPinnedTabs(get(), g.tabIds));
+    else set(closingGroup(get(), groupId));
   },
 
   deleteGroup(groupId) {

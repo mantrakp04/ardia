@@ -3,7 +3,7 @@ import { closeTab, moveTabToProfile, moveTabToWindow, switchToTab, toggleMute } 
 import { folderChildren } from "../../store/bookmarks";
 import { useBrowser } from "../../store/browser";
 import { bookmarkProfileId, isIncognitoProfile, isPinnedRow, pinSection, plural, tabLabel, viewTabIds, windowTitle } from "../../store/model";
-import { awayFromPin, cleanedTabsFor, groupLabel, groupOf, keptDeletedGroups, selectedTabIds } from "../../store/organize";
+import { awayFromPin, canFold, cleanedTabsFor, foldersOf, groupLabel, groupOf, hasPinnedPage, inFolder, isFolder, keptDeletedGroups, selectedTabIds } from "../../store/organize";
 import { groupPath } from "../../store/groups";
 import { splitOf } from "../../store/splits";
 import type { GroupColor, Tab } from "../../store/types";
@@ -13,6 +13,7 @@ import {
   copyUrls,
   editPinnedPage,
   muteAll,
+  newFolderWithSelection,
   newGroupWithSelection,
   openIconPicker,
   startRename,
@@ -68,6 +69,18 @@ function moveToGroupItems(windowId: string, exclude: string | undefined): MenuIt
     .sort((a, z) => (a.title < z.title ? -1 : a.title > z.title ? 1 : 0));
 }
 
+function moveToFolderItem(windowId: string, ids: string[]): MenuItem[] {
+  const s = store();
+  const first = s.tabs[ids[0] ?? ""];
+  if (!first) return [];
+  const current = new Set(ids.map((id) => groupOf(s, id)?.id));
+  const folders = foldersOf(s, windowId, first.profileId)
+    .filter((g) => current.size !== 1 || !current.has(g.id))
+    .map((g) => ({ id: `pfolder:${g.id}`, title: groupPath(s.groups, g.id).map((id) => groupLabel(s, s.groups[id]!)).join(" › "), symbol: "folder" }))
+    .sort((a, z) => (a.title < z.title ? -1 : a.title > z.title ? 1 : 0));
+  return folders.length ? [{ id: "moveToFolder", title: "Move to Folder", symbol: "folder", children: folders }] : [];
+}
+
 export async function openTabMenu(windowId: string, tab: Tab) {
   const s = store();
   const selected = selectedTabIds(s, windowId);
@@ -84,7 +97,10 @@ export async function openTabMenu(windowId: string, tab: Tab) {
   const split = splitOf(s, tab.id);
   const incognito = isIncognitoProfile(tab.profileId);
   const across = (s.windows[windowId]?.tabLayout ?? s.settings.tabLayout) === "top";
-  const away = awayFromPin(tab);
+  const member = inFolder(s, tab.id);
+  const pinnedPage = hasPinnedPage(s, tab);
+  const foldable = canFold(s, tab.id);
+  const away = awayFromPin(tab, member);
   const moveToProfile: MenuItem[] = [
     ...s.profileOrder.map((id) => ({ id: `profile:${id}`, title: s.profiles[id]!.name, checked: id === tab.profileId, enabled: id !== tab.profileId })),
     sep,
@@ -93,7 +109,7 @@ export async function openTabMenu(windowId: string, tab: Tab) {
   const groups = moveToGroupItems(windowId, group?.id);
 
   const choice = await showMenu([
-    ...(tab.pinned
+    ...(pinnedPage
       ? [
           { id: "backToPin", title: "Back to Pinned URL", symbol: "arrow.uturn.backward", enabled: away, ...hint("\r", "command") },
           { id: "replacePin", title: "Replace Pin with Current Page", symbol: "pin", enabled: away },
@@ -107,8 +123,8 @@ export async function openTabMenu(windowId: string, tab: Tab) {
     { id: "icon", title: "Change Icon…", symbol: "face.smiling" },
     ...(tab.customIcon ? [{ id: "resetIcon", title: "Reset Icon", symbol: "arrow.counterclockwise" }] : []),
     sep,
-    { id: "pin", title: tab.pinned ? "Unpin" : "Pin", symbol: tab.pinned ? "pin.slash" : "pin" },
-    isPinnedRow(tab)
+    { id: "pin", title: tab.pinned || member ? "Unpin" : "Pin", symbol: tab.pinned || member ? "pin.slash" : "pin" },
+    isPinnedRow(tab) || member
       ? { id: "pinTile", title: "Move to Top Apps", symbol: "app" }
       : { id: "pinRow", title: "Move to Pinned Tabs", symbol: "list.bullet" },
     ...(pinSection(tab) !== "tile"
@@ -117,7 +133,15 @@ export async function openTabMenu(windowId: string, tab: Tab) {
         ? [{ id: "leaveFolder", title: "Remove from Folder", symbol: "folder.badge.minus" }]
         : [{ id: "newFolder", title: "New Folder with Tab", symbol: "folder.badge.plus" }]),
     { id: "duplicate", title: "Duplicate", symbol: "plus.square.on.square" },
-    ...(tab.pinned
+    ...(foldable
+      ? [
+          member
+            ? { id: "rowLeaveFolder", title: "Remove from Folder", symbol: "folder.badge.minus" }
+            : { id: "rowNewFolder", title: "Add to New Folder", symbol: "folder.badge.plus" },
+          ...moveToFolderItem(windowId, [tab.id]),
+        ]
+      : []),
+    ...(tab.pinned || member
       ? []
       : [
           group
@@ -158,6 +182,9 @@ export async function openTabMenu(windowId: string, tab: Tab) {
   else if (choice === "newFolder") newFolderWithTab(windowId, tab.id);
   else if (choice === "leaveFolder") removeFromFolder(tab.id);
   else if (choice === "duplicate") s.duplicateTab(tab.id);
+  else if (choice === "rowLeaveFolder") s.removeFromFolder([tab.id]);
+  else if (choice === "rowNewFolder") newFolderWithSelection(windowId, [tab.id]);
+  else if (choice.startsWith("pfolder:")) s.placeTabs([tab.id], { pinned: false, groupId: choice.slice(8) });
   else if (choice === "ungroupTab") s.removeTabsFromGroup([tab.id]);
   else if (choice === "newGroup") newGroupWithSelection(windowId, [tab.id]);
   else if (choice.startsWith("group:")) s.placeTabs([tab.id], { pinned: false, groupId: choice.slice(6) });
@@ -182,14 +209,25 @@ async function openMultiMenu(windowId: string, ids: string[]) {
   const tabs = ids.map((id) => s.tabs[id]!);
   const allPinned = tabs.every((t) => t.pinned);
   const incognito = tabs.some((t) => isIncognitoProfile(t.profileId));
-  const groups = moveToGroupItems(windowId, undefined);
+  const anyMember = ids.some((id) => inFolder(s, id));
+  const unpinning = allPinned || anyMember;
+  const folderOnly = tabs.some((t) => isPinnedRow(t) || inFolder(s, t.id));
+  const groups = folderOnly ? [] : moveToGroupItems(windowId, undefined);
+  const foldable = ids.every((id) => canFold(s, id));
   const choice = await showMenu([
-    { id: "pin", title: allPinned ? `Unpin ${n} Tabs` : `Pin ${n} Tabs`, symbol: allPinned ? "pin.slash" : "pin" },
-    ...(tabs.every(isPinnedRow) ? [] : [{ id: "pinRows", title: `Move ${n} Tabs to Pinned Tabs`, symbol: "list.bullet" }]),
+    { id: "pin", title: unpinning ? `Unpin ${n} Tabs` : `Pin ${n} Tabs`, symbol: unpinning ? "pin.slash" : "pin" },
+    ...(tabs.every(isPinnedRow) || anyMember ? [] : [{ id: "pinRows", title: `Move ${n} Tabs to Pinned Tabs`, symbol: "list.bullet" }]),
     { id: "duplicate", title: `Duplicate ${n} Tabs`, symbol: "plus.square.on.square" },
-    { id: "newGroup", title: `New Group with ${n} Tabs`, symbol: "plus.rectangle.on.rectangle", enabled: !allPinned, ...hint("n", "control", "command") },
+    ...(folderOnly ? [] : [{ id: "newGroup", title: `New Group with ${n} Tabs`, symbol: "plus.rectangle.on.rectangle", enabled: !allPinned, ...hint("n", "control", "command") }]),
     ...(groups.length ? [{ id: "moveToGroup", title: "Move to Group", symbol: "rectangle.stack", children: groups }] : []),
-    ...(tabs.some((t) => groupOf(s, t.id)) ? [{ id: "ungroup", title: "Remove from Group", symbol: "folder.badge.minus" }] : []),
+    ...(!folderOnly && tabs.some((t) => groupOf(s, t.id)) ? [{ id: "ungroup", title: "Remove from Group", symbol: "folder.badge.minus" }] : []),
+    ...(foldable
+      ? [
+          { id: "rowNewFolder", title: `Add ${n} Pages to New Folder`, symbol: "folder.badge.plus" },
+          ...moveToFolderItem(windowId, ids),
+          ...(anyMember ? [{ id: "rowLeaveFolder", title: "Remove from Folder", symbol: "folder.badge.minus" }] : []),
+        ]
+      : []),
     sep,
     { id: "copy", title: `Copy ${n} URLs`, symbol: "link", ...hint("c", "shift", "command") },
     { id: "copyMd", title: `Copy ${n} URLs as Markdown`, symbol: "text.badge.checkmark", ...hint("c", "option", "shift", "command") },
@@ -201,12 +239,15 @@ async function openMultiMenu(windowId: string, ids: string[]) {
     { id: "close", title: `Close ${n} Tabs`, symbol: "xmark", ...hint("w", "command") },
   ]);
   if (!choice) return;
-  if (choice === "pin") s.pinTabs(ids, !allPinned);
+  if (choice === "pin") s.pinTabs(ids, !unpinning);
   else if (choice === "pinRows") s.pinTabs(ids, true, true);
   else if (choice === "duplicate") ids.forEach((id) => store().duplicateTab(id));
   else if (choice === "newGroup") newGroupWithSelection(windowId, ids);
   else if (choice.startsWith("group:")) s.placeTabs(ids, { pinned: false, groupId: choice.slice(6) });
-  else if (choice === "ungroup") s.removeTabsFromGroup(ids);
+  else if (choice === "ungroup") s.removeTabsFromGroup(ids.filter((id) => !inFolder(s, id)));
+  else if (choice === "rowNewFolder") newFolderWithSelection(windowId, ids);
+  else if (choice === "rowLeaveFolder") s.removeFromFolder(ids);
+  else if (choice.startsWith("pfolder:")) s.placeTabs(ids, { pinned: false, groupId: choice.slice(8) });
   else if (choice === "copy") copyUrls(ids, false);
   else if (choice === "copyMd") copyUrls(ids, true);
   else if (choice === "bar") void bookmarkTabs(windowId, ids, "bar");
@@ -225,6 +266,9 @@ export async function openGroupMenu(windowId: string, groupId: string) {
   const colors: GroupColor[] = ["grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange"];
   const siteColor = g.tabIds.map((id) => s.live[id]?.themeColor).find(Boolean);
   const matched = siteColor ? nearestGroupColor(siteColor) : null;
+  const folder = isFolder(s, g);
+  const noun = folder ? "Folder" : "Group";
+  const releasing = folder && !g.parentId;
   const choice = await showMenu([
     { id: "rename", title: "Rename…", symbol: "character.cursor.ibeam" },
     { id: "icon", title: g.icon ? "Change Icon…" : "Add Icon…", symbol: "face.smiling" },
@@ -240,19 +284,19 @@ export async function openGroupMenu(windowId: string, groupId: string) {
       ],
     },
     sep,
-    { id: "newTab", title: "New Tab in Group", symbol: "plus", ...hint("t", "option", "command") },
-    { id: "nest", title: "New Nested Group", symbol: "plus.rectangle.on.rectangle" },
-    ...(g.parentId ? [] : [{ id: "pin", title: g.pinned ? "Unpin Group" : "Pin Group", symbol: g.pinned ? "pin.slash" : "pin" }]),
-    { id: "duplicate", title: "Duplicate Group", symbol: "plus.square.on.square" },
-    { id: "collapse", title: g.collapsed ? "Expand Group" : "Collapse Group", symbol: g.collapsed ? "chevron.down" : "chevron.up" },
+    { id: "newTab", title: `New Tab in ${noun}`, symbol: "plus", ...hint("t", "option", "command") },
+    { id: "nest", title: `New Nested ${noun}`, symbol: "plus.rectangle.on.rectangle" },
+    ...(g.parentId ? [] : [{ id: "pin", title: folder ? "Unpin Folder" : g.pinned ? "Unpin Group" : "Pin Group", symbol: g.pinned ? "pin.slash" : "pin" }]),
+    { id: "duplicate", title: `Duplicate ${noun}`, symbol: "plus.square.on.square" },
+    { id: "collapse", title: g.collapsed ? `Expand ${noun}` : `Collapse ${noun}`, symbol: g.collapsed ? "chevron.down" : "chevron.up" },
     sep,
     { id: "copy", title: "Copy All Links", symbol: "link" },
     { id: "copyMd", title: "Copy All Links as Markdown", symbol: "text.badge.checkmark" },
     sep,
-    { id: "ungroup", title: "Ungroup", symbol: "folder.badge.minus" },
+    { id: "ungroup", title: releasing ? "Move Pages Out of Folder" : "Ungroup", symbol: "folder.badge.minus" },
     { id: "bookmarkBar", title: "Move to Bookmark Bar", symbol: "bookmark" },
-    { id: "close", title: "Close Group", symbol: "xmark" },
-    { id: "delete", title: "Delete Group", symbol: "trash" },
+    { id: "close", title: `Close ${noun}`, symbol: "xmark" },
+    { id: "delete", title: `Delete ${noun}`, symbol: "trash" },
   ]);
   if (!choice) return;
   const target = { kind: "group" as const, id: groupId };
@@ -274,7 +318,10 @@ export async function openGroupMenu(windowId: string, groupId: string) {
   else if (choice === "collapse") s.updateGroup(groupId, { collapsed: !g.collapsed });
   else if (choice === "copy") copyUrls(g.tabIds, false);
   else if (choice === "copyMd") copyUrls(g.tabIds, true);
-  else if (choice === "ungroup") s.ungroup(groupId);
+  else if (choice === "ungroup") {
+    if (releasing) s.releaseFolder(groupId);
+    else s.ungroup(groupId);
+  }
   else if (choice === "bookmarkBar") s.moveGroupToBookmarksBar(groupId);
   else if (choice === "close") s.closeGroup(groupId);
   else if (choice === "delete") s.deleteGroup(groupId);

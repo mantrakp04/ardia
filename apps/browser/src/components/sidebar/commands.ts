@@ -1,7 +1,7 @@
 import type { BrowserCommand, MenuEntry } from "@ardia/shell";
 import { useBrowser, type BrowserState } from "../../store/browser";
 import { activeTabId, plural } from "../../store/model";
-import { awayFromPin, groupOf, selectedTabIds } from "../../store/organize";
+import { awayFromPin, groupOf, inFolder, selectedTabIds } from "../../store/organize";
 import { newGroupWithSelection, openIconPicker, startRename } from "./actions";
 import { closeAllTabs } from "./menus";
 import { toggleNewTabBar } from "../omnibox/newTabBar";
@@ -62,9 +62,9 @@ export function sidebarMenuState(s: BrowserState, windowId: string | undefined) 
   const tab = windowId ? s.tabs[activeTabId(s, windowId) ?? ""] : undefined;
   if (!windowId) disabled.push(...SIDEBAR_WINDOW_COMMANDS);
   else {
-    if (!tab || !awayFromPin(tab)) disabled.push("returnToPinnedUrl");
-    titles.togglePinnedRow = movePinnedTitle(tab);
-    const selected = selectedTabIds(s, windowId).filter((id) => !s.tabs[id]?.pinned);
+    if (!tab || !awayFromPin(tab, inFolder(s, tab.id))) disabled.push("returnToPinnedUrl");
+    titles.togglePinnedRow = movePinnedTitle(tab, !!tab && inFolder(s, tab.id));
+    const selected = selectedTabIds(s, windowId).filter((id) => !s.tabs[id]?.pinned && !inFolder(s, id));
     if (!selected.length) disabled.push("newGroupWithTabs");
     if (selected.length > 1) titles.newGroupWithTabs = `New Group with ${plural(selected.length, "Tab")}`;
   }

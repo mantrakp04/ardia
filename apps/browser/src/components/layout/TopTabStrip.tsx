@@ -10,7 +10,7 @@ import { HoverSlot } from "../HoverSlot";
 import { IconButton, useHover } from "../primitives";
 import { clickTab } from "../sidebar/actions";
 import { openGroupMenu, openTabMenu } from "../sidebar/menus";
-import { groupLabel } from "../../store/organize";
+import { groupLabel, isFolder } from "../../store/organize";
 import { TabIcon } from "../sidebar/TabIcon";
 import { TabBadges } from "../media/TabBadges";
 import { GROUP_COLORS, NEUTRAL_GROUP_SWATCH, useSidebarTokens, withAlpha } from "../sidebar/tokens";
@@ -1142,6 +1142,7 @@ function StripGroup({
   const windowId = useWindowId();
   const profileId = usePageProfileId();
   const group = useBrowser((s) => s.groups[entry.id]);
+  const folder = useBrowser((s) => isFolder(s, s.groups[entry.id]));
   const { hovered, hoverProps } = useHover();
   const expanded = !entry.collapsed;
   const widths = entry.members.map(memberWidth);
@@ -1241,13 +1242,13 @@ function StripGroup({
       ))}
       <Animated.View pointerEvents={expanded ? "box-none" : "none"} mouseDownCanMoveWindow={false} style={{ position: "absolute", top: ITEM_TOP, height: ITEM_HEIGHT, left: tail, flexDirection: "row", alignItems: "center", opacity: fade }}>
         <View style={{ width: 0.5, height: 15, backgroundColor: divider }} />
-        <IconButton icon="xmark" size={9} weight="semibold" box={24} radius={6} style={{ marginLeft: 1 }} onPress={() => useBrowser.getState().closeGroup(entry.id)} tooltip="Close Group" />
+        <IconButton icon="xmark" size={9} weight="semibold" box={24} radius={6} style={{ marginLeft: 1 }} onPress={() => useBrowser.getState().closeGroup(entry.id)} tooltip={folder ? "Close Folder" : "Close Group"} />
       </Animated.View>
       <View
         {...hoverProps}
         {...drag.panHandlers}
         mouseDownCanMoveWindow={false}
-        tooltip={expanded ? "Collapse Group" : "Expand Group"}
+        tooltip={`${expanded ? "Collapse" : "Expand"} ${folder ? "Folder" : "Group"}`}
         onLayout={(e) => onChipWidth(Math.ceil(e.nativeEvent.layout.width * 2) / 2)}
         style={{ position: "absolute", left: 0, top: ITEM_TOP, height: ITEM_HEIGHT }}
       >

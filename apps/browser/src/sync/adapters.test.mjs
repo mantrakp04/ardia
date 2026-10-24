@@ -70,7 +70,7 @@ class Device {
       const p = await run(
         profileId === "default" ? "p" : `p:${profileId}`,
         [
-          ...(this.legacy ? [] : [adapters.pinnedRowsAdapter(profileId), adapters.pinnedOrderAdapter(profileId)]),
+          ...(this.legacy ? [] : [adapters.pinnedRowsAdapter(profileId), adapters.pinnedHomesAdapter(profileId), adapters.pinnedOrderAdapter(profileId)]),
           adapters.pinnedAdapter(profileId),
           adapters.bookmarksAdapter(profileId),
           adapters.historyAdapter(profileId),
@@ -1865,4 +1865,173 @@ test("a snapshot dropping the anchor in the cycle a newer order record arrives d
   const records = { [orderKey]: { v: { a: "x" }, h: "0mvlhz4qh.0009.devB" } };
   const extraction = adapters.pinnedOrderAdapter("default").extract((k) => (k === orderKey ? { a: "x" } : undefined), () => false, Date.now(), (k) => k in records, (k) => records[k]?.v, (k) => records[k]?.h);
   assert.deepEqual(extraction.values.get(orderKey), { a: "x" }, "the group keeps waiting for its row");
+});
+
+const foldersOn = (d) =>
+  d.with(() =>
+    Object.values(S().groups)
+      .filter((g) => g.pinned)
+      .map((g) => [g.name, g.tabIds.map((id) => S().tabs[id].pinnedUrl)]),
+  );
+const rowsOn = (d) => d.with(() => Object.values(S().tabs).filter((t) => t.pinned && t.pinnedAsRow).map((t) => t.pinnedUrl));
+const liveHomes = (d) => Object.entries(d.scopes.p.records).filter(([k, r]) => k.startsWith("phome:") && r.v !== null).length;
+
+test("a row moved into a pinned folder arrives in the folder with its pinned URL on the other Mac, and out again as a row", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder);
+  const b = new Device("devB", folder);
+  let x;
+  a.with(() => {
+    const w = S().createWindow({ url: "https://home.example/" });
+    x = S().newTab(w, { url: "https://x.example/" });
+    S().pinTabs([x], true, true);
+    S().updateTab(x, { url: "https://x.example/deep" });
+  });
+  b.with(() => S().createWindow({ url: "https://b-home.example/" }));
+  await syncAll([a, b]);
+  assert.deepEqual(rowsOn(b), ["https://x.example/"]);
+
+  a.with(() => S().newFolder([x], "Docs"));
+  await syncAll([a, b]);
+  assert.deepEqual(foldersOn(b), [["Docs", ["https://x.example/"]]], "the page's home reaches the folder on B");
+  assert.deepEqual(rowsOn(b), []);
+  const records = Object.entries(a.scopes.p.records);
+  const pin = records.find(([k, r]) => k.startsWith("pin:t:") && r.v?.u === "https://x.example/deep");
+  assert.deepEqual(Object.keys(pin[1].v).sort(), ["g", "i", "pos", "t", "ti", "u"], "the member is sent exactly as before");
+  assert.ok(records.some(([k, r]) => k.startsWith("phome:") && r.v === "https://x.example/"), "its home is a record of its own");
+
+  b.with(() => S().removeFromFolder(S().groups[Object.keys(S().groups).find((id) => S().groups[id].pinned)].tabIds));
+  await syncAll([b, a]);
+  assert.deepEqual(rowsOn(a), ["https://x.example/"], "out of the folder on B, a row on A");
+  assert.deepEqual(foldersOn(a), []);
+  await syncAll([a, b]);
+  assert.equal((await a.sync()).published, 0, "settled");
+  assert.equal((await b.sync()).published, 0, "settled");
+  assert.equal(liveHomes(a), 0, "the row has no home record left");
+});
+
+test("a home record is tombstoned when its folder is deleted, and kept while its member is still on its way", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder);
+  const b = new Device("devB", folder);
+  a.with(() => {
+    const w = S().createWindow({ url: "https://home.example/" });
+    const x = S().newTab(w, { url: "https://x.example/" });
+    S().pinTabs([x], true, true);
+    S().newFolder([x], "Docs");
+  });
+  b.with(() => S().createWindow({ url: "https://b-home.example/" }));
+  await syncAll([a, b]);
+  assert.equal(liveHomes(a), 1);
+  assert.equal(liveHomes(b), 1);
+  a.with(() => S().deleteGroup(Object.keys(S().groups).find((id) => S().groups[id].pinned)));
+  await syncAll([a, b, a, b], 2);
+  assert.equal(liveHomes(a), 0, "the home record is a tombstone now");
+  assert.equal(liveHomes(b), 0);
+
+  const lonely = new Device("devC", folder);
+  lonely.with(() => S().createWindow({ url: "https://c-home.example/" }));
+  const live = { "pin:t:late": { v: { g: "g", u: "https://late.example/" } } };
+  const { ignore } = lonely.with(() => adapters.pinnedHomesAdapter("default").extract(() => undefined, () => false, 0, () => true, (k) => (k === "pin:t:gone" ? null : live[k]?.v)));
+  assert.equal(ignore("phome:late"), true, "a live pin whose member isn't applied yet keeps its home");
+  assert.equal(ignore("phome:gone"), false, "a deleted pin: the home goes");
+  const early = lonely.with(() => adapters.pinnedHomesAdapter("default").extract(() => undefined, () => false, 0, () => true, () => undefined));
+  assert.equal(early.ignore("phome:early"), true, "a home that arrives before its pin record survives");
+});
+
+test("a page's home is tombstoned when Unpin Folder clears it and when the page is deleted", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder);
+  const b = new Device("devB", folder);
+  let ids;
+  a.with(() => {
+    const w = S().createWindow({ url: "https://home.example/" });
+    ids = ["x", "y"].map((h) => S().newTab(w, { url: `https://${h}.example/` }));
+    S().pinTabs(ids, true, true);
+    S().newFolder(ids, "Docs");
+  });
+  b.with(() => S().createWindow({ url: "https://b-home.example/" }));
+  await syncAll([a, b, a, b]);
+  assert.equal(liveHomes(a), 2);
+  a.with(() => S().moveGroup(Object.keys(S().groups).find((id) => S().groups[id].pinned), { pinned: false }));
+  await syncAll([a, b, a, b], 2);
+  assert.equal(liveHomes(a), 0, "Unpin Folder: no page has a home");
+  assert.equal(liveHomes(b), 0);
+  assert.deepEqual(foldersOn(b), []);
+});
+
+test("a folder page nested below a folder keeps its home across Macs", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder);
+  const b = new Device("devB", folder);
+  a.with(() => {
+    const w = S().createWindow({ url: "https://home.example/" });
+    const [x, y, z] = ["x", "y", "z"].map((h) => S().newTab(w, { url: `https://${h}.example/` }));
+    S().pinTabs([x, y, z], true, true);
+    S().newFolder([x, y, z], "Outer");
+    S().groupTabs([y, z], { name: "Inner" });
+    S().updateTab(z, { url: "https://z.example/deep" });
+  });
+  b.with(() => S().createWindow({ url: "https://b-home.example/" }));
+  await syncAll([a, b], 3);
+  const nested = (d) =>
+    d.with(() =>
+      Object.values(S().groups)
+        .filter((g) => g.pinned)
+        .map((g) => `${g.name}<${g.parentId ? S().groups[g.parentId].name : "root"}>${g.tabIds.map((id) => S().tabs[id].pinnedUrl).join(",")}`)
+        .sort(),
+    );
+  const want = ["Inner<Outer>https://y.example/,https://z.example/", "Outer<root>https://x.example/,https://y.example/,https://z.example/"];
+  assert.deepEqual(await nested(a), want);
+  assert.deepEqual(await nested(b), want, "B has the nesting and every home");
+  assert.equal((await a.sync()).published + (await b.sync()).published, 0, "settled");
+});
+
+test("a Mac on 0.2.38 sends a folder page back without its home and never wipes it", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder);
+  const old = new OldMac("devOld", folder);
+  let x;
+  a.with(() => {
+    const w = S().createWindow({ url: "https://home.example/" });
+    x = S().newTab(w, { url: "https://x.example/" });
+    S().pinTabs([x], true, true);
+    S().newFolder([x], "Docs");
+    S().updateTab(x, { url: "https://x.example/deep" });
+  });
+  old.with(() => S().createWindow({ url: "https://old-home.example/" }));
+  await syncAll([a, old], 4);
+  assert.deepEqual(foldersOn(a), [["Docs", ["https://x.example/"]]]);
+  old.with(() => {
+    const t = Object.values(S().tabs).find((tab) => tab.url === "https://x.example/deep" || tab.pinnedUrl === "https://x.example/");
+    S().updateTab(t.id, { customTitle: "Renamed on old" });
+  });
+  await syncAll([old, a], 3);
+  assert.deepEqual(foldersOn(a), [["Docs", ["https://x.example/"]]], "the home survived the older Mac's edit");
+  a.with(() => S().setPinnedUrl(x, "https://x.example/new"));
+  await syncAll([a, old], 3);
+  assert.deepEqual(foldersOn(a), [["Docs", ["https://x.example/new"]]]);
+  assert.equal(liveHomes(a), 1);
+});
+
+test("a Mac on the 0.2.40 build leaves a folder page's home alone, and the two settle", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder);
+  const old = new PreInterleaveMac("devOld", folder);
+  let x;
+  a.with(() => {
+    const w = S().createWindow({ url: "https://home.example/" });
+    x = S().newTab(w, { url: "https://x.example/" });
+    S().pinTabs([x], true, true);
+    S().newFolder([x], "Docs");
+    S().updateTab(x, { url: "https://x.example/deep" });
+  });
+  old.with(() => S().createWindow({ url: "https://old-home.example/" }));
+  for (let i = 0; i < 4; i++) await syncAll([a, old], 1);
+  assert.deepEqual(foldersOn(a), [["Docs", ["https://x.example/"]]]);
+  assert.deepEqual(foldersOn(old).map(([n, u]) => [n, u.length]), [["Docs", 1]], "the older build shows the folder with its page");
+  let published = 0;
+  for (let i = 0; i < 3; i++) published += (await a.sync()).published + (await old.sync()).published;
+  assert.equal(published, 0, "no records go back and forth once settled");
+  assert.equal(liveHomes(a), 1);
 });

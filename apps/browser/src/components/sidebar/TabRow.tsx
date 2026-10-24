@@ -8,7 +8,7 @@ import { useIsActiveTab, usePageProfileId, useTab, useWindowId } from "../../sto
 import { HoverSlot } from "../HoverSlot";
 import { IconButton, useHover } from "../primitives";
 import { isPinnedRow } from "../../store/model";
-import { awayFromPin } from "../../store/organize";
+import { awayFromPin, inFolder } from "../../store/organize";
 import { clickTab, commitRename, endRename, startRename, tabTitle } from "./actions";
 import { useDragItem, useDropOnto } from "./dnd";
 import { useShift, type EntryMotion } from "./entryMotion";
@@ -62,8 +62,9 @@ export const TabRow = memo(function TabRow({ tabId, onto = false, shift = null }
   const { hovered, hoverProps } = useRowHover(windowId, renaming ? null : { kind: "tab", id: tabId });
   const [moved, movedRef] = useShift(shift, useCallback((v: View | null) => registerRow(windowId, tabId, v), [windowId, tabId]));
   const backToPin = useHover();
+  const folderMember = useBrowser((s) => inFolder(s, tabId));
   if (!tab) return null;
-  const resettable = isPinnedRow(tab) && awayFromPin(tab);
+  const resettable = (isPinnedRow(tab) || folderMember) && awayFromPin(tab, folderMember);
   const resetting = resettable && backToPin.hovered && !renaming;
   const title = resetting ? "Back to Pinned URL" : tabTitle(tab);
   const fill = active ? theme.tabSelected : selected ? tokens.multiSelected : hovered ? theme.tabHover : "rgba(0,0,0,0)";

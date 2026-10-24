@@ -63,7 +63,7 @@ function chainOf(x: Pick<Section, "groups">, key: string | null): string[] {
 
 const tileSig = (t: Tab) =>
   `${pinKeyOf(t)}\u0001${t.pinnedUrl ?? ""}\u0001${t.customTitle ?? ""}\u0001${t.customIcon ?? ""}\u0001${t.pinnedAsRow ? "r" : ""}\u0001${t.tileFolder?.id ?? ""}\u0001${t.tileFolder?.name ?? ""}\u0001${t.tileFolder?.renamedAt ?? ""}`;
-const memberSig = (t: Tab) => `${pinKeyOf(t)}\u0001${t.customTitle ?? ""}\u0001${t.customIcon ?? ""}`;
+const memberSig = (t: Tab) => `${pinKeyOf(t)}\u0001${t.customTitle ?? ""}\u0001${t.customIcon ?? ""}\u0001${t.pinnedUrl ?? ""}`;
 function signature(x: Section): string {
   const shown = new Set<string>();
   const lines: string[] = [];
@@ -173,7 +173,7 @@ function copyOf(src: Tab, windowId: string, tile: boolean): Tab {
       title: atSource ? src.title : "",
       favicon: atSource ? src.favicon : null,
       pinned: tile,
-      pinnedUrl: tile ? src.pinnedUrl || src.url || null : null,
+      pinnedUrl: tile ? src.pinnedUrl || src.url || null : src.pinnedUrl ?? null,
       ...(tile && src.pinnedAsRow ? { pinnedAsRow: true as const } : {}),
       ...(tile && !src.pinnedAsRow && src.tileFolder ? { tileFolder: src.tileFolder } : {}),
       customTitle: src.customTitle,
@@ -221,7 +221,7 @@ function conform(s: BrowserState, windowId: string, profileId: string, spec: Sec
     if (tile) {
       patch.pinnedUrl = src.pinnedUrl || src.url || null;
       if (!hasPage(t) && !samePage(t.url, homeOf(src))) Object.assign(patch, { url: homeOf(src), title: src.title, favicon: src.favicon });
-    } else patch.pinnedUrl = null;
+    } else patch.pinnedUrl = src.pinnedUrl ?? null;
     tabs[t.id] = { ...t, ...patch };
     return t.id;
   };
@@ -340,10 +340,11 @@ export function settleMovedPins(before: BrowserState, after: BrowserState, moved
     const copy = own?.tabIds.find((id) => tabs[id] && pinKeyOf(tabs[id]!) === pinKeyOf(m));
     if (!own || !copy) continue;
     for (const x of Object.values(groups)) if (x.windowId === targetId && x.tabIds.includes(copy)) groups[x.id] = { ...x, tabIds: x.tabIds.map((id) => (id === copy ? m.id : id)) };
+    tabs[m.id] = { ...tabs[m.id]!, pinnedUrl: m.pinnedUrl };
     tabIds = tabIds.filter((id) => id !== m.id);
     tabIds[tabIds.indexOf(copy)] = m.id;
     if (hasPage(tabs[copy]!) || Object.values(target.activeTabIds).includes(copy)) {
-      tabs[copy] = { ...tabs[copy]!, pinKey: undefined };
+      tabs[copy] = { ...tabs[copy]!, pinKey: undefined, pinnedUrl: null };
       tabIds.push(copy);
     } else gone.push(copy);
   }

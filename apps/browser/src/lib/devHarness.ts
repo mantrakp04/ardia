@@ -64,6 +64,9 @@ export function startDevHarness() {
     get switcher(): typeof import("../components/sidebar/switcher") {
       return require("../components/sidebar/switcher");
     },
+    get sidebarMenus(): typeof import("../components/sidebar/menus") {
+      return require("../components/sidebar/menus");
+    },
     get sidebarRows(): typeof import("../components/sidebar/state") {
       return require("../components/sidebar/state");
     },

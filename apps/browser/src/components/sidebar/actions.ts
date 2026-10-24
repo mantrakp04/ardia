@@ -4,7 +4,7 @@ import { updateFolder } from "../../live/store";
 import { useBrowser } from "../../store/browser";
 import { ancestorIds } from "../../store/groups";
 import { activeTabId, bookmarkProfileId, tabLayoutOf, viewTabIds } from "../../store/model";
-import { groupLabel, groupOf, selectedTabIds } from "../../store/organize";
+import { groupLabel, groupOf, hasPinnedPage, inFolder, isFolder, selectedTabIds } from "../../store/organize";
 import type { Tab } from "../../store/types";
 import { measureRow, setSidebarUi, sidebarUi, type Target } from "./state";
 
@@ -40,7 +40,7 @@ export function clickTab(windowId: string, tabId: string, mods: { metaKey?: bool
 function openInCurrentGroup(windowId: string, tabId: string) {
   const s = store();
   const active = activeTabId(s, windowId);
-  if (active && active !== tabId && !s.tabs[tabId]?.pinned && !s.tabs[active]?.pinned) {
+  if (active && active !== tabId && !s.tabs[tabId]?.pinned && !s.tabs[active]?.pinned && !inFolder(s, tabId)) {
     const group = groupOf(s, active);
     if (group) s.addTabsToGroup(group.id, [tabId]);
     else s.groupTabs([active, tabId]);
@@ -81,7 +81,7 @@ async function renameGroupInSheet(windowId: string, groupId: string) {
   const g = store().groups[groupId];
   if (!g) return;
   const name = await prompt({
-    title: "Rename Group",
+    title: isFolder(store(), g) ? "Rename Folder" : "Rename Group",
     value: g.name,
     placeholder: groupLabel(store(), g),
     confirmTitle: "Update",
@@ -116,7 +116,13 @@ export function setIcon(target: Target, icon: string | null) {
 }
 
 export function newGroupWithSelection(windowId: string, ids = selectedTabIds(store(), windowId)) {
-  const groupId = store().groupTabs(ids.filter((id) => !store().tabs[id]?.pinned));
+  const groupId = store().groupTabs(ids.filter((id) => !store().tabs[id]?.pinned && !inFolder(store(), id)));
+  if (groupId && sidebarShows(windowId)) void startRename(windowId, { kind: "group", id: groupId });
+  return groupId;
+}
+
+export function newFolderWithSelection(windowId: string, ids = selectedTabIds(store(), windowId)) {
+  const groupId = store().newFolder(ids);
   if (groupId && sidebarShows(windowId)) void startRename(windowId, { kind: "group", id: groupId });
   return groupId;
 }
@@ -148,7 +154,7 @@ export async function bookmarkTabs(windowId: string, ids: string[], folder: stri
 
 export async function editPinnedPage(windowId: string, tabId: string) {
   const tab = store().tabs[tabId];
-  if (!tab?.pinned) return;
+  if (!tab || !hasPinnedPage(store(), tab)) return;
   const url = await prompt({
     title: "Edit Pinned Page",
     value: tab.pinnedUrl ?? tab.url,

@@ -558,6 +558,7 @@ export function pinnedAdapter(profileId: string): Adapter {
       const home = homeWindow(s, profileId);
       if (!home) return false;
       const marked = (key: string) => (base(`${PIN_ROW}${key}`) === ROW ? (true as const) : undefined);
+      const homeOf = (key: string) => base(`${PIN_HOME}${key}`) as string | undefined;
       const PARK = `park:${profileId}`;
       const shown = home.tabIds.some((id) => s.tabs[id]?.profileId === profileId);
       if (s.parkedPins[profileId] || !shown) {
@@ -719,7 +720,7 @@ export function pinnedAdapter(profileId: string): Adapter {
           tabs[id] = {
             ...old,
             pinned: !group,
-            pinnedUrl: group ? null : v.u,
+            pinnedUrl: group ? (homeOf(pinKeyOf(old)) ?? old.pinnedUrl ?? null) : v.u,
             ...(group ? { pinnedAsRow: undefined } : old.pinned ? {} : { pinnedAsRow: marked(pinKeyOf(old)) }),
             ...(group ? { tileFolder: undefined } : old.pinned || marked(pinKeyOf(old)) ? {} : folderMark(base, pinKeyOf(old))),
             customTitle: v.t,
@@ -736,7 +737,7 @@ export function pinnedAdapter(profileId: string): Adapter {
           ...makeTab(windowId, profileId, v.u, { title: v.ti, pinned: !group, customTitle: v.t, customIcon: v.i }),
           id,
           ...pinKeyField(id),
-          pinnedUrl: group ? null : v.u,
+          pinnedUrl: group ? (homeOf(keyOfLocal.get(id) ?? id) ?? null) : v.u,
           ...(!group && marked(keyOfLocal.get(id) ?? id) ? { pinnedAsRow: true as const } : {}),
           ...(!group && !marked(keyOfLocal.get(id) ?? id) ? folderMark(base, keyOfLocal.get(id) ?? id) : {}),
           navigation: null,
@@ -777,7 +778,7 @@ export function pinnedAdapter(profileId: string): Adapter {
             tabIds.push(id);
           } else if (windows[windowId]) {
             const copy: Tab = {
-              ...makeTab(windowId, profileId, t.url, { title: t.title, favicon: t.favicon, customTitle: t.customTitle, customIcon: t.customIcon }),
+              ...makeTab(windowId, profileId, t.url, { title: t.title, favicon: t.favicon, customTitle: t.customTitle, customIcon: t.customIcon, pinnedUrl: t.pinnedUrl }),
               pinKey: pinKeyOf(t),
               navigation: null,
               unloaded: true,
@@ -881,6 +882,7 @@ export function pinnedOrderAdapter(profileId: string): Adapter {
 }
 
 const PIN_ROW = "pinrow:";
+const PIN_HOME = "phome:";
 const ROW = 1;
 const TILE = 0;
 
@@ -1072,6 +1074,63 @@ export function tileFoldersAdapter(profileId: string): Adapter {
           ...(parkEdited ? { parkedPins: { ...s.parkedPins, [profileId]: { ...park!, tabs: parked! } } } : {}),
         }),
       );
+      return true;
+    },
+  };
+}
+
+export function pinnedHomesAdapter(profileId: string): Adapter {
+  const keyOf = (k: string) => k.slice(PIN_HOME.length);
+  return {
+    prefix: PIN_HOME,
+    extract: (base, _queued, _now, _known, remote) => {
+      const s = store();
+      const values = new Map<string, unknown>();
+      const members = new Set<string>();
+      const known = new Set<string>();
+      const folderOf = new Set<string>();
+      for (const g of Object.values(s.groups)) if (g.pinned && g.profileId === profileId) g.tabIds.forEach((id) => folderOf.add(id));
+      const home = homeWindow(s, profileId);
+      for (const w of home ? [home, ...openWindows(s).filter((w) => w.id !== home.id)] : openWindows(s)) {
+        for (const id of w.tabIds) {
+          const t = s.tabs[id];
+          if (!t || t.profileId !== profileId) continue;
+          const key = pinKeyOf(t);
+          if (!t.pinned && !folderOf.has(id)) continue;
+          known.add(key);
+          if (!folderOf.has(id)) continue;
+          members.add(key);
+          if (t.pinnedUrl && !values.has(`${PIN_HOME}${key}`)) values.set(`${PIN_HOME}${key}`, t.pinnedUrl);
+        }
+      }
+      for (const p of s.parkedPins[profileId]?.tabs ?? []) {
+        known.add(p.id);
+        if (!p.groupId) continue;
+        members.add(p.id);
+        if (p.pinnedUrl && !values.has(`${PIN_HOME}${p.id}`)) values.set(`${PIN_HOME}${p.id}`, p.pinnedUrl);
+      }
+      const pinDeleted = (key: string) => remote(`pin:t:${key}`) === null;
+      return { values, ignore: (k) => members.has(keyOf(k)) || (!known.has(keyOf(k)) && !pinDeleted(keyOf(k))) } satisfies Extraction;
+    },
+    apply: (visible, changed) => {
+      const s = store();
+      const homeOf = (key: string) => (changed.has(`${PIN_HOME}${key}`) ? (visible.get(`${PIN_HOME}${key}`) as string | undefined) : undefined);
+      const inFolder = new Set(Object.values(s.groups).filter((g) => g.pinned && g.profileId === profileId).flatMap((g) => g.tabIds));
+      let tabs = s.tabs;
+      for (const t of Object.values(s.tabs)) {
+        const home = t.profileId === profileId && inFolder.has(t.id) ? homeOf(pinKeyOf(t)) : undefined;
+        if (!home || home === t.pinnedUrl) continue;
+        if (tabs === s.tabs) tabs = { ...s.tabs };
+        tabs[t.id] = { ...t, pinnedUrl: home };
+      }
+      const park = s.parkedPins[profileId];
+      const parked = park?.tabs.map((p) => {
+        const home = p.groupId ? homeOf(p.id) : undefined;
+        return home && home !== p.pinnedUrl ? { ...p, pinnedUrl: home } : p;
+      });
+      const parkEdited = !!park && parked!.some((p, i) => p !== park.tabs[i]);
+      if (tabs === s.tabs && !parkEdited) return true;
+      useBrowser.setState({ tabs, ...(parkEdited ? { parkedPins: { ...s.parkedPins, [profileId]: { ...park!, tabs: parked! } } } : {}) });
       return true;
     },
   };
