@@ -29,7 +29,7 @@ holds the rest.
 | Windowing | `node apps/browser/scripts/windowing-test.mjs <Debug app>` | Window frames and what the screen shows in passing |
 | ⌘-scroll | `node apps/browser/scripts/zoom-scroll-test.mjs <Debug app>` | Trackpad scrolls, mouse zooms (regressed in 0.1.4 and 0.2.12) |
 | Hidden panes | `node apps/browser/scripts/hidden-pane-test.mjs <Debug app>` | What changes while a tab is hidden (URL, title, loading, zoom, find bar, a permission prompt) is on screen the moment it is shown |
-| Hover layout | `node apps/browser/scripts/hover-shift-test.mjs <Debug app>` | Hovering moves nothing: every hover-tracked view in the sidebar, the tab strip and the downloads popover (below) |
+| Hover layout | `node apps/browser/scripts/hover-shift-test.mjs <Debug app>` | Hovering moves nothing: every hover-tracked view in the sidebar, the tab strip and the downloads popover (below); a collapsed live folder's hidden rows don't take the hover of the group below it, with the address bar in the toolbar and in the sidebar (0.2.40-nightly.6: the group showed a pull request's card), and a live row under a still pointer gets its card back when its folder closes and opens again |
 | Sidebar clicks | `node apps/browser/scripts/sidebar-click-test.mjs <Debug app>` | One click opens a tab or pinned tile: in the frame its hover card appears, under another tile's appearing card, after a New Tab and after closing a pinned tab (0.2.39-nightly.5: tabs needed two clicks) |
 | Onboarding | `node apps/browser/scripts/onboarding-test.mjs <Debug app>` | No text field sits behind the onboarding card, a click on the first row's checkbox toggles it, another window keeps its New Tab field meanwhile, and the New Tab field is back and focused once it ends, in a bar of the same height (the hidden New Tab field took the first row's cursor and its checkbox clicks) |
 | Sidebar scroll | `node apps/browser/scripts/sidebar-scroll-test.mjs <Debug app>` | The pinned tiles hold still while the tabs scroll (Dia's dock), with the address field in the sidebar and without: a row dragged onto a tile after a scroll pins it there, selecting a tile while scrolled leaves the list put, and a dock too tall for the window scrolls with the tabs |
@@ -133,7 +133,10 @@ lies over it. `useHover` and `useRowHover` mark their handlers, and the dev harn
 (`src/lib/hoverShift.ts`) hovers each marked view inside the named components in turn, measures every view under its
 parent before and while hovered, and returns what moved or resized; only a HoverSlot's inside may change.
 `hover-shift-test.mjs` runs it on the sidebar (with groups, a live folder and its open items), the tab strip and the
-downloads popover, and fails on any shift. Run it after changing anything a hover touches.
+downloads popover, and fails on any shift. It also hovers a collapsed group right below a collapsed live folder and
+fails unless the card is the group's: the folder keeps its rows mounted under its header, and on macOS neither
+`overflow: hidden` nor `pointerEvents="none"` stops their hover, so `Fold` marks folded entries and `useRowHover` ignores
+them. Run it after changing anything a hover touches.
 
 ## What's kept, and why
 
