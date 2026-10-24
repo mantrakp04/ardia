@@ -118,9 +118,10 @@ try {
 
   await check("a tab dragged along the strip reorders and doesn't move the window", async () => {
     const frame = await run(`return st().windows.w1.frame;`);
-    const drags = await drag("w1", [[mid(2), 21], [mid(3), 21], [mid(4) + 30, 21]]);
+    const drags = await drag("w1", [[mid(2), 21], [mid(3), 21], [mid(4) + 75, 21]]);
     assert.equal(drags, 0, "window drags");
     assert.deepEqual(await order("w1"), ["p1", "p2", "t2", "t3", "t1", "t4"]);
+    assert.deepEqual(await run(`return Object.values(st().groups).filter((g) => g.windowId === "w1").length;`), 0, "let go past the neighbour's far quarter: a reorder, no group");
     assert.deepEqual(await run(`return st().windows.w1.frame;`), frame);
   });
 
@@ -133,7 +134,7 @@ try {
       const ready = () => globalThis.acChromeTabs.strips().some((s) => ${JSON.stringify(live)}.every((id) => s.tabs.some((t) => t.key === id)));
       const wait = (n) => (ready() || !n ? Promise.resolve(ready()) : settle(100).then(() => wait(n - 1)));
       return wait(100);`);
-    const path = [[at(2), 21], [at(2) + 20, 21], [at(3), 21], [at(3) + 40, 21]];
+    const path = [[at(2), 21], [at(2) + 20, 21], [at(3), 21], [at(3) + 75, 21]];
     const seen = await run(`
       const cef = globalThis.expo.modules.ArdiaCEF;
       const send = cef.tabStripCommand;

@@ -69,7 +69,9 @@ NSMutableDictionary<NSString *, void (^)(ArdiaCoreProfile *)> *DeletionsAfterLoa
 }
 
 NSString *DirectoryName(NSString *name) {
-  return name.length ? [@"Profile " stringByAppendingString:name] : @"Default";
+  if (!name.length) return @"Default";
+  if ([name isEqualToString:@"Default"] || [name hasPrefix:@"Profile "]) return nil;
+  return [@"Profile " stringByAppendingString:name];
 }
 
 NSString *InstalledDataDirectory() {
@@ -513,6 +515,7 @@ static void StartEarlyWindow() {
 - (void)engine:(ArdiaCoreEngine *)engine extensionInstallPrompt:(NSDictionary *)prompt tab:(ArdiaCoreTab *)tab {
   NSMutableDictionary *payload = [prompt mutableCopy];
   payload[@"browserId"] = @(tab ? ardiacore_host::BrowserId(tab) : 0);
+  if ([prompt[@"profile"] isKindOfClass:NSString.class]) payload[@"profile"] = ardiacore_host::ProfileNameOfDirectory(prompt[@"profile"]);
   gInstallPrompts[payload[@"requestId"] ?: @""] = payload;
   if (gExtensionsEventHandler) gExtensionsEventHandler(@"installPrompt", payload);
 }
@@ -1061,10 +1064,15 @@ void WithProfile(NSString *name, void (^completion)(ArdiaCoreProfile *)) {
       return completion(personal);
     }
   }
+  NSString *directory = DirectoryName(name);
+  if (!directory) {
+    NSLog(@"[ardiacore] no profile named \"%@\": that's a Chromium folder name, not a profile", name);
+    return completion(nil);
+  }
   NSMutableArray *waiters = ProfileWaiters()[name];
   if (waiters) return (void)[waiters addObject:[completion copy]];
   ProfileWaiters()[name] = [NSMutableArray arrayWithObject:[completion copy]];
-  [engine loadProfile:DirectoryName(name)
+  [engine loadProfile:directory
            completion:^(ArdiaCoreProfile *loaded) {
              NSArray *pending = ProfileWaiters()[name];
              [ProfileWaiters() removeObjectForKey:name];
@@ -1083,6 +1091,13 @@ void WithProfile(NSString *name, void (^completion)(ArdiaCoreProfile *)) {
 ArdiaCoreProfile *PersonalIfLoaded(ArdiaCoreEngine *engine) {
   ArdiaCoreProfile *profile = engine.defaultProfile;
   return [profile.name isEqualToString:@"Default"] ? profile : nil;
+}
+
+NSString *ProfileNameOfDirectory(NSString *directory) {
+  for (ArdiaCoreProfile *profile in LoadedProfiles())
+    if (!([profile respondsToSelector:@selector(offTheRecord)] && profile.offTheRecord) && [profile.name isEqualToString:directory])
+      return ProfileName(profile);
+  return [directory hasPrefix:@"Profile "] ? [directory substringFromIndex:8] : @"";
 }
 
 NSString *ProfileName(ArdiaCoreProfile *profile) {

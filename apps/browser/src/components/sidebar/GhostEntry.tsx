@@ -4,6 +4,7 @@ import { resolveFavicon, useFavicons } from "../../lib/favicons";
 import { layout, useTheme } from "../../lib/theme";
 import type { BrowserState } from "../../store/browser";
 import { groupLabel } from "../../store/organize";
+import { splitRowPanes } from "../../store/splits";
 import { tabTitle } from "./actions";
 import { groupEntries } from "./entries";
 import { GROUP_BORDER, GROUP_PAD, keptEntry } from "./geometry";
@@ -46,7 +47,7 @@ function tabShot(s: BrowserState, tabId: string, hovered: boolean): TabShot | nu
 }
 
 function splitShot(s: BrowserState, splitId: string): SplitShot {
-  const panes = (s.splits[splitId]?.tabIds ?? []).filter((id) => s.tabs[id] && !s.tabs[id]!.pinned);
+  const panes = splitRowPanes(s, s.splits[splitId]);
   return { kind: "split", key: `s:${splitId}`, panes: panes.flatMap((id) => tabShot(s, id, false) ?? []) };
 }
 

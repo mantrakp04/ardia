@@ -537,8 +537,6 @@ static void AnswerHello(ArdiaCoreTab *tab, NSString *profile, NSDictionary *hell
     if (main && ACFieldTimingEnabled()) config[@"fieldTiming"] = @YES;
     config[@"peek"] = gPeekModifier;
     if (PeekTracing()) config[@"peekTrace"] = @YES;
-    static const BOOL fixedAudioPoll = [@(getenv("ARDIA_WEB_AUDIO_POLL") ?: "") isEqualToString:@"fixed"];
-    if (fixedAudioPoll) config[@"fixedAudioPoll"] = @YES;
     static const BOOL broadThemeObserver = [@(getenv("ARDIA_THEME_OBSERVER") ?: "") isEqualToString:@"broad"];
     if (broadThemeObserver) config[@"broadThemeObserver"] = @YES;
     [to callFrame:frameId kind:@"config" json:JSONString(config)];
@@ -751,7 +749,6 @@ static BOOL HeldSelector(SEL selector) {
   double _sentProgress;
   BOOL _progressQueued;
   CFTimeInterval _linkDropAt;
-  NSMutableDictionary<NSString *, NSNumber *> *_mediaFrames;
   NSMutableDictionary<NSString *, NSDictionary *> *_nowPlaying;
   NSString *_nowPlayingFrame;
   NSMutableDictionary<NSString *, NSString *> *_notificationFrames;
@@ -1317,7 +1314,7 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
   [self emitNavigation];
   if (_extensionHost.length && [tab respondsToSelector:@selector(preferredSize)] && tab.preferredSize.width > 0)
     [self tab:tab preferredSizeDidChange:tab.preferredSize];
-  if (_mediaFrames.count) [self emitMedia];
+  [self emitMedia];
   [self tabDidChangeFavicon:tab];
   if (_tabIndex >= 0) [self placeTab];
   if (ArdiaCoreWindowController *controller = self.controller)
@@ -1359,7 +1356,6 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
   reports[@"themeSource"] = _pageThemeSource;
   reports[@"blocked"] = @(_blockedCount);
   reports[@"lastBlocked"] = _lastBlocked;
-  reports[@"media"] = _mediaFrames;
   reports[@"nowPlaying"] = _nowPlaying;
   reports[@"nowPlayingFrame"] = _nowPlayingFrame;
   reports[@"notifications"] = _notificationFrames;
@@ -1385,7 +1381,6 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
   _pageThemeSource = reports[@"themeSource"];
   _blockedCount = [reports[@"blocked"] integerValue];
   _lastBlocked = reports[@"lastBlocked"];
-  _mediaFrames = reports[@"media"];
   _nowPlaying = reports[@"nowPlaying"];
   _nowPlayingFrame = reports[@"nowPlayingFrame"];
   _notificationFrames = reports[@"notifications"];
@@ -2270,14 +2265,6 @@ void ArdiaCoreWebViewsSetFieldTiming(BOOL on) {
     NSString *state = Text(dict, @"state", 8);
     if ([@[ @"down", @"up", @"top" ] containsObject:state ?: @""])
       [self emit:@"pageMessage" payload:@{@"kind" : @"scroll", @"data" : @{@"state" : state}}];
-  } else if ([kind isEqualToString:@"media"] && dict) {
-    NSString *mediaFrame = Text(dict, @"frame", 64);
-    if (!mediaFrame) return;
-    if (!_mediaFrames) _mediaFrames = [NSMutableDictionary dictionary];
-    NSString *key = [NSString stringWithFormat:@"%@:%@", frameId, mediaFrame];
-    if (_mediaFrames.count >= 256 && !_mediaFrames[key]) return;
-    _mediaFrames[key] = @(Flag(dict, @"playing"));
-    [self emitMedia];
   } else if ([kind isEqualToString:@"nowPlaying"]) {
     if (!_nowPlaying) _nowPlaying = [NSMutableDictionary dictionary];
     if (dict) _nowPlaying[frameId] = NowPlayingState(dict);
@@ -2477,8 +2464,7 @@ static NSEventModifierFlags PeekModifierFlag() {
 }
 
 - (void)emitMedia {
-  BOOL playing = NO;
-  for (NSNumber *p in _mediaFrames.allValues) playing |= p.boolValue;
+  const BOOL playing = [_tab respondsToSelector:@selector(audible)] && _tab.audible;
   const BOOL muted = [_tab respondsToSelector:@selector(muted)] ? _tab.muted : _muted;
   [self emit:@"media" payload:@{@"playing" : @(playing), @"muted" : @(muted)}];
 }
@@ -2510,11 +2496,9 @@ static NSEventModifierFlags PeekModifierFlag() {
 }
 
 - (void)resetPageMedia {
-  const BOOL hadMedia = _mediaFrames.count > 0, hadNowPlaying = _nowPlaying.count > 0;
-  [_mediaFrames removeAllObjects];
+  const BOOL hadNowPlaying = _nowPlaying.count > 0;
   [_nowPlaying removeAllObjects];
   _nowPlayingFrame = nil;
-  if (hadMedia) [self emitMedia];
   if (hadNowPlaying) [self emit:@"nowPlaying" payload:@{@"state" : NSNull.null}];
 }
 
@@ -2776,6 +2760,7 @@ static NSEventModifierFlags PeekModifierFlag() {
 }
 
 - (void)exitPictureInPicture {
+  if ([_tab respondsToSelector:@selector(exitPictureInPicture)]) return [_tab exitPictureInPicture];
   [self executeJavaScript:@"document.pictureInPictureElement && document.exitPictureInPicture();"
                            "window.documentPictureInPicture && documentPictureInPicture.window && documentPictureInPicture.window.close()"];
 }

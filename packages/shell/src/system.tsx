@@ -19,6 +19,7 @@ export type ShortcutModifier = "control" | "option" | "shift" | "command" | "fun
 type LaunchAtLoginStatus = "enabled" | "requiresApproval" | "notRegistered" | "notFound";
 
 const System = requireNativeModule<{
+  backgroundInstance?: boolean;
   isDefaultBrowser(): Promise<boolean>;
   setAsDefaultBrowser(): Promise<boolean>;
   launchAtLoginStatus(): Promise<LaunchAtLoginStatus>;
@@ -35,6 +36,7 @@ const System = requireNativeModule<{
   cancelRecording(): Promise<void>;
 }>("ArdiaSystem");
 
+export const backgroundInstance = System.backgroundInstance === true;
 export const isDefaultBrowser = () => System.isDefaultBrowser();
 export const setAsDefaultBrowser = () => System.setAsDefaultBrowser();
 export const launchAtLoginStatus = () => System.launchAtLoginStatus();

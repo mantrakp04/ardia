@@ -4,10 +4,11 @@ import { changedIds } from "./changes";
 import { createGroupsSlice, settleNesting, type GroupsSlice } from "./groups";
 import { createHistorySlice, type HistorySlice } from "./history";
 import { IDLE_LIVE, isIncognitoProfile, pinnedFirst } from "./model";
-import { createOrganizeSlice, forgetClosedPrivateWindows, keptDeletedGroups, livePinTable, notePinChoices, type OrganizeSlice } from "./organize";
+import { createOrganizeSlice, forgetClosedPrivateWindows, keptCleanedTabs, keptDeletedGroups, livePinTable, notePinChoices, type OrganizeSlice } from "./organize";
 import { createPeekSlice, settlePeeks, type PeekSlice } from "./peek";
 import { mirrorPins } from "./pinMirror";
 import { settleSharedPins } from "./pinShare";
+import { mirrorTabs, pagesIntoSplits, unshareTabs } from "./tabShare";
 import { settleTileFolders } from "./tileFolders";
 import { createProfilesSlice, DEFAULT_PROFILE, engineIdOf, type ProfilesSlice } from "./profiles";
 import { createSettingsSlice, DEFAULT_SETTINGS, migrateSavedSettings, type SettingsSlice } from "./settings";
@@ -165,7 +166,7 @@ export const useBrowser = create<BrowserState>()(transactions.middleware(batched
       pinSync: Object.fromEntries(Object.entries(data.pinSync ?? {}).filter(([p]) => profiles[p])),
       closedGroups: data.closedGroups ?? [],
       deletedGroups: keptDeletedGroups(data.deletedGroups ?? []),
-      cleanedTabs: (data.cleanedTabs ?? []).filter((c) => !isIncognitoProfile(c.tab.profileId)),
+      cleanedTabs: keptCleanedTabs((data.cleanedTabs ?? []).filter((c) => !isIncognitoProfile(c.tab.profileId))),
       privateCleanedTabs: {},
       privateSiteMutes: {},
       selection: {},
@@ -215,9 +216,12 @@ useBrowser.subscribe((s, prev) => {
 let mirroring = 0;
 useBrowser.subscribe((s, prev) => {
   if (mirroring > 3) return;
-  const shared = settleSharedPins(s, prev);
-  const settled = settleTileFolders(shared ?? s, prev) ?? shared;
-  const next = mirrorPins(settled ?? s, prev) ?? settled;
+  const unshared = unshareTabs(s, prev) ?? pagesIntoSplits(s, prev);
+  const base = unshared ?? s;
+  const shared = settleSharedPins(base, prev) ?? unshared;
+  const settled = settleTileFolders(shared ?? base, prev) ?? shared;
+  const pinned = mirrorPins(settled ?? base, prev) ?? settled;
+  const next = mirrorTabs(pinned ?? base, prev) ?? pinned;
   if (!next) return;
   mirroring++;
   try {

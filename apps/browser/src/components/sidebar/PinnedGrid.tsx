@@ -23,7 +23,8 @@ import { useSidebarTokens } from "./tokens";
 export const PinnedGrid = memo(function PinnedGrid({ tabs, innerWidth, flush = false }: { tabs: string[]; innerWidth: number; flush?: boolean }) {
   const controller = useDragController();
   const count = usePinnedCount(tabs);
-  const { columns, width } = pinGrid(count, innerWidth);
+  const balanced = useBrowser((s) => s.settings.balancedTopApps);
+  const { columns, width } = pinGrid(count, innerWidth, balanced);
   const slots = usePinSlots(tabs);
   const tail = useDragItem("tail:tiles", { kind: "tail", tabIds: [], section: "tiles" });
   const dragging = useDragging();
@@ -37,7 +38,7 @@ export const PinnedGrid = memo(function PinnedGrid({ tabs, innerWidth, flush = f
       }}
       style={{ marginTop: flush ? 0 : topGap }}
     >
-      <View style={{ height: pinGridHeight(count, innerWidth, layout.pinnedHeight) }}>
+      <View style={{ height: pinGridHeight(count, innerWidth, layout.pinnedHeight, balanced) }}>
         {tabs.map((cell, i) => {
           const x = (slots[i]! % columns) * (width + TILE_GAP);
           const y = Math.floor(slots[i]! / columns) * PIN_SLOT;

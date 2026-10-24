@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
-import { useActiveTab, useWindowId, useWindowUi } from "../../store/hooks";
+import { useActiveTab, useWindowId, useWindowProfile, useWindowUi } from "../../store/hooks";
 import type { Tab } from "../../store/types";
 import { CommandPanel } from "../CommandPanel";
 import { ContentCard } from "../ContentCard";
@@ -13,8 +13,9 @@ import { setUrlAnchor } from "../layout/windowLayout";
 import { showUrlBarMenu } from "../omnibox/paste";
 import { useHover } from "../primitives";
 import { copyPageUrl } from "../site/selection";
-import { openInMainWindow } from "./actions";
-import { PageLabel, SMALL_BAR_HEIGHT, SMALL_INSET, SmallBar } from "./SmallChrome";
+import { ProfileBadge } from "../profiles/icons";
+import { openInMainWindow, openLittleArdiaProfileMenu } from "./actions";
+import { PageLabel, SMALL_BAR_HEIGHT, SMALL_INSET, SmallBar, SmallBarBadgeButton } from "./SmallChrome";
 
 const LIGHTS_CENTER: [number, number] = [20, SMALL_BAR_HEIGHT / 2];
 const FIELD_LEFT = 84;
@@ -41,6 +42,7 @@ function LittleArdiaBar() {
   const windowId = useWindowId();
   const tab = useActiveTab();
   const panelOpen = useWindowUi().panel.open;
+  const severalProfiles = useBrowser((s) => s.profileOrder.length > 1);
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => {
@@ -64,9 +66,19 @@ function LittleArdiaBar() {
         { icon: copied ? "checkmark" : "link", size: 14, disabled: !tab?.url, tooltip: "Copy Link (⇧⌘C)", onPress: copy },
         { icon: "arrow.up.left.and.arrow.down.right", size: 13, tooltip: "Open in Ardia (⌘O)", onPress: () => openInMainWindow(windowId) },
       ]}
+      trailing={severalProfiles ? <ProfileButton windowId={windowId} /> : undefined}
     >
       <WindowDragRegion style={StyleSheet.absoluteFill} />
     </SmallBar>
+  );
+}
+
+function ProfileButton({ windowId }: { windowId: string }) {
+  const profile = useWindowProfile();
+  return (
+    <SmallBarBadgeButton tooltip={`Profile: ${profile.name}`} onPress={() => void openLittleArdiaProfileMenu(windowId)}>
+      <ProfileBadge profile={profile} size={16} />
+    </SmallBarBadgeButton>
   );
 }
 

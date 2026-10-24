@@ -49,10 +49,10 @@ index 18bbe64f657a36596563b3eb6d135284e28c674a..a4046a33e13d35cac155e306f368e04e
    if ((commandSelector == @selector(insertNewline:) || commandSelector == @selector(insertNewlineIgnoringFieldEditor:))) {
      if ([textInputDelegate textInputShouldSubmitOnReturn]) {
 diff --git a/Libraries/Text/TextInput/RCTBaseTextInputView.mm b/Libraries/Text/TextInput/RCTBaseTextInputView.mm
-index cac171e70c9fa225cdec45b205086342a0d50f06..b9fefeceb4400f181c5a1c39b73404f8178fcb41 100644
+index cac171e70c9fa225cdec45b205086342a0d50f06..17c3a781c5243fdf33d0f03ea75ac123b2eb3f03 100644
 --- a/Libraries/Text/TextInput/RCTBaseTextInputView.mm
 +++ b/Libraries/Text/TextInput/RCTBaseTextInputView.mm
-@@ -47,6 +47,10 @@ @implementation RCTBaseTextInputView {
+@@ -47,6 +47,11 @@ @implementation RCTBaseTextInputView {
  #if TARGET_OS_OSX // [macOS avoids duplicating effects of textInputDid(Begin|End)Editing calls
    BOOL _isCurrentlyEditing;
  #endif // macOS]
@@ -60,10 +60,40 @@ index cac171e70c9fa225cdec45b205086342a0d50f06..b9fefeceb4400f181c5a1c39b73404f8
 +  NSUInteger _editSession;
 +  BOOL _clickFocused;
 +#endif // Ardia]
++  __weak NSUndoManager *_undoManagerWithActions; // [Ardia: where its text undos are, so they go when it does Ardia]
  }
  
  #if !TARGET_OS_OSX // [macOS]
-@@ -521,6 +525,11 @@ - (void)textInputDidBeginEditing
+@@ -76,6 +81,11 @@ - (void)reactUpdateResponderOffsetForScrollView:(RCTScrollView *)scrollView
+ }
+ #endif // [macOS]
+ 
++- (void)dealloc // [Ardia]
++{
++  [_undoManagerWithActions removeAllActionsWithTarget:self];
++} // Ardia]
++
+ - (instancetype)initWithBridge:(RCTBridge *)bridge
+ {
+   RCTAssertParam(bridge);
+@@ -238,7 +248,15 @@ - (void)setAttributedText:(NSAttributedString *)attributedText
+       // If there was ghost text previously, we don't want it showing up if we undo.
+       // If something goes wrong when trying to remove it, just stick with oldAttributedText.
+       NSAttributedString *oldAttributedTextWithoutGhostText = [self removingGhostTextFromString:oldAttributedText strict:YES] ?: oldAttributedText;
+-      [self.backedTextInputView.undoManager registerUndoWithTarget:self handler:^(RCTBaseTextInputView *strongSelf) {
++      // [Ardia: an undo manager doesn't retain its targets, and the window's outlives this view: ⌘Z after the view
++      // was gone ran a dead object's undo (a crash after the command bar closed)
++      NSUndoManager *undoManager = self.backedTextInputView.undoManager;
++      if (_undoManagerWithActions && _undoManagerWithActions != undoManager) {
++        [_undoManagerWithActions removeAllActionsWithTarget:self];
++      }
++      _undoManagerWithActions = undoManager;
++      // Ardia]
++      [undoManager registerUndoWithTarget:self handler:^(RCTBaseTextInputView *strongSelf) {
+         strongSelf.attributedText = oldAttributedTextWithoutGhostText;
+         [strongSelf textInputDidChange];
+       }];
+@@ -521,6 +539,11 @@ - (void)textInputDidBeginEditing
      return;
    }
    _isCurrentlyEditing = YES;
@@ -75,7 +105,7 @@ index cac171e70c9fa225cdec45b205086342a0d50f06..b9fefeceb4400f181c5a1c39b73404f8
  #endif // macOS]
    
    [_eventDispatcher sendTextEventWithType:RCTTextEventTypeFocus
-@@ -894,8 +903,49 @@ - (RCTUIView *)reactAccessibilityElement // [macOS]
+@@ -894,8 +917,49 @@ - (RCTUIView *)reactAccessibilityElement // [macOS]
  
  #pragma mark - Focus Control
  
@@ -125,7 +155,7 @@ index cac171e70c9fa225cdec45b205086342a0d50f06..b9fefeceb4400f181c5a1c39b73404f8
    [self.backedTextInputView reactFocus];
  
    if (_clearTextOnFocus) {
-@@ -909,6 +959,9 @@ - (void)reactFocus
+@@ -909,6 +973,9 @@ - (void)reactFocus
      [self.backedTextInputView setSelectedTextRange:NSMakeRange(NSNotFound, 0) notifyDelegate:NO];
  #endif // macOS]
    }
@@ -442,6 +472,20 @@ index a37a1c106a04752c1baeb6dd2170402ce5f34f71..be88b42f1cd4bc0521055d97eb948c28
  - (void)setContentMode:(UIViewContentMode)contentMode
  {
    _contentMode = contentMode;
+diff --git a/React/CoreModules/RCTEventDispatcher.mm b/React/CoreModules/RCTEventDispatcher.mm
+index 829eeea724bbb5da5e6307972d3c316b26686773..c357ee3cd905cc4f86fdc538277226c92a60ca87 100644
+--- a/React/CoreModules/RCTEventDispatcher.mm
++++ b/React/CoreModules/RCTEventDispatcher.mm
+@@ -134,6 +134,9 @@ - (void)notifyObserversOfEvent:(id<RCTEvent>)event
+ 
+ - (void)sendEvent:(id<RCTEvent>)event
+ {
++  if (event == nil) { // [Ardia: a nil event queued an empty slot that crashed the JS thread Ardia]
++    return;
++  } // [Ardia]
+   [self notifyObserversOfEvent:event];
+ 
+   [_eventQueueLock lock];
 diff --git a/React/CoreModules/RCTTiming.mm b/React/CoreModules/RCTTiming.mm
 index 3edcc9670a8ccb5eef44524e78445117d2416ed8..1f7951f616996941706f11b380c12051def474f4 100644
 --- a/React/CoreModules/RCTTiming.mm
@@ -642,8 +686,97 @@ index 3edcc9670a8ccb5eef44524e78445117d2416ed8..1f7951f616996941706f11b380c12051
    _sendIdleEvents = sendIdleEvents;
    if (sendIdleEvents) {
      [self startTimers];
+diff --git a/React/Modules/RCTUIManager.mm b/React/Modules/RCTUIManager.mm
+index 7f1aeff436b8a51514254b72d1fb1fd1ee3b1553..dd2851fec59498902a78204041d994eda3fd7c3c 100644
+--- a/React/Modules/RCTUIManager.mm
++++ b/React/Modules/RCTUIManager.mm
+@@ -7,6 +7,9 @@
+ 
+ #import "RCTUIManager.h"
+ 
++#import <deque> // [Ardia]
++#import <mutex> // [Ardia]
++
+ #import <AVFoundation/AVFoundation.h>
+ #import <React/RCTSurfacePresenterStub.h>
+ #import <react/featureflags/ReactNativeFeatureFlags.h>
+@@ -181,6 +184,14 @@ @implementation RCTUIManager {
+ 
+   // Keyed by viewName
+   NSMutableDictionary *_componentDataByName;
++
++  // [Ardia
++  std::mutex _mainQueueMountsLock;
++  std::deque<std::pair<uint64_t, dispatch_block_t>> _mainQueueMounts;
++  uint64_t _lastMainQueueMount;
++  uint64_t _mainQueueMountsTarget;
++  BOOL _drainingMainQueueMounts;
++  // Ardia]
+ }
+ 
+ @synthesize bridge = _bridge;
+@@ -1321,7 +1332,8 @@ - (void)flushUIBlocksWithCompletion:(void (^)(void))completion
+ 
+   // Execute the previously queued UI blocks
+   RCTProfileBeginFlowEvent();
+-  RCTExecuteOnMainQueue(^{
++  // [Ardia: mounts land in layout order: a live-resize layout on the main thread mounts every older queued mount first.
++  const uint64_t mount = [self enqueueMainQueueMount:^{
+     RCTProfileEndFlowEvent();
+     RCT_PROFILE_BEGIN_EVENT(RCTProfileTagAlways, @"-[UIManager flushUIBlocks]", (@{
+                               @"count" : [@(previousPendingUIBlocks.count) stringValue],
+@@ -1332,7 +1344,48 @@ - (void)flushUIBlocksWithCompletion:(void (^)(void))completion
+     RCT_PROFILE_END_EVENT(RCTProfileTagAlways, @"");
+ 
+     RCTExecuteOnUIManagerQueue(completion);
+-  });
++  }];
++  if (RCTIsMainQueue()) {
++    [self drainMainQueueMountsThrough:mount];
++  } else {
++    dispatch_async(dispatch_get_main_queue(), ^{
++      [self drainMainQueueMountsThrough:mount];
++    });
++  }
++}
++
++- (uint64_t)enqueueMainQueueMount:(dispatch_block_t)mount
++{
++  std::lock_guard<std::mutex> guard(_mainQueueMountsLock);
++  _mainQueueMounts.emplace_back(++_lastMainQueueMount, [mount copy]);
++  return _lastMainQueueMount;
++}
++
++- (void)drainMainQueueMountsThrough:(uint64_t)target
++{
++  RCTAssertMainQueue();
++  _mainQueueMountsTarget = MAX(_mainQueueMountsTarget, target);
++  if (_drainingMainQueueMounts) {
++    return;
++  }
++  _drainingMainQueueMounts = YES;
++  @try {
++    for (;;) {
++      dispatch_block_t mount;
++      {
++        std::lock_guard<std::mutex> guard(_mainQueueMountsLock);
++        if (_mainQueueMounts.empty() || _mainQueueMounts.front().first > _mainQueueMountsTarget) {
++          break;
++        }
++        mount = _mainQueueMounts.front().second;
++        _mainQueueMounts.pop_front();
++      }
++      mount();
++    }
++  } @finally {
++    _drainingMainQueueMounts = NO;
++  }
++  // Ardia]
+ }
+ 
+ - (void)setNeedsLayout
 diff --git a/React/Views/RCTView.m b/React/Views/RCTView.m
-index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..34447fbb3fe6fd5e16c1320e5395090665bcc402 100644
+index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..44e326774b74f03c62489dd6b4782515a626d8f9 100644
 --- a/React/Views/RCTView.m
 +++ b/React/Views/RCTView.m
 @@ -136,6 +136,24 @@ - (RCTPlatformView *)react_findClipView // [macOS]
@@ -1018,6 +1151,15 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..34447fbb3fe6fd5e16c1320e53950906
  - (void)mouseEntered:(NSEvent *)event
  {
    _hasMouseOver = YES;
+@@ -1768,7 +1955,7 @@ - (BOOL)handleKeyboardEvent:(NSEvent *)event {
+   static const char kRCTViewKeyboardEventEmittedKey = 0;
+   NSNumber *emitted = objc_getAssociatedObject(event, &kRCTViewKeyboardEventEmittedKey);
+   BOOL alreadyEmitted = [emitted boolValue];
+-  if (!alreadyEmitted) {
++  if (!alreadyEmitted && keyboardEvent != nil) { // [Ardia: a dead key has no characters, so no event Ardia]
+     [_eventDispatcher sendEvent:keyboardEvent];
+     objc_setAssociatedObject(event, &kRCTViewKeyboardEventEmittedKey, @(YES), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+   }
 diff --git a/React/Views/ScrollView/RCTScrollView.m b/React/Views/ScrollView/RCTScrollView.m
 index eb79ff32614392cb16e6eb3dbec6cc5b037fe27a..e0aee0c66030a8e29c279133399f1b0ddcc8ef78 100644
 --- a/React/Views/ScrollView/RCTScrollView.m

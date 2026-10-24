@@ -30,9 +30,11 @@ export const SYNCED_SETTINGS = [
   "tabLayout",
   "hideToolbarWhileScrolling",
   "showSidebarButton",
+  "balancedTopApps",
   "newTabPosition",
   "newTabOpens",
   "warnBeforeClosingLastTab",
+  "undoReopensClosedTab",
   "warnBeforeMovingTabsToProfile",
   "tabReorderHaptics",
   "extendWebsiteColor",
@@ -49,6 +51,7 @@ export const SYNCED_SETTINGS = [
   "bookmarksBar",
   "appearance",
   "addressBar",
+  "commandBarPlacement",
   "shortcuts",
 ] as const satisfies readonly (keyof Settings)[];
 

@@ -173,7 +173,7 @@ export function ImportWindow() {
     }
   };
 
-  const destination = async (index: number, name: string, color?: string, emoji?: string): Promise<string> => {
+  const destination = async (index: number, name: string, color?: string, emoji?: string, shareWith?: string | null): Promise<string> => {
     if (index === 0) return target;
     const s = useBrowser.getState();
     const clash = s.profileOrder.find((id) => s.profiles[id]!.name.trim().toLowerCase() === name.trim().toLowerCase());
@@ -187,7 +187,7 @@ export function ImportWindow() {
       });
       if (!confirmed) return clash;
     }
-    return s.createProfile({ name, color: profileColorFor(color) as ProfileColor | undefined, icon: emoji ?? null });
+    return s.createProfile({ name, color: profileColorFor(color) as ProfileColor | undefined, icon: emoji ?? null, shareWith });
   };
 
   const run = async (wanted: Set<ImportKind>) => {
@@ -241,7 +241,7 @@ export function ImportWindow() {
         let first: string | null = null;
         for (const space of profileSpaces) {
           const name = space.name || "Space";
-          const dest = await destination(destinationIndex++, name, space.color, space.emoji);
+          const dest = await destination(destinationIndex++, name, space.color, space.emoji, first);
           first ??= dest;
           const r = importArcSpace(dest, space);
           add({ ...emptyCounts(), tabs: r.tabs, bookmarks: r.bookmarks });
@@ -517,7 +517,7 @@ export function ImportWindow() {
     body = isArc ? (
       <>
         <Title title="Select spaces to import" subtitle={`We'll import your Arc spaces, tabs, and folders to ${APP}.`} />
-        <Text style={{ fontSize: 12, color: theme.textSecondary, marginBottom: 10 }}>{`Customize which spaces to bring over to ${APP}. Each space becomes a profile.`}</Text>
+        <Text style={{ fontSize: 12, color: theme.textSecondary, marginBottom: 10 }}>{`Customize which spaces to bring over to ${APP}. Each space becomes a profile, and the spaces of one Arc profile share its logins, cookies, extensions and history, as in Arc.`}</Text>
         <View style={{ gap: 6 }}>
           {allSpaces.map((s) => (
             <SelectRow

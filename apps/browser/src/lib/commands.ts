@@ -29,7 +29,7 @@ import { focusSettingsSearch } from "../components/settings/searchState";
 import { closePanelToHeroBar, focusHeroBar } from "../components/omnibox/barState";
 import { closeNewTabBar, isEmptyCardTab, showNewTabBar, toggleNewTabBar } from "../components/omnibox/newTabBar";
 import { NEW_TAB_BAR_POLICY } from "../store/newTabBar";
-import { addressBarInSidebar } from "../components/layout/windowLayout";
+import { addressBarInSidebar, commandBarCentred } from "../components/layout/windowLayout";
 import { addFolderToSidebar, restoreArcFolders } from "./bookmarkGroups";
 import { withLivePage } from "./livePage";
 import { webviews } from "./webviews";
@@ -46,7 +46,14 @@ import { shareTab } from "../components/site/share";
 import { openProfileMenu } from "../components/ProfileIndicator";
 import { groupOf } from "../store/organize";
 import { isSmall, mainWindowFor, originalProfile } from "../store/small";
-import { closeLittleArdia, openInMainWindow, openLittleArdia } from "../components/littleArdia/actions";
+import {
+  closeLittleArdia,
+  cycleLittleArdiaProfile,
+  moveLittleArdiaToProfile,
+  openInMainWindow,
+  openLittleArdia,
+  openLittleArdiaProfileMenu,
+} from "../components/littleArdia/actions";
 import { runPeekCommand } from "../components/peek/actions";
 import { peekTabId } from "../store/peek";
 import { expectFocus, findFocus } from "./focusClaims";
@@ -59,7 +66,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     if (command === "findInPage" && requested === SETTINGS_WINDOW_ID) return focusSettingsSearch();
     requested = null;
   }
-  if (isSmall(s, requested) && runLittleArdiaCommand(command, requested!)) return;
+  if (isSmall(s, requested) && runLittleArdiaCommand(command, arg, requested!)) return;
   if (runPeekCommand(command, resolveWindowId(s, requested) ?? "")) return;
 
   switch (command) {
@@ -68,7 +75,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     case "newIncognitoWindow":
       return void openWindow({ incognito: true, profileId: originalProfile(s, s.windows[requested ?? ""]) });
     case "newLittleArdia":
-      return void openLittleArdia();
+      return void openLittleArdia(undefined, arg ?? undefined);
     case "toggleOpenLinksInLittleArdia":
       return s.updateSettings({ openLinksInLittleArdia: !s.settings.openLinksInLittleArdia });
     case "reopenClosedWindow":
@@ -148,7 +155,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     case "focusCommandBar":
       if (page) return s.openPanel(windowId, page.url);
       if (isEmptyCardTab(s, tab) && showNewTabBar(windowId)) return;
-      if (tab && addressBarInSidebar(s, windowId)) return s.openPanel(windowId, "");
+      if (tab && addressBarInSidebar(s, windowId) && !commandBarCentred(s, windowId)) return s.openPanel(windowId, "");
       if (!focusHeroBar(windowId, tabId)) return tab ? s.openPanel(windowId, "") : undefined;
       return ui?.panel.open ? s.closePanel(windowId) : undefined;
     case "closeTab":
@@ -317,7 +324,7 @@ const LITTLE_ARDIA_PAGE_COMMANDS = new Set<string>([
   "cast", "openExtension", "addExtension", "autofill", "reopenClosedTab", "restoreClosed", "downloads",
 ]);
 
-function runLittleArdiaCommand(command: string, windowId: string): boolean {
+function runLittleArdiaCommand(command: string, arg: string | null | undefined, windowId: string): boolean {
   const s = useBrowser.getState();
   const tabId = activeTabId(s, windowId);
   const tab = tabId ? s.tabs[tabId] : undefined;
@@ -331,6 +338,18 @@ function runLittleArdiaCommand(command: string, windowId: string): boolean {
       return true;
     case "openFile":
       openInMainWindow(windowId);
+      return true;
+    case "switchProfile":
+      if (arg) moveLittleArdiaToProfile(windowId, arg);
+      return true;
+    case "nextProfile":
+      cycleLittleArdiaProfile(windowId, 1);
+      return true;
+    case "previousProfile":
+      cycleLittleArdiaProfile(windowId, -1);
+      return true;
+    case "openProfileMenu":
+      void openLittleArdiaProfileMenu(windowId);
       return true;
   }
   return false;

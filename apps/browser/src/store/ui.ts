@@ -2,7 +2,7 @@ import type { Download } from "@ardia/ardiacore";
 import type { StateCreator } from "zustand";
 import type { BrowserState } from "./browser";
 import { engineProfile, isIncognitoProfile, privateSession } from "./model";
-import { originalProfile } from "./small";
+import { linkProfileOf } from "./small";
 import type { FindState, NewTabTarget, WindowUi } from "./types";
 import { commandBarFocus, expectFocus } from "../lib/focusClaims";
 
@@ -67,7 +67,7 @@ export const createUiSlice: StateCreator<BrowserState, [], [], UiSlice> = (set, 
     const s = get();
     const { ui, windows } = s;
     if (!windows[id]) return;
-    const lastProfileId = originalProfile(s, windows[id]) ?? ui.lastProfileId;
+    const lastProfileId = linkProfileOf(s, windows[id]) ?? ui.lastProfileId;
     if (ui.focusedWindowId === id && ui.lastProfileId === lastProfileId) return;
     set({ ui: { ...ui, focusedWindowId: id, focusOrder: [id, ...ui.focusOrder.filter((w) => w !== id)], lastProfileId } });
   },

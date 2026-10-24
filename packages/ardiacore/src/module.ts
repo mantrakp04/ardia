@@ -1,3 +1,4 @@
+import { engineCall } from "./engine";
 import { Cef } from "./native";
 
 export type DownloadState = "downloading" | "finished" | "failed" | "cancelled";
@@ -122,6 +123,11 @@ export const onDownload = (listener: (d: Download) => void) => Cef.addListener("
 export const cancelDownload = (id: string) => Cef.cancelDownload(id);
 export const pauseDownload = (id: string) => Cef.pauseDownload(id);
 export const resumeDownload = (id: string) => Cef.resumeDownload(id);
+
+export type DownloadSettings = { folder: string; askWhereToSave: boolean; managed: boolean };
+export const getDownloadSettings = (profile = "") => engineCall<DownloadSettings>("ac_downloads_settings", profile);
+export const setDownloadSettings = (patch: Partial<Pick<DownloadSettings, "folder" | "askWhereToSave">>, profile = "") =>
+  engineCall<DownloadSettings>("ac_downloads_set_settings", profile, patch);
 
 export const onPermission = (listener: (p: PermissionRequest) => void) => Cef.addListener("onPermission", listener);
 export const onPermissionDismissed = (listener: (p: { id: string }) => void) =>

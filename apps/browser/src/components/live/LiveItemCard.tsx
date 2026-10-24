@@ -124,23 +124,22 @@ function PullRequestPreview({ item, folderId, windowId }: { item: LiveItem; fold
       ) : null}
 
       <View style={{ height: 0.5, backgroundColor: theme.divider }} />
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
         <Pressable
           onPress={() => {
             dismissHover();
             openLiveItem(windowId, folderId, item);
           }}
-          style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+          style={{ flexDirection: "row", alignItems: "center", maxWidth: "100%", gap: 4 }}
         >
           <Symbol name="bubble.left" size={10.5} color={theme.textSecondary} style={{ width: 14, height: 14 }} />
-          <Text style={{ fontSize: 11.5, color: theme.textSecondary }}>
+          <Text style={{ flexShrink: 1, fontSize: 11.5, color: theme.textSecondary }}>
             {pr.comments === 1 ? "1 comment" : `${pr.comments} comments`}
             {pr.unresolvedThreads ? ` · ${pr.unresolvedThreads} unresolved` : ""}
           </Text>
         </Pressable>
-        <View style={{ flex: 1 }} />
         {pr.additions || pr.deletions ? (
-          <Text style={{ fontSize: 11.5, fontVariant: ["tabular-nums"], color: theme.textSecondary }}>
+          <Text style={{ maxWidth: "100%", fontSize: 11.5, fontVariant: ["tabular-nums"], color: theme.textSecondary }}>
             <Text style={{ color: colors.success }}>+{pr.additions}</Text> <Text style={{ color: colors.failure }}>−{pr.deletions}</Text>
             {pr.changedFiles ? ` · ${pr.changedFiles} ${pr.changedFiles === 1 ? "file" : "files"}` : ""}
           </Text>

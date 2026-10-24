@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -20,6 +21,7 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "chrome/browser/download/download_crx_util.h"
+#include "chrome/browser/download/download_prefs.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_observer.h"
 #include "chrome/common/pref_names.h"
@@ -314,7 +316,46 @@ DownloadItem* DownloadFor(Call& call) {
   return item;
 }
 
+base::DictValue DownloadSettings(Profile* profile) {
+  DownloadPrefs* prefs = DownloadPrefs::FromBrowserContext(profile);
+  return base::DictValue()
+      .Set("folder", prefs->DownloadPath().value())
+      .Set("askWhereToSave", prefs->PromptForDownload())
+      .Set("managed", prefs->IsDownloadPathManaged());
 }
+
+}
+}
+
+AC_ENGINE_CALL(ac_downloads_settings) {
+  ardia::Call call(profile_dir, args_json, reply, context);
+  if (!call) {
+    return;
+  }
+  call.TakeReply().Send(ardia::DownloadSettings(call.profile()));
+}
+
+AC_ENGINE_CALL(ac_downloads_set_settings) {
+  ardia::Call call(profile_dir, args_json, reply, context);
+  if (!call) {
+    return;
+  }
+  DownloadPrefs* download_prefs =
+      DownloadPrefs::FromBrowserContext(call.profile());
+  if (download_prefs->IsDownloadPathManaged()) {
+    return call.TakeReply().Error("downloads are set by policy");
+  }
+  if (const std::string* folder = call.args().FindString("folder")) {
+    const base::FilePath path(*folder);
+    if (!path.IsAbsolute()) {
+      return call.TakeReply().Error("the folder must be an absolute path");
+    }
+    download_prefs->SetDownloadPath(path);
+  }
+  if (std::optional<bool> ask = call.args().FindBool("askWhereToSave")) {
+    call.profile()->GetPrefs()->SetBoolean(prefs::kPromptForDownload, *ask);
+  }
+  call.TakeReply().Send(ardia::DownloadSettings(call.profile()));
 }
 
 AC_ENGINE_CALL(ac_downloads_list) {

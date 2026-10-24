@@ -35,7 +35,7 @@ import { DropTargets, SplitDividers, SplitToast } from "./layout/SplitChrome";
 import { SplitEmptyState } from "./layout/SplitEmptyState";
 import { pagerFor } from "./layout/profilePager";
 import { openFromPage } from "./layout/openFromPage";
-import { dockMoving, useDockMotion } from "./layout/dockMotion";
+import { dockMoving, useDockMotion, usePeekEdge } from "./layout/dockMotion";
 import { FrozenPage } from "./layout/frozenPage";
 import { holderOf } from "../store/pinShare";
 import { closeFolderPanelIn } from "./sidebar/tileFolderUi";
@@ -43,9 +43,10 @@ import { setCardAnchor, setUrlAnchor, useAddressBarInSidebar, useTabLayout, useT
 import { NewTabPage } from "./NewTabPage";
 import { EmptyCard } from "./EmptyCard";
 import { InternalPage } from "./pages";
-import { AutofillPrompt, BlockedPopupsPrompt, ExternalAppPrompt, PasswordPrompt, PermissionPrompt, answerExternalApp, shouldPromptForPopups, showAutofillPrompt, showPasswordPrompt } from "./site/Prompts";
+import { AutofillPrompt, BLOCKED_POPUPS_WIDTH, BlockedPopupsPrompt, ExternalAppPrompt, PasswordPrompt, PermissionPrompt, answerExternalApp, shouldPromptForPopups, showAutofillPrompt, showPasswordPrompt } from "./site/Prompts";
 import { SiteControls } from "./site/SiteControls";
-import { ZoomPopover } from "./site/ZoomControls";
+import { SITE_PANEL } from "./site/SiteControlsParts";
+import { ZOOM_POPOVER_WIDTH, ZoomPopover } from "./site/ZoomControls";
 import { SelectionPopover } from "./site/SelectionPopover";
 import { copyLinkToSelection, searchSelection, setPageSelection, startSelectionTools, type PageSelection } from "./site/selection";
 import { startMedia, useAutoPictureInPicture } from "./media/pip";
@@ -244,6 +245,9 @@ export function ContentCard() {
   );
 
   const windowToolbar = !split && !fullscreenTab && !addressInSidebar && !small;
+  const peekEdge = usePeekEdge(windowId);
+  const activeRect = activeId ? panes[activeId] : undefined;
+  const popoversOverCard = peekEdge !== undefined && addressInSidebar && !small && !fullscreenTab && origin && activeRect ? activeId : undefined;
 
   return (
     <View
@@ -280,6 +284,7 @@ export function ContentCard() {
               warm={warmPanes[tabId]}
               barMode={barMode}
               windowToolbar={windowToolbar}
+              popovers={tabId !== popoversOverCard}
             />
           );
         })}
@@ -290,6 +295,14 @@ export function ContentCard() {
         <FrozenPage windowId={windowId} tabId={activeId} top={(!addressInSidebar && !small && !hideWhileScrolling ? layout.toolbarHeight : 0) + (barMode === "always" && !small && !hideWhileScrolling ? BOOKMARKS_BAR_HEIGHT : 0)} />
       )}
       {split && !fullscreenTab && <SplitDividers split={split} dividers={dividers} width={size.width} height={size.height} />}
+      {size.width > 0 && popoversOverCard && origin && activeRect && peekEdge !== undefined && (
+        <BesidePeekPopovers
+          tabId={popoversOverCard}
+          left={Math.max(activeRect.x, peekEdge - origin.x) + POPOVER_MARGIN}
+          top={activeRect.y + POPOVER_MARGIN}
+          room={size.width}
+        />
+      )}
       {!fullscreenTab && <DropTargets panes={panes} origin={origin} />}
       {(!fullscreenTab || peekFullscreen) && !small && (
         <PeekOverlay
@@ -325,6 +338,7 @@ const TabPane = memo(function TabPane({
   warm,
   barMode,
   windowToolbar,
+  popovers,
 }: {
   tabId: string;
   windowId: string;
@@ -344,6 +358,7 @@ const TabPane = memo(function TabPane({
   warm: Rect | undefined;
   barMode: BookmarksBarMode;
   windowToolbar: boolean;
+  popovers: boolean;
 }) {
   const theme = useTheme();
   const visible = !!rect;
@@ -415,6 +430,7 @@ const TabPane = memo(function TabPane({
                 fullscreen={fullscreen}
                 newTabShown={newTabShown}
                 statusStyle={autoLayout ? motion.bottomStyle : undefined}
+                popovers={popovers}
               />
             )}
           </View>
@@ -435,6 +451,7 @@ function PageOverlays({
   fullscreen,
   newTabShown,
   statusStyle,
+  popovers = true,
 }: {
   tabId: string;
   windowId: string;
@@ -444,9 +461,11 @@ function PageOverlays({
   fullscreen: boolean;
   newTabShown: boolean;
   statusStyle?: Animated.WithAnimatedValue<ViewStyle>;
+  popovers?: boolean;
 }) {
   const popover = usePages((s) => s.popover[tabId] ?? null);
   const zoom = useTabValue(tabId, (t) => t?.zoom ?? 1);
+  const popoverSide = toolbar ? { right: POPOVER_MARGIN } : { left: POPOVER_MARGIN };
   return (
     <>
       <FindBar tabId={tabId} />
@@ -459,14 +478,26 @@ function PageOverlays({
       <PasswordPrompt tabId={tabId} right={POPOVER_MARGIN} top={POPOVER_MARGIN} />
       <AutofillPrompt tabId={tabId} right={POPOVER_MARGIN} top={POPOVER_MARGIN} />
       {!newTabShown && <ExternalAppPrompt tabId={tabId} left={Math.max(POPOVER_MARGIN, Math.min(geometry.urlLeft, width - 348))} top={POPOVER_MARGIN} />}
-      <SiteControls tabId={tabId} open={popover === "siteControls"} {...(toolbar ? { right: POPOVER_MARGIN } : { left: POPOVER_MARGIN })} top={POPOVER_MARGIN} />
-      {popover === "popups" && <BlockedPopupsPrompt tabId={tabId} {...(toolbar ? { right: POPOVER_MARGIN } : { left: POPOVER_MARGIN })} top={POPOVER_MARGIN} />}
-      {popover === "zoom" && <ZoomPopover tabId={tabId} {...(toolbar ? { right: POPOVER_MARGIN } : { left: POPOVER_MARGIN })} top={POPOVER_MARGIN} />}
+      {popovers && <SiteControls tabId={tabId} open={popover === "siteControls"} {...popoverSide} top={POPOVER_MARGIN} />}
+      {popovers && popover === "popups" && <BlockedPopupsPrompt tabId={tabId} {...popoverSide} top={POPOVER_MARGIN} />}
+      {popovers && popover === "zoom" && <ZoomPopover tabId={tabId} {...popoverSide} top={POPOVER_MARGIN} />}
       <SharePicker tabId={tabId} paneWidth={width} />
       {!newTabShown && <DeviceChooser tabId={tabId} left={Math.max(POPOVER_MARGIN, Math.min(geometry.urlLeft, width - 348))} top={POPOVER_MARGIN} />}
       <CastPicker tabId={tabId} paneWidth={width} />
       <NavigationOverlays tabId={tabId} windowId={windowId} geometry={geometry} />
       <SelectionPopover tabId={tabId} zoom={zoom} />
+    </>
+  );
+}
+
+function BesidePeekPopovers({ tabId, left, top, room }: { tabId: string; left: number; top: number; room: number }) {
+  const popover = usePages((s) => s.popover[tabId] ?? null);
+  const fit = (width: number) => ({ left: Math.max(POPOVER_MARGIN, Math.min(left, room - width - POPOVER_MARGIN)), top });
+  return (
+    <>
+      <SiteControls tabId={tabId} open={popover === "siteControls"} {...fit(SITE_PANEL.width)} />
+      {popover === "popups" && <BlockedPopupsPrompt tabId={tabId} {...fit(BLOCKED_POPUPS_WIDTH)} />}
+      {popover === "zoom" && <ZoomPopover tabId={tabId} {...fit(ZOOM_POPOVER_WIDTH)} />}
     </>
   );
 }

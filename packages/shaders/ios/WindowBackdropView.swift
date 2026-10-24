@@ -375,6 +375,9 @@ final class WindowTreatmentView: NSView {
   }
 
   static let inactiveGrain: CGFloat = 0.25
+  static var holdsKeyLook = false {
+    didSet { if holdsKeyLook != oldValue { NotificationCenter.default.post(name: WindowActivity.changed, object: nil) } }
+  }
 
   var tint = Tint() { didSet { if tint != oldValue { updateTint() } } }
   var custom: ThemeGradient? {
@@ -382,6 +385,7 @@ final class WindowTreatmentView: NSView {
       guard custom != oldValue else { return }
       if custom?.appearance != oldValue?.appearance { appearance = custom?.forcedAppearance }
       if custom?.colors != oldValue?.colors { themeLayer.setColors(custom?.colors ?? []) }
+      updateState()
       updateAppearance()
       updateTint()
     }
@@ -444,8 +448,10 @@ final class WindowTreatmentView: NSView {
     updateAppearance()
   }
 
+  private var showsKeyLook: Bool { WindowActivity.override == true || (Self.holdsKeyLook && custom != nil) }
+
   @objc private func updateState() {
-    blur.state = WindowActivity.override == true ? .active : .followsWindowActiveState
+    blur.state = showsKeyLook ? .active : .followsWindowActiveState
   }
 
   private var isDark: Bool { effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua }
@@ -460,7 +466,7 @@ final class WindowTreatmentView: NSView {
 
   private func updateGrain() {
     guard let custom else { return grain.opacity = 0 }
-    let active = activity.isActive || WindowActivity.override == true
+    let active = activity.isActive || showsKeyLook
     grain.texture = custom.texture
     grain.opacity = Float(min(max(custom.grain, 0), 1) * (active ? 1 : Self.inactiveGrain))
   }

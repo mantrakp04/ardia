@@ -5,7 +5,7 @@ import { useBrowser } from "../../store/browser";
 import { bookmarkProfileId, isIncognitoProfile, isPinnedRow, pinSection, plural, tabLabel, viewTabIds, windowTitle } from "../../store/model";
 import { awayFromPin, cleanedTabsFor, groupLabel, groupOf, keptDeletedGroups, selectedTabIds } from "../../store/organize";
 import { groupPath } from "../../store/groups";
-import { splitOf } from "../../store/splits";
+import { splitOf, splitRowPanes } from "../../store/splits";
 import type { GroupColor, Tab } from "../../store/types";
 import {
   allMuted,
@@ -82,6 +82,7 @@ export async function openTabMenu(windowId: string, tab: Tab) {
   const others = list.filter((id) => id !== tab.id);
   const group = groupOf(s, tab.id);
   const split = splitOf(s, tab.id);
+  const splitRow = splitRowPanes(s, split).includes(tab.id);
   const incognito = isIncognitoProfile(tab.profileId);
   const across = (s.windows[windowId]?.tabLayout ?? s.settings.tabLayout) === "top";
   const away = awayFromPin(tab);
@@ -108,16 +109,20 @@ export async function openTabMenu(windowId: string, tab: Tab) {
     ...(tab.customIcon ? [{ id: "resetIcon", title: "Reset Icon", symbol: "arrow.counterclockwise" }] : []),
     sep,
     { id: "pin", title: tab.pinned ? "Unpin" : "Pin", symbol: tab.pinned ? "pin.slash" : "pin" },
-    isPinnedRow(tab)
-      ? { id: "pinTile", title: "Move to Top Apps", symbol: "app" }
-      : { id: "pinRow", title: "Move to Pinned Tabs", symbol: "list.bullet" },
+    ...(splitRow
+      ? []
+      : [
+          isPinnedRow(tab)
+            ? { id: "pinTile", title: "Move to Top Apps", symbol: "app" }
+            : { id: "pinRow", title: "Move to Pinned Tabs", symbol: "list.bullet" },
+        ]),
     ...(pinSection(tab) !== "tile"
       ? []
       : tab.tileFolder
         ? [{ id: "leaveFolder", title: "Remove from Folder", symbol: "folder.badge.minus" }]
         : [{ id: "newFolder", title: "New Folder with Tab", symbol: "folder.badge.plus" }]),
     { id: "duplicate", title: "Duplicate", symbol: "plus.square.on.square" },
-    ...(tab.pinned
+    ...(pinSection(tab) === "tile"
       ? []
       : [
           group
@@ -181,13 +186,14 @@ async function openMultiMenu(windowId: string, ids: string[]) {
   const n = ids.length;
   const tabs = ids.map((id) => s.tabs[id]!);
   const allPinned = tabs.every((t) => t.pinned);
+  const allTiles = tabs.every((t) => pinSection(t) === "tile");
   const incognito = tabs.some((t) => isIncognitoProfile(t.profileId));
   const groups = moveToGroupItems(windowId, undefined);
   const choice = await showMenu([
     { id: "pin", title: allPinned ? `Unpin ${n} Tabs` : `Pin ${n} Tabs`, symbol: allPinned ? "pin.slash" : "pin" },
     ...(tabs.every(isPinnedRow) ? [] : [{ id: "pinRows", title: `Move ${n} Tabs to Pinned Tabs`, symbol: "list.bullet" }]),
     { id: "duplicate", title: `Duplicate ${n} Tabs`, symbol: "plus.square.on.square" },
-    { id: "newGroup", title: `New Group with ${n} Tabs`, symbol: "plus.rectangle.on.rectangle", enabled: !allPinned, ...hint("n", "control", "command") },
+    { id: "newGroup", title: `New Group with ${n} Tabs`, symbol: "plus.rectangle.on.rectangle", enabled: !allTiles, ...hint("n", "control", "command") },
     ...(groups.length ? [{ id: "moveToGroup", title: "Move to Group", symbol: "rectangle.stack", children: groups }] : []),
     ...(tabs.some((t) => groupOf(s, t.id)) ? [{ id: "ungroup", title: "Remove from Group", symbol: "folder.badge.minus" }] : []),
     sep,

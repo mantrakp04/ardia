@@ -61,4 +61,44 @@ final class ReviewRegressionTests: XCTestCase {
     var hidden = Data(#"{"payment_cards":[{"card\u005fnumber":"4111111111111111"}]}"#.utf8)
     XCTAssertThrowsError(try SafariExport.paymentCards(&hidden))
   }
+
+  private func arcSidebar(littleFirst: Bool) throws -> ArcSidebar {
+    let little = """
+    {"littleBrowser": {"_0": "temporary-space"}},
+    {"spaces": ["temporary-space", {"id": "temporary-space", "profile": {"default": true}, "containerIDs": ["unpinned", "temporary-tabs"]}],
+     "topAppsContainerIDs": [],
+     "items": ["temporary-tabs", {"id": "temporary-tabs", "data": {"itemContainer": {}}, "childrenIds": [], "title": null}]}
+    """
+    let main = """
+    {"global": {}},
+    {"spaces": ["real-space", {"id": "real-space", "title": "Work", "profile": {"default": true}, "containerIDs": ["pinned", "pins"], "newContainerIDs": [{"pinned": {}}, "pins"]}],
+     "topAppsContainerIDs": [{"default": true}, "favorites"],
+     "items": [
+       "pins", {"id": "pins", "data": {"itemContainer": {}}, "childrenIds": ["pinned-tab", "folder", "live", "bitbucket"], "title": null},
+       "pinned-tab", {"id": "pinned-tab", "data": {"tab": {"savedURL": "https://example.com/pinned", "savedTitle": "Pinned page"}}, "childrenIds": [], "title": null},
+       "folder", {"id": "folder", "data": {"list": {}}, "childrenIds": ["nested-tab"], "title": "Docs"},
+       "nested-tab", {"id": "nested-tab", "data": {"tab": {"savedURL": "https://example.com/docs", "savedTitle": "Documentation"}}, "childrenIds": [], "title": null},
+       "live", {"id": "live", "data": {"list": {"automaticLiveFolderData": {"source": {"github": {}}}}}, "childrenIds": ["pr"], "title": "Pull Requests"},
+       "bitbucket", {"id": "bitbucket", "data": {"list": {"automaticLiveFolderData": {"source": {"bitbucket": {}}}}}, "childrenIds": [], "title": "Reviews"},
+       "pr", {"id": "pr", "data": {"tab": {"savedURL": "https://github.com/o/r/pull/1", "savedTitle": "PR"}}, "childrenIds": [], "title": null},
+       "favorites", {"id": "favorites", "data": {"itemContainer": {}}, "childrenIds": ["favorite-tab"], "title": null},
+       "favorite-tab", {"id": "favorite-tab", "data": {"tab": {"savedURL": "https://example.com/favorite", "savedTitle": "Favorite"}}, "childrenIds": [], "title": null}
+     ]}
+    """
+    let containers = littleFirst ? "\(little),\n\(main)" : "\(main),\n\(little)"
+    return try ArcSidebar.parse(Data("{\"version\": 1, \"sidebar\": {\"containers\": [\(containers)]}}".utf8))
+  }
+
+  func testArcSidebarReadsTheMainContainerWhateverItsPlace() throws {
+    for littleFirst in [true, false] {
+      let sidebar = try arcSidebar(littleFirst: littleFirst)
+      XCTAssertEqual(sidebar.spaces.map(\.name), ["Work"], "Little Arc first: \(littleFirst)")
+      XCTAssertEqual(sidebar.spaces.first?.pinned.reduce(0) { $0 + $1.linkCount }, 2)
+      XCTAssertEqual(sidebar.favorites["Default"]?.map(\.url), ["https://example.com/favorite"])
+      let live = sidebar.spaces.first?.pinned.filter { $0.role?.hasPrefix("live") == true }
+      XCTAssertEqual(live?.map(\.role), ["liveGitHubPullRequests", "liveBitbucketPullRequests"])
+      XCTAssertEqual(live?.map(\.title), ["Pull Requests", "Reviews"])
+      XCTAssertEqual(live?.flatMap { $0.children ?? [] }, [])
+    }
+  }
 }

@@ -92,6 +92,22 @@ export function dropIndex({ slots, lefts }: DragGeometry, from: number, dx: numb
   return index;
 }
 
+export type Aim = { to: number; onto: number | null };
+
+export function aimDrop({ slots, lefts }: DragGeometry, from: number, pointer: number, target: (index: number) => boolean, edge: number): Aim {
+  let to = 0;
+  let onto: number | null = null;
+  slots.forEach((slot, i) => {
+    if (i === from) return;
+    const left = lefts[i]!;
+    const right = left + slot.width;
+    const zone = target(i) ? Math.min(slot.width / 4, edge) : slot.width / 2;
+    if (target(i) && pointer > left + zone && pointer < right - zone) onto = i;
+    if (i < from ? pointer > left + zone : pointer > right - zone) to++;
+  });
+  return { to, onto };
+}
+
 export function moveIndex(section: string[], tabId: string, slots: DragSlot[], from: number, to: number): number | null {
   if (to === from) return null;
   const moved = section.filter((id) => id !== tabId);

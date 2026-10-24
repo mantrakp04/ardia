@@ -9,6 +9,7 @@ import { HoverSlot } from "../HoverSlot";
 import { IconButton, useHover } from "../primitives";
 import { isPinnedRow } from "../../store/model";
 import { awayFromPin } from "../../store/organize";
+import { splitRowPanes } from "../../store/splits";
 import { clickTab, commitRename, endRename, startRename, tabTitle } from "./actions";
 import { useDragItem, useDropOnto } from "./dnd";
 import { useShift, type EntryMotion } from "./entryMotion";
@@ -209,12 +210,12 @@ export const SplitRowItem = memo(function SplitRowItem({
   motion = null,
 }: {
   splitId: string;
-  section: "list" | "pinnedGroups";
+  section: "list" | "pinnedRows" | "pinnedGroups";
   parentGroup?: string;
   motion?: EntryMotion | null;
 }) {
   const windowId = useWindowId();
-  const tabIds = useBrowser((s) => s.splits[splitId]?.tabIds.filter((id) => s.tabs[id] && !s.tabs[id]!.pinned).join(",") ?? "").split(",").filter(Boolean);
+  const tabIds = useBrowser((s) => splitRowPanes(s, s.splits[splitId]).join(",")).split(",").filter(Boolean);
   const { wrapper, handle } = useDragItem(`s:${splitId}`, { kind: "split", tabIds, section, parentGroup }, undefined, motion?.clip);
   const theme = useTheme();
   const profileId = usePageProfileId();

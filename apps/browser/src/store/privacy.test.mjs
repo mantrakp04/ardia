@@ -79,7 +79,7 @@ test("cleaning up a private window keeps its tabs in memory, out of session.json
 test("private entries an older build saved are dropped when the session loads, and never written again", () => {
   stub.docs.clear();
   const privateEntry = {
-    kind: "tab", id: "ct-old", windowId: "w-private", index: 0, group: null, closedAt: 1,
+    kind: "tab", id: "ct-old", windowId: "w-private", index: 0, group: null, closedAt: Date.now(),
     tab: { url: "https://secret.example/", title: "Secret", favicon: null, pinned: false, muted: false, zoom: 1, customTitle: null, customIcon: null, profileId: "incognito:w-private" },
   };
   const publicEntry = { ...privateEntry, id: "ct-ok", tab: { ...privateEntry.tab, url: "https://public.example/", profileId: "default" } };
@@ -92,6 +92,38 @@ test("private entries an older build saved are dropped when the session loads, a
   stop();
   const data = loadSession();
   assert.deepEqual(data.cleanedTabs.map((c) => c.id), ["ct-ok"]);
+});
+
+test("cleaned tabs leave Recently Cleaned a week after their clean-up", () => {
+  stub.docs.clear();
+  const DAY = 24 * HOUR;
+  const entry = (id, url, closedAt) => ({
+    kind: "tab", id, windowId: "w-gone", index: 0, group: null, closedAt,
+    tab: { url, title: id, favicon: null, pinned: false, muted: false, zoom: 1, customTitle: null, customIcon: null, profileId: "default" },
+  });
+  const stale = entry("ct-stale", "https://stale.example/", Date.now() - 8 * DAY);
+  const recent = entry("ct-recent", "https://recent.example/", Date.now() - HOUR);
+  stub.docs.set("session.json", JSON.stringify({ version: 2, profiles: {}, profileOrder: [], settings: {}, windows: [], windowOrder: [], focusedWindowId: null, tabs: [], groups: [], splits: [], closedTabs: [], closedWindows: [], cleanedTabs: [stale, recent] }));
+  const stop = startPersistence();
+  assert.deepEqual(S().cleanedTabs.map((c) => c.id), ["ct-recent"], "launch drops the entry older than a week");
+  const w = S().createWindow({ url: "https://public.example/" });
+  assert.deepEqual(cleanedTabsFor(S(), w).map((c) => c.id), ["ct-recent"]);
+
+  useBrowser.setState({ cleanedTabs: [stale, recent] });
+  assert.deepEqual(cleanedTabsFor(S(), w).map((c) => c.id), ["ct-recent"], "the list and its count read only the last 7 days");
+  S().restoreCleaned(undefined, w);
+  const urls = model.viewTabIds(S(), w).map((id) => S().tabs[id].url);
+  assert.ok(urls.includes("https://recent.example/"));
+  assert.ok(!urls.includes("https://stale.example/"), "Restore All brings back only the recent one");
+
+  useBrowser.setState({ cleanedTabs: [stale] });
+  const old = S().newTab(w, { url: "https://idle.example/" });
+  S().activate(model.viewTabIds(S(), w)[0]);
+  S().updateTab(old, { lastActiveAt: OLD() });
+  S().cleanUpTabs(w);
+  assert.ok(!S().cleanedTabs.some((c) => c.id === "ct-stale"), "the next clean-up drops the expired entry");
+  assert.ok(S().cleanedTabs.some((c) => c.tab.url === "https://idle.example/"));
+  stop();
 });
 
 test("session.json filters private tabs out of every closed and parked list", () => {

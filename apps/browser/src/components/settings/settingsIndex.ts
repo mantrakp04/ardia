@@ -54,6 +54,18 @@ const ROWS: Record<SettingsPane, Section[]> = {
       rows: { commandBarPreference: { title: "When input looks like a website", keywords: ["omnibox", "address", "url", "search", "website first"] } },
     },
     {
+      section: "Downloads",
+      rows: {
+        downloadsFolder: { title: "Downloads folder", description: "Where downloaded files are saved.", keywords: ["download location", "save to", "path", "folder"] },
+        askWhereToSave: { title: "Ask where to save each file", keywords: ["download location", "save as", "prompt", "choose folder"] },
+        downloadsAllProfiles: {
+          title: "Use these settings for every profile",
+          description: "Gives every profile this folder and choice.",
+          keywords: ["all profiles", "global", "download location"],
+        },
+      },
+    },
+    {
       section: "Updates",
       rows: {
         updateChecks: { title: "Check for updates automatically", keywords: ["update", "sparkle"] },
@@ -97,6 +109,11 @@ const ROWS: Record<SettingsPane, Section[]> = {
           keywords: ["auto hide", "compact"],
         },
         showSidebarButton: { title: "Show sidebar button", description: "⌘S and View › Auto-Hide Tabs still hide and show the sidebar.", keywords: ["toggle sidebar"] },
+        balancedTopApps: {
+          title: "Grow Top Apps as the sidebar widens",
+          description: "As in Arc: up to four tiles across in balanced rows, and a wider sidebar makes them larger. Off, as in Dia, each row fills with as many tiles as fit.",
+          keywords: ["pinned tiles", "favorites", "grid", "columns", "rows", "arc"],
+        },
       },
     },
     {
@@ -108,6 +125,11 @@ const ROWS: Record<SettingsPane, Section[]> = {
           keywords: ["new tab page", "command bar", "cmd t"],
         },
         newTabPosition: { title: "Add new tabs to the top", keywords: ["new tab position", "left", "bottom", "order"] },
+        shareTabsAcrossWindows: {
+          title: "Share tabs across windows",
+          description: "Every window of a profile lists the same tabs, as in Arc. A tab is live in one window at a time: selecting it in another brings it there, and the first window shows it greyed until you click it. Each window keeps its own selected tab.",
+          keywords: ["arc", "multiple windows", "same tabs", "sync windows", "shared sidebar", "unpinned"],
+        },
         warnBeforeClosingLastTab: { title: "Warn before closing last tab in a Profile", keywords: ["confirm", "close tab"] },
         tabReorderHaptics: { title: "Haptic feedback when reordering tabs", keywords: ["trackpad", "vibration", "drag"] },
         extendWebsiteColor: { title: "Extend website color into tab bar", keywords: ["theme color", "tint", "colour"] },
@@ -166,7 +188,17 @@ const ROWS: Record<SettingsPane, Section[]> = {
       section: "Appearance Theme",
       rows: { theme: { title: "Appearance Theme", description: "Also in View › Appearance. Incognito windows are always dark.", keywords: ["dark mode", "light mode", "automatic", "night", "system"] } },
     },
-    { section: "Address Bar", rows: { addressBar: { title: "Address Bar", description: "In the toolbar or in the sidebar.", keywords: ["url bar", "location bar", "toolbar"] } } },
+    {
+      section: "Address Bar",
+      rows: {
+        addressBar: { title: "Address Bar", description: "In the toolbar or in the sidebar.", keywords: ["url bar", "location bar", "toolbar"] },
+        commandBarPlacement: {
+          title: "⌘L opens the command bar",
+          description: "In the centre, ⌘L and a click on the address show it over the middle of the page, as in Arc.",
+          keywords: ["cmd l", "command bar", "centred", "centered", "arc", "url bar", "location bar"],
+        },
+      },
+    },
     { section: "App Icon", rows: { appIcon: { title: "App Icon", description: "Shown in the Dock and the app switcher. The Dock keeps it after you quit.", keywords: ["dock icon", "logo"] } } },
   ],
   privacy: [
@@ -248,7 +280,17 @@ const ROWS: Record<SettingsPane, Section[]> = {
     { section: "Suggestions", rows: { suggestions: { title: "Show search suggestions", description: "Sends what you type to your search engine to suggest searches.", keywords: ["autocomplete"] } } },
   ],
   shortcuts: [
-    { section: "Keyboard Shortcuts", rows: { actions: { title: "Customize keyboard shortcuts", keywords: ["hotkeys", "keybindings", "remap", "menu shortcuts"] } } },
+    {
+      section: "Keyboard Shortcuts",
+      rows: {
+        undoReopensClosedTab: {
+          title: "⌘Z reopens closed tabs",
+          description: "Outside text fields, as in Arc; press it again for the tab closed before. In a text field ⌘Z still undoes typing.",
+          keywords: ["undo", "undo close tab", "reopen", "restore tab", "arc", "cmd z"],
+        },
+        actions: { title: "Customize keyboard shortcuts", keywords: ["hotkeys", "keybindings", "remap", "menu shortcuts"] },
+      },
+    },
     { section: "Extensions", rows: { extensionShortcuts: { title: "Extension shortcuts", description: "Shortcuts that extensions add, like opening their popup.", keywords: ["hotkeys"] } } },
   ],
   liveFolders: [

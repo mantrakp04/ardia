@@ -20,6 +20,10 @@ export function addressBarInSidebar(s: BrowserState, windowId: string): boolean 
   );
 }
 
+export function commandBarCentred(s: BrowserState, windowId: string): boolean {
+  return s.settings.commandBarPlacement === "centred" && !!s.windows[windowId] && s.windows[windowId]!.kind !== "small";
+}
+
 export function useAddressBarInSidebar(): boolean {
   const windowId = useWindowId();
   return useBrowser((s) => addressBarInSidebar(s, windowId));

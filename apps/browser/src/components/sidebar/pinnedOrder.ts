@@ -4,14 +4,21 @@ import { arrangeFolders, live, useLive } from "../../live/store";
 import type { LiveFolder } from "../../live/types";
 import { useBrowser, type BrowserState } from "../../store/browser";
 import { pinnedAreaKeys } from "../../store/pinnedArea";
+import { findLast } from "../../store/model";
 import { pinKeyOf } from "../../store/pinMirror";
+import { splitRowPanes } from "../../store/splits";
 import { mainWindowFor } from "../../store/small";
 import { sidebarEntries } from "./entries";
 
 export const LIVE = "lf:";
 
-export function anchorKey(s: Pick<BrowserState, "tabs" | "groups">, entry: string): string {
+export function anchorKey(s: Pick<BrowserState, "tabs" | "groups" | "splits" | "windows">, entry: string): string {
   const id = entry.slice(2);
+  if (entry.startsWith("s:")) {
+    const panes = s.splits[id]?.tabIds ?? [];
+    const last = findLast(s.windows[s.splits[id]?.windowId ?? ""]?.tabIds ?? [], (t) => panes.includes(t));
+    return `t:${last && s.tabs[last] ? pinKeyOf(s.tabs[last]!) : id}`;
+  }
   const x = entry.startsWith("g:") ? s.groups[id] : s.tabs[id];
   return `${entry.slice(0, 2)}${x ? pinKeyOf(x) : id}`;
 }
@@ -45,8 +52,9 @@ export function pinnedSequence(s: BrowserState, folders: Record<string, LiveFold
   return withLiveFolders(pinned, pinned.map((e) => anchorKey(s, e)), foldersOf(folders, order, profileId));
 }
 
-const stillPinned = (s: Pick<BrowserState, "tabs" | "groups">, entry: string, profileId: string | undefined): boolean => {
+const stillPinned = (s: Pick<BrowserState, "tabs" | "groups" | "splits">, entry: string, profileId: string | undefined): boolean => {
   const id = entry.slice(2);
+  if (entry.startsWith("s:")) return splitRowPanes(s, s.splits[id]).some((t) => s.tabs[t]!.pinned && s.tabs[t]!.profileId === profileId);
   if (entry.startsWith("t:")) return !!s.tabs[id]?.pinned && !!s.tabs[id]!.pinnedAsRow && s.tabs[id]!.profileId === profileId;
   if (entry.startsWith("g:")) return !!s.groups[id]?.pinned && !s.groups[id]!.parentId && s.groups[id]!.profileId === profileId;
   return true;

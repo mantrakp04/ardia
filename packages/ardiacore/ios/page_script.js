@@ -46,15 +46,7 @@
   const frame = Math.random().toString(36).slice(2);
   const tracked = new WeakSet();
   let active = null;
-  let lastPlaying = null;
   const heard = new WeakSet();
-  const audible = (m) => !m.paused && !m.ended && !m.muted && m.volume > 0 && m.readyState > 2 && heard.has(m);
-  const reportAudible = () => {
-    const playing = [...document.querySelectorAll("video,audio")].some(audible) || (active && audible(active)) || webAudible();
-    if (playing === lastPlaying) return;
-    lastPlaying = playing;
-    send("media", { frame, playing });
-  };
 
   const session = navigator.mediaSession;
   const actions = new Map();
@@ -71,10 +63,9 @@
     if (decodedAudio(m)) {
       heard.add(m);
       listening.delete(m);
-      reportAudible();
       return reportNowPlaying();
     }
-    if (tries >= LISTEN_TRIES) return;
+    if (tries >= LISTEN_TRIES) return listening.delete(m);
     setTimeout(guard(() => listenFor(m, tries + 1)), 500);
   };
   const noteHeard = (m) => {
@@ -153,7 +144,6 @@
       watchRemoval(m);
     }
     noteHeard(m);
-    reportAudible();
     if (e.type !== "volumechange") reportNowPlaying();
   };
   const watched = new WeakSet();
@@ -162,7 +152,6 @@
     watched.add(m);
     m.addEventListener("pause", () => {
       if (m.isConnected || tracked.has(m)) return;
-      reportAudible();
       reportNowPlaying();
     });
   };
@@ -178,63 +167,6 @@
     }
     return play.apply(this, arguments);
   };
-  const QUIET_MS = 3000;
-  const audioContexts = new Set();
-  const taps = new WeakMap();
-  const samples = new Float32Array(256);
-  const AUDIO_POLL_MS = 500;
-  const SILENT_AUDIO_POLL_MS = 2000;
-  const SILENT_AFTER_MS = 10000;
-  let webAudioUntil = 0;
-  let audioPoll = 0;
-  let audioPollActiveSince = 0;
-  let fixedAudioPoll = false;
-  function webAudible() {
-    return Date.now() < webAudioUntil;
-  }
-  const nextAudioPollMs = () =>
-    fixedAudioPoll || Date.now() - Math.max(webAudioUntil - QUIET_MS, audioPollActiveSince) < SILENT_AFTER_MS ? AUDIO_POLL_MS : SILENT_AUDIO_POLL_MS;
-  const pollWebAudio = guard(() => {
-    clearTimeout(audioPoll);
-    audioPoll = 0;
-    let running = false;
-    for (const ctx of audioContexts) {
-      if (ctx.state === "closed") audioContexts.delete(ctx);
-      if (ctx.state !== "running") continue;
-      running = true;
-      taps.get(ctx).getFloatTimeDomainData(samples);
-      let peak = 0;
-      for (let i = 0; i < samples.length; i++) peak = Math.max(peak, Math.abs(samples[i]));
-      if (peak > 1e-4) webAudioUntil = Date.now() + QUIET_MS;
-    }
-    if (running || webAudible()) audioPoll = setTimeout(pollWebAudio, nextAudioPollMs());
-    reportAudible();
-  });
-  const pollAudio = () => {
-    if (audioPoll) return;
-    audioPollActiveSince = Date.now();
-    audioPoll = setTimeout(pollWebAudio, AUDIO_POLL_MS);
-  };
-  if (window.AudioNode && window.AudioDestinationNode && window.AudioContext) {
-    const connect = AudioNode.prototype.connect;
-    AudioNode.prototype.connect = function (target, output) {
-      const result = connect.apply(this, arguments);
-      guard(() => {
-        const ctx = target instanceof AudioDestinationNode ? target.context : null;
-        if (!(ctx instanceof AudioContext)) return;
-        if (!taps.has(ctx)) {
-          const tap = ctx.createAnalyser();
-          tap.fftSize = samples.length;
-          taps.set(ctx, tap);
-          audioContexts.add(ctx);
-          ctx.addEventListener("statechange", () => (ctx.state === "running" ? pollAudio() : pollWebAudio()));
-        }
-        connect.call(this, taps.get(ctx), output || 0);
-        pollAudio();
-      })();
-      return result;
-    };
-  }
 
   const proto = session && Object.getPrototypeOf(session);
   if (proto) {
@@ -762,7 +694,6 @@
       pauseUnasked([...playingMedia, ...document.querySelectorAll("video, audio")], !!(navigator.userActivation && navigator.userActivation.hasBeenActive));
     if (config.displayMediaPicker) installDisplayMedia();
     if (config.fieldTiming) setFieldTiming(true);
-    if (config.fixedAudioPoll) fixedAudioPoll = true;
     if (config.broadThemeObserver) broadThemeObserver = true;
   };
   send("hello", { top: isTop, url: location.href });

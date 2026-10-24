@@ -95,10 +95,13 @@ make an instance a test instance; the rest are hooks for one test.
   Full screen is acted out (no new Space); windows answer NO to `-[NSWindow isOccluded]`, so a covered
   window shows a tab at once instead of after Chrome's 1 s delay, with `--disable-backgrounding-occluded-windows`;
   PiP windows stay at alpha 0 and click-through; the drag preview stays above its own window only.
-- **Media:** `--mute-audio`, no intro music, `--use-fake-device-for-media-stream` with the microphone kept on a fake
+- **Media:** `--mute-audio` (Chrome then reports no tab as audible, so the speaker never lights; the ArdiaCore
+  acceptance run sets `ARDIA_ALLOW_AUDIO=1` with `--disable-audio-output`, so Chrome still hears its -60 dBFS fixtures and the speakers get nothing), no intro music, `--use-fake-device-for-media-stream` with the microphone kept on a fake
   input (`ac_fake_media.mm`), and `--disable-modal-animations` (a locked screen never ends a dialog's close animation).
 - **Other:** macOS re-auth prompts never show; requests are refused unless `ARDIA_TEST_REAUTH=granted` in a build that
-  honours it (above).
+  honours it (above). Nothing system-wide changes: Set as Default (onboarding, whose checkbox starts unticked, and
+  Settings), Chrome's own default browser, scheme and file type setters, Add to Dock and Launch at Login are no-ops
+  that log a line (`ArdiaSystem`, `chromium-background-instance-no-default-handlers.patch`).
 
 A scratch `ARDIA_DATA_DIR` holds Chrome's user data and the app's documents, its defaults, keychain items and
 Sparkle state (`ACIsolation.h`); Chrome gets `--use-mock-keychain`; update checks are off without

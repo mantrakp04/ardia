@@ -118,6 +118,7 @@
 #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
 #include "chrome/browser/media/webrtc/media_stream_capture_indicator.h"
 #include "chrome/browser/picture_in_picture/auto_picture_in_picture_tab_helper.h"
+#include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/tracing_controller.h"
 #include "content/public/browser/web_contents_media_capture_id.h"
@@ -501,6 +502,14 @@ bool HostExtensionInstallPrompt(Profile* profile,
   if (!extension || !done_callback || done_callback->is_null() ||
       ![g_delegate respondsToSelector:@selector(engine:extensionInstallPrompt:tab:)]) {
     return false;
+  }
+  if (prompt.type() == extensions::InstallPromptData::EXTERNAL_INSTALL_PROMPT) {
+    using Payload = extensions::ExtensionInstallPromptClient::DoneCallbackPayload;
+    using Result = extensions::ExtensionInstallPromptClient::Result;
+    content::GetUIThreadTaskRunner({})->PostTask(
+        FROM_HERE,
+        base::BindOnce(std::move(*done_callback), Payload(Result::ABORTED)));
+    return true;
   }
   static int last_id = 0;
   const std::string request_id = "install" + std::to_string(++last_id);
@@ -2342,6 +2351,22 @@ TabSharingInfoBarDelegate* TabSharingDelegateFor(content::WebContents* contents,
   } else if (route == ardiacore::PictureInPictureRoute::kNone) {
     completion(@"none", NO);
   }
+}
+
+- (void)exitPictureInPicture {
+  if (!_contents) {
+    return;
+  }
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(
+                     [](base::WeakPtr<content::WebContents> contents) {
+                       PictureInPictureWindowManager* manager =
+                           PictureInPictureWindowManager::GetInstance();
+                       if (contents && manager->GetWebContents() == contents.get()) {
+                         manager->ExitPictureInPicture();
+                       }
+                     },
+                     _contents->GetWeakPtr()));
 }
 
 - (BOOL)hasLiveFrame:(NSString*)frameId {

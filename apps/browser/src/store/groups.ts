@@ -2,6 +2,7 @@ import type { StateCreator } from "zustand";
 import type { BrowserState } from "./browser";
 import { newId } from "./model";
 import { closingGroup } from "./organize";
+import { withSplitRows } from "./splits";
 import { withNewTab } from "./tabs";
 import type { BrowserWindow, GroupColor, Tab, TabGroup } from "./types";
 
@@ -292,7 +293,7 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
 
   createGroup(tabIds, options = {}) {
     const s = get();
-    const tabs = tabIds.map((id) => s.tabs[id]).filter((t) => t && !t.pinned);
+    const tabs = withSplitRows(s, tabIds).map((id) => s.tabs[id]).filter((t) => t && !t.pinned);
     const first = tabs[0];
     if (!first || tabs.some((t) => t!.windowId !== first.windowId || t!.profileId !== first.profileId)) return "";
     const w = s.windows[first.windowId]!;
@@ -330,7 +331,7 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
     set((s) => {
       const group = s.groups[groupId];
       if (!group) return {};
-      const adding = tabIds.filter((id) => {
+      const adding = withSplitRows(s, tabIds).filter((id) => {
         const t = s.tabs[id];
         return t && !t.pinned && t.windowId === group.windowId && t.profileId === group.profileId && !group.tabIds.includes(id);
       });
@@ -348,7 +349,7 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
       let groups = s.groups;
       const windows = { ...s.windows };
       const touched = new Set<string>();
-      for (const id of tabIds) {
+      for (const id of withSplitRows(s, tabIds)) {
         const g = innermostGroupOf(groups, id);
         const w = g && windows[g.windowId];
         if (!g || !w) continue;

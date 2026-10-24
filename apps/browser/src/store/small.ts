@@ -19,6 +19,9 @@ export function originalProfile(s: Pick<BrowserState, "profiles">, w: BrowserWin
   return id && s.profiles[id] ? id : undefined;
 }
 
+export const linkProfileOf = (s: Pick<BrowserState, "profiles">, w: BrowserWindow | undefined): string | undefined =>
+  isSmallWindow(w) ? undefined : originalProfile(s, w);
+
 export function privateWindowProfile(s: Pick<BrowserState, "profiles" | "profileOrder">, w: BrowserWindow | undefined, engineName?: string) {
   const named = engineName !== undefined ? s.profileOrder.find((p) => engineProfile(p) === engineName) : undefined;
   return named ?? originalProfile(s, w);
@@ -28,7 +31,7 @@ export function lastActiveProfile(s: BrowserState): string {
   const last = s.ui.lastProfileId;
   if (last && s.profiles[last]) return last;
   for (const id of [...s.ui.focusOrder, ...[...s.windowOrder].reverse()]) {
-    const profile = originalProfile(s, s.windows[id]);
+    const profile = linkProfileOf(s, s.windows[id]);
     if (profile) return profile;
   }
   return s.settings.defaultProfileId;

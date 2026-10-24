@@ -896,6 +896,10 @@ to these numbers (`chrome/browser/ardia/pip/` (`engine/chromium`)); a same-crop 
 
 Ardia differs in: the origin includes a port when the page has one (Chrome's formatting), and the play glyph
 (paused) and replay glyph weren't in the recording, so they're a rounded triangle of the same height and Chrome's icon.
+Ardia also has ±10 s buttons, which Dia doesn't (a user's request, issue #129): Chrome's replay 10 / forward 10 icons,
+32 pt and bare white like the pause glyph, centred 76 pt either side of it; ← and → seek too. Chrome hides the controls
+2.5 s after the pointer stops; Ardia keeps them while the pointer rests on one of its buttons or the progress bar, so a
+second click on a still pointer (pause, then play) isn't lost as a window drag.
 
 ### Picture in Picture: moving and throwing it (1.53.0, read from the binary, 2026-10-22)
 

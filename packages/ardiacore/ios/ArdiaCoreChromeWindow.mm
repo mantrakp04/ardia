@@ -256,6 +256,8 @@ void InsetTrafficLights(NSWindow *window) {
   LogTrafficLightsOf(window);
 }
 
+void WatchFullScreenLights(NSWindow *window);
+
 void ConfigureWindow(NSWindow *window) {
   InstallTrafficLightsLog();
   const NSRect frame = window.frame;
@@ -269,6 +271,7 @@ void ConfigureWindow(NSWindow *window) {
   window.releasedWhenClosed = NO;
   window.tabbingMode = NSWindowTabbingModeDisallowed;
   InsetTrafficLights(window);
+  WatchFullScreenLights(window);
 }
 
 NSSet<NSString *> *ReservedIdentifiers() {
@@ -602,7 +605,144 @@ static BOOL gPageCoverOff = NO;
 - (BOOL)covered;
 - (NSInteger)covers;
 - (BOOL)transitioning;
+- (BOOL)pageFullScreen;
 @end
+
+namespace {
+
+const void *kFullScreenLightsKey = &kFullScreenLightsKey;
+const void *kFullScreenLightsWatchKey = &kFullScreenLightsWatchKey;
+
+}
+
+@interface ACFullScreenLights : NSView
+@end
+
+@implementation ACFullScreenLights {
+  BOOL _hovered;
+}
+
++ (instancetype)lightsForWindow:(NSWindow *)window {
+  NSButton *standardClose = [window standardWindowButton:NSWindowCloseButton];
+  if (!standardClose) return nil;
+  ACFullScreenLights *lights = [[ACFullScreenLights alloc] initWithFrame:NSZeroRect];
+  NSRect bounds = NSZeroRect;
+  for (NSWindowButton kind : {NSWindowCloseButton, NSWindowMiniaturizeButton, NSWindowZoomButton}) {
+    NSButton *standard = [window standardWindowButton:kind];
+    NSButton *button = standard ? [NSWindow standardWindowButton:kind forStyleMask:window.styleMask & ~NSWindowStyleMaskFullScreen] : nil;
+    if (!button) continue;
+    [button setFrameOrigin:NSMakePoint(NSMinX(standard.frame) - NSMinX(standardClose.frame), 0)];
+    button.target = window;
+    button.action = kind == NSWindowCloseButton ? @selector(performClose:)
+                    : kind == NSWindowMiniaturizeButton ? @selector(performMiniaturize:)
+                                                         : @selector(toggleFullScreen:);
+    [lights addSubview:button];
+    bounds = NSUnionRect(bounds, button.frame);
+  }
+  [lights setFrameSize:bounds.size];
+  lights.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
+  [lights addTrackingArea:[[NSTrackingArea alloc] initWithRect:NSZeroRect
+                                                       options:NSTrackingMouseEnteredAndExited | NSTrackingActiveAlways | NSTrackingInVisibleRect
+                                                         owner:lights
+                                                      userInfo:nil]];
+  return lights;
+}
+
+- (void)setHovered:(BOOL)hovered {
+  _hovered = hovered;
+  for (NSView *button in self.subviews) button.needsDisplay = YES;
+}
+
+- (void)mouseEntered:(NSEvent *)event {
+  [self setHovered:YES];
+}
+
+- (void)mouseExited:(NSEvent *)event {
+  [self setHovered:NO];
+}
+
+- (BOOL)_mouseInGroup:(NSButton *)button {
+  return _hovered;
+}
+
+@end
+
+namespace {
+
+void PlaceFullScreenLights(NSWindow *window) {
+  ACFullScreenLights *lights = window ? objc_getAssociatedObject(window, kFullScreenLightsKey) : nil;
+  NSView *frameView = window.contentView.superview;
+  NSView *close = lights.subviews.firstObject;
+  if (!lights || !frameView || !close) return;
+  ACWindowFullScreen *state = objc_getAssociatedObject(window, kWindowFullScreenKey);
+  lights.hidden = state.pageFullScreen;
+  const NSSize size = close.frame.size;
+  const NSPoint center = LightsCenter(objc_getAssociatedObject(window, kLightsCenterKey), size);
+  const CGFloat top = center.y - size.height / 2;
+  [lights setFrameOrigin:NSMakePoint(center.x - size.width / 2,
+                                     frameView.isFlipped ? top : NSHeight(frameView.bounds) - top - NSHeight(lights.frame))];
+}
+
+void ShowFullScreenLights(NSWindow *window, BOOL show) {
+  ACFullScreenLights *lights = objc_getAssociatedObject(window, kFullScreenLightsKey);
+  if (!show) {
+    [lights removeFromSuperview];
+    objc_setAssociatedObject(window, kFullScreenLightsKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    return;
+  }
+  NSView *frameView = window.contentView.superview;
+  if (lights || !frameView || !(lights = [ACFullScreenLights lightsForWindow:window])) return;
+  objc_setAssociatedObject(window, kFullScreenLightsKey, lights, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  [frameView addSubview:lights positioned:NSWindowAbove relativeTo:nil];
+  PlaceFullScreenLights(window);
+}
+
+void HideStandardLights(NSWindow *window, BOOL hide) {
+  for (NSButton *button in TrafficLightButtons(window)) button.hidden = hide;
+}
+
+}
+
+@interface ACFullScreenLightsWatch : NSObject
+@end
+
+@implementation ACFullScreenLightsWatch {
+  __weak NSWindow *_window;
+}
+
++ (void)watchWindow:(NSWindow *)window {
+  if (!window || objc_getAssociatedObject(window, kFullScreenLightsWatchKey)) return;
+  ACFullScreenLightsWatch *watch = [[ACFullScreenLightsWatch alloc] init];
+  watch->_window = window;
+  NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
+  [center addObserver:watch selector:@selector(didEnter) name:NSWindowDidEnterFullScreenNotification object:window];
+  [center addObserver:watch selector:@selector(didExit) name:NSWindowDidExitFullScreenNotification object:window];
+  objc_setAssociatedObject(window, kFullScreenLightsWatchKey, watch, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+
+- (void)didEnter {
+  NSWindow *window = _window;
+  if (!window) return;
+  ShowFullScreenLights(window, YES);
+  HideStandardLights(window, YES);
+}
+
+- (void)didExit {
+  NSWindow *window = _window;
+  if (!window) return;
+  HideStandardLights(window, NO);
+  ShowFullScreenLights(window, NO);
+}
+
+@end
+
+namespace {
+
+void WatchFullScreenLights(NSWindow *window) {
+  [ACFullScreenLightsWatch watchWindow:window];
+}
+
+}
 
 @implementation ACWindowFullScreen {
   __weak ArdiaCoreWindow *_coreWindow;
@@ -741,6 +881,7 @@ static NSMapTable<ArdiaCoreTab *, NSNumber *> *FullScreenChanges() {
     if (_tab) _leftTab = _tab;
     _tab = nil;
   }
+  PlaceFullScreenLights(_coreWindow.window);
   _telling++;
   __weak ACWindowFullScreen *weakSelf = self;
   __weak ArdiaCoreTab *weakTab = tab;
@@ -859,6 +1000,10 @@ static NSMapTable<ArdiaCoreTab *, NSNumber *> *FullScreenChanges() {
 
 - (BOOL)transitioning {
   return _transitioning;
+}
+
+- (BOOL)pageFullScreen {
+  return _tab != nil;
 }
 
 - (void)uncoverWhenDrawn {
@@ -1551,6 +1696,7 @@ NSView *ACWindowRootView(NSWindow *window) {
   if (current == center || [current isEqual:center]) return;
   objc_setAssociatedObject(window, kLightsCenterKey, center, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
   RetileTrafficLights(window);
+  PlaceFullScreenLights(window);
 }
 
 + (void)moveTrafficLightsCenter:(NSValue *)center inWindow:(NSWindow *)window {

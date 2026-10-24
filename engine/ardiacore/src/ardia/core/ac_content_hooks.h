@@ -23,6 +23,8 @@ class WebContents;
 extern bool g_ardia_opacity_from_default_color;
 
 bool ArdiaHasAccessedInitialMainDocument(WebContents* contents);
+
+bool ArdiaMainFrameHandlesEnterPictureInPicture(WebContents* contents);
 }
 
 namespace crypto::apple {

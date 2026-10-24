@@ -7,6 +7,8 @@ public class SystemModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ArdiaSystem")
 
+    Constant("backgroundInstance") { () -> Bool in FileDropView.background }
+
     AsyncFunction("isDefaultBrowser") { () -> Bool in
       guard let probe = URL(string: "https://example.com"),
             let handler = NSWorkspace.shared.urlForApplication(toOpen: probe) else { return false }
@@ -14,6 +16,10 @@ public class SystemModule: Module {
     }.runOnQueue(.main)
 
     AsyncFunction("setAsDefaultBrowser") { (promise: Promise) in
+      if FileDropView.background {
+        NSLog("ArdiaSystem: background instance, not setting the default browser")
+        return promise.resolve(false)
+      }
       let app = Bundle.main.bundleURL
       NSWorkspace.shared.setDefaultApplication(at: app, toOpenURLsWithScheme: "http") { error in
         guard error == nil else { return promise.resolve(false) }
@@ -36,6 +42,10 @@ public class SystemModule: Module {
     }.runOnQueue(.main)
 
     AsyncFunction("setLaunchAtLogin") { (enabled: Bool) in
+      if FileDropView.background {
+        NSLog("ArdiaSystem: background instance, not changing launch at login")
+        return
+      }
       if enabled {
         try SMAppService.mainApp.register()
       } else {

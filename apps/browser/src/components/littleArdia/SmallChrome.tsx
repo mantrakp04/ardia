@@ -1,13 +1,13 @@
 import { breadcrumb } from "@ardia/core";
 import { FadeLabel, Symbol } from "@ardia/shell";
 import { useEffect, useRef, type ReactNode } from "react";
-import { Animated, Easing, Text, View } from "react-native";
+import { Animated, Easing, Pressable, Text, View } from "react-native";
 import { useTheme } from "../../lib/theme";
 import { useTabLive } from "../../store/hooks";
 import { usePageProgress } from "../../store/pageProgress";
 import type { Tab } from "../../store/types";
 import { usePage } from "../layout/pageState";
-import { Favicon, IconButton } from "../primitives";
+import { Favicon, IconButton, useHover } from "../primitives";
 
 export const SMALL_BAR_HEIGHT = 38;
 export const SMALL_INSET = 6;
@@ -24,8 +24,21 @@ const FIELD_GAP = 6;
 
 export type SmallBarButton = { icon: string; size: number; tooltip: string; onPress: () => void; disabled?: boolean };
 
-export function SmallBar({ fieldLeft, field, buttons, children }: { fieldLeft: number; field: ReactNode; buttons: SmallBarButton[]; children?: ReactNode }) {
-  const buttonsWidth = buttons.length * BUTTON + Math.max(0, buttons.length - 1) * BUTTON_GAP;
+export function SmallBar({
+  fieldLeft,
+  field,
+  buttons,
+  trailing,
+  children,
+}: {
+  fieldLeft: number;
+  field: ReactNode;
+  buttons: SmallBarButton[];
+  trailing?: ReactNode;
+  children?: ReactNode;
+}) {
+  const count = buttons.length + (trailing ? 1 : 0);
+  const buttonsWidth = count * BUTTON + Math.max(0, count - 1) * BUTTON_GAP;
   return (
     <View style={{ height: SMALL_BAR_HEIGHT }}>
       {children}
@@ -34,7 +47,33 @@ export function SmallBar({ fieldLeft, field, buttons, children }: { fieldLeft: n
         {buttons.map((b) => (
           <IconButton key={b.tooltip} icon={b.icon} size={b.size} box={BUTTON} radius={7} disabled={b.disabled} tooltip={b.tooltip} onPress={b.onPress} />
         ))}
+        {trailing}
       </View>
+    </View>
+  );
+}
+
+export function SmallBarBadgeButton({ tooltip, onPress, children }: { tooltip: string; onPress: () => void; children: ReactNode }) {
+  const theme = useTheme();
+  const { hovered, hoverProps } = useHover();
+  return (
+    <View tooltip={tooltip} {...hoverProps}>
+      <Pressable accessibilityRole="button" accessibilityLabel={tooltip} onPress={onPress}>
+        {({ pressed }) => (
+          <View
+            style={{
+              width: BUTTON,
+              height: BUTTON,
+              borderRadius: 7,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: pressed ? theme.toolbarPressed : hovered ? theme.toolbarHover : undefined,
+            }}
+          >
+            {children}
+          </View>
+        )}
+      </Pressable>
     </View>
   );
 }

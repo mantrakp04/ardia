@@ -1,4 +1,4 @@
-import { onDownload, releaseProfile } from "@ardia/ardiacore";
+import { lastTabClosesWindow, onDownload, releaseProfile } from "@ardia/ardiacore";
 import {
   cancelFocusMove,
   claimFocus,
@@ -22,6 +22,7 @@ import { Appearance } from "react-native";
 import { folderChildren, isBookmarked } from "../store/bookmarks";
 import { useBrowser, type BrowserState } from "../store/browser";
 import { activeTab, bookmarkProfileId, engineProfile, IDLE_LIVE, tabLabel, windowTitle } from "../store/model";
+import { setLastTabKeepsWindow } from "../store/newTabBar";
 import { peekTabId } from "../store/peek";
 import { splitOf } from "../store/splits";
 import { canGoBack, canGoForward } from "../components/layout/history";
@@ -54,7 +55,8 @@ export function startNativeSync() {
   onCommand((e) => settlingCommandFocus(e, runCommand));
   startWindowCloseGuard();
   startExtensionsBridge();
-  onOpenURLs((urls) => openExternalUrls(urls));
+  onOpenURLs((urls, pointer) => openExternalUrls(urls, pointer));
+  void lastTabClosesWindow().then((closes) => setLastTabKeepsWindow(!closes));
   onDownload((d) => store.getState().upsertDownload(d));
 
   store.getState().setAppDark(Appearance.getColorScheme() === "dark");
@@ -105,7 +107,9 @@ export function startNativeSync() {
       titles.set(id, windowTitle(s, id));
       const profile = engineProfile(w.profileId);
       const claim = w.kind === "small" ? s.tabs[w.tabIds[0] ?? ""]?.adoptId : undefined;
-      const small = w.kind === "small" ? { kind: "small" as const, size: s.settings.littleArdiaSize, ...(claim?.startsWith("link:") ? { claim } : {}) } : {};
+      const small = w.kind === "small"
+        ? { kind: "small" as const, size: s.settings.littleArdiaSize, ...(claim?.startsWith("link:") ? { claim } : {}), ...(w.linkPointer ? { pointer: w.linkPointer } : {}) }
+        : {};
       const made = w.chromeWindow ? { chromeWindow: w.chromeWindow } : {};
       if (w.kind !== "small") void setTrafficLightsCenter(id, openingLightsCenter(s, id));
       void openWindow(id, { frame: w.frame, incognito: w.incognito, title: titles.get(id), focus, profile, ...(behind ? { behind } : {}), ...small, ...made });
@@ -298,6 +302,7 @@ export function menuState(s: BrowserState): MenuState {
     recentlyClosedGroups: sidebar.recentlyClosedGroups,
     warnBeforeQuitting: s.settings.warnBeforeQuitting,
     warnBeforeClosingWindow: s.settings.warnBeforeClosingWindow,
+    undoReopensClosedTab: s.settings.undoReopensClosedTab,
     downloadsInProgress: s.downloads.filter((d) => d.state === "downloading").length,
     shortcuts: s.settings.shortcuts,
     extensions: extensionMenu(s, windowId),

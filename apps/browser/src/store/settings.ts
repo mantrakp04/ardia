@@ -33,7 +33,9 @@ export type Settings = {
   newTabPosition: "top" | "bottom";
   newTabOpens: "page" | "commandBar";
   warnBeforeClosingLastTab: boolean;
+  undoReopensClosedTab: boolean;
   warnBeforeMovingTabsToProfile: boolean;
+  shareTabsAcrossWindows: boolean;
   tabReorderHaptics: boolean;
   extendWebsiteColor: boolean;
   cmdClickCreatesTabGroup: boolean;
@@ -48,6 +50,7 @@ export type Settings = {
   sidebarMediaControls: boolean;
   sidebarWidth: number;
   showSidebarButton: boolean;
+  balancedTopApps: boolean;
   batterySaverWhen: BatterySaverWhen;
   extensionSidePanelWidth: number;
 
@@ -59,6 +62,7 @@ export type Settings = {
 
   appearance: "auto" | "light" | "dark";
   addressBar: "toolbar" | "sidebar";
+  commandBarPlacement: "field" | "centred";
 
   defaultProfileId: string;
 
@@ -93,7 +97,9 @@ export const DEFAULT_SETTINGS: Settings = {
   newTabPosition: "bottom",
   newTabOpens: "page",
   warnBeforeClosingLastTab: true,
+  undoReopensClosedTab: false,
   warnBeforeMovingTabsToProfile: true,
+  shareTabsAcrossWindows: false,
   tabReorderHaptics: true,
   extendWebsiteColor: true,
   cmdClickCreatesTabGroup: true,
@@ -108,6 +114,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sidebarMediaControls: true,
   sidebarWidth: 190,
   showSidebarButton: true,
+  balancedTopApps: false,
   batterySaverWhen: "lowBattery",
   extensionSidePanelWidth: 360,
   showFullUrl: false,
@@ -117,6 +124,7 @@ export const DEFAULT_SETTINGS: Settings = {
   hideBookmarksBarImport: false,
   appearance: "auto",
   addressBar: "toolbar",
+  commandBarPlacement: "field",
   defaultProfileId: DEFAULT_PROFILE_ID,
   shortcuts: {},
   openLinksInLittleArdia: true,

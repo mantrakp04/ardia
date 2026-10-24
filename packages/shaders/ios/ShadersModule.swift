@@ -26,6 +26,8 @@ public class WindowBackdropModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ArdiaWindowBackdrop")
 
+    AsyncFunction("holdKeyLook") { (on: Bool) in WindowTreatmentView.holdsKeyLook = on }.runOnQueue(.main)
+
     View(WindowBackdropView.self) {
       Prop("colors") { (view: WindowBackdropView, colors: [String]) in view.setColors(colors) }
       Prop("vibrancy") { (view: WindowBackdropView, on: Bool) in view.setVibrancy(on) }

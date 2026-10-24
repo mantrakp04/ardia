@@ -1,6 +1,7 @@
 import type { BrowserState } from "../../store/browser";
 import { activeTabId, viewTabIds } from "../../store/model";
 import { hiddenEmptyCard } from "../../store/newTabBar";
+import { splitRowPanes } from "../../store/splits";
 import { splitIndex, stableList } from "../../store/structure";
 import { tileCells } from "../../store/tileFolders";
 
@@ -40,8 +41,12 @@ function computeEntries(s: BrowserState, windowId: string, profileId?: string): 
     const tab = s.tabs[id]!;
     if ((tab.liveItem && !tab.pinned) || hiddenEmptyCard(s, tab)) continue;
     if (tab.pinned) {
-      if (tab.pinnedAsRow) pinned.push(`t:${id}`);
-      else tiles.push(id);
+      if (!tab.pinnedAsRow) tiles.push(id);
+      else {
+        const entry = pinnedRowEntry(s, id, splits);
+        if (!seen.has(entry)) pinned.push(entry);
+        seen.add(entry);
+      }
       continue;
     }
     const groupId = groupOf.get(id);
@@ -61,7 +66,7 @@ export function numberedTabs(s: BrowserState, windowId: string): string[] {
     const id = entry.slice(2);
     if (entry.startsWith("g:")) return groupEntries(s, id).flatMap(rowTab);
     if (!entry.startsWith("s:")) return [id];
-    const panes = (s.splits[id]?.tabIds ?? []).filter((tabId) => s.tabs[tabId] && !s.tabs[tabId]!.pinned);
+    const panes = splitRowPanes(s, s.splits[id]);
     if (active && panes.includes(active)) return [active];
     const last = panes.reduce<string | undefined>((a, b) => (!a || s.tabs[b]!.lastActiveAt > s.tabs[a]!.lastActiveAt ? b : a), undefined);
     return last ? [last] : [];
@@ -110,6 +115,11 @@ export function groupEntries(s: BrowserState, groupId: string): string[] {
   const result = stableList(cached?.result, out);
   groupMemo.set(g, { tabs: s.tabs, splits: s.splits, groups: s.groups, result });
   return result;
+}
+
+function pinnedRowEntry(s: BrowserState, tabId: string, splits: ReturnType<typeof splitIndex>): string {
+  for (const v of splits.get(tabId) ?? []) if (splitRowPanes(s, v).includes(tabId)) return `s:${v.id}`;
+  return `t:${tabId}`;
 }
 
 function splitEntry(s: BrowserState, tabId: string, splits = splitIndex(s.splits)): string {

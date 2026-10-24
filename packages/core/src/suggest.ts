@@ -483,7 +483,8 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   const typedUrl = fixupUrl(query);
   const calc = calculate(query);
   const creates = matchQuickCreate(raw.trimStart());
-  const actionMatches = matchActions(query, actions, 3).filter((m) => m.exact || m.score >= 50);
+  const actionRows = query.length >= 4 ? 4 : 2;
+  const actionMatches = matchActions(query, actions, actionRows).filter((m) => m.exact || m.score >= 50);
 
   const best = ranked[0];
   const target = inline && inlineTarget(q, inline.c);
@@ -500,7 +501,7 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   out.push(first);
   out.push(search);
   if (calc) out.push({ kind: "calc", expression: calc.expression, value: calc.display, url: searchUrl(engine, calc.expression) });
-  out.push(...actionMatches.slice(0, 2).map((m) => actionRow(m.action)));
+  out.push(...actionMatches.map((m) => actionRow(m.action)));
   out.push(...creates.map(createRow));
   const pageRows = ranked.map((x) => pageSuggestion(x.c, x.tabId));
   out.push(...pageRows.slice(0, 3));

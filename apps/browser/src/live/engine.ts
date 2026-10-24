@@ -109,12 +109,16 @@ export function errorText(kind: LiveError["kind"], source: LiveSourceId): string
 export function newLiveFolder(windowId: string, kind: LiveFolderKind): string | null {
   const w = useBrowser.getState().windows[windowId];
   if (!w || w.incognito) return null;
+  return newProfileLiveFolder(w.profileId, kind);
+}
+
+export function newProfileLiveFolder(profileId: string, kind: LiveFolderKind, sources?: LiveSourceId[]): string {
   const s = live();
-  const sources: LiveSourceId[] =
+  const connected: LiveSourceId[] =
     kind === "pullRequests"
       ? (["github", "bitbucket"] as const).filter((id) => s.accounts[id])
       : (["notion", "confluence", "gdrive"] as const).filter((id) => s.accounts[id]);
-  const id = createFolder(w.profileId, kind, sources.length ? sources : undefined);
+  const id = createFolder(profileId, kind, sources ?? (connected.length ? connected : undefined));
   void refreshFolder(id);
   return id;
 }

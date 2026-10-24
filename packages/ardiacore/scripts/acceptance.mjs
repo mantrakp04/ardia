@@ -15,6 +15,9 @@
 // Output: one line per check (PASS/FAIL, ms); a failure adds its first lines; the rest (evidence, state at a failure,
 // diagnostics) goes to <scratch dir>/data/acceptance.log, results to <scratch dir>/results.json. It never takes focus
 // and never touches a real profile: the data dir is <scratch dir>/data, wiped first (not when attaching).
+// Its instance keeps Chrome's audio (ARDIA_ALLOW_AUDIO=1) so Chrome reports audible tabs, and sends it to a fake output
+// (--disable-audio-output): nothing reaches the speakers. The fixtures play at -60 dBFS (Chrome's audible threshold is
+// -72); the automatic Picture in Picture checks need ffmpeg for their clip (made once into <scratch dir>/media).
 //
 // Sections (// MARK:): Fixtures (the HTTP/HTTPS fixture server, extensions, a CRX) · The app (launch, evalApp, cdp)
 // · Helpers · Checks (in run order: windows and tabs, pages, choosers and Cast, capture, restore, extensions, content
@@ -29,6 +32,7 @@
 //   cef(call) · exts(call)         ArdiaCEF / ArdiaExtensions module calls
 //   browserOf(tabId) · eventsOf(tabId) · lastEvent(tabId, name, test) · live(tabId) · pipWindows()
 //   openTab(url, title, background) · closeTab(id) · shownAndMounted(id) · freshTab(url) · backToA() · startVideo(tabId, audio)
+//   pipByHand(tabId)               Site Controls › Picture in Picture, clicked as the user does (manual PiP needs the click)
 //   launch(log, env, args, opts) · appUp(log)   (re)start the app on the run's data dir; `exited` is set once it's gone
 //   onScreenWindows() · firstPixel(png) · writePopupExtension(opts) · fixtureCrx()
 import { execFileSync } from "node:child_process";
@@ -125,6 +129,21 @@ if (flag("--list")) listChecks();
 const attaching = argv[0] === "--attach";
 if (attaching) argv.shift();
 const keep = flag("--keep") || attaching;
+const audioOutputOf = (browserPid) => {
+  const utilities = execFileSync("ps", ["-A", "-ww", "-o", "ppid=,command="], { encoding: "utf8" }).split("\n")
+    .filter((line) => line.trim().split(/\s+/)[0] === String(browserPid) && line.includes("--type=utility"));
+  if (!utilities.length) return null;
+  return utilities.some((line) => line.includes(" --disable-audio-output")) ? "fake" : "speakers";
+};
+const settledAudioOutput = async (browserPid) => {
+  for (const deadline = Date.now() + 15000; Date.now() < deadline; await sleep(200)) {
+    const output = audioOutputOf(browserPid);
+    if (output) return output;
+  }
+  return null;
+};
+const unproven = (output) => (output === "speakers" ? "plays sound through this Mac's speakers (started without --disable-audio-output)"
+  : "showed no Chrome helper within 15 s, so its audio output is unknown");
 let kept = null;
 if (attaching || keep) {
   try {
@@ -135,7 +154,12 @@ if (attaching || keep) {
       process.exit(66);
     }
   }
-  if (kept && !attaching && kept.app !== resolve(argv[0])) {
+  const keptOutput = kept && (attaching || kept.app === resolve(argv[0])) ? await settledAudioOutput(kept.pid) : null;
+  if (kept && attaching && keptOutput !== "fake") {
+    console.error(`--attach: pid ${kept.pid} ${unproven(keptOutput)}; quit it (scripts/agent/ac quit ${join(resolve(argv[0]), "data")}) and start a new run`);
+    process.exit(65);
+  }
+  if (kept && !attaching && (kept.app !== resolve(argv[0]) || keptOutput !== "fake")) {
     await kept.quit();
     kept = null;
   }
@@ -171,6 +195,17 @@ const adServed = [];
 const served = new Map();
 const siteDataDomain = "ardia-sitedata.com";
 const siteDataSecureHosts = [`s.${siteDataDomain}`, "embed.ardia-thirdparty.com", "top.ardia-elsewhere.com"];
+let clipBytes = null;
+const fixtureClip = () => {
+  const path = join(scratch, "media", "clip.webm");
+  if (!existsSync(path)) {
+    mkdirSync(join(scratch, "media"), { recursive: true });
+    execFileSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=30",
+      "-f", "lavfi", "-i", "aevalsrc=0.001*sin(2*PI*440*t):s=48000", "-t", "30", "-c:v", "libvpx", "-b:v", "200k", "-c:a", "libopus",
+      "-shortest", path], { stdio: "ignore" });
+  }
+  return (clipBytes ??= readFileSync(path));
+};
 const server = createServer((req, res) => {
   if (!req.headers.host?.startsWith("127.0.0.1")) adServed.push(`${req.headers.host}${req.url}`);
   served.set(req.url, (served.get(req.url) ?? 0) + 1);
@@ -220,13 +255,18 @@ const server = createServer((req, res) => {
     res.writeHead(200, { "content-type": "application/x-chrome-extension" });
     return res.end(fixtureCrx());
   }
+  if (url.pathname === "/clip.webm") {
+    const clip = fixtureClip();
+    res.writeHead(200, { "content-type": "video/webm", "content-length": String(clip.length) });
+    return res.end(clip);
+  }
   if (url.pathname === "/tone.wav") {
     const rate = 8000, n = rate;
     const wav = Buffer.alloc(44 + n * 2);
     wav.write("RIFF", 0); wav.writeUInt32LE(36 + n * 2, 4); wav.write("WAVEfmt ", 8); wav.writeUInt32LE(16, 16);
     wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22); wav.writeUInt32LE(rate, 24); wav.writeUInt32LE(rate * 2, 28);
     wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34); wav.write("data", 36); wav.writeUInt32LE(n * 2, 40);
-    for (let i = 0; i < n; i++) wav.writeInt16LE(Math.round(Math.sin((2 * Math.PI * 440 * i) / rate) * 3000), 44 + i * 2);
+    for (let i = 0; i < n; i++) wav.writeInt16LE(Math.round(Math.sin((2 * Math.PI * 440 * i) / rate) * 33), 44 + i * 2);
     res.writeHead(200, { "content-type": "audio/wav", "content-length": String(wav.length) });
     return res.end(wav);
   }
@@ -284,10 +324,16 @@ const server = createServer((req, res) => {
       const g = c.getContext("2d"); let n = 0;
       setInterval(() => { g.fillStyle = "hsl(" + ((n++ * 7) % 360) + ", 70%, 50%)"; g.fillRect(0, 0, 320, 180); }, 33);
       window.start = (audio) => {
+        if (location.search.includes("file")) {
+          const clip = document.getElementById("v");
+          clip.src = "/clip.webm";
+          clip.loop = true;
+          return clip.play().then(() => "ok", (e) => e.name);
+        }
         const stream = c.captureStream(30);
         if (audio) {
-          const ac = new AudioContext(), osc = ac.createOscillator(), out = ac.createMediaStreamDestination();
-          osc.connect(out); osc.start(); stream.addTrack(out.stream.getAudioTracks()[0]);
+          const ac = new AudioContext(), osc = ac.createOscillator(), quiet = new GainNode(ac, { gain: 0.001 }), out = ac.createMediaStreamDestination();
+          osc.connect(quiet).connect(out); osc.start(); stream.addTrack(out.stream.getAudioTracks()[0]);
         }
         const v = document.getElementById("v"); v.srcObject = stream;
         return v.play().then(() => "ok", (e) => e.name);
@@ -364,11 +410,12 @@ process.env.ARDIA_CHROMIUM_SWITCHES += ` --host-resolver-rules=${["ib.adnxs.com"
   .map((host) => `MAP ${host} 127.0.0.1:${server.address().port}`).concat([`one.${siteDataDomain}`, `two.${siteDataDomain}`, ...siteDataSecureHosts].map((host) => `MAP ${host} 127.0.0.1:${tlsServer.address().port}`)).join(", ")}`;
 process.env.ARDIA_CHROMIUM_SWITCHES += ` --apps-gallery-update-url=${base}/webstore/crx`;
 process.env.ARDIA_CHROMIUM_SWITCHES += ` --ignore-certificate-errors-spki-list=${tlsSpki}`;
+process.env.ARDIA_CHROMIUM_SWITCHES += " --disable-audio-output";
 async function launch(logName = "app.out.log", env = {}, args = [], opts = {}) {
   instance = await launchInstance(opts.app ?? app, {
     data, log: join(scratch, logName), args, ready: false,
     env: {
-      ARDIA_TEST_REAUTH: "granted", ARDIA_DOWNLOADS_DIR: downloadsDir,
+      ARDIA_TEST_REAUTH: "granted", ARDIA_DOWNLOADS_DIR: downloadsDir, ARDIA_ALLOW_AUDIO: "1",
       ...Object.fromEntries(["ARDIA_ALLOW_OCCLUSION", "ARDIA_TRACE_VISIBILITY", "ARDIA_TRACE_PIP"].filter((k) => process.env[k]).map((k) => [k, process.env[k]])),
       ARDIA_TRAFFIC_LIGHTS_LOG: lightsLog,
       ...env,
@@ -377,6 +424,11 @@ async function launch(logName = "app.out.log", env = {}, args = [], opts = {}) {
     meta: { http: server.address().port, https: tlsServer.address().port },
   });
   adopt(instance);
+  const output = await settledAudioOutput(pid);
+  if (output !== "fake") {
+    await instance.quit();
+    throw new Error(`pid ${pid} ${unproven(output)}: quit before any check plays sound`);
+  }
 }
 function adopt(i) {
   instance = i;
@@ -576,11 +628,18 @@ const lastEvent = async (tabId, name, test = () => true) => (await eventsOf(tabI
 const live = (tabId) => evalApp(`return ac.store.getState().live["${tabId}"] ?? null`);
 const pipWindows = () => cef(`devPictureInPicture()`).catch(() => null);
 const startVideo = async (tabId, audio) => {
-  const t = await pageFor(tabId, `${base}/video`);
+  const t = await pageFor(tabId, "/video");
   const r = await cdp(t, "Runtime.evaluate", { expression: `start(${audio})`, awaitPromise: true, userGesture: true, returnByValue: true });
   if (r.result?.value !== "ok") throw new Error(`the video didn't play: ${JSON.stringify(r.result ?? r)}`);
   await until("the video's first frames", async () => (await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('v').videoWidth", returnByValue: true })).result?.value > 0, 8000);
   return t;
+};
+const pipByHand = async (tabId) => {
+  await evalApp(`ac.pageState.setState((s) => ({ popover: { ...s.popover, ${JSON.stringify(tabId)}: "siteControls" } })); return true`);
+  return until("a click on Site Controls › Picture in Picture", async () => {
+    const click = await evalApp(`return ac.shell.devClick(${JSON.stringify(mainWindow)}, { label: "Picture in Picture", queued: true, wait: 300 })`);
+    return click?.error ? null : click;
+  }, 5000);
 };
 const stopApp = async () => {
   if (!exited) await instance.quit();
@@ -3110,9 +3169,9 @@ try {
     if (!media) throw new Error("no onMedia while playing");
     return { title: playing.payload.state.title, artist: playing.payload.state.artist, mediaEvents: media };
     } finally {
-      await evalApp(`return ac.webviews.get("${first.id}").setMuted(false)`).catch(() => null);
       await evalApp(`ac.store.getState().navigate("${first.id}", "${base}/a", { userInitiated: true }); return true`);
       await until("A again", async () => (await state()).tabs.find((t) => t.id === first.id && t.title === "Page A" && !t.loading));
+      await evalApp(`return ac.webviews.get("${first.id}").setMuted(false)`).catch(() => null);
     }
   });
 
@@ -3147,8 +3206,8 @@ try {
       }, 5000);
       return { muted: mutedEvent.payload, playing: on.payload, stopped: off.payload, stoppedAfterMs, unmuted: unmuted.payload };
     } finally {
-      await evalApp(`return ac.webviews.get("${first.id}").setMuted(false)`).catch(() => null);
       await backToA();
+      await evalApp(`return ac.webviews.get("${first.id}").setMuted(false)`).catch(() => null);
     }
   });
 
@@ -3157,8 +3216,7 @@ try {
     try {
       await evalApp(`return ac.webviews.get("${tab.id}").setMuted(true)`);
       const t = await startVideo(tab.id, false);
-      const requested = await evalApp(`return ac.webviews.get("${tab.id}").requestPictureInPicture()`);
-      if (requested !== true) throw new Error(`requestPictureInPicture answered ${requested}`);
+      const click = await pipByHand(tab.id);
       const on = await until("onPictureInPicture video", async () => lastEvent(tab.id, "pictureInPicture", (p) => p.kind === "video" && p.active), 5000);
       const element = (await cdp(t, "Runtime.evaluate", { expression: "document.pictureInPictureElement?.id ?? null", returnByValue: true })).result.value;
       const video = await until("Chrome's PiP window, styled", async () => (await pipWindows())?.find((w) => w.video && w.styled) ?? null, 5000)
@@ -3190,7 +3248,7 @@ try {
         const e = await lastEvent(tab.id, "pictureInPicture");
         return e && e.payload.kind === "document" && !e.payload.active ? e : null;
       }, 5000);
-      return { requested, on: on.payload, element, window: { frame: video.frame, level: video.level, alpha: video.alpha }, menu, off: off.payload,
+      return { clickAt: click.at, on: on.payload, element, window: { frame: video.frame, level: video.level, alpha: video.alpha }, menu, off: off.payload,
         docOn: docOn.payload, docWindow: { title: docWindow.title, alpha: docWindow.alpha }, docOff: docOff.payload };
     } finally {
       await closeTab(tab.id);
@@ -3199,10 +3257,9 @@ try {
 
   await check("auto-picture-in-picture", async () => {
     const results = {};
-    for (const [path, kind] of [["/video?auto", "video"], ["/video?docpip", "document"]]) {
-      const tab = await openTab(`${base}${path}`, "Video");
+    for (const [path, kind] of [["/video?auto&file", "video"], ["/video?docpip", "document"]]) {
+      const tab = await openTab(`${secureBase}${path}`, "Video");
       try {
-        await evalApp(`return ac.webviews.get("${tab.id}").setMuted(true)`);
         await startVideo(tab.id, true);
         await until("live.playingAudio", async () => (await live(tab.id))?.playingAudio === true, 8000);
         await until("onNowPlaying with video", async () => lastEvent(tab.id, "nowPlaying", (p) => p.state?.hasVideo && p.state?.playbackState === "playing"), 5000);
@@ -3232,7 +3289,7 @@ try {
       await evalApp(`return ac.webviews.get("${tab.id}").setMuted(true)`);
       const t = await startVideo(tab.id, false);
       const open = async () => {
-        if ((await evalApp(`return ac.webviews.get("${tab.id}").requestPictureInPicture()`)) !== true) throw new Error("requestPictureInPicture failed");
+        await pipByHand(tab.id);
         await until("the styled PiP window", async () => (await pipWindows())?.find((w) => w.video && w.styled && w.visible) ?? null, 5000);
       };
       await open();
@@ -3656,10 +3713,9 @@ try {
     try {
       await win("fakeOcclusion:visible");
       await win("fakeFullScreenMs:700");
-      for (const [path, name] of [["/video?fkey", "plain"], ["/video?fkey&handlers", "handlers"]]) {
-        const tab = await openTab(`${base}${path}`, "Video");
+      for (const [path, name] of [["/video?fkey&file", "plain"], ["/video?fkey&handlers", "handlers"]]) {
+        const tab = await openTab(`${secureBase}${path}`, "Video");
         try {
-          await evalApp(`return ac.webviews.get("${tab.id}").setMuted(true)`);
           const t = await startVideo(tab.id, true);
           await until("live.playingAudio", async () => (await live(tab.id))?.playingAudio === true, 8000);
           await until("onNowPlaying playing", async () => lastEvent(tab.id, "nowPlaying", (p) => p.state?.hasVideo && p.state?.playbackState === "playing"), 5000);
@@ -3703,7 +3759,7 @@ try {
               ["tab", () => evalApp(`ac.actions.switchToTab("${first.id}"); return true`), () => evalApp(`ac.actions.switchToTab("${tab.id}"); return true`)],
               ["window", () => win("fakeOcclusion:occluded"), () => win("fakeOcclusion:visible")],
             ]) {
-              if ((await evalApp(`return ac.webviews.get("${tab.id}").requestPictureInPicture()`)) !== true) throw new Error("requestPictureInPicture failed");
+              await pipByHand(tab.id);
               const opened = await until("PiP opened by hand", async () => lastEvent(tab.id, "pictureInPicture", (p) => p.kind === "video" && p.active), 5000);
               await leave();
               await sleep(800);

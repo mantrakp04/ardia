@@ -153,7 +153,7 @@ export function loadSession(): HydrateData | null {
   };
   if (session.settings && session.settings.restoreSession === false) {
     const now = Date.now();
-    const pinSource = { tabs: data.tabs ?? {}, groups: data.groups ?? {}, history: {} };
+    const pinSource = { tabs: data.tabs ?? {}, groups: data.groups ?? {}, splits: data.splits ?? {}, history: {} };
     for (const w of session.windows) data.parkedPins = parkWindowPins(data.parkedPins ?? {}, w, pinSource);
     data.closedWindows = [
       ...(data.closedWindows ?? []),

@@ -11,6 +11,9 @@ import type { ProfileColor } from "../../store/types";
 import { importModule } from "./module";
 import { adoptProfileTheme } from "../../sync/engine";
 import { parseArcTheme } from "./arcTheme";
+import { newProfileLiveFolder } from "../../live/engine";
+import { live } from "../../live/store";
+import type { LiveSourceId } from "../../live/types";
 
 export type ImportCounts = { bookmarks: number; history: number; tabs: number; passwords: number; cookies: number; addresses: number; cards: number };
 
@@ -25,6 +28,23 @@ const toGroupDraft = (n: ImportedNode): GroupDraft =>
   n.type === "url"
     ? { title: n.pageTitle ?? n.title, url: n.url ?? "", ...(n.pageTitle ? { customTitle: n.title } : {}) }
     : { title: n.title, children: (n.children ?? []).map(toGroupDraft) };
+
+const LIVE_SOURCES: Partial<Record<NonNullable<ImportedNode["role"]>, LiveSourceId>> = {
+  liveGitHubPullRequests: "github",
+  liveBitbucketPullRequests: "bitbucket",
+};
+const liveSourceOf = (n: ImportedNode) => (n.role ? LIVE_SOURCES[n.role] : undefined);
+const liveSources = (nodes: ImportedNode[]): LiveSourceId[] =>
+  nodes.flatMap((n) => [...(liveSourceOf(n) ? [liveSourceOf(n)!] : []), ...liveSources(n.children ?? [])]);
+const withoutLiveFolders = (nodes: ImportedNode[]): ImportedNode[] =>
+  nodes.filter((n) => !liveSourceOf(n)).map((n) => (n.children ? { ...n, children: withoutLiveFolders(n.children) } : n));
+
+function importPullRequestsFolders(profileId: string, nodes: ImportedNode[]) {
+  for (const source of new Set(liveSources(nodes))) {
+    const have = Object.values(live().folders).some((f) => f.profileId === profileId && f.kind === "pullRequests" && f.sources.includes(source));
+    if (!have) newProfileLiveFolder(profileId, "pullRequests", [source]);
+  }
+}
 
 const linkCount = (nodes: ImportedNode[]): number => nodes.reduce((n, c) => n + (c.type === "url" ? 1 : linkCount(c.children ?? [])), 0);
 
@@ -145,7 +165,8 @@ export function importTabs(
 
 export function importArcSpace(profileId: string, space: SpaceSuggestion): { tabs: number; bookmarks: number; skipped: number } {
   const links = space.pinned.filter((n) => n.type === "url" && n.url);
-  const folders = space.pinned.filter((n) => n.type === "folder");
+  importPullRequestsFolders(profileId, space.pinned);
+  const folders = withoutLiveFolders(space.pinned.filter((n) => n.type === "folder"));
   let tabs = importTabs(
     profileId,
     links.map((n) => ({ url: n.url!, title: n.pageTitle ?? n.title, pinned: true, row: true, customTitle: n.pageTitle ? n.title : undefined })),

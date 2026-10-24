@@ -36,6 +36,7 @@
 #include "mojo/public/cpp/bindings/associated_remote.h"
 #include "mojo/public/cpp/bindings/callback_helpers.h"
 #include "ardia/core/ac_browser.h"
+#include "ardia/core/ac_content_hooks.h"
 #include "ardia/core/ac_page_limits.h"
 #import "ardia/core/ardiacore_internal.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
@@ -564,12 +565,8 @@ PictureInPictureRoute PageChannel::EnterPictureInPictureForClick(
   if (!click || !MainDocumentUnchangedSince(*click)) {
     return PictureInPictureRoute::kNone;
   }
-  content::MediaSession* session = content::MediaSession::Get(&GetWebContents());
-  if (std::ranges::contains(
-          session->GetMediaSessionActionsSync(),
-          media_session::mojom::MediaSessionAction::kEnterPictureInPicture) &&
-      session->GetRoutedFrame() == GetWebContents().GetPrimaryMainFrame()) {
-    session->EnterPictureInPicture();
+  if (content::ArdiaMainFrameHandlesEnterPictureInPicture(&GetWebContents())) {
+    content::MediaSession::Get(&GetWebContents())->EnterPictureInPicture();
     return PictureInPictureRoute::kMediaSession;
   }
   mojom::ACPage* page = MainPage();

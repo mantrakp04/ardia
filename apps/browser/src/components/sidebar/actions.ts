@@ -3,7 +3,7 @@ import { copyText, prompt } from "@ardia/shell";
 import { updateFolder } from "../../live/store";
 import { useBrowser } from "../../store/browser";
 import { ancestorIds } from "../../store/groups";
-import { activeTabId, bookmarkProfileId, tabLayoutOf, viewTabIds } from "../../store/model";
+import { activeTabId, bookmarkProfileId, pinSection, tabLayoutOf, viewTabIds } from "../../store/model";
 import { groupLabel, groupOf, selectedTabIds } from "../../store/organize";
 import type { Tab } from "../../store/types";
 import { measureRow, setSidebarUi, sidebarUi, type Target } from "./state";
@@ -116,7 +116,7 @@ export function setIcon(target: Target, icon: string | null) {
 }
 
 export function newGroupWithSelection(windowId: string, ids = selectedTabIds(store(), windowId)) {
-  const groupId = store().groupTabs(ids.filter((id) => !store().tabs[id]?.pinned));
+  const groupId = store().groupTabs(ids.filter((id) => pinSection(store().tabs[id]) !== "tile"));
   if (groupId && sidebarShows(windowId)) void startRename(windowId, { kind: "group", id: groupId });
   return groupId;
 }

@@ -39,8 +39,8 @@ export function lightsCenter(offset: number, down = 0, base: readonly [number, n
 
 export const cardLeft = (dock: number, width: number, inset: number) => inset + (width - inset) * dock;
 
-type DockMotion = { moving: Record<string, true> };
-export const useDockMotion = create<DockMotion>()(() => ({ moving: {} }));
+type DockMotion = { moving: Record<string, true>; peeks: Record<string, number> };
+export const useDockMotion = create<DockMotion>()(() => ({ moving: {}, peeks: {} }));
 
 export const dockMoving = (windowId: string) => !!useDockMotion.getState().moving[windowId];
 
@@ -53,10 +53,15 @@ export function setDockMoving(windowId: string, moving: boolean) {
   });
 }
 
-const peeking = new Map<string, number>();
-export const setPeekShown = (windowId: string, shown: boolean, rightEdge = 0) => void (shown ? peeking.set(windowId, rightEdge) : peeking.delete(windowId));
-export const peekShown = (windowId: string) => peeking.has(windowId);
-export const overPeek = (windowId: string, x: number) => x < (peeking.get(windowId) ?? -Infinity);
+export function setPeekShown(windowId: string, shown: boolean, rightEdge = 0) {
+  const current = useDockMotion.getState().peeks;
+  if (shown ? current[windowId] === rightEdge : !(windowId in current)) return;
+  const { [windowId]: _, ...rest } = current;
+  useDockMotion.setState({ peeks: shown ? { ...current, [windowId]: rightEdge } : rest });
+}
+export const peekShown = (windowId: string) => windowId in useDockMotion.getState().peeks;
+export const overPeek = (windowId: string, x: number) => x < (useDockMotion.getState().peeks[windowId] ?? -Infinity);
+export const usePeekEdge = (windowId: string): number | undefined => useDockMotion((m) => m.peeks[windowId]);
 export const devPeeks: Record<string, { show(): void; hide(): void }> = {};
 
 export const HEADER_TOOLS = { toggleX: 70.75 + 27, pitch: 35, edge: 7, lightsRight: 70.75 + 7 } as const;

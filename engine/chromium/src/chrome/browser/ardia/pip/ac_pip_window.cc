@@ -23,6 +23,7 @@
 #include "ui/gfx/font_list.h"
 #include "ui/gfx/geometry/resize_utils.h"
 #include "ui/gfx/text_constants.h"
+#include "ui/views/animation/ink_drop.h"
 #include "ui/views/background.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
@@ -31,6 +32,13 @@ namespace {
 
 constexpr base::TimeDelta kCloseFade = base::Milliseconds(100);
 constexpr base::TimeDelta kHideFade = base::Milliseconds(70);
+constexpr int kSeekButtonSize = 40;
+constexpr int kSeekButtonCenterOffset = 76;
+
+void StyleSeekButton(SimpleOverlayWindowImageButton* button) {
+  views::InkDrop::Get(button)->SetMode(views::InkDropHost::InkDropMode::OFF);
+  button->SetSize({kSeekButtonSize, kSeekButtonSize});
+}
 
 template <typename T, typename U>
 T* ReplaceView(raw_ptr<U>& view, std::unique_ptr<T> replacement) {
@@ -45,7 +53,14 @@ T* ReplaceView(raw_ptr<U>& view, std::unique_ptr<T> replacement) {
 
 ArdiaVideoOverlayWindow::ArdiaVideoOverlayWindow(
     content::VideoPictureInPictureWindowController* controller)
-    : VideoOverlayWindowViews(controller), ac_hide_fade_(kHideFade) {}
+    : VideoOverlayWindowViews(controller), ac_hide_fade_(kHideFade) {
+  hide_controls_timer_.Start(
+      FROM_HERE, hide_controls_timer_.GetCurrentDelay(),
+      base::BindRepeating(
+          &ArdiaVideoOverlayWindow::HideIdleControlsUnlessPointerOnControl,
+          base::Unretained(this)));
+  hide_controls_timer_.Stop();
+}
 
 ArdiaVideoOverlayWindow::~ArdiaVideoOverlayWindow() = default;
 
@@ -81,6 +96,8 @@ void ArdiaVideoOverlayWindow::SetUpViews() {
   play_pause->SetSize({kCenterButtonSize, kCenterButtonSize});
   play_pause_controls_view_ =
       ReplaceView(play_pause_controls_view_, std::move(play_pause));
+  StyleSeekButton(replay_10_seconds_button_.get());
+  StyleSeekButton(forward_10_seconds_button_.get());
 
   ac_progress_bar_ = playback_controls_container_view_->AddChildViewAt(
       std::make_unique<ArdiaProgressBar>(base::BindRepeating(
@@ -112,9 +129,15 @@ void ArdiaVideoOverlayWindow::OnUpdateControlsBounds() {
     return;
   }
 
+  const gfx::Point center(size.width() / 2, (size.height() + 1) / 2);
   play_pause_controls_view_->SetPosition(
-      {size.width() / 2 - kCenterButtonSize / 2,
-       (size.height() + 1) / 2 - kCenterButtonSize / 2});
+      {center.x() - kCenterButtonSize / 2, center.y() - kCenterButtonSize / 2});
+  replay_10_seconds_button_->SetPosition(
+      {center.x() - kSeekButtonCenterOffset - kSeekButtonSize / 2,
+       center.y() - kSeekButtonSize / 2});
+  forward_10_seconds_button_->SetPosition(
+      {center.x() + kSeekButtonCenterOffset - kSeekButtonSize / 2,
+       center.y() - kSeekButtonSize / 2});
   ac_progress_bar_->Place(size);
   ac_progress_bar_->SetVisible(!is_live_);
   progress_view_->SetVisible(false);
@@ -124,8 +147,6 @@ void ArdiaVideoOverlayWindow::OnUpdateControlsBounds() {
   if (toggle_mute_button_) {
     toggle_mute_button_->SetVisible(false);
   }
-  replay_10_seconds_button_->SetVisible(false);
-  forward_10_seconds_button_->SetVisible(false);
   previous_track_controls_view_->SetVisible(false);
   next_track_controls_view_->SetVisible(false);
 }
@@ -251,6 +272,22 @@ void ArdiaVideoOverlayWindow::OnCloseButtonPressed() {
   ac_hide_fade_ = kCloseFade;
   PictureInPictureWindowManager::GetInstance()->ExitPictureInPictureViaWindowUi(
       PictureInPictureWindowManager::UiBehavior::kCloseWindowOnly);
+}
+
+void ArdiaVideoOverlayWindow::HideIdleControlsUnlessPointerOnControl() {
+  const gfx::Point pointer = display::Screen::Get()->GetCursorScreenPoint() -
+                             GetBounds().OffsetFromOrigin();
+  const views::View* controls[] = {
+      back_to_tab_button_.get(),        close_controls_view_.get(),
+      play_pause_controls_view_.get(),  replay_10_seconds_button_.get(),
+      forward_10_seconds_button_.get(), ac_progress_bar_.get()};
+  for (const views::View* control : controls) {
+    if (control->GetVisible() &&
+        control->GetMirroredBounds().Contains(pointer)) {
+      return;
+    }
+  }
+  UpdateControlsVisibility(false, true);
 }
 
 void ArdiaVideoOverlayWindow::OnNativeWidgetDestroyed() {
