@@ -52,6 +52,8 @@ const DOCK = DOCKED_BOTTOM + ROW_PITCH;
 const ROWS_PER_FRAME = 32;
 const DOCK_SHARE = 0.4;
 const NONE: string[] = [];
+const DOTS_SIDE = 12;
+const DOTS_SIDE_WITH_DOWNLOADS = layout.sidebarInset + SIDEBAR_FOOTER_DOWNLOADS.size + 4;
 
 export function Sidebar({ width }: { width: number }) {
   const windowId = useWindowId();
@@ -146,7 +148,7 @@ export function Sidebar({ width }: { width: number }) {
 
           {footer ? (
             <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: footer }}>
-              {dots ? <ProfileDots windowId={windowId} /> : null}
+              {dots ? <ProfileDots windowId={windowId} sideRoom={footerDownloads ? DOTS_SIDE_WITH_DOWNLOADS : DOTS_SIDE} /> : null}
               {footerDownloads ? (
                 <View style={{ position: "absolute", left: layout.sidebarInset, bottom: SIDEBAR_FOOTER_DOWNLOADS.bottom }}>
                   <DownloadsButton windowId={windowId} />
