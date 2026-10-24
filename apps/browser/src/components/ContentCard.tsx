@@ -23,8 +23,9 @@ import { removeTabs } from "../store/tabs";
 import { splitOf } from "../store/splits";
 import type { SplitView, Tab } from "../store/types";
 import { BOOKMARKS_BAR_HEIGHT, BookmarksBar, bookmarksBarShown, useBookmarksBarMode, type BookmarksBarMode } from "./bookmarks/BookmarksBar";
-import { CliControlBar, CliControlPill } from "./CliControlBar";
+import { CliControlPill, useCliPillPlacements } from "./CliControlPill";
 import { FindBar } from "./FindBar";
+import { cliPillHost, cliPillWidthIn, statusBubblePlacement, windowPillWidth } from "./layout/cliPillLayout";
 import { POPOVER_MARGIN } from "./layout/controls";
 import { NO_TOOLBAR, splitGeometry, toolbarGeometry, type Rect, type ToolbarGeometry } from "./layout/geometry";
 import { dismissPermissions, startPermissionPrompts } from "./site/permissions";
@@ -36,7 +37,7 @@ import { SplitEmptyState } from "./layout/SplitEmptyState";
 import { pagerFor } from "./layout/profilePager";
 import { openFromPage } from "./layout/openFromPage";
 import { dockMoving, useDockMotion, usePeekEdge } from "./layout/dockMotion";
-import { FrozenPage } from "./layout/frozenPage";
+import { FrozenPage, useFrozenPageShown } from "./layout/frozenPage";
 import { holderOf } from "../store/pinShare";
 import { closeFolderPanelIn } from "./sidebar/tileFolderUi";
 import { setCardAnchor, setUrlAnchor, useAddressBarInSidebar, useTabLayout, useToolbarExtensionsWidths } from "./layout/windowLayout";
@@ -65,6 +66,7 @@ import { closeWebNotification, showWebNotification } from "../lib/webNotificatio
 import { isSmallWindow } from "../store/small";
 import { closeLittleArdiaOnEscape } from "./littleArdia/actions";
 import { PeekOverlay } from "./peek/PeekOverlay";
+import { peekPageRect } from "./peek/peekGeometry";
 import { closePeekOnEscape, dismissPeek, startPeeks } from "./peek/actions";
 
 export function ContentCard() {
@@ -88,6 +90,10 @@ export function ContentCard() {
   useEffect(startPeeks, []);
   const peekId = useBrowser((s) => s.peeks[windowId]?.tabId);
   const peekFullscreen = !!peekId && fullscreenTab === peekId;
+  const peekShown = !!peekId && (!fullscreenTab || peekFullscreen) && !small;
+  const cliPillTab = cliPillHost({ activeId, fullscreenTab, peekId: peekShown ? peekId : undefined });
+  const frozenShown = useFrozenPageShown(windowId, activeId, size.width > 0 && !split && !fullscreenTab);
+  const cliPillOverFrozen = frozenShown && !!activeId && cliPillTab === activeId;
   useEffect(() => {
     if (fullscreenTab && peekId && !peekFullscreen) dismissPeek(windowId);
   }, [fullscreenTab, peekId, peekFullscreen, windowId]);
@@ -202,6 +208,11 @@ export function ContentCard() {
     }),
   );
 
+  const cliPillPanes = useMemo(
+    () => (peekShown && peekId && !peekFullscreen && size.width > 0 ? { ...panes, [peekId]: peekPageRect(size.width, size.height) } : panes),
+    [panes, peekShown, peekId, peekFullscreen, size.width, size.height],
+  );
+
   const geometryFor = (rect: Rect | undefined): ToolbarGeometry => {
     if (addressInSidebar || small) return NO_TOOLBAR;
     const leading = !!rect && rect.x === 0 && rect.y === 0;
@@ -285,6 +296,7 @@ export function ContentCard() {
               barMode={barMode}
               windowToolbar={windowToolbar}
               popovers={tabId !== popoversOverCard}
+              cliPill={tabId === cliPillTab && !cliPillOverFrozen && !(peekShown && tabId === peekId)}
             />
           );
         })}
@@ -293,6 +305,11 @@ export function ContentCard() {
       )}
       {size.width > 0 && !split && !fullscreenTab && (
         <FrozenPage windowId={windowId} tabId={activeId} top={(!addressInSidebar && !small && !hideWhileScrolling ? layout.toolbarHeight : 0) + (barMode === "always" && !small && !hideWhileScrolling ? BOOKMARKS_BAR_HEIGHT : 0)} />
+      )}
+      {cliPillOverFrozen && activeId && (
+        <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+          <CliControlPill tabId={activeId} paneWidth={size.width} />
+        </View>
       )}
       {split && !fullscreenTab && <SplitDividers split={split} dividers={dividers} width={size.width} height={size.height} />}
       {size.width > 0 && popoversOverCard && origin && activeRect && peekEdge !== undefined && (
@@ -304,7 +321,7 @@ export function ContentCard() {
         />
       )}
       {!fullscreenTab && <DropTargets panes={panes} origin={origin} />}
-      {(!fullscreenTab || peekFullscreen) && !small && (
+      {peekShown && (
         <PeekOverlay
           windowId={windowId}
           width={size.width}
@@ -314,7 +331,7 @@ export function ContentCard() {
           page={(tabId, sourceId, width) => <PeekPage tabId={tabId} sourceId={sourceId} windowId={windowId} width={width} fullscreen={peekFullscreen} />}
         />
       )}
-      <SplitToast windowId={windowId} />
+      <SplitToast windowId={windowId} panes={cliPillPanes} width={size.width} height={size.height} cliPillTab={cliPillTab} />
     </View>
   );
 }
@@ -339,6 +356,7 @@ const TabPane = memo(function TabPane({
   barMode,
   windowToolbar,
   popovers,
+  cliPill,
 }: {
   tabId: string;
   windowId: string;
@@ -359,6 +377,7 @@ const TabPane = memo(function TabPane({
   barMode: BookmarksBarMode;
   windowToolbar: boolean;
   popovers: boolean;
+  cliPill: boolean;
 }) {
   const theme = useTheme();
   const visible = !!rect;
@@ -414,7 +433,6 @@ const TabPane = memo(function TabPane({
       <Animated.View style={autoLayout ? motion.groupStyle : { flex: 1 }}>
         {autoLayout && bookmarksBar && <BookmarksBar placeholder={!visible} />}
         <View style={autoLayout ? { height: motion.pageHeight } : { flex: 1 }}>
-          {visible && !fullscreen && (focused || !inSplit) && <CliControlBar />}
           {visible && !fullscreen && <ShareBar tabId={tabId} />}
           <View style={{ flex: 1 }}>
             {(mounted || prewarmed) && <TabWebView tabId={tabId} visible={visible && !newTabShown && !isNewTab} warm={!!warm && !newTabShown && !isNewTab} />}
@@ -431,6 +449,7 @@ const TabPane = memo(function TabPane({
                 newTabShown={newTabShown}
                 statusStyle={autoLayout ? motion.bottomStyle : undefined}
                 popovers={popovers}
+                cliPill={cliPill && !covered}
               />
             )}
           </View>
@@ -452,6 +471,7 @@ function PageOverlays({
   newTabShown,
   statusStyle,
   popovers = true,
+  cliPill,
 }: {
   tabId: string;
   windowId: string;
@@ -462,18 +482,21 @@ function PageOverlays({
   newTabShown: boolean;
   statusStyle?: Animated.WithAnimatedValue<ViewStyle>;
   popovers?: boolean;
+  cliPill: boolean;
 }) {
   const popover = usePages((s) => s.popover[tabId] ?? null);
   const zoom = useTabValue(tabId, (t) => t?.zoom ?? 1);
+  const cliPillWidth = useCliPillPlacements((placements) => (cliPill ? windowPillWidth(placements, windowId) : 0));
+  const cliPillShownHere = useCliPillPlacements((placements) => cliPill && cliPillWidthIn(placements, windowId, tabId) > 0);
+  const bubble = statusBubblePlacement(width, cliPillWidth);
   const popoverSide = toolbar ? { right: POPOVER_MARGIN } : { left: POPOVER_MARGIN };
   return (
     <>
       <FindBar tabId={tabId} />
-      {fullscreen && <CliControlPill />}
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, statusStyle]}>
-        <StatusBubble tabId={tabId} maxWidth={Math.max(160, width / 2)} />
+        <StatusBubble tabId={tabId} maxWidth={bubble.maxWidth} bottom={bubble.bottom} />
       </Animated.View>
-      <SadTab tabId={tabId} />
+      <SadTab tabId={tabId} pillShown={cliPillShownHere} bottomStyle={statusStyle} />
       {!newTabShown && <PermissionPrompt tabId={tabId} left={Math.max(POPOVER_MARGIN, Math.min(geometry.urlLeft, width - 308))} top={POPOVER_MARGIN} />}
       <PasswordPrompt tabId={tabId} right={POPOVER_MARGIN} top={POPOVER_MARGIN} />
       <AutofillPrompt tabId={tabId} right={POPOVER_MARGIN} top={POPOVER_MARGIN} />
@@ -486,6 +509,11 @@ function PageOverlays({
       <CastPicker tabId={tabId} paneWidth={width} />
       <NavigationOverlays tabId={tabId} windowId={windowId} geometry={geometry} />
       <SelectionPopover tabId={tabId} zoom={zoom} />
+      {cliPill && (
+        <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, statusStyle]}>
+          <CliControlPill tabId={tabId} paneWidth={width} />
+        </Animated.View>
+      )}
     </>
   );
 }
@@ -506,7 +534,7 @@ function PeekPage({ tabId, sourceId, windowId, width, fullscreen }: { tabId: str
   return (
     <>
       <TabWebView tabId={tabId} visible warm={false} peekOf={sourceId} />
-      <PageOverlays tabId={tabId} windowId={windowId} width={width} geometry={NO_TOOLBAR} toolbar={false} fullscreen={fullscreen} newTabShown={false} />
+      <PageOverlays tabId={tabId} windowId={windowId} width={width} geometry={NO_TOOLBAR} toolbar={false} fullscreen={fullscreen} newTabShown={false} cliPill />
     </>
   );
 }

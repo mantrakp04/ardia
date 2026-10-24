@@ -1,0 +1,257 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { test } from "node:test";
+
+const { CLI_PILL_BOTTOM, CLI_PILL_HEIGHT, statusBubblePlacement, statusBubbleWidth } = await import("./cliPillLayout.ts");
+
+const pillLeft = (paneWidth, pillWidth) => (paneWidth - pillWidth) / 2;
+
+test("with no pill the status bubble keeps Chrome's place and width", () => {
+  assert.deepEqual(statusBubblePlacement(1200, 0), { maxWidth: 600, bottom: 6 });
+  assert.deepEqual(statusBubblePlacement(240, 0), { maxWidth: 160, bottom: 6 });
+});
+
+test("a wide pane narrows the bubble so it ends before the pill", () => {
+  for (const paneWidth of [600, 900, 1200, 1800]) {
+    const { maxWidth, bottom } = statusBubblePlacement(paneWidth, 230);
+    assert.equal(bottom, 6);
+    assert.ok(6 + maxWidth <= pillLeft(paneWidth, 230) - 8, `pane ${paneWidth}`);
+    assert.ok(maxWidth <= statusBubbleWidth(paneWidth));
+  }
+});
+
+test("a narrow pane lifts the bubble above the pill instead", () => {
+  for (const paneWidth of [300, 400, 480]) {
+    const { maxWidth, bottom } = statusBubblePlacement(paneWidth, 230);
+    assert.ok(bottom >= CLI_PILL_BOTTOM + CLI_PILL_HEIGHT + 6, `pane ${paneWidth}`);
+    assert.equal(maxWidth, statusBubbleWidth(paneWidth));
+  }
+});
+
+const { CLI_PILL_CLEARANCE, cliPillColors, cliPillHost, cliPillPlacements, cliPillWidthIn, pageToastLift, placeCliPill, resetCliPillPlacements, windowToastLift, withdrawCliPill } = await import("./cliPillLayout.ts");
+
+test("the pill's card is the peek, else the full screen tab, else the focused card", () => {
+  assert.equal(cliPillHost({ activeId: "a" }), "a");
+  assert.equal(cliPillHost({ activeId: "a", fullscreenTab: "b" }), "b");
+  assert.equal(cliPillHost({ activeId: "a", fullscreenTab: "b", peekId: "p" }), "p");
+  assert.equal(cliPillHost({ activeId: "a", fullscreenTab: null, peekId: undefined }), "a");
+  assert.equal(cliPillHost({}), undefined);
+});
+
+test("one placement per window; a withdrawn card's leftover cleanup doesn't remove the new card's pill", () => {
+  resetCliPillPlacements();
+  const [a, x, b] = [{}, {}, {}];
+  placeCliPill("w1", a, "a", 230);
+  placeCliPill("w2", x, "x", 230);
+  placeCliPill("w1", b, "b", 228);
+  withdrawCliPill("w1", a);
+  assert.deepEqual(cliPillPlacements.getState(), { w1: { tabId: "b", width: 228 }, w2: { tabId: "x", width: 230 } });
+  withdrawCliPill("w1", b);
+  assert.deepEqual(cliPillPlacements.getState(), { w2: { tabId: "x", width: 230 } });
+  assert.equal(cliPillWidthIn(cliPillPlacements.getState(), "w2", "x"), 230);
+  assert.equal(cliPillWidthIn(cliPillPlacements.getState(), "w2", "y"), 0);
+  assert.equal(cliPillWidthIn(cliPillPlacements.getState(), "w1", "b"), 0);
+  resetCliPillPlacements();
+});
+
+test("two pills placed for the same card: unmounting one keeps the other's placement", () => {
+  resetCliPillPlacements();
+  const [peekPage, fullscreenPane] = [{}, {}];
+  placeCliPill("w1", peekPage, "peek", 232);
+  placeCliPill("w1", fullscreenPane, "peek", 232);
+  withdrawCliPill("w1", fullscreenPane);
+  assert.deepEqual(cliPillPlacements.getState(), { w1: { tabId: "peek", width: 232 } });
+  withdrawCliPill("w1", fullscreenPane);
+  assert.deepEqual(cliPillPlacements.getState(), { w1: { tabId: "peek", width: 232 } });
+  withdrawCliPill("w1", peekPage);
+  assert.deepEqual(cliPillPlacements.getState(), {});
+});
+
+test("a page's toast lifts only when the pill is shown in that same card", () => {
+  const placements = { w1: { tabId: "a", width: 230 } };
+  assert.equal(pageToastLift(placements, "w1", "a", 24), CLI_PILL_CLEARANCE - 24);
+  assert.equal(pageToastLift(placements, "w1", "b", 24), 0);
+  assert.equal(pageToastLift(placements, "w2", "a", 24), 0);
+  assert.equal(pageToastLift({}, "w1", "a", 24), 0);
+  assert.equal(pageToastLift({ w1: { tabId: "a", width: 0 } }, "w1", "a", 24), 0);
+});
+
+const toastIn = (width, height, over = {}) => ({ width: 300, height: 40, containerWidth: width, containerHeight: height, bottom: 22, ...over });
+
+test("the window's split toast lifts only when the pill in that window sits under it", () => {
+  const toast = toastIn(1200, 800);
+  const full = { a: { x: 0, y: 0, width: 1200, height: 800 } };
+  const lift = CLI_PILL_CLEARANCE - 22;
+  assert.equal(windowToastLift({ w1: { tabId: "a", width: 230 } }, "w1", { hostTab: "a", panes: full }, toast), lift);
+  assert.equal(windowToastLift({}, "w1", { hostTab: "a", panes: full }, toast), 0);
+  assert.equal(windowToastLift({ w2: { tabId: "a", width: 230 } }, "w1", { hostTab: "a", panes: full }, toast), 0);
+  const split = { a: { x: 0, y: 0, width: 400, height: 800 }, b: { x: 400, y: 0, width: 400, height: 800 }, c: { x: 800, y: 0, width: 400, height: 800 } };
+  assert.equal(windowToastLift({ w1: { tabId: "a", width: 230 } }, "w1", { hostTab: "a", panes: split }, toast), 0);
+  assert.equal(windowToastLift({ w1: { tabId: "b", width: 230 } }, "w1", { hostTab: "b", panes: split }, toast), lift);
+  assert.equal(windowToastLift({ w1: { tabId: "peek", width: 230 } }, "w1", { hostTab: "peek", panes: split }, toast), 0);
+});
+
+test("a pill in the top pane of a stacked split leaves the window's toast where it is", () => {
+  const stacked = { top: { x: 0, y: 0, width: 1200, height: 397 }, bottom: { x: 0, y: 403, width: 1200, height: 397 } };
+  assert.equal(windowToastLift({ w1: { tabId: "top", width: 230 } }, "w1", { hostTab: "top", panes: stacked }, toastIn(1200, 800)), 0);
+  assert.equal(windowToastLift({ w1: { tabId: "bottom", width: 230 } }, "w1", { hostTab: "bottom", panes: stacked }, toastIn(1200, 800)), CLI_PILL_CLEARANCE - 22);
+});
+
+test("a pill in an open Peek lifts the window's toast clear of it, however short the window", async () => {
+  const { peekPageRect } = await import("../peek/peekGeometry.ts");
+  let lifted = 0;
+  for (const [width, height] of [[1163, 806], [1163, 600], [900, 480], [2056, 1290]]) {
+    for (const toastHeight of [40, 53]) {
+      const panes = { peek: peekPageRect(width, height) };
+      const toast = toastIn(width, height, { height: toastHeight });
+      const lift = windowToastLift({ w1: { tabId: "peek", width: 232 } }, "w1", { hostTab: "peek", panes }, toast);
+      const pillBottom = height - (panes.peek.y + panes.peek.height) + CLI_PILL_BOTTOM;
+      const toastBottom = toast.bottom + lift;
+      const clear = toastBottom + toastHeight <= pillBottom || toastBottom >= pillBottom + CLI_PILL_HEIGHT;
+      assert.ok(clear, `${width}x${height} toast ${toastHeight}: toast [${toastBottom}, ${toastBottom + toastHeight}], pill [${pillBottom}, ${pillBottom + CLI_PILL_HEIGHT}]`);
+      if (lift > 0) lifted++;
+    }
+  }
+  assert.ok(lifted > 0);
+});
+
+test("while the pill moves to another card the toast follows the card it is moving to, not the placement it is leaving", () => {
+  const toast = toastIn(1200, 800);
+  const lift = CLI_PILL_CLEARANCE - 22;
+  const leaving = { w1: { tabId: "old", width: 230 } };
+  assert.equal(windowToastLift(leaving, "w1", { hostTab: "new", panes: { new: { x: 0, y: 0, width: 1200, height: 800 } } }, toast), lift);
+  const split = { a: { x: 0, y: 0, width: 600, height: 800 }, b: { x: 600, y: 0, width: 600, height: 800 } };
+  assert.equal(windowToastLift({ w1: { tabId: "b", width: 230 } }, "w1", { hostTab: "a", panes: split }, { ...toast, width: 200 }), 0);
+  assert.equal(windowPillWidth(leaving, "w1"), 230);
+  assert.equal(windowPillWidth(leaving, "w2"), 0);
+});
+
+const channel = (v) => {
+  const c = v / 255;
+  return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+};
+const rgba = (color) => {
+  const hex = color.match(/^#([0-9a-f]{6})([0-9a-f]{2})?$/i);
+  if (hex) return [0, 2, 4].map((i) => parseInt(hex[1].slice(i, i + 2), 16)).concat(hex[2] ? parseInt(hex[2], 16) / 255 : 1);
+  const fn = color.match(/^rgba\(([\d.]+),([\d.]+),([\d.]+),([\d.]+)\)$/);
+  return fn.slice(1).map(Number);
+};
+const over = (top, bottom) => {
+  const [r, g, b, a] = rgba(top);
+  const [R, G, B] = rgba(bottom);
+  return [r * a + R * (1 - a), g * a + G * (1 - a), b * a + B * (1 - a)];
+};
+const luminance = ([r, g, b]) => 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+const contrast = (fg, bg) => {
+  const [a, b] = [luminance(fg), luminance(bg)].sort((x, y) => y - x);
+  return (a + 0.05) / (b + 0.05);
+};
+
+test("every piece of pill text meets WCAG AA (4.5:1) in light and dark", async () => {
+  const { themeFor } = await import("../../lib/theme.ts");
+  for (const key of ["plum:light", "plum:dark", "neutral:light", "incognito:dark"]) {
+    const theme = themeFor(key);
+    const colors = cliPillColors(theme);
+    const fill = over(colors.fill, "#808080");
+    const pairs = [
+      ["detail", colors.detail, fill],
+      ["title", colors.title, fill],
+      ...["rest", "hovered", "pressed"].map((state) => [`stop ${state}`, colors.stopText, over(colors.stopFill(state), `#${fill.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")}`)]),
+    ];
+    for (const [name, fg, bg] of pairs) {
+      const ratio = contrast(over(fg, `#${bg.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")}`), bg);
+      assert.ok(ratio >= 4.5, `${key} ${name}: ${ratio.toFixed(2)}`);
+    }
+  }
+});
+
+const { CLI_PILL_INSET, CLI_PILL_LABELS, cliPillLabel, cliPillWidthSeed, windowPillWidth } = await import("./cliPillLayout.ts");
+
+test("a pane too narrow for the full sentence gets a shorter whole one, then loses the glyph, then keeps just the name and Stop", () => {
+  const full = CLI_PILL_LABELS[0];
+  assert.deepEqual(cliPillLabel(1200), { detail: " is controlling Ardia", glyph: true });
+  assert.deepEqual(cliPillLabel(full.width + 2 * CLI_PILL_INSET), { detail: full.detail, glyph: true });
+  assert.deepEqual(cliPillLabel(231), { detail: " is in control", glyph: true });
+  assert.deepEqual(cliPillLabel(CLI_PILL_LABELS[1].width + 2 * CLI_PILL_INSET - 1), { detail: " is in control", glyph: false });
+  assert.deepEqual(cliPillLabel(155), { detail: "", glyph: true });
+  assert.deepEqual(cliPillLabel(80), { detail: "", glyph: false });
+  for (let i = 1; i < CLI_PILL_LABELS.length; i++) assert.ok(CLI_PILL_LABELS[i].width < CLI_PILL_LABELS[i - 1].width);
+});
+
+test("a pill moving to another card in its window starts from the window's measured width, so toasts don't drop for a frame", () => {
+  resetCliPillPlacements();
+  const [a, b] = [{}, {}];
+  placeCliPill("w1", a, "a", 232);
+  withdrawCliPill("w1", a);
+  assert.equal(cliPillWidthSeed("w1", true), 0);
+  placeCliPill("w1", a, "a", 232);
+  const seed = cliPillWidthSeed("w1", true);
+  assert.equal(seed, 232);
+  assert.equal(cliPillWidthSeed("w1", false), 0);
+  assert.equal(cliPillWidthSeed("w2", true), 0);
+  const lifts = [];
+  const unsubscribe = cliPillPlacements.subscribe((p) => lifts.push(pageToastLift(p, "w1", "b", 24)));
+  withdrawCliPill("w1", a);
+  placeCliPill("w1", b, "b", seed);
+  unsubscribe();
+  assert.equal(lifts.at(-1), CLI_PILL_CLEARANCE - 24);
+  resetCliPillPlacements();
+});
+
+test("a crashed or hung tab clears the pill by the pill's own clearance, and the base margin without it", async () => {
+  const { cliPillClearance } = await import("./cliPillLayout.ts");
+  assert.equal(cliPillClearance(false, 24), 24);
+  assert.equal(cliPillClearance(false), 0);
+  assert.equal(cliPillClearance(true, 24), CLI_PILL_CLEARANCE);
+  assert.equal(cliPillClearance(true), CLI_PILL_CLEARANCE);
+  assert.ok(CLI_PILL_CLEARANCE > CLI_PILL_BOTTOM + CLI_PILL_HEIGHT);
+});
+
+test("a crashed or hung tab lays out as an in-flow flex column inside a clipping frame, so it follows the pane through every resize", async () => {
+  const { sadTabColumn, sadTabSpacer, SAD_TAB_FRAME, SAD_TAB_SPACER, SAD_TAB_CONTENT } = await import("./cliPillLayout.ts");
+  assert.deepEqual(SAD_TAB_FRAME, { overflow: "hidden" });
+  for (const base of [0, 24]) {
+    const column = sadTabColumn(base);
+    for (const key of ["position", "top", "bottom", "minHeight", "height"]) assert.equal(key in column, false);
+    assert.equal(column.flexGrow, 1);
+    assert.equal(column.flexBasis, 0);
+    assert.equal(column.justifyContent, "flex-end");
+    assert.equal(column.alignItems, "center");
+    for (const pillShown of [false, true]) assert.equal("height" in sadTabSpacer(pillShown, base), false);
+  }
+  assert.deepEqual(SAD_TAB_SPACER, { flexGrow: 1, flexShrink: 1, flexBasis: 0 });
+  assert.equal(SAD_TAB_CONTENT.flexShrink, 0);
+  assert.equal("minHeight" in SAD_TAB_SPACER, false);
+});
+
+test("a crashed or hung tab's column is a scroll container, so Yoga measures its content at full height in a short pane", async () => {
+  const { sadTabColumn } = await import("./cliPillLayout.ts");
+  for (const base of [0, 24]) assert.equal(sadTabColumn(base).overflow, "scroll");
+});
+
+test("a crashed or hung tab keeps the same padding whether or not the pill shows, so a tall pane does not jump", async () => {
+  const { sadTabColumn } = await import("./cliPillLayout.ts");
+  for (const base of [0, 24]) {
+    const column = sadTabColumn(base);
+    assert.equal(column.paddingTop, base);
+    assert.equal(column.paddingBottom, base);
+  }
+});
+
+test("both spacers around a crashed or hung tab's content keep the pill's clearance as a floor, so Yoga splits a tall pane evenly and pins a short one above the pill", async () => {
+  const { sadTabColumn, sadTabSpacer } = await import("./cliPillLayout.ts");
+  for (const base of [0, 24]) {
+    assert.equal(sadTabSpacer(false, base).minHeight, 0);
+    assert.equal(sadTabColumn(base).paddingBottom + sadTabSpacer(true, base).minHeight, CLI_PILL_CLEARANCE);
+    assert.deepEqual({ ...sadTabSpacer(true, base), minHeight: 0 }, { flexGrow: 1, flexShrink: 1, flexBasis: 0, minHeight: 0 });
+  }
+  const source = readFileSync(new URL("./PaneOverlays.tsx", import.meta.url), "utf8");
+  assert.equal(source.match(/sadTabSpacer\(pillShown, 24\)/g)?.length, 2);
+  assert.equal(source.match(/sadTabSpacer\(pillShown\)/g)?.length, 2);
+});
+
+test("a crashed or hung tab measures the pill's clearance from the same bottom edge as the pill", () => {
+  const source = readFileSync(new URL("../ContentCard.tsx", import.meta.url), "utf8");
+  assert.match(source, /<SadTab [^>]*bottomStyle=\{statusStyle\}/);
+  assert.match(source, /<Animated\.View pointerEvents="box-none" style=\{\[StyleSheet\.absoluteFill, statusStyle\]\}>\s*<CliControlPill /);
+});

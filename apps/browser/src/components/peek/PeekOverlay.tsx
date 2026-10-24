@@ -11,10 +11,9 @@ import { MAX_SPLIT_PANES, splitOf } from "../../store/splits";
 import { springConfig } from "../layout/dockMotion";
 import { PageLabel, SMALL_INSET, SMALL_WINDOW_FRAME, SMALL_WINDOW_RADIUS, SmallBar } from "../littleArdia/SmallChrome";
 import { dismissPeek, finishPeek, openPeekAsTab, openPeekInSplit, registerPeekMotion } from "./actions";
+import { peekFrame } from "./peekGeometry";
 import { pinchFollow, pinchOutcome } from "./pinch";
 
-const INSET_FRACTION = 0.055;
-const MIN_INSET = 16;
 const START_SCALE = 0.12;
 const GROW = springConfig({ response: 0.22, damping: 0.9 });
 const CLOSE_MS = 150;
@@ -26,12 +25,6 @@ const reduceMotionKnown = AccessibilityInfo.isReduceMotionEnabled().then(
   () => (reduceMotion = false),
 );
 AccessibilityInfo.addEventListener("reduceMotionChanged", (on) => (reduceMotion = on));
-
-export function peekFrame(width: number, height: number) {
-  const x = Math.max(MIN_INSET, Math.round(width * INSET_FRACTION));
-  const y = Math.max(MIN_INSET, Math.round(height * INSET_FRACTION));
-  return { left: x, top: y, width: Math.max(0, width - 2 * x), height: Math.max(0, height - 2 * y) };
-}
 
 export function PeekOverlay({
   windowId,
