@@ -1,4 +1,6 @@
+#if os(macOS)
 import AppKit
+#endif
 import CoreImage
 import Foundation
 
@@ -32,6 +34,7 @@ public enum RecoveryKit {
     return CIContext(options: [.useSoftwareRenderer: true]).createCGImage(output, from: output.extent)
   }
 
+  #if os(macOS)
   public static func png(_ image: CGImage) -> Data? {
     NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])
   }
@@ -112,4 +115,5 @@ public enum RecoveryKit {
     y = max(y, captionY + qrSide) + 26
     text(warning, .systemFont(ofSize: 11), grey)
   }
+  #endif
 }

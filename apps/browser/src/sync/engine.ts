@@ -17,14 +17,17 @@ import {
   type ScopeState,
 } from "@ardia/sync";
 import { create } from "zustand";
-import { useBrowser } from "../store/browser";
+import { useBrowser, type BrowserState } from "../store/browser";
 import { fromLegacy } from "../legacy";
-import { engineProfile, isIncognitoProfile } from "../store/model";
+import { flushPersistence } from "../lib/persist";
+import { newBookmarkId as newUuid } from "../store/bookmarks";
+import { activeTabId, engineProfile, isIncognitoProfile } from "../store/model";
 import { DEFAULT_PROFILE_ID } from "../store/settings";
 import type { Profile } from "../store/types";
 import {
   bookmarksAdapter,
   deviceAdapter,
+  deviceKindOf,
   deviceTabsAdapter,
   historyAdapter,
   historyExpired,
@@ -33,11 +36,20 @@ import {
   pinnedOrderAdapter,
   pinnedRowsAdapter,
   profilesAdapter,
+  isCurrentDevice,
+  offersTabs,
+  SEND_PREFIX,
+  sendableUrl,
+  sentTabsAdapter,
   settingsAdapter,
   sharedDataAdapter,
   tileFoldersAdapter,
+  type DeviceKind,
   type DeviceRecord,
   type DeviceTabs,
+  type ReceivedSend,
+  type SendLedger,
+  type SendRecord,
   type ProfileRecord,
   legacyThemeOf,
   profileThemesAdapter,
@@ -79,6 +91,7 @@ type SyncDoc = {
   setupAt: number | null;
   joining: boolean;
   seqs?: Record<string, number>;
+  sends?: Record<string, SendLedger>;
 };
 
 const DOC = "sync.json";
@@ -106,8 +119,10 @@ const emptyDoc = (): SyncDoc => ({
 
 export type SyncStatus = "off" | "starting" | "updating" | "updated" | "stalled" | "offline" | "locked" | "reset" | "unavailable";
 
-type SyncedDevice = { id: string; name: string; lastSeen: number | null; current: boolean };
-export type RemoteTabs = { deviceId: string; name: string; tabs: { url: string; title: string }[] };
+export type SyncedDevice = { id: string; name: string; kind: DeviceKind; receivesTabs: boolean; lastSeen: number | null; current: boolean };
+export type RemoteTabs = { deviceId: string; name: string; kind: DeviceKind; tabs: { url: string; title: string }[] };
+export type SendTarget = { id: string; name: string; kind: DeviceKind };
+export type ReceivedTab = { windowId: string; tabId: string; send: SendRecord; from: { name: string; kind: DeviceKind } };
 type RemoteProfile = { syncId: string; name: string; color: Profile["color"]; icon: string | null; sharesWith?: { name: string; added: boolean }; waiting?: true };
 
 type SyncUi = {
@@ -283,6 +298,7 @@ function profileAdapters(profileId: string, retiring: boolean): Adapter[] {
   const s = useBrowser.getState();
   const ownsData = !s.profiles[profileId]?.dataId;
   const t = doc.types;
+  const sends = sendLedger(`p:${doc.profiles[profileId]!.syncId}`);
   let passwords = passwordAdapters.get(profileId);
   if (!passwords) passwordAdapters.set(profileId, (passwords = passwordsAdapter(profileId, () => forcePasswords)));
   return [
@@ -291,6 +307,7 @@ function profileAdapters(profileId: string, retiring: boolean): Adapter[] {
     ...(t.bookmarks && ownsData ? [inTodaysNames(bookmarksAdapter(profileId))] : []),
     ...(t.history && ownsData ? [inTodaysNames(historyAdapter(profileId))] : []),
     inTodaysNames(deviceTabsAdapter(profileId, id, deviceName, !t.tabs)),
+    sentTabsAdapter(id, () => sends, (arrived) => deliverSentTabs(profileId, arrived)),
     ...(t.passwords && ownsData ? [passwords] : []),
     ...(t.extensions && ownsData && extensionSyncAvailable() ? [extensionsOf(profileId)] : []),
   ];
@@ -374,6 +391,7 @@ async function runCycle({ retiring = false } = {}) {
         delete link.retire;
         if (!exists) {
           delete doc.scopes[scope];
+          delete doc.sends?.[scope];
           delete doc.profiles[profileId];
         }
       }
@@ -492,8 +510,17 @@ function summarize(): Pick<SyncUi, "devices" | "remoteTabs" | "remoteProfiles"> 
   for (const scope of Object.values(doc.scopes)) {
     for (const [device, at] of Object.entries(scope.seen)) lastSeen.set(device, Math.max(at, lastSeen.get(device) ?? 0));
   }
-  const names = new Map([...visible(app, "dev:")].map(([k, v]) => [k.slice(4), (v as DeviceRecord).n]));
-  const devices: SyncedDevice[] = [...names].map(([id, name]) => ({ id, name, lastSeen: lastSeen.get(id) ?? null, current: id === doc.deviceId }));
+  const now = Date.now();
+  const records = new Map([...deviceRecords(app)].filter(([id, r]) => id === doc.deviceId || isCurrentDevice(r, lastSeen.get(id), now)));
+  const names = new Map([...records].map(([id, r]) => [id, r.n]));
+  const devices: SyncedDevice[] = [...records].map(([id, r]) => ({
+    id,
+    name: r.n,
+    kind: deviceKindOf(r),
+    receivesTabs: offersTabs(r, lastSeen.get(id), now),
+    lastSeen: lastSeen.get(id) ?? null,
+    current: id === doc.deviceId,
+  }));
   devices.sort((a, b) => Number(b.current) - Number(a.current) || (b.lastSeen ?? 0) - (a.lastSeen ?? 0));
   const remoteTabs: Record<string, RemoteTabs[]> = {};
   for (const [profileId, link] of Object.entries(doc.profiles)) {
@@ -501,8 +528,13 @@ function summarize(): Pick<SyncUi, "devices" | "remoteTabs" | "remoteProfiles"> 
     if (!scope || !link.enabled) continue;
     remoteTabs[profileId] = [...visible(scope, "tabs:")]
       .map(([k, v]) => ({ deviceId: k.slice(5), value: v as DeviceTabs }))
-      .filter(({ deviceId, value }) => deviceId !== doc.deviceId && names.has(deviceId) && value.tabs.length > 0)
-      .map(({ deviceId, value }) => ({ deviceId, name: names.get(deviceId) || value.n || "Unknown Device", tabs: value.tabs.map((t) => ({ url: t.u, title: t.t })) }));
+      .filter(({ deviceId, value }) => deviceId !== doc.deviceId && names.has(deviceId) && Array.isArray(value.tabs) && value.tabs.length > 0)
+      .map(({ deviceId, value }) => ({
+        deviceId,
+        name: names.get(deviceId) || value.n || "Unknown Device",
+        kind: deviceKindOf(records.get(deviceId)?.k ? records.get(deviceId) : value),
+        tabs: value.tabs.map((t) => ({ url: t.u, title: t.t })),
+      }));
   }
   const linked = new Set(Object.values(doc.profiles).map((l) => l.syncId));
   const remoteProfiles = [...visible(app, "prof:")]
@@ -522,6 +554,75 @@ function summarize(): Pick<SyncUi, "devices" | "remoteTabs" | "remoteProfiles"> 
       };
     });
   return { devices, remoteTabs, remoteProfiles };
+}
+
+const deviceRecords = (app: ScopeState) => new Map([...visible(app, "dev:")].map(([k, v]) => [k.slice(4), v as DeviceRecord]));
+
+function sendLedger(scope: string): SendLedger {
+  const sends = (doc.sends ??= {});
+  return (sends[scope] ??= { outgoing: {}, received: {} });
+}
+
+export function sendTargets(profileId: string): SendTarget[] {
+  const link = doc.profiles[profileId];
+  const app = doc.scopes[APP_SCOPE];
+  const scope = link ? doc.scopes[`p:${link.syncId}`] : undefined;
+  if (!doc.enabled || !doc.deviceId || !link?.enabled || link.retire || !app || !scope || useSync.getState().status === "locked") return [];
+  const now = Date.now();
+  const seenAt = (id: string) => Math.max(...Object.values(doc.scopes).map((s) => s.seen[id] ?? -Infinity));
+  return [...deviceRecords(app)]
+    .filter(([id, record]) => id !== doc.deviceId && offersTabs(record, seenAt(id), now) && (deviceKindOf(record) === "phone" || id in scope.seen))
+    .sort(([a], [b]) => (scope.seen[b] ?? app.seen[b] ?? 0) - (scope.seen[a] ?? app.seen[a] ?? 0))
+    .map(([id, record]) => ({ id, name: record.n || "Unknown Device", kind: deviceKindOf(record) }));
+}
+
+export function sendTab(tabId: string, deviceId: string): boolean {
+  const tab = useBrowser.getState().tabs[tabId];
+  const link = tab ? doc.profiles[tab.profileId] : undefined;
+  if (!tab || !link || !doc.deviceId || !sendableUrl(tab.url) || !sendTargets(tab.profileId).some((d) => d.id === deviceId)) return false;
+  const send: SendRecord = { u: tab.url, t: tab.customTitle || tab.title || "", to: deviceId, from: doc.deviceId, at: Date.now() };
+  sendLedger(`p:${link.syncId}`).outgoing[`${SEND_PREFIX}${newUuid()}`] = send;
+  save();
+  scheduleSync(0);
+  return true;
+}
+
+const receivedListeners = new Set<(tabs: ReceivedTab[]) => void>();
+
+export function onTabsReceived(listener: (tabs: ReceivedTab[]) => void): () => void {
+  receivedListeners.add(listener);
+  return () => receivedListeners.delete(listener);
+}
+
+function frontWindowShowing(s: BrowserState, profileId: string): string | undefined {
+  return [...new Set([...s.ui.focusOrder, ...s.windowOrder])].find((id) => {
+    const w = s.windows[id];
+    return !!w && !w.incognito && w.kind !== "small" && w.profileId === profileId;
+  });
+}
+
+function deliverSentTabs(profileId: string, arrived: ReceivedSend[]): boolean {
+  if (!useBrowser.getState().profiles[profileId]) return false;
+  const app = doc.scopes[APP_SCOPE];
+  const devices = app ? deviceRecords(app) : new Map<string, DeviceRecord>();
+  const opened: ReceivedTab[] = [];
+  for (const { send } of arrived) {
+    const s = useBrowser.getState();
+    const front = frontWindowShowing(s, profileId);
+    const windowId = front ?? s.createWindow({ profileId, url: send.u, background: true });
+    const tabId = front ? s.newTab(front, { url: send.u, background: true, profileId }) : activeTabId(useBrowser.getState(), windowId);
+    const sender = devices.get(send.from);
+    if (tabId) opened.push({ windowId, tabId, send, from: { name: sender?.n || "Unknown Device", kind: deviceKindOf(sender) } });
+  }
+  flushPersistence();
+  for (const listener of receivedListeners) {
+    try {
+      listener(opened);
+    } catch (error) {
+      console.warn("[sync] showing a received tab failed", error);
+    }
+  }
+  return true;
 }
 
 export async function folderInfo(path?: string | null): Promise<FolderInfo | null> {

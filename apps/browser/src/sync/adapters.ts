@@ -227,16 +227,94 @@ export function sharedDataAdapter(links: () => Record<string, ShareLink>): Adapt
   };
 }
 
-export type DeviceRecord = { n: string };
+export type DeviceKind = "mac" | "phone";
+export type DeviceRecord = { n: string; k?: string; f?: string[] };
+
+export const RECEIVES_TABS = "send";
+export const deviceKindOf = (record: { k?: unknown } | null | undefined): DeviceKind => (record?.k === "phone" ? "phone" : "mac");
+export const receivesTabs = (record: DeviceRecord | null | undefined) => Array.isArray(record?.f) && record.f.includes(RECEIVES_TABS);
+export const PHONE_SEEN_MS = 30 * 86_400_000;
+export const isCurrentDevice = (record: DeviceRecord | null | undefined, lastSeen: number | null | undefined, now: number) =>
+  deviceKindOf(record) !== "phone" || (typeof lastSeen === "number" && now - lastSeen <= PHONE_SEEN_MS);
+export const offersTabs = (record: DeviceRecord | null | undefined, lastSeen: number | null | undefined, now: number) =>
+  receivesTabs(record) && isCurrentDevice(record, lastSeen, now);
 
 export function deviceAdapter(deviceId: string, name: () => string, retired = false): Adapter {
   return {
     prefix: "dev:",
     extract: () => ({
-      values: retired ? new Map() : new Map([[`dev:${deviceId}`, { n: name() } satisfies DeviceRecord]]),
+      values: retired ? new Map() : new Map([[`dev:${deviceId}`, { n: name(), k: "mac", f: [RECEIVES_TABS] } satisfies DeviceRecord]]),
       ignore: (key) => key !== `dev:${deviceId}`,
     }),
     apply: () => true,
+  };
+}
+
+export type SendRecord = { u: string; t: string; to: string; from: string; at: number };
+export type SendLedger = { outgoing: Record<string, SendRecord>; received: Record<string, number> };
+export type ReceivedSend = { key: string; send: SendRecord };
+
+export const SEND_PREFIX = "send:";
+export const SEND_KEPT_MS = 7 * 86_400_000;
+const RECEIVED_KEPT_MS = 90 * 86_400_000;
+const MAX_SENT_TITLE = 500;
+const MAX_SENT_URL = 8_192;
+
+export const sendableUrl = (url: unknown): url is string => typeof url === "string" && url.length <= MAX_SENT_URL && /^https?:\/\/[^\s]/i.test(url);
+
+export function asSendRecord(value: unknown): SendRecord | null {
+  if (!value || typeof value !== "object") return null;
+  const { u, t, to, from, at } = value as Record<string, unknown>;
+  if (typeof to !== "string" || typeof from !== "string") return null;
+  return { u: typeof u === "string" ? u : "", t: typeof t === "string" ? t.slice(0, MAX_SENT_TITLE) : "", to, from, at: typeof at === "number" && Number.isFinite(at) ? at : 0 };
+}
+
+export function sentTabsAdapter(deviceId: string, ledger: () => SendLedger, deliver: (sends: ReceivedSend[]) => boolean): Adapter {
+  return {
+    prefix: SEND_PREFIX,
+    extract: (base, queued, now, known, remote) => {
+      const { outgoing, received } = ledger();
+      const values = new Map<string, unknown>();
+      for (const [key, send] of Object.entries(outgoing)) {
+        if (known(key)) {
+          if (!queued(key)) delete outgoing[key];
+        } else if (now - send.at >= SEND_KEPT_MS) delete outgoing[key];
+        else values.set(key, send);
+      }
+      for (const [key, at] of Object.entries(received)) {
+        if ((known(key) && remote(key) === null && !queued(key)) || now - at > RECEIVED_KEPT_MS) delete received[key];
+      }
+      const ignore = (key: string) => {
+        const send = asSendRecord(base(key));
+        if (!send) return true;
+        if (send.to === deviceId) return !(key in received);
+        if (send.from === deviceId) return now - send.at < SEND_KEPT_MS;
+        return true;
+      };
+      return {
+        values,
+        ignore,
+        published: (keys) => {
+          for (const key of keys) delete outgoing[key];
+        },
+      };
+    },
+    apply: (visible, changed, _base, records) => {
+      const { received } = ledger();
+      const arrived: ReceivedSend[] = [];
+      const unusable: string[] = [];
+      for (const key of changed) {
+        const send = asSendRecord(visible.get(key));
+        if (!send || send.to !== deviceId || send.from === deviceId || key in received) continue;
+        if (sendableUrl(send.u)) arrived.push({ key, send });
+        else unusable.push(key);
+      }
+      arrived.sort((a, z) => a.send.at - z.send.at || (a.key < z.key ? -1 : 1));
+      if (arrived.length && !deliver(arrived)) return false;
+      for (const { key } of arrived) received[key] = records.now;
+      for (const key of unusable) received[key] = records.now;
+      return true;
+    },
   };
 }
 
@@ -439,7 +517,7 @@ export function historyAdapter(profileId: string): Adapter {
   };
 }
 
-export type DeviceTabs = { n: string; tabs: { u: string; t: string }[] };
+export type DeviceTabs = { n: string; k?: string; tabs: { u: string; t: string }[] };
 const MAX_DEVICE_TABS = 30;
 
 export function deviceTabsAdapter(profileId: string, deviceId: string, name: () => string, retired = false): Adapter {

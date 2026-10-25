@@ -23,7 +23,7 @@ import { bookmarkTab } from "../bookmarks/actions";
 import { hideKeyedToast, showToast, useToasts } from "../layout/splitActions";
 import { canShare, shareTab } from "../site/share";
 import { calendarMenuItem, newLiveFolderMenuItem, runCalendarMenu, runNewLiveFolder } from "./liveMenus";
-import { openSyncedTab, syncedDevicesMenuItem } from "../../sync/menu";
+import { openSyncedTab, sendTabFromMenu, sendTabMenuItem, syncedDevicesMenuItem } from "../../sync/menu";
 import { setSidebarUi } from "./state";
 import { hasOwnGroupIcon } from "./TabIcon";
 import { newFolderWithTab, removeFromFolder } from "./tileFolderUi";
@@ -95,6 +95,7 @@ export async function openTabMenu(windowId: string, tab: Tab) {
     { id: "profile:new", title: "New Profile…" },
   ];
   const groups = moveToGroupItems(windowId, group?.id);
+  const sendTo = incognito ? null : sendTabMenuItem(tab);
 
   const choice = await showMenu([
     ...(tab.pinned
@@ -139,6 +140,7 @@ export async function openTabMenu(windowId: string, tab: Tab) {
     { id: "copy", title: "Copy URL", symbol: "link", enabled: !!tab.url, ...hint("c", "shift", "command") },
     { id: "copyMd", title: "Copy Link as Markdown", symbol: "text.badge.checkmark", enabled: !!tab.url, ...hint("c", "option", "shift", "command") },
     { id: "share", title: "Share", symbol: "square.and.arrow.up", enabled: canShare(tab), share: true },
+    ...(sendTo ? [sendTo] : []),
     { id: "bookmark", title: "Add to Bookmarks…", symbol: "bookmark", enabled: !!tab.url, ...hint("d", "command") },
     { id: "bookmarkTo", title: "Add Bookmark to Folder", symbol: "folder", enabled: !!tab.url, children: bookmarkFolderItems(windowId, "folder:") },
     ...(canSwitchEngine(tab.url) ? [{ id: "engine", title: `Open Page in ${ENGINE_NAMES[otherEngine(tabEngine(s, tab.id))]}`, symbol: ENGINE_SYMBOLS[otherEngine(tabEngine(s, tab.id))] }] : []),
@@ -153,7 +155,7 @@ export async function openTabMenu(windowId: string, tab: Tab) {
   ]);
   if (!choice) return;
   const t = { kind: "tab" as const, id: tab.id };
-  if (runCalendarMenu(choice)) return;
+  if (runCalendarMenu(choice) || sendTabFromMenu(choice, tab)) return;
   if (choice === "backToPin") s.returnToPinnedUrl(tab.id);
   else if (choice === "replacePin") s.setPinnedUrl(tab.id);
   else if (choice === "editPin") void editPinnedPage(windowId, tab.id);

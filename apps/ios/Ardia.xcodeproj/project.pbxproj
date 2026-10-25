@@ -1,0 +1,863 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		1E97042909625EE3C2A8E72D /* ArdiaOpen.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B9BE34AB56816C03B9E533EA /* ArdiaOpen.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		1F3F2691FBF6CA7332EF59FF /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C149E7851D84E010E3A99076 /* SwiftUI.framework */; };
+		1F68F3F17F9A196AE5F2DAD1 /* ArdiaDesign in Frameworks */ = {isa = PBXBuildFile; productRef = 682694E3B8EA2A06E820A805 /* ArdiaDesign */; };
+		1F77BBD3054EC45D2D0E854E /* ArdiaShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D07F546A651D6A4E87729FC5 /* ArdiaShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		3E3DD82057CABEECD46CCA24 /* ArdiaDesign in Frameworks */ = {isa = PBXBuildFile; productRef = 29A8DF82757F0B98305E30AD /* ArdiaDesign */; };
+		3F352D5028B7BF2169D1F060 /* ArdiaIntelligence in Frameworks */ = {isa = PBXBuildFile; productRef = B9BFA56744264186A41A656C /* ArdiaIntelligence */; };
+		462385C8073E08D7879C5C9D /* ArdiaBrowser in Frameworks */ = {isa = PBXBuildFile; productRef = 995BCC861D01B3C0852D7F9F /* ArdiaBrowser */; };
+		596222949C2FF1F2331D3FF8 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2F4DDAC9D3853A29800877EF /* WidgetKit.framework */; };
+		7D1758B5C54272E018C27A5B /* ArdiaBrowser in Frameworks */ = {isa = PBXBuildFile; productRef = 03FF5C47C4373B4E1A6DDE14 /* ArdiaBrowser */; };
+		ADAD4A961F880D7218A04967 /* ArdiaShared in Frameworks */ = {isa = PBXBuildFile; productRef = 550FE966976A404B6A78EB82 /* ArdiaShared */; };
+		BF185DCBD38D8A6E913708C4 /* ArdiaDesign in Frameworks */ = {isa = PBXBuildFile; productRef = DFF5F15EFEB2D7F87112ED60 /* ArdiaDesign */; };
+		C366317EC7AD23D44CB4771D /* ArdiaDesign in Frameworks */ = {isa = PBXBuildFile; productRef = 0BFA1A32F8AADE8672E62A39 /* ArdiaDesign */; };
+		C4765B53FAF4F47B1AC42F5F /* ArdiaSync in Frameworks */ = {isa = PBXBuildFile; productRef = 925071C526EFF3980AB2EA8C /* ArdiaSync */; };
+		C5AD9EA5780FA48F9A8B9C49 /* ArdiaWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B18B7A3A82D521D51E08DD1A /* ArdiaWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		C827FF3825C00D852775B334 /* ArdiaBrowser in Frameworks */ = {isa = PBXBuildFile; productRef = 2FE0468935C1A87C30704B4C /* ArdiaBrowser */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		253AC173665C8574D3C14E8D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2DC703FC63331EE47436A006 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CF60F2D18AB253CC46A4E428;
+			remoteInfo = ArdiaOpen;
+		};
+		2EF1755F758C897D9C30D5F6 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2DC703FC63331EE47436A006 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = DD96EB2018C132DC7649EED8;
+			remoteInfo = ArdiaShare;
+		};
+		A020EA10A043A692F70494CB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2DC703FC63331EE47436A006 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AF56FEA9443A3F2A9D139653;
+			remoteInfo = ArdiaWidgets;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		34A50696B9F0B47369C218C5 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				C5AD9EA5780FA48F9A8B9C49 /* ArdiaWidgets.appex in Embed Foundation Extensions */,
+				1F77BBD3054EC45D2D0E854E /* ArdiaShare.appex in Embed Foundation Extensions */,
+				1E97042909625EE3C2A8E72D /* ArdiaOpen.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		2F4DDAC9D3853A29800877EF /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		44BF920C59AC742FE06653E7 /* ArdiaKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ArdiaKit; path = Packages/ArdiaKit; sourceTree = SOURCE_ROOT; };
+		B18B7A3A82D521D51E08DD1A /* ArdiaWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = ArdiaWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B9BE34AB56816C03B9E533EA /* ArdiaOpen.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = ArdiaOpen.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		BECC038EC0D62B75EFF2BF13 /* Ardia.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Ardia.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C149E7851D84E010E3A99076 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		D07F546A651D6A4E87729FC5 /* ArdiaShare.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = ArdiaShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		417D8FC3004D2D91FAE15D5F /* Share */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = Share;
+			sourceTree = "<group>";
+		};
+		522909310D90C27C3D057517 /* Action */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = Action;
+			sourceTree = "<group>";
+		};
+		B2E67A44B2C33CB58FB94B43 /* Widgets */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = Widgets;
+			sourceTree = "<group>";
+		};
+		CF72A2EC00A6F2F999DE7455 /* App */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		067433FEE4C8A1B9BEB3DB0B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C827FF3825C00D852775B334 /* ArdiaBrowser in Frameworks */,
+				3E3DD82057CABEECD46CCA24 /* ArdiaDesign in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4CFD70031EE6F3AC1C100877 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				ADAD4A961F880D7218A04967 /* ArdiaShared in Frameworks */,
+				C4765B53FAF4F47B1AC42F5F /* ArdiaSync in Frameworks */,
+				7D1758B5C54272E018C27A5B /* ArdiaBrowser in Frameworks */,
+				3F352D5028B7BF2169D1F060 /* ArdiaIntelligence in Frameworks */,
+				1F68F3F17F9A196AE5F2DAD1 /* ArdiaDesign in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9B000752DB309C62BE186347 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C366317EC7AD23D44CB4771D /* ArdiaDesign in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C4BCEA7742C4C8964D4E99D5 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				462385C8073E08D7879C5C9D /* ArdiaBrowser in Frameworks */,
+				BF185DCBD38D8A6E913708C4 /* ArdiaDesign in Frameworks */,
+				596222949C2FF1F2331D3FF8 /* WidgetKit.framework in Frameworks */,
+				1F3F2691FBF6CA7332EF59FF /* SwiftUI.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		4CF68B70FCED3A93A01F77BA /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				44BF920C59AC742FE06653E7 /* ArdiaKit */,
+			);
+			path = Packages;
+			sourceTree = "<group>";
+		};
+		A7333FB8D37A78466BEEBDE0 = {
+			isa = PBXGroup;
+			children = (
+				522909310D90C27C3D057517 /* Action */,
+				CF72A2EC00A6F2F999DE7455 /* App */,
+				4CF68B70FCED3A93A01F77BA /* Packages */,
+				417D8FC3004D2D91FAE15D5F /* Share */,
+				B2E67A44B2C33CB58FB94B43 /* Widgets */,
+				F79F208BB74F1D58D05F5B6D /* Frameworks */,
+				B09FAA87FD6285383A2BCD2E /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		B09FAA87FD6285383A2BCD2E /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				BECC038EC0D62B75EFF2BF13 /* Ardia.app */,
+				B9BE34AB56816C03B9E533EA /* ArdiaOpen.appex */,
+				D07F546A651D6A4E87729FC5 /* ArdiaShare.appex */,
+				B18B7A3A82D521D51E08DD1A /* ArdiaWidgets.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		F79F208BB74F1D58D05F5B6D /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				C149E7851D84E010E3A99076 /* SwiftUI.framework */,
+				2F4DDAC9D3853A29800877EF /* WidgetKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AF56FEA9443A3F2A9D139653 /* ArdiaWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9B481E7B38C8C589E9A5851B /* Build configuration list for PBXNativeTarget "ArdiaWidgets" */;
+			buildPhases = (
+				BE674F4C4683AAE760EFFF2B /* Sources */,
+				38D8C623447817DB0D981BF5 /* Resources */,
+				C4BCEA7742C4C8964D4E99D5 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				B2E67A44B2C33CB58FB94B43 /* Widgets */,
+			);
+			name = ArdiaWidgets;
+			packageProductDependencies = (
+				995BCC861D01B3C0852D7F9F /* ArdiaBrowser */,
+				DFF5F15EFEB2D7F87112ED60 /* ArdiaDesign */,
+			);
+			productName = ArdiaWidgets;
+			productReference = B18B7A3A82D521D51E08DD1A /* ArdiaWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		CF60F2D18AB253CC46A4E428 /* ArdiaOpen */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2121AAE0CF215A6F01986146 /* Build configuration list for PBXNativeTarget "ArdiaOpen" */;
+			buildPhases = (
+				C8E85046EE4D591828B6F76B /* Sources */,
+				3CF843C93347B248DDCA03B0 /* Resources */,
+				9B000752DB309C62BE186347 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				522909310D90C27C3D057517 /* Action */,
+			);
+			name = ArdiaOpen;
+			packageProductDependencies = (
+				0BFA1A32F8AADE8672E62A39 /* ArdiaDesign */,
+			);
+			productName = ArdiaOpen;
+			productReference = B9BE34AB56816C03B9E533EA /* ArdiaOpen.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		DD52C294A990971E005E6738 /* Ardia */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3DC31916F7C8488E19F48214 /* Build configuration list for PBXNativeTarget "Ardia" */;
+			buildPhases = (
+				93F9A54CC6A3D72FFF0EF959 /* Sources */,
+				814334B35401A3C235E78795 /* Resources */,
+				4CFD70031EE6F3AC1C100877 /* Frameworks */,
+				34A50696B9F0B47369C218C5 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				1D389A635087CF91F958C26F /* PBXTargetDependency */,
+				87E82D8C2A00D0E8788BE072 /* PBXTargetDependency */,
+				86D6225EF354C1EF14F295BE /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				CF72A2EC00A6F2F999DE7455 /* App */,
+			);
+			name = Ardia;
+			packageProductDependencies = (
+				550FE966976A404B6A78EB82 /* ArdiaShared */,
+				925071C526EFF3980AB2EA8C /* ArdiaSync */,
+				03FF5C47C4373B4E1A6DDE14 /* ArdiaBrowser */,
+				B9BFA56744264186A41A656C /* ArdiaIntelligence */,
+				682694E3B8EA2A06E820A805 /* ArdiaDesign */,
+			);
+			productName = Ardia;
+			productReference = BECC038EC0D62B75EFF2BF13 /* Ardia.app */;
+			productType = "com.apple.product-type.application";
+		};
+		DD96EB2018C132DC7649EED8 /* ArdiaShare */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AF259D16E5A3FA7DF344FE21 /* Build configuration list for PBXNativeTarget "ArdiaShare" */;
+			buildPhases = (
+				858DF191E15311E727D6EE67 /* Sources */,
+				BE7C31B6B7BDCD6B07CAB503 /* Resources */,
+				067433FEE4C8A1B9BEB3DB0B /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				417D8FC3004D2D91FAE15D5F /* Share */,
+			);
+			name = ArdiaShare;
+			packageProductDependencies = (
+				2FE0468935C1A87C30704B4C /* ArdiaBrowser */,
+				29A8DF82757F0B98305E30AD /* ArdiaDesign */,
+			);
+			productName = ArdiaShare;
+			productReference = D07F546A651D6A4E87729FC5 /* ArdiaShare.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		2DC703FC63331EE47436A006 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					AF56FEA9443A3F2A9D139653 = {
+						DevelopmentTeam = U5L5T3NGVV;
+						ProvisioningStyle = Automatic;
+					};
+					CF60F2D18AB253CC46A4E428 = {
+						DevelopmentTeam = U5L5T3NGVV;
+						ProvisioningStyle = Automatic;
+					};
+					DD52C294A990971E005E6738 = {
+						DevelopmentTeam = U5L5T3NGVV;
+						ProvisioningStyle = Automatic;
+					};
+					DD96EB2018C132DC7649EED8 = {
+						DevelopmentTeam = U5L5T3NGVV;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 509F9031C4B3C8E0C8C94C93 /* Build configuration list for PBXProject "Ardia" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = A7333FB8D37A78466BEEBDE0;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				5CFD95E357FA4C2D35B52D5C /* XCLocalSwiftPackageReference "Packages/ArdiaKit" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = B09FAA87FD6285383A2BCD2E /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				DD52C294A990971E005E6738 /* Ardia */,
+				AF56FEA9443A3F2A9D139653 /* ArdiaWidgets */,
+				DD96EB2018C132DC7649EED8 /* ArdiaShare */,
+				CF60F2D18AB253CC46A4E428 /* ArdiaOpen */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		38D8C623447817DB0D981BF5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3CF843C93347B248DDCA03B0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		814334B35401A3C235E78795 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BE7C31B6B7BDCD6B07CAB503 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		858DF191E15311E727D6EE67 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		93F9A54CC6A3D72FFF0EF959 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BE674F4C4683AAE760EFFF2B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C8E85046EE4D591828B6F76B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		1D389A635087CF91F958C26F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AF56FEA9443A3F2A9D139653 /* ArdiaWidgets */;
+			targetProxy = A020EA10A043A692F70494CB /* PBXContainerItemProxy */;
+		};
+		86D6225EF354C1EF14F295BE /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CF60F2D18AB253CC46A4E428 /* ArdiaOpen */;
+			targetProxy = 253AC173665C8574D3C14E8D /* PBXContainerItemProxy */;
+		};
+		87E82D8C2A00D0E8788BE072 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = DD96EB2018C132DC7649EED8 /* ArdiaShare */;
+			targetProxy = 2EF1755F758C897D9C30D5F6 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		0AE21C58634201F9FF33F20E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Config/Share.entitlements;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/Share-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Ardia;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ardia.ios.share;
+				PRODUCT_NAME = ArdiaShare;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		3D426F71D100D08DAE349E2B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = U5L5T3NGVV;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		577AF5FA563D1CF1711188F3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Config/Share.entitlements;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/Share-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Ardia;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ardia.ios.share;
+				PRODUCT_NAME = ArdiaShare;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		637D5F3EC61773CC7143A50F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Config/Widgets.entitlements;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/Widgets-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Ardia;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ardia.ios.widgets;
+				PRODUCT_NAME = ArdiaWidgets;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		647775899F7D37AA0128335E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Config/Ardia.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/Ardia-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Ardia;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Ardia uses the camera to scan the sync code your Mac shows, and for websites that ask to use it.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Websites you visit may ask for your location.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Ardia uses the microphone when you search with your voice, and for websites that ask to use it.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Ardia saves images you choose to your photo library.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Ardia turns what you say into a search when you use Voice Search.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIFileSharingEnabled = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ardia.ios;
+				PRODUCT_NAME = Ardia;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		861DCD81D4C8A8B6F6731131 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Config/Open.entitlements;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/Open-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Open in Ardia";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ardia.ios.open;
+				PRODUCT_NAME = ArdiaOpen;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		9F8E00AE98322C4CD5881181 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = U5L5T3NGVV;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		AE6A4CAC24E1FC803F3A6748 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Config/Widgets.entitlements;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/Widgets-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Ardia;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ardia.ios.widgets;
+				PRODUCT_NAME = ArdiaWidgets;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		CD1B9158481D7B8B0345A098 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Config/Ardia-Release.entitlements";
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/Ardia-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Ardia;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Ardia uses the camera to scan the sync code your Mac shows, and for websites that ask to use it.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Websites you visit may ask for your location.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Ardia uses the microphone when you search with your voice, and for websites that ask to use it.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Ardia saves images you choose to your photo library.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Ardia turns what you say into a search when you use Voice Search.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UIFileSharingEnabled = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ardia.ios;
+				PRODUCT_NAME = Ardia;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		E405F46DCC9D42788DD8900D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Config/Open.entitlements;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Config/Open-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Open in Ardia";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ardia.ios.open;
+				PRODUCT_NAME = ArdiaOpen;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		2121AAE0CF215A6F01986146 /* Build configuration list for PBXNativeTarget "ArdiaOpen" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E405F46DCC9D42788DD8900D /* Debug */,
+				861DCD81D4C8A8B6F6731131 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		3DC31916F7C8488E19F48214 /* Build configuration list for PBXNativeTarget "Ardia" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				647775899F7D37AA0128335E /* Debug */,
+				CD1B9158481D7B8B0345A098 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		509F9031C4B3C8E0C8C94C93 /* Build configuration list for PBXProject "Ardia" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3D426F71D100D08DAE349E2B /* Debug */,
+				9F8E00AE98322C4CD5881181 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		9B481E7B38C8C589E9A5851B /* Build configuration list for PBXNativeTarget "ArdiaWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AE6A4CAC24E1FC803F3A6748 /* Debug */,
+				637D5F3EC61773CC7143A50F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		AF259D16E5A3FA7DF344FE21 /* Build configuration list for PBXNativeTarget "ArdiaShare" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				577AF5FA563D1CF1711188F3 /* Debug */,
+				0AE21C58634201F9FF33F20E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		5CFD95E357FA4C2D35B52D5C /* XCLocalSwiftPackageReference "Packages/ArdiaKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/ArdiaKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		03FF5C47C4373B4E1A6DDE14 /* ArdiaBrowser */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ArdiaBrowser;
+		};
+		0BFA1A32F8AADE8672E62A39 /* ArdiaDesign */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ArdiaDesign;
+		};
+		29A8DF82757F0B98305E30AD /* ArdiaDesign */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ArdiaDesign;
+		};
+		2FE0468935C1A87C30704B4C /* ArdiaBrowser */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ArdiaBrowser;
+		};
+		550FE966976A404B6A78EB82 /* ArdiaShared */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ArdiaShared;
+		};
+		682694E3B8EA2A06E820A805 /* ArdiaDesign */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ArdiaDesign;
+		};
+		925071C526EFF3980AB2EA8C /* ArdiaSync */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ArdiaSync;
+		};
+		995BCC861D01B3C0852D7F9F /* ArdiaBrowser */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ArdiaBrowser;
+		};
+		B9BFA56744264186A41A656C /* ArdiaIntelligence */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ArdiaIntelligence;
+		};
+		DFF5F15EFEB2D7F87112ED60 /* ArdiaDesign */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ArdiaDesign;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 2DC703FC63331EE47436A006 /* Project object */;
+}
