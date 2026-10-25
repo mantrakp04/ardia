@@ -18,16 +18,6 @@ export function revealOf(windowId: string): Animated.Value {
   return value;
 }
 
-const pinchScales = new Map<string, number>();
-
-export function notePinchScale(tabId: string, scale: number) {
-  if (scale > 1.01) pinchScales.set(tabId, scale);
-  else pinchScales.delete(tabId);
-}
-
-export function pagePinched(tabId: string | null | undefined): boolean {
-  return !!tabId && pinchScales.has(tabId);
-}
 
 export function tabOverviewOpen(windowId: string): boolean {
   return !!useTabOverview.getState().open[windowId];
@@ -92,5 +82,7 @@ export function endPinch(windowId: string, cancelled: boolean) {
   const g = gestures.get(windowId);
   if (!g) return;
   gestures.delete(windowId);
-  settle(windowId, cancelled ? g.startedOpen : pinchEndsOpen(g.progress, g.startedOpen));
+  const open = cancelled ? g.startedOpen : pinchEndsOpen(g.progress, g.startedOpen);
+  if (open) openTabOverview(windowId);
+  else settle(windowId, false);
 }

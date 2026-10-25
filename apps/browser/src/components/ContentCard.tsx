@@ -1,5 +1,5 @@
 import { WebView, type OpenWindowRequest, type PageEngine } from "@ardia/ardiacore";
-import { notePinchScale } from "./tabOverview/state";
+import { notePinchScale } from "./tabOverview/pinchedPages";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Animated, StyleSheet, View, type ViewStyle } from "react-native";
 import { useShallow } from "zustand/react/shallow";

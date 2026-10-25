@@ -37,3 +37,22 @@ test("search keeps a folder by its name, or with only the tabs that match", () =
   assert.deepEqual(shape(filterSections(sections, by("helpful"), "helpful")), [["Pinned Folders", ["Helpful Tools[https://react.dev/,https://hono.dev/]"]]]);
   assert.deepEqual(filterSections(sections, by("zzz"), "zzz"), []);
 });
+
+test("open tabs the sidebar shows elsewhere, like a playing live item, are in the overview too", () => {
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://open.example/" });
+  const live = S().newTab(w, { url: "https://radio.example/", background: true });
+  useBrowser.setState((s) => ({ tabs: { ...s.tabs, [live]: { ...s.tabs[live], liveItem: true } } }));
+  const open = overviewSections(S(), w).find((sec) => sec.title === "Open");
+  assert.deepEqual(open.items.map((i) => S().tabs[i.id].url).sort(), ["https://open.example/", "https://radio.example/"]);
+});
+
+test("search matches every word, across a tab's title and address", async () => {
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://github.com/mantrakp04/ardia" });
+  S().newTab(w, { url: "https://example.com/" });
+  const { matchesQuery } = await import("../../lib/tabOverviewFilter.ts");
+  const sections = overviewSections(S(), w);
+  const matches = (id) => matchesQuery(`${S().tabs[id].title} ${S().tabs[id].url}`, "github ardia");
+  assert.deepEqual(shape(filterSections(sections, matches, "github ardia")), [["Open", ["https://github.com/mantrakp04/ardia"]]]);
+});

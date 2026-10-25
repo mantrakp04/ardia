@@ -1,4 +1,6 @@
 import type { BrowserState } from "../../store/browser";
+import { matchesQuery } from "../../lib/tabOverviewFilter";
+import { viewTabIds } from "../../store/model";
 import { splitRowPanes } from "../../store/splits";
 import { groupEntries, sidebarEntries } from "../sidebar/entries";
 
@@ -49,8 +51,14 @@ export function overviewSections(s: BrowserState, windowId: string): OverviewSec
   return [
     { title: "Pinned Folders", items: pinnedItems.filter((item) => item.kind === "folder") },
     { title: "Pinned", items: pinnedItems.filter((item) => item.kind === "tab") },
-    { title: "Open", items: list.flatMap((e) => entryItems(s, e)) },
+    { title: "Open", items: [...list.flatMap((e) => entryItems(s, e)), ...liveItems(s, windowId)] },
   ].filter((section) => section.items.length);
+}
+
+function liveItems(s: BrowserState, windowId: string): OverviewItem[] {
+  return viewTabIds(s, windowId)
+    .filter((id) => s.tabs[id]?.liveItem && !s.tabs[id]!.pinned)
+    .map((id) => ({ kind: "tab", id }));
 }
 
 export function filterSections(
@@ -59,13 +67,12 @@ export function filterSections(
   query: string,
 ): OverviewSection[] {
   if (!query.trim()) return sections;
-  const q = query.trim().toLowerCase();
   return sections
     .map((section) => ({
       ...section,
       items: section.items.flatMap((item): OverviewItem[] => {
         if (item.kind === "tab") return matches(item.id) ? [item] : [];
-        if (item.name.toLowerCase().includes(q)) return [item];
+        if (matchesQuery(item.name, query)) return [item];
         const tabIds = item.tabIds.filter(matches);
         return tabIds.length ? [{ ...item, tabIds }] : [];
       }),

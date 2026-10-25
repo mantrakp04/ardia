@@ -6,7 +6,7 @@ import { closeTab, switchToTab } from "../../lib/actions";
 import { claimFocusTag } from "../../lib/focusClaims";
 import { ThemeTint } from "../theme/ThemeTint";
 import { lastPicture, rememberPicture, startTabPictures } from "../../lib/tabPictures";
-import { moveSelection, overviewColumns } from "../../lib/tabOverviewFilter";
+import { matchesQuery, moveInGrid, overviewColumns, overviewGrid } from "../../lib/tabOverviewFilter";
 import { useTheme } from "../../lib/theme";
 import { webviews } from "../../lib/webviews";
 import { useBrowser } from "../../store/browser";
@@ -14,13 +14,17 @@ import { useWindowId } from "../../store/hooks";
 import { activeTabId } from "../../store/model";
 import { Favicon, useHover } from "../primitives";
 import { filterSections, overviewSections, type OverviewItem } from "./model";
-import { closeTabOverview, endPinch, followPinch, pagePinched, revealOf, TAB_OVERVIEW_FOCUS, tabOverviewOpen, useTabOverview } from "./state";
+import { pagePinched } from "./pinchedPages";
+import { closeTabOverview, endPinch, followPinch, revealOf, TAB_OVERVIEW_FOCUS, tabOverviewOpen, useTabOverview } from "./state";
 
 const GAP = 22;
 const MIN_CARD = 220;
 const ASPECT = 1.5;
 const SIDE = 40;
 const TOP = 52;
+const TRAY_PAD = 32;
+const TRAY_MIN = 150;
+const TRAY_GAP = 16;
 const KEYS = ["Escape", "Enter", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].map((key) => ({ key }));
 
 type Folder = Extract<OverviewItem, { kind: "folder" }>;
@@ -60,10 +64,9 @@ function TabOverview({ windowId }: { windowId: string }) {
   const active = useBrowser((s) => activeTabId(s, windowId));
   const [query, setQuery] = useState("");
   const sections = useMemo(() => {
-    const q = query.trim().toLowerCase();
     const matches = (id: string) => {
       const t = tabs[id];
-      return !!t && `${t.customTitle ?? t.title} ${t.url || t.pinnedUrl || ""}`.toLowerCase().includes(q);
+      return !!t && matchesQuery(`${t.customTitle ?? t.title} ${t.url || t.pinnedUrl || ""}`, query);
     };
     return filterSections(all, matches, query);
   }, [all, tabs, query]);
@@ -71,8 +74,19 @@ function TabOverview({ windowId }: { windowId: string }) {
   const [width, setWidth] = useState(0);
   const columns = overviewColumns(width - SIDE * 2, MIN_CARD, GAP);
   const card = width > 0 ? Math.floor((width - SIDE * 2 - GAP * (columns - 1)) / columns) : MIN_CARD;
-  const [selected, setSelected] = useState(() => Math.max(0, flat.findIndex((f) => f.item.kind === "tab" && f.item.id === active)));
   const [expanded, setExpanded] = useState<string | null>(null);
+  const openFolder = flat.find((f): f is { item: Folder; key: string } => f.item.kind === "folder" && f.key === expanded)?.item ?? null;
+  const trayColumns = overviewColumns(width - SIDE * 2 - TRAY_PAD, TRAY_MIN, TRAY_GAP);
+  const grid = useMemo(
+    () => overviewGrid(sections.map((s) => s.items.map(itemKey)), columns, openFolder ? { after: openFolder.key, keys: openFolder.tabIds, columns: trayColumns } : null),
+    [sections, columns, openFolder, trayColumns],
+  );
+  const [selected, setSelected] = useState<string | null>(() => (active && flat.some((f) => f.key === active) ? active : (flat[0]?.key ?? null)));
+  const firstKey = grid[0]?.[0] ?? null;
+  useEffect(() => setSelected(firstKey), [query]);
+  useEffect(() => {
+    if (selected !== null && !grid.some((row) => row.includes(selected))) setSelected(firstKey);
+  }, [grid]);
   const [fresh, setFresh] = useState(0);
   const input = useRef<TextInput>(null);
   const total = flat.reduce((n, f) => n + (f.item.kind === "tab" ? 1 : f.item.tabIds.length), 0);
@@ -86,17 +100,17 @@ function TabOverview({ windowId }: { windowId: string }) {
       if (now) void webviews.get(now)?.focus();
     };
   }, []);
-  useEffect(() => setSelected((i) => Math.min(Math.max(i, 0), flat.length - 1)), [flat.length]);
 
   const choose = (tabId: string | undefined) => {
     if (tabId) switchToTab(tabId);
     closeTabOverview(windowId);
   };
   const toggleFolder = (key: string) => setExpanded((e) => (e === key ? null : key));
-  const activate = (f: Flat | undefined) => {
-    if (!f) return;
-    if (f.item.kind === "tab") return choose(f.item.id);
-    toggleFolder(f.key);
+  const activate = (key: string | null) => {
+    if (!key) return;
+    const f = flat.find((x) => x.key === key);
+    if (f?.item.kind === "folder") return toggleFolder(f.key);
+    choose(key);
   };
 
   let index = 0;
@@ -135,8 +149,8 @@ function TabOverview({ windowId }: { windowId: string }) {
                   if (expanded) return setExpanded(null);
                   return query ? setQuery("") : closeTabOverview(windowId);
                 }
-                if (key === "Enter") return activate(flat[selected]);
-                setSelected((i) => moveSelection(i, flat.length, columns, key));
+                if (key === "Enter") return activate(selected);
+                setSelected((current) => moveInGrid(grid, current, key));
               }}
               style={{ flex: 1, fontSize: 13, color: theme.textPrimary, paddingVertical: 0 }}
             />
@@ -157,13 +171,13 @@ function TabOverview({ windowId }: { windowId: string }) {
                         {row.map((item) => {
                           const i = index++;
                           return item.kind === "tab" ? (
-                            <TabCard key={item.id} tabId={item.id} width={card} index={i} selected={i === selected} current={item.id === active} fresh={fresh} onOpen={() => choose(item.id)} />
+                            <TabCard key={item.id} tabId={item.id} width={card} index={i} selected={item.id === selected} current={item.id === active} fresh={fresh} onOpen={() => choose(item.id)} />
                           ) : (
-                            <FolderCard key={item.key} item={item} width={card} index={i} selected={i === selected} open={expanded === item.key} onPress={() => toggleFolder(item.key)} />
+                            <FolderCard key={item.key} item={item} width={card} index={i} selected={item.key === selected} open={expanded === item.key} onPress={() => toggleFolder(item.key)} />
                           );
                         })}
                       </View>
-                      {open ? <FolderTray key={open.key} item={open} caretX={row.indexOf(open) * (card + GAP) + card / 2} active={active} fresh={fresh} onOpen={choose} /> : null}
+                      {open ? <FolderTray key={open.key} item={open} caretX={row.indexOf(open) * (card + GAP) + card / 2} active={active} selected={selected} fresh={fresh} onOpen={choose} /> : null}
                     </View>
                   );
                 })}
@@ -336,15 +350,29 @@ const FolderCard = memo(function FolderCard({
   );
 });
 
-function FolderTray({ item, caretX, active, fresh, onOpen }: { item: Folder; caretX: number; active: string | undefined; fresh: number; onOpen: (tabId: string) => void }) {
+function FolderTray({
+  item,
+  caretX,
+  active,
+  selected,
+  fresh,
+  onOpen,
+}: {
+  item: Folder;
+  caretX: number;
+  active: string | undefined;
+  selected: string | null;
+  fresh: number;
+  onOpen: (tabId: string) => void;
+}) {
   const theme = useTheme();
   const drop = useRef(new Animated.Value(0)).current;
   const [width, setWidth] = useState(0);
   useEffect(() => {
     Animated.timing(drop, { toValue: 1, duration: 280, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
   }, []);
-  const columns = overviewColumns(width - 32, 150, 16);
-  const card = width > 0 ? Math.floor((width - 32 - 16 * (columns - 1)) / columns) : 150;
+  const columns = overviewColumns(width - TRAY_PAD, TRAY_MIN, TRAY_GAP);
+  const card = width > 0 ? Math.floor((width - TRAY_PAD - TRAY_GAP * (columns - 1)) / columns) : TRAY_MIN;
   const fill = theme.dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.05)";
   return (
     <Animated.View
@@ -356,7 +384,7 @@ function FolderTray({ item, caretX, active, fresh, onOpen }: { item: Folder; car
         <Text style={{ fontSize: 15, fontWeight: "700", color: theme.textPrimary }}>{item.name}</Text>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 16 }}>
           {item.tabIds.map((id, i) => (
-            <TabCard key={id} tabId={id} width={card} index={i} selected={false} current={id === active} fresh={fresh} onOpen={() => onOpen(id)} small />
+            <TabCard key={id} tabId={id} width={card} index={i} selected={id === selected} current={id === active} fresh={fresh} onOpen={() => onOpen(id)} small />
           ))}
         </View>
       </View>
