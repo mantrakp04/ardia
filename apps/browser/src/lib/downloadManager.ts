@@ -65,7 +65,8 @@ export function summarize(downloads: Download[]): DownloadsSummary {
   const speed = running.reduce((n, d) => n + Math.max(0, d.speed), 0);
   const received = sized.reduce((n, d) => n + d.received, 0);
   const total = sized.reduce((n, d) => n + d.total, 0);
-  const secondsLeft = speed > 0 && total > received && sized.length === active.length ? (total - received) / speed : null;
+  const runningLeft = running.reduce((n, d) => n + Math.max(0, d.total - d.received), 0);
+  const secondsLeft = speed > 0 && runningLeft > 0 && running.every((d) => d.total > 0) ? runningLeft / speed : null;
   return { active: active.length, running: running.length, paused: active.length - running.length, failed: downloads.filter(failedOrStopped).length, speed, received, total, secondsLeft };
 }
 
@@ -86,6 +87,6 @@ export async function retryWith(d: Pick<Download, "id" | "url" | "state">, steps
   await steps.wait(RESUME_CHECK_MS);
   const now = steps.current(d.id);
   if (!now) return "gone";
-  if (now.state === "downloading" || now.state === "finished") return "resumed";
+  if ((now.state === "downloading" && !now.paused) || now.state === "finished") return "resumed";
   return steps.downloadAgain(d.url) ? "again" : "noWindow";
 }

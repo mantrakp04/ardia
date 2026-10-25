@@ -21,13 +21,15 @@ test("filters split active, finished and failed, and count each", () => {
   assert.equal(counts.archive, 1);
 });
 
-test("the summary adds up running speed and gives one time left only when every active size is known", () => {
+test("the summary adds up running speed, and its time left covers the running downloads only when their sizes are known", () => {
   const s = summarize([dl({ received: 50, total: 100, speed: 10 }), dl({ id: "2", received: 0, total: 100, speed: 15 }), dl({ id: "3", paused: true, received: 10, total: 20, speed: 99 })]);
   assert.equal(s.active, 3);
   assert.equal(s.paused, 1);
   assert.equal(s.speed, 25);
-  assert.equal(s.secondsLeft, (220 - 60) / 25);
+  assert.equal(s.secondsLeft, (200 - 50) / 25, "the paused download's bytes aren't in the estimate");
   assert.equal(summarize([dl({ speed: 5 })]).secondsLeft, null);
+  assert.equal(summarize([dl({ paused: true, received: 1, total: 10 })]).secondsLeft, null, "nothing running, no time left");
+  assert.equal(summarize([dl({ received: 1, total: 10, speed: 3 }), dl({ id: "2", paused: true, speed: 0 })]).secondsLeft, 3, "a paused download of unknown size doesn't hide the estimate");
 });
 
 const { retryWith } = await import("./downloadManager.ts");
@@ -61,6 +63,12 @@ test("a failed download that resumes is left alone; one Chromium won't resume is
   const refused = steps({ state: "failed", paused: false }, { throws: true });
   assert.equal(await retryWith(dl({ id: "n", state: "failed", url: "https://x.example/n" }), refused.steps), "again");
   assert.deepEqual(refused.log, [["resume", "n"], ["current", "n"], ["again", "https://x.example/n"]]);
+});
+
+test("a download that comes back paused after Retry isn't counted as resumed", async () => {
+  const stuck = steps({ state: "downloading", paused: true });
+  assert.equal(await retryWith(dl({ id: "p", state: "failed", url: "https://x.example/p" }), stuck.steps), "again");
+  assert.deepEqual(stuck.log, [["resume", "p"], ["current", "p"], ["again", "https://x.example/p"]]);
 });
 
 test("a download removed while Retry waited isn't downloaded again", async () => {
