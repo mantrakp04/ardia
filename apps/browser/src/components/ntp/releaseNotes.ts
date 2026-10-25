@@ -1,5 +1,6 @@
 import { launchEnvironment, readDocument, systemInfo, writeDocument } from "@ardia/shell";
 import { create } from "zustand";
+import { PRODUCT } from "../../lib/productName";
 
 export type ReleaseNotes = {
   version: string;
@@ -13,7 +14,7 @@ const RELEASE_NOTES: ReleaseNotes[] = [
   {
     version: "1.0",
     date: "September 2026",
-    title: "Hello, Ardia",
+    title: `Hello, ${PRODUCT}`,
     summary: "The first release: a calm, fast browser that keeps your tabs, your pages and your focus in one place.",
     items: [
       { title: "A command bar for everything", body: "Search, type an address or jump to an open tab from the New Tab page, or from any page with ⌘L." },

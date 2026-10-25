@@ -1,5 +1,6 @@
 import { prepare, type Searchable } from "./searchMatch";
 import type { SettingsPane } from "./windows";
+import { PRODUCT } from "../../lib/productName";
 
 export const PANES: { id: SettingsPane; title: string; icon: string }[] = [
   { id: "general", title: "General", icon: "gearshape" },
@@ -21,7 +22,7 @@ export const PANES: { id: SettingsPane; title: string; icon: string }[] = [
 type Row = { title: string; description?: string; keywords?: string[] };
 type Section = { section: string; rows: Record<string, Row> };
 
-const APP = "Ardia";
+const APP = PRODUCT;
 
 const ROWS: Record<SettingsPane, Section[]> = {
   general: [
@@ -270,11 +271,11 @@ const ROWS: Record<SettingsPane, Section[]> = {
     { section: "Credit Cards", rows: { cardList: { title: "Credit Cards", keywords: ["add card", "saved cards", "payment"] } } },
   ],
   extensions: [
-    { section: "Extensions", rows: { installed: { title: "Extensions", description: "Add features to Ardia with extensions from the Chrome Web Store. Each profile has its own.", keywords: ["add ons", "plugins", "installed"] } } },
+    { section: "Extensions", rows: { installed: { title: "Extensions", description: `Add features to ${APP} with extensions from the Chrome Web Store. Each profile has its own.`, keywords: ["add ons", "plugins", "installed"] } } },
     {
       section: "Add extensions",
       rows: {
-        webStore: { title: "Chrome Web Store", description: "Browse the store; its Add to Ardia button installs here.", keywords: ["install extension"] },
+        webStore: { title: "Chrome Web Store", description: `Browse the store; its Add to ${APP} button installs here.`, keywords: ["install extension"] },
         addLink: { title: "Add from a link", description: "Paste a Chrome Web Store link or extension ID.", keywords: ["install extension", "url"] },
         unpacked: { title: "Load unpacked extension", description: "For developers: load an extension folder with a manifest.json.", keywords: ["developer mode"] },
       },
@@ -384,7 +385,7 @@ const ROWS: Record<SettingsPane, Section[]> = {
     {
       section: "Source and licenses",
       rows: {
-        source: { title: "Source code", description: "Ardia is open source under the Apache License 2.0.", keywords: ["github", "open source"] },
+        source: { title: "Source code", description: `${APP} is open source under the Apache License 2.0.`, keywords: ["github", "open source"] },
         licenses: { title: "Licenses", description: "Every open-source part of the engine, with its copyright and license.", keywords: ["credits", "legal"] },
       },
     },

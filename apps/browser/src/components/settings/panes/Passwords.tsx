@@ -25,12 +25,13 @@ import { Button, Group, PopUp, Row, SearchField, SectionHeader, Sheet, TextField
 import { passwordAutofill } from "../paneData";
 import { store, useResource } from "../resources";
 import { closeSettingsSheet, showSettingsSheet } from "../sheet";
+import { PRODUCT } from "../../../lib/productName";
 
 function passwordManagerAppsNote() {
   const apps = "1Password, Bitwarden, KeePassXC and Proton Pass extensions connect to their Mac apps.";
   return systemInfo().inApplicationsFolder === false
-    ? `${apps} For 1Password, move Ardia to your Applications folder and reopen it (1Password only connects to browsers there), then in the 1Password app open Settings › Browser › Add Browser and choose it.`
-    : `${apps} For 1Password, add Ardia once: in the 1Password app, open Settings › Browser › Add Browser and choose Ardia.`;
+    ? `${apps} For 1Password, move ${PRODUCT} to your Applications folder and reopen it (1Password only connects to browsers there), then in the 1Password app open Settings › Browser › Add Browser and choose it.`
+    : `${apps} For 1Password, add ${PRODUCT} once: in the 1Password app, open Settings › Browser › Add Browser and choose ${PRODUCT}.`;
 }
 
 const UNLOCK_MS = 5 * 60_000;

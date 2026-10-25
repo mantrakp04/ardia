@@ -6,6 +6,7 @@ import { ALERT_LEADS } from "../../../live/meetings";
 import { updateCalendarSettings, useLive } from "../../../live/store";
 import { useBrowser } from "../../../store/browser";
 import { Button, Checkbox, Group, PopUp, Row, SectionHeader, Toggle } from "../controls";
+import { PRODUCT } from "../../../lib/productName";
 
 export function CalendarPane() {
   const theme = useTheme();
@@ -32,7 +33,7 @@ export function CalendarPane() {
               : connected
                 ? `Connected · ${calendars.length === 1 ? "1 calendar" : `${calendars.length} calendars`}`
                 : denied
-                  ? "Ardia isn't allowed to read your calendars. Allow it in System Settings › Privacy & Security › Calendars."
+                  ? `${PRODUCT} isn't allowed to read your calendars. Allow it in System Settings › Privacy & Security › Calendars.`
                   : "Not connected"
           }
         >

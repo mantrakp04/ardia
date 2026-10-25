@@ -7,6 +7,7 @@ import { useBrowser } from "../../store/browser";
 import { useWindowId } from "../../store/hooks";
 import { useHover } from "../primitives";
 import type { ReleaseNotes } from "./releaseNotes";
+import { PRODUCT } from "../../lib/productName";
 
 const ICON = require("../../../assets/app-icon.png");
 
@@ -97,7 +98,7 @@ export function ReleaseNotesPostcard({ notes, size, onOpen, onDismiss }: { notes
             transform: [{ rotate: `${CARD.tilt}deg` }, { scale }],
           }}
         >
-          <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel="What's new in Ardia" style={{ flex: 1 }}>
+          <Pressable onPress={onOpen} accessibilityRole="button" accessibilityLabel={`What's new in ${PRODUCT}`} style={{ flex: 1 }}>
             <Surface
               style={StyleSheet.absoluteFill}
               cornerRadius={CARD.radius}

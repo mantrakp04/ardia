@@ -1,18 +1,20 @@
+import { PRODUCT, SERVICES } from "../lib/productName";
+
 export const SHARING_COPY = {
   toggle: "Share anonymous crash reports and usage stats",
   summary: "Crashes, errors, rough feature counts and speed. Never the sites you visit, anything you type or search, or what's in your tabs.",
   whatsSent: "What's Sent",
   footnote:
-    "Sent to ardia.dev with a random ID made on this Mac, and kept on our own servers. No third parties. Turning this off stops it at once and deletes anything waiting to be sent. This setting doesn't sync.",
+    `Sent to ${SERVICES.telemetryHost} with a random ID made on this Mac, and kept on our own servers. No third parties. Turning this off stops it at once and deletes anything waiting to be sent. This setting doesn't sync.`,
   ask: {
-    title: "Help fix Ardia?",
+    title: `Help fix ${PRODUCT}?`,
     body: "Share anonymous crash reports and usage stats. No sites, searches or typing. Ever.",
     share: "Share",
     notNow: "Not now",
   },
-  updateChecks: "ardia.dev counts update checks by version and day, and whether it's this copy's first. Nothing else.",
+  updateChecks: `${SERVICES.updateHost} counts update checks by version and day, and whether it's this copy's first. Nothing else.`,
   switchFile:
-    "While update checks are on, each launch also reads ardia.dev/switches.json: one small file, the same for everyone, that lets us turn off a speed-up that misbehaves. It sends no ID, no cookies and nothing about you.",
+    `While update checks are on, each launch also reads ${SERVICES.switchFile}: one small file, the same for everyone, that lets us turn off a speed-up that misbehaves. It sends no ID, no cookies and nothing about you.`,
   onboarding: {
     title: "Help us fix what breaks",
     row: "Crashes, errors, feature counts and speed. Never your sites, typing or tabs.",

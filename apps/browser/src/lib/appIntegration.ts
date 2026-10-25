@@ -32,6 +32,7 @@ import { openReleaseNotesAfterUpdate, openReleaseNotesPage } from "./releaseNote
 import { JAVASCRIPT_FROM_APPLE_EVENTS_REFUSED, runsJavaScript } from "./scriptUrls";
 import { webviews } from "./webviews";
 import { handleWebNotificationResponse } from "./webNotifications";
+import { PRODUCT } from "./productName";
 
 export function startAppIntegration() {
   onCommand(runAppCommand);
@@ -114,7 +115,7 @@ async function recordPerformanceIssue() {
   if (await isTracing()) return;
   const start = await confirm({
     title: "Record a performance issue?",
-    message: "Ardia records what the engine does while you reproduce the problem. The recording is saved to your Downloads folder.",
+    message: `${PRODUCT} records what the engine does while you reproduce the problem. The recording is saved to your Downloads folder.`,
     confirmTitle: "Start Recording",
   });
   if (!start.confirmed || !(await beginTracing())) return;

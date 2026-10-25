@@ -7,6 +7,7 @@ import { everySlowly } from "../lib/slowTimers";
 import { connectCalendar, useCalendar } from "./calendar";
 import { eventForCall, isCalendarUrl, meetingOf, relatedLinks, type CalendarEvent } from "./meetings";
 import { live, setMeetingGroup, updateCalendarSettings, useLive } from "./store";
+import { PRODUCT } from "../lib/productName";
 
 export const MEETING_FALLBACK_TITLE = "Meeting";
 const CLEANUP_IDLE_MS = 30 * 60_000;
@@ -85,7 +86,7 @@ async function offerAlerts(windowId: string) {
   updateCalendarSettings({ prompted: true });
   const { confirmed } = await confirm({
     title: "Would you like to see meeting alerts for this calendar?",
-    message: "Ardia can alert you when a new meeting is about to begin. You can hide these alerts or manage how close to a meeting start they show up.",
+    message: `${PRODUCT} can alert you when a new meeting is about to begin. You can hide these alerts or manage how close to a meeting start they show up.`,
     confirmTitle: "Show Alerts",
     cancelTitle: "Don't Show These Alerts",
     windowId,

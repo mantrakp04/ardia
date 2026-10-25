@@ -29,6 +29,7 @@ import { appLinks, contentBlocker, siteOrigins, zoomLevels } from "../paneData";
 import { useResource } from "../resources";
 import { closeSettingsSheet, showSettingsSheet } from "../sheet";
 import { ShareDiagnosticsSection } from "./ShareDiagnostics";
+import { PRODUCT } from "../../../lib/productName";
 
 const CATEGORIES: { id: FilterListCategory; toggle: string; section: string; anchor?: string }[] = [
   { id: "ads", toggle: "Block ads", section: "Ad blockers", anchor: "privacy.blockAds" },
@@ -71,7 +72,7 @@ export function PrivacyPane() {
     if (!on && c === "ads") {
       const { confirmed } = await confirm({
         title: "Turn Off Ad Blocker?",
-        message: "Ardia's Ad Blocker hides ads so pages load faster and feel cleaner.",
+        message: `${PRODUCT}'s Ad Blocker hides ads so pages load faster and feel cleaner.`,
         confirmTitle: "Turn Off",
       });
       if (!confirmed) return refresh();
@@ -163,7 +164,7 @@ function FilterListsSheet() {
       </ScrollView>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 16 }}>
         <Text style={{ flex: 1, fontSize: 11.5, color: theme.textTertiary }}>
-          {blocker?.version ? `Blocking by uBlock Origin ${blocker.version}, included with Ardia. Its lists update on their own.` : ""}
+          {blocker?.version ? `Blocking by uBlock Origin ${blocker.version}, included with ${PRODUCT}. Its lists update on their own.` : ""}
         </Text>
         <Button title="Done" kind="primary" onPress={closeSettingsSheet} />
       </View>

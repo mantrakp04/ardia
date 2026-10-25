@@ -1,6 +1,42 @@
-const APP_SCHEME = "ardia";
+export const UPSTREAM_APP_SCHEME = "ardia";
 
-const APP_PREFIX = /^(view-source:)?ardia:(?:\/\/)?/i;
+let APP_SCHEME = UPSTREAM_APP_SCHEME;
+let APP_PREFIX = prefixFor(APP_SCHEME);
+let APP_URL = urlPatternFor(APP_SCHEME);
+
+const RESERVED_SCHEMES = new Set(["http", "https", "file", "about", "data", "blob", "javascript", "view-source", "chrome", "chrome-extension", "devtools"]);
+
+function schemesFor(scheme: string): string {
+  return scheme === UPSTREAM_APP_SCHEME ? UPSTREAM_APP_SCHEME : `${UPSTREAM_APP_SCHEME}|${scheme.replace(/[.+]/g, "\\$&")}`;
+}
+
+function prefixFor(scheme: string): RegExp {
+  return new RegExp(`^(view-source:)?(?:${schemesFor(scheme)}):(?:\\/\\/)?`, "i");
+}
+
+function urlPatternFor(scheme: string): RegExp {
+  return new RegExp(`^(?:${schemesFor(scheme)}):\\/\\/[^/?#]`, "i");
+}
+
+export function appSchemeFor(productName: string | null | undefined): string {
+  const scheme = (productName ?? "").trim().toLowerCase().replace(/[^a-z0-9+.-]/g, "");
+  return /^[a-z][a-z0-9+.-]*$/.test(scheme) && !RESERVED_SCHEMES.has(scheme) ? scheme : UPSTREAM_APP_SCHEME;
+}
+
+export function setAppScheme(productName: string | null | undefined): string {
+  APP_SCHEME = appSchemeFor(productName);
+  APP_PREFIX = prefixFor(APP_SCHEME);
+  APP_URL = urlPatternFor(APP_SCHEME);
+  return APP_SCHEME;
+}
+
+export const appScheme = () => APP_SCHEME;
+
+export const isAppScheme = (scheme: string) => {
+  const lower = scheme.toLowerCase();
+  return lower === UPSTREAM_APP_SCHEME || lower === APP_SCHEME;
+};
+
 const ENGINE_PREFIX = /^(view-source:)?chrome:(?:\/\/)?/i;
 const ABOUT_PAGE = /^about:(blank|srcdoc)([?#]|$)/i;
 const ABOUT_ALIAS = /^about:([a-z][a-z0-9-]*)/i;
@@ -29,7 +65,7 @@ export function toEngineUrl(url: string): string {
   return parts?.host ? `${parts.viewSource}chrome://${parts.host}${parts.rest}` : url;
 }
 
-const isAppUrl = (url: string | null | undefined) => !!url && /^ardia:\/\/[^/?#]/i.test(url);
+const isAppUrl = (url: string | null | undefined) => !!url && APP_URL.test(url);
 
 function appUrlParts(url: string): { host: string; path: string; query: string; hash: string } | null {
   if (!isAppUrl(url)) return null;

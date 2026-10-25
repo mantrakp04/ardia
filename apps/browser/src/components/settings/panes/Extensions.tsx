@@ -22,6 +22,7 @@ import { extensionList } from "../paneData";
 import { useResource } from "../resources";
 import { closeSettingsSheet, showSettingsSheet } from "../sheet";
 import { SETTINGS_WINDOW_ID, useSettingsNav } from "../windows";
+import { PRODUCT } from "../../../lib/productName";
 
 type SiteAccess = "allSites" | "specificSites" | "onClick";
 const SITE_ACCESS: { value: SiteAccess; title: string }[] = [
@@ -61,7 +62,7 @@ export function ExtensionsPane({ profileId: chosen, detail }: { profileId: strin
     <View>
       <SectionHeader
         anchor="extensions.installed"
-        description="Add features to Ardia with extensions from the Chrome Web Store. Each profile has its own."
+        description={`Add features to ${PRODUCT} with extensions from the Chrome Web Store. Each profile has its own.`}
         action={
           profiles.length > 1 ? (
             <PopUp value={profileId} options={profiles.map((p) => ({ value: p.id, title: p.name }))} onChange={(id) => useSettingsNav.getState().replace(id)} />

@@ -6,6 +6,7 @@ import { useTheme } from "../../../lib/theme";
 import { enterRecoveryPhrase, stopSync } from "../../../sync/engine";
 import { Button, Checkbox, Sheet, useFormColors } from "../controls";
 import { closeSettingsSheet, showSettingsSheet } from "../sheet";
+import { PRODUCT } from "../../../lib/productName";
 
 const WORDS = 24;
 
@@ -203,7 +204,7 @@ function ConnectDeviceSheet() {
     <Sheet width={480} onClose={closeSettingsSheet}>
       <Title>Connect Another Device</Title>
       <Body>
-        On your other Mac, open Ardia › Settings › Sync and choose the same sync folder. Then click Enter Recovery Phrase and enter the 24 words
+        On your other Mac, open {PRODUCT} › Settings › Sync and choose the same sync folder. Then click Enter Recovery Phrase and enter the 24 words
         of your recovery phrase.
       </Body>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 16, marginTop: 16 }}>

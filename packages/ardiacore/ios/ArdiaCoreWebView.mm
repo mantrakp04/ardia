@@ -116,7 +116,8 @@ bool SamePage(NSString *a, NSString *b) {
 
 bool IsRendererDebugURL(NSString *url) {
   NSURLComponents *c = [NSURLComponents componentsWithString:url];
-  if (![@[ @"chrome", @"ardia" ] containsObject:c.scheme.lowercaseString ?: @""]) return false;
+  static NSArray *schemes = @[ @"chrome", @"ardia", ((NSString *)[NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleName"] ?: @"ardia").lowercaseString ];
+  if (![schemes containsObject:c.scheme.lowercaseString ?: @""]) return false;
   static NSSet *hosts = [NSSet setWithArray:@[
     @"badcastcrash", @"crash", @"crashdump", @"kill", @"hang", @"shorthang", @"memory-exhaust", @"memory-pressure-critical",
     @"memory-pressure-moderate", @"gpuclean", @"gpucrash", @"gpuhang", @"inducebrowsercrashforrealz",

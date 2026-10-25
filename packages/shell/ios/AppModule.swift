@@ -2,6 +2,10 @@ import AppKit
 import MachO
 import ExpoModulesCore
 
+extension Bundle {
+  public var productName: String { object(forInfoDictionaryKey: "CFBundleName") as? String ?? "Ardia" }
+}
+
 public class AppModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ArdiaApp")
@@ -12,6 +16,7 @@ public class AppModule: Module {
       DispatchQueue.main.async {
         NotificationHub.shared.install()
         AppIcons.restore()
+        DockTile.relabel()
         AppUpdater.shared.start()
       }
     }
@@ -95,7 +100,7 @@ public class AppModule: Module {
       let configuration = "Release"
       #endif
       return [
-        "appName": info["CFBundleName"] as? String ?? "Ardia",
+        "appName": Bundle.main.productName,
         "appVersion": info["CFBundleShortVersionString"] as? String ?? "",
         "appBuild": info["CFBundleVersion"] as? String ?? "",
         "bundleId": Bundle.main.bundleIdentifier ?? "",
@@ -111,6 +116,7 @@ public class AppModule: Module {
         "feedbackEmail": Self.infoString("ACFeedbackEmail") as Any,
         "videoTourURL": Self.infoString("ACVideoTourURL") as Any,
         "releaseNotesURL": Self.infoString("ACReleaseNotesURL") as Any,
+        "updateFeedURL": Self.infoString("SUFeedURL") as Any,
         "releaseRepo": Self.infoString("ACReleaseRepo") as Any,
         "telemetryURL": Self.infoString("ACTelemetryURL") as Any,
         "switchesURL": Self.infoString("ACSwitchesURL") as Any,

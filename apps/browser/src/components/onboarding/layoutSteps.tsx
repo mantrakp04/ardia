@@ -5,6 +5,7 @@ import { PROFILE_COLORS } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
 import type { PeekModifier, Settings } from "../../store/settings";
 import { ChoiceList, useMockFocus, type ChoiceOption } from "./choices";
+import { ONBOARDING_COPY } from "./copy";
 import { ThemeColorPicker } from "./personalize";
 import { MockPanel, useScreen } from "./screen";
 import { PRESETS, questionsFor, useOnboarding, type QuestionId } from "./state";
@@ -228,9 +229,9 @@ export function TabsStep() {
       <Page
         id={id}
         title="When you quit and come back?"
-        subtitle="What Ardia opens to."
+        subtitle={ONBOARDING_COPY.quit.subtitle}
         patch={{ restoreSession: values.restoreSession }}
-        picked={values.restoreSession ? [] : ["Ardia starts fresh each launch"]}
+        picked={values.restoreSession ? [] : [ONBOARDING_COPY.quit.startsFresh]}
         preview={preview}
       >
         <ChoiceList options={QUIT_CHOICES} value={values.restoreSession} onChange={(restoreSession) => change({ restoreSession })} mock={focus} />

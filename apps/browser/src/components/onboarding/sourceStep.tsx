@@ -5,6 +5,7 @@ import { useHover } from "../primitives";
 import { importModule } from "../import/module";
 import { openImport } from "../settings/windows";
 import { CONTENT_WIDTH } from "./choices";
+import { ONBOARDING_COPY } from "./copy";
 import { presetFor, useOnboarding, type BrowserSourceId } from "./state";
 import { StepActions, StepLayout } from "./steps";
 import { CheckMark, SecondaryButton, SectionLabel, Tag, useOnboardingColors } from "./ui";
@@ -70,7 +71,7 @@ export function SourceStep() {
   return (
     <StepLayout
       title="Where are you coming from?"
-      subtitle="Ardia sets itself up the way you're used to. Change anything later."
+      subtitle={ONBOARDING_COPY.sourceSubtitle}
       actions={
         <StepActions
           disabled={!source}

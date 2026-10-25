@@ -15,6 +15,7 @@ import { useBrowser } from "../../store/browser";
 import { PANEL, Popover, PromptButton } from "../layout/controls";
 import { tabForBrowser } from "../layout/pageState";
 import { useHover } from "../primitives";
+import { PRODUCT } from "../../lib/productName";
 
 const useChoosers = create<{ byTab: Record<string, Chooser> }>()(() => ({ byTab: {} }));
 if (__DEV__) (globalThis as { acDeviceChoosers?: unknown }).acDeviceChoosers = { useChoosers, selectDevice, cancelDeviceChooser };
@@ -107,7 +108,7 @@ export function DeviceChooser({ tabId, left, top }: { tabId: string; left: numbe
     body = (
       <Notice
         icon="lock"
-        text="Ardia needs access to Bluetooth to find devices."
+        text={`${PRODUCT} needs access to Bluetooth to find devices.`}
         link="Open Bluetooth Settings"
         onLink={() => void openBluetoothSettings(chooser.id)}
       />

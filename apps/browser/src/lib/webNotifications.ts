@@ -11,6 +11,7 @@ import {
 import { useBrowser } from "../store/browser";
 import { focus, switchToTab } from "./actions";
 import { webviews } from "./webviews";
+import { PRODUCT } from "./productName";
 
 const shown = new Map<string, string>();
 
@@ -104,8 +105,8 @@ export async function ensureNotificationPermission(windowId?: string): Promise<b
   if (asked) return false;
   asked = true;
   const { confirmed } = await confirm({
-    title: "Ardia Needs Notifications Permission",
-    message: "You need to open System Settings to give Ardia permission to show you Notifications.",
+    title: `${PRODUCT} Needs Notifications Permission`,
+    message: `You need to open System Settings to give ${PRODUCT} permission to show you Notifications.`,
     confirmTitle: "Open System Settings",
     cancelTitle: "Not Now",
     windowId,

@@ -9,6 +9,7 @@ import { matchesQuery } from "../../pages/PageLayout";
 import { Anchor, Button, Group, PopUp, Row, SearchField, SectionHeader, Toggle, useFormColors } from "../controls";
 import { shortcutItems } from "../paneData";
 import { useResource } from "../resources";
+import { PRODUCT } from "../../../lib/productName";
 
 type Combo = { key: string; modifiers: string[] };
 type Filter = "all" | "customized" | "conflicts";
@@ -106,7 +107,7 @@ export function ShortcutsPane() {
   return (
     <View>
       <Text style={{ marginTop: 20, fontSize: 12.5, lineHeight: 17, color: theme.textSecondary }}>
-        Perform common actions in Ardia faster and from anywhere. Select an action to customize its keyboard shortcut.
+        Perform common actions in {PRODUCT} faster and from anywhere. Select an action to customize its keyboard shortcut.
       </Text>
       <Group style={{ marginTop: 14 }}>
         <Row anchor="shortcuts.undoReopensClosedTab">

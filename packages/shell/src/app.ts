@@ -62,6 +62,7 @@ export type SystemInfo = {
   feedbackEmail?: string | null;
   videoTourURL?: string | null;
   releaseNotesURL?: string | null;
+  updateFeedURL?: string | null;
   releaseRepo?: string | null;
   telemetryURL?: string | null;
   switchesURL?: string | null;

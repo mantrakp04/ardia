@@ -13,6 +13,7 @@ import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useBrowser } from "../../store/browser";
 import { Favicon, useHover } from "../primitives";
 import { CONTENT_WIDTH, ChoiceList, useMockFocus, type ChoiceOption } from "./choices";
+import { ONBOARDING_COPY } from "./copy";
 import { MockPanel, useScreen } from "./screen";
 import { PINNABLE_SITES, pinSites, preselectedSites } from "./sites";
 import { finishOnboarding, QUESTION_ORDER, recordDefaultBrowserTrial, STEPS, useOnboarding } from "./state";
@@ -110,7 +111,7 @@ export function StepActions({
 type SystemState = { isDefault: boolean; inDock: boolean; loginEnabled: boolean };
 
 const LINK_CHOICES: ChoiceOption<boolean>[] = [
-  { value: true, preview: "links-little", title: "Little Ardia", subtitle: "A small window that's gone when you're done" },
+  { value: true, preview: "links-little", title: ONBOARDING_COPY.links.little, subtitle: "A small window that's gone when you're done" },
   { value: false, preview: "links-tab", title: "A new tab", subtitle: "Right in your main window" },
 ];
 
@@ -142,7 +143,7 @@ function DefaultBrowserQuestion() {
     try {
       if (!system.isDefault && (setDefault || trial) && (await setAsDefaultBrowser())) {
         if (!setDefault) recordDefaultBrowserTrial();
-        picked.push(setDefault ? "Ardia is your default browser" : "A week as your default browser");
+        picked.push(setDefault ? ONBOARDING_COPY.system.isDefault : "A week as your default browser");
       }
       if (login !== system.loginEnabled) await setLaunchAtLogin(login).catch(() => {});
       if (dock && !system.inDock) await addToDock();
@@ -157,7 +158,7 @@ function DefaultBrowserQuestion() {
   return (
     <StepLayout
       pageKey="default"
-      title="Make Ardia your default?"
+      title={ONBOARDING_COPY.system.title}
       subtitle="Links from everywhere open here."
       actions={
         <StepActions
@@ -172,8 +173,8 @@ function DefaultBrowserQuestion() {
       <View style={{ gap: 8 }}>
         <CheckRow
           icon="globe"
-          title="Set Ardia as default browser"
-          subtitle={system?.isDefault ? "Ardia is already your default browser" : "Open links and web pages in Ardia"}
+          title={ONBOARDING_COPY.system.setDefault}
+          subtitle={system?.isDefault ? ONBOARDING_COPY.system.alreadyDefault : ONBOARDING_COPY.system.openByDefault}
           value={!!defaultOn}
           disabled={!system || system.isDefault}
           onChange={(v) => setExtras({ setDefault: v })}
@@ -182,9 +183,9 @@ function DefaultBrowserQuestion() {
           <CheckRow icon="calendar" title="Try it for seven days" subtitle="We'll check in to make sure you love it." value={trial} onChange={(v) => setExtras({ trial: v })} />
         ) : null}
         {system && !system.inDock ? (
-          <CheckRow icon="dock.rectangle" title="Add Ardia to Dock" subtitle="Quick access whenever you need it" value={dock} onChange={(v) => setExtras({ dock: v })} />
+          <CheckRow icon="dock.rectangle" title={ONBOARDING_COPY.system.dock} subtitle="Quick access whenever you need it" value={dock} onChange={(v) => setExtras({ dock: v })} />
         ) : null}
-        <CheckRow icon="power" title="Open Ardia at login" subtitle="Ready when you sign in" value={login} onChange={(v) => setExtras({ login: v })} />
+        <CheckRow icon="power" title={ONBOARDING_COPY.system.login} subtitle="Ready when you sign in" value={login} onChange={(v) => setExtras({ login: v })} />
       </View>
     </StepLayout>
   );
@@ -202,7 +203,7 @@ function LinksQuestion() {
       actions={
         <StepActions
           onContinue={() =>
-            useOnboarding.getState().confirm("links", { openLinksInLittleArdia: little }, [little ? "Links from other apps open in Little Ardia" : "Links from other apps open in a tab"])
+            useOnboarding.getState().confirm("links", { openLinksInLittleArdia: little }, [little ? ONBOARDING_COPY.links.littlePicked : "Links from other apps open in a tab"])
           }
           onSkip={() => useOnboarding.getState().skip()}
         />
@@ -269,7 +270,7 @@ export function PinnedTabsStep() {
   return (
     <StepLayout
       title="Keep your favorite apps handy"
-      subtitle="Pin the apps you use most. They stay put when you open Ardia."
+      subtitle={ONBOARDING_COPY.pinnedSubtitle}
       actions={
         <StepActions
           continueTitle={selected.length ? `Pin ${selected.length} ${selected.length === 1 ? "Tab" : "Tabs"}` : "Continue"}

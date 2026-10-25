@@ -1,4 +1,4 @@
-import { appUrlOrigin, toAppUrl } from "./appUrls.ts";
+import { appUrlOrigin, isAppScheme, toAppUrl } from "./appUrls.ts";
 import { cleanUrl } from "./cleanUrl.ts";
 import { displayHost } from "./idn.ts";
 import { PSL_TLDS } from "./tlds.ts";
@@ -77,10 +77,11 @@ function fixup(raw: string): string | null {
   if (/^(about|data|mailto|tel|sms|facetime|view-source):/i.test(input)) return input;
 
   const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(input)?.[1]?.toLowerCase();
-  if (scheme && KNOWN_SCHEMES.has(scheme) && (input.slice(scheme.length + 1).startsWith("//") || !/^\d/.test(input.slice(scheme.length + 1)))) {
+  const known = !!scheme && (KNOWN_SCHEMES.has(scheme) || isAppScheme(scheme));
+  if (scheme && known && (input.slice(scheme.length + 1).startsWith("//") || !/^\d/.test(input.slice(scheme.length + 1)))) {
     return scheme + input.slice(scheme.length).replace(/\s/g, "%20");
   }
-  if (scheme && !KNOWN_SCHEMES.has(scheme) && input.slice(scheme.length + 1).startsWith("//")) return input;
+  if (scheme && !known && input.slice(scheme.length + 1).startsWith("//")) return input;
   if (input.startsWith("/") && !input.startsWith("//")) return `file://${input.replace(/\s/g, "%20")}`;
 
   if (!/[.:/?#[]/.test(input)) return input.toLowerCase() === "localhost" ? `http://${input}` : null;

@@ -192,7 +192,7 @@ NSString *StoreFolder(NSString *profile, NSString *extensionId, id version) {
   };
   if (path.length) return run(path);
   NSSavePanel *panel = [NSSavePanel savePanel];
-  panel.nameFieldStringValue = @"Ardia Passwords.csv";
+  panel.nameFieldStringValue = [NSString stringWithFormat:@"%@ Passwords.csv", [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleName"] ?: @"Ardia"];
   panel.allowedContentTypes = @[ UTTypeCommaSeparatedText ];
   panel.canCreateDirectories = YES;
   panel.message = @"Anyone who can open this file can read your passwords.";

@@ -2,33 +2,9 @@ import { focus } from "../../lib/actions";
 import { useBrowser } from "../../store/browser";
 import { activeTabId, resolveWindowId, viewTabIds } from "../../store/model";
 import type { Tab } from "../../store/types";
+import { internalPageOf, internalUrl, type InternalPageId } from "./internalUrls";
 
-type InternalPageId = "history" | "bookmarks" | "downloads";
-
-export const INTERNAL_PAGES: Record<InternalPageId, { title: string }> = {
-  history: { title: "History" },
-  bookmarks: { title: "Bookmarks" },
-  downloads: { title: "Downloads" },
-};
-
-const SCHEME = "ardia://";
-
-const internalUrl = (page: InternalPageId, query?: string) => `${SCHEME}${page}${query ? `?q=${encodeURIComponent(query)}` : ""}`;
-
-export function internalPageOf(url: string | null | undefined): InternalPageId | null {
-  if (!url?.toLowerCase().startsWith(SCHEME)) return null;
-  const page = url.slice(SCHEME.length).split(/[/?#]/)[0]!.toLowerCase();
-  return page in INTERNAL_PAGES ? (page as InternalPageId) : null;
-}
-
-export function internalQuery(url: string): string {
-  const q = /[?&]q=([^&#]*)/.exec(url)?.[1];
-  try {
-    return q ? decodeURIComponent(q) : "";
-  } catch {
-    return q ?? "";
-  }
-}
+export { INTERNAL_PAGES, internalPageOf, internalQuery } from "./internalUrls";
 
 export const tabDestination = (t: Pick<Tab, "url" | "navigation">) => t.navigation?.url ?? t.url;
 

@@ -12,6 +12,7 @@ import { dismissHover } from "../sidebar/hover";
 import type { Anchor } from "../sidebar/state";
 import { Avatar, HoverSurface, SmallButton } from "./LiveItemCard";
 import { useLiveColors } from "./colors";
+import { PRODUCT } from "../../lib/productName";
 
 export function useIsCalendarTab(tabId: string | null): boolean {
   const pinnedCalendar = useBrowser((s) => {
@@ -95,7 +96,7 @@ function SignIn({ denied }: { denied: boolean }) {
   if (denied) {
     return (
       <Text style={{ fontSize: 12.5, lineHeight: 17, color: theme.textSecondary, paddingVertical: 4 }}>
-        Allow Ardia in System Settings › Privacy & Security › Calendars to see your meetings here.
+        Allow {PRODUCT} in System Settings › Privacy & Security › Calendars to see your meetings here.
       </Text>
     );
   }

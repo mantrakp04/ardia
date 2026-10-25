@@ -38,6 +38,7 @@ import {
   useExtensions,
   windowExtensions,
 } from "./state";
+import { PRODUCT } from "../../lib/productName";
 
 export function startExtensionsBridge() {
   onExtensionTabsRequest(openRequestedTab);
@@ -270,8 +271,8 @@ if (!g.__ardiaStore) {
     for (const el of document.querySelectorAll("button, button *")) {
       if (el.childElementCount) continue;
       const t = el.textContent;
-      if (t === "Add to Chrome") el.textContent = "Add to Ardia";
-      else if (t === "Remove from Chrome") el.textContent = "Remove from Ardia";
+      if (t === "Add to Chrome") el.textContent = ${JSON.stringify(`Add to ${PRODUCT}`)};
+      else if (t === "Remove from Chrome") el.textContent = ${JSON.stringify(`Remove from ${PRODUCT}`)};
     }
   };
   relabel();

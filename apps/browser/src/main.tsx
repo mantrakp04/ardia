@@ -1,3 +1,4 @@
+import "./lib/productName";
 import "./lib/nativeEvents";
 import { useEffect, useLayoutEffect, useState } from "react";
 import { AppRegistry, unstable_batchedUpdates } from "react-native";

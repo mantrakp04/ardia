@@ -332,8 +332,8 @@ enum MainMenu {
   private static var profiles = NSMenu(title: "Profiles")
   private static var profilesItem = NSMenuItem(title: "Profiles", action: nil, keyEquivalent: "")
   private static var profilesSeparator = NSMenuItem.separator()
-  private static var littleArdiaInProfile = NSMenu(title: "New Little Ardia Window in Profile")
-  private static var littleArdiaInProfileItem = NSMenuItem(title: "New Little Ardia Window in Profile", action: nil, keyEquivalent: "")
+  private static var littleArdiaInProfile = NSMenu(title: "New Little \(Bundle.main.productName) Window in Profile")
+  private static var littleArdiaInProfileItem = NSMenuItem(title: "New Little \(Bundle.main.productName) Window in Profile", action: nil, keyEquivalent: "")
   private static var bookmarks = NSMenu(title: "Bookmarks")
   private static var bookmarksFixedCount = 0
   private static var history = NSMenu(title: "History")
@@ -342,14 +342,14 @@ enum MainMenu {
   private static var undo: StandardItem?
 
   static func build() -> NSMenu {
-    let appName = ProcessInfo.processInfo.processName
+    let appName = Bundle.main.productName
     let main = NSMenu()
     moveToProfile = NSMenu(title: "Move to Profile")
     moveToWindow = NSMenu(title: "Move to Window")
     bookmarkToFolder = NSMenu(title: "Add Bookmark to Folder")
     profiles = NSMenu(title: "Profiles")
     profilesSeparator = NSMenuItem.separator()
-    littleArdiaInProfile = NSMenu(title: "New Little Ardia Window in Profile")
+    littleArdiaInProfile = NSMenu(title: "New Little \(Bundle.main.productName) Window in Profile")
 
     func std(_ title: String, _ action: Selector, _ key: String = "", _ mods: NSEvent.ModifierFlags = .command) -> StandardItem {
       StandardItem(title, action, key: key, mods)
@@ -396,13 +396,13 @@ enum MainMenu {
       quit,
     ])
 
-    littleArdiaInProfileItem = sub("New Little Ardia Window in Profile", [], menu: littleArdiaInProfile)
+    littleArdiaInProfileItem = sub("New Little \(Bundle.main.productName) Window in Profile", [], menu: littleArdiaInProfile)
     _ = top("File", [
       cmd("New Tab", "newTab", "t"),
       cmd("New Tab in Group", "newTabInGroup", "t", [.command, .option]),
       cmd("New Window", "newWindow", "n"),
       cmd("New Incognito Window", "newIncognitoWindow", "n", [.command, .shift]),
-      cmd("New Little Ardia Window", "newLittleArdia", "n", [.command, .option]),
+      cmd("New Little \(Bundle.main.productName) Window", "newLittleArdia", "n", [.command, .option]),
       littleArdiaInProfileItem,
       cmd("Open Links from Other Apps in Main Window", "toggleOpenLinksInLittleArdia"),
       cmd("Reopen Closed Tab", "reopenClosedTab", "t", [.command, .shift]),
@@ -1054,11 +1054,11 @@ enum MainMenu {
     let incognito = CommandItem("New Incognito Window", "newIncognitoWindow")
     incognito.windowless = true
     menu.addItem(incognito)
-    let small = CommandItem("New Little Ardia Window", "newLittleArdia")
+    let small = CommandItem("New Little \(Bundle.main.productName) Window", "newLittleArdia")
     small.windowless = true
     menu.addItem(small)
     if state.profiles.count > 1 {
-      let inProfile = NSMenu(title: "New Little Ardia Window in Profile")
+      let inProfile = NSMenu(title: "New Little \(Bundle.main.productName) Window in Profile")
       for p in state.profiles {
         let item = CommandItem(p.title, "newLittleArdia", arg: p.id)
         item.windowless = true

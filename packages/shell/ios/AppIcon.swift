@@ -123,15 +123,42 @@ enum DockTile {
     CFPreferencesCopyAppValue(key, domain) as? [[String: Any]] ?? []
   }
 
-  static var isInDock: Bool {
-    let bundleId = Bundle.main.bundleIdentifier
-    let path = Bundle.main.bundleURL.standardizedFileURL.path
-    return tiles.contains { tile in
-      let data = tile["tile-data"] as? [String: Any]
-      if let id = data?["bundle-identifier"] as? String, id == bundleId { return true }
-      let file = (data?["file-data"] as? [String: Any])?["_CFURLString"] as? String
-      return file.flatMap(URL.init(string:))?.standardizedFileURL.path == path
+  static var isInDock: Bool { tiles.contains(where: isOurs) }
+
+  private static var label: String {
+    Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? ProcessInfo.processInfo.processName
+  }
+
+  private static func isOurs(_ tile: [String: Any]) -> Bool {
+    let data = tile["tile-data"] as? [String: Any]
+    if let id = data?["bundle-identifier"] as? String, id == Bundle.main.bundleIdentifier { return true }
+    let file = (data?["file-data"] as? [String: Any])?["_CFURLString"] as? String
+    return file.flatMap(URL.init(string:))?.standardizedFileURL.path == Bundle.main.bundleURL.standardizedFileURL.path
+  }
+
+  private static func restartDock() {
+    let restart = Process()
+    restart.executableURL = URL(fileURLWithPath: "/usr/bin/killall")
+    restart.arguments = ["Dock"]
+    try? restart.run()
+  }
+
+  static func relabel() {
+    let env = ProcessInfo.processInfo.environment
+    guard env["ARDIA_BACKGROUND"] == nil, env["ARDIA_DATA_DIR"] == nil else { return }
+    var changed = false
+    let updated: [[String: Any]] = tiles.map { tile in
+      guard isOurs(tile), var data = tile["tile-data"] as? [String: Any], data["file-label"] as? String != label else { return tile }
+      data["file-label"] = label
+      changed = true
+      var copy = tile
+      copy["tile-data"] = data
+      return copy
     }
+    guard changed else { return }
+    CFPreferencesSetAppValue(key, updated as CFArray, domain)
+    guard CFPreferencesAppSynchronize(domain) else { return }
+    restartDock()
   }
 
   @discardableResult
@@ -145,17 +172,14 @@ enum DockTile {
       "tile-type": "file-tile",
       "tile-data": [
         "bundle-identifier": Bundle.main.bundleIdentifier ?? "",
-        "file-label": ProcessInfo.processInfo.processName,
+        "file-label": label,
         "file-type": 41,
         "file-data": ["_CFURLString": Bundle.main.bundleURL.absoluteString, "_CFURLStringType": 15],
       ] as [String: Any],
     ]
     CFPreferencesSetAppValue(key, (tiles + [tile]) as CFArray, domain)
     guard CFPreferencesAppSynchronize(domain) else { return false }
-    let restart = Process()
-    restart.executableURL = URL(fileURLWithPath: "/usr/bin/killall")
-    restart.arguments = ["Dock"]
-    try? restart.run()
+    restartDock()
     return true
   }
 }

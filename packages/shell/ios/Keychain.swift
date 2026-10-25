@@ -29,7 +29,7 @@ public class KeychainModule: Module {
       if status == errSecItemNotFound {
         var add = Self.query(account)
         add[kSecValueData as String] = data
-        add[kSecAttrLabel as String] = "Ardia: \(account)"
+        add[kSecAttrLabel as String] = "\(Bundle.main.productName): \(account)"
         status = SecItemAdd(add as CFDictionary, nil)
       } else if status != errSecSuccess {
         SecItemDelete(Self.query(account) as CFDictionary)

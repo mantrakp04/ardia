@@ -6,6 +6,7 @@ import { useTheme } from "../../lib/theme";
 import { PANEL, PanelHeader, Popover, POPOVER_MARGIN, PopoverValue, PromptButton } from "../layout/controls";
 import { useHover } from "../primitives";
 import { closeCastPicker, useCast } from "./cast";
+import { PRODUCT } from "../../lib/productName";
 
 const WIDTH = 340;
 
@@ -37,7 +38,7 @@ export function CastPicker({ tabId, paneWidth }: { tabId: string; paneWidth: num
 
         {dialog.permissionRejected ? (
           <Message
-            text="Ardia needs Local Network access to find Cast devices."
+            text={`${PRODUCT} needs Local Network access to find Cast devices.`}
             link="Open Local Network Settings"
             onLink={() => void openExternalURL("x-apple.systempreferences:com.apple.preference.security?Privacy_LocalNetwork")}
           />
