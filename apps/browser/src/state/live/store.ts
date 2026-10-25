@@ -299,13 +299,12 @@ export function setRepoHidden(folderId: string, repo: string, hidden: boolean) {
     const shown = (it: LiveItem) => repoKey(it) !== repo;
     const keptOut = s.repoHidden[folderId] ?? [];
     const kept = new Set(keptOut.map((it) => it.id));
-    const leaving = [...(s.items[folderId] ?? []), ...(s.hidden[folderId] ?? []), ...(s.completed[folderId] ?? []).map((c) => c.item)].filter((it) => !shown(it) && !kept.has(it.id));
+    const leaving = [...(s.items[folderId] ?? []), ...(s.completed[folderId] ?? []).map((c) => c.item)].filter((it) => !shown(it) && !kept.has(it.id));
     const removed = new Set(leaving.map((it) => it.id));
     return {
       folders: { ...s.folders, [folderId]: { ...folder, hiddenRepos: [...hiddenRepos, repo] } },
       repoHidden: { ...s.repoHidden, [folderId]: [...keptOut, ...leaving] },
       items: { ...s.items, [folderId]: (s.items[folderId] ?? []).filter(shown) },
-      hidden: { ...s.hidden, [folderId]: (s.hidden[folderId] ?? []).filter(shown) },
       unread: { ...s.unread, [folderId]: (s.unread[folderId] ?? []).filter((id) => !removed.has(id)) },
       completing: { ...s.completing, [folderId]: (s.completing[folderId] ?? []).filter((id) => !removed.has(id)) },
       completed: { ...s.completed, [folderId]: (s.completed[folderId] ?? []).filter((c) => shown(c.item)) },
@@ -325,7 +324,14 @@ export function releaseShownRepos(folderId: string, fetchedSources: Set<LiveSour
 export function unhide(folderId: string) {
   setLive((s) => {
     const hidden = s.hidden[folderId] ?? [];
-    return hidden.length ? { hidden: without(s.hidden, folderId), items: { ...s.items, [folderId]: [...(s.items[folderId] ?? []), ...hidden] } } : {};
+    if (!hidden.length) return {};
+    const hiddenRepos = s.folders[folderId]?.hiddenRepos ?? [];
+    const inHiddenRepo = (it: LiveItem) => hiddenRepos.includes(repoKey(it) ?? "");
+    return {
+      hidden: without(s.hidden, folderId),
+      items: { ...s.items, [folderId]: [...(s.items[folderId] ?? []), ...hidden.filter((it) => !inHiddenRepo(it))] },
+      repoHidden: { ...s.repoHidden, [folderId]: [...(s.repoHidden[folderId] ?? []), ...hidden.filter(inHiddenRepo)] },
+    };
   });
 }
 

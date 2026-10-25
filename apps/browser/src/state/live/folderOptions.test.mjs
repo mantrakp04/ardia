@@ -246,3 +246,19 @@ test("hiding a repo also keeps aside its completed pull requests, so their open 
   assert.deepEqual(live().completed[id], []);
   assert.deepEqual(live().repoHidden[id].map((it) => it.id), ["x"]);
 });
+
+test("a pull request hidden until refresh stays hidden when its repo is hidden and shown again, and a manual refresh doesn't show a hidden repo's", async () => {
+  const id = createFolder("p", "pullRequests", []);
+  const parked = inRepo("p1", "me/dotfiles");
+  const other = inRepo("p2", "me/dotfiles");
+  applyFetch(id, [parked, other], {});
+  hideItems(id, [parked]);
+  setRepoHidden(id, "bitbucket:me/dotfiles", true);
+  setRepoHidden(id, "bitbucket:me/dotfiles", false);
+  applyFetch(id, [parked, other], {});
+  assert.deepEqual(live().items[id].map((it) => it.id), ["p2"]);
+
+  setRepoHidden(id, "bitbucket:me/dotfiles", true);
+  await manualRefresh(id);
+  assert.deepEqual(live().items[id], []);
+});
