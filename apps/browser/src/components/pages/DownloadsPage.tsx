@@ -10,6 +10,8 @@ import { openUrl } from "../bookmarks/actions";
 import { downloadMenu, downloadStatus, FileIcon } from "../Downloads";
 import { IconButton, useHover } from "../primitives";
 import { Button, useFormColors } from "../settings/controls";
+import { DownloadManagerBar, retryDownload } from "../downloads/DownloadManager";
+import { matchesFilter, type DownloadFilter } from "../../lib/downloadManager";
 import { EmptyState, hostLabel, matchesQuery, PAGE_WIDTH, PageHeader } from "./PageLayout";
 
 export function DownloadsPage({ tabId }: { tabId: string }) {
@@ -17,7 +19,8 @@ export function DownloadsPage({ tabId }: { tabId: string }) {
   const windowId = useBrowser((s) => s.tabs[tabId]?.windowId ?? "");
   const downloads = useBrowser(useShallow((s) => downloadsIn(s, windowId)));
   const [query, setQuery] = useState("");
-  const shown = downloads.filter((d) => matchesQuery(query, d.filename, d.url));
+  const [filter, setFilter] = useState<DownloadFilter>("all");
+  const shown = downloads.filter((d) => matchesFilter(d, filter) && matchesQuery(query, d.filename, d.url));
 
   return (
     <View style={{ flex: 1 }}>
@@ -28,10 +31,15 @@ export function DownloadsPage({ tabId }: { tabId: string }) {
         placeholder="Search downloads"
         actions={downloads.some((d) => d.state !== "downloading") ? <Button title="Clear All" onPress={() => useBrowser.getState().clearDownloads(windowId)} /> : null}
       />
+      {downloads.length > 0 && (
+        <View style={{ width: PAGE_WIDTH - 32, maxWidth: "100%", alignSelf: "center", paddingTop: 8 }}>
+          <DownloadManagerBar downloads={downloads} windowId={windowId} filter={filter} onFilter={setFilter} />
+        </View>
+      )}
       {shown.length === 0 ? (
         <EmptyState
           icon={<Symbol name="arrow.down.circle" size={30} color={theme.textTertiary} style={{ width: 40, height: 40 }} />}
-          title={query ? "No search results found" : "Files you download appear here"}
+          title={query ? "No search results found" : downloads.length ? "No downloads in this filter" : "Files you download appear here"}
         />
       ) : (
         <FlatList
@@ -100,6 +108,8 @@ function DownloadCard({ d, windowId }: { d: Download; windowId: string }) {
             </View>
           ) : done ? (
             <Button title="Show in Finder" onPress={() => void revealFile(d.path)} />
+          ) : d.state === "failed" || d.state === "cancelled" ? (
+            <Button title="Retry" onPress={() => retryDownload(d, windowId)} />
           ) : null}
           <IconButton icon="ellipsis" size={13} box={26} radius={6} onPress={() => void downloadMenu(d, windowId)} tooltip="More actions" />
           {d.state !== "downloading" && (
