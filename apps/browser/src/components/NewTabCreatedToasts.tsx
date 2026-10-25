@@ -4,7 +4,7 @@ import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, View 
 import { hex, useTheme } from "../lib/theme";
 import { useBrowser } from "../store/browser";
 import { tabEngine } from "../store/engines";
-import { NEW_TAB_TOAST_FADE, NEW_TAB_TOAST_GAP, NEW_TAB_TOAST_HEIGHT, NEW_TAB_TOAST_WIDTH, newTabToasts, visibleNewTabToasts, type NewTabToast } from "../store/newTabToasts";
+import { NEW_TAB_TOAST_FADE, NEW_TAB_TOAST_GAP, NEW_TAB_TOAST_HEIGHT, newTabToasts, visibleNewTabToasts, type NewTabToast } from "../store/newTabToasts";
 import { usePages } from "./layout/pageState";
 import { newTabToastPrompt } from "./layout/newTabToastProtection";
 import { newTabToastRect } from "./layout/newTabToastGeometry";
@@ -48,7 +48,7 @@ export function NewTabCreatedToasts({ windowId, tabId, nativePage }: { windowId:
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill} onLayout={(e) => setSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}>
       {frame && (
         <View pointerEvents="box-none" style={{ position: "absolute", left: frame.x, top: frame.y, width: frame.width, height: frame.height }}>
-          <View pointerEvents="box-none" style={{ position: "absolute", top: 10, right: 24, gap: NEW_TAB_TOAST_GAP }}>
+          <View pointerEvents="box-none" style={{ position: "absolute", top: 10, right: 24, gap: NEW_TAB_TOAST_GAP, alignItems: "flex-end" }}>
             {shown.map((toast) => <ToastRow key={toast.tabId} toast={toast} reduced={reduced} />)}
           </View>
         </View>
@@ -101,9 +101,9 @@ function ToastRow({ toast, reduced }: { toast: NewTabToast; reduced: boolean | n
           shadowOpacity={theme.dark ? 0.35 : 0.14}
           shadowRadius={12}
           shadowOffset={[0, 4]}
-          style={{ width: NEW_TAB_TOAST_WIDTH, height: NEW_TAB_TOAST_HEIGHT, paddingHorizontal: 16, justifyContent: "center" }}
+          style={{ height: NEW_TAB_TOAST_HEIGHT, paddingHorizontal: 12, justifyContent: "center", alignItems: "center" }}
         >
-          <Text style={{ fontSize: 13, fontWeight: "600", color: theme.textPrimary }}>New Tab Created</Text>
+          <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: "600", color: theme.textPrimary, textAlign: "center" }}>New Tab Created</Text>
         </Surface>
       </Pressable>
     </Animated.View>
