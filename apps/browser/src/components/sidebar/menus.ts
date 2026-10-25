@@ -1,9 +1,9 @@
 import { showMenu, type MenuItem } from "@ardia/shell";
-import { closeTab, moveTabToProfile, moveTabToWindow, switchToTab, toggleMute } from "../../lib/actions";
+import { closeGroup, closeTab, moveTabToProfile, moveTabToWindow, switchToTab, toggleMute } from "../../lib/actions";
 import { folderChildren } from "../../store/bookmarks";
 import { useBrowser } from "../../store/browser";
-import { bookmarkProfileId, isIncognitoProfile, isPinnedRow, pinSection, plural, tabLabel, viewTabIds, windowTitle } from "../../store/model";
-import { awayFromPin, cleanedTabsFor, groupLabel, groupOf, keptDeletedGroups, selectedTabIds } from "../../store/organize";
+import { bookmarkProfileId, isIncognitoProfile, isPinnedRow, pinnedSectionTitle, pinSection, plural, tabLabel, togglePinTitle, viewTabIds, windowTitle } from "../../store/model";
+import { awayFromPin, canUndoClear, cleanedTabsFor, groupLabel, groupOf, keptDeletedGroups, selectedTabIds, type ClearedTabs } from "../../store/organize";
 import { groupPath } from "../../store/groups";
 import { splitOf, splitRowPanes } from "../../store/splits";
 import type { GroupColor, Tab } from "../../store/types";
@@ -20,13 +20,16 @@ import {
 } from "./actions";
 import { isCalendarUrl } from "../../live/meetings";
 import { bookmarkTab } from "../bookmarks/actions";
-import { showToast } from "../layout/splitActions";
+import { hideKeyedToast, showToast, useToasts } from "../layout/splitActions";
 import { canShare, shareTab } from "../site/share";
 import { calendarMenuItem, newLiveFolderMenuItem, runCalendarMenu, runNewLiveFolder } from "./liveMenus";
 import { openSyncedTab, syncedDevicesMenuItem } from "../../sync/menu";
 import { setSidebarUi } from "./state";
+import { hasOwnGroupIcon } from "./TabIcon";
 import { newFolderWithTab, removeFromFolder } from "./tileFolderUi";
 import { toggleNewTabBar } from "../omnibox/newTabBar";
+import { togglePageEngine } from "../../lib/engines";
+import { canSwitchEngine, ENGINE_NAMES, ENGINE_SYMBOLS, otherEngine, tabEngine } from "../../store/engines";
 import { GROUP_COLORS, NEUTRAL_GROUP_SWATCH, nearestGroupColor } from "./tokens";
 
 const store = () => useBrowser.getState();
@@ -108,13 +111,13 @@ export async function openTabMenu(windowId: string, tab: Tab) {
     { id: "icon", title: "Change Icon…", symbol: "face.smiling" },
     ...(tab.customIcon ? [{ id: "resetIcon", title: "Reset Icon", symbol: "arrow.counterclockwise" }] : []),
     sep,
-    { id: "pin", title: tab.pinned ? "Unpin" : "Pin", symbol: tab.pinned ? "pin.slash" : "pin" },
+    { id: "pin", title: togglePinTitle(tab), symbol: tab.pinned ? "pin.slash" : "pin" },
     ...(splitRow
       ? []
       : [
           isPinnedRow(tab)
             ? { id: "pinTile", title: "Move to Top Apps", symbol: "app" }
-            : { id: "pinRow", title: "Move to Pinned Tabs", symbol: "list.bullet" },
+            : { id: "pinRow", title: `Move to ${pinnedSectionTitle(s, tab)}`, symbol: "list.bullet" },
         ]),
     ...(pinSection(tab) !== "tile"
       ? []
@@ -138,6 +141,7 @@ export async function openTabMenu(windowId: string, tab: Tab) {
     { id: "share", title: "Share", symbol: "square.and.arrow.up", enabled: canShare(tab), share: true },
     { id: "bookmark", title: "Add to Bookmarks…", symbol: "bookmark", enabled: !!tab.url, ...hint("d", "command") },
     { id: "bookmarkTo", title: "Add Bookmark to Folder", symbol: "folder", enabled: !!tab.url, children: bookmarkFolderItems(windowId, "folder:") },
+    ...(canSwitchEngine(tab.url) ? [{ id: "engine", title: `Open Page in ${ENGINE_NAMES[otherEngine(tabEngine(s, tab.id))]}`, symbol: ENGINE_SYMBOLS[otherEngine(tabEngine(s, tab.id))] }] : []),
     sep,
     { id: "moveToProfile", title: "Move to Profile", symbol: "person.crop.circle", enabled: !incognito, children: moveToProfile },
     { id: "moveToWindow", title: "Move to Window", symbol: "macwindow", enabled: !incognito, children: moveToWindowItems(windowId) },
@@ -168,6 +172,7 @@ export async function openTabMenu(windowId: string, tab: Tab) {
   else if (choice.startsWith("group:")) s.placeTabs([tab.id], { pinned: false, groupId: choice.slice(6) });
   else if (choice === "unsplit") s.removeTabFromSplit(tab.id);
   else if (choice === "mute") toggleMute(tab.id);
+  else if (choice === "engine") void togglePageEngine(tab.id);
   else if (choice === "copy") copyUrls([tab.id], false);
   else if (choice === "copyMd") copyUrls([tab.id], true);
   else if (choice.startsWith("share:via:")) void shareTab(tab, windowId, choice.slice(10));
@@ -190,8 +195,8 @@ async function openMultiMenu(windowId: string, ids: string[]) {
   const incognito = tabs.some((t) => isIncognitoProfile(t.profileId));
   const groups = moveToGroupItems(windowId, undefined);
   const choice = await showMenu([
-    { id: "pin", title: allPinned ? `Unpin ${n} Tabs` : `Pin ${n} Tabs`, symbol: allPinned ? "pin.slash" : "pin" },
-    ...(tabs.every(isPinnedRow) ? [] : [{ id: "pinRows", title: `Move ${n} Tabs to Pinned Tabs`, symbol: "list.bullet" }]),
+    { id: "pin", title: allPinned ? `Unpin ${n} Tabs` : `Move ${n} Tabs to Top Apps`, symbol: allPinned ? "pin.slash" : "pin" },
+    ...(tabs.every(isPinnedRow) ? [] : [{ id: "pinRows", title: `Move ${n} Tabs to ${pinnedSectionTitle(s, tabs[0])}`, symbol: "list.bullet" }]),
     { id: "duplicate", title: `Duplicate ${n} Tabs`, symbol: "plus.square.on.square" },
     { id: "newGroup", title: `New Group with ${n} Tabs`, symbol: "plus.rectangle.on.rectangle", enabled: !allTiles, ...hint("n", "control", "command") },
     ...(groups.length ? [{ id: "moveToGroup", title: "Move to Group", symbol: "rectangle.stack", children: groups }] : []),
@@ -233,7 +238,7 @@ export async function openGroupMenu(windowId: string, groupId: string) {
   const matched = siteColor ? nearestGroupColor(siteColor) : null;
   const choice = await showMenu([
     { id: "rename", title: "Rename…", symbol: "character.cursor.ibeam" },
-    { id: "icon", title: g.icon ? "Change Icon…" : "Add Icon…", symbol: "face.smiling" },
+    { id: "icon", title: hasOwnGroupIcon(g.icon) ? "Change Icon…" : "Add Icon…", symbol: "face.smiling" },
     {
       id: "color",
       title: "Color",
@@ -282,7 +287,7 @@ export async function openGroupMenu(windowId: string, groupId: string) {
   else if (choice === "copyMd") copyUrls(g.tabIds, true);
   else if (choice === "ungroup") s.ungroup(groupId);
   else if (choice === "bookmarkBar") s.moveGroupToBookmarksBar(groupId);
-  else if (choice === "close") s.closeGroup(groupId);
+  else if (choice === "close") void closeGroup(groupId);
   else if (choice === "delete") s.deleteGroup(groupId);
 }
 
@@ -301,7 +306,7 @@ export async function openSidebarMenu(windowId: string) {
   ]);
   if (choice && runNewLiveFolder(windowId, choice)) return;
   if (choice === "newTab") {
-    if (!toggleNewTabBar(windowId)) s.newTab(windowId);
+    if (!toggleNewTabBar(windowId)) s.newTab(windowId, { newTabCommand: true });
   }
   else if (choice === "search") setSidebarUi({ searchTabs: windowId });
   else if (choice === "clean") s.cleanUpTabs(windowId);
@@ -309,13 +314,39 @@ export async function openSidebarMenu(windowId: string) {
   else if (choice === "closeAll") closeAllTabs(windowId);
 }
 
+let undoToasts = 0;
+
+function showUndoToast(cleared: ClearedTabs, title: string, icon: string) {
+  const { windowId } = cleared;
+  const key = `undo-clear-${++undoToasts}`;
+  showToast(windowId, title, undefined, { icon, key, action: { title: "Undo", run: () => store().undoClearTabs(cleared) } });
+  let seen: unknown[] = [];
+  const stop = () => {
+    stopWatchingStore();
+    stopWatchingToast();
+  };
+  const stopWatchingStore = useBrowser.subscribe((s) => {
+    const now = [s.windows[windowId], s.tabs, s.groups, s.splits, s.closedTabs];
+    if (now.every((x, i) => x === seen[i])) return;
+    seen = now;
+    if (canUndoClear(s, cleared)) return;
+    hideKeyedToast(windowId, key);
+    stop();
+  });
+  const stopWatchingToast = useToasts.subscribe((t) => {
+    if (t.toasts[windowId]?.key !== key) stop();
+  });
+}
+
 export function closeAllTabs(windowId: string) {
   const cleared = store().clearUnpinnedTabs(windowId);
-  if (!cleared?.entries.length) return;
-  showToast(windowId, `Cleared ${plural(cleared.entries.length, "Tab")}`, undefined, {
-    icon: "arrow.down",
-    action: { title: "Undo", run: () => store().undoClearTabs(cleared) },
-  });
+  if (cleared?.entries.length) showUndoToast(cleared, `Cleared ${plural(cleared.entries.length, "Tab")}`, "arrow.down");
+}
+
+export function middleClickTab(tabId: string) {
+  const removed = store().removeClosedPin(tabId);
+  if (!removed) return void closeTab(tabId);
+  if (removed.entries.length) showUndoToast(removed, "Removed Pinned Tab", "pin.slash");
 }
 
 export async function openOverflowMenu(windowId: string) {

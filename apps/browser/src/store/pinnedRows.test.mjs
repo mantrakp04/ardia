@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 const { useBrowser } = await import("./browser.ts");
 const model = await import("./model.ts");
+const organize = await import("./organize.ts");
 const { sidebarEntries, numberedTabs } = await import("../components/sidebar/entries.ts");
 const { flushPersistence, loadSession, startPersistence } = await import("../lib/persist.ts");
 const stub = await import("../test-native-stub.mjs");
@@ -69,10 +70,133 @@ test("closing a row unloads it and keeps it; Close All Tabs keeps rows", () => {
   assert.ok(S().tabs[a], "still there");
   assert.equal(!!S().tabs[a].navigation || !!S().tabs[a].adoptId, false, "unloaded");
   assert.deepEqual(entries(w).rows, ["https://a.com/"]);
+  S().activate(a);
   S().clearUnpinnedTabs(w);
   assert.deepEqual(entries(w).rows, ["https://a.com/"]);
   assert.equal(S().tabs[b], undefined);
   assert.equal(S().tabs[c], undefined);
+});
+
+test("a second middle click removes a closed row or pinned group tab, a tile or an open pin stays, and undo puts it back closed", () => {
+  reset();
+  const { w, ids: [a, b, c, d, e] } = windowWith("a", "b", "c", "d", "e");
+  S().pinTabs([a], true);
+  S().pinTabs([b, c], true, true);
+  const g = S().groupTabs([d], { name: "P" });
+  S().activate(e);
+  assert.equal(S().removeClosedPin(b), null, "an open row only closes");
+  S().closeTabs([a, b, c, d]);
+  assert.equal(S().removeClosedPin(a), null, "a tile stays");
+  assert.equal(S().removeClosedPin(e), null, "an unpinned tab isn't a pin");
+  const closedBefore = S().closedTabs.length;
+  const removed = S().removeClosedPin(b);
+  assert.equal(removed.entries.length, 1);
+  assert.equal(S().tabs[b], undefined);
+  assert.deepEqual(entries(w).rows, ["https://c.com/"]);
+  assert.equal(S().closedTabs.length, closedBefore + 1, "it goes to Recently Closed");
+  S().undoClearTabs(removed);
+  assert.deepEqual(entries(w).rows, ["https://b.com/", "https://c.com/"]);
+  assert.equal(S().closedTabs.length, closedBefore);
+  const back = model.viewTabIds(S(), w).find((id) => S().tabs[id].pinnedUrl === "https://b.com/");
+  assert.equal(!!S().tabs[back].navigation || !!S().tabs[back].adoptId, false, "back closed, not loaded");
+  assert.equal(model.activeTabId(S(), w), e);
+  const lastPage = S().closedTabs.find((x) => x.tabId === back);
+  assert.ok(lastPage, "the row's earlier close now points at the row that came back");
+  S().restoreClosed(lastPage.id, w);
+  assert.deepEqual(entries(w).rows, ["https://b.com/", "https://c.com/"], "reopening it loads the row, no second copy");
+  assert.equal(model.activeTabId(S(), w), back);
+  S().activate(e);
+  const fromGroup = S().removeClosedPin(d);
+  assert.ok(fromGroup);
+  assert.equal(S().tabs[d], undefined);
+  S().undoClearTabs(fromGroup);
+  assert.deepEqual(S().groups[g].tabIds.map(url), ["https://d.com/"], "back in its pinned group");
+});
+
+test("undoing the removal of a pinned group's last tab brings the group back pinned, and so does ⇧⌘T", () => {
+  reset();
+  const { w, ids: [a, b] } = windowWith("a", "b");
+  const g = S().groupTabs([a], { name: "P" });
+  S().activate(b);
+  S().closeTab(a);
+  const removed = S().removeClosedPin(a);
+  assert.ok(removed);
+  assert.equal(S().groups[g], undefined, "the emptied group goes");
+  S().undoClearTabs(removed);
+  const back = Object.values(S().groups).find((x) => x.name === "P");
+  assert.equal(back?.pinned, true);
+  assert.equal(model.inPinnedContainer(S(), back.tabIds[0]), true);
+  S().removeClosedPin(back.tabIds[0]);
+  S().reopenClosedTab(w);
+  assert.equal(Object.values(S().groups).find((x) => x.name === "P")?.pinned, true, "⇧⌘T");
+});
+
+test("remove, undo, then reopening the row's earlier close wakes it with its own back/forward list", () => {
+  reset();
+  const { w, ids: [a, b] } = windowWith("a", "b");
+  S().pinTabs([a], true, true);
+  S().activate(b);
+  S().closeTab(a);
+  S().undoClearTabs(S().removeClosedPin(a));
+  const back = model.viewTabIds(S(), w).find((id) => S().tabs[id].pinnedUrl === "https://a.com/");
+  const lastPage = S().closedTabs.find((x) => x.tabId === back);
+  S().restoreClosed(lastPage.id, w);
+  assert.equal(S().tabs[back].adoptId, model.restoreId(a));
+});
+
+test("undoing a pinned group tab's removal puts it back in its place in the group, in every window", () => {
+  reset();
+  const { w, ids: [a, b, c] } = windowWith("a", "b", "c");
+  const g = S().groupTabs([a, b], { name: "P" });
+  const w2 = S().createWindow({ url: "https://x.com/" });
+  S().activate(c);
+  S().closeTab(a);
+  S().undoClearTabs(S().removeClosedPin(a));
+  const order = (win) => {
+    const group = Object.values(S().groups).find((x) => x.name === "P" && x.windowId === win);
+    return model.viewTabIds(S(), win).filter((id) => group.tabIds.includes(id)).map(url);
+  };
+  assert.deepEqual(S().groups[g].tabIds.map(url), ["https://a.com/", "https://b.com/"]);
+  assert.deepEqual(order(w), ["https://a.com/", "https://b.com/"]);
+  assert.deepEqual(order(w2), ["https://a.com/", "https://b.com/"]);
+});
+
+test("undoing a pin removal leaves alone a group sync brought back after it", () => {
+  reset();
+  const { w, ids: [a, b, x] } = windowWith("a", "b", "x");
+  const p = S().groupTabs([a, b], { name: "P" });
+  const c = S().groupTabs([a], { name: "C" });
+  assert.equal(S().groups[c].parentId, p);
+  S().activate(x);
+  S().closeTab(a);
+  const removed = S().removeClosedPin(a);
+  assert.equal(S().groups[c], undefined, "the emptied nested group goes");
+  const d = S().newTab(w, { url: "https://d.com/", background: true });
+  const synced = { ...removed.groups.find((g) => g.id === c), tabIds: [d] };
+  delete synced.parentId;
+  useBrowser.setState((s) => ({ groups: { ...s.groups, [c]: synced } }));
+  const before = JSON.stringify({ tabs: S().windows[w].tabIds, groups: S().groups });
+  S().undoClearTabs(removed);
+  assert.equal(JSON.stringify({ tabs: S().windows[w].tabIds, groups: S().groups }), before, "Undo does nothing");
+});
+
+test("undoing a pin removal does nothing once the pinned groups were reordered", () => {
+  reset();
+  const { w, ids: [a, b, c, x] } = windowWith("a", "b", "c", "x");
+  S().groupTabs([a, b], { name: "P" });
+  S().groupTabs([c], { name: "Q" });
+  const w2 = S().createWindow({ url: "https://y.com/" });
+  S().activate(x);
+  S().closeTab(a);
+  const removed = S().removeClosedPin(a);
+  const p = organize.groupOf(S(), b).id;
+  S().moveGroup(p, { pinned: true, beforeId: null });
+  const order = (win) => model.viewTabIds(S(), win).map(url).filter((u) => u === "https://b.com/" || u === "https://c.com/");
+  assert.deepEqual(order(w), ["https://c.com/", "https://b.com/"]);
+  S().undoClearTabs(removed);
+  assert.deepEqual(order(w), ["https://c.com/", "https://b.com/"]);
+  assert.deepEqual(order(w2), ["https://c.com/", "https://b.com/"]);
+  assert.equal(model.viewTabIds(S(), w).some((id) => url(id) === "https://a.com/"), false, "the removed pin stays removed");
 });
 
 test("rows are the profile's: a second window mirrors them, a change in one shows in the other", () => {

@@ -2,10 +2,10 @@ import { cleanUrl, markdownLink } from "@ardia/core";
 import { copyText, prompt, showMenu, type MenuItem } from "@ardia/shell";
 import { closeTab } from "../../lib/actions";
 import { calendarConnected, connectCalendar, setCalendarHidden, useCalendar } from "../../live/calendar";
-import { deleteLiveFolder, newLiveFolder, openLiveItem, refreshFolder, statusText } from "../../live/engine";
+import { deleteLiveFolder, manualRefresh, newLiveFolder, openLiveItem, refreshFolder, statusText } from "../../live/engine";
 import { ALERT_LEADS } from "../../live/meetings";
 import { SOURCES } from "../../live/sources";
-import { live, markRead, setLive, updateCalendarSettings, updateFolder } from "../../live/store";
+import { hideItems, live, markRead, setLive, updateCalendarSettings, updateFolder } from "../../live/store";
 import type { LiveItem, LiveSourceId } from "../../live/types";
 import { useBrowser } from "../../store/browser";
 import { openSettings } from "../settings/windows";
@@ -33,6 +33,8 @@ export function runNewLiveFolder(windowId: string, choice: string): boolean {
   return true;
 }
 
+const FOLDER_OPTIONS = ["groupStacks", "showCompleted"] as const;
+
 const SOURCE_GROUPS: Record<"pullRequests" | "documents", LiveSourceId[]> = {
   pullRequests: ["github", "bitbucket"],
   documents: ["notion", "confluence", "gdrive"],
@@ -55,6 +57,9 @@ export async function openLiveFolderMenu(windowId: string, folderId: string) {
       ? [
           { id: "filter:authored", title: "Created by Me", checked: folder.filters.authored },
           { id: "filter:reviewRequests", title: "Awaiting My Review", checked: folder.filters.reviewRequests },
+          sep,
+          { id: "option:groupStacks", title: "Group Stacked Pull Requests", checked: folder.groupStacks },
+          { id: "option:showCompleted", title: "Show Completed", checked: folder.showCompleted },
           sep,
         ]
       : []),
@@ -80,7 +85,9 @@ export async function openLiveFolderMenu(windowId: string, folderId: string) {
     { id: "delete", title: "Delete Live Folder", symbol: "trash" },
   ]);
   if (!choice) return;
-  if (choice === "refresh") void refreshFolder(folderId);
+  const option = FOLDER_OPTIONS.find((key) => choice === `option:${key}`);
+  if (choice === "refresh") void manualRefresh(folderId);
+  else if (option) updateFolder(folderId, { [option]: !folder[option] });
   else if (choice.startsWith("filter:")) {
     const key = choice.slice(7) as "authored" | "reviewRequests";
     updateFolder(folderId, { filters: { ...folder.filters, [key]: !folder.filters[key] } });
@@ -112,6 +119,7 @@ export async function openLiveItemMenu(windowId: string, folderId: string, item:
     { id: "copy", title: "Copy Link", symbol: "link", key: "c", modifiers: ["shift", "command"] },
     { id: "copyMd", title: "Copy Link as Markdown", symbol: "text.badge.checkmark" },
     { id: "unread", title: unread ? "Mark as Read" : "Mark as Unread", symbol: unread ? "circle" : "circle.fill" },
+    ...(item.pr ? [{ id: "hide", title: "Hide Until Refresh", symbol: "eye.slash" }] : []),
     ...(tabId ? [sep, { id: "close", title: "Close Tab", symbol: "xmark", key: "w", modifiers: ["command" as const] }] : []),
   ]);
   if (choice === "open") openLiveItem(windowId, folderId, item);
@@ -121,7 +129,13 @@ export async function openLiveItemMenu(windowId: string, folderId: string, item:
   else if (choice === "unread") {
     if (unread) markRead(folderId, [item.id]);
     else setLive((s) => ({ unread: { ...s.unread, [folderId]: [...(s.unread[folderId] ?? []), item.id] } }));
-  } else if (choice === "close" && tabId) void closeTab(tabId);
+  } else if (choice === "hide") hideItems(folderId, [item]);
+  else if (choice === "close" && tabId) void closeTab(tabId);
+}
+
+export async function openLiveStackMenu(folderId: string, stackId: string) {
+  const choice = await showMenu([{ id: "hide", title: "Hide Stack Until Refresh", symbol: "eye.slash" }]);
+  if (choice === "hide") hideItems(folderId, (live().items[folderId] ?? []).filter((it) => it.pr?.stack?.id === stackId));
 }
 
 export function calendarMenuItem(): MenuItem {

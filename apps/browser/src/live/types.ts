@@ -10,6 +10,8 @@ export type LiveFolder = {
   collapsed: boolean;
   sources: LiveSourceId[];
   filters: { authored: boolean; reviewRequests: boolean };
+  groupStacks: boolean;
+  showCompleted: boolean;
   createdAt: number;
   after?: string | null;
 };

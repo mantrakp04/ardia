@@ -240,7 +240,7 @@ export const SplitToast = memo(function SplitToast({ windowId }: { windowId: str
   const [shown, setShown] = useState(toast);
   useEffect(() => {
     if (toast) return setShown(toast);
-    if (!shown?.sticky) return;
+    if (!shown) return;
     Animated.timing(appear, { toValue: 0, duration: 220, easing: Easing.in(Easing.quad), useNativeDriver: true }).start(({ finished }) => {
       if (finished) setShown(null);
     });

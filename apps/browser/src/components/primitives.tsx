@@ -17,6 +17,7 @@ export const IconButton = memo(function IconButton({
   icon,
   onPress,
   disabled,
+  active,
   size = 15,
   box = 30,
   radius = 7,
@@ -28,6 +29,7 @@ export const IconButton = memo(function IconButton({
   icon: string;
   onPress?: () => void;
   disabled?: boolean;
+  active?: boolean;
   size?: number;
   box?: number;
   radius?: number;
@@ -49,7 +51,7 @@ export const IconButton = memo(function IconButton({
               borderRadius: radius,
               alignItems: "center",
               justifyContent: "center",
-              backgroundColor: disabled ? undefined : pressed ? theme.toolbarPressed : hovered ? theme.toolbarHover : undefined,
+              backgroundColor: disabled ? undefined : pressed || active ? theme.toolbarPressed : hovered ? theme.toolbarHover : undefined,
             }}
           >
             <Symbol

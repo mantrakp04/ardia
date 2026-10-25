@@ -10,12 +10,13 @@
 </p>
 
 <h3 align="center">
-  <a href="https://github.com/mantrakp04/ardia/releases/latest/download/Ardia-0.2.39.dmg">Download Ardia 0.2.39 for Mac</a>
+  <a href="https://github.com/mantrakp04/ardia/releases/latest/download/Ardia-0.2.40.dmg">Download Ardia 0.2.40 for Mac</a>
 </h3>
 
 <p align="center">
   109 MB DMG · macOS 14 Sonoma or later · Apple Silicon · Notarized by Apple<br>
   Like your paint wet? <a href="https://ardia.dev/nightly">The nightly</a> has every fix the day it’s made, smudges and all.<br>
+  Homebrew: <code>brew install mantrakp04/tap/ardia</code><br>
   <a href="https://ardia.dev">ardia.dev</a> · <a href="https://ardia.dev/release-notes">What’s new</a> · <a href="https://github.com/mantrakp04/ardia/releases">All releases</a> · <a href="https://discord.gg/TdhuXrbcA6">Discord</a>
 </p>
 
@@ -84,7 +85,7 @@ Not WebKit. Not Electron. Every window is Chrome’s own, so sites, extensions a
 | Intel Macs | Apple Silicon only. | ✗ No |
 
 <h3 align="center">
-  <a href="https://github.com/mantrakp04/ardia/releases/latest/download/Ardia-0.2.39.dmg">Download Ardia 0.2.39</a>
+  <a href="https://github.com/mantrakp04/ardia/releases/latest/download/Ardia-0.2.40.dmg">Download Ardia 0.2.40</a>
 </h3>
 
 <p align="center">

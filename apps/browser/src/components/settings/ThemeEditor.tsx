@@ -4,11 +4,16 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View, type GestureResponderEvent } from "react-native";
 import {
   colorHex,
+  DEFAULT_THEME_ANGLE,
   flatColors,
+  lookAngle,
   MAX_THEME_STOPS,
   PAD_LIGHTNESS,
+  padColor,
+  readableDark,
   resolveTheme,
   startingTheme,
+  stopLightness,
   THEME_TEXTURES,
   themeAccent,
   themeDark,
@@ -16,8 +21,10 @@ import {
   themeLayerAlpha,
   themeUnderColor,
   withAddedStop,
+  withAngle,
   withoutStop,
   withStopAt,
+  withStopLightness,
 } from "../../lib/profileTheme";
 import { PROFILE_COLORS, useTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
@@ -32,6 +39,10 @@ const PAD = 172;
 const KNOB = 22;
 const SWATCH = 20;
 const LABEL = 112;
+const LIGHTNESS_STEPS = 24;
+const DIAL = 28;
+const DIAL_SNAP = 4;
+const DIAL_BORDER = StyleSheet.hairlineWidth * 2;
 
 const MODES: { value: ThemeMode; symbol: string; title: string }[] = [
   { value: "light", symbol: "sun.max", title: "Light" },
@@ -143,7 +154,7 @@ const RAINBOW: ProfileTheme = {
 function CustomSwatch({ theme }: { theme: ProfileTheme | null }) {
   return (
     <View style={{ flex: 1, borderRadius: 8, overflow: "hidden" }}>
-      <ThemeSwatch colors={flatColors(theme ?? RAINBOW)} style={{ flex: 1 }} />
+      <ThemeSwatch colors={flatColors(theme ?? RAINBOW)} angle={theme ? lookAngle(theme) : DEFAULT_THEME_ANGLE} style={{ flex: 1 }} />
     </View>
   );
 }
@@ -151,12 +162,16 @@ function CustomSwatch({ theme }: { theme: ProfileTheme | null }) {
 function ThemeEditor({ theme, onChange }: { theme: ProfileTheme; onChange: (next: ProfileTheme, settle?: boolean) => void }) {
   const ui = useTheme();
   const colors = useFormColors();
+  const appDark = useBrowser((s) => s.ui.appDark);
   const [selected, setSelected] = useState(0);
   const index = Math.min(selected, theme.stops.length - 1);
+  const requestedDark = themeDark(theme, appDark);
+  const shownDark = readableDark(theme, requestedDark);
   return (
     <View style={{ padding: 12, flexDirection: "row", gap: 18 }}>
       <View style={{ gap: 8 }}>
         <ColorPad theme={theme} selected={index} onSelect={setSelected} onChange={onChange} />
+        <LightnessBar theme={theme} index={index} onChange={onChange} />
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <Text style={{ fontSize: 11.5, color: ui.textSecondary }}>
             {theme.stops.length} of {MAX_THEME_STOPS} colours
@@ -200,6 +215,10 @@ function ThemeEditor({ theme, onChange }: { theme: ProfileTheme; onChange: (next
           />
         </Slider>
         <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <Text style={{ width: LABEL + 10, fontSize: 12, color: ui.textPrimary }}>Direction</Text>
+          <DirectionDial angle={lookAngle(theme)} onChange={(angle, settle) => onChange(withAngle(theme, angle), settle)} />
+        </View>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
           <Text style={{ width: LABEL + 10, fontSize: 12, color: ui.textPrimary }}>Appearance</Text>
           <View style={{ flexDirection: "row", borderRadius: 6, backgroundColor: colors.control, borderWidth: StyleSheet.hairlineWidth * 2, borderColor: colors.controlBorder, padding: 1 }}>
             {MODES.map((m) => (
@@ -219,18 +238,72 @@ function ThemeEditor({ theme, onChange }: { theme: ProfileTheme; onChange: (next
               </Pressable>
             ))}
           </View>
+          {shownDark !== requestedDark ? (
+            <Text numberOfLines={2} style={{ flex: 1, marginLeft: 8, fontSize: 11, color: ui.textSecondary }}>
+              Kept {shownDark ? "dark" : "light"} so text stays readable
+            </Text>
+          ) : null}
         </View>
       </View>
     </View>
   );
 }
 
+function DirectionDial({ angle, onChange }: { angle: number; onChange: (angle: number, settle: boolean) => void }) {
+  const ui = useTheme();
+  const colors = useFormColors();
+  const ref = useRef<View>(null);
+  const centre = useRef({ x: 0, y: 0 });
+  const measure = () => ref.current?.measureInWindow((x, y, width, height) => (centre.current = { x: x + width / 2, y: y + height / 2 }));
+  const at = (e: GestureResponderEvent) => {
+    const dx = e.nativeEvent.pageX - centre.current.x, dy = e.nativeEvent.pageY - centre.current.y;
+    const degrees = ((Math.atan2(dx, -dy) * 180) / Math.PI + 360) % 360;
+    const notch = Math.round(degrees / 45) * 45;
+    return (Math.abs(degrees - notch) <= DIAL_SNAP ? notch : Math.round(degrees)) % 360;
+  };
+  const step = (by: number) => onChange((Math.round(angle / 45) + by) * 45, true);
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+      <View
+        ref={ref}
+        onLayout={measure}
+        onMouseEnter={measure}
+        accessible
+        accessibilityRole="adjustable"
+        accessibilityLabel="Direction"
+        accessibilityValue={{ text: `${Math.round(angle)}°` }}
+        accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
+        onAccessibilityAction={(e) => step(e.nativeEvent.actionName === "increment" ? 1 : -1)}
+        tooltip="Drag to turn the gradient"
+        style={{ width: DIAL, height: DIAL, borderRadius: DIAL / 2, backgroundColor: colors.control, borderWidth: DIAL_BORDER, borderColor: colors.controlBorder }}
+        onStartShouldSetResponder={() => true}
+        onResponderGrant={(e) => {
+          measure();
+          onChange(at(e), false);
+        }}
+        onResponderMove={(e) => onChange(at(e), false)}
+        onResponderRelease={(e) => onChange(at(e), true)}
+        onResponderTerminate={() => onChange(angle, true)}
+      >
+        <View pointerEvents="none" style={{ position: "absolute", left: -DIAL_BORDER, top: -DIAL_BORDER, width: DIAL, height: DIAL, transform: [{ rotate: `${angle}deg` }] }}>
+          <View style={{ position: "absolute", left: DIAL / 2 - 1, top: 4, width: 2, height: DIAL / 2 - 4, borderRadius: 1, backgroundColor: colors.accent }} />
+        </View>
+        <View
+          pointerEvents="none"
+          style={{ position: "absolute", left: DIAL / 2 - DIAL_BORDER - 2.5, top: DIAL / 2 - DIAL_BORDER - 2.5, width: 5, height: 5, borderRadius: 2.5, backgroundColor: colors.accent }}
+        />
+      </View>
+      <Text style={{ fontSize: 11.5, color: ui.textSecondary, fontVariant: ["tabular-nums"] }}>{Math.round(angle)}°</Text>
+    </View>
+  );
+}
+
 function Preview({ theme }: { theme: ProfileTheme }) {
   const appDark = useBrowser((s) => s.ui.appDark);
-  const dark = themeDark(theme, appDark);
+  const dark = readableDark(theme, themeDark(theme, appDark));
   return (
     <View style={{ height: 58, borderRadius: 9, overflow: "hidden", backgroundColor: themeUnderColor(theme, dark) }}>
-      <ThemeSwatch colors={flatColors(theme)} style={[StyleSheet.absoluteFill, { opacity: themeLayerAlpha(theme) }]} />
+      <ThemeSwatch colors={flatColors(theme)} angle={lookAngle(theme)} style={[StyleSheet.absoluteFill, { opacity: themeLayerAlpha(theme) }]} />
       <ThemeSwatch colors={[]} grain={themeGrainAlpha(theme)} texture={theme.texture} style={StyleSheet.absoluteFill} />
       <View style={{ position: "absolute", left: 8, top: 10, width: 34, gap: 5 }}>
         {[1, 0.7, 0.85].map((w, i) => (
@@ -345,6 +418,27 @@ function SmallButton({ symbol, tooltip, disabled, onPress }: { symbol: string; t
   );
 }
 
+function LightnessBar({ theme, index, onChange }: { theme: ProfileTheme; index: number; onChange: (next: ProfileTheme, settle?: boolean) => void }) {
+  const stop = theme.stops[index]!;
+  return (
+    <View style={{ width: PAD }}>
+      <Track
+        value={stopLightness(stop)}
+        thumbColor={colorHex(stop.color)}
+        tooltip="Brightness"
+        onChange={(v, settle) => onChange(withStopLightness(theme, index, v), settle)}
+        bar={
+          <View style={{ height: 8, borderRadius: 4, overflow: "hidden", flexDirection: "row" }}>
+            {Array.from({ length: LIGHTNESS_STEPS }, (_, i) => (
+              <View key={i} style={{ flex: 1, backgroundColor: colorHex(padColor(stop.x, stop.y, i / (LIGHTNESS_STEPS - 1))) }} />
+            ))}
+          </View>
+        }
+      />
+    </View>
+  );
+}
+
 function Slider({
   label,
   value,
@@ -358,47 +452,78 @@ function Slider({
 }) {
   const ui = useTheme();
   const colors = useFormColors();
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+      <Text numberOfLines={1} style={{ width: LABEL, fontSize: 12, color: ui.textPrimary }}>{label}</Text>
+      <View style={{ flex: 1 }}>
+        <Track
+          value={value}
+          onChange={onChange}
+          bar={
+            <View style={{ height: 4, borderRadius: 2, backgroundColor: colors.switchOff, overflow: "hidden" }}>
+              <View style={{ width: `${value * 100}%`, height: 4, backgroundColor: colors.accent }} />
+            </View>
+          }
+        />
+      </View>
+      {children}
+    </View>
+  );
+}
+
+function Track({
+  value,
+  onChange,
+  bar,
+  thumbColor,
+  tooltip,
+}: {
+  value: number;
+  onChange: (value: number, settle: boolean) => void;
+  bar: ReactNode;
+  thumbColor?: string;
+  tooltip?: string;
+}) {
   const ref = useRef<View>(null);
   const frame = useRef({ x: 0, width: 1 });
   const measure = () => ref.current?.measureInWindow((x, _y, width) => (frame.current = { x, width: Math.max(1, width) }));
   const at = (e: GestureResponderEvent) => clamp01((e.nativeEvent.pageX - frame.current.x) / frame.current.width);
   const thumb = 14;
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-      <Text numberOfLines={1} style={{ width: LABEL, fontSize: 12, color: ui.textPrimary }}>{label}</Text>
+    <View
+      ref={ref}
+      onLayout={measure}
+      onMouseEnter={measure}
+      tooltip={tooltip}
+      style={{ height: 20, justifyContent: "center" }}
+      onStartShouldSetResponder={() => true}
+      onResponderGrant={(e) => {
+        measure();
+        onChange(at(e), false);
+      }}
+      onResponderMove={(e) => onChange(at(e), false)}
+      onResponderRelease={(e) => onChange(at(e), true)}
+      onResponderTerminate={() => onChange(value, true)}
+    >
+      {bar}
       <View
-        ref={ref}
-        onLayout={measure}
-        onMouseEnter={measure}
-        style={{ flex: 1, height: 20, justifyContent: "center" }}
-        onStartShouldSetResponder={() => true}
-        onResponderGrant={(e) => {
-          measure();
-          onChange(at(e), false);
+        pointerEvents="none"
+        style={{
+          position: "absolute",
+          left: `${value * 100}%`,
+          marginLeft: -thumb / 2,
+          width: thumb,
+          height: thumb,
+          borderRadius: thumb / 2,
+          backgroundColor: thumbColor ?? "#FFFFFF",
+          borderWidth: thumbColor ? 2 : StyleSheet.hairlineWidth * 2,
+          borderColor: thumbColor ? "#FFFFFF" : "rgba(0,0,0,0.2)",
         }}
-        onResponderMove={(e) => onChange(at(e), false)}
-        onResponderRelease={(e) => onChange(at(e), true)}
-        onResponderTerminate={() => onChange(value, true)}
       >
-        <View style={{ height: 4, borderRadius: 2, backgroundColor: colors.switchOff, overflow: "hidden" }}>
-          <View style={{ width: `${value * 100}%`, height: 4, backgroundColor: colors.accent }} />
-        </View>
-        <View
-          pointerEvents="none"
-          style={{
-            position: "absolute",
-            left: `${value * 100}%`,
-            marginLeft: -thumb / 2,
-            width: thumb,
-            height: thumb,
-            borderRadius: thumb / 2,
-            backgroundColor: "#FFFFFF",
-            borderWidth: StyleSheet.hairlineWidth * 2,
-            borderColor: "rgba(0,0,0,0.2)",
-          }}
-        />
+        {thumbColor ? (
+          <View style={{ position: "absolute", left: -3, top: -3, right: -3, bottom: -3, borderRadius: thumb / 2 + 3, borderWidth: 1, borderColor: "rgba(0,0,0,0.25)" }} />
+        ) : null}
       </View>
-      {children}
     </View>
   );
 }

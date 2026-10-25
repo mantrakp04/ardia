@@ -12,7 +12,8 @@ const GAP = 6;
 const SHOW_DELAY = 150;
 
 export function SelectionPopover({ tabId, zoom }: { tabId: string; zoom: number }) {
-  const selection = usePageSelection((s) => s[tabId] ?? null);
+  const enabled = useBrowser((s) => s.settings.showSelectionSearch);
+  const selection = usePageSelection((s) => (enabled ? (s[tabId] ?? null) : null));
   const [shown, setShown] = useState<PageSelection | null>(null);
   const [area, setArea] = useState({ width: 0, height: 0 });
   useEffect(() => {

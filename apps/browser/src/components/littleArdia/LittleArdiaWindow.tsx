@@ -1,7 +1,7 @@
 import { WindowBackdrop } from "@ardia/shaders";
 import { ContextMenuArea, setTrafficLightsCenter, WindowDragRegion } from "@ardia/shell";
 import { useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { useTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
 import { useActiveTab, useWindowId, useWindowProfile, useWindowUi } from "../../store/hooks";
@@ -15,9 +15,8 @@ import { useHover } from "../primitives";
 import { copyPageUrl } from "../site/selection";
 import { ProfileBadge } from "../profiles/icons";
 import { openInMainWindow, openLittleArdiaProfileMenu } from "./actions";
-import { PageLabel, SMALL_BAR_HEIGHT, SMALL_INSET, SmallBar, SmallBarBadgeButton } from "./SmallChrome";
+import { PageLabel, SMALL_BAR_HEIGHT, SMALL_INSET, SMALL_LIGHTS_CENTER, SmallBar, SmallBarBadgeButton } from "./SmallChrome";
 
-const LIGHTS_CENTER: [number, number] = [20, SMALL_BAR_HEIGHT / 2];
 const FIELD_LEFT = 84;
 
 export function LittleArdiaWindow() {
@@ -46,7 +45,7 @@ function LittleArdiaBar() {
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => {
-    void setTrafficLightsCenter(windowId, LIGHTS_CENTER);
+    void setTrafficLightsCenter(windowId, SMALL_LIGHTS_CENTER);
   }, [windowId]);
   useEffect(() => () => clearTimeout(copiedTimer.current), []);
 
@@ -93,9 +92,14 @@ function PageField({ tab, windowId, hidden }: { tab: Tab; windowId: string; hidd
   return (
     <View ref={field} onLayout={anchor} {...hoverProps} style={{ flex: 1, opacity: hidden ? 0 : 1 }}>
       <ContextMenuArea style={{ flex: 1 }} onContextMenu={() => tab.url && void showUrlBarMenu(tab)}>
-        <Pressable onPress={() => useBrowser.getState().openPanel(windowId, tab.url)} style={{ flex: 1 }}>
+        <WindowDragRegion
+          clickable
+          accessibilityRole="button"
+          onRegionClick={() => useBrowser.getState().openPanel(windowId, tab.url)}
+          style={{ flex: 1 }}
+        >
           <PageLabel tab={tab} hovered={hovered} />
-        </Pressable>
+        </WindowDragRegion>
       </ContextMenuArea>
     </View>
   );

@@ -1,4 +1,4 @@
-import { Action, ActionPanel, closeMainWindow, Icon, List, showToast, Toast } from "@raycast/api";
+import { Action, ActionPanel, closeMainWindow, Icon, Keyboard, List, showToast, Toast } from "@raycast/api";
 import { getFavicon, showFailureToast } from "@raycast/utils";
 import { closeTab, focusTab, useTabs, type Tab } from "./ardia";
 import { hostOf } from "./scripts";
@@ -44,7 +44,9 @@ export default function Command() {
                   }
                 }}
               />
-              {tab.url && <Action.CopyToClipboard title="Copy URL" content={tab.url} shortcut={{ modifiers: ["cmd", "shift"], key: "c" }} />}
+              {tab.url && (
+                <Action.CopyToClipboard title="Copy URL" content={tab.url} shortcut={Keyboard.Shortcut.Common.Copy} />
+              )}
               <Action
                 title="Close Tab"
                 icon={Icon.XMarkCircle}
@@ -52,7 +54,12 @@ export default function Command() {
                 shortcut={{ modifiers: ["ctrl"], key: "x" }}
                 onAction={() => void close(tab)}
               />
-              <Action title="Reload Tabs" icon={Icon.ArrowClockwise} shortcut={{ modifiers: ["cmd"], key: "r" }} onAction={revalidate} />
+              <Action
+                title="Reload Tabs"
+                icon={Icon.ArrowClockwise}
+                shortcut={Keyboard.Shortcut.Common.Refresh}
+                onAction={revalidate}
+              />
             </ActionPanel>
           }
         />

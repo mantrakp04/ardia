@@ -42,6 +42,23 @@ export function holderOf(s: BrowserState, id: string): Tab | undefined {
   return best;
 }
 
+const livePageKeys = new WeakMap<BrowserState["tabs"], Set<string>>();
+
+function livePageKeysOf(tabs: BrowserState["tabs"]): Set<string> {
+  let keys = livePageKeys.get(tabs);
+  if (!keys) {
+    keys = new Set(Object.values(tabs).filter((t) => hasPage(t) && !t.pageIn).map(shareKeyOf));
+    livePageKeys.set(tabs, keys);
+  }
+  return keys;
+}
+
+export function isPageUnloaded(s: BrowserState, id: string): boolean {
+  const t = s.tabs[id];
+  if (!t?.url || hasPage(t) || t.pageIn) return false;
+  return !livePageKeysOf(s.tabs).has(shareKeyOf(t)) || !holderOf(s, id);
+}
+
 const swapIds = (ids: string[], a: string, b: string) => {
   if (!ids.includes(a) && !ids.includes(b)) return ids;
   return ids.map((x) => (x === a ? b : x === b ? a : x));

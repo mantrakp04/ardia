@@ -1,4 +1,4 @@
-import { cancelDownload, type Download } from "@ardia/ardiacore";
+import { cancelDownload, endWebKitPrivateSession, leftDownloadStaging, removeLeftDownloadStaging, type Download } from "@ardia/ardiacore";
 import { readDocument, writeDocument } from "@ardia/shell";
 import { useBrowser, type BrowserState, type HydrateData } from "../store/browser";
 import { inPinnedContainer, isIncognitoProfile, newId, privateSession, snapshotTab } from "../store/model";
@@ -124,6 +124,14 @@ type SessionV2 = {
 
 let droppedPrivateDownloads = false;
 
+function forgetStaging(id: string) {
+  const s = useBrowser.getState();
+  const download = s.downloads.find((d) => d.id === id);
+  if (!download) return;
+  const { staging: _, stagingId: _id, destination: _to, ...kept } = download;
+  s.upsertDownload(kept);
+}
+
 export function loadSession(): HydrateData | null {
   const session = read<SessionV2>("session.json");
   if (session?.version !== 2) return null;
@@ -149,7 +157,14 @@ export function loadSession(): HydrateData | null {
     closedGroups: session.closedGroups ?? [],
     deletedGroups: session.deletedGroups ?? [],
     cleanedTabs: session.cleanedTabs ?? [],
-    downloads: (downloads?.downloads ?? []).filter((d) => downloadSession(d) === null).map((d, i) => ({ ...d, id: `saved-${i}` })),
+    downloads: (downloads?.downloads ?? []).filter((d) => downloadSession(d) === null).map((d, i) => {
+      const id = `saved-${i}`;
+      const left = leftDownloadStaging(d);
+      const { staging: _, stagingId: _id, destination: _to, ...kept } = d;
+      if (!left) return { ...kept, id };
+      void removeLeftDownloadStaging(d).then((removed) => removed && forgetStaging(id));
+      return { ...d, id, stagingId: left.uuid };
+    }),
   };
   if (session.settings && session.settings.restoreSession === false) {
     const now = Date.now();
@@ -259,5 +274,6 @@ function forgetClosedIncognito(s: BrowserState, prev: BrowserState) {
     if (Object.values(s.windows).some((o) => o.incognito && privateSession(o.profileId) === session)) continue;
     for (const d of s.downloads) if (downloadSession(d) === session && d.state === "downloading") void cancelDownload(d.id);
     s.forgetDownloads(w.profileId);
+    if (session !== null) void endWebKitPrivateSession(session);
   }
 }

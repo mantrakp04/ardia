@@ -8,7 +8,6 @@
   const { keys, setPrototypeOf } = Object;
   const { isArray } = Array;
   const { isFinite } = Number;
-  const startsWith = String.prototype.startsWith;
   const plain = (value, depth) => {
     if (value === null || typeof value === "string" || typeof value === "boolean") return value;
     if (typeof value === "number") return isFinite(value) ? value : null;
@@ -475,13 +474,15 @@
       const self = this;
       return new Promise((resolve, reject) => {
         const id = ++displaySeq;
-        displayRequests.set(id, { self, resolve, reject, constraints: constraints || {} });
-        send("displayMedia", { id, audio: !!(constraints && constraints.audio) });
+        const options = constraints || {};
+        displayRequests.set(id, { self, resolve, reject, constraints: options });
+        const windowAudio = options.windowAudio === "exclude" || options.windowAudio === "window" ? options.windowAudio : "system";
+        send("displayMedia", { id, audio: !!options.audio, systemAudio: options.systemAudio !== "exclude", windowAudio });
       });
     };
     Object.defineProperty(getDisplayMedia, "__ac", { value: true });
     proto.getDisplayMedia = getDisplayMedia;
-    handlers.displayMedia = ({ id, sourceId }) => {
+    handlers.displayMedia = ({ id, sourceId, audio }) => {
       const request = displayRequests.get(id);
       if (!request) return;
       displayRequests.delete(id);
@@ -491,10 +492,9 @@
       }
       const video = request.constraints.video;
       const frameRate = (video && video.frameRate && (video.frameRate.max || video.frameRate.ideal || video.frameRate)) || 30;
-      const tabAudio = !!request.constraints.audio && apply(startsWith, sourceId, ["web-contents-media-stream://"]);
       apply(getUserMedia, request.self, [
         {
-          audio: tabAudio ? { mandatory: { chromeMediaSource: "desktop" } } : false,
+          audio: audio === true ? { mandatory: { chromeMediaSource: "desktop" } } : false,
           video: { mandatory: { chromeMediaSource: "desktop", chromeMediaSourceId: sourceId, maxWidth: 3840, maxHeight: 2160, maxFrameRate: +frameRate || 30 } },
         },
       ]).then(request.resolve, request.reject);
@@ -534,6 +534,24 @@
     apply(listen, document, ["visibilitychange", state.onVisibility]);
   };
   handlers.fieldTiming = (message) => setFieldTiming(!!(message && message.on));
+  let firstPaintObserver = null;
+  handlers.firstPaint = () => {
+    if (!isTop || firstPaintObserver) return;
+    const painted = () => send("firstPaint", { url: location.href });
+    try {
+      firstPaintObserver = new PO((list) => {
+        for (const e of list.getEntries())
+          if (e.name === "first-contentful-paint") {
+            apply(disconnect, firstPaintObserver, []);
+            return painted();
+          }
+      });
+      firstPaintObserver.observe({ type: "paint", buffered: true });
+    } catch (e) {
+      firstPaintObserver = true;
+      onReady(() => apply(raf, window, [painted]));
+    }
+  };
   handlers.wakeFrames = () => apply(raf, window, [() => {}]);
 
   const pauseUnasked = (media, activated) => {
@@ -548,9 +566,11 @@
   };
 
   let peekKey = null;
+  let splitKey = null;
   let peekTrace = false;
   handlers.peekConfig = (config) => {
     peekKey = config && (config.modifier === "alt" || config.modifier === "shift") ? config.modifier : null;
+    splitKey = config && (config.split === "alt" || config.split === "altShift") ? config.split : null;
     peekTrace = !!(config && config.trace);
   };
   try {
@@ -620,13 +640,22 @@
     const peekable = (hit) =>
       !!hit && !!hit.url && !apply(hasAttribute, hit.link, ["download"]) && apply(test, /^https?:/i, [hit.url]) && !inEditable(hit.path);
     const keys = (e) => ({ alt: altKey(e), shift: shiftKey(e), meta: metaKey(e), ctrl: ctrlKey(e) });
-    const chosen = (e) => {
-      if (metaKey(e) || ctrlKey(e)) return false;
-      if (peekKey === "alt") return altKey(e) && !shiftKey(e);
-      if (peekKey === "shift") return shiftKey(e) && !altKey(e);
-      return false;
+    const keyOf = (e) => {
+      if (ctrlKey(e)) return null;
+      if (metaKey(e)) return altKey(e) && !shiftKey(e) ? "altMeta" : null;
+      if (altKey(e)) return shiftKey(e) ? "altShift" : "alt";
+      return shiftKey(e) ? "shift" : null;
     };
-    const trace = (what, data) => peekTrace && send("peekTrace", { what, key: peekKey, ...data });
+    const chosen = (e) => {
+      const key = keyOf(e);
+      if (!key) return null;
+      if (key === peekKey) return key;
+      if (!splitKey) return null;
+      if (key === "altShift" || key === "altMeta") return key;
+      return key === "alt" && splitKey === "alt" ? key : null;
+    };
+    const anyKey = () => !!(peekKey || splitKey);
+    const trace = (what, data) => peekTrace && send("peekTrace", { what, key: peekKey, split: splitKey, ...data });
     let press = null;
     let peeked = null;
     let sent = null;
@@ -649,7 +678,7 @@
         const hit = linkAt(e);
         if (!peekable(hit)) return;
         press = { link: hit.link, url: hit.url, x: clientX(e), y: clientY(e) };
-        if (!peekKey) trace("no key chosen yet", { url: hit.url, ...keys(e) });
+        if (!anyKey()) trace("no key chosen yet", { url: hit.url, ...keys(e) });
       }),
       true,
     );
@@ -658,8 +687,9 @@
       guard((e) => {
         const pressed = press;
         press = null;
-        if (!pressed || !peekKey || !e.isTrusted || button(e) !== 0) return;
-        if (!chosen(e)) return trace("other keys", { url: pressed.url, ...keys(e) });
+        if (!pressed || !anyKey() || !e.isTrusted || button(e) !== 0) return;
+        const key = chosen(e);
+        if (!key) return trace("other keys", { url: pressed.url, ...keys(e) });
         const hit = linkAt(e);
         const moved = hypot(clientX(e) - pressed.x, clientY(e) - pressed.y);
         if (!hit || hit.link !== pressed.link) return trace("released off the link", { url: pressed.url, moved });
@@ -668,7 +698,7 @@
         peeked = { link: hit.link, stamp: timeStamp(e) };
         sent = { url: hit.url, at: now() };
         const scale = ratio(window);
-        send("peek", { url: hit.url, key: peekKey, origin: pageOrigin, x: clientX(e) * scale, y: clientY(e) * scale, moved });
+        send("peek", { url: hit.url, key, origin: pageOrigin, x: clientX(e) * scale, y: clientY(e) * scale, moved });
       }),
       true,
     );
@@ -687,14 +717,46 @@
     addEventListener("pagehide", guard((e) => e.isTrusted && send("peekGone", {})));
   } catch (e) {}
 
+  try {
+    const NavigatorType = window.Navigator;
+    const requestAccess = NavigatorType && NavigatorType.prototype.requestMediaKeySystemAccess;
+    if (typeof requestAccess === "function") {
+      const protectedSystem = /^com\.(widevine\.alpha|microsoft\.playready|apple\.fps)/;
+      const { test } = RegExp.prototype;
+      const then = Promise.prototype.then;
+      let drmSent = false;
+      const wrapped = {
+        requestMediaKeySystemAccess(keySystem, configurations) {
+          const result = apply(requestAccess, this, arguments);
+          if (!drmSent && typeof keySystem === "string" && apply(test, protectedSystem, [keySystem])) {
+            apply(then, result, [
+              null,
+              () => {
+                if (drmSent) return;
+                drmSent = true;
+                send("drm", { keySystem });
+              },
+            ]);
+          }
+          return result;
+        },
+      }.requestMediaKeySystemAccess;
+      Object.defineProperty(NavigatorType.prototype, "requestMediaKeySystemAccess", {
+        ...Object.getOwnPropertyDescriptor(NavigatorType.prototype, "requestMediaKeySystemAccess"),
+        value: wrapped,
+      });
+    }
+  } catch (e) {}
+
   handlers.config = (config) => {
-    handlers.peekConfig({ modifier: config.peek, trace: config.peekTrace });
+    handlers.peekConfig({ modifier: config.peek, split: config.split, trace: config.peekTrace });
     blockAutoplay = !!config.blockAutoplay;
     if (blockAutoplay)
       pauseUnasked([...playingMedia, ...document.querySelectorAll("video, audio")], !!(navigator.userActivation && navigator.userActivation.hasBeenActive));
     if (config.displayMediaPicker) installDisplayMedia();
     if (config.fieldTiming) setFieldTiming(true);
     if (config.broadThemeObserver) broadThemeObserver = true;
+    if (typeof config.selectionPopover === "boolean" && handlers.selectionPopover) handlers.selectionPopover(config.selectionPopover);
   };
   send("hello", { top: isTop, url: location.href });
 
@@ -909,28 +971,44 @@
     selectionShown = true;
     send("selection", { text: text.slice(0, 2000), rect: { x: r.left, y: r.top, width: r.width, height: r.height } });
   });
-  document.addEventListener(
-    "mousedown",
-    (e) => {
-      selecting = e.button === 0;
-      hideSelection();
-    },
-    true,
-  );
-  document.addEventListener(
-    "mouseup",
-    (e) => {
-      if (e.button !== 0 || !selecting) return;
+  const selectionListeners = [
+    [
+      document,
+      "mousedown",
+      (e) => {
+        selecting = e.button === 0;
+        hideSelection();
+      },
+      true,
+    ],
+    [
+      document,
+      "mouseup",
+      (e) => {
+        if (e.button !== 0 || !selecting) return;
+        selecting = false;
+        setTimeout(reportSelection, 0);
+      },
+      true,
+    ],
+    [document, "selectionchange", () => selectionShown && !selecting && getSelection().isCollapsed && hideSelection(), false],
+    [document, "keydown", (e) => e.metaKey || /^(Shift|Meta|Alt|Control)$/.test(e.key) || hideSelection(), true],
+    [window, "scroll", hideSelection, { passive: true, capture: true }],
+    [window, "resize", hideSelection, false],
+    [window, "pagehide", hideSelection, false],
+  ];
+  let selectionListening = false;
+  handlers.selectionPopover = (on) => {
+    if (!on === !selectionListening) return;
+    selectionListening = !!on;
+    if (!on) {
       selecting = false;
-      setTimeout(reportSelection, 0);
-    },
-    true,
-  );
-  document.addEventListener("selectionchange", () => selectionShown && !selecting && getSelection().isCollapsed && hideSelection());
-  document.addEventListener("keydown", (e) => e.metaKey || /^(Shift|Meta|Alt|Control)$/.test(e.key) || hideSelection(), true);
-  addEventListener("scroll", hideSelection, { passive: true, capture: true });
-  addEventListener("resize", hideSelection);
-  addEventListener("pagehide", hideSelection);
+      hideSelection();
+    }
+    for (const [target, type, listener, options] of selectionListeners)
+      on ? target.addEventListener(type, listener, options) : target.removeEventListener(type, listener, options);
+  };
+  handlers.selectionPopover(true);
 
   if (isTop) try {
     const DRAG_MIN = 40;

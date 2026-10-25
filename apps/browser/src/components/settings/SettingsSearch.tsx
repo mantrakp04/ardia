@@ -2,6 +2,7 @@ import { Symbol } from "@ardia/shell";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, View, type TextInput } from "react-native";
 import { useTheme } from "../../lib/theme";
+import { liquidGlass } from "../glass";
 import { SearchField, useFormColors } from "./controls";
 import { groupByPane, search } from "./searchMatch";
 import { revealSetting, setSettingsQuery, useSettingsSearch } from "./searchState";
@@ -39,10 +40,12 @@ export function SettingsSearchField() {
   );
 }
 
+const SHOWN_INDEX = liquidGlass ? SETTINGS_INDEX : SETTINGS_INDEX.filter((p) => !p.entry.liquidGlassOnly);
+
 let cached: { query: string; results: SettingEntry[] } = { query: "", results: [] };
 
 export function settingsResults(query: string): SettingEntry[] {
-  if (cached.query !== query) cached = { query, results: groupByPane(search(SETTINGS_INDEX, query)).flatMap((g) => g.hits.map((h) => h.entry)) };
+  if (cached.query !== query) cached = { query, results: groupByPane(search(SHOWN_INDEX, query)).flatMap((g) => g.hits.map((h) => h.entry)) };
   return cached.results;
 }
 

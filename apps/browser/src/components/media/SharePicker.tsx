@@ -1,4 +1,4 @@
-import { getDisplayMediaSources, type DisplayMediaRequest, type DisplayMediaSource } from "@ardia/ardiacore";
+import { getDisplayMediaSources, type DisplayMediaAudio, type DisplayMediaRequest, type DisplayMediaSource } from "@ardia/ardiacore";
 import { runningAppIcon, Symbol } from "@ardia/shell";
 import { useEffect, useRef, useState } from "react";
 import { Image, Pressable, ScrollView, Text, View } from "react-native";
@@ -9,12 +9,22 @@ import { engineProfile } from "../../store/model";
 import { PANEL, PanelHeader, Popover, POPOVER_MARGIN, PromptButton } from "../layout/controls";
 import { usePages } from "../layout/pageState";
 import { Favicon, useHover } from "../primitives";
+import { Checkbox } from "../settings/controls";
 import { noteTabShare } from "./ShareBar";
 import { useMedia } from "./state";
 
 const WIDTH = 460;
 const REFRESH_MS = 2500;
 const TAB = "tab:";
+const AUDIO_SHARED_BY_DEFAULT = { tab: true, screen: false, window: false };
+
+type SourceKind = keyof typeof AUDIO_SHARED_BY_DEFAULT;
+
+const audioLabel = (kind: SourceKind, audio: DisplayMediaAudio) =>
+  kind === "tab" ? "Also share tab audio" : kind === "window" && audio.window === "application" ? "Also share application audio" : "Also share system audio";
+
+const audioOffered = (kind: SourceKind | null, audio: DisplayMediaAudio | null) =>
+  !!audio && (kind === "tab" ? audio.tab : kind === "screen" ? audio.screen : kind === "window" ? !!audio.window : false);
 
 function shareableTabs(tabId: string) {
   const s = useBrowser.getState();
@@ -38,14 +48,14 @@ export function requestDisplayMedia(tabId: string, request: DisplayMediaRequest)
 
 if (__DEV__)
   (globalThis as { acSharePicker?: unknown }).acSharePicker = {
-    answerDisplayMedia: (tabId: string, sourceId: string | null) => answerDisplayMedia(tabId, sourceId),
-    shareTab: (tabId: string, sharedTabId: string) => shareTab(tabId, sharedTabId),
+    answerDisplayMedia: (tabId: string, sourceId: string | null, audio = false) => answerDisplayMedia(tabId, sourceId, audio),
+    shareTab: (tabId: string, sharedTabId: string, audio = true) => shareTab(tabId, sharedTabId, audio),
   };
 
-export function answerDisplayMedia(tabId: string, sourceId: string | null) {
+export function answerDisplayMedia(tabId: string, sourceId: string | null, audio = false) {
   const request = useMedia.getState().displayRequests[tabId];
   if (!request) return;
-  void webviews.get(tabId)?.resolveDisplayMedia(request.id, sourceId);
+  void webviews.get(tabId)?.resolveDisplayMedia(request.id, sourceId, audio);
   useMedia.setState((m) => {
     const displayRequests = { ...m.displayRequests };
     delete displayRequests[tabId];
@@ -53,13 +63,13 @@ export function answerDisplayMedia(tabId: string, sourceId: string | null) {
   });
 }
 
-async function shareTab(tabId: string, sharedTabId: string) {
+async function shareTab(tabId: string, sharedTabId: string, audio: boolean) {
   const request = useMedia.getState().displayRequests[tabId];
   if (!request) return;
   const source = await webviews.get(sharedTabId)?.mediaCaptureSourceId();
   if (useMedia.getState().displayRequests[tabId] !== request) return;
   if (source) noteTabShare(tabId, sharedTabId, request.origin);
-  answerDisplayMedia(tabId, source ?? null);
+  answerDisplayMedia(tabId, source ?? null, audio);
 }
 
 export function cancelDisplayMediaOnNavigation() {
@@ -86,6 +96,7 @@ export function SharePicker({ tabId, paneWidth }: { tabId: string; paneWidth: nu
   const request = useMedia((m) => m.displayRequests[tabId]);
   const [sources, setSources] = useState<DisplayMediaSource[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
+  const [shareAudio, setShareAudio] = useState(AUDIO_SHARED_BY_DEFAULT);
   const [icons, setIcons] = useState<Record<number, string | null>>({});
   const list = useRef<ScrollView>(null);
 
@@ -93,6 +104,7 @@ export function SharePicker({ tabId, paneWidth }: { tabId: string; paneWidth: nu
     if (!request) return;
     setSources(request.sources);
     setSelected(null);
+    setShareAudio(AUDIO_SHARED_BY_DEFAULT);
     let live = true;
     const t = setInterval(() => void getDisplayMediaSources().then((next) => live && setSources(next)), REFRESH_MS);
     setTimeout(() => (list.current as unknown as { focus?: () => void } | null)?.focus?.(), 50);
@@ -115,11 +127,15 @@ export function SharePicker({ tabId, paneWidth }: { tabId: string; paneWidth: nu
   const screens = sources.filter((s) => s.kind === "screen");
   const windows = sources.filter((s) => s.kind === "window");
   const isTab = (id: string | null) => !!id && id.startsWith(TAB) && tabs.some((t) => TAB + t.id === id);
-  const valid = !!selected && (isTab(selected) || sources.some((s) => s.id === selected));
+  const kindOf = (id: string | null): SourceKind | null => (isTab(id) ? "tab" : (sources.find((s) => s.id === id)?.kind ?? null));
+  const valid = !!kindOf(selected);
+  const selectedKind = kindOf(selected);
+  const audioFor = (kind: SourceKind | null) => !!kind && audioOffered(kind, request.audio) && shareAudio[kind];
   const share = (id: string | null = selected) => {
-    if (!id) return;
-    if (isTab(id)) return void shareTab(tabId, id.slice(TAB.length));
-    if (sources.some((s) => s.id === id)) answerDisplayMedia(tabId, id);
+    const kind = kindOf(id);
+    if (!id || !kind) return;
+    if (kind === "tab") return void shareTab(tabId, id.slice(TAB.length), audioFor(kind));
+    answerDisplayMedia(tabId, id, audioFor(kind));
   };
   const cancel = () => answerDisplayMedia(tabId, null);
   const frameHost = request.frameOrigin ? hostOf(request.frameOrigin) : "";
@@ -139,11 +155,11 @@ export function SharePicker({ tabId, paneWidth }: { tabId: string; paneWidth: nu
           }
           title={`Share your screen with ${hostOf(request.origin)}`}
           subtitle={
-            !request.audio
-              ? `${receiver} will see what you choose.`
-              : isTab(selected)
-                ? `${receiver} will see and hear the tab you choose.`
-                : `${receiver} will see what you choose. Only tabs share their audio.`
+            audioFor(selectedKind)
+              ? `${receiver} will see and hear what you choose.`
+              : request.audio && !request.audio.screen && !request.audio.window && selectedKind !== "tab"
+                ? `${receiver} will see what you choose. Only tabs share their audio.`
+                : `${receiver} will see what you choose.`
           }
           subtitleLines={2}
         />
@@ -194,7 +210,15 @@ export function SharePicker({ tabId, paneWidth }: { tabId: string; paneWidth: nu
           {!sources.length && !tabs.length ? <Text style={{ fontSize: 12, color: theme.textSecondary, padding: 12, textAlign: "center" }}>Nothing can be shared right now.</Text> : null}
         </ScrollView>
 
-        <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8, paddingHorizontal: PANEL.inset, marginTop: 12 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: PANEL.inset, marginTop: 12 }}>
+          {selectedKind && request.audio && audioOffered(selectedKind, request.audio) ? (
+            <Checkbox
+              value={shareAudio[selectedKind]}
+              onChange={(on) => setShareAudio((current) => ({ ...current, [selectedKind]: on }))}
+              label={audioLabel(selectedKind, request.audio)}
+            />
+          ) : null}
+          <View style={{ flex: 1 }} />
           <PromptButton title="Cancel" onPress={cancel} />
           <View pointerEvents={valid ? "auto" : "none"} style={{ opacity: valid ? 1 : 0.4 }}>
             <PromptButton title="Share" primary onPress={() => share()} />

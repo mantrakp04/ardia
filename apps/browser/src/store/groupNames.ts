@@ -14,7 +14,10 @@ const hostOf = (url: string) => {
 
 const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
+const isIpAddress = (host: string) => host.startsWith("[") || /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
+
 function hostLabel(host: string): string {
+  if (isIpAddress(host)) return host;
   const parts = host.split(".").filter(Boolean);
   if (parts.length < 2) return parts[0] ?? "";
   const second = parts.at(-2)!;

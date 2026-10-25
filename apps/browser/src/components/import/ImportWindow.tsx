@@ -12,7 +12,7 @@ import type { ProfileColor } from "../../store/types";
 import { useHover } from "../primitives";
 import { Button, Checkbox, PopUp, useFormColors } from "../settings/controls";
 import { useOnboarding } from "../onboarding/state";
-import { IMPORT_WINDOW_ID } from "../settings/windows";
+import { IMPORT_WINDOW_ID, takePreferredImportSource } from "../settings/windows";
 import { applyResult, applySafari, emptyCounts, importArcSpace, importBookmarks, importDiaProfile, openInWebStore, profileColorFor, type ImportCounts } from "./apply";
 import { importModule } from "./module";
 
@@ -107,7 +107,8 @@ export function ImportWindow() {
       .listBrowsers()
       .then((list) => {
         setBrowsers(list);
-        const first = list.find((b) => !b.needsFullDiskAccess && !b.requiresExport && b.family !== "automation") ?? list[0];
+        const preferred = takePreferredImportSource();
+        const first = list.find((b) => b.id === preferred) ?? list.find((b) => !b.needsFullDiskAccess && !b.requiresExport && b.family !== "automation") ?? list[0];
         if (first) choose(first);
         setStep("choose");
       })
@@ -122,7 +123,8 @@ export function ImportWindow() {
     setSource(b);
     const defaults = b.profiles.filter((p) => p.isDefault);
     setSourceProfiles((defaults.length ? defaults : b.profiles.slice(0, 1)).map((p) => p.id));
-    setSpaces(b.profiles.flatMap((p) => p.spaces ?? []).map((s) => s.id));
+    const spaceProfiles = b.sidebar === "arc" || !defaults.length ? b.profiles : defaults;
+    setSpaces(spaceProfiles.flatMap((p) => p.spaces ?? []).map((s) => s.id));
     const available: ImportKind[] = b.requiresExport
       ? ["bookmarks", "history", "passwords"]
       : b.family === "automation"
@@ -137,7 +139,8 @@ export function ImportWindow() {
   };
 
   const allSpaces: (SpaceSummary & { profileId: string })[] = (source?.profiles ?? []).flatMap((p) => (p.spaces ?? []).map((s) => ({ ...s, profileId: p.id })));
-  const isArc = source?.family === "arc";
+  const bySpaces = !!source?.sidebar;
+  const spaceless = (source?.profiles ?? []).filter((p) => !p.spaces?.length);
   const isDiaTabs = source?.family === "automation";
 
   const next = () => {
@@ -152,9 +155,10 @@ export function ImportWindow() {
     if (step === "choose") {
       if (source.needsFullDiskAccess) return setStep("access");
       if (source.requiresExport) return setStep("safari");
-      if (source.profiles.length > 1 || (isArc && allSpaces.length > 1)) return setStep("profiles");
+      if (source.profiles.length > 1 || (bySpaces && allSpaces.length > 1)) return setStep("profiles");
     }
-    if ((step === "choose" || step === "profiles") && ENCRYPTED.some((k) => kinds.has(k)) && source.needsKeychain && api && !api.isBrowserUnlocked(source.id)) {
+    const encryptedTabs = kinds.has("tabs") && source.profiles.some((p) => sourceProfiles.includes(p.id) && p.tabsNeedKey);
+    if ((step === "choose" || step === "profiles") && (encryptedTabs || ENCRYPTED.some((k) => kinds.has(k))) && source.needsKeychain && api && !api.isBrowserUnlocked(source.id)) {
       return setStep("unlock");
     }
     void run(kinds);
@@ -190,14 +194,15 @@ export function ImportWindow() {
     return s.createProfile({ name, color: profileColorFor(color) as ProfileColor | undefined, icon: emoji ?? null, shareWith });
   };
 
-  const run = async (wanted: Set<ImportKind>) => {
+  const run = async (wanted: Set<ImportKind>, withoutKey = false) => {
     if (!api || !source) return;
-    const selected = source.profiles.filter((p) => sourceProfiles.includes(p.id) || (isArc && p.spaces?.some((s) => spaces.includes(s.id))));
-    const requested: ImportKind[] = [...wanted];
-    if (isArc && requested.includes("tabs")) requested.push("spaces", "pinnedTabs");
+    const selected = source.profiles.filter((p) => sourceProfiles.includes(p.id) || (bySpaces && p.spaces?.some((s) => spaces.includes(s.id))));
+    const tabsLocked = (p: BrowserProfile) => withoutKey && !!p.tabsNeedKey;
+    const requested: ImportKind[] = [...wanted].filter((k) => k !== "tabs" || !selected.every(tabsLocked));
+    if (bySpaces && requested.includes("tabs")) requested.push("spaces", "pinnedTabs");
     const order = KINDS.map((k) => k.kind).filter((k) => requested.includes(k));
     setStatus(Object.fromEntries(order.map((k) => [k, "pending"])));
-    setPreparing(isArc ? Math.max(1, spaces.length) : selected.length);
+    setPreparing(bySpaces ? Math.max(1, spaces.length) : selected.length);
     setStep("progress");
     abort.current = new AbortController();
     const total = emptyCounts();
@@ -213,9 +218,10 @@ export function ImportWindow() {
 
     for (const profile of selected) {
       let result: ImportResult;
+      const profileKinds = tabsLocked(profile) ? order.filter((k) => k !== "tabs") : order;
       try {
-        result = await api.importData(source.id, profile.id, order, {
-          spaceIds: isArc ? spaces : undefined,
+        result = await api.importData(source.id, profile.id, profileKinds, {
+          spaceIds: bySpaces ? spaces : undefined,
           signal: abort.current.signal,
           onProgress: (p) => {
             if (p.phase === "start") setStatus((st) => ({ ...st, [p.kind]: "active" }));
@@ -224,7 +230,7 @@ export function ImportWindow() {
         });
       } catch (e) {
         if ((e as { code?: string }).code === "cancelled") return;
-        for (const k of order) failed.set(k, [...(failed.get(k) ?? []), profile.name]);
+        for (const k of profileKinds) failed.set(k, [...(failed.get(k) ?? []), profile.name]);
         continue;
       }
       for (const k of result.failed) failed.set(k, [...(failed.get(k) ?? []), profile.name]);
@@ -236,23 +242,23 @@ export function ImportWindow() {
         if (!names.includes(profile.name)) failed.set(k, [...names, profile.name]);
       };
 
-      if (isArc) {
+      if (bySpaces) {
         const profileSpaces = result.spaces;
         let first: string | null = null;
         for (const space of profileSpaces) {
           const name = space.name || "Space";
           const dest = await destination(destinationIndex++, name, space.color, space.emoji, first);
           first ??= dest;
-          const r = importArcSpace(dest, space);
+          const r = importArcSpace(dest, space, result.favicons);
           add({ ...emptyCounts(), tabs: r.tabs, bookmarks: r.bookmarks });
           if (r.skipped) left.push(`${plural(r.skipped, "link")} in ${name}'s folders weren't imported: each folder brings up to ${MAX_DRAFT_LINKS.toLocaleString("en-US")} links.`);
         }
         const dest = first ?? (await destination(destinationIndex++, result.profile?.name ?? profile.name, result.profile?.color));
-        add(await applyResult(dest, result, source.name, refused));
+        add(await applyResult(dest, result, source.name, profileKinds, refused));
         extensionsProfile ||= dest;
       } else {
         const dest = await destination(destinationIndex++, result.profile?.name ?? profile.name, result.profile?.color ?? profile.color);
-        add(await applyResult(dest, result, source.name, refused));
+        add(await applyResult(dest, result, source.name, profileKinds, refused));
         extensionsProfile ||= dest;
       }
       if (source.family === "chromium" || source.family === "arc") {
@@ -340,7 +346,7 @@ export function ImportWindow() {
     const total = emptyCounts();
     for (const [i, p] of selected.entries()) {
       const dest = await destination(i, p.name);
-      total.tabs += importDiaProfile(dest, p, { pinned: wanted.has("pinnedTabs"), open: wanted.has("tabs") });
+      total.tabs += importDiaProfile(dest, p, { pinned: wanted.has("pinnedTabs"), open: wanted.has("tabs") }, result.favicons);
     }
     setStatus(Object.fromEntries(order.map((k) => [k, "done"])));
     setFailures([]);
@@ -481,7 +487,7 @@ export function ImportWindow() {
               ).map((k) => (
                 <Checkbox
                   key={k.kind}
-                  label={k.kind === "tabs" && isArc ? "Spaces and tabs" : k.kind === "tabs" && isDiaTabs ? "Open tabs" : k.title}
+                  label={k.kind === "tabs" && bySpaces ? "Spaces and tabs" : k.kind === "tabs" && isDiaTabs ? "Open tabs" : k.kind === "favorites" && source.sidebar === "zen" ? "Essentials" : k.title}
                   value={kinds.has(k.kind)}
                   onChange={(v) =>
                     setKinds((prev) => {
@@ -514,10 +520,10 @@ export function ImportWindow() {
       </>
     );
   } else if (step === "profiles" && source) {
-    body = isArc ? (
+    body = bySpaces ? (
       <>
-        <Title title="Select spaces to import" subtitle={`We'll import your Arc spaces, tabs, and folders to ${APP}.`} />
-        <Text style={{ fontSize: 12, color: theme.textSecondary, marginBottom: 10 }}>{`Customize which spaces to bring over to ${APP}. Each space becomes a profile, and the spaces of one Arc profile share its logins, cookies, extensions and history, as in Arc.`}</Text>
+        <Title title="Select spaces to import" subtitle={`We'll import your ${source.name} spaces, tabs, and folders to ${APP}.`} />
+        <Text style={{ fontSize: 12, color: theme.textSecondary, marginBottom: 10 }}>{`Customize which spaces to bring over to ${APP}. Each space becomes a profile, and the spaces of one ${source.name} profile share its logins, cookies, extensions and history, as in ${source.name}.`}</Text>
         <View style={{ gap: 6 }}>
           {allSpaces.map((s) => (
             <SelectRow
@@ -527,6 +533,16 @@ export function ImportWindow() {
               icon={<SpaceIcon space={s} />}
               title={s.name || "Space"}
               subtitle={`${plural(s.pinnedCount, "pinned tab")} · ${plural(s.tabCount, "tab")}`}
+            />
+          ))}
+          {source.sidebar !== "zen" ? null : spaceless.map((p) => (
+            <SelectRow
+              key={p.id}
+              selected={sourceProfiles.includes(p.id)}
+              onToggle={(v) => setSourceProfiles((prev) => (v ? [...prev, p.id] : prev.filter((x) => x !== p.id)))}
+              icon={<Monogram name={p.name} color={p.color} />}
+              title={p.name}
+              subtitle={p.isDefault ? "Default profile" : undefined}
             />
           ))}
         </View>
@@ -564,7 +580,7 @@ export function ImportWindow() {
         <Button title="Back" onPress={() => setStep("choose")} />
         <View style={{ flex: 1 }} />
         {targetPicker}
-        <Button title="Continue" kind="primary" disabled={isArc ? !spaces.length : !sourceProfiles.length} onPress={next} />
+        <Button title="Continue" kind="primary" disabled={bySpaces ? !spaces.length && (source.sidebar !== "zen" || !spaceless.some((p) => sourceProfiles.includes(p.id))) : !sourceProfiles.length} onPress={next} />
       </>
     );
   } else if (step === "unlock" && source) {
@@ -587,7 +603,7 @@ export function ImportWindow() {
               : `Some data is encrypted, so macOS will ask for your computer password to bring it securely into ${APP}.`}
           </Text>
           <Text style={{ fontSize: 12, lineHeight: 17, textAlign: "center", color: theme.textSecondary, maxWidth: 420 }}>
-            {`macOS may ask whether ${APP} can use “${source.name} Safe Storage” from your keychain: it's the key ${source.name} encrypts passwords, cookies and cards with. Click Allow. Your data stays on this Mac.`}
+            {`macOS may ask whether ${APP} can use “${source.keychainService ?? `${source.name} Safe Storage`}” from your keychain: it's the key ${source.name} encrypts passwords, cookies, cards and open tabs with. Click Allow. Your data stays on this Mac.`}
           </Text>
         </View>
         {error && <ErrorText text={error} />}
@@ -595,7 +611,7 @@ export function ImportWindow() {
     );
     footer = (
       <>
-        <Button title="Back" onPress={() => setStep(source.profiles.length > 1 || isArc ? "profiles" : "choose")} />
+        <Button title="Back" onPress={() => setStep(source.profiles.length > 1 || bySpaces ? "profiles" : "choose")} />
         <View style={{ flex: 1 }} />
         <Button
           title="Skip Encrypted Data"
@@ -604,7 +620,7 @@ export function ImportWindow() {
             without.delete("passwords");
             without.delete("cookies");
             setKinds(without);
-            void run(without);
+            void run(without, true);
           }}
         />
         <Button title={unlocking ? "Waiting for password..." : "Continue"} kind="primary" disabled={unlocking} onPress={() => void unlock()} />
@@ -915,7 +931,7 @@ function BrowserRow({ browser, selected, onPress }: { browser: BrowserSource; se
     ? "Asks Dia while it's open"
     : browser.requiresExport
     ? "Direct or from an exported .zip"
-    : browser.family === "arc" && spaces
+    : browser.sidebar && spaces
       ? plural(spaces, "space")
       : browser.profiles.length > 1
         ? plural(browser.profiles.length, "profile")

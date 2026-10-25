@@ -3,7 +3,8 @@ import type { LayoutChangeEvent } from "react-native";
 import { markHoverProps } from "../../lib/hoverShift";
 import { useBrowser } from "../../store/browser";
 import { PageProfileContext } from "../../store/hooks";
-import { cardReach, type Point, type Rect } from "./hoverAim";
+import { useFoldedAway } from "./Fold";
+import { cardReach, pointInRect, type Point, type Rect } from "./hoverAim";
 import { measureRow, setSidebarUi, sidebarUi, type Target } from "./state";
 
 const SHOW_DELAY_MS = 500;
@@ -25,6 +26,7 @@ let cardFrame: Rect | null = null;
 let onCard = false;
 let exitPoint: Point | null = null;
 let waiting: Waiting | null = null;
+let held = false;
 
 export const setHoverSpace = (windowId: string, height: number) => void contentHeights.set(windowId, height);
 
@@ -37,6 +39,7 @@ function pointerIn(windowId: string, event: PointerEvent): Point | null {
 }
 
 function hideCard() {
+  held = false;
   onCard = false;
   exitPoint = null;
   waiting = null;
@@ -72,6 +75,7 @@ function holdFor(next: Waiting) {
 
 export const cardHoverProps = {
   onMouseEnter: () => {
+    if (!sidebarUi().hover) return;
     onCard = true;
     clearTimeout(aimTimer);
     keepHover();
@@ -138,7 +142,7 @@ export function hoverEnter(windowId: string, target: Target) {
 }
 
 export function hoverLeave(from?: unknown) {
-  if (typeof from === "string" && from !== owner) return;
+  if (held || (typeof from === "string" && from !== owner)) return;
   owner = null;
   ticket++;
   clearTimeout(showTimer);
@@ -151,7 +155,19 @@ export const keepHover = () => {
   clearTimeout(aimTimer);
 };
 
+export function holdHover(on: boolean) {
+  if (on === held) return;
+  held = on;
+  if (on) return keepHover();
+  const hover = sidebarUi().hover;
+  if (!hover || onCard) return;
+  if (underPointer !== hover.id) return hoverLeave();
+  owner = hover.id;
+  ownerWindow = hover.windowId;
+}
+
 export function dismissHover() {
+  held = false;
   owner = null;
   ownerWindow = null;
   ticket++;
@@ -166,6 +182,7 @@ export function dismissHoverIn(windowId: string) {
 
 function releaseAnchor(windowId: string, id: string) {
   if (underPointer === id) underPointer = null;
+  if (waiting?.windowId === windowId && waiting.target?.id === id) waiting = null;
   if (owner === id && ownerWindow === windowId) return dismissHover();
   const hover = sidebarUi().hover;
   if (hover?.windowId === windowId && hover.id === id) hideCard();
@@ -175,29 +192,39 @@ export function useRowHover(windowId: string, target: Target | null) {
   const [hovered, setHovered] = useState(false);
   const [, refresh] = useReducer((n: number) => n + 1, 0);
   const page = useContext(PageProfileContext);
-  const latest = useRef({ windowId, target, page });
-  latest.current = { windowId, target, page };
+  const away = useFoldedAway();
+  const latest = useRef({ windowId, target, page, away });
+  latest.current = { windowId, target, page, away };
+  const inside = useRef<PointerEvent | null>(null);
   const onCurrentPage = () => {
     const { windowId, page } = latest.current;
     return !page || useBrowser.getState().windows[windowId]?.profileId === page;
   };
+  const [enterRow] = useState(() => (event?: PointerEvent) => {
+    if (!onCurrentPage() || latest.current.away) return;
+    const { windowId, target } = latest.current;
+    pointed(windowId, refresh, true);
+    const at = pointerIn(windowId, event);
+    if (onCard && at && cardFrame && !pointInRect(cardFrame, at)) onCard = false;
+    const enter = () => {
+      if (latest.current.away) return;
+      setHovered(true);
+      underPointer = target?.id ?? null;
+      if (target) hoverEnter(windowId, target);
+    };
+    const reach = cardHeldFor(windowId, target, event);
+    if (!reach) return enter();
+    if (reach === "aiming") setHovered(true);
+    holdFor({ windowId, target, arrive: enter });
+  });
   const [hoverProps] = useState(() =>
     markHoverProps({
       onMouseEnter: (event?: PointerEvent) => {
-        if (!onCurrentPage()) return;
-        const { windowId, target } = latest.current;
-        pointed(windowId, refresh, true);
-        const enter = () => {
-          setHovered(true);
-          underPointer = target?.id ?? null;
-          if (target) hoverEnter(windowId, target);
-        };
-        const held = cardHeldFor(windowId, target, event);
-        if (!held) return enter();
-        if (held === "aiming") setHovered(true);
-        holdFor({ windowId, target, arrive: enter });
+        inside.current = { nativeEvent: { screenX: event?.nativeEvent?.screenX, screenY: event?.nativeEvent?.screenY } };
+        enterRow(event);
       },
       onMouseLeave: (event?: PointerEvent) => {
+        inside.current = null;
         setHovered(false);
         const { windowId, target } = latest.current;
         pointed(windowId, refresh, false);
@@ -209,6 +236,19 @@ export function useRowHover(windowId: string, target: Target | null) {
       },
     }),
   );
+  const shownAway = useRef(away);
+  useEffect(() => {
+    if (shownAway.current === away) return;
+    shownAway.current = away;
+    if (!away) {
+      if (inside.current) enterRow(inside.current);
+      return;
+    }
+    const { windowId, target } = latest.current;
+    setHovered(false);
+    pointed(windowId, refresh, false);
+    if (target) releaseAnchor(windowId, target.id);
+  }, [away]);
   useEffect(
     () => () => {
       const { windowId, target } = latest.current;

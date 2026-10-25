@@ -1,10 +1,14 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Easing, View } from "react-native";
 
 const FOLD_MS = 150;
 const FOLD_EASING = Easing.bezier(0.2, 0.9, 0.3, 1);
 
 type FoldState = { open: Animated.Value; moving: boolean };
+
+const FoldedAway = createContext(false);
+
+export const useFoldedAway = () => useContext(FoldedAway);
 
 export function useFold(collapsed: boolean): FoldState {
   const open = useRef(new Animated.Value(collapsed ? 0 : 1)).current;
@@ -56,6 +60,7 @@ export function Fold({
   footer?: ReactNode;
 }) {
   const { open, moving } = fold;
+  const parentAway = useContext(FoldedAway);
   const measuring = rowHeight === undefined;
   const [measured, setMeasured] = useState<Record<string, number>>({});
   const styles = useRef(new Map<number, object>()).current;
@@ -96,21 +101,23 @@ export function Fold({
           const stays = key === kept;
           if (!stays && !mountAll) return null;
           return (
-            <Animated.View key={key} style={folding && !stays ? (moving ? foldingStyle(heightOf(key)) : closed) : null} pointerEvents={collapsed && !stays ? "none" : "auto"}>
-              {measuring ? (
-                <View
-                  onLayout={(e) => {
-                    if (state.current.moving || (state.current.folding && key !== state.current.kept)) return;
-                    const height = e.nativeEvent.layout.height;
-                    setMeasured((all) => (all[key] === height ? all : { ...all, [key]: height }));
-                  }}
-                >
-                  {node}
-                </View>
-              ) : (
-                node
-              )}
-            </Animated.View>
+            <FoldedAway.Provider key={key} value={parentAway || ((collapsed || moving) && !stays)}>
+              <Animated.View style={folding && !stays ? (moving ? foldingStyle(heightOf(key)) : closed) : null} pointerEvents={collapsed && !stays ? "none" : "auto"}>
+                {measuring ? (
+                  <View
+                    onLayout={(e) => {
+                      if (state.current.moving || (state.current.folding && key !== state.current.kept)) return;
+                      const height = e.nativeEvent.layout.height;
+                      setMeasured((all) => (all[key] === height ? all : { ...all, [key]: height }));
+                    }}
+                  >
+                    {node}
+                  </View>
+                ) : (
+                  node
+                )}
+              </Animated.View>
+            </FoldedAway.Provider>
           );
         })}
         {footer}

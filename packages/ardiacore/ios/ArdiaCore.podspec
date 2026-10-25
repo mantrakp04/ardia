@@ -11,6 +11,7 @@ Pod::Spec.new do |s|
   s.source         = { git: '' }
   s.static_framework = true
   s.dependency 'ExpoModulesCore'
+  s.frameworks     = 'WebKit'
   s.source_files   = '*.{h,mm,swift}'
   s.public_header_files = 'ArdiaCoreHost.h', 'ArdiaCoreWebView.h', 'ArdiaCoreTabStrip.h', 'ArdiaCoreEngineBridge.h', 'ArdiaCoreServices.h', 'ACSwipe.h', 'ACChromeWindow.h'
   s.resources      = 'page_script.js'

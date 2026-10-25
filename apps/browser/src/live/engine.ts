@@ -3,7 +3,7 @@ import { everySlowly } from "../lib/slowTimers";
 import { useBrowser } from "../store/browser";
 import { activeTabId, viewTabIds } from "../store/model";
 import { SOURCES } from "./sources";
-import { applyFetch, createFolder, finishCompleting, live, markRead, removeFolder, setStatus, useLive } from "./store";
+import { applyFetch, createFolder, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
 import { LiveError, type CompletionState, type LiveFolderKind, type LiveItem, type LiveSourceId, type PullRequestSection } from "./types";
 
 const INTERVAL_MS: Record<LiveFolderKind, number> = { pullRequests: 3 * 60_000, documents: 10 * 60_000 };
@@ -29,35 +29,45 @@ export function refreshFolder(folderId: string): Promise<void> {
   return task;
 }
 
+export function manualRefresh(folderId: string): Promise<void> {
+  unhide(folderId);
+  return refreshFolder(folderId);
+}
+
 async function run(folderId: string) {
   const folder = live().folders[folderId];
   if (!folder) return;
   const before = live();
   setStatus(folderId, { state: before.status[folderId]?.lastFetch ? "updating" : "initializing" });
-  const prev = before.items[folderId] ?? [];
-  const animating = new Set(before.completing[folderId] ?? []);
   const results = await Promise.allSettled(folder.sources.map((id) => SOURCES[id].fetch(folder)));
 
-  const next: LiveItem[] = [];
+  const fetched: LiveItem[] = [];
   const failed: { source: LiveSourceId; error: unknown }[] = [];
   results.forEach((r, i) => {
     const source = folder.sources[i]!;
-    if (r.status === "fulfilled") next.push(...r.value);
-    else {
-      failed.push({ source, error: r.reason });
-      next.push(...prev.filter((it) => it.source === source && !animating.has(it.id)));
-    }
+    if (r.status === "fulfilled") fetched.push(...r.value);
+    else failed.push({ source, error: r.reason });
   });
   if (!live().folders[folderId]) return;
+  const fromFailedSource = (it: LiveItem) => failed.some((f) => f.source === it.source);
+  const listedByFilters = (it: LiveItem) => (it.section === "review" || it.section === "team" ? folder.filters.reviewRequests : folder.filters.authored);
+  const fetchWouldList = (it: LiveItem) => folder.sources.includes(it.source) && !fromFailedSource(it) && listedByFilters(it);
 
-  const ids = new Set(next.map((it) => it.id));
-  const missing = prev.filter((it) => !ids.has(it.id) && !animating.has(it.id) && !failed.some((f) => f.source === it.source));
+  const landed = live();
+  const ids = new Set(fetched.map((it) => it.id));
+  const animatingAtLanding = new Set(landed.completing[folderId] ?? []);
+  const missing = [...(landed.items[folderId] ?? []), ...(landed.hidden[folderId] ?? [])].filter((it) => !ids.has(it.id) && !animatingAtLanding.has(it.id) && fetchWouldList(it));
   const gone: Record<string, CompletionState> = {};
   for (const source of new Set(missing.map((it) => it.source))) {
     const resolve = SOURCES[source].resolveGone;
     if (!resolve) continue;
     Object.assign(gone, await resolve(missing.filter((it) => it.source === source)).catch(() => ({})));
   }
+
+  const current = live();
+  const prev = current.items[folderId] ?? [];
+  const animating = new Set(current.completing[folderId] ?? []);
+  const next = [...fetched, ...prev.filter((it) => fromFailedSource(it) && !animating.has(it.id))];
 
   const firstFailure = failed[0];
   if (firstFailure && failed.length === folder.sources.length && !prev.length && !before.status[folderId]?.lastFetch) {
@@ -79,6 +89,11 @@ function describe(source: LiveSourceId, error: unknown) {
 }
 
 export function statusText(folderId: string, now = Date.now()): string {
+  const hidden = live().hidden[folderId]?.length ?? 0;
+  return hidden ? `${fetchText(folderId, now)} · ${hidden} hidden until you refresh` : fetchText(folderId, now);
+}
+
+function fetchText(folderId: string, now: number): string {
   const st = live().status[folderId];
   if (!st || st.state === "initializing") return "Loading…";
   if (st.state === "updating") return "Updating…";

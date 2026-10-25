@@ -3,7 +3,7 @@ import { createContext, createElement, useContext, type ReactNode } from "react"
 import { useBrowser, type BrowserState } from "../store/browser";
 import { PageProfileContext, WindowContext } from "../store/hooks";
 import type { Profile, ProfileColor, ProfileTheme } from "../store/types";
-import { opaqueThemeTint, PRESET_BACKDROP, resolveTheme, rgbToHsl, themeAccent, themeBackdrop, themeDark, themePalette, type ThemeBackdropProps } from "./profileTheme";
+import { opaqueThemeTint, PRESET_BACKDROP, readableDark, resolveTheme, rgbToHsl, themeAccent, themeBackdrop, themeDark, themePalette, type ThemeBackdropProps } from "./profileTheme";
 import { backdropTint, opaqueTint, tintForHue, type BackdropTint } from "./windowTint";
 
 export type Theme = typeof dark & {
@@ -210,20 +210,25 @@ export function nearestPreset(hexColor: string): ProfileColor {
 const customCache = new WeakMap<ProfileTheme, Map<string, Theme>>();
 
 function customTheme(custom: ProfileTheme, color: ProfileColor, appDark: boolean, followApp: boolean): Theme {
-  const dark = followApp ? appDark : themeDark(custom, appDark);
-  const key = `${color}:${dark ? "dark" : "light"}`;
+  const requested = followApp ? appDark : themeDark(custom, appDark);
+  const key = `${color}:${requested ? "dark" : "light"}${followApp ? ":app" : ""}`;
   let byKey = customCache.get(custom);
   if (!byKey) customCache.set(custom, (byKey = new Map()));
   let theme = byKey.get(key);
   if (!theme) {
-    const preset = themeFor(key);
-    const look = resolveTheme(custom, dark);
+    const look = resolveTheme(custom, requested);
+    const dark = followApp ? requested : readableDark(look, requested);
+    const preset = themeFor(`${color}:${dark ? "dark" : "light"}`);
     const accent = themeAccent(look);
     const palette = themePalette(look);
     theme = {
       ...preset,
       profileColor: nearestPreset(accent),
-      backdrop: { ...backdropTint(accent, false), ...themeBackdrop(look, dark) },
+      backdrop: {
+        ...backdropTint(accent, false),
+        ...themeBackdrop(look, dark),
+        ...(dark === requested ? {} : { themeAppearance: dark ? ("dark" as const) : ("light" as const) }),
+      },
       windowTint: opaqueThemeTint(look, dark),
       powerUpColor: accent,
       powerUpPalette: palette.length > 1 ? palette : [palette[0] ?? accent],

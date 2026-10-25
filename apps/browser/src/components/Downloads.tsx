@@ -1,7 +1,7 @@
 import { cancelDownload, pauseDownload, resumeDownload, type Download } from "@ardia/ardiacore";
-import { ContextMenuArea, copyText, fileExists, fileIcon, MouseArea, moveToTrash, openFile, revealFile, showMenu, Surface, Symbol, VisualEffect, type MenuItem } from "@ardia/shell";
+import { ContextMenuArea, copyText, fileExists, fileIcon, MouseArea, moveToTrash, openFile, PopoverBubble, popoverBubbleAvailable, revealFile, showMenu, Surface, Symbol, VisualEffect, type MenuItem } from "@ardia/shell";
 import { memo, useEffect, useRef, useState } from "react";
-import { Animated, Easing, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Animated, Easing, Image, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { hex, layout, useTheme } from "../lib/theme";
 import { useShallow } from "zustand/react/shallow";
 import { useBrowser } from "../store/browser";
@@ -12,6 +12,7 @@ import { PROFILE_DOTS_HEIGHT } from "./profiles/ProfileDots";
 import { openInternalPage } from "./pages/urls";
 import { useSidebarWidth } from "./sidebar/tokens";
 import { HoverSlot } from "./HoverSlot";
+import { anchorInside, DOWNLOADS_PANEL, downloadsPlacement, type DownloadsPlacement, type Rect, type Size } from "./downloadsPlacement";
 import { PANEL, POPOVER_MOTION, PopoverSeparator, usePopoverPresence } from "./layout/controls";
 import { IconButton, useHover } from "./primitives";
 
@@ -119,7 +120,6 @@ export const FileIcon = memo(function FileIcon({ path, size = 28 }: { path: stri
   );
 });
 
-const WIDTH = 300;
 const HEADER = 24;
 const ROW = 40;
 const FILE_ICON = 24;
@@ -131,6 +131,10 @@ const INK_INSET = PANEL.inset + 1;
 const HEADER_CAP_TOP = 7.5;
 const FOOTER_TEXT_DROP = 12;
 const CHEVRON_BEARING = 3;
+const PAD_TOP = INK_INSET - HEADER_CAP_TOP;
+const PAD_BOTTOM = INK_INSET - FOOTER_TEXT_DROP;
+const PANEL_CHROME = PAD_TOP + HEADER + StyleSheet.hairlineWidth + PANEL.separatorGap * 2 + PANEL.rowHeight + PAD_BOTTOM;
+const PLACE_DEADLINE_MS = 120;
 
 function rowFill(dark: boolean, hovered: boolean, pressed: boolean) {
   if (!hovered && !pressed) return undefined;
@@ -138,6 +142,53 @@ function rowFill(dark: boolean, hovered: boolean, pressed: boolean) {
 }
 
 const progressTrack = (dark: boolean) => (dark ? "#717782" : "#CED7E7");
+
+const downloadsButtons = new Map<string, Set<View>>();
+
+function measureInWindow(view: View): Promise<Rect | null> {
+  return new Promise((resolve) => view.measureInWindow((x, y, width, height) => resolve(width > 0 && height > 0 ? { x, y, width, height } : null)));
+}
+
+async function locateDownloadsButton(windowId: string, origin: Rect): Promise<Rect | null> {
+  const rects = await Promise.all([...(downloadsButtons.get(windowId) ?? [])].map(measureInWindow));
+  for (const rect of rects) {
+    const local = rect && { x: rect.x - origin.x, y: rect.y - origin.y, width: rect.width, height: rect.height };
+    if (anchorInside(origin, local)) return local;
+  }
+  return null;
+}
+
+export function DownloadsButton({ windowId }: { windowId: string }) {
+  const open = useBrowser((s) => !!s.windowUi[windowId]?.downloadsOpen);
+  const view = useRef<View>(null);
+  useEffect(() => {
+    const node = view.current;
+    if (!node) return;
+    const set = downloadsButtons.get(windowId) ?? new Set<View>();
+    downloadsButtons.set(windowId, set);
+    set.add(node);
+    return () => {
+      set.delete(node);
+      if (!set.size && downloadsButtons.get(windowId) === set) downloadsButtons.delete(windowId);
+    };
+  }, [windowId]);
+  return (
+    <View ref={view} collapsable={false}>
+      <IconButton
+        icon="arrow.down.circle"
+        size={16}
+        box={SIDEBAR_FOOTER_DOWNLOADS.size}
+        radius={10}
+        active={open}
+        tooltip={open ? undefined : "Downloads (⇧⌘J)"}
+        onPress={() => {
+          const s = useBrowser.getState();
+          s.setDownloadsOpen(windowId, !s.windowUi[windowId]?.downloadsOpen);
+        }}
+      />
+    </View>
+  );
+}
 
 export function DownloadsPopover() {
   const windowId = useWindowId();
@@ -152,84 +203,161 @@ function DownloadsPanel({ windowId, closing, onClosed }: { windowId: string; clo
   const shownList = useRef({ ids: liveIds, clearable: liveClearable });
   if (!closing) shownList.current = { ids: liveIds, clearable: liveClearable };
   const { ids, clearable } = shownList.current;
-  const top = useTabLayout() === "top";
+  const topStrip = useTabLayout() === "top";
   const addressBar = useAddressBarInSidebar();
   const setOpen = (value: boolean) => useBrowser.getState().setDownloadsOpen(windowId, value);
+  const { root, placement: p, onLayout } = useDownloadsPlacement(windowId, closing, { topStrip, footer: addressBar, footerBottom: PROFILE_DOTS_HEIGHT + 2 });
+  const placed = p !== null;
   const appear = useRef(new Animated.Value(0)).current;
   const closed = useRef(onClosed);
   closed.current = onClosed;
   useEffect(() => {
+    if (!placed) {
+      if (closing) closed.current();
+      return;
+    }
     const motion = closing ? POPOVER_MOTION.close : POPOVER_MOTION.open;
     Animated.timing(appear, { toValue: closing ? 0 : 1, duration: motion.duration, easing: motion.easing, useNativeDriver: true }).start(
       ({ finished }) => finished && closing && closed.current(),
     );
-  }, [closing]);
+  }, [closing, placed]);
+
+  const upward = p?.bottom !== undefined;
+  const arrowRoom = p && p.arrow !== "none" ? DOWNLOADS_PANEL.arrowHeight : 0;
+  const listMax = p ? Math.max(ROW, Math.min(VISIBLE_ROWS * ROW, p.room - PANEL_CHROME)) : VISIBLE_ROWS * ROW;
 
   return (
-    <View pointerEvents={closing ? "none" : "auto"} style={StyleSheet.absoluteFill}>
+    <View ref={root} collapsable={false} onLayout={onLayout} pointerEvents={closing ? "none" : "auto"} style={StyleSheet.absoluteFill}>
       <Pressable style={StyleSheet.absoluteFill} onPress={() => setOpen(false)} />
-      <Animated.View
-        style={{
-          position: "absolute",
-          ...(addressBar ? { bottom: PROFILE_DOTS_HEIGHT + 2 } : { top: 44 }),
-          ...(top ? { right: 8 } : { left: 10 }),
-          opacity: appear,
-          transformOrigin: `${addressBar ? "bottom" : "top"} ${top ? "right" : "left"}`,
-          transform: [
-            { scale: appear.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) },
-            { translateY: appear.interpolate({ inputRange: [0, 1], outputRange: addressBar ? [4, 0] : [-4, 0] }) },
-          ],
-        }}
-      >
-        <Surface
-          fill={hex(theme.dark ? "rgba(38,36,37,0.94)" : "rgba(252,251,252,0.96)")}
-          cornerRadius={PANEL.radius}
-          borderColor={hex(theme.dark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.12)")}
-          borderWidth={0.5}
-          shadowColor="#000000"
-          shadowOpacity={theme.dark ? 0.45 : 0.16}
-          shadowRadius={18}
-          shadowOffset={[0, 8]}
-          style={{ width: WIDTH, paddingTop: INK_INSET - HEADER_CAP_TOP, paddingBottom: INK_INSET - FOOTER_TEXT_DROP }}
+      {p ? (
+        <Animated.View
+          style={{
+            position: "absolute",
+            left: p.left,
+            ...(upward ? { bottom: p.bottom } : { top: p.top }),
+            width: p.width,
+            opacity: appear,
+            transformOrigin: `${p.arrowX}px ${upward ? "bottom" : "top"}`,
+            transform: [
+              { scale: appear.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) },
+              { translateY: appear.interpolate({ inputRange: [0, 1], outputRange: upward ? [4, 0] : [-4, 0] }) },
+            ],
+          }}
         >
-          <VisualEffect material="menu" cornerRadius={PANEL.radius} style={StyleSheet.absoluteFill} />
-          <View style={{ ...StyleSheet.absoluteFillObject, borderRadius: PANEL.radius, backgroundColor: theme.dark ? "rgba(38,36,37,0.72)" : "rgba(252,251,252,0.7)" }} />
-          <View style={{ flexDirection: "row", alignItems: "center", paddingLeft: PANEL.inset, paddingRight: PANEL.inset - TEXT_BUTTON_PAD, height: HEADER }}>
-            <Text style={{ flex: 1, fontSize: PANEL.subtitleSize, fontWeight: "600", letterSpacing: 0.4, color: theme.textSecondary }}>
-              RECENT DOWNLOADS
-            </Text>
-            {clearable && (
-              <TextButton
-                title="Clear"
-                onPress={() => {
-                  setOpen(false);
-                  useBrowser.getState().clearDownloads(windowId);
-                }}
-              />
-            )}
-          </View>
-          {ids.length === 0 ? (
-            <View style={{ height: PANEL.rowHeight, paddingHorizontal: PANEL.inset, justifyContent: "center" }}>
-              <Text style={{ fontSize: PANEL.titleSize, color: theme.textSecondary }}>No downloads yet</Text>
+          <PanelBackground placement={p} />
+          <View style={{ marginTop: upward ? 0 : arrowRoom, marginBottom: upward ? arrowRoom : 0, paddingTop: PAD_TOP, paddingBottom: PAD_BOTTOM }}>
+            <View style={{ flexDirection: "row", alignItems: "center", paddingLeft: PANEL.inset, paddingRight: PANEL.inset - TEXT_BUTTON_PAD, height: HEADER }}>
+              <Text style={{ flex: 1, fontSize: PANEL.subtitleSize, fontWeight: "600", letterSpacing: 0.4, color: theme.textSecondary }}>
+                RECENT DOWNLOADS
+              </Text>
+              {clearable && (
+                <TextButton
+                  title="Clear"
+                  onPress={() => {
+                    setOpen(false);
+                    useBrowser.getState().clearDownloads(windowId);
+                  }}
+                />
+              )}
             </View>
-          ) : (
-            <ScrollView style={{ maxHeight: VISIBLE_ROWS * ROW }} contentContainerStyle={{ paddingHorizontal: PANEL.rowInset }}>
-              {ids.map((id) => (
-                <DownloadRowItem key={id} id={id} windowId={windowId} />
-              ))}
-            </ScrollView>
-          )}
-          <PopoverSeparator />
-          <FooterButton
-            title="View all downloads"
-            onPress={() => {
-              setOpen(false);
-              openInternalPage("downloads", windowId);
-            }}
-          />
-        </Surface>
-      </Animated.View>
+            {ids.length === 0 ? (
+              <View style={{ height: PANEL.rowHeight, paddingHorizontal: PANEL.inset, justifyContent: "center" }}>
+                <Text style={{ fontSize: PANEL.titleSize, color: theme.textSecondary }}>No downloads yet</Text>
+              </View>
+            ) : (
+              <ScrollView style={{ maxHeight: listMax }} contentContainerStyle={{ paddingHorizontal: PANEL.rowInset }}>
+                {ids.map((id) => (
+                  <DownloadRowItem key={id} id={id} windowId={windowId} />
+                ))}
+              </ScrollView>
+            )}
+            <PopoverSeparator />
+            <FooterButton
+              title="View all downloads"
+              onPress={() => {
+                setOpen(false);
+                openInternalPage("downloads", windowId);
+              }}
+            />
+          </View>
+        </Animated.View>
+      ) : null}
     </View>
+  );
+}
+
+function useDownloadsPlacement(windowId: string, closing: boolean, fallback: { topStrip: boolean; footer: boolean; footerBottom: number }) {
+  const root = useRef<View>(null);
+  const [placement, setPlacement] = useState<DownloadsPlacement | null>(null);
+  const [viewport, setViewport] = useState<Size | null>(null);
+  const latest = useRef({ closing, fallback });
+  latest.current = { closing, fallback };
+  const ticket = useRef(0);
+  const locate = () => {
+    const node = root.current;
+    if (!node) return;
+    const mine = ++ticket.current;
+    void measureInWindow(node).then(async (origin) => {
+      if (!origin || mine !== ticket.current || latest.current.closing) return;
+      const anchor = await locateDownloadsButton(windowId, origin);
+      if (mine === ticket.current && !latest.current.closing) setPlacement(downloadsPlacement(origin, anchor, latest.current.fallback));
+    });
+  };
+  useEffect(() => {
+    if (!closing) locate();
+  }, [closing, fallback.topStrip, fallback.footer]);
+  useEffect(() => {
+    if (placement || !viewport) return;
+    const timer = setTimeout(() => setPlacement((placed) => placed ?? downloadsPlacement(viewport, null, latest.current.fallback)), PLACE_DEADLINE_MS);
+    return () => clearTimeout(timer);
+  }, [placement, viewport]);
+  const onLayout = (e: LayoutChangeEvent) => {
+    const { width, height } = e.nativeEvent.layout;
+    setViewport({ width, height });
+    if (!latest.current.closing) locate();
+  };
+  return { root, placement, onLayout };
+}
+
+function PanelBackground({ placement }: { placement: DownloadsPlacement }) {
+  const theme = useTheme();
+  const edge = hex(theme.dark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.12)");
+  const tint = theme.dark ? "rgba(38,36,37,0.3)" : "rgba(252,251,252,0.3)";
+  if (popoverBubbleAvailable) {
+    return (
+      <PopoverBubble
+        material="popover"
+        dark={theme.dark}
+        cornerRadius={PANEL.radius}
+        arrowEdge={placement.arrow}
+        arrowX={placement.arrowX}
+        arrowWidth={DOWNLOADS_PANEL.arrowWidth}
+        arrowHeight={DOWNLOADS_PANEL.arrowHeight}
+        tint={hex(tint)}
+        edgeColor={edge}
+        edgeWidth={0.5}
+        shadowOpacity={theme.dark ? 0.45 : 0.16}
+        shadowRadius={18}
+        shadowOffsetY={8}
+        style={StyleSheet.absoluteFill}
+      />
+    );
+  }
+  const arrowRoom = placement.arrow === "none" ? 0 : DOWNLOADS_PANEL.arrowHeight;
+  return (
+    <Surface
+      cornerRadius={PANEL.radius}
+      borderColor={edge}
+      borderWidth={0.5}
+      shadowColor="#000000"
+      shadowOpacity={theme.dark ? 0.45 : 0.16}
+      shadowRadius={18}
+      shadowOffset={[0, 8]}
+      style={{ ...StyleSheet.absoluteFillObject, top: placement.arrow === "top" ? arrowRoom : 0, bottom: placement.arrow === "bottom" ? arrowRoom : 0 }}
+    >
+      <VisualEffect material="popover" cornerRadius={PANEL.radius} style={StyleSheet.absoluteFill} />
+      <View style={{ ...StyleSheet.absoluteFillObject, borderRadius: PANEL.radius, backgroundColor: tint }} />
+    </Surface>
   );
 }
 

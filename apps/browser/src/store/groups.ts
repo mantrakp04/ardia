@@ -4,7 +4,7 @@ import { newId } from "./model";
 import { closingGroup } from "./organize";
 import { withSplitRows } from "./splits";
 import { withNewTab } from "./tabs";
-import type { BrowserWindow, GroupColor, Tab, TabGroup } from "./types";
+import type { BrowserWindow, ClosedGroupInfo, GroupColor, Tab, TabGroup } from "./types";
 
 export type GroupsSlice = {
   groups: Record<string, TabGroup>;
@@ -234,7 +234,9 @@ function nestOnce(groups: Record<string, TabGroup>): Record<string, TabGroup> {
   return reparent(kept, settled);
 }
 
-type GroupInfo = Pick<TabGroup, "id" | "name" | "icon" | "color">;
+type GroupInfo = ClosedGroupInfo;
+
+export const closedGroupInfo = (g: TabGroup): GroupInfo => ({ id: g.id, name: g.name, icon: g.icon, color: g.color, ...(g.pinned ? { pinned: true } : {}) });
 
 export function rejoinGroups(
   groups: Record<string, TabGroup>,
@@ -259,7 +261,7 @@ export function rejoinGroups(
   for (const info of chain.slice(0, at < 0 ? chain.length : at).reverse()) {
     const id = next[info.id] ? newId("g") : info.id;
     const { id: _, name, icon, color } = info;
-    next[id] = { id, name, icon, color, windowId, profileId, collapsed: false, pinned: false, tabIds, createdAt: Date.now(), ...(parentId ? { parentId } : {}) };
+    next[id] = { id, name, icon, color, windowId, profileId, collapsed: false, pinned: !!info.pinned, tabIds, createdAt: Date.now(), ...(parentId ? { parentId } : {}) };
     made.set(info.id, id);
     parentId = id;
   }

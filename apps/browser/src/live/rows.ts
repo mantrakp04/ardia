@@ -14,7 +14,13 @@ export const SECTION_TITLES: Record<PullRequestSection, string | null> = {
 
 export const PAGE_SIZE = 8;
 
-export function folderRows(folder: Pick<LiveFolder, "id" | "kind">, items: LiveItem[], showAll: Record<string, boolean>, page = PAGE_SIZE): FolderRow[] {
+export type LiveTabPlace = "row" | "stray" | "hidden";
+
+export function liveTabPlace(itemId: string, shown: Set<string>, hidden: Set<string>): LiveTabPlace {
+  return shown.has(itemId) ? "row" : hidden.has(itemId) ? "hidden" : "stray";
+}
+
+export function folderRows(folder: Pick<LiveFolder, "id" | "kind" | "groupStacks">, items: LiveItem[], showAll: Record<string, boolean>, page = PAGE_SIZE): FolderRow[] {
   const sections: [string, LiveItem[]][] =
     folder.kind === "pullRequests"
       ? (["authored", "review", "team"] as const).map((s) => [s, items.filter((it) => (it.section ?? "authored") === s)])
@@ -27,7 +33,7 @@ export function folderRows(folder: Pick<LiveFolder, "id" | "kind">, items: LiveI
     const entries: FolderRow[] = [];
     const stacked = new Set<string>();
     for (const it of members) {
-      const stack = it.pr?.stack;
+      const stack = folder.groupStacks ? it.pr?.stack : undefined;
       if (!stack) {
         entries.push({ kind: "item", key: it.id, item: it });
         continue;

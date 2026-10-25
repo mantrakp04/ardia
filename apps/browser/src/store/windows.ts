@@ -382,7 +382,7 @@ function restoreTab(s: BrowserState, entry: ClosedTab, requested?: string | null
   if (tile) {
     const unloaded = !tile.navigation && !tile.adoptId;
     const tabs = unloaded
-      ? { ...s.tabs, [tile.id]: { ...tile, url: entry.tab.url, title: entry.tab.title, favicon: entry.tab.favicon, muted: entry.tab.muted, adoptId: restoreId(tile.id) } }
+      ? { ...s.tabs, [tile.id]: { ...tile, url: entry.tab.url, title: entry.tab.title, favicon: entry.tab.favicon, muted: entry.tab.muted, adoptId: restoreId(entry.restoreFrom ?? tile.id) } }
       : s.tabs;
     const next: BrowserState = { ...s, closedTabs, tabs };
     return apply(next, activated(next, tile.id));

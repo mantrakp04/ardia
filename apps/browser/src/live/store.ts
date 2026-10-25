@@ -35,6 +35,7 @@ type LiveState = {
   items: Record<string, LiveItem[]>;
   known: Record<string, string[]>;
   unread: Record<string, string[]>;
+  hidden: Record<string, LiveItem[]>;
   completed: Record<string, CompletedItem[]>;
   completing: Record<string, string[]>;
   status: Record<string, FolderStatus>;
@@ -59,7 +60,7 @@ export const DEFAULT_CALENDAR: CalendarSettings = {
 };
 
 const DOC = "live.json";
-const PERSISTED = ["folders", "folderOrder", "items", "known", "unread", "completed", "expandedStacks", "accounts", "config", "calendar", "meetingGroups", "dismissedAlerts"] as const;
+const PERSISTED = ["folders", "folderOrder", "items", "known", "unread", "hidden", "completed", "expandedStacks", "accounts", "config", "calendar", "meetingGroups", "dismissedAlerts"] as const;
 
 function load(): Partial<LiveState> {
   try {
@@ -72,12 +73,18 @@ function load(): Partial<LiveState> {
 
 const saved = load();
 
+const FOLDER_OPTION_DEFAULTS = { groupStacks: true, showCompleted: true } satisfies Partial<LiveFolder>;
+
+const withOptionDefaults = (folders: Record<string, LiveFolder> = {}) =>
+  Object.fromEntries(Object.entries(folders).map(([id, f]) => [id, { ...FOLDER_OPTION_DEFAULTS, ...f }]));
+
 export const useLive = create<LiveState>()(() => ({
-  folders: saved.folders ?? {},
+  folders: withOptionDefaults(saved.folders),
   folderOrder: saved.folderOrder ?? [],
   items: saved.items ?? {},
   known: saved.known ?? {},
   unread: saved.unread ?? {},
+  hidden: saved.hidden ?? {},
   completed: saved.completed ?? {},
   completing: {},
   status: {},
@@ -126,6 +133,7 @@ export function createFolder(profileId: string, kind: LiveFolderKind, sources?: 
     collapsed: false,
     sources: sources ?? FOLDER_DEFAULTS[kind].sources,
     filters: { authored: true, reviewRequests: true },
+    ...FOLDER_OPTION_DEFAULTS,
     createdAt: Date.now(),
   };
   setLive((s) => ({
@@ -152,6 +160,7 @@ export function removeFolder(id: string) {
     items: without(s.items, id),
     known: without(s.known, id),
     unread: without(s.unread, id),
+    hidden: without(s.hidden, id),
     completed: without(s.completed, id),
     completing: without(s.completing, id),
     status: without(s.status, id),
@@ -179,9 +188,13 @@ export function arrangeFolders(placed: { id: string; after: string | null }[]) {
 const MAX_KNOWN = 600;
 const MAX_COMPLETED = 20;
 
-export function applyFetch(folderId: string, next: LiveItem[], gone: Record<string, CompletionState>, now = Date.now(), quiet: Set<string> = new Set()) {
+export function applyFetch(folderId: string, fetched: LiveItem[], gone: Record<string, CompletionState>, now = Date.now(), quiet: Set<string> = new Set()) {
   setLive((s) => {
     if (!s.folders[folderId]) return {};
+    const closed = (id: string) => gone[id] === "merged" || gone[id] === "closed";
+    const stillHidden = (s.hidden[folderId] ?? []).filter((it) => !closed(it.id));
+    const hiddenIds = new Set(stillHidden.map((it) => it.id));
+    const next = fetched.filter((it) => !hiddenIds.has(it.id));
     const known = new Set(s.known[folderId] ?? []);
     const first = known.size === 0 && !s.status[folderId]?.lastFetch;
     const fresh = next.filter((it) => !known.has(it.id)).map((it) => it.id);
@@ -199,6 +212,7 @@ export function applyFetch(folderId: string, next: LiveItem[], gone: Record<stri
     const stillThere = new Set(merged.map((it) => it.id));
     return {
       items: { ...s.items, [folderId]: merged },
+      hidden: stillHidden.length === (s.hidden[folderId] ?? []).length ? s.hidden : { ...s.hidden, [folderId]: stillHidden },
       known: { ...s.known, [folderId]: [...known, ...fresh].slice(-MAX_KNOWN) },
       unread: { ...s.unread, [folderId]: first ? [] : [...new Set([...(s.unread[folderId] ?? []), ...unreadFresh])].filter((id) => stillThere.has(id)) },
       completed: leaving.length || (s.completed[folderId] ?? []).length !== completed.length ? { ...s.completed, [folderId]: completed } : s.completed,
@@ -228,6 +242,25 @@ export function markRead(folderId: string, itemIds?: string[]) {
     const unread = s.unread[folderId] ?? [];
     const next = itemIds ? unread.filter((id) => !itemIds.includes(id)) : [];
     return next.length === unread.length ? {} : { unread: { ...s.unread, [folderId]: next } };
+  });
+}
+
+export function hideItems(folderId: string, hiding: LiveItem[]) {
+  const itemIds = hiding.map((it) => it.id);
+  const shown = (id: string) => !itemIds.includes(id);
+  setLive((s) => ({
+    hidden: { ...s.hidden, [folderId]: [...(s.hidden[folderId] ?? []).filter((it) => shown(it.id)), ...hiding] },
+    items: { ...s.items, [folderId]: (s.items[folderId] ?? []).filter((it) => shown(it.id)) },
+    unread: { ...s.unread, [folderId]: (s.unread[folderId] ?? []).filter(shown) },
+    completing: { ...s.completing, [folderId]: (s.completing[folderId] ?? []).filter(shown) },
+    completed: { ...s.completed, [folderId]: (s.completed[folderId] ?? []).filter((c) => shown(c.item.id)) },
+  }));
+}
+
+export function unhide(folderId: string) {
+  setLive((s) => {
+    const hidden = s.hidden[folderId] ?? [];
+    return hidden.length ? { hidden: without(s.hidden, folderId), items: { ...s.items, [folderId]: [...(s.items[folderId] ?? []), ...hidden] } } : {};
   });
 }
 

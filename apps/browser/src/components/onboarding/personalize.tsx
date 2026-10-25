@@ -4,7 +4,7 @@ import { PROFILE_COLORS } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
 import type { ProfileColor } from "../../store/types";
 import { useHover } from "../primitives";
-import { useOnboardingColors } from "./ui";
+import { Radio, useOnboardingColors } from "./ui";
 
 export const PERSONALIZE_COPY = {
   title: "Make it yours",
@@ -14,7 +14,7 @@ export const PERSONALIZE_COPY = {
 
 const COLORS = Object.keys(PROFILE_COLORS) as ProfileColor[];
 
-export function ThemeColorPicker({ windowId, size = 30 }: { windowId: string; size?: number }) {
+export function ThemeColorPicker({ windowId, size = 30, onPick }: { windowId: string; size?: number; onPick?: (color: ProfileColor) => void }) {
   const profileId = useBrowser((s) => s.windows[windowId]?.profileId);
   const current = useBrowser((s) => (profileId ? s.profiles[profileId]?.color : undefined));
   const incognito = useBrowser((s) => !!s.windows[windowId]?.incognito);
@@ -22,7 +22,7 @@ export function ThemeColorPicker({ windowId, size = 30 }: { windowId: string; si
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: size >= 30 ? 8 : 6 }} accessibilityRole="radiogroup" accessibilityLabel="Theme color">
       {COLORS.map((c) => (
-        <ColorButton key={c} color={c} size={size} selected={current === c} onPress={() => useBrowser.getState().updateProfile(profileId, { color: c })} />
+        <ColorButton key={c} color={c} size={size} selected={current === c} onPress={() => (onPick ? onPick(c) : useBrowser.getState().updateProfile(profileId, { color: c }))} />
       ))}
     </View>
   );
@@ -127,12 +127,5 @@ function LayoutButton({ kind, title, subtitle, selected, onPress }: { kind: "sid
         )}
       </Pressable>
     </View>
-  );
-}
-
-function Radio({ on }: { on: boolean }) {
-  const colors = useOnboardingColors();
-  return (
-    <View style={{ width: 16, height: 16, borderRadius: 8, borderWidth: on ? 5 : 1.5, borderColor: on ? colors.checkboxOn : colors.checkboxBorder, backgroundColor: colors.checkbox }} />
   );
 }

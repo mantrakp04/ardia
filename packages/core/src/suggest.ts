@@ -1,5 +1,6 @@
 import { findBang, type BangMatch, type BangTable } from "./bangs.ts";
 import { calculate } from "./calculator.ts";
+import { extensionSuggestions, type ExtensionCandidate } from "./extensionRows.ts";
 import { BUILT_IN_ENGINES, searchUrl, type SearchEngine } from "./engines.ts";
 import { matchActions, type ActionCandidate } from "./fuzzy.ts";
 import { fixupUrl, hostOf, urlForDisplay } from "./omnibox.ts";
@@ -27,7 +28,8 @@ export type Suggestion =
   | { kind: "search"; query: string; url: string; engine: string; suggested?: boolean; bang?: true }
   | { kind: "calc"; expression: string; value: string; url: string }
   | { kind: "action"; id: string; title: string; icon?: string; hint?: string }
-  | { kind: "create"; id: string; title: string; url: string; site: string };
+  | { kind: "create"; id: string; title: string; url: string; site: string }
+  | { kind: "extension"; id: string; title: string; icon: string | null; open: "action" | "options" };
 
 export type SuggestionResult = {
   items: Suggestion[];
@@ -41,6 +43,7 @@ export type SuggestOptions = {
   preference?: "website" | "search";
   remote?: readonly string[];
   actions?: readonly CommandAction[];
+  extensions?: readonly ExtensionCandidate[];
   currentTabId?: string;
   currentUrl?: string;
   scope?: SearchScope | null;
@@ -376,6 +379,8 @@ export function suggestionKey(s: Suggestion): string {
       return `action:${s.id}`;
     case "create":
       return `create:${s.id}`;
+    case "extension":
+      return `extension:${s.open}:${s.id}`;
   }
 }
 
@@ -485,6 +490,7 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   const creates = matchQuickCreate(raw.trimStart());
   const actionRows = query.length >= 4 ? 4 : 2;
   const actionMatches = matchActions(query, actions, actionRows).filter((m) => m.exact || m.score >= 50);
+  const extensionMatches = extensionSuggestions(query, options.extensions ?? []);
 
   const best = ranked[0];
   const target = inline && inlineTarget(q, inline.c);
@@ -495,6 +501,7 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   else if (actionMatches[0]?.exact) first = actionRow(actionMatches[0].action);
   else if (target && completion) first = known(target.url) ?? { kind: "page", url: target.url, title: "", favicon: target.favicon };
   else if (typedUrl) first = known(typedUrl) ?? { kind: "page", url: typedUrl, title: "", favicon: null };
+  else if (extensionMatches.exact) first = extensionMatches.rows[0]!;
   else if (websiteFirst && best && best.m >= 40 && (!noInline || typedIsPage(best.c.text, q))) first = pageSuggestion(best.c, best.tabId);
   else first = search;
 
@@ -502,6 +509,7 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   out.push(search);
   if (calc) out.push({ kind: "calc", expression: calc.expression, value: calc.display, url: searchUrl(engine, calc.expression) });
   out.push(...actionMatches.map((m) => actionRow(m.action)));
+  out.push(...extensionMatches.rows);
   out.push(...creates.map(createRow));
   const pageRows = ranked.map((x) => pageSuggestion(x.c, x.tabId));
   out.push(...pageRows.slice(0, 3));

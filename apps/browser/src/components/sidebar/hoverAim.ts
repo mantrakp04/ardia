@@ -2,12 +2,12 @@ export type Point = { x: number; y: number };
 export type Rect = { x: number; y: number; width: number; height: number };
 export type CardReach = "covered" | "aiming" | "away";
 
-const inside = (r: Rect, p: Point) => p.x >= r.x && p.x <= r.x + r.width && p.y >= r.y && p.y <= r.y + r.height;
+export const pointInRect = (r: Rect, p: Point) => p.x >= r.x && p.x <= r.x + r.width && p.y >= r.y && p.y <= r.y + r.height;
 const side = (a: Point, b: Point, p: Point) => (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
 
 export function cardReach(card: Rect, from: Point | null, p: Point): CardReach {
-  if (inside(card, p)) return "covered";
-  if (!from || inside(card, from)) return "away";
+  if (pointInRect(card, p)) return "covered";
+  if (!from || pointInRect(card, from)) return "away";
   const rightward = from.x <= card.x;
   const near = rightward ? card.x : card.x + card.width;
   if (rightward ? p.x < from.x : p.x > from.x) return "away";

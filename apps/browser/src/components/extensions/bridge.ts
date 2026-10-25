@@ -56,6 +56,7 @@ export function startExtensionsBridge() {
   loadProfiles(useBrowser.getState());
   useBrowser.subscribe((s, prev) => {
     if (s.windows !== prev.windows) loadProfiles(s);
+    if (toolbarAnchors.size && (s.windows !== prev.windows || s.tabs !== prev.tabs)) pruneToolbarAnchors(s);
   });
 
   startActionStates();
@@ -115,12 +116,34 @@ function moveIntoChromeMadeWindow(request: TabsRequest, chromeWindow: string, ta
 
 export function openExtensionFromMenu(windowId: string, extensionId: string, tabId?: string) {
   const ext = findExtension(extensionProfile(useBrowser.getState(), windowId), extensionId);
-  if (ext) void activateExtension(windowId, ext, toolbarAnchor(windowId, ext.id), undefined, tabId);
+  if (ext) void activateExtension(windowId, ext, toolbarAnchor(windowId, ext.id, tabId), undefined, tabId);
 }
 
-export const toolbarAnchors = new Map<string, import("./state").Anchor>();
-function toolbarAnchor(windowId: string, extensionId: string) {
-  return toolbarAnchors.get(`${windowId}|${extensionId}`) ?? toolbarAnchors.get(`${windowId}|*`) ?? { x: 100_000, y: 13, width: 28, height: 28 };
+type Anchor = import("./state").Anchor;
+type AnchorEntry = { windowId: string; tabId: string; anchor: Anchor };
+const toolbarAnchors = new Map<string, AnchorEntry>();
+const anchorKey = (windowId: string, tabId: string, slot: string) => `${windowId}|${tabId}|${slot}`;
+
+export const setToolbarAnchor = (windowId: string, tabId: string, slot: string, anchor: Anchor) =>
+  void toolbarAnchors.set(anchorKey(windowId, tabId, slot), { windowId, tabId, anchor });
+
+export function dropToolbarAnchor(windowId: string, tabId: string, slot: string, anchor: Anchor) {
+  const key = anchorKey(windowId, tabId, slot);
+  if (toolbarAnchors.get(key)?.anchor === anchor) toolbarAnchors.delete(key);
+}
+
+function pruneToolbarAnchors(s: BrowserState) {
+  for (const [key, entry] of toolbarAnchors) if (!s.windows[entry.windowId] || s.tabs[entry.tabId]?.windowId !== entry.windowId) toolbarAnchors.delete(key);
+}
+
+function toolbarAnchor(windowId: string, extensionId: string, tabId?: string): Anchor {
+  const s = useBrowser.getState();
+  for (const pane of new Set([tabId ?? shownPageId(s, windowId), activeTabId(s, windowId)])) {
+    if (!pane) continue;
+    const entry = toolbarAnchors.get(anchorKey(windowId, pane, extensionId)) ?? toolbarAnchors.get(anchorKey(windowId, pane, "*"));
+    if (entry) return entry.anchor;
+  }
+  return { x: 100_000, y: 13, width: 28, height: 28 };
 }
 
 const ACTION_POLL_MS = 1500;
@@ -212,7 +235,7 @@ function startActionPopups() {
     const tabId = tabForBrowser(browserId);
     const windowId = tabId ? useBrowser.getState().tabs[tabId]?.windowId : undefined;
     if (!windowId) return console.warn(`action.openPopup for ${extensionId}: ${tabId ? "its tab has no window" : `no tab for browser ${browserId}`}`);
-    void state.openActionPopup(windowId, extensionId, toolbarAnchor(windowId, extensionId), browserId);
+    void state.openActionPopup(windowId, extensionId, toolbarAnchor(windowId, extensionId, tabId), browserId);
   });
   onExtensionActionShortcut(({ browserId, extensionId }) => {
     const tabId = tabForBrowser(browserId);

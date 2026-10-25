@@ -41,6 +41,7 @@ import {
   type ProfileRecord,
   legacyThemeOf,
   profileThemesAdapter,
+  themeAngleKey,
   themeFromRecord,
   type ShareRecord,
 } from "./adapters";
@@ -404,7 +405,7 @@ const errorText = (error: unknown) => (error instanceof Error ? error.message : 
 
 function pairedTheme(app: ScopeState, syncId: string): Pick<Profile, "theme"> | null {
   const record = app.records[`pth:${syncId}`]?.v;
-  if (record) return themeFromRecord(record);
+  if (record) return themeFromRecord(record, app.records[themeAngleKey(syncId)]?.v);
   const profile = app.records[`prof:${syncId}`]?.v as ProfileRecord | null | undefined;
   return profile ? legacyThemeOf(profile) : null;
 }

@@ -71,7 +71,8 @@ if (!last || last.w !== now.w || last.h !== now.h) {
 function ActionPopup({ windowId, pageProfile, url, anchor }: { windowId: string; pageProfile: string; extensionId: string; url: string; anchor: { x: number; y: number; width: number; height: number } }) {
   const theme = useTheme();
   const web = useRef<WebViewHandle>(null);
-  const window = useWindowDimensions();
+  const screen = useWindowDimensions();
+  const [windowWidth, setWindowWidth] = useState(0);
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const appear = useRef(new Animated.Value(0)).current;
   const alive = useRef(true);
@@ -112,12 +113,13 @@ function ActionPopup({ windowId, pageProfile, url, anchor }: { windowId: string;
 
   const width = (size?.width ?? MIN.width) + 1;
   const height = (size?.height ?? MIN.height) + 1;
-  const left = Math.max(8, Math.min(anchor.x + anchor.width - width, window.width - width - 8));
+  const room = windowWidth || screen.width;
+  const left = Math.max(8, Math.min(anchor.x + anchor.width - width, room - width - 8));
   const top = anchor.y + anchor.height + 6;
 
   return (
     <>
-      <Pressable style={StyleSheet.absoluteFill} onPress={closeExtensionPopup} />
+      <Pressable style={StyleSheet.absoluteFill} onPress={closeExtensionPopup} onLayout={(e) => setWindowWidth(e.nativeEvent.layout.width)} />
       <Animated.View
         style={{
           position: "absolute",

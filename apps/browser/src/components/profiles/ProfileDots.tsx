@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Animated, Pressable, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { switchProfile } from "../../lib/actions";
@@ -6,6 +7,7 @@ import { useBrowser } from "../../store/browser";
 import { useIsIncognito } from "../../store/hooks";
 import { usePagerPages, type PagerPage } from "../layout/profilePager";
 import { useHover } from "../primitives";
+import { TooltipAbove } from "../TooltipAbove";
 
 export const PROFILE_DOTS_HEIGHT = 41;
 const CELL = 12;
@@ -14,6 +16,7 @@ const BAND = 28;
 const SELECTED = 0.85;
 const HOVERED = 0.4;
 const IDLE = 0.2;
+const DOT_CENTER_TO_TOOLTIP = 18.25;
 
 export function useProfileDotsShown() {
   const incognito = useIsIncognito();
@@ -39,13 +42,23 @@ function Dot({ id, windowId, page, pos }: { id: string; windowId: string; page: 
   const theme = useTheme();
   const name = useBrowser((s) => s.profiles[id]?.name ?? "");
   const { hovered, hoverProps } = useHover();
+  const [pressed, setPressed] = useState(false);
+  if (pressed && !hovered) setPressed(false);
   const rest = hovered ? HOVERED : IDLE;
   const opacity = page
     ? pos.interpolate({ inputRange: [page.slot - 1, page.slot, page.slot + 1], outputRange: [rest, SELECTED, rest], extrapolate: "clamp" })
     : rest;
   return (
-    <View {...hoverProps} tooltip={name}>
-      <Pressable accessibilityRole="button" accessibilityLabel={name} onPress={() => switchProfile(windowId, id, true)}>
+    <View {...hoverProps}>
+      <TooltipAbove text={name} active={hovered && !pressed} centerX={CELL / 2} bottom={BAND / 2 + DOT_CENTER_TO_TOOLTIP} />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={name}
+        onPress={() => {
+          setPressed(true);
+          switchProfile(windowId, id, true);
+        }}
+      >
         <View style={{ width: CELL, height: BAND, alignItems: "center", justifyContent: "center" }}>
           <Animated.View style={{ width: DOT, height: DOT, borderRadius: DOT / 2, backgroundColor: theme.dark ? "#FFFFFF" : "#000000", opacity }} />
         </View>

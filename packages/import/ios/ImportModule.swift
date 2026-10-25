@@ -141,7 +141,9 @@ public class ImportModule: Module {
     AsyncFunction("readDiaTabs") { (promise: Promise) in
       self.run(promise) {
         guard DiaAutomation.isRunning(Self.diaBundleId) else { throw ImportError.notRunning("Dia isn't running") }
-        return try Self.json(DiaTabsImport.read(from: DiaAppleEvents(bundleIdentifier: Self.diaBundleId)))
+        var result = try DiaTabsImport.read(from: DiaAppleEvents(bundleIdentifier: Self.diaBundleId))
+        result.favicons = self.importer.favicons(browserId: "dia", pages: result.profiles.flatMap { $0.pinned.map(\.url) + $0.tabs.map(\.url) })
+        return try Self.json(result)
       }
     }
 

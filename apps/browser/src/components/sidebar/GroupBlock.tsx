@@ -13,10 +13,11 @@ import { commitRename, endRename, startRename } from "./actions";
 import { useDragFolded, useDragItem, useDropInto } from "./dnd";
 import { useShift, type EntryMotion } from "./entryMotion";
 import { Fold, useFold } from "./Fold";
-import { entryHeight, GROUP_BORDER, GROUP_HEADER_RADIUS, GROUP_PAD, GROUP_RADIUS, keptEntry } from "./geometry";
+import { entryHeight, GROUP_BORDER, GROUP_HEADER_RADIUS, GROUP_INDENT, GROUP_PAD, GROUP_RADIUS, keptEntry } from "./geometry";
 import { groupEntries } from "./entries";
 import { dismissHover, useRowHover } from "./hover";
 import { capture, GhostSlot, ListMotionContext, newCapture, useGroupMotion } from "./listMotion";
+import { pressGroupClose, useGroupCloseControl } from "./closeControl";
 import { openGroupMenu } from "./menus";
 import { registerRow, useSidebarUi } from "./state";
 import { TabIcon } from "./TabIcon";
@@ -24,7 +25,6 @@ import { RenameField, SplitRowItem, TabRowItem } from "./TabRow";
 import { GROUP_COLORS, useSidebarTokens, withAlpha } from "./tokens";
 
 const PAD = GROUP_PAD;
-const NESTED_INDENT = 16;
 
 export const GroupBlock = memo(function GroupBlock({
   groupId,
@@ -96,7 +96,7 @@ export const GroupBlock = memo(function GroupBlock({
           gap={layout.rowGap}
           rowHeight={(key) => entryHeight(useBrowser.getState(), windowId, profileId, key)}
           padBottom={PAD}
-          indent={parentGroup ? NESTED_INDENT : 0}
+          indent={GROUP_INDENT}
           mountClosed={selectedInside}
           footer={<Animated.View ref={tail.wrapper.ref} style={tail.wrapper.style} />}
         />
@@ -130,6 +130,7 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
   const dropInto = useDropInto() === groupId;
   const { hovered, hoverProps } = useRowHover(windowId, collapsed && !renaming ? { kind: "group", id: groupId } : null);
   const countdown = useMeetingCountdown(groupId);
+  const closeControl = useGroupCloseControl(groupId);
   if (!group) return null;
   const target = { kind: "group" as const, id: groupId };
 
@@ -169,7 +170,7 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
               ) : (
                 <Animated.View style={{ flex: 1, height: 18, marginLeft: 5, flexDirection: "row", alignItems: "center", transform: [{ rotate: countdown.rotate }] }}>
                   <View style={{ flexShrink: 1, height: 18, paddingRight: 8, justifyContent: "center" }}>
-                    <Text numberOfLines={1} style={{ opacity: 0, fontSize: 13, fontWeight: "500" }}>
+                    <Text numberOfLines={1} style={{ opacity: 0, fontSize: 13, fontWeight: "500", fontVariant: ["tabular-nums"] }}>
                       {label}
                     </Text>
                     <FadeLabel text={label} fontSize={13} weight="medium" color={tokens.groupTitle} style={{ position: "absolute", left: 0, right: 0, top: 0, height: 18 }} />
@@ -191,7 +192,7 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
               <HoverSlot
                 hovered={hovered && !renaming}
                 width={22}
-                hover={<IconButton icon="xmark" size={10} weight="semibold" box={22} radius={6} onPress={() => useBrowser.getState().closeGroup(groupId)} tooltip="Close Group" />}
+                hover={closeControl && <IconButton icon={closeControl.icon} size={10} weight="semibold" box={22} radius={6} onPress={() => pressGroupClose(groupId)} tooltip={closeControl.tooltip} />}
               >
                 {countdown.label && !renaming ? <MeetingTimeLabel label={countdown.label} urgent={countdown.urgent} /> : null}
               </HoverSlot>

@@ -470,6 +470,46 @@ def build_brave():
                        other=[], synced=[])
 
 
+def build_brave_beta():
+    root = os.path.join(SUPPORT, "BraveSoftware", "Brave-Browser-Beta")
+    chromium_local_state(root, {"Default": {"name": "Beta tester"}, "Profile 1": {"name": "Encrypted only"}})
+    d = os.path.join(root, "Default")
+    write_json(os.path.join(d, "Preferences"), {})
+    chromium_history(os.path.join(d, "History"), [("https://beta.brave.example/", "Beta", 2, 1, BASE_UNIX - 60, 0)])
+    chromium_logins(os.path.join(d, "Login Data"), [
+        ("https://beta.brave.example/", "https://beta.brave.example/", "tester", v10(b"beta-pass"), 0, 1)])
+
+    def host_hashed(host, value):
+        return v10(hashlib.sha256(host.encode()).digest() + value.encode())
+
+    chromium_cookies(os.path.join(d, "Network", "Cookies"), [
+        dict(host=".brave.example", name="sid", encrypted_value=host_hashed(".brave.example", "beta-session"),
+             expires=4102444800, is_secure=1, is_httponly=1, samesite=1),
+        dict(host="search.brave.example", name="pref", encrypted_value=host_hashed("search.brave.example", "dark"),
+             expires=4102444800),
+    ])
+
+    rebuild = [
+        ids(9, 1, 0),
+        ids(0, 1, 10), ids(2, 10, 0), nav(10, 0, "https://search.brave.example/", "Brave Search"),
+        ids(7, 10, 0),
+        ids(0, 1, 11), ids(2, 11, 1),
+        nav(11, 0, "containers+6f1c2b9e-1d2a-4c3b-9e8f-0a1b2c3d4e5f:https://work.brave.example/", "Work container"),
+        ids(7, 11, 0),
+        ids(8, 1, 0),
+        (255, b""),
+    ]
+    after_marker = [ids(0, 1, 12), ids(2, 12, 2), nav(12, 0, "https://later.brave.example/", "Opened later"),
+                    ids(7, 12, 0)]
+    write(os.path.join(d, "Sessions", f"Session_{webkit(BASE_UNIX)}"), snss_plain(rebuild))
+    write(os.path.join(d, "Sessions_Encrypted", f"Session_{webkit(BASE_UNIX + 2)}"),
+          snss_encrypted(rebuild + after_marker))
+
+    p1 = os.path.join(root, "Profile 1")
+    write_json(os.path.join(p1, "Preferences"), {})
+    write(os.path.join(p1, "Sessions_Encrypted", f"Session_{webkit(BASE_UNIX)}"), snss_encrypted(rebuild))
+
+
 def build_opera():
     root = os.path.join(SUPPORT, "com.operasoftware.Opera")
     chromium_local_state(root, {})
@@ -830,7 +870,7 @@ def pbes2(plain, global_salt, password, entry_salt, iv14, iterations=10000):
 CKA_ID = b"\xf8" + b"\0" * 14 + b"\x01"
 
 
-def key4(path, global_salt, password, login_key):
+def key4(path, global_salt, password, login_key, logins_db_key=None):
     db = new_db(path)
     db.executescript("""
         CREATE TABLE metaData (id PRIMARY KEY UNIQUE ON CONFLICT REPLACE, item1, item2);
@@ -839,6 +879,9 @@ def key4(path, global_salt, password, login_key):
     check = pbes2(b"password-check", global_salt, password, b"C" * 32, b"c" * 14)
     db.execute("INSERT INTO metaData VALUES ('Version', 1, NULL)")
     db.execute("INSERT INTO metaData VALUES ('password', ?, ?)", (global_salt, check))
+    if logins_db_key:
+        db.execute("INSERT INTO nssPrivate (id, a3, a11) VALUES (0, ?, ?)",
+                   (b"as-logins-key", pbes2(logins_db_key, global_salt, password, b"R" * 32, b"r" * 14)))
     decoy = pbes2(b"D" * 24, global_salt, password, b"E" * 32, b"e" * 14)
     db.execute("INSERT INTO nssPrivate (id, a11, a102) VALUES (1, ?, ?)", (decoy, b"\x01" * 16))
     db.execute("INSERT INTO nssPrivate (id, a11, a102) VALUES (2, ?, ?)",
@@ -861,15 +904,60 @@ def login_field(value, key):
 
 def logins_json(path, key, rows):
     logins = []
-    for i, (host, action, user, password) in enumerate(rows, 1):
+    for i, (host, action, user, password, *guid) in enumerate(rows, 1):
         logins.append({"id": i, "hostname": host, "httpRealm": None, "formSubmitURL": action,
                        "usernameField": "user", "passwordField": "pass",
                        "encryptedUsername": login_field(user, key), "encryptedPassword": login_field(password, key),
-                       "guid": "{00000000-0000-4000-8000-%012d}" % i, "encType": 1,
+                       "guid": guid[0] if guid else "{00000000-0000-4000-8000-%012d}" % i, "encType": 1,
                        "timeCreated": (BASE_UNIX - 86400) * 1000, "timeLastUsed": BASE_UNIX * 1000,
                        "timePasswordChanged": (BASE_UNIX - 86400) * 1000, "timesUsed": i})
     write_json(path, {"nextId": len(rows) + 1, "logins": logins, "potentiallyVulnerablePasswords": [],
                       "dismissedBreachAlertsByLoginGUID": {}, "version": 3})
+
+
+def gf_mult(x, y):
+    z = 0
+    for i in range(127, -1, -1):
+        if (x >> i) & 1:
+            z ^= y
+        y = (y >> 1) ^ (0xE1 << 120) if y & 1 else y >> 1
+    return z
+
+
+def aes_gcm(key, nonce, plain, aad):
+    block = lambda data: openssl("aes-256-ecb", key, b"\0" * 16, data, nopad=True)
+    cipher = openssl("aes-256-ctr", key, nonce + b"\0\0\0\2", plain)
+    h = int.from_bytes(block(b"\0" * 16), "big")
+    padded = lambda b: b + b"\0" * (-len(b) % 16)
+    data = padded(aad) + padded(cipher) + struct.pack(">QQ", len(aad) * 8, len(cipher) * 8)
+    tag = 0
+    for i in range(0, len(data), 16):
+        tag = gf_mult(tag ^ int.from_bytes(data[i:i + 16], "big"), h)
+    tag ^= int.from_bytes(block(nonce + b"\0\0\0\1"), "big")
+    return cipher, tag.to_bytes(16, "big")
+
+
+def jwe(value, key, nonce):
+    b64 = lambda b: base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+    header = b64(b'{"alg":"dir","enc":"A256GCM"}')
+    cipher, tag = aes_gcm(key, nonce, json.dumps(value).encode(), header.encode())
+    return ".".join([header, "", b64(nonce), b64(cipher), b64(tag)])
+
+
+def logins_db(path, key, local, mirror):
+    db = new_db(path)
+    columns = "guid, origin, httpRealm, formActionOrigin, timesUsed, timeCreated, timeLastUsed, timePasswordChanged, secFields"
+    db.executescript(f"""
+        CREATE TABLE loginsL (id INTEGER PRIMARY KEY AUTOINCREMENT, {columns}, is_deleted TINYINT NOT NULL DEFAULT 0);
+        CREATE TABLE loginsM (id INTEGER PRIMARY KEY AUTOINCREMENT, {columns}, is_overridden TINYINT NOT NULL DEFAULT 0);
+    """)
+    for table, flag, rows in (("loginsL", "is_deleted", local), ("loginsM", "is_overridden", mirror)):
+        for i, (guid, origin, action, user, password, flagged) in enumerate(rows, 1):
+            db.execute(f"INSERT INTO {table} ({columns}, {flag}) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)",
+                       (guid, origin, action, i, (BASE_UNIX - 86400) * 1000, BASE_UNIX * 1000, (BASE_UNIX - 86400) * 1000,
+                        jwe({"u": user, "p": password}, key, bytes([len(table), i]) * 6), flagged))
+    db.commit()
+    db.close()
 
 
 def lz4_literals(data):
@@ -1057,6 +1145,142 @@ Locked=1
         "der": base64.b64encode(blob).decode(), "plain": "password-check"})
 
 
+def zen_tab(url, title, sync_id, workspace=None, pinned=False, essential=False, initial=None, **extra):
+    tab = {"entries": [{"url": url, "title": title}], "index": 1, "pinned": pinned or essential, "hidden": False,
+           "zenWorkspace": workspace, "zenEssential": essential, "zenSyncId": sync_id, "zenIsEmpty": False,
+           "zenIsGlance": False, "lastAccessed": BASE_UNIX * 1000}
+    if initial:
+        tab["_zenPinnedInitialState"] = {"entry": {"url": initial[0], "title": initial[1]}}
+    tab.update(extra)
+    return tab
+
+
+ZEN_PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+
+
+def build_zen():
+    root = os.path.join(SUPPORT, "zen")
+    write(os.path.join(root, "profiles.ini"), b"""[Profile0]
+Name=Default (release)
+IsRelative=1
+Path=Profiles/zen12345.Default (release)
+
+[Profile1]
+Name=Legacy
+IsRelative=1
+Path=Profiles/old00000.Legacy
+
+[Profile2]
+Name=Recovered
+IsRelative=1
+Path=Profiles/bak00000.Recovered
+
+[Profile3]
+Name=Plain
+IsRelative=1
+Path=Profiles/pln00000.Plain
+
+[General]
+StartWithLastProfile=1
+Version=2
+
+[Install6ED35B3CA1B5D3AF]
+Default=Profiles/zen12345.Default (release)
+Locked=1
+""")
+    work, play = "{work-space}", "{play-space}"
+    d = os.path.join(root, "Profiles", "zen12345.Default (release)")
+    places(os.path.join(d, "places.sqlite"))
+    firefox_cookies(os.path.join(d, "cookies.sqlite"))
+    session = {
+        "lastCollected": BASE_UNIX * 1000,
+        "spaces": [
+            {"uuid": work, "name": "Work", "icon": "\U0001F4BC", "containerTabId": 0, "position": 0,
+             "theme": {"type": "gradient", "opacity": 0.5, "texture": 0, "gradientColors": [
+                 {"c": [10, 20, 30], "isPrimary": False}, {"c": [255, 0, 128], "isPrimary": True}]}},
+            {"uuid": play, "name": "", "icon": "chrome://browser/skin/zen-icons/selectable/star.svg", "containerTabId": 0,
+             "position": 1, "theme": {"type": "gradient", "gradientColors": [{"c": "#00ff00", "isCustom": True}]}},
+            {"uuid": work, "name": "Duplicate"},
+        ],
+        "folders": [
+            {"id": "f-docs", "name": "Docs", "workspaceId": work, "parentId": None, "pinned": True,
+             "prevSiblingInfo": {"type": "tab", "id": "t-chat"}},
+            {"id": "f-nested", "name": "Nested", "workspaceId": work, "parentId": "f-docs",
+             "prevSiblingInfo": {"type": "start", "id": None}},
+            {"id": "f-split", "name": "", "splitViewGroup": True, "workspaceId": work, "parentId": "f-docs",
+             "prevSiblingInfo": {"type": "group", "id": "f-nested"}},
+            {"id": "f-live", "name": "Feed", "isLiveFolder": True, "workspaceId": work, "parentId": None},
+            {"id": "f-loop-a", "name": "Loop A", "workspaceId": play, "parentId": "f-loop-b"},
+            {"id": "f-loop-b", "name": "Loop B", "workspaceId": play, "parentId": "f-loop-a"},
+            {"id": "f-empty", "name": "Empty", "workspaceId": play, "parentId": None},
+        ],
+        "groups": [],
+        "splitViewData": [],
+        "tabs": [
+            zen_tab("https://mail.example/u/0", "Mail now", "t-mail", essential=True, initial=("https://mail.example/", "Mail")),
+            zen_tab("https://mail.example/u/0", "Mail again", "t-mail", essential=True),
+            zen_tab("https://mail.example/", "Mail copy", "t-mail-2", essential=True),
+            zen_tab("https://chat.example/room", "Chat", "t-chat", work, pinned=True, zenStaticLabel="Team chat", image=ZEN_PNG),
+            zen_tab("https://docs.example/a", "Doc A", "t-doc-a", work, pinned=True, groupId="f-docs"),
+            zen_tab("https://nested.example/", "Nested page", "t-nested", work, pinned=True, groupId="f-nested"),
+            zen_tab("https://left.example/", "Left", "t-left", work, pinned=True, groupId="f-split"),
+            zen_tab("https://right.example/", "Right", "t-right", work, pinned=True, groupId="f-split"),
+            zen_tab("https://feed.example/item", "Feed item", "t-feed", work, pinned=True, groupId="f-live",
+                    zenLiveFolderItemId="item-1"),
+            zen_tab("https://loop.example/", "Loop", "t-loop", play, pinned=True, groupId="f-loop-a"),
+            zen_tab("https://play.example/now", "Play now", "t-play", play, pinned=True, image="data:image/png;base64,AAAA",
+                    _zenPinnedInitialState={"entry": {"url": "https://play.example/", "title": "Play"}, "image": ZEN_PNG}),
+            zen_tab("https://news.example/", "News", "t-news", work, image="data:image/svg+xml;base64,PHN2Zy8+"),
+            zen_tab("https://orphan.example/", "Orphan", "t-orphan", "{gone}"),
+            zen_tab("https://games.example/", "Games", "t-games", play, zenStaticLabel="Fun"),
+            zen_tab("about:blank", "", "t-empty", play, zenIsEmpty=True),
+            zen_tab("https://glance.example/", "Glance", "t-glance", play, zenIsGlance=True),
+        ],
+    }
+    write(os.path.join(d, "zen-sessions.jsonlz4"), mozlz4(session))
+    write(os.path.join(d, "sessionstore-backups", "recovery.jsonlz4"), mozlz4({"windows": [{"selected": 1, "tabs": [
+        {"entries": [{"url": "https://firefox-only.example/", "title": "Firefox only"}], "index": 1}]}]}))
+    login_key = bytes(range(1, 33))
+    logins_key = bytes(range(200, 232))
+    key4(os.path.join(d, "key4.db"), b"Z" * 20, b"", login_key, logins_key)
+    logins_db(os.path.join(d, "logins.db"), logins_key, [
+        ("{zen-1}", "https://zen.example", "https://zen.example", "zen@example.com", "workspace pass", 0),
+        ("{gone-1}", "https://gone.example", "", "old", "deleted", 1),
+        ("{sync-1}", "chrome://FirefoxAccounts", None, "sync", "token", 0),
+        ("{edit-1}", "https://edited.example", "", "editor", "local edit", 0),
+    ], [
+        ("{mirror-1}", "https://synced.example", "", "synced", "from sync", 0),
+        ("{zen-1}", "https://zen.example", "https://zen.example", "zen@example.com", "stale mirror", 0),
+        ("{edit-1}", "https://edited.example", "", "editor", "server copy", 1),
+    ])
+    logins_json(os.path.join(d, "logins.json"), login_key, [
+        ("https://zen.example", "https://zen.example", "zen@example.com", "workspace pass"),
+        ("https://json-only.example", "https://json-only.example", "json", "only in json"),
+        ("https://gone.example", "https://gone.example", "old", "deleted", "{gone-1}"),
+        ("https://edited.example", "https://edited.example", "editor", "stale json copy", "{edit-1}"),
+    ])
+
+    legacy = os.path.join(root, "Profiles", "old00000.Legacy")
+    window = {"selected": 1, "spaces": [{"uuid": "{old-space}", "name": "Old", "icon": "\U0001F3E0"}], "folders": [], "tabs": [
+        zen_tab("https://old.example/", "Old pin", "o-pin", "{old-space}", pinned=True),
+        zen_tab("https://old-open.example/", "Old open", "o-open", "{old-space}"),
+    ]}
+    write(os.path.join(legacy, "sessionstore-backups", "recovery.jsonlz4"), mozlz4({"windows": [window, dict(window, selected=2)]}))
+
+    recovered = os.path.join(root, "Profiles", "bak00000.Recovered")
+    write(os.path.join(recovered, "zen-sessions.jsonlz4"), b"mozLz40\0" + struct.pack("<I", 64) + b"\xff" * 8)
+    write(os.path.join(recovered, "zen-sessions-backup", "zen-sessions-2026-09-01-00.jsonlz4"), mozlz4({"spaces": [
+        {"uuid": "{older}", "name": "Older"}], "tabs": []}))
+    write(os.path.join(recovered, "zen-sessions-backup", "zen-sessions-2026-09-02-12.jsonlz4"), mozlz4({"spaces": [
+        {"uuid": "{newer}", "name": "Newer"}], "tabs": [zen_tab("https://backup.example/", "Backup", "b-1", "{newer}")]}))
+
+    plain = os.path.join(root, "Profiles", "pln00000.Plain")
+    write(os.path.join(plain, "sessionstore-backups", "recovery.jsonlz4"), mozlz4({"windows": [{"selected": 1, "tabs": [
+        {"entries": [{"url": "https://plain.example/", "title": "Plain"}], "index": 1},
+        {"entries": [{"url": "https://pinned-plain.example/", "title": "Pinned"}], "index": 1, "pinned": True},
+    ]}]}))
+
+
 BOOKMARKS_HTML_SAFARI = """<!DOCTYPE NETSCAPE-Bookmark-file-1>
 <HTML>
 <META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
@@ -1189,6 +1413,7 @@ def main():
             shutil.rmtree(d)
     build_chrome()
     build_brave()
+    build_brave_beta()
     build_opera()
     build_helium()
     build_dia()
@@ -1196,6 +1421,7 @@ def main():
     build_safari_cookies()
     build_arc()
     build_firefox()
+    build_zen()
     build_exports()
     write_json(os.path.join(HERE, "secrets.json"), {
         "chromiumSafeStorageSecret": CHROMIUM_SECRET.decode(),

@@ -1,4 +1,4 @@
-import { setSearchEngineName } from "@ardia/ardiacore";
+import { setSearchEngineName, setSelectionPopover } from "@ardia/ardiacore";
 import { chooseTextFragment, cleanUrl, searchUrl, withTextFragment, type SelectionContext } from "@ardia/core";
 import { copyText } from "@ardia/shell";
 import { create } from "zustand";
@@ -22,9 +22,15 @@ const store = () => useBrowser.getState();
 
 export function startSelectionTools() {
   let name = "";
+  let popover: boolean | null = null;
   const sync = () => {
     const next = defaultSearchEngine(store().settings).name;
     if (next !== name) void setSearchEngineName((name = next));
+    const enabled = store().settings.showSelectionSearch;
+    if (enabled === popover) return;
+    popover = enabled;
+    void setSelectionPopover(enabled);
+    if (!enabled) usePageSelection.setState({}, true);
   };
   sync();
   return useBrowser.subscribe((s, prev) => s.settings !== prev.settings && sync());

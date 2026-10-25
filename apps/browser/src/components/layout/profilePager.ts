@@ -30,7 +30,10 @@ class ProfilePager {
   private external = 0;
   private externalGeneration = 0;
 
-  constructor(readonly windowId: string) {
+  readonly windowId: string;
+
+  constructor(windowId: string) {
+    this.windowId = windowId;
     this.pos = new Animated.Value(Math.max(0, this.index()), { useNativeDriver: true });
     this.state.setState({ pages: this.warmPages() });
     this.unsubscribe = useBrowser.subscribe((s, prev) => {

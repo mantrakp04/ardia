@@ -241,9 +241,15 @@ export function OutsidePressArea({ onOutsidePress, ...props }: ViewProps & { onO
   return <View {...props} ref={(view) => void (node.current = view as unknown as HTMLElement | null)} />;
 }
 
-export function WindowDragRegion({ titleBarDoubleClick: _double, onRegionDoubleClick, ...props }: ViewProps & { titleBarDoubleClick?: boolean; onRegionDoubleClick?: () => void }) {
-  const Region = View as unknown as React.ComponentType<ViewProps & { onDoubleClick?: () => void }>;
-  return <Region {...props} onDoubleClick={onRegionDoubleClick} />;
+export function WindowDragRegion({
+  titleBarDoubleClick: _double,
+  clickable: _clickable,
+  onRegionClick,
+  onRegionDoubleClick,
+  ...props
+}: ViewProps & { titleBarDoubleClick?: boolean; clickable?: boolean; onRegionClick?: () => void; onRegionDoubleClick?: () => void }) {
+  const Region = View as unknown as React.ComponentType<ViewProps & { onClick?: () => void; onDoubleClick?: () => void }>;
+  return <Region {...props} onClick={onRegionClick} onDoubleClick={onRegionDoubleClick} />;
 }
 
 export type DockSelectionProps = ViewProps & { fill?: string; stroke?: string; cornerRadius?: number; strokeWidth?: number; dark: boolean };

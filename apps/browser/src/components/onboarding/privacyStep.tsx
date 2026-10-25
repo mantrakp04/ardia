@@ -1,29 +1,122 @@
-import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { engineHost } from "@ardia/core";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { searchEngines, type Settings } from "../../store/settings";
+import { useBrowser } from "../../store/browser";
 import { setSharing, useTelemetry } from "../../telemetry/client";
 import { SHARING_COPY } from "../../telemetry/copy";
-import { StepLayout } from "./steps";
-import { useOnboarding } from "./state";
-import { CheckRow, PrimaryButton, Reveal, StepTitle, useOnboardingColors } from "./ui";
+import { Favicon, useHover } from "../primitives";
+import { CONTENT_WIDTH, ChoiceList, useMockFocus, type ChoiceOption } from "./choices";
+import { Page } from "./layoutSteps";
+import { MockPanel, useScreen } from "./screen";
+import { questionsFor, useOnboarding } from "./state";
+import { CheckMark, CheckRow, useOnboardingColors } from "./ui";
 
-export function PrivacyStep() {
-  const next = useOnboarding((s) => s.next);
-  const [share, setShare] = useState(() => useTelemetry.getState().sharing);
-  const colors = useOnboardingColors();
-  const done = () => {
-    setSharing(share, "onboarding");
-    next();
-  };
+const KEYS = ["searchEngine", "commandBarPreference"] as const;
+const ENGINES = ["google", "duckduckgo", "bing", "kagi", "ecosia", "brave", "startpage"];
+
+const TYPED_CHOICES: ChoiceOption<Settings["commandBarPreference"]>[] = [
+  { value: "website", preview: "typed-website", title: "Go to the website", subtitle: "“github” opens github.com" },
+  { value: "search", preview: "typed-search", title: "Search for it", subtitle: "“github” searches the web" },
+];
+
+export function SearchPrivacyStep() {
+  const sub = useOnboarding((s) => s.sub);
+  const id = questionsFor("searchPrivacy")[sub]?.id;
+  const focus = useMockFocus(id);
+  const { values, mock } = useScreen(KEYS);
+  const setDraft = useOnboarding((s) => s.setDraft);
+  const share = useOnboarding((s) => s.extras.share) ?? useTelemetry.getState().sharing;
+  const all = useBrowser((s) => searchEngines(s.settings));
+  const engines = all.filter((e) => ENGINES.includes(e.id) || e.id === values.searchEngine);
+
+  if (id === "typed")
+    return (
+      <Page
+        id={id}
+        title="Type a word. What happens?"
+        subtitle="When what you type could be a site."
+        patch={{ commandBarPreference: values.commandBarPreference }}
+        picked={[]}
+        preview={<MockPanel settings={mock} focus={focus.focus} />}
+      >
+        <ChoiceList
+          options={TYPED_CHOICES}
+          value={values.commandBarPreference}
+          onChange={(commandBarPreference) => setDraft({ commandBarPreference })}
+          mock={focus}
+        />
+      </Page>
+    );
+  if (id === "crash")
+    return (
+      <Page
+        id={id}
+        title={SHARING_COPY.onboarding.title}
+        subtitle={SHARING_COPY.onboarding.subtitle}
+        patch={{}}
+        picked={share ? ["Sharing crash reports"] : []}
+        onConfirm={() => setSharing(share, "onboarding")}
+        preview={<MockPanel settings={mock} focus={null} overlay={<Receipt on={share} />} />}
+      >
+        <CheckRow icon="stethoscope" title={SHARING_COPY.toggle} subtitle={SHARING_COPY.onboarding.row} value={share} onChange={(v) => useOnboarding.getState().setExtras({ share: v })} />
+      </Page>
+    );
+  const engine = all.find((e) => e.id === values.searchEngine);
   return (
-    <StepLayout actions={<PrimaryButton title="Continue" onPress={done} />} preview={<Receipt on={share} />}>
-      <Reveal delay={60}>
-        <StepTitle title={SHARING_COPY.onboarding.title} subtitle={SHARING_COPY.onboarding.subtitle} />
-      </Reveal>
-      <Reveal delay={140} style={{ gap: 12 }}>
-        <CheckRow icon="stethoscope" title={SHARING_COPY.toggle} subtitle={SHARING_COPY.onboarding.row} value={share} onChange={setShare} />
-        <Text style={{ fontSize: 11.5, lineHeight: 16, color: colors.footnote }}>{SHARING_COPY.footnote}</Text>
-      </Reveal>
-    </StepLayout>
+    <Page
+      id="engine"
+      title="Search with what?"
+      subtitle="For anything that isn't a website."
+      patch={{ searchEngine: values.searchEngine }}
+      picked={[`Search with ${engine?.name ?? "your engine"}`]}
+      preview={<MockPanel settings={mock} focus={focus.focus} />}
+    >
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }} accessibilityRole="radiogroup" accessibilityLabel="Search engine">
+        {engines.map((e) => (
+          <EngineTile key={e.id} title={e.name} url={`https://${engineHost(e)}`} selected={e.id === values.searchEngine} onPress={() => setDraft({ searchEngine: e.id })} />
+        ))}
+      </View>
+    </Page>
+  );
+}
+
+const TILE = (CONTENT_WIDTH - 8 * 3) / 4;
+
+function EngineTile({ title, url, selected, onPress }: { title: string; url: string; selected: boolean; onPress: () => void }) {
+  const colors = useOnboardingColors();
+  const { hovered, hoverProps } = useHover();
+  return (
+    <View {...hoverProps}>
+      <Pressable onPress={onPress} accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={title}>
+        {({ pressed }) => (
+          <View
+            mouseDownCanMoveWindow={false}
+            style={{
+              width: TILE,
+              height: 64,
+              borderRadius: 12,
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+              backgroundColor: selected || hovered ? colors.button : colors.row,
+              borderWidth: selected ? 1.5 : StyleSheet.hairlineWidth * 2,
+              borderColor: selected ? colors.title : colors.rowBorder,
+              transform: [{ scale: pressed ? 0.96 : 1 }],
+            }}
+          >
+            <Favicon url={url} size={18} />
+            <Text numberOfLines={1} style={{ fontSize: 11, fontWeight: "500", color: selected ? colors.title : colors.subtitle }}>
+              {title}
+            </Text>
+            {selected ? (
+              <View style={{ position: "absolute", top: 5, right: 5 }}>
+                <CheckMark on size={12} />
+              </View>
+            ) : null}
+          </View>
+        )}
+      </Pressable>
+    </View>
   );
 }
 

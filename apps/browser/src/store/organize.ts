@@ -1,8 +1,9 @@
 import type { StateCreator } from "zustand";
 import type { BrowserState } from "./browser";
 import { autoGroupName } from "./groupNames";
-import { ancestorIds, canNest, commonGroup, descendantIds, innermostGroupOf, insertAll, leaveGroups, nestGroups, orderSections, placeBlock, placeGroups, rejoinGroups, reparent, syncGroupOrder, withGroupsPlaced, withParent } from "./groups";
-import { activeTabId, bookmarkProfileId, inPinnedContainer, isIncognitoProfile, isPinnedRow, newId, pendingRestore, restoreId, snapshotTab, viewTabIds, without } from "./model";
+import { ancestorIds, canNest, closedGroupInfo, commonGroup, descendantIds, innermostGroupOf, insertAll, leaveGroups, nestGroups, orderSections, placeBlock, placeGroups, rejoinGroups, reparent, syncGroupOrder, withGroupsPlaced, withParent } from "./groups";
+import { activeTabId, bookmarkProfileId, inPinnedContainer, isIncognitoProfile, isPinnedRow, newId, pendingRestore, pinSection, restoreId, snapshotTab, viewTabIds, without } from "./model";
+import { holderOf } from "./pinShare";
 import { splitOf, splitRowHead, splitRowPanes, withSplitRows } from "./splits";
 import { lastUsedOf, sharedLastUsed } from "./tabShare";
 import { activated, apply, removeTabs, withNewTab } from "./tabs";
@@ -100,13 +101,43 @@ export type OrganizeSlice = {
   restoreCleaned(entryId?: string, windowId?: string): void;
   clearUnpinnedTabs(windowId: string): ClearedTabs | null;
   undoClearTabs(cleared: ClearedTabs): void;
+  removeClosedPin(id: string): ClearedTabs | null;
   closeAbandonedNewTabs(): void;
 };
 
-export type ClearedTabs = { windowId: string; entries: ClosedTab[]; shownTabId: string | null; blankTabId: string | null };
+export type ClearedTabs = {
+  windowId: string;
+  entries: ClosedTab[];
+  closedEntryIds: string[];
+  tabIds: string[];
+  groups: TabGroup[];
+  fingerprint: string;
+  profileId: string;
+  remoteDeletions: number;
+};
+
+const remotePinDeletions = new Map<string, number>();
+
+export function noteRemotePinDeletion(profileId: string) {
+  remotePinDeletions.set(profileId, (remotePinDeletions.get(profileId) ?? 0) + 1);
+}
 
 export function unpinnedTabIds(s: BrowserState, windowId: string): string[] {
   return viewTabIds(s, windowId).filter((id) => !inPinnedContainer(s, id));
+}
+
+export function isClosedPin(s: BrowserState, id: string): boolean {
+  const t = s.tabs[id];
+  if (!t || !inPinnedContainer(s, id) || pinSection(t) === "tile") return false;
+  return !t.navigation && !t.adoptId && activeTabId(s, t.windowId) !== id && !holderOf(s, id);
+}
+
+export function clearedTabIds(s: BrowserState, windowId: string): string[] {
+  const ids = unpinnedTabIds(s, windowId);
+  const active = activeTabId(s, windowId);
+  const kept = new Set(ids.filter((id) => id === active || s.live[id]?.playingAudio));
+  for (const id of [...kept]) splitOf(s, id)?.tabIds.forEach((pane) => kept.add(pane));
+  return ids.filter((id) => !kept.has(id));
 }
 
 const CLEAN_UP_AFTER_MS = 12 * 60 * 60 * 1000;
@@ -275,6 +306,51 @@ export function withRowsGrouped(s: BrowserState, asked: string[], o: { name?: st
   return [{ ...next, pinChoices: { ...next.pinChoices, [g.profileId]: mine } }, id];
 }
 
+function windowFingerprint(s: BrowserState, windowId: string): string {
+  const w = s.windows[windowId];
+  if (!w) return "";
+  const inWindow = (id: string) => s.tabs[id]?.windowId === windowId;
+  const tabs = w.tabIds.map((id) => {
+    const t = s.tabs[id];
+    return t ? [id, t.profileId, pinSection(t), t.tileFolder?.id ?? ""].join(" ") : id;
+  });
+  const groups = Object.values(s.groups)
+    .filter((g) => g.windowId === windowId)
+    .map((g) => [g.id, g.parentId ?? "", g.pinned, g.tabIds.join(",")].join(" "))
+    .sort();
+  const splits = Object.values(s.splits)
+    .filter((v) => v.tabIds.some(inWindow))
+    .map((v) => v.tabIds.join(","))
+    .sort();
+  return [...tabs, "", ...groups, "", ...splits].join("\n");
+}
+
+function undoable(before: BrowserState, after: BrowserState, windowId: string, profileId: string, entries: ClosedTab[]): ClearedTabs {
+  return {
+    windowId,
+    entries,
+    closedEntryIds: newClosedEntryIds(before, after),
+    tabIds: before.windows[windowId]!.tabIds,
+    groups: Object.values(before.groups).filter((g) => g.windowId === windowId),
+    fingerprint: windowFingerprint(after, windowId),
+    profileId,
+    remoteDeletions: remotePinDeletions.get(profileId) ?? 0,
+  };
+}
+
+export function canUndoClear(s: BrowserState, cleared: ClearedTabs): boolean {
+  const closed = new Set(s.closedTabs.map((c) => c.id));
+  return (
+    (remotePinDeletions.get(cleared.profileId) ?? 0) === cleared.remoteDeletions &&
+    cleared.closedEntryIds.every((id) => closed.has(id)) &&
+    windowFingerprint(s, cleared.windowId) === cleared.fingerprint
+  );
+}
+
+function newClosedEntryIds(before: BrowserState, after: BrowserState): string[] {
+  return after.closedTabs.filter((c) => !before.closedTabs.includes(c)).map((c) => c.id);
+}
+
 function closedEntries(s: BrowserState, ids: string[]): ClosedTab[] {
   const now = Date.now();
   return ids
@@ -282,7 +358,7 @@ function closedEntries(s: BrowserState, ids: string[]): ClosedTab[] {
     .filter((t): t is Tab => !!t && !!t.url)
     .map((t) => {
       const group = groupOf(s, t.id);
-      const parents = group ? ancestorIds(s.groups, group.id).map((id) => s.groups[id]!).map((p) => ({ id: p.id, name: p.name, icon: p.icon, color: p.color })) : [];
+      const parents = group ? ancestorIds(s.groups, group.id).map((id) => closedGroupInfo(s.groups[id]!)) : [];
       return {
         kind: "tab" as const,
         id: newId("ct"),
@@ -291,7 +367,7 @@ function closedEntries(s: BrowserState, ids: string[]): ClosedTab[] {
         ...(pendingRestore(t) ? { restoreFrom: pendingRestore(t) } : {}),
         windowId: t.windowId,
         index: s.windows[t.windowId]?.tabIds.indexOf(t.id) ?? 0,
-        group: group ? { id: group.id, name: group.name, icon: group.icon, color: group.color } : null,
+        group: group ? closedGroupInfo(group) : null,
         ...(parents.length ? { parents } : {}),
         closedAt: now,
       };
@@ -851,38 +927,48 @@ export const createOrganizeSlice: StateCreator<BrowserState, [], [], OrganizeSli
 
   clearUnpinnedTabs(windowId) {
     const s = get();
-    const ids = unpinnedTabIds(s, windowId);
+    const ids = clearedTabIds(s, windowId);
     if (!ids.length) return null;
-    const shown = activeTabId(s, windowId);
     const entries = closedEntries(s, ids);
     get().closeTabs(ids);
-    const blankTabId = viewTabIds(get(), windowId).find((id) => !s.tabs[id]) ?? null;
-    return { windowId, entries, shownTabId: shown && ids.includes(shown) ? shown : null, blankTabId };
+    return undoable(s, get(), windowId, s.windows[windowId]!.profileId, entries);
   },
 
-  undoClearTabs({ windowId, entries, shownTabId, blankTabId }) {
+  undoClearTabs(cleared) {
     const s = get();
-    const target = s.windows[windowId] ? windowId : restoreTarget(s, windowId);
-    const back = target ? entries.filter((e) => !isIncognitoProfile(e.tab.profileId) || e.windowId === target) : [];
-    if (!target || !back.length) return;
-    const cleared = new Set(back.map((e) => e.tabId));
-    let next: BrowserState = { ...s, closedTabs: s.closedTabs.filter((c) => !c.tabId || !cleared.has(c.tabId)) };
-    const blank = blankTabId ? next.tabs[blankTabId] : undefined;
-    const dropBlank = !!blank && blank.windowId === target && !blank.url && !blank.navigation;
-    if (dropBlank) {
-      const w = next.windows[target]!;
-      next = { ...next, windows: { ...next.windows, [target]: { ...w, tabIds: w.tabIds.filter((id) => id !== blankTabId) } } };
-    }
+    if (!canUndoClear(s, cleared)) return;
+    const { windowId, entries } = cleared;
+    const undone = new Set(cleared.closedEntryIds);
     const [restored, ids] = restoreSnapshots(
-      next,
-      target,
-      back.map((e) => ({ tab: e.tab, tabId: e.restoreFrom ?? e.tabId, index: target === e.windowId ? e.index : undefined })),
+      { ...s, closedTabs: s.closedTabs.filter((c) => !undone.has(c.id)) },
+      windowId,
+      entries.map((e) => ({ tab: e.tab, tabId: e.restoreFrom ?? e.tabId })),
     );
-    next = regroupRestored(restored, target, back, ids);
-    const shown = ids[back.findIndex((e) => e.tabId === shownTabId)] ?? (dropBlank && activeTabId(next, target) === blankTabId ? ids[0] : undefined);
-    if (shown) next = apply(next, activated(next, shown));
-    if (dropBlank) next = removeTabs(next, [blankTabId!], false);
-    set(next);
+    const renamed = new Map(entries.map((e, i) => [e.tabId, ids[i]]));
+    const now = (id: string) => renamed.get(id) ?? id;
+    const back = cleared.tabIds.map(now).filter((id) => restored.tabs[id]?.windowId === windowId);
+    const w = restored.windows[windowId]!;
+    const window = { ...w, tabIds: [...back, ...w.tabIds.filter((id) => !back.includes(id))] };
+    const groups = Object.fromEntries(Object.entries(restored.groups).filter(([, g]) => g.windowId !== windowId));
+    for (const g of cleared.groups) {
+      const tabIds = g.tabIds.map(now).filter((id) => restored.tabs[id]);
+      const current = restored.groups[g.id];
+      groups[g.id] = current ? withParent({ ...current, pinned: g.pinned, tabIds }, g.parentId) : { ...g, tabIds };
+    }
+    const closedTabs = restored.closedTabs.map((c) => {
+      const moved = c.tabId ? renamed.get(c.tabId) : undefined;
+      return moved ? { ...c, tabId: moved, restoreFrom: c.restoreFrom ?? c.tabId } : c;
+    });
+    set({ ...restored, closedTabs, groups: syncGroupOrder(groups, window), windows: { ...restored.windows, [windowId]: window } });
+  },
+
+  removeClosedPin(id) {
+    const s = get();
+    if (!isClosedPin(s, id)) return null;
+    const windowId = s.tabs[id]!.windowId;
+    set(removeTabs(s, [id], true));
+    const after = get();
+    return undoable(s, after, windowId, s.tabs[id]!.profileId, after.closedTabs.filter((c) => !s.closedTabs.includes(c)));
   },
 
   closeAbandonedNewTabs() {

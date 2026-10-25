@@ -6,6 +6,7 @@ export const THEME_TEXTURES: ThemeTexture[] = ["grain", "sand", "denim", "tweed"
 
 const TEXTURE_STRENGTH: Record<ThemeTexture, number> = { grain: 0.8, sand: 0.15, denim: 0.6, tweed: 0.4 };
 const BASE_REACH = 0.75;
+export const DEFAULT_THEME_ANGLE = 135;
 
 export type ThemeBackdropProps = {
   themeColors: number[];
@@ -14,6 +15,7 @@ export type ThemeBackdropProps = {
   themeGrain: number;
   themeTexture: ThemeTexture;
   themeAppearance: ThemeMode;
+  themeAngle: number;
 };
 
 export const PRESET_BACKDROP: ThemeBackdropProps = {
@@ -23,6 +25,7 @@ export const PRESET_BACKDROP: ThemeBackdropProps = {
   themeGrain: 0,
   themeTexture: "grain",
   themeAppearance: "auto",
+  themeAngle: DEFAULT_THEME_ANGLE,
 };
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
@@ -46,12 +49,12 @@ export function rgbToHsl(r: number, g: number, b: number): [number, number, numb
   return [h / 6, s, l];
 }
 
-export function padColor(x: number, y: number): ThemeColor {
+export function padColor(x: number, y: number, lightness = PAD_LIGHTNESS): ThemeColor {
   const dx = clamp01(x) - 0.5, dy = clamp01(y) - 0.5;
   let hue = Math.atan2(dy, dx) / (2 * Math.PI);
   if (hue < 0) hue += 1;
   const sat = Math.min(1, Math.hypot(dx, dy) / 0.5);
-  const [r, g, b] = hslToRgb(hue, sat, PAD_LIGHTNESS);
+  const [r, g, b] = hslToRgb(hue, sat, clamp01(lightness));
   return { r, g, b, a: 1 };
 }
 
@@ -105,15 +108,32 @@ export function mixOklab(a: ThemeColor, b: ThemeColor, t: number): [number, numb
   return fromOklab(la.map((v, i) => v + (lb[i]! - v) * t) as Lab);
 }
 
+export function lookAngle(theme: Pick<ThemeLook, "angle">): number {
+  return theme.angle ?? DEFAULT_THEME_ANGLE;
+}
+
+const direction = (degrees: number) => {
+  const r = (degrees * Math.PI) / 180;
+  return { dx: Math.sin(r), dy: -Math.cos(r) };
+};
+
+const baseHalf = (width: number, height: number, dx: number, dy: number) =>
+  (Math.hypot(width * dx, height * dy) * Math.hypot(width, height)) / (2 * Math.max(width, height));
+
+const overlayHalf = (width: number, height: number, dx: number, dy: number) => (width * Math.abs(dx) + height * Math.abs(dy)) / 2;
+
+function along(degrees: number, x: number, y: number, width: number, height: number, half: typeof baseHalf): number {
+  const { dx, dy } = direction(degrees);
+  return ((x - width / 2) * dx + (y - height / 2) * dy) / (2 * half(width, height, dx, dy)) + 0.5;
+}
+
 export function themeArea(theme: ProfileTheme, x: number, y: number, width: number, height: number): [number, number, number] {
   const [c0, c1 = c0, c2] = theme.stops.map((s) => s.color) as [ThemeColor, ThemeColor?, ThemeColor?];
-  const short = Math.min(width, height), long = Math.max(width, height);
-  const start = short / 2 - (short * short) / (2 * long);
-  const end = long + short / 2 + (short * short) / (2 * long);
-  const t = clamp01((x + y - start) / (end - start) / BASE_REACH);
+  const angle = lookAngle(theme);
+  const t = clamp01(along(angle, x, y, width, height, baseHalf) / BASE_REACH);
   const base = mixOklab(c0, c1, t);
   if (!c2) return base;
-  const a = clamp01(y / height) * c2.a;
+  const a = clamp01(along(angle + 45, x, y, width, height, overlayHalf)) * c2.a;
   return base.map((v, i) => v + ((i === 0 ? c2.r : i === 1 ? c2.g : c2.b) - v) * a) as [number, number, number];
 }
 
@@ -123,7 +143,9 @@ export function themeDark(theme: ProfileTheme, appDark: boolean): boolean {
 
 export function resolveTheme(theme: ProfileTheme, dark: boolean): ProfileTheme {
   const { dark: darkLook, ...base } = theme;
-  return dark && darkLook ? { ...base, ...darkLook } : base;
+  if (!dark || !darkLook) return base;
+  const { angle: _lightAngle, ...light } = base;
+  return { ...light, ...darkLook };
 }
 
 export function arcLayerAlpha(intensity: number): number {
@@ -155,6 +177,7 @@ export function themeBackdrop(theme: ProfileTheme, dark: boolean): ThemeBackdrop
     themeGrain: themeGrainAlpha(theme),
     themeTexture: theme.texture,
     themeAppearance: theme.mode,
+    themeAngle: lookAngle(theme),
   };
 }
 
@@ -177,16 +200,54 @@ export function themeUnderColor(theme: ProfileTheme, dark: boolean): string {
   return toHex([grey, grey, grey]);
 }
 
-export function opaqueThemeTint(theme: ProfileTheme, dark: boolean): [string, string] {
+function composite(theme: ProfileTheme, dark: boolean, x: number, y: number): number[] {
   const a = themeLayerAlpha(theme);
   const under = underGrey(theme, dark);
-  const over = (c: number[]) => toHex(c.map((v) => a * clamp01(v) + (1 - a) * under));
-  return [over(themeArea(theme, 0, 0, 1, 1)), over(themeArea(theme, 1, 1, 1, 1))];
+  return themeArea(theme, x, y, 1, 1).map((v) => a * clamp01(v) + (1 - a) * under);
+}
+
+export function opaqueThemeTint(theme: ProfileTheme, dark: boolean): [string, string] {
+  return [toHex(composite(theme, dark, 0, 0)), toHex(composite(theme, dark, 1, 1))];
+}
+
+const SAMPLE_POINTS = [0, 0.5, 1];
+const MIN_BLACK_TEXT_CONTRAST = 3;
+const MIN_WHITE_TEXT_CONTRAST = 2;
+
+const relativeLuminance = (c: number[]) => {
+  const [r, g, b] = c.map((v) => decode(clamp01(v))) as [number, number, number];
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+
+export function themeLuminance(theme: ProfileTheme, dark: boolean): number {
+  let sum = 0;
+  for (const x of SAMPLE_POINTS) for (const y of SAMPLE_POINTS) sum += relativeLuminance(composite(theme, dark, x, y));
+  return sum / SAMPLE_POINTS.length ** 2;
+}
+
+export function readableDark(theme: ProfileTheme, dark: boolean): boolean {
+  const y = themeLuminance(theme, dark);
+  const blackText = (y + 0.05) / 0.05, whiteText = 1.05 / (y + 0.05);
+  if (dark) return !(whiteText < MIN_WHITE_TEXT_CONTRAST && blackText > whiteText);
+  return blackText < MIN_BLACK_TEXT_CONTRAST && whiteText > blackText;
+}
+
+export function stopLightness(stop: ThemeStop): number {
+  return rgbToHsl(clamp01(stop.color.r), clamp01(stop.color.g), clamp01(stop.color.b))[2];
 }
 
 export function withStopAt(theme: ProfileTheme, index: number, x: number, y: number): ProfileTheme {
-  const stops = theme.stops.map((s, i) => (i === index ? { x, y, color: padColor(x, y) } : s));
+  const stops = theme.stops.map((s, i) => (i === index ? { x, y, color: { ...padColor(x, y, stopLightness(s)), a: s.color.a } } : s));
   return { ...theme, stops };
+}
+
+export function withStopLightness(theme: ProfileTheme, index: number, lightness: number): ProfileTheme {
+  const stops = theme.stops.map((s, i) => (i === index ? { ...s, color: { ...padColor(s.x, s.y, lightness), a: s.color.a } } : s));
+  return { ...theme, stops };
+}
+
+export function withAngle(theme: ProfileTheme, degrees: number): ProfileTheme {
+  return { ...theme, angle: ((Math.round(degrees) % 360) + 360) % 360 };
 }
 
 export function withAddedStop(theme: ProfileTheme): ProfileTheme {
@@ -244,6 +305,7 @@ function sanitizeLook(v: unknown): ThemeLook | null {
     grain: clamp01(num(t.grain, 0)),
     texture: THEME_TEXTURES.includes(t.texture as ThemeTexture) ? (t.texture as ThemeTexture) : "grain",
     translucency: clamp01(num(t.translucency, 1)),
+    ...(typeof t.angle === "number" && Number.isFinite(t.angle) ? { angle: ((t.angle % 360) + 360) % 360 } : {}),
   };
 }
 

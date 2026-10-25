@@ -26,6 +26,8 @@ function rows(items: Suggestion[]): string[] {
         return `action:${i.id}`;
       case "create":
         return `create:${i.id}`;
+      case "extension":
+        return `extension:${i.open}:${i.id}`;
     }
   });
 }

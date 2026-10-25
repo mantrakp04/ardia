@@ -1,7 +1,7 @@
 import { displayUrl, type Suggestion } from "@ardia/core";
 import { Symbol } from "@ardia/shell";
 import { memo } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Image, Pressable, Text, View } from "react-native";
 import { useTheme } from "../../lib/theme";
 import { Favicon, IconButton, useHover } from "../primitives";
 
@@ -19,6 +19,12 @@ export function SuggestionIcon({ suggestion: s, color }: { suggestion: Suggestio
       return <Symbol name="equal.circle" size={14} color={tint} style={{ width: 16, height: 16 }} />;
     case "action":
       return <Symbol name={s.icon ?? "command"} size={13} color={tint} style={{ width: 16, height: 16 }} />;
+    case "extension":
+      return s.icon ? (
+        <Image source={{ uri: s.icon }} style={{ width: 16, height: 16 }} />
+      ) : (
+        <Symbol name="puzzlepiece.extension" size={13} color={tint} style={{ width: 16, height: 16 }} />
+      );
   }
 }
 
@@ -34,6 +40,8 @@ function labels(s: Suggestion): [string, string | null] {
     case "action":
     case "create":
       return [s.title, null];
+    case "extension":
+      return [s.title, s.open === "action" ? "Open Extension" : "Extension Options"];
   }
 }
 

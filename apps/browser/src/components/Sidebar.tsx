@@ -17,11 +17,12 @@ import { listTopGap, SIDEBAR_FIELD, SIDEBAR_FOOTER_DOWNLOADS, SIDEBAR_HEADER_WIT
 import { SIDEBAR_PLAYER_HEIGHT, SidebarPlayer, useSidebarPlayerTab } from "./media/SidebarPlayer";
 import { HoverSlot } from "./HoverSlot";
 import { IconButton, useHover } from "./primitives";
+import { DownloadsButton } from "./Downloads";
 import { PROFILE_INDICATOR_X, ProfileIndicator } from "./ProfileIndicator";
 import { usePageStyle, usePagerPages } from "./layout/profilePager";
 import { PROFILE_DOTS_HEIGHT, ProfileDots, useProfileDotsShown } from "./profiles/ProfileDots";
 import { SidebarAddressRow, SidebarHeaderTools } from "./sidebar/AddressBar";
-import { ClearDivider } from "./sidebar/ClearDivider";
+import { ClearDivider, useSidebarHoverProps } from "./sidebar/ClearDivider";
 import { canTidyPins } from "../store/tidyPins";
 import { DragGhost } from "./sidebar/DragGhost";
 import { DragProvider, DragScope, useDragController, useDragging, useDragItem, usePinnedCount, type Ghost } from "./sidebar/dnd";
@@ -49,7 +50,6 @@ import { toggleNewTabBar } from "./omnibox/newTabBar";
 const GLOW_ROOM = 24;
 const ROW_PITCH = layout.rowHeight + layout.rowGap;
 const DOCKED_BOTTOM = 6;
-const DOCK = DOCKED_BOTTOM + ROW_PITCH;
 const ROWS_PER_FRAME = 32;
 const DOCK_SHARE = 0.4;
 const NONE: string[] = [];
@@ -59,20 +59,18 @@ export function Sidebar({ width }: { width: number }) {
   const current = useWindowProfileId();
   const { pages, paging } = usePagerPages(windowId);
   const [available, setAvailable] = useState(0);
-  const listHeight = useRef(0);
+  const listHeights = useRef(new Map<string, number>());
   const [, setDockChanges] = useState(0);
-  const dockedAt = (list: number) => available > 0 && list + ROW_PITCH + 12 > available;
-  const docked = dockedAt(listHeight.current);
-  const onListHeight = (height: number) => {
-    const before = dockedAt(listHeight.current);
-    listHeight.current = height;
-    if (dockedAt(height) !== before) setDockChanges((n) => n + 1);
+  const newTabAtTop = useSettings((s) => s.newTabPosition === "top");
+  const dockedPage = (profileId: string) => !newTabAtTop && available > 0 && (listHeights.current.get(profileId) ?? 0) + ROW_PITCH + 12 > available;
+  const onListHeight = (profileId: string, height: number) => {
+    const before = dockedPage(profileId);
+    listHeights.current.set(profileId, height);
+    if (dockedPage(profileId) !== before) setDockChanges((n) => n + 1);
   };
   const scroll = useRef<ScrollView>(null);
   const scrollY = useRef(0);
   const geometry = useRef<SidebarGeometry>({ viewport: 0, regions: { pinnedGroups: 0, list: 0 }, newTabAtTop: false, room: 0, pad: 0, tilesFixed: true });
-  const playerTab = useSidebarPlayerTab(windowId);
-  const playerHeight = playerTab ? SIDEBAR_PLAYER_HEIGHT : 0;
   const addressBar = useAddressBarInSidebar();
   const header = addressBar ? SIDEBAR_HEADER_WITH_FIELD : layout.sidebarHeader;
   const glowRoom = addressBar ? 0 : GLOW_ROOM;
@@ -82,6 +80,7 @@ export function Sidebar({ width }: { width: number }) {
   const footer = dots || footerDownloads ? PROFILE_DOTS_HEIGHT : 0;
   const nothingPinned = useBrowser((s) => sidebarEntries(s, windowId, current).tiles.length === 0);
 
+  const sidebarHover = useSidebarHoverProps(windowId);
   useRevealTabs(windowId, scroll, scrollY, geometry);
   useLayoutEffect(() => dismissHoverIn(windowId), [windowId, current, paging]);
 
@@ -95,15 +94,16 @@ export function Sidebar({ width }: { width: number }) {
           style={{ width, height: "100%" }}
         >
           <View
+            {...sidebarHover}
             style={{
               position: "absolute",
               left: 0,
               right: 0,
               top: header - glowRoom,
-              bottom: (docked ? DOCK : 0) + playerHeight + footer,
+              bottom: footer,
               overflow: paging ? "hidden" : "visible",
             }}
-            onLayout={(e) => setAvailable(e.nativeEvent.layout.height + (docked ? DOCK : 0))}
+            onLayout={(e) => setAvailable(e.nativeEvent.layout.height)}
           >
             {pages.map((page) => (
               <SidebarPage
@@ -113,7 +113,7 @@ export function Sidebar({ width }: { width: number }) {
                 width={width}
                 current={page.id === current}
                 resting={!!page.resting}
-                docked={docked}
+                docked={dockedPage(page.id)}
                 glowRoom={glowRoom}
                 height={available}
                 rows={page.id === current ? undefined : Math.ceil(available / ROW_PITCH) + 1}
@@ -132,18 +132,6 @@ export function Sidebar({ width }: { width: number }) {
               />
             ))}
           </View>
-
-          {playerTab ? (
-            <View style={{ position: "absolute", left: layout.sidebarInset, right: layout.sidebarInset, bottom: (docked ? DOCK : 8) + footer }}>
-              <SidebarPlayer tabId={playerTab} />
-            </View>
-          ) : null}
-
-          {docked ? (
-            <View style={{ position: "absolute", left: layout.sidebarInset, right: layout.sidebarInset, bottom: DOCKED_BOTTOM + footer }}>
-              <NewTabRow windowId={windowId} />
-            </View>
-          ) : null}
 
           {footer ? (
             <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: footer }}>
@@ -199,7 +187,7 @@ type PageProps = {
   height: number;
   rows: number | undefined;
   geometry: RefObject<SidebarGeometry> | undefined;
-  onListHeight: (height: number) => void;
+  onListHeight: (profileId: string, height: number) => void;
   onScrollView: (view: ScrollView | null) => void;
   onScrollY: (y: number) => void;
 };
@@ -216,11 +204,13 @@ function SidebarPage({ profileId, slot, width, current, resting, docked, glowRoo
     return () => cancelAnimationFrame(frame);
   }, [beside]);
   const offScreen = beside && !current;
+  const playerTab = useSidebarPlayerTab(windowId, profileId);
+  const playerHeight = playerTab ? SIDEBAR_PLAYER_HEIGHT : 0;
   const tiles = useBrowser((s) => (offScreen ? NONE : sidebarEntries(s, windowId, profileId).cells));
   const innerWidth = width - layout.sidebarInset * 2;
   const dragging = useDragging() && current;
   const previewed = usePinnedCount(tiles);
-  const dockRoom = height ? height * DOCK_SHARE - topGap - SCROLL_EDGE.gap - SCROLL_EDGE.line : Infinity;
+  const dockRoom = height ? (height - playerHeight) * DOCK_SHARE - topGap - SCROLL_EDGE.gap - SCROLL_EDGE.line : Infinity;
   const balanced = useBrowser((s) => s.settings.balancedTopApps);
   const gridHeight = (count: number) => pinGridHeight(count, innerWidth, layout.pinnedHeight, balanced);
   const placedFixed = useRef(true);
@@ -250,16 +240,20 @@ function SidebarPage({ profileId, slot, width, current, resting, docked, glowRoo
     }),
   );
   const edge = useMemo(() => scrollY.interpolate({ inputRange: [0, 1], outputRange: [0, room], extrapolate: "clamp" }), [scrollY, room]);
-  const fixed = useRef({ height: 0, list: 0 });
+  const fixed = useRef<{ height: number; list: number | null }>({ height: 0, list: null });
+  const report = () => {
+    if (!resting && fixed.current.list !== null) onListHeight(profileId, fixed.current.height + fixed.current.list + playerHeight);
+  };
   const reportList = (list: number) => {
     fixed.current.list = list;
-    onListHeight(fixed.current.height + list);
+    report();
   };
   const onFixedLayout = (e: LayoutChangeEvent) => {
     fixed.current.height = e.nativeEvent.layout.height;
-    if (current && fixed.current.list) onListHeight(fixed.current.height + fixed.current.list);
+    report();
   };
-  const inlineNewTab = !current || !docked;
+  useEffect(report, [playerHeight, resting]);
+  const inlineNewTab = !docked;
 
   return (
     <Animated.View
@@ -312,11 +306,21 @@ function SidebarPage({ profileId, slot, width, current, resting, docked, glowRoo
                           onListHeight={reportList}
                         />
                         <ContextMenuArea style={{ flexGrow: 1, minHeight: inlineNewTab ? 24 : 0 }} onContextMenu={() => void openSidebarMenu(windowId)}>
-                          <WindowDragRegion style={{ flex: 1 }} titleBarDoubleClick={false} onRegionDoubleClick={() => toggleNewTabBar(windowId) || useBrowser.getState().newTab(windowId)} />
+                          <WindowDragRegion style={{ flex: 1 }} titleBarDoubleClick={false} onRegionDoubleClick={() => toggleNewTabBar(windowId) || useBrowser.getState().newTab(windowId, { newTabCommand: true })} />
                         </ContextMenuArea>
                       </Animated.ScrollView>
                     </Animated.View>
                   </Animated.View>
+                  {playerTab ? (
+                    <View style={{ paddingHorizontal: layout.sidebarInset, paddingTop: docked ? 8 : 0, paddingBottom: docked ? 0 : 8 }}>
+                      <SidebarPlayer tabId={playerTab} />
+                    </View>
+                  ) : null}
+                  {docked ? (
+                    <View style={{ paddingHorizontal: layout.sidebarInset, paddingTop: layout.rowGap, paddingBottom: DOCKED_BOTTOM }}>
+                      <NewTabRow windowId={windowId} />
+                    </View>
+                  ) : null}
                 </TilesPlacement>
               )}
             </PageContent>
@@ -361,7 +365,8 @@ function PageRows({ windowId, profileId, current, rows, lazy, offScreen, tiles, 
   const limit = cap ?? (growing ? mountedRows : undefined);
   const list = limit === undefined ? all : all.slice(0, limit);
   const pending = useBrowser((s) => (growing ? entriesHeight(s, windowId, profileId, all.slice(mountedRows)) : 0));
-  const clearable = !offScreen && all.length > 0;
+  const showClear = useSettings((s) => s.showClearButton);
+  const clearable = showClear && !offScreen && all.length > 0;
   const tidy = useBrowser((s) => !offScreen && canTidyPins(s, windowId, profileId));
   const divided = clearable || tidy;
   const pinned = usePinnedSequence(windowId, profileId, offScreen);
@@ -371,18 +376,10 @@ function PageRows({ windowId, profileId, current, rows, lazy, offScreen, tiles, 
   const motion = useListMotion(windowId, profileId, all, captured, animated);
   const scope = useMemo(() => ({ enabled: animated, slideBelow: motion.slideBelow }), [animated, motion.slideBelow]);
   if (geometry) geometry.current.newTabAtTop = newTabsAtTop && inlineNewTab;
-  const measured = useRef(0);
-  useEffect(() => {
-    if (current && measured.current) onListHeight(measured.current);
-  }, [current]);
-
   return (
     <ListMotionContext.Provider value={scope}>
       <View
-        onLayout={(e) => {
-          measured.current = e.nativeEvent.layout.height + SCROLL_EDGE.inset - (inlineNewTab ? ROW_PITCH : 0);
-          if (current) onListHeight(measured.current);
-        }}
+        onLayout={(e) => onListHeight(e.nativeEvent.layout.height + SCROLL_EDGE.inset - (inlineNewTab ? ROW_PITCH : 0))}
       >
         {tiles.length ? <PinnedGrid tabs={tiles} innerWidth={innerWidth} flush /> : null}
         <View
@@ -520,22 +517,6 @@ function useRevealTabs(windowId: string, scroll: RefObject<ScrollView | null>, s
   }, [windowId]);
 }
 
-function DownloadsButton({ windowId }: { windowId: string }) {
-  return (
-    <IconButton
-      icon="arrow.down.circle"
-      size={16}
-      box={34}
-      radius={10}
-      tooltip="Downloads (⇧⌘J)"
-      onPress={() => {
-        const s = useBrowser.getState();
-        s.setDownloadsOpen(windowId, !s.windowUi[windowId]?.downloadsOpen);
-      }}
-    />
-  );
-}
-
 const CLIPPED = { marginTop: -layout.rowGap, paddingTop: layout.rowGap, overflow: "hidden" } as const;
 const NEW_TAB_LABEL_X = 30;
 const CLEANED_HINT_RIGHT = 30;
@@ -573,7 +554,7 @@ const NewTabRow = memo(function NewTabRow({ windowId, shift = null, clip = null 
         style={{ flex: 1 }}
         onPress={(e) => {
           if ((e.nativeEvent as unknown as { altKey?: boolean }).altKey) openNewTabInSplit(windowId);
-          else toggleNewTabBar(windowId) || useBrowser.getState().newTab(windowId);
+          else toggleNewTabBar(windowId) || useBrowser.getState().newTab(windowId, { newTabCommand: true });
         }}
       >
         {({ pressed }) => (
@@ -624,13 +605,18 @@ const CleanUpUpsell = memo(function CleanUpUpsell({ windowId, shift }: { windowI
   const [count, setCount] = useState(0);
   const [hidden, setHidden] = useState(upsellDeclined);
   const daily = useBrowser((s) => s.settings.cleanUpInactiveTabsAfterHours !== null);
+  const tabIds = useBrowser((s) => s.windows[windowId]?.tabIds);
+  const profileId = useBrowser((s) => s.windows[windowId]?.profileId);
+  const activeId = useBrowser((s) => activeTabId(s, windowId));
+  const off = hidden || daily;
   useEffect(() => {
+    if (off) return;
     const check = () => setCount(cleanUpCandidates(useBrowser.getState(), windowId).length);
     check();
     return everySlowly({ every: 60_000, run: check });
-  }, [windowId]);
+  }, [windowId, off, tabIds, profileId, activeId]);
   const [moved, movedRef] = useShift(shift);
-  if (hidden || daily || count < UPSELL_MIN) return null;
+  if (off || count < UPSELL_MIN) return null;
   const button = (title: string, onPress: () => void, primary = false) => (
     <Pressable onPress={onPress}>
       {({ pressed }) => (
