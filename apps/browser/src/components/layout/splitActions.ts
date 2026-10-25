@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { closeTab } from "../../lib/actions";
 import { useBrowser } from "../../store/browser";
 import { activeTabId } from "../../store/model";
-import { MAX_SPLIT_PANES, slotsOf, splitOf, type OpenPaneOptions, type SplitSide } from "../../store/splits";
+import { MAX_SPLIT_PANES, paneToReuse, slotsOf, splitOf, type OpenPaneOptions, type SplitSide } from "../../store/splits";
 
 const store = () => useBrowser.getState();
 
@@ -51,12 +51,8 @@ export function openLinkInSplit(sourceTabId: string, url: string, adoptId?: stri
   const s = store();
   const source = s.tabs[sourceTabId];
   if (!source) return;
-  const split = splitOf(s, sourceTabId);
-  const next = split?.tabIds[split.tabIds.indexOf(sourceTabId) + 1];
-  if (split && (next || split.tabIds.length >= MAX_SPLIT_PANES)) {
-    const target = next ?? split.tabIds.at(-1)!;
-    if (target !== sourceTabId) return s.navigate(target, url);
-  }
+  const reuse = paneToReuse(s, sourceTabId);
+  if (reuse) return s.navigate(reuse, url);
   openSplitPane(source.windowId, { anchorTabId: sourceTabId, url, side: "right", background: true, adoptId });
 }
 

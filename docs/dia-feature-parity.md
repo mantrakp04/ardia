@@ -367,6 +367,7 @@ string doesn't matter. Afterwards: `kill %1` for the server, quit the app, `rm -
 | Route input to site / search / Chat (on‑device router model) | ✓ | ⏸ | input goes to a site or the search engine. The New Tab box reads as what it is (2026-10-21, a Discord user: it looked like an AI chat that then just opened the tab or file): "Search or enter address" as everywhere else instead of Dia's "Ask anything…" (Dia 1.52 has no wording for an AI-off box; its other is "Search or Ask a Question"), and the command bar's "Google ↩" / "Go ↩" pill instead of the round send arrow, greyed and inert while the box is empty as the arrow was |
 | Force route ⌃⌘↩ → Chat | ✓ | ⏸ | |
 | Force route ⇧⌘↩ → search | ✓ | ✅ | searches with the default engine (Dia: Google) |
+| Open a result elsewhere: ⌘↩ background tab, ⌥↩ split to the right, ⇧↩ new window (Arc's keys) | — (Arc ✓) | ✅ | 2026-10-25. From the ⌘L bar and the ⌘T bar alike. ⌘↩ opens the result in a new tab behind the current one (as Chrome's ⌘↩ does), in the tab's profile (a private window's stays private), and in its group when the ⌘T bar opens into one; over an empty tab the ⌘T bar opens a separate tab and leaves the empty one in front. ⌥↩ opens it in a new pane to the right of the current tab and focuses it; from a split it adds a pane right of the current one, up to three; a blank tab just loads it, a full split shows "Cannot Add New Pane" and keeps the bar open with the text; an open-tab result from the same window splits that tab in instead of loading a copy (one from another window opens its address beside, so no tab leaves its window). ⌘↩ opened a tab in front and ⌥↩ did the same before; ↩ in the ⌘T bar still opens a tab in front. `components/omnibox/disposition.test.mjs` (3) and a hidden instance with real key events |
 | Google / Chat destination toggle | ✓ | ⏸ | the Go pill names the engine |
 | "Prefer search engine" vs "Use website first" setting | ✓ | ✅ | Settings › General |
 | Default search engine choice (Google, Bing, DDG, Perplexity, ChatGPT, custom, extension engines) | ✓ | ✅ | 12 built-ins + custom engines with keywords + the engines extensions add (`chrome_settings_overrides.search_provider`), read from Chrome's own TemplateURLService (its settings page's list, `components/extensions/searchEngines.ts`) whenever a profile's extensions change. They're listed under "Extensions" in Settings › Search Engine, can be made the default and have Tab-to-search keywords; like Chrome, an extension that asked to be the default (`is_default`) controls it ("… is controlling this setting", Manage / Disable) until it's disabled or removed, then the user's own choice is back. Verified with two fixture extensions (instance `polish`) |
@@ -720,8 +721,9 @@ Chrome; n/t = not pressed there by the test (clipboard and window-level AppKit i
 | Window Fill / Center / Previous Size, cycle windows | 🌐⌃F / 🌐⌃C / 🌐⌃R, ⌘` | same | AppKit's | — | ✅ |
 | Rename tab | double-click | — | double-click | — | ✅ |
 
-**Command bar** (like Chrome's address bar): ↩ this tab, ⌘↩ / ⌥↩ new tab, ⇧↩ new window, ⇧⌘↩ search what was
-typed (Dia), ⌃↩ adds www. and .com, ⌃⇧↩ the same in a new window (new), Tab / ⇧Tab, ↑↓, ⌃N / ⌃P, Esc.
+**Command bar** (like Chrome's address bar, with Arc's ⌥↩): ↩ this tab (a new tab from ⌘T), ⌘↩ background tab,
+⌥↩ split to the right, ⇧↩ new window, ⇧⌘↩ search what was typed (Dia), ⌃↩ adds www. and .com, ⌃⇧↩ the same in
+a new window (new), Tab / ⇧Tab, ↑↓, ⌃N / ⌃P, Esc.
 
 **In a page** (the page's own, unchanged): Esc stops loading, Space / ⇧Space and ⌘↑ / ⌘↓ scroll, Tab / ⇧Tab move
 between links, and in text fields ⌥← / ⌥→, ⌥⌫, ⌘← / ⌘→ and ⌘A / ⌘C / ⌘V / ⌘X / ⌘Z stay the field's.

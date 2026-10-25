@@ -94,7 +94,7 @@ export type OrganizeSlice = {
   groupOnto(ids: string[], targetId: string): string;
   moveGroup(groupId: string, placement: GroupPlacement): void;
   duplicateGroup(groupId: string): string;
-  newTabInGroup(groupId: string): string;
+  newTabInGroup(groupId: string, options?: { background?: boolean }): string;
   moveGroupToBookmarksBar(groupId: string): void;
 
   cleanUpTabs(windowId: string, options?: { inactiveForMs?: number }): number;
@@ -850,12 +850,12 @@ export const createOrganizeSlice: StateCreator<BrowserState, [], [], OrganizeSli
     return groupId2;
   },
 
-  newTabInGroup(groupId) {
+  newTabInGroup(groupId, options) {
     const s = get();
     const g = s.groups[groupId];
     const w = g && s.windows[g.windowId];
     if (!g || !w) return "";
-    const [next, id] = withNewTab(s, w.id, { profileId: g.profileId, index: w.tabIds.indexOf(g.tabIds.at(-1)!) + 1 });
+    const [next, id] = withNewTab(s, w.id, { profileId: g.profileId, index: w.tabIds.indexOf(g.tabIds.at(-1)!) + 1, background: options?.background });
     const groups = nestGroups({ ...next.groups, [groupId]: { ...g, collapsed: false, tabIds: [...g.tabIds, id] } });
     set(withGroupsPlaced(next, w.id, groups));
     return id;

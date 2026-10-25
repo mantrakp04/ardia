@@ -51,20 +51,21 @@ function topOfList(s: BrowserState, windowId: string): number | undefined {
   return first >= 0 ? first : w.tabIds.length;
 }
 
-export function openFromNewTabBar(windowId: string, target: NewTabTarget, url: string) {
+export function openFromNewTabBar(windowId: string, target: NewTabTarget, url: string, background = false) {
   const s = store();
   if (!url || !s.windows[windowId] || !s.windowUi[windowId]?.panel.newTab) return;
   s.closePanel(windowId);
   const into = target.kind === "into" ? s.tabs[target.tabId] : undefined;
-  if (into && into.windowId === windowId && isEmptyCardTab(s, into)) return store().navigate(into.id, url);
+  if (into && !background && into.windowId === windowId && isEmptyCardTab(s, into)) return store().navigate(into.id, url);
   const group = target.kind === "group" ? s.groups[target.groupId] : undefined;
   if (group && group.windowId === windowId && group.profileId === s.windows[windowId]!.profileId) {
-    const id = store().newTabInGroup(group.id);
+    const id = store().newTabInGroup(group.id, { background });
     if (!id) return;
     store().navigate(id, url);
-    return store().activate(id);
+    if (!background) store().activate(id);
+    return;
   }
-  store().newTab(windowId, { url, index: topOfList(store(), windowId), newTabCommand: true });
+  store().newTab(windowId, { url, index: topOfList(store(), windowId), newTabCommand: true, background });
 }
 
 const launchTabs = new Set<string>();
