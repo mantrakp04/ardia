@@ -191,10 +191,10 @@ ARDIACORE_EXPORT
 
 - (void)prepareProfile:(ArdiaCoreProfile*)profile;
 - (void)adoptTab:(ArdiaCoreTab*)tab;
-- (ArdiaCoreTab*)openTab:(NSString*)url
-              profile:(ArdiaCoreProfile*)profile
-           foreground:(BOOL)foreground
-              sidebar:(NSString*)sidebar;
+- (nullable ArdiaCoreTab*)openTab:(NSString*)url
+                       profile:(ArdiaCoreProfile*)profile
+                    foreground:(BOOL)foreground
+                       sidebar:(NSString*)sidebar;
 - (nullable ArdiaCoreTab*)restoreTab:(nullable NSString*)state
                           profile:(ArdiaCoreProfile*)profile
                        foreground:(BOOL)foreground

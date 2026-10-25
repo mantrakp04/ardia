@@ -38,7 +38,8 @@ export function openExternalUrls(given: string[], pointer?: [number, number]) {
     let main: string | undefined;
     urls.forEach((url, i) => {
       const link = links[i];
-      if (!link || "dismissed" in link) return;
+      if (!link) return console.warn("Couldn't route a link from another app");
+      if ("dismissed" in link) return;
       if (!destinationStillMaps(link.profileId, link.engine)) return console.warn("A link's profile changed before it opened");
       if (link.action === "little") return void openLittleArdia(url, link.profileId, link.adoptId, link.requiresAdoption, false, pointer);
       main = openLinkInMainWindow(url, link.profileId, link.adoptId, link.requiresAdoption);

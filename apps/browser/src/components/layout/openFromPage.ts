@@ -56,7 +56,7 @@ export function pageProfileId(windowId: string, pageProfile: string): string {
 function openPlaced({ url, adoptId, requiresAdoption, disposition }: OpenWindowRequest, placement: NonNullable<OpenWindowRequest["placement"]>, from: PageSource) {
   const s = useBrowser.getState();
   const profileId = placement.profileId;
-  if (!destinationStillMaps(profileId, placement.engine)) return;
+  if (!destinationStillMaps(profileId, placement.engine)) return console.warn("A routed link's profile changed before it opened");
   const required = !!requiresAdoption;
   const background = disposition === "background";
   if (placement.action === "little") return void openLittleArdia(url, profileId, adoptId, required, background);

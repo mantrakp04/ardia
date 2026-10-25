@@ -75,7 +75,6 @@ struct RoutedPlacement {
   std::optional<blink::mojom::WindowFeatures> features;
 };
 
-const LinkRule* MatchLinkRule(const LinkRouting& routing, std::string_view url);
 std::optional<LinkDecision> DecideLink(const LinkRouting& routing,
                                        std::string_view url,
                                        LinkOrigin origin,

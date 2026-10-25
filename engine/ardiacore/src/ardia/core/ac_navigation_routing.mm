@@ -497,8 +497,6 @@ class RedirectRouteThrottle : public content::NavigationThrottle {
   const char* GetNameForLogging() override { return "ACRedirectRouteThrottle"; }
 };
 
-}
-
 const LinkRule* MatchLinkRule(const LinkRouting& routing, std::string_view url) {
   const std::string lower = base::ToLowerASCII(url);
   const std::string equals = EqualsForm(url);
@@ -508,6 +506,8 @@ const LinkRule* MatchLinkRule(const LinkRouting& routing, std::string_view url) 
     }
   }
   return nullptr;
+}
+
 }
 
 std::optional<LinkDecision> DecideLink(const LinkRouting& routing,
