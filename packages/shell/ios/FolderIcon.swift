@@ -21,8 +21,8 @@ enum FolderArt {
 
   static let rearClosed = polygon([(26, 88), (26, 21), (30, 18), (54, 18), (66, 26), (92, 26), (96, 30), (96, 88)])
   static let rearOpen = polygon([(31, 88), (15, 31), (19, 28), (37, 28), (47, 34), (67, 34), (71, 38), (91, 88)])
-  static let frontClosed = polygon([(26, 35), (96, 35), (96, 88), (26, 88)])
-  static let frontOpen = polygon([(49, 42), (107, 42), (91, 88), (31, 88)])
+  static let frontClosed = polygon([(26, 36), (96, 36), (96, 88), (26, 88)])
+  static let frontOpen = polygon([(48.61, 43), (106.65, 43), (91, 88), (31, 88)])
   static let rearCornerRadius: CGFloat = 8
   static let frontCornerRadius: CGFloat = 9
   static let strokeWidth: CGFloat = 8
