@@ -258,7 +258,8 @@ Arc, not Dia: what our Arc layout (Settings › address bar in the sidebar) does
 screen capture (frames 8–33 ms apart, most 17), so timings are ±1 frame. Edges traced on rows of the page at 2x.
 
 - Hidden: the page card fills the window; no toolbar row, no traffic lights, no back/forward/address. Arc's card inset is
-  10 pt on every side, docked or hidden (ours keeps Dia's 6/7).
+  10 pt on every side, docked or hidden. Ours matches it in Arc's layout (2026-10-25, the owner: with no toolbar
+  to grab, Dia's 6/7 left too thin a strip to move the window by); Dia's layout keeps Dia's 6/7.
 - Peek (pointer at the window's left edge): a floating panel over the page, which doesn't move. Inset 5 pt from the
   window's left, top and bottom edges (ours keeps Dia's 6/6/7), 227.5 pt wide (= the docked sidebar's width), rounded,
   dark, a 0.5 pt light border; it holds the traffic lights, the sidebar button, back/forward/reload, the URL field and the

@@ -20,6 +20,15 @@ export function addressBarInSidebar(s: BrowserState, windowId: string): boolean 
   );
 }
 
+export type CardInset = { top: number; right: number; bottom: number; left: number };
+
+export const ARC_CARD_INSET = 10;
+
+export function cardInset(arcLayout: boolean): CardInset {
+  if (arcLayout) return { top: ARC_CARD_INSET, right: ARC_CARD_INSET, bottom: ARC_CARD_INSET, left: ARC_CARD_INSET };
+  return { top: layout.cardTop, right: layout.cardInset, bottom: layout.cardInset, left: layout.cardInset };
+}
+
 export function commandBarCentred(s: BrowserState, windowId: string): boolean {
   return s.settings.commandBarPlacement === "centred" && !!s.windows[windowId] && s.windows[windowId]!.kind !== "small";
 }
