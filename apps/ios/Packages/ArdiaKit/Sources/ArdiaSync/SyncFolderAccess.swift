@@ -1,3 +1,4 @@
+import ArdiaSyncCore
 import Foundation
 
 public struct SyncFolderLocation: Codable, Equatable, Sendable {
@@ -67,7 +68,7 @@ public enum SyncFolderAccess {
   }
 
   static func holdsChains(_ url: URL) -> Bool {
-    coordinatedListing(url).contains(where: isChainTag)
+    coordinatedListing(url)?.contains(where: isChainTag) ?? false
   }
 
   static func isChainTag(_ name: String) -> Bool {
@@ -79,13 +80,9 @@ public enum SyncFolderAccess {
     return FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) && isDirectory.boolValue
   }
 
-  static func coordinatedListing(_ url: URL) -> [String] {
-    var names: [String] = []
-    var error: NSError?
-    NSFileCoordinator(filePresenter: nil).coordinate(readingItemAt: url, options: [], error: &error) { url in
-      names = (try? FileManager.default.contentsOfDirectory(atPath: url.path)) ?? []
-    }
-    if error != nil { names = (try? FileManager.default.contentsOfDirectory(atPath: url.path)) ?? [] }
-    return names
+  public static let defaultTimeout: TimeInterval = 20
+
+  static func coordinatedListing(_ url: URL, coordination: SyncCoordination = SyncCoordination(timeout: defaultTimeout)) -> [String]? {
+    try? coordination.read(url) { url in try FileManager.default.contentsOfDirectory(atPath: url.path) }
   }
 }

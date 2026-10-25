@@ -233,6 +233,9 @@ export type DeviceRecord = { n: string; k?: string; f?: string[] };
 export const RECEIVES_TABS = "send";
 export const deviceKindOf = (record: { k?: unknown } | null | undefined): DeviceKind => (record?.k === "phone" ? "phone" : "mac");
 export const receivesTabs = (record: DeviceRecord | null | undefined) => Array.isArray(record?.f) && record.f.includes(RECEIVES_TABS);
+export const PHONE_SEEN_MS = 30 * 86_400_000;
+export const offersTabs = (record: DeviceRecord | null | undefined, lastSeen: number | null | undefined, now: number) =>
+  receivesTabs(record) && (deviceKindOf(record) !== "phone" || (typeof lastSeen === "number" && now - lastSeen <= PHONE_SEEN_MS));
 
 export function deviceAdapter(deviceId: string, name: () => string, retired = false): Adapter {
   return {

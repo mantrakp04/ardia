@@ -70,9 +70,11 @@ function unionTimes(a: number[], b: number[]): number[] {
 }
 
 export type HistoryContext = {
-  visits: LocalVisit[];
+  visits: (LocalVisit & { p: string })[];
+  profiles: string[];
+  state: ScopeState;
   floors: Record<string, number>;
-  removed: (profile: string | null, url: string) => void;
+  removed: (profile: string, url: string) => void;
   ready: () => boolean;
 };
 
@@ -82,14 +84,14 @@ export function historyAdapter(ctx: HistoryContext): Adapter {
     extract: (_base, _queued, now, _known, remote, stamp) => {
       if (!ctx.ready()) return null;
       const since = now - HISTORY_WINDOW_MS;
-      const byUrl = new Map<string, { title: string; times: number[]; profiles: Set<string | null>; newest: number }>();
+      const byUrl = new Map<string, { title: string; times: number[]; profiles: Set<string>; newest: number }>();
       for (const v of ctx.visits) {
         if (!isWebUrl(v.u) || !Array.isArray(v.vt)) continue;
         const entry = byUrl.get(v.u) ?? { title: "", times: [], profiles: new Set(), newest: 0 };
         const times = v.vt.filter((t) => Number.isFinite(t) && t >= since);
         if (!times.length) continue;
         entry.times.push(...times);
-        entry.profiles.add(v.p ?? null);
+        entry.profiles.add(v.p);
         const newest = Math.max(...times);
         if (newest >= entry.newest) {
           entry.newest = newest;
@@ -130,7 +132,17 @@ export function historyAdapter(ctx: HistoryContext): Adapter {
       return { values, ignore: (k) => !values.has(k) };
     },
     editedAt: (v) => lastVisitOf(v as HistoryValue),
-    apply: () => true,
+    apply: (visible, changed, _base, records) => {
+      for (const key of changed) {
+        if (visible.has(key)) continue;
+        const url = key.slice(2);
+        const tombstone = ctx.state.records[key];
+        const deletedAt = tombstone ? hlcWall(tombstone.h) : records.now;
+        if (deletedAt > (ctx.floors[url] ?? -Infinity)) ctx.floors[url] = deletedAt;
+        for (const p of ctx.profiles) ctx.removed(p, url);
+      }
+      return true;
+    },
   };
 }
 

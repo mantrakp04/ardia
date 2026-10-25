@@ -50,7 +50,7 @@ export type CycleInput = {
 };
 
 export type Received = { profile: string; key: string; u: string; t: string; from: string; fromName: string | null; at: number };
-export type Removal = { profile: string | null; urls: string[] };
+export type Removal = { profile: string; urls: string[] };
 
 export type CycleOutput = {
   status: ChainStatus;
@@ -68,6 +68,7 @@ const profileScope = (syncId: string) => `p:${syncId}`;
 
 let companion: CompanionState | null = null;
 let savedJSON = "";
+let savedPrint = "";
 let viewJSON = "";
 
 const host = (): Host => {
@@ -83,8 +84,12 @@ function loaded(): CompanionState {
 
 const freshState = (device: string): CompanionState => ({ v: 1, device, clock: null, scopes: {}, sends: [], acks: [], bookmarks: [], floors: {}, pulled: {} });
 
-export function companionLoad(input: { device: string; state?: CompanionState | null; journal?: Record<string, LogFile[]> | null }) {
-  const state = input.state && input.state.v === 1 && input.state.device === input.device ? input.state : freshState(input.device);
+export function companionLoad(input: { device: string; state?: CompanionState | null; journal?: Record<string, LogFile[]> | null; fresh?: boolean }) {
+  if (!input.state && !input.fresh) throw new Error("no saved state for this device");
+  if (input.state && (input.state.v !== 1 || input.state.device !== input.device || !input.state.scopes || typeof input.state.scopes !== "object")) {
+    throw new Error("the saved state belongs to another device or version");
+  }
+  const state = input.state ?? freshState(input.device);
   state.sends ??= [];
   state.acks ??= [];
   state.bookmarks ??= [];
@@ -102,6 +107,7 @@ export function companionLoad(input: { device: string; state?: CompanionState | 
   if (restored) state.clock = clock.last;
   companion = state;
   savedJSON = "";
+  savedPrint = "";
   viewJSON = "";
   return { device: state.device, scopes: Object.keys(state.scopes).length };
 }
@@ -109,22 +115,40 @@ export function companionLoad(input: { device: string; state?: CompanionState | 
 export function companionUnload() {
   companion = null;
   savedJSON = "";
+  savedPrint = "";
   viewJSON = "";
   return true;
 }
 
 export function companionStateUnsaved() {
   savedJSON = "";
+  savedPrint = "";
   return true;
 }
 
-function save(): boolean {
+function fingerprint(c: CompanionState): string {
+  const scopes = Object.keys(c.scopes)
+    .sort()
+    .map((name) => {
+      const s = c.scopes[name]!;
+      return [name, s.seq, s.journal?.length ?? 0, s.outbox.length, Object.keys(s.files).length, s.pending, Object.keys(s.damaged).length, s.unapplied.length, s.joined, JSON.stringify(s.vv), JSON.stringify(s.extra), JSON.stringify(s.seen)].join("|");
+    });
+  return JSON.stringify([c.clock, scopes, c.sends, c.acks, c.bookmarks, c.floors, c.pulled]);
+}
+
+function save(force = false): boolean {
   const c = loaded();
+  const print = fingerprint(c);
+  if (!force && savedJSON && print === savedPrint) return true;
   const json = JSON.stringify(c);
-  if (json === savedJSON) return true;
+  if (json === savedJSON) {
+    savedPrint = print;
+    return true;
+  }
   const seqs = Object.fromEntries(Object.entries(c.scopes).map(([scope, s]) => [scope, s.seq]));
   if (host().saveState(json, JSON.stringify(seqs)) !== "ok") return false;
   savedJSON = json;
+  savedPrint = print;
   return true;
 }
 
@@ -162,7 +186,7 @@ export async function runCompanionCycle(input: CycleInput): Promise<CycleOutput>
   const now = () => input.now ?? Date.now();
   const empty = { received: [], historyRemoved: [], published: 0, changed: 0, pending: 0 };
   const status = host().chainStatus() as ChainStatus;
-  if (status !== "ok") return { status, ...empty, saved: save() };
+  if (status !== "ok") return { status, ...empty, saved: save(false) };
   const clock = new Clock(c.device, c.clock, now);
   const device = c.device;
   const retiring = !!input.retiring;
@@ -181,7 +205,7 @@ export async function runCompanionCycle(input: CycleInput): Promise<CycleOutput>
   };
 
   const app = await run(APP, [deviceAdapter(device, input.name, retiring)], false);
-  const removals = new Map<string | null, Set<string>>();
+  const removals = new Map<string, Set<string>>();
   if (retiring) {
     for (const scope of Object.keys(c.scopes).filter((s) => s.startsWith("p:"))) await run(scope, [deviceTabsAdapter(device, input.name, [], true)], true);
   } else {
@@ -194,12 +218,12 @@ export async function runCompanionCycle(input: CycleInput): Promise<CycleOutput>
       const p = profileOf(app, ids, fallback, t.p);
       if (p) tabsOf.set(p, [...(tabsOf.get(p) ?? []), t]);
     }
-    const visitsOf = new Map<string, LocalVisit[]>();
+    const visitsOf = new Map<string, (LocalVisit & { p: string })[]>();
     for (const v of input.visits ?? []) {
       const p = profileOf(app, ids, fallback, v.p);
       if (!p) continue;
       const o = owner.get(p) ?? p;
-      visitsOf.set(o, [...(visitsOf.get(o) ?? []), v]);
+      visitsOf.set(o, [...(visitsOf.get(o) ?? []), { ...v, p }]);
     }
     for (const id of [...ids].sort()) {
       const scope = profileScope(id);
@@ -223,6 +247,8 @@ export async function runCompanionCycle(input: CycleInput): Promise<CycleOutput>
           ? [
               historyAdapter({
                 visits: visitsOf.get(id) ?? [],
+                profiles: [...ids].filter((p) => owner.get(p) === id).sort(),
+                state,
                 floors,
                 removed: (p, url) => {
                   const set = removals.get(p) ?? new Set<string>();
@@ -276,7 +302,7 @@ export async function runCompanionCycle(input: CycleInput): Promise<CycleOutput>
     published,
     changed,
     pending,
-    saved: save(),
+    saved: save(published > 0 || changed > 0),
   };
   if (!retiring) {
     const view = buildView(c.scopes, device);
@@ -297,14 +323,17 @@ export function companionView(): View {
 }
 
 const scopeFor = (profile: string) => profileScope(dataOwner(loaded().scopes[APP], profile));
+const isLive = (profile: string) => liveProfiles(loaded().scopes[APP]).has(profile);
+const refused = { saved: false, refused: true } as const;
 
 export function companionSend(input: { profile: string; key: string; u: string; t: string; to: string; at: number }) {
   const c = loaded();
+  if (!isLive(input.profile)) return refused;
   const key = `send:${input.key}`;
   if (!c.sends.some((s) => s.key === key)) {
     c.sends.push({ scope: profileScope(input.profile), key, value: { u: input.u, t: input.t, to: input.to, from: c.device, at: input.at } });
   }
-  return { saved: save() };
+  return { saved: save(true) };
 }
 
 export function companionAcknowledge(input: { items: { profile: string; key: string }[] }) {
@@ -313,22 +342,24 @@ export function companionAcknowledge(input: { items: { profile: string; key: str
     const scope = profileScope(profile);
     if (!c.acks.some((a) => a.scope === scope && a.key === key)) c.acks.push({ scope, key });
   }
-  return { saved: save() };
+  return { saved: save(true) };
 }
 
 export function companionAddBookmark(input: { profile: string; key: string; u: string; t: string; at: number }) {
   const c = loaded();
+  if (!isLive(input.profile)) return refused;
   const scope = scopeFor(input.profile);
   if (!c.bookmarks.some((o) => o.scope === scope && o.key === input.key)) {
     c.bookmarks.push({ scope, op: "add", key: input.key, value: { k: "u", p: "other", t: input.t, u: input.u, a: input.at } });
   }
-  return { saved: save() };
+  return { saved: save(true) };
 }
 
 export function companionRemoveBookmark(input: { profile: string; key: string }) {
   const c = loaded();
+  if (!isLive(input.profile)) return refused;
   const scope = scopeFor(input.profile);
   c.bookmarks = c.bookmarks.filter((o) => !(o.scope === scope && o.key === input.key));
   c.bookmarks.push({ scope, op: "remove", key: input.key });
-  return { saved: save() };
+  return { saved: save(true) };
 }

@@ -29,9 +29,13 @@ final class FakeSource: LocalBrowsingSource {
   var visits: [LocalVisitRecord] = []
   var received: [ReceivedTab] = []
   var removed: [(urls: Set<String>, profile: String?)] = []
+  var visitFetches: [Date] = []
 
   func syncedTabs() -> [LocalTabRecord] { tabs }
-  func syncedVisits(since: Date) -> [LocalVisitRecord] { visits.filter { $0.visitedAt.contains { $0 >= since } } }
+  func syncedVisits(since: Date) -> [LocalVisitRecord] {
+    visitFetches.append(since)
+    return visits.filter { $0.visitedAt.contains { $0 >= since } }
+  }
   func removeVisits(urls: Set<String>, profileSyncId: String?) { removed.append((urls, profileSyncId)) }
   func receive(_ tabs: [ReceivedTab]) { received += tabs }
 }
@@ -129,5 +133,16 @@ final class FakeMac {
 
   private func json(_ string: String) -> String {
     String(decoding: (try? JSONEncoder().encode(string)) ?? Data("\"\"".utf8), as: UTF8.self)
+  }
+}
+
+final class TestClock: @unchecked Sendable {
+  private let lock = NSLock()
+  private var current = Date.now
+
+  var now: Date { lock.withLock { current } }
+
+  func advance(_ seconds: TimeInterval) {
+    lock.withLock { current = current.addingTimeInterval(seconds) }
   }
 }

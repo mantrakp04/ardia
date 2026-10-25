@@ -202,7 +202,7 @@ class Phone {
   }
   launch() {
     (globalThis as { __host?: Host }).__host = this.host();
-    companionLoad({ device: this.id, state: this.stateJSON ? (JSON.parse(this.stateJSON) as CompanionState) : null, journal: this.journal });
+    companionLoad({ device: this.id, state: this.stateJSON ? (JSON.parse(this.stateJSON) as CompanionState) : null, journal: this.journal, fresh: !this.stateJSON });
     return this;
   }
   cycle(extra: Partial<CycleInput> = {}) {
@@ -360,7 +360,10 @@ test("history is the union both ways, and a deletion made on the Mac sticks", as
   await mac.sync();
   folder.now += 15_000;
   const removed = await phone.cycle();
-  assert.deepEqual(removed.historyRemoved, [{ profile: null, urls: [fresh] }]);
+  assert.deepEqual(removed.historyRemoved, [
+    { profile: P1, urls: [fresh] },
+    { profile: P3, urls: [fresh] },
+  ]);
   for (let i = 0; i < 3; i++) {
     folder.now += 15_000;
     await phone.cycle();
@@ -584,4 +587,83 @@ test("a chain that disappeared reports a reset and writes nothing", async () => 
   const out = await phone.cycle();
   assert.equal(out.status, "missing");
   assert.equal(folder.fileCount(), count);
+});
+
+test("history a Mac deleted stays deleted after its tombstone is collected into a snapshot", async () => {
+  const { folder, mac, phone } = await joined();
+  const url = "https://secret.example/";
+  phone.visits = [{ u: url, t: "Secret", vt: [START - DAY] }];
+  await phone.cycle();
+  await mac.sync();
+  assert.ok(mac.history[s1]!.has(url));
+  folder.now += 60_000;
+  mac.history[s1]!.delete(url);
+  await mac.sync();
+  folder.now += 46 * DAY;
+  await compact(mac.scopes[s1]!, folder.transport(), s1, MAC, folder.now, {}, true);
+  assert.equal(mac.scopes[s1]!.records[`h:${url}`], undefined);
+  folder.now += 15_000;
+  phone.launch();
+  const first = await phone.cycle();
+  assert.deepEqual(first.historyRemoved, [
+    { profile: P1, urls: [url] },
+    { profile: P3, urls: [url] },
+  ]);
+  for (let i = 0; i < 3; i++) {
+    folder.now += 15_000;
+    await phone.cycle();
+  }
+  await mac.sync();
+  assert.equal(mac.history[s1]!.has(url), false);
+  assert.equal(mac.scopes[s1]!.records[`h:${url}`], undefined);
+});
+
+test("a saved state is never swapped for a fresh one under the same device id", async () => {
+  const { phone } = await joined();
+  await phone.cycle();
+  assert.throws(() => companionLoad({ device: PHONE, state: null, journal: {} }));
+  assert.throws(() => companionLoad({ device: PHONE, state: { ...phone.state(), device: "someoneelse00000000000000" }, journal: {} }));
+  assert.throws(() => companionLoad({ device: PHONE, state: { ...phone.state(), v: 2 } as unknown as CompanionState, journal: {} }));
+  assert.doesNotThrow(() => companionLoad({ device: "brandnew00000000000000000", state: null, journal: {}, fresh: true }));
+});
+
+test("only devices that sync a profile receive tabs sent in it, and a send in a profile that isn't synced is refused", async () => {
+  const { folder, mac, phone } = await joined();
+  mac.put("app", `dev:${MAC}`, { n: "MacBook Pro", k: "mac", f: ["send"] });
+  await mac.sync();
+  const out = await phone.cycle();
+  const targets = Object.fromEntries(out.view!.profiles.map((p) => [p.name, p.sendTargets]));
+  assert.deepEqual(targets, { Personal: [MAC], School: [MAC], Work: [MAC] });
+  const other = new Mac(folder, "macmini0000000000000000000");
+  other.put("app", `dev:${other.id}`, { n: "Mac mini", k: "mac", f: ["send"] });
+  await other.sync(["app"]);
+  const later = await phone.cycle();
+  assert.deepEqual(later.view!.profiles.find((p) => p.name === "Personal")!.sendTargets, [MAC]);
+  assert.ok(later.view!.devices.some((d) => d.id === other.id && d.canReceiveTabs));
+  assert.deepEqual(companionSend({ profile: "notaprofile000000000000000", key: "77777777-7777-4777-8777-777777777777", u: "https://x.example/", t: "X", to: MAC, at: folder.now }), { saved: false, refused: true });
+  assert.deepEqual(companionAddBookmark({ profile: "notaprofile000000000000000", key: "88888888-8888-4888-8888-888888888888", u: "https://x.example/", t: "X", at: folder.now }), { saved: false, refused: true });
+  assert.equal(phone.state().sends.length, 0);
+  assert.equal(phone.state().bookmarks.length, 0);
+});
+
+test("an idle cycle doesn't serialize the whole state", async () => {
+  const { folder, phone } = await joined();
+  phone.tabs = [{ u: "https://phone.example/", t: "Phone", at: START }];
+  await phone.cycle();
+  await phone.cycle();
+  const stringify = JSON.stringify;
+  let whole = 0;
+  JSON.stringify = ((value: unknown, ...rest: unknown[]) => {
+    if (value && typeof value === "object" && "scopes" in value && "device" in value) whole++;
+    return (stringify as (...a: unknown[]) => string)(value, ...rest);
+  }) as typeof JSON.stringify;
+  try {
+    for (let i = 0; i < 3; i++) {
+      folder.now += 15_000;
+      await phone.cycle();
+    }
+  } finally {
+    JSON.stringify = stringify;
+  }
+  assert.equal(whole, 0);
 });

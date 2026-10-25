@@ -247,3 +247,14 @@ test("this Mac's device record says it's a Mac that takes sent tabs, and older r
   assert.equal(adapters.deviceKindOf({ n: "iPhone", k: "phone", f: ["send"] }), "phone");
   assert.equal(adapters.receivesTabs({ n: "iPhone", k: "phone", f: ["send"] }), true);
 });
+
+test("a phone is offered as a send target only while it has synced in the last 30 days; Macs as before", () => {
+  const phone = { n: "iPhone", k: "phone", f: ["send"] };
+  const mac = { n: "MacBook Pro", k: "mac", f: ["send"] };
+  const now = START + 60 * DAY;
+  assert.equal(adapters.offersTabs(phone, now - 29 * DAY, now), true);
+  assert.equal(adapters.offersTabs(phone, now - 31 * DAY, now), false);
+  assert.equal(adapters.offersTabs(phone, null, now), false);
+  assert.equal(adapters.offersTabs(mac, null, now), true);
+  assert.equal(adapters.offersTabs({ n: "Old Mac" }, now, now), false);
+});

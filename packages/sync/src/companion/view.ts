@@ -23,6 +23,7 @@ export type ViewProfile = {
   icon: string | null;
   isDefault: boolean;
   theme: ViewTheme | null;
+  sendTargets: string[];
   deviceTabs: ViewDeviceTabs[];
   pinned: { tiles: ViewPinnedTile[]; sections: ViewPinnedSection[] };
   bookmarks: ViewBookmark[];
@@ -109,6 +110,14 @@ function deviceTabs(scope: ScopeState | undefined, me: string, devices: Map<stri
     out.push({ deviceId, deviceName: device.name || str(value.n) || "Unknown Device", kind: value.k ? kindOf(value.k) : device.kind, tabs });
   }
   return out.sort((a, z) => (devices.get(z.deviceId)!.lastSeen ?? 0) - (devices.get(a.deviceId)!.lastSeen ?? 0) || (a.deviceId < z.deviceId ? -1 : 1));
+}
+
+function sendTargets(scope: ScopeState | undefined, me: string, devices: Map<string, ViewDevice>): string[] {
+  if (!scope) return [];
+  return [...devices.values()]
+    .filter((d) => d.id !== me && d.canReceiveTabs && d.id in scope.seen)
+    .sort((a, z) => scope.seen[z.id]! - scope.seen[a.id]! || (a.id < z.id ? -1 : 1))
+    .map((d) => d.id);
 }
 
 type PinValue = { g?: unknown; u?: unknown; t?: unknown; i?: unknown; ti?: unknown; pos?: unknown };
@@ -347,6 +356,7 @@ export function buildView(scopes: Record<string, ScopeState>, me: string): View 
       icon: optStr(p.i),
       isDefault: syncId === defaultId,
       theme: themeOf(app, syncId, p),
+      sendTargets: sendTargets(own, me, devices),
       deviceTabs: deviceTabs(own, me, devices),
       pinned: pinnedArea(own),
       bookmarks: bookmarkTree(data),

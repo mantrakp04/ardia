@@ -56,10 +56,11 @@ public struct SyncedProfile: Codable, Equatable, Hashable, Identifiable, Sendabl
   public var pinned: PinnedArea
   public var bookmarks: [BookmarkItem]
   public var history: [HistoryItem]
+  public var sendTargets: [String]?
 
   public var id: String { syncId }
 
-  public init(syncId: String, name: String, color: String?, icon: String?, isDefault: Bool, theme: SyncedTheme?, deviceTabs: [DeviceTabs], pinned: PinnedArea, bookmarks: [BookmarkItem], history: [HistoryItem]) {
+  public init(syncId: String, name: String, color: String?, icon: String?, isDefault: Bool, theme: SyncedTheme?, deviceTabs: [DeviceTabs], pinned: PinnedArea, bookmarks: [BookmarkItem], history: [HistoryItem], sendTargets: [String]? = nil) {
     self.syncId = syncId
     self.name = name
     self.color = color
@@ -70,6 +71,7 @@ public struct SyncedProfile: Codable, Equatable, Hashable, Identifiable, Sendabl
     self.pinned = pinned
     self.bookmarks = bookmarks
     self.history = history
+    self.sendTargets = sendTargets
   }
 }
 

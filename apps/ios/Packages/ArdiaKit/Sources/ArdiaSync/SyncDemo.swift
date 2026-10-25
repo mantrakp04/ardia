@@ -68,14 +68,15 @@ extension SyncSnapshot {
       color: "blue",
       icon: nil,
       isDefault: true,
-      theme: SyncedTheme(colors: ["#4F7CFF", "#9B6BFF"], darkColors: ["#1E2A5A", "#3A2466"]),
+      theme: nil,
       deviceTabs: [
         DeviceTabs(deviceId: mac.id, deviceName: mac.name, kind: .mac, tabs: macTabs),
         DeviceTabs(deviceId: studio.id, deviceName: studio.name, kind: .mac, tabs: studioTabs),
       ],
       pinned: pinned,
       bookmarks: bookmarks,
-      history: history
+      history: history,
+      sendTargets: [mac.id]
     )
     let work = SyncedProfile(
       syncId: "demo-work",
@@ -83,14 +84,15 @@ extension SyncSnapshot {
       color: "green",
       icon: "briefcase",
       isDefault: false,
-      theme: nil,
+      theme: SyncedTheme(colors: ["#4F7CFF", "#9B6BFF"], darkColors: ["#1E2A5A", "#3A2466"]),
       deviceTabs: [DeviceTabs(deviceId: mac.id, deviceName: mac.name, kind: .mac, tabs: [
         .init(url: "https://linear.app/", title: "Linear"),
         .init(url: "https://www.notion.so/", title: "Notion"),
       ])],
       pinned: PinnedArea(tiles: [PinnedTile(key: "demo-work-mail", title: "Mail", url: "https://outlook.office.com/", icon: nil, folder: nil)]),
       bookmarks: [],
-      history: []
+      history: [],
+      sendTargets: [mac.id]
     )
     return SyncSnapshot(
       devices: [phone, mac, studio],

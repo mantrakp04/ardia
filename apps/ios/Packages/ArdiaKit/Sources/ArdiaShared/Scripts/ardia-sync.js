@@ -648,7 +648,7 @@ const { buildView, dataOwner, defaultProfileId, liveProfiles } = __require("pack
   
 
                                                                                                                                  
-                                                                 
+                                                          
 
                            
                       
@@ -666,6 +666,7 @@ const profileScope = (syncId        ) => `p:${syncId}`;
 
 let companion                        = null;
 let savedJSON = "";
+let savedPrint = "";
 let viewJSON = "";
 
 const host = ()       => {
@@ -681,8 +682,12 @@ function loaded()                 {
 
 const freshState = (device        )                 => ({ v: 1, device, clock: null, scopes: {}, sends: [], acks: [], bookmarks: [], floors: {}, pulled: {} });
 
-function companionLoad(input                                                                                               ) {
-  const state = input.state && input.state.v === 1 && input.state.device === input.device ? input.state : freshState(input.device);
+function companionLoad(input                                                                                                                ) {
+  if (!input.state && !input.fresh) throw new Error("no saved state for this device");
+  if (input.state && (input.state.v !== 1 || input.state.device !== input.device || !input.state.scopes || typeof input.state.scopes !== "object")) {
+    throw new Error("the saved state belongs to another device or version");
+  }
+  const state = input.state ?? freshState(input.device);
   state.sends ??= [];
   state.acks ??= [];
   state.bookmarks ??= [];
@@ -700,6 +705,7 @@ function companionLoad(input                                                    
   if (restored) state.clock = clock.last;
   companion = state;
   savedJSON = "";
+  savedPrint = "";
   viewJSON = "";
   return { device: state.device, scopes: Object.keys(state.scopes).length };
 }
@@ -707,22 +713,40 @@ function companionLoad(input                                                    
 function companionUnload() {
   companion = null;
   savedJSON = "";
+  savedPrint = "";
   viewJSON = "";
   return true;
 }
 
 function companionStateUnsaved() {
   savedJSON = "";
+  savedPrint = "";
   return true;
 }
 
-function save()          {
+function fingerprint(c                )         {
+  const scopes = Object.keys(c.scopes)
+    .sort()
+    .map((name) => {
+      const s = c.scopes[name] ;
+      return [name, s.seq, s.journal?.length ?? 0, s.outbox.length, Object.keys(s.files).length, s.pending, Object.keys(s.damaged).length, s.unapplied.length, s.joined, JSON.stringify(s.vv), JSON.stringify(s.extra), JSON.stringify(s.seen)].join("|");
+    });
+  return JSON.stringify([c.clock, scopes, c.sends, c.acks, c.bookmarks, c.floors, c.pulled]);
+}
+
+function save(force = false)          {
   const c = loaded();
+  const print = fingerprint(c);
+  if (!force && savedJSON && print === savedPrint) return true;
   const json = JSON.stringify(c);
-  if (json === savedJSON) return true;
+  if (json === savedJSON) {
+    savedPrint = print;
+    return true;
+  }
   const seqs = Object.fromEntries(Object.entries(c.scopes).map(([scope, s]) => [scope, s.seq]));
   if (host().saveState(json, JSON.stringify(seqs)) !== "ok") return false;
   savedJSON = json;
+  savedPrint = print;
   return true;
 }
 
@@ -760,7 +784,7 @@ async function runCompanionCycle(input            )                       {
   const now = () => input.now ?? Date.now();
   const empty = { received: [], historyRemoved: [], published: 0, changed: 0, pending: 0 };
   const status = host().chainStatus()               ;
-  if (status !== "ok") return { status, ...empty, saved: save() };
+  if (status !== "ok") return { status, ...empty, saved: save(false) };
   const clock = new Clock(c.device, c.clock, now);
   const device = c.device;
   const retiring = !!input.retiring;
@@ -779,7 +803,7 @@ async function runCompanionCycle(input            )                       {
   };
 
   const app = await run(APP, [deviceAdapter(device, input.name, retiring)], false);
-  const removals = new Map                            ();
+  const removals = new Map                     ();
   if (retiring) {
     for (const scope of Object.keys(c.scopes).filter((s) => s.startsWith("p:"))) await run(scope, [deviceTabsAdapter(device, input.name, [], true)], true);
   } else {
@@ -792,12 +816,12 @@ async function runCompanionCycle(input            )                       {
       const p = profileOf(app, ids, fallback, t.p);
       if (p) tabsOf.set(p, [...(tabsOf.get(p) ?? []), t]);
     }
-    const visitsOf = new Map                      ();
+    const visitsOf = new Map                                        ();
     for (const v of input.visits ?? []) {
       const p = profileOf(app, ids, fallback, v.p);
       if (!p) continue;
       const o = owner.get(p) ?? p;
-      visitsOf.set(o, [...(visitsOf.get(o) ?? []), v]);
+      visitsOf.set(o, [...(visitsOf.get(o) ?? []), { ...v, p }]);
     }
     for (const id of [...ids].sort()) {
       const scope = profileScope(id);
@@ -821,6 +845,8 @@ async function runCompanionCycle(input            )                       {
           ? [
               historyAdapter({
                 visits: visitsOf.get(id) ?? [],
+                profiles: [...ids].filter((p) => owner.get(p) === id).sort(),
+                state,
                 floors,
                 removed: (p, url) => {
                   const set = removals.get(p) ?? new Set        ();
@@ -874,7 +900,7 @@ async function runCompanionCycle(input            )                       {
     published,
     changed,
     pending,
-    saved: save(),
+    saved: save(published > 0 || changed > 0),
   };
   if (!retiring) {
     const view = buildView(c.scopes, device);
@@ -895,14 +921,17 @@ function companionView()       {
 }
 
 const scopeFor = (profile        ) => profileScope(dataOwner(loaded().scopes[APP], profile));
+const isLive = (profile        ) => liveProfiles(loaded().scopes[APP]).has(profile);
+const refused = { saved: false, refused: true }         ;
 
 function companionSend(input                                                                                ) {
   const c = loaded();
+  if (!isLive(input.profile)) return refused;
   const key = `send:${input.key}`;
   if (!c.sends.some((s) => s.key === key)) {
     c.sends.push({ scope: profileScope(input.profile), key, value: { u: input.u, t: input.t, to: input.to, from: c.device, at: input.at } });
   }
-  return { saved: save() };
+  return { saved: save(true) };
 }
 
 function companionAcknowledge(input                                               ) {
@@ -911,24 +940,26 @@ function companionAcknowledge(input                                             
     const scope = profileScope(profile);
     if (!c.acks.some((a) => a.scope === scope && a.key === key)) c.acks.push({ scope, key });
   }
-  return { saved: save() };
+  return { saved: save(true) };
 }
 
 function companionAddBookmark(input                                                                    ) {
   const c = loaded();
+  if (!isLive(input.profile)) return refused;
   const scope = scopeFor(input.profile);
   if (!c.bookmarks.some((o) => o.scope === scope && o.key === input.key)) {
     c.bookmarks.push({ scope, op: "add", key: input.key, value: { k: "u", p: "other", t: input.t, u: input.u, a: input.at } });
   }
-  return { saved: save() };
+  return { saved: save(true) };
 }
 
 function companionRemoveBookmark(input                                  ) {
   const c = loaded();
+  if (!isLive(input.profile)) return refused;
   const scope = scopeFor(input.profile);
   c.bookmarks = c.bookmarks.filter((o) => !(o.scope === scope && o.key === input.key));
   c.bookmarks.push({ scope, op: "remove", key: input.key });
-  return { saved: save() };
+  return { saved: save(true) };
 }
 
 });
@@ -1018,9 +1049,11 @@ function unionTimes(a          , b          )           {
 }
 
                               
-                       
+                                         
+                     
+                    
                                  
-                                                         
+                                                  
                        
   
 
@@ -1030,14 +1063,14 @@ function historyAdapter(ctx                )          {
     extract: (_base, _queued, now, _known, remote, stamp) => {
       if (!ctx.ready()) return null;
       const since = now - HISTORY_WINDOW_MS;
-      const byUrl = new Map                                                                                          ();
+      const byUrl = new Map                                                                                   ();
       for (const v of ctx.visits) {
         if (!isWebUrl(v.u) || !Array.isArray(v.vt)) continue;
         const entry = byUrl.get(v.u) ?? { title: "", times: [], profiles: new Set(), newest: 0 };
         const times = v.vt.filter((t) => Number.isFinite(t) && t >= since);
         if (!times.length) continue;
         entry.times.push(...times);
-        entry.profiles.add(v.p ?? null);
+        entry.profiles.add(v.p);
         const newest = Math.max(...times);
         if (newest >= entry.newest) {
           entry.newest = newest;
@@ -1078,7 +1111,17 @@ function historyAdapter(ctx                )          {
       return { values, ignore: (k) => !values.has(k) };
     },
     editedAt: (v) => lastVisitOf(v                ),
-    apply: () => true,
+    apply: (visible, changed, _base, records) => {
+      for (const key of changed) {
+        if (visible.has(key)) continue;
+        const url = key.slice(2);
+        const tombstone = ctx.state.records[key];
+        const deletedAt = tombstone ? hlcWall(tombstone.h) : records.now;
+        if (deletedAt > (ctx.floors[url] ?? -Infinity)) ctx.floors[url] = deletedAt;
+        for (const p of ctx.profiles) ctx.removed(p, url);
+      }
+      return true;
+    },
   };
 }
 
@@ -1225,6 +1268,7 @@ const MAX_HISTORY_ITEMS = 2_000;
                       
                      
                           
+                        
                                
                                                                      
                             
@@ -1311,6 +1355,14 @@ function deviceTabs(scope                        , me        , devices          
     out.push({ deviceId, deviceName: device.name || str(value.n) || "Unknown Device", kind: value.k ? kindOf(value.k) : device.kind, tabs });
   }
   return out.sort((a, z) => (devices.get(z.deviceId) .lastSeen ?? 0) - (devices.get(a.deviceId) .lastSeen ?? 0) || (a.deviceId < z.deviceId ? -1 : 1));
+}
+
+function sendTargets(scope                        , me        , devices                         )           {
+  if (!scope) return [];
+  return [...devices.values()]
+    .filter((d) => d.id !== me && d.canReceiveTabs && d.id in scope.seen)
+    .sort((a, z) => scope.seen[z.id]  - scope.seen[a.id]  || (a.id < z.id ? -1 : 1))
+    .map((d) => d.id);
 }
 
                                                                                                     
@@ -1549,6 +1601,7 @@ function buildView(scopes                            , me        )       {
       icon: optStr(p.i),
       isDefault: syncId === defaultId,
       theme: themeOf(app, syncId, p),
+      sendTargets: sendTargets(own, me, devices),
       deviceTabs: deviceTabs(own, me, devices),
       pinned: pinnedArea(own),
       bookmarks: bookmarkTree(data),

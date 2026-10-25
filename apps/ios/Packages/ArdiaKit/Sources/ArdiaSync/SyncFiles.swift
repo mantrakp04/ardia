@@ -10,6 +10,8 @@ struct SyncMeta: Codable, Equatable, Sendable {
   var lastSyncedAt: Date?
   var selectedProfileId: String?
   var outOfSync = false
+  var retiringDeviceId: String?
+  var visitsSyncedThrough: Date?
 
   static let defaultDeviceName = "iPhone"
 }
@@ -57,6 +59,7 @@ struct SyncFiles: Sendable {
   var stateURL: URL { directory.appendingPathComponent("sync-state.nns") }
   var journalURL: URL { directory.appendingPathComponent("sync-journal.nns") }
   var snapshotURL: URL { directory.appendingPathComponent("sync-snapshot.nns") }
+  var savedMarkerURL: URL { directory.appendingPathComponent("sync-state.saved") }
 
   static let stateFile = "state"
   static let journalFile = "journal"
@@ -72,9 +75,44 @@ struct SyncFiles: Sendable {
     try write(JSONEncoder().encode(meta), to: metaURL)
   }
 
+  enum SealedRead {
+    case missing
+    case opened(Data)
+    case unreadable
+    case failed
+  }
+
   func readSealed(_ url: URL, keys: SyncKeys, fileId: String) -> Data? {
-    guard let data = try? Data(contentsOf: url), !data.isEmpty else { return nil }
-    return try? keys.open(data, scopeTag: Self.localScope, fileId: fileId)
+    if case .opened(let data) = read(url, keys: keys, fileId: fileId) { return data }
+    return nil
+  }
+
+  func read(_ url: URL, keys: SyncKeys, fileId: String) -> SealedRead {
+    guard FileManager.default.fileExists(atPath: url.path) else { return .missing }
+    let data: Data
+    do {
+      data = try Data(contentsOf: url)
+    } catch {
+      return .failed
+    }
+    guard let plain = try? keys.open(data, scopeTag: Self.localScope, fileId: fileId) else { return .unreadable }
+    return .opened(plain)
+  }
+
+  var stateWasSaved: Bool { FileManager.default.fileExists(atPath: savedMarkerURL.path) }
+
+  func markStateSaved() {
+    guard !stateWasSaved else { return }
+    try? write(Data(), to: savedMarkerURL)
+  }
+
+  func setAside(_ reason: String) {
+    for url in [stateURL, journalURL] where FileManager.default.fileExists(atPath: url.path) {
+      let aside = directory.appendingPathComponent(url.deletingPathExtension().lastPathComponent + ".\(reason).nns")
+      try? FileManager.default.removeItem(at: aside)
+      try? FileManager.default.moveItem(at: url, to: aside)
+    }
+    for url in [snapshotURL, savedMarkerURL] { try? FileManager.default.removeItem(at: url) }
   }
 
   func writeSealed(_ payload: Data, to url: URL, keys: SyncKeys, fileId: String) throws {
@@ -97,6 +135,6 @@ struct SyncFiles: Sendable {
   }
 
   func removeSyncData() {
-    for url in [stateURL, journalURL, snapshotURL] { try? FileManager.default.removeItem(at: url) }
+    for url in [stateURL, journalURL, snapshotURL, savedMarkerURL] { try? FileManager.default.removeItem(at: url) }
   }
 }

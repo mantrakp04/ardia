@@ -42,7 +42,8 @@ import Testing
     _ = try seededMac(sandbox, entropy: entropy)
     let words = RecoveryPhrase.words(for: entropy)
     let folderBefore = sandbox.contents(sandbox.folder)
-    let service = service(sandbox, source: FakeSource())
+    let source = FakeSource()
+    let service = service(sandbox, source: source)
     var swapped = words
     swapped.swapAt(0, 1)
     if (try? RecoveryPhrase.entropy(from: swapped.joined(separator: " "))) != nil { swapped.swapAt(2, 5) }
@@ -136,7 +137,8 @@ import Testing
     defer { sandbox.remove() }
     let entropy = RecoveryPhrase.generateEntropy()
     let mac = try seededMac(sandbox, entropy: entropy)
-    let service = service(sandbox, source: FakeSource())
+    let source = FakeSource()
+    let service = service(sandbox, source: source)
     #expect(await service.connect(phrase: RecoveryPhrase.words(for: entropy).joined(separator: " "), folder: sandbox.folder) == .connected)
     await service.syncNow()
 
@@ -181,6 +183,7 @@ import Testing
     try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scopeFolder.path)
     #expect(sandbox.contents(sandbox.state).contains("sync-journal.nns"))
 
+    await first.close()
     let relaunched = service(sandbox, source: source)
     relaunched.start()
     await relaunched.syncNow()

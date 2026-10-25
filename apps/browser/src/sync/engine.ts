@@ -36,7 +36,7 @@ import {
   pinnedOrderAdapter,
   pinnedRowsAdapter,
   profilesAdapter,
-  receivesTabs,
+  offersTabs,
   SEND_PREFIX,
   sendableUrl,
   sentTabsAdapter,
@@ -515,7 +515,7 @@ function summarize(): Pick<SyncUi, "devices" | "remoteTabs" | "remoteProfiles"> 
     id,
     name: r.n,
     kind: deviceKindOf(r),
-    receivesTabs: receivesTabs(r),
+    receivesTabs: offersTabs(r, lastSeen.get(id), Date.now()),
     lastSeen: lastSeen.get(id) ?? null,
     current: id === doc.deviceId,
   }));
@@ -566,8 +566,10 @@ export function sendTargets(profileId: string): SendTarget[] {
   const app = doc.scopes[APP_SCOPE];
   const scope = link ? doc.scopes[`p:${link.syncId}`] : undefined;
   if (!doc.enabled || !doc.deviceId || !link?.enabled || link.retire || !app || !scope || useSync.getState().status === "locked") return [];
+  const now = Date.now();
+  const seenAt = (id: string) => Math.max(...Object.values(doc.scopes).map((s) => s.seen[id] ?? -Infinity));
   return [...deviceRecords(app)]
-    .filter(([id, record]) => id !== doc.deviceId && receivesTabs(record) && (deviceKindOf(record) === "phone" || id in scope.seen))
+    .filter(([id, record]) => id !== doc.deviceId && offersTabs(record, seenAt(id), now) && (deviceKindOf(record) === "phone" || id in scope.seen))
     .sort(([a], [b]) => (scope.seen[b] ?? app.seen[b] ?? 0) - (scope.seen[a] ?? app.seen[a] ?? 0))
     .map(([id, record]) => ({ id, name: record.n || "Unknown Device", kind: deviceKindOf(record) }));
 }

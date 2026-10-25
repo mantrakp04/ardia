@@ -5,15 +5,29 @@ import Foundation
 final class SyncHost {
   let files: SyncFiles
   let keys: SyncKeys
-  let vault: SyncVault
-  let grant: SyncFolderGrant
+  let coordination: SyncCoordination
+  private(set) var vault: SyncVault
+  private(set) var grant: SyncFolderGrant
   var journal = SyncJournal()
+  var timedOut = false
 
-  init(files: SyncFiles, keys: SyncKeys, vault: SyncVault, grant: SyncFolderGrant) {
+  init(files: SyncFiles, keys: SyncKeys, grant: SyncFolderGrant, coordination: SyncCoordination) {
     self.files = files
     self.keys = keys
-    self.vault = vault
+    self.coordination = coordination
     self.grant = grant
+    vault = Self.vault(grant.folder, keys: keys, coordination: coordination)
+  }
+
+  func use(_ grant: SyncFolderGrant) {
+    self.grant = grant
+    vault = Self.vault(grant.folder, keys: keys, coordination: coordination)
+  }
+
+  private static func vault(_ folder: URL, keys: SyncKeys, coordination: SyncCoordination) -> SyncVault {
+    let vault = SyncVault(folder: folder, keys: keys)
+    vault.coordination = coordination
+    return vault
   }
 
   struct HostError: Error, CustomStringConvertible {
@@ -43,7 +57,7 @@ final class SyncHost {
       try read(scope: argument(arguments, 0), known: decode([String].self, argument(arguments, 1)))
     }
     script.register("write") { [unowned self] arguments in
-      try vault.write(scope: argument(arguments, 0), payload: Data(argument(arguments, 1).utf8))
+      try timing { try vault.write(scope: argument(arguments, 0), payload: Data(argument(arguments, 1).utf8)) }
     }
     script.register("remove") { [unowned self] arguments in
       vault.remove(scope: try argument(arguments, 0), ids: try decode([String].self, argument(arguments, 1)))
@@ -58,19 +72,35 @@ final class SyncHost {
   }
 
   func chainStatus() -> String {
-    let folder = vault.folder
-    guard SyncFolderAccess.isDirectory(folder) else { return "unavailable" }
-    var exists = vault.chainExists()
-    if !exists {
-      _ = SyncFolderAccess.coordinatedListing(folder)
-      exists = vault.chainExists()
+    guard let names = SyncFolderAccess.coordinatedListing(vault.folder, coordination: coordination) else {
+      timedOut = true
+      return "unavailable"
     }
-    return exists ? "ok" : "missing"
+    if names.contains(vault.chainURL.lastPathComponent) { return "ok" }
+    return names.contains(where: { $0 != ".DS_Store" }) ? "missing" : "unavailable"
   }
 
   private func read(scope: String, known: [String]) throws -> String {
-    _ = SyncFolderAccess.coordinatedListing(vault.chainURL.appendingPathComponent(keys.scopeTag(scope), isDirectory: true))
-    return try Self.listingJSON(vault.read(scope: scope, skipping: Set(known)))
+    let folder = vault.chainURL.appendingPathComponent(keys.scopeTag(scope), isDirectory: true)
+    if SyncFolderAccess.isDirectory(folder), SyncFolderAccess.coordinatedListing(folder, coordination: coordination) == nil {
+      timedOut = true
+      throw SyncCoordination.TimedOut()
+    }
+    let listing = vault.read(scope: scope, skipping: Set(known))
+    if listing.timedOut {
+      timedOut = true
+      throw SyncCoordination.TimedOut()
+    }
+    return try Self.listingJSON(listing)
+  }
+
+  private func timing<T>(_ body: () throws -> T) throws -> T {
+    do {
+      return try body()
+    } catch let error as SyncCoordination.TimedOut {
+      timedOut = true
+      throw error
+    }
   }
 
   static func listingJSON(_ listing: SyncVault.Listing) throws -> String {
@@ -97,6 +127,7 @@ final class SyncHost {
     } catch {
       return "failed"
     }
+    files.markStateSaved()
     var next = journal
     next.prune(saved: seqs)
     if next != journal {
