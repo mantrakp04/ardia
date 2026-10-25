@@ -111,6 +111,7 @@ function Tuner({
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressed = useRef(false);
   const altDown = useRef(false);
+  const panActive = useRef(false);
   const reveal = (linger = 1200) => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
     hideTimer.current = null;
@@ -171,6 +172,12 @@ function Tuner({
   useEffect(() => {
     for (const id of offsets.keys()) if (!ids.includes(id)) offsets.delete(id);
   }, [ids, offsets]);
+
+  useEffect(() => {
+    if (!__DEV__) return;
+    devLifted.set(windowId, lifted);
+    return () => void devLifted.delete(windowId);
+  }, [lifted, windowId]);
 
   const setPosition = (value: number) => {
     position.setValue(value);
@@ -258,6 +265,10 @@ function Tuner({
     hideRef.current(900);
   };
 
+  const release = () => {
+    if (drag.mode === "reorder" && !panActive.current) finish(true);
+  };
+
   const api = useRef({ begin, move, finish });
   api.current = { begin, move, finish };
 
@@ -269,6 +280,7 @@ function Tuner({
         onMoveShouldSetPanResponderCapture: (_, gesture) => Math.abs(gesture.dx) > 3 || Math.abs(gesture.dy) > 3,
         onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: (event) => {
+          panActive.current = true;
           const alt = altDown.current || !!(event.nativeEvent as { altKey?: boolean }).altKey;
           revealRef.current(0);
           if (drag.mode !== "reorder" && alt) {
@@ -283,8 +295,14 @@ function Tuner({
           }
         },
         onPanResponderMove: (_, gesture) => api.current.move(gesture.dx, gesture.dy),
-        onPanResponderRelease: () => api.current.finish(true),
-        onPanResponderTerminate: () => api.current.finish(false),
+        onPanResponderRelease: () => {
+          panActive.current = false;
+          api.current.finish(true);
+        },
+        onPanResponderTerminate: () => {
+          panActive.current = false;
+          api.current.finish(false);
+        },
       }),
     [drag],
   );
@@ -338,6 +356,7 @@ function Tuner({
             room={room}
             offset={offsetOf(id)}
             onPress={() => press(id, i)}
+            onPressOut={release}
             onLongPress={() => hold(id)}
             onPressIn={(alt) => {
               altDown.current = alt;
@@ -387,6 +406,7 @@ function Slot({
   room,
   offset,
   onPress,
+  onPressOut,
   onLongPress,
   onPressIn,
   onMove,
@@ -403,6 +423,7 @@ function Slot({
   room: number;
   offset: Animated.Value;
   onPress(): void;
+  onPressOut(): void;
   onLongPress(): void;
   onPressIn(alt: boolean): void;
   onMove(delta: -1 | 1): void;
@@ -468,6 +489,7 @@ function Slot({
               else if (action === "moveRight") onMove(1);
             }}
             onPress={onPress}
+            onPressOut={onPressOut}
             onLongPress={onLongPress}
             onPressIn={(event) => onPressIn(!!(event.nativeEvent as { altKey?: boolean }).altKey)}
             delayLongPress={350}
@@ -549,6 +571,7 @@ async function openSlotMenu(windowId: string, id: string) {
 
 const devBands = new Map<string, RefObject<View | null>>();
 const devPositions = new Map<string, number>();
+const devLifted = new Map<string, string | null>();
 
 function devPosition(windowId: string, value: number) {
   if (__DEV__) devPositions.set(windowId, value);
@@ -569,6 +592,7 @@ if (__DEV__) {
         footer: PROFILE_SWITCHER_HEIGHT,
         bandTop: DIAL_BAND_TOP,
         glyphY: DIAL_GLYPH_Y,
+        lifted: devLifted.get(windowId) ?? null,
       };
     },
     rect: (windowId: string) =>

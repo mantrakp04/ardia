@@ -234,6 +234,20 @@ try {
     throw skip(`the injector delivers a drag after a 250 ms pause, but neither the 420 ms hold nor an option-drag with the same pause reordered (${probe.detail}); long-press reorder needs a real mouse`);
   });
 
+  await check("holding a glyph and releasing without a drag leaves nothing lifted", async () => {
+    const layout = await info();
+    const before = await current();
+    const at = await glyphPoint(layout.index);
+    await down(at);
+    await sleep(500);
+    await up(at);
+    await settle(500);
+    const after = await info();
+    assert.equal(after.lifted, null, `still lifted: ${after.lifted}`);
+    assert.equal(await current(), before, "the hold switched profile");
+    return `lifted ${after.lifted}, still on ${before}`;
+  });
+
   await check("the order survives a save", async () => {
     const expected = await order();
     await sleep(1400);
