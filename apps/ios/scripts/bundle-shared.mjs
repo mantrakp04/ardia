@@ -19,7 +19,8 @@ const BUNDLES = [
 const IMPORT = /^import\s+(?:type\s+)?(?:\{([^}]*)\}|\*\s+as\s+(\w+))\s+from\s+"([^"]+)";?[^\S\n]*$/gm;
 const EXPORT_FROM = /^export\s+(?:\*|\{([^}]*)\})\s+from\s+"([^"]+)";?[^\S\n]*$/gm;
 const EXPORT_DECL = /^export\s+(?:(async\s+)?function\*?|const|let|var|class)\s+([A-Za-z_$][\w$]*)/gm;
-const EXPORT_LIST = /^export\s+\{([^}]*)\};?[^\S\n]*$/gm;
+const TEMPLATE = /`(?:\\[\s\S]|\$\{[^{}`]*\}|[^`\\])*`/g;
+const EXPORT_LIST =/^export\s+\{([^}]*)\};?[^\S\n]*$/gm;
 
 const names = (list) =>
   list
@@ -36,7 +37,8 @@ function bundle({ entry, global }) {
   const visit = (path) => {
     if (modules.has(path)) return;
     const source = readFileSync(join(root, path), "utf8");
-    let code = stripTypeScriptTypes(source, { mode: "strip" });
+    const templates = [];
+    let code = stripTypeScriptTypes(source, { mode: "strip" }).replace(TEMPLATE, (literal) => `\u0000${templates.push(literal) - 1}\u0000`);
     const deps = [];
     const exported = [];
     const reexports = [];
@@ -68,6 +70,7 @@ function bundle({ entry, global }) {
     });
     if (/^export\s/m.test(code)) throw new Error(`${path}: an export form the bundler doesn't know`);
     if (/^import\s/m.test(code)) throw new Error(`${path}: an import form the bundler doesn't know`);
+    code = code.replace(/\u0000(\d+)\u0000/g, (_, index) => templates[Number(index)]);
     modules.set(path, { code, exported, reexports });
     deps.forEach(visit);
   };
