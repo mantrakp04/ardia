@@ -937,6 +937,7 @@ constexpr int64_t kLinkTabsBackstopSeconds = 300;
 static void CloseLinkTabs() {
   NSArray<ArdiaCoreTab *> *left = LinkTabs().allValues;
   [LinkTabs() removeAllObjects];
+  [LinkStarts() removeAllObjects];
   for (ArdiaCoreTab *tab in left) {
     [ArdiaCoreEarlyWindow dropPage:tab];
     CloseTab(tab);
@@ -1065,7 +1066,7 @@ static NSDictionary *ExternalLinkDecision(NSString *url) {
     }
     NSDictionary *started = nil;
     for (NSNumber *index in [LinkStarts().allKeys sortedArrayUsingSelector:@selector(compare:)]) {
-      if ([used containsObject:index] || ![LinkStarts()[index][@"url"] isEqualToString:url]) continue;
+      if ([used containsObject:index] || ![LinkStarts()[index][@"url"] isEqualToString:url] || !LinkTabs()[index]) continue;
       [used addObject:index];
       NSMutableDictionary *link = [LinkStarts()[index][@"decision"] mutableCopy];
       link[@"adoptId"] = [NSString stringWithFormat:@"link:%@", index];
