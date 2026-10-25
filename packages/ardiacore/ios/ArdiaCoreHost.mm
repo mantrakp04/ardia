@@ -159,13 +159,49 @@ static NSDictionary *SavedSession(NSString *dir) {
   return [session isKindOfClass:NSDictionary.class] ? session : nil;
 }
 
+static NSDictionary *SessionDefaultDestination(NSDictionary *settings, NSDictionary *routing) {
+  if ([routing[@"defaultDestination"] isKindOfClass:NSDictionary.class]) return routing[@"defaultDestination"];
+  return [settings[@"openLinksInLittleArdia"] isEqual:@NO] ? @{@"kind" : @"recent"} : @{@"kind" : @"little"};
+}
+
+static NSDictionary *SessionLinkRouting(NSDictionary *session) {
+  NSDictionary *settings = [session[@"settings"] isKindOfClass:NSDictionary.class] ? session[@"settings"] : @{};
+  NSDictionary *routing = [settings[@"linkRouting"] isKindOfClass:NSDictionary.class] ? settings[@"linkRouting"] : @{};
+  NSMutableDictionary<NSString *, NSString *> *profiles = [NSMutableDictionary dictionary];
+  NSDictionary *saved = [session[@"profiles"] isKindOfClass:NSDictionary.class] ? session[@"profiles"] : @{};
+  for (NSString *sidebar in saved) {
+    NSDictionary *profile = [saved[sidebar] isKindOfClass:NSDictionary.class] ? saved[sidebar] : nil;
+    if (!profile || ![sidebar isKindOfClass:NSString.class]) continue;
+    NSString *data = [profile[@"dataId"] isKindOfClass:NSString.class] ? profile[@"dataId"] : sidebar;
+    profiles[sidebar] = [data isEqualToString:@"default"] ? @"" : data;
+  }
+  return @{
+    @"rules" : [routing[@"rules"] isKindOfClass:NSArray.class] ? routing[@"rules"] : @[],
+    @"defaultDestination" : SessionDefaultDestination(settings, routing),
+    @"profiles" : profiles,
+    @"recent" : [session[@"linkProfileId"] isKindOfClass:NSString.class] ? session[@"linkProfileId"] : @"",
+  };
+}
+
+static NSString *SessionTabSidebar(NSDictionary *session, NSString *tabId) {
+  for (NSDictionary *tab in [session[@"tabs"] isKindOfClass:NSArray.class] ? session[@"tabs"] : @[])
+    if ([tab isKindOfClass:NSDictionary.class] && [tab[@"id"] isEqual:tabId] && [tab[@"profileId"] isKindOfClass:NSString.class])
+      return tab[@"profileId"];
+  return @"";
+}
+
+static void InstallSessionLinkRouting(NSDictionary *session) {
+  if ([ArdiaCoreEngine respondsToSelector:@selector(setLinkRouting:live:)]) [ArdiaCoreEngine setLinkRouting:SessionLinkRouting(session) live:NO];
+}
+
 static void ParkLaunchLinks(NSArray<NSURL *> *links, NSString *dir, NSDictionary *session) {
-  NSString *linkProfile = [session[@"linkProfile"] isKindOfClass:NSString.class] ? session[@"linkProfile"] : nil;
-  if (!links.count || !linkProfile || LaunchTabSwitchedOff(dir)) return;
+  if (!links.count) return;
+  InstallSessionLinkRouting(session);
+  if (LaunchTabSwitchedOff(dir)) return;
   NSMutableArray<NSString *> *urls = [NSMutableArray array];
   for (NSURL *link in links)
     if (!link.isFileURL && link.absoluteString.length) [urls addObject:link.absoluteString];
-  [ArdiaCoreWebView startLinkTabs:urls profile:linkProfile];
+  [ArdiaCoreWebView startLinkTabs:urls];
 }
 
 static void LinksArrived(NSArray<NSURL *> *urls) {
@@ -244,7 +280,7 @@ static void StartLaunchTab() {
   if (![hint isKindOfClass:NSDictionary.class]) return;
   NSString *key = hint[@"id"], *url = hint[@"url"], *profile = hint[@"profile"];
   if (![key isKindOfClass:NSString.class] || ![url isKindOfClass:NSString.class] || ![profile isKindOfClass:NSString.class]) return;
-  [ArdiaCoreWebView startLaunchTab:key url:url profile:profile];
+  [ArdiaCoreWebView startLaunchTab:key url:url profile:profile sidebar:SessionTabSidebar(session, key)];
   if (ArdiaCoreTab *tab = ArdiaCoreWebView.launchTab) [ArdiaCoreEarlyWindow attachPage:tab key:key];
 }
 
@@ -288,11 +324,11 @@ static void TryEarlyWindow() {
   if (!(spare && !strcmp(spare, "off")) && [loaded respondsToSelector:@selector(warmSpareRenderer)]) [loaded warmSpareRenderer];
   const char *windowFirst = getenv("ARDIA_EARLY_WINDOW_FIRST");
   if (windowFirst && !strcmp(windowFirst, "off")) {
-    [ArdiaCoreWebView startLaunchTab:key url:url profile:profile];
+    [ArdiaCoreWebView startLaunchTab:key url:url profile:profile sidebar:SessionTabSidebar(session, key)];
     if (![ArdiaCoreEarlyWindow showWindow:focused frame:window[@"frame"] key:key profile:profile backdrop:backdrop]) return;
   } else {
     const BOOL shown = [ArdiaCoreEarlyWindow showWindow:focused frame:window[@"frame"] key:key profile:profile backdrop:backdrop];
-    [ArdiaCoreWebView startLaunchTab:key url:url profile:profile];
+    [ArdiaCoreWebView startLaunchTab:key url:url profile:profile sidebar:SessionTabSidebar(session, key)];
     if (!shown) return;
   }
   if (ArdiaCoreTab *tab = ArdiaCoreWebView.launchTab) [ArdiaCoreEarlyWindow attachPage:tab key:key];
@@ -338,8 +374,11 @@ static void TryEarlyLittleWindow() {
   if (gLaunchedHidden || NSApp.isHidden || LaunchTabSwitchedOff(dir) || OnboardingPending(dir)) return;
   NSDictionary *session = SavedSession(dir);
   NSDictionary *settings = [session[@"settings"] isKindOfClass:NSDictionary.class] ? session[@"settings"] : @{};
-  if ([settings[@"openLinksInLittleArdia"] isEqual:@NO]) return;
-  NSString *profile = [session[@"linkProfile"] isKindOfClass:NSString.class] ? session[@"linkProfile"] : nil;
+  InstallSessionLinkRouting(session);
+  if (![ArdiaCoreEngine respondsToSelector:@selector(routeLink:origin:profile:)]) return;
+  NSDictionary *decision = [ArdiaCoreEngine routeLink:link.absoluteString origin:@"external" profile:@""];
+  if (![decision[@"action"] isEqual:@"little"]) return;
+  NSString *profile = [decision[@"engine"] isKindOfClass:NSString.class] ? decision[@"engine"] : nil;
   NSDictionary *backdrop = [session[@"launchBackdrop"] isKindOfClass:NSDictionary.class] ? session[@"launchBackdrop"] : nil;
   const bool dark = [[NSApp.effectiveAppearance bestMatchFromAppearancesWithNames:@[ NSAppearanceNameDarkAqua, NSAppearanceNameAqua ]]
       isEqualToString:NSAppearanceNameDarkAqua];
@@ -348,9 +387,9 @@ static void TryEarlyLittleWindow() {
   NSArray<NSNumber *> *frame = LittleArdiaFrame(settings[@"littleArdiaSize"]);
   if (!frame) return;
   NSString *url = link.absoluteString;
-  [ArdiaCoreWebView startLinkTabs:@[ url ] profile:profile];
+  [ArdiaCoreWebView startLinkTabs:@[ url ]];
   ArdiaCoreTab *tab = ArdiaCoreWebView.firstLinkTab;
-  NSString *mark = tab ? [ArdiaCoreWebView linkMarkForTab:tab] : nil;
+  NSString *mark = tab && [[ArdiaCoreWebView linkDecisionForTab:tab][@"action"] isEqual:@"little"] ? [ArdiaCoreWebView linkMarkForTab:tab] : nil;
   NSString *focused = [session[@"focusedWindowId"] isKindOfClass:NSString.class] ? session[@"focusedWindowId"] : nil;
   if (mark) [ArdiaCoreEarlyWindow showLittleWindowForLink:tab mark:mark url:url frame:frame profile:profile backdrop:backdrop like:focused];
 }
@@ -445,6 +484,11 @@ static void StartEarlyWindow() {
 - (void)engineQuitCancelled {
   NSLog(@"[ardiacore] quit cancelled");
   [NSNotificationCenter.defaultCenter postNotificationName:@"ArdiaCoreQuitCancelled" object:nil];
+}
+
+- (void)engine:(ArdiaCoreEngine *)engine loadLinkProfile:(NSString *)name completion:(void (^)(ArdiaCoreProfile *))completion {
+  if (ardiacore_host::IsIncognito(name) || ardiacore_host::IsDeletedProfile(name)) return completion(nil);
+  ardiacore_host::WithProfile(name, completion);
 }
 
 - (void)engine:(ArdiaCoreEngine *)engine permissionRequest:(NSDictionary *)request tab:(ArdiaCoreTab *)tab {

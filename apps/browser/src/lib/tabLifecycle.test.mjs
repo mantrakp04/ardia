@@ -155,6 +155,22 @@ test("Battery Saver's old switch: a choice and any off are kept, the old default
   assert.equal(hydrated({ batterySaverWhen: "never", chosen: ["batterySaverWhen"] }).batterySaverWhen, "never");
 });
 
+test("the old switch for links from other apps: a new tab moves to Most Recent, Little Ardia stays the default", () => {
+  const hydrated = (settings) => (S().hydrate({ settings }), S().settings);
+  const tab = hydrated({ openLinksInLittleArdia: false, showFullUrl: true, chosen: ["openLinksInLittleArdia", "showFullUrl"], inferred: [] });
+  assert.deepEqual(tab.linkRouting, { rules: [], defaultDestination: { kind: "recent" } });
+  assert.deepEqual([...tab.chosen].sort(), ["linkRouting", "showFullUrl"]);
+  assert.equal("openLinksInLittleArdia" in tab, false);
+  const little = hydrated({ openLinksInLittleArdia: true, chosen: ["openLinksInLittleArdia"], inferred: [] });
+  assert.deepEqual(little.linkRouting.defaultDestination, { kind: "little" });
+  assert.deepEqual(little.chosen, []);
+  const legacy = hydrated({ openLinksInLittleArdia: false });
+  assert.deepEqual(legacy.linkRouting.defaultDestination, { kind: "recent" }, "legacy save turned off");
+  assert.ok(legacy.chosen.includes("linkRouting"), "legacy save turned off");
+  const saved = { rules: [], defaultDestination: { kind: "little" } };
+  assert.deepEqual(hydrated({ openLinksInLittleArdia: false, linkRouting: saved }).linkRouting.defaultDestination, { kind: "little" }, "saved routing wins");
+});
+
 test("a recent pin queued for warming at launch stays closed when the user closes it before its turn", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   S().hydrate({});

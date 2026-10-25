@@ -3,6 +3,7 @@ import { createBookmarksSlice, ensureRoots, type BookmarksSlice } from "./bookma
 import { changedIds } from "./changes";
 import { createGroupsSlice, settleNesting, type GroupsSlice } from "./groups";
 import { createHistorySlice, type HistorySlice } from "./history";
+import { normalizeLinkRouting } from "./linkRouting";
 import { IDLE_LIVE, isIncognitoProfile, pinnedFirst } from "./model";
 import { createOrganizeSlice, forgetClosedPrivateWindows, keptCleanedTabs, keptDeletedGroups, livePinTable, notePinChoices, type OrganizeSlice } from "./organize";
 import { createPeekSlice, settlePeeks, type PeekSlice } from "./peek";
@@ -104,7 +105,7 @@ export const useBrowser = create<BrowserState>()(transactions.middleware(batched
     ];
     const saved = migrateSavedSettings(data.settings);
     const legacy = saved && !saved.chosen ? Object.keys(saved) : null;
-    const settings = { ...DEFAULT_SETTINGS, ...saved, chosen: legacy ?? saved?.chosen ?? [], inferred: legacy ?? saved?.inferred ?? [] };
+    const settings = { ...DEFAULT_SETTINGS, ...saved, linkRouting: normalizeLinkRouting(saved?.linkRouting), chosen: legacy ?? saved?.chosen ?? [], inferred: legacy ?? saved?.inferred ?? [] };
     if (!profiles[settings.defaultProfileId]) settings.defaultProfileId = profileOrder[0]!;
 
     notePinChoices(data.pinChoices ?? {});
@@ -113,7 +114,7 @@ export const useBrowser = create<BrowserState>()(transactions.middleware(batched
     const tabs: Record<string, Tab> = {};
     for (const t of Object.values(data.tabs ?? {})) {
       if (!rawWindows[t.windowId] || !profileOk(t.profileId)) continue;
-      const { adoptId: _, pageIn: _held, ...rest } = t;
+      const { adoptId: _, requiresAdoption: _required, pageIn: _held, ...rest } = t;
       const { pinnedAsRow, tileFolder, ...kept } = rest;
       tabs[t.id] = {
         ...kept,

@@ -69,6 +69,7 @@ export type Tab = {
   tileFolder?: TileFolder;
   navigation: { url: string; seq: number; userInitiated?: boolean } | null;
   adoptId?: string;
+  requiresAdoption?: true;
   openerId: string | null;
   wakeAdoptId?: string;
   liveItem?: { folderId: string; itemId: string };

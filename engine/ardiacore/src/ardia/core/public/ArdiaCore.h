@@ -45,6 +45,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)engine:(ArdiaCoreEngine*)engine
     castRoutes:(NSArray<NSDictionary<NSString*, NSString*>*>*)routes
        profile:(ArdiaCoreProfile*)profile;
+- (void)engine:(ArdiaCoreEngine*)engine
+    loadLinkProfile:(NSString*)name
+         completion:(void (^)(ArdiaCoreProfile* _Nullable profile))completion;
 @end
 
 ARDIACORE_EXPORT
@@ -69,6 +72,10 @@ ARDIACORE_EXPORT
 + (void)terminateCastRoute:(NSString*)routeId;
 + (void)setAutoPictureInPicture:(BOOL)enabled;
 + (void)setVideoUpscaling:(BOOL)enabled;
++ (void)setLinkRouting:(NSDictionary<NSString*, id>*)config live:(BOOL)live;
++ (nullable NSDictionary<NSString*, id>*)routeLink:(NSString*)url
+                                            origin:(NSString*)origin
+                                           profile:(NSString*)profileId;
 + (void)setVideoUpscalingTestConditions:(NSDictionary<NSString*, NSNumber*>*)conditions;
 @property(class, readonly) NSDictionary<NSString*, id>* videoUpscalingState;
 + (void)reservedShortcutsChanged;
@@ -184,6 +191,14 @@ ARDIACORE_EXPORT
 
 - (void)prepareProfile:(ArdiaCoreProfile*)profile;
 - (void)adoptTab:(ArdiaCoreTab*)tab;
+- (nullable ArdiaCoreTab*)openTab:(NSString*)url
+                       profile:(ArdiaCoreProfile*)profile
+                    foreground:(BOOL)foreground
+                       sidebar:(NSString*)sidebar;
+- (nullable ArdiaCoreTab*)restoreTab:(nullable NSString*)state
+                          profile:(ArdiaCoreProfile*)profile
+                       foreground:(BOOL)foreground
+                          sidebar:(NSString*)sidebar;
 - (nullable ArdiaCoreTab*)restoreTab:(nullable NSString*)state
                           profile:(ArdiaCoreProfile*)profile
                        foreground:(BOOL)foreground;
@@ -295,6 +310,8 @@ ARDIACORE_EXPORT
 + (nullable NSString*)originForURL:(NSString*)url;
 @property(readonly) BOOL initialDocumentAccessed;
 @property(readonly) BOOL committedInitial;
+@property(nonatomic, copy) NSString* sidebarProfile;
+- (nullable NSDictionary<NSString*, id>*)takeRoutedPlacement;
 - (nullable id)suppressInput;
 - (void)loadURL:(NSString*)url userInitiated:(BOOL)userInitiated;
 - (void)goToOffset:(int)offset;

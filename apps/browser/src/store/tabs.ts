@@ -35,6 +35,7 @@ export type NewTabOptions = {
   url?: string;
   background?: boolean;
   adoptId?: string;
+  requiresAdoption?: boolean;
   openerId?: string;
   profileId?: string;
   pinned?: boolean;
@@ -215,7 +216,7 @@ export function unloadPinnedTabs(s: BrowserState, requested: string[]): BrowserS
     }
     const back = backToPin(s, t);
     const pending = !back.url && pendingRestore(t) ? t.wakeAdoptId : undefined;
-    tabs[id] = { ...t, ...back, navigation: null, adoptId: undefined, wakeAdoptId: pending, unloaded: true, pageIn: undefined };
+    tabs[id] = { ...t, ...back, navigation: null, adoptId: undefined, requiresAdoption: undefined, wakeAdoptId: pending, unloaded: true, pageIn: undefined };
     live[id] = IDLE_LIVE;
   }
   let next: BrowserState = {
@@ -277,8 +278,9 @@ export function withNewTab(s: BrowserState, windowId: string, o: NewTabOptions =
   if (tab.navigation && !o.snapshot) tab.navigation = navigationTo(url, true);
   tab.openerId = o.openerId ?? null;
   tab.pinnedUrl = tab.pinned ? tab.pinnedUrl || url || null : null;
-  if (o.adoptId) {
-    tab.adoptId = o.adoptId;
+  if (o.requiresAdoption) tab.requiresAdoption = true;
+  if (o.adoptId || o.requiresAdoption) {
+    if (o.adoptId) tab.adoptId = o.adoptId;
     tab.navigation = null;
   } else if (o.wakeAdoptId) {
     tab.wakeAdoptId = o.wakeAdoptId;
@@ -314,12 +316,12 @@ export const createTabsSlice: StateCreator<BrowserState, [], [], TabsSlice> = (s
       const profileId = options?.profileId ?? small.profileId;
       const main = mainWindowFor(get(), profileId);
       if (!main) {
-        const created = get().createWindow({ profileId, url: options?.url, adoptId: options?.adoptId ?? options?.wakeAdoptId, background: options?.background });
+        const created = get().createWindow({ profileId, url: options?.url, adoptId: options?.adoptId ?? options?.wakeAdoptId, requiresAdoption: options?.requiresAdoption, background: options?.background });
         return activeTabId(get(), created) ?? "";
       }
       return get().newTab(main, { ...options, profileId, index: undefined });
     }
-    if (options?.url && !options.adoptId && openOutsideTab(resolveInput(fromLegacyUrl(options.url.trim()), searchUrlPrefix(get().settings)), windowId)) return "";
+    if (options?.url && !options.adoptId && !options.requiresAdoption && openOutsideTab(resolveInput(fromLegacyUrl(options.url.trim()), searchUrlPrefix(get().settings)), windowId)) return "";
     const beside = options?.newTabCommand && !options.openerId ? nextToActive(get(), windowId, options.profileId) : undefined;
     let [next, id] = withNewTab(get(), windowId, beside ? { ...options, ...beside } : options);
     const typed = beside && next.tabs[id]?.navigation;

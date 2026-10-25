@@ -52,6 +52,7 @@
 #include "ardia/core/ac_lifetime.h"
 #include "ardia/core/ac_context_menu.h"
 #include "ardia/core/ac_navigation_hold.h"
+#include "ardia/core/ac_navigation_routing.h"
 #include "ardia/core/ac_page_channel.h"
 #include "ardia/core/ac_safe_storage.h"
 #include "ardia/core/ac_seams.h"
@@ -241,6 +242,7 @@ class ACContentBrowserClient : public ChromeContentBrowserClient {
   }
   std::unique_ptr<content::WebContentsViewDelegate> GetWebContentsViewDelegate(
       content::WebContents* web_contents) override {
+    ClaimCreationSeed(web_contents);
     return CreateViewDelegate(web_contents);
   }
   void CreateThrottlesForNavigation(
@@ -248,6 +250,7 @@ class ACContentBrowserClient : public ChromeContentBrowserClient {
     ChromeContentBrowserClient::CreateThrottlesForNavigation(registry);
     AddAppSchemeThrottle(registry);
     MaybeAddNavigationHoldThrottle(registry);
+    AddRedirectRouteThrottle(registry);
     ardia::AddScriptsPagesThrottle(registry);
   }
   std::optional<base::TimeDelta> GetSpareRendererDelayForSiteURL(

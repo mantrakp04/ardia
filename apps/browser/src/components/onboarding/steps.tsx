@@ -11,6 +11,7 @@ import {
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useBrowser } from "../../store/browser";
+import { LITTLE_DESTINATION, opensExternalLinksInLittle, RECENT_DESTINATION, withDefaultDestination } from "../../store/linkRouting";
 import { Favicon, useHover } from "../primitives";
 import { CONTENT_WIDTH, ChoiceList, useMockFocus, type ChoiceOption } from "./choices";
 import { MockPanel, useScreen } from "./screen";
@@ -191,9 +192,9 @@ function DefaultBrowserQuestion() {
 }
 
 function LinksQuestion() {
-  const { values, mock } = useScreen(["openLinksInLittleArdia"]);
+  const { values, mock } = useScreen(["linkRouting"]);
   const focus = useMockFocus("links");
-  const little = values.openLinksInLittleArdia;
+  const little = opensExternalLinksInLittle(values.linkRouting);
   return (
     <StepLayout
       pageKey="links"
@@ -202,14 +203,14 @@ function LinksQuestion() {
       actions={
         <StepActions
           onContinue={() =>
-            useOnboarding.getState().confirm("links", { openLinksInLittleArdia: little }, [little ? "Links from other apps open in Little Ardia" : "Links from other apps open in a tab"])
+            useOnboarding.getState().confirm("links", { linkRouting: values.linkRouting }, [little ? "Links from other apps open in Little Ardia" : "Links from other apps open in a tab"])
           }
           onSkip={() => useOnboarding.getState().skip()}
         />
       }
       preview={<MockPanel settings={mock} focus={focus.focus} />}
     >
-      <ChoiceList options={LINK_CHOICES} value={little} onChange={(v) => useOnboarding.getState().setDraft({ openLinksInLittleArdia: v })} mock={focus} />
+      <ChoiceList options={LINK_CHOICES} value={little} onChange={(v) => useOnboarding.getState().setDraft({ linkRouting: withDefaultDestination(values.linkRouting, v ? LITTLE_DESTINATION : RECENT_DESTINATION) })} mock={focus} />
     </StepLayout>
   );
 }

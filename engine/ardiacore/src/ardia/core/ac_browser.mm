@@ -609,6 +609,24 @@ void WindowHost::BrowserWindowDestroyed(ACBrowserWindow* window) {
 }
 
 namespace {
+NSDictionary* PopupFeatures(const blink::mojom::WindowFeatures& window_features) {
+  NSMutableDictionary* features = [NSMutableDictionary dictionary];
+  const gfx::Rect& bounds = window_features.bounds;
+  if (window_features.has_x) {
+    features[@"x"] = @(bounds.x());
+  }
+  if (window_features.has_y) {
+    features[@"y"] = @(bounds.y());
+  }
+  if (window_features.has_width) {
+    features[@"width"] = @(bounds.width());
+  }
+  if (window_features.has_height) {
+    features[@"height"] = @(bounds.height());
+  }
+  return features;
+}
+
 int g_tab_strip_notifying = 0;
 int g_navigation_notifying = 0;
 }
@@ -698,6 +716,14 @@ void WindowHost::OnTabStripModelChanged(
         disposition = pending_open_.disposition;
         source = pending_open_.source.get();
         bridge->set_open(*disposition, source);
+      }
+      if ((pending_open_.placement || !pending_open_.sidebar.empty()) &&
+          pending_open_.seed_context == inserted.contents->GetBrowserContext()) {
+        ClaimCreationSeed(inserted.contents);
+      }
+      if (std::optional<blink::mojom::WindowFeatures> features =
+              RoutedPopupFeatures(inserted.contents)) {
+        bridge->set_popup_features(PopupFeatures(*features));
       }
       if (!source) {
         tabs::TabInterface* opener_tab =
@@ -978,6 +1004,9 @@ content::WebContents* ACWebContentsDelegate::OpenURLFromTab(
     return nullptr;
   }
   WindowHost* host = host_.get();
+  if (RouteOpenURL(host, source, params, &navigation_handle_callback)) {
+    return nullptr;
+  }
   if (!host || !IsNewTabDisposition(params.disposition)) {
     return BrowserWebContentsDelegate::OpenURLFromTab(
         source, params, std::move(navigation_handle_callback));
@@ -1010,23 +1039,12 @@ content::WebContents* ACWebContentsDelegate::AddNewContents(
   }
   if (host_ && new_contents) {
     TabBridge* bridge = TabBridge::GetOrCreate(new_contents.get());
+    if (std::optional<WindowOpenDisposition> routed = RoutedDisposition(new_contents.get())) {
+      disposition = *routed;
+    }
     bridge->set_open(disposition, source);
     if (disposition == WindowOpenDisposition::NEW_POPUP) {
-      NSMutableDictionary* features = [NSMutableDictionary dictionary];
-      const gfx::Rect& bounds = window_features.bounds;
-      if (window_features.has_x) {
-        features[@"x"] = @(bounds.x());
-      }
-      if (window_features.has_y) {
-        features[@"y"] = @(bounds.y());
-      }
-      if (window_features.has_width) {
-        features[@"width"] = @(bounds.width());
-      }
-      if (window_features.has_height) {
-        features[@"height"] = @(bounds.height());
-      }
-      bridge->set_popup_features(features);
+      bridge->set_popup_features(PopupFeatures(window_features));
     }
     if (IsWindowDisposition(disposition)) {
       disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;

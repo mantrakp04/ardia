@@ -44,6 +44,8 @@ export type OpenWindowRequest = {
   url: string;
   disposition: OpenDisposition;
   adoptId?: string;
+  requiresAdoption?: boolean;
+  placement?: { profileId: string; engine: string; action: "tab" | "little" };
   userGesture?: boolean;
   postBody?: boolean;
   profile?: string;
@@ -146,7 +148,9 @@ export type WebViewProps = ViewProps & {
   engine?: PageEngine;
   url?: string;
   profile?: string;
+  sidebarProfile?: string;
   adoptId?: string;
+  requiresAdoption?: boolean;
   transferKey?: string;
   temporary?: boolean;
   temporarySource?: string;
