@@ -17,9 +17,9 @@ public enum ArcKeyBindings {
 
   public static func parse(_ data: Data) -> [ImportedShortcut] {
     guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-      let overrides = root["userOverrides"] as? [[String: Any]]
+      let overrides = root["userOverrides"] as? [Any]
     else { return [] }
-    return overrides.compactMap { entry in
+    return overrides.compactMap { $0 as? [String: Any] }.compactMap { entry in
       guard let action = (entry["action"] as? [String: Any])?["identifier"] as? String,
         let valid = ((entry["state"] as? [String: Any])?["valid"] as? [String: Any])?["_0"] as? [String: Any],
         let key = valid["keyEquivalent"] as? String, !key.isEmpty,

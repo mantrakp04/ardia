@@ -18,6 +18,17 @@ final class ArcKeyBindingsTests: XCTestCase {
     ])
   }
 
+  func testAMalformedEntryIsSkippedAndTheRestStillCome() {
+    let json = """
+    {"userOverrides":[
+      null,
+      "junk",
+      {"action":{"identifier":"newTab"},"state":{"valid":{"_0":{"keyEquivalent":"t","deviceIndependentModifierFlags":1048576}}}}
+    ]}
+    """
+    XCTAssertEqual(ArcKeyBindings.parse(Data(json.utf8)), [ImportedShortcut(action: "newTab", key: "t", modifiers: ["command"])])
+  }
+
   func testMalformedDataGivesNothing() {
     XCTAssertEqual(ArcKeyBindings.parse(Data("[]".utf8)), [])
     XCTAssertEqual(ArcKeyBindings.parse(Data("{".utf8)), [])
