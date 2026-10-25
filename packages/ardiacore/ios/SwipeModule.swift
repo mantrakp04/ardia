@@ -335,7 +335,7 @@ final class ACPager {
     stopSpring()
     let home = selected
     let x = position
-    let lo = max(floor(from: home), min(home - 1, Int(x.rounded(.down))))
+    let lo = max(floor(from: home, area: area), min(home - 1, Int(x.rounded(.down))))
     let hi = min(count - 1, max(home + 1, Int(x.rounded(.up))))
     drag = Drag(start: x, lo: lo, hi: hi, home: home, detent: min(max(Int(x.rounded()), lo), hi), area: area)
     history = []
@@ -385,13 +385,13 @@ final class ACPager {
     if !cancelled {
       let flick = abs(v * width) >= flickVelocity
       target = !flick ? Int(position.rounded()) : v > 0 ? Int(position.rounded(.down)) + 1 : Int(position.rounded(.up)) - 1
-      target = max(floor(from: home), home - 1, min(count - 1, home + 1, target))
+      target = max(floor(from: home, area: area), home - 1, min(count - 1, home + 1, target))
     }
     settle(to: target, velocity: towards(target, v), from: area)
   }
 
-  private func floor(from home: Int) -> Int {
-    leading && home == 0 ? -1 : 0
+  private func floor(from home: Int, area: SwipeArea?) -> Int {
+    leading && home == 0 && area?.canSwipeBack == true ? -1 : 0
   }
 
   private func towards(_ target: Int, _ v: Double) -> Double {
