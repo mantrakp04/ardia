@@ -7,7 +7,8 @@ import { calendarConnected, connectCalendar, setCalendarHidden, useCalendar } fr
 import { deleteLiveFolder, manualRefresh, newLiveFolder, openLiveItem, refreshFolder, statusText } from "../live/engine";
 import { ALERT_LEADS, nowBadgeEvent } from "../live/meetings";
 import { SOURCES } from "../live/sources";
-import { dismissNowBadge, hideItems, live, markRead, markUnread, setRepoHidden, updateCalendarSettings, updateFolder } from "../live/store";
+import { repoKey } from "../live/rows";
+import { dismissNowBadge, hideItems, live, markRead, markUnread, setRepoHidden, showAllRepos, updateCalendarSettings, updateFolder } from "../live/store";
 import type { LiveItem, LiveSourceId } from "../live/types";
 import { useBrowser } from "../browser/store";
 import { openSettings } from "../settings/settingsWindows";
@@ -57,8 +58,13 @@ export function liveFolderMenuItems(windowId: string, folderId: string): MenuIte
   const { canMoveUp, canMoveDown } = folderPlace(windowId, folderId);
   const pr = folder.kind === "pullRequests";
   const hiddenRepos = new Set(folder.hiddenRepos);
-  const listed = [...(s.items[folderId] ?? []), ...(s.hidden[folderId] ?? [])].flatMap((it) => (it.pr ? [it.pr.repo] : []));
-  const repos = [...new Set([...listed, ...hiddenRepos])].sort((a, b) => a.localeCompare(b));
+  const listed = [...(s.items[folderId] ?? []), ...(s.hidden[folderId] ?? [])].flatMap((it) => repoKey(it) ?? []);
+  const repos = [...new Set([...listed, ...hiddenRepos])].map((key) => {
+    const [source, name] = key.split(/:(.*)/) as [LiveSourceId, string];
+    return { key, source, name };
+  });
+  const oneSource = new Set(repos.map((r) => r.source)).size <= 1;
+  repos.sort((a, b) => a.name.localeCompare(b.name) || a.source.localeCompare(b.source));
   return sections(
     [
       { id: "status", title: statusText(folderId), enabled: false },
@@ -75,7 +81,7 @@ export function liveFolderMenuItems(windowId: string, folderId: string): MenuIte
             enabled: repos.length > 0,
             children: sections(
               [{ id: "repos:all", title: "Show All Repositories", enabled: hiddenRepos.size > 0 }],
-              repos.map((repo) => ({ id: `repo:${repo}`, title: repo, checked: !hiddenRepos.has(repo) })),
+              repos.map((r) => ({ id: `repo:${r.key}`, title: oneSource ? r.name : `${r.name} (${SOURCES[r.source].name})`, checked: !hiddenRepos.has(r.key) })),
             ),
           },
         ]
@@ -120,7 +126,7 @@ export async function openLiveFolderMenu(windowId: string, folderId: string) {
   if (choice === "refresh") void manualRefresh(folderId);
   else if (option) updateFolder(folderId, { [option]: !folder[option] });
   else if (choice === "repos:all") {
-    updateFolder(folderId, { hiddenRepos: [] });
+    showAllRepos(folderId);
     void refreshFolder(folderId);
   } else if (choice.startsWith("repo:")) {
     const repo = choice.slice(5);
