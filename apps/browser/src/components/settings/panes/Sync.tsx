@@ -16,6 +16,7 @@ import {
   setTypeSynced,
   syncNow,
   turnOnSync,
+  unlockPasswordSync,
   useSync,
   type SyncStatus,
 } from "../../../sync/engine";
@@ -74,8 +75,9 @@ function SyncOff({ info }: { info: FolderInfo | null }) {
     setFailure(null);
     const result = await turnOnSync(info.path);
     setBusy(false);
-    if ("error" in result) setFailure(result.error);
-    else showRecoveryKit();
+    if ("error" in result) return setFailure(result.error);
+    if (useSync.getState().types.passwords) await unlockPasswordSync();
+    showRecoveryKit();
   };
   const enterPhrase = () => showPhraseEntry(info, () => void chooseSyncFolder().then(() => folderInfo().then((i) => showPhraseEntry(i))));
   const otherOptions = async () => {
@@ -166,6 +168,9 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
   const links = useSync((s) => s.profiles);
   const devices = useSync((s) => s.devices);
   const remoteProfiles = useSync((s) => s.remoteProfiles);
+  const passwordsLocked = useSync((s) => s.passwordsLocked);
+  const [passwordsRefused, setPasswordsRefused] = useState(false);
+  const [notCopied, setNotCopied] = useState(false);
   const profiles = useProfiles();
   const allProfiles = useBrowser((s) => s.profiles);
   const [, tick] = useState(0);
@@ -185,10 +190,22 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
       { id: "stop", title: "Stop Syncing…", symbol: "xmark.circle" },
     ]);
     if (choice === "kit") showRecoveryKit();
-    else if (choice === "copy") await SyncNative?.copyRecoveryPhrase();
-    else if (choice === "now") await syncNow();
+    else if (choice === "copy") {
+      setNotCopied((await SyncNative?.copyRecoveryPhrase()) === false);
+      void SyncNative?.lockRecoveryPhrase();
+    } else if (choice === "now") await syncNow();
     else if (choice === "reveal" && info) await SyncNative?.revealFolder(info.path);
     else if (choice === "stop") showStopSync();
+  };
+
+  const unlockPasswords = async () => {
+    const unlocked = await unlockPasswordSync();
+    setPasswordsRefused(!unlocked);
+    return unlocked;
+  };
+  const setSynced = async (type: (typeof DATA_TYPES)[number]["id"], on: boolean) => {
+    if (type === "passwords" && on && passwordsLocked && !(await unlockPasswords())) return;
+    setTypeSynced(type, on);
   };
 
   const locked = status === "locked";
@@ -205,6 +222,12 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
         </Row>
         <Row anchor="sync.folder" description={info ? folderLabel(info) : " "} />
       </Group>
+      {notCopied ? (
+        <View style={{ flexDirection: "row", gap: 6, marginTop: 8, paddingHorizontal: 2 }}>
+          <Symbol name="exclamationmark.circle.fill" size={11} color={colors.destructive} style={{ width: 14, height: 15 }} />
+          <Text style={{ flex: 1, fontSize: 11.5, lineHeight: 15, color: theme.textSecondary }}>Recovery code not copied: Ardia couldn’t confirm it’s you.</Text>
+        </View>
+      ) : null}
       {error && status !== "updated" ? (
         <View style={{ flexDirection: "row", gap: 6, marginTop: 8, paddingHorizontal: 2 }}>
           <Symbol name="exclamationmark.circle.fill" size={11} color={colors.destructive} style={{ width: 14, height: 15 }} />
@@ -237,12 +260,22 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
 
       <SectionHeader title="What Syncs" />
       <Group>
-        {DATA_TYPES.map((t) => (
-          <Row key={t.id} title={t.title} description={t.description}>
-            <Toggle value={types[t.id]} onChange={(on) => setTypeSynced(t.id, on)} />
-          </Row>
-        ))}
+        {DATA_TYPES.map((t) => {
+          const waiting = t.id === "passwords" && types.passwords && passwordsLocked;
+          return (
+            <Row key={t.id} title={t.title} description={waiting ? "Saved passwords. Unlock them to sync, once each time Ardia opens." : t.description}>
+              {waiting ? <Button title="Unlock" onPress={() => void unlockPasswords()} /> : null}
+              <Toggle value={types[t.id]} onChange={(on) => void setSynced(t.id, on)} />
+            </Row>
+          );
+        })}
       </Group>
+      {passwordsRefused && passwordsLocked ? (
+        <View style={{ flexDirection: "row", gap: 6, marginTop: 8, paddingHorizontal: 2 }}>
+          <Symbol name="exclamationmark.circle.fill" size={11} color={colors.destructive} style={{ width: 14, height: 15 }} />
+          <Text style={{ flex: 1, fontSize: 11.5, lineHeight: 15, color: theme.textSecondary }}>Ardia couldn’t confirm it’s you, so passwords don’t sync on this Mac yet.</Text>
+        </View>
+      ) : null}
 
       <SectionHeader title="Devices" />
       <Group>

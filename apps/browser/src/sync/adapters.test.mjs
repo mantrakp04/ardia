@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 const { useBrowser } = await import("../store/browser.ts");
 const model = await import("../store/model.ts");
-const { Clock, emptyScope, syncScope } = await import("@ardia/sync");
+const { canonical, Clock, emptyScope, syncScope } = await import("@ardia/sync");
 const adapters = await import("./adapters.ts");
 const stub = await import("../test-native-stub.mjs");
 
@@ -41,7 +41,7 @@ class Device {
     this.scopes = { app: emptyScope(), p: emptyScope() };
     this.clock = new Clock(id);
     stub.passwordStores.set(id, new Map());
-    this.passwords = adapters.passwordsAdapter("default", () => true, stub.readLogins);
+    this.passwords = adapters.passwordsAdapter("default", () => true, stub.readLogins, stub.openPassword);
   }
   with(fn) {
     stub.current.device = this.id;
@@ -976,6 +976,68 @@ test("passwords: saved on one Mac, changed or deleted on another; the newer edit
   assert.equal((await a.sync()).published, 0);
 });
 
+test("passwords: the sync state keeps a digest and a sealed secret, never the password, and a fresh seal isn't an edit", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder);
+  const b = new Device("devB", folder);
+  await a.with(() => stub.savePassword("", "https://vault.example", "alice", "pl41ntext-secret"));
+  await syncAll([a, b]);
+  assert.equal(stub.passwordStores.get("devB").get("https://vault.example\nalice")?.password, "pl41ntext-secret");
+  for (const d of [a, b]) {
+    assert.ok(!JSON.stringify(d.scopes).includes("pl41ntext-secret"), `${d.id}'s state`);
+    assert.deepEqual(Object.keys(d.scopes.p.records["pw:https://vault.example\nalice"].v).sort(), ["d", "o", "s", "u"]);
+  }
+  assert.equal((await a.sync()).published + (await b.sync()).published, 0);
+});
+
+test("passwords: a locked Mac reads, publishes and applies nothing, and catches up once unlocked", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder);
+  const b = new Device("devB", folder);
+  const key = "pw:https://locked.example\ndana";
+  await a.with(() => stub.savePassword("", "https://locked.example", "dana", "wait-for-me"));
+  stub.lockedDevices.add("devA");
+  stub.lockedDevices.add("devB");
+  try {
+    await syncAll([a, b]);
+    assert.ok(!(key in a.scopes.p.records), "A publishes nothing while locked");
+    stub.lockedDevices.delete("devA");
+    await syncAll([a, b]);
+    assert.ok(key in b.scopes.p.records, "B has the record");
+    assert.equal(stub.passwordStores.get("devB").has("https://locked.example\ndana"), false, "but doesn't apply it while locked");
+  } finally {
+    stub.lockedDevices.clear();
+  }
+  await syncAll([b, a]);
+  assert.equal(stub.passwordStores.get("devB").get("https://locked.example\ndana")?.password, "wait-for-me");
+  const seal = a.scopes.p.records[key].v.s;
+  assert.equal(await stub.openPassword((seal[0] === "A" ? "B" : "A") + seal.slice(1)), null, "a tampered seal doesn't open");
+});
+
+test("passwords: a sync state from before digests moves to them at load, once, without republishing", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder);
+  const b = new Device("devB", folder);
+  await a.with(() => stub.savePassword("", "https://old.example", "carol", "legacy-pass"));
+  await syncAll([a, b]);
+  const key = "pw:https://old.example\ncarol";
+  const legacy = { o: "https://old.example", u: "carol", p: "legacy-pass" };
+  for (const d of [a, b]) {
+    d.scopes.p.records[key].v = { ...legacy };
+    d.scopes.p.base[key] = canonical(legacy);
+  }
+  const journal = { p: [{ v: 1, kind: "log", device: "devA", seq: 99, at: 1, ops: [{ k: key, h: "0", v: { ...legacy } }] }] };
+  assert.equal(await adapters.protectLegacyPasswords(a.scopes, journal, stub.protectPasswords), true);
+  assert.equal(await adapters.protectLegacyPasswords(b.scopes, {}, stub.protectPasswords), true);
+  assert.ok(!JSON.stringify([a.scopes, b.scopes, journal]).includes("legacy-pass"));
+  assert.equal(a.scopes.p.base[key], canonical(a.scopes.p.records[key].v));
+  assert.equal(await adapters.protectLegacyPasswords(a.scopes, journal, stub.protectPasswords), false);
+  assert.equal((await a.sync()).published + (await b.sync()).published, 0, "nothing republished");
+  await a.with(() => stub.savePassword("", "https://old.example", "carol", "new-pass"));
+  await syncAll([a, b]);
+  assert.equal(stub.passwordStores.get("devB").get("https://old.example\ncarol")?.password, "new-pass");
+});
+
 test("history: two Macs settle on the union of their visits in Chrome, publish nothing more, and deletions reach Chrome", async () => {
   const folder = new Folder();
   const a = new Device("devA", folder);
@@ -1829,10 +1891,15 @@ test("a bookmark made while another adapter is still reading survives that sync"
   });
   await a.sync();
   let reads = 0;
-  b.passwords = adapters.passwordsAdapter("default", () => true, async () => {
-    if (++reads === 2) S().addBookmark({ profileId: "default", url: "https://second.example/", title: "Made during the sync" });
-    return stub.readLogins();
-  });
+  b.passwords = adapters.passwordsAdapter(
+    "default",
+    () => true,
+    async () => {
+      if (++reads === 2) S().addBookmark({ profileId: "default", url: "https://second.example/", title: "Made during the sync" });
+      return stub.readLogins();
+    },
+    stub.openPassword,
+  );
   await b.sync();
   assert.equal(reads >= 2, true, "the password read ran after the bookmarks' catch-up");
   const has = (d) => d.with(() => Object.values(S().bookmarks.nodes).some((n) => n.kind === "url" && n.url === "https://second.example/"));

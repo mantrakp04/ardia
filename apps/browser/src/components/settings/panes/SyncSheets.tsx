@@ -3,7 +3,7 @@ import { SyncNative, type FolderInfo } from "@ardia/sync";
 import { useEffect, useState, type ReactNode } from "react";
 import { Image, StyleSheet, Text, TextInput, View } from "react-native";
 import { useTheme } from "../../../lib/theme";
-import { enterRecoveryPhrase, stopSync } from "../../../sync/engine";
+import { enterRecoveryPhrase, stopSync, unlockPasswordSync, useSync } from "../../../sync/engine";
 import { Button, Checkbox, Sheet, useFormColors } from "../controls";
 import { closeSettingsSheet, showSettingsSheet } from "../sheet";
 
@@ -38,7 +38,11 @@ function RecoveryKitSheet() {
   const colors = useFormColors();
   const [preview, setPreview] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
-  useEffect(() => void SyncNative?.recoveryKitPreview(168).then(setPreview), []);
+  const [refused, setRefused] = useState<string | null>(null);
+  useEffect(() => {
+    void SyncNative?.recoveryKitPreview(168).then(setPreview);
+    return () => void SyncNative?.lockRecoveryPhrase();
+  }, []);
   const save = async (format: "pdf" | "text") => {
     const path = await SyncNative?.saveRecoveryKit(format);
     if (path) setSaved(path);
@@ -50,8 +54,8 @@ function RecoveryKitSheet() {
       { separator: true },
       { id: "text", title: "Save as Text…", symbol: "doc.plaintext" },
     ]);
-    if (choice === "copy") await SyncNative?.copyRecoveryKit();
-    else if (choice === "share") await SyncNative?.shareRecoveryKit();
+    if (choice === "copy") setRefused((await SyncNative?.copyRecoveryKit()) === false ? "Not copied: Ardia couldn’t confirm it’s you." : null);
+    else if (choice === "share") setRefused((await SyncNative?.shareRecoveryKit()) === false ? "Not shared: Ardia couldn’t confirm it’s you." : null);
     else if (choice === "text") await save("text");
   };
   return (
@@ -77,6 +81,7 @@ function RecoveryKitSheet() {
             </Text>
           </View>
           {saved ? <Body style={{ marginTop: 10 }}>Saved to {saved.replace(/^\/Users\/[^/]+/, "~")}.</Body> : null}
+          {refused ? <Body style={{ marginTop: 10 }}>{refused}</Body> : null}
         </View>
         <View
           accessibilityLabel="Recovery kit preview"
@@ -131,8 +136,9 @@ function PhraseSheet({ folder, onChooseFolder }: { folder: FolderInfo | null; on
     const result = await enterRecoveryPhrase(folder.path, text);
     setBusy(false);
     const message = phraseError(result);
-    if (message) setError(message);
-    else closeSettingsSheet();
+    if (message) return setError(message);
+    closeSettingsSheet();
+    if (useSync.getState().types.passwords) void unlockPasswordSync();
   };
   return (
     <Sheet width={440} onClose={closeSettingsSheet}>
@@ -198,7 +204,11 @@ function ConnectDeviceSheet() {
   const colors = useFormColors();
   const [qr, setQr] = useState<string | null>(null);
   const [words, setWords] = useState<string[] | null>(null);
-  useEffect(() => void SyncNative?.qrCode().then(setQr), []);
+  const [notCopied, setNotCopied] = useState(false);
+  useEffect(() => {
+    void SyncNative?.qrCode().then(setQr);
+    return () => void SyncNative?.lockRecoveryPhrase();
+  }, []);
   return (
     <Sheet width={480} onClose={closeSettingsSheet}>
       <Title>Connect Another Device</Title>
@@ -224,11 +234,12 @@ function ConnectDeviceSheet() {
           ))}
         </View>
       ) : null}
+      {notCopied ? <Body style={{ marginTop: 10 }}>Not copied: Ardia couldn’t confirm it’s you.</Body> : null}
       <Buttons
         left={
           <>
             <Button title={words ? "Hide Words" : "Show Words"} onPress={() => (words ? setWords(null) : void SyncNative?.recoveryWords().then(setWords))} />
-            <Button title="Copy Words" onPress={() => void SyncNative?.copyRecoveryPhrase()} />
+            <Button title="Copy Words" onPress={() => void SyncNative?.copyRecoveryPhrase().then((copied) => setNotCopied(!copied))} />
           </>
         }
       >

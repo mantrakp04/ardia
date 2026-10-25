@@ -41,6 +41,7 @@ import {
   type ProfileRecord,
   legacyThemeOf,
   profileThemesAdapter,
+  protectLegacyPasswords,
   themeAngleKey,
   themeFromRecord,
   type ShareRecord,
@@ -122,6 +123,7 @@ type SyncUi = {
   devices: SyncedDevice[];
   remoteTabs: Record<string, RemoteTabs[]>;
   remoteProfiles: RemoteProfile[];
+  passwordsLocked: boolean;
 };
 
 export const useSync = create<SyncUi>(() => ({
@@ -136,6 +138,7 @@ export const useSync = create<SyncUi>(() => ({
   devices: [],
   remoteTabs: {},
   remoteProfiles: [],
+  passwordsLocked: false,
 }));
 
 let doc: SyncDoc = emptyDoc();
@@ -144,6 +147,7 @@ let running = false;
 let again = false;
 let timer: ReturnType<typeof setTimeout> | undefined;
 let forcePasswords = false;
+let passwordsBlocked = false;
 const passwordAdapters = new Map<string, Adapter>();
 const extensionAdapters = new Map<string, ExtensionsAdapter>();
 
@@ -177,6 +181,15 @@ async function loadState() {
   const scopes = await openSealed<SyncDoc["scopes"]>(STATE, {});
   journal = (await openSealed<{ journal?: Journal }>(JOURNAL, {})).journal ?? {};
   journalOnDisk = Object.keys(journal).length > 0;
+  try {
+    if (SyncNative && (await protectLegacyPasswords(scopes, journal, (passwords) => SyncNative!.protectPasswords(passwords))) && journalOnDisk) {
+      await saveDocument(JOURNAL, await SyncNative.sealLocal(JSON.stringify({ journal })));
+    }
+    passwordsBlocked = false;
+  } catch (error) {
+    passwordsBlocked = true;
+    console.warn("[sync] couldn't move saved passwords out of the sync state; passwords don't sync until it works", error);
+  }
   const clock = new Clock(doc.deviceId ?? "", doc.clock);
   for (const scope of new Set([...Object.keys(doc.seqs ?? {}), ...Object.keys(journal)])) {
     const mine = (journal[scope] ?? []).filter((f) => f.device === doc.deviceId);
@@ -251,6 +264,7 @@ function publishUi(patch: Partial<SyncUi> = {}) {
     types: { ...doc.types },
     profiles: { ...doc.profiles },
     lastSyncedAt: doc.lastSyncedAt,
+    passwordsLocked: !!SyncNative && !SyncNative.passwordsUnlocked(),
     ...(doc.enabled ? summarize() : { devices: [], remoteTabs: {}, remoteProfiles: [], pending: 0 }),
     ...patch,
   });
@@ -291,7 +305,7 @@ function profileAdapters(profileId: string, retiring: boolean): Adapter[] {
     ...(t.bookmarks && ownsData ? [inTodaysNames(bookmarksAdapter(profileId))] : []),
     ...(t.history && ownsData ? [inTodaysNames(historyAdapter(profileId))] : []),
     inTodaysNames(deviceTabsAdapter(profileId, id, deviceName, !t.tabs)),
-    ...(t.passwords && ownsData ? [passwords] : []),
+    ...(t.passwords && ownsData && !passwordsBlocked ? [passwords] : []),
     ...(t.extensions && ownsData && extensionSyncAvailable() ? [extensionsOf(profileId)] : []),
   ];
 }
@@ -318,6 +332,16 @@ function scheduleSync(delay = AFTER_EDIT_MS) {
 export async function syncNow() {
   forcePasswords = true;
   await runCycle();
+}
+
+export async function unlockPasswordSync(): Promise<boolean> {
+  const unlocked = (await SyncNative?.unlockPasswords()) ?? false;
+  publishUi();
+  if (unlocked && doc.enabled && useSync.getState().status !== "locked") {
+    forcePasswords = true;
+    scheduleSync(0);
+  }
+  return unlocked;
 }
 
 async function runCycle({ retiring = false } = {}) {
@@ -703,7 +727,7 @@ export function startSync() {
   });
   if (__DEV__) {
     (globalThis as { acSync?: object }).acSync = {
-      useSync, syncNow, turnOnSync, enterRecoveryPhrase, stopSync, setTypeSynced, setProfileSynced, addRemoteProfile, setSyncFolder, folderInfo,
+      useSync, syncNow, unlockPasswordSync, turnOnSync, enterRecoveryPhrase, stopSync, setTypeSynced, setProfileSynced, addRemoteProfile, setSyncFolder, folderInfo,
       doc: () => doc,
       native: SyncNative,
       get menu(): typeof import("./menu") {

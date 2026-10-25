@@ -31,6 +31,7 @@ globalThis.acTestNativeModules = {
     sealLocal: async (text) => `sealed:${text}`,
     openLocal: async (sealed) => (sealed.startsWith("sealed:") ? sealed.slice(7) : null),
     readPasswords: async () => null,
+    passwordsUnlocked: () => false,
   },
 };
 

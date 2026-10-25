@@ -1,5 +1,15 @@
 import { addHistoryVisits, deleteHistoryUrls, deletePassword, savePassword } from "@ardia/ardiacore";
-import { assignPositions, canonical, SyncNative, type Adapter, type Extraction, type SavedLogin } from "@ardia/sync";
+import {
+  assignPositions,
+  canonical,
+  SyncNative,
+  type Adapter,
+  type Extraction,
+  type LogFile,
+  type ProtectedPassword,
+  type SavedLogin,
+  type ScopeState,
+} from "@ardia/sync";
 import { bookmarkUuidFor, ensureRoots, isBookmarkUuid } from "../store/bookmarks";
 import { MAX_HISTORY, MAX_VISIT_TIMES } from "../store/history";
 import { useBrowser, type BrowserState } from "../store/browser";
@@ -1110,13 +1120,46 @@ export function tileFoldersAdapter(profileId: string): Adapter {
   };
 }
 
-type PasswordValue = { o: string; u: string; p: string };
+type PasswordValue = { o: string; u: string; d: string; s: string };
+type LegacyPasswordValue = { o: string; u: string; p: string };
 const PASSWORD_READ_INTERVAL = 30_000;
+
+const isLegacyPassword = (v: unknown): v is LegacyPasswordValue => !!v && typeof v === "object" && typeof (v as { p?: unknown }).p === "string";
+
+export async function protectLegacyPasswords(
+  scopes: Record<string, ScopeState>,
+  journal: Record<string, LogFile[]>,
+  protect: (passwords: string[]) => Promise<ProtectedPassword[]>,
+): Promise<boolean> {
+  const states = Object.values(scopes);
+  const ops = [
+    ...states.flatMap((s) => [...s.outbox, ...(s.journal ?? []).flatMap((f) => f.ops)]),
+    ...Object.values(journal).flatMap((files) => files.flatMap((f) => f.ops)),
+  ].filter((op) => op.k.startsWith("pw:") && isLegacyPassword(op.v));
+  const records = states.flatMap((s) => Object.entries(s.records).filter(([k, r]) => k.startsWith("pw:") && isLegacyPassword(r.v)).map(([, r]) => r));
+  const bases = states.flatMap((s) =>
+    Object.entries(s.base).flatMap(([k, json]) => {
+      const v: unknown = k.startsWith("pw:") ? JSON.parse(json) : null;
+      return isLegacyPassword(v) ? [{ base: s.base, k, v }] : [];
+    }),
+  );
+  const legacy = [...ops.map((op) => op.v), ...records.map((r) => r.v), ...bases.map((b) => b.v)] as LegacyPasswordValue[];
+  const plain = [...new Set(legacy.map((v) => v.p))];
+  if (!plain.length) return false;
+  const sealed = await protect(plain);
+  const byPassword = new Map(plain.map((p, i) => [p, sealed[i]!]));
+  const protectedValue = ({ o, u, p }: LegacyPasswordValue): PasswordValue => ({ o, u, ...byPassword.get(p)! });
+  for (const op of ops) op.v = protectedValue(op.v as LegacyPasswordValue);
+  for (const r of records) r.v = protectedValue(r.v as LegacyPasswordValue);
+  for (const { base, k, v } of bases) base[k] = canonical(protectedValue(v));
+  return true;
+}
 
 export function passwordsAdapter(
   profileId: string,
   forced: () => boolean,
   readLogins: (engineProfile: string) => Promise<SavedLogin[] | null | undefined> = async (p) => SyncNative?.readPasswords(p),
+  openSecret: (secret: string) => Promise<string | null | undefined> = async (s) => SyncNative?.openPassword(s),
 ): Adapter {
   let lastRead = 0;
   let quietUntil = 0;
@@ -1129,20 +1172,24 @@ export function passwordsAdapter(
     const out = new Map<string, PasswordValue & { c: number }>();
     for (const l of logins) {
       const origin = originOf(l);
-      if (origin) out.set(keyOf(origin, l.username), { o: origin, u: l.username, p: l.password, c: l.created });
+      if (origin) out.set(keyOf(origin, l.username), { o: origin, u: l.username, d: l.digest, s: l.secret, c: l.created });
     }
     return out;
   };
   return {
     prefix: "pw:",
-    extract: async () => {
+    extract: async (base) => {
       const now = Date.now();
       if (now < quietUntil || (now - lastRead < PASSWORD_READ_INTERVAL && !forced())) return null;
       const logins = await read();
       if (!logins) return null;
       lastRead = now;
       created = new Map([...logins].map(([k, v]) => [k, v.c]));
-      return { values: new Map([...logins].map(([k, { o, u, p }]) => [k, { o, u, p } satisfies PasswordValue])) };
+      const value = (key: string, { o, u, d, s }: PasswordValue): PasswordValue => {
+        const known = base(key) as Partial<PasswordValue> | undefined;
+        return { o, u, d, s: known?.d === d && typeof known.s === "string" ? known.s : s };
+      };
+      return { values: new Map([...logins].map(([k, v]) => [k, value(k, v)])) };
     },
     editedAt: (v) => created.get(keyOf((v as PasswordValue).o, (v as PasswordValue).u)) || undefined,
     apply: async (visible, changed, base) => {
@@ -1153,12 +1200,17 @@ export function passwordsAdapter(
         const v = visible.get(key) as PasswordValue | undefined;
         const have = local.get(key);
         const known = base(key) as PasswordValue | undefined;
-        if (have && known?.p !== have.p) continue;
+        if (have && known?.d !== have.d) continue;
         const [origin, username] = [key.slice(3, key.indexOf("\n")), key.slice(key.indexOf("\n") + 1)];
         if (v) {
-          if (have?.p === v.p) continue;
+          if (have?.d === v.d) continue;
+          const password = typeof v.s === "string" ? await openSecret(v.s) : null;
+          if (typeof password !== "string") {
+            ok = false;
+            continue;
+          }
           if (have) ok = (await deletePassword(profile(), origin, username)) && ok;
-          ok = (await savePassword(profile(), v.o, v.u, v.p)) && ok;
+          ok = (await savePassword(profile(), v.o, v.u, password)) && ok;
         } else if (have) {
           ok = (await deletePassword(profile(), origin, username)) && ok;
         }
@@ -1166,7 +1218,7 @@ export function passwordsAdapter(
       let settled = false;
       for (let i = 0; i < 20 && !settled; i++) {
         const now = await read();
-        settled = !!now && [...changed].every((k) => (visible.get(k) as PasswordValue | undefined)?.p === now.get(k)?.p);
+        settled = !!now && [...changed].every((k) => (visible.get(k) as PasswordValue | undefined)?.d === now.get(k)?.d);
         if (!settled) await new Promise((r) => setTimeout(r, 250));
       }
       if (!settled) quietUntil = Date.now() + 30_000;

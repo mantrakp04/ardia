@@ -20,7 +20,9 @@ export type PhraseResult =
   | { error: "mismatch" }
   | { error: "keychain" };
 
-export type SavedLogin = { origin: string; url: string; username: string; password: string; created: number };
+export type SavedLogin = { origin: string; url: string; username: string; digest: string; secret: string; created: number };
+
+export type ProtectedPassword = { d: string; s: string };
 
 type SyncNative = {
   folderInfo(path: string | null): Promise<FolderInfo>;
@@ -39,15 +41,20 @@ type SyncNative = {
   deleteChain(folder: string): Promise<void>;
   sealLocal(text: string): Promise<string>;
   openLocal(sealed: string): Promise<string | null>;
-  recoveryWords(): Promise<string[]>;
+  recoveryWords(): Promise<string[] | null>;
   qrCode(): Promise<string | null>;
   recoveryKitPreview(width: number): Promise<string | null>;
   saveRecoveryKit(format: "pdf" | "text"): Promise<string | null>;
-  copyRecoveryKit(): Promise<void>;
-  shareRecoveryKit(): Promise<void>;
-  copyRecoveryPhrase(): Promise<void>;
+  copyRecoveryKit(): Promise<boolean>;
+  shareRecoveryKit(): Promise<boolean>;
+  copyRecoveryPhrase(): Promise<boolean>;
+  lockRecoveryPhrase(): Promise<void>;
   revealFolder(path: string): Promise<void>;
+  unlockPasswords(): Promise<boolean>;
+  passwordsUnlocked(): boolean;
   readPasswords(engineProfile: string): Promise<SavedLogin[] | null>;
+  openPassword(secret: string): Promise<string | null>;
+  protectPasswords(passwords: string[]): Promise<ProtectedPassword[]>;
 };
 
 export const SyncNative = requireOptionalNativeModule<SyncNative>("ArdiaSync");

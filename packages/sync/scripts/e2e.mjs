@@ -26,10 +26,11 @@ async function start(name) {
   const { dir } = DEV[name];
   const app = (apps[name] = await launch(APP, {
     data: dir,
-    env: { ARDIA_SYNC_DEFAULT_FOLDER: FOLDER },
+    env: { ARDIA_SYNC_DEFAULT_FOLDER: FOLDER, ARDIA_TEST_REAUTH: "granted" },
     ready: { timeout: 120_000, test: "return !!globalThis.acSync && Object.keys(ac.store.getState().windows).length > 0" },
   }));
   note(`${name}: pid ${app.pid}, DevTools ${app.port}, log ${app.log}`);
+  check(`${name} unlocks password sync for the session`, (await ev(name, "return acSync.unlockPasswordSync()")) === true);
 }
 
 const short = (x, n) => (x === undefined ? "undefined" : JSON.stringify(x).slice(0, n));
@@ -86,7 +87,9 @@ async function state(name) {
     const b = s.bookmarks; const roots = b.roots.default;
     const walk = (id) => { const n = b.nodes[id]; return n.kind === "url" ? n.title + " " + n.url : { [n.title]: n.children.map(walk) }; };
     const u = acSync.useSync.getState();
-    return Promise.all([acSync.native.readPasswords(""), globalThis.expo.modules.ArdiaCEF.listPasswords("")]).then(([pw, list]) => ({
+    return Promise.all([acSync.native.readPasswords(""), globalThis.expo.modules.ArdiaCEF.listPasswords("")])
+      .then(([pw, list]) => Promise.all((pw || []).map((p) => acSync.native.openPassword(p.secret))).then((plain) => [pw || [], list, plain]))
+      .then(([pw, list, plain]) => ({
       status: u.status, error: u.error, enabled: u.enabled, pending: u.pending,
       bookmarks: [walk(roots.bar), walk(roots.other)],
       history: (s.history.default || []).map((h) => h.url).sort(),
@@ -95,7 +98,7 @@ async function state(name) {
       rows: Object.values(s.tabs).filter((t) => t.pinned && t.pinnedAsRow).map((t) => t.pinnedUrl || t.url).sort(),
       groups: Object.values(s.groups).filter((g) => g.pinned).map((g) => g.name + ": " + g.tabIds.map((id) => s.tabs[id].url).join(", ")).sort(),
       unloadedPins: Object.values(s.tabs).filter((t) => t.pinned && t.unloaded).length,
-      passwords: (pw || []).map((p) => p.origin + " " + p.username + "=" + p.password).sort(),
+      passwords: pw.map((p, i) => p.origin + " " + p.username + "=" + plain[i]).sort(),
       chromePasswords: ((list && list.passwords) || []).map((p) => p.origin + " " + p.username).sort(),
       devices: u.devices.map((d) => d.id),
       remoteTabs: (u.remoteTabs.default || []).map((d) => ({ id: d.deviceId, urls: d.tabs.map((t) => t.url) })),
@@ -329,6 +332,11 @@ try {
   check("every file is padded to 1 KiB steps", files.filter((f) => f.endsWith(".nns")).every((f) => (fs.statSync(f).size - 32) % 1024 === 0));
   const local = ["A", "B"].flatMap((n) => ["sync.json", "sync-state.nns", "sync-journal.nns"].map((f) => `${DEV[n].dir}/${f}`)).filter((f) => fs.existsSync(f));
   check("this Mac's own sync state holds no plaintext password", local.every((f) => !fs.readFileSync(f).includes("ACE2E-concurrent-B")));
+  const passwordsUsed = ["ACE2E-hunter2-secret", "ACE2E-B-shop-pass", "ACE2E-changed-on-B", "ACE2E-mail-from-A", "ACE2E-concurrent-A", "ACE2E-concurrent-B"];
+  for (const n of ["A", "B"]) {
+    const opened = await ev(n, `return acSync.native.openLocal(${JSON.stringify(fs.readFileSync(`${DEV[n].dir}/sync-state.nns`, "utf8"))})`);
+    check(`${n}'s sync state, opened, holds digests and sealed secrets, no password`, typeof opened === "string" && opened.includes('"pw:') && passwordsUsed.every((p) => !opened.includes(p)));
+  }
 
   await apps.B.quit();
   delete apps.B;

@@ -1,3 +1,5 @@
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from "node:crypto";
+
 export const docs = new Map();
 export const readDocument = (name) => docs.get(name) ?? null;
 export const writeDocument = (name, contents) => docs.set(name, contents);
@@ -59,7 +61,30 @@ export const savePassword = async (_profile, origin, username, password) => {
   return true;
 };
 export const deletePassword = async (_profile, origin, username) => (logins().delete(`${origin}\n${username}`), true);
-export const readLogins = async () => [...logins().values()];
+const syncTestKey = createHash("sha256").update("ardia sync test key").digest();
+const digestOf = (password) => createHmac("sha256", syncTestKey).update(password).digest("base64").slice(0, 22);
+const sealOf = (password) => {
+  const nonce = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", syncTestKey, nonce);
+  const body = Buffer.concat([cipher.update(password, "utf8"), cipher.final()]);
+  return Buffer.concat([nonce, cipher.getAuthTag(), body]).toString("base64");
+};
+const openOf = (secret) => {
+  try {
+    const raw = Buffer.from(secret, "base64");
+    const decipher = createDecipheriv("aes-256-gcm", syncTestKey, raw.subarray(0, 12));
+    decipher.setAuthTag(raw.subarray(12, 28));
+    return Buffer.concat([decipher.update(raw.subarray(28)), decipher.final()]).toString("utf8");
+  } catch {
+    return null;
+  }
+};
+export const lockedDevices = new Set();
+const passwordsLocked = () => lockedDevices.has(current.device);
+export const readLogins = async () =>
+  passwordsLocked() ? null : [...logins().values()].map(({ password, ...login }) => ({ ...login, digest: digestOf(password), secret: sealOf(password) }));
+export const openPassword = async (secret) => (passwordsLocked() ? null : openOf(secret));
+export const protectPasswords = async (passwords) => passwords.map((password) => ({ d: digestOf(password), s: sealOf(password) }));
 
 export const historyDbs = new Map();
 export const chromeHistory = (profile = "", device = current.device) => {
@@ -249,6 +274,7 @@ export const readUserScriptsStatus = async () => userScripts().status;
 export const writeUserScriptsStatus = async (json) => void (userScripts().status = json, userScripts().writes.push(JSON.parse(json)));
 export const onUserScriptsChange = (listener) => (userScripts().change = listener, { remove() {} });
 export const listExtensions = (profile) => userScripts().engine.list(profile);
+export const onExtensionsChanged = (listener) => ((globalThis.acTestExtensionsChanged ??= []).push(listener), { remove() {} });
 export const installExtension = (pkg, profile) => userScripts().engine.install(pkg.path, profile);
 export const reloadExtension = (id, profile) => userScripts().engine.reload(id, profile);
 export const uninstallExtension = (id, profile) => userScripts().engine.uninstall(id, profile);
