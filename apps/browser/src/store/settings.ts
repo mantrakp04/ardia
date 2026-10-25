@@ -13,7 +13,7 @@ import {
 import type { PageEngine } from "@ardia/ardiacore";
 import type { StateCreator } from "zustand";
 import type { BrowserState } from "./browser";
-import { DEFAULT_LINK_ROUTING, type LinkRouting } from "./linkRouting";
+import { DEFAULT_LINK_ROUTING, RECENT_DESTINATION, withDefaultDestination, type LinkRouting } from "./linkRouting";
 
 export type SearchEngineId = string;
 
@@ -207,14 +207,20 @@ export function choose(settings: Settings, patch: Partial<Settings>): Settings {
 
 const REMOVED_SETTINGS = ["openLinksInLittleArdia"];
 
-function withoutRemovedSettings<T extends Partial<Settings>>(saved: T): T {
+function withoutRemovedSettings<T extends Partial<Settings> & { openLinksInLittleArdia?: unknown }>(saved: T): T {
   if (!REMOVED_SETTINGS.some((k) => k in saved || saved.chosen?.includes(k) || saved.inferred?.includes(k))) return saved;
   const kept = Object.fromEntries(Object.entries(saved).filter(([k]) => !REMOVED_SETTINGS.includes(k))) as T;
   const without = (keys: string[]) => keys.filter((k) => !REMOVED_SETTINGS.includes(k));
-  return { ...kept, ...(saved.chosen ? { chosen: without(saved.chosen) } : {}), ...(saved.inferred ? { inferred: without(saved.inferred) } : {}) };
+  const choseNewTab = saved.openLinksInLittleArdia === false && saved.linkRouting === undefined;
+  return {
+    ...kept,
+    ...(saved.chosen ? { chosen: choseNewTab ? [...new Set([...without(saved.chosen), "linkRouting"])] : without(saved.chosen) } : {}),
+    ...(saved.inferred ? { inferred: without(saved.inferred) } : {}),
+    ...(choseNewTab ? { linkRouting: withDefaultDestination(DEFAULT_LINK_ROUTING, RECENT_DESTINATION) } : {}),
+  };
 }
 
-export function migrateSavedSettings(given: (Partial<Settings> & { batterySaver?: unknown }) | undefined): Partial<Settings> | undefined {
+export function migrateSavedSettings(given: (Partial<Settings> & { batterySaver?: unknown; openLinksInLittleArdia?: unknown }) | undefined): Partial<Settings> | undefined {
   const saved = given && withoutRemovedSettings(given);
   if (!saved || !("batterySaver" in saved)) return saved;
   const { batterySaver, ...rest } = saved;

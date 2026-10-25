@@ -159,6 +159,11 @@ static NSDictionary *SavedSession(NSString *dir) {
   return [session isKindOfClass:NSDictionary.class] ? session : nil;
 }
 
+static NSDictionary *SessionDefaultDestination(NSDictionary *settings, NSDictionary *routing) {
+  if ([routing[@"defaultDestination"] isKindOfClass:NSDictionary.class]) return routing[@"defaultDestination"];
+  return [settings[@"openLinksInLittleArdia"] isEqual:@NO] ? @{@"kind" : @"recent"} : @{@"kind" : @"little"};
+}
+
 static NSDictionary *SessionLinkRouting(NSDictionary *session) {
   NSDictionary *settings = [session[@"settings"] isKindOfClass:NSDictionary.class] ? session[@"settings"] : @{};
   NSDictionary *routing = [settings[@"linkRouting"] isKindOfClass:NSDictionary.class] ? settings[@"linkRouting"] : @{};
@@ -172,7 +177,7 @@ static NSDictionary *SessionLinkRouting(NSDictionary *session) {
   }
   return @{
     @"rules" : [routing[@"rules"] isKindOfClass:NSArray.class] ? routing[@"rules"] : @[],
-    @"defaultDestination" : [routing[@"defaultDestination"] isKindOfClass:NSDictionary.class] ? routing[@"defaultDestination"] : @{@"kind" : @"little"},
+    @"defaultDestination" : SessionDefaultDestination(settings, routing),
     @"profiles" : profiles,
     @"recent" : [session[@"linkProfileId"] isKindOfClass:NSString.class] ? session[@"linkProfileId"] : @"",
   };
