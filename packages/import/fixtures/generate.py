@@ -470,6 +470,46 @@ def build_brave():
                        other=[], synced=[])
 
 
+def build_brave_beta():
+    root = os.path.join(SUPPORT, "BraveSoftware", "Brave-Browser-Beta")
+    chromium_local_state(root, {"Default": {"name": "Beta tester"}, "Profile 1": {"name": "Encrypted only"}})
+    d = os.path.join(root, "Default")
+    write_json(os.path.join(d, "Preferences"), {})
+    chromium_history(os.path.join(d, "History"), [("https://beta.brave.example/", "Beta", 2, 1, BASE_UNIX - 60, 0)])
+    chromium_logins(os.path.join(d, "Login Data"), [
+        ("https://beta.brave.example/", "https://beta.brave.example/", "tester", v10(b"beta-pass"), 0, 1)])
+
+    def host_hashed(host, value):
+        return v10(hashlib.sha256(host.encode()).digest() + value.encode())
+
+    chromium_cookies(os.path.join(d, "Network", "Cookies"), [
+        dict(host=".brave.example", name="sid", encrypted_value=host_hashed(".brave.example", "beta-session"),
+             expires=4102444800, is_secure=1, is_httponly=1, samesite=1),
+        dict(host="search.brave.example", name="pref", encrypted_value=host_hashed("search.brave.example", "dark"),
+             expires=4102444800),
+    ])
+
+    rebuild = [
+        ids(9, 1, 0),
+        ids(0, 1, 10), ids(2, 10, 0), nav(10, 0, "https://search.brave.example/", "Brave Search"),
+        ids(7, 10, 0),
+        ids(0, 1, 11), ids(2, 11, 1),
+        nav(11, 0, "containers+6f1c2b9e-1d2a-4c3b-9e8f-0a1b2c3d4e5f:https://work.brave.example/", "Work container"),
+        ids(7, 11, 0),
+        ids(8, 1, 0),
+        (255, b""),
+    ]
+    after_marker = [ids(0, 1, 12), ids(2, 12, 2), nav(12, 0, "https://later.brave.example/", "Opened later"),
+                    ids(7, 12, 0)]
+    write(os.path.join(d, "Sessions", f"Session_{webkit(BASE_UNIX)}"), snss_plain(rebuild))
+    write(os.path.join(d, "Sessions_Encrypted", f"Session_{webkit(BASE_UNIX + 2)}"),
+          snss_encrypted(rebuild + after_marker))
+
+    p1 = os.path.join(root, "Profile 1")
+    write_json(os.path.join(p1, "Preferences"), {})
+    write(os.path.join(p1, "Sessions_Encrypted", f"Session_{webkit(BASE_UNIX)}"), snss_encrypted(rebuild))
+
+
 def build_opera():
     root = os.path.join(SUPPORT, "com.operasoftware.Opera")
     chromium_local_state(root, {})
@@ -1189,6 +1229,7 @@ def main():
             shutil.rmtree(d)
     build_chrome()
     build_brave()
+    build_brave_beta()
     build_opera()
     build_helium()
     build_dia()

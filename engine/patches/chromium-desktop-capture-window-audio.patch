@@ -1,0 +1,13 @@
+diff --git a/chrome/browser/media/webrtc/desktop_capture_access_handler.cc b/chrome/browser/media/webrtc/desktop_capture_access_handler.cc
+--- a/chrome/browser/media/webrtc/desktop_capture_access_handler.cc
++++ b/chrome/browser/media/webrtc/desktop_capture_access_handler.cc
+@@ -164,6 +164,9 @@ bool ShouldCaptureAudio(const content::DesktopMediaID& media_id,
+       (media_id.type == content::DesktopMediaID::TYPE_SCREEN &&
+        DesktopMediaPickerController::IsSystemAudioCaptureSupported(
+            DesktopMediaPicker::Params::RequestSource::kExtension)) ||
++      (media_id.type == content::DesktopMediaID::TYPE_WINDOW &&
++       media_id.window_audio_type !=
++           content::DesktopMediaID::AudioType::kNone) ||
+       media_id.type == content::DesktopMediaID::TYPE_WEB_CONTENTS;
+ 
+   return audio_permitted && audio_requested && audio_supported;

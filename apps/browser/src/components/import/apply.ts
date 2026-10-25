@@ -197,12 +197,14 @@ export async function applyResult(
   profileId: string,
   result: ImportResult,
   browserName: string,
+  requested: ImportKind[],
   onFailed?: (kind: ImportKind) => void,
 ): Promise<ImportCounts> {
   const counts = emptyCounts();
   counts.bookmarks += importBookmarks(profileId, result.bookmarks, browserName);
   if (result.history.length) counts.history += importHistory(profileId, result.history);
-  Object.assign(counts, await importNative(profileId, result.vaultToken, ["cookies", "autofill"], onFailed));
+  const native = (["cookies", "autofill"] as const).filter((k) => requested.includes(k));
+  Object.assign(counts, await importNative(profileId, result.vaultToken, native, onFailed));
   if (result.tabs.length && !result.spaces.length) counts.tabs += importTabs(profileId, result.tabs, "Imported");
   if (result.favorites.length) counts.tabs += importTabs(profileId, result.favorites.map((t) => ({ ...t, pinned: true })), null);
   if (result.credentials.length) counts.passwords += await importPasswords(profileId, result.credentials);

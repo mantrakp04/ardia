@@ -124,7 +124,11 @@ const ROWS: Record<SettingsPane, Section[]> = {
           description: "With Command Bar, ⌘T and New Tab open the command bar over the page, as in Arc. The tab appears when you pick a result; Esc leaves everything as it was.",
           keywords: ["new tab page", "command bar", "cmd t"],
         },
-        newTabPosition: { title: "Add new tabs to the top", keywords: ["new tab position", "left", "bottom", "order"] },
+        newTabPosition: {
+          title: "Add new tabs",
+          description: "Where ⌘T and + New Tab put the new tab. Next to the current tab, it joins that tab's group (from a pinned tab, it goes first in the list), and closing it brings you back. Links open next to their page either way.",
+          keywords: ["new tab position", "next to current tab", "after current tab", "beside", "right of", "below", "adjacent", "end", "left", "top", "bottom", "order", "cmd t"],
+        },
         shareTabsAcrossWindows: {
           title: "Share tabs across windows",
           description: "Every window of a profile lists the same tabs, as in Arc. A tab is live in one window at a time: selecting it in another brings it there, and the first window shows it greyed until you click it. Each window keeps its own selected tab.",
@@ -155,8 +159,13 @@ const ROWS: Record<SettingsPane, Section[]> = {
       rows: {
         peekModifier: {
           title: "Peek a link with",
-          description: "Opens the link in a preview over the page. Open as Tab or Split View keeps it; Esc closes it. ⌥⇧-click still opens a split.",
+          description: "Opens the link in a preview over the page. Open as Tab or Split View keeps it; Esc closes it.",
           keywords: ["peek", "preview", "shift click", "option click", "arc"],
+        },
+        splitLinkModifier: {
+          title: "Open a link in split view with",
+          description: "Opens the link in a pane beside the page. ⌥⌘-click splits too, and so does ⌥⇧-click when ⌥-click is chosen. A link that downloads still downloads.",
+          keywords: ["split view", "split screen", "side by side", "option click", "alt click", "option shift click", "download", "dia"],
         },
       },
     },

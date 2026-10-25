@@ -34,6 +34,7 @@ export type BrowserProfile = {
   isDefault: boolean;
   available: ImportKind[];
   spaces?: SpaceSummary[];
+  tabsNeedKey?: boolean;
 };
 
 export type BrowserSource = {
@@ -45,6 +46,7 @@ export type BrowserSource = {
   requiresExport: boolean;
   needsKeychain: boolean;
   needsFullDiskAccess?: boolean;
+  keychainService?: string;
   profiles: BrowserProfile[];
 };
 

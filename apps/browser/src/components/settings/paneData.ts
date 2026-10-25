@@ -17,7 +17,7 @@ import { useBrowser } from "../../store/browser";
 import { engineProfile } from "../../store/model";
 import { folderInfo } from "../../sync/engine";
 import { useSync } from "../../sync/engine";
-import { refreshExtensions } from "../extensions/state";
+import { extensionsProfileId, refreshExtensions } from "../extensions/state";
 import { load, loadAll, need, resource, useAllLoaded, type Needed } from "./resources";
 import type { SettingsPane } from "./windows";
 
@@ -69,7 +69,7 @@ export function paneNeeds(pane: SettingsPane, profileId: string | null): Needed[
     case "autofill":
       return [need(addresses, profile), need(cards, profile), need(autofillEnabled, profile)];
     case "extensions":
-      return [need(extensionList, defaultProfile())];
+      return [need(extensionList, engineProfile(extensionsProfileId(profileId)))];
     case "shortcuts":
       return [need(shortcutItems)];
     case "advanced":

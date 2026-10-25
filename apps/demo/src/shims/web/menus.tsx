@@ -13,15 +13,19 @@ const publish = (next: OpenMenu | null) => {
 };
 
 const pointer = { x: 0, y: 0 };
-if (typeof window !== "undefined")
+let commandHeld = false;
+if (typeof window !== "undefined") {
   window.addEventListener(
     "pointerdown",
     (e) => {
       pointer.x = e.clientX;
       pointer.y = e.clientY;
+      commandHeld = e.metaKey;
     },
     true,
   );
+  for (const type of ["keydown", "keyup"] as const) window.addEventListener(type, (e) => (commandHeld = e.metaKey), true);
+}
 
 export function showMenu(items: MenuItem[]): Promise<string | null> {
   open?.resolve(null);
@@ -38,13 +42,24 @@ const KEYS: Record<string, string> = { command: "⌘", shift: "⇧", option: "�
 
 function MenuList({ items, x, y }: { items: MenuItem[]; x: number; y: number }) {
   const [sub, setSub] = useState<{ index: number; top: number } | null>(null);
+  const [command, setCommand] = useState(commandHeld);
   const dark = useBrowser((s) => s.ui.appDark);
+  useEffect(() => {
+    const track = (e: KeyboardEvent | PointerEvent) => setCommand(e.metaKey);
+    const events = ["keydown", "keyup", "pointermove"] as const;
+    for (const type of events) document.addEventListener(type, track);
+    return () => {
+      for (const type of events) document.removeEventListener(type, track);
+    };
+  }, []);
   const width = 240;
   const left = Math.min(x, window.innerWidth - width - 8);
   return (
     <div className={`ardia-menu${dark ? " dark" : ""}`} style={{ left, top: Math.min(y, window.innerHeight - 40), width }} onPointerDown={(e) => e.stopPropagation()}>
       {items.map((item, i) => {
         if ("separator" in item) return <div key={i} className="ardia-menu-separator" />;
+        const next = items[i + 1];
+        if (item.alternate ? !command : command && next && "id" in next && next.alternate) return null;
         const enabled = item.enabled !== false;
         return (
           <div

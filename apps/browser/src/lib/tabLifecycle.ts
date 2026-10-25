@@ -330,7 +330,7 @@ export async function freezeTab(id: string): Promise<boolean> {
   return true;
 }
 
-function reloadRecentTabs(sys: SystemState) {
+export function reloadRecentTabs(sys: SystemState) {
   const gb = sys.physicalMemory / 2 ** 30;
   const busy = sys.onBattery || sys.lowPowerMode || sys.memoryPressure !== "normal";
   const count = busy ? 0 : gb >= 32 ? 4 : gb >= 16 ? 3 : gb >= 8 ? 1 : 0;
@@ -345,8 +345,9 @@ function reloadRecentTabs(sys: SystemState) {
     .map((t) => t.id);
   ids.forEach((id, i) =>
     setTimeout(() => {
-      const t = store().tabs[id];
-      if (t?.url && !t.navigation && !t.adoptId && !t.pageIn && !holderOf(store(), id)) store().updateTab(id, wake(t));
+      const now = store();
+      const t = now.tabs[id];
+      if (t?.url && !t.navigation && !t.adoptId && !t.unloaded && !t.pageIn && !holderOf(now, id)) now.updateTab(id, wake(t));
     }, 2000 * (i + 1)),
   );
   return ids;

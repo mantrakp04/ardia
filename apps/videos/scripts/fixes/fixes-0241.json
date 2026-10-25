@@ -1,0 +1,71 @@
+{
+  "id": "fixes-0241",
+  "segments": [
+    {
+      "scene": "clear",
+      "title": "Clear keeps your place",
+      "body": "↓ Clear sweeps the tabs and leaves the one you're reading. It used to take that one too.",
+      "cam": [0, 40, 880],
+      "lead": 1.7,
+      "tail": 3.2
+    },
+    {
+      "scene": "newtab",
+      "title": "New tabs move in next door",
+      "body": "With Settings › Tabs › Below the current tab, ⌘T opens right under where you are. Before, only top or bottom.",
+      "cam": [0, 20, 520],
+      "lead": 1.0,
+      "tail": 3.2
+    },
+    {
+      "scene": "pinsplit",
+      "title": "Pinned splits stay split",
+      "body": "Close one pane and the pinned split stays one row. It used to fall apart into two.",
+      "cam": [0, 0, 640],
+      "lead": 1.0,
+      "tail": 3.2
+    },
+    {
+      "scene": "middle",
+      "title": "Middle-click twice",
+      "body": "The first middle-click closes a pinned tab, the second removes it, with Undo in case you didn't mean it.",
+      "cam": [0, 40, 880],
+      "lead": 2.4,
+      "tail": 3.3
+    },
+    {
+      "scene": "groupicon",
+      "title": "No Icon",
+      "body": "A group can wear Dia's neutral stack instead of borrowing its first tab's favicon.",
+      "cam": [0, 40, 560],
+      "lead": 0.8,
+      "tail": 4.2
+    },
+    {
+      "scene": "dots",
+      "title": "Dots that say who",
+      "body": "Hover a profile dot and its name floats above it, the way Dia does it.",
+      "cam": [14, 618, 250],
+      "lead": 1.6,
+      "tail": 4.5,
+      "afterOnly": "A plain macOS tooltip. macOS only draws it for a real pointer, so a hidden test instance can't film it."
+    },
+    {
+      "scene": "splitlink",
+      "title": "⌥⇧-click opens a split",
+      "body": "A link opens beside the page instead of in a whole new window. Settings › Tabs can make it plain ⌥-click.",
+      "cam": [120, 0, 946],
+      "lead": 1.8,
+      "tail": 3.8
+    },
+    {
+      "scene": "share",
+      "title": "Screens bring their sound",
+      "body": "Sharing a screen or a window can include its audio now. Before, only tabs could.",
+      "cam": [470, 30, 600],
+      "lead": 4.0,
+      "tail": 4.2,
+      "masks": [[552, 356, 440, 98]]
+    }
+  ]
+}

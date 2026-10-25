@@ -56,8 +56,8 @@ try {
   rep.log(`instance: pid ${app.pid}, DevTools port ${app.port}, data ${data}`);
   await app.ready({ test: "return !!globalThis.acOnboarding?.store.getState().windowId" });
 
-  await rep.check("the default-browser step has no text field behind its card", async () => {
-    const ax = await run(`acOnboarding.store.getState().go("defaultBrowser"); return settle(1200).then(() => act("ax"));`);
+  await rep.check("the home step has no text field behind its card", async () => {
+    const ax = await run(`acOnboarding.store.getState().go("home"); return settle(1200).then(() => act("ax"));`);
     assert.match(ax, /AXCheckBox: Set Ardia as default browser/, "the step is on screen");
     assert.deepEqual(textFields(ax), [], "a text field behind the card takes the first row's cursor and clicks");
   });

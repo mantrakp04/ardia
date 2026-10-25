@@ -101,7 +101,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     case "openFile":
       return void openFiles(requested);
     case "manageExtensions":
-      return openManageExtensions();
+      return openManageExtensions(requested);
     case "setBookmarksBar":
       if (arg === "always" || arg === "newTab" || arg === "never") s.updateSettings({ bookmarksBar: arg });
       return;
@@ -147,7 +147,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
   switch (command) {
     case "newTab":
       if (toggleNewTabBar(windowId)) return;
-      return void s.newTab(windowId);
+      return void s.newTab(windowId, { newTabCommand: true });
     case "reopenClosedTab":
       return s.reopenClosed(windowId);
     case "restoreClosed":
@@ -252,6 +252,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     case "togglePin":
       if (!tab) return;
       if (arg === "row") return s.pinTabs([tab.id], true, !isPinnedRow(tab));
+      if (arg === "tile") return isPinnedRow(tab) ? s.pinTabs([tab.id], true, false) : undefined;
       return s.togglePin(tab.id);
     case "moveTabDown":
     case "moveTabUp": {

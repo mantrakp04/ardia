@@ -89,7 +89,9 @@ ARDIACORE_EXPORT
 + (void)allowDesktopCapture:(NSString*)sourceId
                         tab:(ArdiaCoreTab*)tab
                       frame:(nullable NSString*)frameId
-                     origin:(nullable NSString*)origin;
+                     origin:(nullable NSString*)origin
+                      audio:(nullable NSString*)audio;
+@property(class, readonly) NSDictionary<NSString*, NSNumber*>* desktopCaptureAudio;
 - (void)offTheRecordProfileFor:(ArdiaCoreProfile*)profile
                     completion:(void (^)(ArdiaCoreProfile* _Nullable offTheRecord,
                                          NSString* _Nullable error))completion;

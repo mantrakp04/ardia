@@ -88,6 +88,8 @@
 	<string>Ardia asks Dia for its profiles, open tabs and pinned tabs when you import them. It only reads them and changes nothing in Dia.</string>
 	<key>NSAppleScriptEnabled</key>
 	<true/>
+	<key>NSAudioCaptureUsageDescription</key>
+	<string>Websites you share your screen or a window with may ask to hear its audio.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Signing in with a passkey from your phone uses Bluetooth, and websites may ask to use Bluetooth devices.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>

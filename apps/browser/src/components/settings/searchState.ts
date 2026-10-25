@@ -2,6 +2,7 @@ import type { View } from "react-native";
 import { create } from "zustand";
 import { setting } from "./settingsIndex";
 import { useSettingsNav } from "./windows";
+import { settingsProfileFor } from "../extensions/store";
 
 type SearchUi = {
   query: string;
@@ -18,7 +19,9 @@ export const setSettingsQuery = (query: string) => useSettingsSearch.setState({ 
 export const focusSettingsSearch = () => useSettingsSearch.setState({ focusRequest: Date.now() });
 
 export function revealSetting(id: string) {
-  useSettingsNav.getState().go(setting(id).pane, null);
+  const nav = useSettingsNav.getState();
+  const pane = setting(id).pane;
+  nav.go(pane, settingsProfileFor(pane, nav));
   useSettingsSearch.setState({ reveal: { id, at: Date.now() } });
 }
 

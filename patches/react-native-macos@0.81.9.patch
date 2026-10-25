@@ -166,10 +166,22 @@ index cac171e70c9fa225cdec45b205086342a0d50f06..17c3a781c5243fdf33d0f03ea75ac123
  
  - (void)reactBlur
 diff --git a/Libraries/Text/TextInput/Singleline/RCTUITextField.mm b/Libraries/Text/TextInput/Singleline/RCTUITextField.mm
-index 137d0ee9f51616ea27c397a8bf595fe2c0ff5e91..a7c532f3f77e38595e92764d05148cb988eb8ea9 100644
+index 137d0ee9f51616ea27c397a8bf595fe2c0ff5e91..d0e39e4697737ae037fadc8d335aebfa0547c4b4 100644
 --- a/Libraries/Text/TextInput/Singleline/RCTUITextField.mm
 +++ b/Libraries/Text/TextInput/Singleline/RCTUITextField.mm
-@@ -330,7 +330,9 @@ - (void)setPlaceholder:(NSString *)placeholder
+@@ -155,6 +155,11 @@ - (BOOL)hasMarkedText
+ 	return ((NSTextView *)self.currentEditor).validAttributesForMarkedText ?: @[];
+ }
+ 
++- (NSTextInputContext *)inputContext // [Ardia
++{
++  return self.currentEditor.inputContext;
++} // Ardia]
++
+ #endif // macOS]
+ 
+ #pragma mark - Accessibility
+@@ -330,7 +335,9 @@ - (void)setPlaceholder:(NSString *)placeholder
  #if !TARGET_OS_OSX // [macOS]
    [super setPlaceholder:placeholder];
  #else // [macOS
@@ -179,7 +191,7 @@ index 137d0ee9f51616ea27c397a8bf595fe2c0ff5e91..a7c532f3f77e38595e92764d05148cb9
  #endif // macOS]
    [self _updatePlaceholder];
  }
-@@ -385,6 +387,9 @@ - (void)_updatePlaceholder
+@@ -385,6 +392,9 @@ - (void)_updatePlaceholder
    _isUpdatingPlaceholderText = YES;
    self.placeholderAttributedString = [[NSAttributedString alloc] initWithString:self.placeholder ?: @""
  																	 attributes:[self _placeholderTextAttributes]];

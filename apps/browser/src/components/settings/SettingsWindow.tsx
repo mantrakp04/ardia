@@ -25,7 +25,8 @@ import { ShortcutsPane } from "./panes/Shortcuts";
 import { SyncPane } from "./panes/Sync";
 import { TabsPane } from "./panes/Tabs";
 import { useSettingsSheet } from "./sheet";
-import { useSettingsNav, type SettingsPane } from "./windows";
+import { useSettingsNav, type SettingsPlace } from "./windows";
+import { settingsProfileFor } from "../extensions/store";
 
 
 const SIDEBAR = 214;
@@ -33,16 +34,15 @@ const TOOLBAR = 52;
 const HOLD_CAP_MS = 250;
 const REVEAL_MARGIN = 16;
 
-type Shown = { pane: SettingsPane; profileId: string | null };
-const shownKey = (s: Shown) => `${s.pane}:${s.profileId ?? ""}`;
+const shownKey = (s: SettingsPlace) => `${s.pane}:${s.profileId ?? ""}:${s.detail ?? ""}`;
 
-function useShownPane(): Shown | null {
+function useShownPane(): SettingsPlace | null {
   const nav = useSettingsNav();
-  const target = { pane: nav.pane, profileId: nav.profileId };
+  const target = { pane: nav.pane, profileId: nav.profileId, detail: nav.detail };
   const key = shownKey(target);
   const loaded = usePaneLoaded(nav.pane, nav.profileId);
   const [expired, setExpired] = useState<string | null>(null);
-  const [last, setLast] = useState<Shown | null>(null);
+  const [last, setLast] = useState<SettingsPlace | null>(null);
   const ready = loaded || expired === key;
   useEffect(() => {
     if (ready) return setLast(target);
@@ -119,7 +119,7 @@ export function SettingsWindow() {
         ) : (
           <ScrollView contentContainerStyle={{ paddingHorizontal: 10, paddingBottom: 12, gap: 1 }}>
             {PANES.map((p) => (
-              <SidebarItem key={p.id} title={p.title} icon={p.icon} selected={nav.pane === p.id} onPress={() => nav.go(p.id)} />
+              <SidebarItem key={p.id} title={p.title} icon={p.icon} selected={nav.pane === p.id} onPress={() => nav.go(p.id, settingsProfileFor(p.id, nav))} />
             ))}
           </ScrollView>
         )}
@@ -139,7 +139,7 @@ export function SettingsWindow() {
           onLayout={(e) => void (viewport.current = e.nativeEvent.layout.height)}
           contentContainerStyle={{ alignItems: "center", paddingBottom: 40 }}>
           <View key={key} ref={content} collapsable={false} style={{ width: "100%", maxWidth: 600, paddingHorizontal: 24 }}>
-            {shown ? <Pane pane={shown.pane} profileId={shown.profileId} /> : null}
+            {shown ? <Pane {...shown} /> : null}
           </View>
         </ScrollView>
       </View>
@@ -148,7 +148,7 @@ export function SettingsWindow() {
   );
 }
 
-function Pane({ pane, profileId }: { pane: SettingsPane; profileId: string | null }): ReactNode {
+function Pane({ pane, profileId, detail }: SettingsPlace): ReactNode {
   switch (pane) {
     case "general":
       return <GeneralPane />;
@@ -167,7 +167,7 @@ function Pane({ pane, profileId }: { pane: SettingsPane; profileId: string | nul
     case "autofill":
       return <AutofillPane profileId={profileId} />;
     case "extensions":
-      return <ExtensionsPane />;
+      return <ExtensionsPane profileId={profileId} detail={detail} />;
     case "search":
       return <SearchPane />;
     case "shortcuts":

@@ -2,7 +2,7 @@ import type { ActionState, ExtensionInstallPrompt, ExtensionPackage, InstalledEx
 import { useMemo } from "react";
 import { create } from "zustand";
 import { useBrowser, type BrowserState } from "../../store/browser";
-import { activeTabId, engineProfile, privateSession } from "../../store/model";
+import { activeTabId, engineProfile, incognitoOriginal, isIncognitoProfile, privateSession } from "../../store/model";
 import { shownPageId } from "../../store/peek";
 import { usePages } from "../layout/pageState";
 
@@ -42,6 +42,23 @@ export function extensionProfile(s: BrowserState, windowId: string | null | unde
   const w = windowId ? s.windows[windowId] : undefined;
   return !w ? "" : (privateSession(w.profileId) ?? engineProfile(w.profileId));
 }
+
+export function settingsProfileOf(s: BrowserState, windowId: string | null | undefined): string | null {
+  const own = windowId ? s.windows[windowId]?.profileId : undefined;
+  if (!own) return null;
+  const profileId = isIncognitoProfile(own) ? incognitoOriginal(own) : own;
+  return s.profiles[profileId] ? profileId : null;
+}
+
+export function extensionsProfileId(profileId?: string | null, windowId?: string | null): string {
+  const s = useBrowser.getState();
+  if (profileId && s.profiles[profileId]) return profileId;
+  const focused = s.ui.focusOrder.find((id) => !!s.windows[id]) ?? s.windowOrder.find((id) => !!s.windows[id]);
+  return settingsProfileOf(s, windowId) ?? settingsProfileOf(s, focused) ?? s.settings.defaultProfileId;
+}
+
+export const settingsProfileFor = (pane: string, current: { pane: string; profileId: string | null }): string | null =>
+  pane === "extensions" ? extensionsProfileId(current.pane === "extensions" ? current.profileId : null) : null;
 
 export const isPrivate = (s: BrowserState, windowId: string) => !!s.windows[windowId]?.incognito;
 

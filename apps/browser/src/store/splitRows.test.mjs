@@ -214,3 +214,88 @@ test("merging two windows' pins never folds a pinned split's panes into another 
   assert.equal(sidebarEntries(S(), "wB").pinned.filter((e) => e.startsWith("s:")).length, 1);
   for (const w of ["wA", "wB"]) assert.equal(model.viewTabIds(S(), w).filter((id) => S().tabs[id].pinned).length, 3, "A's own pin and the split's two panes, in each window");
 });
+
+const loaded = (id) => !!(S().tabs[id].navigation || S().tabs[id].adoptId || S().tabs[id].pageIn);
+const shown = (w) => S().windows[w].activeTabIds[S().windows[w].profileId];
+
+test("closing a pane of a pinned split closes the split as one pinned row and keeps it a split", () => {
+  reset();
+  const { w, a, b, c, d, splitId } = splitWindow();
+  S().pinTabs([b], true);
+  S().activate(c);
+  S().closeTab(c);
+  assert.deepEqual(S().splits[splitId]?.tabIds, [b, c], "the split stays whole");
+  assert.equal(S().tabs[b].pinnedAsRow && S().tabs[c].pinnedAsRow, true, "both panes stay pinned rows");
+  assert.equal(loaded(b) || loaded(c), false, "both panes unload together");
+  assert.deepEqual(sidebarEntries(S(), w).pinned, [`s:${splitId}`], "still one pinned row");
+  assert.ok([a, d].includes(shown(w)), "the window moves off the split");
+
+  S().activate(b);
+  assert.equal(shown(w), b);
+  S().closeTab(b);
+  assert.deepEqual(S().splits[splitId]?.tabIds, [b, c], "closing it again from the other pane keeps it a split");
+});
+
+test("closing a pane of a three-pane pinned split keeps all three panes", () => {
+  reset();
+  const { w, b, c, splitId } = splitWindow();
+  S().pinTabs([b], true);
+  const r = S().openSplitPane(w, { anchorTabId: c, url: "https://e.com/" });
+  S().closeTab(r.tabId);
+  assert.deepEqual(S().splits[splitId]?.tabIds.map(host), ["b", "c", "e"]);
+  assert.equal([b, c, r.tabId].some(loaded), false);
+  assert.deepEqual(sidebarEntries(S(), w).pinned, [`s:${splitId}`]);
+});
+
+test("closing a pane of a split in a pinned group keeps the split inside the group", () => {
+  reset();
+  const { w, a, b, c, splitId } = splitWindow();
+  const g = S().groupTabs([a], { pinned: true, name: "P" });
+  S().placeTabs([b], { pinned: false, groupId: g });
+  S().activate(b);
+  S().closeTab(b);
+  assert.deepEqual(S().splits[splitId]?.tabIds, [b, c]);
+  assert.equal(loaded(b) || loaded(c), false);
+  assert.deepEqual(groupEntries(S(), g), [`t:${a}`, `s:${splitId}`]);
+  assert.notEqual(shown(w), c, "the other pane isn't shown alone");
+});
+
+test("closing a pinned split's pane in another window keeps the split in every window", () => {
+  reset();
+  const { w, b, splitId } = splitWindow();
+  S().pinTabs([b], true);
+  const other = S().createWindow({ url: "https://z.com/" });
+  const copy = Object.values(S().splits).find((v) => v.windowId === other);
+  S().activate(copy.tabIds[0]);
+  S().closeTab(copy.tabIds[0]);
+  assert.deepEqual(panesOf(other), [["b", "c"]]);
+  assert.deepEqual(panesOf(w), [["b", "c"]]);
+  assert.ok(S().splits[splitId]);
+});
+
+test("closing the pinned side of a fresh split from a pinned row leaves the unpinned tab on its own", () => {
+  reset();
+  const { w, a } = splitWindow();
+  S().pinTabs([a], true, true);
+  const r = S().openSplitPane(w, { anchorTabId: a, url: "https://e.com/" });
+  S().activate(a);
+  S().closeTab(a);
+  assert.equal(splitOfTab(a), undefined, "the split ends");
+  assert.equal(loaded(a), false);
+  assert.equal(loaded(r.tabId), true, "the unpinned page stays");
+  assert.equal(shown(w), r.tabId);
+});
+
+test("showing a closed pinned split again wakes every pane as a loaded tab", () => {
+  reset();
+  const { w, b, c } = splitWindow();
+  S().pinTabs([b], true);
+  S().activate(b);
+  S().closeTab(b);
+  assert.equal(S().tabs[b].unloaded && S().tabs[c].unloaded, true);
+  S().activate(b);
+  S().updateTab(c, model.wake(S().tabs[c]));
+  assert.equal(shown(w), b);
+  assert.equal(loaded(b) && loaded(c), true);
+  assert.equal(!!S().tabs[b].unloaded || !!S().tabs[c].unloaded, false, "no pane keeps the closed flag once its page loads");
+});

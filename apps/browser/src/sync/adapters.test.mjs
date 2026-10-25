@@ -526,6 +526,20 @@ for (const fresh of [false, true]) {
   });
 }
 
+test("a deletion from another Mac applied after a pin removal here takes the removal's Undo away", () => {
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://home.example/" });
+  const tab = S().newTab(w, { url: "https://one.example/", background: true });
+  const group = S().groupTabs([tab], { pinned: true, name: "Team" });
+  const pinKey = S().tabs[tab].pinKey ?? tab;
+  S().closeTab(tab);
+  const removed = S().removeClosedPin(tab);
+  assert.ok(removed);
+  adapters.pinnedAdapter("default").apply(new Map(), new Set([`pin:t:${pinKey}`, `pin:g:${group}`]), () => undefined, { known: () => true, now: Date.now(), horizon: 0, joined: true });
+  S().undoClearTabs(removed);
+  assert.equal(Object.values(S().groups).some((g) => g.name === "Team"), false, "Undo does nothing");
+});
+
 test("a row mark held up in transit doesn't undo a later choice of a tile on another Mac", async () => {
   const folder = new Folder();
   const a = new Device("devA", folder);

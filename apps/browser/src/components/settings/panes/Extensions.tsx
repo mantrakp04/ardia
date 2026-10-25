@@ -1,5 +1,5 @@
 import { reloadExtension, type InstalledExtension } from "@ardia/ardiacore";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Image, Text, View } from "react-native";
 import { useTheme } from "../../../lib/theme";
 import { useBrowser } from "../../../store/browser";
@@ -9,6 +9,7 @@ import { InstallDialogHost } from "../../extensions/ExtensionOverlays";
 import {
   addFromWebStore,
   configure,
+  extensionsProfileId,
   loadUnpacked,
   refreshExtensions,
   removeExtension,
@@ -20,7 +21,7 @@ import { Button, Group, PopUp, Row, SectionHeader, TextField, Toggle } from "../
 import { extensionList } from "../paneData";
 import { useResource } from "../resources";
 import { closeSettingsSheet, showSettingsSheet } from "../sheet";
-import { SETTINGS_WINDOW_ID } from "../windows";
+import { SETTINGS_WINDOW_ID, useSettingsNav } from "../windows";
 
 type SiteAccess = "allSites" | "specificSites" | "onClick";
 const SITE_ACCESS: { value: SiteAccess; title: string }[] = [
@@ -31,15 +32,14 @@ const SITE_ACCESS: { value: SiteAccess; title: string }[] = [
 const siteAccessOf = (ext: InstalledExtension): SiteAccess =>
   ext.siteAccess === "ON_CLICK" ? "onClick" : ext.siteAccess === "ON_SPECIFIC_SITES" ? "specificSites" : "allSites";
 
-export function ExtensionsPane() {
+export function ExtensionsPane({ profileId: chosen, detail }: { profileId: string | null; detail: string | null }) {
   const theme = useTheme();
   const profiles = useProfiles();
-  const [profileId, setProfileId] = useState(() => useBrowser.getState().settings.defaultProfileId);
+  const [profileId] = useState(() => extensionsProfileId(chosen));
   const profile = engineProfile(profileId);
   const list = useExtensionList(profile);
-  const [detail, setDetail] = useState<string | null>(null);
   const [link, setLink] = useState("");
-  useResource(extensionList, profile);
+  const [loaded] = useResource(extensionList, profile);
 
   const showInstall = () =>
     showSettingsSheet(<InstallDialogHost windowId={SETTINGS_WINDOW_ID} onClosed={closeSettingsSheet} />);
@@ -50,8 +50,12 @@ export function ExtensionsPane() {
     setLink("");
   };
 
-  const selected = detail ? list.find((x) => x.id === detail) : undefined;
-  if (selected) return <ExtensionDetails ext={selected} profile={profile} onBack={() => setDetail(null)} />;
+  const selected = detail && chosen === profileId ? list.find((x) => x.id === detail) : undefined;
+  const gone = !!detail && !selected && loaded !== undefined;
+  useEffect(() => {
+    if (gone) useSettingsNav.getState().replace(profileId, null);
+  }, [gone, profileId]);
+  if (selected) return <ExtensionDetails ext={selected} profile={profile} onBack={() => showList(profileId)} />;
 
   return (
     <View>
@@ -60,7 +64,7 @@ export function ExtensionsPane() {
         description="Add features to Ardia with extensions from the Chrome Web Store. Each profile has its own."
         action={
           profiles.length > 1 ? (
-            <PopUp value={profileId} options={profiles.map((p) => ({ value: p.id, title: p.name }))} onChange={setProfileId} />
+            <PopUp value={profileId} options={profiles.map((p) => ({ value: p.id, title: p.name }))} onChange={(id) => useSettingsNav.getState().replace(id)} />
           ) : undefined
         }
       />
@@ -77,7 +81,11 @@ export function ExtensionsPane() {
                 </Text>
               }
               description={ext.errors.length && !ext.enabled ? ext.errors[0] : ext.description}
-              onPress={() => setDetail(ext.id)}
+              onPress={() => {
+                const nav = useSettingsNav.getState();
+                if (nav.profileId !== profileId) nav.replace(profileId);
+                nav.go("extensions", profileId, ext.id);
+              }}
             >
               <Toggle value={ext.enabled} onChange={(on) => void setEnabled(profile, ext.id, on)} />
             </Row>
@@ -118,6 +126,13 @@ export function ExtensionsPane() {
       </Group>
     </View>
   );
+}
+
+function showList(profileId: string) {
+  const nav = useSettingsNav.getState();
+  const prev = nav.back.at(-1);
+  if (prev?.pane === "extensions" && !prev.detail && extensionsProfileId(prev.profileId) === profileId) nav.goBack();
+  else nav.go("extensions", profileId);
 }
 
 function ExtensionDetails({ ext, profile, onBack }: { ext: InstalledExtension; profile: string; onBack: () => void }) {

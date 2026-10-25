@@ -625,6 +625,7 @@ public class ShellModule: Module {
         entry.target = target
         entry.representedObject = item["id"]
       }
+      entry.isAlternate = item["alternate"] as? Bool == true
       entry.isEnabled = item["enabled"] as? Bool ?? true
       entry.state = item["checked"] as? Bool == true ? .on : .off
       if let symbol = item["symbol"] as? String {
