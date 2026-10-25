@@ -14,8 +14,8 @@ import { useWindowId } from "../../store/hooks";
 import { activeTabId } from "../../store/model";
 import { Favicon, useHover } from "../primitives";
 import { filterSections, overviewSections, type OverviewItem } from "./model";
-import { pagePinched } from "./pinchedPages";
-import { closeTabOverview, endPinch, followPinch, revealOf, TAB_OVERVIEW_FOCUS, tabOverviewOpen, useTabOverview } from "./state";
+import { pageOwnsPinch } from "./pinchedPages";
+import { cancelPinch, closeTabOverview, endPinch, followPinch, openedBeforePinch, revealOf, TAB_OVERVIEW_FOCUS, tabOverviewOpen, useTabOverview } from "./state";
 
 const GAP = 22;
 const MIN_CARD = 220;
@@ -41,7 +41,9 @@ export function TabOverviewHost() {
       if (e.type !== "pinch" || e.id !== windowId) return;
       if (e.phase !== "changed") return endPinch(windowId, e.phase === "cancelled");
       const s = useBrowser.getState();
-      if (!tabOverviewOpen(windowId) && (s.peeks[windowId] || pagePinched(activeTabId(s, windowId)) || s.windowUi[windowId]?.panel.open)) return;
+      if (!s.settings.tabOverviewPinch && !openedBeforePinch(windowId)) return;
+      if (pageOwnsPinch(activeTabId(s, windowId)) && !openedBeforePinch(windowId)) return cancelPinch(windowId);
+      if (!tabOverviewOpen(windowId) && (s.peeks[windowId] || s.windowUi[windowId]?.panel.open)) return;
       followPinch(windowId, e.total);
     });
     return () => {
@@ -74,6 +76,19 @@ function TabOverview({ windowId }: { windowId: string }) {
   const [width, setWidth] = useState(0);
   const columns = overviewColumns(width - SIDE * 2, MIN_CARD, GAP);
   const card = width > 0 ? Math.floor((width - SIDE * 2 - GAP * (columns - 1)) / columns) : MIN_CARD;
+  const scroller = useRef<ScrollView>(null);
+  const placedCurrent = useRef(false);
+  const showCurrent = (card: View) => {
+    const list = scroller.current?.getNativeScrollRef?.() as View | null | undefined;
+    if (placedCurrent.current || !list) return;
+    placedCurrent.current = true;
+    card.measureInWindow((_x, y, _w, h) =>
+      list.measureInWindow((_lx, top, _lw, height) => {
+        const offset = y - top - (height - h) / 2;
+        if (offset > 0) scroller.current?.scrollTo({ y: offset, animated: false });
+      }),
+    );
+  };
   const [expanded, setExpanded] = useState<string | null>(null);
   const openFolder = flat.find((f): f is { item: Folder; key: string } => f.item.kind === "folder" && f.key === expanded)?.item ?? null;
   const trayColumns = overviewColumns(width - SIDE * 2 - TRAY_PAD, TRAY_MIN, TRAY_GAP);
@@ -156,7 +171,7 @@ function TabOverview({ windowId }: { windowId: string }) {
             />
           </View>
         </View>
-        <ScrollView contentContainerStyle={{ paddingHorizontal: SIDE, paddingBottom: SIDE }}>
+        <ScrollView ref={scroller} contentContainerStyle={{ paddingHorizontal: SIDE, paddingBottom: SIDE }}>
           {sections.map((section) => {
             const rows: OverviewItem[][] = [];
             for (let i = 0; i < section.items.length; i += columns) rows.push(section.items.slice(i, i + columns));
@@ -171,7 +186,7 @@ function TabOverview({ windowId }: { windowId: string }) {
                         {row.map((item) => {
                           const i = index++;
                           return item.kind === "tab" ? (
-                            <TabCard key={item.id} tabId={item.id} width={card} index={i} selected={item.id === selected} current={item.id === active} fresh={fresh} onOpen={() => choose(item.id)} />
+                            <TabCard key={item.id} tabId={item.id} width={card} index={i} selected={item.id === selected} current={item.id === active} fresh={fresh} onOpen={() => choose(item.id)} onPlaced={item.id === active ? showCurrent : undefined} />
                           ) : (
                             <FolderCard key={item.key} item={item} width={card} index={i} selected={item.key === selected} open={expanded === item.key} onPress={() => toggleFolder(item.key)} />
                           );
@@ -207,6 +222,7 @@ const TabCard = memo(function TabCard({
   current,
   fresh,
   onOpen,
+  onPlaced,
   small = false,
 }: {
   tabId: string;
@@ -216,6 +232,7 @@ const TabCard = memo(function TabCard({
   current: boolean;
   fresh: number;
   onOpen: () => void;
+  onPlaced?: (view: View) => void;
   small?: boolean;
 }) {
   const theme = useTheme();
@@ -224,12 +241,17 @@ const TabCard = memo(function TabCard({
   const close = useHover();
   const picture = useMemo(() => lastPicture(tabId), [tabId, fresh]);
   const enter = useEnter(index);
+  const place = useRef<View>(null);
   if (!tab) return null;
   const url = tab.url || tab.pinnedUrl || "";
   const name = tab.customTitle || tab.title || hostOf(url) || "New Tab";
   const ring = selected || current ? theme.accent : theme.dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.1)";
   return (
-    <Animated.View style={{ width, opacity: enter, transform: [{ scale: enter.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }] }}>
+    <Animated.View
+      ref={place}
+      onLayout={onPlaced ? () => place.current && onPlaced(place.current) : undefined}
+      style={{ width, opacity: enter, transform: [{ scale: enter.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }] }}
+    >
       <Pressable {...hoverProps} onPress={onOpen} tooltip={url || undefined}>
         <View style={{ height: small ? 22 : 26, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 2 }}>
           <Favicon url={url} favicon={tab.favicon} profileId={tab.profileId} size={small ? 12 : 14} />

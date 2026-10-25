@@ -78,6 +78,15 @@ export function followPinch(windowId: string, total: number) {
   revealOf(windowId).setValue(g.progress);
 }
 
+export function openedBeforePinch(windowId: string): boolean {
+  const g = gestures.get(windowId);
+  return g ? g.startedOpen : tabOverviewOpen(windowId);
+}
+
+export function cancelPinch(windowId: string) {
+  if (gestures.has(windowId)) endPinch(windowId, true);
+}
+
 export function endPinch(windowId: string, cancelled: boolean) {
   const g = gestures.get(windowId);
   if (!g) return;

@@ -1,5 +1,5 @@
 import { WebView, type OpenWindowRequest, type PageEngine } from "@ardia/ardiacore";
-import { notePinchScale } from "./tabOverview/pinchedPages";
+import { notePageHandlesPinch, notePinchScale } from "./tabOverview/pinchedPages";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Animated, StyleSheet, View, type ViewStyle } from "react-native";
 import { useShallow } from "zustand/react/shallow";
@@ -735,6 +735,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
         if (kind === "selection") setPageSelection(tabId, data as PageSelection | null);
         else if (kind === "scroll") noteScroll(tabId, data);
         else if (kind === "drm") offerWebKit(tabId, data);
+        else if (kind === "pinchHandled") notePageHandlesPinch(tabId);
       }}
       onNotificationClose={closeWebNotification}
       onDiscarded={(url) => {

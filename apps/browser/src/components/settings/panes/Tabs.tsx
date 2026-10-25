@@ -106,6 +106,7 @@ export function TabsPane() {
         {toggle("sidebarMediaControls", "tabs.sidebarMediaControls")}
         {toggle("autoPictureInPicture", "tabs.autoPictureInPicture")}
         {toggle("videoUpscaling", "tabs.videoUpscaling")}
+        {toggle("tabOverviewPinch", "tabs.tabOverviewPinch")}
       </Group>
 
       <SectionHeader title="Links" />

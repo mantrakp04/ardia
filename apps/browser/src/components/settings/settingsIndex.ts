@@ -164,6 +164,11 @@ const ROWS: Record<SettingsPane, Section[]> = {
           description: "A video or call you're watching pops out when you switch tabs or leave the window, and returns when you come back.",
           keywords: ["pip", "video", "floating", "mini player"],
         },
+        tabOverviewPinch: {
+          title: "Pinch to show all tabs",
+          description: "Pinch in with two fingers on a page to see the space's tabs as cards. Pages that use pinch themselves, like maps, design tools and PDFs, keep it.",
+          keywords: ["pinch", "overview", "all tabs", "trackpad", "gesture", "zoom"],
+        },
         videoUpscaling: {
           title: "Video upscaling",
           description: "Sharpens low-resolution videos shown larger than they are, on Apple silicon. Only in the tab you're watching, never in the background, in Low Power Mode or when the Mac runs hot.",
