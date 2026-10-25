@@ -295,10 +295,11 @@ export function setRepoHidden(folderId: string, repo: string, hidden: boolean) {
     const folder = s.folders[folderId];
     if (!folder) return {};
     const hiddenRepos = folder.hiddenRepos.filter((r) => r !== repo);
+    if (!hidden) return { folders: { ...s.folders, [folderId]: { ...folder, hiddenRepos } } };
     const shown = (it: LiveItem) => repoKey(it) !== repo;
-    const keptOut = (s.repoHidden[folderId] ?? []).filter(shown);
-    if (!hidden) return { folders: { ...s.folders, [folderId]: { ...folder, hiddenRepos } }, repoHidden: { ...s.repoHidden, [folderId]: keptOut } };
-    const leaving = [...(s.items[folderId] ?? []), ...(s.hidden[folderId] ?? [])].filter((it) => !shown(it));
+    const keptOut = s.repoHidden[folderId] ?? [];
+    const kept = new Set(keptOut.map((it) => it.id));
+    const leaving = [...(s.items[folderId] ?? []), ...(s.hidden[folderId] ?? []), ...(s.completed[folderId] ?? []).map((c) => c.item)].filter((it) => !shown(it) && !kept.has(it.id));
     const removed = new Set(leaving.map((it) => it.id));
     return {
       folders: { ...s.folders, [folderId]: { ...folder, hiddenRepos: [...hiddenRepos, repo] } },
@@ -312,8 +313,13 @@ export function setRepoHidden(folderId: string, repo: string, hidden: boolean) {
   });
 }
 
-export function showAllRepos(folderId: string) {
-  setLive((s) => (s.folders[folderId] ? { folders: { ...s.folders, [folderId]: { ...s.folders[folderId]!, hiddenRepos: [] } }, repoHidden: without(s.repoHidden, folderId) } : {}));
+export function releaseShownRepos(folderId: string, fetchedSources: Set<LiveSourceId>) {
+  setLive((s) => {
+    const keptOut = s.repoHidden[folderId];
+    const hiddenRepos = s.folders[folderId]?.hiddenRepos ?? [];
+    const still = keptOut?.filter((it) => !fetchedSources.has(it.source) || hiddenRepos.includes(repoKey(it) ?? ""));
+    return keptOut && still && still.length !== keptOut.length ? { repoHidden: { ...s.repoHidden, [folderId]: still } } : {};
+  });
 }
 
 export function unhide(folderId: string) {

@@ -213,10 +213,14 @@ test("a hidden repo stays out through fetches and manual refreshes, keeps its op
     await manualRefresh(id);
     assert.deepEqual(shown(), ["w"]);
     assert.deepEqual(asked, [], "a hidden repo's pull requests aren't checked for closing, so they never play a completion");
-    const hidden = new Set([...(live().hidden[id] ?? []), ...live().repoHidden[id]].map((it) => it.id));
-    assert.equal(liveTabPlace("m", new Set(shown()), hidden), "hidden");
+    const tabPlace = (itemId) => liveTabPlace(itemId, new Set(shown()), new Set([...(live().hidden[id] ?? []), ...live().repoHidden[id]].map((it) => it.id)));
+    assert.equal(tabPlace("m"), "hidden");
 
     setRepoHidden(id, "bitbucket:me/dotfiles", false);
+    SOURCES.bitbucket.fetch = async () => Promise.reject(new Error("offline"));
+    await refreshFolder(id);
+    assert.equal(tabPlace("m"), "hidden", "while the fetch that would bring it back fails, its open tab still has no stray row");
+    SOURCES.bitbucket.fetch = async () => [work, personal];
     await refreshFolder(id);
     assert.deepEqual(shown(), ["m", "w"]);
     assert.deepEqual(live().unread[id], []);
@@ -230,4 +234,15 @@ test("hiding a repo on one service keeps the same-named repo on the other", () =
   applyFetch(id, [inRepo("g", "acme/app", "github"), inRepo("b", "acme/app")], {});
   setRepoHidden(id, "bitbucket:acme/app", true);
   assert.deepEqual(live().items[id].map((it) => it.id), ["g"]);
+});
+
+test("hiding a repo also keeps aside its completed pull requests, so their open tabs get no stray row", () => {
+  const id = createFolder("p", "pullRequests", []);
+  const merged = inRepo("x", "me/dotfiles");
+  applyFetch(id, [merged], {});
+  applyFetch(id, [], { x: "merged" });
+  finishCompleting(id, ["x"]);
+  setRepoHidden(id, "bitbucket:me/dotfiles", true);
+  assert.deepEqual(live().completed[id], []);
+  assert.deepEqual(live().repoHidden[id].map((it) => it.id), ["x"]);
 });

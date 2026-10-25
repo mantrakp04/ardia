@@ -4,7 +4,7 @@ import { useBrowser } from "../browser/store";
 import { activeTabId, viewTabIds } from "../browser/model";
 import { repoKey } from "./rows";
 import { SOURCES } from "./sources";
-import { applyFetch, createFolder, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
+import { applyFetch, createFolder, releaseShownRepos, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
 import { LiveError, type CompletionState, type LiveFolderKind, type LiveItem, type LiveSourceId, type PullRequestSection } from "./types";
 
 const INTERVAL_MS: Record<LiveFolderKind, number> = { pullRequests: 3 * 60_000, documents: 10 * 60_000 };
@@ -81,8 +81,10 @@ async function run(folderId: string) {
   }
   const lastSources = fetchedSources.get(folderId);
   const quiet = new Set(lastSources ? next.filter((it) => !lastSources.has(it.source)).map((it) => it.id) : []);
-  fetchedSources.set(folderId, new Set(folder.sources.filter((id) => !failed.some((f) => f.source === id))));
+  const succeeded = new Set(folder.sources.filter((id) => !failed.some((f) => f.source === id)));
+  fetchedSources.set(folderId, succeeded);
   applyFetch(folderId, order(next), gone, Date.now(), quiet);
+  releaseShownRepos(folderId, succeeded);
   if (firstFailure) setStatus(folderId, { state: "error", error: describe(firstFailure.source, firstFailure.error) });
   const leaving = Object.keys(gone);
   if (leaving.length) setTimeout(() => finishCompleting(folderId, leaving), COMPLETION_MS);
