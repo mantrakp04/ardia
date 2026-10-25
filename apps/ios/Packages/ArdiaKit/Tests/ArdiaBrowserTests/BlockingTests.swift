@@ -6,6 +6,7 @@ import WebKit
 struct ConvertedRule: Decodable {
   struct Trigger: Decodable {
     var urlFilter: String
+    var caseSensitive: Bool?
     var resourceType: [String]?
     var loadType: [String]?
     var loadContext: [String]?
@@ -14,6 +15,7 @@ struct ConvertedRule: Decodable {
 
     enum CodingKeys: String, CodingKey {
       case urlFilter = "url-filter"
+      case caseSensitive = "url-filter-is-case-sensitive"
       case resourceType = "resource-type"
       case loadType = "load-type"
       case loadContext = "load-context"
@@ -30,15 +32,22 @@ struct ConvertedRule: Decodable {
   var trigger: Trigger
   var action: Action
 
+  static func decode(_ json: String) throws -> [ConvertedRule] {
+    try JSONDecoder().decode([ConvertedRule].self, from: Data(json.utf8))
+  }
+
   static func decode(_ conversion: FilterConversion) throws -> [ConvertedRule] {
-    try JSONDecoder().decode([ConvertedRule].self, from: Data(conversion.json.utf8))
+    try decode(conversion.json)
   }
 }
 
-let easyListSample = """
+let easyListSample = #"""
 [Adblock Plus 2.0]
 ! Title: EasyList
 ! Comment line ||ignored.com^
+# hosts comment
+0.0.0.0 hosts.example
+127.0.0.1 localhost
 ||doubleclick.net^
 ||ads.example.com^$third-party
 ||tracker.example^$script,image,domain=news.example|blog.example
@@ -46,29 +55,39 @@ let easyListSample = """
 ||popunder.example^$popup
 ||frames.example^$subdocument
 ||notscript.example^$~script
+||sockets.example^$xhr,websocket,ping
+||page.example^$doc
+||CaseTest.example/Path$match-case
+||redirect.example/ad.js$script,redirect=noopjs
 ||csp.example^$csp=script-src 'none'
-||redirect.example^$redirect=noopjs
 ||removeparam.example^$removeparam=utm_source
+||badfilter.example^
 ||badfilter.example^$badfilter
+||important.example^$important
 ||path.example/ads/*.js
+|https://cdn.example/ads/
 /banner/*/img^
+/^https?:\/\/ad[0-9]+\.example\//$script
+/ad(s|vert)/
+ad
 ||ADS.UPPER.example^
 @@||cdn.example.com^$script
+@@||important.example^
 @@||trusted.example^$document
 @@||news.example^$elemhide
 ##.ad-banner
 ##.ad-banner
 ###sponsored-box
 ##div[id^="google_ads_iframe"]
+##.card:has(> .sponsored)
 ##.adsbox:-abp-has(.foo)
-##.promo:has(> .ad)
-##a[href*="click"]:contains(Sponsored)
+##a[href*="click"]:has-text(Sponsored)
 ##::selection
 ##.broken[
 example.com##.local-ad
 example.com,shop.example.com##.shop-ad
+example.com,~sub.example.com##.scoped-mixed
 ~excluded.example##.everywhere-but
-a.example,~b.example##.mixed-domains
 example.com#@#.local-ad
 #@#.adsbox
 ##.adsbox
@@ -77,83 +96,141 @@ example.com#$#.inject { display: none }
 example.com##+js(nobab)
 ##^script:has-text(ad)
 bücher.example##.idn
+google.*##.tld-entity
 ||xn--bcher-kva.example^
-garbage line without markers
-"""
+"""#
 
 @Suite struct FilterListConverterTests {
-  @Test func convertsNetworkRulesAndSkipsWhatWebKitCantExpress() throws {
-    let conversion = FilterListConverter.convert(easyListSample)
-    let rules = try ConvertedRule.decode(conversion)
-    let blocks = rules.filter { $0.action.type == "block" }
-    let filters = blocks.map(\.trigger.urlFilter)
+  let rules: [ConvertedRule]
+  let conversion: FilterConversion
 
-    #expect(filters.contains(#"^[^:]+://+([^:/]+\.)?doubleclick\.net[:/]"#))
-    #expect(filters.contains(#"^[^:]+://+([^:/]+\.)?ads\.upper\.example[:/]"#))
-    #expect(filters.contains(#"^[^:]+://+([^:/]+\.)?xn--bcher-kva\.example[:/]"#))
-    for skipped in ["csp", "redirect", "removeparam", "badfilter", "mixed", "path", "banner", "ignored"] {
-      #expect(!filters.contains { $0.contains(skipped) }, "\(skipped) should be skipped")
-    }
+  init() throws {
+    conversion = FilterListConverter.convert(easyListSample)
+    rules = try ConvertedRule.decode(conversion)
+  }
 
-    let thirdParty = try #require(blocks.first { $0.trigger.urlFilter.contains("ads\\.example") })
-    #expect(thirdParty.trigger.loadType == ["third-party"])
-    let scoped = try #require(blocks.first { $0.trigger.urlFilter.contains("tracker") })
+  func block(_ fragment: String) -> ConvertedRule? {
+    rules.first { $0.action.type == "block" && $0.trigger.urlFilter.contains(fragment) }
+  }
+
+  @Test func convertsTheNetworkSyntax() throws {
+    #expect(block("hosts\\.example")?.trigger.urlFilter == #"^[^:]+://+([^:/]+\.)?hosts\.example[:/]"#)
+    #expect(block("localhost") == nil)
+    #expect(block("doubleclick")?.trigger.urlFilter == #"^[^:]+://+([^:/]+\.)?doubleclick\.net[:/]"#)
+    #expect(block("ads\\.upper\\.example") != nil)
+    #expect(block("xn--bcher-kva") != nil)
+    #expect(block("ads\\.example\\.com")?.trigger.loadType == ["third-party"])
+    let scoped = try #require(block("tracker"))
     #expect(scoped.trigger.resourceType == ["script", "image"])
     #expect(scoped.trigger.ifDomain == ["*news.example", "*blog.example"])
-    #expect(blocks.first { $0.trigger.urlFilter.contains("popunder") }?.trigger.resourceType == ["popup"])
-    let frames = try #require(blocks.first { $0.trigger.urlFilter.contains("frames") })
-    #expect(frames.trigger.resourceType == ["document"])
-    #expect(frames.trigger.loadContext == ["child-frame"])
-    let notScript = try #require(blocks.first { $0.trigger.urlFilter.contains("notscript") })
-    #expect(notScript.trigger.resourceType?.contains("script") == false)
-    #expect(notScript.trigger.resourceType?.contains("image") == true)
-
+    #expect(block("mixed")?.trigger.ifDomain == ["*a.example"])
+    #expect(block("mixed")?.trigger.unlessDomain == nil)
+    #expect(block("popunder")?.trigger.resourceType == ["popup"])
+    #expect(block("frames")?.trigger.resourceType == ["document"])
+    #expect(block("frames")?.trigger.loadContext == ["child-frame"])
+    #expect(block("notscript")?.trigger.resourceType?.contains("script") == false)
+    #expect(block("sockets")?.trigger.resourceType == ["raw", "ping"])
+    #expect(block("page\\.example")?.trigger.resourceType == ["document"])
+    #expect(block("casetest")?.trigger.caseSensitive == true)
+    #expect(block("casetest")?.trigger.urlFilter == #"^[^:]+://+([^:/]+\.)?casetest\.example/Path"#)
+    #expect(block("redirect")?.trigger.resourceType == ["script"])
+    #expect(block("path\\.example")?.trigger.urlFilter == #"^[^:]+://+([^:/]+\.)?path\.example/ads/.*\.js"#)
+    #expect(block("cdn\\.example/ads")?.trigger.urlFilter == #"^https://cdn\.example/ads/"#)
+    #expect(block("banner")?.trigger.urlFilter == #"/banner/.*/img"#)
+    #expect(block("ad[0-9]+")?.trigger.urlFilter == #"^https?:\/\/ad[0-9]+\.example\/"#)
+    for absent in ["csp", "removeparam", "badfilter", "ad(s", "ignored"] {
+      #expect(block(absent) == nil, "\(absent) should not block")
+    }
+    #expect(!rules.contains { $0.trigger.urlFilter == "ad" })
     #expect(conversion.blockedDomains.contains("doubleclick.net"))
     #expect(conversion.blockedDomains.contains("ads.example.com"))
     #expect(!conversion.blockedDomains.contains("tracker.example"))
+    #expect(conversion.skippedLines >= 12)
   }
 
-  @Test func exceptionsComeAfterWhatTheyOverride() throws {
-    let rules = try ConvertedRule.decode(FilterListConverter.convert(easyListSample))
-    let lastBlock = try #require(rules.lastIndex { $0.action.type == "block" })
-    let cdn = try #require(rules.firstIndex { $0.action.type == "ignore-previous-rules" && $0.trigger.urlFilter.contains("cdn") })
-    #expect(cdn > lastBlock)
-    #expect(rules[cdn].trigger.resourceType == ["script"])
+  @Test func exceptionsAndImportantRulesAreOrdered() throws {
+    let lastBlock = try #require(rules.lastIndex { $0.action.type == "block" && !$0.trigger.urlFilter.contains("important") })
     let lastHide = try #require(rules.lastIndex { $0.action.type == "css-display-none" })
+    let allow = try #require(rules.firstIndex { $0.action.type == "ignore-previous-rules" && $0.trigger.urlFilter.contains("cdn\\.example\\.com") })
+    let importantAllow = try #require(rules.firstIndex { $0.action.type == "ignore-previous-rules" && $0.trigger.urlFilter.contains("important") })
+    let important = try #require(rules.firstIndex { $0.action.type == "block" && $0.trigger.urlFilter.contains("important") })
+    #expect(allow > lastBlock && allow > lastHide)
+    #expect(important > importantAllow)
     let documents = rules.enumerated().filter { $0.element.action.type == "ignore-previous-rules" && $0.element.trigger.urlFilter == ".*" }
-    #expect(documents.map(\.element.trigger.ifDomain) == [["*trusted.example"], ["*news.example"]])
-    #expect(documents.allSatisfy { $0.offset > lastHide })
+    #expect(documents.map(\.element.trigger.ifDomain) == [["*trusted.example"]])
+    #expect(documents.allSatisfy { $0.offset > important })
+    #expect(!rules.contains { $0.trigger.ifDomain == ["*news.example"] && $0.action.type == "ignore-previous-rules" })
   }
 
   @Test func elementHidingKeepsOnlySelectorsWebKitAccepts() throws {
-    let rules = try ConvertedRule.decode(FilterListConverter.convert(easyListSample))
     let hides = rules.filter { $0.action.type == "css-display-none" }
     let generic = try #require(hides.first { $0.trigger.ifDomain == nil && $0.trigger.unlessDomain == nil })
-    #expect(generic.action.selector == #".ad-banner, #sponsored-box, div[id^="google_ads_iframe"]"#)
+    #expect(generic.action.selector == #".ad-banner, #sponsored-box, div[id^="google_ads_iframe"], .card:has(> .sponsored)"#)
     let scoped = hides.filter { $0.trigger.ifDomain != nil }
-    #expect(scoped.map(\.action.selector) == [".shop-ad"])
-    #expect(scoped.first?.trigger.ifDomain == ["*example.com", "*shop.example.com"])
+    #expect(scoped.map(\.action.selector) == [".scoped-mixed", ".shop-ad"])
+    #expect(scoped.first?.trigger.ifDomain == ["*example.com"])
+    #expect(scoped.last?.trigger.ifDomain == ["*example.com", "*shop.example.com"])
     #expect(hides.first { $0.trigger.unlessDomain != nil }?.action.selector == ".everywhere-but")
     let all = hides.compactMap(\.action.selector).joined(separator: " ")
-    for absent in ["adsbox", "local-ad", "promo", "contains", "selection", "broken", "mixed-domains", "procedural", "inject", "idn"] {
+    for absent in ["adsbox", "local-ad", "has-text", "selection", "broken", "procedural", "inject", "idn", "tld-entity"] {
       #expect(!all.contains(absent), "\(absent) should not be hidden")
     }
   }
 
   @Test func capsAtTheRuleLimitAndStaysValidJSON() throws {
     let lines = (0..<500).map { "||host\($0).example^" } + (0..<10).map { "##.hide-\($0)" }
-    let conversion = FilterListConverter.convert(lines.joined(separator: "\n"), limit: 300)
-    let rules = try ConvertedRule.decode(conversion)
-    #expect(rules.count == 300)
-    #expect(conversion.ruleCount == 300)
+    let capped = FilterListConverter.convert(lines.joined(separator: "\n"), limit: 300)
+    #expect(try ConvertedRule.decode(capped).count == 300)
     #expect(FilterListConverter.convert("").json == "[]")
     #expect(try ConvertedRule.decode(FilterListConverter.convert("! only comments\n[Adblock]\n")).isEmpty)
+  }
+
+  @Test func largeListsSplitAndEachChunkCarriesTheExceptionsThatMatter() throws {
+    let big = FilterListConverter.parse((0..<1000).map { "||host\($0).example^" }.joined(separator: "\n"), id: "big")
+    let unbreak = FilterListConverter.parse("@@||cdn.host7.example^\n@@||host999.example^$script\n@@/generic-pattern/", id: "unbreak")
+    let chunks = FilterListConverter.build([big, unbreak], limit: 300)
+    #expect(chunks.map(\.listID) == ["big", "big", "big", "big"])
+    var blocked = 0
+    for chunk in chunks {
+      let decoded = try ConvertedRule.decode(chunk.json)
+      #expect(decoded.count <= 300)
+      let blocks = decoded.filter { $0.action.type == "block" }.map(\.trigger.urlFilter)
+      let allows = decoded.filter { $0.action.type == "ignore-previous-rules" }.map(\.trigger.urlFilter)
+      #expect(!allows.contains { $0.contains("generic-pattern") })
+      #expect(allows.contains { $0.contains("cdn\\.host7") } == blocks.contains { $0.contains("?host7\\.example") })
+      #expect(allows.contains { $0.contains("host999") } == blocks.contains { $0.contains("?host999\\.example") })
+      if let firstAllow = decoded.firstIndex(where: { $0.action.type == "ignore-previous-rules" }) {
+        #expect(decoded.lastIndex { $0.action.type == "block" } ?? 0 < firstAllow)
+      }
+      blocked += blocks.count
+    }
+    #expect(blocked == 1000)
+    let mixed = FilterListConverter.parse("||host1.example^\n/banner/ad.js", id: "mixed")
+    let mixedRules = try ConvertedRule.decode(try #require(FilterListConverter.build([mixed, unbreak]).first).json)
+    #expect(mixedRules.contains { $0.action.type == "ignore-previous-rules" && $0.trigger.urlFilter.contains("generic-pattern") })
+  }
+
+  @Test func myFiltersWinOverListsInBothDirections() throws {
+    let list = FilterListConverter.parse("||tracker.example^\n@@||ads.example^\n##.promo", id: "easylist")
+    let mine = FilterListConverter.parse("||ads.example^\n@@||tracker.example^\n#@#.promo\nnews.example##.paywall", id: FilterLists.myFiltersID)
+    let chunks = FilterListConverter.build([list, mine], ownerID: FilterLists.myFiltersID)
+    let listRules = try ConvertedRule.decode(try #require(chunks.first { $0.listID == "easylist" }).json)
+    let myRules = try ConvertedRule.decode(try #require(chunks.first { $0.listID == FilterLists.myFiltersID }).json)
+    let listBlock = try #require(listRules.firstIndex { $0.action.type == "block" })
+    let myAllowInList = try #require(listRules.firstIndex { $0.action.type == "ignore-previous-rules" && $0.trigger.urlFilter.contains("tracker") })
+    #expect(myAllowInList > listBlock)
+    #expect(!listRules.contains { $0.action.selector == ".promo" })
+    let listAllowInMine = try #require(myRules.firstIndex { $0.action.type == "ignore-previous-rules" && $0.trigger.urlFilter.contains("ads") })
+    let myBlock = try #require(myRules.firstIndex { $0.action.type == "block" && $0.trigger.urlFilter.contains("ads") })
+    #expect(myBlock > listAllowInMine)
+    #expect(myRules.contains { $0.action.selector == ".paywall" && $0.trigger.ifDomain == ["*news.example"] })
   }
 
   @Test(arguments: [
     (".a > .b:not(.c)", true),
     ("div[class*=\"x:y\"]", true),
     (".a:nth-child(2n+1)", true),
+    (".a:has(.b)", true),
     (".a:hover", false),
     (".a::before", false),
     ("div[title='x]", false),
@@ -163,6 +240,19 @@ garbage line without markers
   ])
   func selectorValidation(selector: String, valid: Bool) {
     #expect(FilterListConverter.isValidSelector(selector) == valid)
+  }
+
+  @Test(arguments: [
+    (#"^https?:\/\/ads\.example\/"#, #"^https?:\/\/ads\.example\/"#),
+    (#"\/ad\d+\.js"#, #"\/ad[0-9]+\.js"#),
+    (#"(?:track|pixel)"#, nil),
+    (#"ads{2}"#, nil),
+    (#"ads(?=x)"#, nil),
+    (#"\bads"#, nil),
+    (#"a+?"#, nil),
+  ] as [(String, String?)])
+  func regexFiltersConvertOnlyWhenWebKitCanRunThem(source: String, expected: String?) {
+    #expect(FilterListConverter.webKitRegex(source) == expected)
   }
 }
 

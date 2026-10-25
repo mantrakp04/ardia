@@ -8,33 +8,18 @@ public enum ContentBlockerState: Equatable, Sendable {
   case failed(String)
 }
 
-struct BlockingMetadata: Codable, Equatable {
-  struct Source: Codable, Equatable {
-    var etag: String?
-    var lastModified: String?
-    var updated: Date
-    var ruleCount: Int
-  }
-
-  var sources: [String: Source] = [:]
-  var lastCheck: Date?
-}
-
 @MainActor
 @Observable
 public final class ContentBlocker {
-  public static let refreshInterval: TimeInterval = 7 * 24 * 3600
-
   public let settings: BlockingSettings
+  public let filterLists: FilterLists
   public private(set) var state: ContentBlockerState = .preparing
-  public private(set) var isRefreshing = false
+  public var isRefreshing: Bool { filterLists.isUpdating }
 
   @ObservationIgnored let directory: URL
-  @ObservationIgnored private let session: URLSession
   @ObservationIgnored private var store: WKContentRuleListStore?
-  @ObservationIgnored private var lists: [BlockingCategory: WKContentRuleList] = [:]
-  @ObservationIgnored private var blockedDomains: Set<String> = []
-  @ObservationIgnored private var metadata = BlockingMetadata()
+  @ObservationIgnored private var seeds: [BlockingCategory: WKContentRuleList] = [:]
+  @ObservationIgnored private var seedDomains: Set<String> = []
   @ObservationIgnored private var revision = 0
   @ObservationIgnored private let controllers = NSHashTable<WKUserContentController>.weakObjects()
   @ObservationIgnored private var applied: [ObjectIdentifier: AppliedLists] = [:]
@@ -45,15 +30,15 @@ public final class ContentBlocker {
     var exempt: Bool
   }
 
-  public init(settings: BlockingSettings, directory: URL, session: URLSession = .shared) {
+  public init(settings: BlockingSettings, directory: URL, session: URLSession = .shared, filterLists: FilterLists? = nil, defaults: UserDefaults? = nil) {
     self.settings = settings
     self.directory = directory
-    self.session = session
-    settings.onChange = { [weak self] in self?.settingsChanged() }
+    self.filterLists = filterLists ?? FilterLists(directory: directory.appending(path: "Filters", directoryHint: .isDirectory), defaults: defaults ?? settings.defaults, session: session)
+    settings.onChange = { [weak self] in self?.listsChanged() }
+    self.filterLists.onCompiledChange = { [weak self] in self?.listsChanged() }
   }
 
-  var metadataURL: URL { directory.appending(path: "metadata.json") }
-  func domainsURL(_ category: BlockingCategory) -> URL { directory.appending(path: "\(category.rawValue)-domains.txt") }
+  func domainsURL(_ category: BlockingCategory) -> URL { directory.appending(path: "seed-\(category.rawValue)-domains.txt") }
 
   public func prepare() async {
     if let preparing { return await preparing.value }
@@ -74,59 +59,36 @@ public final class ContentBlocker {
       return
     }
     self.store = store
-    metadata = (try? JSONDecoder().decode(BlockingMetadata.self, from: Data(contentsOf: metadataURL))) ?? BlockingMetadata()
     var failures = 0
     for category in BlockingCategory.allCases {
-      if let existing = try? await store.contentRuleList(forIdentifier: category.identifier) {
-        lists[category] = existing
+      let source = SeedRules.list(for: category)
+      let identifier = "\(category.identifier).\(FilterLists.hash(source).prefix(12))"
+      if let existing = try? await store.contentRuleList(forIdentifier: identifier) {
+        seeds[category] = existing
         continue
       }
-      let conversion = await Self.convert(SeedRules.list(for: category))
-      do {
-        lists[category] = try await compile(conversion, for: category)
-        try? await Self.write(conversion.blockedDomains.joined(separator: "\n"), to: domainsURL(category))
-      } catch {
+      let conversion = await Self.convert(source)
+      if let list = try? await store.compileContentRuleList(forIdentifier: identifier, encodedContentRuleList: conversion.json) {
+        seeds[category] = list
+        try? await FilterLists.write(conversion.blockedDomains.joined(separator: "\n"), to: domainsURL(category))
+      } else {
         failures += 1
       }
     }
-    blockedDomains = await Self.readDomains(BlockingCategory.allCases.map(domainsURL))
-    revision += 1
-    pushToControllers()
-    let updated = metadata.sources.values.map(\.updated).max()
-    state = failures == BlockingCategory.allCases.count
+    var domains: Set<String> = []
+    for category in BlockingCategory.allCases { domains.formUnion(await FilterLists.readDomains(domainsURL(category))) }
+    seedDomains = domains
+    await filterLists.loadCompiled()
+    listsChanged()
+    state = failures == BlockingCategory.allCases.count && filterLists.lastUpdated == nil
       ? .failed(String(localized: "Content blocking isn’t available right now."))
-      : .ready(updated: updated)
+      : .ready(updated: filterLists.lastUpdated)
   }
 
   public func refreshIfDue(now: Date = .now, force: Bool = false) async {
     await prepare()
-    guard !isRefreshing else { return }
-    if !force, let last = metadata.lastCheck, now.timeIntervalSince(last) < Self.refreshInterval, now >= last { return }
-    isRefreshing = true
-    defer { isRefreshing = false }
-    var changed = false
-    for category in BlockingCategory.allCases {
-      do {
-        guard let text = try await download(category) else { continue }
-        let conversion = await Self.convert(SeedRules.list(for: category) + "\n" + text.body)
-        guard conversion.ruleCount > 0 else { continue }
-        lists[category] = try await compile(conversion, for: category)
-        try? await Self.write(conversion.blockedDomains.joined(separator: "\n"), to: domainsURL(category))
-        metadata.sources[category.rawValue] = .init(etag: text.etag, lastModified: text.lastModified, updated: now, ruleCount: conversion.ruleCount)
-        changed = true
-      } catch {
-        continue
-      }
-    }
-    metadata.lastCheck = now
-    if let data = try? JSONEncoder().encode(metadata) { try? data.write(to: metadataURL, options: .atomic) }
-    if changed {
-      blockedDomains = await Self.readDomains(BlockingCategory.allCases.map(domainsURL))
-      revision += 1
-      pushToControllers()
-    }
-    if case .failed = state, !lists.isEmpty { state = .ready(updated: now) }
-    if case .ready = state { state = .ready(updated: metadata.sources.values.map(\.updated).max()) }
+    if force { await filterLists.updateNow() } else { await filterLists.updateIfNeeded(now: now) }
+    if case .ready = state { state = .ready(updated: filterLists.lastUpdated) }
   }
 
   public func install(on controller: WKUserContentController, counter: BlockedResourceCounter) {
@@ -146,10 +108,11 @@ public final class ContentBlocker {
   }
 
   public func blocksRequest(toHost host: String) -> Bool {
-    guard !blockedDomains.isEmpty else { return false }
+    let lists = filterLists.blockedDomains
+    guard !seedDomains.isEmpty || !lists.isEmpty else { return false }
     var candidate = Substring(host.lowercased())
     while candidate.contains(".") {
-      if blockedDomains.contains(String(candidate)) { return true }
+      if seedDomains.contains(String(candidate)) || lists.contains(String(candidate)) { return true }
       guard let dot = candidate.firstIndex(of: ".") else { return false }
       candidate = candidate[candidate.index(after: dot)...]
     }
@@ -165,7 +128,7 @@ public final class ContentBlocker {
     counter.add(hosts.count { blocksRequest(toHost: $0) })
   }
 
-  private func settingsChanged() {
+  private func listsChanged() {
     revision += 1
     pushToControllers()
   }
@@ -186,51 +149,23 @@ public final class ContentBlocker {
     applied[key] = target
     controller.removeAllContentRuleLists()
     guard !exempt else { return }
+    for list in activeLists() { controller.add(list) }
+  }
+
+  func activeLists() -> [WKContentRuleList] {
+    var result: [WKContentRuleList] = []
     for category in BlockingCategory.allCases where settings.isEnabled(category) {
-      if let list = lists[category] { controller.add(list) }
+      if let seed = seeds[category] { result.append(seed) }
     }
-  }
-
-  private func compile(_ conversion: FilterConversion, for category: BlockingCategory) async throws -> WKContentRuleList {
-    guard let store else { throw CocoaError(.featureUnsupported) }
-    guard let list = try await store.compileContentRuleList(forIdentifier: category.identifier, encodedContentRuleList: conversion.json) else {
-      throw CocoaError(.coderInvalidValue)
+    for compiled in filterLists.compiled where compiled.category.map(settings.isEnabled) ?? true {
+      result.append(compiled.list)
     }
-    return list
-  }
-
-  private func download(_ category: BlockingCategory) async throws -> (body: String, etag: String?, lastModified: String?)? {
-    var request = URLRequest(url: category.sourceURL, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 60)
-    let previous = metadata.sources[category.rawValue]
-    if lists[category] != nil, let previous {
-      if let etag = previous.etag { request.setValue(etag, forHTTPHeaderField: "If-None-Match") }
-      if let modified = previous.lastModified { request.setValue(modified, forHTTPHeaderField: "If-Modified-Since") }
-    }
-    let (data, response) = try await session.data(for: request)
-    guard let http = response as? HTTPURLResponse else { return nil }
-    if http.statusCode == 304 { return nil }
-    guard http.statusCode == 200, data.count < 20_000_000, let body = String(data: data, encoding: .utf8), body.contains("||") || body.contains("##") else { return nil }
-    return (body, http.value(forHTTPHeaderField: "ETag"), http.value(forHTTPHeaderField: "Last-Modified"))
+    return result
   }
 
   @concurrent
   static func convert(_ text: String) async -> FilterConversion {
     FilterListConverter.convert(text)
-  }
-
-  @concurrent
-  static func write(_ text: String, to url: URL) async throws {
-    try Data(text.utf8).write(to: url, options: .atomic)
-  }
-
-  @concurrent
-  static func readDomains(_ urls: [URL]) async -> Set<String> {
-    var domains: Set<String> = []
-    for url in urls {
-      guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
-      for line in text.split(separator: "\n") where !line.isEmpty { domains.insert(String(line)) }
-    }
-    return domains
   }
 }
 

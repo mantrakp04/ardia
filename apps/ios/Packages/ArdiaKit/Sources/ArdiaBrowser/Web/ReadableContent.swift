@@ -77,7 +77,7 @@ public struct ReadableContent: Codable, Equatable, Sendable {
   const h1 = [...document.querySelectorAll("h1")].map((el) => textOf(el)).find((t) => t.length > 1) || "";
   const rawTitle = meta('meta[property="og:title"]') || meta('meta[name="twitter:title"]') || clean(document.title || "") || h1 || host;
   const stripSite = (title) => {
-    const parts = title.split(/\s+[|\-–—·»:]\s+/);
+    const parts = title.split(/\s+[|\-\u2013\u2014\u00b7\u00bb:]\s+/);
     const site = siteName.toLowerCase();
     const isSite = (part) => { const p = part.toLowerCase().trim(); return p.length >= 3 && (p === site || p === host || site.includes(p) || p.includes(site) || p === host.split(".")[0]); };
     while (parts.length > 1 && isSite(parts[parts.length - 1])) parts.pop();

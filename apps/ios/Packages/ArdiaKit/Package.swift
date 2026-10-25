@@ -17,7 +17,7 @@ let package = Package(
   targets: [
     .target(name: "ArdiaShared", resources: [.copy("Scripts")]),
     .target(name: "ArdiaSync", dependencies: ["ArdiaShared", .product(name: "ArdiaSyncCore", package: "ArdiaSyncCore")]),
-    .target(name: "ArdiaBrowser", dependencies: ["ArdiaShared", "ArdiaSync"]),
+    .target(name: "ArdiaBrowser", dependencies: ["ArdiaShared", "ArdiaSync"], resources: [.copy("Blocking/FilterListCatalog.json")]),
     .target(name: "ArdiaIntelligence", dependencies: ["ArdiaBrowser"]),
     .target(name: "ArdiaDesign", dependencies: ["ArdiaBrowser"]),
     .testTarget(name: "ArdiaSharedTests", dependencies: ["ArdiaShared"]),

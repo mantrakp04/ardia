@@ -7,14 +7,6 @@ public enum BlockingCategory: String, CaseIterable, Codable, Sendable {
   case cookieBanners
 
   var identifier: String { "ardia.\(rawValue)" }
-
-  var sourceURL: URL {
-    switch self {
-    case .ads: URL(string: "https://easylist.to/easylist/easylist.txt")!
-    case .trackers: URL(string: "https://easylist.to/easylist/easyprivacy.txt")!
-    case .cookieBanners: URL(string: "https://secure.fanboy.co.nz/fanboy-cookiemonster.txt")!
-    }
-  }
 }
 
 @MainActor
@@ -22,7 +14,7 @@ public enum BlockingCategory: String, CaseIterable, Codable, Sendable {
 public final class BlockingSettings {
   static let keys = (ads: "blocking.ads", trackers: "blocking.trackers", cookies: "blocking.cookieBanners", exempt: "blocking.exemptHosts")
 
-  @ObservationIgnored private let defaults: UserDefaults
+  @ObservationIgnored let defaults: UserDefaults
   @ObservationIgnored var onChange: (@MainActor () -> Void)?
 
   public var blocksAds: Bool {

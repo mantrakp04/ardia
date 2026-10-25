@@ -189,6 +189,7 @@ struct StoreFixture {
     #expect(fixture.store.openTabs.map(\.url) == ["https://here.example/", "https://there.example/"])
     #expect(fixture.store.selectedTabID == current.id)
     #expect(fixture.store.lastReceived.map(\.origin) == [.sent])
+    #expect(fixture.store.lastReceived.map(\.receivedFromDevice) == ["Mac"])
   }
 
   @Test func searchesUseTheEngineTemplateWithURIComponentEncoding() throws {

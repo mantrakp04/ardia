@@ -100,12 +100,13 @@ public final class TabStore: LocalBrowsingSource {
     case .browseForMe(let query, let resultID):
       tab = BrowserTab(url: BrowserURL.browseForMe(resultID), title: query, created: date, position: 0, origin: .browseForMe, profileSyncId: profileSyncId, browseResultID: resultID)
     case .sent(let received):
-      tab = BrowserTab(url: received.url, title: received.title, created: date, position: 0, origin: .sent, profileSyncId: received.profileSyncId, receivedKey: received.key)
+      tab = BrowserTab(url: received.url, title: received.title, created: date, position: 0, origin: .sent, profileSyncId: received.profileSyncId, receivedKey: received.key, receivedFromDevice: received.fromDevice)
     }
     if isPrivate || (placementIsPrivate(placement)) {
       tab.isPrivate = true
       tab.profileSyncId = nil
       tab.receivedKey = nil
+      tab.receivedFromDevice = nil
       tab.position = (privateTabs.last?.position).map { $0 + TabPositions.step } ?? 0
       if case .after(let id) = placement, let index = privateTabs.firstIndex(where: { $0.id == id }) {
         let upper = index + 1 < privateTabs.count ? privateTabs[index + 1].position : nil

@@ -47,6 +47,7 @@ public enum BrowserSchemaV1: VersionedSchema {
     public var originRawValue: String
     public var browseResultID: UUID?
     public var receivedKey: String?
+    public var receivedFromDevice: String?
     @Transient public var isPrivate = false
 
     public var origin: TabOrigin {
@@ -65,7 +66,8 @@ public enum BrowserSchemaV1: VersionedSchema {
       origin: TabOrigin,
       profileSyncId: String? = nil,
       browseResultID: UUID? = nil,
-      receivedKey: String? = nil
+      receivedKey: String? = nil,
+      receivedFromDevice: String? = nil
     ) {
       self.id = id
       self.url = url
@@ -82,6 +84,7 @@ public enum BrowserSchemaV1: VersionedSchema {
       self.originRawValue = origin.rawValue
       self.browseResultID = browseResultID
       self.receivedKey = receivedKey
+      self.receivedFromDevice = receivedFromDevice
     }
   }
 
