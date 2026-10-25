@@ -78,6 +78,11 @@ public class CefModule: Module {
     AsyncFunction("cancelDownload") { (id: String) in ArdiaCoreServices.downloadCommand("cancel", id: id) }.runOnQueue(.main)
     AsyncFunction("pauseDownload") { (id: String) in ArdiaCoreServices.downloadCommand("pause", id: id) }.runOnQueue(.main)
     AsyncFunction("resumeDownload") { (id: String) in ArdiaCoreServices.downloadCommand("resume", id: id) }.runOnQueue(.main)
+    AsyncFunction("keepDownload") { (id: String) in ArdiaCoreServices.downloadCommand("keep", id: id) }.runOnQueue(.main)
+    AsyncFunction("discardDownload") { (id: String) in
+      ArdiaCoreServices.downloadCommand("cancel", id: id)
+      ArdiaCoreServices.downloadCommand("remove", id: id)
+    }.runOnQueue(.main)
 
     AsyncFunction("resolvePermission") { (id: String, result: String, remember: Bool?) in
       ArdiaCoreHost.resolvePermission(id, result: result, remember: remember ?? false)

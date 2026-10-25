@@ -7,7 +7,7 @@ import { useTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
 import { downloadsIn } from "../../store/ui";
 import { openUrl } from "../bookmarks/actions";
-import { downloadMenu, downloadStatus, FileIcon } from "../Downloads";
+import { discardDangerousDownload, downloadMenu, downloadStatus, downloadWarning, FileIcon, keepDangerousDownload, useKeptInsecure, warningText, warningTint } from "../Downloads";
 import { IconButton, useHover } from "../primitives";
 import { Button, useFormColors } from "../settings/controls";
 import { EmptyState, hostLabel, matchesQuery, PAGE_WIDTH, PageHeader } from "./PageLayout";
@@ -52,6 +52,8 @@ function DownloadCard({ d, windowId }: { d: Download; windowId: string }) {
   const exists = d.state !== "finished" || fileExists(d.path);
   const done = d.state === "finished" && exists;
   const progress = d.total > 0 ? d.received / d.total : 0;
+  useKeptInsecure();
+  const warning = downloadWarning(d);
   return (
     <View {...hoverProps} style={{ width: PAGE_WIDTH - 32, maxWidth: "100%" }}>
       <MouseArea path={done ? d.path : null}>
@@ -67,9 +69,13 @@ function DownloadCard({ d, windowId }: { d: Download; windowId: string }) {
             borderColor: colors.groupBorder,
           }}
         >
-          <View style={{ opacity: exists ? 1 : 0.45 }}>
-            <FileIcon path={d.path || d.filename} size={36} />
-          </View>
+          {warning ? (
+            <Symbol name="exclamationmark.triangle.fill" size={24} color={warningTint(theme.dark)} style={{ width: 36, height: 36 }} />
+          ) : (
+            <View style={{ opacity: exists ? 1 : 0.45 }}>
+              <FileIcon path={d.path || d.filename} size={36} />
+            </View>
+          )}
           <View style={{ flex: 1, gap: 3 }}>
             <Pressable disabled={!done} onPress={() => void openFile(d.path)}>
               <Text
@@ -84,16 +90,23 @@ function DownloadCard({ d, windowId }: { d: Download; windowId: string }) {
                 {hostLabel(d.url)}
               </Text>
             </Pressable>
-            {d.state === "downloading" && (
+            {d.state === "downloading" && !warning && (
               <View style={{ height: 3, borderRadius: 1.5, marginTop: 3, backgroundColor: theme.rowHover }}>
                 <View style={{ width: `${Math.max(progress, 0.03) * 100}%`, height: 3, borderRadius: 1.5, backgroundColor: d.paused ? theme.textTertiary : theme.accent }} />
               </View>
             )}
-            <Text numberOfLines={1} style={{ fontSize: 12, color: theme.textSecondary }}>
-              {downloadStatus(d, exists)}
-            </Text>
+            <View tooltip={warning?.detail}>
+              <Text numberOfLines={1} style={{ fontSize: 12, color: warning ? warningText(theme.dark) : theme.textSecondary }}>
+                {downloadStatus(d, exists)}
+              </Text>
+            </View>
           </View>
-          {d.state === "downloading" ? (
+          {warning ? (
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <Button title="Keep" onPress={() => keepDangerousDownload(d)} />
+              <Button title="Discard" onPress={() => discardDangerousDownload(d.id)} />
+            </View>
+          ) : d.state === "downloading" ? (
             <View style={{ flexDirection: "row", gap: 8 }}>
               <Button title={d.paused ? "Resume" : "Pause"} onPress={() => void (d.paused ? resumeDownload(d.id) : pauseDownload(d.id))} />
               <Button title="Cancel" onPress={() => void cancelDownload(d.id)} />

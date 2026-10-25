@@ -25,6 +25,7 @@ export type UiSlice = {
   setFind(tabId: string, patch: Partial<FindState>): void;
   upsertDownload(d: Download): void;
   removeDownload(id: string): void;
+  discardDownload(id: string): void;
   clearDownloads(windowId?: string): void;
   forgetDownloads(profile: string): void;
 };
@@ -44,6 +45,7 @@ export function downloadVisibleIn(d: Pick<Download, "profile" | "offTheRecord">,
 const sessionOpen = (s: Pick<BrowserState, "windows">, session: string) =>
   Object.values(s.windows).some((w) => w.incognito && privateSession(w.profileId) === session);
 const endedPrivateDownloads = new Set<string>();
+const discardedDownloads = new Set<string>();
 
 export const downloadsIn = (s: Pick<BrowserState, "downloads" | "windows">, windowId: string) =>
   s.downloads.filter((d) => downloadVisibleIn(d, s.windows[windowId]));
@@ -94,6 +96,7 @@ export const createUiSlice: StateCreator<BrowserState, [], [], UiSlice> = (set, 
   },
 
   upsertDownload(d) {
+    if (discardedDownloads.has(d.id)) return;
     set((s) => {
       const exists = s.downloads.some((x) => x.id === d.id);
       const session = downloadSession(d);
@@ -110,6 +113,11 @@ export const createUiSlice: StateCreator<BrowserState, [], [], UiSlice> = (set, 
 
   removeDownload(id) {
     set((s) => ({ downloads: s.downloads.filter((d) => d.id !== id) }));
+  },
+
+  discardDownload(id) {
+    discardedDownloads.add(id);
+    get().removeDownload(id);
   },
 
   clearDownloads(windowId) {

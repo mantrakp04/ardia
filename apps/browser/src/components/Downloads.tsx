@@ -1,6 +1,7 @@
-import { cancelDownload, pauseDownload, resumeDownload, type Download } from "@ardia/ardiacore";
+import { cancelDownload, discardDownload, keepDownload, pauseDownload, resumeDownload, type Download } from "@ardia/ardiacore";
+import { hostOf } from "@ardia/core";
 import { ContextMenuArea, copyText, fileExists, fileIcon, MouseArea, moveToTrash, openFile, PopoverBubble, popoverBubbleAvailable, revealFile, showMenu, Surface, Symbol, VisualEffect, type MenuItem } from "@ardia/shell";
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Animated, Easing, Image, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { hex, layout, useTheme } from "../lib/theme";
 import { useShallow } from "zustand/react/shallow";
@@ -37,11 +38,51 @@ export function downloadStatus(d: Download, exists = true) {
   if (d.state === "finished") return exists ? formatBytes(d.total > 0 ? d.total : d.received) : "Deleted";
   if (d.state === "failed") return "Failed to Download";
   if (d.state === "cancelled") return "Cancelled";
+  const warning = downloadWarning(d);
+  if (warning) return warning.status;
   const progress = d.total > 0 ? `${formatBytes(d.received)} of ${formatBytes(d.total)}` : formatBytes(d.received);
   if (d.paused) return `${progress} — Paused`;
   if (d.speed > 0 && d.total > 0) return `${progress}, ${formatBytes(d.speed)}/s — ${formatDuration((d.total - d.received) / d.speed)}`;
   return progress;
 }
+
+const LOOPBACK_HOST = /^(localhost|.+\.localhost|127\.\d+\.\d+\.\d+|\[::1\])$/;
+const KEEP_SETTLE_MS = 500;
+const keptInsecure = new Set<string>();
+const keepTimes = new Map<string, number>();
+const keepListeners = new Set<() => void>();
+const subscribeKeeps = (listener: () => void) => {
+  keepListeners.add(listener);
+  return () => void keepListeners.delete(listener);
+};
+export const useKeptInsecure = () => useSyncExternalStore(subscribeKeeps, () => keptInsecure.size);
+
+export function downloadWarning(d: Download) {
+  if (d.state !== "downloading" || !d.dangerous) return null;
+  const insecure = /^http:/i.test(d.url) && !LOOPBACK_HOST.test(hostOf(d.url)) && !keptInsecure.has(d.id);
+  return insecure
+    ? { insecure, status: "Insecure download blocked", detail: "This file can't be downloaded securely" }
+    : { insecure, status: "Unverified download blocked", detail: "This file type isn't commonly downloaded and it may be dangerous" };
+}
+
+export function keepDangerousDownload(d: Download) {
+  const now = Date.now();
+  if (now - (keepTimes.get(d.id) ?? 0) < KEEP_SETTLE_MS) return;
+  keepTimes.set(d.id, now);
+  if (downloadWarning(d)?.insecure) {
+    keptInsecure.add(d.id);
+    keepListeners.forEach((listener) => listener());
+  }
+  void keepDownload(d.id);
+}
+
+export function discardDangerousDownload(id: string) {
+  useBrowser.getState().discardDownload(id);
+  void discardDownload(id);
+}
+
+export const warningTint = (dark: boolean) => (dark ? "#FF9F0A" : "#FF9500");
+export const warningText = (dark: boolean) => (dark ? "#FF9F0A" : "#B35900");
 
 const openWhenDone = new Set<string>();
 
@@ -61,8 +102,12 @@ function toggleOpenWhenDone(id: string) {
 
 export async function downloadMenu(d: Download, windowId: string) {
   const exists = d.state === "finished" && fileExists(d.path);
-  const items: MenuItem[] =
-    d.state === "downloading"
+  const items: MenuItem[] = downloadWarning(d)
+    ? [
+        { id: "keep", title: "Keep" },
+        { id: "discard", title: "Discard" },
+      ]
+    : d.state === "downloading"
       ? [
           { id: "whenDone", title: "Open When Done", checked: openWhenDone.has(d.id) },
           { id: d.paused ? "resume" : "pause", title: d.paused ? "Resume" : "Pause" },
@@ -85,6 +130,8 @@ export async function downloadMenu(d: Download, windowId: string) {
   if (choice === "pause") void pauseDownload(d.id);
   if (choice === "resume") void resumeDownload(d.id);
   if (choice === "cancel") void cancelDownload(d.id);
+  if (choice === "keep") keepDangerousDownload(d);
+  if (choice === "discard") discardDangerousDownload(d.id);
   if (choice === "open") void openFile(d.path);
   if (choice === "reveal") void revealFile(d.path);
   if (choice === "copy") copyText(d.url);
@@ -135,6 +182,9 @@ const PAD_TOP = INK_INSET - HEADER_CAP_TOP;
 const PAD_BOTTOM = INK_INSET - FOOTER_TEXT_DROP;
 const PANEL_CHROME = PAD_TOP + HEADER + StyleSheet.hairlineWidth + PANEL.separatorGap * 2 + PANEL.rowHeight + PAD_BOTTOM;
 const PLACE_DEADLINE_MS = 120;
+const WARNING_ROW_PAD = 5;
+const CHOICE_GAP = 6;
+const CHOICE_PAD = 10;
 
 function rowFill(dark: boolean, hovered: boolean, pressed: boolean) {
   if (!hovered && !pressed) return undefined;
@@ -188,6 +238,11 @@ export function DownloadsButton({ windowId }: { windowId: string }) {
       />
     </View>
   );
+}
+
+function choiceFill(dark: boolean, hovered: boolean, pressed: boolean) {
+  const alpha = pressed ? (dark ? 0.22 : 0.14) : hovered ? (dark ? 0.16 : 0.1) : dark ? 0.1 : 0.06;
+  return dark ? `rgba(255,255,255,${alpha})` : `rgba(0,0,0,${alpha})`;
 }
 
 export function DownloadsPopover() {
@@ -401,6 +456,22 @@ function FooterButton({ title, onPress }: { title: string; onPress: () => void }
   );
 }
 
+function ChoiceButton({ title, onPress }: { title: string; onPress: () => void }) {
+  const theme = useTheme();
+  const { hovered, hoverProps } = useHover();
+  return (
+    <View {...hoverProps}>
+      <Pressable onPress={onPress}>
+        {({ pressed }) => (
+          <View style={{ height: ROW_BUTTON, paddingHorizontal: CHOICE_PAD, borderRadius: 6, justifyContent: "center", backgroundColor: choiceFill(theme.dark, hovered, pressed) }}>
+            <Text style={{ fontSize: 12, color: theme.textPrimary }}>{title}</Text>
+          </View>
+        )}
+      </Pressable>
+    </View>
+  );
+}
+
 function RowButton({ icon, onPress, tooltip }: { icon: string; onPress: () => void; tooltip: string }) {
   return <IconButton icon={icon} size={PANEL.iconSize} box={ROW_BUTTON} radius={6} onPress={onPress} tooltip={tooltip} />;
 }
@@ -409,8 +480,47 @@ const DownloadRowItem = memo(function DownloadRowItem({ id, windowId }: { id: st
   const live = useBrowser((s) => s.downloads.find((x) => x.id === id));
   const last = useRef(live);
   if (live) last.current = live;
-  return last.current ? <DownloadRow d={last.current} windowId={windowId} /> : null;
+  const d = last.current;
+  if (!d) return null;
+  return downloadWarning(d) ? <DangerousDownloadRow d={d} windowId={windowId} /> : <DownloadRow d={d} windowId={windowId} />;
 });
+
+function DangerousDownloadRow({ d, windowId }: { d: Download; windowId: string }) {
+  const theme = useTheme();
+  const { hovered, hoverProps } = useHover();
+  useKeptInsecure();
+  const warning = downloadWarning(d)!;
+  return (
+    <View {...hoverProps}>
+      <ContextMenuArea onContextMenu={() => void downloadMenu(d, windowId)}>
+        <View
+          style={{
+            paddingHorizontal: PANEL.rowPadding,
+            paddingVertical: WARNING_ROW_PAD,
+            borderRadius: PANEL.rowRadius,
+            backgroundColor: rowFill(theme.dark, hovered, false),
+          }}
+        >
+          <View tooltip={warning.detail} style={{ flexDirection: "row", alignItems: "center", gap: PANEL.iconGap }}>
+            <Symbol name="exclamationmark.triangle.fill" size={FILE_ICON * 0.7} color={warningTint(theme.dark)} style={{ width: FILE_ICON, height: FILE_ICON }} />
+            <View style={{ flex: 1 }}>
+              <Text numberOfLines={1} style={{ fontSize: PANEL.titleSize, lineHeight: PANEL.titleLine, color: theme.textPrimary }}>
+                {d.filename || "Preparing…"}
+              </Text>
+              <Text numberOfLines={1} style={{ fontSize: PANEL.subtitleSize, lineHeight: PANEL.subtitleLine, color: warningText(theme.dark) }}>
+                {warning.status}
+              </Text>
+            </View>
+          </View>
+          <View style={{ flexDirection: "row", gap: CHOICE_GAP, marginTop: CHOICE_GAP, marginLeft: FILE_ICON + PANEL.iconGap }}>
+            <ChoiceButton title="Keep" onPress={() => keepDangerousDownload(d)} />
+            <ChoiceButton title="Discard" onPress={() => discardDangerousDownload(d.id)} />
+          </View>
+        </View>
+      </ContextMenuArea>
+    </View>
+  );
+}
 
 function DownloadRow({ d, windowId }: { d: Download; windowId: string }) {
   const theme = useTheme();

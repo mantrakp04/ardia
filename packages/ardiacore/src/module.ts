@@ -15,6 +15,7 @@ export type Download = {
   total: number;
   speed: number;
   mimeType: string;
+  dangerous?: boolean;
   profile?: string;
   offTheRecord?: boolean;
   staging?: string | null;
@@ -147,6 +148,8 @@ const downloadCommand = (action: "cancel" | "pause" | "resume", id: string) =>
 export const cancelDownload = (id: string) => downloadCommand("cancel", id);
 export const pauseDownload = (id: string) => downloadCommand("pause", id);
 export const resumeDownload = (id: string) => downloadCommand("resume", id);
+export const keepDownload = (id: string) => Cef.keepDownload(id);
+export const discardDownload = (id: string) => Cef.discardDownload(id);
 
 export type DownloadSettings = { folder: string; askWhereToSave: boolean; managed: boolean };
 export const getDownloadSettings = (profile = "") => engineCall<DownloadSettings>("ac_downloads_settings", profile);
