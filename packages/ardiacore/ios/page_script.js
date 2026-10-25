@@ -755,11 +755,12 @@
       let pinchSent = false;
       const wrapped = {
         preventDefault() {
-          if (!pinchSent && this instanceof Wheel && this.ctrlKey && this.isTrusted) {
+          const result = apply(prevent, this, arguments);
+          if (!pinchSent && this instanceof Wheel && this.ctrlKey && this.isTrusted && this.defaultPrevented) {
             pinchSent = true;
             send("pinchHandled", {});
           }
-          return apply(prevent, this, arguments);
+          return result;
         },
       }.preventDefault;
       Object.defineProperty(Wheel.prototype, "preventDefault", { configurable: true, writable: true, value: wrapped });

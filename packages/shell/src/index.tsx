@@ -129,7 +129,7 @@ export type WindowEvent =
   | { type: "frame"; id: string; frame: [number, number, number, number] }
   | { type: "fullScreen"; id: string; on: boolean }
   | { type: "leftEdge"; id: string; over: boolean; point: [number, number] }
-  | { type: "pinch"; id: string; phase: "changed" | "ended" | "cancelled"; total: number }
+  | { type: "pinch"; id: string; phase: "changed" | "ended" | "cancelled"; total: number; onPage?: boolean }
   | { type: "closeRequest"; id: string };
 
 export type AppEvent =

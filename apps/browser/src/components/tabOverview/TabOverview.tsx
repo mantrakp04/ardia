@@ -42,7 +42,7 @@ export function TabOverviewHost() {
       if (e.phase !== "changed") return endPinch(windowId, e.phase === "cancelled");
       const s = useBrowser.getState();
       if (!s.settings.tabOverviewPinch && !openedBeforePinch(windowId)) return;
-      if (pageOwnsPinch(activeTabId(s, windowId)) && !openedBeforePinch(windowId)) return cancelPinch(windowId);
+      if ((e.onPage === false || pageOwnsPinch(activeTabId(s, windowId))) && !openedBeforePinch(windowId)) return cancelPinch(windowId);
       if (!tabOverviewOpen(windowId) && (s.peeks[windowId] || s.windowUi[windowId]?.panel.open)) return;
       followPinch(windowId, e.total);
     });
@@ -98,7 +98,14 @@ function TabOverview({ windowId }: { windowId: string }) {
   );
   const [selected, setSelected] = useState<string | null>(() => (active && flat.some((f) => f.key === active) ? active : (flat[0]?.key ?? null)));
   const firstKey = grid[0]?.[0] ?? null;
-  useEffect(() => setSelected(firstKey), [query]);
+  const searched = useRef(false);
+  useEffect(() => {
+    if (!searched.current) {
+      searched.current = true;
+      return;
+    }
+    setSelected(firstKey);
+  }, [query]);
   useEffect(() => {
     if (selected !== null && !grid.some((row) => row.includes(selected))) setSelected(firstKey);
   }, [grid]);
