@@ -1,30 +1,50 @@
 import { openWindow, switchToTab } from "../../lib/actions";
 import { useBrowser } from "../../store/browser";
 import { originalProfile } from "../../store/small";
+import { paneToReuse } from "../../store/splits";
+import { openInSplit, openSplitPane } from "../layout/splitActions";
+import type { Disposition } from "./disposition";
 
-export type Disposition = "current" | "newTab" | "newWindow";
+export { dispositionFor, type Disposition } from "./disposition";
 
-export function dispositionFor(mods: { metaKey?: boolean; altKey?: boolean; shiftKey?: boolean }): Disposition {
-  if (mods.metaKey || mods.altKey) return "newTab";
-  if (mods.shiftKey) return "newWindow";
-  return "current";
-}
-
-export function openFromBar(url: string, tabId: string, disposition: Disposition) {
+export function openFromBar(url: string, tabId: string, disposition: Disposition): boolean {
   const s = useBrowser.getState();
   const tab = s.tabs[tabId];
-  if (!url || !tab) return;
+  if (!url || !tab) return false;
   const w = s.windows[tab.windowId];
-  if (disposition === "current") return s.navigate(tabId, url);
+  if (disposition === "current" || (disposition === "split" && !tab.url)) {
+    s.navigate(tabId, url);
+    return true;
+  }
+  if (disposition === "split") {
+    if (!openBesideInSplit(tabId, url)) return false;
+    useBrowser.getState().closePanel(tab.windowId);
+    return true;
+  }
   s.closePanel(tab.windowId);
-  if (disposition === "newTab") return void s.newTab(tab.windowId, { url, profileId: tab.profileId, openerId: tab.url ? tabId : undefined });
-  openWindow(w?.incognito ? { incognito: true, url, profileId: originalProfile(s, w) } : { profileId: tab.profileId, url });
+  if (disposition === "newTab" || disposition === "background")
+    s.newTab(tab.windowId, { url, profileId: tab.profileId, openerId: tab.url ? tabId : undefined, background: disposition === "background" });
+  else openWindow(w?.incognito ? { incognito: true, url, profileId: originalProfile(s, w) } : { profileId: tab.profileId, url });
+  return true;
+}
+
+function openBesideInSplit(tabId: string, url: string): boolean {
+  const s = useBrowser.getState();
+  const reuse = paneToReuse(s, tabId);
+  if (!reuse) return openSplitPane(s.tabs[tabId]!.windowId, { anchorTabId: tabId, url, side: "right" }) !== null;
+  s.navigate(reuse, url);
+  s.activate(reuse);
+  return true;
 }
 
 export function switchFromBar(targetTabId: string, url: string, barTabId: string, disposition: Disposition) {
-  if (disposition !== "current") return openFromBar(url, barTabId, disposition);
   const s = useBrowser.getState();
   const bar = s.tabs[barTabId];
+  if (disposition === "split" && bar?.url && targetTabId !== barTabId) {
+    s.closePanel(bar.windowId);
+    return openInSplit(targetTabId);
+  }
+  if (disposition !== "current") return void openFromBar(url, barTabId, disposition);
   if (bar) s.closePanel(bar.windowId);
   switchToTab(targetTabId);
 }

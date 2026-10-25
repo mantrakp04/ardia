@@ -180,10 +180,9 @@ export function Omnibox({
   const go = (url: string, disposition: Disposition = "current") => {
     bangEnter.cancel();
     if (!url) return;
-    if (opensTab && disposition !== "newWindow") return openFromNewTabBar(windowId, opensTab, url);
+    if (opensTab && disposition !== "newWindow" && disposition !== "split") return openFromNewTabBar(windowId, opensTab, url, disposition === "background");
     if (disposition === "current") journeyNavigate(tabId);
-    openFromBar(url, tabId, disposition);
-    if (disposition !== "current") dismiss();
+    if (openFromBar(url, tabId, disposition) && disposition !== "current") dismiss();
   };
 
   const choose = (s: Suggestion | undefined, disposition: Disposition = "current", byEnter = false) => {
@@ -293,8 +292,8 @@ export function Omnibox({
     if (key === "Enter") {
       if (metaKey && shiftKey) return forceSearch();
       if (ctrlKey && !/[\s./:]/.test(typed.trim()) && typed.trim())
-        return go(`https://www.${typed.trim()}.com`, shiftKey ? "newWindow" : "current");
-      if (metaKey || altKey || shiftKey) return choose(current, dispositionFor({ metaKey, altKey, shiftKey }), true);
+        return go(`https://www.${typed.trim()}.com`, shiftKey ? "newWindow" : "background");
+      if (metaKey || altKey || shiftKey || ctrlKey) return choose(current, dispositionFor({ metaKey, altKey, shiftKey, ctrlKey }), true);
     }
   };
 

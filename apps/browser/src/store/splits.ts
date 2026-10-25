@@ -59,6 +59,15 @@ function fromSlots(split: SplitView, slots: SplitSlot[], sizes?: number[]): Spli
   return next;
 }
 
+export function paneToReuse(s: Pick<BrowserState, "splits">, sourceTabId: string): string | null {
+  const split = splitOf(s, sourceTabId);
+  if (!split) return null;
+  const next = split.tabIds[split.tabIds.indexOf(sourceTabId) + 1];
+  if (!next && split.tabIds.length < MAX_SPLIT_PANES) return null;
+  const target = next ?? split.tabIds.at(-1)!;
+  return target === sourceTabId ? null : target;
+}
+
 export function splitOf(s: Pick<BrowserState, "splits">, tabId: string | undefined): SplitView | undefined {
   if (!tabId) return undefined;
   for (const v of Object.values(s.splits)) if (v.tabIds.includes(tabId)) return v;
