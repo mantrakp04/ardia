@@ -252,3 +252,4 @@ export const listExtensions = (profile) => userScripts().engine.list(profile);
 export const installExtension = (pkg, profile) => userScripts().engine.install(pkg.path, profile);
 export const reloadExtension = (id, profile) => userScripts().engine.reload(id, profile);
 export const uninstallExtension = (id, profile) => userScripts().engine.uninstall(id, profile);
+export const userFullName = () => "";
