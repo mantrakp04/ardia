@@ -64,6 +64,7 @@ What the build adds:
 | `chromium-password-generation-local.patch` | Chrome offers "Suggest strong password" without password sync (`PasswordFeatureManagerImpl::IsGenerationEnabled`); generated passwords save to the profile's local store like any other. With no account, its popup says "Passwords are saved to Password Manager on this device." instead of "…saved to Google Password Manager for ." |
 | `chromium-extension-installed-bubble.patch` | Chrome's "<extension> has been added" bubble (`ShowInfoDialog`): a window without Chrome's toolbar (every client window) gets it as a bubble under the top-right corner of the window, with a close button, closing on Esc and when the window is clicked. Chrome fell back to a browser-modal sheet there, with no buttons and no way to dismiss it. The app renames "Chromium" in Chrome's strings itself (`ac_strings.cc`) |
 | `chromium-tab-sharing-capturer.patch` | Each tab-sharing infobar remembers the frame whose capture it's for (`TabSharingInfoBarDelegate::capturer_id()`): a tab shows one infobar per share, and "Share this tab instead" moves only that share, never another call's |
+| `chromium-desktop-capture-window-audio.patch` | A desktop getUserMedia of a window gets audio when its `DesktopMediaID` carries a `window_audio_type` (`ShouldCaptureAudio` in `desktop_capture_access_handler.cc`, which allowed audio only for screens and tabs). Only ArdiaCore's grant sets one (`ac_desktop_capture.mm`, from the share picker's audio checkbox); Chrome's own picker sets it only for getDisplayMedia, which doesn't take this path, so extensions' desktopCapture is unchanged |
 | `chromium-video-super-resolution.patch` | Video upscaling on Apple silicon: a per-compositor gate (`RenderWidgetHostView::SetVideoSuperResolutionAllowed` → `BrowserCompositorMac`, kept across its compositors → `ui::Compositor` → `DisplayPrivate.SetVideoSuperResolutionAllowed` → `viz::Display`, which redraws once on a change → `gfx::FrameData`) reaches the GPU process's `ImageTransportSurfaceOverlayMac::Present`, where `CALayerTreeCoordinator::UpscaleVideo` hands the frame's video layers to ArdiaCore's upscaler (`g_ardia_create_video_upscaler`, set in the GPU process; `//ardia/core` `ac_video_upscaler.mm`). A frame whose upscale has just started holds its CA commit until the job completes (at most 0.6 of a display frame, 4–10 ms, posted, never blocking the GPU thread); a later finish replaces the committed layer's contents in a small CA commit, a redraw of the same frame takes the cached output at once, and the contents are a `CALayer`'s IOSurface or an `AVSampleBufferDisplayLayer`'s buffer alike. The browser side decides the gate (`ac_video_upscaling.mm`) |
 | `chromium-begin-frame-warm-up.patch` | Opt in with `ARDIA_BEGIN_FRAME_BRIDGE=on` (`g_ardia_begin_frame_bridge`, set by `ACMainDelegate::BasicStartupComplete`, which the GPU process gets through its environment). When a tab is shown, `ExternalBeginFrameSourceMac` waits for the display link's first callback before the renderer gets a BeginFrame, so the first frame after the show can start a vsync late. With the bridge on it keeps each display's last vsync grid (timebase and interval, for 2 s) and, while it waits on the display link, sends up to 4 warm-up BeginFrames on that grid from a timer; the first real callback takes over, and a forced vsync update drops the grid. Off, the patched paths are Chrome's |
 | `chromium-main-frame-throttle-after-show.patch` | With `ThrottleMainFrameTo60Hz` on (the app turns it on with `UrgentMainFrameForInput`; `ARDIA_MAIN_FRAME_THROTTLE=off` leaves both out), a renderer on a 120 Hz display sends main frames (rAF, style, layout, paint) at 60 Hz while its compositor keeps drawing at 120 Hz, and input asks for an urgent main frame. The patch keeps main frames at the full rate for the first second after a widget is created or shown (`SchedulerStateMachine::ShouldThrottleSendBeginMainFrame`), so a switched-to tab and a new page paint at 120 Hz. Its tests are in `scheduler_state_machine_unittest.cc` (`cc_unittests --gtest_filter='SchedulerStateMachineTest.*:SchedulerTest.*'`). Off, nothing changes |
@@ -514,12 +515,20 @@ permission.
 In the app:
 
 - The WebView method `mediaCaptureSourceId()` returns the id.
-- The share picker answers a `displayMediaRequest` with that id, and the page script adds tab audio
-  when the page asked for audio.
+- The share picker answers a `displayMediaRequest` with that id and whether to share audio, and the page
+  script asks for desktop audio when the answer says so.
+- What audio the picker offers follows Chrome's picker: tab audio (checked by default), system audio for a
+  screen, and for a window system audio, or the app's own audio when the page asks `windowAudio: "window"`
+  (both unchecked by default). `systemAudio: "exclude"` and `windowAudio: "exclude"` hide the checkbox. System
+  audio needs Core Audio taps (macOS 14.2+, `DesktopMediaPickerController::IsSystemAudioCaptureSupported`), app
+  audio also `kApplicationAudioCaptureMac` (`media::IsApplicationLoopbackCaptureSupported`); the engine reports
+  both (`ArdiaCoreEngine.desktopCaptureAudio`). macOS asks for System Audio Recording the first time
+  (`NSAudioCaptureUsageDescription`).
 - The answer lets one getUserMedia request of the asking frame, within 15 s, capture exactly the picked
-  source (`ac_desktop_capture.mm`), with desktop audio only for a tab the page asked audio of.
-  Anything else is refused: the page script runs in the page's world, so the page decides what
-  getUserMedia asks for.
+  source (`ac_desktop_capture.mm`), with the audio it was granted: `audio_share` for a tab or screen, and a
+  window's `window_audio_type` (`chromium-desktop-capture-window-audio.patch` lets Chrome's handler pass that
+  on). Anything else is refused: the page script runs in the page's world, so the page decides what
+  getUserMedia asks for, and audio it wasn't granted never reaches it.
 - Desktop getUserMedia without a picked source is refused outright, with no prompt (as in Chrome, where
   only `getDisplayMedia` and its picker capture the screen). Only camera and microphone get a permission
   prompt.

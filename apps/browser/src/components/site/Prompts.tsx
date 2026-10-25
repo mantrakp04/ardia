@@ -20,7 +20,7 @@ const hostOf = (origin: string) => {
   }
 };
 
-function PromptBody({
+export function PromptBody({
   icons,
   image,
   title,

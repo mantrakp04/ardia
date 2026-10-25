@@ -1,502 +1,617 @@
+import { Surface } from "@ardia/shell";
 import type { ReactNode } from "react";
-import { Animated, StyleSheet, Text, View } from "react-native";
+import { Animated, View } from "react-native";
+import { hex } from "../../../lib/theme";
 import type { PreviewId } from "./ids";
 import {
-  AD,
   at,
   atRect,
+  Backdrop,
   Card,
-  Clip,
+  CHIP,
+  Crumb,
   Cursor,
-  DARK_WINDOW,
-  FAVS,
+  FIELD,
+  fill,
   Glyph,
   hairline,
   Highlight,
+  InputRow,
   Keycap,
-  LIGHT_WINDOW,
+  Label,
   Lights,
+  LIGHTS_Y,
   linear,
+  lookFor,
+  NavIcons,
+  NEW_TAB,
+  NewTabButton,
   NewTabPage,
-  PageLines,
+  NOTES,
+  Page,
   Panel,
-  PILL,
+  Pill,
   ROW,
   rowY,
-  SIDE_FIELD,
-  SideRows,
-  SITE,
-  SitePage,
+  Rows,
+  SIDEBAR_ICONS,
+  SidebarField,
+  sideCard,
+  STRIP_H,
+  SuggestionRow,
+  tab,
   TabRow,
   Toolbar,
   TOOLBAR_H,
-  TOP_TAB,
+  TOOLBAR_ICONS,
+  CRUMB_X,
+  topCard,
   tracker,
+  TRIP,
+  type Article,
   type Geo,
-  type Pal,
+  type Look,
   type Rect,
+  type Suggestion,
+  type Tab,
   type Tracker,
 } from "./kit";
 
-export type SceneProps = { g: Geo; pal: Pal; p: Animated.Value };
+export type SceneOpts = { addressInSidebar: boolean; systemDark: boolean; accent: string };
+export type SceneProps = { g: Geo; look: Look; p: Animated.Value; opts: SceneOpts };
 type Scene = (props: SceneProps) => ReactNode;
 
-const fill = StyleSheet.absoluteFill;
+const BLANK: Tab = { title: "New Tab", host: "", color: "#A1A1A6", icon: "globe" };
+const listTop = (opts: SceneOpts) => (opts.addressInSidebar ? ROW.topWithField : ROW.top);
 
-function Page({ g, pal, seed = 0 }: { g: Geo; pal: Pal; seed?: 0 | 1 }) {
-  return <PageLines g={g} pal={pal} w={g.card.w - 16} h={g.card.h - 19} seed={seed} />;
-}
-
-function Browser({ g, pal, rows = 3, sel = 0, children }: { g: Geo; pal: Pal; rows?: number; sel?: number; children?: ReactNode }) {
+function Chrome({ g, look, opts, sel = 0 }: { g: Geo; look: Look; opts: SceneOpts; sel?: number }) {
   return (
     <>
-      <Lights g={g} pal={pal} />
-      <SideRows g={g} pal={pal} n={rows} sel={sel} />
-      <Card g={g} pal={pal} rect={g.card}>
-        <Toolbar g={g} pal={pal} />
-        <Page g={g} pal={pal} />
-        {children}
+      <Backdrop g={g} look={look} />
+      <Lights g={g} y={opts.addressInSidebar ? LIGHTS_Y.field : LIGHTS_Y.toolbar} />
+      {opts.addressInSidebar ? (
+        <>
+          <NavIcons g={g} color={look.t.icon} xs={SIDEBAR_ICONS} y={LIGHTS_Y.field} names={["sidebar.left", "chevron.left", "chevron.right"]} />
+          <SidebarField g={g} look={look} t={tab(sel)} />
+        </>
+      ) : null}
+    </>
+  );
+}
+
+function Std({ g, look, opts, n = 4, sel = 0, rows, page, card, a = NOTES, site }: { g: Geo; look: Look; opts: SceneOpts; n?: number; sel?: number; rows?: ReactNode; page?: ReactNode; card?: ReactNode; a?: Article; site?: boolean }) {
+  const c = sideCard(g);
+  const field = opts.addressInSidebar;
+  return (
+    <>
+      <Chrome g={g} look={look} opts={opts} sel={sel} />
+      {rows ?? <Rows g={g} look={look} n={n} sel={sel} top={listTop(opts)} />}
+      <Card g={g} look={look} rect={c}>
+        {field ? null : <Toolbar g={g} look={look} w={c.w} t={tab(sel)} site={site} />}
+        {page ?? <Page g={g} look={look} a={a} top={field ? 0 : TOOLBAR_H} />}
+        {card}
       </Card>
     </>
   );
 }
 
-function KeyPress({ g, pal, t, label, ms = 0 }: { g: Geo; pal: Pal; t: Tracker; label: string; ms?: number }) {
-  const c = g.card;
+function KeyPress({ g, look, t, label, ms = 0 }: { g: Geo; look: Look; t: Tracker; label: string; ms?: number }) {
   return (
     <Keycap
       g={g}
-      pal={pal}
-      x={c.x + c.w - 4}
-      y={c.y + c.h - 11.5}
+      look={look}
+      x={g.W - 22}
+      y={g.H - 50}
       label={label}
-      style={{ opacity: t.in(ms, 160), transform: [{ scale: t([[ms, 0.8], [ms + 240, 1]]) }] }}
+      style={{ opacity: t.in(ms, 160), transform: [{ scale: t([[ms, 0.82], [ms + 260, 1]]) }] }}
     />
   );
 }
 
-function SuggestionRows({ g, pal, t, w, top, from = 0, ms }: { g: Geo; pal: Pal; t: Tracker; w: number; top: number; from?: number; ms: number }) {
+const CURRENT: Suggestion[] = [
+  { fav: tab(0), title: "A slow morning on the coast trail", detail: "fieldnotes.blog" },
+  { fav: tab(2), title: "Weekend in Lisbon", hint: "Switch to Tab" },
+  { icon: "magnifyingglass", title: "coast trail walks" },
+];
+
+const FRESH: Suggestion[] = [
+  { fav: tab(1), title: "Inbox", hint: "Switch to Tab" },
+  { fav: tab(3), title: "Q4 roadmap", detail: "docs.new" },
+  { icon: "clock", title: "coast trail walks" },
+];
+
+function SuggestionList({ g, look, t, rows, ms }: { g: Geo; look: Look; t: Tracker; rows: Suggestion[]; ms: number }) {
   return (
-    <>
-      {[0, 1, 2].map((i) => (
-        <Animated.View
-          key={i}
-          style={[at(g, 2, top + i * 8, w - 4, 7), { borderRadius: 2 * g.k, backgroundColor: i === 0 ? pal.hi : "transparent", opacity: t.in(ms + i * 60, 200) }]}
-        >
-          <View style={[at(g, 3, 2, 3, 3), { borderRadius: 0.9 * g.k, backgroundColor: FAVS[(from + i) % FAVS.length] }]} />
-          <View style={[at(g, 8.5, 2.7, [30, 24, 34][i] ?? 30, 1.6), { borderRadius: 0.8 * g.k, backgroundColor: pal.text }]} />
-        </Animated.View>
+    <View style={{ paddingHorizontal: 9 * g.s, paddingTop: 4 * g.s }}>
+      {rows.map((s, i) => (
+        <SuggestionRow key={i} g={g} look={look} s={s} selected={i === 0} style={{ opacity: t.in(ms + i * 50, 200), transform: [{ translateY: t([[ms + i * 50, -3 * g.s], [ms + i * 50 + 220, 0]]) }] }} />
       ))}
-    </>
-  );
-}
-
-function BarField({ g, pal, w, children }: { g: Geo; pal: Pal; w: number; children?: ReactNode }) {
-  return (
-    <>
-      <Glyph g={g} name="magnifyingglass" size={5} color={pal.inkDim} x={4} y={3} />
-      {children}
-      <View style={[at(g, 0, 11, w, hairline(g) / g.k), { backgroundColor: pal.panelBorder }]} />
-    </>
-  );
-}
-
-function CommandPanel({ g, pal, t, rect, ms, field }: { g: Geo; pal: Pal; t: Tracker; rect: Rect; ms: number; field: ReactNode }) {
-  return (
-    <>
-      <BarField g={g} pal={pal} w={rect.w}>
-        {field}
-      </BarField>
-      <SuggestionRows g={g} pal={pal} t={t} w={rect.w} top={13} from={1} ms={ms} />
-    </>
-  );
-}
-
-const centredPanel = (g: Geo, w = 84): Rect => {
-  const c = g.card;
-  const width = Math.min(w, c.w - 12);
-  return { x: c.x + (c.w - width) / 2, y: c.y + 12, w: width, h: 38 };
-};
-
-function SelectedUrl({ g, pal }: { g: Geo; pal: Pal }) {
-  return (
-    <View style={[at(g, 11, 3.2, 34, 5), { borderRadius: 1 * g.k, backgroundColor: pal.link, opacity: 0.28 }]}>
-      <View style={[at(g, 1.5, 1.7, 30, 1.6), { borderRadius: 0.8 * g.k, backgroundColor: pal.ink, opacity: 0.8 }]} />
     </View>
   );
 }
 
-const TabsSidebar: Scene = ({ g, pal, p }) => {
-  const t = tracker(p, 1200);
-  const u = g.k;
+function SelectedUrl({ g, look }: { g: Geo; look: Look }) {
+  return (
+    <View style={{ backgroundColor: look.t.selection, borderRadius: 2 * g.s, paddingHorizontal: 1 * g.s }}>
+      <Label g={g} size={14} color={look.t.textPrimary}>
+        fieldnotes.blog/coast-trail
+      </Label>
+    </View>
+  );
+}
+
+function Divider({ g, look }: { g: Geo; look: Look }) {
+  return <View style={{ height: hairline, marginHorizontal: 14 * g.s, backgroundColor: look.t.divider }} />;
+}
+
+const PANEL_H = 52 + 3 * 35 + 14;
+
+function centredFrame(g: Geo): Rect {
+  const c = sideCard(g);
+  const content = c.w < 708 ? (c.w <= 636 ? c.w - 20 : 616) : 652;
+  const w = Math.min(content, c.w - 28, 560);
+  return { x: c.x + (c.w - w) / 2, y: c.y + Math.max(12, Math.round(c.h * 0.22)), w, h: PANEL_H };
+}
+
+function grow(t: Tracker, g: Geo, from: Rect, to: Rect, ms: number, dur = 260) {
+  const sx = from.w / to.w;
+  const sy = from.h / to.h;
+  return {
+    opacity: t([[ms, 0.4], [ms + 90, 1]]),
+    transform: [
+      { translateX: t([[ms, (from.x - to.x - (to.w * (1 - sx)) / 2) * g.s], [ms + dur, 0]]) },
+      { translateY: t([[ms, (from.y - to.y - (to.h * (1 - sy)) / 2) * g.s], [ms + dur, 0]]) },
+      { scaleX: t([[ms, sx], [ms + dur, 1]]) },
+      { scaleY: t([[ms, sy], [ms + dur, 1]]) },
+    ],
+  };
+}
+
+const drop = (t: Tracker, g: Geo, ms: number) => ({ opacity: t.in(ms, 200), transform: [{ translateY: t([[ms, -10 * g.s], [ms + 300, 0]]) }, { scale: t([[ms, 0.97], [ms + 300, 1]]) }] });
+
+function SwapCrumb({ g, look, t, a, b, ms, x, y }: { g: Geo; look: Look; t: Tracker; a: Tab; b: Tab; ms: number; x: number; y: number }) {
   return (
     <>
-      <Lights g={g} pal={pal} />
-      <Highlight g={g} pal={pal} y={rowY(0)} style={{ opacity: t.in(240, 200), transform: [{ translateY: t([[620, 0], [920, 2 * ROW.pitch * u]]) }] }} />
-      {[0, 1, 2, 3].map((i) => (
-        <TabRow key={i} g={g} pal={pal} i={i} y={rowY(i)} style={{ opacity: t.in(i * 80, 280), transform: [{ translateX: t([[i * 80, -8 * u], [i * 80 + 300, 0]]) }] }} />
+      <Crumb g={g} look={look} t={a} style={[at(g, x, y, 420, 18), { opacity: t.out(ms, 180) }]} />
+      <Crumb g={g} look={look} t={b} style={[at(g, x, y, 420, 18), { opacity: t.in(ms + 60, 220) }]} />
+    </>
+  );
+}
+
+const TabsSidebar: Scene = ({ g, look, p, opts }) => {
+  const t = tracker(p, 1200);
+  const c = sideCard(g);
+  const top = listTop(opts);
+  const field = opts.addressInSidebar;
+  return (
+    <>
+      <Backdrop g={g} look={look} />
+      <Lights g={g} y={field ? LIGHTS_Y.field : LIGHTS_Y.toolbar} />
+      {field ? (
+        <>
+          <NavIcons g={g} color={look.t.icon} xs={SIDEBAR_ICONS} y={LIGHTS_Y.field} names={["sidebar.left", "chevron.left", "chevron.right"]} />
+          <SidebarField g={g} look={look} t={tab(0)}>
+            <View />
+          </SidebarField>
+          <SwapCrumb g={g} look={look} t={t} a={tab(0)} b={tab(2)} ms={660} x={FIELD.x + 12} y={FIELD.y + 8} />
+        </>
+      ) : null}
+      <Highlight g={g} look={look} y={rowY(0, top)} style={{ opacity: t.in(240, 200), transform: [{ translateY: t([[620, 0], [900, 2 * ROW.pitch * g.s]]) }] }} />
+      {[0, 1, 2, 3, 4].map((i) => (
+        <TabRow
+          key={i}
+          g={g}
+          look={look}
+          t={i === 4 ? NEW_TAB : tab(i)}
+          y={rowY(i, top)}
+          style={{ opacity: t.in(i * 70, 280), transform: [{ translateX: t([[i * 70, -14 * g.s], [i * 70 + 320, 0]]) }] }}
+        />
       ))}
-      <Card g={g} pal={pal} rect={g.card}>
-        <Toolbar g={g} pal={pal} />
-        <Animated.View style={[fill, { opacity: t.out(640, 200) }]}>
-          <Page g={g} pal={pal} />
+      <Card g={g} look={look} rect={c}>
+        {field ? null : (
+          <>
+            <Toolbar g={g} look={look} w={c.w} t={tab(0)} crumb={false} />
+            <SwapCrumb g={g} look={look} t={t} a={tab(0)} b={tab(2)} ms={660} x={CRUMB_X} y={12} />
+          </>
+        )}
+        <Animated.View style={[fill, { opacity: t.out(660, 200) }]}>
+          <Page g={g} look={look} top={field ? 0 : TOOLBAR_H} />
         </Animated.View>
-        <Animated.View style={[fill, { opacity: t.in(700, 260) }]}>
-          <Page g={g} pal={pal} seed={1} />
+        <Animated.View style={[fill, { opacity: t.in(700, 280) }]}>
+          <Page g={g} look={look} a={TRIP} top={field ? 0 : TOOLBAR_H} />
         </Animated.View>
       </Card>
     </>
   );
 };
 
-const TabsTop: Scene = ({ g, pal, p }) => {
+function TopChip({ g, look, t: tb, x, style }: { g: Geo; look: Look; t: Tab; x: number; style?: object }) {
+  return <TabRow g={g} look={look} t={tb} x={x} y={CHIP.top - 1} w={CHIP.w} style={style} />;
+}
+
+function SelectedTopTab({ g, look, x, style }: { g: Geo; look: Look; x: number; style?: object }) {
+  return <Animated.View style={[at(g, x, 3, CHIP.w, STRIP_H - 3 + 1), { backgroundColor: look.card, borderTopLeftRadius: 10 * g.s, borderTopRightRadius: 10 * g.s }, style]} />;
+}
+
+const TabsTop: Scene = ({ g, look, p }) => {
   const t = tracker(p, 1200);
-  const u = g.k;
-  const step = TOP_TAB.w + TOP_TAB.gap;
-  const c = g.topCard;
+  const c = topCard(g);
+  const step = CHIP.w + CHIP.gap;
   return (
     <>
-      <Lights g={g} pal={pal} y={5.6} />
-      <Highlight g={g} pal={pal} x={TOP_TAB.x} y={TOP_TAB.y} w={TOP_TAB.w} style={{ opacity: t.in(240, 200), transform: [{ translateX: t([[620, 0], [920, 2 * step * u]]) }] }} />
-      {[0, 1, 2, 3].map((i) => (
-        <TabRow
-          key={i}
-          g={g}
-          pal={pal}
-          i={i}
-          x={TOP_TAB.x + i * step}
-          y={TOP_TAB.y}
-          w={TOP_TAB.w}
-          style={{ opacity: t.in(i * 80, 280), transform: [{ translateY: t([[i * 80, -5 * u], [i * 80 + 300, 0]]) }] }}
-        />
-      ))}
-      <Card g={g} pal={pal} rect={c}>
-        <Toolbar g={g} pal={pal} />
-        <Animated.View style={[fill, { opacity: t.out(640, 200) }]}>
-          <PageLines g={g} pal={pal} w={c.w - 16} h={c.h - 19} />
+      <Backdrop g={g} look={look} />
+      <Lights g={g} y={LIGHTS_Y.strip} x={20.75} />
+      <Card g={g} look={look} rect={c}>
+        <Toolbar g={g} look={look} w={c.w} t={tab(0)} crumb={false} icons={[21, 56, 92]} />
+        <SwapCrumb g={g} look={look} t={t} a={tab(0)} b={tab(2)} ms={660} x={118} y={12} />
+        <Animated.View style={[fill, { opacity: t.out(660, 200) }]}>
+          <Page g={g} look={look} top={TOOLBAR_H} />
         </Animated.View>
-        <Animated.View style={[fill, { opacity: t.in(700, 260) }]}>
-          <PageLines g={g} pal={pal} w={c.w - 16} h={c.h - 19} seed={1} />
+        <Animated.View style={[fill, { opacity: t.in(700, 280) }]}>
+          <Page g={g} look={look} a={TRIP} top={TOOLBAR_H} />
         </Animated.View>
       </Card>
+      <SelectedTopTab g={g} look={look} x={CHIP.x} style={{ opacity: t.in(240, 200), transform: [{ translateX: t([[620, 0], [900, 2 * step * g.s]]) }] }} />
+      {[0, 1, 2, 3].map((i) => (
+        <TopChip key={i} g={g} look={look} t={tab(i)} x={CHIP.x + i * step} style={{ opacity: t.in(i * 70, 280), transform: [{ translateY: t([[i * 70, -8 * g.s], [i * 70 + 320, 0]]) }] }} />
+      ))}
     </>
   );
 };
 
 function addressMove(toSidebar: boolean): Scene {
-  return ({ g, pal, p }) => {
+  return ({ g, look, p }) => {
     const t = tracker(p, 1100);
-    const u = g.k;
-    const c = g.card;
-    const m = toSidebar ? t([[220, 0], [600, 1]]) : t([[220, 1], [600, 0]]);
-    const from: Rect = { x: c.x + PILL.x, y: c.y + PILL.y, w: PILL.w, h: PILL.h };
-    const dx = SIDE_FIELD.x + SIDE_FIELD.w / 2 - (from.x + from.w / 2);
-    const dy = SIDE_FIELD.y + SIDE_FIELD.h / 2 - (from.y + from.h / 2);
+    const c = sideCard(g);
+    const m = toSidebar ? t([[220, 0], [620, 1]]) : t([[220, 1], [620, 0]]);
     const lerp = (a: number, b: number) => m.interpolate({ inputRange: [0, 1], outputRange: [a, b] });
+    const bar: Rect = { x: c.x + CRUMB_X - 12, y: c.y + 3.5, w: 320, h: FIELD.h };
+    const dx = bar.x - FIELD.x;
+    const dy = bar.y - FIELD.y;
     return (
       <>
-        <Lights g={g} pal={pal} />
-        <Animated.View style={[fill, { transform: [{ translateY: lerp(0, (ROW.topWithField - ROW.top) * u) }] }]}>
-          <SideRows g={g} pal={pal} n={4} sel={0} />
+        <Backdrop g={g} look={look} />
+        <Lights g={g} style={{ transform: [{ translateY: lerp(0, (LIGHTS_Y.field - LIGHTS_Y.toolbar) * g.s) }] }} />
+        <NavIcons g={g} color={look.t.icon} xs={SIDEBAR_ICONS} y={LIGHTS_Y.field} names={["sidebar.left", "chevron.left", "chevron.right"]} style={{ opacity: lerp(0, 1) }} />
+        <Animated.View style={[fill, { transform: [{ translateY: lerp(0, (ROW.topWithField - ROW.top) * g.s) }] }]}>
+          <Rows g={g} look={look} n={4} sel={0} />
         </Animated.View>
-        <Card g={g} pal={pal} rect={c}>
-          <Animated.View style={[fill, { opacity: lerp(1, 0) }]}>
-            <View style={[at(g, 0, 0, c.w, TOOLBAR_H)]}>
-              <Toolbar g={g} pal={pal} />
-            </View>
-          </Animated.View>
-          <Animated.View style={[fill, { transform: [{ translateY: lerp(0, -9 * u) }] }]}>
-            <Page g={g} pal={pal} />
+        <Card g={g} look={look} rect={c}>
+          <Toolbar g={g} look={look} w={c.w} t={tab(0)} crumb={false} style={{ opacity: lerp(1, 0) }} />
+          <Animated.View style={[fill, { transform: [{ translateY: lerp(0, -TOOLBAR_H * g.s) }] }]}>
+            <Page g={g} look={look} top={TOOLBAR_H} />
           </Animated.View>
         </Card>
         <Animated.View
           style={[
-            atRect(g, from),
+            atRect(g, FIELD),
             {
-              borderRadius: (from.h / 2) * u,
-              backgroundColor: pal.bar,
-              transform: [{ translateX: lerp(0, dx * u) }, { translateY: lerp(0, dy * u) }, { scaleX: lerp(1, SIDE_FIELD.w / from.w) }, { scaleY: lerp(1, SIDE_FIELD.h / from.h) }],
+              borderRadius: 10 * g.s,
+              backgroundColor: look.t.pinnedResting,
+              opacity: lerp(0, 1),
+              transform: [{ translateX: lerp((dx - (FIELD.w * (bar.w / FIELD.w - 1)) / 2 * -1) * g.s, 0) }, { translateY: lerp(dy * g.s, 0) }, { scaleX: lerp(bar.w / FIELD.w, 1) }],
             },
           ]}
-        >
-          <View style={[at(g, 3.5, from.h / 2 - 0.8, 20, 1.6), { borderRadius: 0.8 * u, backgroundColor: pal.text }]} />
-        </Animated.View>
+        />
+        {[300, FIELD.w - 24].map((w, i) => (
+          <Crumb
+            key={w}
+            g={g}
+            look={look}
+            t={tab(0)}
+            style={[
+              at(g, FIELD.x + 12, FIELD.y + 8, w, 18),
+              { opacity: m.interpolate({ inputRange: [0, 0.45, 0.55, 1], outputRange: i ? [0, 0, 1, 1] : [1, 1, 0, 0] }), transform: [{ translateX: lerp((c.x + CRUMB_X - FIELD.x - 12) * g.s, 0) }, { translateY: lerp((c.y + 12 - FIELD.y - 8) * g.s, 0) }] },
+            ]}
+          />
+        ))}
       </>
     );
   };
 }
 
-const CmdlField: Scene = ({ g, pal, p }) => {
-  const t = tracker(p, 1300);
-  const u = g.k;
-  const c = g.card;
-  const rect: Rect = { x: c.x + PILL.x - 2, y: c.y + PILL.y - 1.5, w: Math.min(78, c.w - PILL.x - 2), h: 38 };
+const CmdlField: Scene = ({ g, look, p, opts }) => {
+  const t = tracker(p, 1200);
+  const c = sideCard(g);
+  if (opts.addressInSidebar) {
+    const to: Rect = { x: FIELD.x, y: FIELD.y, w: FIELD.w + 137, h: 40 + 3 * 35 + 14 };
+    return (
+      <>
+        <Std g={g} look={look} opts={opts} />
+        <Panel g={g} look={look} rect={to} radius={12} style={grow(t, g, FIELD, to, 240)}>
+          <InputRow g={g} look={look} height={40}>
+            <SelectedUrl g={g} look={look} />
+          </InputRow>
+          <Divider g={g} look={look} />
+          <SuggestionList g={g} look={look} t={t} rows={CURRENT} ms={400} />
+        </Panel>
+        <KeyPress g={g} look={look} t={t} label="⌘L" />
+      </>
+    );
+  }
+  const from: Rect = { x: c.x + CRUMB_X - 8, y: c.y + 6, w: 300, h: 30 };
+  const to: Rect = { x: c.x + CRUMB_X - 40, y: c.y + 0.5, w: Math.min(480, c.w - CRUMB_X + 28), h: PANEL_H };
   return (
     <>
-      <Browser g={g} pal={pal} />
-      <Panel
-        g={g}
-        pal={pal}
-        rect={rect}
-        style={{ opacity: t.in(260, 180), transform: [{ translateY: t([[260, -0.15 * rect.h * u], [580, 0]]) }, { scaleY: t([[260, 0.7], [580, 1]]) }] }}
-      >
-        <CommandPanel g={g} pal={pal} t={t} rect={rect} ms={420} field={<SelectedUrl g={g} pal={pal} />} />
+      <Std g={g} look={look} opts={opts} />
+      <Panel g={g} look={look} rect={to} style={grow(t, g, from, to, 240)}>
+        <InputRow g={g} look={look}>
+          <SelectedUrl g={g} look={look} />
+        </InputRow>
+        <Divider g={g} look={look} />
+        <SuggestionList g={g} look={look} t={t} rows={CURRENT} ms={400} />
       </Panel>
-      <KeyPress g={g} pal={pal} t={t} label="⌘L" />
+      <KeyPress g={g} look={look} t={t} label="⌘L" />
     </>
   );
 };
 
-const CmdlCentred: Scene = ({ g, pal, p }) => {
-  const t = tracker(p, 1300);
-  const u = g.k;
-  const rect = centredPanel(g);
+const CmdlCentred: Scene = ({ g, look, p, opts }) => {
+  const t = tracker(p, 1200);
   return (
     <>
-      <Browser g={g} pal={pal}>
-        <Animated.View style={[fill, { backgroundColor: pal.scrim, opacity: t.in(220, 260) }]} />
-      </Browser>
-      <Panel
-        g={g}
-        pal={pal}
-        rect={rect}
-        style={{ opacity: t.in(260, 220), transform: [{ translateY: t([[260, -6 * u], [600, 0]]) }, { scale: t([[260, 0.95], [600, 1]]) }] }}
-      >
-        <CommandPanel g={g} pal={pal} t={t} rect={rect} ms={440} field={<SelectedUrl g={g} pal={pal} />} />
+      <Std g={g} look={look} opts={opts} />
+      <Panel g={g} look={look} rect={centredFrame(g)} style={drop(t, g, 240)}>
+        <InputRow g={g} look={look}>
+          <SelectedUrl g={g} look={look} />
+        </InputRow>
+        <Divider g={g} look={look} />
+        <SuggestionList g={g} look={look} t={t} rows={CURRENT} ms={400} />
       </Panel>
-      <KeyPress g={g} pal={pal} t={t} label="⌘L" />
+      <KeyPress g={g} look={look} t={t} label="⌘L" />
     </>
   );
 };
 
-const NewTabOpensPage: Scene = ({ g, pal, p }) => {
+const NewTabOpensPage: Scene = ({ g, look, p, opts }) => {
   const t = tracker(p, 1300);
-  const u = g.k;
-  const c = g.card;
+  const c = sideCard(g);
+  const top = listTop(opts);
+  const field = opts.addressInSidebar;
   return (
-    <>
-      <Lights g={g} pal={pal} />
-      <Highlight g={g} pal={pal} y={rowY(0)} style={{ opacity: t.out(380, 200) }} />
-      <SideRows g={g} pal={pal} n={3} />
-      <TabRow g={g} pal={pal} i={4} y={rowY(3)} selected style={{ opacity: t.in(300, 240), transform: [{ translateX: t([[300, -6 * u], [580, 0]]) }] }} />
-      <Card g={g} pal={pal} rect={c}>
-        <Toolbar g={g} pal={pal} />
-        <Animated.View style={[fill, { opacity: t.out(400, 200) }]}>
-          <Page g={g} pal={pal} />
+    <Std
+      g={g}
+      look={look}
+      opts={opts}
+      rows={
+        <>
+          <Highlight g={g} look={look} y={rowY(0, top)} style={{ opacity: t.out(360, 200) }} />
+          <Rows g={g} look={look} n={4} top={top} newTab={false} />
+          <TabRow g={g} look={look} t={BLANK} y={rowY(4, top)} selected style={{ opacity: t.in(300, 240), transform: [{ translateX: t([[300, -12 * g.s], [600, 0]]) }] }} />
+          <NewTabButton g={g} look={look} y={rowY(4, top)} style={{ transform: [{ translateY: t([[300, 0], [600, ROW.pitch * g.s]]) }] }} />
+          <KeyPress g={g} look={look} t={t} label="⌘T" />
+        </>
+      }
+      card={
+        <Animated.View style={[fill, { opacity: t.in(420, 300) }]}>
+          <NewTabPage g={g} look={look} width={c.w} top={field ? 0 : 0} />
         </Animated.View>
-        <Animated.View style={[fill, { opacity: t.in(480, 280), transform: [{ translateY: t([[480, 3 * u], [800, 0]]) }] }]}>
-          <NewTabPage g={g} pal={pal} w={c.w} h={c.h} />
-        </Animated.View>
-      </Card>
-      <KeyPress g={g} pal={pal} t={t} label="⌘T" />
-    </>
+      }
+    />
   );
 };
 
-const NewTabOpensBar: Scene = ({ g, pal, p }) => {
-  const t = tracker(p, 1300);
-  const u = g.k;
-  const rect = centredPanel(g);
+function Typed({ g, look, t, text, at: ms, step, caretUntil }: { g: Geo; look: Look; t: Tracker; text: string; at: number; step: number; caretUntil: number }) {
+  const caret = (from: number, to: number) => t([[from, 0], [from + 1, 1], [to, 1], [to + 1, 0]], linear);
+  const bar = { position: "absolute" as const, width: 1.2 * g.s, height: 17 * g.s, borderRadius: 0.6 * g.s, backgroundColor: look.t.accent };
   return (
     <>
-      <Browser g={g} pal={pal}>
-        <Animated.View style={[fill, { backgroundColor: pal.scrim, opacity: t.in(220, 260) }]} />
-      </Browser>
-      <Panel
-        g={g}
-        pal={pal}
-        rect={rect}
-        style={{ opacity: t.in(260, 220), transform: [{ translateY: t([[260, -6 * u], [600, 0]]) }, { scale: t([[260, 0.95], [600, 1]]) }] }}
-      >
-        <CommandPanel
-          g={g}
-          pal={pal}
-          t={t}
-          rect={rect}
-          ms={440}
-          field={
-            <>
-              <View style={[at(g, 11, 2.9, 0.6, 5.4), { borderRadius: 0.3 * g.k, backgroundColor: pal.link }]} />
-              <View style={[at(g, 13, 4.7, 26, 1.6), { borderRadius: 0.8 * u, backgroundColor: pal.bar }]} />
-            </>
-          }
-        />
+      <Animated.View style={[bar, { left: 0, opacity: caret(-1, ms) }]} />
+      {text.split("").map((ch, i) => (
+        <Animated.View key={i} style={{ opacity: t.step(ms + i * step) }}>
+          <Label g={g} size={15} color={look.t.textPrimary}>
+            {ch}
+          </Label>
+          <Animated.View style={[bar, { right: -1.4 * g.s, top: 1 * g.s, opacity: caret(ms + i * step, i === text.length - 1 ? caretUntil : ms + (i + 1) * step) }]} />
+        </Animated.View>
+      ))}
+    </>
+  );
+}
+
+const NewTabOpensBar: Scene = ({ g, look, p, opts }) => {
+  const t = tracker(p, 1300);
+  return (
+    <>
+      <Std g={g} look={look} opts={opts} />
+      <Panel g={g} look={look} rect={centredFrame(g)} style={drop(t, g, 240)}>
+        <InputRow g={g} look={look}>
+          <View style={{ width: 1.2 * g.s, height: 17 * g.s, borderRadius: 0.6 * g.s, backgroundColor: look.t.accent, marginRight: 2 * g.s }} />
+          <Label g={g} size={15} color={look.t.placeholder}>
+            Search or enter address
+          </Label>
+        </InputRow>
+        <Divider g={g} look={look} />
+        <SuggestionList g={g} look={look} t={t} rows={FRESH} ms={400} />
       </Panel>
-      <KeyPress g={g} pal={pal} t={t} label="⌘T" />
+      <KeyPress g={g} look={look} t={t} label="⌘T" />
     </>
   );
 };
 
 function newTabAt(top: boolean): Scene {
-  return ({ g, pal, p }) => {
+  return ({ g, look, p, opts }) => {
     const t = tracker(p, 1100);
-    const u = g.k;
-    const shift = top ? { transform: [{ translateY: t([[200, 0], [520, ROW.pitch * u]]) }] } : null;
+    const list = listTop(opts);
+    const shift = { transform: [{ translateY: t([[200, 0], [520, ROW.pitch * g.s]]) }] };
     return (
-      <>
-        <Lights g={g} pal={pal} />
-        <Animated.View style={[fill, shift]}>
-          <Highlight g={g} pal={pal} y={rowY(0)} style={{ opacity: t.out(280, 220) }} />
-          <SideRows g={g} pal={pal} n={3} />
-        </Animated.View>
-        <TabRow
-          g={g}
-          pal={pal}
-          i={4}
-          y={rowY(top ? 0 : 3)}
-          selected
-          style={{
-            opacity: t.in(top ? 320 : 220, 240),
-            transform: top ? [{ translateX: t([[320, -6 * u], [600, 0]]) }] : [{ translateY: t([[220, -4 * u], [500, 0]]) }, { scale: t([[220, 0.92], [500, 1]]) }],
-          }}
-        />
-        <Card g={g} pal={pal} rect={g.card}>
-          <Toolbar g={g} pal={pal} />
-          <Page g={g} pal={pal} />
-        </Card>
-      </>
+      <Std
+        g={g}
+        look={look}
+        opts={opts}
+        rows={
+          <>
+            <Animated.View style={[fill, top ? shift : null]}>
+              <Highlight g={g} look={look} y={rowY(0, list)} style={{ opacity: t.out(280, 220) }} />
+              <Rows g={g} look={look} n={4} top={list} newTab={false} />
+            </Animated.View>
+            <TabRow
+              g={g}
+              look={look}
+              t={BLANK}
+              y={rowY(top ? 0 : 4, list)}
+              selected
+              style={{
+                opacity: t.in(top ? 320 : 220, 240),
+                transform: top ? [{ translateX: t([[320, -12 * g.s], [620, 0]]) }] : [{ translateY: t([[220, -8 * g.s], [520, 0]]) }, { scale: t([[220, 0.96], [520, 1]]) }],
+              }}
+            />
+            <NewTabButton g={g} look={look} y={rowY(4, list)} style={shift} />
+          </>
+        }
+      />
     );
   };
 }
 
-function Clock({ g, pal, t, x, y }: { g: Geo; pal: Pal; t: Tracker; x: number; y: number }) {
-  const d = 18;
-  return (
-    <View style={[at(g, x, y, d, d), { borderRadius: (d / 2) * g.k, backgroundColor: pal.panel, borderWidth: hairline(g) * 2, borderColor: pal.panelBorder }]}>
-      <Animated.View style={[at(g, -hairline(g) * 2 / g.k, -hairline(g) * 2 / g.k, d, d), { transform: [{ rotate: t.deg([[100, 0], [850, 720]]) }] }]}>
-        <View style={[at(g, d / 2 - 0.6, 3, 1.2, d / 2 - 3), { borderRadius: 0.6 * g.k, backgroundColor: pal.ink }]} />
-      </Animated.View>
-      <Animated.View style={[at(g, -hairline(g) * 2 / g.k, -hairline(g) * 2 / g.k, d, d), { transform: [{ rotate: t.deg([[100, 90], [850, 150]]) }] }]}>
-        <View style={[at(g, d / 2 - 0.7, 5, 1.4, d / 2 - 5), { borderRadius: 0.7 * g.k, backgroundColor: pal.inkDim }]} />
-      </Animated.View>
-    </View>
-  );
-}
-
 function tidy(auto: boolean): Scene {
-  return ({ g, pal, p }) => {
+  return ({ g, look, p, opts }) => {
     const t = tracker(p, 1500);
-    const u = g.k;
-    const c = g.card;
-    const old = (i: number) => (auto ? { opacity: t([[850, 1], [1020, 0.4], [1100, 0.4], [1350, 0]]), transform: [{ translateX: t([[1100, 0], [1350, -5 * u]]) }, { scaleY: t([[1100, 1], [1350, 0.4]]) }] } : null);
-    const rise = (n: number) => (auto ? { transform: [{ translateY: t([[1180, 0], [1480, -n * ROW.pitch * u]]) }] } : null);
+    const c = sideCard(g);
+    const list = listTop(opts);
+    const old = new Set([1, 3, 4]);
+    const gone = auto ? { opacity: t([[850, 1], [1000, 0.4], [1060, 0.4], [1300, 0]]), transform: [{ translateX: t([[1060, 0], [1300, -10 * g.s]]) }, { scaleY: t([[1060, 1], [1300, 0.6]]) }] } : null;
+    const rise = (n: number) => (auto && n ? { transform: [{ translateY: t([[1140, 0], [1460, -n * ROW.pitch * g.s]]) }] } : null);
+    const above = (i: number) => [...old].filter((o) => o < i).length;
     return (
-      <>
-        <Lights g={g} pal={pal} />
-        <TabRow g={g} pal={pal} i={0} y={rowY(0)} selected />
-        <TabRow g={g} pal={pal} i={1} y={rowY(1)} style={old(1)} />
-        <TabRow g={g} pal={pal} i={2} y={rowY(2)} style={rise(1)} />
-        <TabRow g={g} pal={pal} i={3} y={rowY(3)} style={old(3)} />
-        <TabRow g={g} pal={pal} i={4} y={rowY(4)} style={old(4)} />
-        <Card g={g} pal={pal} rect={c}>
-          <Toolbar g={g} pal={pal} />
-          <Page g={g} pal={pal} />
-        </Card>
-        <Clock g={g} pal={pal} t={t} x={c.x + c.w / 2 - 9} y={c.y + Math.min(c.h / 2 - 6, 30)} />
-      </>
+      <Std
+        g={g}
+        look={look}
+        opts={opts}
+        rows={
+          <>
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <TabRow key={i} g={g} look={look} t={tab(i)} y={rowY(i, list)} selected={i === 0} style={old.has(i) ? gone : rise(above(i))} />
+            ))}
+            <NewTabButton g={g} look={look} y={rowY(6, list)} style={rise(3)} />
+            <Pill g={g} look={look} style={{ right: (g.W - c.x - c.w + 16) * g.s, top: (c.y + 54) * g.s, opacity: t.in(80, 220), transform: [{ translateY: t([[80, -6 * g.s], [360, 0]]) }] }}>
+              <Animated.View style={{ transform: [{ rotate: t.deg([[150, 0], [850, 360]]) }] }}>
+                <Glyph g={g} name="clock" size={13} color={look.t.textPrimary} weight="medium" box={16} />
+              </Animated.View>
+              <Label g={g} size={13} color={look.t.textPrimary} weight="500">
+                12 hours later
+              </Label>
+            </Pill>
+          </>
+        }
+      />
     );
   };
 }
 
 function quit(fresh: boolean): Scene {
-  return ({ g, pal, p }) => {
+  return ({ g, look, p, opts }) => {
     const t = tracker(p, 1500);
-    const c = g.card;
-    const away = { opacity: t([[180, 1], [420, 0]]), transform: [{ scale: t([[180, 1], [420, 0.94]]) }] };
-    const back = { opacity: t([[760, 0], [1080, 1]]), transform: [{ scale: t([[760, 0.94], [1080, 1]]) }] };
-    const both = { opacity: t([[180, 1], [420, 0], [760, 0], [1080, 1]]), transform: [{ scale: t([[180, 1], [420, 0.94], [760, 0.94], [1080, 1]]) }] };
+    const c = sideCard(g);
+    const away = { opacity: t([[180, 1], [420, 0]]), transform: [{ scale: t([[180, 1], [420, 0.97]]) }] };
+    const back = { opacity: t([[760, 0], [1080, 1]]), transform: [{ scale: t([[760, 0.97], [1080, 1]]) }] };
+    const both = { opacity: t([[180, 1], [420, 0], [760, 0], [1080, 1]]), transform: [{ scale: t([[180, 1], [420, 0.97], [760, 0.97], [1080, 1]]) }] };
+    const quiet = { ...opts };
     return (
       <>
+        <Backdrop g={g} look={look} />
         <Animated.View style={[fill, fresh ? away : both]}>
-          <Browser g={g} pal={pal} rows={4} sel={1} />
+          <Std g={g} look={look} opts={quiet} n={5} sel={0} />
         </Animated.View>
         {fresh ? (
           <Animated.View style={[fill, back]}>
-            <Lights g={g} pal={pal} />
-            <Card g={g} pal={pal} rect={c}>
-              <Toolbar g={g} pal={pal} />
-              <NewTabPage g={g} pal={pal} w={c.w} h={c.h} />
+            <Chrome g={g} look={look} opts={quiet} />
+            <TabRow g={g} look={look} t={BLANK} y={rowY(0, listTop(opts))} selected />
+            <NewTabButton g={g} look={look} y={rowY(1, listTop(opts))} />
+            <Card g={g} look={look} rect={c}>
+              <NewTabPage g={g} look={look} width={c.w} />
             </Card>
           </Animated.View>
         ) : null}
-        <Keycap
-          g={g}
-          pal={pal}
-          x={c.x + c.w - 4}
-          y={c.y + c.h - 11.5}
-          label="⌘Q"
-          style={{ opacity: t.in(0, 160), transform: [{ scale: t([[0, 0.8], [240, 1]]) }] }}
-        />
+        <KeyPress g={g} look={look} t={t} label="⌘Q" />
       </>
     );
   };
 }
 
-function MiniWindow({ g, pal, rect, children }: { g: Geo; pal: Pal; rect: Rect; children?: ReactNode }) {
+const DESKTOP = { light: ["#D9DCE4", "#C4C9D6"], dark: ["#1C1D22", "#2B2D35"] } as const;
+
+function Desktop({ g, look }: { g: Geo; look: Look }) {
+  const [a, b] = look.dark ? DESKTOP.dark : DESKTOP.light;
+  return <Backdrop g={g} look={{ ...look, tint: [a, b] }} />;
+}
+
+function Window({ g, look, rect, children }: { g: Geo; look: Look; rect: Rect; children: ReactNode }) {
   return (
-    <View style={[atRect(g, rect), { borderRadius: 4 * g.k, backgroundColor: pal.frame, borderWidth: hairline(g), borderColor: pal.border, overflow: "hidden" }]}>
-      {children}
+    <View style={atRect(g, rect)}>
+      <Surface fill={hex(look.tint[1])} cornerRadius={11 * g.s} borderColor={look.dark ? "#FFFFFF26" : "#0000001F"} borderWidth={0.5} shadowColor="#000000" shadowOpacity={look.dark ? 0.55 : 0.22} shadowRadius={22 * g.s} shadowOffset={[0, 10 * g.s]} style={fill} />
+      <View style={[fill, { borderRadius: 11 * g.s, overflow: "hidden" }]}>{children}</View>
     </View>
   );
 }
 
-const MINI_ROW = { x: 3, w: 23, top: 11, pitch: 8.5 } as const;
+const MINI_SIDE = 150;
+
+function MiniArdia({ g, look, rect, tabs, sel, dim, rowStyle, extra, cardContent }: { g: Geo; look: Look; rect: Rect; tabs: Tab[]; sel?: number; dim?: (i: number) => object | null; rowStyle?: (i: number) => object | null; extra?: ReactNode; cardContent?: ReactNode }) {
+  const card: Rect = { x: MINI_SIDE + 7, y: 6, w: rect.w - MINI_SIDE - 14, h: rect.h - 13 };
+  return (
+    <Window g={g} look={look} rect={rect}>
+      <Backdrop g={g} look={look} />
+      <Lights g={g} />
+      {extra}
+      {tabs.map((tb, i) => (
+        <TabRow key={i} g={g} look={look} t={tb} y={rowY(i)} w={MINI_SIDE - 12} selected={i === sel} style={[dim?.(i), rowStyle?.(i)]} />
+      ))}
+      <Card g={g} look={look} rect={card}>
+        <Toolbar g={g} look={look} w={card.w} t={tabs[sel ?? 0] ?? tab(0)} icons={[21, 56]} crumbX={84} />
+        {cardContent ?? <Page g={g} look={look} top={TOOLBAR_H} />}
+      </Card>
+    </Window>
+  );
+}
 
 function windows(shared: boolean): Scene {
-  return ({ g, pal, p }) => {
+  return ({ g, look, p }) => {
     const t = tracker(p, 1400);
-    const u = g.k;
-    const h = g.H - 10;
-    const w = (g.W - 14) / 2;
-    const a: Rect = { x: 5, y: 5, w, h };
-    const b: Rect = { x: 9 + w, y: 5, w, h };
-    const listA = [0, 1, 2, 3];
-    const listB = shared ? listA : [4, 5, 1];
-    const card = { x: 29, y: 3, w: w - 32, h: h - 6 };
-    const cursorFrom = { x: a.x + w * 0.7, y: a.y + h * 0.75 };
-    const cursorTo = { x: a.x + MINI_ROW.x + 14, y: a.y + MINI_ROW.top + 2 * MINI_ROW.pitch + 2.5 };
-    const greyB = (i: number) => {
+    const w = (g.W - 50) / 2;
+    const h = g.H - 56;
+    const a: Rect = { x: 18, y: 26, w, h };
+    const b: Rect = { x: 32 + w, y: 30, w, h };
+    const list = [tab(0), tab(1), tab(2), tab(3)];
+    const other = shared ? list : [tab(4), tab(5), tab(6)];
+    const cursorFrom = { x: a.x + w * 0.62, y: a.y + h * 0.78 };
+    const cursorTo = { x: a.x + 70, y: a.y + rowY(2) + 14 };
+    const dimB = (i: number) => {
       if (!shared) return null;
-      if (i === 0) return { opacity: t([[560, 0.35], [820, 1]]) };
-      if (i === 2) return { opacity: t([[560, 1], [820, 0.35]]) };
+      if (i === 0) return { opacity: t([[560, 0.4], [820, 1]]) };
+      if (i === 2) return { opacity: t([[560, 1], [820, 0.4]]) };
       return null;
     };
     return (
       <>
-        <MiniWindow g={g} pal={pal} rect={a}>
-          <Lights g={g} pal={pal} x={4} y={4} />
-          <Highlight g={g} pal={pal} x={MINI_ROW.x} y={MINI_ROW.top} w={MINI_ROW.w} style={{ transform: [{ translateY: t([[520, 0], [820, 2 * MINI_ROW.pitch * u]]) }] }} />
-          {listA.map((i, n) => (
-            <TabRow key={n} g={g} pal={pal} i={i} x={MINI_ROW.x} w={MINI_ROW.w} y={MINI_ROW.top + n * MINI_ROW.pitch} style={shared && n === 1 ? { opacity: 0.35 } : null} />
-          ))}
-          <Card g={g} pal={pal} rect={card}>
-            <Animated.View style={[fill, { opacity: t.out(560, 200) }]}>
-              <PageLines g={g} pal={pal} x={5} y={5} w={card.w - 10} h={card.h - 8} />
-            </Animated.View>
-            <Animated.View style={[fill, { opacity: t.in(600, 240) }]}>
-              <PageLines g={g} pal={pal} x={5} y={5} w={card.w - 10} h={card.h - 8} seed={1} />
-            </Animated.View>
-          </Card>
-        </MiniWindow>
-        <MiniWindow g={g} pal={pal} rect={b}>
-          <Lights g={g} pal={pal} x={4} y={4} />
-          <Highlight g={g} pal={pal} x={MINI_ROW.x} y={MINI_ROW.top + MINI_ROW.pitch} w={MINI_ROW.w} />
-          {listB.map((i, n) => (
-            <TabRow key={n} g={g} pal={pal} i={i} x={MINI_ROW.x} w={MINI_ROW.w} y={MINI_ROW.top + n * MINI_ROW.pitch} style={greyB(n)} />
-          ))}
-          <Card g={g} pal={pal} rect={card}>
-            <PageLines g={g} pal={pal} x={5} y={5} w={card.w - 10} h={card.h - 8} seed={shared ? 1 : 0} />
-          </Card>
-        </MiniWindow>
+        <Desktop g={g} look={look} />
+        <MiniArdia
+          g={g}
+          look={look}
+          rect={a}
+          tabs={list}
+          dim={(i) => (shared && i === 1 ? { opacity: 0.4 } : null)}
+          extra={<Highlight g={g} look={look} y={rowY(0)} w={MINI_SIDE - 12} style={{ transform: [{ translateY: t([[520, 0], [820, 2 * ROW.pitch * g.s]]) }] }} />}
+          cardContent={
+            <>
+              <Animated.View style={[fill, { opacity: t.out(560, 200) }]}>
+                <Page g={g} look={look} top={TOOLBAR_H} />
+              </Animated.View>
+              <Animated.View style={[fill, { opacity: t.in(600, 260) }]}>
+                <Page g={g} look={look} a={TRIP} top={TOOLBAR_H} />
+              </Animated.View>
+            </>
+          }
+        />
+        <MiniArdia g={g} look={look} rect={b} tabs={other} sel={shared ? 1 : 0} dim={dimB} />
         <Cursor
           g={g}
-          pal={pal}
           style={{
-            opacity: t([[100, 0], [260, 1], [1100, 1], [1350, 0]]),
+            opacity: t([[100, 0], [260, 1], [1150, 1], [1380, 0]]),
             transform: [
-              { translateX: t([[100, cursorFrom.x * u], [460, cursorTo.x * u]]) },
-              { translateY: t([[100, cursorFrom.y * u], [460, cursorTo.y * u]]) },
-              { scale: t([[480, 1], [520, 0.8], [640, 1]], linear) },
+              { translateX: t([[100, cursorFrom.x * g.s], [460, cursorTo.x * g.s]]) },
+              { translateY: t([[100, cursorFrom.y * g.s], [460, cursorTo.y * g.s]]) },
+              { scale: t([[480, 1], [520, 0.85], [640, 1]], linear) },
             ],
           }}
         />
@@ -505,261 +620,267 @@ function windows(shared: boolean): Scene {
   };
 }
 
-function WindowLook({ g, pal }: { g: Geo; pal: Pal }) {
-  return (
-    <View style={[at(g, 0, 0, g.W, g.H), { backgroundColor: pal.frame }]}>
-      <Browser g={g} pal={pal} rows={4} sel={1} />
-    </View>
-  );
-}
-
-function Badge({ g, name, color, bg, border, x, y, style }: { g: Geo; name: string; color: string; bg: string; border: string; x: number; y: number; style?: object }) {
-  const d = 16;
-  return (
-    <Animated.View style={[at(g, x - d / 2, y - d / 2, d, d), { borderRadius: (d / 2) * g.k, backgroundColor: bg, borderWidth: hairline(g), borderColor: border }, style]}>
-      <Glyph g={g} name={name} size={11} color={color} x={2.5 - hairline(g) / g.k} y={2.5 - hairline(g) / g.k} />
-    </Animated.View>
-  );
-}
-
-const SUN = "#E3A21A";
-const MOON = "#8E9AC4";
-
 function appearance(mode: "light" | "dark" | "auto"): Scene {
-  return ({ g, p }) => {
-    const t = tracker(p, 1100);
-    const u = g.k;
-    const W = g.W;
-    const edge = mode === "light" ? t([[150, 0], [650, W * u]]) : mode === "dark" ? t([[150, W * u], [650, 0]]) : t([[150, W * u], [700, (W / 2) * u]]);
-    const inner = Animated.multiply(edge, -1);
-    const c = g.card;
-    const midY = c.y + Math.min(c.h / 2, 34);
-    const pop = (ms: number) => ({ opacity: t.in(ms, 260), transform: [{ scale: t([[ms, 0.7], [ms + 320, 1]]) }, { rotate: t.deg([[ms, -40], [ms + 400, 0]]) }] });
+  return ({ g, p, opts }) => {
+    const t = tracker(p, 1200);
+    const toDark = mode === "auto" ? opts.systemDark : mode === "dark";
+    const from = lookFor(!toDark, opts.accent);
+    const to = lookFor(toDark, opts.accent);
+    const icon = toDark ? "moon.fill" : "sun.max.fill";
+    const label = mode === "auto" ? `Auto · ${toDark ? "Dark" : "Light"} like your Mac` : toDark ? "Dark" : "Light";
     return (
       <>
-        <WindowLook g={g} pal={LIGHT_WINDOW} />
-        <Clip g={g} x={edge} inner={inner} width={W} height={g.H}>
-          <WindowLook g={g} pal={DARK_WINDOW} />
-        </Clip>
-        {mode !== "dark" ? (
-          <Badge g={g} name="sun.max.fill" color={SUN} bg={LIGHT_WINDOW.panel} border={LIGHT_WINDOW.panelBorder} x={mode === "auto" ? W / 4 + 12 : c.x + c.w / 2} y={midY} style={pop(mode === "auto" ? 520 : 480)} />
-        ) : null}
-        {mode !== "light" ? (
-          <Badge g={g} name="moon.fill" color={MOON} bg={DARK_WINDOW.panel} border={DARK_WINDOW.panelBorder} x={mode === "auto" ? (W * 3) / 4 - 4 : c.x + c.w / 2} y={midY} style={pop(mode === "auto" ? 620 : 480)} />
-        ) : null}
+        <View style={fill}>
+          <Std g={g} look={from} opts={opts} />
+        </View>
+        <Animated.View style={[fill, { opacity: t.in(200, 420) }]}>
+          <Std g={g} look={to} opts={opts} />
+        </Animated.View>
+        <Pill g={g} look={to} style={{ left: 16 * g.s, bottom: 16 * g.s, opacity: t.in(420, 220), transform: [{ translateY: t([[420, 6 * g.s], [700, 0]]) }] }}>
+          <Animated.View style={{ transform: [{ rotate: t.deg([[460, -90], [900, 0]]) }] }}>
+            <Glyph g={g} name={icon} size={14} color={toDark ? "#C7CCE6" : "#E3A21A"} weight="medium" box={18} />
+          </Animated.View>
+          <Label g={g} size={13} color={to.t.textPrimary} weight="500">
+            {label}
+          </Label>
+        </Pill>
       </>
     );
   };
 }
 
 function siteColor(on: boolean): Scene {
-  return ({ g, pal, p }) => {
+  return ({ g, look, p, opts }) => {
     const t = tracker(p, 1300);
-    const u = g.k;
-    const c = g.card;
+    const c = sideCard(g);
+    const toolbarOpts = { ...opts, addressInSidebar: false };
     return (
-      <>
-        <Lights g={g} pal={pal} />
-        <SideRows g={g} pal={pal} n={3} sel={0} />
-        <Card g={g} pal={pal} rect={c}>
-          <Toolbar g={g} pal={pal} />
-          <Animated.View style={[fill, { opacity: t.in(80, 320), transform: [{ translateY: t([[80, 4 * u], [440, 0]]) }] }]}>
-            <SitePage g={g} pal={pal} w={c.w} h={c.h} y={TOOLBAR_H} />
-          </Animated.View>
-          {on ? (
-            <Animated.View style={[at(g, 0, 0, c.w, TOOLBAR_H), { backgroundColor: SITE, opacity: t.in(560, 340) }]}>
-              <View style={[at(g, 4, 3.75, 2.5, 2.5), { borderRadius: 1.25 * u, backgroundColor: "rgba(255,255,255,0.45)" }]} />
-              <View style={[at(g, 8.2, 3.75, 2.5, 2.5), { borderRadius: 1.25 * u, backgroundColor: "rgba(255,255,255,0.45)" }]} />
-              <View style={[atRect(g, PILL), { borderRadius: (PILL.h / 2) * u, backgroundColor: "rgba(255,255,255,0.22)" }]}>
-                <View style={[at(g, 3.5, PILL.h / 2 - 0.8, 20, 1.6), { borderRadius: 0.8 * u, backgroundColor: "rgba(255,255,255,0.7)" }]} />
-              </View>
+      <Std
+        g={g}
+        look={look}
+        opts={toolbarOpts}
+        page={
+          <>
+            <View style={[fill, { top: TOOLBAR_H * g.s, backgroundColor: look.page }]} />
+            <Animated.View style={[fill, { opacity: t.in(80, 320), transform: [{ translateY: t([[80, 6 * g.s], [420, 0]]) }] }]}>
+              <Page g={g} look={look} top={TOOLBAR_H} />
             </Animated.View>
-          ) : null}
-        </Card>
-      </>
+          </>
+        }
+        card={on ? <Toolbar g={g} look={look} w={c.w} t={tab(0)} site style={{ opacity: t.in(560, 380) }} /> : null}
+      />
     );
   };
 }
 
-const TYPED = "github";
-const TYPE_AT = 160;
+const TYPE_AT = 180;
 const TYPE_STEP = 75;
+const TYPED = "github";
 const TYPED_DONE = TYPE_AT + TYPED.length * TYPE_STEP;
+const GITHUB = tab(6);
 
 function typed(search: boolean): Scene {
-  return ({ g, pal, p }) => {
+  return ({ g, look, p, opts }) => {
     const t = tracker(p, 1300);
-    const u = g.k;
-    const rect = centredPanel(g, 100);
-    const size = 6;
-    const caret = (from: number, to: number) => t([[from, 0], [from + 1, 1], [to, 1], [to + 1, 0]], linear);
-    const text = (s: string, color: string, weight?: "500") => <Text style={{ fontSize: size * u, lineHeight: size * 1.4 * u, color, fontWeight: weight }}>{s}</Text>;
-    const rowText = (main: string, rest: string, dim: boolean) => (
-      <Text numberOfLines={1} style={{ fontSize: 5 * u, lineHeight: 7 * u, color: dim ? pal.inkDim : pal.ink }}>
-        {main}
-        <Text style={{ color: pal.inkDim }}>{rest}</Text>
-      </Text>
-    );
-    const site = (dim: boolean) => (
-      <>
-        <View style={[at(g, 3, 2, 3, 3), { borderRadius: 1.5 * u, backgroundColor: dim ? pal.inkDim : pal.ink }]} />
-        <View style={[at(g, 8.5, 0, rect.w - 14, 7)]}>{rowText("github.com", "", dim)}</View>
-      </>
-    );
-    const query = (dim: boolean) => (
-      <>
-        <Glyph g={g} name="magnifyingglass" size={4.4} color={dim ? pal.inkDim : pal.ink} x={2.3} y={1.3} />
-        <View style={[at(g, 8.5, 0, rect.w - 14, 7)]}>{rowText("github", " — Search", dim)}</View>
-      </>
-    );
-    const first = search ? query(false) : site(false);
-    const second = search ? site(true) : query(true);
+    const site: Suggestion = { fav: GITHUB, title: "github.com", detail: "GitHub", hint: "Visit" };
+    const query: Suggestion = { icon: "magnifyingglass", title: "github", detail: "Search Google", hint: "Search" };
+    const rows = search ? [query, site] : [site, query];
     return (
       <>
-        <Browser g={g} pal={pal}>
-          <Animated.View style={[fill, { backgroundColor: pal.scrim, opacity: t.in(0, 200) }]} />
-        </Browser>
-        <Panel g={g} pal={pal} rect={rect} style={{ opacity: t.in(0, 200), transform: [{ translateY: t([[0, -4 * u], [300, 0]]) }] }}>
-          <BarField g={g} pal={pal} w={rect.w}>
-            <View style={[at(g, 11, 2.3, rect.w - 14, size * 1.4), { flexDirection: "row", alignItems: "center" }]}>
-              <Animated.View style={{ position: "absolute", left: 0, width: 0.6 * u, height: 5.4 * u, borderRadius: 0.3 * u, backgroundColor: pal.link, opacity: caret(-1, TYPE_AT) }} />
-              {TYPED.split("").map((ch, i) => (
-                <Animated.View key={i} style={{ flexDirection: "row", alignItems: "center", opacity: t.step(TYPE_AT + i * TYPE_STEP) }}>
-                  {text(ch, pal.ink)}
-                  <Animated.View style={{ position: "absolute", right: -1.1 * u, width: 0.6 * u, height: 5.4 * u, borderRadius: 0.3 * u, backgroundColor: pal.link, opacity: caret(TYPE_AT + i * TYPE_STEP, i === TYPED.length - 1 ? (search ? 1300 : TYPED_DONE + 120) : TYPE_AT + (i + 1) * TYPE_STEP) }} />
-                </Animated.View>
-              ))}
-              {search ? null : (
-                <Animated.View style={{ opacity: t.step(TYPED_DONE + 120), backgroundColor: pal.link, borderRadius: 0.8 * u }}>
-                  <View style={{ opacity: 0.9 }}>{text(".com", "#FFFFFF")}</View>
-                </Animated.View>
-              )}
-            </View>
-          </BarField>
-          <Animated.View style={[at(g, 2, 13, rect.w - 4, 7), { borderRadius: 2 * u, backgroundColor: pal.hi, opacity: t.in(TYPED_DONE + 280, 200) }]} />
-          <Animated.View style={[at(g, 2, 13, rect.w - 4, 7), { opacity: t.in(TYPED_DONE + 160, 200) }]}>{first}</Animated.View>
-          <Animated.View style={[at(g, 2, 21, rect.w - 4, 7), { opacity: t.in(TYPED_DONE + 220, 200) }]}>{second}</Animated.View>
+        <Std g={g} look={look} opts={opts} />
+        <Panel g={g} look={look} rect={{ ...centredFrame(g), h: 52 + 2 * 35 + 14 }} style={drop(t, g, 0)}>
+          <InputRow g={g} look={look}>
+            <Typed g={g} look={look} t={t} text={TYPED} at={TYPE_AT} step={TYPE_STEP} caretUntil={search ? 1300 : TYPED_DONE + 100} />
+            {search ? null : (
+              <Animated.View style={{ opacity: t.step(TYPED_DONE + 100), backgroundColor: look.t.selection, borderRadius: 2 * g.s }}>
+                <Label g={g} size={15} color={look.t.textPrimary}>
+                  .com
+                </Label>
+              </Animated.View>
+            )}
+          </InputRow>
+          <Divider g={g} look={look} />
+          <View style={{ paddingHorizontal: 9 * g.s, paddingTop: 4 * g.s }}>
+            {rows.map((s, i) => (
+              <Animated.View key={i} style={{ opacity: t.in(TYPED_DONE + 140 + i * 60, 200) }}>
+                <SuggestionRow g={g} look={look} s={s} selected={i === 0} />
+              </Animated.View>
+            ))}
+          </View>
         </Panel>
       </>
     );
   };
 }
 
+const AD_FILL = { light: "#F6F1DE", dark: "#2A2719" } as const;
+
+function AdBox({ g, look, style, h, children }: { g: Geo; look: Look; style?: object; h: number; children?: ReactNode }) {
+  return (
+    <Animated.View style={[{ height: h * g.s, borderRadius: 8 * g.s, backgroundColor: look.dark ? AD_FILL.dark : AD_FILL.light, borderWidth: hairline, borderColor: look.dark ? "#5A5130" : "#E2D6A8", alignItems: "center", justifyContent: "center" }, style]}>
+      <Label g={g} size={10} color={look.dark ? "#B9A867" : "#9C8A45"} weight="600">
+        AD
+      </Label>
+      {children}
+    </Animated.View>
+  );
+}
+
 function block(on: boolean): Scene {
-  return ({ g, pal, p }) => {
+  return ({ g, look, p, opts }) => {
     const t = tracker(p, 1300);
-    const u = g.k;
-    const c = g.card;
+    const c = sideCard(g);
     const ad = (ms: number, gone: number) => ({
-      opacity: on ? t([[ms, 0], [ms + 220, 1], [gone, 1], [gone + 220, 0]]) : t.in(ms, 220),
-      transform: [{ scale: on ? t([[ms, 0.85], [ms + 260, 1], [gone, 1], [gone + 260, 0.6]]) : t([[ms, 0.85], [ms + 260, 1]]) }],
+      opacity: on ? t([[ms, 0], [ms + 200, 1], [gone, 1], [gone + 220, 0]]) : t.in(ms, 200),
+      transform: [{ scale: on ? t([[ms, 0.94], [ms + 260, 1], [gone, 1], [gone + 260, 0.86]]) : t([[ms, 0.94], [ms + 260, 1]]) }],
     });
-    const adStyle = { borderRadius: 2 * u, backgroundColor: pal.card, borderWidth: hairline(g), borderColor: "rgba(253,208,35,0.8)", alignItems: "center" as const, justifyContent: "center" as const, overflow: "hidden" as const };
-    const label = (
-      <>
-        <View style={[fill, { backgroundColor: AD, opacity: 0.22 }]} />
-        <Text style={{ fontSize: 4.4 * u, lineHeight: 5.5 * u, fontWeight: "600", color: "#C99700" }}>Ad</Text>
-      </>
-    );
+    const field = opts.addressInSidebar;
+    const toolbarOpts = { ...opts, addressInSidebar: false };
     return (
-      <>
-        <Lights g={g} pal={pal} />
-        <SideRows g={g} pal={pal} n={3} sel={0} />
-        <Card g={g} pal={pal} rect={c}>
-          <Toolbar g={g} pal={pal} />
-          <PageLines g={g} pal={pal} w={c.w - 50} h={c.h - 19} />
-          <Animated.View style={[at(g, c.w - 34, 14, 27, Math.min(24, c.h - 34)), adStyle, ad(120, 820)]}>{label}</Animated.View>
-          <Animated.View style={[at(g, 8, 41, c.w - 50, 9), adStyle, ad(200, 900)]}>{label}</Animated.View>
-          <Animated.View
-            style={[
-              at(g, 4, c.h - 14, c.w - 8, 10),
-              { borderRadius: 2.5 * u, backgroundColor: pal.panel, borderWidth: hairline(g), borderColor: pal.panelBorder },
-              {
-                opacity: on ? t([[280, 0], [420, 1], [980, 1], [1240, 0]]) : t.in(280, 140),
-                transform: [{ translateY: on ? t([[280, 12 * u], [560, 0], [980, 0], [1240, 12 * u]]) : t([[280, 12 * u], [560, 0]]) }],
-              },
-            ]}
-          >
-            <View style={[at(g, 4, 4, c.w * 0.4, 1.8), { borderRadius: 0.9 * u, backgroundColor: pal.text }]} />
-            <View style={[at(g, c.w - 24, 2.75, 14, 4.5), { borderRadius: 2.25 * u, backgroundColor: pal.inkDim }]} />
-          </Animated.View>
-          {on ? <Glyph g={g} name="checkmark.shield.fill" size={7} color={pal.link} x={c.w - 10} y={1.5} style={{ opacity: t.in(700, 200), transform: [{ scale: t([[700, 0.6], [960, 1]]) }] }} /> : null}
-        </Card>
-      </>
+      <Std
+        g={g}
+        look={look}
+        opts={field ? toolbarOpts : opts}
+        page={
+          <Page g={g} look={look} top={TOOLBAR_H}>
+            <AdBox g={g} look={look} h={64} style={ad(200, 900)} />
+          </Page>
+        }
+        card={
+          <>
+            <AdBox g={g} look={look} h={150} style={[at(g, c.w - 150, TOOLBAR_H + 80, 130, 150), ad(120, 820)]} />
+            <Animated.View
+              style={[
+                { position: "absolute", left: 20 * g.s, right: 20 * g.s, bottom: 18 * g.s },
+                {
+                  opacity: on ? t([[280, 0], [420, 1], [980, 1], [1220, 0]]) : t.in(280, 160),
+                  transform: [{ translateY: on ? t([[280, 40 * g.s], [580, 0], [980, 0], [1220, 40 * g.s]]) : t([[280, 40 * g.s], [580, 0]]) }],
+                },
+              ]}
+            >
+              <Surface fill={hex(look.t.panel)} cornerRadius={12 * g.s} borderColor={hex(look.t.panelBorder)} borderWidth={0.5} shadowColor="#000000" shadowOpacity={look.dark ? 0.5 : 0.14} shadowRadius={16 * g.s} shadowOffset={[0, 4 * g.s]} style={{ height: 52 * g.s, flexDirection: "row", alignItems: "center", paddingHorizontal: 16 * g.s, gap: 12 * g.s }}>
+                <View style={{ flex: 1 }}>
+                  <Label g={g} size={12.5} color={look.t.textPrimary}>
+                    We use cookies to personalise ads and measure traffic.
+                  </Label>
+                </View>
+                <View style={{ height: 28 * g.s, paddingHorizontal: 12 * g.s, borderRadius: 8 * g.s, backgroundColor: look.t.goButton, justifyContent: "center" }}>
+                  <Label g={g} size={12} color={look.t.goButtonText} weight="600">
+                    Accept all
+                  </Label>
+                </View>
+              </Surface>
+            </Animated.View>
+            {on ? (
+              <Animated.View style={[at(g, c.w - 64, 8, 52, 26), { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 3 * g.s, opacity: t.in(700, 200), transform: [{ scale: t([[700, 0.6], [960, 1]]) }] }]}>
+                <Glyph g={g} name="checkmark.shield.fill" size={14} color={look.t.accent} weight="medium" box={18} />
+                <Label g={g} size={11} color={look.t.textSecondary} weight="600">
+                  3
+                </Label>
+              </Animated.View>
+            ) : null}
+          </>
+        }
+      />
     );
   };
 }
 
+function Bubble({ g, look, mine, children, style }: { g: Geo; look: Look; mine?: boolean; children: ReactNode; style?: object }) {
+  return (
+    <Animated.View style={[{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "82%", borderRadius: 16 * g.s, paddingHorizontal: 12 * g.s, paddingVertical: 7 * g.s, backgroundColor: mine ? "#2F7BF6" : look.dark ? "#3A3A3C" : "#E9E9EB" }, style]}>
+      {typeof children === "string" ? (
+        <Label g={g} size={12.5} color={mine ? "#FFFFFF" : look.t.textPrimary} lines={3}>
+          {children}
+        </Label>
+      ) : (
+        children
+      )}
+    </Animated.View>
+  );
+}
+
 function links(little: boolean): Scene {
-  return ({ g, pal, p }) => {
+  return ({ g, look, p }) => {
     const t = tracker(p, 1500);
-    const u = g.k;
-    const h = g.H - 10;
-    const app: Rect = { x: 5, y: 5, w: 56, h };
-    const ardia: Rect = { x: 65, y: 5, w: g.W - 70, h };
-    const card = { x: 28, y: 3, w: ardia.w - 31, h: h - 6 };
-    const link = { x: app.x + 4, y: app.y + 36, w: 42, h: 10 };
-    const cursorFrom = { x: app.x + 46, y: app.y + h - 12 };
-    const cursorTo = { x: link.x + 22, y: link.y + 4 };
-    const float: Rect = { x: 40, y: 13, w: 74, h: Math.min(58, h - 10) };
+    const chat: Rect = { x: 18, y: 40, w: 300, h: g.H - 80 };
+    const ardia: Rect = { x: 300, y: 22, w: g.W - 318, h: g.H - 44 };
+    const cursorFrom = { x: chat.x + 250, y: chat.y + chat.h - 40 };
+    const cursorTo = { x: chat.x + 120, y: chat.y + 228 };
+    const float: Rect = { x: ardia.x + 70, y: 70, w: 430, h: g.H - 120 };
+    const arrived = { opacity: t.in(560, 240), transform: [{ translateX: t([[560, -12 * g.s], [860, 0]]) }] };
     return (
       <>
-        <View style={[atRect(g, app), { borderRadius: 4 * u, backgroundColor: pal.card, borderWidth: hairline(g), borderColor: pal.border }]}>
-          <Lights g={g} pal={pal} x={4} y={4} />
-          <View style={[at(g, 4, 13, 34, 8), { borderRadius: 4 * u, backgroundColor: pal.bar }]} />
-          <View style={[at(g, 18, 24, 34, 8), { borderRadius: 4 * u, backgroundColor: pal.link, opacity: 0.35 }]} />
-        </View>
-        <View style={[atRect(g, link), { borderRadius: 4 * u, backgroundColor: pal.bar }]}>
-          <Animated.View style={[fill, { borderRadius: 4 * u, backgroundColor: pal.hi, opacity: t([[470, 0], [520, 1], [700, 0]], linear) }]} />
-          <View style={[at(g, 5, 4, 28, 1.8), { borderRadius: 0.9 * u, backgroundColor: pal.link }]} />
-          <View style={[at(g, 5, 6.6, 28, hairline(g) / u), { backgroundColor: pal.link }]} />
-        </View>
-        <MiniWindow g={g} pal={pal} rect={ardia}>
-          <Lights g={g} pal={pal} x={4} y={4} />
-          <Highlight g={g} pal={pal} x={MINI_ROW.x} y={MINI_ROW.top} w={MINI_ROW.w} style={little ? undefined : { opacity: t.out(560, 200) }} />
-          {[0, 1, 2].map((i) => (
-            <TabRow key={i} g={g} pal={pal} i={i} x={MINI_ROW.x} w={MINI_ROW.w} y={MINI_ROW.top + i * MINI_ROW.pitch} />
-          ))}
-          {little ? null : (
-            <TabRow
-              g={g}
-              pal={pal}
-              i={0}
-              x={MINI_ROW.x}
-              w={MINI_ROW.w}
-              y={MINI_ROW.top + 3 * MINI_ROW.pitch}
-              selected
-              style={{ opacity: t.in(560, 240), transform: [{ translateX: t([[560, -5 * u], [840, 0]]) }] }}
-            />
-          )}
-          <Card g={g} pal={pal} rect={card}>
-            <PageLines g={g} pal={pal} x={5} y={5} w={card.w - 10} h={card.h - 8} />
-            {little ? null : (
-              <Animated.View style={[fill, { backgroundColor: pal.card, opacity: t.in(640, 280) }]}>
-                <SitePage g={g} pal={pal} w={card.w} h={card.h} />
-              </Animated.View>
-            )}
-          </Card>
-        </MiniWindow>
+        <Desktop g={g} look={look} />
+        <MiniArdia
+          g={g}
+          look={look}
+          rect={ardia}
+          tabs={little ? [tab(1), tab(3), tab(4)] : [tab(1), tab(3), tab(4), tab(0)]}
+          sel={little ? 0 : 3}
+          rowStyle={(i) => (!little && i === 3 ? arrived : null)}
+          extra={little ? null : <Highlight g={g} look={look} y={rowY(0)} w={MINI_SIDE - 12} style={{ opacity: t.out(560, 200) }} />}
+          cardContent={
+            little ? (
+              <Page g={g} look={look} a={TRIP} top={TOOLBAR_H} />
+            ) : (
+              <>
+                <Page g={g} look={look} a={TRIP} top={TOOLBAR_H} />
+                <Animated.View style={[fill, { opacity: t.in(640, 300) }]}>
+                  <Page g={g} look={look} top={TOOLBAR_H} />
+                </Animated.View>
+              </>
+            )
+          }
+        />
+        <Window g={g} look={look} rect={chat}>
+          <View style={[fill, { backgroundColor: look.dark ? "#1E1E1E" : "#FFFFFF" }]} />
+          <Lights g={g} y={20} x={20} />
+          <View style={[at(g, 0, 38, chat.w, 1), { height: hairline, backgroundColor: look.t.divider }]} />
+          <Label g={g} size={13} color={look.t.textPrimary} weight="600" style={{ position: "absolute", top: 13 * g.s, left: 0, right: 0, textAlign: "center" }}>
+            Sam
+          </Label>
+          <View style={{ position: "absolute", left: 14 * g.s, right: 14 * g.s, top: 54 * g.s, gap: 8 * g.s }}>
+            <Bubble g={g} look={look}>Found the trail we talked about</Bubble>
+            <Bubble g={g} look={look} mine>
+              Send it!
+            </Bubble>
+            <Bubble g={g} look={look} style={{ padding: 0, paddingHorizontal: 0, paddingVertical: 0, overflow: "hidden", width: 210 * g.s }}>
+              <View style={{ height: 70 * g.s, backgroundColor: NOTES.hero.far[look.dark ? 1 : 0] }}>
+                <View style={{ position: "absolute", left: "30%", right: "-20%", top: 28 * g.s, height: 120 * g.s, borderRadius: 80 * g.s, backgroundColor: NOTES.hero.near[look.dark ? 1 : 0] }} />
+              </View>
+              <View style={{ padding: 9 * g.s, gap: 2 * g.s }}>
+                <Label g={g} size={12} color={look.t.textPrimary} weight="600">
+                  A slow morning on the coast trail
+                </Label>
+                <Label g={g} size={11} color={look.t.textSecondary}>
+                  fieldnotes.blog
+                </Label>
+              </View>
+              <Animated.View style={[fill, { backgroundColor: "rgba(0,0,0,0.12)", opacity: t([[470, 0], [510, 1], [700, 0]], linear) }]} />
+            </Bubble>
+          </View>
+        </Window>
         {little ? (
-          <Animated.View style={[atRect(g, float), { opacity: t.in(560, 220), transform: [{ translateY: t([[560, 8 * u], [880, 0]]) }, { scale: t([[560, 0.86], [880, 1]]) }] }]}>
-            <View style={[at(g, 0.8, 1.6, float.w, float.h), { borderRadius: 4.5 * u, backgroundColor: pal.scrim }]} />
-            <View style={[at(g, 0, 0, float.w, float.h), { borderRadius: 4.5 * u, backgroundColor: pal.card, borderWidth: hairline(g), borderColor: pal.panelBorder, overflow: "hidden" }]}>
-              <Lights g={g} pal={pal} x={4} y={3.4} />
-              <View style={[at(g, 19, 2.3, 34, 4.8), { borderRadius: 2.4 * u, backgroundColor: pal.bar }]} />
-              <SitePage g={g} pal={pal} w={float.w} h={float.h} y={9.5} />
-            </View>
+          <Animated.View style={[atRect(g, float), { opacity: t.in(560, 220), transform: [{ translateY: t([[560, 14 * g.s], [900, 0]]) }, { scale: t([[560, 0.9], [900, 1]]) }] }]}>
+            <Window g={g} look={look} rect={{ x: 0, y: 0, w: float.w, h: float.h }}>
+              <View style={[fill, { backgroundColor: look.page }]} />
+              <View style={[at(g, 0, 0, float.w, 38), { backgroundColor: look.card, borderBottomWidth: hairline, borderColor: look.t.divider }]}>
+                <Lights g={g} y={19} x={19} />
+                <Crumb g={g} look={look} t={tab(0)} style={at(g, 84, 10, float.w - 100, 18)} />
+              </View>
+              <Page g={g} look={look} top={38} />
+            </Window>
           </Animated.View>
         ) : null}
         <Cursor
           g={g}
-          pal={pal}
           style={{
             opacity: t([[60, 0], [200, 1], [1150, 1], [1400, 0]]),
             transform: [
-              { translateX: t([[60, cursorFrom.x * u], [440, cursorTo.x * u]]) },
-              { translateY: t([[60, cursorFrom.y * u], [440, cursorTo.y * u]]) },
-              { scale: t([[460, 1], [500, 0.8], [620, 1]], linear) },
+              { translateX: t([[60, cursorFrom.x * g.s], [440, cursorTo.x * g.s]]) },
+              { translateY: t([[60, cursorFrom.y * g.s], [440, cursorTo.y * g.s]]) },
+              { scale: t([[460, 1], [500, 0.85], [620, 1]], linear) },
             ],
           }}
         />
@@ -773,8 +894,8 @@ export const DEMOS: Record<PreviewId, { duration: number; Scene: Scene }> = {
   "tabs-top": { duration: 1200, Scene: TabsTop },
   "address-toolbar": { duration: 1100, Scene: addressMove(false) },
   "address-sidebar": { duration: 1100, Scene: addressMove(true) },
-  "cmdl-field": { duration: 1300, Scene: CmdlField },
-  "cmdl-centred": { duration: 1300, Scene: CmdlCentred },
+  "cmdl-field": { duration: 1200, Scene: CmdlField },
+  "cmdl-centred": { duration: 1200, Scene: CmdlCentred },
   "newtab-page": { duration: 1300, Scene: NewTabOpensPage },
   "newtab-commandbar": { duration: 1300, Scene: NewTabOpensBar },
   "newtabpos-bottom": { duration: 1100, Scene: newTabAt(false) },
@@ -785,9 +906,9 @@ export const DEMOS: Record<PreviewId, { duration: number; Scene: Scene }> = {
   "quit-fresh": { duration: 1500, Scene: quit(true) },
   "windows-separate": { duration: 1400, Scene: windows(false) },
   "windows-shared": { duration: 1400, Scene: windows(true) },
-  "appearance-auto": { duration: 1100, Scene: appearance("auto") },
-  "appearance-light": { duration: 1100, Scene: appearance("light") },
-  "appearance-dark": { duration: 1100, Scene: appearance("dark") },
+  "appearance-auto": { duration: 1200, Scene: appearance("auto") },
+  "appearance-light": { duration: 1200, Scene: appearance("light") },
+  "appearance-dark": { duration: 1200, Scene: appearance("dark") },
   "sitecolor-on": { duration: 1300, Scene: siteColor(true) },
   "sitecolor-off": { duration: 1300, Scene: siteColor(false) },
   "typed-website": { duration: 1300, Scene: typed(false) },

@@ -331,3 +331,52 @@ test("only the peeked gesture's own click is swallowed, not a later one", () => 
   const later = env.fire("click", [a], { stamp: 900 });
   assert.equal(later.defaultPrevented, false);
 });
+
+test("split keys: ⌥⇧ and ⌥⌘ always split once native says so; ⌥ only when chosen, and Peek's ⌥ wins", () => {
+  const env = environment();
+  const a = env.link("/page");
+  env.handlers.peekConfig({ modifier: "shift", split: "altShift" });
+  const altShift = env.gesture([a], { alt: true, shift: true });
+  env.gesture([a], { alt: true, meta: true });
+  const alt = env.gesture([a], ALT);
+  env.gesture([a], { alt: true, shift: true, meta: true });
+  env.gesture([a], { alt: true, ctrl: true });
+  assert.deepEqual(peeks(env).map((p) => p.key), ["altShift", "altMeta"]);
+  assert.ok(altShift.defaultPrevented && altShift.stopped);
+  assert.equal(alt.defaultPrevented, false);
+  env.handlers.peekConfig({ modifier: "shift", split: "alt" });
+  const split = env.gesture([a], ALT);
+  env.gesture([a], SHIFT);
+  assert.deepEqual(peeks(env).map((p) => p.key), ["altShift", "altMeta", "alt", "shift"]);
+  assert.ok(split.defaultPrevented);
+  env.handlers.peekConfig({ modifier: "alt", split: "alt" });
+  env.gesture([a], ALT);
+  assert.equal(peeks(env).at(-1).key, "alt");
+  env.handlers.peekConfig({ modifier: "off", split: "alt" });
+  env.gesture([a], { alt: true, shift: true });
+  env.gesture([a], ALT);
+  assert.deepEqual(peeks(env).slice(-2).map((p) => p.key), ["altShift", "alt"]);
+});
+
+test("⌥-click split leaves download links, non-http(s) links and editable content to Chrome", () => {
+  const env = environment();
+  env.handlers.peekConfig({ modifier: "shift", split: "alt" });
+  const download = env.gesture([env.link("/file.txt", { download: "" })], ALT);
+  env.gesture([env.link("mailto:x@y.z")], ALT);
+  const a = env.link("/page");
+  a.editable = true;
+  env.gesture([a], ALT);
+  assert.equal(peeks(env).length, 0);
+  assert.equal(download.defaultPrevented, false);
+});
+
+test("a press that moves a few points still splits on ⌥ (Blink sends no click then)", () => {
+  const env = environment();
+  env.handlers.peekConfig({ modifier: "shift", split: "alt" });
+  const a = env.link("/page");
+  env.fire("mousedown", [a], ALT);
+  env.fire("mouseup", [a], { ...ALT, x: 14 });
+  env.fire("mousedown", [a], ALT);
+  env.fire("mouseup", [a], { ...ALT, x: 20 });
+  assert.deepEqual(peeks(env).map((p) => p.key), ["alt"]);
+});

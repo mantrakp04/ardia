@@ -27,6 +27,8 @@ For the architecture and the test tooling, read `docs/agent-brief.md`.
 - **Commit straight to `main`.** Stage only your own hunks (`git add -p` or explicit paths), never
   someone else's work in progress. Never stage with `git apply --unidiff-zero`: it drops hunks into the wrong
   place (it once committed an `ACClient.mm` that didn't compile). Check `git diff --cached` reads as you meant.
+- **Issues first, then PRs.** Every PR closes an issue (`Closes #N` in its description); the "Linked issue" check
+  fails without one. A PR that arrives without an issue gets one opened for it, then linked.
 - **Progress reports.** Keep them short and plain: what shipped, what's left, what needs the owner.
 - **Clean up.** Quit your test instances, stop the servers and background jobs you started, and never
   kill processes you didn't start.

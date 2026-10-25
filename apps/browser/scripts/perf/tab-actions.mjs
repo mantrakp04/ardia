@@ -380,7 +380,7 @@ async function runAction(rig, ctx, name) {
     await sleep(300);
     const pinned = await S(`const s = S(), w = s.windows[${JSON.stringify(w1)}]; return s.tabs[w.activeTabIds[w.profileId]].pinned;`);
     if ((name === "pin") === pinned) return null;
-    send = () => rig.op({ op: "menu", path: ["Tabs", "Pin|Unpin"] });
+    send = () => rig.op({ op: "menu", path: ["Tabs", "Move to Top Apps|Unpin from Top Apps"] });
   } else if (name === "moveDown") {
     const ids = list.slice(12, 18);
     await activate(ids[ctx.iter % ids.length]);

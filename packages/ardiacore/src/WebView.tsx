@@ -4,6 +4,7 @@ import { forwardRef, useImperativeHandle, useRef } from "react";
 import { findNodeHandle, type NativeSyntheticEvent, type ViewProps } from "react-native";
 import type { ExternalAppRequest } from "./externalApps";
 import type { FaviconImage } from "./favicons";
+import type { PageEngine } from "./webkit";
 
 export type NavigationState = {
   url: string;
@@ -15,6 +16,7 @@ export type NavigationState = {
   themeColorSource: "meta" | "header" | "background" | null;
   initialDocumentAccessed?: boolean;
   committedInitial?: boolean;
+  committedUrl?: string;
 };
 
 export type MediaState = { playing: boolean; muted: boolean };
@@ -110,7 +112,8 @@ export type DisplayMediaSource = {
   width: number;
   height: number;
 };
-export type DisplayMediaRequest = { id: string; origin: string; frameOrigin?: string; audio: boolean; sources: DisplayMediaSource[] };
+export type DisplayMediaAudio = { tab: boolean; screen: boolean; window: "application" | "system" | null };
+export type DisplayMediaRequest = { id: string; origin: string; frameOrigin?: string; audio: DisplayMediaAudio | null; sources: DisplayMediaSource[] };
 
 export type ZoomState = { zoom: number; host: string; isDefault: boolean; pinchScale: number };
 export type ContentBlockedState = { count: number; url: string };
@@ -142,6 +145,7 @@ export type AutofillPromptAnswer = "accept" | "decline" | "dismiss";
 export type ExtensionActionResult = "none" | "popup" | "sidePanel";
 
 export type WebViewProps = ViewProps & {
+  engine?: PageEngine;
   url?: string;
   profile?: string;
   adoptId?: string;
@@ -232,7 +236,7 @@ export type WebViewHandle = {
   resolveAutofillPrompt(id: number, answer: AutofillPromptAnswer): Promise<void>;
   executeExtensionAction(extensionId: string): Promise<ExtensionActionResult | null>;
 
-  resolveDisplayMedia(id: string, sourceId: string | null): Promise<void>;
+  resolveDisplayMedia(id: string, sourceId: string | null, audio?: boolean): Promise<void>;
   mediaCaptureSourceId(): Promise<string | null>;
   notificationAction(id: string, action: "click" | "close"): Promise<void>;
 
@@ -336,6 +340,8 @@ type NativeHandle = Omit<
 };
 
 const NativeWebView = requireNativeViewManager<NativeProps>("ArdiaCEF");
+let NativeWebKitView: typeof NativeWebView | undefined;
+const webKitView = () => (NativeWebKitView ??= requireNativeViewManager<NativeProps>("ArdiaWebKit"));
 
 const VIEW_RETRIES = 3;
 const isViewMissing = (error: unknown) =>
@@ -401,7 +407,7 @@ export const WebView = forwardRef<WebViewHandle, WebViewProps>(function WebView(
         call(undefined, (n) => n.resolvePasswordPrompt(answer, edits?.username ?? null, edits?.password ?? null)),
       resolveAutofillPrompt: (id, answer) => call(undefined, (n) => n.resolveAutofillPrompt(id, answer)),
       executeExtensionAction: (extensionId) => call(null, (n) => n.executeExtensionAction(extensionId)),
-      resolveDisplayMedia: (id, sourceId) => call(undefined, (n) => n.resolveDisplayMedia(id, sourceId)),
+      resolveDisplayMedia: (id, sourceId, audio = false) => call(undefined, (n) => n.resolveDisplayMedia(id, sourceId, audio)),
       mediaCaptureSourceId: () => call(null, (n) => n.mediaCaptureSourceId()),
       notificationAction: (id, action) => call(undefined, (n) => n.notificationAction(id, action)),
       resolveUnresponsive: (terminate) => call(undefined, (n) => n.resolveUnresponsive(terminate)),
@@ -412,6 +418,7 @@ export const WebView = forwardRef<WebViewHandle, WebViewProps>(function WebView(
 
   const nativeProps: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(props)) {
+    if (key === "engine") continue;
     if (key === "url" || key === "shownUrl") {
       nativeProps[key] = typeof value === "string" ? toEngineUrl(value) : value;
       continue;
@@ -423,8 +430,9 @@ export const WebView = forwardRef<WebViewHandle, WebViewProps>(function WebView(
         : value;
   }
 
+  const Native = props.engine === "webkit" ? webKitView() : NativeWebView;
   return (
-    <NativeWebView
+    <Native
       // @ts-expect-error expo view managers accept a ref to their AsyncFunctions
       ref={native}
       {...(nativeProps as NativeProps)}

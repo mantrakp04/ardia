@@ -4,6 +4,12 @@
 download, not part of the app bundle. The app ships `install.sh`, and runs it when the user opts in during onboarding
 or in Settings ("Let the ardia command control Ardia").
 
+While it's connected, a pill floats over the bottom centre of the page ("ardia is controlling Ardia · Stop"; Stop turns
+the setting off). It overlays the page and never resizes it. It shows at the first connection and stays 3 s after the
+last one closes, so a burst of commands shows one steady pill; turning the setting off hides it at once. One per
+window: the focused pane of a split, the full screen page, or the Peek while one is open
+(`apps/browser/src/components/CliControlPill.tsx`, `useCliIndicator` in `lib/cliControl.ts`).
+
 Code: `apps/cli` (`ardia_cli`, `install.sh`, `scripts/build.sh`). Dependencies are pinned with hashes in
 `apps/cli/requirements.lock` (regenerate with `uv pip compile requirements.in --python-version 3.13
 --python-platform aarch64-apple-darwin --generate-hashes --no-annotate --no-header -o requirements.lock`, then copy

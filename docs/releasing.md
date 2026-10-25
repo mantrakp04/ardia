@@ -174,7 +174,9 @@ stays up. That's GPL-3.0 §6(d) for the GPL parts (uBlock Origin today), and it'
      $(ls dist/<version>/ArdiaCore-*.tar.xz 2>/dev/null)
    ```
    With a new engine, then append `dist/<version>/prebuilt-engine.tsv` to `packages/ardiacore/prebuilt-engines.tsv` and
-   commit it.
+   commit it. Then `.claude/skills/release/scripts/update-tap.sh <version>` points the Homebrew tap's `ardia` cask
+   (https://github.com/mantrakp04/homebrew-tap) at the new DMG: it sets `version` and `sha256` from GitHub's digest
+   of the published DMG and pushes the tap. `publish-nightly.sh` does the same for `ardia@nightly`.
 5. Deploy the site so `/release-notes` shows the new version (for a nightly too: the updated app opens its entry) (the updated app opens it on its first launch):
    `pnpm -C apps/site run deploy` builds `apps/site` with `SITE_URL=https://ardia.dev` and ships it
    (`infra/site/hexclave.deploy.ts`). Also bump `VERSION` and `DMG_SIZE` in `apps/site/src/data/release.ts`

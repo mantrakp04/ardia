@@ -16,9 +16,13 @@ export async function faviconsFor(profile: string, pages: string[], icons: strin
   };
 }
 
+export function storeFavicon(profile: string, page: string, icon: string, png: string) {
+  return engineCall<{ stored: boolean }>("ac_favicons_set", profile, { page, icon, png });
+}
+
 export async function fetchFavicon(url: string, profile: string, page?: string): Promise<FaviconImage | null> {
   const image = await Cef.fetchFavicon(url, profile);
   const png = image?.uri.startsWith("data:image/png;base64,") ? image.uri.slice(22) : null;
-  if (page && png) await engineCall("ac_favicons_set", profile, { page, icon: url, png }).catch(() => null);
+  if (page && png) await storeFavicon(profile, page, url, png).catch(() => null);
   return image;
 }

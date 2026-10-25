@@ -7,7 +7,7 @@ import { groupLabel } from "../../store/organize";
 import { splitRowPanes } from "../../store/splits";
 import { tabTitle } from "./actions";
 import { groupEntries } from "./entries";
-import { GROUP_BORDER, GROUP_PAD, keptEntry } from "./geometry";
+import { GROUP_BORDER, GROUP_INDENT, GROUP_PAD, keptEntry } from "./geometry";
 import { pointerOnRow } from "./hover";
 import { FaviconFallback, NewTabIcon } from "../primitives";
 import { SYMBOL_PREFIX, TabIcon } from "./TabIcon";
@@ -135,7 +135,7 @@ function GroupGhost({ shot }: { shot: GroupShot }) {
       <View style={{ height: layout.rowHeight, flexDirection: "row", alignItems: "center", paddingLeft: 9, paddingRight: 6 - GROUP_PAD }}>
         {shot.icon ? <TabIcon url={shot.icon.url} favicon={shot.icon.favicon} icon={shot.icon.icon} profileId={shot.icon.profileId} /> : <View style={{ width: 16 }} />}
         <View style={{ flexShrink: 1, height: 18, marginLeft: 5, paddingRight: 8, justifyContent: "center" }}>
-          <Text numberOfLines={1} style={{ opacity: 0, fontSize: 13, fontWeight: "500" }}>
+          <Text numberOfLines={1} style={{ opacity: 0, fontSize: 13, fontWeight: "500", fontVariant: ["tabular-nums"] }}>
             {shot.label}
           </Text>
           <FadeLabel text={shot.label} fontSize={13} weight="medium" color={tokens.groupTitle} style={{ position: "absolute", left: 0, right: 0, top: 0, height: 18 }} />
@@ -144,7 +144,7 @@ function GroupGhost({ shot }: { shot: GroupShot }) {
           <Symbol name="chevron.down" size={9} weight="semibold" color={withAlpha(tokens.groupTitle, 0.5)} style={{ width: 10, height: 10 }} />
         </View>
       </View>
-      <View style={{ gap: layout.rowGap, paddingBottom: pad }}>{shot.members.map((m) => (m.kind === "split" ? <SplitGhost key={m.key} shot={m} /> : m.kind === "group" ? <GroupGhost key={m.key} shot={m} /> : tabGhost(m, theme)))}</View>
+      <View style={{ gap: layout.rowGap, paddingBottom: pad, paddingLeft: GROUP_INDENT }}>{shot.members.map((m) => (m.kind === "split" ? <SplitGhost key={m.key} shot={m} /> : m.kind === "group" ? <GroupGhost key={m.key} shot={m} /> : tabGhost(m, theme)))}</View>
     </View>
   );
 }

@@ -22,6 +22,7 @@ export type WindowBackdropProps = ViewProps & {
   themeGrain?: number;
   themeTexture?: "grain" | "sand" | "denim" | "tweed";
   themeAppearance?: "auto" | "light" | "dark";
+  themeAngle?: number;
 };
 
 const NativeBackdrop = requireNativeViewManager<WindowBackdropProps>("ArdiaWindowBackdrop");
@@ -67,12 +68,13 @@ export type ThemeSwatchProps = ViewProps & {
   grain?: number;
   texture?: "grain" | "sand" | "denim" | "tweed";
   padLightness?: number;
+  angle?: number;
 };
 
 const hasThemeSwatch = !!(globalThis as { expo?: { getViewConfig?: (name: string) => unknown } }).expo?.getViewConfig?.("ArdiaThemeSwatch");
 const NativeThemeSwatch = hasThemeSwatch ? requireNativeViewManager<ThemeSwatchProps>("ArdiaThemeSwatch") : null;
 
-export function ThemeSwatch({ grain = 0, padLightness = -1, style, ...props }: ThemeSwatchProps) {
+export function ThemeSwatch({ grain = 0, padLightness = -1, angle = 135, style, ...props }: ThemeSwatchProps) {
   if (!NativeThemeSwatch) return <View pointerEvents="none" style={[style, { backgroundColor: "#80808040" }]} />;
-  return <NativeThemeSwatch pointerEvents="none" grain={grain} padLightness={padLightness} style={style} {...props} />;
+  return <NativeThemeSwatch pointerEvents="none" grain={grain} padLightness={padLightness} angle={angle} style={style} {...props} />;
 }

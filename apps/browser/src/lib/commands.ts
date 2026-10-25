@@ -11,6 +11,7 @@ import { markdownLink } from "@ardia/core";
 import { useBrowser } from "../store/browser";
 import { activeTabId, bookmarkProfileId, isPinnedRow, pinSection, resolveWindowId } from "../store/model";
 import {
+  closeGroup,
   closeTab,
   createProfile,
   cycleProfile,
@@ -33,6 +34,7 @@ import { addressBarInSidebar, commandBarCentred } from "../components/layout/win
 import { addFolderToSidebar, restoreArcFolders } from "./bookmarkGroups";
 import { withLivePage } from "./livePage";
 import { webviews } from "./webviews";
+import { togglePageEngine } from "./engines";
 import { goBack, goForward } from "../components/layout/history";
 import { openSplitPane } from "../components/layout/splitActions";
 import { runSidebarCommand } from "../components/sidebar/commands";
@@ -101,7 +103,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     case "openFile":
       return void openFiles(requested);
     case "manageExtensions":
-      return openManageExtensions();
+      return openManageExtensions(requested);
     case "setBookmarksBar":
       if (arg === "always" || arg === "newTab" || arg === "never") s.updateSettings({ bookmarksBar: arg });
       return;
@@ -147,7 +149,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
   switch (command) {
     case "newTab":
       if (toggleNewTabBar(windowId)) return;
-      return void s.newTab(windowId);
+      return void s.newTab(windowId, { newTabCommand: true });
     case "reopenClosedTab":
       return s.reopenClosed(windowId);
     case "restoreClosed":
@@ -252,6 +254,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     case "togglePin":
       if (!tab) return;
       if (arg === "row") return s.pinTabs([tab.id], true, !isPinnedRow(tab));
+      if (arg === "tile") return isPinnedRow(tab) ? s.pinTabs([tab.id], true, false) : undefined;
       return s.togglePin(tab.id);
     case "moveTabDown":
     case "moveTabUp": {
@@ -262,7 +265,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     }
     case "closeTabGroup": {
       const group = groupOf(s, tabId);
-      return group ? s.closeGroup(group.id) : undefined;
+      return group ? void closeGroup(group.id) : undefined;
     }
     case "openProfileMenu":
       return s.windows[windowId]?.incognito ? undefined : void openProfileMenu(windowId);
@@ -280,6 +283,8 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
       const node = arg ? s.bookmarks.nodes[arg] : undefined;
       return node?.kind === "url" && tab ? s.navigate(tab.id, node.url) : undefined;
     }
+    case "togglePageEngine":
+      return void (tabId && togglePageEngine(tabId));
     case "toggleMute":
       return page ? toggleMute(page.id) : undefined;
     case "downloads":

@@ -1,5 +1,6 @@
 import { switchOn } from "../lib/killSwitches";
 import type { BrowserState } from "./browser";
+import { tabEngine } from "./engines";
 import { engineProfile } from "./model";
 import { lastActiveProfile } from "./small";
 
@@ -14,7 +15,7 @@ export function launchTab(s: Pick<BrowserState, "windows" | "tabs" | "settings">
   if (!w || w.incognito || w.kind === "small" || s.settings.restoreSession === false) return null;
   const t = s.tabs[w.activeTabIds[w.profileId] ?? ""];
   if (!t || t.windowId !== w.id || t.profileId !== w.profileId || !WEB.test(t.url)) return null;
-  if (t.wakeAdoptId) return null;
+  if (t.wakeAdoptId || tabEngine(s, t.id) !== "chromium") return null;
   return { id: t.id, url: t.url, profile: engineProfile(t.profileId) };
 }
 

@@ -1,6 +1,6 @@
 import { Symbol, showMenu, type MenuItem } from "@ardia/shell";
 import { Pressable, Text, View } from "react-native";
-import { createProfile, switchProfile } from "../lib/actions";
+import { createProfile, openWindow, switchProfile } from "../lib/actions";
 import { profileAccent, profileNameColor, useTheme } from "../lib/theme";
 import { useBrowser } from "../store/browser";
 import { useIsIncognito, useProfiles, useWindowId, useWindowProfile } from "../store/hooks";
@@ -81,13 +81,16 @@ export async function openProfileMenu(windowId: string) {
   const s = useBrowser.getState();
   const current = s.windows[windowId]?.profileId;
   const items: MenuItem[] = [
-    ...s.profileOrder.map((id, i) => ({
-      id: `switch:${id}`,
-      title: s.profiles[id]!.name,
-      checked: id === current,
-      swatch: profileAccent(s.profiles[id]),
-      ...(i < 9 ? { key: String(i + 1), modifiers: ["control" as const] } : {}),
-    })),
+    ...s.profileOrder.flatMap((id, i): MenuItem[] => {
+      const profile = s.profiles[id]!;
+      const swatch = profileAccent(profile);
+      const key = i < 9 ? { key: String(i + 1) } : {};
+      const modifiers: ("control" | "command")[] = i < 9 ? ["control"] : [];
+      return [
+        { id: `switch:${id}`, title: profile.name, checked: id === current, swatch, ...key, modifiers },
+        { id: `window:${id}`, title: `${profile.name} ↗`, alternate: true, swatch, ...key, modifiers: [...modifiers, "command"] },
+      ];
+    }),
     { separator: true },
     { id: "new", title: "New Profile", symbol: "plus" },
     { id: "edit", title: "Edit Profiles…", symbol: "pencil" },
@@ -95,6 +98,7 @@ export async function openProfileMenu(windowId: string) {
   const choice = await showMenu(items);
   if (!choice) return;
   if (choice.startsWith("switch:")) switchProfile(windowId, choice.slice("switch:".length), true);
+  else if (choice.startsWith("window:")) openWindow({ profileId: choice.slice("window:".length) });
   else if (choice === "new") {
     const id = await createProfile(windowId);
     if (id) switchProfile(windowId, id);

@@ -13,7 +13,7 @@ export const STEPS: OnboardingStep[] = ["intro", "source", "layout", "tabs", "lo
 
 export type Preset = "arc" | "dia";
 
-export type BrowserSourceId = "arc" | "dia" | "chrome" | "safari" | "firefox" | "brave" | "edge" | "fresh";
+export type BrowserSourceId = "arc" | "dia" | "chrome" | "safari" | "firefox" | "zen" | "brave" | "edge" | "fresh";
 
 export const PRESETS: Record<Preset, Partial<Settings>> = {
   dia: {
@@ -38,12 +38,82 @@ export const PRESETS: Record<Preset, Partial<Settings>> = {
   },
 };
 
-export const presetFor = (source: BrowserSourceId | null): Preset => (source === "arc" ? "arc" : "dia");
+export type QuestionId =
+  | "source"
+  | "tabs"
+  | "address"
+  | "cmdl"
+  | "newTab"
+  | "newTabPosition"
+  | "tidy"
+  | "quit"
+  | "windows"
+  | "tabsMore"
+  | "color"
+  | "appearance"
+  | "siteColor"
+  | "lookMore"
+  | "engine"
+  | "typed"
+  | "crash"
+  | "pins"
+  | "default"
+  | "links"
+  | "outro";
+
+type Question = { id: QuestionId; keys: readonly (keyof Settings)[] };
+
+const QUESTIONS: Record<Exclude<OnboardingStep, "intro">, Question[]> = {
+  source: [{ id: "source", keys: [] }],
+  layout: [
+    { id: "tabs", keys: ["tabLayout"] },
+    { id: "address", keys: ["addressBar"] },
+    { id: "cmdl", keys: ["commandBarPlacement"] },
+  ],
+  tabs: [
+    { id: "newTab", keys: ["newTabOpens"] },
+    { id: "newTabPosition", keys: ["newTabPosition"] },
+    { id: "tidy", keys: ["cleanUpInactiveTabsAfterHours"] },
+    { id: "quit", keys: ["restoreSession"] },
+    { id: "windows", keys: ["shareTabsAcrossWindows"] },
+    { id: "tabsMore", keys: ["balancedTopApps", "peekModifier", "undoReopensClosedTab", "cmdClickCreatesTabGroup"] },
+  ],
+  look: [
+    { id: "color", keys: [] },
+    { id: "appearance", keys: ["appearance"] },
+    { id: "siteColor", keys: ["extendWebsiteColor"] },
+    { id: "lookMore", keys: ["hideToolbarWhileScrolling", "bookmarksBar"] },
+  ],
+  searchPrivacy: [
+    { id: "engine", keys: ["searchEngine"] },
+    { id: "typed", keys: ["commandBarPreference"] },
+    { id: "crash", keys: [] },
+  ],
+  pins: [{ id: "pins", keys: [] }],
+  home: [
+    { id: "default", keys: [] },
+    { id: "links", keys: ["openLinksInLittleArdia"] },
+  ],
+  outro: [{ id: "outro", keys: [] }],
+};
+
+export const QUESTION_ORDER: QuestionId[] = Object.values(QUESTIONS).flatMap((list) => list.map((q) => q.id));
+
+export function questionsFor(step: OnboardingStep): Question[] {
+  if (step === "intro") return [];
+  const list = QUESTIONS[step];
+  if (step !== "layout") return list;
+  const { windowId, draft, preset } = useOnboarding.getState();
+  const b = useBrowser.getState();
+  const { tabLayout } = resolveDraft(["tabLayout"], draft, preset, { ...b.settings, tabLayout: tabLayoutOf(b, windowId) });
+  return tabLayout === "top" ? list.filter((q) => q.id !== "address") : list;
+}
+
+export const presetFor = (source: BrowserSourceId | null): Preset => (source === "arc" || source === "zen" ? "arc" : "dia");
 
 export type Extras = {
   color: ProfileColor;
   appIcon: string;
-  block: boolean;
   share: boolean;
   pins: string[];
   setDefault: boolean;
@@ -57,6 +127,7 @@ type LiveBaseline = Partial<Settings> & { color?: ProfileColor };
 type OnboardingState = {
   windowId: string | null;
   step: OnboardingStep;
+  sub: number;
   leaving: boolean;
   session: number;
   tourAfter: boolean;
@@ -65,9 +136,8 @@ type OnboardingState = {
   draft: Partial<Settings>;
   extras: Partial<Extras>;
   baseline: LiveBaseline;
-  confirmed: OnboardingStep[];
-  picked: Partial<Record<OnboardingStep, string[]>>;
-  go(step: OnboardingStep): void;
+  picked: Partial<Record<QuestionId, string[]>>;
+  go(step: OnboardingStep, sub?: number): void;
   next(): void;
   back(): void;
   chooseSource(source: BrowserSourceId | null): void;
@@ -75,15 +145,22 @@ type OnboardingState = {
   setExtras(patch: Partial<Extras>): void;
   previewLive(patch: Partial<Settings>): void;
   previewColor(color: ProfileColor): void;
-  confirm(step: OnboardingStep, patch: Partial<Settings>, picked: string[]): void;
-  skip(step: OnboardingStep, keys: readonly (keyof Settings)[]): void;
+  confirm(question: QuestionId, patch: Partial<Settings>, picked: string[]): void;
+  skip(): void;
 };
 
 const stepAfter = (step: OnboardingStep, delta: number) => STEPS[STEPS.indexOf(step) + delta];
 
+const setWindowLayout = (windowId: string, tabLayout: Settings["tabLayout"]) =>
+  useBrowser.setState((s) => {
+    const w = s.windows[windowId];
+    return w && w.tabLayout !== tabLayout ? { windows: { ...s.windows, [windowId]: { ...w, tabLayout } } } : {};
+  });
+
 export const useOnboarding = create<OnboardingState>((set, get) => ({
   windowId: null,
   step: "intro",
+  sub: 0,
   leaving: false,
   session: 0,
   tourAfter: false,
@@ -92,20 +169,23 @@ export const useOnboarding = create<OnboardingState>((set, get) => ({
   draft: {},
   extras: {},
   baseline: {},
-  confirmed: [],
   picked: {},
-  go(step) {
-    set({ step });
-    save({ step });
+  go(step, sub = 0) {
+    set({ step, sub });
+    save({ step, sub });
   },
   next() {
-    const step = stepAfter(get().step, 1);
-    if (step) get().go(step);
+    const { step, sub } = get();
+    if (sub < questionsFor(step).length - 1) return get().go(step, sub + 1);
+    const after = stepAfter(step, 1);
+    if (after) get().go(after);
     else finishOnboarding();
   },
   back() {
-    const step = stepAfter(get().step, -1);
-    if (step && step !== "intro") get().go(step);
+    const { step, sub } = get();
+    if (sub > 0) return get().go(step, sub - 1);
+    const before = stepAfter(step, -1);
+    if (before && before !== "intro") get().go(before, Math.max(0, questionsFor(before).length - 1));
   },
   chooseSource(source) {
     const preset = presetFor(source);
@@ -121,7 +201,6 @@ export const useOnboarding = create<OnboardingState>((set, get) => ({
   previewLive(patch) {
     const { windowId, baseline } = get();
     const b = useBrowser.getState();
-    const window = windowId ? b.windows[windowId] : undefined;
     const recorded: LiveBaseline = { ...baseline };
     for (const key of Object.keys(patch) as (keyof Settings)[]) {
       if (key in recorded) continue;
@@ -129,9 +208,7 @@ export const useOnboarding = create<OnboardingState>((set, get) => ({
     }
     set({ baseline: recorded });
     const { tabLayout, ...rest } = patch;
-    if (tabLayout && window && tabLayoutOf(b, windowId) !== tabLayout) {
-      useBrowser.setState((s) => ({ windows: { ...s.windows, [window.id]: { ...s.windows[window.id]!, tabLayout } } }));
-    }
+    if (tabLayout && windowId) setWindowLayout(windowId, tabLayout);
     if (Object.keys(rest).length) b.updateSettings(rest, { fromSync: true });
   },
   previewColor(color) {
@@ -142,33 +219,31 @@ export const useOnboarding = create<OnboardingState>((set, get) => ({
     if (!("color" in baseline)) set({ baseline: { ...baseline, color: b.profiles[profileId]?.color } });
     b.updateProfile(profileId, { color });
   },
-  confirm(step, patch, picked) {
+  confirm(question, patch, picked) {
     const { windowId, baseline } = get();
-    const { tabLayout } = patch;
-    if (tabLayout) {
-      useBrowser.setState((s) => {
-        const w = windowId ? s.windows[windowId] : undefined;
-        return w ? { windows: { ...s.windows, [w.id]: { ...w, tabLayout } } } : {};
-      });
-    }
+    if (patch.tabLayout && windowId) setWindowLayout(windowId, patch.tabLayout);
     if (Object.keys(patch).length) useBrowser.getState().updateSettings(patch);
     const kept: LiveBaseline = { ...baseline };
     for (const key of Object.keys(patch)) delete kept[key as keyof LiveBaseline];
-    if (step === "look") delete kept.color;
-    const confirmed = get().confirmed.includes(step) ? get().confirmed : [...get().confirmed, step];
-    const all = { ...get().picked, [step]: picked };
-    set({ baseline: kept, confirmed, picked: all });
+    if (question === "color") delete kept.color;
+    const all = { ...get().picked, [question]: picked };
+    set({ baseline: kept, picked: all });
     save({ picked: all });
     get().next();
   },
-  skip(step, keys) {
-    revertLive([...keys, ...(step === "look" ? (["color"] as const) : [])]);
+  skip() {
+    const { step, sub } = get();
+    const rest = questionsFor(step).slice(sub);
+    const keys = rest.flatMap((q) => q.keys);
+    revertLive([...keys, ...(rest.some((q) => q.id === "color") ? (["color"] as const) : [])]);
     set((s) => {
       const draft = { ...s.draft };
       for (const key of keys) delete draft[key];
       return { draft };
     });
-    get().next();
+    const after = stepAfter(step, 1);
+    if (after) get().go(after);
+    else finishOnboarding();
   },
 }));
 
@@ -179,7 +254,7 @@ function revertLive(keys: readonly (keyof LiveBaseline)[]) {
   const { color, tabLayout, ...rest } = restore;
   const b = useBrowser.getState();
   const window = windowId ? b.windows[windowId] : undefined;
-  if (tabLayout && window) useBrowser.setState((s) => ({ windows: { ...s.windows, [window.id]: { ...s.windows[window.id]!, tabLayout } } }));
+  if (tabLayout && windowId) setWindowLayout(windowId, tabLayout);
   if (Object.keys(rest).length) b.updateSettings(rest, { fromSync: true });
   if (color && window) b.updateProfile(window.profileId, { color });
   const kept = { ...baseline };
@@ -206,9 +281,10 @@ type Saved = {
   startedAt?: number;
   completedAt: number | null;
   step?: OnboardingStep;
+  sub?: number;
   source?: BrowserSourceId | null;
   preset?: Preset;
-  picked?: Partial<Record<OnboardingStep, string[]>>;
+  picked?: Partial<Record<QuestionId, string[]>>;
   defaultBrowserTrialStartedAt?: number;
   defaultBrowserCheckInDoneAt?: number;
   introMusicMuted?: boolean;
@@ -245,14 +321,14 @@ export const onboardingCompletedAt = () => readSaved()?.completedAt ?? null;
 export const introMusicMuted = () => readSaved()?.introMusicMuted ?? false;
 export const saveIntroMusicMuted = (muted: boolean) => save({ introMusicMuted: muted });
 
-const FRESH = { preset: "dia", source: null, draft: {}, extras: {}, baseline: {}, confirmed: [], picked: {} } satisfies Partial<OnboardingState>;
+const FRESH = { preset: "dia", source: null, draft: {}, extras: {}, baseline: {}, picked: {} } satisfies Partial<OnboardingState>;
 
 export function startOnboarding(windowId?: string | null, step: OnboardingStep = "intro") {
   const id = resolveWindowId(useBrowser.getState(), windowId);
   if (!id) return;
   endToolTour();
-  useOnboarding.setState((s) => ({ ...FRESH, windowId: id, step, leaving: false, tourAfter: false, session: s.session + 1 }));
-  save({ step, source: null, preset: "dia", picked: {} });
+  useOnboarding.setState((s) => ({ ...FRESH, windowId: id, step, sub: 0, leaving: false, tourAfter: false, session: s.session + 1 }));
+  save({ step, sub: 0, source: null, preset: "dia", picked: {} });
 }
 
 function resumeOnboarding(saved: Saved) {
@@ -264,14 +340,16 @@ function resumeOnboarding(saved: Saved) {
     ...FRESH,
     windowId: id,
     step,
+    sub: 0,
     source,
     preset: saved.preset ?? presetFor(source),
     picked: saved.picked ?? {},
-    confirmed: Object.keys(saved.picked ?? {}) as OnboardingStep[],
     leaving: false,
     tourAfter: false,
     session: s.session + 1,
   }));
+  const sub = Math.min(saved.sub ?? 0, questionsFor(step).length - 1);
+  if (sub > 0) useOnboarding.setState({ sub });
 }
 
 export function finishOnboarding(options: { tour?: boolean } = {}) {
@@ -305,5 +383,6 @@ if (__DEV__) (globalThis as { acOnboarding?: unknown }).acOnboarding = {
     finish: finishOnboarding,
     pinSites,
     resolveDraft,
+    questionsFor,
     PRESETS,
   };

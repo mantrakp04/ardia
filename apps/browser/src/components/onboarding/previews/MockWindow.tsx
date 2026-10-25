@@ -1,41 +1,49 @@
+import { Surface } from "@ardia/shell";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Easing, StyleSheet, View, type LayoutChangeEvent } from "react-native";
-import { useTheme } from "../../../lib/theme";
+import { Animated, Easing, View, type LayoutChangeEvent } from "react-native";
+import { hex, useTheme } from "../../../lib/theme";
 import { DEFAULT_SETTINGS, type Settings } from "../../../store/settings";
-import { DEMOS } from "./demos";
+import { DEMOS, type SceneOpts } from "./demos";
 import type { PreviewId } from "./ids";
 import {
-  Chevrons,
-  Clip,
-  DARK_WINDOW,
+  Backdrop,
+  CHIP,
+  Crumb,
+  fill,
+  FIELD,
   geo,
+  Glyph,
   hairline,
-  LIGHT_WINDOW,
+  Label,
   Lights,
-  MAC_LIGHTS,
-  PILL,
+  LIGHTS_Y,
+  lookFor,
+  NavIcons,
+  Page,
+  Pill,
   ROW,
-  SIDE_FIELD,
-  SideRows,
-  SITE,
+  Rows,
+  SIDEBAR_ICONS,
+  SIDEBAR_W,
+  STRIP_H,
+  tab,
   TabRow,
   TOOLBAR_H,
-  TOP_TAB,
+  TOOLBAR_ICONS,
+  CRUMB_X,
+  tracker,
   useDemo,
   type Geo,
-  type Pal,
+  type Look,
 } from "./kit";
 
-const FALLBACK = { width: 420, height: 300 };
+const INSET = { x: 8, top: 5, bottom: 13 };
 const MOVE = { duration: 340, easing: Easing.out(Easing.cubic) };
-const FADE = { duration: 320, easing: Easing.out(Easing.cubic) };
-const WINDOW_LIGHT: Pal = { ...LIGHT_WINDOW, lights: MAC_LIGHTS };
-const WINDOW_DARK: Pal = { ...DARK_WINDOW, lights: MAC_LIGHTS };
-const fill = StyleSheet.absoluteFill;
+const FADE = { duration: 380, easing: Easing.out(Easing.cubic) };
 
-type Look = { top: boolean; addressInSidebar: boolean; appearance: Settings["appearance"]; siteColor: boolean };
+type Shape = { top: boolean; addressInSidebar: boolean; appearance: Settings["appearance"]; siteColor: boolean };
 
-function lookOf(settings: Partial<Settings>): Look {
+function shapeOf(settings: Partial<Settings>): Shape {
   const top = (settings.tabLayout ?? DEFAULT_SETTINGS.tabLayout) === "top";
   return {
     top,
@@ -60,30 +68,43 @@ function useTo(value: number, native: boolean, config = MOVE) {
   return v;
 }
 
+function useFadeBetween<T>(value: T) {
+  const [layers, setLayers] = useState<{ below: T | null; above: T }>({ below: null, above: value });
+  const fade = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (value === layers.above) return;
+    setLayers({ below: layers.above, above: value });
+    fade.setValue(0);
+    const run = Animated.timing(fade, { toValue: 1, ...FADE, useNativeDriver: true, isInteraction: false });
+    run.start(({ finished }) => finished && setLayers({ below: null, above: value }));
+    return () => run.stop();
+  }, [value]);
+  return { layers, fade };
+}
+
 export function MockWindow({ settings, accent, focus }: { settings: Partial<Settings>; accent: string; focus: PreviewId | null }) {
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const onLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
     if (width > 0 && height > 0 && (width !== size?.width || height !== size?.height)) setSize({ width, height });
   };
-  const box = size ?? FALLBACK;
   return (
     <View style={{ flex: 1, alignSelf: "stretch" }} onLayout={onLayout}>
-      {size ? <Window width={box.width} height={box.height} settings={settings} accent={accent} focus={focus} /> : null}
+      {size ? <Window width={size.width} height={size.height} settings={settings} accent={accent} focus={focus} /> : null}
     </View>
   );
 }
 
 function Window({ width, height, settings, accent, focus }: { width: number; height: number; settings: Partial<Settings>; accent: string; focus: PreviewId | null }) {
-  const g = useMemo(() => geo(width, height), [width, height]);
-  const look = lookOf(settings);
-  const appDark = useTheme().dark;
-  const lay = useTo(look.top ? 1 : 0, false);
-  const addr = useTo(look.addressInSidebar ? 1 : 0, false);
-  const site = useTo(look.siteColor ? 1 : 0, true, FADE);
-  const darkShown = useTo(look.appearance === "light" ? 0 : 1, true, FADE);
-  const edge = useEdge(look.appearance, width);
-  const inner = useMemo(() => Animated.multiply(edge, -1), [edge]);
+  const inner = { w: width - INSET.x * 2, h: height - INSET.top - INSET.bottom };
+  const g = useMemo(() => geo(inner.w, inner.h), [inner.w, inner.h]);
+  const shape = shapeOf(settings);
+  const systemDark = useTheme().dark;
+  const dark = shape.appearance === "dark" || (shape.appearance === "auto" && systemDark);
+  const lay = useTo(shape.top ? 1 : 0, false);
+  const addr = useTo(shape.addressInSidebar ? 1 : 0, false);
+  const site = useTo(shape.siteColor ? 1 : 0, true, FADE);
+  const theme = useFadeBetween(dark);
   const focusShown = useTo(focus ? 1 : 0, true, { duration: 220, easing: Easing.out(Easing.quad) });
   const [demo, setDemo] = useState(focus);
   useEffect(() => {
@@ -91,163 +112,149 @@ function Window({ width, height, settings, accent, focus }: { width: number; hei
     const timer = setTimeout(() => setDemo(null), 240);
     return () => clearTimeout(timer);
   }, [focus]);
-  const focusDark = look.appearance === "dark" || (look.appearance === "auto" && appDark);
-  const focusPal = focusDark ? WINDOW_DARK : WINDOW_LIGHT;
-  const radius = 5.5 * g.k;
+  const look = lookFor(dark, accent);
+  const opts = useMemo<SceneOpts>(() => ({ addressInSidebar: shape.addressInSidebar, systemDark, accent }), [shape.addressInSidebar, systemDark, accent]);
+  const radius = 12 * g.s;
+  const layer = (isDark: boolean) => <WindowState g={g} look={lookFor(isDark, accent)} accent={accent} lay={lay} addr={addr} site={site} />;
   return (
-    <View style={{ width, height, borderRadius: radius, overflow: "hidden", borderWidth: hairline(g), borderColor: appDark ? "rgba(255,255,255,0.16)" : "rgba(0,0,0,0.12)" }}>
-      <Animated.View style={[fill, { opacity: focusShown.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]}>
-        <WindowState g={g} pal={WINDOW_LIGHT} accent={accent} lay={lay} addr={addr} site={site} />
-        <Animated.View style={[fill, { opacity: darkShown }]}>
-          <Clip g={g} x={edge} inner={inner} width={g.W} height={g.H}>
-            <WindowState g={g} pal={WINDOW_DARK} accent={accent} lay={lay} addr={addr} site={site} />
-          </Clip>
-        </Animated.View>
-      </Animated.View>
-      {demo ? (
-        <Animated.View style={[fill, { opacity: focusShown, backgroundColor: focusPal.frame }]}>
-          <AccentTint accent={accent} alpha={focusDark ? 0.2 : 0.14} />
-          <FocusDemo key={demo} id={demo} g={g} pal={focusPal} />
-        </Animated.View>
-      ) : null}
+    <View style={{ width, height }}>
+      <View style={{ position: "absolute", left: INSET.x, top: INSET.top, width: inner.w, height: inner.h }}>
+        <Surface
+          fill={hex(look.tint[1])}
+          cornerRadius={radius}
+          borderColor={dark ? "#FFFFFF2E" : "#0000002A"}
+          borderWidth={0.5}
+          shadowColor="#000000"
+          shadowOpacity={dark ? 0.5 : 0.2}
+          shadowRadius={16}
+          shadowOffset={[0, 7]}
+          style={fill}
+        />
+        <View style={[fill, { borderRadius: radius, overflow: "hidden" }]}>
+          <Animated.View style={[fill, { opacity: focusShown.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]}>
+            {theme.layers.below !== null ? <View style={fill}>{layer(theme.layers.below)}</View> : null}
+            <Animated.View style={[fill, { opacity: theme.layers.below !== null ? theme.fade : 1 }]}>{layer(theme.layers.above)}</Animated.View>
+            {shape.appearance === "auto" ? <AutoBadge key={String(dark)} g={g} look={look} /> : null}
+          </Animated.View>
+          {demo ? (
+            <Animated.View style={[fill, { opacity: focusShown }]}>
+              <FocusDemo key={demo} id={demo} g={g} look={look} opts={opts} />
+            </Animated.View>
+          ) : null}
+        </View>
+      </View>
     </View>
   );
 }
 
-function useEdge(appearance: Settings["appearance"], width: number) {
-  const edge = useRef(new Animated.Value(appearance === "auto" ? width / 2 : 0)).current;
-  const shown = useRef(appearance !== "light");
-  useEffect(() => {
-    if (appearance === "light") {
-      shown.current = false;
-      return;
-    }
-    const target = appearance === "auto" ? width / 2 : 0;
-    if (!shown.current) {
-      shown.current = true;
-      edge.setValue(target);
-      return;
-    }
-    const run = Animated.timing(edge, { toValue: target, ...MOVE, duration: 420, useNativeDriver: true, isInteraction: false });
-    run.start();
-    return () => run.stop();
-  }, [appearance, width]);
-  return edge;
-}
-
-const FocusDemo = memo(function FocusDemo({ id, g, pal }: { id: PreviewId; g: Geo; pal: Pal }) {
+const FocusDemo = memo(function FocusDemo({ id, g, look, opts }: { id: PreviewId; g: Geo; look: Look; opts: SceneOpts }) {
   const { Scene, duration } = DEMOS[id];
   const p = useDemo(true, duration);
-  return <Scene g={g} pal={pal} p={p} />;
+  return <Scene g={g} look={look} p={p} opts={opts} />;
 });
 
-function AccentTint({ accent, alpha }: { accent: string; alpha: number }) {
-  const [layers, setLayers] = useState({ below: accent, above: accent });
-  const fade = useRef(new Animated.Value(1)).current;
-  useEffect(() => {
-    if (accent === layers.above) return;
-    setLayers({ below: layers.above, above: accent });
-    fade.setValue(0);
-    const run = Animated.timing(fade, { toValue: 1, ...FADE, useNativeDriver: true, isInteraction: false });
-    run.start();
-    return () => run.stop();
-  }, [accent]);
+function AutoBadge({ g, look }: { g: Geo; look: Look }) {
+  const p = useDemo(true, 900);
+  const t = tracker(p, 900);
   return (
-    <View pointerEvents="none" style={[fill, { opacity: alpha }]}>
-      <View style={[fill, { backgroundColor: layers.below }]} />
-      <Animated.View style={[fill, { backgroundColor: layers.above, opacity: fade }]} />
+    <Pill g={g} look={look} style={{ left: 16 * g.s, bottom: 16 * g.s, opacity: t.in(0, 220), transform: [{ translateY: t([[0, 6 * g.s], [300, 0]]) }] }}>
+      <Animated.View style={{ transform: [{ rotate: t.deg([[60, -120], [700, 0]]) }] }}>
+        <Glyph g={g} name={look.dark ? "moon.fill" : "sun.max.fill"} size={14} color={look.dark ? "#C7CCE6" : "#E3A21A"} weight="medium" box={18} />
+      </Animated.View>
+      <Label g={g} size={13} color={look.t.textPrimary} weight="500">
+        {`Auto · ${look.dark ? "Dark" : "Light"} like your Mac`}
+      </Label>
+    </Pill>
+  );
+}
+
+function AccentBackdrop({ g, look, accent }: { g: Geo; look: Look; accent: string }) {
+  const { layers, fade } = useFadeBetween(accent);
+  return (
+    <View style={fill} pointerEvents="none">
+      {layers.below !== null ? <Backdrop g={g} look={lookFor(look.dark, layers.below)} /> : null}
+      <Animated.View style={[fill, { opacity: layers.below !== null ? fade : 1 }]}>
+        <Backdrop g={g} look={lookFor(look.dark, layers.above)} />
+      </Animated.View>
     </View>
   );
 }
 
-const PAGE_LINES = [0.84, 0.76, 0.8, 0.5, 0.82, 0.66, 0.78, 0.56, 0.8, 0.7, 0.84, 0.6, 0.76, 0.5];
-
-function FluidPage({ g, pal }: { g: Geo; pal: Pal }) {
-  const u = g.k;
-  const count = Math.max(0, Math.floor((g.H - 10 - TOOLBAR_H - 30) / 5.2));
-  return (
-    <>
-      <View style={{ position: "absolute", left: 0, right: 0, top: TOOLBAR_H * u, height: 17 * u, backgroundColor: SITE }}>
-        <View style={{ position: "absolute", left: 8 * u, top: 6 * u, width: "34%", height: 2.6 * u, borderRadius: u, backgroundColor: "rgba(255,255,255,0.85)" }} />
-        <View style={{ position: "absolute", left: 8 * u, top: 10.6 * u, width: "22%", height: 1.8 * u, borderRadius: 0.9 * u, backgroundColor: "rgba(255,255,255,0.5)" }} />
-      </View>
-      {Array.from({ length: count }, (_, i) => (
-        <View
-          key={i}
-          style={{ position: "absolute", left: 8 * u, top: (TOOLBAR_H + 23 + i * 5.2) * u, width: `${PAGE_LINES[i % PAGE_LINES.length]! * 100}%`, height: 1.8 * u, borderRadius: 0.9 * u, backgroundColor: pal.bar }}
-        />
-      ))}
-    </>
+const WindowState = memo(function WindowState({ g, look, accent, lay, addr, site }: { g: Geo; look: Look; accent: string; lay: Animated.Value; addr: Animated.Value; site: Animated.Value }) {
+  const s = g.s;
+  const lerp = (v: Animated.Value, a: number, b: number) => v.interpolate({ inputRange: [0, 1], outputRange: [a * s, b * s] });
+  const fade = (v: Animated.Value, a: number, b: number) => v.interpolate({ inputRange: [0, 1], outputRange: [a, b] });
+  const sideCardW = g.W - SIDEBAR_W - 14;
+  const step = CHIP.w + CHIP.gap;
+  const chips = Math.max(1, Math.min(4, Math.floor((g.W - CHIP.x - 40) / step)));
+  const rows = Math.max(1, Math.min(6, Math.floor((g.H - ROW.topWithField - ROW.pitch - 20) / ROW.pitch)));
+  const crumbLeft = Animated.add(lerp(lay, SIDEBAR_W + 7 + CRUMB_X, 6 + 118), lerp(addr, 0, FIELD.x + 12 - (SIDEBAR_W + 7 + CRUMB_X)));
+  const crumbTop = Animated.add(lerp(lay, 6 + 12, STRIP_H + 12), lerp(addr, 0, FIELD.y + 8 - 18));
+  const bandSite = (
+    <Animated.View style={[fill, { opacity: site }]}>
+      <View style={[fill, { backgroundColor: look.site.background ?? look.card }]} />
+    </Animated.View>
   );
-}
-
-const WindowState = memo(function WindowState({
-  g,
-  pal,
-  accent,
-  lay,
-  addr,
-  site,
-}: {
-  g: Geo;
-  pal: Pal;
-  accent: string;
-  lay: Animated.Value;
-  addr: Animated.Value;
-  site: Animated.Value;
-}) {
-  const u = g.k;
-  const lerp = (v: Animated.Value, a: number, b: number) => v.interpolate({ inputRange: [0, 1], outputRange: [a, b] });
-  const step = TOP_TAB.w + TOP_TAB.gap;
-  const tabs = Math.max(1, Math.min(5, Math.floor((g.W - TOP_TAB.x - 30) / step)));
-  const sideRows = Math.max(1, Math.min(6, Math.floor((g.H - ROW.topWithField - 8) / ROW.pitch)));
-  const pillLeft = Animated.add(lerp(lay, (43 + PILL.x) * u, (5 + PILL.x) * u), lerp(addr, 0, (SIDE_FIELD.x - 43 - PILL.x) * u));
-  const pillTop = Animated.add(lerp(lay, (5 + PILL.y) * u, (14 + PILL.y) * u), lerp(addr, 0, (SIDE_FIELD.y - 5 - PILL.y) * u));
-  const pillWidth = Animated.add(lerp(lay, PILL.w * u, (PILL.w + 18) * u), lerp(addr, 0, (SIDE_FIELD.w - PILL.w) * u));
-  const pillHeight = lerp(addr, PILL.h * u, SIDE_FIELD.h * u);
   return (
-    <View style={[fill, { backgroundColor: pal.frame }]}>
-      <AccentTint accent={accent} alpha={pal === WINDOW_DARK ? 0.2 : 0.14} />
-      <Animated.View style={[{ position: "absolute", left: 0, right: 0, top: 0, height: 13.5 * u }, { opacity: lay }]}>
-        <Animated.View style={[fill, { backgroundColor: SITE, opacity: site }]} />
+    <View style={fill}>
+      <AccentBackdrop g={g} look={look} accent={accent} />
+      <Animated.View style={{ position: "absolute", left: 0, top: 0, width: 80 * s, height: 50 * s, transform: [{ translateX: lerp(lay, 0, 20.75 - 25) }, { translateY: Animated.add(lerp(lay, 0, LIGHTS_Y.strip - LIGHTS_Y.toolbar), lerp(addr, 0, LIGHTS_Y.field - LIGHTS_Y.toolbar)) }] }}>
+        <Lights g={g} />
       </Animated.View>
-      <Lights g={g} pal={pal} />
-      <Animated.View style={[fill, { opacity: lerp(lay, 1, 0), transform: [{ translateX: lerp(lay, 0, -40 * u) }] }]}>
-        <Animated.View style={[fill, { transform: [{ translateY: lerp(addr, 0, (ROW.topWithField - ROW.top) * u) }] }]}>
-          <SideRows g={g} pal={pal} n={sideRows} sel={0} />
+      <Animated.View style={[fill, { opacity: fade(lay, 1, 0), transform: [{ translateX: lerp(lay, 0, -60) }] }]}>
+        <NavIcons g={g} color={look.t.icon} xs={SIDEBAR_ICONS} y={LIGHTS_Y.field} names={["sidebar.left", "chevron.left", "chevron.right"]} style={{ opacity: fade(addr, 0, 1) }} />
+        <Animated.View style={[fill, { transform: [{ translateY: lerp(addr, 0, ROW.topWithField - ROW.top) }] }]}>
+          <Rows g={g} look={look} n={rows} sel={0} />
         </Animated.View>
+        <Animated.View
+          style={{
+            position: "absolute",
+            left: Animated.add(crumbLeft, -12 * s),
+            top: Animated.add(crumbTop, -8 * s),
+            width: lerp(addr, 320, FIELD.w),
+            height: FIELD.h * s,
+            borderRadius: 10 * s,
+            backgroundColor: look.t.pinnedResting,
+            opacity: fade(addr, 0, 1),
+          }}
+        />
       </Animated.View>
-      <Animated.View style={[fill, { opacity: lay, transform: [{ translateY: lerp(lay, -6 * u, 0) }] }]}>
-        {Array.from({ length: tabs }, (_, i) => (
-          <TabRow key={i} g={g} pal={pal} i={i} x={TOP_TAB.x + i * step} y={TOP_TAB.y} w={TOP_TAB.w} selected={i === 0} />
+      <Animated.View style={[fill, { opacity: lay, transform: [{ translateY: lerp(lay, -8, 0) }] }]}>
+        <View style={{ position: "absolute", left: CHIP.x * s, top: 3 * s, width: CHIP.w * s, height: (STRIP_H - 2) * s, borderTopLeftRadius: 10 * s, borderTopRightRadius: 10 * s, overflow: "hidden", backgroundColor: look.card }}>{bandSite}</View>
+        {Array.from({ length: chips }, (_, i) => (
+          <TabRow key={i} g={g} look={look} t={tab(i)} x={CHIP.x + i * step} y={CHIP.top - 1} w={CHIP.w} />
         ))}
       </Animated.View>
       <Animated.View
         style={{
           position: "absolute",
-          left: lerp(lay, 43 * u, 5 * u),
-          top: lerp(lay, 5 * u, 14 * u),
-          width: lerp(lay, (g.W - 48) * u, (g.W - 10) * u),
-          height: lerp(lay, (g.H - 10) * u, (g.H - 19) * u),
-          borderRadius: 4 * u,
-          backgroundColor: pal.card,
-          borderWidth: hairline(g),
-          borderColor: pal.cardBorder,
+          left: lerp(lay, SIDEBAR_W + 7, 6),
+          top: lerp(lay, 6, STRIP_H),
+          width: lerp(lay, sideCardW, g.W - 12),
+          height: lerp(lay, g.H - 13, g.H - STRIP_H - 6),
+          borderRadius: 10 * s,
+          backgroundColor: look.page,
+          borderWidth: hairline,
+          borderColor: look.t.cardEdge,
           overflow: "hidden",
         }}
       >
-        <Animated.View style={[fill, { transform: [{ translateY: lerp(addr, 0, -(TOOLBAR_H - 1) * u) }] }]}>
-          <FluidPage g={g} pal={pal} />
+        <Animated.View style={[fill, { transform: [{ translateY: lerp(addr, 0, -TOOLBAR_H) }] }]}>
+          <Page g={g} look={look} top={TOOLBAR_H} />
         </Animated.View>
-        <View style={{ position: "absolute", left: 0, right: 0, top: 0, height: TOOLBAR_H * u }}>
-          <Animated.View style={[fill, { opacity: lerp(addr, 1, 0) }]}>
-            <Animated.View style={[fill, { backgroundColor: SITE, opacity: site }]} />
-            <Chevrons g={g} pal={pal} />
+        <Animated.View style={{ position: "absolute", left: 0, right: 0, top: 0, height: TOOLBAR_H * s, backgroundColor: look.card, opacity: fade(addr, 1, 0) }}>
+          {bandSite}
+          <Animated.View style={[fill, { opacity: fade(lay, 1, 0) }]}>
+            <NavIcons g={g} color={look.plain.icon} xs={TOOLBAR_ICONS} y={21.2} />
           </Animated.View>
-        </View>
+          <Animated.View style={[fill, { opacity: lay }]}>
+            <NavIcons g={g} color={look.plain.icon} xs={[21, 56, 92]} y={21.2} names={["chevron.left", "chevron.right", "arrow.clockwise"]} />
+          </Animated.View>
+          <Animated.View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: hairline, backgroundColor: look.plain.divider, opacity: fade(site, 1, 0) }} />
+        </Animated.View>
       </Animated.View>
-      <Animated.View style={{ position: "absolute", left: pillLeft, top: pillTop, width: pillWidth, height: pillHeight, borderRadius: lerp(addr, (PILL.h / 2) * u, (SIDE_FIELD.h / 2) * u), backgroundColor: pal.bar }}>
-        <Animated.View style={{ position: "absolute", left: 3.5 * u, top: lerp(addr, (PILL.h / 2 - 0.8) * u, (SIDE_FIELD.h / 2 - 0.8) * u), width: 20 * u, height: 1.6 * u, borderRadius: 0.8 * u, backgroundColor: pal.text }} />
+      <Animated.View style={{ position: "absolute", left: crumbLeft, top: crumbTop, width: lerp(addr, 300, FIELD.w - 24), height: 18 * s }}>
+        <Crumb g={g} look={look} t={tab(0)} />
       </Animated.View>
     </View>
   );

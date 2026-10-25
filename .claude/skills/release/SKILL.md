@@ -45,7 +45,8 @@ For each fix:
    - Publish: `git tag v<version> && git push origin main v<version>`, then
      `.claude/skills/release/scripts/publish-nightly.sh <version>` (a prerelease with the DMG, zip and appcast; the
      merged feed onto the latest stable release; `Ardia-Nightly.dmg` behind https://ardia.dev/nightly; it checks all
-     three). With a new engine, commit `prebuilt-engine.tsv`'s line as in step 5.
+     three), and it moves the Homebrew tap's `ardia@nightly` cask to this version (step 5c). With a new engine, commit
+     `prebuilt-engine.tsv`'s line as in step 5.
    - Site: deploy so the after-update tab finds the nightly's entry (step 6's deploy only: no `release.ts` change, no
      claims or screenshots). The nightly download link never changes.
    - Report in two lines: the version, the fix, the smoke result.
@@ -249,6 +250,7 @@ gh release create v<version> -R mantrakp04/ardia --title "Ardia <version>" \
   $(ls dist/<version>/ArdiaCore-*.tar.xz 2>/dev/null)
 curl -fsL https://github.com/mantrakp04/ardia/releases/latest/download/appcast.xml | grep -o 'shortVersionString>[0-9.]*' | head -1
 .claude/skills/release/scripts/feed.sh <version>
+.claude/skills/release/scripts/update-tap.sh <version>
 ```
 
 When engine/ changed since the last prebuilt engine, release.sh also packed `ArdiaCore-<tree>.tar.xz` (the command
@@ -300,6 +302,17 @@ the final RC and said ship).
    release's `release.sh` starts from this published appcast, so it doesn't bring the interval back.
 
 A release without `--phased` goes to everyone at once, as before.
+
+### 5c. Homebrew tap
+
+https://github.com/mantrakp04/homebrew-tap holds `Casks/ardia.rb` (stable) and `Casks/ardia@nightly.rb`, so
+`brew install mantrakp04/tap/ardia` installs the latest DMG. `update-tap.sh <version>` clones the tap into a temp dir,
+sets the matching cask's `version` and `sha256` (GitHub's digest of the published DMG, checked against
+`dist/<version>/`), and pushes; `--dry-run` prints the diff instead. It refuses a version older than the cask's and
+does nothing when the cask is already there. `publish-nightly.sh` runs it for a nightly; run it yourself after a stable
+publish (step 5's last line). The casks have `auto_updates true`: Sparkle updates installed copies and `brew upgrade`
+skips them, so a late tap push only delays new installs. Lint after a cask edit by hand (never `brew install` it: that
+writes `/Applications/Ardia.app`): `brew audit --cask --online mantrakp04/tap/ardia` and `brew style mantrakp04/tap`.
 
 ## 6. Deploy the site
 

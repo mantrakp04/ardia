@@ -72,7 +72,7 @@ export function makeTab(windowId: string, profileId: string, url = "", snapshot?
 }
 
 export function wake(t: Tab): Partial<Tab> {
-  return t.wakeAdoptId ? { adoptId: t.wakeAdoptId, wakeAdoptId: undefined } : { navigation: navigationTo(t.url) };
+  return t.wakeAdoptId ? { adoptId: t.wakeAdoptId, wakeAdoptId: undefined, unloaded: undefined } : { navigation: navigationTo(t.url), unloaded: undefined };
 }
 
 export const snapshotTab = (t: Tab): TabSnapshot => ({
@@ -87,10 +87,13 @@ export const snapshotTab = (t: Tab): TabSnapshot => ({
   pinnedUrl: t.pinnedUrl,
   ...(isPinnedRow(t) ? { pinnedAsRow: true as const } : {}),
   ...(t.tileFolder && pinSection(t) === "tile" ? { tileFolder: t.tileFolder } : {}),
+  ...(t.engine ? { engine: t.engine } : {}),
   profileId: t.profileId,
 });
 
 export const isPinnedRow = (t: Pick<Tab, "pinned" | "pinnedAsRow"> | undefined): boolean => !!t?.pinned && !!t.pinnedAsRow;
+export const pinnedSectionTitle = (s: BrowserState, tab: Pick<Tab, "profileId"> | undefined) => `Pinned in ${s.profiles[tab?.profileId ?? ""]?.name ?? "Profile"}`;
+export const togglePinTitle = (tab: Pick<Tab, "pinned" | "pinnedAsRow"> | undefined) => (isPinnedRow(tab) ? "Unpin" : tab?.pinned ? "Unpin from Top Apps" : "Move to Top Apps");
 
 export type PinSection = "tile" | "row" | "none";
 export const pinSection = (t: Pick<Tab, "pinned" | "pinnedAsRow"> | undefined): PinSection => (!t?.pinned ? "none" : t.pinnedAsRow ? "row" : "tile");

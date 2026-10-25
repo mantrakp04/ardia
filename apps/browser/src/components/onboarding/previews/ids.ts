@@ -56,5 +56,3 @@ export const PREVIEW_IDS: readonly PreviewId[] = [
   "links-little",
   "links-tab",
 ];
-
-export const CHOICE_PREVIEW_SIZE = { width: 164, height: 84 } as const;

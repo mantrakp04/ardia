@@ -365,7 +365,7 @@ test("closing the mini player lasts until its tab plays again", async () => {
   assert.equal(M().sessions[b], undefined);
 });
 
-test("Clear closes every unpinned tab into Recently Closed, keeps pinned tabs and pinned groups, and undoes", () => {
+test("Clear closes the unselected unpinned tabs into Recently Closed, keeps pinned tabs and pinned groups, and undoes", () => {
   reset();
   const [w, a, b, c, d, e, f] = setup("a", "b", "c", "d", "e", "f");
   S().pinTabs([a], true);
@@ -376,39 +376,134 @@ test("Clear closes every unpinned tab into Recently Closed, keeps pinned tabs an
   const before = hosts(w);
   assert.deepEqual(organize.unpinnedTabIds(S(), w), [c, d, e, f]);
   const cleared = S().clearUnpinnedTabs(w);
-  assert.equal(cleared.entries.length, 4);
-  assert.equal(cleared.shownTabId, e);
-  assert.equal(cleared.blankTabId, null);
-  assert.deepEqual(hosts(w), ["a", "b"]);
+  assert.equal(cleared.entries.length, 3);
+  assert.deepEqual(hosts(w), ["a", "b", "e"]);
+  assert.equal(shown(w), "e", "the selected tab stays selected");
   assert.ok(S().groups[pinnedGroup], "the pinned group stays");
-  assert.equal(S().groups[g], undefined);
-  assert.deepEqual(S().closedTabs.slice(-4).map((x) => short(x.tab.url)), ["c", "d", "e", "f"]);
+  assert.deepEqual(S().groups[g].tabIds, [e], "the selected tab keeps its group");
+  assert.deepEqual(S().closedTabs.slice(-3).map((x) => short(x.tab.url)), ["c", "d", "f"]);
   S().undoClearTabs(cleared);
   assert.deepEqual(hosts(w), before);
   assert.equal(shown(w), "e");
-  const back = Object.values(S().groups).find((x) => x.name === "G");
-  assert.deepEqual(back.tabIds.map((id) => short(S().tabs[id].url)), ["d", "e"]);
-  assert.equal(back.color, "blue");
+  const back = Object.values(S().groups).filter((x) => x.name === "G");
+  assert.equal(back.length, 1, "undo refills the group, no second one");
+  assert.deepEqual(back[0].tabIds.map((id) => short(S().tabs[id].url)), ["d", "e"]);
+  assert.equal(back[0].color, "blue");
   assert.equal(S().closedTabs.length, 0, "undone tabs leave Recently Closed");
-  assert.equal(S().clearUnpinnedTabs(w).entries.length, 4);
+  assert.equal(S().clearUnpinnedTabs(w).entries.length, 3);
   S().reopenClosedTab(w);
-  assert.deepEqual(hosts(w), ["a", "b", "f"], "⇧⌘T brings the last one back");
+  assert.deepEqual(hosts(w), ["a", "b", "e", "f"], "⇧⌘T brings the last one back");
 });
 
-test("Clear with nothing pinned opens a New Tab page, and undo puts the tabs back without it", () => {
-  reset({ newTabPosition: "top" });
-  const [w, , b] = setup("a", "b");
-  S().activate(b);
+test("Clear keeps the selected tab's split and tabs playing media, and does nothing with only those left", () => {
+  reset();
+  const [w, a, b, , d] = setup("a", "b", "c", "d", "e");
+  S().createSplit([a, b]);
+  S().activate(a);
+  S().updateLive(d, { playingAudio: true });
   const before = hosts(w);
   const cleared = S().clearUnpinnedTabs(w);
-  assert.ok(cleared.blankTabId);
-  assert.deepEqual(S().windows[w].tabIds, [cleared.blankTabId]);
-  assert.equal(model.activeTabId(S(), w), cleared.blankTabId);
+  assert.deepEqual(cleared.entries.map((x) => short(x.tab.url)), ["c", "e"]);
+  assert.deepEqual(hosts(w), ["a", "b", "d"]);
+  assert.equal(shown(w), "a");
+  assert.ok(Object.values(S().splits).some((v) => v.tabIds.includes(a) && v.tabIds.includes(b)), "the split stays whole");
+  assert.equal(S().clearUnpinnedTabs(w), null, "nothing left to clear");
   S().undoClearTabs(cleared);
   assert.deepEqual(hosts(w), before);
-  assert.equal(shown(w), "b");
-  assert.equal(S().tabs[cleared.blankTabId], undefined);
-  S().closeTabs([S().windows[w].tabIds[0]]);
-  assert.equal(S().clearUnpinnedTabs(w).entries.length, 1);
-  assert.equal(S().clearUnpinnedTabs(w).entries.length, 0, "a lone New Tab page has nothing to bring back");
+  assert.equal(shown(w), "a");
+});
+
+test("Clear and undo bring an automatic group back whole, with the member Clear kept", () => {
+  reset({ cmdClickCreatesTabGroup: true });
+  const [w, a] = setup("a", "c");
+  const b = open(w, "b", a);
+  assert.equal(Object.values(S().groups)[0].autoUngroup, true);
+  S().activate(b);
+  const cleared = S().clearUnpinnedTabs(w);
+  assert.deepEqual(hosts(w), ["b"]);
+  assert.equal(Object.keys(S().groups).length, 0, "with one member left the automatic group dissolves");
+  S().undoClearTabs(cleared);
+  assert.deepEqual(hosts(w), ["a", "b", "c"]);
+  const groups = Object.values(S().groups);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].tabIds.map((id) => short(S().tabs[id].url)), ["a", "b"]);
+  assert.equal(groups[0].autoUngroup, true);
+});
+
+test("Clear and undo keep a nested group inside the automatic group it was in", () => {
+  reset({ cmdClickCreatesTabGroup: true });
+  const [w, a] = setup("a", "c");
+  const b = open(w, "b", a);
+  const parent = Object.values(S().groups)[0].id;
+  const child = S().groupTabs([b], { pinned: false, name: "C" });
+  assert.equal(S().groups[child].parentId, parent);
+  S().activate(b);
+  const cleared = S().clearUnpinnedTabs(w);
+  assert.equal(S().groups[parent], undefined, "the automatic group dissolves");
+  S().undoClearTabs(cleared);
+  assert.deepEqual(hosts(w), ["a", "b", "c"]);
+  const auto = Object.values(S().groups).find((g) => g.autoUngroup);
+  const nested = Object.values(S().groups).find((g) => g.name === "C");
+  assert.equal(nested.parentId, auto.id);
+  assert.deepEqual(auto.tabIds.map((id) => short(S().tabs[id].url)), ["a", "b"]);
+  assert.deepEqual(nested.tabIds.map((id) => short(S().tabs[id].url)), ["b"]);
+});
+
+test("Undo of Clear keeps a rename or collapse made after Clear", () => {
+  reset();
+  const [w, , , d, e] = setup("a", "b", "d", "e");
+  const g = S().createGroup([d, e], { name: "G" });
+  S().activate(e);
+  const cleared = S().clearUnpinnedTabs(w);
+  S().updateGroup(g, { name: "Renamed", color: "red", collapsed: true });
+  S().undoClearTabs(cleared);
+  assert.deepEqual(hosts(w), ["a", "b", "d", "e"]);
+  assert.deepEqual(S().groups[g].tabIds.map((id) => short(S().tabs[id].url)), ["d", "e"]);
+  assert.equal(S().groups[g].name, "Renamed");
+  assert.equal(S().groups[g].color, "red");
+  assert.equal(S().groups[g].collapsed, true);
+});
+
+const nestedInAutomatic = () => {
+  reset({ cmdClickCreatesTabGroup: true });
+  const [w, a] = setup("a", "c");
+  const b = open(w, "b", a);
+  const child = S().groupTabs([b], { pinned: false, name: "C" });
+  S().activate(b);
+  return { w, b, child, cleared: S().clearUnpinnedTabs(w) };
+};
+
+const frozen = (w) => JSON.stringify({ tabs: S().windows[w].tabIds, groups: S().groups, closed: S().closedTabs.map((c) => c.id) });
+
+for (const [name, edit] of [
+  ["moves the surviving group into another group", ({ w, child }) => S().moveGroup(child, { pinned: false, parentId: S().groupTabs([open(w, "d")], { pinned: false, name: "Q" }) })],
+  ["ungroups the surviving group", ({ child }) => S().ungroup(child)],
+  ["pins the surviving group", ({ child }) => S().moveGroup(child, { pinned: true })],
+  ["pins the surviving tab", ({ b }) => S().pinTabs([b], true)],
+  ["reopens the cleared tab with ⇧⌘T", ({ w }) => S().reopenClosedTab(w)],
+]) {
+  test(`Undo of Clear does nothing once the user ${name}`, () => {
+    const ctx = nestedInAutomatic();
+    edit(ctx);
+    const before = frozen(ctx.w);
+    S().undoClearTabs(ctx.cleared);
+    assert.equal(frozen(ctx.w), before);
+    assert.equal(organize.canUndoClear(S(), ctx.cleared), false);
+  });
+}
+
+test("Undo of Clear still works after changes in another window", () => {
+  const ctx = nestedInAutomatic();
+  const other = S().createWindow({ url: "z.com" });
+  S().newTab(other, { url: "y.com" });
+  assert.equal(organize.canUndoClear(S(), ctx.cleared), true);
+  S().undoClearTabs(ctx.cleared);
+  assert.deepEqual(hosts(ctx.w), ["a", "b", "c"]);
+});
+
+test("Clear on a lone selected tab closes nothing and opens no New Tab page", () => {
+  reset({ newTabPosition: "top" });
+  const [w, a] = setup("a");
+  assert.equal(S().clearUnpinnedTabs(w), null);
+  assert.deepEqual(S().windows[w].tabIds, [a]);
 });

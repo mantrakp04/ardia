@@ -15,7 +15,11 @@ namespace ardiacore {
 void AllowDesktopCapture(content::WebContents* contents,
                          const std::string& source,
                          const std::string& frame_id,
-                         const std::string& origin);
+                         const std::string& origin,
+                         const std::string& audio);
+
+bool IsDesktopCaptureSystemAudioSupported();
+bool IsDesktopCaptureApplicationAudioSupported();
 
 void ApplyDesktopCaptureGrant(content::WebContents* contents,
                               content::MediaStreamRequest& request);

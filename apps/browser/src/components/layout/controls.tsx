@@ -1,4 +1,4 @@
-import { ContextMenuArea, Surface, Symbol, VisualEffect, type SymbolProps } from "@ardia/shell";
+import { ContextMenuArea, Surface, Symbol, VisualEffect, type SurfaceProps, type SymbolProps } from "@ardia/shell";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent, type ViewStyle } from "react-native";
 import { hex, useTheme } from "../../lib/theme";
@@ -217,7 +217,6 @@ export function Popover({
   closing?: boolean;
   onClosed?: () => void;
 }) {
-  const theme = useTheme();
   const appear = useRef(new Animated.Value(0)).current;
   const [room, setRoom] = useState<number | null>(null);
   const closed = useRef(onClosed);
@@ -249,24 +248,36 @@ export function Popover({
           ],
         }}
       >
-        <Surface
-          fill={hex(theme.dark ? "rgba(38,36,37,0.94)" : "rgba(252,251,252,0.96)")}
-          cornerRadius={PANEL.radius}
-          borderColor={hex(theme.dark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.12)")}
-          borderWidth={0.5}
-          shadowColor="#000000"
-          shadowOpacity={theme.dark ? 0.45 : 0.16}
-          shadowRadius={18}
-          shadowOffset={[0, 8]}
-        >
-          <VisualEffect material="menu" cornerRadius={PANEL.radius} style={StyleSheet.absoluteFill} />
-          <View style={{ ...StyleSheet.absoluteFillObject, borderRadius: PANEL.radius, backgroundColor: theme.dark ? "rgba(38,36,37,0.72)" : "rgba(252,251,252,0.7)" }} />
+        <PopoverSurface>
           {fitHeight ? <ScrollView showsVerticalScrollIndicator={false} style={room === null ? undefined : { maxHeight: Math.max(0, room - top - POPOVER_MARGIN) }}>{children}</ScrollView> : children}
-        </Surface>
+        </PopoverSurface>
       </Animated.View>
     </>
   );
 }
+
+export function PopoverSurface({ children, ...props }: SurfaceProps) {
+  const theme = useTheme();
+  return (
+    <Surface
+      {...props}
+      fill={hex(theme.dark ? "rgba(38,36,37,0.94)" : "rgba(252,251,252,0.96)")}
+      cornerRadius={PANEL.radius}
+      borderColor={hex(theme.dark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.12)")}
+      borderWidth={0.5}
+      shadowColor="#000000"
+      shadowOpacity={theme.dark ? 0.45 : 0.16}
+      shadowRadius={18}
+      shadowOffset={[0, 8]}
+    >
+      <VisualEffect material="menu" cornerRadius={PANEL.radius} style={StyleSheet.absoluteFill} />
+      <View style={{ ...StyleSheet.absoluteFillObject, borderRadius: PANEL.radius, backgroundColor: theme.dark ? "rgba(38,36,37,0.72)" : "rgba(252,251,252,0.7)" }} />
+      {children}
+    </Surface>
+  );
+}
+
+export const popoverRowFill = (dark: boolean, pressed = false) => (dark ? `rgba(255,255,255,${pressed ? 0.12 : 0.07})` : `rgba(0,0,0,${pressed ? 0.1 : 0.06})`);
 
 export const POPOVER_MOTION = {
   open: { duration: 150, easing: Easing.out(Easing.cubic) },
@@ -314,7 +325,7 @@ export function PopoverRow({
         alignItems: "center",
         gap: PANEL.iconGap,
         opacity: disabled ? 0.45 : 1,
-        backgroundColor: onPress && !disabled && (pressed || hovered) ? (theme.dark ? `rgba(255,255,255,${pressed ? 0.12 : 0.07})` : `rgba(0,0,0,${pressed ? 0.1 : 0.06})`) : undefined,
+        backgroundColor: onPress && !disabled && (pressed || hovered) ? popoverRowFill(theme.dark, pressed) : undefined,
       }}
     >
       {leading ? (

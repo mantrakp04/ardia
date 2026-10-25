@@ -20,6 +20,7 @@ const PANES: Record<string, SettingsPane> = {
   extensions: "extensions",
   search: "search",
   searchengines: "search",
+  engines: "engines",
   shortcuts: "shortcuts",
   livefolders: "liveFolders",
   calendar: "calendar",

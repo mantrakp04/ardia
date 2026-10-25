@@ -17,7 +17,7 @@ export function runSidebarCommand(command: BrowserCommand, arg: string | null, w
     case "newTabInGroup": {
       const group = groupOf(s, tabId);
       if (toggleNewTabBar(windowId, group ? { kind: "group", groupId: group.id } : undefined)) return true;
-      const id = group ? s.newTabInGroup(group.id) : s.newTab(windowId);
+      const id = group ? s.newTabInGroup(group.id) : s.newTab(windowId, { newTabCommand: true });
       if (id) useBrowser.getState().activate(id);
       return true;
     }
@@ -67,7 +67,7 @@ export function sidebarMenuState(s: BrowserState, windowId: string | undefined) 
   if (!windowId) disabled.push(...SIDEBAR_WINDOW_COMMANDS);
   else {
     if (!tab || !awayFromPin(tab)) disabled.push("returnToPinnedUrl");
-    titles.togglePinnedRow = movePinnedTitle(tab);
+    titles.togglePinnedRow = movePinnedTitle(s, tab);
     const selected = selectedTabIds(s, windowId).filter((id) => pinSection(s.tabs[id]) !== "tile");
     if (!selected.length) disabled.push("newGroupWithTabs");
     if (selected.length > 1) titles.newGroupWithTabs = `New Group with ${plural(selected.length, "Tab")}`;

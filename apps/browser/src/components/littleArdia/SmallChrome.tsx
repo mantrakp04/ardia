@@ -11,6 +11,7 @@ import { Favicon, IconButton, useHover } from "../primitives";
 
 export const SMALL_BAR_HEIGHT = 38;
 export const SMALL_INSET = 6;
+export const SMALL_LIGHTS_CENTER: [number, number] = [20, SMALL_BAR_HEIGHT / 2];
 export const SMALL_WINDOW_RADIUS = 16;
 export const SMALL_WINDOW_FRAME = {
   dark: { outerRim: "rgba(0,0,0,0.95)", innerRim: "rgba(255,255,255,0.1)", shadowOpacity: 0.66, shadowRadius: 23, shadowOffset: [0, 21] as [number, number] },

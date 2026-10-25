@@ -53,6 +53,64 @@ test("one committed tab makes one notice, including multiple background links wi
   assert.equal(notices().length, 2);
 });
 
+test("the default clock invokes global timers with their global receiver", () => {
+  const time = fakeTime();
+  const originalSet = globalThis.setTimeout;
+  const originalClear = globalThis.clearTimeout;
+  let q;
+  try {
+    globalThis.setTimeout = function (run, ms) {
+      assert.equal(this, globalThis);
+      return time.set(run, ms);
+    };
+    globalThis.clearTimeout = function (timer) {
+      assert.equal(this, globalThis);
+      time.clear(timer);
+    };
+    q = createNewTabToasts();
+    q.add({ id: "a", windowId: "w", profileId: "p" });
+    q.present("a");
+    time.advance(5000);
+    assert.deepEqual(q.useStore.getState().items, []);
+    q.add({ id: "b", windowId: "w", profileId: "p" });
+    q.present("b");
+    q.remove("b");
+    assert.equal(time.jobs.size, 0);
+  } finally {
+    try { q?.clear(); } finally {
+      globalThis.setTimeout = originalSet;
+      globalThis.clearTimeout = originalClear;
+    }
+  }
+});
+
+test("a new-tab command keeps upstream beside-current placement and announces its actual id once", () => {
+  const w = S().createWindow({ url: "https://example.com/" });
+  const first = activeTabId(S(), w);
+  S().newTab(w, { url: "https://example.org/", notify: false });
+  S().activate(first);
+  S().updateSettings({ newTabPosition: "nextToCurrent" });
+  const id = S().newTab(w, { newTabCommand: true });
+  assert.deepEqual(S().windows[w].tabIds.slice(0, 2), [first, id]);
+  assert.deepEqual(notices().map((t) => t.tabId), [id]);
+  assert.equal(activeTabId(S(), w), id);
+});
+
+test("a manually reopened window announces its restored page without announcing passive parked pins", () => {
+  const w = S().createWindow({ url: "https://example.com/" });
+  const pin = S().newTab(w, { url: "https://example.org/pin", pinned: true, background: true, notify: false });
+  S().closeWindow(w);
+  assert.ok(S().parkedPins.default.tabs.some((t) => t.id === pin));
+  assert.deepEqual(notices(), []);
+  S().reopenClosedWindow();
+  assert.equal(S().tabs[pin].unloaded, true);
+  assert.equal(notices().length, 1);
+  assert.equal(S().tabs[notices()[0].tabId].url, "https://example.com/");
+  assert.ok(notices().every((t) => !S().tabs[t.tabId].unloaded));
+  newTabToasts.add(S().tabs[pin]);
+  assert.equal(notices().length, 1);
+});
+
 test("user duplication, group tabs, nested groups and fresh split panes announce only the actual new ids", () => {
   const w = S().createWindow({ url: "https://example.com/" });
   const first = activeTabId(S(), w);

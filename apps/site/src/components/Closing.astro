@@ -30,6 +30,7 @@ const hillsMask = await getImage({ src: hills, width: 320, format: "webp" });
       <p class="nightly not-phone" data-reveal style="--i: 3">
         Nightly gets every fix the day it’s made, smudges and all. Back to stable any time in Settings › General.
       </p>
+      <p class="brew not-phone">Homebrew: <code>brew install mantrakp04/tap/ardia</code></p>
     </div>
     <div class="closing-stage" data-tilt data-sunset aria-hidden="true">
       <div class="sunset" data-depth="14,10">
@@ -118,6 +119,16 @@ const hillsMask = await getImage({ src: hills, width: 320, format: "webp" });
     max-width: 30em;
     font-size: var(--t-small);
     color: var(--ink-2);
+  }
+  .brew {
+    margin-top: 10px;
+    font-size: var(--t-small);
+    color: var(--ink-2);
+  }
+  .brew code {
+    font-family: var(--mono);
+    color: var(--night-ink);
+    user-select: all;
   }
   .closing-stage {
     grid-column: 8 / -1;

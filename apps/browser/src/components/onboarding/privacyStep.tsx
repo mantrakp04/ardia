@@ -1,107 +1,83 @@
-import { getContentBlocker } from "@ardia/ardiacore";
 import { engineHost } from "@ardia/core";
-import { useEffect, useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { searchEngines, type Settings } from "../../store/settings";
 import { useBrowser } from "../../store/browser";
 import { setSharing, useTelemetry } from "../../telemetry/client";
 import { SHARING_COPY } from "../../telemetry/copy";
 import { Favicon, useHover } from "../primitives";
-import { categoryOn, setCategory } from "../settings/panes/Privacy";
-import { CONTENT_WIDTH, ChoicePair, type ChoiceOption } from "./choices";
+import { CONTENT_WIDTH, ChoiceList, useMockFocus, type ChoiceOption } from "./choices";
+import { Page } from "./layoutSteps";
 import { MockPanel, useScreen } from "./screen";
-import { useOnboarding } from "./state";
-import { StepActions, StepLayout } from "./steps";
-import { CheckMark, CheckRow, SectionLabel, useOnboardingColors } from "./ui";
+import { questionsFor, useOnboarding } from "./state";
+import { CheckMark, CheckRow, useOnboardingColors } from "./ui";
 
 const KEYS = ["searchEngine", "commandBarPreference"] as const;
 const ENGINES = ["google", "duckduckgo", "bing", "kagi", "ecosia", "brave", "startpage"];
-const BLOCKED = ["ads", "trackers", "cookies"] as const;
 
 const TYPED_CHOICES: ChoiceOption<Settings["commandBarPreference"]>[] = [
-  { value: "website", preview: "typed-website", title: "Website first", subtitle: "github → github.com" },
-  { value: "search", preview: "typed-search", title: "Search first", subtitle: "github → a web search" },
+  { value: "website", preview: "typed-website", title: "Go to the website", subtitle: "“github” opens github.com" },
+  { value: "search", preview: "typed-search", title: "Search for it", subtitle: "“github” searches the web" },
 ];
-const BLOCK_CHOICES: ChoiceOption<boolean>[] = [
-  { value: true, preview: "block-on", title: "Block", subtitle: "Ads, trackers, banners" },
-  { value: false, preview: "block-off", title: "Allow", subtitle: "Pages as they come" },
-];
-
-async function applyBlocking(on: boolean) {
-  for (const c of BLOCKED) {
-    const state = await getContentBlocker();
-    if (categoryOn(state, c) !== on) await setCategory(state, c, on);
-  }
-}
 
 export function SearchPrivacyStep() {
-  const { values, mock, focus, setFocus } = useScreen(KEYS);
+  const sub = useOnboarding((s) => s.sub);
+  const id = questionsFor("searchPrivacy")[sub]?.id;
+  const focus = useMockFocus(id);
+  const { values, mock } = useScreen(KEYS);
   const setDraft = useOnboarding((s) => s.setDraft);
-  const extras = useOnboarding((s) => s.extras);
+  const share = useOnboarding((s) => s.extras.share) ?? useTelemetry.getState().sharing;
   const all = useBrowser((s) => searchEngines(s.settings));
-  const [blocking, setBlocking] = useState<boolean | null>(null);
-  const [receipt, setReceipt] = useState(false);
-  const block = extras.block ?? blocking ?? true;
-  const share = extras.share ?? useTelemetry.getState().sharing;
   const engines = all.filter((e) => ENGINES.includes(e.id) || e.id === values.searchEngine);
 
-  useEffect(() => {
-    void getContentBlocker().then(
-      (s) => setBlocking(categoryOn(s, "ads")),
-      () => {},
+  if (id === "typed")
+    return (
+      <Page
+        id={id}
+        title="Type a word. What happens?"
+        subtitle="When what you type could be a site."
+        patch={{ commandBarPreference: values.commandBarPreference }}
+        picked={[]}
+        preview={<MockPanel settings={mock} focus={focus.focus} />}
+      >
+        <ChoiceList
+          options={TYPED_CHOICES}
+          value={values.commandBarPreference}
+          onChange={(commandBarPreference) => setDraft({ commandBarPreference })}
+          mock={focus}
+        />
+      </Page>
     );
-  }, []);
-
-  const done = () => {
-    const engine = all.find((e) => e.id === values.searchEngine);
-    if (blocking === null || block !== blocking || extras.block !== undefined) void applyBlocking(block).catch(() => {});
-    setSharing(share, "onboarding");
-    const picked = [`Search with ${engine?.name ?? "your engine"}${block ? ", ads blocked" : ""}`];
-    useOnboarding.getState().confirm("searchPrivacy", values, picked);
-  };
-
-  return (
-    <StepLayout
-      title="Search and privacy"
-      subtitle="Where your searches go, and what pages can do."
-      actions={<StepActions onContinue={done} onSkip={() => useOnboarding.getState().skip("searchPrivacy", KEYS)} />}
-      preview={<MockPanel settings={mock} focus={focus} overlay={receipt ? <Receipt on={share} /> : null} />}
-    >
-      <View style={{ gap: 8 }}>
-        <SectionLabel title="Search with" />
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }} accessibilityRole="radiogroup" accessibilityLabel="Search engine">
-          {engines.map((e) => (
-            <EngineTile key={e.id} title={e.name} url={`https://${engineHost(e)}`} selected={e.id === values.searchEngine} onPress={() => setDraft({ searchEngine: e.id })} />
-          ))}
-        </View>
-      </View>
-      <ChoicePair
-        label="Typing a word"
-        options={TYPED_CHOICES}
-        value={values.commandBarPreference}
-        onChange={(commandBarPreference) => setDraft({ commandBarPreference })}
-        onFocus={setFocus}
-        order={0}
-      />
-      <ChoicePair
-        label="Content blocking"
-        options={BLOCK_CHOICES}
-        value={block}
-        onChange={(v) => useOnboarding.getState().setExtras({ block: v })}
-        onFocus={setFocus}
-        order={2}
-      />
-      <HoverArea onHover={setReceipt}>
+  if (id === "crash")
+    return (
+      <Page
+        id={id}
+        title={SHARING_COPY.onboarding.title}
+        subtitle={SHARING_COPY.onboarding.subtitle}
+        patch={{}}
+        picked={share ? ["Sharing crash reports"] : []}
+        onConfirm={() => setSharing(share, "onboarding")}
+        preview={<MockPanel settings={mock} focus={null} overlay={<Receipt on={share} />} />}
+      >
         <CheckRow icon="stethoscope" title={SHARING_COPY.toggle} subtitle={SHARING_COPY.onboarding.row} value={share} onChange={(v) => useOnboarding.getState().setExtras({ share: v })} />
-      </HoverArea>
-    </StepLayout>
+      </Page>
+    );
+  const engine = all.find((e) => e.id === values.searchEngine);
+  return (
+    <Page
+      id="engine"
+      title="Search with what?"
+      subtitle="For anything that isn't a website."
+      patch={{ searchEngine: values.searchEngine }}
+      picked={[`Search with ${engine?.name ?? "your engine"}`]}
+      preview={<MockPanel settings={mock} focus={focus.focus} />}
+    >
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }} accessibilityRole="radiogroup" accessibilityLabel="Search engine">
+        {engines.map((e) => (
+          <EngineTile key={e.id} title={e.name} url={`https://${engineHost(e)}`} selected={e.id === values.searchEngine} onPress={() => setDraft({ searchEngine: e.id })} />
+        ))}
+      </View>
+    </Page>
   );
-}
-
-function HoverArea({ onHover, children }: { onHover: (on: boolean) => void; children: ReactNode }) {
-  const { hovered, hoverProps } = useHover();
-  useEffect(() => onHover(hovered), [hovered]);
-  return <View {...hoverProps}>{children}</View>;
 }
 
 const TILE = (CONTENT_WIDTH - 8 * 3) / 4;
@@ -117,7 +93,7 @@ function EngineTile({ title, url, selected, onPress }: { title: string; url: str
             mouseDownCanMoveWindow={false}
             style={{
               width: TILE,
-              height: 58,
+              height: 64,
               borderRadius: 12,
               alignItems: "center",
               justifyContent: "center",

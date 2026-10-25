@@ -160,7 +160,7 @@ export function AutoHideBackdrop({ tabId, mode, motion }: { tabId: string; mode:
       </Animated.View>
       {url ? (
         <Animated.View
-          style={{ position: "absolute", left: 0, right: 0, top: H - StyleSheet.hairlineWidth, height: StyleSheet.hairlineWidth, backgroundColor: palette.divider, transform: anim ? [{ translateY: anim.dividerTop }] : undefined }}
+          style={{ position: "absolute", left: 0, right: 0, top: H - 1, height: 1, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.divider, transform: anim ? [{ translateY: anim.dividerTop }] : undefined }}
         />
       ) : null}
     </View>

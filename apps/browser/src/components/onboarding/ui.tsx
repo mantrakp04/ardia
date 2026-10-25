@@ -3,7 +3,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { Animated, Easing, Image, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { useTheme } from "../../lib/theme";
 import { useHover } from "../primitives";
-import { STEPS, useOnboarding, type OnboardingStep } from "./state";
+import { questionsFor, STEPS, useOnboarding, type OnboardingStep } from "./state";
 
 function onboardingColors(dark: boolean) {
   return dark
@@ -92,8 +92,11 @@ export function Reveal({ delay = 0, children, style }: { delay?: number; childre
 export function StepProgress() {
   const colors = useOnboardingColors();
   const step = useOnboarding((s) => s.step);
+  const sub = useOnboarding((s) => s.sub);
+  useOnboarding((s) => s.draft);
   const steps: OnboardingStep[] = STEPS.filter((s) => s !== "intro");
   const index = steps.indexOf(step);
+  const count = questionsFor(step).length;
   return (
     <View style={{ gap: 8 }}>
       <View style={{ flexDirection: "row", gap: 4 }}>
@@ -101,9 +104,16 @@ export function StepProgress() {
           <View key={s} style={{ width: 22, height: 3, borderRadius: 1.5, backgroundColor: i <= index ? colors.progressFill : colors.progressTrack }} />
         ))}
       </View>
-      <Text style={{ fontSize: 11, fontWeight: "500", letterSpacing: 0.2, color: colors.steps }}>
-        {`STEP ${index + 1} OF ${steps.length}`}
-      </Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, height: 14 }}>
+        <Text style={{ fontSize: 11, fontWeight: "500", letterSpacing: 0.2, color: colors.steps }}>{`STEP ${index + 1} OF ${steps.length}`}</Text>
+        {count > 1 ? (
+          <View style={{ flexDirection: "row", gap: 4 }} accessibilityLabel={`Question ${sub + 1} of ${count}`}>
+            {Array.from({ length: count }, (_, i) => (
+              <View key={i} style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: i <= sub ? colors.title : colors.progressTrack, opacity: i === sub ? 1 : i < sub ? 0.45 : 1 }} />
+            ))}
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -334,6 +344,63 @@ export function CheckRow({
           </View>
           <CheckMark on={value} size={compact ? 16 : 18} />
         </RowFrame>
+      </Pressable>
+    </View>
+  );
+}
+
+export function ChoiceRow({
+  title,
+  subtitle,
+  selected,
+  onPress,
+  onHover,
+}: {
+  title: string;
+  subtitle: string;
+  selected: boolean;
+  onPress: () => void;
+  onHover?: (hovered: boolean) => void;
+}) {
+  const colors = useOnboardingColors();
+  const { hovered, hoverProps } = useHover();
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    onHover?.(hovered);
+  }, [hovered]);
+  return (
+    <View {...hoverProps}>
+      <Pressable onPress={onPress} accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={title}>
+        {({ pressed }) => (
+          <View
+            mouseDownCanMoveWindow={false}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 12,
+              minHeight: 56,
+              paddingVertical: 10,
+              paddingHorizontal: 14,
+              borderRadius: 12,
+              backgroundColor: selected || hovered ? colors.button : colors.row,
+              borderWidth: StyleSheet.hairlineWidth * 2,
+              borderColor: selected ? colors.checkboxBorder : colors.rowBorder,
+              transform: [{ scale: pressed ? 0.99 : 1 }],
+            }}
+          >
+            <Radio on={selected} />
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={{ fontSize: 13, fontWeight: "500", color: colors.title }}>{title}</Text>
+              <Text numberOfLines={2} style={{ fontSize: 12, color: colors.rowSubtitle }}>
+                {subtitle}
+              </Text>
+            </View>
+          </View>
+        )}
       </Pressable>
     </View>
   );

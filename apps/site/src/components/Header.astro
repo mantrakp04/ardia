@@ -14,7 +14,13 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 <div class="bar-sentinel" aria-hidden="true" data-bar-sentinel></div>
 <header class="bar" data-bar>
   <div class="wrap bar-inner">
-    <a class="mark" href={`${home}#top`} aria-label={home ? "Ardia home" : "Ardia, back to top"}>
+    <a
+      class="mark"
+      href={`${home}#top`}
+      aria-label={home ? "Ardia home" : "Ardia, back to top"}
+      title="Right-click for the press kit"
+      data-press={`${base}/press`}
+    >
       <Image src={icon} alt="" width={30} height={30} densities={[1, 2]} loading="eager" decoding="sync" fetchpriority="high" />
       <span>ardia</span>
     </a>
@@ -272,6 +278,8 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 </style>
 
 <script>
+  import { track } from "../scripts/track";
+
   const bar = document.querySelector<HTMLElement>("[data-bar]")!;
   const sentinel = document.querySelector<HTMLElement>("[data-bar-sentinel]")!;
   const meadow = document.querySelector<HTMLElement>("[data-meadow]");
@@ -288,6 +296,13 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
   }).observe(sentinel);
   addEventListener("touchend", applyScrolled, { passive: true });
   addEventListener("touchcancel", applyScrolled, { passive: true });
+
+  const mark = bar.querySelector<HTMLAnchorElement>("[data-press]")!;
+  mark.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    track("press_kit_opened", { via: "logo" }, { send_instantly: true });
+    location.href = mark.dataset.press!;
+  });
 
   const btn = bar.querySelector<HTMLButtonElement>("[data-menu-btn]")!;
   const menu = bar.querySelector<HTMLElement>("[data-menu]")!;

@@ -1,5 +1,5 @@
 import { type LinkRoute, routeLinkTabs } from "@ardia/ardiacore";
-import { showMenu } from "@ardia/shell";
+import { animateWindowClose, showMenu } from "@ardia/shell";
 import { focus, openWindow } from "../../lib/actions";
 import { routedLinks, type RoutedLinks } from "../../lib/linkRoutes";
 import { runsJavaScript } from "../../lib/scriptUrls";
@@ -9,6 +9,20 @@ import { activeTabId } from "../../store/model";
 import { isSmall, lastActiveProfile, mainWindowFor } from "../../store/small";
 
 const store = () => useBrowser.getState();
+
+const closing = new Set<string>();
+
+function closeAfterAnimation(windowId: string, replacedBy: string | null, then?: () => void) {
+  if (closing.has(windowId)) return;
+  closing.add(windowId);
+  const close = () => {
+    closing.delete(windowId);
+    if (!isSmall(store(), windowId)) return;
+    store().closeWindow(windowId);
+    then?.();
+  };
+  void animateWindowClose(windowId, replacedBy).then(close, close);
+}
 
 export function openLittleArdia(url?: string, profileId?: string, adoptId?: string, linkPointer?: [number, number]): string {
   const id = store().createWindow({ small: true, url, profileId, adoptId, linkPointer });
@@ -84,13 +98,14 @@ export function openInMainWindow(windowId: string) {
 export function moveLittleArdiaToProfile(windowId: string, profileId: string) {
   const s = store();
   const w = s.windows[windowId];
-  if (!w || !isSmall(s, windowId) || !s.profiles[profileId] || w.profileId === profileId) return;
+  if (!w || !isSmall(s, windowId) || closing.has(windowId) || !s.profiles[profileId] || w.profileId === profileId) return;
   const tabId = activeTabId(s, windowId);
   const url = (tabId ? s.tabs[tabId]?.url : undefined) || undefined;
   const id = store().createWindow({ small: true, url, profileId, frame: w.frame });
   if (!url) store().openPanel(id, "");
-  store().closeWindow(windowId);
-  if (tabId) useBrowser.setState((now) => ({ closedTabs: now.closedTabs.filter((c) => c.tabId !== tabId) }));
+  closeAfterAnimation(windowId, id, () => {
+    if (tabId) useBrowser.setState((now) => ({ closedTabs: now.closedTabs.filter((c) => c.tabId !== tabId) }));
+  });
 }
 
 export function cycleLittleArdiaProfile(windowId: string, delta: 1 | -1) {
@@ -117,7 +132,7 @@ export async function openLittleArdiaProfileMenu(windowId: string) {
 }
 
 export function closeLittleArdia(windowId: string) {
-  if (isSmall(store(), windowId)) store().closeWindow(windowId);
+  if (isSmall(store(), windowId)) closeAfterAnimation(windowId, null);
 }
 
 export function closeLittleArdiaOnEscape(tabId: string) {

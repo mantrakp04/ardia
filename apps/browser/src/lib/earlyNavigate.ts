@@ -1,5 +1,5 @@
 import { killSwitchEnvironment } from "@ardia/shell";
-import { webviewMount, webviews } from "./webviews";
+import { noteIssued, webviewMount, webviews } from "./webviews";
 
 type Navigation = { url: string; seq: number; userInitiated?: boolean };
 
@@ -13,6 +13,7 @@ export function startNavigation(tabId: string, navigation: Navigation) {
   const mount = webviewMount(tabId);
   if (!view || !mount || !earlyNavigateOn()) return;
   started.set(tabId, { seq: navigation.seq, mount });
+  noteIssued(tabId, navigation.seq);
   void view.loadUrl(navigation.url, { userInitiated: !!navigation.userInitiated });
 }
 

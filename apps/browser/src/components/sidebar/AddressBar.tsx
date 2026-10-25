@@ -11,7 +11,7 @@ import { useHistoryAvailability } from "../layout/history";
 import { toolbarPalette, type ToolbarPalette } from "../layout/toolbarColors";
 import { ToolbarButton, type ButtonHit } from "../layout/controls";
 import { addressBarInSidebar, setUrlAnchor, SIDEBAR_FIELD } from "../layout/windowLayout";
-import { GlassFill, liquidGlass } from "../glass";
+import { FIELD_GLASS_HOVER_OPACITY, FIELD_GLASS_OPACITY, GlassFill, liquidGlass } from "../glass";
 import { useHover } from "../primitives";
 import { GLYPH, HistoryButton, ReloadButton, UrlField, useToolbarTab } from "../Toolbar";
 import { ARC_LIGHTS_CENTER, HEADER_TOOLS, navButtonsFitting, type HeaderButton } from "../layout/dockMotion";
@@ -158,7 +158,7 @@ function EmptyField({ windowId }: { windowId: string }) {
             paddingLeft: 10,
           }}
         >
-          {liquidGlass ? <GlassFill radius={SIDEBAR_FIELD.radius} border={StyleSheet.hairlineWidth * 2} fill={hovered ? theme.tabHover : theme.pinnedResting} /> : null}
+          {liquidGlass ? <GlassFill tint={null} opacity={hovered ? FIELD_GLASS_HOVER_OPACITY : FIELD_GLASS_OPACITY} radius={SIDEBAR_FIELD.radius} border={StyleSheet.hairlineWidth * 2} fill={theme.pinnedResting} /> : null}
           <FadeLabel text="Search or enter address" fontSize={13} color={theme.placeholder} fadeWidth={14} style={{ height: 18, marginLeft: -2 }} />
         </View>
       </Pressable>

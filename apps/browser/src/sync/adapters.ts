@@ -5,7 +5,7 @@ import { MAX_HISTORY, MAX_VISIT_TIMES } from "../store/history";
 import { useBrowser, type BrowserState } from "../store/browser";
 import { ancestorIds, depthOf, leaveGroups, orderSections, syncGroupOrder, withParent } from "../store/groups";
 import { engineProfile, makeTab, newId, pinnedFirst, without } from "../store/model";
-import { groupChoiceKey, orderChoiceKey, placeChoiceKey, type PinSyncEntry } from "../store/organize";
+import { groupChoiceKey, noteRemotePinDeletion, orderChoiceKey, placeChoiceKey, type PinSyncEntry } from "../store/organize";
 import { adoptParkedPins, parkWindowPins } from "../store/parkedPins";
 import { isPeekTab } from "../store/peek";
 import { arrangeParked, arrangePinnedArea, parkedAnchors, parkedAreaKeys, pinnedAnchors, pinnedAreaKeys } from "../store/pinnedArea";
@@ -26,11 +26,16 @@ export const SYNCED_SETTINGS = [
   "customSearchUrl",
   "customSearchEngines",
   "searchSuggestions",
+  "showSelectionSearch",
   "commandBarPreference",
   "tabLayout",
   "hideToolbarWhileScrolling",
   "showSidebarButton",
+  "showClearButton",
   "balancedTopApps",
+  "pinnedTabIconRing",
+  "fadeUnloadedTabs",
+  "warnBeforeClosingTabGroup",
   "newTabPosition",
   "newTabOpens",
   "warnBeforeClosingLastTab",
@@ -41,6 +46,7 @@ export const SYNCED_SETTINGS = [
   "cmdClickCreatesTabGroup",
   "optShiftClickOpensInGroup",
   "peekModifier",
+  "splitLinkModifier",
   "autoGroupMeetingTabs",
   "cleanUpInactiveTabsAfterHours",
   "mutedSites",
@@ -93,11 +99,29 @@ export type ProfileRecord = { n: string; c: Profile["color"]; i: string | null; 
 
 export type ProfileThemeRecord = { t: ProfileTheme } | { preset: true };
 
-export function themeFromRecord(record: unknown): Pick<Profile, "theme"> | null {
+export type ThemeAngleRecord = { a?: number; d?: number };
+
+export const themeAngleKey = (syncId: string) => `pth:${syncId}:angle`;
+
+function withoutAngles({ angle: _angle, dark, ...theme }: ProfileTheme): ProfileTheme {
+  if (!dark) return theme;
+  const { angle: _darkAngle, ...darkLook } = dark;
+  return { ...theme, dark: darkLook };
+}
+
+function anglesOf(theme: ProfileTheme): ThemeAngleRecord {
+  return { ...(theme.angle !== undefined ? { a: theme.angle } : {}), ...(theme.dark?.angle !== undefined ? { d: theme.dark.angle } : {}) };
+}
+
+export function themeFromRecord(record: unknown, angles?: unknown): Pick<Profile, "theme"> | null {
   if (!record || typeof record !== "object") return null;
   if ("preset" in record && record.preset === true) return { theme: null };
   const theme = "t" in record ? sanitizeTheme(record.t) : null;
-  return theme ? { theme } : null;
+  if (!theme) return null;
+  if (!angles || typeof angles !== "object") return { theme };
+  const { a, d } = angles as Record<string, unknown>;
+  const look = withoutAngles(theme);
+  return { theme: sanitizeTheme({ ...look, angle: a, ...(look.dark ? { dark: { ...look.dark, angle: d } } : {}) }) };
 }
 
 export function legacyThemeOf(record: ProfileRecord): Pick<Profile, "theme"> | null {
@@ -151,21 +175,25 @@ export function profileThemesAdapter(
   return {
     prefix: "pth:",
     adoptRemoteOnJoin: true,
-    extract: (base) => {
+    extract: (base, _queued, _now, known) => {
       const values = new Map<string, unknown>();
       for (const [id, { syncId, themeAdopting }] of linked()) {
         const theme = store().profiles[id]!.theme;
         const key = `pth:${syncId}`;
-        if (theme === undefined || themeAdopting || unapplied(key, base)) continue;
-        values.set(key, (theme ? { t: theme } : { preset: true }) satisfies ProfileThemeRecord);
+        const angleKey = themeAngleKey(syncId);
+        if (theme === undefined || themeAdopting || unapplied(key, base) || unapplied(angleKey, base)) continue;
+        values.set(key, (theme ? { t: withoutAngles(theme) } : { preset: true }) satisfies ProfileThemeRecord);
+        const angles = theme ? anglesOf(theme) : {};
+        if (Object.keys(angles).length || known(angleKey)) values.set(angleKey, angles satisfies ThemeAngleRecord);
       }
       const mine = new Set(values.keys());
       return { values, ignore: (key) => !mine.has(key) };
     },
     apply: (visible, changed) => {
       for (const [id, { syncId }] of linked()) {
-        if (!changed.has(`pth:${syncId}`)) continue;
-        const patch = themeFromRecord(visible.get(`pth:${syncId}`));
+        const angleKey = themeAngleKey(syncId);
+        if (!changed.has(`pth:${syncId}`) && !changed.has(angleKey)) continue;
+        const patch = themeFromRecord(visible.get(`pth:${syncId}`), visible.get(angleKey));
         if (!patch) continue;
         store().updateProfile(id, patch);
         adopted(id);
@@ -556,6 +584,8 @@ export function pinnedAdapter(profileId: string): Adapter {
     },
     apply: (visible, changed, base, records) => {
       if ([...changed].every((k) => k.startsWith(PIN_ROW))) return true;
+      const pinItem = (k: string) => k.startsWith("pin:t:") || k.startsWith("pin:g:") || k.startsWith(`${PIN_NEST}g:`);
+      if ([...changed].some((k) => pinItem(k) && !visible.has(k))) noteRemotePinDeletion(profileId);
       const sync = store().pinSync[profileId] ?? {};
       let s = store();
       const home = homeWindow(s, profileId);

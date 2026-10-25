@@ -10,13 +10,14 @@ import { activeTabId, bookmarkProfileId, plural } from "../../store/model";
 import { folderIn, folderLabel, folderMembers } from "../../store/tileFolders";
 import { useShallow } from "zustand/react/shallow";
 import { useFolderPanel } from "./tileFolderUi";
-import { awayFromPin, groupLabel } from "../../store/organize";
+import { awayFromPin } from "../../store/organize";
 import { openInSplit } from "../layout/splitActions";
 import { CalendarPreview, useIsCalendarTab } from "../live/CalendarPreview";
 import { LiveItemCard } from "../live/LiveItemCard";
 import { useIsSleeping } from "../../lib/tabLifecycle";
 import { useHover } from "../primitives";
 import { clickTab, tabTitle } from "./actions";
+import { GroupPanel } from "./GroupPanel";
 import { cardHoverProps, dismissHover, setHoverSpace } from "./hover";
 import { hoverCardOrigin, useHoverCardMotion, useHoverCardPlacement } from "./hoverMotion";
 import { useSidebarUi, type Anchor, type Hover } from "./state";
@@ -46,18 +47,18 @@ export function HoverCard({ windowId, width, height }: { windowId: string; width
   if (!shown) return null;
   return (
     <Animated.View pointerEvents={leaving || entering ? "none" : "box-none"} style={[StyleSheet.absoluteFill, motion.style]}>
-      <HoverContent hover={shown} windowId={windowId} player={player} />
+      <HoverContent hover={shown} windowId={windowId} player={player} windowHeight={height} />
     </Animated.View>
   );
 }
 
-function HoverContent({ hover, windowId, player }: { hover: Hover; windowId: string; player: boolean }) {
+function HoverContent({ hover, windowId, player, windowHeight }: { hover: Hover; windowId: string; player: boolean; windowHeight: number }) {
   const calendar = useIsCalendarTab(hover.kind === "tab" ? hover.id : null);
   if (hover.kind === "live") return <LiveItemCard id={hover.id} windowId={windowId} anchor={hover.anchor} />;
   if (hover.kind === "tab" && player) return <HoverPlayer tabId={hover.id} windowId={windowId} anchor={hover.anchor} />;
   if (hover.kind === "tab" && calendar) return <CalendarPreview tabId={hover.id} windowId={windowId} anchor={hover.anchor} />;
   if (hover.kind === "folder") return <FolderPeek folderId={hover.id} windowId={windowId} anchor={hover.anchor} />;
-  return hover.kind === "tab" ? <TabCard tabId={hover.id} windowId={windowId} anchor={hover.anchor} /> : <GroupPeek groupId={hover.id} windowId={windowId} anchor={hover.anchor} />;
+  return hover.kind === "tab" ? <TabCard tabId={hover.id} windowId={windowId} anchor={hover.anchor} /> : <GroupPanel key={`${windowId}:${hover.id}`} groupId={hover.id} windowId={windowId} anchor={hover.anchor} windowHeight={windowHeight} />;
 }
 
 function Card({ anchor, children }: { anchor: Anchor; children: React.ReactNode }) {
@@ -183,25 +184,6 @@ function Action({ icon, label, onPress }: { icon: string; label: string; onPress
 }
 
 const PEEK_ROWS = 8;
-
-function GroupPeek({ groupId, windowId, anchor }: { groupId: string; windowId: string; anchor: Anchor }) {
-  const theme = useTheme();
-  const group = useBrowser((s) => s.groups[groupId]);
-  const label = useBrowser((s) => (s.groups[groupId] ? groupLabel(s, s.groups[groupId]!) : ""));
-  if (!group) return null;
-  const more = group.tabIds.length - PEEK_ROWS;
-  return (
-    <Card anchor={anchor}>
-      <Text style={{ fontSize: 12, fontWeight: "600", color: theme.textSecondary, marginBottom: 4, marginLeft: 4 }}>
-        {label} · {group.tabIds.length === 1 ? "1 tab" : `${group.tabIds.length} tabs`}
-      </Text>
-      {group.tabIds.slice(0, PEEK_ROWS).map((id) => (
-        <PeekRow key={id} tabId={id} windowId={windowId} />
-      ))}
-      {more > 0 ? <Text style={{ fontSize: 11.5, color: theme.textTertiary, marginTop: 4, marginLeft: 4 }}>and {more} more</Text> : null}
-    </Card>
-  );
-}
 
 function FolderPeek({ folderId, windowId, anchor }: { folderId: string; windowId: string; anchor: Anchor }) {
   const theme = useTheme();

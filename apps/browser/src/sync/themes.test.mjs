@@ -250,3 +250,79 @@ test("a joining Mac with its own theme waits for a pth: file still downloading i
   assert.deepEqual(first.profile().theme, THEME, "and the first Mac keeps it");
   assert.equal(await rounds([joining, first], 3), 0);
 });
+
+function profileThemesAdapterV0241(links) {
+  const dropAngle = ({ angle: _angle, ...look }) => look;
+  const known = (theme) => ({ ...dropAngle(theme), ...(theme.dark ? { dark: dropAngle(theme.dark) } : {}) });
+  return {
+    prefix: "pth:",
+    adoptRemoteOnJoin: true,
+    extract: () => {
+      const values = new Map();
+      for (const [id, { syncId }] of Object.entries(links())) {
+        const theme = S().profiles[id]?.theme;
+        if (theme !== undefined) values.set(`pth:${syncId}`, theme ? { t: theme } : { preset: true });
+      }
+      const mine = new Set(values.keys());
+      return { values, ignore: (key) => !mine.has(key) };
+    },
+    apply: (visible, changed) => {
+      for (const [id, { syncId }] of Object.entries(links())) {
+        const record = changed.has(`pth:${syncId}`) ? visible.get(`pth:${syncId}`) : null;
+        if (record?.preset) S().updateProfile(id, { theme: null });
+        else if (record?.t) S().updateProfile(id, { theme: known(record.t) });
+      }
+    },
+  };
+}
+
+test("a theme's angles sync, and a Mac that drops them can't take them away", async () => {
+  const folder = new Folder();
+  const { mode: _mode, ...look } = THEME;
+  const angled = { ...THEME, angle: 270, dark: { ...look, intensity: 0.5, angle: 45 } };
+  const first = new Mac("first", folder);
+  first.with(() => S().updateProfile("default", { theme: angled }));
+  await first.sync();
+  const second = new Mac("second", folder, { joining: true });
+  const old = new Mac("old", folder, { joining: true });
+  old.adapters = [adapters.profilesAdapter(LINKS), profileThemesAdapterV0241(LINKS)];
+  await rounds([first, second, old], 3);
+  assert.deepEqual(second.profile().theme, angled, "a newer Mac takes both angles");
+  assert.equal(old.profile().theme.angle, undefined, "the older Mac keeps the theme without them");
+  assert.equal(await rounds([first, second, old], 4), 0, "and they settle");
+
+  old.with(() => S().updateProfile("default", { theme: { ...S().profiles.default.theme, intensity: 0.3 } }));
+  await rounds([old, first, second], 3);
+  for (const mac of [first, second]) {
+    assert.equal(mac.profile().theme.intensity, 0.3, `${mac.id} takes the older Mac's edit`);
+    assert.equal(mac.profile().theme.angle, 270, `${mac.id} keeps the angle`);
+    assert.equal(mac.profile().theme.dark.angle, 45, `${mac.id} keeps the dark look's angle`);
+  }
+  assert.equal(await rounds([first, second, old], 4), 0, "and they settle again");
+
+  second.with(() => S().updateProfile("default", { theme: { ...S().profiles.default.theme, angle: 0 } }));
+  await rounds([second, first], 2);
+  assert.equal(first.profile().theme.angle, 0, "a new angle reaches the other newer Mac");
+});
+
+test("a new custom theme without an angle doesn't take the previous theme's angle", async () => {
+  const folder = new Folder();
+  const a = new Mac("a", folder);
+  a.with(() => S().updateProfile("default", { theme: { ...THEME, angle: 90 } }));
+  await a.sync();
+  const b = new Mac("b", folder, { joining: true });
+  await rounds([a, b], 3);
+  a.with(() => S().updateProfile("default", { theme: null }));
+  await rounds([a, b], 2);
+  b.with(() => S().updateProfile("default", { theme: THEME }));
+  await rounds([b, a], 3);
+  assert.deepEqual(a.profile().theme, THEME);
+});
+
+test("a theme without an angle publishes no angle record", async () => {
+  const folder = new Folder();
+  const a = new Mac("a", folder);
+  a.with(() => S().updateProfile("default", { theme: THEME }));
+  await a.sync();
+  assert.ok(!Object.keys(a.scope.records).some((key) => key.endsWith(":angle")));
+});

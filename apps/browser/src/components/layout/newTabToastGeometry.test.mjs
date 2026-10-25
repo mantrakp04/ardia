@@ -32,6 +32,13 @@ test("React New Tab and internal pages use their real host while unknown native 
   assert.equal(newTabToastRect(page({ width: 200 }), 640, 480, true), null);
 });
 
+test("WebKit uses its full-size native host while Chromium waits for its current page rectangle", () => {
+  assert.deepEqual(newTabToastRect(null, 640, 480, true, "webkit"), { x: 0, y: 0, width: 640, height: 480 });
+  assert.deepEqual(newTabToastRect(page({ width: 200 }), 640, 480, true, "webkit"), { x: 0, y: 0, width: 640, height: 480 });
+  assert.equal(newTabToastRect(null, 640, 480, true, "chromium"), null);
+  assert.equal(newTabToastRect(page({ width: 200 }), 640, 480, true, "chromium"), null);
+});
+
 test("toast capacity uses the page rectangle rather than docked DevTools space", () => {
   const items = ["a", "b", "c"].map((tabId) => ({ tabId, windowId: "w", profileId: "p", appearedAt: null, leaving: false }));
   const narrow = newTabToastRect(page({ width: 190 }), 800, 600, true);

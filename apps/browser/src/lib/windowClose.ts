@@ -1,6 +1,8 @@
 import { confirm, onWindowEvent } from "@ardia/shell";
 import { useBrowser } from "../store/browser";
 import { inPinnedContainer, plural, profileFor } from "../store/model";
+import { isSmall } from "../store/small";
+import { closeLittleArdia } from "../components/littleArdia/actions";
 
 const MIN_TABS = 2;
 
@@ -17,6 +19,7 @@ async function requestClose(windowId: string) {
   const s = useBrowser.getState();
   const w = s.windows[windowId];
   if (!w) return;
+  if (isSmall(s, windowId)) return closeLittleArdia(windowId);
   const count = closingTabs(windowId).length;
   if (s.settings.warnBeforeClosingWindow && count >= MIN_TABS) {
     const { confirmed, suppressed } = await confirm({ ...closeWindowDialog(windowId), suppression: "Don’t ask me again", windowId });

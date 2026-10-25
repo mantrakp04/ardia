@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "rea
 import { Animated, StyleSheet, View } from "react-native";
 import { hex, layout, useTheme } from "../../lib/theme";
 import { useTileTheme, type TileTheme } from "../../lib/tileTheme";
-import { useTab } from "../../store/hooks";
+import { useSettings, useTab } from "../../store/hooks";
 import { GlassFill, liquidGlass } from "../glass";
 import { SLIDE } from "../layout/stripReorder";
 import { TabBadges } from "../media/TabBadges";
@@ -20,6 +20,7 @@ export function TileFace({ tabId, badge, ...state }: FaceState & { tabId: string
   const theme = useTheme();
   const tab = useTab(tabId);
   const tileTheme = useTileTheme(tab?.url ?? "", tab?.favicon, tab?.customIcon, tab?.profileId ?? "");
+  const iconRing = useSettings((s) => s.pinnedTabIconRing);
   if (!tab) return null;
   const { width, active } = state;
   const icon = (
@@ -28,7 +29,7 @@ export function TileFace({ tabId, badge, ...state }: FaceState & { tabId: string
       <TabBadges tabId={tabId} />
     </View>
   );
-  if (liquidGlass)
+  if (liquidGlass && !(iconRing && active && tileTheme))
     return (
       <GlassTile {...state} tileTheme={tileTheme}>
         {icon}

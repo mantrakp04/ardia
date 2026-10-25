@@ -119,3 +119,16 @@ test("the colour pad round-trips hue and saturation", () => {
     assert.ok(Math.abs(p.x - x) < 0.01 && Math.abs(p.y - y) < 0.01, `${x},${y} -> ${p.x},${p.y}`);
   }
 });
+
+test("a colour can go black, keeps its brightness and alpha while moved, and gets its hue back", async () => {
+  const { withStopAt, withStopLightness, stopLightness } = await import("../../lib/profileTheme.ts");
+  const theme = { stops: [{ x: 0.9, y: 0.5, color: padColor(0.9, 0.5) }], intensity: 1, mode: "dark", grain: 0, texture: "grain", translucency: 0 };
+  const black = withStopLightness(theme, 0, 0);
+  assert.deepEqual(black.stops[0].color, { r: 0, g: 0, b: 0, a: 1 });
+  const moved = withStopAt(black, 0, 0.2, 0.3);
+  assert.equal(stopLightness(moved.stops[0]), 0);
+  const translucent = { ...theme, stops: [{ ...theme.stops[0], color: { ...theme.stops[0].color, a: 0.5 } }] };
+  assert.equal(withStopAt(translucent, 0, 0.2, 0.3).stops[0].color.a, 0.5);
+  assert.equal(withStopLightness(translucent, 0, 0.2).stops[0].color.a, 0.5);
+  near(Object.values(withStopLightness(moved, 0, 0.6).stops[0].color).slice(0, 3), Object.values(padColor(0.2, 0.3)).slice(0, 3), 1e-9, "hue back");
+});

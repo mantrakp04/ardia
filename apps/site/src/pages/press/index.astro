@@ -1,0 +1,688 @@
+---
+import type { ImageMetadata } from "astro";
+import { Image, Picture } from "astro:assets";
+import Base from "../../layouts/Base.astro";
+import Header from "../../components/Header.astro";
+import Footer from "../../components/Footer.astro";
+import appIcon from "../../assets/app-icon.png";
+import paintedMark from "../../assets/ardia-mark.png";
+import { DISCORD, REPO } from "../../data/release";
+import {
+  COLOURS,
+  FACTS,
+  FONTS,
+  LOGOS,
+  LONG,
+  MARK_SVGS,
+  SHORT,
+  SHOTS,
+  ZIP_NAME,
+  logoFile,
+  megabytes,
+  oklch,
+  pressZip,
+  shotFile,
+} from "../../data/press";
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+const press = `${base}/press`;
+const zipSize = megabytes((await pressZip()).length);
+const shotImages = import.meta.glob<{ default: ImageMetadata }>("../../assets/shots/*.webp", { eager: true });
+const shots = SHOTS.map((s) => ({ ...s, image: shotImages[`../../assets/shots/${s.id}.webp`]!.default }));
+const previews: Record<string, ImageMetadata> = { "app-icon": appIcon, "mark-painted": paintedMark };
+const sections = [
+  ["logo", "Logo"],
+  ["screenshots", "Screenshots"],
+  ["about", "About"],
+  ["colours", "Colours"],
+  ["type", "Type"],
+  ["rules", "Rules"],
+];
+const rules = [
+  "Use the logos as they are. Don’t redraw the hills, recolour them, stretch, rotate, outline or add effects.",
+  "Give the mark room: at least the sun’s width of clear space all round.",
+  "Black on light backgrounds, white on dark ones and photos.",
+  "Write the name Ardia, with a capital A.",
+  "Crop the screenshots as you like, but don’t edit what’s inside the window.",
+  "Ardia isn’t affiliated with Google or The Browser Company. Arc, Dia and Chrome are their trademarks, so don’t suggest otherwise.",
+];
+---
+
+<Base title="Press kit · Ardia" description="Logos, screenshots, colours and the words for writing about Ardia, the sidebar browser for Mac.">
+  <Header home={`${base}/`} />
+  <main class="press">
+    <section class="wrap intro">
+      <p class="label kicker">Press kit</p>
+      <h1 class="poster">Free real<br />estate.</h1>
+      <p class="lede">
+        Logos, screenshots, colours and the words for writing about Ardia. Take what you need. For an interview or anything that isn’t here,
+        say hi on <a class="link" href={DISCORD} rel="noopener" data-track="discord_clicked" data-track-location="press">Discord</a> or open an
+        issue on <a class="link" href={`${REPO}/issues`} rel="noopener" data-track="github_clicked" data-track-link="issues" data-track-location="press">GitHub</a>.
+      </p>
+      <div class="intro-cta">
+        <a class="btn" href={`${press}/${ZIP_NAME}`} download data-track="press_kit_downloaded" data-track-file={ZIP_NAME}>
+          <svg width="16" height="18" viewBox="0 0 16 18" fill="none" aria-hidden="true">
+            <path d="M8 1v11.5M2.5 7.5 8 13l5.5-5.5M1.5 17h13" stroke="currentColor" stroke-width="2" stroke-linecap="square"></path>
+          </svg>
+          <span>Download everything</span>
+          <span class="btn-meta">ZIP · {zipSize}</span>
+        </a>
+      </div>
+      <nav class="toc" aria-label="On this page">
+        {sections.map(([id, name]) => <a class="label" href={`#${id}`}>{name}</a>)}
+      </nav>
+    </section>
+
+    <section class="wrap block" id="logo" aria-labelledby="logo-title">
+      <header class="block-head">
+        <h2 class="poster" id="logo-title">Logo</h2>
+        <p>Two painted hills under a sun. There’s no wordmark: set the name in your own type.</p>
+      </header>
+      <div class="block-body">
+        <ul class="logos">
+          {
+            LOGOS.map((logo) => (
+              <li class="card">
+                <div class:list={["ground", logo.ground]}>
+                  {previews[logo.id] ? (
+                    <Image class:list={["preview", logo.id]} src={previews[logo.id]!} alt="" width={logo.id === "app-icon" ? 160 : 240} densities={[1, 2]} />
+                  ) : (
+                    <div class="preview vector" set:html={MARK_SVGS[logo.id]} />
+                  )}
+                </div>
+                <div class="card-text">
+                  <h3>{logo.title}</h3>
+                  <p>{logo.use}</p>
+                  <div class="chips">
+                    {logo.formats.map((format) => (
+                      <a
+                        class="chip label"
+                        href={`${press}/${logoFile(logo.id, format)}`}
+                        download
+                        data-track="press_kit_downloaded"
+                        data-track-file={logoFile(logo.id, format)}
+                        aria-label={`${logo.title}, ${format.toUpperCase()}`}
+                      >
+                        {format}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              </li>
+            ))
+          }
+        </ul>
+        <p class="tip label">Tip: right-click the logo at the top of any page to land here.</p>
+      </div>
+    </section>
+
+    <section class="wrap block" id="screenshots" aria-labelledby="screenshots-title">
+      <header class="block-head">
+        <h2 class="poster" id="screenshots-title">Screenshots</h2>
+        <p>Real window captures at 2×, on a transparent background. Click one for the PNG.</p>
+      </header>
+      <ul class="block-body shots">
+        {
+          shots.map((s) => (
+            <li class="card">
+              <a
+                class="shot-link"
+                href={`${press}/${shotFile(s.id)}`}
+                download
+                data-track="press_kit_downloaded"
+                data-track-file={shotFile(s.id)}
+                aria-label={`${s.title}, PNG`}
+              >
+                <Picture
+                  src={s.image}
+                  alt=""
+                  formats={["avif"]}
+                  fallbackFormat="webp"
+                  widths={[480, 720, 960]}
+                  sizes="(max-width: 800px) 92vw, 30vw"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </a>
+              <div class="shot-text">
+                <h3>{s.title}</h3>
+                <span class="label dims">
+                  PNG · {s.image.width} × {s.image.height}
+                </span>
+              </div>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+
+    <section class="wrap block" id="about" aria-labelledby="about-title">
+      <header class="block-head">
+        <h2 class="poster" id="about-title">About</h2>
+        <p>Copy it as it is, or cut it down.</p>
+      </header>
+      <div class="block-body about">
+        {
+          [
+            ["Short", SHORT],
+            ["Long", LONG],
+          ].map(([name, text]) => (
+            <div class="blurb">
+              <div class="blurb-head">
+                <p class="label">{name}</p>
+                <button class="chip label" type="button" data-copy={text}>
+                  Copy
+                </button>
+              </div>
+              <p class="blurb-text">{text}</p>
+            </div>
+          ))
+        }
+        <dl class="facts">
+          {
+            FACTS.map((f) => (
+              <div class="fact">
+                <dt class="label">{f.term}</dt>
+                <dd>
+                  {f.href ? (
+                    <a class="link" href={f.href} rel="noopener">
+                      {f.value}
+                    </a>
+                  ) : (
+                    f.value
+                  )}
+                </dd>
+              </div>
+            ))
+          }
+        </dl>
+      </div>
+    </section>
+
+    <section class="wrap block" id="colours" aria-labelledby="colours-title">
+      <header class="block-head">
+        <h2 class="poster" id="colours-title">Colours</h2>
+        <p>The logo’s four, and the two the site is printed in. Click a value to copy it.</p>
+      </header>
+      <ul class="block-body swatches">
+        {
+          COLOURS.map((c) => (
+            <li class="swatch" style={`--swatch: ${c.hex}`}>
+              <div class="swatch-paint" />
+              <div class="swatch-text">
+                <h3>{c.name}</h3>
+                <p>{c.use}</p>
+                <button class="value label" type="button" data-copy={c.hex}>
+                  {c.hex}
+                </button>
+                <button class="value label" type="button" data-copy={oklch(c.hex)}>
+                  {oklch(c.hex)}
+                </button>
+              </div>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+
+    <section class="wrap block" id="type" aria-labelledby="type-title">
+      <header class="block-head">
+        <h2 class="poster" id="type-title">Type</h2>
+        <p>Both free under the SIL Open Font License.</p>
+      </header>
+      <ul class="block-body fonts">
+        {
+          FONTS.map((f, i) => (
+            <li class="font">
+              <p class:list={["specimen", i === 0 ? "poster" : "label"]} style={`font-family: ${f.family}`} aria-hidden="true">
+                {i === 0 ? "Sidebar first." : "Apple Silicon · macOS 14+"}
+              </p>
+              <div class="font-text">
+                <h3>
+                  <a class="link" href={f.href} rel="noopener">
+                    {f.name}
+                  </a>
+                </h3>
+                <p>
+                  By {f.by}. {f.use}
+                </p>
+              </div>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+
+    <section class="wrap block" id="rules" aria-labelledby="rules-title">
+      <header class="block-head">
+        <h2 class="poster" id="rules-title">Rules</h2>
+        <p>Few, and short.</p>
+      </header>
+      <ol class="block-body rules">
+        {rules.map((rule) => <li>{rule}</li>)}
+      </ol>
+    </section>
+  </main>
+  <Footer />
+</Base>
+
+<style>
+  .press {
+    padding-bottom: clamp(24px, 4vw, 64px);
+  }
+  .intro {
+    padding-top: clamp(72px, 10vw, 140px);
+    padding-bottom: clamp(56px, 7vw, 96px);
+  }
+  h1 {
+    font-size: var(--t-mega);
+    margin: 0 0 32px;
+  }
+  .lede {
+    font-size: var(--t-lede);
+    max-width: 34em;
+    color: var(--ink-2);
+  }
+  .lede a {
+    color: var(--ink);
+  }
+  .intro-cta {
+    margin-top: 36px;
+  }
+  .toc {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 24px;
+    margin-top: 48px;
+  }
+  .toc a {
+    color: var(--ink-2);
+    text-decoration: none;
+    min-height: 32px;
+    display: inline-flex;
+    align-items: center;
+    transition: color 150ms;
+  }
+  .toc a:hover {
+    color: var(--ink);
+  }
+
+  .block {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    column-gap: var(--gutter);
+    row-gap: 28px;
+    padding-top: 28px;
+    padding-bottom: clamp(64px, 8vw, 120px);
+    position: relative;
+  }
+  .block::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: var(--gutter);
+    right: var(--gutter);
+    border-top: 1px solid var(--rule-strong);
+  }
+  .block-head {
+    grid-column: span 4;
+  }
+  .block-head h2 {
+    font-size: clamp(2.2rem, 1.4rem + 2.6vw, 4rem);
+    margin-bottom: 16px;
+  }
+  .block-head p {
+    color: var(--ink-2);
+    max-width: 22em;
+    font-size: var(--t-small);
+  }
+  @media (min-width: 1025px) {
+    .block-head {
+      position: sticky;
+      top: 92px;
+      align-self: start;
+    }
+  }
+  .block-body {
+    grid-column: 5 / -1;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  h3 {
+    font-family: var(--poster);
+    font-weight: 760;
+    font-stretch: 90%;
+    font-size: 1.15rem;
+    letter-spacing: -0.005em;
+    line-height: 1.2;
+  }
+
+  .chips {
+    display: flex;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--rule-strong);
+    border-radius: 3px;
+    background: none;
+    color: var(--ink);
+    text-decoration: none;
+    cursor: pointer;
+    transition:
+      background-color 150ms,
+      color 150ms;
+    touch-action: manipulation;
+  }
+  .chip:hover {
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .logos {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 28px var(--gutter);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .ground {
+    display: grid;
+    place-items: center;
+    aspect-ratio: 4 / 3;
+    border-radius: 6px;
+    background-color: var(--paper-deep);
+    background-image: var(--impasto-soft);
+    background-size: 480px;
+    background-blend-mode: soft-light;
+  }
+  .ground.night {
+    background-color: var(--night);
+  }
+  .logos > :first-child {
+    grid-column: 1 / -1;
+  }
+  .logos > :first-child .ground {
+    aspect-ratio: 5 / 2;
+  }
+  .logos > :first-child .card-text p {
+    max-width: 30em;
+  }
+  .ground :global(.preview) {
+    width: 56%;
+    height: auto;
+  }
+  .ground :global(.preview.app-icon) {
+    width: min(30%, 220px);
+  }
+  .ground :global(.preview.vector svg) {
+    width: 100%;
+    height: auto;
+  }
+  .card-text {
+    padding-top: 16px;
+  }
+  .card-text p {
+    margin-top: 6px;
+    color: var(--ink-2);
+    font-size: var(--t-small);
+  }
+  .tip {
+    margin-top: 36px;
+    color: var(--ink-3);
+  }
+  @media (hover: none) {
+    .tip {
+      display: none;
+    }
+  }
+
+  .shots {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 36px var(--gutter);
+  }
+  .shot-link {
+    display: block;
+    position: relative;
+    aspect-ratio: 16 / 11;
+    border-radius: 6px;
+    background-color: var(--paper-deep);
+    background-image: var(--impasto-soft);
+    background-size: 480px;
+    background-blend-mode: soft-light;
+    transition: background-color 200ms;
+  }
+  .shot-link:hover {
+    background-color: color-mix(in srgb, var(--paper-deep) 80%, var(--sage));
+  }
+  .shot-link :global(img) {
+    position: absolute;
+    inset: 6%;
+    width: 88%;
+    height: 88%;
+    object-fit: contain;
+  }
+  .shot-text {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding-top: 14px;
+  }
+  .dims {
+    color: var(--ink-3);
+    white-space: nowrap;
+  }
+
+  .about {
+    display: flex;
+    flex-direction: column;
+    gap: 36px;
+  }
+  .blurb-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 12px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--rule);
+    color: var(--ink-2);
+  }
+  .blurb-text {
+    max-width: 40em;
+  }
+  .blurb:first-child .blurb-text {
+    font-size: var(--t-lede);
+    line-height: 1.4;
+  }
+  .facts {
+    margin: 0;
+    border-top: 1px solid var(--rule);
+  }
+  .fact {
+    display: grid;
+    grid-template-columns: minmax(120px, 1fr) 3fr;
+    gap: var(--gutter);
+    padding: 12px 0;
+    border-bottom: 1px solid var(--rule);
+    align-items: baseline;
+  }
+  .fact dt {
+    color: var(--ink-2);
+  }
+  .fact dd {
+    margin: 0;
+  }
+
+  .swatches {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 28px var(--gutter);
+  }
+  .swatch-paint {
+    aspect-ratio: 3 / 2;
+    border-radius: 6px;
+    background-color: var(--swatch);
+    background-image: var(--impasto);
+    background-size: 360px;
+    background-blend-mode: soft-light;
+    box-shadow: inset 0 0 0 1px var(--rule);
+  }
+  .swatch-text {
+    padding-top: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .swatch-text p {
+    margin: 4px 0 8px;
+    color: var(--ink-2);
+    font-size: var(--t-small);
+  }
+  .value {
+    border: 0;
+    background: none;
+    padding: 0;
+    min-height: 26px;
+    text-align: left;
+    color: var(--ink);
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.25em;
+    text-decoration-color: transparent;
+    transition: text-decoration-color 150ms;
+    touch-action: manipulation;
+  }
+  .value + .value {
+    color: var(--ink-2);
+  }
+  .value:hover {
+    text-decoration-color: currentColor;
+  }
+
+  .fonts {
+    display: flex;
+    flex-direction: column;
+  }
+  .font {
+    display: grid;
+    gap: 14px;
+    padding: 28px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .font:first-child {
+    padding-top: 0;
+  }
+  .specimen.poster {
+    font-size: clamp(2.6rem, 1.6rem + 3.6vw, 5.4rem);
+  }
+  .specimen.label {
+    font-size: clamp(1rem, 0.8rem + 0.8vw, 1.5rem);
+    letter-spacing: 0.04em;
+  }
+  .font-text p {
+    margin-top: 4px;
+    color: var(--ink-2);
+    font-size: var(--t-small);
+  }
+
+  .rules {
+    counter-reset: rule;
+  }
+  .rules li {
+    counter-increment: rule;
+    display: grid;
+    grid-template-columns: 48px 1fr;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--rule);
+    max-width: 46em;
+  }
+  .rules li:first-child {
+    padding-top: 0;
+  }
+  .rules li::before {
+    content: counter(rule, decimal-leading-zero);
+    font-family: var(--mono);
+    font-size: var(--t-label);
+    font-stretch: 87.5%;
+    color: var(--ink-3);
+    padding-top: 0.3em;
+  }
+
+  [data-copied] {
+    color: var(--accent) !important;
+  }
+
+  @media (max-width: 1100px) {
+    .swatches {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (max-width: 1024px) {
+    .block-head,
+    .block-body {
+      grid-column: 1 / -1;
+    }
+    .block-head p {
+      max-width: 34em;
+    }
+  }
+  @media (max-width: 800px) {
+    .shots,
+    .logos {
+      grid-template-columns: 1fr;
+    }
+    .logos > :first-child .ground {
+      aspect-ratio: 4 / 3;
+    }
+    .ground :global(.preview.app-icon) {
+      width: 46%;
+    }
+    .chip {
+      min-height: 44px;
+      padding: 0 16px;
+    }
+    .toc a,
+    .value {
+      min-height: 44px;
+    }
+    .fact {
+      grid-template-columns: 1fr;
+      gap: 2px;
+    }
+    .intro-cta :global(.btn) {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+</style>
+
+<script>
+  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-copy]")) {
+    const label = button.textContent;
+    let reset: ReturnType<typeof setTimeout> | undefined;
+    button.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(button.dataset.copy ?? "");
+      } catch {
+        return;
+      }
+      button.textContent = "Copied";
+      button.setAttribute("data-copied", "");
+      clearTimeout(reset);
+      reset = setTimeout(() => {
+        button.textContent = label;
+        button.removeAttribute("data-copied");
+      }, 1400);
+    });
+  }
+</script>

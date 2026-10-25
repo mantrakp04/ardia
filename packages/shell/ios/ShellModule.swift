@@ -323,6 +323,9 @@ public class ShellModule: Module {
     }.runOnQueue(.main)
 
     AsyncFunction("closeWindow") { (id: String) in WindowManager.shared.close(id: id) }.runOnQueue(.main)
+    AsyncFunction("animateWindowClose") { (id: String, after: String?, promise: Promise) in
+      WindowManager.shared.animateClose(id: id, after: after) { promise.resolve(nil) }
+    }.runOnQueue(.main)
     AsyncFunction("setTrafficLightsCenter") { (id: String, center: [Double]?) in
       WindowManager.shared.setTrafficLightsCenter(id: id, center: center.flatMap { $0.count == 2 ? NSPoint(x: $0[0], y: $0[1]) : nil })
     }.runOnQueue(.main)
@@ -488,6 +491,18 @@ public class ShellModule: Module {
       FocusHandoff.shared.claim(generation, destination: view)
     }.runOnQueue(.main)
 
+    AsyncFunction("saveKeyResponder") { (windowId: String) -> Int in
+      SavedKeyResponders.shared.save(WindowManager.shared.windows[windowId])
+    }.runOnQueue(.main)
+
+    AsyncFunction("restoreKeyResponder") { (token: Int) -> Bool in
+      SavedKeyResponders.shared.restore(token)
+    }.runOnQueue(.main)
+
+    AsyncFunction("discardKeyResponder") { (token: Int) in
+      SavedKeyResponders.shared.discard(token)
+    }.runOnQueue(.main)
+
     AsyncFunction("setSwitcherCapture") { [weak self] (active: Bool) in
       guard let self else { return }
       if let monitor = self.switcherMonitor { NSEvent.removeMonitor(monitor) }
@@ -542,8 +557,9 @@ public class ShellModule: Module {
     }.runOnQueue(.main)
 
     View(WindowDragRegion.self) {
-      Events("onRegionDoubleClick")
+      Events("onRegionDoubleClick", "onRegionClick")
       Prop("titleBarDoubleClick") { (view: WindowDragRegion, on: Bool) in view.titleBarDoubleClick = on }
+      Prop("clickable") { (view: WindowDragRegion, on: Bool) in view.clickable = on }
     }
   }
 
@@ -613,6 +629,7 @@ public class ShellModule: Module {
         entry.target = target
         entry.representedObject = item["id"]
       }
+      entry.isAlternate = item["alternate"] as? Bool == true
       entry.isEnabled = item["enabled"] as? Bool ?? true
       entry.state = item["checked"] as? Bool == true ? .on : .off
       if let symbol = item["symbol"] as? String {
@@ -1156,7 +1173,10 @@ final class PointerWatcher: NSObject {
 
 final class WindowDragRegion: ExpoView {
   let onRegionDoubleClick = EventDispatcher()
+  let onRegionClick = EventDispatcher()
   var titleBarDoubleClick = true
+  var clickable = false
+  private static let dragDistance: CGFloat = 3
   private var monitor: Any?
   private var doubleClickDown: PressPlace?
 
@@ -1215,7 +1235,7 @@ final class WindowDragRegion: ExpoView {
     else { return nil }
     if hit === frame { return Self.onTitlebarTopEdge(window, frame, event.locationInWindow) ? .titlebarEdge : nil }
     guard bounds.contains(convert(event.locationInWindow, from: nil)) else { return nil }
-    if hit === self { return .region }
+    if hit === self || (clickable && hit.isDescendant(of: self)) { return .region }
     let background = hit is NSClipView || (hit.superview as? NSClipView)?.documentView === hit
     guard background, let container = superview, hit.isDescendant(of: container) else { return nil }
     var view = hit.superview
@@ -1245,11 +1265,22 @@ final class WindowDragRegion: ExpoView {
     var key = NSApp.keyWindow
     while let k = key, k !== window { key = k.parent }
     if key == nil, window.canBecomeKey, !event.modifierFlags.contains(.command) { window.makeKeyAndOrderFront(nil) }
+    if clickable, place == .region { return clickOrDrag(event, in: window) }
     if event.clickCount == 2 {
       if releaseFollows { doubleClickDown = place } else { doubleClick(event, place) }
       return
     }
     window.performDrag(with: event)
+  }
+
+  private func clickOrDrag(_ down: NSEvent, in window: NSWindow) {
+    let until: Date = NSEvent.pressedMouseButtons & 1 == 0 ? Date() : .distantFuture
+    let start = down.locationInWindow
+    while let next = window.nextEvent(matching: [.leftMouseDragged, .leftMouseUp], until: until, inMode: .eventTracking, dequeue: true),
+          next.type == .leftMouseDragged {
+      if hypot(next.locationInWindow.x - start.x, next.locationInWindow.y - start.y) >= Self.dragDistance { return window.performDrag(with: down) }
+    }
+    onRegionClick([:])
   }
 
   private func doubleClick(_ event: NSEvent, _ place: PressPlace) {
@@ -1868,5 +1899,227 @@ final class SwitcherPointer {
     guard let origin else { return true }
     if hypot(point.x - origin.x, point.y - origin.y) >= 1 { hasMoved = true }
     return hasMoved
+  }
+}
+
+final class SavedKeyResponders {
+  static let shared = SavedKeyResponders()
+
+  private final class Saved {
+    weak var window: NSWindow?
+    weak var responder: NSView?
+    let selection: NSRange?
+    init(window: NSWindow, responder: NSView, selection: NSRange?) {
+      self.window = window
+      self.responder = responder
+      self.selection = selection
+    }
+  }
+
+  private var saved: [Int: Saved] = [:]
+  private var next = 0
+
+  func save(_ window: NSWindow?) -> Int {
+    saved = saved.filter { $0.value.window != nil && $0.value.responder != nil }
+    guard let window, let responder = Self.owner(of: window.firstResponder) else { return 0 }
+    let editor = window.firstResponder as? NSTextView
+    next += 1
+    saved[next] = Saved(window: window, responder: responder, selection: editor?.isFieldEditor == true ? editor?.selectedRange() : nil)
+    return next
+  }
+
+  func restore(_ token: Int) -> Bool {
+    guard let entry = saved.removeValue(forKey: token), let window = entry.window, let view = entry.responder,
+      view.window === window, !view.isHiddenOrHasHiddenAncestor, view.acceptsFirstResponder
+    else { return false }
+    guard window.makeFirstResponder(view) else { return false }
+    if let selection = entry.selection, let editor = (view as? NSTextField)?.currentEditor() as? NSTextView,
+      NSMaxRange(selection) <= (editor.string as NSString).length
+    {
+      editor.setSelectedRange(selection)
+    }
+    return true
+  }
+
+  func discard(_ token: Int) {
+    saved.removeValue(forKey: token)
+  }
+
+  private static func owner(of responder: NSResponder?) -> NSView? {
+    if let editor = responder as? NSTextView, editor.isFieldEditor, let field = editor.delegate as? NSView { return field }
+    return responder as? NSView
+  }
+}
+
+public class PopoverBubbleModule: Module {
+  public func definition() -> ModuleDefinition {
+    Name("ArdiaPopoverBubble")
+
+    Function("isAvailable") { () -> Bool in true }
+
+    View(PopoverBubble.self) {
+      Prop("material") { (view: PopoverBubble, name: String?) in view.setMaterial(name) }
+      Prop("dark") { (view: PopoverBubble, dark: Bool?) in view.appearance = dark.map { NSAppearance(named: $0 ? .darkAqua : .aqua) } ?? nil }
+      Prop("cornerRadius") { (view: PopoverBubble, v: Double) in view.cornerRadius = v }
+      Prop("arrowEdge") { (view: PopoverBubble, edge: String?) in view.arrowEdge = PopoverBubble.Edge(rawValue: edge ?? "") ?? .none }
+      Prop("arrowX") { (view: PopoverBubble, v: Double) in view.arrowX = v }
+      Prop("arrowWidth") { (view: PopoverBubble, v: Double) in view.arrowWidth = v }
+      Prop("arrowHeight") { (view: PopoverBubble, v: Double) in view.arrowHeight = v }
+      Prop("tint") { (view: PopoverBubble, hex: String?) in view.tint = hex.flatMap(NSColor.init(hex:)) }
+      Prop("edgeColor") { (view: PopoverBubble, hex: String?) in view.edgeColor = hex.flatMap(NSColor.init(hex:)) }
+      Prop("edgeWidth") { (view: PopoverBubble, v: Double) in view.edgeWidth = v }
+      Prop("bubbleShadowOpacity") { (view: PopoverBubble, v: Double) in view.bubbleShadowOpacity = v }
+      Prop("bubbleShadowRadius") { (view: PopoverBubble, v: Double) in view.bubbleShadowRadius = v }
+      Prop("bubbleShadowOffsetY") { (view: PopoverBubble, v: Double) in view.bubbleShadowOffsetY = v }
+    }
+  }
+}
+
+final class PopoverBubbleOverlay: NSView {
+  override var isFlipped: Bool { true }
+  override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
+final class PopoverBubble: ExpoView {
+  enum Edge: String { case top, bottom, none }
+
+  let effect = NSVisualEffectView()
+  private let overlay = PopoverBubbleOverlay()
+  private let shadowLayer = CALayer()
+  private let shadowMask = CAShapeLayer()
+  private let tintLayer = CAShapeLayer()
+  private let edgeLayer = CAShapeLayer()
+  private let edgeMask = CAShapeLayer()
+  private var maskKey = ""
+
+  var cornerRadius: Double = 12 { didSet { apply() } }
+  var arrowEdge: Edge = .none { didSet { apply() } }
+  var arrowX: Double = 0 { didSet { apply() } }
+  var arrowWidth: Double = 20 { didSet { apply() } }
+  var arrowHeight: Double = 9 { didSet { apply() } }
+  var tint: NSColor? { didSet { apply() } }
+  var edgeColor: NSColor? { didSet { apply() } }
+  var edgeWidth: Double = 0 { didSet { apply() } }
+  var bubbleShadowOpacity: Double = 0 { didSet { apply() } }
+  var bubbleShadowRadius: Double = 0 { didSet { apply() } }
+  var bubbleShadowOffsetY: Double = 0 { didSet { apply() } }
+
+  required init(appContext: AppContext? = nil) {
+    super.init(appContext: appContext)
+    wantsLayer = true
+    effect.state = .active
+    effect.blendingMode = .withinWindow
+    effect.material = .popover
+    addSubview(effect)
+    overlay.wantsLayer = true
+    overlay.layer?.masksToBounds = false
+    shadowMask.fillRule = .evenOdd
+    shadowLayer.mask = shadowMask
+    shadowLayer.shadowColor = NSColor.black.cgColor
+    edgeLayer.fillColor = nil
+    edgeLayer.mask = edgeMask
+    overlay.layer?.addSublayer(shadowLayer)
+    overlay.layer?.addSublayer(tintLayer)
+    overlay.layer?.addSublayer(edgeLayer)
+    addSubview(overlay)
+  }
+
+  func setMaterial(_ name: String?) {
+    let materials: [String: NSVisualEffectView.Material] = [
+      "popover": .popover, "menu": .menu, "hudWindow": .hudWindow, "sheet": .sheet, "toolTip": .toolTip,
+    ]
+    effect.material = name.flatMap { materials[$0] } ?? .popover
+  }
+
+  override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+  override func setFrameSize(_ newSize: NSSize) {
+    super.setFrameSize(newSize)
+    apply()
+  }
+
+  override func layout() {
+    super.layout()
+    apply()
+  }
+
+  static func shape(size: CGSize, radius: CGFloat, edge: Edge, arrowX: CGFloat, arrowWidth: CGFloat, arrowHeight: CGFloat) -> CGPath {
+    let lift = edge == .none ? 0 : min(arrowHeight, size.height)
+    let body = CGRect(x: 0, y: lift, width: size.width, height: size.height - lift)
+    let r = max(0, min(radius, body.width / 2, body.height / 2))
+    let half = arrowWidth / 2
+    guard edge != .none, half > 0, body.width >= 2 * (r + half) else {
+      return CGPath(roundedRect: body, cornerWidth: r, cornerHeight: r, transform: nil)
+    }
+    let x = min(max(arrowX, r + half), body.width - r - half)
+    let top = body.minY
+    let path = CGMutablePath()
+    path.move(to: CGPoint(x: r, y: top))
+    path.addArc(tangent1End: CGPoint(x: x - half, y: top), tangent2End: CGPoint(x: x, y: 0), radius: 3)
+    path.addArc(tangent1End: CGPoint(x: x, y: 0), tangent2End: CGPoint(x: x + half, y: top), radius: 2.5)
+    path.addArc(tangent1End: CGPoint(x: x + half, y: top), tangent2End: CGPoint(x: body.maxX - r, y: top), radius: 3)
+    path.addArc(tangent1End: CGPoint(x: body.maxX, y: top), tangent2End: CGPoint(x: body.maxX, y: body.maxY), radius: r)
+    path.addArc(tangent1End: CGPoint(x: body.maxX, y: body.maxY), tangent2End: CGPoint(x: body.minX, y: body.maxY), radius: r)
+    path.addArc(tangent1End: CGPoint(x: body.minX, y: body.maxY), tangent2End: CGPoint(x: body.minX, y: top), radius: r)
+    path.addArc(tangent1End: CGPoint(x: body.minX, y: top), tangent2End: CGPoint(x: r, y: top), radius: r)
+    path.closeSubpath()
+    if edge == .top { return path }
+    var flip = CGAffineTransform(translationX: 0, y: size.height).scaledBy(x: 1, y: -1)
+    return path.copy(using: &flip) ?? path
+  }
+
+  private func apply() {
+    let size = bounds.size
+    effect.frame = bounds
+    overlay.frame = bounds
+    guard size.width > 0, size.height > 0 else { return }
+    let path = Self.shape(
+      size: size, radius: cornerRadius, edge: arrowEdge, arrowX: arrowX, arrowWidth: arrowWidth, arrowHeight: arrowHeight)
+
+    let key = "\(size.width)x\(size.height) \(cornerRadius) \(arrowEdge.rawValue) \(arrowX) \(arrowWidth) \(arrowHeight)"
+    if key != maskKey {
+      maskKey = key
+      effect.maskImage = NSImage(size: size, flipped: true) { _ in
+        guard let context = NSGraphicsContext.current?.cgContext else { return false }
+        context.setFillColor(NSColor.black.cgColor)
+        context.addPath(path)
+        context.fillPath()
+        return true
+      }
+    }
+
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    let local = overlay.bounds
+    tintLayer.frame = local
+    tintLayer.path = path
+    tintLayer.fillColor = tint?.cgColor
+
+    edgeLayer.frame = local
+    edgeMask.frame = local
+    edgeMask.path = path
+    edgeLayer.path = path
+    edgeLayer.lineWidth = edgeWidth * 2
+    edgeLayer.strokeColor = edgeColor?.cgColor
+    edgeLayer.isHidden = edgeColor == nil || edgeWidth <= 0
+
+    shadowLayer.frame = local
+    if bubbleShadowOpacity > 0 {
+      shadowLayer.isHidden = false
+      shadowLayer.shadowOpacity = Float(bubbleShadowOpacity)
+      shadowLayer.shadowRadius = bubbleShadowRadius
+      let flipped = overlay.layer?.isGeometryFlipped == true || overlay.isFlipped
+      shadowLayer.shadowOffset = CGSize(width: 0, height: flipped ? bubbleShadowOffsetY : -bubbleShadowOffsetY)
+      shadowLayer.shadowPath = path
+      let outset = bubbleShadowRadius * 3 + abs(bubbleShadowOffsetY) + 4
+      let mask = CGMutablePath()
+      mask.addRect(local.insetBy(dx: -outset, dy: -outset))
+      mask.addPath(path)
+      shadowMask.frame = local
+      shadowMask.path = mask
+    } else {
+      shadowLayer.isHidden = true
+    }
+    CATransaction.commit()
   }
 }

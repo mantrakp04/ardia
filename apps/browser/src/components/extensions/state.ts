@@ -23,7 +23,7 @@ import { engineProfile } from "../../store/model";
 import { shownPageId } from "../../store/peek";
 import { openSettings } from "../settings/windows";
 import { closeSidePanelsOf, toggleSidePanel } from "./sidePanels";
-import { browserIdOf, extensionProfile, pageProfile, shownIn, useExtensions, windowExtensions, type Anchor } from "./store";
+import { browserIdOf, extensionProfile, extensionsProfileId, pageProfile, shownIn, useExtensions, windowExtensions, type Anchor } from "./store";
 
 export * from "./sidePanels";
 export * from "./store";
@@ -196,7 +196,7 @@ export function openOptions(windowId: string, ext: InstalledExtension) {
   if (ext.optionsUrl) useBrowser.getState().newTab(windowId, { url: ext.optionsUrl });
 }
 
-export const openManageExtensions = () => openSettings("extensions");
+export const openManageExtensions = (windowId?: string | null) => openSettings("extensions", extensionsProfileId(null, windowId));
 export const openPinDialog = (windowId: string) => useExtensions.setState({ pinDialog: { windowId } });
 export const openWebStore = (windowId: string) =>
   useBrowser.getState().newTab(windowId, { url: "https://chromewebstore.google.com/category/extensions" });
@@ -257,7 +257,7 @@ export async function showExtensionMenu(windowId: string, ext: InstalledExtensio
   if (choice === "enable") void setEnabled(profile, ext.id, !ext.enabled);
   if (choice === "remove") void removeExtension(profile, ext, windowId);
   if (choice === "sidePanel") void toggleSidePanel(windowId, ext.id);
-  if (choice === "manage") openManageExtensions();
+  if (choice === "manage") openManageExtensions(windowId);
 }
 
 function message(error: unknown): string {

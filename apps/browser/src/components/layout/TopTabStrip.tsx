@@ -2,17 +2,19 @@ import { ContextMenuArea, FadeLabel, raiseView, setTrafficLightsCenter, Surface,
 import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, findNodeHandle, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import { create } from "zustand";
-import { closeTab, toggleMute } from "../../lib/actions";
+import { toggleMute } from "../../lib/actions";
 import { hex, layout, ThemeScope, useTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
 import { PageProfileContext, useIsActiveTab, usePageProfileId, useSettings, useTab, useTabLive, useWindowId, useWindowProfileId } from "../../store/hooks";
 import { ProfileIndicator, useProfileIndicatorWidth } from "../ProfileIndicator";
 import { HoverSlot } from "../HoverSlot";
 import { IconButton, useHover } from "../primitives";
+import { DownloadsButton } from "../Downloads";
 import { clickTab } from "../sidebar/actions";
+import { pressGroupClose, pressTabClose, useGroupCloseControl, useTabCloseControl } from "../sidebar/closeControl";
 import { openGroupMenu, openTabMenu } from "../sidebar/menus";
 import { groupLabel } from "../../store/organize";
-import { TabIcon } from "../sidebar/TabIcon";
+import { hasOwnGroupIcon, SYMBOL_PREFIX, TabIcon } from "../sidebar/TabIcon";
 import { TabBadges } from "../media/TabBadges";
 import { GROUP_COLORS, NEUTRAL_GROUP_SWATCH, useSidebarTokens, withAlpha } from "../sidebar/tokens";
 import { modifiersOf } from "./controls";
@@ -121,17 +123,7 @@ export function TopTabStrip({ width, floating = false, hidden = false, swipe = t
         </View>
         <View mouseDownCanMoveWindow={false} style={{ position: "absolute", right: 8, top: MID - 17, flexDirection: "row", alignItems: "center", gap: CONTROLS_GAP }}>
           <ProfileIndicator room={PROFILE_ROOM} />
-          <IconButton
-            icon="arrow.down.circle"
-            size={16}
-            box={DOWNLOADS_BOX}
-            radius={10}
-            tooltip="Downloads (⇧⌘J)"
-            onPress={() => {
-              const s = useBrowser.getState();
-              s.setDownloadsOpen(windowId, !s.windowUi[windowId]?.downloadsOpen);
-            }}
-          />
+          <DownloadsButton windowId={windowId} />
         </View>
         {swipe && <ProfileSwipeArea surface="strip" style={StyleSheet.absoluteFill} pageWidth={pageWidth + flare * 2} />}
         {!floating && <StripDropHighlight left={left} right={right} />}
@@ -851,6 +843,7 @@ function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width: number
   const floating = useContext(FloatingStrip);
   const playing = useTabLive(tabId, (l) => l.playingAudio);
   const { palette, band } = useWebsiteBand(tabId);
+  const closeControl = useTabCloseControl(tabId);
   const { hovered, hoverProps } = useHover();
   if (!tab) return null;
   const title = tab.customTitle || tab.title || tab.url || "New Tab";
@@ -886,14 +879,14 @@ function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width: number
                 width={20}
                 hover={
                   <IconButton
-                    icon={tuck ? "minus" : "xmark"}
+                    icon={tuck ? "minus" : closeControl.icon}
                     size={9}
                     weight="semibold"
                     box={20}
                     radius={5}
                     color={onBand ? palette.icon : undefined}
-                    onPress={tuck ?? (() => void closeTab(tab.id))}
-                    tooltip={tuck ? "Hide in Group" : "Close Tab"}
+                    onPress={tuck ?? (() => pressTabClose(tab.id))}
+                    tooltip={tuck ? "Hide in Group" : closeControl.tooltip}
                   />
                 }
               />
@@ -1203,6 +1196,7 @@ function StripGroup({
   const windowId = useWindowId();
   const profileId = usePageProfileId();
   const group = useBrowser((s) => s.groups[entry.id]);
+  const groupClose = useGroupCloseControl(entry.id);
   const onto = useOnto({ kind: "group", id: entry.id });
   const { hovered, hoverProps } = useHover();
   const expanded = !entry.collapsed;
@@ -1304,7 +1298,7 @@ function StripGroup({
       ))}
       <Animated.View pointerEvents={expanded ? "box-none" : "none"} mouseDownCanMoveWindow={false} style={{ position: "absolute", top: ITEM_TOP, height: ITEM_HEIGHT, left: tail, flexDirection: "row", alignItems: "center", opacity: fade }}>
         <View style={{ width: 0.5, height: 15, backgroundColor: divider }} />
-        <IconButton icon="xmark" size={9} weight="semibold" box={24} radius={6} style={{ marginLeft: 1 }} onPress={() => useBrowser.getState().closeGroup(entry.id)} tooltip="Close Group" />
+        {groupClose && <IconButton icon={groupClose.icon} size={9} weight="semibold" box={24} radius={6} style={{ marginLeft: 1 }} onPress={() => pressGroupClose(entry.id)} tooltip={groupClose.tooltip} />}
       </Animated.View>
       <View
         {...hoverProps}
@@ -1319,7 +1313,7 @@ function StripGroup({
             onPress={() => useBrowser.getState().updateGroup(entry.id, { collapsed: expanded })}
             style={{ height: ITEM_HEIGHT, flexDirection: "row", alignItems: "center", paddingLeft: 8.5, paddingRight: 7 }}
           >
-            {group.icon ? <Text style={{ width: 13, fontSize: 12, textAlign: "center" }}>{group.icon}</Text> : <GroupGlyph color={tint ?? (theme.dark ? NEUTRAL_GROUP_SWATCH.dark : NEUTRAL_GROUP_SWATCH.light)} />}
+            <StripGroupIcon icon={group.icon} tint={tint} />
             <Text numberOfLines={1} style={{ marginLeft: 12.5, maxWidth: 120, fontSize: 12, fontWeight: "600", color: tint ?? (shown >= 0 ? theme.tabSelectedText : theme.textTab) }}>
               {group.name || `${group.tabIds.length} Tabs`}
             </Text>
@@ -1436,7 +1430,7 @@ function FolderChip({ groupId, holding }: { groupId: string; holding: boolean })
                 backgroundColor: pressed ? theme.tabPressed : tint ? withAlpha(tint, hovered ? 0.3 : 0.22) : hovered ? tokens.groupHeaderHover : tokens.groupFill,
               }}
             >
-              {group.icon ? <Text style={{ width: 13, fontSize: 12, textAlign: "center" }}>{group.icon}</Text> : <GroupGlyph color={tint ?? (theme.dark ? NEUTRAL_GROUP_SWATCH.dark : NEUTRAL_GROUP_SWATCH.light)} />}
+              <StripGroupIcon icon={group.icon} tint={tint} />
               <Text numberOfLines={1} style={{ marginLeft: 7, maxWidth: 110, fontSize: 12, fontWeight: "600", color: ink }}>
                 {label}
               </Text>
@@ -1447,6 +1441,13 @@ function FolderChip({ groupId, holding }: { groupId: string; holding: boolean })
       </ContextMenuArea>
     </View>
   );
+}
+
+function StripGroupIcon({ icon, tint }: { icon: string | null; tint: string | null | undefined }) {
+  const theme = useTheme();
+  if (!hasOwnGroupIcon(icon)) return <GroupGlyph color={tint ?? (theme.dark ? NEUTRAL_GROUP_SWATCH.dark : NEUTRAL_GROUP_SWATCH.light)} />;
+  if (icon.startsWith(SYMBOL_PREFIX)) return <Symbol name={icon.slice(SYMBOL_PREFIX.length)} size={11} weight="medium" color={tint ?? theme.icon} style={{ width: 13, height: 13 }} />;
+  return <Text style={{ width: 13, fontSize: 12, textAlign: "center" }}>{icon}</Text>;
 }
 
 function GroupGlyph({ color }: { color: string }) {
@@ -1521,7 +1522,7 @@ function NewTabButton({ windowId, geometry }: { windowId: string; geometry: Drag
       <Pressable
         onPress={(e) => {
           if (modifiersOf(e).altKey) openNewTabInSplit(windowId);
-          else toggleNewTabBar(windowId) || useBrowser.getState().newTab(windowId);
+          else toggleNewTabBar(windowId) || useBrowser.getState().newTab(windowId, { newTabCommand: true });
         }}
       >
         {({ pressed }) => (
@@ -1541,7 +1542,11 @@ const PEEK_TOP = 4;
 export function TopStripPeek({ windowWidth, enabled }: { windowWidth: number; enabled: boolean }) {
   const theme = useTheme();
   const windowId = useWindowId();
-  const { slide, live, show, hide } = usePeek(enabled);
+  const downloadsOpen = useBrowser((s) => !!s.windowUi[windowId]?.downloadsOpen);
+  const { slide, live, show, hide, recheck } = usePeek(enabled, false, () => !!useBrowser.getState().windowUi[windowId]?.downloadsOpen);
+  useEffect(() => {
+    if (!downloadsOpen) recheck();
+  }, [downloadsOpen]);
   useEffect(() => {
     if (!enabled) return;
     void setTrafficLightsCenter(windowId, lightsCenter(layout.sidebarWidth));

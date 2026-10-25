@@ -6,6 +6,10 @@ public struct BrowserDefinition: Sendable {
     case automation
   }
 
+  public enum Sidebar: String, Codable, Sendable {
+    case arc, zen
+  }
+
   public var id: String
   public var name: String
   public var family: Family
@@ -14,6 +18,18 @@ public struct BrowserDefinition: Sendable {
   public var keychainService: String?
   public var keychainAccount: String?
   public var rootIsProfile = false
+  public var keychainFallbacks: [KeychainItem] = []
+  public var sidebar: Sidebar?
+
+  public struct KeychainItem: Equatable, Sendable {
+    public var service: String
+    public var account: String
+  }
+
+  public var keychainItems: [KeychainItem] {
+    guard let keychainService, let keychainAccount else { return [] }
+    return [KeychainItem(service: keychainService, account: keychainAccount)] + keychainFallbacks
+  }
 
   public static let all: [BrowserDefinition] = [
     chromium("chrome", "Google Chrome", ["com.google.Chrome"], "Google/Chrome", "Chrome"),
@@ -21,13 +37,25 @@ public struct BrowserDefinition: Sendable {
     dia,
     .init(id: "safari", name: "Safari", family: .safari, bundleIds: ["com.apple.Safari"]),
     .init(id: "firefox", name: "Firefox", family: .firefox, bundleIds: ["org.mozilla.firefox"], dataPath: "Firefox"),
+    zen,
     chromium("edge", "Microsoft Edge", ["com.microsoft.edgemac"], "Microsoft Edge", "Microsoft Edge"),
+    chromium("edgeBeta", "Microsoft Edge Beta", ["com.microsoft.edgemac.Beta"], "Microsoft Edge Beta", "Microsoft Edge"),
+    chromium("edgeDev", "Microsoft Edge Dev", ["com.microsoft.edgemac.Dev"], "Microsoft Edge Dev", "Microsoft Edge"),
+    chromium("edgeCanary", "Microsoft Edge Canary", ["com.microsoft.edgemac.Canary"], "Microsoft Edge Canary", "Microsoft Edge"),
     chromium("brave", "Brave", ["com.brave.Browser"], "BraveSoftware/Brave-Browser", "Brave"),
+    chromium("braveBeta", "Brave Beta", ["com.brave.Browser.beta"], "BraveSoftware/Brave-Browser-Beta", "Brave"),
+    chromium("braveNightly", "Brave Nightly", ["com.brave.Browser.nightly"], "BraveSoftware/Brave-Browser-Nightly", "Brave"),
+    chromium("braveDev", "Brave Dev", ["com.brave.Browser.dev"], "BraveSoftware/Brave-Browser-Dev", "Brave"),
+    chromium("braveOrigin", "Brave Origin", ["com.brave.Browser.origin"], "BraveSoftware/Brave-Origin", "Brave"),
+    chromium("braveOriginBeta", "Brave Origin Beta", ["com.brave.Browser.origin.beta"], "BraveSoftware/Brave-Origin-Beta", "Brave"),
+    chromium("braveOriginNightly", "Brave Origin Nightly", ["com.brave.Browser.origin.nightly"],
+             "BraveSoftware/Brave-Origin-Nightly", "Brave"),
     BrowserDefinition(id: "helium", name: "Helium", family: .chromium, bundleIds: ["net.imput.helium"],
                       dataPath: "net.imput.helium", keychainService: "Helium Storage Key", keychainAccount: "Helium"),
     chromium("opera", "Opera", ["com.operasoftware.Opera"], "com.operasoftware.Opera", "Opera", rootIsProfile: true),
     chromium("operaGX", "Opera GX", ["com.operasoftware.OperaGX"], "com.operasoftware.OperaGX", "Opera", rootIsProfile: true),
     chromium("vivaldi", "Vivaldi", ["com.vivaldi.Vivaldi"], "Vivaldi", "Vivaldi"),
+    chromium("vivaldiSnapshot", "Vivaldi Snapshot", ["com.vivaldi.Vivaldi.snapshot"], "Vivaldi Snapshot", "Vivaldi"),
     chromium("island", "Island", ["io.island.Island", "com.island.Island"], "Island", "Island"),
     chromium("chromeBeta", "Google Chrome Beta", ["com.google.Chrome.beta"], "Google/Chrome Beta", "Chrome"),
     chromium("chromeDev", "Google Chrome Dev", ["com.google.Chrome.dev"], "Google/Chrome Dev", "Chrome"),
@@ -36,7 +64,11 @@ public struct BrowserDefinition: Sendable {
   ]
 
   static let arc = BrowserDefinition(id: "arc", name: "Arc", family: .arc, bundleIds: ["company.thebrowser.Browser"],
-                                     dataPath: "Arc/User Data", keychainService: "Arc Safe Storage", keychainAccount: "Arc")
+                                     dataPath: "Arc/User Data", keychainService: "Arc Safe Storage", keychainAccount: "Arc",
+                                     sidebar: .arc)
+
+  static let zen = BrowserDefinition(id: "zen", name: "Zen", family: .firefox, bundleIds: ["app.zen-browser.zen"],
+                                     dataPath: "zen", sidebar: .zen)
 
   static let dia = BrowserDefinition(id: "dia", name: "Dia", family: .chromium, bundleIds: ["company.thebrowser.dia"],
                                      dataPath: "Dia/User Data", keychainService: "Dia Safe Storage", keychainAccount: "Dia")
@@ -46,7 +78,8 @@ public struct BrowserDefinition: Sendable {
   static func chromium(_ id: String, _ name: String, _ bundleIds: [String], _ path: String, _ keychain: String,
                        rootIsProfile: Bool = false) -> BrowserDefinition {
     BrowserDefinition(id: id, name: name, family: .chromium, bundleIds: bundleIds, dataPath: path,
-                      keychainService: "\(keychain) Safe Storage", keychainAccount: keychain, rootIsProfile: rootIsProfile)
+                      keychainService: "\(keychain) Safe Storage", keychainAccount: keychain, rootIsProfile: rootIsProfile,
+                      keychainFallbacks: name == keychain ? [] : [KeychainItem(service: "\(name) Safe Storage", account: name)])
   }
 
   public static func find(_ id: String) -> BrowserDefinition? { all.first { $0.id == id } }
@@ -75,6 +108,7 @@ public struct BrowserProfile: Codable, Equatable, Sendable {
   public var isDefault: Bool
   public var available: [ImportKind]
   public var spaces: [SpaceSummary]?
+  public var tabsNeedKey = false
 }
 
 public struct BrowserSource: Codable, Equatable, Sendable {
@@ -86,7 +120,9 @@ public struct BrowserSource: Codable, Equatable, Sendable {
   public var requiresExport: Bool
   public var needsKeychain: Bool
   public var needsFullDiskAccess = false
+  public var keychainService: String?
   public var profiles: [BrowserProfile]
+  public var sidebar: BrowserDefinition.Sidebar?
 }
 
 public struct BrowserDiscovery {
@@ -140,7 +176,7 @@ public struct BrowserDiscovery {
       id: def.id, name: def.name, family: def.family, appPath: app?.path,
       iconPath: app.flatMap { iconFor($0, def.id) },
       requiresExport: def.family == .safari, needsKeychain: def.isChromiumBased,
-      needsFullDiskAccess: denied, profiles: profiles
+      needsFullDiskAccess: denied, keychainService: def.keychainService, profiles: profiles, sidebar: def.sidebar
     )
   }
 
@@ -169,7 +205,18 @@ public struct BrowserDiscovery {
     return dir
   }
 
-  func chromiumProfiles(_ def: BrowserDefinition) -> [BrowserProfile] {
+  public func profile(_ def: BrowserDefinition, _ profileId: String) -> BrowserProfile? {
+    switch def.family {
+    case .chromium, .arc:
+      return chromiumProfiles(def, only: profileId).first
+    case .firefox:
+      return firefoxProfiles(def).first { $0.id == profileId }
+    case .safari, .automation:
+      return nil
+    }
+  }
+
+  func chromiumProfiles(_ def: BrowserDefinition, only: String? = nil) -> [BrowserProfile] {
     guard let root = dataDirectory(def) else { return [] }
     let fm = FileManager.default
     var infoCache: [String: [String: Any]] = [:]
@@ -204,6 +251,7 @@ public struct BrowserDiscovery {
       guard isProfile(path) else { continue }
       let info = infoCache[dir] ?? (dir == "." ? infoCache["Default"] ?? infoCache[""] : nil) ?? [:]
       fallbackIndex += 1
+      if let only, only != dir { continue }
       var name = (info["name"] as? String).flatMap { $0.isEmpty ? nil : $0 }
       if name == nil {
         name = dir == "Default" || dir == "." ? "Default" : "Profile \(fallbackIndex)"
@@ -220,7 +268,8 @@ public struct BrowserDiscovery {
         color: color,
         isDefault: dir == (lastUsed ?? "Default") || (dir == "." && lastUsed == nil),
         available: chromiumKinds(path, arc: def.family == .arc),
-        spaces: nil
+        spaces: nil,
+        tabsNeedKey: def.family != .arc && ChromiumSessions.needsKey(profile: path)
       ))
     }
     return out
@@ -277,10 +326,20 @@ public struct BrowserDiscovery {
       var kinds: [ImportKind] = []
       if has("places.sqlite") { kinds += [.bookmarks, .history] }
       if Firefox.sessionFile(profile: dir) != nil { kinds.append(.tabs) }
-      if has("logins.json") { kinds.append(.passwords) }
+      if has("logins.json") || has("logins.db") { kinds.append(.passwords) }
       if has("cookies.sqlite") { kinds.append(.cookies) }
+      var spaces: [SpaceSummary]?
+      if def.sidebar == .zen, let sidebar = try? ZenSidebar.load(profile: dir, profileId: p.path), !sidebar.spaces.isEmpty {
+        spaces = sidebar.spaces.map {
+          SpaceSummary(id: $0.id, name: $0.name, color: $0.color, emoji: $0.emoji, icon: $0.icon,
+                       pinnedCount: $0.pinned.reduce(0) { $0 + $1.linkCount }, tabCount: $0.tabs.count, theme: nil)
+        }
+        kinds += [.spaces, .pinnedTabs]
+        if !kinds.contains(.tabs) { kinds.append(.tabs) }
+        if !sidebar.essentials.isEmpty { kinds.append(.favorites) }
+      }
       return BrowserProfile(id: p.path, name: p.name, path: dir.path, email: nil, avatarPath: nil, color: nil,
-                            isDefault: p.isDefault, available: kinds, spaces: nil)
+                            isDefault: p.isDefault, available: kinds, spaces: spaces)
     }
   }
 }

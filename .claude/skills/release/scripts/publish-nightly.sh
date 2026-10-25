@@ -53,7 +53,7 @@ run gh release upload nightly -R "$repo" --clobber "$work/Ardia-Nightly.dmg"
 run gh release edit nightly -R "$repo" --notes "$nightly_notes"
 run gh release upload "$stable_tag" -R "$repo" --clobber "$dist/appcast.xml"
 
-[ "$dry" = 1 ] && { echo "dry run: nothing published"; exit 0; }
+[ "$dry" = 1 ] && { "$here/update-tap.sh" "$version" --dry-run || true; echo "dry run: nothing published"; exit 0; }
 status=0
 for _ in $(seq 1 18); do
   feed="$(curl -fsSL --max-time 20 "$feed_url" 2>/dev/null || true)"
@@ -68,4 +68,5 @@ size="$(curl -fsSLI --max-time 30 "$nightly_dmg_url" | awk 'tolower($1) == "cont
 to="$(curl -s -o /dev/null --max-time 15 -w '%{redirect_url}' https://ardia.dev/nightly || true)"
 [ "$to" = "$nightly_dmg_url" ] && echo "PASS  https://ardia.dev/nightly leads there" \
   || { echo "FAIL  https://ardia.dev/nightly leads there (goes to ${to:-nothing}: deploy the site, infra/site/nginx.conf)"; status=1; }
+"$here/update-tap.sh" "$version" || { echo "FAIL  the Homebrew tap's ardia@nightly is $version"; status=1; }
 exit $status

@@ -22,7 +22,7 @@ import { setToolbarExtensionsWidth, SIDEBAR_FIELD } from "./layout/windowLayout"
 import { showUrlBarMenu } from "./omnibox/paste";
 import { useHover } from "./primitives";
 import { ToolbarExtensions, useToolbarExtensionsWidth } from "./extensions/ToolbarExtensions";
-import { GlassFill, liquidGlass } from "./glass";
+import { FIELD_GLASS_HOVER_OPACITY, FIELD_GLASS_OPACITY, GlassFill, liquidGlass } from "./glass";
 import { TranslateButton } from "./site/TranslateControls";
 import { ZoomIndicator } from "./site/ZoomControls";
 
@@ -116,7 +116,7 @@ export function Toolbar({
         )}
       </Animated.View>
 
-      {tab.url && !bare ? <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: StyleSheet.hairlineWidth, backgroundColor: palette.divider }} /> : null}
+      {tab.url && !bare ? <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 1, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.divider }} /> : null}
       {isLoading && <TabProgressBar key={tabId} tabId={tabId} color={palette.background ? palette.icon : theme.accent} />}
     </View>
   );
@@ -132,7 +132,7 @@ export function ToolbarBackdrop({ tabId }: { tabId: string }) {
   return (
     <View pointerEvents="none" style={{ height: layout.toolbarHeight }}>
       <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: band }]} />
-      {url ? <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: StyleSheet.hairlineWidth, backgroundColor: palette.divider }} /> : null}
+      {url ? <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 1, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.divider }} /> : null}
     </View>
   );
 }
@@ -316,9 +316,9 @@ export const UrlField = memo(function UrlField({
     >
       {liquidGlass ? (
         sidebar ? (
-          <GlassFill radius={SIDEBAR_FIELD.radius} border={StyleSheet.hairlineWidth * 2} fill={hovered ? theme.tabHover : theme.pinnedResting} />
+          <GlassFill tint={null} opacity={hovered ? FIELD_GLASS_HOVER_OPACITY : FIELD_GLASS_OPACITY} radius={SIDEBAR_FIELD.radius} border={StyleSheet.hairlineWidth * 2} fill={theme.pinnedResting} />
         ) : (
-          <GlassFill radius={8} fill={hovered ? palette.pressed : palette.pill} dark={palette.background ? palette.text.startsWith("#FFFFFF") : undefined} />
+          <GlassFill tint={null} opacity={hovered ? FIELD_GLASS_HOVER_OPACITY : FIELD_GLASS_OPACITY} radius={8} fill={palette.pill} dark={palette.background ? palette.text.startsWith("#FFFFFF") : undefined} />
         )
       ) : null}
       {insecure && (

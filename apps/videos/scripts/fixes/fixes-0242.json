@@ -1,0 +1,61 @@
+{
+  "id": "fixes-0242",
+  "segments": [
+    {
+      "scene": "newtabtop",
+      "title": "New Tab stays on top",
+      "body": "With new tabs at the top, New Tab keeps its place above the list once the list fills the sidebar. It used to drop to the bottom.",
+      "cam": [0, 50, 880],
+      "lead": 2.6,
+      "tail": 2.8
+    },
+    {
+      "scene": "indent",
+      "title": "Groups step in",
+      "body": "A group's tabs sit indented under its header, and a tab gives a little when you press it.",
+      "cam": [0, 40, 440],
+      "lead": 1.6,
+      "tail": 2.9
+    },
+    {
+      "scene": "grouppanel",
+      "title": "Search a collapsed group",
+      "body": "Hover a collapsed group to see all its tabs, most recent first, and type to find one. It used to list the first eight.",
+      "cam": [0, 250, 600],
+      "lead": 1.2,
+      "tail": 4.6
+    },
+    {
+      "scene": "downloads",
+      "title": "Downloads by their button",
+      "body": "The panel opens under the button you clicked, with an arrow, and the page shows through it.",
+      "cam": [0, 0, 520],
+      "lead": 1.4,
+      "tail": 2.6
+    },
+    {
+      "scene": "cli",
+      "title": "The page holds still",
+      "body": "While the ardia command works, a pill floats over the page. Before, a bar pushed the page down on every command.",
+      "cam": [300, 0, 946],
+      "lead": 0.8,
+      "tail": 4.2
+    },
+    {
+      "scene": "extensions",
+      "title": "Extensions by name",
+      "body": "Type an extension's name in the command bar to open it or its options.",
+      "cam": [420, 200, 720],
+      "lead": 1.4,
+      "tail": 2.0
+    },
+    {
+      "scene": "fairplay",
+      "title": "Open Page in WebKit",
+      "body": "A page that asks for Apple's FairPlay DRM gets an offer to reload in WebKit, which has it. Chromium in Ardia doesn't.",
+      "cam": [150, 0, 946],
+      "lead": 0.6,
+      "tail": 6.0
+    }
+  ]
+}

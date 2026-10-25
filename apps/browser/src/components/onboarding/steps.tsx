@@ -9,13 +9,13 @@ import {
   Symbol,
 } from "@ardia/shell";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useBrowser } from "../../store/browser";
 import { Favicon, useHover } from "../primitives";
-import { CONTENT_WIDTH, ChoicePair, ScrollToEnd } from "./choices";
-import type { PreviewId } from "./previews";
+import { CONTENT_WIDTH, ChoiceList, useMockFocus, type ChoiceOption } from "./choices";
+import { MockPanel, useScreen } from "./screen";
 import { PINNABLE_SITES, pinSites, preselectedSites } from "./sites";
-import { finishOnboarding, recordDefaultBrowserTrial, resolveDraft, STEPS, useOnboarding, type OnboardingStep } from "./state";
+import { finishOnboarding, QUESTION_ORDER, recordDefaultBrowserTrial, STEPS, useOnboarding } from "./state";
 import { BackButton, CheckMark, CheckRow, PrimaryButton, Reveal, SecondaryButton, StepProgress, StepTitle, useOnboardingColors } from "./ui";
 
 const ICON = require("../../../assets/app-icon.png");
@@ -26,6 +26,7 @@ export function StepLayout({
   title,
   subtitle,
   tag,
+  pageKey,
   children,
   actions,
   preview,
@@ -33,52 +34,28 @@ export function StepLayout({
   title: string;
   subtitle?: string;
   tag?: ReactNode;
+  pageKey?: string | number;
   children?: ReactNode;
   actions: ReactNode;
   preview: ReactNode;
 }) {
   const colors = useOnboardingColors();
-  const scroll = useRef<ScrollView>(null);
-  const [box, setBox] = useState({ height: 0, content: 0, offset: 0 });
-  const [scrollToEnd] = useState(() => () => setTimeout(() => scroll.current?.scrollToEnd({ animated: true }), 30));
   return (
     <View style={{ flex: 1, flexDirection: "row" }}>
-      <View style={{ width: COLUMN.width, paddingTop: 34, paddingBottom: 28 }}>
-        <View style={{ gap: 20, paddingHorizontal: COLUMN.padding }}>
-          <Reveal>
-            <StepProgress />
-          </Reveal>
+      <View style={{ width: COLUMN.width, paddingTop: 34, paddingBottom: 28, paddingHorizontal: COLUMN.padding }}>
+        <Reveal>
+          <StepProgress />
+        </Reveal>
+        <View key={pageKey} style={{ flex: 1, marginTop: 20, overflow: "hidden" }}>
           <Reveal delay={60} style={{ gap: 10 }}>
             <StepTitle title={title} subtitle={subtitle} />
             {tag ? <View style={{ flexDirection: "row" }}>{tag}</View> : null}
           </Reveal>
+          <Reveal delay={140} style={{ gap: 16, marginTop: 22 }}>
+            {children}
+          </Reveal>
         </View>
-        <View style={{ flex: 1, marginTop: 18 }}>
-          <ScrollView
-            ref={scroll}
-            style={{ flex: 1 }}
-            contentContainerStyle={{ paddingHorizontal: COLUMN.padding, paddingBottom: 12 }}
-            showsVerticalScrollIndicator={false}
-            scrollEventThrottle={32}
-            onLayout={(e) => {
-              const height = e.nativeEvent.layout.height;
-              setBox((b) => ({ ...b, height }));
-            }}
-            onContentSizeChange={(_, content) => setBox((b) => ({ ...b, content }))}
-            onScroll={(e) => {
-              const offset = e.nativeEvent.contentOffset.y;
-              setBox((b) => ({ ...b, offset }));
-            }}
-          >
-            <ScrollToEnd.Provider value={scrollToEnd}>
-              <Reveal delay={140} style={{ gap: 16 }}>
-                {children}
-              </Reveal>
-            </ScrollToEnd.Provider>
-          </ScrollView>
-          {box.content - box.offset - box.height > 4 ? <BottomFade color={colors.card} /> : null}
-        </View>
-        <Reveal delay={240} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: COLUMN.padding, paddingTop: 14 }}>
+        <Reveal delay={240} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingTop: 14 }}>
           {actions}
         </Reveal>
       </View>
@@ -104,18 +81,6 @@ export function StepLayout({
   );
 }
 
-const FADE = [0.06, 0.16, 0.3, 0.48, 0.68, 0.86];
-
-function BottomFade({ color }: { color: string }) {
-  return (
-    <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, bottom: 0 }}>
-      {FADE.map((opacity) => (
-        <View key={opacity} style={{ height: 4, backgroundColor: color, opacity }} />
-      ))}
-    </View>
-  );
-}
-
 export function StepActions({
   onContinue,
   continueTitle = "Continue",
@@ -130,8 +95,9 @@ export function StepActions({
   icon?: string;
 }) {
   const step = useOnboarding((s) => s.step);
+  const sub = useOnboarding((s) => s.sub);
   const back = useOnboarding((s) => s.back);
-  const first = STEPS[STEPS.indexOf(step) - 1] === "intro";
+  const first = STEPS[STEPS.indexOf(step) - 1] === "intro" && sub === 0;
   return (
     <>
       {first ? null : <BackButton onPress={back} />}
@@ -143,24 +109,25 @@ export function StepActions({
 
 type SystemState = { isDefault: boolean; inDock: boolean; loginEnabled: boolean };
 
-const LINK_CHOICES = [
-  { value: true, preview: "links-little" as PreviewId, title: "Little Ardia", subtitle: "A small, passing window" },
-  { value: false, preview: "links-tab" as PreviewId, title: "A new tab", subtitle: "In your main window" },
+const LINK_CHOICES: ChoiceOption<boolean>[] = [
+  { value: true, preview: "links-little", title: "Little Ardia", subtitle: "A small window that's gone when you're done" },
+  { value: false, preview: "links-tab", title: "A new tab", subtitle: "Right in your main window" },
 ];
 
 export function HomeStep() {
-  const draft = useOnboarding((s) => s.draft);
-  const preset = useOnboarding((s) => s.preset);
+  const sub = useOnboarding((s) => s.sub);
+  return sub === 0 ? <DefaultBrowserQuestion /> : <LinksQuestion />;
+}
+
+function DefaultBrowserQuestion() {
   const extras = useOnboarding((s) => s.extras);
-  const settings = useBrowser((s) => s.settings);
-  const { openLinksInLittleArdia: little } = resolveDraft(["openLinksInLittleArdia"], draft, preset, settings);
   const [system, setSystem] = useState<SystemState | null>(null);
   const [busy, setBusy] = useState(false);
   const setDefault = extras.setDefault ?? !backgroundInstance;
   const trial = extras.trial ?? false;
   const dock = extras.dock ?? true;
   const login = extras.login ?? system?.loginEnabled ?? false;
-  const { setDraft, setExtras } = useOnboarding.getState();
+  const { setExtras } = useOnboarding.getState();
 
   useEffect(() => {
     void Promise.all([isDefaultBrowser(), isInDock(), launchAtLoginStatus()]).then(([isDefault, inDock, login]) =>
@@ -181,8 +148,7 @@ export function HomeStep() {
       if (dock && !system.inDock) await addToDock();
     } finally {
       setBusy(false);
-      if (!picked.length) picked.push(little ? "Links from other apps open in Little Ardia" : "Links from other apps open in a tab");
-      useOnboarding.getState().confirm("home", { openLinksInLittleArdia: little }, picked);
+      useOnboarding.getState().confirm("default", {}, picked);
     }
   };
 
@@ -190,47 +156,65 @@ export function HomeStep() {
   const trying = !defaultOn && trial;
   return (
     <StepLayout
-      title="Make it home"
-      subtitle="Ardia works best as your default browser."
+      pageKey="default"
+      title="Make Ardia your default?"
+      subtitle="Links from everywhere open here."
       actions={
         <StepActions
           continueTitle={busy ? "Setting Up…" : "Continue"}
           disabled={!system || busy}
           onContinue={() => void apply()}
-          onSkip={() => useOnboarding.getState().skip("home", ["openLinksInLittleArdia"])}
+          onSkip={() => useOnboarding.getState().skip()}
         />
       }
-      preview={<SystemPreview isDefault={!!(defaultOn || trying)} dock={!!(system?.inDock || dock)} login={login} little={little} />}
+      preview={<SystemPreview isDefault={!!(defaultOn || trying)} dock={!!(system?.inDock || dock)} login={login} />}
     >
-      <View style={{ gap: 6 }}>
+      <View style={{ gap: 8 }}>
         <CheckRow
           icon="globe"
           title="Set Ardia as default browser"
-          subtitle={system?.isDefault ? "Ardia is already your default browser" : "Open links and web pages in Ardia by default"}
+          subtitle={system?.isDefault ? "Ardia is already your default browser" : "Open links and web pages in Ardia"}
           value={!!defaultOn}
           disabled={!system || system.isDefault}
           onChange={(v) => setExtras({ setDefault: v })}
         />
         {system && !defaultOn ? (
-          <CheckRow
-            icon="calendar"
-            title="Try Ardia as your default for seven days"
-            subtitle="We'll check in to make sure you love it."
-            value={trial}
-            onChange={(v) => setExtras({ trial: v })}
-          />
+          <CheckRow icon="calendar" title="Try it for seven days" subtitle="We'll check in to make sure you love it." value={trial} onChange={(v) => setExtras({ trial: v })} />
         ) : null}
         {system && !system.inDock ? (
           <CheckRow icon="dock.rectangle" title="Add Ardia to Dock" subtitle="Quick access whenever you need it" value={dock} onChange={(v) => setExtras({ dock: v })} />
         ) : null}
         <CheckRow icon="power" title="Open Ardia at login" subtitle="Ready when you sign in" value={login} onChange={(v) => setExtras({ login: v })} />
       </View>
-      <ChoicePair label="Links from other apps open in" options={LINK_CHOICES} value={little} onChange={(v) => setDraft({ openLinksInLittleArdia: v })} />
     </StepLayout>
   );
 }
 
-function SystemPreview({ isDefault, dock, login, little }: { isDefault: boolean; dock: boolean; login: boolean; little: boolean }) {
+function LinksQuestion() {
+  const { values, mock } = useScreen(["openLinksInLittleArdia"]);
+  const focus = useMockFocus("links");
+  const little = values.openLinksInLittleArdia;
+  return (
+    <StepLayout
+      pageKey="links"
+      title="Where do links from other apps open?"
+      subtitle="From Mail, Slack, Notes and the rest."
+      actions={
+        <StepActions
+          onContinue={() =>
+            useOnboarding.getState().confirm("links", { openLinksInLittleArdia: little }, [little ? "Links from other apps open in Little Ardia" : "Links from other apps open in a tab"])
+          }
+          onSkip={() => useOnboarding.getState().skip()}
+        />
+      }
+      preview={<MockPanel settings={mock} focus={focus.focus} />}
+    >
+      <ChoiceList options={LINK_CHOICES} value={little} onChange={(v) => useOnboarding.getState().setDraft({ openLinksInLittleArdia: v })} mock={focus} />
+    </StepLayout>
+  );
+}
+
+function SystemPreview({ isDefault, dock, login }: { isDefault: boolean; dock: boolean; login: boolean }) {
   const colors = useOnboardingColors();
   const chip = (on: boolean, icon: string, label: string) => (
     <View
@@ -261,7 +245,6 @@ function SystemPreview({ isDefault, dock, login, little }: { isDefault: boolean;
         {chip(isDefault, "globe", "Default browser")}
         {chip(dock, "dock.rectangle", "In your Dock")}
         {chip(login, "power", "Opens at login")}
-        {chip(true, little ? "macwindow.on.rectangle" : "plus.square.on.square", little ? "Links in Little Ardia" : "Links in a new tab")}
       </View>
     </View>
   );
@@ -291,7 +274,7 @@ export function PinnedTabsStep() {
         <StepActions
           continueTitle={selected.length ? `Pin ${selected.length} ${selected.length === 1 ? "Tab" : "Tabs"}` : "Continue"}
           onContinue={pinSelected}
-          onSkip={() => useOnboarding.getState().skip("pins", [])}
+          onSkip={() => useOnboarding.getState().skip()}
         />
       }
       preview={<PinnedPreview selected={selected} />}
@@ -391,7 +374,7 @@ function PinnedPreview({ selected }: { selected: string[] }) {
 export function OutroStep() {
   const colors = useOnboardingColors();
   const picked = useOnboarding((s) => s.picked);
-  const lines = STEPS.flatMap((step: OnboardingStep) => picked[step] ?? []);
+  const lines = QUESTION_ORDER.flatMap((q) => picked[q] ?? []);
   return (
     <StepLayout
       title={"Welcome to your new\nhome on the internet"}

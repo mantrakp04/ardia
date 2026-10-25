@@ -9,6 +9,7 @@ import { afterFirstWindow } from "./afterFirstWindow";
 
 const DOC = "ardia-cli.json";
 const UPGRADE_DELAY_MS = 8000;
+const INDICATOR_HOLD_MS = 3000;
 
 type Saved = { binPath?: string | null; version?: string | null; error?: string | null; at?: number };
 
@@ -50,6 +51,28 @@ export const useCli = create<CliState>(() => ({
   binPath: saved.binPath ?? null,
   error: saved.error ?? null,
 }));
+
+export const useCliIndicator = create<{ shown: boolean }>(() => ({ shown: false }));
+
+let indicatorHide: ReturnType<typeof setTimeout> | null = null;
+
+function updateIndicator({ server }: CliState) {
+  const on = server?.state === "on";
+  const connected = on && (server.connections ?? 0) > 0;
+  if (connected || !on) {
+    if (indicatorHide) clearTimeout(indicatorHide);
+    indicatorHide = null;
+    if (useCliIndicator.getState().shown !== connected) useCliIndicator.setState({ shown: connected });
+    return;
+  }
+  if (!useCliIndicator.getState().shown || indicatorHide) return;
+  indicatorHide = setTimeout(() => {
+    indicatorHide = null;
+    useCliIndicator.setState({ shown: false });
+  }, INDICATOR_HOLD_MS);
+}
+
+useCli.subscribe(updateIndicator);
 
 let running: Promise<CliInstallResult> | null = null;
 
@@ -167,4 +190,4 @@ export function startCliControl() {
   afterFirstWindow(() => setTimeout(upgradeIfBehind, UPGRADE_DELAY_MS));
 }
 
-if (__DEV__) (globalThis as { acCli?: unknown }).acCli = { store: useCli, install: installCliInBackground, upgradeIfBehind };
+if (__DEV__) (globalThis as { acCli?: unknown }).acCli = { store: useCli, indicator: useCliIndicator, install: installCliInBackground, upgradeIfBehind };

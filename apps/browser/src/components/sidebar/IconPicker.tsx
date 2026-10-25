@@ -6,7 +6,7 @@ import { useLive } from "../../live/store";
 import { useBrowser } from "../../store/browser";
 import { setIcon } from "./actions";
 import { setSidebarUi, useSidebarUi } from "./state";
-import { SYMBOL_PREFIX } from "./TabIcon";
+import { NO_GROUP_ICON, NO_GROUP_ICON_INK, SYMBOL_PREFIX } from "./TabIcon";
 import { useSidebarTokens } from "./tokens";
 
 const EMOJI: [string, string][] = [
@@ -118,17 +118,43 @@ function PickerPanel({ picker, sidebarWidth }: { picker: Picker; sidebarWidth: n
             {items.length === 0 ? <Text style={{ padding: 8, fontSize: 12, color: theme.textTertiary }}>No matches</Text> : null}
           </View>
         </ScrollView>
-        {current ? (
-          <Pressable onPress={() => choose(null)}>
-            {({ pressed }) => (
-              <View style={{ height: 26, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: pressed ? tokens.pickerCellHover : theme.urlPill }}>
-                <Text style={{ fontSize: 12, color: theme.textPrimary }}>Reset Icon</Text>
-              </View>
-            )}
-          </Pressable>
+        {picker.kind === "group" || current ? (
+          <View style={{ flexDirection: "row", gap: 6 }}>
+            {picker.kind === "group" ? (
+              <FooterButton label="No Icon" selected={current === NO_GROUP_ICON} onPress={() => choose(NO_GROUP_ICON)}>
+                <Symbol name="square.stack.fill" size={11} weight="medium" color={theme.dark ? NO_GROUP_ICON_INK.dark : NO_GROUP_ICON_INK.light} style={{ width: 14, height: 14 }} />
+              </FooterButton>
+            ) : null}
+            {current ? <FooterButton label="Reset Icon" selected={false} onPress={() => choose(null)} /> : null}
+          </View>
         ) : null}
       </Surface>
     </>
+  );
+}
+
+function FooterButton({ label, selected, onPress, children }: { label: string; selected: boolean; onPress(): void; children?: React.ReactNode }) {
+  const theme = useTheme();
+  const tokens = useSidebarTokens();
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected }} style={{ flex: 1 }}>
+      {({ pressed }) => (
+        <View
+          style={{
+            height: 26,
+            borderRadius: 8,
+            flexDirection: "row",
+            gap: 5,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: pressed || selected ? tokens.pickerCellHover : theme.urlPill,
+          }}
+        >
+          {children}
+          <Text style={{ fontSize: 12, color: theme.textPrimary }}>{label}</Text>
+        </View>
+      )}
+    </Pressable>
   );
 }
 

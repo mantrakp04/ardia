@@ -31,6 +31,19 @@ function firstRegular(s: BrowserState, w: BrowserWindow, tab: Tab): number {
   return first >= 0 ? first : w.tabIds.length;
 }
 
+export function nextToActive(s: BrowserState, windowId: string, profileId: string | undefined): { openerId: string; index: number } | undefined {
+  if (s.settings.newTabPosition !== "nextToCurrent") return undefined;
+  const w = s.windows[windowId];
+  if (!w) return undefined;
+  const profile = !w.incognito && profileId && s.profiles[profileId] ? profileId : w.profileId;
+  const activeId = w.activeTabIds[profile];
+  const active = activeId ? s.tabs[activeId] : undefined;
+  if (!active || active.windowId !== w.id) return undefined;
+  if (!regular(s, active.id)) return { openerId: active.id, index: firstRegular(s, w, active) };
+  const panes = splitOf(s, active.id)?.tabIds ?? [active.id];
+  return { openerId: active.id, index: outsideSplit(s, w, Math.max(...panes.map((id) => w.tabIds.indexOf(id))) + 1) };
+}
+
 const listStart = (s: BrowserState, w: BrowserWindow, tab: Tab) =>
   s.settings.newTabPosition === "top" ? firstRegular(s, w, tab) : w.tabIds.length;
 

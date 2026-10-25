@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, View } from "react-native";
 import { hex, useTheme } from "../lib/theme";
 import { useBrowser } from "../store/browser";
+import { tabEngine } from "../store/engines";
 import { NEW_TAB_TOAST_FADE, NEW_TAB_TOAST_GAP, NEW_TAB_TOAST_HEIGHT, NEW_TAB_TOAST_WIDTH, newTabToasts, visibleNewTabToasts, type NewTabToast } from "../store/newTabToasts";
 import { usePages } from "./layout/pageState";
 import { newTabToastPrompt } from "./layout/newTabToastProtection";
@@ -31,6 +32,7 @@ function useReducedMotion() {
 
 export function NewTabCreatedToasts({ windowId, tabId, nativePage }: { windowId: string; tabId: string; nativePage: boolean }) {
   const profileId = useBrowser((s) => s.windows[windowId]?.profileId);
+  const engine = useBrowser((s) => tabEngine(s, tabId));
   const obscured = useBrowser((s) => !!s.peeks[windowId] || !!s.find[tabId]?.open || !!s.windowUi[windowId]?.panel.open);
   const prompt = usePages((s) => newTabToastPrompt(s.pages[tabId], s.popover[tabId]));
   const pageLayout = usePages((s) => s.pages[tabId]?.pageLayout);
@@ -40,7 +42,7 @@ export function NewTabCreatedToasts({ windowId, tabId, nativePage }: { windowId:
   const items = newTabToasts.useStore((s) => s.items);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const reduced = useReducedMotion();
-  const frame = newTabToastRect(pageLayout, size.width, size.height, nativePage);
+  const frame = newTabToastRect(pageLayout, size.width, size.height, nativePage, engine);
   const shown = visibleNewTabToasts(items, windowId, profileId, frame?.height ?? 0, obscured || prompt || sharing || casting || choosing, frame?.width ?? 0);
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill} onLayout={(e) => setSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}>

@@ -15,12 +15,8 @@ export function useScreen<K extends keyof Settings>(keys: readonly K[]) {
   const tabLayout = useBrowser((s) => tabLayoutOf(s, windowId));
   const base = { ...settings, tabLayout };
   const values = resolveDraft(keys, draft, preset, base);
-  const [focus, setFocus] = useState<PreviewId | null>(null);
-  return { values, base, mock: { ...base, ...values } as Settings, focus, setFocus };
+  return { values, base, mock: { ...base, ...values } as Settings };
 }
-
-export const pickTier = <K extends keyof Settings>(values: Pick<Settings, K>, base: Settings, keys: readonly K[], opened: boolean) =>
-  Object.fromEntries(keys.filter((k) => opened || !Object.is(values[k], base[k])).map((k) => [k, values[k]])) as Partial<Settings>;
 
 export function useAccent() {
   const windowId = useOnboarding((s) => s.windowId);

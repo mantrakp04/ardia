@@ -16,7 +16,7 @@ export type NewTabToast = {
 };
 
 type ToastState = { items: NewTabToast[] };
-type Owner = Pick<Tab, "id" | "windowId" | "profileId">;
+type Owner = Pick<Tab, "id" | "windowId" | "profileId" | "unloaded">;
 type Browser = { tabs: Record<string, Tab>; windows: Record<string, BrowserWindow>; activate(id: string): void };
 type Timing = { now(): number; set(run: () => void, ms: number): ReturnType<typeof setTimeout>; clear(timer: ReturnType<typeof setTimeout>): void };
 
@@ -28,7 +28,7 @@ export function visibleNewTabToasts(items: NewTabToast[], windowId: string, prof
   return obscured || width < NEW_TAB_TOAST_WIDTH + 34 ? [] : items.filter((t) => t.windowId === windowId && t.profileId === profileId).slice(0, newTabToastCapacity(height));
 }
 
-export function createNewTabToasts(timing: Timing = { now: Date.now, set: setTimeout, clear: clearTimeout }) {
+export function createNewTabToasts(timing: Timing = { now: () => Date.now(), set: (run, ms) => globalThis.setTimeout(run, ms), clear: (timer) => globalThis.clearTimeout(timer) }) {
   const useStore = create<ToastState>()(() => ({ items: [] }));
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
   const remove = (tabId: string) => {
@@ -38,7 +38,7 @@ export function createNewTabToasts(timing: Timing = { now: Date.now, set: setTim
     useStore.setState((s) => ({ items: s.items.filter((t) => t.tabId !== tabId) }));
   };
   const add = (tab: Owner | undefined) => {
-    if (!tab || useStore.getState().items.some((t) => t.tabId === tab.id)) return;
+    if (!tab || tab.unloaded || useStore.getState().items.some((t) => t.tabId === tab.id)) return;
     useStore.setState((s) => ({ items: [...s.items, { tabId: tab.id, windowId: tab.windowId, profileId: tab.profileId, appearedAt: null, leaving: false }] }));
   };
   const present = (tabId: string) => {

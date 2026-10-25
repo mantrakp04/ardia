@@ -10,6 +10,7 @@ import { useWindowId, useWindowProfileId } from "../store/hooks";
 import { activeTabId, viewTabIds } from "../store/model";
 import { defaultSearchEngine } from "../store/settings";
 import { runBarAction } from "./omnibox/actions";
+import { runBarExtension } from "./omnibox/extensions";
 import { createBangSubmitter, mayBeBang } from "./omnibox/bangs";
 import { traceOmnibox, useOmniboxDriver } from "./omnibox/devDriver";
 import { claimFocusTag, commandBarFocus, heroBarFocus } from "../lib/focusClaims";
@@ -223,6 +224,9 @@ export function Omnibox({
       case "action":
         dismiss();
         return runBarAction(s.id, windowId);
+      case "extension":
+        dismiss();
+        return runBarExtension(s, windowId);
     }
   };
 

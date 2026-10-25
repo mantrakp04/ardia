@@ -63,6 +63,7 @@ export const cellKey = (cell: string) => {
 export type Ghost = { item: Item; count: number; width: number; height: number; position: Animated.ValueXY; landing?: boolean };
 
 const ROW_GAP = layout.rowGap;
+const RESTING_TAIL = { marginTop: -ROW_GAP };
 export const PIN_SLOT = layout.pinnedHeight + TILE_GAP;
 const EDGE = 28;
 const FOLDER_HOLD_MS = 400;
@@ -762,6 +763,8 @@ export function useDragItem(key: string, spec: ItemSpec, selection: () => string
             : {}),
         ...(clipped && !source && !landing ? { marginTop: -ROW_GAP, paddingTop: ROW_GAP, overflow: "hidden" as const } : {}),
       }
-    : {};
+    : spec.kind === "tail"
+      ? RESTING_TAIL
+      : {};
   return { wrapper: { ref, style }, handle: responder.panHandlers, headerRef, dragging: source, gap: item?.gap };
 }

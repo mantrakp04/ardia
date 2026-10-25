@@ -20,3 +20,9 @@ export function webviewRef(tabId: string) {
     }
   };
 }
+
+const issued = new Map<string, number>();
+
+export const noteIssued = (tabId: string, seq: number) => void issued.set(tabId, seq);
+
+export const issuedSeq = (tabId: string) => issued.get(tabId);
