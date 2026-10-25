@@ -748,6 +748,25 @@
     }
   } catch (e) {}
 
+  try {
+    const Wheel = window.WheelEvent;
+    const prevent = Event.prototype.preventDefault;
+    if (Wheel && typeof prevent === "function") {
+      let pinchSent = false;
+      const wrapped = {
+        preventDefault() {
+          const result = apply(prevent, this, arguments);
+          if (!pinchSent && this instanceof Wheel && this.ctrlKey && this.isTrusted && this.defaultPrevented) {
+            pinchSent = true;
+            send("pinchHandled", {});
+          }
+          return result;
+        },
+      }.preventDefault;
+      Object.defineProperty(Wheel.prototype, "preventDefault", { configurable: true, writable: true, value: wrapped });
+    }
+  } catch (e) {}
+
   handlers.config = (config) => {
     handlers.peekConfig({ modifier: config.peek, split: config.split, trace: config.peekTrace });
     blockAutoplay = !!config.blockAutoplay;

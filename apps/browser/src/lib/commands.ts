@@ -1,3 +1,4 @@
+import { toggleTabOverview } from "../components/tabOverview/state";
 import {
   closeWindow as closeNativeWindow,
   copyText,
@@ -147,6 +148,8 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
   if (runSidebarCommand(command, arg, windowId)) return;
 
   switch (command) {
+    case "tabOverview":
+      return toggleTabOverview(windowId);
     case "newTab":
       if (toggleNewTabBar(windowId)) return;
       return void s.newTab(windowId, { newTabCommand: true });
