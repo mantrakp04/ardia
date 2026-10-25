@@ -20,10 +20,10 @@ export type SwipeStep = {
   delayMs?: number;
 };
 
-export type NativePagerConfig = { key: string; selected: number; count: number; width?: number; ack?: number; order?: string };
+export type NativePagerConfig = { key: string; selected: number; count: number; width?: number; ack?: number; order?: string; leading?: boolean };
 
 export type PagerStateEvent = {
-  phase: "began" | "selected" | "settled";
+  phase: "began" | "selected" | "settled" | "leading";
   sequence: number;
   position: number;
   selected: number;

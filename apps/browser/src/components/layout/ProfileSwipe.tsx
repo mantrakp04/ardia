@@ -45,10 +45,10 @@ export function ProfileSwipeArea({ surface, style, pageWidth }: { surface: "side
       received.push({ at: performance.now(), surface, profile: useBrowser.getState().windows[windowId]?.profileId, ...event });
     }
     const e = pageWidth ? { ...event, width: pageWidth } : event;
-    const pullsLibrary = !previous && surface === "sidebar" && libraryReachable;
+    const pullsLibrary = !nativePager && !previous && surface === "sidebar" && libraryReachable;
     if (pullsLibrary && (e.phase === "began" || e.phase === "changed")) return pullLibrary(windowId, e.direction === "back" ? e.distance / (Math.max(e.width, 1) * LIBRARY_PULL_SPAN) : 0);
     if (pullsLibrary && (e.phase === "ended" || e.phase === "cancelled")) return endLibraryPull(windowId, e.phase === "ended" ? undefined : false);
-    if (e.phase === "swipe" && e.direction === "back" && pullsLibrary) return openLibrary(windowId, "spaces");
+    if (e.phase === "swipe" && e.direction === "back" && !previous && libraryReachable) return openLibrary(windowId, "spaces");
     if (e.phase === "swipe") return pager.step(e.direction === "back" ? -1 : 1);
     if (e.phase === "wheel") pager.wheel(e);
   };
@@ -68,8 +68,9 @@ export function ProfileSwipeArea({ surface, style, pageWidth }: { surface: "side
     () =>
       nativePager
         ? (event: Parameters<typeof pager.onNativeState>[0]) => {
+            if (event.phase === "leading") return endPagerPull(windowId, event.phase, () => pager.returnHome());
             pager.onNativeState(event);
-            if (pullsFromPager) endPagerPull(windowId, event.phase);
+            if (pullsFromPager) endPagerPull(windowId, event.phase, () => pager.returnHome());
           }
         : undefined,
     [nativePager, pager, pullsFromPager, windowId],

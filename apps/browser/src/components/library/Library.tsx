@@ -21,6 +21,7 @@ import { Favicon, IconButton, useHover } from "../primitives";
 import { libraryReveal, useLibraryPull } from "./pull";
 import { archivedFor, byDay, cleanedIn, closeLibrary, LIBRARY_FOCUS, openLibrary, useLibrary, type LibrarySection } from "./state";
 
+const SOLID_AT = 0.3;
 const RAIL = 112;
 const SHEET_INSET = 14;
 const SHEET_TOP = 40;
@@ -106,7 +107,7 @@ function Library({ windowId, section, appear }: { windowId: string; section: Lib
         overflow: "hidden",
         borderWidth: StyleSheet.hairlineWidth * 2,
         borderColor: theme.panelBorder,
-        opacity: appear,
+        opacity: appear.interpolate({ inputRange: [0, SOLID_AT, 1], outputRange: [0, 1, 1], extrapolate: "clamp" }),
         transform: [
           { translateX: appear.interpolate({ inputRange: [0, 1], outputRange: [-220, 0] }) },
           { scale: appear.interpolate({ inputRange: [0, 1], outputRange: [0.985, 1] }) },

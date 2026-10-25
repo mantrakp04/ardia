@@ -116,7 +116,8 @@ final class SwipeArea: ExpoView, ACSwipeTarget {
       selected: Int(number(value["selected"]) ?? 0),
       count: Int(number(value["count"]) ?? 1),
       ack: Int(number(value["ack"]) ?? 0),
-      order: value["order"] as? String
+      order: value["order"] as? String,
+      leading: value["leading"] as? Bool ?? false
     )
   }
 }
@@ -209,6 +210,7 @@ final class ACPager {
   private var selectionSequence = 0
   private var propSelected = 0
   private var propAck = 0
+  private var leading = false
   private var drag = Drag()
   private var history: [(time: TimeInterval, position: Double)] = []
   private var spring: Spring?
@@ -241,7 +243,8 @@ final class ACPager {
     ACPager.lock.unlock()
   }
 
-  func configure(selected newSelected: Int, count newCount: Int, ack: Int, order newOrder: String?) {
+  func configure(selected newSelected: Int, count newCount: Int, ack: Int, order newOrder: String?, leading newLeading: Bool = false) {
+    leading = newLeading
     let count = max(1, newCount)
     propSelected = min(max(newSelected, 0), count - 1)
     propAck = max(propAck, ack)
@@ -332,7 +335,7 @@ final class ACPager {
     stopSpring()
     let home = selected
     let x = position
-    let lo = max(0, min(home - 1, Int(x.rounded(.down))))
+    let lo = max(floor(from: home), min(home - 1, Int(x.rounded(.down))))
     let hi = min(count - 1, max(home + 1, Int(x.rounded(.up))))
     drag = Drag(start: x, lo: lo, hi: hi, home: home, detent: min(max(Int(x.rounded()), lo), hi), area: area)
     history = []
@@ -382,9 +385,13 @@ final class ACPager {
     if !cancelled {
       let flick = abs(v * width) >= flickVelocity
       target = !flick ? Int(position.rounded()) : v > 0 ? Int(position.rounded(.down)) + 1 : Int(position.rounded(.up)) - 1
-      target = max(0, home - 1, min(count - 1, home + 1, target))
+      target = max(floor(from: home), home - 1, min(count - 1, home + 1, target))
     }
     settle(to: target, velocity: towards(target, v), from: area)
+  }
+
+  private func floor(from home: Int) -> Int {
+    leading && home == 0 ? -1 : 0
   }
 
   private func towards(_ target: Int, _ v: Double) -> Double {
@@ -432,7 +439,7 @@ final class ACPager {
 
   private func settle(to target: Int, velocity v: Double, from origin: SwipeArea? = nil) {
     announceActivity()
-    if target != selected {
+    if target != selected, target >= 0 {
       selected = target
       sequence = ACPager.next()
       selectionSequence = sequence
@@ -485,7 +492,7 @@ final class ACPager {
       sequence = ACPager.next()
       publish()
       emitPosition()
-      emitState("settled")
+      emitState(s.target < 0 ? "leading" : "settled")
       reconcile()
       return
     }
