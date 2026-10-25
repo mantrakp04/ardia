@@ -376,6 +376,10 @@ const TabPane = memo(function TabPane({
   const inSomeSplit = useStoreWhile(useBrowser, !!warm, (s) => !!warm && !!splitOf(s, tabId));
   const inSplit = visible ? inActiveSplit : inSomeSplit;
   const frame = rect ?? warm ?? { x: 0, y: 0, width: fullWidth, height: fullHeight };
+  const borderless = useBrowser((s) => {
+    const w = s.windows[windowId];
+    return s.settings.borderlessWhenSidebarHidden && !!w && !w.sidebarOpen && (w.tabLayout ?? s.settings.tabLayout) === "sidebar";
+  });
   useEffect(() => {
     if (visible && isNewTab && !mounted) patchPage(tabId, { wasNewTab: true });
   }, [visible, isNewTab, mounted]);
@@ -403,7 +407,7 @@ const TabPane = memo(function TabPane({
       style={{
         position: "absolute",
         ...(fills ? { left: 0, top: 0, right: 0, bottom: 0 } : { left: frame.x, top: frame.y, width: frame.width, height: frame.height }),
-        borderRadius: fullscreen ? 0 : layout.cardRadius,
+        borderRadius: fullscreen || borderless ? 0 : layout.cardRadius,
         overflow: "hidden",
         opacity: covered ? 0 : 1,
         backgroundColor: visible && !fullscreen ? theme.card : undefined,

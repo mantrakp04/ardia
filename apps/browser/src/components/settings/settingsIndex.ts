@@ -223,6 +223,11 @@ const ROWS: Record<SettingsPane, Section[]> = {
       section: "Address Bar",
       rows: {
         addressBar: { title: "Address Bar", description: "In the toolbar or in the sidebar.", keywords: ["url bar", "location bar", "toolbar"] },
+        borderlessWhenSidebarHidden: {
+          title: "Borderless when sidebar is hidden",
+          description: "While the sidebar is hidden, the page fills the window edge to edge, with no border around it.",
+          keywords: ["edge to edge", "full bleed", "border", "margin", "inset", "rounded corners", "hide sidebar"],
+        },
         commandBarPlacement: {
           title: "⌘L opens the command bar",
           description: "In the centre, ⌘L and a click on the address show it over the middle of the page, as in Arc.",

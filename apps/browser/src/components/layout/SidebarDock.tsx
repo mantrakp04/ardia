@@ -82,11 +82,13 @@ export function DockedLayout({
   fullscreen,
   topTabs,
   inset,
+  borderless,
   children,
 }: {
   fullscreen: boolean;
   topTabs: boolean;
   inset: Inset;
+  borderless: boolean;
   children: ReactNode;
 }) {
   const windowId = useWindowId();
@@ -108,10 +110,11 @@ export function DockedLayout({
     () =>
       dock.interpolate({
         inputRange: [0, 1],
-        outputRange: [inset.left, width],
+        outputRange: [borderless ? 0 : inset.left, width],
       }),
-    [dock, width, inset.left],
+    [dock, width, inset.left, borderless],
   );
+  const edge = (value: number) => (borderless ? dock.interpolate({ inputRange: [0, 1], outputRange: [0, value] }) : value);
   return (
     <>
       <Animated.View
@@ -121,9 +124,9 @@ export function DockedLayout({
             : {
                 flex: 1,
                 flexDirection: "row",
-                paddingTop: inset.top,
-                paddingRight: inset.right,
-                paddingBottom: inset.bottom,
+                paddingTop: edge(inset.top),
+                paddingRight: edge(inset.right),
+                paddingBottom: edge(inset.bottom),
                 paddingLeft: topTabs ? inset.left : left,
               }
         }

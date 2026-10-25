@@ -5,7 +5,7 @@ import { useBrowser } from "../../../store/browser";
 import { tabLayoutOf } from "../../../store/model";
 import type { Settings } from "../../../store/settings";
 import { useHover } from "../../primitives";
-import { Group, PopUp, Row, SectionHeader, useFormColors } from "../controls";
+import { Group, PopUp, Row, SectionHeader, Toggle, useFormColors } from "../controls";
 import { APP_ICON_SIZE, appIconChoices } from "../paneData";
 import { store, useResource } from "../resources";
 
@@ -38,6 +38,7 @@ export function AppearancePane() {
 function AddressBarPicker() {
   const addressBar = useBrowser((s) => s.settings.addressBar);
   const placement = useBrowser((s) => s.settings.commandBarPlacement);
+  const borderless = useBrowser((s) => s.settings.borderlessWhenSidebarHidden);
   const topTabs = useBrowser((s) => tabLayoutOf(s) === "top");
   const choose = (value: Settings["addressBar"]) => useBrowser.getState().updateSettings({ addressBar: value });
   return (
@@ -55,6 +56,11 @@ function AddressBarPicker() {
         <AddressBarChoice value="sidebar" title="In the sidebar" selected={addressBar === "sidebar"} onPress={() => choose("sidebar")} />
       </View>
       <Group style={{ marginTop: 14 }}>
+        {!topTabs && (
+          <Row anchor="appearance.borderlessWhenSidebarHidden">
+            <Toggle value={borderless} onChange={(v) => useBrowser.getState().updateSettings({ borderlessWhenSidebarHidden: v })} />
+          </Row>
+        )}
         <Row anchor="appearance.commandBarPlacement">
           <PopUp
             value={placement}

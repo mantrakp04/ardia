@@ -31,6 +31,7 @@ export const SYNCED_SETTINGS = [
   "tabLayout",
   "hideToolbarWhileScrolling",
   "showSidebarButton",
+  "borderlessWhenSidebarHidden",
   "showClearButton",
   "balancedTopApps",
   "pinnedTabIconRing",

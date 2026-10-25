@@ -52,6 +52,7 @@ function BrowserWindow() {
   const topTabs = useTabLayout() === "top";
   const showStrip = useBrowser((s) => topTabs && !!s.windows[windowId]?.sidebarOpen);
   const fullscreen = !!useFullscreenTab(windowId);
+  const borderless = useBrowser((s) => s.settings.borderlessWhenSidebarHidden) && !topTabs;
   const [width, setWidth] = useState(0);
   const card = (
     <>
@@ -68,6 +69,7 @@ function BrowserWindow() {
       <DockedLayout
         fullscreen={fullscreen}
         topTabs={topTabs}
+        borderless={borderless}
         inset={
           showStrip
             ? { top: TOP_STRIP_HEIGHT, right: TOP_CARD_INSET, bottom: TOP_CARD_INSET, left: TOP_CARD_INSET }
