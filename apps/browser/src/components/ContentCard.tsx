@@ -69,6 +69,7 @@ import { isSmallWindow } from "../store/small";
 import { closeLittleArdiaOnEscape } from "./littleArdia/actions";
 import { PeekOverlay } from "./peek/PeekOverlay";
 import { closePeekOnEscape, dismissPeek, startPeeks } from "./peek/actions";
+import { closeThemePanelIn } from "./theme/panelState";
 
 export function ContentCard() {
   const windowId = useWindowId();
@@ -725,7 +726,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
         if (command === "search") searchSelection(tabId, text, modifiers);
         else if (command === "copyLinkToHighlight") void copyLinkToSelection(tabId);
         else if (command === "escape" && usePages.getState().popover[tabId]) setPopover(tabId, null);
-        else if (command === "escape" && !closeFolderPanelIn(tab()?.windowId) && !closePeekOnEscape(tabId)) closeLittleArdiaOnEscape(tabId);
+        else if (command === "escape" && !closeThemePanelIn(tab()?.windowId) && !closeFolderPanelIn(tab()?.windowId) && !closePeekOnEscape(tabId)) closeLittleArdiaOnEscape(tabId);
       }}
       onPageMessage={(kind, data) => {
         if (kind === "selection") setPageSelection(tabId, data as PageSelection | null);

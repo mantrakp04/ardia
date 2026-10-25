@@ -1,16 +1,19 @@
 import { OutsidePressArea, Surface, Symbol, VisualEffect } from "@ardia/shell";
 import { useEffect, useRef, useState } from "react";
-import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { closeThemePanel, useThemePanel } from "./panelState";
 import { layout, useTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
 import { useWindowId } from "../../store/hooks";
 import { ThemeSection } from "../settings/ThemeEditor";
 
-export { closeThemePanel, openThemePanel, toggleThemePanel, useThemePanel } from "./panelState";
+export { closeThemePanel, closeThemePanelIn, openThemePanel, toggleThemePanel, useThemePanel } from "./panelState";
 
 const WIDTH = 580;
+const MIN_WIDTH = 360;
+const EDGE = 14;
 const RADIUS = 18;
+const ESCAPE = [{ key: "Escape" }];
 
 export function ThemePanelHost() {
   const windowId = useWindowId();
@@ -38,16 +41,26 @@ function ThemePanel({ windowId, profileId, appear }: { windowId: string; profile
   }, [shownProfile, profileId, windowId]);
   const theme = useTheme();
   const name = useBrowser((s) => s.profiles[profileId]?.name ?? "");
-  const sidebarOpen = useBrowser((s) => !!s.windows[windowId]?.sidebarOpen);
+  const sidebarShown = useBrowser((s) => {
+    const w = s.windows[windowId];
+    return !!w?.sidebarOpen && (w.tabLayout ?? s.settings.tabLayout) !== "top";
+  });
   const sidebarWidth = useBrowser((s) => s.settings.sidebarWidth ?? layout.sidebarWidth);
+  const screen = useWindowDimensions();
+  const left = (sidebarShown ? sidebarWidth : 0) + EDGE;
+  const width = Math.max(MIN_WIDTH, Math.min(WIDTH, screen.width - left - EDGE));
+  const keys = useRef<View>(null);
+  useEffect(() => {
+    keys.current?.focus();
+  }, []);
   const close = () => closeThemePanel(windowId);
   return (
     <Animated.View
       style={{
         position: "absolute",
-        left: (sidebarOpen ? sidebarWidth : 0) + 14,
+        left,
         top: 52,
-        width: WIDTH,
+        width,
         maxHeight: "86%",
         opacity: appear,
         transform: [
@@ -73,7 +86,14 @@ function ThemePanel({ windowId, profileId, appear }: { windowId: string; profile
             { borderRadius: RADIUS, borderWidth: 0.5, borderColor: theme.panelBorder, backgroundColor: theme.dark ? "#242426" : "#FFFFFF" },
           ]}
         />
-        <View style={{ borderRadius: RADIUS, overflow: "hidden" }}>
+        <View
+          ref={keys}
+          focusable
+          enableFocusRing={false}
+          keyDownEvents={ESCAPE}
+          onKeyDown={(e) => e.nativeEvent.key === "Escape" && close()}
+          style={{ borderRadius: RADIUS, overflow: "hidden" }}
+        >
           <View style={{ height: 44, flexDirection: "row", alignItems: "center", paddingHorizontal: 16, gap: 8 }}>
             <Symbol name="paintpalette" size={14} color={theme.textSecondary} style={{ width: 18, height: 18 }} />
             <Text numberOfLines={1} style={{ flex: 1, fontSize: 14, fontWeight: "700", color: theme.textPrimary }}>
@@ -84,7 +104,7 @@ function ThemePanel({ windowId, profileId, appear }: { windowId: string; profile
             </Pressable>
           </View>
           <ScrollView style={{ maxHeight: 620 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}>
-            <ThemeSection profileId={profileId} openEditor />
+            <ThemeSection key={profileId} profileId={profileId} openEditor />
           </ScrollView>
         </View>
       </OutsidePressArea>

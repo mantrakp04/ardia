@@ -5,11 +5,11 @@ type ThemePanelState = { open: Record<string, string> };
 
 export const useThemePanel = create<ThemePanelState>()(() => ({ open: {} }));
 
-export function openThemePanel(windowId: string, profileId?: string) {
+export function openThemePanel(windowId: string) {
   const s = useBrowser.getState();
   const w = s.windows[windowId];
-  const target = profileId ?? w?.profileId;
-  if (!w || w.incognito || !target || !s.profiles[target]) return;
+  const target = w?.profileId;
+  if (!w || w.incognito || w.kind === "small" || !target || !s.profiles[target]) return;
   useThemePanel.setState((s) => ({ open: { ...s.open, [windowId]: target } }));
 }
 
@@ -18,6 +18,12 @@ export function closeThemePanel(windowId: string) {
     const { [windowId]: _, ...open } = s.open;
     return { open };
   });
+}
+
+export function closeThemePanelIn(windowId: string | undefined): boolean {
+  if (!windowId || !useThemePanel.getState().open[windowId]) return false;
+  closeThemePanel(windowId);
+  return true;
 }
 
 export function toggleThemePanel(windowId: string) {

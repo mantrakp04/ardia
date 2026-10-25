@@ -18,7 +18,7 @@ import { SIDEBAR_PLAYER_HEIGHT, SidebarPlayer, useSidebarPlayerTab } from "./med
 import { HoverSlot } from "./HoverSlot";
 import { IconButton, useHover } from "./primitives";
 import { DownloadsButton } from "./Downloads";
-import { toggleThemePanel, useThemePanel } from "./theme/ThemePanel";
+import { toggleThemePanel, useThemePanel } from "./theme/panelState";
 import { PROFILE_INDICATOR_X, ProfileIndicator } from "./ProfileIndicator";
 import { usePageStyle, usePagerPages } from "./layout/profilePager";
 import { PROFILE_DOTS_HEIGHT, ProfileDots, useProfileDotsShown } from "./profiles/ProfileDots";
@@ -139,7 +139,7 @@ export function Sidebar({ width }: { width: number }) {
             <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: footer }}>
               {dots ? (
                 <View style={{ position: "absolute", left: FOOTER_SIDE, right: FOOTER_SIDE, top: 0 }}>
-                  <ProfileDots windowId={windowId} />
+                  <ProfileDots windowId={windowId} maxWidth={width - 2 * FOOTER_SIDE} />
                 </View>
               ) : null}
               {footerDownloads ? (
@@ -540,7 +540,12 @@ function ThemeButton({ windowId }: { windowId: string }) {
   const box = SIDEBAR_FOOTER_DOWNLOADS.size;
   return (
     <View tooltip="Edit Space Theme" {...hoverProps}>
-      <Pressable onPress={() => toggleThemePanel(windowId)}>
+      <Pressable
+        onPress={() => toggleThemePanel(windowId)}
+        accessibilityRole="button"
+        accessibilityLabel="Edit Space Theme"
+        accessibilityState={{ expanded: open }}
+      >
         {({ pressed }) => (
           <View
             style={{

@@ -8,9 +8,9 @@ import { useIsIncognito } from "../../store/hooks";
 import { usePagerPages, type PagerPage } from "../layout/profilePager";
 import { useHover } from "../primitives";
 import { TooltipAbove } from "../TooltipAbove";
+import { profileDotCell } from "./dotCell";
 
 export const PROFILE_DOTS_HEIGHT = 41;
-const CELL = 12;
 const DOT = 6;
 const BAND = 28;
 const SELECTED = 0.85;
@@ -24,21 +24,22 @@ export function useProfileDotsShown() {
   return !incognito && count > 1;
 }
 
-export function ProfileDots({ windowId }: { windowId: string }) {
+export function ProfileDots({ windowId, maxWidth }: { windowId: string; maxWidth?: number }) {
   const ids = useBrowser(useShallow((s) => s.profileOrder));
   const { pages, pager } = usePagerPages(windowId);
+  const cell = profileDotCell(ids.length, maxWidth);
   return (
     <View style={{ height: PROFILE_DOTS_HEIGHT, alignItems: "center" }}>
       <View style={{ marginTop: (PROFILE_DOTS_HEIGHT - 3 - BAND) / 2, height: BAND, flexDirection: "row" }}>
         {ids.map((id) => (
-          <Dot key={id} id={id} windowId={windowId} page={pages.find((p) => p.id === id)} pos={pager.pos} />
+          <Dot key={id} id={id} windowId={windowId} page={pages.find((p) => p.id === id)} pos={pager.pos} cell={cell} />
         ))}
       </View>
     </View>
   );
 }
 
-function Dot({ id, windowId, page, pos }: { id: string; windowId: string; page: PagerPage | undefined; pos: Animated.Value }) {
+function Dot({ id, windowId, page, pos, cell }: { id: string; windowId: string; page: PagerPage | undefined; pos: Animated.Value; cell: number }) {
   const theme = useTheme();
   const name = useBrowser((s) => s.profiles[id]?.name ?? "");
   const { hovered, hoverProps } = useHover();
@@ -50,7 +51,7 @@ function Dot({ id, windowId, page, pos }: { id: string; windowId: string; page: 
     : rest;
   return (
     <View {...hoverProps}>
-      <TooltipAbove text={name} active={hovered && !pressed} centerX={CELL / 2} bottom={BAND / 2 + DOT_CENTER_TO_TOOLTIP} />
+      <TooltipAbove text={name} active={hovered && !pressed} centerX={cell / 2} bottom={BAND / 2 + DOT_CENTER_TO_TOOLTIP} />
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={name}
@@ -59,7 +60,7 @@ function Dot({ id, windowId, page, pos }: { id: string; windowId: string; page: 
           switchProfile(windowId, id, true);
         }}
       >
-        <View style={{ width: CELL, height: BAND, alignItems: "center", justifyContent: "center" }}>
+        <View style={{ width: cell, height: BAND, alignItems: "center", justifyContent: "center" }}>
           <Animated.View style={{ width: DOT, height: DOT, borderRadius: DOT / 2, backgroundColor: theme.dark ? "#FFFFFF" : "#000000", opacity }} />
         </View>
       </Pressable>

@@ -1,4 +1,4 @@
-import { toggleThemePanel } from "../components/theme/ThemePanel";
+import { toggleThemePanel } from "../components/theme/panelState";
 import {
   closeWindow as closeNativeWindow,
   copyText,

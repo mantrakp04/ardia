@@ -579,6 +579,7 @@ function HexField({ hex, onSubmit }: { hex: string; onSubmit: (color: NonNullabl
   const ui = useTheme();
   const colors = useFormColors();
   const [text, setText] = useState<string | null>(null);
+  useEffect(() => setText(null), [hex]);
   const bad = text !== null && !parseHex(text);
   const commit = () => {
     const color = text === null ? null : parseHex(text);
