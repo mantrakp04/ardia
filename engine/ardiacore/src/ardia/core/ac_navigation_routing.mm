@@ -34,6 +34,7 @@
 #include "content/public/browser/web_contents_user_data.h"
 #include "content/public/common/referrer_type_converters.h"
 #include "net/base/schemeful_site.h"
+#include "third_party/blink/public/common/navigation/navigation_policy.h"
 #include "ui/base/page_transition_types.h"
 #include "url/gurl.h"
 #include "url/origin.h"
@@ -646,12 +647,21 @@ bool RouteOpenURL(WindowHost* host,
                   content::WebContents* source,
                   const content::OpenURLParams& params,
                   base::OnceCallback<void(content::NavigationHandle&)>* navigation_handle_callback) {
+  const bool user_activated =
+      params.user_gesture && !params.download_policy.IsType(blink::NavigationDownloadType::kNoGesture);
   if (!host || !source || !params.is_renderer_initiated || !params.url.SchemeIsHTTPOrHTTPS() ||
       params.is_form_submission || params.post_data || !RoutableDisposition(params.disposition) ||
       ui::PageTransitionCoreTypeIs(params.transition, ui::PAGE_TRANSITION_RELOAD) ||
       (params.transition & ui::PAGE_TRANSITION_FORWARD_BACK) ||
-      (params.disposition != WindowOpenDisposition::CURRENT_TAB && !params.user_gesture)) {
+      (params.disposition != WindowOpenDisposition::CURRENT_TAB && !user_activated)) {
     return false;
+  }
+  if (params.disposition == WindowOpenDisposition::CURRENT_TAB && !params.frame_tree_node_id) {
+    content::RenderFrameHost* source_frame =
+        content::RenderFrameHost::FromID(params.source_render_process_id, params.source_render_frame_id);
+    if (source_frame && source_frame != source->GetPrimaryMainFrame()) {
+      return true;
+    }
   }
   if (params.disposition == WindowOpenDisposition::CURRENT_TAB &&
       (params.should_replace_current_entry ||
@@ -668,13 +678,13 @@ bool RouteOpenURL(WindowHost* host,
     return true;
   }
   if (decision->action == LinkAction::kNoMatch || decision->action == LinkAction::kSame) {
-    if (params.disposition == WindowOpenDisposition::CURRENT_TAB && params.user_gesture && navigation_handle_callback &&
+    if (params.disposition == WindowOpenDisposition::CURRENT_TAB && user_activated && navigation_handle_callback &&
         !Profile::FromBrowserContext(source->GetBrowserContext())->IsOffTheRecord() && !owner->sidebar.empty()) {
       WatchRedirects(source, std::move(*owner), params, navigation_handle_callback);
     }
     return false;
   }
-  if (!params.user_gesture) {
+  if (!user_activated) {
     content::RenderFrameHost* document = source->GetPrimaryMainFrame();
     if (RoutedWithoutGesture::GetForCurrentDocument(document)) {
       return false;

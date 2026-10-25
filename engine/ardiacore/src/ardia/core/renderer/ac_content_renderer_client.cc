@@ -456,9 +456,12 @@ class ACRenderThreadObserver : public content::RenderThreadObserver,
 
 namespace {
 
+ACContentRendererClient* g_renderer_client = nullptr;
+
 bool OpensNavigationInBrowser(content::RenderFrame* frame,
                               const blink::WebNavigationInfo& info) {
   if (!frame || !frame->GetWebFrame()->IsOutermostMainFrame() ||
+      frame->GetWebFrame()->GetDocument().IsPrerendering() ||
       process_state::IsIncognitoProcess() ||
       info.navigation_policy != blink::kWebNavigationPolicyCurrentTab ||
       info.url_request.IsFormSubmission() || !info.form.IsNull()) {
@@ -475,12 +478,15 @@ bool OpensNavigationInBrowser(content::RenderFrame* frame,
   const GURL url = info.url_request.Url();
   return url.is_valid() && url.SchemeIsHTTPOrHTTPS() &&
          info.url_request.HttpMethod().Utf8() == "GET" &&
-         info.url_request.HttpBody().IsNull();
+         info.url_request.HttpBody().IsNull() &&
+         (info.has_transient_user_activation ||
+          !g_renderer_client->AllowPopup());
 }
 
 }
 
 ACContentRendererClient::ACContentRendererClient() {
+  g_renderer_client = this;
   g_ardia_open_navigation_in_browser = &OpensNavigationInBrowser;
 }
 
