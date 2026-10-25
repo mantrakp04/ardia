@@ -1,13 +1,15 @@
 import { appUrlOrigin, toAppUrl } from "./appUrls.ts";
 import { cleanUrl } from "./cleanUrl.ts";
-import { displayHost } from "./idn.ts";
-import { PSL_TLDS } from "./tlds.ts";
+import { displayHost, punycodeEncode } from "./idn.ts";
+import { PSL_ICANN_RULES, PSL_PRIVATE_RULES, PSL_TLDS } from "./publicSuffixes.ts";
 
 const SEARCH_URL = "https://www.google.com/search?q=";
 
 export type ParsedUrl = { scheme: string; host: string; port: string; path: string; query: string; hash: string };
 
-const URL_PARTS = /^([a-z][a-z0-9+.-]*):\/\/(?:[^@/?#]*@)?(\[[^\]]*\]|[^:/?#]*)(?::(\d+))?([^?#]*)(\?[^#]*)?(#.*)?$/i;
+const URL_PARTS = /^([a-z][a-z0-9+.-]*):\/\/(?:[^/?#\\]*@)?(\[[^\]]*\]|[^:/?#]*)(?::(\d+))?([^?#]*)(\?[^#]*)?(#.*)?$/i;
+const SCHEME_AND_USERINFO = /^[a-z][a-z0-9+.-]*:\/\/(?:[^/?#\\]*@)?/i;
+const DEFAULT_PORTS: Record<string, string> = { http: "80", https: "443", ws: "80", wss: "443", ftp: "21" };
 
 function parseUrl(url: string): ParsedUrl | null {
   const m = URL_PARTS.exec(url.trim());
@@ -47,7 +49,7 @@ const KNOWN_TLDS = new Set(
   ).split(" "),
 );
 let registries: Set<string> | undefined;
-const knownTld = (tld: string) => KNOWN_TLDS.has(tld) || (registries ??= new Set(PSL_TLDS.split(/\s+/))).has(tld);
+const knownTld = (tld: string) => KNOWN_TLDS.has(tld) || (registries ??= new Set(PSL_TLDS)).has(tld);
 
 function isLocalHost(host: string): boolean {
   return (
@@ -115,13 +117,46 @@ export function resolveInput(raw: string, search = SEARCH_URL): string {
   return fixupUrl(input) ?? searchUrlFor(search, input);
 }
 
+const JAVASCRIPT_SCHEMES = /^(?:[\s\u0000-\u001f\u007f-\u009f]*javascript:)+[\s\u0000-\u001f\u007f-\u009f]*/i;
+
+export function stripJavascriptSchemes(text: string): string {
+  const schemes = JAVASCRIPT_SCHEMES.exec(text);
+  return schemes ? text.slice(schemes[0].length) : text;
+}
+
+export type ReplacedRange = { start: number; end: number };
+
+function smallestInsertion(before: string, after: string): number {
+  const shorter = Math.min(before.length, after.length);
+  let head = 0;
+  while (head < shorter && before[head] === after[head]) head++;
+  let tail = 0;
+  while (tail < shorter - head && before[before.length - 1 - tail] === after[after.length - 1 - tail]) tail++;
+  return [...after.slice(head, after.length - tail)].length;
+}
+
+function insertionOver(before: string, after: string, replaced: ReplacedRange): number {
+  const lo = Math.min(replaced.start, replaced.end);
+  const hi = Math.max(replaced.start, replaced.end);
+  const kept = lo + before.length - hi;
+  const fits = lo >= 0 && hi <= before.length && after.length >= kept && after.startsWith(before.slice(0, lo)) && after.endsWith(before.slice(hi));
+  return fits ? [...after.slice(lo, after.length - (before.length - hi))].length : 0;
+}
+
+export function withoutPastedJavascript(before: string, after: string, replaced?: ReplacedRange): string {
+  const stripped = stripJavascriptSchemes(after);
+  if (stripped === after) return after;
+  const inserted = Math.max(smallestInsertion(before, after), replaced ? insertionOver(before, after, replaced) : 0);
+  return inserted > 1 ? stripped : after;
+}
+
 export type PasteAction = { kind: "go"; url: string } | { kind: "search"; query: string };
 
 export function classifyPaste(text: string): PasteAction | null {
-  const trimmed = text.trim();
+  const trimmed = stripJavascriptSchemes(text).trim();
   if (!trimmed) return null;
   const url = /\s/.test(trimmed) ? null : fixupUrl(trimmed);
-  if (url && !/^(about|data):/i.test(url)) return { kind: "go", url: cleanUrl(url) };
+  if (url && !/^(about|data|javascript):/i.test(url)) return { kind: "go", url: cleanUrl(url) };
   return { kind: "search", query: trimmed.replace(/\s+/g, " ").slice(0, 2000) };
 }
 
@@ -133,11 +168,54 @@ export function sanitizePaste(text: string): string {
   return parts.map((part, i) => (i % 2 === 0 || !/[\r\n]/.test(part) ? part : spaced ? " " : "")).join("");
 }
 
+type SuffixRules = { exact: Set<string>; wildcard: Set<string>; exception: Set<string> };
+let suffixRules: SuffixRules | undefined;
+
+const asciiForm = (name: string) => name.split(".").map((label) => (/^[\x00-\x7f]*$/.test(label) ? label : `xn--${punycodeEncode(label)}`)).join(".");
+
+function loadSuffixRules(): SuffixRules {
+  const rules: SuffixRules = { exact: new Set(), wildcard: new Set(), exception: new Set() };
+  for (const rule of `${PSL_ICANN_RULES} ${PSL_PRIVATE_RULES}`.split(/\s+/)) {
+    const [set, name] = rule.startsWith("!") ? [rules.exception, rule.slice(1)] : rule.startsWith("*.") ? [rules.wildcard, rule.slice(2)] : [rules.exact, rule];
+    set.add(name).add(asciiForm(name));
+  }
+  return rules;
+}
+
+export function registrableDomain(host: string): string {
+  const name = host.toLowerCase().replace(/\.$/, "");
+  if (!name || name.startsWith("[") || /^[\d.]+$/.test(name)) return "";
+  const labels = name.split(".");
+  const rules = (suffixRules ??= loadSuffixRules());
+  let suffix = 1;
+  for (let i = 0; i < labels.length; i++) {
+    const candidate = labels.slice(i).join(".");
+    if (rules.exception.has(candidate)) {
+      suffix = labels.length - i - 1;
+      break;
+    }
+    if (rules.exact.has(candidate) || (i + 1 < labels.length && rules.wildcard.has(labels.slice(i + 1).join(".")))) {
+      suffix = labels.length - i;
+      break;
+    }
+  }
+  if (labels.length <= suffix) return "";
+  return labels.slice(-(suffix + 1)).join(".") + (host.endsWith(".") ? "." : "");
+}
+
+const shownDomainHost = (display: string) => {
+  const domain = registrableDomain(display);
+  return display.startsWith("www.") && domain && display.length - domain.length >= 4 ? display.slice(4) : display;
+};
+const shownName = (parsed: ParsedUrl) => shownDomainHost(displayHost(parsed.host));
+const shownPort = (parsed: ParsedUrl) => (parsed.port && parsed.port !== DEFAULT_PORTS[parsed.scheme] ? `:${parsed.port}` : "");
+
 export function breadcrumb(url: string, title?: string): { host: string; trail: string[] } {
   const parsed = parseUrl(url);
   const app = appUrlOrigin(url);
-  const host = app ?? (parsed ? displayHost(parsed.host).replace(/^www\./, "") : url);
-  const seen = new Set([host.toLowerCase(), ...(app && parsed ? [parsed.host] : [])]);
+  const name = parsed ? shownName(parsed) : url;
+  const host = app ?? name + (parsed ? shownPort(parsed) : "");
+  const seen = new Set([host.toLowerCase(), name.toLowerCase(), ...(app && parsed ? [parsed.host] : [])]);
   const trail = (title ?? "")
     .split(/\s[|/·–—-]\s/)
     .map((s) => s.trim())
@@ -152,7 +230,28 @@ export function breadcrumb(url: string, title?: string): { host: string; trail: 
 
 export function urlForDisplay(url: string): string {
   if (appUrlOrigin(url)) return toAppUrl(url).replace(/^([^/]*\/\/[^/?#]*)\/(?=[?#]|$)/, "$1");
-  const rest = url.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "");
+  const rest = url.replace(SCHEME_AND_USERINFO, "");
   const host = /^[^/?#:]*/.exec(rest)![0];
-  return (displayHost(host) + rest.slice(host.length)).replace(/^www\./i, "");
+  return shownDomainHost(displayHost(host.toLowerCase())) + rest.slice(host.length);
+}
+
+export type AddressParts = { host: string; domain: string; rest: string };
+
+function decodedPath(path: string): string {
+  try {
+    return decodeURIComponent(path);
+  } catch {
+    return path;
+  }
+}
+
+export function addressParts(url: string): AddressParts {
+  if (url.startsWith("file:")) return { host: "File", domain: "File", rest: ` ${decodedPath(url.slice("file://".length))}` };
+  const { host } = breadcrumb(url);
+  const parsed = appUrlOrigin(url) ? null : parseUrl(url);
+  const full = urlForDisplay(url);
+  const port = parsed && parsed.port === DEFAULT_PORTS[parsed.scheme] ? `:${parsed.port}` : "";
+  const rest = port && full.startsWith(host + port) ? full.slice(host.length + port.length) : full.startsWith(host) ? full.slice(host.length) : full;
+  const registrable = parsed ? registrableDomain(displayHost(parsed.host)) : "";
+  return { host, domain: parsed && registrable ? registrable + shownPort(parsed) : host, rest };
 }

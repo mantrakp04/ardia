@@ -1,4 +1,4 @@
-import { displayUrl, asksForBackspace, keywordBySpace, resolveInput, sanitizePaste, searchUrl, scopedSearchUrl, siteSearchKey, type SearchScope, type Suggestion } from "@ardia/core";
+import { displayUrl, asksForBackspace, keywordBySpace, resolveInput, searchUrl, scopedSearchUrl, siteSearchKey, withoutPastedJavascript, type SearchScope, type Suggestion } from "@ardia/core";
 import { ContextMenuArea, Symbol, copyText, pickFiles, showMenu, startDictation } from "@ardia/shell";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { findNodeHandle, Pressable, Text, TextInput, View } from "react-native";
@@ -17,7 +17,7 @@ import { registerHeroBar, savedNtpQuery, saveNtpQuery, type BarDismissal, type B
 import { dispositionFor, openFromBar, switchFromBar, type Disposition } from "./omnibox/open";
 import { openFromNewTabBar } from "./omnibox/newTabBar";
 import type { NewTabTarget } from "../store/types";
-import { clipboardPasteAction, pasteMenuItem, pasteTarget, readClipboard } from "./omnibox/paste";
+import { clipboardPasteAction, pasteMenuItem, pasteTarget, readPastedText } from "./omnibox/paste";
 import { ScopeChip } from "./omnibox/ScopeChip";
 import { SuggestionIcon, SuggestionList, isRemovable, type RowActions } from "./omnibox/SuggestionRow";
 import { useDropdownStart, useOpenTabsStart } from "./omnibox/dropdownStart";
@@ -314,13 +314,15 @@ export function Omnibox({
     if (choice === "pasteAndGo" && paste) return go(pasteTarget(paste));
     if (choice === "copy" || choice === "cut") copyText(value.slice(start, end));
     if (choice === "cut" || choice === "paste") {
-      const insert = choice === "paste" ? sanitizePaste(await readClipboard()) : "";
-      const next = value.slice(0, start) + insert + value.slice(end);
+      const insert = choice === "paste" ? await readPastedText() : "";
+      const combined = value.slice(0, start) + insert + value.slice(end);
+      const next = withoutPastedJavascript(value, combined, { start, end });
+      const caret = Math.max(0, start + insert.length - (combined.length - next.length));
       setTyped(next);
       setEdited(true);
       setSuppressCompletion(true);
       setSelected(0);
-      setPendingSelection({ start: start + insert.length, end: start + insert.length });
+      setPendingSelection({ start: caret, end: caret });
     }
     if (choice === "selectAll") setPendingSelection({ start: 0, end: value.length });
     focusField();
@@ -344,7 +346,8 @@ export function Omnibox({
   const onChangeText = (next: string) => {
     if (__DEV__) heardAt.current = Date.now();
     const fresh = Date.now() - selectionAt.current < 100;
-    const change = inline.read(next, { before: fresh ? selectionBefore.current : selection.current, after: selection.current });
+    const edit = { before: fresh ? selectionBefore.current : selection.current, after: selection.current };
+    const change = inline.read(next, edit);
     if (change.echo) {
       if (!change.stale) noteSelection({ start: change.inline.typed.length, end: next.length });
       return;
@@ -353,13 +356,21 @@ export function Omnibox({
     focusEcho.current = false;
     keyAt.current = Date.now();
     journeyKeystroke(tabId);
-    const bySpace = scope ? null : keywordBySpace(typed, next);
+    const text = withoutPastedJavascript(value, change.typed, edit.before);
+    const bySpace = scope ? null : keywordBySpace(typed, text);
     const keyword = bySpace ? keywordScope(bySpace.keyword, windowId) : null;
     if (bySpace && keyword) return enterScope(keyword, bySpace.from);
     setEdited(true);
-    setTyped(change.typed);
+    setTyped(text);
+    if (text !== change.typed) {
+      const lo = Math.min(edit.before.start, edit.before.end);
+      const hi = Math.max(edit.before.start, edit.before.end);
+      const replaced = Math.max(0, change.typed.length - (value.length - (hi - lo)));
+      const caret = Math.max(0, Math.min(lo + replaced - (change.typed.length - text.length), text.length));
+      setPendingSelection({ start: caret, end: caret });
+    }
     setSuppressCompletion(change.suppress);
-    setSelected(opensTab && !change.typed.trim() ? -1 : 0);
+    setSelected(opensTab && !text.trim() ? -1 : 0);
   };
 
   useOmniboxDriver(`${windowId}:${variant}`, {

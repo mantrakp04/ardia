@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { PSL_TLDS } from "./tlds.ts";
+import { PSL_TLDS } from "./publicSuffixes.ts";
 import { domainToASCII } from "node:url";
 import { cleanUrl } from "./cleanUrl.ts";
 import { displayHost, hostSpoofReason, punycodeEncode } from "./idn.ts";
-import { breadcrumb, fixupUrl, resolveInput, urlForDisplay } from "./omnibox.ts";
+import { addressParts, breadcrumb, classifyPaste, fixupUrl, registrableDomain, resolveInput, stripJavascriptSchemes, urlForDisplay, withoutPastedJavascript } from "./omnibox.ts";
 import { displayUrl } from "./suggest.ts";
 
 test("resolveInput turns typed text into a URL", () => {
@@ -110,6 +110,13 @@ test("displayed URLs say ardia://, never chrome://", () => {
   assert.deepEqual(breadcrumb("chrome://flags/", "Experiments"), { host: "ardia://flags", trail: ["Experiments"] });
 });
 
+test("a mixed-case host displays like its lowercase self, and the path never repeats it", () => {
+  assert.equal(urlForDisplay("https://WWW.Example.com/x"), "example.com/x");
+  assert.deepEqual(addressParts("https://WWW.Example.com/x"), { host: "example.com", domain: "example.com", rest: "/x" });
+  assert.deepEqual(addressParts("https://WWW.Example.COM:8443/x"), { host: "example.com:8443", domain: "example.com:8443", rest: "/x" });
+  assert.equal(urlForDisplay("https://WWW.Example.com"), "example.com");
+});
+
 test("host:port navigates: single-label intranet hosts over http, a number or a time never", () => {
   assert.equal(fixupUrl("myserver:8080"), "http://myserver:8080");
   assert.equal(fixupUrl("localhost:3000"), "http://localhost:3000");
@@ -152,7 +159,7 @@ test("an unknown TLD searches unless a port, a trailing slash or two of path, qu
 });
 
 test("a known registry navigates with or without a path (Chrome's public suffix list)", () => {
-  for (const text of ["site.photography/about", "docs.new", "report.zip", "shop.bike", "hello.world", "a.xn--p1ai", "b.中国", "c.рф"]) {
+  for (const text of ["site.photography/about", "docs.new", "report.zip", "shop.bike", "hello.world", "plans.web", "a.xn--p1ai", "b.中国", "c.рф"]) {
     assert.ok(fixupUrl(text), text);
   }
   for (const text of ["index.html", "node.js", "e.g.", "1.5", "a.b", "c++", "v1.2.3", "file.txt", "README.md.bak", "hi@example.com"]) {
@@ -164,7 +171,7 @@ test("random hosts: a known TLD or a port navigates, a bare unknown name or a sp
   let seed = 7;
   const rnd = (n: number) => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0), seed % n);
   const pick = <T,>(list: readonly T[]): T => list[rnd(list.length)]!;
-  const tlds = PSL_TLDS.split(/\s+/).filter((t) => t.length > 1 && t !== "local" && t !== "localhost");
+  const tlds = PSL_TLDS.filter((t) => t.length > 1 && t !== "local" && t !== "localhost");
   const labels = ["a", "foo", "my-site", "x1", "münchen", "яндекс", "例え", "9lives", "a-b-c"];
   for (let i = 0; i < 3000; i++) {
     const host = `${pick(labels)}${rnd(3) ? "" : `.${pick(labels)}`}.${pick(tlds)}`;
@@ -176,5 +183,129 @@ test("random hosts: a known TLD or a port navigates, a bare unknown name or a sp
     const bare = fixupUrl(unknown + pick(["", "/x", "?q=1", "#t"]));
     assert.equal(bare, null, unknown);
     assert.ok(fixupUrl(`${unknown}:${1 + rnd(65535)}`), "a port makes it a URL");
+  }
+});
+
+test("stripJavascriptSchemes works like Chrome's StripJavascriptSchemas", () => {
+  assert.equal(stripJavascriptSchemes("javascript:alert(1)"), "alert(1)");
+  assert.equal(stripJavascriptSchemes("  javascript:javascript:alert(1)"), "alert(1)");
+  assert.equal(stripJavascriptSchemes("\u0001JaVaScRiPt: \u0000\tjavascript:\n x"), "x");
+  assert.equal(stripJavascriptSchemes("  javascript://%0Aalert(1)"), "//%0Aalert(1)");
+  for (const text of ["  hello", "java script:x", "https://example.com/javascript:x", "javascript tutorial", "%6Aavascript:x", ""]) {
+    assert.equal(stripJavascriptSchemes(text), text, text);
+  }
+});
+
+test("pasted javascript: URLs never navigate", () => {
+  assert.deepEqual(classifyPaste("javascript://x%0Aalert(1)"), { kind: "search", query: "//x%0Aalert(1)" });
+  assert.deepEqual(classifyPaste("javascript:alert(document.domain)"), { kind: "search", query: "alert(document.domain)" });
+  assert.deepEqual(classifyPaste("\n JAVASCRIPT:javascript:\u0001https://example.com/a"), { kind: "go", url: "https://example.com/a" });
+  assert.equal(classifyPaste("javascript:"), null);
+  assert.equal(classifyPaste(" \u0000javascript: javascript:\t"), null);
+  assert.deepEqual(classifyPaste("javascript tutorial"), { kind: "search", query: "javascript tutorial" });
+  assert.deepEqual(classifyPaste("https://example.com/javascript:x"), { kind: "go", url: "https://example.com/javascript:x" });
+  const lures = ["javascript://%0Adocument.title=1", "JaVaScRiPt://x", "\tjavascript://x", "\u0001javascript://x", "javascript:javascript://x", "javascript:%0Aalert(1)"];
+  for (const text of lures) {
+    const action = classifyPaste(text);
+    assert.ok(!action || action.kind === "search" || !/javascript:/i.test(action.url), text);
+  }
+});
+
+test("a javascript: URL pasted into the field loses its scheme; one typed key by key keeps it", () => {
+  assert.equal(withoutPastedJavascript("", "javascript://x%0Aalert(1)"), "//x%0Aalert(1)");
+  assert.equal(withoutPastedJavascript("https://www.facebook.com/some/long/page", "javascript:alert(1)"), "alert(1)");
+  assert.equal(withoutPastedJavascript("javascript", "javascript:x"), "x");
+  let typed = "";
+  for (const key of "javascript://x%0Aalert(1)") typed = withoutPastedJavascript(typed, typed + key);
+  assert.equal(typed, "javascript://x%0Aalert(1)");
+  assert.equal(withoutPastedJavascript("javascript tutorial", "javascript:"), "javascript:");
+  assert.equal(withoutPastedJavascript("javascript:alert(1)", "javascript:alert(12)"), "javascript:alert(12)");
+  assert.equal(withoutPastedJavascript("hello", "hello world"), "hello world");
+});
+
+test("pasting over a selection measures the pasted text, not how little the field changed", () => {
+  const before = "javascript:alert(1)";
+  assert.equal(withoutPastedJavascript(before, "javascript:alert(2)", { start: 0, end: before.length }), "alert(2)");
+  assert.equal(withoutPastedJavascript(before, "javascript:alert(2)", { start: before.length, end: 0 }), "alert(2)");
+  assert.equal(withoutPastedJavascript(before, "javascript:alert(2)", { start: 17, end: 18 }), "javascript:alert(2)");
+  assert.equal(withoutPastedJavascript("java", "javascript://x%0Aalert(1)", { start: 4, end: 4 }), "//x%0Aalert(1)");
+  assert.equal(withoutPastedJavascript("javascript:alert(1", "javascript:alert(1)", { start: 18, end: 18 }), "javascript:alert(1)");
+  assert.equal(withoutPastedJavascript(before, "javascript:alert(2)", { start: 40, end: 50 }), "javascript:alert(2)");
+});
+
+test("registrableDomain follows the public suffix list with private registries counted, as Chrome's URL display does", () => {
+  const cases: [string, string][] = [
+    ["accounts.google.com", "google.com"],
+    ["accounts.google.com.secure-login.example", "secure-login.example"],
+    ["not-really-paypal.com", "not-really-paypal.com"],
+    ["a.b.example.co.uk", "example.co.uk"],
+    ["shop.example.com.au", "example.com.au"],
+    ["user.github.io", "user.github.io"],
+    ["evil-paypal.github.io", "evil-paypal.github.io"],
+    ["upload.wontfix.pages.dev", "wontfix.pages.dev"],
+    ["x.vercel.app", "x.vercel.app"],
+    ["foo.pages.dev", "foo.pages.dev"],
+    ["example.github.io", "example.github.io"],
+    ["a.b.kawasaki.jp", "a.b.kawasaki.jp"],
+    ["x.city.kawasaki.jp", "city.kawasaki.jp"],
+    ["x.www.ck", "www.ck"],
+    ["www.ck", "www.ck"],
+    ["x.y.ck", "x.y.ck"],
+    ["mail.example.公司.cn", "example.公司.cn"],
+    ["mail.example.xn--55qx5d.cn", "example.xn--55qx5d.cn"],
+    ["example.com.", "example.com."],
+    ["co.uk", ""],
+    ["com", ""],
+    ["localhost", ""],
+    ["192.168.1.1", ""],
+    ["[::1]", ""],
+  ];
+  for (const [host, domain] of cases) assert.equal(registrableDomain(host), domain, host);
+});
+
+test("addressParts keeps the registrable domain whole and leaves URLs without a host as they are", () => {
+  assert.deepEqual(addressParts("https://accounts.google.com.evil-login.com/x"), { host: "accounts.google.com.evil-login.com", domain: "evil-login.com", rest: "/x" });
+  assert.deepEqual(addressParts("https://not-really-paypal.com/"), { host: "not-really-paypal.com", domain: "not-really-paypal.com", rest: "/" });
+  assert.deepEqual(addressParts("https://user:pw@login.example.co.uk:8443/a"), { host: "login.example.co.uk:8443", domain: "example.co.uk:8443", rest: "/a" });
+  assert.deepEqual(addressParts("https://www.example.com/"), { host: "example.com", domain: "example.com", rest: "/" });
+  assert.deepEqual(addressParts("http://192.168.1.1:8080/admin"), { host: "192.168.1.1:8080", domain: "192.168.1.1:8080", rest: "/admin" });
+  assert.deepEqual(addressParts("file:///Users/me/My%20File.html"), { host: "File", domain: "File", rest: " /Users/me/My File.html" });
+  assert.deepEqual(addressParts("ardia://settings/languages"), { host: "ardia://settings", domain: "ardia://settings", rest: "/languages" });
+  assert.deepEqual(addressParts("https://example.com:443/x"), { host: "example.com", domain: "example.com", rest: "/x" });
+  assert.deepEqual(addressParts("http://example.com:80/x"), { host: "example.com", domain: "example.com", rest: "/x" });
+  assert.deepEqual(addressParts("http://[::1]:80/x"), { host: "[::1]", domain: "[::1]", rest: "/x" });
+  assert.deepEqual(addressParts("https://example.com:8443/x"), { host: "example.com:8443", domain: "example.com:8443", rest: "/x" });
+  assert.deepEqual(addressParts("http://[::1]:8080/x"), { host: "[::1]:8080", domain: "[::1]:8080", rest: "/x" });
+  for (const url of ["data:text/html,<p>" + "x".repeat(300), "blob:https://evil.com/0b3c6f5e-8d1a-4c1e-9a7b-2f4d", "about:blank"]) {
+    assert.deepEqual(addressParts(url), { host: url, domain: url, rest: "" }, url);
+  }
+  assert.deepEqual(addressParts("https://a.b.c.example.co.uk/"), { host: "a.b.c.example.co.uk", domain: "example.co.uk", rest: "/" });
+  assert.deepEqual(addressParts("https://x.city.kawasaki.jp/"), { host: "x.city.kawasaki.jp", domain: "city.kawasaki.jp", rest: "/" });
+  assert.deepEqual(addressParts("http://[::1]:8080/"), { host: "[::1]:8080", domain: "[::1]:8080", rest: "/" });
+  assert.deepEqual(addressParts("https://xn--bcher-kva.de:81/x"), { host: "bücher.de:81", domain: "bücher.de:81", rest: "/x" });
+  assert.deepEqual(addressParts("https://www.ck/"), { host: "www.ck", domain: "www.ck", rest: "/" });
+  assert.deepEqual(addressParts("https://evil-paypal.github.io/a"), { host: "evil-paypal.github.io", domain: "evil-paypal.github.io", rest: "/a" });
+});
+
+test("displayed URLs never show a username or password", () => {
+  assert.equal(urlForDisplay("https://user:secret@example.com/x"), "example.com/x");
+  assert.equal(urlForDisplay("https://user@www.example.com/"), "example.com/");
+  assert.equal(urlForDisplay("https://a@b@evil.com/x@y"), "evil.com/x@y");
+  assert.equal(urlForDisplay("https://accounts.google.com@evil.com/"), "evil.com/");
+  assert.equal(urlForDisplay("mailto:hi@example.com"), "mailto:hi@example.com");
+  assert.equal(breadcrumb("https://user:secret@example.com/x").host, "example.com");
+  assert.equal(breadcrumb("https://a@b@evil.com/").host, "evil.com");
+});
+
+test("a non-default port is part of the displayed host", () => {
+  assert.equal(breadcrumb("https://example.com:8443/x").host, "example.com:8443");
+  assert.equal(breadcrumb("http://localhost:3000/").host, "localhost:3000");
+  assert.equal(breadcrumb("http://[::1]:8080/").host, "[::1]:8080");
+  assert.equal(breadcrumb("https://user:pw@www.example.com:8443/").host, "example.com:8443");
+  assert.equal(breadcrumb("https://example.com:443/").host, "example.com");
+  assert.equal(breadcrumb("http://example.com:80/").host, "example.com");
+  assert.equal(breadcrumb("https://example.com/").host, "example.com");
+  for (const url of ["https://example.com:8443/x", "https://user:pw@example.com:8443/a?b", "http://[::1]:8080/", "https://www.example.com/", "https://xn--bcher-kva.de:81/"]) {
+    assert.ok(urlForDisplay(url).startsWith(breadcrumb(url).host), url);
   }
 });

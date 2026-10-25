@@ -1,4 +1,4 @@
-import { breadcrumb } from "@ardia/core";
+import { addressParts } from "@ardia/core";
 import { FadeLabel, Symbol } from "@ardia/shell";
 import { useEffect, useRef, type ReactNode } from "react";
 import { Animated, Easing, Pressable, Text, View } from "react-native";
@@ -8,6 +8,7 @@ import { usePageProgress } from "../../store/pageProgress";
 import type { Tab } from "../../store/types";
 import { usePage } from "../layout/pageState";
 import { Favicon, IconButton, useHover } from "../primitives";
+import { HostLabel } from "../HostLabel";
 
 export const SMALL_BAR_HEIGHT = 38;
 export const SMALL_INSET = 6;
@@ -84,9 +85,10 @@ export function PageLabel({ tab, hovered = false, label }: { tab: Tab; hovered?:
   const live = useTabLive(tab.id);
   const progress = usePageProgress(tab.id);
   const insecure = usePage(tab.id, (p) => !!p.security && (p.security.level === "insecure" || p.security.level === "certificateError"));
-  const isFile = tab.url.startsWith("file:");
-  const host = !tab.url ? "" : isFile ? "File" : breadcrumb(tab.url).host;
+  const { host, domain, rest } = addressParts(tab.url);
+  const web = /^https?:/i.test(tab.url);
   const title = tab.customTitle || tab.title;
+  const path = web ? "" : rest.replace(/\/$/, "");
 
   return (
     <View
@@ -110,15 +112,21 @@ export function PageLabel({ tab, hovered = false, label }: { tab: Tab; hovered?:
       )}
       {tab.url ? (
         <View style={{ flex: 1, flexDirection: "row", alignItems: "center" }}>
-          <Text
-            accessible={!!label}
+          <HostLabel
+            host={host}
+            domain={domain}
             accessibilityLabel={label}
-            numberOfLines={1}
-            style={{ flexShrink: 0, maxWidth: "60%", fontSize: 13, fontWeight: "500", color: theme.textPrimary }}
-          >
-            {host}
-          </Text>
-          {title && title !== host ? <FadeLabel text={`  ${title}`} fontSize={13} color={theme.textSecondary} fadeWidth={14} style={{ flex: 1, height: 18 }} /> : null}
+            style={{ flexShrink: 0, maxWidth: "60%" }}
+            textStyle={{ fontSize: 13, fontWeight: "500", color: theme.textPrimary }}
+          />
+          {!web ? (
+            path ? <FadeLabel text={path} fontSize={13} color={theme.textSecondary} fadeWidth={14} style={{ flex: 1, height: 18 }} /> : null
+          ) : title && title !== host ? (
+            <>
+              <View style={{ width: 1, height: 12, borderRadius: 0.5, marginHorizontal: 6, backgroundColor: theme.textTertiary }} />
+              <FadeLabel text={title} fontSize={13} color={theme.textSecondary} fadeWidth={14} style={{ flex: 1, height: 18 }} />
+            </>
+          ) : null}
         </View>
       ) : (
         <Text numberOfLines={1} style={{ flex: 1, fontSize: 13, color: theme.placeholder }}>

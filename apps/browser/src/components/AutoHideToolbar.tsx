@@ -1,6 +1,6 @@
-import { breadcrumb } from "@ardia/core";
+import { addressParts } from "@ardia/core";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
+import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, View, type ViewStyle } from "react-native";
 import { layout, useTheme } from "../lib/theme";
 import { useBrowser } from "../store/browser";
 import { useSettings, useTabLive } from "../store/hooks";
@@ -12,6 +12,7 @@ import { usePages } from "./layout/pageState";
 import { useExtensions } from "./extensions/store";
 import { needsBar, revealToolbar, setToolbarPeek, STRIP_HEIGHT, toolbarMode, useToolbarAutoHide, type ToolbarMode } from "./layout/toolbarAutoHide";
 import { Toolbar } from "./Toolbar";
+import { HostLabel } from "./HostLabel";
 
 const HIDE_MS = 150;
 const HIDE_EASING = Easing.out(Easing.quad);
@@ -216,7 +217,7 @@ export function AutoHideToolbar({
       },
     [moved, bar, fade, H],
   );
-  const host = url.startsWith("file:") ? "File" : breadcrumb(url).host;
+  const { host, domain } = addressParts(url);
 
   return (
     <View pointerEvents="box-none" style={{ position: "absolute", left: 0, right: 0, top: 0, height: H }}>
@@ -240,9 +241,7 @@ export function AutoHideToolbar({
             tooltip="Show Toolbar"
             style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 }}
           >
-            <Text numberOfLines={1} style={{ fontSize: 11, fontWeight: "500", color: palette.secondary }}>
-              {host}
-            </Text>
+            <HostLabel host={host} domain={domain} textStyle={{ fontSize: 11, fontWeight: "500", color: palette.secondary }} />
           </Pressable>
         </Animated.View>
       )}

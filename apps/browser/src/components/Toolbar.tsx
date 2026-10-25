@@ -1,4 +1,4 @@
-import { breadcrumb, urlForDisplay } from "@ardia/core";
+import { addressParts } from "@ardia/core";
 import { ContextMenuArea, FadeLabel, MouseArea, Symbol, WindowDragRegion } from "@ardia/shell";
 import { memo, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
@@ -21,14 +21,14 @@ import { toolbarPalette, useEasedColor, type ToolbarPalette } from "./layout/too
 import { setToolbarExtensionsWidth, SIDEBAR_FIELD } from "./layout/windowLayout";
 import { showUrlBarMenu } from "./omnibox/paste";
 import { useHover } from "./primitives";
+import { HostLabel } from "./HostLabel";
 import { ToolbarExtensions, useToolbarExtensionsWidth } from "./extensions/ToolbarExtensions";
 import { FIELD_GLASS_HOVER_OPACITY, FIELD_GLASS_OPACITY, GlassFill, liquidGlass } from "./glass";
 import { TranslateButton } from "./site/TranslateControls";
 import { ZoomIndicator } from "./site/ZoomControls";
 
-type ToolbarTab = Pick<Tab, "id" | "url" | "title" | "windowId" | "zoom">;
-const toolbarTab = (t: Tab | undefined): ToolbarTab | undefined =>
-  t && { id: t.id, url: t.url, title: isWebUrl(t.url) ? "" : t.title, windowId: t.windowId, zoom: t.zoom };
+type ToolbarTab = Pick<Tab, "id" | "url" | "windowId" | "zoom">;
+const toolbarTab = (t: Tab | undefined): ToolbarTab | undefined => t && { id: t.id, url: t.url, windowId: t.windowId, zoom: t.zoom };
 const isWebUrl = (url: string) => /^https?:/i.test(url);
 export const useToolbarTab = (tabId: string | undefined) => useBrowser(useShallow((s) => toolbarTab(tabId ? s.tabs[tabId] : undefined)));
 
@@ -289,12 +289,9 @@ export const UrlField = memo(function UrlField({
   const { hovered: pointerOver, hoverProps } = useHover();
   const popover = usePages((p) => p.popover[tab.id] ?? null);
   const hovered = pointerOver || popover === "siteControls";
-  const isFile = tab.url.startsWith("file:");
-  const host = isFile ? "File" : breadcrumb(tab.url).host;
-  const full = isFile ? ` ${safeDecode(tab.url.slice("file://".length))}` : urlForDisplay(tab.url);
-  const path = !isFile && full.startsWith(host) ? full.slice(host.length) : full;
-  const web = isWebUrl(tab.url);
-  const trail = hovered ? path : showFullUrl ? path.replace(/\/$/, "") : !web && tab.title ? ` / ${tab.title}` : "";
+  const { host, domain, rest } = addressParts(tab.url);
+  const trail = hovered ? rest : showFullUrl || !isWebUrl(tab.url) ? rest.replace(/\/$/, "") : "";
+  const hostText = { fontSize: 13, fontWeight: "500", color: palette.text } as const;
 
   return (
     <View
@@ -335,9 +332,7 @@ export const UrlField = memo(function UrlField({
       <Pressable onPress={() => openPanel(tab.url)} style={{ flex: 1, height: sidebar?.height ?? 30, justifyContent: "center", paddingLeft: insecure ? LOCK.gap : sidebar ? 10 : urlTextLeft(false) }}>
         {sidebar ? (
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 13, fontWeight: "500", color: palette.text }}>
-              {host}
-            </Text>
+            <HostLabel host={host} domain={domain} textStyle={hostText} />
             <FadeLabel
               text={trail}
               fontSize={13}
@@ -347,10 +342,14 @@ export const UrlField = memo(function UrlField({
             />
           </View>
         ) : (
-          <Text numberOfLines={1} style={{ fontSize: 13, color: palette.text }}>
-            <Text style={{ fontWeight: "500" }}>{host}</Text>
-            {trail ? <Text style={{ color: palette.secondary }}>{trail}</Text> : null}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <HostLabel host={host} domain={domain} textStyle={hostText} />
+            {trail ? (
+              <Text numberOfLines={1} style={{ flex: 1, fontSize: 13, color: palette.secondary }}>
+                {trail}
+              </Text>
+            ) : null}
+          </View>
         )}
       </Pressable>
       </ContextMenuArea>
@@ -408,11 +407,3 @@ function CaptureIndicator({ camera, microphone, screen, onPress }: { camera: boo
 }
 
 const currentPopover = (tabId: string) => usePages.getState().popover[tabId] ?? null;
-
-function safeDecode(s: string) {
-  try {
-    return decodeURIComponent(s);
-  } catch {
-    return s;
-  }
-}
