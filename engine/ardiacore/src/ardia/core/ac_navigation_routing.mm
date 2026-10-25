@@ -647,8 +647,10 @@ bool RouteOpenURL(WindowHost* host,
                   content::WebContents* source,
                   const content::OpenURLParams& params,
                   base::OnceCallback<void(content::NavigationHandle&)>* navigation_handle_callback) {
-  const bool user_activated =
-      params.user_gesture && !params.download_policy.IsType(blink::NavigationDownloadType::kNoGesture);
+  content::RenderFrameHost* source_frame =
+      content::RenderFrameHost::FromID(params.source_render_process_id, params.source_render_frame_id);
+  const bool user_activated = source_frame && params.user_gesture &&
+                              !params.download_policy.IsType(blink::NavigationDownloadType::kNoGesture);
   if (!host || !source || !params.is_renderer_initiated || !params.url.SchemeIsHTTPOrHTTPS() ||
       params.is_form_submission || params.post_data || !RoutableDisposition(params.disposition) ||
       ui::PageTransitionCoreTypeIs(params.transition, ui::PAGE_TRANSITION_RELOAD) ||
@@ -656,12 +658,9 @@ bool RouteOpenURL(WindowHost* host,
       (params.disposition != WindowOpenDisposition::CURRENT_TAB && !user_activated)) {
     return false;
   }
-  if (params.disposition == WindowOpenDisposition::CURRENT_TAB && !params.frame_tree_node_id) {
-    content::RenderFrameHost* source_frame =
-        content::RenderFrameHost::FromID(params.source_render_process_id, params.source_render_frame_id);
-    if (source_frame && source_frame != source->GetPrimaryMainFrame()) {
-      return true;
-    }
+  if (params.disposition == WindowOpenDisposition::CURRENT_TAB && !params.frame_tree_node_id && source_frame &&
+      source_frame != source->GetPrimaryMainFrame()) {
+    return true;
   }
   if (params.disposition == WindowOpenDisposition::CURRENT_TAB &&
       (params.should_replace_current_entry ||
