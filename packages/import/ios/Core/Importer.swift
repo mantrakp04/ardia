@@ -118,6 +118,10 @@ public final class Importer: @unchecked Sendable {
       }
     }
 
+    if def.family == .arc, let data = try? Data(contentsOf: discovery.arcKeyBindingsURL()) {
+      result.shortcuts = ArcKeyBindings.parse(data)
+    }
+
     let ordered = ImportKind.allCases.filter(kinds.contains)
     for kind in ordered {
       try cancellation.check()

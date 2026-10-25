@@ -13,7 +13,7 @@ import { useHover } from "../primitives";
 import { Button, Checkbox, PopUp, useFormColors } from "../settings/controls";
 import { useOnboarding } from "../onboarding/state";
 import { IMPORT_WINDOW_ID, takePreferredImportSource } from "../settings/windows";
-import { applyResult, applySafari, emptyCounts, importArcSpace, importBookmarks, importDiaProfile, openInWebStore, profileColorFor, type ImportCounts } from "./apply";
+import { applyResult, applySafari, emptyCounts, importArcSpace, importBookmarks, importDiaProfile, installAllFromWebStore, openTargetsInWebStore, profileColorFor, webStoreTargetKey, type ImportCounts, type WebStoreTarget } from "./apply";
 import { importModule } from "./module";
 
 const APP = "Ardia";
@@ -60,7 +60,13 @@ export function ImportWindow() {
   const [notes, setNotes] = useState<string[]>([]);
   const bookmarks = useBrowser((s) => s.bookmarks);
   const arcHolders = useMemo(() => allArcHolders({ bookmarks }), [bookmarks]);
-  const [extensions, setExtensions] = useState<{ profileId: string; list: ImportedExtension[]; opened: boolean }>({ profileId: "", list: [], opened: false });
+  const [extensions, setExtensions] = useState<{ profileId: string; list: ImportedExtension[]; targets: WebStoreTarget[]; opened: boolean }>({ profileId: "", list: [], targets: [], opened: false });
+  const [installs, setInstalls] = useState<{ running: boolean; done: Record<string, "installed" | "failed"> }>({ running: false, done: {} });
+  const installRun = useRef(0);
+  const resetInstalls = () => {
+    installRun.current++;
+    setInstalls({ running: false, done: {} });
+  };
   const onboarding = useOnboarding((s) => s.windowId !== null);
   const [diaStatus, setDiaStatus] = useState<DiaAutomationStatus | "checking" | "reading">("checking");
   const [dia, setDia] = useState<DiaTabsResult | null>(null);
@@ -133,7 +139,8 @@ export function ImportWindow() {
     setKinds(new Set(available));
     if (b.family === "safari" && api) setFullDiskAccess(api.safariHasFullDiskAccess());
     setDia(null);
-    setExtensions({ profileId: "", list: [], opened: false });
+    setExtensions({ profileId: "", list: [], targets: [], opened: false });
+    resetInstalls();
     setNotes([]);
     setError(null);
   };
@@ -210,6 +217,8 @@ export function ImportWindow() {
     const add = (c: ImportCounts) => (Object.keys(total) as (keyof ImportCounts)[]).forEach((k) => (total[k] += c[k]));
     let destinationIndex = 0;
     const found = new Map<string, ImportedExtension>();
+    const targets = new Map<string, WebStoreTarget>();
+    resetInstalls();
     const left: string[] = [];
     let extensionsProfile = "";
     if (source.family === "firefox" && requested.includes("passwords") && !api.isBrowserUnlocked(source.id)) {
@@ -218,6 +227,7 @@ export function ImportWindow() {
 
     for (const profile of selected) {
       let result: ImportResult;
+      let profileDest = "";
       const profileKinds = tabsLocked(profile) ? order.filter((k) => k !== "tabs") : order;
       try {
         result = await api.importData(source.id, profile.id, profileKinds, {
@@ -256,16 +266,22 @@ export function ImportWindow() {
         const dest = first ?? (await destination(destinationIndex++, result.profile?.name ?? profile.name, result.profile?.color));
         add(await applyResult(dest, result, source.name, profileKinds, refused));
         extensionsProfile ||= dest;
+        profileDest = dest;
       } else {
         const dest = await destination(destinationIndex++, result.profile?.name ?? profile.name, result.profile?.color ?? profile.color);
         add(await applyResult(dest, result, source.name, profileKinds, refused));
         extensionsProfile ||= dest;
+        profileDest = dest;
       }
       if (source.family === "chromium" || source.family === "arc") {
-        for (const e of await api.listExtensions(source.id, profile.id).catch(() => [])) found.set(e.id, e);
+        for (const e of await api.listExtensions(source.id, profile.id).catch(() => [])) {
+          found.set(e.id, e);
+          const target = { id: e.id, profileId: profileDest };
+          targets.set(webStoreTargetKey(target), target);
+        }
       }
     }
-    setExtensions({ profileId: extensionsProfile, list: [...found.values()], opened: false });
+    setExtensions({ profileId: extensionsProfile, list: [...found.values()], targets: [...targets.values()], opened: false });
     setNotes(left);
     setStatus((st) => Object.fromEntries(Object.entries(st).map(([k, v]) => [k, failed.has(k as ImportKind) ? "failed" : v === "failed" ? v : "done"])));
     setFailures([...failed].map(([kind, names]) => ({ kind, profiles: selected.length > 1 ? names : [] })));
@@ -799,24 +815,53 @@ export function ImportWindow() {
         {notes.join(" ")}
       </Text>
     ) : null;
+    const installTargets = extensions.targets.length ? extensions.targets : extensions.list.map((e) => ({ id: e.id, profileId: extensions.profileId || target }));
     const extensionList = extensions.list.length ? (
       <View style={{ alignSelf: "stretch", marginTop: 14, gap: 8 }}>
         <Text style={{ fontSize: 12, color: theme.textSecondary, textAlign: "center" }}>
-          {`${source?.name ?? "Your browser"} has ${plural(extensions.list.length, "extension")} from the Chrome Web Store. Add the ones you want there:`}
+          {`${source?.name ?? "Your browser"} has ${plural(extensions.list.length, "extension")} from the Chrome Web Store. ${APP} can install them for you, asking before each one:`}
         </Text>
         <Text style={{ fontSize: 12, color: theme.textPrimary, textAlign: "center" }} numberOfLines={3}>
           {extensions.list.map((e) => e.name).join(", ")}
         </Text>
-        {extensions.opened ? (
+        {installs.running || Object.keys(installs.done).length ? (
           <Text style={{ fontSize: 12, color: theme.textSecondary, textAlign: "center" }}>
-            {`${extensions.list.length === 1 ? "Its page is" : "Their pages are"} open in your sidebar${onboarding ? ", ready when you finish setting up" : ""}. Click Add to ${APP} on each one you want.`}
+            {installs.running
+              ? `Installing ${Object.keys(installs.done).length + 1} of ${installTargets.length}. Approve each one in the prompt.`
+              : `Installed ${Object.values(installs.done).filter((o) => o === "installed").length} of ${installTargets.length}.${Object.values(installs.done).includes("failed") ? " The rest were declined or couldn't be downloaded; add them from the Chrome Web Store." : ""}`}
+          </Text>
+        ) : null}
+        {!installs.running && !Object.keys(installs.done).length && (
+          <View style={{ alignItems: "center" }}>
+            <Button
+              title={installTargets.length === 1 ? "Install Extension" : `Install All ${installTargets.length}`}
+              onPress={() => {
+                const run = ++installRun.current;
+                setInstalls({ running: true, done: {} });
+                void installAllFromWebStore(
+                  installTargets,
+                  (t, outcome) => {
+                    if (installRun.current === run) setInstalls((x) => ({ ...x, done: { ...x.done, [webStoreTargetKey(t)]: outcome } }));
+                  },
+                  () => installRun.current !== run,
+                ).then(() => {
+                  if (installRun.current === run) setInstalls((x) => ({ ...x, running: false }));
+                });
+              }}
+            />
+          </View>
+        )}
+        {installs.running ? null : extensions.opened ? (
+          <Text style={{ fontSize: 12, color: theme.textSecondary, textAlign: "center" }}>
+            {`${installTargets.length === 1 ? "Its page is" : "Their pages are"} open in your sidebar${onboarding ? ", ready when you finish setting up" : ""}. Click Add to ${APP} on each one you want.`}
           </Text>
         ) : (
           <View style={{ alignItems: "center" }}>
             <Button
-              title={extensions.list.length === 1 ? "Open in Chrome Web Store" : `Open ${extensions.list.length} in Chrome Web Store`}
+              title={installTargets.length === 1 ? "Open in Chrome Web Store" : `Open ${installTargets.length} in Chrome Web Store`}
               onPress={() => {
-                openInWebStore(extensions.profileId || target, extensions.list.map((e) => e.webStoreUrl));
+                const urls = new Map(extensions.list.map((e) => [e.id, e.webStoreUrl]));
+                openTargetsInWebStore(installTargets, (id) => urls.get(id));
                 setExtensions((x) => ({ ...x, opened: true }));
               }}
             />

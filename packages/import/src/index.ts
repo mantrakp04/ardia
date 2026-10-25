@@ -132,9 +132,12 @@ export type ImportResult = {
   spaces: SpaceSuggestion[];
   favorites: ImportedTab[];
   favicons: ImportedFavicon[];
+  shortcuts?: ImportedShortcut[];
   failed: ImportKind[];
   warnings: ImportWarning[];
 };
+
+export type ImportedShortcut = { action: string; key: string; modifiers: string[] };
 
 export type SafariExport = {
   bookmarks?: BookmarkNode;

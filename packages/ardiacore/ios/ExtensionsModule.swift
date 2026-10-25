@@ -32,6 +32,15 @@ public class ExtensionsModule: Module {
     AsyncFunction("installCrx") { (path: String, profile: String, promise: Promise) in
       ArdiaCoreServices.installCrx(path: path, profile: profile) { promise.resolve($0) }
     }.runOnQueue(.main)
+    AsyncFunction("installFromWebStore") { (id: String, profile: String, promise: Promise) in
+      WebStoreDownload.crx(id: id) { path, error in
+        guard let path else { return promise.resolve(["error": error ?? "The Chrome Web Store didn't send the extension."]) }
+        ArdiaCoreServices.installCrx(path: path, profile: profile) { result in
+          try? FileManager.default.removeItem(atPath: path)
+          promise.resolve(result)
+        }
+      }
+    }.runOnQueue(.main)
     AsyncFunction("setEnabled") { (id: String, profile: String, enabled: Bool, promise: Promise) in
       ArdiaCoreServices.setExtension(id, enabled: enabled, profile: profile) { promise.resolve($0) }
     }.runOnQueue(.main)
@@ -56,5 +65,33 @@ public class ExtensionsModule: Module {
       panel.message = "Choose an extension folder (with a manifest.json)"
       panel.begin { response in promise.resolve(response == .OK ? panel.url?.path : nil) }
     }.runOnQueue(.main)
+  }
+}
+
+enum WebStoreDownload {
+  static func crx(id: String, completion: @escaping (String?, String?) -> Void) {
+    guard id.range(of: "^[a-p]{32}$", options: .regularExpression) != nil else { return completion(nil, "Not an extension ID.") }
+    let running = ArdiaCoreHost.engineInfo["chromiumVersion"] as? String ?? ""
+    let chrome = running.isEmpty ? "155.0.0.0" : running
+    var url = URLComponents(string: "https://clients2.google.com/service/update2/crx")!
+    url.queryItems = [
+      URLQueryItem(name: "response", value: "redirect"),
+      URLQueryItem(name: "prodversion", value: chrome),
+      URLQueryItem(name: "acceptformat", value: "crx2,crx3"),
+      URLQueryItem(name: "x", value: "id=\(id)&uc"),
+    ]
+    URLSession.shared.downloadTask(with: url.url!) { file, response, error in
+      let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+      guard let file, error == nil, status == 200 else {
+        return DispatchQueue.main.async { completion(nil, error?.localizedDescription ?? "The Chrome Web Store answered \(status).") }
+      }
+      let dest = FileManager.default.temporaryDirectory.appendingPathComponent("\(id)-\(UUID().uuidString).crx")
+      do {
+        try FileManager.default.moveItem(at: file, to: dest)
+        DispatchQueue.main.async { completion(dest.path, nil) }
+      } catch {
+        DispatchQueue.main.async { completion(nil, error.localizedDescription) }
+      }
+    }.resume()
   }
 }

@@ -116,3 +116,92 @@ test("Arc favorites land as tiles after the space's rows and folders came in", a
   const tiles = Object.values(S().tabs).filter((t) => t.pinned && !t.pinnedAsRow).map((t) => t.url).sort();
   assert.deepEqual(tiles, ["https://row.example/", "https://www.youtube.com/"]);
 });
+
+test("Arc's own shortcuts come along unless Ardia already has one for that command", async () => {
+  const { importArcShortcuts } = await import("../components/import/apply.ts");
+  S().hydrate({});
+  S().createWindow({ url: "https://home.example/" });
+  assert.equal(importArcShortcuts([{ action: "showSidebar", key: "\\", modifiers: ["command"] }, { action: "unknownArcThing", key: "k", modifiers: ["command"] }]), 1);
+  assert.deepEqual(S().settings.shortcuts.toggleSidebar, ["\\", "command"]);
+  S().updateSettings({ shortcuts: { toggleSidebar: ["s", "command", "option"] } });
+  assert.equal(importArcShortcuts([{ action: "showSidebar", key: "\\", modifiers: ["command"] }]), 0, "a choice made in Ardia wins");
+});
+
+test("Install All installs each extension into the space it came from and carries on past a failure", async () => {
+  const stub = await import("@ardia/ardiacore");
+  const { installAllFromWebStore } = await import("../components/import/apply.ts");
+  const { engineProfile } = await import("./model.ts");
+  stub.webStoreInstalls.length = 0;
+  stub.webStoreFailures.clear();
+  const a = "a".repeat(32);
+  const b = "b".repeat(32);
+  stub.webStoreFailures.add(a);
+  const seen = [];
+  const work = S().createProfile({ name: "Work" });
+  await installAllFromWebStore(
+    [
+      { id: a, profileId: P },
+      { id: b, profileId: P },
+      { id: b, profileId: work },
+    ],
+    (t, outcome) => seen.push([t.id, t.profileId, outcome]),
+  );
+  assert.deepEqual(
+    stub.webStoreInstalls.map((x) => [x.id, x.profile]),
+    [
+      [a, engineProfile(P)],
+      [b, engineProfile(P)],
+      [b, engineProfile(work)],
+    ],
+    "each install goes to its own space's engine profile",
+  );
+  assert.notEqual(engineProfile(P), engineProfile(work));
+  assert.deepEqual(seen, [
+    [a, P, "failed"],
+    [b, P, "installed"],
+    [b, work, "installed"],
+  ]);
+  stub.webStoreFailures.clear();
+});
+
+test("the Web Store fallback opens each extension's page in every space it came from", async () => {
+  const { openTargetsInWebStore } = await import("../components/import/apply.ts");
+  S().hydrate({});
+  S().createWindow({ url: "https://home.example/" });
+  const home = Object.values(S().windows)[0].profileId;
+  const work = S().createProfile({ name: "Work" });
+  const store = (id) => `https://chromewebstore.google.com/detail/${id}`;
+  const before = new Set(Object.keys(S().tabs));
+  openTargetsInWebStore(
+    [
+      { id: "a", profileId: home },
+      { id: "b", profileId: home },
+      { id: "b", profileId: work },
+      { id: "gone", profileId: work },
+    ],
+    (id) => (id === "gone" ? undefined : store(id)),
+  );
+  const opened = Object.values(S().tabs).filter((t) => !before.has(t.id)).map((t) => [t.profileId, t.url]).sort();
+  assert.deepEqual(opened, [[home, store("a")], [home, store("b")], [work, store("b")]].sort());
+});
+
+test("Install All stops before the next extension once a new import run replaces it", async () => {
+  const stub = await import("@ardia/ardiacore");
+  const { installAllFromWebStore } = await import("../components/import/apply.ts");
+  stub.webStoreInstalls.length = 0;
+  stub.webStoreFailures.clear();
+  S().hydrate({});
+  S().createWindow({ url: "https://home.example/" });
+  const P = Object.values(S().windows)[0].profileId;
+  let current = 1;
+  const run = 1;
+  const ids = ["a", "b", "c"].map((c) => c.repeat(32));
+  await installAllFromWebStore(
+    ids.map((id) => ({ id, profileId: P })),
+    () => {
+      current = 2;
+    },
+    () => current !== run,
+  );
+  assert.deepEqual(stub.webStoreInstalls.map((x) => x.id), [ids[0]], "the first install finishes; the rest belong to the replaced run");
+});
