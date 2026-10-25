@@ -40,6 +40,7 @@ import { LIVE, usePinnedSequence } from "./sidebar/pinnedOrder";
 import { pinGridHeight } from "./sidebar/pinZone";
 import { ResizeHandle } from "./sidebar/ResizeHandle";
 import { SCROLL_EDGE, ScrollEdgeLine, useScrollEdge } from "./sidebar/ScrollEdge";
+import { SelectionShadowOpacityContext } from "./sidebar/SelectionShadow";
 import { entriesHeight, firstPaintEntries, rowSpan, startsOffScreen, type Section } from "./sidebar/geometry";
 import { measureRow } from "./sidebar/state";
 import { SplitRowItem, TabRowItem } from "./sidebar/TabRow";
@@ -73,7 +74,6 @@ export function Sidebar({ width }: { width: number }) {
   const geometry = useRef<SidebarGeometry>({ viewport: 0, regions: { pinnedGroups: 0, list: 0 }, newTabAtTop: false, room: 0, pad: 0, tilesFixed: true });
   const addressBar = useAddressBarInSidebar();
   const header = addressBar ? SIDEBAR_HEADER_WITH_FIELD : layout.sidebarHeader;
-  const glowRoom = addressBar ? 0 : GLOW_ROOM;
   const hasDownloads = useBrowser((s) => downloadsIn(s, windowId).length > 0);
   const dots = useProfileDotsShown();
   const footerDownloads = addressBar && hasDownloads;
@@ -99,7 +99,7 @@ export function Sidebar({ width }: { width: number }) {
               position: "absolute",
               left: 0,
               right: 0,
-              top: header - glowRoom,
+              top: header - GLOW_ROOM,
               bottom: footer,
               overflow: paging ? "hidden" : "visible",
             }}
@@ -114,8 +114,7 @@ export function Sidebar({ width }: { width: number }) {
                 current={page.id === current}
                 resting={!!page.resting}
                 docked={dockedPage(page.id)}
-                glowRoom={glowRoom}
-                height={available}
+                height={Math.max(0, available - (addressBar ? GLOW_ROOM : 0))}
                 rows={page.id === current ? undefined : Math.ceil(available / ROW_PITCH) + 1}
                 geometry={page.id === current ? geometry : undefined}
                 onListHeight={onListHeight}
@@ -183,7 +182,6 @@ type PageProps = {
   current: boolean;
   resting: boolean;
   docked: boolean;
-  glowRoom: number;
   height: number;
   rows: number | undefined;
   geometry: RefObject<SidebarGeometry> | undefined;
@@ -192,10 +190,15 @@ type PageProps = {
   onScrollY: (y: number) => void;
 };
 
-function SidebarPage({ profileId, slot, width, current, resting, docked, glowRoom, height, rows, geometry, onListHeight, onScrollView, onScrollY }: PageProps) {
+function SidebarPage({ profileId, slot, width, current, resting, docked, height, rows, geometry, onListHeight, onScrollView, onScrollY }: PageProps) {
   const windowId = useWindowId();
   const topGap = listTopGap(useAddressBarInSidebar());
   const pageStyle = usePageStyle(windowId, slot, width);
+  const shadowOpacity = useMemo(() => pageStyle.transform[0]!.translateX.interpolate({
+    inputRange: [-width, layout.sidebarInset - width, width - layout.sidebarInset, width],
+    outputRange: [0, 1, 1, 0],
+    extrapolate: "clamp",
+  }), [pageStyle, width]);
   const [lazy] = useState(() => switchOn("lazySidebarRows"));
   const [beside, setBeside] = useState(() => startsOffScreen(lazy, current));
   useEffect(() => {
@@ -219,7 +222,8 @@ function SidebarPage({ profileId, slot, width, current, resting, docked, glowRoo
   const capped = dockFixed && dragging && gridHeight(previewed) > dockRoom;
   const fixedTiles = dockFixed ? tiles : NONE;
   const scrolledTiles = dockFixed ? NONE : tiles;
-  const room = fixedTiles.length ? 0 : glowRoom;
+  const room = GLOW_ROOM;
+  const sideRoom = GLOW_ROOM * 2;
   const pad = room + SCROLL_EDGE.inset;
   if (geometry) {
     geometry.current.room = room;
@@ -266,14 +270,14 @@ function SidebarPage({ profileId, slot, width, current, resting, docked, glowRoo
             <PageContent>
               {(controller) => (
                 <TilesPlacement controller={controller} fixed={dockFixed} room={dockRoom}>
-                  <View onLayout={onFixedLayout} style={{ paddingTop: glowRoom }}>
+                  <View onLayout={onFixedLayout} style={{ paddingTop: GLOW_ROOM }}>
                     <View style={[{ paddingHorizontal: layout.sidebarInset }, capped ? { maxHeight: topGap + dockRoom, overflow: "hidden" } : null]}>
                       {dockFixed ? <PinnedGrid tabs={fixedTiles} innerWidth={innerWidth} /> : null}
                     </View>
                     <View style={{ height: fixedTiles.length ? SCROLL_EDGE.gap : topGap - SCROLL_EDGE.inset - SCROLL_EDGE.line }} />
                     <ScrollEdgeLine opacity={scrollEdge.opacity} />
                   </View>
-                  <Animated.View style={{ flex: 1, marginTop: -room, overflow: "hidden", transform: [{ translateY: edge }] }}>
+                  <Animated.View style={{ flex: 1, marginTop: -room, marginHorizontal: -sideRoom, overflow: "hidden", transform: [{ translateY: edge }] }}>
                     <Animated.View style={{ flex: 1, transform: [{ translateY: Animated.multiply(edge, -1) }] }}>
                       <Animated.ScrollView
                         ref={current ? onScrollView : undefined}
@@ -289,22 +293,24 @@ function SidebarPage({ profileId, slot, width, current, resting, docked, glowRoo
                         showsVerticalScrollIndicator={false}
                         scrollEventThrottle={16}
                         onScroll={onScroll}
-                        contentContainerStyle={{ flexGrow: 1, width, paddingHorizontal: layout.sidebarInset, paddingTop: pad }}
+                        contentContainerStyle={{ flexGrow: 1, width: width + sideRoom * 2, paddingHorizontal: layout.sidebarInset + sideRoom, paddingTop: pad }}
                       >
-                        <PageRows
-                          windowId={windowId}
-                          profileId={profileId}
-                          current={current}
-                          rows={rows}
-                          lazy={lazy}
-                          offScreen={offScreen}
-                          tiles={scrolledTiles}
-                          innerWidth={innerWidth}
-                          inlineNewTab={inlineNewTab}
-                          controller={controller}
-                          geometry={geometry}
-                          onListHeight={reportList}
-                        />
+                        <SelectionShadowOpacityContext.Provider value={shadowOpacity}>
+                          <PageRows
+                            windowId={windowId}
+                            profileId={profileId}
+                            current={current}
+                            rows={rows}
+                            lazy={lazy}
+                            offScreen={offScreen}
+                            tiles={scrolledTiles}
+                            innerWidth={innerWidth}
+                            inlineNewTab={inlineNewTab}
+                            controller={controller}
+                            geometry={geometry}
+                            onListHeight={reportList}
+                          />
+                        </SelectionShadowOpacityContext.Provider>
                         <ContextMenuArea style={{ flexGrow: 1, minHeight: inlineNewTab ? 24 : 0 }} onContextMenu={() => void openSidebarMenu(windowId)}>
                           <WindowDragRegion style={{ flex: 1 }} titleBarDoubleClick={false} onRegionDoubleClick={() => toggleNewTabBar(windowId) || useBrowser.getState().newTab(windowId, { newTabCommand: true })} />
                         </ContextMenuArea>

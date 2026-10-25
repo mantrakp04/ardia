@@ -26,6 +26,7 @@ import { openLiveFolderMenu, openLiveItemMenu, openLiveStackMenu } from "./liveM
 import { registerRow } from "./state";
 import { TabIcon } from "./TabIcon";
 import { useSidebarTokens } from "./tokens";
+import { SelectionShadow } from "./SelectionShadow";
 
 const PAD = GROUP_PAD;
 const EMPTY: LiveItem[] = [];
@@ -341,12 +342,9 @@ function LiveItemRow({ folderId, item, windowId, inStack = false }: { folderId: 
                 cornerRadius={10}
                 borderWidth={active ? 1 : 0}
                 borderColors={active ? theme.tabSelectedBorder.map(hex) : undefined}
-                shadowColor={active ? hex(theme.tabSelectedShadow) : undefined}
-                shadowOpacity={active ? 1 : 0}
-                shadowRadius={theme.tabSelectedShadowRadius}
-                shadowOffset={[0, 0.5]}
                 style={{ height: layout.rowHeight, flexDirection: "row", alignItems: "center", paddingLeft: 9 + indent, paddingRight: 6 }}
               >
+                {active && <SelectionShadow />}
                 {unread ? <View style={{ position: "absolute", left: 2 + indent, width: 5, height: 5, borderRadius: 2.5, backgroundColor: colors.pip }} /> : null}
                 <ItemIcon item={item} completion={completion} colors={colors} />
                 <FadeLabel

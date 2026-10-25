@@ -22,6 +22,7 @@ import { PressFeedback } from "./PressFeedback";
 import { TabIcon } from "./TabIcon";
 import { TabBadges } from "../media/TabBadges";
 import { useSidebarTokens } from "./tokens";
+import { SelectionShadow } from "./SelectionShadow";
 
 export const clickMods = (e: GestureResponderEvent) => {
   const n = e.nativeEvent as unknown as { metaKey?: boolean; shiftKey?: boolean; altKey?: boolean };
@@ -102,12 +103,9 @@ export const TabRow = memo(function TabRow({ tabId, onto = false, shift = null }
                   borderWidth={border}
                   borderColor={selected && !active ? hex(tokens.multiSelectedStroke) : undefined}
                   borderColors={active ? theme.tabSelectedBorder.map(hex) : undefined}
-                  shadowColor={active ? hex(theme.tabSelectedShadow) : undefined}
-                  shadowOpacity={active ? 1 : 0}
-                  shadowRadius={theme.tabSelectedShadowRadius}
-                  shadowOffset={[0, 0.5]}
                   style={{ height: layout.rowHeight, flexDirection: "row", alignItems: "center", paddingLeft: 9 - border, paddingRight: 6 - border }}
                 >
+                  {active && <SelectionShadow />}
                   {resettable ? (
                     <View {...backToPin.hoverProps}>
                       <Pressable onPress={() => useBrowser.getState().returnToPinnedUrl(tab.id)} tooltip="Back to Pinned URL (⌘↩)">
@@ -236,12 +234,9 @@ export const SplitRowItem = memo(function SplitRowItem({
           cornerRadius={10}
           borderWidth={active ? 1 : 0}
           borderColors={active ? theme.tabSelectedBorder.map(hex) : undefined}
-          shadowColor={active ? hex(theme.tabSelectedShadow) : undefined}
-          shadowOpacity={active ? 1 : 0}
-          shadowRadius={theme.tabSelectedShadowRadius}
-          shadowOffset={[0, 0.5]}
           style={{ height: layout.rowHeight, flexDirection: "row", alignItems: "center", paddingHorizontal: active ? 2 : 3 }}
         >
+          {active && <SelectionShadow />}
           {tabIds.map((id, i) => (
             <View key={id} style={{ flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 }}>
               {i > 0 && <View style={{ width: 1, height: 16, backgroundColor: theme.divider, marginRight: 2 }} />}
