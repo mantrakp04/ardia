@@ -218,7 +218,7 @@ function customTheme(custom: ProfileTheme, color: ProfileColor, appDark: boolean
   if (!theme) {
     const resolved = resolveTheme(custom, requested);
     const look = followApp && requested && !themeDark(custom, false) && !custom.dark ? darkenedLook(resolved) : resolved;
-    const dark = followApp ? requested : readableDark(look, requested);
+    const dark = followApp ? requested || readableDark(look, false) : readableDark(look, requested);
     const preset = themeFor(`${color}:${dark ? "dark" : "light"}`);
     const accent = themeAccent(look);
     const palette = themePalette(look);
@@ -228,7 +228,7 @@ function customTheme(custom: ProfileTheme, color: ProfileColor, appDark: boolean
       backdrop: {
         ...backdropTint(accent, false),
         ...themeBackdrop(look, dark),
-        ...(followApp ? { themeAppearance: "auto" as const } : dark === requested ? {} : { themeAppearance: dark ? ("dark" as const) : ("light" as const) }),
+        ...(dark !== requested ? { themeAppearance: dark ? ("dark" as const) : ("light" as const) } : followApp ? { themeAppearance: "auto" as const } : {}),
       },
       windowTint: opaqueThemeTint(look, dark),
       powerUpColor: accent,

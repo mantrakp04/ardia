@@ -29,3 +29,14 @@ test("in a light app nothing changes", () => {
   assert.equal(follows.dark, false);
   assert.deepEqual(follows.windowTint, own.windowTint);
 });
+
+test("in a light app, a dark theme that renders too dark for black text gets white text", () => {
+  const night = { ...arcLight, stops: [{ color: { r: 0.08, g: 0.09, b: 0.14, a: 1 }, x: 0.5, y: 0.5 }], intensity: 1, mode: "dark" };
+  const follows = profileTheme({ color: "plum", theme: night }, false, true);
+  assert.equal(follows.dark, true, "white text on the dark backdrop, not black");
+  assert.equal(follows.textPrimary, profileTheme({ color: "plum", theme: night }, false, false).textPrimary);
+  assert.equal(follows.backdrop.themeAppearance, "dark", "the window draws dark to match");
+  const tinted = profileTheme({ color: "plum", theme: { ...night, intensity: 0.6 } }, false, true);
+  assert.equal(tinted.dark, false, "a light tint of the same colour still reads with black text, so it follows the light app");
+  assert.equal(tinted.backdrop.themeAppearance, "auto");
+});
