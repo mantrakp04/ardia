@@ -24,6 +24,7 @@ import { useHover } from "./primitives";
 import { ToolbarExtensions, useToolbarExtensionsWidth } from "./extensions/ToolbarExtensions";
 import { FIELD_GLASS_HOVER_OPACITY, FIELD_GLASS_OPACITY, GlassFill, liquidGlass } from "./glass";
 import { TranslateButton } from "./site/TranslateControls";
+import { ProtectionButton } from "./site/ProtectionPopover";
 import { ZoomIndicator } from "./site/ZoomControls";
 
 type ToolbarTab = Pick<Tab, "id" | "url" | "title" | "windowId" | "zoom">;
@@ -357,6 +358,7 @@ export const UrlField = memo(function UrlField({
       <View style={{ flexDirection: "row", alignItems: "center", paddingRight: 3 }}>
         {capture && <CaptureIndicator camera={capture.camera} microphone={capture.microphone} screen={capture.screen} onPress={toggleSiteControls} />}
         <TranslateButton tabId={tab.id} palette={palette} onFocus={onFocus} />
+        {web && (pointerOver || popover === "protection") && <ProtectionButton tabId={tab.id} open={popover === "protection"} palette={palette} onFocus={onFocus} />}
         <ZoomIndicator tabId={tab.id} zoom={tab.zoom} palette={palette} onFocus={onFocus} />
         {popups > 0 && (
           <ToolbarButton

@@ -132,8 +132,8 @@ export const setSearchEngineName = (name: string) => Cef.setSearchEngineName(nam
 export const getDisplayMediaSources = () => Cef.displayMediaSources();
 
 export const onDownload = (listener: (d: Download) => void) => {
-  const chromium = Cef.addListener("onDownload", listener);
-  const webkit = webKitListener("onDownload", listener);
+  const chromium = Cef.addListener("onDownload", (event) => { if (!isWebKitDownload(event.id)) listener(event); });
+  const webkit = webKitListener("onDownload", (event: Parameters<typeof listener>[0]) => { if (isWebKitDownload(event.id)) listener(event); });
   return { remove: () => (chromium.remove(), webkit.remove()) };
 };
 const downloadCommand = (action: "cancel" | "pause" | "resume", id: string) =>
@@ -154,13 +154,13 @@ export const setDownloadSettings = (patch: Partial<Pick<DownloadSettings, "folde
   engineCall<DownloadSettings>("ac_downloads_set_settings", profile, patch);
 
 export const onPermission = (listener: (p: PermissionRequest) => void) => {
-  const chromium = Cef.addListener("onPermission", listener);
-  const webkit = webKitListener("onPermission", listener);
+  const chromium = Cef.addListener("onPermission", (event) => { if (!isWebKitPermission(event.id)) listener(event); });
+  const webkit = webKitListener("onPermission", (event: Parameters<typeof listener>[0]) => { if (isWebKitPermission(event.id)) listener(event); });
   return { remove: () => (chromium.remove(), webkit.remove()) };
 };
 export const onPermissionDismissed = (listener: (p: { id: string }) => void) => {
-  const chromium = Cef.addListener("onPermissionDismissed", listener);
-  const webkit = webKitListener("onPermissionDismissed", listener);
+  const chromium = Cef.addListener("onPermissionDismissed", (event) => { if (!isWebKitPermission(event.id)) listener(event); });
+  const webkit = webKitListener("onPermissionDismissed", (event: Parameters<typeof listener>[0]) => { if (isWebKitPermission(event.id)) listener(event); });
   return { remove: () => (chromium.remove(), webkit.remove()) };
 };
 export const resolvePermission = (id: string, result: PermissionResult, remember = false) =>

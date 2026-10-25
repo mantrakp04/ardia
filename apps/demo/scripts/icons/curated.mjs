@@ -1,4 +1,8 @@
 export const CURATED = {
+  bold: "L:bold T:bold P:text-b M:format-bold",
+  "square.stack.fill": "PF:stack-simple M:layers TF:stack",
+  shield: "L:shield T:shield P:shield M:shield-outline",
+  "lock.open": "L:lock-open T:lock-open P:lock-open M:lock-open-outline",
   pianokeys: "L:piano T:piano P:piano-keys M:piano",
   cursorarrow: "PF:cursor-fill M:cursor-default TF:pointer IS:cursor-pointer",
   gyroscope: "L:orbit T:3d-rotate M:rotate-orbit L:rotate-3d T:rotate-360 L:atom",

@@ -47,10 +47,11 @@ export function useFormColors() {
   return formColors(useTheme());
 }
 
-export function Toggle({ value, onChange, disabled }: { value: boolean; onChange: (value: boolean) => void; disabled?: boolean }) {
+export function Toggle({ value, onChange, disabled, label }: { value: boolean; onChange: (value: boolean) => void; disabled?: boolean; label?: string }) {
   const colors = useFormColors();
   return (
     <Switch
+      accessibilityLabel={label}
       value={value}
       onChange={onChange}
       disabled={disabled}

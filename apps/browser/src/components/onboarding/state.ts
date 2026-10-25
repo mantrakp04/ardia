@@ -7,9 +7,9 @@ import type { ProfileColor } from "../../store/types";
 import { pinSites } from "./sites";
 import { endToolTour, startToolTour } from "./tour/state";
 
-export type OnboardingStep = "intro" | "source" | "layout" | "tabs" | "look" | "searchPrivacy" | "pins" | "home" | "outro";
+export type OnboardingStep = "intro" | "source" | "layout" | "tabs" | "look" | "searchPrivacy" | "blocker" | "pins" | "home" | "outro";
 
-export const STEPS: OnboardingStep[] = ["intro", "source", "layout", "tabs", "look", "searchPrivacy", "pins", "home", "outro"];
+export const STEPS: OnboardingStep[] = ["intro", "source", "layout", "tabs", "look", "searchPrivacy", "blocker", "pins", "home", "outro"];
 
 export type Preset = "arc" | "dia";
 
@@ -56,6 +56,7 @@ export type QuestionId =
   | "engine"
   | "typed"
   | "crash"
+  | "blocker"
   | "pins"
   | "default"
   | "links"
@@ -89,6 +90,7 @@ const QUESTIONS: Record<Exclude<OnboardingStep, "intro">, Question[]> = {
     { id: "typed", keys: ["commandBarPreference"] },
     { id: "crash", keys: [] },
   ],
+  blocker: [{ id: "blocker", keys: [] }],
   pins: [{ id: "pins", keys: [] }],
   home: [
     { id: "default", keys: [] },

@@ -313,6 +313,8 @@ const BODIES: readonly string[] = [
   "<path d=\"M12 19a1 1 0 0 1 .993 .883l.007 .117v1a1 1 0 0 1 -1.993 .117l-.007 -.117v-1a1 1 0 0 1 1 -1z\" /><path d=\"M18.313 16.91l.094 .083l.7 .7a1 1 0 0 1 -1.32 1.497l-.094 -.083l-.7 -.7a1 1 0 0 1 1.218 -1.567l.102 .07z\" /><path d=\"M7.007 16.993a1 1 0 0 1 .083 1.32l-.083 .094l-.7 .7a1 1 0 0 1 -1.497 -1.32l.083 -.094l.7 -.7a1 1 0 0 1 1.414 0z\" /><path d=\"M4 11a1 1 0 0 1 .117 1.993l-.117 .007h-1a1 1 0 0 1 -.117 -1.993l.117 -.007h1z\" /><path d=\"M21 11a1 1 0 0 1 .117 1.993l-.117 .007h-1a1 1 0 0 1 -.117 -1.993l.117 -.007h1z\" /><path d=\"M6.213 4.81l.094 .083l.7 .7a1 1 0 0 1 -1.32 1.497l-.094 -.083l-.7 -.7a1 1 0 0 1 1.217 -1.567l.102 .07z\" /><path d=\"M19.107 4.893a1 1 0 0 1 .083 1.32l-.083 .094l-.7 .7a1 1 0 0 1 -1.497 -1.32l.083 -.094l.7 -.7a1 1 0 0 1 1.414 0z\" /><path d=\"M12 2a1 1 0 0 1 .993 .883l.007 .117v1a1 1 0 0 1 -1.993 .117l-.007 -.117v-1a1 1 0 0 1 1 -1z\" /><path d=\"M12 7a5 5 0 1 1 -4.995 5.217l-.005 -.217l.005 -.217a5 5 0 0 1 4.995 -4.783z\" />",
   "<rect x=\"5.72\" y=\"5.72\" width=\"20.56\" height=\"20.56\" rx=\"2.99\"/>",
   "<path d=\"M8.51 16.51A0.51 0.51 0 0 1 9.02 16H22.98A0.51 0.51 0 0 1 23.49 16.51\" fill=\"none\"/><path d=\"M11.05 13.04A0.51 0.51 0 0 1 11.56 12.54H20.44A0.51 0.51 0 0 1 20.95 13.04\" fill=\"none\"/>",
+  "<path d=\"M18,20V10H6V20H18M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6C4.89,22 4,21.1 4,20V10A2,2 0 0,1 6,8H15V6A3,3 0 0,0 12,3A3,3 0 0,0 9,6H7A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,17A2,2 0 0,1 10,15A2,2 0 0,1 12,13A2,2 0 0,1 14,15A2,2 0 0,1 12,17Z\" />",
+  "<path d=\"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\" />",
 ];
 
 const ENCODED: Record<string, readonly EncodedLayer[]> = {
@@ -594,6 +596,8 @@ const ENCODED: Record<string, readonly EncodedLayer[]> = {
   "xmark.circle": [[297,256,1,1,0,[[1.2175,0.9975,0.0099,-0.0024,0.0007,0,1],[1.2175,1,0.0174,-0.0174,0.0068,0,1],[1.2137,1,-0.0145,0.0164,0.0218,0,1],[1.21,1,-0.0108,0.0108,0.0353,0,1],[1.2043,1,-0.0033,0.0042,0.0525,0,1]]]],
   "xmark.circle.fill": [[298,24,1,1,0,[[1.1406,1,0.0089,-0.0089,0.0293,0,1],[1.1706,1,0.0174,-0.0174,0.0203,0,1],[1.1931,1,-0.0145,0.0145,0.015,0,1],[1.2006,1,-0.0108,0.0108,0.0188,0,1],[1.2306,1,-0.0033,0.0033,0.0053,0,1]]]],
   "xmark.square": [[299,32,0,1,0,[[1.3352,1,0.0188,0.0009,0.0627,0,1],[1.3333,1,-0.0131,-0.0075,0.0792,0,1],[1.3183,1,-0.0056,-0.015,0.0883,0,1],[1.3183,1,-0.0019,-0.0225,0.1033,0,1],[1.3127,1,0.0056,0.0131,0.125,0,1]]]],
+  "lock.open": [[309,24,1,1,0,[[0.9895,1.0175,-0.1666,0.0734,0,0,1],[0.9895,1.0175,-0.1666,0.0734,0,0,1],[0.9951,1.0125,-0.1582,0.065,0.006,0,1],[1.0007,1.01,-0.1498,0.0565,0.0188,0,1],[1.0195,1.0175,-0.1376,0.0875,0.03,0,1]]]],
+  "shield": [[310,24,0,1,0,[[1.1069,1,0.011,-0.0277,0.0575,0,1],[1.1069,1,-0.0171,-0.0352,0.0785,0,1],[1.1069,1,-0.0096,-0.0417,0.0935,0,1],[1.0994,1.0025,-0.0059,-0.0427,0.104,0,1],[1.0994,1,-0.0002,-0.0099,0.1175,0,1]]]],
 };
 
 const WEIGHTS: readonly SymbolWeight[] = ["light","regular","medium","semibold","bold"];
@@ -904,6 +908,8 @@ const NUDGES: Record<string, string> = {
   "xmark.circle": "f9f9aecceaaeeaaeaeeb9fdbdb9g8gccccbd9f9fdag8aeeaaeeaeaadf9bdbdf8g8cccbdb9f9fdbg8aeeaaeeaeabef9bdbdg9g8ccdcdb9f9fdbg8aeeaaeeaeaadf9bdbdf9g8ccccdb",
   "xmark.circle.fill": "f9f9aecceaaeeaaeaeea9fdbdb9f8gccccbd9f9feag8aeeaaeeaeaaef9bdbdf9g8ccccdb9f9feag8aeeaaeeaeabdf9bdbdg8g8ccccdb9f9feag8aeeaaeeaeaaef9bdbdf9g8ccccdb",
   "xmark.square": "acdch9ffhdc9ffcabcfgbcfgi9hedfccgefeaced9hfe9ecagecbccfgbcegah9edfccfdfeacdd8hge9dcihfcbbcfgbcehai9fdgcdgeefa9d99efc9ace8acebefab7ebab98d8cc7dfd",
+  "lock.open": "k5h5m8l6n4l8o3n7o8o3o6o2o1o5o0o0o0o0l5h5m8l6n5k8o4m7n7o3o6o2o1o4o4o0o0o0k5h5m9k7n5k8o4m7n7o3o7o2o2o5o4o0o0o0kbgal6k3m9j5o8l3m2o6o1o5o3o0o0o0o0o0",
+  "shield": "fabaefcddahfcbggfgiceghccdjidiceefegfabaefbddbhfccggfhadeghdcebidjcffgdgfaabefcddb9fccggfgadeg9ccdaidicfffegfgbgeccadg9ccfgcfcageb9fcfbbdbcfffef",
 };
 
 export function symbolNudge(name: string, weight: SymbolWeight, pointSize: number): readonly [number, number] {

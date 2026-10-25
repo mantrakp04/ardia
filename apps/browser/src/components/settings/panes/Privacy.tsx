@@ -1,7 +1,6 @@
 import {
   clearSiteData,
   getSiteSettings,
-  onContentBlockerChange,
   removeExternalAppAllowance,
   resetSiteSettings,
   setContentBlockerAllowed,
@@ -19,15 +18,18 @@ import {
 import { confirm } from "@ardia/shell";
 import { useEffect, useState } from "react";
 import { Image, ScrollView, Text, View } from "react-native";
+import { PROVIDER_TITLES, providerStatusText } from "../../../lib/contentBlockerProvider";
+import { getActivatingBlocker, onBlockerSettingsChange, selectContentBlocker } from "../../../lib/contentBlockerSelection";
 import { useTheme } from "../../../lib/theme";
 import { useBrowser } from "../../../store/browser";
 import { useProfiles } from "../../../store/hooks";
-import { engineProfile } from "../../../store/model";
+import { engineProfile, resolveWindowId } from "../../../store/model";
 import { Favicon } from "../../primitives";
 import { Button, Checkbox, Group, PopUp, Row, SectionHeader, Sheet, Toggle } from "../controls";
 import { appLinks, contentBlocker, siteOrigins, zoomLevels } from "../paneData";
 import { useResource } from "../resources";
 import { closeSettingsSheet, showSettingsSheet } from "../sheet";
+import { PrivacyProtections } from "./PrivacyProtections";
 import { ShareDiagnosticsSection } from "./ShareDiagnostics";
 
 const CATEGORIES: { id: FilterListCategory; toggle: string; section: string; anchor?: string }[] = [
@@ -39,13 +41,15 @@ const CATEGORIES: { id: FilterListCategory; toggle: string; section: string; anc
   { id: "regional", toggle: "", section: "Regional blockers" },
 ];
 
+const providerNote = (s: ContentBlockerState | null) => (s ? `${providerStatusText(s)} Refresh open pages after changing modes.` : undefined);
+
 const filtersText = (n: number) => `${n.toLocaleString()} ${n === 1 ? "filter" : "filters"}`;
 
 function useContentBlocker() {
   const [state, reload] = useResource(contentBlocker);
   const refresh = () => void reload();
   useEffect(() => {
-    const sub = onContentBlockerChange(refresh);
+    const sub = onBlockerSettingsChange(refresh);
     return () => sub.remove();
   }, []);
   return [state ?? null, refresh] as const;
@@ -65,37 +69,113 @@ async function setCategory(s: ContentBlockerState, c: FilterListCategory, on: bo
 export function PrivacyPane() {
   const theme = useTheme();
   const [blocker, refresh] = useContentBlocker();
+  const [working, setBusy] = useState(false);
+  const [activating, setActivating] = useState(getActivatingBlocker);
+  const busy = working || !!activating;
+  useEffect(() => {
+    const subscription = onBlockerSettingsChange(() => setActivating(getActivatingBlocker()));
+    return () => subscription.remove();
+  }, []);
+  const [error, setError] = useState("");
+  const adNauseam = blocker?.provider === "adnauseam";
 
-  const toggleCategory = async (c: FilterListCategory, on: boolean) => {
-    if (!blocker) return;
-    if (!on && c === "ads") {
-      const { confirmed } = await confirm({
-        title: "Turn Off Ad Blocker?",
-        message: "Ardia's Ad Blocker hides ads so pages load faster and feel cleaner.",
-        confirmTitle: "Turn Off",
-      });
-      if (!confirmed) return refresh();
-    }
+  const mutate = async (work: () => Promise<unknown>) => {
+    setBusy(true);
+    setError("");
     try {
-      await setCategory(blocker, c, on);
+      await work();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
+      setBusy(false);
       refresh();
     }
   };
 
+  const confirmAdsOff = async () =>
+    (
+      await confirm({
+        title: "Turn Off Ad Blocker?",
+        message: "Ardia's Ad Blocker hides ads so pages load faster and feel cleaner.",
+        confirmTitle: "Turn Off",
+      })
+    ).confirmed;
+
+  const toggleCategory = async (c: FilterListCategory, on: boolean) => {
+    if (!blocker) return;
+    if (!on && c === "ads" && !(await confirmAdsOff())) return refresh();
+    await mutate(() => setCategory(blocker, c, on));
+  };
+
+  const toggleBlocking = async (on: boolean) => {
+    if (!on && !(await confirmAdsOff())) return refresh();
+    await mutate(() => setContentBlockerEnabled(on));
+  };
+
+  const shownError = error || (blocker && !blocker.stats.ready ? blocker.stats.error : "");
+
   return (
     <View>
-      <SectionHeader title="Content blocking" description="Built on EasyList and EasyPrivacy. Blocking happens on this Mac." />
+      <SectionHeader title="Content blocking" description="For pages opened in Chromium, powered by uBlock Origin and AdNauseam. Standard blocks ads and trackers. Active obfuscation adds background visits intended to blur advertising profiles." />
       <Group>
-        {CATEGORIES.filter((c) => c.toggle).map((c) => (
-          <Row key={c.id} anchor={c.anchor} title={c.toggle}>
-            <Toggle value={!!blocker && categoryOn(blocker, c.id)} disabled={!blocker} onChange={(v) => void toggleCategory(c.id, v)} />
+        {blocker && (blocker.availableProviders.length > 1 || (!blocker.stats.ready && !!blocker.stats.error)) && (
+          <Row anchor="privacy.contentBlocker" title="Protection mode" description={activating ? `Activating ${PROVIDER_TITLES[activating]}…` : providerNote(blocker)}>
+            <PopUp
+              value={activating ?? blocker!.provider}
+              options={blocker!.availableProviders.map((p) => ({ value: p, title: PROVIDER_TITLES[p] }))}
+              disabled={busy}
+              onChange={(p) => void mutate(() => selectContentBlocker(p))}
+            />
+            {!blocker.stats.ready && !!blocker.stats.error && (
+              <Button title="Retry" disabled={busy} onPress={() => void mutate(() => selectContentBlocker(blocker.selectedProvider))} />
+            )}
           </Row>
-        ))}
-        <Row anchor="privacy.filterLists">
-          <Button title="Advanced…" disabled={!blocker} onPress={() => showSettingsSheet(<FilterListsSheet />)} />
+        )}
+        {adNauseam ? (
+          <Row anchor="privacy.blockAds" title={blocker?.enabled ? "Protection active" : "Protection paused"} description="Pausing protection also pauses background ad clicking.">
+            <Toggle label="Ad and tracker protection" value={!!blocker?.enabled} disabled={busy} onChange={(v) => void toggleBlocking(v)} />
+          </Row>
+        ) : (
+          CATEGORIES.filter((c) => c.toggle).map((c) => (
+            <Row key={c.id} anchor={c.anchor} title={c.toggle}>
+              <Toggle label={c.toggle} value={!!blocker && categoryOn(blocker, c.id)} disabled={!blocker || busy} onChange={(v) => void toggleCategory(c.id, v)} />
+            </Row>
+          ))
+        )}
+        <Row
+          anchor="privacy.clickAds"
+          title="Background ad clicking"
+          description={!adNauseam
+            ? "Off in Standard. Choose Active obfuscation to opt into ad collection and background visits."
+            : blocker?.enabled && blocker.clickAds
+              ? "Enabled for eligible ads. Uses extra data; advertising services can see your IP address. Private tabs are excluded. Switch to Standard to stop collection and visits."
+              : blocker?.clickAds
+                ? "Paused because protection is off."
+                : "Paused because activation or saving failed. Retry to confirm active obfuscation and resume clicking."}
+        >
+          {adNauseam && !blocker?.clickAds ? (
+            <Button title="Retry" disabled={busy} onPress={() => void mutate(() => selectContentBlocker("adnauseam"))} />
+          ) : null}
+        </Row>
+        <Row anchor="privacy.adVault" title="Ad Vault" description="Review collected ads and visit results, or delete stored ads. Ads stay on this Mac.">
+          <Button title="Open Ad Vault…" disabled={!blocker || busy} onPress={() => {
+            const state = useBrowser.getState();
+            const windowId = resolveWindowId(state);
+            if (windowId) state.newTab(windowId, { url: "chrome-extension://fajbdaomknpkicfjcpipdmcpoamdmilh/vault.html" });
+          }} />
+        </Row>
+        <Row anchor="privacy.adPreferences" title="AdNauseam preferences" description="Click probability, site exclusions, cookie handling, and vault import or export.">
+          <Button title="Open…" disabled={!blocker || busy} onPress={() => {
+            const state = useBrowser.getState();
+            const windowId = resolveWindowId(state);
+            if (windowId) state.newTab(windowId, { url: "chrome-extension://fajbdaomknpkicfjcpipdmcpoamdmilh/dashboard.html#options.html" });
+          }} />
+        </Row>
+        <Row anchor="privacy.filterLists" title="Filter lists" description="Add regional lists for the languages you browse. Cookie banners and other annoyances have separate optional lists. Applies to both modes.">
+          <Button title="Manage…" disabled={!blocker || busy} onPress={() => showSettingsSheet(<FilterListsSheet />)} />
         </Row>
       </Group>
+      {!!shownError && <Text style={{ marginTop: 6, fontSize: 11.5, color: theme.textSecondary }}>{`Content blocker: ${shownError}`}</Text>}
 
       {!!blocker?.allowedHosts.length && (
         <>
@@ -103,16 +183,14 @@ export function PrivacyPane() {
           <Group>
             {blocker.allowedHosts.map((host) => (
               <Row key={host} icon={<Favicon url={`https://${host}`} />} title={host}>
-                <Button
-                  title="Block Again"
-                  onPress={() => void setContentBlockerAllowed(host, false).then(refresh)}
-                />
+                <Button title="Block Again" disabled={busy} onPress={() => void mutate(() => setContentBlockerAllowed(host, false))} />
               </Row>
             ))}
           </Group>
         </>
       )}
 
+      <PrivacyProtections />
       <SitePermissions />
       <AppLinks />
       <ZoomLevels />
@@ -163,7 +241,7 @@ function FilterListsSheet() {
       </ScrollView>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 16 }}>
         <Text style={{ flex: 1, fontSize: 11.5, color: theme.textTertiary }}>
-          {blocker?.version ? `Blocking by uBlock Origin ${blocker.version}, included with Ardia. Its lists update on their own.` : ""}
+          {blocker?.version ? `Ardia Blocker ${blocker.version}, included with Ardia. Its lists update on their own.` : ""}
         </Text>
         <Button title="Done" kind="primary" onPress={closeSettingsSheet} />
       </View>

@@ -17,6 +17,7 @@ export function Switch({
   value,
   onChange,
   disabled,
+  accessibilityLabel,
   look,
   hitSlop = 6,
   animateExternalChanges = true,
@@ -24,6 +25,7 @@ export function Switch({
   value: boolean;
   onChange: (value: boolean) => void;
   disabled?: boolean;
+  accessibilityLabel?: string;
   look: SwitchLook;
   hitSlop?: number;
   animateExternalChanges?: boolean;
@@ -51,6 +53,9 @@ export function Switch({
   const radius = look.height / 2;
   return (
     <Pressable
+      accessibilityRole="switch"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ checked: value, disabled: !!disabled }}
       disabled={disabled}
       hitSlop={hitSlop}
       onPress={() => {

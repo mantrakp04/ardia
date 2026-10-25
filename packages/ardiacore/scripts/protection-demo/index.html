@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ardia · Protection in action</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<main>
+<header><div><div class="eyebrow"><span class="mark">a</span> ARDIA / PRIVACY LAB</div><h1>See your privacy at work.</h1><p class="intro">Real blocker activity. Sample ads. Every test visit stays local.</p></div><div class="connection"><span id="connection">Connecting</span><span class="dot"></span></div></header>
+<section class="modebar" aria-label="Current protection"><div><span class="mode-icon" id="mode-icon">◈</span><div><strong id="mode">Reading browser state…</strong><p id="mode-detail">Open the shield or Settings → Privacy to change protection.</p></div></div><span class="tag" id="site-status">Checking site</span></section>
+<div class="metrics" aria-label="This take"><div><strong id="offered">0</strong><span>Ads offered</span></div><div><strong id="hidden">0</strong><span>Hidden from the page</span></div><div><strong id="collected">0</strong><span>Collected locally</span></div><div><strong id="clicked">0</strong><span>Ads clicked</span></div></div>
+<div class="workspace">
+<section class="activity"><div class="section-title"><div><h2>Follow each sample ad</h2><p>These cards are an activity monitor, not the ads themselves.</p></div></div>
+<div class="controls"><button id="add" class="primary">＋ Add an ad</button><button id="stream">Start a stream</button><button id="clear" class="quiet" title="Clear this display. Saved ads remain in the vault.">New take</button></div>
+<div id="cards" class="cards" aria-label="Sample ad activity"></div>
+<div id="empty" class="empty"><span>↗</span><strong>Give the blocker something to do.</strong><p>Add a sample ad or start a stream.<br>Switch modes to see what changes.</p></div>
+<div class="activity-footer"><span class="pulse"></span><span id="last-event" aria-live="polite">Ready for your first test ad.</span></div>
+</section>
+<aside><div class="section-title"><h2>Your protection, at a glance</h2><p id="proof-note">Measured signals + live browser settings</p></div>
+<div id="protections"></div>
+<div class="try-links"><a id="tagged" href="?utm_source=privacy-lab&fbclid=sample&keep=demo">Try a tagged link ↗</a><button id="storage" class="quiet">Save a test marker</button><p id="marker">No test marker saved.</p></div>
+</aside>
+</div>
+<footer><strong>How to record:</strong> Start in Standard → add ads → choose Active obfuscation and confirm → watch clicks → switch back to Standard. Collection and clicking stop; saved entries remain.<details><summary>What this test proves</summary><p>Each sample is counted once. “Clicked” requires both a successful visit recorded by AdNauseam and its request intercepted locally. The scheduler runs at its normal speed; the first click can take a minute. The sample ad frame and tracker use explicit local fixture rules. Pausing the stream only stops new samples, not already queued visits.</p><p>GPC is checked in page JavaScript and an HTTP header. CNAME uncloaking, link cleaning, malware filter lists and site cleanup show configuration, not a comprehensive protection test. Secure DNS, HTTPS upgrades and fingerprinting protections inherited from Helium are not measured here. Use this lab in a normal window of the demo’s default profile. This page never changes your protection mode.</p><p id="build"></p></details></footer>
+</main>
+<iframe id="samples" title="Controlled sample ads" aria-hidden="true" tabindex="-1"></iframe>
+<script src="app.js"></script>
+</body></html>

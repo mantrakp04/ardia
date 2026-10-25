@@ -69,7 +69,7 @@ const needs = {
   "tab-keys-from-page": ["open-url", "target-blank"],
   "window-close": ["window-open"],
   "site-data-clear": ["open-url"],
-  "frozen": ["open-url", "cmd-click"],
+  "frozen": ["open-url"],
   "discard": ["open-url", "cmd-click"],
   "duplicate-and-reopen": ["open-url", "navigate-back-forward-reload"],
   "context-menu-activation-log": ["context-menu-search"],
@@ -413,7 +413,7 @@ process.env.ARDIA_CHROMIUM_SWITCHES += ` --ignore-certificate-errors-spki-list=$
 process.env.ARDIA_CHROMIUM_SWITCHES += " --disable-audio-output";
 async function launch(logName = "app.out.log", env = {}, args = [], opts = {}) {
   instance = await launchInstance(opts.app ?? app, {
-    data, log: join(scratch, logName), args, ready: false,
+    data, log: join(scratch, logName), args, ready: false, js: process.env.ARDIA_ACCEPTANCE_JS ?? "pinned", probe: process.env.ARDIA_ACCEPTANCE_JS === "none",
     env: {
       ARDIA_TEST_REAUTH: "granted", ARDIA_DOWNLOADS_DIR: downloadsDir, ARDIA_ALLOW_AUDIO: "1",
       ...Object.fromEntries(["ARDIA_ALLOW_OCCLUSION", "ARDIA_TRACE_VISIBILITY", "ARDIA_TRACE_PIP"].filter((k) => process.env[k]).map((k) => [k, process.env[k]])),
@@ -635,7 +635,9 @@ const startVideo = async (tabId, audio) => {
   return t;
 };
 const pipByHand = async (tabId) => {
+  await until("the PiP control ready", async () => (await live(tabId))?.hasVideo || (await lastEvent(tabId, "nowPlaying", p => p.state?.hasVideo)), 8000);
   await evalApp(`ac.pageState.setState((s) => ({ popover: { ...s.popover, ${JSON.stringify(tabId)}: "siteControls" } })); return true`);
+  await sleep(250);
   return until("a click on Site Controls › Picture in Picture", async () => {
     const click = await evalApp(`return ac.shell.devClick(${JSON.stringify(mainWindow)}, { label: "Picture in Picture", queued: true, wait: 300 })`);
     return click?.error ? null : click;
@@ -2933,19 +2935,24 @@ try {
       return r?.sound?.isDefault ? r.sound : null;
     });
     const before = await cef(`getContentBlocker()`);
-    await cef(`setContentBlockerEnabled(false)`);
-    const off = await until("the blocker off", async () => ((await cef(`getContentBlocker()`)).enabled === false ? true : null), 15000);
-    await cef(`setContentBlockerEnabled(true)`);
-    await until("the blocker on", async () => ((await cef(`getContentBlocker()`)).enabled === true ? true : null), 15000);
-    const list = before.lists.find((l) => !l.enabled) ?? before.lists[0];
-    await cef(`setFilterListEnabled(${JSON.stringify(list.id)}, ${!list.enabled})`);
-    const toggled = await until("the list toggled", async () =>
-      (await cef(`getContentBlocker()`)).lists.find((l) => l.id === list.id)?.enabled === !list.enabled ? true : null, 20000);
-    await cef(`setFilterListEnabled(${JSON.stringify(list.id)}, ${list.enabled})`);
-    await cef(`removeExternalAppAllowance("", "https://none.test", "ardiacore-no-such-app")`);
-    const siteData = await evalApp(`return ac.webviews.get("${first.id}")?.clearSiteData() ?? null`);
-    if (!siteData || siteData.error) throw new Error(`clearSiteData: ${JSON.stringify(siteData)}`);
-    return { reset: reset.value, blockerOff: off, list: list.id, toggled, siteData };
+    const list = before.lists.find((l) => l.enabled) ?? before.lists[0];
+    if (!list) throw new Error("No filter list is available to test");
+    try {
+      await cef(`setContentBlockerEnabled(false)`);
+      const off = await until("the blocker off", async () => ((await cef(`getContentBlocker()`)).enabled === false ? true : null), 15000);
+      await cef(`setContentBlockerEnabled(true)`);
+      await until("the blocker on", async () => ((await cef(`getContentBlocker()`)).enabled === true ? true : null), 15000);
+      await cef(`setFilterListEnabled(${JSON.stringify(list.id)}, ${!list.enabled})`);
+      const toggled = await until("the list toggled", async () =>
+        (await cef(`getContentBlocker()`)).lists.find((l) => l.id === list.id)?.enabled === !list.enabled ? true : null, 20000);
+      await cef(`removeExternalAppAllowance("", "https://none.test", "ardiacore-no-such-app")`);
+      const siteData = await evalApp(`return ac.webviews.get("${first.id}")?.clearSiteData() ?? null`);
+      if (!siteData || siteData.error) throw new Error(`clearSiteData: ${JSON.stringify(siteData)}`);
+      return { reset: reset.value, blockerOff: off, list: list.id, toggled, siteData };
+    } finally {
+      try { await cef(`setFilterListEnabled(${JSON.stringify(list.id)}, ${list.enabled})`); }
+      finally { await cef(`setContentBlockerEnabled(${before.enabled})`); }
+    }
   });
 
   await check("download-controls", async () => {
@@ -3217,7 +3224,8 @@ try {
       await evalApp(`return ac.webviews.get("${tab.id}").setMuted(true)`);
       const t = await startVideo(tab.id, false);
       const click = await pipByHand(tab.id);
-      const on = await until("onPictureInPicture video", async () => lastEvent(tab.id, "pictureInPicture", (p) => p.kind === "video" && p.active), 5000);
+      const on = await until("onPictureInPicture video", async () => lastEvent(tab.id, "pictureInPicture", (p) => p.kind === "video" && p.active), 5000)
+        .catch(error => { throw new Error(`${error.message}; click: ${JSON.stringify(click)}`); });
       const element = (await cdp(t, "Runtime.evaluate", { expression: "document.pictureInPictureElement?.id ?? null", returnByValue: true })).result.value;
       const video = await until("Chrome's PiP window, styled", async () => (await pipWindows())?.find((w) => w.video && w.styled) ?? null, 5000)
         .catch(async (e) => { throw new Error(`${e.message}: ${JSON.stringify(await pipWindows())}`); });
@@ -4009,20 +4017,25 @@ try {
   });
 
   await check("frozen", async () => {
-    const s = await state();
-    const other = s.tabs.find((x) => x.id !== first.id && x.id !== s.active && x.url?.startsWith(`${base}/d`));
-    if (!other) throw new Error("no background tab");
-    const t = await pageTarget(`${base}/d`);
-    await cdp(t, "Runtime.evaluate", { expression: "window.__life = []; document.addEventListener('freeze', () => __life.push('freeze')); document.addEventListener('resume', () => __life.push('resume')); true" });
-    await evalApp(`return ac.webviews.get("${other.id}")?.setFrozen(true)`);
-    await sleep(1500);
-    await evalApp(`return ac.webviews.get("${other.id}")?.setFrozen(false)`);
-    const life = await until("freeze and resume", async () => {
-      const r = await cdp(t, "Runtime.evaluate", { expression: "JSON.stringify(window.__life)", returnByValue: true });
-      const l = JSON.parse(r.result.value ?? "[]");
-      return l.includes("freeze") && l.includes("resume") ? l : null;
-    }, 8000);
-    return { life };
+    const other = await openTab(`${base}/d?freeze`, "Page D");
+    try {
+      const t = await pageFor(other.id, `${base}/d?freeze`);
+      await backToA();
+      await until("the freeze fixture to be hidden", async () =>
+        (await cdp(t, "Runtime.evaluate", { expression: "document.visibilityState", returnByValue: true })).result.value === "hidden");
+      await cdp(t, "Runtime.evaluate", { expression: "window.__life = []; document.addEventListener('freeze', () => __life.push('freeze')); document.addEventListener('resume', () => __life.push('resume')); true" });
+      await evalApp(`return ac.webviews.get("${other.id}").setFrozen(true)`);
+      await sleep(1500);
+      await evalApp(`return ac.webviews.get("${other.id}").setFrozen(false)`);
+      const life = await until("freeze and resume", async () => {
+        const r = await cdp(t, "Runtime.evaluate", { expression: "JSON.stringify(window.__life)", returnByValue: true });
+        const l = JSON.parse(r.result.value ?? "[]");
+        return l.includes("freeze") && l.includes("resume") ? l : null;
+      }, 8000);
+      return { life };
+    } finally {
+      await closeTab(other.id);
+    }
   });
 
   await check("discard", async () => {
@@ -4500,6 +4513,17 @@ try {
     }
   });
 
+  const quitForBlockerRestart = async (windowId) => {
+    if (process.env.ARDIA_ACCEPTANCE_JS === "none") {
+      const result = await instance.quit();
+      if (result.how !== "quit") throw new Error(`blocker restart required forced termination: ${result.how}`);
+      exited = { pid };
+    } else {
+      await pressQuit(windowId);
+      await until("the app to exit", async () => exited, 20000);
+    }
+  };
+
   await check("content-blocker-restored", async () => {
     const windowId = await appUp("app-blocker-restored.out.log");
     const tag = `restored-${Date.now()}`;
@@ -4511,8 +4535,7 @@ try {
     await until("the ad page", () => loaded(id), 15000);
     const beforeQuit = adsServedFor(tag);
     await until("the ad page saved", async () => savedSession().includes(tag), 10000);
-    await pressQuit(windowId);
-    await until("the app to exit", async () => exited, 20000);
+    await quitForBlockerRestart(windowId);
     const relaunched = Date.now();
     const tab = await restored(tag);
     await until("the restored page loaded", () => loaded(tab.id), 20000);
@@ -4532,6 +4555,191 @@ try {
     const afterReady = adsServedFor(again);
     if (afterReady.length) throw new Error(`ads went out once uBlock Origin was ready: ${JSON.stringify(afterReady)}`);
     return { restored: tab.url, loadedAfterMs, racedAtLaunch, nextDocuments: documents };
+  });
+
+  await check("content-blocker-provider", async () => {
+    const ublock = "fajbdaomknpkicfjcpipdmcpoamdmilh", adnauseam = ublock;
+    const ready = () => until("the blocker's state", async () => {
+      const s = await cef(`getContentBlocker()`);
+      return s?.stats?.ready ? s : null;
+    }, 30000);
+    const running = async () => [...new Set((await targets()).filter((t) => t.type === "background_page").map((t) => t.url.split("/")[2]).filter((id) => id === ublock || id === adnauseam))];
+    const restart = async (log) => {
+      await quitForBlockerRestart(mainWindow ?? (await appUp(`${log}-up.out.log`)));
+      await appUp(`${log}.out.log`);
+      return ready();
+    };
+    const gate = async () => {
+      const target = (await targets()).find((t) => t.type === "background_page" && t.url.startsWith(`chrome-extension://${adnauseam}/`));
+      const r = await cdp(target, "Runtime.evaluate", { expression: "[self.ardiaClickConsent, µBlock.userSettings.clickingAds]", returnByValue: true });
+      return r.result.value;
+    };
+    const expectGate = (want, what) => until(what, async () => (JSON.stringify(await gate()) === JSON.stringify(want) ? true : null), 15000);
+    const restrictedPage = async (provider) => {
+      const url = `chrome://version/?ardia-blocker-check=${provider}`;
+      const tab = await evalApp(`return ac.store.getState().newTab(${JSON.stringify(mainWindow)}, { url: ${JSON.stringify(url)} })`);
+      try {
+        await until("the restricted page", () => pageTarget(url));
+        const backgrounds = (await targets()).filter(t => t.type === "background_page" && t.url.startsWith(`chrome-extension://${provider}/`));
+        const matches = await until("the restricted tab to finish loading", async () => {
+          const replies = await Promise.all(backgrounds.map(target => cdp(target, "Runtime.evaluate", {
+            expression: `chrome.tabs.query({}).then(tabs => tabs.filter(t => t.url === ${JSON.stringify(url)} && t.status === "complete").map(t => t.id))`,
+            awaitPromise: true, returnByValue: true,
+          })));
+          const found = replies.flatMap((r, i) => (r.result?.value ?? []).map(id => ({ target: backgrounds[i], id })));
+          return found.length ? found : null;
+        });
+        if (matches.length !== 1) throw new Error(`restricted tab appeared in ${matches.length} profiles`);
+        const { target, id } = matches[0];
+        const reply = await cdp(target, "Runtime.evaluate", {
+          expression: `new Promise(resolve => chrome.tabs.executeScript(${id}, {code: '"unexpected injection"'}, () => resolve(chrome.runtime.lastError?.message ?? 'injected')))`,
+          awaitPromise: true, returnByValue: true,
+        });
+        if (!/Cannot access a chrome:\/\//.test(reply.result?.value ?? ""))
+          throw new Error(`restricted-page injection was not denied: ${JSON.stringify(reply)}`);
+      } finally {
+        await evalApp(`ac.store.getState().closeTab(${JSON.stringify(tab)}); return true`);
+      }
+    };
+    const reloadBackgrounds = async (want, recreate = false) => {
+      const backgrounds = (await targets()).filter(t => t.type === "background_page" && t.url.startsWith(`chrome-extension://${adnauseam}/`));
+      if (!backgrounds.length) throw new Error("no AdNauseam background pages to restart");
+      for (let target of backgrounds) {
+        await cdp(target, "Runtime.evaluate", { expression: "self.ardiaRestartTest = true" });
+        if (recreate) {
+          const before = new Set((await targets()).map(t => t.id));
+          const oldId = target.id;
+          await cdp(target, "Runtime.evaluate", { expression: "setTimeout(() => chrome.runtime.reload(), 0)" });
+          target = await until("the reloaded background host", async () => (await targets()).find(t =>
+            (t.id === oldId || !before.has(t.id)) && t.type === "background_page" && t.url.startsWith(`chrome-extension://${adnauseam}/`)));
+        } else {
+          await cdp(target, "Page.reload");
+        }
+        await until("the background document to restart", async () => {
+          const r = await cdp(target, "Runtime.evaluate", { expression: "self.ardiaRestartTest === undefined && !!self.µBlock?.isReadyPromise", returnByValue: true }).catch(() => null);
+          return r?.result?.value === true;
+        });
+        await until(`clicking state ${want} after the background restart`, async () => {
+          const r = await cdp(target, "Runtime.evaluate", { expression: "µBlock.isReadyPromise.then(() => [self.ardiaClickConsent, µBlock.userSettings.clickingAds])", awaitPromise: true, returnByValue: true });
+          return JSON.stringify(r.result?.value) === JSON.stringify(want);
+        });
+      }
+    };
+    await appUp("app-provider.out.log");
+    const preferences = join(data, "Chromium", "Content Blocker.json");
+    let failure;
+    try {
+      const first = await ready();
+      const expectedBackgrounds = (await targets()).filter(t => t.type === "background_page" && t.url.startsWith(`chrome-extension://${ublock}/`)).length;
+      if (first.provider !== "ublock" || first.selectedProvider !== "ublock" || first.clickAds) throw new Error(`not uBlock Origin by default: ${JSON.stringify(first)}`);
+      if (!first.availableProviders.includes("adnauseam")) throw new Error("AdNauseam isn't in the app");
+      await restrictedPage(ublock);
+      await cef(`setContentBlockerAllowed("kept-by-ublock.test", true)`);
+      const bogus = await cef(`setContentBlockerProvider("ublock-lite-settings", false)`).then(() => "accepted", (e) => String(e));
+      if (bogus === "accepted" || (await ready()).selectedProvider !== "ublock") throw new Error(`an unknown blocker was accepted: ${bogus}`);
+      const early = await cef(`setContentBlockerProvider("adnauseam", false)`).then(() => "accepted", (e) => String(e));
+      if (early === "accepted") throw new Error("AdNauseam activated without clicking consent");
+      await cef(`devContentBlockerFailNextMessage()`);
+      const readFailure = await cef(`setContentBlockerProvider("adnauseam", true)`).then(() => "accepted", e => String(e));
+      if (!readFailure.includes("Couldn't read the current blocker's protection setting") || (await ready()).provider !== "ublock" || JSON.stringify(await running()) !== JSON.stringify([ublock]))
+        throw new Error(`a failed settings read changed the running blocker: ${readFailure}`);
+      await cef(`setContentBlockerProvider("adnauseam", true)`);
+      const switched = await ready();
+      const runningAdNauseam = await running();
+      if (switched.provider !== "adnauseam" || switched.selectedProvider !== "adnauseam" || !switched.clickAds || !switched.version.startsWith("uBO 1.75.0")) throw new Error(`after activation: ${JSON.stringify(switched)}`);
+      if (JSON.stringify(runningAdNauseam) !== JSON.stringify([adnauseam])) throw new Error(`running: ${runningAdNauseam}`);
+      const activeBackgrounds = (await targets()).filter(t => t.type === "background_page" && t.url.startsWith(`chrome-extension://${adnauseam}/`)).length;
+      if (activeBackgrounds !== expectedBackgrounds) throw new Error(`only ${activeBackgrounds} of ${expectedBackgrounds} profiles switched`);
+      if (!(await cef(`isContentBlockerAllowed("kept-by-ublock.test")`))) throw new Error("mode switch lost the site exception");
+      if (switched.allowedHosts.some((host) => host.endsWith("-scheme"))) throw new Error("internal scheme exemptions shown as sites without blocking");
+      await expectGate([true, true], "clicking included in confirmed AdNauseam activation");
+      await restrictedPage(adnauseam);
+      await reloadBackgrounds([true, true]);
+      await reloadBackgrounds([true, true], true);
+      if (await evalApp(`return typeof globalThis.expo.modules.ArdiaCEF.setContentBlockerClickAds !== 'undefined'`)) throw new Error("independent clicking API still exposed");
+      await ready();
+      const controlPages = (await targets()).filter(t => t.url === `chrome-extension://${adnauseam}/blank.html`);
+      if (!controlPages.length) throw new Error("no control page to delay a click update");
+      for (const target of controlPages) {
+        await cdp(target, "Runtime.evaluate", { expression: `(() => {
+          const send = vAPI.messaging.send.bind(vAPI.messaging);
+          vAPI.messaging.send = (channel, message) => {
+            if (message.what === 'userSettings' && message.name === 'clickingAds' && message.value === true) {
+              self.ardiaHeldClick = true;
+              return new Promise(() => {});
+            }
+            return send(channel, message);
+          };
+        })()` });
+      }
+      await cef(`setContentBlockerEnabled(true)`);
+      await until("the delayed click update", async () => {
+        const states = await Promise.all(controlPages.map(target => cdp(target, "Runtime.evaluate", { expression: "self.ardiaHeldClick === true", returnByValue: true })));
+        return states.every(r => r.result?.value === true);
+      });
+      const pausedAt = Date.now();
+      await cef(`setContentBlockerEnabled(false)`);
+      if (Date.now() - pausedAt > 10000) throw new Error("revocation waited for a stale click update to time out");
+      await until("the stale click pages to close", async () => {
+        const now = await targets();
+        return controlPages.every(old => !now.some(t => t.id === old.id));
+      });
+      await expectGate([false, true], "clicking paused while blocking is off");
+      await reloadBackgrounds([false, true]);
+      await reloadBackgrounds([false, true], true);
+      await cef(`setContentBlockerEnabled(true)`);
+      await expectGate([true, true], "clicking back with blocking");
+      const both = (a, b) => evalApp(`const m = globalThis.expo.modules.ArdiaCEF; return Promise.all([m.${a}, m.${b}]).then(() => true)`);
+      await both("setContentBlockerEnabled(false)", "setContentBlockerEnabled(true)");
+      if (!(await ready()).enabled) throw new Error("an older Turn Off overwrote the Turn On right after it");
+      await expectGate([true, true], "the later Turn On wins");
+      execFileSync("chflags", ["uchg", preferences]);
+      let failedSave;
+      try {
+        failedSave = await cef(`setContentBlockerProvider("ublock", false)`).then(() => "saved", (e) => String(e));
+        await expectGate([false, false], "clicking off though the save failed");
+        await reloadBackgrounds([false, false]);
+        if ((await ready()).clickAds) throw new Error("the failed save left consent on");
+        await cef(`setContentBlockerAllowed("after-failed-save.test", true)`);
+        await cef(`setContentBlockerAllowed("after-failed-save.test", false)`);
+        await sleep(1000);
+        await expectGate([false, false], "a settings change after the failed save doesn't grant again");
+      } finally {
+        execFileSync("chflags", ["nouchg", preferences]);
+      }
+      if (failedSave === "saved") throw new Error("the failed save wasn't reported");
+      await cef(`setContentBlockerProvider("adnauseam", true)`);
+      await cef(`setContentBlockerProvider("ublock", false)`);
+      const back = await ready();
+      if (back.clickAds) throw new Error("the consent outlived the switch");
+      const runningUBlock = await running();
+      const kept = await cef(`isContentBlockerAllowed("kept-by-ublock.test")`);
+      await cef(`setContentBlockerAllowed("kept-by-ublock.test", false)`);
+      if (back.provider !== "ublock" || JSON.stringify(runningUBlock) !== JSON.stringify([ublock])) throw new Error(`back: ${back.provider}, running ${runningUBlock}`);
+      if (!kept) throw new Error("uBlock Origin lost its sites without blocking");
+      const overlapping = await evalApp(`const m = globalThis.expo.modules.ArdiaCEF; return Promise.allSettled([
+        m.setContentBlockerProvider('adnauseam', true), m.setContentBlockerProvider('ublock', false), m.setContentBlockerAllowed('during-switch.test', true)
+      ]).then(results => results.map(r => r.status))`, 60000);
+      if (JSON.stringify(overlapping) !== JSON.stringify(["fulfilled", "rejected", "rejected"]) || !(await ready()).clickAds)
+        throw new Error(`overlapping activation was not guarded: ${JSON.stringify(overlapping)}`);
+      await cef(`setContentBlockerProvider("ublock", false)`);
+      const persisted = await restart("app-provider-persisted");
+      if (persisted.provider !== "ublock" || persisted.clickAds) throw new Error("the live choice did not persist");
+      return { adnauseam: switched.version, ublock: back.version, early };
+    } catch (error) {
+      failure = error;
+      throw error;
+    } finally {
+      try {
+        if (existsSync(preferences)) execFileSync("chflags", ["nouchg", preferences]);
+        await cef(`setContentBlockerProvider("ublock", false)`);
+        await cef(`setContentBlockerEnabled(true)`);
+        await cef(`setContentBlockerAllowed("kept-by-ublock.test", false)`);
+      } catch (error) {
+        if (!failure) throw error;
+        log("provider cleanup failed", String(error));
+      }
+    }
   });
 
   await check("closed-tabs-own-lists", async () => {

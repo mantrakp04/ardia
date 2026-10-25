@@ -72,5 +72,7 @@ chromium chromium-background-instance-no-default-handlers.patch
 chromium chromium-apple-passwords-host-skipped.patch
 chromium chromium-ardia-layer.patch
 
+chromium chromium-unified-privacy.patch
+
 layer engine/chromium
 layer engine/ardiacore

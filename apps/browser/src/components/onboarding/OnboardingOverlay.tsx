@@ -4,6 +4,7 @@ import { Animated, Easing, StyleSheet, View } from "react-native";
 import { hex } from "../../lib/theme";
 import { useWindowId } from "../../store/hooks";
 import { Intro } from "./Intro";
+import { BlockerStep } from "./blockerStep";
 import { dismissOnboarding, useOnboarding } from "./state";
 import { LayoutStep, LookStep, TabsStep } from "./layoutSteps";
 import { SearchPrivacyStep } from "./privacyStep";
@@ -93,6 +94,7 @@ function Overlay({ session }: { session: number }) {
                 {step === "tabs" && <TabsStep />}
                 {step === "look" && <LookStep />}
                 {step === "searchPrivacy" && <SearchPrivacyStep />}
+                {step === "blocker" && <BlockerStep />}
                 {step === "pins" && <PinnedTabsStep />}
                 {step === "home" && <HomeStep />}
                 {step === "outro" && <OutroStep />}

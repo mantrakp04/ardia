@@ -20,7 +20,11 @@ Ardia builds on and ships third-party software under its own licenses, including
   describes; Ardia's changes to it are the patches in engine/patches
 - ungoogled-chromium (BSD-3-Clause), part of Helium's series, and three of its patches carried in engine/patches
 - Chromium Embedded Framework (BSD-3-Clause): a few of its patches to Chromium
-- uBlock Origin (GPL-3.0), bundled as a separate extension with the small patches in packages/ardiacore/scripts/ubo.sh
+- Ardia Blocker (GPL-3.0-or-later), https://github.com/alexmodrono/ardia-blocker: a unified fork of uBlock Origin
+  and AdNauseam (copyright Daniel C. Howe and contributors). The exact source commit is pinned in
+  packages/ardiacore/blocker-source.json and recorded in the bundled extension's ardia-source.json.
+  Upstream licenses and history are retained in that source repository; the extension includes LICENSE.txt,
+  ARDIA-SOURCE.md and both upstream version pins.
 - Sparkle (MIT)
 - The !bang list by Kagi Search and imput (MIT, see third_party/bangs/LICENSE), from Helium's
   services.helium.imput.net/bangs.json: a snapshot in packages/core/src/bangList.ts

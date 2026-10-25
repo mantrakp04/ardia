@@ -46,7 +46,7 @@ const IDLE_PAGE: PageState = {
 type Store = {
   pages: Record<string, PageState>;
   browsers: Record<number, string>;
-  popover: Record<string, "siteControls" | "popups" | "zoom" | null>;
+  popover: Record<string, "siteControls" | "protection" | "popups" | "zoom" | null>;
 };
 
 export const usePages = create<Store>()(() => ({ pages: {}, browsers: {}, popover: {} }));

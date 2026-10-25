@@ -1,5 +1,6 @@
+import type { PrivacySettings, PrivacySettingKey } from "./contentBlocker";
 import { requireNativeModule, type EventSubscription } from "expo-modules-core";
-import type { ContentBlockerState, ContentBlockerStats } from "./contentBlocker";
+import type { ContentBlockerProvider, ContentBlockerState, ContentBlockerStats } from "./contentBlocker";
 import type { DisplayMediaSource } from "./WebView";
 import type { ExternalAppAllowance } from "./externalApps";
 import type { FaviconImage } from "./favicons";
@@ -72,11 +73,14 @@ export const Cef = requireNativeModule<{
   releaseProfile(profile: string): Promise<void>;
   deleteProfileData(profile: string): Promise<{ remaining: string[] }>;
 
+  getPrivacySettings(profile: string, origin: string): Promise<PrivacySettings>;
+  setPrivacySetting(profile: string, key: PrivacySettingKey, value: boolean, origin: string): Promise<void>;
   getContentBlocker(): Promise<ContentBlockerState>;
   setContentBlockerEnabled(enabled: boolean): Promise<void>;
   setFilterListEnabled(id: string, enabled: boolean): Promise<void>;
   isContentBlockerAllowed(host: string): Promise<boolean>;
   setContentBlockerAllowed(host: string, allowed: boolean): Promise<void>;
+  setContentBlockerProvider(provider: ContentBlockerProvider, clickConsent: boolean): Promise<void>;
 
   setSiteSetting(profile: string, origin: string, type: SiteSettingType, value: SiteSettingValue): Promise<void>;
   getSiteSettings(profile: string, origin: string): Promise<SiteSettings>;

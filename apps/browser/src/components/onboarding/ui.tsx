@@ -314,6 +314,7 @@ export function CheckRow({
   disabled,
   icon,
   compact,
+  role = "checkbox",
 }: {
   title: string;
   subtitle?: string;
@@ -322,12 +323,13 @@ export function CheckRow({
   disabled?: boolean;
   icon?: string;
   compact?: boolean;
+  role?: "checkbox" | "radio";
 }) {
   const colors = useOnboardingColors();
   const { hovered, hoverProps } = useHover();
   return (
     <View {...hoverProps} style={{ opacity: disabled ? 0.5 : 1 }}>
-      <Pressable disabled={disabled} onPress={() => onChange(!value)} accessibilityRole="checkbox" accessibilityState={{ checked: value, disabled }} accessibilityLabel={title}>
+      <Pressable disabled={disabled} onPress={() => onChange(!value)} accessibilityRole={role} accessibilityState={{ checked: value, disabled }} aria-checked={value} accessibilityLabel={title}>
         <RowFrame hovered={hovered} disabled={disabled} compact={compact}>
           {icon ? (
             <View mouseDownCanMoveWindow={false} style={{ width: 28, height: 28, borderRadius: 7, backgroundColor: colors.iconContainer, alignItems: "center", justifyContent: "center" }}>
@@ -342,7 +344,7 @@ export function CheckRow({
               </Text>
             ) : null}
           </View>
-          <CheckMark on={value} size={compact ? 16 : 18} />
+          {role === "radio" ? <Radio on={value} /> : <CheckMark on={value} size={compact ? 16 : 18} />}
         </RowFrame>
       </Pressable>
     </View>

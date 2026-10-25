@@ -34,6 +34,9 @@ export function startDevHarness() {
     pageState: usePages,
     openSettings,
     favicons,
+    get onboarding(): typeof import("../components/onboarding/state") {
+      return require("../components/onboarding/state");
+    },
     get checkIn(): typeof import("./defaultBrowserCheckIn") {
       return require("./defaultBrowserCheckIn");
     },

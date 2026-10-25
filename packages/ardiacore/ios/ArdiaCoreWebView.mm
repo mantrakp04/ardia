@@ -2945,6 +2945,19 @@ static NSString *LinkKeyAction(NSString *key) {
                            "window.documentPictureInPicture && documentPictureInPicture.window && documentPictureInPicture.window.close()"];
 }
 
+- (void)contentBlockerStats:(void (^)(NSDictionary<NSString *, id> *))completion {
+  if (!_tab || _tab.closed) return completion(@{});
+  ArdiaCoreTab *tab = _tab;
+  NSString *url = tab.url;
+  const NSUInteger generation = _blockedGeneration;
+  __weak ArdiaCoreWebView *weakSelf = self;
+  [ArdiaCoreContentBlocker pageStats:_profile tabId:tab.tabId completion:^(NSDictionary *state) {
+    ArdiaCoreWebView *view = weakSelf;
+    const BOOL current = view && view->_tab == tab && view->_blockedGeneration == generation && [tab.url isEqual:url];
+    completion(current && [state[@"url"] isEqual:url] ? state : @{});
+  }];
+}
+
 - (void)securityInfo:(void (^)(NSDictionary<NSString *, id> *))completion {
   if ([_tab respondsToSelector:@selector(securityInfo)] && _tab.securityInfo) return completion(_tab.securityInfo);
   NSString *url = _tab.url ?: @"";

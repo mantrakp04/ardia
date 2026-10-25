@@ -1,3 +1,4 @@
+import { PROVIDER_TITLES } from "../../lib/contentBlockerProvider";
 import { prepare, type Searchable } from "./searchMatch";
 import type { SettingsPane } from "./windows";
 
@@ -236,7 +237,15 @@ const ROWS: Record<SettingsPane, Section[]> = {
     {
       section: "Content blocking",
       rows: {
+        contentBlocker: { title: "Protection mode", keywords: ["standard", "active obfuscation", "ad blocker", "ublock origin", "adnauseam", "extension"] },
+        adVault: { title: "Ad Vault", keywords: ["collected ads", "visit results", "delete ads"] },
+        adPreferences: { title: "AdNauseam preferences", keywords: ["click probability", "site exclusions", "vault export"] },
         blockAds: { title: "Block ads", keywords: ["ad blocker", "adblock", "ublock origin", "easylist"] },
+        clickAds: {
+          title: "Background ad clicking",
+          description: `Included with ${PROVIDER_TITLES.adnauseam}. Choose ${PROVIDER_TITLES.ublock} for blocking without clicking.`,
+          keywords: ["adnauseam", "ad clicks", "obfuscation"],
+        },
         blockTrackers: { title: "Block trackers", keywords: ["tracking", "easyprivacy", "fingerprinting"] },
         blockCookieBanners: { title: "Block cookie banners", keywords: ["cookies", "consent", "gdpr", "popups"] },
         filterLists: {
@@ -246,6 +255,12 @@ const ROWS: Record<SettingsPane, Section[]> = {
         },
       },
     },
+    { section: "Browsing privacy", rows: {
+      globalPrivacyControl: { title: "Global Privacy Control", keywords: ["gpc", "do not sell", "do not share"] },
+      cleanLinks: { title: "Clean navigation links", keywords: ["utm", "clean links", "url parameters"] },
+      cname: { title: "Uncloak DNS aliases", keywords: ["cname", "dns aliases"] },
+      forgetSites: { title: "Forget selected sites after closing", keywords: ["cookies", "delete storage", "sign out", "last tab"] },
+    } },
     {
       section: "Site permissions",
       rows: {

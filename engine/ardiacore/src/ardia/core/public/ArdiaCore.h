@@ -107,6 +107,8 @@ ARDIACORE_EXPORT
 @property(readonly) BOOL destroyed;
 - (nullable NSString*)loadComponentExtension:(NSString*)path;
 - (void)unloadComponentExtension:(NSString*)extensionId;
+- (void)watchComponentExtensionBackground:(NSString*)extensionId
+                                  onLoad:(nullable void (^)(void))onLoad;
 - (void)warmSpareRenderer;
 - (void)holdNavigationsUntilRulesetsOf:(NSString*)extensionId;
 - (void)releaseNavigationHold:(NSString*)reason;

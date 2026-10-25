@@ -4,7 +4,7 @@ The demo draws its icons from the open icon sets below, rescaled and repositione
 
 ==============================================================================
 Lucide (lucide-static 1.56.0, ISC) https://lucide.dev
-Icons used: a-large-small, arrow-left-right, arrow-up-down, ban, banknote, car-front, check, chevron-down, chevron-left, chevron-right, chevron-up, chevrons-up-down, circle, circle-equal, circle-question-mark, circle-stop, clock-9, coffee, command, corner-down-left, film, flag, git-merge, hammer, hard-drive, key-round, leaf, lightbulb, message-square, moon, navigation, newspaper, orbit, package, paintbrush, pin, pin-off, plug, plus, shopping-cart, square-terminal, sun, target, test-tubes, text-cursor, trophy, undo-2, user, video
+Icons used: a-large-small, arrow-left-right, arrow-up-down, ban, banknote, car-front, check, chevron-down, chevron-left, chevron-right, chevron-up, chevrons-up-down, circle, circle-equal, circle-question-mark, circle-stop, clock-9, coffee, command, corner-down-left, film, flag, git-merge, hammer, hard-drive, key-round, leaf, lightbulb, message-square, moon, navigation, newspaper, orbit, package, paintbrush, pin, pin-off, plug, plus, shield, shopping-cart, square-terminal, sun, target, test-tubes, text-cursor, trophy, undo-2, user, video
 ------------------------------------------------------------------------------
 ISC License
 
@@ -130,7 +130,7 @@ SOFTWARE.
 
 ==============================================================================
 Material Design Icons (Pictogrammers) (@mdi/svg 7.4.47, Apache-2.0) https://pictogrammers.com/library/mdi
-Icons used: account, account-multiple-outline, brain, briefcase, bug-outline, camera, close-circle, coffee-outline, cursor-default, file-document, folder, hammer, headphones, home, link-variant, music-note, pause-circle, pencil-outline, piano, pin, run, school, shield-check, shield-half-full, shield-lock-outline, silverware-fork-knife, skip-next, skip-previous, soccer-field, star, star-outline, web, zip-box-outline
+Icons used: account, account-multiple-outline, brain, briefcase, bug-outline, camera, close-circle, coffee-outline, cursor-default, file-document, folder, hammer, headphones, home, link-variant, lock-open-outline, music-note, pause-circle, pencil-outline, piano, pin, run, school, shield-check, shield-half-full, shield-lock-outline, silverware-fork-knife, skip-next, skip-previous, soccer-field, star, star-outline, web, zip-box-outline
 ------------------------------------------------------------------------------
 Pictogrammers Free License
 --------------------------

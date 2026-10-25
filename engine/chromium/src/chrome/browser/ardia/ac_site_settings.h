@@ -10,5 +10,6 @@ AC_ENGINE_CALL(ac_site_settings_set);
 AC_ENGINE_CALL(ac_site_settings_reset);
 AC_ENGINE_CALL(ac_site_settings_origins);
 AC_ENGINE_CALL(ac_site_data_clear);
+AC_ENGINE_CALL(ac_privacy_settings);
 
 #endif

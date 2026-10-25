@@ -79,8 +79,11 @@
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/spare_render_process_host_manager.h"
 #include "content/public/browser/web_contents.h"
+#include "content/public/browser/web_contents_observer.h"
 #include "extensions/browser/extension_action.h"
 #include "extensions/browser/extension_action_manager.h"
+#include "extensions/browser/extension_host.h"
+#include "extensions/browser/extension_host_registry.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/common/extension.h"
 #include "ardia/core/ac_extension_shortcuts.h"
@@ -247,6 +250,68 @@ class ProfileGoneObserver : public ProfileObserver {
  private:
   __weak ArdiaCoreProfile* wrapper_;
   base::ScopedObservation<Profile, ProfileObserver> observation_{this};
+};
+
+class ComponentBackgroundObserver
+    : public extensions::ExtensionHostRegistry::Observer,
+      public content::WebContentsObserver {
+ public:
+  ComponentBackgroundObserver(Profile* profile,
+                              const std::string& extension_id,
+                              void (^on_load)(void))
+      : profile_(profile->GetWeakPtr()),
+        extension_id_(extension_id),
+        on_load_([on_load copy]) {
+    auto* registry = extensions::ExtensionHostRegistry::Get(profile);
+    observation_.Observe(registry);
+    for (auto* host : registry->GetHostsForExtension(extension_id_)) {
+      Watch(host);
+    }
+  }
+
+  void OnExtensionHostRenderProcessReady(content::BrowserContext*,
+                                         extensions::ExtensionHost* host) override {
+    Watch(host);
+  }
+
+  void OnExtensionHostDestroyed(content::BrowserContext*,
+                               extensions::ExtensionHost* host) override {
+    if (web_contents() == host->host_contents()) {
+      Observe(nullptr);
+    }
+  }
+
+  void OnExtensionHostRegistryShutdown(
+      extensions::ExtensionHostRegistry*) override {
+    Observe(nullptr);
+    observation_.Reset();
+  }
+
+  void DidFinishLoad(content::RenderFrameHost* frame, const GURL&) override {
+    if (profile_ && frame == web_contents()->GetPrimaryMainFrame()) {
+      void (^on_load)(void) = on_load_;
+      on_load();
+    }
+  }
+
+ private:
+  void Watch(extensions::ExtensionHost* host) {
+    const auto* extension = host->extension();
+    if (profile_ && host->browser_context() == profile_.get() && extension &&
+        host->extension_id() == extension_id_ &&
+        extension->location() == extensions::mojom::ManifestLocation::kComponent &&
+        host->extension_host_type() ==
+            extensions::mojom::ViewType::kExtensionBackgroundPage) {
+      Observe(host->host_contents());
+    }
+  }
+
+  base::WeakPtr<Profile> profile_;
+  const std::string extension_id_;
+  void (^__strong on_load_)(void);
+  base::ScopedObservation<extensions::ExtensionHostRegistry,
+                          extensions::ExtensionHostRegistry::Observer>
+      observation_{this};
 };
 
 id HexColor(SkColor color) {
@@ -1096,6 +1161,7 @@ void WatchTracingStart(std::shared_ptr<TracingStart> start, int checks_left) {
 @implementation ArdiaCoreProfile {
   base::WeakPtr<Profile> _profile;
   std::unique_ptr<ProfileGoneObserver> _observer;
+  std::unique_ptr<ComponentBackgroundObserver> _backgroundObserver;
   NSString* __strong _name;
   NSString* __strong _path;
   BOOL _offTheRecord;
@@ -1118,6 +1184,7 @@ void WatchTracingStart(std::shared_ptr<TracingStart> start, int checks_left) {
 }
 
 - (void)profileWillBeDestroyed {
+  _backgroundObserver.reset();
   ProfileWrappers().erase(_profile.get());
   _profile.reset();
   _observer.reset();
@@ -1222,6 +1289,15 @@ void WatchTracingStart(std::shared_ptr<TracingStart> start, int checks_left) {
   }
   if (extensions::ComponentLoader* loader = extensions::ComponentLoader::Get(_profile.get())) {
     loader->Remove(base::SysNSStringToUTF8(extensionId));
+  }
+}
+
+- (void)watchComponentExtensionBackground:(NSString*)extensionId
+                                  onLoad:(void (^)(void))onLoad {
+  _backgroundObserver.reset();
+  if (_profile && extensionId.length && onLoad) {
+    _backgroundObserver = std::make_unique<ComponentBackgroundObserver>(
+        _profile.get(), base::SysNSStringToUTF8(extensionId), onLoad);
   }
 }
 

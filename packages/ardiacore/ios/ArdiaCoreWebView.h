@@ -99,6 +99,7 @@ NS_ASSUME_NONNULL_BEGIN
                                completion:(void (^)(BOOL ok))completion NS_SWIFT_NAME(requestPictureInPicture(clickAt:control:_:));
 - (void)exitPictureInPicture;
 
+- (void)contentBlockerStats:(void (^)(NSDictionary<NSString *, id> *info))completion NS_SWIFT_NAME(contentBlockerStats(_:));
 - (void)securityInfo:(void (^)(NSDictionary<NSString *, id> *info))completion NS_SWIFT_NAME(securityInfo(_:));
 - (void)openBlockedPopup:(NSString *)popupId always:(BOOL)always NS_SWIFT_NAME(openBlockedPopup(_:always:));
 - (void)clearSiteData:(void (^)(NSDictionary<NSString *, id> *result))completion NS_SWIFT_NAME(clearSiteData(_:));

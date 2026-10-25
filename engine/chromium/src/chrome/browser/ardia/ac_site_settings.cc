@@ -10,6 +10,8 @@
 #include <utility>
 
 #include "base/containers/flat_set.h"
+#include "chrome/common/pref_names.h"
+#include "components/prefs/pref_service.h"
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
@@ -457,4 +459,22 @@ AC_ENGINE_CALL(ac_site_data_clear) {
                         std::move(reply), profile, domain, own));
           },
           call.TakeReply(), call.profile()->GetWeakPtr(), domain));
+}
+
+AC_ENGINE_CALL(ac_privacy_settings) {
+  ardia::Call call(profile_dir, args_json, reply, context, ardia::OffTheRecord::kAllow);
+  if (!call) return;
+  PrefService* prefs = call.profile()->GetPrefs();
+  const auto value = call.args().FindBool("globalPrivacyControl");
+  if (value.has_value()) {
+    if (call.profile()->IsOffTheRecord() || prefs->IsManagedPreference(prefs::kHeliumGlobalPrivacyControl)) {
+      return call.TakeReply().Error("This privacy preference cannot be changed here.");
+    }
+    prefs->SetBoolean(prefs::kHeliumGlobalPrivacyControl, *value);
+  }
+  const GURL origin = ardia::SiteOf(call.String("origin"));
+  call.TakeReply().Send(base::DictValue()
+      .Set("globalPrivacyControl", prefs->GetBoolean(prefs::kHeliumGlobalPrivacyControl))
+      .Set("managed", prefs->IsManagedPreference(prefs::kHeliumGlobalPrivacyControl))
+      .Set("site", origin.is_valid() ? ardia::RegistrableDomainOf(origin) : ""));
 }

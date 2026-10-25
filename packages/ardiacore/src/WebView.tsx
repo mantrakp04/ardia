@@ -225,6 +225,7 @@ export type WebViewHandle = {
   takeControlPress(press: ControlPress): Promise<boolean>;
   exitPictureInPicture(): Promise<void>;
 
+  getContentBlockerStats(): Promise<{ url?: string; blocked?: number } | null>;
   getSecurityInfo(): Promise<SecurityInfo | null>;
   openBlockedPopup(id: string, always?: boolean): Promise<void>;
   clearSiteData(): Promise<{ cookies: number | false; storage: boolean }>;
@@ -395,6 +396,7 @@ export const WebView = forwardRef<WebViewHandle, WebViewProps>(function WebView(
       requestPictureInPicture: (press) => call(false, (n) => n.requestPictureInPicture(press.clickAt, press.control)),
       takeControlPress: (press) => call(false, (n) => n.takeControlPress(press.clickAt, press.control)),
       exitPictureInPicture: () => call(undefined, (n) => n.exitPictureInPicture()),
+      getContentBlockerStats: () => call(null, (n) => n.getContentBlockerStats()),
       getSecurityInfo: () => call(null, (n) => n.getSecurityInfo()),
       openBlockedPopup: (id, always) => call(undefined, (n) => n.openBlockedPopup(id, always)),
       clearSiteData: () => call({ cookies: false, storage: false }, (n) => n.clearSiteData()),

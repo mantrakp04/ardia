@@ -61,7 +61,7 @@ native_stamp() {
     git ls-files -co --exclude-standard -- \
       apps/browser/macos apps/browser/app.json apps/browser/react-native.config.js \
       'packages/*/ios/*' 'packages/*/expo-module.config.json' packages/shell/docktile \
-      packages/ardiacore/scripts/embed.sh packages/ardiacore/scripts/stage-framework.sh packages/ardiacore/scripts/ubo.sh \
+      packages/ardiacore/scripts/embed.sh packages/ardiacore/scripts/stage-framework.sh packages/ardiacore/scripts/ubo.sh packages/ardiacore/scripts/unified-blocker.sh packages/ardiacore/scripts/unified-blocker.py packages/ardiacore/blocker-source.json \
       packages/ardiacore/extensions \
       packages/ardiacore/scripts/signing engine/ardiacore/src/ardia/core/public patches pnpm-lock.yaml
     echo apps/browser/macos/Pods/Manifest.lock

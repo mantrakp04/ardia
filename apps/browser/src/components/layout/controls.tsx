@@ -394,11 +394,13 @@ export function PromptButton({ title, onPress, primary, flex }: { title: string;
   );
 }
 
-export function Toggle({ value, onChange }: { value: boolean; onChange: (value: boolean) => void }) {
+export function Toggle({ value, onChange, disabled, label }: { value: boolean; onChange: (value: boolean) => void; disabled?: boolean; label?: string }) {
   const theme = useTheme();
   return (
     <Switch
+      accessibilityLabel={label}
       value={value}
+      disabled={disabled}
       onChange={onChange}
       look={{ width: 30, height: 17, knob: 14, inset: 1.5, offColor: theme.dark ? "rgba(255,255,255,0.16)" : "rgba(0,0,0,0.12)", onColor: "#3478F6", duration: 150, easing: switchEasing.quadOut }}
     />

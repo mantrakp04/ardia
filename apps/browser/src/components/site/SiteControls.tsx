@@ -284,6 +284,7 @@ function SiteControlsPanel({
               }
             />
             <SettingRow icon={ENGINE_SYMBOLS[pageEngine]} title="Opens in" value={opensIn} on={!!engineRule} onPress={() => void pickEngine()} />
+            {pageEngine === "chromium" && <SettingRow icon="shield.lefthalf.filled" title="Privacy protections" value="Activity and controls" on={false} onPress={() => setPopover(tabId, "protection")} />}
             {shownPermissions.map((p) => (
               <SettingRow
                 key={p.type}

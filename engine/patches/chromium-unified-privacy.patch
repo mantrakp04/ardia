@@ -1,0 +1,38 @@
+SPDX-License-Identifier: GPL-3.0-only
+
+Changes to Helium's GPL-3.0 privacy implementation:
+- browser_ui_prefs.cc enables Helium's Global Privacy Control preference by default.
+- _permission_features.json adds Ardia's bundled blocker to Helium's component-only DNS allowlist.
+- web_request_natives.cc extends Helium's bundled-uBlock check to Ardia's component identity.
+
+--- a/chrome/browser/ui/browser_ui_prefs.cc
++++ b/chrome/browser/ui/browser_ui_prefs.cc
+@@ -183,7 +183,7 @@
+   registry->RegisterBooleanPref(
+       prefs::kEnableDoNotTrack, false,
+       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+-  registry->RegisterBooleanPref(prefs::kHeliumGlobalPrivacyControl, false);
++  registry->RegisterBooleanPref(prefs::kHeliumGlobalPrivacyControl, true);
+ #if !BUILDFLAG(IS_CHROMEOS) && !BUILDFLAG(IS_ANDROID)
+   registry->RegisterBooleanPref(prefs::kPrintPreviewUseSystemDefaultPrinter,
+                                 false);
+--- a/extensions/common/api/_permission_features.json
++++ b/extensions/common/api/_permission_features.json
+@@ -244,6 +244,7 @@
+       "location": "component",
+       "component_extensions_auto_granted": false,
+       "allowlist": [
++        "05F27B2F6565A796E66EB67A20C61AE95B6E25AE",
+         "70C2895ED505C532A80761F0928B821B103D0786"  // Helium uBlock Origin component
+       ]
+     },
+--- a/extensions/renderer/api/web_request_natives.cc
++++ b/extensions/renderer/api/web_request_natives.cc
+@@ -33,5 +33,6 @@
+ bool IsBundledUBlock(const Extension* extension) {
+   return extension &&
+          extension->location() == mojom::ManifestLocation::kComponent &&
+-         Manifest::IsUBlockComponent(extension->id());
++         (Manifest::IsUBlockComponent(extension->id()) ||
++          extension->id() == "fajbdaomknpkicfjcpipdmcpoamdmilh");
+ }
