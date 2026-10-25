@@ -4,6 +4,7 @@ const SECRETS = {
   clickhouseAdmin: "TELEMETRY_CLICKHOUSE_ADMIN_PASSWORD",
   clickhouseOtel: "TELEMETRY_CLICKHOUSE_OTEL_PASSWORD",
   clickhouseReader: "TELEMETRY_CLICKHOUSE_READER_PASSWORD",
+  clickhouseHekuto: "TELEMETRY_CLICKHOUSE_HEKUTO_PASSWORD",
 } as const;
 
 const SEAWEEDFS = "docker.io/chrislusf/seaweedfs@sha256:d47c7ee99fcb951351d7194915f4e3a5ea604a8e8871183d713907dec4fb9bf5";
@@ -21,6 +22,7 @@ export const deploy = ({ secret, service }: any) => ({
         CLICKHOUSE_ADMIN_PASSWORD: secret(SECRETS.clickhouseAdmin),
         CLICKHOUSE_OTEL_PASSWORD: secret(SECRETS.clickhouseOtel),
         CLICKHOUSE_READER_PASSWORD: secret(SECRETS.clickhouseReader),
+        CLICKHOUSE_HEKUTO_PASSWORD: secret(SECRETS.clickhouseHekuto),
       },
     },
 

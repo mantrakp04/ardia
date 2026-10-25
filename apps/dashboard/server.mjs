@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { serve } from "srvx";
@@ -10,6 +11,9 @@ process.on("unhandledRejection", (reason) => {
 
 const clientDir = fileURLToPath(new URL("./dist/client/", import.meta.url));
 const shell = readFileSync(new URL("./dist/client/_shell.html", import.meta.url));
+const shellScriptHashes = [...shell.toString("utf8").matchAll(/<script(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(
+  ([, body]) => `'sha256-${createHash("sha256").update(body).digest("base64")}'`,
+);
 
 const SECURITY_HEADERS = {
   "X-Content-Type-Options": "nosniff",
@@ -18,6 +22,19 @@ const SECURITY_HEADERS = {
   "Strict-Transport-Security": "max-age=31536000",
   "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
   "X-Robots-Tag": "noindex, nofollow",
+  "Content-Security-Policy": [
+    "default-src 'self'",
+    `script-src 'self' ${shellScriptHashes.join(" ")} https://challenges.cloudflare.com`,
+    "frame-src 'self' https://challenges.cloudflare.com",
+    "img-src 'self' data: blob: https://ardia.dev https://www.ardia.dev",
+    "media-src 'self' data: blob: https://ardia.dev https://www.ardia.dev",
+    "font-src 'self' data: blob: https://ardia.dev https://www.ardia.dev",
+    "style-src 'self' 'unsafe-inline' data: blob:",
+    "connect-src 'self' https://api.hexclave.com https://api1.hexclave.com https://api2.hexclave.com",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "frame-ancestors 'none'",
+  ].join("; "),
 };
 
 function withHeaders(response, extra = {}) {

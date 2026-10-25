@@ -6,8 +6,42 @@
             <max_memory_usage>2000000000</max_memory_usage>
             <max_result_rows>1000000</max_result_rows>
             <result_overflow_mode>break</result_overflow_mode>
+            <constraints>
+                <max_execution_time>
+                    <min>1</min>
+                    <max>180</max>
+                </max_execution_time>
+                <max_memory_usage>
+                    <min>1</min>
+                    <max>2000000000</max>
+                </max_memory_usage>
+                <max_result_rows>
+                    <min>1</min>
+                    <max>1000000</max>
+                </max_result_rows>
+            </constraints>
         </reader>
     </profiles>
+
+    <quotas>
+        <hekuto>
+            <interval>
+                <duration>3600</duration>
+                <queries>300</queries>
+                <errors>100</errors>
+                <result_rows>5000000</result_rows>
+                <read_rows>10000000000</read_rows>
+                <execution_time>900</execution_time>
+            </interval>
+            <interval>
+                <duration>86400</duration>
+                <queries>2000</queries>
+                <result_rows>20000000</result_rows>
+                <read_rows>50000000000</read_rows>
+                <execution_time>3600</execution_time>
+            </interval>
+        </hekuto>
+    </quotas>
 
     <users>
         <default>
@@ -43,5 +77,14 @@
                 <query>GRANT SELECT ON system.processes</query>
             </grants>
         </reader>
+        <hekuto>
+            <password from_env="CLICKHOUSE_HEKUTO_PASSWORD"/>
+            <networks><ip>::/0</ip></networks>
+            <profile>reader</profile>
+            <quota>hekuto</quota>
+            <grants>
+                <query>GRANT SELECT ON telemetry.*</query>
+            </grants>
+        </hekuto>
     </users>
 </clickhouse>

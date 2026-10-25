@@ -151,7 +151,7 @@ export function capture(event: string, props: Record<string, unknown> = {}, opti
 export function queueLog(level: "warn" | "error", message: string, attributes: Record<string, string | number | boolean>) {
   if (!saved.sharing) return;
   try {
-    queue.logs.push(logRecord(level, message, attributes));
+    queue.logs.push(logRecord(level, message, { ...attributes, $geoip_disable: true }));
     if (queue.logs.length > MAX_LOGS) queue.logs.splice(0, queue.logs.length - MAX_LOGS);
     persistQueue();
     scheduleFlush(FLUSH_DELAY_MS);
