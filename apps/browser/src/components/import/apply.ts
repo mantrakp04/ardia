@@ -134,8 +134,10 @@ export const webStoreTargetKey = (t: WebStoreTarget) => `${t.profileId}:${t.id}`
 export async function installAllFromWebStore(
   targets: readonly WebStoreTarget[],
   onEach: (target: WebStoreTarget, outcome: "installed" | "failed", error?: string) => void,
+  superseded: () => boolean = () => false,
 ): Promise<void> {
   for (const target of targets) {
+    if (superseded()) return;
     try {
       await installFromWebStore(target.id, engineProfile(target.profileId));
       onEach(target, "installed");

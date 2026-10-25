@@ -838,9 +838,13 @@ export function ImportWindow() {
               onPress={() => {
                 const run = ++installRun.current;
                 setInstalls({ running: true, done: {} });
-                void installAllFromWebStore(installTargets, (t, outcome) => {
-                  if (installRun.current === run) setInstalls((x) => ({ ...x, done: { ...x.done, [webStoreTargetKey(t)]: outcome } }));
-                }).then(() => {
+                void installAllFromWebStore(
+                  installTargets,
+                  (t, outcome) => {
+                    if (installRun.current === run) setInstalls((x) => ({ ...x, done: { ...x.done, [webStoreTargetKey(t)]: outcome } }));
+                  },
+                  () => installRun.current !== run,
+                ).then(() => {
                   if (installRun.current === run) setInstalls((x) => ({ ...x, running: false }));
                 });
               }}

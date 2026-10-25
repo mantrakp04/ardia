@@ -184,3 +184,24 @@ test("the Web Store fallback opens each extension's page in every space it came 
   const opened = Object.values(S().tabs).filter((t) => !before.has(t.id)).map((t) => [t.profileId, t.url]).sort();
   assert.deepEqual(opened, [[home, store("a")], [home, store("b")], [work, store("b")]].sort());
 });
+
+test("Install All stops before the next extension once a new import run replaces it", async () => {
+  const stub = await import("@ardia/ardiacore");
+  const { installAllFromWebStore } = await import("../components/import/apply.ts");
+  stub.webStoreInstalls.length = 0;
+  stub.webStoreFailures.clear();
+  S().hydrate({});
+  S().createWindow({ url: "https://home.example/" });
+  const P = Object.values(S().windows)[0].profileId;
+  let current = 1;
+  const run = 1;
+  const ids = ["a", "b", "c"].map((c) => c.repeat(32));
+  await installAllFromWebStore(
+    ids.map((id) => ({ id, profileId: P })),
+    () => {
+      current = 2;
+    },
+    () => current !== run,
+  );
+  assert.deepEqual(stub.webStoreInstalls.map((x) => x.id), [ids[0]], "the first install finishes; the rest belong to the replaced run");
+});
