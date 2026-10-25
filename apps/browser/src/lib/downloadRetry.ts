@@ -10,8 +10,15 @@ export function retryDownload(d: Download, windowId: string) {
   retrying.add(d.id);
   void retryWith(d, {
     resume: resumeDownload,
-    downloadAgain: (url) => openUrl(url, windowId, "background"),
+    downloadAgain: (url) => {
+      if (!useBrowser.getState().windows[windowId]) return false;
+      openUrl(url, windowId, "background");
+      return true;
+    },
     current: (id) => useBrowser.getState().downloads.find((x) => x.id === id),
     wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-  }).finally(() => retrying.delete(d.id));
+  }).then(
+    (outcome) => outcome !== "again" && retrying.delete(d.id),
+    () => retrying.delete(d.id),
+  );
 }

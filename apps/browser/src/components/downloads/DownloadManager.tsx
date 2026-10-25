@@ -49,7 +49,12 @@ export function DownloadManagerBar({
         }}
       >
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <Symbol name={summary.active ? "arrow.down.circle.fill" : "checkmark.circle"} size={18} color={summary.active ? theme.accent : theme.textSecondary} style={{ width: 22, height: 22 }} />
+          <Symbol
+            name={summary.active ? "arrow.down.circle.fill" : summary.failed ? "exclamationmark.triangle" : "checkmark.circle"}
+            size={18}
+            color={summary.active ? theme.accent : theme.textSecondary}
+            style={{ width: 22, height: 22 }}
+          />
           <Text numberOfLines={1} style={{ flex: 1, fontSize: 13, fontWeight: "600", color: theme.textPrimary }}>
             {status}
           </Text>

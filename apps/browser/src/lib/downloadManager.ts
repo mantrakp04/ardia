@@ -23,6 +23,7 @@ export const DOWNLOAD_FILTERS: { id: DownloadFilter; title: string }[] = [
   { id: "audio", title: "Audio" },
   { id: "archive", title: "Archives" },
   { id: "app", title: "Apps" },
+  { id: "other", title: "Other" },
 ];
 
 export function kindOf(d: Pick<Download, "filename" | "path" | "mimeType">): DownloadKind {
@@ -72,21 +73,19 @@ export const RESUME_CHECK_MS = 1500;
 
 export type RetrySteps = {
   resume: (id: string) => Promise<unknown>;
-  downloadAgain: (url: string) => void;
+  downloadAgain: (url: string) => boolean;
   current: (id: string) => Pick<Download, "state" | "paused"> | undefined;
   wait: (ms: number) => Promise<void>;
 };
 
-export async function retryWith(d: Pick<Download, "id" | "url" | "state">, steps: RetrySteps): Promise<"resumed" | "again" | "gone"> {
-  if (d.state === "cancelled") {
-    steps.downloadAgain(d.url);
-    return "again";
-  }
+export type RetryOutcome = "resumed" | "again" | "gone" | "noWindow";
+
+export async function retryWith(d: Pick<Download, "id" | "url" | "state">, steps: RetrySteps): Promise<RetryOutcome> {
+  if (d.state === "cancelled") return steps.downloadAgain(d.url) ? "again" : "noWindow";
   await steps.resume(d.id).catch(() => {});
   await steps.wait(RESUME_CHECK_MS);
   const now = steps.current(d.id);
   if (!now) return "gone";
   if (now.state === "downloading" || now.state === "finished") return "resumed";
-  steps.downloadAgain(d.url);
-  return "again";
+  return steps.downloadAgain(d.url) ? "again" : "noWindow";
 }

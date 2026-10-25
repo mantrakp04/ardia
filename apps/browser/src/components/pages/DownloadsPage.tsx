@@ -39,7 +39,7 @@ export function DownloadsPage({ tabId }: { tabId: string }) {
       {shown.length === 0 ? (
         <EmptyState
           icon={<Symbol name="arrow.down.circle" size={30} color={theme.textTertiary} style={{ width: 40, height: 40 }} />}
-          title={query ? "No search results found" : "Files you download appear here"}
+          title={query ? "No search results found" : downloads.length ? "No downloads in this filter" : "Files you download appear here"}
         />
       ) : (
         <FlatList
