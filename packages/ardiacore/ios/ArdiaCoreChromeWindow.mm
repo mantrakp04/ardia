@@ -214,12 +214,49 @@ void InstallSharingIndicatorBounds(Class frameClass) {
   if (!class_addMethod(frameClass, sel, ours, method_getTypeEncoding(method))) method_setImplementation(method, ours);
 }
 
+void KeepSharingWindowOnHost(NSWindow *pill) {
+  const SEL hostSel = NSSelectorFromString(@"hostWindow");
+  NSWindow *host = [pill respondsToSelector:hostSel] ? ((NSWindow * (*)(id, SEL))objc_msgSend)(pill, hostSel) : nil;
+  if (![host isKindOfClass:NSWindow.class] || !objc_getAssociatedObject(host, kInsetLightsKey) || (host.styleMask & NSWindowStyleMaskFullScreen))
+    return;
+  NSButton *close = [host standardWindowButton:NSWindowCloseButton];
+  const CGFloat dx = close.layer ? close.layer.affineTransform.tx : 0;
+  if (dx != 0) [pill setFrameOrigin:NSMakePoint(NSMinX(pill.frame) + dx, NSMinY(pill.frame))];
+  const BOOL outside = !NSContainsRect(host.frame, pill.frame);
+  if (outside) pill.alphaValue = 0;
+  pill.ignoresMouseEvents = outside;
+}
+
+void InstallSharingWindowBounds() {
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    Class pillClass = NSClassFromString(@"NSLocalWindowSharingWindow");
+    const SEL sel = NSSelectorFromString(@"_syncToWindowControls");
+    Method method = pillClass ? class_getInstanceMethod(pillClass, sel) : nullptr;
+    if (!method) return;
+    const IMP standard = method_getImplementation(method);
+    const IMP ours = imp_implementationWithBlock(^(NSWindow *pill) {
+      ((void (*)(id, SEL))standard)(pill, sel);
+      KeepSharingWindowOnHost(pill);
+    });
+    if (!class_addMethod(pillClass, sel, ours, method_getTypeEncoding(method))) method_setImplementation(method, ours);
+  });
+}
+
+void SyncSharingWindows(NSWindow *window) {
+  Class pillClass = NSClassFromString(@"NSLocalWindowSharingWindow");
+  const SEL sel = NSSelectorFromString(@"_syncToWindowControls");
+  for (NSWindow *child in window.childWindows)
+    if ([child isKindOfClass:pillClass] && [child respondsToSelector:sel]) ((void (*)(id, SEL))objc_msgSend)(child, sel);
+}
+
 void RetileTrafficLights(NSWindow *window) {
   NSView *frameView = window.contentView.superview;
   for (NSString *name in @[ @"_updateButtonPositions", @"_positionSharingIndicator" ]) {
     const SEL sel = NSSelectorFromString(name);
     if ([frameView respondsToSelector:sel]) ((void (*)(id, SEL))objc_msgSend)(frameView, sel);
   }
+  SyncSharingWindows(window);
 }
 
 const void *kLightsShownKey = &kLightsShownKey;
@@ -242,6 +279,7 @@ void TranslateTrafficLights(NSWindow *window, CGFloat dx) {
   [CATransaction setDisableActions:YES];
   for (NSButton *button in TrafficLightButtons(window)) button.layer.affineTransform = CGAffineTransformMakeTranslation(dx, 0);
   KeepSharingIndicatorInWindow(window.contentView.superview, dx);
+  SyncSharingWindows(window);
   [CATransaction commit];
 }
 
@@ -287,6 +325,7 @@ void InsetTrafficLights(NSWindow *window) {
   objc_setAssociatedObject(window, kInsetLightsKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
   InstallTrafficLightsOrigin(object_getClass(window.contentView.superview));
   InstallSharingIndicatorBounds(object_getClass(window.contentView.superview));
+  InstallSharingWindowBounds();
   RetileTrafficLights(window);
   LogTrafficLightsOf(window);
 }
