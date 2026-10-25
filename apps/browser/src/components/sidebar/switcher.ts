@@ -1,9 +1,11 @@
 import { restartSwitcherPointer, setSwitcherCapture, switcherPointerMoved } from "@ardia/shell";
 import { useBrowser } from "../../store/browser";
-import { recentTabIds } from "../../store/organize";
+import { rememberPicture } from "../../lib/tabPictures";
+import { sessionTabIds } from "../../store/organize";
 import { setSidebarUi, sidebarUi } from "./state";
 
 const SHOW_AFTER_MS = 140;
+const SESSION_START = Date.now();
 const POINTER_POLL_MS = 50;
 let showTimer: ReturnType<typeof setTimeout> | undefined;
 let pointerTimer: ReturnType<typeof setInterval> | undefined;
@@ -14,8 +16,11 @@ let pointerStale = false;
 export function switcherStep(windowId: string, backward: boolean) {
   const current = sidebarUi().switcher;
   if (current && current.windowId === windowId) return moveSwitcher(backward ? -1 : 1);
-  const ids = recentTabIds(useBrowser.getState(), windowId);
+  const ids = sessionTabIds(useBrowser.getState(), windowId, SESSION_START);
   if (ids.length < 2) return;
+  const w = useBrowser.getState().windows[windowId];
+  const shown = w?.activeTabIds[w.profileId];
+  if (shown) void rememberPicture(shown);
   setSidebarUi({ switcher: { windowId, ids, index: backward ? ids.length - 1 : 1, visible: false } });
   setSwitcherCapture(true);
   clearTimeout(showTimer);

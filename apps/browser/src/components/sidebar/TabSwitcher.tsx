@@ -1,75 +1,113 @@
-import { FadeLabel, Surface } from "@ardia/shell";
-import { useEffect } from "react";
-import { Pressable, Text, View } from "react-native";
-import { displayUrl } from "@ardia/core";
+import { Surface, Symbol } from "@ardia/shell";
+import { memo, useEffect, useRef, useSyncExternalStore } from "react";
+import { Animated, Easing, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { lastPicture, onPicturesChanged } from "../../lib/tabPictures";
 import { hex, useTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
+import { TabIcon } from "./TabIcon";
 import { tabTitle } from "./actions";
 import { useSidebarUi } from "./state";
 import { commitSwitcher, hoverSwitcherRow, leaveSwitcherRow } from "./switcher";
-import { TabIcon } from "./TabIcon";
-import { useSidebarTokens } from "./tokens";
 
-const WIDTH = 400;
-const ROW = 40;
-const MAX_ROWS = 9;
+const CARD = 168;
+const SHOT = Math.round(CARD / 1.6);
+const GAP = 4;
+const PAD = 8;
+const LABEL = 30;
+const ON_PANEL = "#FFFFFFB3";
+const ON_PAGE = "#000000A6";
 
 export function TabSwitcher({ windowId, windowWidth, windowHeight }: { windowId: string; windowWidth: number; windowHeight: number }) {
   const theme = useTheme();
-  const tokens = useSidebarTokens();
   const switcher = useSidebarUi((u) => (u.switcher?.windowId === windowId && u.switcher.visible ? u.switcher : null));
+  const appear = useRef(new Animated.Value(0)).current;
+  const shown = !!switcher;
+  useEffect(() => {
+    if (!shown) return appear.setValue(0);
+    Animated.timing(appear, { toValue: 1, duration: 160, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+  }, [shown]);
   if (!switcher) return null;
-  const start = Math.max(0, Math.min(switcher.index - Math.floor(MAX_ROWS / 2), switcher.ids.length - MAX_ROWS));
-  const shown = switcher.ids.slice(start, start + MAX_ROWS);
-  const height = shown.length * ROW + 16 + 26;
+  const fits = Math.max(1, Math.floor((windowWidth - 80 - 2 * PAD + GAP) / (CARD + GAP)));
+  const count = Math.min(fits, switcher.ids.length);
+  const start = Math.max(0, Math.min(switcher.index - Math.floor(count / 2), switcher.ids.length - count));
+  const ids = switcher.ids.slice(start, start + count);
+  const width = 2 * PAD + count * CARD + (count - 1) * GAP;
+  const height = 2 * PAD + SHOT + LABEL + 8;
   return (
-    <Surface
-      fill={hex(theme.panel)}
-      cornerRadius={16}
-      borderColor={hex(theme.panelBorder)}
-      borderWidth={0.5}
-      shadowColor="#000000"
-      shadowOpacity={theme.panelShadowOpacity}
-      shadowRadius={28}
-      shadowOffset={[0, 12]}
-      style={{ position: "absolute", left: (windowWidth - WIDTH) / 2, top: Math.max(40, (windowHeight - height) / 2 - 40), width: WIDTH, padding: 8 }}
+    <Animated.View
+      style={{
+        position: "absolute",
+        left: (windowWidth - width) / 2,
+        top: (windowHeight - height) / 2,
+        width,
+        height,
+        opacity: appear,
+        transform: [{ scale: appear.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }],
+      }}
     >
-      <Text style={{ fontSize: 11, fontWeight: "600", color: theme.textTertiary, paddingHorizontal: 8, paddingBottom: 6, paddingTop: 2 }}>Recent Tabs</Text>
-      {shown.map((id, i) => (
-        <SwitcherRow key={id} tabId={id} focused={start + i === switcher.index} index={start + i} focusFill={tokens.switcherFocus} outline={tokens.switcherOutline} />
-      ))}
-    </Surface>
+      <Surface
+        fill={theme.dark ? "#1C1C1EF2" : "#2A2A2CF2"}
+        cornerRadius={18}
+        borderColor={hex(theme.panelBorder)}
+        borderWidth={0.5}
+        shadowColor="#000000"
+        shadowOpacity={0.45}
+        shadowRadius={32}
+        shadowOffset={[0, 14]}
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={{ flexDirection: "row", gap: GAP, padding: PAD }}>
+        {ids.map((id, i) => (
+          <SwitcherCard key={id} tabId={id} index={start + i} focused={start + i === switcher.index} accent={theme.accent} />
+        ))}
+      </View>
+    </Animated.View>
   );
 }
 
-function SwitcherRow({ tabId, focused, index, focusFill, outline }: { tabId: string; focused: boolean; index: number; focusFill: string; outline: string }) {
-  const theme = useTheme();
+const SwitcherCard = memo(function SwitcherCard({ tabId, index, focused, accent }: { tabId: string; index: number; focused: boolean; accent: string }) {
   const tab = useBrowser((s) => s.tabs[tabId]);
+  const picture = useSyncExternalStore(onPicturesChanged, () => lastPicture(tabId));
   useEffect(() => () => leaveSwitcherRow(index), [index]);
   if (!tab) return null;
+  const url = tab.url || tab.pinnedUrl || "";
   return (
     <Pressable onPressIn={() => commitSwitcher(index)}>
       <View
         onMouseEnter={() => hoverSwitcherRow(index)}
         onMouseLeave={() => leaveSwitcherRow(index)}
-        style={{
-          height: ROW,
-          borderRadius: 10,
-          flexDirection: "row",
-          alignItems: "center",
-          paddingHorizontal: 10,
-          gap: 10,
-          backgroundColor: focused ? focusFill : undefined,
-          borderWidth: focused ? 0.5 : 0,
-          borderColor: outline,
-        }}
+        style={{ width: CARD, padding: 4, borderRadius: 12, backgroundColor: focused ? "rgba(255,255,255,0.14)" : undefined }}
       >
-        <TabIcon url={tab.url} favicon={tab.favicon} icon={tab.customIcon} size={18} profileId={tab.profileId} />
-        <View style={{ flex: 1 }}>
-          <FadeLabel text={tabTitle(tab)} fontSize={13} weight={focused ? "medium" : "regular"} color={theme.textPrimary} style={{ height: 17 }} />
-          {tab.url ? <FadeLabel text={displayUrl(tab.url)} fontSize={11} color={theme.textSecondary} style={{ height: 14 }} /> : null}
+        <View
+          style={{
+            width: CARD - 8,
+            height: SHOT,
+            borderRadius: 8,
+            overflow: "hidden",
+            backgroundColor: url ? "#FFFFFF" : "#3A3A3C",
+            alignItems: "center",
+            justifyContent: "center",
+            borderWidth: focused ? 2 : 0.5,
+            borderColor: focused ? accent : "rgba(255,255,255,0.12)",
+          }}
+        >
+          {picture ? (
+            <Image source={{ uri: `data:image/jpeg;base64,${picture.data}` }} resizeMode="cover" style={StyleSheet.absoluteFill} />
+          ) : (
+            <TabIcon tabId={tab.id} url={url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} size={30} color={url ? ON_PAGE : ON_PANEL} />
+          )}
+        </View>
+        <View style={{ height: LABEL, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 2 }}>
+          {url || tab.customIcon ? (
+            <TabIcon tabId={tab.id} url={url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} size={13} color={ON_PANEL} />
+          ) : (
+            <Symbol name="globe" size={12} color={ON_PANEL} style={{ width: 13, height: 13 }} />
+          )}
+          <Text numberOfLines={1} style={{ flex: 1, fontSize: 12, fontWeight: "600", color: "#FFFFFF" }}>
+            {tabTitle(tab)}
+          </Text>
         </View>
       </View>
     </Pressable>
   );
-}
+});
