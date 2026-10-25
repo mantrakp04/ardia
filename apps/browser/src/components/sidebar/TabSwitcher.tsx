@@ -14,6 +14,8 @@ const SHOT = Math.round(CARD / 1.6);
 const GAP = 4;
 const PAD = 8;
 const LABEL = 30;
+const ON_PANEL = "#FFFFFFB3";
+const ON_PAGE = "#000000A6";
 
 export function TabSwitcher({ windowId, windowWidth, windowHeight }: { windowId: string; windowWidth: number; windowHeight: number }) {
   const theme = useTheme();
@@ -92,14 +94,14 @@ const SwitcherCard = memo(function SwitcherCard({ tabId, index, focused, accent 
           {picture ? (
             <Image source={{ uri: `data:image/jpeg;base64,${picture.data}` }} resizeMode="cover" style={StyleSheet.absoluteFill} />
           ) : (
-            <TabIcon tabId={tab.id} url={url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} size={30} />
+            <TabIcon tabId={tab.id} url={url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} size={30} color={url ? ON_PAGE : ON_PANEL} />
           )}
         </View>
         <View style={{ height: LABEL, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 2 }}>
           {url || tab.customIcon ? (
-            <TabIcon tabId={tab.id} url={url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} size={13} />
+            <TabIcon tabId={tab.id} url={url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} size={13} color={ON_PANEL} />
           ) : (
-            <Symbol name="globe" size={12} color="#FFFFFFB3" style={{ width: 13, height: 13 }} />
+            <Symbol name="globe" size={12} color={ON_PANEL} style={{ width: 13, height: 13 }} />
           )}
           <Text numberOfLines={1} style={{ flex: 1, fontSize: 12, fontWeight: "600", color: "#FFFFFF" }}>
             {tabTitle(tab)}
