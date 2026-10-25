@@ -358,6 +358,7 @@ export const OutsidePressArea = requireNativeViewManager<ViewProps & { onOutside
 
 export type SymbolProps = ViewProps & {
   name: string;
+  emoji?: string;
   size?: number;
   weight?: "light" | "regular" | "medium" | "semibold" | "bold";
   color?: string;

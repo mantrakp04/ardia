@@ -15,6 +15,7 @@ export type ProfilesSlice = {
   updateProfile(id: string, patch: Partial<Pick<Profile, "name" | "color" | "icon" | "theme">>): void;
   deleteProfile(id: string): void;
   reorderProfiles(ids: string[]): void;
+  moveProfile(id: string, delta: -1 | 1): void;
   setDefaultProfile(id: string): void;
   profileDataDeleted(engineId: string): void;
 };
@@ -168,6 +169,18 @@ export const createProfilesSlice: StateCreator<BrowserState, [], [], ProfilesSli
       set((s) => {
         const known = ids.filter((id) => s.profiles[id]);
         return { profileOrder: [...known, ...s.profileOrder.filter((id) => !known.includes(id))] };
+      });
+    },
+
+    moveProfile(id, delta) {
+      set((s) => {
+        const from = s.profileOrder.indexOf(id);
+        const to = from + delta;
+        if (from < 0 || to < 0 || to >= s.profileOrder.length) return {};
+        const profileOrder = s.profileOrder.slice();
+        profileOrder.splice(from, 1);
+        profileOrder.splice(to, 0, id);
+        return { profileOrder };
       });
     },
 

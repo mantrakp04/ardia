@@ -1,15 +1,13 @@
-import { Symbol } from "@ardia/shell";
 import { memo } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import { useIsSleeping } from "../../lib/tabLifecycle";
 import { useTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
+import { IconGlyph } from "../icons/IconGlyph";
+import { NO_GROUP_ICON, NO_GROUP_ICON_INK } from "../icons/classify";
 import { Favicon } from "../primitives";
 
-export const SYMBOL_PREFIX = "symbol:";
-export const NO_GROUP_ICON = `${SYMBOL_PREFIX}square.stack.fill`;
-export const NO_GROUP_ICON_INK = { light: "#00000040", dark: "#FFFFFF40" };
-export const hasOwnGroupIcon = (icon: string | null | undefined): icon is string => !!icon && icon !== NO_GROUP_ICON;
+export { SYMBOL_PREFIX, NO_GROUP_ICON, NO_GROUP_ICON_INK, hasOwnGroupIcon } from "../icons/classify";
 
 export const TabIcon = memo(function TabIcon({
   tabId,
@@ -64,16 +62,9 @@ function Icon({
   direct?: boolean;
 }) {
   const theme = useTheme();
-  if (icon?.startsWith(SYMBOL_PREFIX)) {
-    const ink = icon === NO_GROUP_ICON ? (theme.dark ? NO_GROUP_ICON_INK.dark : NO_GROUP_ICON_INK.light) : theme.icon;
-    return <Symbol name={icon.slice(SYMBOL_PREFIX.length)} size={size - 3} weight="medium" color={color ?? ink} style={{ width: size, height: size }} />;
-  }
   if (icon) {
-    return (
-      <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
-        <Text style={{ fontSize: size - 3, lineHeight: size }}>{icon}</Text>
-      </View>
-    );
+    const ink = icon === NO_GROUP_ICON ? (theme.dark ? NO_GROUP_ICON_INK.dark : NO_GROUP_ICON_INK.light) : theme.icon;
+    return <IconGlyph icon={icon} size={size} color={color ?? ink} />;
   }
   return <Favicon url={url} favicon={favicon} size={size} profileId={profileId} direct={direct} />;
 }

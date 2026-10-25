@@ -19,7 +19,7 @@ import { HoverSlot } from "./HoverSlot";
 import { IconButton, useHover } from "./primitives";
 import { PROFILE_INDICATOR_X, ProfileIndicator } from "./ProfileIndicator";
 import { usePageStyle, usePagerPages } from "./layout/profilePager";
-import { PROFILE_DOTS_HEIGHT, ProfileDots, useProfileDotsShown } from "./profiles/ProfileDots";
+import { PROFILE_SWITCHER_HEIGHT, ProfileDial, useProfileSwitcherShown } from "./profiles/ProfileDial";
 import { SidebarAddressRow, SidebarHeaderTools } from "./sidebar/AddressBar";
 import { ClearDivider } from "./sidebar/ClearDivider";
 import { canTidyPins } from "../store/tidyPins";
@@ -77,9 +77,9 @@ export function Sidebar({ width }: { width: number }) {
   const header = addressBar ? SIDEBAR_HEADER_WITH_FIELD : layout.sidebarHeader;
   const glowRoom = addressBar ? 0 : GLOW_ROOM;
   const hasDownloads = useBrowser((s) => downloadsIn(s, windowId).length > 0);
-  const dots = useProfileDotsShown();
+  const switcher = useProfileSwitcherShown();
   const footerDownloads = addressBar && hasDownloads;
-  const footer = dots || footerDownloads ? PROFILE_DOTS_HEIGHT : 0;
+  const footer = switcher || footerDownloads ? PROFILE_SWITCHER_HEIGHT : 0;
   const nothingPinned = useBrowser((s) => sidebarEntries(s, windowId, current).tiles.length === 0);
 
   useRevealTabs(windowId, scroll, scrollY, geometry);
@@ -147,7 +147,14 @@ export function Sidebar({ width }: { width: number }) {
 
           {footer ? (
             <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: footer }}>
-              {dots ? <ProfileDots windowId={windowId} /> : null}
+              {switcher ? (
+                <ProfileDial
+                  windowId={windowId}
+                  width={width}
+                  leftRoom={12}
+                  rightRoom={12}
+                />
+              ) : null}
               {footerDownloads ? (
                 <View style={{ position: "absolute", left: layout.sidebarInset, bottom: SIDEBAR_FOOTER_DOWNLOADS.bottom }}>
                   <DownloadsButton windowId={windowId} />

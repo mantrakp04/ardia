@@ -6,6 +6,7 @@ import { hex, layout, useTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
 import { usePageProfileId, useWindowId } from "../../store/hooks";
 import { groupLabel } from "../../store/organize";
+import { IconGlyph } from "../icons/IconGlyph";
 import { MeetingTimeLabel, useMeetingCountdown } from "../live/MeetingCountdown";
 import { HoverSlot } from "../HoverSlot";
 import { IconButton } from "../primitives";
@@ -156,7 +157,7 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
               {group.icon || firstTab ? (
                 <TabIcon url={firstTab?.url ?? ""} favicon={firstTab?.favicon} icon={group.icon ?? firstTab?.customIcon} profileId={firstTab?.profileId} />
               ) : (
-                <View style={{ width: 16 }} />
+                <IconGlyph icon="symbol:folder" size={16} color={tokens.groupTitle} />
               )}
               {renaming ? (
                 <RenameField

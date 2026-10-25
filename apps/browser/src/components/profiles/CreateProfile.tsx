@@ -7,6 +7,8 @@ import { useBrowser } from "../../store/browser";
 import { useWindowId } from "../../store/hooks";
 import { dataGroups, unusedProfileColor } from "../../store/profiles";
 import type { ProfileColor } from "../../store/types";
+import { IconPickerPanel } from "../icons/IconPickerPanel";
+import { ProfileBadge } from "./icons";
 import { Button, Sheet, TextField, Toggle, useFormColors } from "../settings/controls";
 import { closeSettingsSheet, showSettingsSheet } from "../settings/sheet";
 
@@ -56,12 +58,14 @@ function CreateProfileSheet({ windowId, preset, onDone }: { windowId: string | n
   const current = useBrowser((s) => (windowId && !s.windows[windowId]?.incognito ? s.windows[windowId]!.profileId : s.settings.defaultProfileId));
   const [name, setName] = useState(preset.name ?? "");
   const [color, setColor] = useState<ProfileColor>(() => unusedProfileColor(useBrowser.getState().profiles));
+  const [icon, setIcon] = useState<string | null>(null);
+  const [picker, setPicker] = useState(false);
   const [share, setShare] = useState(!!preset.shareWith);
   const [shareWith, setShareWith] = useState(preset.shareWith ?? current);
   const selectedGroup = groups.find((g) => g.profileIds.includes(shareWith)) ?? groups[0];
 
   const submit = () => {
-    const id = useBrowser.getState().createProfile({ name, color, shareWith: share ? (selectedGroup?.profileIds[0] ?? null) : null });
+    const id = useBrowser.getState().createProfile({ name, color, icon, shareWith: share ? (selectedGroup?.profileIds[0] ?? null) : null });
     onDone(id);
   };
   const single = groups.length === 1;
@@ -84,6 +88,27 @@ function CreateProfileSheet({ windowId, preset, onDone }: { windowId: string | n
           </Pressable>
         ))}
       </View>
+
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 12 }}>
+        <ProfileBadge profile={{ name: name.trim() || "Profile", color, icon }} size={28} />
+        <Pressable onPress={() => setPicker((open) => !open)}>
+          <Text style={{ fontSize: 12.5, color: theme.textSecondary }}>{picker ? "Done" : "Choose Icon…"}</Text>
+        </Pressable>
+      </View>
+
+      {picker ? (
+        <View style={{ marginTop: 10, borderRadius: 10, backgroundColor: colors.group, borderWidth: 1, borderColor: colors.groupBorder, padding: 10 }}>
+          <IconPickerPanel
+            current={icon}
+            kind="profile"
+            onPick={(next) => {
+              setIcon(next);
+              setPicker(false);
+            }}
+            onClose={() => setPicker(false)}
+          />
+        </View>
+      ) : null}
 
       <View style={{ marginTop: 16, borderRadius: 10, backgroundColor: colors.group, borderWidth: 1, borderColor: colors.groupBorder, padding: 12 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>

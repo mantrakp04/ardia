@@ -549,6 +549,45 @@ Implemented in `apps/browser/src/components/layout/profilePager.ts` (+ `swipeMot
   (window controls, 6 pt, the indicator's wrapper, 2 pt, Downloads) and the wrapper takes the room left. The button
   shows its title whole when it fits, cut short only if at least **52 pt** of it fit, else only the profile icon.
 
+### Profile dial (ours, not Dia)
+
+Dia's space switcher is the dot row above. The footer dial replaces it; these numbers are ours, to be
+tuned against captures rather than matched to a binary.
+
+- Footer 52 pt (Dia 41). The profile name is 11 pt theme text at the top of the footer (y 0..16), then the glyph band below
+  that (y 18..44, 26 pt), so the glyph centre is 30 pt from the footer's top, 22 pt from the
+  window bottom, level with the downloads button's centre. The dial is a
+horizontal cylinder seen from the front: pitch 36 pt (the arc
+  between neighbours at the centre), radius 170 pt, theta = 0.2118 rad (12.13 deg) per slot, one
+  Animated position in slots that equals the profile index at rest. A slot's cell sits at
+  x = 170 sin(angle) from the band's centre and carries scaleX = cos(angle), both drawn flat
+  (orthographic). A real rotateY with a 900 pt perspective does not render on the native Symbol and Text
+  glyph children, which stayed flat, so the flat projection is what ships. Opacity falls from 1.2 to
+  1.45 rad; the band clips the rest. A cell also fades to 0 over the last 40 pt at each band edge
+  (4 pt inset), so a glyph dissolves instead of being cut.
+- There are no tick marks and no groove; only the glyph faces fill the band.
+- One face per profile: a 24 pt glyph box (12 pt base glyph). The glyph is magnified by a tight Dock-like bell
+  curve driven by the same position value: 1.8x at the centre (about 22 pt), 1.08x one slot out
+  (about 13 pt), 1x two out (12 pt). Glyph opacity 0.55 idle, 0.85 hover, 1 current.
+- The glyphs stay visible; only the name hides at rest: a switch from any source fades them
+  in for 1.2 s, and pressing or dragging in the footer shows them until 0.9 s after the release.
+- Click a glyph: switch through the pager. Click the current glyph: the profile menu.
+- Plain drag: tune. The dial follows 1:1 with `rubberBand` (c = 0.15) past the ends, a detent and
+  `hapticTick` per slot, the text taking the target profile's name, and the switch commits on
+  release to the nearest slot.
+- Option-drag, or hold 350 ms then drag: reorder. The glyph lifts (1.18 scale, 22 pt pill in the
+  accent at 20 %), the others part one pitch on the 0.22 s / 0.9 spring, a haptic per slot, and release
+  saves `profileOrder`. A vertical drag past 20 pt cancels. Any glyph moves, not only the current one.
+- Under 150 pt of room the switcher falls back to Dia's dots (6 pt on a 12 pt pitch) so a very narrow
+  sidebar still switches.
+- The native pager remaps its selected index by profile id when `profileOrder` changes
+  (`SwipeModule.configure`), so a reorder is safe for the next swipe. A tune commits on release, so it
+  never churns pages mid-drag, and a tuned position is held until the index changes, so it never snaps
+  back to the old profile first.
+
+The first pass (52 pt footer, a 38 pt band with a hairline baseline and one 1 x 6 pt tick per
+profile, 1.5 x 8 pt for the current one) stays in `docs/research/profile-dial.md` as history.
+
 ### 1.50 New Tab intro (rebrand light configuration)
 
 Recovered from the 1.50.1 binary and checked against a window-only ScreenCaptureKit capture of the user's Dia

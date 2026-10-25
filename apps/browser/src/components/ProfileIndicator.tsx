@@ -4,6 +4,8 @@ import { createProfile, openWindow, switchProfile } from "../lib/actions";
 import { profileAccent, profileNameColor, useTheme } from "../lib/theme";
 import { useBrowser } from "../store/browser";
 import { useIsIncognito, useProfiles, useWindowId, useWindowProfile } from "../store/hooks";
+import { classifyIcon, profileInitial } from "./icons/classify";
+import { IconGlyph } from "./icons/IconGlyph";
 import { setMeasuredWidth, useMeasuredWidth } from "./layout/measuredWidths";
 import { useHover } from "./primitives";
 import { openSettings } from "./settings/windows";
@@ -12,6 +14,8 @@ const PAD = 9;
 const HEIGHT = 34;
 const MIN_CUT_NAME = 52;
 const ICON_WIDTH = 32;
+const GLYPH = 13;
+const GLYPH_GAP = 5;
 export const PROFILE_INDICATOR_X = 84;
 
 function useIndicator(room: number) {
@@ -23,10 +27,13 @@ function useIndicator(room: number) {
   const textWidth = useMeasuredWidth(`profile-name|${title}`);
   const shown = (incognito || profiles.length >= 2) && room >= ICON_WIDTH;
   const nameRoom = room - 2 * PAD;
-  const showName = !!textWidth && (textWidth <= nameRoom || nameRoom >= MIN_CUT_NAME);
-  const width = !shown ? 0 : showName ? Math.min(room, textWidth + 2 * PAD) : ICON_WIDTH;
+  const classified = classifyIcon(incognito ? null : profile.icon);
+  const icon = classified.kind === "initial" ? null : profile.icon;
+  const glyphRoom = icon ? GLYPH + GLYPH_GAP : 0;
+  const showName = !!textWidth && (textWidth + glyphRoom <= nameRoom || nameRoom - glyphRoom >= MIN_CUT_NAME);
+  const width = !shown ? 0 : showName ? Math.min(room, textWidth + glyphRoom + 2 * PAD) : ICON_WIDTH;
   const color = incognito ? theme.textPrimary : profileNameColor(profile, theme.dark);
-  return { incognito, title, textWidth, shown, showName, width, color };
+  return { incognito, title, textWidth, shown, showName, width, color, icon, initial: profileInitial(profile.name) };
 }
 
 export const useProfileIndicatorWidth = (room: number) => useIndicator(room).width;
@@ -35,7 +42,7 @@ export function ProfileIndicator({ room }: { room: number }) {
   const theme = useTheme();
   const windowId = useWindowId();
   const { hovered, hoverProps } = useHover();
-  const { incognito, title, textWidth, shown, showName, width, color } = useIndicator(room);
+  const { incognito, title, textWidth, shown, showName, width, color, icon, initial } = useIndicator(room);
   if (!shown) return null;
 
   return (
@@ -64,11 +71,24 @@ export function ProfileIndicator({ room }: { room: number }) {
             }}
           >
             {showName ? (
-              <Text numberOfLines={1} ellipsizeMode="tail" style={{ flexShrink: 1, fontSize: 13, fontWeight: "600", color }}>
-                {title}
-              </Text>
+              <>
+                {icon ? (
+                  <View style={{ width: GLYPH, marginRight: GLYPH_GAP }}>
+                    <IconGlyph icon={icon} size={GLYPH} color={color} />
+                  </View>
+                ) : null}
+                <Text numberOfLines={1} ellipsizeMode="tail" style={{ flexShrink: 1, fontSize: 13, fontWeight: "600", color }}>
+                  {title}
+                </Text>
+              </>
+            ) : icon ? (
+              <IconGlyph icon={icon} size={14} color={color} />
             ) : textWidth ? (
-              <Symbol name="person.fill" size={14} weight="semibold" color={color} style={{ width: 16, height: 16 }} />
+              incognito ? (
+                <Symbol name="person.fill" size={14} weight="semibold" color={color} style={{ width: 16, height: 16 }} />
+              ) : (
+                <Text style={{ fontSize: 12, fontWeight: "600", color }}>{initial}</Text>
+              )
             ) : null}
           </View>
         )}

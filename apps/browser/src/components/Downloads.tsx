@@ -8,7 +8,7 @@ import { useBrowser } from "../store/browser";
 import { useSidebarOpen, useWindowId, useWindowUi } from "../store/hooks";
 import { downloadsIn, downloadVisibleIn } from "../store/ui";
 import { SIDEBAR_FOOTER_DOWNLOADS, useAddressBarInSidebar, useTabLayout } from "./layout/windowLayout";
-import { PROFILE_DOTS_HEIGHT } from "./profiles/ProfileDots";
+import { PROFILE_SWITCHER_HEIGHT } from "./profiles/dial";
 import { openInternalPage } from "./pages/urls";
 import { useSidebarWidth } from "./sidebar/tokens";
 import { HoverSlot } from "./HoverSlot";
@@ -171,7 +171,7 @@ function DownloadsPanel({ windowId, closing, onClosed }: { windowId: string; clo
       <Animated.View
         style={{
           position: "absolute",
-          ...(addressBar ? { bottom: PROFILE_DOTS_HEIGHT + 2 } : { top: 44 }),
+          ...(addressBar ? { bottom: PROFILE_SWITCHER_HEIGHT + 2 } : { top: 44 }),
           ...(top ? { right: 8 } : { left: 10 }),
           opacity: appear,
           transformOrigin: `${addressBar ? "bottom" : "top"} ${top ? "right" : "left"}`,

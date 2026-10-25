@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { switchOn } from "../../lib/killSwitches";
+import { PROFILE_SWITCHER_HEIGHT } from "../profiles/dial";
 import { ARC_LIGHTS_CENTER, LIGHTS_CENTER, lightsCenter, TOP_STRIP_LIGHTS_CENTER } from "./dockMotion";
 import { layout } from "../../lib/theme";
 import { useBrowser, type BrowserState } from "../../store/browser";
@@ -38,7 +39,7 @@ export function openingLightsCenter(s: BrowserState, windowId: string): [number,
 }
 
 export const SIDEBAR_FIELD = { top: 46, height: layout.rowHeight, radius: 10 } as const;
-export const SIDEBAR_FOOTER_DOWNLOADS = { bottom: 3 + (41 - 3 - 34) / 2, size: 34 } as const;
+export const SIDEBAR_FOOTER_DOWNLOADS = { bottom: 5, size: 34 } as const;
 export function listTopGap(addressBar: boolean): number {
   return addressBar ? 6 : layout.pinnedTop - layout.sidebarHeader;
 }

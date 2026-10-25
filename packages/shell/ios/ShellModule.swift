@@ -1,5 +1,6 @@
 import AppKit
 import Carbon.HIToolbox
+import CoreImage
 import ExpoModulesCore
 
 public enum OpenURLInbox {
@@ -809,6 +810,7 @@ public class SymbolModule: Module {
 
     View(SymbolView.self) {
       Prop("name") { (view: SymbolView, name: String) in view.name = name }
+      Prop("emoji") { (view: SymbolView, text: String) in view.emoji = text }
       Prop("size") { (view: SymbolView, size: Double) in view.pointSize = size }
       Prop("weight") { (view: SymbolView, weight: String) in view.weight = weight }
       Prop("color") { (view: SymbolView, hex: String) in view.tint = NSColor(hex: hex) }
@@ -1411,10 +1413,17 @@ let installMagnifyMonitor: Void = {
 
 final class SymbolView: ExpoView {
   private let imageView = NSImageView()
+  private static let context = CIContext(options: [.useSoftwareRenderer: false])
   var name = "questionmark" { didSet { update() } }
+  var emoji = "" { didSet { update() } }
   var pointSize: Double = 14 { didSet { update() } }
   var weight = "regular" { didSet { update() } }
-  var tint: NSColor? { didSet { imageView.contentTintColor = tint } }
+  var tint: NSColor? {
+    didSet {
+      imageView.contentTintColor = tint
+      if !emoji.isEmpty { update() }
+    }
+  }
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
@@ -1432,11 +1441,54 @@ final class SymbolView: ExpoView {
   }
 
   private func update() {
+    if !emoji.isEmpty {
+      imageView.imageScaling = .scaleProportionallyUpOrDown
+      imageView.image = monoEmoji(emoji)
+      return
+    }
+    imageView.imageScaling = .scaleNone
     let weights: [String: NSFont.Weight] = [
       "light": .light, "regular": .regular, "medium": .medium, "semibold": .semibold, "bold": .bold,
     ]
     let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: weights[weight] ?? .regular)
     imageView.image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?.withSymbolConfiguration(config)
+  }
+
+  private func monoEmoji(_ text: String) -> NSImage? {
+    let font = NSFont.systemFont(ofSize: pointSize)
+    let attributed = NSAttributedString(string: text, attributes: [.font: font])
+    let measured = attributed.size()
+    let scale: CGFloat = 2
+    let width = max(1, Int((measured.width * scale).rounded(.up)))
+    let height = max(1, Int((measured.height * scale).rounded(.up)))
+    guard let rep = NSBitmapImageRep(
+      bitmapDataPlanes: nil,
+      pixelsWide: width,
+      pixelsHigh: height,
+      bitsPerSample: 8,
+      samplesPerPixel: 4,
+      hasAlpha: true,
+      isPlanar: false,
+      colorSpaceName: .deviceRGB,
+      bytesPerRow: 0,
+      bitsPerPixel: 0
+    ) else { return nil }
+    rep.size = measured
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+    attributed.draw(at: .zero)
+    NSGraphicsContext.restoreGraphicsState()
+    guard let source = rep.cgImage else { return nil }
+    let input = CIImage(cgImage: source)
+    let filter = CIFilter(name: "CIColorControls")!
+    let ink = tint?.usingColorSpace(.sRGB)
+    let luminance = ink.map { 0.2126 * $0.redComponent + 0.7152 * $0.greenComponent + 0.0722 * $0.blueComponent } ?? 1
+    filter.setValue(input, forKey: kCIInputImageKey)
+    filter.setValue(0, forKey: kCIInputSaturationKey)
+    filter.setValue(luminance > 0.5 ? 0.3 : -0.22, forKey: kCIInputBrightnessKey)
+    filter.setValue(1.12, forKey: kCIInputContrastKey)
+    guard let output = filter.outputImage, let mono = Self.context.createCGImage(output, from: input.extent) else { return nil }
+    return NSImage(cgImage: mono, size: measured)
   }
 }
 

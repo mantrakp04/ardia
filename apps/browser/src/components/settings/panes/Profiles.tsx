@@ -9,10 +9,12 @@ import { useProfiles } from "../../../store/hooks";
 import { plural } from "../../../store/model";
 import { sharingProfiles } from "../../../store/profiles";
 import type { Profile } from "../../../store/types";
+import { classifyIcon } from "../../icons/classify";
+import { IconPickerPanel } from "../../icons/IconPickerPanel";
 import { ClearDataDialog } from "../../pages/ClearDataDialog";
 import { useHover } from "../../primitives";
 import { ColorStack } from "../../profiles/CreateProfile";
-import { iconMenuItems, PROFILE_SYMBOLS, ProfileBadge, profileSymbol } from "../../profiles/icons";
+import { PROFILE_SYMBOLS, ProfileBadge } from "../../profiles/icons";
 import { Button, Group, PopUp, Row, SectionHeader, TextField, useFormColors } from "../controls";
 import { closeSettingsSheet, showSettingsSheet } from "../sheet";
 import { ThemeSection } from "../ThemeEditor";
@@ -223,13 +225,15 @@ function ProfileRow({
 }
 
 function iconTitle(icon: string | null): string {
-  const symbol = profileSymbol(icon);
-  if (symbol) return PROFILE_SYMBOLS.find((s) => s.name === symbol)?.title ?? "Symbol";
-  return icon ?? "Initial";
+  const classified = classifyIcon(icon);
+  if (classified.kind === "symbol") return PROFILE_SYMBOLS.find((symbol) => symbol.name === classified.name)?.title ?? "Icon";
+  if (classified.kind === "emoji" || classified.kind === "glyph" || classified.kind === "text") return classified.text;
+  return "Initial";
 }
 
 export function ProfileDetailsPane({ profileId }: { profileId: string }) {
   const theme = useTheme();
+  const colors = useFormColors();
   const profile = useBrowser((s) => s.profiles[profileId]);
   const isDefault = useBrowser((s) => s.settings.defaultProfileId === profileId);
   const only = useBrowser((s) => s.profileOrder.length <= 1);
@@ -248,20 +252,16 @@ export function ProfileDetailsPane({ profileId }: { profileId: string }) {
     return `${plural((s.history[profileId] ?? []).length, "page")} in history · ${plural(bookmarks, "bookmark")}`;
   });
   const [name, setName] = useState(profile?.name ?? "");
+  const [picker, setPicker] = useState(false);
   if (!profile) return null;
   const update = (patch: Partial<Pick<Profile, "name" | "color" | "icon">>) => useBrowser.getState().updateProfile(profileId, patch);
   const commitName = () => (name.trim() ? update({ name: name.trim() }) : setName(profile.name));
   const sharing = shared.length > 1;
 
-  const pickIcon = async () => {
-    const choice = await showMenu(iconMenuItems(profile.icon));
-    if (choice?.startsWith("icon:")) update({ icon: choice.slice("icon:".length) || null });
-  };
-
   return (
     <View>
       <View style={{ alignItems: "center", marginTop: 24, gap: 10 }}>
-        <Pressable onPress={() => void pickIcon()} tooltip="Change Icon">
+        <Pressable onPress={() => setPicker((open) => !open)} tooltip="Change Icon">
           <ProfileBadge profile={profile} size={64} />
         </Pressable>
         <Text style={{ fontSize: 12, color: theme.textSecondary }}>{stats}</Text>
@@ -273,8 +273,21 @@ export function ProfileDetailsPane({ profileId }: { profileId: string }) {
           <TextField value={name} onChangeText={setName} onSubmit={commitName} onBlur={commitName} style={{ width: 220 }} />
         </Row>
         <Row title="Icon" description={iconTitle(profile.icon)}>
-          <Button title="Change…" onPress={() => void pickIcon()} />
+          <Button title={picker ? "Close" : "Change…"} onPress={() => setPicker((open) => !open)} />
         </Row>
+        {picker ? (
+          <View style={{ padding: 12, borderTopWidth: StyleSheet.hairlineWidth * 2, borderColor: colors.groupBorder }}>
+            <IconPickerPanel
+              current={profile.icon}
+              kind="profile"
+              onPick={(icon) => {
+                update({ icon });
+                setPicker(false);
+              }}
+              onClose={() => setPicker(false)}
+            />
+          </View>
+        ) : null}
       </Group>
 
       <ThemeSection profileId={profileId} />
