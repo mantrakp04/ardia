@@ -963,3 +963,71 @@ model at 120 Hz ticks: 26–36 % of the way at 0.1 s, 58–73 % at 0.25 s, 92–
   (a, b clamped from `self+0x14` / `self+0x94`), each lit or unlit by its dot product with the light direction
   (−0.2, −1, −0.55)/√1.34, joined into a closed CGPath: the unlit crescent of the rim. Not rendered at 84 pt yet.
 - Light appearance of everything above (the user's Dia runs dark).
+
+## Developer Mode (Arc 1.160.0, Dia 1.54.2)
+
+Read from the app bundles only on 2026-10-24: `strings`, `otool -tV` disassembly for short labels (Swift builds strings of
+15 bytes or less into the code), and Swift type metadata (`__swift5_types`, field descriptors, `__swift5_reflstr`).
+Neither browser was launched. **Recovered** means it is in the binary; **inferred** is our reading.
+
+- **Site Controls row (recovered).** Both have `enum SiteSetting { contentSettings, sidebarPreview, developerMode,
+  contentBlocking, popupBlocking }` (Arc adds `unavailable`). Arc (`SiteControlCenter/SiteSetting+Display.swift`): title
+  "Developer Mode", subtitle "On" when on, "Off" when off. Dia: title "Developer Mode", no subtitle keys (inferred: a
+  plain toggle).
+- **State (recovered).** Arc: `StorableDeveloperModeState { version, state }` holding `DeveloperModeState { enabledHosts,
+  disabledDefaultHosts }`, through `DeveloperModeClient` (`subscription`, `setDeveloperModeStatusForHost`,
+  `getDeveloperModeState`, `reset`). So some hosts are on by default and each can be switched off. Dia keeps
+  `developerModeEnabledForHosts` and `StorableDeveloperModeState.json`, with no `disabledDefaultHosts` and no client type.
+  "Reset developer mode enabled hosts" is an item of Arc's internal debug menu.
+- **Default hosts (not recovered).** The list itself wasn't found. `(localhost|127\.0\.0\.1)` is one alternative of a
+  general URL-validation regex (`ARCFoundationBase/String+URL.swift`, both apps), not a Developer Mode list, and
+  `localhost.local` comes from Google's GTMSessionFetcher. A host check for `localhost` / `127.0.0.1` / `::1` exists in
+  Arc's link-classifying code (inferred: not this list). Ours: localhost, 127.0.0.1, [::1] and *.localhost.
+- **Switch (recovered, Arc).** Main menu "Turn on Developer Mode for this site" / "Turn off Developer Mode for this site",
+  in the submenu with Developer Tools, View Source, Inspect Elements, JavaScript Console, the network inspector and "Allow
+  JavaScript from Apple Events". Key binding / command `toggleDeveloperMode`: "Toggles developer mode on or off for the
+  current site." (in Dia only as a key-binding id). Nothing points to the tab's context menu.
+- **Developer toolbar (recovered, Arc only).** "Toggle Console" (`terminal`), "Toggle Network Panel" (`network`), "Inspect
+  Element" (`scope`), beside Copy link, "Capture a portion of this page" (`camera`), "Extensions Menu" and "Site
+  Settings". `enum DevToolViews { console, network, elements }`; DevTools dock states `closed, undocked, dockedLeft,
+  dockedRight, dockedBottom`. No strings for error or warning counts, hot or auto reload, or disabling the cache.
+- **Reload (recovered, Arc).** `enum DeveloperTabReloadSetting { reload, forceReload }`; the defaults key
+  `devModeReloadState` defaults to "reload" (Dia keeps the key, not the type). The reload button has a `chevron.down`
+  menu: "Refresh page", "Refresh (Ignore Cache)", "Clear Cookies and Refresh". Inferred: a developer tab's reload
+  button repeats the remembered normal or hard reload.
+- **Full URL (recovered).** "Show Full URL" / "Hide Full URL" (Arc), "Show full URL" / "Hide full URL" (Dia) and "Show full
+  URL when Toolbar is enabled" are a general toolbar setting, not tied to Developer Mode (inferred).
+- **Sidebar, archiving, caching.** `isDeveloperTab` sits beside `shouldDim` on Arc's sidebar tab-icon models, with a
+  `developerTab` display style (inferred: a developer tab looks different there). Nothing ties Developer Mode to
+  auto-archive or caching; `DeveloperModeContextFlags` is an option set whose flag names aren't in the binary.
+- **Toolbar in Developer Mode (recovered from an Arc 1.160 screenshot, 2026-10-24,** `http://localhost:5050`,
+  dark, 2x, the bar about 37 pt tall). Left to right: an "i" (info) where the site-controls / lock button sits; the URL as
+  `http://localhost:5050`, the full URL with the scheme, in a monospaced font (SF Mono-like, about 13 pt, light text);
+  the whole bar covered in thin, low-contrast diagonal stripes going up to the right at about 45°, light over the bar
+  colour, period about 10–12 pt, with nothing else on the bar changing colour. On the right, groups separated by thin
+  vertical dividers: copy link | two capture buttons (a photo-style icon, a camera) | terminal, globe, crosshair (console,
+  network, inspect) | extensions, pinned extensions, split view. No reload button or chevron on that bar. So Developer
+  Mode does change the URL display, which corrects the "Full URL" item above for developer tabs.
+- **Ours.** Stripes: a pre-drawn image (36 pt period at 45°, rising to the right as Arc's do, equal 18 pt bands and gaps, the period matched by eye from an Arc capture, not measured (2026-10-24; first 12 pt rising, then this); white at 2 %
+  on a dark bar, black at 1.8 % on a light one, which keeps the bar's mean brightness where the earlier 1 pt lines at
+  7 % / 6 % had it: 21.6 vs 21.0 dark, 253.0 vs 253.2 light, 0–255), chosen from the bar's text colour so a website-coloured bar gets the right one), behind the toolbar band
+  and the auto-hide band; no per-frame work. URL: the full URL with the scheme in the monospaced system font, no
+  trailing "/" on a bare origin, in the toolbar and sidebar fields. `info` in place of the lock; the three DevTools
+  buttons as their own group between dividers. The hover-only buttons (bookmark, split view, Site Controls) sit left of every persistent item and keep their space at rest, so nothing in the field moves when the pointer enters or leaves. Not matched: Increase Contrast, and Arc's capture buttons.
+- **Sidebar row (recovered from two Arc screenshots, 2026-10-24, dark, 2x).** A Developer Mode tab's row is
+  two lines: the title, and below it, smaller and dimmer, the host with its port (`localhost:5050`, no scheme). Active:
+  the normal selected fill plus a dashed border around the rounded row, amber dashes (about `#F5C52A`) about 2 pt thick
+  with near-black between and around them, dashes and gaps about 6–8 pt, following the corner radius. Inactive: no
+  border and no fill, still two lines. Ours: both lines inside the normal 34 pt row (13 pt title in 16 pt, 11 pt
+  host:port in 14 pt, `textSecondary`), so a tab entering Developer Mode never changes the list's geometry; the border
+  is a 2 pt `#141414` ring under a 2 pt `#F5C52A` dashed ring at radius 10, only on the active tab. The top-strip layout
+  is unchanged.
+- **Editing the URL (recovered from an Arc screenshot, 2026-10-24).** In Developer Mode a click on the URL or
+  ⌘L edits it in place: no command bar, the monospaced `http://localhost:5050` simply selected with the system
+  highlight where it sits, the striped bar, the "i" and everything else unchanged. Ours: the field becomes a text input
+  at the same place (its 2 pt inset offset, so every glyph lands on the same pixel as at rest, measured), the whole URL
+  selected; Return resolves the text with the command bar's rules (`resolveInput`: a URL, host:port, or a search) in
+  the same tab; Esc, a click elsewhere or another tab ends it with the URL unchanged. No suggestions and no new-tab
+  modifier, as in Arc. Ordinary tabs keep the command bar.
+- **Analytics names (recovered, both).** `developer_tab_activated`, `is_from_dev_tab_shortcut`,
+  `dev_tools_javascript_console_opened`, `dev_tools_network_panel_opened`, `dev_tools_inspect_elements_opened`.

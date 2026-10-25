@@ -539,6 +539,7 @@ enum MainMenu {
         cmd("Developer Tools", "devTools", "i", [.command, .option]),
         cmd("Inspect Elements", "inspectElements", "c", [.command, .option]),
         cmd("JavaScript Console", "javaScriptConsole", "j", [.command, .option]),
+        cmd("Turn on Developer Mode for this site", "toggleDeveloperMode"),
         cmd("Allow JavaScript from Apple Events", "toggleJavaScriptFromAppleEvents"),
         cmd("Toggle Developer Tools", "toggleDevTools", functionKey(NSF12FunctionKey), []).hiddenShortcut(),
         cmd("Caret Browsing", "caretBrowsing", functionKey(NSF7FunctionKey), []).hiddenShortcut(),

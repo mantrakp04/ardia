@@ -4,7 +4,7 @@ The demo draws its icons from the open icon sets below, rescaled and repositione
 
 ==============================================================================
 Lucide (lucide-static 1.56.0, ISC) https://lucide.dev
-Icons used: a-large-small, arrow-left-right, arrow-up-down, ban, banknote, car-front, check, chevron-down, chevron-left, chevron-right, chevron-up, chevrons-up-down, circle, circle-equal, circle-question-mark, circle-stop, clock-9, coffee, command, corner-down-left, film, flag, git-merge, hammer, hard-drive, key-round, leaf, lightbulb, message-square, moon, navigation, newspaper, orbit, package, paintbrush, pin, pin-off, plug, plus, shopping-cart, square-terminal, sun, target, test-tubes, text-cursor, trophy, undo-2, user, video
+Icons used: a-large-small, arrow-left-right, arrow-up-down, ban, banknote, car-front, check, chevron-down, chevron-left, chevron-right, chevron-up, chevrons-up-down, circle, circle-equal, circle-question-mark, circle-stop, clock-9, coffee, command, corner-down-left, crosshair, film, flag, git-merge, hammer, hard-drive, key-round, leaf, lightbulb, message-square, moon, navigation, newspaper, orbit, package, paintbrush, pin, pin-off, plug, plus, shopping-cart, square-terminal, sun, target, test-tubes, text-cursor, trophy, undo-2, user, video
 ------------------------------------------------------------------------------
 ISC License
 
@@ -52,7 +52,7 @@ SOFTWARE.
 
 ==============================================================================
 Tabler Icons (@tabler/icons 3.49.0, MIT) https://tabler.io/icons
-Icons used: alarm, alert-triangle, archive, bolt, book, chevrons-right, circle-arrow-down, circle-arrow-right, clock-hour-9, cloud-exclamation, code, contrast, device-gamepad-2, device-vision-pro, hand-stop, letter-a, letter-z, lock, logout, map, message, microphone, mood-smile, number-1, palette, paw, plane, player-track-next, player-track-prev, power, puzzle, question-mark, search, settings, zoom-in, zoom-out
+Icons used: alarm, alert-triangle, archive, bolt, book, chevrons-right, circle-arrow-down, circle-arrow-right, clock-hour-9, cloud-exclamation, code, contrast, device-gamepad-2, device-vision-pro, hand-stop, info-small, letter-a, letter-z, lock, logout, map, message, microphone, mood-smile, number-1, palette, paw, plane, player-track-next, player-track-prev, power, puzzle, question-mark, search, settings, zoom-in, zoom-out
 ------------------------------------------------------------------------------
 MIT License
 

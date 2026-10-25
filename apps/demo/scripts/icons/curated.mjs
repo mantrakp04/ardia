@@ -5,6 +5,8 @@ export const CURATED = {
   visionpro: "T:device-vision-pro T:cardboards M:google-cardboard P:virtual-reality L:glasses",
   nosign: "L:ban T:ban P:prohibit M:cancel I:prohibition",
   translate: "L:languages T:language",
+  scope: "L:crosshair T:crosshair P:crosshair M:crosshairs I:crosshair",
+  info: "L:info T:info-small P:info M:information-variant I:info-empty",
   "1.magnifyingglass": "T:zoom-reset L:search P:magnifying-glass",
   airplane: "PF:airplane-fill M:airplane TF:plane L:plane P:airplane",
   alarm: "L:alarm-clock T:alarm P:alarm M:alarm",

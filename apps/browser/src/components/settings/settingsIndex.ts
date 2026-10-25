@@ -357,6 +357,11 @@ const ROWS: Record<SettingsPane, Section[]> = {
         showFullUrl: { title: "Show full URL in the address bar", description: "Instead of the site alone.", keywords: ["address", "url", "https"] },
         warnMovingTabs: { title: "Warn before moving tabs between profiles", description: "Some site data doesn't come along.", keywords: ["confirm"] },
         bookmarksImport: { title: "Show the Import bookmarks button", description: "On an empty bookmarks bar.", keywords: ["bookmarks bar"] },
+        developerMode: {
+          title: "Developer Mode sites",
+          description: "Developer Mode adds console, network and inspect buttons and a reload menu. localhost is on until you turn it off.",
+          keywords: ["developer mode", "dev mode", "reset", "localhost", "console"],
+        },
       },
     },
     { section: "Performance", rows: { batterySaver: { title: "Battery Saver", keywords: ["energy", "low power mode", "performance", "power"] } } },

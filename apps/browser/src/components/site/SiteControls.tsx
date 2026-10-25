@@ -27,6 +27,7 @@ import { useMedia, usePictureInPicture } from "../media/state";
 import { openSettings } from "../settings/windows";
 import { copyPageUrl } from "./selection";
 import { canShare, shareTab } from "./share";
+import { canToggleDeveloperModeFor, setDeveloperModeFor, useDeveloperMode } from "./developerMode";
 import { ActionTile, FooterChip, gridColumns, MoreButton, SectionTitle, SettingRow, SITE_PANEL, TileRow } from "./SiteControlsParts";
 import { SiteExtensions } from "./SiteExtensions";
 import { TranslateRows } from "./TranslateControls";
@@ -109,6 +110,8 @@ function SiteControlsPanel({
   const close = () => setPopover(tabId, null);
   const video = useMedia((m) => !!m.sessions[tabId]?.hasVideo || !!m.pipOpen[tabId]);
   const [pip, togglePip] = usePictureInPicture(tabId);
+  const developer = useDeveloperMode(url, tab?.profileId);
+  const developerToggles = canToggleDeveloperModeFor(tabId);
 
   useEffect(() => {
     if (!origin) return;
@@ -252,6 +255,13 @@ function SiteControlsPanel({
                         openSettings("privacy");
                       }
               }
+            />
+            <SettingRow
+              icon="hammer.fill"
+              title="Developer Mode"
+              value={developer ? "On" : "Off"}
+              on={developer}
+              onPress={developerToggles ? () => setDeveloperModeFor(tabId, !developer) : undefined}
             />
             {shownPermissions.map((p) => (
               <SettingRow

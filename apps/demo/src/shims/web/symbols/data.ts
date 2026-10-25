@@ -305,6 +305,8 @@ const BODIES: readonly string[] = [
   "<path d=\"M12,2C17.53,2 22,6.47 22,12C22,17.53 17.53,22 12,22C6.47,22 2,17.53 2,12C2,6.47 6.47,2 12,2M15.59,7L12,10.59L8.41,7L7,8.41L10.59,12L7,15.59L8.41,17L12,13.41L15.59,17L17,15.59L13.41,12L17,8.41L15.59,7Z\" />",
   "<rect x=\"6.14\" y=\"6.14\" width=\"19.73\" height=\"19.73\" rx=\"2.38\"/><path d=\"M12.01 12.01L19.99 19.99\"/><path d=\"M19.99 12.01L12.01 19.99\"/>",
   "<path d=\"M10,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8C22,6.89 21.1,6 20,6H12L10,4Z\" />",
+  "<circle cx=\"12\" cy=\"12\" r=\"10\" /><line x1=\"22\" x2=\"18\" y1=\"12\" y2=\"12\" /><line x1=\"6\" x2=\"2\" y1=\"12\" y2=\"12\" /><line x1=\"12\" x2=\"12\" y1=\"6\" y2=\"2\" /><line x1=\"12\" x2=\"12\" y1=\"22\" y2=\"18\" />",
+  "<path d=\"M12 9h.01\" /><path d=\"M11 12h1v4h1\" />",
 ];
 
 const ENCODED: Record<string, readonly EncodedLayer[]> = {
@@ -441,6 +443,7 @@ const ENCODED: Record<string, readonly EncodedLayer[]> = {
   "hifispeaker.2": [[135,32,0,1,0,[[1.245,1.065,-0.1978,-0.1587,0.068,0,1],[1.26,1.08,-0.2147,-0.1887,0.0785,0,1],[1.245,1.08,-0.2072,-0.2131,0.0838,0,1],[1.23,1.07,-0.2147,-0.1887,0.086,0,1],[1.23,1.04,-0.2147,-0.2178,0.0845,0,1]]],[136,32,0,1,0.07,[[1.2525,1.0375,0.1897,0.0613,0.0755,0,1],[1.26,1.04,0.1822,0.0463,0.0815,0,1],[1.26,1.0475,0.1934,0.0369,0.0935,0,1],[1.26,1.05,0.2028,0.0688,0.101,0,1],[1.26,1.0575,0.2122,0.0575,0.119,0,1]]]],
   "house": [[137,256,1,1,0,[[1.2608,0.9225,-0.0101,0.0089,0,0,1],[1.2683,0.9225,0.0049,0.0014,0.0075,0,1],[1.2683,0.925,0.019,-0.0051,0.0195,0,1],[1.2627,0.9225,-0.0101,-0.0136,0.0345,0,1],[1.2683,0.925,0.0049,0.0164,0.051,0,1]]]],
   "house.fill": [[138,24,1,1,0,[[1.4801,0.985,-0.011,0.0163,0,0,1],[1.5045,0.9825,0.0087,0.007,0,0,1],[1.5345,0.9825,0.0218,-0.008,0,0,1],[1.5645,1.0025,-0.0091,-0.008,0,0,1],[1.5757,0.9775,0.0049,0.0088,0.0068,0,1]]]],
+  "info": [[302,24,0,1,0,[[2.5494,0.9025,0.0147,-0.0563,0.1318,0,1],[2.5363,0.9125,0.0334,-0.0525,0.131,0,1],[2.615,0.9225,0.0109,-0.0675,0.143,0,1],[2.6525,0.94,0.0184,-0.0675,0.167,0,1],[2.7238,0.9725,0.024,-0.0394,0.2015,0,1]]]],
   "info.circle": [[139,256,1,1,0,[[1.2156,1.0025,0.0136,-0.0099,0,0,1],[1.2175,1,0.0174,-0.0174,0.0075,0,1],[1.2137,1,-0.0145,0.0155,0.0233,0,1],[1.21,1,-0.0098,0.0098,0.0368,0,1],[1.2043,1,-0.0033,0.0042,0.0533,0,1]]]],
   "internaldrive": [[104,24,0,1,0,[[1.145,1.04,-0.0122,0.0098,0.074,0,1],[1.16,1.04,0,-0.0042,0.083,0,1],[1.175,1.03,0.0075,0.0183,0.086,0,1],[1.19,1.04,-0.0187,0.0108,0.1055,0,1],[1.1788,1.0225,-0.0075,-0.0005,0.113,0,1]]]],
   "key": [[140,24,0,1,0,[[1.0569,1,0.007,-0.0656,0.0597,45,-1],[1.0681,1.0025,0.0202,-0.0769,0.0777,45,-1],[1.0681,1.0025,-0.0136,-0.0441,0.0875,45,-1],[1.0681,1.0025,-0.0108,-0.0478,0.0935,45,-1],[1.0681,1,-0.007,-0.0544,0.1018,45,-1]]]],
@@ -531,6 +534,7 @@ const ENCODED: Record<string, readonly EncodedLayer[]> = {
   "rectangle.stack": [[241,32,0,1,0,[[1.215,1.005,0.0169,0.0778,0.0612,0,1],[1.2,1,0.0141,0.1144,0.0785,0,1],[1.1962,0.9925,0.0178,0.1069,0.0965,0,1],[1.1925,0.995,-0.0159,0.1003,0.107,0,1],[1.185,0.9925,-0.0103,0.1303,0.1243,0,1]]],[242,32,0,1,0,[[1.2675,1.005,0.0178,-0.4284,0.0477,0,1],[1.32,0.95,0.0131,-0.3956,0.0568,0,1],[1.3556,0.935,0.0187,-0.4106,0.056,0,1],[1.38,0.93,-0.015,-0.4256,0.0628,0,1],[1.3688,0.92,-0.0103,-0.4106,0.0628,0,1]]]],
   "return": [[243,24,0,1,0,[[1.3925,1.04,0.0052,-0.0471,0.074,0,1],[1.355,1.06,0.0052,-0.0434,0.089,0,1],[1.3569,1.08,-0.0248,-0.0434,0.107,0,1],[1.3888,1.06,-0.0089,-0.0134,0.1205,0,1],[1.385,1.085,-0.0014,-0.0171,0.137,0,1]]]],
   "safari": [[244,24,0,1,0,[[1.1002,1,0.0089,-0.0089,0.0635,0,1],[1.0965,1,0.0174,-0.0174,0.083,0,1],[1.0927,1,-0.0145,0.0155,0.0988,0,1],[1.089,1,-0.0098,0.0098,0.1108,0,1],[1.0852,1,-0.0033,0.0033,0.128,0,1]]]],
+  "scope": [[301,24,0,1,0,[[1.0254,1,-0.0131,0.0131,0.0597,0,1],[1.0123,1,-0.0019,0.0009,0.0777,0,1],[1.0123,1,0.0019,-0.0019,0.0935,0,1],[1.0123,1,0.0028,-0.0028,0.1048,0,1],[1.0104,1,0.0066,-0.0066,0.1198,0,1]]]],
   "shield.lefthalf.filled": [[245,24,1,1,0,[[1.1012,1.015,0.0204,-0.0145,0,0,1],[1.1087,1,-0.0096,-0.0249,0,0,1],[1.1106,1.01,-0.0096,-0.0295,0.0127,0,1],[1.105,1.0075,-0.0068,-0.0324,0.0173,0,1],[1.1088,1.01,-0.0021,0.0014,0.024,0,1]]]],
   "shippingbox": [[246,24,0,1,0,[[1.1967,1.0225,-0.0122,-0.0108,0.0597,0,1],[1.191,1.0175,-0.0075,0.0164,0.0778,0,1],[1.191,1.0175,-0.0037,0.0127,0.0913,0,1],[1.1835,1.0175,0.0019,0.0089,0.1018,0,1],[1.1817,1.0175,0.0047,0.0052,0.1153,0,1]]]],
   "sidebar.left": [[247,32,0,1,0,[[1.3408,1,-0.0103,0.0009,0.0575,0,1],[1.3333,1,0,-0.0075,0.077,0,1],[1.3221,1,0.0075,-0.0131,0.0973,0,1],[1.309,0.995,0.0075,-0.0188,0.1123,0,1],[1.2958,0.995,0.0094,0.0131,0.128,0,1]]]],
@@ -744,6 +748,7 @@ const NUDGES: Record<string, string> = {
   "hifispeaker.2": "hbebbehbahgddh9cibfebigecbffkddgifje9bd9adgcbhfccggj9ideahfdcjdeakbfhmaj98dfaagfadf8cb9e9dd8ab7fccdeacbe9caa8gce9a7f9c5faa6d7cbf8a4c9b2d7a8c596f",
   "house": "befedaa8dei9edc9c9hde9idgci7f7hbfagabdfdc9a7dca8ecb7c79be7bbga9dfdh9e9g8ddidf9eegcd8jbf8h8ecjfgbeageedg8n8h7daaaf5ebg9d4a7fbhae6a9g5d3g6e4g7e5h4",
   "house.fill": "ahehbd9cchhddiaebeficehieiffdfejcjdkahehbe9cci9ediaebe7ice9jej8ndoekckdlcgiheddjghddihfdgddhilfhdhfmdmfilificf9ffadgfecaaefifhdd9hfdddfgdgfkdjfj",
+  "info": "9aaa8e8d9bbf8bagcg5cbg4d7d796a9f8f3gba8bafbdcb6gcceg8g9d7h9e9ecjcj8g7gbhbb8bafbdcc6gcceg7hdd7h9d9ecicj8g7hbhbg9hbdcbdh6dch6d8deh8dah9h5e5e9i9i8i",
   "info.circle": "fafabecceaaeebafafeb9fdcdc9h8hcdcece9f9febg9afebaeeaeaaefabebeg9g9cdcddd9f9febg9afeaaeebeaaefabebefagacdcddd9f9febg9afebaeeaeabefabebefag9cdcddd",
   "internaldrive": "affhccaccihfecbgbhgedkigfihgeigfdifjaefecaa9dfacegbdcdhbdfabgehbfcgge9gbdehefadhgfdbigfcgedaiegcldgimcghmiobcdhefadhgfdcigfdgddiiffcedgiekghejgk",
   "key": "8abiddbacgea9dbgagda7eahbg8a9hec7jchb7efg9e7fci8d9gcfbi6d9fchafbgaecgal8b8efh9effca7d9gcfbi6d9gch9fchaecgae8bgefg9effdbgdagcfbied9gchafdhbfdgbe8",
@@ -834,6 +839,7 @@ const NUDGES: Record<string, string> = {
   "rectangle.stack": "d999fc8ab78bdc98c6aaa67978a9b8ccaaa8d9a8eb89be88cd98d8aabc6786a9b8ca98b6f9c9idcaegbagdd8igfcgfdbfghbi9bdeajgf7ce99c6ecb7g9ddabf6c9dceahba9ccd9c7",
   "return": "e9b9g5dbfac5gad5c6gad6iad3e6i7j3f4g3h9d9idhbj9gdk9h5h5m9j6f9l9l6j6k2o2o2h6e6iag8j5g9b5h9h0e4i0e4k3l0h0j2g2h0h6e5bah7b6g9c5h8i8e4j8f4c3e0j0k2h2j1",
   "safari": "f9f9aecceaaeeaaeaeeb9fdbdb9f8gccccbd9f9feag9aeeaaeeaeaadf9bdbdf9g8ccccdb9f9fdbg8aeeaaeeaeaaef9bdbdf9g8ccccdc9f9feag8aeeaaeeaeaaef9bdbdf9g8ccccdb",
+  "scope": "eaf9ccea8gdbaef9g9cc9feaf9dbeaccdbf9eaf9ccea8gdbaef9f9cc9feaf9dbeaccdbf9eaf9ccea8gdbaef9g8cc9feag8dbf9cceaf9eaf9ccea9gdbaef98gcc9fea7hdbf9ccea7h",
   "shield.lefthalf.filled": "eaaadeaccaffabefdfgcbgfc9dghah9ebeaffaaadebcdbgfbbffeg9cdggcad9hchaedecffaaaeebcdb9fcbffefacdg9cbdahdhbeeedfffbfebc9ef9bdfgbfbbfebafcfbaeadefeed",
   "shippingbox": "ccgcc7adcbg6cahegdc9gcc8g7gac9ccgbgaccgcc7adcbgfcagdhdc9gcc8g7gad9cchbgacc8cc8adcb8eca7d7db98cc8778ac9cc8b8acc8cc7adcb8fca8d8dc88cc8878ac9cc8b8a",
   "sidebar.left": "9cecb99gbcf9ce99abefbcfgc9efbfccaebe9cdcbh9fbdf9be8a8befacfgbhdeafbc8cad9cecah8fbdfhce9a9bdfacfgchdebgcc9cae99e9ad8cbageca9e9eebb7fbdbe7c8cc9cbd",

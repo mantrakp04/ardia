@@ -761,6 +761,8 @@ static BOOL HeldSelector(SEL selector) {
   NSInteger _tabIndex;
   BOOL _pinned;
   NSView *_devtoolsView;
+  NSString *_devToolsPanel;
+  NSString *_devToolsReopen;
   BOOL _navigationQueued;
   NSString *_pageTheme;
   NSString *_pageThemeSource;
@@ -1508,6 +1510,15 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
     [_devtoolsView removeFromSuperview];
   }
   _devtoolsView = devToolsView;
+  if (!devToolsView) {
+    _devToolsPanel = nil;
+    if (_devToolsReopen) {
+      __weak ArdiaCoreWebView *weakSelf = self;
+      dispatch_async(dispatch_get_main_queue(), ^{
+        [weakSelf reopenDevToolsPanel];
+      });
+    }
+  }
   if (devToolsView && devToolsView.superview != self) {
     [devToolsView removeFromSuperview];
     NSView *page = _tab.view;
@@ -1522,6 +1533,7 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
   AcceptDrops(_devtoolsView, YES);
   if (_devtoolsView.superview == self) [_devtoolsView removeFromSuperview];
   _devtoolsView = nil;
+  _devToolsPanel = nil;
 }
 
 - (void)setFrameSize:(NSSize)newSize {
@@ -2687,7 +2699,43 @@ static NSString *LinkKeyAction(NSString *key) {
   [_tab showDevTools];
 }
 
+- (void)toggleDevToolsPanel:(NSString *)panel {
+  const BOOL network = [panel isEqualToString:@"network"];
+  if (!network && ![panel isEqualToString:@"console"] && ![panel isEqualToString:@"elements"]) return;
+  if (_devtoolsView && [_devToolsPanel isEqualToString:panel]) {
+    _devToolsPanel = nil;
+    _devToolsReopen = nil;
+    [_tab closeDevTools];
+    return;
+  }
+  if (_devtoolsView && network) return;
+  if (_devtoolsView) {
+    _devToolsReopen = [panel copy];
+    [_tab closeDevTools];
+    __weak ArdiaCoreWebView *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+      [weakSelf reopenDevToolsPanel];
+    });
+    return;
+  }
+  [self openDevToolsPanel:panel];
+}
+
+- (void)reopenDevToolsPanel {
+  NSString *panel = _devToolsReopen;
+  _devToolsReopen = nil;
+  if (panel && !_devtoolsView) [self openDevToolsPanel:panel];
+}
+
+- (void)openDevToolsPanel:(NSString *)panel {
+  _devToolsPanel = [panel copy];
+  if ([panel isEqualToString:@"console"]) [self runChromeCommand:40005];
+  else if ([panel isEqualToString:@"elements"]) [self runChromeCommand:40023];
+  else [_tab showDevTools];
+}
+
 - (void)showDevToolsPanel:(NSString *)panel {
+  if ([panel hasPrefix:@"toggle:"]) return [self toggleDevToolsPanel:[panel substringFromIndex:7]];
   const int command = [panel isEqualToString:@"console"]   ? 40005
                       : [panel isEqualToString:@"inspect"] ? 40023
                       : [panel isEqualToString:@"toggle"]  ? 40237

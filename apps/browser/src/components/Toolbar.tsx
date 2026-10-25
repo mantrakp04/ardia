@@ -23,6 +23,10 @@ import { showUrlBarMenu } from "./omnibox/paste";
 import { useHover } from "./primitives";
 import { ToolbarExtensions, useToolbarExtensionsWidth } from "./extensions/ToolbarExtensions";
 import { GlassFill, liquidGlass } from "./glass";
+import { DeveloperButtons, developerReload, showDeveloperReloadMenu } from "./site/DeveloperButtons";
+import { DeveloperStripes } from "./site/DeveloperStripes";
+import { endUrlEdit, startUrlEdit, useTabDeveloperMode, useUrlEdit } from "./site/developerMode";
+import { DeveloperUrlInput } from "./site/DeveloperUrlInput";
 import { TranslateButton } from "./site/TranslateControls";
 import { ZoomIndicator } from "./site/ZoomControls";
 
@@ -63,6 +67,7 @@ export function Toolbar({
   const website = extendColor && tab?.url ? themeColor : null;
   const palette = toolbarPalette(theme, website);
   const band = useEasedColor(bare ? null : palette.background);
+  const developer = useTabDeveloperMode(tabId);
   const history = useHistoryAvailability(tabId);
   const extensionsWidth = useToolbarExtensionsWidth(windowId);
   useEffect(() => setToolbarExtensionsWidth(windowId, extensionsWidth), [windowId, extensionsWidth]);
@@ -89,6 +94,7 @@ export function Toolbar({
   return (
     <View style={{ height: layout.toolbarHeight }}>
       {!bare && <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: band }]} />}
+      {!bare && developer && <DeveloperStripes palette={palette} />}
       <WindowDragRegion style={StyleSheet.absoluteFill} />
       <Animated.View style={[StyleSheet.absoluteFill, { opacity: dim }]} pointerEvents="box-none">
         {geometry.sidebarButton !== null && (
@@ -129,9 +135,11 @@ export function ToolbarBackdrop({ tabId }: { tabId: string }) {
   const extendColor = useSettings((s) => s.extendWebsiteColor);
   const palette = toolbarPalette(theme, extendColor && url ? themeColor : null);
   const band = useEasedColor(palette.background);
+  const developer = useTabDeveloperMode(tabId);
   return (
     <View pointerEvents="none" style={{ height: layout.toolbarHeight }}>
       <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: band }]} />
+      {developer && <DeveloperStripes palette={palette} />}
       {url ? <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 1, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.divider }} /> : null}
     </View>
   );
@@ -153,6 +161,13 @@ export const ReloadButton = memo(function ReloadButton({
   onFocus: () => void;
 }) {
   const web = () => webviews.get(tab.id);
+  const developer = useTabDeveloperMode(tab.id);
+  const openMenu = developer
+    ? () => {
+        onFocus();
+        void showDeveloperReloadMenu(tab.id);
+      }
+    : undefined;
   return (
     <ToolbarButton
       style={style}
@@ -165,9 +180,12 @@ export const ReloadButton = memo(function ReloadButton({
         onFocus();
         if (loading) return void web()?.stopLoading();
         if (m.metaKey) return void useBrowser.getState().newTab(tab.windowId, { url: tab.url, background: true, openerId: tab.id });
+        if (developer && !m.shiftKey) return developerReload(tab.id);
         void withLivePage(tab.id, (page) => (m.shiftKey ? page.forceReload() : page.reload()));
       }}
-      tooltip={loading ? "Stop Loading This Page" : "Refresh (⌘R)"}
+      onLongPress={openMenu}
+      onContextMenu={openMenu}
+      tooltip={loading ? "Stop Loading This Page" : developer ? "Refresh (⌘R) · Right-Click for Reload Options" : "Refresh (⌘R)"}
     />
   );
 });
@@ -269,6 +287,12 @@ export const UrlField = memo(function UrlField({
 }) {
   const theme = useTheme();
   const showFullUrl = useSettings((s) => s.showFullUrl);
+  const developer = useTabDeveloperMode(tab.id);
+  const editing = useUrlEdit((u) => u.tabId === tab.id);
+  useEffect(() => () => endUrlEdit(tab.id), [tab.id]);
+  useEffect(() => {
+    if (!developer) endUrlEdit(tab.id);
+  }, [developer, tab.id]);
   const bookmarked = useIsBookmarked(tab.url);
   const insecure = usePage(tab.id, insecureLevel);
   const popups = usePage(tab.id, (p) => p.popups.length);
@@ -321,7 +345,11 @@ export const UrlField = memo(function UrlField({
           <GlassFill radius={8} fill={hovered ? palette.pressed : palette.pill} dark={palette.background ? palette.text.startsWith("#FFFFFF") : undefined} />
         )
       ) : null}
-      {insecure && (
+      {developer ? (
+        <Pressable onPress={toggleSiteControls} style={{ paddingLeft: LOCK.left }} tooltip="Site Controls">
+          <Symbol name="info" size={12} weight="semibold" color={palette.secondary} style={{ width: LOCK.width, height: 30 }} />
+        </Pressable>
+      ) : insecure && (
         <Pressable onPress={toggleSiteControls} style={{ paddingLeft: LOCK.left }} tooltip="Connection is not secure">
           <Symbol
             name="lock.open.trianglebadge.exclamationmark.fill"
@@ -332,8 +360,14 @@ export const UrlField = memo(function UrlField({
         </Pressable>
       )}
       <ContextMenuArea style={{ flex: 1 }} onContextMenu={() => void showUrlBarMenu(tab)}>
-      <Pressable onPress={() => openPanel(tab.url)} style={{ flex: 1, height: sidebar?.height ?? 30, justifyContent: "center", paddingLeft: insecure ? LOCK.gap : sidebar ? 10 : urlTextLeft(false) }}>
-        {sidebar ? (
+      <Pressable onPress={() => (!developer ? openPanel(tab.url) : editing ? undefined : startUrlEdit(tab.id))} style={{ flex: 1, height: sidebar?.height ?? 30, justifyContent: "center", paddingLeft: insecure || developer ? LOCK.gap : sidebar ? 10 : urlTextLeft(false) }}>
+        {developer && editing ? (
+          <DeveloperUrlInput tabId={tab.id} windowId={windowId} initial={developerUrl(tab.url)} color={palette.text} />
+        ) : developer ? (
+          <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: 11, fontFamily: MONOSPACED, color: palette.text }}>
+            {developerUrl(tab.url)}
+          </Text>
+        ) : sidebar ? (
           <View style={{ flexDirection: "row", alignItems: "center" }}>
             <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 13, fontWeight: "500", color: palette.text }}>
               {host}
@@ -371,6 +405,7 @@ export const UrlField = memo(function UrlField({
           <ToolbarButton palette={palette} icon="slider.horizontal.3" size={13} box={24} radius={6} onPress={toggleSiteControls} active={popover === "siteControls"} tooltip="Site Controls" />
         </View>
         {capture && <CaptureIndicator camera={capture.camera} microphone={capture.microphone} screen={capture.screen} onPress={toggleSiteControls} />}
+        {developer && <DeveloperButtons tabId={tab.id} palette={palette} onFocus={onFocus} />}
         <TranslateButton tabId={tab.id} palette={palette} onFocus={onFocus} />
         <ZoomIndicator tabId={tab.id} zoom={tab.zoom} palette={palette} onFocus={onFocus} />
         {popups > 0 && (
@@ -404,6 +439,10 @@ function CaptureIndicator({ camera, microphone, screen, onPress }: { camera: boo
     </Pressable>
   );
 }
+
+const MONOSPACED = ".AppleSystemUIFontMonospaced-Regular";
+
+const developerUrl = (url: string) => url.replace(/^([a-z][a-z0-9+.-]*:\/\/[^/?#]*)\/$/i, "$1");
 
 const currentPopover = (tabId: string) => usePages.getState().popover[tabId] ?? null;
 

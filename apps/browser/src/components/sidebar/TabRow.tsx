@@ -20,6 +20,8 @@ import { registerRow, useSidebarUi } from "./state";
 import { TabIcon } from "./TabIcon";
 import { TabBadges } from "../media/TabBadges";
 import { useSidebarTokens } from "./tokens";
+import { useTabDeveloperMode } from "../site/developerMode";
+import { DeveloperRowBorder, developerSubtitle } from "./developerRow";
 
 export const clickMods = (e: GestureResponderEvent) => {
   const n = e.nativeEvent as unknown as { metaKey?: boolean; shiftKey?: boolean; altKey?: boolean };
@@ -63,6 +65,7 @@ export const TabRow = memo(function TabRow({ tabId, onto = false, shift = null }
   const { hovered, hoverProps } = useRowHover(windowId, renaming ? null : { kind: "tab", id: tabId });
   const [moved, movedRef] = useShift(shift, useCallback((v: View | null) => registerRow(windowId, tabId, v), [windowId, tabId]));
   const backToPin = useHover();
+  const developer = useTabDeveloperMode(tabId);
   if (!tab) return null;
   const resettable = isPinnedRow(tab) && awayFromPin(tab);
   const resetting = resettable && backToPin.hovered && !renaming;
@@ -92,6 +95,7 @@ export const TabRow = memo(function TabRow({ tabId, onto = false, shift = null }
             }}
           >
             {({ pressed }) => (
+              <View>
               <Surface
                 fill={hex(onto || (!active && pressed) ? theme.tabPressed : fill)}
                 cornerRadius={10}
@@ -138,7 +142,14 @@ export const TabRow = memo(function TabRow({ tabId, onto = false, shift = null }
                     onDone={(text) => (text === null ? endRename({ kind: "tab", id: tabId }) : commitRename({ kind: "tab", id: tabId }, text))}
                   />
                 ) : (
-                  <FadeLabel text={title} fontSize={13} color={active ? theme.tabSelectedText : theme.textTab} style={{ flex: 1, height: 18, marginLeft: 5 }} />
+                  developer ? (
+                    <View style={{ flex: 1, marginLeft: 5 }}>
+                      <FadeLabel text={title} fontSize={13} color={active ? theme.tabSelectedText : theme.textTab} style={{ height: 16 }} />
+                      <FadeLabel text={developerSubtitle(tab.url)} fontSize={11} color={theme.textSecondary} style={{ height: 14 }} />
+                    </View>
+                  ) : (
+                    <FadeLabel text={title} fontSize={13} color={active ? theme.tabSelectedText : theme.textTab} style={{ flex: 1, height: 18, marginLeft: 5 }} />
+                  )
                 )}
                 <HoverSlot
                   hovered={hovered && !renaming}
@@ -148,6 +159,8 @@ export const TabRow = memo(function TabRow({ tabId, onto = false, shift = null }
                   {loading && <ActivitySpinner style={{ width: 12, height: 12, marginRight: 2 }} />}
                 </HoverSlot>
               </Surface>
+              {developer && active ? <DeveloperRowBorder /> : null}
+              </View>
             )}
           </Pressable>
         </ContextMenuArea>

@@ -42,6 +42,7 @@ import { flushPersistence, resumePersistence } from "./persist";
 import { startWindowCloseGuard } from "./windowClose";
 import { startExtensionsBridge } from "../components/extensions/bridge";
 import { extensionMenu, useExtensions } from "../components/extensions/state";
+import { canToggleDeveloperModeFor, tabInDeveloperMode } from "../components/site/developerMode";
 
 let quitting = false;
 export const isQuitting = () => quitting;
@@ -263,6 +264,8 @@ export function menuState(s: BrowserState): MenuState {
   if (w && !w.sidebarOpen) checked.push("toggleSidebar");
 
   const titles: Record<string, string> = {};
+  if (!canToggleDeveloperModeFor(page?.id)) disabled.push("toggleDeveloperMode");
+  if (tabInDeveloperMode(page?.id)) titles.toggleDeveloperMode = "Turn off Developer Mode for this site";
   if (tab?.pinned) titles.togglePin = togglePinTitle(tab);
   if (isPinnedRow(tab)) titles["togglePin:tile"] = "Move to Top Apps";
   else disabled.push("togglePin:tile");

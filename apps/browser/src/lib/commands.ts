@@ -55,8 +55,9 @@ import {
   openLittleArdiaProfileMenu,
 } from "../components/littleArdia/actions";
 import { runPeekCommand } from "../components/peek/actions";
+import { startUrlEdit, tabInDeveloperMode, toggleDeveloperModeFor } from "../components/site/developerMode";
 import { peekTabId } from "../store/peek";
-import { expectFocus, findFocus } from "./focusClaims";
+import { expectFocus, findFocus, urlEditFocus } from "./focusClaims";
 
 export function runCommand({ command, arg, windowId: requested }: CommandEvent) {
   const s = useBrowser.getState();
@@ -153,6 +154,10 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     case "restoreClosed":
       return arg ? s.restoreClosed(arg, windowId) : undefined;
     case "focusCommandBar":
+      if (page && tabInDeveloperMode(page.id)) {
+        expectFocus(windowId, urlEditFocus(page.id));
+        return startUrlEdit(page.id);
+      }
       if (page) return s.openPanel(windowId, page.url);
       if (isEmptyCardTab(s, tab) && showNewTabBar(windowId)) return;
       if (tab && addressBarInSidebar(s, windowId) && !commandBarCentred(s, windowId)) return s.openPanel(windowId, "");
@@ -232,6 +237,8 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
       return void web?.showDevTools("inspect");
     case "javaScriptConsole":
       return void web?.showDevTools("console");
+    case "toggleDeveloperMode":
+      return toggleDeveloperModeFor(page?.id);
     case "viewSource":
       if (!page || !web || !/^(https?|file):/.test(page.url)) return;
       return void s.newTab(windowId, { url: `view-source:${page.url}`, openerId: page.id, profileId: page.profileId });

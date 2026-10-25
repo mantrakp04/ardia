@@ -2,7 +2,8 @@ import { cancelFocusMove, type CommandEvent } from "@ardia/shell";
 import { useBrowser } from "../store/browser";
 import { resolveWindowId } from "../store/model";
 import { peekTabId } from "../store/peek";
-import { cancelAbandonedFocus, claimFocusTag, commandBarFocus, expectFocus, findFocus, heroBarFocus, pageFocus, runFocusMove } from "./focusClaims";
+import { cancelAbandonedFocus, claimFocusTag, commandBarFocus, expectFocus, findFocus, heroBarFocus, pageFocus, runFocusMove, urlEditFocus } from "./focusClaims";
+import { useUrlEdit } from "../components/site/developerMode";
 import { webviews } from "./webviews";
 
 const activeTab = (windowId: string) => {
@@ -42,6 +43,7 @@ function stillPossible(windowId: string, destination: string): boolean {
   const peek = peekTabId(s, windowId);
   for (const page of peek ? [active, peek] : [active]) {
     if (destination === findFocus(page)) return !!s.find[page]?.open;
+    if (destination === urlEditFocus(page)) return useUrlEdit.getState().tabId === page;
     if (destination === pageFocus(page)) return true;
   }
   return destination === heroBarFocus(active);

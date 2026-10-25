@@ -12,6 +12,8 @@ import { usePages } from "./layout/pageState";
 import { useExtensions } from "./extensions/store";
 import { needsBar, revealToolbar, setToolbarPeek, STRIP_HEIGHT, toolbarMode, useToolbarAutoHide, type ToolbarMode } from "./layout/toolbarAutoHide";
 import { Toolbar } from "./Toolbar";
+import { DeveloperStripes } from "./site/DeveloperStripes";
+import { useTabDeveloperMode } from "./site/developerMode";
 
 const HIDE_MS = 150;
 const HIDE_EASING = Easing.out(Easing.quad);
@@ -138,6 +140,7 @@ export function AutoHideBackdrop({ tabId, mode, motion }: { tabId: string; mode:
   const extendColor = useSettings((s) => s.extendWebsiteColor);
   const palette = toolbarPalette(theme, extendColor && url ? themeColor : null);
   const band = useEasedColor(palette.background);
+  const developer = useTabDeveloperMode(tabId);
   const { bar } = motion;
   const H = layout.toolbarHeight;
   const [moved, setMoved] = useState(mode !== "shown");
@@ -157,6 +160,7 @@ export function AutoHideBackdrop({ tabId, mode, motion }: { tabId: string; mode:
         style={{ position: "absolute", left: 0, right: 0, top: 0, height: H, backgroundColor: theme.card, transform: anim ? [{ translateY: anim.bandLift }, { scaleY: anim.bandScale }] : undefined }}
       >
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: band }]} />
+        {developer && <DeveloperStripes palette={palette} />}
       </Animated.View>
       {url ? (
         <Animated.View

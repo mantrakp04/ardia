@@ -14,6 +14,7 @@ import { pinKeyOf } from "../store/pinMirror";
 import { removeTabs } from "../store/tabs";
 import { DEFAULT_PROFILE_ID, DEFAULT_SETTINGS, type Settings } from "../store/settings";
 import { sanitizeTheme } from "../lib/profileTheme";
+import { developerModeOf } from "../lib/developerMode";
 import { tileFolderOf, withTileFolder } from "../store/tileFolders";
 import type { BookmarkNode, HistoryEntry, Profile, ProfileTheme, Tab, TabGroup, TileFolder } from "../store/types";
 
@@ -1151,4 +1152,36 @@ export function passwordsAdapter(
 function originOf(login: SavedLogin): string | null {
   const realm = login.origin.replace(/\/$/, "");
   return /^https?:\/\/[^/\s]+$/.test(realm) ? realm : null;
+}
+
+const DEV_MODE = "devmode:";
+
+export function developerModeAdapter(profileId: string): Adapter {
+  return {
+    prefix: DEV_MODE,
+    adoptRemoteOnJoin: true,
+    extract: () => {
+      const state = developerModeOf(store().settings.developerMode?.[profileId]);
+      const values = new Map<string, unknown>();
+      for (const host of state.on) values.set(`${DEV_MODE}on:${host}`, { v: 1 });
+      for (const host of state.off) values.set(`${DEV_MODE}off:${host}`, { v: 1 });
+      if (state.reload !== "reload") values.set(`${DEV_MODE}reload`, { r: state.reload });
+      return { values };
+    },
+    apply: (visible) => {
+      const on: string[] = [];
+      const off: string[] = [];
+      let reload: unknown = "reload";
+      for (const [key, value] of visible) {
+        const rest = key.slice(DEV_MODE.length);
+        if (rest.startsWith("on:")) on.push(rest.slice(3));
+        else if (rest.startsWith("off:")) off.push(rest.slice(4));
+        else if (rest === "reload" && value && typeof value === "object") reload = (value as { r?: unknown }).r;
+      }
+      const next = developerModeOf({ on, off, reload });
+      const all = store().settings.developerMode ?? {};
+      if (canonical(next) === canonical(developerModeOf(all[profileId]))) return;
+      store().updateSettings({ developerMode: { ...all, [profileId]: next } }, { fromSync: true });
+    },
+  };
 }

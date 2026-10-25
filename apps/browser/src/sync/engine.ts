@@ -41,6 +41,7 @@ import {
   type ProfileRecord,
   legacyThemeOf,
   profileThemesAdapter,
+  developerModeAdapter,
   themeFromRecord,
   type ShareRecord,
 } from "./adapters";
@@ -291,6 +292,7 @@ function profileAdapters(profileId: string, retiring: boolean): Adapter[] {
     ...(t.history && ownsData ? [inTodaysNames(historyAdapter(profileId))] : []),
     inTodaysNames(deviceTabsAdapter(profileId, id, deviceName, !t.tabs)),
     ...(t.passwords && ownsData ? [passwords] : []),
+    ...(t.settings ? [developerModeAdapter(profileId)] : []),
     ...(t.extensions && ownsData && extensionSyncAvailable() ? [extensionsOf(profileId)] : []),
   ];
 }
