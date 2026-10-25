@@ -154,3 +154,26 @@ test("Battery Saver's old switch: a choice and any off are kept, the old default
   assert.equal(hydrated({ batterySaver: true }).batterySaverWhen, "lowBattery", "legacy save left on");
   assert.equal(hydrated({ batterySaverWhen: "never", chosen: ["batterySaverWhen"] }).batterySaverWhen, "never");
 });
+
+test("a recent pin queued for warming at launch stays closed when the user closes it before its turn", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://a.com" });
+  const pin = S().newTab(w, { url: "https://p.com", background: true, pinned: true });
+  const warm = S().newTab(w, { url: "https://q.com", background: true, pinned: true });
+  const cold = (id) => ({ ...S().tabs[id], navigation: null, lastActiveAt: Date.now() });
+  useBrowser.setState({ tabs: { ...S().tabs, [pin]: cold(pin), [warm]: cold(warm) } });
+  const sys = { physicalMemory: 32 * 2 ** 30, onBattery: false, lowPowerMode: false, memoryPressure: "normal" };
+
+  const queued = lifecycle.reloadRecentTabs(sys);
+  assert.ok(queued.includes(pin) && queued.includes(warm));
+  S().activate(pin);
+  S().closeTab(pin);
+  assert.equal(S().tabs[pin].unloaded, true);
+  t.mock.timers.tick(2000 * queued.length);
+
+  assert.equal(S().tabs[pin].unloaded, true, "the closed pin stays closed");
+  assert.equal(S().tabs[pin].navigation, null);
+  assert.ok(S().tabs[warm].navigation, "a pin left alone still warms up");
+  assert.equal(!!S().tabs[warm].unloaded, false);
+});

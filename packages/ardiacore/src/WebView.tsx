@@ -108,7 +108,8 @@ export type DisplayMediaSource = {
   width: number;
   height: number;
 };
-export type DisplayMediaRequest = { id: string; origin: string; frameOrigin?: string; audio: boolean; sources: DisplayMediaSource[] };
+export type DisplayMediaAudio = { tab: boolean; screen: boolean; window: "application" | "system" | null };
+export type DisplayMediaRequest = { id: string; origin: string; frameOrigin?: string; audio: DisplayMediaAudio | null; sources: DisplayMediaSource[] };
 
 export type ZoomState = { zoom: number; host: string; isDefault: boolean; pinchScale: number };
 export type ContentBlockedState = { count: number; url: string };
@@ -229,7 +230,7 @@ export type WebViewHandle = {
   resolveAutofillPrompt(id: number, answer: AutofillPromptAnswer): Promise<void>;
   executeExtensionAction(extensionId: string): Promise<ExtensionActionResult | null>;
 
-  resolveDisplayMedia(id: string, sourceId: string | null): Promise<void>;
+  resolveDisplayMedia(id: string, sourceId: string | null, audio?: boolean): Promise<void>;
   mediaCaptureSourceId(): Promise<string | null>;
   notificationAction(id: string, action: "click" | "close"): Promise<void>;
 
@@ -396,7 +397,7 @@ export const WebView = forwardRef<WebViewHandle, WebViewProps>(function WebView(
         call(undefined, (n) => n.resolvePasswordPrompt(answer, edits?.username ?? null, edits?.password ?? null)),
       resolveAutofillPrompt: (id, answer) => call(undefined, (n) => n.resolveAutofillPrompt(id, answer)),
       executeExtensionAction: (extensionId) => call(null, (n) => n.executeExtensionAction(extensionId)),
-      resolveDisplayMedia: (id, sourceId) => call(undefined, (n) => n.resolveDisplayMedia(id, sourceId)),
+      resolveDisplayMedia: (id, sourceId, audio = false) => call(undefined, (n) => n.resolveDisplayMedia(id, sourceId, audio)),
       mediaCaptureSourceId: () => call(null, (n) => n.mediaCaptureSourceId()),
       notificationAction: (id, action) => call(undefined, (n) => n.notificationAction(id, action)),
       resolveUnresponsive: (terminate) => call(undefined, (n) => n.resolveUnresponsive(terminate)),

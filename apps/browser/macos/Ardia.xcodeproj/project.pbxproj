@@ -8,9 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		2FF0A6F31D6FB76878E63C5F /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 3E0CAE61008516DE07A12694 /* PrivacyInfo.xcprivacy */; };
+		32CC817DBABC4088BF1F2895 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 42108ADD054F481A9B60EC2B /* AppIcon.icon */; };
 		3FF132665BBAFDDFE46449C0 /* DisableFusebox.mm in Sources */ = {isa = PBXBuildFile; fileRef = E9A15241E979C9B4F4BB79D8 /* DisableFusebox.mm */; };
 		514201522437B4B40078DB4F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 514201512437B4B40078DB4F /* Assets.xcassets */; };
-		32CC817DBABC4088BF1F2895 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 42108ADD054F481A9B60EC2B /* AppIcon.icon */; };
 		6AFA04B3BADCFAB2D5E0529A /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5B616A5F60952076D0F8358 /* AppDelegate.swift */; };
 		793DD2DF8D4FBD44ADF01157 /* BrowserWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECCA23360FAE34CDF7FD998D /* BrowserWindow.swift */; };
 		8BCF4D4113B3117AB0BC70B7 /* libPods-Ardia-macOS.a in Frameworks */ = {isa = PBXBuildFile; fileRef = C1D4F94ED9B4A4D62FC468D0 /* libPods-Ardia-macOS.a */; };
@@ -21,10 +21,10 @@
 
 /* Begin PBXFileReference section */
 		3E0CAE61008516DE07A12694 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = ../PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		42108ADD054F481A9B60EC2B /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		4F6F34DACD396890604E4F3F /* Ardia.sdef */ = {isa = PBXFileReference; includeInIndex = 1; path = Ardia.sdef; sourceTree = "<group>"; };
 		514201492437B4B30078DB4F /* Ardia.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Ardia.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		514201512437B4B40078DB4F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		42108ADD054F481A9B60EC2B /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		514201562437B4B40078DB4F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		514201592437B4B40078DB4F /* Ardia.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Ardia.entitlements; sourceTree = "<group>"; };
 		6BFBFB605DF6F35370DCDEB9 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-Ardia-macOS/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
@@ -383,7 +383,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Ardia-macOS/Ardia.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 75;
+				CURRENT_PROJECT_VERSION = 77;
 				DEAD_CODE_STRIPPING = NO;
 				DEVELOPMENT_TEAM = U5L5T3NGVV;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -391,7 +391,7 @@
 				INFOPLIST_FILE = "Ardia-macOS/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.2.40-nightly.9;
+				MARKETING_VERSION = 0.2.41-nightly.1;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -418,7 +418,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Ardia-macOS/Ardia.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 75;
+				CURRENT_PROJECT_VERSION = 77;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = U5L5T3NGVV;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -426,7 +426,7 @@
 				INFOPLIST_FILE = "Ardia-macOS/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.2.40-nightly.9;
+				MARKETING_VERSION = 0.2.41-nightly.1;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",

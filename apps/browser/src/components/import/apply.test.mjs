@@ -46,7 +46,7 @@ test("applyResult stores favicons before creating favorite tabs and survives ind
       favicons: [{ page: "https://first.test/", icon: "https://first.test/i.png", png: "AAAA" }, { page: url, icon: `${url}i.png`, png: "AAAA" }],
       favorites: [{ url: "https://first.test/", title: "First", pinned: true }, { url, title: "Favorite", pinned: true }],
       tabs: [], spaces: [], history: [], credentials: [],
-    }, "Chrome");
+    }, "Chrome", []);
     assert.deepEqual(calls, ["https://first.test/", url]);
     const favorite = Object.values(S().tabs).find((t) => t.url === url);
     assert.equal(favorite.favicon, "https://favorite.test/favicon.ico");
@@ -93,10 +93,10 @@ test("applyResult filters pages by the tabs it imports and shares written keys",
         spaces, history: [], credentials: [],
       };
       const written = new Set();
-      await applyResult("default", result, "Arc", undefined, written);
+      await applyResult("default", result, "Arc", [], undefined, written);
       assert.deepEqual(calls, spaces.length ? [favorite] : [favorite, tab]);
       calls.length = 0;
-      await applyResult("default", result, "Arc", undefined, written);
+      await applyResult("default", result, "Arc", [], undefined, written);
       assert.deepEqual(calls, []);
     }
   } finally {

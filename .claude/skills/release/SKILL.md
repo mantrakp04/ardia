@@ -13,7 +13,7 @@ deployed with the new entry — otherwise that tab opens on a page that doesn't 
 There are two channels (`docs/releasing.md` › Channels):
 
 - **Nightly** (`0.2.37-nightly.1`): fast iteration, one fix at a time. Only the focused checks for what changed run;
-  no perf ratchet, no perf gate, no tweet, no landing-page refresh. It's a GitHub prerelease, so the site's download,
+  no perf ratchet, no perf gate, no landing-page refresh. It's a GitHub prerelease, so the site's download,
   the README and fetch-engine (all on `releases/latest`) keep pointing at stable.
 - **Stable** (`0.2.37`): everything below, about 1.5 h with the smoke test, the update test, the ratchet and the
   perf gate. Its perf is compared with the previous **stable** release, never a nightly.
@@ -382,15 +382,7 @@ The SEO data follows `release.ts` and the notes by itself; check that it did:
 Deploying makes things public. The user has asked for releases to go all the way through, so deploy as
 part of a release; for site changes outside a release, ask first.
 
-## 7. Tweet draft (stable only)
-
-Draft the announcement for the owner to post (never post it yourself): `Ardia <version>`, 4–5 short,
-witty, simple bullets from the notes, then ardia.dev, under 280
-characters. Make `output/tweets/<version>.png` (1600×1000, the site's paper background and fonts) from
-real captures of a hidden instance on neutral pages you control; see `output/tweets/0.2.12.png`. Send both
-to the owner.
-
-## 8. Report
+## 7. Report
 
 Tell the user, briefly: the version and headline, what's in it (from the notes), any landing-page claims changed, the smoke result
 (N/N), that it's live (release URL, appcast, site), how to get it (Check for Updates…), anything not

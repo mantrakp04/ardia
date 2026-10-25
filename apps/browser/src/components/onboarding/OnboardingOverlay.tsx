@@ -5,9 +5,10 @@ import { hex } from "../../lib/theme";
 import { useWindowId } from "../../store/hooks";
 import { Intro } from "./Intro";
 import { dismissOnboarding, useOnboarding } from "./state";
-import { DefaultBrowserStep, ImportStep, OutroStep, PersonalizeStep, PinnedTabsStep } from "./steps";
-import { CliStep } from "./cliStep";
-import { PrivacyStep } from "./privacyStep";
+import { LayoutStep, LookStep, TabsStep } from "./layoutSteps";
+import { SearchPrivacyStep } from "./privacyStep";
+import { SourceStep } from "./sourceStep";
+import { HomeStep, OutroStep, PinnedTabsStep } from "./steps";
 import { ToolTour } from "./tour/ToolTour";
 import { useOnboardingColors } from "./ui";
 
@@ -87,19 +88,20 @@ function Overlay({ session }: { session: number }) {
               style={{ flex: 1, overflow: "hidden" }}
             >
               <View key={step} style={{ flex: 1 }}>
-                {step === "defaultBrowser" && <DefaultBrowserStep />}
-                {step === "personalize" && <PersonalizeStep />}
-                {step === "import" && <ImportStep />}
-                {step === "pinnedTabs" && <PinnedTabsStep />}
-                {step === "privacy" && <PrivacyStep />}
-                {step === "cli" && <CliStep />}
+                {step === "source" && <SourceStep />}
+                {step === "layout" && <LayoutStep />}
+                {step === "tabs" && <TabsStep />}
+                {step === "look" && <LookStep />}
+                {step === "searchPrivacy" && <SearchPrivacyStep />}
+                {step === "pins" && <PinnedTabsStep />}
+                {step === "home" && <HomeStep />}
                 {step === "outro" && <OutroStep />}
               </View>
             </Surface>
           </Animated.View>
         </View>
       )}
-      {step === "intro" && <Intro onDone={() => useOnboarding.getState().go("defaultBrowser")} />}
+      {step === "intro" && <Intro onDone={() => useOnboarding.getState().go("source")} />}
     </Animated.View>
   );
 }

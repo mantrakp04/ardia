@@ -143,6 +143,8 @@ final class CommandItem: NSMenuItem, Rebindable {
   let defaultTitle: String
   var windowless = false
   var tracksChecked = true
+  var hidesWhenDisabled = false
+  private(set) var commandAlternateOf: CommandItem?
   let defaultKey: String
   let defaultModifiers: NSEvent.ModifierFlags
 
@@ -173,9 +175,31 @@ final class CommandItem: NSMenuItem, Rebindable {
     return self
   }
 
+  func hiddenWhenDisabled() -> CommandItem {
+    hidesWhenDisabled = true
+    allowsKeyEquivalentWhenHidden = true
+    return self
+  }
+
   func alternate() -> CommandItem {
     isAlternate = true
     return self
+  }
+
+  func commandAlternate(of primary: CommandItem) -> CommandItem {
+    commandAlternateOf = primary
+    isAlternate = true
+    return self
+  }
+
+  func followPrimaryShortcut(bound: Set<String>) {
+    guard let primary = commandAlternateOf else { return }
+    let mods = primary.keyEquivalentModifierMask.union(.command)
+    if keyEquivalent != primary.keyEquivalent { keyEquivalent = primary.keyEquivalent }
+    if keyEquivalentModifierMask != mods { keyEquivalentModifierMask = mods }
+    let collides = !primary.keyEquivalent.isEmpty && bound.contains(MainMenu.comboKey(primary.keyEquivalent, mods))
+    let hidden = primary.keyEquivalentModifierMask.contains(.command) || collides
+    if isHidden != hidden { isHidden = hidden }
   }
 }
 
@@ -280,7 +304,9 @@ final class MenuTarget: NSObject, NSMenuItemValidation {
     if item.keyEquivalent == "\r", NSApp.keyWindow?.firstResponder is NSText { return false }
     if MainMenu.movesCaret(item), NSApp.currentEvent?.type == .keyDown, MainMenu.editsText(NSApp.keyWindow?.firstResponder) { return false }
     if item.command == "findInPage", WindowManager.shared.keyWindowId == "settings" { return true }
-    return !state.disabled.contains(item.stateKey) && !state.disabled.contains(item.command)
+    let enabled = !state.disabled.contains(item.stateKey) && !state.disabled.contains(item.command)
+    if item.hidesWhenDisabled, item.isHidden == enabled { item.isHidden = !enabled }
+    return enabled
   }
 
   @objc func quit(_ sender: Any?) { WindowManager.shared.confirmQuit() }
@@ -545,7 +571,8 @@ enum MainMenu {
     ] + selectTab + [
       cmd("Select Last Tab", "selectLastTab", "9").hiddenShortcut(),
       .separator(),
-      cmd("Pin", "togglePin"),
+      cmd("Move to Top Apps", "togglePin"),
+      cmd("Move Pinned Tab to Top Apps", "togglePin", arg: "tile").hiddenWhenDisabled(),
       cmd("Move to Pinned", "togglePinnedRow", "d", [.command, .option, .shift]),
       cmd("Duplicate", "duplicateTab"),
       cmd("New Group with Tab", "newGroupWithTabs", "n", [.command, .control]),
@@ -755,6 +782,9 @@ enum MainMenu {
       item.tracksChecked = false
       item.state = p.current ? .on : .off
       profiles.addItem(item)
+      let newWindow = CommandItem("\(p.title) ↗", "newWindow", arg: p.id, key: "", []).commandAlternate(of: item)
+      newWindow.tracksChecked = false
+      profiles.addItem(newWindow)
     }
     profiles.addItem(.separator())
     profiles.addItem(CommandItem("Next Profile", "nextProfile"))
@@ -848,7 +878,7 @@ enum MainMenu {
     return NSEvent.ModifierFlags(modifierNames.filter { names.contains($0.0) }.map(\.1))
   }
 
-  private static func comboKey(_ key: String, _ mods: NSEvent.ModifierFlags) -> String {
+  static func comboKey(_ key: String, _ mods: NSEvent.ModifierFlags) -> String {
     let relevant = mods.intersection([.control, .option, .shift, .command, .function])
     let shift: NSEvent.ModifierFlags = key != key.lowercased() ? .shift : []
     return "\(key.lowercased())|\(relevant.union(shift).rawValue)"
@@ -864,7 +894,7 @@ enum MainMenu {
     var order: [String] = []
     var groups: [String: ShortcutGroup] = [:]
     walk(NSApp.mainMenu) { item, path in
-      guard let item = item as? Rebindable else { return }
+      guard let item = item as? Rebindable, (item as? CommandItem)?.commandAlternateOf == nil else { return }
       let id = item.shortcutId
       if var group = groups[id] {
         group.items.append(item)
@@ -918,6 +948,12 @@ enum MainMenu {
         }
       }
     }
+    var bound = Set<String>()
+    walk(NSApp.mainMenu) { item, _ in
+      guard !item.keyEquivalent.isEmpty, (item as? CommandItem)?.commandAlternateOf == nil else { return }
+      bound.insert(comboKey(item.keyEquivalent, item.keyEquivalentModifierMask))
+    }
+    for case let item as CommandItem in profiles.items { item.followPrimaryShortcut(bound: bound) }
   }
 
   static func shortcutList() -> [[String: Any]] {

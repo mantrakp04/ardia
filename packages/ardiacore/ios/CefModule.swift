@@ -58,6 +58,7 @@ public class CefModule: Module {
     AsyncFunction("setSearchEngineName") { (name: String) in ArdiaCoreWebView.setSearchEngineName(name) }.runOnQueue(.main)
     AsyncFunction("setDisplayMediaPicker") { (enabled: Bool) in ArdiaCoreWebView.setDisplayMediaPicker(enabled) }.runOnQueue(.main)
     AsyncFunction("setPeekModifier") { (modifier: String) in ArdiaCoreWebView.setPeekModifier(modifier) }.runOnQueue(.main)
+    AsyncFunction("setSplitLinkModifier") { (modifier: String) in ArdiaCoreWebView.setSplitLinkModifier(modifier) }.runOnQueue(.main)
     AsyncFunction("devPostPeekMouseUp") { (keys: String, tabId: String) in ArdiaCoreWebView.devPostPeekMouseUp(keys, over: tabId) }.runOnQueue(.main)
     AsyncFunction("setAutoPictureInPicture") { (enabled: Bool) in ArdiaCoreWebView.setAutoPictureInPictureEnabled(enabled) }.runOnQueue(.main)
     AsyncFunction("setVideoUpscaling") { (enabled: Bool) in ArdiaCoreWebView.setVideoUpscalingEnabled(enabled) }.runOnQueue(.main)
@@ -309,8 +310,8 @@ public class CefModule: Module {
         view.browser.executeExtensionAction(extensionId)
       }.runOnQueue(.main)
 
-      AsyncFunction("resolveDisplayMedia") { (view: CefWebView, id: String, sourceId: String?) in
-        view.browser.resolveDisplayMedia(id, sourceId: sourceId)
+      AsyncFunction("resolveDisplayMedia") { (view: CefWebView, id: String, sourceId: String?, audio: Bool) in
+        view.browser.resolveDisplayMedia(id, sourceId: sourceId, audio: audio)
       }.runOnQueue(.main)
       AsyncFunction("mediaCaptureSourceId") { (view: CefWebView) in view.browser.mediaCaptureSourceId }.runOnQueue(.main)
       AsyncFunction("notificationAction") { (view: CefWebView, id: String, action: String) in

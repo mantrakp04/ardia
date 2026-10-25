@@ -64,7 +64,7 @@ export function openFromNewTabBar(windowId: string, target: NewTabTarget, url: s
     store().navigate(id, url);
     return store().activate(id);
   }
-  store().newTab(windowId, { url, index: topOfList(store(), windowId) });
+  store().newTab(windowId, { url, index: topOfList(store(), windowId), newTabCommand: true });
 }
 
 const launchTabs = new Set<string>();

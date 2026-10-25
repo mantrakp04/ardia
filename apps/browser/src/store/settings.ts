@@ -30,7 +30,7 @@ export type Settings = {
 
   tabLayout: "sidebar" | "top";
   hideToolbarWhileScrolling: boolean;
-  newTabPosition: "top" | "bottom";
+  newTabPosition: "top" | "bottom" | "nextToCurrent";
   newTabOpens: "page" | "commandBar";
   warnBeforeClosingLastTab: boolean;
   undoReopensClosedTab: boolean;
@@ -41,6 +41,7 @@ export type Settings = {
   cmdClickCreatesTabGroup: boolean;
   optShiftClickOpensInGroup: boolean;
   peekModifier: PeekModifier;
+  splitLinkModifier: SplitLinkModifier;
   autoGroupMeetingTabs: boolean;
   cleanUpInactiveTabsAfterHours: number | null;
   mutedSites: string[];
@@ -80,6 +81,16 @@ export const PEEK_MODIFIERS: readonly PeekModifier[] = ["alt", "shift", "off"];
 export const peekModifierOf = (settings: Pick<Settings, "peekModifier">): PeekModifier =>
   PEEK_MODIFIERS.includes(settings.peekModifier) ? settings.peekModifier : DEFAULT_SETTINGS.peekModifier;
 
+export type SplitLinkModifier = "altShift" | "alt";
+export const splitLinkModifierOf = (settings: Pick<Settings, "peekModifier" | "splitLinkModifier">): SplitLinkModifier =>
+  settings.splitLinkModifier === "alt" && peekModifierOf(settings) !== "alt" ? "alt" : "altShift";
+
+export function withLinkKeysApart(settings: Settings, patch: Partial<Settings>): Partial<Settings> {
+  if (patch.peekModifier === "alt" && !("splitLinkModifier" in patch) && settings.splitLinkModifier === "alt") return { ...patch, splitLinkModifier: "altShift" };
+  if (patch.splitLinkModifier === "alt" && !("peekModifier" in patch) && peekModifierOf(settings) === "alt") return { ...patch, peekModifier: "shift" };
+  return patch;
+}
+
 export const DEFAULT_PROFILE_ID = "default";
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -105,6 +116,7 @@ export const DEFAULT_SETTINGS: Settings = {
   cmdClickCreatesTabGroup: true,
   optShiftClickOpensInGroup: true,
   peekModifier: "shift",
+  splitLinkModifier: "altShift",
   autoGroupMeetingTabs: true,
   cleanUpInactiveTabsAfterHours: null,
   mutedSites: [],
@@ -204,7 +216,7 @@ const newEngineId = () => `engine-${Date.now().toString(36)}-${(++engineCounter)
 export const createSettingsSlice: StateCreator<BrowserState, [], [], SettingsSlice> = (set, get) => ({
   settings: DEFAULT_SETTINGS,
   updateSettings(patch, { fromSync = false } = {}) {
-    set((s) => ({ settings: fromSync ? { ...s.settings, ...patch } : choose(s.settings, patch) }));
+    set((s) => ({ settings: fromSync ? { ...s.settings, ...patch } : choose(s.settings, withLinkKeysApart(s.settings, patch)) }));
   },
 
   setSearchEngine(id) {

@@ -7,6 +7,9 @@ import { useBrowser } from "../../store/browser";
 import { Favicon } from "../primitives";
 
 export const SYMBOL_PREFIX = "symbol:";
+export const NO_GROUP_ICON = `${SYMBOL_PREFIX}square.stack.fill`;
+export const NO_GROUP_ICON_INK = { light: "#00000040", dark: "#FFFFFF40" };
+export const hasOwnGroupIcon = (icon: string | null | undefined): icon is string => !!icon && icon !== NO_GROUP_ICON;
 
 export const TabIcon = memo(function TabIcon({
   tabId,
@@ -62,7 +65,8 @@ function Icon({
 }) {
   const theme = useTheme();
   if (icon?.startsWith(SYMBOL_PREFIX)) {
-    return <Symbol name={icon.slice(SYMBOL_PREFIX.length)} size={size - 3} weight="medium" color={color ?? theme.icon} style={{ width: size, height: size }} />;
+    const ink = icon === NO_GROUP_ICON ? (theme.dark ? NO_GROUP_ICON_INK.dark : NO_GROUP_ICON_INK.light) : theme.icon;
+    return <Symbol name={icon.slice(SYMBOL_PREFIX.length)} size={size - 3} weight="medium" color={color ?? ink} style={{ width: size, height: size }} />;
   }
   if (icon) {
     return (

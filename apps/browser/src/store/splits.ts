@@ -1,7 +1,7 @@
 import type { StateCreator } from "zustand";
 import type { BrowserState } from "./browser";
 import { innermostGroupOf, leaveGroups, syncGroupOrder } from "./groups";
-import { isPinnedRow, newId } from "./model";
+import { inPinnedContainer, isPinnedRow, newId } from "./model";
 import { placing } from "./organize";
 import { choose } from "./settings";
 import { activated, apply, removeTabs, withNewTab } from "./tabs";
@@ -79,6 +79,12 @@ export function withSplitRows(s: Pick<BrowserState, "tabs" | "splits">, ids: str
     const panes = splitRowPanes(s, splitOf(s, id));
     if (panes.includes(id)) panes.forEach((pane) => out.add(pane));
   }
+  return out.size === ids.length ? ids : [...out];
+}
+
+export function withPinnedPanes(s: Pick<BrowserState, "tabs" | "groups" | "splits">, ids: string[]): string[] {
+  const out = new Set(ids);
+  for (const id of ids) for (const pane of splitOf(s, id)?.tabIds ?? []) if (inPinnedContainer(s, pane)) out.add(pane);
   return out.size === ids.length ? ids : [...out];
 }
 

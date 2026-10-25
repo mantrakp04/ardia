@@ -3,7 +3,7 @@ import type { BrowserCommand } from "@ardia/shell";
 import { runCommand } from "../../lib/commands";
 import { isBookmarked } from "../../store/bookmarks";
 import { useBrowser, type BrowserState } from "../../store/browser";
-import { activeTab, bookmarkProfileId, isPinnedRow } from "../../store/model";
+import { activeTab, bookmarkProfileId, isPinnedRow, pinnedSectionTitle } from "../../store/model";
 import { canTidyPins } from "../../store/tidyPins";
 import type { Tab } from "../../store/types";
 import { organizeActions, runOrganizeAction } from "./organizeActions";
@@ -39,7 +39,7 @@ const DEFS: ActionDef[] = [
   {
     command: "togglePin",
     arg: "row",
-    title: ({ s, tab }) => (isPinnedRow(tab) ? "Move to Top Apps" : `Move to Pinned in ${s.profiles[tab?.profileId ?? ""]?.name ?? "Profile"}`),
+    title: ({ s, tab }) => (isPinnedRow(tab) ? "Move to Top Apps" : `Move to ${pinnedSectionTitle(s, tab)}`),
     icon: "list.bullet",
     keywords: ["pin", "pinned tabs", "pin as row", "move to pinned", "favorites"],
     needs: "tab",

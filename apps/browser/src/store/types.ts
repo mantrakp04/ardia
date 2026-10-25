@@ -89,6 +89,8 @@ export type TabLive = {
 
 export type GroupColor = "grey" | "blue" | "red" | "yellow" | "green" | "pink" | "purple" | "cyan" | "orange";
 
+export type ClosedGroupInfo = Pick<TabGroup, "id" | "name" | "icon" | "color"> & { pinned?: boolean };
+
 export type TabGroup = {
   id: string;
   windowId: string;
@@ -149,8 +151,8 @@ export type ClosedTab = {
   restoreFrom?: string;
   windowId: string;
   index: number;
-  group: Pick<TabGroup, "id" | "name" | "icon" | "color"> | null;
-  parents?: Pick<TabGroup, "id" | "name" | "icon" | "color">[];
+  group: ClosedGroupInfo | null;
+  parents?: ClosedGroupInfo[];
   closedAt: number;
   pinnedTile?: boolean;
   small?: boolean;

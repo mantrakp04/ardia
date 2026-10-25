@@ -61,5 +61,5 @@ async function addMenu(windowId: string, onClose: () => void) {
   onClose();
   if (choice === "add") openWebStore(windowId);
   if (choice === "pin") openPinDialog(windowId);
-  if (choice === "manage") openManageExtensions();
+  if (choice === "manage") openManageExtensions(windowId);
 }

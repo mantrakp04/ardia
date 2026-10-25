@@ -4,6 +4,7 @@
 
 #include "base/logging.h"
 #include "base/time/time.h"
+#include "chrome/browser/media/webrtc/desktop_media_picker_controller.h"
 #include "content/public/browser/desktop_media_id.h"
 #include "content/public/browser/desktop_streams_registry.h"
 #include "content/public/browser/media_stream_request.h"
@@ -12,6 +13,7 @@
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_user_data.h"
 #include "ardia/core/ac_page_channel.h"
+#include "media/base/media_switches.h"
 #include "third_party/blink/public/common/mediastream/media_stream_request.h"
 #include "url/origin.h"
 
@@ -28,6 +30,7 @@ class DesktopCaptureGrant : public content::WebContentsUserData<DesktopCaptureGr
   std::string source;
   std::string frame_id;
   std::string origin;
+  std::string audio;
   base::TimeTicks granted_at;
 
  private:
@@ -39,12 +42,44 @@ class DesktopCaptureGrant : public content::WebContentsUserData<DesktopCaptureGr
 
 WEB_CONTENTS_USER_DATA_KEY_IMPL(DesktopCaptureGrant);
 
+void ShareAudio(content::DesktopMediaID& media_id, const std::string& audio) {
+  switch (media_id.type) {
+    case content::DesktopMediaID::TYPE_WEB_CONTENTS:
+      media_id.audio_share = audio == "tab";
+      break;
+    case content::DesktopMediaID::TYPE_SCREEN:
+      media_id.audio_share = audio == "system" && IsDesktopCaptureSystemAudioSupported();
+      break;
+    case content::DesktopMediaID::TYPE_WINDOW:
+      if (audio == "application" && IsDesktopCaptureApplicationAudioSupported()) {
+        media_id.window_audio_type = content::DesktopMediaID::AudioType::kApplication;
+      } else if (audio == "system" && IsDesktopCaptureSystemAudioSupported()) {
+        media_id.window_audio_type = content::DesktopMediaID::AudioType::kSystem;
+      }
+      media_id.audio_share =
+          media_id.window_audio_type != content::DesktopMediaID::AudioType::kNone;
+      break;
+    case content::DesktopMediaID::TYPE_NONE:
+      break;
+  }
+}
+
+}
+
+bool IsDesktopCaptureSystemAudioSupported() {
+  return DesktopMediaPickerController::IsSystemAudioCaptureSupported(
+      DesktopMediaPicker::Params::RequestSource::kExtension);
+}
+
+bool IsDesktopCaptureApplicationAudioSupported() {
+  return media::IsApplicationLoopbackCaptureSupported();
 }
 
 void AllowDesktopCapture(content::WebContents* contents,
                          const std::string& source,
                          const std::string& frame_id,
-                         const std::string& origin) {
+                         const std::string& origin,
+                         const std::string& audio) {
   if (!contents || source.empty()) {
     return;
   }
@@ -53,6 +88,7 @@ void AllowDesktopCapture(content::WebContents* contents,
   grant->source = source;
   grant->frame_id = frame_id;
   grant->origin = origin;
+  grant->audio = audio;
   grant->granted_at = base::TimeTicks::Now();
 }
 
@@ -71,6 +107,7 @@ void ApplyDesktopCaptureGrant(content::WebContents* contents,
   const std::string source = found->source;
   const std::string frame_id = found->frame_id;
   const std::string origin = found->origin;
+  const std::string audio = found->audio;
   const base::TimeTicks granted_at = found->granted_at;
   contents->RemoveUserData(DesktopCaptureGrant::UserDataKey());
 
@@ -83,11 +120,14 @@ void ApplyDesktopCaptureGrant(content::WebContents* contents,
       requested == source && base::TimeTicks::Now() - granted_at < kGrantLifetime &&
       (frame_id.empty() || PageChannel::FrameId(frame) == frame_id) &&
       (origin.empty() || request_origin.Serialize() == origin);
-  const content::DesktopMediaID media_id = content::DesktopMediaID::Parse(source);
+  content::DesktopMediaID media_id = content::DesktopMediaID::Parse(source);
   if (!allowed || media_id.is_null()) {
     LOG(WARNING) << "ArdiaCore: refused desktop capture of " << requested
                  << " (approved " << source << ")";
     return;
+  }
+  if (request.audio_type == blink::mojom::MediaStreamType::GUM_DESKTOP_AUDIO_CAPTURE) {
+    ShareAudio(media_id, audio);
   }
   content::RenderFrameHost* main_frame = contents->GetPrimaryMainFrame();
   request.requested_video_device_ids = {

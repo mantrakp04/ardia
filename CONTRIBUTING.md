@@ -167,6 +167,9 @@ The fastest bug to fix is one with a screen recording. Include:
 
 ## Pull requests
 
+- **Issue first.** Every PR closes an issue. Open one (or find the existing one) describing the bug or the request
+  before you open the PR, then put `Closes #<issue>` in the PR description. A PR with no linked issue fails the
+  "Linked issue" check and won't be reviewed. Several PRs can point at the same issue.
 - One change per PR. Describe it the way a user would notice it ("dragging a tab onto another groups them"), then
   how you checked it.
 - For anything visible, attach a recording or before-and-after captures, ideally next to Dia's.

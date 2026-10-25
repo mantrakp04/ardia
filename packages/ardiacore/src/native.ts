@@ -48,6 +48,7 @@ export const Cef = requireNativeModule<{
   setAutoPictureInPicture?(enabled: boolean): Promise<void>;
   setVideoUpscaling?(enabled: boolean): Promise<void>;
   setPeekModifier?(modifier: "alt" | "shift" | "off"): Promise<void>;
+  setSplitLinkModifier?(modifier: "alt" | "altShift"): Promise<void>;
   setVideoUpscalingTestConditions?(conditions: { lowPower?: boolean; thermalPressure?: boolean }): Promise<void>;
   videoUpscalingState?(): Promise<{ enabled: boolean; lowPower: boolean; thermalPressure: boolean; appActive: boolean; tabs: { tabId: number; allowed: boolean }[] } | null>;
   setSearchEngineName(name: string): Promise<void>;

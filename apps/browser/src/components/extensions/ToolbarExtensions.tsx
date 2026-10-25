@@ -217,7 +217,7 @@ function OverflowButton({ windowId, tabId, palette }: { windowId: string; tabId:
       { id: "add", title: "Add Extension…", symbol: "plus" },
     ]);
     if (choice === "pin") return openPinDialog(windowId);
-    if (choice === "manage") return openManageExtensions();
+    if (choice === "manage") return openManageExtensions(windowId);
     if (choice === "add") return openWebStore(windowId);
     const ext = choice?.startsWith("open:") ? enabled.find((x) => x.id === choice.slice(5)) : undefined;
     if (ext) void activateExtension(windowId, ext, anchor, undefined, tabId);

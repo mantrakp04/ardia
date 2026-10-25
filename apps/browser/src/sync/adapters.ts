@@ -5,7 +5,7 @@ import { MAX_HISTORY, MAX_VISIT_TIMES } from "../store/history";
 import { useBrowser, type BrowserState } from "../store/browser";
 import { ancestorIds, depthOf, leaveGroups, orderSections, syncGroupOrder, withParent } from "../store/groups";
 import { engineProfile, makeTab, newId, pinnedFirst, without } from "../store/model";
-import { groupChoiceKey, orderChoiceKey, placeChoiceKey, type PinSyncEntry } from "../store/organize";
+import { groupChoiceKey, noteRemotePinDeletion, orderChoiceKey, placeChoiceKey, type PinSyncEntry } from "../store/organize";
 import { adoptParkedPins, parkWindowPins } from "../store/parkedPins";
 import { isPeekTab } from "../store/peek";
 import { arrangeParked, arrangePinnedArea, parkedAnchors, parkedAreaKeys, pinnedAnchors, pinnedAreaKeys } from "../store/pinnedArea";
@@ -41,6 +41,7 @@ export const SYNCED_SETTINGS = [
   "cmdClickCreatesTabGroup",
   "optShiftClickOpensInGroup",
   "peekModifier",
+  "splitLinkModifier",
   "autoGroupMeetingTabs",
   "cleanUpInactiveTabsAfterHours",
   "mutedSites",
@@ -556,6 +557,8 @@ export function pinnedAdapter(profileId: string): Adapter {
     },
     apply: (visible, changed, base, records) => {
       if ([...changed].every((k) => k.startsWith(PIN_ROW))) return true;
+      const pinItem = (k: string) => k.startsWith("pin:t:") || k.startsWith("pin:g:") || k.startsWith(`${PIN_NEST}g:`);
+      if ([...changed].some((k) => pinItem(k) && !visible.has(k))) noteRemotePinDeletion(profileId);
       const sync = store().pinSync[profileId] ?? {};
       let s = store();
       const home = homeWindow(s, profileId);

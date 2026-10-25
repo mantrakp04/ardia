@@ -246,6 +246,7 @@ public class ShellModule: Module {
       _ = installInputSourceKeys
       _ = installScrollViewInsetFix
       _ = installOutsidePressMonitor
+      _ = installWindowMoveFallback
       DispatchQueue.main.async { [weak self] in
         MenuTarget.shared.handler = { command, arg, windowId in
           if command == "closeTab", WindowManager.shared.closeForeignKeyWindow() { return }
@@ -612,6 +613,7 @@ public class ShellModule: Module {
         entry.target = target
         entry.representedObject = item["id"]
       }
+      entry.isAlternate = item["alternate"] as? Bool == true
       entry.isEnabled = item["enabled"] as? Bool ?? true
       entry.state = item["checked"] as? Bool == true ? .on : .off
       if let symbol = item["symbol"] as? String {
@@ -1144,20 +1146,20 @@ final class PointerWatcher: NSObject {
     if let area { view?.removeTrackingArea(area) }
   }
 
-  @objc func mouseMoved(with event: NSEvent) {
+  @objc(mouseMoved:) func mouseMoved(with event: NSEvent) {
     guard let window = event.window else { return }
     ServerWindowDrag.pointerMoved(in: window, at: event.locationInWindow)
   }
 
-  @objc func mouseEntered(with event: NSEvent) { mouseMoved(with: event) }
-  @objc func mouseExited(with event: NSEvent) {}
+  @objc(mouseEntered:) func mouseEntered(with event: NSEvent) { mouseMoved(with: event) }
+  @objc(mouseExited:) func mouseExited(with event: NSEvent) {}
 }
 
 final class WindowDragRegion: ExpoView {
   let onRegionDoubleClick = EventDispatcher()
   var titleBarDoubleClick = true
   private var monitor: Any?
-  private var doubleClickDown = false
+  private var doubleClickDown: PressPlace?
 
   override var mouseDownCanMoveWindow: Bool {
     get { true }
@@ -1179,20 +1181,20 @@ final class WindowDragRegion: ExpoView {
     ServerWindowDrag.track(self, bridge: appContext?.reactBridge)
     if let monitor { NSEvent.removeMonitor(monitor) }
     monitor = nil
-    doubleClickDown = false
+    doubleClickDown = nil
     guard window != nil else { return }
     monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp]) { [weak self] event in
       guard let self else { return event }
       if event.type == .leftMouseUp {
-        guard self.doubleClickDown, event.window === self.window else { return event }
-        self.doubleClickDown = false
-        if event.clickCount == 2 { self.doubleClick(event) }
+        guard let down = self.doubleClickDown, event.window === self.window else { return event }
+        self.doubleClickDown = nil
+        if event.clickCount == 2 { self.doubleClick(event, down) }
         return nil
       }
-      self.doubleClickDown = false
-      guard self.ownsPress(event) else { return event }
+      self.doubleClickDown = nil
+      guard let place = self.pressPlace(event) else { return event }
       OutsidePressArea.tellAreas(event)
-      self.press(event, releaseFollows: true)
+      self.press(event, place, releaseFollows: true)
       return nil
     }
   }
@@ -1202,47 +1204,64 @@ final class WindowDragRegion: ExpoView {
   }
 
   override func mouseDown(with event: NSEvent) {
-    if ownsPress(event) { press(event, releaseFollows: false) } else { super.mouseDown(with: event) }
+    if let place = pressPlace(event) { press(event, place, releaseFollows: false) } else { super.mouseDown(with: event) }
   }
 
-  private func ownsPress(_ event: NSEvent) -> Bool {
+  private enum PressPlace { case region, titlebarEdge }
+
+  private func pressPlace(_ event: NSEvent) -> PressPlace? {
     guard let window, event.window === window, !isHiddenOrHasHiddenAncestor, alphaValue > 0,
           !event.modifierFlags.contains(.control),
-          bounds.contains(convert(event.locationInWindow, from: nil)),
-          let hit = window.contentView?.superview?.hitTest(event.locationInWindow)
-    else { return false }
-    if hit === self { return true }
+          let frame = window.contentView?.superview, let hit = frame.hitTest(event.locationInWindow)
+    else { return nil }
+    if hit === frame { return Self.onTitlebarTopEdge(window, frame, event.locationInWindow) ? .titlebarEdge : nil }
+    guard bounds.contains(convert(event.locationInWindow, from: nil)) else { return nil }
+    if hit === self { return .region }
     let background = hit is NSClipView || (hit.superview as? NSClipView)?.documentView === hit
-    guard background, let container = superview, hit.isDescendant(of: container) else { return false }
+    guard background, let container = superview, hit.isDescendant(of: container) else { return nil }
     var view = hit.superview
     while let v = view, v !== container {
-      if !(v is NSClipView || v is NSScrollView), !v.mouseDownCanMoveWindow { return false }
+      if !(v is NSClipView || v is NSScrollView), !v.mouseDownCanMoveWindow { return nil }
       view = v.superview
     }
-    return true
+    return .region
   }
 
-  private func press(_ event: NSEvent, releaseFollows: Bool) {
+  private static let resizeDirectionSelector = NSSelectorFromString("_resizeDirectionForMouseLocation:")
+
+  private static func onTitlebarTopEdge(_ window: NSWindow, _ frame: NSView, _ point: NSPoint) -> Bool {
+    let band = ServerWindowDrag.band(window)
+    guard band > 0, frame.bounds.contains(point), point.y > frame.bounds.height - band,
+          let method = class_getInstanceMethod(type(of: window), resizeDirectionSelector),
+          method_getNumberOfArguments(method) == 3, returnType(method) == "q"
+    else { return false }
+    typealias Direction = @convention(c) (AnyObject, Selector, NSPoint) -> Int
+    let direction = unsafeBitCast(method_getImplementation(method), to: Direction.self)
+    let middle = NSPoint(x: frame.bounds.midX, y: point.y)
+    return direction(window, resizeDirectionSelector, point) == direction(window, resizeDirectionSelector, middle)
+  }
+
+  private func press(_ event: NSEvent, _ place: PressPlace, releaseFollows: Bool) {
     guard let window else { return }
     var key = NSApp.keyWindow
     while let k = key, k !== window { key = k.parent }
     if key == nil, window.canBecomeKey, !event.modifierFlags.contains(.command) { window.makeKeyAndOrderFront(nil) }
     if event.clickCount == 2 {
-      if releaseFollows { doubleClickDown = true } else { doubleClick(event) }
+      if releaseFollows { doubleClickDown = place } else { doubleClick(event, place) }
       return
     }
     window.performDrag(with: event)
   }
 
-  private func doubleClick(_ event: NSEvent) {
+  private func doubleClick(_ event: NSEvent, _ place: PressPlace) {
     guard let window else { return }
-    if titleBarDoubleClick { Self.doubleClick(window, event.modifierFlags) } else { onRegionDoubleClick([:]) }
+    if titleBarDoubleClick || place == .titlebarEdge { Self.doubleClick(window, event.modifierFlags) } else { onRegionDoubleClick([:]) }
   }
 
   static func doubleClick(_ window: NSWindow, _ modifiers: NSEvent.ModifierFlags) {
     let sel = NSSelectorFromString("_handlePossibleDoubleClickWithModifiers:")
     if let frame = window.contentView?.superview, let method = class_getInstanceMethod(type(of: frame), sel),
-       method_getNumberOfArguments(method) == 3, Self.returnsVoid(method) {
+       method_getNumberOfArguments(method) == 3, returnType(method) == "v" {
       typealias Handle = @convention(c) (AnyObject, Selector, UInt) -> Void
       unsafeBitCast(method_getImplementation(method), to: Handle.self)(frame, sel, modifiers.rawValue)
       return
@@ -1258,10 +1277,10 @@ final class WindowDragRegion: ExpoView {
     }
   }
 
-  private static func returnsVoid(_ method: Method) -> Bool {
+  private static func returnType(_ method: Method) -> String {
     let type = method_copyReturnType(method)
     defer { free(type) }
-    return String(cString: type) == "v"
+    return String(cString: type)
   }
 }
 
@@ -1459,6 +1478,83 @@ let installInputSourceKeys: Void = {
   let imp = imp_implementationWithBlock(block)
   if !class_addMethod(NSTextView.self, keyDown, imp, method_getTypeEncoding(method)) { method_setImplementation(method, imp) }
 }()
+
+let installWindowMoveFallback: Void = {
+  guard WindowMove.replacesNativeDrag else { return }
+  let selector = #selector(NSWindow.performDrag(with:))
+  guard let method = class_getInstanceMethod(NSWindow.self, selector) else { return }
+  typealias PerformDrag = @convention(c) (NSWindow, Selector, NSEvent) -> Void
+  let original = unsafeBitCast(method_getImplementation(method), to: PerformDrag.self)
+  let block: @convention(block) (NSWindow, NSEvent) -> Void = { window, event in
+    if !WindowMove.follow(window, from: event) { original(window, selector, event) }
+  }
+  method_setImplementation(method, imp_implementationWithBlock(block))
+}()
+
+enum WindowMove {
+  static let replacesNativeDrag = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 27, minorVersion: 0, patchVersion: 0))
+  private static var following = false
+  private static let staleAfter: TimeInterval = 0.012
+
+  static func follow(_ window: NSWindow, from event: NSEvent) -> Bool {
+    guard !following, event.type == .leftMouseDown, event.clickCount < 2,
+          window.isMovable, !window.styleMask.contains(.fullScreen), window.isVisible
+    else { return false }
+    following = true
+    defer { following = false }
+    let start = screenPoint(event)
+    let origin = window.frame.origin
+    var wasActive = NSApp.isActive
+    func move(to event: NSEvent) {
+      let target = place(window, origin, start, screenPoint(event))
+      guard !near(window.frame.origin, target) else { return }
+      window.setFrameOrigin(target)
+    }
+    while window.isVisible {
+      if NSApp.isActive { wasActive = true } else if wasActive { return true }
+      guard var next = nextGestureEvent() else {
+        if NSEvent.pressedMouseButtons & 1 == 0 { return true }
+        continue
+      }
+      var latest: NSEvent?
+      while next.type == .leftMouseDragged, next.windowNumber == window.windowNumber {
+        latest = next
+        guard ProcessInfo.processInfo.systemUptime - next.timestamp > staleAfter,
+              let queued = NSApp.nextEvent(matching: gestureEvents, until: .distantPast, inMode: .eventTracking, dequeue: true)
+        else { break }
+        next = queued
+      }
+      if next.type == .leftMouseUp, next.windowNumber == window.windowNumber { latest = next }
+      if let latest { move(to: latest) }
+      if next.type != .leftMouseDragged || next.windowNumber != window.windowNumber {
+        NSApp.postEvent(next, atStart: true)
+        return true
+      }
+    }
+    return true
+  }
+
+  private static let gestureEvents: NSEvent.EventTypeMask = [.leftMouseDown, .leftMouseDragged, .leftMouseUp]
+
+  private static func nextGestureEvent() -> NSEvent? {
+    let pressed = NSEvent.pressedMouseButtons & 1 != 0
+    return NSApp.nextEvent(matching: gestureEvents, until: pressed ? Date(timeIntervalSinceNow: 0.1) : .distantPast, inMode: .eventTracking, dequeue: true)
+  }
+
+  private static func place(_ window: NSWindow, _ origin: NSPoint, _ start: NSPoint, _ pointer: NSPoint) -> NSPoint {
+    let target = NSRect(origin: NSPoint(x: origin.x + pointer.x - start.x, y: origin.y + pointer.y - start.y), size: window.frame.size)
+    guard let screen = NSScreen.screens.first(where: { NSMouseInRect(pointer, $0.frame, false) }) ?? window.screen else { return NSPoint(x: target.minX.rounded(), y: target.minY.rounded()) }
+    let constrained = window.constrainFrameRect(target, to: screen)
+    return NSPoint(x: constrained.minX.rounded(), y: (constrained.maxY - target.height).rounded())
+  }
+
+  private static func screenPoint(_ event: NSEvent) -> NSPoint {
+    guard let location = event.cgEvent?.location, let primary = NSScreen.screens.first else { return NSEvent.mouseLocation }
+    return NSPoint(x: location.x, y: primary.frame.maxY - location.y)
+  }
+
+  private static func near(_ a: NSPoint, _ b: NSPoint) -> Bool { abs(a.x - b.x) < 0.5 && abs(a.y - b.y) < 0.5 }
+}
 
 let installScrollViewInsetFix: Void = {
   guard let cls = NSClassFromString("RCTCustomScrollView"),
