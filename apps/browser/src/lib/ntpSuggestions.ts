@@ -6,8 +6,22 @@ const DAY = 24 * HOUR;
 const HALF_LIFE_DAYS = 21;
 
 export function hostOf(url: string): string {
-  const m = /^https?:\/\/(?:www\.)?([^/?#:]+)/i.exec(url);
-  return m ? m[1]!.toLowerCase() : "";
+  if (!/^https?:/i.test(url)) return "";
+  try {
+    return new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
+const SECOND_LEVEL = new Set(["co", "com", "net", "org", "gov", "edu", "ac", "or", "ne", "go", "gob", "nic", "ltd", "plc", "sch", "mil"]);
+
+export function siteName(host: string): string {
+  const labels = host.split(".");
+  if (labels.length < 2 || labels.every((l) => /^\d+$/.test(l)) || host.startsWith("[")) return host;
+  const multiPart = labels.length >= 3 && labels.at(-1)!.length === 2 && SECOND_LEVEL.has(labels.at(-2)!);
+  const name = labels.at(multiPart ? -3 : -2)!;
+  return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
 export function greetingFor(now: Date, name: string): string {
@@ -24,13 +38,17 @@ function hourGap(a: number, b: number): number {
 
 const weekend = (d: Date) => d.getDay() === 0 || d.getDay() === 6;
 
-function visitWeight(visit: number, now: Date): number {
+type Moment = { ms: number; hour: number; weekend: boolean };
+
+const momentOf = (d: Date): Moment => ({ ms: d.getTime(), hour: d.getHours() + d.getMinutes() / 60, weekend: weekend(d) });
+
+function visitWeight(visit: number, now: Moment): number {
   const at = new Date(visit);
-  const gap = hourGap(at.getHours() + at.getMinutes() / 60, now.getHours() + now.getMinutes() / 60);
+  const gap = hourGap(at.getHours() + at.getMinutes() / 60, now.hour);
   const hourMatch = gap <= 1 ? 1 : gap <= 2 ? 0.5 : gap <= 3 ? 0.15 : 0;
   if (!hourMatch) return 0;
-  const dayMatch = weekend(at) === weekend(now) ? 1 : 0.4;
-  const age = Math.max(0, now.getTime() - visit) / DAY;
+  const dayMatch = weekend(at) === now.weekend ? 1 : 0.4;
+  const age = Math.max(0, now.ms - visit) / DAY;
   return hourMatch * dayMatch * Math.pow(0.5, age / HALF_LIFE_DAYS);
 }
 
@@ -57,9 +75,10 @@ function bySite(pages: readonly VisitedPage[], score: (p: VisitedPage) => number
 const toSuggestion = (s: Site): SiteSuggestion => ({ host: s.host, url: s.best.url, title: s.best.title || s.host, favicon: s.best.favicon });
 
 export function suggestedForNow(pages: readonly VisitedPage[], now: Date, skip: ReadonlySet<string> = new Set(), limit = 6): SiteSuggestion[] {
+  const moment = momentOf(now);
   const score = (p: VisitedPage) => {
     const times = p.visitTimes?.length ? p.visitTimes : [p.lastVisit];
-    return times.reduce((sum, t) => sum + visitWeight(t, now), 0);
+    return times.reduce((sum, t) => sum + visitWeight(t, moment), 0);
   };
   return bySite(pages, score, skip)
     .filter((s) => s.score > 0.05)

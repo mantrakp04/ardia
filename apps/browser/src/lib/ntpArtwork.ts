@@ -1,4 +1,5 @@
 import type { ImageSourcePropType } from "react-native";
+import { fileUri } from "./fileUri";
 
 export type Artwork = { id: string; title: string; artist: string; source: ImageSourcePropType };
 
@@ -12,7 +13,7 @@ export const ARTWORKS: Artwork[] = [
 ];
 
 export function ntpBackgroundSource(background: string, customPath: string): ImageSourcePropType | null {
-  if (background === "custom") return customPath ? { uri: `file://${encodeURI(customPath)}` } : null;
+  if (background === "custom") return customPath ? { uri: fileUri(customPath) } : null;
   return ARTWORKS.find((a) => a.id === background)?.source ?? null;
 }
 

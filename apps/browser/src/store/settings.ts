@@ -71,6 +71,7 @@ export type Settings = {
   addressBar: "toolbar" | "sidebar";
   commandBarPlacement: "field" | "centred";
   greetingName: string;
+  ntpGreeting: boolean;
   ntpGreetingName: boolean;
   ntpSuggestions: boolean;
   ntpBackground: string;
@@ -157,6 +158,7 @@ export const DEFAULT_SETTINGS: Settings = {
   addressBar: "toolbar",
   commandBarPlacement: "field",
   greetingName: "",
+  ntpGreeting: true,
   ntpGreetingName: true,
   ntpSuggestions: true,
   ntpBackground: "none",

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Animated, Easing, StyleSheet, View } from "react-native";
 import { ntpBackgroundSource } from "../../lib/ntpArtwork";
 import { useBrowser } from "../../store/browser";
@@ -6,7 +6,10 @@ import { useWindowId } from "../../store/hooks";
 
 export function useNtpBackdrop() {
   const windowId = useWindowId();
-  return useBrowser((s) => (s.windows[windowId]?.incognito ? null : ntpBackgroundSource(s.settings.ntpBackground, s.settings.ntpBackgroundPath)));
+  const incognito = useBrowser((s) => !!s.windows[windowId]?.incognito);
+  const background = useBrowser((s) => s.settings.ntpBackground);
+  const customPath = useBrowser((s) => s.settings.ntpBackgroundPath);
+  return useMemo(() => (incognito ? null : ntpBackgroundSource(background, customPath)), [incognito, background, customPath]);
 }
 
 export function NtpBackdrop({ radius }: { radius: number }) {

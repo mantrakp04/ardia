@@ -2,7 +2,7 @@ import { userFullName } from "@ardia/shell";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Pressable, Text, View } from "react-native";
 import { useNtpBackdrop } from "./Backdrop";
-import { greetingFor, greetingName, homeHistory, recentSites, suggestedForNow, type SiteSuggestion } from "../../lib/ntpSuggestions";
+import { greetingFor, greetingName, homeHistory, recentSites, siteName, suggestedForNow, type SiteSuggestion } from "../../lib/ntpSuggestions";
 import { useTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
 import { isIncognitoProfile } from "../../store/model";
@@ -12,17 +12,23 @@ const TILE = 76;
 const ICON_BOX = 52;
 const GAP = 14;
 const NO_HISTORY: never[] = [];
+const RERANK_MS = 5 * 60_000;
+
+function useNow(everyMs: number): Date {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), everyMs);
+    return () => clearInterval(timer);
+  }, [everyMs]);
+  return now;
+}
 
 export function Greeting({ left, top, width }: { left: number; top: number; width: number }) {
   const theme = useTheme();
   const custom = useBrowser((s) => s.settings.greetingName);
   const byName = useBrowser((s) => s.settings.ntpGreetingName);
   const onArt = !!useNtpBackdrop();
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 60_000);
-    return () => clearInterval(timer);
-  }, []);
+  const now = useNow(60_000);
   const name = greetingName(byName, custom, userFullName);
   const rise = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -60,15 +66,15 @@ export function HomeSections({ tabId, left, top, width }: { tabId: string; left:
   const profileId = useBrowser((s) => s.tabs[tabId]?.profileId ?? "");
   const enabled = useBrowser((s) => s.settings.ntpSuggestions);
   const history = useBrowser((s) => homeHistory(s.history[profileId], { enabled, incognito: isIncognitoProfile(profileId) }) as typeof NO_HISTORY);
+  const now = useNow(RERANK_MS);
   const sections = useMemo(() => {
-    const now = new Date();
     const suggested = suggestedForNow(history, now);
     const shown = new Set(suggested.map((s) => s.host));
     return [
       { title: "Suggested now", sites: suggested },
       { title: "Recently visited", sites: recentSites(history, shown) },
     ].filter((s) => s.sites.length);
-  }, [history]);
+  }, [history, now]);
   if (!sections.length) return null;
   const perRow = Math.max(1, Math.floor((width + GAP) / (TILE + GAP)));
   const open = (url: string) => useBrowser.getState().navigate(tabId, url);
@@ -149,6 +155,5 @@ const SiteTile = memo(function SiteTile({ site, profileId, index, onOpen }: { si
 function siteLabel(site: SiteSuggestion): string {
   const title = site.title.split(/\s[-–—|·:]\s/)[0]!.replace(/^\(\d+\)\s*/, "").trim();
   if (title && title.length <= 14 && !/^https?:/.test(title)) return title;
-  const name = site.host.split(".").slice(-2, -1)[0] ?? site.host;
-  return name.charAt(0).toUpperCase() + name.slice(1);
+  return siteName(site.host);
 }

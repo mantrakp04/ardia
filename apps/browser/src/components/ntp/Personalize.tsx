@@ -5,9 +5,10 @@ import { create } from "zustand";
 import { hex, useTheme } from "../../lib/theme";
 import { PERSONALIZE_COPY, TabLayoutPicker, ThemeColorPicker } from "../onboarding/personalize";
 import { useHover } from "../primitives";
+import { fileUri, pathFromPicked } from "../../lib/fileUri";
 import { ARTWORKS } from "../../lib/ntpArtwork";
 import { useBrowser } from "../../store/browser";
-import { Toggle } from "../settings/controls";
+import { TextField, Toggle } from "../settings/controls";
 
 const INSET = 16;
 const BUTTON = 30;
@@ -48,7 +49,7 @@ export function PersonalizeButton({ windowId }: { windowId: string }) {
   );
 }
 
-function SwitchLine({ title, setting }: { title: string; setting: "ntpSuggestions" | "ntpGreetingName" }) {
+function SwitchLine({ title, setting }: { title: string; setting: "ntpSuggestions" | "ntpGreeting" | "ntpGreetingName" }) {
   const theme = useTheme();
   const value = useBrowser((s) => s.settings[setting]);
   return (
@@ -56,6 +57,30 @@ function SwitchLine({ title, setting }: { title: string; setting: "ntpSuggestion
       <Text style={{ fontSize: 12.5, color: theme.textPrimary }}>{title}</Text>
       <Toggle value={value} onChange={(v) => useBrowser.getState().updateSettings({ [setting]: v })} />
     </View>
+  );
+}
+
+function GreetingLines() {
+  const theme = useTheme();
+  const greeting = useBrowser((s) => s.settings.ntpGreeting);
+  const byName = useBrowser((s) => s.settings.ntpGreetingName);
+  const name = useBrowser((s) => s.settings.greetingName);
+  return (
+    <>
+      <SwitchLine title="Greeting" setting="ntpGreeting" />
+      {greeting ? <SwitchLine title="Greet me by name" setting="ntpGreetingName" /> : null}
+      {greeting && byName ? (
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <Text style={{ fontSize: 12.5, color: theme.textPrimary }}>Name</Text>
+          <TextField
+            value={name}
+            onChangeText={(greetingName) => useBrowser.getState().updateSettings({ greetingName })}
+            placeholder="Your Mac's name for you"
+            style={{ flex: 1, maxWidth: 200 }}
+          />
+        </View>
+      ) : null}
+    </>
   );
 }
 
@@ -68,8 +93,8 @@ function BackgroundPicker() {
   const customPath = useBrowser((s) => s.settings.ntpBackgroundPath);
   const choose = (ntpBackground: string) => useBrowser.getState().updateSettings({ ntpBackground });
   const chooseFile = () =>
-    void pickFiles().then((paths) => {
-      const path = paths.find((p) => /\.(png|jpe?g|heic|webp|gif|tiff?)$/i.test(p));
+    void pickFiles().then((picked) => {
+      const path = picked.map(pathFromPicked).find((p) => /\.(png|jpe?g|heic|webp|gif|tiff?)$/i.test(p));
       if (path) useBrowser.getState().updateSettings({ ntpBackground: "custom", ntpBackgroundPath: path });
     });
   const ring = (on: boolean) => ({ borderWidth: on ? 2 : StyleSheet.hairlineWidth * 2, borderColor: on ? theme.accent : theme.panelBorder });
@@ -91,7 +116,7 @@ function BackgroundPicker() {
         ))}
         <Pressable onPress={chooseFile} tooltip="Choose an image…">
           <View style={[{ width: THUMB_W, height: THUMB_H, borderRadius: 8, overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: theme.dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)" }, ring(background === "custom")]}>
-            {background === "custom" && customPath ? <Image source={{ uri: `file://${encodeURI(customPath)}` }} resizeMode="cover" style={StyleSheet.absoluteFill} /> : null}
+            {background === "custom" && customPath ? <Image source={{ uri: fileUri(customPath) }} resizeMode="cover" style={StyleSheet.absoluteFill} /> : null}
             <Symbol name="photo.badge.plus" size={14} color={background === "custom" ? "#FFFFFF" : theme.textSecondary} style={{ width: 20, height: 18 }} />
           </View>
         </Pressable>
@@ -138,7 +163,7 @@ function PersonalizePanel({ windowId, onClose }: { windowId: string; onClose: ()
             <BackgroundPicker />
             <View style={{ gap: 10 }}>
               <SwitchLine title="Suggestions on this page" setting="ntpSuggestions" />
-              <SwitchLine title="Greet me by name" setting="ntpGreetingName" />
+              <GreetingLines />
             </View>
             <View style={{ gap: 8 }}>
               <Text style={{ fontSize: 12, color: theme.textSecondary }}>{PERSONALIZE_COPY.layouts}</Text>

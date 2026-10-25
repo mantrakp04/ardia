@@ -60,6 +60,7 @@ export function NewTabPage({ tabId, toolbar = true }: { tabId: string; toolbar?:
   const windowId = useWindowId();
   const onboarding = useOnboarding((s) => s.windowId === windowId);
   const incognito = useBrowser((s) => !!s.windows[windowId]?.incognito);
+  const greeting = useBrowser((s) => s.settings.ntpGreeting);
   const card = useCardAnchors((s) => s[windowId]);
   const [size, setSizeState] = useState<Size | null>(() => (lastSize && (!card || sameSize(lastSize.card, card)) ? lastSize.size : null));
   const setSize = (next: Size) => setSizeState((prev) => (prev && sameSize(prev, next) ? prev : next));
@@ -134,7 +135,7 @@ export function NewTabPage({ tabId, toolbar = true }: { tabId: string; toolbar?:
           />
         ))}
       </View>
-      {!onboarding && !incognito && <Greeting left={x} top={top - MARK_ABOVE_BAR - 52} width={width} />}
+      {!onboarding && !incognito && greeting && <Greeting left={x} top={top - MARK_ABOVE_BAR - 52} width={width} />}
       <View onLayout={(e) => setPanelHeight(e.nativeEvent.layout.height)} style={{ position: "absolute", left: x, top, width }}>
         <Surface style={StyleSheet.absoluteFill} fill="#00000000" cornerRadius={20} shadowColor="#000000" shadowOpacity={0.08} shadowRadius={2} shadowOffset={[0, 0.5]} />
         <Surface style={StyleSheet.absoluteFill} fill="#00000000" cornerRadius={20} shadowColor="#000000" shadowOpacity={0.04} shadowRadius={1} shadowOffset={[0, 2]} />
