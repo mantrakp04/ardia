@@ -1315,7 +1315,7 @@ function StripGroup({
             onPress={() => useBrowser.getState().updateGroup(entry.id, { collapsed: expanded })}
             style={{ height: ITEM_HEIGHT, flexDirection: "row", alignItems: "center", paddingLeft: 8.5, paddingRight: 7 }}
           >
-            <StripGroupIcon icon={group.icon} tint={tint} color={group.color} open={expanded} />
+            <StripGroupIcon icon={group.icon} color={group.color} open={expanded} />
             <Text numberOfLines={1} style={{ marginLeft: 12.5, maxWidth: 120, fontSize: 12, fontWeight: "600", color: tint ?? (shown >= 0 ? theme.tabSelectedText : theme.textTab) }}>
               {group.name || `${group.tabIds.length} Tabs`}
             </Text>
@@ -1405,7 +1405,6 @@ function FolderChip({ groupId, holding }: { groupId: string; holding: boolean })
   const group = useBrowser((s) => s.groups[groupId]);
   const label = useBrowser((s) => (s.groups[groupId] ? groupLabel(s, s.groups[groupId]!) : ""));
   const { hovered, hoverProps } = useHover();
-  const [menuOpen, setMenuOpen] = useState(false);
   if (!group) return null;
   const tint = group.color ? GROUP_COLORS[group.color].hex : null;
   const ink = tint ?? (holding ? theme.tabSelectedText : theme.textTab);
@@ -1418,12 +1417,7 @@ function FolderChip({ groupId, holding }: { groupId: string; holding: boolean })
       style={{ position: "absolute", left: 0, top: MID - FOLDER_HEIGHT / 2, height: FOLDER_HEIGHT }}
     >
       <ContextMenuArea onContextMenu={() => void openGroupMenu(windowId, groupId)}>
-        <Pressable
-          onPress={() => {
-            setMenuOpen(true);
-            void openFolderMenu(windowId, groupId).finally(() => setMenuOpen(false));
-          }}
-        >
+        <Pressable onPress={() => void openFolderMenu(windowId, groupId)}>
           {({ pressed }) => (
             <View
               style={{
@@ -1438,7 +1432,7 @@ function FolderChip({ groupId, holding }: { groupId: string; holding: boolean })
                 backgroundColor: pressed ? theme.tabPressed : tint ? withAlpha(tint, hovered ? 0.3 : 0.22) : hovered ? tokens.groupHeaderHover : tokens.groupFill,
               }}
             >
-              <StripGroupIcon icon={group.icon} tint={tint} color={group.color} open={menuOpen} />
+              <StripGroupIcon icon={group.icon} color={group.color} open={false} />
               <Text numberOfLines={1} style={{ marginLeft: 7, maxWidth: 110, fontSize: 12, fontWeight: "600", color: ink }}>
                 {label}
               </Text>
@@ -1451,10 +1445,10 @@ function FolderChip({ groupId, holding }: { groupId: string; holding: boolean })
   );
 }
 
-function StripGroupIcon({ icon, tint, color, open }: { icon: string | null; tint: string | null | undefined; color: GroupColor | null | undefined; open: boolean }) {
+function StripGroupIcon({ icon, color, open }: { icon: string | null; color: GroupColor | null | undefined; open: boolean }) {
   const theme = useTheme();
   if (!hasOwnGroupIcon(icon)) return <AnimatedFolder open={open} color={color} size={13} />;
-  if (icon.startsWith(SYMBOL_PREFIX)) return <Symbol name={icon.slice(SYMBOL_PREFIX.length)} size={11} weight="medium" color={tint ?? theme.icon} style={{ width: 13, height: 13 }} />;
+  if (icon.startsWith(SYMBOL_PREFIX)) return <Symbol name={icon.slice(SYMBOL_PREFIX.length)} size={11} weight="medium" color={color ? GROUP_COLORS[color].hex : theme.icon} style={{ width: 13, height: 13 }} />;
   return <Text style={{ width: 13, fontSize: 12, textAlign: "center" }}>{icon}</Text>;
 }
 

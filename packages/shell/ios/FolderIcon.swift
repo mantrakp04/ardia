@@ -119,12 +119,10 @@ final class FolderIconView: ExpoView {
   private var progress: Double = 0
   private var motion: Motion?
   private var shownOpen: Bool?
-  private var artCenter = CGPoint.zero
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
     wantsLayer = true
-    art.contentsGravity = .resize
   }
 
   override func hitTest(_ point: NSPoint) -> NSView? { nil }
@@ -177,25 +175,24 @@ final class FolderIconView: ExpoView {
     let side = min(bounds.width, bounds.height)
     let frame = backingAlignedRect(bounds.insetBy(dx: -side * FolderArt.bleed, dy: -side * FolderArt.bleed), options: .alignAllEdgesNearest)
     art.frame = frame
-    artCenter = CGPoint(x: bounds.midX - frame.minX, y: isFlipped ? bounds.midY - frame.minY : frame.maxY - bounds.midY)
+    let center = CGPoint(x: bounds.midX - frame.minX, y: isFlipped ? bounds.midY - frame.minY : frame.maxY - bounds.midY)
     let scale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+    let image = { (progress: Double) in
+      FolderArt.image(progress, size: frame.size, center: center, side: side, scale: scale, palette: self.palette)
+    }
     art.contentsScale = scale
-    art.contents = image(progress, scale: scale)
+    art.contents = image(progress)
     art.removeAnimation(forKey: "folder")
     if let motion {
       let elapsed = CACurrentMediaTime() - motion.start
-      if elapsed < motion.duration { play(motion, elapsed: elapsed, scale: scale) } else { self.motion = nil }
+      if elapsed < motion.duration { play(motion, elapsed: elapsed, image: image) } else { self.motion = nil }
     }
     CATransaction.commit()
   }
 
-  private func image(_ progress: Double, scale: CGFloat) -> CGImage? {
-    FolderArt.image(progress, size: art.bounds.size, center: artCenter, side: min(bounds.width, bounds.height), scale: scale, palette: palette)
-  }
-
-  private func play(_ motion: Motion, elapsed: CFTimeInterval, scale: CGFloat) {
+  private func play(_ motion: Motion, elapsed: CFTimeInterval, image: (Double) -> CGImage?) {
     let count = max(2, Int((motion.duration * FolderArt.framesPerSecond).rounded(.up)))
-    let frames = (0..<count).compactMap { i in image(motion.from + (motion.to - motion.from) * (Double(i) + 0.5) / Double(count), scale: scale) }
+    let frames = (0..<count).compactMap { i in image(motion.from + (motion.to - motion.from) * (Double(i) + 0.5) / Double(count)) }
     let animation = CAKeyframeAnimation(keyPath: "contents")
     animation.values = frames
     animation.calculationMode = .discrete
