@@ -11,7 +11,7 @@ import { EMOJI, PROFILE_SYMBOLS, SYMBOLS } from "./iconSets";
 const COLUMNS = 8;
 const CELL = 30;
 const MAX_ROWS = 6;
-export const ICON_PICKER_WIDTH = COLUMNS * CELL + 16;
+export const ICON_PICKER_WIDTH = COLUMNS * CELL;
 
 export type IconTargetKind = "tab" | "group" | "live" | "profile";
 type Tab = "emoji" | "symbols" | "glyphs";

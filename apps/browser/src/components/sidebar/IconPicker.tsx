@@ -14,6 +14,8 @@ export function IconPicker({ windowId, sidebarWidth }: { windowId: string; sideb
 
 type Picker = NonNullable<ReturnType<typeof useSidebarUi.getState>["iconPicker"]>;
 
+const PANEL_PADDING = 8;
+
 function PickerPanel({ picker, sidebarWidth }: { picker: Picker; sidebarWidth: number }) {
   const theme = useTheme();
   const liveIcon = useLive((s) => (picker.kind === "live" ? s.folders[picker.id.split("|")[1] ?? ""]?.icon : null));
@@ -34,7 +36,7 @@ function PickerPanel({ picker, sidebarWidth }: { picker: Picker; sidebarWidth: n
         shadowOpacity={theme.panelShadowOpacity}
         shadowRadius={20}
         shadowOffset={[0, 8]}
-        style={{ position: "absolute", top, left, width: ICON_PICKER_WIDTH, padding: 8 }}
+        style={{ position: "absolute", top, left, width: ICON_PICKER_WIDTH + PANEL_PADDING * 2, padding: PANEL_PADDING }}
       >
         <IconPickerPanel
           current={current}
