@@ -2,9 +2,10 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
+infra="$(cd "$here/.." && pwd)"
 site="$here/../../apps/site"
 step="${1:-all}"
-hexclave=(${HEXCLAVE:-npx @hexclave/cli@1.0.133})
+hexclave=(${HEXCLAVE:-"$infra/node_modules/.bin/hexclave"})
 
 case "$step" in
   all | build | deploy) ;;
@@ -16,6 +17,7 @@ if [ "$step" != deploy ]; then
   rsync -a --delete "$site/dist/" "$here/dist/"
 fi
 if [ "$step" != build ]; then
+  pnpm -C "$infra" install --frozen-lockfile --ignore-workspace
   cd "$here"
   "${hexclave[@]}" deploy --cloud-project-id 49be2e2e-87c4-433e-b42f-f255854bff56
 fi

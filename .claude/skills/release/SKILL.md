@@ -159,7 +159,9 @@ git add packages/ardiacore/prebuilt-engines.tsv && git commit -m "Prebuilt engin
 `CURRENT_PROJECT_VERSION` is the build number Sparkle compares — it must go up every release, nightlies included
 (release.sh refuses one that isn't above every build in the published feed; read the current value with `grep CURRENT_PROJECT_VERSION …project.pbxproj | sort -u`). release.sh refuses to run
 if `MARKETING_VERSION` doesn't match, the notes file is missing, the tree has uncommitted app or engine
-changes, or the engine framework is stale (`docs/releasing.md` lists what it checks). It notarizes the app and the DMG with the
+changes, or the engine framework is stale (`docs/releasing.md` lists what it checks). A stable release also stops
+when the engine's Chromium milestone is behind Chrome's Mac Stable: tell the owner and bump the engine; set
+`ALLOW_STALE_ENGINE=1` only when the owner approves shipping that fix on the old engine. It notarizes the app and the DMG with the
 `ardia` notarytool profile (an App Store Connect API key in the login keychain, set up 2026-09-26) and
 ends with "Notarized and stapled." If it says "NOT notarized.", the profile is gone or invalid
 (`xcrun notarytool history --keychain-profile ardia` shows why): stop and tell the user rather than
@@ -303,6 +305,10 @@ fi
 
 `appcast-merge.sh` puts this release's item onto the feed as it's published right now, so nightlies that shipped while
 this release was being tested stay listed (it rewrites `dist/<version>/appcast.xml`, keeping `appcast.built.xml`).
+It refuses a published feed whose Sparkle signature doesn't verify, then signs the merged feed with the Sparkle key
+(`sign_update`, one keychain read) and checks it against `SUPublicEDKey` (`verify-feed.sh`). The first release that
+signs the feed builds on the last unsigned one: run its `release.sh` and its publish step with `ALLOW_UNSIGNED_FEED=1`,
+that once and with the owner's OK; never again after a signed feed is live.
 Both must show the new version. Copies from 0.2.13 and earlier poll GitHub's URL directly; 0.2.14 to 0.2.32 poll
 netnyahoo.com/appcast.xml and later ones ardia.dev/appcast.xml, both served by the site, which counts the check
 (version, day, first check or not) and redirects to the same GitHub file. feed.sh reads the URL from the built
@@ -333,8 +339,11 @@ the final RC and said ship).
    ```
    It holds the publish lock (`release-lock`, the same one `publish.sh` takes), so a nightly published meanwhile can't
    be overwritten. It edits the feed on the latest stable release as it is at that moment (`appcast.xml`), drops the
-   interval from `<version>`'s item only, uploads it and checks what GitHub serves. (The appcast isn't signed as a whole, only its zip's `edSignature`, so editing the line keeps it
-   valid.) The next release's `release.sh` starts from this published appcast, so it doesn't bring the interval back.
+   interval from `<version>`'s item only, re-signs it with `sign_update` and checks the signature (`verify-feed.sh`)
+   before uploading, and checks what GitHub serves. (The appcast is signed as a whole: the signature at its end
+   covers every byte before it, so any edit needs `sign_update` again, and builds with `SURequireSignedFeed` ignore
+   an edited feed that wasn't re-signed.) The next release's `release.sh` starts from this published appcast, so it
+   doesn't bring the interval back.
 
 A release without `--phased` goes to everyone at once, as before.
 

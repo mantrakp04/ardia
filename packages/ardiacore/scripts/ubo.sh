@@ -9,13 +9,18 @@ UBO_KEY="MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAv1MPdIgJjIsN4Y0N/20GDNPfN4J
 UBO_PATCH="22"
 ubo="$vendor/ubo"
 stamp="$UBO_VERSION-$UBO_PATCH"
-installed() { [ -f "$ubo/.version" ] && [ "$(cat "$ubo/.version")" = "$stamp" ]; }
+zip="$ubo/uBlock0_$UBO_VERSION.chromium.zip"
+zip_verified() { [ -f "$zip" ] && [ "$(shasum -a 256 "$zip" | awk '{ print $1 }')" = "$UBO_SHA256" ]; }
+installed() { [ -z "${UBO_REINSTALL:-}" ] && [ -f "$ubo/.version" ] && [ "$(cat "$ubo/.version")" = "$stamp" ] && zip_verified; }
 if ! installed && [ -z "${UBO_LOCKED:-}" ]; then
   mkdir -p "$ubo"
   UBO_LOCKED=1 exec lockf -k -t 600 "$ubo/.lock" "$0"
 fi
 if ! installed; then
-  zip="$ubo/uBlock0_$UBO_VERSION.chromium.zip"
+  if [ -f "$zip" ] && ! zip_verified; then
+    echo "$zip doesn't match its SHA-256; downloading it again" >&2
+    rm -f "$zip"
+  fi
   if [ ! -f "$zip" ]; then
     url="https://github.com/gorhill/uBlock/releases/download/$UBO_VERSION/uBlock0_$UBO_VERSION.chromium.zip"
     echo "Downloading $url"

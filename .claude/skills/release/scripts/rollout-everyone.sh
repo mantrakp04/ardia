@@ -58,10 +58,14 @@ if cmp -s "$work/live/appcast.xml" "$work/new/appcast.xml"; then
 fi
 diff -u "$work/live/appcast.xml" "$work/new/appcast.xml" || true
 if [ "$dry" = 1 ]; then
+  echo "+ sign_update and verify the feed, then:"
   echo "+ gh release upload $stable_tag -R $repo --clobber $work/new/appcast.xml"
   echo "dry run: nothing uploaded"
   exit 0
 fi
+"$root/apps/browser/macos/Pods/Sparkle/bin/sign_update" --account "$("$root/scripts/lib/sparkle-account.sh")" "$work/new/appcast.xml" >/dev/null \
+  || die "re-signing appcast.xml failed"
+"$here/verify-feed.sh" --signed "$work/new/appcast.xml" || die "appcast.xml isn't signed after re-signing"
 gh release upload "$stable_tag" -R "$repo" --clobber "$work/new/appcast.xml"
 gh release download "$stable_tag" -R "$repo" -p appcast.xml -O "$work/check-appcast.xml"
 cmp -s "$work/new/appcast.xml" "$work/check-appcast.xml" && echo "PASS  $stable_tag's appcast.xml offers $version to everyone" \

@@ -103,6 +103,7 @@ if [ "$channel" = stable ]; then
   echo "PASS  $version is above the latest stable release ($latest_version)"
 fi
 
+
 if [ "$channel" = nightly ]; then
   release_flags=(--prerelease --latest=false)
 else
@@ -133,6 +134,8 @@ for url in "$latest_url/appcast.xml" "https://ardia.dev/appcast.xml"; do
   grep -q "<sparkle:shortVersionString>$version<" <<<"$xml" && echo "PASS  $url lists $version" \
     || { echo "FAIL  $url lists $version"; status=1; }
 done
+"$here/verify-feed.sh" --signed "$latest_url/appcast.xml" \
+  || { echo "FAIL  $latest_url/appcast.xml isn't signed with the Sparkle key"; status=1; }
 if [ "$channel" = nightly ]; then
   url="$nightly_url/Ardia-Nightly.dmg"
   size="$(curl -fsSLI --max-time 30 "$url" | awk 'tolower($1) == "content-length:" { n = $2 } END { print n + 0 }')"

@@ -1,0 +1,59 @@
+name: Chrome releases
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+concurrency:
+  group: chrome-releases
+  cancel-in-progress: false
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          SHA=$(timeout 60 git ls-remote "https://github.com/$REPO" HEAD | cut -f1)
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::couldn't resolve the default branch of $REPO"; exit 1; }
+          engine=$(curl -fsSL --retry 3 --connect-timeout 10 --max-time 30 "https://raw.githubusercontent.com/$REPO/$SHA/engine/patches/build/env.sh" | sed -n 's/^export CHROMIUM_VERSION=//p')
+          stable=$(curl -fsSL --retry 3 --connect-timeout 10 --max-time 30 'https://chromiumdash.appspot.com/fetch_releases?channel=Stable&platform=Mac&num=1' | jq -r '.[0].version')
+          for version in "$engine" "$stable"; do
+            [[ "$version" =~ ^[0-9]+(\.[0-9]+){3}$ ]] || { echo "::error::couldn't read the versions (engine '$engine', Chrome Mac Stable '$stable')"; exit 1; }
+          done
+          prefix="Engine behind Chrome Stable:"
+          open=$(gh api --paginate "repos/$REPO/issues?state=open&per_page=100" \
+            --jq ".[] | select(.pull_request == null and (.title | startswith(\"$prefix\"))) | .number" | awk 'NR == 1')
+          if [ "$(printf '%s\n%s\n' "$engine" "$stable" | sort -V | tail -1)" = "$engine" ]; then
+            echo "The engine (Chromium $engine) is current with Chrome's Mac Stable ($stable)."
+            if [ -n "$open" ]; then
+              gh issue close "$open" --repo "$REPO" --comment "The engine is on Chromium $engine, current with Chrome's Mac Stable ($stable)."
+            fi
+            exit 0
+          fi
+          if [ "${engine%%.*}" -lt "${stable%%.*}" ]; then
+            impact="That's a milestone behind, so \`scripts/release.sh\` refuses a stable release until the engine moves up (\`ALLOW_STALE_ENGINE=1\` overrides it for an emergency); nightlies only warn."
+          else
+            impact="Same milestone, a later point release, which usually carries security fixes. Stable releases still go out (release.sh warns); bump once Helium has a tag for it."
+          fi
+          title="$prefix Chrome $stable (engine on $engine)"
+          body=$(printf '%s\n' \
+            "Chrome's Mac Stable is **$stable** ([Chromium Dash](https://chromiumdash.appspot.com/releases?platform=Mac)). \`CHROMIUM_VERSION\` in [\`engine/patches/build/env.sh\`](https://github.com/$REPO/blob/$SHA/engine/patches/build/env.sh) is **$engine**." \
+            "" \
+            "$impact" \
+            "" \
+            "What changed: https://chromereleases.googleblog.com/. Bump the engine (\`docs/engine-build.md\`). The daily check (\`.github/workflows/chrome-releases.yml\`) retitles this issue when Chrome moves again and closes it once the engine catches up.")
+          echo "The engine (Chromium $engine) is behind Chrome's Mac Stable ($stable)."
+          if [ -z "$open" ]; then
+            gh issue create --repo "$REPO" --title "$title" --body "$body"
+          elif [ "$(gh issue view "$open" --repo "$REPO" --json title --jq .title)" != "$title" ]; then
+            gh issue edit "$open" --repo "$REPO" --title "$title" --body "$body"
+            gh issue comment "$open" --repo "$REPO" --body "Chrome's Mac Stable is now $stable; the engine is on $engine."
+          fi

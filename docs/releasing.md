@@ -9,9 +9,9 @@ GitHub Actions. Each has these assets:
   site's poster behind them: `scripts/dmg`, where `render.sh` redraws the picture and `layout.sh` the layout).
 - `Ardia-<version>.zip`: the archive Sparkle installs updates from.
 - `ardia-cli-<version>-macos-arm64.tar.gz` and its `.sha256`: the `ardia` command (`docs/cli.md`).
-- `appcast.xml`: the Sparkle feed, both channels' items in one file. The latest stable release's appcast is the feed
-  (a nightly rewrites that asset; "Channels" below). Builds after 0.2.13 poll
-  `https://ardia.dev/appcast.xml` (`SUFeedURL`), which counts the check by version and day (and whether
+- `appcast.xml`: the Sparkle feed, both channels' items in one file, signed with the Sparkle key ("The signed feed"
+  below). The latest stable release's appcast is the feed (a nightly rewrites that asset; "Channels" below). Builds
+  after 0.2.13 poll `https://ardia.dev/appcast.xml` (`SUFeedURL`), which counts the check by version and day (and whether
   it's the copy's first) and redirects to
   `https://github.com/mantrakp04/ardia/releases/latest/download/appcast.xml`, the URL 0.2.13 and
   earlier poll directly. The count can't block an update: see `infra/site/nginx.conf` and `docs/growth.md`
@@ -20,7 +20,8 @@ GitHub Actions. Each has these assets:
   the last one: the release's engine (Chrome's framework, stripped), so the app builds without a Chromium tree. Engines
   for CI releases go to their own prerelease instead, `engine-<engine tree:12>` ("Engines" below). `packages/ardiacore/prebuilt-engines.tsv` maps
   `engine/`'s git tree to the release and the archive's SHA-256; `packages/ardiacore/scripts/fetch-engine.sh` downloads
-  it (the app's build runs it when there's no local engine build).
+  it (the app's build runs it when there's no local engine build). It trusts only the checkout's own table, never one
+  fetched from the same host as the archive, unless `ARDIACORE_PREBUILT_ALLOW_REMOTE_TABLE=1`.
 - `ArdiaCore-<engine tree>-source.tar.xz`, with that archive when the engine is built on Helium (release.sh finds
   Helium's code in the framework): copies of the GitHub tags `engine/patches/build/env.sh` pins that aren't in this
   repo (`scripts/engine-source.sh`), and where Chromium's source is. See "Source and licenses" below.
@@ -57,7 +58,7 @@ every copy on Stable sees only stable items. A copy on Nightly allows `nightly` 
   no new URL, no nginx change for the feed, and the copies from 0.2.13 and earlier that poll GitHub directly read the
   same file. Both flows build on the published feed (`release.sh` fetches it and refuses to go on without it), and
   `appcast-merge.sh` puts the new item onto the feed as published at that moment, so a nightly that shipped while a
-  stable was being tested isn't dropped. `generate_appcast` keeps 3 items per channel.
+  stable was being tested isn't dropped, then signs the result. `generate_appcast` keeps 3 items per channel.
 - **Downloads.** Stable keeps its versioned link (`releases/latest/download/Ardia-<version>.dmg`, from
   `apps/site/src/data/release.ts`). Nightly has one fixed link, `https://ardia.dev/nightly` (`infra/site/nginx.conf`),
   which redirects to the `nightly` prerelease's `Ardia-Nightly.dmg`; each nightly re-uploads that asset, so the site
@@ -67,6 +68,46 @@ every copy on Stable sees only stable items. A copy on Nightly allows `nightly` 
   nightly in the feed it takes the stable; on nightly it takes the nightly, a newer stable, and the newest of both. It
   also checks the build-number order with Sparkle's comparator. `update-test.sh` does the stable-ignores-it half for
   every nightly's own item.
+
+## The signed feed
+
+Builds after 0.2.41-nightly.1 set `SURequireSignedFeed` and `SUVerifyUpdateBeforeExtraction` in `Info.plist` (Sparkle
+2.9 and 2.7.3). Sparkle then checks the zip's EdDSA signature before extracting it, and ignores a feed whose own
+signature doesn't verify with `SUPublicEDKey`: no update, no release notes, and after 20 days of failures
+(`SUSignedFeedFailureExpirationInterval`, Sparkle's default) it offers updates again without notes, a fallback for a
+lost key. The signature is an XML comment at the end of `appcast.xml` (`<!-- sparkle-signatures: … -->`) covering
+every byte before it, with a warning comment at the top. Copies up to 0.2.41-nightly.1 don't opt in, so Sparkle skips
+the check and reads the same file as an ordinary feed.
+
+Every step that writes the feed signs it with the Sparkle key, which stays in the keychain:
+
+- `release.sh` runs `generate_appcast --account <account>`, which signs the feed because the new build requires it,
+  and `verify-feed.sh` checks the result against the built app's `SUPublicEDKey`.
+- `appcast-merge.sh` (stable and nightly publishing) merges onto the live feed, then re-signs with
+  `sign_update --account` and checks it again.
+- The staged rollout's edit (the `release` skill, 5b) re-signs the same way.
+
+The feed this builds on is checked too. `release.sh` and `appcast-merge.sh` refuse a published feed whose signature
+doesn't verify, so a tampered feed is never carried forward and signed again. They refuse an unsigned one too, except
+with `ALLOW_UNSIGNED_FEED=1`, which only the first release that signs the feed needs, once, for `release.sh` and for
+its publish step (the published feed up to 0.2.41-nightly.1 is unsigned). A `--rc` build accepts an unsigned feed on its
+own, since it's never published. `verify-feed.sh` needs no key, only `SUPublicEDKey`.
+
+## Keeping up with Chrome
+
+Chrome's Mac Stable gets security fixes every week or two and a new milestone every four weeks; the engine
+follows through Helium (`CHROMIUM_VERSION` and `HELIUM_TAG` in `engine/patches/build/env.sh`, `docs/engine-build.md`).
+Two checks compare `CHROMIUM_VERSION` with Chrome's current Mac Stable from Chromium Dash
+(`https://chromiumdash.appspot.com/fetch_releases?channel=Stable&platform=Mac&num=1`):
+
+- `release.sh` refuses a stable release whose engine is on an older milestone, and one it can't check because
+  Chromium Dash didn't answer. A nightly or `--rc` build only warns, and so does a later point release of the same
+  milestone. `ALLOW_STALE_ENGINE=1` lets a stable release through anyway, for an emergency fix the owner has
+  approved.
+- `.github/workflows/chrome-releases.yml` runs daily (and by hand from the Actions tab). When the engine is behind,
+  it opens one issue titled "Engine behind Chrome Stable: Chrome <version> (engine on <version>)", retitles it as
+  Chrome moves on, and closes it once `env.sh` on `main` catches up. It uses only `GITHUB_TOKEN` with
+  `issues: write`.
 
 ## Source and licenses
 
@@ -91,10 +132,16 @@ stays up. That's GPL-3.0 §6(d) for the GPL parts (uBlock Origin today), and it'
   (`-allowProvisioningUpdates`) that the keychain-group entitlements need.
 - The **Sparkle EdDSA key**, a login keychain item (service `https://sparkle-project.org`, account
   `ardia`, or the app's old name in lower case on the Mac that made it before the rename: `LegacyName.appName`;
-  release.sh finds either, `SPARKLE_ACCOUNT` overrides). Its public half is `SUPublicEDKey` in
-  `apps/browser/macos/Ardia-macOS/Info.plist`. Every update must be signed with it, so keep a backup:
+  `scripts/lib/sparkle-account.sh` finds either by the item's attributes, `SPARKLE_ACCOUNT` overrides). Its public
+  half is `SUPublicEDKey` in `apps/browser/macos/Ardia-macOS/Info.plist`. Every update and the feed must be signed with
+  it, so losing it stops updates: with `SUVerifyUpdateBeforeExtraction`, Sparkle takes a new key only from an update
+  shipped as a Developer ID-signed DMG, and a copy offers it only after 20 days of failed feed checks
+  (`SUSignedFeedFailureExpirationInterval`). Keep an offline backup:
   `apps/browser/macos/Pods/Sparkle/bin/generate_keys --account <account> -x <file>` exports it, and `-f <file>`
-  imports it on another machine.
+  imports it on another machine. The release scripts never export it: `generate_appcast` and `sign_update` read it
+  from the keychain (`--account`). Make the item ask on every use: Keychain Access › the item › Access Control ›
+  "Confirm before allowing access", with no app in the always-allow list. A release then asks twice (the appcast,
+  and the merge when publishing), and anything else reading it shows a prompt you didn't expect.
 - For notarization, an App Store Connect API key (Team Keys, Developer role). Keep `AuthKey_<id>.p8`
   outside the repo (e.g. `~/.private_keys/`, mode 600) and point `scripts/.notary.env` (untracked) at it:
   `NOTARY_KEY=<path>`, `NOTARY_KEY_ID=<id>`, `NOTARY_ISSUER=<issuer id>`. release.sh prefers it to the
@@ -123,13 +170,30 @@ stays up. That's GPL-3.0 §6(d) for the GPL parts (uBlock Origin today), and it'
    `headline`, if the tree under `apps/browser`, `packages`, `engine` or `scripts/dmg` has uncommitted changes, or if the engine
    framework is older than the tree's ArdiaCore sources or the Chromium tree differs from `engine/ardiacore`
    (`apply.sh --check`), if the version doesn't fit the channel or the notes' `channel`, if it can't read the published
-   appcast, or if the build number isn't above every build in it. It writes `dist/<version>/`:
+   appcast or its signature doesn't verify, or if the build number isn't above every build in it. It writes `dist/<version>/`:
+   - rebuilds uBlock Origin from its pinned zip (`ubo.sh`, which checks the zip's SHA-256 on every run; a release
+     reinstalls it even when the stamp matches),
    - archives the Release configuration of `apps/browser/macos` for arm64, staging the engine into its own derived
      data so a development build restaging can't change it mid-build, and exports it with Developer ID. Here the export is Xcode's
      (`-allowProvisioningUpdates`, which needs Xcode signed in to the team); with `RELEASE_PROVISIONING_PROFILE` set (CI)
      the archive is signed ad hoc (`AdHoc.xcconfig`) and `scripts/lib/export-developer-id.sh` does the export: it embeds
      that profile and re-signs inside out with Developer ID, the same identifiers, entitlements, flags and designated
      requirements Xcode's export gives (`xcodebuild -exportArchive` refuses an Xcode-managed profile with manual signing),
+=======
+3. `scripts/release.sh <version>` (`--channel nightly` for a nightly). It stops right away if the notes file is missing or lacks its `date` and
+   `headline`, if the tree under `apps/browser`, `packages`, `engine` or `scripts/dmg`, or the workspace's `package.json`,
+   `pnpm-lock.yaml`, `pnpm-workspace.yaml` or `patches`, has uncommitted changes, or if the engine
+   framework is older than the tree's ArdiaCore sources or the Chromium tree differs from `engine/ardiacore`
+   (`apply.sh --check`), if the version doesn't fit the channel or the notes' `channel`, if it can't read the published
+   appcast or its signature doesn't verify, if the build number isn't above every build in it, or, for a stable
+   release, if the engine is behind Chrome ("Keeping up with Chrome" below). It writes `dist/<version>/`:
+   - installs exactly what's locked: `pnpm install --frozen-lockfile` and `pod install --deployment`, and stops if
+     either would change `pnpm-lock.yaml`, `Podfile.lock` or the Xcode project; it rebuilds uBlock Origin from its
+     pinned zip (`ubo.sh`, which checks the zip's SHA-256 on every run) and stages the engine into a fresh folder
+     instead of the shared cache,
+   - archives the Release configuration of `apps/browser/macos` (arm64 only), staging the engine into its own
+     derived data so a development build restaging can't change it mid-build, and exports it with Developer ID,
+>>>>>>> a98f20da (Release: pinned deploy CLI, Sparkle key stays in the keychain, signed appcast (#238))
    - leaves out what Ardia never loads (`packages/ardiacore/scripts/prune-bundle.sh`, after `strip-engine.sh`): Chrome's
      locales other than English and the app's own languages (Chrome takes its locale from the app bundle's
      localizations, and Ardia has none, so it runs in en-US whatever the Mac's language), SwiftShader and its Vulkan
@@ -158,7 +222,8 @@ stays up. That's GPL-3.0 §6(d) for the GPL parts (uBlock Origin today), and it'
    - notarizes and staples the app and the DMG,
    - packages the DMG (lzma in 4 MB chunks, `udif-chunk-size=8192`, hdiutil's largest; `ARDIA_DMG_CHUNK=off` goes back
      to its 1 MB default) and the zip, and signs `appcast.xml` (`generate_appcast` names the feed after the app's
-     `SUFeedURL`, so release.sh passes it `-o`) with the Sparkle key. It starts from the
+     `SUFeedURL`, so release.sh passes it `-o`) with the Sparkle key ("The signed feed" above), and checks the feed's
+     signature before publishing it. It starts from the
      published appcast, so earlier versions and the other channel's items stay listed; a nightly's item gets
      `<sparkle:channel>nightly</sparkle:channel>`. The new item embeds the notes' headline and body
      (Markdown, shown in Sparkle's update dialog) and links the page as its full release notes
@@ -182,7 +247,9 @@ stays up. That's GPL-3.0 §6(d) for the GPL parts (uBlock Origin today), and it'
    digest of the published DMG and pushes the tap (`PUBLISH_TAP=0` skips it).
 5. Deploy the site so `/release-notes` shows the new version (for a nightly too: the updated app opens its entry) (the updated app opens it on its first launch):
    `pnpm -C apps/site run deploy` builds `apps/site` with `SITE_URL=https://ardia.dev` and ships it
-   (`infra/site/hexclave.deploy.ts`). Also bump `VERSION` and `DMG_SIZE` in `apps/site/src/data/release.ts`
+   (`infra/site/hexclave.deploy.ts`) with the Hexclave CLI pinned in `infra/package.json` and installed from
+   `infra/pnpm-lock.yaml` (`--frozen-lockfile`, so every package's integrity hash is checked). Also bump `VERSION`
+   and `DMG_SIZE` in `apps/site/src/data/release.ts`
    first so the download button points at the new DMG. The owner has authorized releases to go all the way
    through, so an agent cutting a release deploys too; a site deploy outside a release needs the owner's OK.
 

@@ -124,7 +124,11 @@
 	<string>https://ardia.dev/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>gi1pBCemmSVpHM36dT5BJPPTcKC98QwS19mztCTyd4s=</string>
+	<key>SURequireSignedFeed</key>
+	<true/>
 	<key>SUScheduledCheckInterval</key>
 	<integer>28800</integer>
+	<key>SUVerifyUpdateBeforeExtraction</key>
+	<true/>
 </dict>
 </plist>

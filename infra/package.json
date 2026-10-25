@@ -1,0 +1,8 @@
+{
+  "name": "@ardia/infra",
+  "private": true,
+  "packageManager": "pnpm@11.1.3",
+  "dependencies": {
+    "@hexclave/cli": "1.0.130"
+  }
+}

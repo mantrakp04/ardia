@@ -61,6 +61,7 @@ item = re.sub(r'sparkle:edSignature="[^"]*"', f'sparkle:edSignature="{signature}
 item = re.sub(r"\s*<sparkle:phasedRolloutInterval>.*?</sparkle:phasedRolloutInterval>", "", item)
 print(xml[: xml.index("<item>")] + item + "\n    </channel>\n</rss>")
 PY
+"$pods/bin/sign_update" --ed-key-file "$work/key" "$work/feed/appcast.xml" >/dev/null
 if nc -z -G 2 127.0.0.1 "$port" 2>/dev/null; then
   echo "error: port $port is taken (UPDATE_TEST_PORT)" >&2
   exit 1
