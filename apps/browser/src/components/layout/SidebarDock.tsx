@@ -131,7 +131,7 @@ export function DockedLayout({
         {!fullscreen && <WindowDragRegion style={StyleSheet.absoluteFill} />}
         {children}
       </Animated.View>
-      {!topTabs && <SidebarDock dock={dock} open={open} width={width} fullscreen={fullscreen} arc={arc} lights={lights} />}
+      {!topTabs && <SidebarDock dock={dock} open={open} width={width} fullscreen={fullscreen} arc={arc} inset={inset} lights={lights} />}
     </>
   );
 }
@@ -142,6 +142,7 @@ function SidebarDock({
   width,
   fullscreen,
   arc,
+  inset,
   lights,
 }: {
   dock: Animated.Value;
@@ -149,6 +150,7 @@ function SidebarDock({
   width: number;
   fullscreen: boolean;
   arc: boolean;
+  inset: Inset;
   lights: readonly [number, number];
 }) {
   const theme = useTheme();
@@ -242,7 +244,7 @@ function SidebarDock({
             position: "absolute",
             left: 0,
             top: 0,
-            bottom: layout.cardInset,
+            bottom: inset.bottom,
             width: !open && !fullscreen ? STRIP_WIDTH : 0,
           }}
         />
