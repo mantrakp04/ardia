@@ -756,6 +756,19 @@
       }),
       true,
     );
+    const defaultPrevented = getter(Event.prototype, "defaultPrevented");
+    const scheduleTimeout = window.setTimeout;
+    addEventListener(
+      "click",
+      guard((e) => {
+        if (!e.isTrusted || button(e) !== 0 || altKey(e) || shiftKey(e) || metaKey(e) || ctrlKey(e)) return;
+        const hit = linkAt(e);
+        if (!peekable(hit)) return;
+        if (replacesPage(hit.link)) return;
+        apply(scheduleTimeout, window, [guard(() => defaultPrevented(e) || send("newTabLink", { url: hit.url })), 0]);
+      }),
+      true,
+    );
     addEventListener("pageshow", guard((e) => e.isTrusted && persisted(e) && send("peekHello", {})));
     addEventListener("pagehide", guard((e) => e.isTrusted && send("peekGone", {})));
   } catch (e) {}
