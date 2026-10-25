@@ -247,7 +247,7 @@ public class SyncModule: Module {
   }
 
   private static let environment = ProcessInfo.processInfo.environment
-  private static let dataDirectory = environment["ARDIA_DATA_DIR"].map { URL(fileURLWithPath: $0, isDirectory: true) }
+  private static let dataDirectory = environment["ARDIA_DATA_DIR"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0, isDirectory: true) }
   private static let testFolder = environment["ARDIA_SYNC_DEFAULT_FOLDER"].map { URL(fileURLWithPath: $0, isDirectory: true) }
 
   static var defaultFolder: URL {
@@ -269,21 +269,17 @@ public class SyncModule: Module {
     return root.appendingPathComponent(engineProfile.isEmpty ? "Default" : "Profile \(engineProfile)", isDirectory: true)
   }
 
-  static func safeStorageSecret() throws -> Data {
-    if dataDirectory != nil || !isTeamSigned { return Data("mock_password".utf8) }
-    return try SafeStorageKeychain.secret(service: "Ardia Safe Storage", account: "Ardia")
+  static var scratchInstance: Bool {
+    guard let host = NSClassFromString("ArdiaCoreHost"), (host as AnyObject).responds(to: NSSelectorFromString("usesMockKeychain")) else {
+      return false
+    }
+    return ((host as AnyObject).value(forKey: "usesMockKeychain") as? Bool) ?? false
   }
 
-  static let isTeamSigned: Bool = {
-    var code: SecCode?
-    guard SecCodeCopySelf([], &code) == errSecSuccess, let code else { return false }
-    var staticCode: SecStaticCode?
-    guard SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode else { return false }
-    var info: CFDictionary?
-    guard SecCodeCopySigningInformation(staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
-          let dict = info as? [String: Any] else { return false }
-    return dict[kSecCodeInfoTeamIdentifier as String] != nil
-  }()
+  static func safeStorageSecret() throws -> Data {
+    if scratchInstance { return Data("mock_password".utf8) }
+    return try SafeStorageKeychain.secret(service: "Ardia Safe Storage", account: "Ardia")
+  }
 }
 
 private final class KeyState {

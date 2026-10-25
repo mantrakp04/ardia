@@ -104,7 +104,7 @@ enum SharePicker {
   }
 
   private static func log(_ line: String) {
-    guard let dir = ProcessInfo.processInfo.environment["ARDIA_DATA_DIR"] else { return }
+    guard let dir = ACIsolatedDataDirectory() else { return }
     let path = (dir as NSString).appendingPathComponent("activation.log")
     let stamp = ISO8601DateFormatter().string(from: Date())
     guard let data = "\(stamp) \(line)\n".data(using: .utf8) else { return }

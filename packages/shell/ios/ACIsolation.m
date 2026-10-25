@@ -1,12 +1,19 @@
 #import "ACIsolation.h"
 
 #import <AppKit/AppKit.h>
+#import <objc/message.h>
 #import <objc/runtime.h>
 
 static NSString *gDataDirectory;
 static NSUserDefaults *gDefaults;
 
 NSString *ACIsolatedDataDirectory(void) { return gDataDirectory; }
+
+BOOL ACScratchInstance(void) {
+  Class host = NSClassFromString(@"ArdiaCoreHost");
+  SEL usesMockKeychain = NSSelectorFromString(@"usesMockKeychain");
+  return [host respondsToSelector:usesMockKeychain] && ((BOOL (*)(id, SEL))objc_msgSend)(host, usesMockKeychain);
+}
 
 static NSUserDefaults *IsolatedStandardUserDefaults(id self, SEL _cmd) { return gDefaults; }
 

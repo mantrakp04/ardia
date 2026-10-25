@@ -237,7 +237,7 @@ final class FileDragView: ExpoView, NSDraggingSource {
 enum HapticLog {
   private static let path: String? = {
     let env = ProcessInfo.processInfo.environment
-    guard env["ARDIA_BACKGROUND"] == "1", let dir = env["ARDIA_DATA_DIR"] else { return nil }
+    guard env["ARDIA_BACKGROUND"] == "1", let dir = ACIsolatedDataDirectory() else { return nil }
     return (dir as NSString).appendingPathComponent("haptics.log")
   }()
 

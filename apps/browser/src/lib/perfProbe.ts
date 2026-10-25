@@ -34,8 +34,15 @@ const shell = modules?.ArdiaShell;
 
 const probeOptions = (() => {
   try {
-    const info = modules?.ArdiaApp?.systemInfo?.() as { isolatedInstance?: boolean } | undefined;
-    if (!info?.isolatedInstance || typeof shell?.readDocument !== "function") return null;
+    const info = modules?.ArdiaApp?.systemInfo?.() as
+      | { scratchInstance?: boolean; isolatedInstance?: boolean }
+      | undefined;
+    if (
+      info?.scratchInstance !== true ||
+      info?.isolatedInstance !== true ||
+      typeof shell?.readDocument !== "function"
+    )
+      return null;
     const file = shell.readDocument("perf-probe");
     return typeof file === "string" ? file : null;
   } catch {

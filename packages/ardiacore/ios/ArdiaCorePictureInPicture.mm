@@ -18,6 +18,11 @@
 
 namespace {
 
+NSString *SelfTestDirectory() {
+  const char *dir = getenv("ARDIA_DATA_DIR");
+  return dir && *dir ? @(dir) : @"/tmp";
+}
+
 constexpr CGFloat kPeek = 28;
 constexpr CGFloat kReturnMargin = 16;
 constexpr CGFloat kButtonMargin = 12, kButtonSize = 28;
@@ -814,7 +819,7 @@ static __weak NSWindow *gSwipeMomentum;
 
 - (NSString *)snapshot:(NSString *)name {
   NSWindow *window = _window;
-  NSString *dir = [NSString stringWithUTF8String:getenv("ARDIA_DATA_DIR") ?: "/tmp"];
+  NSString *dir = SelfTestDirectory();
   NSView *content = ACWindowRootView(window);
   NSSize size = content.bounds.size;
   NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:nil pixelsWide:size.width * 2 pixelsHigh:size.height * 2
@@ -851,7 +856,7 @@ static __weak NSWindow *gSwipeMomentum;
     [steps addObject:step];
     NSLog(@"[pip-selftest] %@ %@ %@", name, pass ? @"PASS" : @"FAIL", step);
   };
-  NSString *dir = [NSString stringWithUTF8String:getenv("ARDIA_DATA_DIR") ?: "/tmp"];
+  NSString *dir = SelfTestDirectory();
   auto snapshot = [=](NSString *name) { [self snapshot:name]; };
   auto write = [=] {
     NSString *path = [dir stringByAppendingPathComponent:@"pip-selftest.json"];
@@ -947,7 +952,7 @@ static __weak NSWindow *gSwipeMomentum;
 
 - (void)runButtonSelfTest:(NSString *)button {
   NSWindow *window = _window;
-  NSString *dir = [NSString stringWithUTF8String:getenv("ARDIA_DATA_DIR") ?: "/tmp"];
+  NSString *dir = SelfTestDirectory();
   CGFloat center = kButtonMargin + kButtonSize / 2;
   NSPoint point = NSMakePoint([button isEqual:@"close"] ? NSWidth(window.frame) - center : center, NSHeight(window.frame) - center);
   auto event = [=](NSEventType type) {
@@ -982,7 +987,7 @@ static __weak NSWindow *gSwipeMomentum;
 
 - (void)runHoverSelfTest {
   NSWindow *window = _window;
-  NSString *dir = [NSString stringWithUTF8String:getenv("ARDIA_DATA_DIR") ?: "/tmp"];
+  NSString *dir = SelfTestDirectory();
   NSString *where = NSProcessInfo.processInfo.environment[@"ARDIA_PIP_HOVER"];
   CGFloat center = kButtonMargin + kButtonSize / 2;
   NSSize size = window.frame.size;
