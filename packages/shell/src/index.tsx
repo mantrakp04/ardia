@@ -371,6 +371,7 @@ export type FadeLabelProps = ViewProps & {
   weight?: "light" | "regular" | "medium" | "semibold" | "bold";
   color?: string;
   fadeWidth?: number;
+  fadeInset?: number;
 };
 
 export const FadeLabel = requireNativeViewManager<FadeLabelProps>("ArdiaFadeLabel");
