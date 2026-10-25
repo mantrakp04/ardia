@@ -141,7 +141,10 @@ function Tuner({
   useEffect(() => {
     if (!__DEV__) return;
     devBands.set(windowId, band);
-    return () => void (devBands.get(windowId) === band && devBands.delete(windowId));
+    return () => {
+      if (devBands.get(windowId) === band) devBands.delete(windowId);
+      devPositions.delete(windowId);
+    };
   }, [windowId]);
   useLayoutEffect(() => {
     if (settleTimer.current) {

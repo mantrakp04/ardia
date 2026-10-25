@@ -1,5 +1,5 @@
 import { Symbol } from "@ardia/shell";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useTheme } from "../../lib/theme";
 import { useSidebarTokens } from "../sidebar/tokens";
@@ -22,8 +22,7 @@ const TABS: { id: Tab; symbol: string; title: string }[] = [
   { id: "glyphs", symbol: "character", title: "Glyphs" },
 ];
 
-const resetTitle = (kind: IconTargetKind) => (kind === "profile" ? "Use Initial" : kind === "tab" ? "Reset Icon" : "No Icon");
-const resetValue = (kind: IconTargetKind) => (kind === "live" ? SYMBOL_PREFIX + "folder" : null);
+const resetTitle = (kind: IconTargetKind) => (kind === "profile" ? "Use Initial" : "Reset Icon");
 
 export function IconPickerPanel({
   current,
@@ -111,14 +110,14 @@ export function IconPickerPanel({
               />
             </FooterButton>
           ) : null}
-          {current && current !== NO_GROUP_ICON ? <FooterButton label={resetTitle(kind)} selected={false} onPress={() => onPick(resetValue(kind))} /> : null}
+          {current ? <FooterButton label={resetTitle(kind)} selected={false} onPress={() => onPick(null)} /> : null}
         </View>
       ) : null}
     </View>
   );
 }
 
-function FooterButton({ label, selected, onPress, children }: { label: string; selected: boolean; onPress(): void; children?: React.ReactNode }) {
+function FooterButton({ label, selected, onPress, children }: { label: string; selected: boolean; onPress(): void; children?: ReactNode }) {
   const theme = useTheme();
   const tokens = useSidebarTokens();
   return (
