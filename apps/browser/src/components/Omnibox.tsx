@@ -25,6 +25,7 @@ import { useInlineCompletion } from "./omnibox/useInlineCompletion";
 import { keywordScope, offeredScope, useSuggestions } from "./omnibox/useSuggestions";
 import { setPopover } from "./layout/pageState";
 import { IconButton, useHover } from "./primitives";
+import { INCOGNITO_ICON } from "./ntp/IncognitoHeading";
 
 type Variant = "panel" | "hero" | "sidebar";
 
@@ -70,6 +71,7 @@ export function Omnibox({
 }) {
   const theme = useTheme();
   const windowId = useWindowId();
+  const incognito = useBrowser((s) => !!s.windows[windowId]?.incognito);
   const profileId = useWindowProfileId();
   const engine = useBrowser((s) => defaultSearchEngine(s.settings));
   const currentUrl = useBrowser((s) => (opensTab ? "" : (s.tabs[tabId]?.url ?? "")));
@@ -379,7 +381,7 @@ export function Omnibox({
     current && (typed || scope) && current.kind !== "search" ? (
       <SuggestionIcon suggestion={current} color={theme.textPrimary} />
     ) : (
-      <Symbol name="magnifyingglass" size={15} weight="medium" color={hero ? theme.textSecondary : theme.textPrimary} style={{ width: 18, height: 18 }} />
+      <Symbol name={incognito ? INCOGNITO_ICON : "magnifyingglass"} size={15} weight="medium" color={hero ? theme.textSecondary : theme.textPrimary} style={{ width: 18, height: 18 }} />
     );
 
   const focused = useRef(false);
@@ -416,7 +418,7 @@ export function Omnibox({
         }
       }}
       onChangeText={onChangeText}
-      placeholder={scope ? `Search ${scope.name}` : "Search or enter address"}
+      placeholder={scope ? `Search ${scope.name}` : incognito ? "Search privately or enter address" : "Search or enter address"}
       placeholderTextColor={theme.placeholder}
       pastedTypes={PASTED_TYPES}
       selectionColor={theme.selection}

@@ -7,7 +7,7 @@ import { everySlowly } from "../lib/slowTimers";
 import { layout, ThemeScope, useTheme } from "../lib/theme";
 import { useBrowser } from "../store/browser";
 import { PageProfileContext, useSettings, useWindowId, useWindowProfileId } from "../store/hooks";
-import { activeTabId } from "../store/model";
+import { activeTabId, isIncognitoProfile } from "../store/model";
 import { downloadsIn } from "../store/ui";
 import { ancestorIds } from "../store/groups";
 import { cleanedTabsFor, cleanUpCandidates, groupOf } from "../store/organize";
@@ -46,6 +46,7 @@ import { SplitRowItem, TabRowItem } from "./sidebar/TabRow";
 import { closeFolderPanel } from "./sidebar/tileFolderUi";
 import { useSidebarTokens } from "./sidebar/tokens";
 import { toggleNewTabBar } from "./omnibox/newTabBar";
+import { INCOGNITO_ICON } from "./ntp/IncognitoHeading";
 
 const GLOW_ROOM = 24;
 const ROW_PITCH = layout.rowHeight + layout.rowGap;
@@ -381,6 +382,7 @@ function PageRows({ windowId, profileId, current, rows, lazy, offScreen, tiles, 
       <View
         onLayout={(e) => onListHeight(e.nativeEvent.layout.height + SCROLL_EDGE.inset - (inlineNewTab ? ROW_PITCH : 0))}
       >
+        {isIncognitoProfile(profileId) ? <IncognitoBadge /> : null}
         {tiles.length ? <PinnedGrid tabs={tiles} innerWidth={innerWidth} flush /> : null}
         <View
           ref={(v) => {
@@ -522,6 +524,17 @@ const NEW_TAB_LABEL_X = 30;
 const CLEANED_HINT_RIGHT = 30;
 const CLEANED_HINT_GAP = 8;
 const MEASURE_OFFSCREEN = { position: "absolute", width: 1000, height: 0, overflow: "hidden", opacity: 0 } as const;
+
+function IncognitoBadge() {
+  const theme = useTheme();
+  if (!useAddressBarInSidebar()) return null;
+  return (
+    <View style={{ height: 30, marginBottom: 4, paddingHorizontal: 9, flexDirection: "row", alignItems: "center", gap: 7, borderRadius: 8, backgroundColor: theme.dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" }}>
+      <Symbol name={INCOGNITO_ICON} size={13} weight="semibold" color={theme.textPrimary} style={{ width: 18, height: 16 }} />
+      <Text style={{ fontSize: 12.5, fontWeight: "600", color: theme.textPrimary }}>Incognito</Text>
+    </View>
+  );
+}
 
 const NewTabRow = memo(function NewTabRow({ windowId, shift = null, clip = null }: { windowId: string; shift?: Animated.Value | null; clip?: ClipSource | null }) {
   const theme = useTheme();

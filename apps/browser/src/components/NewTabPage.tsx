@@ -3,10 +3,12 @@ import { useEffect, useState } from "react";
 import { Surface } from "@ardia/shell";
 import { AccessibilityInfo, Animated, StyleSheet, View } from "react-native";
 import { hex, layout, useTheme } from "../lib/theme";
+import { useBrowser } from "../store/browser";
 import { useWindowId } from "../store/hooks";
 import { useCardAnchors } from "./layout/windowLayout";
 import { springParams } from "./layout/swipeMotion";
 import { NewTabExtras } from "./ntp";
+import { IncognitoHeading } from "./ntp/IncognitoHeading";
 import { useOnboarding } from "./onboarding/state";
 import { Omnibox } from "./Omnibox";
 
@@ -25,6 +27,7 @@ const MARKS = {
 };
 const MARK_SIZE = 100;
 const MARK_ABOVE_BAR = 84.1;
+const INCOGNITO_ABOVE_MARK = 70;
 const SUN_DELAY = 250;
 const MARK_LAYERS = [
   { name: "sun", hidden: 56, delay: SUN_DELAY, spring: springParams(0.56, 0.9) },
@@ -55,6 +58,7 @@ export function barWidth(viewWidth: number) {
 export function NewTabPage({ tabId, toolbar = true }: { tabId: string; toolbar?: boolean }) {
   const theme = useTheme();
   const windowId = useWindowId();
+  const incognito = useBrowser((s) => !!s.windows[windowId]?.incognito);
   const onboarding = useOnboarding((s) => s.windowId === windowId);
   const card = useCardAnchors((s) => s[windowId]);
   const [size, setSizeState] = useState<Size | null>(() => (lastSize && (!card || sameSize(lastSize.card, card)) ? lastSize.size : null));
@@ -105,6 +109,7 @@ export function NewTabPage({ tabId, toolbar = true }: { tabId: string; toolbar?:
           halo={bar}
         />
       )}
+      {!onboarding && incognito && <IncognitoHeading left={x} top={top - MARK_ABOVE_BAR - INCOGNITO_ABOVE_MARK} width={width} />}
       <View
         pointerEvents="none"
         style={{
