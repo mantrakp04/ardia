@@ -7,7 +7,7 @@ import { calendarConnected, connectCalendar, setCalendarHidden, useCalendar } fr
 import { deleteLiveFolder, manualRefresh, newLiveFolder, openLiveItem, refreshFolder, statusText } from "../live/engine";
 import { ALERT_LEADS, nowBadgeEvent } from "../live/meetings";
 import { SOURCES } from "../live/sources";
-import { dismissNowBadge, hideItems, live, markRead, markUnread, updateCalendarSettings, updateFolder } from "../live/store";
+import { dismissNowBadge, hideItems, live, markRead, markUnread, setRepoHidden, updateCalendarSettings, updateFolder } from "../live/store";
 import type { LiveItem, LiveSourceId } from "../live/types";
 import { useBrowser } from "../browser/store";
 import { openSettings } from "../settings/settingsWindows";
@@ -56,6 +56,9 @@ export function liveFolderMenuItems(windowId: string, folderId: string): MenuIte
   if (!folder) return [];
   const { canMoveUp, canMoveDown } = folderPlace(windowId, folderId);
   const pr = folder.kind === "pullRequests";
+  const hiddenRepos = new Set(folder.hiddenRepos);
+  const listed = [...(s.items[folderId] ?? []), ...(s.hidden[folderId] ?? [])].flatMap((it) => (it.pr ? [it.pr.repo] : []));
+  const repos = [...new Set([...listed, ...hiddenRepos])].sort((a, b) => a.localeCompare(b));
   return sections(
     [
       { id: "status", title: statusText(folderId), enabled: false },
@@ -66,6 +69,15 @@ export function liveFolderMenuItems(windowId: string, folderId: string): MenuIte
       ? [
           { id: "filter:authored", title: "Created by Me", checked: folder.filters.authored },
           { id: "filter:reviewRequests", title: "Awaiting My Review", checked: folder.filters.reviewRequests },
+          {
+            id: "repos",
+            title: "Repositories",
+            enabled: repos.length > 0,
+            children: sections(
+              [{ id: "repos:all", title: "Show All Repositories", enabled: hiddenRepos.size > 0 }],
+              repos.map((repo) => ({ id: `repo:${repo}`, title: repo, checked: !hiddenRepos.has(repo) })),
+            ),
+          },
         ]
       : [],
     pr
@@ -107,7 +119,15 @@ export async function openLiveFolderMenu(windowId: string, folderId: string) {
   const option = FOLDER_OPTIONS.find((key) => choice === `option:${key}`);
   if (choice === "refresh") void manualRefresh(folderId);
   else if (option) updateFolder(folderId, { [option]: !folder[option] });
-  else if (choice.startsWith("filter:")) {
+  else if (choice === "repos:all") {
+    updateFolder(folderId, { hiddenRepos: [] });
+    void refreshFolder(folderId);
+  } else if (choice.startsWith("repo:")) {
+    const repo = choice.slice(5);
+    const show = folder.hiddenRepos.includes(repo);
+    setRepoHidden(folderId, repo, !show);
+    if (show) void refreshFolder(folderId);
+  } else if (choice.startsWith("filter:")) {
     const key = choice.slice(7) as "authored" | "reviewRequests";
     updateFolder(folderId, { filters: { ...folder.filters, [key]: !folder.filters[key] } });
     void refreshFolder(folderId);

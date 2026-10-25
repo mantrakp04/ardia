@@ -51,7 +51,8 @@ async function run(folderId: string) {
   if (!live().folders[folderId]) return;
   const fromFailedSource = (it: LiveItem) => failed.some((f) => f.source === it.source);
   const listedByFilters = (it: LiveItem) => (it.section === "review" || it.section === "team" ? folder.filters.reviewRequests : folder.filters.authored);
-  const fetchWouldList = (it: LiveItem) => folder.sources.includes(it.source) && !fromFailedSource(it) && listedByFilters(it);
+  const repoShown = (it: LiveItem) => !it.pr || !live().folders[folderId]?.hiddenRepos.includes(it.pr.repo);
+  const fetchWouldList = (it: LiveItem) => folder.sources.includes(it.source) && !fromFailedSource(it) && listedByFilters(it) && repoShown(it);
 
   const landed = live();
   const ids = new Set(fetched.map((it) => it.id));
@@ -67,7 +68,7 @@ async function run(folderId: string) {
   const current = live();
   const prev = current.items[folderId] ?? [];
   const animating = new Set(current.completing[folderId] ?? []);
-  const next = [...fetched, ...prev.filter((it) => fromFailedSource(it) && !animating.has(it.id))];
+  const next = [...fetched.filter(repoShown), ...prev.filter((it) => fromFailedSource(it) && !animating.has(it.id))];
 
   const firstFailure = failed[0];
   if (firstFailure && failed.length === folder.sources.length && !prev.length && !before.status[folderId]?.lastFetch) {

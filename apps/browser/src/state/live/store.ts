@@ -79,7 +79,7 @@ function load(): Partial<LiveState> {
 
 const saved = load();
 
-const FOLDER_OPTION_DEFAULTS = { groupStacks: true, showCompleted: true } satisfies Partial<LiveFolder>;
+const FOLDER_OPTION_DEFAULTS = { groupStacks: true, showCompleted: true, hiddenRepos: [] as string[] } satisfies Partial<LiveFolder>;
 
 const withOptionDefaults = (folders: Record<string, LiveFolder> = {}) =>
   Object.fromEntries(Object.entries(folders).map(([id, f]) => [id, { ...FOLDER_OPTION_DEFAULTS, ...f }]));
@@ -284,6 +284,25 @@ export function hideItems(folderId: string, hiding: LiveItem[]) {
     completing: { ...s.completing, [folderId]: (s.completing[folderId] ?? []).filter(shown) },
     completed: { ...s.completed, [folderId]: (s.completed[folderId] ?? []).filter((c) => shown(c.item.id)) },
   }));
+}
+
+export function setRepoHidden(folderId: string, repo: string, hidden: boolean) {
+  setLive((s) => {
+    const folder = s.folders[folderId];
+    if (!folder) return {};
+    const hiddenRepos = folder.hiddenRepos.filter((r) => r !== repo);
+    if (!hidden) return { folders: { ...s.folders, [folderId]: { ...folder, hiddenRepos } } };
+    const shown = (it: LiveItem) => it.pr?.repo !== repo;
+    const removed = new Set((s.items[folderId] ?? []).filter((it) => !shown(it)).map((it) => it.id));
+    return {
+      folders: { ...s.folders, [folderId]: { ...folder, hiddenRepos: [...hiddenRepos, repo] } },
+      items: { ...s.items, [folderId]: (s.items[folderId] ?? []).filter(shown) },
+      hidden: { ...s.hidden, [folderId]: (s.hidden[folderId] ?? []).filter(shown) },
+      unread: { ...s.unread, [folderId]: (s.unread[folderId] ?? []).filter((id) => !removed.has(id)) },
+      completing: { ...s.completing, [folderId]: (s.completing[folderId] ?? []).filter((id) => !removed.has(id)) },
+      completed: { ...s.completed, [folderId]: (s.completed[folderId] ?? []).filter((c) => shown(c.item)) },
+    };
+  });
 }
 
 export function unhide(folderId: string) {
