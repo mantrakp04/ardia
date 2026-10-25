@@ -4,20 +4,42 @@ const { useBrowser } = await import("./browser.ts");
 const { sessionTabIds } = await import("./organize.ts");
 
 const S = () => useBrowser.getState();
+const HOUR = 60 * 60 * 1000;
 
-test("the tab switcher lists only tabs opened or visited since launch, most recent first", () => {
+function stamp(times) {
+  useBrowser.setState((s) => {
+    const tabs = { ...s.tabs };
+    for (const [id, [createdAt, lastActiveAt]] of Object.entries(times)) tabs[id] = { ...tabs[id], createdAt, lastActiveAt };
+    return { tabs };
+  });
+}
+
+test("the tab switcher lists exactly the tabs opened or visited since launch, most recent first", () => {
   S().hydrate({});
+  const now = Date.now();
+  const start = now - HOUR;
   const w = S().createWindow({ url: "https://old.example/" });
   const old = S().windows[w].activeTabIds[S().windows[w].profileId];
   const older = S().newTab(w, { url: "https://older.example/", background: true });
-  useBrowser.setState((s) => ({ tabs: { ...s.tabs, [old]: { ...s.tabs[old], createdAt: 1, lastActiveAt: 1 }, [older]: { ...s.tabs[older], createdAt: 1, lastActiveAt: 2 } } }));
-  const start = 100;
-  const fast = S().newTab(w, { url: "https://fast.com/" });
+  const revisited = S().newTab(w, { url: "https://revisited.example/", background: true });
+  const fast = S().newTab(w, { url: "https://fast.com/", background: true });
   const google = S().newTab(w, { url: "https://google.com/" });
-  useBrowser.setState((s) => ({ tabs: { ...s.tabs, [fast]: { ...s.tabs[fast], lastActiveAt: 200 }, [google]: { ...s.tabs[google], lastActiveAt: 300 } } }));
-  const ids = sessionTabIds(S(), w, start);
-  assert.deepEqual(ids.map((id) => S().tabs[id].url), ["https://google.com/", "https://fast.com/"]);
-  assert.ok(!ids.includes(older));
-  assert.equal(ids[0], google);
-  assert.ok(ids.includes(fast));
+  stamp({
+    [old]: [now - 4 * HOUR, now - 3 * HOUR],
+    [older]: [now - 4 * HOUR, now - 3.5 * HOUR],
+    [revisited]: [now - 5 * HOUR, now - 30 * 60 * 1000],
+    [fast]: [now - 20 * 60 * 1000, now - 10 * 60 * 1000],
+    [google]: [now - 5 * 60 * 1000, now - 1000],
+  });
+  assert.deepEqual(sessionTabIds(S(), w, start), [google, fast, revisited]);
+});
+
+test("with fewer than two tabs since launch the switcher falls back to recent tabs", () => {
+  S().hydrate({});
+  const now = Date.now();
+  const w = S().createWindow({ url: "https://old.example/" });
+  const old = S().windows[w].activeTabIds[S().windows[w].profileId];
+  const fresh = S().newTab(w, { url: "https://fresh.example/" });
+  stamp({ [old]: [now - 4 * HOUR, now - 3 * HOUR], [fresh]: [now - 60 * 1000, now - 1000] });
+  assert.deepEqual(sessionTabIds(S(), w, now - HOUR), [fresh, old]);
 });

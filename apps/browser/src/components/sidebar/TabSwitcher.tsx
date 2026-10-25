@@ -1,10 +1,10 @@
 import { Surface, Symbol } from "@ardia/shell";
-import { memo, useEffect, useRef } from "react";
+import { memo, useEffect, useRef, useSyncExternalStore } from "react";
 import { Animated, Easing, Image, Pressable, StyleSheet, Text, View } from "react-native";
-import { lastPicture } from "../../lib/tabPictures";
+import { lastPicture, onPicturesChanged } from "../../lib/tabPictures";
 import { hex, useTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
-import { Favicon } from "../primitives";
+import { TabIcon } from "./TabIcon";
 import { tabTitle } from "./actions";
 import { useSidebarUi } from "./state";
 import { commitSwitcher, hoverSwitcherRow, leaveSwitcherRow } from "./switcher";
@@ -65,9 +65,9 @@ export function TabSwitcher({ windowId, windowWidth, windowHeight }: { windowId:
 
 const SwitcherCard = memo(function SwitcherCard({ tabId, index, focused, accent }: { tabId: string; index: number; focused: boolean; accent: string }) {
   const tab = useBrowser((s) => s.tabs[tabId]);
+  const picture = useSyncExternalStore(onPicturesChanged, () => lastPicture(tabId));
   useEffect(() => () => leaveSwitcherRow(index), [index]);
   if (!tab) return null;
-  const picture = lastPicture(tabId);
   const url = tab.url || tab.pinnedUrl || "";
   return (
     <Pressable onPressIn={() => commitSwitcher(index)}>
@@ -92,11 +92,15 @@ const SwitcherCard = memo(function SwitcherCard({ tabId, index, focused, accent 
           {picture ? (
             <Image source={{ uri: `data:image/jpeg;base64,${picture.data}` }} resizeMode="cover" style={StyleSheet.absoluteFill} />
           ) : (
-            <Favicon url={url} favicon={tab.favicon} profileId={tab.profileId} size={30} />
+            <TabIcon tabId={tab.id} url={url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} size={30} />
           )}
         </View>
         <View style={{ height: LABEL, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 2 }}>
-          {url ? <Favicon url={url} favicon={tab.favicon} profileId={tab.profileId} size={13} /> : <Symbol name="globe" size={12} color="#FFFFFFB3" style={{ width: 13, height: 13 }} />}
+          {url || tab.customIcon ? (
+            <TabIcon tabId={tab.id} url={url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} size={13} />
+          ) : (
+            <Symbol name="globe" size={12} color="#FFFFFFB3" style={{ width: 13, height: 13 }} />
+          )}
           <Text numberOfLines={1} style={{ flex: 1, fontSize: 12, fontWeight: "600", color: "#FFFFFF" }}>
             {tabTitle(tab)}
           </Text>

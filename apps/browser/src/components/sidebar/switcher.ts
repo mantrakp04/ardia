@@ -18,7 +18,9 @@ export function switcherStep(windowId: string, backward: boolean) {
   if (current && current.windowId === windowId) return moveSwitcher(backward ? -1 : 1);
   const ids = sessionTabIds(useBrowser.getState(), windowId, SESSION_START);
   if (ids.length < 2) return;
-  void rememberPicture(ids[0]!);
+  const w = useBrowser.getState().windows[windowId];
+  const shown = w?.activeTabIds[w.profileId];
+  if (shown) void rememberPicture(shown);
   setSidebarUi({ switcher: { windowId, ids, index: backward ? ids.length - 1 : 1, visible: false } });
   setSwitcherCapture(true);
   clearTimeout(showTimer);
