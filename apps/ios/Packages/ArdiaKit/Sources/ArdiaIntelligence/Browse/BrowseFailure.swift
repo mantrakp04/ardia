@@ -10,6 +10,7 @@ public enum BrowseFailure: Sendable, Hashable {
   case unsupportedLanguage
   case tooMuchToRead
   case generationFailed
+  case featureOff
 
   public var title: String {
     switch self {
@@ -22,6 +23,7 @@ public enum BrowseFailure: Sendable, Hashable {
     case .unsupportedLanguage: String(localized: "Language Not Supported")
     case .tooMuchToRead: String(localized: "Too Much to Read")
     case .generationFailed: String(localized: "Couldn\u{2019}t Finish the Page")
+    case .featureOff: String(localized: "AI Features Are Off")
     }
   }
 
@@ -44,12 +46,14 @@ public enum BrowseFailure: Sendable, Hashable {
       String(localized: "These pages were too long to read together. Here are the pages it found.")
     case .generationFailed:
       String(localized: "There was an error generating your page. Please try again.")
+    case .featureOff:
+      String(localized: "Turn on AI Features in Settings \u{203A} Experiments to use Browse for Me.")
     }
   }
 
   public var showsSources: Bool {
     switch self {
-    case .offline, .noResults, .searchUnavailable: false
+    case .offline, .noResults, .searchUnavailable, .featureOff: false
     case .sourcesUnreachable, .modelUnavailable, .guardrail, .unsupportedLanguage, .tooMuchToRead, .generationFailed: true
     }
   }
@@ -58,9 +62,11 @@ public enum BrowseFailure: Sendable, Hashable {
     switch self {
     case .offline, .searchUnavailable, .sourcesUnreachable, .generationFailed: true
     case .modelUnavailable(let status): status == .modelDownloading
-    case .noResults, .guardrail, .unsupportedLanguage, .tooMuchToRead: false
+    case .noResults, .guardrail, .unsupportedLanguage, .tooMuchToRead, .featureOff: false
     }
   }
+
+  public var opensExperiments: Bool { self == .featureOff }
 
   public var offersSettingsLink: Bool {
     if case .modelUnavailable(let status) = self { return status.offersSettingsLink }

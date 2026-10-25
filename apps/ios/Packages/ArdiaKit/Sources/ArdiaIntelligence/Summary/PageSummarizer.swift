@@ -43,10 +43,15 @@ public final class PageSummarizer {
   private var conversation: (any IntelligenceConversation)?
   private var sharedPassages: Set<String> = []
 
-  public init(page: PageText, model: any IntelligenceModel) {
+  private let gate: @MainActor () -> Bool
+
+  public init(page: PageText, model: any IntelligenceModel, gate: @escaping @MainActor () -> Bool = { true }) {
     self.page = page
     self.model = model
+    self.gate = gate
   }
+
+  public var isEnabled: Bool { gate() }
 
   public var isSummarizing: Bool {
     switch phase {
@@ -60,7 +65,7 @@ public final class PageSummarizer {
   }
 
   public func prewarm() {
-    guard model.status.isAvailable else { return }
+    guard gate(), model.status.isAvailable else { return }
     model.prewarm(instructions: Prompts.summaryInstructions)
   }
 
@@ -99,6 +104,10 @@ public final class PageSummarizer {
     runID += 1
     let run = runID
     summary = PageSummary()
+    guard gate() else {
+      phase = .failed(.featureOff)
+      return
+    }
     let status = model.status
     guard status.isAvailable else {
       phase = .failed(.modelUnavailable(status))
@@ -181,6 +190,10 @@ public final class PageSummarizer {
 
   private func answer(_ id: UUID, run: Int) async {
     guard isCurrentAsk(run) else { return }
+    guard gate() else {
+      update(id) { $0.state = .failed(.featureOff) }
+      return
+    }
     let status = model.status
     guard status.isAvailable else {
       update(id) { $0.state = .failed(.modelUnavailable(status)) }

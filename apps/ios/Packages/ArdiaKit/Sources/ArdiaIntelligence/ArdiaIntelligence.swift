@@ -14,27 +14,55 @@ public final class Intelligence {
   @ObservationIgnored private var lastSummaryPrewarm: ContinuousClock.Instant?
   private static let prewarmInterval: Duration = .seconds(45)
 
-  public init(model: any IntelligenceModel = FoundationIntelligenceModel(), sourcing: any BrowseSourcing = WebSourcing()) {
+  @ObservationIgnored private let featureSwitch: FeatureSwitch
+
+  public var isEnabled: Bool {
+    get { featureSwitch.isOn }
+    set {
+      guard newValue != featureSwitch.isOn else { return }
+      featureSwitch.isOn = newValue
+      if newValue {
+        availability.refresh()
+        availability.startWatching()
+      } else {
+        availability.stopWatching()
+        browses.values.forEach { $0.cancel() }
+        summarizers.values.forEach { $0.cancel() }
+      }
+    }
+  }
+
+  public init(
+    model: any IntelligenceModel = FoundationIntelligenceModel(), sourcing: any BrowseSourcing = WebSourcing(),
+    isEnabled: Bool = false
+  ) {
     self.model = model
     self.sourcing = sourcing
+    featureSwitch = FeatureSwitch(isOn: isEnabled)
     availability = IntelligenceAvailability(model: model)
-    availability.startWatching()
+    if isEnabled { availability.startWatching() }
   }
 
   public func browse(_ query: String, configuration: BrowseForMe.Configuration = .standard) -> BrowseForMe {
-    BrowseForMe(query: query, model: model, sourcing: sourcing, configuration: configuration)
+    BrowseForMe(query: query, model: model, sourcing: sourcing, configuration: configuration, gate: gate)
   }
 
   public func reopen(_ page: BrowsePage) -> BrowseForMe {
-    BrowseForMe(restoring: page, model: model, sourcing: sourcing)
+    BrowseForMe(restoring: page, model: model, sourcing: sourcing, gate: gate)
   }
 
   public func summarizer(for page: PageText) -> PageSummarizer {
-    PageSummarizer(page: page, model: model)
+    PageSummarizer(page: page, model: model, gate: gate)
   }
 
-  public static func demo(status: IntelligenceStatus = .available, sourcing: DemoSourcing = DemoSourcing()) -> Intelligence {
-    Intelligence(model: DemoIntelligenceModel(status: status), sourcing: sourcing)
+  private var gate: @MainActor () -> Bool {
+    { [featureSwitch] in featureSwitch.isOn }
+  }
+
+  public static func demo(
+    status: IntelligenceStatus = .available, sourcing: DemoSourcing = DemoSourcing(), isEnabled: Bool = true
+  ) -> Intelligence {
+    Intelligence(model: DemoIntelligenceModel(status: status), sourcing: sourcing, isEnabled: isEnabled)
   }
 
   public func browse(forTab tabID: UUID, query: String, restoring page: BrowsePage? = nil) -> BrowseForMe {
@@ -66,12 +94,12 @@ public final class Intelligence {
   }
 
   public func searchFieldDidBeginEditing() {
-    guard Self.isDue(&lastBrowsePrewarm) else { return }
+    guard isEnabled, Self.isDue(&lastBrowsePrewarm) else { return }
     BrowseForMe.prewarm(model)
   }
 
   public func summaryWillOpen() {
-    guard Self.isDue(&lastSummaryPrewarm), model.status.isAvailable else { return }
+    guard isEnabled, Self.isDue(&lastSummaryPrewarm), model.status.isAvailable else { return }
     model.prewarm(instructions: Prompts.summaryInstructions)
   }
 
@@ -80,5 +108,15 @@ public final class Intelligence {
     if let last, last.duration(to: now) < prewarmInterval { return false }
     last = now
     return true
+  }
+}
+
+@MainActor
+@Observable
+final class FeatureSwitch {
+  var isOn: Bool
+
+  init(isOn: Bool) {
+    self.isOn = isOn
   }
 }

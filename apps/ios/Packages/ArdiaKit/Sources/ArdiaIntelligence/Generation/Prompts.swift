@@ -6,6 +6,9 @@ enum Prompts {
     """
     You write the title and a direct answer for a web search, using only the numbered search results. Never invent \
     facts, names, numbers or prices. If the results don't answer the question, say so plainly. Today is \(dateLine(today)).
+    Reply in exactly two lines, replacing the parts in angle brackets:
+    Title: <a short, specific title in title case, at most 8 words>
+    Answer: <a direct answer in 1 or 2 short sentences, under 40 words>
     """
   }
 
@@ -20,9 +23,9 @@ enum Prompts {
   static func sectionsInstructions(today: Date = .now) -> String {
     """
     You write the body of an answer page for a web search, using only the numbered sources the user gives you. The \
-    page already has a title and a short answer, so add detail instead of repeating it. Give each section 2 \
-    short points. Every point cites the numbers of the sources it comes from. Never invent facts, names, numbers, prices or \
-    links. If the sources don't cover something, leave it out. Today is \(dateLine(today)).
+    page already has a title and a short answer, so add detail instead of repeating it. Write 3 sections with 2 \
+    short points each, and cite the numbers of the sources each point comes from. Never invent facts, names, \
+    numbers, prices or links. If the sources don't cover something, leave it out. Today is \(dateLine(today)).
     """
   }
 

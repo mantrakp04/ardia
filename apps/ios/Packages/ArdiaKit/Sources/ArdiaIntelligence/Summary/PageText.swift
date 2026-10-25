@@ -38,10 +38,14 @@ public enum SummaryFailure: Sendable, Hashable {
   case guardrail
   case unsupportedLanguage
   case failed
+  case featureOff
+
+  public var opensExperiments: Bool { self == .featureOff }
 
   public var title: String {
     switch self {
     case .modelUnavailable(let status): status.title
+    case .featureOff: String(localized: "AI Features Are Off")
     case .nothingToSummarize, .guardrail, .unsupportedLanguage, .failed: SummaryCopy.unableToSummarize
     }
   }
@@ -53,6 +57,7 @@ public enum SummaryFailure: Sendable, Hashable {
     case .guardrail: String(localized: "Apple Intelligence can\u{2019}t summarize this page.")
     case .unsupportedLanguage: String(localized: "Apple Intelligence can\u{2019}t read this page\u{2019}s language yet.")
     case .failed: String(localized: "Something went wrong. Try again.")
+    case .featureOff: String(localized: "Turn on AI Features in Settings \u{203A} Experiments to summarize pages and ask about them.")
     }
   }
 

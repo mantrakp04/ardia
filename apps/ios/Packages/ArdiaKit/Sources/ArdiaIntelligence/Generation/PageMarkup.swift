@@ -1,35 +1,21 @@
 import Foundation
 
 enum PageMarkup {
-  static let sectionsExample = """
-    ## Short Heading
-    - 🚀 Lead: One short sentence from the sources. [1, 2]
-    - 💡 Lead: Another short sentence. [3]
-    ## Another Heading
-    - ⏱️ Lead: One short sentence. [2]
-    - ⚠️ Lead: One short sentence. [1, 4]
-    Next:
-    ? A follow-up question
-    ? Another follow-up question
-    ? A third follow-up question
-    """
-
   static func overview(_ text: String) -> BrowsePageDraft {
     var draft = BrowsePageDraft()
     var answerLines: [String] = []
-    var inAnswer = false
     for rawLine in text.split(separator: "\n", omittingEmptySubsequences: false) {
       let line = clean(String(rawLine))
       if let value = value(of: "title", in: line) {
         draft.title = value
-        inAnswer = false
       } else if let value = value(of: "answer", in: line) {
         answerLines = value.isEmpty ? [] : [value]
-        inAnswer = true
-      } else if inAnswer, !line.isEmpty {
-        answerLines.append(line)
-      } else if draft.title == nil, !line.isEmpty, answerLines.isEmpty {
+      } else if line.isEmpty {
+        continue
+      } else if draft.title == nil, answerLines.isEmpty {
         draft.title = line
+      } else {
+        answerLines.append(line)
       }
     }
     if !answerLines.isEmpty { draft.answer = answerLines.joined(separator: " ") }
@@ -47,9 +33,10 @@ enum PageMarkup {
         readingFollowUps = true
         continue
       }
-      if readingFollowUps {
+      if readingFollowUps || line.hasPrefix("?") {
         let question = stripMarker(unbolded)
-        if !question.isEmpty { draft.followUps.append(question) }
+          .trimmingCharacters(in: CharacterSet(charactersIn: "? ").union(.whitespaces))
+        if !question.isEmpty { draft.followUps.append(question.hasSuffix("?") ? question : question + "?") }
         continue
       }
       if line.hasPrefix("#") {
@@ -77,17 +64,47 @@ enum PageMarkup {
       rest = rest.dropFirst().drop { $0 == " " }
     }
     var lead = ""
-    let text = String(rest).replacingOccurrences(of: "**", with: "")
+    var text = clean(String(rest))
+    for label in ["Sources:", "Source:", "Point:"] where text.hasPrefix(label) {
+      text = String(text.dropFirst(label.count)).trimmingCharacters(in: .whitespaces)
+    }
     var sentence = text
     if let colon = text.firstIndex(of: ":") {
       let candidate = text[..<colon].trimmingCharacters(in: .whitespaces)
       if !candidate.isEmpty, candidate.split(separator: " ").count <= 5, !candidate.contains("[") {
-        lead = candidate
+        lead = candidate.prefix(1).uppercased() + candidate.dropFirst()
         sentence = String(text[text.index(after: colon)...]).trimmingCharacters(in: .whitespaces)
       }
     }
-    let stripped = Citations.strip(sentence)
-    return BrowsePageDraft.Bullet(emoji: emoji, lead: lead, text: stripped.text, sources: stripped.numbers)
+    let cited = trailingCitations(sentence)
+    let stripped = Citations.strip(cited.text)
+    let sources = Array(Set(cited.numbers + stripped.numbers)).sorted()
+    return BrowsePageDraft.Bullet(emoji: emoji, lead: lead, text: stripped.text, sources: sources)
+  }
+
+  static func points(_ strings: [String]) -> [BrowsePageDraft.Bullet] {
+    var bullets: [BrowsePageDraft.Bullet] = []
+    for string in strings {
+      if !string.contains(where: \.isLetter), let last = bullets.indices.last {
+        let numbers = string.split { !$0.isNumber }.compactMap { Int($0) }
+        bullets[last].sources = Array(Set(bullets[last].sources + numbers)).sorted()
+        continue
+      }
+      bullets.append(bullet(string))
+    }
+    return bullets
+  }
+
+  static func trailingCitations(_ text: String) -> (text: String, numbers: [Int]) {
+    let allowed = Set("0123456789[](), ;")
+    guard let open = text.firstIndex(where: { $0 == "[" || $0 == "(" }),
+      text[open...].allSatisfy({ allowed.contains($0) }), text[open...].contains(where: \.isNumber)
+    else {
+      return (text, [])
+    }
+    let numbers = text[open...].split { !$0.isNumber }.compactMap { Int($0) }
+    let body = text[..<open].trimmingCharacters(in: .whitespaces)
+    return (body, numbers)
   }
 
   private static func isBullet(_ line: String) -> Bool {
@@ -118,6 +135,7 @@ enum PageMarkup {
   }
 
   private static func clean(_ text: String) -> String {
-    text.replacingOccurrences(of: "**", with: "").trimmingCharacters(in: .whitespaces)
+    text.replacingOccurrences(of: "**", with: "").replacingOccurrences(of: "<", with: "")
+      .replacingOccurrences(of: ">", with: "").trimmingCharacters(in: .whitespaces)
   }
 }

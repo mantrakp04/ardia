@@ -2,46 +2,24 @@ import Foundation
 import FoundationModels
 import Synchronization
 
-@Generable(description: "The top of an answer page: its title and a direct answer")
-struct GeneratedOverview {
-  @Guide(description: "A short, specific title for the page in title case, at most 8 words")
-  var title: String
-
-  @Guide(description: "A direct answer to the question in 1 or 2 short sentences, under 40 words, using only the search results")
-  var answer: String
-}
-
 @Generable(description: "The body of an answer page built only from numbered web sources")
-struct GeneratedSections {
+struct GeneratedOutline {
   @Guide(description: "Usually 3 sections that cover the question from different angles", .count(1...3))
-  var sections: [GeneratedSection]
+  var sections: [GeneratedOutlineSection]
 
-  @Guide(description: "Questions the reader might ask next, each under 8 words", .count(3))
+  @Guide(description: "3 questions the reader might ask next, each under 8 words", .count(3))
   var followUps: [String]
 }
 
 @Generable(description: "A section of the answer page")
-struct GeneratedSection {
-  @Guide(description: "A short heading of 2 to 5 words")
+struct GeneratedOutlineSection {
+  @Guide(description: "A heading of 2 to 5 words")
   var heading: String
 
-  @Guide(description: "The points in this section, usually 2", .count(1...3))
-  var bullets: [GeneratedBullet]
-}
-
-@Generable(description: "One point, with the sources it comes from")
-struct GeneratedBullet {
-  @Guide(description: "One emoji that fits the point")
-  var emoji: String
-
-  @Guide(description: "A bold lead of 1 to 3 words that names the point, like Price or Best For")
-  var lead: String
-
-  @Guide(description: "The point in one short sentence under 18 words, without source numbers")
-  var text: String
-
-  @Guide(description: "The numbers of the sources this point comes from", .count(1...3))
-  var sources: [Int]
+  @Guide(
+    description: "Usually 2 points. Each point is an emoji, a lead of 1 to 3 words, a colon, one short sentence under 18 words, and the numbers of its sources in brackets",
+    .count(1...3))
+  var points: [String]
 }
 
 @Generable(description: "A summary of a web page")
@@ -96,8 +74,8 @@ public final class FoundationIntelligenceModel: IntelligenceModel {
 
   public func schemaTokens(for kind: GenerationKind) async -> Int? {
     switch kind {
-    case .overview: try? await model.tokenCount(for: GeneratedOverview.generationSchema)
-    case .sections: try? await model.tokenCount(for: GeneratedSections.generationSchema)
+    case .overview: 0
+    case .sections: try? await model.tokenCount(for: GeneratedOutline.generationSchema)
     case .summary: try? await model.tokenCount(for: GeneratedSummary.generationSchema)
     case .notes, .answer: 0
     }
@@ -134,25 +112,31 @@ public final class FoundationIntelligenceModel: IntelligenceModel {
   }
 
   public func streamOverview(instructions: String, prompt: String) -> AsyncThrowingStream<BrowsePageDraft, any Error> {
-    let session = session(for: instructions)
-    return Self.relay { continuation in
-      let stream = session.streamResponse(
-        to: prompt, generating: GeneratedOverview.self,
-        options: GenerationOptions(temperature: 0.3, maximumResponseTokens: 140))
-      for try await snapshot in stream {
-        continuation.yield(BrowsePageDraft(title: snapshot.content.title, answer: snapshot.content.answer))
-      }
-    }
+    streamText(instructions: instructions, prompt: prompt, maximumTokens: 140, parse: PageMarkup.overview)
   }
 
   public func streamSections(instructions: String, prompt: String) -> AsyncThrowingStream<BrowsePageDraft, any Error> {
     let session = session(for: instructions)
     return Self.relay { continuation in
       let stream = session.streamResponse(
-        to: prompt, generating: GeneratedSections.self,
-        options: GenerationOptions(temperature: 0.3, maximumResponseTokens: 600))
+        to: prompt, generating: GeneratedOutline.self,
+        options: GenerationOptions(temperature: 0.3, maximumResponseTokens: 520))
       for try await snapshot in stream {
         continuation.yield(BrowsePageDraft(snapshot.content))
+      }
+    }
+  }
+
+  private func streamText(
+    instructions: String, prompt: String, maximumTokens: Int,
+    parse: @escaping @Sendable (String) -> BrowsePageDraft
+  ) -> AsyncThrowingStream<BrowsePageDraft, any Error> {
+    let session = session(for: instructions)
+    return Self.relay { continuation in
+      let stream = session.streamResponse(
+        to: prompt, options: GenerationOptions(temperature: 0.3, maximumResponseTokens: maximumTokens))
+      for try await snapshot in stream {
+        continuation.yield(parse(snapshot.content))
       }
     }
   }
@@ -248,15 +232,11 @@ final class FoundationConversation: IntelligenceConversation {
 }
 
 extension BrowsePageDraft {
-  init(_ partial: GeneratedSections.PartiallyGenerated) {
+  init(_ outline: GeneratedOutline.PartiallyGenerated) {
     self.init(
-      sections: (partial.sections ?? []).map { section in
-        Section(
-          heading: section.heading,
-          bullets: (section.bullets ?? []).map {
-            Bullet(emoji: $0.emoji, lead: $0.lead, text: $0.text, sources: $0.sources ?? [])
-          })
+      sections: (outline.sections ?? []).map { section in
+        Section(heading: section.heading, bullets: PageMarkup.points(section.points ?? []))
       },
-      followUps: partial.followUps ?? [])
+      followUps: outline.followUps ?? [])
   }
 }

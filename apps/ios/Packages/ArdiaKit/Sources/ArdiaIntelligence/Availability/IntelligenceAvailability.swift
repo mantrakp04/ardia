@@ -29,6 +29,11 @@ public final class IntelligenceAvailability {
     if current != status { status = current }
   }
 
+  public func stopWatching() {
+    watchers.forEach { $0.cancel() }
+    watchers = []
+  }
+
   public func startWatching() {
     guard watchers.isEmpty else { return }
     let changes = model.statusChanges()

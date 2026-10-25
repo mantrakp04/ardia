@@ -80,6 +80,7 @@ public final class BrowseForMe: Identifiable {
   private let model: any IntelligenceModel
   private let sourcing: any BrowseSourcing
   private let configuration: Configuration
+  private let gate: @MainActor () -> Bool
   private var task: Task<Void, Never>?
   private var runID = 0
   private var readPages: [Int: ReadablePage] = [:]
@@ -98,23 +99,25 @@ public final class BrowseForMe: Identifiable {
 
   public init(
     query: String, model: any IntelligenceModel, sourcing: any BrowseSourcing = WebSourcing(),
-    configuration: Configuration = .standard
+    configuration: Configuration = .standard, gate: @escaping @MainActor () -> Bool = { true }
   ) {
     self.query = query
     self.model = model
     self.sourcing = sourcing
     self.configuration = configuration
+    self.gate = gate
     page = BrowsePage(query: query)
   }
 
   public init(
     restoring page: BrowsePage, model: any IntelligenceModel, sourcing: any BrowseSourcing = WebSourcing(),
-    configuration: Configuration = .standard
+    configuration: Configuration = .standard, gate: @escaping @MainActor () -> Bool = { true }
   ) {
     self.query = page.query
     self.model = model
     self.sourcing = sourcing
     self.configuration = configuration
+    self.gate = gate
     self.page = page
     phase = .done
     sources = page.sources.map { source in
@@ -178,6 +181,10 @@ public final class BrowseForMe: Identifiable {
     sectionsDraft = BrowsePageDraft()
     timing = Timing()
     page = BrowsePage(query: query)
+    guard gate() else {
+      phase = .failed(.featureOff)
+      return
+    }
     phase = .searching
     let today = configuration.today ?? .now
     if model.status.isAvailable {
@@ -367,6 +374,9 @@ public final class BrowseForMe: Identifiable {
             $0.siteName = readable.siteName
             $0.imageURL = readable.imageURL
           }
+          if page.heroImages.count < 3, readable.imageURL != nil {
+            page.heroImages = heroImages(among: sources.map(\.id).filter { readPages[$0] != nil })
+          }
         case .failed(let index):
           running -= 1
           update(index) { $0.state = .failed }
@@ -400,7 +410,8 @@ public final class BrowseForMe: Identifiable {
       timing.sectionsStart = timing.sectionsStart ?? started.duration(to: clock.now)
       sectionsDraft = BrowsePageDraft()
       page.sources = numberedSources(used)
-      page.heroImages = heroImages(among: used)
+      let heroes = heroImages(among: used)
+      if Set(heroes) != Set(page.heroImages) { page.heroImages = heroes }
       applyDrafts(finished: false)
       do {
         sectionsDraft = try await consume(
