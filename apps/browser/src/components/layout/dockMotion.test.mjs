@@ -240,10 +240,10 @@ test("Arc's layout keeps the address bar in a hidden sidebar (no toolbar on the 
   reloadSwitches();
 });
 
-test("Arc's layout, with no toolbar to grab, frames the card in Arc's 10 pt on every side; Dia's keeps 6/7", async () => {
+test("Arc's layout, with no toolbar to grab, frames the card in Arc's 10 pt on every side; Dia's is Dia's 6 on every side", async () => {
   const { cardInset } = await import("./windowLayout.ts");
   assert.deepEqual(cardInset(true), { top: 10, right: 10, bottom: 10, left: 10 });
-  assert.deepEqual(cardInset(false), { top: 6, right: 7, bottom: 7, left: 7 });
+  assert.deepEqual(cardInset(false), { top: 6, right: 6, bottom: 6, left: 6 });
 });
 
 test("the peek panel still covers the card's rounded corners in Arc's wider frame", async () => {

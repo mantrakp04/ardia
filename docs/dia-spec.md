@@ -242,7 +242,9 @@ Regular rows on the 37 pt pitch; the same for "+ New Tab" and ⌘T, and for the 
 - The button is the card toolbar's first one (`sidebar.left`, centre 21 from the card's edge: x 211 with a 190
   sidebar, x 27 hidden). Clicking it hides the sidebar; clicking it again shows it.
 - Hidden: no sidebar and **no traffic lights** (not even with the pointer on the button, where the close button was).
-  The card goes from 6 pt to 6 pt (left and right edges of the page area measured the same way: 6 and 6), top 6; its
+  The card goes from 6 pt to 6 pt (left and right edges of the page area measured the same way: 6 and 6), top 6 (the
+  owner's Dia screenshot of 2026-10-25 at 1x: 6 on all four sides; ours was 7 on the sides and bottom from the first
+  commit, never measured, and is 6 since); its
   toolbar is the shown state's, starting at the card's edge (toggle 27, back 61, forward 97, reload 131, host 160).
 - Motion: the sidebar, its top row with the traffic lights and the card's left edge move together; the card's right
   edge and everything anchored to it (extension buttons, Chat) stay. The page is resized as it goes (a centred
@@ -259,7 +261,7 @@ screen capture (frames 8–33 ms apart, most 17), so timings are ±1 frame. Edge
 
 - Hidden: the page card fills the window; no toolbar row, no traffic lights, no back/forward/address. Arc's card inset is
   10 pt on every side, docked or hidden. Ours matches it in Arc's layout (2026-10-25, the owner: with no toolbar
-  to grab, Dia's 6/7 left too thin a strip to move the window by); Dia's layout keeps Dia's 6/7.
+  to grab, Dia's 6 pt left too thin a strip to move the window by); Dia's layout keeps Dia's 6 on every side.
 - Peek (pointer at the window's left edge): a floating panel over the page, which doesn't move. Inset 5 pt from the
   window's left, top and bottom edges (ours keeps Dia's 6/6/7), 227.5 pt wide (= the docked sidebar's width), rounded,
   dark, a 0.5 pt light border; it holds the traffic lights, the sidebar button, back/forward/reload, the URL field and the
