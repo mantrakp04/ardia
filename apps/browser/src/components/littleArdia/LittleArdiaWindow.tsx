@@ -17,6 +17,7 @@ import { showUrlBarMenu } from "../../state/omnibox/paste";
 import { copyPageUrl } from "../../state/site/selection";
 import { ProfileBadge } from "../profiles/ProfileIcons";
 import { openInMainWindow, openLittleArdiaProfileMenu } from "../../state/littleArdia/actions";
+import { startLittleArdiaNewTabLinks } from "../../state/littleArdia/newTabLinks";
 import { PageLabel, SMALL_BAR_BUTTON, SMALL_BAR_GAP, SMALL_FIELD_GAP, SMALL_INSET, SmallBar, SmallBarBadgeButton } from "./SmallChrome";
 import { SMALL_BAR_HEIGHT, SMALL_LIGHTS_CENTER } from "../../state/windows/small";
 import { HistoryButton } from "../toolbar/NavButtons";
@@ -38,6 +39,7 @@ const alreadyFocused = () => {};
 export function LittleArdiaWindow() {
   const theme = useTheme();
   const [width, setWidth] = useState(0);
+  useEffect(startLittleArdiaNewTabLinks, []);
   return (
     <View style={{ flex: 1 }} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
       <WindowBackdrop vibrancy {...theme.backdrop} colors={theme.windowTint} grainOpacity={theme.grain} style={StyleSheet.absoluteFill} />

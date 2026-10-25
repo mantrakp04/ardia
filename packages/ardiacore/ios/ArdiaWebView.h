@@ -51,6 +51,7 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 @interface ArdiaWebView (Tab)
++ (void)setLittleArdiaOpensNewTabLinks:(BOOL)enabled NS_SWIFT_NAME(setLittleArdiaOpensNewTabLinks(_:));
 - (void)resolveUnresponsive:(BOOL)terminate NS_SWIFT_NAME(resolveUnresponsive(terminate:));
 - (NSString *)discard:(BOOL)unload NS_SWIFT_NAME(discard(unload:));
 @end
