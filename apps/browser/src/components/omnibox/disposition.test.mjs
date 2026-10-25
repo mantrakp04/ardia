@@ -10,6 +10,7 @@ test("command bar modifiers pick where the result opens", () => {
   assert.equal(dispositionFor({ altKey: true }), "split");
   assert.equal(dispositionFor({ shiftKey: true }), "newWindow");
   assert.equal(dispositionFor({ metaKey: true, altKey: true }), "newTab");
+  assert.equal(dispositionFor({ ctrlKey: true, shiftKey: true }), "newWindow");
 });
 
 test("split opens a new pane unless one already sits to the right", () => {

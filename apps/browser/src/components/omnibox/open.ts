@@ -2,7 +2,7 @@ import { openWindow, switchToTab } from "../../lib/actions";
 import { useBrowser } from "../../store/browser";
 import { originalProfile } from "../../store/small";
 import { paneToReuse } from "../../store/splits";
-import { openInSplit, openSplitPane } from "../layout/splitActions";
+import { openSplitPane } from "../layout/splitActions";
 import type { Disposition } from "./disposition";
 
 export { dispositionFor, type Disposition } from "./disposition";
@@ -40,9 +40,10 @@ function openBesideInSplit(tabId: string, url: string): boolean {
 export function switchFromBar(targetTabId: string, url: string, barTabId: string, disposition: Disposition) {
   const s = useBrowser.getState();
   const bar = s.tabs[barTabId];
-  if (disposition === "split" && bar?.url && targetTabId !== barTabId) {
-    s.closePanel(bar.windowId);
-    return openInSplit(targetTabId);
+  const target = s.tabs[targetTabId];
+  if (disposition === "split" && bar?.url && target?.windowId === bar.windowId && targetTabId !== barTabId) {
+    if (!openSplitPane(bar.windowId, { tabId: targetTabId, anchorTabId: barTabId, side: "right" })) return;
+    return useBrowser.getState().closePanel(bar.windowId);
   }
   if (disposition !== "current") return void openFromBar(url, barTabId, disposition);
   if (bar) s.closePanel(bar.windowId);
