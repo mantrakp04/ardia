@@ -67,10 +67,52 @@ the folder or the Mac's format changes, and a Mac that has never heard of the iP
 - **Cycle.** On launch, on returning to the foreground, every 15 s while in the foreground, 3 s after a local
   change, on pull to refresh, and in background app refresh (`com.ardia.ios.sync`).
 
+## What the app does
+
+Arc Search's shape, measured from its App Store screenshots, preview videos and a teardown of version 1.49 (springs,
+sizes, copy), on Apple's controls:
+
+- **Start.** The app opens on a search sheet over a grainy indigo-to-pink gradient (a synced profile's Mac theme
+  replaces it), keyboard up. Suggestions come from the Mac's own omnibox code: open tabs, local and synced history,
+  bookmarks, the Mac's tabs, network suggestions, bangs and the calculator. Dragging along the rows scrubs them.
+- **Browsing.** No URL bar: the page runs under the status bar, with a frosted bottom bar (tab stack, +, chevron)
+  tinted by the page. Swipe the bar to switch tabs, swipe anywhere to go back. The chevron opens the page menu:
+  back, forward, title, pin, reload; Reader, Summarize, Copy Link (without trackers), Share; Find on Page, Send to a
+  Mac, Night Shade, Page Zoom, Request Desktop Site, Translate, Site Settings.
+- **Tabs.** An app-switcher deck of live snapshots; flick a card up to close it. Closing archives; tabs left alone
+  archive after a chosen interval (24 hours by default). Private tabs live in memory with their own website data.
+  The Mac's Spaces (profiles), pinned tiles, rows and groups, and its open tabs sit behind the deck's leading button.
+- **Blocking.** Ads, trackers and cookie banners: seed rules plus EasyList, EasyPrivacy and the EasyList Cookie List
+  converted on device, and a reject-all script for consent platforms; off per site from the page menu.
+- **AI features** (off by default, Settings › Experiments): Browse for Me (reads the top results and writes a
+  page) and Pinch to Summarize, on Apple Intelligence's on-device model. Nothing runs while they're off.
+- **System.** Widgets (search, the Mac's tabs, Lock Screen), Control Center controls, App Intents and Siri phrases,
+  a share extension and an Open in Ardia action, Spotlight for open and archived tabs, Handoff of the current page,
+  Home Screen quick actions, and http/https link handling. The default-browser entitlement is in
+  `Config/Ardia-Release.entitlements` for Release builds only, since it needs Apple's approval.
+
+## Demo mode and launch arguments
+
+`-ArdiaDemo YES` runs on an in-memory store with `SyncSnapshot.demo` (a MacBook Pro and a Mac Studio, two profiles)
+and never touches real data. Add `-ArdiaAIFeatures YES` for the AI features. Captures can be driven without touch:
+`-BrowseQuery <text>`, `-BrowseSurface browsing`, `-BrowseTab <n>`, `-BrowseToolbar`, `-BrowseSummary`,
+`-BrowseReader`, `-BrowseForMe <query>`, `-BrowseIncognito`, `-BrowseDelay <s>`, `-ArdiaDeck <script>`,
+`-ArdiaOnboarding YES`.
+
 ## Tests
 
-- `swift test --package-path apps/ios/Packages/ArdiaKit` runs the package's Swift Testing suites on the Mac host.
+- `swift test --package-path apps/ios/Packages/ArdiaKit` runs the package's Swift Testing suites on the Mac host:
+  sync end to end over a real vault with a fake Mac, the browser layer (tabs, archive, blocking converter, omnibox,
+  reader extraction in a real WKWebView), Apple Intelligence (sources, budgeting, the state machine, the parser),
+  and the JavaScriptCore bridge.
+- `pnpm --filter @ardia/sync test` includes the companion's tests and checks the bundles are current.
 - The app's own states are checked in the simulator (see the agent notes below).
+
+## Left for a person
+
+A real iPhone and a real Mac on the same iCloud account: scan the code, pick the folder, and watch tabs, history,
+bookmarks and sent tabs go both ways; a relaunch and a reboot keep the folder bookmark; background refresh runs.
+The simulator can't sign in to iCloud Drive.
 
 ## Agent notes
 
