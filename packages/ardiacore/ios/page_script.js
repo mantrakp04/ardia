@@ -257,10 +257,41 @@
   let eyeHost = null;
   let eyeButton = null;
   const isPassword = (el) => el.type === "password" || el === revealedField;
-  const EYE =
-    '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8s-2.4 4.5-6.5 4.5S1.5 8 1.5 8Z"/><circle cx="8" cy="8" r="2.1"/></svg>';
-  const EYE_SLASH =
-    '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><path d="M6.2 3.8A6.6 6.6 0 0 1 8 3.5c4.1 0 6.5 4.5 6.5 4.5a11 11 0 0 1-1.7 2.2M4.3 4.9C2.5 6.1 1.5 8 1.5 8s2.4 4.5 6.5 4.5c1.2 0 2.3-.4 3.2-.9"/><path d="M6.6 6.6a2.1 2.1 0 0 0 2.8 2.8"/><path d="M2 2l12 12"/></svg>';
+  const EYE = [
+    ["path", { d: "M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8s-2.4 4.5-6.5 4.5S1.5 8 1.5 8Z" }],
+    ["circle", { cx: "8", cy: "8", r: "2.1" }],
+  ];
+  const EYE_SLASH = [
+    ["path", { d: "M6.2 3.8A6.6 6.6 0 0 1 8 3.5c4.1 0 6.5 4.5 6.5 4.5a11 11 0 0 1-1.7 2.2M4.3 4.9C2.5 6.1 1.5 8 1.5 8s2.4 4.5 6.5 4.5c1.2 0 2.3-.4 3.2-.9" }],
+    ["path", { d: "M6.6 6.6a2.1 2.1 0 0 0 2.8 2.8" }],
+    ["path", { d: "M2 2l12 12" }],
+  ];
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const ICON_ATTRIBUTES = {
+    viewBox: "0 0 16 16",
+    width: "16",
+    height: "16",
+    fill: "none",
+    stroke: "currentColor",
+    "stroke-width": "1.35",
+    "stroke-linecap": "round",
+    "stroke-linejoin": "round",
+  };
+  const svgElement = (tag, attributes) => {
+    const el = document.createElementNS(SVG_NS, tag);
+    for (const name of keys(attributes)) el.setAttribute(name, attributes[name]);
+    return el;
+  };
+  const showIcon = (button, shapes, box = ICON_ATTRIBUTES) => {
+    const svg = svgElement("svg", box);
+    for (const [tag, attributes] of shapes) svg.appendChild(svgElement(tag, attributes));
+    button.replaceChildren(svg);
+  };
+  const FIELD_BUTTON_CSS =
+    "button{all:initial;box-sizing:border-box;display:flex;align-items:center;justify-content:center;border-radius:5px;cursor:default;opacity:.55;transition:opacity .12s,background-color .12s}" +
+    "button:hover{opacity:.85;background:color-mix(in srgb,currentColor 9%,transparent)}button:active{background:color-mix(in srgb,currentColor 16%,transparent)}" +
+    "button.badge{border-radius:6px;opacity:.7;background:color-mix(in srgb,currentColor 9%,transparent)}button.badge:hover{opacity:.9;background:color-mix(in srgb,currentColor 14%,transparent)}button.badge:active{background:color-mix(in srgb,currentColor 20%,transparent)}";
+  let fieldButtonSheet = null;
   const hasOwnToggle = (el) => {
     for (let n = el.parentElement, depth = 0; n && depth < 3 && n.querySelectorAll("input").length === 1; n = n.parentElement, depth++)
       for (const c of n.querySelectorAll('button, [role="button"], [aria-label], [title], [class*="eye" i], [class*="toggle" i]'))
@@ -268,18 +299,20 @@
           return true;
     return false;
   };
-  const trailingRect = (field) => {
+  const trailingRect = (field, aspect = 1) => {
     const r = field.getBoundingClientRect();
     const cs = getComputedStyle(field);
     const size = Math.min(24, Math.max(18, r.height - 8));
+    const width = Math.round(size * aspect);
     const inset = Math.max(4, Math.min(10, parseFloat(cs.paddingRight) || 4));
-    return { left: r.right - (parseFloat(cs.borderRightWidth) || 0) - inset - size, top: r.top + (r.height - size) / 2, size, color: cs.color };
+    return { left: r.right - (parseFloat(cs.borderRightWidth) || 0) - inset - width, top: r.top + (r.height - size) / 2, size, width, color: cs.color };
   };
-  const placeTrailing = (host, button, field) => {
-    const { left, top, size, color } = trailingRect(field);
+  const placeTrailing = (host, button, field, aspect = 1) => {
+    const { left, top, size, width, color } = trailingRect(field, aspect);
     host.style.left = left + "px";
     host.style.top = top + "px";
-    button.style.width = button.style.height = size + "px";
+    button.style.width = width + "px";
+    button.style.height = size + "px";
     button.style.color = color;
   };
   const placeEye = () => {
@@ -289,11 +322,21 @@
     const host = document.createElement(tag);
     host.style.cssText = "all:initial;position:fixed;z-index:2147483647;display:none;";
     const root = host.attachShadow({ mode: "closed" });
-    root.innerHTML =
-      "<style>button{all:initial;box-sizing:border-box;display:flex;align-items:center;justify-content:center;border-radius:5px;cursor:default;opacity:.55;transition:opacity .12s,background-color .12s}" +
-      "button:hover{opacity:.85;background:color-mix(in srgb,currentColor 9%,transparent)}button:active{background:color-mix(in srgb,currentColor 16%,transparent)}</style>" +
-      '<button type="button" tabindex="-1"></button>';
-    const button = root.querySelector("button");
+    try {
+      if (!fieldButtonSheet) {
+        fieldButtonSheet = new CSSStyleSheet();
+        fieldButtonSheet.replaceSync(FIELD_BUTTON_CSS);
+      }
+      root.adoptedStyleSheets = [fieldButtonSheet];
+    } catch {
+      const style = document.createElement("style");
+      style.textContent = FIELD_BUTTON_CSS;
+      root.appendChild(style);
+    }
+    const button = document.createElement("button");
+    button.type = "button";
+    button.tabIndex = -1;
+    root.appendChild(button);
     button.addEventListener("mousedown", (e) => e.preventDefault());
     return { host, button };
   };
@@ -306,12 +349,12 @@
     if (!el) return;
     revealedField = null;
     if (el.type === "text") el.type = "password";
-    if (eyeButton) eyeButton.innerHTML = EYE;
+    if (eyeButton) showIcon(eyeButton, EYE);
   };
   const ensureEye = () => {
     if (eyeHost && eyeHost.isConnected) return;
     ({ host: eyeHost, button: eyeButton } = fieldButton("ardia-reveal"));
-    eyeButton.innerHTML = EYE;
+    showIcon(eyeButton, EYE);
     eyeButton.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -322,7 +365,7 @@
       else {
         revealedField = el;
         el.type = "text";
-        eyeButton.innerHTML = EYE_SLASH;
+        showIcon(eyeButton, EYE_SLASH);
       }
       eyeButton.title = revealedField ? "Hide password" : "Show password";
       el.focus();
@@ -403,8 +446,13 @@
   };
   const verificationSetupURL = (raw) => (typeof raw === "string" && raw.length <= 2048 && OTPAUTH.test(raw) ? raw : null);
 
-  const KEY =
-    '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><circle cx="4.75" cy="8" r="2.75"/><path d="M7.5 8h7M12.5 8v2.5M10.25 8v1.75"/></svg>';
+  const KEY = [
+    ["path", { d: "M5 4.4a3.6 3.6 0 1 0 0 7.2a3.6 3.6 0 1 0 0-7.2ZM4.2 6.9a1.1 1.1 0 1 1 0 2.2a1.1 1.1 0 1 1 0-2.2Z", fill: "currentColor", stroke: "none", "fill-rule": "evenodd" }],
+    ["path", { d: "M8 7.1h5.6v1.8H8ZM10.6 8.9h1.5v1.9h-1.5ZM12.4 8.9h1.2v1.4h-1.2Z", fill: "currentColor", stroke: "none" }],
+    ["path", { d: "M16.6 7.1l1.9 1.9 1.9-1.9", "stroke-width": "1.4" }],
+  ];
+  const KEY_BOX = { ...ICON_ATTRIBUTES, viewBox: "0 0 22 16", width: "22", height: "16" };
+  const KEY_ASPECT = 1.4;
   const KEY_REPEAT_MS = 600;
   const QR_MIN = 64;
   const QR_MAX = 640;
@@ -427,12 +475,13 @@
     keyField = keyKind = null;
   };
   const placeKey = () => {
-    if (keyHost && keyField) placeTrailing(keyHost, keyButton, keyField);
+    if (keyHost && keyField) placeTrailing(keyHost, keyButton, keyField, KEY_ASPECT);
   };
   const ensureKey = () => {
     if (keyHost && keyHost.isConnected) return;
     ({ host: keyHost, button: keyButton } = fieldButton("ardia-passwords"));
-    keyButton.innerHTML = KEY;
+    showIcon(keyButton, KEY, KEY_BOX);
+    keyButton.className = "badge";
     keyButton.title = "Passwords";
     keyButton.setAttribute("aria-label", "Fill from Passwords");
     apply(addListener, keyButton, [
@@ -441,8 +490,8 @@
         e.preventDefault();
         e.stopPropagation();
         if (!e.isTrusted || !applePasswords || !keyKind || !keyField) return;
-        const box = trailingRect(keyField);
-        if (!(e.clientX >= box.left - 2 && e.clientX <= box.left + box.size + 2 && e.clientY >= box.top - 2 && e.clientY <= box.top + box.size + 2)) return;
+        const box = trailingRect(keyField, KEY_ASPECT);
+        if (!(e.clientX >= box.left - 2 && e.clientX <= box.left + box.width + 2 && e.clientY >= box.top - 2 && e.clientY <= box.top + box.size + 2)) return;
         if (e.timeStamp - keyClickedAt < KEY_REPEAT_MS) return;
         keyClickedAt = e.timeStamp;
         send("applePasswords", { field: keyKind });
@@ -506,9 +555,18 @@
     }
   });
   const scanQRSoon = later(scanQR, 400);
+  const openOnClick = guard((e) => {
+    if (!e.isTrusted || !applePasswords || e.button !== 0) return;
+    updateKey();
+    if (!keyField || e.target !== keyField || document.activeElement !== keyField) return;
+    if (e.timeStamp - keyClickedAt < KEY_REPEAT_MS) return;
+    keyClickedAt = e.timeStamp;
+    send("applePasswords", { field: keyKind, opened: "click" });
+  });
   const listenForLogins = () => {
     if (applePasswordsListening) return;
     applePasswordsListening = true;
+    apply(addListener, document, ["click", openOnClick, true]);
     document.addEventListener("focusin", updateKey, true);
     document.addEventListener(
       "focusout",

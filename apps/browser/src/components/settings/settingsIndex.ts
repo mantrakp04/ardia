@@ -294,7 +294,7 @@ const ROWS: Record<SettingsPane, Section[]> = {
         openPasswords: { title: "Passwords app", description: "Your logins, passkeys and verification codes live there.", keywords: ["apple passwords", "icloud keychain", "open"] },
         fillLogin: {
           title: "Fill a login",
-          description: "Click the key in a login field, or choose Edit › AutoFill › Passwords…",
+          description: "Click a login field and pick a login, or choose Edit › AutoFill › Passwords… Press Esc to type it yourself.",
           keywords: ["apple passwords", "autofill", "touch id", "key"],
         },
         verificationCodes: {

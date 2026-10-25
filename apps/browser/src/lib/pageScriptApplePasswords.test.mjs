@@ -53,7 +53,7 @@ function image(attrs = {}) {
   };
 }
 
-const KEY_BOX = { left: 286, top: 47, size: 24, color: "black" };
+const KEY_BOX = { left: 286, top: 47, size: 24, width: 34, color: "black" };
 
 function frame({ barcodes = true } = {}) {
   const sent = [];
@@ -105,7 +105,7 @@ function frame({ barcodes = true } = {}) {
   const handlers = Object.create(null);
   const typedByUser = new WeakSet();
   const names = [
-    "document", "send", "guard", "later", "onReady", "handlers", "typedByUser", "hasOwnToggle", "placeTrailing", "trailingRect", "addListener", "apply", "fieldButton",
+    "document", "send", "guard", "later", "onReady", "handlers", "typedByUser", "hasOwnToggle", "placeTrailing", "trailingRect", "addListener", "apply", "showIcon", "ICON_ATTRIBUTES", "fieldButton",
     "barcodeDetector", "FrameMutationObserver", "setTimeout", "addEventListener", "requestAnimationFrame",
   ];
   const helpers = new Function(...names, source)(
@@ -123,6 +123,8 @@ function frame({ barcodes = true } = {}) {
       this.addEventListener(type, fn);
     },
     Reflect.apply,
+    (button, shapes) => (button.icon = shapes),
+    {},
     fieldButton,
     () => (barcodes ? BarcodeDetector : undefined),
     MutationObserver,
@@ -144,11 +146,11 @@ function frame({ barcodes = true } = {}) {
   };
   const key = () => buttons.find((b) => b.host.tag === "ardia-passwords");
   const keyShown = () => key()?.host.style.display === "block";
-  const click = (trusted, timeStamp, at = { clientX: KEY_BOX.left + 12, clientY: KEY_BOX.top + 12 }) =>
+  const click = (trusted, timeStamp, at = { clientX: KEY_BOX.left + 17, clientY: KEY_BOX.top + 12 }) =>
     key().button.handlers.click({ isTrusted: trusted, timeStamp, ...at, preventDefault() {}, stopPropagation() {} });
   const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
   return {
-    ...helpers, document, handlers, sent, listeners, observers, detected, focus, type, key, keyShown, click, settle,
+    ...helpers, document, handlers, sent, listeners, observers, detected, focus, type, key, keyShown, click, settle, fire,
     get detectors() {
       return detectors;
     },
@@ -264,7 +266,7 @@ test("a trusted click that lands outside the key's own box, as when a page stret
   page.handlers.applePasswords(true);
   page.focus(input({ type: "password" }));
   page.click(true, 1000, { clientX: 20, clientY: 20 });
-  page.click(true, 2000, { clientX: KEY_BOX.left + KEY_BOX.size + 40, clientY: KEY_BOX.top + 5 });
+  page.click(true, 2000, { clientX: KEY_BOX.left + KEY_BOX.width + 40, clientY: KEY_BOX.top + 5 });
   assert.deepEqual(page.sent, []);
   page.click(true, 3000);
   assert.deepEqual(page.sent, [{ kind: "applePasswords", data: { field: "password" } }]);
@@ -372,4 +374,27 @@ test("without a native BarcodeDetector no observer is installed", () => {
 
 test("the whole page script still compiles", () => {
   assert.doesNotThrow(() => new Function("post", `return ${script.trim().replace(/;\s*$/, "")}`));
+});
+
+test("clicking into an empty login field opens Passwords every time, but not for typed values, repeats or synthetic clicks", () => {
+  const page = frame();
+  page.handlers.applePasswords(true);
+  const field = input({ type: "email" });
+  const clickField = (trusted, timeStamp, target = field) => page.fire("click", { isTrusted: trusted, timeStamp, button: 0, target });
+  page.focus(field);
+  clickField(false, 1000);
+  assert.deepEqual(page.sent, []);
+  clickField(true, 1000);
+  clickField(true, 1300);
+  clickField(true, 2500);
+  assert.deepEqual(page.sent, [
+    { kind: "applePasswords", data: { field: "username", opened: "click" } },
+    { kind: "applePasswords", data: { field: "username", opened: "click" } },
+  ]);
+  page.type(field, "me@example.com");
+  clickField(true, 4000);
+  assert.equal(page.sent.length, 2, "a value the person typed keeps the field theirs");
+  page.focus(input({ type: "text", name: "search" }));
+  clickField(true, 6000, page.document.activeElement);
+  assert.equal(page.sent.length, 2, "other fields never open it");
 });
