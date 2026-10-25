@@ -138,7 +138,7 @@ public enum LegacyDockTile {
   public static func repointSoon(bundle: Bundle = .main) {
     #if !DEBUG
     guard !isTestInstance(ProcessInfo.processInfo.environment), let bundleId = bundle.bundleIdentifier,
-      bundleId.lowercased() != LegacyName.bundleId else { return }
+      LegacyName.isSuccessor(bundleId) else { return }
     let defaults = UserDefaults.standard
     guard !defaults.bool(forKey: doneKey) else { return }
     let app = bundle.bundleURL

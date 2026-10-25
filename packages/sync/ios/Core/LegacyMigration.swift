@@ -6,6 +6,9 @@ public enum LegacyName {
   public static let bundleId = "com.netnyahoo.browser"
   public static let appFileName = "Netnyahoo.app"
   public static let appName = "Netnyahoo"
+  public static let successorBundleId = "com.ardia.browser"
+
+  public static func isSuccessor(_ bundleId: String?) -> Bool { bundleId?.lowercased() == successorBundleId }
 
   public static let syncMagic = "NNS1"
   public static let syncSalt = "netnyahoo-sync/v1"
@@ -871,9 +874,8 @@ struct DocumentRewriter {
 
 public enum LegacyMigration {
   public static func runAtLaunch(bundleId: String? = Bundle.main.bundleIdentifier) -> Bool {
+    guard let bundleId, LegacyName.isSuccessor(bundleId) else { return true }
     let env = ProcessInfo.processInfo.environment
-    let bundleId = bundleId ?? "com.ardia.browser"
-    guard bundleId != LegacyName.bundleId else { return true }
     let context: LegacyMigrator.Context?
     if let data = env["ARDIA_DATA_DIR"], !data.isEmpty {
       guard let source = env["ARDIA_LEGACY_SOURCE"], !source.isEmpty else { return true }
@@ -1019,8 +1021,11 @@ public enum LegacyMigration {
 }
 
 extension LegacyMigration {
-  public static func moveToNewName(launched: String? = launchedExecutable(), running: @escaping () -> String? = runningExecutable) {
-    guard let launched else { return }
+  public static func moveToNewName(
+    bundleId: String? = Bundle.main.bundleIdentifier, launched: String? = launchedExecutable(),
+    running: @escaping () -> String? = runningExecutable
+  ) {
+    guard LegacyName.isSuccessor(bundleId), let launched else { return }
     let executable = URL(fileURLWithPath: launched)
     let macOS = executable.deletingLastPathComponent(), contents = macOS.deletingLastPathComponent()
     let old = contents.deletingLastPathComponent(), name = executable.lastPathComponent

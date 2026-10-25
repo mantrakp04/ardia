@@ -10,7 +10,6 @@ import { Button, Group, PopUp, Row, SectionHeader, Toggle, useFormColors } from 
 import { engineVersion, widevine as widevineComponent } from "../paneData";
 import { useResource } from "../resources";
 
-const REPOSITORY = "https://github.com/mantrakp04/ardia";
 const SOURCE_NOTICE = "Ardia is free software under the GNU General Public License v3, with no warranty.";
 
 const BATTERY_SAVER_DESCRIPTIONS: Record<BatterySaverWhen, string> = {
@@ -91,9 +90,14 @@ export function AdvancedPane() {
 
       <SectionHeader title="Source and licenses" />
       <Group>
-        <Row anchor="advanced.source" description={SOURCE_NOTICE}>
-          <Button title="Show on GitHub" onPress={() => openUrls([`${REPOSITORY}/tree/v${systemInfo().appVersion}`])} />
-        </Row>
+        {systemInfo().releaseRepo ? (
+          <Row anchor="advanced.source" description={SOURCE_NOTICE}>
+            <Button
+              title="Show on GitHub"
+              onPress={() => openUrls([`https://github.com/${systemInfo().releaseRepo}/tree/v${systemInfo().appVersion}`])}
+            />
+          </Row>
+        ) : null}
         <Row anchor="advanced.licenses">
           <Button title="Show Licenses" onPress={() => openUrls(["chrome://credits"])} />
         </Row>

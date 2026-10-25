@@ -4,7 +4,12 @@ set -euo pipefail
 version="${1:?usage: appcast-merge.sh <version> [published feed URL or file]}"
 root="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 dist="${RELEASE_DIST:-$root/dist/$version}"
-source="${2:-https://github.com/mantrakp04/ardia/releases/latest/download/appcast.xml}"
+if [ -z "${2:-}" ]; then
+  . "$root/scripts/identity.sh"
+  repo="$(ac_identity AC_RELEASE_REPO)"
+  [ -n "$repo" ] || { echo "error: the app's identity has no AC_RELEASE_REPO" >&2; exit 1; }
+fi
+source="${2:-https://github.com/$repo/releases/latest/download/appcast.xml}"
 built="$dist/appcast.xml"
 [ -f "$built" ] || { echo "error: no $built (scripts/release.sh $version first)" >&2; exit 1; }
 live="$(mktemp "${TMPDIR:-/tmp}/ac-feed.XXXXXX")"

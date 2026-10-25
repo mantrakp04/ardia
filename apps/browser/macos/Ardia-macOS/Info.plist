@@ -5,9 +5,15 @@
 	<key>ACFeedbackEmail</key>
 	<string></string>
 	<key>ACFeedbackURL</key>
-	<string>https://github.com/mantrakp04/ardia/issues/new?body=%s</string>
+	<string>https://github.com/$(AC_RELEASE_REPO)/issues/new?body=%s</string>
 	<key>ACReleaseNotesURL</key>
-	<string>https://ardia.dev/release-notes</string>
+	<string>$(AC_NOTES_URL)</string>
+	<key>ACReleaseRepo</key>
+	<string>$(AC_RELEASE_REPO)</string>
+	<key>ACSwitchesURL</key>
+	<string>$(AC_SWITCHES_URL)</string>
+	<key>ACTelemetryURL</key>
+	<string>$(AC_TELEMETRY_URL)</string>
 	<key>ACUpdateChannel</key>
 	<string>$(AC_UPDATE_CHANNEL)</string>
 	<key>ACVideoTourURL</key>
@@ -15,7 +21,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Ardia</string>
+	<string>$(AC_PRODUCT_NAME)</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
@@ -48,7 +54,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>$(PRODUCT_NAME)</string>
+	<string>$(AC_PRODUCT_NAME)</string>
 	<key>CFBundlePackageType</key>
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
@@ -121,9 +127,9 @@
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUFeedURL</key>
-	<string>https://ardia.dev/appcast.xml</string>
+	<string>$(AC_FEED_URL)</string>
 	<key>SUPublicEDKey</key>
-	<string>gi1pBCemmSVpHM36dT5BJPPTcKC98QwS19mztCTyd4s=</string>
+	<string>$(AC_PUBLIC_ED_KEY)</string>
 	<key>SUScheduledCheckInterval</key>
 	<integer>28800</integer>
 </dict>

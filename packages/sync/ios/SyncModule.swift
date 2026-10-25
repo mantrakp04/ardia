@@ -250,16 +250,19 @@ public class SyncModule: Module {
   private static let dataDirectory = environment["ARDIA_DATA_DIR"].map { URL(fileURLWithPath: $0, isDirectory: true) }
   private static let testFolder = environment["ARDIA_SYNC_DEFAULT_FOLDER"].map { URL(fileURLWithPath: $0, isDirectory: true) }
 
+  private static let productName = Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "Ardia"
+
   static var defaultFolder: URL {
     if let testFolder { return testFolder }
-    if let dataDirectory { return dataDirectory.appendingPathComponent("Ardia Sync", isDirectory: true) }
-    let folder = SyncFolder.iCloudDrive.appendingPathComponent("Ardia Sync", isDirectory: true)
+    if let dataDirectory { return dataDirectory.appendingPathComponent("\(productName) Sync", isDirectory: true) }
+    let folder = SyncFolder.iCloudDrive.appendingPathComponent("\(productName) Sync", isDirectory: true)
+    guard LegacyName.isSuccessor(Bundle.main.bundleIdentifier) else { return folder }
     let legacy = SyncFolder.iCloudDrive.appendingPathComponent(LegacyName.syncFolderName, isDirectory: true)
     if !FileManager.default.fileExists(atPath: folder.path), SyncFolder.hasSyncData(legacy) { return legacy }
     return folder
   }
 
-  static let keyStore: SyncKeyStore = dataDirectory.map { FileKeyStore(directory: $0) } ?? KeychainKeyStore()
+  static let keyStore: SyncKeyStore = dataDirectory.map { FileKeyStore(directory: $0) } ?? KeychainKeyStore(service: "\(productName) Sync Key")
 
   static func profileDirectory(_ engineProfile: String) -> URL {
     let root = dataDirectory?.appendingPathComponent("Chromium", isDirectory: true)

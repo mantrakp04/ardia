@@ -6,7 +6,9 @@ dry=0
 [ "${2:-}" = --dry-run ] && dry=1
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$(git -C "$here" rev-parse --show-toplevel)"
-repo="mantrakp04/ardia"
+. "$root/scripts/identity.sh"
+repo="$(ac_identity AC_RELEASE_REPO)"
+[ -n "$repo" ] || { echo "error: the app's identity has no AC_RELEASE_REPO" >&2; exit 1; }
 dist="${RELEASE_DIST:-$root/dist/$version}"
 feed_url="https://github.com/$repo/releases/latest/download/appcast.xml"
 nightly_dmg_url="https://github.com/$repo/releases/download/nightly/Ardia-Nightly.dmg"

@@ -14,7 +14,7 @@ export const setZoom = () => Promise.resolve();
 export const setBatterySaver = () => Promise.resolve(null);
 export const launchEnvironment = () => null;
 export const killSwitchEnvironment = () => null;
-export const appInfo = { appVersion: "1.0" };
+export const appInfo = { appVersion: "1.0", switchesURL: "https://ardia.dev/switches.json", telemetryURL: "https://ardia.dev/otel/v1/logs" };
 export const systemInfo = () => ({ ...appInfo });
 export const calendarAuthorization = () => "notDetermined";
 export const requestCalendarAccess = () => Promise.resolve(false);

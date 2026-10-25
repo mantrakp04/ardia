@@ -1,5 +1,6 @@
 import { launchEnvironment, readDocument, stopIntroMusic, writeDocument } from "@ardia/shell";
 import { create } from "zustand";
+import { telemetryAvailable } from "../../telemetry/client";
 import { useBrowser } from "../../store/browser";
 import { resolveWindowId, tabLayoutOf } from "../../store/model";
 import type { Settings } from "../../store/settings";
@@ -102,6 +103,7 @@ export const QUESTION_ORDER: QuestionId[] = Object.values(QUESTIONS).flatMap((li
 export function questionsFor(step: OnboardingStep): Question[] {
   if (step === "intro") return [];
   const list = QUESTIONS[step];
+  if (step === "searchPrivacy" && !telemetryAvailable()) return list.filter((q) => q.id !== "crash");
   if (step !== "layout") return list;
   const { windowId, draft, preset } = useOnboarding.getState();
   const b = useBrowser.getState();

@@ -1,4 +1,4 @@
-import { killSwitchEnvironment, readDocument, writeDocument } from "@ardia/shell";
+import { killSwitchEnvironment, readDocument, systemInfo, writeDocument } from "@ardia/shell";
 
 type SwitchDef = {
   about: string;
@@ -63,7 +63,6 @@ export const SWITCHES = {
 type SwitchName = keyof typeof SWITCHES;
 
 const CACHE_DOC = "switches-cache.json";
-const SWITCHES_URL = "https://ardia.dev/switches.json";
 const SWITCHES_ENV = "ARDIA_SWITCHES";
 const FETCH_TIMEOUT_MS = 5000;
 const MAX_BYTES = 4096;
@@ -121,16 +120,23 @@ export function reloadSwitches() {
 
 let fetchedThisLaunch = false;
 
-type RefreshResult = "updated" | "failed" | "already";
+type RefreshResult = "updated" | "failed" | "already" | "off";
+
+function switchesUrl(): string | null {
+  const url = systemInfo().switchesURL?.trim();
+  return url && /^https:\/\//i.test(url) ? url : null;
+}
 
 export async function refreshSwitches(fetchFn: typeof fetch = fetch): Promise<RefreshResult> {
   if (fetchedThisLaunch) return "already";
   fetchedThisLaunch = true;
   if (!loaded) load();
+  const url = switchesUrl();
+  if (!url) return "off";
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), FETCH_TIMEOUT_MS);
   try {
-    const response = await fetchFn(SWITCHES_URL, { method: "GET", credentials: "omit", cache: "no-store", signal: abort.signal });
+    const response = await fetchFn(url, { method: "GET", credentials: "omit", cache: "no-store", signal: abort.signal });
     if (!response.ok) return "failed";
     const text = await response.text();
     if (text.length > MAX_BYTES) return "failed";

@@ -139,8 +139,8 @@ stays up. That's GPL-3.0 §6(d) for the GPL parts (uBlock Origin today), and it'
      helpers under the hardened runtime with library validation, except the renderer and GPU ones (Aperitif's too),
      which get `allow-jit` (`packages/ardiacore/scripts/signing`) instead; then the framework, then the app again with
      the entitlements the export gave it,
-   - checks what an in-place update depends on: bundle id `com.ardia.browser`, executable `Ardia`, the
-     designated requirement (our team), the keychain groups, Sparkle's feed and key and the usage strings in
+   - checks what an in-place update depends on: the identity's bundle id (`com.ardia.browser`), executable `Ardia`, the
+     designated requirement (the identity's team), the keychain groups, Sparkle's feed and key and the usage strings in
      `Info.plist`; that every piece of code is Developer ID with a timestamp and no `get-task-allow`; and that the app
      isn't signed with `com.apple.developer.web-browser.public-key-credential` (Apple hasn't granted it yet;
      `Ardia-ICloudPasskeys.entitlements` is the future entitlements file),
@@ -195,6 +195,73 @@ To check the after-update tab too: in that data dir, set `lastVersion` in `relea
 previous version (`{"version":1,"lastVersion":"<previous>","pending":null}`) and relaunch with
 `ARDIA_RELEASE_NOTES=1` added (test instances skip the tab without it). `curl localhost:<port>/json` must
 list one `…/release-notes#<version>` page; a second launch opens none.
+
+## Shipping your own fork
+
+Everything that names the app comes from one file, `apps/browser/macos/Identity.xcconfig`, which holds upstream's
+values. It's the base configuration of the project (not the target's, so `pod install` never touches it), and it ends
+by including `apps/browser/macos/Fork.xcconfig` when that file exists. Upstream never has a `Fork.xcconfig`, so with
+none the build is upstream's, and merging upstream never conflicts with a fork's. A fork commits its `Fork.xcconfig`,
+so any machine releases the same app.
+
+| Setting | Read by | Upstream |
+|---|---|---|
+| `AC_PRODUCT_NAME` | `CFBundleName`, `CFBundleDisplayName`, the DMG's app and volume, the update zip, keychain items and the iCloud sync folder the app itself names | `Ardia` |
+| `AC_TEAM_ID` | `DEVELOPMENT_TEAM`, the export, release.sh's signing identity and checks | `U5L5T3NGVV` |
+| `AC_BUNDLE_ID` | `PRODUCT_BUNDLE_IDENTIFIER` (so the data folders, the defaults and the keychain groups), release.sh's checks | `com.ardia.browser` |
+| `AC_FEED_URL` | `SUFeedURL` | `https://ardia.dev/appcast.xml` |
+| `AC_PUBLIC_ED_KEY` | `SUPublicEDKey`, checked against the Sparkle key release.sh signs with | upstream's key |
+| `AC_SPARKLE_ACCOUNT` | the keychain account release.sh finds the Sparkle key under | `ardia` |
+| `AC_RELEASE_REPO` | release.sh and the release skill's scripts (`gh`, the feed, download URLs, the Source line), About's and Settings' source links, Send Feedback | `mantrakp04/ardia` |
+| `AC_NOTES_URL` | the page opened after an update, Help › Release Notes, the appcast's notes link | `https://ardia.dev/release-notes` |
+| `AC_TELEMETRY_URL` | where shared diagnostics go; empty turns sharing off and hides its prompt, onboarding step and setting | `https://ardia.dev/otel/v1/logs` |
+| `AC_SWITCHES_URL` | the kill-switch file read at launch; empty never fetches, so every switch stays on | `https://ardia.dev/switches.json` |
+
+`PRODUCT_NAME` stays `Ardia`: the executable, `Ardia.app` in `dist/`, the dSYM and the test scripts all depend on it.
+The bundle the user sees is named after `AC_PRODUCT_NAME`; the release assets keep their `Ardia-<version>` names.
+
+To ship a fork:
+
+1. `cp apps/browser/macos/Fork.xcconfig.example apps/browser/macos/Fork.xcconfig`, then pick the name: `AC_PRODUCT_NAME`,
+   `AC_BUNDLE_ID` (reverse DNS on a domain you control, such as `com.example.<name>`) and `AC_SPARKLE_ACCOUNT`. An xcconfig reads `//` as
+   the start of a comment, so URLs are written `https:/$()/host/…`, and so is a public key that contains `//`. Keep
+   `AC_TELEMETRY_URL` and `AC_SWITCHES_URL` empty unless the fork runs its own: a fork must never post into upstream's
+   telemetry or obey upstream's kill switches. Check what it resolves to:
+   `xcodebuild -showBuildSettings -project apps/browser/macos/Ardia.xcodeproj -target Ardia-macOS -configuration Release | grep ' AC_'`.
+2. The Sparkle key: `apps/browser/macos/Pods/Sparkle/bin/generate_keys --account <name>` makes it in the login keychain
+   and prints its public half, which goes in `AC_PUBLIC_ED_KEY`. Back it up at once
+   (`generate_keys --account <name> -x <file>`, kept outside the repo): without it no copy can ever be updated again.
+   release.sh refuses to sign with a key whose public half isn't `AC_PUBLIC_ED_KEY`, and stops before anything else
+   while `AC_PUBLIC_ED_KEY` is still the template's placeholder (anything starting with `PLACEHOLDER`, or not base64), so
+   a build can never ship trusting a key nobody holds.
+3. Apple: the team's **Developer ID Application** certificate in the login keychain (release.sh takes the identity whose
+   name ends in `(<team id>)`), and Xcode signed in to the team. Register the App ID `<bundle id>` and make a Developer ID
+   provisioning profile for it that allows the keychain groups `<team id>.<bundle id>.webauthn`, `.unexportable-keys`
+   and `.secure-payment-confirmation` (`Ardia.entitlements`); the export fetches it with `-allowProvisioningUpdates`,
+   and release.sh stops without an `embedded.provisionprofile`.
+4. Notarization: an App Store Connect API key for the team in `scripts/.notary.env`, or a notarytool profile
+   (`NOTARY_PROFILE=<profile>`), as in "Once per machine".
+5. The DMG's layout positions icons by name: run `scripts/dmg/layout.sh <Name>` once and commit
+   `scripts/dmg/DS_Store-<Name>`, which release.sh prefers over upstream's `DS_Store`.
+6. The first release has no published feed to build on: `APPCAST_BASE=none scripts/release.sh <version>`. Later ones
+   read `https://github.com/<repo>/releases/latest/download/appcast.xml`, which `AC_FEED_URL` should point at.
+
+Still upstream's in a fork:
+
+- **The engine.** `packages/ardiacore/scripts/fetch-engine.sh` still downloads the prebuilt engines from
+  `mantrakp04/ardia` (`ARDIACORE_PREBUILT_REPO`), and release.sh signs them with the fork's identity; the release notes'
+  engine-source link points there too. What the engine compiles in can't change without building it:
+  `engine/patches/chromium-branding.patch` sets `MAC_BUNDLE_ID=com.ardia.browser` and `MAC_TEAM_ID=U5L5T3NGVV`, which
+  name the keychain groups the engine itself asks for (passkeys saved in the profile, device-bound session keys,
+  secure payment confirmation). A fork is entitled only to its own team's groups, so those features fail in a fork
+  until it builds its own engine with its own `BRANDING`. `chromium-safe-storage-name.patch` names the key to saved
+  passwords and cookies "Ardia Safe Storage" / "Ardia", so on a Mac that also runs upstream Ardia, the fork's first
+  launch finds upstream's item: macOS asks whether the fork may use it, and if the user denies it the fork can only
+  quit or try again.
+- **The legacy migration** from Netnyahoo (`LegacyMigration.swift`, `LegacyDockTile.swift`) runs only when the bundle id is
+  `LegacyName.successorBundleId`, upstream's own. A fork never moves, copies or regroups another app's data.
+- **First install.** A new bundle id is a new app to macOS: its own data folder and defaults, fresh keychain and privacy
+  (TCC) prompts, and a fresh Developer ID profile. Nothing carries over from upstream Ardia.
 
 ## The engine switch (0.2.21 → 0.2.22)
 

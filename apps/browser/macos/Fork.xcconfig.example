@@ -1,0 +1,10 @@
+AC_PRODUCT_NAME = Name
+AC_TEAM_ID = ABCDE12345
+AC_BUNDLE_ID = com.example.name
+AC_FEED_URL = https:/$()/github.com/owner/repo/releases/latest/download/appcast.xml
+AC_PUBLIC_ED_KEY = PLACEHOLDER_SPARKLE_PUBLIC_KEY
+AC_SPARKLE_ACCOUNT = name
+AC_RELEASE_REPO = owner/repo
+AC_NOTES_URL = https:/$()/github.com/owner/repo/releases
+AC_TELEMETRY_URL =
+AC_SWITCHES_URL =

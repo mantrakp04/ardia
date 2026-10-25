@@ -6,6 +6,9 @@ version="${1:?$usage}"
 out="${2:?$usage}"
 root="$(cd "$(dirname "$0")/.." && pwd -P)"
 die() { echo "error: $*" >&2; exit 1; }
+. "$root/scripts/identity.sh"
+repo="$(ac_identity AC_RELEASE_REPO)"
+[ -n "$repo" ] || die "the app's identity has no AC_RELEASE_REPO"
 pinned() { [ -n "${!1:-}" ] && echo "${!1}" || sed -n "s/^export $1=//p" "$root/engine/patches/build/env.sh"; }
 chromium="$(pinned CHROMIUM_VERSION)"
 helium="$(pinned HELIUM_TAG)"
@@ -38,7 +41,7 @@ cat >"$src/README.txt" <<EOF
 The source of the engine in Ardia $version, besides Ardia's own repository.
 
 Ardia, with the engine's patches and build scripts:
-  https://github.com/mantrakp04/ardia/tree/v$version
+  https://github.com/$repo/tree/v$version
   How to build it: docs/engine-build.md there.
 
 Chromium $chromium (BSD-3-Clause and others):

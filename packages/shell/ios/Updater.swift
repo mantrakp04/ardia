@@ -6,10 +6,16 @@ import Sparkle
 public final class AppUpdater: NSObject {
   public static let shared = AppUpdater()
 
+  static var releaseRepository: String? {
+    let repo = (Bundle.main.object(forInfoDictionaryKey: "ACReleaseRepo") as? String ?? "").trimmingCharacters(in: .whitespaces)
+    return repo.isEmpty ? nil : "https://github.com/\(repo)"
+  }
+
   static var feedOverride: String? {
     let env = ProcessInfo.processInfo.environment
     if let feed = env["ARDIA_UPDATE_FEED_URL"] ?? UserDefaults.standard.string(forKey: "ACUpdateFeedURL") { return feed }
-    return env["ARDIA_BACKGROUND"] == "1" ? "https://github.com/mantrakp04/ardia/releases/latest/download/appcast.xml" : nil
+    guard env["ARDIA_BACKGROUND"] == "1", let repository = releaseRepository else { return nil }
+    return "\(repository)/releases/latest/download/appcast.xml"
   }
 
   public static let channels = ["stable", "nightly"]
@@ -115,7 +121,6 @@ public final class AppUpdater: NSObject {
 
   private static var aboutCredits: NSAttributedString {
     let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
-    let repository = "https://github.com/mantrakp04/ardia"
     let centered = NSMutableParagraphStyle()
     centered.alignment = .center
     let plain: [NSAttributedString.Key: Any] = [
@@ -123,6 +128,7 @@ public final class AppUpdater: NSObject {
       .foregroundColor: NSColor.secondaryLabelColor,
       .paragraphStyle: centered,
     ]
+    guard let repository = releaseRepository else { return NSAttributedString(string: aboutNotice, attributes: plain) }
     let links = [
       ("Source code", "\(repository)/tree/v\(version)"),
       ("License", "\(repository)/blob/v\(version)/LICENSE"),

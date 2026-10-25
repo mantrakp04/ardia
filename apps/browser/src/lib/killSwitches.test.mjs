@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 globalThis.__DEV__ = false;
-const { docs } = await import("../test-native-stub.mjs");
+const { appInfo, docs } = await import("../test-native-stub.mjs");
 const ks = await import("./killSwitches.ts");
 
 const names = Object.keys(ks.SWITCHES);
@@ -75,6 +75,27 @@ test("a fetch asks for the plain URL (no cookies, no query), saves the answer, a
   ks.reloadSwitches();
   assert.equal(ks.switchOn("sidebarSlide"), false);
   assert.equal(ks.switchOn("lazySidebarRows"), false);
+});
+
+test("a build with no switches URL never fetches and keeps every switch on", async () => {
+  const upstream = appInfo.switchesURL;
+  try {
+    for (const off of ["", "   ", null, undefined, "http://ardia.dev/switches.json", "file:///tmp/switches.json"]) {
+      reset();
+      appInfo.switchesURL = off;
+      let fetched = false;
+      const fetchFn = async () => {
+        fetched = true;
+        return answer(file({ sidebarSlide: false }))();
+      };
+      assert.equal(await ks.refreshSwitches(fetchFn), "off", String(off));
+      assert.equal(fetched, false, String(off));
+      assert.equal(ks.switchOn("sidebarSlide"), true, String(off));
+      assert.equal(docs.has("switches-cache.json"), false, String(off));
+    }
+  } finally {
+    appInfo.switchesURL = upstream;
+  }
 });
 
 test("at most one fetch a launch", async () => {

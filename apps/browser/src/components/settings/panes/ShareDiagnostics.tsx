@@ -7,6 +7,8 @@ import { closeSettingsSheet, showSettingsSheet } from "../sheet";
 
 export function ShareDiagnosticsSection() {
   const sharing = useTelemetry((s) => s.sharing);
+  const available = useTelemetry((s) => s.available);
+  if (!available) return null;
   return (
     <>
       <SectionHeader title="Crash reports and usage" />

@@ -1,7 +1,7 @@
 import { engineInfo } from "@ardia/ardiacore";
 import { launchEnvironment, readDocument, systemInfo, writeDocument, type SystemInfo } from "@ardia/shell";
 import { create } from "zustand";
-import { DEV_SEND_ENV, LOGS_URL, MAX_BODY_BYTES } from "./config";
+import { DEV_SEND_ENV, MAX_BODY_BYTES } from "./config";
 import { EVENTS_SCOPE, eventRecord, LOGS_SCOPE, logRecord, logsRequest, outcome, type OtlpLogRecord, type QueuedEvent } from "./otlp";
 import { cleanProperties } from "./sanitize";
 
@@ -57,19 +57,36 @@ function save(patch: Partial<Saved>) {
   try {
     writeDocument(STATE_DOC, JSON.stringify(saved));
   } catch {}
-  useTelemetry.setState({ sharing: saved.sharing, decided: saved.decidedAt !== null, askDone: saved.askDoneAt !== null });
+  publishState();
 }
 
-export const useTelemetry = create<{ sharing: boolean; decided: boolean; askDone: boolean }>(() => ({
+export const useTelemetry = create<{ sharing: boolean; decided: boolean; askDone: boolean; available: boolean }>(() => ({
   sharing: false,
   decided: false,
   askDone: false,
+  available: false,
 }));
 
 export const isSharing = () => saved.sharing;
 
 let app: SystemInfo | null = null;
 export const appInfo = () => (app ??= systemInfo());
+
+function logsUrl(): string | null {
+  const url = appInfo().telemetryURL?.trim();
+  return url && /^https:\/\//i.test(url) ? url : null;
+}
+
+export const telemetryAvailable = () => logsUrl() !== null;
+
+function publishState() {
+  useTelemetry.setState({
+    sharing: saved.sharing,
+    decided: saved.decidedAt !== null,
+    askDone: saved.askDoneAt !== null,
+    available: telemetryAvailable(),
+  });
+}
 let engineVersion: string | null = null;
 
 export const environment = (): "dev" | "test" | "production" =>
@@ -246,6 +263,7 @@ const logsBody = (batch: OtlpLogRecord[]) => logsRequest(resource(), LOGS_SCOPE,
 type DrainResult = "done" | "failed" | "stale";
 
 async function drain<T>(
+  url: string,
   kind: RequestLogEntry["kind"],
   take: () => T[],
   encode: (batch: T[]) => string,
@@ -259,7 +277,7 @@ async function drain<T>(
       size = Math.ceil(batch.length / 2);
       continue;
     }
-    const status = await post(kind, LOGS_URL, body, batch.length);
+    const status = await post(kind, url, body, batch.length);
     if (gen !== generation) return "stale";
     const result = outcome(status, batch.length);
     if (result === "retry") return "failed";
@@ -271,13 +289,14 @@ async function drain<T>(
 
 export async function flush() {
   flushTimer = undefined;
-  if (!saved.sharing || flushing) return;
+  const url = logsUrl();
+  if (!saved.sharing || flushing || !url) return;
   flushing = true;
   const gen = generation;
   let result: DrainResult;
   try {
-    result = await drain("events", () => queue.events, eventsBody, (batch) => (queue.events = queue.events.filter((e) => !batch.includes(e))), gen);
-    if (result === "done") result = await drain("logs", () => queue.logs, logsBody, (batch) => (queue.logs = queue.logs.filter((l) => !batch.includes(l))), gen);
+    result = await drain(url, "events", () => queue.events, eventsBody, (batch) => (queue.events = queue.events.filter((e) => !batch.includes(e))), gen);
+    if (result === "done") result = await drain(url, "logs", () => queue.logs, logsBody, (batch) => (queue.logs = queue.logs.filter((l) => !batch.includes(l))), gen);
   } finally {
     flushing = false;
   }
@@ -296,6 +315,7 @@ export async function flush() {
 type SharingSource = "settings" | "onboarding" | "ask";
 
 export function setSharing(on: boolean, source: SharingSource) {
+  if (on && !telemetryAvailable()) return;
   const now = Date.now();
   if (on === saved.sharing) return save({ decidedAt: now, askDoneAt: saved.askDoneAt ?? now });
   generation++;
@@ -331,7 +351,8 @@ export function loadChoice() {
   if (loaded) return;
   loaded = true;
   saved = { ...DEFAULT, ...readJson<Partial<Saved>>(STATE_DOC) };
-  useTelemetry.setState({ sharing: saved.sharing, decided: saved.decidedAt !== null, askDone: saved.askDoneAt !== null });
+  if (!telemetryAvailable()) saved = { ...saved, sharing: false, installId: null };
+  publishState();
 }
 
 type ClientSession = {

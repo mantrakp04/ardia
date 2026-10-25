@@ -36,8 +36,21 @@ root="$(cd "$(dirname "$0")/.." && pwd -P)"
 app_dir="$root/apps/browser"
 macos="$app_dir/macos"
 ardiacore="$root/packages/ardiacore"
-repo="mantrakp04/ardia"
-notes_page="https://ardia.dev/release-notes"
+. "$root/scripts/identity.sh"
+product_name="$(ac_identity AC_PRODUCT_NAME)"
+team_id="$(ac_identity AC_TEAM_ID)"
+bundle_id="$(ac_identity AC_BUNDLE_ID)"
+repo="$(ac_identity AC_RELEASE_REPO)"
+notes_page="$(ac_identity AC_NOTES_URL)"
+public_ed_key="$(ac_identity AC_PUBLIC_ED_KEY)"
+for setting in product_name team_id bundle_id repo notes_page public_ed_key; do
+  [ -n "${!setting}" ] || { echo "error: the app's identity has no $setting (apps/browser/macos/Identity.xcconfig, Fork.xcconfig)" >&2; exit 1; }
+done
+case "$public_ed_key" in
+  PLACEHOLDER* | *[!A-Za-z0-9+/=]*)
+    echo "error: AC_PUBLIC_ED_KEY is '$public_ed_key', not a Sparkle public key: generate the key and paste its public half into Fork.xcconfig (docs/releasing.md › Shipping your own fork)" >&2
+    exit 1 ;;
+esac
 notary_profile="${NOTARY_PROFILE:-ardia}"
 [ -f "$root/scripts/.notary.env" ] && . "$root/scripts/.notary.env"
 if [ -n "${NOTARY_KEY:-}" ]; then
@@ -50,13 +63,18 @@ if [ -n "${SPARKLE_ACCOUNT:-}" ]; then
   sparkle_account="$SPARKLE_ACCOUNT"
 else
   legacy_account="$(sed -n 's/^ *public static let appName = "\(.*\)"$/\1/p' "$root/packages/sync/ios/Core/LegacyMigration.swift" | tr '[:upper:]' '[:lower:]')"
-  sparkle_account=ardia
-  for account in ardia $legacy_account; do
+  identity_account="$(ac_identity AC_SPARKLE_ACCOUNT)"
+  sparkle_account="$identity_account"
+  for account in $identity_account $legacy_account; do
     if "$sparkle/generate_keys" --account "$account" -p >/dev/null 2>&1; then sparkle_account="$account"; break; fi
   done
 fi
 "$sparkle/generate_keys" --account "$sparkle_account" -p >/dev/null 2>&1 || {
   echo "error: no Sparkle EdDSA key in the login keychain under account $sparkle_account (SPARKLE_ACCOUNT; docs/releasing.md)" >&2
+  exit 1
+}
+"$sparkle/generate_keys" --account "$sparkle_account" -p 2>/dev/null | grep -qF -- "$public_ed_key" || {
+  echo "error: the Sparkle key under account $sparkle_account isn't the one the app trusts (AC_PUBLIC_ED_KEY is $public_ed_key): updates signed with it would be refused" >&2
   exit 1
 }
 if [ "$rc" = 1 ]; then dist="$root/dist/$version-rc"; else dist="$root/dist/$version"; fi
@@ -129,8 +147,8 @@ if [ -z "${ARDIACORE_FRAMEWORK:-}" ]; then
 fi
 
 identity_name="Developer ID Application"
-identity="$(security find-identity -v -p codesigning | awk -v n="$identity_name" 'index($0, n) { print $2; exit }')"
-[ -n "$identity" ] || die "no $identity_name identity"
+identity="$(security find-identity -v -p codesigning | awk -v n="$identity_name" -v t="($team_id)" 'index($0, n) && index($0, t) { print $2; exit }')"
+[ -n "$identity" ] || die "no $identity_name identity for team $team_id"
 notarize=0
 if xcrun notarytool history "${notary_auth[@]}" >/dev/null 2>&1; then
   notarize=1
@@ -182,9 +200,12 @@ echo "==> Archive"
 }
 
 echo "==> Export (Developer ID)"
+export_options="$dist/ExportOptions-DeveloperID.plist"
+cp "$macos/ExportOptions-DeveloperID.plist" "$export_options"
+plutil -replace teamID -string "$team_id" "$export_options"
 for attempt in 1 2 3 4 5 6; do
   rm -rf "$dist/export"
-  xcodebuild -exportArchive -archivePath "$archive" -exportOptionsPlist "$macos/ExportOptions-DeveloperID.plist" \
+  xcodebuild -exportArchive -archivePath "$archive" -exportOptionsPlist "$export_options" \
     -exportPath "$dist/export" -allowProvisioningUpdates > "$dist/export.log" 2>&1 && break
   grep -q "A timestamp was expected" "$dist/export.log" && [ "$attempt" -lt 6 ] \
     || { cat "$dist/export.log" >&2; exit 1; }
@@ -231,7 +252,7 @@ done
 sign --options restrict,library,kill,runtime "$fwv/Helpers/chrome_crashpad_handler"
 sign --options restrict,library,kill,runtime "$fwv/Helpers/app_mode_loader"
 [ -e "$fwv/Helpers/web_app_shortcut_copier" ] && sign --options restrict,library,kill,runtime \
-  --identifier com.ardia.browser.web_app_shortcut_copier "$fwv/Helpers/web_app_shortcut_copier"
+  --identifier "$bundle_id.web_app_shortcut_copier" "$fwv/Helpers/web_app_shortcut_copier"
 sign "$fw"
 [ -d "$app/Contents/Frameworks/hermes.framework" ] \
   && sign --preserve-metadata=identifier,entitlements,flags,runtime "$app/Contents/Frameworks/hermes.framework"
@@ -242,7 +263,10 @@ codesign --verify --deep --strict "$app"
 [ -d "$archive/dSYMs/Ardia.app.dSYM" ] || die "the archive has no Ardia.app.dSYM"
 entitlements() { codesign -d --entitlements - --xml "$1" 2>/dev/null; }
 info() { plutil -extract "$1" raw "$app/Contents/Info.plist" 2>/dev/null; }
-[ "$(info CFBundleIdentifier)" = com.ardia.browser ] || die "bundle id is $(info CFBundleIdentifier)"
+[ "$(info CFBundleIdentifier)" = "$bundle_id" ] || die "bundle id is $(info CFBundleIdentifier), not $bundle_id"
+[ "$(info CFBundleName)" = "$product_name" ] || die "CFBundleName is $(info CFBundleName), not $product_name"
+[ "$(info CFBundleDisplayName)" = "$product_name" ] || die "CFBundleDisplayName is $(info CFBundleDisplayName), not $product_name"
+[ "$(info SUPublicEDKey)" = "$public_ed_key" ] || die "SUPublicEDKey is $(info SUPublicEDKey), not $public_ed_key"
 [ "$(info CFBundleExecutable)" = Ardia ] || die "executable is $(info CFBundleExecutable)"
 [ "$(info CFBundleShortVersionString)" = "$version" ] || die "CFBundleShortVersionString is $(info CFBundleShortVersionString)"
 [ "$(info CFBundleVersion)" = "$release_build" ] || die "CFBundleVersion is $(info CFBundleVersion), not $release_build"
@@ -259,11 +283,11 @@ for file in "$root"/LICENSE* "$root/NOTICE"; do
   cmp -s "$file" "$app/Contents/Resources/Licenses/$(basename "$file")" || die "the app lacks $(basename "$file") in Contents/Resources/Licenses"
 done
 designated="$(codesign -d -r- "$app" 2>&1 | sed -n 's/^designated => //p')"
-[[ "$designated" == *'identifier "com.ardia.browser"'* && "$designated" == *"subject.OU] = U5L5T3NGVV"* ]] \
+[[ "$designated" == *"identifier \"$bundle_id\""* && "$designated" == *"subject.OU] = $team_id"* ]] \
   || die "designated requirement: $designated"
 app_ents="$(entitlements "$app")"
 for group in webauthn unexportable-keys secure-payment-confirmation; do
-  [[ "$app_ents" == *"U5L5T3NGVV.com.ardia.browser.$group"* ]] || die "the app lacks the keychain group …$group"
+  [[ "$app_ents" == *"$team_id.$bundle_id.$group"* ]] || die "the app lacks the keychain group …$group"
 done
 [[ "$app_ents" != *web-browser.public-key-credential* ]] || die "the app is signed with com.apple.developer.web-browser.public-key-credential"
 for helper in "$fwv"/Helpers/*"Renderer).app" "$fwv"/Helpers/*"GPU).app"; do
@@ -271,7 +295,7 @@ for helper in "$fwv"/Helpers/*"Renderer).app" "$fwv"/Helpers/*"GPU).app"; do
 done
 while IFS= read -r -d '' code; do
   details="$(codesign -dvv "$code" 2>&1)"
-  [[ "$details" == *"TeamIdentifier=U5L5T3NGVV"* && "$details" == *"Authority=Developer ID Application"* \
+  [[ "$details" == *"TeamIdentifier=$team_id"* && "$details" == *"Authority=Developer ID Application"* \
     && "$details" == *"Timestamp="* ]] || die "$code isn't Developer ID-signed with a timestamp"
   [[ "$(entitlements "$code")" != *get-task-allow* ]] || die "$code has get-task-allow"
 done < <(find "$app" \( -name "*.app" -o -name "*.framework" -o -name "*.dylib" -o -name "*.xpc" -o -name "*.plugin" \
@@ -343,6 +367,9 @@ fi
 echo "==> Package"
 legacy_app="$(sed -n 's/^ *public static let appFileName = "\(.*\)"$/\1/p' "$root/packages/sync/ios/Core/LegacyMigration.swift")"
 [[ "$legacy_app" == *.app ]] || die "can't read the legacy app name from LegacyMigration.swift"
+legacy_successor="$(sed -n 's/^ *public static let successorBundleId = "\(.*\)"$/\1/p' "$root/packages/sync/ios/Core/LegacyMigration.swift")"
+[ -n "$legacy_successor" ] || die "can't read the legacy successor bundle id from LegacyMigration.swift"
+[ "$bundle_id" = "$legacy_successor" ] || legacy_app="$product_name.app"
 update_dir="$dist/update"
 rm -rf "$update_dir" && mkdir -p "$update_dir"
 ditto "$app" "$update_dir/$legacy_app"
@@ -350,15 +377,17 @@ ditto -c -k --keepParent "$update_dir/$legacy_app" "$zip"
 rm -rf "$update_dir"
 staging="$dist/dmg"
 mkdir -p "$staging"
-ditto "$app" "$staging/Ardia.app"
+ditto "$app" "$staging/$product_name.app"
 ln -s /Applications "$staging/Applications"
 cp "$root/scripts/dmg/background.tiff" "$staging/.background.tiff"
-cp "$root/scripts/dmg/DS_Store" "$staging/.DS_Store"
+dmg_layout="$root/scripts/dmg/DS_Store"
+[ -f "$root/scripts/dmg/DS_Store-$product_name" ] && dmg_layout="$root/scripts/dmg/DS_Store-$product_name"
+cp "$dmg_layout" "$staging/.DS_Store"
 cp "$app/Contents/Resources/AppIcon.icns" "$staging/.VolumeIcon.icns"
 mkdir -p "$staging/.fseventsd" && touch "$staging/.fseventsd/no_log"
 dmg_rw="$dist/dmg-rw.dmg" dmg_mnt="$dist/dmg-mnt"
 rm -rf "$dmg_rw" "$dmg_mnt" && mkdir "$dmg_mnt"
-hdiutil create -volname Ardia -srcfolder "$staging" -format UDRW -ov "$dmg_rw" >/dev/null
+hdiutil create -volname "$product_name" -srcfolder "$staging" -format UDRW -ov "$dmg_rw" >/dev/null
 rm -rf "$staging"
 hdiutil attach "$dmg_rw" -nobrowse -noautoopen -noverify -mountpoint "$dmg_mnt" >/dev/null
 SetFile -a C "$dmg_mnt" || { hdiutil detach "$dmg_mnt" -force >/dev/null; die "couldn't flag the volume's icon"; }
@@ -379,17 +408,20 @@ fi
 
 echo "==> Release notes"
 if [ "$channel" = nightly ]; then
-  updates_line="A nightly: every fix the day it lands, tested less than a stable release. It updates to newer nightlies and stables (Ardia › Check for Updates…); Settings › General › Update channel switches back to Stable, which never downgrades. Every release's notes: $notes_page"
+  updates_line="A nightly: every fix the day it lands, tested less than a stable release. It updates to newer nightlies and stables ($product_name › Check for Updates…); Settings › General › Update channel switches back to Stable, which never downgrades. Every release's notes: $notes_page"
 else
-  updates_line="Earlier versions update automatically (Ardia › Check for Updates…). Every release's notes: $notes_page"
+  updates_line="Earlier versions update automatically ($product_name › Check for Updates…). Every release's notes: $notes_page"
 fi
 if [ "$notarize" = 1 ]; then
   install_line="Apple Silicon, macOS 14 or later. Signed with Developer ID and notarized by Apple: download, drag it to Applications, open it."
 else
-  install_line="Apple Silicon, macOS 14 or later. Signed with Developer ID but not notarized: on first launch macOS refuses to open it. Click Done, then System Settings › Privacy & Security › Open Anyway. Or run \`xattr -dr com.apple.quarantine /Applications/Ardia.app\`."
+  install_line="Apple Silicon, macOS 14 or later. Signed with Developer ID but not notarized: on first launch macOS refuses to open it. Click Done, then System Settings › Privacy & Security › Open Anyway. Or run \`xattr -dr com.apple.quarantine /Applications/$product_name.app\`."
 fi
 source_line="This build's source, with the engine's patches and build scripts: https://github.com/$repo/tree/v$version (LICENSE and NOTICE there cover the licenses)."
-[ -n "$helium_engine" ] && [ -n "$engine_release" ] && source_line="$source_line The engine's Helium and uBlock sources as built, and where Chromium's is: https://github.com/$repo/releases/download/v$engine_release/$(basename "$engine_source")"
+engine_repo="$repo"
+[ -n "$engine_pack" ] || engine_repo="${ARDIACORE_PREBUILT_REPO:-$(sed -n 's/^repo=\${ARDIACORE_PREBUILT_REPO:-\(.*\)}$/\1/p' "$ardiacore/scripts/fetch-engine.sh")}"
+[ -n "$engine_repo" ] || die "can't read the prebuilt engines' repository from packages/ardiacore/scripts/fetch-engine.sh"
+[ -n "$helium_engine" ] && [ -n "$engine_release" ] && source_line="$source_line The engine's Helium and uBlock sources as built, and where Chromium's is: https://github.com/$engine_repo/releases/download/v$engine_release/$(basename "$engine_source")"
 {
   notes_body
   cat <<EOF

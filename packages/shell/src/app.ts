@@ -62,6 +62,9 @@ export type SystemInfo = {
   feedbackEmail?: string | null;
   videoTourURL?: string | null;
   releaseNotesURL?: string | null;
+  releaseRepo?: string | null;
+  telemetryURL?: string | null;
+  switchesURL?: string | null;
   isolatedInstance?: boolean;
   forceReleaseNotes?: boolean;
   processStart?: number | null;

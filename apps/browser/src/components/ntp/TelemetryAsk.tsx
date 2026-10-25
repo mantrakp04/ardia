@@ -14,7 +14,7 @@ import { usePendingReleaseNotes } from "./releaseNotes";
 const FRAME = { width: 300 };
 
 export function TelemetryAsk({ windowId }: { windowId: string }) {
-  const due = useTelemetry((s) => !s.decided && !s.askDone);
+  const due = useTelemetry((s) => s.available && !s.decided && !s.askDone);
   const incognito = useBrowser((s) => !!s.windows[windowId]?.incognito);
   const onboarding = useOnboarding((s) => s.windowId !== null);
   const checkIn = useDefaultBrowserCheckIn(windowId).visible;

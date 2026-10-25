@@ -3,7 +3,7 @@ import Foundation
 import Security
 
 public class KeychainModule: Module {
-  private static let service = "Ardia Connected Accounts"
+  private static let service = "\(Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "Ardia") Connected Accounts"
 
   public func definition() -> ModuleDefinition {
     Name("ArdiaKeychain")
