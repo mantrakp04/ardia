@@ -27,7 +27,6 @@ const MARKS = {
 };
 const MARK_SIZE = 100;
 const MARK_ABOVE_BAR = 84.1;
-const INCOGNITO_ABOVE_MARK = 70;
 const SUN_DELAY = 250;
 const MARK_LAYERS = [
   { name: "sun", hidden: 56, delay: SUN_DELAY, spring: springParams(0.56, 0.9) },
@@ -109,7 +108,7 @@ export function NewTabPage({ tabId, toolbar = true }: { tabId: string; toolbar?:
           halo={bar}
         />
       )}
-      {!onboarding && incognito && <IncognitoHeading left={x} top={top - MARK_ABOVE_BAR - INCOGNITO_ABOVE_MARK} width={width} />}
+      {!onboarding && incognito && <IncognitoHeading left={x} bottom={top - MARK_ABOVE_BAR} width={width} />}
       <View
         pointerEvents="none"
         style={{

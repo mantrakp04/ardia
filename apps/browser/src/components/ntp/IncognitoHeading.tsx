@@ -1,13 +1,20 @@
 import { Symbol } from "@ardia/shell";
+import { useState } from "react";
 import { Text, View } from "react-native";
 import { useTheme } from "../../lib/theme";
 
 export const INCOGNITO_ICON = "eyeglasses";
+const GAP_ABOVE_MARK = 12;
 
-export function IncognitoHeading({ left, top, width }: { left: number; top: number; width: number }) {
+export function IncognitoHeading({ left, bottom, width }: { left: number; bottom: number; width: number }) {
   const theme = useTheme();
+  const [height, setHeight] = useState(0);
   return (
-    <View pointerEvents="none" style={{ position: "absolute", left, top, width, alignItems: "center", gap: 6 }}>
+    <View
+      pointerEvents="none"
+      onLayout={(e) => setHeight(e.nativeEvent.layout.height)}
+      style={{ position: "absolute", left, top: bottom - height - GAP_ABOVE_MARK, width, alignItems: "center", gap: 6, opacity: height ? 1 : 0 }}
+    >
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         <Symbol name={INCOGNITO_ICON} size={24} weight="medium" color={theme.textPrimary} style={{ width: 32, height: 28 }} />
         <Text numberOfLines={1} style={{ fontSize: 30, fontWeight: "700", letterSpacing: -0.4, color: theme.textPrimary }}>
