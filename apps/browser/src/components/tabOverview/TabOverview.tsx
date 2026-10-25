@@ -25,9 +25,21 @@ const TOP = 52;
 const TRAY_PAD = 32;
 const TRAY_MIN = 150;
 const TRAY_GAP = 16;
+const REVEAL_MARGIN = 12;
 const KEYS = ["Escape", "Enter", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].map((key) => ({ key }));
 
 type Folder = Extract<OverviewItem, { kind: "folder" }>;
+type CardViews = (key: string, view: View | null) => void;
+
+function useCardView(key: string, onView: CardViews | undefined) {
+  const view = useRef<View>(null);
+  useEffect(() => {
+    if (!onView) return;
+    onView(key, view.current);
+    return () => onView(key, null);
+  }, [key, onView]);
+  return view;
+}
 
 let pinchWatchers = 0;
 
@@ -77,6 +89,25 @@ function TabOverview({ windowId }: { windowId: string }) {
   const columns = overviewColumns(width - SIDE * 2, MIN_CARD, GAP);
   const card = width > 0 ? Math.floor((width - SIDE * 2 - GAP * (columns - 1)) / columns) : MIN_CARD;
   const scroller = useRef<ScrollView>(null);
+  const scrollY = useRef(0);
+  const cards = useRef(new Map<string, View>());
+  const cardView = useRef<CardViews>((key, view) => {
+    if (view) cards.current.set(key, view);
+    else cards.current.delete(key);
+  }).current;
+  const revealCard = (key: string | null) => {
+    const view = key ? cards.current.get(key) : undefined;
+    const list = scroller.current?.getNativeScrollRef?.() as View | null | undefined;
+    if (!view || !list) return;
+    view.measureInWindow((_x, y, _w, h) =>
+      list.measureInWindow((_lx, top, _lw, height) => {
+        const above = y - REVEAL_MARGIN - top;
+        const below = y + h + REVEAL_MARGIN - (top + height);
+        const by = above < 0 ? above : below > 0 ? below : 0;
+        if (by) scroller.current?.scrollTo({ y: Math.max(0, scrollY.current + by), animated: true });
+      }),
+    );
+  };
   const placedCurrent = useRef(false);
   const showCurrent = (card: View) => {
     const list = scroller.current?.getNativeScrollRef?.() as View | null | undefined;
@@ -172,13 +203,15 @@ function TabOverview({ windowId }: { windowId: string }) {
                   return query ? setQuery("") : closeTabOverview(windowId);
                 }
                 if (key === "Enter") return activate(selected);
-                setSelected((current) => moveInGrid(grid, current, key));
+                const next = moveInGrid(grid, selected, key);
+                setSelected(next);
+                revealCard(next);
               }}
               style={{ flex: 1, fontSize: 13, color: theme.textPrimary, paddingVertical: 0 }}
             />
           </View>
         </View>
-        <ScrollView ref={scroller} contentContainerStyle={{ paddingHorizontal: SIDE, paddingBottom: SIDE }}>
+        <ScrollView ref={scroller} onScroll={(e) => (scrollY.current = e.nativeEvent.contentOffset.y)} scrollEventThrottle={16} contentContainerStyle={{ paddingHorizontal: SIDE, paddingBottom: SIDE }}>
           {sections.map((section) => {
             const rows: OverviewItem[][] = [];
             for (let i = 0; i < section.items.length; i += columns) rows.push(section.items.slice(i, i + columns));
@@ -193,13 +226,13 @@ function TabOverview({ windowId }: { windowId: string }) {
                         {row.map((item) => {
                           const i = index++;
                           return item.kind === "tab" ? (
-                            <TabCard key={item.id} tabId={item.id} width={card} index={i} selected={item.id === selected} current={item.id === active} fresh={fresh} onOpen={() => choose(item.id)} onPlaced={item.id === active ? showCurrent : undefined} />
+                            <TabCard key={item.id} tabId={item.id} width={card} index={i} selected={item.id === selected} current={item.id === active} fresh={fresh} onOpen={() => choose(item.id)} onPlaced={item.id === active ? showCurrent : undefined} onView={cardView} />
                           ) : (
-                            <FolderCard key={item.key} item={item} width={card} index={i} selected={item.key === selected} open={expanded === item.key} onPress={() => toggleFolder(item.key)} />
+                            <FolderCard key={item.key} item={item} width={card} index={i} selected={item.key === selected} open={expanded === item.key} onPress={() => toggleFolder(item.key)} onView={cardView} />
                           );
                         })}
                       </View>
-                      {open ? <FolderTray key={open.key} item={open} caretX={row.indexOf(open) * (card + GAP) + card / 2} active={active} selected={selected} fresh={fresh} onOpen={choose} /> : null}
+                      {open ? <FolderTray key={open.key} item={open} caretX={row.indexOf(open) * (card + GAP) + card / 2} active={active} selected={selected} fresh={fresh} onOpen={choose} onView={cardView} /> : null}
                     </View>
                   );
                 })}
@@ -230,6 +263,7 @@ const TabCard = memo(function TabCard({
   fresh,
   onOpen,
   onPlaced,
+  onView,
   small = false,
 }: {
   tabId: string;
@@ -240,6 +274,7 @@ const TabCard = memo(function TabCard({
   fresh: number;
   onOpen: () => void;
   onPlaced?: (view: View) => void;
+  onView?: CardViews;
   small?: boolean;
 }) {
   const theme = useTheme();
@@ -248,7 +283,7 @@ const TabCard = memo(function TabCard({
   const close = useHover();
   const picture = useMemo(() => lastPicture(tabId), [tabId, fresh]);
   const enter = useEnter(index);
-  const place = useRef<View>(null);
+  const place = useCardView(tabId, onView);
   if (!tab) return null;
   const url = tab.url || tab.pinnedUrl || "";
   const name = tab.customTitle || tab.title || hostOf(url) || "New Tab";
@@ -309,6 +344,7 @@ const FolderCard = memo(function FolderCard({
   selected,
   open,
   onPress,
+  onView,
 }: {
   item: Folder;
   width: number;
@@ -316,16 +352,18 @@ const FolderCard = memo(function FolderCard({
   selected: boolean;
   open: boolean;
   onPress: () => void;
+  onView?: CardViews;
 }) {
   const theme = useTheme();
   const tabs = useBrowser((s) => s.tabs);
   const { hovered, hoverProps } = useHover();
   const enter = useEnter(index);
+  const place = useCardView(item.key, onView);
   const height = Math.round(width / ASPECT);
   const cellHeight = Math.floor((height - 18) / 2);
   const cellWidth = Math.floor((width - 18) / 2);
   return (
-    <Animated.View style={{ width, opacity: enter, transform: [{ scale: enter.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }] }}>
+    <Animated.View ref={place} style={{ width, opacity: enter, transform: [{ scale: enter.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }] }}>
       <Pressable {...hoverProps} onPress={onPress}>
         <View style={{ height: 26, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 2 }}>
           {item.icon ? <Text style={{ fontSize: 12 }}>{item.icon}</Text> : <Symbol name="folder.fill" size={12} color={theme.textSecondary} style={{ width: 15, height: 13 }} />}
@@ -386,6 +424,7 @@ function FolderTray({
   selected,
   fresh,
   onOpen,
+  onView,
 }: {
   item: Folder;
   caretX: number;
@@ -393,6 +432,7 @@ function FolderTray({
   selected: string | null;
   fresh: number;
   onOpen: (tabId: string) => void;
+  onView: CardViews;
 }) {
   const theme = useTheme();
   const drop = useRef(new Animated.Value(0)).current;
@@ -413,7 +453,7 @@ function FolderTray({
         <Text style={{ fontSize: 15, fontWeight: "700", color: theme.textPrimary }}>{item.name}</Text>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 16 }}>
           {item.tabIds.map((id, i) => (
-            <TabCard key={id} tabId={id} width={card} index={i} selected={id === selected} current={id === active} fresh={fresh} onOpen={() => onOpen(id)} small />
+            <TabCard key={id} tabId={id} width={card} index={i} selected={id === selected} current={id === active} fresh={fresh} onOpen={() => onOpen(id)} onView={onView} small />
           ))}
         </View>
       </View>
