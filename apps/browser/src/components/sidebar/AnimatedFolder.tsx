@@ -2,7 +2,7 @@ import { FolderIcon } from "@ardia/shell";
 import { memo } from "react";
 import { useTheme } from "../../lib/theme";
 import type { GroupColor } from "../../store/types";
-import { TabIcon } from "./TabIcon";
+import { hasOwnGroupIcon, TabIcon } from "./TabIcon";
 import { GROUP_COLORS } from "./tokens";
 
 const FOLDER_ACCENT = "#443AFF";
@@ -31,5 +31,5 @@ export const AnimatedFolder = memo(function AnimatedFolder({ open, color, size =
 });
 
 export function FolderOrIcon({ icon, open, color }: { icon: string | null | undefined; open: boolean; color?: GroupColor | null }) {
-  return icon ? <TabIcon url="" icon={icon} /> : <AnimatedFolder open={open} color={color} />;
+  return hasOwnGroupIcon(icon) ? <TabIcon url="" icon={icon} /> : <AnimatedFolder open={open} color={color} />;
 }
