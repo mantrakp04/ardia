@@ -1,7 +1,6 @@
 import { openWindow, switchToTab } from "../../lib/actions";
 import { useBrowser } from "../../store/browser";
 import { originalProfile } from "../../store/small";
-import { paneToReuse } from "../../store/splits";
 import { openSplitPane } from "../layout/splitActions";
 import type { Disposition } from "./disposition";
 
@@ -22,7 +21,7 @@ export function openFromBar(url: string, tabId: string, disposition: Disposition
     return true;
   }
   s.closePanel(tab.windowId);
-  if (disposition === "newTab" || disposition === "background")
+  if (disposition === "background")
     s.newTab(tab.windowId, { url, profileId: tab.profileId, openerId: tab.url ? tabId : undefined, background: disposition === "background" });
   else openWindow(w?.incognito ? { incognito: true, url, profileId: originalProfile(s, w) } : { profileId: tab.profileId, url });
   return true;
@@ -30,11 +29,7 @@ export function openFromBar(url: string, tabId: string, disposition: Disposition
 
 function openBesideInSplit(tabId: string, url: string): boolean {
   const s = useBrowser.getState();
-  const reuse = paneToReuse(s, tabId);
-  if (!reuse) return openSplitPane(s.tabs[tabId]!.windowId, { anchorTabId: tabId, url, side: "right" }) !== null;
-  s.navigate(reuse, url);
-  s.activate(reuse);
-  return true;
+  return openSplitPane(s.tabs[tabId]!.windowId, { anchorTabId: tabId, url, side: "right" }) !== null;
 }
 
 export function switchFromBar(targetTabId: string, url: string, barTabId: string, disposition: Disposition) {

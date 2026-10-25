@@ -5,15 +5,13 @@ import { paneToReuse } from "../../store/splits.ts";
 
 test("command bar modifiers pick where the result opens", () => {
   assert.equal(dispositionFor({}), "current");
-  assert.equal(dispositionFor({ metaKey: true }), "newTab");
-  assert.equal(dispositionFor({ ctrlKey: true }), "background");
+  assert.equal(dispositionFor({ metaKey: true }), "background");
   assert.equal(dispositionFor({ altKey: true }), "split");
   assert.equal(dispositionFor({ shiftKey: true }), "newWindow");
-  assert.equal(dispositionFor({ metaKey: true, altKey: true }), "newTab");
-  assert.equal(dispositionFor({ ctrlKey: true, shiftKey: true }), "newWindow");
+  assert.equal(dispositionFor({ metaKey: true, altKey: true }), "background");
 });
 
-test("split opens a new pane unless one already sits to the right", () => {
+test("a link split reuses the pane to its right", () => {
   const splits = { a: { id: "a", tabIds: ["t1", "t2"] } };
   assert.equal(paneToReuse({ splits: {} }, "t1"), null);
   assert.equal(paneToReuse({ splits }, "t1"), "t2");

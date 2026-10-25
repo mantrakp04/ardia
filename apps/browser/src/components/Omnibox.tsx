@@ -204,7 +204,7 @@ export function Omnibox({
     }
     switch (s.kind) {
       case "page":
-        if (s.tabId && !(opensTab && disposition === "newTab")) {
+        if (s.tabId && !(opensTab && disposition === "background")) {
           switchFromBar(s.tabId, s.url, tabId, disposition);
           if (hero && disposition === "current") reset();
           return;
@@ -292,8 +292,8 @@ export function Omnibox({
     if (key === "Enter") {
       if (metaKey && shiftKey) return forceSearch();
       if (ctrlKey && !/[\s./:]/.test(typed.trim()) && typed.trim())
-        return go(`https://www.${typed.trim()}.com`, shiftKey ? "newWindow" : "background");
-      if (metaKey || altKey || shiftKey || ctrlKey) return choose(current, dispositionFor({ metaKey, altKey, shiftKey, ctrlKey }), true);
+        return go(`https://www.${typed.trim()}.com`, shiftKey ? "newWindow" : "current");
+      if (metaKey || altKey || shiftKey) return choose(current, dispositionFor({ metaKey, altKey, shiftKey }), true);
     }
   };
 
