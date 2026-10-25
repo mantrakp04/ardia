@@ -57,7 +57,10 @@ export function notePagerPull(windowId: string, position: number) {
 }
 
 export function endPagerPull(windowId: string, phase: "began" | "selected" | "settled") {
-  if (phase === "selected") return;
+  if (phase !== "selected") stopPagerPull(windowId);
+}
+
+export function stopPagerPull(windowId: string) {
   pagerPulls.delete(windowId);
   if (useLibraryPull.getState().pulling[windowId]) setPulling(windowId, false);
 }

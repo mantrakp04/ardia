@@ -1,5 +1,5 @@
 import { SwipeArea, type SwipeAreaHandle, type SwipeEvent } from "@ardia/ardiacore";
-import { attachPagerPull, endLibraryPull, endPagerPull, notePagerPull, pullLibrary } from "../library/pull";
+import { attachPagerPull, endLibraryPull, endPagerPull, notePagerPull, pullLibrary, stopPagerPull } from "../library/pull";
 import { openLibrary, useLibrary } from "../library/state";
 import { WindowBackdrop } from "@ardia/shaders";
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
@@ -61,6 +61,7 @@ export function ProfileSwipeArea({ surface, style, pageWidth }: { surface: "side
     return () => {
       pager.pos.removeListener(id);
       detach();
+      stopPagerPull(windowId);
     };
   }, [pullsFromPager, pager, windowId]);
   const onPagerState = useMemo(
