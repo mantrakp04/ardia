@@ -1612,6 +1612,19 @@ void TabBridge::NavigationEntryCommitted(
   [tab_ notify:@selector(tabDidChangeNavigationState:)];
 }
 
+void TabBridge::NavigationListPruned(
+    const content::PrunedDetails& pruned_details) {
+  base::AutoReset<int> notifying(&g_navigation_notifying,
+                                 g_navigation_notifying + 1);
+  [tab_ notify:@selector(tabDidChangeNavigationState:)];
+}
+
+void TabBridge::NavigationEntriesDeleted() {
+  base::AutoReset<int> notifying(&g_navigation_notifying,
+                                 g_navigation_notifying + 1);
+  [tab_ notify:@selector(tabDidChangeNavigationState:)];
+}
+
 void TabBridge::WebContentsDestroyed() {
   if (popups_) {
     popups_->manager()->RemoveObserver(this);

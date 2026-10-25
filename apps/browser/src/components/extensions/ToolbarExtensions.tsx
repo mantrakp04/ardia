@@ -83,6 +83,10 @@ function TabToolbarExtensions({
   );
 }
 
+export function ToolbarPopupAnchor(props: { windowId: string; tabId: string; top: number; right: number }) {
+  return <EmptyAnchor key={`${props.windowId}|${props.tabId}`} {...props} />;
+}
+
 function EmptyAnchor({ windowId, tabId, top, right }: { windowId: string; tabId: string; top: number; right: number }) {
   const { ref, measure } = useAnchor(windowId, tabId, "*");
   return <View ref={ref} pointerEvents="none" style={{ position: "absolute", top, right, width: BUTTON, height: BUTTON }} onLayout={() => void measure()} />;

@@ -50,6 +50,7 @@ export type WindowsSlice = {
   createWindow(options?: CreateWindowOptions): string;
   closeWindow(id: string): void;
   setWindowFrame(id: string, frame: Frame): void;
+  setWindowFullScreen(id: string, on: boolean): void;
   toggleSidebar(windowId: string): void;
   switchProfile(windowId: string, profileId: string): void;
   moveTabsToWindow(tabIds: string[], windowId: string | null): string | undefined;
@@ -211,6 +212,15 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
       const size: [number, number] = [Math.round(frame[2]), Math.round(frame[3])];
       const [width, height] = s.settings.littleArdiaSize ?? [];
       return size[0] === width && size[1] === height ? { windows } : { windows, settings: { ...s.settings, littleArdiaSize: size } };
+    });
+  },
+
+  setWindowFullScreen(id, on) {
+    set((s) => {
+      const w = s.windows[id];
+      if (!w || !!w.fullScreen === on) return {};
+      const { fullScreen: _, ...rest } = w;
+      return { windows: { ...s.windows, [id]: on ? { ...rest, fullScreen: Date.now() } : rest } };
     });
   },
 

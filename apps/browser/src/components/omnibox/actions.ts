@@ -1,12 +1,11 @@
 import type { CommandAction } from "@ardia/core";
 import type { BrowserCommand } from "@ardia/shell";
-import { runCommand } from "../../lib/commands";
 import { isBookmarked } from "../../store/bookmarks";
 import { useBrowser, type BrowserState } from "../../store/browser";
 import { activeTab, bookmarkProfileId, isPinnedRow, pinnedSectionTitle } from "../../store/model";
 import { canTidyPins } from "../../store/tidyPins";
 import type { Tab } from "../../store/types";
-import { organizeActions, runOrganizeAction } from "./organizeActions";
+import { organizeActions } from "./organizeActions";
 
 type Context = { s: BrowserState; windowId: string; tab: Tab | undefined };
 
@@ -117,14 +116,6 @@ export function barActions(s: BrowserState, windowId: string): CommandAction[] {
   }
   out.push(...organizeActions(s, windowId));
   return out;
-}
-
-export function runBarAction(id: string, windowId: string) {
-  if (runOrganizeAction(id, windowId)) return;
-  const i = id.indexOf(":");
-  const command = (i < 0 ? id : id.slice(0, i)) as BrowserCommand;
-  const arg = i < 0 ? null : id.slice(i + 1);
-  runCommand({ command, arg, windowId });
 }
 
 const barActionsOf = new WeakMap<BrowserState, Map<string, CommandAction[]>>();

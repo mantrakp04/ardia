@@ -141,9 +141,9 @@ const shortcuts = [
   ["⌘R", cmd("r", 15), { command: "reload" }, "⌘R"],
   ["⇧⌘R", cmd("R", 15, "shift"), { command: "forceReload" }, "⇧⌘R"],
   ["⇧⌘S", cmd("S", 1, "shift"), { command: "toggleTabLayout" }, "⇧⌘S"],
-  ["⌘S", cmd("s", 1), { command: "toggleSidebar" }, "⌘S"],
-  ["⇧⌘L", cmd("L", 37, "shift"), { command: "toggleSidebar" }, "(Chrome's)"],
-  ["⇧⌘F", cmd("F", 3, "shift"), { command: "toggleSidebar" }, "(Chrome's)"],
+  ["⌘S", cmd("s", 1), { command: "toggleSidebar" }, "⌘S", "page-field"],
+  ["⇧⌘L", cmd("L", 37, "shift"), { command: "toggleSidebar" }, "(Chrome's)", "page-field"],
+  ["⇧⌘F", cmd("F", 3, "shift"), { command: "toggleSidebar" }, "(Chrome's)", "page-field"],
   ["⌥⌘N", cmd("n", 45, "option"), { command: "newLittleArdia" }, "Arc's Little Arc"],
   ["⌃⇧=", K("+", 24, "control", "shift"), { command: "openSplitPane" }, "⌃⇧="],
   ["⌃⇧]", K("}", 30, "control", "shift"), { command: "focusNextPane" }, "⌃⇧]"],
@@ -404,6 +404,19 @@ const resetToPageField = async (value, selection) => {
   await pageField(`(f.value = ${JSON.stringify(value)}, f.focus(), f.setSelectionRange(${selection[0]}, ${selection[1]}), true)`);
   await sleep(100);
 };
+const sidebarOpen = () => ac(`return ac.store.getState().windows.w1.sidebarOpen;`);
+for (const [label, presses, toggles] of [
+  ["one ⌘S in a page's text field stays with the page", [keyPress("s", 1)], 0],
+  ["two quick ⌘S in a page's text field toggle the sidebar once", [keyPress("s", 1), keyPress("s", 1, 150)], 1],
+]) {
+  await resetToPageField("", [0, 0]);
+  const before = await sidebarOpen();
+  await postKeys(presses);
+  await sleep(1200);
+  const now = await sidebarOpen();
+  check(label, (now !== before) === (toggles === 1), `sidebar ${before} → ${now}`);
+  if (now !== before) await ac(`ac.store.getState().toggleSidebar("w1"); return 1;`);
+}
 const handoffs = [
   ["⌘T", "t", 17],
   ["⌘L", "l", 37],

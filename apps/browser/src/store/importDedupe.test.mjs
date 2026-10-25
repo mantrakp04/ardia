@@ -71,3 +71,48 @@ test("an import skips open tabs whose page is already open in the profile, and r
   assert.equal(importTabs(P, open, null), 0, "a second import adds nothing");
   assert.deepEqual(urls(), ["https://a.example/", "https://home.example/"]);
 });
+
+test("an Arc favorite imports even when the same page sits in a pinned folder or a pinned row, but not twice as a tile", () => {
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://home.example/" });
+  const grouped = S().newTab(w, { url: "https://www.youtube.com/", profileId: P });
+  const g = S().createGroup([grouped]);
+  S().updateGroup(g, { pinned: true });
+  const row = S().newTab(w, { url: "https://row.example/", profileId: P });
+  S().pinTabs([row], true, true);
+  const favorites = [
+    { url: "https://www.youtube.com/", title: "YouTube", pinned: true },
+    { url: "https://row.example/", title: "Row", pinned: true },
+    { url: "https://row.example/", title: "Row again", pinned: true },
+  ];
+  assert.equal(importTabs(P, favorites, null, "tiles"), 2);
+  assert.equal(importTabs(P, favorites, null, "tiles"), 0, "a second import adds no tile");
+  assert.equal(importTabs(P, favorites, null), 0, "pinned rows still skip pages pinned anywhere");
+  S().closeWindow(w);
+  assert.ok(S().parkedPins[P]?.tabs.length, "the pins are parked");
+  assert.equal(importTabs(P, favorites, null, "tiles"), 0, "parked tiles count too");
+});
+
+test("Arc favorites land as tiles after the space's rows and folders came in", async () => {
+  const { applyResult } = await import("../components/import/apply.ts");
+  S().hydrate({});
+  S().createWindow({ url: "https://home.example/" });
+  const space = {
+    id: "s4",
+    name: "Home",
+    profileId: P,
+    tabs: [],
+    pinned: [
+      { type: "url", title: "Row", url: "https://row.example/" },
+      { type: "folder", title: "Videos", children: [{ type: "url", title: "YouTube", url: "https://www.youtube.com/" }] },
+    ],
+  };
+  importArcSpace(P, space);
+  assert.equal(importTabs(P, [{ url: "https://www.youtube.com/", title: "YouTube", pinned: true }], null), 0, "the folder pinned YouTube");
+  const favorites = [{ url: "https://www.youtube.com/", title: "YouTube" }, { url: "https://row.example/", title: "Row" }];
+  const result = { tabs: [], spaces: [space], favorites, history: [], credentials: [], favicons: [], bookmarks: null, vaultToken: null };
+  const counts = await applyResult(P, result, "Arc", []);
+  assert.equal(counts.tabs, 2);
+  const tiles = Object.values(S().tabs).filter((t) => t.pinned && !t.pinnedAsRow).map((t) => t.url).sort();
+  assert.deepEqual(tiles, ["https://row.example/", "https://www.youtube.com/"]);
+});

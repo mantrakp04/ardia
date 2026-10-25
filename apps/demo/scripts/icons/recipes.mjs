@@ -45,6 +45,7 @@ export const RECIPES = {
   "star.square.on.square": one(O("square", at(1.1, -0.13, -0.13)), O("square", { knockout: 0.07, ...at(1.1, 0.13, 0.13) }), L("phosphor-fill:star-fill", at(0.48, 0.13, 0.13))),
   "rectangle.stack": one(O("frame", at(1.2, 0, 0.12)), O("stack.lines", at(1.2, 0, -0.3))),
   "square.stack": one(O("square", at(1.2, 0, 0.12)), O("stack.lines", at(1.2, 0, -0.42, { W1: 16, W2: 12 }))),
+  "square.stack.fill": one(O("solid.square", at(1.2, 0, 0.12)), O("stack.lines", at(1.2, 0, -0.42, { W1: 16, W2: 12 }))),
   display: one(O("display")),
   desktopcomputer: one(O("display")),
   tv: one(O("tv")),

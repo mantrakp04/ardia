@@ -6,7 +6,7 @@ import type { BookmarkDraft } from "../../store/bookmarks";
 import type { GroupDraft } from "../../store/draftGroups";
 import { useBrowser } from "../../store/browser";
 import { engineProfile, isIncognitoProfile } from "../../store/model";
-import { openPages, pageKey, pinnedPages } from "../../store/pageKeys";
+import { openPages, pageKey, pinnedPages, tilePages } from "../../store/pageKeys";
 import { withNewTab } from "../../store/tabs";
 import type { ProfileColor } from "../../store/types";
 import { importModule } from "./module";
@@ -137,9 +137,10 @@ export function importTabs(
   profileId: string,
   tabs: (Pick<ImportedTab, "url" | "title" | "pinned" | "customTitle"> & { row?: boolean })[],
   group: string | null,
+  pinnedAgainst: "anyPin" | "tiles" = "anyPin",
 ): number {
   const s = useBrowser.getState();
-  const pinned = pinnedPages(s, profileId);
+  const pinned = pinnedAgainst === "tiles" ? tilePages(s, profileId) : pinnedPages(s, profileId);
   const open = openPages(s, profileId);
   const usable = tabs.filter((t) => {
     if (!/^(https?|file):/i.test(t.url)) return false;
@@ -219,7 +220,7 @@ export async function applyResult(
   const native = (["cookies", "autofill"] as const).filter((k) => requested.includes(k));
   Object.assign(counts, await importNative(profileId, result.vaultToken, native, onFailed));
   if (result.tabs.length && !result.spaces.length) counts.tabs += importTabs(profileId, result.tabs, "Imported");
-  if (result.favorites.length) counts.tabs += importTabs(profileId, result.favorites.map((t) => ({ ...t, pinned: true })), null);
+  if (result.favorites.length) counts.tabs += importTabs(profileId, result.favorites.map((t) => ({ ...t, pinned: true })), null, "tiles");
   if (result.credentials.length) counts.passwords += await importPasswords(profileId, result.credentials);
   return counts;
 }

@@ -1,6 +1,7 @@
 // Copyright 2026 Ardia. Apache-2.0.
 
 #include <array>
+#include <map>
 #include <memory>
 #include <string>
 #include <utility>
@@ -8,9 +9,11 @@
 
 #include "base/barrier_closure.h"
 #include "base/base64.h"
+#include "base/files/file_path.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/no_destructor.h"
 #include "base/task/cancelable_task_tracker.h"
+#include "base/time/time.h"
 #include "chrome/browser/favicon/favicon_service_factory.h"
 #include "chrome/browser/ardia/ac_engine.h"
 #include "chrome/browser/profiles/profile.h"
@@ -31,6 +34,7 @@ const base::ListValue& EmptyList() {
 
 constexpr int kDefaultSize = 32;
 constexpr size_t kMaxPerCall = 500;
+constexpr base::TimeDelta kTouchAgainAfter = base::Days(1);
 
 base::CancelableTaskTracker& Tracker() {
   static base::NoDestructor<base::CancelableTaskTracker> tracker;
@@ -55,11 +59,32 @@ std::vector<std::string> Strings(const base::ListValue* list) {
 }
 
 struct Results {
-  explicit Results(Reply reply) : reply(std::move(reply)) {}
+  Results(Reply reply, base::WeakPtr<Profile> profile)
+      : reply(std::move(reply)), profile(std::move(profile)) {}
   Reply reply;
+  base::WeakPtr<Profile> profile;
   base::DictValue pages;
   base::DictValue icons;
+  std::vector<GURL> used;
 };
+
+void MarkUsed(const Results& r) {
+  static base::NoDestructor<
+      std::map<std::pair<base::FilePath, GURL>, base::TimeTicks>>
+      touched;
+  favicon::FaviconService* service = FaviconsFor(r.profile.get());
+  if (!service) {
+    return;
+  }
+  const base::TimeTicks now = base::TimeTicks::Now();
+  for (const GURL& icon : r.used) {
+    base::TimeTicks& last = (*touched)[{r.profile->GetPath(), icon}];
+    if (last.is_null() || now - last >= kTouchAgainAfter) {
+      last = now;
+      service->TouchOnDemandFavicon(icon);
+    }
+  }
+}
 
 std::string Png(const favicon_base::FaviconRawBitmapResult& result) {
   return base::Base64Encode(*result.bitmap_data);
@@ -69,6 +94,7 @@ void Found(Results& r,
            const std::string& page,
            const favicon_base::FaviconRawBitmapResult& result) {
   if (result.is_valid()) {
+    r.used.push_back(result.icon_url);
     r.pages.Set(page, base::DictValue()
                           .Set("png", Png(result))
                           .Set("icon", result.icon_url.spec()));
@@ -149,10 +175,12 @@ AC_ENGINE_CALL(ac_favicons_get) {
   const int size = static_cast<int>(call.Double("size", ardia::kDefaultSize));
   std::vector<std::string> pages = ardia::Strings(call.args().FindList("pages"));
   std::vector<std::string> icons = ardia::Strings(call.args().FindList("icons"));
-  auto results = std::make_shared<ardia::Results>(call.TakeReply());
+  auto results = std::make_shared<ardia::Results>(
+      call.TakeReply(), call.profile()->GetWeakPtr());
   base::RepeatingClosure done = base::BarrierClosure(
       pages.size() + icons.size(), base::BindOnce(
                                        [](std::shared_ptr<ardia::Results> r) {
+                                         ardia::MarkUsed(*r);
                                          r->reply.Send(
                                              base::DictValue()
                                                  .Set("pages", std::move(r->pages))
@@ -194,6 +222,7 @@ AC_ENGINE_CALL(ac_favicons_get) {
                base::RepeatingClosure done,
                const favicon_base::FaviconRawBitmapResult& result) {
               if (result.is_valid()) {
+                r->used.push_back(result.icon_url);
                 r->icons.Set(icon, base::DictValue().Set(
                                        "png", ardia::Png(result)));
               }

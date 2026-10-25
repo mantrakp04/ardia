@@ -126,6 +126,7 @@ export type WindowEvent =
   | { type: "focus"; id: string }
   | { type: "close"; id: string }
   | { type: "frame"; id: string; frame: [number, number, number, number] }
+  | { type: "fullScreen"; id: string; on: boolean }
   | { type: "leftEdge"; id: string; over: boolean; point: [number, number] }
   | { type: "closeRequest"; id: string };
 
@@ -245,6 +246,7 @@ const Shell = requireNativeModule<{
   closeWindow(id: string): Promise<void>;
   animateWindowClose?(id: string, after: string | null): Promise<void>;
   focusWindow(id: string): Promise<void>;
+  restoreFullScreen?(ids: string[], focus: string | null): Promise<void>;
   setTrafficLightsCenter(id: string, center: [number, number] | null): Promise<void>;
   watchLeftEdge?(id: string, on: boolean, hold: number): Promise<void>;
   dragPreviewBegin?(windowId: string, chip: Rect4, grab: [number, number]): Promise<void>;
@@ -322,6 +324,7 @@ export const WindowProfile = requireNativeViewManager<WindowProfileProps>("Ardia
 
 export const closeWindow = (id: string) => Shell.closeWindow(id);
 export const animateWindowClose = (id: string, after: string | null = null) => Shell.animateWindowClose?.(id, after) ?? Promise.resolve();
+export const restoreFullScreen = (ids: string[], focus: string | null) => Shell.restoreFullScreen?.(ids, focus) ?? Promise.resolve();
 export const focusWindow = (id: string) => Shell.focusWindow(id);
 export const setWindowTitle = (id: string, title: string) => Shell.setWindowTitle(id, title);
 export const setTrafficLightsCenter = (id: string, center: [number, number] | null) =>

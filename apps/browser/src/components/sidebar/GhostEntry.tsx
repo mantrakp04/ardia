@@ -7,8 +7,8 @@ import { groupLabel } from "../../store/organize";
 import { splitRowPanes } from "../../store/splits";
 import { tabTitle } from "./actions";
 import { groupEntries } from "./entries";
-import { GROUP_BORDER, GROUP_INDENT, GROUP_PAD, keptEntry } from "./geometry";
-import { pointerOnRow } from "./hover";
+import { GROUP_BORDER, GROUP_INDENT, GROUP_PAD, GROUP_RADIUS, headGap, keptEntry } from "./geometry";
+import { pointerOnGroup, pointerOnRow } from "./hover";
 import { FaviconFallback, NewTabIcon } from "../primitives";
 import { SYMBOL_PREFIX, TabIcon } from "./TabIcon";
 import { GROUP_COLORS, useSidebarTokens, withAlpha } from "./tokens";
@@ -22,6 +22,7 @@ type GroupShot = {
   color: string | null;
   icon: { url: string; favicon?: string | null; icon?: string | null; profileId?: string } | null;
   collapsed: boolean;
+  hovered: boolean;
   members: (TabShot | SplitShot | GroupShot)[];
 };
 export type EntrySnapshot = TabShot | SplitShot | GroupShot;
@@ -67,6 +68,7 @@ export function snapshotEntry(s: BrowserState, windowId: string, profileId: stri
     color: group.color ?? null,
     icon: group.icon || first ? { url: first?.url ?? "", favicon: first?.favicon, icon: group.icon ?? first?.customIcon, profileId: first?.profileId } : null,
     collapsed: !!group.collapsed,
+    hovered: pointerOnGroup(id),
     members: (group.collapsed ? (kept ? [kept] : []) : entries).flatMap((e) => (e.startsWith("t:") ? tabShot(s, e.slice(2), false) : snapshotEntry(s, windowId, profileId, e)) ?? []),
   };
 }
@@ -131,8 +133,9 @@ function GroupGhost({ shot }: { shot: GroupShot }) {
   const stroke = spec ? withAlpha(spec.hex, 0.3) : tokens.groupStroke;
   const pad = shot.members.length || !shot.collapsed ? GROUP_PAD : 0;
   return (
-    <View style={{ borderRadius: 12, backgroundColor: fill, borderWidth: GROUP_BORDER, borderColor: stroke, paddingHorizontal: GROUP_PAD }}>
-      <View style={{ height: layout.rowHeight, flexDirection: "row", alignItems: "center", paddingLeft: 9, paddingRight: 6 - GROUP_PAD }}>
+    <View style={{ paddingVertical: GROUP_BORDER }}>
+      {shot.hovered ? <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: GROUP_RADIUS, backgroundColor: fill, borderWidth: GROUP_BORDER, borderColor: stroke }} /> : null}
+      <View style={{ height: layout.rowHeight, flexDirection: "row", alignItems: "center", paddingLeft: 9, paddingRight: 6 }}>
         {shot.icon ? <TabIcon url={shot.icon.url} favicon={shot.icon.favicon} icon={shot.icon.icon} profileId={shot.icon.profileId} /> : <View style={{ width: 16 }} />}
         <View style={{ flexShrink: 1, height: 18, marginLeft: 5, paddingRight: 8, justifyContent: "center" }}>
           <Text numberOfLines={1} style={{ opacity: 0, fontSize: 13, fontWeight: "500", fontVariant: ["tabular-nums"] }}>
@@ -144,7 +147,7 @@ function GroupGhost({ shot }: { shot: GroupShot }) {
           <Symbol name="chevron.down" size={9} weight="semibold" color={withAlpha(tokens.groupTitle, 0.5)} style={{ width: 10, height: 10 }} />
         </View>
       </View>
-      <View style={{ gap: layout.rowGap, paddingBottom: pad, paddingLeft: GROUP_INDENT }}>{shot.members.map((m) => (m.kind === "split" ? <SplitGhost key={m.key} shot={m} /> : m.kind === "group" ? <GroupGhost key={m.key} shot={m} /> : tabGhost(m, theme)))}</View>
+      <View style={{ gap: layout.rowGap, paddingTop: headGap(shot.members[0]?.key), paddingBottom: pad, paddingLeft: GROUP_INDENT }}>{shot.members.map((m) => (m.kind === "split" ? <SplitGhost key={m.key} shot={m} /> : m.kind === "group" ? <GroupGhost key={m.key} shot={m} /> : tabGhost(m, theme)))}</View>
     </View>
   );
 }

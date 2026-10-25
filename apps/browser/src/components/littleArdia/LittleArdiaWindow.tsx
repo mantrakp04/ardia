@@ -9,13 +9,15 @@ import type { Tab } from "../../store/types";
 import { CommandPanel } from "../CommandPanel";
 import { ContentCard } from "../ContentCard";
 import { DownloadsPopover } from "../Downloads";
+import { ExtensionOverlays } from "../extensions/ExtensionOverlays";
+import { ToolbarPopupAnchor } from "../extensions/ToolbarExtensions";
 import { setUrlAnchor } from "../layout/windowLayout";
 import { showUrlBarMenu } from "../omnibox/paste";
 import { useHover } from "../primitives";
 import { copyPageUrl } from "../site/selection";
 import { ProfileBadge } from "../profiles/icons";
 import { openInMainWindow, openLittleArdiaProfileMenu } from "./actions";
-import { PageLabel, SMALL_BAR_HEIGHT, SMALL_INSET, SMALL_LIGHTS_CENTER, SmallBar, SmallBarBadgeButton } from "./SmallChrome";
+import { PageLabel, SMALL_BAR_BUTTON, SMALL_BAR_HEIGHT, SMALL_INSET, SMALL_LIGHTS_CENTER, SmallBar, SmallBarBadgeButton } from "./SmallChrome";
 
 const FIELD_LEFT = 84;
 
@@ -33,6 +35,7 @@ export function LittleArdiaWindow() {
       </View>
       <CommandPanel windowWidth={width} />
       <DownloadsPopover />
+      <ExtensionOverlays />
     </View>
   );
 }
@@ -68,6 +71,7 @@ function LittleArdiaBar() {
       trailing={severalProfiles ? <ProfileButton windowId={windowId} /> : undefined}
     >
       <WindowDragRegion style={StyleSheet.absoluteFill} />
+      {tab ? <ToolbarPopupAnchor windowId={windowId} tabId={tab.id} top={(SMALL_BAR_HEIGHT - SMALL_BAR_BUTTON) / 2} right={SMALL_INSET} /> : null}
     </SmallBar>
   );
 }

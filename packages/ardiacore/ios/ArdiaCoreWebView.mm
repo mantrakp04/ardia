@@ -834,7 +834,58 @@ static BOOL HeldSelector(SEL selector) {
   });
 }
 
-static ArdiaCoreTab *StartParkedPage(NSString *url, NSString *profileName) {
+static NSMutableSet<NSString *> *BoundRestoreKeys() {
+  static NSMutableSet *keys = [NSMutableSet set];
+  return keys;
+}
+
+static const NSUInteger kMaxSavedHistoryBytes = 32 * 1024 * 1024;
+
+static NSString *SavedHistoryGeneration(ArdiaCoreProfile *profile) {
+  __block NSString *generation = nil;
+  [ArdiaCoreServices call:@"ac_tab_history_generation" profile:ardiacore_host::ProfileName(profile) args:nil
+               completion:^(NSDictionary *result) {
+                 if (result[@"error"]) return;
+                 if ([result[@"generation"] isKindOfClass:NSString.class]) {
+                   generation = result[@"generation"];
+                 } else if ([result[@"fromMarker"] isEqual:@YES]) {
+                   NSString *marker = [profile.path stringByAppendingPathComponent:@"Ardia Tab History Cleared"];
+                   NSString *saved = [NSString stringWithContentsOfFile:marker encoding:NSUTF8StringEncoding error:nil];
+                   if (saved || ![NSFileManager.defaultManager fileExistsAtPath:marker])
+                     generation = [saved ?: @"" stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+                 }
+               }];
+  return generation;
+}
+
+static ArdiaCoreTab *RestoreSavedHistory(ArdiaCoreWindowController *controller, ArdiaCoreProfile *profile, NSString *key, NSString *url) {
+  if (!key.length || !url.length || [BoundRestoreKeys() containsObject:key] || !profile.path.length ||
+      ([profile respondsToSelector:@selector(offTheRecord)] && profile.offTheRecord) ||
+      ![controller.coreWindow respondsToSelector:@selector(restoreTab:profile:foreground:)])
+    return nil;
+  NSData *keyBytes = [key dataUsingEncoding:NSUTF8StringEncoding];
+  const unsigned char *raw = (const unsigned char *)keyBytes.bytes;
+  NSMutableString *name = [NSMutableString stringWithCapacity:keyBytes.length * 2];
+  for (NSUInteger i = 0; i < keyBytes.length; i++) [name appendFormat:@"%02X", raw[i]];
+  NSString *file = [[profile.path stringByAppendingPathComponent:@"Ardia Tab History"] stringByAppendingPathComponent:name];
+  NSData *data = [NSData dataWithContentsOfFile:file options:NSDataReadingMappedIfSafe error:nil];
+  if (!data.length || data.length > kMaxSavedHistoryBytes) return nil;
+  NSDictionary *saved = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+  if (![saved isKindOfClass:NSDictionary.class] || ![saved[@"version"] isEqual:@1]) return nil;
+  NSString *state = [saved[@"state"] isKindOfClass:NSString.class] ? saved[@"state"] : nil;
+  NSString *committed = [saved[@"url"] isKindOfClass:NSString.class] ? saved[@"url"] : nil;
+  NSString *shown = [saved[@"virtualUrl"] isKindOfClass:NSString.class] ? saved[@"virtualUrl"] : nil;
+  if (!state.length || !(SamePage(committed, url) || SamePage(shown, url))) return nil;
+  NSString *generation = SavedHistoryGeneration(profile);
+  if (!generation || ![saved[@"generation"] isEqual:generation]) return nil;
+  controller.hostChanges++;
+  ArdiaCoreTab *tab = [controller.coreWindow restoreTab:state profile:profile foreground:NO];
+  controller.hostChanges--;
+  if ([tab respondsToSelector:@selector(loadIfNeeded)]) [tab loadIfNeeded];
+  return tab;
+}
+
+static ArdiaCoreTab *StartParkedPage(NSString *url, NSString *profileName, NSString *key) {
   if (!url.length || !ArdiaCoreHost.isStarted) return nil;
   NSString *scheme = [NSURLComponents componentsWithString:url].scheme.lowercaseString;
   if (![scheme isEqualToString:@"http"] && ![scheme isEqualToString:@"https"]) return nil;
@@ -844,8 +895,9 @@ static ArdiaCoreTab *StartParkedPage(NSString *url, NSString *profileName) {
   if (!profile || ardiacore_host::WasNavigationDownload(url, profileName)) return nil;
   ArdiaCoreWindowController *keeper = [ArdiaCoreWindowController strayWindowForProfile:profile];
   if (!keeper) return nil;
+  ArdiaCoreTab *tab = RestoreSavedHistory(keeper, profile, key, url);
   keeper.hostChanges++;
-  ArdiaCoreTab *tab = [keeper.coreWindow openTab:url profile:profile foreground:NO];
+  if (!tab) tab = [keeper.coreWindow openTab:url profile:profile foreground:NO];
   keeper.hostChanges--;
   if (!tab) {
     [keeper.coreWindow close];
@@ -901,7 +953,7 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
 
 + (void)startLaunchTab:(NSString *)transferKey url:(NSString *)url profile:(NSString *)profileName {
   if (gLaunchTab || gLaunchClaimed || !transferKey.length) return;
-  ArdiaCoreTab *tab = StartParkedPage(url, profileName);
+  ArdiaCoreTab *tab = StartParkedPage(url, profileName, transferKey);
   if (!tab) return;
   profileName = profileName ?: @"";
   gLaunchTab = tab;
@@ -939,7 +991,7 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
   NSUInteger index = 0;
   for (NSString *url in urls) {
     if (index >= kMaxLinkTabs) break;
-    if (ArdiaCoreTab *tab = StartParkedPage(url, gLinkProfile)) {
+    if (ArdiaCoreTab *tab = StartParkedPage(url, gLinkProfile, nil)) {
       LinkTabs()[@(index)] = tab;
       LinkURLs()[@(index)] = [url copy];
     }
@@ -1195,10 +1247,14 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
                 }];
       return;
     }
-    if (url.length && [view skipsNavigationDownload:url userInitiated:view->_pendingUserInitiated]) url = nil;
+    const BOOL userInitiated = view->_pendingUserInitiated;
+    if (url.length && [view skipsNavigationDownload:url userInitiated:userInitiated]) url = nil;
     if (url.length) ACFieldMarkNow(view->_transferKey, @"request");
+    ArdiaCoreTab *tab = !standalone && !userInitiated && !ardiacore_host::IsIncognito(view->_profile)
+                            ? RestoreSavedHistory(controller, profile, view->_transferKey, url)
+                            : nil;
     controller.hostChanges++;
-    ArdiaCoreTab *tab = [controller.coreWindow openTab:url.length ? url : @"" profile:profile foreground:NO];
+    if (!tab) tab = [controller.coreWindow openTab:url.length ? url : @"" profile:profile foreground:NO];
     controller.hostChanges--;
     if (url.length && tab.loading) ACFieldMarkNow(view->_transferKey, @"start");
     if (tab) [view attach:tab];
@@ -1359,9 +1415,10 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
 }
 
 - (void)bindRestoreKey {
-  if (_tab && _transferKey.length && !ardiacore_host::IsIncognito(_profile) && ArdiaCoreHost.isStarted)
-    [ArdiaCoreServices call:@"ac_tab_restore_tag" profile:_profile args:@{@"tab" : @(_tab.tabId), @"key" : _transferKey}
-              completion:^(NSDictionary *) {}];
+  if (!_tab || !_transferKey.length || ardiacore_host::IsIncognito(_profile) || !ArdiaCoreHost.isStarted) return;
+  [BoundRestoreKeys() addObject:_transferKey];
+  [ArdiaCoreServices call:@"ac_tab_restore_tag" profile:_profile args:@{@"tab" : @(_tab.tabId), @"key" : _transferKey}
+            completion:^(NSDictionary *) {}];
 }
 
 - (void)detach {

@@ -1,6 +1,6 @@
 import { ContextMenuArea, FadeLabel, Surface, Symbol } from "@ardia/shell";
-import { memo, useContext, useState } from "react";
-import { Animated, Pressable, Text, View } from "react-native";
+import { memo, useContext, useEffect, useState } from "react";
+import { Animated, Easing, Pressable, Text, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { hex, layout, useTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
@@ -13,9 +13,10 @@ import { commitRename, endRename, startRename } from "./actions";
 import { useDragFolded, useDragItem, useDropInto } from "./dnd";
 import { useShift, type EntryMotion } from "./entryMotion";
 import { Fold, useFold } from "./Fold";
-import { entryHeight, GROUP_BORDER, GROUP_HEADER_RADIUS, GROUP_INDENT, GROUP_PAD, GROUP_RADIUS, keptEntry } from "./geometry";
+import { entryHeight, GROUP_BORDER, GROUP_HEADER_RADIUS, GROUP_INDENT, GROUP_PAD, GROUP_RADIUS, headGap, keptEntry } from "./geometry";
 import { groupEntries } from "./entries";
-import { dismissHover, useRowHover } from "./hover";
+import { dismissHover, useGroupHover, useRowHover } from "./hover";
+import { HOVER_CARD_FADE_CURVE, HOVER_CARD_FADE_MS } from "./hoverMotion";
 import { capture, GhostSlot, ListMotionContext, newCapture, useGroupMotion } from "./listMotion";
 import { pressGroupClose, useGroupCloseControl } from "./closeControl";
 import { openGroupMenu } from "./menus";
@@ -25,6 +26,17 @@ import { RenameField, SplitRowItem, TabRowItem } from "./TabRow";
 import { GROUP_COLORS, useSidebarTokens, withAlpha } from "./tokens";
 
 const PAD = GROUP_PAD;
+const BOX_FADE = Easing.bezier(...HOVER_CARD_FADE_CURVE);
+
+function useBoxOpacity(shown: boolean) {
+  const [opacity] = useState(() => new Animated.Value(shown ? 1 : 0));
+  useEffect(() => {
+    const fade = Animated.timing(opacity, { toValue: shown ? 1 : 0, duration: HOVER_CARD_FADE_MS, easing: BOX_FADE, useNativeDriver: true });
+    fade.start();
+    return () => fade.stop();
+  }, [shown]);
+  return opacity;
+}
 
 export const GroupBlock = memo(function GroupBlock({
   groupId,
@@ -59,7 +71,7 @@ export const GroupBlock = memo(function GroupBlock({
   const foldedHeight = () => {
     const s = useBrowser.getState();
     const kept = keptEntry(s, windowId, profileId, groupEntries(s, groupId));
-    return GROUP_BORDER * 2 + layout.rowHeight + (kept ? entryHeight(s, windowId, profileId, kept) + PAD : 0);
+    return GROUP_BORDER * 2 + layout.rowHeight + (kept ? headGap(kept) + entryHeight(s, windowId, profileId, kept) + PAD : 0);
   };
   const { wrapper, handle, headerRef } = useDragItem(`g:${groupId}`, { kind: "group", tabIds: tabIds.split(",").filter(Boolean), section, groupId, collapsed: stored, foldedHeight, parentGroup }, undefined, own?.clip);
   const tail = useDragItem(`tail:group:${groupId}`, { kind: "tail", tabIds: [], section, parentGroup: groupId });
@@ -68,6 +80,9 @@ export const GroupBlock = memo(function GroupBlock({
   const scope = useContext(ListMotionContext);
   const motion = useGroupMotion(windowId, profileId, groupId, entries, captured, section === "list" && !parentGroup ? scope : { enabled: scope.enabled, slideBelow: null }, scope.enabled && !collapsed);
   const [moved, movedRef] = useShift(own?.shift ?? null);
+  const box = useGroupHover(windowId, groupId);
+  const dropInto = useDropInto() === groupId;
+  const boxOpacity = useBoxOpacity(box.hovered || dropInto);
 
   const spec = color ? GROUP_COLORS[color] : null;
   const fill = spec ? withAlpha(spec.hex, 0.16) : tokens.groupFill;
@@ -75,8 +90,12 @@ export const GroupBlock = memo(function GroupBlock({
 
   return (
     <Animated.View ref={wrapper.ref} style={wrapper.style}>
-      <View {...moved} ref={movedRef} style={[{ borderRadius: GROUP_RADIUS, backgroundColor: fill, borderWidth: GROUP_BORDER, borderColor: stroke, paddingHorizontal: PAD }, moved.style as object]}>
-        <View ref={headerRef} {...handle} style={{ marginHorizontal: -PAD }}>
+      <View {...moved} {...box.hoverProps} ref={movedRef} style={[{ paddingVertical: GROUP_BORDER }, moved.style as object]}>
+        <Animated.View
+          pointerEvents="none"
+          style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: GROUP_RADIUS, backgroundColor: fill, borderWidth: GROUP_BORDER, borderColor: stroke, opacity: boxOpacity }}
+        />
+        <View ref={headerRef} {...handle}>
           <GroupHeader groupId={groupId} windowId={windowId} collapsed={collapsed} open={fold.open} />
         </View>
         <Fold
@@ -95,6 +114,7 @@ export const GroupBlock = memo(function GroupBlock({
           keep={activeEntry}
           gap={layout.rowGap}
           rowHeight={(key) => entryHeight(useBrowser.getState(), windowId, profileId, key)}
+          padTop={headGap(collapsed && activeEntry ? activeEntry : entries[0])}
           padBottom={PAD}
           indent={GROUP_INDENT}
           mountClosed={selectedInside}
@@ -152,7 +172,7 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
             <Surface
               fill={hex(dropInto || pressed ? theme.tabPressed : hovered ? tokens.groupHeaderHover : "rgba(0,0,0,0)")}
               cornerRadius={GROUP_HEADER_RADIUS}
-              style={{ height: layout.rowHeight, flexDirection: "row", alignItems: "center", paddingLeft: 9 + PAD, paddingRight: 6 }}
+              style={{ height: layout.rowHeight, flexDirection: "row", alignItems: "center", paddingLeft: 9, paddingRight: 6 }}
             >
               {group.icon || firstTab ? (
                 <TabIcon url={firstTab?.url ?? ""} favicon={firstTab?.favicon} icon={group.icon ?? firstTab?.customIcon} profileId={firstTab?.profileId} />

@@ -52,7 +52,7 @@ SOFTWARE.
 
 ==============================================================================
 Tabler Icons (@tabler/icons 3.49.0, MIT) https://tabler.io/icons
-Icons used: alarm, alert-triangle, archive, bolt, book, chevrons-right, circle-arrow-down, circle-arrow-right, clock-hour-9, cloud-exclamation, code, contrast, device-gamepad-2, device-vision-pro, hand-stop, letter-a, letter-z, lock, logout, map, message, microphone, mood-smile, number-1, palette, paw, plane, player-track-next, player-track-prev, power, puzzle, question-mark, search, settings, zoom-in, zoom-out
+Icons used: alarm, alert-triangle, archive, bolt, book, chevrons-right, circle-arrow-down, circle-arrow-right, clock-hour-9, cloud-exclamation, code, contrast, device-gamepad-2, device-vision-pro, hand-stop, letter-a, letter-z, lock, logout, mail, map, message, microphone, mood-smile, number-1, palette, paw, plane, player-track-next, player-track-prev, power, puzzle, question-mark, search, settings, sun, zoom-in, zoom-out
 ------------------------------------------------------------------------------
 MIT License
 
@@ -104,7 +104,7 @@ SOFTWARE.
 
 ==============================================================================
 Phosphor Icons (@phosphor-icons/core 2.1.1, MIT) https://phosphoricons.com
-Icons used: arrow-down, arrow-right, arrow-square-up-right, arrow-up, arrow-up-left, arrow-up-right, arrows-down-up, bag, briefcase, camera, chart-line-up, check-circle, check-circle-fill, circle-fill, clock-fill, copy-fill, dots-three, envelope, eye, eye-slash, file-arrow-down, flame, gift, graduation-cap, heart, heart-fill, house, info, key-fill, keyboard, leaf-fill, lightning-fill, lock-simple-open-fill, magnifying-glass, map-pin-simple-area, minus-circle-fill, moon-stars-fill, pause-fill, paw-print-fill, play-circle-fill, play-fill, plus-circle-fill, printer, seal-check-fill, shopping-cart-fill, stack, star-fill, stethoscope, terminal-window-fill, tree, user-fill, video-camera-fill, warning-circle-fill, warning-fill, x, x-circle
+Icons used: arrow-down, arrow-right, arrow-square-up-right, arrow-up, arrow-up-left, arrow-up-right, arrows-down-up, bag, briefcase, camera, chart-line-up, check-circle, check-circle-fill, circle-fill, clock-fill, copy-fill, dots-three, envelope, eye, eye-slash, file-arrow-down, flame, gift, graduation-cap, heart, heart-fill, house, info, key-fill, keyboard, leaf-fill, lightning-fill, lock-simple-open-fill, magnifying-glass, map-pin-simple-area, map-trifold-fill, minus-circle-fill, moon-fill, moon-stars-fill, pause-fill, paw-print-fill, play-circle-fill, play-fill, plus-circle-fill, printer, seal-check-fill, shopping-cart-fill, stack, star-fill, stethoscope, terminal-window-fill, tree, user-fill, video-camera-fill, warning-circle-fill, warning-fill, x, x-circle
 ------------------------------------------------------------------------------
 MIT License
 
@@ -130,7 +130,7 @@ SOFTWARE.
 
 ==============================================================================
 Material Design Icons (Pictogrammers) (@mdi/svg 7.4.47, Apache-2.0) https://pictogrammers.com/library/mdi
-Icons used: account, account-multiple-outline, brain, briefcase, bug-outline, camera, close-circle, coffee-outline, cursor-default, folder, hammer, headphones, home, link-variant, music-note, pause-circle, pencil-outline, piano, pin, run, school, shield-half-full, shield-lock-outline, silverware-fork-knife, skip-next, skip-previous, soccer-field, star, star-outline, web, zip-box-outline
+Icons used: account, account-multiple-outline, brain, briefcase, bug-outline, camera, close-circle, coffee-outline, cursor-default, file-document, folder, hammer, headphones, home, link-variant, music-note, pause-circle, pencil-outline, piano, pin, run, school, shield-check, shield-half-full, shield-lock-outline, silverware-fork-knife, skip-next, skip-previous, soccer-field, star, star-outline, web, zip-box-outline
 ------------------------------------------------------------------------------
 Pictogrammers Free License
 --------------------------

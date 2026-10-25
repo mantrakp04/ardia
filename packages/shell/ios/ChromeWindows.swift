@@ -41,6 +41,13 @@ enum ChromeWindows {
     return unsafeBitCast(take, to: Take.self)(host, selector, appWindow as NSString).boolValue
   }
 
+  static func fullScreenIsForPage(_ window: NSWindow) -> Bool {
+    let selector = NSSelectorFromString("windowFullScreenIsForPage:")
+    guard let host, (host as AnyObject).responds(to: selector), let call = (host as AnyObject).method(for: selector) else { return false }
+    typealias Call = @convention(c) (AnyObject, Selector, NSWindow) -> ObjCBool
+    return unsafeBitCast(call, to: Call.self)(host, selector, window).boolValue
+  }
+
   static func forgetLaunchPictures() {
     guard let host, (host as AnyObject).responds(to: NSSelectorFromString("forgetLaunchPictures")) else { return }
     host.perform(NSSelectorFromString("forgetLaunchPictures"))

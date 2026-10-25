@@ -259,3 +259,32 @@ export function useRowHover(windowId: string, target: Target | null) {
   );
   return { hovered: hovered && !covered.has(windowId), hoverProps };
 }
+
+const pointedGroups = new Set<string>();
+
+export const pointerOnGroup = (groupId: string) => pointedGroups.has(groupId);
+
+export function useGroupHover(windowId: string, groupId: string) {
+  const [inside, setInside] = useState(false);
+  const [, refresh] = useReducer((n: number) => n + 1, 0);
+  const page = useContext(PageProfileContext);
+  const away = useFoldedAway();
+  const onPage = useBrowser((s) => !page || s.windows[windowId]?.profileId === page);
+  const [hoverProps] = useState(() =>
+    markHoverProps({
+      onMouseEnter: () => setInside(true),
+      onMouseLeave: () => setInside(false),
+    }),
+  );
+  useEffect(() => {
+    pointed(windowId, refresh, true);
+    return () => pointed(windowId, refresh, false);
+  }, [windowId]);
+  const hovered = inside && onPage && !away && !covered.has(windowId);
+  useEffect(() => {
+    if (!hovered) return;
+    pointedGroups.add(groupId);
+    return () => void pointedGroups.delete(groupId);
+  }, [hovered, groupId]);
+  return { hovered, hoverProps };
+}

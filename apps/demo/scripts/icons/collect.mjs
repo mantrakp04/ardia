@@ -7,7 +7,7 @@ const LITERAL = /(["'`])([a-z0-9]+(?:\.[a-z0-9]+)*)\1/g;
 const SYMBOL_CONTEXT = /icon|symbol|glyph|chevron|name=/i;
 const SYMBOL_FILES = /profiles\/icons\.tsx$/;
 const ICON_KEYS = /^(icon|icons|symbol|name|glyph|chevron|fallback)$/i;
-const KEYED = /([A-Za-z_$][\w$]*)\s*[:=]\s*\{?\s*$/;
+const KEYED = /([A-Za-z_$][\w$]*)\??\s*[:=]\s*\{?\s*(?:(["'`])[^"'`]*\2\s*\|\s*)*$/;
 const COMPARED = /(===|!==|==|!=|case)\s*$/;
 const NOT_A_SYMBOL = /typeof |kind ===|step ===|type Step|e\.key|command ===|MOD_ORDER|case "|LiveError|Outcome|APP_SCOPE|field:|params:/;
 
@@ -38,7 +38,7 @@ export function collectAppSymbols(vocabulary) {
     const relative = file.slice(REPO.length);
     if (relative.endsWith("IconPicker.tsx")) for (const name of pickerSymbols(source)) add(name, `${relative} SYMBOLS`);
     source.split("\n").forEach((rawLine, index) => {
-      const line = rawLine.replace(/hint\([^)]*\)/g, "").replace(/modifiers:\s*\[[^\]]*\]/g, "");
+      const line = rawLine.replace(/hint\([^)]*\)/g, "").replace(/modifiers:\s*\[[^\]]*\]/g, "").replace(/keywords:\s*\[[^\]]*\]/g, "");
       const symbolish = SYMBOL_CONTEXT.test(line) || SYMBOL_FILES.test(relative);
       if (!symbolish || (NOT_A_SYMBOL.test(line) && !/symbol:|icon:|name=|icons=/.test(line))) return;
       for (const match of line.matchAll(LITERAL)) {

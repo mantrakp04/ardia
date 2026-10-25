@@ -333,6 +333,9 @@ public class ShellModule: Module {
       LeftEdgeWatcher.shared.watch(id: id, on: on, hold: CGFloat(hold))
     }.runOnQueue(.main)
     AsyncFunction("focusWindow") { (id: String) in WindowManager.shared.focus(id: id) }.runOnQueue(.main)
+    AsyncFunction("restoreFullScreen") { (ids: [String], focus: String?) in
+      WindowManager.shared.restoreFullScreen(ids: ids, focus: focus)
+    }.runOnQueue(.main)
     AsyncFunction("dragPreviewBegin") { (windowId: String, chip: [Double], grab: [Double]) in
       guard chip.count == 4, grab.count == 2 else { return }
       DragPreview.shared.begin(windowId: windowId, chip: NSRect(x: chip[0], y: chip[1], width: chip[2], height: chip[3]), grab: NSPoint(x: grab[0], y: grab[1]))

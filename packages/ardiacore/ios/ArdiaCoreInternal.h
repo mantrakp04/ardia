@@ -39,6 +39,8 @@ void OpenPopupWindow(ArdiaCoreTab *tab, ArdiaCoreWebView *_Nullable opener);
 bool IsReservedKeyEvent(NSEvent *event);
 bool IsReservedBinding(NSString *key, NSString *unshiftedKey, NSEventModifierFlags modifiers);
 NSUInteger PopupWindowCount();
+bool AskPermissionInPopupWindow(ArdiaCoreTab *tab, NSDictionary *request);
+void DropPopupWindowPermission(NSString *requestId);
 
 }
 

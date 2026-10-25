@@ -312,6 +312,9 @@ class TabBridge : public content::WebContentsObserver,
   void DidFinishNavigation(content::NavigationHandle* handle) override;
   void NavigationEntryCommitted(
       const content::LoadCommittedDetails& load_details) override;
+  void NavigationListPruned(
+      const content::PrunedDetails& pruned_details) override;
+  void NavigationEntriesDeleted() override;
   void WebContentsDestroyed() override;
 
   void OnFindResultAvailable(content::WebContents* web_contents) override;

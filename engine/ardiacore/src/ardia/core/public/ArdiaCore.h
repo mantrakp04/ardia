@@ -299,6 +299,7 @@ ARDIACORE_EXPORT
 - (void)loadURL:(NSString*)url userInitiated:(BOOL)userInitiated;
 - (void)goToOffset:(int)offset;
 - (void)reloadIgnoringCache;
+- (void)loadIfNeeded;
 - (void)closeNow;
 @property(nonatomic) BOOL temporary;
 - (void)setTemporarySource:(nullable ArdiaCoreTab*)source;

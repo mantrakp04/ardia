@@ -448,6 +448,7 @@ static void StartEarlyWindow() {
 }
 
 - (void)engine:(ArdiaCoreEngine *)engine permissionRequest:(NSDictionary *)request tab:(ArdiaCoreTab *)tab {
+  if (tab && ardiacore_host::AskPermissionInPopupWindow(tab, request)) return;
   NSMutableDictionary *payload = [request mutableCopy];
   payload[@"browserId"] = @(tab ? ardiacore_host::BrowserId(tab) : 0);
   if (gEventHandler) gEventHandler(@"permission", payload);
@@ -521,6 +522,7 @@ static void StartEarlyWindow() {
 }
 
 - (void)engine:(ArdiaCoreEngine *)engine permissionRequestDismissed:(NSString *)requestId {
+  ardiacore_host::DropPopupWindowPermission(requestId ?: @"");
   if (gEventHandler) gEventHandler(@"permissionDismissed", @{@"id" : requestId ?: @""});
 }
 

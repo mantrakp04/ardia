@@ -1,16 +1,8 @@
 import assert from "node:assert/strict";
-import { registerHooks } from "node:module";
 import { test } from "node:test";
 import { mount } from "../../test-hooks.mjs";
 
 globalThis.__DEV__ = false;
-registerHooks({
-  resolve(specifier, context, next) {
-    if (context.parentURL?.endsWith("/omnibox/actions.ts") && specifier === "../../lib/commands")
-      return { url: `data:text/javascript,${encodeURIComponent("export const runCommand = () => {};")}`, shortCircuit: true };
-    return next(specifier, context);
-  },
-});
 const { useBrowser } = await import("../../store/browser.ts");
 const { useSuggestions, scopeFor, keywordScope } = await import("./useSuggestions.ts");
 const { currentBarActions } = await import("./actions.ts");

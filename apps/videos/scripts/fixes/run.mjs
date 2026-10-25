@@ -28,7 +28,7 @@ if (!existsSync(recorder)) {
 
 async function launchWithoutDevTools(app, { data, js, probe, onboarded, files = {}, session, switches = [], env = {} }) {
   mkdirSync(data, { recursive: true });
-  writeFileSync(join(data, "session.json"), JSON.stringify(session));
+  if (session) writeFileSync(join(data, "session.json"), JSON.stringify(session));
   if (onboarded) writeFileSync(join(data, "onboarding.json"), JSON.stringify({ version: 1, completedAt: 1 }));
   if (probe) writeFileSync(join(data, "perf-probe"), "");
   for (const [name, text] of Object.entries(files)) writeFileSync(join(data, name), JSON.stringify(text));
@@ -75,15 +75,25 @@ async function shoot(scene, name, side) {
   const { app, js, probe } = apps[side];
   const empty = join(scratch, "import-empty");
   mkdirSync(empty, { recursive: true });
-  const instance = await (scene.withoutDevTools ? launchWithoutDevTools : launch)(app, {
+  const options = {
     data, js, probe, onboarded: true, files: { "telemetry.json": { sharing: false, decidedAt: 1, askDoneAt: 1 } }, session: JSON.parse(readFileSync(sessionFile, "utf8")),
     switches: [`--host-resolver-rules=MAP *.example 127.0.0.1:${sitesPort}`],
     env: { ARDIA_IMPORT_SOURCE_DIR: empty, ARDIA_IMPORT_SAFARI_HOME: empty, ARDIA_DOWNLOADS_DIR: downloads, ...(scene.env ?? {}) },
-  });
+  };
+  const start = scene.withoutDevTools ? launchWithoutDevTools : launch;
+  let instance = await start(app, options);
   try {
     await sleep(scene.boot ?? 6000);
-    const setup = await instance.eval(`${prelude}\n${scene.setup ?? "return done();"}`, { timeout: 60000 });
+    let setup = await instance.eval(`${prelude}\n${scene.setup ?? "return done();"}`, { timeout: 60000 });
     await sleep(scene.settle ?? 2500);
+    if (scene.relaunch) {
+      const beforeQuit = JSON.parse(await instance.eval(`${prelude}\n${scene.relaunch}`, { timeout: 60000 }));
+      const quit = await instance.quit();
+      const { session, onboarded, files, ...again } = options;
+      instance = await start(app, again);
+      await sleep(scene.boot ?? 6000);
+      setup = JSON.stringify({ setup: JSON.parse(setup), beforeQuit, quit });
+    }
     const prepared = scene.prepare ? await scene.prepare(instance, side) : null;
     mkdirSync(join(footage, side), { recursive: true });
     const out = join(footage, side, `${name}.mov`);

@@ -173,9 +173,9 @@ function scheduleFlush(delay: number) {
   flushTimer = setTimeout(() => void flush(), due - Date.now());
 }
 
-type RequestLogEntry = {
+export type RequestLogEntry = {
   at: string;
-  kind: "events" | "logs";
+  kind: "events" | "logs" | "daily";
   url: string;
   count: number;
   bytes: number;
@@ -187,7 +187,7 @@ const requests: RequestLogEntry[] = [];
 
 export const requestLog = (): readonly RequestLogEntry[] => requests;
 
-function logRequest(entry: RequestLogEntry, body: string) {
+export function logRequest(entry: RequestLogEntry, body: string) {
   requests.push(entry);
   if (requests.length > 200) requests.shift();
   if (__DEV__) {
@@ -383,7 +383,7 @@ function variant() {
   return (8 + Math.floor(Math.random() * 4)).toString(16);
 }
 
-function uuidv4() {
+export function uuidv4() {
   const h = hex(29);
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(12, 15)}-${variant()}${h.slice(15, 18)}-${h.slice(18, 29)}${hex(1)}`;
 }

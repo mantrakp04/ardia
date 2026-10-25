@@ -151,6 +151,81 @@ final class WindowManager: NSObject, NSWindowDelegate {
     }
     observeFrame(window)
     reportFrame(window)
+    if fullScreenEntering == nil, fullScreenQueue.first == id { nextFullScreen() }
+  }
+
+  private var fullScreenIds = Set<String>()
+  private var fullScreenQueue: [String] = []
+  private var fullScreenEntering: String?
+  private var fullScreenFocus: String?
+  private var fullScreenToggled = false
+  private var fullScreenTurn = 0
+  private static let fullScreenOpenWait = 5.0
+  private static let fullScreenEnterWait = 3.0
+
+  func restoreFullScreen(ids: [String], focus: String?) {
+    fullScreenQueue = ids.filter { !fullScreenIds.contains($0) }
+    fullScreenEntering = nil
+    fullScreenFocus = focus
+    fullScreenToggled = false
+    nextFullScreen()
+  }
+
+  private func nextFullScreen() {
+    fullScreenTurn += 1
+    let turn = fullScreenTurn
+    fullScreenEntering = nil
+    guard let id = fullScreenQueue.first else { return endFullScreenRestore() }
+    guard windows[id] != nil else {
+      DispatchQueue.main.asyncAfter(deadline: .now() + Self.fullScreenOpenWait) { [weak self] in
+        guard let self, self.fullScreenTurn == turn else { return }
+        self.giveUpFullScreen(id)
+      }
+      return
+    }
+    fullScreenEntering = id
+    whenRevealed(id) { [weak self] in
+      guard let self, self.fullScreenTurn == turn else { return }
+      guard let window = self.windows[id], window.isVisible, !window.isMiniaturized else { return self.giveUpFullScreen(id) }
+      if self.fullScreenIds.contains(id) { return self.enteredFullScreen(id) }
+      self.fullScreenToggled = true
+      window.toggleFullScreen(nil)
+      guard self.fullScreenTurn == turn else { return }
+      DispatchQueue.main.asyncAfter(deadline: .now() + Self.fullScreenEnterWait) { [weak self] in
+        guard let self, self.fullScreenTurn == turn else { return }
+        self.giveUpFullScreen(id)
+      }
+    }
+  }
+
+  private func enteredFullScreen(_ id: String) {
+    guard fullScreenQueue.first == id else { return }
+    fullScreenQueue.removeFirst()
+    DispatchQueue.main.async { [weak self] in self?.nextFullScreen() }
+  }
+
+  private func giveUpFullScreen(_ id: String) {
+    if !fullScreenIds.contains(id) { emit?("onWindowEvent", ["type": "fullScreen", "id": id, "on": false]) }
+    fullScreenQueue.removeAll { $0 == id }
+    nextFullScreen()
+  }
+
+  private func endFullScreenRestore() {
+    let focus = fullScreenFocus.flatMap { windows[$0] }
+    fullScreenFocus = nil
+    guard fullScreenToggled, let focus, !background, NSApp.isActive else { return }
+    fullScreenToggled = false
+    focus.makeKeyAndOrderFront(nil)
+  }
+
+  @objc private func fullScreenChanged(_ notification: Notification) {
+    guard let window = notification.object as? NSWindow, let id = id(of: window) else { return }
+    let entered = notification.name == NSWindow.didEnterFullScreenNotification
+    if entered { fullScreenIds.insert(id) } else { fullScreenIds.remove(id) }
+    if isMainWindow(window) {
+      emit?("onWindowEvent", ["type": "fullScreen", "id": id, "on": entered && !ChromeWindows.fullScreenIsForPage(window)])
+    }
+    if entered, fullScreenEntering == id { enteredFullScreen(id) }
   }
 
   private static let revealTimeout = 0.6
@@ -295,6 +370,9 @@ final class WindowManager: NSObject, NSWindowDelegate {
       NotificationCenter.default.addObserver(self, selector: #selector(frameChanged(_:)), name: name, object: window)
     }
     NotificationCenter.default.addObserver(self, selector: #selector(sizeChanged(_:)), name: NSWindow.didResizeNotification, object: window)
+    for name in [NSWindow.didEnterFullScreenNotification, NSWindow.didExitFullScreenNotification] {
+      NotificationCenter.default.addObserver(self, selector: #selector(fullScreenChanged(_:)), name: name, object: window)
+    }
   }
 
   private func observeDelegateNotifications(_ window: NSWindow) {
@@ -429,6 +507,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
       if let waiting = unrevealed.removeValue(forKey: id) { waiting.forEach { $0() } }
       stopKeepingContentSized(id)
       lightsCenters[id] = nil
+      fullScreenIds.remove(id)
       auxKinds[id] = nil
       smallIds.remove(id)
       ChromeWindows.close(window)
@@ -474,6 +553,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     entrances[id] = nil
     stopKeepingContentSized(id)
     lightsCenters[id] = nil
+    fullScreenIds.remove(id)
     auxKinds[id] = nil
     smallIds.remove(id)
     if closingFromJS.remove(id) == nil {

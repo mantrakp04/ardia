@@ -45,6 +45,7 @@ export type BrowserWindow = {
   sidebarOpen: boolean;
   tabLayout?: "sidebar" | "top";
   frame: Frame | null;
+  fullScreen?: number;
   createdAt: number;
   kind?: "small";
   linkPointer?: [number, number];

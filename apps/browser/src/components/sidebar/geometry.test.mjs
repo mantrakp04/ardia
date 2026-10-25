@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 const { useBrowser } = await import("../../store/browser.ts");
 const { sidebarEntries } = await import("./entries.ts");
-const { entriesHeight, entriesWithin, entryHeight, firstPaintEntries, startsOffScreen, FIRST_PAINT_HEIGHT } = await import("./geometry.ts");
+const { entriesHeight, entriesWithin, entryHeight, firstPaintEntries, rowSpan, startsOffScreen, FIRST_PAINT_HEIGHT } = await import("./geometry.ts");
+const { groupEntries } = await import("./entries.ts");
 await import("../../test-native-stub.mjs");
 
 const S = () => useBrowser.getState();
@@ -12,13 +13,16 @@ const tab = (i) => ({
   muted: false, zoom: 1, customTitle: null, customIcon: null, pinnedUrl: null, openerId: null, createdAt: i, lastActiveAt: i,
 });
 
-function hydrate({ collapsed = false } = {}) {
+function hydrate({ collapsed = false, nested = null, active = "t0" } = {}) {
   const tabs = Array.from({ length: 40 }, (_, i) => tab(i));
   S().hydrate({
     profiles: { default: profile },
-    windows: { w: { id: "w", profileId: "default", incognito: false, tabIds: tabs.map((t) => t.id), activeTabIds: { default: "t0" }, sidebarOpen: true, frame: [0, 0, 1200, 800], createdAt: 0 } },
+    windows: { w: { id: "w", profileId: "default", incognito: false, tabIds: tabs.map((t) => t.id), activeTabIds: { default: active }, sidebarOpen: true, frame: [0, 0, 1200, 800], createdAt: 0 } },
     tabs: Object.fromEntries(tabs.map((t) => [t.id, t])),
-    groups: { g: { id: "g", windowId: "w", profileId: "default", name: "G", icon: null, color: "blue", collapsed, pinned: false, tabIds: ["t2", "t3", "t4", "t5", "t6"], createdAt: 0 } },
+    groups: {
+      g: { id: "g", windowId: "w", profileId: "default", name: "G", icon: null, color: "blue", collapsed, pinned: false, tabIds: ["t2", "t3", "t4", "t5", "t6"], createdAt: 0 },
+      ...(nested ? { n: { id: "n", windowId: "w", profileId: "default", name: "N", icon: null, color: null, collapsed: true, pinned: false, tabIds: nested, parentId: "g", createdAt: 0 } } : {}),
+    },
   });
   return sidebarEntries(S(), "w", "default").list;
 }
@@ -67,4 +71,23 @@ test("lazySidebarRows off: 64 entries at first, and no page waits", () => {
   assert.equal(firstPaintEntries(S(), "w", "default", list, false), 64);
   assert.equal(startsOffScreen(false, false), false);
   assert.equal(startsOffScreen(false, true), false);
+});
+
+test("a nested group first in its parent sits a row gap below the parent's header, in the height and in the rows' positions", () => {
+  for (const [nested, gap] of [[["t2", "t3"], 3], [["t5", "t6"], 0]]) {
+    hydrate({ nested });
+    const s = S();
+    const members = groupEntries(s, "g");
+    assert.equal(members[0], gap ? "g:n" : "t:t2");
+    assert.equal(entryHeight(s, "w", "default", "g:g"), 1 + 34 + gap + entriesHeight(s, "w", "default", members) + 2);
+    assert.equal(rowSpan(s, "w", "default", "t4", false).top, 2 * 37 + 0.5 + 34 + gap + (gap ? entryHeight(s, "w", "default", "g:n") + 3 : 2 * 37));
+  }
+});
+
+test("a collapsed group keeps its active nested group a row gap below its header", () => {
+  hydrate({ collapsed: true, nested: ["t2", "t3"], active: "t3" });
+  const s = S();
+  assert.equal(entryHeight(s, "w", "default", "g:n"), 1 + 34 + 34 + 2);
+  assert.equal(entryHeight(s, "w", "default", "g:g"), 1 + 34 + 3 + entryHeight(s, "w", "default", "g:n") + 2);
+  assert.equal(rowSpan(s, "w", "default", "t3", false).top, 2 * 37 + 0.5 + 34 + 3 + 0.5 + 34);
 });

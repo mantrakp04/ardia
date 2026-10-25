@@ -73,6 +73,7 @@ const origin = Math.floor((sinceSec + zoneOffsetSec) / step) * step - zoneOffset
 const HOSTS = "'ardia.dev', 'www.ardia.dev', 'netnyahoo.com', 'www.netnyahoo.com'";
 const SITE = `(source IN ('ardia-site', 'netnyahoo-site', 'posthog-cloud') AND properties['$lib'] IN ('web', 'ardia-web', 'netnyahoo-web') AND properties['$host'] IN (${HOSTS}))`;
 const APP = `(source IN ('ardia-app', 'netnyahoo-app', 'posthog-cloud') AND properties['$lib'] IN ('ardia-telemetry', 'netnyahoo-telemetry'))`;
+const DAILY = "Event = 'daily_active' AND ServiceName = 'ardia-app' AND LogAttributes['$lib'] = 'ardia-daily' AND LogAttributes['$environment'] = 'production'";
 const WINDOW_EVENTS = [
   "$pageview", "download_clicked", "github_clicked", "screenshot_opened", "release_notes_viewed", "notify_clicked",
   "$rageclick", "$dead_click", "send_to_mac_clicked", "send_to_mac_fallback", "mac_link_visit", "$exception",
@@ -134,7 +135,13 @@ const headline = () =>
        FROM (${both("{p}['version'] AS v, toDate({t}) AS day, {p}['first'] = 'true' AS isFirst", "{e} = 'update_check'", { final: true })})
        WHERE match(v, ${VERSION}) GROUP BY v)),
     (SELECT tuple(uniqExactIf(d, t >= toDateTime(${sinceSec}, 'UTC')), uniqExactIf(d, t >= today()), uniqExact(d))
-     FROM (${both("{d} AS d, {t} AS t", `{ts} > now() - INTERVAL ${Math.max(7, Math.ceil(span / 864e5))} DAY AND {app}`)}))`);
+     FROM (${both("{d} AS d, {t} AS t", `{ts} > now() - INTERVAL ${Math.max(7, Math.ceil(span / 864e5))} DAY AND {app}`)})),
+    (SELECT tuple(countIf(day = today()), countIf(day = yesterday()), countIf(weekly AND day >= toMonday(today())),
+                  countIf(weekly AND day >= toMonday(today()) - 7 AND day < toMonday(today())), countIf(monthly AND day >= toStartOfMonth(today())),
+                  countIf(isFirst AND day = today()), countIf(isFirst AND day = yesterday()))
+     FROM (SELECT toDate(Timestamp) AS day, LogAttributes['weekly'] = 'true' AS weekly, LogAttributes['monthly'] = 'true' AS monthly,
+                  LogAttributes['first'] = 'true' AS isFirst
+           FROM telemetry.otel_logs FINAL WHERE ${DAILY} AND Timestamp > now() - INTERVAL 40 DAY))`);
 
 const githubQuery = (releases, after) => `{ repository(owner: "mantrakp04", name: "ardia") { stargazerCount forkCount issues(states: OPEN) { totalCount }
   stargazers(last: 100) { edges { starredAt } }
@@ -295,7 +302,7 @@ if (rows) {
   data.errors = [...errors.values()].map(({ ids, ...e }) => ({ ...e, people: ids.size })).sort((a, b) => b.count - a.count);
 }
 if (head) {
-  const [[allTime, day, downloadsAll, macDownloadsAll, macLinkAll], copies, [appWindow, appToday, appWeek]] = head[0];
+  const [[allTime, day, downloadsAll, macDownloadsAll, macLinkAll], copies, [appWindow, appToday, appWeek], active] = head[0];
   const range = (i) => ({ low: copies.reduce((s, c) => s + Math.ceil(c[i] / 3), 0), high: copies.reduce((s, c) => s + Number(c[i]), 0) });
   const older = (v) => {
     const [a, b, c] = v.split(".").map(Number);
@@ -311,6 +318,8 @@ if (head) {
     oldVersionsSeen: copies.filter((c) => older(c[0]) && Number(c[1]) + Number(c[2]) > 0).map((c) => c[0]),
   };
   data.app = { window: appWindow, today: appToday, week: appWeek };
+  const [dauToday, dauYesterday, wau, wauLastWeek, mau, newToday, newYesterday] = active.map(Number);
+  data.active = { dauToday, dauYesterday, wau, wauLastWeek, mau, newToday, newYesterday };
 }
 
 const previous = existsSync(STATE) ? JSON.parse(readFileSync(STATE, "utf8")) : null;
@@ -360,6 +369,10 @@ function report() {
   if (data.headline || gitHub) {
     out.push("", "**Users**");
     if (gitHub) out.push(`- DMG downloads ${n(gitHub.dmg)} all time; ${gitHub.latest?.version} has ${n(gitHub.latest?.dmg)} DMG, ${n(gitHub.latest?.zip)} update zips (${n(gitHub.zips)} zips all time)`);
+    if (data.active) {
+      const a = data.active;
+      out.push(`- Daily active ${n(a.dauToday)} today so far, ${n(a.dauYesterday)} yesterday; weekly ${n(a.wau)} this week (${n(a.wauLastWeek)} last week), monthly ${n(a.mau)} this month; new installs ${n(a.newToday)} today, ${n(a.newYesterday)} yesterday (UTC, from the anonymous daily count)`);
+    }
     if (data.copies) {
       const c = data.copies;
       out.push(`- First launches ${n(c.firstLaunches)} all time; ${n(c.firstToday)} today, ${n(c.firstYesterday)} yesterday (UTC days)`);

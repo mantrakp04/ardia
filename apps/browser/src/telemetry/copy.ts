@@ -10,13 +10,17 @@ export const SHARING_COPY = {
     share: "Share",
     notNow: "Not now",
   },
+  dailyCount:
+    "One anonymous “opened today” count a day: app version, update channel, macOS version, chip, and whether it's this copy's first day, week or month. No persistent ID.",
+  dailyCountShort: "Either way, Ardia sends one anonymous “opened today” count a day, with its version and macOS version and no persistent ID.",
   updateChecks: "ardia.dev counts update checks by version and day, and whether it's this copy's first. Nothing else.",
   switchFile:
     "While update checks are on, each launch also reads ardia.dev/switches.json: one small file, the same for everyone, that lets us turn off a speed-up that misbehaves. It sends no ID, no cookies and nothing about you.",
   onboarding: {
     title: "Help us fix what breaks",
     row: "Crashes, errors, feature counts and speed. Never your sites, typing or tabs.",
-    subtitle: "Off unless you turn it on. You can change it any time in Settings › Privacy & Security.",
+    subtitle:
+      "Off unless you turn it on; change it any time in Settings › Privacy & Security. Either way, Ardia sends one anonymous “opened today” count a day, with its version and macOS version and no persistent ID.",
   },
 } as const;
 
@@ -59,7 +63,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
   },
   {
     title: "Even with sharing off",
-    items: [SHARING_COPY.updateChecks, SHARING_COPY.switchFile],
+    items: [SHARING_COPY.dailyCount, SHARING_COPY.updateChecks, SHARING_COPY.switchFile],
   },
   {
     title: "Never",

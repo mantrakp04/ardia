@@ -283,13 +283,12 @@ NSSet<NSString *> *ReservedIdentifiers() {
   return reserved;
 }
 
-NSMenuItem *ReservedMenuItem(NSMenu *menu, NSString *key, NSEventModifierFlags mods) {
-  NSSet<NSString *> *reserved = ReservedIdentifiers();
+NSMenuItem *MenuItemWithIdentifier(NSMenu *menu, NSString *key, NSEventModifierFlags mods, NSSet<NSString *> *reserved) {
   const NSEventModifierFlags relevant = NSEventModifierFlagCommand | NSEventModifierFlagShift | NSEventModifierFlagOption | NSEventModifierFlagControl;
   for (NSMenuItem *item in menu.itemArray) {
     if (item.submenu) {
       if (item.submenu == NSApp.servicesMenu) continue;
-      if (NSMenuItem *found = ReservedMenuItem(item.submenu, key, mods)) return found;
+      if (NSMenuItem *found = MenuItemWithIdentifier(item.submenu, key, mods, reserved)) return found;
       continue;
     }
     if (!item.identifier || ![reserved containsObject:item.identifier] || !item.keyEquivalent.length) continue;
@@ -301,21 +300,59 @@ NSMenuItem *ReservedMenuItem(NSMenu *menu, NSString *key, NSEventModifierFlags m
   return nil;
 }
 
-NSMenuItem *ReservedMenuItemForEvent(NSEvent *event) {
+NSMenuItem *ReservedMenuItem(NSMenu *menu, NSString *key, NSEventModifierFlags mods) {
+  return MenuItemWithIdentifier(menu, key, mods, ReservedIdentifiers());
+}
+
+NSMenuItem *MenuItemForEvent(NSEvent *event, NSSet<NSString *> *identifiers) {
   const NSEventModifierFlags mods = event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
   NSString *key = event.charactersIgnoringModifiers.lowercaseString;
   const unichar first = key.length ? [key characterAtIndex:0] : 0;
   const bool functionKey = first >= NSF1FunctionKey && first <= NSF35FunctionKey;
   if (!functionKey && !(mods & (NSEventModifierFlagCommand | NSEventModifierFlagControl))) return nil;
   if ([key isEqualToString:@"\x19"]) key = @"\t";
-  if (NSMenuItem *item = ReservedMenuItem(NSApp.mainMenu, key, mods)) return item;
+  if (NSMenuItem *item = MenuItemWithIdentifier(NSApp.mainMenu, key, mods, identifiers)) return item;
   NSString *unshifted = [event charactersByApplyingModifiers:0].lowercaseString;
   if (!unshifted.length || [unshifted isEqualToString:key]) return nil;
-  return ReservedMenuItem(NSApp.mainMenu, unshifted, mods);
+  return MenuItemWithIdentifier(NSApp.mainMenu, unshifted, mods, identifiers);
+}
+
+NSMenuItem *ReservedMenuItemForEvent(NSEvent *event) {
+  return MenuItemForEvent(event, ReservedIdentifiers());
 }
 
 bool IsReservedKey(NSEvent *event) {
   return ReservedMenuItemForEvent(event) != nil;
+}
+
+struct SidebarKeyPress {
+  NSTimeInterval at = 0;
+  NSInteger window = 0;
+};
+
+SidebarKeyPress gSidebarKeyPressForPage;
+
+bool IsSidebarKey(NSEvent *event) {
+  static NSSet<NSString *> *sidebar = [NSSet setWithObject:@"ardia.command.toggleSidebar"];
+  return event.type == NSEventTypeKeyDown && MenuItemForEvent(event, sidebar) != nil;
+}
+
+bool IsSecondSidebarKeyPress(NSEvent *event) {
+  if (!IsSidebarKey(event) || event.isARepeat) return false;
+  const SidebarKeyPress first = gSidebarKeyPressForPage;
+  const bool second = first.at > 0 && first.window == event.windowNumber && event.timestamp - first.at <= NSEvent.doubleClickInterval;
+  gSidebarKeyPressForPage = second ? SidebarKeyPress{} : SidebarKeyPress{event.timestamp, event.windowNumber};
+  return second;
+}
+
+bool KeepsUnhandledSidebarKeyInPage(NSWindow *window, NSEvent *event) {
+  if (!IsSidebarKey(event)) return false;
+  NSResponder *focused = window.firstResponder;
+  const SEL textInputType = NSSelectorFromString(@"textInputType");
+  const bool typing = [NSStringFromClass(focused.class) isEqualToString:@"RenderWidgetHostViewCocoa"] && [focused respondsToSelector:textInputType] &&
+                      ((int (*)(id, SEL))objc_msgSend)(focused, textInputType) != 0;
+  if (!typing) gSidebarKeyPressForPage = SidebarKeyPress{};
+  return typing;
 }
 
 }
@@ -606,6 +643,7 @@ static BOOL gPageCoverOff = NO;
 - (NSInteger)covers;
 - (BOOL)transitioning;
 - (BOOL)pageFullScreen;
+- (BOOL)enteredForPage;
 @end
 
 namespace {
@@ -667,7 +705,32 @@ const void *kFullScreenLightsWatchKey = &kFullScreenLightsWatchKey;
 
 @end
 
+@interface NSTitlebarAccessoryViewController (ACRevealAmount)
+- (double)revealAmount;
+- (void)setRevealAmount:(double)revealAmount;
+@end
+
+@interface ACTitlebarRevealWatch : NSTitlebarAccessoryViewController
+@property(nonatomic, copy) void (^revealChanged)(void);
+@end
+
+@implementation ACTitlebarRevealWatch
+
+- (void)setRevealAmount:(double)revealAmount {
+  [super setRevealAmount:revealAmount];
+  if (self.revealChanged) self.revealChanged();
+}
+
+@end
+
 namespace {
+
+const void *kTitlebarRevealWatchKey = &kTitlebarRevealWatchKey;
+
+BOOL FullScreenTitlebarRevealed(NSWindow *window) {
+  ACTitlebarRevealWatch *watch = window ? objc_getAssociatedObject(window, kTitlebarRevealWatchKey) : nil;
+  return watch && (window.styleMask & NSWindowStyleMaskFullScreen) && watch.revealAmount > 0;
+}
 
 void PlaceFullScreenLights(NSWindow *window) {
   ACFullScreenLights *lights = window ? objc_getAssociatedObject(window, kFullScreenLightsKey) : nil;
@@ -675,7 +738,7 @@ void PlaceFullScreenLights(NSWindow *window) {
   NSView *close = lights.subviews.firstObject;
   if (!lights || !frameView || !close) return;
   ACWindowFullScreen *state = objc_getAssociatedObject(window, kWindowFullScreenKey);
-  lights.hidden = state.pageFullScreen;
+  lights.hidden = state.pageFullScreen || FullScreenTitlebarRevealed(window);
   const NSSize size = close.frame.size;
   const NSPoint center = LightsCenter(objc_getAssociatedObject(window, kLightsCenterKey), size);
   const CGFloat top = center.y - size.height / 2;
@@ -699,6 +762,38 @@ void ShowFullScreenLights(NSWindow *window, BOOL show) {
 
 void HideStandardLights(NSWindow *window, BOOL hide) {
   for (NSButton *button in TrafficLightButtons(window)) button.hidden = hide;
+}
+
+void ShowLightsForReveal(NSWindow *window) {
+  if (!objc_getAssociatedObject(window, kFullScreenLightsKey)) return;
+  HideStandardLights(window, !FullScreenTitlebarRevealed(window));
+  PlaceFullScreenLights(window);
+}
+
+void WatchTitlebarReveal(NSWindow *window) {
+  if (!(window.styleMask & NSWindowStyleMaskFullScreen) || objc_getAssociatedObject(window, kTitlebarRevealWatchKey) ||
+      ![NSTitlebarAccessoryViewController instancesRespondToSelector:@selector(setRevealAmount:)])
+    return;
+  ACTitlebarRevealWatch *watch = [[ACTitlebarRevealWatch alloc] init];
+  watch.view = [[NSView alloc] initWithFrame:NSZeroRect];
+  watch.layoutAttribute = NSLayoutAttributeBottom;
+  watch.fullScreenMinHeight = 0;
+  __weak NSWindow *weakWindow = window;
+  __weak ACTitlebarRevealWatch *weakWatch = watch;
+  watch.revealChanged = ^{
+    NSWindow *w = weakWindow;
+    if (w && objc_getAssociatedObject(w, kTitlebarRevealWatchKey) == weakWatch) ShowLightsForReveal(w);
+  };
+  objc_setAssociatedObject(window, kTitlebarRevealWatchKey, watch, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  [window addTitlebarAccessoryViewController:watch];
+}
+
+void UnwatchTitlebarReveal(NSWindow *window) {
+  ACTitlebarRevealWatch *watch = objc_getAssociatedObject(window, kTitlebarRevealWatchKey);
+  if (!watch) return;
+  watch.revealChanged = nil;
+  objc_setAssociatedObject(window, kTitlebarRevealWatchKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  [watch removeFromParentViewController];
 }
 
 }
@@ -725,11 +820,14 @@ void HideStandardLights(NSWindow *window, BOOL hide) {
   if (!window) return;
   ShowFullScreenLights(window, YES);
   HideStandardLights(window, YES);
+  WatchTitlebarReveal(window);
+  ShowLightsForReveal(window);
 }
 
 - (void)didExit {
   NSWindow *window = _window;
   if (!window) return;
+  UnwatchTitlebarReveal(window);
   HideStandardLights(window, NO);
   ShowFullScreenLights(window, NO);
 }
@@ -1004,6 +1102,10 @@ static NSMapTable<ArdiaCoreTab *, NSNumber *> *FullScreenChanges() {
 
 - (BOOL)pageFullScreen {
   return _tab != nil;
+}
+
+- (BOOL)enteredForPage {
+  return _entered;
 }
 
 - (void)uncoverWhenDrawn {
@@ -1401,10 +1503,11 @@ NSMapTable<ArdiaCoreProfile *, ArdiaCoreWindowController *> *StandaloneWindows()
 }
 
 - (BOOL)window:(ArdiaCoreWindow *)window preHandleKeyEvent:(NSEvent *)event {
-  return IsReservedKey(event) && [NSApp.mainMenu performKeyEquivalent:event];
+  return (IsReservedKey(event) || IsSecondSidebarKeyPress(event)) && [NSApp.mainMenu performKeyEquivalent:event];
 }
 
 - (BOOL)window:(ArdiaCoreWindow *)window handleKeyEvent:(NSEvent *)event {
+  if (KeepsUnhandledSidebarKeyInPage(window.window, event)) return YES;
   const NSEventModifierFlags mods = event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
   if (event.type == NSEventTypeKeyDown && event.keyCode == 53 && !(mods & (NSEventModifierFlagCommand | NSEventModifierFlagOption | NSEventModifierFlagControl))) {
     NSResponder *focused = window.window.firstResponder;
@@ -1424,6 +1527,9 @@ NSMapTable<ArdiaCoreProfile *, ArdiaCoreWindowController *> *StandaloneWindows()
 @end
 
 @interface ArdiaCorePopupWindow : NSObject <ArdiaCoreWindowDelegate, ArdiaCoreTabDelegate>
+@property(nonatomic, readonly) ArdiaCoreTab *tab;
+- (void)askPermission:(NSDictionary *)request;
+- (BOOL)dropPermission:(NSString *)requestId;
 @end
 
 namespace {
@@ -1437,6 +1543,70 @@ NSString *HostOf(NSString *url) {
   return [NSURL URLWithString:url ?: @""].host ?: @"";
 }
 
+NSDictionary<NSString *, NSArray<NSString *> *> *PermissionKinds() {
+  static NSDictionary *kinds = @{
+    @"camera" : @[ @"video", @"camera" ],
+    @"microphone" : @[ @"mic", @"microphone" ],
+    @"cameraPanTiltZoom" : @[ @"video", @"camera's pan, tilt and zoom" ],
+    @"screen" : @[ @"rectangle.on.rectangle", @"", @"Allow %@ to share your screen?" ],
+    @"location" : @[ @"location", @"location" ],
+    @"notifications" : @[ @"bell", @"", @"Allow %@ to send you notifications?" ],
+    @"clipboard" : @[ @"doc.on.clipboard", @"clipboard" ],
+    @"midi" : @[ @"pianokeys", @"MIDI devices" ],
+    @"multipleDownloads" : @[ @"arrow.down.circle", @"", @"Allow %@ to download multiple files?" ],
+    @"localFonts" : @[ @"textformat", @"fonts" ],
+    @"idleDetection" : @[ @"person.crop.circle.badge.clock", @"", @"Allow %@ to know when you're actively using this device?" ],
+    @"storageAccess" : @[ @"externaldrive", @"", @"Allow %@ to use cookies and site data while embedded?" ],
+    @"diskQuota" : @[ @"internaldrive", @"", @"Allow %@ to store files on your device?" ],
+    @"windowManagement" : @[ @"macwindow.on.rectangle", @"displays to open and place windows" ],
+    @"fileSystem" : @[ @"folder", @"files" ],
+    @"keyboardLock" : @[ @"keyboard", @"keyboard" ],
+    @"pointerLock" : @[ @"cursorarrow", @"mouse pointer" ],
+    @"protocolHandler" : @[ @"envelope", @"", @"Make %@ your default mail app?" ],
+    @"sensors" : @[ @"gyroscope", @"motion sensors" ],
+    @"localNetwork" : @[ @"network", @"devices on your local network" ],
+    @"vr" : @[ @"visionpro", @"virtual reality devices" ],
+    @"ar" : @[ @"visionpro", @"augmented reality data" ],
+    @"handTracking" : @[ @"hand.raised", @"hand tracking" ],
+    @"identityProvider" : @[ @"person.badge.key", @"", @"Allow %@ to sign you in with an identity provider?" ],
+    @"webAppInstallation" : @[ @"app.badge", @"", @"Allow %@ to install web apps?" ],
+    @"capturedSurfaceControl" : @[ @"rectangle.on.rectangle", @"", @"Allow %@ to scroll and zoom the tab you share?" ],
+  };
+  return kinds;
+}
+
+NSString *ListOf(NSArray<NSString *> *words) {
+  if (words.count < 2) return words.firstObject ?: @"";
+  NSString *head = [[words subarrayWithRange:NSMakeRange(0, words.count - 1)] componentsJoinedByString:@", "];
+  return [NSString stringWithFormat:@"%@ and %@", head, words.lastObject];
+}
+
+NSString *PermissionQuestion(NSDictionary *request) {
+  NSString *origin = [request[@"origin"] isKindOfClass:NSString.class] ? request[@"origin"] : @"";
+  NSString *site = HostOf(origin);
+  if ([site hasPrefix:@"www."]) site = [site substringFromIndex:4];
+  if (!site.length) site = origin;
+  NSArray<NSString *> *kinds = [request[@"permissions"] isKindOfClass:NSArray.class] ? request[@"permissions"] : @[];
+  if (kinds.count == 1 && PermissionKinds()[kinds[0]].count > 2)
+    return [NSString stringWithFormat:PermissionKinds()[kinds[0]][2], site];
+  NSMutableArray<NSString *> *nouns = [NSMutableArray array];
+  BOOL allNouns = YES;
+  for (NSString *kind in kinds) {
+    NSString *noun = PermissionKinds()[kind][1] ?: kind;
+    allNouns &= noun.length > 0;
+    [nouns addObject:noun.length ? noun : kind];
+  }
+  return allNouns ? [NSString stringWithFormat:@"Allow %@ to access your %@?", site, ListOf(nouns)]
+                  : [NSString stringWithFormat:@"Allow %@ to use %@?", site, ListOf(nouns)];
+}
+
+NSImage *_Nullable PermissionIcon(NSDictionary *request) {
+  NSArray<NSString *> *kinds = [request[@"permissions"] isKindOfClass:NSArray.class] ? request[@"permissions"] : @[];
+  NSString *symbol = PermissionKinds()[kinds.firstObject ?: @""].firstObject ?: @"questionmark.circle";
+  NSImageSymbolConfiguration *config = [NSImageSymbolConfiguration configurationWithPointSize:32 weight:NSFontWeightRegular];
+  return [[NSImage imageWithSystemSymbolName:symbol accessibilityDescription:nil] imageWithSymbolConfiguration:config];
+}
+
 }
 
 @implementation ArdiaCorePopupWindow {
@@ -1445,12 +1615,72 @@ NSString *HostOf(NSString *url) {
   __weak ArdiaCoreWebView *_opener;
   id _closeObserver;
   BOOL _adopting;
+  NSMutableArray<NSDictionary *> *_permissionQueue;
+  NSDictionary *_shownPermission;
+  NSAlert *_permissionAlert;
+}
+
+- (ArdiaCoreTab *)tab {
+  return _tab;
+}
+
+- (void)askPermission:(NSDictionary *)request {
+  [_permissionQueue addObject:request];
+  [self showNextPermission];
+}
+
+- (void)showNextPermission {
+  NSWindow *window = _coreWindow.window;
+  if (_shownPermission || !_permissionQueue.count || !window) return;
+  NSDictionary *request = _permissionQueue.firstObject;
+  [_permissionQueue removeObjectAtIndex:0];
+  _shownPermission = request;
+  NSAlert *alert = [[NSAlert alloc] init];
+  alert.messageText = PermissionQuestion(request);
+  alert.informativeText = @"";
+  if (NSImage *icon = PermissionIcon(request)) alert.icon = icon;
+  [alert addButtonWithTitle:@"Allow"];
+  [alert addButtonWithTitle:@"Don't Allow"].keyEquivalent = @"\e";
+  _permissionAlert = alert;
+  NSString *requestId = request[@"id"];
+  __weak ArdiaCorePopupWindow *weakSelf = self;
+  [alert beginSheetModalForWindow:window
+                completionHandler:^(NSModalResponse response) {
+                  [weakSelf permission:requestId answered:response];
+                }];
+}
+
+- (void)permission:(NSString *)requestId answered:(NSModalResponse)response {
+  if (![_shownPermission[@"id"] isEqual:requestId]) return;
+  _shownPermission = nil;
+  _permissionAlert = nil;
+  if (response == NSAlertFirstButtonReturn) [ArdiaCoreHost resolvePermission:requestId result:@"accept" remember:YES];
+  else if (response == NSAlertSecondButtonReturn) [ArdiaCoreHost resolvePermission:requestId result:@"deny" remember:YES];
+  [self showNextPermission];
+}
+
+- (BOOL)dropPermission:(NSString *)requestId {
+  NSUInteger queued = [_permissionQueue indexOfObjectPassingTest:^BOOL(NSDictionary *request, NSUInteger, BOOL *) {
+    return [request[@"id"] isEqual:requestId];
+  }];
+  if (queued != NSNotFound) {
+    [_permissionQueue removeObjectAtIndex:queued];
+    return YES;
+  }
+  if (![_shownPermission[@"id"] isEqual:requestId]) return NO;
+  NSAlert *alert = _permissionAlert;
+  _shownPermission = nil;
+  _permissionAlert = nil;
+  if (alert.window.sheetParent) [alert.window.sheetParent endSheet:alert.window returnCode:NSModalResponseAbort];
+  [self showNextPermission];
+  return YES;
 }
 
 - (instancetype)initWithTab:(ArdiaCoreTab *)tab opener:(ArdiaCoreWebView *)opener {
   if (!(self = [super init])) return nil;
   _tab = tab;
   _opener = opener;
+  _permissionQueue = [NSMutableArray array];
   NSDictionary<NSString *, NSNumber *> *features = tab.popupFeatures ?: @{};
   const NSSize size = NSMakeSize(MAX(features[@"width"] ? features[@"width"].doubleValue : 500, 200),
                                  MAX(features[@"height"] ? features[@"height"].doubleValue : 600, 150));
@@ -1524,6 +1754,11 @@ NSString *HostOf(NSString *url) {
 - (void)windowWillClose {
   if (_closeObserver) [NSNotificationCenter.defaultCenter removeObserver:_closeObserver];
   _closeObserver = nil;
+  [_permissionQueue removeAllObjects];
+  NSAlert *alert = _permissionAlert;
+  _shownPermission = nil;
+  _permissionAlert = nil;
+  if (alert.window.sheetParent) [alert.window.sheetParent endSheet:alert.window returnCode:NSModalResponseAbort];
   if (_tab.delegate == self) _tab.delegate = nil;
   ArdiaCorePopupWindow *me = self;
   dispatch_async(dispatch_get_main_queue(), ^{ [PopupWindows() removeObject:me]; });
@@ -1596,6 +1831,20 @@ void OpenPopupWindow(ArdiaCoreTab *tab, ArdiaCoreWebView *opener) {
 
 NSUInteger PopupWindowCount() {
   return PopupWindows().count;
+}
+
+bool AskPermissionInPopupWindow(ArdiaCoreTab *tab, NSDictionary *request) {
+  for (ArdiaCorePopupWindow *popup in PopupWindows()) {
+    if (popup.tab != tab) continue;
+    [popup askPermission:request];
+    return true;
+  }
+  return false;
+}
+
+void DropPopupWindowPermission(NSString *requestId) {
+  for (ArdiaCorePopupWindow *popup in PopupWindows().allObjects)
+    if ([popup dropPermission:requestId]) return;
 }
 
 void ActToggleFullScreen(NSWindow *window) {
@@ -1719,6 +1968,10 @@ NSView *ACWindowRootView(NSWindow *window) {
   [ArdiaCoreWebView keepTransfersOfWindow:window];
   if (controller) [controller.coreWindow close];
   else [window close];
+}
+
++ (BOOL)windowFullScreenIsForPage:(NSWindow *)window {
+  return [objc_getAssociatedObject(window, kWindowFullScreenKey) enteredForPage];
 }
 
 + (void)setShouldCloseHandler:(BOOL (^)(NSWindow *))handler {

@@ -121,6 +121,7 @@ function EngineTile({ title, url, selected, onPress }: { title: string; url: str
 }
 
 const SENT = ["Crash reports", "Error types", "Feature counts", "Speed and memory"];
+const ALWAYS = ["Daily open count"];
 const NEVER = ["Sites you visit", "What you type", "Your tabs", "Your name"];
 const MONO = "Menlo";
 
@@ -156,7 +157,10 @@ function Receipt({ on }: { on: boolean }) {
         ITEMIZED. UNLIKE SOME EXPENSES.
       </Text>
       {rule}
-      <View style={{ gap: 6 }}>{SENT.map((label) => line(label, on ? "SENT" : "—", !on))}</View>
+      <View style={{ gap: 6 }}>
+        {SENT.map((label) => line(label, on ? "SENT" : "—", !on))}
+        {ALWAYS.map((label) => line(label, "SENT", false))}
+      </View>
       {rule}
       <View style={{ gap: 6 }}>{NEVER.map((label) => line(label, "NEVER", false))}</View>
       {rule}
