@@ -5,7 +5,9 @@ import { layout, useTheme } from "../../lib/theme";
 import type { BrowserState } from "../../store/browser";
 import { groupLabel } from "../../store/organize";
 import { splitRowPanes } from "../../store/splits";
+import type { GroupColor } from "../../store/types";
 import { tabTitle } from "./actions";
+import { FolderOrIcon } from "./AnimatedFolder";
 import { groupEntries } from "./entries";
 import { GROUP_BORDER, GROUP_INDENT, GROUP_PAD, GROUP_RADIUS, headGap, keptEntry } from "./geometry";
 import { pointerOnGroup, pointerOnRow } from "./hover";
@@ -19,8 +21,8 @@ type GroupShot = {
   kind: "group";
   key: string;
   label: string;
-  color: string | null;
-  icon: { url: string; favicon?: string | null; icon?: string | null; profileId?: string } | null;
+  color: GroupColor | null;
+  icon: string | null;
   collapsed: boolean;
   hovered: boolean;
   members: (TabShot | SplitShot | GroupShot)[];
@@ -60,13 +62,12 @@ export function snapshotEntry(s: BrowserState, windowId: string, profileId: stri
   if (!group) return null;
   const entries = groupEntries(s, id);
   const kept = group.collapsed ? keptEntry(s, windowId, profileId, entries) : null;
-  const first = s.tabs[group.tabIds[0] ?? ""];
   return {
     kind: "group",
     key: entry,
     label: groupLabel(s, group),
     color: group.color ?? null,
-    icon: group.icon || first ? { url: first?.url ?? "", favicon: first?.favicon, icon: group.icon ?? first?.customIcon, profileId: first?.profileId } : null,
+    icon: group.icon ?? null,
     collapsed: !!group.collapsed,
     hovered: pointerOnGroup(id),
     members: (group.collapsed ? (kept ? [kept] : []) : entries).flatMap((e) => (e.startsWith("t:") ? tabShot(s, e.slice(2), false) : snapshotEntry(s, windowId, profileId, e)) ?? []),
@@ -128,7 +129,7 @@ function SplitGhost({ shot }: { shot: SplitShot }) {
 function GroupGhost({ shot }: { shot: GroupShot }) {
   const theme = useTheme();
   const tokens = useSidebarTokens();
-  const spec = shot.color ? GROUP_COLORS[shot.color as keyof typeof GROUP_COLORS] : null;
+  const spec = shot.color ? GROUP_COLORS[shot.color] : null;
   const fill = spec ? withAlpha(spec.hex, 0.16) : tokens.groupFill;
   const stroke = spec ? withAlpha(spec.hex, 0.3) : tokens.groupStroke;
   const pad = shot.members.length || !shot.collapsed ? GROUP_PAD : 0;
@@ -136,7 +137,7 @@ function GroupGhost({ shot }: { shot: GroupShot }) {
     <View style={{ paddingVertical: GROUP_BORDER }}>
       {shot.hovered ? <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: GROUP_RADIUS, backgroundColor: fill, borderWidth: GROUP_BORDER, borderColor: stroke }} /> : null}
       <View style={{ height: layout.rowHeight, flexDirection: "row", alignItems: "center", paddingLeft: 9, paddingRight: 6 }}>
-        {shot.icon ? <TabIcon url={shot.icon.url} favicon={shot.icon.favicon} icon={shot.icon.icon} profileId={shot.icon.profileId} /> : <View style={{ width: 16 }} />}
+        <FolderOrIcon icon={shot.icon} open={!shot.collapsed} color={shot.color} />
         <View style={{ flexShrink: 1, height: 18, marginLeft: 5, paddingRight: 8, justifyContent: "center" }}>
           <Text numberOfLines={1} style={{ opacity: 0, fontSize: 13, fontWeight: "500", fontVariant: ["tabular-nums"] }}>
             {shot.label}

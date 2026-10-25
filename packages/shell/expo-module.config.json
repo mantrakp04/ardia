@@ -8,6 +8,7 @@
       "SymbolModule",
       "FadeLabelModule",
       "ActivitySpinnerModule",
+      "FolderIconModule",
       "ContextMenuAreaModule",
       "OutsidePressAreaModule",
       "MagnifyAreaModule",

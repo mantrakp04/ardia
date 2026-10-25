@@ -1,12 +1,12 @@
 import { FadeLabel, Surface } from "@ardia/shell";
 import { Animated, Text, View } from "react-native";
 import { hex, layout, useTheme } from "../../lib/theme";
-import { liveFolderIcon } from "../../live/sources";
 import { useLive } from "../../live/store";
 import { useBrowser } from "../../store/browser";
 import { groupLabel } from "../../store/organize";
 import { tabTitle } from "./actions";
 import { useTabDrag } from "../layout/tabDrag";
+import { FolderOrIcon } from "./AnimatedFolder";
 import type { Ghost } from "./dnd";
 import { FolderMosaic } from "./FolderTile";
 import { TabIcon } from "./TabIcon";
@@ -18,8 +18,7 @@ export function DragGhost({ ghost }: { ghost: Ghost }) {
   const { item, count, width, height, position } = ghost;
   const tab = useBrowser((s) => s.tabs[item.tabIds[0] ?? ""]);
   const folder = useLive((s) => (item.liveFolderId ? s.folders[item.liveFolderId] : undefined));
-  const liveIcon = folder ? liveFolderIcon(folder) : null;
-  const groupIcon = useBrowser((s) => (item.kind === "group" && item.groupId ? (s.groups[item.groupId]?.icon ?? null) : null));
+  const group = useBrowser((s) => (item.kind === "group" && item.groupId ? s.groups[item.groupId] : undefined));
   const label = useBrowser((s) => folder?.name ?? (item.groupId && s.groups[item.groupId] ? groupLabel(s, s.groups[item.groupId]!) : tab ? tabTitle(tab) : ""));
   const tile = item.kind === "tile";
   const folderTile = tile && !!item.folderId;
@@ -46,9 +45,10 @@ export function DragGhost({ ghost }: { ghost: Ghost }) {
           opacity: 0.96,
         }}
       >
-        {liveIcon ? <TabIcon url={liveIcon.site} icon={liveIcon.icon} /> : null}
+        {folder ? <FolderOrIcon icon={folder.icon} open={false} /> : null}
         {folderTile ? <FolderMosaic tabIds={item.tabIds} /> : null}
-        {!folderTile && (groupIcon || tab) ? <TabIcon url={tab?.url ?? ""} favicon={tab?.favicon} icon={groupIcon ?? tab?.customIcon} profileId={tab?.profileId} /> : null}
+        {group ? <FolderOrIcon icon={group.icon} open={false} color={group.color} /> : null}
+        {!folderTile && !group && tab ? <TabIcon url={tab.url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} /> : null}
         {!tile ? <FadeLabel text={label} fontSize={13} weight={item.kind === "group" || item.kind === "live" ? "medium" : "regular"} color={theme.textPrimary} style={{ flex: 1, height: 18, marginLeft: 7 }} /> : null}
       </Surface>
       {count > 1 && !folderTile ? (
