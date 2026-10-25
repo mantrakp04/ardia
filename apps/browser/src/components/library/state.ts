@@ -17,6 +17,10 @@ export function archivedFor<T extends { kind?: string; tab: { profileId: string 
   return closed.filter((c) => c.kind === "tab" && c.tab.profileId === profileId);
 }
 
+export function cleanedIn<T extends { tab: { profileId: string } }>(cleaned: readonly T[], profileId: string | undefined): T[] {
+  return profileId ? cleaned.filter((c) => c.tab.profileId === profileId) : [];
+}
+
 export function libraryAllowed(windowId: string): boolean {
   const w = useBrowser.getState().windows[windowId];
   return !!w && !w.incognito;
@@ -44,13 +48,12 @@ export function toggleLibrary(windowId: string) {
 export type DayGroup<T> = { title: string; items: T[] };
 
 export function byDay<T>(items: readonly T[], at: (item: T) => number, now = new Date()): DayGroup<T>[] {
-  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const today = startOf(now);
-  const day = 86_400_000;
+  const dayNumber = (d: Date) => Math.round(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86_400_000);
+  const today = dayNumber(now);
   const label = (t: number) => {
-    if (t >= today) return "Today";
-    if (t >= today - day) return "Yesterday";
-    const days = Math.floor((today - startOf(new Date(t))) / day);
+    const days = today - dayNumber(new Date(t));
+    if (days <= 0) return "Today";
+    if (days === 1) return "Yesterday";
     if (days < 7) return `${days} days ago`;
     if (days < 14) return "Last week";
     return new Date(t).toLocaleDateString(undefined, { month: "long", year: "numeric" });

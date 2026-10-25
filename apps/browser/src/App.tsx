@@ -90,8 +90,8 @@ function BrowserWindow() {
       <BookmarkDialog />
       <EditBookmarkDialog />
       <CreateProfileHost />
-      <LibraryHost />
       <SidebarOverlays windowWidth={width} />
+      <LibraryHost />
       <OnboardingOverlay />
     </View>
   );

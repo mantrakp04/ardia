@@ -1,11 +1,11 @@
 import { ContextMenuArea, copyFile, copyText, fileExists, moveToTrash, openInPreview, revealFile, showMenu, Symbol, VisualEffect } from "@ardia/shell";
 import type { Download } from "@ardia/ardiacore";
-import { create } from "zustand";
 import { openUrl } from "../bookmarks/actions";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, findNodeHandle, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { claimFocusTag } from "../../lib/focusClaims";
+import { fileUri } from "../../lib/fileUri";
 import { ThemeScope, useTheme } from "../../lib/theme";
 import { webviews } from "../../lib/webviews";
 import { useBrowser } from "../../store/browser";
@@ -19,7 +19,7 @@ import { ThemeTint } from "../theme/ThemeTint";
 import { hostLabel, matchesQuery } from "../pages/PageLayout";
 import { Favicon, IconButton, useHover } from "../primitives";
 import { libraryReveal, useLibraryPull } from "./pull";
-import { archivedFor, byDay, closeLibrary, LIBRARY_FOCUS, openLibrary, useLibrary, type LibrarySection } from "./state";
+import { archivedFor, byDay, cleanedIn, closeLibrary, LIBRARY_FOCUS, openLibrary, useLibrary, type LibrarySection } from "./state";
 
 const RAIL = 112;
 const SHEET_INSET = 14;
@@ -32,6 +32,8 @@ const SECTIONS: { id: LibrarySection; title: string; icon: string }[] = [
   { id: "downloads", title: "Downloads", icon: "arrow.down.circle" },
   { id: "media", title: "Media", icon: "photo.on.rectangle" },
 ];
+const ARROW_KEYS = [{ key: "Escape" }, { key: "ArrowLeft" }, { key: "ArrowRight" }];
+const ESCAPE_KEY = [{ key: "Escape" }];
 const IMAGE = /\.(png|jpe?g|gif|webp|heic|avif|bmp|tiff?)$/i;
 const VIDEO = /\.(mp4|mov|m4v|webm|mkv|avi)$/i;
 
@@ -61,9 +63,13 @@ export function LibraryHost() {
   return shown ? <Library windowId={windowId} section={section ?? shown} appear={appear} /> : null;
 }
 
+type LibraryHooks = { spaces: ((direction: 1 | -1) => void) | null; media: ((key: string) => boolean) | null };
+
 function Library({ windowId, section, appear }: { windowId: string; section: LibrarySection; appear: Animated.Value | Animated.AnimatedInterpolation<number> }) {
   const theme = useTheme();
   const [query, setQuery] = useState("");
+  const [viewing, setViewing] = useState<string | null>(null);
+  const hooks = useRef<LibraryHooks>({ spaces: null, media: null }).current;
   const search = useRef<TextInput>(null);
   const sectionFade = useRef(new Animated.Value(1)).current;
   useEffect(() => {
@@ -71,7 +77,6 @@ function Library({ windowId, section, appear }: { windowId: string; section: Lib
     Animated.timing(sectionFade, { toValue: 1, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
   }, [section]);
   useEffect(() => {
-    focusLibrarySearch.current = () => search.current?.focus();
     search.current?.focus();
     claimFocusTag(windowId, LIBRARY_FOCUS, () => findNodeHandle(search.current));
     return () => {
@@ -79,7 +84,11 @@ function Library({ windowId, section, appear }: { windowId: string; section: Lib
       if (now) void webviews.get(now)?.focus();
     };
   }, []);
-  useEffect(() => setQuery(""), [section]);
+  useEffect(() => {
+    setQuery("");
+    setViewing(null);
+  }, [section]);
+  const arrows = (!query && (section === "spaces" || section === "media")) || (section === "media" && !!viewing);
 
   return (
     <View style={StyleSheet.absoluteFill}>
@@ -129,12 +138,12 @@ function Library({ windowId, section, appear }: { windowId: string; section: Lib
                 placeholderTextColor={theme.placeholder}
                 selectionColor={theme.selection}
                 enableFocusRing={false}
-                keyDownEvents={!query && (section === "spaces" || section === "media") ? [{ key: "Escape" }, { key: "ArrowLeft" }, { key: "ArrowRight" }] : [{ key: "Escape" }]}
+                keyDownEvents={arrows ? ARROW_KEYS : ESCAPE_KEY}
                 onKeyDown={(e) => {
                   const key = e.nativeEvent.key;
-                  if (section === "media" && mediaKeys.current?.(key)) return;
+                  if (section === "media" && hooks.media?.(key)) return;
                   if (key === "ArrowLeft" || key === "ArrowRight") {
-                    if (!query && section === "spaces") spacesStep.current?.(key === "ArrowRight" ? 1 : -1);
+                    if (!query && section === "spaces") hooks.spaces?.(key === "ArrowRight" ? 1 : -1);
                     return;
                   }
                   if (key !== "Escape") return;
@@ -146,10 +155,12 @@ function Library({ windowId, section, appear }: { windowId: string; section: Lib
             </View>
           </View>
           <Animated.View style={{ flex: 1, marginTop: 14, opacity: sectionFade, transform: [{ translateY: sectionFade.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }] }}>
-            {section === "spaces" && <SpacesSection windowId={windowId} query={query} />}
+            {section === "spaces" && <SpacesSection windowId={windowId} query={query} hooks={hooks} />}
             {section === "archive" && <ArchiveSection windowId={windowId} query={query} />}
             {section === "downloads" && <DownloadsSection windowId={windowId} query={query} />}
-            {section === "media" && <MediaSection windowId={windowId} query={query} />}
+            {section === "media" && (
+              <MediaSection windowId={windowId} query={query} hooks={hooks} viewing={viewing} setViewing={setViewing} focusSearch={() => search.current?.focus()} />
+            )}
           </Animated.View>
         </View>
       </View>
@@ -171,9 +182,7 @@ function RailButton({ title, icon, selected, onPress }: { title: string; icon: s
   );
 }
 
-const spacesStep: { current: ((direction: 1 | -1) => void) | null } = { current: null };
-
-function SpacesSection({ windowId, query }: { windowId: string; query: string }) {
+function SpacesSection({ windowId, query, hooks }: { windowId: string; query: string; hooks: LibraryHooks }) {
   const theme = useTheme();
   const [filled, setFilled] = useState(false);
   useEffect(() => {
@@ -191,8 +200,8 @@ function SpacesSection({ windowId, query }: { windowId: string; query: string })
   const first = Math.min(profileIds.length - 1, Math.round(offset / step));
   const go = (x: number) => scroller.current?.scrollTo({ x: Math.max(0, Math.min(maxOffset, x)), animated: true });
   const page = (direction: 1 | -1) => go(Math.round(offset / step + direction * perPage) * step);
-  spacesStep.current = page;
-  useEffect(() => () => void (spacesStep.current = null), []);
+  hooks.spaces = page;
+  useEffect(() => () => void (hooks.spaces = null), [hooks]);
   return (
     <View style={{ flex: 1 }} onLayout={(e) => setViewport(e.nativeEvent.layout.width)}>
       <ScrollView
@@ -301,9 +310,9 @@ function TabLine({ title, url, favicon, profileId, pinned, onPress, detail }: { 
 
 function ArchiveSection({ windowId, query }: { windowId: string; query: string }) {
   const theme = useTheme();
-  const cleaned = useBrowser((s) => cleanedTabsFor(s, windowId));
-  const closedTabs = useBrowser((s) => s.closedTabs);
   const profileId = useBrowser((s) => s.windows[windowId]?.profileId);
+  const cleaned = useBrowser(useShallow((s) => cleanedIn(cleanedTabsFor(s, windowId), profileId)));
+  const closedTabs = useBrowser((s) => s.closedTabs);
   const closed = useMemo(() => archivedFor(closedTabs, profileId), [closedTabs, profileId]);
   const groups = useMemo(() => {
     const entries: { entry: ClosedTab; from: "cleaned" | "closed" }[] = [
@@ -354,9 +363,6 @@ function DownloadsSection({ windowId, query }: { windowId: string; query: string
   );
 }
 
-const mediaViewer = create<{ path: string | null }>(() => ({ path: null }));
-const mediaKeys: { current: ((key: string) => boolean) | null } = { current: null };
-const focusLibrarySearch: { current: (() => void) | null } = { current: null };
 
 async function mediaMenu(d: Download, windowId: string, view: () => void) {
   const choice = await showMenu([
@@ -377,41 +383,48 @@ async function mediaMenu(d: Download, windowId: string, view: () => void) {
   if (choice === "trash") void moveToTrash(d.path).then((ok) => ok && useBrowser.getState().removeDownload(d.id));
 }
 
-function MediaSection({ windowId, query }: { windowId: string; query: string }) {
+function MediaSection({
+  windowId,
+  query,
+  hooks,
+  viewing,
+  setViewing,
+  focusSearch,
+}: {
+  windowId: string;
+  query: string;
+  hooks: LibraryHooks;
+  viewing: string | null;
+  setViewing: (path: string | null) => void;
+  focusSearch: () => void;
+}) {
   const theme = useTheme();
   const downloads = useBrowser(useShallow((s) => downloadsIn(s, windowId)));
   const media = downloads.filter((d) => d.state === "finished" && (IMAGE.test(d.path) || VIDEO.test(d.path)) && fileExists(d.path) && matchesQuery(query, d.filename, d.url));
-  const viewing = mediaViewer((v) => v.path);
   const images = media.filter((d) => IMAGE.test(d.path));
   const open = (d: Download) => {
     if (IMAGE.test(d.path)) {
-      mediaViewer.setState({ path: d.path });
-      focusLibrarySearch.current?.();
+      setViewing(d.path);
+      focusSearch();
       return;
     }
     closeLibrary(windowId);
-    openUrl(`file://${encodeURI(d.path)}`, windowId, "foreground");
+    openUrl(fileUri(d.path), windowId, "foreground");
   };
   const step = (by: number) => {
-    const at = images.findIndex((d) => d.path === mediaViewer.getState().path);
+    const at = images.findIndex((d) => d.path === viewing);
     if (at < 0 || !images.length) return;
-    mediaViewer.setState({ path: images[(at + by + images.length) % images.length]!.path });
+    setViewing(images[(at + by + images.length) % images.length]!.path);
   };
-  mediaKeys.current = (key) => {
-    if (!mediaViewer.getState().path) return false;
-    if (key === "Escape") mediaViewer.setState({ path: null });
+  hooks.media = (key) => {
+    if (!viewing) return false;
+    if (key === "Escape") setViewing(null);
     else if (key === "ArrowLeft") step(-1);
     else if (key === "ArrowRight") step(1);
     else return false;
     return true;
   };
-  useEffect(
-    () => () => {
-      mediaKeys.current = null;
-      mediaViewer.setState({ path: null });
-    },
-    [],
-  );
+  useEffect(() => () => void (hooks.media = null), [hooks]);
   if (!media.length) return <Empty icon="photo.on.rectangle" text={query ? "No media matches" : "Images and videos you download appear here"} />;
   const shown = viewing ? media.find((d) => d.path === viewing) : undefined;
   return (
@@ -421,7 +434,7 @@ function MediaSection({ windowId, query }: { windowId: string; query: string }) 
           <MediaTile key={d.id} d={d} onOpen={() => open(d)} onMenu={() => void mediaMenu(d, windowId, () => open(d))} />
         ))}
       </ScrollView>
-      {shown ? <MediaViewer d={shown} count={images.length} onClose={() => mediaViewer.setState({ path: null })} onStep={step} windowId={windowId} /> : null}
+      {shown ? <MediaViewer d={shown} count={images.length} onClose={() => setViewing(null)} onStep={step} windowId={windowId} /> : null}
     </View>
   );
 }
@@ -446,7 +459,7 @@ function MediaTile({ d, onOpen, onMenu }: { d: Download; onOpen: () => void; onM
           }}
         >
           {IMAGE.test(d.path) ? (
-            <Image source={{ uri: `file://${encodeURI(d.path)}` }} resizeMode="cover" style={StyleSheet.absoluteFill} />
+            <Image source={{ uri: fileUri(d.path) }} resizeMode="cover" style={StyleSheet.absoluteFill} />
           ) : (
             <Symbol name="play.rectangle.fill" size={30} color={theme.textSecondary} style={{ width: 40, height: 34 }} />
           )}
@@ -469,7 +482,7 @@ function MediaViewer({ d, count, onClose, onStep, windowId }: { d: Download; cou
     <Animated.View style={[StyleSheet.absoluteFill, { opacity: appear, marginRight: 24, marginBottom: 12, borderRadius: 14, overflow: "hidden" }]}>
       <Pressable onPress={onClose} style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0,0,0,0.88)" }]} />
       <Animated.View pointerEvents="none" style={{ position: "absolute", left: 60, right: 60, top: 54, bottom: 30, transform: [{ scale: appear.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }] }}>
-        <Image source={{ uri: `file://${encodeURI(d.path)}` }} resizeMode="contain" style={{ flex: 1 }} />
+        <Image source={{ uri: fileUri(d.path) }} resizeMode="contain" style={{ flex: 1 }} />
       </Animated.View>
       <View style={{ position: "absolute", left: 12, right: 12, top: 10, flexDirection: "row", alignItems: "center", gap: 4 }}>
         <Text numberOfLines={1} style={{ flex: 1, marginLeft: 6, fontSize: 13, fontWeight: "600", color: "#FFFFFF" }}>

@@ -79,7 +79,7 @@ export function Sidebar({ width }: { width: number }) {
   const dots = useProfileDotsShown();
   const footerDownloads = addressBar && hasDownloads;
   const incognito = useBrowser((s) => !!s.windows[windowId]?.incognito);
-  const footer = dots || footerDownloads ? PROFILE_DOTS_HEIGHT : 0;
+  const footer = !incognito || dots || footerDownloads ? PROFILE_DOTS_HEIGHT : 0;
   const nothingPinned = useBrowser((s) => sidebarEntries(s, windowId, current).tiles.length === 0);
 
   const sidebarHover = useSidebarHoverProps(windowId);

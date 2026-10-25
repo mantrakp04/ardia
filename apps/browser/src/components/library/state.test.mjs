@@ -40,3 +40,10 @@ test("the Library never opens in a private window", async () => {
   openLibrary(normal, "archive");
   assert.equal(librarySection(normal), "archive");
 });
+
+test("Archived Tabs shows only this space's cleaned-up tabs", async () => {
+  const { cleanedIn } = await import("./state.ts");
+  const cleaned = [{ tab: { profileId: "default", url: "https://a.example/" } }, { tab: { profileId: "work", url: "https://w.example/" } }];
+  assert.deepEqual(cleanedIn(cleaned, "default").map((c) => c.tab.url), ["https://a.example/"]);
+  assert.deepEqual(cleanedIn(cleaned, undefined), []);
+});

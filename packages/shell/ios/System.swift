@@ -76,6 +76,10 @@ public class SystemModule: Module {
 
     AsyncFunction("copyFile") { (path: String) -> Bool in
       guard FileManager.default.fileExists(atPath: path) else { return false }
+      if FileDropView.background {
+        NSLog("ArdiaSystem: background instance, not copying %@", path)
+        return true
+      }
       let pasteboard = NSPasteboard.general
       pasteboard.clearContents()
       return pasteboard.writeObjects([URL(fileURLWithPath: path) as NSURL])
