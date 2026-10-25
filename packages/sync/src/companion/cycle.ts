@@ -39,6 +39,10 @@ export type CompanionState = {
   bookmarks: BookmarkOp[];
   floors: Record<string, Record<string, number>>;
   pulled: Record<string, true>;
+  visited?: Record<string, Record<string, number>>;
+  due?: Record<string, Record<string, true>>;
+  removals?: Record<string, string[]>;
+  ghosts?: { id: string; since: number }[];
 };
 
 export type CycleInput = {
@@ -47,16 +51,18 @@ export type CycleInput = {
   retiring?: boolean;
   tabs?: LocalTab[] | null;
   visits?: LocalVisit[] | null;
+  fetchedDue?: string[];
 };
 
 export type Received = { profile: string; key: string; u: string; t: string; from: string; fromName: string | null; at: number };
-export type Removal = { profile: string; urls: string[] };
+export type Removal = { profile: string; urls: string[]; unassigned: boolean };
 
 export type CycleOutput = {
   status: ChainStatus;
   view?: View;
   received: Received[];
   historyRemoved: Removal[];
+  visitsDue: string[];
   published: number;
   changed: number;
   pending: number;
@@ -64,6 +70,17 @@ export type CycleOutput = {
 };
 
 const APP = "app";
+const GHOST_MS = 30 * 86_400_000;
+
+function removalsOf(c: CompanionState): Removal[] {
+  const fallback = defaultProfileId(liveProfiles(c.scopes[APP]));
+  return Object.entries(c.removals ?? {})
+    .filter(([, urls]) => urls.length)
+    .sort(([a], [z]) => (a < z ? -1 : 1))
+    .map(([profile, urls]) => ({ profile, urls: [...urls].sort(), unassigned: profile === fallback }));
+}
+
+const dueOf = (c: CompanionState) => [...new Set(Object.values(c.due ?? {}).flatMap((urls) => Object.keys(urls)))].sort();
 const profileScope = (syncId: string) => `p:${syncId}`;
 
 let companion: CompanionState | null = null;
@@ -84,7 +101,7 @@ function loaded(): CompanionState {
 
 const freshState = (device: string): CompanionState => ({ v: 1, device, clock: null, scopes: {}, sends: [], acks: [], bookmarks: [], floors: {}, pulled: {} });
 
-export function companionLoad(input: { device: string; state?: CompanionState | null; journal?: Record<string, LogFile[]> | null; fresh?: boolean }) {
+export function companionLoad(input: { device: string; state?: CompanionState | null; journal?: Record<string, LogFile[]> | null; fresh?: boolean; ghosts?: string[] }) {
   if (!input.state && !input.fresh) throw new Error("no saved state for this device");
   if (input.state && (input.state.v !== 1 || input.state.device !== input.device || !input.state.scopes || typeof input.state.scopes !== "object")) {
     throw new Error("the saved state belongs to another device or version");
@@ -96,6 +113,11 @@ export function companionLoad(input: { device: string; state?: CompanionState | 
   state.floors ??= {};
   state.pulled ??= {};
   state.scopes ??= {};
+  state.visited ??= {};
+  state.due ??= {};
+  state.removals ??= {};
+  state.ghosts ??= [];
+  for (const id of input.ghosts ?? []) if (id !== input.device && !state.ghosts.some((g) => g.id === id)) state.ghosts.push({ id, since: Date.now() });
   const clock = new Clock(input.device, state.clock);
   let restored = false;
   for (const [scope, batches] of Object.entries(input.journal ?? {})) {
@@ -133,7 +155,7 @@ function fingerprint(c: CompanionState): string {
       const s = c.scopes[name]!;
       return [name, s.seq, s.journal?.length ?? 0, s.outbox.length, Object.keys(s.files).length, s.pending, Object.keys(s.damaged).length, s.unapplied.length, s.joined, JSON.stringify(s.vv), JSON.stringify(s.extra), JSON.stringify(s.seen)].join("|");
     });
-  return JSON.stringify([c.clock, scopes, c.sends, c.acks, c.bookmarks, c.floors, c.pulled]);
+  return JSON.stringify([c.clock, scopes, c.sends, c.acks, c.bookmarks, c.floors, c.pulled, c.visited, c.due, c.removals, c.ghosts]);
 }
 
 function save(force = false): boolean {
@@ -184,7 +206,7 @@ function profileOf(app: ScopeState | undefined, profiles: Set<string>, fallback:
 export async function runCompanionCycle(input: CycleInput): Promise<CycleOutput> {
   const c = loaded();
   const now = () => input.now ?? Date.now();
-  const empty = { received: [], historyRemoved: [], published: 0, changed: 0, pending: 0 };
+  const empty = { received: [], historyRemoved: removalsOf(c), visitsDue: dueOf(c), published: 0, changed: 0, pending: 0 };
   const status = host().chainStatus() as ChainStatus;
   if (status !== "ok") return { status, ...empty, saved: save(false) };
   const clock = new Clock(c.device, c.clock, now);
@@ -204,10 +226,11 @@ export async function runCompanionCycle(input: CycleInput): Promise<CycleOutput>
     return state;
   };
 
-  const app = await run(APP, [deviceAdapter(device, input.name, retiring)], false);
-  const removals = new Map<string, Set<string>>();
+  c.ghosts = (c.ghosts ?? []).filter((g) => now() - g.since < GHOST_MS);
+  const ghosts = c.ghosts.map((g) => g.id);
+  const app = await run(APP, [deviceAdapter(device, input.name, retiring, ghosts)], false);
   if (retiring) {
-    for (const scope of Object.keys(c.scopes).filter((s) => s.startsWith("p:"))) await run(scope, [deviceTabsAdapter(device, input.name, [], true)], true);
+    for (const scope of Object.keys(c.scopes).filter((s) => s.startsWith("p:"))) await run(scope, [deviceTabsAdapter(device, input.name, [], true, ghosts)], true);
   } else {
     const profiles = liveProfiles(app);
     const ids = new Set(profiles.keys());
@@ -219,21 +242,27 @@ export async function runCompanionCycle(input: CycleInput): Promise<CycleOutput>
       if (p) tabsOf.set(p, [...(tabsOf.get(p) ?? []), t]);
     }
     const visitsOf = new Map<string, (LocalVisit & { p: string })[]>();
+    const visited = (c.visited ??= {});
     for (const v of input.visits ?? []) {
       const p = profileOf(app, ids, fallback, v.p);
-      if (!p) continue;
+      if (!p || typeof v.u !== "string" || !Array.isArray(v.vt)) continue;
       const o = owner.get(p) ?? p;
       visitsOf.set(o, [...(visitsOf.get(o) ?? []), { ...v, p }]);
+      const newest = Math.max(...v.vt.filter((t) => Number.isFinite(t)));
+      const mine = (visited[profileScope(o)] ??= {});
+      if (Number.isFinite(newest) && newest > (mine[v.u] ?? -Infinity)) mine[v.u] = newest;
     }
     for (const id of [...ids].sort()) {
       const scope = profileScope(id);
       const ownsData = owner.get(id) === id;
       const floors = (c.floors[scope] ??= {});
       for (const [url, at] of Object.entries(floors)) if (at < now() - HISTORY_WINDOW_MS) delete floors[url];
+      const mine = (visited[scope] ??= {});
+      for (const [url, at] of Object.entries(mine)) if (at < now() - HISTORY_WINDOW_MS) delete mine[url];
       let extracts = 0;
       const state = (c.scopes[scope] ??= emptyScope());
       const adapters: Adapter[] = [
-        deviceTabsAdapter(device, input.name, input.tabs ? (tabsOf.get(id) ?? []) : null, false),
+        deviceTabsAdapter(device, input.name, input.tabs ? (tabsOf.get(id) ?? []) : null, false, ghosts),
         sendsAdapter({
           scope,
           sends: () => c.sends,
@@ -250,10 +279,13 @@ export async function runCompanionCycle(input: CycleInput): Promise<CycleOutput>
                 profiles: [...ids].filter((p) => owner.get(p) === id).sort(),
                 state,
                 floors,
+                visited: mine,
+                due: (url) => {
+                  (c.due![scope] ??= {})[url] = true;
+                },
                 removed: (p, url) => {
-                  const set = removals.get(p) ?? new Set<string>();
-                  set.add(url);
-                  removals.set(p, set);
+                  const list = (c.removals![p] ??= []);
+                  if (!list.includes(url)) list.push(url);
                 },
                 ready: () => !!input.visits && (!!c.pulled[scope] || ++extracts > 1),
               }),
@@ -270,6 +302,12 @@ export async function runCompanionCycle(input: CycleInput): Promise<CycleOutput>
       ];
       await run(scope, adapters, true);
       if (!Object.keys(floors).length) delete c.floors[scope];
+      if (!Object.keys(mine).length) delete visited[scope];
+    }
+    const fetched = new Set(input.fetchedDue ?? []);
+    for (const [scope, urls] of Object.entries(c.due ?? {})) {
+      for (const url of Object.keys(urls)) if (fetched.has(url) || !(url in (visited[scope] ?? {}))) delete urls[url];
+      if (!Object.keys(urls).length) delete c.due![scope];
     }
   }
   c.clock = clock.last;
@@ -298,7 +336,8 @@ export async function runCompanionCycle(input: CycleInput): Promise<CycleOutput>
   const out: CycleOutput = {
     status,
     received,
-    historyRemoved: [...removals].map(([profile, urls]) => ({ profile, urls: [...urls].sort() })),
+    historyRemoved: removalsOf(c),
+    visitsDue: dueOf(c),
     published,
     changed,
     pending,
@@ -332,6 +371,16 @@ export function companionSend(input: { profile: string; key: string; u: string; 
   const key = `send:${input.key}`;
   if (!c.sends.some((s) => s.key === key)) {
     c.sends.push({ scope: profileScope(input.profile), key, value: { u: input.u, t: input.t, to: input.to, from: c.device, at: input.at } });
+  }
+  return { saved: save(true) };
+}
+
+export function companionRemovalsDone(input: { items: { profile: string; urls: string[] }[] }) {
+  const c = loaded();
+  for (const { profile, urls } of input.items) {
+    const left = (c.removals?.[profile] ?? []).filter((url) => !urls.includes(url));
+    if (left.length) c.removals![profile] = left;
+    else delete c.removals?.[profile];
   }
   return { saved: save(true) };
 }

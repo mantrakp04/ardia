@@ -36,6 +36,7 @@ import {
   pinnedOrderAdapter,
   pinnedRowsAdapter,
   profilesAdapter,
+  isCurrentDevice,
   offersTabs,
   SEND_PREFIX,
   sendableUrl,
@@ -509,13 +510,14 @@ function summarize(): Pick<SyncUi, "devices" | "remoteTabs" | "remoteProfiles"> 
   for (const scope of Object.values(doc.scopes)) {
     for (const [device, at] of Object.entries(scope.seen)) lastSeen.set(device, Math.max(at, lastSeen.get(device) ?? 0));
   }
-  const records = deviceRecords(app);
+  const now = Date.now();
+  const records = new Map([...deviceRecords(app)].filter(([id, r]) => id === doc.deviceId || isCurrentDevice(r, lastSeen.get(id), now)));
   const names = new Map([...records].map(([id, r]) => [id, r.n]));
   const devices: SyncedDevice[] = [...records].map(([id, r]) => ({
     id,
     name: r.n,
     kind: deviceKindOf(r),
-    receivesTabs: offersTabs(r, lastSeen.get(id), Date.now()),
+    receivesTabs: offersTabs(r, lastSeen.get(id), now),
     lastSeen: lastSeen.get(id) ?? null,
     current: id === doc.deviceId,
   }));

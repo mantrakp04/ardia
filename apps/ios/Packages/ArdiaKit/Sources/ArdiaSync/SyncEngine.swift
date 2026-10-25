@@ -7,17 +7,20 @@ public struct LocalBrowsing: Sendable {
   public var deviceName: String
   public var tabs: [LocalTabRecord]?
   public var visits: [LocalVisitRecord]?
+  public var fetchedDue: Set<String>
 
-  public init(deviceName: String, tabs: [LocalTabRecord]?, visits: [LocalVisitRecord]?) {
+  public init(deviceName: String, tabs: [LocalTabRecord]?, visits: [LocalVisitRecord]?, fetchedDue: Set<String> = []) {
     self.deviceName = deviceName
     self.tabs = tabs
     self.visits = visits
+    self.fetchedDue = fetchedDue
   }
 }
 
 public struct HistoryRemoval: Equatable, Sendable {
   public var profileSyncId: String?
   public var urls: Set<String>
+  public var includesUnassigned = false
 }
 
 public struct CycleOutcome: Sendable {
@@ -31,9 +34,11 @@ public struct CycleOutcome: Sendable {
   public var snapshot: SyncSnapshot?
   public var received: [ReceivedTab]
   public var historyRemoved: [HistoryRemoval]
+  public var visitsDue: Set<String> = []
   public var pending: Int
   public var published: Int
   public var changed: Int
+  public var chainSeen = false
 
   static let offline = CycleOutcome(status: .unavailable, snapshot: nil, received: [], historyRemoved: [], pending: 0, published: 0, changed: 0)
 }
@@ -54,7 +59,6 @@ public actor SyncEngine {
   private let script: ScriptEngine
   private let host: SyncHost
   private let now: @Sendable () -> Date
-  private let fresh: Bool
   private let coordination: SyncCoordination
   private var loaded = false
   private var retired = false
@@ -66,7 +70,7 @@ public actor SyncEngine {
     deviceId: String,
     entropy: Data,
     folder: SyncFolderGrant,
-    fresh: Bool = false,
+    chainSeen: Bool = false,
     coordinationTimeout: TimeInterval = SyncFolderAccess.defaultTimeout,
     now: @escaping @Sendable () -> Date = Date.init
   ) throws {
@@ -79,7 +83,8 @@ public actor SyncEngine {
     do {
       let keys = SyncKeys(entropy: entropy)
       let coordination = SyncCoordination(timeout: coordinationTimeout)
-      let host = SyncHost(files: SyncFiles(directory: directory), keys: keys, grant: folder, coordination: coordination)
+      let host = SyncHost(device: deviceId, files: SyncFiles(directory: directory), keys: keys, grant: folder, coordination: coordination)
+      host.chainSeen = chainSeen
       let script = try ScriptEngine(scripts: [.sync])
       host.register(on: script)
       self.host = host
@@ -92,7 +97,10 @@ public actor SyncEngine {
     self.deviceId = deviceId
     self.token = token
     self.now = now
-    self.fresh = fresh
+  }
+
+  public static func prepareFresh(directory: URL, deviceId: String, ghosts: [String]) throws {
+    try SyncFiles(directory: directory).writeFresh(.init(device: deviceId, ghosts: ghosts.filter { $0 != deviceId }))
   }
 
   deinit {
@@ -136,7 +144,8 @@ public actor SyncEngine {
       now: now().millisecondsSince1970,
       retiring: retiring,
       tabs: local.tabs?.map { .init(u: $0.url, t: $0.title, at: $0.lastActive.millisecondsSince1970, p: $0.profileSyncId) },
-      visits: local.visits?.map { .init(u: $0.url, t: $0.title, vt: $0.visitedAt.map(\.millisecondsSince1970), p: $0.profileSyncId) }
+      visits: local.visits?.map { .init(u: $0.url, t: $0.title, vt: $0.visitedAt.map(\.millisecondsSince1970), p: $0.profileSyncId) },
+      fetchedDue: local.fetchedDue.sorted()
     )
     let json: String
     do {
@@ -160,10 +169,12 @@ public actor SyncEngine {
       received: output.received.map {
         ReceivedTab(key: $0.key, url: $0.u, title: $0.t, fromDevice: $0.fromName ?? "", sentAt: Date(millisecondsSince1970: $0.at), profileSyncId: $0.profile, fromDeviceId: $0.from)
       },
-      historyRemoved: output.historyRemoved.map { HistoryRemoval(profileSyncId: $0.profile, urls: Set($0.urls)) },
+      historyRemoved: output.historyRemoved.map { HistoryRemoval(profileSyncId: $0.profile, urls: Set($0.urls), includesUnassigned: $0.unassigned) },
+      visitsDue: Set(output.visitsDue),
       pending: output.pending,
       published: output.published,
-      changed: output.changed
+      changed: output.changed,
+      chainSeen: host.chainSeen
     )
   }
 
@@ -178,6 +189,15 @@ public actor SyncEngine {
     guard !tabs.isEmpty else { return }
     try load()
     try mutate("companionAcknowledge", AckInput(items: tabs.map { .init(profile: $0.profileSyncId, key: $0.key) }))
+  }
+
+  public func acknowledgeRemovals(_ removals: [HistoryRemoval]) throws {
+    try checkLive()
+    guard !removals.isEmpty else { return }
+    try load()
+    try mutate("companionRemovalsDone", RemovalsInput(items: removals.compactMap { removal in
+      removal.profileSyncId.map { .init(profile: $0, urls: removal.urls.sorted()) }
+    }))
   }
 
   @discardableResult
@@ -237,27 +257,45 @@ public actor SyncEngine {
     return host.files.read(url, keys: host.keys, fileId: fileId)
   }
 
+  private struct Owner: Decodable {
+    var device: String
+  }
+
   private func load() throws {
     guard !loaded else { return }
-    let state: String?
+    let marker = host.files.readFresh()
+    let fresh = marker?.device == deviceId
+    var state: String?
     switch readWithRetry(host.files.stateURL, fileId: SyncFiles.stateFile) {
     case .failed: throw SyncError.stateUnavailable
-    case .unreadable: throw SyncError.stateUnreadable
+    case .unreadable:
+      guard fresh else { throw SyncError.stateUnreadable }
+      host.files.setAside("previous", journal: false)
     case .missing:
-      if !fresh && host.files.stateWasSaved { throw SyncError.stateUnreadable }
-      state = nil
-    case .opened(let data): state = String(decoding: data, as: UTF8.self)
+      guard fresh else { throw SyncError.stateUnreadable }
+    case .opened(let data):
+      if (try? JSONDecoder().decode(Owner.self, from: data))?.device == deviceId {
+        state = String(decoding: data, as: UTF8.self)
+      } else if fresh {
+        host.files.setAside("previous", journal: false)
+      } else {
+        throw SyncError.stateUnreadable
+      }
     }
     switch readWithRetry(host.files.journalURL, fileId: SyncFiles.journalFile) {
     case .failed: throw SyncError.stateUnavailable
-    case .unreadable: throw SyncError.stateUnreadable
+    case .unreadable:
+      guard fresh else { throw SyncError.stateUnreadable }
+      host.files.setAside("previous", state: false)
+      host.journal = SyncJournal()
     case .missing: host.journal = SyncJournal()
     case .opened(let data):
       guard let journal = try? JSONDecoder().decode(SyncJournal.self, from: data) else { throw SyncError.stateUnreadable }
-      host.journal = journal
+      host.journal = journal.only(device: deviceId)
     }
+    let ghosts = String(decoding: try JSONEncoder().encode(fresh && state == nil ? marker?.ghosts ?? [] : []), as: UTF8.self)
     let device = String(decoding: try JSONEncoder().encode(deviceId), as: UTF8.self)
-    let argument = "{\"device\":\(device),\"fresh\":\(state == nil),\"state\":\(state ?? "null"),\"journal\":\(host.journal.scriptJSON)}"
+    let argument = "{\"device\":\(device),\"fresh\":\(state == nil),\"ghosts\":\(ghosts),\"state\":\(state ?? "null"),\"journal\":\(host.journal.scriptJSON)}"
     do {
       _ = try script.call(.sync, "companionLoad", json: [argument])
     } catch {
@@ -320,6 +358,7 @@ private struct CycleInput: Encodable {
   var retiring: Bool
   var tabs: [Tab]?
   var visits: [Visit]?
+  var fetchedDue: [String]
 }
 
 private struct CycleOutput: Decodable {
@@ -336,12 +375,14 @@ private struct CycleOutput: Decodable {
   struct Removal: Decodable {
     var profile: String
     var urls: [String]
+    var unassigned: Bool
   }
 
   var status: String
   var view: SyncSnapshot?
   var received: [Received]
   var historyRemoved: [Removal]
+  var visitsDue: [String]
   var published: Int
   var changed: Int
   var pending: Int
@@ -371,6 +412,15 @@ private struct BookmarkInput: Encodable {
   var u: String
   var t: String
   var at: Double
+}
+
+private struct RemovalsInput: Encodable {
+  struct Item: Encodable {
+    var profile: String
+    var urls: [String]
+  }
+
+  var items: [Item]
 }
 
 private struct RemoveBookmarkInput: Encodable {

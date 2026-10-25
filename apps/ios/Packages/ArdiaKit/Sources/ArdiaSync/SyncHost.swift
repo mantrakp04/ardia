@@ -10,8 +10,11 @@ final class SyncHost {
   private(set) var grant: SyncFolderGrant
   var journal = SyncJournal()
   var timedOut = false
+  var chainSeen = false
+  let device: String
 
-  init(files: SyncFiles, keys: SyncKeys, grant: SyncFolderGrant, coordination: SyncCoordination) {
+  init(device: String, files: SyncFiles, keys: SyncKeys, grant: SyncFolderGrant, coordination: SyncCoordination) {
+    self.device = device
     self.files = files
     self.keys = keys
     self.coordination = coordination
@@ -21,6 +24,7 @@ final class SyncHost {
 
   func use(_ grant: SyncFolderGrant) {
     self.grant = grant
+    chainSeen = false
     vault = Self.vault(grant.folder, keys: keys, coordination: coordination)
   }
 
@@ -76,8 +80,11 @@ final class SyncHost {
       timedOut = true
       return "unavailable"
     }
-    if names.contains(vault.chainURL.lastPathComponent) { return "ok" }
-    return names.contains(where: { $0 != ".DS_Store" }) ? "missing" : "unavailable"
+    if names.contains(vault.chainURL.lastPathComponent) {
+      chainSeen = true
+      return "ok"
+    }
+    return chainSeen || names.contains(where: { $0 != ".DS_Store" }) ? "missing" : "unavailable"
   }
 
   private func read(scope: String, known: [String]) throws -> String {
@@ -127,7 +134,7 @@ final class SyncHost {
     } catch {
       return "failed"
     }
-    files.markStateSaved()
+    files.clearFresh(for: device)
     var next = journal
     next.prune(saved: seqs)
     if next != journal {

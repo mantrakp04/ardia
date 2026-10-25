@@ -258,3 +258,11 @@ test("a phone is offered as a send target only while it has synced in the last 3
   assert.equal(adapters.offersTabs(mac, null, now), true);
   assert.equal(adapters.offersTabs({ n: "Old Mac" }, now, now), false);
 });
+
+test("a phone not seen for 30 days leaves the devices list and the Your Devices menu; a Mac stays", () => {
+  const now = START + 60 * DAY;
+  assert.equal(adapters.isCurrentDevice({ n: "iPhone", k: "phone" }, now - 29 * DAY, now), true);
+  assert.equal(adapters.isCurrentDevice({ n: "iPhone", k: "phone" }, now - 31 * DAY, now), false);
+  assert.equal(adapters.isCurrentDevice({ n: "iPhone", k: "phone" }, null, now), false);
+  assert.equal(adapters.isCurrentDevice({ n: "Old Mac" }, null, now), true);
+});

@@ -8,6 +8,7 @@ import {
   companionAddBookmark,
   companionLoad,
   companionRemoveBookmark,
+  companionRemovalsDone,
   companionSend,
   runCompanionCycle,
   type CompanionState,
@@ -327,7 +328,7 @@ test("the tabs record holds the 30 most recently active web tabs", async () => {
   assert.equal(tabs.tabs[0]!.u, "https://site39.example/");
   assert.equal(tabs.tabs.at(-1)!.u, "https://site10.example/");
   assert.deepEqual((mac.scopes[s2]!.records[`tabs:${PHONE}`]!.v as { tabs: unknown[] }).tabs, [{ u: "https://work-phone.example/", t: "Work on phone" }]);
-  assert.deepEqual(mac.scopes.app!.records[`dev:${PHONE}`]!.v, { n: "iPhone", k: "phone", f: ["send"] });
+  assert.deepEqual(mac.scopes.app!.records[`dev:${PHONE}`]!.v, { n: "iPhone", k: "phone", f: ["send"], s: new Date(START + 1000).toISOString().slice(0, 10).replaceAll("-", "") });
 });
 
 test("history is the union both ways, and a deletion made on the Mac sticks", async () => {
@@ -361,8 +362,8 @@ test("history is the union both ways, and a deletion made on the Mac sticks", as
   folder.now += 15_000;
   const removed = await phone.cycle();
   assert.deepEqual(removed.historyRemoved, [
-    { profile: P1, urls: [fresh] },
-    { profile: P3, urls: [fresh] },
+    { profile: P1, urls: [fresh], unassigned: true },
+    { profile: P3, urls: [fresh], unassigned: false },
   ]);
   for (let i = 0; i < 3; i++) {
     folder.now += 15_000;
@@ -606,8 +607,8 @@ test("history a Mac deleted stays deleted after its tombstone is collected into 
   phone.launch();
   const first = await phone.cycle();
   assert.deepEqual(first.historyRemoved, [
-    { profile: P1, urls: [url] },
-    { profile: P3, urls: [url] },
+    { profile: P1, urls: [url], unassigned: true },
+    { profile: P3, urls: [url], unassigned: false },
   ]);
   for (let i = 0; i < 3; i++) {
     folder.now += 15_000;
@@ -666,4 +667,109 @@ test("an idle cycle doesn't serialize the whole state", async () => {
     JSON.stringify = stringify;
   }
   assert.equal(whole, 0);
+});
+
+test("a phone visit that lost to a concurrent Mac record is sent again from its full local list", async () => {
+  const { folder, mac, phone } = await joined();
+  const url = "https://shared.example/";
+  await phone.cycle({ visits: [] });
+  await mac.sync();
+  folder.now += 60_000;
+  const lost = folder.now;
+  await phone.cycle({ visits: [{ u: url, t: "Shared", vt: [lost], p: P1 }] });
+  folder.now += 20_000;
+  mac.visit(s1, url, "Shared", folder.now);
+  await mac.sync();
+  folder.now += 15_000;
+  const noticed = await phone.cycle({ visits: null });
+  assert.deepEqual(noticed.visitsDue, [url]);
+  folder.now += 15_000;
+  const repaired = await phone.cycle({ visits: [{ u: url, t: "Shared", vt: [lost], p: P1 }], fetchedDue: [url] });
+  assert.deepEqual(repaired.visitsDue, []);
+  await mac.sync();
+  assert.ok(mac.history[s1]!.get(url)!.vt.includes(lost));
+  folder.now += 15_000;
+  assert.deepEqual((await phone.cycle({ visits: null })).visitsDue, []);
+});
+
+test("a removal stays pending until the phone says it removed it, even when the cycle that found it fails", async () => {
+  const { folder, mac, phone } = await joined();
+  const url = "https://secret.example/";
+  await phone.cycle({ visits: [{ u: url, t: "Secret", vt: [START - DAY], p: P1 }] });
+  await mac.sync();
+  folder.now += 60_000;
+  mac.history[s1]!.delete(url);
+  await mac.sync();
+  folder.now += 15_000;
+  const host = phone.host();
+  (globalThis as { __host?: Host }).__host = { ...host, read: (scope, known) => (scope === s2 ? (() => { throw new Error("timed out"); })() : host.read(scope, known)) };
+  await assert.rejects(runCompanionCycle({ name: "iPhone", now: folder.now, tabs: [], visits: null }));
+  folder.now += 15_000;
+  const first = await phone.cycle({ visits: null });
+  assert.deepEqual(first.historyRemoved.map((r) => [r.profile, r.urls, r.unassigned]), [[P1, [url], true], [P3, [url], false]]);
+  folder.now += 15_000;
+  assert.equal((await phone.cycle({ visits: null })).historyRemoved.length, 2);
+  companionRemovalsDone({ items: first.historyRemoved });
+  folder.now += 15_000;
+  assert.deepEqual((await phone.cycle({ visits: null })).historyRemoved, []);
+});
+
+test("a record that only aged out of a snapshot is not a deletion, and a Mac clock ahead never sets a future floor", async () => {
+  const { folder, mac, phone } = await joined();
+  const old = "https://old.example/";
+  await phone.cycle({ visits: [{ u: old, t: "Old", vt: [START - 80 * DAY], p: P1 }] });
+  await mac.sync();
+  folder.now += 11 * DAY;
+  await compact(mac.scopes[s1]!, folder.transport(), s1, MAC, folder.now, { expired: (k, v, now) => k.startsWith("h:") && Math.max(...(v as { vt: number[] }).vt) < now - 90 * DAY }, true);
+  const out = await phone.cycle({ visits: null });
+  assert.deepEqual(out.historyRemoved, []);
+  assert.equal(phone.state().floors[s1]?.[old], undefined);
+
+  const ahead = new Mac(folder, "macahead000000000000000000");
+  ahead.clock = new Clock(ahead.id, null, () => folder.now + 30 * DAY);
+  const url = "https://ahead.example/";
+  ahead.put(s1, `h:${url}`, { t: "Ahead", n: 1, vt: [folder.now - DAY] });
+  await ahead.sync([s1]);
+  await phone.cycle({ visits: null });
+  ahead.remove(s1, `h:${url}`);
+  await ahead.sync([s1]);
+  folder.now += 15_000;
+  await phone.cycle({ visits: null });
+  assert.ok(phone.state().floors[s1]![url]! <= folder.now);
+});
+
+test("the phone's device record carries the day, so an idle phone still says it's around once a day", async () => {
+  const { folder, phone } = await joined();
+  await phone.cycle();
+  const day = (at: number) => new Date(at).toISOString().slice(0, 10).replaceAll("-", "");
+  const records = () => folder.logs(PHONE).flatMap((f) => f.ops).filter((op) => op.k === `dev:${PHONE}`);
+  assert.deepEqual(records().map((op) => op.v), [{ n: "iPhone", k: "phone", f: ["send"], s: day(folder.now) }]);
+  for (let i = 0; i < 4; i++) {
+    folder.now += 3_600_000;
+    await phone.cycle();
+  }
+  assert.equal(records().length, day(folder.now) === day(folder.now - 4 * 3_600_000) ? 1 : 2);
+  folder.now += DAY;
+  await phone.cycle();
+  assert.equal((records().at(-1)!.v as { s: string }).s, day(folder.now));
+});
+
+test("a phone that starts over under a new id deletes its old device and tabs records", async () => {
+  const { folder, mac, phone } = await joined();
+  phone.tabs = [{ u: "https://old-id.example/", t: "Old", at: START }];
+  await phone.cycle();
+  await mac.sync();
+  const fresh = new Phone(folder, "phonenew00000000000000000");
+  fresh.tabs = [{ u: "https://new-id.example/", t: "New", at: folder.now }];
+  (globalThis as { __host?: Host }).__host = fresh.host();
+  companionLoad({ device: fresh.id, state: null, journal: {}, fresh: true, ghosts: [PHONE] });
+  for (let i = 0; i < 2; i++) {
+    folder.now += 15_000;
+    await fresh.cycle();
+  }
+  await mac.sync();
+  assert.equal(mac.store.app!.has(`dev:${PHONE}`), false);
+  for (const scope of [s1, s2, s3]) assert.equal(mac.store[scope]!.has(`tabs:${PHONE}`), false);
+  assert.ok(mac.store.app!.has(`dev:${fresh.id}`));
+  assert.ok(mac.store[s1]!.has("bm:f1"));
 });

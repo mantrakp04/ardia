@@ -23,6 +23,7 @@ public enum ConnectResult: Equatable, Sendable {
   case noSyncData
   case folderUnavailable
   case keychainFailed
+  case busy
 
   public var message: String? {
     switch self {
@@ -32,6 +33,7 @@ public enum ConnectResult: Equatable, Sendable {
     case .noSyncData: "There’s no synced data in this folder yet. Choose the folder your other devices sync to, or wait for it to finish downloading."
     case .folderUnavailable: "Ardia can’t open this folder. Choose the Ardia Sync folder in iCloud Drive."
     case .keychainFailed: "Couldn’t save the sync key in your Keychain."
+    case .busy: "Ardia is still turning off sync. Try again in a moment."
     }
   }
 }
@@ -102,6 +104,9 @@ public final class SyncService {
   @ObservationIgnored private var again = false
   @ObservationIgnored private var idle: [CheckedContinuation<Void, Never>] = []
   @ObservationIgnored private var visitsDue = true
+  @ObservationIgnored private var visitGeneration = 0
+  @ObservationIgnored private var dueVisits: Set<String> = []
+  @ObservationIgnored private var stopping = false
   @ObservationIgnored private var localDirty = false
   @ObservationIgnored private var foreground = false
   @ObservationIgnored private var missingSince: Date?
@@ -187,7 +192,7 @@ public final class SyncService {
       meta.folder = refreshed
       saveMeta()
     }
-    guard let engine = makeEngine(deviceId: deviceId, entropy: entropy, grant: grant, fresh: false) else { return }
+    guard let engine = makeEngine(deviceId: deviceId, entropy: entropy, grant: grant) else { return }
     set(\.phase, .starting)
     Task {
       if let cached = await engine.cachedSnapshot(), snapshot == .empty { snapshot = cached }
@@ -215,6 +220,7 @@ public final class SyncService {
 
   public func connect(phrase: String, folder: URL) async -> ConnectResult {
     guard !isDemo else { return .connected }
+    guard !stopping else { return .busy }
     foreground = true
     let entropy: Data
     do {
@@ -231,8 +237,9 @@ public final class SyncService {
     case .noSyncData: return .noSyncData
     case .unavailable: return .folderUnavailable
     }
+    guard !stopping else { return .busy }
     if let retiring { await retiring.value }
-    await finishPendingRetire(giveUp: true)
+    let abandoned = await finishPendingRetire(giveUp: true)
     if let old = engine {
       await old.retire()
       engine = nil
@@ -241,11 +248,18 @@ public final class SyncService {
     let deviceId = reuse ?? SyncKeys.newFileId()
     guard keyStore.save(entropy, account: deviceId) else { return .keychainFailed }
     if reuse == nil {
-      if let old = meta.deviceId { keyStore.delete(account: old) }
-      files.removeSyncData()
+      let previous = meta.deviceId
+      do {
+        try SyncEngine.prepareFresh(directory: files.directory, deviceId: deviceId, ghosts: [abandoned, previous].compactMap(\.self))
+      } catch {
+        keyStore.delete(account: deviceId)
+        return .keychainFailed
+      }
+      if let previous { keyStore.delete(account: previous) }
       meta.setupAt = now()
       meta.lastSyncedAt = nil
       meta.visitsSyncedThrough = nil
+      meta.chainSeen = false
       lastSynced = nil
       snapshot = .empty
     }
@@ -257,7 +271,7 @@ public final class SyncService {
     Self.active = self
     folderName = prepared.location.name
     missingSince = nil
-    guard makeEngine(deviceId: deviceId, entropy: entropy, grant: prepared.grant, fresh: reuse == nil) != nil else { return .connected }
+    guard makeEngine(deviceId: deviceId, entropy: entropy, grant: prepared.grant) != nil else { return .connected }
     set(\.isEnabled, true)
     set(\.phase, .starting)
     visitsDue = true
@@ -278,6 +292,7 @@ public final class SyncService {
     case .unavailable: return .folderUnavailable
     }
     meta.folder = prepared.location
+    meta.chainSeen = false
     saveMeta()
     folderName = prepared.location.name
     missingSince = nil
@@ -287,7 +302,7 @@ public final class SyncService {
       } catch {
         return .folderUnavailable
       }
-    } else if makeEngine(deviceId: deviceId, entropy: entropy, grant: prepared.grant, fresh: false) == nil {
+    } else if makeEngine(deviceId: deviceId, entropy: entropy, grant: prepared.grant) == nil {
       return .connected
     }
     set(\.phase, .starting)
@@ -320,6 +335,7 @@ public final class SyncService {
     guard isEnabled, !isDemo else { return }
     localDirty = true
     visitsDue = true
+    visitGeneration += 1
     debounce?.cancel()
     debounce = Task { [weak self] in
       try? await Task.sleep(for: Self.afterEdit)
@@ -341,13 +357,15 @@ public final class SyncService {
   public func appWillResignActive() {
     guard !isDemo else { return }
     foreground = false
+    missingSince = nil
     foregroundLoop?.cancel()
     foregroundLoop = nil
     meta.lastSyncedAt = lastSynced
     saveMeta()
     guard isEnabled, let engine else { return }
     scheduleBackgroundRefresh()
-    guard localDirty || debounce != nil else { return }
+    guard running || localDirty || debounce != nil else { return }
+    let flush = localDirty || debounce != nil
     debounce?.cancel()
     debounce = nil
     #if canImport(UIKit)
@@ -356,11 +374,11 @@ public final class SyncService {
       engine.cancelCoordination()
     }
     Task {
-      await runCycle()
+      if flush { await syncNow() } else { await untilIdle() }
       assertion.end()
     }
     #else
-    Task { await runCycle() }
+    Task { if flush { await syncNow() } }
     #endif
   }
 
@@ -376,8 +394,16 @@ public final class SyncService {
     await engine.retire()
   }
 
+  private func untilIdle() async {
+    guard running else { return }
+    await withCheckedContinuation { idle.append($0) }
+  }
+
   public func stopSyncing() async {
-    guard !isDemo else { return }
+    guard !isDemo, !stopping else { return }
+    stopping = true
+    defer { stopping = false }
+    let deviceId = meta.deviceId
     foregroundLoop?.cancel()
     foregroundLoop = nil
     debounce?.cancel()
@@ -395,19 +421,21 @@ public final class SyncService {
           landed = try await engine.stop(local)
         } catch SyncError.stateUnreadable {
           await engine.forget()
+          if let deviceId { await retireAsGhost(deviceId) }
           landed = true
         } catch {
           await engine.retire()
         }
       }
-    } else if meta.deviceId == nil || keyStore.load(account: meta.deviceId!) == nil {
+    } else if deviceId == nil || keyStore.load(account: deviceId!) == nil {
       files.removeSyncData()
       landed = true
     }
+    guard meta.deviceId == deviceId else { return }
     if landed {
-      if let deviceId = meta.deviceId { keyStore.delete(account: deviceId) }
+      if let deviceId { keyStore.delete(account: deviceId) }
     } else {
-      meta.retiringDeviceId = meta.deviceId
+      meta.retiringDeviceId = deviceId
     }
     meta.enabled = false
     meta.deviceId = nil
@@ -474,7 +502,7 @@ public final class SyncService {
         let completion = BackgroundCompletion(task)
         let work = Task { @MainActor in await SyncService.active?.backgroundCycle() ?? true }
         task.expirationHandler = {
-          MainActor.assumeIsolated {
+          Task { @MainActor in
             SyncService.active?.cancelCoordination()
             work.cancel()
             completion.finish(success: false)
@@ -511,9 +539,9 @@ public final class SyncService {
     return phase == .updated
   }
 
-  private func makeEngine(deviceId: String, entropy: Data, grant: SyncFolderGrant, fresh: Bool) -> SyncEngine? {
+  private func makeEngine(deviceId: String, entropy: Data, grant: SyncFolderGrant) -> SyncEngine? {
     do {
-      let engine = try SyncEngine(directory: files.directory, deviceId: deviceId, entropy: entropy, folder: grant, fresh: fresh, coordinationTimeout: coordinationTimeout, now: now)
+      let engine = try SyncEngine(directory: files.directory, deviceId: deviceId, entropy: entropy, folder: grant, chainSeen: meta.chainSeen, coordinationTimeout: coordinationTimeout, now: now)
       self.engine = engine
       return engine
     } catch {
@@ -552,6 +580,7 @@ public final class SyncService {
       debounce?.cancel()
       debounce = nil
       let fetchedAt = now()
+      let generation = visitGeneration
       let local = gatherLocal(at: fetchedAt)
       let dirty = localDirty
       localDirty = false
@@ -563,11 +592,15 @@ public final class SyncService {
       do {
         let outcome = try await engine.cycle(local)
         if local.visits != nil, outcome.status == .ok {
-          visitsDue = false
+          if generation == visitGeneration { visitsDue = false }
           if !(outcome.snapshot ?? snapshot).profiles.isEmpty {
             meta.visitsSyncedThrough = fetchedAt
             saveMeta()
           }
+        }
+        if outcome.status == .ok, source != nil {
+          dueVisits = outcome.visitsDue
+          if !dueVisits.isEmpty, dueVisits != local.fetchedDue { again = true }
         }
         await apply(outcome, engine: engine)
       } catch SyncError.retired {
@@ -590,11 +623,17 @@ public final class SyncService {
 
   private func apply(_ outcome: CycleOutcome, engine: SyncEngine) async {
     guard self.engine === engine else { return }
+    if outcome.chainSeen, !meta.chainSeen {
+      meta.chainSeen = true
+      saveMeta()
+    }
     switch outcome.status {
     case .unavailable:
+      missingSince = nil
       set(\.phase, .offline)
     case .missing:
       guard foreground else {
+        missingSince = nil
         set(\.phase, .offline)
         return
       }
@@ -611,8 +650,12 @@ public final class SyncService {
       set(\.pendingDownloads, outcome.pending)
       set(\.phase, .updated)
       lastSynced = now()
-      for removal in outcome.historyRemoved {
-        source?.removeVisits(urls: removal.urls, profileSyncId: removal.profileSyncId)
+      if !outcome.historyRemoved.isEmpty, let source {
+        for removal in outcome.historyRemoved {
+          source.removeVisits(urls: removal.urls, profileSyncId: removal.profileSyncId)
+          if removal.includesUnassigned { source.removeVisits(urls: removal.urls, profileSyncId: nil) }
+        }
+        try? await engine.acknowledgeRemovals(outcome.historyRemoved)
       }
       if !outcome.received.isEmpty, let source, self.engine === engine {
         source.receive(outcome.received)
@@ -628,30 +671,38 @@ public final class SyncService {
       set(\.phase, .stalled(Self.stalledMessage))
       return
     }
-    await broken.setAside("unreadable")
-    engine = nil
     let deviceId = SyncKeys.newFileId()
     guard keyStore.save(entropy, account: deviceId) else {
       set(\.phase, .stalled(Self.stalledMessage))
       return
     }
+    do {
+      try SyncEngine.prepareFresh(directory: files.directory, deviceId: deviceId, ghosts: [oldId])
+      meta.deviceId = deviceId
+      meta.visitsSyncedThrough = nil
+      try files.saveMeta(meta)
+    } catch {
+      meta.deviceId = oldId
+      keyStore.delete(account: deviceId)
+      set(\.phase, .stalled(Self.stalledMessage))
+      return
+    }
+    await broken.retire()
+    engine = nil
     keyStore.delete(account: oldId)
-    meta.deviceId = deviceId
-    meta.visitsSyncedThrough = nil
-    saveMeta()
     visitsDue = true
-    guard makeEngine(deviceId: deviceId, entropy: entropy, grant: grant, fresh: true) != nil else { return }
+    guard makeEngine(deviceId: deviceId, entropy: entropy, grant: grant) != nil else { return }
     again = true
   }
 
   private func resetFromElsewhere(_ engine: SyncEngine) async {
+    meta.outOfSync = true
+    saveMeta()
     await engine.setAside("reset")
     self.engine = nil
     foregroundLoop?.cancel()
     foregroundLoop = nil
     missingSince = nil
-    meta.outOfSync = true
-    saveMeta()
     snapshot = .empty
     set(\.isEnabled, false)
     set(\.phase, .reset)
@@ -662,8 +713,24 @@ public final class SyncService {
     await finishPendingRetire(giveUp: false)
   }
 
-  private func finishPendingRetire(giveUp: Bool) async {
-    guard let deviceId = meta.retiringDeviceId else { return }
+  private func retireAsGhost(_ oldId: String) async {
+    guard let entropy = keyStore.load(account: oldId), let location = meta.folder,
+          case .resolved(let grant, _) = SyncFolderAccess.resolve(location)
+    else { return }
+    let temporary = SyncKeys.newFileId()
+    guard (try? SyncEngine.prepareFresh(directory: files.directory, deviceId: temporary, ghosts: [oldId])) != nil,
+          let engine = try? SyncEngine(directory: files.directory, deviceId: temporary, entropy: entropy, folder: grant, coordinationTimeout: coordinationTimeout, now: now)
+    else { return }
+    let local = LocalBrowsing(deviceName: meta.deviceName, tabs: nil, visits: nil)
+    for _ in 0..<2 {
+      guard (try? await engine.cycle(local, retiring: true))?.status == .ok else { break }
+    }
+    await engine.forget()
+  }
+
+  @discardableResult
+  private func finishPendingRetire(giveUp: Bool) async -> String? {
+    guard let deviceId = meta.retiringDeviceId else { return nil }
     var landed = false
     if let entropy = keyStore.load(account: deviceId), let location = meta.folder,
        case .resolved(let grant, _) = SyncFolderAccess.resolve(location) {
@@ -672,6 +739,7 @@ public final class SyncService {
           landed = try await engine.stop(LocalBrowsing(deviceName: meta.deviceName, tabs: nil, visits: nil))
         } catch SyncError.stateUnreadable {
           await engine.forget()
+          await retireAsGhost(deviceId)
           landed = true
         } catch {
           await engine.retire()
@@ -680,11 +748,12 @@ public final class SyncService {
     } else {
       landed = keyStore.load(account: deviceId) == nil
     }
-    guard landed || giveUp, meta.retiringDeviceId == deviceId else { return }
+    guard landed || giveUp, meta.retiringDeviceId == deviceId else { return nil }
     keyStore.delete(account: deviceId)
     files.removeSyncData()
     meta.retiringDeviceId = nil
     saveMeta()
+    return landed ? nil : deviceId
   }
 
   private func gatherLocal(at time: Date) -> LocalBrowsing {
@@ -695,7 +764,9 @@ public final class SyncService {
       let since = meta.visitsSyncedThrough.map { max(window, $0.addingTimeInterval(-Self.visitOverlap)) } ?? window
       visits = source.syncedVisits(since: since)
     }
-    return LocalBrowsing(deviceName: meta.deviceName, tabs: source.syncedTabs(), visits: visits)
+    let due = dueVisits
+    if !due.isEmpty { visits = (visits ?? []) + source.syncedVisits(urls: due) }
+    return LocalBrowsing(deviceName: meta.deviceName, tabs: source.syncedTabs(), visits: visits, fetchedDue: due)
   }
 
   private func saveMeta() {

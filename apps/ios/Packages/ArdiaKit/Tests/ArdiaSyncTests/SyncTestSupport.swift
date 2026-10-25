@@ -32,9 +32,16 @@ final class FakeSource: LocalBrowsingSource {
   var visitFetches: [Date] = []
 
   func syncedTabs() -> [LocalTabRecord] { tabs }
+  var urlFetches: [Set<String>] = []
+
   func syncedVisits(since: Date) -> [LocalVisitRecord] {
     visitFetches.append(since)
     return visits.filter { $0.visitedAt.contains { $0 >= since } }
+  }
+
+  func syncedVisits(urls: Set<String>) -> [LocalVisitRecord] {
+    urlFetches.append(urls)
+    return visits.filter { urls.contains($0.url) }
   }
   func removeVisits(urls: Set<String>, profileSyncId: String?) { removed.append((urls, profileSyncId)) }
   func receive(_ tabs: [ReceivedTab]) { received += tabs }

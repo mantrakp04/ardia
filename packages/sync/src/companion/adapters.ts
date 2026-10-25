@@ -9,7 +9,7 @@ export const MAX_DEVICE_TABS = 30;
 export const MAX_VISIT_TIMES = 50;
 const SAME_VISIT_MS = 1;
 
-export type DeviceValue = { n: string; k?: string; f?: string[] };
+export type DeviceValue = { n: string; k?: string; f?: string[]; s?: string };
 export type DeviceTabsValue = { n: string; k?: string; tabs: { u: string; t: string }[] };
 export type HistoryValue = { t: string; n: number; vt: number[] };
 export type SendValue = { u: string; t: string; to: string; from: string; at: number };
@@ -31,31 +31,36 @@ export const historyExpired = (key: string, value: unknown, now: number) =>
 
 export const lastVisitOf = (v: HistoryValue | null | undefined) => (v && Array.isArray(v.vt) ? Math.max(0, ...v.vt) : 0);
 
-export function deviceAdapter(device: string, name: string, retiring: boolean): Adapter {
+export const dayOf = (at: number) => new Date(at).toISOString().slice(0, 10).replaceAll("-", "");
+
+export function deviceAdapter(device: string, name: string, retiring: boolean, ghosts: string[] = []): Adapter {
   const key = `dev:${device}`;
+  const old = new Set(ghosts.map((g) => `dev:${g}`));
   return {
     prefix: "dev:",
-    extract: () => ({
-      values: retiring ? new Map() : new Map([[key, { n: name, k: "phone", f: ["send"] } satisfies DeviceValue]]),
-      ignore: (k) => k !== key,
+    extract: (_base, _queued, now) => ({
+      values: retiring ? new Map() : new Map([[key, { n: name, k: "phone", f: ["send"], s: dayOf(now) } satisfies DeviceValue]]),
+      ignore: (k) => k !== key && !old.has(k),
     }),
     apply: () => true,
   };
 }
 
-export function deviceTabsAdapter(device: string, name: string, tabs: LocalTab[] | null, retiring: boolean): Adapter {
+export function deviceTabsAdapter(device: string, name: string, tabs: LocalTab[] | null, retiring: boolean, ghosts: string[] = []): Adapter {
   const key = `tabs:${device}`;
+  const old = new Set(ghosts.map((g) => `tabs:${g}`));
+  const ignore = (k: string) => k !== key && !old.has(k);
   return {
     prefix: "tabs:",
     extract: () => {
-      if (retiring) return { values: new Map(), ignore: (k) => k !== key };
-      if (!tabs) return null;
+      if (retiring) return { values: new Map(), ignore };
+      if (!tabs) return old.size ? { values: new Map(), ignore: (k) => !old.has(k) } : null;
       const recent = tabs
         .filter((t) => isWebUrl(t.u))
         .sort((a, z) => z.at - a.at)
         .slice(0, MAX_DEVICE_TABS)
         .map((t) => ({ u: t.u, t: t.t }));
-      return { values: new Map([[key, { n: name, k: "phone", tabs: recent } satisfies DeviceTabsValue]]), ignore: (k) => k !== key };
+      return { values: new Map([[key, { n: name, k: "phone", tabs: recent } satisfies DeviceTabsValue]]), ignore };
     },
     apply: () => true,
   };
@@ -74,6 +79,8 @@ export type HistoryContext = {
   profiles: string[];
   state: ScopeState;
   floors: Record<string, number>;
+  visited: Record<string, number>;
+  due: (url: string) => void;
   removed: (profile: string, url: string) => void;
   ready: () => boolean;
 };
@@ -105,7 +112,7 @@ export function historyAdapter(ctx: HistoryContext): Adapter {
         const known = remote(key) as HistoryValue | null | undefined;
         if (known === null) {
           const h = stamp(key);
-          const deletedAt = h ? hlcWall(h) : 0;
+          const deletedAt = Math.min(h ? hlcWall(h) : 0, now);
           if (deletedAt > (ctx.floors[url] ?? -Infinity)) ctx.floors[url] = deletedAt;
         }
         const floor = ctx.floors[url] ?? -Infinity;
@@ -132,12 +139,21 @@ export function historyAdapter(ctx: HistoryContext): Adapter {
       return { values, ignore: (k) => !values.has(k) };
     },
     editedAt: (v) => lastVisitOf(v as HistoryValue),
-    apply: (visible, changed, _base, records) => {
+    apply: (visible, changed, base, records) => {
       for (const key of changed) {
-        if (visible.has(key)) continue;
         const url = key.slice(2);
+        const value = visible.get(key) as HistoryValue | undefined;
+        if (value) {
+          const mine = ctx.visited[url];
+          const times = Array.isArray(value.vt) ? value.vt : [];
+          const oldestKept = times.length >= MAX_VISIT_TIMES ? Math.min(...times) : -Infinity;
+          if (mine !== undefined && mine >= oldestKept && mine > (ctx.floors[url] ?? -Infinity) && !near(times, mine)) ctx.due(url);
+          continue;
+        }
         const tombstone = ctx.state.records[key];
-        const deletedAt = tombstone ? hlcWall(tombstone.h) : records.now;
+        const before = base(key) as HistoryValue | undefined;
+        if (!tombstone && before && lastVisitOf(before) < records.now - HISTORY_WINDOW_MS) continue;
+        const deletedAt = Math.min(tombstone ? hlcWall(tombstone.h) : records.now, records.now);
         if (deletedAt > (ctx.floors[url] ?? -Infinity)) ctx.floors[url] = deletedAt;
         for (const p of ctx.profiles) ctx.removed(p, url);
       }

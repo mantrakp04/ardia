@@ -12,6 +12,7 @@ struct SyncMeta: Codable, Equatable, Sendable {
   var outOfSync = false
   var retiringDeviceId: String?
   var visitsSyncedThrough: Date?
+  var chainSeen = false
 
   static let defaultDeviceName = "iPhone"
 }
@@ -41,6 +42,14 @@ struct SyncJournal: Codable, Equatable, Sendable {
     entries.removeAll { $0.seq <= saved[$0.scope] ?? 0 }
   }
 
+  private struct Origin: Decodable {
+    var device: String
+  }
+
+  func only(device: String) -> SyncJournal {
+    SyncJournal(entries: entries.filter { (try? JSONDecoder().decode(Origin.self, from: Data($0.batch.utf8)))?.device == device })
+  }
+
   var scriptJSON: String {
     let scopes = Dictionary(grouping: entries, by: \.scope)
     let encoder = JSONEncoder()
@@ -59,7 +68,12 @@ struct SyncFiles: Sendable {
   var stateURL: URL { directory.appendingPathComponent("sync-state.nns") }
   var journalURL: URL { directory.appendingPathComponent("sync-journal.nns") }
   var snapshotURL: URL { directory.appendingPathComponent("sync-snapshot.nns") }
-  var savedMarkerURL: URL { directory.appendingPathComponent("sync-state.saved") }
+  var freshURL: URL { directory.appendingPathComponent("sync-fresh.json") }
+
+  struct Fresh: Codable, Equatable {
+    var device: String
+    var ghosts: [String]
+  }
 
   static let stateFile = "state"
   static let journalFile = "journal"
@@ -99,20 +113,27 @@ struct SyncFiles: Sendable {
     return .opened(plain)
   }
 
-  var stateWasSaved: Bool { FileManager.default.fileExists(atPath: savedMarkerURL.path) }
-
-  func markStateSaved() {
-    guard !stateWasSaved else { return }
-    try? write(Data(), to: savedMarkerURL)
+  func writeFresh(_ fresh: Fresh) throws {
+    try write(JSONEncoder().encode(fresh), to: freshURL)
   }
 
-  func setAside(_ reason: String) {
-    for url in [stateURL, journalURL] where FileManager.default.fileExists(atPath: url.path) {
+  func readFresh() -> Fresh? {
+    guard let data = try? Data(contentsOf: freshURL) else { return nil }
+    return try? JSONDecoder().decode(Fresh.self, from: data)
+  }
+
+  func clearFresh(for device: String) {
+    guard readFresh()?.device == device else { return }
+    try? FileManager.default.removeItem(at: freshURL)
+  }
+
+  func setAside(_ reason: String, state: Bool = true, journal: Bool = true) {
+    for url in [state ? stateURL : nil, journal ? journalURL : nil].compactMap(\.self) where FileManager.default.fileExists(atPath: url.path) {
       let aside = directory.appendingPathComponent(url.deletingPathExtension().lastPathComponent + ".\(reason).nns")
       try? FileManager.default.removeItem(at: aside)
       try? FileManager.default.moveItem(at: url, to: aside)
     }
-    for url in [snapshotURL, savedMarkerURL] { try? FileManager.default.removeItem(at: url) }
+    try? FileManager.default.removeItem(at: snapshotURL)
   }
 
   func writeSealed(_ payload: Data, to url: URL, keys: SyncKeys, fileId: String) throws {
@@ -135,6 +156,6 @@ struct SyncFiles: Sendable {
   }
 
   func removeSyncData() {
-    for url in [stateURL, journalURL, snapshotURL, savedMarkerURL] { try? FileManager.default.removeItem(at: url) }
+    for url in [stateURL, journalURL, snapshotURL, freshURL] { try? FileManager.default.removeItem(at: url) }
   }
 }

@@ -608,6 +608,7 @@ __define("packages/sync/src/companion/cycle.ts", function (exports, __require) {
   __export(exports, "runCompanionCycle", () => runCompanionCycle);
   __export(exports, "companionView", () => companionView);
   __export(exports, "companionSend", () => companionSend);
+  __export(exports, "companionRemovalsDone", () => companionRemovalsDone);
   __export(exports, "companionAcknowledge", () => companionAcknowledge);
   __export(exports, "companionAddBookmark", () => companionAddBookmark);
   __export(exports, "companionRemoveBookmark", () => companionRemoveBookmark);
@@ -637,6 +638,10 @@ const { buildView, dataOwner, defaultProfileId, liveProfiles } = __require("pack
                           
                                                  
                                
+                                                   
+                                             
+                                      
+                                           
   
 
                           
@@ -645,16 +650,18 @@ const { buildView, dataOwner, defaultProfileId, liveProfiles } = __require("pack
                      
                            
                                
+                        
   
 
                                                                                                                                  
-                                                          
+                                                                               
 
                            
                       
               
                        
                             
+                      
                     
                   
                   
@@ -662,6 +669,17 @@ const { buildView, dataOwner, defaultProfileId, liveProfiles } = __require("pack
   
 
 const APP = "app";
+const GHOST_MS = 30 * 86_400_000;
+
+function removalsOf(c                )            {
+  const fallback = defaultProfileId(liveProfiles(c.scopes[APP]));
+  return Object.entries(c.removals ?? {})
+    .filter(([, urls]) => urls.length)
+    .sort(([a], [z]) => (a < z ? -1 : 1))
+    .map(([profile, urls]) => ({ profile, urls: [...urls].sort(), unassigned: profile === fallback }));
+}
+
+const dueOf = (c                ) => [...new Set(Object.values(c.due ?? {}).flatMap((urls) => Object.keys(urls)))].sort();
 const profileScope = (syncId        ) => `p:${syncId}`;
 
 let companion                        = null;
@@ -682,7 +700,7 @@ function loaded()                 {
 
 const freshState = (device        )                 => ({ v: 1, device, clock: null, scopes: {}, sends: [], acks: [], bookmarks: [], floors: {}, pulled: {} });
 
-function companionLoad(input                                                                                                                ) {
+function companionLoad(input                                                                                                                                   ) {
   if (!input.state && !input.fresh) throw new Error("no saved state for this device");
   if (input.state && (input.state.v !== 1 || input.state.device !== input.device || !input.state.scopes || typeof input.state.scopes !== "object")) {
     throw new Error("the saved state belongs to another device or version");
@@ -694,6 +712,11 @@ function companionLoad(input                                                    
   state.floors ??= {};
   state.pulled ??= {};
   state.scopes ??= {};
+  state.visited ??= {};
+  state.due ??= {};
+  state.removals ??= {};
+  state.ghosts ??= [];
+  for (const id of input.ghosts ?? []) if (id !== input.device && !state.ghosts.some((g) => g.id === id)) state.ghosts.push({ id, since: Date.now() });
   const clock = new Clock(input.device, state.clock);
   let restored = false;
   for (const [scope, batches] of Object.entries(input.journal ?? {})) {
@@ -731,7 +754,7 @@ function fingerprint(c                )         {
       const s = c.scopes[name] ;
       return [name, s.seq, s.journal?.length ?? 0, s.outbox.length, Object.keys(s.files).length, s.pending, Object.keys(s.damaged).length, s.unapplied.length, s.joined, JSON.stringify(s.vv), JSON.stringify(s.extra), JSON.stringify(s.seen)].join("|");
     });
-  return JSON.stringify([c.clock, scopes, c.sends, c.acks, c.bookmarks, c.floors, c.pulled]);
+  return JSON.stringify([c.clock, scopes, c.sends, c.acks, c.bookmarks, c.floors, c.pulled, c.visited, c.due, c.removals, c.ghosts]);
 }
 
 function save(force = false)          {
@@ -782,7 +805,7 @@ function profileOf(app                        , profiles             , fallback 
 async function runCompanionCycle(input            )                       {
   const c = loaded();
   const now = () => input.now ?? Date.now();
-  const empty = { received: [], historyRemoved: [], published: 0, changed: 0, pending: 0 };
+  const empty = { received: [], historyRemoved: removalsOf(c), visitsDue: dueOf(c), published: 0, changed: 0, pending: 0 };
   const status = host().chainStatus()               ;
   if (status !== "ok") return { status, ...empty, saved: save(false) };
   const clock = new Clock(c.device, c.clock, now);
@@ -802,10 +825,11 @@ async function runCompanionCycle(input            )                       {
     return state;
   };
 
-  const app = await run(APP, [deviceAdapter(device, input.name, retiring)], false);
-  const removals = new Map                     ();
+  c.ghosts = (c.ghosts ?? []).filter((g) => now() - g.since < GHOST_MS);
+  const ghosts = c.ghosts.map((g) => g.id);
+  const app = await run(APP, [deviceAdapter(device, input.name, retiring, ghosts)], false);
   if (retiring) {
-    for (const scope of Object.keys(c.scopes).filter((s) => s.startsWith("p:"))) await run(scope, [deviceTabsAdapter(device, input.name, [], true)], true);
+    for (const scope of Object.keys(c.scopes).filter((s) => s.startsWith("p:"))) await run(scope, [deviceTabsAdapter(device, input.name, [], true, ghosts)], true);
   } else {
     const profiles = liveProfiles(app);
     const ids = new Set(profiles.keys());
@@ -817,21 +841,27 @@ async function runCompanionCycle(input            )                       {
       if (p) tabsOf.set(p, [...(tabsOf.get(p) ?? []), t]);
     }
     const visitsOf = new Map                                        ();
+    const visited = (c.visited ??= {});
     for (const v of input.visits ?? []) {
       const p = profileOf(app, ids, fallback, v.p);
-      if (!p) continue;
+      if (!p || typeof v.u !== "string" || !Array.isArray(v.vt)) continue;
       const o = owner.get(p) ?? p;
       visitsOf.set(o, [...(visitsOf.get(o) ?? []), { ...v, p }]);
+      const newest = Math.max(...v.vt.filter((t) => Number.isFinite(t)));
+      const mine = (visited[profileScope(o)] ??= {});
+      if (Number.isFinite(newest) && newest > (mine[v.u] ?? -Infinity)) mine[v.u] = newest;
     }
     for (const id of [...ids].sort()) {
       const scope = profileScope(id);
       const ownsData = owner.get(id) === id;
       const floors = (c.floors[scope] ??= {});
       for (const [url, at] of Object.entries(floors)) if (at < now() - HISTORY_WINDOW_MS) delete floors[url];
+      const mine = (visited[scope] ??= {});
+      for (const [url, at] of Object.entries(mine)) if (at < now() - HISTORY_WINDOW_MS) delete mine[url];
       let extracts = 0;
       const state = (c.scopes[scope] ??= emptyScope());
       const adapters            = [
-        deviceTabsAdapter(device, input.name, input.tabs ? (tabsOf.get(id) ?? []) : null, false),
+        deviceTabsAdapter(device, input.name, input.tabs ? (tabsOf.get(id) ?? []) : null, false, ghosts),
         sendsAdapter({
           scope,
           sends: () => c.sends,
@@ -848,10 +878,13 @@ async function runCompanionCycle(input            )                       {
                 profiles: [...ids].filter((p) => owner.get(p) === id).sort(),
                 state,
                 floors,
+                visited: mine,
+                due: (url) => {
+                  (c.due [scope] ??= {})[url] = true;
+                },
                 removed: (p, url) => {
-                  const set = removals.get(p) ?? new Set        ();
-                  set.add(url);
-                  removals.set(p, set);
+                  const list = (c.removals [p] ??= []);
+                  if (!list.includes(url)) list.push(url);
                 },
                 ready: () => !!input.visits && (!!c.pulled[scope] || ++extracts > 1),
               }),
@@ -868,6 +901,12 @@ async function runCompanionCycle(input            )                       {
       ];
       await run(scope, adapters, true);
       if (!Object.keys(floors).length) delete c.floors[scope];
+      if (!Object.keys(mine).length) delete visited[scope];
+    }
+    const fetched = new Set(input.fetchedDue ?? []);
+    for (const [scope, urls] of Object.entries(c.due ?? {})) {
+      for (const url of Object.keys(urls)) if (fetched.has(url) || !(url in (visited[scope] ?? {}))) delete urls[url];
+      if (!Object.keys(urls).length) delete c.due [scope];
     }
   }
   c.clock = clock.last;
@@ -896,7 +935,8 @@ async function runCompanionCycle(input            )                       {
   const out              = {
     status,
     received,
-    historyRemoved: [...removals].map(([profile, urls]) => ({ profile, urls: [...urls].sort() })),
+    historyRemoved: removalsOf(c),
+    visitsDue: dueOf(c),
     published,
     changed,
     pending,
@@ -930,6 +970,16 @@ function companionSend(input                                                    
   const key = `send:${input.key}`;
   if (!c.sends.some((s) => s.key === key)) {
     c.sends.push({ scope: profileScope(input.profile), key, value: { u: input.u, t: input.t, to: input.to, from: c.device, at: input.at } });
+  }
+  return { saved: save(true) };
+}
+
+function companionRemovalsDone(input                                                  ) {
+  const c = loaded();
+  for (const { profile, urls } of input.items) {
+    const left = (c.removals?.[profile] ?? []).filter((url) => !urls.includes(url));
+    if (left.length) c.removals [profile] = left;
+    else delete c.removals?.[profile];
   }
   return { saved: save(true) };
 }
@@ -972,6 +1022,7 @@ __define("packages/sync/src/companion/adapters.ts", function (exports, __require
   __export(exports, "isWebUrl", () => isWebUrl);
   __export(exports, "historyExpired", () => historyExpired);
   __export(exports, "lastVisitOf", () => lastVisitOf);
+  __export(exports, "dayOf", () => dayOf);
   __export(exports, "deviceAdapter", () => deviceAdapter);
   __export(exports, "deviceTabsAdapter", () => deviceTabsAdapter);
   __export(exports, "historyAdapter", () => historyAdapter);
@@ -988,7 +1039,7 @@ const MAX_DEVICE_TABS = 30;
 const MAX_VISIT_TIMES = 50;
 const SAME_VISIT_MS = 1;
 
-                                                                  
+                                                                              
                                                                                           
                                                                   
                                                                                        
@@ -1010,31 +1061,36 @@ const historyExpired = (key        , value         , now        ) =>
 
 const lastVisitOf = (v                                 ) => (v && Array.isArray(v.vt) ? Math.max(0, ...v.vt) : 0);
 
-function deviceAdapter(device        , name        , retiring         )          {
+const dayOf = (at        ) => new Date(at).toISOString().slice(0, 10).replaceAll("-", "");
+
+function deviceAdapter(device        , name        , retiring         , ghosts           = [])          {
   const key = `dev:${device}`;
+  const old = new Set(ghosts.map((g) => `dev:${g}`));
   return {
     prefix: "dev:",
-    extract: () => ({
-      values: retiring ? new Map() : new Map([[key, { n: name, k: "phone", f: ["send"] }                      ]]),
-      ignore: (k) => k !== key,
+    extract: (_base, _queued, now) => ({
+      values: retiring ? new Map() : new Map([[key, { n: name, k: "phone", f: ["send"], s: dayOf(now) }                      ]]),
+      ignore: (k) => k !== key && !old.has(k),
     }),
     apply: () => true,
   };
 }
 
-function deviceTabsAdapter(device        , name        , tabs                   , retiring         )          {
+function deviceTabsAdapter(device        , name        , tabs                   , retiring         , ghosts           = [])          {
   const key = `tabs:${device}`;
+  const old = new Set(ghosts.map((g) => `tabs:${g}`));
+  const ignore = (k        ) => k !== key && !old.has(k);
   return {
     prefix: "tabs:",
     extract: () => {
-      if (retiring) return { values: new Map(), ignore: (k) => k !== key };
-      if (!tabs) return null;
+      if (retiring) return { values: new Map(), ignore };
+      if (!tabs) return old.size ? { values: new Map(), ignore: (k) => !old.has(k) } : null;
       const recent = tabs
         .filter((t) => isWebUrl(t.u))
         .sort((a, z) => z.at - a.at)
         .slice(0, MAX_DEVICE_TABS)
         .map((t) => ({ u: t.u, t: t.t }));
-      return { values: new Map([[key, { n: name, k: "phone", tabs: recent }                          ]]), ignore: (k) => k !== key };
+      return { values: new Map([[key, { n: name, k: "phone", tabs: recent }                          ]]), ignore };
     },
     apply: () => true,
   };
@@ -1053,6 +1109,8 @@ function unionTimes(a          , b          )           {
                      
                     
                                  
+                                  
+                             
                                                   
                        
   
@@ -1084,7 +1142,7 @@ function historyAdapter(ctx                )          {
         const known = remote(key)                                   ;
         if (known === null) {
           const h = stamp(key);
-          const deletedAt = h ? hlcWall(h) : 0;
+          const deletedAt = Math.min(h ? hlcWall(h) : 0, now);
           if (deletedAt > (ctx.floors[url] ?? -Infinity)) ctx.floors[url] = deletedAt;
         }
         const floor = ctx.floors[url] ?? -Infinity;
@@ -1111,12 +1169,21 @@ function historyAdapter(ctx                )          {
       return { values, ignore: (k) => !values.has(k) };
     },
     editedAt: (v) => lastVisitOf(v                ),
-    apply: (visible, changed, _base, records) => {
+    apply: (visible, changed, base, records) => {
       for (const key of changed) {
-        if (visible.has(key)) continue;
         const url = key.slice(2);
+        const value = visible.get(key)                            ;
+        if (value) {
+          const mine = ctx.visited[url];
+          const times = Array.isArray(value.vt) ? value.vt : [];
+          const oldestKept = times.length >= MAX_VISIT_TIMES ? Math.min(...times) : -Infinity;
+          if (mine !== undefined && mine >= oldestKept && mine > (ctx.floors[url] ?? -Infinity) && !near(times, mine)) ctx.due(url);
+          continue;
+        }
         const tombstone = ctx.state.records[key];
-        const deletedAt = tombstone ? hlcWall(tombstone.h) : records.now;
+        const before = base(key)                            ;
+        if (!tombstone && before && lastVisitOf(before) < records.now - HISTORY_WINDOW_MS) continue;
+        const deletedAt = Math.min(tombstone ? hlcWall(tombstone.h) : records.now, records.now);
         if (deletedAt > (ctx.floors[url] ?? -Infinity)) ctx.floors[url] = deletedAt;
         for (const p of ctx.profiles) ctx.removed(p, url);
       }
