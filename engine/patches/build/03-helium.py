@@ -303,7 +303,7 @@ def stage_patches(ctx):
         applied += 1
     write_report(ctx, rows)
     partial = [r[1] for r in rows if r[2] == 'partial']
-    leftovers = [d for d in OMITTED if (ctx.tree / d).exists()]
+    leftovers = [d for d in OMITTED if (ctx.tree / d).is_file() or (ctx.tree / d).is_dir() and any((ctx.tree / d).iterdir())]
     if leftovers:
         raise StageError(f'omitted downloads are in the tree: {", ".join(leftovers)}')
     print(f'applied {applied} with no fuzz, skipped {len(skipped)}; '

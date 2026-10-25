@@ -1,0 +1,168 @@
+name: Engine x64
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Build even if this engine tree's x64 engine is published
+        type: boolean
+        default: false
+      first_phase_minutes:
+        description: Stop the first phase's compile after this many minutes (0 = use the whole job), to prove the checkpoint early
+        type: number
+        default: 0
+      sccache:
+        description: Compile through sccache on the Actions cache
+        type: boolean
+        default: true
+  push:
+    branches: [main]
+    paths:
+      - engine/**
+
+concurrency:
+  group: engine-x64
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      tree: ${{ steps.plan.outputs.tree }}
+      short: ${{ steps.plan.outputs.short }}
+      build: ${{ steps.plan.outputs.build }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          tree=$(git rev-parse HEAD:engine)
+          short=${tree:0:12}
+          build=true
+          if [[ "$FORCE" != true ]] && gh release view "engine-$short" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' 2>/dev/null | grep -qx "ArdiaCore-$short-x64.tar.xz"; then
+            build=false
+            echo "engine-$short already has ArdiaCore-$short-x64.tar.xz: nothing to build" >>"$GITHUB_STEP_SUMMARY"
+          fi
+          { echo "tree=$tree"; echo "short=$short"; echo "build=$build"; } >>"$GITHUB_OUTPUT"
+
+  phase_01:
+    needs: plan
+    if: needs.plan.outputs.build == 'true'
+    uses: ./.github/workflows/engine-x64-phase.yml
+    with:
+      resume: false
+      phase_minutes: ${{ fromJSON(inputs.first_phase_minutes || 0) }}
+      sccache: ${{ github.event_name == 'push' || inputs.sccache }}
+
+  phase_02:
+    needs: phase_01
+    if: needs.phase_01.outputs.status == 'running'
+    uses: ./.github/workflows/engine-x64-phase.yml
+    with:
+      resume: true
+      sccache: ${{ github.event_name == 'push' || inputs.sccache }}
+
+  phase_03:
+    needs: phase_02
+    if: needs.phase_02.outputs.status == 'running'
+    uses: ./.github/workflows/engine-x64-phase.yml
+    with:
+      resume: true
+      sccache: ${{ github.event_name == 'push' || inputs.sccache }}
+
+  phase_04:
+    needs: phase_03
+    if: needs.phase_03.outputs.status == 'running'
+    uses: ./.github/workflows/engine-x64-phase.yml
+    with:
+      resume: true
+      sccache: ${{ github.event_name == 'push' || inputs.sccache }}
+
+  phase_05:
+    needs: phase_04
+    if: needs.phase_04.outputs.status == 'running'
+    uses: ./.github/workflows/engine-x64-phase.yml
+    with:
+      resume: true
+      sccache: ${{ github.event_name == 'push' || inputs.sccache }}
+
+  phase_06:
+    needs: phase_05
+    if: needs.phase_05.outputs.status == 'running'
+    uses: ./.github/workflows/engine-x64-phase.yml
+    with:
+      resume: true
+      sccache: ${{ github.event_name == 'push' || inputs.sccache }}
+
+  phase_07:
+    needs: phase_06
+    if: needs.phase_06.outputs.status == 'running'
+    uses: ./.github/workflows/engine-x64-phase.yml
+    with:
+      resume: true
+      sccache: ${{ github.event_name == 'push' || inputs.sccache }}
+
+  phase_08:
+    needs: phase_07
+    if: needs.phase_07.outputs.status == 'running'
+    uses: ./.github/workflows/engine-x64-phase.yml
+    with:
+      resume: true
+      sccache: ${{ github.event_name == 'push' || inputs.sccache }}
+
+  phase_09:
+    needs: phase_08
+    if: needs.phase_08.outputs.status == 'running'
+    uses: ./.github/workflows/engine-x64-phase.yml
+    with:
+      resume: true
+      sccache: ${{ github.event_name == 'push' || inputs.sccache }}
+
+  phase_10:
+    needs: phase_09
+    if: needs.phase_09.outputs.status == 'running'
+    uses: ./.github/workflows/engine-x64-phase.yml
+    with:
+      resume: true
+      sccache: ${{ github.event_name == 'push' || inputs.sccache }}
+
+  publish:
+    needs: [plan, phase_01, phase_02, phase_03, phase_04, phase_05, phase_06, phase_07, phase_08, phase_09, phase_10]
+    if: ${{ !cancelled() && contains(needs.*.outputs.status, 'finished') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: engine-x64
+          path: dist
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TREE: ${{ needs.plan.outputs.tree }}
+          SHORT: ${{ needs.plan.outputs.short }}
+          TARGET: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        working-directory: dist
+        run: |
+          tag="engine-$SHORT"
+          file="ArdiaCore-$SHORT-x64.tar.xz"
+          sha256sum -c "$file.sha256"
+          if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            printf 'ArdiaCore, the engine built from engine/ tree `%s` (commit %s).\n\nx64: %s\n' "$TREE" "$TARGET" "$RUN_URL" >notes.md
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$TARGET" --title "Engine $SHORT" \
+              --notes-file notes.md --prerelease --latest=false \
+              || gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null
+          fi
+          gh release upload "$tag" "$file" "$file.sha256" --repo "$GITHUB_REPOSITORY" --clobber
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json tagName,isPrerelease,assets \
+            --jq '"\(.tagName) prerelease=\(.isPrerelease): \([.assets[].name] | join(", "))"' | tee -a "$GITHUB_STEP_SUMMARY"

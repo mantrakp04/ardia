@@ -20,6 +20,7 @@ import sys
 
 STEP_TARGETS = ['chromium_git', 'chromium_git/chromium', 'chromium_git/chromium/src',
                 'chromium_git/chromium/src/out', 'chromium_git/chromium/src/out/Release_GN_arm64',
+                'chromium_git/chromium/src/out/Release_GN_x64',
                 'chromium_git/chromium/src/components/neterror/resources/game', 'series-base', 'scripts', 'logs',
                 'depot_tools', 'domsubcache.tar.gz']
 

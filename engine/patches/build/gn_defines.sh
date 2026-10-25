@@ -7,7 +7,7 @@ _gn_args=(
   symbol_level=0 blink_symbol_level=0 v8_symbol_level=0
   is_component_build=false
   forbid_non_component_debug_builds=false
-  target_cpu='"arm64"'
+  "target_cpu=\"${AC_TARGET_CPU:-arm64}\""
   # Codecs: H.264 / AAC (VideoToolbox + ffmpeg "Chrome" branding), MPEG2-TS MSE, Widevine.
   proprietary_codecs=true
   'ffmpeg_branding="Chrome"'
@@ -46,4 +46,9 @@ _gn_args=(
   # product names stay "Chromium" (chromium-branding.patch).
   'branding_file_path="//chrome/app/theme/ardia/BRANDING"'
 )
+if [[ -n "${AC_GN_EXTRA_ARGS:-}" ]]; then
+  read -r -a _gn_extra <<<"$AC_GN_EXTRA_ARGS"
+  _gn_args+=("${_gn_extra[@]}")
+  unset _gn_extra
+fi
 export GN_DEFINES="${_gn_args[*]}"

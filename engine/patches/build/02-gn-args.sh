@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Step 2: writes out/Release_GN_arm64/args.gn from gn_defines.sh (the complete list) and runs
-# `gn gen`. Run it after step 4 (the branding file our series adds must exist), and again
+# Step 2: writes out/Release_GN_<cpu>/args.gn from gn_defines.sh (the complete list) and runs
+# `gn gen`; <cpu> is AC_TARGET_CPU, arm64 (the default) or x64, and AC_GN_EXTRA_ARGS adds args.
+# Run it after step 4 (the branding file our series adds must exist), and again
 # whenever gn_defines.sh changes.
 set -euo pipefail
 source "$(dirname "$0")/step-guard.sh" "$@"

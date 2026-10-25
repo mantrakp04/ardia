@@ -400,6 +400,36 @@ Rules for editing the tree after the first build:
      which. A patch whose file moved is rewritten for the new path, and the new path's file goes into the series
      base (`series-base/`) as steps 3 and 4 left it.
 
+## x64 engine (CI)
+
+The Intel engine is built in GitHub Actions only, never on a Mac of ours: `.github/workflows/engine-x64.yml`. It runs
+on a push to main that changes `engine/`, or by hand (Actions › Engine x64 › Run workflow). It builds the engine tree
+of that commit (`git rev-parse HEAD:engine`) with the same step scripts, in the same order (1, 3, 4, 2, 5), and skips
+a tree whose x64 engine is already published (the `force` input rebuilds it). The step scripts take three variables
+for it, and without them behave as before: `AC_TARGET_CPU=x64` (`target_cpu` and the out dir, `out/Release_GN_x64`),
+`AC_FULL_PRIORITY=1` (no `taskpolicy` throttling) and `AC_GN_EXTRA_ARGS` (args added to `gn_defines.sh`'s list; CI
+adds `cc_wrapper="sccache"`). The build root is the runner's own `~/chromium-build`, so the guards and the chromium
+lock work as they do here; `.github/engine/x64.sh` holds each phase's commands.
+
+- **Runner.** `xcode-27` (Apple silicon, 3 cores, 7 GB): Xcode 27.1 with the macOS 27.0 SDK, the same as the local
+  build, cross-compiling to x64 as Helium's own CI does. The host tools (clang, rust, siso) are the arm64 ones the
+  local build uses, the PGO profile is Chromium's `mac` one (`chrome/build/mac.pgo.txt`). Intel runners
+  (`macos-15-intel`, `macos-26-intel`) are slower per core and top out at Xcode 26.
+- **Phases.** A job stops after 6 h, so the build runs as a chain of up to ten jobs
+  (`engine-x64-phase.yml`). Each compiles until about 5 h into the job, then packs the tree and its out dir
+  (`tar | zstd`) into the run's `engine-x64-checkpoint` artifact; the next job unpacks it and continues where ninja
+  stopped. The first phase also syncs and patches. Compiles go through sccache on the Actions cache, so an engine
+  change rebuilds only what it touched.
+- **Output.** The phase that finishes runs `helium-check-build.py --out out/Release_GN_x64` and packs the framework as
+  `scripts/release.sh` packs arm64's (unpruned, `tar | xz -T0 -9`). The publish job puts it on the release
+  `engine-<tree:12>` (a prerelease, never "latest"; created if missing, assets replaced if present):
+  `ArdiaCore-<tree:12>-x64.tar.xz` and its `.sha256`.
+- **Using it.** `packages/ardiacore/scripts/fetch-engine.sh --arch x86_64 [--nearest]` downloads it, checks it
+  against the `.sha256` and that the binary is x86_64, keeps it in `apps/browser/build-ardiacore/prebuilt-x86_64`
+  (apart from arm64's `prebuilt`) and prints the framework's path.
+- **Time.** A full build from nothing is about two to three phases (10–16 h); with a warm sccache, an engine change
+  takes one or two.
+
 ## Helium
 
 [Helium](https://github.com/imputnet/helium-chromium) is built on ungoogled-chromium. Step 3 (`03-helium.py`) applies

@@ -2,11 +2,14 @@
 
 Releases are GitHub releases of `mantrakp04/ardia`, tagged `v<version>`, on two channels: **stable** (`0.2.37`, a full
 release) and **nightly** (`0.2.37-nightly.1`, a GitHub prerelease: one fix, shipped the day it's made; "Channels" below).
-Each has three assets, four when the engine changed:
+Since the Release workflow (`.github/workflows/release.yml`, "CI releases" below) a release is built and published in
+GitHub Actions, for Apple silicon and Intel. Each has these assets, plus `-x64` copies of the first three and
+`appcast-x64.xml` for Intel:
 
 - `Ardia-<version>.dmg`: what people download (the app and an `/Applications` link, in a window with the
   site's poster behind them: `scripts/dmg`, where `render.sh` redraws the picture and `layout.sh` the layout).
 - `Ardia-<version>.zip`: the archive Sparkle installs updates from.
+- `ardia-cli-<version>-macos-<arm64|x86_64>.tar.gz` and its `.sha256`: the `ardia` command (`docs/cli.md`).
 - `appcast.xml`: the Sparkle feed, both channels' items in one file. The latest stable release's appcast is the feed
   (a nightly rewrites that asset; "Channels" below). Builds after 0.2.13 poll
   `https://ardia.dev/appcast.xml` (`SUFeedURL`), which counts the check by version and day (and whether
@@ -14,8 +17,12 @@ Each has three assets, four when the engine changed:
   `https://github.com/mantrakp04/ardia/releases/latest/download/appcast.xml`, the URL 0.2.13 and
   earlier poll directly. The count can't block an update: see `infra/site/nginx.conf` and `docs/growth.md`
   › Installs.
-- `ArdiaCore-<engine tree>.tar.xz`, only when `engine/` changed since the last one: the release's engine (Chrome's
-  framework, stripped), so the app builds without a Chromium tree. `packages/ardiacore/prebuilt-engines.tsv` maps
+- `appcast-x64.xml`: the Intel app's feed, the same way: `https://ardia.dev/appcast-x64.xml` (the Intel build's
+  `SUFeedURL`, set by `release.sh --arch x86_64`) redirects to the latest stable release's `appcast-x64.xml`. The arm64
+  feed never lists an Intel build, nor the other way round.
+- `ArdiaCore-<engine tree>.tar.xz`, only in a release built locally from a Chromium tree whose `engine/` changed since
+  the last one: the release's engine (Chrome's framework, stripped), so the app builds without a Chromium tree. Engines
+  for CI releases go to their own prerelease instead, `engine-<engine tree:12>` ("Engines" below). `packages/ardiacore/prebuilt-engines.tsv` maps
   `engine/`'s git tree to the release and the archive's SHA-256; `packages/ardiacore/scripts/fetch-engine.sh` downloads
   it (the app's build runs it when there's no local engine build).
 - `ArdiaCore-<engine tree>-source.tar.xz`, with that archive when the engine is built on Helium (release.sh finds
@@ -72,10 +79,10 @@ stays up. That's GPL-3.0 §6(d) for the GPL parts (uBlock Origin today), and it'
 
 - Every release's notes end with a Source section (`release.sh` writes it). It links the tag's tree: the app, the
   engine's patches, `gn_defines.sh`, the step scripts and this release flow. Once the engine is built on Helium, it
-  also links the `ArdiaCore-<tree>-source.tar.xz` asset of the release that first shipped that engine
+  also links the `ArdiaCore-<tree>-source.tar.xz` asset of the release that carries that engine (the `v<version>` that first shipped it, or its `engine-<tree:12>` prerelease)
   (`packages/ardiacore/prebuilt-engines.tsv`); `release.sh` refuses such an engine when it can't name that release.
 - The `nightly` release's body names the nightly its `Ardia-Nightly.dmg` is and links that release
-  (`publish-nightly.sh` rewrites it each time).
+  (`publish.sh` rewrites it each time).
 - Never delete or move a `v*` tag, or a release's source asset, while its release is up. A release can come down;
   its tag stays.
 - About Ardia and Settings › Advanced › "Source and licenses" link the running version's tag. The app carries
@@ -114,13 +121,21 @@ stays up. That's GPL-3.0 §6(d) for the GPL parts (uBlock Origin today), and it'
 2. Write `docs/release-notes/<version>.md` from `git log v<previous>..HEAD` (`docs/release-notes/README.md`)
    and check it on the site: `pnpm -C apps/site build && pnpm -C apps/site preview`, then
    `http://localhost:4321/release-notes#<version>`.
-3. `scripts/release.sh <version>` (`--channel nightly` for a nightly). It stops right away if the notes file is missing or lacks its `date` and
+3. Commit both ("Release <version>" or "Nightly <version>"), push, and dispatch the Release workflow ("CI releases"
+   below), which runs the rest for both arches. Or run it here: `scripts/release.sh <version>` (`--channel nightly` for a
+   nightly, `--arch x86_64` for Intel with `ARDIACORE_FRAMEWORK` from `fetch-engine.sh --arch x86_64`). It stops right away if the notes file is missing or lacks its `date` and
    `headline`, if the tree under `apps/browser`, `packages`, `engine` or `scripts/dmg` has uncommitted changes, or if the engine
    framework is older than the tree's ArdiaCore sources or the Chromium tree differs from `engine/ardiacore`
    (`apply.sh --check`), if the version doesn't fit the channel or the notes' `channel`, if it can't read the published
    appcast, or if the build number isn't above every build in it. It writes `dist/<version>/`:
-   - archives the Release configuration of `apps/browser/macos` (arm64 only), staging the engine into its own
-     derived data so a development build restaging can't change it mid-build, and exports it with Developer ID,
+   - archives the Release configuration of `apps/browser/macos` for one arch (`--arch`, arm64 unless named; an Intel
+     build writes `dist/<version>-x64/`, `-x64` file names and `appcast-x64.xml`, and points `SUFeedURL` at
+     `https://ardia.dev/appcast-x64.xml`), staging the engine into its own derived data so a development build
+     restaging can't change it mid-build, and exports it with Developer ID. Here the export is Xcode's
+     (`-allowProvisioningUpdates`, which needs Xcode signed in to the team); with `RELEASE_PROVISIONING_PROFILE` set (CI)
+     the archive is signed ad hoc (`AdHoc.xcconfig`) and `scripts/lib/export-developer-id.sh` does the export: it embeds
+     that profile and re-signs inside out with Developer ID, the same identifiers, entitlements, flags and designated
+     requirements Xcode's export gives (`xcodebuild -exportArchive` refuses an Xcode-managed profile with manual signing),
    - leaves out what Ardia never loads (`packages/ardiacore/scripts/prune-bundle.sh`, after `strip-engine.sh`): Chrome's
      locales other than English and the app's own languages (Chrome takes its locale from the app bundle's
      localizations, and Ardia has none, so it runs in en-US whatever the Mac's language), SwiftShader and its Vulkan
@@ -148,7 +163,8 @@ stays up. That's GPL-3.0 §6(d) for the GPL parts (uBlock Origin today), and it'
      quits it and checks the signature again: the app must never write into its own bundle,
    - notarizes and staples the app and the DMG,
    - packages the DMG (lzma in 4 MB chunks, `udif-chunk-size=8192`, hdiutil's largest; `ARDIA_DMG_CHUNK=off` goes back
-     to its 1 MB default) and the zip, and signs `appcast.xml` with the Sparkle key. It starts from the
+     to its 1 MB default) and the zip, and signs `appcast.xml` (`appcast-x64.xml` for Intel; `generate_appcast` names
+     the feed after the app's `SUFeedURL`, so release.sh passes it `-o`) with the Sparkle key. It starts from the
      published appcast, so earlier versions and the other channel's items stay listed; a nightly's item gets
      `<sparkle:channel>nightly</sparkle:channel>`. The new item embeds the notes' headline and body
      (Markdown, shown in Sparkle's update dialog) and links the page as its full release notes
@@ -160,23 +176,17 @@ stays up. That's GPL-3.0 §6(d) for the GPL parts (uBlock Origin today), and it'
    `scripts/release.sh <version> --rc` builds a candidate into `dist/<version>-rc/` from the working tree, as
    `<version>` with the next build number, notarized but never published: no notes file or clean tree needed (it
    lists the uncommitted files it included).
-4. Commit (the notes file with the version bump), tag and publish. A nightly publishes with
-   `.claude/skills/release/scripts/publish-nightly.sh <version>` after the tag is pushed (`--dry-run` prints what it would
-   do): a prerelease, the merged feed onto the latest stable release, and `Ardia-Nightly.dmg` on the `nightly` release.
-   A stable release:
-
-   ```bash
-   git tag v<version> && git push origin main v<version>
-   .claude/skills/release/scripts/appcast-merge.sh <version>
-   gh release create v<version> -R mantrakp04/ardia --title "Ardia <version>" \
-     --notes-file dist/<version>/release-notes.md \
-     dist/<version>/Ardia-<version>.dmg dist/<version>/Ardia-<version>.zip dist/<version>/appcast.xml \
-     $(ls dist/<version>/ArdiaCore-*.tar.xz 2>/dev/null)
-   ```
-   With a new engine, then append `dist/<version>/prebuilt-engine.tsv` to `packages/ardiacore/prebuilt-engines.tsv` and
-   commit it. Then `.claude/skills/release/scripts/update-tap.sh <version>` points the Homebrew tap's `ardia` cask
-   (https://github.com/mantrakp04/homebrew-tap) at the new DMG: it sets `version` and `sha256` from GitHub's digest
-   of the published DMG and pushes the tap. `publish-nightly.sh` does the same for `ardia@nightly`.
+4. Tag and publish (the Release workflow does this itself): `git tag v<version> && git push origin main v<version>`,
+   then `.claude/skills/release/scripts/publish.sh <version>` (`--dry-run` prints what it would do;
+   `RELEASE_DIST_X64=dist/<version>-x64` adds the Intel build). It merges each arch's appcast onto the feed as published
+   right now (`appcast-merge.sh`), creates the release (a stable one as latest, a nightly as a prerelease that's never
+   latest) with every DMG, zip, appcast, CLI tarball and a local engine archive, and checks the feeds list the version
+   on GitHub and on ardia.dev. A nightly also re-uploads the merged feeds onto the latest stable release and
+   `Ardia-Nightly.dmg` (and `Ardia-Nightly-x64.dmg`) onto the `nightly` release. With an engine packed here, append
+   `dist/<version>/prebuilt-engine.tsv` to `packages/ardiacore/prebuilt-engines.tsv` and commit it. Last,
+   `update-tap.sh <version>` points the Homebrew tap's `ardia` or `ardia@nightly` cask
+   (https://github.com/mantrakp04/homebrew-tap) at the new arm64 DMG: it sets `version` and `sha256` from GitHub's
+   digest of the published DMG and pushes the tap (`PUBLISH_TAP=0` skips it).
 5. Deploy the site so `/release-notes` shows the new version (for a nightly too: the updated app opens its entry) (the updated app opens it on its first launch):
    `pnpm -C apps/site run deploy` builds `apps/site` with `SITE_URL=https://ardia.dev` and ships it
    (`infra/site/hexclave.deploy.ts`). Also bump `VERSION` and `DMG_SIZE` in `apps/site/src/data/release.ts`
@@ -197,6 +207,69 @@ To check the after-update tab too: in that data dir, set `lastVersion` in `relea
 previous version (`{"version":1,"lastVersion":"<previous>","pending":null}`) and relaunch with
 `ARDIA_RELEASE_NOTES=1` added (test instances skip the tab without it). `curl localhost:<port>/json` must
 list one `…/release-notes#<version>` page; a second launch opens none.
+
+## CI releases
+
+`.github/workflows/release.yml` is the release pipeline, run by hand only (Actions › Release › Run workflow, or
+`gh workflow run release.yml -f version=<version> -f channel=nightly|stable -f intel=true -f dry_run=false`). It
+releases the commit it runs on, so first commit and push the version bump and the notes (steps 1 and 2), and publish
+the arm64 engine if `engine/` changed (below).
+
+- **preflight** checks the version against the channel, `MARKETING_VERSION`, the notes file and that `v<version>` isn't
+  out yet.
+- **checks**: `pnpm typecheck`, `pnpm test`, `pnpm shaders:check`.
+- **build**, once per arch on the `xcode-27` runner (Xcode 27.1, the same build as here), with no secrets: fetches the
+  engine for this exact `engine/` tree (`fetch-engine.sh`, `--arch x86_64` for Intel), installs (pnpm, Pods, uv),
+  runs `scripts/release.sh <version> --channel <channel> --arch <arch> --phase build` (the archive, signed ad hoc, and
+  the CLI tarball) and uploads them as one tar. Caches: pnpm, Pods with Hermes, uBO, the engine, the CLI's downloads
+  and Xcode's compilation cache (per arch, Xcode build and month).
+- **sign**, once per arch, installs nothing and restores no cache, so no dependency code runs next to the keys. It
+  unpacks the build, takes Sparkle's tools from Sparkle's own 2.9.6 release (SHA-256 pinned; `SPARKLE_BIN`), sets up
+  signing (`.github/release/signing.sh`: a temporary keychain with the Developer ID identity, the provisioning profile,
+  the notary and Sparkle key files), and runs `release.sh … --phase sign`: export, sign, verify, notarize and staple the
+  app, the zip and DMG (the DMG signed, notarized and stapled too), the notes and the appcast. Then it deletes the
+  keychain and every key file, and only then runs the launch check (`--phase check`, the final app opened hidden, uBO
+  must be ready, the signature must survive), checks the zip's EdDSA signature against the app's `SUPublicEDKey`
+  (`.github/release/check-sparkle.sh`) and uploads the DMG, zip, appcast, notes and CLI tarball. A failed launch check
+  fails the run, so nothing publishes. Intel is cross-compiled on Apple silicon and its launch check runs under Rosetta.
+  Every `actions/*` step is pinned by commit SHA.
+- **publish** tags the commit and runs `publish.sh` with both arches. A stable without an Intel build (`intel` off)
+  carries the latest release's `appcast-x64.xml` over unchanged, so `releases/latest/download/appcast-x64.xml` keeps
+  answering Intel copies; a nightly without one leaves that file where it is. The Homebrew tap needs a token that can push
+  to `mantrakp04/homebrew-tap` (`HOMEBREW_TAP_TOKEN`); without it, run `update-tap.sh <version>` here afterwards.
+
+`dry_run` (on by default) builds a release candidate (`release.sh --rc`: the next build number, no notes needed),
+signed and notarized like a release, and runs `publish.sh --dry-run`: nothing is tagged or published. `intel` off
+ships arm64 alone. The site's `VERSION`, the landing page and the stable perf gate stay local (the release skill); the
+site redeploys by itself when the notes are pushed (`.github/workflows/deploy.yml`).
+
+Secrets (repository secrets, these names):
+
+| Secret | What |
+|---|---|
+| `MACOS_CERTIFICATE_P12` | base64 of a .p12 with the Developer ID Application certificate and its key |
+| `MACOS_CERTIFICATE_PASSWORD` | that .p12's password |
+| `MACOS_PROVISIONING_PROFILE` | base64 of the Developer ID provisioning profile for `com.ardia.browser` (the keychain groups need it) |
+| `NOTARY_KEY_P8` | base64 of the App Store Connect API key `AuthKey_<id>.p8` |
+| `NOTARY_KEY_ID`, `NOTARY_ISSUER` | that key's id and issuer id |
+| `SPARKLE_ED_PRIVATE_KEY` | the file `generate_keys -x` writes (as is) |
+| `HOMEBREW_TAP_TOKEN` (optional) | a token that can push to `mantrakp04/homebrew-tap` |
+
+A dry run without the notary secrets builds unnotarized; the others are required. `release.sh` reads the same
+material from `RELEASE_PROVISIONING_PROFILE`, `SPARKLE_KEY_FILE` and `NOTARY_KEY`/`NOTARY_KEY_ID`/`NOTARY_ISSUER`, so
+it can run that way here too; with none of them set it works as before (Xcode's export, the login keychain). Without
+`--phase` it does everything in one go, in the same order as before; `--phase build|sign|check` are the CI's three
+steps (the build with no keys, then signing and packaging, then the launch check once the keys are gone).
+
+### Engines
+
+The app links a prebuilt Chromium Framework per arch, which a normal CI job can't build. The arm64 one is built here
+(`docs/engine-build.md`); after building it, `scripts/publish-engine.sh` (`--dry-run` first) packs it as release.sh
+packs one (stripped, unpruned) with its Helium source, uploads both to the prerelease `engine-<engine tree:12>` (never
+latest, so the feed and the download links never move to it) and appends `<tree> engine-<tree:12> <sha256>` to
+`packages/ardiacore/prebuilt-engines.tsv`: commit and push that line before dispatching. The x86_64 one is built in CI
+by `.github/workflows/engine-x64.yml` into the same release (`ArdiaCore-<tree:12>-x64.tar.xz`). A release whose
+`engine/` tree has no engine for an arch fails that arch's build at once, saying which workflow or script to run.
 
 ## The engine switch (0.2.21 → 0.2.22)
 

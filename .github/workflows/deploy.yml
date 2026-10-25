@@ -1,0 +1,151 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      service:
+        description: Deploy this one now, changed or not
+        type: choice
+        options: [site, dashboard, telemetry]
+
+permissions:
+  contents: read
+
+env:
+  HEXCLAVE_PROJECT: 49be2e2e-87c4-433e-b42f-f255854bff56
+  HEXCLAVE: ${{ github.workspace }}/infra/hexclave-cli/node_modules/.bin/hexclave
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      site: ${{ steps.filter.outputs.site == 'true' || inputs.service == 'site' }}
+      dashboard: ${{ steps.filter.outputs.dashboard == 'true' || inputs.service == 'dashboard' }}
+      telemetry-group: ${{ steps.filter.outputs.telemetry-group == 'true' || inputs.service == 'telemetry' }}
+      clickhouse: ${{ steps.filter.outputs.clickhouse }}
+      collector: ${{ steps.filter.outputs.collector }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - id: filter
+        if: github.event_name == 'push'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d
+        with:
+          filters: |
+            site:
+              - "infra/site/**"
+              - "apps/site/**"
+              - "apps/demo/**"
+              - "apps/browser/src/**"
+              - "packages/*/src/**"
+              - "packages/*/package.json"
+              - "docs/release-notes/**"
+              - "docs/brand/ardia/source/mark.png"
+              - "engine/patches/build/ardia-icons/**"
+              - "apps/browser/macos/Ardia-macOS/Assets.xcassets/AppIcon.appiconset/**"
+              - "pnpm-lock.yaml"
+              - "pnpm-workspace.yaml"
+              - "patches/**"
+            dashboard:
+              - "infra/dashboard/**"
+              - "apps/dashboard/**"
+            telemetry-group:
+              - "infra/telemetry/hexclave.deploy.ts"
+            clickhouse:
+              - "infra/telemetry/clickhouse/**"
+            collector:
+              - "infra/telemetry/collector/**"
+
+  site-build:
+    needs: changes
+    if: needs.changes.outputs.site == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            apps/site/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -C apps/site install --frozen-lockfile
+      - run: infra/site/deploy.sh build
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: site-dist
+          path: infra/site/dist
+          retention-days: 1
+
+  site:
+    needs: site-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: deploy-site
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: site-dist
+          path: infra/site/dist
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+      - run: npm ci --prefix infra/hexclave-cli --ignore-scripts --no-audit --no-fund
+      - run: infra/site/deploy.sh deploy
+        env:
+          HEXCLAVE_SECRET_SERVER_KEY: ${{ secrets.HEXCLAVE_SECRET_SERVER_KEY }}
+
+  dashboard:
+    needs: changes
+    if: needs.changes.outputs.dashboard == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: deploy-dashboard
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+      - run: npm ci --prefix infra/hexclave-cli --ignore-scripts --no-audit --no-fund
+      - run: infra/dashboard/deploy.sh
+        env:
+          HEXCLAVE_SECRET_SERVER_KEY: ${{ secrets.HEXCLAVE_SECRET_SERVER_KEY }}
+
+  telemetry:
+    needs: changes
+    if: needs.changes.outputs.telemetry-group == 'true' || needs.changes.outputs.clickhouse == 'true' || needs.changes.outputs.collector == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: deploy-telemetry
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+      - run: npm ci --prefix infra/hexclave-cli --ignore-scripts --no-audit --no-fund
+      - name: Deploy
+        working-directory: infra/telemetry
+        env:
+          HEXCLAVE_SECRET_SERVER_KEY: ${{ secrets.HEXCLAVE_SECRET_SERVER_KEY }}
+          WHOLE_GROUP: ${{ needs.changes.outputs.telemetry-group }}
+          CLICKHOUSE: ${{ needs.changes.outputs.clickhouse }}
+          COLLECTOR: ${{ needs.changes.outputs.collector }}
+        run: |
+          deploy() { "$HEXCLAVE" deploy --cloud-project-id "$HEXCLAVE_PROJECT" "$@"; }
+          if [ "$WHOLE_GROUP" = true ]; then
+            deploy
+            exit 0
+          fi
+          [ "$CLICKHOUSE" != true ] || deploy --service-id ph-clickhouse
+          [ "$COLLECTOR" != true ] || deploy --service-id otel-collector

@@ -203,8 +203,8 @@ two parts with an explicit flush between them gets through; that gap is accepted
 
 `install.sh [--version V] [--sha256 DIGEST] [--uninstall]` (run with `/bin/sh`; `--help`):
 
-- Downloads `https://github.com/mantrakp04/ardia/releases/download/v<V>/ardia-cli-<V>-macos-arm64.tar.gz` (https only)
-  into a private temp dir. Without `--version` it takes the latest release that has the asset. `--sha256` is the only
+- Downloads `https://github.com/mantrakp04/ardia/releases/download/v<V>/ardia-cli-<V>-macos-<arch>.tar.gz` (https only;
+  `<arch>` is `uname -m`, arm64 or x86_64, the same as the app that runs it) into a private temp dir. Without `--version` it takes the latest release that has the asset. `--sha256` is the only
   digest it trusts (the app passes `Ardia.app/Contents/Resources/ardia-cli.sha256`, which the signed bundle pins), and
   a download needs it: a `.sha256` from the same release would only prove the tarball came from wherever the tarball
   came from. Only a `file://` `ARDIA_CLI_URL` (tests) may go without it, reading `<url>.sha256`. A Debug build has no
@@ -233,17 +233,18 @@ updates itself.
 
 ## Build and release
 
-`apps/cli/scripts/build.sh <version> <out dir>` writes `ardia-cli-<version>-macos-arm64.tar.gz` and its `.sha256`:
+`apps/cli/scripts/build.sh <version> <out dir> [arm64|x86_64]` writes `ardia-cli-<version>-macos-<arch>.tar.gz` and its
+`.sha256` (arm64 unless named; an x86_64 build on Apple silicon checks its Python under Rosetta):
 python-build-standalone CPython 3.13 (release and sha256 pinned in the script), the locked dependencies and
 `ardia_cli` in its site-packages, pruned of tests, idlelib, Tk, ensurepip, the unused libpython dylib and
 `__pycache__`, plus `bin/ardia`, an sh launcher that resolves its links and runs `python3 -I -m ardia_cli`, and
-esbuild (the npm `@esbuild/darwin-arm64` tarball, version, sha256 and sha512 pinned in the script) in
+esbuild (the npm `@esbuild/darwin-arm64` or `darwin-x64` tarball, version, sha256 and sha512 pinned in the script) in
 `ardia_cli/bin/esbuild`. About 18 MB; 52 MB installed. `ardia --version` takes about 10 ms; the first `exec` about 1 s while Python writes its
 bytecode cache, later ones about 0.15 s.
 
-`scripts/release.sh` builds it into the release's dist dir after the export and writes its digest to
-`Ardia.app/Contents/Resources/ardia-cli.sha256` before the app is signed. `publish-nightly.sh` and the stable
-`gh release create` in the release skill upload the tarball and its `.sha256`.
+`scripts/release.sh` builds it for the app's arch into the release's dist dir after the export and writes its digest to
+`Ardia.app/Contents/Resources/ardia-cli.sha256` before the app is signed. The release skill's `publish.sh` uploads the
+tarball and its `.sha256`, one per arch.
 
 ## Test
 

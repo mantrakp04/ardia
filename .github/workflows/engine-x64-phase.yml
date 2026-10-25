@@ -1,0 +1,93 @@
+name: Engine x64 phase
+
+on:
+  workflow_call:
+    inputs:
+      resume:
+        type: boolean
+        default: false
+      phase_minutes:
+        type: number
+        default: 0
+      sccache:
+        type: boolean
+        default: true
+    outputs:
+      status:
+        value: ${{ jobs.phase.outputs.status }}
+
+permissions:
+  contents: read
+
+jobs:
+  phase:
+    runs-on: xcode-27
+    timeout-minutes: 359
+    outputs:
+      status: ${{ steps.build.outputs.status }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      ENGINE_SCCACHE: ${{ inputs.sccache }}
+      ENGINE_PHASE_MINUTES: ${{ inputs.phase_minutes }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Free disk, pick Xcode 27.1
+        run: .github/engine/x64.sh setup
+      - if: inputs.sccache
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba
+        with:
+          version: v0.19.0
+          disable_annotations: true
+      - if: inputs.resume
+        uses: actions/download-artifact@v8
+        with:
+          name: engine-x64-checkpoint
+          path: ${{ runner.temp }}/checkpoint
+      - name: Restore the previous phase's tree
+        if: inputs.resume
+        run: .github/engine/x64.sh restore
+      - name: depot_tools and the pinned Helium checkouts
+        if: ${{ !inputs.resume }}
+        run: .github/engine/x64.sh tools
+      - name: Step 1, sync Chromium
+        if: ${{ !inputs.resume }}
+        run: .github/engine/x64.sh sync
+      - name: Step 3, Helium
+        if: ${{ !inputs.resume }}
+        run: .github/engine/x64.sh helium
+      - name: Step 4, our series
+        if: ${{ !inputs.resume }}
+        run: .github/engine/x64.sh series
+      - name: Step 2, GN args
+        if: ${{ !inputs.resume }}
+        run: .github/engine/x64.sh gn
+      - name: Build chrome_framework (step 5)
+        id: build
+        run: .github/engine/x64.sh build
+      - name: Pack the checkpoint
+        if: steps.build.outputs.status == 'running'
+        run: .github/engine/x64.sh checkpoint
+      - if: steps.build.outputs.status == 'running'
+        uses: actions/upload-artifact@v7
+        with:
+          name: engine-x64-checkpoint
+          path: ${{ runner.temp }}/checkpoint/
+          retention-days: 3
+          compression-level: 0
+          overwrite: true
+          if-no-files-found: error
+      - name: Check and pack the framework
+        if: steps.build.outputs.status == 'finished'
+        run: .github/engine/x64.sh package
+      - if: steps.build.outputs.status == 'finished'
+        uses: actions/upload-artifact@v7
+        with:
+          name: engine-x64
+          path: ${{ runner.temp }}/dist/
+          retention-days: 7
+          compression-level: 0
+          if-no-files-found: error

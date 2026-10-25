@@ -8,4 +8,4 @@ CHROMIUM_SRC="$CB/chromium_git/chromium/src" "$(dirname "$0")/game-resource.sh" 
 cd "$CB/chromium_git/chromium/src"
 # ArdiaCore is Chrome's own framework (the app stages it from out/Release_GN_arm64).
 TARGETS="${TARGETS:-chrome_framework}"
-exec autoninja ${JOBS:+-j "$JOBS"} -k "${KEEP_GOING:-0}" -C out/Release_GN_arm64 $TARGETS
+exec autoninja ${JOBS:+-j "$JOBS"} -k "${KEEP_GOING:-0}" -C "out/$GN_OUT_CONFIGS" $TARGETS
