@@ -1,5 +1,5 @@
 import { requireNativeModule, type EventSubscription } from "expo-modules-core";
-import type { ContentBlockerState, ContentBlockerStats } from "./contentBlocker";
+import type { AddedFilterList, ContentBlockerState, ContentBlockerStats } from "./contentBlocker";
 import type { DisplayMediaSource } from "./WebView";
 import type { ExternalAppAllowance } from "./externalApps";
 import type { FaviconImage } from "./favicons";
@@ -75,6 +75,11 @@ export const Cef = requireNativeModule<{
   getContentBlocker(): Promise<ContentBlockerState>;
   setContentBlockerEnabled(enabled: boolean): Promise<void>;
   setFilterListEnabled(id: string, enabled: boolean): Promise<void>;
+  addFilterList(url: string): Promise<AddedFilterList>;
+  removeFilterList(id: string): Promise<void>;
+  updateFilterList(id: string): Promise<void>;
+  getUserFilters(): Promise<string>;
+  setUserFilters(text: string): Promise<void>;
   isContentBlockerAllowed(host: string): Promise<boolean>;
   setContentBlockerAllowed(host: string, allowed: boolean): Promise<void>;
 
