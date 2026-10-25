@@ -242,6 +242,16 @@ BOOL gDisplayMediaPicker = NO;
 NSString *gPeekModifier = @"shift";
 NSString *gSplitLinkModifier = @"altShift";
 static BOOL gSelectionPopover = YES;
+static BOOL gApplePasswords = NO;
+static NSString *const kInsertFromPasswordsAction = @"_handleInsertFromPasswordsCommand:";
+static NSDictionary<NSString *, NSString *> *AppleAutoFillActions() {
+  return @{
+    @"passwords" : kInsertFromPasswordsAction,
+    @"contact" : @"_handleInsertFromContactsCommand:",
+    @"creditCard" : @"_handleInsertFromCreditCardsCommand:",
+  };
+}
+static const CFTimeInterval kApplePasswordsInterval = 0.6;
 static const NSEventModifierFlags kPeekKeyMask = NSEventModifierFlagOption | NSEventModifierFlagShift | NSEventModifierFlagCommand | NSEventModifierFlagControl;
 static NSEventModifierFlags gPeekUpKeys = 0;
 static CFTimeInterval gPeekUpAt = -1;
@@ -562,6 +572,7 @@ static void AnswerHello(ArdiaCoreTab *tab, NSString *profile, NSDictionary *hell
       config[@"displayMediaPicker"] = @YES;
     if (main && ACFieldTimingEnabled()) config[@"fieldTiming"] = @YES;
     if (main) config[@"selectionPopover"] = @(gSelectionPopover);
+    if (gApplePasswords && (main || [OriginOf(frameURL) isEqualToString:OriginOf(to.url)])) config[@"applePasswords"] = @YES;
     config[@"peek"] = gPeekModifier;
     config[@"split"] = SplitLinkModifier();
     if (PeekTracing()) config[@"peekTrace"] = @YES;
@@ -1378,6 +1389,7 @@ static void ExpireLaunchTab(ArdiaCoreTab *tab) {
   [self markTemporary];
   [self pushPeekModifier];
   [self pushSelectionPopover];
+  [self pushApplePasswords];
   [self bindRestoreKey];
   [self takePageReports];
   if ([tab respondsToSelector:@selector(deliverHeldPageMessages)]) [tab deliverHeldPageMessages];
@@ -2180,6 +2192,22 @@ void ArdiaCoreWebViewsSetFieldTiming(BOOL on) {
   for (ArdiaCoreWebView *view in LiveViews().allObjects) [view pushSelectionPopover];
 }
 
++ (void)setApplePasswordsEnabled:(BOOL)enabled {
+  if (enabled == gApplePasswords) return;
+  gApplePasswords = enabled;
+  for (ArdiaCoreWebView *view in LiveViews().allObjects) [view pushApplePasswords];
+}
+
++ (BOOL)applePasswordsAvailable {
+  static const BOOL available = [] {
+    Class heuristic = NSClassFromString(@"NSAutoFillHeuristicController");
+    SEL chromiumField = NSSelectorFromString(@"_inputContextForChromiumSecureTextFieldFromResponder:");
+    return heuristic && [heuristic respondsToSelector:chromiumField] &&
+           [NSApplication instancesRespondToSelector:NSSelectorFromString(kInsertFromPasswordsAction)];
+  }();
+  return available;
+}
+
 + (void)setAutoPictureInPictureEnabled:(BOOL)enabled {
   if ([ArdiaCoreEngine respondsToSelector:@selector(setAutoPictureInPicture:)]) [ArdiaCoreEngine setAutoPictureInPicture:enabled];
 }
@@ -2387,6 +2415,7 @@ void ArdiaCoreWebViewsSetFieldTiming(BOOL on) {
   } else if ([kind isEqualToString:@"peekHello"]) {
     [self noteScriptFrame:frameId main:main];
     [self callFrame:frameId kind:@"peekConfig" json:PeekConfigJSON()];
+    [self callFrame:frameId kind:@"applePasswords" json:gApplePasswords && [self sameSiteFrame:main origin:sender] ? @"true" : @"false"];
   } else if ([kind isEqualToString:@"peekGone"]) {
     [self forgetScriptFrame:frameId];
   } else if ([kind isEqualToString:@"peekTrace"] && dict) {
@@ -2418,6 +2447,13 @@ void ArdiaCoreWebViewsSetFieldTiming(BOOL on) {
     NSString *state = Text(dict, @"state", 8);
     if ([@[ @"down", @"up", @"top" ] containsObject:state ?: @""])
       [self emit:@"pageMessage" payload:@{@"kind" : @"scroll", @"data" : @{@"state" : state}}];
+  } else if ([kind isEqualToString:@"applePasswords"]) {
+    if (gApplePasswords && _visible && _tab.view.window.isKeyWindow && [self sameSiteFrame:main origin:sender]) [self showAppleAutoFill:@"passwords"];
+  } else if ([kind isEqualToString:@"verificationCodeSetup"] && dict) {
+    NSString *url = Field<NSString>(dict, @"url");
+    if (gApplePasswords && [self sameSiteFrame:main origin:sender] && url.length && url.length <= 2048 &&
+        [url rangeOfString:@"^otpauth(-migration)?://" options:NSRegularExpressionSearch | NSCaseInsensitiveSearch].location == 0)
+      [self emit:@"pageMessage" payload:@{@"kind" : @"verificationCodeSetup", @"data" : @{@"url" : url, @"origin" : sender ?: @"", @"main" : @(main)}}];
   } else if ([kind isEqualToString:@"drm"] && dict) {
     [self emit:@"pageMessage" payload:@{@"kind" : @"drm", @"data" : @{@"keySystem" : Text(dict, @"keySystem", 64) ?: @"", @"main" : @(main)}}];
   } else if ([kind isEqualToString:@"nowPlaying"]) {
@@ -2532,6 +2568,50 @@ static NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
 
 - (void)pushSelectionPopover {
   if (_tab) [self callFrame:@"" kind:@"selectionPopover" json:gSelectionPopover ? @"true" : @"false"];
+}
+
+- (void)pushApplePasswords {
+  if (!_tab) return;
+  [self callFrame:@"" kind:@"applePasswords" json:gApplePasswords ? @"true" : @"false"];
+  if (!gApplePasswords)
+    for (NSString *frameId in [ScriptFramesOf(_tab) copy]) [self callFrame:frameId kind:@"applePasswords" json:@"false"];
+}
+
+- (BOOL)sameSiteFrame:(BOOL)main origin:(NSString *)origin {
+  if (main) return YES;
+  NSString *top = OriginOf(_tab.url);
+  return origin.length && top.length && [origin isEqualToString:top];
+}
+
+static BOOL EditsWebText(NSResponder *responder, NSView *page) {
+  if (![responder isKindOfClass:NSView.class] || !page || ![(NSView *)responder isDescendantOf:page]) return NO;
+  SEL inputType = NSSelectorFromString(@"textInputType");
+  if (![responder respondsToSelector:inputType]) return NO;
+  const char *returns = [responder methodSignatureForSelector:inputType].methodReturnType;
+  const char kind = returns ? returns[0] : 0;
+  if (kind == 'i' || kind == 'I') return ((int (*)(id, SEL))objc_msgSend)(responder, inputType) != 0;
+  if (kind == 'q' || kind == 'Q' || kind == 'l' || kind == 'L') return ((long (*)(id, SEL))objc_msgSend)(responder, inputType) != 0;
+  return NO;
+}
+
+- (BOOL)showAppleAutoFill:(NSString *)kind {
+  NSString *actionName = AppleAutoFillActions()[kind ?: @""];
+  if (!actionName) return NO;
+  static CFTimeInterval lastAt = -kApplePasswordsInterval;
+  NSView *page = _tab.view;
+  NSWindow *window = page.window;
+  if (!ArdiaCoreWebView.applePasswordsAvailable || !window.isKeyWindow || !EditsWebText(window.firstResponder, page)) return NO;
+  const CFTimeInterval now = CACurrentMediaTime();
+  if (now - lastAt < kApplePasswordsInterval) return NO;
+  lastAt = now;
+  if (ardiacore_host::Background()) {
+    ardiacore_host::LogActivation([NSString stringWithFormat:@"apple autofill %@ (not shown)", kind]);
+    return YES;
+  }
+  SEL action = NSSelectorFromString(actionName);
+  NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:@"AutoFill" action:action keyEquivalent:@""];
+  id target = [NSApp targetForAction:action to:nil from:item];
+  return target && [NSApp sendAction:action to:target from:item];
 }
 
 - (void)pushPeekModifier {

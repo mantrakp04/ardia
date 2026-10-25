@@ -1,15 +1,20 @@
-import { showAutofillSuggestions, type CardNetwork } from "@ardia/ardiacore";
+import { showAppleAutoFill, showAutofillSuggestions, type AppleAutoFillKind, type CardNetwork } from "@ardia/ardiacore";
 import { Symbol } from "@ardia/shell";
 import { Text, View } from "react-native";
 import { useBrowser } from "../../store/browser";
 import { activeTabId } from "../../store/model";
 import { browserIdOf } from "../extensions/state";
 import { openSettings } from "../settings/windows";
+import { effectivePasswordManager } from "./passwordManager";
+
+const APPLE_AUTOFILL: Record<string, AppleAutoFillKind | undefined> = { passwords: "passwords", contact: "contact", creditCard: "creditCard" };
 
 export async function requestAutofill(windowId: string, arg: string | null, tabId = activeTabId(useBrowser.getState(), windowId)) {
   const passwords = arg === "passwords";
   const browserId = browserIdOf(tabId);
-  if (browserId && (await showAutofillSuggestions(browserId, passwords ? "passwords" : "field"))) return;
+  const appleKind = APPLE_AUTOFILL[arg ?? ""];
+  const apple = !!appleKind && effectivePasswordManager(useBrowser.getState().settings) === "apple";
+  if (browserId && (await (apple ? showAppleAutoFill(browserId, appleKind) : showAutofillSuggestions(browserId, passwords ? "passwords" : "field")))) return;
   const s = useBrowser.getState();
   const w = s.windows[windowId];
   const profileId = w && !w.incognito && s.profiles[w.profileId] ? w.profileId : null;

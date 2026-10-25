@@ -60,6 +60,12 @@ public class CefModule: Module {
     AsyncFunction("setPeekModifier") { (modifier: String) in ArdiaCoreWebView.setPeekModifier(modifier) }.runOnQueue(.main)
     AsyncFunction("setSplitLinkModifier") { (modifier: String) in ArdiaCoreWebView.setSplitLinkModifier(modifier) }.runOnQueue(.main)
     AsyncFunction("setSelectionPopover") { (enabled: Bool) in ArdiaCoreWebView.setSelectionPopoverEnabled(enabled) }.runOnQueue(.main)
+    Function("applePasswordsAvailable") { () -> Bool in ArdiaCoreWebView.applePasswordsAvailable }
+    AsyncFunction("setApplePasswords") { (enabled: Bool) in ArdiaCoreWebView.setApplePasswordsEnabled(enabled) }.runOnQueue(.main)
+    AsyncFunction("openPasswordsApp") { (promise: Promise) in ApplePasswordsApp.open { promise.resolve($0) } }.runOnQueue(.main)
+    AsyncFunction("setUpVerificationCode") { (url: String, promise: Promise) in
+      ApplePasswordsApp.setUpVerificationCode(url) { promise.resolve($0) }
+    }.runOnQueue(.main)
     AsyncFunction("devPostPeekMouseUp") { (keys: String, tabId: String) in ArdiaCoreWebView.devPostPeekMouseUp(keys, over: tabId) }.runOnQueue(.main)
     AsyncFunction("setAutoPictureInPicture") { (enabled: Bool) in ArdiaCoreWebView.setAutoPictureInPictureEnabled(enabled) }.runOnQueue(.main)
     AsyncFunction("setVideoUpscaling") { (enabled: Bool) in ArdiaCoreWebView.setVideoUpscalingEnabled(enabled) }.runOnQueue(.main)
@@ -540,5 +546,42 @@ final class SystemState {
       level = current / max
     }
     return (providing == kIOPMBatteryPowerKey, level)
+  }
+}
+
+enum ApplePasswordsApp {
+  static let bundleIdentifier = "com.apple.Passwords"
+  static let settingsURL = URL(string: "x-apple.systempreferences:com.apple.Passwords-Settings.extension")!
+  static let maxSetupLength = 2048
+
+  static var appURL: URL? { NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) }
+
+  static func open(_ done: @escaping (Bool) -> Void) {
+    guard let app = appURL else { return done(NSWorkspace.shared.open(settingsURL)) }
+    let configuration = NSWorkspace.OpenConfiguration()
+    configuration.activates = true
+    NSWorkspace.shared.openApplication(at: app, configuration: configuration) { opened, error in
+      DispatchQueue.main.async { done(opened != nil && error == nil) }
+    }
+  }
+
+  static func verificationSetupURL(_ text: String) -> URL? {
+    guard text.utf16.count <= maxSetupLength, let parts = URLComponents(string: text),
+      let scheme = parts.scheme?.lowercased(), let host = parts.host?.lowercased()
+    else { return nil }
+    let items = parts.queryItems ?? []
+    func has(_ name: String) -> Bool { items.contains { $0.name.lowercased() == name && !($0.value ?? "").isEmpty } }
+    let valid = (scheme == "otpauth" && (host == "totp" || host == "hotp") && has("secret"))
+      || (scheme == "otpauth-migration" && host == "offline" && has("data"))
+    return valid ? parts.url : nil
+  }
+
+  static func setUpVerificationCode(_ text: String, _ done: @escaping (Bool) -> Void) {
+    guard let url = verificationSetupURL(text), let app = appURL else { return done(false) }
+    let configuration = NSWorkspace.OpenConfiguration()
+    configuration.activates = true
+    NSWorkspace.shared.open([url], withApplicationAt: app, configuration: configuration) { opened, error in
+      DispatchQueue.main.async { done(opened != nil && error == nil) }
+    }
   }
 }

@@ -67,6 +67,7 @@ type NativeChromeUI = {
   changeCaptureSource(capturer: number, target: number): Promise<boolean>;
   stopCapture(capturer: number): Promise<boolean>;
   showAutofillSuggestions(browserId: number, passwords: boolean): Promise<boolean>;
+  showAppleAutoFill?(browserId: number, kind: AppleAutoFillKind): Promise<boolean>;
 };
 
 type NativeActionState = {
@@ -112,3 +113,8 @@ export const stopCapture = (capturer: number) => ChromeUI.stopCapture(capturer);
 
 export const showAutofillSuggestions = (browserId: number, kind: "passwords" | "field") =>
   ChromeUI.showAutofillSuggestions(browserId, kind === "passwords");
+
+export type AppleAutoFillKind = "passwords" | "contact" | "creditCard";
+
+export const showAppleAutoFill = (browserId: number, kind: AppleAutoFillKind): Promise<boolean> =>
+  ChromeUI.showAppleAutoFill?.(browserId, kind) ?? Promise.resolve(false);

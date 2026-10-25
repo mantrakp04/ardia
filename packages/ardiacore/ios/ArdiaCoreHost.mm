@@ -783,6 +783,11 @@ static void StartEarlyWindow() {
   return [tab respondsToSelector:@selector(showAutofillSuggestions:)] && [tab showAutofillSuggestions:passwords];
 }
 
++ (BOOL)showAppleAutoFill:(int)browserId kind:(NSString *)kind {
+  ArdiaCoreTab *tab = ardiacore_host::TabWithBrowserId(browserId);
+  return tab && [[ArdiaCoreTabs viewForTab:tab] showAppleAutoFill:kind];
+}
+
 + (void (^)(NSString *, NSDictionary *))chromeUIHandler {
   return gChromeUIHandler;
 }

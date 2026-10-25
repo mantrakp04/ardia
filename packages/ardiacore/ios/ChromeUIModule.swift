@@ -51,5 +51,8 @@ public class ChromeUIModule: Module {
     AsyncFunction("showAutofillSuggestions") { (browserId: Int, passwords: Bool) in
       ArdiaCoreHost.showAutofillSuggestions(browserId: Int32(browserId), passwords: passwords)
     }.runOnQueue(.main)
+    AsyncFunction("showAppleAutoFill") { (browserId: Int, kind: String) -> Bool in
+      ArdiaCoreHost.showAppleAutoFill(browserId: Int32(browserId), kind: kind)
+    }.runOnQueue(.main)
   }
 }

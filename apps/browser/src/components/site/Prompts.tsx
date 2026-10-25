@@ -1,4 +1,4 @@
-import { getSiteSettings, resolveExternalApp, setSiteSetting, type AutofillPrompt as ChromeAutofillPrompt, type AutofillPromptAnswer, type PasswordPrompt as ChromePasswordPrompt, type PasswordPromptAnswer } from "@ardia/ardiacore";
+import { getSiteSettings, resolveExternalApp, setSiteSetting, setUpVerificationCode, type AutofillPrompt as ChromeAutofillPrompt, type AutofillPromptAnswer, type PasswordPrompt as ChromePasswordPrompt, type PasswordPromptAnswer } from "@ardia/ardiacore";
 import { Symbol } from "@ardia/shell";
 import { useState } from "react";
 import { Image, Pressable, Text, View } from "react-native";
@@ -10,7 +10,10 @@ import { useHover } from "../primitives";
 import { PANEL, PanelCloseButton, Popover, PopoverRow, PopoverSeparator, PromptButton } from "../layout/controls";
 import { Checkbox } from "../settings/controls";
 import { patchPage, pageOf, setPopover, usePage } from "../layout/pageState";
+import { showToast } from "../layout/splitActions";
+import { effectivePasswordManager } from "./passwordManager";
 import { answerPermission, describePermission } from "./permissions";
+import { isVerificationCodeScheme, parseVerificationCodeSetup, verificationCodeSetupCopy } from "./verificationCodes";
 
 const hostOf = (origin: string) => {
   try {
@@ -148,7 +151,13 @@ export async function shouldPromptForPopups(profile: string, origin: string): Pr
   }
 }
 
+const passwordManager = () => effectivePasswordManager(useBrowser.getState().settings);
+
 export function showPasswordPrompt(tabId: string, prompt: ChromePasswordPrompt) {
+  if (prompt.state !== "saved" && passwordManager() !== "ardia") {
+    void webviews.get(tabId)?.resolvePasswordPrompt(prompt.state === "update" ? "nope" : "dismiss");
+    return patchPage(tabId, { passwordPrompt: null });
+  }
   patchPage(tabId, { passwordPrompt: prompt.state === "saved" ? null : prompt });
 }
 
@@ -260,6 +269,42 @@ export function AutofillPrompt({ tabId, right, top }: { tabId: string; right: nu
   );
 }
 
+export function showVerificationCodePrompt(tabId: string, data: unknown) {
+  const { url, origin } = (data ?? {}) as { url?: unknown; origin?: unknown };
+  if (typeof url !== "string" || passwordManager() !== "apple") return;
+  const offered = pageOf(tabId).verificationCodesOffered;
+  if (offered.includes(url)) return;
+  const setup = parseVerificationCodeSetup(url);
+  if (setup) patchPage(tabId, { verificationCode: { ...setup, url, origin: typeof origin === "string" ? origin : "" }, verificationCodesOffered: [...offered, url] });
+}
+
+export function VerificationCodePrompt({ tabId, right, top }: { tabId: string; right: number; top: number }) {
+  const prompt = usePage(tabId, (p) => p.verificationCode);
+  if (!prompt) return null;
+  const { title, message } = verificationCodeSetupCopy(prompt, hostOf(prompt.origin));
+  const close = () => patchPage(tabId, { verificationCode: null });
+  const setUp = () => {
+    close();
+    void setUpVerificationCode(prompt.url)
+      .catch(() => false)
+      .then((opened) => {
+        const windowId = useBrowser.getState().tabs[tabId]?.windowId;
+        if (!opened && windowId) showToast(windowId, "Couldn't open Passwords.", undefined, { icon: "key.fill" });
+      });
+  };
+  return (
+    <Popover key={prompt.url} width={330} top={top} right={right} modal={false}>
+      <View>
+        <PromptBody icons={["key.fill"]} title={title} message={message}>
+          <PromptButton title="Not Now" onPress={close} />
+          <PromptButton title="Set Up" primary onPress={setUp} />
+        </PromptBody>
+        <PanelCloseButton onPress={close} />
+      </View>
+    </Popover>
+  );
+}
+
 export function ExternalAppPrompt({ tabId, left, top }: { tabId: string; left: number; top: number }) {
   const theme = useTheme();
   const request = usePage(tabId, (p) => p.externalApp);
@@ -269,13 +314,14 @@ export function ExternalAppPrompt({ tabId, left, top }: { tabId: string; left: n
     answerExternalApp(tabId, open, open && always);
     setAlways(false);
   };
+  const verificationCode = request.app === "Passwords" && isVerificationCodeScheme(request.scheme);
   return (
     <Popover key={request.id} width={340} top={top} left={left} modal={false}>
       <View>
         <PromptBody
           icons={request.icon ? [] : [request.app ? "app" : "questionmark.app.dashed"]}
           image={request.icon}
-          title={request.title}
+          title={verificationCode ? "Set up a verification code in Passwords?" : request.title}
           message={request.message}
           detail={
             request.remember ? (
@@ -291,7 +337,7 @@ export function ExternalAppPrompt({ tabId, left, top }: { tabId: string; left: n
           {request.app ? (
             <>
               <PromptButton title="Cancel" onPress={() => answer(false)} />
-              <PromptButton title="Open" primary onPress={() => answer(true)} />
+              <PromptButton title={verificationCode ? "Set Up" : "Open"} primary onPress={() => answer(true)} />
             </>
           ) : (
             <PromptButton title="OK" primary onPress={() => answer(false)} />

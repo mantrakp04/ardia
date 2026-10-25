@@ -16,6 +16,7 @@ import { useTheme } from "../../../lib/theme";
 import { useBrowser } from "../../../store/browser";
 import { useProfiles } from "../../../store/hooks";
 import { engineProfile } from "../../../store/model";
+import { effectivePasswordManager } from "../../site/passwordManager";
 import { IconButton } from "../../primitives";
 import { NetworkBadge } from "../../site/Autofill";
 import { Button, Group, PopUp, Row, SectionHeader, Sheet, TextField, Toggle, type Option } from "../controls";
@@ -26,6 +27,7 @@ import { closeSettingsSheet, showSettingsSheet } from "../sheet";
 export function AutofillPane({ profileId: initial }: { profileId?: string | null }) {
   const theme = useTheme();
   const profiles = useProfiles();
+  const apple = useBrowser((s) => effectivePasswordManager(s.settings) === "apple");
   const [profileId, setProfileId] = useState(() => initial ?? useBrowser.getState().settings.defaultProfileId);
   const profile = engineProfile(profileId);
   const [addresses, reloadAddresses] = useResource(addressList, profile);
@@ -57,6 +59,7 @@ export function AutofillPane({ profileId: initial }: { profileId?: string | null
         <Row anchor="autofill.cards">
           <Toggle value={enabled?.cards ?? true} disabled={!enabled} onChange={(v) => toggle("cards", v)} />
         </Row>
+        {apple && <Row anchor="autofill.fromMac" />}
       </Group>
 
       <SectionHeader

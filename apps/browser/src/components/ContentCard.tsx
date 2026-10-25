@@ -46,7 +46,9 @@ import { setCardAnchor, setUrlAnchor, useAddressBarInSidebar, useTabLayout, useT
 import { NewTabPage } from "./NewTabPage";
 import { EmptyCard } from "./EmptyCard";
 import { InternalPage } from "./pages";
-import { AutofillPrompt, BLOCKED_POPUPS_WIDTH, BlockedPopupsPrompt, ExternalAppPrompt, PasswordPrompt, PermissionPrompt, answerExternalApp, shouldPromptForPopups, showAutofillPrompt, showPasswordPrompt } from "./site/Prompts";
+import { AutofillPrompt, BLOCKED_POPUPS_WIDTH, BlockedPopupsPrompt, ExternalAppPrompt, PasswordPrompt, PermissionPrompt, VerificationCodePrompt, answerExternalApp, shouldPromptForPopups, showAutofillPrompt, showPasswordPrompt, showVerificationCodePrompt } from "./site/Prompts";
+import { startPasswordManager } from "./site/passwordManager";
+import { offerSurvivesNavigation } from "./site/verificationCodes";
 import { SiteControls } from "./site/SiteControls";
 import { SITE_PANEL } from "./site/SiteControlsParts";
 import { ZOOM_POPOVER_WIDTH, ZoomPopover } from "./site/ZoomControls";
@@ -88,6 +90,7 @@ export function ContentCard() {
   useEffect(startChromeTabs, []);
   useEffect(startMedia, []);
   useEffect(startSelectionTools, []);
+  useEffect(startPasswordManager, []);
   useEffect(startPeeks, []);
   const peekId = useBrowser((s) => s.peeks[windowId]?.tabId);
   const peekFullscreen = !!peekId && fullscreenTab === peekId;
@@ -489,6 +492,7 @@ function PageOverlays({
       {!newTabShown && <PermissionPrompt tabId={tabId} left={Math.max(POPOVER_MARGIN, Math.min(geometry.urlLeft, width - 308))} top={POPOVER_MARGIN} />}
       <PasswordPrompt tabId={tabId} right={POPOVER_MARGIN} top={POPOVER_MARGIN} />
       <AutofillPrompt tabId={tabId} right={POPOVER_MARGIN} top={POPOVER_MARGIN} />
+      <VerificationCodePrompt tabId={tabId} right={POPOVER_MARGIN} top={POPOVER_MARGIN} />
       {!newTabShown && <ExternalAppPrompt tabId={tabId} left={Math.max(POPOVER_MARGIN, Math.min(geometry.urlLeft, width - 348))} top={POPOVER_MARGIN} />}
       {!newTabShown && <EngineOfferPrompt tabId={tabId} left={Math.max(POPOVER_MARGIN, Math.min(geometry.urlLeft, width - 348))} top={POPOVER_MARGIN} />}
       {popovers && <SiteControls tabId={tabId} open={popover === "siteControls"} {...popoverSide} top={POPOVER_MARGIN} />}
@@ -656,7 +660,8 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
           setPopover(tabId, null);
           setPageSelection(tabId, null);
           clearEngineOffer(tabId);
-          patchPage(tabId, { popups: [], passwordPrompt: null, crashed: null, status: "" });
+          const verificationCode = offerSurvivesNavigation(pageOf(tabId).verificationCode, url);
+          patchPage(tabId, { popups: [], passwordPrompt: null, verificationCode, verificationCodesOffered: verificationCode ? [verificationCode.url] : [], crashed: null, status: "" });
           revealToolbar(tabId);
         }
         lastPage.current = pageKey(url);
@@ -731,6 +736,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
         if (kind === "selection") setPageSelection(tabId, data as PageSelection | null);
         else if (kind === "scroll") noteScroll(tabId, data);
         else if (kind === "drm") offerWebKit(tabId, data);
+        else if (kind === "verificationCodeSetup") showVerificationCodePrompt(tabId, data);
       }}
       onNotificationClose={closeWebNotification}
       onDiscarded={(url) => {

@@ -50,6 +50,8 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)setPeekModifier:(NSString *)modifier;
 + (void)setSplitLinkModifier:(NSString *)modifier;
 + (void)setSelectionPopoverEnabled:(BOOL)enabled NS_SWIFT_NAME(setSelectionPopoverEnabled(_:));
++ (void)setApplePasswordsEnabled:(BOOL)enabled NS_SWIFT_NAME(setApplePasswordsEnabled(_:));
+@property(class, nonatomic, readonly) BOOL applePasswordsAvailable;
 + (BOOL)devPostPeekMouseUp:(NSString *)keys over:(NSString *)transferKey;
 + (void)setAutoPictureInPictureEnabled:(BOOL)enabled NS_SWIFT_NAME(setAutoPictureInPictureEnabled(_:));
 + (void)setVideoUpscalingEnabled:(BOOL)enabled NS_SWIFT_NAME(setVideoUpscalingEnabled(_:));
@@ -71,6 +73,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)reloadIgnoringCache;
 - (void)stopLoading;
 - (void)focusPage;
+- (BOOL)showAppleAutoFill:(NSString *)kind;
 - (void)setMuted:(BOOL)muted;
 - (void)setZoomFactor:(double)factor;
 - (void)zoomStep:(NSInteger)direction NS_SWIFT_NAME(zoomStep(_:));

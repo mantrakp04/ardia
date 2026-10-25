@@ -50,6 +50,10 @@ export const Cef = requireNativeModule<{
   setPeekModifier?(modifier: "alt" | "shift" | "off"): Promise<void>;
   setSplitLinkModifier?(modifier: "alt" | "altShift"): Promise<void>;
   setSelectionPopover?(enabled: boolean): Promise<void>;
+  applePasswordsAvailable?(): boolean;
+  setApplePasswords?(enabled: boolean): Promise<void>;
+  openPasswordsApp?(): Promise<boolean>;
+  setUpVerificationCode?(url: string): Promise<boolean>;
   setVideoUpscalingTestConditions?(conditions: { lowPower?: boolean; thermalPressure?: boolean }): Promise<void>;
   videoUpscalingState?(): Promise<{ enabled: boolean; lowPower: boolean; thermalPressure: boolean; appActive: boolean; tabs: { tabId: number; allowed: boolean }[] } | null>;
   setSearchEngineName(name: string): Promise<void>;

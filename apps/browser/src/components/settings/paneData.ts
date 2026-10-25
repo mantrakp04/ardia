@@ -4,7 +4,6 @@ import {
   getContentBlocker,
   getDownloadSettings,
   getExternalAppAllowances,
-  getPasswordAutofill,
   getSiteSettingsOrigins,
   getZoomLevels,
   listAddresses,
@@ -18,6 +17,7 @@ import { engineProfile } from "../../store/model";
 import { folderInfo } from "../../sync/engine";
 import { useSync } from "../../sync/engine";
 import { extensionsProfileId, refreshExtensions } from "../extensions/state";
+import { ardiaLoginCount, passwordAutofill } from "../site/passwordManager";
 import { load, loadAll, need, resource, useAllLoaded, type Needed } from "./resources";
 import type { SettingsPane } from "./windows";
 
@@ -34,7 +34,6 @@ export const contentBlocker = resource("contentBlocker", () => getContentBlocker
 export const siteOrigins = resource("siteOrigins", (profile: string) => getSiteSettingsOrigins(profile).catch((): string[] => []));
 export const appLinks = resource("appLinks", (profile: string) => getExternalAppAllowances(profile).catch(() => []));
 export const zoomLevels = resource("zoomLevels", (profile: string) => getZoomLevels(profile).catch((): Record<string, number> => ({})));
-export const passwordAutofill = resource("passwordAutofill", (profile: string) => getPasswordAutofill(profile).catch(() => true));
 export const addresses = resource("addresses", (profile: string) => listAddresses(profile).catch(() => []));
 export const cards = resource("cards", (profile: string) => listCards(profile).catch(() => []));
 export const autofillEnabled = resource("autofillEnabled", (profile: string) =>
@@ -65,7 +64,7 @@ export function paneNeeds(pane: SettingsPane, profileId: string | null): Needed[
     case "privacy":
       return [need(contentBlocker), need(siteOrigins, profile), need(appLinks, profile), need(zoomLevels, profile)];
     case "passwords":
-      return [need(passwordAutofill, profile)];
+      return [need(passwordAutofill, profile), need(ardiaLoginCount, profile)];
     case "autofill":
       return [need(addresses, profile), need(cards, profile), need(autofillEnabled, profile)];
     case "extensions":

@@ -41,6 +41,15 @@
       }, ms);
     };
   };
+  const functionSource = Function.prototype.toString;
+  const addListener = EventTarget.prototype.addEventListener;
+  let NativeBarcodeDetector = window.BarcodeDetector;
+  const barcodeDetector = () => {
+    const found = NativeBarcodeDetector ? null : window.BarcodeDetector;
+    if (typeof found === "function" && /\{\s*\[native code\]\s*\}\s*$/.test(apply(functionSource, found, []))) NativeBarcodeDetector = found;
+    return NativeBarcodeDetector;
+  };
+  const FrameMutationObserver = window.MutationObserver;
 
   const frame = Math.random().toString(36).slice(2);
   const tracked = new WeakSet();
@@ -259,16 +268,34 @@
           return true;
     return false;
   };
-  const placeEye = () => {
-    if (!eyeHost || !eyeField) return;
-    const r = eyeField.getBoundingClientRect();
-    const cs = getComputedStyle(eyeField);
+  const trailingRect = (field) => {
+    const r = field.getBoundingClientRect();
+    const cs = getComputedStyle(field);
     const size = Math.min(24, Math.max(18, r.height - 8));
     const inset = Math.max(4, Math.min(10, parseFloat(cs.paddingRight) || 4));
-    eyeHost.style.left = r.right - (parseFloat(cs.borderRightWidth) || 0) - inset - size + "px";
-    eyeHost.style.top = r.top + (r.height - size) / 2 + "px";
-    eyeButton.style.width = eyeButton.style.height = size + "px";
-    eyeButton.style.color = cs.color;
+    return { left: r.right - (parseFloat(cs.borderRightWidth) || 0) - inset - size, top: r.top + (r.height - size) / 2, size, color: cs.color };
+  };
+  const placeTrailing = (host, button, field) => {
+    const { left, top, size, color } = trailingRect(field);
+    host.style.left = left + "px";
+    host.style.top = top + "px";
+    button.style.width = button.style.height = size + "px";
+    button.style.color = color;
+  };
+  const placeEye = () => {
+    if (eyeHost && eyeField) placeTrailing(eyeHost, eyeButton, eyeField);
+  };
+  const fieldButton = (tag) => {
+    const host = document.createElement(tag);
+    host.style.cssText = "all:initial;position:fixed;z-index:2147483647;display:none;";
+    const root = host.attachShadow({ mode: "closed" });
+    root.innerHTML =
+      "<style>button{all:initial;box-sizing:border-box;display:flex;align-items:center;justify-content:center;border-radius:5px;cursor:default;opacity:.55;transition:opacity .12s,background-color .12s}" +
+      "button:hover{opacity:.85;background:color-mix(in srgb,currentColor 9%,transparent)}button:active{background:color-mix(in srgb,currentColor 16%,transparent)}</style>" +
+      '<button type="button" tabindex="-1"></button>';
+    const button = root.querySelector("button");
+    button.addEventListener("mousedown", (e) => e.preventDefault());
+    return { host, button };
   };
   const hideEye = () => {
     if (eyeHost) eyeHost.style.display = "none";
@@ -283,16 +310,8 @@
   };
   const ensureEye = () => {
     if (eyeHost && eyeHost.isConnected) return;
-    eyeHost = document.createElement("ardia-reveal");
-    eyeHost.style.cssText = "all:initial;position:fixed;z-index:2147483647;display:none;";
-    const root = eyeHost.attachShadow({ mode: "closed" });
-    root.innerHTML =
-      "<style>button{all:initial;box-sizing:border-box;display:flex;align-items:center;justify-content:center;border-radius:5px;cursor:default;opacity:.55;transition:opacity .12s,background-color .12s}" +
-      "button:hover{opacity:.85;background:color-mix(in srgb,currentColor 9%,transparent)}button:active{background:color-mix(in srgb,currentColor 16%,transparent)}</style>" +
-      '<button type="button" tabindex="-1"></button>';
-    eyeButton = root.querySelector("button");
+    ({ host: eyeHost, button: eyeButton } = fieldButton("ardia-reveal"));
     eyeButton.innerHTML = EYE;
-    eyeButton.addEventListener("mousedown", (e) => e.preventDefault());
     eyeButton.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -360,6 +379,168 @@
   addEventListener("scroll", () => eyeField && requestAnimationFrame(placeEye), { passive: true, capture: true });
   addEventListener("resize", () => eyeField && requestAnimationFrame(placeEye));
   addEventListener("pagehide", conceal);
+
+  const USERNAME_TOKEN = /(^|\s)(username|email|webauthn)(\s|$)/i;
+  const ONE_TIME_CODE = /(^|\s)one-time-code(\s|$)/i;
+  const USERNAME_HINT = /user|e-?mail|login|account/i;
+  const OTPAUTH = /^otpauth(-migration)?:\/\//i;
+  const nearPassword = (el, revealed) => {
+    let scope = el.form;
+    for (let n = el.parentElement, depth = 0; !scope && n && depth < 6; n = n.parentElement, depth++)
+      if (n.querySelectorAll("input").length > 1) scope = n;
+    return !!scope && (!!scope.querySelector('input[type="password"]') || (!!revealed && scope.contains(revealed)));
+  };
+  const loginFieldKind = (el, revealed) => {
+    if (!el || el.localName !== "input" || el.disabled || el.readOnly || el.hidden || el.type === "hidden") return null;
+    if (el.getBoundingClientRect().width < 80) return null;
+    const auto = el.getAttribute("autocomplete") || "";
+    if (el.type === "password" || el === revealed) return "password";
+    if (ONE_TIME_CODE.test(auto)) return "code";
+    if (el.type === "email" || USERNAME_TOKEN.test(auto)) return "username";
+    if (el.type !== "text" && el.type !== "tel") return null;
+    const hints = [el.name, el.id, auto, el.getAttribute("placeholder") || ""].join(" ");
+    return USERNAME_HINT.test(hints) && nearPassword(el, revealed) ? "username" : null;
+  };
+  const verificationSetupURL = (raw) => (typeof raw === "string" && raw.length <= 2048 && OTPAUTH.test(raw) ? raw : null);
+
+  const KEY =
+    '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><circle cx="4.75" cy="8" r="2.75"/><path d="M7.5 8h7M12.5 8v2.5M10.25 8v1.75"/></svg>';
+  const KEY_REPEAT_MS = 600;
+  const QR_MIN = 64;
+  const QR_MAX = 640;
+  const QR_DETECTIONS = 12;
+  const typedLogin = new WeakSet();
+  let applePasswords = false;
+  let applePasswordsListening = false;
+  let keyField = null;
+  let keyKind = null;
+  let keyHost = null;
+  let keyButton = null;
+  let keyClickedAt = -Infinity;
+  let qrObserver = null;
+  let qrDetector = null;
+  let qrDetections = 0;
+  const qrChecked = new WeakMap();
+  const qrSent = new Set();
+  const hideKey = () => {
+    if (keyHost) keyHost.style.display = "none";
+    keyField = keyKind = null;
+  };
+  const placeKey = () => {
+    if (keyHost && keyField) placeTrailing(keyHost, keyButton, keyField);
+  };
+  const ensureKey = () => {
+    if (keyHost && keyHost.isConnected) return;
+    ({ host: keyHost, button: keyButton } = fieldButton("ardia-passwords"));
+    keyButton.innerHTML = KEY;
+    keyButton.title = "Passwords";
+    keyButton.setAttribute("aria-label", "Fill from Passwords");
+    apply(addListener, keyButton, [
+      "click",
+      guard((e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!e.isTrusted || !applePasswords || !keyKind || !keyField) return;
+        const box = trailingRect(keyField);
+        if (!(e.clientX >= box.left - 2 && e.clientX <= box.left + box.size + 2 && e.clientY >= box.top - 2 && e.clientY <= box.top + box.size + 2)) return;
+        if (e.timeStamp - keyClickedAt < KEY_REPEAT_MS) return;
+        keyClickedAt = e.timeStamp;
+        send("applePasswords", { field: keyKind });
+      }),
+    ]);
+    document.documentElement.appendChild(keyHost);
+  };
+  const updateKey = guard(() => {
+    if (!applePasswords) return hideKey();
+    const el = document.activeElement;
+    const kind = loginFieldKind(el, revealedField);
+    if (!kind) return hideKey();
+    if (el.value && (kind === "password" ? typedByUser : typedLogin).has(el)) return hideKey();
+    if (kind === "password" && keyField !== el && hasOwnToggle(el)) return hideKey();
+    ensureKey();
+    keyField = el;
+    keyKind = kind;
+    keyHost.style.display = "block";
+    placeKey();
+  });
+  const noteLoginInput = guard((e) => {
+    const el = e.target;
+    if (!el || el.localName !== "input") return;
+    if (!el.value) typedLogin.delete(el);
+    else if (e.isTrusted) typedLogin.add(el);
+    if (applePasswords) updateKey();
+  });
+  const qrCandidate = (el) => {
+    if (el.localName === "img" && !el.complete) return "later";
+    if (el.localName === "img" ? el.naturalWidth < QR_MIN : el.localName !== "canvas") return "never";
+    const r = el.getBoundingClientRect();
+    if (r.width < QR_MIN || r.height < QR_MIN || r.width > QR_MAX || r.height > QR_MAX) return "never";
+    const ratio = r.width / r.height;
+    if (ratio < 0.8 || ratio > 1.25) return "never";
+    return !el.checkVisibility || el.checkVisibility({ opacityProperty: true, visibilityProperty: true }) ? "yes" : "later";
+  };
+  const noteVerificationSetup = (raw) => {
+    const url = verificationSetupURL(raw);
+    if (!url || !applePasswords || qrSent.has(url)) return;
+    qrSent.add(url);
+    send("verificationCodeSetup", { url });
+  };
+  const scanQR = guard(() => {
+    const Detector = barcodeDetector();
+    if (!applePasswords || !Detector || document.visibilityState !== "visible" || !document.querySelector("input")) return;
+    for (const el of document.querySelectorAll("img, canvas")) {
+      if (qrDetections >= QR_DETECTIONS) return;
+      const src = el.currentSrc || el.src || "";
+      if (qrChecked.get(el) === src) continue;
+      const candidate = qrCandidate(el);
+      if (candidate !== "later") qrChecked.set(el, src);
+      if (candidate !== "yes") continue;
+      qrDetections++;
+      if (!qrDetector) qrDetector = new Detector({ formats: ["qr_code"] });
+      qrDetector.detect(el).then(
+        guard((codes) => {
+          for (const code of codes) noteVerificationSetup(code.rawValue);
+        }),
+        () => {},
+      );
+    }
+  });
+  const scanQRSoon = later(scanQR, 400);
+  const listenForLogins = () => {
+    if (applePasswordsListening) return;
+    applePasswordsListening = true;
+    document.addEventListener("focusin", updateKey, true);
+    document.addEventListener(
+      "focusout",
+      guard((e) => {
+        setTimeout(() => document.activeElement !== e.target && updateKey(), 0);
+      }),
+      true,
+    );
+    document.addEventListener("input", noteLoginInput, true);
+    document.addEventListener("load", (e) => applePasswords && e.target && e.target.localName === "img" && scanQRSoon(), true);
+    document.addEventListener("visibilitychange", () => applePasswords && scanQRSoon());
+    addEventListener("scroll", () => keyField && requestAnimationFrame(placeKey), { passive: true, capture: true });
+    addEventListener("resize", () => keyField && requestAnimationFrame(placeKey));
+  };
+  handlers.applePasswords = (on) => {
+    on = on === true;
+    if (on === applePasswords) return;
+    applePasswords = on;
+    if (!on) {
+      hideKey();
+      if (qrObserver) qrObserver.disconnect();
+      qrObserver = null;
+      return;
+    }
+    listenForLogins();
+    if (FrameMutationObserver && barcodeDetector()) {
+      qrObserver = new FrameMutationObserver(scanQRSoon);
+      qrObserver.observe(document, { childList: true, subtree: true, attributes: true, attributeFilter: ["src"] });
+    }
+    onReady(scanQR);
+    updateKey();
+  };
 
   const installNotifications = () => {
     const NativeNotification = window.Notification;
@@ -757,6 +938,7 @@
     if (config.fieldTiming) setFieldTiming(true);
     if (config.broadThemeObserver) broadThemeObserver = true;
     if (typeof config.selectionPopover === "boolean" && handlers.selectionPopover) handlers.selectionPopover(config.selectionPopover);
+    if (typeof config.applePasswords === "boolean") handlers.applePasswords(config.applePasswords);
   };
   send("hello", { top: isTop, url: location.href });
 

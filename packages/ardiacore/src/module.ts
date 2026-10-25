@@ -128,6 +128,10 @@ export const setVideoUpscaling = (enabled: boolean) => Cef.setVideoUpscaling?.(e
 export const setPeekModifier = (modifier: "alt" | "shift" | "off") => Cef.setPeekModifier?.(modifier) ?? Promise.resolve();
 export const setSplitLinkModifier = (modifier: "alt" | "altShift") => Cef.setSplitLinkModifier?.(modifier) ?? Promise.resolve();
 export const setSelectionPopover = (enabled: boolean) => Cef.setSelectionPopover?.(enabled) ?? Promise.resolve();
+export const applePasswordsAvailable = (): boolean => Cef.applePasswordsAvailable?.() === true;
+export const setApplePasswords = (enabled: boolean): Promise<void> => Cef.setApplePasswords?.(enabled) ?? Promise.resolve();
+export const openPasswordsApp = (): Promise<boolean> => Cef.openPasswordsApp?.() ?? Promise.resolve(false);
+export const setUpVerificationCode = (url: string): Promise<boolean> => Cef.setUpVerificationCode?.(url) ?? Promise.resolve(false);
 export const setSearchEngineName = (name: string) => Cef.setSearchEngineName(name);
 export const getDisplayMediaSources = () => Cef.displayMediaSources();
 

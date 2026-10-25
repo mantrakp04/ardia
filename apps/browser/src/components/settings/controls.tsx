@@ -97,7 +97,7 @@ export function Checkbox({
   );
 }
 
-export type Option<T extends string> = { value: T; title: string; separatorBefore?: boolean };
+export type Option<T extends string> = { value: T; title: string; separatorBefore?: boolean; disabled?: boolean };
 
 export function PopUp<T extends string>({
   value,
@@ -119,7 +119,7 @@ export function PopUp<T extends string>({
   const open = async () => {
     const items: MenuItem[] = options.flatMap((o) => [
       ...(o.separatorBefore ? [{ separator: true as const }] : []),
-      { id: o.value, title: o.title, checked: o.value === value },
+      { id: o.value, title: o.title, checked: o.value === value, ...(o.disabled ? { enabled: false } : {}) },
     ]);
     const choice = await showMenu(items);
     if (choice !== null && choice !== value) onChange(choice as T);

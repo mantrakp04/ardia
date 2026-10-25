@@ -18,6 +18,8 @@ export type SearchEngineId = string;
 
 export type BatterySaverWhen = "lowBattery" | "unplugged" | "never";
 
+export type PasswordManager = "apple" | "ardia" | "none";
+
 export type Settings = {
   warnBeforeQuitting: boolean;
   warnBeforeClosingWindow: boolean;
@@ -60,6 +62,8 @@ export type Settings = {
   warnBeforeClosingTabGroup: boolean;
   batterySaverWhen: BatterySaverWhen;
   extensionSidePanelWidth: number;
+
+  passwordManager: PasswordManager;
 
   showFullUrl: boolean;
   allowJavaScriptFromAppleEvents: boolean;
@@ -143,6 +147,7 @@ export const DEFAULT_SETTINGS: Settings = {
   warnBeforeClosingTabGroup: true,
   batterySaverWhen: "lowBattery",
   extensionSidePanelWidth: 360,
+  passwordManager: "apple",
   showFullUrl: false,
   allowJavaScriptFromAppleEvents: false,
   cliControl: false,
@@ -204,8 +209,10 @@ export function choose(settings: Settings, patch: Partial<Settings>): Settings {
   return { ...settings, ...patch, ...(added.length ? { chosen: [...chosen, ...added] } : {}), ...(inferred ? { inferred } : {}) };
 }
 
-export function migrateSavedSettings(saved: (Partial<Settings> & { batterySaver?: unknown }) | undefined): Partial<Settings> | undefined {
-  if (!saved || !("batterySaver" in saved)) return saved;
+export function migrateSavedSettings(given: (Partial<Settings> & { batterySaver?: unknown }) | undefined): Partial<Settings> | undefined {
+  if (!given) return given;
+  const saved = "passwordManager" in given ? given : { ...given, passwordManager: "ardia" as const, inferred: [...(given.inferred ?? []), "passwordManager"] };
+  if (!("batterySaver" in saved)) return saved;
   const { batterySaver, ...rest } = saved;
   const explicit = batterySaver === false || (batterySaver === true && !!rest.chosen?.includes("batterySaver") && !rest.inferred?.includes("batterySaver"));
   const without = (keys: string[]) => keys.filter((k) => k !== "batterySaver");

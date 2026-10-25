@@ -41,6 +41,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)releaseProfile:(NSString *)profile;
 + (BOOL)stopCapture:(int)browserId NS_SWIFT_NAME(stopCapture(browserId:));
 + (BOOL)showAutofillSuggestions:(int)browserId passwords:(BOOL)passwords NS_SWIFT_NAME(showAutofillSuggestions(browserId:passwords:));
++ (BOOL)showAppleAutoFill:(int)browserId kind:(NSString *)kind NS_SWIFT_NAME(showAppleAutoFill(browserId:kind:));
 + (void)resolvePermission:(NSString *)requestId result:(NSString *)result remember:(BOOL)remember
     NS_SWIFT_NAME(resolvePermission(_:result:remember:));
 

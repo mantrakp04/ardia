@@ -4,6 +4,7 @@ import { useBrowser } from "../../store/browser";
 import { activeTabId } from "../../store/model";
 import { peekTabId } from "../../store/peek";
 import { splitOf } from "../../store/splits";
+import type { VerificationCodeOffer } from "../site/verificationCodes";
 
 export type PageState = {
   status: string;
@@ -18,6 +19,8 @@ export type PageState = {
   passwordPrompt: PasswordPrompt | null;
   autofillPrompt: AutofillPrompt | null;
   externalApp: ExternalAppRequest | null;
+  verificationCode: VerificationCodeOffer | null;
+  verificationCodesOffered: string[];
   mediaAccess: MediaAccess | null;
   wasNewTab: boolean;
   backToNewTab: boolean;
@@ -37,6 +40,8 @@ const IDLE_PAGE: PageState = {
   passwordPrompt: null,
   autofillPrompt: null,
   externalApp: null,
+  verificationCode: null,
+  verificationCodesOffered: [],
   mediaAccess: null,
   wasNewTab: false,
   backToNewTab: false,

@@ -269,6 +269,10 @@ const ROWS: Record<SettingsPane, Section[]> = {
     {
       section: "Passwords",
       rows: {
+        passwordManager: {
+          title: "Password manager",
+          keywords: ["apple passwords", "icloud keychain", "autofill", "touch id", "passkeys", "none"],
+        },
         offerToSave: {
           title: "Offer to save and fill passwords",
           description: "Offers to save a login after you sign in, and suggests saved ones when you click a login field.",
@@ -277,6 +281,43 @@ const ROWS: Record<SettingsPane, Section[]> = {
         importPasswords: { title: "Import passwords", description: "From a CSV exported by Chrome, Safari, Firefox, 1Password, Bitwarden…", keywords: ["csv", "logins"] },
         exportPasswords: { title: "Export passwords", description: "To a CSV file. Anyone who can open the file can read your passwords.", keywords: ["csv", "backup", "logins"] },
         managerApps: { title: "Password manager apps", keywords: ["1password", "bitwarden", "keepassxc", "proton pass"] },
+        otherManager: {
+          title: "Saving passwords",
+          description: "Ardia won't offer to save passwords, so only your password manager asks.",
+          keywords: ["extension", "off", "none"],
+        },
+      },
+    },
+    {
+      section: "Apple Passwords",
+      rows: {
+        openPasswords: { title: "Passwords app", description: "Your logins, passkeys and verification codes live there.", keywords: ["apple passwords", "icloud keychain", "open"] },
+        fillLogin: {
+          title: "Fill a login",
+          description: "Click the key in a login field, or choose Edit › AutoFill › Passwords…",
+          keywords: ["apple passwords", "autofill", "touch id", "key"],
+        },
+        verificationCodes: {
+          title: "Verification codes",
+          description: "Codes from Messages, Mail and Passwords fill the same way. When a site shows a setup QR code, Ardia offers to add it to Passwords.",
+          keywords: ["2fa", "two factor", "otp", "one time code", "authenticator", "totp", "qr code"],
+        },
+        newLogins: {
+          title: "New logins",
+          description: "Add new logins in the Passwords app itself. Apple lets only Safari save there.",
+          keywords: ["save password", "apple passwords"],
+        },
+      },
+    },
+    {
+      section: "Saved in Ardia",
+      rows: {
+        moveFromArdia: { title: "Move your logins", keywords: ["passwords", "export", "csv", "import", "migrate", "apple passwords"] },
+        showSavedInArdia: {
+          title: "See logins saved in Ardia",
+          description: "Unlock with Touch ID or your login password to view or delete them.",
+          keywords: ["passwords", "unlock", "delete"],
+        },
       },
     },
   ],
@@ -286,6 +327,11 @@ const ROWS: Record<SettingsPane, Section[]> = {
       rows: {
         addresses: { title: "Save and fill addresses", description: "Names, addresses, email addresses and phone numbers.", keywords: ["forms", "contact", "phone", "email"] },
         cards: { title: "Save and fill credit cards", description: "Filling in or showing a card number asks for Touch ID or your password.", keywords: ["payment", "debit card", "forms"] },
+        fromMac: {
+          title: "Fill from your Mac",
+          description: "Choose Edit › AutoFill › Contact… or Credit Card… to fill from your contact card or the cards saved for AutoFill on this Mac.",
+          keywords: ["apple", "contacts", "me card", "safari", "autofill"],
+        },
       },
     },
     { section: "Addresses", rows: { addressList: { title: "Addresses", keywords: ["add address", "saved addresses"] } } },

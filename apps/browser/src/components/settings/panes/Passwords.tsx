@@ -1,9 +1,11 @@
 import {
+  applePasswordsAvailable,
   deletePassword,
   exportPasswords,
   getNeverSavePasswordOrigins,
   getPassword,
   listPasswords,
+  openPasswordsApp,
   savePassword,
   setNeverSavePasswords,
   setPasswordAutofill,
@@ -18,11 +20,12 @@ import { useTheme } from "../../../lib/theme";
 import { useBrowser } from "../../../store/browser";
 import { useProfiles } from "../../../store/hooks";
 import { engineProfile, plural } from "../../../store/model";
+import type { PasswordManager } from "../../../store/settings";
 import { importModule } from "../../import/module";
 import { hostLabel, matchesQuery } from "../../pages/PageLayout";
 import { Favicon, IconButton } from "../../primitives";
+import { ardiaLoginCount, effectivePasswordManager, passwordAutofill } from "../../site/passwordManager";
 import { Button, Group, PopUp, Row, SearchField, SectionHeader, Sheet, TextField, Toggle } from "../controls";
-import { passwordAutofill } from "../paneData";
 import { store, useResource } from "../resources";
 import { closeSettingsSheet, showSettingsSheet } from "../sheet";
 
@@ -33,6 +36,22 @@ function passwordManagerAppsNote() {
     : `${apps} For 1Password, add Ardia once: in the 1Password app, open Settings › Browser › Add Browser and choose Ardia.`;
 }
 
+const PASSWORDS_DESCRIPTIONS: Record<PasswordManager, string> = {
+  apple: "Logins come from the Passwords app and fill with Touch ID.",
+  ardia: "Saved on this Mac, separately for each profile, and encrypted with a key in your Keychain.",
+  none: "Your password manager's extension saves and fills logins.",
+};
+
+const OPEN_PASSWORDS_FAILED = "Couldn't open Passwords.";
+const CHECKING_LOGINS = "Checking…";
+
+function savedInArdiaDescription(count: number, mode: PasswordManager) {
+  const still = `${plural(count, "login")} saved in Ardia still ${count === 1 ? "fills" : "fill"}.`;
+  return mode === "apple"
+    ? `${still} To move them, export them, then in Passwords choose File › Import Passwords.`
+    : `${still} To move them, export them, then import the file into your password manager.`;
+}
+
 const UNLOCK_MS = 5 * 60_000;
 const unlockedUntil = new Map<string, number>();
 const isUnlocked = (profile: string) => Date.now() < (unlockedUntil.get(profile) ?? 0);
@@ -40,6 +59,9 @@ const isUnlocked = (profile: string) => Date.now() < (unlockedUntil.get(profile)
 export function PasswordsPane({ profileId: initial }: { profileId?: string | null }) {
   const theme = useTheme();
   const profiles = useProfiles();
+  const mode = useBrowser((s) => effectivePasswordManager(s.settings));
+  const update = useBrowser((s) => s.updateSettings);
+  const appleAvailable = applePasswordsAvailable();
   const [profileId, setProfileId] = useState(() => initial ?? useBrowser.getState().settings.defaultProfileId);
   const [, setUnlockedAt] = useState(0);
   const [list, setList] = useState<SavedPassword[] | null>(null);
@@ -47,23 +69,35 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
   const [query, setQuery] = useState("");
   const [importStatus, setImportStatus] = useState("");
   const [exportStatus, setExportStatus] = useState("");
+  const [openStatus, setOpenStatus] = useState("");
   const profile = engineProfile(profileId);
   const unlocked = isUnlocked(profile);
   const [autofill = true] = useResource(passwordAutofill, profile);
+  const [loginCount] = useResource(ardiaLoginCount, profile);
 
   const load = () => {
-    void listPasswords(profile).then(setList).catch(() => setList([]));
+    void listPasswords(profile)
+      .then((passwords) => {
+        setList(passwords);
+        store(ardiaLoginCount, [profile], passwords.length);
+      })
+      .catch(() => setList([]));
     void getNeverSavePasswordOrigins(profile).then(setNever).catch(() => {});
   };
   useEffect(() => {
     if (unlocked) load();
   }, [unlocked, profileId]);
+  useEffect(() => {
+    if (mode !== "ardia") void listPasswords(profile).then((passwords) => store(ardiaLoginCount, [profile], passwords.length), () => {});
+  }, [mode, profile]);
 
   const unlock = async () => {
     if (!(await unlockPasswords(profile))) return;
     unlockedUntil.set(profile, Date.now() + UNLOCK_MS);
     setUnlockedAt(Date.now());
   };
+
+  const openPasswords = async () => setOpenStatus((await openPasswordsApp().catch(() => false)) ? "" : OPEN_PASSWORDS_FAILED);
 
   const importCsv = async () => {
     const mod = importModule();
@@ -90,72 +124,149 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
     else setExportStatus("");
   };
 
-  const shown = (list ?? []).filter((p) => matchesQuery(query, p.origin, p.username));
+  const profilePicker =
+    profiles.length > 1 ? (
+      <PopUp
+        value={profileId}
+        options={profiles.map((p) => ({ value: p.id, title: p.name }))}
+        onChange={(id) => {
+          setProfileId(id);
+          setExportStatus("");
+          setImportStatus("");
+        }}
+      />
+    ) : undefined;
+
+  const savedInArdiaShown = mode !== "ardia" && ((loginCount ?? 0) > 0 || profiles.length > 1);
 
   return (
     <View>
-      <SectionHeader
-        title="Passwords"
-        description="Saved on this Mac, separately for each profile, and encrypted with a key in your Keychain."
-        action={
-          profiles.length > 1 ? (
-            <PopUp value={profileId} options={profiles.map((p) => ({ value: p.id, title: p.name }))} onChange={setProfileId} />
-          ) : undefined
-        }
-      />
+      <SectionHeader title="Passwords" description={PASSWORDS_DESCRIPTIONS[mode]} action={mode === "ardia" ? profilePicker : undefined} />
       <Group>
-        <Row anchor="passwords.offerToSave">
-          <Toggle value={autofill} onChange={(v) => void setPasswordAutofill(v, profile).then(() => store(passwordAutofill, [profile], v))} />
+        <Row anchor="passwords.passwordManager" description={appleAvailable ? null : "Apple Passwords needs a newer version of macOS."}>
+          <PopUp
+            value={mode}
+            options={[
+              { value: "apple", title: "Apple Passwords", disabled: !appleAvailable },
+              { value: "ardia", title: "Ardia" },
+              { value: "none", title: "None" },
+            ]}
+            onChange={(passwordManager) => update({ passwordManager })}
+            minWidth={150}
+          />
         </Row>
-        <Row anchor="passwords.importPasswords" description={importStatus || "From a CSV exported by Chrome, Safari, Firefox, 1Password, Bitwarden…"}>
-          <Button title="Import CSV…" onPress={() => void importCsv()} />
-        </Row>
-        <Row anchor="passwords.exportPasswords" description={exportStatus || "To a CSV file. Anyone who can open the file can read your passwords."}>
-          <Button title="Export CSV…" onPress={() => void exportCsv()} />
-        </Row>
-        <Row anchor="passwords.managerApps" description={passwordManagerAppsNote()} />
+        {mode === "apple" && [
+          <Row key="open" anchor="passwords.openPasswords" description={openStatus || undefined}>
+            <Button title="Open Passwords" onPress={() => void openPasswords()} />
+          </Row>,
+          <Row key="fill" anchor="passwords.fillLogin" />,
+          <Row key="codes" anchor="passwords.verificationCodes" />,
+          <Row key="new" anchor="passwords.newLogins" />,
+        ]}
+        {mode === "ardia" && [
+          <Row key="offer" anchor="passwords.offerToSave">
+            <Toggle value={autofill} onChange={(v) => void setPasswordAutofill(v, profile).then(() => store(passwordAutofill, [profile], v))} />
+          </Row>,
+          <Row key="import" anchor="passwords.importPasswords" description={importStatus || "From a CSV exported by Chrome, Safari, Firefox, 1Password, Bitwarden…"}>
+            <Button title="Import CSV…" onPress={() => void importCsv()} />
+          </Row>,
+          <Row key="export" anchor="passwords.exportPasswords" description={exportStatus || "To a CSV file. Anyone who can open the file can read your passwords."}>
+            <Button title="Export CSV…" onPress={() => void exportCsv()} />
+          </Row>,
+        ]}
+        {mode === "none" && <Row anchor="passwords.otherManager" />}
+        {mode !== "apple" && <Row anchor="passwords.managerApps" description={passwordManagerAppsNote()} />}
       </Group>
 
-      {!unlocked ? (
+      {savedInArdiaShown && (
+        <>
+          <SectionHeader title="Saved in Ardia" action={profilePicker} />
+          <Group>
+            {loginCount === undefined ? (
+              <Row title={CHECKING_LOGINS} />
+            ) : loginCount > 0 ? (
+              [
+                <Row key="move" anchor="passwords.moveFromArdia" description={exportStatus || savedInArdiaDescription(loginCount, mode)}>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    <Button title="Export CSV…" onPress={() => void exportCsv()} />
+                    {mode === "apple" && <Button title="Open Passwords" onPress={() => void openPasswords()} />}
+                  </View>
+                </Row>,
+                !unlocked && (
+                  <Row key="unlock" anchor="passwords.showSavedInArdia">
+                    <Button title="Unlock" onPress={() => void unlock()} />
+                  </Row>
+                ),
+              ]
+            ) : (
+              <Row title="No logins saved in Ardia" description={profilePicker ? "Choose another profile to check its logins." : undefined} />
+            )}
+          </Group>
+        </>
+      )}
+
+      {mode === "ardia" && !unlocked && (
         <View style={{ alignItems: "center", gap: 10, marginTop: 40 }}>
           <Symbol name="lock.fill" size={26} color={theme.textTertiary} style={{ width: 36, height: 36 }} />
           <Text style={{ fontSize: 14, fontWeight: "500", color: theme.textPrimary }}>Passwords are locked</Text>
           <Text style={{ fontSize: 12, color: theme.textSecondary }}>Unlock with Touch ID or your login password to see them.</Text>
           <Button title="Unlock" kind="primary" onPress={() => void unlock()} style={{ marginTop: 6 }} />
         </View>
-      ) : (
-        <>
-          <SectionHeader title={list ? plural(list.length, "Saved Password") : "Saved Passwords"} action={<SearchField value={query} onChangeText={setQuery} placeholder="Search" width={200} />} />
-          <Group>
-            {list && shown.length === 0 ? (
-              <Row title={query ? "No passwords match" : "No saved passwords"} />
-            ) : (
-              shown.map((p) => (
-                <Row
-                  key={`${p.origin}|${p.username}`}
-                  icon={<Favicon url={p.origin} />}
-                  title={hostLabel(p.origin)}
-                  description={p.username || "(no username)"}
-                  onPress={() => showSettingsSheet(<PasswordSheet profile={profile} saved={p} onChanged={load} />)}
-                />
-              ))
-            )}
-          </Group>
-          {never.length > 0 && (
-            <>
-              <SectionHeader title="Never saved" description="Sites where you chose “Never on This Site”." />
-              <Group>
-                {never.map((origin) => (
-                  <Row key={origin} icon={<Favicon url={origin} />} title={hostLabel(origin)}>
-                    <Button title="Remove" onPress={() => void setNeverSavePasswords(profile, origin, false).then(load)} />
-                  </Row>
-                ))}
-              </Group>
-            </>
-          )}
-        </>
+      )}
+      {unlocked && (mode === "ardia" || (loginCount ?? 0) > 0) && (
+        <SavedPasswordList profile={profile} list={list} never={never} query={query} onQuery={setQuery} onChanged={load} />
       )}
     </View>
+  );
+}
+
+function SavedPasswordList({
+  profile,
+  list,
+  never,
+  query,
+  onQuery,
+  onChanged,
+}: {
+  profile: string;
+  list: SavedPassword[] | null;
+  never: string[];
+  query: string;
+  onQuery: (query: string) => void;
+  onChanged: () => void;
+}) {
+  const shown = (list ?? []).filter((p) => matchesQuery(query, p.origin, p.username));
+  return (
+    <>
+      <SectionHeader title={list ? plural(list.length, "Saved Password") : "Saved Passwords"} action={<SearchField value={query} onChangeText={onQuery} placeholder="Search" width={200} />} />
+      <Group>
+        {list && shown.length === 0 ? (
+          <Row title={query ? "No passwords match" : "No saved passwords"} />
+        ) : (
+          shown.map((p) => (
+            <Row
+              key={`${p.origin}|${p.username}`}
+              icon={<Favicon url={p.origin} />}
+              title={hostLabel(p.origin)}
+              description={p.username || "(no username)"}
+              onPress={() => showSettingsSheet(<PasswordSheet profile={profile} saved={p} onChanged={onChanged} />)}
+            />
+          ))
+        )}
+      </Group>
+      {never.length > 0 && (
+        <>
+          <SectionHeader title="Never saved" description="Sites where you chose “Never on This Site”." />
+          <Group>
+            {never.map((origin) => (
+              <Row key={origin} icon={<Favicon url={origin} />} title={hostLabel(origin)}>
+                <Button title="Remove" onPress={() => void setNeverSavePasswords(profile, origin, false).then(onChanged)} />
+              </Row>
+            ))}
+          </Group>
+        </>
+      )}
+    </>
   );
 }
 
