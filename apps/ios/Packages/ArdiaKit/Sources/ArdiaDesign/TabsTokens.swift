@@ -18,6 +18,7 @@ public enum TabsPalette {
   public static let archiveTile = Color(hex: 0xB059EE)
   public static let receivedBadge = Palette.indigo
   public static let poof = Color(hex: 0xF4F1FF)
+  public static let browsePage = Color.adaptive(light: Color(p3Hex: 0xF1F0F5), dark: Color(p3Hex: 0x1F2128))
   public static let placeholderTints: [UInt32] = [0xE8E6FB, 0xFBE7EE, 0xE3F0FB, 0xE6F5EA, 0xFDF0DD, 0xEFE6F8]
   public static let placeholderTintsDark: [UInt32] = [0x262447, 0x3F2532, 0x1E3046, 0x1F3527, 0x3D3020, 0x30243F]
 }

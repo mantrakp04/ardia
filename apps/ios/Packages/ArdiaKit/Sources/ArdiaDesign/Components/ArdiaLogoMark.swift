@@ -101,7 +101,7 @@ public struct FidgetLogo: View {
         .contentShape(.circle)
         .gesture(spin(around: center))
     }
-    .sensoryFeedback(.impact(weight: .light), trigger: spins)
+    .sensoryFeedback(.impact(weight: .light, intensity: 0.5), trigger: spins)
     .accessibilityElement()
     .accessibilityLabel("Ardia")
     .accessibilityAddTraits(.isImage)
@@ -133,12 +133,12 @@ public struct FidgetLogo: View {
         let clamped = max(-2400, min(2400, velocity))
         velocity = 0
         guard abs(clamped) > 60 else { return }
-        spins += 1
         if reduceMotion {
           withAnimation(.easeOut(duration: 0.3)) { angle = .zero }
           return
         }
         let travel = clamped * 0.42
+        if abs(travel) >= 360 { spins += 1 }
         withAnimation(.timingCurve(0.12, 0.7, 0.25, 1, duration: Motion.logoSpinDecay)) {
           angle += .degrees(travel)
         }

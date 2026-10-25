@@ -40,6 +40,7 @@ targets:
         product: ArdiaDesign
       - target: ArdiaWidgets
       - target: ArdiaShare
+      - target: ArdiaOpen
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ardia.ios
@@ -63,6 +64,9 @@ targets:
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
         INFOPLIST_KEY_UIFileSharingEnabled: YES
         INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: YES
+      configs:
+        Release:
+          CODE_SIGN_ENTITLEMENTS: Config/Ardia-Release.entitlements
   ArdiaWidgets:
     type: app-extension
     platform: iOS
@@ -95,6 +99,8 @@ targets:
     dependencies:
       - package: ArdiaKit
         product: ArdiaBrowser
+      - package: ArdiaKit
+        product: ArdiaDesign
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ardia.ios.share
@@ -104,6 +110,25 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Config/Share.entitlements
         TARGETED_DEVICE_FAMILY: "1"
         INFOPLIST_KEY_CFBundleDisplayName: Ardia
+        SKIP_INSTALL: YES
+  ArdiaOpen:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Action
+        type: syncedFolder
+    dependencies:
+      - package: ArdiaKit
+        product: ArdiaDesign
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ardia.ios.open
+        PRODUCT_NAME: ArdiaOpen
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: Config/Open-Info.plist
+        CODE_SIGN_ENTITLEMENTS: Config/Open.entitlements
+        TARGETED_DEVICE_FAMILY: "1"
+        INFOPLIST_KEY_CFBundleDisplayName: Open in Ardia
         SKIP_INSTALL: YES
 schemes:
   Ardia:

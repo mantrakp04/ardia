@@ -13,7 +13,7 @@ public struct SettingsIconTile: View {
     self.baseSide = baseSide
   }
 
-  private var side: CGFloat { baseSide * scale }
+  private var side: CGFloat { baseSide * min(scale, 1.6) }
 
   public var body: some View {
     Image(systemName: systemImage)
