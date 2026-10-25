@@ -1268,32 +1268,43 @@ void InstallZoomMonitor() {
                                                   }];
 }
 
-bool Attach(ArdiaCoreWebView *view, NSString *host, NSString *frameId) {
+static __weak ArdiaCoreWebView *gPictureInPictureOwner;
+
+NSWindow *PictureInPictureWindowFor(ArdiaCoreWebView *view) {
+  NSWindow *claimedByOldOwner = nil;
   for (NSWindow *window in NSApp.windows) {
     ACPiPController *controller = [ACPiPController forWindow:window];
     if (!IsChromeVideoPictureInPicture(window) && !(controller && window.visible)) continue;
     if (!window.hasShadow) continue;
-    BOOL fresh = !controller;
-    if (fresh) controller = [[ACPiPController alloc] initWithWindow:window];
-    controller.view = view;
-    controller.host = host;
-    [controller setVideoFrame:frameId];
-    [controller roundCorners];
-    PreventActivation(window);
-    if (ardiacore_host::Background()) {
-      window.alphaValue = 0;
-      window.ignoresMouseEvents = YES;
-    }
-    InstallMenuMonitor();
-    InstallDragMonitor();
-    InstallZoomMonitor();
-    NSString *selfTest = NSProcessInfo.processInfo.environment[@"ARDIA_PIP_SELFTEST"];
-    if (fresh && [@[ @"close", @"backToTab" ] containsObject:selfTest]) [controller runButtonSelfTest:selfTest];
-    else if (fresh && [selfTest isEqual:@"hover"]) [controller runHoverSelfTest];
-    else if (fresh && selfTest) [controller runSelfTest];
-    return true;
+    if (!controller.view || controller.view == view) return window;
+    if (!claimedByOldOwner) claimedByOldOwner = window;
   }
-  return false;
+  return claimedByOldOwner;
+}
+
+bool Attach(ArdiaCoreWebView *view, NSString *host, NSString *frameId) {
+  NSWindow *window = PictureInPictureWindowFor(view);
+  if (!window) return false;
+  ACPiPController *controller = [ACPiPController forWindow:window];
+  BOOL fresh = !controller;
+  if (fresh) controller = [[ACPiPController alloc] initWithWindow:window];
+  controller.view = view;
+  controller.host = host;
+  [controller setVideoFrame:frameId];
+  [controller roundCorners];
+  PreventActivation(window);
+  if (ardiacore_host::Background()) {
+    window.alphaValue = 0;
+    window.ignoresMouseEvents = YES;
+  }
+  InstallMenuMonitor();
+  InstallDragMonitor();
+  InstallZoomMonitor();
+  NSString *selfTest = NSProcessInfo.processInfo.environment[@"ARDIA_PIP_SELFTEST"];
+  if (fresh && [@[ @"close", @"backToTab" ] containsObject:selfTest]) [controller runButtonSelfTest:selfTest];
+  else if (fresh && [selfTest isEqual:@"hover"]) [controller runHoverSelfTest];
+  else if (fresh && selfTest) [controller runSelfTest];
+  return true;
 }
 
 }
@@ -1307,13 +1318,21 @@ void TabRequestedActivation(ArdiaCoreWebView *view) {
 }
 
 void VideoChanged(ArdiaCoreWebView *view, NSString *host, NSString *frameId, bool active) {
-  if (!active) return;
+  static NSMapTable<ArdiaCoreWebView *, NSNumber *> *searches = [NSMapTable weakToStrongObjectsMapTable];
+  const NSInteger search = [searches objectForKey:view].integerValue + 1;
+  [searches setObject:@(search) forKey:view];
+  if (!active) {
+    if (gPictureInPictureOwner == view) gPictureInPictureOwner = nil;
+    return;
+  }
+  gPictureInPictureOwner = view;
   __block int tries = 0;
   __block void (^look)(void);
   __weak ArdiaCoreWebView *weakView = view;
   look = ^{
     ArdiaCoreWebView *strongView = weakView;
-    if (!strongView || Attach(strongView, host, frameId) || ++tries >= 20) {
+    if (!strongView || strongView != gPictureInPictureOwner || [searches objectForKey:strongView].integerValue != search ||
+        Attach(strongView, host, frameId) || ++tries >= 20) {
       look = nil;
       return;
     }

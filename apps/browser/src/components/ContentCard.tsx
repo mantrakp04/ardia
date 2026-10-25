@@ -732,7 +732,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
         else if (kind === "scroll") noteScroll(tabId, data);
         else if (kind === "drm") offerWebKit(tabId, data);
       }}
-      onNotificationClose={closeWebNotification}
+      onNotificationClose={(id) => closeWebNotification(tabId, id)}
       onDiscarded={(url) => {
         pending.current = url;
         fromNewTab.current = false;

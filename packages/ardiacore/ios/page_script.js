@@ -154,8 +154,11 @@
       reportNowPlaying();
     });
   };
-  document.addEventListener("enterpictureinpicture", (e) => send("pip", { active: true, kind: "video" }), true);
-  document.addEventListener("leavepictureinpicture", (e) => send("pip", { active: false, kind: "video" }), true);
+  const reportPictureInPicture = (active) => (e) => {
+    if (e.isTrusted && e.target instanceof HTMLVideoElement) send("pip", { active, kind: "video" });
+  };
+  document.addEventListener("enterpictureinpicture", reportPictureInPicture(true), true);
+  document.addEventListener("leavepictureinpicture", reportPictureInPicture(false), true);
   const mediaEvents = ["play", "playing", "pause", "ended", "volumechange", "emptied", "seeked", "ratechange", "loadedmetadata"];
   for (const e of mediaEvents) document.addEventListener(e, onMediaEvent, true);
   const play = HTMLMediaElement.prototype.play;
