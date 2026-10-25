@@ -21,7 +21,7 @@ let package = Package(
     .target(name: "ArdiaIntelligence", dependencies: ["ArdiaBrowser"]),
     .target(name: "ArdiaDesign", dependencies: ["ArdiaBrowser"]),
     .testTarget(name: "ArdiaSharedTests", dependencies: ["ArdiaShared"]),
-    .testTarget(name: "ArdiaSyncTests", dependencies: ["ArdiaSync"]),
+    .testTarget(name: "ArdiaSyncTests", dependencies: ["ArdiaSync", .product(name: "ArdiaSyncCore", package: "ArdiaSyncCore")]),
     .testTarget(name: "ArdiaBrowserTests", dependencies: ["ArdiaBrowser"]),
   ]
 )
