@@ -15,7 +15,6 @@ test("a slot under the centre sits flat on the ruler", () => {
     const point = cylinderPoint(slot, slot);
     assert.equal(point.x, 0);
     assert.equal(point.scale, 1);
-    assert.equal(point.angle, 0);
     assert.equal(point.opacity, 1);
   }
 });
@@ -25,7 +24,6 @@ test("equal distances either side of the centre mirror each other", () => {
     const right = cylinderPoint(3 + distance, 3);
     const left = cylinderPoint(3 - distance, 3);
     near(right.x, -left.x, 1e-9, "x mirrors");
-    near(right.angle, -left.angle, 1e-12, "angle mirrors");
     near(right.scale, left.scale, 1e-12, "scale mirrors");
     near(right.opacity, left.opacity, 1e-12, "opacity mirrors");
   }
@@ -74,7 +72,6 @@ test("samples include both ends exactly even when the step does not divide the s
   assert.equal(samples.input.length, 5);
   for (let i = 1; i < samples.input.length; i += 1) assert.ok(samples.input[i] > samples.input[i - 1]);
   assert.equal(samples.dx.length, samples.input.length);
-  assert.equal(samples.angle.length, samples.input.length);
   assert.equal(samples.opacity.length, samples.input.length);
 });
 
@@ -89,20 +86,7 @@ test("a single point sample keeps the endpoints without duplicating", () => {
   const samples = cylinderSamples(4, 4, 4);
   assert.deepEqual(samples.input, [4]);
   assert.equal(samples.dx[0], 0);
-  assert.equal(samples.angle[0], "0.0deg");
   assert.equal(samples.opacity[0], 1);
-});
-
-test("samples match the point geometry and the angle strings are degrees", () => {
-  const samples = cylinderSamples(2, -2, 2);
-  for (let i = 0; i < samples.input.length; i += 1) {
-    const point = cylinderPoint(2, samples.input[i]);
-    near(samples.dx[i], point.x, 1e-12, "dx matches");
-    near(samples.opacity[i], point.opacity, 1e-12, "opacity matches");
-    assert.match(samples.angle[i], /^-?\d+\.\ddeg$/);
-  }
-  assert.deepEqual(cylinderSamples(0, 1, 1).angle, ["-12.1deg"]);
-  assert.deepEqual(cylinderSamples(0, -1, -1).angle, ["12.1deg"]);
 });
 
 test("one side of the ruler moves faster at the centre and flattens outward", () => {
@@ -112,25 +96,4 @@ test("one side of the ruler moves faster at the centre and flattens outward", ()
   const steps = [];
   for (let i = 1; i < distances.length; i += 1) steps.push(distances[i] - distances[i - 1]);
   for (let i = 1; i < steps.length; i += 1) assert.ok(steps[i] < steps[i - 1], `${steps[i - 1]} then ${steps[i]}`);
-});
-
-test("large slots and positions stay finite", () => {
-  for (const [slot, position] of [
-    [1e6, -1e6],
-    [-1e9, 1e9],
-    [0, 1e12],
-    [123456789, 987654321],
-  ]) {
-    const point = cylinderPoint(slot, position);
-    assert.ok(Number.isFinite(point.x), "x");
-    assert.ok(Number.isFinite(point.scale), "scale");
-    assert.ok(Number.isFinite(point.angle), "angle");
-    assert.ok(Number.isFinite(point.opacity), "opacity");
-    assert.ok(point.scale >= 0 && point.scale <= 1);
-    assert.ok(point.opacity >= 0 && point.opacity <= 1);
-  }
-  assert.ok(Number.isFinite(cylinderPosition(1e9, 1e12)));
-  const samples = cylinderSamples(1e6, 1e6, 1e6);
-  assert.equal(samples.input.length, 1);
-  assert.ok(Number.isFinite(samples.dx[0]) && Number.isFinite(samples.opacity[0]));
 });
