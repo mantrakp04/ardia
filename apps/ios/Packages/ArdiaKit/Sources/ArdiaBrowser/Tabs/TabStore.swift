@@ -367,7 +367,18 @@ public final class TabStore: LocalBrowsingSource {
 
   public func syncedVisits(since date: Date) -> [LocalVisitRecord] {
     let descriptor = FetchDescriptor<Visit>(predicate: #Predicate { $0.visitedAt >= date }, sortBy: [SortDescriptor(\.visitedAt)])
-    guard let visits = try? context.fetch(descriptor) else { return [] }
+    return Self.group((try? context.fetch(descriptor)) ?? [])
+  }
+
+  public func syncedVisits(urls: Set<String>) -> [LocalVisitRecord] {
+    guard !urls.isEmpty else { return [] }
+    let list = Array(urls)
+    let cutoff = now().addingTimeInterval(-Self.historyRetention)
+    let descriptor = FetchDescriptor<Visit>(predicate: #Predicate { list.contains($0.url) && $0.visitedAt >= cutoff }, sortBy: [SortDescriptor(\.visitedAt)])
+    return Self.group((try? context.fetch(descriptor)) ?? [])
+  }
+
+  static func group(_ visits: [Visit]) -> [LocalVisitRecord] {
     struct Key: Hashable {
       var url: String
       var profile: String?

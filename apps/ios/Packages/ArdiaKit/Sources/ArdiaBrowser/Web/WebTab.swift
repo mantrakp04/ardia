@@ -165,9 +165,7 @@ public final class WebTab: DiscardablePage, Identifiable {
 
   public func readableContent() async throws -> ReadableContent {
     guard let webView else { throw ReadableContentError.pageNotLoaded }
-    let raw = try await webView.callAsyncJavaScript(ReadableContent.script, arguments: [:], in: nil, contentWorld: ReadableContent.world)
-    guard let json = raw as? String, let data = json.data(using: .utf8) else { throw ReadableContentError.notReadable }
-    return try JSONDecoder().decode(ReadableContent.self, from: data)
+    return try await ReadableContent.extract(from: webView)
   }
 
   public func captureSnapshot() async {

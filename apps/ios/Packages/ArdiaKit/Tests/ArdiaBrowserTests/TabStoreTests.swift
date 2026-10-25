@@ -241,4 +241,24 @@ struct StoreFixture {
     fixture.store.removeVisits(urls: [url], profileSyncId: nil)
     #expect(profiles() == ["home"])
   }
+
+  @Test func visitsForChosenURLsMatchTheFullScanAndSkipPrivateTabs() throws {
+    let fixture = try StoreFixture()
+    defer { fixture.cleanUp() }
+    let secret = fixture.store.open(.url(URL(string: "https://secret.example/")!), isPrivate: true)
+    fixture.store.recordVisit(url: "https://secret.example/", title: "Secret", transition: .typed, fromTab: secret.id)
+    for (index, url) in ["https://a.example/", "https://b.example/", "https://a.example/", "https://c.example/"].enumerated() {
+      fixture.store.profileSyncId = index == 3 ? "work" : nil
+      fixture.clock.advance(60)
+      fixture.store.recordVisit(url: url, title: "T\(index)", transition: .link)
+    }
+    let wanted: Set<String> = ["https://a.example/", "https://c.example/", "https://secret.example/", "https://missing.example/"]
+    let direct = fixture.store.syncedVisits(urls: wanted)
+    let scanned = fixture.store.syncedVisits(since: .distantPast).filter { wanted.contains($0.url) }
+    #expect(direct == scanned)
+    #expect(direct.map(\.url) == ["https://a.example/", "https://c.example/"])
+    #expect(direct.first?.visitedAt.count == 2)
+    #expect(direct.last?.profileSyncId == "work")
+    #expect(fixture.store.syncedVisits(urls: []).isEmpty)
+  }
 }
