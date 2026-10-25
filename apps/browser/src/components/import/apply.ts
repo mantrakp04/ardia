@@ -151,6 +151,15 @@ export function openInWebStore(profileId: string, urls: string[]) {
   urls.forEach((url, i) => useBrowser.getState().newTab(windowId, { url, profileId, background: i > 0 }));
 }
 
+export function openTargetsInWebStore(targets: readonly WebStoreTarget[], urlFor: (id: string) => string | undefined) {
+  const byProfile = new Map<string, string[]>();
+  for (const t of targets) {
+    const url = urlFor(t.id);
+    if (url) byProfile.set(t.profileId, [...(byProfile.get(t.profileId) ?? []), url]);
+  }
+  for (const [profileId, urls] of byProfile) openInWebStore(profileId, urls);
+}
+
 export function importTabs(
   profileId: string,
   tabs: (Pick<ImportedTab, "url" | "title" | "pinned" | "customTitle"> & { row?: boolean })[],

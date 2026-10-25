@@ -130,6 +130,7 @@ test("Arc's own shortcuts come along unless Ardia already has one for that comma
 test("Install All installs each extension into the space it came from and carries on past a failure", async () => {
   const stub = await import("@ardia/ardiacore");
   const { installAllFromWebStore } = await import("../components/import/apply.ts");
+  const { engineProfile } = await import("./model.ts");
   stub.webStoreInstalls.length = 0;
   stub.webStoreFailures.clear();
   const a = "a".repeat(32);
@@ -145,12 +146,41 @@ test("Install All installs each extension into the space it came from and carrie
     ],
     (t, outcome) => seen.push([t.id, t.profileId, outcome]),
   );
-  assert.deepEqual(stub.webStoreInstalls.map((x) => x.id), [a, b, b]);
-  assert.notEqual(stub.webStoreInstalls[1].profile, stub.webStoreInstalls[2].profile, "each install goes to its own space's engine profile");
+  assert.deepEqual(
+    stub.webStoreInstalls.map((x) => [x.id, x.profile]),
+    [
+      [a, engineProfile(P)],
+      [b, engineProfile(P)],
+      [b, engineProfile(work)],
+    ],
+    "each install goes to its own space's engine profile",
+  );
+  assert.notEqual(engineProfile(P), engineProfile(work));
   assert.deepEqual(seen, [
     [a, P, "failed"],
     [b, P, "installed"],
     [b, work, "installed"],
   ]);
   stub.webStoreFailures.clear();
+});
+
+test("the Web Store fallback opens each extension's page in every space it came from", async () => {
+  const { openTargetsInWebStore } = await import("../components/import/apply.ts");
+  S().hydrate({});
+  S().createWindow({ url: "https://home.example/" });
+  const home = Object.values(S().windows)[0].profileId;
+  const work = S().createProfile({ name: "Work" });
+  const store = (id) => `https://chromewebstore.google.com/detail/${id}`;
+  const before = new Set(Object.keys(S().tabs));
+  openTargetsInWebStore(
+    [
+      { id: "a", profileId: home },
+      { id: "b", profileId: home },
+      { id: "b", profileId: work },
+      { id: "gone", profileId: work },
+    ],
+    (id) => (id === "gone" ? undefined : store(id)),
+  );
+  const opened = Object.values(S().tabs).filter((t) => !before.has(t.id)).map((t) => [t.profileId, t.url]).sort();
+  assert.deepEqual(opened, [[home, store("a")], [home, store("b")], [work, store("b")]].sort());
 });
