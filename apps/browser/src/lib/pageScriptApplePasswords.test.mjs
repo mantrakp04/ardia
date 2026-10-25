@@ -376,25 +376,29 @@ test("the whole page script still compiles", () => {
   assert.doesNotThrow(() => new Function("post", `return ${script.trim().replace(/;\s*$/, "")}`));
 });
 
-test("clicking into an empty login field opens Passwords every time, but not for typed values, repeats or synthetic clicks", () => {
+test("clicking into a login field only shows the key; Passwords opens from the key itself", () => {
   const page = frame();
   page.handlers.applePasswords(true);
   const field = input({ type: "email" });
-  const clickField = (trusted, timeStamp, target = field) => page.fire("click", { isTrusted: trusted, timeStamp, button: 0, target });
   page.focus(field);
-  clickField(false, 1000);
+  page.fire("click", { isTrusted: true, timeStamp: 1000, button: 0, target: field });
+  assert.equal(page.keyShown(), true);
   assert.deepEqual(page.sent, []);
-  clickField(true, 1000);
-  clickField(true, 1300);
-  clickField(true, 2500);
-  assert.deepEqual(page.sent, [
-    { kind: "applePasswords", data: { field: "username", opened: "click" } },
-    { kind: "applePasswords", data: { field: "username", opened: "click" } },
-  ]);
-  page.type(field, "me@example.com");
-  clickField(true, 4000);
-  assert.equal(page.sent.length, 2, "a value the person typed keeps the field theirs");
-  page.focus(input({ type: "text", name: "search" }));
-  clickField(true, 6000, page.document.activeElement);
-  assert.equal(page.sent.length, 2, "other fields never open it");
+});
+
+test("where Apple's iCloud Passwords extension fills logins, the key steps aside but setup QR codes are still offered", async () => {
+  const page = frame();
+  const totp = "otpauth://totp/Site:me?secret=JBSWY3DPEHPK3PXP";
+  page.document.images = [image({ qr: totp })];
+  page.handlers.applePasswords(true);
+  const field = input({ type: "password" });
+  page.focus(field);
+  assert.equal(page.keyShown(), true);
+  page.handlers.applePasswords("codes");
+  assert.equal(page.keyShown(), false);
+  page.click(true, 5000);
+  await page.settle();
+  assert.deepEqual(page.sent, [{ kind: "verificationCodeSetup", data: { url: totp } }]);
+  page.handlers.applePasswords(true);
+  assert.equal(page.keyShown(), true, "turning the extension off brings the key back");
 });

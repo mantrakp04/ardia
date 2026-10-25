@@ -4,6 +4,7 @@
 
 namespace ac::nativemessaging {
 
+bool ApplePasswordsHelperAllowed();
 void SyncHosts(NSString *userDataDir);
 
 }

@@ -252,9 +252,11 @@ export const listExtensions = (profile) => userScripts().engine.list(profile);
 export const installExtension = (pkg, profile) => userScripts().engine.install(pkg.path, profile);
 export const reloadExtension = (id, profile) => userScripts().engine.reload(id, profile);
 export const uninstallExtension = (id, profile) => userScripts().engine.uninstall(id, profile);
-export const passwordManagerEngine = { available: true, calls: [] };
+export const passwordManagerEngine = { available: true, extensionSupported: false, calls: [] };
 export const applePasswordsAvailable = () => passwordManagerEngine.available;
-export const setApplePasswords = (on) => (passwordManagerEngine.calls.push(["applePasswords", on]), Promise.resolve());
+export const iCloudPasswordsExtensionSupported = () => passwordManagerEngine.extensionSupported;
+export const setApplePasswords = (on, extensionProfiles = []) =>
+  (passwordManagerEngine.calls.push(extensionProfiles.length ? ["applePasswords", on, extensionProfiles] : ["applePasswords", on]), Promise.resolve());
 export const setPasswordAutofill = (on, profile = "") => (passwordManagerEngine.calls.push(["offerToSave", profile, on]), Promise.resolve());
 export const getPasswordAutofill = () => Promise.resolve(true);
 export const listPasswords = (profile = "") => Promise.resolve(passwordManagerEngine.logins?.[profile] ?? []);

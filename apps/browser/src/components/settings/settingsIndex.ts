@@ -292,9 +292,13 @@ const ROWS: Record<SettingsPane, Section[]> = {
       section: "Apple Passwords",
       rows: {
         openPasswords: { title: "Passwords app", description: "Your logins, passkeys and verification codes live there.", keywords: ["apple passwords", "icloud keychain", "open"] },
+        iCloudExtension: {
+          title: "iCloud Passwords",
+          keywords: ["apple passwords", "icloud keychain", "save password", "strong password", "autofill"],
+        },
         fillLogin: {
           title: "Fill a login",
-          description: "Click a login field and pick a login, or choose Edit › AutoFill › Passwords… Press Esc to type it yourself.",
+          description: "Click the key in a login field, or choose Edit › AutoFill › Passwords…, then pick the login.",
           keywords: ["apple passwords", "autofill", "touch id", "key"],
         },
         verificationCodes: {
@@ -304,7 +308,7 @@ const ROWS: Record<SettingsPane, Section[]> = {
         },
         newLogins: {
           title: "New logins",
-          description: "Add new logins in the Passwords app itself. Apple lets only Safari save there.",
+          description: "Add new logins in the Passwords app itself.",
           keywords: ["save password", "apple passwords"],
         },
       },

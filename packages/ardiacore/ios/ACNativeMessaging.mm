@@ -1,14 +1,44 @@
 #import "ACNativeMessaging.h"
 
+#import <Security/Security.h>
+
 namespace ac::nativemessaging {
 
 namespace {
 
 NSString *const kChromeSystemDir = @"/Library/Google/Chrome/NativeMessagingHosts";
 NSString *const kManagedList = @".ardia-managed.json";
+NSString *const kApplePasswordsHelper = @"/System/Cryptexes/App/System/Library/CoreServices/PasswordManagerBrowserExtensionHelper.app/"
+                                        @"Contents/MacOS/PasswordManagerBrowserExtensionHelper";
+
+bool HasEntitlement(CFStringRef name) {
+  SecTaskRef task = SecTaskCreateFromSelf(kCFAllocatorDefault);
+  if (!task) return false;
+  CFTypeRef value = SecTaskCopyValueForEntitlement(task, name, NULL);
+  CFRelease(task);
+  bool granted = value && CFGetTypeID(value) == CFBooleanGetTypeID() && CFBooleanGetValue((CFBooleanRef)value);
+  if (value) CFRelease(value);
+  return granted;
+}
+
+NSString *const kApplePasswordsHost = @"com.apple.passwordmanager";
+
+NSDictionary *ApplePasswordsHost() {
+  return @{
+    @"name" : kApplePasswordsHost,
+    @"description" : @"PasswordManagerBrowserExtensionHelper",
+    @"path" : kApplePasswordsHelper,
+    @"type" : @"stdio",
+    @"allowed_origins" : @[
+      @"chrome-extension://pejdijmoenmkgeppbflobdenhhabjlaj/",
+      @"chrome-extension://mfbcdcnpokpoajjciilocoachedjkima/",
+    ],
+  };
+}
 
 NSArray<NSDictionary *> *KnownHosts() {
-  return @[
+  NSArray<NSDictionary *> *apple = ApplePasswordsHelperAllowed() ? @[ ApplePasswordsHost() ] : @[];
+  return [apple arrayByAddingObjectsFromArray:@[
     @{
       @"name" : @"com.1password.1password",
       @"description" : @"1Password BrowserSupport",
@@ -56,7 +86,7 @@ NSArray<NSDictionary *> *KnownHosts() {
         @"chrome-extension://gcllgfdnfnllodcaambdaknbipemelie/",
       ],
     },
-  ];
+  ]];
 }
 
 NSString *ManifestPath(NSString *dir, NSString *name) {
@@ -88,10 +118,17 @@ NSDictionary<NSString *, NSData *> *InstalledHosts() {
 
 }
 
+bool ApplePasswordsHelperAllowed() {
+  static const bool allowed = HasEntitlement(CFSTR("com.apple.developer.web-browser.public-key-credential")) &&
+                              [NSFileManager.defaultManager isExecutableFileAtPath:kApplePasswordsHelper];
+  return allowed;
+}
+
 void SyncHosts(NSString *userDataDir) {
   NSFileManager *fm = NSFileManager.defaultManager;
   NSString *dir = [userDataDir stringByAppendingPathComponent:@"NativeMessagingHosts"];
   [fm createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:nil];
+  if (!ApplePasswordsHelperAllowed()) [fm removeItemAtPath:ManifestPath(dir, kApplePasswordsHost) error:nil];
   NSString *listPath = [dir stringByAppendingPathComponent:kManagedList];
   NSData *listData = [NSData dataWithContentsOfFile:listPath];
   NSArray *previous = listData ? [NSJSONSerialization JSONObjectWithData:listData options:0 error:nil] : nil;

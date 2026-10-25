@@ -1,7 +1,16 @@
-import { applePasswordsAvailable, getPasswordAutofill, listPasswords, setApplePasswords, setPasswordAutofill } from "@ardia/ardiacore";
+import {
+  applePasswordsAvailable,
+  getPasswordAutofill,
+  iCloudPasswordsExtensionSupported,
+  listPasswords,
+  setApplePasswords,
+  setPasswordAutofill,
+  type InstalledExtension,
+} from "@ardia/ardiacore";
 import { useBrowser, type BrowserState } from "../../store/browser";
 import { engineProfile, incognitoOriginal, isIncognitoProfile } from "../../store/model";
 import { DEFAULT_SETTINGS, type PasswordManager, type Settings } from "../../store/settings";
+import { useExtensions } from "../extensions/store";
 import { usePages } from "../layout/pageState";
 import { resource, store as storeResource } from "../settings/resources";
 
@@ -14,6 +23,21 @@ function chosenPasswordManager(settings: Pick<Settings, "passwordManager">): Pas
 export function effectivePasswordManager(settings: Pick<Settings, "passwordManager">): PasswordManager {
   const chosen = chosenPasswordManager(settings);
   return chosen === "apple" && !applePasswordsAvailable() ? "ardia" : chosen;
+}
+
+export const ICLOUD_PASSWORDS_EXTENSION_ID = "pejdijmoenmkgeppbflobdenhhabjlaj";
+const ICLOUD_PASSWORDS_EXTENSION_IDS = [ICLOUD_PASSWORDS_EXTENSION_ID, "mfbcdcnpokpoajjciilocoachedjkima"];
+
+export const iCloudPasswordsExtensionOf = (list: readonly InstalledExtension[] | undefined) =>
+  list?.find((x) => ICLOUD_PASSWORDS_EXTENSION_IDS.includes(x.id));
+
+export const iCloudPasswordsExtensionOn = (list: readonly InstalledExtension[] | undefined) => !!iCloudPasswordsExtensionOf(list)?.enabled;
+
+function extensionProfiles(lists: Record<string, InstalledExtension[]>): string[] {
+  if (!iCloudPasswordsExtensionSupported()) return [];
+  return Object.keys(lists)
+    .filter((profile) => iCloudPasswordsExtensionOn(lists[profile]))
+    .sort();
 }
 
 export const passwordAutofill = resource("passwordAutofill", (profile: string) => getPasswordAutofill(profile).catch(() => true));
@@ -51,6 +75,7 @@ export function startPasswordManager() {
   if (started) return;
   started = true;
   let mode: PasswordManager | null = null;
+  let handledByExtension: string[] = [];
   let seen = new Set<string>();
   const owedOn = new Set<string>();
   const ready = new Set<string>();
@@ -88,7 +113,7 @@ export function startPasswordManager() {
     if (next === mode) return;
     const switching = mode !== null;
     mode = next;
-    void setApplePasswords(next === "apple");
+    void setApplePasswords(next === "apple", handledByExtension);
     owedOn.clear();
     ready.clear();
     if (next === "ardia" && !switching) return;
@@ -120,9 +145,18 @@ export function startPasswordManager() {
     }
   };
 
+  const syncExtensions = () => {
+    const next = extensionProfiles(useExtensions.getState().lists);
+    if (next.join() === handledByExtension.join()) return;
+    handledByExtension = next;
+    if (mode !== null) void setApplePasswords(mode === "apple", handledByExtension);
+  };
+
+  handledByExtension = extensionProfiles(useExtensions.getState().lists);
   syncMode();
   syncWindows();
   syncReady();
+  useExtensions.subscribe((s, prev) => s.lists !== prev.lists && syncExtensions());
   usePages.subscribe((s, prev) => s.browsers !== prev.browsers && syncReady());
   useBrowser.subscribe((s, prev) => {
     if (s.settings !== prev.settings) syncMode();

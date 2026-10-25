@@ -61,7 +61,10 @@ public class CefModule: Module {
     AsyncFunction("setSplitLinkModifier") { (modifier: String) in ArdiaCoreWebView.setSplitLinkModifier(modifier) }.runOnQueue(.main)
     AsyncFunction("setSelectionPopover") { (enabled: Bool) in ArdiaCoreWebView.setSelectionPopoverEnabled(enabled) }.runOnQueue(.main)
     Function("applePasswordsAvailable") { () -> Bool in ArdiaCoreWebView.applePasswordsAvailable }
-    AsyncFunction("setApplePasswords") { (enabled: Bool) in ArdiaCoreWebView.setApplePasswordsEnabled(enabled) }.runOnQueue(.main)
+    Function("iCloudPasswordsExtensionSupported") { () -> Bool in ArdiaCoreWebView.iCloudPasswordsExtensionSupported }
+    AsyncFunction("setApplePasswords") { (enabled: Bool, extensionProfiles: [String]?) in
+      ArdiaCoreWebView.setApplePasswordsEnabled(enabled, extensionProfiles: extensionProfiles ?? [])
+    }.runOnQueue(.main)
     AsyncFunction("openPasswordsApp") { (promise: Promise) in ApplePasswordsApp.open { promise.resolve($0) } }.runOnQueue(.main)
     AsyncFunction("setUpVerificationCode") { (url: String, promise: Promise) in
       ApplePasswordsApp.setUpVerificationCode(url) { promise.resolve($0) }

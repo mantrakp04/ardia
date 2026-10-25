@@ -50,7 +50,9 @@ NS_ASSUME_NONNULL_BEGIN
 + (void)setPeekModifier:(NSString *)modifier;
 + (void)setSplitLinkModifier:(NSString *)modifier;
 + (void)setSelectionPopoverEnabled:(BOOL)enabled NS_SWIFT_NAME(setSelectionPopoverEnabled(_:));
-+ (void)setApplePasswordsEnabled:(BOOL)enabled NS_SWIFT_NAME(setApplePasswordsEnabled(_:));
++ (void)setApplePasswordsEnabled:(BOOL)enabled extensionProfiles:(NSArray<NSString *> *)profiles
+    NS_SWIFT_NAME(setApplePasswordsEnabled(_:extensionProfiles:));
+@property(class, nonatomic, readonly) BOOL iCloudPasswordsExtensionSupported;
 @property(class, nonatomic, readonly) BOOL applePasswordsAvailable;
 + (BOOL)devPostPeekMouseUp:(NSString *)keys over:(NSString *)transferKey;
 + (void)setAutoPictureInPictureEnabled:(BOOL)enabled NS_SWIFT_NAME(setAutoPictureInPictureEnabled(_:));

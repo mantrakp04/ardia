@@ -158,7 +158,7 @@ stays up. That's GPL-3.0 §6(d) for the GPL parts (uBlock Origin today), and it'
      designated requirement (our team), the keychain groups, Sparkle's feed and key and the usage strings in
      `Info.plist`; that every piece of code is Developer ID with a timestamp and no `get-task-allow`; and that the app
      isn't signed with `com.apple.developer.web-browser.public-key-credential` (Apple hasn't granted it yet;
-     `Ardia-ICloudPasskeys.entitlements` is the future entitlements file),
+     `Ardia-ICloudPasskeys.entitlements` is the future entitlements file; the grant also unlocks Apple's iCloud Passwords extension),
    - launches the app once in the background (throwaway data dir), waits for uBlock's rulesets to be indexed,
      quits it and checks the signature again: the app must never write into its own bundle,
    - notarizes and staples the app and the DMG,

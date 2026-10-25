@@ -51,7 +51,8 @@ export const Cef = requireNativeModule<{
   setSplitLinkModifier?(modifier: "alt" | "altShift"): Promise<void>;
   setSelectionPopover?(enabled: boolean): Promise<void>;
   applePasswordsAvailable?(): boolean;
-  setApplePasswords?(enabled: boolean): Promise<void>;
+  iCloudPasswordsExtensionSupported?(): boolean;
+  setApplePasswords?(enabled: boolean, extensionProfiles?: string[]): Promise<void>;
   openPasswordsApp?(): Promise<boolean>;
   setUpVerificationCode?(url: string): Promise<boolean>;
   setVideoUpscalingTestConditions?(conditions: { lowPower?: boolean; thermalPressure?: boolean }): Promise<void>;

@@ -3,7 +3,8 @@ import { mock, test } from "node:test";
 const stub = await import("../../test-native-stub.mjs");
 const { useBrowser } = await import("../../store/browser.ts");
 const { DEFAULT_SETTINGS } = await import("../../store/settings.ts");
-const { PASSWORD_PREF_RETRY_MS, effectivePasswordManager, startPasswordManager } = await import("./passwordManager.ts");
+const { ICLOUD_PASSWORDS_EXTENSION_ID, PASSWORD_PREF_RETRY_MS, effectivePasswordManager, startPasswordManager } = await import("./passwordManager.ts");
+const { useExtensions } = await import("../extensions/store.ts");
 
 const engine = stub.passwordManagerEngine;
 const S = () => useBrowser.getState();
@@ -68,4 +69,30 @@ test("switching managers turns Apple Passwords and Chrome's offer to save on and
   S().updateSettings({ passwordManager: "none" });
   assert.deepEqual(calls("applePasswords"), [[false]]);
   assert.deepEqual(new Set(calls("offerToSave").map(JSON.stringify)), new Set([JSON.stringify(["", false]), JSON.stringify([work, false])]));
+});
+
+test("Apple's iCloud Passwords extension takes over from the key in the profiles that run it, once Ardia may start its helper", () => {
+  const work = Object.keys(S().profiles).find((id) => id !== "default");
+  const icloud = { id: ICLOUD_PASSWORDS_EXTENSION_ID, name: "iCloud Passwords", enabled: true };
+  const other = { id: "aeblfdkhhhdcdjpifhhbdiojplfjncoa", name: "1Password", enabled: true };
+  S().updateSettings({ passwordManager: "apple" });
+  takeCalls();
+
+  useExtensions.setState({ lists: { "": [other], [work]: [icloud] } });
+  assert.deepEqual(calls("applePasswords"), [], "without Apple's grant the helper can't start, so the key stays everywhere");
+
+  engine.extensionSupported = true;
+  useExtensions.setState({ lists: { "": [other], [work]: [icloud, other] } });
+  assert.deepEqual(calls("applePasswords"), [[true, [work]]]);
+  takeCalls();
+
+  useExtensions.setState({ lists: { "": [other], [work]: [{ ...icloud, enabled: false }, other] } });
+  assert.deepEqual(calls("applePasswords"), [[true]], "turning the extension off brings the key back");
+  takeCalls();
+
+  useExtensions.setState({ lists: { "": [icloud], [work]: [icloud] } });
+  S().updateSettings({ passwordManager: "ardia" });
+  assert.deepEqual(calls("applePasswords"), [[true, ["", work]], [false, ["", work]]]);
+  engine.extensionSupported = false;
+  useExtensions.setState({ lists: {} });
 });

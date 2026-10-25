@@ -459,6 +459,7 @@
   const QR_DETECTIONS = 12;
   const typedLogin = new WeakSet();
   let applePasswords = false;
+  let appleKey = false;
   let applePasswordsListening = false;
   let keyField = null;
   let keyKind = null;
@@ -489,7 +490,7 @@
       guard((e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (!e.isTrusted || !applePasswords || !keyKind || !keyField) return;
+        if (!e.isTrusted || !appleKey || !keyKind || !keyField) return;
         const box = trailingRect(keyField, KEY_ASPECT);
         if (!(e.clientX >= box.left - 2 && e.clientX <= box.left + box.width + 2 && e.clientY >= box.top - 2 && e.clientY <= box.top + box.size + 2)) return;
         if (e.timeStamp - keyClickedAt < KEY_REPEAT_MS) return;
@@ -500,7 +501,7 @@
     document.documentElement.appendChild(keyHost);
   };
   const updateKey = guard(() => {
-    if (!applePasswords) return hideKey();
+    if (!appleKey) return hideKey();
     const el = document.activeElement;
     const kind = loginFieldKind(el, revealedField);
     if (!kind) return hideKey();
@@ -555,18 +556,9 @@
     }
   });
   const scanQRSoon = later(scanQR, 400);
-  const openOnClick = guard((e) => {
-    if (!e.isTrusted || !applePasswords || e.button !== 0) return;
-    updateKey();
-    if (!keyField || e.target !== keyField || document.activeElement !== keyField) return;
-    if (e.timeStamp - keyClickedAt < KEY_REPEAT_MS) return;
-    keyClickedAt = e.timeStamp;
-    send("applePasswords", { field: keyKind, opened: "click" });
-  });
   const listenForLogins = () => {
     if (applePasswordsListening) return;
     applePasswordsListening = true;
-    apply(addListener, document, ["click", openOnClick, true]);
     document.addEventListener("focusin", updateKey, true);
     document.addEventListener(
       "focusout",
@@ -581,9 +573,10 @@
     addEventListener("scroll", () => keyField && requestAnimationFrame(placeKey), { passive: true, capture: true });
     addEventListener("resize", () => keyField && requestAnimationFrame(placeKey));
   };
-  handlers.applePasswords = (on) => {
-    on = on === true;
-    if (on === applePasswords) return;
+  handlers.applePasswords = (state) => {
+    const on = state === true || state === "codes";
+    appleKey = state === true;
+    if (on === applePasswords) return updateKey();
     applePasswords = on;
     if (!on) {
       hideKey();
@@ -996,7 +989,7 @@
     if (config.fieldTiming) setFieldTiming(true);
     if (config.broadThemeObserver) broadThemeObserver = true;
     if (typeof config.selectionPopover === "boolean" && handlers.selectionPopover) handlers.selectionPopover(config.selectionPopover);
-    if (typeof config.applePasswords === "boolean") handlers.applePasswords(config.applePasswords);
+    if (config.applePasswords !== undefined) handlers.applePasswords(config.applePasswords);
   };
   send("hello", { top: isTop, url: location.href });
 

@@ -4,6 +4,7 @@ import {
   exportPasswords,
   getNeverSavePasswordOrigins,
   getPassword,
+  iCloudPasswordsExtensionSupported,
   listPasswords,
   openPasswordsApp,
   savePassword,
@@ -21,13 +22,17 @@ import { useBrowser } from "../../../store/browser";
 import { useProfiles } from "../../../store/hooks";
 import { engineProfile, plural } from "../../../store/model";
 import type { PasswordManager } from "../../../store/settings";
+import { InstallDialogHost } from "../../extensions/ExtensionOverlays";
+import { addFromWebStore, setEnabled as setExtensionEnabled, useExtensionList } from "../../extensions/state";
 import { importModule } from "../../import/module";
 import { hostLabel, matchesQuery } from "../../pages/PageLayout";
 import { Favicon, IconButton } from "../../primitives";
-import { ardiaLoginCount, effectivePasswordManager, passwordAutofill } from "../../site/passwordManager";
+import { ardiaLoginCount, effectivePasswordManager, ICLOUD_PASSWORDS_EXTENSION_ID, iCloudPasswordsExtensionOf, passwordAutofill } from "../../site/passwordManager";
 import { Button, Group, PopUp, Row, SearchField, SectionHeader, Sheet, TextField, Toggle } from "../controls";
+import { extensionList } from "../paneData";
 import { store, useResource } from "../resources";
 import { closeSettingsSheet, showSettingsSheet } from "../sheet";
+import { SETTINGS_WINDOW_ID } from "../windows";
 
 function passwordManagerAppsNote() {
   const apps = "1Password, Bitwarden, KeePassXC and Proton Pass extensions connect to their Mac apps.";
@@ -43,6 +48,14 @@ const PASSWORDS_DESCRIPTIONS: Record<PasswordManager, string> = {
 };
 
 const OPEN_PASSWORDS_FAILED = "Couldn't open Passwords.";
+
+const ICLOUD_EXTENSION_DESCRIPTIONS = {
+  missing: "Apple's extension shows the logins saved for each site as you sign in, and offers to save new ones to Passwords.",
+  off: "Turned off in Settings › Extensions. The key in login fields fills from Passwords meanwhile.",
+  on: "On. Logins saved for each site show up as you sign in, and new ones save to Passwords.",
+};
+const FILL_WITH_EXTENSION = "Click a login field and pick one of the site's logins. Touch ID fills it.";
+const NEW_LOGINS_WITH_EXTENSION = "When you sign in with a new password, or pick Use Strong Password, Passwords offers to save it.";
 const CHECKING_LOGINS = "Checking…";
 
 function savedInArdiaDescription(count: number, mode: PasswordManager) {
@@ -74,6 +87,11 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
   const unlocked = isUnlocked(profile);
   const [autofill = true] = useResource(passwordAutofill, profile);
   const [loginCount] = useResource(ardiaLoginCount, profile);
+  const extensionSupported = mode === "apple" && iCloudPasswordsExtensionSupported();
+  const [extensionsLoaded] = useResource(extensionList, profile);
+  const extensions = useExtensionList(profile);
+  const iCloudExtension = iCloudPasswordsExtensionOf(extensions);
+  const extensionState = !extensionSupported || extensionsLoaded === undefined ? null : !iCloudExtension ? "missing" : iCloudExtension.enabled ? "on" : "off";
 
   const load = () => {
     void listPasswords(profile)
@@ -95,6 +113,11 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
     if (!(await unlockPasswords(profile))) return;
     unlockedUntil.set(profile, Date.now() + UNLOCK_MS);
     setUnlockedAt(Date.now());
+  };
+
+  const addICloudExtension = () => {
+    void addFromWebStore(SETTINGS_WINDOW_ID, ICLOUD_PASSWORDS_EXTENSION_ID, profile);
+    showSettingsSheet(<InstallDialogHost windowId={SETTINGS_WINDOW_ID} onClosed={closeSettingsSheet} />);
   };
 
   const openPasswords = async () => setOpenStatus((await openPasswordsApp().catch(() => false)) ? "" : OPEN_PASSWORDS_FAILED);
@@ -141,7 +164,7 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
 
   return (
     <View>
-      <SectionHeader title="Passwords" description={PASSWORDS_DESCRIPTIONS[mode]} action={mode === "ardia" ? profilePicker : undefined} />
+      <SectionHeader title="Passwords" description={PASSWORDS_DESCRIPTIONS[mode]} action={mode === "ardia" || extensionSupported ? profilePicker : undefined} />
       <Group>
         <Row anchor="passwords.passwordManager" description={appleAvailable ? null : "Apple Passwords needs a newer version of macOS."}>
           <PopUp
@@ -159,9 +182,17 @@ export function PasswordsPane({ profileId: initial }: { profileId?: string | nul
           <Row key="open" anchor="passwords.openPasswords" description={openStatus || undefined}>
             <Button title="Open Passwords" onPress={() => void openPasswords()} />
           </Row>,
-          <Row key="fill" anchor="passwords.fillLogin" />,
+          extensionState && (
+            <Row key="extension" anchor="passwords.iCloudExtension" description={ICLOUD_EXTENSION_DESCRIPTIONS[extensionState]}>
+              {extensionState === "missing" && <Button title="Add…" onPress={addICloudExtension} />}
+              {extensionState === "off" && iCloudExtension && (
+                <Button title="Turn On" onPress={() => void setExtensionEnabled(profile, iCloudExtension.id, true)} />
+              )}
+            </Row>
+          ),
+          <Row key="fill" anchor="passwords.fillLogin" description={extensionState === "on" ? FILL_WITH_EXTENSION : undefined} />,
           <Row key="codes" anchor="passwords.verificationCodes" />,
-          <Row key="new" anchor="passwords.newLogins" />,
+          <Row key="new" anchor="passwords.newLogins" description={extensionState === "on" ? NEW_LOGINS_WITH_EXTENSION : undefined} />,
         ]}
         {mode === "ardia" && [
           <Row key="offer" anchor="passwords.offerToSave">
