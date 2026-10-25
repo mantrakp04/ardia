@@ -168,6 +168,10 @@ function Tuner({
     return value;
   };
 
+  useEffect(() => {
+    for (const id of offsets.keys()) if (!ids.includes(id)) offsets.delete(id);
+  }, [ids, offsets]);
+
   const setPosition = (value: number) => {
     position.setValue(value);
     devPosition(windowId, value);

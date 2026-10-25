@@ -3,7 +3,7 @@
 Second pass on the dial's look, after the functional first version. Reference:
 Nicolas Jesenberger's "Functional Egg Timer" (CodePen VwVVzjg), a ruler wrapped around a
 cylinder: a label per face, no ticks or groove after the owner's cut,
-and a pointer plus a value pill under the centred label.
+and the profile's name above the band.
 
 Status: built 2026-10-24 and verified in a Debug instance (`build-flash`, e2e 8/8). The
 numbers below are what the code does now (`components/profiles/{dial,cylinder,ProfileDial}.ts(x)`);
@@ -15,9 +15,9 @@ the first pass's 52 pt hairline ruler stays described in `profile-dial.md` as hi
   foreshortening at the edges.
 - The profile name as 11 pt theme text at the footer's top, then the glyph band. The name sits above
   the glyphs rather than below them.
-- The glyphs stay visible; the pointer and pill still auto-hide, fade
-  in on a switch and while pressing or dragging, and fades 0.9 s after release.
-- Theme colours, with the pointer in the current profile's accent.
+- The glyphs stay visible; the name still auto-hides: it fades in on a switch and while pressing
+  or dragging, and fades 0.9 s after release.
+- Theme colours: the current glyph keeps the profile's own colours, and the others are monochrome.
 - Footer 52 pt.
 
 ## Geometry
