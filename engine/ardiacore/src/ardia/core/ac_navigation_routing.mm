@@ -19,6 +19,7 @@
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "components/webapps/browser/navigation_data.h"
 #include "content/common/frame.mojom.h"
+#include "content/public/browser/document_user_data.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/navigation_handle_user_data.h"
 #include "content/public/browser/navigation_throttle.h"
@@ -385,6 +386,19 @@ void RoutedOpen::Open(content::WebContents* source, Profile* profile) {
   Navigate(&navigate);
 }
 
+class RoutedWithoutGesture : public content::DocumentUserData<RoutedWithoutGesture> {
+ public:
+  ~RoutedWithoutGesture() override = default;
+
+ private:
+  friend class content::DocumentUserData<RoutedWithoutGesture>;
+  explicit RoutedWithoutGesture(content::RenderFrameHost* document)
+      : content::DocumentUserData<RoutedWithoutGesture>(document) {}
+  DOCUMENT_USER_DATA_KEY_DECL();
+};
+
+DOCUMENT_USER_DATA_KEY_IMPL(RoutedWithoutGesture);
+
 struct RedirectRoute {
   base::WeakPtr<content::WebContents> source;
   RoutedOwner owner;
@@ -635,7 +649,8 @@ bool RouteOpenURL(WindowHost* host,
   if (!host || !source || !params.is_renderer_initiated || !params.url.SchemeIsHTTPOrHTTPS() ||
       params.is_form_submission || params.post_data || !RoutableDisposition(params.disposition) ||
       ui::PageTransitionCoreTypeIs(params.transition, ui::PAGE_TRANSITION_RELOAD) ||
-      (params.transition & ui::PAGE_TRANSITION_FORWARD_BACK)) {
+      (params.transition & ui::PAGE_TRANSITION_FORWARD_BACK) ||
+      (params.disposition != WindowOpenDisposition::CURRENT_TAB && !params.user_gesture)) {
     return false;
   }
   if (params.disposition == WindowOpenDisposition::CURRENT_TAB &&
@@ -658,6 +673,13 @@ bool RouteOpenURL(WindowHost* host,
       WatchRedirects(source, std::move(*owner), params, navigation_handle_callback);
     }
     return false;
+  }
+  if (!params.user_gesture) {
+    content::RenderFrameHost* document = source->GetPrimaryMainFrame();
+    if (RoutedWithoutGesture::GetForCurrentDocument(document)) {
+      return false;
+    }
+    RoutedWithoutGesture::CreateForCurrentDocument(document);
   }
   RoutedPlacement placement{decision->sidebar, decision->engine, decision->action == LinkAction::kLittle,
                             PlacementDisposition(params.disposition), params.url.spec()};
@@ -688,7 +710,7 @@ ArdiaConsumeNewWindow RouteNewWindow(
     base::OnceCallback<void(content::WebContents*)>* prepare_created_contents) {
   if (!source || !opener || !params.target_url.SchemeIsHTTPOrHTTPS() || params.is_form_submission ||
       params.form_submission_post_data || params.pip_options || !RoutableDisposition(params.disposition) ||
-      params.disposition == WindowOpenDisposition::CURRENT_TAB) {
+      params.disposition == WindowOpenDisposition::CURRENT_TAB || !has_user_gesture) {
     return ArdiaConsumeNewWindow();
   }
   std::optional<RoutedOwner> owner = OwnerOf(source);
