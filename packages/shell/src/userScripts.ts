@@ -1,7 +1,7 @@
 import { requireOptionalNativeModule, type EventSubscription } from "expo-modules-core";
 
 export type UserScriptsFolder = { token?: string } & (
-  | { state: "empty" | "busy" | "pending"; generation?: number }
+  | { state: "empty" | "busy" | "pending"; generation?: number; path?: string }
   | { state: "absent"; generation: number; path: string }
   | { state: "invalid"; generation?: number; error: string; path?: string }
   | { state: "ready"; generation: number; path: string }

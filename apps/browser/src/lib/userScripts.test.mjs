@@ -230,3 +230,126 @@ test("turning the setting off stops watching and ignores changes", async () => {
   assert.equal(calls.length, 0);
   assert.equal(fake.writes.length, writes);
 });
+
+test("loaded scripts keep the bar up after control goes off, and Stop unloads them everywhere", async () => {
+  assert.equal(scripts.useUserScripts.getState().active, false);
+  useBrowser.getState().updateSettings({ cliControl: true });
+  await settle();
+  assert.equal(scripts.useUserScripts.getState().active, true);
+  useBrowser.getState().updateSettings({ cliControl: false });
+  await settle();
+  assert.equal(scripts.useUserScripts.getState().active, true);
+  calls.length = 0;
+  await scripts.stopUserScripts();
+  assert.deepEqual(calls.filter(([k]) => k === "uninstall").map(([, p]) => p).sort(), ["", "work"]);
+  assert.equal(scripts.useUserScripts.getState().active, false);
+  assert.deepEqual(lastWrite(), { generation: 9, profiles: { Personal: { removed: true }, "Personal (2)": { removed: true }, Side: { removed: true } } });
+});
+
+test("after Stop, turning control back on loads the scripts again", async () => {
+  calls.length = 0;
+  useBrowser.getState().updateSettings({ cliControl: true });
+  await settle();
+  assert.deepEqual(calls.filter(([k]) => k === "install").map(([, p]) => p).sort(), ["", "work"]);
+  assert.equal(scripts.useUserScripts.getState().active, true);
+});
+
+test("the bar follows the engine when Ardia Scripts is turned off and on elsewhere", async () => {
+  const setEnabled = (on) => {
+    for (const exts of installed.values()) for (const ext of exts.values()) Object.assign(ext, { enabled: on, state: on ? "ENABLED" : "DISABLED" });
+    for (const listener of globalThis.acTestExtensionsChanged ?? []) listener({ profile: "", id: "abc", event: on ? "enabled" : "disabled" });
+  };
+  assert.equal(scripts.useUserScripts.getState().active, true);
+  setEnabled(false);
+  await settle();
+  assert.equal(scripts.useUserScripts.getState().active, false);
+  setEnabled(true);
+  await settle();
+  assert.equal(scripts.useUserScripts.getState().active, true);
+});
+
+test("Stop unloads even while the CLI holds the folder, and reports the last generation", async () => {
+  folder = { state: "busy", path: PATH };
+  useBrowser.getState().updateSettings({ cliControl: false });
+  await settle();
+  assert.equal(scripts.useUserScripts.getState().active, true);
+  calls.length = 0;
+  await scripts.stopUserScripts();
+  assert.deepEqual(calls.filter(([k]) => k === "uninstall").map(([, p]) => p).sort(), ["", "work"]);
+  assert.equal(scripts.useUserScripts.getState().active, false);
+  assert.deepEqual(lastWrite(), { generation: 9, profiles: { Personal: { removed: true }, "Personal (2)": { removed: true }, Side: { removed: true } } });
+});
+
+test("Stop on a never-installed folder touches nothing, with scripts present it still unloads", async () => {
+  calls.length = 0;
+  folder = { state: "empty", path: PATH };
+  const writes = fake.writes.length;
+  await scripts.stopUserScripts();
+  assert.equal(calls.length, 0);
+  assert.equal(fake.writes.length, writes);
+  assert.equal(scripts.useUserScripts.getState().active, false);
+  folder = { state: "ready", generation: 10, path: PATH };
+  useBrowser.getState().updateSettings({ cliControl: true });
+  await settle();
+  assert.deepEqual(calls.filter(([k]) => k === "install").map(([, p]) => p).sort(), ["", "work"]);
+  useBrowser.getState().updateSettings({ cliControl: false });
+  await settle();
+  assert.equal(scripts.useUserScripts.getState().active, true);
+  calls.length = 0;
+  await scripts.stopUserScripts();
+  assert.deepEqual(calls.filter(([k]) => k === "uninstall").map(([, p]) => p).sort(), ["", "work"]);
+  assert.deepEqual(lastWrite(), { generation: 10, profiles: { Personal: { removed: true }, "Personal (2)": { removed: true }, Side: { removed: true } } });
+});
+
+test("an engine query failure keeps the bar up, and the probe retries on its own", async () => {
+  folder = { state: "ready", generation: 11, path: PATH };
+  useBrowser.getState().updateSettings({ cliControl: true });
+  await settle();
+  assert.equal(scripts.useUserScripts.getState().active, true);
+  useBrowser.getState().updateSettings({ cliControl: false });
+  await settle();
+  assert.equal(scripts.useUserScripts.getState().active, true);
+  const list = fake.engine.list;
+  fake.engine.list = async () => {
+    throw new Error("engine busy");
+  };
+  for (const listener of globalThis.acTestExtensionsChanged ?? []) listener({ profile: "", id: "abc", event: "enabled" });
+  await settle();
+  assert.equal(scripts.useUserScripts.getState().active, true);
+  installed.get("").get("abc").enabled = false;
+  installed.get("work").get("abc").enabled = false;
+  fake.engine.list = list;
+  await new Promise((r) => setTimeout(r, 2100));
+  await settle();
+  assert.equal(scripts.useUserScripts.getState().active, false);
+  installed.get("").get("abc").enabled = true;
+  installed.get("work").get("abc").enabled = true;
+});
+
+test("control re-enabled while Stop unloads reconciles once the stop is done", async () => {
+  folder = { state: "ready", generation: 12, path: PATH };
+  useBrowser.getState().updateSettings({ cliControl: true });
+  await settle();
+  assert.equal(scripts.useUserScripts.getState().active, true);
+  const uninstall = fake.engine.uninstall;
+  let open;
+  gate = new Promise((r) => (open = r));
+  fake.engine.uninstall = async (id, profile) => {
+    await gate;
+    return uninstall(id, profile);
+  };
+  calls.length = 0;
+  useBrowser.getState().updateSettings({ cliControl: false });
+  const stopping = scripts.stopUserScripts();
+  await settle();
+  useBrowser.getState().updateSettings({ cliControl: true });
+  await settle();
+  assert.deepEqual(calls.filter(([k]) => k === "install"), []);
+  open();
+  await stopping;
+  await settle();
+  assert.deepEqual(calls.filter(([k]) => k === "install").map(([, p]) => p), ["", "work"]);
+  assert.deepEqual(lastWrite().profiles.Personal, { ok: true });
+  fake.engine.uninstall = uninstall;
+  gate = null;
+});

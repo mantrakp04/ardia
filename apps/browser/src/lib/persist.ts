@@ -1,5 +1,5 @@
 import { cancelDownload, endWebKitPrivateSession, leftDownloadStaging, removeLeftDownloadStaging, type Download } from "@ardia/ardiacore";
-import { readDocument, writeDocument } from "@ardia/shell";
+import { readDocument, sealSecuritySettings, securitySettingsSealed, writeDocument } from "@ardia/shell";
 import { useBrowser, type BrowserState, type HydrateData } from "../store/browser";
 import { inPinnedContainer, isIncognitoProfile, newId, privateSession, snapshotTab } from "../store/model";
 import { earlyLaunchTabOn, launchTab, linkProfile, type LaunchTab } from "../store/launchTab";
@@ -96,6 +96,82 @@ function write(name: string, json: string) {
 
 const byId = <T extends { id: string }>(list: T[] | undefined) => Object.fromEntries((list ?? []).map((x) => [x.id, x]));
 
+const securityValues = (s: HydrateData["settings"]) =>
+  `cliControl=${!!s?.cliControl};allowJavaScriptFromAppleEvents=${!!s?.allowJavaScriptFromAppleEvents}`;
+
+const SEAL_RETRY_MS = 2000;
+const SEAL_RETRY_MAX_MS = 30000;
+let sealedValues: string | null = null;
+let sealPending: string | null = null;
+let sealTimer: ReturnType<typeof setTimeout> | null = null;
+let sealDelay = SEAL_RETRY_MS;
+let sealReported = false;
+
+const reportSealFailure = () => {
+  if (sealReported) return;
+  sealReported = true;
+  const windowId = useBrowser.getState().ui.focusedWindowId;
+  if (!windowId) return;
+  (require("../components/layout/splitActions") as typeof import("../components/layout/splitActions")).showToast(
+    windowId,
+    "Couldn't record the security setting",
+    "Ardia keeps retrying. Restarting Ardia records it now.",
+    { icon: "exclamationmark.triangle" },
+  );
+};
+
+const sealRetry = () => {
+  if (!sealPending || sealTimer) return;
+  sealTimer = setTimeout(() => {
+    sealTimer = null;
+    const values = sealPending;
+    if (!values || securityValues(useBrowser.getState().settings) !== values) {
+      sealPending = null;
+      sealDelay = SEAL_RETRY_MS;
+      return;
+    }
+    if (sealSecuritySettings(values)) {
+      sealedValues = values;
+      sealPending = null;
+      sealDelay = SEAL_RETRY_MS;
+      sealReported = false;
+    } else {
+      sealDelay = Math.min(sealDelay * 2, SEAL_RETRY_MAX_MS);
+      reportSealFailure();
+      sealRetry();
+    }
+  }, sealDelay);
+};
+
+const sealChanged = (values: string) => {
+  sealPending = null;
+  if (sealTimer) {
+    clearTimeout(sealTimer);
+    sealTimer = null;
+  }
+  if (sealSecuritySettings(values)) {
+    sealedValues = values;
+    sealDelay = SEAL_RETRY_MS;
+    sealReported = false;
+  } else {
+    sealPending = values;
+    reportSealFailure();
+    sealRetry();
+  }
+};
+
+function approvedSettings(settings: HydrateData["settings"]): HydrateData["settings"] {
+  const values = securityValues(settings);
+  if (!settings?.cliControl && !settings?.allowJavaScriptFromAppleEvents) {
+    if (!securitySettingsSealed(values)) sealSecuritySettings(values);
+    return settings;
+  }
+  if (securitySettingsSealed(values)) return settings;
+  const off = { ...settings, cliControl: false, allowJavaScriptFromAppleEvents: false };
+  sealSecuritySettings(securityValues(off));
+  return off;
+}
+
 type SessionV2 = {
   version: 2;
   profiles: HydrateData["profiles"];
@@ -141,7 +217,7 @@ export function loadSession(): HydrateData | null {
     profiles: session.profiles,
     profileOrder: session.profileOrder,
     orphanedProfileData: session.orphanedProfileData ?? [],
-    settings: session.settings,
+    settings: approvedSettings(session.settings),
     windows: byId(session.windows),
     windowOrder: session.windowOrder,
     focusedWindowId: session.focusedWindowId,
@@ -241,6 +317,7 @@ export function startPersistence() {
     if (dirty.size && !timer) timer = setTimeout(save, SAVE_DELAY_MS);
   };
   check(useBrowser.getState(), true);
+  sealedValues = securityValues(useBrowser.getState().settings);
   if (droppedPrivateDownloads) {
     droppedPrivateDownloads = false;
     dirty.add(DOCS.find((d) => d.name === "downloads.json")!);
@@ -256,6 +333,7 @@ export function startPersistence() {
   const stopProfileData = startProfileDataCleanup();
   const stopSession = useBrowser.subscribe((s, prev) => {
     check(s);
+    if (s.settings !== prev.settings && securityValues(s.settings) !== sealedValues) sealChanged(securityValues(s.settings));
     if (s.windows !== prev.windows) forgetClosedIncognito(s, prev);
   });
   return () => {

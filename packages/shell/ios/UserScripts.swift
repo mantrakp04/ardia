@@ -100,6 +100,14 @@ final class UserScripts {
 
   func read() -> [String: Any] {
     guard let dir else { return ["state": "invalid", "error": "Ardia has no data folder"] }
+    var folder = readLocked(dir)
+    if folder["path"] == nil { folder["path"] = extensionPath(dir) }
+    return folder
+  }
+
+  private func extensionPath(_ dir: URL) -> String { realPath(dir.deletingLastPathComponent()) + "/Scripts/extension" }
+
+  private func readLocked(_ dir: URL) -> [String: Any] {
     try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     let lock = open(dir.appendingPathComponent(".lock").path, O_RDONLY | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0o644)
     guard lock >= 0 else { return ["state": "busy"] }
@@ -132,7 +140,7 @@ final class UserScripts {
   }
 
   private func snapshot(_ dir: URL) -> [String: Any] {
-    let path = realPath(dir.deletingLastPathComponent()) + "/Scripts/extension"
+    let path = extensionPath(dir)
     let written = readGeneration(dir.appendingPathComponent("generation"))
     var st = stat()
     guard lstat(dir.path, &st) == 0, st.st_mode & S_IFMT == S_IFDIR else {

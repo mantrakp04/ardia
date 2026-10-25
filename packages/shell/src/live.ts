@@ -50,8 +50,12 @@ const Keychain = requireNativeModule<{
   get(account: string): Promise<string | null>;
   set(account: string, secret: string): Promise<boolean>;
   delete(account: string): Promise<boolean>;
+  sealSecuritySettings(values: string): boolean;
+  securitySettingsSealed(values: string): boolean;
 }>("ArdiaKeychain");
 
 export const keychainGet = (account: string) => Keychain.get(account);
 export const keychainSet = (account: string, secret: string) => Keychain.set(account, secret);
 export const keychainDelete = (account: string) => Keychain.delete(account);
+export const sealSecuritySettings = (values: string) => Keychain.sealSecuritySettings(values);
+export const securitySettingsSealed = (values: string) => Keychain.securitySettingsSealed(values);

@@ -23,21 +23,8 @@ public class KeychainModule: Module {
 
     AsyncFunction("set") { (account: String, secret: String) -> Bool in
       if let store = IsolatedSecrets.shared { return store.set(account, secret) }
-      let data = Data(secret.utf8)
-      let update: [String: Any] = [kSecValueData as String: data]
-      var status = SecItemUpdate(Self.query(account) as CFDictionary, update as CFDictionary)
-      if status == errSecItemNotFound {
-        var add = Self.query(account)
-        add[kSecValueData as String] = data
-        add[kSecAttrLabel as String] = "Ardia: \(account)"
-        status = SecItemAdd(add as CFDictionary, nil)
-      } else if status != errSecSuccess {
-        SecItemDelete(Self.query(account) as CFDictionary)
-        var add = Self.query(account)
-        add[kSecValueData as String] = data
-        status = SecItemAdd(add as CFDictionary, nil)
-      }
-      return status == errSecSuccess
+      let added = [kSecAttrLabel as String: "Ardia: \(account)"]
+      return writeKeychainItem(Data(secret.utf8), query: Self.query(account), adding: added) == errSecSuccess
     }
 
     AsyncFunction("delete") { (account: String) -> Bool in
@@ -45,6 +32,10 @@ public class KeychainModule: Module {
       let status = SecItemDelete(Self.query(account) as CFDictionary)
       return status == errSecSuccess || status == errSecItemNotFound
     }
+
+    Function("sealSecuritySettings") { (values: String) -> Bool in SecuritySettingsSeal.seal(values) }
+
+    Function("securitySettingsSealed") { (values: String) -> Bool in SecuritySettingsSeal.matches(values) }
   }
 
   private static func query(_ account: String) -> [String: Any] {
@@ -52,9 +43,59 @@ public class KeychainModule: Module {
   }
 }
 
+private func writeKeychainItem(_ data: Data, query: [String: Any], adding added: [String: Any]) -> OSStatus {
+  let updated = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+  if updated == errSecSuccess { return updated }
+  if updated != errSecItemNotFound { SecItemDelete(query as CFDictionary) }
+  var add = query.merging(added) { kept, _ in kept }
+  add[kSecValueData as String] = data
+  return SecItemAdd(add as CFDictionary, nil)
+}
+
+private enum SecuritySettingsSeal {
+  private static let service = "Ardia Security Settings"
+  private static let account = "approved"
+
+  private static var query: [String: Any] {
+    [
+      kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account,
+      kSecUseDataProtectionKeychain as String: true,
+    ]
+  }
+
+  static func seal(_ values: String) -> Bool {
+    if let store = IsolatedSecrets.securitySettings { return store.set(account, values) }
+    let added: [String: Any] = [kSecAttrLabel as String: service, kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly]
+    let status = writeKeychainItem(Data(values.utf8), query: query, adding: added)
+    if status != errSecSuccess { NSLog("[settings] couldn't record the security settings in the Keychain: \(status)") }
+    return status == errSecSuccess
+  }
+
+  static func matches(_ values: String) -> Bool {
+    let approved: String?
+    if let store = IsolatedSecrets.securitySettings {
+      approved = store.get(account)
+    } else {
+      var lookup = query
+      lookup[kSecReturnData as String] = true
+      lookup[kSecMatchLimit as String] = kSecMatchLimitOne
+      var item: CFTypeRef?
+      let status = SecItemCopyMatching(lookup as CFDictionary, &item)
+      approved = status == errSecSuccess ? (item as? Data).flatMap { String(data: $0, encoding: .utf8) } : nil
+    }
+    if approved == values { return true }
+    NSLog("[settings] session.json has security settings Ardia didn't set (\(values)); turning them off")
+    return false
+  }
+}
+
 private final class IsolatedSecrets {
   static let shared = ACIsolatedDataDirectory().map {
     IsolatedSecrets(URL(fileURLWithPath: $0, isDirectory: true).appendingPathComponent("Connected Accounts.json"))
+  }
+
+  static let securitySettings = ACIsolatedDataDirectory().map {
+    IsolatedSecrets(URL(fileURLWithPath: $0, isDirectory: true).appendingPathComponent("Security Settings.json"))
   }
 
   private let url: URL
