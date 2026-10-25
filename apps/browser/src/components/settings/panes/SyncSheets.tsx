@@ -211,7 +211,7 @@ function ConnectDeviceSheet() {
           {qr ? <Image source={{ uri: qr }} style={{ width: 120, height: 120 }} /> : null}
         </View>
         <Text style={{ flex: 1, fontSize: 12, lineHeight: 16, color: theme.textSecondary }}>
-          Or scan this code with your iPhone’s camera to copy the words, then paste them on your other Mac with Universal Clipboard.
+          On your iPhone, open Ardia, tap Sync With Mac, and scan this code. For another Mac, you can also scan it with your iPhone’s camera and paste the words there with Universal Clipboard.
         </Text>
       </View>
       {words ? (

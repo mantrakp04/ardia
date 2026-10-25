@@ -98,3 +98,51 @@ test("a batch is published only once the journal holding it is on disk", async (
   await syncing;
   assert.equal(published().length, 1, "published once the journal landed");
 });
+
+test("a tab sent to this Mac opens once, behind the current tab of the window showing its profile, and the send is deleted", async () => {
+  reset();
+  const { Clock } = await import("@ardia/sync");
+  const engine = await import("./engine.ts?receive");
+  engine.startSync();
+  assert.ok("ok" in (await engine.turnOnSync("/sync")));
+  const windowId = S().createWindow({ profileId: "default", url: "https://current.example/" });
+  const current = S().windows[windowId].activeTabIds.default;
+  await engine.syncNow();
+  const saved = JSON.parse(shell.docs.get("sync.json"));
+  const me = saved.deviceId;
+  const scope = `p:${saved.profiles.default.syncId}`;
+  const phone = new Clock("phone");
+  const log = (seq, ops) => JSON.stringify({ v: 1, kind: "log", device: "phone", seq, at: Date.now(), ops: ops.map(([k, v]) => ({ k, h: phone.tick(), v })) });
+  folder.set("phone-app", { scope: "app", payload: log(1, [["dev:phone", { n: "iPhone", k: "phone", f: ["send"] }], ["dev:old", { n: "Old Mac" }]]) });
+  folder.set("phone-p", { scope, payload: log(1, [["send:0b6f1c2e-6a39-4d0e-9f3a-2c1b7a5d8e41", { u: "https://sent.example/story", t: "A Story", to: me, from: "phone", at: Date.now() }]]) });
+  const received = [];
+  engine.onTabsReceived((tabs) => received.push(...tabs));
+  await engine.syncNow();
+  await engine.syncNow();
+
+  const sent = Object.values(S().tabs).filter((t) => t.url === "https://sent.example/story");
+  assert.equal(sent.length, 1, "opened once");
+  assert.equal(sent[0].windowId, windowId);
+  assert.equal(S().windows[windowId].activeTabIds.default, current, "the current tab stays in front");
+  assert.deepEqual(received.map((r) => [r.tabId, r.from]), [[sent[0].id, { name: "iPhone", kind: "phone" }]]);
+  const tombstones = [...folder.values()].filter((f) => f.scope === scope).map((f) => JSON.parse(f.payload)).filter((f) => f.device === me).flatMap((f) => f.ops).filter((op) => op.k.startsWith("send:"));
+  assert.deepEqual(tombstones.map((op) => op.v), [null], "deleted by this Mac, once");
+
+  const relaunched = await import("./engine.ts?receive-again");
+  relaunched.startSync();
+  for (let i = 0; i < 5; i++) await new Promise((resolve) => setImmediate(resolve));
+  await relaunched.syncNow();
+  assert.equal(Object.values(S().tabs).filter((t) => t.url === "https://sent.example/story").length, 1, "not opened again after a relaunch");
+
+  assert.deepEqual(relaunched.sendTargets("default"), [{ id: "phone", name: "iPhone", kind: "phone" }], "only devices that take sent tabs, never this Mac");
+  assert.ok(relaunched.sendTab(current, "phone"));
+  assert.ok(!relaunched.sendTab(current, "old"), "a device that can't take it");
+  await relaunched.syncNow();
+  const mine = [...folder.values()].map((f) => ({ scope: f.scope, file: JSON.parse(f.payload) })).filter(({ file }) => file.device === me);
+  const out = mine.filter(({ scope: s }) => s === scope).flatMap(({ file }) => file.ops).filter((op) => op.k.startsWith("send:") && op.v);
+  assert.equal(out.length, 1);
+  assert.match(out[0].k, /^send:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.deepEqual({ ...out[0].v, at: 0 }, { u: "https://current.example/", t: "", to: "phone", from: me, at: 0 });
+  const device = mine.filter(({ scope: s }) => s === "app").flatMap(({ file }) => file.ops).find((op) => op.k === `dev:${me}`);
+  assert.deepEqual(device.v, { n: "Test Mac", k: "mac", f: ["send"] });
+});
