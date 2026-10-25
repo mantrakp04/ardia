@@ -1,9 +1,10 @@
-import { ContextMenuArea, Surface, Symbol, VisualEffect, type SurfaceProps, type SymbolProps } from "@ardia/shell";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ContextMenuArea, Surface, Symbol, VisualEffect, onWindowEvent, type SurfaceProps, type SymbolProps } from "@ardia/shell";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent, type ViewStyle } from "react-native";
 import { hex, useTheme } from "../../lib/theme";
 import { Switch, switchEasing } from "../Switch";
 import { useHover } from "../primitives";
+import { useWindowId } from "../../store/hooks";
 import type { ToolbarPalette } from "./toolbarColors";
 
 export type ClickModifiers = { metaKey: boolean; altKey: boolean; shiftKey: boolean };
@@ -205,6 +206,7 @@ export function Popover({
   fitHeight = false,
   closing = false,
   onClosed,
+  guard,
 }: {
   width: number;
   top: number;
@@ -216,11 +218,13 @@ export function Popover({
   fitHeight?: boolean;
   closing?: boolean;
   onClosed?: () => void;
+  guard?: unknown;
 }) {
   const appear = useRef(new Animated.Value(0)).current;
   const [room, setRoom] = useState<number | null>(null);
   const closed = useRef(onClosed);
   closed.current = onClosed;
+  const rearmGuard = useInputGuard(guard);
   useEffect(() => {
     const motion = closing ? POPOVER_MOTION.close : POPOVER_MOTION.open;
     Animated.timing(appear, { toValue: closing ? 0 : 1, duration: motion.duration, easing: motion.easing, useNativeDriver: true }).start(
@@ -231,7 +235,7 @@ export function Popover({
   return (
     <>
       {fitHeight && <View pointerEvents="none" style={StyleSheet.absoluteFill} onLayout={(e) => setRoom(e.nativeEvent.layout.height)} />}
-      {modal && onDismiss && !closing && <Pressable style={StyleSheet.absoluteFill} onPress={onDismiss} />}
+      {modal && onDismiss && !closing && (rearmGuard ? <InputShield onTouch={rearmGuard} /> : <Pressable style={StyleSheet.absoluteFill} onPress={onDismiss} />)}
       <Animated.View
         pointerEvents={closing ? "none" : "auto"}
         style={{
@@ -251,6 +255,7 @@ export function Popover({
         <PopoverSurface>
           {fitHeight ? <ScrollView showsVerticalScrollIndicator={false} style={room === null ? undefined : { maxHeight: Math.max(0, room - top - POPOVER_MARGIN) }}>{children}</ScrollView> : children}
         </PopoverSurface>
+        {rearmGuard && <InputShield onTouch={rearmGuard} />}
       </Animated.View>
     </>
   );
@@ -283,6 +288,47 @@ export const POPOVER_MOTION = {
   open: { duration: 150, easing: Easing.out(Easing.cubic) },
   close: { duration: 100, easing: Easing.in(Easing.quad) },
 } as const;
+
+const INPUT_GUARD_MS = 500;
+
+function useInputGuard(content: unknown): (() => void) | null {
+  const guarding = content !== undefined;
+  const windowId = useWindowId();
+  const [guarded, setGuarded] = useState(guarding);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const arm = useRef(() => {
+    clearTimeout(timer.current);
+    setGuarded(true);
+    timer.current = setTimeout(() => setGuarded(false), INPUT_GUARD_MS);
+  }).current;
+  useLayoutEffect(() => {
+    if (guarding) arm();
+  }, [content]);
+  useEffect(() => {
+    if (!guarding) return;
+    const rearm = onWindowEvent(
+      (e) => (e.type === "focus" || (e.type === "occlusion" && e.visible && e.id === windowId)) && arm(),
+    );
+    return () => {
+      rearm.remove();
+      clearTimeout(timer.current);
+    };
+  }, [guarding]);
+  return guarding && guarded ? arm : null;
+}
+
+function InputShield({ onTouch }: { onTouch: () => void }) {
+  return (
+    <View
+      style={StyleSheet.absoluteFill}
+      mouseDownCanMoveWindow={false}
+      onStartShouldSetResponder={() => {
+        onTouch();
+        return true;
+      }}
+    />
+  );
+}
 
 export function usePopoverPresence(open: boolean) {
   const [shown, setShown] = useState(open);

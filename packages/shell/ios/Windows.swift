@@ -378,6 +378,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
   private func observeDelegateNotifications(_ window: NSWindow) {
     for (name, selector) in [
       (NSWindow.didBecomeKeyNotification, #selector(windowDidBecomeKey(_:))),
+      (NSWindow.didChangeOcclusionStateNotification, #selector(windowOcclusionChanged(_:))),
       (NSWindow.willCloseNotification, #selector(windowWillClose(_:))),
     ] {
       NotificationCenter.default.addObserver(self, selector: selector, name: name, object: window)
@@ -544,6 +545,11 @@ final class WindowManager: NSObject, NSWindowDelegate {
     guard let window = notification.object as? NSWindow, let id = id(of: window) else { return }
     if isMainWindow(window) { lastPlaced = window }
     emit?("onWindowEvent", ["type": "focus", "id": id])
+  }
+
+  @objc private func windowOcclusionChanged(_ notification: Notification) {
+    guard let window = notification.object as? NSWindow, let id = id(of: window) else { return }
+    emit?("onWindowEvent", ["type": "occlusion", "id": id, "visible": window.occlusionState.contains(.visible)])
   }
 
   func windowWillClose(_ notification: Notification) {

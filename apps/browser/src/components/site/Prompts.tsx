@@ -10,7 +10,8 @@ import { useHover } from "../primitives";
 import { PANEL, PanelCloseButton, Popover, PopoverRow, PopoverSeparator, PromptButton } from "../layout/controls";
 import { Checkbox } from "../settings/controls";
 import { patchPage, pageOf, setPopover, usePage } from "../layout/pageState";
-import { answerPermission, describePermission } from "./permissions";
+import { originForDisplay } from "./origin";
+import { answerPermission, canAllowOnce, describePermission } from "./permissions";
 
 const hostOf = (origin: string) => {
   try {
@@ -61,10 +62,11 @@ export function PermissionPrompt({ tabId, left, top }: { tabId: string; left: nu
   if (!request) return null;
   const { icons, question } = describePermission(request);
   return (
-    <Popover key={request.id} width={300} top={top} left={left} modal={false}>
+    <Popover key={request.id} guard={request} width={300} top={top} left={left} modal={false}>
       <View>
         <PromptBody icons={icons} title={question} message="Click the lock to change this any time">
           <PromptButton title="Don't Allow" onPress={() => answerPermission(tabId, request.id, "deny")} />
+          {canAllowOnce(request) && <PromptButton title="Allow Once" onPress={() => answerPermission(tabId, request.id, "accept", false)} />}
           <PromptButton title="Allow" primary onPress={() => answerPermission(tabId, request.id, "accept")} />
         </PromptBody>
         <PanelCloseButton onPress={() => answerPermission(tabId, request.id, "dismiss")} />
@@ -80,7 +82,7 @@ export function BlockedPopupsPrompt({ tabId, right, left, top }: { tabId: string
   const popups = usePage(tabId, (p) => p.popups);
   if (!popups.length) return null;
   const origin = popups[0]!.origin;
-  const site = hostOf(origin);
+  const site = originForDisplay(origin);
   const web = () => webviews.get(tabId);
   const close = () => setPopover(tabId, null);
   const done = () => {
@@ -89,7 +91,7 @@ export function BlockedPopupsPrompt({ tabId, right, left, top }: { tabId: string
   };
   const profile = () => engineProfile(useBrowser.getState().tabs[tabId]?.profileId ?? "");
   return (
-    <Popover width={BLOCKED_POPUPS_WIDTH} top={top} right={right} left={left} onDismiss={close}>
+    <Popover guard={popups} width={BLOCKED_POPUPS_WIDTH} top={top} right={right} left={left} onDismiss={close}>
       <View style={{ paddingBottom: PANEL.listPadding }}>
         <PromptBody
           icons={["macwindow.badge.plus"]}
@@ -168,7 +170,7 @@ export function PasswordPrompt({ tabId, right, top }: { tabId: string; right: nu
   const well = theme.dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)";
   const choices = update && prompt.usernames.length > 1 ? prompt.usernames : [];
   return (
-    <Popover key={`${prompt.origin}|${prompt.username}|${prompt.state}`} width={update ? 310 : 350} top={top} right={right} modal={false}>
+    <Popover key={`${prompt.origin}|${prompt.username}|${prompt.state}`} guard={prompt} width={update ? 310 : 350} top={top} right={right} modal={false}>
       <View>
         <PromptBody
           icons={["key.fill"]}
@@ -238,7 +240,7 @@ export function AutofillPrompt({ tabId, right, top }: { tabId: string; right: nu
         ? [section(values("to"), prompt.newLabel), section(values("from"), prompt.oldLabel)]
         : [section(values("to"))];
   return (
-    <Popover key={prompt.id} width={350} top={top} right={right} modal={false}>
+    <Popover key={prompt.id} guard={prompt} width={350} top={top} right={right} modal={false}>
       <View>
         <PromptBody
           icons={[prompt.kind === "saveCard" ? "creditcard.fill" : "mappin.and.ellipse"]}
@@ -270,7 +272,7 @@ export function ExternalAppPrompt({ tabId, left, top }: { tabId: string; left: n
     setAlways(false);
   };
   return (
-    <Popover key={request.id} width={340} top={top} left={left} modal={false}>
+    <Popover key={request.id} guard={request} width={340} top={top} left={left} modal={false}>
       <View>
         <PromptBody
           icons={request.icon ? [] : [request.app ? "app" : "questionmark.app.dashed"]}
