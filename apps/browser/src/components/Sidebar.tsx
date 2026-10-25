@@ -18,6 +18,7 @@ import { SIDEBAR_PLAYER_HEIGHT, SidebarPlayer, useSidebarPlayerTab } from "./med
 import { HoverSlot } from "./HoverSlot";
 import { IconButton, useHover } from "./primitives";
 import { DownloadsButton } from "./Downloads";
+import { toggleThemePanel, useThemePanel } from "./theme/panelState";
 import { PROFILE_INDICATOR_X, ProfileIndicator } from "./ProfileIndicator";
 import { usePageStyle, usePagerPages } from "./layout/profilePager";
 import { PROFILE_DOTS_HEIGHT, ProfileDots, useProfileDotsShown } from "./profiles/ProfileDots";
@@ -77,6 +78,7 @@ export function Sidebar({ width }: { width: number }) {
   const hasDownloads = useBrowser((s) => downloadsIn(s, windowId).length > 0);
   const dots = useProfileDotsShown();
   const footerDownloads = addressBar && hasDownloads;
+  const incognito = useBrowser((s) => !!s.windows[windowId]?.incognito);
   const footer = dots || footerDownloads ? PROFILE_DOTS_HEIGHT : 0;
   const nothingPinned = useBrowser((s) => sidebarEntries(s, windowId, current).tiles.length === 0);
 
@@ -135,10 +137,19 @@ export function Sidebar({ width }: { width: number }) {
 
           {footer ? (
             <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: footer }}>
-              {dots ? <ProfileDots windowId={windowId} /> : null}
+              {dots ? (
+                <View style={{ position: "absolute", left: FOOTER_SIDE, right: FOOTER_SIDE, top: 0 }}>
+                  <ProfileDots windowId={windowId} maxWidth={width - 2 * FOOTER_SIDE} />
+                </View>
+              ) : null}
               {footerDownloads ? (
                 <View style={{ position: "absolute", left: layout.sidebarInset, bottom: SIDEBAR_FOOTER_DOWNLOADS.bottom }}>
                   <DownloadsButton windowId={windowId} />
+                </View>
+              ) : null}
+              {!incognito ? (
+                <View style={{ position: "absolute", right: layout.sidebarInset, bottom: SIDEBAR_FOOTER_DOWNLOADS.bottom }}>
+                  <ThemeButton windowId={windowId} />
                 </View>
               ) : null}
             </View>
@@ -516,6 +527,57 @@ function useRevealTabs(windowId: string, scroll: RefObject<ScrollView | null>, s
     };
   }, [windowId]);
 }
+
+const FOOTER_SIDE = layout.sidebarInset + SIDEBAR_FOOTER_DOWNLOADS.size + 4;
+
+function ThemeButton({ windowId }: { windowId: string }) {
+  const theme = useTheme();
+  const { hovered, hoverProps } = useHover();
+  const open = useThemePanel((s) => !!s.open[windowId]);
+  const accent = theme.powerUpColor ?? theme.accent;
+  const palette = theme.powerUpPalette ?? [];
+  const colors = palette.length > 1 ? palette.slice(0, 2) : [accent, accent];
+  const box = SIDEBAR_FOOTER_DOWNLOADS.size;
+  return (
+    <View tooltip="Edit Space Theme" {...hoverProps}>
+      <Pressable
+        onPress={() => toggleThemePanel(windowId)}
+        accessibilityRole="button"
+        accessibilityLabel="Edit Space Theme"
+        accessibilityState={{ expanded: open }}
+      >
+        {({ pressed }) => (
+          <View
+            style={{
+              width: box,
+              height: box,
+              borderRadius: 10,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: pressed ? theme.toolbarPressed : hovered || open ? theme.toolbarHover : undefined,
+            }}
+          >
+            <View
+              style={{
+                width: 16,
+                height: 16,
+                borderRadius: 8,
+                overflow: "hidden",
+                flexDirection: "row",
+                borderWidth: 1.5,
+                borderColor: theme.dark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.35)",
+              }}
+            >
+              <View style={{ flex: 1, backgroundColor: colors[0] }} />
+              <View style={{ flex: 1, backgroundColor: colors[1] }} />
+            </View>
+          </View>
+        )}
+      </Pressable>
+    </View>
+  );
+}
+
 
 const CLIPPED = { marginTop: -layout.rowGap, paddingTop: layout.rowGap, overflow: "hidden" } as const;
 const NEW_TAB_LABEL_X = 30;

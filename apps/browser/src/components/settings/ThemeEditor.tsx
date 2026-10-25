@@ -1,13 +1,14 @@
 import { holdThemedWindowsKeyLook, ThemeSwatch } from "@ardia/shaders";
 import { showMenu, Symbol, type MenuItem } from "@ardia/shell";
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View, type GestureResponderEvent } from "react-native";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Pressable, StyleSheet, Text, TextInput, View, type GestureResponderEvent } from "react-native";
 import {
   colorHex,
   DEFAULT_THEME_ANGLE,
   flatColors,
   lookAngle,
   MAX_THEME_STOPS,
+  parseHex,
   PAD_LIGHTNESS,
   padColor,
   readableDark,
@@ -25,6 +26,7 @@ import {
   withoutStop,
   withStopAt,
   withStopLightness,
+  withStopColor,
 } from "../../lib/profileTheme";
 import { PROFILE_COLORS, useTheme } from "../../lib/theme";
 import { useBrowser } from "../../store/browser";
@@ -54,7 +56,7 @@ const TEXTURE_NAMES: Record<ThemeTexture, string> = { grain: "Grain", sand: "San
 
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 
-function useLiveTheme(profileId: string, theme: ProfileTheme | null | undefined) {
+export function useLiveTheme(profileId: string, theme: ProfileTheme | null | undefined) {
   const [draft, setDraft] = useState<ProfileTheme | null>(null);
   const pending = useRef<ProfileTheme | null>(null);
   const frame = useRef<number | null>(null);
@@ -74,7 +76,7 @@ function useLiveTheme(profileId: string, theme: ProfileTheme | null | undefined)
   return { theme: draft ?? theme ?? null, change };
 }
 
-export function ThemeSection({ profileId }: { profileId: string }) {
+export function ThemeSection({ profileId, openEditor }: { profileId: string; openEditor?: boolean }) {
   const profile = useBrowser((s) => s.profiles[profileId]);
   const live = useLiveTheme(profileId, profile?.theme);
   const appDark = useBrowser((s) => s.ui.appDark);
@@ -84,6 +86,8 @@ export function ThemeSection({ profileId }: { profileId: string }) {
     holdThemedWindowsKeyLook(true);
     return () => holdThemedWindowsKeyLook(false);
   }, [editing]);
+  const swatch = PROFILE_COLORS[profile?.color ?? "plum"]?.swatch ?? PROFILE_COLORS.plum.swatch;
+  const draft = useMemo(() => (openEditor ? startingTheme(swatch) : null), [openEditor, swatch]);
   if (!profile) return null;
   const stored = live.theme;
   const custom = stored?.dark ? resolveTheme(stored, themeDark(stored, appDark)) : stored;
@@ -124,7 +128,7 @@ export function ThemeSection({ profileId }: { profileId: string }) {
             </Pressable>
           </View>
         </Row>
-        {custom ? <ThemeEditor theme={custom} onChange={live.change} /> : null}
+        {custom || draft ? <ThemeEditor theme={custom ?? draft!} onChange={live.change} /> : null}
       </Group>
     </>
   );
@@ -159,7 +163,7 @@ function CustomSwatch({ theme }: { theme: ProfileTheme | null }) {
   );
 }
 
-function ThemeEditor({ theme, onChange }: { theme: ProfileTheme; onChange: (next: ProfileTheme, settle?: boolean) => void }) {
+export function ThemeEditor({ theme, onChange }: { theme: ProfileTheme; onChange: (next: ProfileTheme, settle?: boolean) => void }) {
   const ui = useTheme();
   const colors = useFormColors();
   const appDark = useBrowser((s) => s.ui.appDark);
@@ -169,9 +173,11 @@ function ThemeEditor({ theme, onChange }: { theme: ProfileTheme; onChange: (next
   const shownDark = readableDark(theme, requestedDark);
   return (
     <View style={{ padding: 12, flexDirection: "row", gap: 18 }}>
-      <View style={{ gap: 8 }}>
+      <View style={{ gap: 8, width: PAD }}>
         <ColorPad theme={theme} selected={index} onSelect={setSelected} onChange={onChange} />
         <LightnessBar theme={theme} index={index} onChange={onChange} />
+        <ArcSwatches onPick={(hex) => onChange(withStopColor(theme, index, parseHex(hex)!), true)} />
+        <HexField hex={colorHex(theme.stops[index]!.color)} onSubmit={(color) => onChange(withStopColor(theme, index, color), true)} />
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <Text style={{ fontSize: 11.5, color: ui.textSecondary }}>
             {theme.stops.length} of {MAX_THEME_STOPS} colours
@@ -554,3 +560,56 @@ export async function importArcTheme(profileId: string): Promise<boolean> {
 }
 
 
+
+const ARC_SWATCHES = ["#EFE7E1", "#E79AC2", "#9E6EA3", "#E25D5D", "#EF8B51", "#F2D35E", "#6FDA8F", "#78B5DA", "#5C5F86"];
+
+function ArcSwatches({ onPick }: { onPick: (hex: string) => void }) {
+  return (
+    <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+      {ARC_SWATCHES.map((hex) => (
+        <Pressable key={hex} onPress={() => onPick(hex)} tooltip={hex}>
+          <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: hex, borderWidth: StyleSheet.hairlineWidth * 2, borderColor: "rgba(0,0,0,0.15)" }} />
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+function HexField({ hex, onSubmit }: { hex: string; onSubmit: (color: NonNullable<ReturnType<typeof parseHex>>) => void }) {
+  const ui = useTheme();
+  const colors = useFormColors();
+  const [text, setText] = useState<string | null>(null);
+  useEffect(() => setText(null), [hex]);
+  const bad = text !== null && !parseHex(text);
+  const commit = () => {
+    const color = text === null ? null : parseHex(text);
+    if (color) onSubmit(color);
+    setText(null);
+  };
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+      <View style={{ width: 16, height: 16, borderRadius: 4, backgroundColor: hex, borderWidth: StyleSheet.hairlineWidth * 2, borderColor: "rgba(0,0,0,0.15)" }} />
+      <TextInput
+        value={text ?? hex}
+        onChangeText={setText}
+        onSubmitEditing={commit}
+        onBlur={commit}
+        placeholder="#RRGGBB"
+        placeholderTextColor={ui.placeholder}
+        enableFocusRing={false}
+        style={{
+          flex: 1,
+          height: 22,
+          paddingHorizontal: 6,
+          borderRadius: 5,
+          fontSize: 12,
+          fontVariant: ["tabular-nums"],
+          color: bad ? "#D93F3F" : ui.textPrimary,
+          backgroundColor: colors.control,
+          borderWidth: StyleSheet.hairlineWidth * 2,
+          borderColor: colors.controlBorder,
+        }}
+      />
+    </View>
+  );
+}

@@ -316,3 +316,16 @@ export function sanitizeTheme(v: unknown): ProfileTheme | null {
   const dark = sanitizeLook(t.dark);
   return { ...look, mode: t.mode === "light" || t.mode === "dark" ? t.mode : "auto", ...(dark ? { dark } : {}) };
 }
+
+export function parseHex(input: string): ThemeColor | null {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(input.trim());
+  if (!m) return null;
+  const digits = m[1]!.length === 3 ? [...m[1]!].map((c) => c + c).join("") : m[1]!;
+  return hexColor(`#${digits.toLowerCase()}`);
+}
+
+export function withStopColor(theme: ProfileTheme, index: number, color: ThemeColor): ProfileTheme {
+  if (!theme.stops[index]) return theme;
+  const { x, y } = padPosition(color);
+  return { ...theme, stops: theme.stops.map((s, i) => (i === index ? { x, y, color } : s)) };
+}
