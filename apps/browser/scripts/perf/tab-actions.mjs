@@ -70,19 +70,25 @@ function toolLibrary(out) {
   return lib;
 }
 
+const benchBundleId = "com.ardia.browser.benchtest";
+const restrictedEntitlement = /^(keychain-access-groups|aps-environment|com\.apple\.application-identifier|com\.apple\.developer\..+)$/;
+
 function prepare(app, bundle, dir) {
   const copy = join(dir, "Ardia.app");
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
   execFileSync("cp", ["-Rc", app, copy]);
   cpSync(bundle, join(copy, "Contents/Resources/main.jsbundle"));
-  const identity = spawnSync("codesign", ["-dvv", app], { encoding: "utf8" }).stderr.match(/^Authority=(.+)$/m)?.[1] ?? "-";
-  const granted = execFileSync("codesign", ["-d", "--entitlements", "-", "--xml", app], { encoding: "utf8" });
-  const extra = ["com.apple.security.cs.allow-dyld-environment-variables", "com.apple.security.cs.disable-library-validation"]
-    .filter((key) => !granted.includes(`<key>${key}</key>`)).map((key) => `<key>${key}</key><true/>`).join("");
+  rmSync(join(copy, "Contents/embedded.provisionprofile"), { force: true });
+  execFileSync("/usr/libexec/PlistBuddy", ["-c", `Set :CFBundleIdentifier ${benchBundleId}`, join(copy, "Contents/Info.plist")]);
   const entitlements = join(dir, "entitlements.plist");
-  writeFileSync(entitlements, granted.replace(/<\/dict>\s*<\/plist>\s*$/, `${extra}</dict></plist>`));
-  execFileSync("codesign", ["--force", "--sign", identity, "--timestamp=none", "--options", "runtime", "--entitlements", entitlements, copy], { stdio: "ignore" });
+  const granted = execFileSync("codesign", ["-d", "--entitlements", "-", "--xml", app], { encoding: "utf8" });
+  writeFileSync(entitlements, granted.trim() || `<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict/></plist>`);
+  const plist = (command) => spawnSync("/usr/libexec/PlistBuddy", ["-c", command, entitlements], { stdio: "ignore" });
+  for (const [, key] of granted.matchAll(/<key>([^<]+)<\/key>/g)) if (restrictedEntitlement.test(key)) plist(`Delete :${key}`);
+  for (const key of ["com.apple.security.cs.allow-dyld-environment-variables", "com.apple.security.cs.disable-library-validation"]) plist(`Add :${key} bool true`);
+  execFileSync("codesign", ["--force", "--deep", "--sign", "-", "--timestamp=none", "--preserve-metadata=identifier,entitlements", copy], { stdio: "ignore" });
+  execFileSync("codesign", ["--force", "--sign", "-", "--timestamp=none", "--options", "runtime", "--entitlements", entitlements, copy], { stdio: "ignore" });
   return copy;
 }
 
@@ -497,6 +503,7 @@ async function run() {
     }
   } finally {
     server.close();
+    for (const side of sides) rmSync(dirname(side.app), { recursive: true, force: true });
   }
 }
 

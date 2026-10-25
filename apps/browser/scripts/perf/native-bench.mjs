@@ -14,9 +14,10 @@
 //                             on even runs, candidate first on odd ones), so both see the same machine. Prints control →
 //                             candidate; each side's results land in <out>/<its label>/results.json.
 //     --control-bundle <file> the control's bundle (default: --app's bundle); --control-label <name> (default as --label)
-//     --prepared              --app (and --control) are copies this script already prepared (<out>/<label>/app/
-//                             Ardia.app: bundle swapped in, signed for the marker): run them in place, without
-//                             building a bundle, copying or signing. `--only prepare` makes those copies and exits.
+//     --prepared              --app (and --control) are copies `--only prepare` made (<out>/<label>/app/Ardia.app:
+//                             bundle swapped in, bundle id com.ardia.browser.benchtest, ad hoc signed for the
+//                             marker): run them in place, without building a bundle, copying or signing. They stay
+//                             until you delete them; a run without --prepared deletes the copies it made at its end.
 //     --runs <n>              session and windows runs (default 3); --launch-runs <n> cold launches (default 5)
 //     --idle <secs>           each idle window (default 60)
 //     --only <a,b>            phases (default launch,session,throttle,sample):
@@ -78,8 +79,9 @@
 //                   usage(), usageDelta(), footprint(): CPU, wakeups and phys_footprint per process kind
 //   Test pages      PAGE_SCRIPT (window.__ac: fcp, frame, visibility, shown), staticPage, animPage, the local server
 //   CDP             Cdp: page targets and their window.__ac
-//   App instances   prepareApp (copy, bundle, marker entitlements, re-sign), buildBundle, Instance (hidden `open -g -n`
-//                   launch, the bench-cmd.js → bench-result.json channel of bench-channel.js, marks(), quit)
+//   App instances   prepareApp (copy, bundle, test bundle id, marker entitlements, ad hoc re-sign), buildBundle,
+//                   Instance (hidden `open -g -n` launch, the bench-cmd.js → bench-result.json channel of bench-channel.js,
+//                   marks(), quit)
 //   Phases          makeTemplate (the seeded data folder each run copies), launchRun, sessionRun, windowsRun, newWindow,
 //                   idleWindow, throttled, throttleRun, churnRun, sampleRun
 //   Report          summary() builds every row below; printTable
@@ -373,20 +375,25 @@ class Cdp {
   }
 }
 
+const benchBundleId = "com.ardia.browser.benchtest";
+const restrictedEntitlement = /^(keychain-access-groups|aps-environment|com\.apple\.application-identifier|com\.apple\.developer\..+)$/;
+
 function prepareApp(app, out, bundle) {
   const copy = join(out, "Ardia.app");
   rmSync(copy, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
   execFileSync("cp", ["-Rc", app, copy]);
   cpSync(bundle, join(copy, "Contents/Resources/main.jsbundle"));
-  const info = spawnSync("codesign", ["-dvv", app], { encoding: "utf8" }).stderr;
-  const identity = info.match(/^Authority=(.+)$/m)?.[1] ?? "-";
+  rmSync(join(copy, "Contents/embedded.provisionprofile"), { force: true });
+  execFileSync("/usr/libexec/PlistBuddy", ["-c", `Set :CFBundleIdentifier ${benchBundleId}`, join(copy, "Contents/Info.plist")]);
   const entitlements = join(out, "entitlements.plist");
   const granted = execFileSync("codesign", ["-d", "--entitlements", "-", "--xml", app], { encoding: "utf8" });
-  const marker = ["com.apple.security.cs.allow-dyld-environment-variables", "com.apple.security.cs.disable-library-validation"]
-    .filter((key) => !granted.includes(`<key>${key}</key>`)).map((key) => `<key>${key}</key><true/>`).join("");
-  writeFileSync(entitlements, granted.replace(/<\/dict>\s*<\/plist>\s*$/, `${marker}</dict></plist>`));
-  execFileSync("codesign", ["--force", "--sign", identity, "--timestamp=none", "--options", "runtime", "--entitlements", entitlements, copy], { stdio: "inherit" });
+  writeFileSync(entitlements, granted.trim() || `<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict/></plist>`);
+  const plist = (command) => spawnSync("/usr/libexec/PlistBuddy", ["-c", command, entitlements], { stdio: "ignore" });
+  for (const [, key] of granted.matchAll(/<key>([^<]+)<\/key>/g)) if (restrictedEntitlement.test(key)) plist(`Delete :${key}`);
+  for (const key of ["com.apple.security.cs.allow-dyld-environment-variables", "com.apple.security.cs.disable-library-validation"]) plist(`Add :${key} bool true`);
+  execFileSync("codesign", ["--force", "--deep", "--sign", "-", "--timestamp=none", "--options", "runtime", "--preserve-metadata=identifier,entitlements", copy], { stdio: "ignore" });
+  execFileSync("codesign", ["--force", "--sign", "-", "--timestamp=none", "--options", "runtime", "--entitlements", entitlements, copy], { stdio: "inherit" });
   writeFileSync(join(out, "prepared.json"), JSON.stringify({ app, bundle, date: new Date().toISOString() }));
   return copy;
 }
@@ -394,8 +401,9 @@ function prepareApp(app, out, bundle) {
 function checkPrepared(copy) {
   if (copy.startsWith("/Applications/")) throw new Error(`--prepared runs the app in place; ${copy} is the owner's`);
   const granted = spawnSync("codesign", ["-d", "--entitlements", "-", "--xml", copy], { encoding: "utf8" }).stdout ?? "";
-  if (!granted.includes("<key>com.apple.security.cs.allow-dyld-environment-variables</key>"))
-    throw new Error(`${copy} isn't a copy native-bench prepared (run once without --prepared, or with --only prepare)`);
+  const id = spawnSync("/usr/libexec/PlistBuddy", ["-c", "Print :CFBundleIdentifier", join(copy, "Contents/Info.plist")], { encoding: "utf8" }).stdout?.trim();
+  if (id !== benchBundleId || !granted.includes("<key>com.apple.security.cs.allow-dyld-environment-variables</key>"))
+    throw new Error(`${copy} isn't a copy native-bench prepared (make one with --only prepare)`);
   try {
     return JSON.parse(readFileSync(join(dirname(copy), "prepared.json"), "utf8"));
   } catch {
@@ -1222,6 +1230,7 @@ async function interleaved(n, fn) {
 const cleanup = async () => {
   for (const app of [...live]) await app.quit().catch(() => {});
   server?.close();
+  if (!opt.prepared && !only.has("prepare")) for (const side of sides) rmSync(join(side.dir, "app"), { recursive: true, force: true });
 };
 process.on("SIGINT", async () => {
   log("interrupted: quitting the instance");

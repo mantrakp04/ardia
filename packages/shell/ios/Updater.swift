@@ -1,4 +1,5 @@
 import AppKit
+import Security
 #if canImport(Sparkle)
 import Sparkle
 #endif
@@ -319,54 +320,129 @@ enum UpdatePrewarm {
   static let timeout: TimeInterval = 90
   private static var started = Set<String>()
   private static var running: pid_t = 0
+  private static var spawned: pid_t = 0
+  private static var stopCount = 0
 
   static func start(version: String) {
-    guard !started.contains(version), let executable = stagedApp(version: version)?.executableURL else { return }
+    let candidates = stagedCandidates(version: version)
+    guard !started.contains(version), !candidates.isEmpty else { return }
     started.insert(version)
     NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { _ in stop() }
     DispatchQueue.global(qos: .utility).async {
-      let task = Process()
-      task.executableURL = executable
+      let seenStops = stopCount
+      guard let executable = candidates.first(where: { satisfiesDesignatedRequirement($0.bundleURL) })?.executableURL else {
+        return NSLog("Ardia: not prewarming update \(version): no staged copy satisfies this app's designated requirement")
+      }
       var env = ProcessInfo.processInfo.environment.filter { !$0.key.hasPrefix("ARDIA_") && !$0.key.hasPrefix("DYLD_") }
       env["ARDIA_PREWARM"] = "1"
-      task.environment = env
-      task.standardInput = FileHandle.nullDevice
-      task.standardOutput = FileHandle.nullDevice
-      task.standardError = FileHandle.nullDevice
       let began = Date()
-      task.terminationHandler = { ended in
-        DispatchQueue.main.async {
-          if running == ended.processIdentifier { running = 0 }
-          NSLog("Ardia: prewarmed update \(version) in \(Int(Date().timeIntervalSince(began) * 1000)) ms (status \(ended.terminationStatus))")
-        }
+      guard let pid = spawnSuspendedDisclaimingResponsibility(executable, environment: env) else {
+        return NSLog("Ardia: couldn't prewarm update \(version)")
       }
-      do {
-        try task.run()
-      } catch {
-        return NSLog("Ardia: couldn't prewarm update \(version): \(error.localizedDescription)")
+      spawned = pid
+      defer { if spawned == pid { spawned = 0 } }
+      guard launchedCopySatisfiesDesignatedRequirement(pid) else {
+        kill(pid, SIGKILL)
+        while waitpid(pid, nil, 0) == -1, errno == EINTR {}
+        return NSLog("Ardia: not prewarming update \(version): the launched copy doesn't satisfy this app's designated requirement")
       }
-      let pid = task.processIdentifier
+      guard seenStops == stopCount else {
+        kill(pid, SIGKILL)
+        while waitpid(pid, nil, 0) == -1, errno == EINTR {}
+        return NSLog("Ardia: not prewarming update \(version): it was stopped before it could run")
+      }
+      kill(pid, SIGCONT)
       DispatchQueue.main.async {
-        if task.isRunning { running = pid }
+        running = pid
         DispatchQueue.main.asyncAfter(deadline: .now() + timeout) {
-          guard running == pid, task.isRunning else { return }
+          guard running == pid else { return }
           NSLog("Ardia: update prewarm still running after \(Int(timeout)) s; stopping it")
           stop()
         }
+      }
+      var exited = siginfo_t()
+      while waitid(P_PID, id_t(pid), &exited, WEXITED | WNOWAIT) == -1, errno == EINTR {}
+      DispatchQueue.main.async {
+        if running == pid { running = 0 }
+        waitpid(pid, nil, 0)
+        NSLog("Ardia: prewarmed update \(version) in \(Int(Date().timeIntervalSince(began) * 1000)) ms (status \(exited.si_status))")
       }
     }
   }
 
   static func stop() {
-    guard running != 0 else { return }
-    kill(running, SIGKILL)
+    stopCount += 1
+    for pid in Set([running, spawned].filter { $0 != 0 }) {
+      kill(pid, SIGKILL)
+      while waitpid(pid, nil, 0) == -1, errno == EINTR {}
+    }
     running = 0
+    spawned = 0
   }
 
-  static func stagedApp(version: String, bundleId: String? = Bundle.main.bundleIdentifier, root: URL? = nil) -> Bundle? {
+  static func stagedCandidates(version: String, bundleId: String? = Bundle.main.bundleIdentifier, root: URL? = nil) -> [Bundle] {
     stagedApps(bundleId: bundleId, root: root)
       .filter { $0.bundle.infoDictionary?["CFBundleVersion"] as? String == version }
-      .max { $0.modified < $1.modified }?.bundle
+      .sorted { $0.modified > $1.modified }
+      .map(\.bundle)
+  }
+
+  static let designatedRequirement: SecRequirement? = {
+    var own: SecCode?
+    var code: SecStaticCode?
+    var requirement: SecRequirement?
+    guard SecCodeCopySelf([], &own) == errSecSuccess, let own,
+      SecCodeCopyStaticCode(own, [], &code) == errSecSuccess, let code,
+      SecCodeCopyDesignatedRequirement(code, [], &requirement) == errSecSuccess
+    else { return nil }
+    return requirement
+  }()
+
+  static func satisfiesDesignatedRequirement(_ app: URL, requirement: SecRequirement? = designatedRequirement) -> Bool {
+    var code: SecStaticCode?
+    guard let requirement, SecStaticCodeCreateWithPath(app as CFURL, [], &code) == errSecSuccess, let code else { return false }
+    let flags = SecCSFlags(rawValue: kSecCSCheckAllArchitectures | kSecCSStrictValidate | kSecCSCheckNestedCode)
+    return SecStaticCodeCheckValidity(code, flags, requirement) == errSecSuccess
+  }
+
+  static func launchedCopySatisfiesDesignatedRequirement(_ pid: pid_t, requirement: SecRequirement? = designatedRequirement) -> Bool {
+    var code: SecCode?
+    guard let requirement,
+      SecCodeCopyGuestWithAttributes(nil, [kSecGuestAttributePid as String: pid] as CFDictionary, [], &code) == errSecSuccess, let code
+    else { return false }
+    return SecCodeCheckValidity(code, [], requirement) == errSecSuccess
+  }
+
+  private typealias DisclaimResponsibility = @convention(c) (UnsafeMutablePointer<posix_spawnattr_t?>, Int32) -> Int32
+
+  private static let disclaimResponsibility: DisclaimResponsibility? = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "responsibility_spawnattrs_setdisclaim")
+    .map { unsafeBitCast($0, to: DisclaimResponsibility.self) }
+
+  static func spawnSuspendedDisclaimingResponsibility(_ executable: URL, environment: [String: String]) -> pid_t? {
+    var attributes: posix_spawnattr_t?
+    var actions: posix_spawn_file_actions_t?
+    posix_spawnattr_init(&attributes)
+    posix_spawn_file_actions_init(&actions)
+    defer {
+      posix_spawnattr_destroy(&attributes)
+      posix_spawn_file_actions_destroy(&actions)
+    }
+    var noSignals = sigset_t()
+    var allSignals = sigset_t()
+    sigemptyset(&noSignals)
+    sigfillset(&allSignals)
+    posix_spawnattr_setsigmask(&attributes, &noSignals)
+    posix_spawnattr_setsigdefault(&attributes, &allSignals)
+    posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_CLOEXEC_DEFAULT | POSIX_SPAWN_SETSIGMASK | POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_START_SUSPENDED))
+    guard let disclaimResponsibility, disclaimResponsibility(&attributes, 1) == 0 else { return nil }
+    posix_spawn_file_actions_addopen(&actions, STDIN_FILENO, "/dev/null", O_RDONLY, 0)
+    posix_spawn_file_actions_addopen(&actions, STDOUT_FILENO, "/dev/null", O_WRONLY, 0)
+    posix_spawn_file_actions_addopen(&actions, STDERR_FILENO, "/dev/null", O_WRONLY, 0)
+    let argv: [UnsafeMutablePointer<CChar>?] = [strdup(executable.path), nil]
+    let envp: [UnsafeMutablePointer<CChar>?] = environment.map { strdup("\($0.key)=\($0.value)") } + [nil]
+    defer { (argv + envp).forEach { free($0) } }
+    var pid: pid_t = 0
+    return posix_spawn(&pid, executable.path, &actions, &attributes, argv, envp) == 0 ? pid : nil
   }
 
   static func stagedApps(bundleId: String? = Bundle.main.bundleIdentifier, root: URL? = nil) -> [(bundle: Bundle, modified: Date)] {
