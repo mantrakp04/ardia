@@ -1,3 +1,4 @@
+#if os(macOS)
 import AppKit
 import Foundation
 
@@ -244,3 +245,4 @@ public enum LegacyDockTile {
     return folder == resolved(URL(fileURLWithPath: "/Applications")) || folder == resolved(home)
   }
 }
+#endif

@@ -1,0 +1,113 @@
+name: Ardia
+options:
+  bundleIdPrefix: com.ardia
+  deploymentTarget:
+    iOS: "27.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    DEVELOPMENT_TEAM: U5L5T3NGVV
+    CODE_SIGN_STYLE: Automatic
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_APPROACHABLE_CONCURRENCY: YES
+    SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    STRING_CATALOG_GENERATE_SYMBOLS: YES
+    LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+packages:
+  ArdiaKit:
+    path: Packages/ArdiaKit
+targets:
+  Ardia:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+        type: syncedFolder
+    dependencies:
+      - package: ArdiaKit
+        product: ArdiaShared
+      - package: ArdiaKit
+        product: ArdiaSync
+      - package: ArdiaKit
+        product: ArdiaBrowser
+      - package: ArdiaKit
+        product: ArdiaIntelligence
+      - package: ArdiaKit
+        product: ArdiaDesign
+      - target: ArdiaWidgets
+      - target: ArdiaShare
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ardia.ios
+        PRODUCT_NAME: Ardia
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: Config/Ardia-Info.plist
+        CODE_SIGN_ENTITLEMENTS: Config/Ardia.entitlements
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        INFOPLIST_KEY_CFBundleDisplayName: Ardia
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+        INFOPLIST_KEY_NSCameraUsageDescription: "Ardia uses the camera to scan the sync code your Mac shows."
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Ardia uses the microphone when you search with your voice."
+        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "Ardia turns what you say into a search."
+        INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: "Ardia saves images you choose to your photo library."
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+  ArdiaWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Widgets
+        type: syncedFolder
+    dependencies:
+      - package: ArdiaKit
+        product: ArdiaBrowser
+      - package: ArdiaKit
+        product: ArdiaDesign
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ardia.ios.widgets
+        PRODUCT_NAME: ArdiaWidgets
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: Config/Widgets-Info.plist
+        CODE_SIGN_ENTITLEMENTS: Config/Widgets.entitlements
+        TARGETED_DEVICE_FAMILY: "1"
+        INFOPLIST_KEY_CFBundleDisplayName: Ardia
+        SKIP_INSTALL: YES
+  ArdiaShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Share
+        type: syncedFolder
+    dependencies:
+      - package: ArdiaKit
+        product: ArdiaBrowser
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ardia.ios.share
+        PRODUCT_NAME: ArdiaShare
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: Config/Share-Info.plist
+        CODE_SIGN_ENTITLEMENTS: Config/Share.entitlements
+        TARGETED_DEVICE_FAMILY: "1"
+        INFOPLIST_KEY_CFBundleDisplayName: Ardia
+        SKIP_INSTALL: YES
+schemes:
+  Ardia:
+    build:
+      targets:
+        Ardia: all
+    run:
+      config: Debug
+    archive:
+      config: Release

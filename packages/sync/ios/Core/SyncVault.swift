@@ -129,6 +129,7 @@ public final class SyncVault {
   }
 }
 
+#if os(macOS)
 public enum SyncFolder {
   public static var iCloudDrive: URL {
     FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs", isDirectory: true)
@@ -148,3 +149,4 @@ public enum SyncFolder {
     return names.contains { Base32.isTag($0) }
   }
 }
+#endif
