@@ -230,6 +230,7 @@ const ROWS: Record<SettingsPane, Section[]> = {
         },
       },
     },
+    { section: "Profiles", rows: { profileSwitcher: { title: "Profile switcher", description: "Show dots or profile icons in the sidebar.", keywords: ["profile icons", "dots", "emoji", "spaces"] } } },
     { section: "App Icon", rows: { appIcon: { title: "App Icon", description: "Shown in the Dock and the app switcher. The Dock keeps it after you quit.", keywords: ["dock icon", "logo"] } } },
   ],
   privacy: [

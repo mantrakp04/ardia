@@ -30,8 +30,30 @@ export function AppearancePane() {
         ))}
       </View>
       <AddressBarPicker />
+      <ProfileSwitcherPicker />
       <AppIconPicker />
     </View>
+  );
+}
+
+function ProfileSwitcherPicker() {
+  const value = useBrowser((s) => s.settings.profileSwitcher);
+  return (
+    <>
+      <SectionHeader title="Profiles" />
+      <Group>
+        <Row anchor="appearance.profileSwitcher">
+          <PopUp
+            value={value}
+            options={[
+              { value: "dots", title: "Dots" },
+              { value: "icons", title: "Icons" },
+            ]}
+            onChange={(profileSwitcher) => useBrowser.getState().updateSettings({ profileSwitcher })}
+          />
+        </Row>
+      </Group>
+    </>
   );
 }
 
