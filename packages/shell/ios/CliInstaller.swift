@@ -28,6 +28,18 @@ final class CliInstaller {
     Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
   }
 
+  static var product: String {
+    let name = (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "").trimmingCharacters(in: .whitespaces)
+    return name.isEmpty ? "Ardia" : name
+  }
+
+  static var command: String { product.lowercased() }
+
+  private static var releaseRepo: String? {
+    let repo = (Bundle.main.object(forInfoDictionaryKey: "ACReleaseRepo") as? String ?? "").trimmingCharacters(in: .whitespaces)
+    return repo.isEmpty ? nil : repo
+  }
+
   private static var environment: [String: String] { ProcessInfo.processInfo.environment }
 
   private static var isolated: Bool { ACIsolatedDataDirectory() != nil }
@@ -41,7 +53,7 @@ final class CliInstaller {
     if let path = setting("ARDIA_CLI_HOME") { return URL(fileURLWithPath: path, isDirectory: true) }
     if isolated { return nil }
     return FileManager.default.homeDirectoryForCurrentUser
-      .appendingPathComponent("Library/Application Support/Ardia/CLI", isDirectory: true)
+      .appendingPathComponent("Library/Application Support/\(product)/CLI", isDirectory: true)
   }
 
   static func installedVersion() -> String? {
@@ -98,12 +110,13 @@ final class CliInstaller {
     }
     let version = Self.appVersion
     guard version.range(of: Self.versionPattern, options: .regularExpression) != nil else {
-      return finish(failure("This build's version (\(version)) has no ardia command release."))
+      return finish(failure("This build's version (\(version)) has no \(Self.command) command release."))
     }
     guard let script = Self.script(), FileManager.default.isReadableFile(atPath: script.path) else {
-      return finish(failure("The installer isn't in this build of Ardia."))
+      return finish(failure("The installer isn't in this build of \(Self.product)."))
     }
-    var arguments = [script.path, "--version", version]
+    var arguments = [script.path, "--version", version, "--product", Self.product]
+    if let repo = Self.releaseRepo { arguments += ["--repo", repo] }
     if let digest = Self.pinnedDigest() { arguments += ["--sha256", digest] }
 
     let process = Process()

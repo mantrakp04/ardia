@@ -453,7 +453,7 @@ class ReadOnlyDefaults(unittest.TestCase):
         self.script = self.work / "s.user.js"
         self.script.write_text("// ==UserScript==\n// @name s\n// @match https://example.com/*\n// ==/UserScript==\nconsole.log(1);\n")
         patches = [
-            mock.patch.object(endpoint, "INSTALLED_DATA_DIR", self.default),
+            mock.patch.object(endpoint, "installed_data_dir", lambda: self.default),
             mock.patch.dict(os.environ, {}, clear=False),
         ]
         for patch in patches:

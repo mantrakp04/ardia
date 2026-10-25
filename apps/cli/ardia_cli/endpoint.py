@@ -7,13 +7,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlsplit
 
+from ardia_cli import identity
 from ardia_cli.redact import add_secret
 
 NOT_REACHABLE = (
-    "Ardia isn't running, or \"Let the ardia command control Ardia\" is off in Settings."
+    f"{identity.PRODUCT} isn't running, or \"Let the {identity.COMMAND} command control {identity.PRODUCT}\" is off in Settings."
 )
 CONTROL_FILE = "ArdiaControl.json"
-INSTALLED_DATA_DIR = Path.home() / "Library" / "Application Support" / "com.ardia.browser"
 _BROWSER_PATH = re.compile(r"^/devtools/browser/[0-9A-Za-z-]{1,128}$")
 _TOKEN = re.compile(r"^[\x21-\x7e]{16,1024}$")
 _MAX_CONTROL_FILE = 64 * 1024
@@ -44,7 +44,11 @@ def resolve(ws: str | None = None, port: int | None = None, data_dir: str | None
 
 def data_root(data_dir: str | None = None) -> Path:
     root = data_dir or os.environ.get("ARDIA_DATA_DIR")
-    return Path(root).expanduser() if root else INSTALLED_DATA_DIR
+    return Path(root).expanduser() if root else installed_data_dir()
+
+
+def installed_data_dir() -> Path:
+    return Path.home() / "Library" / "Application Support" / identity.BUNDLE_ID
 
 
 def explicit_data_root(data_dir: str | None = None) -> Path | None:

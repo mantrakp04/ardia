@@ -237,17 +237,21 @@ Faster section. (0.2.28 and 0.2.29 were also timed against 0.2.17, the last CEF 
 
 ## 5. Publish
 
-A nightly publishes with `publish-nightly.sh` (the nightly loop above). A stable release:
+A nightly publishes with `publish-nightly.sh` (the nightly loop above). A stable release goes to the identity's
+`AC_RELEASE_REPO` (`mantrakp04/ardia` upstream, a fork's own repo with its `Fork.xcconfig`), as `publish-nightly.sh`
+and `appcast-merge.sh` read it. Run these from the repo root:
 
 ```bash
+repo=$(bash -c '. scripts/identity.sh && ac_identity AC_RELEASE_REPO')
+product=$(bash -c '. scripts/identity.sh && ac_identity AC_PRODUCT_NAME')
 git tag v<version> && git push origin main v<version>
 .claude/skills/release/scripts/appcast-merge.sh <version>
-gh release create v<version> -R mantrakp04/ardia --title "Ardia <version>" \
+gh release create v<version> -R "$repo" --title "$product <version>" \
   --notes-file dist/<version>/release-notes.md \
   dist/<version>/Ardia-<version>.dmg dist/<version>/Ardia-<version>.zip dist/<version>/appcast.xml \
   dist/<version>/ardia-cli-<version>-macos-arm64.tar.gz dist/<version>/ardia-cli-<version>-macos-arm64.tar.gz.sha256 \
   $(ls dist/<version>/ArdiaCore-*.tar.xz 2>/dev/null)
-curl -fsL https://github.com/mantrakp04/ardia/releases/latest/download/appcast.xml | grep -o 'shortVersionString>[0-9.]*' | head -1
+curl -fsL "https://github.com/$repo/releases/latest/download/appcast.xml" | grep -o 'shortVersionString>[0-9.]*' | head -1
 .claude/skills/release/scripts/feed.sh <version>
 ```
 
@@ -291,9 +295,10 @@ the final RC and said ship).
    publish a fixed build with a higher build number: copies that haven't updated yet go straight to it.
 3. **Everyone.** Remove the interval from the published appcast, so every copy sees the update:
    ```bash
-   gh release download v<version> -R mantrakp04/ardia -p appcast.xml -D /tmp/ac-appcast --clobber
+   repo=$(bash -c '. scripts/identity.sh && ac_identity AC_RELEASE_REPO')
+   gh release download v<version> -R "$repo" -p appcast.xml -D /tmp/ac-appcast --clobber
    sed -i '' '/<sparkle:phasedRolloutInterval>/d' /tmp/ac-appcast/appcast.xml
-   gh release upload v<version> -R mantrakp04/ardia /tmp/ac-appcast/appcast.xml --clobber
+   gh release upload v<version> -R "$repo" /tmp/ac-appcast/appcast.xml --clobber
    .claude/skills/release/scripts/feed.sh <version>
    ```
    (The appcast isn't signed as a whole, only its zip's `edSignature`, so editing the line keeps it valid.) The next
@@ -307,7 +312,8 @@ The download button builds its URL from `VERSION` (`releases/latest/download/Ard
 so it 404s the moment a newer release is published until this is bumped:
 
 ```bash
-size=$(gh release view v<version> -R mantrakp04/ardia --json assets -q '.assets[] | select(.name|endswith(".dmg")) | .size' | awk '{printf "%.0f MB", $1/1000000}')
+repo=$(bash -c '. scripts/identity.sh && ac_identity AC_RELEASE_REPO')
+size=$(gh release view v<version> -R "$repo" --json assets -q '.assets[] | select(.name|endswith(".dmg")) | .size' | awk '{printf "%.0f MB", $1/1000000}')
 # set VERSION = "<version>" and DMG_SIZE = "$size" in apps/site/src/data/release.ts
 ```
 

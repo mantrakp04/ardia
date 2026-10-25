@@ -1,13 +1,17 @@
 #!/bin/sh
 # Installs the ardia command, which controls a running Ardia from the terminal.
 #
-#   install.sh [--version V] [--sha256 DIGEST] [--uninstall]
+#   install.sh [--version V] [--sha256 DIGEST] [--product NAME] [--repo OWNER/REPO] [--uninstall]
 #   install.sh -h | --help
 #
 # --version V        install that release (default: the latest release that ships the CLI).
 # --sha256 DIGEST    the tarball's digest; required for a download (the app passes the one pinned in its signed bundle).
+# --product NAME     the app the command drives (default: Ardia); the command is its name in lowercase (ardia).
+# --repo OWNER/REPO  the GitHub repository whose releases ship the CLI (default: mantrakp04/ardia).
 # --uninstall        remove the installed CLI and its ardia link.
 #
+# A fork's app passes its own --product and --repo, so a fork named Name installs a name command from its own releases into
+# ~/Library/Application Support/Name/CLI. The paths below are for the defaults.
 # Installs into ${ARDIA_CLI_HOME:-~/Library/Application Support/Ardia/CLI}/<version>, points its `current` link
 # there and links ${ARDIA_CLI_BIN_DIR:-~/.local/bin}/ardia to current/bin/ardia. When the default bin dir isn't on
 # the login shell's PATH, it adds one PATH line to ~/.zprofile (~/.bash_profile for bash), once.
@@ -27,9 +31,9 @@ set -eu
 umask 022
 
 repo=mantrakp04/ardia
+product=Ardia
 asset_suffix=-macos-arm64.tar.gz
 version_pattern='^[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}(-[a-z]{1,16}\.[0-9]{1,4})?$'
-cli_home=${ARDIA_CLI_HOME:-$HOME/Library/Application Support/Ardia/CLI}
 default_bin_dir=$HOME/.local/bin
 bin_dir=${ARDIA_CLI_BIN_DIR:-$default_bin_dir}
 version=
@@ -69,11 +73,21 @@ while [ $# -gt 0 ]; do
     --version=*) version=${1#--version=}; version=${version#v}; shift ;;
     --sha256) [ $# -ge 2 ] || fail "--sha256 needs a value"; pinned_sha=$2; shift 2 ;;
     --sha256=*) pinned_sha=${1#--sha256=}; shift ;;
+    --product) [ $# -ge 2 ] || fail "--product needs a value"; product=$2; shift 2 ;;
+    --product=*) product=${1#--product=}; shift ;;
+    --repo) [ $# -ge 2 ] || fail "--repo needs a value"; repo=$2; shift 2 ;;
+    --repo=*) repo=${1#--repo=}; shift ;;
     --uninstall) uninstall=1; shift ;;
     -h|--help) help ;;
     *) fail "unknown option: $1" ;;
   esac
 done
+
+printf '%s\n' "$product" | grep -Eq '^[A-Za-z][A-Za-z0-9-]{0,31}$' || fail "bad --product name: $product"
+printf '%s\n' "$repo" | grep -Eq '^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$' || fail "bad --repo: $repo"
+command=$(printf '%s' "$product" | tr '[:upper:]' '[:lower:]')
+cli_home=${ARDIA_CLI_HOME:-$HOME/Library/Application Support/$product/CLI}
+link=$bin_dir/$command
 
 if [ -n "$version" ] && ! is_version "$version"; then
   fail "bad version: $version"
@@ -109,19 +123,19 @@ points_into_cli_home() {
 }
 
 check_bin_free() {
-  if { [ -e "$bin_dir/ardia" ] || [ -L "$bin_dir/ardia" ]; } && ! points_into_cli_home "$bin_dir/ardia"; then
-    fail "$bin_dir/ardia already exists and isn't this CLI's link; move it away and run this again"
+  if { [ -e "$link" ] || [ -L "$link" ]; } && ! points_into_cli_home "$link"; then
+    fail "$link already exists and isn't this CLI's link; move it away and run this again"
   fi
 }
 
 link_bin() {
   target=$cli_home/current/bin/ardia
-  [ -L "$bin_dir/ardia" ] && [ "$(readlink "$bin_dir/ardia")" = "$target" ] && return 0
+  [ -L "$link" ] && [ "$(readlink "$link")" = "$target" ] && return 0
   printf 'step link\n'
   mkdir -p "$bin_dir" || fail "couldn't create $bin_dir"
   check_bin_free
-  ln -sfh "$target" "$bin_dir/.ardia.$$" || fail "couldn't create the ardia link"
-  mv -fh "$bin_dir/.ardia.$$" "$bin_dir/ardia" || { rm -f "$bin_dir/.ardia.$$"; fail "couldn't link $bin_dir/ardia"; }
+  ln -sfh "$target" "$bin_dir/.$command.$$" || fail "couldn't create the $command link"
+  mv -fh "$bin_dir/.$command.$$" "$link" || { rm -f "$bin_dir/.$command.$$"; fail "couldn't link $link"; }
 }
 
 lease_live() {
@@ -192,8 +206,8 @@ check_tree() {
 
 if [ "$uninstall" -eq 1 ]; then
   printf 'step uninstall\n'
-  if points_into_cli_home "$bin_dir/ardia"; then
-    rm -f "$bin_dir/ardia" || fail "couldn't remove $bin_dir/ardia"
+  if points_into_cli_home "$link"; then
+    rm -f "$link" || fail "couldn't remove $link"
   fi
   if [ -d "$cli_home" ]; then
     take_lock
@@ -212,8 +226,8 @@ if [ "$uninstall" -eq 1 ]; then
   exit 0
 fi
 
-[ "$(uname -s)" = Darwin ] || fail "the ardia CLI runs on macOS only"
-[ "$(uname -m)" = arm64 ] || fail "the ardia CLI needs an Apple silicon Mac"
+[ "$(uname -s)" = Darwin ] || fail "the $command CLI runs on macOS only"
+[ "$(uname -m)" = arm64 ] || fail "the $command CLI needs an Apple silicon Mac"
 
 printf 'step resolve\n'
 if [ -n "${ARDIA_CLI_URL:-}" ]; then
@@ -231,7 +245,7 @@ else
   if [ -z "$url" ]; then
     url=$(fetch "https://api.github.com/repos/$repo/releases?per_page=30" 2>/dev/null | grep -o "$pattern" | head -n 1 || true)
   fi
-  [ -n "$url" ] || fail "no Ardia release ships the CLI yet (or GitHub is unreachable)"
+  [ -n "$url" ] || fail "no $product release ships the CLI yet (or GitHub is unreachable)"
   name=${url##*/}
   version=${name#ardia-cli-}
   version=${version%"$asset_suffix"}
@@ -239,7 +253,7 @@ fi
 is_version "$version" || fail "bad version: $version"
 case $url in
   file://*) ;;
-  *) [ -n "$pinned_sha" ] || fail "no --sha256: install the ardia command from Ardia (Settings › Advanced), which pins its digest" ;;
+  *) [ -n "$pinned_sha" ] || fail "no --sha256: install the $command command from $product (Settings › Advanced), which pins its digest" ;;
 esac
 printf 'version %s\n' "$version"
 check_bin_free
@@ -253,7 +267,7 @@ previous=$(readlink "$cli_home/current" 2>/dev/null || true)
 if [ "$previous" = "$version" ] && [ -x "$cli_home/$version/bin/ardia" ]; then
   link_bin
   reported=1
-  printf 'installed %s\n' "$bin_dir/ardia"
+  printf 'installed %s\n' "$link"
   exit 0
 fi
 is_version "$previous" || previous=
@@ -282,7 +296,9 @@ tar -xzf "$work/cli.tar.gz" -C "$staged" --strip-components 1 --no-same-owner "a
 check_tree "$staged"
 [ -x "$staged/bin/ardia" ] || fail "the tarball has no ardia-cli-$version/bin/ardia"
 xattr -dr com.apple.quarantine "$staged" 2>/dev/null || true
-"$staged/bin/ardia" --version >"$work/check.out" 2>&1 9>&- || fail "the downloaded ardia doesn't run: $(tail -n 1 "$work/check.out")"
+"$staged/bin/ardia" --version >"$work/check.out" 2>&1 9>&- || fail "the downloaded $command doesn't run: $(tail -n 1 "$work/check.out")"
+[ "$(head -n 1 "$work/check.out")" = "$command $version" ] \
+  || fail "the tarball is for another app: it says $(head -n 1 "$work/check.out"), not $command $version"
 if [ -d "$dest" ] && ! [ -L "$dest" ] && [ -x "$dest/bin/ardia" ] && in_use "$dest"; then
   rm -rf "$staged"
 else
@@ -329,4 +345,4 @@ if [ "$bin_dir" = "$default_bin_dir" ]; then
 fi
 
 reported=1
-printf 'installed %s\n' "$bin_dir/ardia"
+printf 'installed %s\n' "$link"

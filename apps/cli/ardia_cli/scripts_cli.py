@@ -2,6 +2,8 @@ import json
 import sys
 from pathlib import Path
 
+from ardia_cli import identity
+
 SCRIPTS_DESCRIPTION = """\
 Write userscripts in TypeScript or JavaScript, test them against real pages, and install them so Ardia runs them.
 
@@ -76,7 +78,7 @@ def add_parser(commands, formatter):
     scripts = commands.add_parser(
         "scripts",
         help="write, test and install userscripts",
-        description=SCRIPTS_DESCRIPTION,
+        description=identity.brand(SCRIPTS_DESCRIPTION),
         formatter_class=formatter,
     )
     sub = scripts.add_subparsers(dest="scripts_command", metavar="<command>")
@@ -85,7 +87,7 @@ def add_parser(commands, formatter):
     new.add_argument("name", metavar="NAME", help="the script's @name; the file is NAME.user.ts")
     new.add_argument("--match", action="append", metavar="PATTERN", help="an @match pattern; repeat for several (default: https://example.com/*)")
 
-    test = sub.add_parser("test", help="run a script once in a background tab and report", description=TEST_DESCRIPTION, epilog=ENDPOINT_EPILOG, formatter_class=formatter)
+    test = sub.add_parser("test", help="run a script once in a background tab and report", description=identity.brand(TEST_DESCRIPTION), epilog=identity.brand(ENDPOINT_EPILOG), formatter_class=formatter)
     test.add_argument("file", metavar="FILE", help="the .ts or .js userscript")
     test.add_argument("--url", metavar="URL", help="the page to open (default: the first @match without wildcards in its host)")
     test.add_argument("--expect", metavar="JS", help="a JavaScript expression that must end up truthy")
@@ -95,22 +97,22 @@ def add_parser(commands, formatter):
     test.add_argument("--json", action="store_true", help="print the report as JSON")
     add_endpoint_arguments(test)
 
-    install = sub.add_parser("install", help="install a script so Ardia runs it", description=INSTALL_DESCRIPTION, formatter_class=formatter)
+    install = sub.add_parser("install", help=f"install a script so {identity.PRODUCT} runs it", description=identity.brand(INSTALL_DESCRIPTION), formatter_class=formatter)
     install.add_argument("file", metavar="FILE", help="the .ts or .js userscript")
-    install.add_argument("--data-dir", metavar="DIR", help="the Ardia data dir (default: $ARDIA_DATA_DIR, else the installed app's)")
+    install.add_argument("--data-dir", metavar="DIR", help=f"the {identity.PRODUCT} data dir (default: $ARDIA_DATA_DIR, else the installed app's)")
 
     uninstall = sub.add_parser("uninstall", help="remove an installed script", description="Remove an installed script by its @name or id. Exit status as for install.")
-    uninstall.add_argument("name", metavar="NAME", help="the script's @name or id (see ardia scripts list)")
-    uninstall.add_argument("--data-dir", metavar="DIR", help="the Ardia data dir (default: $ARDIA_DATA_DIR, else the installed app's)")
+    uninstall.add_argument("name", metavar="NAME", help=f"the script's @name or id (see {identity.COMMAND} scripts list)")
+    uninstall.add_argument("--data-dir", metavar="DIR", help=f"the {identity.PRODUCT} data dir (default: $ARDIA_DATA_DIR, else the installed app's)")
 
-    listing = sub.add_parser("list", help="list the installed scripts", description="List the installed scripts and what Ardia last reported about them.")
+    listing = sub.add_parser("list", help="list the installed scripts", description=f"List the installed scripts and what {identity.PRODUCT} last reported about them.")
     listing.add_argument("--json", action="store_true", help="print JSON")
-    listing.add_argument("--data-dir", metavar="DIR", help="the Ardia data dir (default: $ARDIA_DATA_DIR, else the installed app's)")
+    listing.add_argument("--data-dir", metavar="DIR", help=f"the {identity.PRODUCT} data dir (default: $ARDIA_DATA_DIR, else the installed app's)")
     return scripts
 
 
 def add_endpoint_arguments(parser):
-    parser.add_argument("--data-dir", metavar="DIR", help="the Ardia data dir to find (default: $ARDIA_DATA_DIR, else the installed app's)")
+    parser.add_argument("--data-dir", metavar="DIR", help=f"the {identity.PRODUCT} data dir to find (default: $ARDIA_DATA_DIR, else the installed app's)")
     parser.add_argument("--port", type=int, metavar="N", help="a plain DevTools server on 127.0.0.1:N (testing)")
     parser.add_argument("--ws", metavar="URL", help="a browser WebSocket URL")
 
@@ -154,7 +156,7 @@ def new(args) -> int:
 
     name = args.name.strip()
     if not name or "\n" in name:
-        complain("ardia scripts new: give the script a name")
+        complain(f"{identity.COMMAND} scripts new: give the script a name")
         return 1
     stem = name if all(c.isalnum() or c in "-_." for c in name) else slug(name)
     path = Path.cwd() / f"{stem}.user.ts"
@@ -163,17 +165,17 @@ def new(args) -> int:
         for pattern in patterns:
             check_match(pattern, "match")
     except ScriptError as error:
-        complain(f"ardia scripts new: {error}")
+        complain(f"{identity.COMMAND} scripts new: {error}")
         return 1
     matches = "".join(f"// @match       {pattern}\n" for pattern in patterns)
     try:
         with open(path, "x", encoding="utf-8") as handle:
             handle.write(NEW_TEMPLATE.format(name=name, matches=matches, quoted=json.dumps(name)))
     except FileExistsError:
-        complain(f"ardia scripts new: {path} already exists")
+        complain(f"{identity.COMMAND} scripts new: {path} already exists")
         return 1
     except OSError as error:
-        complain(f"ardia scripts new: {error}")
+        complain(f"{identity.COMMAND} scripts new: {error}")
         return 1
     say(str(path))
     return 0
@@ -201,13 +203,13 @@ def test(args) -> int:
         endpoint = resolve(ws=args.ws, port=args.port, data_dir=args.data_dir)
         report = asyncio.run(scripts_test.run_test(built, url, endpoint, args.expect, args.wait, args.screenshot, args.keep))
     except EndpointError as error:
-        complain(f"ardia: {error}")
+        complain(f"{identity.COMMAND}: {error}")
         return 2
     except KeyboardInterrupt:
-        complain("ardia scripts test: interrupted")
+        complain(f"{identity.COMMAND} scripts test: interrupted")
         return 130
     except asyncio.CancelledError:
-        complain("ardia scripts test: terminated")
+        complain(f"{identity.COMMAND} scripts test: terminated")
         return 143
     if args.json:
         say(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
@@ -220,7 +222,7 @@ def report_build_error(args, message: str) -> int:
     if getattr(args, "json", False):
         say(json.dumps({"ok": False, "ran": False, "script": args.file, "error": message}, indent=2, ensure_ascii=False))
     else:
-        complain(f"ardia scripts: {message}")
+        complain(f"{identity.COMMAND} scripts: {message}")
     return 1
 
 
@@ -235,17 +237,17 @@ def change(args) -> int:
         try:
             built = build(args.file, data_dirs=[root])
         except ScriptError as error:
-            complain(f"ardia scripts: {error}")
+            complain(f"{identity.COMMAND} scripts: {error}")
             return 1
         for warning in built.meta.warnings + built.warnings:
             say(f"warning: {warning}")
         if not built.meta.matches and not built.meta.includes:
-            complain("ardia scripts: add an @match or @include line so the script runs somewhere")
+            complain(f"{identity.COMMAND} scripts: add an @match or @include line so the script runs somewhere")
             return 1
     try:
         require_control(root)
     except EndpointError as error:
-        complain(f"ardia: {error}")
+        complain(f"{identity.COMMAND}: {error}")
         return 2
     store = Store(root)
     try:
@@ -257,7 +259,7 @@ def change(args) -> int:
                 found = store.find(args.name)
                 if found is None:
                     names = ", ".join(m.get("name", m["id"]) for m in store.installed()) or "none"
-                    complain(f"ardia scripts: no installed script is named {args.name!r} (installed: {names})")
+                    complain(f"{identity.COMMAND} scripts: no installed script is named {args.name!r} (installed: {names})")
                     return 1
                 record, generation = store.apply(remove=found["id"])
                 summary = f"uninstalled {record.get('name')} ({record['id']})"
@@ -274,18 +276,18 @@ def change(args) -> int:
 
         outcome, status = store.wait_status(generation, alive)
     except (StoreError, OSError) as error:
-        complain(f"ardia scripts: {error}")
+        complain(f"{identity.COMMAND} scripts: {error}")
         return 1
     finally:
         store.close()
     if outcome == "quit":
-        say("Ardia quit (or control was turned off) before applying it; it applies the change on its next launch")
+        say(f"{identity.PRODUCT} quit (or control was turned off) before applying it; it applies the change on its next launch")
         return 0
     if outcome == "timeout":
-        say(f"Ardia hasn't reported generation {generation} after 10 s: the outcome is unknown, it may still be applying it (see ardia scripts list)")
+        say(f"{identity.PRODUCT} hasn't reported generation {generation} after 10 s: the outcome is unknown, it may still be applying it (see {identity.COMMAND} scripts list)")
         return UNKNOWN_EXIT
     if outcome == "superseded":
-        say(f"a newer change (generation {status.get('generation')}) replaced this one; Ardia reported that one:")
+        say(f"a newer change (generation {status.get('generation')}) replaced this one; {identity.PRODUCT} reported that one:")
         removed_all = False
     return print_profiles(status, removed_all)
 
@@ -300,7 +302,7 @@ def profile_lines(status: dict, removed: bool = False) -> tuple[list[str], bool]
     profiles = status.get("profiles") if isinstance(status, dict) else None
     lines, failed = [], False
     if not isinstance(profiles, dict) or not profiles:
-        return ["Ardia reported no profiles"], False
+        return [f"{identity.PRODUCT} reported no profiles"], False
     for name, result in profiles.items():
         if not isinstance(result, dict):
             lines.append(f"{name}: unknown result")
@@ -342,7 +344,7 @@ def listing(args) -> int:
         try:
             note = repair_if_present(root)
         except (StoreError, OSError) as error:
-            complain(f"ardia scripts: can't check the installed scripts ({error})")
+            complain(f"{identity.COMMAND} scripts: can't check the installed scripts ({error})")
             return 1
         if note and not args.json:
             say(f"repaired: {note}")
@@ -354,7 +356,7 @@ def listing(args) -> int:
         status = store.status()
         removed = generation > 0 and not store.extension_present()
     except (StoreError, OSError) as error:
-        complain(f"ardia scripts: {error}")
+        complain(f"{identity.COMMAND} scripts: {error}")
         return 1
     finally:
         store.close()
@@ -370,9 +372,9 @@ def listing(args) -> int:
         reported = status.get("generation") if status else None
         if reported == generation:
             lines, _ = profile_lines(status, removed)
-            say(f"generation {generation}, reported by Ardia:")
+            say(f"generation {generation}, reported by {identity.PRODUCT}:")
             for line in lines:
                 say(f"  {line}")
         else:
-            say(f"generation {generation}, not reported by Ardia yet" + (f" (it last reported {reported})" if reported else ""))
+            say(f"generation {generation}, not reported by {identity.PRODUCT} yet" + (f" (it last reported {reported})" if reported else ""))
     return 0

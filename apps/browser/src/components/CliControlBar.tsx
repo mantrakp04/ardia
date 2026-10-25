@@ -1,7 +1,7 @@
 import { Symbol } from "@ardia/shell";
 import { useEffect, useRef, useState } from "react";
 import { Animated, Easing, Pressable, Text, View } from "react-native";
-import { stopCliControl, useCli } from "../lib/cliControl";
+import { cliCommand, cliProduct, stopCliControl, useCli } from "../lib/cliControl";
 import { useTheme } from "../lib/theme";
 import { PromptButton } from "./layout/controls";
 import { useHover } from "./primitives";
@@ -32,7 +32,7 @@ function ShownCliControlBar({ visible, onHidden }: { visible: boolean; onHidden:
     <Animated.View style={{ height, overflow: "hidden" }}>
       <View
         accessibilityRole="alert"
-        accessibilityLabel="The ardia command is controlling Ardia"
+        accessibilityLabel={`The ${cliCommand()} command is controlling ${cliProduct()}`}
         style={{
           height: BAR_HEIGHT,
           flexDirection: "row",
@@ -48,8 +48,8 @@ function ShownCliControlBar({ visible, onHidden }: { visible: boolean; onHidden:
           <Symbol name="terminal.fill" size={9} weight="bold" color={theme.dark ? "#000000" : "#FFFFFF"} style={{ width: 14, height: 14 }} />
         </View>
         <Text numberOfLines={1} style={{ flex: 1, fontSize: 13, color: theme.textSecondary }}>
-          <Text style={{ fontWeight: "600", color: theme.textPrimary }}>The ardia command</Text>
-          {" is controlling Ardia"}
+          <Text style={{ fontWeight: "600", color: theme.textPrimary }}>{`The ${cliCommand()} command`}</Text>
+          {` is controlling ${cliProduct()}`}
         </Text>
         <PromptButton title="Stop" onPress={stopCliControl} />
       </View>
@@ -64,7 +64,7 @@ export function CliControlPill() {
     <View pointerEvents="box-none" style={{ position: "absolute", top: 12, left: 0, right: 0, alignItems: "center" }}>
       <View
         accessibilityRole="alert"
-        accessibilityLabel="The ardia command is controlling Ardia"
+        accessibilityLabel={`The ${cliCommand()} command is controlling ${cliProduct()}`}
         style={{
           flexDirection: "row",
           alignItems: "center",
@@ -80,8 +80,8 @@ export function CliControlPill() {
       >
         <Symbol name="terminal.fill" size={10} weight="semibold" color="#FFFFFF" style={{ width: 14, height: 14 }} />
         <Text numberOfLines={1} style={{ fontSize: 12, color: "rgba(255,255,255,0.85)" }}>
-          <Text style={{ fontWeight: "600", color: "#FFFFFF" }}>ardia</Text>
-          {" is controlling Ardia"}
+          <Text style={{ fontWeight: "600", color: "#FFFFFF" }}>{cliCommand()}</Text>
+          {` is controlling ${cliProduct()}`}
         </Text>
         <StopPill />
       </View>

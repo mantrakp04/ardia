@@ -215,7 +215,8 @@ done
 
 echo "==> ardia CLI"
 cli_tarball="$dist/ardia-cli-$version-macos-arm64.tar.gz"
-"$root/apps/cli/scripts/build.sh" "$version" "$dist" >"$dist/cli-build.log" 2>&1 \
+AC_PRODUCT_NAME="$product_name" AC_BUNDLE_ID="$bundle_id" AC_RELEASE_REPO="$repo" \
+  "$root/apps/cli/scripts/build.sh" "$version" "$dist" >"$dist/cli-build.log" 2>&1 \
   || { tail -20 "$dist/cli-build.log" >&2; die "building the ardia CLI failed ($dist/cli-build.log)"; }
 awk '{ print $1 }' "$cli_tarball.sha256" >"$app/Contents/Resources/ardia-cli.sha256"
 

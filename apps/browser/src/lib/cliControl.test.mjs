@@ -106,3 +106,17 @@ test("a page parked behind New Tab or an Ardia page is not what the user is look
   emit({ state: "off", generation: 4 });
   await settle();
 });
+
+test("the command is the app's name in lowercase, so a fork ships its own", async () => {
+  const { appInfo } = await import("@ardia/shell");
+  assert.equal(cli.cliProduct(), "Ardia");
+  assert.equal(cli.cliCommand(), "ardia");
+  appInfo.appName = "Name";
+  try {
+    assert.equal(cli.cliProduct(), "Name");
+    assert.equal(cli.cliCommand(), "name");
+  } finally {
+    delete appInfo.appName;
+  }
+  assert.equal(cli.cliCommand(), "ardia");
+});

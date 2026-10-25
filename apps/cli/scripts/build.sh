@@ -4,9 +4,12 @@
 #   apps/cli/scripts/build.sh <version> <out dir>
 #   apps/cli/scripts/build.sh -h | --help
 #
-# Writes <out dir>/ardia-cli-<version>-macos-arm64.tar.gz and its .sha256. Needs the network (python-build-standalone
-# from GitHub, wheels and esbuild from npm) and uv (~/.local/bin/uv or on PATH). The Python and esbuild downloads are
-# pinned by sha256 (esbuild also by npm's sha512 integrity) and cached in ~/Library/Caches/ardia-cli-build.
+# Writes <out dir>/ardia-cli-<version>-macos-arm64.tar.gz and its .sha256. The app's identity (product name, bundle id
+# and release repo) is baked into ardia_cli/identity.py: from AC_PRODUCT_NAME, AC_BUNDLE_ID and AC_RELEASE_REPO when
+# all three are set (release.sh passes them), else from scripts/identity.sh (Identity.xcconfig and Fork.xcconfig).
+# Needs the network (python-build-standalone from GitHub, wheels and esbuild from npm) and uv (~/.local/bin/uv or on
+# PATH). The Python and esbuild downloads are pinned by sha256 (esbuild also by npm's sha512 integrity) and cached in
+# ~/Library/Caches/ardia-cli-build.
 set -eu
 
 python_release=20261013
@@ -30,6 +33,16 @@ printf '%s\n' "$version" | grep -Eq '^[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,4}(-[a-z]{
   || { echo "build.sh: bad version: $version" >&2; exit 64; }
 
 cli_dir=$(cd "$(dirname "$0")/.." && pwd)
+if [ -z "${AC_PRODUCT_NAME:-}" ] || [ -z "${AC_BUNDLE_ID:-}" ] || [ -z "${AC_RELEASE_REPO:-}" ]; then
+  identity=$(bash -c '. "$1/scripts/identity.sh" && for key in AC_PRODUCT_NAME AC_BUNDLE_ID AC_RELEASE_REPO; do printf "%s\n" "$(ac_identity "$key")"; done' sh "$cli_dir/../..") \
+    || { echo "build.sh: couldn't read the app's identity" >&2; exit 1; }
+  AC_PRODUCT_NAME=$(printf '%s\n' "$identity" | sed -n 1p)
+  AC_BUNDLE_ID=$(printf '%s\n' "$identity" | sed -n 2p)
+  AC_RELEASE_REPO=$(printf '%s\n' "$identity" | sed -n 3p)
+fi
+printf '%s\n' "$AC_PRODUCT_NAME" | grep -Eq '^[A-Za-z][A-Za-z0-9-]{0,31}$' || { echo "build.sh: bad product name: $AC_PRODUCT_NAME" >&2; exit 1; }
+printf '%s\n' "$AC_BUNDLE_ID" | grep -Eq '^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$' || { echo "build.sh: bad bundle id: $AC_BUNDLE_ID" >&2; exit 1; }
+printf '%s\n' "$AC_RELEASE_REPO" | grep -Eq '^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$' || { echo "build.sh: bad release repo: $AC_RELEASE_REPO" >&2; exit 1; }
 uv=$(command -v uv 2>/dev/null || true)
 [ -n "$uv" ] || uv=$HOME/.local/bin/uv
 [ -x "$uv" ] || { echo "build.sh: uv not found" >&2; exit 1; }
@@ -66,6 +79,16 @@ UV_CACHE_DIR=$cache/uv "$uv" pip install --quiet --python "$python" --break-syst
   --no-build --require-hashes -r "$cli_dir/requirements.lock"
 cp -R "$cli_dir/ardia_cli" "$site/ardia_cli"
 printf '__version__ = "%s"\n' "$version" >"$site/ardia_cli/__init__.py"
+"$python" -I - "$site/ardia_cli/identity.py" "$AC_PRODUCT_NAME" "$AC_BUNDLE_ID" "$AC_RELEASE_REPO" <<'EOF'
+import json, re, sys
+path, product, bundle_id, repo = sys.argv[1:]
+values = {"PRODUCT": product, "COMMAND": product.lower(), "BUNDLE_ID": bundle_id, "RELEASE_REPO": repo}
+source = open(path, encoding="utf-8").read()
+for key, value in values.items():
+    source, count = re.subn(rf"^{key} = .*$", lambda _: f"{key} = {json.dumps(value)}", source, count=1, flags=re.M)
+    assert count == 1, key
+open(path, "w", encoding="utf-8").write(source)
+EOF
 mkdir "$work/esbuild" "$site/ardia_cli/bin"
 tar -xzf "$cache/$esbuild_asset" -C "$work/esbuild" package/bin/esbuild
 cp "$work/esbuild/package/bin/esbuild" "$site/ardia_cli/bin/esbuild"
@@ -90,6 +113,8 @@ find "$root" -type l | while IFS= read -r link; do
   esac
 done
 "$python" -I -c 'import ardia_cli.cli, ardia_cli.scripts_cli, ardia_cli.scripts_test, ardia_cli.scripts_store, ardia_cli.browsing, pydoll, sqlite3, ssl, zoneinfo, ctypes, lzma; from ardia_cli.userscript import find_esbuild; assert find_esbuild().endswith("ardia_cli/bin/esbuild")' >/dev/null
+"$python" -I -c 'import sys; from ardia_cli import identity; assert (identity.PRODUCT, identity.COMMAND, identity.BUNDLE_ID, identity.RELEASE_REPO) == (sys.argv[1], sys.argv[1].lower(), sys.argv[2], sys.argv[3])' \
+  "$AC_PRODUCT_NAME" "$AC_BUNDLE_ID" "$AC_RELEASE_REPO" || { echo "build.sh: the baked identity doesn't match" >&2; exit 1; }
 
 cat >"$root/bin/ardia" <<'EOF'
 #!/bin/sh

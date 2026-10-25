@@ -370,8 +370,8 @@ const ROWS: Record<SettingsPane, Section[]> = {
     {
       section: "Command line",
       rows: {
-        cliControl: { title: "Let the ardia command control Ardia", keywords: ["cli", "terminal", "devtools", "automation", "remote debugging"] },
-        cliInstall: { title: "The ardia command", keywords: ["cli", "terminal", "install"] },
+        cliControl: { title: `Let the ${APP.toLowerCase()} command control ${APP}`, keywords: ["cli", "terminal", "devtools", "automation", "remote debugging"] },
+        cliInstall: { title: `The ${APP.toLowerCase()} command`, keywords: ["cli", "terminal", "install"] },
       },
     },
     {

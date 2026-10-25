@@ -8,6 +8,7 @@ import signal
 import sys
 import traceback
 
+from ardia_cli import identity
 from ardia_cli import guard
 from ardia_cli.endpoint import NOT_REACHABLE, Endpoint, EndpointError
 from ardia_cli.redact import redact
@@ -28,9 +29,9 @@ EXCEPTIONS = (
 )
 
 
-NO_PAGE_TAB = "the user isn't on a web page (New Tab or another Ardia view); open one with new_tab(url) or pick one from tabs"
+NO_PAGE_TAB = f"the user isn't on a web page (New Tab or another {identity.PRODUCT} view); open one with new_tab(url) or pick one from tabs"
 NO_VISIBLE_TAB = (
-    "no web page is visible (New Tab, another Ardia view, or a hidden window); "
+    f"no web page is visible (New Tab, another {identity.PRODUCT} view, or a hidden window); "
     "open one with new_tab(url) or pick one from tabs"
 )
 
@@ -78,7 +79,7 @@ def compile_code(source: str, filename: str):
 
 
 def _refuse_stop(*_args, **_kwargs):
-    raise RuntimeError("ardia exec never stops Ardia: it's the user's browser")
+    raise RuntimeError(f"{identity.COMMAND} exec never stops {identity.PRODUCT}: it's the user's browser")
 
 
 async def _refuse_stop_async(*_args, **_kwargs):

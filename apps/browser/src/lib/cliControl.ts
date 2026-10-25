@@ -14,6 +14,10 @@ type Saved = { binPath?: string | null; version?: string | null; error?: string 
 
 export type CliInstallReason = "onboarding" | "settings" | "upgrade";
 
+export const cliProduct = (): string => systemInfo().appName?.trim() || "Ardia";
+
+export const cliCommand = (): string => cliProduct().toLowerCase();
+
 type CliState = {
   server: CliControlStatus | null;
   installing: CliInstallReason | null;

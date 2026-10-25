@@ -195,9 +195,12 @@ two parts with an explicit flush between them gets through; that gap is accepted
 
 ## Install and upgrade
 
-`install.sh [--version V] [--sha256 DIGEST] [--uninstall]` (run with `/bin/sh`; `--help`):
+`install.sh [--version V] [--sha256 DIGEST] [--product NAME] [--repo OWNER/REPO] [--uninstall]` (run with `/bin/sh`;
+`--help`). `--product` (default `Ardia`) names the app the command drives, and the command is that name in lowercase;
+`--repo` (default `mantrakp04/ardia`) is where it downloads from. The app passes its own `CFBundleName` and
+`ACReleaseRepo`, so a fork's build installs its own command (Fork identity below). The paths here are upstream's.
 
-- Downloads `https://github.com/mantrakp04/ardia/releases/download/v<V>/ardia-cli-<V>-macos-arm64.tar.gz` (https only)
+- Downloads `https://github.com/<repo>/releases/download/v<V>/ardia-cli-<V>-macos-arm64.tar.gz` (https only)
   into a private temp dir. Without `--version` it takes the latest release that has the asset. `--sha256` is the only
   digest it trusts (the app passes `Ardia.app/Contents/Resources/ardia-cli.sha256`, which the signed bundle pins), and
   a download needs it: a `.sha256` from the same release would only prove the tarball came from wherever the tarball
@@ -205,12 +208,13 @@ two parts with an explicit flush between them gets through; that gap is accepted
   pinned digest, so it installs only that way.
 - Verifies the digest, refuses entries outside `ardia-cli-<V>/`, `..` paths, hard links and links pointing outside the
   tree, plus names with control characters, backslashes or ` -> `, extracts to `$ARDIA_CLI_HOME/<V>.partial`, checks
-  the extracted tree again (`find`, no line parsing), renames it to `<V>`, and swaps `current` atomically.
+  the extracted tree again (`find`, no line parsing), checks that its `bin/ardia --version` says `<command> <V>` (a
+  tarball baked for another app is refused), renames it to `<V>`, and swaps `current` atomically.
 - It keeps the current and the previous version, and any version a running `ardia` uses: `ardia_cli` writes
   `<V>/.leases/<pid>` when it starts (from the launcher or `python -m ardia_cli`) and removes it at exit. A lease
   counts only while a process with that pid runs and started no later than the lease was written (`ps -o lstart`
   against the lease's mtime), so a reused pid doesn't pin a version.
-- Links `$ARDIA_CLI_BIN_DIR/ardia` (default `~/.local/bin`) to `current/bin/ardia`. It replaces only a link that
+- Links `$ARDIA_CLI_BIN_DIR/<command>` (default `~/.local/bin/ardia`) to `current/bin/ardia`. It replaces only a link that
   already points into `$ARDIA_CLI_HOME` and refuses anything else. With the default bin dir off the login shell's
   PATH, it adds `export PATH="$HOME/.local/bin:$PATH"` to `~/.zprofile` once.
 - A version that is already current is a no-op. Two runs never overlap: each takes a flock on
@@ -220,7 +224,7 @@ two parts with an explicit flush between them gets through; that gap is accepted
 - Output for the app, one line each: `step resolve|download|verify|install|link`, `version <v>`, `path <rc file>`,
   then `installed <bin path>` or `uninstalled`, or `error <message>` with exit 1.
 
-`$ARDIA_CLI_HOME` defaults to `~/Library/Application Support/Ardia/CLI`. The installed version is
+`$ARDIA_CLI_HOME` defaults to `~/Library/Application Support/<product>/CLI`. The installed version is
 `basename "$(readlink "$ARDIA_CLI_HOME/current")"`; the app reads that link to decide whether to upgrade, and after an
 app update it runs `install.sh --version <app version> --sha256 <pinned digest>` in the background. The CLI never
 updates itself.
@@ -235,7 +239,30 @@ esbuild (the npm `@esbuild/darwin-arm64` tarball, version, sha256 and sha512 pin
 `ardia_cli/bin/esbuild`. About 18 MB; 52 MB installed. `ardia --version` takes about 10 ms; the first `exec` about 1 s while Python writes its
 bytecode cache, later ones about 0.15 s.
 
-`scripts/release.sh` builds it into the release's dist dir after the export and writes its digest to
+It bakes the app's identity into `ardia_cli/identity.py` (product, command, bundle id, release repo): from
+`AC_PRODUCT_NAME`, `AC_BUNDLE_ID` and `AC_RELEASE_REPO` in the environment, else from `scripts/identity.sh`. The
+committed `identity.py` holds upstream's values, so a repo checkout and an upstream tarball behave the same.
+
+## Fork identity
+
+Everything the CLI calls itself follows the baked identity, so a fork ships its own command. Nothing else in the
+tarball changes: the asset name, its `ardia-cli-<V>/` folder, `bin/ardia` inside it and the `ardia_cli` package stay.
+
+| | Upstream | A fork named `Name` |
+|---|---|---|
+| Command, `prog`, help and errors | `ardia` | `name` |
+| Link | `~/.local/bin/ardia` | `~/.local/bin/name` |
+| Install home | `~/Library/Application Support/Ardia/CLI` | `~/Library/Application Support/Name/CLI` |
+| Data dir it connects to | `~/Library/Application Support/com.ardia.browser` | `~/Library/Application Support/com.example.name` |
+| Downloads from | `github.com/mantrakp04/ardia` releases | `github.com/owner/repo` releases |
+| Agent skill | `<skills dir>/ardia`, `name: ardia` | `<skills dir>/name`, `name: name` |
+
+`identity.brand()` renders the help text and the skill for a fork: `Ardia` becomes the product and `ardia` the
+command, except names the engine or the web owns (`ArdiaControl.json`, `/ardia/active`, `ardia://`, `ardia.dev`,
+`Ardia Scripts`, the engine's `isn't allowed for the ardia command` error) and the `$ARDIA_*` variables, which keep
+their names in every build. With upstream's identity it returns the text unchanged.
+
+`scripts/release.sh` builds it into the release's dist dir after the export, passing the release's identity, and writes its digest to
 `Ardia.app/Contents/Resources/ardia-cli.sha256` before the app is signed. `publish-nightly.sh` and the stable
 `gh release create` in the release skill upload the tarball and its `.sha256`.
 
@@ -258,6 +285,10 @@ HOME=/tmp/ardia-cli-home ARDIA_CLI_URL=file:///tmp/ardia-cli-out/ardia-cli-0.0.1
   /bin/sh apps/cli/install.sh
 HOME=/tmp/ardia-cli-home ardia skills install --target claude-code
 ```
+
+A fork's tarball installs the same way with `--product Name --repo owner/repo`, which makes `~/.local/bin/name`
+under that `HOME`. `apps/cli/tests/test_identity.py` covers both identities and the installer:
+`python3 -m unittest discover -s apps/cli/tests`.
 
 `ardia scripts test` needs a running instance; it reaches cross-origin iframes on both paths, and over `--port` also frames that show an extension's page. Install and the
 helpers need the token path: an instance launched without `ARDIA_REMOTE_DEBUGGING_PORT` (the app doesn't start its

@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote, urlsplit
 
+from ardia_cli import identity
 from ardia_cli.endpoint import EndpointError, require_control
 
 DEFAULT_PROFILE_ID = "default"
@@ -164,7 +165,7 @@ def read_session(root: Path, deadline: float) -> dict:
     try:
         session = json.loads(raw)
     except ValueError:
-        raise BrowsingDataError(f"{path} isn't valid JSON (Ardia may be writing it; try again)") from None
+        raise BrowsingDataError(f"{path} isn't valid JSON ({identity.PRODUCT} may be writing it; try again)") from None
     return session if isinstance(session, dict) and session.get("version") == 2 else {}
 
 
@@ -280,7 +281,7 @@ def snapshot(history: Path, work: Path, deadline: float) -> tuple[Path, str]:
 
     def give_up(_status, _remaining, _total):
         if _closing or time.monotonic() > backup_deadline:
-            raise sqlite3.OperationalError("Ardia holds History locked")
+            raise sqlite3.OperationalError(f"{identity.PRODUCT} holds History locked")
 
     out_of_time(deadline, "history()")
     try:

@@ -206,19 +206,26 @@ so any machine releases the same app.
 
 | Setting | Read by | Upstream |
 |---|---|---|
-| `AC_PRODUCT_NAME` | `CFBundleName`, `CFBundleDisplayName`, the DMG's app and volume, the update zip, keychain items and the iCloud sync folder the app itself names | `Ardia` |
+| `AC_PRODUCT_NAME` | `CFBundleName`, `CFBundleDisplayName`, the DMG's app and volume, the update zip, keychain items and the iCloud sync folder the app itself names, the CLI's command (lowercased) and install home | `Ardia` |
 | `AC_TEAM_ID` | `DEVELOPMENT_TEAM`, the export, release.sh's signing identity and checks | `U5L5T3NGVV` |
-| `AC_BUNDLE_ID` | `PRODUCT_BUNDLE_IDENTIFIER` (so the data folders, the defaults and the keychain groups), release.sh's checks | `com.ardia.browser` |
+| `AC_BUNDLE_ID` | `PRODUCT_BUNDLE_IDENTIFIER` (so the data folders, the defaults and the keychain groups), release.sh's checks, the data dir the CLI connects to | `com.ardia.browser` |
 | `AC_FEED_URL` | `SUFeedURL` | `https://ardia.dev/appcast.xml` |
 | `AC_PUBLIC_ED_KEY` | `SUPublicEDKey`, checked against the Sparkle key release.sh signs with | upstream's key |
 | `AC_SPARKLE_ACCOUNT` | the keychain account release.sh finds the Sparkle key under | `ardia` |
-| `AC_RELEASE_REPO` | release.sh and the release skill's scripts (`gh`, the feed, download URLs, the Source line), About's and Settings' source links, Send Feedback | `mantrakp04/ardia` |
+| `AC_RELEASE_REPO` | release.sh and the release skill's scripts (`gh`, the feed, download URLs, the Source line), About's and Settings' source links, Send Feedback, where the CLI's installer downloads | `mantrakp04/ardia` |
 | `AC_NOTES_URL` | the page opened after an update, Help › Release Notes, the appcast's notes link | `https://ardia.dev/release-notes` |
 | `AC_TELEMETRY_URL` | where shared diagnostics go; empty turns sharing off and hides its prompt, onboarding step and setting | `https://ardia.dev/otel/v1/logs` |
 | `AC_SWITCHES_URL` | the kill-switch file read at launch; empty never fetches, so every switch stays on | `https://ardia.dev/switches.json` |
 
 `PRODUCT_NAME` stays `Ardia`: the executable, `Ardia.app` in `dist/`, the dSYM and the test scripts all depend on it.
 The bundle the user sees is named after `AC_PRODUCT_NAME`; the release assets keep their `Ardia-<version>` names.
+
+The command-line tool follows the identity too (`docs/cli.md` › Fork identity). release.sh bakes the product, bundle
+id and repo into the CLI tarball (`ardia-cli-<version>-macos-arm64.tar.gz`, same name in every build) and pins its
+digest into the app; the app's installer passes its own product and repo. So a fork named `Name` installs
+`~/.local/bin/name` into `~/Library/Application Support/Name/CLI`, downloads from its own repo's releases and drives
+`~/Library/Application Support/<bundle id>`. The tarball must be uploaded to the same release as the app:
+`publish-nightly.sh` and the stable steps in the release skill both read the repo from the identity.
 
 To ship a fork:
 
