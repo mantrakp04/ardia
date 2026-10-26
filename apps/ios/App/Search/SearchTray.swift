@@ -2,127 +2,84 @@ import ArdiaBrowser
 import ArdiaDesign
 import SwiftUI
 
-struct SearchSheet<Above: View>: View {
-  enum Style {
-    case home
-    case overlay
-  }
-
-  let style: Style
-  let initialText: String
-  let selectsAll: Bool
-  var fieldNamespace: Namespace.ID?
-  var focusesOnAppear = false
-  var onDismiss: (() -> Void)?
-  @ViewBuilder var above: () -> Above
+struct SearchTray<Drag: Gesture>: View {
+  let request: BrowseSession.SearchRequest
+  @Binding var isFocused: Bool
+  let maxHeight: CGFloat
+  let dismissDrag: Drag
 
   @Environment(AppModel.self) private var app
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+  @Environment(\.colorScheme) private var colorScheme
   @State private var model: SearchSuggestionsModel?
   @State private var text = ""
-  @State private var isFocused = false
   @State private var highlight: (id: String, target: SuggestionTarget)?
   @State private var rowFrames: [String: CGRect] = [:]
   @State private var scrubTicks = 0
   @State private var scrubReleases = 0
   @State private var isScrubbing = false
   @State private var scrubStart: CGPoint?
-  @State private var dragDismiss: CGFloat = 0
+  @State private var headerHeight: CGFloat = 0
+  @State private var naturalRowsHeight: CGFloat = 0
+  @State private var hasMeasuredRows = false
+  @State private var isSubmitting = false
   @ScaledMetric(relativeTo: .title3) private var fieldHeight = BrowseLayout.searchFieldHeight
 
   private var isIncognito: Bool { app.isIncognito }
-  private var isExpanded: Bool { !text.isEmpty }
+  private var rowsBudget: CGFloat { max(maxHeight - headerHeight, 0) }
 
   var body: some View {
-    GeometryReader { proxy in
-      let top = sheetTop(in: proxy.size)
-      ZStack(alignment: .top) {
-        above()
-          .frame(maxWidth: .infinity)
-          .frame(height: max(top, 0), alignment: .bottom)
-          .opacity(isExpanded ? 0 : 1)
-          .allowsHitTesting(!isExpanded)
-        sheet(height: proxy.size.height - top, bottomInset: proxy.safeAreaInsets.bottom)
-          .offset(y: top + max(dragDismiss, 0))
-      }
-      .animation(reduceMotion ? .easeOut(duration: 0.2) : Motion.sheetToTop, value: isExpanded)
+    VStack(spacing: 0) {
+      header
+      content
     }
+    .frame(maxWidth: .infinity)
+    .animation(reduceMotion || !hasMeasuredRows ? nil : Motion.trayResize, value: min(naturalRowsHeight, rowsBudget))
+    .background(alignment: .top) {
+      panelBackground
+        .padding(.bottom, -BrowseLayout.sheetTopRadius * 12)
+        .ignoresSafeArea(edges: .horizontal)
+    }
+    .environment(\.colorScheme, isIncognito ? .dark : colorScheme)
     .onAppear(perform: start)
+    .onDisappear { model?.cancel() }
     .onChange(of: text) { _, newValue in
+      guard !isSubmitting else { return }
       model?.update(newValue)
       highlight = nil
     }
     .onChange(of: app.isIncognito) { _, _ in rebuildModel() }
     .onChange(of: app.settings.isShowingOnboarding) { _, showing in
-      if showing {
-        isFocused = false
-      } else if app.settings.autoOpensKeyboard {
-        isFocused = true
-      }
+      isFocused = !showing
     }
     .sensoryFeedback(.selection, trigger: scrubTicks)
     .sensoryFeedback(.impact(weight: .light), trigger: scrubReleases)
   }
 
-  private func sheetTop(in size: CGSize) -> CGFloat {
-    if isExpanded { return Spacing.hairline + 2 }
-    let resting = size.height - BrowseLayout.sheetAboveKeyboard
-    return max(resting, min(size.height * 0.32, 220))
-  }
-
-  private func sheet(height: CGFloat, bottomInset: CGFloat) -> some View {
-    VStack(spacing: 0) {
-      grabber
-      fieldRow
-        .padding(.top, Spacing.small)
-        .padding(.bottom, Spacing.tight)
-      content(visibleHeight: height - fieldHeight - 40)
-      Spacer(minLength: 0)
-    }
-    .frame(maxWidth: .infinity)
-    .frame(height: height + 400, alignment: .top)
-    .background {
-      sheetBackground
-        .ignoresSafeArea()
-    }
-    .environment(\.colorScheme, isIncognito ? .dark : colorSchemeForSheet)
-  }
-
-  @Environment(\.colorScheme) private var colorSchemeForSheet
-
-  private var grabber: some View {
-    Color.clear
-      .frame(maxWidth: .infinity)
-      .frame(height: 14)
-      .contentShape(.rect)
-      .gesture(dismissDrag, isEnabled: canDismiss)
-      .accessibilityHidden(true)
-  }
-
-  private var canDismiss: Bool {
-    style == .overlay || app.tabs.selectedTab != nil || onDismiss != nil
-  }
-
-  private var sheetBackground: some View {
-    UnevenRoundedRectangle(topLeadingRadius: BrowseLayout.sheetTopRadius, topTrailingRadius: BrowseLayout.sheetTopRadius, style: .continuous)
-      .fill(isIncognito || reduceTransparency ? AnyShapeStyle(.clear) : AnyShapeStyle(.regularMaterial))
-      .overlay {
-        UnevenRoundedRectangle(topLeadingRadius: BrowseLayout.sheetTopRadius, topTrailingRadius: BrowseLayout.sheetTopRadius, style: .continuous)
-          .fill(sheetTint)
-      }
-      .shadow(color: .black.opacity(0.12), radius: 24, y: -4)
-  }
-
-  private var sheetTint: Color {
-    if isIncognito { return BrowsePalette.incognitoSheet }
-    return reduceTransparency ? BrowsePalette.sheetOpaque : BrowsePalette.sheet
-  }
-
-  private var fieldRow: some View {
+  private var header: some View {
     field
       .padding(.horizontal, BrowseLayout.searchFieldInset)
+      .padding(.top, BrowseLayout.trayFieldTop)
+      .padding(.bottom, Spacing.tight)
+      .frame(maxWidth: .infinity)
+      .contentShape(.rect)
+      .highPriorityGesture(dismissDrag)
+      .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
+  }
+
+  private var panelBackground: some View {
+    let shape = UnevenRoundedRectangle(topLeadingRadius: BrowseLayout.sheetTopRadius, topTrailingRadius: BrowseLayout.sheetTopRadius, style: .continuous)
+    return shape
+      .fill(isIncognito || reduceTransparency ? AnyShapeStyle(.clear) : AnyShapeStyle(.regularMaterial))
+      .overlay { shape.fill(panelTint) }
+      .shadow(color: .black.opacity(0.14), radius: 24, y: -4)
+  }
+
+  private var panelTint: Color {
+    if isIncognito { return BrowsePalette.incognitoSheet }
+    return reduceTransparency ? BrowsePalette.sheetOpaque : BrowsePalette.sheet
   }
 
   private var field: some View {
@@ -133,7 +90,7 @@ struct SearchSheet<Above: View>: View {
         completion: model?.completion,
         placeholder: String(localized: "Search..."),
         isIncognito: isIncognito,
-        selectsAllOnFocus: selectsAll,
+        selectsAllOnFocus: request.selectsAll,
         onSubmit: submit
       )
       .frame(maxWidth: .infinity)
@@ -154,7 +111,6 @@ struct SearchSheet<Above: View>: View {
             .strokeBorder(isIncognito ? Color.white.opacity(0.1) : BrowsePalette.fieldStroke, lineWidth: 1)
         }
     }
-    .modifier(MatchedField(namespace: fieldNamespace))
   }
 
   @ViewBuilder
@@ -177,7 +133,7 @@ struct SearchSheet<Above: View>: View {
       } label: {
         Image(systemName: "mic")
           .font(.body.weight(.medium))
-          .foregroundStyle(isIncognito ? BrowsePalette.incognitoCaption : BrowsePalette.foregroundTertiary)
+          .foregroundStyle(BrowsePalette.foregroundTertiary)
           .frame(width: 32, height: 40)
           .contentShape(.rect)
       }
@@ -190,7 +146,7 @@ struct SearchSheet<Above: View>: View {
   }
 
   @ViewBuilder
-  private func content(visibleHeight: CGFloat) -> some View {
+  private var content: some View {
     let rows = model?.rows ?? []
     if isIncognito, text.isEmpty {
       Text("You’re browsing Incognito")
@@ -198,36 +154,68 @@ struct SearchSheet<Above: View>: View {
         .foregroundStyle(BrowsePalette.incognitoCaption)
         .multilineTextAlignment(.center)
         .padding(.horizontal, Spacing.large)
-        .frame(maxWidth: .infinity, minHeight: max(visibleHeight, 80))
+        .frame(maxWidth: .infinity)
+        .frame(height: rowsBudget)
+        .contentShape(.rect)
+        .gesture(dismissDrag)
         .transition(.opacity)
-    } else if !rows.isEmpty {
-      VStack(alignment: .leading, spacing: 0) {
-        if let device = model?.idleDeviceName {
-          Text("From Your \(device)")
-            .font(.footnote.weight(.semibold))
-            .foregroundStyle(BrowsePalette.foregroundSecondary)
-            .padding(.horizontal, 20)
-            .padding(.top, Spacing.tight)
-            .padding(.bottom, Spacing.hairline)
-        }
-        if dynamicTypeSize.isAccessibilitySize {
-          ScrollView {
-            rowStack(rows)
-          }
-          .scrollDismissesKeyboard(.interactively)
-        } else {
-          rowStack(rows)
-            .mask { fadeMask }
-            .gesture(scrub(rows))
-        }
-      }
-      .transition(.opacity.animation(Motion.resultsIn))
+    } else if !rows.isEmpty, rowsBudget > 0 {
+      rowsArea(rows)
+        .transition(.opacity.animation(Motion.resultsIn))
     }
   }
 
-  private var fadeMask: some View {
+  private func rowsArea(_ rows: [SearchSuggestion]) -> some View {
+    let overflows = naturalRowsHeight > rowsBudget + 0.5
+    return Group {
+      if dynamicTypeSize.isAccessibilitySize {
+        ScrollView {
+          rowsColumn(rows)
+        }
+        .scrollDismissesKeyboard(.never)
+        .scrollBounceBehavior(.basedOnSize)
+      } else {
+        rowsColumn(rows)
+          .frame(height: min(naturalRowsHeight, rowsBudget), alignment: .top)
+          .clipped()
+          .mask { fadeMask(overflows: overflows) }
+          .gesture(scrub(rows))
+      }
+    }
+    .frame(height: min(naturalRowsHeight, rowsBudget), alignment: .top)
+  }
+
+  private func rowsColumn(_ rows: [SearchSuggestion]) -> some View {
+    VStack(alignment: .leading, spacing: 0) {
+      if let device = model?.idleDeviceName {
+        Text("From Your \(device)")
+          .font(.footnote.weight(.semibold))
+          .foregroundStyle(BrowsePalette.foregroundSecondary)
+          .padding(.horizontal, 20)
+          .padding(.top, Spacing.tight)
+          .padding(.bottom, Spacing.hairline)
+      }
+      rowStack(rows)
+    }
+    .padding(.bottom, Spacing.tight)
+    .fixedSize(horizontal: false, vertical: true)
+    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+      if hasMeasuredRows {
+        naturalRowsHeight = height
+      } else {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+          naturalRowsHeight = height
+          hasMeasuredRows = true
+        }
+      }
+    }
+  }
+
+  private func fadeMask(overflows: Bool) -> some View {
     LinearGradient(
-      stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.62), .init(color: .black.opacity(0.18), location: 1)],
+      stops: [.init(color: .black, location: 0), .init(color: .black, location: overflows ? 0.7 : 1), .init(color: .black.opacity(overflows ? 0.15 : 1), location: 1)],
       startPoint: .top,
       endPoint: .bottom
     )
@@ -266,8 +254,7 @@ struct SearchSheet<Above: View>: View {
     switch suggestion.kind {
     case .query:
       Button(isIncognito ? "Search in New Tab" : "Search in Incognito Tab", systemImage: isIncognito ? "plus.square.on.square" : "eyeglasses") {
-        isFocused = false
-        model?.cancel()
+        leave()
         app.isIncognito.toggle()
         app.openSearch(suggestion.query)
       }
@@ -292,8 +279,7 @@ struct SearchSheet<Above: View>: View {
   }
 
   private func openSwitchingMode(_ link: URL) {
-    isFocused = false
-    model?.cancel()
+    leave()
     app.isIncognito.toggle()
     app.openPage(link, origin: .typed)
   }
@@ -328,6 +314,7 @@ struct SearchSheet<Above: View>: View {
   }
 
   private func hitTest(_ point: CGPoint, rows: [SearchSuggestion]) -> (id: String, target: SuggestionTarget)? {
+    guard point.y <= rowsBudget else { return nil }
     for suggestion in rows {
       guard let frame = rowFrames[suggestion.id], frame.minY <= point.y, point.y < frame.maxY, frame.minX - 8 <= point.x, point.x <= frame.maxX + 8 else { continue }
       let pillEdge = frame.maxX - BrowseLayout.highlightedPillSize.width - 14
@@ -337,34 +324,11 @@ struct SearchSheet<Above: View>: View {
     return nil
   }
 
-  private var dismissDrag: some Gesture {
-    DragGesture(minimumDistance: 4)
-      .onChanged { value in
-        guard canDismiss else { return }
-        dragDismiss = max(0, value.translation.height)
-      }
-      .onEnded { value in
-        guard canDismiss else { return }
-        if value.predictedEndTranslation.height > 140 || value.translation.height > 90 {
-          isFocused = false
-          if style == .home, app.tabs.selectedTab == nil, let onDismiss {
-            model?.cancel()
-            onDismiss()
-          } else {
-            app.cancelSearch()
-          }
-        }
-        withAnimation(Motion.snappy) { dragDismiss = 0 }
-      }
-  }
-
   private func start() {
     if model == nil { rebuildModel() }
-    text = initialText
-    model?.update(initialText)
-    if !app.settings.isShowingOnboarding, focusesOnAppear || app.settings.autoOpensKeyboard || style == .overlay || !initialText.isEmpty {
-      isFocused = true
-    }
+    text = request.initialText
+    model?.update(request.initialText)
+    if !app.settings.isShowingOnboarding { isFocused = true }
     if app.offersBrowseForMe { app.intelligence.searchFieldDidBeginEditing() }
   }
 
@@ -376,56 +340,24 @@ struct SearchSheet<Above: View>: View {
   }
 
   private func submit(_ value: String) {
-    isFocused = false
     let model = model
     Task {
       let resolution = await model?.resolve(value)
-      model?.cancel()
+      guard resolution != nil || SearchInput.resolve(value) != nil else { return }
+      isSubmitting = true
+      text = value
+      leave()
       app.submitSearch(value, resolution: resolution)
     }
   }
 
   private func activate(_ suggestion: SearchSuggestion, _ target: SuggestionTarget) {
-    isFocused = false
-    model?.cancel()
+    if case .calculation = suggestion.kind {} else { leave() }
     app.activate(suggestion, target: target)
   }
-}
 
-struct MatchedField: ViewModifier {
-  let namespace: Namespace.ID?
-
-  func body(content: Content) -> some View {
-    if let namespace {
-      content.matchedGeometryEffect(id: "omnibox", in: namespace)
-    } else {
-      content
-    }
-  }
-}
-
-struct IncognitoToggle: View {
-  let isOn: Bool
-  let action: () -> Void
-
-  var body: some View {
-    Button(action: action) {
-      HStack(spacing: 6) {
-        if isOn {
-          Text("Incognito")
-            .font(.footnote.weight(.medium))
-            .foregroundStyle(.white.opacity(0.75))
-            .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .trailing)))
-        }
-        IncognitoEyes(isOpen: isOn)
-          .frame(width: 22)
-          .foregroundStyle(isOn ? Color.white.opacity(0.85) : BrowsePalette.foregroundTertiary)
-      }
-      .padding(.horizontal, 6)
-      .frame(minWidth: 36, minHeight: 40)
-      .contentShape(.rect)
-    }
-    .buttonStyle(.plain)
-    .accessibilityLabel(isOn ? "Deactivate Incognito" : "Activate Incognito")
+  private func leave() {
+    isFocused = false
+    withAnimation(reduceMotion ? .easeOut(duration: 0.2) : Motion.trayDismiss) { app.browse.dismissSearch() }
   }
 }

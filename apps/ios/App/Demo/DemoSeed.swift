@@ -102,9 +102,9 @@ enum DemoScenario {
           app.openTab(app.tabs.openTabs[index].id)
         }
       }
-      if arguments.contains("-BrowsePlus"), let tab = app.tabs.selectedTab {
+      if arguments.contains("-BrowsePlus") {
         try? await Task.sleep(for: .seconds(delay))
-        app.browse.presentSearch(from: .page, text: app.currentQuery(for: tab), selectsAll: true)
+        app.newTab()
       }
       for step in (value("-BrowseSteps") ?? "").split(separator: ",").compactMap({ Int($0) }) {
         app.browse.stepRequest = BrowseSession.StepRequest(delta: step)

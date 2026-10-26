@@ -71,8 +71,13 @@ extension AppModel {
   }
 
   func cancelSearch() {
+    let request = browse.search
     browse.dismissSearch()
-    if surface == .search, let id = tabs.selectedTabID { openTab(id) }
+    if surface == .search, request?.origin != .start, let id = tabs.selectedTabID {
+      openTab(id)
+    } else if let restored = request?.incognitoOnCancel {
+      isIncognito = restored
+    }
   }
 
   private func finishOpening(_ id: UUID) {

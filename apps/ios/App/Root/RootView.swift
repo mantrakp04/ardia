@@ -8,14 +8,19 @@ struct RootView: View {
     @Bindable var app = app
     @Bindable var browse = app.browse
     ZStack {
-      if app.surface == .search {
-        SearchHomeView()
-      } else {
-        BrowsingView(isFront: app.surface == .browsing)
+      Group {
+        if app.surface == .search {
+          SearchHomeView()
+        } else {
+          BrowsingView(isFront: app.surface == .browsing)
+        }
+        if app.surface == .tabSwitcher {
+          TabSwitcherView()
+        }
       }
-      if app.surface == .tabSwitcher {
-        TabSwitcherView()
-      }
+      .ignoresSafeArea(.keyboard, edges: browse.trayHoldsKeyboard ? .bottom : [])
+      SearchTrayHost()
+        .zIndex(10)
     }
     .sheet(item: $app.sheet) { sheet in
       switch sheet {

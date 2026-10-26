@@ -7,43 +7,34 @@ struct SearchHomeView: View {
   @Environment(AppModel.self) private var app
   @Environment(\.colorScheme) private var colorScheme
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @Namespace private var logoSpace
-  @State private var isResting = false
-  @State private var focusesOnReturn = false
 
   var body: some View {
+    let isTrayUp = app.browse.search != nil
     GeometryReader { proxy in
       ZStack {
         backdrop
           .ignoresSafeArea()
-        if isResting {
-          restingLogo
-            .transition(.identity)
-          bar(in: proxy)
-            .transition(.opacity.animation(.easeOut(duration: 0.18)))
-        } else {
-          SearchSheet(
-            style: .home,
-            initialText: app.browse.search?.initialText ?? "",
-            selectsAll: false,
-            focusesOnAppear: focusesOnReturn,
-            onDismiss: rest
-          ) {
-            logo(size: BrowseLayout.logoSize * 0.8)
-              .padding(.bottom, Spacing.large)
-          }
-          .transition(.move(edge: .bottom))
-        }
+        restingLogo
+          .opacity(isTrayUp ? 0 : 1)
+          .scaleEffect(isTrayUp && !reduceMotion ? 0.92 : 1)
+        bar(in: proxy)
+          .opacity(isTrayUp ? 0 : 1)
+          .allowsHitTesting(!isTrayUp)
       }
     }
-    .ignoresSafeArea(.keyboard, edges: isResting ? .bottom : [])
+    .ignoresSafeArea(.keyboard)
+    .animation(reduceMotion ? .easeOut(duration: 0.2) : Motion.searchRise, value: isTrayUp)
+    .accessibilityHidden(isTrayUp)
     .preferredColorScheme(app.isIncognito ? .dark : nil)
-    .onAppear {
-      isResting = !app.settings.autoOpensKeyboard && app.browse.search == nil && !app.settings.isShowingOnboarding
+    .onAppear(perform: openTrayIfWanted)
+    .onChange(of: app.settings.isShowingOnboarding) { _, showing in
+      if !showing { openTrayIfWanted() }
     }
-    .onChange(of: app.browse.search) { _, request in
-      if request != nil, isResting { present() }
-    }
+  }
+
+  private func openTrayIfWanted() {
+    guard app.settings.autoOpensKeyboard, !app.settings.isShowingOnboarding, app.browse.search == nil, app.sheet == nil else { return }
+    app.browse.presentSearch(from: .home, incognitoOnCancel: app.isIncognito)
   }
 
   private var restingLogo: some View {
@@ -55,7 +46,6 @@ struct SearchHomeView: View {
   private func logo(size: CGFloat) -> some View {
     FidgetLogo()
       .frame(width: size, height: size * 0.82)
-      .matchedGeometryEffect(id: "logo", in: logoSpace)
   }
 
   private func bar(in proxy: GeometryProxy) -> some View {
@@ -74,34 +64,15 @@ struct SearchHomeView: View {
       showsSyncedTabs: app.sync.isEnabled,
       canReopen: app.tabs.canReopenClosed,
       hasTabs: false,
-      newTab: present,
-      newRegularTab: {
-        app.isIncognito = false
-        present()
-      },
-      newIncognitoTab: {
-        app.isIncognito = true
-        present()
-      },
+      newTab: { app.newTab() },
+      newRegularTab: { app.newRegularTab() },
+      newIncognitoTab: { app.newIncognitoTab() },
       reopen: { app.reopenLastClosed() },
       closeAll: {},
       leading: { app.sync.isEnabled ? app.openSyncedSpaces() : app.openArchive() },
       settings: { app.sheet = .settings }
     )
     .ignoresSafeArea()
-  }
-
-  private var transitionAnimation: Animation {
-    reduceMotion ? .easeOut(duration: 0.2) : Motion.searchRise
-  }
-
-  private func present() {
-    focusesOnReturn = true
-    withAnimation(transitionAnimation) { isResting = false }
-  }
-
-  private func rest() {
-    withAnimation(transitionAnimation) { isResting = true }
   }
 
   @ViewBuilder

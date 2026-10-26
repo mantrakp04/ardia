@@ -48,6 +48,7 @@ struct OmniboxTextField: UIViewRepresentable {
       field.reset(to: text)
     }
     coordinator.offer(completion, to: field)
+    field.wantsFocus = isFocused
     if isFocused, !field.isFirstResponder, field.window != nil {
       DispatchQueue.main.async {
         guard self.isFocused, !field.isFirstResponder else { return }
@@ -166,9 +167,19 @@ final class CompletingTextField: UITextField {
   var editor = InlineCompletionEditor()
   var completionColor = UIColor.systemBlue.withAlphaComponent(0.3)
   private(set) var isApplyingCompletion = false
+  var wantsFocus = false
   var typedLength: Int { (editor.typed as NSString).length }
   static let horizontalInset: CGFloat = 3
   private static let composingLanguages = ["ja", "zh", "ko"]
+
+  override func didMoveToWindow() {
+    super.didMoveToWindow()
+    guard wantsFocus, window != nil else { return }
+    DispatchQueue.main.async { [weak self] in
+      guard let self, self.wantsFocus, self.window != nil, !self.isFirstResponder else { return }
+      self.becomeFirstResponder()
+    }
+  }
 
   override func textRect(forBounds bounds: CGRect) -> CGRect {
     super.textRect(forBounds: bounds).insetBy(dx: Self.horizontalInset, dy: 0)

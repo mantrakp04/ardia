@@ -6,6 +6,7 @@ import Observation
 final class BrowseSession {
   enum SearchOrigin: Equatable {
     case home
+    case start
     case page
   }
 
@@ -13,9 +14,11 @@ final class BrowseSession {
     var origin: SearchOrigin
     var initialText: String
     var selectsAll: Bool
+    var incognitoOnCancel: Bool?
   }
 
   var search: SearchRequest?
+  var trayHoldsKeyboard = false
   var isToolbarPresented = false
   var readerTabID: UUID?
   var summaryTabID: UUID?
@@ -38,8 +41,9 @@ final class BrowseSession {
   static let orderFreeze: Duration = .seconds(4)
   @ObservationIgnored private var feedbackTask: Task<Void, Never>?
 
-  func presentSearch(from origin: SearchOrigin, text: String = "", selectsAll: Bool = false) {
-    search = SearchRequest(origin: origin, initialText: text, selectsAll: selectsAll)
+  func presentSearch(from origin: SearchOrigin, text: String = "", selectsAll: Bool = false, incognitoOnCancel: Bool? = nil) {
+    guard search == nil else { return }
+    search = SearchRequest(origin: origin, initialText: text, selectsAll: selectsAll, incognitoOnCancel: incognitoOnCancel)
   }
 
   func freezeOrder(_ ids: [UUID]) {

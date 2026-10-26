@@ -38,9 +38,6 @@ struct BrowsingView: View {
       if browse.summaryTabID == nil {
         bar
       }
-      if let request = browse.search {
-        searchOverlay(request)
-      }
       if let id = browse.summaryTabID, let tab = app.tabs.tab(id) {
         SummaryStage(tabID: id, snapshot: summarySnapshot, title: tab.title, pageURL: tab.url, faviconURL: tab.faviconURL) {
           browse.summaryTabID = nil
@@ -237,30 +234,7 @@ struct BrowsingView: View {
   }
 
   private func openSearch() {
-    let text = app.tabs.selectedTab.map { app.currentQuery(for: $0) } ?? ""
-    withAnimation(reduceMotion ? .easeOut(duration: 0.2) : Motion.searchRise) {
-      app.browse.presentSearch(from: .page, text: text, selectsAll: true)
-    }
-  }
-
-  private func searchOverlay(_ request: BrowseSession.SearchRequest) -> some View {
-    ZStack {
-      Rectangle()
-        .fill(.ultraThinMaterial)
-        .overlay { Color.black.opacity(0.12) }
-        .ignoresSafeArea()
-        .onTapGesture {
-          withAnimation(reduceMotion ? .easeOut(duration: 0.2) : Motion.searchRise) { app.cancelSearch() }
-        }
-        .accessibilityLabel("Close Search")
-        .accessibilityAddTraits(.isButton)
-        .transition(.opacity)
-      SearchSheet(style: .overlay, initialText: request.initialText, selectsAll: request.selectsAll, fieldNamespace: omnibox) {
-        Color.clear
-      }
-      .transition(.asymmetric(insertion: .opacity.animation(Motion.resultsIn), removal: .opacity.animation(Motion.resultsOut)))
-    }
-    .zIndex(1)
+    app.newTab()
   }
 
   private func handlePinch(_ event: PagePinch) {

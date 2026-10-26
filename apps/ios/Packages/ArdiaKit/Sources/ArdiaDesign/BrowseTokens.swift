@@ -67,7 +67,9 @@ public enum BrowseLayout {
   public static let pillSize = CGSize(width: 94, height: 27)
   public static let highlightedPillSize = CGSize(width: 94, height: 27)
   public static let pillRadius: CGFloat = 10
-  public static let sheetAboveKeyboard: CGFloat = 237
+  public static let sheetAboveKeyboard: CGFloat = 274
+  public static let trayFieldTop: CGFloat = 15
+  public static let trayDim: Double = 0.28
   public static let logoSize: CGFloat = 132
   public static let plusCapsule = CGSize(width: 78, height: 40)
   public static let chevronCircle: CGFloat = 35
@@ -96,6 +98,9 @@ public enum BrowseLayout {
 public extension Motion {
   static let searchRise = Animation.spring(response: 0.39, dampingFraction: 1)
   static let sheetToTop = Animation.spring(response: 0.3, dampingFraction: 1)
+  static let trayDismiss = Animation.spring(response: 0.32, dampingFraction: 1)
+  static let traySettle = Animation.spring(response: 0.34, dampingFraction: 0.86)
+  static let trayResize = Animation.spring(response: 0.28, dampingFraction: 1)
   static let resultsIn = Animation.easeOut(duration: 0.14)
   static let resultsOut = Animation.easeOut(duration: 0.22)
   static let pager = Animation.spring(response: 0.3, dampingFraction: 0.9)

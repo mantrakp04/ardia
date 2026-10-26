@@ -71,11 +71,13 @@ final class AppSettings {
     let isDemo = arguments.contains("-ArdiaDemo") || UserDefaults.standard.bool(forKey: "ArdiaDemo")
     guard isDemo, let demo = UserDefaults(suiteName: demoSuite) else { return AppSettings(defaults: .standard) }
     demo.removePersistentDomain(forName: demoSuite)
-    return AppSettings(
+    let settings = AppSettings(
       defaults: demo,
       finishedOnboarding: !arguments.contains("-ArdiaOnboarding"),
       aiFeatures: arguments.contains("-ArdiaAIFeatures")
     )
+    if arguments.contains("-ArdiaRestingStart") { settings.autoOpensKeyboard = false }
+    return settings
   }
 
   func finishOnboarding() {

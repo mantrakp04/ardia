@@ -112,17 +112,19 @@ extension AppModel {
   }
 
   func newTab() {
-    surface = .search
+    browse.presentSearch(from: surface == .search ? .start : .page, incognitoOnCancel: isIncognito)
   }
 
   func newRegularTab() {
+    let wasIncognito = isIncognito
     isIncognito = false
-    surface = .search
+    browse.presentSearch(from: surface == .search ? .start : .page, incognitoOnCancel: wasIncognito)
   }
 
   func newIncognitoTab() {
+    let wasIncognito = isIncognito
     isIncognito = true
-    surface = .search
+    browse.presentSearch(from: surface == .search ? .start : .page, incognitoOnCancel: wasIncognito)
   }
 
   func leaveIncognito() {
