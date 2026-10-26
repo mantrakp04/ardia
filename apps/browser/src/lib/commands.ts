@@ -38,6 +38,7 @@ import { togglePageEngine } from "./engines";
 import { goBack, goForward } from "../components/layout/history";
 import { openSplitPane } from "../components/layout/splitActions";
 import { runSidebarCommand } from "../components/sidebar/commands";
+import { redoCloseTab, undoCloseTab } from "../store/closeRedo";
 import { numberedTabs } from "../components/sidebar/entries";
 import { openExtensionFromMenu } from "../components/extensions/bridge";
 import { toggleCastPicker } from "../components/media/cast";
@@ -136,6 +137,8 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
       if (arg) s.restoreClosed(arg);
       else s.reopenClosed();
     }
+    if (command === "undoCloseTab") undoCloseTab();
+    if (command === "redoCloseTab") void redoCloseTab(closeTab);
     return;
   }
   const tabId = (LITTLE_ARDIA_PAGE_COMMANDS.has(command) && peekTabId(s, windowId)) || activeTabId(s, windowId);
@@ -152,6 +155,10 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
       return void s.newTab(windowId, { newTabCommand: true });
     case "reopenClosedTab":
       return s.reopenClosed(windowId);
+    case "undoCloseTab":
+      return undoCloseTab(windowId);
+    case "redoCloseTab":
+      return void redoCloseTab(closeTab);
     case "restoreClosed":
       return arg ? s.restoreClosed(arg, windowId) : undefined;
     case "focusCommandBar":
@@ -326,7 +333,7 @@ const LITTLE_ARDIA_PAGE_COMMANDS = new Set<string>([
   "copyUrlAsMarkdown", "findInPage", "findAndReplace", "jumpToSelection", "useSelectionForFind", "findNext", "findPrevious",
   "reload", "forceReload", "zoomIn", "zoomOut", "zoomReset", "devTools", "toggleDevTools", "inspectElements",
   "javaScriptConsole", "viewSource", "back", "forward", "bookmarkPage", "addBookmarkToFolder", "openBookmark", "toggleMute",
-  "cast", "openExtension", "addExtension", "autofill", "reopenClosedTab", "restoreClosed", "downloads",
+  "cast", "openExtension", "addExtension", "autofill", "reopenClosedTab", "undoCloseTab", "redoCloseTab", "restoreClosed", "downloads",
 ]);
 
 function runLittleArdiaCommand(command: string, arg: string | null | undefined, windowId: string): boolean {

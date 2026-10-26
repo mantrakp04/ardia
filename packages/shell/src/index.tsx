@@ -14,6 +14,8 @@ export type BrowserCommand =
   | "newLittleArdia"
   | "toggleOpenLinksInLittleArdia"
   | "reopenClosedTab"
+  | "undoCloseTab"
+  | "redoCloseTab"
   | "reopenClosedWindow"
   | "restoreClosed"
   | "focusCommandBar"

@@ -246,15 +246,29 @@ final class MenuTarget: NSObject, NSMenuItemValidation {
 
   @objc(undo:) func undoOrReopenClosedTab(_ sender: Any?) {
     if Self.undoReopensClosedTab {
-      handler?("reopenClosedTab", nil, WindowManager.shared.keyWindowId)
+      handler?("undoCloseTab", nil, WindowManager.shared.keyWindowId)
     } else {
       NSApp.sendAction(Self.undoAction, to: nil, from: sender)
     }
   }
 
-  private static var undoReopensClosedTab: Bool {
+  static let redoAction = Selector(("redo:"))
+
+  @objc(redo:) func redoOrCloseReopenedTab(_ sender: Any?) {
+    if Self.redoClosesReopenedTab {
+      handler?("redoCloseTab", nil, WindowManager.shared.keyWindowId)
+    } else {
+      NSApp.sendAction(Self.redoAction, to: nil, from: sender)
+    }
+  }
+
+  private static var undoReopensClosedTab: Bool { closedTabShortcutApplies("reopenClosedTab") }
+
+  private static var redoClosesReopenedTab: Bool { closedTabShortcutApplies("redoCloseTab") }
+
+  private static func closedTabShortcutApplies(_ command: String) -> Bool {
     let state = MenuState.current
-    guard state.undoReopensClosedTab, !state.disabled.contains("reopenClosedTab"),
+    guard state.undoReopensClosedTab, !state.disabled.contains(command),
       WindowManager.shared.keyWindowId != "settings", let window = WindowManager.shared.keyBrowserWindow
     else { return false }
     return !MainMenu.editsText(window.firstResponder)
@@ -295,6 +309,12 @@ final class MenuTarget: NSObject, NSMenuItemValidation {
       let title = reopens ? "Undo Close Tab" : (menuItem as? StandardItem)?.defaultTitle ?? menuItem.title
       if menuItem.title != title { menuItem.title = title }
       return reopens || Self.validateForwarded(menuItem, Self.undoAction)
+    }
+    if menuItem.action == Self.redoAction {
+      let closes = Self.redoClosesReopenedTab
+      let title = closes ? "Redo Close Tab" : (menuItem as? StandardItem)?.defaultTitle ?? menuItem.title
+      if menuItem.title != title { menuItem.title = title }
+      return closes || Self.validateForwarded(menuItem, Self.redoAction)
     }
     guard let item = menuItem as? CommandItem else { return true }
     let state = MenuState.current
@@ -340,6 +360,7 @@ enum MainMenu {
   private static var extensions = NSMenu(title: "Extensions")
   private static var extensionIcons: [String: NSImage] = [:]
   private static var undo: StandardItem?
+  private static var redo: StandardItem?
 
   static func build() -> NSMenu {
     let appName = ProcessInfo.processInfo.processName
@@ -433,9 +454,11 @@ enum MainMenu {
     edits.forEach { $0.target = MenuTarget.shared }
     let undo = std("Undo", MenuTarget.undoAction, "z")
     Self.undo = undo
+    let redo = std("Redo", MenuTarget.redoAction, "z", [.command, .shift])
+    Self.redo = redo
     _ = top("Edit", [
       undo,
-      std("Redo", Selector(("redo:")), "z", [.command, .shift]),
+      redo,
       .separator(),
       edits[0],
       edits[1],
@@ -757,9 +780,9 @@ enum MainMenu {
     if state.bookmarksRevision == nil || last?.bookmarks != state.bookmarksRevision { buildBookmarkMenus(state) }
     if last?.extensions != extensionKeys { buildExtensions(state) }
     if last?.history != history { buildHistory(state) }
-    if let undo, (undo.target != nil) != state.undoReopensClosedTab {
-      undo.target = state.undoReopensClosedTab ? MenuTarget.shared : nil
-      undo.title = undo.defaultTitle
+    for item in [undo, redo].compactMap({ $0 }) where (item.target != nil) != state.undoReopensClosedTab {
+      item.target = state.undoReopensClosedTab ? MenuTarget.shared : nil
+      item.title = item.defaultTitle
     }
     applyShortcuts(state.shortcuts)
   }

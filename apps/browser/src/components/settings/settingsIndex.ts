@@ -326,8 +326,8 @@ const ROWS: Record<SettingsPane, Section[]> = {
       rows: {
         undoReopensClosedTab: {
           title: "⌘Z reopens closed tabs",
-          description: "Outside text fields, as in Arc; press it again for the tab closed before. In a text field ⌘Z still undoes typing.",
-          keywords: ["undo", "undo close tab", "reopen", "restore tab", "arc", "cmd z"],
+          description: "Outside text fields, as in Arc; press it again for the tab closed before, and ⇧⌘Z closes what it brought back. In a text field they still undo and redo typing.",
+          keywords: ["undo", "undo close tab", "redo", "redo close tab", "reopen", "restore tab", "arc", "cmd z", "cmd shift z"],
         },
         actions: { title: "Customize keyboard shortcuts", keywords: ["hotkeys", "keybindings", "remap", "menu shortcuts"] },
       },

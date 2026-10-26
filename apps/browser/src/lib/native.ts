@@ -25,6 +25,7 @@ import { useBrowser, type BrowserState } from "../store/browser";
 import { activeTab, bookmarkProfileId, engineProfile, IDLE_LIVE, isPinnedRow, tabLabel, togglePinTitle, windowTitle } from "../store/model";
 import { canSwitchEngine, tabEngine } from "../store/engines";
 import { setLastTabKeepsWindow } from "../store/newTabBar";
+import { canRedoCloseTab } from "../store/closeRedo";
 import { peekTabId } from "../store/peek";
 import { splitOf } from "../store/splits";
 import { canGoBack, canGoForward } from "../components/layout/history";
@@ -264,6 +265,7 @@ export function menuState(s: BrowserState): MenuState {
   }
   if (!s.closedTabs.length && !s.closedWindows.length && !s.closedGroups.length) disabled.push("reopenClosedTab");
   if (!s.closedWindows.length) disabled.push("reopenClosedWindow");
+  if (!canRedoCloseTab(s)) disabled.push("redoCloseTab");
 
   const checked = [`setAppearance:${s.settings.appearance}`];
   if (s.settings.showFullUrl) checked.push("toggleFullUrl");
