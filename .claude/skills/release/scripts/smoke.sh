@@ -149,7 +149,7 @@ printf '{"profile":{"last_used":"Profile p-work"}}' > "$work/data/Chromium/Local
 
 codesign --verify --deep --strict "$app"
 launched="$("$root/scripts/agent/ac" launch "$app" --data "$work/data" --port "$port" --js none --no-wait \
-  --env ARDIA_RELEASE_NOTES=1 --env ARDIA_PIP_SELFTEST=close --switch --disable-backgrounding-occluded-windows)" \
+  --instance releaseNotes=1 --switch --disable-backgrounding-occluded-windows)" \
   || { echo "error: the app didn't start" >&2; exit 1; }
 pid="$(sed -n 's/^pid \([0-9]*\) .*/\1/p' <<<"$launched")"
 [ -n "$pid" ] || { echo "error: the app didn't start ($launched)" >&2; exit 1; }

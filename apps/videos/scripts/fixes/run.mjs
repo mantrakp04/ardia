@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = process.env.ARDIA_REPO ?? join(process.env.HOME, "Documents/netnyahoo");
-const { appEnv, attach, binaryOf, binaryPids, launch, processInfo, sleep } = await import(join(repo, "scripts/lib/instance.mjs"));
+const { appEnv, attach, binaryOf, binaryPids, launch, launchVariables, mergeLaunchEnv, processInfo, sleep } = await import(join(repo, "scripts/lib/instance.mjs"));
 
 const scratch = process.env.FIXES_SCRATCH ?? join(process.env.HOME, "ardia-scratch/video-fixes");
 const footage = join(scratch, "footage");
@@ -26,7 +26,7 @@ if (!existsSync(recorder)) {
   if (built.status !== 0) throw new Error("demo-rec didn't build");
 }
 
-async function launchWithoutDevTools(app, { data, js, probe, onboarded, files = {}, session, switches = [], env = {} }) {
+async function launchWithoutDevTools(app, { data, js, probe, onboarded, files = {}, session, switches = [], instance: instanceKeys = {}, env = {} }) {
   mkdirSync(data, { recursive: true });
   if (session) writeFileSync(join(data, "session.json"), JSON.stringify(session));
   if (onboarded) writeFileSync(join(data, "onboarding.json"), JSON.stringify({ version: 1, completedAt: 1 }));
@@ -34,10 +34,10 @@ async function launchWithoutDevTools(app, { data, js, probe, onboarded, files = 
   for (const [name, text] of Object.entries(files)) writeFileSync(join(data, name), JSON.stringify(text));
   const binary = binaryOf(app);
   const log = join(data, "app.out.log");
-  const vars = appEnv(app, {
-    ARDIA_BACKGROUND: "1", ARDIA_DATA_DIR: data, ARDIA_CHROMIUM_SWITCHES: switches.join(" "),
-    ...(js === "none" ? {} : { ARDIA_JS_LOCATION: "localhost:8081" }), ...env,
-  });
+  const vars = appEnv(app, mergeLaunchEnv({
+    ARDIA_BACKGROUND: "1", ARDIA_DATA_DIR: data,
+    ...launchVariables({ instance: { chromiumSwitches: switches.join(" "), ...(js === "none" ? {} : { jsLocation: "localhost:8081" }), ...instanceKeys } }),
+  }, env));
   const before = binaryPids(binary);
   execFileSync("open", ["-g", "-n", ...Object.entries(vars).flatMap(([k, v]) => ["--env", `${k}=${v}`]), "--stdout", log, "--stderr", log, app]);
   let pid = null;
@@ -78,7 +78,8 @@ async function shoot(scene, name, side) {
   const options = {
     data, js, probe, onboarded: true, files: { "telemetry.json": { sharing: false, decidedAt: 1, askDoneAt: 1 } }, session: JSON.parse(readFileSync(sessionFile, "utf8")),
     switches: [`--host-resolver-rules=MAP *.example 127.0.0.1:${sitesPort}`],
-    env: { ARDIA_IMPORT_SOURCE_DIR: empty, ARDIA_IMPORT_SAFARI_HOME: empty, ARDIA_DOWNLOADS_DIR: downloads, ...(scene.env ?? {}) },
+    instance: { importSourceDir: empty, importSafariHome: empty, downloadsDir: downloads },
+    env: scene.env ?? {},
   };
   const start = scene.withoutDevTools ? launchWithoutDevTools : launch;
   let instance = await start(app, options);

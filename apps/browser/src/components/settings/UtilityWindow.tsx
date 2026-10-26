@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { View, type LayoutChangeEvent } from "react-native";
 import { ImportWindow } from "../import/ImportWindow";
 import { SettingsWindow } from "./SettingsWindow";
-import { SETTINGS_WINDOW_ID } from "./windows";
+import { SETTINGS_WINDOW_ID } from "../../state/settings/settingsWindows";
 
 const EMPTY_CHECK_MS = 2000;
 

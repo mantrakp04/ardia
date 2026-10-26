@@ -1,80 +1,29 @@
 import { displayUrl, fuzzyScore } from "@ardia/core";
-import { FadeLabel, Surface, Symbol } from "@ardia/shell";
 import { useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import { switchToTab } from "../../lib/actions";
-import { hex, useTheme } from "../../lib/theme";
-import { useBrowser, type BrowserState } from "../../store/browser";
-import { tabLabel } from "../../store/model";
-import { isPeekTab } from "../../store/peek";
-import { sharedTabsIn, sharesTabs } from "../../store/tabShare";
-import type { Tab } from "../../store/types";
-import { tabTitle } from "./actions";
-import { setSidebarUi, useSidebarUi } from "./state";
+import { switchToTab } from "../../state/browser/actions";
+import { FadeLabel, font, Panel, radius, Symbol, weight } from "../ui";
+import { useTheme } from "../ui/theme";
+import { hostOf } from "../../lib/url";
+import { useTabs } from "../../state/tabs/hooks";
+import { restoreClosed } from "../../state/windows/actions";
+import { useClosedGroups, useClosedTabs } from "../../state/sidebar/hooks";
+import { searchCandidates, type Row } from "../../state/sidebar/searchTabs";
+import { setSidebarUi, useSidebarUi } from "../../state/sidebar/sidebarUi";
 import { TabIcon } from "./TabIcon";
-
-type Row =
-  | { kind: "tab"; id: string; title: string; url: string; favicon: string | null; icon: string | null; where: string | null; current: boolean }
-  | { kind: "closed"; id: string; title: string; url: string; favicon: string | null; icon: string | null; detail: string };
+import { SIDEBAR_SHADOW, SIDEBAR_TYPE } from "./tokens";
 
 const WIDTH = 560;
 const ROW = 36;
 const MAX_ROWS = 10;
-
-function candidates(s: BrowserState, windowId: string): { open: Row[]; closed: Row[] } {
-  const w = s.windows[windowId];
-  if (!w) return { open: [], closed: [] };
-  const profileId = w.profileId;
-  const shared = sharesTabs(s) ? sharedTabsIn(s.tabs, windowId) : null;
-  const lastUsed = (t: Tab) => shared?.lastUsed(t) ?? t.lastActiveAt;
-  const windowNumber = (id: string) => s.windowOrder.filter((x) => !s.windows[x]?.incognito || x === windowId).indexOf(id) + 1;
-  const open: Row[] = Object.values(s.tabs)
-    .filter((t) => t.profileId === profileId && !isPeekTab(s, t.id) && !shared?.elsewhere(t))
-    .sort((a, b) => lastUsed(b) - lastUsed(a))
-    .map((t) => ({
-      kind: "tab",
-      id: t.id,
-      title: tabTitle(t),
-      url: t.url,
-      favicon: t.favicon,
-      icon: t.customIcon,
-      where: t.windowId === windowId ? null : `Window ${windowNumber(t.windowId)}`,
-      current: s.windows[t.windowId]?.activeTabIds[profileId] === t.id,
-    }));
-  const closed: Row[] = [
-    ...s.closedTabs
-      .filter((c) => c.tab.profileId === profileId)
-      .map((c) => ({ kind: "closed" as const, id: c.id, title: c.tab.customTitle || c.tab.title || tabLabel(c.tab), url: c.tab.url, favicon: c.tab.favicon, icon: c.tab.customIcon, detail: "", at: c.closedAt })),
-    ...s.closedGroups.map((c) => ({
-      kind: "closed" as const,
-      id: c.id,
-      title: c.group.name,
-      url: c.tabs[0]?.url ?? "",
-      favicon: c.tabs[0]?.favicon ?? null,
-      icon: c.group.icon,
-      detail: c.tabs.length === 1 ? "Group · 1 tab" : `Group · ${c.tabs.length} tabs`,
-      at: c.closedAt,
-    })),
-  ]
-    .sort((a, b) => b.at - a.at)
-    .map(({ at: _, ...row }) => row);
-  return { open, closed };
-}
-
-const host = (url: string) => {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return "";
-  }
-};
+const SEARCH_RADIUS = 16;
 
 export function SearchTabs({ windowId, windowWidth }: { windowId: string; windowWidth: number }) {
   const open = useSidebarUi((u) => u.searchTabs === windowId);
-  return open ? <Panel windowId={windowId} windowWidth={windowWidth} /> : null;
+  return open ? <SearchPanel windowId={windowId} windowWidth={windowWidth} /> : null;
 }
 
-function Panel({ windowId, windowWidth }: { windowId: string; windowWidth: number }) {
+function SearchPanel({ windowId, windowWidth }: { windowId: string; windowWidth: number }) {
   const theme = useTheme();
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
@@ -86,16 +35,16 @@ function Panel({ windowId, windowWidth }: { windowId: string; windowWidth: numbe
     focused.current = true;
     field.current?.focus();
   };
-  const tabs = useBrowser((s) => s.tabs);
-  const closedTabs = useBrowser((s) => s.closedTabs);
-  const closedGroups = useBrowser((s) => s.closedGroups);
+  const tabs = useTabs((t) => t);
+  const closedTabs = useClosedTabs();
+  const closedGroups = useClosedGroups();
   const sections = useMemo(() => {
-    const { open, closed } = candidates(useBrowser.getState(), windowId);
+    const { open, closed } = searchCandidates(windowId);
     const q = query.trim();
     if (!q) return [{ title: "Open Tabs", rows: open }, { title: "Recently Closed", rows: closed.slice(0, 8) }];
     const rank = (rows: Row[]) =>
       rows
-        .map((r) => ({ r, score: Math.max(fuzzyScore(q, r.title), fuzzyScore(q, host(r.url)) * 0.9, fuzzyScore(q, r.url) * 0.6) }))
+        .map((r) => ({ r, score: Math.max(fuzzyScore(q, r.title), fuzzyScore(q, hostOf(r.url)) * 0.9, fuzzyScore(q, r.url) * 0.6) }))
         .filter((x) => x.score > 0)
         .sort((a, b) => b.score - a.score)
         .map((x) => x.r);
@@ -107,7 +56,7 @@ function Panel({ windowId, windowWidth }: { windowId: string; windowWidth: numbe
     if (!row) return;
     close();
     if (row.kind === "tab") switchToTab(row.id);
-    else useBrowser.getState().restoreClosed(row.id, windowId);
+    else restoreClosed(row.id, windowId);
   };
   const move = (delta: number) => {
     const next = Math.max(0, Math.min(rows.length - 1, selected + delta));
@@ -119,15 +68,11 @@ function Panel({ windowId, windowWidth }: { windowId: string; windowWidth: numbe
   return (
     <>
       <Pressable onPress={close} style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0 }} />
-      <Surface
-        fill={hex(theme.panel)}
-        cornerRadius={16}
-        borderColor={hex(theme.panelBorder)}
-        borderWidth={0.5}
-        shadowColor="#000000"
-        shadowOpacity={theme.panelShadowOpacity}
-        shadowRadius={24}
-        shadowOffset={[0, 10]}
+      <Panel
+        fill={theme.panel}
+        radius={SEARCH_RADIUS}
+        border={theme.panelBorder}
+        shadow={SIDEBAR_SHADOW.searchTabs}
         style={{ position: "absolute", top: 56, left: Math.max(12, (windowWidth - WIDTH) / 2), width: Math.min(WIDTH, windowWidth - 24), paddingBottom: 6 }}
       >
         <View style={{ height: 50, flexDirection: "row", alignItems: "center", paddingHorizontal: 16, gap: 10 }}>
@@ -154,18 +99,18 @@ function Panel({ windowId, windowWidth }: { windowId: string; windowWidth: numbe
               if (key === "ArrowDown") move(1);
               if (key === "ArrowUp") move(-1);
             }}
-            style={{ flex: 1, fontSize: 16, color: theme.textPrimary, paddingVertical: 0 }}
+            style={{ flex: 1, fontSize: SIDEBAR_TYPE.searchField, color: theme.textPrimary, paddingVertical: 0 }}
           />
         </View>
         <View style={{ height: 0.5, backgroundColor: theme.divider }} />
         <ScrollView ref={scroll} style={{ maxHeight: ROW * MAX_ROWS + 60 }} showsVerticalScrollIndicator={false}>
           {rows.length === 0 ? (
-            <Text style={{ paddingHorizontal: 16, paddingVertical: 14, fontSize: 13, color: theme.textTertiary }}>No tabs match “{query.trim()}”</Text>
+            <Text style={{ paddingHorizontal: 16, paddingVertical: 14, ...font.body, color: theme.textTertiary }}>No tabs match “{query.trim()}”</Text>
           ) : null}
           {sections.map((section) =>
             section.rows.length ? (
               <View key={section.title} style={{ paddingHorizontal: 6, paddingTop: 6 }}>
-                <Text style={{ fontSize: 11, fontWeight: "600", color: theme.textTertiary, paddingHorizontal: 10, paddingVertical: 4 }}>{section.title}</Text>
+                <Text style={{ ...font.caption, fontWeight: weight.semibold, color: theme.textTertiary, paddingHorizontal: 10, paddingVertical: 4 }}>{section.title}</Text>
                 {section.rows.map((row) => {
                   index++;
                   const i = index;
@@ -175,7 +120,7 @@ function Panel({ windowId, windowWidth }: { windowId: string; windowWidth: numbe
             ) : null,
           )}
         </ScrollView>
-      </Surface>
+      </Panel>
     </>
   );
 }
@@ -187,14 +132,14 @@ function ResultRow({ row, selected, onHover, onPress }: { row: Row; selected: bo
     <Pressable onPress={onPress}>
       <View
         onMouseEnter={onHover}
-        style={{ height: ROW, borderRadius: 10, flexDirection: "row", alignItems: "center", paddingHorizontal: 10, gap: 10, backgroundColor: selected ? theme.rowSelected : undefined }}
+        style={{ height: ROW, borderRadius: radius.card, flexDirection: "row", alignItems: "center", paddingHorizontal: 10, gap: 10, backgroundColor: selected ? theme.rowSelected : undefined }}
       >
         <TabIcon url={row.url} favicon={row.favicon} icon={row.icon} />
         <View style={{ flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 }}>
-          <FadeLabel text={row.title} fontSize={14} color={theme.textPrimary} style={{ flex: 3, height: 19 }} />
-          {row.url ? <FadeLabel text={`— ${displayUrl(row.url)}`} fontSize={14} color={theme.textSecondary} style={{ flex: 2, height: 19, marginLeft: 5 }} /> : null}
+          <FadeLabel text={row.title} fontSize={font.title.fontSize} color={theme.textPrimary} style={{ flex: 3, height: 19 }} />
+          {row.url ? <FadeLabel text={`— ${displayUrl(row.url)}`} fontSize={font.title.fontSize} color={theme.textSecondary} style={{ flex: 2, height: 19, marginLeft: 5 }} /> : null}
         </View>
-        {detail ? <Text style={{ fontSize: 12, color: theme.textTertiary }}>{detail}</Text> : null}
+        {detail ? <Text style={{ ...font.small, color: theme.textTertiary }}>{detail}</Text> : null}
         {row.kind === "closed" ? <Symbol name="clock.arrow.circlepath" size={12} color={theme.textTertiary} style={{ width: 16, height: 16 }} /> : null}
       </View>
     </Pressable>

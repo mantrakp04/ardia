@@ -18,7 +18,7 @@
     </class>
 
     <class name="window" code="cwin" plural="windows" description="A browser window.">
-      <cocoa class="ACScriptWindow"/>
+      <cocoa class="ArdiaScriptWindow"/>
       <property name="id" code="ID  " type="text" access="r" description="The unique identifier of the window.">
         <cocoa key="uniqueID"/>
       </property>
@@ -76,7 +76,7 @@
     </command>
 
     <command name="make" code="corecrel" description="Create a new window or tab.">
-      <cocoa class="ACScriptCreateCommand"/>
+      <cocoa class="ArdiaScriptCreateCommand"/>
       <parameter name="new" code="kocl" type="type" description="The class of the new object (window or tab).">
         <cocoa key="ObjectClass"/>
       </parameter>
@@ -97,7 +97,7 @@
 
   <suite name="Ardia Suite" code="NNys" description="Browsing: tabs, profiles and page scripting.">
     <class name="tab" code="DiaT" plural="tabs" description="A browser tab.">
-      <cocoa class="ACScriptTab"/>
+      <cocoa class="ArdiaScriptTab"/>
       <property name="id" code="ID  " type="text" access="r" description="The unique identifier of the tab.">
         <cocoa key="uniqueID"/>
       </property>
@@ -137,7 +137,7 @@
     </class>
 
     <class name="profile" code="DiaP" plural="profiles" description="A profile: its own tabs, history, bookmarks and cookies.">
-      <cocoa class="ACScriptProfile"/>
+      <cocoa class="ArdiaScriptProfile"/>
       <property name="id" code="ID  " type="text" access="r" description="The unique identifier of the profile.">
         <cocoa key="uniqueID"/>
       </property>

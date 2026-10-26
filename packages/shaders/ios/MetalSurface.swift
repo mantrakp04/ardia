@@ -1,3 +1,4 @@
+import ArdiaCore
 import ExpoModulesCore
 import MetalKit
 
@@ -135,7 +136,7 @@ using namespace metal;
 
 struct FullscreenOut {
   float4 position [[position]];
-  float2 uv; // (0,0) = top-left
+  float2 uv;
 };
 
 vertex FullscreenOut fullscreenVertex(uint vid [[vertex_id]]) {
@@ -162,7 +163,7 @@ extension SIMD4 where Scalar == Float {
 }
 
 final class WindowActivity {
-  static var override: Bool? = ProcessInfo.processInfo.environment["ARDIA_SHADERS_FORCE_KEY"] == "1" ? true : nil {
+  static var override: Bool? = LaunchConfig.shared.testFlag("shadersKeyWindow") ? true : nil {
     didSet { NotificationCenter.default.post(name: changed, object: nil) }
   }
   static let changed = Notification.Name("ArdiaShadersWindowActivityChanged")

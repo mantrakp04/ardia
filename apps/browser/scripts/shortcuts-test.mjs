@@ -380,10 +380,10 @@ const selection = await cdp("?t3", "(f => [f.selectionStart, f.selectionEnd, f.v
 check("⌘A selects all of a page's text field", selection === "0,11,11", selection);
 
 const devWindow = (action) =>
-  ac(`const f = ac.store.getState().windows.w1.frame, C = globalThis.expo.modules.ArdiaCEF;
-    return C.chromeWindows().then((ws) => ws.filter((w) => w.hasRoot).find((w) => {
+  ac(`const f = ac.store.getState().windows.w1.frame;
+    return ac.engine.call("windows.list").then((ws) => ws.filter((w) => w.hasRoot).find((w) => {
       const r = w.frame.match(/[-\\d.]+/g).map(Number); return Math.abs(r[0] - f[0]) < 2 && Math.abs(r[2] - f[2]) < 2; }))
-      .then((w) => C.devWindow(w.window, ${JSON.stringify(action)}));`);
+      .then((w) => ac.engine.call("windows.dev", { window: w.window, action: ${JSON.stringify(action)} }));`);
 const postKeys = (presses) => ac(`return globalThis.expo.modules.ArdiaApp.devPostKeys("w1", ${JSON.stringify(presses)});`);
 const keyPress = (key, keyCode, after = 0, modifiers = ["command"]) => ({ key, keyCode, modifiers, after });
 const post = (key, keyCode, modifiers = ["command"]) => ac(`return globalThis.expo.modules.ArdiaApp.devPostKey("w1", ${JSON.stringify(key)}, ${keyCode}, ${JSON.stringify(modifiers)});`);

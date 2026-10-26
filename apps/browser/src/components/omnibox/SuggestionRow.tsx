@@ -1,9 +1,11 @@
 import { displayUrl, type Suggestion } from "@ardia/core";
-import { Symbol } from "@ardia/shell";
 import { memo } from "react";
-import { Image, Pressable, Text, View } from "react-native";
-import { useTheme } from "../../lib/theme";
-import { Favicon, IconButton, useHover } from "../primitives";
+import { Image, Pressable, Text as NativeText, View } from "react-native";
+import { Button, Symbol, Text, useHover, useTheme } from "../ui";
+import { Favicon } from "../favicon/Favicon";
+import { SUGGESTION } from "./tokens";
+
+const ICON_BOX = { width: SUGGESTION.iconBox, height: SUGGESTION.iconBox } as const;
 
 export function SuggestionIcon({ suggestion: s, color }: { suggestion: Suggestion; color?: string }) {
   const theme = useTheme();
@@ -14,16 +16,16 @@ export function SuggestionIcon({ suggestion: s, color }: { suggestion: Suggestio
     case "create":
       return <Favicon url={`https://${s.site}`} />;
     case "search":
-      return <Symbol name="magnifyingglass" size={13} color={tint} style={{ width: 16, height: 16 }} />;
+      return <Symbol name="magnifyingglass" size={SUGGESTION.icon} color={tint} style={ICON_BOX} />;
     case "calc":
-      return <Symbol name="equal.circle" size={14} color={tint} style={{ width: 16, height: 16 }} />;
+      return <Symbol name="equal.circle" size={SUGGESTION.calcIcon} color={tint} style={ICON_BOX} />;
     case "action":
-      return <Symbol name={s.icon ?? "command"} size={13} color={tint} style={{ width: 16, height: 16 }} />;
+      return <Symbol name={s.icon ?? "command"} size={SUGGESTION.icon} color={tint} style={ICON_BOX} />;
     case "extension":
       return s.icon ? (
-        <Image source={{ uri: s.icon }} style={{ width: 16, height: 16 }} />
+        <Image source={{ uri: s.icon }} style={ICON_BOX} />
       ) : (
-        <Symbol name="puzzlepiece.extension" size={13} color={tint} style={{ width: 16, height: 16 }} />
+        <Symbol name="puzzlepiece.extension" size={SUGGESTION.icon} color={tint} style={ICON_BOX} />
       );
   }
 }
@@ -65,7 +67,7 @@ export const SuggestionList = memo(function SuggestionList({
 }) {
   if (!items.length) return null;
   return (
-    <View style={{ paddingHorizontal: dropdown ? 6 : 9, paddingBottom: dropdown ? 6 : 2 }}>
+    <View style={{ paddingHorizontal: dropdown ? SUGGESTION.dropdownListX : SUGGESTION.listX, paddingBottom: dropdown ? SUGGESTION.dropdownListBelow : SUGGESTION.listBelow }}>
       {items.map((s, i) => (
         <SuggestionRow
           key={i}
@@ -110,30 +112,30 @@ const SuggestionRow = memo(
         <Pressable onPress={() => actions.choose(s)}>
           <View
             style={{
-              height: 35,
-              marginVertical: 2.5,
-              borderRadius: 11,
+              height: SUGGESTION.height,
+              marginVertical: SUGGESTION.gapY,
+              borderRadius: SUGGESTION.radius,
               flexDirection: "row",
               alignItems: "center",
-              paddingHorizontal: 13,
-              gap: 11,
+              paddingHorizontal: SUGGESTION.padX,
+              gap: SUGGESTION.gap,
               backgroundColor: selected ? theme.commandBarSelected : hovered ? theme.commandBarHover : undefined,
             }}
           >
             <SuggestionIcon suggestion={s} />
-            <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 14, color: theme.textPrimary }}>
+            <Text lines={1} size="title" style={{ flexShrink: 1 }}>
               {title}
               {accessory ? (
-                <Text style={{ color: theme.textSecondary }}>
+                <NativeText style={{ color: theme.textSecondary }}>
                   {" — "}
                   {accessory}
-                </Text>
+                </NativeText>
               ) : null}
             </Text>
             <View style={{ flex: 1 }} />
-            {hint && !removable ? <Text style={{ fontSize: 12, color: theme.textTertiary }}>{hint}</Text> : null}
+            {hint && !removable ? <Text size="small" tone="textTertiary">{hint}</Text> : null}
             {removable ? (
-              <IconButton icon="xmark" size={10} box={22} radius={6} color={theme.textSecondary} tooltip="Remove from History" onPress={onRemove} />
+              <Button variant="icon" icon="xmark" size={SUGGESTION.remove.glyph} box={SUGGESTION.remove.box} radius={SUGGESTION.remove.radius} color={theme.textSecondary} tooltip="Remove from History" onPress={onRemove} />
             ) : null}
           </View>
         </Pressable>

@@ -55,7 +55,7 @@ binary="$(plutil -extract CFBundleExecutable raw "$app/Contents/Info.plist")"
 mkdir -p "$apps" && { cp -Rc "$app" "$apps/$legacy_app" 2>/dev/null || ditto "$app" "$apps/$legacy_app"; }
 echo "    (from $apps)"
 launched="$("$ac" launch "$apps/$legacy_app" --runs-from "$apps/Ardia.app" --data "$migrated" --onboarded ${release[@]+"${release[@]}"} \
-  --env "ARDIA_LEGACY_SOURCE=$home")"
+  --test "legacySource=$home")"
 pid="$(sed -n 's/^pid \([0-9]*\) .*/\1/p' <<<"$launched")"
 check "it renamed itself to Ardia.app" "$([ -d "$apps/Ardia.app" ] && [ ! -e "$apps/$legacy_app" ] && echo 1 || echo 0)" "$(ls "$apps")"
 command="$(ps -ww -o command= -p "$pid" 2>/dev/null || true)"

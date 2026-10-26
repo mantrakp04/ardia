@@ -1,13 +1,8 @@
 import type { View } from "react-native";
-import { layout } from "../../../lib/theme";
-import { useBrowser } from "../../../store/browser";
-import { activeTabId } from "../../../store/model";
-import { splitOf } from "../../../store/splits";
-import { toolbarGeometry, type Rect } from "../../layout/geometry";
-import { useUrlAnchors } from "../../layout/windowLayout";
-import { measureRow } from "../../sidebar/state";
-
-export type TourAnchor = "commandBar" | "page" | "tabs" | "sidebarButton";
+import { layout } from "../../ui/theme";
+import { toolbarGeometry, type Rect } from "../../window/geometry";
+import { setTourAnchorLocator, tourWindowFacts, type TourAnchor } from "../../../state/onboarding/tour";
+import { measureRow } from "../../../state/sidebar/sidebarUi";
 
 const registered = new Map<string, View>();
 const key = (windowId: string, id: TourAnchor) => `${windowId}\n${id}`;
@@ -23,21 +18,19 @@ function measure(view: View | undefined): Promise<Rect | null> {
 }
 
 export async function locateAnchor(windowId: string, id: TourAnchor): Promise<Rect | null> {
-  const s = useBrowser.getState();
-  const w = s.windows[windowId];
+  const w = tourWindowFacts(windowId);
   if (!w) return null;
-  const tabLayout = w.tabLayout ?? s.settings.tabLayout;
+  const { tabLayout } = w;
   switch (id) {
     case "commandBar":
     case "page":
       return measure(registered.get(key(windowId, id)));
     case "tabs": {
-      const tabId = activeTabId(s, windowId);
-      return w.sidebarOpen && tabLayout === "sidebar" && tabId ? measureRow(windowId, tabId) : null;
+      return w.sidebarOpen && tabLayout === "sidebar" && w.tabId ? measureRow(windowId, w.tabId) : null;
     }
     case "sidebarButton": {
-      const url = useUrlAnchors.getState()[windowId];
-      if (!url || url.sidebar || tabLayout !== "sidebar" || splitOf(s, activeTabId(s, windowId))) return null;
+      const { url } = w;
+      if (!url || url.sidebar || tabLayout !== "sidebar" || w.inSplit) return null;
       const g = toolbarGeometry({ sidebarButton: true });
       if (g.sidebarButton === null) return null;
       const size = layout.toolbarButton;
@@ -45,3 +38,5 @@ export async function locateAnchor(windowId: string, id: TourAnchor): Promise<Re
     }
   }
 }
+
+setTourAnchorLocator(locateAnchor);

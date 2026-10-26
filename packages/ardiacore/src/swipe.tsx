@@ -1,6 +1,7 @@
-import { requireNativeModule, requireNativeViewManager } from "expo-modules-core";
+import { requireNativeViewManager } from "expo-modules-core";
 import { forwardRef, useImperativeHandle, useRef } from "react";
 import { Animated, type NativeSyntheticEvent, type ViewProps } from "react-native";
+import { nativeModule } from "./nativeModules";
 
 export type SwipeEvent = {
   phase: "began" | "changed" | "ended" | "cancelled" | "swipe" | "wheel";
@@ -64,7 +65,7 @@ type NativeProps = Omit<SwipeAreaProps, "onSwipe" | "onPagerState"> & {
 };
 type NativeHandle = { devLocate(): Promise<{ windowNumber: number; x: number; y: number; width: number; height: number } | null> };
 
-type SwipeModule = {
+export type SwipeModule = {
   haptic(pattern: string): void;
   switchPager(key: string, index: number, order?: string): Promise<boolean>;
   stepPager(key: string, delta: number, wrap: boolean, order?: string): Promise<boolean>;
@@ -75,7 +76,7 @@ type SwipeModule = {
 };
 type NativeComponent = React.ComponentType<NativeProps & { ref?: React.Ref<NativeHandle> }>;
 
-const Module = requireNativeModule<SwipeModule>("ArdiaSwipe");
+const Module = nativeModule("ArdiaSwipe");
 const Native = requireNativeViewManager<NativeProps>("ArdiaSwipe") as unknown as NativeComponent;
 let AnimatedNative: NativeComponent | undefined;
 const animatedNative = () => (AnimatedNative ??= Animated.createAnimatedComponent(Native) as unknown as NativeComponent);

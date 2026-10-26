@@ -1,23 +1,22 @@
-import { Symbol } from "@ardia/shell";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Pressable, Text, View } from "react-native";
-import { useTheme } from "../../lib/theme";
-import { bookmarkAncestors, folderChildren } from "../../store/bookmarks";
-import { useBrowser } from "../../store/browser";
-import { useHover } from "../primitives";
-import { useFormColors } from "../settings/controls";
+import { Pressable, View } from "react-native";
+import { bookmarkAncestors, folderChildren } from "../../state/bookmarks/bookmarks";
+import { useBookmarks } from "../../state/bookmarks/hooks";
+import { currentBookmarks } from "../../state/browser/current";
+import { radius, space, Symbol, Text, useHover, useTheme } from "../ui";
+import { folderTree, folderTreeInk } from "./tokens";
 
 type FolderRow = { id: string; title: string; depth: number; hasChildren: boolean };
 
 function useFolderRows(profileId: string, expanded: Set<string>): FolderRow[] {
-  const key = useBrowser((s) => {
-    const roots = s.bookmarks.roots[profileId];
+  const key = useBookmarks((b) => {
+    const roots = b.roots[profileId];
     if (!roots) return "";
     const lines: string[] = [];
     const walk = (id: string, depth: number) => {
-      const node = s.bookmarks.nodes[id];
+      const node = b.nodes[id];
       if (node?.kind !== "folder") return;
-      const sub = folderChildren(s.bookmarks, id).filter((c) => c.kind === "folder");
+      const sub = folderChildren(b, id).filter((c) => c.kind === "folder");
       lines.push(JSON.stringify([id, node.title, depth, sub.length > 0]));
       if (expanded.has(id)) sub.forEach((c) => walk(c.id, depth + 1));
     };
@@ -41,7 +40,7 @@ export function FolderTree({
   profileId,
   selectedId,
   onSelect,
-  rowHeight = 26,
+  rowHeight = folderTree.row,
   wrapRow,
 }: {
   profileId: string;
@@ -51,15 +50,15 @@ export function FolderTree({
   wrapRow?: (id: string, row: ReactNode) => ReactNode;
 }) {
   const [expanded, setExpanded] = useState(() => {
-    const s = useBrowser.getState();
-    const roots = s.bookmarks.roots[profileId];
+    const b = currentBookmarks();
+    const roots = b.roots[profileId];
     const open = new Set<string>(roots ? [roots.bar, roots.other] : []);
-    if (selectedId) for (const a of bookmarkAncestors(s.bookmarks, selectedId)) open.add(a.id);
+    if (selectedId) for (const a of bookmarkAncestors(b, selectedId)) open.add(a.id);
     return open;
   });
   useEffect(() => {
     if (!selectedId) return;
-    const hidden = bookmarkAncestors(useBrowser.getState().bookmarks, selectedId).filter((a) => !expanded.has(a.id));
+    const hidden = bookmarkAncestors(currentBookmarks(), selectedId).filter((a) => !expanded.has(a.id));
     if (hidden.length) setExpanded((prev) => new Set([...prev, ...hidden.map((a) => a.id)]));
   }, [selectedId]);
   const rows = useFolderRows(profileId, expanded);
@@ -107,7 +106,6 @@ function FolderTreeRow({
   onSelect: () => void;
 }) {
   const theme = useTheme();
-  const colors = useFormColors();
   const { hovered, hoverProps } = useHover();
   return (
     <View {...hoverProps}>
@@ -115,27 +113,27 @@ function FolderTreeRow({
         <View
           style={{
             height,
-            borderRadius: 6,
+            borderRadius: radius.m,
             flexDirection: "row",
             alignItems: "center",
-            paddingLeft: 4 + row.depth * 16,
-            paddingRight: 8,
-            backgroundColor: selected ? colors.accent : hovered ? colors.selected : undefined,
+            paddingLeft: folderTree.inset + row.depth * folderTree.indent,
+            paddingRight: space.m,
+            backgroundColor: selected ? theme.formAccent : hovered ? theme.rowHover : undefined,
           }}
         >
-          <Pressable onPress={onToggle} disabled={!row.hasChildren} style={{ width: 16, height, alignItems: "center", justifyContent: "center" }}>
+          <Pressable onPress={onToggle} disabled={!row.hasChildren} style={{ width: folderTree.chevronBox, height, alignItems: "center", justifyContent: "center" }}>
             {row.hasChildren ? (
               <Symbol
                 name={expanded ? "chevron.down" : "chevron.right"}
-                size={9}
+                size={folderTree.chevron}
                 weight="semibold"
-                color={selected ? "#FFFFFFCC" : theme.textSecondary}
-                style={{ width: 16, height: 16 }}
+                color={selected ? folderTreeInk.selectedChevron : theme.textSecondary}
+                style={CHEVRON}
               />
             ) : null}
           </Pressable>
-          <Symbol name="folder" size={13} color={selected ? "#FFFFFF" : theme.icon} style={{ width: 18, height: 18 }} />
-          <Text numberOfLines={1} style={{ flex: 1, marginLeft: 6, fontSize: 13, color: selected ? "#FFFFFF" : theme.textPrimary }}>
+          <Symbol name="folder" size={folderTree.folderIcon} color={selected ? theme.onAccent : theme.icon} style={FOLDER_ICON} />
+          <Text lines={1} tone={selected ? "onAccent" : "textPrimary"} style={TITLE}>
             {row.title}
           </Text>
         </View>
@@ -143,3 +141,7 @@ function FolderTreeRow({
     </View>
   );
 }
+
+const CHEVRON = { width: folderTree.chevronBox, height: folderTree.chevronBox } as const;
+const FOLDER_ICON = { width: folderTree.folderBox, height: folderTree.folderBox } as const;
+const TITLE = { flex: 1, marginLeft: space.s } as const;

@@ -10,7 +10,8 @@ import {
   type LocalExtension,
 } from "./extensions.ts";
 import { Clock } from "./hlc.ts";
-import { compact, emptyScope, syncScope, visible, type Adapter, type Listing, type ScopeState, type Transport } from "./scope.ts";
+import { compact, syncScope, visible } from "./scope.ts";
+import { emptyScope, type Adapter, type Listing, type ScopeState, type Transport } from "./scopeState.ts";
 
 const E1 = "a".repeat(32);
 const E2 = "b".repeat(32);

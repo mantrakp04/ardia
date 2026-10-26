@@ -1,28 +1,31 @@
-import { ContextMenuArea, hapticTick, showMenu, Symbol } from "@ardia/shell";
+import { ContextMenuArea, Symbol, Box, Button, font, Group, PopUp, TextField, useHover } from "../../ui";
+import { hapticTick, showMenu } from "../../../state/app/system";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Animated, Easing, PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
-import { createProfile, deleteProfile } from "../../../lib/actions";
-import { hex, profileAccent, useTheme } from "../../../lib/theme";
-import { useBrowser } from "../../../store/browser";
-import { useProfiles } from "../../../store/hooks";
-import { plural } from "../../../store/model";
-import { sharingProfiles } from "../../../store/profiles";
-import type { Profile } from "../../../store/types";
+import { createProfile, deleteProfile } from "../../../state/browser/actions";
+import { hex, profileAccent, useTheme } from "../../ui/theme";
+import { useProfileDataStats, useProfileOrder, useProfileRecords } from "../../../state/profiles/hooks";
+import { currentProfileOrder, currentProfiles } from "../../../state/browser/current";
+import { reorderProfiles, setDefaultProfile, updateProfile } from "../../../state/profiles/actions";
+import { useProfile, useProfiles, useSettings } from "../../../state/browser/hooks";
+import { sharingProfiles } from "../../../state/profiles/profiles";
+import type { Profile } from "../../../state/browser/types";
 import { ClearDataDialog } from "../../pages/ClearDataDialog";
-import { useHover } from "../../primitives";
+import { Row, SectionHeader } from "../Form";
 import { ColorStack } from "../../profiles/CreateProfile";
-import { iconMenuItems, PROFILE_SYMBOLS, ProfileBadge, profileSymbol } from "../../profiles/icons";
-import { Button, Group, PopUp, Row, SectionHeader, TextField, useFormColors } from "../controls";
-import { closeSettingsSheet, showSettingsSheet } from "../sheet";
+import { iconMenuItems, PROFILE_SYMBOLS, ProfileBadge, profileSymbol } from "../../profiles/ProfileIcons";
+import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { ThemeSection } from "../ThemeEditor";
-import { useSettingsNav } from "../windows";
+import { goToSettingsPane } from "../../../state/settings/settingsWindows";
+import { curve } from "../../ui/motion";
+import { settingsType, settingsMotion } from "../tokens";
 
 const listOf = (names: string[]) => (names.length <= 2 ? names.join(" and ") : `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`);
 
 function useSharedWith(profileId: string): string[] {
-  const order = useBrowser((s) => s.profileOrder);
-  const profiles = useBrowser((s) => s.profiles);
+  const order = useProfileOrder();
+  const profiles = useProfileRecords();
   return useMemo(() => {
     const others = sharingProfiles({ profiles, profileOrder: order }, profileId);
     return others.length ? order.filter((id) => id === profileId || others.includes(id)) : [profileId];
@@ -32,11 +35,11 @@ function useSharedWith(profileId: string): string[] {
 export function ProfilesPane() {
   const theme = useTheme();
   const profiles = useProfiles();
-  const defaultId = useBrowser((s) => s.settings.defaultProfileId);
+  const defaultId = useSettings((s) => s.defaultProfileId);
 
   return (
     <View>
-      <Text style={{ marginTop: 20, fontSize: 12.5, lineHeight: 17, color: theme.textSecondary }}>
+      <Text style={{ marginTop: 20, ...settingsType.lead, lineHeight: 17, color: theme.textSecondary }}>
         Profiles keep your browsing organized. Each keeps its own history, logins, cookies, and extensions, unless you turn on Share data
         when you create it: then it uses another profile's, and only the tabs are its own.
       </Text>
@@ -47,7 +50,7 @@ export function ProfilesPane() {
           <PopUp
             value={defaultId}
             options={profiles.map((p) => ({ value: p.id, title: p.name }))}
-            onChange={(id) => useBrowser.getState().setDefaultProfile(id)}
+            onChange={(id) => setDefaultProfile(id)}
             minWidth={160}
           />
         </Row>
@@ -65,11 +68,10 @@ export function ProfilesPane() {
 
 const ROW_HEIGHT = 46;
 const settle = (value: Animated.Value, toValue: number) =>
-  Animated.timing(value, { toValue, duration: 160, easing: Easing.out(Easing.cubic), useNativeDriver: true });
+  Animated.timing(value, { toValue, duration: settingsMotion.profileRowSettle, easing: curve.outCubic, useNativeDriver: true });
 
 function ProfileList() {
-  const colors = useFormColors();
-  const order = useBrowser((s) => s.profileOrder);
+  const order = useProfileOrder();
   const offsets = useRef(new Map<string, Animated.Value>()).current;
   const offsetOf = (id: string) => {
     let v = offsets.get(id);
@@ -87,14 +89,14 @@ function ProfileList() {
 
   const controller = useRef({
     start(id: string) {
-      const ids = useBrowser.getState().profileOrder;
+      const ids = currentProfileOrder();
       const from = ids.indexOf(id);
       drag.current = { id, from, to: from, reorderPending: false };
       setDragging(id);
     },
     move(dy: number) {
       const { id, from } = drag.current;
-      const ids = useBrowser.getState().profileOrder;
+      const ids = currentProfileOrder();
       const max = ids.length - 1;
       offsetOf(id).setValue(Math.max(-from * ROW_HEIGHT - 6, Math.min((max - from) * ROW_HEIGHT + 6, dy)));
       const to = Math.max(0, Math.min(max, Math.round(from + dy / ROW_HEIGHT)));
@@ -113,19 +115,19 @@ function ProfileList() {
         offsets.forEach((v) => settle(v, 0).start());
         return;
       }
-      const ids = useBrowser.getState().profileOrder.filter((x) => x !== id);
+      const ids = currentProfileOrder().filter((x) => x !== id);
       ids.splice(to, 0, id);
       drag.current.reorderPending = true;
-      useBrowser.getState().reorderProfiles(ids);
+      reorderProfiles(ids);
     },
   }).current;
 
   return (
-    <View style={{ borderRadius: 10, backgroundColor: colors.group, borderWidth: StyleSheet.hairlineWidth * 2, borderColor: colors.groupBorder }}>
+    <Box fill="groupFill" border="groupBorder" radius="card">
       {order.map((id, i) => (
         <ProfileRow key={id} profileId={id} first={i === 0} offset={offsetOf(id)} lifted={dragging === id} controller={controller} />
       ))}
-    </View>
+    </Box>
   );
 }
 
@@ -145,13 +147,11 @@ function ProfileRow({
   controller: DragController;
 }) {
   const theme = useTheme();
-  const colors = useFormColors();
-  const profile = useBrowser((s) => s.profiles[profileId]);
-  const isDefault = useBrowser((s) => s.settings.defaultProfileId === profileId);
+  const profile = useProfile(profileId, (p) => p);
+  const isDefault = useSettings((s) => s.defaultProfileId === profileId);
   const shared = useSharedWith(profileId);
-  const names = useBrowser(useShallow((s) => shared.filter((id) => id !== profileId).map((id) => s.profiles[id]?.name ?? "")));
+  const names = useProfileRecords(useShallow((profiles) => shared.filter((id) => id !== profileId).map((id) => profiles[id]?.name ?? "")));
   const { hovered, hoverProps } = useHover();
-  const go = useSettingsNav((n) => n.go);
   const pan = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 3,
@@ -166,15 +166,14 @@ function ProfileRow({
 
   const description = [isDefault ? "Default" : null, names.length ? `Shares data with ${listOf(names)}` : null].filter(Boolean).join(" · ");
   const openMenu = async () => {
-    const s = useBrowser.getState();
     const choice = await showMenu([
       { id: "details", title: "Show Profile Details" },
       { id: "default", title: "Make Default Profile", enabled: !isDefault },
       { separator: true },
-      { id: "delete", title: "Delete Profile…", enabled: s.profileOrder.length > 1 },
+      { id: "delete", title: "Delete Profile…", enabled: currentProfileOrder().length > 1 },
     ]);
-    if (choice === "details") go("profiles", profileId);
-    else if (choice === "default") s.setDefaultProfile(profileId);
+    if (choice === "details") goToSettingsPane("profiles", profileId);
+    else if (choice === "default") setDefaultProfile(profileId);
     else if (choice === "delete") void deleteProfile(profileId);
   };
 
@@ -187,13 +186,13 @@ function ProfileRow({
         borderRadius: lifted ? 8 : 0,
         backgroundColor: lifted ? hex(theme.panel) : undefined,
         borderWidth: lifted ? StyleSheet.hairlineWidth * 2 : 0,
-        borderColor: colors.groupBorder,
+        borderColor: theme.groupBorder,
       }}
     >
-      {!first && !lifted && <View style={{ height: StyleSheet.hairlineWidth * 2, marginHorizontal: 12, backgroundColor: colors.separator }} />}
+      {!first && !lifted && <View style={{ height: StyleSheet.hairlineWidth * 2, marginHorizontal: 12, backgroundColor: theme.divider }} />}
       <ContextMenuArea onContextMenu={() => void openMenu()}>
         <View {...hoverProps}>
-          <Pressable onPress={() => go("profiles", profileId)}>
+          <Pressable onPress={() => goToSettingsPane("profiles", profileId)}>
             <View
               style={{
                 height: ROW_HEIGHT - (first ? 0 : StyleSheet.hairlineWidth * 2),
@@ -202,7 +201,7 @@ function ProfileRow({
                 flexDirection: "row",
                 alignItems: "center",
                 gap: 10,
-                backgroundColor: hovered && !lifted ? colors.selected : undefined,
+                backgroundColor: hovered && !lifted ? theme.rowHover : undefined,
               }}
             >
               <View tooltip="Drag to reorder">
@@ -210,8 +209,8 @@ function ProfileRow({
               </View>
               <ProfileBadge profile={profile} />
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 13, color: theme.textPrimary }}>{profile.name}</Text>
-                {description ? <Text style={{ fontSize: 11.5, marginTop: 2, color: theme.textSecondary }}>{description}</Text> : null}
+                <Text style={{ ...font.body, color: theme.textPrimary }}>{profile.name}</Text>
+                {description ? <Text style={{ ...font.footnote, marginTop: 2, color: theme.textSecondary }}>{description}</Text> : null}
               </View>
               <Symbol name="chevron.right" size={11} weight="semibold" color={theme.textTertiary} style={{ width: 12, height: 14 }} />
             </View>
@@ -230,26 +229,16 @@ function iconTitle(icon: string | null): string {
 
 export function ProfileDetailsPane({ profileId }: { profileId: string }) {
   const theme = useTheme();
-  const profile = useBrowser((s) => s.profiles[profileId]);
-  const isDefault = useBrowser((s) => s.settings.defaultProfileId === profileId);
-  const only = useBrowser((s) => s.profileOrder.length <= 1);
+  const profile = useProfile(profileId, (p) => p);
+  const isDefault = useSettings((s) => s.defaultProfileId === profileId);
+  const only = useProfileOrder((o) => o.length <= 1);
   const shared = useSharedWith(profileId);
-  const sharedNames = useBrowser(useShallow((s) => shared.map((id) => s.profiles[id]?.name ?? "")));
-  const sharedColors = useBrowser(useShallow((s) => shared.map((id) => profileAccent(s.profiles[id]))));
-  const stats = useBrowser((s) => {
-    const roots = s.bookmarks.roots[profileId];
-    let bookmarks = 0;
-    const walk = (id: string) => {
-      const n = s.bookmarks.nodes[id];
-      if (n?.kind === "url") bookmarks++;
-      if (n?.kind === "folder") n.children.forEach(walk);
-    };
-    if (roots) [roots.bar, roots.other].forEach(walk);
-    return `${plural((s.history[profileId] ?? []).length, "page")} in history · ${plural(bookmarks, "bookmark")}`;
-  });
+  const sharedNames = useProfileRecords(useShallow((profiles) => shared.map((id) => profiles[id]?.name ?? "")));
+  const sharedColors = useProfileRecords(useShallow((profiles) => shared.map((id) => profileAccent(profiles[id]))));
+  const stats = useProfileDataStats(profileId);
   const [name, setName] = useState(profile?.name ?? "");
   if (!profile) return null;
-  const update = (patch: Partial<Pick<Profile, "name" | "color" | "icon">>) => useBrowser.getState().updateProfile(profileId, patch);
+  const update = (patch: Partial<Pick<Profile, "name" | "color" | "icon">>) => updateProfile(profileId, patch);
   const commitName = () => (name.trim() ? update({ name: name.trim() }) : setName(profile.name));
   const sharing = shared.length > 1;
 
@@ -264,7 +253,7 @@ export function ProfileDetailsPane({ profileId }: { profileId: string }) {
         <Pressable onPress={() => void pickIcon()} tooltip="Change Icon">
           <ProfileBadge profile={profile} size={64} />
         </Pressable>
-        <Text style={{ fontSize: 12, color: theme.textSecondary }}>{stats}</Text>
+        <Text style={{ ...font.small, color: theme.textSecondary }}>{stats}</Text>
       </View>
 
       <SectionHeader title="Profile" />
@@ -289,7 +278,7 @@ export function ProfileDetailsPane({ profileId }: { profileId: string }) {
           />
         ) : null}
         <Row title="Make Default Profile" description={isDefault ? "New windows already open with this profile." : "Open new windows with this profile."}>
-          <Button title="Make Default" disabled={isDefault} onPress={() => useBrowser.getState().setDefaultProfile(profileId)} />
+          <Button title="Make Default" disabled={isDefault} onPress={() => setDefaultProfile(profileId)} />
         </Row>
         <Row
           title="Clear Browsing Data"
@@ -307,7 +296,7 @@ export function ProfileDetailsPane({ profileId }: { profileId: string }) {
             disabled={only}
             onPress={() =>
               void deleteProfile(profileId).then(() => {
-                if (!useBrowser.getState().profiles[profileId]) useSettingsNav.getState().go("profiles");
+                if (!currentProfiles()[profileId]) goToSettingsPane("profiles");
               })
             }
           />

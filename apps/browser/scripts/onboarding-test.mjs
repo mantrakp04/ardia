@@ -19,9 +19,8 @@ const rep = reporter(join(scratch, "onboarding-test.log"), { name: "onboarding-t
 
 let app = null;
 const HELPERS = `
-const C = globalThis.expo.modules.ArdiaCEF;
 const settle = (ms) => new Promise((r) => setTimeout(r, ms));
-const act = (a) => C.chromeWindows().then((ws) => C.devWindow(ws.find((w) => w.hasRoot).window, a));
+const act = (a) => ac.engine.call("windows.list").then((ws) => ac.engine.call("windows.dev", { window: ws.find((w) => w.hasRoot).window, action: a }));
 const hook = globalThis.__REACT_DEVTOOLS_GLOBAL_HOOK__;
 const roots = () => [...hook.renderers.keys()].flatMap((id) => [...hook.getFiberRoots(id)].map((r) => r.current));
 const nameOf = (f) => (typeof f.type === "string" ? f.type : f.type?.displayName || f.type?.name || "");
@@ -40,7 +39,7 @@ const checkMarkCenter = (label) => new Promise((r) => {
   const mark = find(find(checkRow(label), (f) => nameOf(f) === "CheckMark"), (f) => typeof f.stateNode?.measureInWindow === "function");
   mark.stateNode.measureInWindow((x, y, w, h) => r([Math.round(x + w / 2), Math.round(y + h / 2)]));
 });
-const windowsAx = () => C.chromeWindows().then((ws) => Promise.all(ws.filter((w) => w.hasRoot).map((w) => C.devWindow(w.window, "ax"))));
+const windowsAx = () => ac.engine.call("windows.list").then((ws) => Promise.all(ws.filter((w) => w.hasRoot).map((w) => ac.engine.call("windows.dev", { window: w.window, action: "ax" }))));
 const barHeight = () => new Promise((r) => {
   const ntp = roots().map((root) => find(root, (f) => nameOf(f) === "NewTabPage")).find(Boolean);
   const bar = find(ntp, (f) => f.memoizedProps?.onLayout && f.memoizedProps?.style?.position === "absolute" && typeof f.stateNode?.measureInWindow === "function");
@@ -52,12 +51,12 @@ const run = (body) => app.eval(`${HELPERS}\n${body}`, { timeout: 20000 });
 const textFields = (ax) => ax.split("\n").filter((line) => line.trim().startsWith("AXTextField"));
 
 try {
-  app = await launch(appPath, { data, port, env: { ARDIA_ONBOARDING: "1" } });
+  app = await launch(appPath, { data, port, test: { onboarding: "1" } });
   rep.log(`instance: pid ${app.pid}, DevTools port ${app.port}, data ${data}`);
   await app.ready({ test: "return !!globalThis.acOnboarding?.store.getState().windowId" });
 
   await rep.check("the home step has no text field behind its card", async () => {
-    const ax = await run(`acOnboarding.store.getState().go("home"); return settle(1200).then(() => act("ax"));`);
+    const ax = await run(`acOnboarding.go("home"); return settle(1200).then(() => act("ax"));`);
     assert.match(ax, /AXCheckBox: Set Ardia as default browser/, "the step is on screen");
     assert.deepEqual(textFields(ax), [], "a text field behind the card takes the first row's cursor and clicks");
   });

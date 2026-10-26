@@ -1,10 +1,10 @@
 import AppKit
+import ArdiaCore
 import ExpoModulesCore
 
 public class ImportModule: Module {
   private let importer: Importer = {
-    let env = ProcessInfo.processInfo.environment
-    let support = env["ARDIA_IMPORT_SOURCE_DIR"].map { URL(fileURLWithPath: $0, isDirectory: true) }
+    let support = LaunchConfig.shared.instance("importSourceDir").map { URL(fileURLWithPath: $0, isDirectory: true) }
       ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
     let icons = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
       .appendingPathComponent("\(Bundle.main.bundleIdentifier ?? "Ardia")/ImportIcons", isDirectory: true)
@@ -16,22 +16,22 @@ public class ImportModule: Module {
   }()
 
   private static let safariHome: URL = {
-    let env = ProcessInfo.processInfo.environment
-    if let home = env["ARDIA_IMPORT_SAFARI_HOME"] { return URL(fileURLWithPath: home, isDirectory: true) }
-    if let support = env["ARDIA_IMPORT_SOURCE_DIR"] {
+    let config = LaunchConfig.shared
+    if let home = config.instance("importSafariHome") { return URL(fileURLWithPath: home, isDirectory: true) }
+    if let support = config.instance("importSourceDir") {
       return URL(fileURLWithPath: support, isDirectory: true).deletingLastPathComponent().deletingLastPathComponent()
     }
     return FileManager.default.homeDirectoryForCurrentUser
   }()
 
   private static let secret: Importer.SecretProvider = {
-    if let fixed = ProcessInfo.processInfo.environment["ARDIA_IMPORT_TEST_SECRET"] {
+    if let fixed = LaunchConfig.shared.testValue("importSecret") {
       return { _, _ in Data(fixed.utf8) }
     }
     return SafeStorageKeychain.secret
   }()
 
-  private static let diaBundleId = ProcessInfo.processInfo.environment["ARDIA_IMPORT_DIA_BUNDLE_ID"] ?? DiaAutomation.bundleIdentifier
+  private static let diaBundleId = LaunchConfig.shared.testValue("importDiaBundleId") ?? DiaAutomation.bundleIdentifier
 
   private let jobs = ImportJobs()
   private let vault = ImportVault()

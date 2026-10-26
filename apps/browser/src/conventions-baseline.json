@@ -1,0 +1,15 @@
+{
+  "layout": {},
+  "imports": {},
+  "native-calls": {},
+  "tokens": {},
+  "get-state": {},
+  "set-state": {},
+  "store-reads": {},
+  "store-shape": {},
+  "size": {},
+  "env": {},
+  "naming": {},
+  "comments": {},
+  "file-names": {}
+}

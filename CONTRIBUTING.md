@@ -118,7 +118,7 @@ to follow real wall-clock time doesn't count as proof.
 - Skills live only in the root `.claude/skills`. Deploy setups live only in `infra/<service>`.
 - Patched npm dependencies live in `patches/`, listed in `pnpm-workspace.yaml`. `docs/agent-brief.md` explains how
   to change one.
-- When JS starts needing native code older builds lack, bump `NATIVE_API_VERSION` in `apps/browser/src/nativeApi.tsx`
+- When JS starts needing native code older builds lack, bump `NATIVE_API_VERSION` in `apps/browser/src/platform/nativeApi.ts`
   and `apiVersion` in `packages/shell/ios/AppModule.swift` together.
 
 ## Testing

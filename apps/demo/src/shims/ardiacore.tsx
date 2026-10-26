@@ -6,11 +6,27 @@ export * from "@ardia-real/ardiacore";
 export { devPagerState, pagerState, selectPager, stepPager, SwipeArea, switchPager } from "./web/Pager";
 export { WebView } from "./web/WebView";
 
-provideNativeModule("ArdiaCEF", {
-  engineCall: async (name: string) => JSON.stringify({ error: `${name} is not on the web` }),
-  tabStrips: async () => ({ rev: 0, cmd: null, strips: [] }),
-});
-provideNativeModule("ArdiaExtensions", { list: async () => ({ extensions: [] }), searchEngineList: async () => ({ list: null }) });
+const ENGINE_ONLY: Record<string, string[]> = {
+  ArdiaHistory: ["query", "add", "import", "deleteUrls", "watch"],
+  ArdiaBookmarks: ["tree", "apply", "watch"],
+  ArdiaFavicons: ["get", "set"],
+  ArdiaTabs: ["lastTabPolicy"],
+  ArdiaEngine: ["batterySaver", "trimMemory", "openTaskManager", "cliControl"],
+  ArdiaExtensions: ["watchActions", "syncState", "syncApply"],
+  ArdiaDownloads: ["settings", "setSettings"],
+};
+const ANSWERS: Record<string, Record<string, unknown>> = {
+  ArdiaTabs: { strips: { rev: 0, cmd: null, strips: [] } },
+  ArdiaExtensions: { list: { extensions: [] } },
+  ArdiaSearch: { engines: { list: null } },
+};
+for (const module of new Set([...Object.keys(ENGINE_ONLY), ...Object.keys(ANSWERS)]))
+  provideNativeModule(module, {
+    call: async (name: string) => {
+      if (ENGINE_ONLY[module]?.includes(name)) throw Object.assign(new Error(`${name} is not on the web`), { code: "ERR_ENGINE" });
+      return JSON.stringify(ANSWERS[module]?.[name] ?? null);
+    },
+  });
 
 export async function faviconsFor(_profile: string, pages: string[], _icons: string[] = []) {
   const found = pages.flatMap((page) => {

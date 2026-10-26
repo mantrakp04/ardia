@@ -5,16 +5,46 @@ config("exports") {
               rebase_path("ardiacore.exports", root_build_dir) ]
 }
 
+source_set("launch_switches") {
+  sources = [
+    "ac_launch_switches.cc",
+    "ac_launch_switches.h",
+  ]
+
+  deps = [
+    "//base",
+    "//chrome/common:non_code_constants",
+    "//components/os_crypt/common:switches",
+    "//content/public/common",
+  ]
+
+  frameworks = [ "Security.framework" ]
+}
+
 source_set("core") {
   sources = [
+    "ac_autofill_bubble_handler.mm",
     "ac_autofill_prompt.h",
     "ac_autofill_prompt.mm",
     "ac_autofill_trigger.h",
     "ac_autofill_trigger.mm",
     "ac_browser.h",
     "ac_browser.mm",
+    "ac_browser_internal.h",
     "ac_browser_window.h",
     "ac_browser_window.mm",
+    "ac_browser_window_exclusive_access.mm",
+    "ac_browser_window_keyboard.mm",
+    "ac_find_bar.mm",
+    "ac_location_bar.mm",
+    "ac_tab_bridge.mm",
+    "ac_tab_bridge_media.mm",
+    "ac_tab_bridge_navigation.mm",
+    "ac_web_contents_delegate.mm",
+    "ac_window_host.mm",
+    "ac_window_host_close.mm",
+    "ac_window_host_dialogs.mm",
+    "ac_window_host_tabs.mm",
     "ac_cast_dialog.h",
     "ac_cast_dialog.mm",
     "ac_content_hooks.h",
@@ -53,6 +83,7 @@ source_set("core") {
     "ac_page_channel.h",
     "ac_page_limits.h",
     "ac_page_channel.mm",
+    "ac_page_channel_held.mm",
     "ac_password_prompt.h",
     "ac_password_prompt.mm",
     "ac_permissions.h",
@@ -72,11 +103,27 @@ source_set("core") {
     "ac_seams.h",
     "ac_video_upscaler.h",
     "ac_video_upscaler.mm",
+    "ac_video_upscaler_color.mm",
+    "ac_video_upscaler_internal.h",
+    "ac_video_upscaler_job.mm",
+    "ac_video_upscaler_kit.mm",
     "ac_video_upscaling.h",
     "ac_video_upscaling.mm",
     "ac_seams.mm",
-    "ardiacore_api.mm",
+    "ardiacore_api_internal.h",
+    "ardiacore_engine.mm",
+    "ardiacore_engine_tracing.mm",
+    "ardiacore_hooks.mm",
     "ardiacore_internal.h",
+    "ardiacore_profile.mm",
+    "ardiacore_tab.mm",
+    "ardiacore_tab_commands.mm",
+    "ardiacore_tab_extensions.mm",
+    "ardiacore_tab_internal.h",
+    "ardiacore_tab_media.mm",
+    "ardiacore_tab_navigation.mm",
+    "ardiacore_tab_page.mm",
+    "ardiacore_window.mm",
     "public/ArdiaCore.h",
     "renderer/ac_content_renderer_client.cc",
     "renderer/ac_content_renderer_client.h",
@@ -85,6 +132,7 @@ source_set("core") {
   all_dependent_configs = [ ":exports" ]
 
   deps = [
+    ":launch_switches",
     "//base",
     "//chrome/app:branded_strings",
     "//chrome/app:command_ids",

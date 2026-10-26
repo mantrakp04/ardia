@@ -73,7 +73,7 @@ let instance = null;
 async function launch(logName = "app.out.log") {
   instance = await launchInstance(app, {
     data, port: devtoolsPort, log: join(scratch, logName), ready: false,
-    switches: "--ignore-certificate-errors --ardia-test-system-media-permission=ask",
+    switches: "--ignore-certificate-errors", test: { systemMediaPermission: "ask" },
   });
   pid = instance.pid;
   writeFileSync(join(scratch, "app.pid"), String(pid));
@@ -125,8 +125,7 @@ const js = async (target, expression) => {
   return r.result.value;
 };
 const pageTarget = (urlPart) => until(urlPart, async () => (await targets()).find((t) => t.type === "page" && t.url.includes(urlPart)) ?? null, 10000);
-const cef = (call) => evalApp(`return globalThis.expo.modules.ArdiaCEF.${call}`);
-const browserOf = (tabId) => evalApp(`return Object.entries(ac.pageState.getState().browsers ?? {}).find(([, t]) => t === "${tabId}")?.[0] ?? null`);
+const engine = (name, args = {}, ms) => evalApp(`return ac.engine.call(${JSON.stringify(name)}, ${JSON.stringify(args)})`, ms);
 
 const appState = () => evalApp(`const s = ac.store.getState();
   return { focused: s.ui.focusedWindowId, windows: Object.fromEntries(Object.values(s.windows).map((w) => {
@@ -137,7 +136,7 @@ const appState = () => evalApp(`const s = ac.store.getState();
 const activationLog = () => (existsSync(join(data, "activation.log")) ? readFileSync(join(data, "activation.log"), "utf8") : "");
 const focusRequests = (from = 0) =>
   [...activationLog().slice(from).matchAll(/(makeKeyAndOrderFront:|makeKeyWindow) on \S+ #(\d+)/g)].map((m) => Number(m[2]));
-const nativeWindows = () => cef("chromeWindows()");
+const nativeWindows = () => engine("windows.list");
 const neverFront = () => {
   const front = execFileSync("lsappinfo", ["front"]).toString().trim();
   if (execFileSync("lsappinfo", ["info", "-only", "pid", front]).toString().includes(`=${pid}`)) throw new Error("the app took focus");
@@ -182,7 +181,7 @@ const ext = async (expression) => {
 };
 let extId = null;
 const findWorker = () => until("the extension's worker", async () => {
-  await evalApp(`return globalThis.expo.modules.ArdiaExtensions.list("")`).catch(() => null);
+  await engine("extensions.list", { profile: "" }).catch(() => null);
   for (const t of (await targets()).filter((t) => t.type === "service_worker" && t.url.includes(extId))) {
     const r = await cdp(t, "Runtime.evaluate", { expression: "typeof self.chromeState", returnByValue: true }).catch(() => null);
     if (r?.result?.value === "function") return t;
@@ -240,7 +239,7 @@ async function joinedCall(windowId = mainWindow) {
 const pipState = (t) => js(t, "state()");
 const booted = () => until("the dev harness", async () => {
   try {
-    return await evalApp(`return globalThis.expo.modules.ArdiaCEF.engineInfo()`, 3000);
+    return await engine("engine.info", {}, 3000);
   } catch (e) {
     if (!alive()) throw e;
     return null;
@@ -248,7 +247,7 @@ const booted = () => until("the dev harness", async () => {
 }, 90000);
 const setAppActive = async (active) => {
   const n = (await nativeWindows())[0]?.window;
-  const r = await cef(`devWindow(${n}, "fakeAppActive:${active ? 1 : 0}")`);
+  const r = await engine("windows.dev", { window: n, action: `fakeAppActive:${active ? 1 : 0}` });
   if (r !== (active ? "1" : "0")) throw new Error(`fakeAppActive: ${JSON.stringify(r)} (a build without the seam?)`);
 };
 const keyWindow = async () => (await nativeWindows()).find((w) => w.key)?.window ?? null;
@@ -257,7 +256,7 @@ try {
   await check("boot", async () => {
     await booted();
     mainWindow = await until("a window", async () => (await appState()).focused ?? Object.keys((await appState()).windows)[0], 30000);
-    const installed = await evalApp(`return globalThis.expo.modules.ArdiaExtensions.install(${JSON.stringify(extDir)}, "")`);
+    const installed = await evalApp(`return ac.engine.call("extensions.install", ${JSON.stringify({ profile: "", path: extDir })}).catch((e) => ({ error: e.message }))`);
     if (installed?.error) throw new Error(installed.error);
     extId = installed.id;
     worker = await findWorker();
@@ -279,7 +278,7 @@ try {
       const base = (await pipState(call.t)).pip;
       const focusSteps = [];
       for (const [pane, url] of [[notes, "/notes"], [call.tab, "/conf"], [notes, "/notes"], [call.tab, "/conf"], [notes, "/notes"]]) {
-        await cef(`devFocusPage(${await browserOf(pane)})`);
+        await engine("tabs.devFocusPage", { tabId: pane });
         const chrome = await until(`Chrome selects the ${url} pane`, async () => {
           const c = await ext("chromeState()");
           return c.windows.some((w) => w.active?.includes(url)) ? c : null;
@@ -354,8 +353,8 @@ try {
 
   await check("call-window-covered", async () => {
     const call = await joinedCall();
-    const n = await cef(`devWindowNumber(${await browserOf(call.tab)})`);
-    const win = (action) => cef(`devWindow(${n}, ${JSON.stringify(action)})`);
+    const n = await engine("tabs.devWindowNumber", { tabId: call.tab });
+    const win = (action) => engine("windows.dev", { window: n, action });
     const out = {};
     try {
       await win("fakeOcclusion:visible");
@@ -429,7 +428,7 @@ try {
       const other = await openTab(`${origin()}/b?t=B`, "B");
       await evalApp(`return ac.store.getState().createSplit(["${tab}", "${other}"])`);
       await show(other);
-      await cef(`devFocusPage(${await browserOf(other)})`);
+      await engine("tabs.devFocusPage", { tabId: other });
       await until("Chrome selects the other pane", async () => (await ext("chromeState()")).windows.some((w) => w.active?.includes("/b")), 8000);
       await sleep(600);
       await js(t, "ask({ video: true })");
@@ -449,7 +448,7 @@ try {
     const s0 = await ext("chromeState()");
     const homeChrome = chromeWindowOf(s0, "/home");
     if (s0.lastFocused !== homeChrome) throw new Error(`before: Chrome's last focused ${s0.lastFocused}, the user's window ${homeChrome}`);
-    const profileBefore = (await cef("engineInfo()")).lastUsedProfile;
+    const profileBefore = (await engine("engine.info")).lastUsedProfile;
     const logFrom = activationLog().length;
     const numbersBefore = new Set((await nativeWindows()).map((w) => w.window));
     const behind = await evalApp(`return ac.actions.openWindow({ url: "${origin()}/behind?t=Behind", background: true })`);
@@ -462,7 +461,7 @@ try {
       await sleep(800);
       const c = await ext("chromeState()");
       const a = await appState();
-      const lastUsed = (await cef("engineInfo()")).lastUsedProfile;
+      const lastUsed = (await engine("engine.info")).lastUsedProfile;
       const focusedBehind = focusRequests(logFrom).includes(behindNumber);
       steps.push({ step, lastFocused: c.lastFocused === homeChrome ? "user's" : c.lastFocused, lastUsed, appFocused: a.focused === mainWindow ? "user's" : a.focused });
       if (c.lastFocused !== homeChrome) throw new Error(`${step}: Chrome's last focused window is ${c.lastFocused}, not the user's ${homeChrome}`);
@@ -531,7 +530,7 @@ try {
     try {
       await evalApp(`return ac.store.getState().createSplit(["${call.tab}", "${notes}"])`);
       await show(notes);
-      await cef(`devFocusPage(${await browserOf(notes)})`);
+      await engine("tabs.devFocusPage", { tabId: notes });
       await until("Chrome selects the notes pane", async () => (await ext("chromeState()")).windows.some((w) => w.active?.includes("/notes2")), 8000);
       await sleep(800);
       const base = (await pipState(call.t)).pip;
@@ -562,14 +561,13 @@ try {
 
   const typeIntoNewWindow = async (text) => {
     const windowsBefore = Object.keys((await appState()).windows);
-    await evalApp(`const cef = globalThis.expo.modules.ArdiaCEF;
-      return cef.chromeWindows().then((list) => {
+    await evalApp(`return ac.engine.call("windows.list").then((list) => {
         const known = new Set(list.map((w) => w.window));
         globalThis.acDevMountDelayMs = 800;
         ac.runCommand({ command: "newWindow", arg: null, windowId: null });
         const started = Date.now();
         return new Promise((resolve, reject) => {
-          const poll = () => cef.chromeWindows().then((list) => {
+          const poll = () => ac.engine.call("windows.list").then((list) => {
             if (list.some((x) => !known.has(x.window))) return ac.shell.devTypeKeys("key", ${JSON.stringify(text)}, 15).then(() => resolve(true));
             if (Date.now() - started > 5000) return reject(new Error("no new window"));
             setTimeout(poll, 2);
@@ -585,7 +583,7 @@ try {
     await show(tab);
     const t = await pageTarget(url);
     await evalApp(`ac.actions.focus(${JSON.stringify(mainWindow)}); return true`);
-    await cef(`devFocusPage(${await browserOf(tab)})`);
+    await engine("tabs.devFocusPage", { tabId: tab });
     await js(t, "__keys = ''; true");
     return { tab, t };
   };
@@ -634,20 +632,20 @@ try {
   await check("plain-key-on-page", async () => {
     const url = `${origin()}/plain?t=Plain`;
     const tab = await openTab(url, "Plain");
-    const n = await cef(`devWindowNumber(${await browserOf(tab)})`);
+    const n = await engine("tabs.devWindowNumber", { tabId: tab });
     try {
       await show(tab);
       await evalApp(`ac.actions.focus(${JSON.stringify(mainWindow)}); return true`);
-      await cef(`devFocusPage(${await browserOf(tab)})`);
+      await engine("tabs.devFocusPage", { tabId: tab });
       const logFrom = activationLog().length;
       await evalApp(`return ac.shell.devTypeKeys("key", "f", 20)`);
       await sleep(1500);
-      const w = JSON.parse(await cef(`devWindow(${n}, "fullScreen")`));
+      const w = JSON.parse(await engine("windows.dev", { window: n, action: "fullScreen" }));
       const toggled = activationLog().slice(logFrom).includes("toggleFullScreen");
       if (w.fullScreen || toggled) throw new Error(`"f" toggled the window's full screen: ${JSON.stringify({ fullScreen: w.fullScreen, toggled })}`);
       return { fullScreen: false };
     } finally {
-      await cef(`devWindow(${n}, "fakeFullScreen:0")`).catch(() => null);
+      await engine("windows.dev", { window: n, action: "fakeFullScreen:0" }).catch(() => null);
       await closeTab(tab);
     }
   });
@@ -689,12 +687,12 @@ try {
         return w.panes.includes(a) && w.panes.includes(b);
       });
       await sleep(600);
-      const bBrowser = await browserOf(b);
+
       for (let i = 0; i < 3; i++) {
         await evalApp(`ac.actions.switchToTab(${JSON.stringify(b)});
           return new Promise((r) => setTimeout(() => { ac.actions.switchToTab(${JSON.stringify(a)}); r(true); }, 40))`);
         await sleep(50);
-        await cef(`devFocusPage(${bBrowser})`);
+        await engine("tabs.devFocusPage", { tabId: b });
         const shown = await until("B active after the click", async () => ((await appState()).windows[mainWindow].shown === b ? b : null), 3000)
           .catch(async () => { throw new Error(`round ${i}: the click into B was dropped (shown ${(await appState()).windows[mainWindow].shown === a ? "A" : "?"})`); });
         rounds.push(shown === b ? "B" : shown);

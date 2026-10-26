@@ -18,6 +18,7 @@ import {
   sunPath,
 } from "./layout";
 import { invert, lookFrom, type Mat4, multiply, perspective, transformPoint } from "./matrix";
+import { type KeepOut, MOB_CUBE, MOB_CUBE_VERTICES, MOB_FLOATS, MOB_PART_LIMIT, MOB_PX, Mobs } from "./mobs";
 import { PARTICLE_STRIDE, Particles } from "./particles";
 import { SHADERS } from "./shaders";
 import { WetPaint } from "./smear";
@@ -67,6 +68,19 @@ interface Gpu {
   smearTex: WebGLTexture;
 }
 
+interface MobGpu {
+  program: Program;
+  vao: WebGLVertexArrayObject;
+  buffer: WebGLBuffer;
+}
+
+interface TerrainRead {
+  texture: WebGLTexture;
+  framebuffer: WebGLFramebuffer;
+  buffer: WebGLBuffer;
+  sync: WebGLSync;
+}
+
 interface Targets {
   width: number;
   height: number;
@@ -102,6 +116,10 @@ const FIREFLY_TEXT_REACH = 48;
 const SUN_MIN_RED = 200;
 const SUN_MAX_BLUE_SHARE = 0.45;
 const MOON_MIN_SUM = 520;
+const MOB_COMPILE_AFTER_FRAMES = 2;
+const KEEP_OUT_TITLE = ".hero-title .line > span";
+const KEEP_OUT_COPY = ".lede, .welcome, .cta-row > *, .send-more, [data-send-panel], .note";
+const TERRAIN_READ_SIZE: [number, number] = [384, 768];
 const INTERACTIVE = "a, button, input, textarea, select, label, summary, [data-send-panel]";
 function degrees(value: number) {
   return (value * Math.PI) / 180;
@@ -195,6 +213,16 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
   let hintBody: Body | null = null;
   let hintWidth = 0;
   let hintTransform = "";
+  const mobs = new Mobs(reducedMotion);
+  let mobBatch: ProgramBatch<"mob"> | null = null;
+  let mobGpu: MobGpu | null = null;
+  let mobsOff = false;
+  let mobFraming: Framing | null = null;
+  let mobWidth = 0;
+  let framesSinceFirst = 0;
+  let terrainRead: TerrainRead | null = null;
+  let terrainReady = false;
+  if (import.meta.env.DEV) Object.assign(window, { __meadowMobs: mobs });
 
   const fail = (error: unknown) => {
     phase = "failed";
@@ -302,6 +330,85 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
       brushTex,
       smearTex,
     };
+  };
+
+  const startMobs = () => {
+    try {
+      mobBatch = new ProgramBatch<"mob">(gl, { mob: [SHADERS.mobVs, SHADERS.mobFs] });
+    } catch (error) {
+      mobsOff = true;
+      console.warn(error);
+    }
+  };
+
+  const startTerrainRead = (g: Gpu) => {
+    const [width, height] = TERRAIN_READ_SIZE;
+    const [bakeWidth, bakeHeight] = tier.bakeSize;
+    const texture = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, width, height);
+    const framebuffer = gl.createFramebuffer()!;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, g.bakeFramebuffer);
+    gl.readBuffer(gl.COLOR_ATTACHMENT0);
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, framebuffer);
+    gl.blitFramebuffer(0, 0, bakeWidth, bakeHeight, 0, 0, width, height, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, framebuffer);
+    const buffer = gl.createBuffer()!;
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, buffer);
+    gl.bufferData(gl.PIXEL_PACK_BUFFER, width * height * 4, gl.STREAM_READ);
+    gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, 0);
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    terrainRead = { texture, framebuffer, buffer, sync: gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0)! };
+    gl.flush();
+  };
+
+  const pollTerrainRead = (read: TerrainRead) => {
+    if (gl.getSyncParameter(read.sync, gl.SYNC_STATUS) !== gl.SIGNALED) return;
+    const [width, height] = TERRAIN_READ_SIZE;
+    const pixels = new Uint8Array(width * height * 4);
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, read.buffer);
+    gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, pixels);
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+    gl.deleteSync(read.sync);
+    gl.deleteTexture(read.texture);
+    gl.deleteFramebuffer(read.framebuffer);
+    gl.deleteBuffer(read.buffer);
+    terrainRead = null;
+    terrainReady = true;
+    mobs.setTerrain(pixels, width, height);
+    needsRender = true;
+  };
+
+  const finishMobs = (pending: ProgramBatch<"mob">) => {
+    mobBatch = null;
+    try {
+      const program = pending.finish().mob;
+      const vao = gl.createVertexArray()!;
+      gl.bindVertexArray(vao);
+      gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+      gl.bufferData(gl.ARRAY_BUFFER, MOB_CUBE, gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(0);
+      gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0);
+      gl.enableVertexAttribArray(1);
+      gl.vertexAttribPointer(1, 3, gl.FLOAT, false, 24, 12);
+      const buffer = gl.createBuffer()!;
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, mobs.data.byteLength, gl.DYNAMIC_DRAW);
+      for (let slot = 0; slot < MOB_FLOATS / 4; slot++) {
+        gl.enableVertexAttribArray(2 + slot);
+        gl.vertexAttribPointer(2 + slot, 4, gl.FLOAT, false, MOB_FLOATS * 4, slot * 16);
+        gl.vertexAttribDivisor(2 + slot, 1);
+      }
+      gl.bindVertexArray(null);
+      mobGpu = { program, vao, buffer };
+      needsRender = true;
+    } catch (error) {
+      mobsOff = true;
+      console.warn(error);
+    }
   };
 
   const bakeStep = (g: Gpu) => {
@@ -506,8 +613,9 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
   };
 
   const isBusy = (now: number) => {
-    if (needsRender || day.mode === "sunrise" || day.mode === "drag" || day.mode === "settle") return true;
+    if (needsRender || (!mobGpu && !mobsOff) || terrainRead || day.mode === "sunrise" || day.mode === "drag" || day.mode === "settle") return true;
     if (Math.abs(cycleDelta(day.c, day.target)) > 1e-4) return true;
+    if (mobGpu && mobs.searching) return true;
     if (reducedMotion) return !!probe && (probe.pending || probedCycle !== day.c);
     return now < activeUntil || !look.settled || !brush.settled || !wet.settled || particles.busy;
   };
@@ -614,6 +722,16 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
     bodies.moon.x = moonPoint ? moonPoint.x : -999;
     bodies.moon.y = moonPoint ? moonPoint.y : -999;
     bodies.moon.up = !!moonPoint && moonSeen && light.moonElevation > BODY_UP && light.night > 0.3;
+    let mobParts = 0;
+    if (mobGpu) {
+      if (framing !== mobFraming || cssWidth !== mobWidth) {
+        mobs.layout(framing, aspect, cssWidth, cssHeight);
+        mobFraming = framing;
+        mobWidth = cssWidth;
+      }
+      mobs.step(reducedMotion ? 0 : dt, light.night);
+      mobParts = Math.min(MOB_PART_LIMIT, mobs.fill(light.keyDir, Math.max(light.keyColor[0], light.keyColor[1], light.keyColor[2])));
+    }
     const grassEdge = project(0, 0, GRASS_FAR * 0.75);
     grassTopCss = grassEdge ? grassEdge.y : cssHeight * 0.7;
 
@@ -699,9 +817,26 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
       .vec2("uWindDir", WIND_DIR[0], WIND_DIR[1])
       .float("uPixelAngle", pixelAngle)
       .int("uBrushTex", 0)
-      .int("uHorizonTex", 1);
+      .int("uHorizonTex", 1)
+      .vec4s("uMobs", mobs.contacts, mobs.contactCount)
+      .int("uMobCount", mobGpu ? mobs.contactCount : 0)
+      .vec2("uMobShadow", mobs.shadow[0], mobs.shadow[1]);
     gl.bindVertexArray(g.grassVao);
     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, GRASS_SEGMENTS * 2 + 1, columns * rows);
+
+    if (mobGpu && mobParts > 0) {
+      bindTexture(gl, 2, g.heightTex);
+      applyShared(mobGpu.program.use(), light, skySpan)
+        .mat4("uViewProj", viewProj)
+        .int("uHorizonTex", 1)
+        .int("uHeightTex", 2)
+        .float("uHillScale", framing.hillScale)
+        .float("uPx", MOB_PX);
+      gl.bindVertexArray(mobGpu.vao);
+      gl.bindBuffer(gl.ARRAY_BUFFER, mobGpu.buffer);
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, mobs.data, 0, mobParts * MOB_FLOATS);
+      gl.drawArraysInstanced(gl.TRIANGLES, 0, MOB_CUBE_VERTICES, mobParts);
+    }
 
     bindTexture(gl, 0, g.heightTex);
     bindTexture(gl, 1, g.materialTex);
@@ -822,6 +957,12 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
         render(now, dt);
         needsRender = false;
         lastRenderAt = now;
+        if (terrainRead) pollTerrainRead(terrainRead);
+        if (mobBatch?.ready) finishMobs(mobBatch);
+        else if (!mobBatch && !mobGpu && !mobsOff && firstFrameSent && ++framesSinceFirst > MOB_COMPILE_AFTER_FRAMES) {
+          startMobs();
+          if (gpu && !terrainRead && !terrainReady) startTerrainRead(gpu);
+        }
         if (busy && previousFrameBusy) trackCost(dt, performance.now() - started);
         previousFrameBusy = busy;
       }
@@ -1024,6 +1165,11 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
     gpu = null;
     targets = null;
     batch = null;
+    mobGpu = null;
+    mobBatch = null;
+    terrainRead = null;
+    terrainReady = false;
+    framesSinceFirst = 0;
   };
   const onRestored = () => {
     lost = false;
@@ -1068,9 +1214,15 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
       veil.bottom = Math.max(...veiled.map((box) => box.bottom));
     }
     tones.measure(heroDocTop);
+    const boxesOf = (selector: string): KeepOut[] =>
+      [...hero.querySelectorAll<HTMLElement>(selector)].filter((element) => !!element.offsetParent && element.offsetWidth > 0).map(untransformedBox);
+    const copy = boxesOf(KEEP_OUT_COPY);
+    const column = copy.length ? { left: 0, top: Math.min(...copy.map((box) => box.top)), right: Math.max(...copy.map((box) => box.right)), bottom: heroHeight } : null;
     const shareRow = textBlock.querySelector<HTMLElement>(".send-more");
     const clearEdge = shareRow?.offsetParent ? untransformedBox(shareRow).bottom - SHARE_ROW_SLACK : untransformedBox(textBlock).bottom;
     const firstScreen = Math.min(heroHeight, window.innerHeight - Math.max(0, heroDocTop));
+    const fold = { left: -Infinity, top: firstScreen, right: Infinity, bottom: Infinity };
+    mobs.setKeepOut([...boxesOf(KEEP_OUT_TITLE), ...copy, fold], column);
     const next = { clear: clearEdge / heroHeight, horizon: (firstScreen * STACKED_HORIZON_SCREEN) / heroHeight };
     if (Math.abs(next.clear - stack.clear) < 0.002 && Math.abs(next.horizon - stack.horizon) < 0.002) return;
     stack = next;

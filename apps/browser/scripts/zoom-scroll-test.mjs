@@ -25,7 +25,7 @@ try {
   app = await launch(resolve(appArg), {
     data, port,
     session: session({ tabs: [{ id: "t1", url, title: "tall" }] }),
-    ready: "return !!globalThis.expo.modules.ArdiaCEF.devScrollZoom",
+    ready: "return !!globalThis.ac?.engine",
   });
   const ac = (body) => app.eval(body, { timeout: 60000 });
   for (let i = 0; i < 60 && !(await ac(`return ac.store.getState().tabs.t1?.title === "tall";`)); i++) await sleep(500);
@@ -36,7 +36,7 @@ try {
     await ac(`return ac.webviews.get("t1")?.zoomStep(0);`);
     for (let i = 0; i < 20 && (await zoom()) !== 1; i++) await sleep(200);
   };
-  const scroll = (steps) => ac(`return globalThis.expo.modules.ArdiaCEF.devScrollZoom(${JSON.stringify(steps)});`);
+  const scroll = (steps) => ac(`return ac.engine.call("tabs.devScrollZoom", ${JSON.stringify({ steps })});`);
   const gesture = (trackpad) => [
     { phase: "mayBegin", dy: 0, trackpad },
     { phase: "began", dy: 12, trackpad },

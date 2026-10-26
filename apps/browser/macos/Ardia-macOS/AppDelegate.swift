@@ -1,4 +1,5 @@
 import AppKit
+import ArdiaCore
 import Expo
 import React
 import ArdiaShell
@@ -26,7 +27,7 @@ final class AppDelegate: ExpoAppDelegate {
 
     super.applicationDidFinishLaunching(notification)
 
-    LegacyDockTile.repointSoon()
+    LegacyDockTile.repointSoon(isolatedInstance: LaunchConfig.shared.isolated)
   }
 
   override func application(_ application: NSApplication, open urls: [URL]) {
@@ -83,7 +84,7 @@ final class ReactNativeDelegate: ExpoReactNativeFactoryDelegate {
 
   override func bundleURL() -> URL? {
     #if DEBUG
-    if let location = ProcessInfo.processInfo.environment["ARDIA_JS_LOCATION"], !location.isEmpty {
+    if let location = LaunchConfig.shared.instance("jsLocation") {
       var arguments = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)
       arguments["RCT_jsLocation"] = location
       UserDefaults.standard.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)

@@ -4,7 +4,7 @@ The demo draws its icons from the open icon sets below, rescaled and repositione
 
 ==============================================================================
 Lucide (lucide-static 1.56.0, ISC) https://lucide.dev
-Icons used: a-large-small, arrow-left-right, arrow-up-down, ban, banknote, car-front, check, chevron-down, chevron-left, chevron-right, chevron-up, chevrons-up-down, circle, circle-equal, circle-question-mark, circle-stop, clock-9, coffee, command, corner-down-left, film, flag, git-merge, hammer, hard-drive, key-round, leaf, lightbulb, message-square, moon, navigation, newspaper, orbit, package, paintbrush, pin, pin-off, plug, plus, shopping-cart, square-terminal, sun, target, test-tubes, text-cursor, trophy, undo-2, user, video
+Icons used: a-large-small, arrow-left-right, arrow-up-down, ban, banknote, car-front, check, chevron-down, chevron-left, chevron-right, chevron-up, chevrons-up-down, circle, circle-equal, circle-question-mark, circle-stop, clock-9, coffee, command, corner-down-left, film, flag, git-merge, hammer, hard-drive, key-round, leaf, lightbulb, message-square, moon, navigation, newspaper, orbit, package, paintbrush, pin, pin-off, plug, plus, shopping-cart, square-arrow-right, sun, target, test-tubes, text-cursor, trophy, undo-2, user, video
 ------------------------------------------------------------------------------
 ISC License
 
@@ -104,7 +104,7 @@ SOFTWARE.
 
 ==============================================================================
 Phosphor Icons (@phosphor-icons/core 2.1.1, MIT) https://phosphoricons.com
-Icons used: arrow-down, arrow-right, arrow-square-up-right, arrow-up, arrow-up-left, arrow-up-right, arrows-down-up, bag, briefcase, camera, chart-line-up, check-circle, check-circle-fill, circle-fill, clock-fill, copy-fill, dots-three, envelope, eye, eye-slash, file-arrow-down, flame, gift, graduation-cap, heart, heart-fill, house, info, key-fill, keyboard, leaf-fill, lightning-fill, lock-simple-open-fill, magnifying-glass, map-pin-simple-area, map-trifold-fill, minus-circle-fill, moon-fill, moon-stars-fill, pause-fill, paw-print-fill, play-circle-fill, play-fill, plus-circle-fill, printer, seal-check-fill, shopping-cart-fill, stack, star-fill, stethoscope, terminal-window-fill, tree, user-fill, video-camera-fill, warning-circle-fill, warning-fill, x, x-circle
+Icons used: arrow-down, arrow-right, arrow-square-up-right, arrow-up-left, arrow-up-right, arrows-down-up, bag, briefcase, camera, chart-line-up, check-circle, check-circle-fill, circle-fill, clock-fill, copy-fill, dots-three, envelope, eye, eye-slash, file-arrow-down, flame, gift, graduation-cap, heart, heart-fill, house, info, key-fill, keyboard, leaf-fill, lightning-fill, lock-simple-open-fill, magnifying-glass, map-pin-simple-area, map-trifold-fill, minus-circle-fill, monitor-play, moon-fill, moon-stars-fill, pause-fill, paw-print-fill, play-circle-fill, play-fill, plus-circle-fill, printer, seal-check-fill, shopping-cart-fill, stack, star-fill, stethoscope, terminal-window-fill, tree, user-fill, video-camera-fill, warning-circle-fill, warning-fill, x, x-circle
 ------------------------------------------------------------------------------
 MIT License
 

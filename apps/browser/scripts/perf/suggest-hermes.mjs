@@ -42,7 +42,7 @@ const implFile = join(core, impl);
 load(implFile);
 const seedFile = join(here, "seed.mjs");
 load(seedFile);
-const knownHostsFile = join(here, "../../src/components/omnibox/knownHosts.ts");
+const knownHostsFile = join(here, "../../src/state/omnibox/knownHosts.ts");
 load(knownHostsFile);
 const coreFile = join(core, "index.ts");
 load(coreFile);

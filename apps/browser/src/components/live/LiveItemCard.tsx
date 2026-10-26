@@ -1,19 +1,24 @@
-import { FadeLabel, Surface, Symbol } from "@ardia/shell";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Animated, Easing, Image, Pressable, Text, View } from "react-native";
-import { hex, useTheme } from "../../lib/theme";
-import { openLiveItem } from "../../live/engine";
-import { summarizeChecks } from "../../live/github";
-import { ago } from "../../live/meetings";
-import { useLive } from "../../live/store";
-import type { LiveItem, PullRequestCheck } from "../../live/types";
-import { useBrowser } from "../../store/browser";
-import { useHover } from "../primitives";
-import { cardHoverProps, dismissHover } from "../sidebar/hover";
+import { Animated, Image, Pressable, Text as Span, View, type TextStyle } from "react-native";
+import { FadeLabel } from "../ui/native";
+import { openLiveItem } from "../../state/live/engine";
+import { summarizeChecks } from "../../state/live/github";
+import { ago } from "../../state/live/meetings";
+import { useLive } from "../../state/live/store";
+import type { LiveItem, PullRequestCheck } from "../../state/live/types";
+import { newTab } from "../../state/tabs/actions";
+import { Box, Button, curve, font, hairline, hex, radius, space, Surface, Symbol, Text, useHover, useTheme, weight } from "../ui";
+import { cardHoverProps, dismissHover } from "../../state/sidebar/hover";
 import { hoverCardOrigin } from "../sidebar/hoverMotion";
-import type { Anchor } from "../sidebar/state";
+import type { Anchor } from "../../state/sidebar/sidebarUi";
 import { TabIcon } from "../sidebar/TabIcon";
-import { useLiveColors, type LiveColors } from "./colors";
+import { liveMotion, liveShadow, liveType, useLiveColors, type LiveColors } from "./tokens";
+
+const PREVIEW_GAP = 9;
+const CI_BAR = 6;
+const CHECK_ROW = 24;
+const CHECK_PAD = 5;
+const CHIP_HEIGHT = 17;
 
 export function HoverSurface({ anchor, width, children }: { anchor: Anchor; width: number; children: ReactNode }) {
   const theme = useTheme();
@@ -23,20 +28,22 @@ export function HoverSurface({ anchor, width, children }: { anchor: Anchor; widt
         onMouseEnter={cardHoverProps.onMouseEnter}
         onMouseLeave={cardHoverProps.onMouseLeave}
         fill={hex(theme.panel)}
-        cornerRadius={12}
+        cornerRadius={radius.panel}
         borderColor={hex(theme.panelBorder)}
-        borderWidth={0.5}
-        shadowColor="#000000"
-        shadowOpacity={theme.panelShadowOpacity * 0.8}
-        shadowRadius={16}
-        shadowOffset={[0, 6]}
-        style={{ padding: 12 }}
+        borderWidth={hairline.panel}
+        shadowColor={liveShadow.hoverCard.color}
+        shadowOpacity={theme.panelShadowOpacity * liveShadow.hoverCard.opacityScale}
+        shadowRadius={liveShadow.hoverCard.radius}
+        shadowOffset={liveShadow.hoverCard.offset}
+        style={HOVER_CARD}
       >
         {children}
       </Surface>
     </View>
   );
 }
+
+const HOVER_CARD = { padding: space.l } as const;
 
 export function LiveItemCard({ id, windowId, anchor }: { id: string; windowId: string; anchor: Anchor }) {
   const [, folderId = "", itemId = ""] = id.split("|");
@@ -50,7 +57,7 @@ export function LiveItemCard({ id, windowId, anchor }: { id: string; windowId: s
 }
 
 export function Avatar({ uri, name, size = 20 }: { uri: string | null; name: string; size?: number }) {
-  const theme = useTheme();
+  const colors = useLiveColors();
   const [failed, setFailed] = useState(false);
   const initials = name
     .split(/[\s._-]+/)
@@ -59,8 +66,10 @@ export function Avatar({ uri, name, size = 20 }: { uri: string | null; name: str
     .map((p) => p[0]!.toUpperCase())
     .join("");
   return (
-    <View style={{ width: size, height: size, borderRadius: size / 2, overflow: "hidden", backgroundColor: theme.dark ? "#4A4A4F" : "#D5D5DA", alignItems: "center", justifyContent: "center" }}>
-      <Text style={{ fontSize: size * 0.42, fontWeight: "600", color: theme.textPrimary }}>{initials || "?"}</Text>
+    <View style={{ width: size, height: size, borderRadius: size / 2, overflow: "hidden", backgroundColor: colors.avatarFill, alignItems: "center", justifyContent: "center" }}>
+      <Text weight="semibold" style={{ fontSize: size * liveType.avatarScale }}>
+        {initials || "?"}
+      </Text>
       {uri && !failed ? <Image source={{ uri }} onError={() => setFailed(true)} style={{ position: "absolute", width: size, height: size }} /> : null}
     </View>
   );
@@ -68,7 +77,7 @@ export function Avatar({ uri, name, size = 20 }: { uri: string | null; name: str
 
 const open = (windowId: string, url: string) => {
   dismissHover();
-  useBrowser.getState().newTab(windowId, { url });
+  newTab(windowId, { url });
 };
 
 function PullRequestPreview({ item, folderId, windowId }: { item: LiveItem; folderId: string; windowId: string }) {
@@ -79,20 +88,20 @@ function PullRequestPreview({ item, folderId, windowId }: { item: LiveItem; fold
   const failing = pr.checks.filter((c) => c.state === "failure");
   const [showAll, setShowAll] = useState(false);
   return (
-    <View style={{ gap: 9 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
+    <View style={PREVIEW}>
+      <Box row gap="sm" style={CENTER}>
         <Avatar uri={pr.authorAvatar} name={pr.author} />
-        <Text numberOfLines={1} style={{ flex: 1, fontSize: 12, color: theme.textSecondary }}>
-          <Text style={{ fontWeight: "600", color: theme.textPrimary }}>{pr.author}</Text> · {pr.repo} #{pr.number}
+        <Text lines={1} size="small" tone="textSecondary" style={FILL}>
+          <Span style={{ fontWeight: weight.semibold, color: theme.textPrimary }}>{pr.author}</Span> · {pr.repo} #{pr.number}
         </Text>
         {pr.draft ? <Chip text="Draft" color={colors.draft} /> : null}
-      </View>
-      <Text numberOfLines={3} style={{ fontSize: 13.5, lineHeight: 18, fontWeight: "600", color: theme.textPrimary }}>
+      </Box>
+      <Text lines={3} style={liveType.heading}>
         {item.title}
       </Text>
 
       {summary ? (
-        <View style={{ gap: 6 }}>
+        <Box gap="s">
           <CIProgressBar checks={pr.checks} colors={colors} />
           <StatusLine
             symbol={summary.tone === "success" ? "checkmark.circle.fill" : summary.tone === "failure" ? "xmark.circle.fill" : "clock.fill"}
@@ -103,16 +112,16 @@ function PullRequestPreview({ item, folderId, windowId }: { item: LiveItem; fold
             <FailingCheckRow key={c.name} check={c} colors={colors} onPress={() => c.url && open(windowId, c.url)} />
           ))}
           {failing.length > 3 && !showAll ? <LinkText text={`Show all ${failing.length} failures`} onPress={() => setShowAll(true)} /> : null}
-        </View>
+        </Box>
       ) : null}
 
       {pr.mergeable === "conflicting" ? (
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <View style={{ flex: 1 }}>
+        <Box row gap="m" style={CENTER}>
+          <View style={FILL}>
             <StatusLine symbol="exclamationmark.triangle.fill" color={colors.conflict} text="This branch has conflicts" />
           </View>
-          <SmallButton title="Resolve Conflicts" onPress={() => open(windowId, `${item.url}/conflicts`)} />
-        </View>
+          <Button variant="pill" tone="chip" title="Resolve Conflicts" onPress={() => open(windowId, `${item.url}/conflicts`)} />
+        </Box>
       ) : null}
 
       {pr.review ? (
@@ -123,31 +132,42 @@ function PullRequestPreview({ item, folderId, windowId }: { item: LiveItem; fold
         />
       ) : null}
 
-      <View style={{ height: 0.5, backgroundColor: theme.divider }} />
-      <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+      <View style={[DIVIDER, { backgroundColor: theme.divider }]} />
+      <Box row gap="ml" style={FOOTER}>
         <Pressable
           onPress={() => {
             dismissHover();
             openLiveItem(windowId, folderId, item);
           }}
-          style={{ flexDirection: "row", alignItems: "center", maxWidth: "100%", gap: 4 }}
+          style={COMMENTS}
         >
-          <Symbol name="bubble.left" size={10.5} color={theme.textSecondary} style={{ width: 14, height: 14 }} />
-          <Text style={{ flexShrink: 1, fontSize: 11.5, color: theme.textSecondary }}>
+          <Symbol name="bubble.left" size={10.5} color={theme.textSecondary} style={GLYPH_14} />
+          <Text size="footnote" tone="textSecondary" style={SHRINK}>
             {pr.comments === 1 ? "1 comment" : `${pr.comments} comments`}
             {pr.unresolvedThreads ? ` · ${pr.unresolvedThreads} unresolved` : ""}
           </Text>
         </Pressable>
         {pr.additions || pr.deletions ? (
-          <Text style={{ maxWidth: "100%", fontSize: 11.5, fontVariant: ["tabular-nums"], color: theme.textSecondary }}>
-            <Text style={{ color: colors.success }}>+{pr.additions}</Text> <Text style={{ color: colors.failure }}>−{pr.deletions}</Text>
+          <Text size="footnote" tone="textSecondary" style={DIFF_STAT}>
+            <Span style={{ color: colors.success }}>+{pr.additions}</Span> <Span style={{ color: colors.failure }}>−{pr.deletions}</Span>
             {pr.changedFiles ? ` · ${pr.changedFiles} ${pr.changedFiles === 1 ? "file" : "files"}` : ""}
           </Text>
         ) : null}
-      </View>
+      </Box>
     </View>
   );
 }
+
+const FILL = { flex: 1 } as const;
+const SHRINK = { flexShrink: 1 } as const;
+const CENTER = { alignItems: "center" } as const;
+const PREVIEW = { gap: PREVIEW_GAP } as const;
+const DIVIDER = { height: hairline.panel } as const;
+const FOOTER = { flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" } as const;
+const COMMENTS = { flexDirection: "row", alignItems: "center", maxWidth: "100%", gap: space.xs } as const;
+const DIFF_STAT: TextStyle = { maxWidth: "100%", fontVariant: ["tabular-nums"] };
+const GLYPH_12 = { width: 12, height: 12 } as const;
+const GLYPH_14 = { width: 14, height: 14 } as const;
 
 function CIProgressBar({ checks, colors }: { checks: PullRequestCheck[]; colors: LiveColors }) {
   const success = checks.filter((c) => c.state === "success" || c.state === "neutral").length;
@@ -158,15 +178,15 @@ function CIProgressBar({ checks, colors }: { checks: PullRequestCheck[]; colors:
     if (!pending) return;
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 0.45, duration: 700, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: 700, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.45, duration: liveMotion.ciPulse, easing: curve.inOutQuad, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: liveMotion.ciPulse, easing: curve.inOutQuad, useNativeDriver: true }),
       ]),
     );
     loop.start();
     return () => loop.stop();
   }, [pending]);
   return (
-    <View style={{ height: 6, borderRadius: 3, overflow: "hidden", flexDirection: "row", backgroundColor: colors.ciTrack, gap: 2 }}>
+    <View style={[CI_TRACK, { backgroundColor: colors.ciTrack }]}>
       {success ? <View style={{ flex: success, backgroundColor: colors.success }} /> : null}
       {pending ? <Animated.View style={{ flex: pending, backgroundColor: colors.pending, opacity: pulse }} /> : null}
       {failure ? <View style={{ flex: failure, backgroundColor: colors.failure }} /> : null}
@@ -174,104 +194,83 @@ function CIProgressBar({ checks, colors }: { checks: PullRequestCheck[]; colors:
   );
 }
 
+const CI_TRACK = { height: CI_BAR, borderRadius: CI_BAR / 2, overflow: "hidden", flexDirection: "row", gap: space.xxs } as const;
+
 function FailingCheckRow({ check, colors, onPress }: { check: PullRequestCheck; colors: LiveColors; onPress(): void }) {
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   return (
     <View {...hoverProps}>
       <Pressable onPress={onPress}>
-        <View style={{ height: 24, borderRadius: 6, flexDirection: "row", alignItems: "center", paddingHorizontal: 5, gap: 6, backgroundColor: hovered ? theme.rowHover : undefined }}>
-          <Symbol name="xmark" size={9} weight="bold" color={colors.failure} style={{ width: 12, height: 12 }} />
-          <FadeLabel text={check.name} fontSize={12} color={theme.textPrimary} style={{ flex: 1, height: 16 }} />
-          {hovered ? <Symbol name="arrow.up.forward" size={9} color={theme.textSecondary} style={{ width: 12, height: 12 }} /> : null}
-        </View>
+        <Box row radius="m" gap="s" fill={hovered ? "rowHover" : undefined} style={CHECK}>
+          <Symbol name="xmark" size={9} weight="bold" color={colors.failure} style={GLYPH_12} />
+          <FadeLabel text={check.name} fontSize={font.small.fontSize} color={theme.textPrimary} style={CHECK_LABEL} />
+          {hovered ? <Symbol name="arrow.up.forward" size={9} color={theme.textSecondary} style={GLYPH_12} /> : null}
+        </Box>
       </Pressable>
     </View>
   );
 }
 
+const CHECK = { height: CHECK_ROW, alignItems: "center", paddingHorizontal: CHECK_PAD } as const;
+const CHECK_LABEL = { flex: 1, height: 16 } as const;
+
 function StatusLine({ symbol, color, text }: { symbol: string; color: string; text: string }) {
-  const theme = useTheme();
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-      <Symbol name={symbol} size={11} color={color} style={{ width: 14, height: 14 }} />
-      <Text numberOfLines={1} style={{ flex: 1, fontSize: 12, color: theme.textPrimary }}>
+    <Box row gap="s" style={CENTER}>
+      <Symbol name={symbol} size={11} color={color} style={GLYPH_14} />
+      <Text lines={1} size="small" style={FILL}>
         {text}
       </Text>
-    </View>
+    </Box>
   );
 }
 
 function Chip({ text, color }: { text: string; color: string }) {
   return (
-    <View style={{ height: 17, borderRadius: 8.5, paddingHorizontal: 7, borderWidth: 0.5, borderColor: color, justifyContent: "center" }}>
-      <Text style={{ fontSize: 10.5, fontWeight: "500", color }}>{text}</Text>
+    <View style={[CHIP, { borderColor: color }]}>
+      <Text style={{ ...liveType.chip, color }}>{text}</Text>
     </View>
   );
 }
 
-export function SmallButton({ title, onPress, primary, icon, height = 24 }: { title: string; onPress(): void; primary?: boolean; icon?: string; height?: number }) {
-  const theme = useTheme();
-  const { hovered, hoverProps } = useHover();
-  const fg = primary ? (theme.dark ? "#000000" : "#FFFFFF") : theme.textPrimary;
-  return (
-    <View {...hoverProps}>
-      <Pressable onPress={onPress}>
-        {({ pressed }) => (
-          <View
-            style={{
-              height,
-              borderRadius: height > 26 ? 9 : 7,
-              paddingHorizontal: 9,
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 5,
-              backgroundColor: primary ? theme.textPrimary : pressed ? theme.toolbarPressed : hovered ? theme.toolbarHover : theme.urlPill,
-              opacity: primary && (pressed || hovered) ? 0.85 : 1,
-            }}
-          >
-            {icon ? <Symbol name={icon} size={10.5} weight="semibold" color={fg} style={{ width: 14, height: 14 }} /> : null}
-            <Text style={{ fontSize: 12, fontWeight: "500", color: fg }}>{title}</Text>
-          </View>
-        )}
-      </Pressable>
-    </View>
-  );
-}
+const CHIP = { height: CHIP_HEIGHT, borderRadius: CHIP_HEIGHT / 2, paddingHorizontal: space.sm, borderWidth: hairline.panel, justifyContent: "center" } as const;
 
 function LinkText({ text, onPress }: { text: string; onPress(): void }) {
-  const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   return (
     <View {...hoverProps}>
       <Pressable onPress={onPress}>
-        <Text style={{ fontSize: 12, color: theme.accent, textDecorationLine: hovered ? "underline" : "none" }}>{text}</Text>
+        <Text size="small" tone="accent" style={hovered ? UNDERLINE : NO_UNDERLINE}>
+          {text}
+        </Text>
       </Pressable>
     </View>
   );
 }
 
+const UNDERLINE = { textDecorationLine: "underline" } as const;
+const NO_UNDERLINE = { textDecorationLine: "none" } as const;
+
 function DocumentPreview({ item }: { item: LiveItem }) {
-  const theme = useTheme();
   const doc = item.doc;
   return (
-    <View style={{ gap: 6 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+    <Box gap="s">
+      <Box row gap="m" style={CENTER}>
         {item.icon && /^https?:/.test(item.icon) ? <TabIcon url={item.url} favicon={item.icon} direct /> : <TabIcon url={item.url} icon={item.icon} />}
-        <Text numberOfLines={2} style={{ flex: 1, fontSize: 13.5, lineHeight: 18, fontWeight: "600", color: theme.textPrimary }}>
+        <Text lines={2} style={[FILL, liveType.heading]}>
           {item.title}
         </Text>
-      </View>
-      <Text numberOfLines={1} style={{ fontSize: 12, color: theme.textSecondary }}>
+      </Box>
+      <Text lines={1} size="small" tone="textSecondary">
         {[doc?.kind, doc?.place ?? item.subtitle].filter(Boolean).join(" · ")}
       </Text>
       {item.updatedAt ? (
-        <Text numberOfLines={1} style={{ fontSize: 12, color: theme.textSecondary }}>
+        <Text lines={1} size="small" tone="textSecondary">
           Edited {ago(item.updatedAt, Date.now())}
           {doc?.editedBy ? ` by ${doc.editedBy}` : ""}
         </Text>
       ) : null}
-    </View>
+    </Box>
   );
 }

@@ -1,38 +1,40 @@
 import {
   getContentBlocker,
   getSiteSettings,
-  getWebKitSiteSettings,
-  setWebKitSiteSetting,
   WEBKIT_SITE_SETTINGS,
   isContentBlockerAllowed,
   setContentBlockerAllowed,
   setSiteSetting,
-  type SecurityInfo,
   type SiteSettingType,
   type SiteSettingValue,
   type SiteSettings,
-} from "@ardia/ardiacore";
+} from "../../state/site/siteSettings";
 import { displayHost } from "@ardia/core";
-import { confirm, showMenu } from "@ardia/shell";
+import { confirm, showMenu } from "../../state/app/system";
 import { useEffect, useRef, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
-import { useTheme } from "../../lib/theme";
-import { webviews } from "../../lib/webviews";
-import { useBrowser } from "../../store/browser";
-import { useSettings, useTab } from "../../store/hooks";
-import { engineProfile, isIncognitoProfile, tabLabel } from "../../store/model";
-import { defaultEngine, ENGINE_NAMES, ENGINE_SYMBOLS, otherEngine, ruleFor, tabEngine } from "../../store/engines";
-import { openPageIn, togglePageEngine } from "../../lib/engines";
-import { Favicon } from "../primitives";
-import { PANEL, PanelHeader, Popover, PopoverRow, PopoverSeparator, PopoverValue, Toggle, usePopoverPresence } from "../layout/controls";
-import { pageOf, patchPage, setPopover, usePage } from "../layout/pageState";
-import { showToast } from "../layout/splitActions";
-import { toggleCastPicker } from "../media/cast";
-import { useMedia, usePictureInPicture } from "../media/state";
-import { openSettings } from "../settings/windows";
-import { copyPageUrl } from "./selection";
-import { canShare, shareTab } from "./share";
-import { ActionTile, FooterChip, gridColumns, MoreButton, SectionTitle, SettingRow, SITE_PANEL, TileRow } from "./SiteControlsParts";
+import { StyleSheet, View } from "react-native";
+import { useTheme } from "../ui/theme";
+import { webviews } from "../../state/tabs/webviewHandles";
+import { currentLive, currentTab } from "../../state/browser/current";
+import { updateTab } from "../../state/tabs/actions";
+import { setFind } from "../../state/windows/actions";
+import { updateSettings } from "../../state/settings/actions";
+import { useEngineRule, usePageEngine, useRecommendedEngine, useStreamingSite } from "../../state/engines/hooks";
+import { useSettings, useTab } from "../../state/browser/hooks";
+import { engineProfile, isIncognitoProfile, tabLabel } from "../../state/browser/model";
+import { ENGINE_NAMES, ENGINE_SYMBOLS, otherEngine } from "../../state/engines/engines";
+import { openPageIn, togglePageEngine } from "../../state/engines/actions";
+import { Box, MenuRow, MenuSeparator, PANEL, PanelHeader, Popover, PopoverValue, space, Toggle, usePopoverPresence } from "../ui";
+import { Favicon } from "../favicon/Favicon";
+import { pageOf, patchPage, setPopover, usePage } from "../../state/tabs/pageState";
+import { showToast } from "../../state/splits/actions";
+import { toggleCastPicker } from "../../state/media/cast";
+import { useMedia, usePictureInPicture } from "../../state/media/media";
+import { openSettings } from "../../state/settings/settingsWindows";
+import { copyPageUrl } from "../../state/site/selection";
+import { canShare, shareTab } from "../../state/site/share";
+import { ActionTile, gridColumns, MoreButton, SectionTitle, SettingRow, SITE_PANEL, TileRow } from "./SiteControlsParts";
+import { CertificateDetails, ConnectionChip, ConnectionRow } from "./SiteConnection";
 import { SiteExtensions } from "./SiteExtensions";
 import { TranslateRows } from "./TranslateControls";
 import { ZoomStepper } from "./ZoomControls";
@@ -70,13 +72,12 @@ export function SiteControls({ tabId, open, right, left, top }: { tabId: string;
 }
 
 function featuredPermissions(tabId: string, settings: SiteSettings, list: Permission[]): Set<SiteSettingType> {
-  const s = useBrowser.getState();
-  const tab = s.tabs[tabId];
+  const tab = currentTab(tabId);
   const access = pageOf(tabId).mediaAccess;
   const inUse: Partial<Record<SiteSettingType, boolean>> = {
     camera: !!access?.camera,
     microphone: !!access?.microphone,
-    sound: !!tab?.muted || !!s.live[tabId]?.playingAudio,
+    sound: !!tab?.muted || !!currentLive(tabId)?.playingAudio,
   };
   return new Set(list.filter((p) => !settings[p.type]?.isDefault || inUse[p.type]).map((p) => p.type));
 }
@@ -114,12 +115,14 @@ function SiteControlsPanel({
   const close = () => setPopover(tabId, null);
   const video = useMedia((m) => !!m.sessions[tabId]?.hasVideo || !!m.pipOpen[tabId]);
   const [pip, togglePip] = usePictureInPicture(tabId);
-  const pageEngine = useBrowser((s) => tabEngine(s, tabId));
+  const pageEngine = usePageEngine(tabId);
   const webkitPage = pageEngine === "webkit";
   const permissionList = webkitPage ? PERMISSIONS.filter((p) => WEBKIT_SITE_SETTINGS.includes(p.type)) : PERMISSIONS;
-  const readSettings = webkitPage ? getWebKitSiteSettings : getSiteSettings;
-  const engineRule = useBrowser((s) => ruleFor(s, url));
-  const defaultEngineName = useBrowser((s) => ENGINE_NAMES[defaultEngine(s)]);
+  const readSettings = (p: string, o: string) => getSiteSettings(p, o, pageEngine).catch((): SiteSettings => ({}) as SiteSettings);
+  const engineRule = useEngineRule(url);
+  const recommendedEngine = useRecommendedEngine(url);
+  const streamingSite = useStreamingSite(url);
+  const recommendedTitle = streamingSite ? `Recommended (${ENGINE_NAMES[recommendedEngine]})` : `Default (${ENGINE_NAMES[recommendedEngine]})`;
 
   useEffect(() => {
     if (!origin) return;
@@ -140,10 +143,10 @@ function SiteControlsPanel({
 
   const setPermission = async (type: SiteSettingType, value: SiteSettingValue) => {
     if (!origin) return;
-    await (webkitPage ? setWebKitSiteSetting : setSiteSetting)(profile, origin, type, value);
+    await setSiteSetting(profile, origin, type, value, pageEngine);
     setSettings(await readSettings(profile, origin));
     if (type === "sound") {
-      useBrowser.getState().updateTab(tabId, { muted: value === "block" });
+      updateTab(tabId, { muted: value === "block" });
       void webviews.get(tabId)?.setMuted(value === "block");
     }
   };
@@ -169,7 +172,7 @@ function SiteControlsPanel({
       windowId: tab.windowId,
     });
     if (!confirmed) return;
-    const result = await webviews.get(tabId)?.clearSiteData();
+    const result = await webviews.get(tabId)?.clearSiteData().catch(() => null);
     const n = result && typeof result.cookies === "number" ? result.cookies : 0;
     setCleared(n ? `Cleared ${n} cookie${n === 1 ? "" : "s"} and site data` : "Cleared site data");
     void webviews.get(tabId)?.reload();
@@ -184,17 +187,17 @@ function SiteControlsPanel({
     void toggleCastPicker(tab.windowId);
   };
   const privatePage = isIncognitoProfile(tab.profileId);
-  const opensIn = privatePage ? ENGINE_NAMES[pageEngine] : engineRule ? ENGINE_NAMES[engineRule] : `Default (${defaultEngineName})`;
+  const opensIn = privatePage ? ENGINE_NAMES[pageEngine] : engineRule ? ENGINE_NAMES[engineRule] : recommendedTitle;
   const pickEngine = async () => {
     const checked = (engine: "chromium" | "webkit") => (privatePage ? pageEngine === engine : engineRule === engine);
     const choice = await showMenu([
-      ...(privatePage ? [] : [{ id: "default", title: `Default (${defaultEngineName})`, checked: !engineRule }, { separator: true as const }]),
+      ...(privatePage ? [] : [{ id: "default", title: recommendedTitle, checked: !engineRule }, { separator: true as const }]),
       { id: "chromium", title: ENGINE_NAMES.chromium, checked: checked("chromium") },
       { id: "webkit", title: ENGINE_NAMES.webkit, checked: checked("webkit") },
     ]);
     if (!choice) return;
     close();
-    if (choice === "default") void openPageIn(tabId, defaultEngine(useBrowser.getState()), { rule: null });
+    if (choice === "default") void openPageIn(tabId, recommendedEngine, { rule: null });
     else {
       const engine = choice === "webkit" ? "webkit" : "chromium";
       void openPageIn(tabId, engine, { rule: engine });
@@ -222,7 +225,7 @@ function SiteControlsPanel({
         label="Find on Page"
         onPress={() => {
           close();
-          useBrowser.getState().setFind(tabId, { open: true, replace: false, focusRequest: Date.now() });
+          setFind(tabId, { open: true, replace: false, focusRequest: Date.now() });
         }}
       />
     ) : null,
@@ -299,7 +302,7 @@ function SiteControlsPanel({
 
         {expanded === "connection" ? (
           <>
-            <PopoverSeparator />
+            <MenuSeparator />
             <PanelHeader
               icon={<Favicon url={url} favicon={tab.favicon} size={PANEL.iconSlot} profileId={tab.profileId} />}
               title={host ? displayHost(host) : tabLabel(tab)}
@@ -312,11 +315,11 @@ function SiteControlsPanel({
 
         {expanded === "more" ? (
           <>
-            <PopoverSeparator />
-            <PopoverRow icon="plus.magnifyingglass" title="Zoom" accessory={<ZoomStepper tabId={tabId} zoom={tab.zoom} />} />
-            {origin && !castTile ? <PopoverRow icon="tv.and.mediabox" title="Cast…" onPress={cast} /> : null}
+            <MenuSeparator />
+            <MenuRow icon="plus.magnifyingglass" title="Zoom" accessory={<ZoomStepper tabId={tabId} zoom={tab.zoom} />} />
+            {origin && !castTile ? <MenuRow icon="tv.and.mediabox" title="Cast…" onPress={cast} /> : null}
             {origin ? (
-              <PopoverRow
+              <MenuRow
                 icon={ENGINE_SYMBOLS[otherEngine(pageEngine)]}
                 title={`Open Page in ${ENGINE_NAMES[otherEngine(pageEngine)]}`}
                 onPress={() => {
@@ -327,97 +330,34 @@ function SiteControlsPanel({
             ) : null}
             {origin ? (
               <>
-                <PopoverSeparator />
+                <MenuSeparator />
                 <TranslateRows tabId={tabId} onClose={close} />
                 {otherPermissions.map((p) => (
-                  <PopoverRow
+                  <MenuRow
                     key={p.type}
                     icon={p.icon}
                     title={p.title}
                     accessory={<PopoverValue title={value(p)} onPress={() => void pickPermission(p.type, p.choices)} />}
                   />
                 ))}
-                {otherPermissions.length ? <PopoverSeparator /> : null}
-                <PopoverRow icon="trash" title="Clear Cookies and Site Data…" detail={cleared ?? undefined} onPress={() => void clearData()} />
+                {otherPermissions.length ? <MenuSeparator /> : null}
+                <MenuRow icon="trash" title="Clear Cookies and Site Data…" detail={cleared ?? undefined} onPress={() => void clearData()} />
               </>
             ) : null}
-            <PopoverRow
+            <MenuRow
               icon="text.alignleft"
               title="Show Full URL"
-              accessory={<Toggle value={showFullUrl} onChange={(v) => useBrowser.getState().updateSettings({ showFullUrl: v })} />}
+              accessory={<Toggle look="panel" value={showFullUrl} onChange={(v) => updateSettings({ showFullUrl: v })} />}
             />
           </>
         ) : null}
 
-        <View style={{ height: StyleSheet.hairlineWidth, marginTop: origin ? 8 : 14, marginHorizontal: PANEL.inset, backgroundColor: theme.dark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.1)" }} />
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: PANEL.inset, paddingTop: 10, paddingBottom: 12 }}>
+        <View style={{ height: StyleSheet.hairlineWidth, marginTop: origin ? space.m : space.lx, marginHorizontal: PANEL.inset, backgroundColor: theme.divider }} />
+        <Box row style={{ alignItems: "center", justifyContent: "space-between", paddingHorizontal: PANEL.inset, paddingTop: space.ml, paddingBottom: space.l }}>
           <ConnectionChip security={security} open={expanded === "connection"} onPress={() => toggle("connection")} />
           <MoreButton open={expanded === "more"} onPress={() => toggle("more")} />
-        </View>
+        </Box>
       </View>
     </Popover>
-  );
-}
-
-const WARNING = "#FF6B63";
-const CAUTION = "#F2B33D";
-
-function connectionLook(security: SecurityInfo | null) {
-  const level = security?.level ?? "none";
-  if (level === "secure") return { level, chip: "Secure", icon: "lock.fill", color: undefined };
-  if (level === "local" || level === "none") return { level, chip: "Local Page", icon: "info.circle", color: undefined };
-  if (level === "mixed") return { level, chip: "Not Fully Secure", icon: "lock.open.trianglebadge.exclamationmark.fill", color: CAUTION };
-  return { level, chip: "Not Secure", icon: "lock.open.trianglebadge.exclamationmark.fill", color: WARNING };
-}
-
-function ConnectionChip({ security, open, onPress }: { security: SecurityInfo | null; open: boolean; onPress: () => void }) {
-  const look = connectionLook(security);
-  return <FooterChip icon={look.icon} title={look.chip} color={look.color} open={open} onPress={onPress} />;
-}
-
-function ConnectionRow({ security }: { security: SecurityInfo | null }) {
-  const theme = useTheme();
-  const look = connectionLook(security);
-  const { level } = look;
-  const secure = level === "secure";
-  const local = level === "local" || level === "none";
-  const title = secure ? "Connection is secure" : local ? "This is a local or internal page" : "Connection is not secure";
-  const detail =
-    level === "certificateError"
-      ? "The site's certificate isn't valid. Don't enter passwords or payment details."
-      : level === "mixed"
-        ? "Parts of this page aren't secure (such as images)."
-        : level === "insecure"
-          ? "Don't enter sensitive information on this site."
-          : secure && security?.certificate
-            ? `Certificate issued by ${security.certificate.issuer.organizations[0] || security.certificate.issuer.commonName}`
-            : undefined;
-  return <PopoverRow icon={look.icon} iconColor={look.color ?? theme.icon} title={title} detail={detail} />;
-}
-
-function CertificateDetails({ security }: { security: SecurityInfo }) {
-  const theme = useTheme();
-  const cert = security.certificate!;
-  const date = (ms: number) => new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-  const rows: [string, string][] = [
-    ["Issued to", cert.subject.commonName || cert.subject.displayName],
-    ["Organization", cert.subject.organizations.join(", ") || "—"],
-    ["Issued by", cert.issuer.commonName || cert.issuer.displayName],
-    ["Valid from", date(cert.validFrom)],
-    ["Expires", date(cert.validUntil)],
-    ...(security.protocol ? [["Protocol", security.protocol] as [string, string]] : []),
-    ...(cert.sha256 ? [["SHA-256", cert.sha256.replace(/[^0-9a-f]/gi, "").replace(/(.{2})(?!$)/g, "$1 ").slice(0, 47) + "…"] as [string, string]] : []),
-  ];
-  return (
-    <View style={{ marginHorizontal: PANEL.inset, marginTop: 2, marginBottom: 4, padding: PANEL.rowPadding, borderRadius: 8, backgroundColor: theme.dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)", gap: 3 }}>
-      {rows.map(([k, v]) => (
-        <View key={k} style={{ flexDirection: "row", gap: 8 }}>
-          <Text style={{ width: 82, fontSize: 11, color: theme.textSecondary }}>{k}</Text>
-          <Text numberOfLines={2} selectable style={{ flex: 1, fontSize: 11, color: theme.textPrimary }}>
-            {v}
-          </Text>
-        </View>
-      ))}
-    </View>
   );
 }

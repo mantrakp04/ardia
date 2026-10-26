@@ -1,8 +1,7 @@
-type Option = { value: string; label: string; hint?: string; disabled?: boolean };
-type Control =
-  | { kind: "choice"; id: string; label: string; value: string; options: Option[] }
-  | { kind: "action"; id: string; label: string; hint: string; on?: boolean };
-type Outbound = { type: "ardia-demo:ready" } | { type: "ardia-demo:engaged" } | { type: "ardia-demo:controls"; controls: Control[] };
+import { track } from "./track";
+
+type CustomizeState = { active: boolean; code: string | null };
+type Outbound = { type: "ardia-demo:ready" } | { type: "ardia-demo:engaged" } | ({ type: "ardia-demo:customize-state" } & CustomizeState);
 
 const DESKTOP_LOGICAL_WIDTH = 1100;
 const PHONE_LOGICAL_WIDTH = 640;
@@ -11,6 +10,7 @@ const DESKTOP_BOX_WIDTH = 860;
 const REVEAL_FALLBACK_MS = 1500;
 const NUDGE_DELAY_MS = 900;
 const FAR_SCREENS = 1;
+const COPIED_FOR_MS = 1800;
 
 const root = document.querySelector<HTMLElement>("[data-demo]");
 const stage = root?.querySelector<HTMLElement>("[data-demo-stage]");
@@ -51,84 +51,45 @@ function fit(frame: HTMLIFrameElement, box: HTMLElement) {
   box.style.setProperty("--demo-scale", String(scale));
 }
 
-function title(label: string, hint?: string) {
-  return hint ? `${label} (${hint})` : label;
-}
+const demoOrigin = (frame: HTMLIFrameElement) => new URL(frame.src, location.href).origin;
 
-function button(control: Control, option?: Option) {
-  const el = document.createElement("button");
-  el.type = "button";
-  el.className = "demo-control";
-  el.dataset.track = "demo_control";
-  el.dataset.trackControl = control.id;
-  if (option) {
-    el.setAttribute("role", "radio");
-    el.dataset.value = option.value;
-    el.dataset.trackValue = option.value;
-    el.textContent = option.label;
-    el.title = title(`${control.label}: ${option.label}`, option.hint);
-  } else if (control.kind === "action") {
-    el.textContent = control.label;
-    el.title = title(control.label, control.hint);
-  }
-  el.addEventListener("mousedown", (e) => e.preventDefault());
-  return el;
-}
+function wireCustomize(frame: HTMLIFrameElement, panel: HTMLElement) {
+  const button = panel.querySelector<HTMLButtonElement>("[data-demo-customize]");
+  const label = panel.querySelector<HTMLElement>("[data-demo-customize-label]");
+  const box = panel.querySelector<HTMLElement>("[data-demo-code]");
+  const value = panel.querySelector<HTMLElement>("[data-demo-code-value]");
+  const copy = panel.querySelector<HTMLButtonElement>("[data-demo-copy]");
+  let code: string | null = null;
+  let copiedTimer: ReturnType<typeof setTimeout> | undefined;
 
-function renderControls(frame: HTMLIFrameElement, controls: Control[], target: HTMLElement) {
-  const shape = JSON.stringify(controls.map((c) => [c.id, c.kind === "choice" ? c.options.map((o) => o.value + o.label) : c.label]));
-  if (target.dataset.shape !== shape) {
-    target.dataset.shape = shape;
-    target.replaceChildren();
-    let actions: HTMLElement | null = null;
-    for (const control of controls) {
-      if (control.kind === "action") {
-        if (!actions) {
-          actions = document.createElement("div");
-          actions.className = "demo-group";
-          target.append(actions);
-        }
-        const el = button(control);
-        el.addEventListener("click", () => {
-          root?.setAttribute("data-engaged", "");
-          if (control.id === "command" || control.id === "newTab") frame.focus();
-          frame.contentWindow?.postMessage({ type: "ardia-demo:control", id: control.id }, "*");
-        });
-        actions.append(el);
-        continue;
-      }
-      const group = document.createElement("div");
-      group.className = "demo-group";
-      group.setAttribute("role", "radiogroup");
-      group.setAttribute("aria-label", control.label);
-      const label = document.createElement("span");
-      label.className = "label demo-label";
-      label.textContent = control.label;
-      group.append(label);
-      for (const option of control.options) {
-        const el = button(control, option);
-        el.addEventListener("click", () => {
-          root?.setAttribute("data-engaged", "");
-          frame.contentWindow?.postMessage({ type: "ardia-demo:control", id: control.id, value: option.value }, "*");
-        });
-        group.append(el);
-      }
-      target.append(group);
-    }
-  }
-  const buttons = [...target.querySelectorAll<HTMLButtonElement>("button")];
-  for (const control of controls) {
-    const mine = buttons.filter((b) => b.dataset.trackControl === control.id);
-    if (control.kind === "action") {
-      for (const b of mine) b.setAttribute("aria-pressed", String(!!control.on));
-      continue;
-    }
-    for (const b of mine) {
-      const option = control.options.find((o) => o.value === b.dataset.value);
-      b.setAttribute("aria-checked", String(control.value === b.dataset.value));
-      b.disabled = !!option?.disabled;
-    }
-  }
+  button?.addEventListener("mousedown", (e) => e.preventDefault());
+  button?.addEventListener("click", () => {
+    root?.setAttribute("data-engaged", "");
+    frame.focus();
+    frame.contentWindow?.postMessage({ type: "ardia-demo:customize" }, demoOrigin(frame));
+  });
+  copy?.addEventListener("click", () => {
+    if (!code) return;
+    const done = () => {
+      copy.textContent = "Copied";
+      clearTimeout(copiedTimer);
+      copiedTimer = setTimeout(() => (copy.textContent = "Copy"), COPIED_FOR_MS);
+    };
+    if (navigator.clipboard) void navigator.clipboard.writeText(code).then(done, () => value && getSelection()?.selectAllChildren(value));
+    else if (value) getSelection()?.selectAllChildren(value);
+  });
+
+  return (state: CustomizeState) => {
+    if (button) button.disabled = state.active;
+    if (label) label.textContent = state.active ? "Customizing…" : state.code ? "Customize again" : "Customize it";
+    if (!state.code || state.code === code) return;
+    const first = code === null;
+    code = state.code;
+    if (value) value.textContent = code;
+    if (box) box.hidden = false;
+    if (copy) copy.textContent = "Copy";
+    track("demo_setup_code_shown", { again: !first });
+  };
 }
 
 function watchForNudge(frame: HTMLIFrameElement, box: HTMLElement) {
@@ -139,7 +100,7 @@ function watchForNudge(frame: HTMLIFrameElement, box: HTMLElement) {
       if (!entries.some((e) => e.isIntersecting)) return;
       timer = setTimeout(() => {
         seen.disconnect();
-        if (root?.dataset.engaged === undefined) frame.contentWindow?.postMessage({ type: "ardia-demo:nudge" }, "*");
+        if (root?.dataset.engaged === undefined) frame.contentWindow?.postMessage({ type: "ardia-demo:nudge" }, demoOrigin(frame));
       }, NUDGE_DELAY_MS);
     },
     { threshold: 0.6 },
@@ -170,12 +131,14 @@ function mount(box: HTMLElement, src: string) {
   const frame = document.createElement("iframe");
   frame.src = src;
   frame.title = "Ardia, live: try the sidebar, split view and the command bar";
+  frame.allow = "clipboard-write";
   frame.className = "demo-frame";
   box.append(frame);
   fit(frame, box);
   new ResizeObserver(() => fit(frame, box)).observe(box);
   restWhileFar(box);
 
+  const showCustomize = bar ? wireCustomize(frame, bar) : null;
   let ready = false;
   let loaded = false;
   let revealing = false;
@@ -197,14 +160,14 @@ function mount(box: HTMLElement, src: string) {
     if (ready) reveal();
   });
   addEventListener("message", (event: MessageEvent<Outbound>) => {
-    if (event.source !== frame.contentWindow || !event.data || typeof event.data !== "object") return;
+    if (event.source !== frame.contentWindow || event.origin !== demoOrigin(frame) || !event.data || typeof event.data !== "object") return;
     if (event.data.type === "ardia-demo:ready") {
       ready = true;
       if (loaded) reveal();
       else setTimeout(reveal, REVEAL_FALLBACK_MS);
     }
     if (event.data.type === "ardia-demo:engaged") root?.setAttribute("data-engaged", "");
-    if (event.data.type === "ardia-demo:controls" && bar) renderControls(frame, event.data.controls, bar);
+    if (event.data.type === "ardia-demo:customize-state") showCustomize?.(event.data);
   });
 }
 

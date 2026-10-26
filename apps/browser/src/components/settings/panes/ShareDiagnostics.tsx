@@ -1,9 +1,11 @@
 import { ScrollView, Text, View } from "react-native";
-import { useTheme } from "../../../lib/theme";
-import { setSharing, useTelemetry } from "../../../telemetry/client";
-import { SHARING_COPY, WHATS_SENT } from "../../../telemetry/copy";
-import { Button, Group, Row, SectionHeader, Sheet, Toggle } from "../controls";
-import { closeSettingsSheet, showSettingsSheet } from "../sheet";
+import { useTheme } from "../../ui/theme";
+import { setSharing, useTelemetry } from "../../../state/telemetry/client";
+import { SHARING_COPY, WHATS_SENT } from "../../../state/telemetry/copy";
+import { Button, font, Group, Sheet, Toggle, weight } from "../../ui";
+import { Row, SectionHeader } from "../Form";
+import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
+import { settingsType } from "../tokens";
 
 export function ShareDiagnosticsSection() {
   const sharing = useTelemetry((s) => s.sharing);
@@ -24,8 +26,8 @@ export function WhatsSentSheet() {
   const theme = useTheme();
   return (
     <Sheet width={500} onClose={closeSettingsSheet}>
-      <Text style={{ fontSize: 15, fontWeight: "600", color: theme.textPrimary }}>{SHARING_COPY.whatsSent}</Text>
-      <Text style={{ fontSize: 12, marginTop: 4, color: theme.textSecondary, lineHeight: 16 }}>
+      <Text style={{ ...font.heading, fontWeight: weight.semibold, color: theme.textPrimary }}>{SHARING_COPY.whatsSent}</Text>
+      <Text style={{ ...font.small, marginTop: 4, color: theme.textSecondary, lineHeight: 16 }}>
         Only while “{SHARING_COPY.toggle}” is on, except what’s under “Even with sharing off”.
       </Text>
       <ScrollView style={{ maxHeight: 420, marginTop: 4 }}>
@@ -34,14 +36,14 @@ export function WhatsSentSheet() {
             <SectionHeader title={group.title} />
             <Group>
               {group.items.map((item) => (
-                <Row key={item} title={<Text style={{ fontSize: 12.5, lineHeight: 17, color: theme.textPrimary }}>{item}</Text>} />
+                <Row key={item} title={<Text style={{ ...settingsType.lead, lineHeight: 17, color: theme.textPrimary }}>{item}</Text>} />
               ))}
             </Group>
           </View>
         ))}
       </ScrollView>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 16 }}>
-        <Text style={{ flex: 1, fontSize: 11.5, lineHeight: 15, color: theme.textTertiary }}>{SHARING_COPY.footnote}</Text>
+        <Text style={{ flex: 1, ...font.footnote, lineHeight: 15, color: theme.textTertiary }}>{SHARING_COPY.footnote}</Text>
         <Button title="Done" kind="primary" onPress={closeSettingsSheet} />
       </View>
     </Sheet>

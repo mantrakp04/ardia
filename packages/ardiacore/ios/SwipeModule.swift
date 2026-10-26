@@ -6,26 +6,26 @@ public class SwipeModule: Module {
     Name("ArdiaSwipe")
 
     Function("haptic") { (pattern: String) in
-      DispatchQueue.main.async { ACSwipe.performHaptic(pattern) }
+      DispatchQueue.main.async { ArdiaSwipe.performHaptic(pattern) }
     }
 
     AsyncFunction("switchPager") { (key: String, index: Int, order: String?) -> Bool in
-      ACPager.existing(key)?.switchTo(index, order: order) ?? false
+      Pager.existing(key)?.switchTo(index, order: order) ?? false
     }.runOnQueue(.main)
 
     AsyncFunction("selectPager") { (key: String, profileId: String, order: String) -> Bool in
-      ACPager.existing(key)?.select(profileId, order: order) ?? false
+      Pager.existing(key)?.select(profileId, order: order) ?? false
     }.runOnQueue(.main)
 
     AsyncFunction("stepPager") { (key: String, delta: Int, wrap: Bool, order: String?) -> Bool in
-      ACPager.existing(key)?.step(delta, wrap: wrap, order: order) ?? false
+      Pager.existing(key)?.step(delta, wrap: wrap, order: order) ?? false
     }.runOnQueue(.main)
 
-    Function("pagerState") { (key: String) -> [String: Any]? in ACPager.snapshot(key) }
+    Function("pagerState") { (key: String) -> [String: Any]? in Pager.snapshot(key) }
 
     AsyncFunction("devPagerState") { (key: String) -> [String: Any]? in
       #if DEBUG
-      return ACPager.existing(key)?.debug()
+      return Pager.existing(key)?.debug()
       #else
       return nil
       #endif
@@ -37,7 +37,7 @@ public class SwipeModule: Module {
         promise.resolve(["error": "no window \(windowNumber)"])
         return
       }
-      ACSwipe.simulate(in: window, point: NSPoint(x: x, y: y), steps: steps, ignoreSystemPreference: ignorePreference) {
+      ArdiaSwipe.simulate(in: window, point: NSPoint(x: x, y: y), steps: steps, ignoreSystemPreference: ignorePreference) {
         promise.resolve($0)
       }
       #else
@@ -63,7 +63,7 @@ public class SwipeModule: Module {
   }
 }
 
-final class SwipeArea: ExpoView, ACSwipeTarget {
+final class SwipeArea: ExpoView, ArdiaSwipeTarget {
   let onSwipe = EventDispatcher()
   let onPagerPosition = EventDispatcher()
   let onPagerState = EventDispatcher()
@@ -72,7 +72,7 @@ final class SwipeArea: ExpoView, ACSwipeTarget {
   var tracksUnavailableDirections = false
   var allowsVerticalMotion = false
   @objc var isPager = false
-  private(set) var pager: ACPager?
+  private(set) var pager: Pager?
   private var pagerWidth: CGFloat = 0
 
   @objc var hasNativePager: Bool { pager != nil }
@@ -83,7 +83,7 @@ final class SwipeArea: ExpoView, ACSwipeTarget {
 
   override func viewDidMoveToWindow() {
     super.viewDidMoveToWindow()
-    if window != nil { ACSwipe.addTarget(self) } else { ACSwipe.removeTarget(self) }
+    if window != nil { ArdiaSwipe.addTarget(self) } else { ArdiaSwipe.removeTarget(self) }
   }
 
   deinit {
@@ -108,7 +108,7 @@ final class SwipeArea: ExpoView, ACSwipeTarget {
     }
     if pager?.key != key {
       pager?.detach(self)
-      pager = ACPager.named(key)
+      pager = Pager.named(key)
       pager!.attach(self)
     }
     pagerWidth = CGFloat(number(value["width"]) ?? 0)
@@ -120,8 +120,6 @@ final class SwipeArea: ExpoView, ACSwipeTarget {
     )
   }
 }
-
-private let pagerActivity = Notification.Name("ArdiaPagerActivity")
 
 private func number(_ value: Any?) -> Double? {
   switch value {
@@ -146,11 +144,11 @@ private func rubberBand(_ value: Double, _ dimension: Double) -> Double {
   (1 - 1 / (value * rubberCoefficient / dimension + 1)) * dimension
 }
 
-private final class ACPagerFrames: NSObject {
-  weak var pager: ACPager?
+private final class PagerFrames: NSObject {
+  weak var pager: Pager?
   let generation: Int
 
-  init(_ pager: ACPager, generation: Int) {
+  init(_ pager: Pager, generation: Int) {
     self.pager = pager
     self.generation = generation
   }
@@ -160,7 +158,7 @@ private final class ACPagerFrames: NSObject {
   }
 }
 
-final class ACPager {
+final class Pager {
   enum Phase: String { case idle, tracking, holding, settling }
 
   private struct Drag {
@@ -175,19 +173,19 @@ final class ACPager {
     let start: CFTimeInterval
   }
 
-  private static var pagers: [String: ACPager] = [:]
+  private static var pagers: [String: Pager] = [:]
   private static let lock = NSLock()
   private static var snapshots: [String: [String: Any]] = [:]
   private static var counter = 0
 
-  static func named(_ key: String) -> ACPager {
+  static func named(_ key: String) -> Pager {
     if let pager = pagers[key] { return pager }
-    let pager = ACPager(key: key)
+    let pager = Pager(key: key)
     pagers[key] = pager
     return pager
   }
 
-  static func existing(_ key: String) -> ACPager? { pagers[key] }
+  static func existing(_ key: String) -> Pager? { pagers[key] }
 
   static func snapshot(_ key: String) -> [String: Any]? {
     lock.lock()
@@ -233,12 +231,12 @@ final class ACPager {
   }
 
   func prune() {
-    guard areas.allObjects.isEmpty, ACPager.pagers[key] === self else { return }
+    guard areas.allObjects.isEmpty, Pager.pagers[key] === self else { return }
     stopSpring()
-    ACPager.pagers[key] = nil
-    ACPager.lock.lock()
-    ACPager.snapshots[key] = nil
-    ACPager.lock.unlock()
+    Pager.pagers[key] = nil
+    Pager.lock.lock()
+    Pager.snapshots[key] = nil
+    Pager.lock.unlock()
   }
 
   func configure(selected newSelected: Int, count newCount: Int, ack: Int, order newOrder: String?) {
@@ -251,7 +249,7 @@ final class ACPager {
       setOrder(newOrder)
       selected = propSelected
       position = Double(selected)
-      sequence = ACPager.next()
+      sequence = Pager.next()
       publish()
       emitPosition()
       return
@@ -286,7 +284,7 @@ final class ACPager {
     selected = index
     position = Double(index)
     velocity = 0
-    sequence = ACPager.next()
+    sequence = Pager.next()
     if selection { selectionSequence = sequence }
     publish()
     emitPosition()
@@ -338,7 +336,7 @@ final class ACPager {
     history = []
     velocity = 0
     phase = .tracking
-    sequence = ACPager.next()
+    sequence = Pager.next()
     publish()
     emitState("began")
   }
@@ -361,7 +359,7 @@ final class ACPager {
     let nearest = min(max(Int(x.rounded()), drag.lo), drag.hi)
     if nearest != drag.detent {
       drag.detent = nearest
-      ACSwipe.performHaptic("alignment")
+      ArdiaSwipe.performHaptic("alignment")
     }
     publish()
     emitPosition()
@@ -434,7 +432,7 @@ final class ACPager {
     announceActivity()
     if target != selected {
       selected = target
-      sequence = ACPager.next()
+      sequence = Pager.next()
       selectionSequence = sequence
       publish()
       emitState("selected")
@@ -445,7 +443,7 @@ final class ACPager {
     spring = Spring(from: position, target: target, velocity: v, start: CACurrentMediaTime())
     let generation = self.generation
     if let screen = origin?.window?.screen ?? areas.allObjects.lazy.compactMap({ $0.window?.screen }).first {
-      let link = screen.displayLink(target: ACPagerFrames(self, generation: generation), selector: #selector(ACPagerFrames.frame(_:)))
+      let link = screen.displayLink(target: PagerFrames(self, generation: generation), selector: #selector(PagerFrames.frame(_:)))
       let fps = Float(max(60, screen.maximumFramesPerSecond))
       link.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: fps, preferred: fps)
       link.add(to: .main, forMode: .common)
@@ -482,7 +480,7 @@ final class ACPager {
       position = Double(s.target)
       velocity = 0
       phase = .idle
-      sequence = ACPager.next()
+      sequence = Pager.next()
       publish()
       emitPosition()
       emitState("settled")
@@ -531,7 +529,7 @@ final class ACPager {
   private func announceActivity(_ info: [String: Any] = [:]) {
     var windows: [NSWindow] = []
     for case let window? in areas.allObjects.map(\.window) where !windows.contains(where: { $0 === window }) { windows.append(window) }
-    for window in windows { NotificationCenter.default.post(name: pagerActivity, object: window, userInfo: info) }
+    for window in windows { NotificationCenter.default.post(name: .ardiaPagerActivity, object: window, userInfo: info) }
   }
 
   private func publish() {
@@ -540,9 +538,9 @@ final class ACPager {
       "phase": phase.rawValue, "velocity": velocity, "count": count,
     ]
     if orderIds != nil { state["profileId"] = selectedId }
-    ACPager.lock.lock()
-    ACPager.snapshots[key] = state
-    ACPager.lock.unlock()
+    Pager.lock.lock()
+    Pager.snapshots[key] = state
+    Pager.lock.unlock()
   }
 
   private var selectedId: Any {
@@ -552,7 +550,7 @@ final class ACPager {
 
   #if DEBUG
   func debug() -> [String: Any] {
-    var out = ACPager.snapshot(key) ?? [:]
+    var out = Pager.snapshot(key) ?? [:]
     out["areas"] = areas.allObjects.count
     out["propSelected"] = propSelected
     out["propAck"] = propAck

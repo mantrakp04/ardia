@@ -1,17 +1,17 @@
-import { Surface } from "@ardia/shell";
-import { hex, layout, useTheme } from "../../lib/theme";
-import { useBrowser } from "../../store/browser";
-import { clickTab } from "../sidebar/actions";
-import { cardHoverProps, dismissHover } from "../sidebar/hover";
+import { Surface } from "../ui";
+import { hex, layout, useTheme } from "../ui/theme";
+import { ink } from "../ui/tokens";
+import { clickTab } from "../../state/sidebar/actions";
+import { cardHoverProps, dismissHover } from "../../state/sidebar/hover";
 import { hoverCardOrigin } from "../sidebar/hoverMotion";
-import { measureRow, setSidebarUi, type Anchor } from "../sidebar/state";
+import { measureRow, setSidebarUi, type Anchor } from "../../state/sidebar/sidebarUi";
 import { useSidebarWidth } from "../sidebar/tokens";
 import { MINI_PLAYER_HEIGHT, MINI_PLAYER_WIDTH, MiniPlayer } from "./MiniPlayer";
-import { useMedia } from "./state";
+import { useMedia, usePinnedWithMediaControls } from "../../state/media/media";
 import { useMediaTokens } from "./tokens";
 
 export function useShowsMiniPlayer(tabId: string | undefined): boolean {
-  const pinned = useBrowser((s) => !!tabId && !!s.tabs[tabId]?.pinned && s.settings.sidebarMediaControls);
+  const pinned = usePinnedWithMediaControls(tabId);
   const hasSession = useMedia((s) => {
     const session = tabId ? s.sessions[tabId] : undefined;
     return !!session && session.controllable && session.playbackState !== "none" && !!(session.title || session.artwork);
@@ -35,7 +35,7 @@ export function HoverPlayer({ tabId, windowId, anchor }: { tabId: string; window
       cornerRadius={12}
       borderColor={hex(tokens.border)}
       borderWidth={0.5}
-      shadowColor="#000000"
+      shadowColor={ink.black}
       shadowOpacity={theme.panelShadowOpacity * 0.8}
       shadowRadius={16}
       shadowOffset={[0, 6]}

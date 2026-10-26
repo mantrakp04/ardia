@@ -1,5 +1,3 @@
-// Generated from Chromium's net/base/registry_controlled_domains/effective_tld_names.dat (ICANN section, the last label of every
-// rule): the registries Chrome's AutocompleteInput::Parse counts as a "known TLD". Unicode TLDs are as the PSL spells them.
 export const PSL_TLDS =
 `aaa aarp abb abbott abbvie abc able abogado abudhabi ac academy accenture accountant accountants aco actor ad ads
 adult ae aeg aero aetna af afl africa ag agakhan agency ai aig airbus airforce airtel akdn al alibaba alipay allfinanz

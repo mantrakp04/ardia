@@ -1,19 +1,13 @@
-A hidden test instance (ARDIA_BACKGROUND=1) never makes itself a system default: shell_integration's
-SetAsDefaultBrowser, SetAsDefaultClientForScheme and SetAsDefaultHandlerForUTType log a line and return false. Every
-Chrome path goes through them (chrome://settings' Make default, the default browser prompt, a protocol handler made
-default), so an agent's click in a scratch copy can't change the owner's default browser, mail client or PDF reader,
-and SetAsDefaultBrowser no longer activates CoreServicesUIAgent over the owner's work.
+A hidden test instance (ArdiaCore sets g_ardia_background_instance from --ardia-background, which the app passes for
+ARDIA_BACKGROUND) never makes itself a system default: shell_integration's SetAsDefaultBrowser,
+SetAsDefaultClientForScheme and SetAsDefaultHandlerForUTType log a line and return false. Every Chrome path goes
+through them (chrome://settings' Make default, the default browser prompt, a protocol handler made default), so an
+agent's click in a scratch copy can't change the owner's default browser, mail client or PDF reader, and
+SetAsDefaultBrowser no longer activates CoreServicesUIAgent over the owner's work.
 
 --- a/chrome/browser/shell_integration_mac.mm
 +++ b/chrome/browser/shell_integration_mac.mm
-@@ -6,11 +6,14 @@
- 
- #include <AppKit/AppKit.h>
- #include <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
-+#include <stdlib.h>
-+#include <string.h>
- 
- #include "base/apple/bridging.h"
+@@ -11,6 +11,7 @@
  #include "base/apple/bundle_locations.h"
  #include "base/apple/foundation_util.h"
  #include "base/apple/scoped_cftyperef.h"
@@ -21,19 +15,29 @@ and SetAsDefaultBrowser no longer activates CoreServicesUIAgent over the owner's
  #include "base/mac/mac_util.h"
  #include "base/strings/sys_string_conversions.h"
  #include "build/branding_buildflags.h"
-@@ -53,9 +56,22 @@
-   return [NSBundle bundleWithURL:default_app_url].bundleIdentifier;
- }
+@@ -18,6 +19,8 @@
+ #include "components/version_info/version_info.h"
+ #import "net/base/apple/url_conversions.h"
  
++bool g_ardia_background_instance = false;
++
+ namespace shell_integration {
+ 
+ namespace {
+@@ -51,11 +54,23 @@
+     return nil;
+   }
+   return [NSBundle bundleWithURL:default_app_url].bundleIdentifier;
++}
++
 +bool ArdiaBackgroundInstanceRefuses(const char* change) {
-+  const char* background = getenv("ARDIA_BACKGROUND");
-+  if (!background || strcmp(background, "1")) {
++  if (!g_ardia_background_instance) {
 +    return false;
 +  }
 +  LOG(WARNING) << "Ardia: background instance, not " << change;
 +  return true;
-+}
-+
+ }
+ 
  }  // namespace
  
  bool SetAsDefaultBrowser() {
@@ -44,7 +48,7 @@ and SetAsDefaultBrowser no longer activates CoreServicesUIAgent over the owner's
    // We really do want the outer bundle here, not the main bundle since
    // setting a shortcut to Chrome as the default browser doesn't make sense.
    NSURL* app_bundle = base::apple::OuterBundleURL();
-@@ -119,6 +135,10 @@ bool SetAsDefaultClientForScheme(const std::string& scheme) {
+@@ -119,6 +134,10 @@
      return false;
    }
  
@@ -55,7 +59,7 @@ and SetAsDefaultBrowser no longer activates CoreServicesUIAgent over the owner's
    if (GetDefaultSchemeClientSetPermission() != SET_DEFAULT_UNATTENDED) {
      return false;
    }
-@@ -146,6 +166,9 @@ bool SetAsDefaultHandlerForUTType(const std::string& type) {
+@@ -146,6 +165,9 @@
    if (type.empty()) {
      return false;
    }

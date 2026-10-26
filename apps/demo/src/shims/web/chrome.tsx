@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { View, type ViewProps, type ViewStyle } from "react-native";
-import { useBrowser } from "../../../../browser/src/store/browser";
+import { useBrowser } from "../../../../browser/src/state/browser/store";
 import { edgeGain, fallbackRadius, highlightMask, maskStyle, peakGain, SHADE_OUTSET, shadeMask, shapeMask, type RimCurve, type RimProfile, type ShadeProfile } from "./glassRim";
 
 type Style = ViewStyle & Record<string, unknown>;

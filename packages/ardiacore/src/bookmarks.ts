@@ -1,4 +1,4 @@
-import { engineCall, onEngineEvent } from "./engine";
+import { call, on } from "./engine/call";
 
 export type EngineBookmark = { id: string; k: "u" | "f"; t: string; u?: string; a: number; key?: string; c?: EngineBookmark[] };
 
@@ -8,12 +8,12 @@ export type BookmarkOp =
   | { op: "update"; id: string; t?: string; u?: string }
   | { op: "remove"; id: string };
 
-export const bookmarkTree = (profile: string) => engineCall<{ bar: EngineBookmark; other: EngineBookmark }>("ac_bookmarks_tree", profile);
+export const bookmarkTree = (profile: string) => call("bookmarks.tree", { profile });
 
 export const applyBookmarkOps = (profile: string, ops: BookmarkOp[]) =>
-  engineCall<{ applied: number; skipped: number; invalid: string[] }>("ac_bookmarks_apply", profile, { ops });
+  call("bookmarks.apply", { profile, ops });
 
-export const watchBookmarks = (profile: string) => engineCall("ac_bookmarks_watch", profile);
+export const watchBookmarks = (profile: string) => call("bookmarks.watch", { profile });
 
 export const onBookmarksChanged = (listener: (profile: string) => void) =>
-  onEngineEvent("bookmarks.changed", (p) => listener(p.profile));
+  on("bookmarks.changed", (p) => listener(p.profile));

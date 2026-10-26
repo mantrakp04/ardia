@@ -129,7 +129,7 @@ the same as top"), so if a Dia capture ever differs, the owner's equal insets wi
 
 - Owner's capture of our 0.2.32 Site Controls (2x): the header favicon 13.5 pt from the left edge, 17 pt from the top;
   row glyphs 16.5–19.5 pt in, separators 13.5 pt in. Rows were 5 + 8 in, the header 13 in, so nothing shared a line.
-- Now one grid for every panel there (`PANEL` in `apps/browser/src/components/layout/controls.tsx`): content inset
+- Now one grid for every panel there (`PANEL` in `apps/browser/src/components/ui/Controls.tsx`): content inset
   **16** from every edge; corner radius 12; rows 32 tall, hover fill 6 in (radius 6, concentric), contents 10 further in;
   a 20 pt icon slot (13 pt glyphs, the header's 20 pt favicon), 10 to the text, so titles start at 46; separators 16
   in, 5 above and below; the first and last rows' icon slots 16 from the top and bottom (list padding 10); a header's
@@ -526,7 +526,7 @@ what the macOS 26 SDK gives standard AppKit controls, menus and popovers. Our bu
 
 ### Profile paging (ARCUI PageSwipeController, TabSidebar space switcher; 1.50.1)
 
-Implemented in `apps/browser/src/components/layout/profilePager.ts` (+ `swipeMotion.ts`, `profiles/ProfileDots.tsx`).
+Implemented in `apps/browser/src/components/window/profilePager.ts` (+ `swipeMotion.ts`, `profiles/ProfileDots.tsx`).
 - **Tracking** (trackpad loop `0x10059733c`, a `nextEventMatchingMask:` loop on phased scroll events): each event
   adds `scrollingDeltaX × −0.5` to the position in points (`0x100597ba0`: `fmul d0, d0, d8` with d8 = −0.5), so the
   pages move at half the scroll distance. No check of System Settings › Swipe between pages anywhere in ARCUI's
@@ -798,7 +798,7 @@ right split"; the numbers are from the pixels.
   tab-shaped pill in ~0.05 s (1.758 → 1.808 s) and that strip makes room for it; let go there, the tab joins it.
 - **The pill** (rec1027, 1.483 s): for a frame or two before the card, the tab itself (its strip look, title and ✕)
   follows the pointer; then it becomes the card (1.508 s).
-- **Ardia** (`layout/splitDrop.ts`, `SplitChrome.tsx`; the picture is `DragPreview` in `packages/shell/ios/Windows.swift`):
+- **Ardia** (`layout/splitDrop.ts`, `SplitChrome.tsx`; the picture is `DragPreview` in `packages/shell/ios/DragPreview.swift`):
   the same target stages as fractions of the pane's card, the same lean, 0.11 s slide, a 0.2 s / 0.9 spring for the
   sizes; the dashes are React Native's (3 × the width: 2 pt → 6 / 6, 2.33 pt → 7 / 7). The picture is a borderless,
   non-activating panel that takes no mouse: the tab's own strip look as the pill (30 ms, then 60 ms into the card),
@@ -876,7 +876,7 @@ to these numbers (`chrome/browser/ardia/pip/` (`engine/chromium`)); a same-crop 
   of white **17 %** just inside the edge (content + 32…40 levels) and a faint shadow that follows the rounded corners
   (the backdrop is 3–4 levels darker next to the window, with a 1 px dark contact line). No title, host label or badge.
   Ardia: Chrome's square, transparent window gets its content view clipped to 6 pt, the rim drawn over it and its
-  shadow invalidated (`ArdiaCorePictureInPicture.mm`); measured on a window capture: 6.0 pt radius, rim + 32…36 levels.
+  shadow invalidated (`ArdiaPiPController.mm`); measured on a window capture: 6.0 pt radius, rim + 32…36 levels.
 - **Appears** about 125 ms after the tab switch, at full opacity (one black frame, then the video): no fade, no slide.
 - **Hover**: an even black scrim at **35 %** over the whole video (content × 0.645, same pixels before and after),
   fading in over **200 ms**, ease-in-out (2, 7, 14, 24, 40, 55, 69, 80, 90, 96, 99 % at 60 fps).
@@ -948,7 +948,7 @@ on its window.
   `LastVideoPIPPosition`. A thrown window is remembered by its corner and a dropped one by its frame.
 - **Tilt**: Dia also tilts the window while it's dragged (`dragAngleAnimation`, 0.005 × speed).
 
-**Ardia** (`ArdiaCorePictureInPicture.mm`, the maths in `ArdiaCorePiPThrow.h`, tested by `pnpm -C packages/ardiacore test`)
+**Ardia** (`ArdiaPiPController.mm`, the maths in `ArdiaPiPThrowMath.h`, tested by `pnpm -C packages/ardiacore test`)
 does the same on Chrome's video PiP window, using the same thresholds, corner rule, 10 pt inset and spring. It
 differs in a few places:
 - Chrome's window can't tilt.

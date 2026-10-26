@@ -59,7 +59,7 @@ ARDIACORE_EXPORT
          completion:(void (^)(ArdiaCoreProfile* _Nullable profile))completion;
 - (void)quit;
 @property(nonatomic, copy, nullable) NSString* pageScript;
-- (void)resolvePermission:(NSString*)requestId
++ (void)resolvePermission:(NSString*)requestId
                    result:(NSString*)result
                  remember:(BOOL)remember;
 + (void)resolveExtensionInstallPrompt:(NSString*)requestId accepted:(BOOL)accepted;
@@ -77,9 +77,6 @@ ARDIACORE_EXPORT
 + (void)cancelDeviceChooser:(int)chooserId;
 + (void)refreshDeviceChooser:(int)chooserId;
 + (void)openDeviceChooserSettings:(int)chooserId;
-+ (void)beginTracing:(void (^)(BOOL started))completion;
-+ (void)endTracing:(BOOL)keep completion:(void (^)(NSString* _Nullable path))completion;
-@property(class, readonly) BOOL isTracing;
 - (void)deleteProfile:(ArdiaCoreProfile*)profile
            completion:(nullable void (^)(BOOL deleted))completion;
 - (void)releaseProfile:(ArdiaCoreProfile*)profile;
@@ -97,6 +94,12 @@ ARDIACORE_EXPORT
                                          NSString* _Nullable error))completion;
 @property(readonly) NSString* chromiumVersion;
 @property(readonly) NSString* keepAliveState;
+@end
+
+@interface ArdiaCoreEngine (Tracing)
++ (void)beginTracing:(void (^)(BOOL started))completion;
++ (void)endTracing:(BOOL)keep completion:(void (^)(NSString* _Nullable path))completion;
+@property(class, readonly) BOOL isTracing;
 @end
 
 ARDIACORE_EXPORT
@@ -203,12 +206,6 @@ ARDIACORE_EXPORT
 - (void)tabDidChangeFavicon:(ArdiaCoreTab*)tab;
 - (void)tabDidChangeNavigationState:(ArdiaCoreTab*)tab;
 - (void)tab:(ArdiaCoreTab*)tab didFindMatches:(int)count active:(int)active final:(BOOL)final;
-- (void)tab:(ArdiaCoreTab*)tab didReceivePageMessage:(NSString*)kind json:(NSString*)json;
-- (void)tab:(ArdiaCoreTab*)tab
-    didReceivePageMessage:(NSString*)kind
-                     json:(NSString*)json
-                    frame:(NSString*)frameId
-                     main:(BOOL)main;
 - (void)tab:(ArdiaCoreTab*)tab
     didReceivePageMessage:(NSString*)kind
                      json:(NSString*)json
@@ -264,21 +261,10 @@ ARDIACORE_EXPORT
 @property(readonly) BOOL closed;
 @property(weak, nullable) id<ArdiaCoreTabDelegate> delegate;
 
-- (void)loadURL:(NSString*)url;
 - (void)focus;
 - (void)find:(NSString*)text forward:(BOOL)forward;
 - (void)stopFinding;
-- (void)goBack;
-- (void)goForward;
-- (void)reload;
-- (void)stop;
 - (void)close;
-- (void)showDevTools;
-- (void)closeDevTools;
-@property(readonly, nullable) NSView* devToolsView;
-- (void)devToolsLayoutForSize:(NSSize)size
-                     devTools:(NSRect*)devToolsFrame
-                         page:(NSRect*)pageFrame;
 @property(readonly, nullable) NSDictionary<NSString*, id>* passwordPrompt;
 - (void)resolvePasswordPrompt:(NSString*)action
                      username:(nullable NSString*)username
@@ -296,40 +282,63 @@ ARDIACORE_EXPORT
 @property(readonly) BOOL initialDocumentAccessed;
 @property(readonly) BOOL committedInitial;
 - (nullable id)suppressInput;
-- (void)loadURL:(NSString*)url userInitiated:(BOOL)userInitiated;
-- (void)goToOffset:(int)offset;
-- (void)reloadIgnoringCache;
-- (void)loadIfNeeded;
 - (void)closeNow;
 @property(nonatomic) BOOL temporary;
 - (void)setTemporarySource:(nullable ArdiaCoreTab*)source;
 - (void)deliverHeldPageMessages;
-@property(readonly) NSArray<NSDictionary<NSString*, id>*>* navigationEntries;
-- (void)executeJavaScript:(NSString*)code;
-- (void)executeJavaScript:(NSString*)code frame:(NSString*)frameId;
-- (void)evaluate:(NSString*)code completion:(void (^)(NSString* _Nullable json))completion;
-- (void)exitPictureInPicture;
-- (void)enterPictureInPictureForClickAt:(NSTimeInterval)clickTime
-                             completion:(void (^)(NSString* route, BOOL opened))completion;
-- (BOOL)hasLiveFrame:(NSString*)frameId;
-- (void)callPage:(NSString*)kind json:(NSString*)json;
-
 @property(readonly) NSDictionary<NSString*, id>* securityInfo;
-@property(nonatomic) double zoomFactor;
-- (void)zoomStep:(int)direction;
-@property(readonly) double pinchScale;
-- (BOOL)executeChromeCommand:(int)command;
-- (void)openBlockedPopup:(NSString*)popupId always:(BOOL)always;
 - (BOOL)discard;
 @property(readonly) BOOL discarded;
 @property(nonatomic) BOOL frozen;
 - (void)resolveUnresponsive:(BOOL)terminate;
+- (BOOL)showAutofillSuggestions:(BOOL)passwords;
+@property(readonly, nullable) NSDictionary<NSString*, NSNumber*>* popupFeatures;
+@property(readonly) NSSize preferredSize;
+@end
+
+@interface ArdiaCoreTab (Navigation)
+- (void)goBack;
+- (void)goForward;
+- (void)reload;
+- (void)stop;
+- (void)loadURL:(NSString*)url userInitiated:(BOOL)userInitiated;
+- (void)goToOffset:(int)offset;
+- (void)reloadIgnoringCache;
+- (void)loadIfNeeded;
+@property(readonly) NSArray<NSDictionary<NSString*, id>*>* navigationEntries;
+@end
+
+@interface ArdiaCoreTab (Page)
+- (void)executeJavaScript:(NSString*)code frame:(nullable NSString*)frameId;
+- (void)evaluate:(NSString*)code completion:(void (^)(NSString* _Nullable json))completion;
+- (BOOL)hasLiveFrame:(NSString*)frameId;
+- (void)callPage:(NSString*)kind json:(NSString*)json;
+- (void)callFrame:(NSString*)frameId kind:(NSString*)kind json:(NSString*)json;
 @property(nonatomic, nullable) NSColor* pageBackgroundColor;
 @property(nonatomic, copy, nullable) NSString* pageColor;
 @property(nonatomic, nullable) NSColor* contentsBackgroundColor;
-- (NSString*)executeExtensionAction:(NSString*)extensionId;
-- (NSDictionary<NSString*, NSDictionary*>*)actionStatesForExtensions:(NSArray<NSString*>*)extensionIds;
-- (nullable NSString*)sidePanelURLForExtension:(NSString*)extensionId;
+@property(nonatomic) double zoomFactor;
+- (void)zoomStep:(int)direction;
+@property(readonly) double pinchScale;
+@end
+
+@interface ArdiaCoreTab (Commands)
+- (BOOL)executeChromeCommand:(int)command;
+- (void)openBlockedPopup:(NSString*)popupId always:(BOOL)always;
+- (void)showDevTools;
+- (void)closeDevTools;
+@property(readonly, nullable) NSView* devToolsView;
+- (void)devToolsLayoutForSize:(NSSize)size
+                     devTools:(NSRect*)devToolsFrame
+                         page:(NSRect*)pageFrame;
+- (void)devToolsCall:(NSString*)method
+              params:(nullable NSDictionary*)params
+             timeout:(NSTimeInterval)timeout
+          completion:(void (^)(NSDictionary* _Nullable result,
+                               NSString* _Nullable error))completion;
+@end
+
+@interface ArdiaCoreTab (Media)
 @property(readonly, nullable) NSString* mediaCaptureSourceId;
 - (void)copyPicture:(NSTimeInterval)timeout completion:(void (^)(CGImageRef _Nullable picture))completion;
 - (BOOL)stopCapture;
@@ -338,23 +347,19 @@ ARDIACORE_EXPORT
 - (void)exitFullscreen;
 - (void)exitExclusiveAccess;
 - (void)tracePictureInPicture:(NSString*)line withInputs:(BOOL)withInputs;
-- (void)devToolsCall:(NSString*)method
-              params:(nullable NSDictionary*)params
-          completion:(void (^)(NSDictionary* _Nullable result,
-                               NSString* _Nullable error))completion;
-- (void)devToolsCall:(NSString*)method
-              params:(nullable NSDictionary*)params
-             timeout:(NSTimeInterval)timeout
-          completion:(void (^)(NSDictionary* _Nullable result,
-                               NSString* _Nullable error))completion;
+- (void)exitPictureInPicture;
+- (void)enterPictureInPictureForClickAt:(NSTimeInterval)clickTime
+                             completion:(void (^)(NSString* route, BOOL opened))completion;
 - (BOOL)canShareThisTabInsteadFor:(ArdiaCoreTab*)capturer;
 - (BOOL)shareThisTabInsteadFor:(ArdiaCoreTab*)capturer;
-- (BOOL)showAutofillSuggestions:(BOOL)passwords;
 - (BOOL)showCastDialog;
 - (BOOL)devShowBluetoothChooser:(BOOL)unauthorized;
-@property(readonly, nullable) NSDictionary<NSString*, NSNumber*>* popupFeatures;
-@property(readonly) NSSize preferredSize;
-- (void)callFrame:(NSString*)frameId kind:(NSString*)kind json:(NSString*)json;
+@end
+
+@interface ArdiaCoreTab (Extensions)
+- (NSString*)executeExtensionAction:(NSString*)extensionId;
+- (NSDictionary<NSString*, NSDictionary*>*)actionStatesForExtensions:(NSArray<NSString*>*)extensionIds;
+- (nullable NSString*)sidePanelURLForExtension:(NSString*)extensionId;
 @end
 
 NS_ASSUME_NONNULL_END

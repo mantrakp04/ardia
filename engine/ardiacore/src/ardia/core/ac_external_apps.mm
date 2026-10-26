@@ -7,7 +7,6 @@
 #include <string>
 
 #include "base/base64.h"
-#include "base/command_line.h"
 #include "base/memory/weak_ptr.h"
 #include "base/functional/bind.h"
 #include "base/no_destructor.h"
@@ -22,6 +21,7 @@
 #include "content/public/browser/web_contents.h"
 #include "ardia/core/ac_hooks.h"
 #include "ardia/core/ac_browser.h"
+#include "ardia/core/ac_launch_switches.h"
 #import "ardia/core/ardiacore_internal.h"
 #include "url/gurl.h"
 #include "url/origin.h"
@@ -157,8 +157,6 @@ bool AskHost(const GURL& url,
 
 namespace {
 
-constexpr char kTestNoLaunchSwitch[] = "ardia-test-external-protocol-no-launch";
-
 NSMutableArray<NSDictionary*>* TestLaunches() {
   static NSMutableArray<NSDictionary*>* launches = [NSMutableArray array];
   return launches;
@@ -187,7 +185,7 @@ void ResolveExternalApp(const std::string& request_id, bool open, bool remember)
     ExternalProtocolHandler::SetBlockState(scheme, *pending.origin,
                                            ExternalProtocolHandler::DONT_BLOCK, profile);
   }
-  if (base::CommandLine::ForCurrentProcess()->HasSwitch(kTestNoLaunchSwitch)) {
+  if (TestFlag("externalProtocolNoLaunch")) {
     const base::DictValue* allowed =
         pending.origin ? profile->GetPrefs()
                              ->GetDict(prefs::kProtocolHandlerPerOriginAllowedProtocols)
@@ -209,7 +207,7 @@ NSArray<NSDictionary*>* TestExternalLaunches() {
 }
 
 bool TestNoLaunch() {
-  return base::CommandLine::ForCurrentProcess()->HasSwitch(kTestNoLaunchSwitch);
+  return TestFlag("externalProtocolNoLaunch");
 }
 
 void RecordTestLaunch(NSDictionary* launch) {

@@ -2,13 +2,26 @@
 import { Image } from "astro:assets";
 import icon from "../assets/app-icon.png";
 import DownloadButton from "./DownloadButton.astro";
-import { DMG, REPO, VERSION } from "../data/release";
+import { DISCORD, DMG, REPO, VERSION } from "../data/release";
 
+const githubPath =
+  "M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12";
+const discordPath =
+  "M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.865-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.74 19.74 0 0 0 3.677 4.37a.07.07 0 0 0-.032.028C.533 9.046-.32 13.58.099 18.058a.082.082 0 0 0 .031.056 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.873-1.295 1.226-1.994a.076.076 0 0 0-.042-.106 13.1 13.1 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.372-.291a.074.074 0 0 1 .078-.01c3.928 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .079.009c.12.099.246.198.373.292a.077.077 0 0 1-.007.128 12.3 12.3 0 0 1-1.873.891.077.077 0 0 0-.041.107c.36.698.772 1.363 1.225 1.993a.076.076 0 0 0 .084.029 19.84 19.84 0 0 0 6.002-3.03.077.077 0 0 0 .032-.055c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.029ZM8.02 15.331c-1.183 0-2.157-1.086-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.419 0 1.333-.956 2.419-2.157 2.419Zm7.975 0c-1.183 0-2.157-1.086-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.419 0 1.333-.946 2.419-2.157 2.419Z";
+
+export type Page = "home" | "try" | "benchmarks" | "notes";
 interface Props {
   home?: string;
+  current?: Page;
 }
-const { home = "" } = Astro.props;
+const { home = "", current } = Astro.props;
 const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+const pages: { page: Page; href: string; section?: string; label: string; menuLabel: string }[] = [
+  { page: "home", href: `${base}/`, section: "top", label: "Home", menuLabel: "Home" },
+  { page: "try", href: `${base}/try/`, section: "demo", label: "Demo", menuLabel: "Demo" },
+  { page: "benchmarks", href: `${base}/benchmarks/`, section: "speed", label: "Benchmarks", menuLabel: "Benchmarks" },
+  { page: "notes", href: `${base}/release-notes/`, label: "Notes", menuLabel: "Release notes" },
+];
 ---
 
 <div class="bar-sentinel" aria-hidden="true" data-bar-sentinel></div>
@@ -25,13 +38,18 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
       <span>ardia</span>
     </a>
     <nav class="links" aria-label="Sections">
-      <a href={`${home}#features`}>Features</a>
-      <a href={`${home}#chromium`}>Chromium</a>
-      <a href={`${home}#game`}>Game</a>
-      <a href={`${home}#faq`}>FAQ</a>
-      <a href={`${base}/release-notes`}>Notes</a>
-      <a href={REPO} rel="noopener" data-track="github_clicked" data-track-link="source" data-track-location="header"
-        >GitHub</a
+      {
+        pages.map((p) => (
+          <a href={p.href} data-section={p.section} aria-current={p.page === current ? "page" : undefined}>
+            {p.label}
+          </a>
+        ))
+      }
+      <a class="icon-link" href={REPO} rel="noopener" data-track="github_clicked" data-track-link="source" data-track-location="header"
+        ><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d={githubPath} /></svg>GitHub</a
+      >
+      <a class="icon-link" href={DISCORD} rel="noopener" data-track="discord_clicked" data-track-location="header"
+        ><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d={discordPath} /></svg>Discord</a
       >
     </nav>
     <button class="menu-btn" type="button" aria-expanded="false" aria-controls="menu" data-menu-btn>Menu</button>
@@ -47,13 +65,18 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
   </div>
   <nav class="menu" id="menu" aria-label="Sections" data-menu hidden>
     <div class="wrap">
-      <a href={`${home}#features`}>Features</a>
-      <a href={`${home}#chromium`}>Chromium</a>
-      <a href={`${home}#game`}>Game</a>
-      <a href={`${home}#faq`}>FAQ</a>
-      <a href={`${base}/release-notes`}>Release notes</a>
-      <a href={REPO} rel="noopener" data-track="github_clicked" data-track-link="source" data-track-location="menu"
-        >GitHub</a
+      {
+        pages.map((p) => (
+          <a href={p.href} data-section={p.section} aria-current={p.page === current ? "page" : undefined}>
+            {p.menuLabel}
+          </a>
+        ))
+      }
+      <a class="icon-link" href={REPO} rel="noopener" data-track="github_clicked" data-track-link="source" data-track-location="menu"
+        ><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d={githubPath} /></svg>GitHub</a
+      >
+      <a class="icon-link" href={DISCORD} rel="noopener" data-track="discord_clicked" data-track-location="menu"
+        ><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d={discordPath} /></svg>Discord</a
       >
       <div class="menu-cta">
         <DownloadButton location="menu" />
@@ -74,10 +97,28 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
       border-color 200ms,
       background-color 300ms var(--ease-out);
   }
+  .bar::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 -36px;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0;
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--paper) 58%, transparent), color-mix(in srgb, var(--paper) 30%, transparent));
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 60px, transparent);
+    mask-image: linear-gradient(to bottom, #000 0, #000 60px, transparent);
+    transition: opacity 300ms var(--ease-out);
+  }
   .bar[data-scrolled] {
-    border-bottom-color: var(--rule);
+    background-color: transparent;
+  }
+  .bar[data-scrolled]::before {
+    opacity: 1;
   }
   .bar[data-snap],
+  .bar[data-snap]::before,
   .bar[data-snap] :is(.mark, .links a, .menu-btn, .bar-cta) {
     transition: none;
   }
@@ -154,8 +195,26 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
     color: var(--ink-2);
     transition: color 150ms;
   }
-  .links a:hover {
+  .links a:hover,
+  .links a[aria-current="page"] {
     color: var(--ink);
+  }
+  .links a[aria-current="page"] {
+    text-decoration: underline;
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 0.5em;
+  }
+  .icon-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .icon-link svg {
+    flex: none;
+    fill: currentColor;
+  }
+  .menu .icon-link {
+    gap: 12px;
   }
   .bar-cta {
     font-family: var(--poster);
@@ -316,5 +375,15 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
     if ((e.target as Element).closest("a")) setOpen(false);
   });
   addEventListener("keydown", (e) => e.key === "Escape" && !menu.hidden && (setOpen(false), btn.focus()));
+
+  bar.addEventListener("click", (e) => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const link = (e.target as Element).closest<HTMLAnchorElement>("a[data-section]");
+    const section = link && document.getElementById(link.dataset.section!);
+    if (!section) return;
+    e.preventDefault();
+    if (location.hash === `#${section.id}`) section.scrollIntoView();
+    else location.hash = section.id;
+  });
   matchMedia("(min-width: 821px)").addEventListener("change", (e) => e.matches && setOpen(false));
 </script>

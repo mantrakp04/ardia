@@ -1,330 +1,12 @@
 import { toAppUrl, toEngineUrl } from "@ardia/core";
 import { requireNativeViewManager } from "expo-modules-core";
 import { forwardRef, useImperativeHandle, useRef } from "react";
-import { findNodeHandle, type NativeSyntheticEvent, type ViewProps } from "react-native";
-import type { ExternalAppRequest } from "./externalApps";
+import { findNodeHandle, type NativeSyntheticEvent } from "react-native";
 import type { FaviconImage } from "./favicons";
-import type { PageEngine } from "./webkit";
-
-export type NavigationState = {
-  url: string;
-  title: string;
-  canGoBack: boolean;
-  canGoForward: boolean;
-  isLoading: boolean;
-  themeColor: string | null;
-  themeColorSource: "meta" | "header" | "background" | null;
-  initialDocumentAccessed?: boolean;
-  committedInitial?: boolean;
-  committedUrl?: string;
-};
-
-export type MediaState = { playing: boolean; muted: boolean };
-
-export type PageLayout = { x: number; y: number; width: number; height: number; containerWidth: number; containerHeight: number };
-
-export type NowPlaying = {
-  title: string;
-  artist: string;
-  album: string;
-  artwork: string | null;
-  playbackState: "playing" | "paused" | "none";
-  position: number;
-  duration: number | null;
-  playbackRate: number;
-  timestamp: number;
-  hasVideo: boolean;
-  actions: string[];
-  controllable: boolean;
-};
-export type MediaCommand = "play" | "pause" | "toggle" | "next" | "previous" | "seekBy" | "seekTo" | "stop";
-export type MediaAccess = { camera: boolean; microphone: boolean; screen: boolean };
-
-export type OpenDisposition = "foreground" | "background" | "window" | "popup" | "incognito" | "current" | "split" | "peek";
-
-export type OpenWindowRequest = {
-  url: string;
-  disposition: OpenDisposition;
-  adoptId?: string;
-  userGesture?: boolean;
-  postBody?: boolean;
-  profile?: string;
-  point?: { x: number; y: number };
-};
-
-export type BlockedPopup = { id: string; url: string; origin: string };
-
-export type FindResult = { count: number; active: number; final: boolean };
-export type PageCommand = {
-  command: "search" | "ask" | "copyLinkToHighlight" | "escape";
-  text: string;
-  modifiers?: { metaKey?: boolean; shiftKey?: boolean; altKey?: boolean; middle?: boolean };
-};
-export type LoadError = { url: string; code: number; text: string };
-export type NavigationEntry = { url: string; title: string; current: boolean };
-export type CrashInfo = { status: number; reason: "abnormal" | "killed" | "crashed" | "oom" | "launchFailed" | "integrity" | "unknown"; code: number };
-
-export type CertificatePrincipal = { commonName: string; displayName: string; organizations: string[]; country: string };
-export type Certificate = {
-  subject: CertificatePrincipal;
-  issuer: CertificatePrincipal;
-  validFrom: number;
-  validUntil: number;
-  serialNumber?: string;
-  sha256?: string;
-  chainLength: number;
-};
-export type SecurityInfo = {
-  level: "secure" | "mixed" | "insecure" | "certificateError" | "local" | "none";
-  url: string;
-  origin: string | null;
-  protocol?: string;
-  certificate?: Certificate;
-  certificateErrors?: string[];
-  mixedContent?: "ran" | "displayed" | null;
-  isEV?: boolean;
-};
-
-export type DownloadNavigation = { url: string; committedUrl: string; skipped: boolean };
-
-export type WebNotification = {
-  id: string;
-  title: string;
-  body: string;
-  icon: string | null;
-  tag: string;
-  silent: boolean;
-  requireInteraction: boolean;
-  origin: string;
-  browserId: number;
-  isMainFrame: boolean;
-};
-
-export type PictureInPictureState = { kind: "video" | "document"; active: boolean };
-export type ControlPress = { clickAt: number; control: number };
-export type ActivateRequest = { reason: "pictureInPicture" };
-export type DisplayMediaSource = {
-  id: string;
-  kind: "screen" | "window";
-  name: string;
-  app?: string;
-  pid?: number;
-  width: number;
-  height: number;
-};
-export type DisplayMediaAudio = { tab: boolean; screen: boolean; window: "application" | "system" | null };
-export type DisplayMediaRequest = { id: string; origin: string; frameOrigin?: string; audio: DisplayMediaAudio | null; sources: DisplayMediaSource[] };
-
-export type ZoomState = { zoom: number; host: string; isDefault: boolean; pinchScale: number };
-export type ContentBlockedState = { count: number; url: string };
-
-export type PasswordPrompt = {
-  state: "save" | "update" | "saved";
-  origin: string;
-  username: string;
-  passwordLength: number;
-  federation: string;
-  usernames: string[];
-};
-export type PasswordPromptAnswer = "save" | "update" | "never" | "nope" | "dismiss";
-export type AutofillPrompt = {
-  id: number;
-  kind: "saveAddress" | "updateAddress" | "saveCard";
-  origin: string;
-  title: string;
-  message: string;
-  accept: string;
-  decline: string;
-  footer: string;
-  lines: string[];
-  changes?: { field: "name" | "address" | "email" | "phone" | "other"; from: string; to: string }[];
-  newLabel?: string;
-  oldLabel?: string;
-};
-export type AutofillPromptAnswer = "accept" | "decline" | "dismiss";
-export type ExtensionActionResult = "none" | "popup" | "sidePanel";
-
-export type WebViewProps = ViewProps & {
-  engine?: PageEngine;
-  url?: string;
-  profile?: string;
-  adoptId?: string;
-  transferKey?: string;
-  temporary?: boolean;
-  temporarySource?: string;
-  standalone?: boolean;
-  extensionHost?: "popup" | "sidePanel";
-  visible?: boolean;
-  warm?: boolean;
-  neighbour?: boolean;
-  pageBackgroundColor?: string;
-  contentsBackgroundColor?: string;
-  pageColor?: string;
-  shownUrl?: string;
-  autoPictureInPicture?: boolean;
-  onNavigationChange?: (state: NavigationState) => void;
-  onProgress?: (progress: number) => void;
-  onFavicon?: (url: string, candidates: string[]) => void;
-  onMedia?: (state: MediaState) => void;
-  onNowPlaying?: (state: NowPlaying | null) => void;
-  onMediaAccess?: (access: MediaAccess) => void;
-  onOpenWindow?: (request: OpenWindowRequest) => void;
-  onPopupBlocked?: (popup: BlockedPopup) => void;
-  onFindResult?: (result: FindResult) => void;
-  onFullscreen?: (fullscreen: boolean) => void;
-  onStatus?: (text: string) => void;
-  onCrashed?: (info: CrashInfo) => void;
-  onUnresponsive?: () => void;
-  onResponsive?: () => void;
-  onLoadError?: (error: LoadError) => void;
-  onSecurity?: (info: SecurityInfo) => void;
-  onZoom?: (zoom: ZoomState) => void;
-  onContentBlocked?: (state: ContentBlockedState) => void;
-  onDownloadNavigation?: (navigation: DownloadNavigation) => void;
-  onNotification?: (notification: WebNotification) => void;
-  onNotificationClose?: (id: string) => void;
-  onPictureInPicture?: (state: PictureInPictureState) => void;
-  onActivateRequest?: (request: ActivateRequest) => void;
-  onDisplayMediaRequest?: (request: DisplayMediaRequest) => void;
-  onWindowClose?: () => void;
-  onCommand?: (command: PageCommand) => void;
-  onPageFocus?: () => void;
-  onPageMessage?: (kind: string, data: unknown) => void;
-  onReady?: (browserId: number, chromeTabId: number) => void;
-  onPageLayout?: (layout: PageLayout | null) => void;
-  onDiscarded?: (url: string) => void;
-  onPasswordPrompt?: (prompt: PasswordPrompt) => void;
-  onAutofillPrompt?: (prompt: AutofillPrompt | null, id: number) => void;
-  onExternalApp?: (request: ExternalAppRequest) => void;
-  onPreferredSize?: (size: { width: number; height: number }) => void;
-};
-
-export type WebViewHandle = {
-  nativeTag(): number | null;
-  loadUrl(url: string, options?: { userInitiated?: boolean }): Promise<void>;
-  goBack(): Promise<void>;
-  goForward(): Promise<void>;
-  goToOffset(offset: number): Promise<void>;
-  reload(): Promise<void>;
-  forceReload(): Promise<void>;
-  stopLoading(): Promise<void>;
-  focus(): Promise<void>;
-  setMuted(muted: boolean): Promise<void>;
-  zoomStep(direction: 1 | -1 | 0): Promise<void>;
-  find(text: string, forward: boolean, findNext: boolean): Promise<void>;
-  stopFinding(clearSelection: boolean): Promise<void>;
-  print(): Promise<void>;
-  runPageCommand(name: "savePage" | "systemPrint" | "caretBrowsing"): Promise<void>;
-  showDevTools(panel?: string): Promise<void>;
-  executeJavaScript(code: string): Promise<void>;
-  evaluate<T = unknown>(code: string): Promise<T | null>;
-  navigationEntries(): Promise<NavigationEntry[]>;
-  capturePicture(scale: number): Promise<{ data: string; frame: [number, number, number, number] } | null>;
-  downloadFavicon(url: string): Promise<FaviconImage | null>;
-  downloadImage(url: string, maxPixels: number): Promise<FaviconImage | null>;
-
-  mediaCommand(action: MediaCommand, seconds?: number): Promise<void>;
-  requestPictureInPicture(press: ControlPress): Promise<boolean>;
-  takeControlPress(press: ControlPress): Promise<boolean>;
-  exitPictureInPicture(): Promise<void>;
-
-  getSecurityInfo(): Promise<SecurityInfo | null>;
-  openBlockedPopup(id: string, always?: boolean): Promise<void>;
-  clearSiteData(): Promise<{ cookies: number | false; storage: boolean }>;
-
-  resolvePasswordPrompt(answer: PasswordPromptAnswer, edits?: { username?: string; password?: string }): Promise<void>;
-  resolveAutofillPrompt(id: number, answer: AutofillPromptAnswer): Promise<void>;
-  executeExtensionAction(extensionId: string): Promise<ExtensionActionResult | null>;
-
-  resolveDisplayMedia(id: string, sourceId: string | null, audio?: boolean): Promise<void>;
-  mediaCaptureSourceId(): Promise<string | null>;
-  notificationAction(id: string, action: "click" | "close"): Promise<void>;
-
-  resolveUnresponsive(terminate: boolean): Promise<void>;
-  discard(options?: { unload?: boolean }): Promise<DiscardOutcome>;
-  setFrozen(frozen: boolean): Promise<void>;
-};
-
-export type DiscardOutcome = "discarded" | "already" | "refused" | "unsupported";
-
-type Evt<T> = (e: NativeSyntheticEvent<T>) => void;
-type NativeEvents = {
-  onNavigationChange: NavigationState;
-  onProgress: { progress: number };
-  onFavicon: { url: string; urls: string[] };
-  onMedia: MediaState;
-  onNowPlaying: { state: NowPlaying | null };
-  onMediaAccess: MediaAccess;
-  onOpenWindow: OpenWindowRequest;
-  onPopupBlocked: BlockedPopup;
-  onFindResult: FindResult;
-  onFullscreen: { fullscreen: boolean };
-  onStatus: { text: string };
-  onCrashed: CrashInfo;
-  onUnresponsive: object;
-  onResponsive: object;
-  onLoadError: LoadError;
-  onSecurity: SecurityInfo;
-  onZoom: ZoomState;
-  onContentBlocked: ContentBlockedState;
-  onDownloadNavigation: DownloadNavigation;
-  onNotification: WebNotification;
-  onNotificationClose: { id: string };
-  onPictureInPicture: PictureInPictureState;
-  onActivateRequest: ActivateRequest;
-  onDisplayMediaRequest: DisplayMediaRequest;
-  onWindowClose: object;
-  onCommand: PageCommand;
-  onPageFocus: object;
-  onPageMessage: { kind: string; data: unknown };
-  onReady: { browserId: number; tabId?: number };
-  onPageLayout: { layout: PageLayout | null };
-  onDiscarded: { url: string };
-  onPasswordPrompt: PasswordPrompt;
-  onAutofillPrompt: AutofillPrompt | { id: number; closed: true };
-  onExternalApp: ExternalAppRequest;
-  onPreferredSize: { width: number; height: number };
-};
-type Handlers = keyof NativeEvents;
-type NativeProps = Omit<WebViewProps, Handlers> & { [K in Handlers]?: Evt<NativeEvents[K]> };
-
-const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<WebViewProps[K]>> } = {
-  onNavigationChange: (e) => [{ ...e, url: toAppUrl(e.url) }],
-  onProgress: (e) => [e.progress],
-  onFavicon: (e) => [e.url, e.urls],
-  onMedia: (e) => [e],
-  onNowPlaying: (e) => [e.state],
-  onMediaAccess: (e) => [e],
-  onOpenWindow: (e) => [{ ...e, url: toAppUrl(e.url) }],
-  onPopupBlocked: (e) => [{ ...e, url: toAppUrl(e.url) }],
-  onFindResult: (e) => [e],
-  onFullscreen: (e) => [e.fullscreen],
-  onStatus: (e) => [e.text],
-  onCrashed: (e) => [e],
-  onUnresponsive: () => [],
-  onResponsive: () => [],
-  onLoadError: (e) => [{ ...e, url: toAppUrl(e.url) }],
-  onSecurity: (e) => [e],
-  onZoom: (e) => [e],
-  onContentBlocked: (e) => [e],
-  onDownloadNavigation: (e) => [{ ...e, url: toAppUrl(e.url), committedUrl: toAppUrl(e.committedUrl) }],
-  onNotification: (e) => [e],
-  onNotificationClose: (e) => [e.id],
-  onPictureInPicture: (e) => [e],
-  onActivateRequest: (e) => [e],
-  onDisplayMediaRequest: (e) => [e],
-  onWindowClose: () => [],
-  onCommand: (e) => [e],
-  onPageFocus: () => [],
-  onPageMessage: (e) => [e.kind, e.data],
-  onReady: (e) => [e.browserId, e.tabId ?? 0],
-  onPageLayout: (e) => [e.layout],
-  onDiscarded: (e) => [toAppUrl(e.url)],
-  onPasswordPrompt: (e) => [e],
-  onAutofillPrompt: (e) => ("closed" in e ? [null, e.id] : [e, e.id]),
-  onExternalApp: (e) => [e],
-  onPreferredSize: (e) => [e],
-};
+import { ardiaError } from "./engine/call";
+import { deliverPageEvent, isPageEventProp, pageEventOf, type NativeProps, type PageEvent } from "./pageEvents";
+import type { DiscardOutcome, WebViewHandle, WebViewProps } from "./pageTypes";
+import type { PageCookie } from "./webkit";
 
 type NativeHandle = Omit<
   WebViewHandle,
@@ -339,7 +21,7 @@ type NativeHandle = Omit<
   discard(unload: boolean): Promise<DiscardOutcome>;
 };
 
-const NativeWebView = requireNativeViewManager<NativeProps>("ArdiaCEF");
+const NativeWebView = requireNativeViewManager<NativeProps>("ArdiaWebView");
 let NativeWebKitView: typeof NativeWebView | undefined;
 const webKitView = () => (NativeWebKitView ??= requireNativeViewManager<NativeProps>("ArdiaWebKit"));
 
@@ -358,7 +40,7 @@ export const WebView = forwardRef<WebViewHandle, WebViewProps>(function WebView(
         try {
           return await fn(view);
         } catch (error) {
-          if (!isViewMissing(error)) throw error;
+          if (!isViewMissing(error)) throw ardiaError(error);
           if (attempt >= VIEW_RETRIES || native.current !== view) return fallback;
           await new Promise((resolve) => setTimeout(resolve, 16 * (attempt + 1)));
         }
@@ -401,6 +83,7 @@ export const WebView = forwardRef<WebViewHandle, WebViewProps>(function WebView(
       takeControlPress: (press) => call(false, (n) => n.takeControlPress(press.clickAt, press.control)),
       exitPictureInPicture: () => call(undefined, (n) => n.exitPictureInPicture()),
       getSecurityInfo: () => call(null, (n) => n.getSecurityInfo()),
+      pageCookies: (urls) => call<PageCookie[]>([], (n) => n.pageCookies(urls)),
       openBlockedPopup: (id, always) => call(undefined, (n) => n.openBlockedPopup(id, always)),
       clearSiteData: () => call({ cookies: false, storage: false }, (n) => n.clearSiteData()),
       resolvePasswordPrompt: (answer, edits) =>
@@ -416,19 +99,20 @@ export const WebView = forwardRef<WebViewHandle, WebViewProps>(function WebView(
     };
   });
 
-  const nativeProps: Record<string, unknown> = {};
+  const latest = useRef(props);
+  latest.current = props;
+  const onPageEvent = useRef((e: NativeSyntheticEvent<PageEvent>) => deliverPageEvent(latest.current, e.nativeEvent)).current;
+  const nativeProps: Record<string, unknown> = { onPageEvent };
+  const pageEvents: string[] = [];
   for (const [key, value] of Object.entries(props)) {
     if (key === "engine") continue;
-    if (key === "url" || key === "shownUrl") {
-      nativeProps[key] = typeof value === "string" ? toEngineUrl(value) : value;
+    if (isPageEventProp(key)) {
+      if (typeof value === "function") pageEvents.push(pageEventOf(key));
       continue;
     }
-    const map = unwrap[key as Handlers] as ((e: unknown) => unknown[]) | undefined;
-    nativeProps[key] =
-      map && typeof value === "function"
-        ? (e: NativeSyntheticEvent<unknown>) => (value as (...args: unknown[]) => void)(...map(e.nativeEvent))
-        : value;
+    nativeProps[key] = (key === "url" || key === "shownUrl") && typeof value === "string" ? toEngineUrl(value) : value;
   }
+  nativeProps.pageEvents = pageEvents.sort();
 
   const Native = props.engine === "webkit" ? webKitView() : NativeWebView;
   return (

@@ -8,25 +8,26 @@ import {
   setAutofillSettings,
   type SavedAddress,
   type SavedCard,
-} from "@ardia/ardiacore";
-import { confirm, copyText, Symbol } from "@ardia/shell";
+} from "../../../state/site/autofill";
+import { orWarn } from "../../../lib/fallback";
+import { confirm, copyText } from "../../../state/app/system";
+import { Symbol, Button, font, Group, type Option, PopUp, Sheet, TextField, Toggle, weight } from "../../ui";
 import { useState } from "react";
 import { Text, View } from "react-native";
-import { useTheme } from "../../../lib/theme";
-import { useBrowser } from "../../../store/browser";
-import { useProfiles } from "../../../store/hooks";
-import { engineProfile } from "../../../store/model";
-import { IconButton } from "../../primitives";
+import { useTheme } from "../../ui/theme";
+import { currentSettings } from "../../../state/browser/current";
+import { useProfiles } from "../../../state/browser/hooks";
+import { engineProfile } from "../../../state/browser/model";
+import { Row, SectionHeader } from "../Form";
 import { NetworkBadge } from "../../site/Autofill";
-import { Button, Group, PopUp, Row, SectionHeader, Sheet, TextField, Toggle, type Option } from "../controls";
-import { addresses as addressList, autofillEnabled, cards as cardList } from "../paneData";
-import { store, useResource } from "../resources";
-import { closeSettingsSheet, showSettingsSheet } from "../sheet";
+import { addresses as addressList, autofillEnabled, cards as cardList } from "../../../state/settings/paneData";
+import { store, useResource } from "../../../state/settings/resources";
+import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 
 export function AutofillPane({ profileId: initial }: { profileId?: string | null }) {
   const theme = useTheme();
   const profiles = useProfiles();
-  const [profileId, setProfileId] = useState(() => initial ?? useBrowser.getState().settings.defaultProfileId);
+  const [profileId, setProfileId] = useState(() => initial ?? currentSettings().defaultProfileId);
   const profile = engineProfile(profileId);
   const [addresses, reloadAddresses] = useResource(addressList, profile);
   const [cards, reloadCards] = useResource(cardList, profile);
@@ -189,20 +190,20 @@ function AddressSheet({ profile, saved, onChanged }: { profile: string; saved?: 
   const save = async () => {
     const { line1, line2, ...rest } = values;
     const street = [line1, line2].map((l) => l!.trim()).filter(Boolean).join("\n");
-    await saveAddress(profile, { ...rest, street, id: saved?.id });
+    await saveAddress(profile, { ...rest, street, id: saved?.id }).catch(orWarn(null));
     onChanged();
     closeSettingsSheet();
   };
   const remove = async () => {
     if (!saved || !(await confirmDelete("Delete this address?", "It won't be offered in forms any more."))) return;
-    await deleteAddress(profile, saved.id);
+    await deleteAddress(profile, saved.id).catch(orWarn(undefined));
     onChanged();
     closeSettingsSheet();
   };
 
   return (
     <Sheet width={460} onClose={closeSettingsSheet}>
-      <Text style={{ fontSize: 15, fontWeight: "600", color: theme.textPrimary }}>{saved ? "Edit Address" : "Add Address"}</Text>
+      <Text style={{ ...font.heading, fontWeight: weight.semibold, color: theme.textPrimary }}>{saved ? "Edit Address" : "Add Address"}</Text>
       <View style={{ marginTop: 14 }}>
         <Group>
           {ADDRESS_FIELDS.map((f, i) => (
@@ -236,19 +237,19 @@ function CardSheet({ profile, saved, onChanged }: { profile: string; saved?: Sav
 
   const reveal = async () => {
     if (!saved) return;
-    const full = await revealCardNumber(profile, saved.id);
+    const full = await revealCardNumber(profile, saved.id).catch(() => null);
     if (full) setNumber(formatCardNumber(full));
   };
   const save = async () => {
     const card = { id: saved?.id, name: name.trim(), expMonth: month ? Number(month) : undefined, expYear: year ? Number(year) : undefined };
-    const id = await saveCard(profile, card, number === null ? undefined : digits);
+    const id = await saveCard(profile, card, number === null ? undefined : digits).catch(orWarn(null));
     if (!id) return setError("That isn't a valid card number.");
     onChanged();
     closeSettingsSheet();
   };
   const remove = async () => {
     if (!saved || !(await confirmDelete("Delete this card?", "Its number is removed from your Keychain too."))) return;
-    await deleteCard(profile, saved.id);
+    await deleteCard(profile, saved.id).catch(orWarn(undefined));
     onChanged();
     closeSettingsSheet();
   };
@@ -257,7 +258,7 @@ function CardSheet({ profile, saved, onChanged }: { profile: string; saved?: Sav
     <Sheet width={460} onClose={closeSettingsSheet}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         {saved ? <NetworkBadge network={saved.network} /> : null}
-        <Text style={{ fontSize: 15, fontWeight: "600", color: theme.textPrimary }}>
+        <Text style={{ ...font.heading, fontWeight: weight.semibold, color: theme.textPrimary }}>
           {saved ? `${cardNetworkName(saved.network)} •••• ${saved.last4}` : "Add Card"}
         </Text>
       </View>
@@ -266,8 +267,8 @@ function CardSheet({ profile, saved, onChanged }: { profile: string; saved?: Sav
           <FormRow title="Card Number">
             {number === null ? (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                <Text style={{ fontSize: 13, color: theme.textPrimary }}>{`•••• •••• •••• ${saved?.last4 ?? ""}`}</Text>
-                <IconButton icon="eye" size={11} box={24} radius={6} onPress={() => void reveal()} tooltip="Show Card Number" />
+                <Text style={{ ...font.body, color: theme.textPrimary }}>{`•••• •••• •••• ${saved?.last4 ?? ""}`}</Text>
+                <Button variant="icon" icon="eye" size={11} box={24} radius={6} onPress={() => void reveal()} tooltip="Show Card Number" />
               </View>
             ) : (
               <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
@@ -281,7 +282,7 @@ function CardSheet({ profile, saved, onChanged }: { profile: string; saved?: Sav
                   autoFocus={!saved}
                   style={{ width: saved ? 222 : 250 }}
                 />
-                {saved ? <IconButton icon="doc.on.doc" size={11} box={24} radius={6} onPress={() => copyText(digits)} tooltip="Copy Card Number" /> : null}
+                {saved ? <Button variant="icon" icon="doc.on.doc" size={11} box={24} radius={6} onPress={() => copyText(digits)} tooltip="Copy Card Number" /> : null}
               </View>
             )}
           </FormRow>
@@ -296,7 +297,7 @@ function CardSheet({ profile, saved, onChanged }: { profile: string; saved?: Sav
           </FormRow>
         </Group>
       </View>
-      {error ? <Text style={{ fontSize: 12, color: "#FF453A", marginTop: 10 }}>{error}</Text> : null}
+      {error ? <Text style={{ ...font.small, color: theme.destructive, marginTop: 10 }}>{error}</Text> : null}
       <SheetButtons
         canDelete={!!saved}
         onDelete={() => void remove()}

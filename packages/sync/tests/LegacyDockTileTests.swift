@@ -407,14 +407,6 @@ final class LegacyDockTileTests: XCTestCase {
     XCTAssertEqual(LegacyDockTile.filePath(data(encoded)), oldAppPath)
   }
 
-  func testTestInstancesNeverQualifyEvenWithEmptyValues() {
-    XCTAssertFalse(LegacyDockTile.isTestInstance([:]))
-    XCTAssertFalse(LegacyDockTile.isTestInstance(["HOME": "/Users/me"]))
-    for env in [["ARDIA_DATA_DIR": "/tmp/x"], ["ARDIA_DATA_DIR": ""], ["ARDIA_BACKGROUND": "1"], ["ARDIA_BACKGROUND": ""]] {
-      XCTAssertTrue(LegacyDockTile.isTestInstance(env), "\(env)")
-    }
-  }
-
   func testOnlyTheInstalledCopyQualifies() {
     let home = FileManager.default.homeDirectoryForCurrentUser
     XCTAssertTrue(LegacyDockTile.isInstalled(URL(fileURLWithPath: "/Applications/Ardia.app")))

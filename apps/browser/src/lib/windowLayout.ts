@@ -1,0 +1,1 @@
+export const DEFAULT_SIDEBAR_WIDTH = 190;

@@ -7,7 +7,7 @@ import windowShot from "../assets/shots/window.webp";
 const demoSrc = `${import.meta.env.DEV ? (import.meta.env.PUBLIC_DEMO_URL ?? "http://127.0.0.1:5191/") : `${import.meta.env.BASE_URL.replace(/\/?$/, "/")}demo/`}?embed`;
 ---
 
-<section class="showcase" aria-label="The app" data-shot="office">
+<section class="showcase" id="demo" aria-label="The app" data-shot="office">
   <div class="wrap">
     <figure class="showcase-figure">
       <div class="tilt" data-settle>
@@ -31,7 +31,19 @@ const demoSrc = `${import.meta.env.DEV ? (import.meta.env.PUBLIC_DEMO_URL ?? "ht
           </div>
         </Plate>
       </div>
-      <div class="demo-controls" data-demo-controls role="toolbar" aria-label="Try Ardia" hidden></div>
+      <div class="demo-controls" data-demo-controls hidden>
+        <button type="button" class="btn demo-customize" data-demo-customize data-track="demo_customize">
+          <span data-demo-customize-label>Customize it</span>
+        </button>
+        <div class="demo-code" data-demo-code hidden>
+          <p class="label demo-code-label">Your setup code</p>
+          <div class="demo-code-row">
+            <code class="demo-code-value" data-demo-code-value></code>
+            <button type="button" class="demo-copy" data-demo-copy data-track="demo_setup_code_copied">Copy</button>
+          </div>
+          <p class="demo-code-line">Paste it into Ardia after you download it, on its first screen or in Settings › General. It sets itself up just like this.</p>
+        </div>
+      </div>
     </figure>
     <aside class="band" aria-label="Download" data-download-band hidden>
       <p class="band-line poster"><span data-band-lead>That was a screenshot. </span><span>This is the app.</span></p>
@@ -210,9 +222,9 @@ const demoSrc = `${import.meta.env.DEV ? (import.meta.env.PUBLIC_DEMO_URL ?? "ht
   }
   .demo-controls {
     display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 10px 14px;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
     margin-top: clamp(18px, 2.2vw, 28px);
   }
   .demo-controls[hidden] {
@@ -223,69 +235,85 @@ const demoSrc = `${import.meta.env.DEV ? (import.meta.env.PUBLIC_DEMO_URL ?? "ht
       animation: band-in 600ms var(--ease-out) both;
     }
   }
-  .demo-controls :global(.demo-group) {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    padding: 3px;
-    border-radius: 999px;
-    box-shadow: inset 0 0 0 1px var(--rule);
-  }
-  .demo-controls :global(.demo-label) {
-    padding: 0 8px 0 10px;
-    color: var(--ink-3);
-  }
-  .demo-controls :global(.demo-control) {
-    height: 30px;
-    padding: 0 13px;
-    border: 0;
-    border-radius: 999px;
-    background: transparent;
-    color: var(--ink-2);
-    font: inherit;
-    font-size: var(--t-small);
+  .demo-customize {
+    --h: 46px;
+    --btn-bg: transparent;
+    --btn-fg: var(--ink);
+    --btn-wipe: color-mix(in srgb, var(--ink) 10%, transparent);
+    box-shadow: inset 0 0 0 1.5px var(--ink);
+    padding: 0 22px;
     cursor: pointer;
-    transition:
-      background-color 140ms var(--ease-out),
-      color 140ms var(--ease-out);
+    border: 0;
   }
-  .demo-controls :global(.demo-control:hover:not(:disabled):not([aria-checked="true"]):not([aria-pressed="true"])) {
-    background: rgb(22 19 15 / 0.07);
-    color: var(--ink);
-  }
-  .demo-controls :global(.demo-control[aria-checked="true"]),
-  .demo-controls :global(.demo-control[aria-pressed="true"]) {
-    background: var(--ink);
-    color: var(--paper);
-  }
-  .demo-controls :global(.demo-control:disabled) {
-    opacity: 0.38;
+  .demo-customize:disabled {
+    opacity: 0.5;
     cursor: default;
   }
-  .demo-controls :global(.demo-control:focus-visible) {
-    outline: 2px solid var(--accent);
-    outline-offset: 1px;
+  .demo-customize:disabled::before {
+    transform: translateX(-104%) skewX(-12deg);
   }
-  @media (max-width: 560px) {
-    .demo-controls {
-      display: grid;
-      gap: 8px;
+  .demo-customize:focus-visible,
+  .demo-copy:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .demo-code {
+    display: grid;
+    justify-items: center;
+    gap: 10px;
+    max-width: 640px;
+    text-align: center;
+  }
+  .demo-code[hidden] {
+    display: none;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .demo-code {
+      animation: band-in 600ms var(--ease-out) both;
     }
-    .demo-controls :global(.demo-group) {
-      gap: 0;
-    }
-    .demo-controls :global(.demo-label) {
-      flex: 0 0 6.2em;
-      padding: 0 4px 0 11px;
-      line-height: 1.15;
-    }
-    .demo-controls :global(.demo-control) {
-      flex: 1 1 auto;
-      height: 36px;
-      padding: 0 6px;
-      font-size: 0.84rem;
-      white-space: nowrap;
-    }
+  }
+  .demo-code-label {
+    color: var(--ink-3);
+  }
+  .demo-code-row {
+    display: flex;
+    align-items: stretch;
+    max-width: 100%;
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px var(--rule-strong);
+  }
+  .demo-code-value {
+    min-width: 0;
+    padding: 11px 14px;
+    font-family: var(--mono);
+    font-size: clamp(0.72rem, 0.66rem + 0.3vw, 0.86rem);
+    letter-spacing: 0.01em;
+    overflow-wrap: anywhere;
+    user-select: all;
+  }
+  .demo-copy {
+    flex: none;
+    padding: 0 16px;
+    border: 0;
+    border-left: 1px solid var(--rule-strong);
+    border-radius: 0 4px 4px 0;
+    background: var(--ink);
+    color: var(--paper);
+    font: inherit;
+    font-size: var(--t-small);
+    font-weight: 600;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: background-color 160ms var(--ease-out);
+  }
+  .demo-copy:hover {
+    background: var(--accent);
+  }
+  .demo-code-line {
+    max-width: 46ch;
+    color: var(--ink-2);
+    font-size: var(--t-small);
+    line-height: 1.45;
   }
   .band {
     display: flex;

@@ -1,12 +1,15 @@
-import { WebView } from "@ardia/ardiacore";
+import { WebView, Box, Button, Text } from "../ui";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Easing, Image, PanResponder, StyleSheet, Text, View } from "react-native";
-import { layout, useTheme } from "../../lib/theme";
-import { useBrowser } from "../../store/browser";
-import { useWindowId } from "../../store/hooks";
-import { openFromPage, pageProfileId } from "../layout/openFromPage";
-import { IconButton } from "../primitives";
-import { closeSidePanel, findExtension, showExtensionMenu, useExtensions, type SidePanel } from "./state";
+import { Animated, Image, PanResponder, StyleSheet, View } from "react-native";
+import { layout, useTheme } from "../ui/theme";
+import { useSettings, useWindowId } from "../../state/browser/hooks";
+import { currentSettings } from "../../state/browser/current";
+import { updateSettings } from "../../state/settings/actions";
+import { openFromPage, pageProfileId } from "../../state/tabs/openFromPage";
+import { space } from "../ui/tokens";
+import { EXTENSION_PAGE_BACKGROUND, SIDE_PANEL_HEADER_PAD_RIGHT } from "./tokens";
+import { closeSidePanel, findExtension, showExtensionMenu, useExtensions, type SidePanel } from "../../state/extensions/actions";
+import { curve, duration } from "../ui/motion";
 
 const MIN_WIDTH = 320;
 const MAX_WIDTH = 600;
@@ -23,14 +26,14 @@ const clamp = (w: number) => Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, w));
 export function ExtensionSidePanel() {
   const windowId = useWindowId();
   const panel = useExtensions((e) => e.sidePanels[windowId]);
-  const savedWidth = useBrowser((s) => s.settings.extensionSidePanelWidth ?? 360);
+  const savedWidth = useSettings((st) => st.extensionSidePanelWidth ?? 360);
   const [dragWidth, setDragWidth] = useState<number | null>(null);
   const appear = useRef(new Animated.Value(0)).current;
   const [shown, setShown] = useState(panel);
 
   useEffect(() => {
     if (panel) setShown(panel);
-    Animated.timing(appear, { toValue: panel ? 1 : 0, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start(({ finished }) => {
+    Animated.timing(appear, { toValue: panel ? 1 : 0, duration: duration.fade, easing: curve.outCubic, useNativeDriver: false }).start(({ finished }) => {
       if (finished && !panel) setShown(undefined);
     });
   }, [!!panel]);
@@ -45,7 +48,7 @@ export function ExtensionSidePanel() {
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onPanResponderGrant: () => {
-          start.current = useBrowser.getState().settings.extensionSidePanelWidth ?? 360;
+          start.current = currentSettings().extensionSidePanelWidth ?? 360;
           setDragWidth(start.current);
         },
         onPanResponderMove: (_, g) => setDragWidth(rubberBand(start.current - g.dx)),
@@ -53,13 +56,13 @@ export function ExtensionSidePanel() {
           const raw = rubberBand(start.current - g.dx);
           const target = clamp(raw);
           const finish = () => {
-            useBrowser.getState().updateSettings({ extensionSidePanelWidth: target });
+            updateSettings({ extensionSidePanelWidth: target });
             setDragWidth(null);
           };
           if (raw === target) return finish();
           const value = new Animated.Value(raw);
           value.addListener(({ value: v }) => setDragWidth(v));
-          Animated.timing(value, { toValue: target, duration: 260, easing: Easing.out(Easing.back(1.2)), useNativeDriver: false }).start(() => {
+          Animated.timing(value, { toValue: target, duration: duration.resize, easing: curve.outBack, useNativeDriver: false }).start(() => {
             value.removeAllListeners();
             finish();
           });
@@ -78,7 +81,7 @@ export function ExtensionSidePanel() {
         <PanelCard key={`${shown.extensionId}|${shown.pageProfile}|${shown.url}`} windowId={windowId} panel={shown} />
         <View
           {...responder.panHandlers}
-          onDoubleClick={() => useBrowser.getState().updateSettings({ extensionSidePanelWidth: 360 })}
+          onDoubleClick={() => updateSettings({ extensionSidePanelWidth: 360 })}
           style={{ position: "absolute", top: 0, bottom: 0, left: -3, width: 7, cursor: "col-resize" }}
         />
       </Animated.View>
@@ -94,12 +97,12 @@ function PanelCard({ windowId, panel }: { windowId: string; panel: SidePanel }) 
   const icon = ext?.actionIcon || ext?.icon;
   return (
     <View style={{ flex: 1, borderRadius: layout.cardRadius, overflow: "hidden", backgroundColor: theme.card }}>
-      <View style={{ height: HEADER, flexDirection: "row", alignItems: "center", paddingLeft: 12, paddingRight: 5, gap: 8 }}>
+      <Box row gap="m" style={HEADER_ROW}>
         {icon ? <Image source={{ uri: icon }} style={{ width: 16, height: 16 }} /> : null}
-        <Text numberOfLines={1} style={{ flex: 1, fontSize: 13, fontWeight: "500", color: theme.textPrimary }}>
+        <Text numberOfLines={1} weight="medium" style={FLEX}>
           {title}
         </Text>
-        <IconButton
+        <Button variant="icon"
           icon="ellipsis"
           size={13}
           tooltip="More"
@@ -108,17 +111,17 @@ function PanelCard({ windowId, panel }: { windowId: string; panel: SidePanel }) 
             if (found) void showExtensionMenu(windowId, found);
           }}
         />
-        <IconButton icon="xmark" size={12} weight="medium" tooltip="Close Side Panel" onPress={() => closeSidePanel(windowId)} />
-      </View>
-      <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: theme.dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)" }} />
-      <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+        <Button variant="icon" icon="xmark" size={12} weight="medium" tooltip="Close Side Panel" onPress={() => closeSidePanel(windowId)} />
+      </Box>
+      <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: theme.divider }} />
+      <View style={PAGE}>
         <WebView
           style={StyleSheet.absoluteFill}
           url={url}
           profile={pageProfile}
           standalone
           extensionHost="sidePanel"
-          pageBackgroundColor="#FFFFFF"
+          pageBackgroundColor={EXTENSION_PAGE_BACKGROUND}
           onWindowClose={() => closeSidePanel(windowId, extensionId)}
           onOpenWindow={(request) => openFromPage(request, { windowId, profileId: pageProfileId(windowId, pageProfile) })}
         />
@@ -126,3 +129,7 @@ function PanelCard({ windowId, panel }: { windowId: string; panel: SidePanel }) 
     </View>
   );
 }
+
+const FLEX = { flex: 1 } as const;
+const HEADER_ROW = { height: HEADER, alignItems: "center", paddingLeft: space.l, paddingRight: SIDE_PANEL_HEADER_PAD_RIGHT } as const;
+const PAGE = { flex: 1, backgroundColor: EXTENSION_PAGE_BACKGROUND } as const;

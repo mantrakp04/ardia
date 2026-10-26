@@ -96,7 +96,7 @@ enum ImportWriter {
     let data = args.withUnsafeBytes { NSMutableData(bytes: $0.baseAddress, length: $0.count) }
     args.wipe()
     let json: String = await withCheckedContinuation { done in
-      ArdiaCoreEngineBridge.callWithSecret(name, profile: profile, args: data) { done.resume(returning: $0) }
+      ArdiaEngineBridge.callWithSecret(name, profile: profile, args: data) { done.resume(returning: $0) }
     }
     let parsed = try? JSONSerialization.jsonObject(with: Data(json.utf8))
     return parsed as? [String: Any] ?? ["error": "bad reply from the engine"]

@@ -1,4 +1,5 @@
 import AppKit
+import ArdiaCore
 import ExpoModulesCore
 import ArdiaImport
 import Security
@@ -246,9 +247,8 @@ public class SyncModule: Module {
     return "data:image/png;base64," + png.base64EncodedString()
   }
 
-  private static let environment = ProcessInfo.processInfo.environment
-  private static let dataDirectory = environment["ARDIA_DATA_DIR"].map { URL(fileURLWithPath: $0, isDirectory: true) }
-  private static let testFolder = environment["ARDIA_SYNC_DEFAULT_FOLDER"].map { URL(fileURLWithPath: $0, isDirectory: true) }
+  private static let dataDirectory = LaunchConfig.shared.dataDirectory.map { URL(fileURLWithPath: $0, isDirectory: true) }
+  private static let testFolder = LaunchConfig.shared.instance("syncFolder").map { URL(fileURLWithPath: $0, isDirectory: true) }
 
   static var defaultFolder: URL {
     if let testFolder { return testFolder }

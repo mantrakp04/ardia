@@ -1,18 +1,6 @@
---- a/components/viz/service/display/direct_renderer.h
-+++ b/components/viz/service/display/direct_renderer.h
-@@ -120,6 +120,9 @@
- #endif
- 
-     bool is_handling_interaction = false;
-+#if BUILDFLAG(IS_MAC)
-+    bool video_super_resolution_allowed = false;
-+#endif
-     bool is_handling_animation = false;
- 
-     std::optional<int64_t> choreographer_vsync_id;
 --- a/components/viz/service/display/display.cc
 +++ b/components/viz/service/display/display.cc
-@@ -492,6 +492,21 @@
+@@ -492,6 +492,21 @@ void Display::SetDisplayColorSpaces(
      aggregator_->SetDisplayColorSpaces(display_color_spaces_);
  }
  
@@ -34,17 +22,15 @@
  void Display::SetOutputIsSecure(bool secure) {
    if (secure == output_is_secure_)
      return;
-@@ -1075,6 +1090,10 @@
-     swap_frame_data.swap_trace_id = display_trace_id;
-     swap_frame_data.display_hdr_headroom =
-         display_color_spaces_.GetHDRMaxLuminanceRelative();
-+#if BUILDFLAG(IS_MAC)
-+    swap_frame_data.video_super_resolution_allowed =
+@@ -1097,6 +1112,8 @@ bool Display::DrawAndSwap(const DrawAndSwapParams& params) {
+ #if BUILDFLAG(IS_MAC)
+     swap_frame_data.frame_data.is_handling_interaction = has_interactive_frame;
+     swap_frame_data.frame_data.is_handling_animation = has_animated_frame;
++    swap_frame_data.frame_data.video_super_resolution_allowed =
 +        video_super_resolution_allowed_;
-+#endif
+ #endif
  
-     TRACE_EVENT(
-         "viz,benchmark,graphics.pipeline", "Graphics.Pipeline",
+     // We must notify scheduler and increase |pending_swaps_| before calling
 --- a/components/viz/service/display/display.h
 +++ b/components/viz/service/display/display.h
 @@ -147,6 +147,9 @@
@@ -67,17 +53,6 @@
  
  #if DCHECK_IS_ON()
    std::unique_ptr<gpu::ScopedAllowScheduleGpuTask>
---- a/components/viz/service/display/skia_renderer.cc
-+++ b/components/viz/service/display/skia_renderer.cc
-@@ -1221,6 +1221,8 @@
-       swap_frame_data.is_handling_interaction;
-   output_frame.data.is_handling_animation =
-       swap_frame_data.is_handling_animation;
-+  output_frame.data.video_super_resolution_allowed =
-+      swap_frame_data.video_super_resolution_allowed;
- #endif
- 
-   if (root_buffer_queue_) {
 --- a/components/viz/service/frame_sinks/root_compositor_frame_sink_impl.cc
 +++ b/components/viz/service/frame_sinks/root_compositor_frame_sink_impl.cc
 @@ -381,7 +381,13 @@

@@ -1,4 +1,5 @@
-import { requireNativeModule, type EventSubscription } from "expo-modules-core";
+import type { EventSubscription } from "expo-modules-core";
+import { nativeModule } from "./nativeModules";
 
 export type CalendarAuthorization = "fullAccess" | "writeOnly" | "denied" | "restricted" | "notDetermined";
 
@@ -31,13 +32,15 @@ export type SystemCalendarEvent = {
   attendees: CalendarParticipant[];
 };
 
-const Calendar = requireNativeModule<{
+export type CalendarNative = {
   addListener(name: "onCalendarChanged", listener: () => void): EventSubscription;
   authorizationStatus(): CalendarAuthorization;
   requestAccess(): Promise<boolean>;
   calendars(): Promise<SystemCalendar[]>;
   events(start: number, end: number, calendarIds: string[]): Promise<SystemCalendarEvent[]>;
-}>("ArdiaCalendar");
+};
+
+const Calendar = nativeModule("ArdiaCalendar");
 
 export const calendarAuthorization = (): CalendarAuthorization => Calendar.authorizationStatus();
 export const requestCalendarAccess = () => Calendar.requestAccess();
@@ -46,11 +49,13 @@ export const systemCalendarEvents = (start: number, end: number, calendarIds: st
   Calendar.events(start, end, calendarIds);
 export const onCalendarChanged = (listener: () => void) => Calendar.addListener("onCalendarChanged", listener);
 
-const Keychain = requireNativeModule<{
+export type KeychainNative = {
   get(account: string): Promise<string | null>;
   set(account: string, secret: string): Promise<boolean>;
   delete(account: string): Promise<boolean>;
-}>("ArdiaKeychain");
+};
+
+const Keychain = nativeModule("ArdiaKeychain");
 
 export const keychainGet = (account: string) => Keychain.get(account);
 export const keychainSet = (account: string, secret: string) => Keychain.set(account, secret);

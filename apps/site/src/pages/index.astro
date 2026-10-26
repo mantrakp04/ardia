@@ -3,8 +3,6 @@ import Base from "../layouts/Base.astro";
 import Header from "../components/Header.astro";
 import Hero from "../components/Hero.astro";
 import Showcase from "../components/Showcase.astro";
-import Features from "../components/Features.astro";
-import Engine from "../components/Engine.astro";
 import Bench from "../components/Bench.astro";
 import Game from "../components/Game.astro";
 import Faq from "../components/Faq.astro";
@@ -12,6 +10,7 @@ import Closing from "../components/Closing.astro";
 import Footer from "../components/Footer.astro";
 import { DMG, DMG_SIZE, MIN_MACOS, REPO, VERSION } from "../data/release";
 import { HERO_POSTERS } from "../data/heroPoster";
+import { faqJsonLd } from "../data/faq";
 
 const home = new URL(import.meta.env.BASE_URL, Astro.site).href;
 const description =
@@ -34,11 +33,12 @@ const jsonLd = [
     sameAs: [REPO],
   },
   { "@context": "https://schema.org", "@type": "WebSite", name: "Ardia", url: home },
+  faqJsonLd(),
 ];
 ---
 
 <Base
-  title="Ardia · the sidebar browser for Mac, on real Chromium"
+  title="Ardia · a free Arc alternative for Mac, with Dia’s polish"
   description={description}
   jsonLd={jsonLd}
 >
@@ -60,9 +60,7 @@ const jsonLd = [
   <main>
     <Hero />
     <Showcase />
-    <Features />
     <Bench />
-    <Engine />
     <Game />
     <Faq />
     <Closing />

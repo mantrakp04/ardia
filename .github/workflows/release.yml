@@ -1,0 +1,345 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version, as committed in MARKETING_VERSION (0.2.42 or 0.2.42-nightly.1)
+        type: string
+        required: true
+      channel:
+        description: Channel
+        type: choice
+        options: [nightly, stable]
+        default: nightly
+      dry_run:
+        description: Dry run, a release candidate that publishes nothing
+        type: boolean
+        default: true
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  HOMEBREW_NO_AUTO_UPDATE: 1
+  HOMEBREW_NO_INSTALL_CLEANUP: 1
+  TURBO_TELEMETRY_DISABLED: 1
+  VERSION: ${{ inputs.version }}
+  CHANNEL: ${{ inputs.channel }}
+  DRY_RUN: ${{ inputs.dry_run }}
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      tree: ${{ steps.plan.outputs.tree }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$*"; exit 1; }
+          check() { if [ "$DRY_RUN" = true ]; then echo "::warning::$* (a real release would stop here)"; else fail "$*"; fi; }
+          case "$CHANNEL" in
+            nightly) [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]+$ ]] || fail "a nightly is <next stable>-nightly.<n>, not $VERSION" ;;
+            stable) [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "a stable version is <major>.<minor>.<patch>, not $VERSION" ;;
+          esac
+          project=$(sed -n 's/.*MARKETING_VERSION = "\{0,1\}\([^";]*\)"\{0,1\};/\1/p' apps/browser/macos/Ardia.xcodeproj/project.pbxproj | sort -u)
+          [ "$project" = "$VERSION" ] || check "MARKETING_VERSION is $project: commit the bump to $VERSION first"
+          [ -f "docs/release-notes/$VERSION.md" ] || check "no docs/release-notes/$VERSION.md: write and commit the notes first"
+          if gh release view "v$VERSION" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then check "v$VERSION is already published"; fi
+          tree=$(git rev-parse HEAD:engine)
+          echo "tree=$tree" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Ardia $VERSION ($CHANNEL)"
+            echo "- commit \`$GITHUB_SHA\`, engine tree \`${tree:0:12}\`"
+            if [ "$DRY_RUN" = true ]; then echo "- dry run: a release candidate, nothing published"; else echo "- publishes"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  checks:
+    needs: preflight
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: .turbo/cache
+          key: turbo-${{ github.sha }}
+          restore-keys: turbo-
+      - run: pnpm typecheck
+      - if: ${{ !cancelled() }}
+        run: pnpm test
+      - if: ${{ !cancelled() }}
+        run: pnpm shaders:check
+
+  build:
+    needs: preflight
+    runs-on: xcode-27
+    timeout-minutes: 120
+    env:
+      CAS_PATH: ${{ github.workspace }}/.xcode-cas
+      DERIVED_DATA: ${{ github.workspace }}/apps/browser/build-release-ci
+      TREE: ${{ needs.preflight.outputs.tree }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - id: paths
+        run: |
+          if [ "$DRY_RUN" = true ]; then dist="dist/$VERSION-rc"; else dist="dist/$VERSION"; fi
+          echo "dist=$dist" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: apps/browser/build-ardiacore/prebuilt
+          key: engine-${{ env.TREE }}
+      - name: Engine
+        run: |
+          if ! framework=$(packages/ardiacore/scripts/fetch-engine.sh); then
+            echo "::error::no engine for ${TREE:0:12}: build it here and publish it with scripts/publish-engine.sh, then commit prebuilt-engines.tsv"
+            exit 1
+          fi
+          { echo "ARDIACORE_FRAMEWORK=$framework"; echo "ARDIACORE_FRAMEWORK_ENGINE=$TREE"; } >> "$GITHUB_ENV"
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: uv
+        run: curl -LsSf https://astral.sh/uv/0.12.15/install.sh | sh
+      - id: cas-key
+        run: echo "prefix=xcode-cas-release-$(xcodebuild -version | awk '/Build version/ { print $3 }')-$(date -u +%Y-%m)-" >> "$GITHUB_OUTPUT"
+      - id: cas
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: .xcode-cas
+          key: ${{ steps.cas-key.outputs.prefix }}${{ github.sha }}
+          restore-keys: ${{ steps.cas-key.outputs.prefix }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            apps/browser/macos/Pods
+            ~/Library/Caches/CocoaPods
+          key: pods-${{ hashFiles('apps/browser/macos/Podfile', 'apps/browser/macos/Podfile.lock', 'pnpm-lock.yaml', 'patches/**') }}
+          restore-keys: pods-
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: packages/ardiacore/vendor/ubo
+          key: ubo-${{ hashFiles('packages/ardiacore/scripts/ubo.sh') }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/Library/Caches/ardia-cli-build
+          key: ardia-cli-${{ hashFiles('apps/cli/scripts/build.sh', 'apps/cli/requirements.lock') }}
+      - name: Pods
+        working-directory: apps/browser/macos
+        run: pod install
+      - name: Tree is clean
+        run: |
+          pods=(apps/browser/macos/Podfile.lock apps/browser/macos/Ardia.xcodeproj/project.pbxproj)
+          normalize() { sed -E 's/^[-+]//; s/"//g; s/^(  ArdiaCore: )[0-9a-f]{40}$/\1checksum/'; }
+          removed=$(git diff -U0 -- "${pods[@]}" | { grep '^-[^-]' || true; } | normalize)
+          added=$(git diff -U0 -- "${pods[@]}" | { grep '^+[^+]' || true; } | normalize)
+          if [ -n "$removed$added" ] && [ "$removed" = "$added" ]; then
+            echo "::notice::pod install only quoted MARKETING_VERSION and rehashed ArdiaCore's podspec (its checksum includes this checkout's path): kept, not counted as changes"
+            git update-index --assume-unchanged "${pods[@]}"
+          fi
+          dirty=$(git status --porcelain -- apps/browser apps/cli packages engine scripts/dmg | grep -v ' apps/browser/build' || true)
+          [ -z "$dirty" ] || {
+            echo "::error::installing changed tracked files, so release.sh would refuse the tree:"
+            echo "$dirty"
+            git diff -- apps/browser apps/cli packages engine scripts/dmg | head -150
+            exit 1
+          }
+      - name: Build
+        run: |
+          args=("$VERSION" --channel "$CHANNEL" --phase build)
+          if [ "$DRY_RUN" = true ]; then args+=(--rc); fi
+          if ! curl -fsIL -o /dev/null "https://github.com/$GITHUB_REPOSITORY/releases/latest/download/appcast.xml"; then
+            echo "::notice::the latest release has no appcast.xml: this release starts it"
+            export APPCAST_BASE=none
+          fi
+          export RELEASE_BUILD_DIR="$DERIVED_DATA"
+          export RELEASE_BUILD_SETTINGS="COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_CAS_PATH=$CAS_PATH"
+          scripts/release.sh "${args[@]}"
+      - name: Pack the build
+        env:
+          DIST: ${{ steps.paths.outputs.dist }}
+        run: |
+          COPYFILE_DISABLE=1 tar --no-mac-metadata -cf "$RUNNER_TEMP/build.tar" -C "$DIST" Ardia.xcarchive provenance.txt \
+            "ardia-cli-$VERSION-macos-arm64.tar.gz" "ardia-cli-$VERSION-macos-arm64.tar.gz.sha256"
+      - if: always() && steps.cas.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: .xcode-cas
+          key: ${{ steps.cas-key.outputs.prefix }}${{ github.sha }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: build
+          path: ${{ runner.temp }}/build.tar
+          if-no-files-found: error
+          retention-days: 3
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: build-logs
+          path: ${{ steps.paths.outputs.dist }}/*.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+  sign:
+    needs: [preflight, build]
+    runs-on: xcode-27
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - id: paths
+        run: |
+          if [ "$DRY_RUN" = true ]; then dist="dist/$VERSION-rc"; else dist="dist/$VERSION"; fi
+          echo "dist=$dist" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: build
+          path: ${{ runner.temp }}/build-download
+      - name: Unpack the build
+        run: |
+          /usr/bin/python3 -I .github/release/unpack-build.py "$RUNNER_TEMP/build-download/build.tar" "$RUNNER_TEMP/build-in" "$VERSION"
+          rm -rf "$RUNNER_TEMP/build-download"
+      - name: Sparkle's tools
+        run: |
+          tarball="$RUNNER_TEMP/Sparkle-2.9.6.tar.xz"
+          curl -fsSL --retry 3 -o "$tarball" https://github.com/sparkle-project/Sparkle/releases/download/2.9.6/Sparkle-2.9.6.tar.xz
+          [ "$(shasum -a 256 "$tarball" | awk '{ print $1 }')" = 52bf9e88cdd972fc0c81501377a880e90d47031bd8ca5462488f843e2609e192 ] \
+            || { echo "::error::Sparkle-2.9.6.tar.xz didn't match its pinned SHA-256"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/sparkle"
+          tar -xJf "$tarball" -C "$RUNNER_TEMP/sparkle" bin
+          echo "SPARKLE_BIN=$RUNNER_TEMP/sparkle/bin" >> "$GITHUB_ENV"
+      - name: Signing
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_PROVISIONING_PROFILE: ${{ secrets.MACOS_PROVISIONING_PROFILE }}
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+          NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+          ALLOW_MISSING_NOTARY: ${{ inputs.dry_run && '1' || '0' }}
+        run: .github/release/signing.sh setup
+      - name: Sign, notarize, package
+        env:
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+        run: |
+          export RELEASE_BUILD_INPUT="$RUNNER_TEMP/build-in"
+          args=("$VERSION" --channel "$CHANNEL" --phase sign)
+          if [ "$DRY_RUN" = true ]; then args+=(--rc); fi
+          if ! curl -fsIL -o /dev/null "https://github.com/$GITHUB_REPOSITORY/releases/latest/download/appcast.xml"; then
+            export APPCAST_BASE=none
+          fi
+          scripts/release.sh "${args[@]}"
+      - if: always()
+        name: Remove signing
+        run: |
+          secrets="$RUNNER_TEMP/release-signing"
+          if [ -f "$secrets/release.keychain-db" ]; then security delete-keychain "$secrets/release.keychain-db" || true; fi
+          rm -rf "$secrets"
+          printf '%s=\n' RELEASE_PROVISIONING_PROFILE SPARKLE_KEY_FILE NOTARY_KEY >> "$GITHUB_ENV"
+          [ ! -e "$secrets" ] || { echo "::error::couldn't remove $secrets"; exit 1; }
+          if security find-identity -v -p codesigning | grep -q 'Developer ID Application: .*(U5L5T3NGVV)'; then
+            echo "::error::a Developer ID identity is still in the keychain search list"
+            exit 1
+          fi
+          echo "signing keychain and key files removed"
+      - name: Checkout untouched
+        run: |
+          changed=$(git status --porcelain --untracked-files=all -- . ':!dist')
+          [ -z "$changed" ] || { echo "::error::signing changed files in the checkout:"; echo "$changed"; exit 1; }
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+      - name: Launch check
+        run: |
+          args=("$VERSION" --channel "$CHANNEL" --phase check)
+          if [ "$DRY_RUN" = true ]; then args+=(--rc); fi
+          scripts/release.sh "${args[@]}"
+      - name: Update signature
+        env:
+          DIST: ${{ steps.paths.outputs.dist }}
+        run: .github/release/check-sparkle.sh "$DIST" "$VERSION"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: release
+          path: |
+            ${{ steps.paths.outputs.dist }}/Ardia-${{ inputs.version }}.dmg
+            ${{ steps.paths.outputs.dist }}/Ardia-${{ inputs.version }}.zip
+            ${{ steps.paths.outputs.dist }}/appcast.xml
+            ${{ steps.paths.outputs.dist }}/release-notes.md
+            ${{ steps.paths.outputs.dist }}/provenance.txt
+            ${{ steps.paths.outputs.dist }}/ardia-cli-${{ inputs.version }}-macos-arm64.tar.gz
+            ${{ steps.paths.outputs.dist }}/ardia-cli-${{ inputs.version }}-macos-arm64.tar.gz.sha256
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: sign-logs
+          path: ${{ steps.paths.outputs.dist }}/*.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+  publish:
+    needs: [preflight, checks, sign]
+    runs-on: macos-15
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: release
+          path: dist/${{ inputs.version }}
+      - name: Tag
+        if: ${{ !inputs.dry_run }}
+        run: |
+          git tag "v$VERSION" "$GITHUB_SHA"
+          git push origin "refs/tags/v$VERSION"
+      - name: Publish
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          export RELEASE_DIST="$GITHUB_WORKSPACE/dist/$VERSION"
+          if [ -n "$TAP_TOKEN" ]; then
+            git config --global url."https://x-access-token:$TAP_TOKEN@github.com/mantrakp04/homebrew-tap".insteadOf https://github.com/mantrakp04/homebrew-tap
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          else
+            export PUBLISH_TAP=0
+          fi
+          if [ "$DRY_RUN" = true ]; then
+            .claude/skills/release/scripts/publish.sh "$VERSION" --dry-run
+          else
+            .claude/skills/release/scripts/publish.sh "$VERSION"
+          fi

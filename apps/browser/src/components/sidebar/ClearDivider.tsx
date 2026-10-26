@@ -1,11 +1,11 @@
-import { Symbol } from "@ardia/shell";
 import { memo, useEffect, useMemo, useSyncExternalStore } from "react";
 import { Pressable, Text, View } from "react-native";
-import { markHoverProps } from "../../lib/hoverShift";
-import { useTheme } from "../../lib/theme";
-import { useHover } from "../primitives";
-import { closeAllTabs } from "./menus";
-import { tidyPins } from "./tidyPinsUi";
+import { markHoverProps } from "../../lib/hoverMarks";
+import { useTheme } from "../ui/theme";
+import { Symbol, useHover, weight } from "../ui";
+import { SIDEBAR_TYPE } from "./tokens";
+import { closeAllTabs } from "../../state/sidebar/clearTabs";
+import { tidyPins } from "../../state/sidebar/tidyPinsUi";
 
 const CLEAR_DIVIDER_HEIGHT = 16;
 const PADDING = 9;
@@ -41,10 +41,13 @@ export const ClearDivider = memo(function ClearDivider({ windowId, profileId, sp
   return (
     <View style={{ height: CLEAR_DIVIDER_HEIGHT, marginTop: spaced ? 7 : 0, flexDirection: "row", alignItems: "center", paddingLeft: PADDING, paddingRight: PADDING }}>
       <View style={{ flex: 1, height: 1, backgroundColor: theme.divider }} />
-      <View style={[{ flexDirection: "row", alignItems: "center" }, shown ? null : { position: "absolute", right: PADDING, opacity: 0 }]}>
-        {tidy ? <DividerButton title="Tidy" symbol="sparkles" iconWidth={10} label="Tidy pinned tabs" onPress={() => tidyPins(windowId, profileId)} /> : null}
-        {tidy && clear ? <View style={{ width: 1, height: 9, marginLeft: 8, backgroundColor: theme.divider }} /> : null}
-        {clear ? <DividerButton title="Clear" symbol="arrow.down" iconWidth={8} label="Clear unpinned tabs" onPress={() => closeAllTabs(windowId)} /> : null}
+      <View>
+        <View style={{ position: "absolute", left: 0, right: 0, top: (CLEAR_DIVIDER_HEIGHT - 1) / 2, height: 1, backgroundColor: theme.divider, opacity: shown ? 0 : 1 }} />
+        <View style={{ flexDirection: "row", alignItems: "center", opacity: shown ? 1 : 0 }}>
+          {tidy ? <DividerButton title="Tidy" symbol="sparkles" iconWidth={10} label="Tidy pinned tabs" onPress={() => tidyPins(windowId, profileId)} /> : null}
+          {tidy && clear ? <View style={{ width: 1, height: 9, marginLeft: 8, backgroundColor: theme.divider }} /> : null}
+          {clear ? <DividerButton title="Clear" symbol="arrow.down" iconWidth={8} label="Clear unpinned tabs" onPress={() => closeAllTabs(windowId)} /> : null}
+        </View>
       </View>
     </View>
   );
@@ -61,7 +64,7 @@ function DividerButton({ title, symbol, iconWidth, label, onPress }: { title: st
           return (
             <View style={{ height: CLEAR_DIVIDER_HEIGHT, flexDirection: "row", alignItems: "center", paddingLeft: 8 }}>
               <Symbol name={symbol} size={9} weight="semibold" color={color} style={{ width: iconWidth, height: 11, marginRight: 3 }} />
-              <Text style={{ fontSize: 10, fontWeight: "500", color }}>{title}</Text>
+              <Text style={{ fontSize: SIDEBAR_TYPE.divider, fontWeight: weight.medium, color }}>{title}</Text>
             </View>
           );
         }}

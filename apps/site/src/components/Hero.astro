@@ -36,6 +36,7 @@ const posterTones = HERO_POSTERS.map(({ media, tones, sky, headerHalo }) => ({ m
   <div class="wrap hero-grid">
     <div class="hero-text">
       <h1 class="poster hero-title">
+        <span class="visually-hidden">Ardia, the sidebar browser for Mac: </span>
         <span class="line"><span>Touch</span></span>{" "}
         <span class="line"><span>grass.</span></span>
       </h1>
@@ -233,7 +234,7 @@ const posterTones = HERO_POSTERS.map(({ media, tones, sky, headerHalo }) => ({ m
     :global(.js) .line > span {
       animation: rise 1000ms var(--ease-out) -180ms both;
     }
-    :global(.js) .line:nth-child(2) > span {
+    :global(.js) .line + .line > span {
       animation-delay: -110ms;
     }
   }

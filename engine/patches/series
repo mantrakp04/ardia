@@ -21,6 +21,7 @@ chromium chromium-hidden-window-current-window.patch
 chromium chromium-devtools-redock-display.patch
 chromium chromium-devtools-window-title.patch
 chromium chromium-devtools-control-token.patch
+chromium chromium-devtools-find-detach-keeps-selection.patch
 chromium chromium-extension-install-prompt-hook.patch
 chromium chromium-webstore-direct.patch
 chromium chromium-extension-updates.patch

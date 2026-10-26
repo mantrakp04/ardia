@@ -1,19 +1,23 @@
-import { copyText, focusWindow } from "@ardia/shell";
+import { copyText } from "../../../state/app/system";
+import { focusWindow } from "../../../state/windows/nativeWindow";
 import { useEffect, useState, type ReactNode } from "react";
 import { Text, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
-import { useTheme } from "../../../lib/theme";
-import { deleteLiveFolder, manualRefresh, statusText } from "../../../live/engine";
-import { connectGoogleDrive } from "../../../live/googleAuth";
-import { isMocked } from "../../../live/net";
-import { connectBitbucket, connectConfluence, connectGithub, connectNotion, disconnect, SOURCES, startGithubDeviceFlow, type DeviceFlow } from "../../../live/sources";
-import { live, updateConfig, updateFolder, useLive } from "../../../live/store";
-import type { LiveAccount, LiveFolder, LiveSourceId } from "../../../live/types";
-import { useBrowser } from "../../../store/browser";
-import { Favicon } from "../../primitives";
-import { Button, Group, Row, SectionHeader, Sheet, TextField, Toggle } from "../controls";
+import { useTheme } from "../../ui/theme";
+import { deleteLiveFolder, manualRefresh, statusText } from "../../../state/live/engine";
+import { connectGoogleDrive } from "../../../state/live/googleAuth";
+import { isMocked } from "../../../state/live/net";
+import { connectBitbucket, connectConfluence, connectGithub, connectNotion, disconnect, SOURCES, startGithubDeviceFlow, type DeviceFlow } from "../../../state/live/sources";
+import { live, updateConfig, updateFolder, useLive } from "../../../state/live/store";
+import type { LiveAccount, LiveFolder, LiveSourceId } from "../../../state/live/types";
+import { useProfileRecords } from "../../../state/profiles/hooks";
+import { openUrlFromSettings, settingsBrowserWindow } from "../../../state/settings/settingsWindows";
+import { Button, font, Group, Sheet, TextField, Toggle, weight } from "../../ui";
+import { Favicon } from "../../favicon/Favicon";
+import { Row, SectionHeader } from "../Form";
 import { setting } from "../settingsIndex";
-import { closeSettingsSheet, showSettingsSheet } from "../sheet";
+import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
+import { settingsType } from "../tokens";
 
 const DESCRIPTIONS: Record<LiveSourceId, string> = {
   github: "Your open pull requests and the ones waiting for your review, with checks and conflicts.",
@@ -32,8 +36,9 @@ const ANCHORS: Record<LiveSourceId, string> = {
 };
 
 export function LiveFoldersPane() {
+  const theme = useTheme();
   const folders = useLive(useShallow((s) => s.folderOrder.map((id) => s.folders[id]!).filter(Boolean)));
-  const profiles = useBrowser((s) => s.profiles);
+  const profiles = useProfileRecords();
   useLive((s) => s.status);
   useLive((s) => s.hidden);
   const firstPullRequests = folders.find((f) => f.kind === "pullRequests")?.id;
@@ -61,7 +66,7 @@ export function LiveFoldersPane() {
         <SourceRow id="confluence" />
         <SourceRow id="gdrive" />
       </Group>
-      {isMocked ? <Text style={{ marginTop: 10, fontSize: 11, color: "#D29922" }}>Development build: services are served by ARDIA_LIVE_MOCK.</Text> : null}
+      {isMocked ? <Text style={{ marginTop: 10, ...font.caption, color: theme.warning }}>Development build: services are served by ARDIA_TEST liveMock.</Text> : null}
     </View>
   );
 }
@@ -118,17 +123,6 @@ function SourceRow({ id }: { id: LiveSourceId }) {
   );
 }
 
-function browserWindow(): string | null {
-  const s = useBrowser.getState();
-  return s.ui.focusOrder.find((id) => s.windows[id] && !s.windows[id]!.incognito) ?? s.windowOrder.find((id) => !s.windows[id]!.incognito) ?? null;
-}
-
-function openInBrowser(url: string) {
-  const windowId = browserWindow();
-  if (!windowId) return;
-  useBrowser.getState().newTab(windowId, { url });
-  void focusWindow(windowId);
-}
 
 function ConnectSheet({ id }: { id: LiveSourceId }) {
   const theme = useTheme();
@@ -169,10 +163,10 @@ function ConnectSheet({ id }: { id: LiveSourceId }) {
     <Sheet width={460} onClose={closeSettingsSheet}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 }}>
         <Favicon url={source.site} size={22} />
-        <Text style={{ flex: 1, fontSize: 15, fontWeight: "600", color: theme.textPrimary }}>Connect {source.name}</Text>
+        <Text style={{ flex: 1, ...font.heading, fontWeight: weight.semibold, color: theme.textPrimary }}>Connect {source.name}</Text>
       </View>
       {body}
-      {error ? <Text style={{ marginTop: 10, fontSize: 12, color: "#E5534B" }}>{error}</Text> : null}
+      {error ? <Text style={{ marginTop: 10, ...font.small, color: theme.destructive }}>{error}</Text> : null}
     </Sheet>
   );
 }
@@ -181,14 +175,14 @@ type ConnectProps = { busy: boolean; run(task: () => Promise<void>): Promise<voi
 
 function Help({ children }: { children: ReactNode }) {
   const theme = useTheme();
-  return <Text style={{ fontSize: 12, lineHeight: 17, color: theme.textSecondary, marginBottom: 10 }}>{children}</Text>;
+  return <Text style={{ ...font.small, lineHeight: 17, color: theme.textSecondary, marginBottom: 10 }}>{children}</Text>;
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   const theme = useTheme();
   return (
     <View style={{ gap: 4, marginBottom: 10 }}>
-      <Text style={{ fontSize: 12, fontWeight: "500", color: theme.textPrimary }}>{label}</Text>
+      <Text style={{ ...font.small, fontWeight: weight.medium, color: theme.textPrimary }}>{label}</Text>
       {children}
     </View>
   );
@@ -211,7 +205,7 @@ function GithubConnect({ busy, run }: ConnectProps) {
       const f = await startGithubDeviceFlow(clientId.trim());
       setFlow(f);
       copyText(f.userCode);
-      openInBrowser(f.verificationUri);
+      openUrlFromSettings(f.verificationUri);
       await f.done;
     });
 
@@ -219,12 +213,12 @@ function GithubConnect({ busy, run }: ConnectProps) {
     return (
       <View>
         <Help>Enter this code on GitHub (it's on your clipboard), then approve Ardia. This sheet closes when you're signed in.</Help>
-        <Text selectable style={{ fontSize: 26, fontWeight: "600", letterSpacing: 3, fontFamily: "Menlo", color: theme.textPrimary, textAlign: "center", marginVertical: 8 }}>
+        <Text selectable style={{ ...settingsType.code, fontWeight: weight.semibold, letterSpacing: 3, fontFamily: "Menlo", color: theme.textPrimary, textAlign: "center", marginVertical: 8 }}>
           {flow.userCode}
         </Text>
         <Actions>
           <Button title="Cancel" onPress={() => (flow.cancel(), setFlow(null))} />
-          <Button title="Open GitHub" kind="primary" onPress={() => openInBrowser(flow.verificationUri)} />
+          <Button title="Open GitHub" kind="primary" onPress={() => openUrlFromSettings(flow.verificationUri)} />
         </Actions>
       </View>
     );
@@ -322,7 +316,7 @@ function GoogleConnect({ busy, run }: ConnectProps) {
   const [secret, setSecret] = useState("");
   const go = () =>
     void run(async () => {
-      const windowId = browserWindow();
+      const windowId = settingsBrowserWindow();
       if (!windowId) throw new Error("Open a browser window first");
       void focusWindow(windowId);
       await connectGoogleDrive(windowId, clientId, secret);

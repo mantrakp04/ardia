@@ -68,12 +68,12 @@ async function reset() {
   await waitProfile("default");
   await sleep(250);
 }
-const windows = () => ac('return globalThis.expo.modules.ArdiaCEF.chromeWindows();');
+const windows = () => ac('return ac.engine.call("windows.list");');
 async function nativeWindow() {
   const all = await windows();
   return all.find((w) => w.hasRoot && w.profile === "" && w.group) ?? all.find((w) => w.hasRoot);
 }
-const action = (window, act) => ac(`return globalThis.expo.modules.ArdiaCEF.devWindow(${window}, ${JSON.stringify(act)});`);
+const action = (window, act) => ac(`return ac.engine.call("windows.dev", ${JSON.stringify({ window, action: act })});`);
 const gesture = (sign, wobble = false, drift = false) => [
   { phase: "began", dx: wobble ? sign : 0, dy: wobble ? 5 : 0 },
   { phase: "changed", dx: 18 * sign, dy: 1 },

@@ -87,7 +87,7 @@ try {
       ok = loadedIt;
       S().updateTab("b", { zoom: 1.5 });
       S().setFind("b", { open: true, query: "findme" });
-      ac.pageState.setState((p) => ({ pages: { ...p.pages, b: { ...(p.pages.b || {}), permission: { id: "audit", browserId: 0, origin: "https://example.com", permissions: ["notifications"] } } } }));
+      ac.pageState.setState((p) => ({ pages: { ...p.pages, b: { ...(p.pages.b || {}), permission: { id: "audit", tabId: "b", origin: "https://example.com", permissions: ["notifications"] } } } }));
       S().updateLive("b", { isLoading: true });
       return audit.frames(3);
     }).then(() => ({ ok, url: S().tabs.b.url, title: S().tabs.b.title, renderedB: audit.props("UrlField", "b").length }));`, 60_000);

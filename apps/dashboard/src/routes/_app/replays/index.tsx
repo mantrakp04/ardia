@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ChevronLeft, ChevronRight, MousePointerClick } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, MousePointerClick } from "lucide-react";
 import { useEffect, useState } from "react";
 import { PageHeader, Panel } from "@/components/blocks";
 import { DataTable } from "@/components/data-table";
@@ -11,7 +11,7 @@ import { rangeSentence } from "@/lib/compare";
 import { formatAgo, formatDateTime, formatExact } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-type ReplaySearch = { page?: number; min?: number; clicks?: boolean; device?: string; url?: string; sort?: "longest" | "clicks" };
+type ReplaySearch = { page?: number; min?: number; clicks?: boolean; device?: string; url?: string; download?: "yes" | "no"; sort?: "longest" | "clicks" };
 
 const MIN_DURATIONS = [
   [0, "Any length"],
@@ -31,6 +31,7 @@ export const Route = createFileRoute("/_app/replays/")({
     if (search.clicks === true || search.clicks === "true" || search.clicks === "1") out.clicks = true;
     if (typeof search.device === "string" && search.device) out.device = search.device.slice(0, 40);
     if (typeof search.url === "string" && search.url) out.url = search.url.slice(0, 200);
+    if (search.download === "yes" || search.download === "no") out.download = search.download;
     if (search.sort === "longest" || search.sort === "clicks") out.sort = search.sort;
     return out;
   },
@@ -62,7 +63,7 @@ function ReplaysPage() {
     return () => clearTimeout(id);
   }, [urlDraft, search.url, navigate]);
 
-  const input = { range, page: search.page ?? 1, minDuration: search.min ?? 0, clicks: search.clicks ?? false, device: search.device ?? "", url: search.url ?? "", sort: search.sort ?? "newest" };
+  const input = { range, page: search.page ?? 1, minDuration: search.min ?? 0, clicks: search.clicks ?? false, device: search.device ?? "", url: search.url ?? "", download: search.download ?? "", sort: search.sort ?? "newest" };
   const query = useQuery({
     queryKey: ["replays", input],
     queryFn: ({ signal }) => getReplays({ data: input, signal }),
@@ -106,6 +107,16 @@ function ReplaysPage() {
               {d}
             </option>
           ))}
+        </select>
+        <select
+          aria-label="Download"
+          value={search.download ?? ""}
+          onChange={(e) => set({ download: (e.target.value || undefined) as ReplaySearch["download"] })}
+          className="h-8 rounded-lg border bg-card px-2.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        >
+          <option value="">Any download</option>
+          <option value="yes">Clicked download</option>
+          <option value="no">No download</option>
         </select>
         <button
           type="button"
@@ -154,7 +165,7 @@ function ReplaysPage() {
         description={query.data ? `${formatExact(query.data.total)} sessions match. Click one to watch it.` : "Loading sessions…"}
         bodyClassName="px-0 sm:px-0"
       >
-        <Loaded query={query} skeleton={<div className="px-4 sm:px-5"><TableSkeleton rows={10} columns={7} /></div>}>
+        <Loaded query={query} skeleton={<div className="px-4 sm:px-5"><TableSkeleton rows={10} columns={9} /></div>}>
           {(d) => (
             <>
               <div className="px-2 sm:px-3">
@@ -177,6 +188,11 @@ function ReplaysPage() {
                     { key: "duration", header: "Length", align: "right", cell: (r) => <span className="whitespace-nowrap">{formatDuration(r.durationS)}</span> },
                     { key: "pages", header: "Pages", align: "right", cell: (r) => formatExact(r.pages) },
                     { key: "clicks", header: "Clicks", align: "right", cell: (r) => formatExact(r.clicks) },
+                    {
+                      key: "download",
+                      header: "Download",
+                      cell: (r) => (r.downloaded ? <Download className="size-3.5" aria-label="Clicked download" /> : <span className="text-muted-foreground">–</span>),
+                    },
                     {
                       key: "device",
                       header: "Device",
