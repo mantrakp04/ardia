@@ -61,6 +61,98 @@ test("the top of the page reports top", () => {
   assert.deepEqual(p.sent, ["down", "up", "top"]);
 });
 
+const tracking = script.match(/\n( {2}const scrollDirection = [\s\S]*?\n {2}addEventListener\("resize"[^\n]*\n)/)?.[1];
+assert.ok(tracking, "page_script.js tracks the scroll direction");
+const install = new Function("page", `with (page) {\n${tracking}}`);
+
+function loadPage(tabId, { scrollY = 0 } = {}) {
+  const listeners = {};
+  const frames = [];
+  const observers = [];
+  const mutations = [];
+  let now = 1000;
+  const doc = { scrollTop: scrollY, scrollHeight: 4800, clientHeight: 800, clientWidth: 1200, contains: () => true };
+  const env = {
+    scrollY,
+    innerHeight: 800,
+    innerWidth: 1200,
+    document: { scrollingElement: doc, documentElement: doc },
+    performance: { now: () => now },
+    requestAnimationFrame: (fn) => frames.push(fn),
+    addEventListener: (type, fn) => (listeners[type] ??= []).push(fn),
+    guard: (fn) => (...a) => fn(...a),
+    send: (kind, data) => kind === "scroll" && noteScroll(tabId, data),
+    ResizeObserver: class {
+      constructor(fn) {
+        this.fn = fn;
+        this.watched = new Set();
+        observers.push(this);
+      }
+      observe(el) {
+        this.watched.add(el);
+      }
+      disconnect() {
+        this.watched.clear();
+      }
+    },
+    MutationObserver: class {
+      constructor(fn) {
+        this.fn = fn;
+        this.watching = false;
+        mutations.push(this);
+      }
+      observe() {
+        this.watching = true;
+      }
+      disconnect() {
+        this.watching = false;
+      }
+    },
+  };
+  install(env);
+  const fire = (type, e) => (listeners[type] ?? []).forEach((fn) => fn({ type, ...e }));
+  const scroll = (el, to, steps = 20) => {
+    const from = el.scrollTop;
+    for (let i = 1; i <= steps; i++) {
+      now += 16;
+      fire("wheel", { deltaY: Math.sign(to - from), target: el === doc ? doc : { parent: el } });
+      el.scrollTop = from + ((to - from) * i) / steps;
+      fire("scroll", { target: el === doc ? env.document : el });
+      frames.splice(0).forEach((fn) => fn());
+    }
+    now += 500;
+  };
+  const overlay = () => {
+    const el = { scrollTop: 0, scrollHeight: 4000, clientHeight: 800, clientWidth: 1200, isConnected: true, visible: true, left: 0 };
+    el.contains = (n) => n === el || n?.parent === el;
+    el.checkVisibility = () => el.visible;
+    el.getBoundingClientRect = () => ({ left: el.left, top: 0, right: el.left + el.clientWidth, bottom: el.clientHeight });
+    return el;
+  };
+  const resized = () => observers.forEach((o) => o.watched.size && o.fn([]));
+  const mutated = () => mutations.forEach((o) => o.watching && o.fn([]));
+  const nextFrame = () => frames.splice(0).forEach((fn) => fn());
+  const tick = (ms) => (now += ms);
+  return { doc, document: env.document, fire, scroll, overlay, resized, mutated, nextFrame, tick };
+}
+
+function hiddenTab() {
+  useBrowser.getState().hydrate({});
+  const w = useBrowser.getState().createWindow({ url: "https://a.com" });
+  return useBrowser.getState().newTab(w, { url: "https://example.com" });
+}
+const hidden = (tabId) => useToolbarAutoHide.getState().scrolledDown[tabId] === true;
+
+test("a new document at the top shows the bar the last one hid (a reload, the same address)", () => {
+  const tabId = hiddenTab();
+  const first = loadPage(tabId);
+  first.scroll(first.doc, 1500);
+  assert.ok(hidden(tabId));
+  loadPage(tabId);
+  assert.ok(!hidden(tabId));
+  useBrowser.getState().closeTab(tabId);
+});
+
 test("a page with little to scroll never hides the bar", () => {
   const p = page({ range: 100 });
   for (let y = 5; y <= 100; y += 5) p.to(y);
