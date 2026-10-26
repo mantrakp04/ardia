@@ -158,6 +158,16 @@ export function deleteLiveFolder(folderId: string) {
   removeFolder(folderId);
 }
 
+function releaseCompletedTabs() {
+  const s = useBrowser.getState();
+  const { folders, completed, completing } = live();
+  const finished = (folderId: string, itemId: string) =>
+    folders[folderId]?.showCompleted === false && !completing[folderId]?.includes(itemId) && !!completed[folderId]?.some((c) => c.item.id === itemId);
+  for (const t of Object.values(s.tabs)) {
+    if (t.liveItem && finished(t.liveItem.folderId, t.liveItem.itemId) && activeTabId(s, t.windowId, t.profileId) !== t.id) s.updateTab(t.id, { liveItem: undefined });
+  }
+}
+
 let started = false;
 const lastNudge = new Map<string, number>();
 
@@ -173,7 +183,9 @@ export function startLiveEngine() {
   orphans();
   useLive.subscribe((s, prev) => {
     if (s.folders !== prev.folders) orphans();
+    if (s.folders !== prev.folders || s.completed !== prev.completed || s.completing !== prev.completing) releaseCompletedTabs();
   });
+  releaseCompletedTabs();
 
   useBrowser.subscribe((s, prev) => {
     if (s.profiles === prev.profiles) return;
@@ -200,6 +212,7 @@ export function startLiveEngine() {
 
   useBrowser.subscribe((s, prev) => {
     if (s.windows === prev.windows) return;
+    releaseCompletedTabs();
     for (const windowId of s.windowOrder) {
       const before = activeTabId(prev, windowId);
       if (!before || before === activeTabId(s, windowId)) continue;
