@@ -37,6 +37,7 @@ export const SYNCED_SETTINGS = [
   "selectedTabGlow",
   "pageScrollBars",
   "fadeUnloadedTabs",
+  "profileIconsInSidebar",
   "warnBeforeClosingTabGroup",
   "newTabPosition",
   "newTabButtonPosition",

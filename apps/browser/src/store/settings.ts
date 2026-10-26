@@ -60,6 +60,7 @@ export type Settings = {
   selectedTabGlow: SelectedTabGlow;
   pageScrollBars: "system" | "thin";
   fadeUnloadedTabs: boolean;
+  profileIconsInSidebar: boolean;
   warnBeforeClosingTabGroup: boolean;
   batterySaverWhen: BatterySaverWhen;
   extensionSidePanelWidth: number;
@@ -150,6 +151,7 @@ export const DEFAULT_SETTINGS: Settings = {
   selectedTabGlow: "full",
   pageScrollBars: "system",
   fadeUnloadedTabs: false,
+  profileIconsInSidebar: false,
   warnBeforeClosingTabGroup: true,
   batterySaverWhen: "lowBattery",
   extensionSidePanelWidth: 360,
