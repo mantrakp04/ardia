@@ -136,22 +136,3 @@ struct PageFailureView: View {
     }
   }
 }
-
-struct LoadingLine: View {
-  let progress: Double
-  let isLoading: Bool
-
-  var body: some View {
-    GeometryReader { proxy in
-      Capsule()
-        .fill(BrowsePalette.loadingBorder)
-        .frame(width: proxy.size.width * max(progress, 0.08))
-        .opacity(isLoading ? 1 : 0)
-        .animation(.easeOut(duration: 0.25), value: progress)
-        .animation(.easeOut(duration: 0.3).delay(isLoading ? 0 : 0.15), value: isLoading)
-    }
-    .frame(height: 2.5)
-    .allowsHitTesting(false)
-    .accessibilityHidden(true)
-  }
-}

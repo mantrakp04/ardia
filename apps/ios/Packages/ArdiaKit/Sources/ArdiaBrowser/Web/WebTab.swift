@@ -282,7 +282,11 @@ public final class WebTab: DiscardablePage, Identifiable {
     }
     watch(\.isLoading) { tab, view in
       if tab.isLoading != view.isLoading { tab.isLoading = view.isLoading }
-      if !view.isLoading { tab.progressThrottle.reset(); tab.progress = 0 }
+      if !view.isLoading {
+        tab.progressThrottle.reset()
+        tab.progress = 0
+        tab.persistThemeColor()
+      }
     }
     watch(\.canGoBack) { tab, view in if tab.canGoBack != view.canGoBack { tab.canGoBack = view.canGoBack } }
     watch(\.canGoForward) { tab, view in if tab.canGoForward != view.canGoForward { tab.canGoForward = view.canGoForward } }
@@ -313,7 +317,12 @@ public final class WebTab: DiscardablePage, Identifiable {
   private func colorsChanged(theme: UIColor?, underPage: UIColor?) {
     if themeColor != theme { themeColor = theme }
     if underPageBackgroundColor != underPage { underPageBackgroundColor = underPage }
-    if let hex = (theme ?? underPage)?.hexString { engine?.tabs.update(id, themeColorHex: hex) }
+    persistThemeColor()
+  }
+
+  private func persistThemeColor() {
+    guard let webView, !webView.isLoading, webView.url != nil else { return }
+    if let hex = (themeColor ?? underPageBackgroundColor)?.hexString { engine?.tabs.update(id, themeColorHex: hex) }
   }
 
   private func securityChanged(_ webView: WKWebView) {

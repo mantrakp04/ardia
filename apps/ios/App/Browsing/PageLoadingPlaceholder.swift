@@ -3,14 +3,30 @@ import ArdiaDesign
 import SwiftUI
 
 struct PageLoadingPlaceholder: View {
-  let tab: BrowserTab
+  let tabTitle: String
+  let accessibilityTitle: String
+  let url: String
+  let faviconURL: String?
+  let themeColorHex: String?
+  var revealDelay: Duration?
+
+  @State private var contentShown = false
+
+  init(tab: BrowserTab, revealDelay: Duration? = nil) {
+    tabTitle = tab.title
+    accessibilityTitle = TabText.title(for: tab)
+    url = tab.url
+    faviconURL = tab.faviconURL
+    themeColorHex = tab.themeColorHex
+    self.revealDelay = revealDelay
+  }
 
   var body: some View {
-    let theme = PageTheme(hex: tab.themeColorHex)
-    let host = BrowserURL.host(of: tab.url)
-    let title = PageLoadingPlaceholder.distinctTitle(tab.title, host: host)
+    let theme = PageTheme(hex: themeColorHex)
+    let host = BrowserURL.host(of: url)
+    let title = PageLoadingPlaceholder.distinctTitle(tabTitle, host: host)
     VStack(spacing: Spacing.small) {
-      FaviconImage(iconURL: tab.faviconURL, pageURL: tab.url, size: 44)
+      FaviconImage(iconURL: faviconURL, pageURL: url, size: 44)
         .shadow(color: .black.opacity(0.08), radius: 6, y: 2)
       if let title {
         Text(title)
@@ -26,12 +42,19 @@ struct PageLoadingPlaceholder: View {
           .foregroundStyle(title == nil ? (theme?.ink ?? BrowsePalette.foregroundPrimary) : (theme?.ink.opacity(0.65) ?? BrowsePalette.foregroundSecondary))
       }
     }
+    .opacity(revealDelay == nil || contentShown ? 1 : 0)
     .padding(.horizontal, Spacing.section)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .background(theme?.color ?? BrowsePalette.pageBackdrop)
     .ignoresSafeArea()
     .accessibilityElement(children: .combine)
-    .accessibilityLabel(Text("Loading \(TabText.title(for: tab))"))
+    .accessibilityLabel(Text("Loading \(accessibilityTitle)"))
+    .task {
+      guard let revealDelay, !contentShown else { return }
+      try? await Task.sleep(for: revealDelay)
+      guard !Task.isCancelled else { return }
+      withAnimation(Motion.placeholderIn) { contentShown = true }
+    }
   }
 
   static func distinctTitle(_ title: String, host: String?) -> String? {

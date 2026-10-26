@@ -100,6 +100,9 @@ and never touches real data. Add `-ArdiaAIFeatures YES` for the AI features. Cap
 `-ArdiaOnboarding YES`, `-ArdiaOpenSheet archive|spaces`, `-BrowseForMeResults` (a Browse for Me tab on the
 search engine side), and `-BrowseForMeDemo <state>` to force a Browse for Me state (`offline`, `noResults`,
 `appleIntelligenceOff`, `deviceNotEligible`, `modelDownloading`, `writingFails`, `slow`).
+Motion captures: `-BrowsePagerFreeze <fraction>` holds a tab swipe part way (negative swipes toward the
+previous tab), `-BrowsePagerScript` plays a scripted swipe (cancel, edge, commit, interrupted commit), and
+`-BrowseLoadFreeze <progress>` holds a page load with its loading line and placeholder.
 
 ## Tests
 

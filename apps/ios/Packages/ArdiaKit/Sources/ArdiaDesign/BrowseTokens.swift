@@ -104,7 +104,16 @@ public extension Motion {
   static let press = Animation.spring(response: 0.2, dampingFraction: 0.7)
   static let barPressIn = Animation.spring(duration: 0.08, bounce: 0)
   static let barPressOut = Animation.spring(duration: 0.16, bounce: 0.1)
-  static let barCollapse = Animation.spring(duration: 0.4, bounce: 0.1)
+  static let barCollapse = Animation.spring(duration: 0.4, bounce: 0)
+  static let progressReveal = Animation.easeOut(duration: 0.2)
+  static let progressAdvance = Animation.easeOut(duration: 0.45)
+  static let progressFill = Animation.easeOut(duration: 0.2)
+  static let progressFade = Animation.easeOut(duration: 0.25)
+  static let progressRevealDelay: Duration = .milliseconds(150)
+  static let placeholderDelay: Duration = .milliseconds(300)
+  static let placeholderIn = Animation.easeOut(duration: 0.22)
+  static let pagerSettle = Spring(duration: 0.38, bounce: 0)
+  static let pagerFade = Animation.easeOut(duration: 0.2)
   static let barTone = Animation.easeOut(duration: 0.25)
   static let logoSpinDecay: Double = 2.2
 }

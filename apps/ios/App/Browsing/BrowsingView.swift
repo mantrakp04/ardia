@@ -14,7 +14,7 @@ struct BrowsingView: View {
   @State private var foldTicks = 0
   @State private var summarySnapshot: UIImage?
   @State private var pinchSnapshot: UIImage?
-  @State private var pager = PagerState()
+  @State private var pager = PagerModel()
   @State private var barHidden = false
   @State private var tabSwitchTicks = 0
   @State private var pageWidth: CGFloat = 402
@@ -29,9 +29,11 @@ struct BrowsingView: View {
         pageLayer(tab)
           .overlay(alignment: .top) { statusStrip(tab) }
           .scaleEffect(pinchScale)
-          .offset(x: pager.offset)
+          .opacity(pager.isActive ? 0 : 1)
           .ignoresSafeArea()
-        pagerNeighbors
+        if pager.isActive {
+          PagerStage(pager: pager, reduceMotion: reduceMotion)
+        }
       }
       if browse.summaryTabID == nil {
         bar
@@ -49,7 +51,8 @@ struct BrowsingView: View {
     }
     .overlay(alignment: .top) {
       if let page = currentWebPage, browse.summaryTabID == nil {
-        LoadingLine(progress: page.progress, isLoading: page.isLoading)
+        LoadingLine(progress: MotionDemo.loadFreeze ?? page.progress, isLoading: MotionDemo.loadFreeze != nil || page.isLoading)
+          .id(page.id)
           .ignoresSafeArea(edges: .horizontal)
       }
     }
@@ -92,7 +95,10 @@ struct BrowsingView: View {
       barHidden = false
       app.goBackToSearchIfEmpty()
       if let id, app.tabs.tab(id)?.origin != .browseForMe { _ = app.web.webTab(for: id) }
+      warmPagerNeighbors()
     }
+    .task { await freezePagerForDemo() }
+    .task { await runPagerScriptForDemo() }
     .onChange(of: isFront) { _, front in
       if front { barHidden = false }
     }
@@ -148,6 +154,9 @@ struct BrowsingView: View {
         onPinch: handlePinch,
         onTone: { id, tone in browse.setTone(tone, for: id) }
       )
+      if MotionDemo.loadFreeze != nil, tab.origin != .browseForMe {
+        PageLoadingPlaceholder(tab: tab, revealDelay: Motion.placeholderDelay)
+      }
       if let failure = page?.failure, let page {
         PageFailureView(failure: failure) { page.reload() }
           .transition(.opacity)
@@ -305,80 +314,143 @@ struct BrowsingView: View {
     return PageCoverCache.capture(webView, croppingTop: webView.safeAreaInsets.top)
   }
 
-  @ViewBuilder
-  private var pagerNeighbors: some View {
-    if pager.offset != 0 {
-      GeometryReader { proxy in
-        let width = proxy.size.width + proxy.safeAreaInsets.leading + proxy.safeAreaInsets.trailing
-        ZStack {
-          if let left = pager.left {
-            PagerSnapshot(tab: left)
-              .offset(x: pager.offset - width - 12)
-          }
-          if let right = pager.right {
-            PagerSnapshot(tab: right)
-              .offset(x: pager.offset + width + 12)
-          }
-        }
-      }
-      .ignoresSafeArea()
-      .allowsHitTesting(false)
-    }
-  }
-
   private var pagerGesture: some Gesture {
     DragGesture(minimumDistance: 14)
       .onChanged { value in
-        guard abs(value.translation.width) > abs(value.translation.height) else { return }
-        if !pager.isActive {
-          let order = swipeOrder
-          guard let index = order.firstIndex(where: { $0.id == app.tabs.selectedTabID }) else { return }
-          pager.isActive = true
-          pager.order = order
-          rememberCurrentCover()
-          pager.left = index > 0 ? order[index - 1] : nil
-          pager.right = index + 1 < order.count ? order[index + 1] : nil
+        if !pager.isTracking {
+          guard abs(value.translation.width) > abs(value.translation.height) else { return }
+          if pager.isActive {
+            pager.catchSettle()
+          } else {
+            guard pager.begin(order: swipeOrder, currentID: app.tabs.selectedTabID) else { return }
+            rememberCurrentCover()
+          }
+          pager.isTracking = true
+          pager.trackingBase = rawOffset(for: pager.offset)
+          pager.activationTranslation = value.translation.width
         }
-        var translation = value.translation.width
-        if translation > 0, pager.left == nil { translation = rubberBand(translation) }
-        if translation < 0, pager.right == nil { translation = -rubberBand(-translation) }
+        let raw = pager.trackingBase + value.translation.width - pager.activationTranslation
         var transaction = Transaction()
         transaction.disablesAnimations = true
-        withTransaction(transaction) { pager.offset = translation }
+        withTransaction(transaction) {
+          pager.offset = PagerPhysics.resolvedOffset(raw, hasLeft: pager.hasLeft, hasRight: pager.hasRight, width: pageWidth)
+        }
       }
       .onEnded { value in
-        guard pager.isActive else { return }
+        guard pager.isTracking else { return }
+        pager.isTracking = false
         let width = pageWidth
-        let projected = value.predictedEndTranslation.width
-        let target: BrowserTab?
-        let direction: CGFloat
-        if (value.translation.width > width / 3 || projected > width / 2), let left = pager.left {
-          target = left
-          direction = 1
-        } else if (value.translation.width < -width / 3 || projected < -width / 2), let right = pager.right {
-          target = right
-          direction = -1
-        } else {
-          target = nil
-          direction = 0
-        }
-        guard let target else {
-          withAnimation(Motion.pager) { pager.offset = 0 } completion: { pager = PagerState() }
-          return
-        }
-        tabSwitchTicks += 1
-        withAnimation(reduceMotion ? .easeOut(duration: 0.15) : Motion.pager) {
-          pager.offset = direction * (width + 12)
-        } completion: {
-          var transaction = Transaction()
-          transaction.disablesAnimations = true
-          withTransaction(transaction) {
-            app.browse.freezeOrder(pager.order.map(\.id))
-            app.openTab(target.id)
-            pager = PagerState()
-          }
-        }
+        let velocity = value.velocity.width
+        let target = PagerPhysics.snapTarget(offset: pager.offset, velocity: velocity, width: width, hasLeft: pager.hasLeft, hasRight: pager.hasRight)
+        settlePager(to: target, velocity: velocity, width: width)
       }
+  }
+
+  private func rawOffset(for offset: CGFloat) -> CGFloat {
+    if offset > 0, !pager.hasLeft { return offset / max(1 - offset / PagerPhysics.rubberLimit, 0.05) }
+    if offset < 0, !pager.hasRight { return offset / max(1 + offset / PagerPhysics.rubberLimit, 0.05) }
+    return offset
+  }
+
+  private func settlePager(to target: Int, velocity: CGFloat, width: CGFloat) {
+    let destination = CGFloat(target) * width
+    let neighbor = target > 0 ? pager.left : target < 0 ? pager.right : nil
+    let from = pager.offset
+    let distance = destination - from
+    pager.generation += 1
+    let generation = pager.generation
+    if neighbor != nil { tabSwitchTicks += 1 }
+    let animation: Animation
+    if reduceMotion {
+      animation = Motion.pagerFade
+      pager.settle = nil
+    } else {
+      let releaseVelocity = min(max(velocity, -4000), 4000)
+      animation = .interpolatingSpring(Motion.pagerSettle, initialVelocity: abs(distance) > 0.5 ? Double(releaseVelocity / distance) : 0)
+      pager.settle = PagerModel.Settle(from: from, to: destination, velocity: releaseVelocity, start: CACurrentMediaTime())
+    }
+    withAnimation(animation) {
+      pager.offset = destination
+    } completion: {
+      guard pager.generation == generation, !pager.isTracking else { return }
+      guard let neighbor else {
+        pager.reset()
+        return
+      }
+      var transaction = Transaction()
+      transaction.disablesAnimations = true
+      withTransaction(transaction) {
+        app.browse.freezeOrder(pager.order.map(\.id))
+        app.openTab(neighbor.id)
+        pager.reset()
+      }
+    }
+  }
+
+  private func warmPagerNeighbors() {
+    let order = swipeOrder
+    guard let index = order.firstIndex(where: { $0.id == app.tabs.selectedTabID }) else { return }
+    let neighbors = [index - 1, index + 1].filter(order.indices.contains).map { order[$0] }
+    let keep = Set(neighbors.map(\.id))
+    pager.images = pager.images.filter { keep.contains($0.key) }
+    for tab in neighbors where pager.images[tab.id] == nil && app.browse.covers.image(for: tab.id) == nil && app.deck.memoryImage(for: tab.id) == nil {
+      guard let name = tab.snapshotFileName else { continue }
+      let id = tab.id
+      Task {
+        guard let image = await app.web.snapshots.image(named: name) else { return }
+        pager.images[id] = UIImage(cgImage: image)
+      }
+    }
+  }
+
+  private func runPagerScriptForDemo() async {
+    guard MotionDemo.pagerScript else { return }
+    try? await Task.sleep(for: .seconds(MotionDemo.delay))
+    func drag(to fraction: CGFloat, over seconds: Double) async {
+      let start = pager.offset
+      let steps = max(Int(seconds * 120), 1)
+      for step in 1...steps {
+        let t = CGFloat(step) / CGFloat(steps)
+        let raw = rawOffset(for: start) + (fraction * pageWidth - rawOffset(for: start)) * t
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+          pager.offset = PagerPhysics.resolvedOffset(raw, hasLeft: pager.hasLeft, hasRight: pager.hasRight, width: pageWidth)
+        }
+        try? await Task.sleep(for: .milliseconds(8))
+      }
+    }
+    func grab() -> Bool {
+      if pager.isActive {
+        pager.catchSettle()
+        return true
+      }
+      rememberCurrentCover()
+      return pager.begin(order: swipeOrder, currentID: app.tabs.selectedTabID)
+    }
+    guard grab() else { return }
+    await drag(to: 0.25, over: 0.3)
+    settlePager(to: 0, velocity: 0, width: pageWidth)
+    try? await Task.sleep(for: .seconds(1.2))
+    guard grab() else { return }
+    await drag(to: -0.3, over: 0.25)
+    settlePager(to: PagerPhysics.snapTarget(offset: pager.offset, velocity: -1400, width: pageWidth, hasLeft: pager.hasLeft, hasRight: pager.hasRight), velocity: -1400, width: pageWidth)
+    try? await Task.sleep(for: .seconds(1.5))
+    guard grab() else { return }
+    await drag(to: 0.3, over: 0.25)
+    settlePager(to: 1, velocity: 1400, width: pageWidth)
+    try? await Task.sleep(for: .milliseconds(120))
+    guard grab() else { return }
+    await drag(to: 0.1, over: 0.2)
+    settlePager(to: 0, velocity: -300, width: pageWidth)
+  }
+
+  private func freezePagerForDemo() async {
+    guard let fraction = MotionDemo.pagerFreeze else { return }
+    try? await Task.sleep(for: .seconds(MotionDemo.delay))
+    rememberCurrentCover()
+    guard pager.begin(order: swipeOrder, currentID: app.tabs.selectedTabID) else { return }
+    pager.offset = PagerPhysics.resolvedOffset(-fraction * pageWidth, hasLeft: pager.hasLeft, hasRight: pager.hasRight, width: pageWidth)
   }
 
   private var swipeOrder: [BrowserTab] {
@@ -406,11 +478,6 @@ struct BrowsingView: View {
     guard let index = order.firstIndex(where: { $0.id == app.tabs.selectedTabID }), order.indices.contains(index + delta) else { return }
     switchTab(to: order[index + delta].id, order: order)
   }
-
-  private func rubberBand(_ distance: CGFloat) -> CGFloat {
-    let limit: CGFloat = 60
-    return limit * (1 - 1 / (distance / limit + 1))
-  }
 }
 
 struct StoredCover {
@@ -418,40 +485,6 @@ struct StoredCover {
   let image: UIImage
 }
 
-struct PagerState {
-  var order: [BrowserTab] = []
-  var isActive = false
-  var offset: CGFloat = 0
-  var left: BrowserTab?
-  var right: BrowserTab?
-}
-
 struct ReaderTarget: Identifiable {
   let id: UUID
-}
-
-struct PagerSnapshot: View {
-  let tab: BrowserTab
-
-  @Environment(AppModel.self) private var app
-  @State private var image: CGImage?
-
-  var body: some View {
-    ZStack(alignment: .top) {
-      BrowsePalette.pageBackdrop
-      if let memory = app.browse.covers.image(for: tab.id) ?? app.deck.memoryImage(for: tab.id) {
-        Image(uiImage: memory).resizable().scaledToFill()
-      } else if let image {
-        Image(decorative: image, scale: 1).resizable().scaledToFill()
-      } else {
-        PageLoadingPlaceholder(tab: tab)
-      }
-    }
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    .clipped()
-    .task(id: tab.snapshotFileName) {
-      guard let name = tab.snapshotFileName else { return }
-      image = await app.web.snapshots.image(named: name)
-    }
-  }
 }

@@ -331,21 +331,15 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
 
   private func showPlaceholder() {
     guard let tab = placeholderTab else { return }
-    let host = placeholderHost ?? {
-      let host = UIHostingController(rootView: PageLoadingPlaceholder(tab: tab))
-      host.view.isUserInteractionEnabled = false
-      host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-      host.view.frame = bounds
-      host.view.alpha = 0
-      addSubview(host.view)
-      placeholderHost = host
-      return host
-    }()
-    host.rootView = PageLoadingPlaceholder(tab: tab)
-    host.view.layer.removeAllAnimations()
+    placeholderHost?.view.layer.removeAllAnimations()
+    placeholderHost?.view.removeFromSuperview()
+    let host = UIHostingController(rootView: PageLoadingPlaceholder(tab: tab, revealDelay: Motion.placeholderDelay))
+    host.view.isUserInteractionEnabled = false
+    host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     host.view.frame = bounds
-    bringSubviewToFront(host.view)
     host.view.alpha = 1
+    addSubview(host.view)
+    placeholderHost = host
   }
 
   private func hidePlaceholder(animated: Bool) {
@@ -355,7 +349,7 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
       view.alpha = 0
       return
     }
-    UIView.animate(withDuration: 0.2, delay: 0, options: [.curveEaseOut, .allowUserInteraction, .beginFromCurrentState]) {
+    UIView.animate(withDuration: 0.25, delay: 0, options: [.curveEaseOut, .allowUserInteraction, .beginFromCurrentState]) {
       view.alpha = 0
     }
   }

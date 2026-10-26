@@ -162,11 +162,12 @@ struct DeckHeaderPlacement: ViewModifier, Animatable {
     let leading = pose.center.x - cardWidth / 2
     let width = max(pose.visibleWidth, 0)
     let y = pose.center.y - cardHeight / 2 - TabsLayout.headerGap - TabsDeckGeometry.headerHeight / 2
-    let fits = width >= TabsLayout.faviconSize + 12
+    let available = max(width - 8, 0)
     let centerX = max(leading + width / 2, TabsLayout.faviconSize / 2 + 8)
     content
-      .frame(width: max(width - 8, 0), height: TabsDeckGeometry.headerHeight)
-      .opacity(fits ? pose.headerOpacity : 0)
+      .environment(\.deckHeaderWidth, available)
+      .frame(width: available, height: TabsDeckGeometry.headerHeight)
+      .opacity(pose.headerOpacity * DeckHeaderMetrics.iconReveal(width: available, icon: TabsLayout.faviconSize))
       .position(x: centerX, y: y)
   }
 }

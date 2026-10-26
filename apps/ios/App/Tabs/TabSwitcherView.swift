@@ -44,6 +44,7 @@ struct TabDeck: View {
   @State private var order: [UUID] = []
   @State private var scroll: Double = 0
   @State private var dragScroll: Double?
+  @State private var settleOrigin: Double?
   @State private var dragStart: Double = 0
   @State private var axis: DragAxis?
   @State private var phase: DeckPhase = .settled
@@ -173,15 +174,16 @@ struct TabDeck: View {
 
   @ViewBuilder
   private func cards(_ byID: [UUID: BrowserTab]) -> some View {
-    let range = TabsDeckGeometry.renderedRange(around: currentScroll, count: order.count)
+    let range = renderedRange
     ForEach(Array(order[range].enumerated()), id: \.element) { offset, id in
       if let tab = byID[id] {
         let index = range.lowerBound + offset
         let role = role(for: id, at: index)
         let motion = motion(for: id, at: index)
         let isLast = index == order.count - 1
-        DeckCardHeader(tab: tab, isIncognito: tab.isPrivate, showsTitle: geometry.visibleWidth(at: motion.relative, isLast: isLast) >= TabsDeckGeometry.headerFaviconOnlyWidth)
+        DeckCardHeader(tab: tab, isIncognito: tab.isPrivate)
           .modifier(DeckHeaderPlacement(motion: motion, role: role, geometry: geometry, isLast: isLast))
+          .transition(.identity)
           .opacity(cardsOpacity)
           .zIndex(Double(index) * 2 + 1 + (role == .expanded ? 100_000 : 0))
           .allowsHitTesting(false)
@@ -429,13 +431,26 @@ struct TabDeck: View {
     app.closeAllTabs()
   }
 
+  private var renderedRange: Range<Int> {
+    let current = TabsDeckGeometry.renderedRange(around: currentScroll, count: order.count)
+    guard let settleOrigin else { return current }
+    let origin = TabsDeckGeometry.renderedRange(around: settleOrigin, count: order.count)
+    guard !origin.isEmpty, !current.isEmpty else { return current }
+    return min(origin.lowerBound, current.lowerBound)..<max(origin.upperBound, current.upperBound)
+  }
+
   private func settle(to target: Int, velocity: Double = 0) {
     let clamped = min(max(target, 0), max(order.count - 1, 0))
     let from = currentScroll
     dragScroll = nil
     scroll = from
+    settleOrigin = from
     let animation = reduceMotion ? TabsMotion.fade : TabsMotion.settle(distance: Double(clamped) - from, velocity: velocity)
-    withAnimation(animation) { scroll = Double(clamped) }
+    withAnimation(animation) {
+      scroll = Double(clamped)
+    } completion: {
+      if scroll == Double(clamped) { settleOrigin = nil }
+    }
   }
 
   private func focusedCard(at scroll: Double) -> Int {
@@ -528,27 +543,39 @@ struct DeckCard<Menu: View>: View {
 struct DeckCardHeader: View {
   let tab: BrowserTab
   let isIncognito: Bool
-  let showsTitle: Bool
+
+  @Environment(\.deckHeaderWidth) private var width
 
   var body: some View {
-    HStack(spacing: TabsLayout.headerSpacing) {
-      if isIncognito {
-        IncognitoGlyph(size: TabsLayout.faviconSize)
-          .padding(2)
-          .background(TabsPalette.incognitoCardRaised, in: .rect(cornerRadius: TabsLayout.faviconRadius))
-      } else {
-        FaviconImage(iconURL: tab.faviconURL, pageURL: tab.url, size: TabsLayout.faviconSize)
-      }
-      if showsTitle {
-        Text(TabText.title(for: tab))
-          .font(.caption.weight(.medium))
-          .foregroundStyle(TabsPalette.headerText)
-          .lineLimit(1)
-          .truncationMode(.tail)
-          .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-      }
+    let reveal = DeckHeaderMetrics.titleReveal(width: width)
+    DeckHeaderLayout(titleReveal: reveal) {
+      icon
+      Text(TabText.title(for: tab))
+        .font(.caption.weight(.medium))
+        .foregroundStyle(TabsPalette.headerText)
+        .lineLimit(1)
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+        .opacity(reveal)
     }
     .frame(maxWidth: .infinity)
+    .mask {
+      HStack(spacing: 0) {
+        Rectangle()
+        LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .leading, endPoint: .trailing)
+          .frame(width: DeckHeaderMetrics.trailingFade)
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var icon: some View {
+    if isIncognito {
+      IncognitoGlyph(size: TabsLayout.faviconSize)
+        .padding(2)
+        .background(TabsPalette.incognitoCardRaised, in: .rect(cornerRadius: TabsLayout.faviconRadius))
+    } else {
+      FaviconImage(iconURL: tab.faviconURL, pageURL: tab.url, size: TabsLayout.faviconSize)
+    }
   }
 }
 
