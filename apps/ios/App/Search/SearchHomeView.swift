@@ -26,7 +26,10 @@ struct SearchHomeView: View {
     .animation(reduceMotion ? .easeOut(duration: 0.2) : Motion.searchRise, value: isTrayUp)
     .accessibilityHidden(isTrayUp)
     .preferredColorScheme(app.isIncognito ? .dark : nil)
-    .onAppear(perform: openTrayIfWanted)
+    .task {
+      await SearchSuggestionsModel.loadRecents(from: app.tabs)
+      openTrayIfWanted()
+    }
     .onChange(of: app.settings.isShowingOnboarding) { _, showing in
       if !showing { openTrayIfWanted() }
     }

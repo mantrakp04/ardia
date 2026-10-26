@@ -23,7 +23,6 @@ struct SearchTray<Drag: Gesture>: View {
   @State private var scrubStart: CGPoint?
   @State private var headerHeight: CGFloat = 0
   @State private var naturalRowsHeight: CGFloat = 0
-  @State private var hasMeasuredRows = false
   @State private var isSubmitting = false
   @ScaledMetric(relativeTo: .title3) private var fieldHeight = BrowseLayout.searchFieldHeight
 
@@ -34,9 +33,11 @@ struct SearchTray<Drag: Gesture>: View {
     VStack(spacing: 0) {
       header
       content
+        .frame(maxWidth: .infinity)
+        .frame(height: rowsBudget, alignment: .top)
+        .clipped()
     }
     .frame(maxWidth: .infinity)
-    .animation(reduceMotion || !hasMeasuredRows ? nil : Motion.trayResize, value: min(naturalRowsHeight, rowsBudget))
     .background(alignment: .top) {
       panelBackground
         .padding(.bottom, -BrowseLayout.sheetTopRadius * 12)
@@ -162,6 +163,10 @@ struct SearchTray<Drag: Gesture>: View {
     } else if !rows.isEmpty, rowsBudget > 0 {
       rowsArea(rows)
         .transition(.opacity.animation(Motion.resultsIn))
+    } else {
+      Color.clear
+        .contentShape(.rect)
+        .gesture(dismissDrag)
     }
   }
 
@@ -176,41 +181,22 @@ struct SearchTray<Drag: Gesture>: View {
         .scrollBounceBehavior(.basedOnSize)
       } else {
         rowsColumn(rows)
-          .frame(height: min(naturalRowsHeight, rowsBudget), alignment: .top)
+          .frame(height: rowsBudget, alignment: .top)
           .clipped()
           .mask { fadeMask(overflows: overflows) }
           .gesture(scrub(rows))
       }
     }
-    .frame(height: min(naturalRowsHeight, rowsBudget), alignment: .top)
+    .frame(height: rowsBudget, alignment: .top)
   }
 
   private func rowsColumn(_ rows: [SearchSuggestion]) -> some View {
     VStack(alignment: .leading, spacing: 0) {
-      if let device = model?.idleDeviceName {
-        Text("From Your \(device)")
-          .font(.footnote.weight(.semibold))
-          .foregroundStyle(BrowsePalette.foregroundSecondary)
-          .padding(.horizontal, 20)
-          .padding(.top, Spacing.tight)
-          .padding(.bottom, Spacing.hairline)
-      }
       rowStack(rows)
     }
     .padding(.bottom, Spacing.tight)
     .fixedSize(horizontal: false, vertical: true)
-    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
-      if hasMeasuredRows {
-        naturalRowsHeight = height
-      } else {
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
-          naturalRowsHeight = height
-          hasMeasuredRows = true
-        }
-      }
-    }
+    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { naturalRowsHeight = $0 }
   }
 
   private func fadeMask(overflows: Bool) -> some View {
@@ -358,6 +344,6 @@ struct SearchTray<Drag: Gesture>: View {
 
   private func leave() {
     isFocused = false
-    withAnimation(reduceMotion ? .easeOut(duration: 0.2) : Motion.trayDismiss) { app.browse.dismissSearch() }
+    app.browse.dismissSearch()
   }
 }

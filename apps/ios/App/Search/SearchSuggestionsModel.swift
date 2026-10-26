@@ -7,6 +7,10 @@ import Observation
 @Observable
 final class SearchSuggestionsModel {
   static let rowLimit = 9
+  static let idleSearchLimit = 3
+  static let idleRowLimit = 5
+  static let historyScan = 400
+  private(set) static var recentQueries: [String] = []
 
   private(set) var text = ""
   @ObservationIgnored private let omnibox: OmniboxModel
@@ -24,6 +28,12 @@ final class SearchSuggestionsModel {
 
   func prepare() async {
     await omnibox.refreshCandidates(tabs: tabs, snapshot: sync.isEnabled ? sync.snapshot : nil)
+  }
+
+  static func loadRecents(from tabs: TabStore) async {
+    let urls = await HistoryReader(modelContainer: tabs.context.container).summary(limit: historyScan).map(\.url)
+    let recents = RecentSearches.queries(fromNewestFirst: urls, limit: idleSearchLimit)
+    if recents != recentQueries { recentQueries = recents }
   }
 
   func update(_ newText: String) {
@@ -82,18 +92,17 @@ final class SearchSuggestionsModel {
     return false
   }
 
-  var idleDeviceName: String? {
-    guard text.trimmingCharacters(in: .whitespaces).isEmpty, sync.isEnabled, let profile = sync.selectedProfile else { return nil }
-    let current = Set(sync.snapshot.devices.filter(\.isCurrent).map(\.id))
-    return profile.deviceTabs.first(where: { $0.kind == .mac && !current.contains($0.deviceId) && !$0.tabs.isEmpty })?.deviceName
+  private var idleRows: [SearchSuggestion] {
+    let searches = Self.recentQueries.map(SearchSuggestion.query)
+    return Array((searches + deviceRows).prefix(Self.idleRowLimit))
   }
 
-  private var idleRows: [SearchSuggestion] {
+  private var deviceRows: [SearchSuggestion] {
     guard sync.isEnabled, let profile = sync.selectedProfile else { return [] }
     let current = Set(sync.snapshot.devices.filter(\.isCurrent).map(\.id))
     guard let device = profile.deviceTabs.first(where: { $0.kind == .mac && !current.contains($0.deviceId) && !$0.tabs.isEmpty }) else { return [] }
     return device.tabs.filter { BrowserURL.isSyncable($0.url) }.prefix(3).map { tab in
-      SearchSuggestion(id: "r:" + tab.url, kind: .remoteTab(deviceName: ""), title: tab.title.isEmpty ? tab.url : tab.title, detail: SearchInput.displayHost(tab.url), url: tab.url, query: tab.title)
+      SearchSuggestion(id: "r:" + tab.url, kind: .remoteTab(deviceName: device.deviceName), title: tab.title.isEmpty ? tab.url : tab.title, detail: SearchInput.displayHost(tab.url), url: tab.url, query: tab.title)
     }
   }
 

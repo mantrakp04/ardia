@@ -92,14 +92,6 @@ extension AppModel {
         ?? tab.browseResultID.flatMap(savedBrowsePage)?.query
         ?? tab.title
     }
-    guard let components = URLComponents(string: tab.url) else { return tab.url }
-    let keys = ["q", "query", "p", "text", "wd", "search_query"]
-    if let host = components.host, Self.searchHosts.contains(where: { host.hasSuffix($0) }),
-       let value = components.queryItems?.first(where: { keys.contains($0.name) })?.value, !value.isEmpty {
-      return value
-    }
-    return tab.url
+    return RecentSearches.query(in: tab.url) ?? tab.url
   }
-
-  static let searchHosts = ["google.com", "bing.com", "duckduckgo.com", "ecosia.org", "brave.com", "kagi.com", "startpage.com", "yahoo.com", "perplexity.ai", "baidu.com", "yandex.com", "chatgpt.com"]
 }

@@ -27,6 +27,9 @@ enum DemoSeed {
   ]
 
   static let history: [Page] = [
+    Page(url: "https://www.google.com/search?q=best+time+to+visit+sintra", title: "best time to visit sintra - Google Search", minutesAgo: 8),
+    Page(url: "https://www.google.com/search?q=past%C3%A9is+de+nata+recipe", title: "pastéis de nata recipe - Google Search", minutesAgo: 50),
+    Page(url: "https://www.google.com/search?q=swift+concurrency", title: "swift concurrency - Google Search", minutesAgo: 75),
     Page(url: "https://www.apple.com/", title: "Apple", minutesAgo: 30),
     Page(url: "https://www.apple.com/iphone/", title: "iPhone - Apple", minutesAgo: 240),
     Page(url: "https://en.wikipedia.org/wiki/Lisbon", title: "Lisbon - Wikipedia", minutesAgo: 600),
