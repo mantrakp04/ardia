@@ -161,7 +161,7 @@ export function profileNameColor(profile: Pick<Profile, "color" | "theme">, dark
   return dark ? mix(base, "#FFFFFF", 0.6) : mix(base, "#000000", 0.4);
 }
 
-function mix(a: string, b: string, t: number): string {
+export function mix(a: string, b: string, t: number): string {
   const ch = (h: string, i: number) => parseInt(h.slice(1 + 2 * i, 3 + 2 * i), 16);
   const out = [0, 1, 2].map((i) => Math.round(ch(a, i) + (ch(b, i) - ch(a, i)) * t));
   return `#${out.map((v) => v.toString(16).padStart(2, "0")).join("").toUpperCase()}`;

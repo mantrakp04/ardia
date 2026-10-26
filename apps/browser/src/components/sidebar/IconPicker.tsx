@@ -6,7 +6,7 @@ import { useLive } from "../../live/store";
 import { useBrowser } from "../../store/browser";
 import { setIcon } from "./actions";
 import { setSidebarUi, useSidebarUi } from "./state";
-import { NO_GROUP_ICON, NO_GROUP_ICON_INK, SYMBOL_PREFIX } from "./TabIcon";
+import { hasOwnGroupIcon, SYMBOL_PREFIX } from "./TabIcon";
 import { useSidebarTokens } from "./tokens";
 
 const EMOJI: [string, string][] = [
@@ -55,7 +55,8 @@ function PickerPanel({ picker, sidebarWidth }: { picker: Picker; sidebarWidth: n
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const liveIcon = useLive((s) => (picker.kind === "live" ? s.folders[picker.id.split("|")[1] ?? ""]?.icon : null));
-  const current = useBrowser((s) => (picker.kind === "tab" ? s.tabs[picker.id]?.customIcon : picker.kind === "live" ? liveIcon : s.groups[picker.id]?.icon) ?? null);
+  const stored = useBrowser((s) => (picker.kind === "tab" ? s.tabs[picker.id]?.customIcon : picker.kind === "live" ? liveIcon : s.groups[picker.id]?.icon) ?? null);
+  const current = picker.kind === "group" && !hasOwnGroupIcon(stored) ? null : stored;
   const [tab, setTab] = useState<"emoji" | "symbols">(current?.startsWith(SYMBOL_PREFIX) ? "symbols" : "emoji");
   const [query, setQuery] = useState("");
   const items = useMemo(() => {
@@ -118,14 +119,9 @@ function PickerPanel({ picker, sidebarWidth }: { picker: Picker; sidebarWidth: n
             {items.length === 0 ? <Text style={{ padding: 8, fontSize: 12, color: theme.textTertiary }}>No matches</Text> : null}
           </View>
         </ScrollView>
-        {picker.kind === "group" || current ? (
+        {current ? (
           <View style={{ flexDirection: "row", gap: 6 }}>
-            {picker.kind === "group" ? (
-              <FooterButton label="No Icon" selected={current === NO_GROUP_ICON} onPress={() => choose(NO_GROUP_ICON)}>
-                <Symbol name="square.stack.fill" size={11} weight="medium" color={theme.dark ? NO_GROUP_ICON_INK.dark : NO_GROUP_ICON_INK.light} style={{ width: 14, height: 14 }} />
-              </FooterButton>
-            ) : null}
-            {current ? <FooterButton label="Reset Icon" selected={false} onPress={() => choose(null)} /> : null}
+            <FooterButton label="Reset Icon" selected={false} onPress={() => choose(null)} />
           </View>
         ) : null}
       </Surface>

@@ -8,14 +8,15 @@ import { useBrowser, type BrowserState } from "../../store/browser";
 import { tabLabel } from "../../store/model";
 import { isPeekTab } from "../../store/peek";
 import { sharedTabsIn, sharesTabs } from "../../store/tabShare";
-import type { Tab } from "../../store/types";
+import type { GroupColor, Tab } from "../../store/types";
 import { tabTitle } from "./actions";
+import { FolderOrIcon } from "./AnimatedFolder";
 import { setSidebarUi, useSidebarUi } from "./state";
 import { TabIcon } from "./TabIcon";
 
 type Row =
   | { kind: "tab"; id: string; title: string; url: string; favicon: string | null; icon: string | null; where: string | null; current: boolean }
-  | { kind: "closed"; id: string; title: string; url: string; favicon: string | null; icon: string | null; detail: string };
+  | { kind: "closed"; id: string; title: string; url: string; favicon: string | null; icon: string | null; detail: string; group?: { color: GroupColor | null } };
 
 const WIDTH = 560;
 const ROW = 36;
@@ -52,6 +53,7 @@ function candidates(s: BrowserState, windowId: string): { open: Row[]; closed: R
       url: c.tabs[0]?.url ?? "",
       favicon: c.tabs[0]?.favicon ?? null,
       icon: c.group.icon,
+      group: { color: c.group.color ?? null },
       detail: c.tabs.length === 1 ? "Group · 1 tab" : `Group · ${c.tabs.length} tabs`,
       at: c.closedAt,
     })),
@@ -189,7 +191,7 @@ function ResultRow({ row, selected, onHover, onPress }: { row: Row; selected: bo
         onMouseEnter={onHover}
         style={{ height: ROW, borderRadius: 10, flexDirection: "row", alignItems: "center", paddingHorizontal: 10, gap: 10, backgroundColor: selected ? theme.rowSelected : undefined }}
       >
-        <TabIcon url={row.url} favicon={row.favicon} icon={row.icon} />
+        {row.kind === "closed" && row.group ? <FolderOrIcon icon={row.icon} open={false} color={row.group.color} /> : <TabIcon url={row.url} favicon={row.favicon} icon={row.icon} />}
         <View style={{ flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 }}>
           <FadeLabel text={row.title} fontSize={14} color={theme.textPrimary} style={{ flex: 3, height: 19 }} />
           {row.url ? <FadeLabel text={`— ${displayUrl(row.url)}`} fontSize={14} color={theme.textSecondary} style={{ flex: 2, height: 19, marginLeft: 5 }} /> : null}

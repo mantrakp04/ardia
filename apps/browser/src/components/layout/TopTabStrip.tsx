@@ -14,9 +14,10 @@ import { clickTab } from "../sidebar/actions";
 import { pressGroupClose, pressTabClose, useGroupCloseControl, useTabCloseControl } from "../sidebar/closeControl";
 import { openGroupMenu, openTabMenu } from "../sidebar/menus";
 import { groupLabel } from "../../store/organize";
+import { AnimatedFolder } from "../sidebar/AnimatedFolder";
 import { hasOwnGroupIcon, SYMBOL_PREFIX, TabIcon } from "../sidebar/TabIcon";
 import { TabBadges } from "../media/TabBadges";
-import { GROUP_COLORS, NEUTRAL_GROUP_SWATCH, useSidebarTokens, withAlpha } from "../sidebar/tokens";
+import { GROUP_COLORS, useSidebarTokens, withAlpha } from "../sidebar/tokens";
 import { modifiersOf } from "./controls";
 import { usePageStyle, usePagerPages } from "./profilePager";
 import { ProfileSwipeArea } from "./ProfileSwipe";
@@ -27,6 +28,7 @@ import { openFolderMenu, openTileFolderStripMenu } from "./stripFolderMenu";
 import { FolderMosaic } from "../sidebar/FolderTile";
 import { openTileFolderMenu } from "../sidebar/tileFolderUi";
 import { folderCell, folderIdOfCell, folderIn, folderLabel } from "../../store/tileFolders";
+import type { GroupColor } from "../../store/types";
 import { usePeek } from "./usePeek";
 import { lightsCenter, TOP_STRIP_LIGHTS_CENTER } from "./dockMotion";
 import {
@@ -1313,7 +1315,7 @@ function StripGroup({
             onPress={() => useBrowser.getState().updateGroup(entry.id, { collapsed: expanded })}
             style={{ height: ITEM_HEIGHT, flexDirection: "row", alignItems: "center", paddingLeft: 8.5, paddingRight: 7 }}
           >
-            <StripGroupIcon icon={group.icon} tint={tint} />
+            <StripGroupIcon icon={group.icon} color={group.color} open={expanded} />
             <Text numberOfLines={1} style={{ marginLeft: 12.5, maxWidth: 120, fontSize: 12, fontWeight: "600", color: tint ?? (shown >= 0 ? theme.tabSelectedText : theme.textTab) }}>
               {group.name || `${group.tabIds.length} Tabs`}
             </Text>
@@ -1430,7 +1432,7 @@ function FolderChip({ groupId, holding }: { groupId: string; holding: boolean })
                 backgroundColor: pressed ? theme.tabPressed : tint ? withAlpha(tint, hovered ? 0.3 : 0.22) : hovered ? tokens.groupHeaderHover : tokens.groupFill,
               }}
             >
-              <StripGroupIcon icon={group.icon} tint={tint} />
+              <StripGroupIcon icon={group.icon} color={group.color} open={false} />
               <Text numberOfLines={1} style={{ marginLeft: 7, maxWidth: 110, fontSize: 12, fontWeight: "600", color: ink }}>
                 {label}
               </Text>
@@ -1443,21 +1445,11 @@ function FolderChip({ groupId, holding }: { groupId: string; holding: boolean })
   );
 }
 
-function StripGroupIcon({ icon, tint }: { icon: string | null; tint: string | null | undefined }) {
+function StripGroupIcon({ icon, color, open }: { icon: string | null; color: GroupColor | null | undefined; open: boolean }) {
   const theme = useTheme();
-  if (!hasOwnGroupIcon(icon)) return <GroupGlyph color={tint ?? (theme.dark ? NEUTRAL_GROUP_SWATCH.dark : NEUTRAL_GROUP_SWATCH.light)} />;
-  if (icon.startsWith(SYMBOL_PREFIX)) return <Symbol name={icon.slice(SYMBOL_PREFIX.length)} size={11} weight="medium" color={tint ?? theme.icon} style={{ width: 13, height: 13 }} />;
+  if (!hasOwnGroupIcon(icon)) return <AnimatedFolder open={open} color={color} size={13} />;
+  if (icon.startsWith(SYMBOL_PREFIX)) return <Symbol name={icon.slice(SYMBOL_PREFIX.length)} size={11} weight="medium" color={color ? GROUP_COLORS[color].hex : theme.icon} style={{ width: 13, height: 13 }} />;
   return <Text style={{ width: 13, fontSize: 12, textAlign: "center" }}>{icon}</Text>;
-}
-
-function GroupGlyph({ color }: { color: string }) {
-  return (
-    <View style={{ width: 13, height: 11, flexDirection: "row", alignItems: "center" }}>
-      <View style={{ width: 1.25, height: 7, borderRadius: 0.625, backgroundColor: color, opacity: 0.5 }} />
-      <View style={{ width: 1.25, height: 9, borderRadius: 0.625, marginLeft: 0.6, backgroundColor: color, opacity: 0.75 }} />
-      <View style={{ width: 9.4, height: 10.6, borderRadius: 2.5, marginLeft: 0.5, backgroundColor: color }} />
-    </View>
-  );
 }
 
 function SplitChip({ tabIds, width, geometry, from, group }: { tabIds: string[]; width: number; geometry: DragGeometry; from: number; group: string | null }) {

@@ -7,7 +7,7 @@ import { hex, layout, useTheme } from "../../lib/theme";
 import { COMPLETION_MS, errorText, manualRefresh, openLiveItem, statusText } from "../../live/engine";
 import { prBadge } from "../../live/github";
 import { folderRows, liveTabPlace, type FolderRow } from "../../live/rows";
-import { liveFolderIcon, SOURCES } from "../../live/sources";
+import { SOURCES } from "../../live/sources";
 import { setLive, updateFolder, useLive } from "../../live/store";
 import type { CompletedItem, LiveFolder, LiveItem } from "../../live/types";
 import { useBrowser } from "../../store/browser";
@@ -17,6 +17,7 @@ import { openSettings } from "../settings/windows";
 import { HoverSlot } from "../HoverSlot";
 import { IconButton, useHover } from "../primitives";
 import { useLiveColors, type LiveColors } from "../live/colors";
+import { FolderOrIcon } from "./AnimatedFolder";
 import { clickMods, TabRow } from "./TabRow";
 import { Fold, useFold, type FoldEntry } from "./Fold";
 import { GROUP_BORDER, GROUP_HEADER_RADIUS, GROUP_PAD, GROUP_RADIUS } from "./geometry";
@@ -120,7 +121,6 @@ function FolderHeader({ folderId, windowId, collapsed }: { folderId: string; win
   const { hovered, hoverProps } = useHover();
   if (!folder) return null;
   const updating = status?.state === "updating" || status?.state === "initializing";
-  const { site: sourceSite, icon } = liveFolderIcon(folder);
 
   return (
     <View ref={(v) => registerRow(windowId, `livefolder|${folderId}`, v)} {...hoverProps}>
@@ -142,7 +142,7 @@ function FolderHeader({ folderId, windowId, collapsed }: { folderId: string; win
               cornerRadius={GROUP_HEADER_RADIUS}
               style={{ height: layout.rowHeight, flexDirection: "row", alignItems: "center", paddingLeft: 9 + PAD, paddingRight: 6 }}
             >
-              <TabIcon url={sourceSite} icon={icon} />
+              <FolderOrIcon icon={folder.icon} open={!collapsed} />
               <FadeLabel text={folder.name} fontSize={13} weight="medium" color={tokens.groupTitle} style={{ flex: 1, height: 18, marginLeft: 5 }} />
               {status?.error ? (
                 <Pressable onPress={() => openSettings("liveFolders")} tooltip={errorText(status.error.kind, status.error.source)} style={{ marginRight: 2 }}>

@@ -253,7 +253,3 @@ export async function disconnect(source: LiveSourceId) {
   await deleteSecret(source);
   setAccount(source, null);
 }
-
-export function liveFolderIcon(folder: LiveFolder): { site: string; icon: string | null } {
-  return { site: SOURCES[folder.sources[0] ?? "github"].site, icon: folder.icon ?? (folder.sources.length > 1 && folder.kind === "documents" ? "symbol:doc.text" : null) };
-}

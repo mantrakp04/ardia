@@ -393,6 +393,16 @@ export const FadeLabel = requireNativeViewManager<FadeLabelProps>("ArdiaFadeLabe
 
 export const ActivitySpinner = requireNativeViewManager<ViewProps>("ArdiaActivitySpinner");
 
+export type FolderIconProps = ViewProps & {
+  open: boolean;
+  stroke?: string;
+  face?: string;
+  insideTop?: string;
+  insideBottom?: string;
+};
+
+export const FolderIcon = requireNativeViewManager<FolderIconProps>("ArdiaFolderIcon");
+
 export type ContextMenuAreaProps = ViewProps & {
   onContextMenu?: () => void;
   captureDescendants?: boolean;
