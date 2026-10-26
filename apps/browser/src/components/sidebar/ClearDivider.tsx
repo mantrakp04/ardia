@@ -1,5 +1,5 @@
-import { memo, useState } from "react";
-import { Animated, Pressable, View } from "react-native";
+import { memo, useState, type ReactNode } from "react";
+import { Animated, Image, Pressable, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import { ContextMenuArea, Divider, space, Symbol, Text, useHover } from "../ui";
 import { TAB_ROW } from "./tokens";
@@ -8,6 +8,8 @@ import { closeAllTabs } from "../../state/sidebar/clearTabs";
 import { tidy as tidyTabs } from "../../state/sidebar/tidyUi";
 import { openSidebarMenu } from "../../state/sidebar/menus";
 import { PINNED_FOLD_TITLES, togglePinnedFold } from "../../state/sidebar/pinnedFold";
+
+const BROOM = require("../../../assets/tidy-broom.png");
 
 const CLEAR_DIVIDER_HEIGHT = 16;
 const PADDING = TAB_ROW.contentLeft;
@@ -52,9 +54,23 @@ export const ClearDivider = memo(function ClearDivider({ windowId, profileId, sp
             reserve="hover"
             hover={
               <>
-                {tidy ? <DividerButton title="Tidy" symbol="sparkles" iconWidth={10} label="Tidy unpinned tabs" onPress={() => tidyTabs(windowId, "tabs", profileId)} /> : null}
+                {tidy ? (
+                  <DividerButton
+                    title="Tidy"
+                    label="Tidy Tabs"
+                    onPress={() => tidyTabs(windowId, "tabs", profileId)}
+                    icon={(color) => <Image source={BROOM} style={{ width: 11, height: 11, marginRight: space.xs, tintColor: color }} />}
+                  />
+                ) : null}
                 {tidy && clear ? <Divider vertical thick length={9} style={ACTIONS_DIVIDER} /> : null}
-                {clear ? <DividerButton title="Clear" symbol="arrow.down" iconWidth={8} label="Clear unpinned tabs" onPress={() => closeAllTabs(windowId)} /> : null}
+                {clear ? (
+                  <DividerButton
+                    title="Clear"
+                    label="Clear unpinned tabs"
+                    onPress={() => closeAllTabs(windowId)}
+                    icon={(color) => <Symbol name="arrow.down" size={9} weight="semibold" color={color} style={{ width: 8, height: 11, marginRight: space.xs }} />}
+                  />
+                ) : null}
               </>
             }
           />
@@ -90,7 +106,7 @@ function FoldButton({ pinned, onPress }: { pinned: PinnedFold; onPress: () => vo
   );
 }
 
-function DividerButton({ title, symbol, iconWidth, label, onPress }: { title: string; symbol: string; iconWidth: number; label: string; onPress: () => void }) {
+function DividerButton({ title, label, onPress, icon }: { title: string; label: string; onPress: () => void; icon: (color: string) => ReactNode }) {
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   return (
@@ -100,7 +116,7 @@ function DividerButton({ title, symbol, iconWidth, label, onPress }: { title: st
           const color = pressed ? theme.textSecondary : hovered ? theme.textPrimary : theme.textTertiary;
           return (
             <View style={{ height: CLEAR_DIVIDER_HEIGHT, flexDirection: "row", alignItems: "center", paddingLeft: space.m }}>
-              <Symbol name={symbol} size={9} weight="semibold" color={color} style={{ width: iconWidth, height: 11, marginRight: space.xs }} />
+              {icon(color)}
               <Text size="tiny" weight="medium" color={color}>
                 {title}
               </Text>

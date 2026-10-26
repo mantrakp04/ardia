@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 const { useBrowser } = await import("../browser/store.ts");
 const model = await import("../browser/model.ts");
-const { canTidy, tidyPlan, tidying, untidying } = await import("./tidy.ts");
+const { TIDY_TABS_AFTER, canTidy, offersTidyTabs, tidyPlan, tidying, untidying } = await import("./tidy.ts");
 const { splitTabIdsOf } = await import("../splits/splits.ts");
 
 const S = () => useBrowser.getState();
@@ -366,4 +366,24 @@ test("Undo of Tidy on tabs puts every tab back in its place and removes Tidy's g
   assert.deepEqual(unpinnedList(w), before);
   assert.ok(!Object.values(S().groups).some((g) => g.name === "Figma"));
   for (const id of [l1, f1, g1, f2]) assert.equal(S().tabs[id].pin, null);
+});
+
+test("the divider offers Tidy only past six unpinned tabs, as in Arc; pins and tabs in pinned folders don't count", () => {
+  reset();
+  const { w, ids: [a1, , , , , p1, p2, p3] } = windowWith(
+    "https://a.com/1", "https://a.com/2", "https://b.com/1", "https://c.com/1", "https://d.com/1",
+    "https://e.com/1", "https://e.com/2", "https://f.com/1",
+  );
+  S().pinTabs([p1, p2], true, true);
+  S().groupTabs([p3], { pinned: true, name: "Pinned" });
+  assert.equal(TIDY_TABS_AFTER, 6);
+  assert.equal(unpinnedList(w).length, 6);
+  assert.equal(canTidy(S(), w, undefined, "tabs"), true);
+  assert.equal(offersTidyTabs(S(), w), false);
+  S().newTab(w, { url: "https://g.com/1", background: true });
+  assert.equal(offersTidyTabs(S(), w), true);
+  S().closeTabs([a1]);
+  S().newTab(w, { url: "https://h.com/1", background: true });
+  assert.equal(unpinnedList(w).length, 7);
+  assert.equal(offersTidyTabs(S(), w), false, "seven tabs of seven sites have nothing to tidy");
 });
