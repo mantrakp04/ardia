@@ -109,6 +109,19 @@ export function canTidy(s: Pick<BrowserState, "tabs" | "groups" | "windows" | "s
   return can;
 }
 
+export const TIDY_TABS_AFTER = 6;
+
+function unpinnedTabCount(s: Pick<BrowserState, "tabs" | "groups">, tabIds: string[], profileId: string): number {
+  const inPinnedGroup = new Set(Object.values(s.groups).flatMap((g) => (g.pinned ? g.tabIds : [])));
+  return tabIds.filter((id) => s.tabs[id]?.profileId === profileId && !s.tabs[id]!.pin && !inPinnedGroup.has(id)).length;
+}
+
+export function offersTidyTabs(s: Pick<BrowserState, "tabs" | "groups" | "windows" | "splits">, windowId: string, profileId?: string): boolean {
+  const w = s.windows[windowId];
+  if (!w || unpinnedTabCount(s, w.tabIds, profileId ?? w.profileId) <= TIDY_TABS_AFTER) return false;
+  return canTidy(s, windowId, profileId, "tabs");
+}
+
 export function tidying(s: BrowserState, windowId: string, profileId?: string, scope: TidyScope = "pins"): [BrowserState, Tidied | null] {
   const plan = tidyPlan(s, windowId, profileId, scope);
   const w = s.windows[windowId];
