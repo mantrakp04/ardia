@@ -7,7 +7,7 @@ import type { Tab } from "../browser/types";
 import { awayFromPin } from "../pins/organize";
 import { cleanedTabsFor } from "../pins/closedTabs";
 import { groupLabel } from "../pins/tabGrouping";
-import { canTidy } from "../pins/tidy";
+import { offersTidyTabs } from "../pins/tidy";
 import { folderIn } from "../pins/tileFolders";
 import { useStoreWhile } from "../tabs/tabWatch";
 import { splitRowPanes } from "../splits/splits";
@@ -75,7 +75,7 @@ const NO_CELLS: string[] = [];
 export const useSidebarCells = (windowId: string, profileId: string, offScreen: boolean) =>
   useBrowser((s) => (offScreen ? NO_CELLS : sidebarEntries(s, windowId, profileId).cells));
 
-export const useCanTidyTabs = (windowId: string, profileId: string, offScreen: boolean) => useBrowser((s) => !offScreen && canTidy(s, windowId, profileId, "tabs"));
+export const useOffersTidyTabs = (windowId: string, profileId: string, offScreen: boolean) => useBrowser((s) => !offScreen && offersTidyTabs(s, windowId, profileId));
 
 export const useCleanedCount = (windowId: string) => useBrowser((s) => cleanedTabsFor(s, windowId).length);
 
