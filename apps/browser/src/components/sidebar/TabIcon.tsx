@@ -43,7 +43,7 @@ export const TabIcon = memo(function TabIcon({
   );
 });
 
-function EngineMark({ tabId, size }: { tabId: string; size: number }) {
+export function EngineMark({ tabId, size }: { tabId: string; size: number }) {
   const theme = useTheme();
   const mark = useBrowser((s) => engineMark(s, tabId));
   if (!mark) return null;

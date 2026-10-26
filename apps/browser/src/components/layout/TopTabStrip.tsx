@@ -1,9 +1,10 @@
-import { ContextMenuArea, FadeLabel, raiseView, setTrafficLightsCenter, Surface, Symbol, WindowDragRegion } from "@ardia/shell";
+import { ContextMenuArea, DockSelection, FadeLabel, raiseView, setTrafficLightsCenter, Surface, Symbol, WindowDragRegion } from "@ardia/shell";
 import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, findNodeHandle, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import { create } from "zustand";
 import { toggleMute } from "../../lib/actions";
 import { hex, layout, ThemeScope, useTheme } from "../../lib/theme";
+import { useTileTheme } from "../../lib/tileTheme";
 import { useBrowser } from "../../store/browser";
 import { PageProfileContext, useIsActiveTab, usePageProfileId, useSettings, useTab, useTabLive, useWindowId, useWindowProfileId } from "../../store/hooks";
 import { ProfileIndicator, useProfileIndicatorWidth } from "../ProfileIndicator";
@@ -14,8 +15,9 @@ import { clickTab } from "../sidebar/actions";
 import { pressGroupClose, pressTabClose, useGroupCloseControl, useTabCloseControl } from "../sidebar/closeControl";
 import { openGroupMenu, openTabMenu } from "../sidebar/menus";
 import { groupLabel } from "../../store/organize";
-import { hasOwnGroupIcon, SYMBOL_PREFIX, TabIcon } from "../sidebar/TabIcon";
+import { EngineMark, hasOwnGroupIcon, SYMBOL_PREFIX, TabIcon } from "../sidebar/TabIcon";
 import { TabBadges } from "../media/TabBadges";
+import { liquidGlass } from "../glass";
 import { GROUP_COLORS, NEUTRAL_GROUP_SWATCH, useSidebarTokens, withAlpha } from "../sidebar/tokens";
 import { modifiersOf } from "./controls";
 import { usePageStyle, usePagerPages } from "./profilePager";
@@ -1062,10 +1064,25 @@ function PinnedDock({ tabIds }: { tabIds: string[] }) {
 function PinnedFace({ tabId, active, hovered, pressed }: { tabId: string; active: boolean; hovered: boolean; pressed: boolean }) {
   const theme = useTheme();
   const tab = useTab(tabId);
+  const tileTheme = useTileTheme(tab?.url ?? "", tab?.favicon, tab?.customIcon, tab?.profileId ?? "");
+  const iconRing = useSettings((s) => s.pinnedTabIconRing);
+  const ringTheme = liquidGlass && active && iconRing ? tileTheme : null;
   if (!tab) return null;
   return (
     <View style={{ width: PINNED_CELL, height: ITEM_HEIGHT - 1, alignItems: "center", justifyContent: "center" }}>
-      {(active || hovered || pressed) && (
+      {ringTheme ? (
+        <DockSelection
+          image={ringTheme.image}
+          emoji={ringTheme.emoji}
+          theme={ringTheme.theme.kind}
+          fill={ringTheme.theme.kind === "template" ? ringTheme.theme.fill : undefined}
+          stroke={ringTheme.theme.kind === "template" ? ringTheme.theme.stroke : undefined}
+          cornerRadius={8}
+          strokeWidth={3}
+          dark={theme.dark}
+          style={{ position: "absolute", left: 2, right: 2, top: 2, bottom: 2 }}
+        />
+      ) : (active || hovered || pressed) && (
         <View
           style={{
             position: "absolute",
@@ -1079,7 +1096,13 @@ function PinnedFace({ tabId, active, hovered, pressed }: { tabId: string; active
         />
       )}
       <View pointerEvents="none">
-        <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
+        {ringTheme?.theme.kind === "template" ? (
+          <View style={{ width: 16, height: 16 }}>
+            <EngineMark tabId={tab.id} size={16} />
+          </View>
+        ) : (
+          <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
+        )}
         <TabBadges tabId={tab.id} pip={false} />
       </View>
     </View>
