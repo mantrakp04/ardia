@@ -125,6 +125,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     relayoutRoot(window)
     windows[id] = window
     if let center = lightsCenters[id] { ChromeWindows.setTrafficLightsCenter(center, in: window) }
+    TrafficLights.shared.reapplyLightsAlpha(window)
     if smallSize == nil { lastPlaced = window }
     if window.isMiniaturized {
       observeFrame(window)
@@ -379,6 +380,8 @@ final class WindowManager: NSObject, NSWindowDelegate {
     for (name, selector) in [
       (NSWindow.didBecomeKeyNotification, #selector(windowDidBecomeKey(_:))),
       (NSWindow.willCloseNotification, #selector(windowWillClose(_:))),
+      (NSWindow.didEnterFullScreenNotification, #selector(windowDidEnterFullScreen(_:))),
+      (NSWindow.didExitFullScreenNotification, #selector(windowDidExitFullScreen(_:))),
     ] {
       NotificationCenter.default.addObserver(self, selector: selector, name: name, object: window)
     }
@@ -508,6 +511,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
       stopKeepingContentSized(id)
       lightsCenters[id] = nil
       fullScreenIds.remove(id)
+      TrafficLights.shared.forgetLights(id: id, window: window)
       auxKinds[id] = nil
       smallIds.remove(id)
       ChromeWindows.close(window)
@@ -543,7 +547,16 @@ final class WindowManager: NSObject, NSWindowDelegate {
   func windowDidBecomeKey(_ notification: Notification) {
     guard let window = notification.object as? NSWindow, let id = id(of: window) else { return }
     if isMainWindow(window) { lastPlaced = window }
+    TrafficLights.shared.reapplyLightsAlpha(window)
     emit?("onWindowEvent", ["type": "focus", "id": id])
+  }
+
+  func windowDidEnterFullScreen(_ notification: Notification) { reapplyLightsAfterArdiaCore(notification.object as? NSWindow) }
+  func windowDidExitFullScreen(_ notification: Notification) { reapplyLightsAfterArdiaCore(notification.object as? NSWindow) }
+
+  private func reapplyLightsAfterArdiaCore(_ window: NSWindow?) {
+    TrafficLights.shared.reapplyLightsAlpha(window)
+    DispatchQueue.main.async { [weak window] in TrafficLights.shared.reapplyLightsAlpha(window) }
   }
 
   func windowWillClose(_ notification: Notification) {
@@ -554,6 +567,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     stopKeepingContentSized(id)
     lightsCenters[id] = nil
     fullScreenIds.remove(id)
+    TrafficLights.shared.forgetLights(id: id, window: window)
     auxKinds[id] = nil
     smallIds.remove(id)
     if closingFromJS.remove(id) == nil {

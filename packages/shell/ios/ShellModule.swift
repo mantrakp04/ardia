@@ -329,8 +329,14 @@ public class ShellModule: Module {
     AsyncFunction("setTrafficLightsCenter") { (id: String, center: [Double]?) in
       WindowManager.shared.setTrafficLightsCenter(id: id, center: center.flatMap { $0.count == 2 ? NSPoint(x: $0[0], y: $0[1]) : nil })
     }.runOnQueue(.main)
+    AsyncFunction("setTrafficLightsAlpha") { (id: String, alpha: Double, duration: Double) in
+      TrafficLights.shared.setTrafficLightsAlpha(id: id, alpha: CGFloat(max(0, min(1, alpha))), duration: duration / 1000)
+    }.runOnQueue(.main)
     AsyncFunction("watchLeftEdge") { (id: String, on: Bool, hold: Double) in
       LeftEdgeWatcher.shared.watch(id: id, on: on, hold: CGFloat(hold))
+    }.runOnQueue(.main)
+    AsyncFunction("watchRightEdge") { (id: String, on: Bool, hold: Double) in
+      LeftEdgeWatcher.shared.watch(id: id, on: on, hold: CGFloat(hold), edge: .right)
     }.runOnQueue(.main)
     AsyncFunction("focusWindow") { (id: String) in WindowManager.shared.focus(id: id) }.runOnQueue(.main)
     AsyncFunction("restoreFullScreen") { (ids: [String], focus: String?) in
@@ -1302,11 +1308,11 @@ final class WindowDragRegion: ExpoView {
     let global = UserDefaults.standard.persistentDomain(forName: UserDefaults.globalDomain) ?? [:]
     let fill = NSSelectorFromString("_zoomFill:")
     switch global["AppleActionOnDoubleClick"] as? String {
-    case "Minimize": window.performMiniaturize(nil)
+    case "Minimize": TrafficLights.performMiniaturize(window, sender: nil)
     case "None": break
     case "Fill" where window.responds(to: fill): window.perform(fill, with: nil)
-    case nil where (global["AppleMiniaturizeOnDoubleClick"] as? Bool) == true: window.performMiniaturize(nil)
-    default: window.performZoom(nil)
+    case nil where (global["AppleMiniaturizeOnDoubleClick"] as? Bool) == true: TrafficLights.performMiniaturize(window, sender: nil)
+    default: TrafficLights.performZoom(window, sender: nil)
     }
   }
 

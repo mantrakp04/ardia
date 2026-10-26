@@ -5,6 +5,7 @@ import { useBrowser } from "../../../store/browser";
 import { tabLayoutOf } from "../../../store/model";
 import { peekModifierOf, splitLinkModifierOf, type PeekModifier, type Settings, type SplitLinkModifier } from "../../../store/settings";
 import { liquidGlass } from "../../glass";
+import { sidebarMayDockRight } from "../../sidebar/tokens";
 import { Checkbox, Group, PopUp, Row, SectionHeader, Toggle, useFormColors } from "../controls";
 import { setting } from "../settingsIndex";
 
@@ -66,6 +67,7 @@ export function TabsPane() {
     </Row>
   );
   const top = useBrowser((s) => tabLayoutOf(s) === "top");
+  const mayDockRight = useBrowser(sidebarMayDockRight);
 
   return (
     <View>
@@ -81,6 +83,19 @@ export function TabsPane() {
         {!top && toggle("balancedTopApps", "tabs.balancedTopApps")}
         {!top && liquidGlass && toggle("pinnedTabIconRing", "tabs.pinnedTabIconRing")}
         {toggle("fadeUnloadedTabs", "tabs.fadeUnloadedTabs")}
+        {!top && (
+          <Row anchor="tabs.sidebarSide">
+            <PopUp
+              value={mayDockRight ? settings.sidebarSide : "left"}
+              options={[
+                { value: "left", title: "Left" },
+                { value: "right", title: "Right" },
+              ]}
+              disabled={!mayDockRight}
+              onChange={(v) => update({ sidebarSide: v })}
+            />
+          </Row>
+        )}
       </Group>
 
       <SectionHeader title="General" />

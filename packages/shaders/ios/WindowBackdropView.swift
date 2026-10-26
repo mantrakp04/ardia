@@ -384,10 +384,17 @@ final class WindowTreatmentView: NSView {
     didSet { if holdsKeyLook != oldValue { NotificationCenter.default.post(name: WindowActivity.changed, object: nil) } }
   }
 
-  var tint = Tint() { didSet { if tint != oldValue { updateTint() } } }
+  var tint = Tint() {
+    didSet {
+      guard tint != oldValue else { return }
+      updateTint()
+      covers.allObjects.forEach { $0.tint = tint }
+    }
+  }
   var custom: ThemeGradient? {
     didSet {
       guard custom != oldValue else { return }
+      covers.allObjects.forEach { $0.custom = custom }
       if custom?.appearance != oldValue?.appearance { appearance = custom?.forcedAppearance }
       if custom?.colors != oldValue?.colors { themeLayer.setColors(custom?.colors ?? []) }
       themeLayer.angle = custom?.angle ?? ArcGradientLayer.defaultAngle
@@ -404,6 +411,17 @@ final class WindowTreatmentView: NSView {
   private let themeLayer = ArcGradientLayer()
   private let grain = GrainLayer()
   private lazy var activity = WindowActivity { [weak self] in self?.updateGrain() }
+  private let covers = NSHashTable<WindowTreatmentView>.weakObjects()
+  private weak var coverSource: WindowTreatmentView?
+
+  @objc func makeCover() -> NSView {
+    let cover = WindowTreatmentView(frame: .zero)
+    cover.coverSource = self
+    cover.tint = tint
+    cover.custom = custom
+    covers.add(cover)
+    return cover
+  }
 
   override init(frame: NSRect) {
     super.init(frame: frame)
@@ -434,14 +452,17 @@ final class WindowTreatmentView: NSView {
     super.layout()
     blur.frame = bounds
     overlay.frame = bounds
-    for layer in [baseTint, gradient, themeLayer, grain] as [CALayer] { layer.frame = overlay.bounds }
+    let reach = coverSource.map { overlay.convert($0.bounds, from: $0) } ?? overlay.bounds
+    for layer in [baseTint, gradient, themeLayer, grain] as [CALayer] { layer.frame = reach }
     themeLayer.flipped = overlay.isFlipped
+    covers.allObjects.forEach { $0.needsLayout = true }
   }
 
   override func viewDidMoveToWindow() {
     super.viewDidMoveToWindow()
     activity.attach(to: window)
     updateGrain()
+    if coverSource == nil { WindowTreatments.note(self) }
   }
 
   override func setFrameSize(_ newSize: NSSize) {
@@ -515,6 +536,22 @@ final class WindowTreatmentView: NSView {
     let q = l2 < 0.5 ? l2 * (1 + s) : l2 + s - l2 * s
     let p = 2 * l2 - q
     return NSColor(displayP3Red: channel(p, q, h + 1.0 / 3), green: channel(p, q, h), blue: channel(p, q, h - 1.0 / 3), alpha: c.alphaComponent)
+  }
+}
+
+@objc(ArdiaWindowTreatments) final class WindowTreatments: NSObject {
+  private static var registered: [(window: () -> NSWindow?, treatment: () -> WindowTreatmentView?)] = []
+
+  static func note(_ treatment: WindowTreatmentView) {
+    registered.removeAll { $0.treatment() == nil || ($0.treatment() === treatment && $0.window() !== treatment.window) }
+    guard let window = treatment.window, !registered.contains(where: { $0.treatment() === treatment }) else { return }
+    registered.append(({ [weak window] in window }, { [weak treatment] in treatment }))
+  }
+
+  @objc static func makeCover(for window: NSWindow) -> NSView? {
+    registered.removeAll { $0.treatment() == nil }
+    let base = registered.lazy.compactMap { $0.window() === window ? $0.treatment() : nil }.first { $0.window === window }
+    return base?.makeCover()
   }
 }
 

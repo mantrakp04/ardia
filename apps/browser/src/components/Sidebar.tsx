@@ -44,7 +44,7 @@ import { entriesHeight, firstPaintEntries, rowSpan, startsOffScreen, type Sectio
 import { measureRow } from "./sidebar/state";
 import { SplitRowItem, TabRowItem } from "./sidebar/TabRow";
 import { closeFolderPanel } from "./sidebar/tileFolderUi";
-import { useSidebarTokens } from "./sidebar/tokens";
+import { useSidebarOnRight, useSidebarTokens } from "./sidebar/tokens";
 import { toggleNewTabBar } from "./omnibox/newTabBar";
 
 const GLOW_ROOM = 24;
@@ -73,6 +73,7 @@ export function Sidebar({ width }: { width: number }) {
   const geometry = useRef<SidebarGeometry>({ viewport: 0, regions: { pinnedGroups: 0, list: 0 }, newTabAtTop: false, room: 0, pad: 0, tilesFixed: true });
   const addressBar = useAddressBarInSidebar();
   const header = addressBar ? SIDEBAR_HEADER_WITH_FIELD : layout.sidebarHeader;
+  const headerLead = useSidebarOnRight(windowId) ? 7 : PROFILE_INDICATOR_X;
   const glowRoom = addressBar ? 0 : GLOW_ROOM;
   const hasDownloads = useBrowser((s) => downloadsIn(s, windowId).length > 0);
   const dots = useProfileDotsShown();
@@ -152,8 +153,8 @@ export function Sidebar({ width }: { width: number }) {
                 <SidebarAddressRow width={width} />
               </>
             ) : (
-              <View pointerEvents="box-none" style={{ height: layout.sidebarHeader, flexDirection: "row", alignItems: "flex-start", paddingLeft: PROFILE_INDICATOR_X, paddingRight: 7, paddingTop: 27 - 17 }}>
-                <ProfileIndicator room={width - PROFILE_INDICATOR_X - 7 - (hasDownloads ? 34 + 2 : 0)} />
+              <View pointerEvents="box-none" style={{ height: layout.sidebarHeader, flexDirection: "row", alignItems: "flex-start", paddingLeft: headerLead, paddingRight: 7, paddingTop: 27 - 17 }}>
+                <ProfileIndicator room={width - headerLead - 7 - (hasDownloads ? 34 + 2 : 0)} />
                 <View pointerEvents="none" style={{ flex: 1 }} />
                 {hasDownloads ? <DownloadsButton windowId={windowId} /> : null}
               </View>

@@ -38,7 +38,7 @@ import { DropTargets, SplitDividers, SplitToast } from "./layout/SplitChrome";
 import { SplitEmptyState } from "./layout/SplitEmptyState";
 import { pagerFor } from "./layout/profilePager";
 import { openFromPage } from "./layout/openFromPage";
-import { dockMoving, useDockMotion, usePeekEdge } from "./layout/dockMotion";
+import { dockMoving, useDockMotion, usePeekEdge, usePeekStart } from "./layout/dockMotion";
 import { FrozenPage } from "./layout/frozenPage";
 import { holderOf } from "../store/pinShare";
 import { closeFolderPanelIn } from "./sidebar/tileFolderUi";
@@ -66,6 +66,7 @@ import { NavigationOverlays } from "./layout/SwipeOverlay";
 import "./layout/devExpose";
 import { closeWebNotification, showWebNotification } from "../lib/webNotifications";
 import { isSmallWindow } from "../store/small";
+import { useSidebarOnRight } from "./sidebar/tokens";
 import { closeLittleArdiaOnEscape } from "./littleArdia/actions";
 import { PeekOverlay } from "./peek/PeekOverlay";
 import { closePeekOnEscape, dismissPeek, startPeeks } from "./peek/actions";
@@ -80,6 +81,7 @@ export function ContentCard() {
   const small = useBrowser((s) => isSmallWindow(s.windows[windowId]));
   const hideWhileScrolling = useBrowser((s) => s.settings.hideToolbarWhileScrolling);
   const showSidebarButton = useBrowser((s) => s.settings.showSidebarButton !== false);
+  const sidebarOnRight = useSidebarOnRight(windowId);
   const barMode = useBookmarksBarMode(windowId);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [origin, setOrigin] = useState<{ x: number; y: number } | null>(null);
@@ -236,6 +238,13 @@ export function ContentCard() {
     setSize({ width, height });
     container.current?.measureInWindow((x, y) => setOrigin({ x, y }));
   };
+  const measuredSide = useRef(sidebarOnRight);
+  useEffect(() => {
+    if (measuredSide.current === sidebarOnRight || size.width <= 0) return;
+    measuredSide.current = sidebarOnRight;
+    if (dockMoving(windowId)) settled.current = size;
+    else measure(size.width, size.height);
+  }, [sidebarOnRight]);
   useEffect(
     () =>
       useDockMotion.subscribe((m) => {
@@ -249,8 +258,9 @@ export function ContentCard() {
 
   const windowToolbar = !split && !fullscreenTab && !addressInSidebar && !small;
   const peekEdge = usePeekEdge(windowId);
+  const peekStart = usePeekStart(windowId);
   const activeRect = activeId ? panes[activeId] : undefined;
-  const popoversOverCard = peekEdge !== undefined && addressInSidebar && !small && !fullscreenTab && origin && activeRect ? activeId : undefined;
+  const popoversOverCard = (peekEdge !== undefined || peekStart !== undefined) && addressInSidebar && !small && !fullscreenTab && origin && activeRect ? activeId : undefined;
 
   return (
     <View
@@ -305,6 +315,14 @@ export function ContentCard() {
           left={Math.max(activeRect.x, peekEdge - origin.x) + POPOVER_MARGIN}
           top={activeRect.y + POPOVER_MARGIN}
           room={size.width}
+        />
+      )}
+      {size.width > 0 && popoversOverCard && origin && activeRect && peekStart !== undefined && (
+        <BesidePeekPopovers
+          tabId={popoversOverCard}
+          left={activeRect.x + POPOVER_MARGIN}
+          top={activeRect.y + POPOVER_MARGIN}
+          room={Math.min(size.width, peekStart - origin.x)}
         />
       )}
       {!fullscreenTab && <DropTargets panes={panes} origin={origin} />}

@@ -251,7 +251,7 @@ bool MoveTrafficLights(NSWindow *window, NSValue *center) {
 
 void InsetTrafficLights(NSWindow *window) {
   objc_setAssociatedObject(window, kInsetLightsKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-  InstallTrafficLightsOrigin(object_getClass(window.contentView.superview));
+  InstallTrafficLightsOrigin(window.contentView.superview.class);
   RetileTrafficLights(window);
   LogTrafficLightsOf(window);
 }

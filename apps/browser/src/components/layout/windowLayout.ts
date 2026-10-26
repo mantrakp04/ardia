@@ -1,9 +1,11 @@
 import { create } from "zustand";
 import { switchOn } from "../../lib/killSwitches";
 import { ARC_LIGHTS_CENTER, LIGHTS_CENTER, lightsCenter, TOP_STRIP_LIGHTS_CENTER } from "./dockMotion";
+import { LIGHTS_HIDDEN_OFFSET } from "./lightsCorner";
 import { layout } from "../../lib/theme";
 import { useBrowser, type BrowserState } from "../../store/browser";
 import { useWindowId } from "../../store/hooks";
+import { sidebarOnRight } from "../sidebar/tokens";
 
 export function useTabLayout(): "sidebar" | "top" {
   const windowId = useWindowId();
@@ -34,6 +36,7 @@ export function openingLightsCenter(s: BrowserState, windowId: string): [number,
   if (!w) return null;
   const open = w.sidebarOpen ?? true;
   if ((w.tabLayout ?? s.settings.tabLayout) === "top") return open ? [...TOP_STRIP_LIGHTS_CENTER] : lightsCenter(layout.sidebarWidth);
+  if (sidebarOnRight(s, windowId)) return lightsCenter(LIGHTS_HIDDEN_OFFSET, 0, ARC_LIGHTS_CENTER);
   return lightsCenter(open ? 0 : (s.settings.sidebarWidth ?? layout.sidebarWidth), 0, s.settings.addressBar === "sidebar" ? ARC_LIGHTS_CENTER : LIGHTS_CENTER);
 }
 

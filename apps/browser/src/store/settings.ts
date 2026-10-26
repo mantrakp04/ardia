@@ -58,6 +58,7 @@ export type Settings = {
   pinnedTabIconRing: boolean;
   fadeUnloadedTabs: boolean;
   warnBeforeClosingTabGroup: boolean;
+  sidebarSide: "left" | "right";
   batterySaverWhen: BatterySaverWhen;
   extensionSidePanelWidth: number;
 
@@ -141,6 +142,7 @@ export const DEFAULT_SETTINGS: Settings = {
   pinnedTabIconRing: false,
   fadeUnloadedTabs: false,
   warnBeforeClosingTabGroup: true,
+  sidebarSide: "left",
   batterySaverWhen: "lowBattery",
   extensionSidePanelWidth: 360,
   showFullUrl: false,

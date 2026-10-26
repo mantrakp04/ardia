@@ -7,10 +7,10 @@ import { useShallow } from "zustand/react/shallow";
 import { useBrowser } from "../store/browser";
 import { useSidebarOpen, useWindowId, useWindowUi } from "../store/hooks";
 import { downloadsIn, downloadVisibleIn } from "../store/ui";
-import { SIDEBAR_FOOTER_DOWNLOADS, useAddressBarInSidebar, useTabLayout } from "./layout/windowLayout";
+import { SIDEBAR_FOOTER_DOWNLOADS, useAddressBarInSidebar, useCardAnchors, useTabLayout } from "./layout/windowLayout";
 import { PROFILE_DOTS_HEIGHT } from "./profiles/ProfileDots";
 import { openInternalPage } from "./pages/urls";
-import { useSidebarWidth } from "./sidebar/tokens";
+import { useSidebarOnRight, useSidebarWidth } from "./sidebar/tokens";
 import { HoverSlot } from "./HoverSlot";
 import { anchorInside, DOWNLOADS_PANEL, downloadsPlacement, type DownloadsPlacement, type Rect, type Size } from "./downloadsPlacement";
 import { PANEL, POPOVER_MOTION, PopoverSeparator, usePopoverPresence } from "./layout/controls";
@@ -205,8 +205,9 @@ function DownloadsPanel({ windowId, closing, onClosed }: { windowId: string; clo
   const { ids, clearable } = shownList.current;
   const topStrip = useTabLayout() === "top";
   const addressBar = useAddressBarInSidebar();
+  const sidebarRight = useSidebarOnRight(windowId);
   const setOpen = (value: boolean) => useBrowser.getState().setDownloadsOpen(windowId, value);
-  const { root, placement: p, onLayout } = useDownloadsPlacement(windowId, closing, { topStrip, footer: addressBar, footerBottom: PROFILE_DOTS_HEIGHT + 2 });
+  const { root, placement: p, onLayout } = useDownloadsPlacement(windowId, closing, { topStrip: topStrip || sidebarRight, footer: addressBar, footerBottom: PROFILE_DOTS_HEIGHT + 2 });
   const placed = p !== null;
   const appear = useRef(new Animated.Value(0)).current;
   const closed = useRef(onClosed);
@@ -507,6 +508,8 @@ export function DownloadMagnet() {
   const sidebarWidth = useSidebarWidth(windowId);
   const topStrip = useTabLayout() === "top";
   const addressBar = useAddressBarInSidebar();
+  const right = useSidebarOnRight(windowId);
+  const card = useCardAnchors((a) => (right ? a[windowId] : undefined));
   const [flight, setFlight] = useState<{ id: string; path: string } | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const t = useRef(new Animated.Value(0)).current;
@@ -526,9 +529,11 @@ export function DownloadMagnet() {
   }, [windowId]);
 
   const sidebar = !topStrip && sidebarOpen ? sidebarWidth : 0;
-  const footer = { x: layout.sidebarInset + SIDEBAR_FOOTER_DOWNLOADS.size / 2, y: size.height - SIDEBAR_FOOTER_DOWNLOADS.bottom - SIDEBAR_FOOTER_DOWNLOADS.size / 2 };
+  const sidebarLeft = right ? size.width - sidebarWidth : 0;
+  const footer = { x: sidebarLeft + layout.sidebarInset + SIDEBAR_FOOTER_DOWNLOADS.size / 2, y: size.height - SIDEBAR_FOOTER_DOWNLOADS.bottom - SIDEBAR_FOOTER_DOWNLOADS.size / 2 };
   const target = topStrip ? { x: size.width - 25, y: 21 } : addressBar ? footer : sidebarOpen ? { x: sidebarWidth - 24, y: 27 } : { x: 24, y: 24 };
-  const start = { x: sidebar + (size.width - sidebar) / 2, y: size.height * 0.45 };
+  const cardCenter = right ? (card ? card.left + card.width / 2 : (size.width - sidebar) / 2) : sidebar + (size.width - sidebar) / 2;
+  const start = { x: cardCenter, y: size.height * 0.45 };
   const icon = 44;
   const steps = [0, 0.25, 0.5, 0.75, 1];
   const x = t.interpolate({ inputRange: steps, outputRange: steps.map((p) => start.x + (target.x - start.x) * p - icon / 2) });
