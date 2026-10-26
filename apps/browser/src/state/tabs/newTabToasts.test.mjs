@@ -134,6 +134,17 @@ test("user duplication, group tabs, nested groups and fresh split panes announce
   assert.equal(notices().length, count + 1);
 });
 
+test("a link opened in place of a split's other pane announces its new tab once", () => {
+  const w = S().createWindow({ url: "https://example.com/" });
+  const first = activeTabId(S(), w);
+  const second = S().newTab(w, { url: "https://example.org/", notify: false });
+  assert.equal(S().openSplitPane(w, { anchorTabId: first, tabId: second }).ok, true);
+  assert.deepEqual(notices(), []);
+  const made = S().openSplitPane(w, { anchorTabId: first, url: "https://example.net/", background: true, inPlaceOf: second });
+  assert.equal(made.ok, true);
+  assert.deepEqual(notices().map((t) => t.tabId), [made.tabId]);
+});
+
 test("technical initial tabs, profile fallback, onboarding pins and session hydration stay silent", async () => {
   const w = S().createWindow();
   const work = S().createProfile({ name: "Work" });

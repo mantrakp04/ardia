@@ -234,6 +234,7 @@ export const createSplitsSlice: StateCreator<BrowserState, [], [], SplitsSlice> 
       s = placedAfterSplit({ ...s, splits: { ...s.splits, [split.id]: split } }, split, replaced);
       if (!o.background) s = apply(s, activated(s, tabId));
       set(s);
+      if (!o.tabId) newTabToasts.add(get().tabs[tabId]);
       return { ok: true, tabId, splitId: split.id };
     }
     const split = withPane(current, anchor.id, tabId, o.side ?? "right", windowId);
