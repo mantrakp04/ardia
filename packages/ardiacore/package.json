@@ -7,7 +7,7 @@
   "types": "src/index.ts",
   "scripts": {
     "typecheck": "tsc -p .",
-    "test": "clang++ -std=c++20 -Wall -Werror tests/pip-zoom.test.cc -o \"${TMPDIR:-/tmp}/ardiacore-pip-zoom-test\" && \"${TMPDIR:-/tmp}/ardiacore-pip-zoom-test\" && clang++ -std=c++20 -Wall -Werror tests/pip-throw.test.cc -o \"${TMPDIR:-/tmp}/ardiacore-pip-throw-test\" && \"${TMPDIR:-/tmp}/ardiacore-pip-throw-test\""
+    "test": "clang++ -std=c++20 -Wall -Werror tests/pip-zoom.test.cc -o \"${TMPDIR:-/tmp}/ardiacore-pip-zoom-test\" && \"${TMPDIR:-/tmp}/ardiacore-pip-zoom-test\" && clang++ -std=c++20 -Wall -Werror tests/pip-throw.test.cc -o \"${TMPDIR:-/tmp}/ardiacore-pip-throw-test\" && \"${TMPDIR:-/tmp}/ardiacore-pip-throw-test\" && node --test scripts/prune-bundle.test.mjs tests/extension-locale.test.mjs"
   },
   "dependencies": {
     "@ardia/core": "workspace:*"

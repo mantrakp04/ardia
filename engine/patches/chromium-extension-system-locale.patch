@@ -1,0 +1,317 @@
+--- a/extensions/common/extension_l10n_util.cc
++++ b/extensions/common/extension_l10n_util.cc
+@@ -13,11 +13,13 @@
+ #include <vector>
+
+ #include "base/auto_reset.h"
++#include "base/command_line.h"
+ #include "base/containers/extend.h"
+ #include "base/files/file_enumerator.h"
+ #include "base/files/file_util.h"
+ #include "base/i18n/icubridge/supported_locales.h"
+ #include "base/i18n/language_tag.h"
++#include "base/i18n/rtl.h"
+ #include "base/i18n/tag_converters.h"
+ #include "base/json/json_file_value_serializer.h"
+ #include "base/json/json_reader.h"
+@@ -157,6 +159,12 @@
+   return true;
+ }
+
++std::optional<LanguageTag> GetSystemExtensionLocale() {
++  return LanguageTagConverter::GetInstance().FromString(
++      base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
++          "ardia-extension-locale"));
++}
++
+ std::optional<LanguageTag>& GetProcessLocale() {
+   static base::NoDestructor<std::optional<LanguageTag>> process_locale;
+   return *process_locale;
+@@ -169,6 +177,9 @@
+
+ // Returns the desired locale to use for localization.
+ std::string LocaleForLocalization() {
++  if (auto system_locale = GetSystemExtensionLocale()) {
++    return system_locale->ToLegacyICUFormat();
++  }
+   const std::optional<LanguageTag>& preferred_tag = GetPreferredLocale();
+   std::string preferred_locale =
+       preferred_tag ? preferred_tag->ToLegacyICUFormat() : "";
+@@ -407,11 +418,16 @@
+ }
+
+ std::string CurrentLocaleOrDefault() {
+-  const std::optional<LanguageTag>& current_tag = GetProcessLocale();
+-  if (current_tag) {
+-    return current_tag->ToLegacyICUFormat();
+-  }
+-  return "en";
++  return GetSystemExtensionLocale()
++      .value_or(GetProcessLocale().value_or(GetKnownLanguageTag("en")))
++      .ToLegacyICUFormat();
++}
++
++std::string GetUILanguage() {
++  if (auto system_locale = GetSystemExtensionLocale()) {
++    return std::string(system_locale->tag_string());
++  }
++  return base::i18n::GetConfiguredLocale();
+ }
+
+ void GetAllLocales(std::set<std::string>* all_locales) {
+@@ -422,8 +438,9 @@
+
+ std::vector<LanguageTag> GetAllFallbackLocales(
+     const LanguageTag& default_locale) {
+-  LanguageTag application_locale_tag =
+-      GetProcessLocale().value_or(GetKnownLanguageTag("en"));
++  const std::optional<LanguageTag> system_locale = GetSystemExtensionLocale();
++  LanguageTag application_locale_tag = system_locale.value_or(
++      GetProcessLocale().value_or(GetKnownLanguageTag("en")));
+   std::vector<LanguageTag> all_fallback_locales;
+
+   // Use the preferred locale if available. Otherwise, fall back to the
+@@ -431,7 +448,7 @@
+   // preferred locale of "en_CA" with an application locale of "en_GB" will
+   // first try to use an en_CA locale folder, followed by en_GB, followed by en.
+   const std::optional<LanguageTag>& preferred_tag = GetPreferredLocale();
+-  if (preferred_tag && preferred_tag != default_locale &&
++  if (!system_locale && preferred_tag && preferred_tag != default_locale &&
+       *preferred_tag != application_locale_tag) {
+     all_fallback_locales.push_back(*preferred_tag);
+   }
+--- a/extensions/common/extension_l10n_util.h
++++ b/extensions/common/extension_l10n_util.h
+@@ -99,6 +99,8 @@
+ // Returns normalized current locale, or default locale - en_US.
+ std::string CurrentLocaleOrDefault();
+
++std::string GetUILanguage();
++
+ // Extends list of Chrome locales to them and their parents, so we can do
+ // proper fallback.
+ void GetAllLocales(std::set<std::string>* all_locales);
+--- a/extensions/common/extension_l10n_util_unittest.cc
++++ b/extensions/common/extension_l10n_util_unittest.cc
+@@ -5,12 +5,17 @@
+ #include "extensions/common/extension_l10n_util.h"
+
+ #include <memory>
+-
++#include <utility>
++
++#include "base/command_line.h"
+ #include "base/files/file_path.h"
+ #include "base/files/file_util.h"
+ #include "base/files/scoped_temp_dir.h"
++#include "base/i18n/rtl.h"
+ #include "base/path_service.h"
++#include "base/strings/string_util.h"
+ #include "base/strings/utf_string_conversions.h"
++#include "base/test/scoped_command_line.h"
+ #include "base/values.h"
+ #include "extensions/buildflags/buildflags.h"
+ #include "extensions/common/constants.h"
+@@ -33,6 +38,119 @@
+ namespace keys = manifest_keys;
+
+ namespace {
++
++TEST(ExtensionL10nUtil, SystemLocaleAbsentOrInvalidKeepsOriginalBehavior) {
++  base::test::ScopedCommandLine command_line;
++  command_line.GetProcessCommandLine()->RemoveSwitch("ardia-extension-locale");
++  extension_l10n_util::ScopedLocaleForTest locale("en-GB", "en-CA");
++  const auto check = [&] {
++    EXPECT_EQ("en_GB", extension_l10n_util::CurrentLocaleOrDefault());
++    EXPECT_EQ(base::i18n::GetConfiguredLocale(),
++              extension_l10n_util::GetUILanguage());
++    auto manifest = base::DictValue()
++                        .Set(keys::kDefaultLocale, "en_US")
++                        .Set(keys::kCurrentLocale, "en_CA");
++    EXPECT_FALSE(extension_l10n_util::ShouldRelocalizeManifest(manifest));
++  };
++  check();
++  for (const char* invalid : {"", "not a locale", "../ga", "ga--IE"}) {
++    SCOPED_TRACE(invalid);
++    command_line.GetProcessCommandLine()->AppendSwitchASCII(
++        "ardia-extension-locale", invalid);
++    check();
++  }
++}
++
++TEST(ExtensionL10nUtil, SystemLocaleWorksBeforeAndAfterInitialization) {
++  base::test::ScopedCommandLine command_line;
++  extension_l10n_util::ScopedLocaleForTest locale("", "fr");
++  command_line.GetProcessCommandLine()->AppendSwitchASCII(
++      "ardia-extension-locale", "ga-IE");
++  const auto check = [] {
++    EXPECT_EQ("ga_IE", extension_l10n_util::CurrentLocaleOrDefault());
++    EXPECT_EQ("ga-IE", extension_l10n_util::GetUILanguage());
++    auto manifest = base::DictValue()
++                        .Set(keys::kDefaultLocale, "en")
++                        .Set(keys::kCurrentLocale, "ga_IE");
++    EXPECT_FALSE(extension_l10n_util::ShouldRelocalizeManifest(manifest));
++  };
++  check();
++  extension_l10n_util::SetProcessLocale("en-US");
++  extension_l10n_util::SetPreferredLocale("de");
++  check();
++}
++
++TEST(ExtensionL10nUtil, SystemLocaleSupportsAllBundleLanguages) {
++  base::test::ScopedCommandLine command_line;
++  extension_l10n_util::ScopedLocaleForTest locale("en-US", "fr");
++  for (const char* tag :
++       {"en-US", "ar",    "bg",    "bs",    "ca",   "cs", "cy", "da",    "de",
++        "el",    "en-GB", "es-ES", "et",    "fa",   "fi", "fr", "ga-IE", "he",
++        "hu",    "id",    "is",    "it",    "ja",   "ko", "lt", "nb",    "nl",
++        "nn-NO", "pl",    "pt-BR", "pt-PT", "ro",   "ru", "sk", "sv-SE", "th",
++        "tr",    "uk",    "vi",    "zh-CN", "zh-TW"}) {
++    SCOPED_TRACE(tag);
++    command_line.GetProcessCommandLine()->AppendSwitchASCII(
++        "ardia-extension-locale", tag);
++    EXPECT_EQ(tag, extension_l10n_util::GetUILanguage());
++    std::string legacy(tag);
++    base::ReplaceChars(legacy, "-", "_", &legacy);
++    EXPECT_EQ(legacy, extension_l10n_util::CurrentLocaleOrDefault());
++  }
++}
++
++TEST(ExtensionL10nUtil, SystemLocaleLoadsParentAndDefaultCatalogs) {
++  base::test::ScopedCommandLine command_line;
++  extension_l10n_util::ScopedLocaleForTest locale("en-US", "fr");
++  base::ScopedTempDir temp;
++  ASSERT_TRUE(temp.CreateUniqueTempDir());
++  const base::FilePath locales = temp.GetPath().Append(kLocaleFolder);
++  for (const char* tag :
++       {"en", "ga", "nn", "zh_CN", "zh_TW", "pt_BR", "pt_PT"}) {
++    const auto dir = locales.AppendASCII(tag);
++    ASSERT_TRUE(base::CreateDirectory(dir));
++    std::string messages =
++        std::string(R"({"name":{"message":")") + tag + R"("})";
++    if (std::string(tag) == "en") {
++      messages += R"(,"defaultOnly":{"message":"default only"})";
++    }
++    messages += "}";
++    ASSERT_TRUE(base::WriteFile(dir.Append(kMessagesFilename), messages));
++  }
++  for (const auto& [tag, catalog] : {std::pair{"ga-IE", "ga"},
++                                     {"nn-NO", "nn"},
++                                     {"zh-CN", "zh_CN"},
++                                     {"zh-TW", "zh_TW"},
++                                     {"pt-BR", "pt_BR"},
++                                     {"pt-PT", "pt_PT"},
++                                     {"bs", "en"},
++                                     {"cy", "en"},
++                                     {"is", "en"}}) {
++    SCOPED_TRACE(tag);
++    command_line.GetProcessCommandLine()->AppendSwitchASCII(
++        "ardia-extension-locale", tag);
++    auto manifest = base::DictValue()
++                        .Set(keys::kName, "__MSG_name__")
++                        .Set(keys::kDefaultLocale, "en");
++    std::string error;
++    ASSERT_TRUE(extension_l10n_util::LocalizeExtension(
++        temp.GetPath(), &manifest, GzippedMessagesPermission::kDisallow,
++        &error))
++        << error;
++    EXPECT_EQ(catalog, *manifest.FindString(keys::kName));
++    EXPECT_EQ(extension_l10n_util::CurrentLocaleOrDefault(),
++              *manifest.FindString(keys::kCurrentLocale));
++    std::unique_ptr<MessageBundle> bundle(
++        extension_l10n_util::LoadMessageCatalogs(
++            locales, "en", GzippedMessagesPermission::kDisallow, &error));
++    ASSERT_TRUE(bundle) << error;
++    EXPECT_EQ("default only", bundle->GetL10nMessage("defaultOnly"));
++    std::string ui_locale = bundle->GetL10nMessage("@@ui_locale");
++    EXPECT_EQ(extension_l10n_util::CurrentLocaleOrDefault(), ui_locale);
++    base::ReplaceChars(ui_locale, "_", "-", &ui_locale);
++    EXPECT_EQ(extension_l10n_util::GetUILanguage(), ui_locale);
++  }
++}
+
+ TEST(ExtensionL10nUtil, ValidateLocalesWithBadLocale) {
+   base::ScopedTempDir temp;
+--- a/extensions/renderer/api/i18n_hooks_delegate.cc
++++ b/extensions/renderer/api/i18n_hooks_delegate.cc
+@@ -8,12 +8,12 @@
+ #include <vector>
+
+ #include "base/check.h"
+-#include "base/i18n/rtl.h"
+ #include "base/strings/string_util.h"
+ #include "content/public/renderer/render_frame.h"
+ #include "content/public/renderer/render_thread.h"
+ #include "extensions/common/extension.h"
+ #include "extensions/common/extension_id.h"
++#include "extensions/common/extension_l10n_util.h"
+ #include "extensions/common/message_bundle.h"
+ #include "extensions/renderer/bindings/api_binding_types.h"
+ #include "extensions/renderer/bindings/js_runner.h"
+@@ -311,7 +311,7 @@
+     const APISignature::V8ParseResult& parse_result) {
+   DCHECK_EQ(binding::AsyncResponseType::kNone, parse_result.async_type);
+   RequestResult result(RequestResult::HANDLED);
+-  const std::string lang = base::i18n::GetConfiguredLocale();
++  const std::string lang = extension_l10n_util::GetUILanguage();
+   DCHECK(!lang.empty());
+
+   result.return_value = gin::StringToSymbol(script_context->isolate(), lang);
+--- a/extensions/renderer/api/i18n_hooks_delegate_unittest.cc
++++ b/extensions/renderer/api/i18n_hooks_delegate_unittest.cc
+@@ -4,8 +4,12 @@
+
+ #include "extensions/renderer/api/i18n_hooks_delegate.h"
+
++#include "base/command_line.h"
++#include "base/i18n/rtl.h"
+ #include "base/strings/stringprintf.h"
++#include "base/test/scoped_command_line.h"
+ #include "extensions/common/extension_builder.h"
++#include "extensions/common/extension_l10n_util.h"
+ #include "extensions/common/mojom/context_type.mojom.h"
+ #include "extensions/renderer/bindings/api_binding_test_util.h"
+ #include "extensions/renderer/native_extension_bindings_system.h"
+@@ -16,6 +20,42 @@
+ namespace extensions {
+
+ using I18nHooksDelegateTest = NativeExtensionBindingsSystemUnittest;
++
++TEST_F(I18nHooksDelegateTest, TestI18nGetUILanguageSystemLocale) {
++  base::test::ScopedCommandLine command_line;
++  extension_l10n_util::ScopedLocaleForTest locale("", "");
++  scoped_refptr<const Extension> extension = ExtensionBuilder("foo").Build();
++  RegisterExtension(extension);
++  v8::HandleScope handle_scope(isolate());
++  v8::Local<v8::Context> context = MainContext();
++  ScriptContext* script_context = CreateScriptContext(
++      context, extension.get(), mojom::ContextType::kPrivilegedExtension);
++  script_context->set_url(extension->url());
++  bindings_system()->UpdateBindingsForContext(script_context);
++  const auto get_ui_language = [&] {
++    return V8ToString(
++        RunFunction(FunctionFromString(
++                        context,
++                        "(function() { return chrome.i18n.getUILanguage(); })"),
++                    context, 0, nullptr),
++        context);
++  };
++  command_line.GetProcessCommandLine()->RemoveSwitch("ardia-extension-locale");
++  EXPECT_EQ(
++      base::StringPrintf("\"%s\"", base::i18n::GetConfiguredLocale().c_str()),
++      get_ui_language());
++  for (const char* tag :
++       {"ga-IE", "nn-NO", "zh-CN", "zh-TW", "pt-BR", "pt-PT"}) {
++    command_line.GetProcessCommandLine()->AppendSwitchASCII(
++        "ardia-extension-locale", tag);
++    EXPECT_EQ(base::StringPrintf("\"%s\"", tag), get_ui_language());
++  }
++  command_line.GetProcessCommandLine()->AppendSwitchASCII(
++      "ardia-extension-locale", "not a locale");
++  EXPECT_EQ(
++      base::StringPrintf("\"%s\"", base::i18n::GetConfiguredLocale().c_str()),
++      get_ui_language());
++}
+
+ TEST_F(I18nHooksDelegateTest, TestI18nGetMessage) {
+   scoped_refptr<const Extension> extension = ExtensionBuilder("foo").Build();

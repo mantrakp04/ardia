@@ -131,8 +131,8 @@ stays up. That's GPL-3.0 §6(d) for the GPL parts (uBlock Origin today), and it'
      that profile and re-signs inside out with Developer ID, the same identifiers, entitlements, flags and designated
      requirements Xcode's export gives (`xcodebuild -exportArchive` refuses an Xcode-managed profile with manual signing),
    - leaves out what Ardia never loads (`packages/ardiacore/scripts/prune-bundle.sh`, after `strip-engine.sh`): Chrome's
-     locales other than English and the app's own languages (Chrome takes its locale from the app bundle's
-     localizations, and Ardia has none, so it runs in en-US whatever the Mac's language), SwiftShader and its Vulkan
+     locales other than English and the app's declared languages (`CFBundleLocalizations`; the 41 choices and
+     Chromium's resource fallbacks are listed in `docs/languages.md`), SwiftShader and its Vulkan
      loader (WebGL and WebGPU run on Metal; Chrome dropped SwiftShader's WebGL fallback), Chrome's first-run sounds
      and pictures inside `resources.pak` (blanked by hash, `first-run-resources.sha256`; Ardia always passes
      `--no-first-run`), uBlock Origin's other locales, React Native's `@3x` images (Macs draw at 1x or 2x) and hermes's

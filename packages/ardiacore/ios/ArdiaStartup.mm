@@ -36,6 +36,9 @@ void PrepareStartup(NSString *userDataDir, std::vector<std::string> &switches) {
 
   const std::string languages = AcceptLanguages();
   if (!languages.empty()) switches.push_back("--accept-lang=" + languages);
+  NSString *extensionLocale = [NSBundle.mainBundle.preferredLocalizations.firstObject
+      stringByReplacingOccurrencesOfString:@"_" withString:@"-"];
+  if (extensionLocale.length) switches.push_back("--ardia-extension-locale=" + std::string(extensionLocale.UTF8String));
 }
 
 }

@@ -227,6 +227,14 @@ class ACBrowserMainParts : public content::BrowserMainParts {
 
 class ACContentBrowserClient : public ChromeContentBrowserClient {
  public:
+  void AppendExtraCommandLineSwitches(base::CommandLine* command_line,
+                                      int child_process_id) override {
+    ChromeContentBrowserClient::AppendExtraCommandLineSwitches(
+        command_line, child_process_id);
+    static constexpr const char* kSwitches[] = {"ardia-extension-locale"};
+    command_line->CopySwitchesFrom(*base::CommandLine::ForCurrentProcess(),
+                                   kSwitches);
+  }
   void RenderProcessWillLaunch(content::RenderProcessHost* host) override {
     ChromeContentBrowserClient::RenderProcessWillLaunch(host);
     SendPageScript(host);
