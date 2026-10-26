@@ -586,8 +586,10 @@ function abandonedNewTabs(s: BrowserState, windowId: string): string[] {
   return out.length >= w.tabIds.length ? out.slice(0, w.tabIds.length - 1) : out;
 }
 
+const closedInPin = (s: BrowserState, t: Tab) => inPinnedContainer(s, t.id) && !t.navigation && !t.adoptId && !holderOf(s, t.id);
+
 export function recentTabIds(s: BrowserState, windowId: string, now = Date.now(), staleAfterMs = CLEAN_UP_AFTER_MS): string[] {
-  const view = viewTabIds(s, windowId).map((id) => s.tabs[id]!);
+  const view = viewTabIds(s, windowId).map((id) => s.tabs[id]!).filter((t) => !closedInPin(s, t));
   const sorted = view.sort((a, b) => b.lastActiveAt - a.lastActiveAt);
   return sorted.filter((t, i) => i < 2 || now - t.lastActiveAt < staleAfterMs).map((t) => t.id);
 }
