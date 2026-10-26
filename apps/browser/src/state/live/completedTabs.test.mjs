@@ -65,3 +65,12 @@ test("a merged pull request's tab you're looking at stays in the folder until yo
   assert.equal(S().tabs[tab].liveItem, undefined);
   assert.ok(live().completed[id].some((c) => c.item.id === merging.id));
 });
+
+test("a merged pull request's tab left selected in a profile the window isn't showing leaves the folder", () => {
+  const { id, tab, merging } = mergeWithTabOpen(false);
+  S().activate(tab);
+  S().switchProfile(w, S().createProfile({ name: "Work" }));
+  finishCompleting(id, [merging.id]);
+  assert.equal(S().tabs[tab].liveItem, undefined);
+  S().switchProfile(w, "default");
+});
