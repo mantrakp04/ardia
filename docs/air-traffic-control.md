@@ -63,7 +63,7 @@ patches and an engine-side matcher for it); this version stays in the app so it 
 ## Cold launch
 
 When a link from another app launches Ardia, native parks it in the last profile before JS runs (`ArdiaCoreHost.mm`).
-With routes saved, it parks a link only if no route's pattern appears in it (an Is equal to pattern in its compared form too) and the default
+With routes saved, it parks a link only if no route matches it (the same Contains and Is equal to rules, on the same URL text) and the default
 destination uses the most recent profile (Most Recent Profile or Little Ardia), and it shows the early Little Ardia window
 only when the default is Little Ardia, so a link that may route never makes a request with the wrong profile's cookies.
 Those links wait for JS and route normally.

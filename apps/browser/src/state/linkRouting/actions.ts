@@ -94,7 +94,9 @@ export function startLinkRouting() {
     const json = JSON.stringify(routes);
     if (json === sent) return;
     sent = json;
-    void setLinkRoutes(routes);
+    setLinkRoutes(routes).catch(() => {
+      if (sent === json) sent = "";
+    });
   };
   sync();
   useBrowser.subscribe(sync);

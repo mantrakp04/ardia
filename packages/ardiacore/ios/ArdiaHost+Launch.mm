@@ -139,12 +139,17 @@ static NSString *ComparableLinkText(NSString *text) {
 static BOOL LinkMayRoute(NSDictionary *settings, NSString *url) {
   NSArray *routes = [SavedLinkRouting(settings)[@"routes"] isKindOfClass:NSArray.class] ? SavedLinkRouting(settings)[@"routes"] : @[];
   NSString *lower = url.lowercaseString;
+  NSString *comparableURL = ComparableLinkText(url);
   for (id route in routes) {
-    NSString *pattern = [route isKindOfClass:NSDictionary.class] && [route[@"pattern"] isKindOfClass:NSString.class] ? route[@"pattern"] : nil;
+    if (![route isKindOfClass:NSDictionary.class] || ![route[@"pattern"] isKindOfClass:NSString.class]) continue;
+    NSString *pattern = route[@"pattern"];
+    if ([route[@"match"] isEqual:@"equals"]) {
+      NSString *comparable = ComparableLinkText(pattern);
+      if (comparable.length && [comparableURL isEqualToString:comparable]) return YES;
+      continue;
+    }
     NSString *trimmed = [pattern stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet].lowercaseString;
-    NSString *comparable = ComparableLinkText(pattern ?: @"");
     if (trimmed.length && [lower containsString:trimmed]) return YES;
-    if (comparable.length && [lower containsString:comparable]) return YES;
   }
   return NO;
 }

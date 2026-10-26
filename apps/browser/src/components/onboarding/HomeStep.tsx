@@ -110,7 +110,8 @@ function LinksQuestion() {
   const { values, mock } = useScreen(["linkRouting"]);
   const focus = useMockFocus("links");
   const little = otherAppsOpenInLittleArdia(values.linkRouting);
-  const choose = (v: boolean) => ({ linkRouting: v === little ? values.linkRouting : withDefaultDestination(values.linkRouting, v ? LITTLE_ARDIA : RECENT) });
+  const custom = values.linkRouting.defaultDestination.kind === "profile" || values.linkRouting.defaultDestination.kind === "group";
+  const choose = (v: boolean) => ({ linkRouting: v === little && !custom ? values.linkRouting : withDefaultDestination(values.linkRouting, v ? LITTLE_ARDIA : RECENT) });
   return (
     <StepLayout
       pageKey="links"
@@ -119,14 +120,14 @@ function LinksQuestion() {
       actions={
         <StepActions
           onContinue={() =>
-            confirmAnswer("links", choose(little), [little ? "Links from other apps open in Little Ardia" : "Links from other apps open in a tab"])
+            confirmAnswer("links", custom ? { linkRouting: values.linkRouting } : choose(little), [little ? "Links from other apps open in Little Ardia" : "Links from other apps open in a tab"])
           }
           onSkip={() => skipStep()}
         />
       }
       preview={<MockPanel settings={mock} focus={focus.focus} />}
     >
-      <ChoiceList options={LINK_CHOICES} value={little} onChange={(v) => setOnboardingDraft(choose(v))} mock={focus} />
+      <ChoiceList<boolean | null> options={LINK_CHOICES} value={custom ? null : little} onChange={(v) => v !== null && setOnboardingDraft(choose(v))} mock={focus} />
     </StepLayout>
   );
 }
