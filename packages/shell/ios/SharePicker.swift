@@ -56,7 +56,9 @@ enum SharePicker {
       let item = NSMenuItem(title: service.menuItemTitle, action: action, keyEquivalent: "")
       item.target = target
       item.image = service.image
+      #if compiler(>=6.4)
       if #available(macOS 27.0, *) { item.preferredImageVisibility = .visible }
+      #endif
       item.representedObject = choice(service.title)
       return item
     }
@@ -66,7 +68,9 @@ enum SharePicker {
     let image = NSSelectorFromString("sharedMoreMenuImage")
     if picker.responds(to: image) { more.image = picker.perform(image)?.takeUnretainedValue() as? NSImage }
     if more.image == nil { more.image = NSImage(systemSymbolName: "ellipsis.circle", accessibilityDescription: nil) }
+    #if compiler(>=6.4)
     if #available(macOS 27.0, *) { more.preferredImageVisibility = .visible }
+    #endif
     items.append(more)
     return items
   }
