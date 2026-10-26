@@ -230,8 +230,11 @@ export function startLiveEngine() {
   });
 
   useBrowser.subscribe((s, prev) => {
+    if (s.windows !== prev.windows || s.splits !== prev.splits) closeCompletedTabs();
+  });
+
+  useBrowser.subscribe((s, prev) => {
     if (s.windows === prev.windows) return;
-    closeCompletedTabs();
     for (const windowId of s.windowOrder) {
       const before = activeTabId(prev, windowId);
       if (!before || before === activeTabId(s, windowId)) continue;

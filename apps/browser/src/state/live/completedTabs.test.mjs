@@ -105,6 +105,17 @@ test("a merged pull request's tab showing as a pane of the split on screen stays
   assert.equal(S().tabs[tab], undefined);
 });
 
+test("a merged pull request's tab closes when the split that showed it is separated", async () => {
+  const { id, tab, merging } = await mergeWithTabOpen(false);
+  const beside = S().newTab(w, { url: "https://beside.example/" });
+  const split = S().createSplit([beside, tab]);
+  S().activate(beside);
+  finishCompleting(id, [merging.id]);
+  assert.ok(inFolder(tab, id));
+  S().separateSplit(split);
+  assert.equal(S().tabs[tab], undefined);
+});
+
 test("a merged pull request's tab closes however many pull requests merge in the same refresh", async () => {
   const { id, prs } = await folderOf(false, 30);
   const tab = openLiveItem(w, id, prs[29], { background: true });
