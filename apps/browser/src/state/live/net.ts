@@ -35,7 +35,7 @@ export async function request<T>(url: string, init: RequestInit = {}): Promise<T
   if (res.status === 429 || (res.status === 403 && res.headers.get("x-ratelimit-remaining") === "0")) throw new LiveError("rateLimited", "Rate Limit Exceeded");
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new LiveError(res.status === 403 ? "signedOut" : "other", `${res.status} ${text.slice(0, 200)}`.trim());
+    throw new LiveError(res.status === 403 ? "forbidden" : res.status === 404 ? "notFound" : "other", `${res.status} ${text.slice(0, 200)}`.trim());
   }
   return (await res.json()) as T;
 }

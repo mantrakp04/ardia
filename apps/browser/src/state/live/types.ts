@@ -64,7 +64,7 @@ export type CompletedItem = { item: LiveItem; state: CompletionState; at: number
 
 export type CompletionState = "merged" | "closed" | "reviewed";
 
-export type LiveErrorKind = "signedOut" | "sso" | "rateLimited" | "network" | "notConfigured" | "other";
+export type LiveErrorKind = "signedOut" | "forbidden" | "notFound" | "sso" | "rateLimited" | "network" | "notConfigured" | "other";
 
 export type FolderStatus = {
   state: "initializing" | "idle" | "updating" | "error";
