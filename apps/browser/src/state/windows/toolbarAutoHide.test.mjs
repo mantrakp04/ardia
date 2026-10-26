@@ -68,6 +68,7 @@ const install = new Function("page", `with (page) {\n${tracking}}`);
 function loadPage(tabId, { scrollY = 0 } = {}) {
   const listeners = {};
   const frames = [];
+  const timers = [];
   const observers = [];
   const mutations = [];
   let now = 1000;
@@ -79,6 +80,7 @@ function loadPage(tabId, { scrollY = 0 } = {}) {
     document: { scrollingElement: doc, documentElement: doc },
     performance: { now: () => now },
     requestAnimationFrame: (fn) => frames.push(fn),
+    after: (fn) => timers.push(fn),
     addEventListener: (type, fn) => (listeners[type] ??= []).push(fn),
     guard: (fn) => (...a) => fn(...a),
     send: (kind, data) => kind === "scroll" && noteScroll(tabId, data),
@@ -132,8 +134,9 @@ function loadPage(tabId, { scrollY = 0 } = {}) {
   const resized = () => observers.forEach((o) => o.watched.size && o.fn([]));
   const mutated = () => mutations.forEach((o) => o.watching && o.fn([]));
   const nextFrame = () => frames.splice(0).forEach((fn) => fn());
+  const timersFire = () => timers.splice(0).forEach((fn) => fn());
   const tick = (ms) => (now += ms);
-  return { doc, document: env.document, fire, scroll, overlay, resized, mutated, nextFrame, tick };
+  return { doc, document: env.document, fire, scroll, overlay, resized, mutated, nextFrame, timersFire, tick };
 }
 
 function hiddenTab() {
@@ -180,6 +183,45 @@ test("wheeling up or pressing Home at the page's top shows the bar, not inside a
   page.fire("keydown", { key: "ArrowDown" });
   assert.ok(hidden(tabId));
   page.fire("keydown", { key: "Home" });
+  assert.ok(!hidden(tabId));
+  useBrowser.getState().closeTab(tabId);
+});
+
+test("two full-window scrollers moving together (synced panes) still hide and show the bar", () => {
+  const tabId = hiddenTab();
+  const page = loadPage(tabId);
+  const pane = page.overlay();
+  const both = (to) => {
+    const from = page.doc.scrollTop;
+    for (let i = 1; i <= 20; i++) {
+      page.fire("wheel", { deltaY: Math.sign(to - from), target: page.doc });
+      page.doc.scrollTop = from + ((to - from) * i) / 20;
+      page.fire("scroll", { target: page.document });
+      page.nextFrame();
+      page.tick(8);
+      pane.scrollTop = page.doc.scrollTop;
+      page.fire("scroll", { target: pane });
+      page.nextFrame();
+      page.tick(8);
+    }
+  };
+  both(1500);
+  assert.ok(hidden(tabId));
+  both(1200);
+  assert.ok(!hidden(tabId));
+  useBrowser.getState().closeTab(tabId);
+});
+
+test("the page jumping to its top shows the bar when a small scroller moves in the same frame", () => {
+  const tabId = hiddenTab();
+  const page = loadPage(tabId);
+  page.scroll(page.doc, 1500);
+  assert.ok(hidden(tabId));
+  const nav = { scrollTop: 30, scrollHeight: 400, clientHeight: 220, clientWidth: 200 };
+  page.doc.scrollTop = 0;
+  page.fire("scroll", { target: page.document });
+  page.fire("scroll", { target: nav });
+  page.nextFrame();
   assert.ok(!hidden(tabId));
   useBrowser.getState().closeTab(tabId);
 });
