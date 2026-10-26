@@ -188,7 +188,7 @@ const PANE_VIEWS: Record<SettingsPane, (place: SettingsPlace) => ReactNode> = {
   search: () => <SearchPane />,
   engines: () => <EnginesPane />,
   shortcuts: () => <ShortcutsPane />,
-  liveFolders: () => <LiveFoldersPane />,
+  liveFolders: ({ profileId }) => <LiveFoldersPane profileId={profileId} />,
   calendar: () => <CalendarPane />,
   advanced: () => <AdvancedPane />,
 };

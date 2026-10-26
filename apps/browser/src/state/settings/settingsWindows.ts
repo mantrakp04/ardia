@@ -79,14 +79,21 @@ export function openImport(browserId?: string) {
   void openWindow(IMPORT_WINDOW_ID, { kind: "import", title: "Import from Another Browser" });
 }
 
-export function settingsBrowserWindow(): string | null {
+export function settingsBrowserWindow(profileId?: string): string | null {
   const s = useBrowser.getState();
-  return s.ui.focusOrder.find((id) => s.windows[id] && s.windows[id]!.kind !== "private") ?? s.windowOrder.find((id) => s.windows[id]!.kind !== "private") ?? null;
+  const usable = (id: string) => !!s.windows[id] && s.windows[id]!.kind !== "private";
+  const inProfile = (id: string) => usable(id) && s.windows[id]!.profileId === profileId;
+  return (
+    (profileId ? (s.ui.focusOrder.find(inProfile) ?? s.windowOrder.find(inProfile)) : undefined) ??
+    s.ui.focusOrder.find(usable) ??
+    s.windowOrder.find(usable) ??
+    null
+  );
 }
 
-export function openUrlFromSettings(url: string) {
-  const windowId = settingsBrowserWindow();
+export function openUrlFromSettings(url: string, profileId?: string) {
+  const windowId = settingsBrowserWindow(profileId);
   if (!windowId) return;
-  useBrowser.getState().newTab(windowId, { url });
+  useBrowser.getState().newTab(windowId, { url, profileId });
   void focusWindow(windowId);
 }

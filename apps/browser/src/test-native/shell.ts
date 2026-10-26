@@ -25,6 +25,8 @@ type UserScriptsHost = {
 const testGlobals = globalThis as { acTestUserScripts?: UserScriptsHost };
 
 export const docs = new Map<string, string>();
+export const keychainItems = new Map<string, string>();
+export const keychainRefusals = new Set<string>();
 export const heldSaves = { on: false, queue: [] as (() => void)[] };
 export const bangListServer: { reply: ((etag: string | null) => Promise<BangListReply>) | null } = { reply: null };
 export const appInfo: Partial<SystemInfo> = { appVersion: "1.0" };
@@ -235,9 +237,9 @@ const calendar: Modules["ArdiaCalendar"] = {
 };
 
 const keychain: Modules["ArdiaKeychain"] = {
-  get: () => Promise.resolve(null),
-  set: () => Promise.resolve(true),
-  delete: () => Promise.resolve(true),
+  get: (account) => Promise.resolve(keychainItems.get(account) ?? null),
+  set: (account, secret) => Promise.resolve(!keychainRefusals.has(account) && !!keychainItems.set(account, secret)),
+  delete: (account) => Promise.resolve(keychainItems.delete(account)),
 };
 
 const translate: Modules["ArdiaTranslate"] = {
