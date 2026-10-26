@@ -435,7 +435,7 @@ export function Omnibox({
       onKeyDown={onKeyDown}
       style={{
         flex: 1,
-        fontSize: hero ? 17 : dropdown ? 14 : 13,
+        fontSize: hero || dropdown ? 14 : 13,
         color: theme.textPrimary,
         paddingVertical: 0,
         marginTop: variant === "panel" ? -3 : 0,
