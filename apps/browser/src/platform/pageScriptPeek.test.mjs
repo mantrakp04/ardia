@@ -593,3 +593,15 @@ test("a link its click handler rewrites is noted with the address the browser op
   env.flush();
   assert.deepEqual(newTabLinks(env), ["https://other.example/landing"]);
 });
+
+test("the target is read once click handlers have run: one they add counts, one they clear doesn't", () => {
+  const env = environment();
+  const plain = env.link("/made-blank");
+  env.gesture([plain], {});
+  plain.setAttribute("target", "_blank");
+  const blank = env.link("/made-self", { target: "_blank" });
+  env.gesture([blank], {});
+  blank.setAttribute("target", "_self");
+  env.flush();
+  assert.deepEqual(newTabLinks(env), ["https://page.example/made-blank"]);
+});

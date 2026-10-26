@@ -764,9 +764,8 @@
         if (!e.isTrusted || button(e) !== 0 || altKey(e) || shiftKey(e) || metaKey(e) || ctrlKey(e)) return;
         const hit = linkAt(e);
         if (!peekable(hit)) return;
-        if (replacesPage(hit.link)) return;
         const reported = () => {
-          if (defaultPrevented(e)) return;
+          if (defaultPrevented(e) || replacesPage(hit.link)) return;
           const url = linkUrl(hit.link);
           if (url && apply(test, /^https?:/i, [url])) send("newTabLink", { url });
         };
