@@ -6,7 +6,7 @@ import { useLive } from "../../live/store";
 import { useBrowser } from "../../store/browser";
 import { setIcon } from "./actions";
 import { setSidebarUi, useSidebarUi } from "./state";
-import { SYMBOL_PREFIX } from "./TabIcon";
+import { hasOwnGroupIcon, SYMBOL_PREFIX } from "./TabIcon";
 import { useSidebarTokens } from "./tokens";
 
 const EMOJI: [string, string][] = [
@@ -55,7 +55,8 @@ function PickerPanel({ picker, sidebarWidth }: { picker: Picker; sidebarWidth: n
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const liveIcon = useLive((s) => (picker.kind === "live" ? s.folders[picker.id.split("|")[1] ?? ""]?.icon : null));
-  const current = useBrowser((s) => (picker.kind === "tab" ? s.tabs[picker.id]?.customIcon : picker.kind === "live" ? liveIcon : s.groups[picker.id]?.icon) ?? null);
+  const stored = useBrowser((s) => (picker.kind === "tab" ? s.tabs[picker.id]?.customIcon : picker.kind === "live" ? liveIcon : s.groups[picker.id]?.icon) ?? null);
+  const current = hasOwnGroupIcon(stored) ? stored : null;
   const [tab, setTab] = useState<"emoji" | "symbols">(current?.startsWith(SYMBOL_PREFIX) ? "symbols" : "emoji");
   const [query, setQuery] = useState("");
   const items = useMemo(() => {
