@@ -1,4 +1,5 @@
 export {
+  BriefRail,
   ActivitySpinner,
   ContextMenuArea,
   DockSelection,

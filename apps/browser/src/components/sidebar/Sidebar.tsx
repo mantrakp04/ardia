@@ -24,6 +24,8 @@ import { closeFolderPanel } from "../../state/sidebar/tileFolderUi";
 import { GLOW_ROOM, ROW_PITCH, type SidebarGeometry } from "./pageLayout";
 import { SidebarPage } from "./SidebarPage";
 import { SidebarRowLookContext, useSidebarRowLookSource } from "./rowLook";
+import { useProfileOrder } from "../../state/profiles/hooks";
+import { BriefArchiveButton } from "./BriefArchiveButton";
 import { useRevealTabs } from "./useRevealTabs";
 
 export function Sidebar({ width }: { width: number }) {
@@ -41,7 +43,9 @@ export function Sidebar({ width }: { width: number }) {
   const hasDownloads = useHasDownloads(windowId);
   const dots = useProfileDotsShown();
   const footerDownloads = addressBar && hasDownloads;
-  const footer = dots || footerDownloads ? PROFILE_DOTS_HEIGHT : 0;
+  const profileCount = useProfileOrder((o) => o.length);
+  const raisedDots = dots && profileCount * 12 > width - 100;
+  const footer = PROFILE_DOTS_HEIGHT * (raisedDots ? 2 : 1);
   const nothingPinned = useNoTiles(windowId, current);
   const rowLook = useSidebarRowLookSource();
 
@@ -100,9 +104,10 @@ export function Sidebar({ width }: { width: number }) {
 
           {footer ? (
             <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: footer }}>
-              {dots ? <ProfileDots windowId={windowId} /> : null}
+              {dots ? <View style={{ position: "absolute", left: raisedDots ? 0 : 50, right: raisedDots ? 0 : 50, bottom: raisedDots ? PROFILE_DOTS_HEIGHT : 0 }}><ProfileDots windowId={windowId} /></View> : null}
+              <BriefArchiveButton windowId={windowId} />
               {footerDownloads ? (
-                <View style={{ position: "absolute", left: layout.sidebarInset, bottom: SIDEBAR_FOOTER_DOWNLOADS.bottom }}>
+                <View style={{ position: "absolute", right: layout.sidebarInset, bottom: SIDEBAR_FOOTER_DOWNLOADS.bottom }}>
                   <DownloadsButton windowId={windowId} />
                 </View>
               ) : null}

@@ -1,0 +1,30 @@
+import { Easing } from "react-native";
+
+export const briefColors = {
+  background: "#101010",
+  accent: "#ffe500",
+  foreground: "#eeeeeb",
+  thumbnailBorder: "#111111",
+  tooltipInk: "#161616",
+  checkboxBorder: "#53534f",
+  completed: "#77756e",
+  caption: "#959187",
+  credit: "#4f4d48",
+  card: "#1f1f1e",
+  heading: "#cccac4",
+  title: "#e5e5e1",
+  body: "#969187",
+  number: "#4a4843",
+  project: "#757168",
+  event: "#20201e",
+  footer: "#8d8a82",
+  footerSmall: "#65625b",
+  buttonBorder: "#484530",
+  error: "#e6a296",
+  popoverBorder: "#4d4a46",
+  popover: "#2c2926",
+  popoverBody: "#bbb7b0",
+  artShade: "rgba(0,0,0,0.09)",
+  sheen: "rgba(255,255,255,0.12)",
+};
+export const briefMotion = { tilt: 180, sheen: 650, bounceUp: 130, bounceDown: 210, out: Easing.out(Easing.quad), into: Easing.in(Easing.quad) };

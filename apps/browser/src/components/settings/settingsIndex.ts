@@ -19,6 +19,7 @@ export const PANES: { id: SettingsPane; title: string; icon: string }[] = [
   { id: "engines", title: "Engines", icon: "safari" },
   { id: "shortcuts", title: "Keyboard Shortcuts", icon: "keyboard" },
   { id: "liveFolders", title: "Live Folders", icon: "dot.radiowaves.left.and.right" },
+  { id: "dailyBriefs", title: "Daily Briefs", icon: "sun.max" },
   { id: "calendar", title: "Calendar", icon: "calendar" },
   { id: "advanced", title: "Advanced", icon: "slider.horizontal.3" },
 ];

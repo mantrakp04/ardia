@@ -16,3 +16,5 @@ export * from "./views";
 export * from "./windows";
 export type { ShellNativeModules, ShellOptionalNativeModules } from "./nativeModules";
 export type { ShellNative } from "./shellNative";
+export * from "./briefs";
+export * from "./gmail";

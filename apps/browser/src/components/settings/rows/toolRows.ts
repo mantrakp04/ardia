@@ -1,7 +1,33 @@
 import { type SettingSection } from "./types";
 import type { SettingsPane } from "../../../state/settings/settingsWindows";
 
-export const toolRows: Pick<Record<SettingsPane, SettingSection[]>, "shortcuts" | "liveFolders" | "calendar" | "engines" | "advanced"> = {
+export const toolRows: Pick<Record<SettingsPane, SettingSection[]>, "dailyBriefs" | "shortcuts" | "liveFolders" | "calendar" | "engines" | "advanced"> = {
+  dailyBriefs: [
+    {
+      section: "Daily Briefs",
+      rows: {
+        enabled: { title: "Open a daily brief", description: "Opens a brief tab in the background while Ardia is running. Connect a provider to generate its content.", keywords: ["morning", "daily", "schedule"] },
+        delivery: { title: "Delivery", keywords: ["schedule", "startup", "time"] },
+        time: { title: "Local time", description: "If Ardia is closed, your brief opens the next time you launch it after this time.", keywords: ["morning", "schedule", "timezone"] },
+        open: { title: "Today's brief", description: "Open today’s daily brief.", keywords: ["daily brief"] },
+      },
+    },
+    {
+      section: "Provider",
+      rows: {
+        provider: { title: "Generate with", keywords: ["chatgpt", "claude", "openai", "anthropic", "subscription", "ai"] },
+        providerAccount: { title: "Provider account", keywords: ["connect", "chatgpt", "claude", "subscription", "api key"] },
+      },
+    },
+    {
+      section: "Connected sources",
+      rows: {
+        gmail: { title: "Gmail", keywords: ["mail", "inbox", "email", "permission"] },
+        calendar: { title: "Calendar", keywords: ["google calendar", "meetings", "events", "permission"] },
+        github: { title: "GitHub", keywords: ["pull requests", "repositories", "permission"] },
+      },
+    },
+  ],
   shortcuts: [
     {
       section: "Keyboard Shortcuts",

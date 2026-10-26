@@ -158,3 +158,5 @@ export type DockSelectionProps = ViewProps & {
 };
 
 export const DockSelection = requireNativeViewManager<DockSelectionProps>("ArdiaDockSelection");
+
+export const BriefRail = requireNativeViewManager<ViewProps & { text: string; fontSize: number; clockwise?: boolean }>("ArdiaBriefRail");

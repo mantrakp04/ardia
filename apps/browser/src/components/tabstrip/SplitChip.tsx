@@ -1,3 +1,6 @@
+import { BriefTabThumbnail } from "../briefs/BriefTabThumbnail";
+import { briefDateFromUrl } from "../../lib/briefDates";
+import { internalPageOf, tabDestination } from "../../state/pages/urls";
 import { useContext } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { useIsActiveTab, usePageProfileId, useTab, useWindowId } from "../../state/browser/hooks";
@@ -34,7 +37,7 @@ export function SplitChip({ tabIds, width, geometry, from, group }: { tabIds: st
         <ItemRow hovered={hovered && !active} pressed={false}>
           <Symbol name="rectangle.split.2x1" size={11} color={ink?.secondary ?? theme.textSecondary} style={{ width: 14, height: 16, marginRight: 4 }} />
           {tabIds.map((id, i) => (
-            <SplitPart key={id} tabId={id} first={i === 0} ink={ink} />
+            <SplitPart key={id} tabId={id} first={i === 0} ink={ink} hovered={hovered} />
           ))}
         </ItemRow>
       </View>
@@ -44,13 +47,14 @@ export function SplitChip({ tabIds, width, geometry, from, group }: { tabIds: st
 
 const NO_SLOTS = dragGeometry([], GAP);
 
-function SplitPart({ tabId, first, ink }: { tabId: string; first: boolean; ink: ToolbarPalette | null }) {
+function SplitPart({ tabId, first, ink, hovered }: { tabId: string; first: boolean; ink: ToolbarPalette | null; hovered: boolean }) {
   const theme = useTheme();
   const windowId = useWindowId();
   const tab = useTab(tabId);
   const focused = useIsActiveTab(tabId);
   const drag = useStripDrag({ tabId, ids: () => [tabId], pinned: false, groupId: null, geometry: NO_SLOTS, from: -1, width: 0, gap: 0, axis: "y" });
   if (!tab) return null;
+  const briefDate = internalPageOf(tabDestination(tab)) === "brief" ? briefDateFromUrl(tabDestination(tab)) : null;
   return (
     <Animated.View ref={drag.ref} {...drag.panHandlers} style={{ flex: 1, flexDirection: "row", alignItems: "center", opacity: drag.style.opacity }}>
       <ContextMenuArea onContextMenu={() => void openTabMenu(windowId, tab)} style={{ flex: 1, flexDirection: "row", alignItems: "center" }}>
@@ -60,6 +64,7 @@ function SplitPart({ tabId, first, ink }: { tabId: string; first: boolean; ink: 
             <TabIcon url={tab.url} favicon={tab.favicon} icon={tab.customIcon} size={14} profileId={tab.profileId} />
           </View>
           <FadeLabel text={tab.customTitle || tab.title || tab.url || "New Tab"} fontSize={font.small.fontSize} color={ink ? (focused ? ink.text : ink.secondary) : focused ? theme.tabSelectedText : theme.textTab} style={{ flex: 1, height: 16, marginLeft: CHIP_LABEL_GAP }} />
+          {briefDate && <BriefTabThumbnail date={briefDate} hovered={hovered} width={30} height={21} />}
         </Pressable>
       </ContextMenuArea>
     </Animated.View>

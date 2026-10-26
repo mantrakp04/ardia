@@ -3,7 +3,7 @@
   "private": true,
   "packageManager": "pnpm@11.1.3",
   "engines": {
-    "node": ">=22.13"
+    "node": ">=22.18"
   },
   "scripts": {
     "dev": "turbo run dev --filter=@ardia/browser",

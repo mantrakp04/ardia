@@ -12,6 +12,8 @@
 	<string>$(AC_UPDATE_CHANNEL)</string>
 	<key>ACVideoTourURL</key>
 	<string></string>
+	<key>ArdiaGoogleOAuthClientSecret</key>
+	<string>$(ARDIA_GOOGLE_OAUTH_CLIENT_SECRET)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

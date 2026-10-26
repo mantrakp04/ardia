@@ -453,3 +453,70 @@ public class ShellModule: Module {
     }
   }
 }
+
+public class BriefRailModule: Module {
+  public func definition() -> ModuleDefinition {
+    Name("ArdiaBriefRail")
+    View(BriefRailView.self) {
+      Prop("text") { (view: BriefRailView, value: String) in view.text = value }
+      Prop("fontSize") { (view: BriefRailView, value: Double) in view.fontSize = value }
+      Prop("clockwise") { (view: BriefRailView, value: Bool) in view.clockwise = value }
+    }
+  }
+}
+
+private func drawBriefRail(_ text: String, bounds: NSRect, fontSize: Double, clockwise: Bool) {
+  guard bounds.width > 0, bounds.height > 16 else { return }
+  var size = min(fontSize, bounds.width * 0.78)
+  func label(_ size: Double) -> NSAttributedString {
+    NSAttributedString(string: text, attributes: [.font: NSFont(name: "Georgia-Italic", size: size) ?? NSFont.systemFont(ofSize: size), .foregroundColor: NSColor(calibratedWhite: 0.93, alpha: 1)])
+  }
+  let initial = label(size).size()
+  if initial.width > bounds.height - 16 { size *= (bounds.height - 16) / initial.width }
+  let value = label(size)
+  let measured = value.size()
+  NSGraphicsContext.saveGraphicsState()
+  let transform = NSAffineTransform()
+  transform.translateX(by: bounds.midX, yBy: bounds.midY)
+  transform.rotate(byDegrees: clockwise ? 90 : -90)
+  transform.concat()
+  value.draw(at: NSPoint(x: -measured.width / 2, y: -measured.height / 2))
+  NSGraphicsContext.restoreGraphicsState()
+}
+
+private final class BriefRailCanvas: NSView {
+  var text = "" { didSet { needsDisplay = true } }
+  var fontSize: Double = 45 { didSet { needsDisplay = true } }
+  var clockwise = false { didSet { needsDisplay = true } }
+  override var isFlipped: Bool { true }
+  override func draw(_ dirtyRect: NSRect) { drawBriefRail(text, bounds: bounds, fontSize: fontSize, clockwise: clockwise) }
+  override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
+final class BriefRailView: ExpoView {
+  private let canvas = BriefRailCanvas()
+  var text = "" { didSet { canvas.text = text } }
+  var fontSize: Double = 45 { didSet { canvas.fontSize = fontSize } }
+  var clockwise = false { didSet { canvas.clockwise = clockwise } }
+
+  required init(appContext: AppContext? = nil) {
+    super.init(appContext: appContext)
+    canvas.wantsLayer = true
+    canvas.layerContentsRedrawPolicy = .onSetNeedsDisplay
+    addSubview(canvas)
+  }
+
+  override func setFrameSize(_ newSize: NSSize) {
+    super.setFrameSize(newSize)
+    canvas.frame = bounds
+    canvas.needsDisplay = true
+  }
+
+  override func layout() {
+    super.layout()
+    canvas.frame = bounds
+    canvas.needsDisplay = true
+  }
+
+  override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}

@@ -18,6 +18,7 @@ export { colorRoles, font, hairline, ink, opacity, radius, shadow, space, swatch
 export { TooltipAbove } from "./TooltipAbove";
 export { useHover } from "./useHover";
 export {
+  BriefRail,
   ActivitySpinner,
   ContextMenuArea,
   DIA_SPECTRUM,

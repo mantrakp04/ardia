@@ -3,9 +3,10 @@ import { useBrowser } from "../browser/store";
 import { activeTabId, resolveWindowId, viewTabIds } from "../browser/model";
 import type { Tab } from "../browser/types";
 
-type InternalPageId = "history" | "bookmarks" | "downloads";
+type InternalPageId = "history" | "bookmarks" | "downloads" | "brief";
 
 export const INTERNAL_PAGES: Record<InternalPageId, { title: string }> = {
+  brief: { title: "Daily Brief" },
   history: { title: "History" },
   bookmarks: { title: "Bookmarks" },
   downloads: { title: "Downloads" },
@@ -18,7 +19,7 @@ const internalUrl = (page: InternalPageId, query?: string) => `${SCHEME}${page}$
 export function internalPageOf(url: string | null | undefined): InternalPageId | null {
   if (!url?.toLowerCase().startsWith(SCHEME)) return null;
   const page = url.slice(SCHEME.length).split(/[/?#]/)[0]!.toLowerCase();
-  return page in INTERNAL_PAGES ? (page as InternalPageId) : null;
+  return Object.hasOwn(INTERNAL_PAGES, page) ? (page as InternalPageId) : null;
 }
 
 export function internalQuery(url: string): string {

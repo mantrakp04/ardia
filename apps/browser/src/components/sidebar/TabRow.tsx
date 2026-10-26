@@ -19,6 +19,10 @@ import { openTabMenu } from "../../state/sidebar/menus";
 import { ACTIVE, ICON_MARKS, LOADING, PLAYING, SELECTED, useRowState } from "../../state/sidebar/rowState";
 import { registerRow, useSidebarUi } from "../../state/sidebar/sidebarUi";
 import { PressFeedback, usePressMotion } from "./PressFeedback";
+import { briefTitleForDate } from "../briefs/assets";
+import { BriefTabThumbnail } from "../briefs/BriefTabThumbnail";
+import { briefDateFromUrl } from "../../lib/briefDates";
+import { internalPageOf, tabDestination } from "../../state/pages/urls";
 import { TabIcon } from "./TabIcon";
 import { TabBadges } from "../media/TabBadges";
 import { SELECTED_ROW_SHADOW_OFFSET, useSidebarTokens } from "./tokens";
@@ -64,9 +68,11 @@ export const TabRow = memo(function TabRow({ tabId, onto = false, shift = null }
   const closeControl = useTabCloseControlWhile(tabId, hovered && !renaming);
   const { backToPinHint } = useSidebarRowLook();
   if (!tab) return null;
+  const isBrief = internalPageOf(tabDestination(tab)) === "brief";
+  const briefDate = isBrief ? briefDateFromUrl(tabDestination(tab)) : "";
   const resettable = (isPinnedRow(tab) || !tab.pinned) && awayFromPin(tab);
   const resetting = resettable && backToPin.hovered && !renaming;
-  const title = resetting ? "Back to Pinned URL" : tabTitle(tab);
+  const title = resetting ? "Back to Pinned URL" : isBrief ? tab.customTitle || briefTitleForDate(briefDate) : tabTitle(tab);
   const fill = active ? theme.tabSelected : selected ? tokens.multiSelected : hovered ? theme.tabHover : ink.clear;
   const border = active || selected ? 0.5 : 0;
 
@@ -120,6 +126,8 @@ export const TabRow = memo(function TabRow({ tabId, onto = false, shift = null }
                     )}
                   </Pressable>
                 </View>
+              ) : isBrief ? (
+                <Symbol name="doc" size={17} color={active ? theme.tabSelectedText : theme.icon} style={{ width: 16, height: 20 }} />
               ) : (
                 <View>
                   <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} marks={flags & ICON_MARKS} />
@@ -139,8 +147,9 @@ export const TabRow = memo(function TabRow({ tabId, onto = false, shift = null }
                   onDone={(text) => (text === null ? endRename({ kind: "tab", id: tabId }) : commitRename({ kind: "tab", id: tabId }, text))}
                 />
               ) : (
-                <FadeLabel text={title} fontSize={font.body.fontSize} color={active ? theme.tabSelectedText : theme.textTab} style={{ flex: 1, height: 18, marginLeft: 5 }} />
+                <FadeLabel text={title} fontSize={font.body.fontSize} color={active ? theme.tabSelectedText : theme.textTab} style={{ flex: 1, minWidth: 0, height: 18, marginLeft: 5 }} />
               )}
+              {isBrief && !renaming && <BriefTabThumbnail date={briefDate} hovered={hovered} />}
               <HoverSlot
                 hovered={hovered && !renaming}
                 width={22}

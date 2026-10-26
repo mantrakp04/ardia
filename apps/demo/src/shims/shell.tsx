@@ -16,6 +16,7 @@ export {
   WindowDragRegion,
 } from "./web/chrome";
 export { FadeLabel } from "./web/FadeLabel";
+export { BriefRail } from "./web/BriefRail";
 export { MouseArea } from "./web/MouseArea";
 export { showMenu } from "./web/menus";
 export { setTrafficLightsCenter } from "./web/windowChrome";

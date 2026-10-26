@@ -23,6 +23,7 @@ export type SettingsPane =
   | "shortcuts"
   | "liveFolders"
   | "calendar"
+  | "dailyBriefs"
   | "advanced";
 
 export type SettingsPlace = { pane: SettingsPane; profileId: string | null; detail: string | null };

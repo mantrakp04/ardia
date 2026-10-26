@@ -1,3 +1,6 @@
+import { BriefTabThumbnail } from "../briefs/BriefTabThumbnail";
+import { briefDateFromUrl } from "../../lib/briefDates";
+import { internalPageOf, tabDestination } from "../../state/pages/urls";
 import { useContext, useRef } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { modifiersOf } from "../../lib/keys";
@@ -116,6 +119,7 @@ export function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width:
   const { hovered, hoverProps } = useHover();
   if (!tab) return null;
   const title = tab.customTitle || tab.title || tab.url || "New Tab";
+  const briefDate = internalPageOf(tabDestination(tab)) === "brief" ? briefDateFromUrl(tabDestination(tab)) : null;
   const onBand = active && !floating && !!palette.background;
   return (
     <View {...hoverProps} tooltip={tab.url ? `${title}\n${tab.url}` : title} style={{ width, height: TOP_STRIP_HEIGHT }}>
@@ -143,6 +147,7 @@ export function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width:
                 color={onBand ? palette.text : active ? theme.tabSelectedText : theme.textTab}
                 style={{ flex: 1, height: 16, marginLeft: CHIP_LABEL_GAP }}
               />
+              {briefDate && <BriefTabThumbnail date={briefDate} hovered={hovered} width={34} height={23} />}
               <HoverSlot
                 hovered={hovered}
                 width={20}

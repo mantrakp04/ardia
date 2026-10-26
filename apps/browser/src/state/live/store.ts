@@ -49,7 +49,7 @@ type LiveState = {
   dismissedAlerts: string[];
 };
 
-export const DEFAULT_CONFIG: LiveConfig = { githubClientId: "", bitbucketUser: "", confluenceSite: "", confluenceEmail: "", googleClientId: "" };
+export const DEFAULT_CONFIG: LiveConfig = { githubClientId: "Ov23liu4r9aajQI7utOI", bitbucketUser: "", confluenceSite: "", confluenceEmail: "", googleClientId: "" };
 
 export const DEFAULT_CALENDAR: CalendarSettings = {
   alertLead: "1",

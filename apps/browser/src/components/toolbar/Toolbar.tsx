@@ -178,9 +178,10 @@ export const UrlField = memo(function UrlField({
   const popover = usePages((p) => p.popover[tab.id] ?? null);
   const hovered = pointerOver || popover === "siteControls";
   const isFile = tab.url.startsWith("file:");
-  const host = isFile ? "File" : breadcrumb(tab.url).host;
+  const isBrief = /^ardia:\/\/brief(?:\/|$)/i.test(tab.url);
+  const host = isBrief ? "Made with Ardia" : isFile ? "File" : breadcrumb(tab.url).host;
   const full = isFile ? ` ${safeDecode(tab.url.slice("file://".length))}` : urlForDisplay(tab.url);
-  const path = !isFile && full.startsWith(host) ? full.slice(host.length) : full;
+  const path = isBrief ? ` / ${tab.title}` : !isFile && full.startsWith(host) ? full.slice(host.length) : full;
   const web = isWebUrl(tab.url);
   const trail = hovered ? path : showFullUrl ? path.replace(/\/$/, "") : !web && tab.title ? ` / ${tab.title}` : "";
 

@@ -6,11 +6,15 @@
   "main": "src/index.tsx",
   "types": "src/index.tsx",
   "scripts": {
-    "typecheck": "tsc -p ."
+    "typecheck": "tsc -p .",
+    "test": "node --no-warnings --test tests/briefs-bridge.test.mjs && node tests/provider-tests.mjs"
   },
   "peerDependencies": {
     "expo": "*",
     "react": "*",
     "react-native": "*"
+  },
+  "engines": {
+    "node": ">=22.18"
   }
 }

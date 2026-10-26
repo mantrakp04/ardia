@@ -157,3 +157,5 @@ export function useSidebarWidth(windowId: string): number {
   const dragging = useSidebarUi((u) => u.dragWidth[windowId]);
   return dragging ?? saved;
 }
+
+export const briefArchiveColors = { paper: "#101010", title: "#ffe500" };

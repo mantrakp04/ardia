@@ -1,8 +1,8 @@
 import type * as Expo from "expo-modules-core";
 import { ardiaCoreNativeModules } from "./ardiacore";
-import { shellNativeModules, shellOptionalNativeModules } from "./shell";
+import { gmailTest, shellNativeModules, shellOptionalNativeModules } from "./shell";
 
-const nativeModules: Record<string, object> = { ...shellNativeModules, ...ardiaCoreNativeModules };
+const nativeModules: Record<string, object> = { ...shellNativeModules, ...ardiaCoreNativeModules, ArdiaGmail: { gmailStatus: () => gmailTest.status(), gmailMessages: () => gmailTest.messages(), cancelGmailCollection: () => gmailTest.cancel() } };
 const optionalNativeModules: Record<string, () => object | null> = { ...shellOptionalNativeModules };
 const testModules = () => (globalThis as { acTestNativeModules?: Record<string, object> }).acTestNativeModules;
 

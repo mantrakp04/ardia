@@ -195,8 +195,11 @@ const calendar: Modules["ArdiaCalendar"] = {
   events: () => Promise.resolve([]),
 };
 
+export const keychainTest = { get: (_account: string): Promise<string | null> => Promise.resolve(null) };
+export const gmailTest = { status: async () => ({ connected: false, email: "", clientSecretConfigured: false }), messages: async (): Promise<import("@ardia/shell").GmailMessage[]> => [], cancel: async () => {} };
+
 const keychain: Modules["ArdiaKeychain"] = {
-  get: () => Promise.resolve(null),
+  get: (account) => keychainTest.get(account),
   set: () => Promise.resolve(true),
   delete: () => Promise.resolve(true),
 };
