@@ -164,7 +164,7 @@ function releaseCompletedTabs() {
   const finished = (folderId: string, itemId: string) =>
     folders[folderId]?.showCompleted === false && !completing[folderId]?.includes(itemId) && !!completed[folderId]?.some((c) => c.item.id === itemId);
   for (const t of Object.values(s.tabs)) {
-    if (t.liveItem && finished(t.liveItem.folderId, t.liveItem.itemId) && activeTabId(s, t.windowId, t.profileId) !== t.id) s.updateTab(t.id, { liveItem: undefined });
+    if (t.liveItem && finished(t.liveItem.folderId, t.liveItem.itemId) && activeTabId(s, t.windowId) !== t.id) s.updateTab(t.id, { liveItem: undefined });
   }
 }
 
