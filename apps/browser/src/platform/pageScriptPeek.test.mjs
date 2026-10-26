@@ -579,3 +579,17 @@ test("downloads, non-http(s) links and links in editable content aren't noted", 
   env.flush();
   assert.deepEqual(newTabLinks(env), []);
 });
+
+test("a link its click handler rewrites is noted with the address the browser opens", () => {
+  const env = environment();
+  const a = env.link("/tracked", { target: "_blank" });
+  env.gesture([a], {});
+  a.setAttribute("href", "https://other.example/landing");
+  env.flush();
+  assert.deepEqual(newTabLinks(env), ["https://other.example/landing"]);
+  const b = env.link("/to-script", { target: "_blank" });
+  env.gesture([b], {});
+  b.setAttribute("href", "javascript:void 0");
+  env.flush();
+  assert.deepEqual(newTabLinks(env), ["https://other.example/landing"]);
+});

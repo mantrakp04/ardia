@@ -765,7 +765,12 @@
         const hit = linkAt(e);
         if (!peekable(hit)) return;
         if (replacesPage(hit.link)) return;
-        apply(scheduleTimeout, window, [guard(() => defaultPrevented(e) || send("newTabLink", { url: hit.url })), 0]);
+        const reported = () => {
+          if (defaultPrevented(e)) return;
+          const url = linkUrl(hit.link);
+          if (url && apply(test, /^https?:/i, [url])) send("newTabLink", { url });
+        };
+        apply(scheduleTimeout, window, [guard(reported), 0]);
       }),
       true,
     );
