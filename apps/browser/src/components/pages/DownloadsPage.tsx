@@ -45,7 +45,7 @@ export function DownloadsPage({ tabId }: { tabId: string }) {
   );
 }
 
-function DownloadCard({ d, windowId }: { d: Download; windowId: string }) {
+export function DownloadCard({ d, windowId }: { d: Download; windowId: string }) {
   const theme = useTheme();
   const colors = useFormColors();
   const { hovered, hoverProps } = useHover();

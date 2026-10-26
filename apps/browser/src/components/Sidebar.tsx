@@ -18,6 +18,7 @@ import { SIDEBAR_PLAYER_HEIGHT, SidebarPlayer, useSidebarPlayerTab } from "./med
 import { HoverSlot } from "./HoverSlot";
 import { IconButton, useHover } from "./primitives";
 import { DownloadsButton } from "./Downloads";
+import { toggleLibrary } from "./library/state";
 import { PROFILE_INDICATOR_X, ProfileIndicator } from "./ProfileIndicator";
 import { usePageStyle, usePagerPages } from "./layout/profilePager";
 import { PROFILE_DOTS_HEIGHT, ProfileDots, useProfileDotsShown } from "./profiles/ProfileDots";
@@ -77,7 +78,8 @@ export function Sidebar({ width }: { width: number }) {
   const hasDownloads = useBrowser((s) => downloadsIn(s, windowId).length > 0);
   const dots = useProfileDotsShown();
   const footerDownloads = addressBar && hasDownloads;
-  const footer = dots || footerDownloads ? PROFILE_DOTS_HEIGHT : 0;
+  const incognito = useBrowser((s) => !!s.windows[windowId]?.incognito);
+  const footer = !incognito || dots || footerDownloads ? PROFILE_DOTS_HEIGHT : 0;
   const nothingPinned = useBrowser((s) => sidebarEntries(s, windowId, current).tiles.length === 0);
 
   const sidebarHover = useSidebarHoverProps(windowId);
@@ -139,6 +141,11 @@ export function Sidebar({ width }: { width: number }) {
               {footerDownloads ? (
                 <View style={{ position: "absolute", left: layout.sidebarInset, bottom: SIDEBAR_FOOTER_DOWNLOADS.bottom }}>
                   <DownloadsButton windowId={windowId} />
+                </View>
+              ) : null}
+              {!incognito ? (
+                <View style={{ position: "absolute", right: layout.sidebarInset, bottom: SIDEBAR_FOOTER_DOWNLOADS.bottom }}>
+                  <IconButton icon="books.vertical" size={16} box={SIDEBAR_FOOTER_DOWNLOADS.size} radius={10} tooltip="Library (⌃⌘L)" onPress={() => toggleLibrary(windowId)} />
                 </View>
               ) : null}
             </View>

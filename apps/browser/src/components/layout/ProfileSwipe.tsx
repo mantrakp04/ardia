@@ -1,4 +1,6 @@
 import { SwipeArea, type SwipeAreaHandle, type SwipeEvent } from "@ardia/ardiacore";
+import { attachPagerPull, endLibraryPull, endPagerPull, notePagerPull, pullLibrary, stopPagerPull } from "../library/pull";
+import { openLibrary, useLibrary } from "../library/state";
 import { WindowBackdrop } from "@ardia/shaders";
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { Animated, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
@@ -8,6 +10,8 @@ import { useBrowser } from "../../store/browser";
 import { useWindowId } from "../../store/hooks";
 import { pagerFor, usePagerNativeConfig, usePagerPages, usePagerSurface } from "./profilePager";
 
+
+const LIBRARY_PULL_SPAN = 0.9;
 
 export function ProfileSwipe({ children }: { children: ReactNode }) {
   return (
@@ -28,6 +32,8 @@ export function ProfileSwipeArea({ surface, style, pageWidth }: { surface: "side
       return i < 0 ? [false, false, false] : [i > 0, i < s.profileOrder.length - 1, s.profileOrder.length > 1];
     }),
   );
+  const libraryReachable = useBrowser((s) => !s.windows[windowId]?.incognito);
+  const libraryOpen = useLibrary((s) => !!s.open[windowId]);
   const area = useRef<SwipeAreaHandle>(null);
   const pager = pagerFor(windowId);
   const nativePager = usePagerNativeConfig(windowId, pageWidth);
@@ -39,9 +45,36 @@ export function ProfileSwipeArea({ surface, style, pageWidth }: { surface: "side
       received.push({ at: performance.now(), surface, profile: useBrowser.getState().windows[windowId]?.profileId, ...event });
     }
     const e = pageWidth ? { ...event, width: pageWidth } : event;
+    const pullsLibrary = !nativePager && !previous && surface === "sidebar" && libraryReachable;
+    if (pullsLibrary && (e.phase === "began" || e.phase === "changed")) return pullLibrary(windowId, e.direction === "back" ? e.distance / (Math.max(e.width, 1) * LIBRARY_PULL_SPAN) : 0);
+    if (pullsLibrary && (e.phase === "ended" || e.phase === "cancelled")) return endLibraryPull(windowId, e.phase === "ended" ? undefined : false);
+    if (e.phase === "swipe" && e.direction === "back" && !previous && libraryReachable) return openLibrary(windowId, "spaces");
     if (e.phase === "swipe") return pager.step(e.direction === "back" ? -1 : 1);
     if (e.phase === "wheel") pager.wheel(e);
   };
+
+  const pullsFromPager = !!nativePager && !previous && surface === "sidebar" && libraryReachable;
+  useEffect(() => {
+    if (!pullsFromPager) return;
+    const detach = attachPagerPull(windowId, pager.pos);
+    const id = pager.pos.addListener(({ value }) => notePagerPull(windowId, value));
+    return () => {
+      pager.pos.removeListener(id);
+      detach();
+      stopPagerPull(windowId);
+    };
+  }, [pullsFromPager, pager, windowId]);
+  const onPagerState = useMemo(
+    () =>
+      nativePager
+        ? (event: Parameters<typeof pager.onNativeState>[0]) => {
+            if (event.phase === "leading") return endPagerPull(windowId, event.phase, () => pager.returnHome());
+            pager.onNativeState(event);
+            if (pullsFromPager) endPagerPull(windowId, event.phase, () => pager.returnHome());
+          }
+        : undefined,
+    [nativePager, pager, pullsFromPager, windowId],
+  );
 
   useEffect(() => {
     if (!__DEV__) return;
@@ -50,19 +83,20 @@ export function ProfileSwipeArea({ surface, style, pageWidth }: { surface: "side
     return () => void (devAreas.get(key) === area && devAreas.delete(key));
   }, [windowId, surface]);
 
-  if (!multiple && !nativePager) return null;
+  if (libraryOpen) return null;
+  if (!multiple && !nativePager && !(surface === "sidebar" && libraryReachable)) return null;
   return (
     <SwipeArea
       ref={area}
       style={style}
-      canSwipeBack={previous}
+      canSwipeBack={previous || (surface === "sidebar" && libraryReachable)}
       canSwipeForward={next}
       tracksUnavailableDirections={multiple}
       isPager={multiple}
       onSwipe={onSwipe}
       nativePager={nativePager}
       onPagerPosition={nativePager && onPagerPosition}
-      onPagerState={nativePager && pager.onNativeState}
+      onPagerState={onPagerState}
     />
   );
 }
