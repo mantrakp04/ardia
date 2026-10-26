@@ -21,11 +21,12 @@ struct SettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
           ToolbarItem(placement: .confirmationAction) {
-            Button("Done", role: .confirm) { dismiss() }
+            Button("Done") { dismiss() }
+              .fontWeight(.semibold)
           }
         }
         .navigationDestination(for: SettingsRoute.self) { route in
-          route.destination
+          route.destination.settingsChrome()
         }
     }
     .tint(Color.ardiaAccentText)
@@ -43,6 +44,7 @@ struct SettingsView: View {
 
 enum SettingsRoute: String, Hashable {
   case sync
+  case siteSettings
   case connect
   case searchEngine
   case experiments
@@ -59,6 +61,7 @@ enum SettingsRoute: String, Hashable {
   var destination: some View {
     switch self {
     case .sync: SyncSettingsPage()
+    case .siteSettings: SiteSettingsPage()
     case .connect: SyncConnectPage()
     case .searchEngine: SearchEnginePage()
     case .experiments: ExperimentsPage()
@@ -94,7 +97,6 @@ private struct SettingsRootList: View {
   @Environment(AppModel.self) private var app
 
   var body: some View {
-    @Bindable var blocking = app.blocking
     @Bindable var preferences = app.preferences
     @Bindable var settings = app.settings
     @Bindable var tabs = app.tabs
@@ -107,41 +109,19 @@ private struct SettingsRootList: View {
         }
 
         Section {
+          SettingsShortcuts()
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets())
+        }
+        .listSectionSpacing(Spacing.small)
+
+        Section {
+          NavigationLink(value: SettingsRoute.siteSettings) {
+            SettingsRowLabel("Site Settings", systemImage: "globe", tint: SettingsTint.neutral)
+          }
           NavigationLink(value: SettingsRoute.defaultBrowser) {
             SettingsRowLabel("Default Browser", systemImage: "safari.fill", tint: SettingsTint.defaultBrowser)
           }
-        }
-
-        Section {
-          Toggle(isOn: $blocking.blocksAds) {
-            SettingsRowLabel("Block Ads", systemImage: "hand.raised.fill", tint: SettingsTint.ads)
-          }
-          Toggle(isOn: $blocking.blocksTrackers) {
-            SettingsRowLabel("Block Trackers", systemImage: "eyeglasses", tint: SettingsTint.trackers)
-          }
-          Toggle(isOn: $blocking.hidesCookieBanners) {
-            SettingsRowLabel("Block Cookie Banners", systemImage: "list.bullet.rectangle.portrait.fill", tint: SettingsTint.cookies)
-          }
-          NavigationLink(value: SettingsRoute.filterLists) {
-            LabeledContent {
-              Text(FilterListWords.summary(lists: app.filterLists.enabledLists.count, rules: app.filterLists.enabledRuleCount))
-                .lineLimit(1)
-            } label: {
-              SettingsRowLabel("Filter Lists", systemImage: "line.3.horizontal.decrease", tint: SettingsTint.neutral)
-            }
-          }
-          NavigationLink(value: SettingsRoute.trustedSites) {
-            LabeledContent {
-              Text(blocking.exemptHosts.isEmpty ? String(localized: "None") : blocking.exemptHosts.count.formatted())
-            } label: {
-              SettingsRowLabel("Trusted Sites", systemImage: "checkmark.shield.fill", tint: SettingsTint.green)
-            }
-          }
-        } header: {
-          Text("Blocking")
-        } footer: {
-          Text(BlockingFooter.text(ads: blocking.blocksAds, trackers: blocking.blocksTrackers, cookies: blocking.hidesCookieBanners))
-            .contentTransition(.opacity)
         }
 
         Section {
@@ -152,28 +132,21 @@ private struct SettingsRootList: View {
               SettingsRowLabel("Search Engine", systemImage: "magnifyingglass", tint: SettingsTint.search)
             }
           }
+          Toggle(isOn: $preferences.searchSuggestions) {
+            SettingsRowLabel("Search Suggestions", systemImage: "text.magnifyingglass", tint: SettingsTint.blue)
+          }
+          Toggle(isOn: $settings.autoOpensKeyboard) {
+            SettingsRowLabel("Auto-Open Keyboard", systemImage: "keyboard.fill", tint: SettingsTint.keyboard)
+          }
+        }
+
+        Section {
           Picker(selection: $tabs.autoArchiveInterval) {
             ForEach(AutoArchiveInterval.allCases) { interval in
               Text(interval.title).tag(interval)
             }
           } label: {
             SettingsRowLabel("Archive Inactive Tabs", systemImage: "archivebox.fill", tint: SettingsTint.archive)
-          }
-          .tint(.secondary)
-          Picker(selection: $preferences.swipeNavigation) {
-            ForEach(SwipeNavigationMode.allCases) { mode in
-              Text(mode.title).tag(mode)
-            }
-          } label: {
-            SettingsRowLabel("Swipe to Navigate", systemImage: "hand.draw.fill", tint: SettingsTint.swipe)
-          }
-          .tint(.secondary)
-          Picker(selection: $preferences.nightShade) {
-            ForEach(NightShadeMode.allCases) { mode in
-              Text(mode.title).tag(mode)
-            }
-          } label: {
-            SettingsRowLabel("Night Shade", systemImage: "moon.fill", tint: SettingsTint.nightShade)
           }
           .tint(.secondary)
           Picker(selection: $preferences.appLinks) {
@@ -184,29 +157,10 @@ private struct SettingsRootList: View {
             SettingsRowLabel("Open App Links In", systemImage: "arrow.up.forward.app.fill", tint: SettingsTint.appLinks)
           }
           .tint(.secondary)
-          Toggle(isOn: $settings.collapsesBottomBar) {
-            SettingsRowLabel("Collapse Bottom Bar", systemImage: "platter.filled.bottom.and.arrow.down.iphone", tint: SettingsTint.bottomBar)
-          }
-          Toggle(isOn: $settings.autoOpensKeyboard) {
-            SettingsRowLabel("Auto-Open Keyboard", systemImage: "keyboard.fill", tint: SettingsTint.keyboard)
-          }
-          Toggle(isOn: $preferences.searchSuggestions) {
-            SettingsRowLabel("Search Suggestions", systemImage: "text.magnifyingglass", tint: SettingsTint.blue)
-          }
-        } header: {
-          Text("Browsing")
-        } footer: {
-          Text(BrowsingFooter.text(archive: tabs.autoArchiveInterval, suggestions: preferences.searchSuggestions))
-            .contentTransition(.opacity)
-        }
-
-        Section {
           NavigationLink(value: SettingsRoute.clearData) {
             SettingsRowLabel("Clear Browsing Data", systemImage: "eraser.fill", tint: SettingsTint.clearData)
           }
           ExportTabsRow()
-        } header: {
-          Text("Your Data")
         }
 
         Section {
@@ -237,6 +191,7 @@ private struct SettingsRootList: View {
         }
         .id(SettingsRoute.bottomAnchor)
       }
+      .settingsChrome()
       #if DEBUG
       .task {
         guard SettingsRoute.launchScrollAnchor != nil else { return }
@@ -245,6 +200,33 @@ private struct SettingsRootList: View {
       }
       #endif
     }
+  }
+}
+
+private struct SettingsShortcuts: View {
+  @Environment(AppModel.self) private var app
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+  var body: some View {
+    let layout = dynamicTypeSize.isAccessibilitySize
+      ? AnyLayout(VStackLayout(spacing: Spacing.small))
+      : AnyLayout(HStackLayout(spacing: Spacing.small))
+    layout {
+      shortcut("Archive", systemImage: "archivebox") { app.openArchive() }
+      shortcut("Spaces", systemImage: "square.stack") { app.openSyncedSpaces() }
+    }
+  }
+
+  private func shortcut(_ title: LocalizedStringKey, systemImage: String, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+      Label(title, systemImage: systemImage)
+        .font(.body.weight(.medium))
+        .frame(maxWidth: .infinity, minHeight: 48)
+        .background(Color(.secondarySystemGroupedBackground), in: .capsule)
+        .contentShape(.capsule)
+    }
+    .buttonStyle(PressableStyle())
+    .foregroundStyle(.primary)
   }
 }
 
@@ -288,37 +270,10 @@ private struct ExportTabsRow: View {
       .tint(.primary)
     } else {
       ShareLink(item: urls.map(\.absoluteString).joined(separator: "\n"), subject: Text("Open Tabs from Ardia"), preview: SharePreview("Open Tabs from Ardia")) {
-        LabeledContent {
-          Text(urls.count.formatted())
-        } label: {
-          SettingsRowLabel("Export Open Tabs", systemImage: "square.and.arrow.up.fill", tint: SettingsTint.export)
-        }
+        SettingsRowLabel("Export Open Tabs", systemImage: "square.and.arrow.up.fill", tint: SettingsTint.export)
       }
       .tint(.primary)
     }
-  }
-}
-
-enum BlockingFooter {
-  static func text(ads: Bool, trackers: Bool, cookies: Bool) -> String {
-    switch (ads, trackers, cookies) {
-    case (false, false, false):
-      String(localized: "Pages load with everything on them, ads and trackers included.")
-    default:
-      String(localized: "Blocking runs on this iPhone, so pages load faster and nobody sees what you browse. Turn it off for one site from the page’s menu.")
-    }
-  }
-}
-
-enum BrowsingFooter {
-  static func text(archive: AutoArchiveInterval, suggestions: Bool) -> String {
-    let archiveLine = archive == .never
-      ? String(localized: "Tabs stay open until you close them.")
-      : String(localized: "Tabs you haven’t looked at in \(archive.span) move to the Archive, where you can reopen them.")
-    let suggestionLine = suggestions
-      ? String(localized: "Search Suggestions sends what you type to your search engine.")
-      : String(localized: "Search Suggestions is off, so what you type stays on this iPhone until you search.")
-    return archiveLine + " " + suggestionLine
   }
 }
 

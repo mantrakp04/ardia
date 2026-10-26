@@ -4,7 +4,10 @@ import SwiftUI
 import UIKit
 
 struct BrowsingView: View {
+  var isFront = true
+
   @Environment(AppModel.self) private var app
+  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Namespace private var omnibox
   @State private var pinchScale: CGFloat = 1
@@ -24,6 +27,7 @@ struct BrowsingView: View {
       BrowsePalette.pageBackdrop.ignoresSafeArea()
       if let tab {
         pageLayer(tab)
+          .overlay(alignment: .top) { statusStrip(tab) }
           .scaleEffect(pinchScale)
           .offset(x: pager.offset)
           .ignoresSafeArea()
@@ -81,15 +85,47 @@ struct BrowsingView: View {
     }
     .onChange(of: currentWebPage?.scrollDirection) { _, direction in
       guard app.settings.collapsesBottomBar else { return }
-      withAnimation(Motion.snappy) { barHidden = direction == .down }
+      withAnimation(reduceMotion ? .easeOut(duration: 0.2) : Motion.barCollapse) { barHidden = direction == .down }
     }
-    .onChange(of: app.tabs.selectedTabID) { _, _ in
+    .onChange(of: app.tabs.selectedTabID, initial: true) { _, id in
       barHidden = false
       app.goBackToSearchIfEmpty()
+      if let id, app.tabs.tab(id)?.origin != .browseForMe { _ = app.web.webTab(for: id) }
     }
-    .onAppear { app.goBackToSearchIfEmpty() }
+    .onChange(of: isFront) { _, front in
+      if front { barHidden = false }
+    }
+    .toolbarColorScheme(isFront ? statusScheme : nil, for: .statusBar)
+    .accessibilityHidden(!isFront)
     .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.8), trigger: foldTicks)
-    .sensoryFeedback(.selection, trigger: tabSwitchTicks)
+    .sensoryFeedback(.impact(weight: .light, intensity: 0.7), trigger: tabSwitchTicks)
+  }
+
+  private var tone: PageTone? {
+    guard let tab = app.tabs.selectedTab, tab.origin != .browseForMe else { return nil }
+    return app.browse.tone(for: tab, page: currentWebPage)
+  }
+
+  private var statusScheme: ColorScheme? {
+    guard browseSummaryHidden, app.browse.search == nil else { return nil }
+    return tone?.top?.scheme
+  }
+
+  private var browseSummaryHidden: Bool { app.browse.summaryTabID == nil }
+
+  @ViewBuilder
+  private func statusStrip(_ tab: BrowserTab) -> some View {
+    if tab.origin != .browseForMe, let top = tone?.top {
+      Color.clear
+        .frame(height: 0)
+        .background(alignment: .top) {
+          top.color
+            .ignoresSafeArea(edges: .top)
+            .animation(.easeOut(duration: 0.25), value: top)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
   }
 
   private var currentWebPage: WebTab? {
@@ -98,7 +134,8 @@ struct BrowsingView: View {
 
   @ViewBuilder
   private func pageLayer(_ tab: BrowserTab) -> some View {
-    let page = tab.origin == .browseForMe ? nil : app.web.webTab(for: tab.id)
+    let page = tab.origin == .browseForMe ? nil : app.web.existingWebTab(tab.id)
+    let browse = app.browse
     ZStack {
       WebPageView(
         page: page,
@@ -107,7 +144,8 @@ struct BrowsingView: View {
         swipeMode: app.preferences.swipeNavigation,
         bottomInset: BrowseLayout.barHeight - 26,
         pinchEnabled: app.offersPinchToSummarize && app.browse.summaryTabID == nil,
-        onPinch: handlePinch
+        onPinch: handlePinch,
+        onTone: { id, tone in browse.setTone(tone, for: id) }
       )
       if let failure = page?.failure, let page {
         PageFailureView(failure: failure) { page.reload() }
@@ -163,36 +201,29 @@ struct BrowsingView: View {
       onTabs: openDeck,
       onPlus: openSearch,
       onMore: { app.browse.isToolbarPresented = true },
-      onStep: stepTab
+      onStep: stepTab,
+      onSelectTab: { id in switchTab(to: id, order: swipeOrder) },
+      onCloseTab: closeCurrentTab
     )
     .frame(height: BrowseLayout.hitTarget)
     .padding(.top, BrowseLayout.barHeight - BrowseLayout.barCenterFromBottom - BrowseLayout.hitTarget / 2)
     .frame(maxWidth: .infinity)
     .frame(height: BrowseLayout.barHeight, alignment: .top)
-    .background { BarBacking(tint: pageTint) }
+    .background { BarBacking(tone: tone?.bottom, solid: reduceTransparency) }
     .environment(\.colorScheme, barScheme)
     .contentShape(.rect)
     .highPriorityGesture(pagerGesture)
-    .offset(y: barHidden ? BrowseLayout.barHeight + 20 : 0)
+    .offset(y: barHidden ? BrowseLayout.barCollapseTravel : 0)
     .opacity(barHidden ? 0 : 1)
+    .allowsHitTesting(!barHidden)
     .ignoresSafeArea(.container, edges: .bottom)
     .ignoresSafeArea(.keyboard)
-  }
-
-  private var pageTint: UIColor? {
-    currentWebPage?.themeColor
-  }
-
-  private var pageTone: UIColor? {
-    guard let page = currentWebPage else { return nil }
-    return page.themeColor ?? page.underPageBackgroundColor
   }
 
   @Environment(\.colorScheme) private var systemScheme
 
   private var barScheme: ColorScheme {
-    guard let dark = BarBacking.isDark(pageTone) else { return systemScheme }
-    return dark ? .dark : .light
+    tone?.bottom?.scheme ?? systemScheme
   }
 
   private func openSearch() {
@@ -362,6 +393,11 @@ struct BrowsingView: View {
     rememberCurrentCover()
     app.browse.freezeOrder(order.map(\.id))
     app.openTab(id)
+  }
+
+  private func closeCurrentTab() {
+    guard let id = app.tabs.selectedTabID else { return }
+    app.closeTab(id)
   }
 
   private func stepTab(_ delta: Int) {

@@ -44,28 +44,42 @@ final class SearchSuggestionsModel {
     await omnibox.omnibox.resolve(submitted)
   }
 
-  var completion: String? {
+  var completion: CompletionOffer? {
     let result = omnibox.result
-    guard !result.inlineCompletion.isEmpty, result.query == text else { return nil }
-    return text + result.inlineCompletion
+    guard !result.query.isEmpty else { return nil }
+    return CompletionOffer(query: result.query, completion: result.inlineCompletion.isEmpty ? nil : result.query + result.inlineCompletion)
   }
 
   var rows: [SearchSuggestion] {
     let trimmed = text.trimmingCharacters(in: .whitespaces)
     if trimmed.isEmpty { return idleRows }
-    guard omnibox.text == text, !omnibox.result.suggestions.isEmpty else { return [.query(trimmed)] }
+    let result = omnibox.result
+    let isCurrent = result.query == text
     let devices = deviceTabIndex
     var rows: [SearchSuggestion] = []
     var seen: Set<String> = []
-    for suggestion in omnibox.result.suggestions {
+    for suggestion in result.suggestions {
       let row = Self.row(for: suggestion, devices: devices)
       guard !seen.contains(row.id) else { continue }
+      if !isCurrent, !Self.row(row, stillMatches: trimmed) { continue }
+      if !isCurrent, row.kind == .query, row.url == nil || row.title.caseInsensitiveCompare(trimmed) != .orderedSame { continue }
       seen.insert(row.id)
       rows.append(row)
       if rows.count == Self.rowLimit { break }
     }
-    if !rows.contains(where: { $0.kind == .query }) { rows.insert(.query(trimmed), at: min(1, rows.count)) }
+    if !rows.contains(where: { $0.kind == .query && $0.title.caseInsensitiveCompare(trimmed) == .orderedSame }) {
+      rows.removeAll { $0.id == SearchSuggestion.query(trimmed).id }
+      rows.insert(.query(trimmed), at: min(isCurrent ? 1 : 0, rows.count))
+      if rows.count > Self.rowLimit { rows.removeLast() }
+    }
     return rows
+  }
+
+  static func row(_ row: SearchSuggestion, stillMatches typed: String) -> Bool {
+    let needle = typed.lowercased()
+    if row.title.lowercased().contains(needle) { return true }
+    if let url = row.url, url.lowercased().contains(needle) { return true }
+    return false
   }
 
   var idleDeviceName: String? {

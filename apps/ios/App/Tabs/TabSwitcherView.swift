@@ -69,6 +69,11 @@ struct TabDeck: View {
 
   private var currentScroll: Double { dragScroll ?? scroll }
 
+  private var isOpeningTab: Bool {
+    if case .closing = phase { return true }
+    return false
+  }
+
   private var tabsByID: [UUID: BrowserTab] {
     Dictionary(app.deckTabs.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
   }
@@ -101,7 +106,7 @@ struct TabDeck: View {
           hideArchiveCard()
         }
         .padding(.horizontal, Spacing.page)
-        .position(x: geometry.container.width / 2, y: geometry.cardCenterY + geometry.cardSize.height * 0.22)
+        .position(x: geometry.container.width / 2, y: geometry.barCenterY - 76)
         .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96)))
         .zIndex(Self.overlayLayer + 1)
       }
@@ -149,6 +154,7 @@ struct TabDeck: View {
     } message: {
       Text("Their pages, cookies and history are cleared.")
     }
+    .allowsHitTesting(!isOpeningTab)
     .onAppear(perform: appear)
     .onChange(of: app.deckTabs.map(\.id)) { reconcile(animated: true) }
     .onChange(of: app.deck.command) { _, command in
@@ -335,6 +341,10 @@ struct TabDeck: View {
     }
     phase = .closing(id)
     app.prepareToOpen(id)
+    Task { @MainActor in
+      await app.primeCover(for: id)
+      if case .closing(id) = phase { app.beginOpening(id) }
+    }
     withAnimation(TabsMotion.expand) {
       scaleProgress = 0
       positionProgress = 0
@@ -345,7 +355,10 @@ struct TabDeck: View {
 
   private func crossfadeOpen(_ id: UUID) {
     app.prepareToOpen(id)
+    phase = .closing(id)
     Task { @MainActor in
+      await app.primeCover(for: id)
+      app.beginOpening(id)
       if let memory = app.deck.memoryImage(for: id) {
         cover = Image(uiImage: memory)
       } else if let name = app.tabs.tab(id)?.snapshotFileName, let image = await app.web.snapshots.image(named: name) {
@@ -528,7 +541,7 @@ struct DeckCardHeader: View {
       }
       if showsTitle {
         Text(TabText.title(for: tab))
-          .font(.caption)
+          .font(.caption.weight(.medium))
           .foregroundStyle(TabsPalette.headerText)
           .lineLimit(1)
           .truncationMode(.tail)

@@ -9,7 +9,7 @@ struct OnboardingBlockingStep: View {
     @Bindable var blocking = app.blocking
     OnboardingPage(
       title: Text("Never see another \(Text.emphasized("ad"))."),
-      subtitle: Text("Get what you need, without the noise. Ardia blocks ads, trackers and cookie banners on this iPhone.")
+      subtitle: Text("Trackers and cookie banners too.")
     ) {
       VStack(spacing: 0) {
         BlockingToggleRow(title: "Block Ads", systemImage: "hand.raised.fill", tint: SettingsTint.ads, isOn: $blocking.blocksAds)
@@ -131,8 +131,8 @@ struct OnboardingSyncStep: View {
     OnboardingPage(
       title: Text("Every tab, \(Text.emphasized("anywhere")).") ,
       subtitle: connected
-        ? Text("Connected. Your Mac’s tabs are in the tab switcher.")
-        : Text("Sync with Ardia on your Mac. Your Mac’s tabs, pinned tabs and history, right here, end-to-end encrypted.")
+        ? Text("Connected.")
+        : Text("Your Mac’s tabs, right here. End-to-end encrypted.")
     ) {
       SyncScanIllustration(connected: connected)
     } actions: {
@@ -160,10 +160,10 @@ struct OnboardingAllSetStep: View {
       subtitle: Text("Happy browsing.")
     ) {
       VStack(alignment: .leading, spacing: Spacing.medium) {
-        AllSetTip(symbol: "plus", text: "Tap the plus button to search, or type an address to go straight there.")
-        AllSetTip(symbol: "square.on.square", text: "Tap your tabs to flip through them. Flick one up to close it.")
-        AllSetTip(symbol: "hand.draw", text: "Swipe anywhere on a page to go back.")
-        AllSetTip(symbol: "archivebox", text: "Tabs you leave alone archive themselves after a day.")
+        AllSetTip(symbol: "plus", text: "Tap + to search.")
+        AllSetTip(symbol: "square.on.square", text: "Flick a tab up to close it.")
+        AllSetTip(symbol: "hand.draw", text: "Swipe a page to go back.")
+        AllSetTip(symbol: "archivebox", text: "Old tabs archive after a day.")
       }
       .padding(Spacing.medium)
       .background(.background.opacity(0.9), in: .rect(cornerRadius: Radius.card, style: .continuous))

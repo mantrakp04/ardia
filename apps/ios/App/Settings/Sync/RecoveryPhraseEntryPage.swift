@@ -41,7 +41,7 @@ struct RecoveryPhraseEntryPage: View {
           } else if check.isValid {
             Text("All 24 words check out.").foregroundStyle(.ink(.green))
           } else {
-            Text("Your Mac shows the words under Settings › Sync › Connect Another Device. Spaces, commas and line breaks between them are fine.")
+            Text("On your Mac: Settings › Sync › Connect Another Device.")
           }
         }
         .contentTransition(.opacity)

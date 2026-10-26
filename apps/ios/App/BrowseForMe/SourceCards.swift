@@ -48,12 +48,12 @@ struct SourceCardsRow: View {
   var onSearch: () -> Void
   var onOpen: (URL) -> Void
 
-  @ScaledMetric(relativeTo: .caption) private var cardWidth: CGFloat = 121
-  @ScaledMetric(relativeTo: .caption) private var cardHeight: CGFloat = 88
+  @ScaledMetric(relativeTo: .subheadline) private var cardWidth: CGFloat = 134
+  @ScaledMetric(relativeTo: .subheadline) private var cardHeight: CGFloat = 86
 
   var body: some View {
     ScrollView(.horizontal) {
-      HStack(spacing: 11) {
+      HStack(spacing: 8) {
         SearchEngineCard(query: query, engineName: engineName, action: onSearch)
           .frame(width: min(cardWidth, 300), height: min(cardHeight, 230))
         ForEach(cards) { card in
@@ -91,7 +91,7 @@ private struct SearchEngineCard: View {
           Divider()
         }
         Text("Search \(engineName)")
-          .font(.caption.weight(.medium))
+          .font(.subheadline.weight(.semibold))
           .foregroundStyle(.primary)
           .lineLimit(3)
           .padding(10)
@@ -137,16 +137,16 @@ private struct SourceCard: View {
             .padding([.horizontal, .bottom], 10)
         } else {
           Text(card.title)
-            .font(.caption)
+            .font(.subheadline.weight(.semibold))
             .foregroundStyle(.primary)
-            .lineLimit(3)
+            .lineLimit(2)
             .multilineTextAlignment(.leading)
             .padding([.horizontal, .top], 10)
           Spacer(minLength: 4)
           HStack(spacing: 5) {
-            FaviconImage(iconURL: nil, pageURL: card.url.absoluteString, size: 12)
+            FaviconImage(iconURL: nil, pageURL: card.url.absoluteString, size: 16)
             Text(card.host)
-              .font(.caption2)
+              .font(.footnote)
               .foregroundStyle(.secondary)
               .lineLimit(1)
           }

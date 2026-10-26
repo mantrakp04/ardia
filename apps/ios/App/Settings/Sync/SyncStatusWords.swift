@@ -57,7 +57,7 @@ struct SyncStatusWords {
 
   var heroSubtitle: Text {
     if isOff {
-      return Text("Your Mac’s tabs, pinned tabs, bookmarks and history on this iPhone, and this iPhone’s tabs on your Mac.")
+      return Text("Your Mac’s tabs here, and this iPhone’s on your Mac.")
     }
     switch attention {
     case .none: return Text(verbatim: statusText)

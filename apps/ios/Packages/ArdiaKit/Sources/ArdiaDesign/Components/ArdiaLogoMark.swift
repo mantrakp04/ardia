@@ -2,14 +2,16 @@ import SwiftUI
 
 public struct ArdiaLogoMark: View {
   public var outline: Bool
+  public var outlineWeight: CGFloat
 
-  public init(outline: Bool = true) {
+  public init(outline: Bool = true, outlineWeight: CGFloat = 0.075) {
     self.outline = outline
+    self.outlineWeight = outlineWeight
   }
 
   public var body: some View {
     Canvas { context, size in
-      let width = outline ? size.width * 0.075 : 0
+      let width = outline ? size.width * outlineWeight : 0
       let shapes = LogoGeometry.shapes(in: CGRect(origin: .zero, size: size).insetBy(dx: width / 2 + 1, dy: width / 2 + 1))
       if outline {
         let style = StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round)
@@ -94,8 +96,8 @@ public struct FidgetLogo: View {
   public var body: some View {
     GeometryReader { proxy in
       let center = CGPoint(x: proxy.size.width / 2, y: proxy.size.height / 2)
-      ArdiaLogoMark()
-        .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
+      ArdiaLogoMark(outlineWeight: 0.05)
+        .shadow(color: .black.opacity(0.22), radius: 14, y: 6)
         .rotationEffect(angle)
         .frame(width: proxy.size.width, height: proxy.size.height)
         .contentShape(.circle)

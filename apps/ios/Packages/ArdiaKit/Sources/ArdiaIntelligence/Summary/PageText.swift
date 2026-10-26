@@ -57,7 +57,7 @@ public enum SummaryFailure: Sendable, Hashable {
     case .guardrail: String(localized: "Apple Intelligence can\u{2019}t summarize this page.")
     case .unsupportedLanguage: String(localized: "Apple Intelligence can\u{2019}t read this page\u{2019}s language yet.")
     case .failed: String(localized: "Something went wrong. Try again.")
-    case .featureOff: String(localized: "Turn on AI Features in Settings \u{203A} Experiments to summarize pages and ask about them.")
+    case .featureOff: String(localized: "Turn on AI Features in Settings to summarize pages.")
     }
   }
 

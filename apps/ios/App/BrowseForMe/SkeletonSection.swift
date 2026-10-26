@@ -10,7 +10,7 @@ struct SkeletonSection: View {
         .fill(IntelligencePalette.skeleton)
         .frame(width: tile, height: tile)
       VStack(alignment: .leading, spacing: 8) {
-        ForEach([1.0, 1.0, 0.4], id: \.self) { fraction in
+        ForEach(Array([1.0, 1.0, 0.4].enumerated()), id: \.offset) { _, fraction in
           RoundedRectangle(cornerRadius: 4, style: .continuous)
             .fill(IntelligencePalette.skeleton)
             .frame(height: 8)

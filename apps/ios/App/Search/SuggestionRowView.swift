@@ -130,7 +130,7 @@ struct BrowseForMePill: View {
   var body: some View {
     let size = isHighlighted ? BrowseLayout.highlightedPillSize : BrowseLayout.pillSize
     Text("Browse for Me")
-      .font(.footnote.weight(.semibold))
+      .font(.caption.weight(.semibold))
       .lineLimit(1)
       .minimumScaleFactor(0.8)
       .foregroundStyle(isHighlighted ? .white : (isIncognito ? .white.opacity(0.85) : BrowsePalette.pillLabel))

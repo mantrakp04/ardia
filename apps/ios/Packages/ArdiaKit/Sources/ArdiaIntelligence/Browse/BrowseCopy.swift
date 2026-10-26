@@ -1,7 +1,8 @@
 import Foundation
 
 public enum BrowseCopy {
-  public static let searching = String(localized: "Searching for you\u{2026}")
+  public static let searching = String(localized: "Searching\u{2026}")
+  public static let andMore = String(localized: "\u{2026} and more")
   public static let writing = String(localized: "Making a website for you")
   public static let overview = String(localized: "Overview")
   public static let sources = String(localized: "Sources")
@@ -20,7 +21,7 @@ public enum BrowseCopy {
 
 public enum SummaryCopy {
   public static let summarizing = String(localized: "Summarizing for you\u{2026}")
-  public static let attribution = String(localized: "Summarized for you by Apple Intelligence")
+  public static let attribution = String(localized: "Summarized by Apple Intelligence")
   public static let summarize = String(localized: "Summarize")
   public static let unableToSummarize = String(localized: "Unable to Summarize Page")
 }

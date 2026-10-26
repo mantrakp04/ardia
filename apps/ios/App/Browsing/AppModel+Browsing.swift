@@ -7,7 +7,7 @@ import WebKit
 extension AppModel {
   var currentPage: WebTab? {
     guard let id = tabs.selectedTabID, let tab = tabs.tab(id), tab.origin != .browseForMe else { return nil }
-    return web.webTab(for: id)
+    return web.existingWebTab(id)
   }
 
   @discardableResult
@@ -34,11 +34,9 @@ extension AppModel {
     pinToMac(tab)
   }
 
-  func toggleNightShade(for page: WebTab) {
+  func setNightShade(_ on: Bool, for page: WebTab) {
     guard let host = page.host else { return }
-    let active = preferences.nightShade(for: host) != .disabled
-    preferences.update(host) { $0.nightShade = active ? .disabled : .always }
-    toasts.show(Toast(active ? String(localized: "Night Shade Off for \(host)") : String(localized: "Night Shade On for \(host)"), symbol: active ? "moon" : "moon.fill"))
+    preferences.update(host) { $0.nightShade = on ? .always : .disabled }
   }
 
   func toggleDesktopSite(for page: WebTab) {

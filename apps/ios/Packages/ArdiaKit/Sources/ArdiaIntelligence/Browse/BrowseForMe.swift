@@ -422,6 +422,8 @@ public final class BrowseForMe: Identifiable {
           fail(.generationFailed)
           return
         }
+        page.quote = QuotePicker.pick(
+          for: query, from: used.enumerated().compactMap { offset, id in readPages[id].map { (offset + 1, $0) } })
         timing.total = started.duration(to: clock.now)
         phase = .done
         return

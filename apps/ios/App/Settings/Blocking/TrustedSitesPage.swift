@@ -12,7 +12,7 @@ struct TrustedSitesPage: View {
         ContentUnavailableView {
           Label("No Trusted Sites", systemImage: "checkmark.shield")
         } description: {
-          Text("When you turn off blocking for a site from its page menu, it appears here.")
+          Text("Sites you allow from the page menu show up here.")
         }
       } else {
         List {
@@ -28,8 +28,6 @@ struct TrustedSitesPage: View {
             .onDelete { offsets in
               for index in offsets { app.blocking.setExempt(hosts[index], false) }
             }
-          } footer: {
-            Text("Ardia doesn’t block ads, trackers or cookie banners on these sites. Swipe left on a site to block on it again.")
           }
         }
         .toolbar { EditButton() }

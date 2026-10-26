@@ -8,10 +8,13 @@ struct RootView: View {
     @Bindable var app = app
     @Bindable var browse = app.browse
     ZStack {
-      switch app.surface {
-      case .search: SearchHomeView()
-      case .browsing: BrowsingView()
-      case .tabSwitcher: TabSwitcherView()
+      if app.surface == .search {
+        SearchHomeView()
+      } else {
+        BrowsingView(isFront: app.surface == .browsing)
+      }
+      if app.surface == .tabSwitcher {
+        TabSwitcherView()
       }
     }
     .sheet(item: $app.sheet) { sheet in

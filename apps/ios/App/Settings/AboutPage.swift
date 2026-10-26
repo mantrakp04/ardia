@@ -27,7 +27,7 @@ struct AboutPage: View {
         AboutLink("Release Notes", systemImage: "sparkles", url: "https://ardia.dev/release-notes")
         AboutLink("Source Code", systemImage: "chevron.left.forwardslash.chevron.right", url: "https://github.com/mantrakp04/ardia")
       } footer: {
-        Text("Ardia has no accounts. Your tabs, history and sync key stay on your devices and in your own iCloud Drive.")
+        Text("No accounts. Your data stays on your devices and in your iCloud Drive.")
       }
 
       Section {

@@ -29,7 +29,7 @@ struct ArchiveView: View {
             app.tabs.clearArchive()
           }
         } message: {
-          Text("This clears the list of archived tabs. It can’t be undone.")
+          Text("This can’t be undone.")
         }
     }
     .sensoryFeedback(.selection, trigger: restoreTicks)
@@ -41,7 +41,7 @@ struct ArchiveView: View {
   @ViewBuilder private var content: some View {
     let days = app.tabs.archive
     if days.isEmpty {
-      ArchiveEmptyState { app.sheet = .settings }
+      ArchiveEmptyState()
     } else if !trimmedQuery.isEmpty {
       let results = app.tabs.searchArchive(trimmedQuery)
       if results.isEmpty {
@@ -162,12 +162,10 @@ enum ArchiveDayTitle {
 }
 
 struct ArchiveEmptyState: View {
-  let openSettings: () -> Void
-
   var body: some View {
     ContentUnavailableView {
       Label {
-        Text("Nothing here yet!")
+        Text("No Archived Tabs")
       } icon: {
         Image(systemName: "archivebox.fill")
           .foregroundStyle(.white)
@@ -176,11 +174,7 @@ struct ArchiveEmptyState: View {
           .background(TabsPalette.archiveTile.gradient, in: .rect(cornerRadius: 16, style: .continuous))
       }
     } description: {
-      Text("Tabs you close, and tabs archived when they’re inactive, will appear here. You can change how often tabs are archived in Settings.")
-    } actions: {
-      Button("Open Settings", action: openSettings)
-        .buttonStyle(.bordered)
-        .tint(Palette.indigo)
+      Text("Closed and inactive tabs show up here.")
     }
   }
 }

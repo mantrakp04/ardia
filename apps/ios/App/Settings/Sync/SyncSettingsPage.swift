@@ -60,7 +60,7 @@ struct SyncSettingsPage: View {
         }
       }
     } message: {
-      Text("Syncing will stop on this iPhone. To turn it on again, you’ll need the code your Mac shows or your recovery phrase. Everything on this iPhone stays as it is.")
+      Text("To sync again, you’ll need your Mac’s code or your recovery phrase.")
     }
     .sensoryFeedback(.success, trigger: syncs)
     .sensoryFeedback(.error, trigger: syncFailures)
@@ -70,14 +70,14 @@ struct SyncSettingsPage: View {
   @ViewBuilder
   private var offSections: some View {
     Section {
-      SyncFeatureRow(symbol: "macbook", title: "Your Mac’s Tabs", detail: "Open them here, grouped by Mac.")
-      SyncFeatureRow(symbol: "pin.fill", title: "Pinned Tabs and Spaces", detail: "Your profiles, with their pinned tabs and folders.")
-      SyncFeatureRow(symbol: "paperplane.fill", title: "Send Tab to Device", detail: "Send a page to your Mac, or from it, in a tap.")
-      SyncFeatureRow(symbol: "clock.arrow.circlepath", title: "History and Bookmarks", detail: "Search them from the start screen.")
+      SyncFeatureRow(symbol: "macbook", title: "Your Mac’s Tabs")
+      SyncFeatureRow(symbol: "pin.fill", title: "Pinned Tabs and Spaces")
+      SyncFeatureRow(symbol: "paperplane.fill", title: "Send Tabs Both Ways")
+      SyncFeatureRow(symbol: "clock.arrow.circlepath", title: "History and Bookmarks")
     } header: {
       Text("What You Get")
     } footer: {
-      Text("Your data is end-to-end encrypted with your recovery phrase and kept in your own iCloud Drive. Ardia has no servers and no accounts.")
+      Text("End-to-end encrypted, in your own iCloud Drive.")
     }
   }
 
@@ -88,7 +88,7 @@ struct SyncSettingsPage: View {
       Section {
         Button("Choose Folder…") { isChoosingFolder = true }
       } footer: {
-        Text("iOS needs you to pick the Ardia Sync folder in iCloud Drive again before Ardia can open it.")
+        Text("Choose the Ardia Sync folder again.")
       }
     case .phrase, .reset:
       Section {
@@ -97,7 +97,7 @@ struct SyncSettingsPage: View {
         }
       } footer: {
         if attention == .reset {
-          Text("Your tabs and history on this iPhone stay as they are.")
+          Text("Tabs on this iPhone stay.")
         }
       }
     case .none, .stalled:
@@ -155,7 +155,7 @@ struct SyncSettingsPage: View {
     } header: {
       Text("This iPhone’s Name")
     } footer: {
-      Text("Your Mac shows this iPhone’s tabs under this name.")
+      Text("Shown on your Mac.")
     }
 
     Section {
@@ -167,7 +167,7 @@ struct SyncSettingsPage: View {
       if let folderError {
         Text(folderError).foregroundStyle(.ink(.red))
       } else {
-        Text("Ardia keeps your synced data in this iCloud Drive folder, encrypted so only your devices can read it.")
+        Text("Encrypted so only your devices can read it.")
       }
     }
 
@@ -183,7 +183,7 @@ struct SyncSettingsPage: View {
       }
       .disabled(isStopping)
     } footer: {
-      Text("Removes this iPhone’s tabs from your Mac and forgets the key on this iPhone. Your tabs and history here stay.")
+      Text("Your Mac stops seeing this iPhone’s tabs.")
     }
   }
 }
@@ -191,7 +191,6 @@ struct SyncSettingsPage: View {
 private struct SyncFeatureRow: View {
   var symbol: String
   var title: LocalizedStringKey
-  var detail: LocalizedStringKey
   @ScaledMetric(relativeTo: .body) private var symbolWidth: CGFloat = 28
 
   var body: some View {
@@ -201,10 +200,7 @@ private struct SyncFeatureRow: View {
         .foregroundStyle(Palette.indigo)
         .frame(width: symbolWidth)
         .accessibilityHidden(true)
-      VStack(alignment: .leading, spacing: 2) {
-        Text(title).font(.body.weight(.semibold))
-        Text(detail).font(.subheadline).foregroundStyle(.secondary)
-      }
+      Text(title)
     }
     .padding(.vertical, 2)
     .accessibilityElement(children: .combine)

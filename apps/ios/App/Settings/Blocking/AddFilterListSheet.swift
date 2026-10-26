@@ -35,7 +35,7 @@ struct AddFilterListSheet: View {
             } else if case .invalid(let message) = validation, !address.isEmpty {
               Text(message).foregroundStyle(.secondary)
             } else {
-              Text("Paste the address of a list in Adblock Plus or uBlock Origin format. You can find lists at filterlists.com.")
+              Text("Adblock Plus or uBlock Origin format.")
             }
           }
           .contentTransition(.opacity)

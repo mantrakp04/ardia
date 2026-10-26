@@ -4,10 +4,12 @@ public final class DemoIntelligenceModel: IntelligenceModel {
   public let status: IntelligenceStatus
   public let contextSize = 8_192
   private let pace: Duration
+  private let failsWriting: Bool
 
-  public init(status: IntelligenceStatus = .available, pace: Duration = .milliseconds(45)) {
+  public init(status: IntelligenceStatus = .available, pace: Duration = .milliseconds(45), failsWriting: Bool = false) {
     self.status = status
     self.pace = pace
+    self.failsWriting = failsWriting
   }
 
   public func supportsLanguage(_ code: String) -> Bool { true }
@@ -22,7 +24,8 @@ public final class DemoIntelligenceModel: IntelligenceModel {
   }
 
   public func streamOverview(instructions: String, prompt: String) -> AsyncThrowingStream<BrowsePageDraft, any Error> {
-    let page = DemoContent.page(for: "").draft
+    if failsWriting { return AsyncThrowingStream { $0.finish(throwing: IntelligenceError.failed) } }
+    let page = DemoContent.page(for: prompt).draft
     let overview = DemoContent.Page(draft: BrowsePageDraft(title: page.title, answer: page.answer))
     return Self.typewriter(pace: pace, first: .milliseconds(500), total: overview.wordCount) { words in
       overview.prefix(words: words)
@@ -30,7 +33,8 @@ public final class DemoIntelligenceModel: IntelligenceModel {
   }
 
   public func streamSections(instructions: String, prompt: String) -> AsyncThrowingStream<BrowsePageDraft, any Error> {
-    let page = DemoContent.page(for: "").draft
+    if failsWriting { return AsyncThrowingStream { $0.finish(throwing: IntelligenceError.failed) } }
+    let page = DemoContent.page(for: prompt).draft
     let sections = DemoContent.Page(draft: BrowsePageDraft(sections: page.sections, followUps: page.followUps))
     return Self.typewriter(pace: pace, first: .milliseconds(700), total: sections.wordCount) { words in
       sections.prefix(words: words)
@@ -96,45 +100,35 @@ public struct DemoSourcing: BrowseSourcing {
   }
 
   private let outcome: Outcome
+  private let slowdown: Int
 
-  public init(_ outcome: Outcome = .works) {
+  public init(_ outcome: Outcome = .works, slowdown: Int = 1) {
     self.outcome = outcome
+    self.slowdown = max(1, slowdown)
   }
 
   public func search(_ query: String) async throws -> [SearchResult] {
-    try await Task.sleep(for: .milliseconds(650))
+    try await Task.sleep(for: .milliseconds(650 * slowdown))
     switch outcome {
-    case .works: return DemoContent.results
+    case .works: return DemoTopic.matching(query).results
     case .offline: throw SourceError.offline
     case .noResults: return []
     }
   }
 
   public func read(_ result: SearchResult) async throws -> ReadablePage {
-    let index = DemoContent.results.firstIndex(of: result) ?? 0
-    try await Task.sleep(for: .milliseconds(350 + index * 260))
+    let topic = DemoTopic.containing(result)
+    let index = topic.results.firstIndex(of: result) ?? 0
+    try await Task.sleep(for: .milliseconds((350 + index * 260) * slowdown))
     if index == 4 { throw SourceError.timedOut }
-    let artwork: [Int: DemoArtwork.Scene] = [0: .sunset, 1: .night, 2: .boulders]
     return ReadablePage(
-      url: result.url, title: result.title, siteName: DemoContent.siteNames[index],
-      imageURL: artwork[index].flatMap(DemoArtwork.url(for:)), blocks: [
-        TextBlock(kind: .paragraph, text: result.snippet + " " + result.snippet)
-      ])
+      url: result.url, title: result.title, siteName: topic.siteNames[index],
+      imageURL: topic.artwork[index].flatMap(DemoArtwork.url(for:)),
+      blocks: topic.passages(for: index).map { TextBlock(kind: .paragraph, text: $0) })
   }
 }
 
 enum DemoContent {
-  static let results: [SearchResult] = [
-    ("https://www.nps.gov/jotr/planyourvisit/things2do.htm", "Things To Do - Joshua Tree National Park", "Hike, climb, stargaze and explore the desert where the Mojave and Colorado meet."),
-    ("https://en.wikipedia.org/wiki/Joshua_Tree_National_Park", "Joshua Tree National Park - Wikipedia", "Joshua Tree National Park is an American national park in southeastern California."),
-    ("https://www.visitcalifornia.com/places-to-visit/joshua-tree-national-park/", "Joshua Tree National Park | Visit California", "Plan a trip to see surreal rock formations, spiky trees and dark night skies."),
-    ("https://www.cntraveler.com/story/best-things-to-do-in-joshua-tree", "The Best Things to Do in Joshua Tree", "From Skull Rock to Keys View, the stops worth your time on a first visit."),
-    ("https://www.outsideonline.com/adventure-travel/joshua-tree-guide", "The Ultimate Joshua Tree Guide", "Where to hike, camp and climb, and when to go."),
-    ("https://www.lonelyplanet.com/usa/california/joshua-tree-national-park", "Joshua Tree National Park travel", "Lonely Planet's guide to the park, its towns and its trails."),
-  ].map { SearchResult(url: URL(string: $0.0)!, title: $0.1, snippet: $0.2) }
-
-  static let siteNames = ["National Park Service", "Wikipedia", "Visit California", "Cond\u{00E9} Nast Traveler", "Outside", "Lonely Planet"]
-
   struct Page {
     var draft: BrowsePageDraft
 
@@ -174,27 +168,8 @@ enum DemoContent {
     }
   }
 
-  static func page(for question: String) -> Page {
-    Page(
-      draft: BrowsePageDraft(
-        title: "A First Visit to Joshua Tree",
-        answer: "Joshua Tree rewards an early start: hike a short trail at sunrise, climb on the boulders around Hidden Valley, drive up to Keys View for the sunset, and stay for some of the darkest skies in Southern California.",
-        sections: [
-          .init(heading: "Short Hikes", bullets: [
-            .init(emoji: "\u{1F97E}", lead: "Hidden Valley", text: "A one mile loop through boulders, once used to hide cattle.", sources: [1, 4]),
-            .init(emoji: "\u{1F335}", lead: "Cholla Cactus Garden", text: "A quarter mile path through dense teddy bear cholla, best at golden hour.", sources: [1, 3]),
-            .init(emoji: "\u{1FAA8}", lead: "Skull Rock", text: "A roadside rock shaped like a skull, with an easy trail behind it.", sources: [4]),
-          ]),
-          .init(heading: "Views and Night Skies", bullets: [
-            .init(emoji: "\u{1F304}", lead: "Keys View", text: "A paved overlook at 5,185 feet with views over the Coachella Valley.", sources: [2, 4]),
-            .init(emoji: "\u{2728}", lead: "Stargazing", text: "The park is a certified International Dark Sky Park.", sources: [1, 2]),
-          ]),
-          .init(heading: "When to Go", bullets: [
-            .init(emoji: "\u{1F321}\u{FE0F}", lead: "Spring and fall", text: "Days are mild from March to May and October to November.", sources: [3, 5]),
-            .init(emoji: "\u{1F697}", lead: "Arrive early", text: "Parking at popular trailheads fills by mid morning on weekends.", sources: [1, 6]),
-          ]),
-        ],
-        followUps: ["Where should I camp in Joshua Tree?", "Is Joshua Tree good for kids?", "What should I pack for the desert?"]))
+  static func page(for prompt: String) -> Page {
+    Page(draft: DemoTopic.matching(prompt).draft)
   }
 
   static let summary = PageSummary(
@@ -207,6 +182,8 @@ enum DemoContent {
 
   static func summary(fromPrompt prompt: String) -> PageSummary {
     let body = prompt.components(separatedBy: "\n\n").dropFirst(2).joined(separator: "\n")
+      .replacing(/\s*\[[^\]]*\]/, with: "")
+      .replacing(/\s*\([^\)]*\)/, with: "")
     var sentences: [String] = []
     for line in body.split(whereSeparator: \.isNewline) {
       for piece in line.components(separatedBy: ". ") {

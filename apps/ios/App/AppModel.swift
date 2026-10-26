@@ -65,7 +65,7 @@ final class AppModel {
     web = WebEngine(tabs: tabs, blocker: blocker, preferences: preferences)
     deck = TabDeckModel(defaults: defaults)
     sync = isDemo ? .demo : SyncService()
-    intelligence = isDemo ? .demo() : Intelligence()
+    intelligence = isDemo ? .demo(arguments: ProcessInfo.processInfo.arguments) : Intelligence()
     omnibox = Omnibox()
     connectServices()
   }

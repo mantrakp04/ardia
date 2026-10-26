@@ -134,7 +134,7 @@ private struct DemoArticle: View {
     .clipShape(.rect(cornerRadius: Radius.card, style: .continuous))
     .shadow(color: .black.opacity(0.1), radius: 20, y: 8)
     .accessibilityElement(children: .combine)
-    .accessibilityHint(Text("Pinch with two fingers to summarize, or use the Summarize action."))
+    .accessibilityHint(Text("Pinch to summarize."))
   }
 }
 

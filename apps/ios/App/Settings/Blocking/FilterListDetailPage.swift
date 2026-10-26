@@ -17,7 +17,7 @@ struct FilterListDetailPage: View {
           Toggle("Use This List", isOn: Binding(get: { list.isEnabled }, set: { source.setEnabled(list.id, $0) }))
         } footer: {
           if list.isDefault {
-            Text("uBlock Origin turns this list on by default.")
+            Text("On by default in uBlock Origin.")
           }
         }
 
@@ -41,7 +41,7 @@ struct FilterListDetailPage: View {
           LabeledContent("Skipped", value: list.skippedCount.formatted())
         } footer: {
           if list.skippedCount > 0 {
-            Text("Skipped rules use features Safari’s content blocker can’t run, like scriptlets. The rest of the list still works.")
+            Text("Some rules need features Safari can’t run.")
           }
         }
 
@@ -78,7 +78,7 @@ struct FilterListDetailPage: View {
         dismiss()
       }
     } message: {
-      Text("Ardia stops using its rules. You can add it again with its address.")
+      Text("You can add it again later.")
     }
   }
 }

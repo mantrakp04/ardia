@@ -22,15 +22,15 @@ public enum IntelligenceStatus: Sendable, Hashable {
   public var message: String {
     switch self {
     case .available:
-      String(localized: "Browse for Me and summaries run on this iPhone. Nothing you ask leaves it except the searches.")
+      String(localized: "Browse for Me and summaries run on this iPhone. Only the searches leave it.")
     case .deviceNotEligible:
-      String(localized: "This iPhone doesn\u{2019}t support Apple Intelligence, so Browse for Me shows the top results instead of writing a page.")
+      String(localized: "This iPhone can\u{2019}t run Apple Intelligence. Here are the top results.")
     case .appleIntelligenceOff:
-      String(localized: "Browse for Me and page summaries use Apple Intelligence. Turn it on in Settings, under Apple Intelligence & Siri.")
+      String(localized: "Browse for Me and summaries need it. Turn it on in Settings.")
     case .modelDownloading:
-      String(localized: "Apple Intelligence is still downloading. Browse for Me will be ready when it finishes.")
+      String(localized: "Apple Intelligence is still downloading. Try again in a few minutes.")
     case .languageUnsupported:
-      String(localized: "Apple Intelligence doesn\u{2019}t support your iPhone\u{2019}s language yet. You can change it in Settings, under Apple Intelligence & Siri.")
+      String(localized: "Apple Intelligence doesn\u{2019}t support your iPhone\u{2019}s language yet.")
     }
   }
 

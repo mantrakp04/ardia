@@ -12,14 +12,12 @@ struct BulletRow: View {
   var body: some View {
     let capHeight = capHeight
     HStack(alignment: .firstTextBaseline, spacing: 12) {
-      ZStack {
-        RoundedRectangle(cornerRadius: 6, style: .continuous)
-          .fill(IntelligencePalette.emojiTile)
-        if !bullet.emoji.isEmpty {
-          Text(bullet.emoji)
-            .font(.system(size: tile * 0.57))
-        } else {
+      Group {
+        if bullet.emoji.isEmpty {
           Circle().fill(IntelligencePalette.ink).frame(width: tile * 0.22, height: tile * 0.22)
+        } else {
+          Text(bullet.emoji)
+            .font(.system(size: tile * 0.82))
         }
       }
       .frame(width: tile, height: tile)
@@ -28,6 +26,7 @@ struct BulletRow: View {
 
       citedText
         .font(.body)
+        .lineSpacing(2)
         .foregroundStyle(.primary)
         .textRenderer(CitationChipRenderer(fill: IntelligencePalette.followUpFill))
         .fixedSize(horizontal: false, vertical: true)
@@ -36,7 +35,7 @@ struct BulletRow: View {
   }
 
   private var citedText: Text {
-    let lead = bullet.lead.isEmpty ? Text(verbatim: "") : Text("\(bullet.lead): ").fontWeight(.semibold)
+    let lead = bullet.lead.isEmpty ? Text(verbatim: "") : Text("\(bullet.lead): ").fontWeight(.bold)
     var chips = Text(verbatim: "")
     for source in bullet.citations.compactMap({ number in sources.first { $0.number == number } }) {
       var label = AttributedString("\u{2009}\(source.number)\u{2009}")

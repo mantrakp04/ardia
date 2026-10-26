@@ -38,3 +38,12 @@ public enum SettingsTint {
   public static let export = Color(hex: 0x0153FF)
   public static let onboarding = orange
 }
+
+public enum MenuLayout {
+  public static let sheetRadius: CGFloat = 38
+  public static let inset: CGFloat = 16
+  public static let innerRadius: CGFloat = sheetRadius - inset
+  public static let capsuleHeight: CGFloat = innerRadius * 2
+  public static let tileHeight: CGFloat = 68
+  public static let rowHeight: CGFloat = 50
+}

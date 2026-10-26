@@ -18,7 +18,7 @@ struct SearchEnginePage: View {
             Label("From Your Mac", systemImage: "macbook")
           }
         } footer: {
-          Text("Ardia uses the search engine you chose on your Mac. To change it, open Ardia Settings on your Mac and choose another under Search.")
+          Text("Set on your Mac.")
         }
       } else {
         Section {
@@ -41,8 +41,6 @@ struct SearchEnginePage: View {
             }
             .accessibilityAddTraits(engine.id == app.preferences.searchEngineID ? .isSelected : [])
           }
-        } footer: {
-          Text("Searches from the start screen go to this engine. Browse for Me reads its results too.")
         }
       }
     }

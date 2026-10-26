@@ -13,17 +13,13 @@ struct ExperimentsPage: View {
     Form {
       SettingsHero(
         "Experiments",
-        subtitle: Text("Early features that use Apple Intelligence on this iPhone, with nothing sent to a server."),
+        subtitle: Text("On this iPhone, with Apple Intelligence."),
         systemImage: "flask.fill",
         tint: SettingsTint.experiments
       )
 
       Section {
         Toggle("AI Features", isOn: $settings.aiFeaturesEnabled)
-      } footer: {
-        if !settings.aiFeaturesEnabled {
-          Text("Turn on to try Browse for Me, page summaries and questions about a page. You can turn each one off.")
-        }
       }
 
       if settings.aiFeaturesEnabled {
@@ -39,13 +35,6 @@ struct ExperimentsPage: View {
           }
         } header: {
           Text("Features")
-        } footer: {
-          Text(ExperimentsWords.featuresFooter(
-            browse: settings.browseForMeEnabled,
-            summarize: settings.pinchToSummarizeEnabled,
-            ask: settings.askAboutPageEnabled
-          ))
-          .contentTransition(.opacity)
         }
         .transition(.opacity.combined(with: .move(edge: .top)))
 
@@ -91,17 +80,6 @@ extension ExperimentsPage {
   }
 }
 
-enum ExperimentsWords {
-  static func featuresFooter(browse: Bool, summarize: Bool, ask: Bool) -> String {
-    var lines: [String] = []
-    if browse { lines.append(String(localized: "Browse for Me reads the top results and writes you one page with the answer.")) }
-    if summarize { lines.append(String(localized: "Pinch in on a page, or tap Summarize, for its key points.")) }
-    if !summarize { lines.append(String(localized: "With Pinch to Summarize off, pinching a page zooms it.")) }
-    if ask { lines.append(String(localized: "Ask About This Page answers questions from the page you’re reading.")) }
-    return lines.joined(separator: " ")
-  }
-}
-
 enum IntelligenceWords {
   static func rowValue(_ status: IntelligenceStatus) -> String {
     switch status {
@@ -119,15 +97,15 @@ enum IntelligenceWords {
   static func statusFooter(_ status: IntelligenceStatus) -> String {
     switch status {
     case .available:
-      String(localized: "These features run on this iPhone with Apple Intelligence. Your searches go to your search engine, and nothing else leaves your iPhone.")
+      String(localized: "Runs on this iPhone. Only your searches leave it.")
     case .deviceNotEligible:
-      String(localized: "This iPhone doesn’t support Apple Intelligence, so these features can’t run here. Browse for Me shows the top results instead.")
+      String(localized: "This iPhone doesn’t support Apple Intelligence.")
     case .appleIntelligenceOff:
-      String(localized: "These features can’t run until Apple Intelligence is on. Turn it on in Settings, under Apple Intelligence & Siri.")
+      String(localized: "Turn on Apple Intelligence in Settings.")
     case .modelDownloading:
-      String(localized: "Apple Intelligence is still downloading. These features start working when it finishes.")
+      String(localized: "Apple Intelligence is still downloading.")
     case .languageUnsupported:
-      String(localized: "Apple Intelligence doesn’t support your iPhone’s language yet, so these features can’t run. You can change it in Settings, under Apple Intelligence & Siri.")
+      String(localized: "Apple Intelligence doesn’t support your iPhone’s language yet.")
     }
   }
 }

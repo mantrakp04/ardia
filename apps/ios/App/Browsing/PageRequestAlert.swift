@@ -1,5 +1,6 @@
 import ArdiaBrowser
 import ArdiaDesign
+import Network
 import SwiftUI
 
 struct PageRequestAlert: ViewModifier {
@@ -66,30 +67,63 @@ struct PageFailureView: View {
   let failure: PageLoadFailure
   var onRetry: () -> Void
 
+  @ScaledMetric(relativeTo: .title) private var symbolSize: CGFloat = 36
+
   var body: some View {
-    ContentUnavailableView {
-      Label(title, systemImage: symbol)
-    } description: {
+    VStack(spacing: Spacing.tight) {
+      Image(systemName: symbol)
+        .font(.system(size: symbolSize, weight: .regular))
+        .foregroundStyle(.secondary)
+        .symbolRenderingMode(.hierarchical)
+        .padding(.bottom, Spacing.hairline)
+      Text(title)
+        .font(.title3.weight(.semibold))
+        .multilineTextAlignment(.center)
       Text(message)
-    } actions: {
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        .multilineTextAlignment(.center)
       Button("Try Again", action: onRetry)
-        .buttonStyle(.borderedProminent)
-        .tint(.accentColor)
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .controlSize(.large)
+        .padding(.top, Spacing.small)
     }
+    .frame(maxWidth: 320)
+    .padding(.horizontal, Spacing.section)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
-    .background(.background)
+    .background(BrowsePalette.pageBackdrop)
+    .task(id: isOffline) {
+      guard isOffline else { return }
+      var sawOffline = false
+      for await path in NWPathMonitor() {
+        if path.status != .satisfied {
+          sawOffline = true
+        } else if sawOffline {
+          onRetry()
+          return
+        }
+      }
+    }
+  }
+
+  private var isOffline: Bool {
+    if case .network(_, let message) = failure { return message == String(localized: "Your iPhone isn’t connected to the internet.") }
+    return false
   }
 
   private var title: String {
     switch failure {
-    case .crashed: String(localized: "This Webpage Couldn’t Load")
+    case .crashed: String(localized: "This Page Stopped Working")
+    case .network where isOffline: String(localized: "You’re Offline")
     case .network(let title, _): title
     }
   }
 
   private var message: String {
     switch failure {
-    case .crashed: String(localized: "A problem repeatedly occurred on this page. Try again, or come back to it later.")
+    case .crashed: String(localized: "Try again, or come back to it later.")
+    case .network where isOffline: String(localized: "The page will load when you’re back online.")
     case .network(_, let message): message
     }
   }
@@ -97,7 +131,7 @@ struct PageFailureView: View {
   private var symbol: String {
     switch failure {
     case .crashed: "exclamationmark.triangle"
-    case .network(_, let message) where message.contains("internet"): "wifi.slash"
+    case .network where isOffline: "wifi.slash"
     case .network: "globe"
     }
   }

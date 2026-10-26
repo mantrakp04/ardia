@@ -27,7 +27,7 @@ struct SyncConnectPage: View {
         SetupStepRow(
           1,
           title: Text("Show the code on your Mac"),
-          detail: Text("In Ardia on your Mac, open Settings › Sync and click Connect Another Device. Turn on sync there first if it’s off."),
+          detail: Text("On your Mac: Settings › Sync › Connect Another Device."),
           progress: .step(done: hasPhrase, after: true)
         ) {
           if hasPhrase {
@@ -50,7 +50,7 @@ struct SyncConnectPage: View {
         SetupStepRow(
           2,
           title: Text("Choose the Ardia Sync folder"),
-          detail: Text("Open iCloud Drive, select the Ardia Sync folder your Mac uses, and tap Use Folder. Ardia connects once both steps are done."),
+          detail: Text("Choose the Ardia Sync folder in iCloud Drive."),
           progress: .step(done: false, after: hasPhrase)
         ) {
           VStack(alignment: .leading, spacing: Spacing.tight) {
@@ -88,7 +88,7 @@ struct SyncConnectPage: View {
       } header: {
         Text("Two Steps")
       } footer: {
-        Text("Your recovery phrase stays in this iPhone’s Keychain. Ardia checks it against the folder before saving anything.")
+        Text("Your recovery phrase stays in this iPhone’s Keychain.")
       }
     }
     .settingsPage("Connect to Your Mac")

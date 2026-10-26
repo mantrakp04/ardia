@@ -67,7 +67,7 @@ struct ReaderView: View {
         if let content {
           article(content)
         } else if failed {
-          ContentUnavailableView("Reader Unavailable", systemImage: "doc.plaintext", description: Text("This page doesn’t have an article Ardia can show in Reader."))
+          ContentUnavailableView("No Article Found", systemImage: "doc.plaintext")
         } else {
           ProgressView()
         }
@@ -139,10 +139,6 @@ struct ReaderView: View {
             .fixedSize(horizontal: false, vertical: true)
             .padding(.bottom, bodySize * 0.9)
         }
-        Text("Reader")
-          .font(.footnote.smallCaps())
-          .foregroundStyle(theme.secondary)
-          .padding(.top, Spacing.large)
       }
       .textSelection(.enabled)
       .frame(maxWidth: 680, alignment: .leading)
@@ -158,8 +154,9 @@ struct ReaderView: View {
     VStack(alignment: .leading, spacing: Spacing.tight) {
       let source = [content.siteName, content.byline ?? ""].filter { !$0.isEmpty }
       if !source.isEmpty {
-        Text(source.formatted(.list(type: .and, width: .narrow)))
-          .font(.subheadline.smallCaps())
+        Text(source.joined(separator: " · "))
+          .font(.subheadline.weight(.medium))
+          .lineLimit(2)
           .foregroundStyle(theme.secondary)
       }
       Text(content.title)

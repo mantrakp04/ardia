@@ -2,12 +2,12 @@ import CoreGraphics
 import Foundation
 
 public struct TabsDeckGeometry: Equatable, Sendable {
-  public static let cardWidthRatio: CGFloat = 0.552
-  public static let focusLeadingRatio: CGFloat = 80.0 / 393.0
+  public static let cardWidthRatio: CGFloat = 306.0 / 440.0
+  public static let focusLeadingRatio: CGFloat = 66.0 / 440.0
   public static let leftPeek: CGFloat = 70
-  public static let rightGap: CGFloat = 1
-  public static let headerHeight: CGFloat = 28
-  public static let barReserve: CGFloat = 92
+  public static let stepRatio: CGFloat = 218.0 / 440.0
+  public static let headerHeight: CGFloat = 20
+  public static let barReserve: CGFloat = 58
   public static let topReserve: CGFloat = 12
   public static let headerFaviconOnlyWidth: CGFloat = 72
 
@@ -36,8 +36,8 @@ public struct TabsDeckGeometry: Equatable, Sendable {
     let cardHeight = cardWidth * aspect
     cardSize = CGSize(width: cardWidth, height: cardHeight)
     focusLeading = width * Self.focusLeadingRatio
-    spacing = cardWidth + Self.rightGap
-    leftReach = Self.reach(peek: min(Self.leftPeek, focusLeading - 6), spacing: cardWidth + Self.rightGap)
+    spacing = min(cardWidth, width * Self.stepRatio)
+    leftReach = Self.reach(peek: min(Self.leftPeek, focusLeading - 6), spacing: spacing)
     cardCenterY = bandTop + band / 2
   }
 

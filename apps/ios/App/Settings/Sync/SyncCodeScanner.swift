@@ -85,7 +85,7 @@ struct SyncCodeScannerSheet: View {
         .accessibilityHidden(true)
       Spacer()
       if showsRejection {
-        Text("That isn’t an Ardia sync code. Scan the one under Connect Another Device.")
+        Text("Not an Ardia sync code.")
           .font(.subheadline.weight(.medium))
           .multilineTextAlignment(.center)
           .padding(.horizontal, Spacing.page)

@@ -19,6 +19,7 @@ struct WebPageView: UIViewRepresentable {
   var bottomInset: CGFloat
   var pinchEnabled: Bool
   var onPinch: (PagePinch) -> Void
+  var onTone: (UUID, PageTone) -> Void = { _, _ in }
 
   func makeUIView(context: Context) -> PageContainerView {
     let view = PageContainerView()
@@ -30,13 +31,14 @@ struct WebPageView: UIViewRepresentable {
     view.swipeMode = swipeMode
     view.pinchEnabled = pinchEnabled
     view.onPinch = onPinch
+    view.onTone = onTone
     view.bottomInset = bottomInset
     guard let page else {
       view.show(nil, cover: nil, isLoading: false, progress: 0)
       return
     }
     view.placeholderTab = tab
-    view.show(page, cover: cover, isLoading: page.isLoading, progress: page.progress)
+    view.show(page, cover: cover, isLoading: page.isLoading, progress: page.progress, isLive: page.webView != nil)
     if !page.isLoading { view.endRefreshing() }
   }
 
@@ -55,6 +57,7 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
   var swipeMode: SwipeNavigationMode = .anywhere
   var pinchEnabled = true
   var onPinch: ((PagePinch) -> Void)?
+  var onTone: ((UUID, PageTone) -> Void)?
   var bottomInset: CGFloat = 0 {
     didSet { if bottomInset != oldValue { applyInsets() } }
   }
@@ -68,12 +71,16 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
   private var reveal: Reveal = .none
   private var revealDeadline: Task<Void, Never>?
   private var layoutObservation: NSKeyValueObservation?
+  private var scrollObservation: NSKeyValueObservation?
+  private var toneTask: Task<Void, Never>?
+  private var lastScroll: TimeInterval = 0
+  private var wasLoading = false
   private lazy var swipePan = UIPanGestureRecognizer(target: self, action: #selector(handleSwipe(_:)))
   private lazy var pinch = UIPinchGestureRecognizer(target: self, action: #selector(handlePinch(_:)))
   private var swipe: SwipeState?
   private var isPinchingOut = false
   private lazy var refreshFeedback = UIImpactFeedbackGenerator(style: .light, view: self)
-  private lazy var swipeFeedback = UISelectionFeedbackGenerator(view: self)
+  private lazy var swipeFeedback = UIImpactFeedbackGenerator(style: .medium, view: self)
 
   private struct SwipeState {
     var direction: SwipeNavigationDirection
@@ -113,19 +120,26 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
     subviews.compactMap { $0 as? WKWebView }
   }
 
-  func show(_ next: WebTab?, cover: UIImage?, isLoading: Bool, progress: Double) {
+  func show(_ next: WebTab?, cover: UIImage?, isLoading: Bool, progress: Double, isLive: Bool = true) {
     guard let next else {
       cancelSwipe()
       page = nil
       webView = nil
+      scrollObservation = nil
       hostedWebViews.forEach { $0.isHidden = true }
       hideCover(animated: false)
       hidePlaceholder(animated: false)
       return
     }
+    guard isLive else {
+      showWaiting(for: next, cover: cover)
+      return
+    }
     if page !== next || webView == nil || webView !== next.webView || next.webView?.superview !== self {
       switchTo(next, cover: cover)
     }
+    if wasLoading, !isLoading { scheduleToneSample(after: .milliseconds(250)) }
+    wasLoading = isLoading
     if case .whenPainted = reveal, coverView.isHidden, let cover {
       coverView.image = cover
       coverView.alpha = 1
@@ -136,12 +150,31 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
     updateReveal(isLoading: isLoading, progress: progress)
   }
 
+  private func showWaiting(for next: WebTab, cover: UIImage?) {
+    guard page !== next || webView != nil else { return }
+    cancelSwipe()
+    page = next
+    webView = nil
+    scrollObservation = nil
+    hostedWebViews.forEach { $0.isHidden = true }
+    revealDeadline?.cancel()
+    if let cover {
+      coverView.layer.removeAllAnimations()
+      coverView.image = cover
+      coverView.alpha = 1
+      coverView.isHidden = false
+      coverView.frame = bounds
+      bringSubviewToFront(coverView)
+    } else {
+      showPlaceholder()
+    }
+  }
+
   private func switchTo(_ next: WebTab, cover: UIImage?) {
     cancelSwipe()
-    let wasLive = next.isLive
     page = next
-    next.makeLive()
     guard let webView = next.webView else { return }
+    let wasPresented = webView.superview === self && webView.window != nil && !webView.isHidden
     if webView.superview !== self {
       webView.removeFromSuperview()
       webView.frame = bounds
@@ -156,6 +189,8 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
     insertSubview(webView, belowSubview: coverView)
     self.webView = webView
     webView.scrollView.refreshControl = refreshControl
+    wasLoading = next.isLoading
+    observeScroll(of: webView)
     applyInsets()
     revealDeadline?.cancel()
     hideCover(animated: false)
@@ -169,7 +204,12 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
     } else {
       showPlaceholder()
     }
-    let settled = wasLive && !next.isLoading && webView.url != nil
+    let settled = !next.isLoading && webView.url != nil
+    if settled, wasPresented, webView.scrollView.contentSize.height > 0 {
+      hideCover(animated: false)
+      scheduleToneSample(after: .milliseconds(120))
+      return
+    }
     if settled {
       reveal = .afterReattach
       waitForPresentation(of: webView)
@@ -231,6 +271,64 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
     }
   }
 
+  private func observeScroll(of webView: WKWebView) {
+    scrollObservation = webView.scrollView.observe(\.contentOffset, options: []) { [weak self] _, _ in
+      MainActor.assumeIsolated { self?.scrollMoved() }
+    }
+  }
+
+  private func scrollMoved() {
+    lastScroll = CACurrentMediaTime()
+    guard toneTask == nil else { return }
+    toneTask = Task { @MainActor [weak self] in
+      while let self, !Task.isCancelled {
+        let quiet = CACurrentMediaTime() - self.lastScroll
+        if quiet >= 0.16 { break }
+        try? await Task.sleep(for: .seconds(max(0.16 - quiet, 0.02)))
+      }
+      guard let self, !Task.isCancelled else { return }
+      self.toneTask = nil
+      self.sampleTone()
+    }
+  }
+
+  private func scheduleToneSample(after delay: Duration) {
+    toneTask?.cancel()
+    toneTask = Task { @MainActor [weak self] in
+      try? await Task.sleep(for: delay)
+      guard let self, !Task.isCancelled else { return }
+      self.toneTask = nil
+      self.sampleTone()
+    }
+  }
+
+  private func sampleTone() {
+    guard let webView, let page, webView.window != nil, !webView.isHidden, webView.url != nil,
+          webView.bounds.height > BrowseLayout.barHeight * 3, swipe == nil else { return }
+    let id = page.id
+    let bounds = webView.bounds
+    let top = webView.safeAreaInsets.top + 1
+    let bottom = bounds.height - BrowseLayout.barHeight - ToneSampler.bandHeight - 2
+    Task { @MainActor [weak self, weak webView] in
+      guard let webView else { return }
+      async let topImage = Self.snapshot(of: webView, in: CGRect(x: 0, y: top, width: bounds.width, height: ToneSampler.bandHeight))
+      async let bottomImage = Self.snapshot(of: webView, in: CGRect(x: 0, y: bottom, width: bounds.width, height: ToneSampler.bandHeight))
+      let images = await (topImage, bottomImage)
+      guard let self, self.page?.id == id else { return }
+      let tone = PageTone(top: images.0.flatMap(ToneSampler.dominant), bottom: images.1.flatMap(ToneSampler.dominant))
+      guard tone.top != nil || tone.bottom != nil else { return }
+      self.onTone?(id, tone)
+    }
+  }
+
+  private static func snapshot(of webView: WKWebView, in rect: CGRect) async -> UIImage? {
+    let configuration = WKSnapshotConfiguration()
+    configuration.rect = rect
+    configuration.afterScreenUpdates = false
+    configuration.snapshotWidth = NSNumber(value: ToneSampler.sampleWidth)
+    return try? await webView.takeSnapshot(configuration: configuration)
+  }
+
   private func showPlaceholder() {
     guard let tab = placeholderTab else { return }
     let host = placeholderHost ?? {
@@ -277,6 +375,7 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
       coverView.image = nil
       return
     }
+    scheduleToneSample(after: .milliseconds(200))
     UIView.animate(withDuration: 0.18, delay: 0, options: [.curveEaseOut, .allowUserInteraction, .beginFromCurrentState]) {
       self.coverView.alpha = 0
     } completion: { finished in
@@ -289,6 +388,8 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
   func detach() {
     cancelSwipe()
     revealDeadline?.cancel()
+    toneTask?.cancel()
+    scrollObservation = nil
     for hosted in hostedWebViews {
       if hosted.scrollView.refreshControl === refreshControl { hosted.scrollView.refreshControl = nil }
       hosted.isHidden = false
@@ -396,7 +497,6 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
       if isPastCommit != swipe.isPastCommit {
         swipe.isPastCommit = isPastCommit
         self.swipe = swipe
-        swipeFeedback.selectionChanged()
       }
     case .ended, .cancelled, .failed:
       guard let swipe else { return }
@@ -432,6 +532,7 @@ final class PageContainerView: UIView, UIGestureRecognizerDelegate {
   }
 
   private func finishSwipe(_ swipe: SwipeState, commit: Bool, velocity: CGFloat) {
+    if commit { swipeFeedback.impactOccurred(intensity: 0.6) }
     let distance = max(bounds.width, 1)
     let initial = min(velocity / distance, 6)
     let animator = UIViewPropertyAnimator(duration: 0.22, timingParameters: UISpringTimingParameters(dampingRatio: 1, initialVelocity: CGVector(dx: initial, dy: 0)))

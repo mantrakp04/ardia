@@ -65,6 +65,28 @@ public final class Intelligence {
     Intelligence(model: DemoIntelligenceModel(status: status), sourcing: sourcing, isEnabled: isEnabled)
   }
 
+  public static func demo(arguments: [String]) -> Intelligence {
+    let scenario = arguments.firstIndex(of: "-BrowseForMeDemo").flatMap { index in
+      arguments.indices.contains(index + 1) ? arguments[index + 1] : nil
+    }
+    let status: IntelligenceStatus =
+      switch scenario {
+      case "appleIntelligenceOff": .appleIntelligenceOff
+      case "deviceNotEligible": .deviceNotEligible
+      case "modelDownloading": .modelDownloading
+      default: .available
+      }
+    let outcome: DemoSourcing.Outcome =
+      switch scenario {
+      case "offline": .offline
+      case "noResults": .noResults
+      default: .works
+      }
+    return Intelligence(
+      model: DemoIntelligenceModel(status: status, failsWriting: scenario == "writingFails"),
+      sourcing: DemoSourcing(outcome, slowdown: scenario == "slow" ? 4 : 1), isEnabled: true)
+  }
+
   public func browse(forTab tabID: UUID, query: String, restoring page: BrowsePage? = nil) -> BrowseForMe {
     if let existing = browses[tabID] { return existing }
     let created = page.map(reopen) ?? browse(query)

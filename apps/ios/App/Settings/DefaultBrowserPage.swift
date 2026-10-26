@@ -31,7 +31,7 @@ struct DefaultBrowserInstructions: View {
           .multilineTextAlignment(.center)
           .fixedSize(horizontal: false, vertical: true)
           .accessibilityAddTraits(.isHeader)
-        Text("Set Ardia as your default to automatically open links from other apps.")
+        Text("Open links from other apps in Ardia.")
           .font(.body)
           .foregroundStyle(.secondary)
           .multilineTextAlignment(.center)

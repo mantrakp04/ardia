@@ -13,25 +13,24 @@ struct SummaryContent: View {
   @Environment(\.openURL) private var openURL
 
   var body: some View {
-    VStack(spacing: 0) {
-      ScrollView {
-        VStack(alignment: .leading, spacing: 20) {
-          if unreadable {
-            failure(.nothingToSummarize, message: String(localized: "This page couldn\u{2019}t be read. Try again once it finishes loading."))
-          } else if let summarizer {
-            summary(summarizer)
-          } else {
-            waiting
-          }
+    ScrollView {
+      VStack(alignment: .leading, spacing: 20) {
+        if unreadable {
+          failure(.nothingToSummarize, message: String(localized: "Try again once it finishes loading."))
+        } else if let summarizer {
+          summary(summarizer)
+        } else {
+          waiting
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 16)
-        .padding(.bottom, 24)
-        .frame(maxWidth: .infinity, alignment: .leading)
       }
-      .scrollIndicators(.hidden)
-      attributionBar
+      .padding(.horizontal, 20)
+      .padding(.top, 16)
+      .padding(.bottom, 24)
+      .frame(maxWidth: .infinity, alignment: .leading)
     }
+    .scrollIndicators(.hidden)
+    .safeAreaBar(edge: .bottom) { attributionBar }
+    .scrollEdgeEffectStyle(.soft, for: .bottom)
   }
 
   @ViewBuilder private func summary(_ summarizer: PageSummarizer) -> some View {
@@ -114,7 +113,6 @@ struct SummaryContent: View {
     .padding(.trailing, 8)
     .padding(.vertical, 4)
     .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-    .background(.bar)
   }
 }
 

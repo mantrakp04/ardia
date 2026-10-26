@@ -6,11 +6,16 @@ struct TabsDeckGeometryTests {
   let geometry = TabsDeckGeometry(container: CGSize(width: 393, height: 852), safeTop: 59, safeBottom: 34)
 
   @Test func `resting deck matches Arc's measured slots`() {
-    #expect(abs(geometry.cardSize.width - 217) < 0.5)
-    #expect(abs(geometry.leading(at: 0) - 80) < 0.5)
-    #expect(abs(geometry.leading(at: 1) - 298) < 0.5)
-    #expect(abs(geometry.leading(at: -1) - 10) < 0.5)
+    let proMax = TabsDeckGeometry(container: CGSize(width: 440, height: 956), safeTop: 62, safeBottom: 34)
+    #expect(abs(proMax.cardSize.width - 306) < 0.5)
+    #expect(abs(proMax.leading(at: 0) - 66) < 0.5)
+    #expect(abs(proMax.leading(at: 1) - 284) < 0.5)
+    #expect(abs(geometry.leading(at: -1) - 6) < 0.5)
     #expect(abs(geometry.barCenterY - 812) < 0.5)
+  }
+
+  @Test func `the next card overlaps the focused one`() {
+    #expect(geometry.leading(at: 1) < geometry.leading(at: 0) + geometry.cardSize.width)
   }
 
   @Test func `cards move without a jump as they cross the focus slot`() {
@@ -28,7 +33,8 @@ struct TabsDeckGeometryTests {
 
   @Test func `a mostly covered card shows only its favicon`() {
     #expect(geometry.visibleWidth(at: -1, isLast: false) < TabsDeckGeometry.headerFaviconOnlyWidth)
-    #expect(geometry.visibleWidth(at: 0, isLast: false) >= geometry.cardSize.width - 0.5)
+    #expect(abs(geometry.visibleWidth(at: 0, isLast: false) - geometry.spacing) < 0.5)
+    #expect(geometry.visibleWidth(at: 0, isLast: true) == geometry.cardSize.width)
   }
 
   @Test func `a flick carries the deck past the nearest card`() {

@@ -117,6 +117,12 @@ extension View {
   func settingsPage(_ title: LocalizedStringKey) -> some View {
     modifier(SettingsPageTitle(title: title))
   }
+
+  func settingsChrome() -> some View {
+    scrollEdgeEffectStyle(.hard, for: .top)
+      .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
+      .toolbarBackgroundVisibility(.visible, for: .navigationBar)
+  }
 }
 
 private struct SettingsPageTitle: ViewModifier {

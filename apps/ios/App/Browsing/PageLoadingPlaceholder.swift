@@ -7,18 +7,23 @@ struct PageLoadingPlaceholder: View {
 
   var body: some View {
     let theme = PageTheme(hex: tab.themeColorHex)
+    let host = BrowserURL.host(of: tab.url)
+    let title = PageLoadingPlaceholder.distinctTitle(tab.title, host: host)
     VStack(spacing: Spacing.small) {
       FaviconImage(iconURL: tab.faviconURL, pageURL: tab.url, size: 44)
         .shadow(color: .black.opacity(0.08), radius: 6, y: 2)
-      Text(tab.title.isEmpty ? (BrowserURL.host(of: tab.url) ?? tab.url) : tab.title)
-        .font(.headline)
-        .multilineTextAlignment(.center)
-        .lineLimit(3)
-        .foregroundStyle(theme?.ink ?? BrowsePalette.foregroundPrimary)
-      if let host = BrowserURL.host(of: tab.url) {
+      if let title {
+        Text(title)
+          .font(.headline)
+          .multilineTextAlignment(.center)
+          .lineLimit(3)
+          .foregroundStyle(theme?.ink ?? BrowsePalette.foregroundPrimary)
+      }
+      if let host {
         Text(host)
-          .font(.subheadline)
-          .foregroundStyle(theme?.ink.opacity(0.65) ?? BrowsePalette.foregroundSecondary)
+          .font(title == nil ? .headline : .subheadline)
+          .lineLimit(1)
+          .foregroundStyle(title == nil ? (theme?.ink ?? BrowsePalette.foregroundPrimary) : (theme?.ink.opacity(0.65) ?? BrowsePalette.foregroundSecondary))
       }
     }
     .padding(.horizontal, Spacing.section)
@@ -26,7 +31,16 @@ struct PageLoadingPlaceholder: View {
     .background(theme?.color ?? BrowsePalette.pageBackdrop)
     .ignoresSafeArea()
     .accessibilityElement(children: .combine)
-    .accessibilityLabel(Text("Loading \(tab.title)"))
+    .accessibilityLabel(Text("Loading \(TabText.title(for: tab))"))
+  }
+
+  static func distinctTitle(_ title: String, host: String?) -> String? {
+    let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return host == nil ? String(localized: "New Tab") : nil }
+    guard let host else { return trimmed }
+    let bare = { (text: String) in text.lowercased().replacingOccurrences(of: "www.", with: "") }
+    if bare(trimmed) == bare(host) || trimmed.lowercased().hasPrefix("http") { return nil }
+    return trimmed
   }
 }
 

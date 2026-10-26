@@ -97,7 +97,9 @@ sizes, copy), on Apple's controls:
 and never touches real data. Add `-ArdiaAIFeatures YES` for the AI features. Captures can be driven without touch:
 `-BrowseQuery <text>`, `-BrowseSurface browsing`, `-BrowseTab <n>`, `-BrowseToolbar`, `-BrowseSummary`,
 `-BrowseReader`, `-BrowseForMe <query>`, `-BrowseIncognito`, `-BrowseDelay <s>`, `-ArdiaDeck <script>`,
-`-ArdiaOnboarding YES`.
+`-ArdiaOnboarding YES`, `-ArdiaOpenSheet archive|spaces`, `-BrowseForMeResults` (a Browse for Me tab on the
+search engine side), and `-BrowseForMeDemo <state>` to force a Browse for Me state (`offline`, `noResults`,
+`appleIntelligenceOff`, `deviceNotEligible`, `modelDownloading`, `writingFails`, `slow`).
 
 ## Tests
 

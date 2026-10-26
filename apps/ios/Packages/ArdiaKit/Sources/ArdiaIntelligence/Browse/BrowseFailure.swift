@@ -29,25 +29,14 @@ public enum BrowseFailure: Sendable, Hashable {
 
   public var message: String {
     switch self {
-    case .offline:
-      String(localized: "Looks like you\u{2019}re offline. Check your internet connection and try again.")
-    case .noResults:
-      String(localized: "DuckDuckGo didn\u{2019}t find any pages for this search. Try different words.")
-    case .searchUnavailable:
-      String(localized: "DuckDuckGo didn\u{2019}t send back results. Try again in a moment.")
-    case .sourcesUnreachable:
-      String(localized: "None of the top results would open. Here they are, so you can look yourself.")
+    case .offline: String(localized: "Check your connection and try again.")
+    case .noResults: String(localized: "Try different words.")
+    case .searchUnavailable: String(localized: "Try again in a moment.")
+    case .sourcesUnreachable: String(localized: "Here are the top results instead.")
     case .modelUnavailable(let status): status.message
-    case .guardrail:
-      String(localized: "Apple Intelligence can\u{2019}t write a page about this. Here are the pages it found.")
-    case .unsupportedLanguage:
-      String(localized: "Apple Intelligence can\u{2019}t write in this language yet. Here are the pages it found.")
-    case .tooMuchToRead:
-      String(localized: "These pages were too long to read together. Here are the pages it found.")
-    case .generationFailed:
-      String(localized: "There was an error generating your page. Please try again.")
-    case .featureOff:
-      String(localized: "Turn on AI Features in Settings \u{203A} Experiments to use Browse for Me.")
+    case .guardrail, .unsupportedLanguage, .tooMuchToRead: String(localized: "Here are the pages it found.")
+    case .generationFailed: String(localized: "Something went wrong while writing it.")
+    case .featureOff: String(localized: "Turn on AI Features in Settings to use Browse for Me.")
     }
   }
 

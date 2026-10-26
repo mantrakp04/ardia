@@ -39,7 +39,7 @@ extension Toast {
   }
 
   static var noOpenTabsToExport: Toast {
-    Toast(String(localized: "There are no open tabs to export."), symbol: "square.on.square.dashed")
+    Toast(String(localized: "No Open Tabs"), symbol: "square.on.square.dashed")
   }
 
   static var syncConnected: Toast {

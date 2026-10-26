@@ -88,6 +88,22 @@ extension AppModel {
     _ = web.webTab(for: id)
   }
 
+  func primeCover(for id: UUID) async {
+    guard browse.covers.image(for: id) == nil else { return }
+    if let memory = deck.memoryImage(for: id) {
+      browse.covers.store(memory, for: id)
+    } else if let name = tabs.tab(id)?.snapshotFileName, let image = await web.snapshots.image(named: name) {
+      browse.covers.store(UIImage(cgImage: image), for: id)
+    }
+  }
+
+  func beginOpening(_ id: UUID) {
+    guard tabs.tab(id) != nil, tabs.selectedTabID != id else { return }
+    isIncognito = tabs.isPrivate(id)
+    tabs.select(id)
+    _ = web.webTab(for: id)
+  }
+
   func openTab(_ id: UUID) {
     isIncognito = tabs.isPrivate(id)
     tabs.select(id)
@@ -117,6 +133,8 @@ extension AppModel {
 
   func closeTab(_ id: UUID) {
     deck.forget([id])
+    browse.covers.forget(id)
+    browse.tones[id] = nil
     tabs.close(id)
   }
 

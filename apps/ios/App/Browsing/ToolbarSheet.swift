@@ -9,83 +9,116 @@ struct ToolbarSheet: View {
   @Environment(AppModel.self) private var app
   @Environment(\.dismiss) private var dismiss
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+  @Environment(\.colorScheme) private var colorScheme
   @State private var copies = 0
   @State private var confirmsTranslation = false
+  @State private var contentHeight: CGFloat = 560
+  @State private var bottomInset: CGFloat = 0
   @ScaledMetric(relativeTo: .body) private var iconSlot: CGFloat = 26
+  @ScaledMetric(relativeTo: .body) private var capsuleHeight: CGFloat = MenuLayout.capsuleHeight
+  @ScaledMetric(relativeTo: .body) private var tileHeight: CGFloat = MenuLayout.tileHeight
 
   private var tab: BrowserTab? { app.tabs.tab(tabID) }
   private var page: WebTab? { app.web.existingWebTab(tabID) }
   private var isWebPage: Bool { tab.map { BrowserURL.isSyncable($0.url) } ?? false }
-  private var isBrowseForMe: Bool { tab?.origin == .browseForMe }
 
   var body: some View {
     ScrollView {
-      VStack(spacing: Spacing.small) {
+      VStack(spacing: MenuLayout.inset) {
         navigationCapsule
         tiles
-        rows
+        if let page {
+          group {
+            findRow
+            sendRow
+            translateRow
+          }
+          group {
+            nightShadeRow(page)
+            zoomRow(page)
+            desktopRow(page)
+          }
+          group {
+            blockingRow(page)
+            if !app.isDefaultBrowser {
+              row("safari", "Open in Default Browser") {
+                app.openInDefaultBrowser(page)
+                dismiss()
+              }
+            }
+          }
+        } else {
+          group { findRow }
+        }
       }
-      .padding(.horizontal, Spacing.page)
-      .padding(.top, Spacing.medium)
-      .padding(.bottom, Spacing.page)
+      .padding(MenuLayout.inset)
+      .padding(.bottom, dynamicTypeSize.isAccessibilitySize ? Spacing.large : 0)
     }
     .scrollBounceBehavior(.basedOnSize)
-    .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.height(392), .large])
-    .presentationCornerRadius(BrowseLayout.toolbarSheetRadius)
-    .presentationDragIndicator(.visible)
+    .ignoresSafeArea(.container, edges: .bottom)
+    .onScrollGeometryChange(for: CGFloat.self) { geometry in
+      geometry.contentSize.height + geometry.contentInsets.top
+    } action: { _, height in
+      contentHeight = height.rounded(.up)
+    }
+    .background {
+      Color.clear.onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.bottom } action: { bottomInset = $0 }
+    }
+    .tint(Palette.indigo)
+    .presentationDetents([.height(max(contentHeight - bottomInset, 200))])
+    .presentationCornerRadius(MenuLayout.sheetRadius)
+    .presentationBackground(Color(.systemGroupedBackground))
+    .presentationDragIndicator(.hidden)
     .sensoryFeedback(.success, trigger: copies)
-    .alert("Continue with Google Translate?", isPresented: $confirmsTranslation) {
-      Button("Continue") {
+    .alert("Translate with Google?", isPresented: $confirmsTranslation) {
+      Button("Translate") {
         if let page { app.translate(page) }
         dismiss()
       }
       Button("Cancel", role: .cancel) {}
     } message: {
-      Text("The website URL will be passed to Google for translation purposes.")
+      Text("Google will see this page’s address.")
     }
   }
 
-  @ViewBuilder
   private var navigationCapsule: some View {
-    if dynamicTypeSize.isAccessibilitySize {
-      VStack(alignment: .leading, spacing: Spacing.tight) {
-        HStack(spacing: 0) {
-          backButton
-          forwardButton
-          Spacer(minLength: 0)
-          pinButton
-          reloadButton
-        }
-        .frame(minHeight: BrowseLayout.toolbarCapsuleHeight)
-        .background(BrowsePalette.toolbarCapsule, in: .capsule)
-        titleLabel
-          .lineLimit(2)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(.horizontal, Spacing.page)
-      }
-    } else {
+    let isLarge = dynamicTypeSize.isAccessibilitySize
+    return VStack(alignment: .leading, spacing: 0) {
       HStack(spacing: 0) {
         backButton
         forwardButton
-        titleLabel
-          .lineLimit(1)
+        if isLarge {
+          Spacer(minLength: 0)
+        } else {
+          titleLabel.lineLimit(1)
+        }
         pinButton
         reloadButton
       }
-      .frame(minHeight: BrowseLayout.toolbarCapsuleHeight)
-      .background(BrowsePalette.toolbarCapsule, in: .capsule)
+      .frame(minHeight: capsuleHeight)
+      if isLarge {
+        Divider().padding(.horizontal, Spacing.page)
+        titleLabel
+          .lineLimit(3)
+          .padding(.horizontal, Spacing.tight)
+          .padding(.vertical, Spacing.small)
+      }
     }
+    .padding(.horizontal, Spacing.hairline)
+    .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: isLarge ? MenuLayout.innerRadius : capsuleHeight / 2, style: .continuous))
   }
 
   private var backButton: some View {
-    capsuleButton("chevron.left", label: "Go Back", enabled: page?.canGoBack ?? false) {
+    capsuleButton("chevron.backward", label: "Back", enabled: page?.canGoBack ?? false) {
       page?.goBack()
+      dismiss()
     }
   }
 
   private var forwardButton: some View {
-    capsuleButton("chevron.right", label: "Go Forward", enabled: page?.canGoForward ?? false) {
+    capsuleButton("chevron.forward", label: "Forward", enabled: page?.canGoForward ?? false) {
       page?.goForward()
+      dismiss()
     }
   }
 
@@ -111,13 +144,14 @@ struct ToolbarSheet: View {
     ZStack {
       if let feedback = app.browse.titleFeedback {
         Text(feedback)
-          .foregroundStyle(Palette.indigo)
+          .fontWeight(.semibold)
+          .foregroundStyle(Color.ardiaAccentText)
           .frame(maxWidth: .infinity)
           .transition(.opacity)
       } else {
         Text(titleText)
-          .foregroundStyle(BrowsePalette.foregroundSecondary)
-          .frame(maxWidth: .infinity, alignment: .leading)
+          .foregroundStyle(.primary)
+          .frame(maxWidth: .infinity, alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .center)
           .transition(.opacity)
       }
     }
@@ -143,108 +177,100 @@ struct ToolbarSheet: View {
       action()
     } label: {
       Image(systemName: symbol)
-        .font(.system(size: 17, weight: .medium))
-        .frame(width: 42, height: BrowseLayout.toolbarCapsuleHeight)
+        .font(.body.weight(.semibold))
+        .frame(minWidth: 44, minHeight: capsuleHeight)
+        .padding(.horizontal, dynamicTypeSize.isAccessibilitySize ? Spacing.hairline : 0)
         .contentShape(.rect)
     }
     .buttonStyle(PressableStyle())
-    .foregroundStyle(BrowsePalette.foregroundSecondary)
+    .foregroundStyle(enabled ? AnyShapeStyle(.primary) : AnyShapeStyle(Color(.tertiaryLabel)))
     .disabled(!enabled)
-    .opacity(enabled ? 1 : 0.35)
     .accessibilityLabel(label)
   }
 
   @ViewBuilder
   private var tiles: some View {
+    let items = tileItems
     if dynamicTypeSize.isAccessibilitySize {
-      VStack(spacing: Spacing.small) {
-        row("doc.plaintext", "Reader", enabled: isWebPage) {
-          app.browse.readerTabID = tabID
-          dismiss()
-        }
-        if app.offersSummaries {
-          row("text.line.magnify", "Summarize", enabled: isWebPage) {
-            dismiss()
-            app.browse.requestSummary(for: tabID)
-          }
-        }
-        row("link", "Copy Link", enabled: isWebPage) {
-          if app.copyCurrentLink() { copies += 1 }
-        }
-        row("square.and.arrow.up", "Share", enabled: isWebPage) {
-          dismiss()
-          app.shareCurrentPage()
+      group {
+        ForEach(items) { item in
+          row(item.symbol, item.title, enabled: isWebPage, action: item.action)
         }
       }
     } else {
-      HStack(alignment: .top, spacing: 0) {
-        readerTile
-        Spacer(minLength: 4)
-        if app.offersSummaries {
-          summarizeTile
-          Spacer(minLength: 4)
+      HStack(spacing: Spacing.tight) {
+        ForEach(items) { item in
+          tile(item)
         }
-        copyTile
-        Spacer(minLength: 4)
-        shareTile
       }
     }
   }
 
-  private var readerTile: some View {
-    tile("doc.plaintext", label: "Reader", enabled: isWebPage) {
-      app.browse.readerTabID = tabID
-      dismiss()
-    }
+  private struct TileItem: Identifiable {
+    let symbol: String
+    let title: LocalizedStringKey
+    let action: () -> Void
+    var id: String { symbol }
   }
 
-  private var summarizeTile: some View {
-    tile("text.line.magnify", label: "Summarize", enabled: isWebPage) {
-      dismiss()
-      app.browse.requestSummary(for: tabID)
+  private var tileItems: [TileItem] {
+    var items = [
+      TileItem(symbol: "doc.plaintext", title: "Reader") {
+        app.browse.readerTabID = tabID
+        dismiss()
+      },
+    ]
+    if app.offersSummaries {
+      items.append(TileItem(symbol: "text.line.magnify", title: "Summarize") {
+        dismiss()
+        app.browse.requestSummary(for: tabID)
+      })
     }
-  }
-
-  private var copyTile: some View {
-    tile("link", label: "Copy Link", enabled: isWebPage) {
+    items.append(TileItem(symbol: "link", title: "Copy Link") {
       if app.copyCurrentLink() { copies += 1 }
-    }
-  }
-
-  private var shareTile: some View {
-    tile("square.and.arrow.up", label: "Share", enabled: isWebPage) {
+    })
+    items.append(TileItem(symbol: "square.and.arrow.up", title: "Share") {
       dismiss()
       app.shareCurrentPage()
-    }
+    })
+    return items
   }
 
-  private func tile(_ symbol: String, label: LocalizedStringKey, enabled: Bool, action: @escaping () -> Void) -> some View {
-    Button {
-      action()
-    } label: {
+  private func tile(_ item: TileItem) -> some View {
+    Button(action: item.action) {
       VStack(spacing: 6) {
-        Image(systemName: symbol)
-          .font(.system(size: 24, weight: .regular))
-          .frame(width: BrowseLayout.toolbarTile, height: BrowseLayout.toolbarTile)
-          .background(BrowsePalette.toolbarTile, in: .rect(cornerRadius: BrowseLayout.toolbarTileRadius, style: .continuous))
-        Text(label)
-          .font(.footnote)
-          .foregroundStyle(BrowsePalette.foregroundSecondary)
-          .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+        Image(systemName: item.symbol)
+          .font(.title3)
+          .frame(height: 24)
+        Text(item.title)
+          .font(.footnote.weight(.medium))
+          .lineLimit(1)
           .minimumScaleFactor(0.8)
-          .multilineTextAlignment(.center)
       }
-      .frame(minWidth: BrowseLayout.toolbarTile)
-      .contentShape(.rect)
+      .frame(maxWidth: .infinity, minHeight: tileHeight)
+      .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: MenuLayout.innerRadius, style: .continuous))
+      .contentShape(.rect(cornerRadius: MenuLayout.innerRadius, style: .continuous))
     }
     .buttonStyle(PressableStyle())
-    .foregroundStyle(BrowsePalette.foregroundPrimary)
-    .disabled(!enabled)
-    .opacity(enabled ? 1 : 0.4)
+    .foregroundStyle(isWebPage ? AnyShapeStyle(.primary) : AnyShapeStyle(Color(.tertiaryLabel)))
+    .disabled(!isWebPage)
   }
 
-  @ViewBuilder
-  private var rows: some View {
+  private func group<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+    VStack(spacing: 0) {
+      Group(subviews: content()) { subviews in
+        ForEach(subviews.indices, id: \.self) { index in
+          if index > 0 {
+            Divider().padding(.leading, Spacing.page + iconSlot + Spacing.small)
+          }
+          subviews[index]
+        }
+      }
+    }
+    .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: MenuLayout.innerRadius, style: .continuous))
+  }
+
+  private var findRow: some View {
     row("doc.text.magnifyingglass", "Find on Page", enabled: isWebPage) {
       dismiss()
       Task {
@@ -252,30 +278,11 @@ struct ToolbarSheet: View {
         page?.presentFindInPage()
       }
     }
-    sendRow
-    if let page {
-      let nightOn = app.preferences.nightShade(for: page.host) != .disabled
-      row(nightOn ? "moon.fill" : "moon", nightOn ? "Turn Off Night Shade" : "Night Shade", enabled: isWebPage) {
-        app.toggleNightShade(for: page)
-      }
-      zoomRow(page)
-      row(app.browse.desktopTabs.contains(tabID) ? "iphone" : "desktopcomputer", app.browse.desktopTabs.contains(tabID) ? "Request Mobile Site" : "Request Desktop Site", enabled: isWebPage) {
-        app.toggleDesktopSite(for: page)
-        dismiss()
-      }
-      row("translate", "Translate", enabled: isWebPage) {
-        confirmsTranslation = true
-      }
-      row(page.blockersEnabled ? "hand.raised.slash" : "hand.raised.fill", page.blockersEnabled ? "Turn Off Blockers for This Site" : "Turn On Blockers for This Site", detail: page.blockersEnabled && page.blockedResources.count > 0 ? Text("\(page.blockedResources.count) Blocked") : nil, enabled: isWebPage) {
-        app.toggleBlockers(for: page)
-        dismiss()
-      }
-      if !app.isDefaultBrowser {
-        row("safari", "Open in Default Browser", enabled: isWebPage) {
-          app.openInDefaultBrowser(page)
-          dismiss()
-        }
-      }
+  }
+
+  private var translateRow: some View {
+    row("translate", "Translate", enabled: isWebPage) {
+      confirmsTranslation = true
     }
   }
 
@@ -284,7 +291,7 @@ struct ToolbarSheet: View {
     let devices = app.sync.devicesThatReceiveTabs
     if app.sync.isEnabled, !devices.isEmpty, let tab, isWebPage {
       if devices.count == 1, let device = devices.first {
-        row("paperplane", "Send to \(device.name)", enabled: true) {
+        row("paperplane", "Send to \(device.name)") {
           app.send(tab, to: device)
           dismiss()
         }
@@ -297,94 +304,163 @@ struct ToolbarSheet: View {
             }
           }
         } label: {
-          rowLabel("paperplane", "Send to Device")
+          rowLabel("paperplane", "Send to Device") {
+            Image(systemName: "chevron.up.chevron.down")
+              .font(.footnote.weight(.semibold))
+              .foregroundStyle(.tertiary)
+          }
         }
-        .foregroundStyle(BrowsePalette.foregroundPrimary)
+        .foregroundStyle(.primary)
       }
     }
+  }
+
+  private func nightShadeIsOn(_ page: WebTab) -> Bool {
+    switch app.preferences.nightShade(for: page.host) {
+    case .disabled: false
+    case .always: true
+    case .automatic: colorScheme == .dark
+    }
+  }
+
+  private func nightShadeRow(_ page: WebTab) -> some View {
+    toggleRow(nightShadeIsOn(page) ? "moon.fill" : "moon", "Night Shade", isOn: Binding(
+      get: { nightShadeIsOn(page) },
+      set: { app.setNightShade($0, for: page) }
+    ))
+  }
+
+  private func desktopRow(_ page: WebTab) -> some View {
+    toggleRow("desktopcomputer", "Desktop Site", isOn: Binding(
+      get: { app.browse.desktopTabs.contains(tabID) },
+      set: { wanted in
+        guard wanted != app.browse.desktopTabs.contains(tabID) else { return }
+        app.toggleDesktopSite(for: page)
+        dismiss()
+      }
+    ))
+  }
+
+  private func blockingRow(_ page: WebTab) -> some View {
+    let count = page.blockedResources.count
+    return toggleRow(page.blockersEnabled ? "hand.raised.fill" : "hand.raised.slash", "Block Ads and Trackers", detail: page.blockersEnabled && count > 0 ? Text(count, format: .number) : nil, isOn: Binding(
+      get: { page.blockersEnabled },
+      set: { wanted in
+        guard wanted != page.blockersEnabled else { return }
+        app.toggleBlockers(for: page)
+        dismiss()
+      }
+    ))
+  }
+
+  private func toggleRow(_ symbol: String, _ title: LocalizedStringKey, detail: Text? = nil, isOn: Binding<Bool>) -> some View {
+    Toggle(isOn: isOn) {
+      HStack(spacing: Spacing.small) {
+        icon(symbol)
+        Text(title)
+          .frame(maxWidth: .infinity, alignment: .leading)
+        if let detail {
+          detail
+            .font(.subheadline)
+            .monospacedDigit()
+            .foregroundStyle(.secondary)
+            .contentTransition(.numericText())
+            .accessibilityLabel(Text("Blocked"))
+            .accessibilityValue(detail)
+        }
+      }
+    }
+    .toggleStyle(.switch)
+    .tint(Color(.systemGreen))
+    .padding(.leading, Spacing.page)
+    .padding(.trailing, Spacing.page)
+    .frame(minHeight: MenuLayout.rowHeight)
+    .disabled(!isWebPage)
   }
 
   private func zoomRow(_ page: WebTab) -> some View {
     let layout = dynamicTypeSize.isAccessibilitySize
       ? AnyLayout(VStackLayout(alignment: .leading, spacing: Spacing.tight))
       : AnyLayout(HStackLayout(spacing: Spacing.small))
+    let canZoomOut = page.pageZoom > (WebTab.zoomLevels.first ?? 0.5)
+    let canZoomIn = page.pageZoom < (WebTab.zoomLevels.last ?? 3)
     return layout {
-      Image(systemName: "textformat.size")
-        .font(.body)
-        .frame(width: iconSlot)
-        .foregroundStyle(BrowsePalette.foregroundSecondary)
-        .accessibilityHidden(true)
-      Text("Page Zoom")
-        .frame(maxWidth: .infinity, alignment: .leading)
       HStack(spacing: Spacing.small) {
-      Button {
-        page.zoomOut()
-      } label: {
-        Image(systemName: "minus").frame(width: 40, height: 40).contentShape(.rect)
+        icon("textformat.size")
+        Text("Page Zoom")
+          .frame(maxWidth: .infinity, alignment: .leading)
       }
-      .disabled(page.pageZoom <= (WebTab.zoomLevels.first ?? 0.5))
-      .accessibilityLabel("Zoom Out")
-      Button {
-        page.setPageZoom(1)
-      } label: {
-        Text(page.pageZoom, format: .percent.precision(.fractionLength(0)))
-          .monospacedDigit()
-          .fixedSize()
-          .contentTransition(.numericText(value: page.pageZoom))
-          .frame(minWidth: 52)
+      HStack(spacing: 0) {
+        Button {
+          page.zoomOut()
+        } label: {
+          Image(systemName: "minus").frame(width: 40, height: 34).contentShape(.rect)
+        }
+        .foregroundStyle(canZoomOut ? AnyShapeStyle(.primary) : AnyShapeStyle(Color(.tertiaryLabel)))
+        .disabled(!canZoomOut)
+        .accessibilityLabel("Zoom Out")
+        Button {
+          page.setPageZoom(1)
+        } label: {
+          Text(page.pageZoom, format: .percent.precision(.fractionLength(0)))
+            .font(.subheadline.weight(.semibold))
+            .monospacedDigit()
+            .fixedSize()
+            .contentTransition(.numericText(value: page.pageZoom))
+            .frame(minWidth: 48)
+        }
+        .foregroundStyle(.primary)
+        .accessibilityLabel("Reset Zoom")
+        .accessibilityValue(Text(page.pageZoom, format: .percent.precision(.fractionLength(0))))
+        Button {
+          page.zoomIn()
+        } label: {
+          Image(systemName: "plus").frame(width: 40, height: 34).contentShape(.rect)
+        }
+        .foregroundStyle(canZoomIn ? AnyShapeStyle(.primary) : AnyShapeStyle(Color(.tertiaryLabel)))
+        .disabled(!canZoomIn)
+        .accessibilityLabel("Zoom In")
       }
-      .accessibilityLabel("Reset Zoom")
-      Button {
-        page.zoomIn()
-      } label: {
-        Image(systemName: "plus").frame(width: 40, height: 40).contentShape(.rect)
-      }
-      .disabled(page.pageZoom >= (WebTab.zoomLevels.last ?? 3))
-      .accessibilityLabel("Zoom In")
-      }
+      .font(.body.weight(.medium))
+      .background(Color(.tertiarySystemFill), in: .capsule)
     }
     .buttonStyle(.plain)
-    .foregroundStyle(BrowsePalette.foregroundPrimary)
-    .padding(.leading, Spacing.page)
-    .padding(.trailing, Spacing.tight)
-    .frame(minHeight: BrowseLayout.toolbarRowHeight)
-    .background(BrowsePalette.toolbarTile, in: .rect(cornerRadius: BrowseLayout.toolbarRowRadius, style: .continuous))
+    .padding(.horizontal, Spacing.page)
+    .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? Spacing.small : 0)
+    .frame(minHeight: MenuLayout.rowHeight)
     .animation(.snappy(duration: 0.2), value: page.pageZoom)
     .disabled(!isWebPage)
-    .opacity(isWebPage ? 1 : 0.4)
   }
 
-  private func row(_ symbol: String, _ title: LocalizedStringKey, detail: Text? = nil, enabled: Bool, action: @escaping () -> Void) -> some View {
+  private func icon(_ symbol: String) -> some View {
+    Image(systemName: symbol)
+      .font(.body)
+      .frame(width: iconSlot)
+      .foregroundStyle(.secondary)
+      .accessibilityHidden(true)
+  }
+
+  private func row(_ symbol: String, _ title: LocalizedStringKey, enabled: Bool = true, action: @escaping () -> Void) -> some View {
     Button {
       action()
     } label: {
-      rowLabel(symbol, title, detail: detail)
+      rowLabel(symbol, title) { EmptyView() }
     }
-    .buttonStyle(PressableStyle())
-    .foregroundStyle(BrowsePalette.foregroundPrimary)
+    .buttonStyle(MenuRowStyle())
+    .foregroundStyle(enabled ? AnyShapeStyle(.primary) : AnyShapeStyle(Color(.tertiaryLabel)))
     .disabled(!enabled)
-    .opacity(enabled ? 1 : 0.4)
   }
 
-  private func rowLabel(_ symbol: String, _ title: LocalizedStringKey, detail: Text? = nil) -> some View {
+  private func rowLabel<Accessory: View>(_ symbol: String, _ title: LocalizedStringKey, @ViewBuilder accessory: () -> Accessory) -> some View {
     HStack(spacing: Spacing.small) {
-      Image(systemName: symbol)
-        .font(.body)
-        .frame(width: iconSlot)
-        .foregroundStyle(BrowsePalette.foregroundSecondary)
+      icon(symbol)
       Text(title)
         .frame(maxWidth: .infinity, alignment: .leading)
-      if let detail {
-        detail
-          .font(.subheadline)
-          .monospacedDigit()
-          .foregroundStyle(BrowsePalette.foregroundSecondary)
-          .fixedSize()
-      }
+      accessory()
     }
     .padding(.horizontal, Spacing.page)
-    .frame(minHeight: BrowseLayout.toolbarRowHeight)
-    .background(BrowsePalette.toolbarTile, in: .rect(cornerRadius: BrowseLayout.toolbarRowRadius, style: .continuous))
+    .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? Spacing.small : 0)
+    .frame(minHeight: MenuLayout.rowHeight)
     .contentShape(.rect)
   }
 
@@ -393,5 +469,13 @@ struct ToolbarSheet: View {
     let text = app.currentQuery(for: tab)
     dismiss()
     app.browse.presentSearch(from: .page, text: text, selectsAll: true)
+  }
+}
+
+private struct MenuRowStyle: ButtonStyle {
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .background(configuration.isPressed ? Color(.systemFill) : .clear)
+      .animation(.easeOut(duration: configuration.isPressed ? 0 : 0.2), value: configuration.isPressed)
   }
 }

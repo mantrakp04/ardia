@@ -25,6 +25,7 @@ final class BrowseSession {
   var desktopTabs: Set<UUID> = []
   var stepRequest: StepRequest?
   var deckRequested = false
+  var tones: [UUID: PageTone] = [:]
 
   struct StepRequest: Equatable {
     let id = UUID()
@@ -61,6 +62,11 @@ final class BrowseSession {
     summaryRequestID = tabID
   }
 
+  func setTone(_ tone: PageTone, for id: UUID) {
+    guard tones[id] != tone else { return }
+    tones[id] = tone
+  }
+
   func dismissSearch() {
     search = nil
   }
@@ -74,7 +80,4 @@ final class BrowseSession {
       self?.titleFeedback = nil
     }
   }
-
-
-
 }

@@ -2,32 +2,68 @@ import ArdiaDesign
 import ArdiaIntelligence
 import SwiftUI
 
-struct DiveDeeperSection: View {
+struct FollowUpChips: View {
   var questions: [String]
   var onAsk: (String) -> Void
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      SectionHeading(BrowseCopy.diveDeeper)
-      ForEach(questions, id: \.self) { question in
-        Button { onAsk(question) } label: {
-          HStack(alignment: .firstTextBaseline, spacing: 10) {
+    ScrollView(.horizontal) {
+      HStack(spacing: 8) {
+        ForEach(questions, id: \.self) { question in
+          Button { onAsk(question) } label: {
             Text(question)
-              .font(.body.weight(.medium))
-              .multilineTextAlignment(.leading)
-              .frame(maxWidth: .infinity, alignment: .leading)
-            Image(systemName: "arrow.up.right")
-              .font(.subheadline.weight(.semibold))
+              .font(.body.weight(.semibold))
+              .foregroundStyle(IntelligencePalette.ink)
+              .lineLimit(1)
+              .padding(.horizontal, 16)
+              .frame(minHeight: 44)
+              .background(IntelligencePalette.followUpFill, in: .capsule)
           }
-          .foregroundStyle(IntelligencePalette.ink)
-          .padding(.horizontal, 16)
-          .padding(.vertical, 12)
-          .background(IntelligencePalette.followUpFill, in: .rect(cornerRadius: 14, style: .continuous))
+          .buttonStyle(PressableCardStyle())
+          .accessibilityHint("Browses for this in a new tab")
         }
-        .buttonStyle(PressableCardStyle())
-        .accessibilityHint("Browses for this question in a new tab")
       }
+      .padding(.horizontal, Spacing.page)
     }
+    .scrollIndicators(.hidden)
+    .scrollClipDisabled()
+  }
+}
+
+struct QuoteCard: View {
+  var quote: BrowseQuote
+  var source: BrowseSource
+  var onOpen: () -> Void
+
+  var body: some View {
+    Button(action: onOpen) {
+      VStack(alignment: .leading, spacing: 14) {
+        Text("\u{201C}\(quote.text)\u{201D}")
+          .font(.body)
+          .foregroundStyle(.secondary)
+          .multilineTextAlignment(.leading)
+          .fixedSize(horizontal: false, vertical: true)
+        HStack(spacing: 10) {
+          FaviconImage(iconURL: source.faviconURL?.absoluteString, pageURL: source.url.absoluteString, size: 20)
+          VStack(alignment: .leading, spacing: 0) {
+            Text(source.title)
+              .font(.subheadline)
+              .foregroundStyle(.primary)
+              .lineLimit(1)
+            Text(SourceCardModel.host(source.url))
+              .font(.footnote)
+              .foregroundStyle(.secondary)
+              .lineLimit(1)
+          }
+        }
+      }
+      .padding(16)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(IntelligencePalette.quoteBackground, in: .rect(cornerRadius: 16, style: .continuous))
+    }
+    .buttonStyle(PressableCardStyle())
+    .accessibilityElement(children: .combine)
+    .accessibilityHint("Opens \(source.siteName)")
   }
 }
 
@@ -76,7 +112,7 @@ struct SectionHeading: View {
 
   var body: some View {
     Text(text)
-      .font(.title3.weight(.bold))
+      .font(.title2.weight(.bold))
       .foregroundStyle(IntelligencePalette.ink)
       .accessibilityAddTraits(.isHeader)
   }

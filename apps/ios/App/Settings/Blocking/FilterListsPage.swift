@@ -44,7 +44,7 @@ struct FilterListsPage: View {
         }
         .disabled(source.isUpdating)
       } footer: {
-        Text("Ardia checks for new versions once a week, and when you turn a list on.")
+        Text("Checked weekly.")
       }
 
       ForEach(FilterListGroup.allCases) { group in
@@ -56,10 +56,6 @@ struct FilterListsPage: View {
             }
           } header: {
             Text(group.title)
-          } footer: {
-            if group == .builtIn {
-              Text("Lists that ship turned on match uBlock Origin’s defaults.")
-            }
           }
         }
       }
@@ -71,14 +67,10 @@ struct FilterListsPage: View {
             Text(source.myFiltersResult.ruleCount == 0 ? String(localized: "None") : FilterListWords.rules(source.myFiltersResult.ruleCount))
           }
         }
-      } footer: {
-        Text("Add any list in Adblock Plus or uBlock Origin format, or write your own rules.")
       }
 
       Section {
         Button("Restore Defaults…", role: .destructive) { isConfirmingReset = true }
-      } footer: {
-        Text("Turns uBlock Origin’s default lists back on and the rest off. My Filters stays as it is.")
       }
     }
     .settingsPage("Filter Lists")

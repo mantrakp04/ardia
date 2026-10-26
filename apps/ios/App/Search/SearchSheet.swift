@@ -12,11 +12,14 @@ struct SearchSheet<Above: View>: View {
   let initialText: String
   let selectsAll: Bool
   var fieldNamespace: Namespace.ID?
+  var focusesOnAppear = false
+  var onDismiss: (() -> Void)?
   @ViewBuilder var above: () -> Above
 
   @Environment(AppModel.self) private var app
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   @State private var model: SearchSuggestionsModel?
   @State private var text = ""
   @State private var isFocused = false
@@ -75,7 +78,7 @@ struct SearchSheet<Above: View>: View {
       fieldRow
         .padding(.top, Spacing.small)
         .padding(.bottom, Spacing.tight)
-      content
+      content(visibleHeight: height - fieldHeight - 40)
       Spacer(minLength: 0)
     }
     .frame(maxWidth: .infinity)
@@ -102,49 +105,27 @@ struct SearchSheet<Above: View>: View {
   }
 
   private var canDismiss: Bool {
-    style == .overlay || app.tabs.selectedTab != nil
+    style == .overlay || app.tabs.selectedTab != nil || onDismiss != nil
   }
 
   private var sheetBackground: some View {
     UnevenRoundedRectangle(topLeadingRadius: BrowseLayout.sheetTopRadius, topTrailingRadius: BrowseLayout.sheetTopRadius, style: .continuous)
-      .fill(isIncognito ? AnyShapeStyle(BrowsePalette.incognitoSheet) : AnyShapeStyle(.regularMaterial))
+      .fill(isIncognito || reduceTransparency ? AnyShapeStyle(.clear) : AnyShapeStyle(.regularMaterial))
       .overlay {
-        if !isIncognito {
-          UnevenRoundedRectangle(topLeadingRadius: BrowseLayout.sheetTopRadius, topTrailingRadius: BrowseLayout.sheetTopRadius, style: .continuous)
-            .fill(BrowsePalette.sheet)
-        }
+        UnevenRoundedRectangle(topLeadingRadius: BrowseLayout.sheetTopRadius, topTrailingRadius: BrowseLayout.sheetTopRadius, style: .continuous)
+          .fill(sheetTint)
       }
       .shadow(color: .black.opacity(0.12), radius: 24, y: -4)
   }
 
-  private var fieldRow: some View {
-    HStack(spacing: BrowseLayout.searchRowSpacing) {
-      if style == .home {
-        if app.sync.isEnabled {
-          sideButton("laptopcomputer", label: "Your Mac’s Tabs") { app.openSyncedSpaces() }
-        } else {
-          sideButton("archivebox", label: "Archive") { app.openArchive() }
-        }
-      }
-      field
-      if style == .home {
-        sideButton("gearshape", label: "Settings") { app.sheet = .settings }
-          .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-      }
-    }
-    .padding(.horizontal, style == .home ? Spacing.tight : BrowseLayout.searchFieldInset)
+  private var sheetTint: Color {
+    if isIncognito { return BrowsePalette.incognitoSheet }
+    return reduceTransparency ? BrowsePalette.sheetOpaque : BrowsePalette.sheet
   }
 
-  private func sideButton(_ symbol: String, label: LocalizedStringKey, action: @escaping () -> Void) -> some View {
-    Button(action: action) {
-      Image(systemName: symbol)
-        .font(.system(size: 20, weight: .regular))
-        .foregroundStyle(isIncognito ? BrowsePalette.incognitoCaption : BrowsePalette.foregroundTertiary)
-        .frame(width: 36, height: BrowseLayout.hitTarget)
-        .contentShape(.rect)
-    }
-    .buttonStyle(.plain)
-    .accessibilityLabel(label)
+  private var fieldRow: some View {
+    field
+      .padding(.horizontal, BrowseLayout.searchFieldInset)
   }
 
   private var field: some View {
@@ -170,18 +151,13 @@ struct SearchSheet<Above: View>: View {
     .frame(minHeight: fieldHeight)
     .background {
       Capsule(style: .continuous)
-        .fill(fieldFill)
+        .fill(isIncognito ? BrowsePalette.incognitoField : BrowsePalette.fieldFill)
         .overlay {
           Capsule(style: .continuous)
-            .strokeBorder(isIncognito ? Color.white.opacity(0.08) : BrowsePalette.fieldStroke, lineWidth: 1)
+            .strokeBorder(isIncognito ? Color.white.opacity(0.1) : BrowsePalette.fieldStroke, lineWidth: 1)
         }
     }
     .modifier(MatchedField(namespace: fieldNamespace))
-  }
-
-  private var fieldFill: AnyShapeStyle {
-    if isIncognito { return AnyShapeStyle(BrowsePalette.incognitoField) }
-    return AnyShapeStyle(LinearGradient(colors: [BrowsePalette.fieldTop, BrowsePalette.fieldTrailing], startPoint: .leading, endPoint: .trailing))
   }
 
   @ViewBuilder
@@ -198,7 +174,7 @@ struct SearchSheet<Above: View>: View {
       }
       .buttonStyle(.plain)
       .accessibilityLabel("Clear Text")
-    } else if !dynamicTypeSize.isAccessibilitySize {
+    } else if !dynamicTypeSize.isAccessibilitySize, !isIncognito {
       Button {
         app.browse.isVoicePresented = true
       } label: {
@@ -217,14 +193,15 @@ struct SearchSheet<Above: View>: View {
   }
 
   @ViewBuilder
-  private var content: some View {
+  private func content(visibleHeight: CGFloat) -> some View {
     let rows = model?.rows ?? []
     if isIncognito, text.isEmpty {
       Text("You’re browsing Incognito")
-        .font(.subheadline)
+        .font(.title3.weight(.semibold))
         .foregroundStyle(BrowsePalette.incognitoCaption)
-        .frame(maxWidth: .infinity)
-        .padding(.top, 120)
+        .multilineTextAlignment(.center)
+        .padding(.horizontal, Spacing.large)
+        .frame(maxWidth: .infinity, minHeight: max(visibleHeight, 80))
         .transition(.opacity)
     } else if !rows.isEmpty {
       VStack(alignment: .leading, spacing: 0) {
@@ -260,15 +237,13 @@ struct SearchSheet<Above: View>: View {
   }
 
   private func rowStack(_ rows: [SearchSuggestion]) -> some View {
-    let emphasized = highlight == nil && app.offersBrowseForMe ? rows.first(where: \.offersBrowseForMe)?.id : nil
-    return VStack(spacing: 0) {
+    VStack(spacing: 0) {
       ForEach(rows) { suggestion in
         SuggestionRowView(
           suggestion: suggestion,
           typed: text,
           highlight: highlight?.id == suggestion.id ? highlight?.target : nil,
           isIncognito: isIncognito,
-          emphasizesPill: suggestion.id == emphasized,
           offersBrowseForMe: app.offersBrowseForMe,
           onBrowseForMe: dynamicTypeSize.isAccessibilitySize ? { activate(suggestion, .browseForMe) } : nil
         )
@@ -282,10 +257,48 @@ struct SearchSheet<Above: View>: View {
             Button("Browse for Me") { activate(suggestion, .browseForMe) }
           }
         }
+        .contextMenu { rowMenu(suggestion) }
       }
     }
     .padding(.horizontal, Spacing.tight)
     .coordinateSpace(.named("rows"))
+  }
+
+  @ViewBuilder
+  private func rowMenu(_ suggestion: SearchSuggestion) -> some View {
+    switch suggestion.kind {
+    case .query:
+      Button(isIncognito ? "Search in New Tab" : "Search in Incognito Tab", systemImage: isIncognito ? "plus.square.on.square" : "eyeglasses") {
+        isFocused = false
+        model?.cancel()
+        app.isIncognito.toggle()
+        app.openSearch(suggestion.query)
+      }
+    case .calculation:
+      if let value = suggestion.copyValue {
+        Button("Copy", systemImage: "doc.on.doc") { UIPasteboard.general.string = value }
+      }
+    default:
+      if let link = suggestion.url.flatMap(URL.init(string:)) {
+        Button(isIncognito ? "Open in New Tab" : "Open in Incognito Tab", systemImage: isIncognito ? "plus.square.on.square" : "eyeglasses") {
+          openSwitchingMode(link)
+        }
+        Button("Copy Link", systemImage: "link") {
+          app.web.copyLink(link)
+          app.toasts.show(Toast(String(localized: "Copied Link"), symbol: "link"))
+        }
+        ShareLink(item: link) {
+          Label("Share", systemImage: "square.and.arrow.up")
+        }
+      }
+    }
+  }
+
+  private func openSwitchingMode(_ link: URL) {
+    isFocused = false
+    model?.cancel()
+    app.isIncognito.toggle()
+    app.openPage(link, origin: .typed)
   }
 
   private func scrub(_ rows: [SearchSuggestion]) -> some Gesture {
@@ -337,7 +350,12 @@ struct SearchSheet<Above: View>: View {
         guard canDismiss else { return }
         if value.predictedEndTranslation.height > 140 || value.translation.height > 90 {
           isFocused = false
-          app.cancelSearch()
+          if style == .home, app.tabs.selectedTab == nil, let onDismiss {
+            model?.cancel()
+            onDismiss()
+          } else {
+            app.cancelSearch()
+          }
         }
         withAnimation(Motion.snappy) { dragDismiss = 0 }
       }
@@ -347,7 +365,7 @@ struct SearchSheet<Above: View>: View {
     if model == nil { rebuildModel() }
     text = initialText
     model?.update(initialText)
-    if !app.settings.isShowingOnboarding, app.settings.autoOpensKeyboard || style == .overlay || !initialText.isEmpty {
+    if !app.settings.isShowingOnboarding, focusesOnAppear || app.settings.autoOpensKeyboard || style == .overlay || !initialText.isEmpty {
       isFocused = true
     }
     if app.offersBrowseForMe { app.intelligence.searchFieldDidBeginEditing() }

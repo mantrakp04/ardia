@@ -41,6 +41,16 @@ public struct BrowseBullet: Sendable, Codable, Hashable, Identifiable {
   }
 }
 
+public struct BrowseQuote: Sendable, Codable, Hashable {
+  public var text: String
+  public var source: Int
+
+  public init(text: String, source: Int) {
+    self.text = text
+    self.source = source
+  }
+}
+
 public struct BrowseSection: Sendable, Codable, Hashable, Identifiable {
   public var id: Int
   public var heading: String
@@ -71,13 +81,15 @@ public struct BrowsePage: Sendable, Codable, Hashable {
   public var followUps: [String]
   public var sources: [BrowseSource]
   public var heroImages: [URL]
+  public var quote: BrowseQuote?
   public var language: String?
 
   public var heroImageURL: URL? { heroImages.first }
 
   public init(
     query: String, created: Date = .now, title: String = "", answer: String = "", sections: [BrowseSection] = [],
-    followUps: [String] = [], sources: [BrowseSource] = [], heroImages: [URL] = [], language: String? = nil
+    followUps: [String] = [], sources: [BrowseSource] = [], heroImages: [URL] = [], quote: BrowseQuote? = nil,
+    language: String? = nil
   ) {
     self.version = Self.schemaVersion
     self.query = query
@@ -88,6 +100,7 @@ public struct BrowsePage: Sendable, Codable, Hashable {
     self.followUps = followUps
     self.sources = sources
     self.heroImages = heroImages
+    self.quote = quote
     self.language = language
   }
 
@@ -104,6 +117,7 @@ public struct BrowsePage: Sendable, Codable, Hashable {
     followUps = try container.decodeIfPresent([String].self, forKey: .followUps) ?? []
     sources = try container.decode([BrowseSource].self, forKey: .sources)
     heroImages = try container.decodeIfPresent([URL].self, forKey: .heroImages) ?? []
+    quote = try container.decodeIfPresent(BrowseQuote.self, forKey: .quote)
     language = try container.decodeIfPresent(String.self, forKey: .language)
   }
 

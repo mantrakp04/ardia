@@ -12,7 +12,7 @@ public enum TabsPalette {
   public static let cardShadow = Color(hex: 0x1B1640, opacity: 0.18)
   public static let cardShadowBase = Color.adaptive(light: .white, dark: Color(hex: 0x1B1C1C))
   public static let cardEdge = Color.adaptive(light: .black.opacity(0.08), dark: .white.opacity(0.12))
-  public static let headerText = Color.adaptive(light: Color(hex: 0x0E0F10, opacity: 0.72), dark: .white.opacity(0.78))
+  public static let headerText = Color.adaptive(light: Color(hex: 0x0E0F10, opacity: 0.88), dark: .white.opacity(0.92))
   public static let incognitoCard = Color(hex: 0x1C1D22)
   public static let incognitoCardRaised = Color(hex: 0x2A2B31)
   public static let archiveTile = Color(hex: 0xB059EE)
@@ -27,7 +27,7 @@ public enum TabsLayout {
   public static let cardRadius: CGFloat = 13
   public static let displayCornerRadius: CGFloat = 55
   public static let faviconSize: CGFloat = 16
-  public static let faviconRadius: CGFloat = 3
+  public static let faviconRadius: CGFloat = 4
   public static let headerSpacing: CGFloat = 6
   public static let headerGap: CGFloat = 8
   public static let barCircle: CGFloat = 35
