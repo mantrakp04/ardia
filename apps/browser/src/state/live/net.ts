@@ -23,6 +23,17 @@ export const endpoints = {
   drive: mock ? `${mock}/google/drive/v3` : "https://www.googleapis.com/drive/v3",
 };
 
+const GOOGLE_RATE_LIMIT_REASONS = ["rateLimitExceeded", "userRateLimitExceeded"];
+
+function hasGoogleRateLimitReason(body: string): boolean {
+  try {
+    const json = JSON.parse(body) as { error?: { errors?: { reason?: string }[] } };
+    return !!json.error?.errors?.some((e) => GOOGLE_RATE_LIMIT_REASONS.includes(e.reason ?? ""));
+  } catch {
+    return false;
+  }
+}
+
 export async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
   let res: Response;
   try {
@@ -35,6 +46,7 @@ export async function request<T>(url: string, init: RequestInit = {}): Promise<T
   if (res.status === 429 || (res.status === 403 && res.headers.get("x-ratelimit-remaining") === "0")) throw new LiveError("rateLimited", "Rate Limit Exceeded");
   if (!res.ok) {
     const text = await res.text().catch(() => "");
+    if (res.status === 403 && hasGoogleRateLimitReason(text)) throw new LiveError("rateLimited", "Rate Limit Exceeded");
     throw new LiveError(res.status === 403 ? "forbidden" : res.status === 404 ? "notFound" : "other", `${res.status} ${text.slice(0, 200)}`.trim());
   }
   return (await res.json()) as T;
