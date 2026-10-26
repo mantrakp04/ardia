@@ -153,6 +153,46 @@ test("a new document at the top shows the bar the last one hid (a reload, the sa
   useBrowser.getState().closeTab(tabId);
 });
 
+test("an overlay that scrolled the bar away shows it again when it goes away at the page's top", () => {
+  const tabId = hiddenTab();
+  const page = loadPage(tabId);
+  const dialog = page.overlay();
+  page.scroll(dialog, 1500);
+  assert.ok(hidden(tabId));
+  dialog.clientHeight = dialog.clientWidth = dialog.scrollTop = 0;
+  page.resized();
+  assert.ok(!hidden(tabId));
+  useBrowser.getState().closeTab(tabId);
+});
+
+test("wheeling up or pressing Home at the page's top shows the bar, not inside a scrolled overlay", () => {
+  const tabId = hiddenTab();
+  const page = loadPage(tabId);
+  const dialog = page.overlay();
+  page.scroll(dialog, 1500);
+  page.fire("wheel", { deltaY: -3, target: { parent: dialog } });
+  assert.ok(hidden(tabId));
+  page.fire("wheel", { deltaY: -3, target: page.doc });
+  assert.ok(!hidden(tabId));
+  page.scroll(dialog, 3000);
+  assert.ok(hidden(tabId));
+  dialog.scrollTop = 0;
+  page.fire("keydown", { key: "ArrowDown" });
+  assert.ok(hidden(tabId));
+  page.fire("keydown", { key: "Home" });
+  assert.ok(!hidden(tabId));
+  useBrowser.getState().closeTab(tabId);
+});
+
+test("wheeling up mid-page doesn't show the bar before the up threshold", () => {
+  const tabId = hiddenTab();
+  const page = loadPage(tabId);
+  page.scroll(page.doc, 1500);
+  page.fire("wheel", { deltaY: -3, target: page.doc });
+  assert.ok(hidden(tabId));
+  useBrowser.getState().closeTab(tabId);
+});
+
 test("a page with little to scroll never hides the bar", () => {
   const p = page({ range: 100 });
   for (let y = 5; y <= 100; y += 5) p.to(y);

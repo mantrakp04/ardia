@@ -1114,9 +1114,10 @@
       rebase(y) {
         anchor = last = y;
       },
-      start(y) {
+      atTop(y) {
+        if (y > 2 || sent === "top") return null;
         anchor = last = y;
-        sent = y <= 2 ? "top" : null;
+        sent = "top";
         return sent;
       },
       scrolled(y, range, viewport, now, user) {
@@ -1150,23 +1151,47 @@
     };
   };
   const direction = scrollDirection();
-  if (direction.start(scrollY)) send("scroll", { state: "top" });
+  const showIfAtTop = (y) => direction.atTop(y) && send("scroll", { state: "top" });
+  showIfAtTop(scrollY);
   let scroller = null;
   let scrollTarget = null;
   let inputAt = -1e9;
-  const noteInput = () => {
-    inputAt = performance.now();
-    if (!scroller && document.scrollingElement) direction.rebase((scroller = document.scrollingElement).scrollTop);
+  const docScroller = () => document.scrollingElement || document.documentElement;
+  const fillsWindow = (el) => el.clientHeight >= innerHeight * 0.5 && el.clientWidth >= innerWidth * 0.5;
+  const scrollerGone = new ResizeObserver(
+    guard(() => {
+      if (!scroller || fillsWindow(scroller)) return;
+      follow(docScroller());
+      showIfAtTop(scroller.scrollTop);
+    }),
+  );
+  const follow = (el) => {
+    scrollerGone.disconnect();
+    scroller = el;
+    if (el !== docScroller()) scrollerGone.observe(el);
+    direction.rebase(el.scrollTop);
   };
+  const UP_KEYS = new Set(["ArrowUp", "PageUp", "Home"]);
+  const towardTop = (e) =>
+    e.type === "wheel" ? e.deltaY < 0 : e.type === "keydown" && (UP_KEYS.has(e.key) || (e.key === " " && e.shiftKey));
+  const noteInput = guard((e) => {
+    inputAt = performance.now();
+    const doc = docScroller();
+    if (!doc) return;
+    if (!scroller) follow(doc);
+    if (!towardTop(e) || doc.scrollTop > 2) return;
+    if (e.type === "wheel" && scroller !== doc && !scroller.contains(e.target)) follow(doc);
+    showIfAtTop(scroller.scrollTop);
+  });
   for (const type of ["wheel", "keydown", "mousedown", "touchstart"]) addEventListener(type, noteInput, { passive: true, capture: true });
-  addEventListener("mousemove", (e) => e.buttons && noteInput(), { passive: true, capture: true });
+  addEventListener("mousemove", (e) => e.buttons && noteInput(e), { passive: true, capture: true });
   const measureScroll = guard(() => {
     const target = scrollTarget;
     scrollTarget = null;
-    const doc = document.scrollingElement || document.documentElement;
+    const doc = docScroller();
     const el = target === document || target === doc ? doc : target;
-    if (!el || !doc || (el !== doc && (el.clientHeight < innerHeight * 0.5 || el.clientWidth < innerWidth * 0.5))) return;
-    if (el !== scroller) direction.rebase((scroller = el).scrollTop);
+    if (!el || !doc || (el !== doc && !fillsWindow(el))) return;
+    if (el !== scroller) follow(el);
     const now = performance.now();
     const state = direction.scrolled(el.scrollTop, el.scrollHeight - el.clientHeight, innerHeight, now, now - inputAt < 1000);
     if (state) send("scroll", { state });
