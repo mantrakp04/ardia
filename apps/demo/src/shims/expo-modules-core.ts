@@ -16,7 +16,7 @@ const moduleValues: Record<string, Record<string, unknown>> = {
   ArdiaTranslate: { available: false, userLanguages: () => ["en"], languageName: (id: string) => id },
   ArdiaGlassEffect: { isLiquidGlass: () => true },
   ArdiaShell: { readDocument: () => null, writeDocument: () => {}, removeDocument: () => {}, copyText: () => {} },
-  ArdiaSystem: { fileExists: () => false, hapticTick: () => {} },
+  ArdiaSystem: { fileExists: () => false, hapticTick: () => {}, menuShortcuts: async () => [] },
 };
 
 export function provideNativeModule(name: string, values: Record<string, unknown>) {

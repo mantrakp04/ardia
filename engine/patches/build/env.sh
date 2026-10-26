@@ -5,9 +5,9 @@ export AC_REPO="${AC_REPO:-$_ac_repo}"
 unset _ac_repo
 export DEPOT_TOOLS_UPDATE=0
 export PATH="$CB/depot_tools:$PATH"
-export CHROMIUM_VERSION=155.0.8059.84
-export HELIUM_TAG=0.19.4
-export HELIUM_MACOS_TAG=0.19.4.1
+export CHROMIUM_VERSION=156.0.8078.47
+export HELIUM_TAG=0.20.1
+export HELIUM_MACOS_TAG=0.20.1.1
 export HELIUM_DIR="$CB/helium"
 export HELIUM_MACOS_DIR="$CB/helium-macos"
 export GN_OUT_CONFIGS=Release_GN_arm64

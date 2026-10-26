@@ -1,3 +1,4 @@
+import { setDownloadSettings, type DownloadSettings } from "../../../state/downloads/actions";
 import {
   checkForUpdates,
   setAsDefaultBrowser,
@@ -5,24 +6,29 @@ import {
   setAutomaticUpdateDownloads,
   setLaunchAtLogin,
   setUpdateChannel,
-  Symbol,
   type UpdateChannel,
-} from "@ardia/shell";
-import { useEffect } from "react";
+} from "../../../state/app/appSettings";
+import { pickFolder } from "../../../state/app/system";
+import { Symbol, Button, font, Group, PopUp, Toggle } from "../../ui";
+import { useEffect, useState } from "react";
 import { AppState, Text, View } from "react-native";
-import { useTheme } from "../../../lib/theme";
-import { useBrowser } from "../../../store/browser";
-import { SHARING_COPY } from "../../../telemetry/copy";
-import { Anchor, Button, Group, PopUp, Row, SectionHeader, Toggle, useFormColors } from "../controls";
-import { defaultBrowser, loginItem, updater } from "../paneData";
-import { store, useResource } from "../resources";
-import { openImport } from "../windows";
+import { useTheme } from "../../ui/theme";
+import { updateSettings } from "../../../state/settings/actions";
+import { currentSettings } from "../../../state/browser/current";
+import { useProfiles, useSettings } from "../../../state/browser/hooks";
+import { engineProfile } from "../../../state/browser/model";
+import { SHARING_COPY } from "../../../state/telemetry/copy";
+import { Anchor, Row, SectionHeader } from "../Form";
+import { defaultBrowser, downloadSettings, loginItem, updater } from "../../../state/settings/paneData";
+import { store, useResource } from "../../../state/settings/resources";
+import { openImport } from "../../../state/settings/settingsWindows";
+import { SetupCodeRow } from "./SetupCodeRow";
 
 const APP = "Ardia";
 
 export function GeneralPane() {
-  const settings = useBrowser((s) => s.settings);
-  const update = useBrowser((s) => s.updateSettings);
+  const settings = useSettings((s) => s);
+  const update = updateSettings;
   const [loginStatus = "notRegistered", refreshLogin] = useResource(loginItem);
 
   return (
@@ -96,6 +102,8 @@ export function GeneralPane() {
         </Row>
       </Group>
 
+      <DownloadsSection />
+
       <UpdatesSection />
 
       <SectionHeader title="Import" />
@@ -103,8 +111,60 @@ export function GeneralPane() {
         <Row anchor="general.importBrowser">
           <Button title="Import…" onPress={openImport} />
         </Row>
+        <SetupCodeRow />
       </Group>
     </View>
+  );
+}
+
+const homeRelative = (path: string) => path.replace(/^\/Users\/[^/]+(?=\/|$)/, "~");
+
+function DownloadsSection() {
+  const profiles = useProfiles();
+  const [profileId, setProfileId] = useState(() => currentSettings().defaultProfileId);
+  const profile = engineProfile(profileId);
+  const [current] = useResource(downloadSettings, profile);
+  const others = [...new Set(profiles.map((p) => engineProfile(p.id)))].filter((p) => p !== profile);
+  const apply = (patch: Partial<Pick<DownloadSettings, "folder" | "askWhereToSave">>, targets = [profile]) =>
+    void Promise.all(targets.map((p) => setDownloadSettings(patch, p).then((next) => store(downloadSettings, [p], next), () => {})));
+  const change = async () => {
+    if (!current) return;
+    const folder = await pickFolder(current.folder, "Use Folder");
+    if (folder) apply({ folder });
+  };
+
+  return (
+    <>
+      <SectionHeader
+        title="Downloads"
+        description={profiles.length > 1 ? "Each profile saves to its own folder." : undefined}
+        action={
+          profiles.length > 1 ? (
+            <PopUp value={profileId} options={profiles.map((p) => ({ value: p.id, title: p.name }))} onChange={setProfileId} />
+          ) : undefined
+        }
+      />
+      <Group>
+        <Row
+          anchor="general.downloadsFolder"
+          description={current ? (current.managed ? `${homeRelative(current.folder)}, set by your organization.` : homeRelative(current.folder)) : undefined}
+        >
+          <Button title="Change…" disabled={!current || current.managed} onPress={() => void change()} />
+        </Row>
+        <Row anchor="general.askWhereToSave">
+          <Toggle value={current?.askWhereToSave ?? false} disabled={!current || current.managed} onChange={(v) => apply({ askWhereToSave: v })} />
+        </Row>
+        {others.length > 0 && (
+          <Row anchor="general.downloadsAllProfiles">
+            <Button
+              title="Use for All Profiles"
+              disabled={!current || current.managed}
+              onPress={() => current && apply({ folder: current.folder, askWhereToSave: current.askWhereToSave }, others)}
+            />
+          </Row>
+        )}
+      </Group>
+    </>
   );
 }
 
@@ -164,7 +224,6 @@ function UpdatesSection() {
 
 function DefaultBrowserBanner() {
   const theme = useTheme();
-  const colors = useFormColors();
   const [isDefault, reload] = useResource(defaultBrowser);
   useEffect(() => {
     const sub = AppState.addEventListener("change", () => void reload());
@@ -181,18 +240,18 @@ function DefaultBrowserBanner() {
         flexDirection: "row",
         alignItems: "center",
         gap: 12,
-        backgroundColor: colors.group,
+        backgroundColor: theme.groupFill,
         borderWidth: 1,
-        borderColor: colors.groupBorder,
+        borderColor: theme.groupBorder,
       }}
     >
       <Symbol
         name={isDefault ? "checkmark.seal.fill" : "safari"}
         size={20}
-        color={isDefault ? "#34C759" : theme.icon}
+        color={isDefault ? theme.success : theme.icon}
         style={{ width: 28, height: 28 }}
       />
-      <Text style={{ flex: 1, fontSize: 13, color: theme.textPrimary }}>
+      <Text style={{ flex: 1, ...font.body, color: theme.textPrimary }}>
         {isDefault ? `${APP} is your default browser` : `${APP} works best as your default browser`}
       </Text>
       {!isDefault && <Button title={`Set ${APP} as Default`} kind="primary" onPress={() => void setAsDefaultBrowser().then((v) => store(defaultBrowser, [], v))} />}

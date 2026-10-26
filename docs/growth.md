@@ -78,7 +78,7 @@ takes effect with the first release after 0.2.13):
   User-Agent is the app's Sparkle (`Ardia/<version> Sparkle/…`) count. Nothing else is passed on: no IP
   (so no country), no headers, no cookie, a fixed `distinct_id` (`update-check`). The redirect never waits on
   the count; if the collector is down or slow, the update still works.
-- **First launch:** the app adds `first=1` to its first check ever (`packages/shell/ios/Updater.swift`,
+- **First launch:** the app adds `first=1` to its first check ever (`packages/shell/ios/AppUpdater.swift`,
   Sparkle's `feedParameters`). Sparkle checks at the first launch (automatic checks are on in Info.plist),
   so `first` per version ≈ copies of that version that were installed and opened. A first check made while
   offline isn't retried as first.
@@ -134,6 +134,15 @@ owner's Mac ──▶ ardia.dev/_ch/ (read-only ClickHouse user)   ardia.dev/_re
   geoip processor accepts; the footer carries DB-IP's required link), then drops it. To update it, bump the month,
   the mirror version and the hash in `collector/Dockerfile`. It adds no location to events that carry `$geoip_disable` (the app
   sends it). No IP is ever stored.
+- **Daily count (always on, added 2026-10-25):** besides the opt-in events, every copy sends
+  one `daily_active` event per UTC day (`$lib` `ardia-daily`), sharing on or off, about 30 s after launch and again
+  after UTC midnight if it's still open. It carries `$app_version`, `channel`, `os_major`, `arch`, `$environment`
+  and the flags `first`, `daily`, `weekly`, `monthly`, computed on the Mac when it sees a new day, against the last day it counted (never earlier, so a
+  clock set back sends nothing). `telemetry-daily.json` stores only that day and the pings not yet sent (up to 35,
+  saved to disk before sending, sent oldest first), so a retry after a relaunch reuses its `uuid` and doesn't
+  count twice, and every day of an outage still counts. No persistent ID: `uuid` and `distinct_id` are a fresh random UUID
+  each day, and `$geoip_disable` keeps the address out. Counting rows gives DAU; counting `weekly`/`monthly`/`first`
+  rows gives WAU, MAU and new installs (Brave's usage-ping model). Sender: `apps/browser/src/state/telemetry/daily.ts`.
 - **Tables** (`infra/telemetry/clickhouse/schema.sql`): `telemetry.events` is the one to query (PostHog's
   shape: `uuid, event, distinct_id, session_id, timestamp, properties Map, elements_chain, source`). It unions
   `otel_logs` (new data) and `posthog_events` (PostHog Cloud history, 2026-09-29 09:04 → 2026-09-30).

@@ -26,6 +26,8 @@ public class WindowBackdropModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ArdiaWindowBackdrop")
 
+    AsyncFunction("holdKeyLook") { (on: Bool) in WindowTreatmentView.holdsKeyLook = on }.runOnQueue(.main)
+
     View(WindowBackdropView.self) {
       Prop("colors") { (view: WindowBackdropView, colors: [String]) in view.setColors(colors) }
       Prop("vibrancy") { (view: WindowBackdropView, on: Bool) in view.setVibrancy(on) }
@@ -45,6 +47,7 @@ public class WindowBackdropModule: Module {
       Prop("themeGrain") { (view: WindowBackdropView, v: Double) in view.setCustom { $0.grain = v } }
       Prop("themeTexture") { (view: WindowBackdropView, v: String) in view.setCustom { $0.texture = v } }
       Prop("themeAppearance") { (view: WindowBackdropView, v: String) in view.setCustom { $0.appearance = v } }
+      Prop("themeAngle") { (view: WindowBackdropView, v: Double) in view.setCustom { $0.angle = v } }
     }
   }
 }
@@ -58,6 +61,7 @@ public class ThemeSwatchModule: Module {
       Prop("grain") { (view: ThemeSwatchView, v: Double) in view.setGrain(v) }
       Prop("texture") { (view: ThemeSwatchView, v: String) in view.setTexture(v) }
       Prop("padLightness") { (view: ThemeSwatchView, v: Double) in view.setPadLightness(v) }
+      Prop("angle") { (view: ThemeSwatchView, v: Double) in view.setAngle(v) }
     }
   }
 }

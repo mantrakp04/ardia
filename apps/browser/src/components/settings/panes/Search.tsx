@@ -1,19 +1,27 @@
 import { engineHost, type SearchEngine } from "@ardia/core";
-import { Symbol } from "@ardia/shell";
+import { Symbol, Button, font, Group, Sheet, TextField, Toggle, weight } from "../../ui";
 import { useState } from "react";
 import { Text, View } from "react-native";
-import { useTheme } from "../../../lib/theme";
-import { useBrowser } from "../../../store/browser";
-import { controllingSearchExtension, defaultSearchEngine, searchEngines } from "../../../store/settings";
-import { setEnabled } from "../../extensions/state";
-import { Favicon, IconButton } from "../../primitives";
-import { Button, Group, Row, SectionHeader, Sheet, TextField, Toggle, useFormColors } from "../controls";
-import { closeSettingsSheet, showSettingsSheet } from "../sheet";
-import { openSettings } from "../windows";
+import { useTheme } from "../../ui/theme";
+import { useSettings } from "../../../state/browser/hooks";
+import { currentProfileOrder } from "../../../state/browser/current";
+import { addCustomEngine, removeCustomEngine, setSearchEngine, updateCustomEngine, updateSettings } from "../../../state/settings/actions";
+import { engineProfile } from "../../../state/browser/model";
+import { controllingSearchExtension, defaultSearchEngine, searchEngines } from "../../../state/settings/settings";
+import { extensionsProfileId, setEnabled } from "../../../state/extensions/actions";
+import { Favicon } from "../../favicon/Favicon";
+import { Row, SectionHeader } from "../Form";
+import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
+import { openSettings } from "../../../state/settings/settingsWindows";
+
+function manageExtensionsOf(profile: string) {
+  const profileId = currentProfileOrder().find((id) => engineProfile(id) === profile);
+  openSettings("extensions", extensionsProfileId(profileId));
+}
 
 export function SearchPane() {
-  const settings = useBrowser((s) => s.settings);
-  const colors = useFormColors();
+  const settings = useSettings((s) => s);
+  const theme = useTheme();
   const engines = searchEngines(settings);
   const builtIn = engines.filter((e) => !e.custom && !e.extension);
   const custom = engines.filter((e) => e.custom);
@@ -28,11 +36,11 @@ export function SearchPane() {
       <Group>
         {controlling && (
           <Row
-            icon={<Symbol name="puzzlepiece.extension" size={13} color={colors.accent} style={{ width: 18, height: 18 }} />}
+            icon={<Symbol name="puzzlepiece.extension" size={13} color={theme.formAccent} style={{ width: 18, height: 18 }} />}
             title={`${controlling.extensionName || "An extension"} is controlling this setting`}
             description="To change your default search engine, disable the extension or manage its settings."
           >
-            <Button title="Manage" onPress={() => openSettings("extensions")} />
+            <Button title="Manage" onPress={() => manageExtensionsOf(controlling.profile)} />
             <Button title="Disable" onPress={() => void setEnabled(controlling.profile, controlling.extensionId, false)} />
           </Row>
         )}
@@ -68,7 +76,14 @@ export function SearchPane() {
       <SectionHeader title="Suggestions" />
       <Group>
         <Row anchor="search.suggestions">
-          <Toggle value={settings.searchSuggestions} onChange={(v) => useBrowser.getState().updateSettings({ searchSuggestions: v })} />
+          <Toggle value={settings.searchSuggestions} onChange={(v) => updateSettings({ searchSuggestions: v })} />
+        </Row>
+      </Group>
+
+      <SectionHeader title="Text selection" />
+      <Group>
+        <Row anchor="search.showSelectionSearch">
+          <Toggle value={settings.showSelectionSearch} onChange={(v) => updateSettings({ showSelectionSearch: v })} />
         </Row>
       </Group>
     </View>
@@ -77,7 +92,6 @@ export function SearchPane() {
 
 function EngineRow({ engine, selected, locked, editable }: { engine: SearchEngine; selected: boolean; locked: boolean; editable?: boolean }) {
   const theme = useTheme();
-  const colors = useFormColors();
   const description = engine.extension
     ? `${engine.keyword ? `${engine.keyword} · ` : ""}Added by ${engine.extension.name || "an extension"}`
     : engine.custom
@@ -86,15 +100,15 @@ function EngineRow({ engine, selected, locked, editable }: { engine: SearchEngin
   return (
     <Row icon={<Favicon url={`https://${engineHost(engine)}`} />} title={engine.name} description={description}>
       {editable && (
-        <IconButton icon="pencil" size={11} box={24} radius={6} onPress={() => showSettingsSheet(<EngineSheet engine={engine} />)} tooltip="Edit" />
+        <Button variant="icon" icon="pencil" size={11} box={24} radius={6} onPress={() => showSettingsSheet(<EngineSheet engine={engine} />)} tooltip="Edit" />
       )}
       {selected ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 5, minWidth: 92, justifyContent: "flex-end" }}>
-          <Symbol name="checkmark" size={11} weight="semibold" color={colors.accent} style={{ width: 14, height: 14 }} />
-          <Text style={{ fontSize: 12, color: theme.textSecondary }}>Default</Text>
+          <Symbol name="checkmark" size={11} weight="semibold" color={theme.formAccent} style={{ width: 14, height: 14 }} />
+          <Text style={{ ...font.small, color: theme.textSecondary }}>Default</Text>
         </View>
       ) : (
-        <Button title="Make Default" disabled={locked} onPress={() => useBrowser.getState().setSearchEngine(engine.id)} style={{ minWidth: 92 }} />
+        <Button title="Make Default" disabled={locked} onPress={() => setSearchEngine(engine.id)} style={{ minWidth: 92 }} />
       )}
     </Row>
   );
@@ -107,12 +121,11 @@ function EngineSheet({ engine }: { engine?: SearchEngine }) {
   const [url, setUrl] = useState(engine?.url ?? "");
   const [error, setError] = useState<string | null>(null);
   const save = () => {
-    const s = useBrowser.getState();
     const input = { name, keyword, url };
     let result: string | null;
-    if (engine) result = s.updateCustomEngine(engine.id, input);
+    if (engine) result = updateCustomEngine(engine.id, input);
     else {
-      const added = s.addCustomEngine(input);
+      const added = addCustomEngine(input);
       result = "error" in added ? added.error : null;
     }
     if (result) return setError(result);
@@ -120,24 +133,24 @@ function EngineSheet({ engine }: { engine?: SearchEngine }) {
   };
   const field = (label: string, value: string, set: (v: string) => void, placeholder: string) => (
     <View style={{ marginTop: 12 }}>
-      <Text style={{ fontSize: 11.5, marginBottom: 5, color: theme.textSecondary }}>{label}</Text>
+      <Text style={{ ...font.footnote, marginBottom: 5, color: theme.textSecondary }}>{label}</Text>
       <TextField value={value} onChangeText={set} placeholder={placeholder} onSubmit={save} onEscape={closeSettingsSheet} />
     </View>
   );
   return (
     <Sheet width={440} onClose={closeSettingsSheet}>
-      <Text style={{ fontSize: 15, fontWeight: "600", color: theme.textPrimary }}>{engine ? "Edit Search Engine" : "Add Search Engine"}</Text>
+      <Text style={{ ...font.heading, fontWeight: weight.semibold, color: theme.textPrimary }}>{engine ? "Edit Search Engine" : "Add Search Engine"}</Text>
       {field("Name", name, setName, "Wikipedia")}
       {field("Shortcut", keyword, setKeyword, "w")}
       {field("URL with %s in place of the query", url, setUrl, "https://en.wikipedia.org/w/index.php?search=%s")}
-      {error && <Text style={{ fontSize: 12, marginTop: 10, color: "#FF453A" }}>{error}</Text>}
+      {error && <Text style={{ ...font.small, marginTop: 10, color: theme.destructive }}>{error}</Text>}
       <View style={{ flexDirection: "row", gap: 8, marginTop: 18 }}>
         {engine && (
           <Button
             title="Delete"
             kind="destructive"
             onPress={() => {
-              useBrowser.getState().removeCustomEngine(engine.id);
+              removeCustomEngine(engine.id);
               closeSettingsSheet();
             }}
           />

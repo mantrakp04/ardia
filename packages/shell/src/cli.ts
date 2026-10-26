@@ -1,4 +1,5 @@
-import { requireOptionalNativeModule, type EventSubscription } from "expo-modules-core";
+import type { EventSubscription } from "expo-modules-core";
+import { optionalNativeModule } from "./nativeModules";
 
 export type CliInstallResult = {
   ok: boolean;
@@ -11,11 +12,13 @@ export type CliInstallResult = {
   lines: string[];
 };
 
-const Cli = requireOptionalNativeModule<{
+export type CliNative = {
   installedVersion(): string | null;
   install(): Promise<CliInstallResult>;
   addListener(name: "onInstallLine", listener: (e: { line: string }) => void): EventSubscription;
-}>("ArdiaCli");
+};
+
+const Cli = optionalNativeModule("ArdiaCli");
 
 export const installedCliVersion = () => Cli?.installedVersion() ?? null;
 

@@ -1,0 +1,463 @@
+---
+import type { GetStaticPaths } from "astro";
+import { Picture } from "astro:assets";
+import Base from "../../layouts/Base.astro";
+import Header from "../../components/Header.astro";
+import Footer from "../../components/Footer.astro";
+import DownloadButton from "../../components/DownloadButton.astro";
+import SendToMac from "../../components/SendToMac.astro";
+import NotesBody from "../../components/NotesBody.astro";
+import { NIGHTLY, VERSION } from "../../data/release";
+import { isoDate, releasePath, releases, type Release } from "../../data/releaseNotes";
+import hills from "../../assets/paint/hills.png";
+import sun from "../../assets/paint/sun.png";
+
+export const getStaticPaths = (async () => {
+  const all = await releases(2);
+  return all.map((release) => {
+    const channel = all.filter((r) => r.nightly === release.nightly);
+    const i = channel.indexOf(release);
+    return { params: { version: release.version }, props: { release, newer: channel[i - 1], older: channel[i + 1] } };
+  });
+}) satisfies GetStaticPaths;
+
+interface Props {
+  release: Release;
+  newer?: Release;
+  older?: Release;
+}
+const { release: r, newer, older } = Astro.props;
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+const home = new URL(import.meta.env.BASE_URL, Astro.site).href;
+const index = new URL("release-notes/", home).href;
+const url = new URL(releasePath(r.version), home).href;
+const name = `Ardia ${r.version}`;
+const headline = r.headline.replace(/\.$/, "");
+const title = `${name} release notes: ${headline}`.length <= 70 ? `${name} release notes: ${headline}` : `${name} release notes`;
+const longDate = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+const published = isoDate(r.date);
+const isCurrent = r.version === VERSION;
+const organization = { "@type": "Organization", name: "Ardia", url: home, logo: new URL("apple-touch-icon.png", home).href };
+const jsonLd = [
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    headline: `${name}: ${r.headline}`,
+    description: r.description,
+    url,
+    mainEntityOfPage: url,
+    datePublished: published,
+    dateModified: published,
+    image: new URL("og.png", home).href,
+    inLanguage: "en",
+    author: organization,
+    publisher: organization,
+    isPartOf: { "@type": "CollectionPage", name: "Ardia release notes", url: index },
+    about: {
+      "@type": "SoftwareApplication",
+      name: "Ardia",
+      softwareVersion: r.version,
+      applicationCategory: "BrowserApplication",
+      operatingSystem: "macOS",
+      url: home,
+    },
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Ardia", item: home },
+      { "@type": "ListItem", position: 2, name: "Release notes", item: index },
+      { "@type": "ListItem", position: 3, name, item: url },
+    ],
+  },
+];
+---
+
+<Base title={title} description={r.description} jsonLd={jsonLd} article={{ published }} noindex={r.nightly}>
+  <Header home={`${base}/`} current="notes" />
+  <main class="release">
+    <section class="masthead" aria-labelledby="release-title">
+      <div class="wrap mast-grid">
+        <nav class="crumbs label" aria-label="Breadcrumb">
+          <a href={`${base}/release-notes/`}>Release notes</a>
+          <span aria-hidden="true">/</span>
+          <span aria-current="page">{r.version}</span>
+        </nav>
+        <p class="label meta">
+          {r.nightly && <span class="nightly-tag">Nightly</span>}
+          <time datetime={published}>{longDate.format(r.date)}</time>
+          {r.summary && <span class="tally">{r.summary}</span>}
+        </p>
+        <h1 class="headline" id="release-title">
+          <span class:list={["poster", "version", { nightly: r.nightly }]}>
+            <span class="visually-hidden">Ardia </span>{r.version}<span class="visually-hidden">: </span>
+          </span>
+          <span class="headline-text">{r.headline}</span>
+        </h1>
+        <div class="mast-art" aria-hidden="true">
+          <Picture class="mast-sun" src={sun} alt="" formats={["avif"]} fallbackFormat="webp" widths={[120, 200]} sizes="100px" loading="eager" />
+          <Picture
+            class="mast-hills"
+            src={hills}
+            alt=""
+            formats={["avif"]}
+            fallbackFormat="webp"
+            widths={[320, 520]}
+            sizes="(max-width: 640px) 46vw, 300px"
+            loading="eager"
+          />
+        </div>
+      </div>
+      <span class="grass" aria-hidden="true"></span>
+    </section>
+
+    <article class="body paint" aria-labelledby="release-title">
+      <div class="wrap">
+        {
+          r.nightly && (
+            <p class="nightly-note">
+              A nightly: one fix, shipped the day it was made.{" "}
+              <a
+                class="link"
+                href={NIGHTLY}
+                data-track="download_clicked"
+                data-track-version="nightly"
+                data-track-channel="nightly"
+                data-track-location="release_notes">Get the nightly</a
+              >, or wait for the next stable, which rolls it in.
+            </p>
+          )
+        }
+        <NotesBody html={r.html} />
+
+        <nav class="pager" aria-label="More releases">
+          {
+            older ? (
+              <a class="turn older" href={`${base}/${releasePath(older.version)}`} rel="prev">
+                <span class="label">Older</span>
+                <span class="poster turn-version">{older.version}</span>
+                <span class="turn-headline">{older.headline}</span>
+              </a>
+            ) : (
+              <span class="turn older first">
+                <span class="label">Older</span>
+                <span class="turn-headline">{r.nightly ? "The first nightly." : "Nothing. This is where it starts."}</span>
+              </span>
+            )
+          }
+          <a class="turn all" href={`${base}/release-notes/#${r.version}`}>
+            <span class="label">All of them</span>
+            <span class="turn-headline">Every release on one page</span>
+          </a>
+          {
+            newer && (
+              <a class="turn newer" href={`${base}/${releasePath(newer.version)}`} rel="next">
+                <span class="label">Newer</span>
+                <span class="poster turn-version">{newer.version}</span>
+                <span class="turn-headline">{newer.headline}</span>
+              </a>
+            )
+          }
+        </nav>
+      </div>
+    </article>
+
+    <section class="end paint edge" aria-labelledby="end-title">
+      <div class="wrap end-inner">
+        <p class="label kicker">{isCurrent ? "The latest one" : `Now on ${VERSION}`}</p>
+        <h2 class="poster end-title" id="end-title">{isCurrent ? "Still wet." : "It kept going."}</h2>
+        <p class="end-line">
+          Ardia is a free Mac browser with Arc’s sidebar and Dia’s polish, on real Chromium.{" "}
+          <a class="link" href={`${base}/benchmarks/`}>See how fast</a>, or <a class="link" href={`${base}/try/`}>click around the demo</a> first.
+        </p>
+        <DownloadButton location="release_notes" class="not-phone sun-btn" />
+        <SendToMac location="release_notes" main />
+      </div>
+    </section>
+  </main>
+  <Footer />
+</Base>
+
+<style>
+  .masthead {
+    --sky-top: #bccfd9;
+    --sky-mid: #e1e4dc;
+    --sky-low: #f7e5c2;
+    position: relative;
+    overflow: hidden;
+    padding: clamp(32px, 5vw, 72px) 0 clamp(72px, 9vw, 128px);
+    background-color: var(--sky-mid);
+    background-image: var(--impasto-soft), linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 46%, var(--sky-low) 100%);
+    background-size: 640px, 100% 100%;
+    background-blend-mode: soft-light, normal;
+  }
+  .mast-grid {
+    position: relative;
+  }
+  .crumbs {
+    display: flex;
+    gap: 10px;
+    color: var(--ink-2);
+    margin-bottom: clamp(24px, 3vw, 40px);
+  }
+  .crumbs a {
+    text-decoration: none;
+  }
+  .crumbs a:hover {
+    color: var(--ink);
+    text-decoration: underline;
+  }
+  .meta {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 0;
+    color: var(--ink-2);
+  }
+  .meta > * + *::before {
+    content: "·";
+    margin: 0 10px;
+    color: var(--ink-3);
+  }
+  .meta > .nightly-tag + *::before {
+    content: none;
+  }
+  .nightly-tag {
+    display: inline-flex;
+    align-items: center;
+    margin-right: 10px;
+    padding: 1px 7px 0;
+    border-radius: 3px;
+    background-color: var(--night);
+    color: var(--night-ink);
+    letter-spacing: 0.08em;
+  }
+  .headline {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    gap: 14px;
+    max-width: 62rem;
+    margin-top: 14px;
+    font-weight: 560;
+    font-stretch: 106%;
+    letter-spacing: -0.03em;
+  }
+  .version {
+    position: relative;
+    justify-self: start;
+    isolation: isolate;
+    font-size: clamp(4.4rem, 2.2rem + 7vw, 9.6rem);
+    line-height: 0.86;
+    letter-spacing: -0.005em;
+  }
+  .version.nightly {
+    font-size: clamp(2.8rem, 1.8rem + 3.4vw, 5rem);
+  }
+  .version::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    left: -0.16em;
+    right: -0.2em;
+    bottom: 0.02em;
+    height: 0.42em;
+    border-radius: 45% 55% 40% 60% / 60% 40% 60% 40%;
+    background-color: var(--sun);
+    background-image: var(--impasto);
+    background-size: 160px;
+    background-blend-mode: soft-light;
+    opacity: 0.9;
+    rotate: -1.4deg;
+    transform-origin: 0 50%;
+  }
+  .version.nightly::before {
+    background-color: #a99bd0;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .version::before {
+      animation: swipe 800ms var(--ease-out) 200ms both;
+    }
+  }
+  @keyframes swipe {
+    from {
+      scale: 0 1;
+    }
+  }
+  .headline-text {
+    max-width: 17em;
+    font-size: clamp(1.8rem, 1.2rem + 2.1vw, 3.2rem);
+    line-height: 1.04;
+    text-wrap: balance;
+  }
+  .mast-art {
+    position: absolute;
+    right: calc(var(--gutter) - 2%);
+    top: clamp(-24px, -1vw, 0px);
+    width: min(300px, 26vw);
+    aspect-ratio: 931 / 702;
+    pointer-events: none;
+  }
+  .mast-art :global(.mast-sun) {
+    position: absolute;
+    left: 42.86%;
+    top: 0;
+    width: 26.85%;
+    height: auto;
+  }
+  .mast-art :global(.mast-hills) {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: auto;
+  }
+  .grass {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -2px;
+    height: clamp(40px, 6vw, 84px);
+    background: url("../../assets/paint/grass.svg") 0 100% / auto 100% repeat-x;
+    pointer-events: none;
+  }
+
+  .body {
+    --bg: var(--noon);
+    --wash: linear-gradient(180deg, #e9ead8 0%, var(--noon) 30%, var(--golden) 100%);
+    padding: clamp(40px, 6vw, 88px) 0 clamp(72px, 9vw, 128px);
+  }
+  .body :global(.notes) {
+    margin-top: 0;
+  }
+  .nightly-note {
+    max-width: 40em;
+    margin-bottom: clamp(28px, 4vw, 44px);
+    padding: 14px 16px 15px;
+    border-radius: 4px;
+    border: 1px solid var(--rule);
+    background: rgb(255 255 255 / 0.28);
+    font-size: var(--t-small);
+    color: var(--ink-2);
+  }
+
+  .pager {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: clamp(10px, 1.4vw, 18px);
+    max-width: 56rem;
+    margin-top: clamp(48px, 6vw, 88px);
+    padding-top: 20px;
+    border-top: 2px solid var(--ink);
+  }
+  .turn {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px 18px 18px;
+    border-radius: 4px;
+    border: 1px solid var(--rule-strong);
+    background: rgb(255 255 255 / 0.28);
+    color: var(--ink);
+    text-decoration: none;
+    transition:
+      background-color 160ms,
+      translate 300ms var(--ease-out);
+  }
+  .turn .label {
+    color: var(--ink-2);
+  }
+  .turn.first {
+    border-style: dashed;
+    background: none;
+    color: var(--ink-2);
+  }
+  @media (hover: hover) {
+    a.turn:hover {
+      background: rgb(255 255 255 / 0.5);
+      translate: 0 -2px;
+    }
+  }
+  .turn-version {
+    font-size: clamp(1.8rem, 1.4rem + 1.2vw, 2.6rem);
+    line-height: 0.9;
+  }
+  .turn-headline {
+    font-size: var(--t-small);
+    line-height: 1.35;
+    text-wrap: balance;
+  }
+  .turn.all {
+    justify-content: flex-end;
+  }
+  .turn.all .turn-headline {
+    font-weight: 560;
+  }
+  .turn.newer {
+    text-align: right;
+    align-items: flex-end;
+  }
+
+  .end {
+    --bg: var(--dusk);
+    --bg-top: #e3a585;
+    --wash: linear-gradient(180deg, #e3a585 0%, var(--dusk) 50%, var(--dusk-late) 100%);
+    --ink-2: #3f3437;
+    --ink-3: #5a4a4e;
+    --dab: var(--sun);
+    padding: clamp(64px, 8vw, 120px) 0 clamp(96px, 10vw, 160px);
+  }
+  .end-inner {
+    max-width: calc(var(--max) * 0.62);
+    margin-inline: auto 0;
+  }
+  .end-title {
+    font-size: var(--t-h2);
+  }
+  .end-line {
+    margin: 20px 0 30px;
+    max-width: 30em;
+    font-size: var(--t-lede);
+    color: var(--ink-2);
+  }
+
+  @media (max-width: 900px) {
+    .mast-art {
+      width: min(220px, 30vw);
+    }
+    .end-inner {
+      max-width: none;
+    }
+  }
+  @media (max-width: 640px) {
+    .masthead {
+      padding-bottom: 76px;
+    }
+    .mast-art {
+      top: 0;
+      width: 30vw;
+    }
+    .version {
+      font-size: clamp(3.6rem, 19vw, 6rem);
+    }
+    .tally {
+      flex-basis: 100%;
+    }
+    .meta > .tally::before {
+      content: none;
+    }
+    .pager {
+      grid-template-columns: 1fr;
+    }
+    .turn.newer {
+      text-align: left;
+      align-items: flex-start;
+    }
+    .turn.all {
+      order: 3;
+    }
+  }
+</style>

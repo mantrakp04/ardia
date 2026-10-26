@@ -1,0 +1,342 @@
+import type { StateCreator } from "zustand";
+import type { BrowserState } from "../browser/store";
+import { innermostGroupOf, leaveGroups, syncGroupOrder } from "../groups/groups";
+import { inPinnedContainer, isPinnedRow, newId } from "../browser/model";
+import { placing } from "../pins/organize";
+import { choose } from "../settings/settings";
+import { activated, apply, removeTabs, withNewTab } from "../tabs/tabs";
+import type { BrowserWindow, SplitView, Tab } from "../browser/types";
+
+export type SplitsSlice = {
+  splits: Record<string, SplitView>;
+
+  createSplit(tabIds: string[], orientation?: SplitView["orientation"]): string;
+  openSplitPane(windowId: string, options?: OpenPaneOptions): OpenPaneResult;
+  replaceSplitPane(paneTabId: string, tabId: string): void;
+  removeTabFromSplit(tabId: string): void;
+  separateSplit(splitId: string): void;
+  updateSplit(id: string, patch: { sizes?: number[]; stackSizes?: [number, number] }): void;
+  flipSplit(splitId: string): void;
+  toggleSplitOrientation(splitId: string): void;
+  movePane(tabId: string, delta: 1 | -1): void;
+  focusPane(windowId: string, delta: 1 | -1): void;
+  toggleTabLayout(windowId: string): void;
+};
+
+export type SplitSide = "left" | "right" | "top" | "bottom";
+export type OpenPaneOptions = {
+  tabId?: string;
+  url?: string;
+  anchorTabId?: string;
+  side?: SplitSide;
+  background?: boolean;
+  adoptId?: string;
+  inPlaceOf?: string;
+};
+export type OpenPaneResult = { ok: true; tabId: string; splitId: string } | { ok: false; reason: "max" | "invalid" };
+
+export const MAX_SPLIT_PANES = 3;
+
+type SplitSlot = string[];
+
+export function slotsOf(split: Pick<SplitView, "tabIds" | "stack">): SplitSlot[] {
+  const slots: SplitSlot[] = [];
+  for (let i = 0; i < split.tabIds.length; i++) {
+    if (split.stack?.index === i) slots.push([split.tabIds[i]!, split.tabIds[++i]!]);
+    else slots.push([split.tabIds[i]!]);
+  }
+  return slots;
+}
+
+const equal = (n: number) => Array.from({ length: n }, () => 1 / n);
+
+function fromSlots(split: SplitView, slots: SplitSlot[], sizes?: number[]): SplitView {
+  const tabIds = slots.flat();
+  const stackAt = slots.findIndex((slot) => slot.length === 2);
+  const stack = stackAt >= 0 ? { index: slots.slice(0, stackAt).flat().length, sizes: split.stack?.sizes ?? ([0.5, 0.5] as [number, number]) } : undefined;
+  const next: SplitView = { ...split, tabIds, sizes: sizes && sizes.length === slots.length ? sizes : equal(slots.length) };
+  if (stack) next.stack = stack;
+  else delete next.stack;
+  return next;
+}
+
+export function splitOf(s: Pick<BrowserState, "splits">, tabId: string | undefined): SplitView | undefined {
+  if (!tabId) return undefined;
+  for (const v of Object.values(s.splits)) if (v.tabIds.includes(tabId)) return v;
+  return undefined;
+}
+
+export function splitRowPanes(s: Pick<BrowserState, "tabs">, split: SplitView | undefined): string[] {
+  if (!split) return [];
+  const unpinned = split.tabIds.filter((id) => s.tabs[id] && !s.tabs[id]!.pinned);
+  if (unpinned.length >= 2) return unpinned;
+  const rows = split.tabIds.filter((id) => isPinnedRow(s.tabs[id]));
+  return rows.length >= 2 ? rows : [];
+}
+
+export function withSplitRows(s: Pick<BrowserState, "tabs" | "splits">, ids: string[]): string[] {
+  const out = new Set(ids);
+  for (const id of ids) {
+    const panes = splitRowPanes(s, splitOf(s, id));
+    if (panes.includes(id)) panes.forEach((pane) => out.add(pane));
+  }
+  return out.size === ids.length ? ids : [...out];
+}
+
+export function withPinnedPanes(s: Pick<BrowserState, "tabs" | "groups" | "splits">, ids: string[]): string[] {
+  const out = new Set(ids);
+  for (const id of ids) for (const pane of splitOf(s, id)?.tabIds ?? []) if (inPinnedContainer(s, pane)) out.add(pane);
+  return out.size === ids.length ? ids : [...out];
+}
+
+export function splitRowHead(s: Pick<BrowserState, "tabs" | "splits">, order: string[], id: string): string {
+  const panes = splitRowPanes(s, splitOf(s, id));
+  return panes.includes(id) ? (order.find((x) => panes.includes(x)) ?? id) : id;
+}
+
+export function removeFromSplits(splits: Record<string, SplitView>, gone: Set<string>): Record<string, SplitView> {
+  if (!Object.values(splits).some((v) => v.tabIds.some((id) => gone.has(id)))) return splits;
+  const next: Record<string, SplitView> = {};
+  for (const v of Object.values(splits)) {
+    if (!v.tabIds.some((id) => gone.has(id))) {
+      next[v.id] = v;
+      continue;
+    }
+    const slots = slotsOf(v)
+      .map((slot) => slot.filter((id) => !gone.has(id)))
+      .filter((slot) => slot.length);
+    if (slots.flat().length < 2) continue;
+    const kept = slotsOf(v).map((slot) => slot.some((id) => !gone.has(id)));
+    const sizes = v.sizes.filter((_, i) => kept[i]);
+    const total = sizes.reduce((a, b) => a + b, 0);
+    next[v.id] = fromSlots(v, slots, total > 0 ? sizes.map((x) => x / total) : undefined);
+  }
+  return next;
+}
+
+export function sanitizeSplits(splits: Record<string, SplitView>, tabs: Record<string, Tab>): Record<string, SplitView> {
+  const next: Record<string, SplitView> = {};
+  const used = new Set<string>();
+  for (const v of Object.values(splits)) {
+    const first = tabs[v.tabIds[0] ?? ""];
+    const ok = (id: string) => tabs[id]?.windowId === v.windowId && tabs[id]?.profileId === first?.profileId && !used.has(id);
+    const gone = new Set(v.tabIds.filter((id) => !ok(id)));
+    const fixed = gone.size ? removeFromSplits({ [v.id]: v }, gone)[v.id] : v;
+    if (!fixed || fixed.tabIds.length > MAX_SPLIT_PANES) continue;
+    fixed.tabIds.forEach((id) => used.add(id));
+    next[v.id] = fixed;
+  }
+  return next;
+}
+
+function gatherPinned(s: BrowserState, anchorId: string, members: string[]): BrowserState {
+  const newcomers = members.filter((id) => id !== anchorId && s.tabs[id] && !isPinnedRow(s.tabs[id]));
+  const settled = (splitOf(s, anchorId)?.tabIds ?? []).filter((id) => !newcomers.includes(id) && isPinnedRow(s.tabs[id]));
+  if (!newcomers.length || settled.length < 2) return s;
+  const next = placing(s, newcomers, { pinned: true, row: true, beforeId: anchorId });
+  const w = next.windows[s.tabs[anchorId]!.windowId]!;
+  const block = members.filter((id) => id === anchorId || newcomers.includes(id));
+  const tabIds = w.tabIds.filter((id) => !newcomers.includes(id));
+  tabIds.splice(tabIds.indexOf(anchorId), 1, ...block);
+  return { ...next, windows: { ...next.windows, [w.id]: { ...w, tabIds } } };
+}
+
+function gather(s: BrowserState, anchorId: string, members: string[]): BrowserState {
+  const anchor = s.tabs[anchorId];
+  const w = anchor && s.windows[anchor.windowId];
+  if (!anchor || !w) return s;
+  if (anchor.pinned) return isPinnedRow(anchor) ? gatherPinned(s, anchorId, members) : s;
+  const moving = new Set(members.filter((id) => id !== anchorId && s.tabs[id] && !s.tabs[id]!.pinned));
+  if (!moving.size) return s;
+  const block = members.filter((id) => id === anchorId || moving.has(id));
+  const tabIds = w.tabIds.filter((id) => !moving.has(id));
+  tabIds.splice(tabIds.indexOf(anchorId), 1, ...block);
+  const window: BrowserWindow = { ...w, tabIds };
+  let groups = leaveGroups(s.groups, moving);
+  const group = innermostGroupOf(s.groups, anchorId);
+  if (group && groups[group.id]) groups = { ...groups, [group.id]: { ...groups[group.id]!, tabIds: [...groups[group.id]!.tabIds, ...moving] } };
+  return { ...s, windows: { ...s.windows, [w.id]: window }, groups: syncGroupOrder(groups, window) };
+}
+
+function placedAfterSplit(s: BrowserState, split: SplitView, tabId: string): BrowserState {
+  const w = s.windows[split.windowId];
+  if (!w || s.tabs[tabId]?.pinned) return s;
+  const tabIds = w.tabIds.filter((id) => id !== tabId);
+  const last = Math.max(...split.tabIds.map((id) => tabIds.indexOf(id)));
+  tabIds.splice(last + 1, 0, tabId);
+  const window: BrowserWindow = { ...w, tabIds };
+  return { ...s, windows: { ...s.windows, [w.id]: window }, groups: syncGroupOrder(s.groups, window) };
+}
+
+function withPane(existing: SplitView | undefined, anchorId: string, tabId: string, side: SplitSide, windowId: string): SplitView | null {
+  const horizontal = side === "left" || side === "right";
+  const before = side === "left" || side === "top";
+  if (!existing) {
+    return {
+      id: newId("split"),
+      windowId,
+      tabIds: before ? [tabId, anchorId] : [anchorId, tabId],
+      orientation: horizontal ? "horizontal" : "vertical",
+      sizes: [0.5, 0.5],
+    };
+  }
+  if (existing.tabIds.length >= MAX_SPLIT_PANES) return null;
+  const slots = slotsOf(existing);
+  const k = slots.findIndex((slot) => slot.includes(anchorId));
+  if (k < 0) return null;
+  if ((existing.orientation === "horizontal") === horizontal) {
+    slots.splice(before ? k : k + 1, 0, [tabId]);
+    return fromSlots(existing, slots);
+  }
+  slots[k] = before ? [tabId, anchorId] : [anchorId, tabId];
+  return { ...fromSlots(existing, slots, existing.sizes), stack: { index: slots.slice(0, k).flat().length, sizes: [0.5, 0.5] } };
+}
+
+export const createSplitsSlice: StateCreator<BrowserState, [], [], SplitsSlice> = (set, get) => ({
+  splits: {},
+
+  createSplit(tabIds, orientation = "horizontal") {
+    const s = get();
+    const tabs = [...new Set(tabIds)].map((id) => s.tabs[id]).filter((t): t is Tab => !!t);
+    const first = tabs[0];
+    if (tabs.length < 2 || tabs.length > MAX_SPLIT_PANES || !first) return "";
+    if (tabs.some((t) => t.windowId !== first.windowId || t.profileId !== first.profileId)) return "";
+    const ids = tabs.map((t) => t.id);
+    const splits = removeFromSplits(s.splits, new Set(ids));
+    const split: SplitView = { id: newId("split"), windowId: first.windowId, tabIds: ids, orientation, sizes: equal(ids.length) };
+    set(gather({ ...s, splits: { ...splits, [split.id]: split } }, first.id, ids));
+    return split.id;
+  },
+
+  openSplitPane(windowId, o = {}) {
+    let s = get();
+    const w = s.windows[windowId];
+    const anchorId = o.anchorTabId ?? (w ? w.activeTabIds[w.profileId] : undefined);
+    const anchor = anchorId ? s.tabs[anchorId] : undefined;
+    if (!w || !anchor || anchor.windowId !== windowId) return { ok: false, reason: "invalid" };
+    const existing = Object.values(s.splits).find((v) => v.tabIds.includes(anchor.id));
+    const replaced = o.inPlaceOf && o.inPlaceOf !== anchor.id && existing?.tabIds.includes(o.inPlaceOf) ? o.inPlaceOf : undefined;
+    if (existing && existing.tabIds.length >= MAX_SPLIT_PANES && !replaced) return { ok: false, reason: "max" };
+
+    let tabId = o.tabId;
+    if (tabId) {
+      const t = s.tabs[tabId];
+      if (!t || tabId === anchor.id || t.windowId !== windowId || t.profileId !== anchor.profileId) return { ok: false, reason: "invalid" };
+      s = { ...s, splits: removeFromSplits(s.splits, new Set([tabId])) };
+    } else {
+      [s, tabId] = withNewTab(s, windowId, { url: o.url, adoptId: o.url ? o.adoptId : undefined, profileId: anchor.profileId, openerId: o.url ? anchor.id : undefined, background: true });
+    }
+    const current = existing && s.splits[existing.id];
+    if (replaced && current) {
+      const split = { ...current, tabIds: current.tabIds.map((id) => (id === replaced ? tabId : id)) };
+      s = gather(s, anchor.id, split.tabIds);
+      s = placedAfterSplit({ ...s, splits: { ...s.splits, [split.id]: split } }, split, replaced);
+      if (!o.background) s = apply(s, activated(s, tabId));
+      set(s);
+      return { ok: true, tabId, splitId: split.id };
+    }
+    const split = withPane(current, anchor.id, tabId, o.side ?? "right", windowId);
+    if (!split) return { ok: false, reason: "max" };
+    s = gather({ ...s, splits: { ...s.splits, [split.id]: split } }, anchor.id, split.tabIds);
+    if (!o.background) s = apply(s, activated(s, tabId));
+    set(s);
+    return { ok: true, tabId, splitId: split.id };
+  },
+
+  replaceSplitPane(paneTabId, tabId) {
+    let s = get();
+    const split = splitOf(s, paneTabId);
+    const pane = s.tabs[paneTabId];
+    const tab = s.tabs[tabId];
+    if (!split || !pane || !tab || split.tabIds.includes(tabId) || tab.windowId !== pane.windowId || tab.profileId !== pane.profileId) return;
+    s = { ...s, splits: removeFromSplits(s.splits, new Set([tabId])) };
+    s = gather(s, paneTabId, [paneTabId, tabId]);
+    const current = s.splits[split.id]!;
+    s = { ...s, splits: { ...s.splits, [split.id]: { ...current, tabIds: current.tabIds.map((id) => (id === paneTabId ? tabId : id)) } } };
+    s = removeTabs(s, [paneTabId], false);
+    set(apply(s, activated(s, tabId)));
+  },
+
+  removeTabFromSplit(tabId) {
+    set((s) => {
+      const split = splitOf(s, tabId);
+      if (!split) return {};
+      const splits = removeFromSplits(s.splits, new Set([tabId]));
+      if (!splits[split.id]) return { splits };
+      const w = s.windows[split.windowId]!;
+      const rest = split.tabIds.filter((id) => id !== tabId);
+      const tabIds = w.tabIds.filter((id) => id !== tabId);
+      const last = Math.max(...rest.map((id) => tabIds.indexOf(id)));
+      tabIds.splice(last + 1, 0, tabId);
+      const window = s.tabs[tabId]?.pinned ? w : { ...w, tabIds };
+      return { splits, windows: { ...s.windows, [w.id]: window }, groups: syncGroupOrder(s.groups, window) };
+    });
+  },
+
+  separateSplit(splitId) {
+    set((s) => {
+      const { [splitId]: _, ...splits } = s.splits;
+      return { splits };
+    });
+  },
+
+  updateSplit(id, { sizes, stackSizes }) {
+    set((s) => {
+      const split = s.splits[id];
+      if (!split) return {};
+      const next = { ...split };
+      if (sizes && sizes.length === split.sizes.length) next.sizes = sizes;
+      if (stackSizes && split.stack) next.stack = { ...split.stack, sizes: stackSizes };
+      return { splits: { ...s.splits, [id]: next } };
+    });
+  },
+
+  flipSplit(splitId) {
+    set((s) => {
+      const split = s.splits[splitId];
+      if (!split) return {};
+      return { splits: { ...s.splits, [splitId]: fromSlots(split, slotsOf(split).reverse(), [...split.sizes].reverse()) } };
+    });
+  },
+
+  toggleSplitOrientation(splitId) {
+    set((s) => {
+      const split = s.splits[splitId];
+      if (!split) return {};
+      const orientation = split.orientation === "horizontal" ? "vertical" : "horizontal";
+      return { splits: { ...s.splits, [splitId]: { ...split, orientation } } };
+    });
+  },
+
+  movePane(tabId, delta) {
+    set((s) => {
+      const split = splitOf(s, tabId);
+      if (!split) return {};
+      const i = split.tabIds.indexOf(tabId);
+      const j = i + delta;
+      if (j < 0 || j >= split.tabIds.length) return {};
+      const tabIds = [...split.tabIds];
+      [tabIds[i], tabIds[j]] = [tabIds[j]!, tabIds[i]!];
+      return { splits: { ...s.splits, [split.id]: { ...split, tabIds } } };
+    });
+  },
+
+  focusPane(windowId, delta) {
+    const s = get();
+    const w = s.windows[windowId];
+    const active = w?.activeTabIds[w.profileId];
+    const split = splitOf(s, active);
+    if (!split || !active) return;
+    const i = split.tabIds.indexOf(active);
+    get().activate(split.tabIds[(i + delta + split.tabIds.length) % split.tabIds.length]!);
+  },
+
+  toggleTabLayout(windowId) {
+    set((s) => {
+      const w = s.windows[windowId];
+      if (!w) return {};
+      const tabLayout = (w.tabLayout ?? s.settings.tabLayout) === "sidebar" ? "top" : "sidebar";
+      return { windows: { ...s.windows, [windowId]: { ...w, tabLayout } }, settings: choose(s.settings, { tabLayout }) };
+    });
+  },
+});

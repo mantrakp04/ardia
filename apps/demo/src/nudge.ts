@@ -1,5 +1,5 @@
-import { clickTab } from "../../browser/src/components/sidebar/actions";
-import { useBrowser } from "../../browser/src/store/browser";
+import { clickTab } from "../../browser/src/state/sidebar/actions";
+import { useBrowser } from "../../browser/src/state/browser/store";
 
 const TARGET_TAB = "t_react";
 const CURSOR_SIZE = 26;

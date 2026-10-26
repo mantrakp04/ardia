@@ -102,12 +102,18 @@ export default defineConfig({
       { find: /^react-native\/Libraries\/Animated\/useAnimatedProps$/, replacement: `${reactNativeWeb}/dist/vendor/react-native/Animated/useAnimatedProps.js` },
       { find: /^react-native(-macos)?$/, replacement: `${shims}react-native.tsx` },
       { find: /^expo-modules-core$/, replacement: `${shims}expo-modules-core.ts` },
+      { find: /^(?:\.\.\/)+platform\/webDemo$/, replacement: `${shims}webDemo.ts` },
       { find: /^@ardia\/(shell|ardiacore|shaders|sync|import)$/, replacement: `${shims}$1.tsx` },
       ...Object.entries(realPackages).map(([name, path]) => ({ find: new RegExp(`^@ardia-real/${name}$`), replacement: path })),
     ],
   },
   optimizeDeps: {
     include: ["react-native-web", "lucide-react", "zustand", "zustand/react/shallow", "react-dom/client"],
+  },
+  server: {
+    host: "127.0.0.1",
+    port: 5191,
+    strictPort: true,
   },
   build: {
     target: "es2022",

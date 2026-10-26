@@ -10,8 +10,7 @@ public struct ArcSidebar: Equatable {
           let containers = sidebar["containers"] as? [Any] else {
       throw ImportError.unreadable("StorableSidebar.json is not an Arc sidebar")
     }
-    guard let box = containers.compactMap({ $0 as? [String: Any] })
-      .first(where: { $0["spaces"] != nil || $0["items"] != nil }) else { return ArcSidebar() }
+    guard let box = mainContainer(containers) else { return ArcSidebar() }
 
     var items: [String: [String: Any]] = [:]
     for item in objects(box["items"]) {
@@ -120,6 +119,24 @@ public struct ArcSidebar: Equatable {
     return String(data: data, encoding: .utf8)
   }
 
+  static func mainContainer(_ containers: [Any]) -> [String: Any]? {
+    let boxes = containers.map { $0 as? [String: Any] ?? [:] }
+    let holdsSidebar = { (i: Int) in boxes[i]["spaces"] != nil || boxes[i]["items"] != nil }
+    let after = { (i: Int, marker: String) in i > 0 && boxes[i - 1][marker] != nil }
+    let index = boxes.indices.first { holdsSidebar($0) && after($0, "global") }
+      ?? boxes.indices.first { holdsSidebar($0) && !after($0, "littleBrowser") }
+    return index.map { boxes[$0] }
+  }
+
+  static func liveFolderRole(_ list: Any?) -> String? {
+    guard let live = (list as? [String: Any])?["automaticLiveFolderData"],
+          JSONSerialization.isValidJSONObject([live]),
+          let data = try? JSONSerialization.data(withJSONObject: [live]),
+          let text = String(data: data, encoding: .utf8)?.lowercased() else { return nil }
+    if text.contains("bitbucket") { return "liveBitbucketPullRequests" }
+    return text.contains("github") ? "liveGitHubPullRequests" : nil
+  }
+
   static func objects(_ any: Any?) -> [[String: Any]] {
     (any as? [Any] ?? []).compactMap { $0 as? [String: Any] }
   }
@@ -172,6 +189,9 @@ public struct ArcSidebar: Equatable {
         var link = BookmarkNode.link(t.customTitle ?? t.title, t.url)
         if t.customTitle != nil { link.pageTitle = t.title }
         out.append(link)
+      } else if let role = liveFolderRole(data["list"]) {
+        guard seen.insert(id).inserted else { continue }
+        out.append(.folder(customTitle(item) ?? "Pull Requests", [], role: role))
       } else if data["list"] != nil {
         let kids = tree(of: id, items: items, seen: &seen, depth: depth + 1)
         out.append(.folder(customTitle(item) ?? "Folder", kids))

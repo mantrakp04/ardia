@@ -1,5 +1,5 @@
 import { defineConfig } from "astro/config";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,15 +7,31 @@ import { constants, gzipSync } from "node:zlib";
 
 function demo() {
   let base = "/";
+  let devServer;
+  const demoDir = fileURLToPath(new URL("../demo/", import.meta.url));
+  const stopDevServer = () => {
+    devServer?.kill();
+    devServer = undefined;
+  };
   return {
     name: "ardia:demo",
     hooks: {
       "astro:config:done": ({ config }) => {
         base = config.base.endsWith("/") ? config.base : `${config.base}/`;
       },
+      "astro:server:setup": ({ logger }) => {
+        if (process.env.PUBLIC_DEMO_URL || devServer) return;
+        devServer = spawn("pnpm", ["-C", demoDir, "exec", "vite", "--logLevel", "warn"], { stdio: ["ignore", "inherit", "inherit"] });
+        devServer.on("exit", (code) => {
+          if (code) logger.warn("the demo dev server exited; if 127.0.0.1:5191 is already serving it, that one is used");
+          devServer = undefined;
+        });
+        process.once("exit", stopDevServer);
+        logger.info("demo dev server on http://127.0.0.1:5191/");
+      },
+      "astro:server:done": stopDevServer,
       "astro:build:done": ({ dir, logger }) => {
         const outDir = fileURLToPath(new URL("demo/", dir));
-        const demoDir = fileURLToPath(new URL("../demo/", import.meta.url));
         execFileSync("pnpm", ["-C", demoDir, "exec", "vite", "build", "--base", `${base}demo/`, "--outDir", outDir, "--emptyOutDir", "--logLevel", "warn"], { stdio: "inherit" });
         logger.info(`built the demo into ${outDir}`);
       },

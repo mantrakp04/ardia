@@ -1,0 +1,26 @@
+diff --git a/content/browser/media/session/media_session_impl.cc b/content/browser/media/session/media_session_impl.cc
+--- a/content/browser/media/session/media_session_impl.cc
++++ b/content/browser/media/session/media_session_impl.cc
+@@ -53,6 +53,8 @@
+ #if BUILDFLAG(IS_ANDROID)
+ #include "content/browser/media/session/media_session_android.h"
+ #endif  // BUILDFLAG(IS_ANDROID)
++
++#include "ardia/core/ac_content_hooks.h"  // nogncheck
+ 
+ namespace content {
+ 
+@@ -2414,5 +2416,13 @@
+ PAGE_USER_DATA_KEY_IMPL(MediaSessionImpl::PageData);
+ 
+ WEB_CONTENTS_USER_DATA_KEY_IMPL(MediaSessionImpl);
++
++bool ArdiaMainFrameHandlesEnterPictureInPicture(WebContents* contents) {
++  MediaSessionImpl* session = contents ? MediaSessionImpl::Get(contents) : nullptr;
++  return session &&
++         session->ShouldRouteAction(
++             media_session::mojom::MediaSessionAction::kEnterPictureInPicture) &&
++         session->GetRoutedFrame() == contents->GetPrimaryMainFrame();
++}
+ 
+ }  // namespace content

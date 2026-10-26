@@ -13,7 +13,7 @@ export const deploy = ({ secret, service }: any) => ({
     "ph-clickhouse": {
       type: "server",
       minInstances: 1,
-      memory: "4GB",
+      memory: "8GB",
       ports: { 8123: { protocol: "tcp" }, 9000: { protocol: "tcp" } },
       dockerfilePath: "clickhouse/Dockerfile",
       persistentVolumes: { chdata: { path: "/data", sizeGb: 20 } },

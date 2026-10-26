@@ -9,25 +9,27 @@ import {
   setFilterListEnabled,
   setSiteSetting,
   setZoom,
+  type ClearSiteDataResult,
   type ContentBlockerState,
   type FilterList,
   type FilterListCategory,
   type SiteSettings,
   type SiteSettingType,
   type SiteSettingValue,
-} from "@ardia/ardiacore";
-import { confirm } from "@ardia/shell";
+} from "../../../state/site/siteSettings";
+import { confirm } from "../../../state/app/system";
 import { useEffect, useState } from "react";
 import { Image, ScrollView, Text, View } from "react-native";
-import { useTheme } from "../../../lib/theme";
-import { useBrowser } from "../../../store/browser";
-import { useProfiles } from "../../../store/hooks";
-import { engineProfile } from "../../../store/model";
-import { Favicon } from "../../primitives";
-import { Button, Checkbox, Group, PopUp, Row, SectionHeader, Sheet, Toggle } from "../controls";
-import { appLinks, contentBlocker, siteOrigins, zoomLevels } from "../paneData";
-import { useResource } from "../resources";
-import { closeSettingsSheet, showSettingsSheet } from "../sheet";
+import { useTheme } from "../../ui/theme";
+import { currentSettings } from "../../../state/browser/current";
+import { useProfiles, useSettings } from "../../../state/browser/hooks";
+import { engineProfile } from "../../../state/browser/model";
+import { Button, Checkbox, font, Group, PopUp, Sheet, Toggle, weight } from "../../ui";
+import { Favicon } from "../../favicon/Favicon";
+import { Row, SectionHeader } from "../Form";
+import { appLinks, contentBlocker, siteOrigins, zoomLevels } from "../../../state/settings/paneData";
+import { useResource } from "../../../state/settings/resources";
+import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { ShareDiagnosticsSection } from "./ShareDiagnostics";
 
 const CATEGORIES: { id: FilterListCategory; toggle: string; section: string; anchor?: string }[] = [
@@ -117,7 +119,7 @@ export function PrivacyPane() {
       <AppLinks />
       <ZoomLevels />
       {blocker && (
-        <Text style={{ marginTop: 14, fontSize: 11.5, color: theme.textTertiary }}>
+        <Text style={{ marginTop: 14, ...font.footnote, color: theme.textTertiary }}>
           {`${(blocker.stats.networkFilters ?? 0).toLocaleString()} network and ${(blocker.stats.cosmeticFilters ?? 0).toLocaleString()} cosmetic rules loaded.`}
         </Text>
       )}
@@ -139,8 +141,8 @@ function FilterListsSheet() {
   };
   return (
     <Sheet width={500} onClose={closeSettingsSheet}>
-      <Text style={{ fontSize: 15, fontWeight: "600", color: theme.textPrimary }}>Advanced Ad Block Settings</Text>
-      <Text style={{ fontSize: 12, marginTop: 4, color: theme.textSecondary }}>Block common components found across the web by using additional rules and filters.</Text>
+      <Text style={{ ...font.heading, fontWeight: weight.semibold, color: theme.textPrimary }}>Advanced Ad Block Settings</Text>
+      <Text style={{ ...font.small, marginTop: 4, color: theme.textSecondary }}>Block common components found across the web by using additional rules and filters.</Text>
       <ScrollView style={{ maxHeight: 420, marginTop: 8 }}>
         {CATEGORIES.map((c) => {
           const lists = blocker?.lists.filter((l) => l.category === c.id) ?? [];
@@ -162,7 +164,7 @@ function FilterListsSheet() {
         })}
       </ScrollView>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 16 }}>
-        <Text style={{ flex: 1, fontSize: 11.5, color: theme.textTertiary }}>
+        <Text style={{ flex: 1, ...font.footnote, color: theme.textTertiary }}>
           {blocker?.version ? `Blocking by uBlock Origin ${blocker.version}, included with Ardia. Its lists update on their own.` : ""}
         </Text>
         <Button title="Done" kind="primary" onPress={closeSettingsSheet} />
@@ -172,7 +174,7 @@ function FilterListsSheet() {
 }
 
 function ZoomLevels() {
-  const profileId = useBrowser((s) => s.settings.defaultProfileId);
+  const profileId = useSettings((s) => s.defaultProfileId);
   const profiles = useProfiles();
   const [selected, setSelected] = useState(profileId);
   const [loaded, reload] = useResource(zoomLevels, engineProfile(selected));
@@ -228,7 +230,7 @@ const VALUE_OPTIONS: { value: SiteSettingValue; title: string }[] = [
 
 function SitePermissions() {
   const profiles = useProfiles();
-  const [profileId, setProfileId] = useState(() => useBrowser.getState().settings.defaultProfileId);
+  const [profileId, setProfileId] = useState(() => currentSettings().defaultProfileId);
   const [loaded, reload] = useResource(siteOrigins, engineProfile(profileId));
   const origins = loaded ?? null;
   const refresh = () => void reload();
@@ -266,7 +268,7 @@ function SitePermissions() {
 
 function AppLinks() {
   const profiles = useProfiles();
-  const [profileId, setProfileId] = useState(() => useBrowser.getState().settings.defaultProfileId);
+  const [profileId, setProfileId] = useState(() => currentSettings().defaultProfileId);
   const [loaded, reload] = useResource(appLinks, engineProfile(profileId));
   const allowed = loaded ?? null;
   const refresh = () => void reload();
@@ -312,7 +314,7 @@ function SiteSheet({ profileId, origin, onChanged }: { profileId: string; origin
   const profile = engineProfile(profileId);
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   const [status, setStatus] = useState("");
-  const load = () => void getSiteSettings(profile, origin).then(setSettings).catch(() => {});
+  const load = () => void getSiteSettings(profile, origin).catch((): SiteSettings => ({}) as SiteSettings).then(setSettings).catch(() => {});
   useEffect(load, []);
   const set = async (type: SiteSettingType, value: SiteSettingValue) => {
     await setSiteSetting(profile, origin, type, value);
@@ -323,7 +325,7 @@ function SiteSheet({ profileId, origin, onChanged }: { profileId: string; origin
     <Sheet width={460} onClose={closeSettingsSheet}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         <Favicon url={origin} size={20} />
-        <Text style={{ flex: 1, fontSize: 15, fontWeight: "600", color: theme.textPrimary }}>{origin.replace(/^https?:\/\//, "")}</Text>
+        <Text style={{ flex: 1, ...font.heading, fontWeight: weight.semibold, color: theme.textPrimary }}>{origin.replace(/^https?:\/\//, "")}</Text>
       </View>
       <ScrollView style={{ maxHeight: 380, marginTop: 12 }}>
         <Group>
@@ -352,12 +354,12 @@ function SiteSheet({ profileId, origin, onChanged }: { profileId: string; origin
         <Button
           title="Clear Site Data"
           onPress={() =>
-            void clearSiteData(profile, origin).then((r) =>
+            void clearSiteData(profile, origin).catch((): ClearSiteDataResult => ({ cookies: false, storage: false })).then((r) =>
               setStatus(r.cookies === false ? "Site data cleared." : `Cleared ${r.cookies} cookie${r.cookies === 1 ? "" : "s"} and site data.`),
             )
           }
         />
-        <Text style={{ flex: 1, fontSize: 12, color: theme.textSecondary }}>{status}</Text>
+        <Text style={{ flex: 1, ...font.small, color: theme.textSecondary }}>{status}</Text>
         <Button title="Done" kind="primary" onPress={closeSettingsSheet} />
       </View>
     </Sheet>

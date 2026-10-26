@@ -43,7 +43,7 @@
 //                               sample     main-thread `sample`s, idle and while switching and scrolling
 //                               prepare    prepare the app copies and exit (see --prepared)
 //     --env K=V               repeatable: extra environment for every instance (DYLD_INSERT_LIBRARIES is appended to
-//                             the marker library). Instances stay muted; don't pass ARDIA_ALLOW_AUDIO.
+//                             the marker library). Instances stay muted; don't pass ARDIA_INSTANCE allowAudio.
 //     --frames-n <n>          repetitions of each interaction per run in frames (default 8; framecounts uses at most 3)
 //     --frames-only <regex>   frames, framecounts: only the interactions whose name matches (case-insensitive)
 //     --frames-sample         frames: `sample` the app over the first repetition of each interaction (<out>/frames-sample/*.txt)
@@ -114,7 +114,7 @@
 //   new window → on screen with its content newWindow   the later of that and acmark's commit for that window
 //   new window → first paint / first frame  newWindow   the window's page's FCP / first rAF
 //   ⌘T → …, keystroke → suggestions         journeyRun  newtabkey: acperf postkeys (CGEventPostToPid into this pid) → the app's field timing
-//                                                        (journeys.ts + ArdiaCoreFieldTiming.mm; sharing on in the bench's data folder,
+//                                                        (journeys.ts + ArdiaFieldTiming.mm; sharing on in the bench's data folder,
 //                                                        every non-local fetch answered by bench-offline.js so nothing is uploaded)
 //   Enter → engine asked / started / committed / first contentful paint
 //                                           journeyRun  navigate: the same, from a real Enter; also the page's own FCP over CDP
@@ -126,7 +126,7 @@ import { loadavg, tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { appEnv } from "../../../../scripts/lib/instance.mjs";
+import { appEnv, launchVariables, mergeLaunchEnv } from "../../../../scripts/lib/instance.mjs";
 import { buildSeed } from "./seed.mjs";
 import { writeSwitches } from "./js-bench.mjs";
 import { frameRows, frameTable, framesLibrary, framesRun } from "./frames-phase.mjs";
@@ -435,11 +435,10 @@ class Instance {
     writeSwitches(this.dataDir, extra.find((e) => e.startsWith("ARDIA_SWITCHES="))?.slice(19));
     const dyld = [markerLibrary(), ...(this.frames ? [framesLibrary(toolDir, here)] : []), ...opt.env.filter((e) => e.startsWith("DYLD_INSERT_LIBRARIES=")).map((e) => e.slice(22))].join(":");
     this.t0 = Date.now();
-    const env = appEnv(this.app, {
+    const env = appEnv(this.app, mergeLaunchEnv({
       ARDIA_BACKGROUND: "1", ARDIA_DATA_DIR: this.dataDir, ARDIA_REMOTE_DEBUGGING_PORT: String(this.port),
-      ARDIA_UPDATE_FEED_URL: this.feed, DYLD_INSERT_LIBRARIES: dyld,
-      ...Object.fromEntries(extra.map((e) => [e.slice(0, e.indexOf("=")), e.slice(e.indexOf("=") + 1)])),
-    });
+      ...launchVariables({ instance: { updateFeed: this.feed } }), DYLD_INSERT_LIBRARIES: dyld,
+    }, ...extra.map((e) => ({ [e.slice(0, e.indexOf("="))]: e.slice(e.indexOf("=") + 1) }))));
     execFileSync("open", ["-g", "-n", ...Object.entries(env).flatMap(([k, v]) => ["--env", `${k}=${v}`]), this.app,
       "--args", "--mute-audio", ...(process.env.BENCH_ALLOW_APP_NAP ? [] : ["-NSAppSleepDisabled", "YES"])]);
     for (let i = 0; i < 400 && !this.pid; i++) {
@@ -590,7 +589,7 @@ async function launchRun(side, i) {
   const app = new Instance(copy ? { ...side, app: join(copy, "Ardia.app") } : side, freshDir(side, `launch-${i}`));
   const traceFile = join(app.dataDir, "startup-trace.json");
   if (opt["trace-startup"]) {
-    app.env.push(`ARDIA_CHROMIUM_SWITCHES=--trace-startup=${opt["trace-startup"]} --trace-startup-file=${traceFile} --trace-startup-duration=4 --trace-startup-format=json`);
+    app.env.push(`ARDIA_INSTANCE=chromiumSwitches=--trace-startup=${opt["trace-startup"]} --trace-startup-file=${traceFile} --trace-startup-duration=4 --trace-startup-format=json`);
   }
   try {
     await app.launch();

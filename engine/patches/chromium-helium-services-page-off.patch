@@ -108,9 +108,9 @@ and no "set up services" button that opened chrome://setup, which isn't built. H
  
 --- a/chrome/browser/resources/settings/router.ts
 +++ b/chrome/browser/resources/settings/router.ts
-@@ -38,7 +38,6 @@
-   GEMINI: Route;
+@@ -39,7 +39,6 @@ export interface SettingsRoutes {
    GEMINI_LOGIN: Route;
+   GEMINI_ENTERPRISE: Route;
    GLIC_SECTION: Route;
 -  HELIUM_SERVICES: Route;
    HISTORY_SEARCH: Route;

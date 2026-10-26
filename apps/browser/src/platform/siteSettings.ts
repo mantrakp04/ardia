@@ -1,0 +1,18 @@
+export {
+  setSiteSetting,
+  getSiteSettings,
+  getSiteSettingsOrigins,
+  resetSiteSettings,
+  clearSiteData,
+  setZoom,
+  getZoomLevels,
+  resolveExternalApp,
+  getExternalAppAllowances,
+  removeExternalAppAllowance,
+  WEBKIT_SITE_SETTINGS,
+  type ExternalAppRequest,
+  type SiteSettingType,
+  type SiteSettingValue,
+  type SiteSettings,
+  type ClearSiteDataResult,
+} from "@ardia/ardiacore";

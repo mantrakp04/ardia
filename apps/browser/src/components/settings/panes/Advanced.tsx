@@ -1,14 +1,16 @@
 import { Text, View } from "react-native";
-import { systemInfo } from "@ardia/shell";
-import { describeCliInstall, installCliInBackground, useCli } from "../../../lib/cliControl";
-import { openUrls } from "../../../lib/actions";
-import { useTheme } from "../../../lib/theme";
-import { useBrowser } from "../../../store/browser";
-import { openInternalPage } from "../../pages/urls";
-import type { BatterySaverWhen } from "../../../store/settings";
-import { Button, Group, PopUp, Row, SectionHeader, Toggle, useFormColors } from "../controls";
-import { engineVersion, widevine as widevineComponent } from "../paneData";
-import { useResource } from "../resources";
+import { systemInfo } from "../../../state/app/system";
+import { describeCliInstall, installCliInBackground, useCli } from "../../../state/app/cliControl";
+import { openUrls } from "../../../state/browser/actions";
+import { useTheme } from "../../ui/theme";
+import { useSettings } from "../../../state/browser/hooks";
+import { updateSettings } from "../../../state/settings/actions";
+import { openInternalPage } from "../../../state/pages/urls";
+import type { BatterySaverWhen } from "../../../state/settings/settings";
+import { Button, font, Group, PopUp, Toggle } from "../../ui";
+import { Row, SectionHeader } from "../Form";
+import { engineVersion, widevine as widevineComponent } from "../../../state/settings/paneData";
+import { useResource } from "../../../state/settings/resources";
 
 const REPOSITORY = "https://github.com/mantrakp04/ardia";
 const SOURCE_NOTICE = "Ardia is free software under the GNU General Public License v3, with no warranty.";
@@ -21,8 +23,8 @@ const BATTERY_SAVER_DESCRIPTIONS: Record<BatterySaverWhen, string> = {
 
 export function AdvancedPane() {
   const theme = useTheme();
-  const settings = useBrowser((s) => s.settings);
-  const update = useBrowser((s) => s.updateSettings);
+  const settings = useSettings((s) => s);
+  const update = updateSettings;
   const [info] = useResource(engineVersion);
   const [widevine] = useResource(widevineComponent);
   const widevineVersion = widevine && widevine.version !== "0.0.0.0" ? widevine.version : null;
@@ -73,7 +75,7 @@ export function AdvancedPane() {
       <SectionHeader title="Web engine" />
       <Group>
         <Row anchor="advanced.chromium" description={info ? "ArdiaCore" : undefined}>
-          <Text selectable style={{ fontSize: 13, color: theme.textSecondary }}>
+          <Text selectable style={{ ...font.body, color: theme.textSecondary }}>
             {info?.chromiumVersion ?? "…"}
           </Text>
         </Row>
@@ -104,9 +106,8 @@ export function AdvancedPane() {
 
 function CommandLineSection() {
   const theme = useTheme();
-  const colors = useFormColors();
-  const on = useBrowser((s) => s.settings.cliControl ?? false);
-  const update = useBrowser((s) => s.updateSettings);
+  const on = useSettings((s) => s.cliControl ?? false);
+  const update = updateSettings;
   const cli = useCli();
   const server = cli.server;
   const serverNote =
@@ -129,7 +130,7 @@ function CommandLineSection() {
         <Row
           anchor="advanced.cliInstall"
           description={
-            <Text selectable style={{ fontSize: 11.5, marginTop: 2, lineHeight: 15, color: cli.error && !cli.installing ? colors.destructive : theme.textSecondary }}>
+            <Text selectable style={{ ...font.footnote, marginTop: 2, lineHeight: 15, color: cli.error && !cli.installing ? theme.destructive : theme.textSecondary }}>
               {describeCliInstall(cli)}
             </Text>
           }

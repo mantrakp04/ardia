@@ -1,4 +1,5 @@
-import { requireNativeModule, type EventSubscription } from "expo-modules-core";
+import type { EventSubscription } from "expo-modules-core";
+import { nativeModule } from "./nativeModules";
 
 export type UpdaterState =
   | { available: false }
@@ -45,6 +46,17 @@ export type NotificationResponse = {
   data: unknown;
 };
 
+export type LaunchConfig = {
+  dataDirectory: string | null;
+  background: boolean;
+  isolated: boolean;
+  testInstance: boolean;
+  instance: Record<string, string>;
+  switches: Record<string, boolean>;
+  trace: string[];
+  test: Record<string, string>;
+};
+
 export type SystemInfo = {
   appName: string;
   appVersion: string;
@@ -57,7 +69,6 @@ export type SystemInfo = {
   model: string;
   memoryGB: number;
   locale: string;
-  updates: boolean;
   feedbackURL?: string | null;
   feedbackEmail?: string | null;
   videoTourURL?: string | null;
@@ -106,7 +117,7 @@ export type ScriptCommand = { id: string } & (
   | { command: "focusProfile"; profileId: string }
 );
 
-type AppModule = {
+export type AppModule = {
   addListener(name: "onNotificationResponse", listener: (e: NotificationResponse) => void): EventSubscription;
   addListener(name: "onScriptCommand", listener: (e: ScriptCommand) => void): EventSubscription;
   updaterState(): Promise<UpdaterState>;
@@ -131,8 +142,7 @@ type AppModule = {
   replyToScript(id: string, result: Record<string, unknown> | null, error: string | null): Promise<void>;
   systemInfo(): SystemInfo;
   openExternalURL(url: string): Promise<boolean>;
-  launchEnvironment(name: string): string | null;
-  killSwitchEnvironment?(name: string): string | null;
+  launchConfig(): LaunchConfig;
   playIntroMusic(cues: IntroMusicCues, muted: boolean): Promise<void>;
   setIntroMusicMuted(muted: boolean): Promise<void>;
   stopIntroMusic(fade: number): Promise<void>;
@@ -141,8 +151,8 @@ type AppModule = {
   devSnapshotWindow(windowId: string, path: string, transparent?: boolean): Promise<boolean>;
   devSetPointer(windowId: string, x: number, y: number, on: boolean): Promise<boolean>;
   devSetMouseButtons(pressed: number): Promise<boolean>;
-  devLeftEdgePointer?(windowId: string, x: number, y: number, on: boolean): Promise<boolean>;
-  devLeftEdgeStats?(reset: boolean): Promise<LeftEdgeStats>;
+  devLeftEdgePointer(windowId: string, x: number, y: number, on: boolean): Promise<boolean>;
+  devLeftEdgeStats(reset: boolean): Promise<LeftEdgeStats>;
   devHoverStats(reset: boolean): Promise<{ passes?: number; log?: [string, number, number][]; registered?: number }>;
   devMenuCommand(command: string, arg: string | null): Promise<void>;
   devTypeKeys(windowId: string, text: string, interval: number): Promise<KeyTiming[]>;
@@ -153,7 +163,7 @@ type AppModule = {
 };
 
 
-const App = requireNativeModule<AppModule>("ArdiaApp");
+const App = nativeModule("ArdiaApp");
 
 export const updaterState = () => App.updaterState();
 export const checkForUpdates = () => App.checkForUpdates();
@@ -209,9 +219,7 @@ export const playIntroMusic = (cues: IntroMusicCues, muted: boolean) => void App
 export const setIntroMusicMuted = (muted: boolean) => void App.setIntroMusicMuted(muted);
 export const stopIntroMusic = (fade = 0.4) => void App.stopIntroMusic(fade);
 export const devRenderIntroMusic = (cues: IntroMusicCues, path: string) => App.devRenderIntroMusic(cues, path);
-export const launchEnvironment = (name: string) => App.launchEnvironment(name);
-export const killSwitchEnvironment = (name: string) =>
-  typeof App.killSwitchEnvironment === "function" ? App.killSwitchEnvironment(name) : App.launchEnvironment(name);
+export const launchConfig = () => App.launchConfig();
 export const devRunAppleScript = (source: string) => App.devRunAppleScript(source);
 export const devSnapshotWindow = (windowId: string, path: string, transparent = false) =>
   transparent ? App.devSnapshotWindow(windowId, path, true) : App.devSnapshotWindow(windowId, path);
@@ -219,9 +227,9 @@ export const devSetPointer = (windowId: string, point: { x: number; y: number } 
 export const devSetMouseButtons = (pressed: boolean | null) => App.devSetMouseButtons(pressed === null ? -1 : pressed ? 1 : 0);
 export const devHoverStats = (reset = true) => App.devHoverStats(reset);
 export const devLeftEdgePointer = (windowId: string, point: { x: number; y: number } | null) =>
-  App.devLeftEdgePointer?.(windowId, point?.x ?? 0, point?.y ?? 0, !!point) ?? Promise.resolve(false);
+  App.devLeftEdgePointer(windowId, point?.x ?? 0, point?.y ?? 0, !!point);
 export type LeftEdgeStats = { wakes?: { global: number; local: number }; global?: boolean; local?: boolean; watched?: number };
-export const devLeftEdgeStats = (reset = false) => App.devLeftEdgeStats?.(reset) ?? Promise.resolve<LeftEdgeStats>({});
+export const devLeftEdgeStats = (reset = false) => App.devLeftEdgeStats(reset);
 export type KeyTiming = { due: number; handled: number; drawn: number };
 export const devTypeKeys = (windowId: string, text: string, interval: number) => App.devTypeKeys(windowId, text, interval);
 export type KeyPress = {
@@ -229,7 +237,9 @@ export type KeyPress = {
   keyCode: number;
   modifiers?: ("command" | "shift" | "option" | "control" | "function")[];
   characters?: string;
-  focus?: "window" | "page" | "devtools";
+  focus?: "window" | "page" | "devtools" | `label:${string}`;
+  repeats?: number;
+  repeatEvery?: number;
   asKey?: boolean;
   settle?: number;
   wait?: number;
@@ -245,7 +255,7 @@ export type KeyPressResult = {
 };
 export const devKeyEquivalent = (windowId: string, press: KeyPress): Promise<KeyPressResult> =>
   App.devKeyEquivalent(windowId, press);
-export type Click = { x: number; y: number; in?: "window" | "page"; asKey?: boolean; wait?: number };
-export type ClickResult = { hit?: string; firstResponder?: string; firstResponderOnClick?: string; firstResponderAfter?: string; error?: string };
+export type Click = { x: number; y: number; in?: "window" | "page"; label?: string; queued?: boolean; asKey?: boolean; wait?: number };
+export type ClickResult = { hit?: string; at?: number; firstResponder?: string; firstResponderOnClick?: string; firstResponderAfter?: string; error?: string };
 export const devClick = (windowId: string, click: Click): Promise<ClickResult> => App.devClick(windowId, click);
 export const devMenuCommand = (command: string, arg: string | null = null) => App.devMenuCommand(command, arg);

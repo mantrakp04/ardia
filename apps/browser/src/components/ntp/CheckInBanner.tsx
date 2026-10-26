@@ -1,109 +1,64 @@
-import { Surface, Symbol, VisualEffect } from "@ardia/shell";
-import { useEffect, useRef, useState } from "react";
-import { Animated, Easing, Image, Pressable, StyleSheet, Text, View } from "react-native";
-import { CHECK_IN_COPY, useDefaultBrowserCheckIn } from "../../lib/defaultBrowserCheckIn";
-import { hex, useTheme } from "../../lib/theme";
-import { useHover } from "../primitives";
+import { useState } from "react";
+import { Image, Pressable, View } from "react-native";
+import { CHECK_IN_COPY, useDefaultBrowserCheckIn } from "../../state/onboarding/defaultBrowserCheckIn";
+import { Box, radius, space, Symbol, Text } from "../ui";
+import { NtpCard, NtpCardSlot, NtpCardSurface, NtpCardTitle, useCardRetire } from "./NtpCard";
+import { useNtpColors } from "./tokens";
 
 const ICON = require("../../../assets/app-icon.png");
 
 const FRAME = { width: 282, height: 69 };
+const ICON_SIZE = 37;
+const ACTION_GAP = 3;
 
 export function CheckInBanner({ windowId }: { windowId: string }) {
   const checkIn = useDefaultBrowserCheckIn(windowId);
-  const [leaving, setLeaving] = useState<null | (() => void)>(null);
+  const [leaving, retire] = useCardRetire();
   if (!checkIn.visible && !leaving) return null;
-  const retire = (action: () => void) =>
-    setLeaving(() => () => {
-      action();
-      setLeaving(null);
-    });
   return (
-    <View style={{ position: "absolute", left: 0, top: 0, width: FRAME.width, height: FRAME.height, padding: 8 }} pointerEvents="box-none">
+    <NtpCardSlot width={FRAME.width} height={FRAME.height}>
       <Card leaving={leaving} onFeedback={() => retire(checkIn.leaveFeedback)} onClose={() => retire(checkIn.dismiss)} />
-    </View>
+    </NtpCardSlot>
   );
 }
 
 function Card({ leaving, onFeedback, onClose }: { leaving: null | (() => void); onFeedback: () => void; onClose: () => void }) {
-  const theme = useTheme();
-  const { hovered, hoverProps } = useHover();
+  const colors = useNtpColors();
   const [pressed, setPressed] = useState(false);
-  const scale = useRef(new Animated.Value(1)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.timing(opacity, { toValue: 1, duration: 300, delay: 300, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
-  }, []);
-  useEffect(() => {
-    if (leaving) return;
-    const stiffness = (2 * Math.PI / 0.2) ** 2;
-    Animated.spring(scale, { toValue: pressed ? 0.98 : hovered ? 1.02 : 1, stiffness, damping: 2 * 0.5 * Math.sqrt(stiffness), mass: 1, useNativeDriver: true }).start();
-  }, [hovered, pressed, !!leaving]);
-  useEffect(() => {
-    if (!leaving) return;
-    Animated.parallel([
-      Animated.timing(scale, { toValue: 0.98, duration: 220, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-      Animated.timing(opacity, { toValue: 0, duration: 220, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-    ]).start(() => leaving());
-  }, [leaving]);
-
   return (
-    <Animated.View {...hoverProps} style={{ flex: 1, opacity, transform: [{ scale }] }} pointerEvents={leaving ? "none" : "auto"}>
+    <NtpCard appearDelay={300} leaving={leaving} onClose={onClose} lift pressed={pressed} style={FILL}>
       <Pressable
         onPress={onFeedback}
         onPressIn={() => setPressed(true)}
         onPressOut={() => setPressed(false)}
         accessibilityRole="button"
         accessibilityLabel={`${CHECK_IN_COPY.title} ${CHECK_IN_COPY.action}`}
-        style={{ flex: 1 }}
+        style={FILL}
       >
-        <Surface
-          style={StyleSheet.absoluteFill}
-          fill={theme.dark ? "#FFFFFF17" : "#FFFFFF80"}
-          cornerRadius={10}
-          borderColor={theme.dark ? "#FFFFFF0A" : "#00000014"}
-          borderWidth={1}
-          shadowColor="#000000"
-          shadowOpacity={theme.dark ? 0.3 : 0.1}
-          shadowRadius={24}
-          shadowOffset={[0, 8]}
-        />
-        <View style={{ flex: 1, flexDirection: "row", alignItems: "center", paddingHorizontal: 10, gap: 10 }}>
-          <View style={{ width: 37, height: 37, borderRadius: 6, overflow: "hidden", alignItems: "center", justifyContent: "center" }}>
-            <Image source={ICON} style={{ width: 37, height: 37 }} />
+        <NtpCardSurface />
+        <Box row padX="ml" gap="ml" style={ROW}>
+          <View style={ICON_FRAME}>
+            <Image source={ICON} style={ICON_IMAGE} />
           </View>
-          <View style={{ flex: 1, gap: 2, paddingLeft: 4 }}>
-            <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: "500", color: theme.dark ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.8)" }}>
-              {CHECK_IN_COPY.title}
-            </Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-              <Text style={{ fontSize: 12, color: theme.dark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.53)" }}>{CHECK_IN_COPY.action}</Text>
-              <Symbol name="arrow.up.right" size={9} weight="medium" color={theme.dark ? "#FFFFFF99" : "#00000087"} style={{ width: 11, height: 11 }} />
+          <Box gap="xxs" style={TEXT_COLUMN}>
+            <NtpCardTitle>{CHECK_IN_COPY.title}</NtpCardTitle>
+            <View style={ACTION_ROW}>
+              <Text size="small" style={{ color: colors.body }}>
+                {CHECK_IN_COPY.action}
+              </Text>
+              <Symbol name="arrow.up.right" size={9} weight="medium" color={colors.arrow} style={ARROW} />
             </View>
-          </View>
-        </View>
+          </Box>
+        </Box>
       </Pressable>
-      <View style={{ position: "absolute", right: -8, top: -8, opacity: hovered ? 1 : 0 }} pointerEvents={hovered ? "auto" : "none"}>
-        <CloseButton onPress={onClose} />
-      </View>
-    </Animated.View>
+    </NtpCard>
   );
 }
 
-function CloseButton({ onPress }: { onPress: () => void }) {
-  const theme = useTheme();
-  const { hovered, hoverProps } = useHover();
-  const fill = theme.dark ? (hovered ? "#FFFFFF4D" : "#FFFFFF14") : hovered ? "#0000004D" : "#00000033";
-  return (
-    <View {...hoverProps} tooltip="Dismiss">
-      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel="Dismiss">
-        <View style={{ width: 23, height: 23, borderRadius: 11.5, overflow: "hidden", alignItems: "center", justifyContent: "center" }}>
-          <VisualEffect material="hudWindow" blendingMode="withinWindow" cornerRadius={11.5} style={StyleSheet.absoluteFill} />
-          <Surface style={StyleSheet.absoluteFill} fill={hex(fill)} cornerRadius={11.5} borderColor={theme.dark ? "#FFFFFF1F" : "#00000014"} borderWidth={1} />
-          <Symbol name="xmark" size={10} weight="medium" color="#FFFFFFE6" style={{ width: 23, height: 23 }} />
-        </View>
-      </Pressable>
-    </View>
-  );
-}
+const FILL = { flex: 1 } as const;
+const ROW = { flex: 1, alignItems: "center" } as const;
+const ICON_FRAME = { width: ICON_SIZE, height: ICON_SIZE, borderRadius: radius.m, overflow: "hidden", alignItems: "center", justifyContent: "center" } as const;
+const ICON_IMAGE = { width: ICON_SIZE, height: ICON_SIZE } as const;
+const TEXT_COLUMN = { flex: 1, paddingLeft: space.xs } as const;
+const ACTION_ROW = { flexDirection: "row", alignItems: "center", gap: ACTION_GAP } as const;
+const ARROW = { width: 11, height: 11 } as const;

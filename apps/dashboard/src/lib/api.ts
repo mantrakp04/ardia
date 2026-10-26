@@ -53,6 +53,7 @@ export type ReplayListInput = {
   clicks?: boolean;
   device?: string;
   url?: string;
+  download?: string;
   sort?: string;
 };
 
@@ -65,6 +66,7 @@ export const getReplays = createServerFn({ method: "POST" })
     clicks: input?.clicks === true,
     device: typeof input?.device === "string" ? input.device.slice(0, 40) : "",
     url: typeof input?.url === "string" ? input.url.slice(0, 200) : "",
+    download: input?.download === "yes" ? ("yes" as const) : input?.download === "no" ? ("no" as const) : ("" as const),
     sort: (SORTS as readonly string[]).includes(input?.sort ?? "") ? (input!.sort as (typeof SORTS)[number]) : "newest",
   }))
   .handler(async ({ data }) => {

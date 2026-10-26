@@ -11,10 +11,14 @@
 //   --keep     leave the instance running at the end (and reuse the one this scratch dir already keeps)
 //   --attach   run against the instance a --keep run left in <scratch dir>: no boot, seconds per check
 //   SKIP=a,b   leave checks out; VERBOSE=1 prints the log as it goes; METRO_PORT (default 8081)
+//   ARDIA_TRACE=visibility,pip and ARDIA_INSTANCE=allowOcclusion,chromiumSwitches=… pass on to the instance
 //
 // Output: one line per check (PASS/FAIL, ms); a failure adds its first lines; the rest (evidence, state at a failure,
 // diagnostics) goes to <scratch dir>/data/acceptance.log, results to <scratch dir>/results.json. It never takes focus
 // and never touches a real profile: the data dir is <scratch dir>/data, wiped first (not when attaching).
+// Its instance keeps Chrome's audio (ARDIA_INSTANCE allowAudio) so Chrome reports audible tabs, and sends it to a fake output
+// (--disable-audio-output): nothing reaches the speakers. The fixtures play at -60 dBFS (Chrome's audible threshold is
+// -72); the automatic Picture in Picture checks need ffmpeg for their clip (made once into <scratch dir>/media).
 //
 // Sections (// MARK:): Fixtures (the HTTP/HTTPS fixture server, extensions, a CRX) · The app (launch, evalApp, cdp)
 // · Helpers · Checks (in run order: windows and tabs, pages, choosers and Cast, capture, restore, extensions, content
@@ -26,10 +30,13 @@
 //   until(what, fn, ms)            polls fn until truthy (200 ms), else throws with the last value
 //   state()                        the main window: { windowId, profileId, tabs: [{ id, url, title, loading, … }], active }
 //   targets() · pageTarget(urlPart) · pageFor(tabId, urlPart) · cdp(target, method, params) · closeFromPage(target)
-//   cef(call) · exts(call)         ArdiaCEF / ArdiaExtensions module calls
-//   browserOf(tabId) · eventsOf(tabId) · lastEvent(tabId, name, test) · live(tabId) · pipWindows()
+//   engine(name, args, ms)         ac.engine.call(name, args); rejects with the engine's error
+//   engineOrError(name, args, ms)  the same, but a failure resolves { error } (the old password, autofill, extension shape)
+//   secret(module, fn, …args)      ArdiaPasswords / ArdiaAutofill calls that carry a secret; a failure resolves { error }
+//   browserOf(tabId) (the tab's engine browser, to tell a reload apart) · eventsOf(tabId) · lastEvent(tabId, name, test) · live(tabId) · pipWindows()
 //   openTab(url, title, background) · closeTab(id) · shownAndMounted(id) · freshTab(url) · backToA() · startVideo(tabId, audio)
-//   launch(log, env, args, opts) · appUp(log)   (re)start the app on the run's data dir; `exited` is set once it's gone
+//   pipByHand(tabId)               Site Controls › Picture in Picture, clicked as the user does (manual PiP needs the click)
+//   launch(log, test, args, opts) · appUp(log)   (re)start the app on the run's data dir; `exited` is set once it's gone
 //   onScreenWindows() · firstPixel(png) · writePopupExtension(opts) · fixtureCrx()
 import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -39,6 +46,7 @@ import { basename, join, resolve } from "node:path";
 import { X509Certificate, createHash, createSign, generateKeyPairSync } from "node:crypto";
 import { crc32, deflateSync, inflateSync } from "node:zlib";
 import { attach as attachInstance, launch as launchInstance, onScreenWindows as windowsOf, reporter, sleep } from "../../../scripts/lib/instance.mjs";
+import { instanceEntries } from "../../../scripts/lib/launchEnv.mjs";
 
 // MARK: What each check needs
 
@@ -71,7 +79,9 @@ const needs = {
   "context-menu-activation-log": ["context-menu-search"],
   "title-bar-close": ["open-url", "move-tab-to-window"],
   "context-menu-incognito": ["context-menu-log"],
+  "context-menu-split": ["context-menu-log"],
   "relaunch-profile": ["last-used-profile", "quit"],
+  "profile-data-retried-at-launch": ["profile-data-deletion-fails", "quit"],
 };
 function checkIndex() {
   let section = "Checks";
@@ -125,6 +135,21 @@ if (flag("--list")) listChecks();
 const attaching = argv[0] === "--attach";
 if (attaching) argv.shift();
 const keep = flag("--keep") || attaching;
+const audioOutputOf = (browserPid) => {
+  const utilities = execFileSync("ps", ["-A", "-ww", "-o", "ppid=,command="], { encoding: "utf8" }).split("\n")
+    .filter((line) => line.trim().split(/\s+/)[0] === String(browserPid) && line.includes("--type=utility"));
+  if (!utilities.length) return null;
+  return utilities.some((line) => line.includes(" --disable-audio-output")) ? "fake" : "speakers";
+};
+const settledAudioOutput = async (browserPid) => {
+  for (const deadline = Date.now() + 15000; Date.now() < deadline; await sleep(200)) {
+    const output = audioOutputOf(browserPid);
+    if (output) return output;
+  }
+  return null;
+};
+const unproven = (output) => (output === "speakers" ? "plays sound through this Mac's speakers (started without --disable-audio-output)"
+  : "showed no Chrome helper within 15 s, so its audio output is unknown");
 let kept = null;
 if (attaching || keep) {
   try {
@@ -135,7 +160,12 @@ if (attaching || keep) {
       process.exit(66);
     }
   }
-  if (kept && !attaching && kept.app !== resolve(argv[0])) {
+  const keptOutput = kept && (attaching || kept.app === resolve(argv[0])) ? await settledAudioOutput(kept.pid) : null;
+  if (kept && attaching && keptOutput !== "fake") {
+    console.error(`--attach: pid ${kept.pid} ${unproven(keptOutput)}; quit it (scripts/agent/ac quit ${join(resolve(argv[0]), "data")}) and start a new run`);
+    process.exit(65);
+  }
+  if (kept && !attaching && (kept.app !== resolve(argv[0]) || keptOutput !== "fake")) {
     await kept.quit();
     kept = null;
   }
@@ -151,7 +181,7 @@ const scratch = resolve(scratchArg);
 const data = join(scratch, "data");
 let port;
 const downloadsDir = join(scratch, "downloads");
-const lightsLog = join(scratch, "traffic-lights.log");
+const lightsLog = join(data, "traffic-lights.log");
 if (!kept) {
   rmSync(lightsLog, { force: true });
   rmSync(data, { recursive: true, force: true });
@@ -169,11 +199,24 @@ const stamp = () => new Date().toISOString().slice(11, 23);
 
 const adServed = [];
 const served = new Map();
+const referers = new Map();
 const siteDataDomain = "ardia-sitedata.com";
 const siteDataSecureHosts = [`s.${siteDataDomain}`, "embed.ardia-thirdparty.com", "top.ardia-elsewhere.com"];
+let clipBytes = null;
+const fixtureClip = () => {
+  const path = join(scratch, "media", "clip.webm");
+  if (!existsSync(path)) {
+    mkdirSync(join(scratch, "media"), { recursive: true });
+    execFileSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=320x180:rate=30",
+      "-f", "lavfi", "-i", "aevalsrc=0.001*sin(2*PI*440*t):s=48000", "-t", "30", "-c:v", "libvpx", "-b:v", "200k", "-c:a", "libopus",
+      "-shortest", path], { stdio: "ignore" });
+  }
+  return (clipBytes ??= readFileSync(path));
+};
 const server = createServer((req, res) => {
   if (!req.headers.host?.startsWith("127.0.0.1")) adServed.push(`${req.headers.host}${req.url}`);
   served.set(req.url, (served.get(req.url) ?? 0) + 1);
+  referers.set(req.url, req.headers.referer ?? "");
   const url = new URL(req.url, "http://x");
   const page = (title, body, extra = "") =>
     `<!doctype html><html><head><title>${title}</title><link rel="icon" href="/icon.png">${extra}</head><body>${body}</body></html>`;
@@ -220,13 +263,18 @@ const server = createServer((req, res) => {
     res.writeHead(200, { "content-type": "application/x-chrome-extension" });
     return res.end(fixtureCrx());
   }
+  if (url.pathname === "/clip.webm") {
+    const clip = fixtureClip();
+    res.writeHead(200, { "content-type": "video/webm", "content-length": String(clip.length) });
+    return res.end(clip);
+  }
   if (url.pathname === "/tone.wav") {
     const rate = 8000, n = rate;
     const wav = Buffer.alloc(44 + n * 2);
     wav.write("RIFF", 0); wav.writeUInt32LE(36 + n * 2, 4); wav.write("WAVEfmt ", 8); wav.writeUInt32LE(16, 16);
     wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22); wav.writeUInt32LE(rate, 24); wav.writeUInt32LE(rate * 2, 28);
     wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34); wav.write("data", 36); wav.writeUInt32LE(n * 2, 40);
-    for (let i = 0; i < n; i++) wav.writeInt16LE(Math.round(Math.sin((2 * Math.PI * 440 * i) / rate) * 3000), 44 + i * 2);
+    for (let i = 0; i < n; i++) wav.writeInt16LE(Math.round(Math.sin((2 * Math.PI * 440 * i) / rate) * 33), 44 + i * 2);
     res.writeHead(200, { "content-type": "audio/wav", "content-length": String(wav.length) });
     return res.end(wav);
   }
@@ -284,10 +332,16 @@ const server = createServer((req, res) => {
       const g = c.getContext("2d"); let n = 0;
       setInterval(() => { g.fillStyle = "hsl(" + ((n++ * 7) % 360) + ", 70%, 50%)"; g.fillRect(0, 0, 320, 180); }, 33);
       window.start = (audio) => {
+        if (location.search.includes("file")) {
+          const clip = document.getElementById("v");
+          clip.src = "/clip.webm";
+          clip.loop = true;
+          return clip.play().then(() => "ok", (e) => e.name);
+        }
         const stream = c.captureStream(30);
         if (audio) {
-          const ac = new AudioContext(), osc = ac.createOscillator(), out = ac.createMediaStreamDestination();
-          osc.connect(out); osc.start(); stream.addTrack(out.stream.getAudioTracks()[0]);
+          const ac = new AudioContext(), osc = ac.createOscillator(), quiet = new GainNode(ac, { gain: 0.001 }), out = ac.createMediaStreamDestination();
+          osc.connect(quiet).connect(out); osc.start(); stream.addTrack(out.stream.getAudioTracks()[0]);
         }
         const v = document.getElementById("v"); v.srcObject = stream;
         return v.play().then(() => "ok", (e) => e.name);
@@ -359,24 +413,28 @@ const tlsSpki = createHash("sha256").update(new X509Certificate(tlsCert).publicK
 
 let exe, stdout, pid, child, launchedAt, exited = null;
 let instance = null;
-process.env.ARDIA_CHROMIUM_SWITCHES = `--ardia-test-media-route-provider --disable-media-route-providers-for-test --ardia-test-bluetooth-chooser ${process.env.ARDIA_CHROMIUM_SWITCHES ?? ""}`.trim();
-process.env.ARDIA_CHROMIUM_SWITCHES += ` --host-resolver-rules=${["ib.adnxs.com", "securepubads.g.doubleclick.net", "pagead2.googlesyndication.com", "adpage.test"]
+const runner = { instance: instanceEntries(process.env.ARDIA_INSTANCE), trace: (process.env.ARDIA_TRACE ?? "").split(",").filter(Boolean) };
+let chromeSwitches = `--disable-media-route-providers-for-test ${runner.instance.chromiumSwitches ?? ""}`.trim();
+chromeSwitches += ` --host-resolver-rules=${["ib.adnxs.com", "securepubads.g.doubleclick.net", "pagead2.googlesyndication.com", "adpage.test"]
   .map((host) => `MAP ${host} 127.0.0.1:${server.address().port}`).concat([`one.${siteDataDomain}`, `two.${siteDataDomain}`, ...siteDataSecureHosts].map((host) => `MAP ${host} 127.0.0.1:${tlsServer.address().port}`)).join(", ")}`;
-process.env.ARDIA_CHROMIUM_SWITCHES += ` --apps-gallery-update-url=${base}/webstore/crx`;
-process.env.ARDIA_CHROMIUM_SWITCHES += ` --ignore-certificate-errors-spki-list=${tlsSpki}`;
-async function launch(logName = "app.out.log", env = {}, args = [], opts = {}) {
+chromeSwitches += ` --apps-gallery-update-url=${base}/webstore/crx`;
+chromeSwitches += ` --ignore-certificate-errors-spki-list=${tlsSpki}`;
+chromeSwitches += " --disable-audio-output";
+async function launch(logName = "app.out.log", test = {}, args = [], opts = {}) {
   instance = await launchInstance(opts.app ?? app, {
     data, log: join(scratch, logName), args, ready: false,
-    env: {
-      ARDIA_TEST_REAUTH: "granted", ARDIA_DOWNLOADS_DIR: downloadsDir,
-      ...Object.fromEntries(["ARDIA_ALLOW_OCCLUSION", "ARDIA_TRACE_VISIBILITY", "ARDIA_TRACE_PIP"].filter((k) => process.env[k]).map((k) => [k, process.env[k]])),
-      ARDIA_TRAFFIC_LIGHTS_LOG: lightsLog,
-      ...env,
-    },
-    switches: `--auto-select-tab-capture-source-by-title=Capture Target --ardia-test-external-protocol-no-launch ${process.env.ARDIA_CHROMIUM_SWITCHES ?? ""} ${opts.switches ?? ""}`.trim(),
+    instance: { downloadsDir, allowAudio: true, ...(runner.instance.allowOcclusion ? { allowOcclusion: true } : {}) },
+    test: { reauth: "granted", mediaRouteProvider: true, bluetoothChooser: true, externalProtocolNoLaunch: true, ...test },
+    trace: [...new Set(["trafficLights", ...runner.trace.filter((area) => ["visibility", "pip"].includes(area))])],
+    switches: `--auto-select-tab-capture-source-by-title=Capture Target ${chromeSwitches} ${opts.switches ?? ""}`.trim(),
     meta: { http: server.address().port, https: tlsServer.address().port },
   });
   adopt(instance);
+  const output = await settledAudioOutput(pid);
+  if (output !== "fake") {
+    await instance.quit();
+    throw new Error(`pid ${pid} ${unproven(output)}: quit before any check plays sound`);
+  }
 }
 function adopt(i) {
   instance = i;
@@ -454,8 +512,11 @@ function firstPixel(base64) {
 
 const pageTarget = async (urlPart) => (await targets()).find((t) => t.type === "page" && t.url.includes(urlPart));
 const closeFromPage = (target) => cdp(target, "Runtime.evaluate", { expression: "setTimeout(() => window.close()); true" });
-const cef = (call) => evalApp(`return globalThis.expo.modules.ArdiaCEF.${call}`);
-const exts = (call) => evalApp(`return globalThis.expo.modules.ArdiaExtensions.${call}`);
+const engine = (name, args = {}, ms) => evalApp(`return ac.engine.call(${JSON.stringify(name)}, ${JSON.stringify(args)})`, ms);
+const engineOrError = (name, args = {}, ms) =>
+  evalApp(`return ac.engine.call(${JSON.stringify(name)}, ${JSON.stringify(args)}).catch((e) => ({ error: e.message }))`, ms);
+const secret = (module, fn, ...args) =>
+  evalApp(`return globalThis.expo.modules.${module}.${fn}(${args.map((a) => JSON.stringify(a)).join(", ")}).then(JSON.parse).catch((e) => ({ error: e.message }))`);
 const extPath = join(scratch, "fixture-ext");
 cpSync(resolve(new URL(".", import.meta.url).pathname, "../../../spikes/ardiacore-host/fixtures/ext"), extPath, { recursive: true });
 const extPopupPath = join(scratch, "fixture-ext-popup");
@@ -521,7 +582,7 @@ function fixtureCrx() {
   return (crxCache = Buffer.concat([prefix, header, zip]));
 }
 const onScreenWindows = () => windowsOf(pid);
-const browserOf = (tabId) => evalApp(`return ac.pageState.getState().browsers ? Object.entries(ac.pageState.getState().browsers).find(([, t]) => t === "${tabId}")?.[0] ?? null : null`);
+const browserOf = async (tabId) => (await engine("tabs.devBrowserId", { tabId })) || null;
 async function pageFor(tabId, urlPart) {
   const candidates = (await targets()).filter((t) => t.type === "page" && t.url.includes(urlPart));
   if (candidates.length <= 1) return candidates[0];
@@ -537,8 +598,7 @@ let mainWindow = null;
 let first;
 let personal = null;
 const eventsOf = async (tabId) => {
-  const browser = await browserOf(tabId);
-  return browser ? evalApp(`return globalThis.expo.modules.ArdiaCEF.devEvents(${browser})`) : [];
+  return (await browserOf(tabId)) ? engine("tabs.devEvents", { tabId }) : [];
 };
 const state = () =>
   evalApp(`const s = ac.store.getState(); const w = s.windows[${JSON.stringify(mainWindow)}] ?? Object.values(s.windows).filter((w) => !w.incognito && w.kind !== "small").sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))[0];
@@ -574,13 +634,20 @@ const backToA = async () => {
 };
 const lastEvent = async (tabId, name, test = () => true) => (await eventsOf(tabId)).findLast((x) => x.name === name && test(x.payload ?? {})) ?? null;
 const live = (tabId) => evalApp(`return ac.store.getState().live["${tabId}"] ?? null`);
-const pipWindows = () => cef(`devPictureInPicture()`).catch(() => null);
+const pipWindows = () => engine("tabs.devPictureInPicture").catch(() => null);
 const startVideo = async (tabId, audio) => {
-  const t = await pageFor(tabId, `${base}/video`);
+  const t = await pageFor(tabId, "/video");
   const r = await cdp(t, "Runtime.evaluate", { expression: `start(${audio})`, awaitPromise: true, userGesture: true, returnByValue: true });
   if (r.result?.value !== "ok") throw new Error(`the video didn't play: ${JSON.stringify(r.result ?? r)}`);
   await until("the video's first frames", async () => (await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('v').videoWidth", returnByValue: true })).result?.value > 0, 8000);
   return t;
+};
+const pipByHand = async (tabId) => {
+  await evalApp(`ac.pageState.setState((s) => ({ popover: { ...s.popover, ${JSON.stringify(tabId)}: "siteControls" } })); return true`);
+  return until("a click on Site Controls › Picture in Picture", async () => {
+    const click = await evalApp(`return ac.shell.devClick(${JSON.stringify(mainWindow)}, { label: "Picture in Picture", queued: true, wait: 300 })`);
+    return click?.error ? null : click;
+  }, 5000);
 };
 const stopApp = async () => {
   if (!exited) await instance.quit();
@@ -591,7 +658,7 @@ const appUp = async (logName) => {
   if (exited) await launch(logName);
   await until("the app", async () => {
     try {
-      return await evalApp(`return globalThis.expo.modules.ArdiaCEF.engineInfo()`, 3000);
+      return await engine("engine.info", {}, 3000);
     } catch (e) {
       if (exited) throw e;
       return null;
@@ -641,7 +708,7 @@ async function check(name, fn) {
   if ((process.env.SKIP ?? "").split(",").includes(name)) return;
   if (recovered.has(name)) return;
   currentCheck = name;
-  if (process.env.ARDIA_TRACE_VISIBILITY) log(`  [check ${stamp()}] ${name}`);
+  if (runner.trace.includes("visibility")) log(`  [check ${stamp()}] ${name}`);
   let failure = null;
   const started = Date.now();
   await report.check(name, async () => {
@@ -676,7 +743,7 @@ try {
   await check("boot", async () => {
     const info = await until("the dev harness", async () => {
       try {
-        return await evalApp(`return globalThis.expo.modules.ArdiaCEF.engineInfo()`, 3000);
+        return await engine("engine.info", {}, 3000);
       } catch (e) {
         if (exited) throw e;
         return null;
@@ -769,27 +836,26 @@ try {
     first = s.t;
     const t = await pageTarget(`${base}/a`);
     if (!t) throw new Error("no CDP target for A");
-    if (process.env.ARDIA_TRACE_VISIBILITY) watchVisibility(t);
+    if (runner.trace.includes("visibility")) watchVisibility(t);
     return { tab: s.t.id, title: s.t.title, active: s.s.active === s.t.id };
   });
 
   await check("visibility", async () => {
     const t = await pageFor(first.id, `${base}/a`);
     const vis = (await cdp(t, "Runtime.evaluate", { expression: "document.visibilityState + '/' + document.hasFocus()", returnByValue: true })).result.value;
-    const windows = (await evalApp(`return globalThis.expo.modules.ArdiaCEF.chromeWindows()`)).map((w) => ({ visible: w.visible, alpha: w.alpha, key: w.key, frame: w.frame }));
+    const windows = (await engine("windows.list")).map((w) => ({ visible: w.visible, alpha: w.alpha, key: w.key, frame: w.frame }));
     return { page: vis, windows };
   });
 
   await check("occlusion", async () => {
-    const allow = !!process.env.ARDIA_ALLOW_OCCLUSION;
+    const allow = !!runner.instance.allowOcclusion;
     await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
     await until("A shown", async () => (await state()).active === first.id);
     const t = await pageFor(first.id, `${base}/a`);
     const vis = async () => (await cdp(t, "Runtime.evaluate", { expression: "document.visibilityState", returnByValue: true })).result.value;
-    const browser = await browserOf(first.id);
-    const windowNumber = await evalApp(`return globalThis.expo.modules.ArdiaCEF.devWindowNumber(${browser})`);
-    const chromeSees = async () => (await evalApp(`return globalThis.expo.modules.ArdiaCEF.chromeWindows()`)).find((x) => x.window === windowNumber);
-    await evalApp(`return globalThis.expo.modules.ArdiaCEF.devWindow(${windowNumber}, "cover")`);
+    const windowNumber = await engine("tabs.devWindowNumber", { tabId: first.id });
+    const chromeSees = async () => (await engine("windows.list")).find((x) => x.window === windowNumber);
+    await engine("windows.dev", { window: windowNumber, action: "cover" });
     let samples = [], escape = null, w = null;
     try {
       w = await until("macOS to see the window occluded", async () => {
@@ -809,7 +875,7 @@ try {
           (await eventsOf(first.id)).filter((x) => x.name === "command" && x.payload?.command === "escape").length > before ? true : null, 5000);
       }
     } finally {
-      await evalApp(`return globalThis.expo.modules.ArdiaCEF.devWindow(${windowNumber}, "uncover")`);
+      await engine("windows.dev", { window: windowNumber, action: "uncover" });
     }
     const back = await until("visible again", async () => ((await vis()) === "visible" ? "visible" : null), 10000);
     const expected = allow ? "hidden" : "visible";
@@ -890,7 +956,7 @@ try {
   });
 
   await check("tab-strips", async () => {
-    const tx = await evalApp(`return globalThis.expo.modules.ArdiaCEF.tabStrips()`);
+    const tx = await engine("tabs.strips");
     const s = await state();
     const strip = tx.strips.find((x) => x.tabs.some((t) => t.key === first.id));
     if (!strip) throw new Error(`no strip names ${first.id}: ${JSON.stringify(tx)}`);
@@ -993,7 +1059,7 @@ try {
   });
 
   await check("context-menu-search", async () => {
-    await evalApp(`return globalThis.expo.modules.ArdiaCEF.setSearchEngineName("Acceptance").then(() => true)`);
+    await engine("search.setEngineName", { name: "Acceptance" }).then(() => true);
     await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
     await until("A shown", async () => (await state()).active === first.id);
     await sleep(300);
@@ -1086,32 +1152,31 @@ try {
     return { chooser: { id: chooser.id, title: chooser.title, options: chooser.options?.length }, page: result };
   });
 
-  const chromeUI = (call) => evalApp(`return globalThis.expo.modules.ArdiaChromeUI.${call}`);
   const chooserOf = (tabId) => evalApp(`return globalThis.acDeviceChoosers?.useChoosers.getState().byTab["${tabId}"] ?? null`);
   const bluetoothChooser = async (unauthorized) => {
-    if (!(await chromeUI(`devShowBluetoothChooser(${await browserOf(first.id)}, ${unauthorized})`))) throw new Error("devShowBluetoothChooser said no (switch off?)");
+    if (!(await engine("media.devShowBluetoothChooser", { tabId: first.id, unauthorized }))) throw new Error("devShowBluetoothChooser said no (switch off?)");
     return until("the app's Bluetooth chooser", async () => {
       const c = await chooserOf(first.id);
       return c && (unauthorized ? c.unauthorized : c.options?.length) ? c : null;
     }, 10000);
   };
-  const chooserEvents = () => chromeUI(`devChooserEvents()`);
+  const chooserEvents = () => engine("media.devChooserEvents");
   const chooserGone = () => until("the sheet gone", async () => !(await chooserOf(first.id)), 5000);
 
   await check("bluetooth-chooser", async () => {
     await evalApp(`globalThis.__acChooser = []; globalThis.__acChooserSub?.remove();
-      globalThis.__acChooserSub = globalThis.expo.modules.ArdiaChromeUI.addListener("onDeviceChooser", (e) => globalThis.__acChooser.push(e)); return true`);
+      globalThis.__acChooserSub = ac.engine.on("media.deviceChooser", (e) => globalThis.__acChooser.push(e)); return true`);
     try {
       const before = (await chooserEvents()).length;
       const chooser = await bluetoothChooser(false);
       const sent = (await evalApp(`return globalThis.__acChooser`)).length;
-      await chromeUI(`refreshDeviceChooser(${chooser.id}).then(() => true)`);
+      await engine("media.refreshDeviceChooser", { id: chooser.id }).then(() => true);
       const rescan = await until("Chrome's rescan", async () => (await chooserEvents()).slice(before).find((e) => e.event === "rescan") ?? null, 5000);
       const refreshed = await until("the list sent again", async () => {
         const list = await evalApp(`return globalThis.__acChooser`);
         return list.slice(sent).find((c) => c.open && c.options?.length && !c.refreshing) ?? null;
       }, 5000);
-      await chromeUI(`selectDevice(${chooser.id}, 0).then(() => true)`);
+      await engine("media.selectDevice", { id: chooser.id, index: 0 }).then(() => true);
       const selected = await until("the pick answered", async () => (await chooserEvents()).slice(before).find((e) => e.event === "selected") ?? null, 5000);
       await chooserGone();
       if (selected.device !== "ac-test-device") throw new Error(`picked ${selected.device}`);
@@ -1119,25 +1184,25 @@ try {
     } finally {
       await evalApp(`globalThis.__acChooserSub?.remove(); return true`).catch(() => null);
       const c = await chooserOf(first.id).catch(() => null);
-      if (c) await chromeUI(`cancelDeviceChooser(${c.id}).then(() => true)`).catch(() => null);
+      if (c) await engine("media.cancelDeviceChooser", { id: c.id }).then(() => true).catch(() => null);
     }
   });
 
   await check("bluetooth-settings", async () => {
-    const launches = () => evalApp(`return globalThis.expo.modules.ArdiaCEF.devExternalLaunches()`);
+    const launches = () => engine("permissions.devExternalLaunches");
     const isSettings = (x) => /Privacy_Bluetooth/.test(x.url ?? "");
     const t = await pageFor(first.id, `${base}/a`);
     try {
       const before = (await launches()).filter(isSettings).length;
       const events = (await chooserEvents()).length;
       const bt = await bluetoothChooser(true);
-      await chromeUI(`openBluetoothSettings(${bt.id}).then(() => true)`);
+      await engine("media.openBluetoothSettings", { id: bt.id }).then(() => true);
       const recorded = await until("the Bluetooth settings pane recorded", async () => {
         const list = (await launches()).filter(isSettings);
         return list.length > before ? list.at(-1) : null;
       }, 5000);
       if ((await chooserOf(first.id))?.id !== bt.id) throw new Error("the chooser closed on openBluetoothSettings");
-      await chromeUI(`cancelDeviceChooser(${bt.id}).then(() => true)`);
+      await engine("media.cancelDeviceChooser", { id: bt.id }).then(() => true);
       await chooserGone();
       const cancelled = await until("the cancel answered", async () => (await chooserEvents()).slice(events).find((e) => e.event === "cancelled") ?? null, 5000);
       await cdp(t, "Runtime.evaluate", {
@@ -1145,27 +1210,26 @@ try {
         userGesture: true,
       });
       const usb = await until("the WebUSB chooser", () => chooserOf(first.id), 10000);
-      await chromeUI(`openBluetoothSettings(${usb.id}).then(() => true)`);
+      await engine("media.openBluetoothSettings", { id: usb.id }).then(() => true);
       await sleep(500);
       const after = (await launches()).filter(isSettings).length;
       if (after !== before + 1) throw new Error(`the WebUSB chooser recorded ${after - before - 1} settings pane(s)`);
       if ((await chooserOf(first.id))?.id !== usb.id) throw new Error("the WebUSB chooser closed on openBluetoothSettings");
-      await chromeUI(`cancelDeviceChooser(${usb.id}).then(() => true)`);
+      await engine("media.cancelDeviceChooser", { id: usb.id }).then(() => true);
       await chooserGone();
       return { unauthorized: bt.unauthorized, recorded: recorded.url, cancelled: !!cancelled, webUSB: "ignored" };
     } finally {
       const c = await chooserOf(first.id).catch(() => null);
-      if (c) await chromeUI(`cancelDeviceChooser(${c.id}).then(() => true)`).catch(() => null);
+      if (c) await engine("media.cancelDeviceChooser", { id: c.id }).then(() => true).catch(() => null);
     }
   });
 
   await check("cast-dialog", async () => {
-    const browser = await browserOf(first.id);
-    const shown = await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.showCastDialog(${browser})`);
+    const shown = await engine("media.showCastDialog", { tabId: first.id });
     if (!shown) throw new Error("showCastDialog said no (media router off?)");
     const dialog = await until("the app's Cast dialog", async () => evalApp(`return globalThis.acCast?.useCast.getState().dialogs["${first.id}"] ?? null`), 10000);
     const routes = await evalApp(`return globalThis.acCast.useCast.getState().routes`);
-    await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.closeCastDialog(${dialog.id}).then(() => true)`);
+    await engine("media.closeCastDialog", { id: dialog.id }).then(() => true);
     await until("the dialog closed", async () => !(await evalApp(`return globalThis.acCast.useCast.getState().dialogs["${first.id}"] ?? null`)), 5000);
     return { header: dialog.header, sinks: dialog.sinks?.length ?? 0, routeProfiles: Object.keys(routes ?? {}) };
   });
@@ -1175,7 +1239,7 @@ try {
     const routesNow = () => evalApp(`return Object.values(globalThis.acCast.useCast.getState().routes).flat()`);
     const dialogNow = () => evalApp(`return globalThis.acCast.useCast.getState().dialogs["${first.id}"] ?? null`);
     const openDialog = async () => {
-      if (!(await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.showCastDialog(${browser})`))) throw new Error("showCastDialog said no");
+      if (!(await engine("media.showCastDialog", { tabId: first.id }))) throw new Error("showCastDialog said no");
       return until("the test sink in the app's dialog", async () => {
         const d = await dialogNow();
         const sink = d?.sinks?.find((s) => s.name === "Ardia Test Sink" && s.state === "available");
@@ -1183,7 +1247,7 @@ try {
       }, 10000).catch(async (e) => { throw new Error(`${e.message}; dialog ${JSON.stringify(await dialogNow())}`); });
     };
     const casting = async (dialogId, sink) => {
-      await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.startCasting(${dialogId}, ${JSON.stringify(sink.id)}, 2).then(() => true)`);
+      await engine("media.startCasting", { id: dialogId, sink: sink.id, mode: 2 }).then(() => true);
       return until("the route in onCastRoutes", async () => (await routesNow()).find((r) => r.sink === sink.id) ?? null, 10000);
     };
     try {
@@ -1195,13 +1259,13 @@ try {
         const s = d?.sinks?.find((x) => x.id === sink.id);
         return s?.routeId === route.id && s.state === "connected" ? { dialog: d, sink: s } : null;
       }, 10000);
-      await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.stopCasting(${dialog.id}, ${JSON.stringify(route.id)}).then(() => true)`);
+      await engine("media.stopCasting", { id: dialog.id, route: route.id }).then(() => true);
       await until("the route gone after stopCasting", async () => !(await routesNow()).some((r) => r.id === route.id), 10000);
       const second = await casting(dialog.id, sink);
-      await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.closeCastDialog(${dialog.id}).then(() => true)`);
+      await engine("media.closeCastDialog", { id: dialog.id }).then(() => true);
       await until("the dialog closed", async () => !(await dialogNow()), 5000);
       if (!(await routesNow()).some((r) => r.id === second.id)) throw new Error("closing the dialog ended the route");
-      await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.terminateCastRoute(${JSON.stringify(second.id)}).then(() => true)`);
+      await engine("media.terminateCastRoute", { route: second.id }).then(() => true);
       await until("the route gone after terminateCastRoute", async () => !(await routesNow()).some((r) => r.id === second.id), 10000);
       return {
         sink: { name: sink.name, modes: sink.modes },
@@ -1211,9 +1275,9 @@ try {
       };
     } finally {
       const d = await dialogNow().catch(() => null);
-      if (d) await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.closeCastDialog(${d.id}).then(() => true)`).catch(() => null);
+      if (d) await engine("media.closeCastDialog", { id: d.id }).then(() => true).catch(() => null);
       for (const r of await routesNow().catch(() => []))
-        await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.terminateCastRoute(${JSON.stringify(r.id)}).then(() => true)`).catch(() => null);
+        await engine("media.terminateCastRoute", { route: r.id }).then(() => true).catch(() => null);
     }
   });
 
@@ -1294,7 +1358,7 @@ try {
         throw new Error(`prompt ${JSON.stringify(p)}`);
       await evalApp(`return ac.webviews.get("${first.id}").resolvePasswordPrompt("save")`);
       const saved = await until("the saved login", async () => {
-        const list = await evalApp(`return globalThis.expo.modules.ArdiaCEF.listPasswords("")`);
+        const list = await engineOrError("passwords.list", { profile: "" });
         return list.passwords?.find((x) => x.username === "nnformuser") ?? null;
       }, 10000);
       const seen = (await eventsOf(first.id)).filter((x) => x.name === "passwordPrompt").length;
@@ -1316,10 +1380,10 @@ try {
         throw new Error(`update prompt ${JSON.stringify(u.payload)}`);
       await evalApp(`return ac.webviews.get("${first.id}").resolvePasswordPrompt("update", { password: "edited-s3cret" })`);
       const edited = await until("the edited password", async () => {
-        const r = await cef(`getPassword("", ${JSON.stringify(saved.origin)}, "nnformuser")`);
+        const r = await engineOrError("passwords.reveal", { profile: "", origin: saved.origin, username: "nnformuser" });
         return r?.password === "edited-s3cret" ? r : null;
       }, 10000);
-      await evalApp(`return globalThis.expo.modules.ArdiaCEF.deletePassword("", ${JSON.stringify(saved.origin)}, "nnformuser")`);
+      await engineOrError("passwords.remove", { profile: "", origin: saved.origin, username: "nnformuser" });
       return { prompt: { state: p.state, passwordLength: p.passwordLength, usernames: p.usernames }, update: u.payload.state, edited: !!edited, origin: saved.origin };
     } finally {
       await backToA();
@@ -1332,7 +1396,7 @@ try {
     const target = await openTab(`${base}/capture-target?picker`, "Capture Target", true);
     const t = await pageFor(first.id, `${base}/a`);
     try {
-      await evalApp(`return globalThis.expo.modules.ArdiaCEF.setDisplayMediaPicker(true).then(() => true)`);
+      await engine("webView.setDisplayMediaPicker", { enabled: true }).then(() => true);
       await evalApp(`return ac.webviews.get("${first.id}").reload()`);
       await until("A loaded", async () => (await state()).tabs.find((x) => x.id === first.id && x.title === "Page A" && !x.loading), 10000);
       await sleep(500);
@@ -1360,7 +1424,7 @@ try {
   await check("tab-capture", async () => {
     const target = await openTab(`${base}/capture-target`, "Capture Target", true);
     const other = await openTab(`${base}/d?share-instead`, "Page D", true);
-    await evalApp(`return globalThis.expo.modules.ArdiaCEF.setDisplayMediaPicker(false).then(() => true)`);
+    await engine("webView.setDisplayMediaPicker", { enabled: false }).then(() => true);
     await evalApp(`return ac.webviews.get("${first.id}").reload()`);
     await until("A loaded", async () => (await state()).tabs.find((x) => x.id === first.id && x.title === "Page A" && !x.loading), 10000);
     await sleep(500);
@@ -1383,23 +1447,23 @@ try {
         return null;
       }, 8000);
       const sourceId = await evalApp(`return ac.webviews.get("${target.id}")?.mediaCaptureSourceId() ?? null`);
-      const capturer = await browserOf(first.id);
-      const instead = await browserOf(other.id);
-      const changed = await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.changeCaptureSource(${capturer}, ${instead})`);
-      if (changed !== true) throw new Error(`changeCaptureSource answered ${changed} (Chrome's last-used profile: ${(await cef(`engineInfo()`)).lastUsedProfile})`);
+      const capturer = first.id;
+      const instead = other.id;
+      const changed = await engine("media.changeCaptureSource", { capturer, target: instead });
+      if (changed !== true) throw new Error(`changeCaptureSource answered ${changed} (Chrome's last-used profile: ${(await engine("engine.info")).lastUsedProfile})`);
       await sleep(1000);
-      const stopped = await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.stopCapture(${capturer})`);
+      const stopped = await engine("media.stopCapture", { tabId: capturer });
       const ended = await until("the track ended", async () =>
         (await cdp(t, "Runtime.evaluate", { expression: "window.__cap", returnByValue: true })).result.value === "ended" ? true : null, 8000);
-      const windowNumber = await cef(`devWindowNumber(${capturer})`);
+      const windowNumber = await engine("tabs.devWindowNumber", { tabId: capturer });
       const picker = await until("the picker closed", async () => {
-        const children = JSON.parse(await cef(`devWindow(${windowNumber}, "children")`));
+        const children = JSON.parse(await engine("windows.dev", { window: windowNumber, action: "children" }));
         return children.some((c) => c.visible && c.title.startsWith("Choose what to share")) ? null : "closed";
       }, 5000);
       return { live, access, sourceId: sourceId ? String(sourceId).slice(0, 40) : null, changed, stopped, ended, picker };
     } finally {
       await cdp(t, "Runtime.evaluate", { expression: "window.__stream?.getTracks().forEach((x) => x.stop())" }).catch(() => null);
-      await evalApp(`return globalThis.expo.modules.ArdiaCEF.setDisplayMediaPicker(true).then(() => true)`);
+      await engine("webView.setDisplayMediaPicker", { enabled: true }).then(() => true);
       await closeTab(target.id);
       await closeTab(other.id);
       await evalApp(`return ac.webviews.get("${first.id}").reload()`);
@@ -1411,7 +1475,7 @@ try {
     const opened = [];
     const pages = {};
     try {
-      await evalApp(`return globalThis.expo.modules.ArdiaCEF.setDisplayMediaPicker(true).then(() => true)`);
+      await engine("webView.setDisplayMediaPicker", { enabled: true }).then(() => true);
       for (const [c, t] of [["ff0000", "Red"], ["00ff00", "Green"], ["0000ff", "Blue"]]) opened.push(await openTab(`${base}/solid?c=${c}&t=${t}`, t, true));
       for (const t of ["CallA", "CallB"]) opened.push(await openTab(`${base}/capturer?t=${t}`, t, true));
       const [red, green, blue, callA, callB] = opened;
@@ -1452,7 +1516,7 @@ try {
       await until("blue shown", async () => (await state()).active === blue.id);
       const changed = hooks.bar
         ? await evalApp(`return globalThis.acShareBar.shareInstead("${callB.id}", "${blue.id}")`)
-        : await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.changeCaptureSource(${await browserOf(callB.id)}, ${await browserOf(blue.id)})`);
+        : await engine("media.changeCaptureSource", { capturer: callB.id, target: blue.id });
       if (changed !== true) throw new Error(`share instead answered ${JSON.stringify(changed)}`);
       let after = null;
       try {
@@ -1516,8 +1580,8 @@ try {
       }
     };
     const closeButton = async (tabId) => {
-      const number = await evalApp(`return globalThis.expo.modules.ArdiaCEF.devWindowNumber(${await browserOf(tabId)})`);
-      return evalApp(`return globalThis.expo.modules.ArdiaCEF.devWindow(${number}, "close-button")`);
+      const number = await engine("tabs.devWindowNumber", { tabId: tabId });
+      return engine("windows.dev", { window: number, action: "close-button" });
     };
     const warn = await s(`s.settings.warnBeforeClosingWindow`);
     const results = {};
@@ -1550,7 +1614,7 @@ try {
           await closeTab(again);
         }
       };
-      const installed = await exts(`install(${JSON.stringify(extPath)}, "")`);
+      const installed = await engineOrError("extensions.install", { profile: "", path: extPath });
       if (installed?.error) throw new Error(installed.error);
       try {
         const worker = await until("the extension's worker", async () =>
@@ -1563,7 +1627,7 @@ try {
           if (!r.result.value) throw new Error(`chrome.tabs.remove: ${JSON.stringify(r)}`);
         });
       } finally {
-        await exts(`uninstall("${installed.id}", "")`);
+        await engineOrError("extensions.uninstall", { profile: "", id: installed.id });
       }
       results.windowClose = await (async () => {
         const opener = await pageFor(first.id, `${base}/a`);
@@ -1594,8 +1658,7 @@ try {
 
   await check("discard-outcomes", async () => {
     const tab = await openTab(`${base}/d?discard`, "Page D", true);
-    const browser = await browserOf(tab.id);
-    const renderer = async () => (await evalApp(`return globalThis.expo.modules.ArdiaCEF.listTasks()`)).some((t) => t.browserIds?.includes(Number(browser)));
+    const renderer = async () => (await engine("engine.tasks")).some((t) => t.tabIds?.includes(tab.id));
     const flags = () => evalApp(`const l = globalThis.acLifecycle.state(); return { sleeping: !!l.discarded["${tab.id}"], loaded: l.loaded.includes("${tab.id}") }`);
     const raw = (opts = "") => evalApp(`return ac.webviews.get("${tab.id}").discard(${opts})`);
     try {
@@ -1653,10 +1716,14 @@ try {
       const busyNow = "-";
       const hung = await until("onUnresponsive", async () => (await eventsOf(busy.id)).find((x) => x.name === "unresponsive"), 35000)
         .catch(async (e) => { throw new Error(`${e.message}; page ${busyNow}; key ${JSON.stringify(sent)}; events ${JSON.stringify((await eventsOf(busy.id)).map((x) => x.name).slice(-8))}; active ${(await state()).active === busy.id}`); });
+      const shown = await until("Page Unresponsive shown", async () => evalApp(`return ac.pageState.getState().pages["${busy.id}"]?.unresponsive === true`), 5000)
+        .catch(() => { throw new Error("the native unresponsive event never reached the tab's page state"); });
       await evalApp(`return ac.webviews.get("${busy.id}").resolveUnresponsive(false)`);
       const back = await until("onResponsive", async () => (await eventsOf(busy.id)).find((x) => x.name === "responsive"), 45000)
         .catch(async (e) => { throw new Error(`${e.message}; events ${JSON.stringify((await eventsOf(busy.id)).map((x) => x.name).slice(-10))}`); });
-      return { unresponsive: !!hung, responsive: !!back };
+      const cleared = await until("Page Unresponsive cleared", async () => evalApp(`return ac.pageState.getState().pages["${busy.id}"]?.unresponsive === false`), 5000)
+        .catch(() => { throw new Error("the responsive event never cleared the tab's page state"); });
+      return { unresponsive: !!hung, shown, responsive: !!back, cleared };
     } finally {
       await closeTab(busy.id);
       await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
@@ -1664,7 +1731,7 @@ try {
   });
 
   await check("permission-dismissed", async () => {
-    await evalApp(`globalThis.__acDismissed = []; globalThis.__acDismissSub?.remove(); globalThis.__acDismissSub = globalThis.expo.modules.ArdiaCEF.addListener("onPermissionDismissed", (e) => globalThis.__acDismissed.push(e)); return true`);
+    await evalApp(`globalThis.__acDismissed = []; globalThis.__acDismissSub?.remove(); globalThis.__acDismissSub = ac.engine.on("permissions.dismissed", (e) => globalThis.__acDismissed.push(e)); return true`);
     const asker = await openTab(`${base}/c?asker`, "Page C");
     try {
       const t = await pageFor(asker.id, `${base}/c?asker`);
@@ -1684,38 +1751,37 @@ try {
 
   await check("task-manager", async () => {
     const tab = await openTab(`${base}/c?tasks`, "Page C", true);
-    const call = (args) => evalApp(`return globalThis.expo.modules.ArdiaCEF.engineCall("ac_task_manager_open", "", ${JSON.stringify(args)})`).then(JSON.parse);
+    const call = (args) => engineOrError("engine.openTaskManager", { profile: "", ...args });
     try {
-      const browser = Number(await browserOf(tab.id));
       const task = await until("the tab's task", async () => {
-        const tasks = await evalApp(`return globalThis.expo.modules.ArdiaCEF.listTasks()`);
-        return tasks.find((x) => (x.browserIds ?? []).includes(browser)) ?? null;
+        const tasks = await engine("engine.tasks");
+        return tasks.find((x) => (x.tabIds ?? []).includes(tab.id)) ?? null;
       }, 10000);
       const opened = await call(null);
       if (!opened.ok) throw new Error(`ac_task_manager_open: ${JSON.stringify(opened)}`);
       return { task: task.title ?? task.id, opened: true };
     } finally {
-      await call(JSON.stringify({ hide: true })).catch(() => null);
+      await call({ hide: true }).catch(() => null);
       await closeTab(tab.id);
     }
   });
 
   await check("module-events", async () => {
     await evalApp(`globalThis.__acEvents = []; globalThis.__acSubs?.forEach((x) => x.remove());
-      globalThis.__acSubs = [globalThis.expo.modules.ArdiaCEF.addListener("onContentBlocker", (e) => globalThis.__acEvents.push(["blocker", e])),
-        globalThis.expo.modules.ArdiaExtensions.addListener("onChanged", (e) => globalThis.__acEvents.push(["extensions", e]))]; return true`);
+      globalThis.__acSubs = [ac.engine.on("contentBlocker.changed", (e) => globalThis.__acEvents.push(["blocker", e])),
+        ac.engine.on("extensions.changed", (e) => globalThis.__acEvents.push(["extensions", e]))]; return true`);
     try {
-      await evalApp(`return globalThis.expo.modules.ArdiaCEF.setContentBlockerEnabled(false)`);
-      await evalApp(`return globalThis.expo.modules.ArdiaCEF.setContentBlockerEnabled(true)`);
-      const installed = await exts(`install(${JSON.stringify(extPath)}, "")`);
-      const configured = await exts(`configure("${installed.id}", "", { incognito: true })`);
+      await engine("contentBlocker.setEnabled", { enabled: false });
+      await engine("contentBlocker.setEnabled", { enabled: true });
+      const installed = await engineOrError("extensions.install", { profile: "", path: extPath });
+      const configured = await engineOrError("extensions.configure", { profile: "", id: installed.id, options: { incognito: true } });
       if (configured?.error) throw new Error(`configure: ${configured.error}`);
-      await exts(`uninstall("${installed.id}", "")`);
+      await engineOrError("extensions.uninstall", { profile: "", id: installed.id });
       const events = await until("both events", async () => {
         const list = await evalApp(`return globalThis.__acEvents`);
         return list.some((x) => x[0] === "blocker") && list.filter((x) => x[0] === "extensions").length >= 2 ? list : null;
       }, 15000).catch(async (e) => { throw new Error(`${e.message}; got ${JSON.stringify(await evalApp(`return globalThis.__acEvents`)).slice(0, 300)}`); });
-      const sources = await evalApp(`return globalThis.expo.modules.ArdiaCEF.displayMediaSources()`);
+      const sources = await engine("media.displayMediaSources");
       if (!sources.some((x) => x.kind === "screen")) throw new Error("no screen among the display media sources");
       return { blocker: events.filter((x) => x[0] === "blocker").length, extensions: events.filter((x) => x[0] === "extensions").map((x) => x[1].event), configured: true, sources: sources.length };
     } finally {
@@ -1816,16 +1882,16 @@ try {
   // MARK: Chrome services and extensions
 
   await check("extension-popup-and-panel", async () => {
-    const installed = await exts(`install(${JSON.stringify(extPath)}, "")`);
+    const installed = await engineOrError("extensions.install", { profile: "", path: extPath });
     if (installed?.error) throw new Error(installed.error);
-    const windowsBefore = (await cef(`chromeWindows()`)).length;
+    const windowsBefore = (await engine("windows.list")).length;
     try {
       await evalApp(`return ac.extensions.refreshExtensions("").then(() => true)`);
       await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
       await evalApp(`const lists = ac.extensions.useExtensions.getState().lists; const ext = Object.values(lists).flat().find((x) => x.id === "${installed.id}");
         return ac.extensions.activateExtension(${JSON.stringify(mainWindow)}, ext, { x: 100, y: 40, width: 20, height: 20 }).then(() => !!ac.extensions.useExtensions.getState().popup)`);
       const popupTarget = await until("the popup page", async () => (await targets()).find((t) => t.type === "page" && t.url.includes(`${installed.id}/popup.html`)), 10000);
-      const strips = await cef(`tabStrips()`);
+      const strips = await engine("tabs.strips");
       const inStrip = strips.strips.some((st) => st.tabs.some((x) => x.key == null));
       const popupVisible = (await cdp(popupTarget, "Runtime.evaluate", { expression: "document.visibilityState", returnByValue: true })).result.value;
       const pageSize = async (t) => (await cdp(t, "Runtime.evaluate", { expression: "[innerWidth, innerHeight]", returnByValue: true })).result.value;
@@ -1847,20 +1913,20 @@ try {
       await evalApp(`return ac.extensions.openSidePanel(${JSON.stringify(mainWindow)}, "${installed.id}").then(() => !!ac.extensions.useExtensions.getState().sidePanels[${JSON.stringify(mainWindow)}])`);
       const panelTarget = await until("the side panel page", async () => (await targets()).find((t) => t.type === "page" && t.url.includes(`${installed.id}/panel.html`)), 10000);
       const panelVisible = (await cdp(panelTarget, "Runtime.evaluate", { expression: "document.visibilityState", returnByValue: true })).result.value;
-      const stripsWithPanel = await cef(`tabStrips()`);
+      const stripsWithPanel = await engine("tabs.strips");
       const panelInStrip = stripsWithPanel.strips.some((st) => st.tabs.length !== strips.strips.find((x) => x.strip === st.strip)?.tabs.length);
       await evalApp(`ac.extensions.closeSidePanel(${JSON.stringify(mainWindow)}); return true`);
       await until("the panel gone", async () => !(await targets()).some((t) => t.url.includes(`${installed.id}/panel.html`)), 8000);
       const windowsAfter = await until("the standalone window closed", async () => {
-        const n = (await cef(`chromeWindows()`)).length;
+        const n = (await engine("windows.list")).length;
         return n <= windowsBefore ? n : null;
-      }, 8000).catch(async () => (await cef(`chromeWindows()`)).length);
+      }, 8000).catch(async () => (await engine("windows.list")).length);
       if (inStrip || panelInStrip) throw new Error("a standalone WebView's tab is in the window's strip");
       if (popupVisible !== "visible" || panelVisible !== "visible") throw new Error(`popup ${popupVisible}, panel ${panelVisible}`);
       return { popup: popupVisible, panel: panelVisible, popupSize: `${grown.join("x")} → ${shrunk.join("x")}`, openPopup: opened, windowsBefore, windowsAfter };
     } finally {
       await evalApp(`ac.extensions.closeExtensionPopup(); ac.extensions.closeSidePanel(${JSON.stringify(mainWindow)}); return true`).catch(() => null);
-      await exts(`uninstall("${installed.id}", "")`);
+      await engineOrError("extensions.uninstall", { profile: "", id: installed.id });
     }
   });
 
@@ -1872,8 +1938,7 @@ try {
       await evalApp(`return ac.webviews.get("${first.id}").zoomStep(0)`);
       await until("zoom 100%", async () => ((await zoom()) === 1 ? true : null), 5000);
     };
-    const browser = await browserOf(first.id);
-    const scroll = (steps) => evalApp(`return globalThis.expo.modules.ArdiaCEF.devScrollZoom(${JSON.stringify(steps)}, ${browser})`);
+    const scroll = (steps) => engine("tabs.devScrollZoom", { steps, tabId: first.id });
     const gesture = (trackpad) => [
       { phase: "mayBegin", dy: 0, trackpad }, { phase: "began", dy: 12, trackpad },
       ...Array.from({ length: 4 }, () => ({ phase: "changed", dy: 40, trackpad })),
@@ -1907,7 +1972,7 @@ try {
   });
 
   await check("extension-prompts", async () => {
-    const installed = await exts(`install(${JSON.stringify(extPath)}, "")`);
+    const installed = await engineOrError("extensions.install", { profile: "", path: extPath });
     if (installed?.error) throw new Error(installed.error);
     try {
       await evalApp(`return ac.extensions.refreshExtensions("").then(() => true)`);
@@ -1920,7 +1985,7 @@ try {
       await cdp(popup, "Runtime.evaluate", { expression: "window.__perm = 'pending'; chrome.permissions.request({ permissions: ['bookmarks'] }).then((g) => (window.__perm = String(g)), (e) => (window.__perm = String(e))); true", userGesture: true });
       const request = await until("the app's install dialog", async () => evalApp(`return ac.extensions.useExtensions.getState().install ?? null`), 10000);
       const requestId = request.requestId ?? request.prompt?.requestId ?? request.request?.requestId;
-      await exts(`resolveInstallPrompt(${JSON.stringify(requestId)}, true)`);
+      await engine("extensions.resolveInstallPrompt", { requestId, accepted: true });
       const granted = await until("the page's answer", async () => {
         const v = (await cdp(popup, "Runtime.evaluate", { expression: "window.__perm", returnByValue: true })).result.value;
         return v !== "pending" ? v : null;
@@ -1942,7 +2007,7 @@ try {
       return { prompt: request.type ?? request.prompt?.type ?? Object.keys(request), granted, panel: !!panel, shown };
     } finally {
       await evalApp(`ac.extensions.closeExtensionPopup(); ac.extensions.closeSidePanel(${JSON.stringify(mainWindow)}); return true`).catch(() => null);
-      await exts(`uninstall("${installed.id}", "")`);
+      await engineOrError("extensions.uninstall", { profile: "", id: installed.id });
     }
   });
 
@@ -1957,9 +2022,8 @@ try {
 
   await check("traffic-lights-after-profile-switch", async () => {
     const s = await state();
-    const browser = await browserOf(first.id);
-    const windowNumber = await evalApp(`return globalThis.expo.modules.ArdiaCEF.devWindowNumber(${browser})`);
-    const lights = () => evalApp(`return globalThis.expo.modules.ArdiaCEF.devWindow(${windowNumber}, "lights")`);
+    const windowNumber = await engine("tabs.devWindowNumber", { tabId: first.id });
+    const lights = () => engine("windows.dev", { window: windowNumber, action: "lights" });
     const before = await lights();
     const id = await evalApp(`return ac.store.getState().createProfile({ name: "Lights" })`);
     await evalApp(`ac.actions.switchProfile("${s.windowId}", "${id}"); return true`);
@@ -1977,67 +2041,67 @@ try {
 
   await check("passwords", async () => {
     const origin = "https://example.test";
-    const saved = await cef(`savePassword("", "${origin}", "nnuser", "s3cret")`);
+    const saved = await secret("ArdiaPasswords", "save", "", origin, "nnuser", "s3cret");
     if (saved?.error) throw new Error(saved.error);
     const list = await until("the saved login", async () => {
-      const r = await cef(`listPasswords("")`);
+      const r = await engineOrError("passwords.list", { profile: "" });
       return r.passwords?.find((p) => p.username === "nnuser") ? r : null;
     });
-    const revealed = await cef(`getPassword("", "${origin}", "nnuser")`);
-    await cef(`deletePassword("", "${origin}", "nnuser")`);
-    const after = await cef(`listPasswords("")`);
+    const revealed = await engineOrError("passwords.reveal", { profile: "", origin, username: "nnuser" });
+    await engineOrError("passwords.remove", { profile: "", origin, username: "nnuser" });
+    const after = await engineOrError("passwords.list", { profile: "" });
     if (after.passwords?.some((p) => p.username === "nnuser")) throw new Error("not deleted");
-    const autofill = await cef(`getPasswordAutofill("")`);
-    await cef(`setPasswordAutofill("", false)`);
-    const off = await cef(`getPasswordAutofill("")`);
-    await cef(`setPasswordAutofill("", true)`);
+    const autofill = await engine("passwords.autofillEnabled", { profile: "" });
+    await engine("passwords.setAutofillEnabled", { profile: "", enabled: false });
+    const off = await engine("passwords.autofillEnabled", { profile: "" });
+    await engine("passwords.setAutofillEnabled", { profile: "", enabled: true });
     return { listed: list.passwords.length, revealed: revealed?.password ?? revealed, autofill, off };
   });
 
   await check("autofill", async () => {
-    const saved = await cef(`saveAddress("", { fullName: "The mascot", city: "Tel Aviv", country: "IL" })`);
+    const saved = await engineOrError("autofill.saveAddress", { profile: "", address: { fullName: "The mascot", city: "Tel Aviv", country: "IL" } });
     if (saved?.error) throw new Error(saved.error);
     const list = await until("the address", async () => {
-      const r = await cef(`listAddresses("")`);
+      const r = await engineOrError("autofill.addresses", { profile: "" });
       return r.addresses?.length ? r : null;
     });
     const id = list.addresses[0].id;
-    await cef(`deleteAutofillEntry("", "${id}")`);
-    const settings = await cef(`getAutofillSettings("")`);
+    await engineOrError("autofill.remove", { profile: "", id });
+    const settings = await engine("autofill.settings", { profile: "" });
     return { addresses: list.addresses.length, first: list.addresses[0].fullName ?? list.addresses[0].name, settings };
   });
 
   await check("zoom-levels", async () => {
-    await cef(`setZoom("", "zoom.test", 1.5)`);
+    await engine("sites.setZoom", { profile: "", host: "zoom.test", zoom: 1.5 });
     const levels = await until("the zoom level", async () => {
-      const l = await cef(`getZoomLevels("")`);
+      const l = await engine("sites.zoomLevels", { profile: "" });
       return l["zoom.test"] ? l : null;
     });
-    await cef(`setZoom("", "zoom.test", 1)`);
+    await engine("sites.setZoom", { profile: "", host: "zoom.test", zoom: 1 });
     return { levels };
   });
 
   await check("extensions", async () => {
-    const inspected = await exts(`inspectUnpacked(${JSON.stringify(extPath)})`);
-    const installed = await exts(`install(${JSON.stringify(extPath)}, "")`);
+    const inspected = await engineOrError("extensions.inspectUnpacked", { path: extPath });
+    const installed = await engineOrError("extensions.install", { profile: "", path: extPath });
     if (installed?.error) throw new Error(installed.error);
     const list = await until("the extension listed", async () => {
-      const r = await exts(`list("")`);
+      const r = await engineOrError("extensions.list", { profile: "" });
       return r.extensions?.find((e) => e.id === installed.id) ? r : null;
     });
-    await exts(`setEnabled("${installed.id}", "", false)`);
-    await exts(`uninstall("${installed.id}", "")`);
-    const engines = await exts(`searchEngineList("")`);
+    await engineOrError("extensions.setEnabled", { profile: "", id: installed.id, enabled: false });
+    await engineOrError("extensions.uninstall", { profile: "", id: installed.id });
+    const engines = await engineOrError("search.engines", { profile: "" });
     return { id: installed.id, name: inspected.name, listed: list.extensions.length, engines: !!engines.list };
   });
 
   await check("extension-configure", async () => {
-    const installed = await exts(`install(${JSON.stringify(extPath)}, "")`);
+    const installed = await engineOrError("extensions.install", { profile: "", path: extPath });
     if (installed?.error) throw new Error(installed.error);
     const id = installed.id;
-    const info = async () => (await exts(`list("")`)).extensions?.find((e) => e.id === id) ?? null;
+    const info = async () => (await engineOrError("extensions.list", { profile: "" })).extensions?.find((e) => e.id === id) ?? null;
     const configure = async (options) => {
-      const r = await exts(`configure("${id}", "", ${JSON.stringify(options)})`);
+      const r = await engineOrError("extensions.configure", { profile: "", id, options });
       if (r?.error) throw new Error(`configure ${JSON.stringify(options)}: ${r.error}`);
     };
     const scriptRan = async (tag) => {
@@ -2056,7 +2120,7 @@ try {
       }
     };
     await evalApp(`globalThis.__acCfg = []; globalThis.__acCfgSub?.remove();
-      globalThis.__acCfgSub = globalThis.expo.modules.ArdiaExtensions.addListener("onChanged", (e) => globalThis.__acCfg.push(e)); return true`);
+      globalThis.__acCfgSub = ac.engine.on("extensions.changed", (e) => globalThis.__acCfg.push(e)); return true`);
     try {
       const before = await until("the extension listed", info);
       if (!before.siteAccess) throw new Error("the fixture has no site access to change");
@@ -2094,13 +2158,13 @@ try {
       };
     } finally {
       await evalApp(`globalThis.__acCfgSub?.remove(); return true`).catch(() => null);
-      await exts(`uninstall("${id}", "")`).catch(() => null);
+      await engineOrError("extensions.uninstall", { profile: "", id }).catch(() => null);
       await evalApp(`ac.actions.switchToTab("${first.id}"); return true`).catch(() => null);
     }
   });
 
   await check("chrome-windows-create", async () => {
-    const installed = await exts(`install(${JSON.stringify(extPath)}, "")`);
+    const installed = await engineOrError("extensions.install", { profile: "", path: extPath });
     if (installed?.error) throw new Error(installed.error);
     const worker = await until("the extension's worker", async () => {
       for (const t of (await targets()).filter((t) => t.type === "service_worker" && t.url.includes(installed.id))) {
@@ -2122,19 +2186,19 @@ try {
     try {
       if (tab.windowId === mainWindow) throw new Error("the window's tab landed in the run's window, not a new one");
       const created = JSON.parse(made.result?.value ?? "{}");
-      const strip = await until("the new window's strip", async () => (await cef(`tabStrips()`)).strips.find((st) => st.appWindow === tab.windowId && st.tabs.length) ?? null, 10000);
+      const strip = await until("the new window's strip", async () => (await engine("tabs.strips")).strips.find((st) => st.appWindow === tab.windowId && st.tabs.length) ?? null, 10000);
       if (strip.strip !== created.id) throw new Error(`chrome.windows.create answered window ${created.id}, the app shows ${strip.strip}`);
       return { tab: tab.id, adoptId: tab.adoptId ?? null, window: tab.windowId, chromeWindow: created.id };
     } finally {
       if (tab.windowId !== mainWindow) await evalApp(`ac.store.getState().closeWindow(${JSON.stringify(tab.windowId)}); return true`).catch(() => null);
-      await exts(`uninstall("${installed.id}", "")`).catch(() => null);
+      await engineOrError("extensions.uninstall", { profile: "", id: installed.id }).catch(() => null);
     }
   });
 
   await check("private-windows-create", async () => {
-    const installed = await exts(`install(${JSON.stringify(extPath)}, "")`);
+    const installed = await engineOrError("extensions.install", { profile: "", path: extPath });
     if (installed?.error) throw new Error(installed.error);
-    await exts(`configure("${installed.id}", "", { incognito: true })`);
+    await engineOrError("extensions.configure", { profile: "", id: installed.id, options: { incognito: true } });
     const privateTabs = () => evalApp(`const s = ac.store.getState(); return Object.values(s.tabs).map((t) => ({ id: t.id, url: t.url, title: t.title, windowId: t.windowId, incognito: !!s.windows[t.windowId]?.incognito, adoptId: t.adoptId }))`);
     const opened = [];
     try {
@@ -2167,30 +2231,30 @@ try {
       return { first: { window: lone.tab.windowId, adoptId: lone.tab.adoptId ?? null, cookie: cookie || "(none)" }, second: { sameWindow: true } };
     } finally {
       for (const w of new Set(opened)) await evalApp(`ac.store.getState().closeWindow(${JSON.stringify(w)}); return true`).catch(() => null);
-      await exts(`uninstall("${installed.id}", "")`).catch(() => null);
+      await engineOrError("extensions.uninstall", { profile: "", id: installed.id }).catch(() => null);
       await backToA().catch(() => null);
     }
   });
 
   const withPopupExtension = async (options, fn) => {
     writePopupExtension(options);
-    const installed = await exts(`install(${JSON.stringify(extPopupPath)}, "")`);
+    const installed = await engineOrError("extensions.install", { profile: "", path: extPopupPath });
     if (installed?.error) throw new Error(installed.error);
     try {
       await evalApp(`return ac.extensions.refreshExtensions("").then(() => true)`);
       return await fn(installed.id);
     } finally {
       await evalApp(`ac.extensions.closeExtensionPopup(); return true`).catch(() => null);
-      await exts(`uninstall("${installed.id}", "")`).catch(() => null);
+      await engineOrError("extensions.uninstall", { profile: "", id: installed.id }).catch(() => null);
     }
   };
-  const mainStrip = async () => (await cef(`tabStrips()`)).strips.find((st) => st.appWindow === mainWindow && st.profile === "");
+  const mainStrip = async () => (await engine("tabs.strips")).strips.find((st) => st.appWindow === mainWindow && st.profile === "");
 
   await check("extension-popup-window", async () => {
     return withPopupExtension({}, async (id) => {
       const tab = await freshTab(`${base}/b?under-popup`);
       try {
-        const windowsBefore = (await cef(`chromeWindows()`)).length;
+        const windowsBefore = (await engine("windows.list")).length;
         const opened = await evalApp(`const ext = Object.values(ac.extensions.useExtensions.getState().lists).flat().find((x) => x.id === "${id}");
           return ac.extensions.activateExtension(${JSON.stringify(mainWindow)}, ext, { x: 100, y: 40, width: 20, height: 20 }).then(() => !!ac.extensions.useExtensions.getState().popup)`);
         if (!opened) throw new Error("no popup in the app");
@@ -2205,9 +2269,9 @@ try {
         if (seen.window !== strip?.strip) throw new Error(`the popup's current window is ${seen.window}, the app's is ${strip?.strip}`);
         if (seen.tabs.length !== 1 || seen.tabs[0] !== `${base}/b?under-popup`) throw new Error(`the popup's active tab: ${JSON.stringify(seen.tabs)}`);
         if (seen.popups !== 1) throw new Error(`chrome.extension.getViews({ type: "popup" }): ${seen.popups}`);
-        const strips = await cef(`tabStrips()`);
+        const strips = await engine("tabs.strips");
         if (strips.strips.some((st) => st.tabs.some((x) => x.key == null))) throw new Error("the popup is a tab in a strip");
-        const windowsWith = (await cef(`chromeWindows()`)).length;
+        const windowsWith = (await engine("windows.list")).length;
         if (windowsWith !== windowsBefore) throw new Error(`windows ${windowsBefore} → ${windowsWith} with the popup open`);
         for (const type of ["rawKeyDown", "keyUp"])
           await cdp(popup, "Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 53 }).catch(() => null);
@@ -2221,7 +2285,7 @@ try {
   });
 
   await check("extension-windows-hidden", async () => {
-    const appWindows = async () => (await cef(`chromeWindows()`)).map((w) => w.window);
+    const appWindows = async () => (await engine("windows.list")).map((w) => w.window);
     const before = new Set([...onScreenWindows(), ...(await appWindows())]);
     return withPopupExtension({ welcome: true }, async (id) => {
       const opened = [];
@@ -2240,7 +2304,7 @@ try {
           return null;
         }, 15000);
         const listed = JSON.parse((await cdp(worker, "Runtime.evaluate", { expression: "chrome.windows.getAll().then((ws) => JSON.stringify(ws.map((w) => w.id)))", awaitPromise: true, returnByValue: true })).result.value);
-        const strips = new Set((await cef(`tabStrips()`)).strips.map((st) => st.strip));
+        const strips = new Set((await engine("tabs.strips")).strips.map((st) => st.strip));
         const hidden = listed.filter((w) => !strips.has(w));
         if (hidden.length) throw new Error(`chrome.windows.getAll lists windows the app doesn't show: ${JSON.stringify(hidden)} (app's: ${JSON.stringify([...strips])})`);
         await cdp(worker, "Runtime.evaluate", { expression: "chrome.runtime.openOptionsPage().then(() => true)", awaitPromise: true });
@@ -2311,29 +2375,29 @@ try {
     const profile = await evalApp(`return ac.store.getState().createProfile({ name: "Installs" })`);
     const opened = [];
     const bubbleIn = async (windowId) => {
-      for (const w of await cef(`chromeWindows()`)) {
-        const children = JSON.parse(await cef(`devWindow(${w.window}, "children")`));
+      for (const w of await engine("windows.list")) {
+        const children = JSON.parse(await engine("windows.dev", { window: w.window, action: "children" }));
         if (children.some((c) => /has been added/.test(c.title))) return w.window;
       }
       return null;
     };
     const profileWindow = async (path) => {
-      const before = new Set((await cef(`chromeWindows()`)).map((w) => w.window));
+      const before = new Set((await engine("windows.list")).map((w) => w.window));
       const id = await evalApp(`return ac.actions.openWindow({ profileId: ${JSON.stringify(profile)}, url: "${base}${path}" })`);
       opened.push(id);
       await until(`${path} shown`, () => pageTarget(path));
-      const native = await until("its window", async () => (await cef(`chromeWindows()`)).find((w) => !before.has(w.window))?.window ?? null);
+      const native = await until("its window", async () => (await engine("windows.list")).find((w) => !before.has(w.window))?.window ?? null);
       return { id, native };
     };
     const install = async (closeFirst) => {
       await evalApp(`ac.extensions.cancelInstall(); globalThis.__acCrx = null;
-        globalThis.expo.modules.ArdiaExtensions.installCrx(${JSON.stringify(crxPath)}, ${JSON.stringify(profile)}).then((r) => (globalThis.__acCrx = r)); return true`);
+        ac.engine.call("extensions.installCrx", ${JSON.stringify({ profile, path: crxPath })}).then((r) => (globalThis.__acCrx = r), (e) => (globalThis.__acCrx = { error: e.message })); return true`);
       const prompt = await until("the install prompt", async () => {
         const p = await evalApp(`return ac.extensions.useExtensions.getState().install?.prompt ?? null`);
         return p?.name === "ArdiaCore crx fixture" ? p : null;
       }, 15000);
       if (closeFirst) await closeFirst();
-      await exts(`resolveInstallPrompt(${JSON.stringify(prompt.requestId)}, true)`);
+      await engine("extensions.resolveInstallPrompt", { requestId: prompt.requestId, accepted: true });
       const result = await until("the install", () => evalApp(`return globalThis.__acCrx`), 15000);
       if (!result.id) throw new Error(`install: ${JSON.stringify(result)}`);
       return result.id;
@@ -2346,13 +2410,13 @@ try {
       if (shown !== first.native) throw new Error(`the bubble is in window ${shown}, not the profile's ${first.native}`);
       await evalApp(`ac.store.getState().closeWindow(${JSON.stringify(first.id)}); return true`);
       await sleep(1500);
-      await exts(`uninstall("${id}", ${JSON.stringify(profile)})`);
-      const before = new Set([...onScreenWindows(), ...(await cef(`chromeWindows()`)).map((w) => w.window)]);
+      await engineOrError("extensions.uninstall", { profile, id });
+      const before = new Set([...onScreenWindows(), ...(await engine("windows.list")).map((w) => w.window)]);
       const second = await profileWindow("/c?installs-2");
       id = await install(async () => {
         await evalApp(`ac.store.getState().closeWindow(${JSON.stringify(second.id)}); return true`);
-        await until("the profile's window closed", async () => !(await cef(`chromeWindows()`)).some((w) => w.window === second.native && w.visible), 8000)
-          .catch(async (e) => { throw new Error(`${e.message}; windows ${JSON.stringify(await cef(`chromeWindows()`))}; app ${JSON.stringify(await evalApp(`return ac.store.getState().windowOrder`))}`); });
+        await until("the profile's window closed", async () => !(await engine("windows.list")).some((w) => w.window === second.native && w.visible), 8000)
+          .catch(async (e) => { throw new Error(`${e.message}; windows ${JSON.stringify(await engine("windows.list"))}; app ${JSON.stringify(await evalApp(`return ac.store.getState().windowOrder`))}`); });
       });
       await sleep(2000);
       const early = await bubbleIn();
@@ -2366,7 +2430,7 @@ try {
     } finally {
       await evalApp(`ac.extensions.cancelInstall(); return true`).catch(() => null);
       for (const w of opened) await evalApp(`ac.store.getState().closeWindow(${JSON.stringify(w)}); return true`).catch(() => null);
-      if (id) await exts(`uninstall("${id}", ${JSON.stringify(profile)})`).catch(() => null);
+      if (id) await engineOrError("extensions.uninstall", { profile, id }).catch(() => null);
     }
   });
 
@@ -2403,24 +2467,24 @@ try {
 
   await check("content-blocker", async () => {
     const state = await until("the blocker's state", async () => {
-      const s = await cef(`getContentBlocker()`);
+      const s = await engine("contentBlocker.state").catch(() => null);
       return s?.stats?.ready ? s : null;
     }, 30000);
     const enabledLists = state.lists.filter((l) => l.enabled).length;
     if (state.lists.length < 20 || enabledLists < 5 || !(state.stats.networkFilters > 20000))
       throw new Error(`uBlock Origin has no bundled lists on a fresh profile: ${state.lists.length} lists, ${enabledLists} on, ${state.stats.networkFilters} network filters`);
-    await cef(`setContentBlockerAllowed("allowed.test", true)`);
-    const allowed = await cef(`isContentBlockerAllowed("allowed.test")`);
-    await cef(`setContentBlockerAllowed("allowed.test", false)`);
+    await engine("contentBlocker.setAllowed", { host: "allowed.test", allowed: true });
+    const allowed = await engine("contentBlocker.isAllowed", { host: "allowed.test" });
+    await engine("contentBlocker.setAllowed", { host: "allowed.test", allowed: false });
     return { enabled: state.enabled, lists: state.lists.length, on: enabledLists, networkFilters: state.stats.networkFilters, version: state.version, allowed };
   });
 
   await check("content-blocker-fails-closed", async () => {
-    const enabled = async () => (await cef(`getContentBlocker()`)).lists.filter((l) => l.enabled).map((l) => l.id).sort();
+    const enabled = async () => (await engine("contentBlocker.state")).lists.filter((l) => l.enabled).map((l) => l.id).sort();
     const before = await enabled();
-    const off = (await cef(`getContentBlocker()`)).lists.find((l) => !l.enabled);
-    await cef(`devContentBlockerFailNextMessage()`);
-    const error = await evalApp(`return globalThis.expo.modules.ArdiaCEF.setFilterListEnabled(${JSON.stringify(off.id)}, true).then(() => null, (e) => e.message)`);
+    const off = (await engine("contentBlocker.state")).lists.find((l) => !l.enabled);
+    await engine("contentBlocker.devFailNextMessage");
+    const error = await evalApp(`return ac.engine.call("contentBlocker.setListEnabled", ${JSON.stringify({ id: off.id, enabled: true })}).then(() => null, (e) => e.message)`);
     const after = await enabled();
     if (!error) throw new Error("the failed change reported no error");
     if (JSON.stringify(after) !== JSON.stringify(before)) throw new Error(`the lists changed: ${before} → ${after}`);
@@ -2430,7 +2494,7 @@ try {
   const adsServedFor = (tag) => adServed.filter((s) => !s.startsWith("adpage.test") && s.endsWith(`?${tag}`));
 
   const contentBlockerRounds = async (profileId) => {
-    await until("the blocker's state", async () => ((await cef(`getContentBlocker()`))?.stats?.ready ? true : null), 30000);
+    await until("the blocker's state", async () => ((await engine("contentBlocker.state").catch(() => null))?.stats?.ready ? true : null), 30000);
     const origin = `http://adpage.test:${server.address().port}`;
     const page = `${origin}/adpage`;
     const tag0 = profileId ? profileId : "personal";
@@ -2468,9 +2532,9 @@ try {
       };
       const stopped = (r) => !r.adnxs.reached && !r.gpt.reached && r.adnxs.fetch === "failed" && !r.adsbygoogle.reached && r.adsbygoogle.script === "stand-in";
       const blocked = await round("blocked");
-      await cef(`setContentBlockerAllowed("adpage.test", true)`);
+      await engine("contentBlocker.setAllowed", { host: "adpage.test", allowed: true });
       const allowed = await round("allowed");
-      await cef(`setContentBlockerAllowed("adpage.test", false)`);
+      await engine("contentBlocker.setAllowed", { host: "adpage.test", allowed: false });
       const again = await round("again");
       if (!stopped(blocked)) throw new Error(`not blocked: ${JSON.stringify(blocked)}`);
       if (!allowed.adnxs.reached || !allowed.gpt.reached || !allowed.adsbygoogle.reached) throw new Error(`allowing the site let nothing through: ${JSON.stringify(allowed)}`);
@@ -2494,7 +2558,7 @@ try {
 
   await check("content-blocker-held", async () => {
     const delay = 1500;
-    await cef(`devContentBlockerDelayNextLoad(${delay})`);
+    await engine("contentBlocker.devDelayNextLoad", { ms: delay });
     const id = await evalApp(`return ac.store.getState().createProfile({ name: "Held" })`);
     const tag = `held-${Date.now()}`;
     const started = Date.now();
@@ -2543,7 +2607,7 @@ try {
     const found = {};
     let pages = 0;
     for (const profile of profiles) {
-      const r = JSON.parse(await cef(`engineCall("ac_history_query", ${JSON.stringify(profile)}, ${JSON.stringify(JSON.stringify({ maxUrls: 1000, maxVisits: 1 }))})`));
+      const r = await engineOrError("history.query", { profile, maxUrls: 1000, maxVisits: 1 });
       const urls = (r.entries ?? []).map((e) => e.u ?? "");
       pages += urls.filter((u) => u.startsWith("http")).length;
       const internal = urls.filter((u) => u.startsWith("chrome-extension://") && !userOpened(u));
@@ -2601,7 +2665,7 @@ try {
   await check("popup-window", async () => {
     await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
     const opener = await pageFor(first.id, `${base}/a`);
-    const popups = async () => (await cef(`engineInfo()`)).popupWindows;
+    const popups = async () => (await engine("engine.info")).popupWindows;
     const before = await popups();
     await cdp(opener, "Runtime.evaluate", { expression: `window.__msg = null; addEventListener("message", (e) => (window.__msg = e.data)); window.open("${base}/popup-page", "pop", "width=480,height=360"); true`, userGesture: true });
     const t = await until("the popup's page", () => pageTarget("/popup-page"));
@@ -2640,14 +2704,14 @@ try {
 
   await check("site-settings", async () => {
     const origin = "https://settings.test";
-    await cef(`setSiteSetting("", "${origin}", "popups", "allow")`);
+    await engine("sites.setSetting", { profile: "", origin, type: "popups", value: "allow" });
     const settings = await until("the setting", async () => {
-      const s = await cef(`getSiteSettings("", "${origin}")`);
+      const s = await engine("sites.settings", { profile: "", origin });
       return s?.popups?.value === "allow" ? s : null;
     });
-    const origins = await cef(`getSiteSettingsOrigins("")`);
-    await cef(`resetSiteSettings("", "${origin}")`);
-    const cleared = await cef(`clearSiteData("", "${origin}")`);
+    const origins = await engine("sites.origins", { profile: "" });
+    await engine("sites.reset", { profile: "", origin });
+    const cleared = await engine("sites.clearData", { profile: "", origin });
     return { popups: settings.popups, origins: origins.length, cleared };
   });
 
@@ -2683,7 +2747,7 @@ try {
         await closeTab(tab.id);
       }
     };
-    await cef(`setSiteSetting("", "${secure}", "notifications", "allow")`);
+    await engine("sites.setSetting", { profile: "", origin: secure, type: "notifications", value: "allow" });
     const persistTab = await openTab(`${secure}/site-data`, "Site data", true);
     try {
       const t = await until("the secure page", () => pageTarget(`${secure}/site-data`));
@@ -2701,15 +2765,15 @@ try {
     for (const k of ["embeddedOnSite", "siteEmbeddedElsewhere"])
       if (before[k]?.cookie !== "chips=1" || before[k]?.ls !== "yes") throw new Error(`the fixture's partitioned data: ${JSON.stringify(before)}`);
     if (before.persisted !== true) throw new Error(`persistent storage wasn't granted: ${JSON.stringify(before)}`);
-    const cleared = await cef(`clearSiteData("", "${one}")`);
+    const cleared = await engine("sites.clearData", { profile: "", origin: one });
     const after = {
       one: await read(`${one}/site-data`), two: await read(`${two}/site-data`),
       embeddedOnSite: await readFrame(secure, `${thirdParty}/frame-probe`),
       siteEmbeddedElsewhere: await readFrame(elsewhere, `${secure}/frame-probe`),
       persisted: await persisted(),
-      notifications: (await cef(`getSiteSettings("", "${secure}")`))?.notifications?.value,
+      notifications: (await engine("sites.settings", { profile: "", origin: secure }))?.notifications?.value,
     };
-    await cef(`resetSiteSettings("", "${secure}")`);
+    await engine("sites.reset", { profile: "", origin: secure });
     const wrong = [];
     if (after.one !== " | null" || after.two !== " | null") wrong.push("the site's own cookies or storage");
     if (after.embeddedOnSite?.cookie !== "" || after.embeddedOnSite?.ls !== null) wrong.push("a third party's data stored under the site");
@@ -2723,38 +2787,38 @@ try {
 
   await check("passwords-more", async () => {
     const origin = "https://more.test";
-    await cef(`savePassword("", "${origin}", "olduser", "pw1")`);
-    const updated = await cef(`updatePassword("", "${origin}", "olduser", "newuser", "pw2")`);
+    await secret("ArdiaPasswords", "save", "", origin, "olduser", "pw1");
+    const updated = await secret("ArdiaPasswords", "update", "", origin, "olduser", "newuser", "pw2");
     if (updated?.error) throw new Error(`update: ${updated.error}`);
     const revealed = await until("the edited login", async () => {
-      const r = await cef(`getPassword("", "${origin}", "newuser")`);
+      const r = await engineOrError("passwords.reveal", { profile: "", origin, username: "newuser" });
       return r?.password === "pw2" ? r : null;
     });
-    const unlocked = await cef(`unlockPasswords("")`);
-    const never = await cef(`getNeverSavePasswordOrigins("")`);
-    const allowed = await cef(`allowSavingPasswords("", "https://never.test")`);
+    const unlocked = await engineOrError("passwords.unlock", { profile: "" });
+    const never = await engineOrError("passwords.neverSaveOrigins", { profile: "" });
+    const allowed = await engineOrError("passwords.allowSaving", { profile: "", origin: "https://never.test" });
     const file = join(scratch, "passwords.csv");
     writeFileSync(join(data, "file-chooser.txt"), file + "\n");
-    const exported = await cef(`exportPasswords("")`);
+    const exported = await engineOrError("passwords.export", { profile: "" });
     const written = await until("the export file", async () => existsSync(file) && readFileSync(file, "utf8").includes("newuser"), 10000);
-    await cef(`deletePassword("", "${origin}", "newuser")`);
+    await engineOrError("passwords.remove", { profile: "", origin, username: "newuser" });
     return { updated: revealed.password, unlocked, never: never?.origins?.length ?? never, allowed, exported: exported?.status ?? exported, written };
   });
 
   await check("autofill-cards", async () => {
-    const saved = await cef(`saveCard("", { name: "Acceptance Test", expMonth: 12, expYear: 2031 }, "4111111111111111")`);
+    const saved = await secret("ArdiaAutofill", "saveCard", "", { name: "Acceptance Test", expMonth: 12, expYear: 2031 }, "4111111111111111");
     if (saved?.error) throw new Error(`save: ${saved.error}`);
     const card = await until("the card listed", async () => {
-      const r = await cef(`listCards("")`);
+      const r = await engineOrError("autofill.cards", { profile: "" });
       return r?.cards?.find((c) => c.id === saved.id) ?? null;
     });
-    const number = await cef(`revealCardNumber("", "${saved.id}")`);
+    const number = await engineOrError("autofill.cardNumber", { profile: "", id: saved.id });
     if (number?.number !== "4111111111111111") throw new Error(`reveal: ${JSON.stringify(number)}`);
-    await cef(`deleteAutofillEntry("", "${saved.id}")`);
-    await until("the card gone", async () => !(await cef(`listCards("")`))?.cards?.some((c) => c.id === saved.id));
-    await cef(`setAutofillSettings("", null, false)`);
-    const off = await cef(`getAutofillSettings("")`);
-    await cef(`setAutofillSettings("", null, true)`);
+    await engineOrError("autofill.remove", { profile: "", id: saved.id });
+    await until("the card gone", async () => !(await engineOrError("autofill.cards", { profile: "" }))?.cards?.some((c) => c.id === saved.id));
+    await engine("autofill.setSettings", { profile: "", cards: false });
+    const off = await engine("autofill.settings", { profile: "" });
+    await engine("autofill.setSettings", { profile: "", cards: true });
     if (off.cards !== false) throw new Error(`cards setting: ${JSON.stringify(off)}`);
     return { card: { last4: card.lastFour ?? card.last4 ?? null, name: card.name }, revealed: true, cardsOff: true };
   });
@@ -2767,8 +2831,8 @@ try {
     const closed = async (id) => (await prompts()).some((x) => x.payload.closed && x.payload.id === id);
     const appPrompt = () => evalApp(`return ac.pageState.getState().pages[${JSON.stringify(first.id)}]?.autofillPrompt ?? null`);
     const answer = (id, action) => evalApp(`return ac.webviews.get(${JSON.stringify(first.id)}).resolveAutofillPrompt(${id}, ${JSON.stringify(action)})`);
-    const addresses = async (profile = "") => (await cef(`listAddresses(${JSON.stringify(profile)})`))?.addresses ?? [];
-    const cards = async (profile = "") => (await cef(`listCards(${JSON.stringify(profile)})`))?.cards ?? [];
+    const addresses = async (profile = "") => (await engineOrError("autofill.addresses", { profile }))?.addresses ?? [];
+    const cards = async (profile = "") => (await engineOrError("autofill.cards", { profile }))?.cards ?? [];
     const sendForm = async (path, title, values) => {
       await evalApp(`ac.store.getState().navigate(${JSON.stringify(first.id)}, ${JSON.stringify(secureBase + path)}, { userInitiated: true }); return true`);
       await until(title, async () => (await state()).tabs.find((x) => x.id === first.id && x.title === title && x.url?.endsWith(path) && !x.loading), 15000);
@@ -2857,8 +2921,8 @@ try {
         card: { title: cardOffer.title, lines: cardOffer.lines, saved: savedCard.last4, declined: true },
       };
     } finally {
-      for (const a of await addresses().catch(() => [])) await cef(`deleteAutofillEntry("", ${JSON.stringify(a.id)})`).catch(() => null);
-      for (const c of await cards().catch(() => [])) await cef(`deleteAutofillEntry("", ${JSON.stringify(c.id)})`).catch(() => null);
+      for (const a of await addresses().catch(() => [])) await engineOrError("autofill.remove", { profile: "", id: a.id }).catch(() => null);
+      for (const c of await cards().catch(() => [])) await engineOrError("autofill.remove", { profile: "", id: c.id }).catch(() => null);
       if (other) await closeTab(other.id).catch(() => null);
       if (profileB) await evalApp(`ac.store.getState().deleteProfile(${JSON.stringify(profileB)}); return true`).catch(() => null);
       await backToA();
@@ -2866,24 +2930,24 @@ try {
   });
 
   await check("settings-services", async () => {
-    await evalApp(`return globalThis.expo.modules.ArdiaCEF.clearBrowsingData("", ["cache", "history"], null)`, 90000);
-    await cef(`setSiteSetting("", "https://reset.test", "sound", "block")`);
-    await cef(`resetSiteSettings("", "https://reset.test")`);
+    await engine("profiles.clearBrowsingData", { profile: "", types: ["cache", "history"], since: null }, 90000);
+    await engine("sites.setSetting", { profile: "", origin: "https://reset.test", type: "sound", value: "block" });
+    await engine("sites.reset", { profile: "", origin: "https://reset.test" });
     const reset = await until("the site reset", async () => {
-      const r = await cef(`getSiteSettings("", "https://reset.test")`);
+      const r = await engine("sites.settings", { profile: "", origin: "https://reset.test" });
       return r?.sound?.isDefault ? r.sound : null;
     });
-    const before = await cef(`getContentBlocker()`);
-    await cef(`setContentBlockerEnabled(false)`);
-    const off = await until("the blocker off", async () => ((await cef(`getContentBlocker()`)).enabled === false ? true : null), 15000);
-    await cef(`setContentBlockerEnabled(true)`);
-    await until("the blocker on", async () => ((await cef(`getContentBlocker()`)).enabled === true ? true : null), 15000);
+    const before = await engine("contentBlocker.state");
+    await engine("contentBlocker.setEnabled", { enabled: false });
+    const off = await until("the blocker off", async () => ((await engine("contentBlocker.state")).enabled === false ? true : null), 15000);
+    await engine("contentBlocker.setEnabled", { enabled: true });
+    await until("the blocker on", async () => ((await engine("contentBlocker.state")).enabled === true ? true : null), 15000);
     const list = before.lists.find((l) => !l.enabled) ?? before.lists[0];
-    await cef(`setFilterListEnabled(${JSON.stringify(list.id)}, ${!list.enabled})`);
+    await engine("contentBlocker.setListEnabled", { id: list.id, enabled: !list.enabled });
     const toggled = await until("the list toggled", async () =>
-      (await cef(`getContentBlocker()`)).lists.find((l) => l.id === list.id)?.enabled === !list.enabled ? true : null, 20000);
-    await cef(`setFilterListEnabled(${JSON.stringify(list.id)}, ${list.enabled})`);
-    await cef(`removeExternalAppAllowance("", "https://none.test", "ardiacore-no-such-app")`);
+      (await engine("contentBlocker.state")).lists.find((l) => l.id === list.id)?.enabled === !list.enabled ? true : null, 20000);
+    await engine("contentBlocker.setListEnabled", { id: list.id, enabled: list.enabled });
+    await engine("permissions.removeExternalAppAllowance", { profile: "", origin: "https://none.test", scheme: "ardiacore-no-such-app" });
     const siteData = await evalApp(`return ac.webviews.get("${first.id}")?.clearSiteData() ?? null`);
     if (!siteData || siteData.error) throw new Error(`clearSiteData: ${JSON.stringify(siteData)}`);
     return { reset: reset.value, blockerOff: off, list: list.id, toggled, siteData };
@@ -2895,11 +2959,11 @@ try {
       .then((l) => l.find((x) => x.filename?.includes("ardiacore-slow")) ?? null);
     try {
       const d = await until("the slow download running", async () => { const x = await find(); return x?.state === "downloading" && !x.paused && x.received > 0 ? x : null; }, 15000);
-      await cef(`pauseDownload("${d.id}")`);
+      await engine("downloads.pause", { id: d.id });
       await until("paused", async () => ((await find())?.paused ? true : null), 8000);
-      await cef(`resumeDownload("${d.id}")`);
+      await engine("downloads.resume", { id: d.id });
       await until("running again", async () => { const x = await find(); return x?.state === "downloading" && !x.paused ? true : null; }, 8000);
-      await cef(`cancelDownload("${d.id}")`);
+      await engine("downloads.cancel", { id: d.id });
       const last = await until("cancelled", async () => { const x = await find(); return x?.state === "cancelled" ? x : null; }, 8000);
       return { id: d.id, state: last.state };
     } finally {
@@ -2909,12 +2973,12 @@ try {
 
   await check("tasks-components", async () => {
     const tasks = await until("tasks", async () => {
-      const t = await cef(`listTasks()`);
+      const t = await engine("engine.tasks");
       return t.length ? t : null;
     });
-    const components = await cef(`components()`);
-    const allowances = await cef(`getExternalAppAllowances("")`);
-    return { tasks: tasks.length, browserTasks: tasks.filter((t) => t.browserIds.length).length, components: components.length, allowances: allowances.length };
+    const components = await engine("engine.components");
+    const allowances = await engine("permissions.externalAppAllowances", { profile: "" });
+    return { tasks: tasks.length, browserTasks: tasks.filter((t) => t.tabIds.length).length, components: components.length, allowances: allowances.length };
   });
 
   await check("download-navigation", async () => {
@@ -2924,25 +2988,28 @@ try {
   });
 
   await check("tracing", async () => {
-    const started = await cef(`beginTracing()`);
-    const during = await cef(`isTracing()`);
-    const path = await cef(`endTracing(false)`);
-    const after = await cef(`isTracing()`);
+    const started = await engine("engine.beginTracing");
+    const during = await engine("engine.isTracing");
+    const path = await engine("engine.endTracing", { keep: false });
+    const after = await engine("engine.isTracing");
     if (!started || !during || after) throw new Error(`tracing ${started} ${during} ${after}`);
     return { started, during, after, path };
   });
 
   await check("delete-profile-data", async () => {
     const folder = join(data, "Chromium", "Profile scratch-delete");
-    await cef(`listPasswords("scratch-delete")`);
+    await engineOrError("passwords.list", { profile: "scratch-delete" });
     await until("the profile loaded", async () => existsSync(folder), 10000);
-    const result = await cef(`deleteProfileData("scratch-delete")`);
+    await engine("webKit.devTouchStore", { profile: "scratch-delete" });
+    if (!(await engine("webKit.devStoreExists", { profile: "scratch-delete" }))) throw new Error("the profile's WebKit store wasn't made");
+    const result = await engine("profiles.deleteData", { profile: "scratch-delete" });
     if (result.remaining.length) throw new Error(`remaining ${JSON.stringify(result)}`);
+    if (await engine("webKit.devStoreExists", { profile: "scratch-delete" })) throw new Error("the profile's WebKit store is still on disk");
     const gone = await until("the folder gone", async () => !existsSync(folder), 15000).catch(() => false);
     if (!gone) throw new Error("the profile's folder is still there");
     await sleep(3000);
     if (existsSync(folder)) throw new Error("the profile's folder came back");
-    const shown = (await cef(`chromeWindows()`)).filter((w) => w.visible || w.alpha >= 0).map((w) => w.profile);
+    const shown = (await engine("windows.list")).filter((w) => w.visible || w.alpha >= 0).map((w) => w.profile);
     return { ...result, folderGone: true, windowProfiles: shown };
   });
 
@@ -2964,7 +3031,7 @@ try {
         const profile = await evalApp(`const s = ac.store.getState(); return s.windows["${s.windowId}"]?.profileId ?? null`);
         const pt = await pageFor(first.id, `${base}/a`);
         const vis = (await cdp(pt, "Runtime.evaluate", { expression: "document.visibilityState + '/' + document.hasFocus()", returnByValue: true })).result.value;
-        const tx = await evalApp(`return globalThis.expo.modules.ArdiaCEF.tabStrips()`);
+        const tx = await engine("tabs.strips");
         const chromeActive = tx.strips.map((st) => st.tabs.find((x) => x.active)?.key ?? null);
         throw new Error(`${e.message}; key: ${JSON.stringify(sent)}; window profile: ${profile}; active: ${(await state()).active}; Chrome's active: ${JSON.stringify(chromeActive)}; page ${vis}`);
       });
@@ -3039,29 +3106,29 @@ try {
     };
     const decline = async (request) => {
       await evalApp(`ac.pageState.setState((s) => ({ pages: { ...s.pages, "${first.id}": { ...s.pages["${first.id}"], externalApp: null } } }));
-        return globalThis.expo.modules.ArdiaCEF.resolveExternalApp(${JSON.stringify(request.id)}, false, true).then(() => true)`);
+        return ac.engine.call("permissions.resolveExternalApp", ${JSON.stringify({ id: request.id, open: false, remember: true })}).then(() => true)`);
       await sleep(1500);
     };
     const firstAsk = await ask(1);
     if (!firstAsk.app || !firstAsk.appPath?.endsWith("Shortcuts.app")) throw new Error(`no app found: ${JSON.stringify({ ...firstAsk, icon: !!firstAsk.icon })}`);
     if (!firstAsk.remember) throw new Error("no \"always allow\" offered for a trustworthy origin");
     await decline(firstAsk);
-    const allowances = await cef(`getExternalAppAllowances("")`);
+    const allowances = await engine("permissions.externalAppAllowances", { profile: "" });
     if (JSON.stringify(allowances).includes("shortcuts")) throw new Error(`Chrome recorded an allowance: ${JSON.stringify(allowances)}`);
     const again = await ask(2);
     if (again.id === firstAsk.id) throw new Error("the second link reused the first request");
     await decline(again);
     const third = await ask(3);
     await evalApp(`ac.pageState.setState((s) => ({ pages: { ...s.pages, "${first.id}": { ...s.pages["${first.id}"], externalApp: null } } }));
-      return globalThis.expo.modules.ArdiaCEF.resolveExternalApp(${JSON.stringify(third.id)}, true, true).then(() => true)`);
+      return ac.engine.call("permissions.resolveExternalApp", ${JSON.stringify({ id: third.id, open: true, remember: true })}).then(() => true)`);
     const launch = await until("the recorded launch", async () =>
-      (await cef(`devExternalLaunches()`)).find((l) => l.url?.includes("ardiacore-acceptance-3")) ?? null, 8000);
+      (await engine("permissions.devExternalLaunches")).find((l) => l.url?.includes("ardiacore-acceptance-3")) ?? null, 8000);
     const remembered = await until("Chrome's allowance", async () => {
-      const list = await cef(`getExternalAppAllowances("")`);
+      const list = await engine("permissions.externalAppAllowances", { profile: "" });
       return list.find((a) => a.scheme === "shortcuts") ?? null;
     }, 8000);
-    await cef(`removeExternalAppAllowance("", ${JSON.stringify(remembered.origin)}, "shortcuts")`);
-    const after = await cef(`getExternalAppAllowances("")`);
+    await engine("permissions.removeExternalAppAllowance", { profile: "", origin: remembered.origin, scheme: "shortcuts" });
+    const after = await engine("permissions.externalAppAllowances", { profile: "" });
     if (after.some((a) => a.scheme === "shortcuts")) throw new Error(`the allowance stayed: ${JSON.stringify(after)}`);
     if (!wasRunning && running()) throw new Error("Shortcuts was launched");
     return { app: firstAsk.app, origin: firstAsk.origin, remember: firstAsk.remember, icon: !!firstAsk.icon,
@@ -3070,7 +3137,7 @@ try {
   });
 
   await check("notifications", async () => {
-    await cef(`setSiteSetting("", "${base}", "notifications", "allow")`);
+    await engine("sites.setSetting", { profile: "", origin: base, type: "notifications", value: "allow" });
     await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
     const t = await pageFor(first.id, `${base}/a`);
     await cdp(t, "Runtime.evaluate", {
@@ -3085,7 +3152,7 @@ try {
     }, 8000);
     await cdp(t, "Runtime.evaluate", { expression: "window.__n2 = new Notification('Second'); setTimeout(() => window.__n2.close(), 300); true", userGesture: true });
     const closed = await until("onNotificationClose", async () => (await eventsOf(first.id)).find((x) => x.name === "notificationClose"), 8000);
-    await cef(`setSiteSetting("", "${base}", "notifications", "default")`);
+    await engine("sites.setSetting", { profile: "", origin: base, type: "notifications", value: "default" });
     return { title: e.payload.title, body: e.payload.body, clicked, closed: !!closed };
   });
 
@@ -3110,9 +3177,9 @@ try {
     if (!media) throw new Error("no onMedia while playing");
     return { title: playing.payload.state.title, artist: playing.payload.state.artist, mediaEvents: media };
     } finally {
-      await evalApp(`return ac.webviews.get("${first.id}").setMuted(false)`).catch(() => null);
       await evalApp(`ac.store.getState().navigate("${first.id}", "${base}/a", { userInitiated: true }); return true`);
       await until("A again", async () => (await state()).tabs.find((t) => t.id === first.id && t.title === "Page A" && !t.loading));
+      await evalApp(`return ac.webviews.get("${first.id}").setMuted(false)`).catch(() => null);
     }
   });
 
@@ -3147,8 +3214,8 @@ try {
       }, 5000);
       return { muted: mutedEvent.payload, playing: on.payload, stopped: off.payload, stoppedAfterMs, unmuted: unmuted.payload };
     } finally {
-      await evalApp(`return ac.webviews.get("${first.id}").setMuted(false)`).catch(() => null);
       await backToA();
+      await evalApp(`return ac.webviews.get("${first.id}").setMuted(false)`).catch(() => null);
     }
   });
 
@@ -3157,8 +3224,7 @@ try {
     try {
       await evalApp(`return ac.webviews.get("${tab.id}").setMuted(true)`);
       const t = await startVideo(tab.id, false);
-      const requested = await evalApp(`return ac.webviews.get("${tab.id}").requestPictureInPicture()`);
-      if (requested !== true) throw new Error(`requestPictureInPicture answered ${requested}`);
+      const click = await pipByHand(tab.id);
       const on = await until("onPictureInPicture video", async () => lastEvent(tab.id, "pictureInPicture", (p) => p.kind === "video" && p.active), 5000);
       const element = (await cdp(t, "Runtime.evaluate", { expression: "document.pictureInPictureElement?.id ?? null", returnByValue: true })).result.value;
       const video = await until("Chrome's PiP window, styled", async () => (await pipWindows())?.find((w) => w.video && w.styled) ?? null, 5000)
@@ -3168,7 +3234,7 @@ try {
       await sleep(800);
       const videoShown = (await pipWindows())?.find((w) => w.window === video.window) ?? video;
       if (videoShown.alpha !== 0 || !videoShown.ignoresMouseEvents) throw new Error(`a hidden run's PiP window shows: ${JSON.stringify(videoShown)}`);
-      const menu = await cef(`devPictureInPictureAction("menu")`);
+      const menu = await engine("tabs.devPictureInPictureAction", { action: "menu" });
       await evalApp(`return ac.webviews.get("${tab.id}").exitPictureInPicture()`);
       const off = await until("onPictureInPicture video off", async () => {
         const e = await lastEvent(tab.id, "pictureInPicture");
@@ -3190,7 +3256,7 @@ try {
         const e = await lastEvent(tab.id, "pictureInPicture");
         return e && e.payload.kind === "document" && !e.payload.active ? e : null;
       }, 5000);
-      return { requested, on: on.payload, element, window: { frame: video.frame, level: video.level, alpha: video.alpha }, menu, off: off.payload,
+      return { clickAt: click.at, on: on.payload, element, window: { frame: video.frame, level: video.level, alpha: video.alpha }, menu, off: off.payload,
         docOn: docOn.payload, docWindow: { title: docWindow.title, alpha: docWindow.alpha }, docOff: docOff.payload };
     } finally {
       await closeTab(tab.id);
@@ -3199,10 +3265,9 @@ try {
 
   await check("auto-picture-in-picture", async () => {
     const results = {};
-    for (const [path, kind] of [["/video?auto", "video"], ["/video?docpip", "document"]]) {
-      const tab = await openTab(`${base}${path}`, "Video");
+    for (const [path, kind] of [["/video?auto&file", "video"], ["/video?docpip", "document"]]) {
+      const tab = await openTab(`${secureBase}${path}`, "Video");
       try {
-        await evalApp(`return ac.webviews.get("${tab.id}").setMuted(true)`);
         await startVideo(tab.id, true);
         await until("live.playingAudio", async () => (await live(tab.id))?.playingAudio === true, 8000);
         await until("onNowPlaying with video", async () => lastEvent(tab.id, "nowPlaying", (p) => p.state?.hasVideo && p.state?.playbackState === "playing"), 5000);
@@ -3232,19 +3297,19 @@ try {
       await evalApp(`return ac.webviews.get("${tab.id}").setMuted(true)`);
       const t = await startVideo(tab.id, false);
       const open = async () => {
-        if ((await evalApp(`return ac.webviews.get("${tab.id}").requestPictureInPicture()`)) !== true) throw new Error("requestPictureInPicture failed");
+        await pipByHand(tab.id);
         await until("the styled PiP window", async () => (await pipWindows())?.find((w) => w.video && w.styled && w.visible) ?? null, 5000);
       };
       await open();
-      if ((await cef(`devPictureInPictureAction("selftest")`)) !== "started") throw new Error("no self-test");
+      if ((await engine("tabs.devPictureInPictureAction", { action: "selftest" })) !== "started") throw new Error("no self-test");
       const result = await until("the PiP self-test", async () => (existsSync(selftest) ? JSON.parse(readFileSync(selftest, "utf8")) : null), 20000);
       const failed = result.steps.filter((x) => !x.pass);
       if (failed.length) throw new Error(`self-test steps failed: ${JSON.stringify(failed)}`);
       const activate = await lastEvent(tab.id, "activateRequest", (p) => p.reason === "pictureInPicture");
       if (!activate) throw new Error("Back to Tab sent no onActivateRequest");
       await until("PiP closed by Back to Tab", async () => lastEvent(tab.id, "pictureInPicture", (p) => !p.active), 5000);
-      const n = await cef(`devWindowNumber(${await browserOf(first.id)})`);
-      const appActive = (on) => cef(`devWindow(${n}, "fakeAppActive:${on ? 1 : 0}")`);
+      const n = await engine("tabs.devWindowNumber", { tabId: first.id });
+      const appActive = (on) => engine("windows.dev", { window: n, action: `fakeAppActive:${on ? 1 : 0}` });
       const logLines = () => (existsSync(join(data, "activation.log")) ? readFileSync(join(data, "activation.log"), "utf8").split("\n") : []);
       const clickButton = async (name) => {
         await sleep(500);
@@ -3253,7 +3318,7 @@ try {
         if ((await appActive(false)) !== "0") throw new Error("no app-active seam");
         const from = logLines().length;
         try {
-          if ((await cef(`devPictureInPictureAction("${name}")`)) !== "started") throw new Error("no button self-test");
+          if ((await engine("tabs.devPictureInPictureAction", { action: name })) !== "started") throw new Error("no button self-test");
           const clicked = await until(`the ${name} click`, async () => (existsSync(button) ? JSON.parse(readFileSync(button, "utf8")) : null), 10000);
           await sleep(300);
           const raised = logLines().slice(from).filter((l) => /^\S+ \S+ \S+ (makeKey|orderFront)/.test(l) && !l.includes("NativeWidgetMacFramelessNSWindow"));
@@ -3303,7 +3368,7 @@ try {
       await evalApp(`return ac.webviews.get("${first.id}").focus()`);
       await sleep(600);
       if ((await state()).active !== first.id) throw new Error("the app's focus() switched tabs");
-      const took = await cef(`devFocusPage(${await browserOf(other.id)})`);
+      const took = await engine("tabs.devFocusPage", { tabId: other.id });
       const focus = await until("onPageFocus", async () => {
         const all = (await eventsOf(other.id)).filter((x) => x.name === "focus");
         return all.length > before + fromApp ? all.at(-1) : null;
@@ -3322,8 +3387,8 @@ try {
   // MARK: Page full screen
   const fsFlag = (tabId) => evalApp(`return !!ac.pageState.getState().pages[${JSON.stringify(tabId)}]?.fullscreen`);
   const fsWindow = async (tabId, action = "fullScreen") => {
-    const n = await cef(`devWindowNumber(${await browserOf(tabId)})`);
-    const out = await cef(`devWindow(${n}, ${JSON.stringify(action)})`);
+    const n = await engine("tabs.devWindowNumber", { tabId: tabId });
+    const out = await engine("windows.dev", { window: n, action });
     try {
       return JSON.parse(out);
     } catch {
@@ -3414,17 +3479,17 @@ try {
       out.midTransition = { during: mid.pageFullScreen, after: await settled("the window out after the transition", (w) => !w.fullScreen && !w.pageFullScreen?.entered) };
       if (!mid.pageFullScreen?.transitioning) throw new Error(`the transition had ended before the page left: ${JSON.stringify(mid)}`);
       await fsEnter(tab.id, t);
-      const n = await cef(`devWindowNumber(${await browserOf(tab.id)})`);
+      const n = await engine("tabs.devWindowNumber", { tabId: tab.id });
       const closing = await until("the window's transition started", async () => {
-        const w = JSON.parse(await cef(`devWindow(${n}, "fullScreen")`)).pageFullScreen;
+        const w = JSON.parse(await engine("windows.dev", { window: n, action: "fullScreen" })).pageFullScreen;
         return w?.transitioning ? w : null;
-      }, 2000).catch(async () => JSON.parse(await cef(`devWindow(${n}, "fullScreen")`)).pageFullScreen);
+      }, 2000).catch(async () => JSON.parse(await engine("windows.dev", { window: n, action: "fullScreen" })).pageFullScreen);
       if (!closing?.transitioning) throw new Error(`the transition had ended before the close: ${JSON.stringify(closing)}`);
       await closeTab(tab.id);
       out.closedMidTransition = await until("the window out after its tab closed mid-transition", async () => {
-        const w = JSON.parse(await cef(`devWindow(${n}, "fullScreen")`));
+        const w = JSON.parse(await engine("windows.dev", { window: n, action: "fullScreen" }));
         return !w.fullScreen && !w.pageFullScreen?.transitioning && w.pageFullScreen?.page == null ? w : null;
-      }, 6000).catch(async (e) => { throw new Error(`${e.message}; closing the tab mid-transition left ${await cef(`devWindow(${n}, "fullScreen")`)}`); });
+      }, 6000).catch(async (e) => { throw new Error(`${e.message}; closing the tab mid-transition left ${await engine("windows.dev", { window: n, action: "fullScreen" })}`); });
       const slow = await openTab(`${base}/b?fs-slow`, "Page B");
       try {
         const st = await pageFor(slow.id, "/b?fs-slow");
@@ -3468,7 +3533,7 @@ try {
       out.actedToggles = log;
       return out;
     } finally {
-      await cef(`devWindow(${await cef(`devWindowNumber(${await browserOf(first.id)})`)}, "fakeFullScreenMs:0")`).catch(() => null);
+      await engine("windows.dev", { window: await engine("tabs.devWindowNumber", { tabId: first.id }), action: "fakeFullScreenMs:0" }).catch(() => null);
       await closeTab(tab.id).catch(() => null);
       await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
     }
@@ -3476,7 +3541,7 @@ try {
 
   await check("fullscreen-transition-picture", async () => {
     const tab = await openTab(`${base}/fs-layout`, "FS layout");
-    const act = async (action) => cef(`devWindow(${await cef(`devWindowNumber(${await browserOf(tab.id)})`)}, ${JSON.stringify(action)})`);
+    const act = async (action) => engine("windows.dev", { window: await engine("tabs.devWindowNumber", { tabId: tab.id }), action });
     try {
       const t = await pageFor(tab.id, "/fs-layout");
       const key = async () => {
@@ -3644,8 +3709,8 @@ try {
   });
 
   await check("fullscreen-pip", async () => {
-    const n = await cef(`devWindowNumber(${await browserOf(first.id)})`);
-    const win = (action) => cef(`devWindow(${n}, ${JSON.stringify(action)})`);
+    const n = await engine("tabs.devWindowNumber", { tabId: first.id });
+    const win = (action) => engine("windows.dev", { window: n, action });
     const pressF = async (t) => {
       for (const type of ["keyDown", "keyUp"])
         await cdp(t, "Input.dispatchKeyEvent", { type, key: "f", code: "KeyF", text: type === "keyDown" ? "f" : undefined, windowsVirtualKeyCode: 70, nativeVirtualKeyCode: 3 });
@@ -3656,10 +3721,9 @@ try {
     try {
       await win("fakeOcclusion:visible");
       await win("fakeFullScreenMs:700");
-      for (const [path, name] of [["/video?fkey", "plain"], ["/video?fkey&handlers", "handlers"]]) {
-        const tab = await openTab(`${base}${path}`, "Video");
+      for (const [path, name] of [["/video?fkey&file", "plain"], ["/video?fkey&handlers", "handlers"]]) {
+        const tab = await openTab(`${secureBase}${path}`, "Video");
         try {
-          await evalApp(`return ac.webviews.get("${tab.id}").setMuted(true)`);
           const t = await startVideo(tab.id, true);
           await until("live.playingAudio", async () => (await live(tab.id))?.playingAudio === true, 8000);
           await until("onNowPlaying playing", async () => lastEvent(tab.id, "nowPlaying", (p) => p.state?.hasVideo && p.state?.playbackState === "playing"), 5000);
@@ -3703,7 +3767,7 @@ try {
               ["tab", () => evalApp(`ac.actions.switchToTab("${first.id}"); return true`), () => evalApp(`ac.actions.switchToTab("${tab.id}"); return true`)],
               ["window", () => win("fakeOcclusion:occluded"), () => win("fakeOcclusion:visible")],
             ]) {
-              if ((await evalApp(`return ac.webviews.get("${tab.id}").requestPictureInPicture()`)) !== true) throw new Error("requestPictureInPicture failed");
+              await pipByHand(tab.id);
               const opened = await until("PiP opened by hand", async () => lastEvent(tab.id, "pictureInPicture", (p) => p.kind === "video" && p.active), 5000);
               await leave();
               await sleep(800);
@@ -3774,11 +3838,10 @@ try {
       await cdp(t, "Runtime.evaluate", { expression: "const c = document.getElementById('c'); c.value = ''; c.blur(); c.focus(); 1", userGesture: true });
       await sleep(400);
       count = await shownCount();
-      const browser = await browserOf(first.id);
-      const shown = await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.showAutofillSuggestions(${browser}, false)`);
+      const shown = await engine("autofill.showSuggestions", { tabId: first.id, passwords: false });
       const command = await until("the dropdown from showAutofillSuggestions", async () => shownSince(count, "Springfield"), 6000)
         .catch((e) => { throw new Error(`${e.message}; showAutofillSuggestions answered ${shown}`); });
-      await cef(`savePassword("", ${JSON.stringify(base)}, "nnfill", "fill-s3cret")`);
+      await secret("ArdiaPasswords", "save", "", base, "nnfill", "fill-s3cret");
       t = await go("/login?fill", "Login");
       await evalApp(`return ac.webviews.get("${first.id}").focus()`);
       await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('u').focus(); 1", userGesture: true });
@@ -3789,14 +3852,14 @@ try {
       await evalApp(`ac.runCommand({ command: "autofill", arg: "passwords", windowId: ${JSON.stringify(mainWindow)} }); return true`);
       const passwords = await until("the saved passwords", async () => shownSince(count, "nnfill"), 6000)
         .catch(async (e) => {
-          const direct = await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.showAutofillSuggestions(${browser}, true)`);
+          const direct = await engine("autofill.showSuggestions", { tabId: first.id, passwords: true });
           await sleep(1500);
-          throw new Error(`${e.message}; direct ${direct}; saved ${JSON.stringify(await cef(`listPasswords("")`)).slice(0, 300)}; shown ${JSON.stringify((await eventsOf(first.id)).filter((x) => x.name === "autofillSuggestions").map((x) => x.payload))}`);
+          throw new Error(`${e.message}; direct ${direct}; saved ${JSON.stringify(await engineOrError("passwords.list", { profile: "" })).slice(0, 300)}; shown ${JSON.stringify((await eventsOf(first.id)).filter((x) => x.name === "autofillSuggestions").map((x) => x.payload))}`);
         });
       const labels = (e) => e.payload.items.map((i) => `${i.label} (${i.type})`);
       return { click: labels(clicked), picked, command: labels(command), shown, passwords: labels(passwords) };
     } finally {
-      await cef(`deletePassword("", ${JSON.stringify(base)}, "nnfill")`).catch(() => null);
+      await engineOrError("passwords.remove", { profile: "", origin: base, username: "nnfill" }).catch(() => null);
       await backToA();
     }
   });
@@ -3804,7 +3867,7 @@ try {
   await check("images", async () => {
     const image = await evalApp(`return ac.webviews.get("${first.id}").downloadImage("${base}/icon.png", 64)`);
     const favicon = await evalApp(`return ac.webviews.get("${first.id}").downloadFavicon("${base}/icon.png")`);
-    const fetched = await cef(`fetchFavicon("${base}/icon.png", "")`);
+    const fetched = await engine("favicons.fetch", { profile: "", url: `${base}/icon.png` });
     const isData = (r) => JSON.stringify(r ?? null).includes("data:image/png");
     if (!isData(image) || !isData(favicon) || !isData(fetched)) throw new Error(`not data URLs: ${JSON.stringify({ image, favicon, fetched }).slice(0, 300)}`);
     return { image: true, favicon: true, fetched: true };
@@ -3867,14 +3930,14 @@ try {
     const favBase = `http://nnfav.localhost:${icons.address().port}`;
     const fetchIcon = async (url, profile = "") => {
       const started = Date.now();
-      const r = await evalApp(`return globalThis.expo.modules.ArdiaCEF.fetchFavicon(${JSON.stringify(url)}, ${JSON.stringify(profile)})`, 60000);
+      const r = await evalApp(`return ac.engine.call("favicons.fetch", ${JSON.stringify({ profile, url })}).catch(() => null)`, 60000);
       return { uri: typeof r?.uri === "string" ? r.uri.slice(0, 22) : null, width: r?.width ?? null, ms: Date.now() - started };
     };
     const ok = (r) => r.uri === "data:image/png;base64,";
     let privateWindow = null;
     try {
       await evalApp(`const h = (globalThis.acFaviconHang = { started: Date.now() });
-        globalThis.expo.modules.ArdiaCEF.fetchFavicon(${JSON.stringify(`${favBase}/hang`)}, "").then((r) => { h.uri = r?.uri ?? null; h.ms = Date.now() - h.started; }, () => { h.uri = null; h.ms = Date.now() - h.started; });
+        ac.engine.call("favicons.fetch", ${JSON.stringify({ profile: "", url: `${favBase}/hang` })}).then((r) => { h.uri = r?.uri ?? null; h.ms = Date.now() - h.started; }, () => { h.uri = null; h.ms = Date.now() - h.started; });
         return true`);
       const cookieTab = await openTab(`${favBase}/set-cookie`, "Favicon Cookie");
       const cookie = (await cdp(await pageFor(cookieTab.id, "/set-cookie"), "Runtime.evaluate", { expression: "document.cookie", returnByValue: true })).result.value;
@@ -3914,12 +3977,12 @@ try {
       if (noWindow.uri !== null) throw new Error("a fetch made a private profile");
       privateWindow = await evalApp(`return ac.actions.openWindow({ incognito: true, url: "${favBase}/icon.png?private-page" })`);
       const privateProfile = await until("the private window's engine profile", async () =>
-        (await evalApp(`return globalThis.expo.modules.ArdiaCEF.tabStrips()`)).strips.find((st) => st.appWindow === privateWindow)?.profile ?? null, 10000);
+        (await engine("tabs.strips")).strips.find((st) => st.appWindow === privateWindow)?.profile ?? null, 10000);
       if (!privateProfile.startsWith("incognito:")) throw new Error(`the private window's engine profile: ${JSON.stringify(privateProfile)}`);
       await until("the private page", () => (seen.some((s) => s.path === "/icon.png?private-page") ? true : null), 10000);
       const privately = await fetchIcon(`${favBase}/icon.png?private`, privateProfile);
       if (!ok(privately)) throw new Error(`the private window's fetch failed: ${JSON.stringify(privately)}`);
-      const stored = JSON.parse(await cef(`engineCall("ac_favicons_set", ${JSON.stringify(privateProfile)}, ${JSON.stringify(JSON.stringify({ page: `${favBase}/private-page`, icon: `${favBase}/icon.png?private`, png: "AA==" }))})`).catch((e) => JSON.stringify({ refused: String(e) })));
+      const stored = await engineOrError("favicons.set", { profile: privateProfile, page: `${favBase}/private-page`, icon: `${favBase}/icon.png?private`, png: "AA==" }).catch((e) => ({ refused: String(e) }));
       if (!stored?.error) throw new Error(`a private profile wrote Chrome's favicon store: ${JSON.stringify(stored)}`);
       const timedOut = await until("the hung request's end", () => evalApp(`const h = globalThis.acFaviconHang; return h.ms ? { uri: h.uri ? h.uri.slice(0, 22) : null, ms: h.ms } : null`), 50000);
       if (timedOut.uri !== null || timedOut.ms < 25000 || timedOut.ms > 50000) throw new Error(`the hung request: ${JSON.stringify(timedOut)}`);
@@ -3933,19 +3996,18 @@ try {
   });
 
   await check("extension-surfaces", async () => {
-    const installed = await exts(`install(${JSON.stringify(extPath)}, "")`);
+    const installed = await engineOrError("extensions.install", { profile: "", path: extPath });
     if (installed?.error) throw new Error(installed.error);
-    const browser = await browserOf(first.id);
-    const states = await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.actionStates(${browser}, ["${installed.id}"])`);
+    const states = await engine("extensions.actionStates", { tabId: first.id, ids: [installed.id] });
     if (!states?.[installed.id]) throw new Error(`no action state: ${JSON.stringify(states)}`);
-    const panel = await evalApp(`return globalThis.expo.modules.ArdiaChromeUI.sidePanelURL(${browser}, "${installed.id}")`);
-    const reloaded = await exts(`reload("${installed.id}", "")`);
+    const panel = await engine("extensions.sidePanelUrl", { tabId: first.id, extensionId: installed.id });
+    const reloaded = await engineOrError("extensions.reload", { profile: "", id: installed.id });
     if (reloaded?.error) throw new Error(`reload: ${reloaded.error}`);
     await sleep(1000);
     await evalApp(`ac.store.getState().navigate("${first.id}", "${base}/blocking", { userInitiated: true }); return true`);
     const blocked = await until("onContentBlocked", async () =>
       (await eventsOf(first.id)).findLast((x) => x.name === "contentBlocked" && x.payload?.count >= 2), 10000).catch(() => null);
-    await exts(`uninstall("${installed.id}", "")`);
+    await engineOrError("extensions.uninstall", { profile: "", id: installed.id });
     await evalApp(`ac.store.getState().navigate("${first.id}", "${base}/a", { userInitiated: true }); return true`);
     await until("A again", async () => (await state()).tabs.find((t) => t.id === first.id && t.title === "Page A" && !t.loading));
     if (!blocked) throw new Error("no onContentBlocked count for the extension's blocked images");
@@ -3989,7 +4051,7 @@ try {
       userGesture: true,
     });
     const request = await until("the prompt", async () => evalApp(`return ac.pageState.getState().pages["${first.id}"]?.permission ?? null`), 10000);
-    await cef(`resolvePermission("${request.id}", "deny", false)`);
+    await engine("permissions.resolve", { id: request.id, result: "deny", remember: false });
     const answer = await until("the page's answer", async () => {
       const r = await cdp(t, "Runtime.evaluate", { expression: "String(window.__geo)", returnByValue: true });
       return r.result.value !== "undefined" ? r.result.value : null;
@@ -4026,7 +4088,7 @@ try {
     const cookieA = (await cdp(a, "Runtime.evaluate", { expression: "document.cookie", returnByValue: true })).result.value;
     const cookieB = (await cdp(b, "Runtime.evaluate", { expression: "document.cookie", returnByValue: true })).result.value;
     if (cookieA.includes("who=B")) throw new Error("profile A sees B's cookie");
-    const windows = await evalApp(`return globalThis.expo.modules.ArdiaCEF.engineInfo()`);
+    const windows = await engine("engine.info");
     await evalApp(`ac.actions.switchProfile("${s.windowId}", "${s.profileId}"); return true`);
     return { profile: id, tab: tb.id, cookieB, cookieA, chromeWindows: windows.chromeWindows };
   });
@@ -4147,10 +4209,9 @@ try {
     const t2 = await pageTarget(`${base}/a`);
     const kept = (await cdp(t2, "Runtime.evaluate", { expression: "String(window.__kept)", returnByValue: true })).result.value;
     if (kept !== "42") throw new Error(`the page reloaded or went: ${kept}`);
-    const tx = await evalApp(`return globalThis.expo.modules.ArdiaCEF.tabStrips()`);
-    const browser = await browserOf(first.id);
-    const windowNumber = await evalApp(`return globalThis.expo.modules.ArdiaCEF.devWindowNumber(${browser})`);
-    const holding = tx.strips.find((x) => x.tabs.some((tab) => tab.browser === Number(browser)));
+    const tx = await engine("tabs.strips");
+    const windowNumber = await engine("tabs.devWindowNumber", { tabId: first.id });
+    const holding = tx.strips.find((x) => x.tabs.some((tab) => tab.key === first.id));
     if (!holding || holding.window !== windowNumber) throw new Error(`the tab's strip is window ${holding?.window}, its view is in ${windowNumber}`);
     return { windowId, kept, strip: holding.strip, window: holding.window };
   });
@@ -4159,9 +4220,8 @@ try {
 
   await check("title-bar-close", async () => {
     const ids = await evalApp(`return ac.shell.windowIds()`);
-    const browser = await browserOf(first.id);
-    const windowNumber = await evalApp(`return globalThis.expo.modules.ArdiaCEF.devWindowNumber(${browser})`);
-    const clicked = await evalApp(`return globalThis.expo.modules.ArdiaCEF.devWindow(${windowNumber}, "close-button")`);
+    const windowNumber = await engine("tabs.devWindowNumber", { tabId: first.id });
+    const clicked = await engine("windows.dev", { window: windowNumber, action: "close-button" });
     const after = await until("one window fewer", async () => {
       const now = await evalApp(`return ac.shell.windowIds()`);
       return now.length < ids.length ? now : null;
@@ -4203,7 +4263,7 @@ try {
     const manifest = JSON.parse(readFileSync(join(ext, "manifest.json"), "utf8"));
     manifest.permissions = [...manifest.permissions, "nativeMessaging"];
     writeFileSync(join(ext, "manifest.json"), JSON.stringify(manifest, null, 2));
-    const installed = await exts(`install(${JSON.stringify(ext)}, "")`);
+    const installed = await engineOrError("extensions.install", { profile: "", path: ext });
     if (installed?.error) throw new Error(installed.error);
     const host = join(scratch, "echo-host.sh");
     writeFileSync(host, "#!/bin/sh\nexec cat\n", { mode: 0o755 });
@@ -4227,7 +4287,7 @@ try {
       return { hosts: expected, echoed };
     } finally {
       rmSync(hostManifest, { force: true });
-      await exts(`uninstall("${installed.id}", "")`).catch(() => null);
+      await engineOrError("extensions.uninstall", { profile: "", id: installed.id }).catch(() => null);
     }
   });
 
@@ -4267,10 +4327,9 @@ try {
   });
 
   await check("engine-call-guard", async () => {
-    const parse = async (call) => JSON.parse(await cef(call));
-    const privateHistory = await parse(`engineCall("ac_history_query", "incognito-check", null)`);
-    const notAllowed = await parse(`engineCall("ac_passwords_list", "", null)`);
-    const history = await parse(`engineCall("ac_history_query", "", ${JSON.stringify(JSON.stringify({ maxUrls: 5, maxVisits: 1 }))})`);
+    const privateHistory = await engineOrError("history.query", { profile: "incognito-check" });
+    const notAllowed = await engineOrError("ac_passwords_list", { profile: "" });
+    const history = await engineOrError("history.query", { profile: "", maxUrls: 5, maxVisits: 1 });
     if (!privateHistory.error || !notAllowed.error || history.error) throw new Error(JSON.stringify({ privateHistory, notAllowed, history }));
     return { privateHistory: privateHistory.error, notAllowed: notAllowed.error, historyEntries: history.entries?.length };
   });
@@ -4315,18 +4374,20 @@ try {
 
   await check("delete-original-profile-data", async () => {
     const origin = "https://original.test";
-    await cef(`savePassword("", "${origin}", "nnoriginal", "s3cret")`);
-    await cef(`saveAddress("", { fullName: "Original Mascot", city: "Haifa", country: "IL" })`);
-    await cef(`setZoom("", "original.test", 1.5)`);
-    await cef(`setSiteSetting("", "${origin}", "popups", "allow")`);
+    await secret("ArdiaPasswords", "save", "", origin, "nnoriginal", "s3cret");
+    await engineOrError("autofill.saveAddress", { profile: "", address: { fullName: "Original Mascot", city: "Haifa", country: "IL" } });
+    await engine("sites.setZoom", { profile: "", host: "original.test", zoom: 1.5 });
+    await engine("sites.setSetting", { profile: "", origin, type: "popups", value: "allow" });
+    await engine("webKit.devTouchStore", { profile: "" });
     await until("the data saved", async () => {
-      const p = await cef(`listPasswords("")`), a = await cef(`listAddresses("")`), z = await cef(`getZoomLevels("")`), o = await cef(`getSiteSettingsOrigins("")`);
+      const p = await engineOrError("passwords.list", { profile: "" }), a = await engineOrError("autofill.addresses", { profile: "" }), z = await engine("sites.zoomLevels", { profile: "" }), o = await engine("sites.origins", { profile: "" });
       return p.passwords?.length && a.addresses?.length && z["original.test"] && o.length ? true : null;
     });
-    const result = await evalApp(`return globalThis.expo.modules.ArdiaCEF.deleteProfileData("")`, 60000);
-    const p = await cef(`listPasswords("")`), a = await cef(`listAddresses("")`), z = await cef(`getZoomLevels("")`), o = await cef(`getSiteSettingsOrigins("")`);
+    const result = await engine("profiles.deleteData", { profile: "" }, 60000);
+    const p = await engineOrError("passwords.list", { profile: "" }), a = await engineOrError("autofill.addresses", { profile: "" }), z = await engine("sites.zoomLevels", { profile: "" }), o = await engine("sites.origins", { profile: "" });
     const left = { passwords: p.passwords?.length, addresses: a.addresses?.length, zoom: Object.keys(z).length, origins: o.length };
-    if (result?.remaining?.length || Object.values(left).some(Boolean)) throw new Error(JSON.stringify({ result, left }));
+    const webKitStore = await engine("webKit.devStoreExists", { profile: "" });
+    if (result?.remaining?.length || webKitStore || Object.values(left).some(Boolean)) throw new Error(JSON.stringify({ result, left, webKitStore }));
     return { remaining: result.remaining, left };
   });
 
@@ -4346,6 +4407,22 @@ try {
     await until("Play's cookie page", async () => (await state()).tabs.find((x) => x.profileId === play && x.url?.includes("cookie?play") && !x.loading), 10000);
     await sleep(1000);
     return { personal, play };
+  });
+
+  let heldProfile = null;
+  const orphans = () => evalApp(`return ac.store.getState().orphanedProfileData`);
+
+  await check("profile-data-deletion-fails", async () => {
+    const id = await evalApp(`return ac.store.getState().createProfile({ name: "Held" })`);
+    await engine("webKit.devTouchStore", { profile: id });
+    await engine("webKit.devHoldStore", { profile: id });
+    await evalApp(`ac.store.getState().deleteProfile("${id}"); return true`);
+    const log = join(data, "dev-console.log");
+    await until("the cleanup gave up", async () => existsSync(log) && readFileSync(log, "utf8").includes(`Couldn't delete profile data (${id}): WebKit data`), 20000);
+    if (!(await orphans()).includes(id)) throw new Error("a failed deletion left the cleanup list");
+    if (!(await engine("webKit.devStoreExists", { profile: id }))) throw new Error("the held store was removed");
+    heldProfile = id;
+    return { profile: id };
   });
 
   await check("quit", async () => {
@@ -4372,12 +4449,31 @@ try {
     return { exitedAfterMs: Date.now() - started, sessionSaved: saved, faults: ours.filter((f) => f.startsWith("ExcUserFault_")) };
   });
 
+  await check("profile-data-retried-at-launch", async () => {
+    if (!heldProfile) throw new Error("profile-data-deletion-fails didn't run");
+    const file = join(data, "session.json");
+    const saved = JSON.parse(readFileSync(file, "utf8"));
+    if (!saved.orphanedProfileData.includes(heldProfile)) throw new Error(`the failed deletion wasn't saved: ${JSON.stringify(saved.orphanedProfileData)}`);
+    writeFileSync(file, JSON.stringify({ ...saved, orphanedProfileData: [...saved.orphanedProfileData, ""] }));
+    await appUp("app-profile-data-retry.out.log");
+    await engine("webKit.devTouchStore", { profile: "" });
+    if ((await orphans()).includes("")) throw new Error("the live original profile came back as orphaned data");
+    await until("the retried deletion", async () => !(await orphans()).includes(heldProfile) && !(await engine("webKit.devStoreExists", { profile: heldProfile })), 20000);
+    await evalApp(`ac.store.setState((s) => ({ orphanedProfileData: [...s.orphanedProfileData, ""] })); return true`);
+    await until("the live profile left the cleanup list", async () => !(await orphans()).includes(""), 10000);
+    await sleep(5000);
+    const kept = await engine("webKit.devTouchStore", { profile: "" });
+    if (!kept) throw new Error("the live original profile's WebKit data was deleted");
+    await stopApp();
+    return { retried: heldProfile, kept };
+  });
+
   await check("relaunch-profile", async () => {
     if (!personal) throw new Error("last-used-profile didn't run");
     await launch("app2.out.log");
     await until("the relaunched app", async () => {
       try {
-        return await evalApp(`return globalThis.expo.modules.ArdiaCEF.engineInfo()`, 3000);
+        return await engine("engine.info", {}, 3000);
       } catch (e) {
         if (exited) throw e;
         return null;
@@ -4392,7 +4488,7 @@ try {
     await until("a Personal page", async () => (await state()).tabs.find((x) => !before.has(x.id) && x.title === "Page B" && !x.loading), 15000);
     const t = await pageTarget(`${base}/b?personal-again`);
     const cookie = (await cdp(t, "Runtime.evaluate", { expression: "document.cookie", returnByValue: true })).result.value;
-    const info = await evalApp(`return globalThis.expo.modules.ArdiaCEF.chromeWindows()`);
+    const info = await engine("windows.list");
     await stopApp();
     if (!cookie.includes("who=personal") || cookie.includes("who=play")) throw new Error(`Personal's page sees "${cookie}"`);
     return { cookie, windows: info.map((w) => w.profile) };
@@ -4462,7 +4558,7 @@ try {
     await until("the restored page loaded", () => loaded(tab.id), 20000);
     const loadedAfterMs = Date.now() - relaunched;
     if (beforeQuit.length) throw new Error(`ads went out before the quit: ${JSON.stringify(beforeQuit)}`);
-    await until("the blocker's state", async () => ((await cef(`getContentBlocker()`))?.stats?.ready ? true : null), 30000);
+    await until("the blocker's state", async () => ((await engine("contentBlocker.state").catch(() => null))?.stats?.ready ? true : null), 30000);
     const racedAtLaunch = adsServedFor(tag).length;
     if (!(await evalApp(`return !!ac.webviews.get(${JSON.stringify(tab.id)})`))) throw new Error("the restored tab has no page view");
     const again = `${tag}-ready`;
@@ -4519,7 +4615,7 @@ try {
   await check("js-reload-keeps-pages", async () => {
     const windowId = await appUp("app-js-reload.out.log");
     const path = `/b?kept-${Date.now()}`;
-    const visits = async () => JSON.parse(await cef(`engineCall("ac_history_query", "", "{}")`)).entries.filter((e) => e.u === `${base}${path}`).map((e) => e.v.length);
+    const visits = async () => (await engineOrError("history.query", { profile: "" })).entries.filter((e) => e.u === `${base}${path}`).map((e) => e.v.length);
     const id = await evalApp(`return ac.store.getState().newTab(${JSON.stringify(windowId)}, { url: "${base}${path}" })`);
     await until("the page", async () => (await state()).tabs.find((t) => t.id === id && t.title === "Page B" && !t.loading), 15000);
     await until("its visit", async () => (await visits()).length || null);
@@ -4574,17 +4670,17 @@ try {
     if (exited) await launch("app3.out.log");
     await until("the app", async () => {
       try {
-        return await evalApp(`return globalThis.expo.modules.ArdiaCEF.engineInfo()`, 3000);
+        return await engine("engine.info", {}, 3000);
       } catch (e) {
         if (exited) throw e;
         return null;
       }
     }, 90000);
     const windowId = await until("a window", async () => (await state()).windowId, 30000);
-    const installed = await exts(`install(${JSON.stringify(extPath)}, "")`);
+    const installed = await engineOrError("extensions.install", { profile: "", path: extPath });
     if (installed?.error) throw new Error(installed.error);
     await evalApp(`globalThis.__acTabs = []; globalThis.__acTabsSub?.remove();
-      globalThis.__acTabsSub = globalThis.expo.modules.ArdiaExtensions.addListener("onTabs", (e) => globalThis.__acTabs.push(e)); return true`);
+      globalThis.__acTabsSub = ac.engine.on("extensions.tabs", (e) => globalThis.__acTabs.push(e)); return true`);
     try {
       const worker = await until("the extension's worker", async () => {
         for (const t of (await targets()).filter((t) => t.type === "service_worker" && t.url.includes(installed.id))) {
@@ -4618,7 +4714,7 @@ try {
         return s.active === tabs[0]?.id && tabs[0].title === "Page E" && !tabs[0].loading ? { s, tabs } : null;
       };
       const { s: after, tabs: appTabs } = await until("the extension's tab shown as an app tab", shownTab, 10000)
-        .catch(async (e) => { throw new Error(`${e.message}; tabs.create: ${created}; strips ${JSON.stringify(await cef(`tabStrips()`))}`); });
+        .catch(async (e) => { throw new Error(`${e.message}; tabs.create: ${created}; strips ${JSON.stringify(await engine("tabs.strips"))}`); });
       await sleep(1500);
       const opened = appTabs[0];
       const chromeTab = JSON.parse((await cdp(worker, "Runtime.evaluate", {
@@ -4627,7 +4723,7 @@ try {
         awaitPromise: true,
         returnByValue: true,
       })).result.value);
-      const strips = (await cef(`tabStrips()`)).strips.filter((st) => st.appWindow === windowId);
+      const strips = (await engine("tabs.strips")).strips.filter((st) => st.appWindow === windowId);
       const strip = strips.find((st) => st.tabs.some((t) => t.key === opened.id));
       const out = {
         appTabs: (await state()).tabs.filter((t) => t.url?.includes("e?empty-window")).length,
@@ -4661,7 +4757,7 @@ try {
         noWindow: { tabsCreate: noWindow, onTabs: noWindowEvent } };
     } finally {
       await evalApp(`globalThis.__acTabsSub?.remove(); return true`).catch(() => null);
-      await exts(`uninstall("${installed.id}", "")`).catch(() => null);
+      await engineOrError("extensions.uninstall", { profile: "", id: installed.id }).catch(() => null);
     }
   });
 
@@ -4714,7 +4810,7 @@ try {
       for (const line of set) places.set(window(line), (places.get(window(line)) ?? new Set()).add(sample(line)));
       for (const [win, at] of places) if (at.size > 1) moved.push({ phase, window: win, places: [...at] });
     }
-    if (!lines.some((line) => line.includes(" layout -> "))) throw new Error("no layout pass logged (is ARDIA_TRAFFIC_LIGHTS_LOG set?)");
+    if (!lines.some((line) => line.includes(" layout -> "))) throw new Error("no layout pass logged (is ARDIA_TRACE trafficLights set?)");
     if (bad.length || badAway.length || moved.length)
       throw new Error(`traffic lights left their spot: ${JSON.stringify({ moved, bad: bad.slice(0, 6), badAway: badAway.slice(0, 6) })}`);
     return { samples: lines.length, hiddenSamples: away.length, layoutPasses: lines.filter((line) => line.includes(" layout -> ")).length };
@@ -4725,7 +4821,7 @@ try {
     await launch("app-args.out.log", {}, ["-NSAppSleepDisabled", "YES", "-ApplePersistenceIgnoreState", "YES"]);
     await until("the relaunched app", async () => {
       try {
-        return await evalApp(`return globalThis.expo.modules.ArdiaCEF.engineInfo()`, 3000);
+        return await engine("engine.info", {}, 3000);
       } catch (e) {
         if (exited) throw e;
         return null;
@@ -4740,13 +4836,13 @@ try {
   });
 
   await check("context-menu-log", async () => {
-    const menuLog = join(scratch, "context-menu.json");
+    const menuLog = join(data, "context-menu.json");
     rmSync(menuLog, { force: true });
     await stopApp();
-    await launch("app4.out.log", { ARDIA_CONTEXT_MENU_LOG: menuLog });
+    await launch("app4.out.log", { contextMenu: true });
     await until("the relaunched app", async () => {
       try {
-        return await evalApp(`return globalThis.expo.modules.ArdiaCEF.engineInfo()`, 3000);
+        return await engine("engine.info", {}, 3000);
       } catch (e) {
         if (exited) throw e;
         return null;
@@ -4802,6 +4898,42 @@ try {
     await evalApp(`ac.store.getState().closeWindow(${JSON.stringify(landed.windowId)}); return true`);
     return landed;
   });
+
+  await check("context-menu-split", async () => {
+    const menuLog = join(scratch, "context-menu.json");
+    const tab = await until("A", async () => (await state()).tabs.find((t) => t.url?.endsWith("/a?menu") && !t.loading));
+    await evalApp(`ac.actions.switchToTab("${tab.id}"); return true`);
+    await sleep(500);
+    const t = await pageFor(tab.id, "/a?menu");
+    const tabsBefore = await evalApp(`return Object.keys(ac.store.getState().tabs)`);
+    const groupsBefore = await evalApp(`return Object.keys(ac.store.getState().groups)`);
+    const result = () => evalApp(`const s = ac.store.getState(), before = new Set(${JSON.stringify(tabsBefore)}), groupsBefore = new Set(${JSON.stringify(groupsBefore)});
+      const opened = Object.values(s.tabs).filter((t) => !before.has(t.id)).map((t) => ({ id: t.id, url: t.url, windowId: t.windowId }));
+      const split = Object.values(s.splits).find((v) => v.tabIds.includes(${JSON.stringify(tab.id)})) ?? null;
+      return { opened, split, newGroups: Object.keys(s.groups).filter((g) => !groupsBefore.has(g)) }`);
+    const openInSplit = async (path) => {
+      const box = JSON.parse((await cdp(t, "Runtime.evaluate", { expression: `(() => { const a = document.getElementById('next'); a.setAttribute('href', ${JSON.stringify(path)}); return JSON.stringify(a.getBoundingClientRect()); })()`, returnByValue: true })).result.value);
+      const at = { x: box.x + 3, y: box.y + box.height / 2, button: "right", clickCount: 1 };
+      writeFileSync(`${menuLog}.pick`, "Open Link in Split View\t0\n");
+      await cdp(t, "Input.dispatchMouseEvent", { type: "mouseMoved", x: at.x, y: at.y });
+      await cdp(t, "Input.dispatchMouseEvent", { type: "mousePressed", ...at });
+      await cdp(t, "Input.dispatchMouseEvent", { type: "mouseReleased", ...at });
+      await until(`the tab for ${path}`, async () => (await result()).opened.some((x) => x.url?.endsWith(path)), 15000)
+        .catch(async (e) => { throw new Error(`${e.message}; ${JSON.stringify(await result())}`); });
+      await sleep(1500);
+      return { r: await result(), requests: served.get(path) ?? 0, referer: referers.get(path) };
+    };
+    const first = await openInSplit("/b?split-1");
+    const b = first.r.opened.find((x) => x.url?.endsWith("/b?split-1"));
+    if (first.r.opened.length !== 1 || first.r.split?.tabIds.join() !== [tab.id, b.id].join() || first.r.newGroups.length || first.requests !== 1 || !first.referer?.endsWith("/a?menu"))
+      throw new Error(`Open Link in Split View: ${JSON.stringify(first)}`);
+    const second = await openInSplit("/b?split-2");
+    const c = second.r.opened.find((x) => x.url?.endsWith("/b?split-2"));
+    if (second.r.opened.length !== 2 || second.r.split?.tabIds.join() !== [tab.id, c.id].join() || second.r.newGroups.length || second.requests !== 1 || !second.referer?.endsWith("/a?menu"))
+      throw new Error(`Open Link in Split View from a split page: ${JSON.stringify(second)}`);
+    await evalApp(`ac.store.getState().closeTabs(${JSON.stringify([b.id, c.id])}); return true`);
+    return { split: second.r.split.tabIds, kept: b.id, requests: [first.requests, second.requests], referer: second.referer };
+  });
   // MARK: Camera and microphone (the 0.2.21 crash: Allow on a camera + microphone prompt aborted the app)
   const mediaChecks = ["camera-mic-allow", "permission-answer-once", "permission-element-allow"];
   if (!only.length || mediaChecks.some((c) => only.includes(c))) {
@@ -4817,10 +4949,10 @@ try {
       const signed = execFileSync("codesign", ["-d", "--entitlements", "-", "--xml", mediaApp], { stdio: ["ignore", "pipe", "ignore"] }).toString();
       if (/device\.(camera|audio-input)/.test(signed)) throw new Error("the media copy kept a device entitlement");
       await stopApp();
-      await launch("app-media.out.log", {}, [], { app: mediaApp, switches: "--ardia-test-system-media-permission=ask" });
+      await launch("app-media.out.log", { systemMediaPermission: "ask" }, [], { app: mediaApp });
       await until("the media copy", async () => {
         try {
-          return await evalApp(`return globalThis.expo.modules.ArdiaCEF.engineInfo()`, 3000);
+          return await engine("engine.info", {}, 3000);
         } catch (e) {
           if (exited) throw e;
           return null;
@@ -4884,8 +5016,8 @@ try {
         await media.js(tab.target, `ask({ audio: true, video: true })`);
         const request = await until("the prompt", () => media.prompt(tab.id), 10000);
         await evalApp(`ac.permissions.answerPermission("${tab.id}", "${request.id}", "accept"); ac.permissions.answerPermission("${tab.id}", "${request.id}", "accept"); return true`);
-        await cef(`resolvePermission("${request.id}", "accept", true)`);
-        await cef(`resolvePermission("${request.id}", "deny", true)`);
+        await engine("permissions.resolve", { id: request.id, result: "accept", remember: true }).catch(() => null);
+        await engine("permissions.resolve", { id: request.id, result: "deny", remember: true }).catch(() => null);
         const answer = await media.answered(tab.target);
         if (answer.state !== "ok" || answer.audio?.[0] !== "live" || answer.video?.[0] !== "live") throw new Error(`getUserMedia: ${JSON.stringify(answer)}`);
         await media.js(tab.target, `navigator.requestMIDIAccess({ sysex: true }).then(() => (window.__midi = "granted"), (e) => (window.__midi = e.name)); true`);

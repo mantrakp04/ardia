@@ -1,0 +1,175 @@
+---
+interface Props {
+  html: string;
+}
+const { html } = Astro.props;
+---
+
+<div class="notes" set:html={html} />
+
+<style>
+  .notes {
+    display: grid;
+    grid-template-columns: 7rem minmax(0, 1fr);
+    column-gap: var(--gutter);
+    max-width: 56rem;
+    margin-top: clamp(24px, 3vw, 40px);
+  }
+  .notes > :global(*) {
+    grid-column: 2;
+  }
+  .notes > :global(p) {
+    grid-column: 1 / -1;
+    max-width: 34em;
+    margin-bottom: 28px;
+    color: var(--ink-2);
+  }
+  .notes > :global(.sec) {
+    grid-column: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    align-self: start;
+    padding-top: 16px;
+    font-family: var(--mono);
+    font-size: var(--t-label);
+    font-stretch: 87.5%;
+    font-weight: 520;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    line-height: 1.5;
+  }
+  .notes > :global(.sec)::before {
+    content: "";
+    flex: none;
+    width: 14px;
+    height: 10px;
+    border-radius: 55% 45% 60% 40% / 60% 50% 50% 40%;
+    background-color: var(--ink-3);
+    background-image: var(--impasto);
+    background-size: 120px;
+    background-blend-mode: soft-light;
+    rotate: -8deg;
+  }
+  .notes > :global(.sec-new)::before {
+    background-color: var(--sun);
+  }
+  .notes > :global(.sec-fixed)::before {
+    background-color: var(--sage-deep);
+  }
+  .notes > :global(.sec-faster)::before {
+    background-color: #e98f3c;
+  }
+  .notes > :global(.sec-not-yet)::before {
+    background-color: var(--stamp);
+  }
+  .notes > :global(ul) {
+    list-style: none;
+    margin: 0 0 28px;
+    padding: 0;
+    border-top: 1px solid var(--rule-strong);
+  }
+  .notes > :global(ul:last-child) {
+    margin-bottom: 0;
+  }
+  .notes :global(li) {
+    padding: 13px 0 14px;
+    border-bottom: 1px solid var(--rule);
+    color: var(--ink-2);
+  }
+  .notes :global(li:not(:has(strong))) {
+    color: var(--ink);
+    font-size: var(--t-small);
+  }
+  .notes :global(strong) {
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .notes :global(code) {
+    font-family: var(--mono);
+    font-size: 0.8em;
+    font-stretch: 87.5%;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: rgb(255 255 255 / 0.4);
+    color: var(--ink);
+  }
+  .notes :global(a) {
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.2em;
+  }
+  .notes > :global(.table-scroll) {
+    margin: 0 0 28px;
+    overflow-x: auto;
+    border-top: 1px solid var(--rule-strong);
+  }
+  .notes :global(table) {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--t-small);
+    font-variant-numeric: tabular-nums;
+  }
+  .notes :global(th),
+  .notes :global(td) {
+    padding: 11px 18px 11px 0;
+    border-bottom: 1px solid var(--rule);
+    text-align: right;
+    white-space: nowrap;
+    color: var(--ink-2);
+  }
+  .notes :global(th:first-child),
+  .notes :global(td:first-child) {
+    text-align: left;
+    white-space: normal;
+    min-width: 11em;
+    color: var(--ink);
+  }
+  .notes :global(th:last-child),
+  .notes :global(td:last-child) {
+    padding-right: 0;
+    white-space: normal;
+    min-width: 7em;
+  }
+  .notes :global(th) {
+    font-family: var(--mono);
+    font-size: var(--t-label);
+    font-stretch: 87.5%;
+    font-weight: 520;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .notes :global(td:last-child) {
+    font-weight: 560;
+    color: var(--ink);
+  }
+
+  @media (max-width: 1100px) {
+    .notes {
+      grid-template-columns: 6rem minmax(0, 1fr);
+    }
+  }
+  @media (max-width: 640px) {
+    .notes {
+      display: block;
+    }
+    .notes > :global(.sec) {
+      padding-top: 0;
+      margin-bottom: 10px;
+    }
+    .notes :global(th),
+    .notes :global(td) {
+      padding-right: 10px;
+      font-size: 0.86rem;
+    }
+    .notes :global(th:first-child),
+    .notes :global(td:first-child) {
+      min-width: 0;
+      width: 36%;
+    }
+    .notes :global(th:last-child),
+    .notes :global(td:last-child) {
+      min-width: 6.4em;
+    }
+  }
+</style>

@@ -20,6 +20,8 @@ Common filters. They are not SQL macros: paste the expression in place of the na
 -- the site, production only (the history has localhost too)
 SITE  = (source IN ('ardia-site', 'netnyahoo-site', 'posthog-cloud') AND properties['$lib'] IN ('web', 'ardia-web', 'netnyahoo-web')
          AND properties['$host'] IN ('ardia.dev', 'www.ardia.dev', 'netnyahoo.com', 'www.netnyahoo.com'))
+-- the Mac app's always-on anonymous daily count (one row per copy per UTC day, a fresh random distinct_id each time)
+DAILY = (event = 'daily_active' AND source = 'ardia-app' AND properties['$lib'] = 'ardia-daily' AND properties['$environment'] = 'production')
 -- the Mac app's opted-in telemetry
 APP   = (source IN ('ardia-app', 'netnyahoo-app', 'posthog-cloud') AND properties['$lib'] IN ('ardia-telemetry', 'netnyahoo-telemetry'))
 MAC   = (properties['$os'] = 'Mac OS X' AND properties['$device_type'] = 'Desktop')
@@ -99,6 +101,23 @@ FROM exposures GROUP BY variant;
 ## App and installs
 
 ```sql
+-- Active users from the daily count. No ID: each copy sends one row per UTC day, flagged `first` (first ever),
+-- `weekly` (first in its ISO week) and `monthly` (first in its calendar month), so counting rows gives
+-- DAU, and counting flagged rows gives calendar-week WAU, calendar-month MAU and new installs.
+SELECT toDate(timestamp) AS day, count() AS dau, countIf(properties['first'] = 'true') AS new_installs
+FROM telemetry.events WHERE DAILY AND timestamp > now() - INTERVAL 30 DAY GROUP BY day ORDER BY day;
+
+SELECT toMonday(timestamp) AS week, countIf(properties['weekly'] = 'true') AS wau
+FROM telemetry.events WHERE DAILY AND timestamp > now() - INTERVAL 12 WEEK GROUP BY week ORDER BY week;
+
+SELECT toStartOfMonth(timestamp) AS month, countIf(properties['monthly'] = 'true') AS mau
+FROM telemetry.events WHERE DAILY GROUP BY month ORDER BY month;
+
+-- DAU split by version, channel, macOS or chip (yesterday, a full day)
+SELECT properties['$app_version'] AS version, properties['channel'] AS channel, properties['os_major'] AS macos,
+       properties['arch'] AS arch, count()
+FROM telemetry.events WHERE DAILY AND toDate(timestamp) = yesterday() GROUP BY version, channel, macos, arch ORDER BY 5 DESC;
+
 -- First launches and checks per version (also: node scripts/update-checks.mjs)
 SELECT properties['version'] AS v, countIf(properties['first'] = 'true') AS first_launches, count() AS checks
 FROM telemetry.events WHERE event = 'update_check' AND match(v, '^[0-9]+\\.[0-9]+\\.[0-9]+$')

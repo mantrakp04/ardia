@@ -1,4 +1,5 @@
 import AVFoundation
+import ArdiaCore
 import QuartzCore
 
 final class IntroMusic {
@@ -33,8 +34,7 @@ final class IntroMusic {
   private var ramp: Timer?
 
   private static let silent: Bool = {
-    let env = ProcessInfo.processInfo.environment
-    return env["ARDIA_BACKGROUND"] == "1" && env["ARDIA_ALLOW_AUDIO"] != "1"
+    LaunchConfig.shared.background && !LaunchConfig.shared.instanceFlag("allowAudio")
   }()
 
   func play(cues: [String: Double], muted: Bool) {

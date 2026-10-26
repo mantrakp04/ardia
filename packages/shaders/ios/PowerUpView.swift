@@ -194,7 +194,6 @@ final class HaloView: MetalSurface {
 }
 
 let haloSource = """
-// Simplex noise with Dave Hoskins' hash33 (4th-power kernel, scaled by 31.316).
 static inline float3 haloHash33(float3 p) {
     float3 p3 = fract(p * float3(0.1031f, 0.11369f, 0.13787f));
     p3 += dot(p3, p3.yxz + 19.19f);
@@ -218,7 +217,6 @@ static float haloNoise(float3 p) {
     return dot(float4(31.316f), d * w);
 }
 
-// Premultiplied output. The outline is the view inset by `inset` on every side.
 fragment float4 haloFragment(FullscreenOut in                 [[stage_in]],
                              constant float2 &resolution      [[buffer(0)]],
                              constant int    &direction       [[buffer(1)]],
@@ -232,7 +230,6 @@ fragment float4 haloFragment(FullscreenOut in                 [[stage_in]],
                              constant float  &inset           [[buffer(9)]],
                              constant float  &cornerRadius    [[buffer(10)]])
 {
-    // Normalized space: the short axis spans [-1, 1].
     float aspect = resolution.x / resolution.y;
     float2 p = (in.uv - 0.5f) * 2.0f;
     p.x *= aspect;
@@ -243,7 +240,6 @@ fragment float4 haloFragment(FullscreenOut in                 [[stage_in]],
     float r = cornerRadius / min(resolution.x - inset2, resolution.y - inset2);
     float dist = abs(length(max(abs(p) - halfSize + r, 0.0f)) - r);
 
-    // The lit arc: angle 0 at the bottom centre (direction 0), 1 at the top, both sides at once.
     float t = speed * 0.8f * time - delay;
     float sweep = (t == 1.0f) ? 1.25f : (1.0f - pow(2.0f, -10.0f * t)) * 1.25f;
     float2 n = p / halfSize;
@@ -257,7 +253,6 @@ fragment float4 haloFragment(FullscreenOut in                 [[stage_in]],
 
     float line = smoothstep(0.0f, 1.0f, clamp((dist - 0.025f) * -40.0f, 0.0f, 1.0f)) * arc * (isDark ? 0.4f : 1.0f);
 
-    // Glow: a noisy band around the outline that narrows from ~0.95 to nothing as t → 1.
     float nz = haloNoise(float3(p * 0.5f, time)) + 0.5f;
     float glowWidth = mix(0.1f, 0.2f, nz);
     float shrink = (1.0f - t) * 0.95f;
@@ -276,34 +271,21 @@ fragment float4 haloFragment(FullscreenOut in                 [[stage_in]],
 """
 
 let powerUpSource = """
-// Full-screen quad, drawn as a 4-vertex triangle strip (IR: @_ZL9positions /
-// @_ZL3uvs).
-
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-// easeOutExpo: 1 - 2^(-10 t), exactly 1 at t == 1.
 static inline float easeOutExpo(float t) {
     return (t == 1.0f) ? 1.0f : 1.0f - pow(2.0f, -10.0f * t);
 }
 
-// easeInOutQuart.
 static inline float easeInOutQuart(float t) {
     return (t < 0.5f) ? 8.0f * t * t * t * t
                       : 1.0f - pow(-2.0f * t + 2.0f, 4.0f) * 0.5f;
 }
 
-// Piecewise-linear remap of the cross axis that moves the midpoint 0.5 to
-// (1 - o) while keeping 0 -> 0 and 1 -> 1.
 static inline float shiftCenter(float v, float o) {
     float mid = 1.0f - o;
     return (v <= 0.5f) ? v * 2.0f * mid
                        : mid + o * 2.0f * (v - 0.5f);
 }
 
-// OKLab -> linear sRGB (Björn Ottosson's matrices).
 static inline float3 oklabToLinearSRGB(float3 lab) {
     float3 lms = float3(dot(lab, float3(1.0f,  0.396337777f,   0.215803757f)),
                         dot(lab, float3(1.0f, -0.105561346f,  -0.0638541728f)),
@@ -314,7 +296,6 @@ static inline float3 oklabToLinearSRGB(float3 lab) {
                   dot(lms, float3(-0.00419608643f, -0.703418612f,  1.70761466f)));
 }
 
-// Linear -> sRGB transfer, sign-preserving.
 static inline float linearToSRGB(float c) {
     float ac = abs(c);
     if (ac <= 0.00313080009f) {
@@ -323,7 +304,6 @@ static inline float linearToSRGB(float c) {
     return sign(c) * (pow(ac, 0.416666657f) * 1.05499995f - 0.0549999997f);
 }
 
-// Evenly spaced palette lookup, smoothstep between neighbouring stops.
 static inline float4 samplePalette(constant float4 *colors, int n1, float v) {
     float f  = float(n1) * v;
     int   i  = int(floor(f));
@@ -332,14 +312,6 @@ static inline float4 samplePalette(constant float4 *colors, int n1, float v) {
     return mix(a, b, smoothstep(0.0f, 1.0f, f - float(i)));
 }
 
-// Soft rectangular window in the remapped uv space, built from one fade pair
-// per screen axis (x: left/right, y: top/bottom).
-//   width  : cross-axis fade width on both sides (0.45)
-//   start  : fade-in at the origin end of the travel axis (0.2)
-//   end    : fade-out at the far end of the travel axis (0.15)
-//   skew   : cross-axis shear per unit of the travel axis (0.25)
-// Directions 0/2 travel along y, 1/3 along x; 2 and 1 read the travel axis
-// flipped (1 - uv).
 float mask(float2 uv, float width, float start, float end, float skew, int direction) {
     float left, right, top, bottom;
     if (direction == 0 || direction == 2) {
@@ -368,11 +340,9 @@ float mask(float2 uv, float width, float start, float end, float skew, int direc
     return left * right * top * bottom;
 }
 
-// Palette sweep. `progress` is the speed-scaled time; returns sRGB + alpha.
 float4 gradient(float2 uv, constant float4 *colors, int numberOfColors,
                 float progress, int direction)
 {
-    // Stagger: the middle of the cross axis lags behind the sides.
     float c = (direction == 0 || direction == 2) ? uv.x : uv.y;
     float p;
     if (c >= 0.200000003f && c < 0.400000006f) {
@@ -384,7 +354,7 @@ float4 gradient(float2 uv, constant float4 *colors, int numberOfColors,
     }
     p = clamp(p, 0.0f, 1.0f);
 
-    float head = 1.0f - easeInOutQuart(p) * 0.949999988f;   // 1 -> 0.05
+    float head = 1.0f - easeInOutQuart(p) * 0.949999988f;
 
     float crossPos, alongPos;
     switch (direction) {
@@ -414,10 +384,6 @@ float4 gradient(float2 uv, constant float4 *colors, int numberOfColors,
                   col.a * 0.100000001f);
 }
 
-// ---------------------------------------------------------------------------
-// Fragment
-// ---------------------------------------------------------------------------
-
 fragment float4 powerUpFragment(FullscreenOut in                 [[stage_in]],
                                 constant int    &direction       [[buffer(0)]],
                                 constant int    &numberOfColors  [[buffer(1)]],
@@ -433,12 +399,8 @@ fragment float4 powerUpFragment(FullscreenOut in                 [[stage_in]],
         return float4(0.0f);
     }
 
-    // The band's centre starts at `origin` and slides to the middle over the
-    // first 2/3 s of (unscaled) time.
     float o = mix(origin, 0.5f, clamp(time * 1.5f, 0.0f, 1.0f));
 
-    // Remap texCoords: travel axis compressed to 80 % of the view, cross axis
-    // re-centred on `o`.
     float2 uv;
     switch (direction) {
         case 0:
@@ -463,7 +425,7 @@ fragment float4 powerUpFragment(FullscreenOut in                 [[stage_in]],
 
     float4 col = gradient(uv, colors, numberOfColors, t, direction);
     float  m   = mask(uv, 0.449999988f, 0.200000003f, 0.150000006f, 0.25f, direction);
-    col.a = col.a * m * clamp(time * 10.0f, 0.0f, 1.0f);   // 0.1 s fade-in
+    col.a = col.a * m * clamp(time * 10.0f, 0.0f, 1.0f);
 
     if (t > fadeOutStart) {
         col.a *= 1.0f - clamp((t - fadeOutStart) / fadeOutDuration, 0.0f, 1.0f);

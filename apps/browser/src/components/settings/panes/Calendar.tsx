@@ -1,17 +1,18 @@
-import type { SystemCalendar } from "@ardia/shell";
+import { type SystemCalendar, connectCalendar, setCalendarHidden, useCalendar } from "../../../state/live/calendar";
 import { Linking, Text, View } from "react-native";
-import { useTheme } from "../../../lib/theme";
-import { connectCalendar, setCalendarHidden, useCalendar } from "../../../live/calendar";
-import { ALERT_LEADS } from "../../../live/meetings";
-import { updateCalendarSettings, useLive } from "../../../live/store";
-import { useBrowser } from "../../../store/browser";
-import { Button, Checkbox, Group, PopUp, Row, SectionHeader, Toggle } from "../controls";
+import { useTheme } from "../../ui/theme";
+import { ALERT_LEADS } from "../../../state/live/meetings";
+import { updateCalendarSettings, useLive } from "../../../state/live/store";
+import { useSettings } from "../../../state/browser/hooks";
+import { updateSettings } from "../../../state/settings/actions";
+import { Button, Checkbox, font, Group, PopUp, Toggle, weight } from "../../ui";
+import { Row, SectionHeader } from "../Form";
 
 export function CalendarPane() {
   const theme = useTheme();
   const settings = useLive((s) => s.calendar);
   const { access, calendars } = useCalendar();
-  const autoGroup = useBrowser((s) => s.settings.autoGroupMeetingTabs);
+  const autoGroup = useSettings((s) => s.autoGroupMeetingTabs);
   const connected = access === "fullAccess" || access === "fixture";
   const denied = access === "denied" || access === "restricted";
   const owned = calendars.filter((c) => c.owned);
@@ -76,7 +77,7 @@ export function CalendarPane() {
       <SectionHeader title="Meetings" />
       <Group>
         <Row anchor="calendar.autoGroup">
-          <Toggle value={autoGroup} onChange={(v) => useBrowser.getState().updateSettings({ autoGroupMeetingTabs: v })} />
+          <Toggle value={autoGroup} onChange={(v) => updateSettings({ autoGroupMeetingTabs: v })} />
         </Row>
       </Group>
 
@@ -89,7 +90,7 @@ export function CalendarPane() {
           </Group>
         </>
       ) : connected ? (
-        <Text style={{ marginTop: 12, fontSize: 12, color: theme.textSecondary }}>No calendars found. Add accounts in the Calendar app.</Text>
+        <Text style={{ marginTop: 12, ...font.small, color: theme.textSecondary }}>No calendars found. Add accounts in the Calendar app.</Text>
       ) : null}
     </View>
   );
@@ -99,7 +100,7 @@ function CalendarList({ title, calendars, hidden }: { title: string; calendars: 
   const theme = useTheme();
   return (
     <View style={{ paddingVertical: 6 }}>
-      <Text style={{ fontSize: 11, fontWeight: "600", color: theme.textSecondary, marginLeft: 12, marginBottom: 2 }}>{title}</Text>
+      <Text style={{ ...font.caption, fontWeight: weight.semibold, color: theme.textSecondary, marginLeft: 12, marginBottom: 2 }}>{title}</Text>
       {calendars.map((c) => (
         <Row
           key={c.id}

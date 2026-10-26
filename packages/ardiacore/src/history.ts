@@ -1,4 +1,4 @@
-import { engineCall, onEngineEvent } from "./engine";
+import { call, on } from "./engine/call";
 
 export type EngineHistoryEntry = { url: string; title: string; visits: number; visitTimes: number[] };
 
@@ -10,7 +10,7 @@ export type HistoryChange =
 type Row = { u: string; t: string; n: number };
 
 export async function queryHistory(profile: string, maxUrls = 5000, maxVisits = 50): Promise<EngineHistoryEntry[]> {
-  const { entries } = await engineCall<{ entries: (Row & { v: number[] })[] }>("ac_history_query", profile, { maxUrls, maxVisits });
+  const { entries } = await call("history.query", { profile, maxUrls, maxVisits });
   return entries.map((e) => ({ url: e.u, title: e.t, visits: e.n, visitTimes: e.v }));
 }
 
@@ -21,7 +21,7 @@ export function addHistoryVisits(profile: string, pages: { url: string; title: s
   const run = (adding.get(profile) ?? Promise.resolve())
     .catch(() => {})
     .then(() =>
-      engineCall<{ added: number }>("ac_history_add", profile, { pages: pages.map((p) => ({ u: p.url, t: p.title, v: p.visitTimes })), toleranceMs }),
+      call("history.add", { profile, pages: pages.map((p) => ({ u: p.url, t: p.title, v: p.visitTimes })), toleranceMs }),
     )
     .then((r) => r.added);
   adding.set(profile, run);
@@ -30,18 +30,18 @@ export function addHistoryVisits(profile: string, pages: { url: string; title: s
 
 export const importHistoryRows = (profile: string, rows: { url: string; title: string; visits: number; lastVisit: number }[]) =>
   rows.length
-    ? engineCall("ac_history_import", profile, { rows: rows.map((r) => ({ u: r.url, t: r.title, n: r.visits, l: r.lastVisit })) })
+    ? call("history.import", { profile, rows: rows.map((r) => ({ u: r.url, t: r.title, n: r.visits, l: r.lastVisit })) })
     : Promise.resolve();
 
 export const deleteHistoryUrls = (profile: string, urls: string[]) =>
-  urls.length ? engineCall("ac_history_delete_urls", profile, { urls }) : Promise.resolve();
+  urls.length ? call("history.deleteUrls", { profile, urls }) : Promise.resolve();
 
-export const watchHistory = (profile: string) => engineCall("ac_history_watch", profile);
+export const watchHistory = (profile: string) => call("history.watch", { profile });
 
 type RawChange = Record<string, unknown>;
 
 export const onHistoryChanged = (listener: (change: HistoryChange) => void) =>
-  onEngineEvent("history.changed", (p) => {
+  on("history.changed", (p) => {
     const profile = p.profile;
     const one = (c: RawChange) => {
       if (c.kind === "visit") listener({ kind: "visit", profile, url: c.u as string, title: c.t as string, visits: c.n as number, at: c.at as number });

@@ -238,7 +238,7 @@ static unsigned short ModKeyCode(NSEventModifierFlags f) {
     if (!w.isVisible || w.frame.size.width < 300) continue;
     NSMutableArray *webs = [NSMutableArray array];
     NSMutableArray<NSView *> *found = [NSMutableArray array];
-    CollectClass(w.contentView, @"ArdiaCoreWebView", found);
+    CollectClass(w.contentView, @"ArdiaWebView", found);
     NSView *content = w.contentView;
     for (NSView *v in found) {
       if (v.isHiddenOrHasHiddenAncestor || v.frame.size.width < 50) continue;

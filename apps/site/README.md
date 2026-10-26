@@ -40,10 +40,10 @@ Pages without a custom domain).
   dropped on a tab (0.2.34) and `little-ardia.webp` a Little Ardia window. `pip.webp` is 0.2.13 (a hidden
   instance's PiP window never draws): the window on Wikipedia with the Picture in Picture window where Chrome
   opened it, its real shadow from `screencapture -l`; `pip-loop.{mp4,webm}` is that rectangle over 7 s of SCK
-  captures of the PiP window, laid over the still by `Shot.astro` (`loop` in `data/features.ts`;
+  captures of the PiP window, laid over the still by `Shot.astro` (its `loop` prop;
   `scripts/loops.ts` plays it, never with reduced motion or Save-Data). `game/crowd.webp` is the offline game's
   canvas; its hotspot is in `Game.astro`. Replace a file with a new capture of the same name; Astro makes the
-  AVIF/WebP sizes. On phones a shot shows only its `focus` region (see `Shot.astro` and `data/features.ts`), so
+  AVIF/WebP sizes. On phones a shot shows only its `focus` region (see `Shot.astro`), so
   check the crop after replacing one. Each shot sits on a painted `Plate.astro` (sky, hills, sun and grass in its
   hour of the day).
 - **Paint:** the page walks from morning to night: each section's `--bg`/`--wash` is a time of day (tokens in

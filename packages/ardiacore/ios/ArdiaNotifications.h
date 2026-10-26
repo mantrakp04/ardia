@@ -1,0 +1,11 @@
+#import <Foundation/Foundation.h>
+
+NS_ASSUME_NONNULL_BEGIN
+
+FOUNDATION_EXPORT NSNotificationName const ArdiaQuitCancelledNotification NS_SWIFT_NAME(ardiaQuitCancelled);
+FOUNDATION_EXPORT NSNotificationName const ArdiaPagerActivityNotification NS_SWIFT_NAME(ardiaPagerActivity);
+FOUNDATION_EXPORT NSNotificationName const ArdiaOutgoingFocusNotification NS_SWIFT_NAME(ardiaOutgoingFocus);
+FOUNDATION_EXPORT NSNotificationName const ArdiaFocusHandoffEndedNotification NS_SWIFT_NAME(ardiaFocusHandoffEnded);
+FOUNDATION_EXPORT NSNotificationName const ArdiaMenuShortcutsChangedNotification NS_SWIFT_NAME(ardiaMenuShortcutsChanged);
+
+NS_ASSUME_NONNULL_END

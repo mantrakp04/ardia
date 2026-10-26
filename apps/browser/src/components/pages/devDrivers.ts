@@ -1,10 +1,10 @@
-import { applyResult, applySafari, importArcSpace, importBookmarks, importTabs } from "../import/apply";
-import { importModule } from "../import/module";
-import { openImport, openSettings, useSettingsNav } from "../settings/windows";
-import { useBookmarkDialog } from "../bookmarks/actions";
-import { useBookmarkEditor } from "../bookmarks/edit";
-import { useClearDataRequest } from "./ClearDataDialog";
-import { openInternalPage } from "./urls";
+import { applyResult, applySafari, importArcSpace, importBookmarks, importTabs } from "../../state/import/apply";
+import { importModule } from "../../state/import/importApi";
+import { openImport, openSettings, useSettingsNav } from "../../state/settings/settingsWindows";
+import { useBookmarkDialog } from "../../state/bookmarks/actions";
+import { useBookmarkEditor } from "../../state/bookmarks/edit";
+import { useClearDataRequest } from "../../state/profiles/clearDataRequest";
+import { openInternalPage } from "../../state/pages/urls";
 
 export const pagesDrivers = {
   openInternalPage,

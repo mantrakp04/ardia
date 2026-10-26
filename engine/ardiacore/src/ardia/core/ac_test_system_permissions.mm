@@ -1,11 +1,11 @@
 #include "ardia/core/ac_test_system_permissions.h"
+#include "ardia/core/ac_launch_switches.h"
 
 #include <map>
 #include <memory>
 #include <string>
 #include <utility>
 
-#include "base/command_line.h"
 #include "base/functional/bind.h"
 #include "base/no_destructor.h"
 #include "base/task/single_thread_task_runner.h"
@@ -19,8 +19,6 @@
 namespace ardiacore {
 
 namespace {
-
-constexpr char kSwitch[] = "ardia-test-system-media-permission";
 
 bool IsMedia(ContentSettingsType type) {
   return type == ContentSettingsType::MEDIASTREAM_CAMERA ||
@@ -99,11 +97,10 @@ class TestSystemPermissions : public system_permission_settings::PlatformHandle 
 }
 
 void MaybeInstallTestSystemPermissions() {
-  const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-  if (!command_line->HasSwitch(kSwitch)) {
+  const std::optional<std::string> value = TestValue("systemMediaPermission");
+  if (!value) {
     return;
   }
-  const std::string value = command_line->GetSwitchValueASCII(kSwitch);
   static base::NoDestructor<TestSystemPermissions> handle(
       value == "denied", value == "ask-slow" ? base::Seconds(4) : base::TimeDelta());
   system_permission_settings::SetInstanceForTesting(handle.get());

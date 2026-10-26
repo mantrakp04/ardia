@@ -4,7 +4,6 @@
 #include <CoreServices/CoreServices.h>
 #import <objc/runtime.h>
 
-#include <stdlib.h>
 #include <string.h>
 
 #include <utility>
@@ -40,6 +39,7 @@
 #include <vector>
 #include "ardia/core/ac_browser.h"
 #include "ardia/core/ac_main_delegate.h"
+#include "ardia/core/ac_launch_switches.h"
 
 namespace ardiacore {
 
@@ -330,8 +330,7 @@ void StartLifetimeObservers() {
   const bool zeroable = strchr("vcCsSiIlLqQBfd@#:", *type) != nullptr;
   LOG(ERROR) << "[ardiacore] AppController stand-in has no -"
              << sel_getName(selector) << " (returns " << type << ")";
-  const char* background = getenv("ARDIA_BACKGROUND");
-  CHECK(zeroable && !(background && !strcmp(background, "1")))
+  CHECK(zeroable && !ardiacore::BackgroundInstance())
       << "AppController stand-in: implement -" << sel_getName(selector);
   if (const NSUInteger length = signature.methodReturnLength) {
     std::vector<char> zero(length, 0);

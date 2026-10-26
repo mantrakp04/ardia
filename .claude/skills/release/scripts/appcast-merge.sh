@@ -1,20 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-version="${1:?usage: appcast-merge.sh <version> [published feed URL or file]}"
+version="${1:?usage: appcast-merge.sh <version> [published feed URL, file or none]}"
 root="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 dist="${RELEASE_DIST:-$root/dist/$version}"
 source="${2:-https://github.com/mantrakp04/ardia/releases/latest/download/appcast.xml}"
 built="$dist/appcast.xml"
 [ -f "$built" ] || { echo "error: no $built (scripts/release.sh $version first)" >&2; exit 1; }
+built_copy="$dist/appcast.built.xml"
+[ -f "$built_copy" ] || cp "$built" "$built_copy"
+if [ "$source" = none ]; then
+  echo "PASS  appcast for $version is appcast.xml as built (no published feed to merge onto)"
+  exit 0
+fi
 live="$(mktemp "${TMPDIR:-/tmp}/ac-feed.XXXXXX")"
 trap 'rm -f "$live"' EXIT
 case "$source" in
   http://* | https://*) curl -fsSL --max-time 30 --retry 2 "$source" -o "$live" ;;
   *) cp "$source" "$live" ;;
 esac
-[ -f "$dist/appcast.built.xml" ] || cp "$built" "$dist/appcast.built.xml"
-python3 -I - "$live" "$dist/appcast.built.xml" "$version" "$built" <<'PY'
+python3 -I - "$live" "$built_copy" "$version" "$built" <<'PY'
 import re, sys
 live_path, built_path, version, out_path = sys.argv[1:]
 item_pattern = re.compile(r"[ \t]*<item>.*?</item>\n?", re.S)

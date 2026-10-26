@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { useWindowId } from "../../store/hooks";
-import { startSidebarEffects } from "./effects";
+import { useWindowId } from "../../state/browser/hooks";
+import { startSidebarEffects } from "../../state/sidebar/effects";
 import { MeetingAlert } from "../live/MeetingAlert";
 import { HoverCard } from "./HoverCard";
 import { IconPicker } from "./IconPicker";

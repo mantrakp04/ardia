@@ -167,6 +167,7 @@ void InitialMainDocumentAccessed(content::WebContents* contents);
 
 bool OnlyShowedBlank(content::WebContents* contents);
 void CloseBlankTabsBeforeWindowCloses(Browser* browser);
+void DeleteTabClosedByHost(content::WebContents* contents);
 
 bool HostExtensionSidePanel(content::WebContents* contents,
                             const std::string& extension_id,
@@ -222,6 +223,7 @@ class ACWebContentsDelegate : public BrowserWebContentsDelegate {
                             base::RepeatingClosure hang_monitor_restarter) override;
   void RendererResponsive(content::WebContents* source,
                           content::RenderWidgetHost* render_widget_host) override;
+  void CloseContents(content::WebContents* source) override;
   content::WebContents* AddNewContents(
       content::WebContents* source,
       std::unique_ptr<content::WebContents> new_contents,
@@ -276,6 +278,13 @@ class TabBridge : public content::WebContentsObserver,
   void NoteRuleMatched(bool block, const GURL& url);
 
   void set_closed_by_host() { closed_by_host_ = true; }
+  void CloseAfterUnloadHandlers(bool window_closing);
+  void StartUnload();
+  void EnforceCloseDeadline(bool unload_given);
+  bool closing_after_unload() const { return closing_after_unload_; }
+  void SetTemporary(bool temporary);
+  void SetTemporarySource(int32_t source_id);
+  bool temporary() const { return temporary_id_ != 0; }
   void set_made_ahead() { made_ahead_ = true; }
   bool made_ahead() const { return made_ahead_; }
   void ReportWillClose();
@@ -309,6 +318,9 @@ class TabBridge : public content::WebContentsObserver,
   void DidFinishNavigation(content::NavigationHandle* handle) override;
   void NavigationEntryCommitted(
       const content::LoadCommittedDetails& load_details) override;
+  void NavigationListPruned(
+      const content::PrunedDetails& pruned_details) override;
+  void NavigationEntriesDeleted() override;
   void WebContentsDestroyed() override;
 
   void OnFindResultAvailable(content::WebContents* web_contents) override;
@@ -338,6 +350,10 @@ class TabBridge : public content::WebContentsObserver,
   base::WeakPtrFactory<TabBridge> weak_factory_{this};
   float pinch_scale_ = 1;
   bool closed_by_host_ = false;
+  bool closing_after_unload_ = false;
+  bool unload_started_ = false;
+  int32_t temporary_id_ = 0;
+  int32_t temporary_source_id_ = 0;
   bool made_ahead_ = false;
   void NoteBlocked(const GURL& url);
   void ReportBlocked();
@@ -353,6 +369,8 @@ class TabBridge : public content::WebContentsObserver,
   raw_ptr<find_in_page::FindTabHelper> find_helper_ = nullptr;
   WEB_CONTENTS_USER_DATA_KEY_DECL();
 };
+
+bool IsTemporaryTabId(int32_t session_id, int32_t* source_id);
 
 }
 

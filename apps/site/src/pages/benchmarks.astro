@@ -1,0 +1,202 @@
+---
+import Base from "../layouts/Base.astro";
+import Header from "../components/Header.astro";
+import Bench from "../components/Bench.astro";
+import Closing from "../components/Closing.astro";
+import Footer from "../components/Footer.astro";
+import { bench, BENCH_METHOD } from "../data/bench";
+import { scorecardOf } from "../data/benchScorecard";
+import { REPO } from "../data/release";
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+const home = new URL(import.meta.env.BASE_URL, Astro.site).href;
+const url = new URL("benchmarks/", home).href;
+const card = bench ? scorecardOf(bench) : null;
+const rivalNames = bench?.rivals ?? ["Dia", "Helium"];
+const rivals = rivalNames.length > 1 ? `${rivalNames.slice(0, -1).join(", ")} and ${rivalNames.at(-1)}` : rivalNames.join("");
+const versus = ["Ardia", ...rivalNames].join(" vs ");
+const dataPath = "apps/site/src/data/bench.json";
+const dataPage = `${REPO}/blob/main/${dataPath}`;
+const dataFile = `${REPO.replace("https://github.com/", "https://raw.githubusercontent.com/")}/main/${dataPath}`;
+const description = `Ardia against ${rivals} on one Mac: launch, tabs, memory, idle CPU, Speedometer 3 and power.${
+  card ? ` ${card.total} tests, medians only, losses left in.` : ""
+}`;
+const organization = { "@type": "Organization", name: "Ardia", url: home };
+const jsonLd = [
+  ...(bench
+    ? [
+        {
+          "@context": "https://schema.org",
+          "@type": "Dataset",
+          name: `Mac browser benchmarks: ${versus}`,
+          description: `${description} Measured on ${bench.machine} with ${bench.versions}. Launches and sessions are interleaved and rotated between browsers, and every figure is the median of several runs.`,
+          url,
+          creator: organization,
+          publisher: organization,
+          dateModified: bench.measured,
+          temporalCoverage: bench.measured,
+          isAccessibleForFree: true,
+          license: "https://www.gnu.org/licenses/gpl-3.0.html",
+          keywords: ["browser benchmark", "Mac browser", "Arc alternative", "Dia", "Helium", "Chromium", "memory", "launch time", "power"],
+          measurementTechnique: "Cold launches and browsing sessions on one Mac, interleaved and rotated between browsers; median of repeated runs",
+          variableMeasured: bench.groups.flatMap((g) => g.rows.map((r) => r.label)),
+          isBasedOn: BENCH_METHOD,
+          distribution: { "@type": "DataDownload", encodingFormat: "application/json", contentUrl: dataFile },
+        },
+      ]
+    : []),
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Ardia", item: home },
+      { "@type": "ListItem", position: 2, name: "Benchmarks", item: url },
+    ],
+  },
+];
+---
+
+<Base title={`Mac browser benchmarks · ${versus}`} description={description} jsonLd={jsonLd}>
+  <Header home={`${base}/`} current="benchmarks" />
+  <main>
+    <Bench page />
+    {
+      bench && (
+        <section class="method paint edge edge-b" aria-labelledby="method-title">
+          <div class="wrap method-grid">
+            <header class="method-head">
+              <p class="label kicker">The method</p>
+              <h2 class="poster" id="method-title">No warm starts.</h2>
+              <p class="sub">Same Mac, same script, same pages for every browser. The rows Ardia loses stay on the board.</p>
+            </header>
+            <dl class="facts">
+              <div class="fact">
+                <dt>The Mac</dt>
+                <dd>
+                  {bench.machine}, on {bench.date}. It’s the owner’s working Mac in normal use, so the browsers take turns and share
+                  whatever else is going on.
+                </dd>
+              </div>
+              <div class="fact">
+                <dt>The browsers</dt>
+                <dd>{bench.versions}. Default settings, built-in ad blockers as shipped, each from its own clean profile.</dd>
+              </div>
+              <div class="fact">
+                <dt>The runs</dt>
+                <dd>
+                  One harness drives every browser from outside, on the same local test pages, one at a time, interleaved and rotated
+                  each round so nobody always goes first. Every figure is a median, so one lucky run doesn’t count.
+                </dd>
+              </div>
+              <div class="fact">
+                <dt>The tests</dt>
+                <dd>
+                  Cold launch to a window, to a link and to a restored tab; new tab, new window and tab switch; memory with 1, 10 and 20
+                  tabs; idle CPU and wakeups; Speedometer 3; and power with 11 tabs open, idle, scrolling, switching and playing video.
+                </dd>
+              </div>
+              <div class="fact">
+                <dt>Release to release</dt>
+                <dd>
+                  Every stable release is also measured against the one before it. When one gets faster, its{" "}
+                  <a class="link" href={`${base}/release-notes/`}>release notes</a> say by how much.
+                </dd>
+              </div>
+            </dl>
+            <p class="more">
+              <a class="link label" href={BENCH_METHOD} rel="noopener" data-track="github_clicked" data-track-link="bench_method" data-track-location="benchmarks"
+                >The full method</a
+              >
+              <a class="link label" href={dataPage} rel="noopener" data-track="github_clicked" data-track-link="bench_data" data-track-location="benchmarks"
+                >The raw numbers</a
+              >
+              <a class="link label" href={`${base}/try/`}>Try the demo</a>
+            </p>
+          </div>
+        </section>
+      )
+    }
+    <Closing />
+  </main>
+  <Footer />
+</Base>
+
+<style>
+  .method {
+    --bg: var(--dusk);
+    --bg-top: #e3a585;
+    --wash: linear-gradient(180deg, #e3a585 0%, var(--dusk) 50%, var(--dusk-late) 100%);
+    --ink-2: #3f3437;
+    --ink-3: #5a4a4e;
+    --dab: var(--sun);
+    --rule: rgb(22 25 26 / 0.2);
+    padding: var(--section) 0;
+  }
+  .method-grid {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    column-gap: var(--gutter);
+    row-gap: 40px;
+  }
+  .method-head {
+    grid-column: 1 / span 5;
+    align-self: start;
+    position: sticky;
+    top: 100px;
+  }
+  .method-head h2 {
+    font-size: clamp(2.6rem, 1.2rem + 4vw, 5.6rem);
+  }
+  .sub {
+    margin-top: 20px;
+    max-width: 22em;
+    font-size: var(--t-lede);
+    color: var(--ink-2);
+  }
+  .facts {
+    grid-column: 7 / -1;
+    margin: 0;
+    border-top: 2px solid var(--ink);
+  }
+  .fact {
+    padding: 22px 0 24px;
+    border-bottom: 1px solid var(--rule);
+  }
+  dt {
+    font-family: var(--mono);
+    font-size: var(--t-label);
+    font-stretch: 87.5%;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  dd {
+    margin: 8px 0 0;
+    color: var(--ink);
+  }
+  .more {
+    grid-column: 7 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 28px;
+  }
+  .more .link {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .more .link::after {
+    content: " →";
+  }
+  @media (max-width: 960px) {
+    .method-head,
+    .facts,
+    .more {
+      grid-column: 1 / -1;
+      position: static;
+    }
+  }
+</style>
+
+<script>
+  import "../scripts/motion";
+</script>

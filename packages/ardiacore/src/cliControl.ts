@@ -1,4 +1,4 @@
-import { engineCall, onEngineEvent } from "./engine";
+import { call, on } from "./engine/call";
 
 export type CliControlStatus = {
   state: "off" | "starting" | "on" | "external";
@@ -9,11 +9,11 @@ export type CliControlStatus = {
   reason?: string;
 };
 
-export const setCliControl = (on: boolean) => engineCall<CliControlStatus>("ac_cli_control", "", { on });
+export const setCliControl = (on: boolean) => call("engine.cliControl", { on });
 
-export const setCliActiveTab = (chromeTabId: number) => engineCall<CliControlStatus>("ac_cli_control", "", { active: chromeTabId });
+export const setCliActiveTab = (tabId: string | null) => call("engine.cliControl", { activeTab: tabId });
 
-export const cliControlStatus = () => engineCall<CliControlStatus>("ac_cli_control", "");
+export const cliControlStatus = () => call("engine.cliControl");
 
 export const onCliControlChanged = (listener: (status: CliControlStatus) => void) =>
-  onEngineEvent("cliControl", (payload) => listener(payload as unknown as CliControlStatus));
+  on("engine.cliControl", (payload) => listener(payload as unknown as CliControlStatus));

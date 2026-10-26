@@ -1,4 +1,4 @@
-import type { Adapter, Extraction } from "./scope.ts";
+import type { Adapter, Extraction } from "./scopeState.ts";
 
 export type LocalExtension = {
   id: string;

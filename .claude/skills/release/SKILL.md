@@ -6,6 +6,10 @@ description: Cut and ship an Ardia release end to end, stable or nightly — wri
 # Releasing Ardia
 
 A release is: notes → version bump → `scripts/release.sh` → smoke test → GitHub release → site deploy.
+The build and the publishing run in GitHub Actions: the **Release** workflow (`.github/workflows/release.yml`,
+`docs/releasing.md` › CI releases) runs `release.sh`, signs, notarizes and publishes.
+Locally you write the notes, bump the version, publish the engine when `engine/` changed, smoke-test, run the
+stable perf gate, and update the site.
 Users get it through Sparkle (Ardia › Check for Updates…), and the first launch of the new version
 opens `https://ardia.dev/release-notes#<version>`. So the release isn't done until the site is
 deployed with the new entry — otherwise that tab opens on a page that doesn't mention the update.
@@ -13,7 +17,7 @@ deployed with the new entry — otherwise that tab opens on a page that doesn't 
 There are two channels (`docs/releasing.md` › Channels):
 
 - **Nightly** (`0.2.37-nightly.1`): fast iteration, one fix at a time. Only the focused checks for what changed run;
-  no perf ratchet, no perf gate, no tweet, no landing-page refresh. It's a GitHub prerelease, so the site's download,
+  no perf ratchet, no perf gate, no landing-page refresh. It's a GitHub prerelease, so the site's download,
   the README and fetch-engine (all on `releases/latest`) keep pointing at stable.
 - **Stable** (`0.2.37`): everything below, about 1.5 h with the smoke test, the update test, the ratchet and the
   perf gate. Its perf is compared with the previous **stable** release, never a nightly.
@@ -41,13 +45,19 @@ For each fix:
    - Bump and build: step 3 below, with `scripts/release.sh <version> --channel nightly`.
    - Smoke test: `.claude/skills/release/scripts/smoke.sh <version> ${prev#v}`. Its update test runs the nightly's own
      appcast item twice: a copy of the previous build on Stable must not be offered it, one on Nightly must install it.
-     All of it must pass, as for stable.
-   - Publish: `git tag v<version> && git push origin main v<version>`, then
-     `.claude/skills/release/scripts/publish-nightly.sh <version>` (a prerelease with the DMG, zip and appcast; the
-     merged feed onto the latest stable release; `Ardia-Nightly.dmg` behind https://ardia.dev/nightly; it checks all
-     three). With a new engine, commit `prebuilt-engine.tsv`'s line as in step 5.
-   - Site: deploy so the after-update tab finds the nightly's entry (step 6's deploy only: no `release.ts` change, no
-     claims or screenshots). The nightly download link never changes.
+     All of it must pass, as for stable. To test CI's own build instead of a local one, see "Smoke-testing CI's build"
+     in step 5.
+   - Publish: commit and push the bump and notes, then
+     `gh workflow run release.yml -R mantrakp04/ardia -f version=<version> -f channel=nightly -f dry_run=false` and
+     watch it (`gh run watch <id> --exit-status`, in pieces under 10 minutes). It builds, tags, and runs
+     `.claude/skills/release/scripts/publish.sh <version>` (a prerelease with the DMG, zip, appcast and CLI
+     tarball; the merged feed onto the latest stable release; `Ardia-Nightly.dmg` behind https://ardia.dev/nightly;
+     it checks all of them), and the Homebrew tap's `ardia@nightly` cask when the `HOMEBREW_TAP_TOKEN` secret is set
+     (otherwise run `update-tap.sh <version>` yourself, step 5c). Locally the same is `git tag v<version> && git push
+     origin main v<version>` and `publish.sh <version>` after `release.sh`.
+   - Site: pushing the notes redeploys it (`.github/workflows/deploy.yml`), so the after-update tab finds the nightly's
+     entry; check the deploy run finished (no `release.ts` change, no claims or screenshots). The nightly download link
+     never changes.
    - Report in two lines: the version, the fix, the smoke result.
 
 Batch nightlies when fixes land close together; never hold a fix back for a stable. A stable release's notes cover
@@ -136,6 +146,16 @@ scripts/release.sh <version>     # ~15–25 min with notarization; run it in the
 For a nightly, set `MARKETING_VERSION` to `<version>` (`0.2.37-nightly.1`) the same way, commit as "Nightly <version>",
 and run `scripts/release.sh <version> --channel nightly`.
 
+To release from CI instead, push the commit and dispatch the Release workflow (step 5): it runs this same `release.sh`
+on GitHub's runner, so everything below about what it checks holds there too.
+When `engine/` changed since the last published engine, publish the engine you built first, or CI has nothing to link:
+
+```bash
+scripts/publish-engine.sh --dry-run    # packs into dist/engine-<tree>, prints what it would upload
+scripts/publish-engine.sh              # the engine-<tree> prerelease, never latest; appends prebuilt-engines.tsv's line
+git add packages/ardiacore/prebuilt-engines.tsv && git commit -m "Prebuilt engine: <tree>" && git push origin main
+```
+
 `CURRENT_PROJECT_VERSION` is the build number Sparkle compares — it must go up every release, nightlies included
 (release.sh refuses one that isn't above every build in the published feed; read the current value with `grep CURRENT_PROJECT_VERSION …project.pbxproj | sort -u`). release.sh refuses to run
 if `MARKETING_VERSION` doesn't match, the notes file is missing, the tree has uncommitted app or engine
@@ -168,7 +188,7 @@ First it checks the update from `<previous>` (its export in `dist/<previous>/exp
 Then it launches `dist/<version>/export/Ardia.app` hidden with a data dir that says `<previous>` ran last,
 and a session whose window was left on its second profile, and checks, over CDP and the window list:
 
-- engine is Chromium 154, the after-update release-notes tab opened exactly once;
+- the engine and chrome://version are the Chromium version `engine/patches/build/env.sh` names, and the after-update release-notes tab opened exactly once;
 - the browser's child processes are the bundle's own helpers (Chrome's process checks pass under Developer ID);
 - pages load, uBlock blocks an ad script, H.264/AAC/WebGL2;
 - no hidden full-size Chrome window (since 0.2.0 the app window is Chrome's own; before, a hidden "ghost"
@@ -237,19 +257,36 @@ Faster section. (0.2.28 and 0.2.29 were also timed against 0.2.17, the last CEF 
 
 ## 5. Publish
 
-A nightly publishes with `publish-nightly.sh` (the nightly loop above). A stable release:
+Both channels publish with `publish.sh` (`docs/releasing.md` › Cutting a release, step 4). From CI, after the smoke test
+and, for a stable, the perf gate passed:
 
 ```bash
-git tag v<version> && git push origin main v<version>
-.claude/skills/release/scripts/appcast-merge.sh <version>
-gh release create v<version> -R mantrakp04/ardia --title "Ardia <version>" \
-  --notes-file dist/<version>/release-notes.md \
-  dist/<version>/Ardia-<version>.dmg dist/<version>/Ardia-<version>.zip dist/<version>/appcast.xml \
-  dist/<version>/ardia-cli-<version>-macos-arm64.tar.gz dist/<version>/ardia-cli-<version>-macos-arm64.tar.gz.sha256 \
-  $(ls dist/<version>/ArdiaCore-*.tar.xz 2>/dev/null)
-curl -fsL https://github.com/mantrakp04/ardia/releases/latest/download/appcast.xml | grep -o 'shortVersionString>[0-9.]*' | head -1
-.claude/skills/release/scripts/feed.sh <version>
+gh workflow run release.yml -R mantrakp04/ardia -f version=<version> -f channel=stable -f dry_run=false
+gh run list -R mantrakp04/ardia -w release.yml -L 1        # its id; then gh run watch <id> --exit-status, in pieces
+.claude/skills/release/scripts/feed.sh <version>           # with a local dist/<version>/export, or curl ardia.dev/appcast.xml
 ```
+
+`publish.sh` runs in the workflow's last job: it tags nothing itself (the job pushes `v<version>`), merges the appcast
+onto the published feed, creates the release as latest with the DMG, zip, appcast and CLI tarball, checks
+`releases/latest/download/appcast.xml` and `https://ardia.dev/appcast.xml` list the version, and updates the tap when it has `HOMEBREW_TAP_TOKEN` (else run `update-tap.sh <version>`). Locally:
+`git tag v<version> && git push origin main v<version>`, then `.claude/skills/release/scripts/publish.sh <version>`.
+It holds the `release-lock` branch while it publishes, so
+it refuses to run alongside another publish, local or CI, naming the holder; `--break-lock` clears a lock older than
+2 h left by a publish that died. The build job has no secrets; a separate sign job, which installs nothing, holds the
+keys and deletes them before the launch check (`docs/releasing.md` › CI releases).
+
+**Smoke-testing CI's build.** Dispatch with `dry_run=true` (the default): the same build as a release candidate
+(`release.sh --rc`: the next build number, signed and notarized), published nowhere. Download it and run the smoke test
+on it:
+
+```bash
+gh run download <id> -R mantrakp04/ardia -n release -D dist/<version>-rc
+mnt="$(mktemp -d)" && hdiutil attach -nobrowse -readonly -mountpoint "$mnt" dist/<version>-rc/Ardia-<version>.dmg
+mkdir -p dist/<version>-rc/export && ditto "$mnt/Ardia.app" dist/<version>-rc/export/Ardia.app && hdiutil detach "$mnt"
+.claude/skills/release/scripts/smoke.sh <version> <previous> --rc
+```
+
+The release itself is then a second run with `dry_run=false` on the same commit.
 
 When engine/ changed since the last prebuilt engine, release.sh also packed `ArdiaCore-<tree>.tar.xz` (the command
 above uploads it, with `ArdiaCore-<tree>-source.tar.xz` for a Helium engine) and wrote its table line. Every release's
@@ -291,15 +328,26 @@ the final RC and said ship).
    publish a fixed build with a higher build number: copies that haven't updated yet go straight to it.
 3. **Everyone.** Remove the interval from the published appcast, so every copy sees the update:
    ```bash
-   gh release download v<version> -R mantrakp04/ardia -p appcast.xml -D /tmp/ac-appcast --clobber
-   sed -i '' '/<sparkle:phasedRolloutInterval>/d' /tmp/ac-appcast/appcast.xml
-   gh release upload v<version> -R mantrakp04/ardia /tmp/ac-appcast/appcast.xml --clobber
-   .claude/skills/release/scripts/feed.sh <version>
+   .claude/skills/release/scripts/rollout-everyone.sh <version> --dry-run   # the diff it would upload
+   .claude/skills/release/scripts/rollout-everyone.sh <version>
    ```
-   (The appcast isn't signed as a whole, only its zip's `edSignature`, so editing the line keeps it valid.) The next
-   release's `release.sh` starts from this published appcast, so it doesn't bring the interval back.
+   It holds the publish lock (`release-lock`, the same one `publish.sh` takes), so a nightly published meanwhile can't
+   be overwritten. It edits the feed on the latest stable release as it is at that moment (`appcast.xml`), drops the
+   interval from `<version>`'s item only, uploads it and checks what GitHub serves. (The appcast isn't signed as a whole, only its zip's `edSignature`, so editing the line keeps it
+   valid.) The next release's `release.sh` starts from this published appcast, so it doesn't bring the interval back.
 
 A release without `--phased` goes to everyone at once, as before.
+
+### 5c. Homebrew tap
+
+https://github.com/mantrakp04/homebrew-tap holds `Casks/ardia.rb` (stable) and `Casks/ardia@nightly.rb`, so
+`brew install mantrakp04/tap/ardia` installs the latest DMG. `update-tap.sh <version>` clones the tap into a temp dir,
+sets the matching cask's `version` and `sha256` (GitHub's digest of the published DMG, checked against
+`dist/<version>/`), and pushes; `--dry-run` prints the diff instead. It refuses a version older than the cask's and
+does nothing when the cask is already there. `publish.sh` runs it for both channels (in CI only with the
+`HOMEBREW_TAP_TOKEN` secret; otherwise run it yourself after the workflow). The casks have `auto_updates true`: Sparkle updates installed copies and `brew upgrade`
+skips them, so a late tap push only delays new installs. Lint after a cask edit by hand (never `brew install` it: that
+writes `/Applications/Ardia.app`): `brew audit --cask --online mantrakp04/tap/ardia` and `brew style mantrakp04/tap`.
 
 ## 6. Deploy the site
 
@@ -317,18 +365,11 @@ too (both download links, the "Download Ardia <version>" labels and the "<size> 
 
 **Bring the landing page's claims up to date.** The home page makes specific promises; a release can make
 one of them stale or earn a new one. Read the new notes against:
-- `apps/site/src/data/features.ts`: the features with screenshots (`features`), and the ones without (`extras`, one
-  line each);
-- `apps/site/src/components/Engine.astro`: the checklist of what's in and what isn't yet;
 - `Faq.astro` (Q&A), `Hero.astro` and `Closing.astro` (the fine print: macOS version, Apple Silicon,
   Notarized), and `Footer.astro`.
 
 Then:
-- **Something the page says "not yet" or "partly" to is now done:** flip its row in the checklist.
 - **Something the page claims changed** (a new import source, a new requirement): fix the line.
-- **A headline feature isn't on the page:** add an `extras` line in the page's voice: short, plain, dry, and
-  literally true. A light outdoor touch is fine where it lands; most lines need none. The numbering updates
-  itself.
 - **Bug fixes and small changes:** leave the page alone.
 - **Never claim anything the release doesn't do.** Anything unverified or behind a setting says so.
 
@@ -348,8 +389,7 @@ app (listed in `apps/site/README.md` › Screenshots):
 
 - **When:** if the release visibly changes something a shot shows (the sidebar, the tiles, the New Tab page,
   the logo or mark, the icon, a Settings pane, the window chrome), retake the affected shots from **this
-  release's export** (`dist/<version>/export/Ardia.app`). A new page or feature that earned a place
-  in `features` may also need a new shot.
+  release's export** (`dist/<version>/export/Ardia.app`).
 - **How:** use a hidden instance with the smoke test's rules (`ARDIA_BACKGROUND=1`, a throwaway
   `ARDIA_DATA_DIR`, never plain `open`, never `/Applications`).
   - Set up the same state as the old shot (the same sites, profiles, light or dark).
@@ -357,7 +397,7 @@ app (listed in `apps/site/README.md` › Screenshots):
 - **Screen locked:** WindowServer captures fail. Leave the old shot, and tell the user which shots are stale.
   An in-process snapshot is not a substitute: it drops glass and Metal views.
 - **Replace in place:** save the new capture over the file with the same name, since Astro makes the sizes.
-  Update the shot's `alt` text if what it shows changed, and check its phone crop (`focus` in `data/features.ts`).
+  Update the shot's `alt` text if what it shows changed, and check its phone crop (`focus` where the shot is used).
 - **Don't touch the rest:** leave the painted logo (`ardia-mark.png`, from `docs/brand/ardia`) alone unless
   the brand changed.
 
@@ -372,9 +412,13 @@ Then verify live: `https://ardia.dev/release-notes/` contains the new headline, 
 `Ardia-<version>.dmg`, that URL returns 200, and any claim you changed shows. Commit `release.ts`
 and the claim changes ("Site: download <version>", plus what changed) and push.
 
-The SEO data follows `release.ts` and the notes by itself; check that it did:
+The SEO data follows `release.ts` and the notes by itself, with no extra step; check that it did:
 - The home page's JSON-LD `softwareVersion` is the new version.
-- `https://ardia.dev/sitemap.xml` has today's `lastmod`.
+- `https://ardia.dev/release-notes/<version>/` exists (every notes file gets its own page, built from the
+  `releaseNotes` collection), and its description reads well: it comes from the intro paragraph, or else the
+  headline plus the bold leads, so a clear first line pays off.
+- `https://ardia.dev/sitemap.xml` has today's `lastmod` and lists the new stable page. Nightly pages exist too,
+  but stay `noindex` and out of the sitemap.
 - If the release changed what Ardia is (a new headline feature, a new platform), update the home page's
   `description` in `src/pages/index.astro`: ~150 characters, and it is also the share text.
 - If `og.png` changes, its URL's `?v=` hash changes with it, so X and others fetch the new card.
@@ -382,15 +426,7 @@ The SEO data follows `release.ts` and the notes by itself; check that it did:
 Deploying makes things public. The user has asked for releases to go all the way through, so deploy as
 part of a release; for site changes outside a release, ask first.
 
-## 7. Tweet draft (stable only)
-
-Draft the announcement for the owner to post (never post it yourself): `Ardia <version>`, 4–5 short,
-witty, simple bullets from the notes, then ardia.dev, under 280
-characters. Make `output/tweets/<version>.png` (1600×1000, the site's paper background and fonts) from
-real captures of a hidden instance on neutral pages you control; see `output/tweets/0.2.12.png`. Send both
-to the owner.
-
-## 8. Report
+## 7. Report
 
 Tell the user, briefly: the version and headline, what's in it (from the notes), any landing-page claims changed, the smoke result
 (N/N), that it's live (release URL, appcast, site), how to get it (Check for Updates…), anything not

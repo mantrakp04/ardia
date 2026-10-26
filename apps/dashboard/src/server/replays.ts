@@ -16,6 +16,7 @@ export type ReplayFilters = {
   clicks: boolean;
   device: string;
   url: string;
+  download: "" | "yes" | "no";
   sort: "newest" | "longest" | "clicks";
 };
 
@@ -35,7 +36,7 @@ function replayStart(range: RangeKey) {
 export async function listReplays(filters: ReplayFilters, signal?: AbortSignal) {
   const from = replayStart(filters.range);
   const chunkFilter = `event = '$replay_chunk' AND ${since(from)} AND session_id != ''`;
-  const [chunks, pages] = await Promise.all([
+  const [chunks, pages, downloads] = await Promise.all([
     query(
       `SELECT session_id, min(toInt64OrZero(properties['first_timestamp'])), max(toInt64OrZero(properties['last_timestamp'])), count(),
          sum(toUInt32OrZero(properties['clicks'])), sum(toUInt64OrZero(properties['bytes']))
@@ -50,7 +51,13 @@ export async function listReplays(filters: ReplayFilters, signal?: AbortSignal) 
        GROUP BY session_id`,
       signal,
     ),
+    query(
+      `SELECT DISTINCT session_id FROM telemetry.events
+       WHERE event = 'download_clicked' AND ${since(from)} AND session_id IN (SELECT session_id FROM telemetry.events WHERE ${chunkFilter})`,
+      signal,
+    ),
   ]);
+  const downloadedSessions = new Set(downloads.map((r) => str(r[0])));
   const pageBySession = new Map(pages.map((r) => [str(r[0]), r]));
   let rows = chunks.map((r) => {
     const id = str(r[0]);
@@ -69,6 +76,7 @@ export async function listReplays(filters: ReplayFilters, signal?: AbortSignal) 
       device: p ? deviceName(str(p[3]), str(p[4])) : "Unknown",
       browser: p ? str(p[5]) : "",
       country: p ? str(p[6]) : "",
+      downloaded: downloadedSessions.has(id),
     };
   });
   const devices = [...new Set(rows.map((r) => r.device))].sort();
@@ -78,6 +86,7 @@ export async function listReplays(filters: ReplayFilters, signal?: AbortSignal) 
       r.durationS >= filters.minDuration &&
       (!filters.clicks || r.clicks > 0) &&
       (!filters.device || r.device === filters.device) &&
+      (!filters.download || r.downloaded === (filters.download === "yes")) &&
       (!url || r.firstUrl.toLowerCase().includes(url)),
   );
   rows.sort((a, b) => (filters.sort === "longest" ? b.durationS - a.durationS : filters.sort === "clicks" ? b.clicks - a.clicks : b.start - a.start) || b.start - a.start);

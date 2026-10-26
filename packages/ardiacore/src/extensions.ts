@@ -1,6 +1,4 @@
-import { requireNativeModule, type EventSubscription } from "expo-modules-core";
-import { ChromeUI } from "./chromeUI";
-import { engineCall, onEngineEvent } from "./engine";
+import { call, on } from "./engine/call";
 
 export type SiteAccess = "ON_ALL_SITES" | "ON_SPECIFIC_SITES" | "ON_CLICK";
 
@@ -79,7 +77,7 @@ export type TabsRequest = {
   adoptId?: string;
   chromeWindow?: string;
   focused?: boolean;
-  tabKey?: string;
+  tabId?: string;
 };
 
 export type ExtensionInstallPrompt = {
@@ -91,37 +89,8 @@ export type ExtensionInstallPrompt = {
   type: "install" | "re-enable" | "permissions" | "external" | "remote" | "repair" | "other";
   icon: string;
   permissions: string[];
-  browserId: number;
+  tabId: string | null;
 };
-
-type Result<T> = T | { error: string };
-
-type NativeExtensions = {
-  addListener(name: "onChanged", listener: (e: ExtensionsChange) => void): EventSubscription;
-  addListener(name: "onTabs", listener: (e: TabsRequest) => void): EventSubscription;
-  addListener(name: "onInstallPrompt", listener: (e: ExtensionInstallPrompt) => void): EventSubscription;
-  resolveInstallPrompt(requestId: string, accepted: boolean): Promise<void>;
-  list(profile: string): Promise<Result<{ extensions: InstalledExtension[] }>>;
-  inspectUnpacked(path: string): Promise<Result<ExtensionPackage>>;
-  install(path: string, profile: string): Promise<Result<{ id: string }>>;
-  setEnabled(id: string, profile: string, enabled: boolean): Promise<Result<{ ok: true }>>;
-  uninstall(id: string, profile: string): Promise<Result<{ ok: true }>>;
-  reload(id: string, profile: string): Promise<Result<{ ok: true }>>;
-  configure(id: string, profile: string, options: Record<string, unknown>): Promise<Result<{ ok: true }>>;
-  searchEngineList(profile: string): Promise<Result<{ list: unknown }>>;
-  chooseFolder(): Promise<string | null>;
-};
-
-const Native = requireNativeModule<NativeExtensions>("ArdiaExtensions");
-
-if (__DEV__) (globalThis as { acExtensions?: unknown }).acExtensions = Native;
-
-export class ExtensionError extends Error {}
-
-function unwrap<T>(result: Result<T>): T {
-  if (result && typeof result === "object" && "error" in result) throw new ExtensionError(result.error);
-  return result as T;
-}
 
 export const isExtensionId = (s: string) => /^[a-p]{32}$/.test(s);
 
@@ -142,31 +111,29 @@ export function webStoreExtensionId(urlOrId: string): string | null {
 }
 
 export async function searchEngineList(profile: string): Promise<unknown> {
-  return unwrap(await Native.searchEngineList(profile)).list;
+  return (await call("search.engines", { profile })).list;
 }
 
 export async function listExtensions(profile: string): Promise<InstalledExtension[]> {
-  return unwrap(await Native.list(profile)).extensions;
+  return (await call("extensions.list", { profile })).extensions;
 }
 
-export async function inspectUnpackedExtension(path: string): Promise<ExtensionPackage> {
-  return unwrap(await Native.inspectUnpacked(path));
-}
+export const inspectUnpackedExtension = (path: string): Promise<ExtensionPackage> => call("extensions.inspectUnpacked", { path });
 
 export async function installExtension(pkg: Pick<ExtensionPackage, "path">, profile: string): Promise<string> {
-  return unwrap(await Native.install(pkg.path, profile)).id;
+  return (await call("extensions.install", { profile, path: pkg.path })).id;
 }
 
 export async function setExtensionEnabled(id: string, profile: string, enabled: boolean) {
-  unwrap(await Native.setEnabled(id, profile, enabled));
+  await call("extensions.setEnabled", { profile, id, enabled });
 }
 
 export async function uninstallExtension(id: string, profile: string) {
-  unwrap(await Native.uninstall(id, profile));
+  await call("extensions.uninstall", { profile, id });
 }
 
 export async function reloadExtension(id: string, profile: string) {
-  unwrap(await Native.reload(id, profile));
+  await call("extensions.reload", { profile, id });
 }
 
 export async function configureExtension(
@@ -179,21 +146,17 @@ export async function configureExtension(
     siteAccess?: "allSites" | "specificSites" | "onClick";
   },
 ) {
-  unwrap(await Native.configure(id, profile, options));
+  await call("extensions.configure", { profile, id, options });
 }
 
-export async function extensionActionStates(browserId: number, ids: string[]): Promise<Record<string, ActionState>> {
-  if (!ids.length || !browserId) return {};
-  return ChromeUI.actionStates(browserId, ids);
+export async function extensionActionStates(tabId: string, ids: string[]): Promise<Record<string, ActionState>> {
+  if (!ids.length) return {};
+  return call("extensions.actionStates", { tabId, ids });
 }
 
-export const onExtensionsChanged = (listener: (e: ExtensionsChange) => void) => Native.addListener("onChanged", listener);
+export const onExtensionsChanged = (listener: (e: ExtensionsChange) => void) => on("extensions.changed", listener);
 
-export const watchExtensionActions = (profile: string) =>
-  engineCall("ac_extensions_watch_actions", profile).then(
-    () => true,
-    () => false,
-  );
+export const watchExtensionActions = (profile: string) => call("extensions.watchActions", { profile });
 
 export type ExtensionActionChange = { profile: string; id: string; kind: "action" | "sidePanel" | "registry" };
 
@@ -204,14 +167,17 @@ export const extensionActionChange = (p: { profile: string } & Record<string, un
 });
 
 export const onExtensionActionChanged = (listener: (e: ExtensionActionChange) => void) =>
-  onEngineEvent("extensions.action", (p) => {
+  on("extensions.action", (p) => {
     if (typeof p.id === "string") listener(extensionActionChange(p));
   });
-export const onExtensionInstallPrompt = (listener: (e: ExtensionInstallPrompt) => void) => Native.addListener("onInstallPrompt", listener);
-export const resolveExtensionInstallPrompt = (requestId: string, accepted: boolean) => Native.resolveInstallPrompt(requestId, accepted);
-export const onExtensionTabsRequest = (listener: (e: TabsRequest) => void) => Native.addListener("onTabs", listener);
+export const onExtensionInstallPrompt = (listener: (e: ExtensionInstallPrompt) => void) => on("extensions.installPrompt", listener);
+export const resolveExtensionInstallPrompt = (requestId: string, accepted: boolean) => call("extensions.resolveInstallPrompt", { requestId, accepted });
+export const onExtensionTabsRequest = (listener: (e: TabsRequest) => void) => on("extensions.tabs", listener);
+export const onExtensionsSync = (listener: (p: { profile: string }) => void) => on("extensions.sync", listener);
+export const extensionsSyncState = <T,>(profile: string) => call("extensions.syncState", { profile }) as Promise<T>;
+export const applyExtensionsSync = (profile: string, args: Record<string, unknown>) => call("extensions.syncApply", { ...args, profile });
 
-export const chooseExtensionFolder = () => Native.chooseFolder();
+export const chooseExtensionFolder = () => call("extensions.chooseFolder");
 
 export function permissionWarnings(pkg: Pick<ExtensionPackage, "permissions" | "hostPermissions">): string[] {
   const warnings: string[] = [];

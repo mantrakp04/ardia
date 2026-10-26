@@ -4,8 +4,6 @@
 #include <Security/Security.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -29,44 +27,26 @@
 #include "base/task/single_thread_task_runner.h"
 #include "chrome/common/chrome_constants.h"
 #include "chrome/common/chrome_switches.h"
-#include "components/os_crypt/common/os_crypt_switches.h"
 #include "components/password_manager/core/browser/password_manager_constants.h"
 #include "components/webdata/common/webdata_constants.h"
 #include "crypto/apple/keychain_v2.h"
 #include "ardia/core/ac_content_hooks.h"
+#include "ardia/core/ac_launch_switches.h"
 
 namespace ardiacore {
 
 namespace {
 
 bool g_fresh_user_data_dir = false;
-bool g_test_seams_allowed = false;
 std::atomic<bool> g_start_over_requested{false};
 
 bool KeyMayBeCreated() {
   return g_fresh_user_data_dir || g_start_over_requested.exchange(false);
 }
 
-bool HiddenTestInstance() {
-  const char* background = getenv("ARDIA_BACKGROUND");
-  return background && !strcmp(background, "1");
-}
-
-bool UserDataDirIsScratchDataDir(const base::FilePath& user_data_dir) {
-  const char* data_dir = getenv("ARDIA_DATA_DIR");
-  if (!data_dir || !*data_dir || user_data_dir.empty()) {
-    return false;
-  }
-  const base::FilePath expected = base::MakeAbsoluteFilePath(
-      base::FilePath(data_dir).Append(FILE_PATH_LITERAL("Chromium")));
-  const base::FilePath actual = base::MakeAbsoluteFilePath(user_data_dir);
-  return !expected.empty() && expected == actual;
-}
-
 bool TestAnswersStartOver() {
-  const char* answer = getenv("ARDIA_TEST_SAFE_STORAGE_ANSWER");
-  return answer && !strcmp(answer, "start-over") && HiddenTestInstance() &&
-         g_test_seams_allowed;
+  return BackgroundInstance() &&
+         TestValue("safeStorageAnswer") == "start-over";
 }
 
 enum class Presence { kAbsent, kPresent, kUnknown };
@@ -356,10 +336,11 @@ base::FilePath& TestKeychainDir() {
 
 crypto::apple::KeychainV2* TestKeychain() {
   int hidden_reads = 0;
-  if (const char* hide = getenv("ARDIA_TEST_KEYCHAIN_HIDDEN_READS")) {
-    base::StringToInt(hide, &hidden_reads);
+  if (const std::optional<std::string> hide =
+          TestValue("keychainHiddenReads")) {
+    base::StringToInt(*hide, &hidden_reads);
   }
-  const char* fail = getenv("ARDIA_TEST_KEYCHAIN_FAIL");
+  const std::optional<std::string> fail = TestValue("keychainFail");
   OSStatus failure = noErr;
   const std::pair<const char*, OSStatus> failures[] = {
       {"decode", errSecDecode},
@@ -369,7 +350,7 @@ crypto::apple::KeychainV2* TestKeychain() {
       {"io", errSecIO},
   };
   for (const auto& [name, status] : failures) {
-    if (fail && !strcmp(fail, name)) {
+    if (fail == name) {
       failure = status;
     }
   }
@@ -388,16 +369,7 @@ void GuardSafeStorageKey(const base::CommandLine& command_line) {
   g_fresh_user_data_dir = IsFreshUserDataDir(dir);
   g_ardia_safe_storage_key_may_be_created = &KeyMayBeCreated;
   g_ardia_safe_storage_unreadable = &SafeStorageUnreadable;
-  g_test_seams_allowed =
-      command_line.HasSwitch(os_crypt::switches::kUseMockKeychain) &&
-      UserDataDirIsScratchDataDir(dir);
-  const char* test_keychain = getenv("ARDIA_TEST_KEYCHAIN");
-  if (!test_keychain || strcmp(test_keychain, "file")) {
-    return;
-  }
-  if (!g_test_seams_allowed) {
-    LOG(ERROR) << "[ardiacore] test keychain refused: --user-data-dir isn't "
-                  "ARDIA_DATA_DIR/Chromium on the mock keychain";
+  if (TestValue("keychain") != "file") {
     return;
   }
   TestKeychainDir() = dir;

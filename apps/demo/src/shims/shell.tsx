@@ -1,4 +1,4 @@
-import type { AppEvent, CommandEvent, ConfirmOptions, InlineWrite, PromptOptions, SystemInfo, WindowEvent } from "@ardia-real/shell";
+import type { AppEvent, CommandEvent, ConfirmOptions, InlineWrite, LaunchConfig, PromptOptions, SystemInfo, WindowEvent } from "@ardia-real/shell";
 import { unstable_batchedUpdates } from "react-dom";
 import { emitNativeEvent, provideNativeModule } from "./expo-modules-core";
 import { NATIVE_CHANGE } from "./react-native";
@@ -32,16 +32,33 @@ const SYSTEM_INFO: SystemInfo = {
   model: "web",
   memoryGB: 8,
   locale: typeof navigator === "undefined" ? "en-US" : navigator.language,
-  updates: false,
 };
 
-provideNativeModule("ArdiaApp", { launchEnvironment: () => null, systemInfo: () => SYSTEM_INFO });
+const LAUNCH_CONFIG: LaunchConfig = {
+  dataDirectory: null,
+  background: false,
+  isolated: false,
+  testInstance: false,
+  instance: {},
+  switches: {},
+  trace: [],
+  test: {},
+};
+
+provideNativeModule("ArdiaApp", {
+  launchEnvironment: () => null,
+  systemInfo: () => SYSTEM_INFO,
+  launchConfig: () => LAUNCH_CONFIG,
+  appIcons: async () => [],
+  appIcon: async () => null,
+});
 provideNativeModule("ArdiaCalendar", { authorizationStatus: () => "notDetermined" });
 
 const documents = new Map<string, string>();
 export const readDocument = (name: string) => documents.get(name) ?? null;
 export const writeDocument = (name: string, contents: string) => void documents.set(name, contents);
-export const fetchBangList = (_etag: string | null): Promise<{ status: number; etag: string | null; contentType: string | null; body: string | null; bytes: number }> | null => null;
+export const fetchBangList = (_etag: string | null): Promise<{ status: number; etag: string | null; contentType: string | null; body: string | null; bytes: number }> =>
+  Promise.resolve({ status: 304, etag: null, contentType: null, body: null, bytes: 0 });
 export const saveDocument = async (name: string, contents: string) => void documents.set(name, contents);
 export const removeDocument = (name: string) => void documents.delete(name);
 

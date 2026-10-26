@@ -118,7 +118,7 @@ to follow real wall-clock time doesn't count as proof.
 - Skills live only in the root `.claude/skills`. Deploy setups live only in `infra/<service>`.
 - Patched npm dependencies live in `patches/`, listed in `pnpm-workspace.yaml`. `docs/agent-brief.md` explains how
   to change one.
-- When JS starts needing native code older builds lack, bump `NATIVE_API_VERSION` in `apps/browser/src/nativeApi.tsx`
+- When JS starts needing native code older builds lack, bump `NATIVE_API_VERSION` in `apps/browser/src/platform/nativeApi.ts`
   and `apiVersion` in `packages/shell/ios/AppModule.swift` together.
 
 ## Testing
@@ -167,6 +167,9 @@ The fastest bug to fix is one with a screen recording. Include:
 
 ## Pull requests
 
+- **Issue first.** Every PR closes an issue. Open one (or find the existing one) describing the bug or the request
+  before you open the PR, then put `Closes #<issue>` in the PR description. A PR with no linked issue fails the
+  "Linked issue" check and won't be reviewed. Several PRs can point at the same issue.
 - One change per PR. Describe it the way a user would notice it ("dragging a tab onto another groups them"), then
   how you checked it.
 - For anything visible, attach a recording or before-and-after captures, ideally next to Dia's.
@@ -197,5 +200,7 @@ finding before acting on it. Check the agent's diff yourself before you open the
 
 ## License
 
-Ardia's own files are Apache-2.0, and Ardia as distributed is GPL-3.0 (see NOTICE). By contributing you agree your
-work is released under Apache-2.0, and so may ship in the GPL-3.0 app.
+Ardia's own files are Apache-2.0, and Ardia as distributed is GPL-3.0 (see NOTICE). Before your first pull request
+is merged you sign the [Contributor License Agreement](CLA.md): you keep the copyright in your work and license it to
+the project, including the right to relicense it, commercially as well. The CLA bot asks on your pull request, and
+signing is one comment.

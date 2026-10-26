@@ -38,12 +38,11 @@ const fixture = () => session({
 let app = null;
 
 const HELPERS = `
-const C = globalThis.expo.modules.ArdiaCEF;
 const st = () => ac.store.getState();
-const win = (id) => C.chromeWindows().then((ws) => { const f = st().windows[id].frame; const w = ws.filter((w) => w.hasRoot).find((w) => { const r = w.frame.match(/[-\\d.]+/g).map(Number); return Math.abs(r[0] - f[0]) < 2 && Math.abs(r[2] - f[2]) < 2; }); return w && w.window; });
-const act = (id, a) => win(id).then((n) => C.devWindow(n, a));
+const win = (id) => ac.engine.call("windows.list").then((ws) => { const f = st().windows[id].frame; const w = ws.filter((w) => w.hasRoot).find((w) => { const r = w.frame.match(/[-\\d.]+/g).map(Number); return Math.abs(r[0] - f[0]) < 2 && Math.abs(r[2] - f[2]) < 2; }); return w && w.window; });
+const act = (id, a) => win(id).then((n) => ac.engine.call("windows.dev", { window: n, action: a }));
 const items = (id) => win(id).then((n) => { const xs = []; for (let x = 70; x < st().windows[id].frame[2] - 100; x += 1) xs.push(x);
-  return Promise.all(xs.map((x) => C.devWindow(n, "hit:" + x + ",21"))).then((hits) => { const runs = []; let cur = null;
+  return Promise.all(xs.map((x) => ac.engine.call("windows.dev", { window: n, action: "hit:" + x + ",21" }))).then((hits) => { const runs = []; let cur = null;
     hits.forEach((h, i) => { const on = /ContextMenuArea|ImageView|Symbol|FadeLabel/.test(h); if (on && !cur) cur = [xs[i], xs[i]]; else if (on) cur[1] = xs[i]; else if (cur) { runs.push(cur); cur = null; } });
     if (cur) runs.push(cur); return runs; }); });
 const settle = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -118,9 +117,10 @@ try {
 
   await check("a tab dragged along the strip reorders and doesn't move the window", async () => {
     const frame = await run(`return st().windows.w1.frame;`);
-    const drags = await drag("w1", [[mid(2), 21], [mid(3), 21], [mid(4) + 30, 21]]);
+    const drags = await drag("w1", [[mid(2), 21], [mid(3), 21], [mid(4) + 75, 21]]);
     assert.equal(drags, 0, "window drags");
     assert.deepEqual(await order("w1"), ["p1", "p2", "t2", "t3", "t1", "t4"]);
+    assert.deepEqual(await run(`return Object.values(st().groups).filter((g) => g.windowId === "w1").length;`), 0, "let go past the neighbour's far quarter: a reorder, no group");
     assert.deepEqual(await run(`return st().windows.w1.frame;`), frame);
   });
 
@@ -133,20 +133,20 @@ try {
       const ready = () => globalThis.acChromeTabs.strips().some((s) => ${JSON.stringify(live)}.every((id) => s.tabs.some((t) => t.key === id)));
       const wait = (n) => (ready() || !n ? Promise.resolve(ready()) : settle(100).then(() => wait(n - 1)));
       return wait(100);`);
-    const path = [[at(2), 21], [at(2) + 20, 21], [at(3), 21], [at(3) + 40, 21]];
+    const path = [[at(2), 21], [at(2) + 20, 21], [at(3), 21], [at(3) + 75, 21]];
     const seen = await run(`
-      const cef = globalThis.expo.modules.ArdiaCEF;
-      const send = cef.tabStripCommand;
+      const tabs = globalThis.expo.modules.ArdiaTabs;
+      const send = tabs.call;
       const t0 = performance.now();
       const log = { commands: [], windows: [], drag: [], picture: [] };
-      cef.tabStripCommand = (...a) => { log.commands.push(performance.now() - t0); return send.apply(cef, a); };
+      tabs.call = (...a) => { if (a[0] === "stripCommand") log.commands.push(performance.now() - t0); return send.apply(tabs, a); };
       const unsubscribe = ac.store.subscribe((s, p) => { if (s.windows !== p.windows) log.windows.push(performance.now() - t0); });
       const begin = ac.shell.dragPreview.begin;
       ac.shell.dragPreview.begin = (...a) => { log.picture.push(performance.now() - t0); return begin(...a); };
       // The drag's own store says when it starts and ends (the drop's store update comes right after, in the same task).
       const stop = globalThis.acTabDrag.subscribe((d, was) => { if (!d.tabIds.length !== !was.tabIds.length) log.drag.push([d.tabIds.length > 0, performance.now() - t0]); });
       return act("w1", "drag:${path.map((p) => p.join(",")).join(";")}").then(() => settle(${path.length * 12 * 16 + 1200})).then(() => {
-        stop(); unsubscribe(); cef.tabStripCommand = send; ac.shell.dragPreview.begin = begin;
+        stop(); unsubscribe(); tabs.call = send; ac.shell.dragPreview.begin = begin;
         return log;
       });`);
     const start = seen.drag.find(([on]) => on)?.[1];
@@ -210,12 +210,12 @@ try {
     const x = strip[5][1] + 150;
     const result = await run(`
       return win("w1").then((n) => {
-        const frame = () => C.chromeWindows().then((ws) => ws.find((w) => w.window === n).frame);
-        const click = (y, count) => C.devWindow(n, "mouse:down:${x}," + y + "," + count).then(() => settle(30)).then(() => C.devWindow(n, "mouse:up:${x}," + y + "," + count)).then(() => settle(60));
+        const frame = () => ac.engine.call("windows.list").then((ws) => ws.find((w) => w.window === n).frame);
+        const click = (y, count) => ac.engine.call("windows.dev", { window: n, action: "mouse:down:${x}," + y + "," + count }).then(() => settle(30)).then(() => ac.engine.call("windows.dev", { window: n, action: "mouse:up:${x}," + y + "," + count })).then(() => settle(60));
         const out = {};
-        return C.devWindow(n, "windowDrags")
+        return ac.engine.call("windows.dev", { window: n, action: "windowDrags" })
           .then(() => click(4, 1)).then(() => click(38, 1)).then(() => settle(300))
-          .then(() => C.devWindow(n, "windowDrags")).then((d) => { out.drags = Number(d.split("\\n")[0]); return frame(); })
+          .then(() => ac.engine.call("windows.dev", { window: n, action: "windowDrags" })).then((d) => { out.drags = Number(d.split("\\n")[0]); return frame(); })
           .then((f) => { out.before = f; return click(38, 1).then(() => click(38, 2)); }).then(() => settle(900)).then(frame)
           .then((f) => { out.zoomed = f; return click(38, 1).then(() => click(38, 2)); }).then(() => settle(900)).then(frame)
           .then((f) => { out.back = f; return out; });
@@ -471,12 +471,12 @@ try {
     const x = 120, y = (await run(`return st().windows.w1.frame[3];`)) - 140;
     const result = await run(`
       return win("w1").then((n) => {
-        const frame = () => C.chromeWindows().then((ws) => ws.find((w) => w.window === n).frame);
-        const click = (count) => C.devWindow(n, "mouse:down:${x},${y}," + count).then(() => settle(30)).then(() => C.devWindow(n, "mouse:up:${x},${y}," + count)).then(() => settle(60));
+        const frame = () => ac.engine.call("windows.list").then((ws) => ws.find((w) => w.window === n).frame);
+        const click = (count) => ac.engine.call("windows.dev", { window: n, action: "mouse:down:${x},${y}," + count }).then(() => settle(30)).then(() => ac.engine.call("windows.dev", { window: n, action: "mouse:up:${x},${y}," + count })).then(() => settle(60));
         const out = { tabs: st().windows.w1.tabIds.length };
-        return C.devWindow(n, "hit:${x},${y}").then((h) => { out.hit = h; return C.devWindow(n, "windowDrags"); })
+        return ac.engine.call("windows.dev", { window: n, action: "hit:${x},${y}" }).then((h) => { out.hit = h; return ac.engine.call("windows.dev", { window: n, action: "windowDrags" }); })
           .then(() => click(1)).then(() => settle(300))
-          .then(() => C.devWindow(n, "windowDrags")).then((d) => { out.drags = Number(d.split("\\n")[0]); return frame(); })
+          .then(() => ac.engine.call("windows.dev", { window: n, action: "windowDrags" })).then((d) => { out.drags = Number(d.split("\\n")[0]); return frame(); })
           .then((f) => { out.before = f; return click(1).then(() => click(2)); }).then(() => settle(900)).then(frame)
           .then((f) => { out.after = f; out.opened = st().windows.w1.tabIds.length - out.tabs; return out; });
       });`);
@@ -484,6 +484,96 @@ try {
     assert.equal(result.drags, 1, "a press there drags the window");
     assert.equal(result.opened, 1, "a double-click opens a tab");
     assert.equal(result.after, result.before, "and doesn't zoom the window");
+  });
+
+  const SIDEBAR_ROWS = `return Promise.all([...globalThis.sidebarDrag.items.values()].filter((i) => i.kind === "row" && i.section === "list" && !i.parentGroup && i.view).map((i) => new Promise((r) => i.view.measureInWindow((x, y, w, h) => r({ id: i.tabIds[0], x, y, w, h }))))).then((l) => l.filter((i) => i.w > 0).sort((a, b) => a.y - b.y));`;
+  const FOLDERS = `const c = globalThis.sidebarDrag;
+    const cells = () => Promise.all([...c.items.values()].filter((i) => i.view && (i.kind === "tile" || i.section === "folder")).map((i) => new Promise((r) => i.view.measureInWindow((x, y, w, h) => r({ key: i.key, section: i.section, folder: i.folderId ?? null, id: i.tabIds[0], x, y, w, h }))))).then((l) => l.filter((i) => i.w > 0).sort((a, b) => a.y - b.y || a.x - b.x));
+    const folderOf = (id) => st().tabs[id]?.tileFolder?.id ?? null;`;
+  const centre = (cell) => [Math.round(cell.x + cell.w / 2), Math.round(cell.y + cell.h / 2)];
+  const held = (points, n) => [...points, ...Array(n).fill(points.at(-1))];
+  let folderTabs = [];
+
+  await check("sidebar: a tile held over another tile's centre makes a folder of the two there, as on iOS", async () => {
+    folderTabs = await run(`const ids = ["fa", "fb", "fc"].map((n) => st().newTab("w1", { url: "data:text/html,<title>" + n + "</title>" + n, background: true })); st().pinTabs(ids, true); return settle(1000).then(() => ids);`);
+    const [a, , cc] = folderTabs;
+    const tiles = await run(`${FOLDERS} return cells();`);
+    const from = tiles.find((t) => t.id === a);
+    const onto = tiles.find((t) => t.id === cc);
+    assert.ok(from && onto, JSON.stringify(tiles));
+    const order = tiles.filter((t) => t.id !== a).map((t) => (t.id === cc ? "folder" : t.key));
+    const passing = await run(`${FOLDERS} const seen = []; const iv = setInterval(() => seen.push(c.marks.getState().folderTarget), 40);
+      return act("w1", "windowDrags").then(() => act("w1", "drag:${held([centre(from), [centre(from)[0] + 10, centre(from)[1]], [centre(onto)[0] - 14, centre(onto)[1]], centre(onto)], 5).map((p) => p.join(",")).join(";")}"))
+        .then(() => settle(2400)).then(() => { clearInterval(iv); return seen; });`);
+    assert.ok(passing.includes(`t:${cc}`), `the target is marked while held: ${JSON.stringify([...new Set(passing)])}`);
+    const [fa, fc] = await run(`${FOLDERS} return [folderOf(${JSON.stringify(a)}), folderOf(${JSON.stringify(cc)})];`);
+    assert.ok(fa && fa === fc, `one folder: ${fa} ${fc}`);
+    const after = await run(`${FOLDERS} return cells();`);
+    const folder = after.find((t) => t.folder === fa);
+    assert.ok(folder, "a folder tile");
+    assert.deepEqual(after.filter((t) => t.section === "tiles").map((t) => (t.folder ? "folder" : t.key)), order, "in the target's place");
+    const row = after.filter((t) => t.section === "tiles" && Math.abs(t.y - folder.y) < 2).sort((p, q) => p.x - q.x);
+    row.slice(1).forEach((t, i) => assert.equal(t.x - (row[i].x + row[i].w), 6, `6 pt gaps: ${JSON.stringify(row.map((r) => [r.x, r.w]))}`));
+  });
+
+  await check("sidebar: a tile let go on a folder joins it at once; passing over a tile's edge only reorders", async () => {
+    const [a, b] = folderTabs;
+    const tiles = await run(`${FOLDERS} return cells();`);
+    const from = tiles.find((t) => t.id === b);
+    const folder = tiles.find((t) => t.folder && t.folder === tiles.find((x) => x.folder)?.folder);
+    assert.ok(from && folder, JSON.stringify(tiles));
+    await drag("w1", held([centre(from), [centre(from)[0] + 10, centre(from)[1]], centre(folder)], 1));
+    const ids = await run(`${FOLDERS} return [folderOf(${JSON.stringify(a)}), folderOf(${JSON.stringify(b)})];`);
+    assert.ok(ids[0] && ids[0] === ids[1], `b joined: ${JSON.stringify(ids)}`);
+  });
+
+  await check("sidebar: members dragged out of the folder's panel leave it, and the last one left turns back into a tile", async () => {
+    const [a, b, cc] = folderTabs;
+    const folderId = await run(`${FOLDERS} return folderOf(${JSON.stringify(cc)});`);
+    for (const id of [a, b]) {
+      const tile = (await run(`${FOLDERS} return cells();`)).find((t) => t.folder === folderId);
+      await run(`return act("w1", "click:${centre(tile).join(",")}").then(() => settle(700));`);
+      const rows = await run(`${FOLDERS} return cells();`);
+      const member = rows.find((r) => r.section === "folder" && r.id === id);
+      assert.ok(member, `the panel lists it: ${JSON.stringify(rows.filter((r) => r.section === "folder").map((r) => r.id))}`);
+      const below = Math.max(...rows.filter((r) => r.section === "folder").map((r) => r.y + r.h)) + 24;
+      const second = (await run(`${SIDEBAR_ROWS}`)).find((r) => r.y > below);
+      assert.ok(second, "a list row below the panel");
+      await drag("w1", [[member.x + 60, member.y + 17], [member.x + 60, member.y + 26], [second.x + 60, second.y + 30], [second.x + 60, second.y + 8], [second.x + 60, second.y + 3]]);
+      const state = await run(`${FOLDERS} const id = ${JSON.stringify(id)}; const w = st().windows.w1.tabIds; return { folder: folderOf(id), pinned: st().tabs[id].pinned, grouped: Object.values(st().groups).some((g) => g.tabIds.includes(id)), next: w[w.indexOf(id) + 1], panel: !!c.regions.get("folder"), order: w.map((x) => [x, st().tabs[x].pinned, st().tabs[x].url.slice(0, 30)]) };`);
+      const { order, ...seen } = state;
+      assert.deepEqual(seen, { folder: null, pinned: false, grouped: false, next: second.id, panel: false }, `${id} left the folder for the list, before ${second.id}: ${JSON.stringify(order)}`);
+    }
+    assert.equal(await run(`${FOLDERS} return folderOf(${JSON.stringify(cc)});`), null, "a folder of one is a tile again");
+    assert.ok(await run(`return st().tabs[${JSON.stringify(cc)}].pinned;`), "still pinned");
+    await run(`st().pinTabs(${JSON.stringify(folderTabs)}, false); st().closeTabs(${JSON.stringify(folderTabs)}); return settle(900);`);
+  });
+
+  await check("sidebar: a folder tile dragged along the grid takes one slot: no row moves and the grid doesn't grow", async () => {
+    const made = await run(`const ids = ["ga", "gb", "gc", "gd", "ge"].map((n) => st().newTab("w1", { url: "data:text/html,<title>" + n + "</title>" + n, background: true }));
+      const others = st().windows.w1.tabIds.filter((id) => st().tabs[id].pinned && !ids.includes(id)); st().pinTabs(others, false);
+      st().pinTabs(ids, true); st().placeTabs(ids.slice(0, 3), { pinned: true, row: false, beforeId: ids[3], tileFolder: { id: "tf-drag", name: "Drag" } });
+      return settle(1000).then(() => ({ ids, others }));`);
+    try {
+      const tiles = (await run(`${FOLDERS} return cells();`)).filter((t) => t.section === "tiles");
+      assert.equal(tiles.length, 3, JSON.stringify(tiles));
+      assert.ok(tiles.every((t) => t.y === tiles[0].y), "one row");
+      const folder = tiles.find((t) => t.folder === "tf-drag");
+      const last = tiles.at(-1);
+      const seen = await run(`${FOLDERS} const seen = []; const grid = () => new Promise((r) => c.regions.get("tiles").measureInWindow((x, y, w, h) => r(h)));
+        const iv = setInterval(() => Promise.all([cells(), grid()]).then(([l, h]) => seen.push({ count: c.marks.getState().pinCount, h, ys: l.filter((t) => t.section === "tiles" && !c.marks.getState().sources.has(t.key)).map((t) => t.y) })), 30);
+        return act("w1", "windowDrags").then(() => act("w1", "drag:${[centre(folder), [centre(folder)[0] + 8, centre(folder)[1]], [last.x + last.w - 4, centre(folder)[1]], [last.x + last.w - 3, centre(folder)[1]]].map((p) => p.join(",")).join(";")}"))
+          .then(() => settle(1400)).then(() => { clearInterval(iv); return seen; });`);
+      const during = seen.filter((x) => x.count > 0);
+      assert.ok(during.length, "the drag reserved a slot");
+      assert.deepEqual([...new Set(during.map((x) => x.count))], [1], "one slot for the folder");
+      assert.deepEqual([...new Set(seen.flatMap((x) => x.ys))], [tiles[0].y], `no tile leaves the row: ${JSON.stringify(seen.slice(-3))}`);
+      assert.deepEqual([...new Set(seen.map((x) => x.h))], [tiles[0].h], "the grid keeps its height");
+      const after = (await run(`${FOLDERS} return cells();`)).filter((t) => t.section === "tiles");
+      assert.equal(after.at(-1).folder, "tf-drag", "the folder went to the end, still a folder");
+    } finally {
+      await run(`st().pinTabs(${JSON.stringify(made.ids)}, false); st().closeTabs(${JSON.stringify(made.ids)}); st().pinTabs(${JSON.stringify(made.others)}, true); return settle(900);`);
+    }
   });
 
   const drops = join(scratch, "drops");
@@ -652,7 +742,7 @@ try {
     await run(`ac.store.setState({ downloads: [{ id: "dl-drop", url: "https://example.com/downloaded.pdf", filename: "downloaded.pdf", path: ${JSON.stringify(download)}, state: "finished", paused: false, received: 10, total: 10, speed: 0, mimeType: "application/pdf" }] });
       st().setDownloadsOpen("w1", true); return settle(900);`);
     const spot = await run(`return win("w1").then((n) => { const pts = []; for (let y = 30; y < 420; y += 6) for (let x = 20; x < 700; x += 12) pts.push([x, y]);
-      return Promise.all(pts.map(([x, y]) => C.devWindow(n, "hit:" + x + "," + y).then((h) => (/FileDragView/.test(h) ? [x, y] : null)))).then((hits) => hits.filter(Boolean)); });`);
+      return Promise.all(pts.map(([x, y]) => ac.engine.call("windows.dev", { window: n, action: "hit:" + x + "," + y }).then((h) => (/FileDragView/.test(h) ? [x, y] : null)))).then((hits) => hits.filter(Boolean)); });`);
     assert.ok(spot.length, "a download row in the popover");
     const [sx, sy] = spot[Math.floor(spot.length / 2)];
     const dragged = await run(`return act("w1", "drag:${sx},${sy};${sx + 8},${sy + 6};${sx + 60},${sy + 160}").then(() => settle(900)).then(() => ac.shell.devFileDrag.lastFileDrag());`);

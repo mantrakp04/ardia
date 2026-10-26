@@ -26,6 +26,8 @@ function rows(items: Suggestion[]): string[] {
         return `action:${i.id}`;
       case "create":
         return `create:${i.id}`;
+      case "extension":
+        return `extension:${i.open}:${i.id}`;
     }
   });
 }
@@ -69,6 +71,22 @@ test("preventInline (after a deletion): no completion, and the search is first u
   assert.equal(rows(typed("x.com/home", true).items)[0], "https://x.com/home");
   assert.equal(rows(typed("https://x.com/notifications", true).items)[0], "https://x.com/notifications");
   assert.equal(typed("git", false).completion, "hub.com");
+});
+
+test("a word of four letters or more lists up to four matching actions, a shorter one two", () => {
+  const actions = [
+    { id: "split:right", title: "Split View Side by Side" },
+    { id: "split:bottom", title: "Split View Stacked" },
+    { id: "split:withTab", title: "Split View with Tab" },
+    { id: "split:exit", title: "Exit Split View" },
+    { id: "split:flip", title: "Flip Split View" },
+    { id: "newTab", title: "New Tab" },
+  ];
+  const actionRows = (q: string) => rows(buildSuggestions(q, { tabs: [], history }, { now, actions }).items).filter((r) => r.startsWith("action:"));
+  assert.deepEqual(actionRows("split").sort(), ["action:split:bottom", "action:split:exit", "action:split:right", "action:split:withTab"]);
+  assert.equal(actionRows("sp").length, 2);
+  assert.deepEqual(actionRows("exit split"), ["action:split:exit"]);
+  assert.deepEqual(actionRows("github"), []);
 });
 
 test("preventInline keeps quick-create, actions and calculator rules", () => {

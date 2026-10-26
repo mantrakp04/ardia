@@ -1,7 +1,5 @@
 #include "ardia/core/ac_main_delegate.h"
 
-#include <algorithm>
-#include <cstdlib>
 #include <memory>
 #include <optional>
 #include <string>
@@ -19,7 +17,6 @@
 #include "base/no_destructor.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
-#include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/task/single_thread_task_runner.h"
@@ -49,6 +46,7 @@
 #include "services/network/public/mojom/network_context.mojom.h"
 #include "ardia/core/ac_content_hooks.h"
 #include "ardia/core/ac_hooks.h"
+#include "ardia/core/ac_launch_switches.h"
 #include "ardia/core/ac_lifetime.h"
 #include "ardia/core/ac_context_menu.h"
 #include "ardia/core/ac_navigation_hold.h"
@@ -135,9 +133,9 @@ void KeepRealProfileClosed(base::CommandLine* command_line,
                            std::string_view stage) {
   const bool mock_keychain =
       command_line->HasSwitch(os_crypt::switches::kUseMockKeychain) &&
-      !command_line->HasSwitch("ardia-apply-profile-gate");
+      !TestFlag("applyProfileGate");
   std::unique_ptr<base::Environment> env = base::Environment::Create();
-  if (command_line->HasSwitch("ardia-show-profile-gate")) {
+  if (Traced("profileGate")) {
     base::CommandLine closed(*command_line);
     RemoveSwitchesThatOpenTheProfile(&closed);
     LOG(ERROR) << "[ardiacore] profile gate " << stage << " (applies here: "
@@ -250,6 +248,12 @@ class ACContentBrowserClient : public ChromeContentBrowserClient {
     MaybeAddNavigationHoldThrottle(registry);
     ardia::AddScriptsPagesThrottle(registry);
   }
+  void AppendExtraCommandLineSwitches(base::CommandLine* command_line,
+                                      int child_process_id) override {
+    ChromeContentBrowserClient::AppendExtraCommandLineSwitches(command_line,
+                                                               child_process_id);
+    PassSwitchesToGpuProcess(command_line);
+  }
   std::optional<base::TimeDelta> GetSpareRendererDelayForSiteURL(
       const GURL& site_url) override {
     std::optional<base::TimeDelta> delay =
@@ -326,11 +330,6 @@ void KeepMemoryReducer(base::CommandLine* command_line) {
   }
 }
 
-bool EnvIs(const char* name, std::string_view value) {
-  const char* set = getenv(name);
-  return set && value == set;
-}
-
 void MergeFeatures(base::CommandLine* command_line, const char* list, std::string_view features) {
   const std::string current = command_line->GetSwitchValueASCII(list);
   command_line->RemoveSwitch(list);
@@ -338,33 +337,27 @@ void MergeFeatures(base::CommandLine* command_line, const char* list, std::strin
                                                         : current + "," + std::string(features));
 }
 
+constexpr int kDiskSpaceCheckSeconds = 60;
+
 void QuietIdleTimers(base::CommandLine* command_line) {
-  if (!EnvIs("ARDIA_PA_RECLAIM", "fixed")) {
-    MergeFeatures(command_line, switches::kEnableFeatures, "PartitionAllocAdaptiveMemoryReclaimInterval");
-  }
-  if (EnvIs("ARDIA_HANG_WATCHER", "off")) {
-    MergeFeatures(command_line, switches::kDisableFeatures, "EnableHangWatcher,EnableHangWatcherOnGpuProcess");
-  }
-  g_ardia_skip_cpu_health_sampling = !EnvIs("ARDIA_CPU_HEALTH_SAMPLING", "on");
-  int disk_check_seconds = 60;
-  if (const char* set = getenv("ARDIA_DISK_CHECK_SECONDS");
-      set && !base::StringToInt(set, &disk_check_seconds)) {
-    disk_check_seconds = 0;
-  }
-  g_ardia_disk_space_check_seconds = std::clamp(disk_check_seconds, 0, 3600);
-  g_ardia_lazy_storage_usage = !EnvIs("ARDIA_LAZY_STORAGE_USAGE", "off");
-  g_ardia_script_loader_ready_at_once = !EnvIs("ARDIA_SCRIPT_LOADER_AT_ONCE", "off");
-  g_ardia_scripts_wait_at_response = !EnvIs("ARDIA_SCRIPTS_WAIT_AT_RESPONSE", "off");
-  g_ardia_bluetooth_poll_on_demand = !EnvIs("ARDIA_BLUETOOTH_POLL_ON_DEMAND", "off");
-  g_ardia_hybrid_scan_on_demand = !EnvIs("ARDIA_HYBRID_SCAN_ON_DEMAND", "off");
+  MergeFeatures(command_line, switches::kEnableFeatures, "PartitionAllocAdaptiveMemoryReclaimInterval");
+  g_ardia_skip_cpu_health_sampling = true;
+  g_ardia_disk_space_check_seconds = kDiskSpaceCheckSeconds;
+  g_ardia_lazy_storage_usage = true;
+  g_ardia_script_loader_ready_at_once = true;
+  g_ardia_scripts_wait_at_response = true;
+  g_ardia_bluetooth_poll_on_demand = true;
+  g_ardia_hybrid_scan_on_demand = true;
 }
 
 }
 
 std::optional<int> ACMainDelegate::BasicStartupComplete() {
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-  g_ardia_begin_frame_bridge = EnvIs("ARDIA_BEGIN_FRAME_BRIDGE", "on");
+  g_ardia_begin_frame_bridge = ExperimentOn("beginFrameBridge");
   if (!command_line->HasSwitch(switches::kProcessType)) {
+    g_ardia_background_instance = BackgroundInstance();
+    DecideTestGateAtStartup();
     KeepRealProfileClosed(command_line, "at startup");
     GuardSafeStorageKey(*command_line);
     command_line->AppendSwitch(switches::kNoStartupWindow);

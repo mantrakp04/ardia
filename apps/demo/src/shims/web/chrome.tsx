@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { View, type ViewProps, type ViewStyle } from "react-native";
-import { useBrowser } from "../../../../browser/src/store/browser";
+import { useBrowser } from "../../../../browser/src/state/browser/store";
 import { edgeGain, fallbackRadius, highlightMask, maskStyle, peakGain, SHADE_OUTSET, shadeMask, shapeMask, type RimCurve, type RimProfile, type ShadeProfile } from "./glassRim";
 
 type Style = ViewStyle & Record<string, unknown>;
@@ -227,13 +227,13 @@ export function ContextMenuArea({ onContextMenu, captureDescendants: _capture, .
   );
 }
 
-export function OutsidePressArea({ onOutsidePress, ...props }: ViewProps & { onOutsidePress?: () => void; children?: ReactNode }) {
+export function OutsidePressArea({ onOutsidePress, ...props }: ViewProps & { onOutsidePress?: (event: { nativeEvent: { timestamp?: number } }) => void; children?: ReactNode }) {
   const node = useRef<HTMLElement | null>(null);
   const latest = useRef(onOutsidePress);
   latest.current = onOutsidePress;
   useEffect(() => {
     const down = (e: PointerEvent) => {
-      if (node.current && e.target instanceof Node && !node.current.contains(e.target)) latest.current?.();
+      if (node.current && e.target instanceof Node && !node.current.contains(e.target)) latest.current?.({ nativeEvent: { timestamp: e.timeStamp } });
     };
     document.addEventListener("pointerdown", down, true);
     return () => document.removeEventListener("pointerdown", down, true);
@@ -241,9 +241,15 @@ export function OutsidePressArea({ onOutsidePress, ...props }: ViewProps & { onO
   return <View {...props} ref={(view) => void (node.current = view as unknown as HTMLElement | null)} />;
 }
 
-export function WindowDragRegion({ titleBarDoubleClick: _double, onRegionDoubleClick, ...props }: ViewProps & { titleBarDoubleClick?: boolean; onRegionDoubleClick?: () => void }) {
-  const Region = View as unknown as React.ComponentType<ViewProps & { onDoubleClick?: () => void }>;
-  return <Region {...props} onDoubleClick={onRegionDoubleClick} />;
+export function WindowDragRegion({
+  titleBarDoubleClick: _double,
+  clickable: _clickable,
+  onRegionClick,
+  onRegionDoubleClick,
+  ...props
+}: ViewProps & { titleBarDoubleClick?: boolean; clickable?: boolean; onRegionClick?: () => void; onRegionDoubleClick?: () => void }) {
+  const Region = View as unknown as React.ComponentType<ViewProps & { onClick?: () => void; onDoubleClick?: () => void }>;
+  return <Region {...props} onClick={onRegionClick} onDoubleClick={onRegionDoubleClick} />;
 }
 
 export type DockSelectionProps = ViewProps & { fill?: string; stroke?: string; cornerRadius?: number; strokeWidth?: number; dark: boolean };

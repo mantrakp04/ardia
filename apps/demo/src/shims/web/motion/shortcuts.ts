@@ -1,6 +1,6 @@
 import type { BrowserCommand } from "@ardia-real/shell";
 import { emitAppEvent, emitCommand } from "@ardia/shell";
-import { useBrowser } from "../../../../../browser/src/store/browser";
+import { useBrowser } from "../../../../../browser/src/state/browser/store";
 import { provideNativeModule } from "../../expo-modules-core";
 
 type Mod = "cmd" | "shift" | "alt" | "ctrl";

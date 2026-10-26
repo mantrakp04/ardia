@@ -3,22 +3,24 @@ import {
   createSuggestFetcher,
   engineById,
   findBang,
-  findScope,
-  offeredSiteSearch,
   prepareSuggestions,
   type SearchEngine,
   type SearchScope,
   type SuggestionResult,
 } from "@ardia/core";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { bookmarksByUrl } from "../../store/bookmarks";
-import { useBrowser } from "../../store/browser";
-import { bookmarkProfileId } from "../../store/model";
-import { defaultSearchEngine, searchEngines } from "../../store/settings";
-import type { Bookmarks, HistoryEntry } from "../../store/types";
-import { currentBarActions } from "./actions";
-import { useBangs } from "./bangs";
-import { historyHosts, knownHosts } from "./knownHosts";
+import { bookmarksByUrl } from "../../state/bookmarks/bookmarks";
+import { useMenuBarRevision } from "../../state/commands/commandShortcuts";
+import { useSettings } from "../../state/browser/hooks";
+import { useBookmarkProfileId, useBookmarks } from "../../state/bookmarks/hooks";
+import { useHistory } from "../../state/history/hooks";
+import { useTabs } from "../../state/tabs/hooks";
+import { defaultSearchEngine, searchEngines } from "../../state/settings/settings";
+import type { Bookmarks, HistoryEntry } from "../../state/browser/types";
+import { currentBarActions } from "../../state/omnibox/barActions";
+import { useBangs } from "../../state/omnibox/bangs";
+import { useBarExtensions } from "./extensions";
+import { historyHosts } from "../../state/omnibox/knownHosts";
 
 const NO_HISTORY: HistoryEntry[] = [];
 const NO_REMOTE: string[] = [];
@@ -41,31 +43,6 @@ function profileBookmarks(b: Bookmarks, profileId: string): BookmarkRow[] {
     perProfile.set(profileId, rows);
   }
   return rows;
-}
-
-function scopeSources(windowId: string) {
-  const s = useBrowser.getState();
-  const profileId = s.windows[windowId]?.profileId ?? "";
-  return { engines: searchEngines(s.settings), hosts: knownHosts(s, profileId) };
-}
-
-export function scopeFor(text: string, windowId: string): SearchScope | null {
-  return findScope(text, scopeSources(windowId));
-}
-
-export function offeredScope(typed: string, completion: string, windowId: string): SearchScope | null {
-  return offeredSiteSearch(typed, completion, scopeSources(windowId));
-}
-
-export function keywordScope(text: string, windowId: string): SearchScope | null {
-  const bare = text.trim().replace(/^[a-z]+:\/\//i, "").replace(/\/$/, "");
-  if (/[/?#:@]/.test(bare)) return null;
-  const scope = scopeFor(text, windowId);
-  if (!scope) return null;
-  if (bare.includes(".")) return scope;
-  if (scope.kind !== "engine") return null;
-  const engine = searchEngines(useBrowser.getState().settings).find((e) => e.id === scope.engineId);
-  return engine && engine.keyword.toLowerCase() === text.toLowerCase() ? scope : null;
 }
 
 function suggestEngine(scope: SearchScope | null, engines: SearchEngine[], fallback: SearchEngine): SearchEngine {
@@ -91,14 +68,17 @@ export function useSuggestions({
   scope: SearchScope | null;
   preventInline?: boolean;
 }): SuggestionResult {
-  const allTabs = useBrowser((s) => s.tabs);
-  const history = useBrowser((s) => s.history[profileId] ?? NO_HISTORY);
-  const bookmarks = useBrowser((s) => s.bookmarks);
-  const bookmarkProfile = useBrowser((s) => bookmarkProfileId(s, s.windows[windowId]));
-  const engines = useBrowser((s) => searchEngines(s.settings));
-  const engine = useBrowser((s) => defaultSearchEngine(s.settings));
-  const preference = useBrowser((s) => s.settings.commandBarPreference);
-  const suggestionsOn = useBrowser((s) => s.settings.searchSuggestions);
+  const allTabs = useTabs((tabs) => tabs);
+  const history = useHistory((h) => h[profileId] ?? NO_HISTORY);
+  const bookmarks = useBookmarks((b) => b);
+  const bookmarkProfile = useBookmarkProfileId(windowId);
+  const engines = useSettings((st) => searchEngines(st));
+  const engine = useSettings((st) => defaultSearchEngine(st));
+  const preference = useSettings((st) => st.commandBarPreference);
+  const suggestionsOn = useSettings((st) => st.searchSuggestions);
+  const extensions = useBarExtensions(windowId);
+  const shortcuts = useSettings((st) => st.shortcuts);
+  const menuBar = useMenuBarRevision();
 
   const tabs = useMemo(() => Object.values(allTabs).filter((t) => t.profileId === profileId), [allTabs, profileId]);
   const bookmarkRows = useMemo(() => profileBookmarks(bookmarks, bookmarkProfile), [bookmarks, bookmarkProfile]);
@@ -144,11 +124,12 @@ export function useSuggestions({
       preference,
       remote: remoteList,
       actions: currentBarActions(windowId),
+      extensions,
       currentTabId,
       currentUrl,
       scope,
       preventInline,
       bangs,
     });
-  }, [active, text, query, source, engine, preference, remoteList, windowId, currentTabId, currentUrl, scope, preventInline, bangs]);
+  }, [active, text, query, source, engine, preference, remoteList, windowId, extensions, shortcuts, menuBar, currentTabId, currentUrl, scope, preventInline, bangs]);
 }

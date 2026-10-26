@@ -1,0 +1,72 @@
+{
+  "nextId": 5,
+  "logins": [
+    {
+      "id": 1,
+      "hostname": "https://zen.example",
+      "httpRealm": null,
+      "formSubmitURL": "https://zen.example",
+      "usernameField": "user",
+      "passwordField": "pass",
+      "encryptedUsername": "MEMEEPgAAAAAAAAAAAAAAAAAAAEwHQYJYIZIAWUDBAEqBBAwMTIzNDU2Nzg5YWJjZGVmBBC9+KTHdCZK/O15VMfKQXPx",
+      "encryptedPassword": "MEMEEPgAAAAAAAAAAAAAAAAAAAEwHQYJYIZIAWUDBAEqBBAwMTIzNDU2Nzg5YWJjZGVmBBD9BCsjqDlKdvZ1YyUoz/Hy",
+      "guid": "{00000000-0000-4000-8000-000000000001}",
+      "encType": 1,
+      "timeCreated": 1788134400000,
+      "timeLastUsed": 1788220800000,
+      "timePasswordChanged": 1788134400000,
+      "timesUsed": 1
+    },
+    {
+      "id": 2,
+      "hostname": "https://json-only.example",
+      "httpRealm": null,
+      "formSubmitURL": "https://json-only.example",
+      "usernameField": "user",
+      "passwordField": "pass",
+      "encryptedUsername": "MEMEEPgAAAAAAAAAAAAAAAAAAAEwHQYJYIZIAWUDBAEqBBAwMTIzNDU2Nzg5YWJjZGVmBBD66j6VqhVZt2Q+QdAe0oTs",
+      "encryptedPassword": "MEMEEPgAAAAAAAAAAAAAAAAAAAEwHQYJYIZIAWUDBAEqBBAwMTIzNDU2Nzg5YWJjZGVmBBD/8qFdNobQB1PslgWrTiwk",
+      "guid": "{00000000-0000-4000-8000-000000000002}",
+      "encType": 1,
+      "timeCreated": 1788134400000,
+      "timeLastUsed": 1788220800000,
+      "timePasswordChanged": 1788134400000,
+      "timesUsed": 2
+    },
+    {
+      "id": 3,
+      "hostname": "https://gone.example",
+      "httpRealm": null,
+      "formSubmitURL": "https://gone.example",
+      "usernameField": "user",
+      "passwordField": "pass",
+      "encryptedUsername": "MEMEEPgAAAAAAAAAAAAAAAAAAAEwHQYJYIZIAWUDBAEqBBAwMTIzNDU2Nzg5YWJjZGVmBBBc9BtwT7Cuk9wI7BeG0XaP",
+      "encryptedPassword": "MEMEEPgAAAAAAAAAAAAAAAAAAAEwHQYJYIZIAWUDBAEqBBAwMTIzNDU2Nzg5YWJjZGVmBBAZve8phU3APD4ynnefpgo2",
+      "guid": "{gone-1}",
+      "encType": 1,
+      "timeCreated": 1788134400000,
+      "timeLastUsed": 1788220800000,
+      "timePasswordChanged": 1788134400000,
+      "timesUsed": 3
+    },
+    {
+      "id": 4,
+      "hostname": "https://edited.example",
+      "httpRealm": null,
+      "formSubmitURL": "https://edited.example",
+      "usernameField": "user",
+      "passwordField": "pass",
+      "encryptedUsername": "MEMEEPgAAAAAAAAAAAAAAAAAAAEwHQYJYIZIAWUDBAEqBBAwMTIzNDU2Nzg5YWJjZGVmBBCza4QeFARzYH4Y/kH1EW/N",
+      "encryptedPassword": "MEMEEPgAAAAAAAAAAAAAAAAAAAEwHQYJYIZIAWUDBAEqBBAwMTIzNDU2Nzg5YWJjZGVmBBBXbyyxVrPnN+YX2IdzyzOe",
+      "guid": "{edit-1}",
+      "encType": 1,
+      "timeCreated": 1788134400000,
+      "timeLastUsed": 1788220800000,
+      "timePasswordChanged": 1788134400000,
+      "timesUsed": 4
+    }
+  ],
+  "potentiallyVulnerablePasswords": [],
+  "dismissedBreachAlertsByLoginGUID": {},
+  "version": 3
+}

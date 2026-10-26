@@ -1,26 +1,33 @@
-import { reloadExtension, type InstalledExtension } from "@ardia/ardiacore";
-import { useState } from "react";
-import { Image, Text, View } from "react-native";
-import { useTheme } from "../../../lib/theme";
-import { useBrowser } from "../../../store/browser";
-import { useProfiles } from "../../../store/hooks";
-import { engineProfile, resolveWindowId } from "../../../store/model";
-import { InstallDialogHost } from "../../extensions/ExtensionOverlays";
 import {
+  reloadExtension,
   addFromWebStore,
   configure,
+  extensionsProfileId,
   loadUnpacked,
+  openExtensionDetails,
   refreshExtensions,
   removeExtension,
   setEnabled,
   setPinned,
+  showExtensionsList,
   useExtensionList,
-} from "../../extensions/state";
-import { Button, Group, PopUp, Row, SectionHeader, TextField, Toggle } from "../controls";
-import { extensionList } from "../paneData";
-import { useResource } from "../resources";
-import { closeSettingsSheet, showSettingsSheet } from "../sheet";
-import { SETTINGS_WINDOW_ID } from "../windows";
+} from "../../../state/extensions/actions";
+import type { InstalledExtension } from "../../../state/extensions/store";
+import { useEffect, useState } from "react";
+import { Image, Text, View } from "react-native";
+import { useTheme } from "../../ui/theme";
+import { resolvedWindowId } from "../../../state/browser/current";
+import { newTab } from "../../../state/tabs/actions";
+import { useProfiles } from "../../../state/browser/hooks";
+import { engineProfile } from "../../../state/browser/model";
+import { InstallDialogHost } from "../../extensions/ExtensionOverlays";
+import { Button, font, Group, PopUp, TextField, Toggle, weight } from "../../ui";
+import { Row, SectionHeader } from "../Form";
+import { extensionList } from "../../../state/settings/paneData";
+import { useResource } from "../../../state/settings/resources";
+import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
+import { replaceSettingsPlace, SETTINGS_WINDOW_ID } from "../../../state/settings/settingsWindows";
+import { settingsType } from "../tokens";
 
 type SiteAccess = "allSites" | "specificSites" | "onClick";
 const SITE_ACCESS: { value: SiteAccess; title: string }[] = [
@@ -31,15 +38,14 @@ const SITE_ACCESS: { value: SiteAccess; title: string }[] = [
 const siteAccessOf = (ext: InstalledExtension): SiteAccess =>
   ext.siteAccess === "ON_CLICK" ? "onClick" : ext.siteAccess === "ON_SPECIFIC_SITES" ? "specificSites" : "allSites";
 
-export function ExtensionsPane() {
+export function ExtensionsPane({ profileId: chosen, detail }: { profileId: string | null; detail: string | null }) {
   const theme = useTheme();
   const profiles = useProfiles();
-  const [profileId, setProfileId] = useState(() => useBrowser.getState().settings.defaultProfileId);
+  const [profileId] = useState(() => extensionsProfileId(chosen));
   const profile = engineProfile(profileId);
   const list = useExtensionList(profile);
-  const [detail, setDetail] = useState<string | null>(null);
   const [link, setLink] = useState("");
-  useResource(extensionList, profile);
+  const [loaded] = useResource(extensionList, profile);
 
   const showInstall = () =>
     showSettingsSheet(<InstallDialogHost windowId={SETTINGS_WINDOW_ID} onClosed={closeSettingsSheet} />);
@@ -50,8 +56,12 @@ export function ExtensionsPane() {
     setLink("");
   };
 
-  const selected = detail ? list.find((x) => x.id === detail) : undefined;
-  if (selected) return <ExtensionDetails ext={selected} profile={profile} onBack={() => setDetail(null)} />;
+  const selected = detail && chosen === profileId ? list.find((x) => x.id === detail) : undefined;
+  const gone = !!detail && !selected && loaded !== undefined;
+  useEffect(() => {
+    if (gone) replaceSettingsPlace(profileId, null);
+  }, [gone, profileId]);
+  if (selected) return <ExtensionDetails ext={selected} profile={profile} onBack={() => showExtensionsList(profileId)} />;
 
   return (
     <View>
@@ -60,7 +70,7 @@ export function ExtensionsPane() {
         description="Add features to Ardia with extensions from the Chrome Web Store. Each profile has its own."
         action={
           profiles.length > 1 ? (
-            <PopUp value={profileId} options={profiles.map((p) => ({ value: p.id, title: p.name }))} onChange={setProfileId} />
+            <PopUp value={profileId} options={profiles.map((p) => ({ value: p.id, title: p.name }))} onChange={(id) => replaceSettingsPlace(id)} />
           ) : undefined
         }
       />
@@ -71,13 +81,13 @@ export function ExtensionsPane() {
               key={ext.id}
               icon={<Image source={{ uri: ext.icon }} style={{ width: 24, height: 24, opacity: ext.enabled ? 1 : 0.5 }} />}
               title={
-                <Text numberOfLines={1} style={{ fontSize: 13, color: theme.textPrimary }}>
+                <Text numberOfLines={1} style={{ ...font.body, color: theme.textPrimary }}>
                   {ext.name}
                   <Text style={{ color: theme.textTertiary }}>{`  ${ext.version}${ext.fromWebStore ? "" : " · Developer"}`}</Text>
                 </Text>
               }
               description={ext.errors.length && !ext.enabled ? ext.errors[0] : ext.description}
-              onPress={() => setDetail(ext.id)}
+              onPress={() => openExtensionDetails(profileId, ext.id)}
             >
               <Toggle value={ext.enabled} onChange={(on) => void setEnabled(profile, ext.id, on)} />
             </Row>
@@ -95,8 +105,8 @@ export function ExtensionsPane() {
           <Button
             title="Open Web Store"
             onPress={() => {
-              const windowId = resolveWindowId(useBrowser.getState());
-              if (windowId) useBrowser.getState().newTab(windowId, { url: "https://chromewebstore.google.com/category/extensions" });
+              const windowId = resolvedWindowId();
+              if (windowId) newTab(windowId, { url: "https://chromewebstore.google.com/category/extensions" });
             }}
           />
         </Row>
@@ -123,8 +133,8 @@ export function ExtensionsPane() {
 function ExtensionDetails({ ext, profile, onBack }: { ext: InstalledExtension; profile: string; onBack: () => void }) {
   const theme = useTheme();
   const openTab = (url: string) => {
-    const windowId = resolveWindowId(useBrowser.getState());
-    if (windowId) useBrowser.getState().newTab(windowId, { url });
+    const windowId = resolvedWindowId();
+    if (windowId) newTab(windowId, { url });
   };
   return (
     <View>
@@ -134,14 +144,14 @@ function ExtensionDetails({ ext, profile, onBack }: { ext: InstalledExtension; p
       <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginTop: 14 }}>
         <Image source={{ uri: ext.icon }} style={{ width: 48, height: 48 }} />
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 17, fontWeight: "600", color: theme.textPrimary }}>{ext.name}</Text>
-          <Text style={{ fontSize: 12, color: theme.textSecondary, marginTop: 2 }}>
+          <Text style={{ ...settingsType.extensionTitle, fontWeight: weight.semibold, color: theme.textPrimary }}>{ext.name}</Text>
+          <Text style={{ ...font.small, color: theme.textSecondary, marginTop: 2 }}>
             {`Version ${ext.version}${ext.fromWebStore ? " · Chrome Web Store" : " · Unpacked"}`}
           </Text>
         </View>
         <Toggle value={ext.enabled} onChange={(on) => void setEnabled(profile, ext.id, on)} />
       </View>
-      {ext.description ? <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 12, lineHeight: 18 }}>{ext.description}</Text> : null}
+      {ext.description ? <Text style={{ ...font.body, color: theme.textSecondary, marginTop: 12, lineHeight: 18 }}>{ext.description}</Text> : null}
 
       <SectionHeader title="Permissions" />
       <Group>
@@ -181,7 +191,7 @@ function ExtensionDetails({ ext, profile, onBack }: { ext: InstalledExtension; p
           </Row>
         ) : null}
         {ext.errors.length ? <Row title="Errors" description={ext.errors.slice(0, 5).join("\n")} /> : null}
-        <Row title={<Text style={{ fontSize: 13, color: theme.textTertiary }}>{`ID ${ext.id}`}</Text>} />
+        <Row title={<Text style={{ ...font.body, color: theme.textTertiary }}>{`ID ${ext.id}`}</Text>} />
       </Group>
 
       <View style={{ alignItems: "flex-start", marginTop: 18 }}>

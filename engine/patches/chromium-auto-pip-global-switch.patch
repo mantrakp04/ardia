@@ -1,0 +1,24 @@
+diff --git a/chrome/browser/picture_in_picture/auto_picture_in_picture_tab_helper.cc b/chrome/browser/picture_in_picture/auto_picture_in_picture_tab_helper.cc
+--- a/chrome/browser/picture_in_picture/auto_picture_in_picture_tab_helper.cc
++++ b/chrome/browser/picture_in_picture/auto_picture_in_picture_tab_helper.cc
+@@ -45,6 +45,10 @@
+ #include "components/safe_browsing/core/browser/db/v5_get_hash_protocol_manager.h"
+ #endif
+ 
++#include "ardia/core/ac_content_hooks.h"  // nogncheck
++
++bool g_ardia_auto_picture_in_picture_off = false;
++
+ using OcclusionState =
+     AutoPictureInPictureWindowOcclusionHelperBase::OcclusionState;
+ 
+@@ -789,6 +793,9 @@ bool AutoPictureInPictureTabHelper::MeetsMediaEngagementConditions() const {
+ }
+ 
+ ContentSetting AutoPictureInPictureTabHelper::GetCurrentContentSetting() const {
++  if (g_ardia_auto_picture_in_picture_off) {
++    return CONTENT_SETTING_BLOCK;
++  }
+   GURL url = web_contents()->GetLastCommittedURL();
+   auto setting = host_content_settings_map_->GetContentSetting(
+       url, url, ContentSettingsType::AUTO_PICTURE_IN_PICTURE);

@@ -1,14 +1,14 @@
-import { engineCall } from "./engine";
-import { Cef } from "./native";
+import { call } from "./engine/call";
+import { nativeModule } from "./nativeModules";
 
 export type BatterySaverMode = "on" | "off" | "default";
 
 export type BatterySaverState = { state: number; active: boolean };
 
-export const openTaskManager = () => engineCall<{ ok: boolean }>("ac_task_manager_open", "");
+export const openTaskManager = () => call("engine.openTaskManager");
 
-export const setBatterySaver = (mode: BatterySaverMode) => engineCall<BatterySaverState>("ac_battery_saver", "", { mode });
+export const setBatterySaver = (mode: BatterySaverMode) => call("engine.batterySaver", { mode });
 
-export const trimEngineMemory = () => engineCall<{ ok: boolean }>("ac_memory_trim", "");
+export const trimEngineMemory = () => call("engine.trimMemory");
 
-export const inputIdleSeconds = () => Cef.inputIdleSeconds?.() ?? null;
+export const inputIdleSeconds = () => nativeModule("ArdiaEngine").inputIdleSeconds();

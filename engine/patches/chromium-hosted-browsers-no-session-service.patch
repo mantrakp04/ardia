@@ -1,0 +1,27 @@
+diff --git a/chrome/browser/sessions/session_service_base.cc b/chrome/browser/sessions/session_service_base.cc
+--- a/chrome/browser/sessions/session_service_base.cc
++++ b/chrome/browser/sessions/session_service_base.cc
+@@ -74,6 +74,11 @@
+ #include "ui/ozone/public/ozone_platform.h"
+ #include "ui/ozone/public/platform_session_manager.h"
+ #endif
++
++#include "ardia/core/ac_hooks.h"  // nogncheck
++
++bool (*g_ardia_omits_from_session_service)(
++    const BrowserWindowInterface* browser) = nullptr;
+ 
+ using base::Time;
+ using content::NavigationEntry;
+@@ -849,6 +854,11 @@
+     return false;
+   }
+ 
++  if (g_ardia_omits_from_session_service &&
++      g_ardia_omits_from_session_service(browser)) {
++    return false;
++  }
++
+   // Never track app popup windows that do not have a trusted source (i.e.
+   // popup windows spawned by an app). If this logic changes, be sure to also
+   // change SessionRestoreImpl::CreateRestoredBrowser().

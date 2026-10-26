@@ -1,5 +1,5 @@
-import { Cef, valueOr } from "./native";
-
+import { ardiaError, call } from "./engine/call";
+import { nativeModule } from "./nativeModules";
 export type SavedAddress = {
   id: string;
   name?: string;
@@ -29,24 +29,28 @@ export type SavedCard = {
 };
 export type CardInput = { id?: string; name?: string; expMonth?: number; expYear?: number };
 
-export const getAutofillSettings = (profile = "") => Cef.getAutofillSettings(profile);
+const Autofill = nativeModule("ArdiaAutofill");
+
+export const getAutofillSettings = (profile = "") => call("autofill.settings", { profile });
 export const setAutofillSettings = (settings: { addresses?: boolean; cards?: boolean }, profile = "") =>
-  Cef.setAutofillSettings(profile, settings.addresses ?? null, settings.cards ?? null);
-export const listAddresses = async (profile: string): Promise<SavedAddress[]> =>
-  valueOr(await Cef.listAddresses(profile), { addresses: [] }).addresses;
-export const saveAddress = async (profile: string, address: AddressInput) =>
-  valueOr(await Cef.saveAddress(profile, address), { id: null }).id;
+  call("autofill.setSettings", { profile, ...settings });
+export const listAddresses = async (profile: string): Promise<SavedAddress[]> => (await call("autofill.addresses", { profile })).addresses;
+export const saveAddress = async (profile: string, address: AddressInput) => (await call("autofill.saveAddress", { profile, address })).id;
 export const deleteAddress = async (profile: string, id: string) => {
-  valueOr(await Cef.deleteAutofillEntry(profile, id), null);
+  await call("autofill.remove", { profile, id });
 };
-export const listCards = async (profile: string): Promise<SavedCard[]> => valueOr(await Cef.listCards(profile), { cards: [] }).cards;
-export const saveCard = async (profile: string, card: CardInput, number?: string) =>
-  valueOr(await Cef.saveCard(profile, card, number ?? null), { id: null }).id;
+export const listCards = async (profile: string): Promise<SavedCard[]> => (await call("autofill.cards", { profile })).cards;
+export const saveCard = async (profile: string, card: CardInput, number?: string) => {
+  try {
+    return (JSON.parse(await Autofill.saveCard(profile, card, number ?? null)) as { id: string }).id;
+  } catch (error) {
+    throw ardiaError(error);
+  }
+};
 export const deleteCard = async (profile: string, id: string) => {
-  valueOr(await Cef.deleteAutofillEntry(profile, id), null);
+  await call("autofill.remove", { profile, id });
 };
-export const revealCardNumber = async (profile: string, id: string) =>
-  valueOr(await Cef.revealCardNumber(profile, id), { number: null }).number ?? null;
+export const revealCardNumber = async (profile: string, id: string) => (await call("autofill.cardNumber", { profile, id })).number ?? null;
 
 const NETWORK_NAMES: Record<CardNetwork, string> = {
   visa: "Visa",

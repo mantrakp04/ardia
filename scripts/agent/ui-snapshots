@@ -1,0 +1,474 @@
+#!/usr/bin/env node
+// Pixel snapshots of the app's UI states, to prove a refactor changed no pixels.
+//
+//   scripts/agent/ui-snapshots capture <Debug app> <out dir> [--only a,b] [--js host:port] [--keep]
+//   scripts/agent/ui-snapshots compare <before dir> <after dir> [--tolerance N]
+//   scripts/agent/ui-snapshots list
+//   scripts/agent/ui-snapshots -h | --help
+//
+// capture launches a hidden, onboarded instance (scripts/lib/instance.mjs) on a fixed seeded session: two profiles,
+// pinned tabs, a tab group, tabs on local file pages, bookmarks, history on fixed past dates, finished downloads.
+// Search suggestions and telemetry are off and Chrome sits behind a dead proxy, so nothing reaches the network; it
+// waits for uBlock Origin's bundled lists. Its data dir is always ~/ardia-scratch/ui-snapshots/data (the path
+// shows in Settings), so captures take turns on a lock. Each state is driven through the dev harness and written
+// as <out dir>/<state>.png with ac.shell.devSnapshotWindow (in-process, transparent background, works with the
+// screen locked) once consecutive snapshots are byte-identical. <out dir>/states.json has each state's result and
+// <out dir>/manifest.json the app, the JS source and the checkout's commit. --only captures just those states;
+// --js takes the JS from another Metro (default: this checkout's on :8081, pinned); --keep leaves the instance up.
+//
+// compare diffs every PNG present in either dir: per state the count of differing pixels and the largest channel
+// delta, a <after dir>/diff/<state>.png for each state that differs (changed pixels red over a dimmed copy), and
+// exits 1 when any state differs by more than --tolerance pixels (default 0: two captures of one build are
+// byte-identical), is missing on one side, or failed to capture.
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { deflateSync, inflateSync } from "node:zlib";
+
+const here = fileURLToPath(import.meta.url);
+const { attach, devtools, launch, session, sleep } = await import(join(dirname(here), "../lib/instance.mjs"));
+
+const help = () => {
+  const lines = readFileSync(here, "utf8").split("\n").slice(1);
+  console.log(lines.slice(0, lines.findIndex((l) => !l.startsWith("//"))).map((l) => l.replace(/^\/\/ ?/, "")).join("\n"));
+};
+
+const argv = process.argv.slice(2);
+if (!argv.length || argv.includes("-h") || argv.includes("--help")) {
+  help();
+  process.exit(argv.length ? 0 : 64);
+}
+const flags = {}, positional = [];
+for (let i = 1; i < argv.length; i++) {
+  if (argv[i] === "--keep") flags.keep = true;
+  else if (argv[i].startsWith("--")) flags[argv[i].slice(2)] = argv[++i];
+  else positional.push(argv[i]);
+}
+
+function readPng(path) {
+  const buf = readFileSync(path);
+  let width = 0, height = 0, channels = 4;
+  const idat = [];
+  for (let at = 8; at < buf.length; ) {
+    const length = buf.readUInt32BE(at), type = buf.toString("ascii", at + 4, at + 8);
+    if (type === "IHDR") {
+      width = buf.readUInt32BE(at + 8);
+      height = buf.readUInt32BE(at + 12);
+      if (buf[at + 16] !== 8 || buf[at + 20] !== 0) throw new Error(`${path}: only 8-bit non-interlaced PNGs`);
+      channels = { 0: 1, 2: 3, 4: 2, 6: 4 }[buf[at + 17]];
+    } else if (type === "IDAT") idat.push(buf.subarray(at + 8, at + 8 + length));
+    at += 12 + length;
+  }
+  const raw = inflateSync(Buffer.concat(idat));
+  const stride = width * channels;
+  const out = Buffer.alloc(stride * height);
+  for (let y = 0; y < height; y++) {
+    const filter = raw[y * (stride + 1)];
+    const row = y * stride, src = y * (stride + 1) + 1;
+    for (let x = 0; x < stride; x++) {
+      const v = raw[src + x];
+      const a = x >= channels ? out[row + x - channels] : 0;
+      const b = y ? out[row - stride + x] : 0;
+      const c = y && x >= channels ? out[row - stride + x - channels] : 0;
+      let p;
+      if (filter === 0) p = v;
+      else if (filter === 1) p = v + a;
+      else if (filter === 2) p = v + b;
+      else if (filter === 3) p = v + ((a + b) >> 1);
+      else {
+        const pa = Math.abs(b - c), pb = Math.abs(a - c), pc = Math.abs(a + b - 2 * c);
+        p = v + (pa <= pb && pa <= pc ? a : pb <= pc ? b : c);
+      }
+      out[row + x] = p & 255;
+    }
+  }
+  const rgba = Buffer.alloc(width * height * 4);
+  for (let i = 0; i < width * height; i++) {
+    const s = i * channels;
+    const grey = channels <= 2;
+    rgba[i * 4] = out[s];
+    rgba[i * 4 + 1] = grey ? out[s] : out[s + 1];
+    rgba[i * 4 + 2] = grey ? out[s] : out[s + 2];
+    rgba[i * 4 + 3] = channels === 4 ? out[s + 3] : channels === 2 ? out[s + 1] : 255;
+  }
+  return { width, height, rgba };
+}
+
+const crcTable = Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+const crc32 = (buf) => {
+  let c = 0xffffffff;
+  for (const b of buf) c = crcTable[(c ^ b) & 255] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+};
+function writePng(path, { width, height, rgba }) {
+  const chunk = (type, data) => {
+    const head = Buffer.alloc(8);
+    head.writeUInt32BE(data.length);
+    head.write(type, 4, "ascii");
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(Buffer.concat([head.subarray(4), data])));
+    return Buffer.concat([head, data, crc]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 6;
+  const raw = Buffer.alloc((width * 4 + 1) * height);
+  for (let y = 0; y < height; y++) rgba.copy(raw, y * (width * 4 + 1) + 1, y * width * 4, (y + 1) * width * 4);
+  writeFileSync(path, Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", ihdr), chunk("IDAT", deflateSync(raw)), chunk("IEND", Buffer.alloc(0))]));
+}
+
+function diffImages(a, b) {
+  if (a.width !== b.width || a.height !== b.height) return { pixels: Math.max(a.width * a.height, b.width * b.height), maxDelta: 255, size: `${a.width}x${a.height} → ${b.width}x${b.height}` };
+  let pixels = 0, maxDelta = 0;
+  const mask = Buffer.alloc(a.rgba.length);
+  for (let i = 0; i < a.rgba.length; i += 4) {
+    let d = 0;
+    for (let k = 0; k < 4; k++) d = Math.max(d, Math.abs(a.rgba[i + k] - b.rgba[i + k]));
+    if (d) {
+      pixels++;
+      maxDelta = Math.max(maxDelta, d);
+      mask[i] = 255; mask[i + 1] = 0; mask[i + 2] = 0; mask[i + 3] = 255;
+    } else {
+      for (let k = 0; k < 3; k++) mask[i + k] = b.rgba[i + k] * 0.3;
+      mask[i + 3] = 255;
+    }
+  }
+  return { pixels, maxDelta, image: { width: a.width, height: a.height, rgba: mask } };
+}
+
+function compare(beforeDir, afterDir, tolerance) {
+  const pngs = (dir) => new Set(readdirSync(dir).filter((f) => f.endsWith(".png")));
+  const before = pngs(beforeDir), after = pngs(afterDir);
+  const failedIn = (dir) => {
+    try { return JSON.parse(readFileSync(join(dir, "states.json"), "utf8")).filter((s) => s.error).map((s) => s.name); } catch { return []; }
+  };
+  const diffDir = join(afterDir, "diff");
+  rmSync(diffDir, { recursive: true, force: true });
+  let bad = 0, same = 0;
+  for (const file of [...new Set([...before, ...after])].sort()) {
+    const name = file.replace(/\.png$/, "");
+    if (!before.has(file) || !after.has(file)) {
+      bad++;
+      console.log(`MISSING  ${name} (only in ${before.has(file) ? "before" : "after"})`);
+      continue;
+    }
+    const a = readFileSync(join(beforeDir, file)), b = readFileSync(join(afterDir, file));
+    if (a.equals(b)) {
+      same++;
+      continue;
+    }
+    const d = diffImages(readPng(join(beforeDir, file)), readPng(join(afterDir, file)));
+    if (d.image && d.pixels) {
+      mkdirSync(diffDir, { recursive: true });
+      writePng(join(diffDir, file), d.image);
+    }
+    const over = d.pixels > tolerance;
+    if (over) bad++;
+    else same++;
+    console.log(`${over ? "DIFF    " : "within  "} ${name}: ${d.pixels} px, max channel delta ${d.maxDelta}${d.size ? ` (size ${d.size})` : ""}`);
+  }
+  for (const [side, dir] of [["before", beforeDir], ["after", afterDir]])
+    for (const name of failedIn(dir)) {
+      bad++;
+      console.log(`FAILED   ${name} (capture failed in ${side})`);
+    }
+  console.log(`${same} identical, ${bad} different${bad && existsSync(diffDir) ? ` (diffs in ${diffDir})` : ""}`);
+  return bad ? 1 : 0;
+}
+
+const ROOT = join(homedir(), "ardia-scratch/ui-snapshots");
+const PAGES = join(ROOT, "pages");
+const DATA = join(ROOT, "data");
+const LOCK = join(ROOT, "capture.lock");
+const page = (name) => `file://${PAGES}/${name}.html`;
+const PAGE_TITLES = {
+  mail: "Inbox", calendar: "Calendar", docs: "Design doc", notes: "Meeting notes", reading: "Reading list",
+  research1: "Swift concurrency", research2: "Metal shaders", work1: "Roadmap", work2: "Quarterly plan",
+};
+
+function writePages() {
+  mkdirSync(PAGES, { recursive: true });
+  for (const [name, title] of Object.entries(PAGE_TITLES)) {
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title></head><body style="font:16px -apple-system;margin:40px"><h1>${title}</h1><p>Find me: needle haystack needle.</p></body></html>`;
+    const path = join(PAGES, `${name}.html`);
+    if (!existsSync(path) || readFileSync(path, "utf8") !== html) writeFileSync(path, html);
+  }
+}
+
+function fixture() {
+  const tab = (id, name, extra = {}) => ({ id, url: page(name), title: PAGE_TITLES[name], lastActiveAt: 1, ...extra });
+  return session({
+    profiles: [{ id: "default", name: "Personal", color: "plum" }, { id: "work", name: "Work", color: "blue" }],
+    settings: { searchSuggestions: false, appearance: "dark", restoreSession: true },
+    windows: [{
+      id: "w1", frame: [80, 80, 1280, 800], createdAt: 1,
+      tabIds: ["p1", "p2", "p3", "r1", "r2", "t1", "t2", "t3", "k1", "k2"],
+      activeTabIds: { default: "t3", work: "k1" },
+    }],
+    tabs: [
+      tab("p1", "mail", { pinned: true, pinnedUrl: page("mail") }),
+      tab("p2", "calendar", { pinned: true, pinnedUrl: page("calendar") }),
+      tab("p3", "docs", { pinned: true, pinnedUrl: page("docs") }),
+      tab("r1", "research1"),
+      tab("r2", "research2"),
+      tab("t1", "notes"),
+      tab("t2", "reading"),
+      { id: "t3", url: "", title: "", lastActiveAt: 2 },
+      tab("k1", "work1", { profileId: "work" }),
+      tab("k2", "work2", { profileId: "work" }),
+    ],
+    groups: [{ id: "g1", windowId: "w1", profileId: "default", name: "Research", icon: null, color: "green", collapsed: false, pinned: false, tabIds: ["r1", "r2"], createdAt: 1 }],
+  });
+}
+
+const UBLOCK_ID = "fajbdaomknpkicfjcpipdmcpoamdmilh";
+const SEED = `
+const s = st();
+const at = (d, h, m) => new Date(2026, 0, 14 - d, h, m).getTime();
+s.importHistory("default", [
+  { url: "https://swift.org/documentation/concurrency/", title: "Swift concurrency", visits: 3, lastVisit: at(0, 9, 12) },
+  { url: "https://developer.apple.com/metal/", title: "Metal shaders", visits: 2, lastVisit: at(0, 10, 40) },
+  { url: "https://news.ycombinator.com/", title: "Hacker News", visits: 9, lastVisit: at(0, 14, 5) },
+  { url: "https://github.com/ardia/ardia", title: "ardia/ardia", visits: 5, lastVisit: at(1, 18, 30) },
+  { url: "https://en.wikipedia.org/wiki/Typography", title: "Typography - Wikipedia", visits: 1, lastVisit: at(1, 11, 2) },
+  { url: "https://docs.ardia.test/handbook", title: "Handbook", visits: 4, lastVisit: at(3, 16, 45) },
+]);
+const roots = s.bookmarks.roots.default;
+const folder = s.addBookmarkFolder({ profileId: "default", title: "Reading", parentId: roots && roots.bar });
+s.addBookmark({ profileId: "default", url: "https://swift.org/", title: "Swift", parentId: roots && roots.bar });
+s.addBookmark({ profileId: "default", url: "https://developer.apple.com/", title: "Apple Developer", parentId: roots && roots.bar });
+s.addBookmark({ profileId: "default", url: "https://en.wikipedia.org/wiki/Typography", title: "Typography", parentId: folder });
+s.addBookmark({ profileId: "default", url: "https://news.ycombinator.com/", title: "Hacker News", parentId: folder });
+s.addBookmark({ profileId: "default", url: "${page("docs")}", title: "Design doc", parentId: roots && roots.other });
+const dl = (id, filename, total, state) => ({ id, url: "https://downloads.ardia.test/" + filename, filename,
+  path: "/Users/test/Downloads/" + filename, state, paused: false, received: state === "finished" ? total : 0, total, speed: 0,
+  mimeType: "application/octet-stream", profile: "" });
+s.upsertDownload(dl("d1", "Ardia-0.2.41.dmg", 182000000, "finished"));
+s.upsertDownload(dl("d2", "quarterly-report.pdf", 2400000, "finished"));
+s.upsertDownload(dl("d3", "photos.zip", 54000000, "failed"));
+return { roots: !!roots, folder: !!folder, downloads: st().downloads.length };
+`;
+
+const HELPERS = `
+const st = () => ac.store.getState();
+const W = "w1";
+const settle = (ms) => new Promise((r) => setTimeout(r, ms));
+`;
+
+const FIXTURE_TABS = ["p1", "p2", "p3", "r1", "r2", "t1", "t2", "t3", "k1", "k2"];
+const reset = `
+const s = st();
+const extra = Object.keys(s.tabs).filter((id) => !${JSON.stringify(FIXTURE_TABS)}.includes(id));
+if (extra.length) s.closeTabs(extra);
+s.removeHistory("default", ${JSON.stringify(Object.keys(PAGE_TITLES).map(page))});
+if (s.windows[W].profileId !== "default") s.switchProfile(W, "default");
+s.closePanel(W);
+s.setDownloadsOpen(W, false);
+for (const id of Object.keys(s.find)) s.setFind(id, { open: false });
+ac.pages.clearDataRequest.setState({ windowId: null });
+ac.pages.bookmarkEditor.setState({ open: null });
+ac.pages.bookmarkDialog.setState({ open: null });
+s.setSelection(W, []);
+s.updateGroup("g1", { collapsed: false });
+for (const sp of Object.values(s.splits)) s.separateSplit(sp.id);
+s.updateSettings({ appearance: "dark", tabLayout: "sidebar", addressBar: "toolbar", bookmarksBar: "never" });
+if (!s.windows[W].sidebarOpen) s.toggleSidebar(W);
+s.activate("t3");
+return ac.shell.devSetPointer(W, 0, 0, false);
+`;
+
+const main = (name, body, extra = {}) => ({ name, window: "w1", body, ...extra });
+const STATES = [
+  main("dia-dark-ntp", ""),
+  main("dia-light-ntp", `st().updateSettings({ appearance: "light" });`),
+  main("dia-dark-tab", `st().activate("t1");`),
+  main("dia-light-tab", `st().updateSettings({ appearance: "light" }); st().activate("t1");`),
+  main("dia-dark-pinned-active", `st().activate("p2");`),
+  main("dia-dark-group-tab", `st().activate("r2");`),
+  main("dia-dark-group-collapsed", `st().updateGroup("g1", { collapsed: true });`),
+  main("dia-dark-selection", `st().activate("t1"); st().setSelection(W, ["t1", "t2"]);`),
+  main("dia-light-group-collapsed", `st().updateSettings({ appearance: "light" }); st().updateGroup("g1", { collapsed: true });`),
+  main("dia-dark-sidebar-closed", `st().activate("t1"); st().toggleSidebar(W);`),
+  main("dia-light-sidebar-closed", `st().updateSettings({ appearance: "light" }); st().activate("t1"); st().toggleSidebar(W);`),
+  main("dia-dark-work-profile", `st().switchProfile(W, "work");`),
+  main("dia-light-work-profile", `st().updateSettings({ appearance: "light" }); st().switchProfile(W, "work");`),
+  main("dia-dark-bookmarks-bar", `st().updateSettings({ bookmarksBar: "always" }); st().activate("t1");`),
+  main("dia-light-bookmarks-bar", `st().updateSettings({ appearance: "light", bookmarksBar: "always" }); st().activate("t1");`),
+  main("dia-dark-address-in-sidebar", `st().updateSettings({ addressBar: "sidebar" }); st().activate("t1");`),
+  main("top-dark-ntp", `st().updateSettings({ tabLayout: "top" });`),
+  main("top-dark-tab", `st().updateSettings({ tabLayout: "top" }); st().activate("t1");`),
+  main("top-light-tab", `st().updateSettings({ appearance: "light", tabLayout: "top" }); st().activate("t1");`),
+  main("top-dark-group-tab", `st().updateSettings({ tabLayout: "top" }); st().activate("r1");`),
+  main("dia-dark-command-bar", `st().activate("t1"); st().openPanel(W, "");`),
+  main("dia-light-command-bar", `st().updateSettings({ appearance: "light" }); st().activate("t1"); st().openPanel(W, "");`),
+  main("dia-dark-command-bar-typed", `st().activate("t1"); st().openPanel(W, ""); return settle(400).then(() => { const id = ac.omnibox.ids().find((i) => i.includes("panel") || i.includes(W)) || ac.omnibox.ids()[0]; ac.omnibox.get(id).type("swi"); return settle(600); });`),
+  main("dia-dark-ntp-typed", `return settle(200).then(() => { const id = ac.omnibox.ids()[0]; ac.omnibox.get(id).type("hacker"); return settle(600); });`),
+  main("dia-dark-downloads", `st().activate("t1"); st().setDownloadsOpen(W, true);`),
+  main("dia-light-downloads", `st().updateSettings({ appearance: "light" }); st().activate("t1"); st().setDownloadsOpen(W, true);`),
+  main("dia-dark-find", `st().activate("t1"); st().setFind("t1", { open: true, replace: false, query: "needle" });`),
+  main("dia-light-find", `st().updateSettings({ appearance: "light" }); st().activate("t1"); st().setFind("t1", { open: true, replace: false, query: "needle" });`),
+  main("dia-dark-history-page", `st().activate("t1"); ac.pages.openInternalPage("history", W);`),
+  main("dia-light-history-page", `st().updateSettings({ appearance: "light" }); st().activate("t1"); ac.pages.openInternalPage("history", W);`),
+  main("dia-dark-bookmarks-page", `st().activate("t1"); ac.pages.openInternalPage("bookmarks", W);`),
+  main("dia-light-bookmarks-page", `st().updateSettings({ appearance: "light" }); st().activate("t1"); ac.pages.openInternalPage("bookmarks", W);`),
+  main("dia-dark-downloads-page", `st().activate("t1"); ac.pages.openInternalPage("downloads", W);`),
+  main("dia-dark-clear-data", `st().activate("t1"); ac.pages.openInternalPage("history", W); ac.pages.clearDataRequest.setState({ windowId: W });`),
+  main("dia-light-clear-data", `st().updateSettings({ appearance: "light" }); st().activate("t1"); ac.pages.openInternalPage("history", W); ac.pages.clearDataRequest.setState({ windowId: W });`),
+  main("dia-dark-edit-bookmark", `const b = Object.values(st().bookmarks.nodes).find((n) => n.kind === "url" && n.title === "Swift"); ac.pages.bookmarkEditor.setState({ open: { windowId: W, bookmarkId: b.id, folder: false, profileId: "default" } });`),
+  main("dia-dark-new-folder", `ac.pages.bookmarkEditor.setState({ open: { windowId: W, bookmarkId: null, folder: true, profileId: "default" } });`),
+  main("dia-dark-split", `st().activate("t1"); st().createSplit(["t1", "t2"]);`),
+  main("dia-light-split", `st().updateSettings({ appearance: "light" }); st().activate("t1"); st().createSplit(["t1", "t2"]);`),
+  main("dia-light-edit-bookmark", `st().updateSettings({ appearance: "light" }); const b = Object.values(st().bookmarks.nodes).find((n) => n.kind === "url" && n.title === "Swift"); ac.pages.bookmarkEditor.setState({ open: { windowId: W, bookmarkId: b.id, folder: false, profileId: "default" } });`),
+  main("top-light-ntp", `st().updateSettings({ appearance: "light", tabLayout: "top" });`),
+];
+const SETTINGS_PANES = ["general", "profiles", "sync", "tabs", "appearance", "privacy", "passwords", "autofill", "extensions", "search", "engines", "shortcuts", "liveFolders", "calendar", "advanced"];
+const stableFor = (pane) => (pane === "privacy" ? 12 : 1);
+for (const pane of SETTINGS_PANES)
+  STATES.push({ name: `settings-dark-${pane}`, window: "settings", body: `ac.openSettings(${JSON.stringify(pane)});`, keepOpen: true, stableFor: stableFor(pane) });
+STATES.push({ name: "settings-light-general", window: "settings", body: `st().updateSettings({ appearance: "light" }); ac.openSettings("general");`, keepOpen: true });
+for (const pane of ["tabs", "privacy", "search", "profiles"])
+  STATES.push({ name: `settings-light-${pane}`, window: "settings", body: `st().updateSettings({ appearance: "light" }); ac.openSettings(${JSON.stringify(pane)});`, keepOpen: true, stableFor: stableFor(pane) });
+STATES.push({ name: "settings-light-appearance", window: "settings", body: `st().updateSettings({ appearance: "light" }); ac.openSettings("appearance");`, keepOpen: true });
+
+async function capture(appPath, outDir) {
+  outDir = resolve(outDir);
+  const only = flags.only ? new Set(flags.only.split(",")) : null;
+  const states = only ? STATES.filter((s) => only.has(s.name)) : STATES;
+  if (!states.length) throw new Error(`no such state: ${flags.only}`);
+  mkdirSync(outDir, { recursive: true });
+  for (const f of readdirSync(outDir)) if (f.endsWith(".png")) rmSync(join(outDir, f));
+  await takeLock();
+  const data = DATA;
+  try { await attach(data).quit(); } catch {}
+  rmSync(data, { recursive: true, force: true });
+  mkdirSync(data, { recursive: true });
+  writePages();
+  const probes = join(data, "probes");
+  mkdirSync(probes, { recursive: true });
+  const app = await launch(appPath, {
+    data, onboarded: true, session: fixture(), js: flags.js, switches: ["--proxy-server=http://127.0.0.1:9"],
+    files: { "telemetry.json": { version: 1, sharing: false, decidedAt: 1, askDoneAt: 1, installId: null, crashCursor: 0, lastVersion: null, sessionOpen: false } },
+  });
+  console.log(`instance pid ${app.pid} port ${app.port} data ${data}`);
+  const run = (body, timeout = 20000) => app.eval(`${HELPERS}\n${body}`, { timeout });
+  const results = [];
+  try {
+    await run(`return settle(1500).then(() => !!st().windows[W]);`);
+    console.log(`seed ${JSON.stringify(await run(SEED))}`);
+    console.log(`content blocker ${await contentBlockerReady(app)}`);
+    await run(`return settle(1500);`);
+    for (const state of states) {
+      const t0 = Date.now();
+      try {
+        await run(reset);
+        await run(`return settle(300);`);
+        const result = await run(state.body || "return null;");
+        const file = await settled(run, state.window, probes, join(outDir, `${state.name}.png`), state.stableFor);
+        results.push({ name: state.name, window: state.window, ms: Date.now() - t0, probes: file.probes, setup: result ?? undefined });
+        console.log(`ok   ${state.name} (${file.probes} snapshots, ${Date.now() - t0} ms)`);
+      } catch (e) {
+        results.push({ name: state.name, window: state.window, error: String(e.message ?? e) });
+        console.log(`FAIL ${state.name}: ${e.message ?? e}`);
+      } finally {
+        if (state.window !== "w1" && !state.keepOpen) await run(`return ac.runCommand({ command: "closeTab", arg: null, windowId: ${JSON.stringify(state.window)} });`).catch(() => {});
+      }
+    }
+    await run(`return ac.runCommand({ command: "closeTab", arg: null, windowId: "settings" });`).catch(() => {});
+  } finally {
+    writeFileSync(join(outDir, "states.json"), JSON.stringify(results, null, 2));
+    const head = spawnSync("git", ["-C", dirname(here), "rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim();
+    const dirty = spawnSync("git", ["-C", dirname(here), "status", "--short", "--", "apps/browser/src", "packages"], { encoding: "utf8" }).stdout.trim();
+    writeFileSync(join(outDir, "manifest.json"), JSON.stringify({
+      app: resolve(appPath), js: flags.js ?? "this checkout (Metro :8081, pinned)", commit: head, uncommitted: dirty ? dirty.split("\n") : [],
+      capturedAt: new Date().toISOString(), states: results.map((r) => r.name),
+    }, null, 2));
+    if (!flags.keep) await app.quit();
+    rmSync(probes, { recursive: true, force: true });
+    if (!flags.keep) rmSync(LOCK, { force: true });
+  }
+  const failed = results.filter((r) => r.error).length;
+  console.log(`${results.length - failed} captured, ${failed} failed → ${outDir}`);
+  return failed ? 1 : 0;
+}
+
+async function contentBlockerReady(app) {
+  const deadline = Date.now() + 90_000;
+  while (Date.now() < deadline) {
+    const list = await fetch(`http://127.0.0.1:${app.port}/json/list`).then((r) => r.json(), () => []);
+    const background = list.find((t) => t.type === "background_page" && t.url.includes(UBLOCK_ID));
+    if (background) {
+      const page = await devtools(background).catch(() => null);
+      try {
+        const ready = page && (await page.eval(`self.µBlock?.isReadyPromise ? µBlock.isReadyPromise.then(() => "ready") : null`, { timeout: 10000 }).catch(() => null));
+        if (ready) return ready;
+      } finally {
+        page?.close();
+      }
+    }
+    await sleep(500);
+  }
+  throw new Error("uBlock Origin wasn't ready within 90 s");
+}
+
+async function takeLock() {
+  mkdirSync(ROOT, { recursive: true });
+  for (const end = Date.now() + 540_000; ; await sleep(2000)) {
+    let holder = null;
+    try { holder = Number(readFileSync(LOCK, "utf8")); } catch {}
+    const alive = holder && (() => { try { process.kill(holder, 0); return true; } catch (e) { return e.code === "EPERM"; } })();
+    if (!alive) {
+      writeFileSync(LOCK, String(process.pid));
+      if (Number(readFileSync(LOCK, "utf8")) === process.pid) return;
+    }
+    if (Date.now() > end) throw new Error(`another capture (pid ${holder}) holds ${LOCK}`);
+    if (alive) console.log(`waiting for the capture in pid ${holder} (one at a time: the data dir path shows in the UI)`);
+  }
+}
+
+async function settled(run, windowId, probes, out, stableFor = 1) {
+  let previous = null, same = 0;
+  for (let i = 0; i < 40 + stableFor; i++) {
+    const path = join(probes, `${i % 2}.png`);
+    const ok = await run(`return ac.shell.devSnapshotWindow(${JSON.stringify(windowId)}, ${JSON.stringify(path)}, true);`);
+    if (!ok) {
+      await sleep(250);
+      continue;
+    }
+    const bytes = readFileSync(path);
+    same = previous && bytes.equals(previous) ? same + 1 : 0;
+    if (i >= 2 && same >= stableFor) {
+      writeFileSync(out, bytes);
+      return { probes: i + 1 };
+    }
+    previous = bytes;
+    await sleep(250);
+  }
+  throw new Error(`${windowId} never settled (or never snapshotted) in 40 snapshots`);
+}
+
+const [command] = argv;
+try {
+  if (command === "list") console.log(STATES.map((s) => `${s.name}  (${s.window})`).join("\n"));
+  else if (command === "capture") {
+    if (positional.length < 2) throw new Error("usage: ui-snapshots capture <Debug app> <out dir>");
+    process.exitCode = await capture(positional[0], positional[1]);
+  } else if (command === "compare") {
+    if (positional.length < 2) throw new Error("usage: ui-snapshots compare <before dir> <after dir>");
+    process.exitCode = compare(resolve(positional[0]), resolve(positional[1]), Number(flags.tolerance ?? 0));
+  } else {
+    help();
+    process.exitCode = 64;
+  }
+} catch (e) {
+  console.error(e.message ?? e);
+  process.exitCode = 1;
+}
+process.exit(process.exitCode);

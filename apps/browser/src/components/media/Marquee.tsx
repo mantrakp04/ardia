@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Easing, Text, View, type TextStyle } from "react-native";
+import { Animated, Text, View, type TextStyle } from "react-native";
+import { curve } from "../ui/motion";
+import { fadeStepColor, mediaMotion } from "./tokens";
 
-const SPEED = 30;
-const PAUSE_MS = 1500;
 const FADE = 12;
 const FADE_STEPS = 8;
 
@@ -18,9 +18,9 @@ export function useMarqueeGroup(resetKey: string): MarqueeGroup {
   useEffect(() => {
     progress.setValue(0);
     if (max < 1) return;
-    const duration = (max / SPEED) * 1000;
-    const leg = (toValue: number) => Animated.timing(progress, { toValue, duration, easing: Easing.linear, useNativeDriver: true });
-    const loop = Animated.loop(Animated.sequence([Animated.delay(PAUSE_MS), leg(1), Animated.delay(PAUSE_MS), leg(0)]));
+    const duration = (max / mediaMotion.marqueeSpeed) * 1000;
+    const leg = (toValue: number) => Animated.timing(progress, { toValue, duration, easing: curve.linear, useNativeDriver: true });
+    const loop = Animated.loop(Animated.sequence([Animated.delay(mediaMotion.marqueePause), leg(1), Animated.delay(mediaMotion.marqueePause), leg(0)]));
     loop.start();
     return () => loop.stop();
   }, [max, resetKey]);
@@ -73,12 +73,11 @@ export function Marquee({
 }
 
 function Fade({ side, opacity, background, height }: { side: "left" | "right"; opacity: Animated.AnimatedInterpolation<number> | number; background: [number, number, number]; height: number }) {
-  const [r, g, b] = background;
   const w = FADE / FADE_STEPS;
   return (
     <Animated.View pointerEvents="none" style={{ position: "absolute", top: 0, [side]: 0, width: FADE, height, flexDirection: side === "left" ? "row" : "row-reverse", opacity }}>
       {Array.from({ length: FADE_STEPS }, (_, i) => (
-        <View key={i} style={{ width: w, height, backgroundColor: `rgba(${r},${g},${b},${1 - (i + 0.5) / FADE_STEPS})` }} />
+        <View key={i} style={{ width: w, height, backgroundColor: fadeStepColor(background, 1 - (i + 0.5) / FADE_STEPS) }} />
       ))}
     </Animated.View>
   );

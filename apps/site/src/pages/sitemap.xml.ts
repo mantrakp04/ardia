@@ -1,12 +1,23 @@
 import type { APIRoute } from "astro";
-import { getCollection } from "astro:content";
+import { bench } from "../data/bench";
+import { isoDate, releasePath, releases } from "../data/releaseNotes";
 
 export const GET: APIRoute = async ({ site }) => {
   const home = new URL(import.meta.env.BASE_URL, site);
-  const notes = await getCollection("releaseNotes");
-  const lastmod = notes.map((n) => n.data.date.toISOString().slice(0, 10)).sort().at(-1);
-  const urls = ["", "release-notes/"].map(
-    (path) => `  <url><loc>${new URL(path, home)}</loc>${lastmod ? `<lastmod>${lastmod}</lastmod>` : ""}</url>`,
+  const all = await releases();
+  const stable = all.filter((r) => !r.nightly);
+  const newest = stable.map((r) => isoDate(r.date)).sort().at(-1);
+  const newestNote = all.map((r) => isoDate(r.date)).sort().at(-1);
+  const pages: [string, string | undefined][] = [
+    ["", newest],
+    ["try/", undefined],
+    ["benchmarks/", bench && !bench.sample ? bench.measured : undefined],
+    ["release-notes/", newestNote],
+    ...stable.map((r): [string, string] => [releasePath(r.version), isoDate(r.date)]),
+    ["press/", undefined],
+  ];
+  const urls = pages.map(
+    ([path, modified]) => `  <url><loc>${new URL(path, home)}</loc>${modified ? `<lastmod>${modified}</lastmod>` : ""}</url>`,
   );
   return new Response(
     `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>\n`,

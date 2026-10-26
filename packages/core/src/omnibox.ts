@@ -125,6 +125,14 @@ export function classifyPaste(text: string): PasteAction | null {
   return { kind: "search", query: trimmed.replace(/\s+/g, " ").slice(0, 2000) };
 }
 
+export function sanitizePaste(text: string): string {
+  if (!text) return "";
+  const parts = text.trim().split(/(\s+)/);
+  if (parts.length === 1 && !parts[0]) return " ";
+  const spaced = parts.some((part, i) => i % 2 === 1 && !/[\r\n]/.test(part));
+  return parts.map((part, i) => (i % 2 === 0 || !/[\r\n]/.test(part) ? part : spaced ? " " : "")).join("");
+}
+
 export function breadcrumb(url: string, title?: string): { host: string; trail: string[] } {
   const parsed = parseUrl(url);
   const app = appUrlOrigin(url);

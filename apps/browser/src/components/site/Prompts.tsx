@@ -1,26 +1,27 @@
-import { getSiteSettings, resolveExternalApp, setSiteSetting, type AutofillPrompt as ChromeAutofillPrompt, type AutofillPromptAnswer, type PasswordPrompt as ChromePasswordPrompt, type PasswordPromptAnswer } from "@ardia/ardiacore";
-import { Symbol } from "@ardia/shell";
+import { getSiteSettings, resolveExternalApp, setSiteSetting } from "../../state/site/siteSettings";
+import {
+  type AutofillPrompt as ChromeAutofillPrompt,
+  type AutofillPromptAnswer,
+  type PasswordPrompt as ChromePasswordPrompt,
+  type PasswordPromptAnswer,
+  patchPage,
+  pageOf,
+  setPopover,
+  usePage,
+} from "../../state/tabs/pageState";
 import { useState } from "react";
-import { Image, Pressable, Text, View } from "react-native";
-import { useTheme } from "../../lib/theme";
-import { webviews } from "../../lib/webviews";
-import { useBrowser } from "../../store/browser";
-import { engineProfile } from "../../store/model";
-import { useHover } from "../primitives";
-import { PANEL, PanelCloseButton, Popover, PopoverRow, PopoverSeparator, PromptButton } from "../layout/controls";
-import { Checkbox } from "../settings/controls";
-import { patchPage, pageOf, setPopover, usePage } from "../layout/pageState";
-import { answerPermission, describePermission } from "./permissions";
+import { Image, Pressable, View } from "react-native";
+import { useTheme } from "../ui/theme";
+import { webviews } from "../../state/tabs/webviewHandles";
+import { currentTab } from "../../state/browser/current";
+import { engineProfile } from "../../state/browser/model";
+import { Button, MenuRow, MenuSeparator, PANEL, PanelCloseButton, Popover, Symbol, Text, useHover } from "../ui";
+import { answerPermission, describePermission } from "../../state/site/permissions";
+import { hostOrOrigin } from "../../lib/url";
+import { CheckRow, IconTile } from "./PromptParts";
+import { useSiteTokens } from "./tokens";
 
-const hostOf = (origin: string) => {
-  try {
-    return new URL(origin).hostname.replace(/^www\./, "") || origin;
-  } catch {
-    return origin;
-  }
-};
-
-function PromptBody({
+export function PromptBody({
   icons,
   image,
   title,
@@ -35,20 +36,21 @@ function PromptBody({
   detail?: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const theme = useTheme();
   return (
     <View style={{ padding: PANEL.inset, gap: 10 }}>
       <View style={{ flexDirection: "row", gap: 6 }}>
         {image ? <Image source={{ uri: image }} style={{ width: 32, height: 32, marginLeft: -1, marginVertical: -1 }} /> : null}
         {icons.map((icon) => (
-          <View key={icon} style={{ width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: theme.dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)" }}>
-            <Symbol name={icon} size={14} color={theme.icon} style={{ width: 20, height: 20 }} />
-          </View>
+          <IconTile key={icon} icon={icon} />
         ))}
       </View>
       <View style={{ gap: 3 }}>
-        <Text style={{ fontSize: 13, fontWeight: "600", color: theme.textPrimary }}>{title}</Text>
-        {message ? <Text style={{ fontSize: 12, color: theme.textSecondary }}>{message}</Text> : null}
+        <Text weight="semibold">{title}</Text>
+        {message ? (
+          <Text size="small" tone="textSecondary">
+            {message}
+          </Text>
+        ) : null}
       </View>
       {detail}
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "flex-end", marginTop: 2 }}>{children}</View>
@@ -64,8 +66,8 @@ export function PermissionPrompt({ tabId, left, top }: { tabId: string; left: nu
     <Popover key={request.id} width={300} top={top} left={left} modal={false}>
       <View>
         <PromptBody icons={icons} title={question} message="Click the lock to change this any time">
-          <PromptButton title="Don't Allow" onPress={() => answerPermission(tabId, request.id, "deny")} />
-          <PromptButton title="Allow" primary onPress={() => answerPermission(tabId, request.id, "accept")} />
+          <Button variant="pill" title="Don't Allow" onPress={() => answerPermission(tabId, request.id, "deny")} />
+          <Button variant="pill" title="Allow" primary onPress={() => answerPermission(tabId, request.id, "accept")} />
         </PromptBody>
         <PanelCloseButton onPress={() => answerPermission(tabId, request.id, "dismiss")} />
       </View>
@@ -73,42 +75,43 @@ export function PermissionPrompt({ tabId, left, top }: { tabId: string; left: nu
   );
 }
 
+export const BLOCKED_POPUPS_WIDTH = 360;
+
 export function BlockedPopupsPrompt({ tabId, right, left, top }: { tabId: string; right?: number; left?: number; top: number }) {
-  const theme = useTheme();
   const popups = usePage(tabId, (p) => p.popups);
   if (!popups.length) return null;
   const origin = popups[0]!.origin;
-  const site = hostOf(origin);
+  const site = hostOrOrigin(origin);
   const web = () => webviews.get(tabId);
   const close = () => setPopover(tabId, null);
   const done = () => {
     patchPage(tabId, { popups: [] });
     close();
   };
-  const profile = () => engineProfile(useBrowser.getState().tabs[tabId]?.profileId ?? "");
+  const profile = () => engineProfile(currentTab(tabId)?.profileId ?? "");
   return (
-    <Popover width={360} top={top} right={right} left={left} onDismiss={close}>
+    <Popover width={BLOCKED_POPUPS_WIDTH} top={top} right={right} left={left} onDismiss={close}>
       <View style={{ paddingBottom: PANEL.listPadding }}>
         <PromptBody
           icons={["macwindow.badge.plus"]}
           title={`Always allow pop-ups from ${site}?`}
           message={`Allow ${site} to always open pop-up windows, choose every time, or always deny pop-ups.`}
         >
-          <PromptButton
+          <Button variant="pill"
             title="Always Deny"
             onPress={() => {
               void setSiteSetting(profile(), origin, "popups", "block");
               done();
             }}
           />
-          <PromptButton
+          <Button variant="pill"
             title="Only Once"
             onPress={() => {
               for (const p of popups) void web()?.openBlockedPopup(p.id, false);
               done();
             }}
           />
-          <PromptButton
+          <Button variant="pill"
             title="Always Allow"
             primary
             onPress={() => {
@@ -117,9 +120,9 @@ export function BlockedPopupsPrompt({ tabId, right, left, top }: { tabId: string
             }}
           />
         </PromptBody>
-        <PopoverSeparator />
+        <MenuSeparator />
         {popups.slice(-5).map((p) => (
-          <PopoverRow
+          <MenuRow
             key={p.id}
             icon="arrow.up.forward.app"
             title={p.url.replace(/^https?:\/\//, "") || "about:blank"}
@@ -131,7 +134,9 @@ export function BlockedPopupsPrompt({ tabId, right, left, top }: { tabId: string
             }}
           />
         ))}
-        {popups.length > 5 ? <Text style={{ fontSize: 11, color: theme.textSecondary, paddingLeft: PANEL.textColumn, paddingTop: 2 }}>{`and ${popups.length - 5} more`}</Text> : null}
+        {popups.length > 5 ? (
+          <Text size="caption" tone="textSecondary" style={{ paddingLeft: PANEL.textColumn, paddingTop: 2 }}>{`and ${popups.length - 5} more`}</Text>
+        ) : null}
       </View>
     </Popover>
   );
@@ -151,11 +156,11 @@ export function showPasswordPrompt(tabId: string, prompt: ChromePasswordPrompt) 
 }
 
 export function PasswordPrompt({ tabId, right, top }: { tabId: string; right: number; top: number }) {
-  const theme = useTheme();
+  const { well } = useSiteTokens();
   const prompt = usePage(tabId, (p) => p.passwordPrompt);
   const [chosen, setChosen] = useState<string | null>(null);
   if (!prompt) return null;
-  const site = hostOf(prompt.origin);
+  const site = hostOrOrigin(prompt.origin);
   const update = prompt.state === "update";
   const username = chosen ?? prompt.username;
   const answer = (action: PasswordPromptAnswer) => {
@@ -163,7 +168,6 @@ export function PasswordPrompt({ tabId, right, top }: { tabId: string; right: nu
     setChosen(null);
     patchPage(tabId, { passwordPrompt: null });
   };
-  const well = theme.dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)";
   const choices = update && prompt.usernames.length > 1 ? prompt.usernames : [];
   return (
     <Popover key={`${prompt.origin}|${prompt.username}|${prompt.state}`} width={update ? 310 : 350} top={top} right={right} modal={false}>
@@ -181,11 +185,11 @@ export function PasswordPrompt({ tabId, right, top }: { tabId: string; right: nu
               </View>
             ) : (
               <View style={{ borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, gap: 3, backgroundColor: well }}>
-                <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: "500", color: theme.textPrimary }}>
-                  {username || (prompt.federation ? `Signed in with ${hostOf(prompt.federation)}` : "No username")}
+                <Text lines={1} size="small" weight="medium">
+                  {username || (prompt.federation ? `Signed in with ${hostOrOrigin(prompt.federation)}` : "No username")}
                 </Text>
                 {prompt.passwordLength > 0 && (
-                  <Text numberOfLines={1} style={{ fontSize: 12, letterSpacing: 1, color: theme.textSecondary }}>
+                  <Text lines={1} size="small" tone="textSecondary" style={{ letterSpacing: 1 }}>
                     {"•".repeat(Math.min(prompt.passwordLength, 16))}
                   </Text>
                 )}
@@ -193,9 +197,9 @@ export function PasswordPrompt({ tabId, right, top }: { tabId: string; right: nu
             )
           }
         >
-          {!update && <PromptButton title="Never on This Site" onPress={() => answer("never")} />}
-          <PromptButton title="Not Now" onPress={() => answer(update ? "nope" : "dismiss")} />
-          <PromptButton title={update ? "Update" : "Save"} primary onPress={() => answer(update ? "update" : "save")} />
+          {!update && <Button variant="pill" title="Never on This Site" onPress={() => answer("never")} />}
+          <Button variant="pill" title="Not Now" onPress={() => answer(update ? "nope" : "dismiss")} />
+          <Button variant="pill" title={update ? "Update" : "Save"} primary onPress={() => answer(update ? "update" : "save")} />
         </PromptBody>
         <PanelCloseButton onPress={() => answer("dismiss")} />
       </View>
@@ -209,21 +213,24 @@ export function showAutofillPrompt(tabId: string, prompt: ChromeAutofillPrompt |
 }
 
 export function AutofillPrompt({ tabId, right, top }: { tabId: string; right: number; top: number }) {
-  const theme = useTheme();
+  const { well } = useSiteTokens();
   const prompt = usePage(tabId, (p) => p.autofillPrompt);
   if (!prompt) return null;
   const answer = (action: AutofillPromptAnswer) => {
     void webviews.get(tabId)?.resolveAutofillPrompt(prompt.id, action);
     patchPage(tabId, { autofillPrompt: null });
   };
-  const well = theme.dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)";
   const changes = prompt.changes ?? [];
   const values = (key: "to" | "from") => changes.filter((c) => c[key]).map((c) => c[key]);
   const section = (lines: string[], label?: string) => (
     <View key={label ?? "lines"} style={{ gap: 3 }}>
-      {label ? <Text style={{ fontSize: 11, color: theme.textSecondary }}>{label}</Text> : null}
+      {label ? (
+        <Text size="caption" tone="textSecondary">
+          {label}
+        </Text>
+      ) : null}
       {lines.map((line, i) => (
-        <Text key={i} numberOfLines={2} style={{ fontSize: 12, fontWeight: i === 0 && !label ? "500" : "400", color: i === 0 || label ? theme.textPrimary : theme.textSecondary }}>
+        <Text key={i} lines={2} size="small" weight={i === 0 && !label ? "medium" : "regular"} tone={i === 0 || label ? "textPrimary" : "textSecondary"}>
           {line}
         </Text>
       ))}
@@ -245,12 +252,16 @@ export function AutofillPrompt({ tabId, right, top }: { tabId: string; right: nu
           detail={
             <>
               <View style={{ borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, gap: 8, backgroundColor: well }}>{sections}</View>
-              {prompt.footer ? <Text style={{ fontSize: 11, color: theme.textSecondary }}>{prompt.footer}</Text> : null}
+              {prompt.footer ? (
+                <Text size="caption" tone="textSecondary">
+                  {prompt.footer}
+                </Text>
+              ) : null}
             </>
           }
         >
-          <PromptButton title={prompt.decline} onPress={() => answer("decline")} />
-          <PromptButton title={prompt.accept} primary onPress={() => answer("accept")} />
+          <Button variant="pill" title={prompt.decline} onPress={() => answer("decline")} />
+          <Button variant="pill" title={prompt.accept} primary onPress={() => answer("accept")} />
         </PromptBody>
         <PanelCloseButton onPress={() => answer("dismiss")} />
       </View>
@@ -259,7 +270,6 @@ export function AutofillPrompt({ tabId, right, top }: { tabId: string; right: nu
 }
 
 export function ExternalAppPrompt({ tabId, left, top }: { tabId: string; left: number; top: number }) {
-  const theme = useTheme();
   const request = usePage(tabId, (p) => p.externalApp);
   const [always, setAlways] = useState(false);
   if (!request) return null;
@@ -276,23 +286,16 @@ export function ExternalAppPrompt({ tabId, left, top }: { tabId: string; left: n
           title={request.title}
           message={request.message}
           detail={
-            request.remember ? (
-              <Pressable onPress={() => setAlways(!always)} style={{ flexDirection: "row", alignItems: "flex-start", gap: 7 }}>
-                <View style={{ marginTop: 1 }}>
-                  <Checkbox value={always} onChange={setAlways} />
-                </View>
-                <Text style={{ flex: 1, fontSize: 12, lineHeight: 16, color: theme.textPrimary }}>{request.remember}</Text>
-              </Pressable>
-            ) : undefined
+            request.remember ? <CheckRow value={always} onChange={setAlways} label={request.remember} /> : undefined
           }
         >
           {request.app ? (
             <>
-              <PromptButton title="Cancel" onPress={() => answer(false)} />
-              <PromptButton title="Open" primary onPress={() => answer(true)} />
+              <Button variant="pill" title="Cancel" onPress={() => answer(false)} />
+              <Button variant="pill" title="Open" primary onPress={() => answer(true)} />
             </>
           ) : (
-            <PromptButton title="OK" primary onPress={() => answer(false)} />
+            <Button variant="pill" title="OK" primary onPress={() => answer(false)} />
           )}
         </PromptBody>
         <PanelCloseButton onPress={() => answer(false)} />
@@ -320,7 +323,7 @@ function UsernameChoice({ name, selected, onPress }: { name: string; selected: b
           ) : (
             <View style={{ width: 14, height: 14 }} />
           )}
-          <Text numberOfLines={1} style={{ flex: 1, fontSize: 12, color: theme.textPrimary }}>
+          <Text lines={1} size="small" style={{ flex: 1 }}>
             {name || "No username"}
           </Text>
         </View>

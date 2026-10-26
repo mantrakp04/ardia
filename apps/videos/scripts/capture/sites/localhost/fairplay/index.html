@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>FairPlay check</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"Helvetica Neue",sans-serif;background:#f6f4f1;color:#1d1b18;min-height:100vh;display:flex;align-items:center;justify-content:center}
+main{width:560px;padding:48px 52px;border-radius:22px;background:#fff;box-shadow:0 20px 50px rgba(30,25,20,.10),0 0 0 1px rgba(30,25,20,.06)}
+h1{font-size:30px;letter-spacing:-.01em}
+p{margin-top:10px;font-size:16px;color:#6b655d;line-height:1.45}
+code{font:14px ui-monospace,Menlo,monospace;background:#f1eee9;padding:2px 6px;border-radius:6px}
+#result{margin-top:30px;display:flex;align-items:center;gap:14px;font-size:22px;font-weight:600}
+#dot{width:18px;height:18px;border-radius:50%;background:#c9c3ba}
+.pass #dot{background:#2fa34f}
+.fail #dot{background:#d8473b}
+#detail{margin-top:8px;font-size:15px;color:#6b655d;min-height:22px}
+#engine{margin-top:28px;font-size:13px;color:#9a938a;text-transform:uppercase;letter-spacing:.08em}
+</style>
+</head>
+<body>
+<main>
+<h1>FairPlay check</h1>
+<p>Asks this browser for Apple's DRM, the way a streaming site does before it plays: <code>requestMediaKeySystemAccess('com.apple.fps')</code></p>
+<div id="result"><span id="dot"></span><span id="verdict">Checking…</span></div>
+<div id="detail"></div>
+<div id="engine"></div>
+</main>
+<script>
+const out = (cls, verdict, detail) => {
+  document.body.className = cls;
+  document.getElementById("verdict").textContent = verdict;
+  document.getElementById("detail").textContent = detail;
+};
+document.getElementById("engine").textContent = /Chrome\//.test(navigator.userAgent) ? "Engine: Chromium" : "Engine: WebKit";
+const config = [{ initDataTypes: ["sinf", "skd"], videoCapabilities: [{ contentType: 'video/mp4; codecs="avc1.42E01E"' }] }];
+if (!navigator.requestMediaKeySystemAccess) out("fail", "FairPlay isn't available", "This browser has no EME.");
+else navigator.requestMediaKeySystemAccess("com.apple.fps", config).then(
+  (access) => out("pass", "FairPlay is available", `Key system: ${access.keySystem}`),
+  (error) => out("fail", "FairPlay isn't available", `${error.name}: ${error.message}`),
+);
+</script>
+</body>
+</html>

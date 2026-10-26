@@ -75,6 +75,8 @@ extern bool g_ardia_viewless_browsers;
 
 extern bool g_ardia_skip_cpu_health_sampling;
 
+extern bool g_ardia_background_instance;
+
 extern BrowserWindow* (*g_ardia_browser_window_factory)(Browser*);
 
 extern bool (*g_ardia_keeps_window_without_tabs)(
@@ -132,6 +134,9 @@ extern bool (*g_ardia_cast_dialog)(content::WebContents* initiator,
                                    base::ScopedClosureRunner* fullscreen_blocker);
 
 extern bool (*g_ardia_hidden_from_extensions)(
+    const BrowserWindowInterface* browser);
+
+extern bool (*g_ardia_omits_from_session_service)(
     const BrowserWindowInterface* browser);
 
 extern bool (*g_ardia_extension_install_prompt)(

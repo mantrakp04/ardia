@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // JS/React benchmark for Ardia on a production (Hermes) bundle: what each interaction costs the JS thread
 // (React commits and renders, store updates, native→JS tasks, timers, document writes), counted by the opt-in probe
-// in src/lib/perfProbe.ts. Gate recipe and the other benches: docs/perf/README.md.
+// in src/state/app/perfProbe.ts. Gate recipe and the other benches: docs/perf/README.md.
 //
 //   node js-bench.mjs bundle <outDir> [--profiling 1]
 //       Builds the production JS bundle of the current tree (metro, --dev false) and compiles it with
@@ -32,7 +32,7 @@
 //   node js-bench.mjs summary <report.json>
 //       Recomputes a report's summary from its raw results (older reports pick up new lines) and prints it.
 //
-// The app side is the opt-in probe in src/lib/perfProbe.ts, on only when the data folder holds a
+// The app side is the opt-in probe in src/state/app/perfProbe.ts, on only when the data folder holds a
 // `perf-probe` file (the seed writes one).
 //
 // Report (<out>/<label>.json):

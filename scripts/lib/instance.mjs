@@ -5,6 +5,9 @@ import { createServer, request as httpRequest } from "node:http";
 import { createServer as createNetServer } from "node:net";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { forBuild, launchVariables, mergeLaunchEnv } from "./launchEnv.mjs";
+
+export { launchVariables, mergeLaunchEnv };
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const here = fileURLToPath(import.meta.url);
@@ -72,9 +75,11 @@ export const isAlive = (pid) => { try { process.kill(pid, 0); return true; } cat
 export const binaryOf = (app) => join(app, "Contents/MacOS",
   execFileSync("plutil", ["-extract", "CFBundleExecutable", "raw", join(app, "Contents/Info.plist")]).toString().trim());
 export const appEnv = (app, env) => {
-  if (basename(binaryOf(app)) !== "Netnyahoo") return env;
-  const legacy = Object.fromEntries(Object.entries(env).filter(([k]) => k.startsWith("ARDIA_")).map(([k, v]) => [`NETNYAHOO_${k.slice("ARDIA_".length)}`, v]));
-  return { ...env, ...legacy };
+  const binary = binaryOf(app);
+  const forThisBuild = forBuild(binary, env);
+  if (basename(binary) !== "Netnyahoo") return forThisBuild;
+  const legacy = Object.fromEntries(Object.entries(forThisBuild).filter(([k]) => k.startsWith("ARDIA_")).map(([k, v]) => [`NETNYAHOO_${k.slice("ARDIA_".length)}`, v]));
+  return { ...forThisBuild, ...legacy };
 };
 export const onScreenWindows = (pid) => JSON.parse(execFileSync("osascript", ["-l", "JavaScript", "-e",
   `ObjC.import("CoreGraphics"); JSON.stringify(ObjC.deepUnwrap(ObjC.castRefToObject($.CGWindowListCopyWindowInfo($.kCGWindowListOptionOnScreenOnly, 0)))
@@ -326,12 +331,13 @@ export async function launch(app, opts = {}) {
   }
   const location = jsMode === "pinned" ? `localhost:${js.port}` : jsMode === "live" ? `localhost:${metroPort}` : jsMode === "none" ? null : jsMode;
   const switches = [opts.switches].flat().filter(Boolean).join(" ");
-  const env = appEnv(app, {
+  const env = appEnv(app, mergeLaunchEnv({
     ARDIA_BACKGROUND: "1", ARDIA_DATA_DIR: data, ARDIA_REMOTE_DEBUGGING_PORT: String(port),
-    ...(location ? { ARDIA_JS_LOCATION: location } : {}),
-    ...(switches ? { ARDIA_CHROMIUM_SWITCHES: switches } : {}),
-    ...opts.env,
-  });
+    ...launchVariables({
+      instance: { ...(location ? { jsLocation: location } : {}), ...(switches ? { chromiumSwitches: switches } : {}), ...opts.instance },
+      test: opts.test, trace: opts.trace, switchOverrides: opts.switchOverrides,
+    }),
+  }, opts.env));
   const log = resolve(opts.log ?? join(data, "app.out.log"));
   const before = binaryPids(binary);
   const launchedAt = Date.now();

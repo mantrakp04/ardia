@@ -1,4 +1,4 @@
-import { Cef } from "./native";
+import { call } from "./engine/call";
 
 export type ExternalAppRequest = {
   id: string;
@@ -15,7 +15,7 @@ export type ExternalAppRequest = {
 
 export type ExternalAppAllowance = { origin: string; scheme: string; app: string | null; icon: string | null };
 
-export const resolveExternalApp = (id: string, open: boolean, remember = false) => Cef.resolveExternalApp(id, open, remember);
-export const getExternalAppAllowances = (profile: string) => Cef.getExternalAppAllowances(profile);
+export const resolveExternalApp = (id: string, open: boolean, remember = false) => call("permissions.resolveExternalApp", { id, open, remember });
+export const getExternalAppAllowances = (profile: string): Promise<ExternalAppAllowance[]> => call("permissions.externalAppAllowances", { profile });
 export const removeExternalAppAllowance = (profile: string, origin: string, scheme: string) =>
-  Cef.removeExternalAppAllowance(profile, origin, scheme);
+  call("permissions.removeExternalAppAllowance", { profile, origin, scheme }).then(() => {});

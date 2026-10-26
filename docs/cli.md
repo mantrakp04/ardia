@@ -4,6 +4,12 @@
 download, not part of the app bundle. The app ships `install.sh`, and runs it when the user opts in during onboarding
 or in Settings ("Let the ardia command control Ardia").
 
+While it's connected, a pill floats over the bottom centre of the page ("ardia is controlling Ardia · Stop"; Stop turns
+the setting off). It overlays the page and never resizes it. It shows at the first connection and stays 3 s after the
+last one closes, so a burst of commands shows one steady pill; turning the setting off hides it at once. One per
+window: the focused pane of a split, the full screen page, or the Peek while one is open
+(`apps/browser/src/components/window/CliControlPill.tsx`, `useCliIndicator` in `state/app/cliControl.ts`).
+
 Code: `apps/cli` (`ardia_cli`, `install.sh`, `scripts/build.sh`). Dependencies are pinned with hashes in
 `apps/cli/requirements.lock` (regenerate with `uv pip compile requirements.in --python-version 3.13
 --python-platform aarch64-apple-darwin --generate-hashes --no-annotate --no-header -o requirements.lock`, then copy
@@ -51,7 +57,7 @@ then deletes any temp folder still registered. The data dir is the token path's
 `ArdiaControl.json` checks as the token path first (regular file, owned, 0600, live pid), so they work only while
 Ardia runs with control on. Neither reads cookies, passwords, Login Data or Web Data.
 
-- `await pinned()` reads `<data dir>/session.json` (the app's persisted state, `apps/browser/src/lib/persist.ts`) and returns
+- `await pinned()` reads `<data dir>/session.json` (the app's persisted state, `apps/browser/src/state/session/persist.ts`) and returns
   one dict per pin: `title` (custom title first), `url` (else the pinned URL), `pinned_url`, `kind` (`favorite` for a
   tile, `pinned` for a tab in a pinned folder), `folder`, `profile` (its name) and `parked` (pins of a profile no
   window shows, from `parkedPins`). Pins mirrored across windows count once. Incognito profiles are skipped.
@@ -195,10 +201,15 @@ two parts with an explicit flush between them gets through; that gap is accepted
 
 ## Install and upgrade
 
+The app runs `install.sh` with its own environment minus every `ARDIA_*` variable, plus `ARDIA_CLI_HOME`,
+`ARDIA_CLI_BIN_DIR` and `ARDIA_CLI_URL` from its `ARDIA_INSTANCE` keys `cliHome`, `cliBinDir` and `cliUrl`
+(`CliInstaller.swift`).
+
 `install.sh [--version V] [--sha256 DIGEST] [--uninstall]` (run with `/bin/sh`; `--help`):
 
 - Downloads `https://github.com/mantrakp04/ardia/releases/download/v<V>/ardia-cli-<V>-macos-arm64.tar.gz` (https only)
-  into a private temp dir. Without `--version` it takes the latest release that has the asset. `--sha256` is the only
+  into a private temp dir; it runs on Apple silicon only and stops with an error anywhere else. Without `--version` it
+  takes the latest release that has the asset. `--sha256` is the only
   digest it trusts (the app passes `Ardia.app/Contents/Resources/ardia-cli.sha256`, which the signed bundle pins), and
   a download needs it: a `.sha256` from the same release would only prove the tarball came from wherever the tarball
   came from. Only a `file://` `ARDIA_CLI_URL` (tests) may go without it, reading `<url>.sha256`. A Debug build has no
@@ -236,8 +247,8 @@ esbuild (the npm `@esbuild/darwin-arm64` tarball, version, sha256 and sha512 pin
 bytecode cache, later ones about 0.15 s.
 
 `scripts/release.sh` builds it into the release's dist dir after the export and writes its digest to
-`Ardia.app/Contents/Resources/ardia-cli.sha256` before the app is signed. `publish-nightly.sh` and the stable
-`gh release create` in the release skill upload the tarball and its `.sha256`.
+`Ardia.app/Contents/Resources/ardia-cli.sha256` before the app is signed. The release skill's `publish.sh` uploads the
+tarball and its `.sha256`.
 
 ## Test
 

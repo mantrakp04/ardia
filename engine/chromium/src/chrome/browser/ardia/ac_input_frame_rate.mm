@@ -4,8 +4,6 @@
 
 #import <AppKit/AppKit.h>
 
-#include <cstdlib>
-#include <cstring>
 #include <set>
 
 #include "base/functional/bind.h"
@@ -111,10 +109,6 @@ void EndSpans() {
 void HoldFullFrameRateDuringInput() {
   static id monitor = nil;
   if (monitor) {
-    return;
-  }
-  const char* switch_value = getenv("ARDIA_SCROLL_FULL_RATE");
-  if (switch_value && !strcmp(switch_value, "off")) {
     return;
   }
   const NSEventMask input =
