@@ -31,6 +31,16 @@ const EMOJI = ["😀", "😎", "🤓", "🧑‍💻", "💼", "🏠", "🎓", "�
 const SYMBOL_PREFIX = "symbol:";
 export const profileSymbol = (icon: string | null) => (icon?.startsWith(SYMBOL_PREFIX) ? icon.slice(SYMBOL_PREFIX.length) : null);
 
+const profileText = (profile: Pick<Profile, "name" | "icon">) => profile.icon ?? (profile.name.trim()[0] ?? "?").toUpperCase();
+
+export type DotGlyph = { kind: "dot" } | { kind: "symbol"; name: string } | { kind: "text"; text: string };
+
+export function dotGlyph(profile: Pick<Profile, "name" | "icon">, showIcons: boolean): DotGlyph {
+  if (!showIcons) return { kind: "dot" };
+  const symbol = profileSymbol(profile.icon);
+  return symbol ? { kind: "symbol", name: symbol } : { kind: "text", text: profileText(profile) };
+}
+
 export function iconMenuItems(current: string | null): MenuItem[] {
   return [
     { id: "icon:", title: "Initial", checked: !current },
@@ -66,7 +76,7 @@ export function ProfileBadge({ profile, size = 26 }: { profile: Pick<Profile, "n
         <Symbol name={symbol} size={size * 0.5} weight="semibold" color="#FFFFFF" style={{ width: size, height: size }} />
       ) : (
         <Text style={{ fontSize: profile.icon ? size * 0.55 : size * 0.46, fontWeight: "600", color: "#FFFFFF" }}>
-          {profile.icon ?? (profile.name.trim()[0] ?? "?").toUpperCase()}
+          {profileText(profile)}
         </Text>
       )}
     </View>

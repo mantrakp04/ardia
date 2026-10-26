@@ -131,6 +131,11 @@ const ROWS: Record<SettingsPane, Section[]> = {
           description: "A tab whose page isn't loaded, like a closed pinned tab or one restored after a relaunch, shows its icon faded, as sleeping tabs do. Clicking it loads the page.",
           keywords: ["unloaded", "asleep", "sleeping", "discarded", "dim", "grey", "gray", "inactive", "pinned", "closed"],
         },
+        profileIconsInSidebar: {
+          title: "Show profile icons instead of dots",
+          description: "As in Arc: the profile switcher at the bottom of the sidebar shows each profile's icon, emoji or initial instead of a dot. Only shows with more than one profile.",
+          keywords: ["profile dots", "space switcher", "spaces", "switcher", "footer", "emoji", "symbol", "initial", "arc"],
+        },
       },
     },
     {
