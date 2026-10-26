@@ -109,7 +109,8 @@ import hsv_np as hsvlib  # noqa: E402
 
 PROFILE_SWATCHES = {"plum": "#C07A98", "blue": "#4691C3", "purple": "#7873AF", "pink": "#D37B8B", "red": "#C1575C",
                     "orange": "#D87249", "yellow": "#E3AC38", "neutral": "#8E8E93"}
-SUNS = {"orange": "#FFD873", "yellow": "#FFF1CF"}
+SUNS = {"orange": "#FFD873", "yellow": "#FFF1CF", "night": "#F4F1E6"}
+PLATE_ONLY_SWATCHES = {"night": "#4A7C93"}
 
 
 def tinted_marks(base, names=PROFILE_SWATCHES):
@@ -142,7 +143,7 @@ def tinted_marks(base, names=PROFILE_SWATCHES):
 
     sun_lum = np.percentile(lum[sun > 0.9], 70)
     for name in names:
-        color = hsvlib.to_rgb(PROFILE_SWATCHES[name])
+        color = hsvlib.to_rgb({**PROFILE_SWATCHES, **PLATE_ONLY_SWATCHES}[name])
         if name == "neutral":
             color = np.full(3, color @ np.array([0.2126, 0.7152, 0.0722]))
         sun_rgb = rgb if name not in SUNS else np.clip(hsvlib.to_rgb(SUNS[name]) * (lum / sun_lum)[..., None], 0, 1)
@@ -239,7 +240,7 @@ XCASSETS = Path("apps/browser/macos/Ardia-macOS/Assets.xcassets")
 PLATE_MARK_PX = 512
 IMAGESET = '{\n  "images" : [\n    {\n      "filename" : "mark.png",\n      "idiom" : "universal"\n    }\n  ],\n  "info" : {\n    "author" : "xcode",\n    "version" : 1\n  }\n}\n'
 slots = {"AppIconMark": OUT / "plate-mark-1024.png"}
-for name, im in tinted_marks(Image.open(slots["AppIconMark"]), ("plum", "blue", "neutral")):
+for name, im in tinted_marks(Image.open(slots["AppIconMark"]), ("plum", "blue", "neutral", "night")):
     im.save(OUT / f"plate-mark-{name}-1024.png", optimize=True)
     slots[f"AppIconMark-{name}"] = OUT / f"plate-mark-{name}-1024.png"
 for slot, path in slots.items():
