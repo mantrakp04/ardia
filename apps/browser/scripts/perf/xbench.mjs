@@ -30,7 +30,7 @@
 //                          moment input comes. off: run now, with the Mac in use (competitors' windows show on screen)
 //     --away <secs>        idle time that counts as away (default 600)
 //     --window <x,y>       the windows' top-left corner (default 40,80)
-//     --env <name>=K=V     repeatable: extra environment for one browser's instances (ardia=ARDIA_CHROMIUM_SWITCHES=…)
+//     --env <name>=K=V     repeatable: extra environment for one browser's instances (ardia=ARDIA_INSTANCE=chromiumSwitches=…)
 //     --launch-tab on|off  Ardia's template session names its active tab as launchTab, as a user's session written
 //                          with that kill switch on does (default on)
 //     --allow-focus        record a browser making itself the active app instead of stopping (only for an A/B the
@@ -67,6 +67,7 @@ import { cpus, loadavg, totalmem } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { appEnv, launchVariables, mergeLaunchEnv } from "../../../../scripts/lib/instance.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "../../../..");
@@ -462,11 +463,13 @@ class Instance {
   env() {
     const env = { HOME: this.home, CFFIXED_USER_HOME: this.home };
     if (isArdia(this.name)) {
-      Object.assign(env, { ARDIA_BACKGROUND: "1", ARDIA_DATA_DIR: join(this.home, "data"), ARDIA_REMOTE_DEBUGGING_PORT: String(port), ARDIA_UPDATE_FEED_URL: `${base()}/appcast.xml` });
+      Object.assign(env, { ARDIA_BACKGROUND: "1", ARDIA_DATA_DIR: join(this.home, "data"), ARDIA_REMOTE_DEBUGGING_PORT: String(port),
+        ...launchVariables({ instance: { updateFeed: `${base()}/appcast.xml` } }) });
     }
-    for (const e of opt.env.filter((e) => e.startsWith(`${this.name}=`)).map((e) => e.slice(this.name.length + 1)))
-      env[e.slice(0, e.indexOf("="))] = e.slice(e.indexOf("=") + 1);
-    return env;
+    const extra = opt.env.filter((e) => e.startsWith(`${this.name}=`)).map((e) => e.slice(this.name.length + 1))
+      .map((e) => ({ [e.slice(0, e.indexOf("="))]: e.slice(e.indexOf("=") + 1) }));
+    const merged = mergeLaunchEnv(env, ...extra);
+    return isArdia(this.name) ? appEnv(this.app, merged) : merged;
   }
   args() {
     const shared = ["--no-first-run", "--no-default-browser-check", "--password-store=basic", "--disable-backgrounding-occluded-windows", "--mute-audio"];

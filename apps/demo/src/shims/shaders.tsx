@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { View } from "react-native";
 import type { PowerUpProps, WindowBackdropProps } from "@ardia-real/shaders";
-import { useBrowser } from "../../../browser/src/store/browser";
+import { useBrowser } from "../../../browser/src/state/browser/store";
 import { prefersReducedMotion } from "./web/gl/clock";
 import { parseHex } from "./web/gl/colors";
 import { GLView } from "./web/gl/GLView";

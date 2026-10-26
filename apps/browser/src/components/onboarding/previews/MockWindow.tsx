@@ -1,45 +1,22 @@
-import { Surface } from "@ardia/shell";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Easing, View, type LayoutChangeEvent } from "react-native";
-import { hex, useTheme } from "../../../lib/theme";
-import { DEFAULT_SETTINGS, type Settings } from "../../../store/settings";
-import { DEMOS, type SceneOpts } from "./demos";
-import type { PreviewId } from "./ids";
-import {
-  Backdrop,
-  CHIP,
-  Crumb,
-  fill,
-  FIELD,
-  geo,
-  Glyph,
-  hairline,
-  Label,
-  Lights,
-  LIGHTS_Y,
-  lookFor,
-  NavIcons,
-  Page,
-  Pill,
-  ROW,
-  Rows,
-  SIDEBAR_ICONS,
-  SIDEBAR_W,
-  STRIP_H,
-  tab,
-  TabRow,
-  TOOLBAR_H,
-  TOOLBAR_ICONS,
-  CRUMB_X,
-  tracker,
-  useDemo,
-  type Geo,
-  type Look,
-} from "./kit";
+import { Animated, View, type LayoutChangeEvent } from "react-native";
+import { Surface } from "../../ui";
+import { hex, useTheme } from "../../ui/theme";
+import { ink } from "../../ui/tokens";
+import { DEFAULT_SETTINGS, type Settings } from "../../../state/settings/settings";
+import type { PreviewId } from "../../../state/onboarding/previewIds";
+import { tab } from "./content";
+import { DEMOS } from "./demos";
+import { Pill } from "./Floating";
+import { CHIP, CRUMB_X, FIELD, fill, geo, hairline, LIGHTS_Y, ROW, SIDEBAR_ICONS, SIDEBAR_W, STRIP_H, TOOLBAR_H, TOOLBAR_ICONS, type Geo } from "./geometry";
+import { Backdrop, Crumb, Glyph, Label, Lights, NavIcons, Rows, TabRow } from "./Kit";
+import { lookFor, type Look } from "./look";
+import { Page } from "./MockPages";
+import type { SceneOpts } from "./scene";
+import { tracker, useDemo } from "./timeline";
+import { mockInk, mockMotion, sceneMs } from "./tokens";
 
 const INSET = { x: 8, top: 5, bottom: 13 };
-const MOVE = { duration: 340, easing: Easing.out(Easing.cubic) };
-const FADE = { duration: 380, easing: Easing.out(Easing.cubic) };
 
 type Shape = { top: boolean; addressInSidebar: boolean; appearance: Settings["appearance"]; siteColor: boolean };
 
@@ -53,7 +30,7 @@ function shapeOf(settings: Partial<Settings>): Shape {
   };
 }
 
-function useTo(value: number, native: boolean, config = MOVE) {
+function useTo(value: number, native: boolean, config: { duration: number; easing: (value: number) => number } = mockMotion.move) {
   const v = useRef(new Animated.Value(value)).current;
   const first = useRef(true);
   useEffect(() => {
@@ -75,7 +52,7 @@ function useFadeBetween<T>(value: T) {
     if (value === layers.above) return;
     setLayers({ below: layers.above, above: value });
     fade.setValue(0);
-    const run = Animated.timing(fade, { toValue: 1, ...FADE, useNativeDriver: true, isInteraction: false });
+    const run = Animated.timing(fade, { toValue: 1, ...mockMotion.fade, useNativeDriver: true, isInteraction: false });
     run.start(({ finished }) => finished && setLayers({ below: null, above: value }));
     return () => run.stop();
   }, [value]);
@@ -103,9 +80,9 @@ function Window({ width, height, settings, accent, focus }: { width: number; hei
   const dark = shape.appearance === "dark" || (shape.appearance === "auto" && systemDark);
   const lay = useTo(shape.top ? 1 : 0, false);
   const addr = useTo(shape.addressInSidebar ? 1 : 0, false);
-  const site = useTo(shape.siteColor ? 1 : 0, true, FADE);
+  const site = useTo(shape.siteColor ? 1 : 0, true, mockMotion.fade);
   const theme = useFadeBetween(dark);
-  const focusShown = useTo(focus ? 1 : 0, true, { duration: 220, easing: Easing.out(Easing.quad) });
+  const focusShown = useTo(focus ? 1 : 0, true, mockMotion.focus);
   const [demo, setDemo] = useState(focus);
   useEffect(() => {
     if (focus) return setDemo(focus);
@@ -122,9 +99,9 @@ function Window({ width, height, settings, accent, focus }: { width: number; hei
         <Surface
           fill={hex(look.tint[1])}
           cornerRadius={radius}
-          borderColor={dark ? "#FFFFFF2E" : "#0000002A"}
+          borderColor={dark ? mockInk.windowEdge.dark : mockInk.windowEdge.light}
           borderWidth={0.5}
-          shadowColor="#000000"
+          shadowColor={ink.black}
           shadowOpacity={dark ? 0.5 : 0.2}
           shadowRadius={16}
           shadowOffset={[0, 7]}
@@ -154,12 +131,12 @@ const FocusDemo = memo(function FocusDemo({ id, g, look, opts }: { id: PreviewId
 });
 
 function AutoBadge({ g, look }: { g: Geo; look: Look }) {
-  const p = useDemo(true, 900);
-  const t = tracker(p, 900);
+  const p = useDemo(true, sceneMs.autoBadge);
+  const t = tracker(p, sceneMs.autoBadge);
   return (
     <Pill g={g} look={look} style={{ left: 16 * g.s, bottom: 16 * g.s, opacity: t.in(0, 220), transform: [{ translateY: t([[0, 6 * g.s], [300, 0]]) }] }}>
       <Animated.View style={{ transform: [{ rotate: t.deg([[60, -120], [700, 0]]) }] }}>
-        <Glyph g={g} name={look.dark ? "moon.fill" : "sun.max.fill"} size={14} color={look.dark ? "#C7CCE6" : "#E3A21A"} weight="medium" box={18} />
+        <Glyph g={g} name={look.dark ? "moon.fill" : "sun.max.fill"} size={14} color={look.dark ? mockInk.moon : mockInk.sun} weight="medium" box={18} />
       </Animated.View>
       <Label g={g} size={13} color={look.t.textPrimary} weight="500">
         {`Auto · ${look.dark ? "Dark" : "Light"} like your Mac`}

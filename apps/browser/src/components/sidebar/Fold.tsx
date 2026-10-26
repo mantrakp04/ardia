@@ -1,14 +1,13 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { Animated, Easing, View } from "react-native";
+import { useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { Animated, View } from "react-native";
+import { curve } from "../ui/motion";
+import { FoldedAway } from "../../state/sidebar/hover";
+import { SIDEBAR_MOTION } from "./tokens";
 
-const FOLD_MS = 150;
-const FOLD_EASING = Easing.bezier(0.2, 0.9, 0.3, 1);
+const FOLD_MS = SIDEBAR_MOTION.fold;
+const FOLD_EASING = curve.fold;
 
 type FoldState = { open: Animated.Value; moving: boolean };
-
-const FoldedAway = createContext(false);
-
-export const useFoldedAway = () => useContext(FoldedAway);
 
 export function useFold(collapsed: boolean): FoldState {
   const open = useRef(new Animated.Value(collapsed ? 0 : 1)).current;

@@ -58,7 +58,7 @@ Margins are against the best competitor; "apart" means the ranges don't overlap.
 
 **Tab switch (+32 ms).** Chrome activates a tab natively in a few milliseconds: 8 ms here is visibilitychange plus two
 frames. In Ardia, `Target.activateTarget` changes Chrome's tab strip, then:
-- Ardia's JS mirror (`lib/chromeTabs.ts`) updates the store;
+- Ardia's JS mirror (`state/tabs/chromeTabs.ts`) updates the store;
 - React re-renders the window;
 - the native view is swapped in and shown.
 
@@ -66,7 +66,7 @@ native-bench's own switch, which starts in the store, is 31–33 ms, so about 25
 round trip, not Chrome. Every switch pays that before the page is shown (render-census.md: tab switch renders and
 store fan-out).
 
-Update (2026-10-17): the page is now shown natively as JS picks the tab (lib/tabReveal.ts), and xbench reads 10–16 ms
+Update (2026-10-17): the page is now shown natively as JS picks the tab (state/tabs/tabReveal.ts), and xbench reads 10–16 ms
 against Helium's 8.5. A probe with xbench's method (CDP activate, then visibilitychange, then two rAFs) plus a
 Chrome trace (viz, cc, begin_frame, scheduler) of 6 switches each:
 
@@ -107,7 +107,7 @@ mouse-down, interleaved in one instance:
 It costs about 60 µs of main thread per waking click and nothing without one (idle wakeups 0–0.1/s, interrupt 5/s,
 the same with it off). A wake right before the switch (the keyboard case: ⌘1–9 switch on keydown) saves about 1 ms,
 so keys don't wake. xbench's CDP-driven switch doesn't click, so its row doesn't show this.
-`ARDIA_SWITCH_PREWARM=off` turns it off.
+(Its switch, `ARDIA_SWITCH_PREWARM`, went on 2026-10-26, after it shipped in 0.2.40.)
 
 **New tab (+26 ms).** In Chrome, `Target.createTarget` adds a tab that is already in its window. In Ardia the
 WebContents is made and starts loading in Chrome's strip, but it is only shown once the JS adopts it and React mounts
@@ -117,10 +117,10 @@ on screen until a React commit puts it there.
 Update (2026-10-19): a trace of `Target.createTarget` in nightly.7 shows the page already shown natively 2 ms after its
 navigation starts (fab7aa20), well before it commits. What the bench row paid was the 11 ms from `createTarget` to the
 navigation: 7 ms of it a synchronous LocalAuthentication XPC per tab (`ChromeAutofillClient` checking Touch ID for
-`AutofillAiWalletPrivatePasses`). With that feature off (`ARDIA_WALLET_PASSES=on` restores it), navigation starts
+`AutofillAiWalletPrivatePasses`). With that feature off (it shipped in 0.2.40; its switch went on 2026-10-26), navigation starts
 1.5 ms after `createTarget` and the median first paint in a one-window probe is 46-53 ms against 56-59 with it on, same
 build, interleaved. The user path (⌘T, then Enter) prewarms its tab, so it never paid that; there the store action now
-sends the navigation to the engine (`lib/earlyNavigate.ts`, `ARDIA_EARLY_NAVIGATE=off`) instead of the view's effect
+sends the navigation to the engine (`platform/earlyNavigate.ts`) instead of the view's effect
 after React re-renders, and the request leaves 5 ms after Enter instead of 24 (uBO's webRequest round trip used to
 queue behind the New Tab page's teardown on the main thread). First paint 46 against 51 ms. What's left there is that
 teardown: the response is handled only once React Native's ~14 ms of view updates on Enter are done.
@@ -151,11 +151,11 @@ its GPU process (ours 52-131 MB, Helium's 132-209).
 
 Update (2026-10-17, unparked): the two IOSurfaces were the hidden Metal view of each window's backdrop (vibrancy draws
 it with an NSVisualEffectView): its CAMetalLayer kept two 2560×1600 drawables, 31.8 MB. While hidden its drawable is
-now 1×1 (26a7a7fb, `ARDIA_BACKDROP_DRAWABLES=keep` turns it off). The retention after closing was mostly Hermes, not
+now 1×1 (26a7a7fb). The retention after closing was mostly Hermes, not
 PartitionAlloc: its heap grows from 8 to 29 MB over the session and keeps the freed segments (9 MB live), and each
-forced full GC compacts one segment. lib/memoryTrim.ts (25c2d1da) runs gc() until the heap stops shrinking, 5 s after
+forced full GC compacts one segment. state/tabs/memoryTrim.ts (25c2d1da) runs gc() until the heap stops shrinking, 5 s after
 the tab count settles and only while Ardia isn't taking input, then `ac_memory_trim` (PartitionAlloc's ReclaimAll,
-off the main thread). `ARDIA_MEMORY_TRIM=off` (or `_HEAP=off`, `_ENGINE=off`) turns it off. Browser process, hidden
+off the main thread). Browser process, hidden
 Release, the session's flow: 1 tab 122 → 90 MB, back to 1 tab 121 (trim off) → 105 MB. xbench session A/B against
 0.2.38-nightly.4 (`/tmp/ac-mem/xb1`, 3 rounds, totals): 1 tab 338 → 306, 10 tabs 773 → 739, 20 tabs 1142 → 1116,
 back to 1 tab 423 → 391 MB; idle CPU and wakeups equal or lower. That build also carried an uncommitted launch-picture
@@ -182,8 +182,8 @@ main window, and pays the same.
 - React Native: main executable 9.1, hermes 4.6, JS bundle 3.9, assets 9.2 MB.
 
 **New window.** `Target.createTarget({ newWindow: true })` gives Ardia a new normal Chrome Browser, which
-`ArdiaCoreHost.mm -engineWindowForNewBrowserOfProfile:type:` hosts in a stray window
-(`ArdiaCoreChromeWindow.mm +strayWindowForProfile:`). Its tab ends up in the existing main window and no window
+`ArdiaHostEngineDelegate.mm -engineWindowForNewBrowserOfProfile:type:` hosts in a stray window
+(`ArdiaWindowController.mm +strayWindowForProfile:`). Its tab ends up in the existing main window and no window
 opens. The same path serves an extension's `chrome.windows.create`, so this is a parity bug, and its fix is in
 progress separately. The row is null for Ardia until then; xbench counts a window when the target's window id differs
 from the restored tab's.
@@ -209,7 +209,7 @@ drag at 118 frames/s against 61. Side by side on nightly.7 the
 video renderer went 79 -> 54 mW. The hidden row is mostly frozen tabs thawing: Chrome thaws each for 5 s every
 minute, and the thaws held YouTube at 3.35 mW, The Verge 0.82 and CNN 0.68 in one 180 s window. Frozen tabs that never
 opened a WebSocket, WebTransport or WebRTC connection now thaw every 10 min; tabs that did are never frozen, since
-Chrome's freeze drops their WebSocket at the next thaw (`chromium-thaw-live-connections.patch`). Kill switches: `ARDIA_MAIN_FRAME_THROTTLE=off`, `ARDIA_SLOW_TAB_THAW=off`.
+Chrome's freeze drops their WebSocket at the next thaw (`chromium-thaw-live-connections.patch`).
 
 **Scrolling at full rate (2026-10-20).** The 60 Hz main frames above made scrolling uneven. Keys and the mouse wheel ran
 main frames at 60 Hz while the compositor scrolled at 120, and a trackpad scroll got main frames at the cadence of its
@@ -218,8 +218,8 @@ input events. Whatever script or rAF placed from the scroll position lagged a dr
 any input (`chromium-main-frame-full-rate-on-input.patch`). On battery, Battery Saver, which Ardia turned on there until 0.2.39 (now at 20 % battery or less by default),
 capped every frame at 30 Hz, scrolling included. Input now lifts that cap for 1 s
 (`chromium-battery-saver-full-rate-on-input.patch`). Cost: nothing measurable in energy.mjs's mains rows (idle, scroll,
-switch, video, 3 rounds against `ARDIA_SCROLL_FULL_RATE=off`). On battery, an idle page is unchanged (18-19 mW) and
-continuous scrolling goes from 121-123 to 157-161 mW. Kill switch: `ARDIA_SCROLL_FULL_RATE=off`.
+switch, video, 3 rounds against the change switched off). On battery, an idle page is unchanged (18-19 mW) and
+continuous scrolling goes from 121-123 to 157-161 mW.
 
 Parked: packaged list times. On a fresh install uBO never caches its packaged list copies, so every default list
 looks infinitely old and its updater runs 2 s after launch, downloading all 12 assets (9 lists, badlists, PSL,
@@ -269,7 +269,7 @@ display link in the browser process (docs/perf/README.md, idle 5 s: 12–18 time
   - Chromium competitors also get `--user-data-dir --remote-debugging-port --remote-allow-origins=* --use-mock-keychain
     --window-size=1280,800 --window-position=40,80`. Dia ignores the window size and opens at 1512×949.
   - Ardia gets `ARDIA_BACKGROUND=1`, `ARDIA_DATA_DIR`, `ARDIA_REMOTE_DEBUGGING_PORT`, onboarding done,
-    `ARDIA_UPDATE_FEED_URL` at the local server, and `-NSAppSleepDisabled YES` (as native-bench).
+    `ARDIA_INSTANCE` `updateFeed` at the local server, and `-NSAppSleepDisabled YES` (as native-bench).
 - **How each runs.** This is where the setups differ.
   - **Chrome and Helium run as shipped:** they bring themselves to the front at launch and at every
     `Target.activateTarget`. They fetch their Finch (variations) seed and components as usual: no
@@ -393,6 +393,6 @@ node apps/browser/scripts/perf/xbench.mjs clean --out $OUT --browsers ardia,dia,
   2.5 min more each.
 - **A new Ardia build.** Add it as `--app ardia-main=<app>` beside `ardia` for a drift check against at least one
   competitor.
-- **A/Bs.** `--env ardia=ARDIA_CHROMIUM_SWITCHES=…` (or any K=V) runs a variant without touching the others.
+- **A/Bs.** `--env ardia=ARDIA_INSTANCE=chromiumSwitches=…` (or any K=V) runs a variant without touching the others.
 - **Waiting for the owner.** `--gate away` (the default) waits for the owner to be away (screen locked for 60 s, or
   10 minutes without input), throws away an item the moment input comes, and reruns it.

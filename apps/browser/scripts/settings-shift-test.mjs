@@ -150,10 +150,9 @@ try {
   const ac = (body) => app.eval(body, { timeout: 60000 });
 
   await ac(`
-    const cef = globalThis.expo.modules.ArdiaCEF;
     return Promise.all([
-      cef.setZoom("", "example.com", 1.25),
-      cef.setSiteSetting("", "https://example.com", "notifications", "block"),
+      ac.engine.call("sites.setZoom", { profile: "", host: "example.com", zoom: 1.25 }),
+      ac.engine.call("sites.setSetting", { profile: "", origin: "https://example.com", type: "notifications", value: "block" }),
     ]).then(() => true, (e) => String(e));
   `);
 

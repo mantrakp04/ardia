@@ -8,7 +8,6 @@
 #include <utility>
 #include <vector>
 
-#include "base/command_line.h"
 #include "base/functional/bind.h"
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
@@ -23,6 +22,7 @@
 #include "content/public/browser/web_contents.h"
 #include "ardia/core/ac_browser.h"
 #include "ardia/core/ac_external_apps.h"
+#include "ardia/core/ac_launch_switches.h"
 
 namespace ardiacore {
 
@@ -224,8 +224,6 @@ DeviceChooser* Adopt(std::unique_ptr<permissions::ChooserController> controller,
   return raw;
 }
 
-constexpr char kTestBluetoothChooserSwitch[] = "ardia-test-bluetooth-chooser";
-
 NSMutableArray<NSDictionary*>* TestEvents() {
   static NSMutableArray<NSDictionary*>* events = [NSMutableArray array];
   return events;
@@ -298,7 +296,7 @@ bool HandleDeviceChooser(content::WebContents* contents,
 
 bool ShowTestBluetoothChooser(content::WebContents* contents, bool unauthorized) {
   if (!contents || !contents->GetPrimaryMainFrame() ||
-      !base::CommandLine::ForCurrentProcess()->HasSwitch(kTestBluetoothChooserSwitch) ||
+      !TestFlag("bluetoothChooser") ||
       !HostWantsDeviceChoosers()) {
     return false;
   }

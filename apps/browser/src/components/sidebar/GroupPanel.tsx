@@ -1,21 +1,18 @@
-import { discardKeyResponder, FadeLabel, restoreKeyResponder, saveKeyResponder, Symbol } from "@ardia/shell";
+import { discardKeyResponder, restoreKeyResponder, saveKeyResponder } from "../../state/windows/nativeWindow";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
-import { useShallow } from "zustand/react/shallow";
-import { useTheme } from "../../lib/theme";
-import { ago } from "../../lib/timeAgo";
-import { webviews } from "../../lib/webviews";
-import { useBrowser } from "../../store/browser";
-import { activeTabId } from "../../store/model";
-import { sharedTabsIn, sharesTabs } from "../../store/tabShare";
-import type { Tab } from "../../store/types";
-import { PANEL, PopoverSeparator, PopoverSurface, popoverRowFill } from "../layout/controls";
-import { focusHeroBar } from "../omnibox/barState";
-import { clickTab, tabTitle } from "./actions";
-import { byRecentUse, groupTabIds, matchingRows, type GroupPanelTab } from "./groupPanelRows";
-import { cardHoverProps, dismissHover, holdHover } from "./hover";
+import { useTheme } from "../ui/theme";
+import { ago } from "../../lib/time";
+import { useGroup } from "../../state/browser/hooks";
+import { sharedTabsForPanel } from "../../state/sidebar/current";
+import { useGroupPanelTabIds, useTabsById } from "../../state/sidebar/hooks";
+import type { Tab } from "../../state/browser/types";
+import { FadeLabel, menuRowFill, MenuSeparator, PANEL, PopoverSurface, Symbol } from "../ui";
+import { clickTab, returnFocusToPage, tabTitle } from "../../state/sidebar/actions";
+import { byRecentUse, matchingRows, type GroupPanelTab } from "../../state/sidebar/groupPanelRows";
+import { cardHoverProps, dismissHover, holdHover } from "../../state/sidebar/hover";
 import { hoverCardOrigin } from "./hoverMotion";
-import { useSidebarUi, type Anchor } from "./state";
+import { useSidebarUi, type Anchor } from "../../state/sidebar/sidebarUi";
 import { TabIcon } from "./TabIcon";
 
 const WIDTH = 264;
@@ -29,20 +26,11 @@ const NOW_TICK_MS = 30_000;
 
 type Row = GroupPanelTab & { favicon: string | null; icon: string | null; profileId: string };
 
-function returnFocusToPage(windowId: string) {
-  const s = useBrowser.getState();
-  const active = activeTabId(s, windowId);
-  if (!active) return;
-  if (s.tabs[active]?.url) void webviews.get(active)?.focus();
-  else focusHeroBar(windowId, active);
-}
-
 function useGroupRows(groupId: string, windowId: string): Row[] {
-  const ids = useBrowser(useShallow((s) => groupTabIds(s.groups, groupId)));
-  const tabs = useBrowser(useShallow((s) => ids.map((id) => s.tabs[id])));
+  const ids = useGroupPanelTabIds(groupId);
+  const tabs = useTabsById(ids);
   return useMemo(() => {
-    const s = useBrowser.getState();
-    const shared = sharesTabs(s) ? sharedTabsIn(s.tabs, windowId) : null;
+    const shared = sharedTabsForPanel(windowId);
     const rows = tabs
       .filter((t): t is Tab => !!t)
       .map((t) => ({ id: t.id, title: tabTitle(t), url: t.url, usedAt: shared?.lastUsed(t) ?? t.lastActiveAt, favicon: t.favicon, icon: t.customIcon, profileId: t.profileId }));
@@ -52,7 +40,7 @@ function useGroupRows(groupId: string, windowId: string): Row[] {
 
 export function GroupPanel({ groupId, windowId, anchor, windowHeight }: { groupId: string; windowId: string; anchor: Anchor; windowHeight: number }) {
   const theme = useTheme();
-  const exists = useBrowser((s) => !!s.groups[groupId]);
+  const exists = useGroup(groupId, (g) => !!g);
   const all = useGroupRows(groupId, windowId);
   const live = useSidebarUi((u) => u.hover?.kind === "group" && u.hover.id === groupId && u.hover.windowId === windowId);
   const [query, setQuery] = useState("");
@@ -173,7 +161,7 @@ export function GroupPanel({ groupId, windowId, anchor, windowHeight }: { groupI
           style={{ flex: 1, fontSize: PANEL.titleSize, color: theme.textPrimary, paddingVertical: 0 }}
         />
       </View>
-      <PopoverSeparator />
+      <MenuSeparator />
       <ScrollView
         ref={scroll}
         style={{ height: listHeight }}
@@ -212,7 +200,7 @@ function PanelRow({ row, now, selected, onHover, onPress }: { row: Row; now: num
             flexDirection: "row",
             alignItems: "center",
             gap: PANEL.iconGap,
-            backgroundColor: pressed || selected ? popoverRowFill(theme.dark, pressed) : undefined,
+            backgroundColor: pressed || selected ? menuRowFill(theme, pressed) : undefined,
           }}
         >
           <View style={{ width: PANEL.iconSlot, height: PANEL.iconSlot, alignItems: "center", justifyContent: "center" }}>

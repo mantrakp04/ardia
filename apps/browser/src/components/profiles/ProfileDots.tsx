@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { Animated, Pressable, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
-import { switchProfile } from "../../lib/actions";
-import { useTheme } from "../../lib/theme";
-import { useBrowser } from "../../store/browser";
-import { useIsIncognito } from "../../store/hooks";
-import { usePagerPages, type PagerPage } from "../layout/profilePager";
-import { useHover } from "../primitives";
-import { TooltipAbove } from "../TooltipAbove";
+import { switchProfile } from "../../state/browser/actions";
+import { useTheme } from "../ui/theme";
+import { useIsIncognito, useProfile } from "../../state/browser/hooks";
+import { useProfileOrder } from "../../state/profiles/hooks";
+import { usePagerPages, type PagerPage } from "../../state/windows/profilePager";
+import { useHover } from "../ui";
+import { TooltipAbove } from "../ui/TooltipAbove";
 
 export const PROFILE_DOTS_HEIGHT = 41;
 const CELL = 12;
@@ -20,12 +20,12 @@ const DOT_CENTER_TO_TOOLTIP = 18.25;
 
 export function useProfileDotsShown() {
   const incognito = useIsIncognito();
-  const count = useBrowser((s) => s.profileOrder.length);
+  const count = useProfileOrder((o) => o.length);
   return !incognito && count > 1;
 }
 
 export function ProfileDots({ windowId }: { windowId: string }) {
-  const ids = useBrowser(useShallow((s) => s.profileOrder));
+  const ids = useProfileOrder(useShallow((o) => o));
   const { pages, pager } = usePagerPages(windowId);
   return (
     <View style={{ height: PROFILE_DOTS_HEIGHT, alignItems: "center" }}>
@@ -40,7 +40,7 @@ export function ProfileDots({ windowId }: { windowId: string }) {
 
 function Dot({ id, windowId, page, pos }: { id: string; windowId: string; page: PagerPage | undefined; pos: Animated.Value }) {
   const theme = useTheme();
-  const name = useBrowser((s) => s.profiles[id]?.name ?? "");
+  const name = useProfile(id, (p) => p?.name ?? "");
   const { hovered, hoverProps } = useHover();
   const [pressed, setPressed] = useState(false);
   if (pressed && !hovered) setPressed(false);
@@ -60,7 +60,7 @@ function Dot({ id, windowId, page, pos }: { id: string; windowId: string; page: 
         }}
       >
         <View style={{ width: CELL, height: BAND, alignItems: "center", justifyContent: "center" }}>
-          <Animated.View style={{ width: DOT, height: DOT, borderRadius: DOT / 2, backgroundColor: theme.dark ? "#FFFFFF" : "#000000", opacity }} />
+          <Animated.View style={{ width: DOT, height: DOT, borderRadius: DOT / 2, backgroundColor: theme.mark, opacity }} />
         </View>
       </Pressable>
     </View>

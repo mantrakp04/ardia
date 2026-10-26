@@ -1,46 +1,8 @@
 import AppKit
-import CryptoKit
 import WebKit
 
 protocol WebKitTabDelegate: AnyObject {
   func webKitTab(_ tab: WebKitTab, event name: String, payload: [String: Any])
-}
-
-final class ArdiaWKWebView: WKWebView {
-  var onFocus: (() -> Void)?
-  var mediaFrames: [String: WKFrameInfo] = [:]
-  var playingFrames = Set<String>()
-  var nowPlayingFrame: String?
-  var captureOrigins: [String: Set<String>] = [:]
-
-  func stopCapture(_ kind: String) {
-    if kind == "camera" { setCameraCaptureState(.none, completionHandler: nil) }
-    if kind == "microphone" { setMicrophoneCaptureState(.none, completionHandler: nil) }
-  }
-
-  override func becomeFirstResponder() -> Bool {
-    let became = super.becomeFirstResponder()
-    if became { onFocus?() }
-    return became
-  }
-
-  override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
-    super.willOpenMenu(menu, with: event)
-    if WebKitHub.background {
-      NSLog("[webkit] context menu (background mode, not shown): %@", menu.items.map(\.title).joined(separator: ", "))
-      menu.removeAllItems()
-      return
-    }
-    let renames = [
-      "WKMenuItemIdentifierOpenLinkInNewWindow": "Open Link in New Tab",
-      "WKMenuItemIdentifierOpenImageInNewWindow": "Open Image in New Tab",
-      "WKMenuItemIdentifierOpenMediaInNewWindow": "Open Video in New Tab",
-      "WKMenuItemIdentifierOpenFrameInNewWindow": "Open Frame in New Tab",
-    ]
-    for item in menu.items {
-      if let id = item.identifier?.rawValue, let title = renames[id] { item.title = title }
-    }
-  }
 }
 
 final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
@@ -56,7 +18,7 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
   var pageBackgroundColor: NSColor? { didSet { if let color = pageBackgroundColor { webView?.underPageBackgroundColor = color } } }
   let browserId = WebKitHub.shared.nextBrowserId()
 
-  private(set) var webView: ArdiaWKWebView?
+  private(set) var webView: WebKitWebView?
   private var observations: [NSKeyValueObservation] = []
   private var started = false
   private var closed = false
@@ -101,7 +63,7 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
     guard !closed else { return }
     if let key = transferKey {
       let handedOver = WebKitHub.shared.isPrepared(key) ? WebKitHub.shared.liveTab(key).flatMap { $0 === self ? nil : $0.relinquish() } : nil
-      let parked = WebKitHub.shared.claimParked(key) as? ArdiaWKWebView
+      let parked = WebKitHub.shared.claimParked(key) as? WebKitWebView
       WebKitHub.shared.noteLive(self, key: key)
       if let view = handedOver ?? parked {
         if let parked, parked !== view { WebKitHub.close(parked) }
@@ -110,18 +72,18 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
         return
       }
     }
-    if let id = adoptId, id.hasPrefix("webkit:"), let offered = WebKitHub.shared.claimOffered(id) as? ArdiaWKWebView {
+    if let id = adoptId, id.hasPrefix("webkit:"), let offered = WebKitHub.shared.claimOffered(id) as? WebKitWebView {
       attach(offered)
       emitEverything()
       return
     }
-    let created = ArdiaWKWebView(frame: bounds, configuration: WebKitHub.shared.configuration(profile: profile))
+    let created = WebKitWebView(frame: bounds, configuration: WebKitHub.shared.configuration(profile: profile))
     attach(created)
-    emit("ready", ["browserId": Int(browserId), "tabId": 0])
+    emit("ready", [:])
     if let url = initialURL, !url.isEmpty { loadURL(url, userInitiated: false) }
   }
 
-  func relinquish() -> ArdiaWKWebView? {
+  func relinquish() -> WebKitWebView? {
     guard !closed, let view = webView else { return nil }
     closed = true
     observations = []
@@ -137,14 +99,14 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
   }
 
   private func emitEverything() {
-    emit("ready", ["browserId": Int(browserId), "tabId": 0])
+    emit("ready", [:])
     queueNavigation()
     emit("progress", ["progress": webView?.estimatedProgress ?? 0])
     emitSecurity()
     emitZoom()
   }
 
-  private func attach(_ view: ArdiaWKWebView) {
+  private func attach(_ view: WebKitWebView) {
     webView = view
     WebKitHub.shared.register(view, tab: self)
     view.navigationDelegate = self
@@ -413,7 +375,7 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
   }
 
   func downloadFavicon(_ url: String, completion: @escaping ([String: Any]?) -> Void) {
-    ArdiaCoreFavicons.fetch(url, profile: profile, name: nil) { completion($0) }
+    ArdiaFavicons.fetch(url, profile: profile, name: nil) { completion($0) }
   }
 
   func mediaCommand(_ action: String, seconds: Double) {
@@ -451,31 +413,6 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
   private func emitSecurity() {
     guard webView != nil else { return }
     emit("security", securityInfo())
-  }
-
-  static func certificate(_ trust: SecTrust) -> [String: Any]? {
-    guard let chain = SecTrustCopyCertificateChain(trust) as? [SecCertificate], let leaf = chain.first else { return nil }
-    let keys = [kSecOIDX509V1SubjectName, kSecOIDX509V1IssuerName, kSecOIDX509V1ValidityNotBefore, kSecOIDX509V1ValidityNotAfter] as CFArray
-    let values = SecCertificateCopyValues(leaf, keys, nil) as? [String: [String: Any]] ?? [:]
-    func principal(_ oid: CFString) -> [String: Any] {
-      let entries = values[oid as String]?[kSecPropertyKeyValue as String] as? [[String: Any]] ?? []
-      func field(_ name: CFString) -> [String] {
-        entries.filter { ($0[kSecPropertyKeyLabel as String] as? String) == name as String }.compactMap { $0[kSecPropertyKeyValue as String] as? String }
-      }
-      let common = field(kSecOIDCommonName).first ?? ""
-      return ["commonName": common, "displayName": common, "organizations": field(kSecOIDOrganizationName), "country": field(kSecOIDCountryName).first ?? ""]
-    }
-    func date(_ oid: CFString) -> Double {
-      guard let value = values[oid as String]?[kSecPropertyKeyValue as String] as? NSNumber else { return 0 }
-      return (value.doubleValue + Date.timeIntervalBetween1970AndReferenceDate) * 1000
-    }
-    let der = SecCertificateCopyData(leaf) as Data
-    let sha = SHA256.hash(data: der).map { String(format: "%02X", $0) }.joined(separator: " ")
-    return [
-      "subject": principal(kSecOIDX509V1SubjectName), "issuer": principal(kSecOIDX509V1IssuerName),
-      "validFrom": date(kSecOIDX509V1ValidityNotBefore), "validUntil": date(kSecOIDX509V1ValidityNotAfter),
-      "sha256": sha, "chainLength": chain.count,
-    ]
   }
 
   func clearSiteData(_ completion: @escaping ([String: Any]) -> Void) {
@@ -627,7 +564,7 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
 
   func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for action: WKNavigationAction,
                windowFeatures: WKWindowFeatures) -> WKWebView? {
-    let child = ArdiaWKWebView(frame: .zero, configuration: configuration)
+    let child = WebKitWebView(frame: .zero, configuration: configuration)
     let id = WebKitHub.shared.offer(child)
     let flags = action.modifierFlags
     let popup = windowFeatures.width != nil || windowFeatures.height != nil
@@ -638,76 +575,5 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
 
   func webViewDidClose(_ webView: WKWebView) {
     emit("windowClose")
-  }
-
-  func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo,
-               type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
-    let kinds: [String]
-    switch type {
-    case .camera: kinds = ["camera"]
-    case .microphone: kinds = ["microphone"]
-    default: kinds = ["camera", "microphone"]
-    }
-    let originString = "\(origin.protocol)://\(origin.host)" + (origin.port > 0 ? ":\(origin.port)" : "")
-    WebKitHub.shared.requestPermission(browserId: browserId, profile: profile, origin: originString, kinds: kinds) { [weak webView] allowed in
-      if allowed, let view = webView as? ArdiaWKWebView {
-        for kind in kinds { view.captureOrigins[kind, default: []].insert(originString) }
-      }
-      decisionHandler(allowed ? .grant : .deny)
-    }
-  }
-
-  func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo,
-               completionHandler: @escaping () -> Void) {
-    guard let window, !WebKitHub.background else { return completionHandler() }
-    let alert = NSAlert()
-    alert.messageText = Self.sheetTitle(frame)
-    alert.informativeText = message
-    alert.addButton(withTitle: "OK")
-    alert.beginSheetModal(for: window) { _ in completionHandler() }
-  }
-
-  func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo,
-               completionHandler: @escaping (Bool) -> Void) {
-    guard let window, !WebKitHub.background else { return completionHandler(false) }
-    let alert = NSAlert()
-    alert.messageText = Self.sheetTitle(frame)
-    alert.informativeText = message
-    alert.addButton(withTitle: "OK")
-    alert.addButton(withTitle: "Cancel")
-    alert.beginSheetModal(for: window) { completionHandler($0 == .alertFirstButtonReturn) }
-  }
-
-  func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String, defaultText: String?,
-               initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (String?) -> Void) {
-    guard let window, !WebKitHub.background else { return completionHandler(nil) }
-    let alert = NSAlert()
-    alert.messageText = Self.sheetTitle(frame)
-    alert.informativeText = prompt
-    let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
-    field.stringValue = defaultText ?? ""
-    alert.accessoryView = field
-    alert.addButton(withTitle: "OK")
-    alert.addButton(withTitle: "Cancel")
-    alert.beginSheetModal(for: window) { completionHandler($0 == .alertFirstButtonReturn ? field.stringValue : nil) }
-  }
-
-  static func sheetTitle(_ frame: WKFrameInfo) -> String {
-    let host = frame.securityOrigin.host
-    return host.isEmpty ? "This page says" : "\(host) says"
-  }
-
-  func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters, initiatedByFrame frame: WKFrameInfo,
-               completionHandler: @escaping ([URL]?) -> Void) {
-    guard let window else { return completionHandler(nil) }
-    if WebKitHub.background {
-      NSLog("[webkit] file panel (background mode, not shown)")
-      return completionHandler(nil)
-    }
-    let panel = NSOpenPanel()
-    panel.allowsMultipleSelection = parameters.allowsMultipleSelection
-    panel.canChooseDirectories = parameters.allowsDirectories
-    panel.canChooseFiles = true
-    panel.beginSheetModal(for: window) { completionHandler($0 == .OK ? panel.urls : nil) }
   }
 }

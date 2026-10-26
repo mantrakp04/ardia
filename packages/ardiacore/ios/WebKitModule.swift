@@ -5,57 +5,20 @@ import WebKit
 public class WebKitModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ArdiaWebKit")
-    Events("onDownload", "onPermission", "onPermissionDismissed")
 
-    OnCreate {
-      WebKitHub.shared.events = { [weak self] name, payload in self?.sendEvent(name, payload) }
-    }
-
-    Function("prepareTransfer") { (key: String) in WebKitHub.shared.prepareTransfer(key) }
-    Function("releaseTransfer") { (key: String) in WebKitHub.shared.releaseTransfer(key) }
-    AsyncFunction("resolvePermission") { (id: String, result: String, remember: Bool?) in
-      WebKitHub.shared.resolvePermission(id, result: result, remember: remember ?? false)
-    }.runOnQueue(.main)
-    AsyncFunction("downloadCommand") { (action: String, id: String) in WebKitHub.shared.downloads.command(action, id: id) }.runOnQueue(.main)
-    AsyncFunction("externalAppAllowances") { (profile: String) in WebKitHub.shared.externalAppAllowances(profile: profile) }
-      .runOnQueue(.main)
-    AsyncFunction("removeExternalAppAllowance") { (profile: String, origin: String, scheme: String) in
-      WebKitHub.shared.removeExternalAppAllowance(profile: profile, origin: origin, scheme: scheme)
-    }.runOnQueue(.main)
-    AsyncFunction("removeDownloadStaging") { (path: String, uuid: String, folder: String) in
-      WebKitDownloads.removeStaging(path, uuid: uuid, folder: folder)
-    }
-      .runOnQueue(.main)
-    AsyncFunction("endPrivateSession") { (session: String) in WebKitHub.shared.endPrivateSession(session) }.runOnQueue(.main)
-    AsyncFunction("sitePermissions") { (profile: String, origin: String) in
-      WebKitHub.shared.sitePermissions(profile: profile, origin: origin)
-    }.runOnQueue(.main)
-    AsyncFunction("setSitePermission") { (profile: String, origin: String, kind: String, value: String) in
-      WebKitHub.shared.setSitePermission(profile: profile, origin: origin, kind: kind, value: value)
-    }.runOnQueue(.main)
-    AsyncFunction("resolveExternalApp") { (id: String, open: Bool, remember: Bool?) in
-      WebKitHub.shared.resolveExternalApp(id, open: open, remember: remember ?? false)
-    }.runOnQueue(.main)
-    AsyncFunction("clearBrowsingData") { (profile: String, types: [String], since: Double?, promise: Promise) in
-      WebKitHub.shared.clearBrowsingData(profile: profile, types: types, since: since ?? 0) { promise.resolve(nil) }
-    }.runOnQueue(.main)
-    AsyncFunction("deleteProfileData") { (profile: String, promise: Promise) in
-      WebKitHub.shared.deleteProfileData(profile) { promise.resolve($0) }
-    }.runOnQueue(.main)
-    AsyncFunction("info") { () -> [String: Any] in
-      [
-        "safariVersion": WebKitHub.safariVersion, "userAgentSuffix": "Version/\(WebKitHub.safariVersion) Safari/605.1.15",
-        "passkeys": WebKitHub.passkeysEntitled,
-      ]
+    AsyncFunction("call") { (name: String, profile: String, args: String, promise: Promise) in
+      WebKitModule.calls.run(name, profile, args, promise)
     }.runOnQueue(.main)
 
     View(WebKitTabView.self) {
-      Events(CefWebView.events)
+      Events(PageEvents.channel)
+
+      Prop("pageEvents") { (view: WebKitTabView, names: [String]?) in view.pageEvents = Set(names ?? []) }
 
       Prop("url") { (view: WebKitTabView, url: String?) in view.tab.initialURL = url }
       Prop("profile") { (view: WebKitTabView, profile: String?) in view.tab.profile = profile ?? "" }
       Prop("adoptId") { (view: WebKitTabView, id: String?) in view.tab.adoptId = id }
-      Prop("transferKey") { (view: WebKitTabView, key: String?) in view.tab.transferKey = key }
+      Prop("tabId") { (view: WebKitTabView, tabId: String?) in view.tab.transferKey = tabId }
       Prop("visible") { (view: WebKitTabView, visible: Bool?) in view.tab.visible = visible ?? true }
       Prop("warm") { (view: WebKitTabView, warm: Bool?) in view.tab.warm = warm ?? false }
       Prop("pageBackgroundColor") { (view: WebKitTabView, color: NSColor?) in view.tab.pageBackgroundColor = color }
@@ -104,6 +67,7 @@ public class WebKitModule: Module {
       AsyncFunction("exitPictureInPicture") { (view: WebKitTabView) in view.tab.setPictureInPicture(false) { _ in } }.runOnQueue(.main)
 
       AsyncFunction("getSecurityInfo") { (view: WebKitTabView) in view.tab.securityInfo() }.runOnQueue(.main)
+      AsyncFunction("pageCookies") { (view: WebKitTabView, urls: [String]) -> [[String: Any]] in [] }.runOnQueue(.main)
       AsyncFunction("openBlockedPopup") { (view: WebKitTabView, id: String, always: Bool?) in }.runOnQueue(.main)
       AsyncFunction("clearSiteData") { (view: WebKitTabView, promise: Promise) in
         view.tab.clearSiteData { promise.resolve($0) }
@@ -123,46 +87,38 @@ public class WebKitModule: Module {
       OnViewDidUpdateProps { (view: WebKitTabView) in view.propsDidUpdate() }
     }
   }
+  static let calls = CallTable(domain: "webKit", handlers: [
+    "removeDownloadStaging": { args, reply in
+      reply.ok(WebKitDownloads.removeStaging(args.text("path"), uuid: args.text("uuid"), folder: args.text("folder")))
+    },
+    "endPrivateSession": { args, reply in
+      WebKitHub.shared.endPrivateSession(args.text("session"))
+      reply.ok()
+    },
+    "cookieStoreKey": { args, reply in reply.ok(WebKitHub.shared.storeKey(args.profile)) },
+    "importCookies": { args, reply in
+      let cookies = args.list("cookies").compactMap { $0 as? [String: Any] }
+      WebKitHub.shared.importCookies(cookies, profile: args.profile, storeKey: args.text("storeKey")) { reply.ok($0) }
+    },
+    "passkeyAccess": { _, reply in reply.ok(WebKitPasskeys.access()) },
+    "requestPasskeyAccess": { _, reply in WebKitPasskeys.requestAccess { reply.ok($0) } },
+  ].merging(LaunchConfig.shared.testInstance ? testInstanceCalls : [:]) { call, _ in call })
+
+  private static let testInstanceCalls: [String: CallHandler] = [
+    "devStoreExists": { args, reply in WebKitHub.shared.storeExists(args.profile) { reply.ok($0) } },
+    "devHoldStore": { args, reply in
+      WebKitHub.shared.holdStoreForTest(args.profile)
+      reply.ok()
+    },
+    "devTouchStore": { args, reply in WebKitHub.shared.touchStore(args.profile) { reply.ok($0) } },
+  ]
 }
 
 final class WebKitTabView: ExpoView, WebKitTabDelegate {
   let tab = WebKitTab(frame: .zero)
+  let onPageEvent = EventDispatcher()
+  var pageEvents: Set<String> = []
 
-  let onNavigationChange = EventDispatcher()
-  let onProgress = EventDispatcher()
-  let onFavicon = EventDispatcher()
-  let onMedia = EventDispatcher()
-  let onNowPlaying = EventDispatcher()
-  let onMediaAccess = EventDispatcher()
-  let onOpenWindow = EventDispatcher()
-  let onPopupBlocked = EventDispatcher()
-  let onFindResult = EventDispatcher()
-  let onFullscreen = EventDispatcher()
-  let onStatus = EventDispatcher()
-  let onCrashed = EventDispatcher()
-  let onUnresponsive = EventDispatcher()
-  let onResponsive = EventDispatcher()
-  let onLoadError = EventDispatcher()
-  let onSecurity = EventDispatcher()
-  let onZoom = EventDispatcher()
-  let onContentBlocked = EventDispatcher()
-  let onDownloadNavigation = EventDispatcher()
-  let onNotification = EventDispatcher()
-  let onNotificationClose = EventDispatcher()
-  let onPictureInPicture = EventDispatcher()
-  let onActivateRequest = EventDispatcher()
-  let onDisplayMediaRequest = EventDispatcher()
-  let onWindowClose = EventDispatcher()
-  let onCommand = EventDispatcher()
-  let onPageFocus = EventDispatcher()
-  let onPageMessage = EventDispatcher()
-  let onReady = EventDispatcher()
-  let onDiscarded = EventDispatcher()
-  let onPasswordPrompt = EventDispatcher()
-  let onAutofillPrompt = EventDispatcher()
-  let onTabStrip = EventDispatcher()
-  let onExternalApp = EventDispatcher()
-  let onPreferredSize = EventDispatcher()
 
   private var propsReady = false
 
@@ -191,28 +147,6 @@ final class WebKitTabView: ExpoView, WebKitTabDelegate {
   }
 
   func webKitTab(_ tab: WebKitTab, event name: String, payload: [String: Any]) {
-    switch name {
-    case "navigation": onNavigationChange(payload)
-    case "progress": onProgress(payload)
-    case "favicon": onFavicon(payload)
-    case "media": onMedia(payload)
-    case "nowPlaying": onNowPlaying(payload)
-    case "mediaAccess": onMediaAccess(payload)
-    case "openWindow": onOpenWindow(payload)
-    case "find": onFindResult(payload)
-    case "status": onStatus(payload)
-    case "crashed": onCrashed(payload)
-    case "loadError": onLoadError(payload)
-    case "security": onSecurity(payload)
-    case "zoom": onZoom(payload)
-    case "downloadNavigation": onDownloadNavigation(payload)
-    case "pictureInPicture": onPictureInPicture(payload)
-    case "windowClose": onWindowClose(payload)
-    case "focus": onPageFocus(payload)
-    case "pageMessage": onPageMessage(payload)
-    case "ready": onReady(payload)
-    case "externalApp": onExternalApp(payload)
-    default: break
-    }
+    PageEvents.send(onPageEvent, wanted: pageEvents, name: name, payload: payload)
   }
 }

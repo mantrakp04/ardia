@@ -54,6 +54,8 @@ For the architecture and the test tooling, read `docs/agent-brief.md`.
   stay ⏸.
 
 ## Building features
+- **Conventions.** Folders, import direction, tokens, state, names, the translation layer and environment
+  variables follow `docs/conventions.md`; its check runs in `pnpm -C apps/browser test`.
 - **Sources of truth.** `docs/dia-feature-parity.md` is the checklist; update its row when you ship.
   `docs/dia-spec.md` has Dia's measured values.
 - **Match Dia with numbers.** Compare against a capture with the same crop and the same state; "looks

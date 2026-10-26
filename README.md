@@ -74,7 +74,7 @@ Not WebKit. Not Electron. Every window is Chrome’s own, so sites, extensions a
 
 | Part | Details | Status |
 | --- | --- | --- |
-| Engine | Chromium 155, on Chrome’s own framework. | ✓ Yes |
+| Engine | Chromium 156, on Chrome’s own framework. | ✓ Yes |
 | De-Googled | Google’s background services stripped out. | ✓ Yes |
 | H.264 and AAC | The codecs Chromium leaves out. | ✓ Yes |
 | DevTools | Docked, with device mode. Like Chrome. | ✓ Yes |
@@ -105,7 +105,7 @@ reconstructed from Dia's own New Tab effects.
 apps/
   browser/            Expo + react-native-macos app (UI in src/, Xcode project in macos/)
 packages/
-  ardiacore/             The engine: Chromium 155's framework with our layer (Chrome tabs hosted in our views), JS API in src/
+  ardiacore/             The engine: Chromium 156's framework with our layer (Chrome tabs hosted in our views), JS API in src/
   shell/              Native menu bar + shortcuts → JS, windows, SF Symbols, native primitives
   shaders/            Metal: New Tab effects + grained OKLab window backdrop
   import/             Import from other browsers (bookmarks, history, passwords, Arc spaces)
@@ -129,7 +129,7 @@ is newer than the last release's, work from a release tag (`v0.2.30`, say), or r
 cards need our team ID and won't work in a build signed by anyone else.
 
 To change the engine itself (anything under `engine/`), build it from source: Chrome's framework from our patched
-Chromium tree in `~/chromium-build` (Chromium 155.0.8059.84 with the patch series in `engine/patches`;
+Chromium tree in `~/chromium-build` (Chromium 156.0.8078.47 with the patch series in `engine/patches`;
 `docs/engine-build.md` › "Rebuilding", then `engine/chromium/apply.sh`,
 `engine/ardiacore/apply.sh` and `autoninja -C out/Release_GN_arm64 chrome_framework`; the first build takes about 2
 hours). The app's build stages it from there when it exists.

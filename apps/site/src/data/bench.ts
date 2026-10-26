@@ -53,6 +53,7 @@ export type Bench = {
   sample: boolean;
   groups: Group[];
   date: string;
+  measured: string;
   machine: string;
   versions: string;
   rivals: string[];
@@ -204,9 +205,10 @@ function groupRows(rows: RawRow[]): Group[] {
   const keyed = rows.flatMap((raw) => {
     const row = shapeRow(raw);
     if (!row) return [];
-    const split = raw.label.match(/^(.+?)(?:,\s+|\s+\(|\s+·\s+)(.+?)\)?$/);
+    const split = raw.label.match(/^(.+?)(,\s+|\s+\(|\s+·\s+)(.+)$/);
+    const splitSub = split ? (split[2].trim() === "(" ? split[3].replace(/\)$/, "") : split[3]) : null;
     const key = raw.group ?? (split ? split[1] : raw.label);
-    const sub = raw.group ? raw.label : split ? split[2] : null;
+    const sub = raw.group ? raw.label : splitSub;
     return [{ key, sub, row, power: kindOf(raw).word === "less power" }];
   });
   const keys = new Set(keyed.map((k) => k.key));
@@ -272,6 +274,7 @@ function build(source: RawBench | undefined, isSample: boolean): Bench | null {
     sample: isSample,
     groups,
     date: formatDate(raw.date),
+    measured: raw.date,
     machine: raw.machine,
     versions: versionsOf(raw.rows),
     rivals: [...new Set(raw.rows.flatMap((r) => (r.browsers as RawBrowser[]).map((b) => b.name)))].filter((n) => !isArdia(n)),

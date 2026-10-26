@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 
-const { useBrowser } = await import("../../src/store/browser.ts");
-const { sidebarEntries, groupEntries } = await import("../../src/components/sidebar/entries.ts");
-const { groupLabel } = await import("../../src/store/organize.ts");
-const strip = await import("../../src/components/layout/stripGroups.ts");
-await import("../../src/test-native-stub.mjs");
+const { useBrowser } = await import("../../src/state/browser/store.ts");
+const { sidebarEntries, groupEntries } = await import("../../src/state/sidebar/entries.ts");
+const { groupLabel } = await import("../../src/state/pins/organize.ts");
+const strip = await import("../../src/state/tabs/topStrip.ts");
+await import("../../src/test-native/index.ts");
 const core = await import("../../../../packages/core/src/index.ts");
 const { buildSeed } = await import("./seed.mjs");
-const { knownHosts } = await import("../../src/components/omnibox/knownHosts.ts");
+const { knownHosts } = await import("../../src/state/omnibox/knownHosts.ts");
 const { readFileSync } = await import("node:fs");
 const { countOps } = await import("./ops.mjs");
 

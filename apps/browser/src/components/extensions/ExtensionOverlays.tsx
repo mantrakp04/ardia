@@ -1,25 +1,28 @@
-import { permissionWarnings, WebView, type InstalledExtension, type WebViewHandle } from "@ardia/ardiacore";
-import { Surface } from "@ardia/shell";
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Animated, Easing, findNodeHandle, Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import { hex, useTheme } from "../../lib/theme";
-import { webviews } from "../../lib/webviews";
-import { useBrowser } from "../../store/browser";
-import { shownPageId } from "../../store/peek";
-import { useWindowId } from "../../store/hooks";
-import { openFromPage, pageProfileId } from "../layout/openFromPage";
-import { PANEL, PromptButton } from "../layout/controls";
-import { Checkbox } from "../settings/controls";
 import {
+  permissionWarnings,
   cancelInstall,
   closeExtensionPopup,
   confirmInstall,
-  extensionProfile,
+  closePinDialog,
   setPinned,
   useExtensions,
   useWindowExtensions,
   type InstallRequest,
-} from "./state";
+} from "../../state/extensions/actions";
+import { WebView, type WebViewHandle, Box, Button, Checkbox, PANEL, Surface, Text } from "../ui";
+import type { InstalledExtension } from "../../state/extensions/store";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Animated, findNodeHandle, Image, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
+import { hex, useTheme } from "../ui/theme";
+import { webviews } from "../../state/tabs/webviewHandles";
+import { currentShownPageId } from "../../state/peek/actions";
+import { useShownPageId } from "../../state/peek/hooks";
+import { useExtensionProfile } from "../../state/extensions/hooks";
+import { useWindowId } from "../../state/browser/hooks";
+import { openFromPage, pageProfileId } from "../../state/tabs/openFromPage";
+import { hairline, shadow, radius, space } from "../ui/tokens";
+import { DIALOG_APPEAR_MS, DIALOG_TITLE, DIALOG_WIDTH, EXTENSION_PAGE_BACKGROUND, POPUP_SHADOW, useExtensionColors } from "./tokens";
+import { curve, duration } from "../ui/motion";
 
 export function ExtensionOverlays() {
   const windowId = useWindowId();
@@ -70,6 +73,7 @@ if (!last || last.w !== now.w || last.h !== now.h) {
 
 function ActionPopup({ windowId, pageProfile, url, anchor }: { windowId: string; pageProfile: string; extensionId: string; url: string; anchor: { x: number; y: number; width: number; height: number } }) {
   const theme = useTheme();
+  const colors = useExtensionColors();
   const web = useRef<WebViewHandle>(null);
   const screen = useWindowDimensions();
   const [windowWidth, setWindowWidth] = useState(0);
@@ -85,7 +89,7 @@ function ActionPopup({ windowId, pageProfile, url, anchor }: { windowId: string;
     };
   }, []);
 
-  const tabId = useBrowser((s) => shownPageId(s, windowId));
+  const tabId = useShownPageId(windowId);
   const openedOn = useRef(tabId);
   useEffect(() => {
     if (tabId !== openedOn.current) closeExtensionPopup();
@@ -97,7 +101,7 @@ function ActionPopup({ windowId, pageProfile, url, anchor }: { windowId: string;
       height: Math.min(MAX.height, Math.max(MIN.height, Math.ceil(h))),
     };
     setSize((prev) => {
-      if (!prev) Animated.timing(appear, { toValue: 1, duration: 150, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+      if (!prev) Animated.timing(appear, { toValue: 1, duration: duration.popoverOpen, easing: curve.outCubic, useNativeDriver: true }).start();
       return prev && prev.width === next.width && prev.height === next.height ? prev : next;
     });
   };
@@ -132,12 +136,12 @@ function ActionPopup({ windowId, pageProfile, url, anchor }: { windowId: string;
         <Surface
           fill={hex(theme.panel)}
           cornerRadius={PANEL.radius}
-          borderColor={hex(theme.dark ? "rgba(255,255,255,0.16)" : "rgba(0,0,0,0.14)")}
-          borderWidth={0.5}
-          shadowColor="#000000"
-          shadowOpacity={theme.dark ? 0.45 : 0.18}
-          shadowRadius={16}
-          shadowOffset={[0, 6]}
+          borderColor={hex(colors.popupBorder)}
+          borderWidth={hairline.panel}
+          shadowColor={POPUP_SHADOW.color}
+          shadowOpacity={theme.dark ? POPUP_SHADOW.opacity.dark : POPUP_SHADOW.opacity.light}
+          shadowRadius={POPUP_SHADOW.radius}
+          shadowOffset={POPUP_SHADOW.offset}
           style={{ width, height }}
         >
           <View style={{ flex: 1, borderRadius: PANEL.radius, overflow: "hidden" }}>
@@ -148,7 +152,7 @@ function ActionPopup({ windowId, pageProfile, url, anchor }: { windowId: string;
               profile={pageProfile}
               standalone
               extensionHost="popup"
-              pageBackgroundColor="#FFFFFF"
+              pageBackgroundColor={EXTENSION_PAGE_BACKGROUND}
               onPreferredSize={({ width, height }) => {
                 sized.current = true;
                 resize(width, height);
@@ -172,7 +176,6 @@ function ActionPopup({ windowId, pageProfile, url, anchor }: { windowId: string;
 }
 
 function InstallDialog({ request }: { request: InstallRequest }) {
-  const theme = useTheme();
   const pkg = request.pkg;
   const name = pkg?.name ?? "Extension";
   const warnings = request.prompt ? request.prompt.permissions : pkg ? permissionWarnings(pkg) : [];
@@ -185,34 +188,34 @@ function InstallDialog({ request }: { request: InstallRequest }) {
   if (request.status === "error") {
     body = (
       <>
-        <Text style={{ fontSize: 15, fontWeight: "600", color: theme.textPrimary }}>Couldn't add the extension</Text>
-        <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 6 }}>{request.error}</Text>
+        <Text weight="semibold" style={DIALOG_TITLE}>Couldn't add the extension</Text>
+        <Text tone="textSecondary" style={{ marginTop: space.s }}>{request.error}</Text>
       </>
     );
   } else {
     body = (
       <>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+        <Box row gap="l" style={ALIGN_CENTER}>
           {pkg?.icon ? <Image source={{ uri: pkg.icon }} style={{ width: 36, height: 36 }} /> : null}
-          <Text style={{ flex: 1, fontSize: 15, fontWeight: "600", color: theme.textPrimary }}>{title}</Text>
-        </View>
+          <Text weight="semibold" style={[FLEX, DIALOG_TITLE]}>{title}</Text>
+        </Box>
         {warnings.length ? (
           <>
-            <Text style={{ fontSize: 13, color: theme.textPrimary, marginTop: 14, marginBottom: 6 }}>It can:</Text>
+            <Text style={{ marginTop: space.lx, marginBottom: space.s }}>It can:</Text>
             <ScrollView style={{ maxHeight: 180 }}>
               {warnings.map((w) => (
-                <View key={w} style={{ flexDirection: "row", gap: 7, marginBottom: 4 }}>
-                  <Text style={{ fontSize: 13, color: theme.textSecondary }}>•</Text>
-                  <Text style={{ flex: 1, fontSize: 13, color: theme.textSecondary }}>{w}</Text>
-                </View>
+                <Box key={w} row gap="sm" style={{ marginBottom: space.xs }}>
+                  <Text tone="textSecondary">•</Text>
+                  <Text tone="textSecondary" style={FLEX}>{w}</Text>
+                </Box>
               ))}
             </ScrollView>
           </>
         ) : (
-          <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 14 }}>This extension requires no special permissions.</Text>
+          <Text tone="textSecondary" style={{ marginTop: space.lx }}>This extension requires no special permissions.</Text>
         )}
         {request.source === "unpacked" ? (
-          <Text numberOfLines={2} ellipsizeMode="middle" style={{ fontSize: 11, color: theme.textTertiary, marginTop: 10 }}>
+          <Text numberOfLines={2} ellipsizeMode="middle" size="caption" tone="textTertiary" style={{ marginTop: space.ml }}>
             {`Loaded from ${pkg?.path ?? ""}`}
           </Text>
         ) : null}
@@ -223,29 +226,28 @@ function InstallDialog({ request }: { request: InstallRequest }) {
   return (
     <Dialog windowId={request.windowId} onDismiss={busy ? undefined : cancelInstall} onSubmit={request.status === "error" ? cancelInstall : () => void confirmInstall()}>
       {body}
-      <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
+      <Box row gap="m" style={{ justifyContent: "flex-end", marginTop: space.xlx }}>
         {request.status === "error" ? (
-          <PromptButton title="OK" primary onPress={cancelInstall} />
+          <Button variant="pill" title="OK" primary onPress={cancelInstall} />
         ) : (
           <>
-            <PromptButton title="Cancel" onPress={cancelInstall} />
-            <PromptButton title={request.status === "installing" ? "Adding…" : action} primary onPress={() => void confirmInstall()} />
+            <Button variant="pill" title="Cancel" onPress={cancelInstall} />
+            <Button variant="pill" title={request.status === "installing" ? "Adding…" : action} primary onPress={() => void confirmInstall()} />
           </>
         )}
-      </View>
+      </Box>
     </Dialog>
   );
 }
 
 function PinDialog({ windowId }: { windowId: string }) {
-  const theme = useTheme();
-  const profile = useBrowser((s) => extensionProfile(s, windowId));
+  const profile = useExtensionProfile(windowId);
   const list = useWindowExtensions(windowId);
-  const close = () => useExtensions.setState({ pinDialog: null });
+  const close = closePinDialog;
   return (
     <Dialog windowId={windowId} onDismiss={close} onSubmit={close}>
-      <Text style={{ fontSize: 15, fontWeight: "600", color: theme.textPrimary }}>Pin Extensions</Text>
-      <Text style={{ fontSize: 13, color: theme.textSecondary, marginTop: 4, marginBottom: 12 }}>
+      <Text weight="semibold" style={DIALOG_TITLE}>Pin Extensions</Text>
+      <Text tone="textSecondary" style={{ marginTop: space.xs, marginBottom: space.l }}>
         Pinned extensions appear in the toolbar, next to the address.
       </Text>
       {list.length ? (
@@ -255,22 +257,21 @@ function PinDialog({ windowId }: { windowId: string }) {
           ))}
         </ScrollView>
       ) : (
-        <Text style={{ fontSize: 13, color: theme.textTertiary }}>No extensions are turned on.</Text>
+        <Text tone="textTertiary">No extensions are turned on.</Text>
       )}
-      <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 16 }}>
-        <PromptButton title="Done" primary onPress={close} />
-      </View>
+      <Box row style={{ justifyContent: "flex-end", marginTop: space.xl }}>
+        <Button variant="pill" title="Done" primary onPress={close} />
+      </Box>
     </Dialog>
   );
 }
 
 function PinRow({ ext, onChange }: { ext: InstalledExtension; onChange: (pinned: boolean) => void }) {
-  const theme = useTheme();
   return (
-    <Pressable onPress={() => onChange(!ext.pinned)} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 6 }}>
+    <Pressable onPress={() => onChange(!ext.pinned)} style={PIN_ROW}>
       <Checkbox value={ext.pinned} onChange={onChange} />
       <Image source={{ uri: ext.actionIcon || ext.icon }} style={{ width: 16, height: 16 }} />
-      <Text numberOfLines={1} style={{ flex: 1, fontSize: 13, color: theme.textPrimary }}>
+      <Text numberOfLines={1} style={FLEX}>
         {ext.name}
       </Text>
     </Pressable>
@@ -282,29 +283,29 @@ function Dialog({ windowId, onDismiss, onSubmit, children }: { windowId: string;
   const appear = useRef(new Animated.Value(0)).current;
   const keys = useRef<View>(null);
   useEffect(() => {
-    Animated.timing(appear, { toValue: 1, duration: 170, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    Animated.timing(appear, { toValue: 1, duration: DIALOG_APPEAR_MS, easing: curve.outCubic, useNativeDriver: true }).start();
     keys.current?.focus();
     return () => {
-      const tabId = shownPageId(useBrowser.getState(), windowId);
+      const tabId = currentShownPageId(windowId);
       if (tabId) void webviews.get(tabId)?.focus();
     };
   }, []);
   return (
     <View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }]}>
-      <Animated.View style={[StyleSheet.absoluteFill, { opacity: appear, backgroundColor: theme.dark ? "rgba(0,0,0,0.35)" : "rgba(0,0,0,0.15)" }]}>
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: appear, backgroundColor: theme.scrim }]}>
         <Pressable focusable={false} style={StyleSheet.absoluteFill} onPress={onDismiss} />
       </Animated.View>
       <Animated.View style={{ opacity: appear, transform: [{ scale: appear.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }] }}>
         <Surface
           fill={hex(theme.panel)}
-          cornerRadius={14}
+          cornerRadius={radius.sheet}
           borderColor={hex(theme.panelBorder)}
-          borderWidth={0.5}
-          shadowColor="#000000"
+          borderWidth={hairline.panel}
+          shadowColor={shadow.dialog.color}
           shadowOpacity={theme.panelShadowOpacity}
-          shadowRadius={30}
-          shadowOffset={[0, 12]}
-          style={{ width: 380 }}
+          shadowRadius={shadow.dialog.radius}
+          shadowOffset={shadow.dialog.offset}
+          style={DIALOG_SIZE}
         >
           <View
             ref={keys}
@@ -315,7 +316,7 @@ function Dialog({ windowId, onDismiss, onSubmit, children }: { windowId: string;
               if (e.nativeEvent.key === "Escape") onDismiss?.();
               else if (e.nativeEvent.key === "Enter" && targetTag(e.nativeEvent) === findNodeHandle(keys.current)) onSubmit?.();
             }}
-            style={{ padding: 20 }}
+            style={DIALOG_PAD}
           >
             {children}
           </View>
@@ -325,5 +326,10 @@ function Dialog({ windowId, onDismiss, onSubmit, children }: { windowId: string;
   );
 }
 
+const FLEX = { flex: 1 } as const;
+const ALIGN_CENTER = { alignItems: "center" } as const;
+const PIN_ROW = { flexDirection: "row", alignItems: "center", gap: space.ml, paddingVertical: space.s } as const;
+const DIALOG_SIZE = { width: DIALOG_WIDTH } as const;
+const DIALOG_PAD = { padding: space.xxl } as const;
 const DIALOG_KEYS = [{ key: "Escape" }, { key: "Enter" }, { key: "Tab" }, { key: "Tab", shiftKey: true }];
 const targetTag = (event: object) => (event as { target?: number }).target;

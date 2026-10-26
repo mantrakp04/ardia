@@ -26,7 +26,7 @@ async function start(name) {
   const { dir } = DEV[name];
   const app = (apps[name] = await launch(APP, {
     data: dir,
-    env: { ARDIA_SYNC_DEFAULT_FOLDER: FOLDER },
+    instance: { syncFolder: FOLDER },
     ready: { timeout: 120_000, test: "return !!globalThis.acSync && Object.keys(ac.store.getState().windows).length > 0" },
   }));
   note(`${name}: pid ${app.pid}, DevTools ${app.port}, log ${app.log}`);
@@ -64,9 +64,9 @@ const sync = async (...names) => {
 };
 
 const EXT = "hkgfoiooedgoejojocmhlaklaeopbecg";
-const engine = (name, call, args = null) =>
-  ev(name, `return globalThis.expo.modules.ArdiaCEF.engineCall(${JSON.stringify(call)}, "", ${JSON.stringify(args === null ? null : JSON.stringify(args))}).then(JSON.parse)`);
-const extension = async (name) => (await engine(name, "ac_extensions_sync_state")).extensions?.find((e) => e.id === EXT) ?? null;
+const engine = (name, call, args = {}) =>
+  ev(name, `return ac.engine.call(${JSON.stringify(call)}, ${JSON.stringify(args)}).catch((e) => ({ error: e.message }))`);
+const extension = async (name) => (await engine(name, "extensions.syncState")).extensions?.find((e) => e.id === EXT) ?? null;
 async function until(what, test, names = [], timeout = 120_000) {
   const end = Date.now() + timeout;
   while (Date.now() < end) {
@@ -86,7 +86,7 @@ async function state(name) {
     const b = s.bookmarks; const roots = b.roots.default;
     const walk = (id) => { const n = b.nodes[id]; return n.kind === "url" ? n.title + " " + n.url : { [n.title]: n.children.map(walk) }; };
     const u = acSync.useSync.getState();
-    return Promise.all([acSync.native.readPasswords(""), globalThis.expo.modules.ArdiaCEF.listPasswords("")]).then(([pw, list]) => ({
+    return Promise.all([acSync.native.readPasswords(""), ac.engine.call("passwords.list", { profile: "" }).catch((e) => ({ error: e.message }))]).then(([pw, list]) => ({
       status: u.status, error: u.error, enabled: u.enabled, pending: u.pending,
       bookmarks: [walk(roots.bar), walk(roots.other)],
       history: (s.history.default || []).map((h) => h.url).sort(),
@@ -117,7 +117,8 @@ function bip39(entropy) {
 }
 
 const savePassword = (origin, user, password) =>
-  `const c = globalThis.expo.modules.ArdiaCEF; return c.deletePassword("", "${origin}", "${user}").then(() => c.savePassword("", "${origin}", "${user}", "${password}"));`;
+  `return ac.engine.call("passwords.remove", { profile: "", origin: "${origin}", username: "${user}" }).catch((e) => ({ error: e.message }))
+    .then(() => globalThis.expo.modules.ArdiaPasswords.save("", "${origin}", "${user}", "${password}").then(JSON.parse).catch((e) => ({ error: e.message })));`;
 
 fs.mkdirSync(FOLDER, { recursive: true });
 const swift = fs.readFileSync(`${repo}/packages/sync/ios/Core/Wordlist.swift`, "utf8");
@@ -206,7 +207,7 @@ try {
     s.addBookmark({ profileId: "default", url: "${W}/delta.html?nne2e=bmD", title: "ACE2E Bookmark Delta from B" });
     s.removeHistory("default", ["${W}/visited.html?nne2e=hist1"]);
     s.updateSettings({ showFullUrl: true, cleanUpInactiveTabsAfterHours: 24 });
-    return globalThis.expo.modules.ArdiaCEF.deletePassword("", "https://nne2e-shop.example", "nne2e-bob");`,
+    return ac.engine.call("passwords.remove", { profile: "", origin: "https://nne2e-shop.example", username: "nne2e-bob" }).catch((e) => ({ error: e.message }));`,
   );
   await visit("B", `${W}/visited2.html?nne2e=hist2`);
   await ev("B", savePassword("https://nne2e-bank.example", "nne2e-alice", "ACE2E-changed-on-B"));
@@ -257,7 +258,7 @@ try {
   check("the later edit wins (bookmark, setting, password)", text(a.bookmarks).includes("ACE2E Concurrent B") && a.settings.searchEngine === "google" && a.passwords.some((p) => p.includes("ACE2E-concurrent-B")));
 
   check("the Extensions data type is on by default", (await ev("A", "return acSync.useSync.getState().types.extensions")) === true);
-  await engine("A", "ac_extensions_sync_apply", { id: EXT, record: { on: true, inc: false, pin: false } });
+  await engine("A", "extensions.syncApply", { id: EXT, record: { on: true, inc: false, pin: false } });
   let extA = await until("A installs the Web Store extension", () => extension("A"));
   check("A installs a small Web Store extension through Chrome's updater, without a prompt", !!extA && extA.syncable, text(extA));
   if (!extA.approved) {
@@ -273,11 +274,11 @@ try {
   extB = await until("B follows A's disable", async () => ((await extension("B"))?.userDisabled ? extension("B") : null), ["A", "B"]);
   check("disable on A turns it off on B", !extB.enabled && extB.userDisabled, text(extB));
   const EXT2 = "aapbdbdomjkkjkaonfhkkikfgjllcleb";
-  const secondExtension = async (name) => (await engine(name, "ac_extensions_sync_state")).extensions?.find((e) => e.id === EXT2) ?? null;
-  await engine("A", "ac_extensions_sync_apply", { id: EXT2, record: { on: true, inc: false, pin: false } });
+  const secondExtension = async (name) => (await engine(name, "extensions.syncState")).extensions?.find((e) => e.id === EXT2) ?? null;
+  await engine("A", "extensions.syncApply", { id: EXT2, record: { on: true, inc: false, pin: false } });
   await until("A installs a second extension", () => secondExtension("A"));
   await sync("A", "B");
-  const pendingOnB = (await engine("B", "ac_extensions_sync_state")).pending ?? [];
+  const pendingOnB = (await engine("B", "extensions.syncState")).pending ?? [];
   note(`B's pending sync installs before the quit: ${text(pendingOnB)}`);
   await apps.B.quit();
   delete apps.B;
@@ -287,13 +288,13 @@ try {
   await ev("B", `return acExtensionsApp.setEnabled("", "${EXT}", true).then(() => acExtensionsApp.setPinned("", "${EXT}", true)).then(() => true)`);
   extA = await until("A follows B's enable and pin", async () => { const e = await extension("A"); return e?.enabled && e.pinned ? e : null; }, ["B", "A"]);
   check("enable and pin on B reach A", extA.enabled && extA.pinned, text(extA));
-  await ev("B", `return globalThis.acExtensions.uninstall("${EXT}", "").then(() => true)`);
+  await ev("B", `return ac.engine.call("extensions.uninstall", { profile: "", id: "${EXT}" }).catch((e) => ({ error: e.message })).then(() => true)`);
   const record = (name) => ev(name, `return Object.values(acSync.doc().scopes).map((s) => s.records["ext:${EXT}"]?.v).find(Boolean) ?? null`);
   await until("A receives B's removal", async () => text(await record("A")) === '{"removed":true}', ["B", "A"]);
   for (let i = 0; i < 3; i++) await sync("A", "B");
   check("remove on B: the record says removed on both, as a live value older Macs and compaction keep", text(await record("A")) === '{"removed":true}' && text(await record("B")) === '{"removed":true}');
   check("remove on B: B doesn't install it again, and A keeps its copy without publishing it back (sync never uninstalls)", !(await extension("B")) && !!(await extension("A")));
-  await ev("A", `return globalThis.acExtensions.uninstall("${EXT}", "").then(() => true)`);
+  await ev("A", `return ac.engine.call("extensions.uninstall", { profile: "", id: "${EXT}" }).catch((e) => ({ error: e.message })).then(() => true)`);
   await sync("A", "B");
   const seqs = async () => text(await Promise.all(["A", "B"].map((n) => ev(n, "return Object.values(acSync.doc().scopes).map((s) => s.seq)"))));
   const before = await seqs();

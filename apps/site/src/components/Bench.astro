@@ -1,208 +1,254 @@
 ---
 import { bench, display, BENCH_METHOD, type Figure } from "../data/bench";
+import { scorecardOf } from "../data/benchScorecard";
 
-const rows = bench ? bench.groups.flatMap((g) => g.rows.map((r) => ({ ...r, group: g.id }))) : [];
-const lead = rows[0];
-const others = bench?.rivals ?? [];
-const named =
-  others.length > 1 ? `${others.slice(0, -1).join(", ")} and ${others[others.length - 1]}` : (others[0] ?? "");
+interface Props {
+  page?: boolean;
+}
+const { page = false } = Astro.props;
+const Title = page ? "h1" : "h2";
+const CardTitle = page ? "h2" : "h3";
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+const card = bench ? scorecardOf(bench) : null;
+const rivals = bench?.rivals ?? [];
+const named = rivals.length > 1 ? `${rivals.slice(0, -1).join(", ")} and ${rivals[rivals.length - 1]}` : (rivals[0] ?? "");
+const listOf = (items: string[]) =>
+  items.length > 1 ? `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}` : (items[0] ?? "");
+
+const takers = card ? card.takenBy.map((t) => (card.takenBy.length > 1 ? `${t.name} ${t.count}` : t.name)) : [];
+const lede = card
+  ? [
+      `Ardia against ${named}: ${card.total} tests, same Mac, every release.`,
+      card.losses
+        ? `${listOf(takers)} ${card.takenBy.length > 1 ? "take the rest" : `takes ${card.losses === 1 ? "one" : card.losses}`}. They’re in here too.`
+        : "No asterisks.",
+    ].join(" ")
+  : "";
+
 const countAttrs = (f: Figure) => ({
-  "data-count": "",
-  "data-value": String(f.value),
-  "data-decimals": String(f.decimals),
-  "data-from": String(f.from),
+  "data-bench-count": "",
+  "data-bench-value": String(f.value),
+  "data-bench-decimals": String(f.decimals),
+  "data-bench-from": String(f.from),
 });
+const unitText = (unit: string) => (unit === "%" ? "%" : ` ${unit}`);
 const tick = "M3 13.5c2.2 1.4 4.3 3.6 6.4 6.6C13 13 17.6 7.4 25 2.6";
 ---
 
 {
-  bench && lead && (
-    <section class="bench paint edge" id="speed" aria-labelledby="bench-title" data-shot="bench" data-bench>
+  bench && card && (
+    <section class:list={["bb paint", { edge: !page, "bb-page": page }]} id="speed" aria-labelledby="bench-title" data-shot="bench" data-bench>
       <div class="wrap">
-        <header class="bench-head">
-          <p class="label kicker">Measured before every release</p>
-          <h2 class="poster" id="bench-title" data-reveal>
-            Receipts.
-          </h2>
-          <p class="lede" data-reveal style="--i: 1">
-            Ardia against {named}. Same Mac, same pages, every release. Medians, so one lucky run doesn’t count.
-          </p>
-          {bench.sample && <p class="label sample">Sample numbers. Not measured. Dev only.</p>}
+        <header class="bb-head">
+          <div class="bb-title">
+            <p class="label kicker">Measured before every release</p>
+            <Title class="poster bb-heading" id="bench-title" data-reveal>
+              {page && <span class="visually-hidden">Ardia vs Dia vs Helium: </span>}Benchmarks.
+            </Title>
+            <p class="lede" data-reveal style="--i: 1">
+              {lede}
+            </p>
+            {bench.sample && <p class="label sample">Sample numbers. Not measured. Dev only.</p>}
+          </div>
+
         </header>
 
-        <div class="board" data-bench-board>
-          <div class="tabs" role="tablist" aria-label="Benchmark" data-bench-tabs>
-            {bench.groups.map((g, i) => (
-              <button
-                type="button"
-                role="tab"
-                class="tab label"
-                id={`bench-tab-${g.id}`}
-                aria-selected={i === 0 ? "true" : "false"}
-                aria-controls="bench-panel"
-                tabindex={i === 0 ? 0 : -1}
-                data-bench-group={g.id}
-                data-bench-first={g.rows[0].id}
-                data-track="bench_row_switched"
-                data-track-group={g.id}
-                data-track-row={g.rows[0].id}
-              >
-                {g.label}
-              </button>
-            ))}
-          </div>
-
-          <div class="calls stack">
-            {rows.map((r, i) => (
-              <div class:list={["call", { on: i === 0, lost: r.call.lost }]} data-call={r.id}>
-                <p class="label call-kicker">{r.call.kicker}</p>
-                {r.call.figure ? (
-                  <p class="big poster">
-                    <span {...countAttrs(r.call.figure)}>{display(r.call.figure)}</span>
-                    {r.call.figure.suffix}
+        <ul class="cards" role="list">
+          {card.cards.map((c) => (
+            <li class:list={["card", c.outcome, { wide: c.wide, solo: c.solo }]} data-bench-land>
+              <div class="card-top">
+                <CardTitle class="card-title">{c.title}</CardTitle>
+                {c.wide ? (
+                  <p class:list={["label", "record", { mixed: c.record.won < c.record.of }]}>
+                    {c.stamp}
                   </p>
+                ) : c.outcome === "win" ? (
+                  <svg class="tick" viewBox="0 0 28 24" width="24" height="21" role="img" aria-label="Ardia wins">
+                    <path d={tick} />
+                  </svg>
                 ) : (
-                  <p class="big poster">Tie</p>
-                )}
-                <p class="call-line">{r.call.line}</p>
-                {r.call.second && (
-                  <p class="call-second">
-                    <span class="poster second-fig">
-                      <span {...countAttrs(r.call.second.figure)}>{display(r.call.second.figure)}</span>
-                      {r.call.second.figure.suffix}
-                    </span>
-                    <span>{r.call.second.line}</span>
-                  </p>
+                  <p class="label stamp">{c.stamp}</p>
                 )}
               </div>
-            ))}
-          </div>
 
-          <div class="subs stack" data-bench-subs>
-            {bench.groups.map((g, gi) => (
-              <div class:list={["sub-list", { on: gi === 0 }]} data-subs={g.id}>
-                {g.rows.length > 1 && (
-                  <div role="tablist" aria-label={`${g.label}: which case`}>
-                    {g.rows.map((r, i) => (
-                      <button
-                        type="button"
-                        role="tab"
-                        class="sub label"
-                        aria-selected={i === 0 ? "true" : "false"}
-                        aria-controls="bench-panel"
-                        tabindex={i === 0 ? 0 : -1}
-                        data-bench-row={r.id}
-                        data-track="bench_row_switched"
-                        data-track-group={g.id}
-                        data-track-row={r.id}
-                      >
-                        {r.sub}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-
-          <div class="charts stack" id="bench-panel" role="tabpanel" aria-labelledby={`bench-tab-${bench.groups[0].id}`} data-bench-panel>
-            {rows.map((r, i) => (
-              <div class:list={["chart", { on: i === 0 }]} data-chart={r.id}>
-                <div class="visually-hidden">
-                <table>
-                  <caption>{r.caption}</caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">Browser</th>
-                      <th scope="col">Median</th>
-                      <th scope="col">Range</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {r.bars.map((b) => (
-                      <tr>
-                        <th scope="row">{b.isBest ? `${b.name} (best)` : b.name}</th>
-                        <td>{display(b.value)} {b.unit}</td>
-                        <td>{b.range ?? "none"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                </div>
-                <div class="bars" aria-hidden="true">
-                  {r.bars.map((b, j) => (
-                    <div class:list={["b", { us: b.isArdia, best: b.isBest }]} style={`--i: ${j}; --w: ${b.share.toFixed(4)}`}>
-                      <span class="name">{b.name}</span>
-                      <span class="track">
-                        <span class="bar" />
-                        <span class="val label">
-                          <span {...countAttrs(b.value)}>{display(b.value)}</span>
-                          {b.unit === "%" ? "%" : ` ${b.unit}`}
-                        </span>
-                        {b.isBest && (
-                          <svg class="tick" viewBox="0 0 28 24" width="22" height="19">
-                            <path pathLength="1" d={tick} />
-                          </svg>
-                        )}
+              <div class="card-body">
+                <div class="call">
+                  {c.context && <p class="label context">{c.context}</p>}
+                  <p class="verdict poster">
+                    {c.verdict.figure ? (
+                      <span class="fig">
+                        <span {...countAttrs(c.verdict.figure)}>{display(c.verdict.figure)}</span>
+                        {c.verdict.figure.suffix}
                       </span>
+                    ) : (
+                      <span class="fig">Tie</span>
+                    )}
+                    {c.verdict.photoFinish && c.verdict.figure && <span class="label photo">Photo finish</span>}
+                  </p>
+                  <p class="line">{c.verdict.line}</p>
+                  {c.verdict.note && <p class="note">{c.verdict.note}</p>}
+                </div>
+
+                {c.wide ? (
+                  <table class="sheet">
+                    <caption class="visually-hidden">{c.caption}</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col" class="label unit">
+                          {c.unit}
+                        </th>
+                        {card.roster.map((name, j) => (
+                          <th scope="col" class:list={["label", { us: j === 0 }]}>
+                            {name}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {c.cases.map((k) => (
+                        <tr>
+                          <th scope="row" title={k.fullLabel}>
+                            {k.label}
+                          </th>
+                          {k.lanes.map((l, j) =>
+                            l.bar ? (
+                              <td
+                                class:list={{ us: l.isArdia, best: l.bar.isBest }}
+                                style={`--w: ${l.bar.share.toFixed(4)}; --j: ${j}`}
+                              >
+                                <span class="num">{display(l.bar.value)}</span>
+                                {l.bar.isBest && <span class="visually-hidden"> (best)</span>}
+                                <span class="dash" aria-hidden="true" />
+                              </td>
+                            ) : (
+                              <td class="none">
+                                <span aria-hidden="true">–</span>
+                                <span class="visually-hidden">not measured</span>
+                              </td>
+                            ),
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <>
+                    <div class="lanes" aria-hidden="true">
+                      {c.cases[0].lanes.map((l, j) => (
+                        <div
+                          class:list={["lane", { us: l.isArdia, best: l.bar?.isBest, empty: !l.bar }]}
+                          style={`--w: ${(l.bar?.share ?? 0).toFixed(4)}; --j: ${j}`}
+                        >
+                          <span class="lane-name">{l.name}</span>
+                          <span class="lane-val label">
+                            {l.bar ? `${display(l.bar.value)}${unitText(l.bar.unit)}` : "not measured"}
+                          </span>
+                          <span class="lane-track">
+                            <span class="lane-bar" />
+                          </span>
+                        </div>
+                      ))}
                     </div>
+                    <table class="visually-hidden">
+                      <caption>{c.caption}</caption>
+                      <thead>
+                        <tr>
+                          <th scope="col">Browser</th>
+                          <th scope="col">Median</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {c.cases[0].lanes.map((l) => (
+                          <tr>
+                            <th scope="row">{l.bar?.isBest ? `${l.name} (best)` : l.name}</th>
+                            <td>{l.bar ? `${display(l.bar.value)}${unitText(l.bar.unit)}` : "not measured"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </>
+                )}
+              </div>
+
+              {c.wide && (
+                <div class="card-foot">
+                  <p class="label meta">{c.meta}</p>
+                  {c.footnotes.map((f) => (
+                    <p class="foot">{f}</p>
                   ))}
                 </div>
-                <p class="label meta">{r.meta}</p>
-              </div>
-            ))}
-          </div>
-
-          <p class="note">
-            Measured on {bench.machine}, {bench.date}. {bench.versions}.{" "}
+              )}
+            </li>
+          ))}
+          <li class="colophon" data-bench-land>
+            <p class="label colophon-title">The small print</p>
+            <p>
+              {bench.machine}, {bench.date}. {bench.versions}.
+            </p>
+            <p>Every figure is a median, so one lucky run doesn’t count.</p>
             <a
-              class="link"
+              class="link label"
               href={BENCH_METHOD}
               rel="noopener"
               data-track="github_clicked"
               data-track-link="bench_method"
               data-track-location="bench">How we measure</a
             >
-          </p>
-        </div>
+            {!page && (
+              <a class="link label" href={`${base}/benchmarks/`}>
+                The benchmarks page
+              </a>
+            )}
+          </li>
+        </ul>
       </div>
     </section>
   )
 }
 
 <style>
-  .bench {
+  :global(#demo) ~ .bb {
+    margin-top: calc(var(--edge) + clamp(32px, 4vw, 64px));
+  }
+  .bb {
     --bg: var(--golden);
-    --wash: linear-gradient(180deg, #f0c983 0%, var(--golden) 45%, var(--golden-late) 100%);
+    --wash: linear-gradient(180deg, #f0c983 0%, var(--golden) 40%, var(--golden-late) 100%);
     --bg-top: #f0c983;
     --dab: var(--forest);
     --ink-2: #3a372f;
-    --muted: #7a5c42;
-    --room: 8.6rem;
+    --muted: #8c6a4c;
+    --card: #faf2df;
+    --card-edge: rgb(22 19 15 / 0.82);
+    --radius: 7px 12px 8px 14px / 11px 7px 13px 8px;
     padding: var(--section) 0 clamp(72px, 9vw, 140px);
   }
-  .bench-head {
+
+  .bb-page {
+    padding-top: clamp(40px, 5vw, 88px);
+  }
+  .bb-head {
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
     column-gap: var(--gutter);
     align-items: end;
-    margin-bottom: clamp(36px, 5vw, 72px);
+    margin-bottom: clamp(32px, 4.4vw, 64px);
   }
-  .bench-head .kicker {
-    grid-column: 1 / -1;
+  .bb-title {
+    grid-column: 1 / span 7;
   }
-  h2 {
-    grid-column: 1 / span 6;
+  .bb-heading {
     font-size: var(--t-h2);
   }
   .lede {
-    grid-column: 8 / -1;
+    margin-top: clamp(18px, 2vw, 28px);
+    max-width: 30em;
+    font-size: var(--t-body);
+    line-height: 1.5;
     color: var(--ink-2);
-    max-width: 26em;
   }
   .sample {
-    grid-column: 1 / -1;
-    justify-self: start;
+    display: inline-block;
     margin-top: 20px;
     padding: 4px 10px;
     color: var(--stamp);
@@ -211,305 +257,451 @@ const tick = "M3 13.5c2.2 1.4 4.3 3.6 6.4 6.6C13 13 17.6 7.4 25 2.6";
     transform: rotate(-1.5deg);
   }
 
-  .board {
+  .cards {
+    list-style: none;
+    margin: 0;
+    padding: 0;
     display: grid;
-    grid-template-columns: repeat(12, minmax(0, 1fr));
-    grid-template-areas:
-      "tabs tabs tabs tabs tabs tabs tabs tabs tabs tabs tabs tabs"
-      "call call call call subs subs subs subs subs subs subs subs"
-      "call call call call chart chart chart chart chart chart chart chart"
-      "call call call call note note note note note note note note";
-    column-gap: var(--gutter);
-    border-top: 2px solid var(--ink);
-    padding-top: clamp(20px, 2.4vw, 32px);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-flow: row dense;
+    gap: clamp(10px, 1.3vw, 18px);
   }
-  .stack {
-    display: grid;
-  }
-  .stack > * {
-    grid-area: 1 / 1;
-    visibility: hidden;
-  }
-  .stack > .on {
-    visibility: visible;
-  }
-
-  .tabs {
-    grid-area: tabs;
-    margin-bottom: clamp(20px, 2.6vw, 36px);
+  .card {
+    position: relative;
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+    flex-direction: column;
+    min-width: 0;
+    padding: clamp(14px, 1.4vw, 20px);
+    border: 1.5px solid var(--card-edge);
+    border-radius: var(--radius);
+    background-color: var(--card);
+    background-image: var(--impasto-soft);
+    background-size: 520px;
+    background-blend-mode: soft-light;
+    box-shadow: 0 16px 28px -22px rgb(90 50 20 / 0.55);
   }
-  .tab {
-    min-height: 40px;
-    padding: 0 14px;
-    border: 0;
-    border-radius: 4px;
+  .card.wide {
+    grid-column: span 2;
+  }
+  .card.loss,
+  .card.tie {
     background: transparent;
-    color: var(--ink);
-    box-shadow: inset 0 0 0 1.5px var(--rule-strong);
-    cursor: pointer;
-    white-space: nowrap;
-    touch-action: manipulation;
-    transition:
-      background-color 160ms var(--ease-out),
-      color 160ms var(--ease-out);
-  }
-  .tab[aria-selected="true"] {
-    background-color: var(--ink);
-    color: var(--paper);
     box-shadow: none;
   }
-  @media (hover: hover) {
-    .tab[aria-selected="false"]:hover {
-      background-color: rgb(22 19 15 / 0.08);
-    }
-  }
-  html:not(.js) .tabs,
-  html:not(.js) .subs {
-    display: none;
-  }
 
-  .subs {
-    grid-area: subs;
-    min-height: 36px;
-  }
-  .sub-list > div {
+  .card-top {
     display: flex;
-    flex-wrap: wrap;
-    gap: 2px 18px;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
   }
-  .sub {
-    min-height: 36px;
-    padding: 0;
-    border: 0;
-    background: none;
-    color: var(--ink-2);
-    cursor: pointer;
-    text-decoration: underline;
-    text-decoration-thickness: 1.5px;
-    text-underline-offset: 0.5em;
-    text-decoration-color: transparent;
-    touch-action: manipulation;
-  }
-  .sub[aria-selected="true"] {
-    color: var(--ink);
-    text-decoration-color: var(--forest);
-    text-decoration-thickness: 3px;
-  }
-
-  .calls {
-    grid-area: call;
-    align-self: center;
-    padding-right: clamp(0px, 2vw, 24px);
-  }
-  .call-kicker {
-    color: var(--ink-2);
-  }
-  .big {
-    margin-top: 10px;
-    font-size: clamp(5rem, 1.6rem + 9vw, 11rem);
-    line-height: 0.8;
-    color: var(--forest-deep);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-  }
-  .lost .big {
-    color: var(--ink);
-  }
-  .call-line {
-    margin-top: 14px;
-    font-size: var(--t-lede);
-    line-height: 1.2;
-  }
-  .call-second {
-    display: flex;
-    align-items: baseline;
-    flex-wrap: wrap;
-    gap: 4px 12px;
-    margin-top: clamp(20px, 2.6vw, 36px);
-    padding-top: clamp(14px, 1.6vw, 20px);
-    border-top: 1px solid var(--rule);
-    color: var(--ink-2);
-  }
-  .second-fig {
-    font-size: clamp(2.4rem, 1.4rem + 2.4vw, 3.8rem);
-    line-height: 0.9;
-    color: var(--ink);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .charts {
-    grid-area: chart;
-    margin-top: 10px;
-  }
-  .bars {
-    display: grid;
-    row-gap: clamp(10px, 1.2vw, 14px);
-  }
-  .b {
-    display: grid;
-    grid-template-columns: 7.2rem minmax(0, 1fr);
-    align-items: center;
-    column-gap: 16px;
-  }
-  .name {
+  .card-title {
     font-family: var(--poster);
     font-weight: 740;
     font-stretch: 85%;
     text-transform: uppercase;
     letter-spacing: 0.02em;
-    font-size: 1.12rem;
-    line-height: 1.1;
-  }
-  .us .name {
-    color: var(--forest-deep);
-    font-weight: 900;
-  }
-  .track {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-width: 0;
-  }
-  .bar {
-    flex: none;
-    width: max(8px, calc((100% - var(--room)) * var(--w)));
-    height: clamp(24px, 2.2vw, 32px);
-    border-radius: 6px 12px 8px 14px / 10px 6px 12px 8px;
-    background-color: var(--muted);
-    background-image: var(--impasto);
-    background-size: 260px;
-    background-blend-mode: soft-light;
-  }
-  .us .bar {
-    background-color: var(--forest);
-    box-shadow: 0 8px 18px -12px rgb(17 61 46 / 0.9);
-  }
-  .val {
-    text-transform: none;
-    font-size: 0.78rem;
-    letter-spacing: 0.02em;
-    color: var(--ink);
-    white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-  }
-  .us .val {
-    font-weight: 640;
+    font-size: 0.98rem;
+    line-height: 1.15;
+    text-wrap: balance;
   }
   .tick {
     flex: none;
     overflow: visible;
-    margin-left: -2px;
+    margin-top: -2px;
   }
   .tick path {
     fill: none;
-    stroke: var(--forest-deep);
+    stroke: var(--forest);
     stroke-width: 3.6;
     stroke-linecap: round;
     stroke-linejoin: round;
   }
-  .meta {
-    margin-top: 16px;
+  .stamp {
+    flex: none;
+    max-width: 9em;
+    padding: 3px 7px;
+    border: 1.5px solid currentColor;
+    border-radius: 3px;
+    color: var(--stamp);
+    font-weight: 600;
+    line-height: 1.25;
+    text-align: center;
+    transform: rotate(3deg);
+  }
+  .record {
+    flex: none;
+    padding: 3px 8px;
+    border-radius: 3px;
+    background: var(--forest);
+    color: var(--paper);
+    font-weight: 560;
+    white-space: nowrap;
+  }
+  .record.mixed {
+    background: var(--ink);
+  }
+
+  .card-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  .call {
+    margin-top: clamp(12px, 1.4vw, 20px);
+  }
+  .context {
+    color: var(--ink-2);
+    margin-bottom: 4px;
+  }
+  .verdict {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: clamp(3.4rem, 1.4rem + 4.2vw, 6.2rem);
+    line-height: 0.82;
+    color: var(--forest-deep);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .loss .verdict,
+  .tie .verdict {
+    color: var(--ink);
+  }
+  .photo {
+    align-self: center;
+    padding: 3px 6px;
+    border: 1.5px solid currentColor;
+    border-radius: 3px;
+    font-size: 0.6rem;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--stamp);
+    white-space: normal;
+    max-width: 6em;
+    text-align: center;
+    transform: rotate(-4deg);
+  }
+  .line {
+    margin-top: 10px;
+    font-size: 1.04rem;
+    font-weight: 560;
+    line-height: 1.2;
+  }
+  .note {
+    margin-top: 4px;
+    font-size: 0.86rem;
+    line-height: 1.3;
     color: var(--ink-2);
   }
 
-  .note {
-    grid-area: note;
-    margin-top: clamp(22px, 2.6vw, 32px);
-    padding-top: 14px;
+  .lanes {
+    margin-top: auto;
+    padding-top: clamp(16px, 1.8vw, 24px);
+    display: grid;
+    row-gap: 8px;
+  }
+  .lane {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    column-gap: 8px;
+    row-gap: 3px;
+  }
+  .lane-name {
+    font-family: var(--poster);
+    font-weight: 700;
+    font-stretch: 85%;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    font-size: 0.8rem;
+    line-height: 1.1;
+    color: var(--ink-2);
+  }
+  .lane.us .lane-name {
+    color: var(--forest-deep);
+    font-weight: 900;
+  }
+  .lane-val {
+    text-transform: none;
+    letter-spacing: 0.02em;
+    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .lane.best .lane-val {
+    color: var(--ink);
+    font-weight: 640;
+  }
+  .lane.empty .lane-val {
+    color: var(--muted);
+  }
+  .lane-track {
+    grid-column: 1 / -1;
+    display: block;
+    height: 9px;
+  }
+  .lane-bar {
+    display: block;
+    width: max(4px, calc(100% * var(--w)));
+    height: 100%;
+    border-radius: 3px 6px 4px 7px / 5px 3px 6px 4px;
+    background-color: var(--muted);
+    background-image: var(--impasto);
+    background-size: 200px;
+    background-blend-mode: soft-light;
+    transform-origin: left center;
+  }
+  .lane.us .lane-bar {
+    background-color: var(--forest);
+  }
+  .lane.empty .lane-track {
+    border-top: 1.5px dashed rgb(22 19 15 / 0.28);
+    height: 0;
+    margin-top: 4px;
+  }
+  .lane.empty .lane-bar {
+    display: none;
+  }
+
+  .card.wide .card-body {
+    flex: none;
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    column-gap: clamp(16px, 2vw, 28px);
+    align-items: start;
+  }
+  .card.wide .verdict {
+    font-size: clamp(3.8rem, 1.4rem + 5vw, 7.4rem);
+  }
+  .sheet {
+    width: 100%;
+    margin-top: clamp(16px, 1.8vw, 24px);
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+  }
+  .sheet th,
+  .sheet td {
+    padding: 6px 0 6px 8px;
+    text-align: right;
+    vertical-align: baseline;
+  }
+  .sheet th:first-child {
+    padding-left: 0;
+    text-align: left;
+  }
+  .sheet thead th {
+    padding-bottom: 6px;
+    border-bottom: 1.5px solid var(--ink);
+    color: var(--ink-2);
+    font-weight: 560;
+  }
+  .sheet thead th.us {
+    color: var(--forest-deep);
+    font-weight: 700;
+  }
+  .sheet thead .unit {
+    text-transform: none;
+  }
+  .sheet tbody tr + tr {
     border-top: 1px solid var(--rule);
-    font-size: var(--t-small);
+  }
+  .sheet tbody th {
+    font-size: 0.86rem;
+    font-weight: 520;
+    line-height: 1.2;
+  }
+  .sheet td {
+    position: relative;
+    font-family: var(--mono);
+    font-stretch: 87.5%;
+    font-size: 0.78rem;
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+  .sheet td.best .num {
+    color: var(--ink);
+    font-weight: 700;
+  }
+  .sheet td.best.us .num {
+    color: var(--forest-deep);
+  }
+  .sheet td.none {
+    color: var(--muted);
+  }
+  .dash {
+    position: absolute;
+    right: 0;
+    bottom: 2px;
+    width: calc((100% - 8px) * var(--w));
+    height: 3px;
+    border-radius: 2px;
+    background: rgb(22 19 15 / 0.22);
+    transform-origin: right center;
+  }
+  .best .dash {
+    background: var(--ink);
+  }
+  .best.us .dash {
+    background: var(--forest);
+  }
+
+  .card-foot {
+    margin-top: auto;
+    padding-top: 14px;
+  }
+  .meta {
+    color: var(--ink-2);
+  }
+  .foot {
+    margin-top: 8px;
+    padding-left: 10px;
+    border-left: 2px solid var(--stamp);
+    font-size: 0.86rem;
+    line-height: 1.3;
+  }
+
+  .colophon {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: clamp(14px, 1.4vw, 20px) 2px;
+    border-top: 1.5px solid var(--ink);
+    font-size: 0.8rem;
     line-height: 1.45;
     color: var(--ink-2);
-    max-width: 44em;
+  }
+  .colophon-title {
+    color: var(--ink);
+  }
+  .colophon .link {
+    margin-top: auto;
+    align-self: flex-start;
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .colophon .link + .link {
+    margin-top: 0;
+  }
+  .colophon .link::after {
+    content: " →";
   }
 
   @media (prefers-reduced-motion: no-preference) {
-    :global(.js) .bench .bar {
-      transition: width 900ms var(--ease-out);
-      transition-delay: calc(var(--i) * 90ms);
-    }
-    :global(.js) .bench .val {
-      transition: opacity 300ms var(--ease-out) calc(var(--i) * 90ms + 120ms);
-    }
-    :global(.js) .bench .tick path {
-      stroke-dasharray: 1;
-      stroke-dashoffset: 0;
+    :global(.js) .bb [data-bench-land] {
       transition:
-        stroke-dashoffset 480ms cubic-bezier(0.5, 0, 0.2, 1) calc(var(--i) * 90ms + 700ms),
-        opacity 0ms linear calc(var(--i) * 90ms + 700ms);
+        opacity 320ms var(--ease-out) var(--d, 0ms),
+        transform 520ms cubic-bezier(0.2, 1.2, 0.3, 1) var(--d, 0ms);
     }
-    :global(.js) .bench .chart:not(.grown) .bar {
-      width: 0;
-      transition: none;
-    }
-    :global(.js) .bench .chart:not(.grown) .val {
+    :global(.js) .bb [data-bench-land]:not(.landed) {
       opacity: 0;
-      transition: none;
+      transform: translateY(22px) rotate(-0.6deg);
     }
-    :global(.js) .bench .chart:not(.grown) .tick path {
-      stroke-dashoffset: 1;
-      opacity: 0;
-      transition: none;
+    :global(.js) .bb .lane-bar,
+    :global(.js) .bb .dash {
+      transition: transform 620ms var(--ease-out) calc(var(--d, 0ms) + 160ms + var(--j, 0) * 70ms);
+    }
+    :global(.js) .bb [data-bench-land]:not(.landed) :is(.lane-bar, .dash) {
+      transform: scaleX(0);
     }
   }
 
-  @media (max-width: 960px) {
-    h2 {
+  @media (max-width: 1100px) {
+    .cards {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  @media (max-width: 860px) {
+    .bb-title {
       grid-column: 1 / -1;
     }
-    .lede {
+    .cards {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .card.wide .card-body {
+      display: flex;
+    }
+    .card.solo {
       grid-column: 1 / -1;
-      margin-top: 24px;
-    }
-    .board {
-      grid-template-columns: minmax(0, 1fr);
-      grid-template-areas: "tabs" "call" "subs" "chart" "note";
-    }
-    .calls {
-      margin: clamp(28px, 5vw, 40px) 0 8px;
-      padding-right: 0;
     }
   }
   @media (max-width: 600px) {
-    .bench {
-      --room: 6.4rem;
+    .bb {
+      --radius: 5px 9px 6px 10px / 8px 5px 9px 6px;
     }
-    .tabs {
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      margin-inline: calc(-1 * var(--gutter));
-      padding-inline: var(--gutter);
-      scrollbar-width: none;
-      scroll-padding-inline: var(--gutter);
+    .cards {
+      gap: 8px;
     }
-    .tabs::-webkit-scrollbar {
-      display: none;
+    .card {
+      padding: 12px;
     }
-    .tab {
-      min-height: 44px;
-      flex: none;
+    .card-title {
+      font-size: 0.78rem;
     }
-    .sub {
-      min-height: 44px;
+    .card-top {
+      gap: 6px;
     }
-    .big {
-      font-size: clamp(4.6rem, 2rem + 14vw, 7rem);
+    .tick {
+      width: 18px;
+      height: 16px;
     }
-    .b {
-      grid-template-columns: minmax(0, 1fr);
+    .stamp {
+      font-size: 0.56rem;
+      padding: 2px 5px;
+      max-width: 7.5em;
+    }
+    .verdict {
+      font-size: clamp(2.7rem, 1.4rem + 6vw, 3.4rem);
+    }
+    .card.wide .call {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      column-gap: 14px;
+      align-items: end;
+    }
+    .card.wide .context {
+      grid-column: 1 / -1;
+    }
+    .card.wide .verdict {
+      grid-row: span 2;
+      font-size: clamp(3.4rem, 2rem + 8vw, 4.6rem);
+    }
+    .card.wide .line {
+      margin-top: 0;
+    }
+    .photo {
+      font-size: 0.5rem;
+      padding: 2px 4px;
+    }
+    .line {
+      margin-top: 8px;
+      font-size: 0.88rem;
+    }
+    .note {
+      font-size: 0.76rem;
+    }
+    .lanes {
+      padding-top: 14px;
       row-gap: 6px;
     }
-    .name {
-      font-size: 0.98rem;
+    .lane-name {
+      font-size: 0.7rem;
     }
-    .bar {
-      height: 22px;
+    .lane-val {
+      font-size: 0.62rem;
     }
-    .val {
+    .lane-track {
+      height: 7px;
+    }
+    .sheet tbody th {
+      font-size: 0.8rem;
+    }
+    .sheet td {
       font-size: 0.72rem;
+    }
+    .colophon {
+      grid-column: 1 / -1;
     }
   }
 </style>
@@ -517,113 +709,46 @@ const tick = "M3 13.5c2.2 1.4 4.3 3.6 6.4 6.6C13 13 17.6 7.4 25 2.6";
 <script>
   const root = document.querySelector<HTMLElement>("[data-bench]");
   if (root) {
-    const still = matchMedia("(prefers-reduced-motion: reduce)");
-    const groupTabs = [...root.querySelectorAll<HTMLButtonElement>("[data-bench-group]")];
-    const rowTabs = [...root.querySelectorAll<HTMLButtonElement>("[data-bench-row]")];
-    const panel = root.querySelector<HTMLElement>("[data-bench-panel]")!;
-    const groupOf = new Map<string, string>();
-    for (const t of rowTabs) groupOf.set(t.dataset.benchRow!, t.closest<HTMLElement>("[data-subs]")!.dataset.subs!);
-    for (const t of groupTabs) if (!groupOf.has(t.dataset.benchFirst!)) groupOf.set(t.dataset.benchFirst!, t.dataset.benchGroup!);
-    const chosen = new Map(groupTabs.map((t) => [t.dataset.benchGroup!, t.dataset.benchFirst!]));
-    let current = groupTabs[0]?.dataset.benchFirst ?? "";
-    let seen = false;
-    const frames = new Map<Element, number>();
-
+    const targets = [...root.querySelectorAll<HTMLElement>("[data-bench-land]")];
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
     const format = (v: number, decimals: number) =>
       v.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
     const ease = (t: number) => 1 - Math.pow(1 - t, 4);
 
-    function count(el: HTMLElement, delay: number, duration: number) {
-      const to = Number(el.dataset.value);
-      const from = Number(el.dataset.from);
-      const decimals = Number(el.dataset.decimals);
-      cancelAnimationFrame(frames.get(el) ?? 0);
+    const count = (el: HTMLElement, delay: number) => {
+      const to = Number(el.dataset.benchValue);
+      const from = Number(el.dataset.benchFrom);
+      const decimals = Number(el.dataset.benchDecimals);
       el.textContent = format(from, decimals);
       const start = performance.now() + delay;
       const step = (now: number) => {
-        const t = Math.min(1, Math.max(0, (now - start) / duration));
+        const t = Math.min(1, Math.max(0, (now - start) / 700));
         el.textContent = format(t >= 1 ? to : from + (to - from) * ease(t), decimals);
-        if (t < 1) frames.set(el, requestAnimationFrame(step));
+        if (t < 1) requestAnimationFrame(step);
       };
-      frames.set(el, requestAnimationFrame(step));
-    }
+      requestAnimationFrame(step);
+    };
 
-    function grow(id: string) {
-      const chart = root!.querySelector<HTMLElement>(`[data-chart="${id}"]`);
-      const call = root!.querySelector<HTMLElement>(`[data-call="${id}"]`);
-      if (!chart || !call) return;
-      if (still.matches) {
-        chart.classList.add("grown");
-        return;
-      }
-      chart.classList.remove("grown");
-      void chart.offsetWidth;
-      chart.classList.add("grown");
-      chart.querySelectorAll<HTMLElement>(".b").forEach((b, i) => {
-        const value = b.querySelector<HTMLElement>("[data-count]");
-        if (value) count(value, i * 90, 900);
-      });
-      call.querySelectorAll<HTMLElement>("[data-count]").forEach((el, i) => count(el, 120 + i * 200, 1000));
-    }
+    const land = (el: HTMLElement, delay: number) => {
+      el.style.setProperty("--d", `${delay}ms`);
+      el.classList.add("landed");
+      for (const n of el.querySelectorAll<HTMLElement>("[data-bench-count]")) count(n, delay + 120);
+    };
 
-    function select(rowId: string, focus?: HTMLButtonElement) {
-      const group = groupOf.get(rowId);
-      if (!group) return;
-      current = rowId;
-      chosen.set(group, rowId);
-      for (const el of root!.querySelectorAll<HTMLElement>("[data-call], [data-chart]"))
-        el.classList.toggle("on", (el.dataset.call ?? el.dataset.chart) === rowId);
-      for (const el of root!.querySelectorAll<HTMLElement>("[data-subs]")) el.classList.toggle("on", el.dataset.subs === group);
-      for (const t of groupTabs) {
-        const on = t.dataset.benchGroup === group;
-        t.setAttribute("aria-selected", String(on));
-        t.tabIndex = on ? 0 : -1;
-        t.dataset.trackRow = chosen.get(t.dataset.benchGroup!);
-      }
-      for (const t of rowTabs) {
-        const on = t.dataset.benchRow === chosen.get(groupOf.get(t.dataset.benchRow!)!);
-        t.setAttribute("aria-selected", String(on));
-        t.tabIndex = on ? 0 : -1;
-      }
-      panel.setAttribute("aria-labelledby", `bench-tab-${group}`);
-      focus?.focus();
-      if (seen) grow(rowId);
+    if (still || !("IntersectionObserver" in window)) {
+      for (const el of targets) el.classList.add("landed");
+    } else {
+      const io = new IntersectionObserver(
+        (entries) => {
+          const arriving = entries.filter((e) => e.isIntersecting).map((e) => e.target as HTMLElement);
+          arriving.forEach((el, i) => {
+            io.unobserve(el);
+            land(el, Math.min(i, 5) * 60);
+          });
+        },
+        { threshold: 0.15, rootMargin: "0px 0px -6% 0px" },
+      );
+      for (const el of targets) io.observe(el);
     }
-
-    function keyed(tabs: HTMLButtonElement[], pick: (t: HTMLButtonElement) => string) {
-      for (const t of tabs) {
-        t.addEventListener("click", () => {
-          if (pick(t) !== current) select(pick(t));
-        });
-        t.addEventListener("keydown", (e) => {
-          const list = tabs.filter((x) => x.parentElement === t.parentElement);
-          const i = list.indexOf(t);
-          const next =
-            e.key === "ArrowRight" ? list[(i + 1) % list.length]
-            : e.key === "ArrowLeft" ? list[(i - 1 + list.length) % list.length]
-            : e.key === "Home" ? list[0]
-            : e.key === "End" ? list[list.length - 1]
-            : null;
-          if (!next) return;
-          e.preventDefault();
-          select(pick(next), next);
-          next.scrollIntoView({ block: "nearest", inline: "nearest" });
-        });
-      }
-    }
-    keyed(groupTabs, (t) => chosen.get(t.dataset.benchGroup!)!);
-    keyed(rowTabs, (t) => t.dataset.benchRow!);
-
-    const board = root.querySelector<HTMLElement>("[data-bench-board]")!;
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (!entries.some((e) => e.isIntersecting)) return;
-        io.disconnect();
-        seen = true;
-        grow(current);
-      },
-      { threshold: 0.3 },
-    );
-    io.observe(board);
   }
 </script>

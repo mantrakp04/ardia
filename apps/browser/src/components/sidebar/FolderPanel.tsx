@@ -1,19 +1,17 @@
-import { ContextMenuArea, FadeLabel, OutsidePressArea, Surface } from "@ardia/shell";
 import { useEffect, useMemo, useState } from "react";
 import { Animated, Pressable, Text, View } from "react-native";
-import { useShallow } from "zustand/react/shallow";
-import { hex, layout, useTheme } from "../../lib/theme";
-import { useBrowser } from "../../store/browser";
-import { useIsActiveTab, useTab } from "../../store/hooks";
-import { activeTabId, plural } from "../../store/model";
-import { folderIn, folderLabel, folderMembers } from "../../store/tileFolders";
-import { SLIDE } from "../layout/stripReorder";
-import { useHover } from "../primitives";
-import { clickTab, tabTitle } from "./actions";
-import { useDragController, useDragItem, useFolderAway } from "./dnd";
-import { openTabMenu } from "./menus";
+import { layout, useTheme } from "../ui/theme";
+import { useIsActiveTab, useTab } from "../../state/browser/hooks";
+import { plural } from "../../state/browser/model";
+import { useTileFolderLabel, useTileFolderMembers } from "../../state/pins/hooks";
+import { SLIDE } from "../tabstrip/stripReorder";
+import { ContextMenuArea, FadeLabel, font, OutsidePressArea, Panel, radius, useHover, weight } from "../ui";
+import { SIDEBAR_SHADOW } from "./tokens";
+import { clickTab, tabTitle } from "../../state/sidebar/actions";
+import { useDragController, useDragItem, useFolderAway } from "./DragProvider";
+import { openTabMenu } from "../../state/sidebar/menus";
 import { TabIcon } from "./TabIcon";
-import { closeFolderPanel, closeFolderPanelOnPress, openTileFolderMenu, useFolderPanel } from "./tileFolderUi";
+import { closeFolderPanel, closeFolderPanelOnPress, closeFolderPanelWhenWindowMoves, openTileFolderMenu, useFolderPanel } from "../../state/sidebar/tileFolderUi";
 
 const PANEL_GAP = 6;
 const PANEL_PAD = 6;
@@ -29,8 +27,8 @@ export function FolderPanel({ windowId }: { windowId: string }) {
 function PanelBody({ windowId, folderId, anchor }: { windowId: string; folderId: string; anchor: { x: number; y: number; width: number; height: number } }) {
   const theme = useTheme();
   const controller = useDragController();
-  const members = useBrowser(useShallow((s) => folderMembers(s, windowId, folderId)));
-  const label = useBrowser((s) => folderLabel(folderIn(s, windowId, folderId)));
+  const members = useTileFolderMembers(windowId, folderId);
+  const label = useTileFolderLabel(windowId, folderId);
   const away = useFolderAway();
   const [root, setRoot] = useState<Frame | null>(null);
   const shown = useMemo(() => new Animated.Value(0), []);
@@ -48,15 +46,7 @@ function PanelBody({ windowId, folderId, anchor }: { windowId: string; folderId:
   useEffect(() => {
     if (!members.length) closeFolderPanel();
   }, [members.length]);
-  useEffect(
-    () =>
-      useBrowser.subscribe((s, prev) => {
-        if (s.windows === prev.windows) return;
-        const w = s.windows[windowId];
-        if (!w || w.profileId !== prev.windows[windowId]?.profileId || activeTabId(s, windowId) !== activeTabId(prev, windowId)) closeFolderPanel();
-      }),
-    [windowId],
-  );
+  useEffect(() => closeFolderPanelWhenWindowMoves(windowId), [windowId]);
   useEffect(
     () => () => {
       controller?.regions.delete("folder");
@@ -81,19 +71,10 @@ function PanelBody({ windowId, folderId, anchor }: { windowId: string; folderId:
       }}
     >
       <OutsidePressArea onOutsidePress={closeFolderPanelOnPress}>
-        <Surface
-          fill={hex(theme.panel)}
-          cornerRadius={12}
-          borderColor={hex(theme.panelBorder)}
-          borderWidth={0.5}
-          shadowColor="#000000"
-          shadowOpacity={theme.panelShadowOpacity * 0.8}
-          shadowRadius={16}
-          shadowOffset={[0, 6]}
-          style={{ padding: PANEL_PAD }}
+        <Panel fill={theme.panel} radius={radius.panel} border={theme.panelBorder} shadow={SIDEBAR_SHADOW.card} style={{ padding: PANEL_PAD }}
         >
           <ContextMenuArea onContextMenu={() => void openTileFolderMenu(windowId, folderId)}>
-            <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: "600", color: theme.textSecondary, marginTop: 2, marginBottom: 6, marginHorizontal: 6 }}>
+            <Text numberOfLines={1} style={{ ...font.small, fontWeight: weight.semibold, color: theme.textSecondary, marginTop: 2, marginBottom: 6, marginHorizontal: 6 }}>
               {label} · {plural(members.length, "tab")}
             </Text>
           </ContextMenuArea>
@@ -103,7 +84,7 @@ function PanelBody({ windowId, folderId, anchor }: { windowId: string; folderId:
             ))}
             <Animated.View ref={tail.wrapper.ref} style={tail.wrapper.style} />
           </View>
-        </Surface>
+        </Panel>
       </OutsidePressArea>
     </Animated.View>
   );
@@ -130,7 +111,7 @@ function MemberRow({ tabId, windowId }: { tabId: string; windowId: string }) {
               <View
                 style={{
                   height: layout.rowHeight,
-                  borderRadius: 8,
+                  borderRadius: radius.l,
                   flexDirection: "row",
                   alignItems: "center",
                   paddingHorizontal: 9,
@@ -138,7 +119,7 @@ function MemberRow({ tabId, windowId }: { tabId: string; windowId: string }) {
                 }}
               >
                 <TabIcon tabId={tabId} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
-                <FadeLabel text={tabTitle(tab)} fontSize={13} color={active ? theme.textPrimary : theme.textTab} style={{ flex: 1, height: 18, marginLeft: 8 }} />
+                <FadeLabel text={tabTitle(tab)} fontSize={font.body.fontSize} color={active ? theme.textPrimary : theme.textTab} style={{ flex: 1, height: 18, marginLeft: 8 }} />
               </View>
             )}
           </Pressable>

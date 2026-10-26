@@ -1,5 +1,5 @@
 import { requireOptionalNativeModule } from "expo-modules-core";
-import type { Listing, Transport } from "./scope.ts";
+import type { Listing, Transport } from "./scopeState.ts";
 
 export type FolderInfo = {
   path: string;

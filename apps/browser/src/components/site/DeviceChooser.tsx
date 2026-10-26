@@ -1,51 +1,10 @@
-import {
-  cancelDeviceChooser,
-  onDeviceChooser,
-  openBluetoothSettings,
-  refreshDeviceChooser,
-  selectDevice,
-  type DeviceChooser as Chooser,
-} from "@ardia/ardiacore";
-import { Symbol } from "@ardia/shell";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
-import { create } from "zustand";
-import { useTheme } from "../../lib/theme";
-import { useBrowser } from "../../store/browser";
-import { PANEL, Popover, PromptButton } from "../layout/controls";
-import { tabForBrowser } from "../layout/pageState";
-import { useHover } from "../primitives";
-
-const useChoosers = create<{ byTab: Record<string, Chooser> }>()(() => ({ byTab: {} }));
-if (__DEV__) (globalThis as { acDeviceChoosers?: unknown }).acDeviceChoosers = { useChoosers, selectDevice, cancelDeviceChooser };
-
-let started = false;
-export function startDeviceChoosers() {
-  if (started) return;
-  started = true;
-  onDeviceChooser((chooser) => {
-    const tabId = tabForBrowser(chooser.browserId);
-    if (!tabId) {
-      if (chooser.open) void cancelDeviceChooser(chooser.id);
-      return;
-    }
-    useChoosers.setState((s) => {
-      const byTab = { ...s.byTab };
-      if (chooser.open) byTab[tabId] = chooser;
-      else if (byTab[tabId]?.id === chooser.id) delete byTab[tabId];
-      return { byTab };
-    });
-  });
-  useBrowser.subscribe((s, prev) => {
-    if (s.tabs === prev.tabs) return;
-    const { byTab } = useChoosers.getState();
-    const gone = Object.keys(byTab).filter((id) => !s.tabs[id]);
-    if (!gone.length) return;
-    const next = { ...byTab };
-    for (const id of gone) delete next[id];
-    useChoosers.setState({ byTab: next });
-  });
-}
+import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
+import { useTheme } from "../ui/theme";
+import { cancelChooser, chooseDevice, openChooserBluetoothSettings, rescanDevices, useDeviceChooser } from "../../state/site/deviceChoosers";
+import { Button, PANEL, Popover, Symbol, Text, useHover } from "../ui";
+import { IconTile } from "./PromptParts";
+import { noticeType, UNAVAILABLE_OPACITY, useSiteTokens } from "./tokens";
 
 function Signal({ level, color }: { level: number; color: string }) {
   return (
@@ -59,6 +18,7 @@ function Signal({ level, color }: { level: number; color: string }) {
 
 function OptionRow({ name, detail, signal, selected, onSelect, onChoose }: { name: string; detail: string | null; signal: number; selected: boolean; onSelect(): void; onChoose(): void }) {
   const theme = useTheme();
+  const site = useSiteTokens();
   const { hovered, hoverProps } = useHover();
   return (
     <View {...hoverProps} onDoubleClick={onChoose}>
@@ -71,14 +31,18 @@ function OptionRow({ name, detail, signal, selected, onSelect, onChoose }: { nam
             flexDirection: "row",
             alignItems: "center",
             gap: PANEL.iconGap,
-            backgroundColor: selected ? (theme.dark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.08)") : hovered ? theme.rowHover : undefined,
+            backgroundColor: selected ? site.optionSelected : hovered ? theme.rowHover : undefined,
           }}
         >
           {signal >= 0 ? <Signal level={signal} color={theme.icon} /> : null}
-          <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 13, color: theme.textPrimary }}>
+          <Text lines={1} style={{ flexShrink: 1 }}>
             {name}
           </Text>
-          {detail ? <Text style={{ fontSize: 11.5, color: theme.textSecondary }}>{detail}</Text> : null}
+          {detail ? (
+            <Text size="footnote" tone="textSecondary">
+              {detail}
+            </Text>
+          ) : null}
           <View style={{ flex: 1 }} />
           {selected ? <Symbol name="checkmark" size={11} weight="semibold" color={theme.accent} style={{ width: 16, height: 16 }} /> : null}
         </View>
@@ -88,8 +52,7 @@ function OptionRow({ name, detail, signal, selected, onSelect, onChoose }: { nam
 }
 
 export function DeviceChooser({ tabId, left, top }: { tabId: string; left: number; top: number }) {
-  const theme = useTheme();
-  const chooser = useChoosers((s) => s.byTab[tabId]);
+  const chooser = useDeviceChooser(tabId);
   const [selected, setSelected] = useState<number | null>(null);
   useEffect(() => setSelected(null), [chooser?.id]);
   if (!chooser) return null;
@@ -97,10 +60,10 @@ export function DeviceChooser({ tabId, left, top }: { tabId: string; left: numbe
   const blocked = chooser.adapterOff || chooser.unauthorized;
   const valid = scanning || (selected !== null && selected < chooser.options.length);
   const choose = (index = selected) => {
-    if (scanning) return void selectDevice(chooser.id, -1);
-    if (index !== null) void selectDevice(chooser.id, index);
+    if (scanning) return chooseDevice(chooser.id, -1);
+    if (index !== null) chooseDevice(chooser.id, index);
   };
-  const cancel = () => void cancelDeviceChooser(chooser.id);
+  const cancel = () => cancelChooser(chooser.id);
 
   let body;
   if (chooser.unauthorized) {
@@ -109,7 +72,7 @@ export function DeviceChooser({ tabId, left, top }: { tabId: string; left: numbe
         icon="lock"
         text="Ardia needs access to Bluetooth to find devices."
         link="Open Bluetooth Settings"
-        onLink={() => void openBluetoothSettings(chooser.id)}
+        onLink={() => openChooserBluetoothSettings(chooser.id)}
       />
     );
   } else if (chooser.adapterOff) {
@@ -136,12 +99,18 @@ export function DeviceChooser({ tabId, left, top }: { tabId: string; left: numbe
           {chooser.refreshing ? (
             <>
               <ActivityIndicator size="small" style={{ transform: [{ scale: 0.6 }], width: 14, height: 14 }} />
-              <Text style={{ fontSize: 12, color: theme.textSecondary }}>{chooser.scanningText}</Text>
+              <Text size="small" tone="textSecondary">
+                {chooser.scanningText}
+              </Text>
             </>
           ) : (
             <>
-              {!chooser.options.length ? <Text style={{ fontSize: 12, color: theme.textSecondary }}>{chooser.noOptionsText}</Text> : null}
-              {chooser.canRefresh ? <TextLink title="Scan Again" onPress={() => void refreshDeviceChooser(chooser.id)} /> : null}
+              {!chooser.options.length ? (
+                <Text size="small" tone="textSecondary">
+                  {chooser.noOptionsText}
+                </Text>
+              ) : null}
+              {chooser.canRefresh ? <TextLink title="Scan Again" onPress={() => rescanDevices(chooser.id)} /> : null}
             </>
           )}
         </View>
@@ -159,16 +128,16 @@ export function DeviceChooser({ tabId, left, top }: { tabId: string; left: numbe
         style={{ padding: PANEL.inset, gap: 10 }}
       >
         <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
-          <View style={{ width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: theme.dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)" }}>
-            <Symbol name={chooser.showSignal || scanning ? "dot.radiowaves.left.and.right" : "cable.connector"} size={14} color={theme.icon} style={{ width: 20, height: 20 }} />
-          </View>
-          <Text style={{ flex: 1, fontSize: 13, fontWeight: "600", color: theme.textPrimary }}>{chooser.title}</Text>
+          <IconTile icon={chooser.showSignal || scanning ? "dot.radiowaves.left.and.right" : "cable.connector"} />
+          <Text weight="semibold" style={{ flex: 1 }}>
+            {chooser.title}
+          </Text>
         </View>
         {body}
         <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8 }}>
-          <PromptButton title={chooser.cancelLabel || "Cancel"} onPress={cancel} />
-          <View pointerEvents={valid && !blocked ? "auto" : "none"} style={{ opacity: valid && !blocked ? 1 : 0.4 }}>
-            <PromptButton title={chooser.okLabel || "Connect"} primary onPress={() => choose()} />
+          <Button variant="pill" title={chooser.cancelLabel || "Cancel"} onPress={cancel} />
+          <View pointerEvents={valid && !blocked ? "auto" : "none"} style={{ opacity: valid && !blocked ? 1 : UNAVAILABLE_OPACITY }}>
+            <Button variant="pill" title={chooser.okLabel || "Connect"} primary onPress={() => choose()} />
           </View>
         </View>
       </View>
@@ -182,7 +151,9 @@ function Notice({ icon, text, link, onLink }: { icon: string; text: string; link
     <View style={{ flexDirection: "row", gap: 9, paddingVertical: 6 }}>
       <Symbol name={icon} size={13} color={theme.textSecondary} style={{ width: 18, height: 18 }} />
       <View style={{ flex: 1, gap: 4 }}>
-        <Text style={{ fontSize: 12.5, color: theme.textSecondary }}>{text}</Text>
+        <Text tone="textSecondary" style={noticeType}>
+          {text}
+        </Text>
         {link && onLink ? <TextLink title={link} onPress={onLink} /> : null}
       </View>
     </View>
@@ -190,12 +161,13 @@ function Notice({ icon, text, link, onLink }: { icon: string; text: string; link
 }
 
 function TextLink({ title, onPress }: { title: string; onPress: () => void }) {
-  const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   return (
     <View {...hoverProps}>
       <Pressable onPress={onPress}>
-        <Text style={{ fontSize: 12, fontWeight: "500", color: theme.accent, textDecorationLine: hovered ? "underline" : "none" }}>{title}</Text>
+        <Text size="small" weight="medium" tone="accent" style={{ textDecorationLine: hovered ? "underline" : "none" }}>
+          {title}
+        </Text>
       </Pressable>
     </View>
   );

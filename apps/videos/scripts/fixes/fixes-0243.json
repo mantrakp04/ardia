@@ -1,0 +1,54 @@
+{
+  "id": "fixes-0243",
+  "segments": [
+    {
+      "scene": "grouphover",
+      "title": "Group boxes on hover",
+      "body": "A group's box only shows while the pointer is over it, and a nested group first in line sits a row gap below its parent's header.",
+      "cam": [0, 150, 330],
+      "lead": 1.3,
+      "tail": 4.6
+    },
+    {
+      "scene": "littlepopup",
+      "title": "Extensions in Little Ardia",
+      "body": "An extension's popup opens in Little Ardia too, from its shortcut or when the extension asks. It used to open nowhere.",
+      "cam": [400, 30, 760],
+      "lead": 1.2,
+      "tail": 3.0
+    },
+    {
+      "scene": "paste",
+      "title": "Paste the link",
+      "body": "A link copied with its title pastes as the URL, and line breaks in pasted text fold away the way Chrome's address bar does it.",
+      "cam": [430, 230, 680],
+      "lead": 1.5,
+      "tail": 4.6,
+      "afterOnly": "0.2.41-nightly.2 pasted the link's title and turned line breaks into spaces. The release build shares the Mac's real clipboard, so a test instance can't film it."
+    },
+    {
+      "scene": "cmds",
+      "title": "⌘S stays with the page",
+      "body": "In a page's text field or editor, ⌘S goes to the page. Press it twice quickly to hide the sidebar.",
+      "cam": [0, 0, 946],
+      "lead": 1.6,
+      "tail": 4.2
+    },
+    {
+      "scene": "backlist",
+      "title": "Back after a relaunch",
+      "body": "Quit and open Ardia again: each tab still remembers where it's been, so Back takes you there.",
+      "cam": [0, 0, 700],
+      "lead": 1.4,
+      "tail": 4.2
+    },
+    {
+      "scene": "arctiles",
+      "title": "Arc favorites stay favorites",
+      "body": "An Arc favorite that also sits in a pinned row or folder comes in as a tile. It used to go missing from the top.",
+      "cam": [0, 0, 420],
+      "lead": 1.0,
+      "tail": 3.0
+    }
+  ]
+}

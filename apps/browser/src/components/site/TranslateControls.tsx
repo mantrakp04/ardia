@@ -1,11 +1,6 @@
-import { showMenu, translation, type MenuItem } from "@ardia/shell";
-import { memo } from "react";
-import { useTheme } from "../../lib/theme";
-import { useBrowser } from "../../store/browser";
-import { isIncognitoProfile } from "../../store/model";
-import { PopoverRow, PopoverSeparator, Toggle, ToolbarButton } from "../layout/controls";
-import type { ToolbarPalette } from "../layout/toolbarColors";
+import { showMenu, type MenuItem } from "../../state/app/system";
 import {
+  translation,
   defaultTarget,
   isNeverTranslated,
   languageName,
@@ -16,7 +11,14 @@ import {
   translatePage,
   translateStateOf,
   useTranslateState,
-} from "./translate";
+} from "../../state/site/translate";
+import { memo } from "react";
+import { useTheme } from "../ui/theme";
+import { useSettings, useTab } from "../../state/browser/hooks";
+import { currentTab } from "../../state/browser/current";
+import { isIncognitoProfile } from "../../state/browser/model";
+import { Button, MenuRow, MenuSeparator, Toggle } from "../ui";
+import type { ToolbarPalette } from "../ui/toolbarColors";
 
 export const TranslateButton = memo(function TranslateButton({ tabId, palette, onFocus }: { tabId: string; palette: ToolbarPalette; onFocus: () => void }) {
   const theme = useTheme();
@@ -24,7 +26,7 @@ export const TranslateButton = memo(function TranslateButton({ tabId, palette, o
   if (!translation || (!state.source && state.status === "idle")) return null;
   const translated = state.status !== "idle";
   return (
-    <ToolbarButton
+    <Button variant="icon" toolbar
       palette={palette}
       icon="translate"
       size={13}
@@ -50,7 +52,7 @@ async function chooseLanguage(tabId: string) {
 }
 
 async function showTranslateMenu(tabId: string) {
-  const tab = useBrowser.getState().tabs[tabId];
+  const tab = currentTab(tabId);
   if (!tab) return;
   const translated = translateStateOf(tabId).status !== "idle";
   const items: MenuItem[] = [
@@ -69,15 +71,15 @@ async function showTranslateMenu(tabId: string) {
 
 export function TranslateRows({ tabId, onClose }: { tabId: string; onClose: () => void }) {
   const state = useTranslateState(tabId);
-  const tab = useBrowser((s) => s.tabs[tabId]);
-  useBrowser((s) => s.settings.neverTranslateSites);
+  const tab = useTab(tabId);
+  useSettings((st) => st.neverTranslateSites);
   const never = tab ? isNeverTranslated(tab.profileId, tab.url) : false;
   if (!translation || !tab || (!state.source && state.status === "idle" && !never)) return null;
   const translated = state.status !== "idle";
   return (
     <>
       {!never && (
-        <PopoverRow
+        <MenuRow
           icon={translated ? "arrow.uturn.backward" : "translate"}
           title={translated ? `Show Original (${languageName(state.source ?? "")})` : `Translate to ${languageName(defaultTarget())}`}
           onPress={() => {
@@ -87,7 +89,7 @@ export function TranslateRows({ tabId, onClose }: { tabId: string; onClose: () =
         />
       )}
       {!never && (
-        <PopoverRow
+        <MenuRow
           icon="globe"
           title="Choose Another Language…"
           onPress={() => {
@@ -97,9 +99,9 @@ export function TranslateRows({ tabId, onClose }: { tabId: string; onClose: () =
         />
       )}
       {!isIncognitoProfile(tab.profileId) && (
-        <PopoverRow icon="nosign" title="Never Translate This Site" accessory={<Toggle value={never} onChange={(v) => setNeverTranslate(tabId, v)} />} />
+        <MenuRow icon="nosign" title="Never Translate This Site" accessory={<Toggle look="panel" value={never} onChange={(v) => setNeverTranslate(tabId, v)} />} />
       )}
-      <PopoverSeparator />
+      <MenuSeparator />
     </>
   );
 }

@@ -7,8 +7,8 @@ once, drops what's in flight (a launch that saw it off is never sent), and a JS 
 state, while the old bridge going away turns native timing off. Everything sent is a duration, a count or a rough
 range: never a URL, a title, or what was typed.
 
-Code: `apps/browser/src/telemetry/journeys.ts` (journeys, aggregation, events), `packages/ardiacore/ios/ArdiaCoreFieldTiming.mm`
-(native marks), hooks in `Omnibox.tsx`, `main.tsx`, `ArdiaCoreWebView.mm` and `page_script.js` (› Field timing).
+Code: `apps/browser/src/state/telemetry/journeys.ts` (journeys, aggregation, events), `packages/ardiacore/ios/ArdiaFieldTiming.mm`
+(native marks), hooks in `Omnibox.tsx`, `main.tsx`, `ArdiaWebView+Navigation.mm` and `page_script.js` (› Field timing).
 
 ## How a journey is timed
 
@@ -20,7 +20,7 @@ the start unless noted. All clocks are epoch ms on the same Mac: JS's `Date.now(
 - **On screen** means the Core Animation transaction carrying the change has committed (a post-commit handler); the
   display shows it at the next refresh, ≤ 1 frame later. A JS step's frame is marked through the UI manager's queue
   (`ACFieldTiming.markFrame`), so it rides the same batch as the commit's view updates.
-- **Engine steps** come from `ArdiaCoreWebView`: `request` (we asked the engine to load), `start` (Chrome's loading
+- **Engine steps** come from `ArdiaWebView`: `request` (we asked the engine to load), `start` (Chrome's loading
   began), `commit` (`tabDidCommitDocument:`), `fcp` (the page's first-contentful-paint entry, Chrome's presentation
   time) and `shown` (a page that was hidden: two `requestAnimationFrame`s after it became visible, as native-bench's
   tab switch).
@@ -31,7 +31,7 @@ the start unless noted. All clocks are epoch ms on the same Mac: JS's `Date.now(
 
 | Journey | Step | From → to |
 |---|---|---|
-| J1 launch (`perf_launch`, one per launch) | `js_ms` | process start → the bundle's first module runs (`telemetry/jsStart.ts`) |
+| J1 launch (`perf_launch`, one per launch) | `js_ms` | process start → the bundle's first module runs (`state/telemetry/jsStart.ts`) |
 | | `commit_ms` | → the first window's first React commit |
 | | `launch_ms` | → the first window's root effect (**unchanged** since 0.2.x, so old data stays comparable) |
 | | `content_ms` | → that first commit on screen |

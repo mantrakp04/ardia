@@ -5,8 +5,6 @@
 #import <AppKit/AppKit.h>
 #import <objc/runtime.h>
 
-#include <stdlib.h>
-
 #include "base/functional/bind.h"
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
@@ -32,6 +30,7 @@
 #include "ui/base/base_window.h"
 #include "ui/gfx/native_ui_types.h"
 #include "ardia/core/ac_browser.h"
+#include "ardia/core/ac_launch_switches.h"
 #import "ardia/core/ardiacore_internal.h"
 
 namespace ardiacore {
@@ -61,7 +60,7 @@ void Report(base::WeakPtr<content::WebContents> contents, bool active, NSString*
 }
 
 bool Background() {
-  return getenv("ARDIA_BACKGROUND") != nullptr;
+  return BackgroundInstance();
 }
 
 }
@@ -178,7 +177,7 @@ class PictureInPictureObserver : public PictureInPictureWindowManager::Observer 
 }
 
 bool PictureInPictureTracing() {
-  static const bool tracing = getenv("ARDIA_TRACE_PIP") != nullptr;
+  static const bool tracing = Traced("pip");
   return tracing;
 }
 

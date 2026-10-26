@@ -1,5 +1,5 @@
-import type { HydrateData } from "../../browser/src/store/browser";
-import type { BrowserWindow, HistoryEntry, Profile, Tab } from "../../browser/src/store/types";
+import type { HydrateData } from "../../browser/src/state/browser/store";
+import type { BrowserWindow, HistoryEntry, Profile, Tab } from "../../browser/src/state/browser/types";
 import { faviconFor, PAGES } from "./pages";
 
 export const WINDOW_ID = "w_demo";

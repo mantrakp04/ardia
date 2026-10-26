@@ -4,8 +4,6 @@
 
 #import <AppKit/AppKit.h>
 
-#include <stdlib.h>
-
 #include <set>
 
 #include "base/functional/bind.h"
@@ -24,6 +22,7 @@
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
 #include "ardia/core/ac_browser.h"
+#include "ardia/core/ac_launch_switches.h"
 
 namespace ardiacore {
 
@@ -220,8 +219,7 @@ void SetVideoUpscalingEnabled(bool enabled) {
 
 void SetVideoUpscalingTestConditions(std::optional<bool> low_power,
                                      std::optional<bool> thermal_pressure) {
-  const char* background = getenv("ARDIA_BACKGROUND");
-  if (!background || strcmp(background, "1") != 0) {
+  if (!BackgroundInstance() || !TestInstance()) {
     return;
   }
   State().test_low_power = low_power;

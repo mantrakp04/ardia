@@ -131,9 +131,9 @@ Includes CEF's chrome_autofill_bubble_3796, folded in when CEF left the tree.
    UpdatePageActionIcon();
 --- a/chrome/browser/ui/autofill/payments/save_card_bubble_controller_impl.cc
 +++ b/chrome/browser/ui/autofill/payments/save_card_bubble_controller_impl.cc
-@@ -823,7 +823,9 @@
-   tabs::TabInterface* tab = tabs::TabInterface::GetFromContents(web_contents());
-   CHECK(tab);
+@@ -829,7 +829,9 @@ SaveCardBubbleControllerImpl::GetAutofillBubbleHandler() {
+     return nullptr;
+   }
    BrowserWindowInterface* browser = tab->GetBrowserWindowInterface();
 -  CHECK(browser);
 +  if (!browser) {
@@ -142,10 +142,11 @@ Includes CEF's chrome_autofill_bubble_3796, folded in when CEF left the tree.
    return AutofillBubbleHandler::Get(browser->GetUnownedUserDataHost());
  }
  
-@@ -833,6 +835,9 @@
+@@ -839,7 +841,9 @@ void SaveCardBubbleControllerImpl::DoShowBubble() {
    }
  
    AutofillBubbleHandler* autofill_bubble_handler = GetAutofillBubbleHandler();
+-  CHECK(autofill_bubble_handler);
 +  if (!autofill_bubble_handler) {
 +    return;
 +  }

@@ -1,6 +1,5 @@
-import { engineCall } from "./engine";
-import { Cef } from "./native";
-import { WebKit, isWebKitDownload, isWebKitPermission, webKitListener } from "./webkit";
+import { call, on } from "./engine/call";
+import { nativeModule } from "./nativeModules";
 
 export type DownloadState = "downloading" | "finished" | "failed" | "cancelled";
 
@@ -29,7 +28,7 @@ export type PermissionKind =
   | "vr" | "ar" | "handTracking" | "identityProvider" | "webAppInstallation" | "capturedSurfaceControl"
   | "diskQuota" | "cameraPanTiltZoom";
 
-export type PermissionRequest = { id: string; browserId: number; origin: string; permissions: PermissionKind[] };
+export type PermissionRequest = { id: string; tabId: string | null; origin: string; permissions: PermissionKind[] };
 export type PermissionResult = "accept" | "deny" | "dismiss";
 
 export type EngineInfo = {
@@ -62,12 +61,14 @@ export type EngineTask = {
   processors: number;
   memory: number;
   gpuMemory: number;
-  browserIds: number[];
+  tabIds: (string | null)[];
 };
 
 export const WIDEVINE_COMPONENT_ID = "oimompecagnajdejgnnjijobebaeigek";
 
-export const engineInfo = () => Cef.engineInfo();
+const Tabs = nativeModule("ArdiaTabs");
+
+export const engineInfo = () => call("engine.info");
 
 export type ChromeWindowState = {
   profile: string;
@@ -89,28 +90,22 @@ export type ChromeWindowState = {
   hasRoot: boolean;
   translucent: boolean;
 };
-export const chromeWindows = () => Cef.chromeWindows();
-export const devWindowAction = (windowNumber: number, action: string) => Cef.devWindow(windowNumber, action);
-export const prepareTabTransfer = (transferKey: string) => {
-  Cef.prepareTransfer(transferKey);
-  WebKit?.prepareTransfer(transferKey);
-};
-export const releaseTabTransfer = (transferKey: string) => {
-  Cef.releaseTransfer(transferKey);
-  WebKit?.releaseTransfer(transferKey);
-};
-export const claimLaunchTab = (transferKey: string, url: string, profile: string) => Cef.claimLaunchTab?.(transferKey, url, profile);
-export const revealTab = (transferKey: string) => Cef.revealTab?.(transferKey);
-export const dropTabReveals = (transferKey: string) => Cef.dropTabReveals?.(transferKey);
-export const revealOffered = (adoptId: string, overTransferKey: string) => Cef.revealOffered?.(adoptId, overTransferKey);
+export const chromeWindows = () => call("windows.list");
+export const devWindowAction = (windowNumber: number, action: string) => call("windows.dev", { window: windowNumber, action });
+export const prepareTabTransfer = (tabId: string) => Tabs.prepareTransfer(tabId);
+export const releaseTabTransfer = (tabId: string) => Tabs.releaseTransfer(tabId);
+export const claimLaunchTab = (tabId: string, url: string, profile: string) => Tabs.claimLaunchTab(tabId, url, profile);
+export const revealTab = (tabId: string) => Tabs.revealTab(tabId);
+export const dropTabReveals = (tabId: string) => Tabs.dropTabReveals(tabId);
+export const revealOffered = (adoptId: string, overTabId: string) => Tabs.revealOffered(adoptId, overTabId);
 export type LinkRoute = { profile?: string; adoptIds?: (string | null)[]; dismissed?: number[] };
-export const routeLinkTabs = (urls: string[]): Promise<LinkRoute> => Cef.routeLinkTabs?.(urls) ?? Promise.resolve({});
-export const listComponents = () => Cef.components();
+export const routeLinkTabs = (urls: string[]): Promise<LinkRoute> => call("tabs.routeLinkTabs", { urls });
+export const listComponents = () => call("engine.components");
 
-export const beginTracing = () => Cef.beginTracing();
-export const endTracing = (keep: boolean) => Cef.endTracing(keep);
-export const isTracing = () => Cef.isTracing();
-export const listTasks = () => Cef.listTasks();
+export const beginTracing = () => call("engine.beginTracing");
+export const endTracing = (keep: boolean) => call("engine.endTracing", { keep });
+export const isTracing = () => call("engine.isTracing");
+export const listTasks = () => call("engine.tasks");
 
 export type SystemState = {
   onBattery: boolean;
@@ -119,58 +114,34 @@ export type SystemState = {
   memoryPressure: "normal" | "warning" | "critical";
   physicalMemory: number;
 };
-export const systemState = () => Cef.systemState();
-export const onSystemState = (listener: (state: SystemState) => void) => Cef.addListener("onSystemState", listener);
+export const systemState = () => call("engine.systemState");
+export const onSystemState = (listener: (state: SystemState) => void) => on("engine.systemState", listener);
 
-export const setDisplayMediaPicker = (enabled: boolean) => Cef.setDisplayMediaPicker(enabled);
-export const setAutoPictureInPicture = (enabled: boolean) => Cef.setAutoPictureInPicture?.(enabled) ?? Promise.resolve();
-export const setVideoUpscaling = (enabled: boolean) => Cef.setVideoUpscaling?.(enabled) ?? Promise.resolve();
-export const setPeekModifier = (modifier: "alt" | "shift" | "off") => Cef.setPeekModifier?.(modifier) ?? Promise.resolve();
-export const setSplitLinkModifier = (modifier: "alt" | "altShift") => Cef.setSplitLinkModifier?.(modifier) ?? Promise.resolve();
-export const setSelectionPopover = (enabled: boolean) => Cef.setSelectionPopover?.(enabled) ?? Promise.resolve();
-export const setSearchEngineName = (name: string) => Cef.setSearchEngineName(name);
-export const getDisplayMediaSources = () => Cef.displayMediaSources();
+export const setDisplayMediaPicker = (enabled: boolean) => call("webView.setDisplayMediaPicker", { enabled });
+export const setAutoPictureInPicture = (enabled: boolean) => call("webView.setAutoPictureInPicture", { enabled });
+export const setVideoUpscaling = (enabled: boolean) => call("webView.setVideoUpscaling", { enabled });
+export const setPeekModifier = (modifier: "alt" | "shift" | "off") => call("webView.setPeekModifier", { modifier });
+export const setSplitLinkModifier = (modifier: "alt" | "altShift") => call("webView.setSplitLinkModifier", { modifier });
+export const setSelectionPopover = (enabled: boolean) => call("webView.setSelectionPopover", { enabled });
+export const setSearchEngineName = (name: string) => call("search.setEngineName", { name });
+export const getDisplayMediaSources = () => call("media.displayMediaSources");
 
-export const onDownload = (listener: (d: Download) => void) => {
-  const chromium = Cef.addListener("onDownload", listener);
-  const webkit = webKitListener("onDownload", listener);
-  return { remove: () => (chromium.remove(), webkit.remove()) };
-};
-const downloadCommand = (action: "cancel" | "pause" | "resume", id: string) =>
-  isWebKitDownload(id)
-    ? (WebKit?.downloadCommand(action, id) ?? Promise.resolve())
-    : action === "cancel"
-      ? Cef.cancelDownload(id)
-      : action === "pause"
-        ? Cef.pauseDownload(id)
-        : Cef.resumeDownload(id);
-export const cancelDownload = (id: string) => downloadCommand("cancel", id);
-export const pauseDownload = (id: string) => downloadCommand("pause", id);
-export const resumeDownload = (id: string) => downloadCommand("resume", id);
+export const onDownload = (listener: (d: Download) => void) => on("downloads.changed", listener);
+export const cancelDownload = (id: string) => call("downloads.cancel", { id });
+export const pauseDownload = (id: string) => call("downloads.pause", { id });
+export const resumeDownload = (id: string) => call("downloads.resume", { id });
 
 export type DownloadSettings = { folder: string; askWhereToSave: boolean; managed: boolean };
-export const getDownloadSettings = (profile = "") => engineCall<DownloadSettings>("ac_downloads_settings", profile);
+export const getDownloadSettings = (profile = "") => call("downloads.settings", { profile });
 export const setDownloadSettings = (patch: Partial<Pick<DownloadSettings, "folder" | "askWhereToSave">>, profile = "") =>
-  engineCall<DownloadSettings>("ac_downloads_set_settings", profile, patch);
+  call("downloads.setSettings", { ...patch, profile });
 
-export const onPermission = (listener: (p: PermissionRequest) => void) => {
-  const chromium = Cef.addListener("onPermission", listener);
-  const webkit = webKitListener("onPermission", listener);
-  return { remove: () => (chromium.remove(), webkit.remove()) };
-};
-export const onPermissionDismissed = (listener: (p: { id: string }) => void) => {
-  const chromium = Cef.addListener("onPermissionDismissed", listener);
-  const webkit = webKitListener("onPermissionDismissed", listener);
-  return { remove: () => (chromium.remove(), webkit.remove()) };
-};
-export const resolvePermission = (id: string, result: PermissionResult, remember = false) =>
-  isWebKitPermission(id) ? (WebKit?.resolvePermission(id, result, remember) ?? Promise.resolve()) : Cef.resolvePermission(id, result, remember);
+export const onPermission = (listener: (p: PermissionRequest) => void) => on("permissions.requested", listener);
+export const onPermissionDismissed = (listener: (p: { id: string }) => void) => on("permissions.dismissed", listener);
+export const resolvePermission = (id: string, result: PermissionResult, remember = false) => call("permissions.resolve", { id, result, remember });
 
 export type BrowsingDataType = "history" | "siteData" | "cache" | "downloads";
 export const clearBrowsingData = (profile: string, types: BrowsingDataType[], since?: number) =>
-  Promise.all([Cef.clearBrowsingData(profile, types, since ?? null), WebKit?.clearBrowsingData(profile, types, since ?? null).catch(() => {})]).then(() => {});
-export const releaseProfile = (profile: string) => Cef.releaseProfile(profile);
-export const deleteProfileData = async (profile: string): Promise<string[]> => {
-  const [chromium, webkit] = await Promise.all([Cef.deleteProfileData(profile), WebKit?.deleteProfileData(profile).catch(() => false) ?? true]);
-  return [...(chromium?.remaining ?? ["data"]), ...(webkit ? [] : ["WebKit data"])];
-};
+  call("profiles.clearBrowsingData", { profile, types, since: since ?? null }).then(() => {});
+export const releaseProfile = (profile: string) => call("profiles.release", { profile });
+export const deleteProfileData = async (profile: string): Promise<string[]> => (await call("profiles.deleteData", { profile })).remaining;

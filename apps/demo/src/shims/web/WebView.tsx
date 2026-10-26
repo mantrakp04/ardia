@@ -3,12 +3,11 @@ import { View } from "react-native";
 import type { NavigationState, WebViewHandle, WebViewProps } from "@ardia-real/ardiacore";
 import { hostOf, isFrameable } from "../../frameable";
 import { faviconFor, PAGE_THEMES, pageTitle } from "../../pages";
-import { useBrowser } from "../../../../browser/src/store/browser";
+import { useBrowser } from "../../../../browser/src/state/browser/store";
 import { REFUSED_PAGE_THEME } from "./RefusedPage";
 import { RefusedPage } from "./RefusedPage";
 import { createFrame, moveFrame, noteFrameSize, parkFrame, takeFrame } from "./framePool";
 
-let nextBrowserId = 1;
 
 function readSameOrigin(frame: HTMLIFrameElement): { url: string; title: string } | null {
   try {
@@ -77,8 +76,7 @@ export const WebView = forwardRef<WebViewHandle, WebViewProps>(function WebView(
   };
 
   useEffect(() => {
-    const id = nextBrowserId++;
-    queueMicrotask(() => latest.current.onReady?.(id, id));
+    queueMicrotask(() => latest.current.onReady?.());
     if (props.url) visit(props.url);
   }, []);
 

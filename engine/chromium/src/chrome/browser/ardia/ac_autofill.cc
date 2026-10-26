@@ -2,9 +2,6 @@
 
 #include "chrome/browser/ardia/ac_autofill.h"
 
-#include <cmath>
-#include <optional>
-#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -12,47 +9,30 @@
 #include "base/functional/bind.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
-#include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
-#include "base/uuid.h"
-#include "chrome/browser/autofill/personal_data_manager_factory.h"
+#include "chrome/browser/ardia/ac_autofill_internal.h"
 #include "chrome/browser/ardia/ac_reauth.h"
-#include "chrome/browser/ardia/ac_sensitive_args.h"
+#include "chrome/browser/autofill/personal_data_manager_factory.h"
 #include "components/autofill/core/browser/data_manager/addresses/address_data_manager.h"
 #include "components/autofill/core/browser/data_manager/payments/payments_data_manager.h"
 #include "components/autofill/core/browser/data_manager/personal_data_manager.h"
 #include "components/autofill/core/browser/data_manager/personal_data_manager_observer.h"
-#include "components/autofill/core/browser/data_model/addresses/autofill_i18n_api.h"
 #include "components/autofill/core/browser/data_model/addresses/autofill_profile.h"
-#include "components/autofill/core/browser/data_model/addresses/autofill_profile_comparator.h"
 #include "components/autofill/core/browser/data_model/payments/credit_card.h"
-#include "components/autofill/core/browser/field_types.h"
 #include "components/autofill/core/common/credit_card_network_identifiers.h"
 #include "components/strings/grit/components_strings.h"
 #include "ui/base/l10n/l10n_util.h"
 
 namespace ardia {
+namespace autofill_internal {
 namespace {
 
 using autofill::PersonalDataManager;
 
-constexpr int kSettleChecks = 20;
 constexpr base::TimeDelta kSettleStep = base::Milliseconds(50);
-
-constexpr std::pair<const char*, autofill::FieldType> kAddressFields[] = {
-    {"name", autofill::NAME_FULL},
-    {"organization", autofill::COMPANY_NAME},
-    {"street", autofill::ADDRESS_HOME_STREET_ADDRESS},
-    {"city", autofill::ADDRESS_HOME_CITY},
-    {"state", autofill::ADDRESS_HOME_STATE},
-    {"postalCode", autofill::ADDRESS_HOME_ZIP},
-    {"country", autofill::ADDRESS_HOME_COUNTRY},
-    {"phone", autofill::PHONE_HOME_WHOLE_NUMBER},
-    {"email", autofill::EMAIL_ADDRESS},
-};
 
 const char* NetworkName(const std::string& network) {
   static constexpr std::pair<const char*, const char*> kNetworks[] = {
@@ -70,16 +50,6 @@ const char* NetworkName(const std::string& network) {
     }
   }
   return "card";
-}
-
-std::string Digits(const std::string& text) {
-  std::string digits;
-  for (char c : text) {
-    if (base::IsAsciiDigit(c)) {
-      digits.push_back(c);
-    }
-  }
-  return digits;
 }
 
 base::DictValue AddressEntry(const autofill::AutofillProfile& profile) {
@@ -113,6 +83,18 @@ base::DictValue CardEntry(const autofill::CreditCard& card) {
 }
 
 using Ready = base::OnceCallback<void(PersonalDataManager*)>;
+
+}
+
+std::string Digits(const std::string& text) {
+  std::string digits;
+  for (char c : text) {
+    if (base::IsAsciiDigit(c)) {
+      digits.push_back(c);
+    }
+  }
+  return digits;
+}
 
 class AutofillState : public ProfileState,
                       public autofill::PersonalDataManagerObserver {
@@ -170,22 +152,15 @@ void Load(const Call& call,
     return reply.Error("no autofill in this profile");
   }
   StateFor<AutofillState>(call.profile())
-      .WhenLoaded(pdm, base::BindOnce(
-                           [](base::OnceCallback<void(PersonalDataManager*,
-                                                      Reply)> then,
-                              Reply reply, PersonalDataManager* pdm) {
-                             std::move(then).Run(pdm, std::move(reply));
-                           },
-                           std::move(then), std::move(reply)));
+      .WhenLoaded(
+          pdm,
+          base::BindOnce(
+              [](base::OnceCallback<void(PersonalDataManager*, Reply)> then,
+                 Reply reply, PersonalDataManager* pdm) {
+                std::move(then).Run(pdm, std::move(reply));
+              },
+              std::move(then), std::move(reply)));
 }
-
-using Check = base::RepeatingCallback<bool(PersonalDataManager*)>;
-
-struct Write {
-  base::WeakPtr<PersonalDataManager> pdm;
-  base::WeakPtr<AutofillState> state;
-  int changes;
-};
 
 Write StartWrite(Profile* profile, PersonalDataManager* pdm) {
   AutofillState& state = StateFor<AutofillState>(profile);
@@ -196,7 +171,7 @@ void Settle(Write write,
             Check landed,
             base::DictValue result,
             Reply reply,
-            int checks_left = kSettleChecks) {
+            int checks_left) {
   if (!write.pdm || !write.state) {
     return reply.Error("closed");
   }
@@ -213,199 +188,6 @@ void Settle(Write write,
       kSettleStep);
 }
 
-constexpr size_t kMaxImportBytes = 4 * 1024 * 1024;
-constexpr size_t kMaxImportItems = 1000;
-
-struct ImportedAddress {
-  std::vector<std::pair<autofill::FieldType, std::u16string>> fields;
-  std::string country;
-};
-
-struct ImportBatch {
-  std::vector<ImportedAddress> addresses;
-  std::vector<autofill::CreditCard> cards;
-  int rejected = 0;
-};
-
-std::optional<int> IntArg(const base::DictValue& dict, std::string_view key) {
-  if (std::optional<int> value = dict.FindInt(key)) {
-    return value;
-  }
-  if (std::optional<double> value = dict.FindDouble(key);
-      value && std::isfinite(*value) && std::abs(*value) < 1e6) {
-    return static_cast<int>(*value);
-  }
-  int value = 0;
-  const std::string* text = dict.FindString(key);
-  if (text && base::StringToInt(*text, &value)) {
-    return value;
-  }
-  return std::nullopt;
-}
-
-bool PassesLuhn(const std::string& digits) {
-  int sum = 0;
-  bool twice = false;
-  for (size_t i = digits.size(); i-- > 0;) {
-    int digit = digits[i] - '0';
-    if (twice) {
-      digit *= 2;
-      if (digit > 9) {
-        digit -= 9;
-      }
-    }
-    sum += digit;
-    twice = !twice;
-  }
-  return sum % 10 == 0;
-}
-
-std::optional<ImportedAddress> ToAddress(const base::Value& entry) {
-  const base::DictValue* dict = entry.GetIfDict();
-  if (!dict) {
-    return std::nullopt;
-  }
-  ImportedAddress address;
-  for (const auto& [key, type] : kAddressFields) {
-    const std::string* value = dict->FindString(key);
-    if (!value) {
-      continue;
-    }
-    std::u16string trimmed;
-    base::TrimWhitespace(base::UTF8ToUTF16(*value), base::TRIM_ALL, &trimmed);
-    if (!trimmed.empty()) {
-      address.fields.emplace_back(type, std::move(trimmed));
-    }
-  }
-  if (address.fields.empty()) {
-    return std::nullopt;
-  }
-  if (const std::string* country = dict->FindString("country")) {
-    address.country = base::ToUpperASCII(*country);
-  }
-  return address;
-}
-
-std::optional<autofill::CreditCard> ToCard(const base::Value& entry) {
-  const base::DictValue* dict = entry.GetIfDict();
-  if (!dict) {
-    return std::nullopt;
-  }
-  const std::string* number = dict->FindString("number");
-  if (!number) {
-    return std::nullopt;
-  }
-  std::string digits;
-  digits.reserve(number->size());
-  bool clean = true;
-  for (char c : *number) {
-    if (base::IsAsciiDigit(c)) {
-      digits.push_back(c);
-    } else if (c != ' ' && c != '-') {
-      clean = false;
-    }
-  }
-  const bool valid =
-      clean && digits.size() >= 12 && digits.size() <= 19 && PassesLuhn(digits);
-  std::optional<int> month = IntArg(*dict, "expMonth");
-  std::optional<int> year = IntArg(*dict, "expYear");
-  if (year && *year > 0 && *year < 100) {
-    *year += 2000;
-  }
-  const bool valid_expiry =
-      (!month || *month == 0 || (*month >= 1 && *month <= 12)) &&
-      (!year || *year == 0 || (*year >= 1900 && *year <= 2199));
-  if (!valid || !valid_expiry) {
-    Cleanse(digits);
-    return std::nullopt;
-  }
-
-  autofill::CreditCard card(base::Uuid::GenerateRandomV4().AsLowercaseString());
-  card.set_is_user_confirmed(true);
-  std::u16string number16 = base::ASCIIToUTF16(digits);
-  card.SetRawInfo(autofill::CREDIT_CARD_NUMBER, number16);
-  Cleanse(number16);
-  Cleanse(digits);
-  if (const std::string* name = dict->FindString("name")) {
-    card.SetRawInfo(autofill::CREDIT_CARD_NAME_FULL, base::UTF8ToUTF16(*name));
-  }
-  if (month && *month > 0) {
-    card.SetExpirationMonth(*month);
-  }
-  if (year && *year > 0) {
-    card.SetExpirationYear(*year);
-  }
-  if (const std::string* nickname = dict->FindString("nickname");
-      nickname && !nickname->empty()) {
-    card.SetNickname(base::UTF8ToUTF16(*nickname));
-  }
-  return card;
-}
-
-void ImportLoaded(ImportBatch batch, PersonalDataManager* pdm, Reply reply) {
-  autofill::AddressDataManager& adm = pdm->address_data_manager();
-  autofill::PaymentsDataManager& paydm = pdm->payments_data_manager();
-  autofill::AutofillProfileComparator comparator(adm.app_locale());
-  int existing = 0;
-  int rejected = batch.rejected;
-
-  std::vector<autofill::AutofillProfile> added_addresses;
-  for (const ImportedAddress& address : batch.addresses) {
-    autofill::AutofillProfile profile(
-        adm.IsEligibleForAddressAccountStorage()
-            ? autofill::AutofillProfile::RecordType::kAccount
-            : autofill::AutofillProfile::RecordType::kLocalOrSyncable,
-        !address.country.empty()
-            ? autofill::AddressCountryCode(address.country)
-            : autofill::i18n_model_definition::kLegacyHierarchyCountryCode);
-    for (const auto& [type, value] : address.fields) {
-      profile.SetRawInfoWithVerificationStatus(
-          type, value, autofill::VerificationStatus::kUserVerified);
-    }
-    profile.FinalizeAfterImport();
-    if (profile.IsEmpty(adm.app_locale())) {
-      ++rejected;
-      continue;
-    }
-    bool present = false;
-    for (const autofill::AutofillProfile* other : adm.GetProfiles()) {
-      present = present || profile.IsSubsetOf(comparator, *other);
-    }
-    for (const autofill::AutofillProfile& other : added_addresses) {
-      present = present || profile.IsSubsetOf(comparator, other);
-    }
-    if (present) {
-      ++existing;
-      continue;
-    }
-    adm.AddProfile(profile);
-    added_addresses.push_back(std::move(profile));
-  }
-
-  std::vector<const autofill::CreditCard*> added_cards;
-  for (const autofill::CreditCard& card : batch.cards) {
-    bool present = false;
-    for (const autofill::CreditCard* other : paydm.GetCreditCards()) {
-      present = present || card.HasSameNumberAs(*other);
-    }
-    for (const autofill::CreditCard* other : added_cards) {
-      present = present || card.HasSameNumberAs(*other);
-    }
-    if (present) {
-      ++existing;
-      continue;
-    }
-    paydm.AddCreditCard(card);
-    added_cards.push_back(&card);
-  }
-
-  reply.Send(base::DictValue()
-                 .Set("addresses", static_cast<int>(added_addresses.size()))
-                 .Set("cards", static_cast<int>(added_cards.size()))
-                 .Set("existing", existing)
-                 .Set("rejected", rejected));
-}
-
 }
 }
 
@@ -413,241 +195,37 @@ using ardia::Call;
 using ardia::Reply;
 using autofill::PersonalDataManager;
 
-#define AC_AUTOFILL_CALL()                           \
-  Call call(profile_dir, args_json, reply, context); \
-  if (!call) {                                       \
-    return;                                          \
-  }
-
 AC_ENGINE_CALL(ac_autofill_addresses) {
   AC_AUTOFILL_CALL();
-  ardia::Load(
+  ardia::autofill_internal::Load(
       call, base::BindOnce([](PersonalDataManager* pdm, Reply reply) {
         base::ListValue list;
         for (const autofill::AutofillProfile* profile :
              pdm->address_data_manager().GetProfilesForSettings()) {
-          list.Append(ardia::AddressEntry(*profile));
+          list.Append(ardia::autofill_internal::AddressEntry(*profile));
         }
         reply.Send(base::DictValue().Set("addresses", std::move(list)));
       }),
       call.TakeReply());
 }
 
-AC_ENGINE_CALL(ac_autofill_save_address) {
-  AC_AUTOFILL_CALL();
-  const base::DictValue* address = call.args().FindDict("address");
-  if (!address) {
-    return call.TakeReply().Error("address required");
-  }
-  ardia::Load(
-      call,
-      base::BindOnce(
-          [](Profile* owner, base::DictValue address, PersonalDataManager* pdm,
-             Reply reply) {
-            autofill::AddressDataManager& adm = pdm->address_data_manager();
-            const std::string* id = address.FindString("id");
-            const autofill::AutofillProfile* existing =
-                id && !id->empty() ? adm.GetProfileByGUID(*id) : nullptr;
-            if (id && !id->empty() && !existing) {
-              return reply.Error("No such address");
-            }
-            const std::string* country = address.FindString("country");
-            autofill::AutofillProfile profile =
-                existing
-                    ? *existing
-                    : autofill::AutofillProfile(
-                          adm.IsEligibleForAddressAccountStorage()
-                              ? autofill::AutofillProfile::RecordType::kAccount
-                              : autofill::AutofillProfile::RecordType::
-                                    kLocalOrSyncable,
-                          country && !country->empty()
-                              ? autofill::AddressCountryCode(*country)
-                              : autofill::i18n_model_definition::
-                                    kLegacyHierarchyCountryCode);
-            for (const auto& [key, type] : ardia::kAddressFields) {
-              const std::string* value = address.FindString(key);
-              std::u16string trimmed;
-              base::TrimWhitespace(base::UTF8ToUTF16(value ? *value : ""),
-                                   base::TRIM_ALL, &trimmed);
-              profile.SetRawInfoWithVerificationStatus(
-                  type, trimmed, autofill::VerificationStatus::kUserVerified);
-            }
-            profile.FinalizeAfterImport();
-            const std::string guid = profile.guid();
-            if (existing && existing->Compare(profile) == 0) {
-              return reply.Send(base::DictValue().Set("id", guid));
-            }
-            ardia::Write write = ardia::StartWrite(owner, pdm);
-            if (existing) {
-              adm.UpdateProfile(profile);
-            } else {
-              adm.AddProfile(profile);
-            }
-            ardia::Settle(
-                write,
-                base::BindRepeating(
-                    [](const autofill::AutofillProfile& wanted,
-                       PersonalDataManager* pdm) {
-                      const autofill::AutofillProfile* saved =
-                          pdm->address_data_manager().GetProfileByGUID(
-                              wanted.guid());
-                      return saved && saved->Compare(wanted) == 0;
-                    },
-                    profile),
-                base::DictValue().Set("id", guid), std::move(reply));
-          },
-          call.profile(), address->Clone()),
-      call.TakeReply());
-}
-
 AC_ENGINE_CALL(ac_autofill_cards) {
   AC_AUTOFILL_CALL();
-  ardia::Load(
+  ardia::autofill_internal::Load(
       call, base::BindOnce([](PersonalDataManager* pdm, Reply reply) {
         base::ListValue list;
         for (const autofill::CreditCard* card :
              pdm->payments_data_manager().GetCreditCards()) {
-          list.Append(ardia::CardEntry(*card));
+          list.Append(ardia::autofill_internal::CardEntry(*card));
         }
         reply.Send(base::DictValue().Set("cards", std::move(list)));
       }),
       call.TakeReply());
 }
 
-AC_ENGINE_CALL(ac_autofill_save_card) {
-  Call call(profile_dir, nullptr, reply, context);
-  if (!call) {
-    return;
-  }
-  ardia::SensitiveArgs args(args_json, ardia::kMaxImportBytes);
-  if (!args.dict()) {
-    return call.TakeReply().Error(args.too_large()
-                                      ? "arguments too large"
-                                      : "arguments are not a JSON object");
-  }
-  if (args.dict()->FindBool("offTheRecord").value_or(false)) {
-    return call.TakeReply().Error("not for a private session");
-  }
-  const base::DictValue* card = args.dict()->FindDict("card");
-  if (!card) {
-    return call.TakeReply().Error("card required");
-  }
-  std::optional<ardia::Secret> number = args.SecretAt("number");
-  if (!number) {
-    return call.TakeReply().Error("bad arguments");
-  }
-  ardia::Load(
-      call,
-      base::BindOnce(
-          [](Profile* owner, base::DictValue card, ardia::Secret number,
-             PersonalDataManager* pdm,
-             Reply reply) {
-            autofill::PaymentsDataManager& paydm = pdm->payments_data_manager();
-            const std::string* id = card.FindString("id");
-            const autofill::CreditCard* existing =
-                id && !id->empty() ? paydm.GetCreditCardByGUID(*id) : nullptr;
-            if (id && !id->empty() && !existing) {
-              return reply.Error("No such card");
-            }
-            const ardia::Secret digits(ardia::Digits(number.value()));
-            if (!existing &&
-                (digits.value().size() < 12 || digits.value().size() > 19)) {
-              return reply.Error("invalid number");
-            }
-            autofill::CreditCard credit_card =
-                existing ? *existing
-                         : autofill::CreditCard(
-                               base::Uuid::GenerateRandomV4()
-                                   .AsLowercaseString());
-            if (!existing) {
-              credit_card.set_is_user_confirmed(true);
-            }
-            if (const std::string* name = card.FindString("name")) {
-              credit_card.SetRawInfo(autofill::CREDIT_CARD_NAME_FULL,
-                                     base::UTF8ToUTF16(*name));
-            }
-            if (!digits.value().empty()) {
-              std::u16string digits16 = base::UTF8ToUTF16(digits.value());
-              credit_card.SetRawInfo(autofill::CREDIT_CARD_NUMBER, digits16);
-              ardia::Cleanse(digits16);
-            }
-            if (std::optional<int> month = card.FindInt("expMonth");
-                month && *month > 0) {
-              credit_card.SetRawInfo(
-                  autofill::CREDIT_CARD_EXP_MONTH,
-                  base::UTF8ToUTF16((*month < 10 ? "0" : "") +
-                                    base::NumberToString(*month)));
-            }
-            if (std::optional<int> year = card.FindInt("expYear");
-                year && *year > 0) {
-              credit_card.SetRawInfo(autofill::CREDIT_CARD_EXP_4_DIGIT_YEAR,
-                                     base::NumberToString16(*year));
-            }
-            const std::string guid = credit_card.guid();
-            if (existing && existing->Compare(credit_card) == 0) {
-              return reply.Send(base::DictValue().Set("id", guid));
-            }
-            ardia::Write write = ardia::StartWrite(owner, pdm);
-            if (existing) {
-              paydm.UpdateCreditCard(credit_card);
-            } else {
-              paydm.AddCreditCard(credit_card);
-            }
-            ardia::Settle(
-                write,
-                base::BindRepeating(
-                    [](const autofill::CreditCard& wanted,
-                       PersonalDataManager* pdm) {
-                      const autofill::CreditCard* saved =
-                          pdm->payments_data_manager().GetCreditCardByGUID(
-                              wanted.guid());
-                      return saved && saved->Compare(wanted) == 0;
-                    },
-                    credit_card),
-                base::DictValue().Set("id", guid), std::move(reply));
-          },
-          call.profile(), card->Clone(), std::move(*number)),
-      call.TakeReply());
-}
-
-AC_ENGINE_CALL(ac_autofill_remove) {
-  AC_AUTOFILL_CALL();
-  ardia::Load(
-      call,
-      base::BindOnce(
-          [](Profile* owner, std::string id, PersonalDataManager* pdm,
-             Reply reply) {
-            const bool address =
-                !!pdm->address_data_manager().GetProfileByGUID(id);
-            if (!address &&
-                !pdm->payments_data_manager().GetCreditCardByGUID(id)) {
-              return reply.Ok();
-            }
-            ardia::Write write = ardia::StartWrite(owner, pdm);
-            if (address) {
-              pdm->address_data_manager().RemoveProfile(id);
-            } else {
-              pdm->payments_data_manager().RemoveByGUID(id);
-            }
-            ardia::Settle(
-                write,
-                base::BindRepeating(
-                    [](const std::string& id, PersonalDataManager* pdm) {
-                      return !pdm->address_data_manager().GetProfileByGUID(
-                                 id) &&
-                             !pdm->payments_data_manager().GetCreditCardByGUID(
-                                 id);
-                    },
-                    id),
-                base::DictValue().Set("ok", true), std::move(reply));
-          },
-          call.profile(), call.String("id")),
-      call.TakeReply());
-}
-
 AC_ENGINE_CALL(ac_autofill_card_number) {
   AC_AUTOFILL_CALL();
-  ardia::Load(
+  ardia::autofill_internal::Load(
       call,
       base::BindOnce(
           [](Profile* profile, std::string id, PersonalDataManager* pdm,
@@ -664,13 +242,12 @@ AC_ENGINE_CALL(ac_autofill_card_number) {
                     [](std::string id, base::WeakPtr<PersonalDataManager> pdm,
                        Reply reply, bool authenticated) {
                       const autofill::CreditCard* card =
-                          authenticated && pdm
-                              ? pdm->payments_data_manager()
-                                    .GetCreditCardByGUID(id)
-                              : nullptr;
+                          authenticated && pdm ? pdm->payments_data_manager()
+                                                     .GetCreditCardByGUID(id)
+                                               : nullptr;
                       std::string number =
-                          card ? ardia::Digits(base::UTF16ToUTF8(
-                                     card->GetRawInfo(
+                          card ? ardia::autofill_internal::Digits(
+                                     base::UTF16ToUTF8(card->GetRawInfo(
                                          autofill::CREDIT_CARD_NUMBER)))
                                : std::string();
                       base::DictValue result;
@@ -686,56 +263,4 @@ AC_ENGINE_CALL(ac_autofill_card_number) {
           },
           call.profile(), call.String("id")),
       call.TakeReply());
-}
-
-AC_ENGINE_CALL(ac_autofill_import) {
-  Call call(profile_dir, nullptr, reply, context);
-  if (!call) {
-    return;
-  }
-  if (call.profile()->IsOffTheRecord()) {
-    return call.TakeReply().Error("private profile");
-  }
-  ardia::ImportBatch batch;
-  {
-    ardia::SensitiveArgs args(args_json, ardia::kMaxImportBytes);
-    if (args.too_large()) {
-      return call.TakeReply().Error("arguments too large");
-    }
-    if (!args.dict()) {
-      return call.TakeReply().Error("arguments are not a JSON object");
-    }
-    if (args.dict()->FindBool("offTheRecord").value_or(false)) {
-      return call.TakeReply().Error("not for a private session");
-    }
-    const base::ListValue* addresses = args.dict()->FindList("addresses");
-    const base::ListValue* cards = args.dict()->FindList("cards");
-    if ((addresses && addresses->size() > ardia::kMaxImportItems) ||
-        (cards && cards->size() > ardia::kMaxImportItems)) {
-      return call.TakeReply().Error("too many items in one call");
-    }
-    if (addresses) {
-      for (const base::Value& entry : *addresses) {
-        if (std::optional<ardia::ImportedAddress> address =
-                ardia::ToAddress(entry)) {
-          batch.addresses.push_back(std::move(*address));
-        } else {
-          ++batch.rejected;
-        }
-      }
-    }
-    if (cards) {
-      for (const base::Value& entry : *cards) {
-        if (std::optional<autofill::CreditCard> card =
-                ardia::ToCard(entry)) {
-          batch.cards.push_back(std::move(*card));
-        } else {
-          ++batch.rejected;
-        }
-      }
-    }
-  }
-  ardia::Load(call,
-                  base::BindOnce(&ardia::ImportLoaded, std::move(batch)),
-                  call.TakeReply());
 }

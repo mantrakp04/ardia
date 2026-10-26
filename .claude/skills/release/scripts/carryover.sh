@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-unset ARDIA_DATA_DIR ARDIA_UPDATE_FEED_URL
+unset ARDIA_DATA_DIR ARDIA_INSTANCE ARDIA_TEST ARDIA_TRACE
 
 old="${1:?usage: carryover.sh <previous app> <new app>}"
 new="${2:?usage: carryover.sh <previous app> <new app>}"

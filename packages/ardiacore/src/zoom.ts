@@ -1,4 +1,4 @@
-import { Cef } from "./native";
+import { call } from "./engine/call";
 
-export const setZoom = (profile: string, host: string, zoom: number) => Cef.setZoom(profile, host, zoom);
-export const getZoomLevels = (profile: string) => Cef.getZoomLevels(profile);
+export const setZoom = (profile: string, host: string, zoom: number) => call("sites.setZoom", { profile, host, zoom });
+export const getZoomLevels = (profile: string) => call("sites.zoomLevels", { profile });

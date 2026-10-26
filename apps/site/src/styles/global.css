@@ -71,6 +71,7 @@ html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   scroll-padding-top: 72px;
+  overscroll-behavior-y: none;
 }
 
 @media (prefers-reduced-motion: no-preference) {

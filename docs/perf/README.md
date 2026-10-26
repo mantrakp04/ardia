@@ -29,7 +29,7 @@ All of them are in `apps/browser/scripts/perf/`.
 | `ratchet.mjs`, `ratchet.json` | ratchet | Ceilings on counts that can only go down, and the commands that check, lower and rebuild them. |
 | `ratchet-app.js`, `ops.mjs`, `ratchet-proof.mjs` | ratchet | The `launch` scenario the ratchet adds to js-bench, the builtin-call counter micro-bench uses, and the before/after proof that counts track wall-clock. |
 
-The app side of the JS benches is `apps/browser/src/lib/perfProbe.ts`. It only turns on in an isolated instance
+The app side of the JS benches is `apps/browser/src/state/app/perfProbe.ts`. It only turns on in an isolated instance
 whose data folder holds a `perf-probe` file.
 
 Each bench drives the app through files in the instance's `ARDIA_DATA_DIR`:
@@ -40,7 +40,7 @@ Each bench drives the app through files in the instance's `ARDIA_DATA_DIR`:
 | `bench-boot.json` | native-bench | bench-channel.js as it loads (the "JS running" mark) |
 | `bench-marks.jsonl` | native-bench | acmark.m (`content`/`committed` epoch ms per window; `keydown`/`made`/`window`/`char` per key with `AC_BENCH_KEYLOG`) |
 | `telemetry.json`, `bench-offline` | native-bench `newtabkey`, `navigate` | the phase: diagnostics sharing on (the app times journeys only then) and the file that makes `bench-offline.js` guard `fetch` |
-| `dev-eval.js` → `dev-eval-result.json` | js-bench, render-bench | the dev harness (`src/lib/devHarness.ts`) |
+| `dev-eval.js` → `dev-eval-result.json` | js-bench, render-bench | the dev harness (`src/components/dev/devHarness.ts`) |
 | `perf-probe` | js-bench, render-bench | the seed. Its contents turn on the probe's options: `selectors`, `renders`, `listeners` |
 
 ## Gating a release
@@ -53,7 +53,7 @@ the control stays `dist/<previous stable>/export/Ardia.app` however many nightli
    A local Release build is a different app: it's unstripped (about 18 MB against 8.9 MB) and has no secure
    timestamp or notarization ticket, so its launch numbers don't stand for what ships.
 2. **Give each app a bench bundle that matches its `NATIVE_API_VERSION`.** native-bench swaps its own bundle
-   (`bench-entry.js`) into each app. That bundle has to match the app's native API (`apps/browser/src/nativeApi.tsx`
+   (`bench-entry.js`) into each app. That bundle has to match the app's native API (`apps/browser/src/platform/nativeApi.ts`
    against `apiVersion` in `packages/shell/ios/AppModule.swift`). On a mismatch, every command fails with
    "Native API skew".
    - When both apps share a version, run the candidate's bundle on both (the default for `--control`). Then only
@@ -306,8 +306,8 @@ a special case, cache or deferral that saves under 0.5 ms an action isn't worth 
 | `8def9b0b`, `cf07e5f6`, `5020c202` keystroke work | +286 −102 | 1.3 → 0.4 ms (URL), 2.4 → 0.85 ms (phrase) per key in Hermes | keep |
 | `dca4bb3a` letter/digit masks in matchActions | +29 −5 | ~0.03–0.05 ms per key (+374 / +465 builtin calls a key without) | **removed** (`b968c4fd`) |
 | `477ad6d7` history view copies once | +29 −17 | 13.4–16.5 → 6.7–8.8 ms JS per page load | keep |
-| `db144ef6` history changes coalesced per event | +37 −7 | 1.5 store updates per background load (~0.3–0.5 ms) | borderline: kept, covered by `lib/historyView.test.mjs` |
-| `e401203e` store transactions for a flush | +101 −5 | none measured: a single load unchanged; 20 tabs at once 34.0 → 35.9 ms listener time | **should go**; not reverted because `store/pinMirror.ts` (in progress) relies on its listener semantics |
+| `db144ef6` history changes coalesced per event | +37 −7 | 1.5 store updates per background load (~0.3–0.5 ms) | borderline: kept, covered by `state/history/historyView.test.mjs` |
+| `e401203e` store transactions for a flush | +101 −5 | none measured: a single load unchanged; 20 tabs at once 34.0 → 35.9 ms listener time | **should go**; not reverted because `state/pins/pinMirror.ts` (in progress) relies on its listener semantics |
 | `861b3b73` pane list memos | +55 −16 | ~0.4–1 ms per switch at 100 tabs (probe-inflated) | keep; time it |
 | `a3c9eff4` mounted set | +4 −1 | ~n²/2 string compares per switch | keep (simpler than before) |
 | `33e88e6f` page progress out of the store | +84 −13 (incl. preload hunks swept in) | 2 fewer store updates per load | keep |

@@ -1,13 +1,15 @@
 ---
 import { Picture, getImage } from "astro:assets";
+import { getEntry } from "astro:content";
 import hills from "../assets/paint/hills.png";
 import sun from "../assets/paint/sun.png";
 import DownloadButton from "./DownloadButton.astro";
 import MacOnlyNote from "./MacOnlyNote.astro";
 import SendToMac from "./SendToMac.astro";
-import { DISCORD, DMG_SIZE, MIN_MACOS, VERSION } from "../data/release";
+import { DISCORD, MIN_MACOS, VERSION } from "../data/release";
 const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 const hillsMask = await getImage({ src: hills, width: 320, format: "webp" });
+const whatsNew = (await getEntry("releaseNotes", VERSION)) ? `${base}/release-notes/${VERSION}/` : `${base}/release-notes/`;
 ---
 
 <section class="closing paint edge dark" aria-labelledby="closing-title" data-shot="closing">
@@ -16,13 +18,13 @@ const hillsMask = await getImage({ src: hills, width: 320, format: "webp" });
       <p class="label kicker">Same engine as Chrome</p>
       <h2 class="poster" id="closing-title" data-reveal>Better<br />view.</h2>
       <p class="lede" data-reveal style="--i: 1">
-        Make Ardia your default. It’s {DMG_SIZE} and one drag into Applications.
+        Make Ardia your default. It’s one drag into Applications.
       </p>
       <SendToMac location="closing" />
       <div class="cta" data-reveal style="--i: 2">
         <DownloadButton label={`Download ${VERSION}`} meta="DMG" location="closing" class="not-phone sun-btn" />
         <DownloadButton label="Nightly" meta="Wet paint" location="closing" class="not-phone" nightly />
-        <a class="link" href={`${base}/release-notes`}>What’s new in {VERSION}</a>
+        <a class="link" href={whatsNew}>What’s new in {VERSION}</a>
         <a class="link" href={DISCORD} rel="noopener" data-track="discord_clicked" data-track-location="closing">Say hi on Discord</a>
       </div>
       <MacOnlyNote location="closing" />

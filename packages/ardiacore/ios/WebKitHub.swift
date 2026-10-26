@@ -1,13 +1,14 @@
 import AppKit
+import AuthenticationServices
 import CryptoKit
 import WebKit
 
 final class WebKitHub: NSObject, WKScriptMessageHandler {
   static let shared = WebKitHub()
   static let world = WKContentWorld.world(name: "ardia")
-  static let background = ProcessInfo.processInfo.environment["ARDIA_BACKGROUND"] == "1"
+  static let background = LaunchConfig.shared.background
+  static let silenced = background && !LaunchConfig.shared.instanceFlag("allowAudio")
 
-  var events: ((String, [String: Any]) -> Void)?
   let downloads = WebKitDownloads()
 
   private final class WeakTab {
@@ -58,20 +59,19 @@ final class WebKitHub: NSObject, WKScriptMessageHandler {
   private var externalAllowances: [String: ExternalGrant] = [:]
   private var lastExternal = 0
   private var resumeHosts: [String: WKWebView] = [:]
+  private var deletedProfileStores: [String: WKWebsiteDataStore] = [:]
+  private var storesHeldForTest: [String: WKWebsiteDataStore] = [:]
 
   func nextBrowserId() -> Int32 {
     lastBrowserId -= 1
     return lastBrowserId
   }
 
-  static func isPrivate(_ profile: String) -> Bool { profile.hasPrefix("incognito:") }
+  static func isPrivate(_ profile: String) -> Bool { ArdiaHost.isPrivateProfile(profile) }
 
-  static func privateSession(_ profile: String) -> String {
-    guard let at = profile.range(of: "@", options: .backwards) else { return "" }
-    return String(profile[at.upperBound...])
-  }
+  static func privateSession(_ profile: String) -> String { ArdiaHost.baseProfile(of: profile) }
 
-  static func regularProfile(_ profile: String) -> String { isPrivate(profile) ? privateSession(profile) : profile }
+  static func regularProfile(_ profile: String) -> String { ArdiaHost.baseProfile(of: profile) }
 
   private func session(_ name: String) -> PrivateSession {
     if let live = privateSessions[name] { return live }
@@ -87,7 +87,7 @@ final class WebKitHub: NSObject, WKScriptMessageHandler {
   }
 
   static func storeIdentifier(_ profile: String) -> UUID {
-    let scope = ProcessInfo.processInfo.environment["ARDIA_DATA_DIR"] ?? ""
+    let scope = LaunchConfig.shared.dataDirectory ?? ""
     var bytes = Array(SHA256.hash(data: Data("ardia.webkit|\(scope)|\(profile)".utf8)).prefix(16))
     bytes[6] = (bytes[6] & 0x0F) | 0x50
     bytes[8] = (bytes[8] & 0x3F) | 0x80
@@ -96,10 +96,17 @@ final class WebKitHub: NSObject, WKScriptMessageHandler {
 
   func dataStore(for profile: String) -> WKWebsiteDataStore {
     if Self.isPrivate(profile) { return session(Self.privateSession(profile)).store }
-    if let store = persistentStores[profile] { return store }
+    if let store = persistentStores[profile] ?? deletedProfileStores[profile] { return store }
     let store = WKWebsiteDataStore(forIdentifier: Self.storeIdentifier(profile))
     persistentStores[profile] = store
     return store
+  }
+
+  func liveDataStore(for profile: String, storeKey key: String) -> WKWebsiteDataStore? {
+    guard Self.isPrivate(profile) else { return key == profile ? dataStore(for: profile) : nil }
+    let name = Self.privateSession(profile)
+    guard let live = privateSessions[name], key == "private@\(name)#\(live.token)" else { return nil }
+    return live.store
   }
 
   func endPrivateSession(_ name: String) {
@@ -108,7 +115,12 @@ final class WebKitHub: NSObject, WKScriptMessageHandler {
     rememberedPermissions = rememberedPermissions.filter { !$0.key.hasPrefix(prefix) }
     zoomByHost = zoomByHost.filter { !$0.key.hasPrefix(prefix) }
     externalAllowances = externalAllowances.filter { !$0.key.hasPrefix(prefix) }
-    let uses = { (view: WKWebView) in view.configuration.websiteDataStore === ended.store }
+    closeViews(using: ended.store)
+    ended.store.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast) {}
+  }
+
+  private func closeViews(using store: WKWebsiteDataStore) {
+    let uses = { (view: WKWebView) in view.configuration.websiteDataStore === store }
     for (key, view) in parked where uses(view) {
       parked.removeValue(forKey: key)
       Self.close(view)
@@ -121,13 +133,12 @@ final class WebKitHub: NSObject, WKScriptMessageHandler {
       resumeHosts.removeValue(forKey: key)
       Self.close(view)
     }
-    for (id, pending) in pendingPermissions where pending.store === ended.store {
+    for (id, pending) in pendingPermissions where pending.store === store {
       pendingPermissions.removeValue(forKey: id)
       pending.decide(false)
-      events?("onPermissionDismissed", ["id": id])
+      ArdiaEvents.emit("permissions.dismissed", data: ["id": id])
     }
     for tab in owners.values.compactMap(\.tab) where tab.webView.map(uses) == true { tab.close() }
-    ended.store.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast) {}
   }
 
   static let safariVersion: String = {
@@ -141,7 +152,7 @@ final class WebKitHub: NSObject, WKScriptMessageHandler {
   }()
 
   static let inspectable: Bool = {
-    if !(ProcessInfo.processInfo.environment["ARDIA_DATA_DIR"] ?? "").isEmpty { return true }
+    if LaunchConfig.shared.dataDirectory != nil { return true }
     var code: SecCode?
     guard SecCodeCopySelf([], &code) == errSecSuccess, let code else { return true }
     var info: CFDictionary?
@@ -157,7 +168,28 @@ final class WebKitHub: NSObject, WKScriptMessageHandler {
     return (value as? Bool) == true
   }()
 
-  static let hidePasskeys = "(() => { try { delete window.PublicKeyCredential; } catch (e) {} })();"
+  static let hidePasskeys = """
+    (() => {
+      try { delete window.PublicKeyCredential; } catch (e) {}
+      const container = window.CredentialsContainer && CredentialsContainer.prototype;
+      if (!container) return;
+      for (const name of ["create", "get"]) {
+        const original = container[name];
+        if (typeof original !== "function") continue;
+        Object.defineProperty(container, name, {
+          configurable: true, writable: true,
+          value: {
+            [name](options) {
+              if (options && typeof options === "object" && "publicKey" in options) {
+                return Promise.reject(new DOMException("Passkeys aren't available in this browser.", "NotSupportedError"));
+              }
+              return original.apply(this, arguments);
+            },
+          }[name],
+        });
+      }
+    })();
+    """
 
   func configuration(profile: String) -> WKWebViewConfiguration {
     let config = WKWebViewConfiguration()
@@ -165,6 +197,7 @@ final class WebKitHub: NSObject, WKScriptMessageHandler {
     let controller = WKUserContentController()
     controller.addUserScript(WKUserScript(source: WebKitPageScript.source, injectionTime: .atDocumentStart, forMainFrameOnly: false, in: Self.world))
     controller.add(self, contentWorld: Self.world, name: "ardia")
+    controller.addUserScript(WKUserScript(source: WebKitPageScript.mediaBridge, injectionTime: .atDocumentStart, forMainFrameOnly: false, in: .page))
     if !Self.passkeysEntitled {
       controller.addUserScript(WKUserScript(source: Self.hidePasskeys, injectionTime: .atDocumentStart, forMainFrameOnly: false, in: .page))
     }
@@ -274,7 +307,7 @@ final class WebKitHub: NSObject, WKScriptMessageHandler {
 
   private func permissionKey(_ profile: String, _ origin: String, _ kind: String) -> String { storeKey(profile) + "|" + origin + "|" + kind }
 
-  func requestPermission(browserId: Int32, profile: String, origin: String, kinds: [String], decide: @escaping (Bool) -> Void) {
+  func requestPermission(browserId: Int32, tabId: String?, profile: String, origin: String, kinds: [String], decide: @escaping (Bool) -> Void) {
     let keys = kinds.map { permissionKey(profile, origin, $0) }
     let answers = keys.map { rememberedPermissions[$0] }
     if answers.contains(false) { return decide(false) }
@@ -282,7 +315,7 @@ final class WebKitHub: NSObject, WKScriptMessageHandler {
     lastPermission += 1
     let id = "wk-permission-\(lastPermission)"
     pendingPermissions[id] = PendingPermission(browserId: browserId, keys: keys, store: dataStore(for: profile), decide: decide)
-    events?("onPermission", ["id": id, "browserId": Int(browserId), "origin": origin, "permissions": kinds])
+    ArdiaEvents.emit("permissions.requested", data: ["id": id, "tabId": tabId ?? NSNull(), "origin": origin, "permissions": kinds])
   }
 
   func resolvePermission(_ id: String, result: String, remember: Bool) {
@@ -296,7 +329,7 @@ final class WebKitHub: NSObject, WKScriptMessageHandler {
     for (id, pending) in pendingPermissions where pending.browserId == browserId {
       pendingPermissions.removeValue(forKey: id)
       pending.decide(false)
-      events?("onPermissionDismissed", ["id": id])
+      ArdiaEvents.emit("permissions.dismissed", data: ["id": id])
     }
   }
 
@@ -319,13 +352,13 @@ final class WebKitHub: NSObject, WKScriptMessageHandler {
     }
     guard value == "block" else { return }
     let store = dataStore(for: profile)
-    let views = owners.values.compactMap(\.tab?.webView) + parked.values.compactMap { $0 as? ArdiaWKWebView } + offered.values.compactMap { $0 as? ArdiaWKWebView }
+    let views = owners.values.compactMap(\.tab?.webView) + parked.values.compactMap { $0 as? WebKitWebView } + offered.values.compactMap { $0 as? WebKitWebView }
     for view in views where view.configuration.websiteDataStore === store && view.captureOrigins[kind]?.contains(origin) == true {
       view.stopCapture(kind)
     }
   }
 
-  func reconcileCapture(_ view: ArdiaWKWebView, profile: String) {
+  func reconcileCapture(_ view: WebKitWebView, profile: String) {
     for (kind, origins) in view.captureOrigins where origins.contains(where: { rememberedPermissions[permissionKey(profile, $0, kind)] == false }) {
       view.stopCapture(kind)
     }
@@ -449,310 +482,34 @@ final class WebKitHub: NSObject, WKScriptMessageHandler {
 
   func deleteProfileData(_ profile: String, completion: @escaping (Bool) -> Void) {
     guard !Self.isPrivate(profile) else { return completion(true) }
-    let store = dataStore(for: profile)
-    store.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast) {
-      self.persistentStores.removeValue(forKey: profile)
-      if let host = self.resumeHosts.removeValue(forKey: profile) { Self.close(host) }
-      WKWebsiteDataStore.remove(forIdentifier: Self.storeIdentifier(profile)) { error in completion(error == nil) }
-    }
-  }
-}
-
-final class WebKitDownloads: NSObject, WKDownloadDelegate {
-  private enum Phase { case running, pausing, paused, resuming, done }
-
-  private struct FileIdentity: Equatable {
-    let device: dev_t
-    let inode: ino_t
-  }
-
-  private final class Item {
-    let uuid = UUID().uuidString
-    var id: String { "wk-download-" + uuid }
-    var download: WKDownload?
-    weak var webView: WKWebView?
-    let url: String
-    let profile: String
-    var request: URLRequest?
-    var phase = Phase.running
-    var filename = ""
-    var path = ""
-    var final: URL?
-    var replaces: FileIdentity?
-    var staging: URL?
-    var state = "downloading"
-    var received: Int64 = 0
-    var total: Int64 = 0
-    var speed: Double = 0
-    var mimeType = ""
-    var resumeData: Data?
-    var progress: NSKeyValueObservation?
-    var sampledAt = Date()
-    var sampledBytes: Int64 = 0
-    var reportedAt = Date.distantPast
-
-    init(url: String, profile: String) {
-      self.url = url
-      self.profile = profile
-    }
-
-    var stagingFile: URL? { staging.map { $0.appendingPathComponent(filename.isEmpty ? "download" : filename) } }
-  }
-
-  private var items: [String: Item] = [:]
-  private var byDownload: [ObjectIdentifier: String] = [:]
-  private let fallbackFolder: URL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
-    ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Downloads")
-
-  private func resolveDestination(for profile: String, completion: @escaping (URL, Bool) -> Void) {
-    guard ArdiaCoreEngineBridge.exports("ac_downloads_settings") else { return completion(fallbackFolder, true) }
-    ArdiaCoreEngineBridge.call("ac_downloads_settings", profile: WebKitHub.regularProfile(profile), args: nil) { [weak self] json in
-      let parsed = (try? JSONSerialization.jsonObject(with: Data(json.utf8))) as? [String: Any]
-      let folder = (parsed?["folder"] as? String).flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0, isDirectory: true) }
-      let ask = parsed?["askWhereToSave"] as? Bool ?? (folder == nil)
-      DispatchQueue.main.async {
-        guard let self else { return }
-        completion(folder ?? self.fallbackFolder, ask)
+    let identifier = Self.storeIdentifier(profile)
+    deletedProfileStores[profile] = .nonPersistent()
+    downloads.cancelAll(profile: profile)
+    if let host = resumeHosts.removeValue(forKey: profile) { Self.close(host) }
+    let removeStore = {
+      WebKitStoreRemovals.exists(identifier) { exists in
+        guard exists else { return completion(true) }
+        WebKitStoreRemovals.remove(identifier, tries: 12, done: completion)
       }
     }
+    guard let store = persistentStores.removeValue(forKey: profile) else { return removeStore() }
+    closeViews(using: store)
+    store.removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast) { DispatchQueue.main.async(execute: removeStore) }
   }
 
-  func adopt(_ download: WKDownload, profile: String, webView: WKWebView?) {
-    let item = Item(url: download.originalRequest?.url?.absoluteString ?? "", profile: profile)
-    item.webView = webView
-    item.request = download.originalRequest
-    attach(download, to: item)
-    items[item.id] = item
+  func storeExists(_ profile: String, done: @escaping (Bool) -> Void) {
+    WebKitStoreRemovals.exists(Self.storeIdentifier(profile), done: done)
   }
 
-  private func attach(_ download: WKDownload, to item: Item) {
-    item.download = download
-    byDownload[ObjectIdentifier(download)] = item.id
-    download.delegate = self
-    item.progress = download.progress.observe(\.completedUnitCount, options: [.new]) { [weak self, weak item] progress, _ in
-      DispatchQueue.main.async {
-        guard let self, let item, item.phase == .running else { return }
-        item.received = progress.completedUnitCount
-        item.total = max(0, progress.totalUnitCount)
-        let now = Date()
-        let elapsed = now.timeIntervalSince(item.sampledAt)
-        if elapsed >= 0.5 {
-          item.speed = Double(item.received - item.sampledBytes) / elapsed
-          item.sampledAt = now
-          item.sampledBytes = item.received
-        }
-        if now.timeIntervalSince(item.reportedAt) >= 0.25 {
-          item.reportedAt = now
-          self.report(item)
-        }
-      }
+  func holdStoreForTest(_ profile: String) { storesHeldForTest[profile] = dataStore(for: profile) }
+
+  func touchStore(_ profile: String, done: @escaping (Bool) -> Void) {
+    let cookies = dataStore(for: profile).httpCookieStore
+    let cookie = HTTPCookie(properties: [.name: "ardia-touch", .value: "1", .domain: "ardia.test", .path: "/", .expires: Date().addingTimeInterval(86400)])
+    cookies.getAllCookies { existing in
+      let touched = existing.contains { $0.name == "ardia-touch" && $0.domain.hasSuffix("ardia.test") }
+      guard let cookie else { return done(touched) }
+      cookies.setCookie(cookie) { done(touched) }
     }
-  }
-
-  private func detach(_ item: Item) {
-    if let download = item.download { byDownload.removeValue(forKey: ObjectIdentifier(download)) }
-    item.progress = nil
-    item.download = nil
-  }
-
-  private func item(for download: WKDownload) -> Item? { byDownload[ObjectIdentifier(download)].flatMap { items[$0] } }
-
-  private func report(_ item: Item) {
-    WebKitHub.shared.events?("onDownload", [
-      "id": item.id, "url": item.url, "filename": item.filename, "path": item.path, "state": item.state,
-      "paused": item.phase == .pausing || item.phase == .paused || item.phase == .resuming,
-      "received": Double(item.received), "total": Double(item.total), "speed": item.speed, "mimeType": item.mimeType,
-      "profile": item.profile, "offTheRecord": false, "staging": item.staging?.path ?? NSNull(),
-      "destination": item.final?.path ?? NSNull(),
-    ])
-  }
-
-  static let stagingPrefix = ".ardia-download-"
-
-  static func makeStaging(in folder: URL, uuid: String) -> URL? {
-    let staging = folder.appendingPathComponent(stagingPrefix + uuid, isDirectory: true)
-    return mkdir(staging.path, 0o700) == 0 ? staging : nil
-  }
-
-  static func plainAbsolute(_ path: String) -> Bool {
-    let parts = path.split(separator: "/", omittingEmptySubsequences: false)
-    return parts.count > 1 && parts[0].isEmpty && parts.dropFirst().allSatisfy { !$0.isEmpty && $0 != "." && $0 != ".." }
-  }
-
-  static func removeStaging(_ path: String, uuid: String, folder: String) -> Bool {
-    guard UUID(uuidString: uuid) != nil, plainAbsolute(path), plainAbsolute(folder),
-      (path as NSString).deletingLastPathComponent == folder, (path as NSString).lastPathComponent == stagingPrefix + uuid
-    else { return false }
-    var info = stat()
-    guard lstat(folder, &info) == 0, info.st_mode & S_IFMT == S_IFDIR else { return false }
-    guard lstat(path, &info) == 0 else { return errno == ENOENT }
-    guard info.st_mode & S_IFMT == S_IFDIR else { return false }
-    return (try? FileManager.default.removeItem(atPath: path)) != nil
-  }
-
-  private static func identity(_ path: String) -> FileIdentity? {
-    var info = stat()
-    guard lstat(path, &info) == 0 else { return nil }
-    return FileIdentity(device: info.st_dev, inode: info.st_ino)
-  }
-
-  private static func dropStaging(_ item: Item) {
-    guard let staging = item.staging else { return }
-    item.staging = nil
-    try? FileManager.default.removeItem(at: staging)
-  }
-
-  private static func place(_ file: URL, at final: URL, replacing: FileIdentity?) -> URL? {
-    if let replacing, identity(final.path) == replacing, rename(file.path, final.path) == 0 { return final }
-    let base = final.deletingPathExtension().lastPathComponent
-    let ext = final.pathExtension
-    for n in 0...9999 {
-      let name = n == 0 ? final.lastPathComponent : ext.isEmpty ? "\(base) (\(n))" : "\(base) (\(n)).\(ext)"
-      let candidate = final.deletingLastPathComponent().appendingPathComponent(name)
-      if renamex_np(file.path, candidate.path, UInt32(RENAME_EXCL)) == 0 { return candidate }
-      if errno != EEXIST { return nil }
-    }
-    return nil
-  }
-
-  func download(_ download: WKDownload, decideDestinationUsing response: URLResponse, suggestedFilename: String,
-                completionHandler: @escaping (URL?) -> Void) {
-    guard let item = item(for: download) else { return completionHandler(nil) }
-    if let file = item.stagingFile {
-      try? FileManager.default.removeItem(at: file)
-      item.path = file.path
-      report(item)
-      return completionHandler(file)
-    }
-    let name = Self.safeName(suggestedFilename.isEmpty ? (response.suggestedFilename ?? "download") : suggestedFilename)
-    item.mimeType = response.mimeType ?? ""
-    item.total = max(0, response.expectedContentLength)
-    let accept = { (target: URL?, replacing: Bool) in
-      guard let target, let staging = Self.makeStaging(in: target.deletingLastPathComponent(), uuid: item.uuid) else {
-        item.phase = .done
-        item.state = target == nil ? "cancelled" : "failed"
-        self.report(item)
-        completionHandler(nil)
-        return
-      }
-      item.final = target
-      item.replaces = replacing ? Self.identity(target.path) : nil
-      item.staging = staging
-      item.filename = target.lastPathComponent
-      let file = staging.appendingPathComponent(item.filename)
-      item.path = file.path
-      self.report(item)
-      completionHandler(file)
-    }
-    resolveDestination(for: item.profile) { folder, ask in
-      guard ask, !WebKitHub.background else { return accept(folder.appendingPathComponent(name), false) }
-      let panel = NSSavePanel()
-      panel.directoryURL = folder
-      panel.nameFieldStringValue = name
-      panel.begin { response in accept(response == .OK ? panel.url : nil, true) }
-    }
-  }
-
-  func downloadDidFinish(_ download: WKDownload) {
-    guard let item = item(for: download) else { return }
-    item.phase = .done
-    detach(item)
-    if let file = item.stagingFile, let final = item.final, let placed = Self.place(file, at: final, replacing: item.replaces) {
-      item.path = placed.path
-      item.filename = placed.lastPathComponent
-      item.state = "finished"
-      let size = ((try? FileManager.default.attributesOfItem(atPath: placed.path))?[.size] as? NSNumber)?.int64Value
-      if let size {
-        item.received = size
-        item.total = size
-      }
-    } else {
-      item.state = "failed"
-    }
-    Self.dropStaging(item)
-    report(item)
-  }
-
-  func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
-    guard let item = item(for: download) else { return }
-    detach(item)
-    switch item.phase {
-    case .pausing, .paused:
-      if let resumeData { item.resumeData = resumeData }
-      item.phase = .paused
-    case .done:
-      break
-    case .running, .resuming:
-      item.phase = .done
-      item.state = (error as NSError).code == NSURLErrorCancelled ? "cancelled" : "failed"
-      Self.dropStaging(item)
-    }
-    report(item)
-  }
-
-  func handles(_ id: String) -> Bool { id.hasPrefix("wk-download-") }
-
-  func command(_ action: String, id: String) {
-    guard let item = items[id] else { return }
-    switch action {
-    case "cancel":
-      guard item.phase != .done else { return }
-      let download = item.download
-      item.phase = .done
-      item.state = "cancelled"
-      item.resumeData = nil
-      detach(item)
-      report(item)
-      if let download {
-        download.cancel { _ in DispatchQueue.main.async { Self.dropStaging(item) } }
-      } else {
-        Self.dropStaging(item)
-      }
-    case "pause":
-      guard item.phase == .running, let download = item.download else { return }
-      item.phase = .pausing
-      report(item)
-      download.cancel { [weak self] data in
-        DispatchQueue.main.async {
-          if let data { item.resumeData = data }
-          if item.download === download { self?.detach(item) }
-          if item.phase == .pausing { item.phase = .paused }
-        }
-      }
-    case "resume":
-      guard item.phase == .paused else { return }
-      let data = item.resumeData
-      let saved = item.request ?? URL(string: item.url).map { URLRequest(url: $0) }
-      let request = saved.flatMap { ["GET", "HEAD"].contains(($0.httpMethod ?? "GET").uppercased()) ? $0 : nil }
-      guard data != nil || request != nil else {
-        item.phase = .done
-        item.state = "failed"
-        Self.dropStaging(item)
-        return report(item)
-      }
-      item.phase = .resuming
-      item.resumeData = nil
-      let host = item.webView ?? WebKitHub.shared.resumeHost(for: item.profile)
-      let resumed: (WKDownload) -> Void = { [weak self] download in
-        DispatchQueue.main.async {
-          guard let self else { return }
-          guard item.phase == .resuming else { return download.cancel(nil) }
-          item.phase = .running
-          if data == nil { item.received = 0 }
-          item.sampledAt = Date()
-          item.sampledBytes = item.received
-          self.attach(download, to: item)
-          self.report(item)
-        }
-      }
-      if let data { host.resumeDownload(fromResumeData: data, completionHandler: resumed) } else if let request { host.startDownload(using: request, completionHandler: resumed) }
-    default: break
-    }
-  }
-
-  static func safeName(_ name: String) -> String {
-    let cleaned = name.replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: ":", with: "_")
-    let trimmed = cleaned.trimmingCharacters(in: CharacterSet(charactersIn: ". ").union(.whitespacesAndNewlines))
-    return trimmed.isEmpty ? "download" : trimmed
   }
 }

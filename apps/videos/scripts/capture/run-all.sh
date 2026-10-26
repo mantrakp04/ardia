@@ -10,8 +10,8 @@ if [ ! -f "$DATA/instance.json" ] || ! "$REPO/scripts/agent/ac" status "$DATA" >
   rm -rf "$DATA"; mkdir -p "$SCRATCH/import-empty"
   node "$HERE/session.mjs" "$SCRATCH/session.json"
   "$REPO/scripts/agent/ac" launch "$APP" --data "$DATA" --onboarded --session "$SCRATCH/session.json" \
-    --env ARDIA_TRAFFIC_LIGHTS_LOG="$SCRATCH/lights.log" --env ARDIA_IMPORT_SOURCE_DIR="$SCRATCH/import-empty" \
-    --env ARDIA_IMPORT_SAFARI_HOME="$SCRATCH/import-empty" \
+    --trace trafficLights --instance importSourceDir="$SCRATCH/import-empty" \
+    --instance importSafariHome="$SCRATCH/import-empty" \
     --switch "--host-resolver-rules=MAP *.example 127.0.0.1:$SITES_PORT"
   sleep 5
 fi

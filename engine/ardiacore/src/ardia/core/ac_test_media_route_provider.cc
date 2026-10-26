@@ -1,4 +1,5 @@
 #include "ardia/core/ac_test_media_route_provider.h"
+#include "ardia/core/ac_launch_switches.h"
 
 #include <map>
 #include <memory>
@@ -7,7 +8,6 @@
 #include <utility>
 #include <vector>
 
-#include "base/command_line.h"
 #include "base/memory/raw_ptr.h"
 #include "base/no_destructor.h"
 #include "base/scoped_observation.h"
@@ -33,7 +33,6 @@ namespace mr = media_router;
 using mr::mojom::MediaRouteProviderId;
 using mr::mojom::RouteRequestResultCode;
 
-constexpr char kSwitch[] = "ardia-test-media-route-provider";
 constexpr MediaRouteProviderId kId = MediaRouteProviderId::TEST;
 
 class Provider : public mr::mojom::MediaRouteProvider, public ProfileObserver {
@@ -147,7 +146,7 @@ void Provider::OnProfileWillBeDestroyed(Profile* profile) {
 
 void MaybeRegisterTestMediaRouteProvider(Profile* profile) {
   if (!profile || Providers().contains(profile) ||
-      !base::CommandLine::ForCurrentProcess()->HasSwitch(kSwitch) ||
+      !TestFlag("mediaRouteProvider") ||
       !mr::MediaRouterEnabled(profile)) {
     return;
   }

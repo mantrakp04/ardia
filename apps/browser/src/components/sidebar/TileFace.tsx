@@ -1,18 +1,18 @@
-import { DockSelection, Surface } from "@ardia/shell";
 import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import { Animated, StyleSheet, View } from "react-native";
-import { hex, layout, useTheme } from "../../lib/theme";
-import { useTileTheme, type TileTheme } from "../../lib/tileTheme";
-import { useSettings, useTab } from "../../store/hooks";
-import { GlassFill, liquidGlass } from "../glass";
-import { SLIDE } from "../layout/stripReorder";
+import { DockSelection, radius, Surface } from "../ui";
+import { hex, layout, useTheme } from "../ui/theme";
+import { useTileTheme, type TileTheme } from "../../state/favicons/tileTheme";
+import { useSettings, useTab } from "../../state/browser/hooks";
+import { GlassFill, liquidGlass } from "../ui/Glass";
+import { SLIDE } from "../tabstrip/stripReorder";
 import { TabBadges } from "../media/TabBadges";
 import { TabIcon } from "./TabIcon";
-import { useSidebarTokens } from "./tokens";
+import { sidebarTokens, TILE_GLOW, useSidebarTokens } from "./tokens";
 
 const SELECTION_STROKE = 3;
 const GLASS_RIM = 1;
-export const TILE_RADIUS = 10;
+export const TILE_RADIUS = radius.card;
 
 type FaceState = { width: number; active: boolean; selected: boolean; hovered: boolean; pressed: boolean };
 
@@ -65,10 +65,10 @@ export function TileFace({ tabId, badge, ...state }: FaceState & { tabId: string
       <Surface
         fill={hex(theme.pinnedSelectedRim)}
         cornerRadius={TILE_RADIUS}
-        shadowColor={theme.dark ? "#FFFFFF" : "#000000"}
-        shadowOpacity={theme.dark ? 0.15 : 0.12}
-        shadowRadius={1.5}
-        shadowOffset={[0, 0.5]}
+        shadowColor={sidebarTokens(theme).tileGlow}
+        shadowOpacity={theme.dark ? TILE_GLOW.opacity.dark : TILE_GLOW.opacity.light}
+        shadowRadius={TILE_GLOW.radius}
+        shadowOffset={TILE_GLOW.offset}
         style={{ width, height: layout.pinnedHeight, padding: 1 }}
       >
         <View
@@ -171,7 +171,7 @@ export function FolderDropRing({ on }: { on: boolean }) {
         borderRadius: TILE_RADIUS + RING_OUTSET,
         borderWidth: 2,
         borderColor: theme.accent,
-        backgroundColor: theme.dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)",
+        backgroundColor: sidebarTokens(theme).folderDropFill,
         opacity: shown,
         transform: [{ scale: shown.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1] }) }],
       }}

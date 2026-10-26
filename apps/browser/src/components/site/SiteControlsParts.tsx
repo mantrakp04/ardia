@@ -1,9 +1,8 @@
-import { ContextMenuArea, Symbol } from "@ardia/shell";
 import { Children, forwardRef, type ReactNode } from "react";
-import { Image, Pressable, Text, View, type AccessibilityActionEvent, type GestureResponderEvent } from "react-native";
-import { useTheme, type Theme } from "../../lib/theme";
-import { PANEL } from "../layout/controls";
-import { useHover } from "../primitives";
+import { Image, Pressable, View, type AccessibilityActionEvent, type GestureResponderEvent } from "react-native";
+import { useTheme } from "../ui/theme";
+import { ContextMenuArea, hairline, menuRowFill, opacity, PANEL, Symbol, Text, useHover } from "../ui";
+import { siteLine, useSiteTokens, type SiteTokens } from "./tokens";
 
 export const SITE_PANEL = {
   width: 288,
@@ -18,25 +17,21 @@ export const SITE_PANEL = {
   footerControl: 26,
 } as const;
 
-export function tileFill(theme: Theme, pressed: boolean, hovered: boolean) {
-  const alpha = pressed ? 0.16 : hovered ? 0.11 : 0.07;
-  return theme.dark ? `rgba(255,255,255,${alpha})` : `rgba(0,0,0,${alpha * 0.75})`;
+export function tileFill(site: SiteTokens, pressed: boolean, hovered: boolean) {
+  return pressed ? site.tilePressed : hovered ? site.tileHover : site.tile;
 }
 
-export const tileStroke = (theme: Theme) => (theme.dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)");
-
 export function SectionTitle({ title, tight }: { title: string; tight?: boolean }) {
-  const theme = useTheme();
   return (
     <Text
+      size="small"
+      weight="semibold"
+      tone="textSecondary"
       style={{
         marginTop: SITE_PANEL.sectionTop,
         marginBottom: tight ? SITE_PANEL.sectionGap - (SITE_PANEL.settingHeight - SITE_PANEL.settingBadge) / 2 : SITE_PANEL.sectionGap,
         marginHorizontal: PANEL.inset,
-        fontSize: 12,
-        lineHeight: 15,
-        fontWeight: "600",
-        color: theme.textSecondary,
+        lineHeight: siteLine.section,
       }}
     >
       {title}
@@ -76,6 +71,7 @@ export const ActionTile = forwardRef<View, { icon: string; label: string; active
   ref,
 ) {
   const theme = useTheme();
+  const site = useSiteTokens();
   const { hovered, hoverProps } = useHover();
   return (
     <View ref={ref} collapsable={false} tooltip={label} accessibilityLabel={label} style={{ flex: 1 }} {...hoverProps}>
@@ -91,11 +87,11 @@ export const ActionTile = forwardRef<View, { icon: string; label: string; active
             style={{
               height: SITE_PANEL.actionHeight,
               borderRadius: SITE_PANEL.tileRadius,
-              borderWidth: 0.5,
-              borderColor: tileStroke(theme),
+              borderWidth: hairline.ring,
+              borderColor: site.tileStroke,
               alignItems: "center",
               justifyContent: "center",
-              backgroundColor: tileFill(theme, pressed, hovered),
+              backgroundColor: tileFill(site, pressed, hovered),
             }}
           >
             <Symbol name={icon} size={15} color={active ? theme.accent : theme.icon} style={{ width: 22, height: 22 }} />
@@ -111,6 +107,7 @@ export const ExtensionTile = forwardRef<
   { name: string; icon: string | null; symbol?: string; dimmed?: boolean; onPress: () => void; onContextMenu?: () => void }
 >(function ExtensionTile({ name, icon, symbol = "puzzlepiece.extension", dimmed, onPress, onContextMenu }, ref) {
   const theme = useTheme();
+  const site = useSiteTokens();
   const { hovered, hoverProps } = useHover();
   const button = (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={name}>
@@ -121,12 +118,12 @@ export const ExtensionTile = forwardRef<
             borderRadius: SITE_PANEL.tileRadius,
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: tileFill(theme, pressed, hovered),
+            backgroundColor: tileFill(site, pressed, hovered),
           }}
         >
           {icon ? (
             <View pointerEvents="none">
-              <Image source={{ uri: icon }} style={{ width: 18, height: 18, opacity: dimmed ? 0.45 : 1 }} />
+              <Image source={{ uri: icon }} style={{ width: 18, height: 18, opacity: dimmed ? opacity.disabled : 1 }} />
             </View>
           ) : (
             <Symbol name={symbol} size={14} color={theme.icon} style={{ width: 20, height: 20 }} />
@@ -156,6 +153,7 @@ export function SettingRow({
   onPress?: () => void;
 }) {
   const theme = useTheme();
+  const site = useSiteTokens();
   const { hovered, hoverProps } = useHover();
   const content = (pressed: boolean) => (
     <View
@@ -167,7 +165,7 @@ export function SettingRow({
         flexDirection: "row",
         alignItems: "center",
         gap: PANEL.iconGap,
-        backgroundColor: onPress && (pressed || hovered) ? (theme.dark ? `rgba(255,255,255,${pressed ? 0.12 : 0.07})` : `rgba(0,0,0,${pressed ? 0.1 : 0.06})`) : undefined,
+        backgroundColor: onPress && (pressed || hovered) ? menuRowFill(theme, pressed) : undefined,
       }}
     >
       <View
@@ -177,16 +175,16 @@ export function SettingRow({
           borderRadius: SITE_PANEL.settingBadge / 2,
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: on ? theme.accent : tileFill(theme, false, true),
+          backgroundColor: on ? theme.accent : site.tileHover,
         }}
       >
-        <Symbol name={icon} size={12} weight="medium" color={on ? "#FFFFFF" : theme.icon} style={{ width: 18, height: 18 }} />
+        <Symbol name={icon} size={12} weight="medium" color={on ? theme.onAccent : theme.icon} style={{ width: 18, height: 18 }} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text numberOfLines={1} style={{ fontSize: PANEL.titleSize, lineHeight: PANEL.titleLine, fontWeight: "500", color: theme.textPrimary }}>
+        <Text lines={1} weight="medium" style={{ fontSize: PANEL.titleSize, lineHeight: PANEL.titleLine }}>
           {title}
         </Text>
-        <Text numberOfLines={1} style={{ fontSize: PANEL.subtitleSize, lineHeight: PANEL.subtitleLine, color: theme.textSecondary }}>
+        <Text lines={1} tone="textSecondary" style={{ fontSize: PANEL.subtitleSize, lineHeight: PANEL.subtitleLine }}>
           {value}
         </Text>
       </View>
@@ -204,6 +202,7 @@ export function SettingRow({
 
 export function FooterChip({ icon, title, color, open, onPress }: { icon: string; title: string; color?: string; open: boolean; onPress?: () => void }) {
   const theme = useTheme();
+  const site = useSiteTokens();
   const { hovered, hoverProps } = useHover();
   return (
     <View {...hoverProps} tooltip={onPress ? (open ? "Hide Connection Details" : "Connection Details") : undefined}>
@@ -218,11 +217,11 @@ export function FooterChip({ icon, title, color, open, onPress }: { icon: string
               flexDirection: "row",
               alignItems: "center",
               gap: 4,
-              backgroundColor: tileFill(theme, pressed || open, !!onPress && hovered),
+              backgroundColor: tileFill(site, pressed || open, !!onPress && hovered),
             }}
           >
             <Symbol name={icon} size={11} weight="medium" color={color ?? theme.icon} style={{ width: 14, height: 16 }} />
-            <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: "500", color: color ?? theme.textPrimary }}>
+            <Text lines={1} size="small" weight="medium" style={color ? { color } : undefined}>
               {title}
             </Text>
           </View>
@@ -234,6 +233,7 @@ export function FooterChip({ icon, title, color, open, onPress }: { icon: string
 
 export function MoreButton({ open, onPress }: { open: boolean; onPress: () => void }) {
   const theme = useTheme();
+  const site = useSiteTokens();
   const { hovered, hoverProps } = useHover();
   const label = open ? "Fewer Site Controls" : "More Site Controls";
   return (
@@ -247,7 +247,7 @@ export function MoreButton({ open, onPress }: { open: boolean; onPress: () => vo
               borderRadius: SITE_PANEL.footerControl / 2,
               alignItems: "center",
               justifyContent: "center",
-              backgroundColor: tileFill(theme, pressed || open, hovered),
+              backgroundColor: tileFill(site, pressed || open, hovered),
             }}
           >
             <Symbol name="ellipsis" size={12} weight="semibold" color={theme.icon} style={{ width: 18, height: 18 }} />

@@ -1,4 +1,4 @@
-import { Cef } from "./native";
+import { call, on } from "./engine/call";
 
 export type FilterListCategory = "ads" | "trackers" | "cookies" | "regional" | "annoyances" | "security";
 
@@ -31,10 +31,9 @@ export type ContentBlockerState = {
   stats: ContentBlockerStats;
 };
 
-export const getContentBlocker = () => Cef.getContentBlocker();
-export const setContentBlockerEnabled = (enabled: boolean) => Cef.setContentBlockerEnabled(enabled);
-export const setFilterListEnabled = (id: string, enabled: boolean) => Cef.setFilterListEnabled(id, enabled);
-export const isContentBlockerAllowed = (host: string) => Cef.isContentBlockerAllowed(host);
-export const setContentBlockerAllowed = (host: string, allowed: boolean) => Cef.setContentBlockerAllowed(host, allowed);
-export const onContentBlockerChange = (listener: (stats: ContentBlockerStats) => void) =>
-  Cef.addListener("onContentBlocker", listener);
+export const getContentBlocker = () => call("contentBlocker.state");
+export const setContentBlockerEnabled = (enabled: boolean) => call("contentBlocker.setEnabled", { enabled });
+export const setFilterListEnabled = (id: string, enabled: boolean) => call("contentBlocker.setListEnabled", { id, enabled });
+export const isContentBlockerAllowed = (host: string) => call("contentBlocker.isAllowed", { host });
+export const setContentBlockerAllowed = (host: string, allowed: boolean) => call("contentBlocker.setAllowed", { host, allowed });
+export const onContentBlockerChange = (listener: (stats: ContentBlockerStats) => void) => on("contentBlocker.changed", listener);

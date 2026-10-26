@@ -1,21 +1,24 @@
-import { WindowBackdrop } from "@ardia/shaders";
-import { ContextMenuArea, setTrafficLightsCenter, WindowDragRegion } from "@ardia/shell";
+import { WindowBackdrop, ContextMenuArea, WindowDragRegion, useHover } from "../ui";
+import { setTrafficLightsCenter } from "../../state/windows/nativeWindow";
 import { useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { useTheme } from "../../lib/theme";
-import { useBrowser } from "../../store/browser";
-import { useActiveTab, useWindowId, useWindowProfile, useWindowUi } from "../../store/hooks";
-import type { Tab } from "../../store/types";
-import { CommandPanel } from "../CommandPanel";
-import { ContentCard } from "../ContentCard";
-import { DownloadsPopover } from "../Downloads";
-import { setUrlAnchor } from "../layout/windowLayout";
-import { showUrlBarMenu } from "../omnibox/paste";
-import { useHover } from "../primitives";
-import { copyPageUrl } from "../site/selection";
-import { ProfileBadge } from "../profiles/icons";
-import { openInMainWindow, openLittleArdiaProfileMenu } from "./actions";
-import { PageLabel, SMALL_BAR_HEIGHT, SMALL_INSET, SMALL_LIGHTS_CENTER, SmallBar, SmallBarBadgeButton } from "./SmallChrome";
+import { useTheme } from "../ui/theme";
+import { useProfileOrder } from "../../state/profiles/hooks";
+import { openPanel } from "../../state/windows/actions";
+import { useActiveTab, useWindowId, useWindowProfile, useWindowUi } from "../../state/browser/hooks";
+import type { Tab } from "../../state/browser/types";
+import { CommandPanel } from "../omnibox/CommandPanel";
+import { ContentCard } from "../window/ContentCard";
+import { DownloadsPopover } from "../downloads/Downloads";
+import { ExtensionOverlays } from "../extensions/ExtensionOverlays";
+import { ToolbarPopupAnchor } from "../extensions/ToolbarExtensions";
+import { setUrlAnchor } from "../../state/windows/layout";
+import { showUrlBarMenu } from "../../state/omnibox/paste";
+import { copyPageUrl } from "../../state/site/selection";
+import { ProfileBadge } from "../profiles/ProfileIcons";
+import { openInMainWindow, openLittleArdiaProfileMenu } from "../../state/littleArdia/actions";
+import { PageLabel, SMALL_BAR_BUTTON, SMALL_INSET, SmallBar, SmallBarBadgeButton } from "./SmallChrome";
+import { SMALL_BAR_HEIGHT, SMALL_LIGHTS_CENTER } from "../../state/windows/small";
 
 const FIELD_LEFT = 84;
 
@@ -33,6 +36,7 @@ export function LittleArdiaWindow() {
       </View>
       <CommandPanel windowWidth={width} />
       <DownloadsPopover />
+      <ExtensionOverlays />
     </View>
   );
 }
@@ -41,7 +45,7 @@ function LittleArdiaBar() {
   const windowId = useWindowId();
   const tab = useActiveTab();
   const panelOpen = useWindowUi().panel.open;
-  const severalProfiles = useBrowser((s) => s.profileOrder.length > 1);
+  const severalProfiles = useProfileOrder((order) => order.length > 1);
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => {
@@ -68,6 +72,7 @@ function LittleArdiaBar() {
       trailing={severalProfiles ? <ProfileButton windowId={windowId} /> : undefined}
     >
       <WindowDragRegion style={StyleSheet.absoluteFill} />
+      {tab ? <ToolbarPopupAnchor windowId={windowId} tabId={tab.id} top={(SMALL_BAR_HEIGHT - SMALL_BAR_BUTTON) / 2} right={SMALL_INSET} /> : null}
     </SmallBar>
   );
 }
@@ -95,7 +100,7 @@ function PageField({ tab, windowId, hidden }: { tab: Tab; windowId: string; hidd
         <WindowDragRegion
           clickable
           accessibilityRole="button"
-          onRegionClick={() => useBrowser.getState().openPanel(windowId, tab.url)}
+          onRegionClick={() => openPanel(windowId, tab.url)}
           style={{ flex: 1 }}
         >
           <PageLabel tab={tab} hovered={hovered} />

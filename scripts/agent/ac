@@ -2,7 +2,8 @@
 // Hidden test instances from the shell (scripts/lib/instance.mjs): launch one, run JS in the app or a page, quit it.
 //
 //   scripts/agent/ac launch <app> [--data DIR] [--port N] [--js pinned|live|none|host:port] [--env K=V]…
-//                               [--switch S]… [--session FILE.json] [--onboarded] [--no-wait] [--runs-from APP]
+//                               [--instance K=V]… [--test K[=V]]… [--trace AREA]… [--switch S]…
+//                               [--session FILE.json] [--onboarded] [--no-wait] [--runs-from APP]
 //   scripts/agent/ac eval   <data dir> '<body>' [--timeout MS]   the dev harness: `return …` (a promise is awaited)
 //   scripts/agent/ac page   <data dir> <url part> '<expression>'  a page's DevTools Runtime.evaluate (awaited, by value)
 //   scripts/agent/ac quit   <data dir> [--kill]                   the app's quit, then SIGTERM, then SIGKILL
@@ -12,6 +13,8 @@
 // launch prints `pid port data log` and records the instance in <data>/instance.json; every other command finds it
 // there, and only ever signals that process (pid, start time and binary). The app runs hidden (ARDIA_BACKGROUND=1,
 // `open -g -n`) with Metro pinned by default (a proxy that refuses reloads: other agents' edits don't restart it).
+// --instance, --test and --trace fill ARDIA_INSTANCE, ARDIA_TEST and ARDIA_TRACE (keys: docs/agent-brief.md); --switch
+// adds a Chrome switch (ARDIA_INSTANCE chromiumSwitches). A build from before ArdiaLaunchConfig gets the old variables.
 // Body or expression `-` reads stdin. Exit 1 on a failure, 3 when the instance has gone.
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -19,7 +22,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const lib = join(dirname(fileURLToPath(import.meta.url)), "../lib/instance.mjs");
-const { attach, launch } = await import(lib);
+const { attach, launch, mergeLaunchEnv } = await import(lib);
 
 const argv = process.argv.slice(2);
 const help = () => {
@@ -36,7 +39,7 @@ for (let i = 0; i < rest.length; i++) {
   const a = rest[i];
   if (!a.startsWith("--")) positional.push(a);
   else if (["--onboarded", "--no-wait", "--kill"].includes(a)) flags[a.slice(2)] = true;
-  else if (["--env", "--switch"].includes(a)) (flags[a.slice(2)] ??= []).push(rest[++i]);
+  else if (["--env", "--switch", "--instance", "--test", "--trace"].includes(a)) (flags[a.slice(2)] ??= []).push(rest[++i]);
   else flags[a.slice(2)] = rest[++i];
 }
 const input = (s) => (s === "-" ? readFileSync(0, "utf8") : s);
@@ -53,9 +56,11 @@ const found = (dir) => {
 try {
   if (command === "launch") {
     if (!positional[0]) throw new Error("usage: ac launch <app> [--data DIR] …");
-    const env = Object.fromEntries((flags.env ?? []).map((kv) => [kv.slice(0, kv.indexOf("=")), kv.slice(kv.indexOf("=") + 1)]));
+    const pairs = (list) => Object.fromEntries((list ?? []).map((kv) => (kv.includes("=") ? [kv.slice(0, kv.indexOf("=")), kv.slice(kv.indexOf("=") + 1)] : [kv, true])));
     const app = await launch(positional[0], {
-      data: flags.data, port: flags.port, js: flags.js, env, switches: flags.switch, onboarded: flags.onboarded,
+      data: flags.data, port: flags.port, js: flags.js, switches: flags.switch, onboarded: flags.onboarded,
+      env: mergeLaunchEnv(...(flags.env ?? []).map((kv) => pairs([kv]))),
+      instance: pairs(flags.instance), test: pairs(flags.test), trace: flags.trace ?? [],
       session: flags.session ? JSON.parse(readFileSync(flags.session, "utf8")) : undefined, ready: !flags["no-wait"],
       runsFrom: flags["runs-from"],
     });

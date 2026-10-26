@@ -1,0 +1,298 @@
+import { beginTracing, endTracing, isTracing, openTaskManager } from "../../platform/performance";
+import { confirm } from "../../platform/dialogs";
+import { copyText } from "../../platform/clipboard";
+import { engineInfo, isDefaultBrowser, openExternalURL, setAsDefaultBrowser, systemInfo, updaterState } from "../../platform/app";
+import { onCommand, type CommandEvent } from "../../platform/commands";
+import { onNotificationResponse } from "../../platform/notifications";
+import { onScriptCommand, replyToScript, setScriptState, type ScriptCommand, type ScriptState } from "../../platform/scripting";
+import { readDocument, saveDocument } from "../../platform/documents";
+import { revealFile } from "../../platform/files";
+import { setWindowActivity } from "../../platform/windows";
+import { maybeStartOnboarding, onboardingCompletedAt, startOnboarding, useOnboarding } from "../onboarding/onboarding";
+import { openVideoTour, startToolTour } from "../onboarding/tour";
+import { trackAppVersion } from "../releaseNotes/releaseNotes";
+import { useBrowser, type BrowserState } from "../browser/store";
+import { activeTabId, resolveWindowId, viewTabIds, windowTitle } from "../browser/model";
+import { focus, openUrls, openWindow, switchProfile, switchToTab } from "../browser/actions";
+import { afterFirstWindow } from "../../lib/afterFirstWindow";
+import { offerDefaultBrowserAgain } from "../onboarding/defaultBrowserOffer";
+import { openReleaseNotesAfterUpdate, openReleaseNotesPage } from "../releaseNotes/releaseNotesPage";
+import { JAVASCRIPT_FROM_APPLE_EVENTS_REFUSED, runsJavaScript } from "../settings/scriptUrls";
+import { webviews } from "../../platform/webviews";
+import { handleWebNotificationResponse } from "../site/webNotifications";
+
+export function startAppIntegration() {
+  onCommand(runAppCommand);
+  onNotificationResponse((response) => {
+    if (handleWebNotificationResponse(response) || response.action !== "click") return;
+    const s = useBrowser.getState();
+    const { tabId, windowId } = response;
+    if (tabId && s.tabs[tabId]) switchToTab(tabId);
+    else if (windowId && s.windows[windowId]) focus(windowId);
+  });
+  startHandoff();
+  startScripting();
+  const updated = trackAppVersion();
+  maybeStartOnboarding();
+  if (updated) openReleaseNotesAfterUpdate();
+  afterFirstWindow(() => {
+    void offerDefaultBrowserAgain({
+      read: readDocument,
+      save: saveDocument,
+      testInstance: systemInfo().isolatedInstance !== false,
+      onboarding: !onboardingCompletedAt() || useOnboarding.getState().windowId !== null,
+      isDefault: isDefaultBrowser,
+      setDefault: setAsDefaultBrowser,
+    }).catch((error) => console.warn("[defaultBrowserOffer]", error));
+  });
+}
+
+function runAppCommand({ command, windowId }: CommandEvent) {
+  switch (command) {
+    case "sendFeedback":
+      return void sendFeedback(windowId);
+    case "copyDiagnostics":
+      return void diagnostics().then(copyText);
+    case "recordPerformanceIssue":
+      return void recordPerformanceIssue();
+    case "showOnboarding":
+      return startOnboarding(windowId);
+    case "toolTour":
+      return void startToolTour(windowId);
+    case "videoTour":
+      return openVideoTour(windowId);
+    case "releaseNotes":
+      return openReleaseNotesPage(windowId);
+    case "taskManager":
+      return void openTaskManager().catch(() => {});
+  }
+}
+
+export async function sendFeedback(windowId?: string | null) {
+  const app = systemInfo();
+  const report = await diagnostics();
+  const body = `What happened?\n\n\nWhat did you expect?\n\n\n---\n${report}`;
+  const page = app.feedbackURL && /^https?:/i.test(app.feedbackURL) ? app.feedbackURL : null;
+  if (page) return openUrls([page.replace("%s", encodeURIComponent(body))], windowId);
+  const to = app.feedbackEmail && !/[\s?&]/.test(app.feedbackEmail) ? app.feedbackEmail : "";
+  const draft = `mailto:${to}?subject=${encodeURIComponent(`${app.appName} Feedback`)}&body=${encodeURIComponent(body)}`;
+  if (!(await openExternalURL(draft))) copyText(body);
+}
+
+export async function diagnostics(): Promise<string> {
+  const app = systemInfo();
+  const [engine, updates] = await Promise.all([engineInfo().catch(() => null), updaterState().catch(() => null)]);
+  const s = useBrowser.getState();
+  const regular = s.windowOrder.filter((id) => !s.windows[id]?.incognito);
+  return [
+    `${app.appName} ${app.appVersion} (${app.appBuild}) — ${app.configuration}`,
+    engine ? `Engine: ArdiaCore, Chromium ${engine.chromiumVersion}` : "Engine: unavailable",
+    `macOS ${app.osVersion} (${app.osBuild}), ${app.arch}, ${app.model}, ${Math.round(app.memoryGB)} GB`,
+    `Bundle: ${app.bundleId}, locale ${app.locale}`,
+    `Windows: ${regular.length} (+${s.windowOrder.length - regular.length} incognito), tabs: ${Object.keys(s.tabs).length}, profiles: ${s.profileOrder.length}`,
+    !updates?.available
+      ? "Updates: not built in"
+      : !updates.configured
+        ? "Updates: not set up for this build"
+        : `Updates: automatic checks ${updates.automaticChecks ? "on" : "off"}, feed ${updates.feedURL ?? "none"}`,
+  ].join("\n");
+}
+
+async function recordPerformanceIssue() {
+  if (await isTracing()) return;
+  const start = await confirm({
+    title: "Record a performance issue?",
+    message: "Ardia records what the engine does while you reproduce the problem. The recording is saved to your Downloads folder.",
+    confirmTitle: "Start Recording",
+  });
+  if (!start.confirmed || !(await beginTracing())) return;
+  const stop = await confirm({ title: "Recording…", message: "Reproduce the problem now, then click Stop.", confirmTitle: "Stop", cancelTitle: "Discard" });
+  const path = await endTracing(stop.confirmed);
+  if (path) void revealFile(path);
+}
+
+function startHandoff() {
+  const last = new Map<string, string>();
+  const sync = (s: BrowserState) => {
+    for (const id of s.windowOrder) {
+      const w = s.windows[id]!;
+      const tabId = activeTabId(s, id);
+      const tab = tabId ? s.tabs[tabId] : undefined;
+      const url = !w.incognito && tab?.url && /^https?:/i.test(tab.url) ? tab.url : null;
+      const title = tab ? tab.customTitle || tab.title : "";
+      const key = `${url}\n${title}`;
+      if (last.get(id) === key) continue;
+      last.set(id, key);
+      void setWindowActivity(id, url, title || null);
+    }
+    for (const id of last.keys()) if (!s.windows[id]) last.delete(id);
+  };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  useBrowser.subscribe((s, prev) => {
+    if (s.tabs === prev.tabs && s.windows === prev.windows) return;
+    timer ??= setTimeout(() => {
+      timer = undefined;
+      sync(useBrowser.getState());
+    }, 250);
+  });
+  setTimeout(() => sync(useBrowser.getState()), 1000);
+}
+
+function scriptState(s: BrowserState): ScriptState {
+  return {
+    windows: s.windowOrder.map((id) => {
+      const w = s.windows[id]!;
+      return {
+        id,
+        title: windowTitle(s, id),
+        profileId: w.profileId,
+        incognito: w.incognito,
+        activeTabId: activeTabId(s, id) ?? null,
+        tabs: viewTabIds(s, id).map((tabId) => {
+          const t = s.tabs[tabId]!;
+          return {
+            id: tabId,
+            title: t.customTitle || t.title,
+            url: t.url,
+            loading: !!s.live[tabId]?.isLoading,
+            pinned: t.pinned,
+          };
+        }),
+      };
+    }),
+    profiles: s.profileOrder.map((id) => ({ id, name: s.profiles[id]!.name })),
+  };
+}
+
+function startScripting() {
+  let lastJson = "";
+  const push = () => {
+    const state = scriptState(useBrowser.getState());
+    const json = JSON.stringify(state);
+    if (json === lastJson) return Promise.resolve();
+    lastJson = json;
+    return setScriptState(state);
+  };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  useBrowser.subscribe((s, prev) => {
+    if (s.tabs === prev.tabs && s.windows === prev.windows && s.live === prev.live && s.profiles === prev.profiles) return;
+    timer ??= setTimeout(() => {
+      timer = undefined;
+      void push();
+    }, 100);
+  });
+  void push();
+
+  onScriptCommand((request) => {
+    let result: Record<string, unknown> | null = null;
+    Promise.resolve()
+      .then(async () => {
+        result = (await runScriptCommand(request)) ?? {};
+      })
+      .then(
+        () => push().then(() => replyToScript(request.id, result)),
+        (error: unknown) => push().then(() => replyToScript(request.id, null, error instanceof Error ? error.message : String(error))),
+      );
+  });
+}
+
+async function runScriptCommand(request: ScriptCommand): Promise<Record<string, unknown> | void> {
+  const s = useBrowser.getState();
+  const tabOf = (tabId: string) => {
+    const tab = s.tabs[tabId];
+    if (!tab) throw new Error("That tab no longer exists.");
+    return tab;
+  };
+  const loaded = (tabId: string) => {
+    const web = webviews.get(tabId);
+    if (!web) throw new Error("The tab hasn't loaded yet; focus it first.");
+    return web;
+  };
+  const scriptJavaScriptAllowed = s.settings.allowJavaScriptFromAppleEvents;
+  const refusesUrl = (url: string | undefined) => !!url && !scriptJavaScriptAllowed && runsJavaScript(url, s.settings);
+  switch (request.command) {
+    case "newWindow": {
+      if (refusesUrl(request.url)) return JAVASCRIPT_FROM_APPLE_EVENTS_REFUSED;
+      const windowId = openWindow({ url: request.url, incognito: request.incognito, profileId: request.profileId });
+      return { windowId };
+    }
+    case "newTab": {
+      if (refusesUrl(request.url)) return JAVASCRIPT_FROM_APPLE_EVENTS_REFUSED;
+      const windowId = resolveWindowId(s, request.windowId);
+      if (!windowId) {
+        const created = openWindow({ url: request.url });
+        return { windowId: created, tabId: activeTabId(useBrowser.getState(), created) };
+      }
+      const view = viewTabIds(s, windowId);
+      const w = s.windows[windowId]!;
+      let index: number | undefined;
+      if (request.index !== undefined) {
+        const pinned = view.filter((id) => s.tabs[id]!.pinned).length;
+        const at = Math.max(request.index, pinned);
+        index = at < view.length ? w.tabIds.indexOf(view[at]!) : w.tabIds.length;
+      }
+      const tabId = s.newTab(windowId, { url: request.url, index });
+      return { windowId, tabId };
+    }
+    case "setURL":
+      tabOf(request.tabId);
+      if (refusesUrl(request.url)) return JAVASCRIPT_FROM_APPLE_EVENTS_REFUSED;
+      return s.navigate(request.tabId, request.url);
+    case "closeTab":
+      tabOf(request.tabId);
+      return s.closeTab(request.tabId);
+    case "closeWindow":
+      if (!s.windows[request.windowId]) throw new Error("That window no longer exists.");
+      return s.closeWindow(request.windowId);
+    case "reload": {
+      const tab = tabOf(request.tabId);
+      const web = webviews.get(request.tabId);
+      if (web) return void (await web.reload());
+      if (tab.url) s.navigate(tab.id, tab.url);
+      return;
+    }
+    case "back":
+      tabOf(request.tabId);
+      return void (await loaded(request.tabId).goBack());
+    case "forward":
+      tabOf(request.tabId);
+      return void (await loaded(request.tabId).goForward());
+    case "focusTab":
+      tabOf(request.tabId);
+      return switchToTab(request.tabId);
+    case "setActiveTabIndex": {
+      if (!s.windows[request.windowId]) throw new Error("That window no longer exists.");
+      if (request.index < 1 || request.index > viewTabIds(s, request.windowId).length) throw new Error("There's no tab at that index.");
+      return s.activateIndex(request.windowId, request.index - 1);
+    }
+    case "focusProfile": {
+      const windowId = resolveWindowId(s, null);
+      if (!s.profiles[request.profileId]) throw new Error("That profile no longer exists.");
+      if (!windowId || s.windows[windowId]!.incognito) throw new Error("There's no window to show the profile in.");
+      return switchProfile(windowId, request.profileId);
+    }
+    case "execute": {
+      tabOf(request.tabId);
+      if (!scriptJavaScriptAllowed) return JAVASCRIPT_FROM_APPLE_EVENTS_REFUSED;
+      const outcome = await loaded(request.tabId).evaluate<{ value?: string; error?: string }>(executeWrapper(request.code));
+      if (!outcome) throw new Error("The page didn't answer.");
+      if (outcome.error) throw new Error(outcome.error);
+      return { value: outcome.value ?? "" };
+    }
+  }
+}
+
+function executeWrapper(code: string) {
+  return `
+const text = (v) => {
+  if (v === undefined || v === null) return "";
+  if (typeof v === "string") return v;
+  try { const json = JSON.stringify(v); return json === undefined ? String(v) : json; } catch { return String(v); }
+};
+let value;
+try { value = (0, eval)(${JSON.stringify(code)}); } catch (e) { post("result", JSON.stringify({ error: String(e) })); return; }
+Promise.resolve(value).then(
+  (v) => post("result", JSON.stringify({ value: text(v) })),
+  (e) => post("result", JSON.stringify({ error: String(e) })),
+);`;
+}

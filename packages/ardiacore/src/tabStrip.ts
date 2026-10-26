@@ -1,5 +1,4 @@
-import { engineCall } from "./engine";
-import { Cef } from "./native";
+import { call, on } from "./engine/call";
 
 export type StripTab = {
   key: string | null;
@@ -52,13 +51,13 @@ let lastCommand = Math.floor(Math.random() * 1e6) * 1e3;
 
 export function sendTabStripCommand(command: TabStripCommand): number {
   const id = ++lastCommand;
-  void Cef.tabStripCommand(id, command);
+  void call("tabs.stripCommand", { id, command });
   return id;
 }
 
-export const onTabStripTransaction = (listener: (tx: TabStripTransaction) => void) => Cef.addListener("onTabStrip", listener);
+export const onTabStripTransaction = (listener: (tx: TabStripTransaction) => void) => on("tabs.strips", listener);
 
-export const tabStrips = (): Promise<TabStripTransaction> => Cef.tabStrips();
+export const tabStrips = (): Promise<TabStripTransaction> => call("tabs.strips");
 
 export const lastTabClosesWindow = (): Promise<boolean> =>
-  engineCall<{ closesWindow: boolean }>("ac_tabs_last_tab_policy", "").then((r) => r.closesWindow !== false, () => true);
+  call("tabs.lastTabPolicy").then((r) => r.closesWindow !== false);

@@ -1,27 +1,27 @@
 import { breadcrumb } from "@ardia/core";
-import { FadeLabel, Symbol } from "@ardia/shell";
+import { FadeLabel, Symbol, Button, Text, useHover } from "../ui";
 import { useEffect, useRef, type ReactNode } from "react";
-import { Animated, Easing, Pressable, Text, View } from "react-native";
-import { useTheme } from "../../lib/theme";
-import { useTabLive } from "../../store/hooks";
-import { usePageProgress } from "../../store/pageProgress";
-import type { Tab } from "../../store/types";
-import { usePage } from "../layout/pageState";
-import { Favicon, IconButton, useHover } from "../primitives";
+import { Animated, Pressable, View } from "react-native";
+import { useTheme } from "../ui/theme";
+import { useTabLive } from "../../state/browser/hooks";
+import { usePageProgress } from "../../state/tabs/pageProgress";
+import type { Tab } from "../../state/browser/types";
+import { usePage } from "../../state/tabs/pageState";
+import { font, radius, space } from "../ui/tokens";
+import { PAGE_PROGRESS_GROW } from "./tokens";
+import { Favicon } from "../favicon/Favicon";
+import { curve } from "../ui/motion";
+import { SMALL_BAR_HEIGHT } from "../../state/windows/small";
 
-export const SMALL_BAR_HEIGHT = 38;
 export const SMALL_INSET = 6;
-export const SMALL_LIGHTS_CENTER: [number, number] = [20, SMALL_BAR_HEIGHT / 2];
-export const SMALL_WINDOW_RADIUS = 16;
-export const SMALL_WINDOW_FRAME = {
-  dark: { outerRim: "rgba(0,0,0,0.95)", innerRim: "rgba(255,255,255,0.1)", shadowOpacity: 0.66, shadowRadius: 23, shadowOffset: [0, 21] as [number, number] },
-  light: { outerRim: "rgba(0,0,0,0.15)", innerRim: "rgba(255,255,255,0)", shadowOpacity: 0.38, shadowRadius: 23, shadowOffset: [0, 21] as [number, number] },
-};
+export { SMALL_WINDOW_FRAME, SMALL_WINDOW_RADIUS } from "./tokens";
 const MID = SMALL_BAR_HEIGHT / 2;
 const FIELD_HEIGHT = 28;
-const BUTTON = 28;
+export const SMALL_BAR_BUTTON = 28;
 const BUTTON_GAP = 2;
 const FIELD_GAP = 6;
+const HOST = { flexShrink: 0, maxWidth: "60%" } as const;
+const FLEX = { flex: 1 } as const;
 
 export type SmallBarButton = { icon: string; size: number; tooltip: string; onPress: () => void; disabled?: boolean };
 
@@ -39,14 +39,14 @@ export function SmallBar({
   children?: ReactNode;
 }) {
   const count = buttons.length + (trailing ? 1 : 0);
-  const buttonsWidth = count * BUTTON + Math.max(0, count - 1) * BUTTON_GAP;
+  const buttonsWidth = count * SMALL_BAR_BUTTON + Math.max(0, count - 1) * BUTTON_GAP;
   return (
     <View style={{ height: SMALL_BAR_HEIGHT }}>
       {children}
       <View style={{ position: "absolute", left: fieldLeft, right: SMALL_INSET + buttonsWidth + FIELD_GAP, top: MID - FIELD_HEIGHT / 2, height: FIELD_HEIGHT }}>{field}</View>
-      <View style={{ position: "absolute", right: SMALL_INSET, top: MID - BUTTON / 2, flexDirection: "row", gap: BUTTON_GAP }}>
+      <View style={{ position: "absolute", right: SMALL_INSET, top: MID - SMALL_BAR_BUTTON / 2, flexDirection: "row", gap: BUTTON_GAP }}>
         {buttons.map((b) => (
-          <IconButton key={b.tooltip} icon={b.icon} size={b.size} box={BUTTON} radius={7} disabled={b.disabled} tooltip={b.tooltip} onPress={b.onPress} />
+          <Button variant="icon" key={b.tooltip} icon={b.icon} size={b.size} box={SMALL_BAR_BUTTON} radius={radius.button} disabled={b.disabled} tooltip={b.tooltip} onPress={b.onPress} />
         ))}
         {trailing}
       </View>
@@ -63,9 +63,9 @@ export function SmallBarBadgeButton({ tooltip, onPress, children }: { tooltip: s
         {({ pressed }) => (
           <View
             style={{
-              width: BUTTON,
-              height: BUTTON,
-              borderRadius: 7,
+              width: SMALL_BAR_BUTTON,
+              height: SMALL_BAR_BUTTON,
+              borderRadius: radius.button,
               alignItems: "center",
               justifyContent: "center",
               backgroundColor: pressed ? theme.toolbarPressed : hovered ? theme.toolbarHover : undefined,
@@ -94,10 +94,10 @@ export function PageLabel({ tab, hovered = false, label }: { tab: Tab; hovered?:
         flex: 1,
         flexDirection: "row",
         alignItems: "center",
-        gap: 8,
-        paddingLeft: 8,
-        paddingRight: 8,
-        borderRadius: 8,
+        gap: space.m,
+        paddingLeft: space.m,
+        paddingRight: space.m,
+        borderRadius: radius.l,
         backgroundColor: hovered ? theme.toolbarHover : undefined,
       }}
     >
@@ -110,18 +110,13 @@ export function PageLabel({ tab, hovered = false, label }: { tab: Tab; hovered?:
       )}
       {tab.url ? (
         <View style={{ flex: 1, flexDirection: "row", alignItems: "center" }}>
-          <Text
-            accessible={!!label}
-            accessibilityLabel={label}
-            numberOfLines={1}
-            style={{ flexShrink: 0, maxWidth: "60%", fontSize: 13, fontWeight: "500", color: theme.textPrimary }}
-          >
+          <Text accessible={!!label} accessibilityLabel={label} lines={1} weight="medium" style={HOST}>
             {host}
           </Text>
-          {title && title !== host ? <FadeLabel text={`  ${title}`} fontSize={13} color={theme.textSecondary} fadeWidth={14} style={{ flex: 1, height: 18 }} /> : null}
+          {title && title !== host ? <FadeLabel text={`  ${title}`} fontSize={font.body.fontSize} color={theme.textSecondary} fadeWidth={14} style={{ flex: 1, height: 18 }} /> : null}
         </View>
       ) : (
-        <Text numberOfLines={1} style={{ flex: 1, fontSize: 13, color: theme.placeholder }}>
+        <Text lines={1} tone="placeholder" style={FLEX}>
           Search or enter address
         </Text>
       )}
@@ -133,13 +128,13 @@ export function PageLabel({ tab, hovered = false, label }: { tab: Tab; hovered?:
 function Progress({ progress, color }: { progress: number; color: string }) {
   const width = useRef(new Animated.Value(Math.max(progress, 0.08))).current;
   useEffect(() => {
-    Animated.timing(width, { toValue: Math.max(progress, 0.08), duration: 200, easing: Easing.out(Easing.quad), useNativeDriver: false }).start();
+    Animated.timing(width, { toValue: Math.max(progress, 0.08), duration: PAGE_PROGRESS_GROW, easing: curve.outQuad, useNativeDriver: false }).start();
   }, [progress]);
   return (
     <Animated.View
       style={{
         position: "absolute",
-        left: 8,
+        left: space.m,
         bottom: 0,
         height: 1.5,
         borderRadius: 1,

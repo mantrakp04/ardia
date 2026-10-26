@@ -1,12 +1,12 @@
 import * as shell from "@ardia/shell";
 import { readDocument, writeDocument } from "@ardia/shell";
-import * as actions from "../../src/lib/actions";
-import { runCommand } from "../../src/lib/commands";
-import { webviews } from "../../src/lib/webviews";
-import { usePages } from "../../src/components/layout/pageState";
-import { useBrowser } from "../../src/store/browser";
-import { devJourneys } from "../../src/telemetry/journeys";
-import { devState as telemetryState } from "../../src/telemetry/client";
+import * as actions from "../../src/state/browser/actions";
+import { runCommand } from "../../src/state/commands/commands";
+import { webviews } from "../../src/platform/webviews";
+import { usePages } from "../../src/state/tabs/pageState";
+import { useBrowser } from "../../src/state/browser/store";
+import { devJourneys } from "../../src/state/telemetry/journeys";
+import { devState as telemetryState } from "../../src/state/telemetry/client";
 
 writeDocument("bench-boot.json", JSON.stringify({ jsStart: Date.now() }));
 
@@ -23,7 +23,7 @@ const ac = {
   telemetry: telemetryState,
   blockedFetches: () => globalThis.__acBlockedFetches?.() ?? [],
   get preload() {
-    return require("../../src/lib/preload");
+    return require("../../src/platform/preload");
   },
   pause(ms) {
     pausedUntil = Date.now() + ms;

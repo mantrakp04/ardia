@@ -135,9 +135,9 @@ public enum LegacyDockTile {
     return (last.removingPercentEncoding ?? last).lowercased()
   }
 
-  public static func repointSoon(bundle: Bundle = .main) {
+  public static func repointSoon(isolatedInstance: Bool, bundle: Bundle = .main) {
     #if !DEBUG
-    guard !isTestInstance(ProcessInfo.processInfo.environment), let bundleId = bundle.bundleIdentifier,
+    guard !isolatedInstance, let bundleId = bundle.bundleIdentifier,
       bundleId.lowercased() != LegacyName.bundleId else { return }
     let defaults = UserDefaults.standard
     guard !defaults.bool(forKey: doneKey) else { return }
@@ -162,8 +162,6 @@ public enum LegacyDockTile {
     }
     #endif
   }
-
-  static func isTestInstance(_ env: [String: String]) -> Bool { env["ARDIA_DATA_DIR"] != nil || env["ARDIA_BACKGROUND"] != nil }
 
   struct Seams {
     let synchronize: () -> Void

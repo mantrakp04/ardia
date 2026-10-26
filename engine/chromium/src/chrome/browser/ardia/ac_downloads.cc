@@ -2,8 +2,6 @@
 
 #include "chrome/browser/ardia/ac_downloads.h"
 
-#include <stdlib.h>
-
 #include <algorithm>
 #include <map>
 #include <memory>
@@ -12,6 +10,7 @@
 #include <utility>
 #include <vector>
 
+#include "ardia/core/ac_launch_switches.h"
 #include "base/files/file_path.h"
 #include "base/functional/bind.h"
 #include "base/json/values_util.h"
@@ -72,13 +71,14 @@ bool IsOffTheRecord(DownloadItem* item) {
 }
 
 void UseTestDownloadsDir(Profile* profile) {
-  const char* dir = getenv("ARDIA_DOWNLOADS_DIR");
-  if (!dir || !*dir) {
+  const std::optional<std::string> dir =
+      ardiacore::InstanceValue("downloads-dir");
+  if (!dir || dir->empty()) {
     return;
   }
   profile->GetPrefs()->SetDefaultPrefValue(
       prefs::kDownloadDefaultDirectory,
-      base::FilePathToValue(base::FilePath(dir)));
+      base::FilePathToValue(base::FilePath(*dir)));
 }
 
 base::DictValue Describe(DownloadItem* item) {

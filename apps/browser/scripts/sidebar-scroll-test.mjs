@@ -35,11 +35,10 @@ const fixture = session({
 
 let app = null;
 const HELPERS = `
-const C = globalThis.expo.modules.ArdiaCEF;
 const st = () => ac.store.getState();
 const settle = (ms) => new Promise((r) => setTimeout(r, ms));
-const win = () => C.chromeWindows().then((ws) => ws.find((w) => w.hasRoot).window);
-const act = (a) => win().then((n) => C.devWindow(n, a));
+const win = () => ac.engine.call("windows.list").then((ws) => ws.find((w) => w.hasRoot).window);
+const act = (a) => win().then((n) => ac.engine.call("windows.dev", { window: n, action: a }));
 const drag = () => globalThis.sidebarDrag;
 const frame = (view) => new Promise((r) => (view ? view.measureInWindow((x, y, w, h) => r({ x, y, w, h })) : r(null)));
 const itemOf = (id) => [...drag().items.values()].find((i) => i.view && i.kind !== "tail" && i.tabIds.includes(id));

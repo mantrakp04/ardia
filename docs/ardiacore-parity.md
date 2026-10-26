@@ -60,7 +60,7 @@ The switch shipped in 0.2.22; this was the list it shipped against, kept for the
    without one (`extension-installed-bubble`).
    Open: after another profile's window opened and closed, "Share this tab instead" answers false (`tab-capture`).
 7. ~~**Smoke parity**~~ done: background-mode context-menu log, the autofill dropdown's selection, the PiP self-test
-   (`ARDIA_PIP_SELFTEST`) and the passkey dialog closing when its page navigates; the release smoke test passes
+   (`ARDIA_TEST` `pipSelfTest`) and the passkey dialog closing when its page navigates; the release smoke test passes
    21/21 on ArdiaCore (e8ece135, 2109af22, 2047812f).
 8. **Chrome's own UI says "Chromium"** (bubbles, dialogs, error pages); CEF renamed it. *Engine helper.*
 9. **Checks that need the owner** (an unlocked screen, prompts): the page composited under the RN views; menus,
@@ -92,7 +92,7 @@ Statuses:
 | `ArdiaExtensions` (10 functions, 3 events) | 8 | 5 | 0 | 0 |
 | `ArdiaChromeUI` (15 functions, 4 events) | 9 | 10 | 0 | 0 |
 | `ArdiaSwipe` (7 functions, a view with 3 events) | 11 | 0 | 0 | 0 |
-| Window hosting (`ACChromeWindowHost`, used by `packages/shell`) (13) | 13 | 0 | 0 | 0 |
+| Window hosting (`ArdiaChromeWindowHost`, used by `packages/shell`) (13) | 13 | 0 | 0 | 0 |
 | **Total (201)** | **156 (78%)** | **44** | **1** | **0** |
 
 Nothing is **missing** and every signature matches `packages/cef`'s (checked by diffing the Swift module
@@ -115,7 +115,7 @@ METRO_PORT=8081 node packages/ardiacore/scripts/acceptance.mjs apps/browser/buil
 
 The app (bundle id `com.ardia.browser`, Apple Development signing with the hardened runtime in
 Debug; `scripts/release.sh` signs releases with Developer ID). A Debug build refuses to start without
-`ARDIA_DATA_DIR` (it never falls back to a real profile). A test run hands it its Metro in `ARDIA_JS_LOCATION`
+`ARDIA_DATA_DIR` (it never falls back to a real profile). A test run hands it its Metro in `ARDIA_INSTANCE` `jsLocation`
 (that launch's argument domain, never written); never `defaults write com.ardia.browser`, the installed app's. Its build stages a copy of the engine framework
 (`packages/ardiacore/scripts/stage-framework.sh`, under the chromium lock, into `ARDIACORE_STAGE_DIR`), links that, and
 `embed.sh` signs the embedded copy with the build's identity.
@@ -129,7 +129,7 @@ Test hygiene the run keeps (each was a real failure):
 - Permissions use MIDI and notifications (no macOS prompt behind them), external apps a scheme no app handles;
   never location or `mailto:`. Camera and microphone only on a copy of the app without the device entitlements
   (ad hoc, hardened runtime: macOS refuses the devices without asking) and Chrome's fake devices: every hidden
-  instance gets `--use-fake-device-for-media-stream` (ArdiaCoreHost), and with it the engine keeps the microphone on a
+  instance gets `--use-fake-device-for-media-stream` (ArdiaHost), and with it the engine keeps the microphone on a
   fake input (`ac_fake_media.mm`), since the fake list's "default" input is the Mac's real one to the audio service and
   a stream on it raised macOS's microphone dialog on the owner's screen (2026-10-01).
 - A check that needs a page on screen (permission prompts, choosers, context menus) shows it first: Chrome holds
@@ -199,7 +199,7 @@ Test hygiene the run keeps (each was a real failure):
 the panes the app shows, Chrome's selected tab and active Browser (an extension that records `tabs.onActivated` and
 reads `chrome.windows`), and native focus (the key window, and the requests to make one key,
 `makeKeyAndOrderFront: on ArdiaCoreWindow #<number>` in `activation.log`). A test instance is never really active: it fakes
-only that it reads as active (`ArdiaCoreActivation.mm`; `devWindow(n, "fakeAppActive:0")` is the user in another app), and
+only that it reads as active (`ArdiaActivation.mm`; `devWindow(n, "fakeAppActive:0")` is the user in another app), and
 AppKit's key window follows as in an active app, so Chrome's views hear key changes as in production. Its fixtures are HTTPS (a certificate made per
 run; this instance only gets `--ignore-certificate-errors`), since Chrome's automatic Picture in Picture acts only on
 https and file pages; the call is a fake conference (fake camera, a Media Session `enterpictureinpicture` handler that
@@ -230,7 +230,7 @@ and sent only when changed, progress at most 10 times a second, a held report fl
 |---|---|---|
 | `url`, `profile`, `visible`, `warm` | done | `""` is Chrome's Default profile, `<id>` is `Profile <id>`, `incognito…` the default profile's OTR profile. `visible` and `warm` change the page once the app's batch of view updates is done (a run-loop observer before Core Animation's commit), the pages leaving first; a page leaving the screen goes transparent and stays visible to Chrome for 100 ms. Hiding Chrome's view at once blanked the old page (or left a few tiles) for a frame before the app's switch reached the screen, on most switches away from a web page (rec1522: 13 in 20 switches on the RC, 2 now, each a single frame: the incoming page a frame late, or a tile; `windowing-test.mjs`) |
 | `adoptId` | done | `ardiacore:<id>` (a tab Chrome made for a page), `tab:<id>` (one Chrome made on its own: an extension's tabs.create/windows.create), `restore:<tab id>` (Chrome's TabRestoreService entry carrying the tab's id, bound while the tab lives and stamped on each new navigation, so a close Chrome records first keeps it: `ac_tab_restore_tag`/`_take`, `-[ArdiaCoreWindow restoreTab:…]`), `clone:<tab id>` (`duplicateTab:`). A restore in flight is cancelled by a close |
-| `transferKey` | done | A tab moving between windows is parked or taken from the old view and moves into the new window's Browser (`adoptTab:`); it is also the tab's key in strip transactions. A window closing while one of its tabs is on its way out (its last tab dropped onto another window) hands the tab to a hidden window first (`keepTransfersOfWindow:`). A parked page has no deadline: it waits until the tab's next view takes it, or the app releases it (`releaseTransfer`: the tab closed, slept, went to an app page or another profile; lib/tabPages.ts) and it closes at once (`closeNow`) |
+| `transferKey` | done | A tab moving between windows is parked or taken from the old view and moves into the new window's Browser (`adoptTab:`); it is also the tab's key in strip transactions. A window closing while one of its tabs is on its way out (its last tab dropped onto another window) hands the tab to a hidden window first (`keepTransfersOfWindow:`). A parked page has no deadline: it waits until the tab's next view takes it, or the app releases it (`releaseTransfer`: the tab closed, slept, went to an app page or another profile; state/tabs/tabPages.ts) and it closes at once (`closeNow`) |
 | `standalone`, `extensionHost` | partial | Extension popups and side panels (`extensionHost` "popup" or "sidePanel", which implies `standalone`): Chrome's own `ExtensionViewHost`, bound to the window's Browser for the page's profile (`-[ArdiaCoreWindow openExtensionView:profile:kind:]`, `ac_extension_view.mm`), so `chrome.windows`' current window and the active tab are the window's; in no strip. Chrome closing it (`window.close()`, Esc, the extension unloaded, its renderer gone) reaches the app as `onWindowClose`; it closes with its window too. A `standalone` view without `extensionHost` is a tab in a hidden per-profile window (an older engine). Needs a visual check |
 | `pageBackgroundColor`, `autoPictureInPicture` | partial | Wired (`setPageBackgroundColor:`, auto PiP from the page script's video state); both need a visible window to check |
 
@@ -329,10 +329,10 @@ over, `-[ArdiaCoreTab setTemporarySource:]`) is the tab a closed window's entry 
 
 ## `ArdiaSwipe` (`packages/ardiacore/src/swipe.tsx`)
 
-**done**: the same sources as CEF's (`ACSwipe.mm`, `SwipeModule.swift`, linked into `packages/ardiacore/ios`). Profile
+**done**: the same sources as CEF's (`ArdiaSwipe.mm`, `SwipeModule.swift`, linked into `packages/ardiacore/ios`). Profile
 paging on ArdiaCore is a change of the window's active profile, never a window swap.
 
-## Window hosting (`ACChromeWindowHost`, looked up by `packages/shell/ios/ChromeWindows.swift`)
+## Window hosting (`ArdiaChromeWindowHost`, called by `packages/shell/ios/ChromeWindows.swift`)
 
 All 12 **done**: `makeWindowForProfile:` (one `ArdiaCoreWindow` per app window, styled as the app's),
 `embedRootView:inWindow:`, `rootViewOfWindow:`, `removeRootViewOfWindow:`, `showProfile:inWindow:` (the traffic
@@ -344,7 +344,7 @@ lights are placed again after every switch), `prepareProfiles:forWindow:`, `setT
 
 | Item | Status | Note |
 |---|---|---|
-| RN app in Chromium's loop | done | `ArdiaCoreHost` runs `ChromeMain`; React Native starts on the loop's first idle (React Native's debug `ReentrancyCheck` trapped when it started inside Chrome's startup burst). The app delegate gets each launch callback once: when that idle comes before AppKit finished launching, AppKit sends them (sending them twice made a second React Native factory, two JS runtimes), and a cold launch's URLs follow |
+| RN app in Chromium's loop | done | `ArdiaHost` runs `ChromeMain`; React Native starts on the loop's first idle (React Native's debug `ReentrancyCheck` trapped when it started inside Chrome's startup burst). The app delegate gets each launch callback once: when that idle comes before AppKit finished launching, AppKit sends them (sending them twice made a second React Native factory, two JS runtimes), and a cold launch's URLs follow |
 | Popups and Chrome-made tabs as the app's tabs | done | |
 | Two profiles in one window | done | |
 | Background test instances | done | `ARDIA_BACKGROUND=1`: activation guards, panels answered from `file-chooser.txt`, context menus reported |
@@ -377,7 +377,7 @@ renderer client (`ACContentRendererClient`) and a mojo interface (`engine/ardiac
 
 Plain Chromium code over Chrome's services (`engine/chromium/src/chrome/browser/ardia`, rules in
 `public/ac_engine.h`), linked into ArdiaCore's framework (and, until the cutover, CEF's). The app calls them through
-`dlsym` on the framework (`ArdiaCoreEngineBridge`/`ArdiaCoreServices`). All of them are wired:
+`dlsym` on the framework (`ArdiaEngineBridge`/`ArdiaServices`). All of them are wired:
 
 | Export | JS functions (`packages/ardiacore/src`) |
 |---|---|

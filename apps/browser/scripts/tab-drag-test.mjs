@@ -38,12 +38,11 @@ const fixture = () => session({
 let app = null;
 
 const HELPERS = `
-const C = globalThis.expo.modules.ArdiaCEF;
 const st = () => ac.store.getState();
-const win = (id) => C.chromeWindows().then((ws) => { const f = st().windows[id].frame; const w = ws.filter((w) => w.hasRoot).find((w) => { const r = w.frame.match(/[-\\d.]+/g).map(Number); return Math.abs(r[0] - f[0]) < 2 && Math.abs(r[2] - f[2]) < 2; }); return w && w.window; });
-const act = (id, a) => win(id).then((n) => C.devWindow(n, a));
+const win = (id) => ac.engine.call("windows.list").then((ws) => { const f = st().windows[id].frame; const w = ws.filter((w) => w.hasRoot).find((w) => { const r = w.frame.match(/[-\\d.]+/g).map(Number); return Math.abs(r[0] - f[0]) < 2 && Math.abs(r[2] - f[2]) < 2; }); return w && w.window; });
+const act = (id, a) => win(id).then((n) => ac.engine.call("windows.dev", { window: n, action: a }));
 const items = (id) => win(id).then((n) => { const xs = []; for (let x = 70; x < st().windows[id].frame[2] - 100; x += 1) xs.push(x);
-  return Promise.all(xs.map((x) => C.devWindow(n, "hit:" + x + ",21"))).then((hits) => { const runs = []; let cur = null;
+  return Promise.all(xs.map((x) => ac.engine.call("windows.dev", { window: n, action: "hit:" + x + ",21" }))).then((hits) => { const runs = []; let cur = null;
     hits.forEach((h, i) => { const on = /ContextMenuArea|ImageView|Symbol|FadeLabel/.test(h); if (on && !cur) cur = [xs[i], xs[i]]; else if (on) cur[1] = xs[i]; else if (cur) { runs.push(cur); cur = null; } });
     if (cur) runs.push(cur); return runs; }); });
 const settle = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -136,18 +135,18 @@ try {
       return wait(100);`);
     const path = [[at(2), 21], [at(2) + 20, 21], [at(3), 21], [at(3) + 75, 21]];
     const seen = await run(`
-      const cef = globalThis.expo.modules.ArdiaCEF;
-      const send = cef.tabStripCommand;
+      const tabs = globalThis.expo.modules.ArdiaTabs;
+      const send = tabs.call;
       const t0 = performance.now();
       const log = { commands: [], windows: [], drag: [], picture: [] };
-      cef.tabStripCommand = (...a) => { log.commands.push(performance.now() - t0); return send.apply(cef, a); };
+      tabs.call = (...a) => { if (a[0] === "stripCommand") log.commands.push(performance.now() - t0); return send.apply(tabs, a); };
       const unsubscribe = ac.store.subscribe((s, p) => { if (s.windows !== p.windows) log.windows.push(performance.now() - t0); });
       const begin = ac.shell.dragPreview.begin;
       ac.shell.dragPreview.begin = (...a) => { log.picture.push(performance.now() - t0); return begin(...a); };
       // The drag's own store says when it starts and ends (the drop's store update comes right after, in the same task).
       const stop = globalThis.acTabDrag.subscribe((d, was) => { if (!d.tabIds.length !== !was.tabIds.length) log.drag.push([d.tabIds.length > 0, performance.now() - t0]); });
       return act("w1", "drag:${path.map((p) => p.join(",")).join(";")}").then(() => settle(${path.length * 12 * 16 + 1200})).then(() => {
-        stop(); unsubscribe(); cef.tabStripCommand = send; ac.shell.dragPreview.begin = begin;
+        stop(); unsubscribe(); tabs.call = send; ac.shell.dragPreview.begin = begin;
         return log;
       });`);
     const start = seen.drag.find(([on]) => on)?.[1];
@@ -211,12 +210,12 @@ try {
     const x = strip[5][1] + 150;
     const result = await run(`
       return win("w1").then((n) => {
-        const frame = () => C.chromeWindows().then((ws) => ws.find((w) => w.window === n).frame);
-        const click = (y, count) => C.devWindow(n, "mouse:down:${x}," + y + "," + count).then(() => settle(30)).then(() => C.devWindow(n, "mouse:up:${x}," + y + "," + count)).then(() => settle(60));
+        const frame = () => ac.engine.call("windows.list").then((ws) => ws.find((w) => w.window === n).frame);
+        const click = (y, count) => ac.engine.call("windows.dev", { window: n, action: "mouse:down:${x}," + y + "," + count }).then(() => settle(30)).then(() => ac.engine.call("windows.dev", { window: n, action: "mouse:up:${x}," + y + "," + count })).then(() => settle(60));
         const out = {};
-        return C.devWindow(n, "windowDrags")
+        return ac.engine.call("windows.dev", { window: n, action: "windowDrags" })
           .then(() => click(4, 1)).then(() => click(38, 1)).then(() => settle(300))
-          .then(() => C.devWindow(n, "windowDrags")).then((d) => { out.drags = Number(d.split("\\n")[0]); return frame(); })
+          .then(() => ac.engine.call("windows.dev", { window: n, action: "windowDrags" })).then((d) => { out.drags = Number(d.split("\\n")[0]); return frame(); })
           .then((f) => { out.before = f; return click(38, 1).then(() => click(38, 2)); }).then(() => settle(900)).then(frame)
           .then((f) => { out.zoomed = f; return click(38, 1).then(() => click(38, 2)); }).then(() => settle(900)).then(frame)
           .then((f) => { out.back = f; return out; });
@@ -472,12 +471,12 @@ try {
     const x = 120, y = (await run(`return st().windows.w1.frame[3];`)) - 140;
     const result = await run(`
       return win("w1").then((n) => {
-        const frame = () => C.chromeWindows().then((ws) => ws.find((w) => w.window === n).frame);
-        const click = (count) => C.devWindow(n, "mouse:down:${x},${y}," + count).then(() => settle(30)).then(() => C.devWindow(n, "mouse:up:${x},${y}," + count)).then(() => settle(60));
+        const frame = () => ac.engine.call("windows.list").then((ws) => ws.find((w) => w.window === n).frame);
+        const click = (count) => ac.engine.call("windows.dev", { window: n, action: "mouse:down:${x},${y}," + count }).then(() => settle(30)).then(() => ac.engine.call("windows.dev", { window: n, action: "mouse:up:${x},${y}," + count })).then(() => settle(60));
         const out = { tabs: st().windows.w1.tabIds.length };
-        return C.devWindow(n, "hit:${x},${y}").then((h) => { out.hit = h; return C.devWindow(n, "windowDrags"); })
+        return ac.engine.call("windows.dev", { window: n, action: "hit:${x},${y}" }).then((h) => { out.hit = h; return ac.engine.call("windows.dev", { window: n, action: "windowDrags" }); })
           .then(() => click(1)).then(() => settle(300))
-          .then(() => C.devWindow(n, "windowDrags")).then((d) => { out.drags = Number(d.split("\\n")[0]); return frame(); })
+          .then(() => ac.engine.call("windows.dev", { window: n, action: "windowDrags" })).then((d) => { out.drags = Number(d.split("\\n")[0]); return frame(); })
           .then((f) => { out.before = f; return click(1).then(() => click(2)); }).then(() => settle(900)).then(frame)
           .then((f) => { out.after = f; out.opened = st().windows.w1.tabIds.length - out.tabs; return out; });
       });`);
@@ -743,7 +742,7 @@ try {
     await run(`ac.store.setState({ downloads: [{ id: "dl-drop", url: "https://example.com/downloaded.pdf", filename: "downloaded.pdf", path: ${JSON.stringify(download)}, state: "finished", paused: false, received: 10, total: 10, speed: 0, mimeType: "application/pdf" }] });
       st().setDownloadsOpen("w1", true); return settle(900);`);
     const spot = await run(`return win("w1").then((n) => { const pts = []; for (let y = 30; y < 420; y += 6) for (let x = 20; x < 700; x += 12) pts.push([x, y]);
-      return Promise.all(pts.map(([x, y]) => C.devWindow(n, "hit:" + x + "," + y).then((h) => (/FileDragView/.test(h) ? [x, y] : null)))).then((hits) => hits.filter(Boolean)); });`);
+      return Promise.all(pts.map(([x, y]) => ac.engine.call("windows.dev", { window: n, action: "hit:" + x + "," + y }).then((h) => (/FileDragView/.test(h) ? [x, y] : null)))).then((hits) => hits.filter(Boolean)); });`);
     assert.ok(spot.length, "a download row in the popover");
     const [sx, sy] = spot[Math.floor(spot.length / 2)];
     const dragged = await run(`return act("w1", "drag:${sx},${sy};${sx + 8},${sy + 6};${sx + 60},${sy + 160}").then(() => settle(900)).then(() => ac.shell.devFileDrag.lastFileDrag());`);

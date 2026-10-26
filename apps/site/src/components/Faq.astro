@@ -1,3 +1,7 @@
+---
+import { FAQ } from "../data/faq";
+---
+
 <section class="faq paint edge edge-b" id="faq" aria-labelledby="faq-title" data-shot="press">
   <div class="wrap faq-grid">
     <header class="faq-head">
@@ -7,34 +11,14 @@
     </header>
 
     <dl class="qa">
-      <div class="item">
-        <dt>What does it cost?</dt>
-        <dd>Nothing. It’s open source under GPL-3.0. No paid tier, no catch.</dd>
-      </div>
-      <div class="item" id="install">
-        <dt>Is it safe to open?</dt>
-        <dd>Signed and notarized by Apple, so macOS opens it without a fuss. The source is on GitHub if you’d rather check yourself.</dd>
-      </div>
-      <div class="item">
-        <dt>What does it collect?</dt>
-        <dd>Update checks are counted by version and day, and whether it’s a new copy’s first. Each launch also reads one small file, the same for everyone, so we can switch off a speed-up that misbehaves. Nothing else, unless you tick the box. Then crash reports and counts, never your sites or searches.</dd>
-      </div>
-      <div class="item">
-        <dt>And this website?</dt>
-        <dd>It counts its own visitors on its own servers, replays included, typing masked, gone after 30 days. No third party does the counting.</dd>
-      </div>
-      <div class="item">
-        <dt>Coming from Arc?</dt>
-        <dd>Same sidebar, same muscle memory. The importer brings your spaces, pinned tabs and their names along.</dd>
-      </div>
-      <div class="item">
-        <dt>Is this Dia?</dt>
-        <dd>No. It dresses like Dia, or like Arc if you ask.</dd>
-      </div>
-      <div class="item">
-        <dt>Why “Ardia”?</dt>
-        <dd>Arc plus Dia.</dd>
-      </div>
+      {
+        FAQ.map((q) => (
+          <div class="item" id={q.id}>
+            <dt>{q.question}</dt>
+            <dd>{q.answer}</dd>
+          </div>
+        ))
+      }
     </dl>
   </div>
 </section>

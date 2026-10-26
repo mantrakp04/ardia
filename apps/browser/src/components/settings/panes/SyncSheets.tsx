@@ -1,22 +1,33 @@
-import { showMenu, Symbol } from "@ardia/shell";
-import { SyncNative, type FolderInfo } from "@ardia/sync";
+import { showMenu } from "../../../state/app/system";
+import { Symbol, Button, Checkbox, font, ink, Sheet, weight } from "../../ui";
+import {
+  copyRecoveryKit,
+  copyRecoveryPhrase,
+  recoveryKitPreview,
+  recoveryQrCode,
+  recoveryWords,
+  saveRecoveryKit,
+  shareRecoveryKit,
+  type FolderInfo,
+} from "../../../state/sync/recoveryKit";
 import { useEffect, useState, type ReactNode } from "react";
 import { Image, StyleSheet, Text, TextInput, View } from "react-native";
-import { useTheme } from "../../../lib/theme";
-import { enterRecoveryPhrase, stopSync } from "../../../sync/engine";
-import { Button, Checkbox, Sheet, useFormColors } from "../controls";
-import { closeSettingsSheet, showSettingsSheet } from "../sheet";
+import { useTheme } from "../../ui/theme";
+import { enterRecoveryPhrase, stopSync } from "../../../state/sync/engine";
+import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
+import { settingsType } from "../tokens";
+import { useSettingsColors } from "../useSettingsColors";
 
 const WORDS = 24;
 
 function Title({ children }: { children: string }) {
   const theme = useTheme();
-  return <Text style={{ fontSize: 15, fontWeight: "600", color: theme.textPrimary }}>{children}</Text>;
+  return <Text style={{ ...font.heading, fontWeight: weight.semibold, color: theme.textPrimary }}>{children}</Text>;
 }
 
 function Body({ children, style }: { children: ReactNode; style?: object }) {
   const theme = useTheme();
-  return <Text style={[{ fontSize: 12.5, lineHeight: 17, marginTop: 6, color: theme.textSecondary }, style]}>{children}</Text>;
+  return <Text style={[{ ...settingsType.lead, lineHeight: 17, marginTop: 6, color: theme.textSecondary }, style]}>{children}</Text>;
 }
 
 function Buttons({ children, left }: { children: ReactNode; left?: ReactNode }) {
@@ -35,12 +46,12 @@ export function showRecoveryKit() {
 
 function RecoveryKitSheet() {
   const theme = useTheme();
-  const colors = useFormColors();
+  const look = useSettingsColors();
   const [preview, setPreview] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
-  useEffect(() => void SyncNative?.recoveryKitPreview(168).then(setPreview), []);
+  useEffect(() => void recoveryKitPreview(168)?.then(setPreview), []);
   const save = async (format: "pdf" | "text") => {
-    const path = await SyncNative?.saveRecoveryKit(format);
+    const path = await saveRecoveryKit(format);
     if (path) setSaved(path);
   };
   const more = async () => {
@@ -50,8 +61,8 @@ function RecoveryKitSheet() {
       { separator: true },
       { id: "text", title: "Save as Text…", symbol: "doc.plaintext" },
     ]);
-    if (choice === "copy") await SyncNative?.copyRecoveryKit();
-    else if (choice === "share") await SyncNative?.shareRecoveryKit();
+    if (choice === "copy") await copyRecoveryKit();
+    else if (choice === "share") await shareRecoveryKit();
     else if (choice === "text") await save("text");
   };
   return (
@@ -67,11 +78,11 @@ function RecoveryKitSheet() {
               marginTop: 14,
               padding: 10,
               borderRadius: 8,
-              backgroundColor: theme.dark ? "rgba(255,159,10,0.12)" : "rgba(255,149,0,0.1)",
+              backgroundColor: look.warningFill,
             }}
           >
-            <Symbol name="exclamationmark.triangle.fill" size={12} color="#FF9500" style={{ width: 16, height: 16 }} />
-            <Text style={{ flex: 1, fontSize: 12, lineHeight: 16, color: theme.textPrimary }}>
+            <Symbol name="exclamationmark.triangle.fill" size={12} color={theme.warning} style={{ width: 16, height: 16 }} />
+            <Text style={{ flex: 1, ...font.small, lineHeight: 16, color: theme.textPrimary }}>
               Save a copy of your Recovery Kit to{" "}
               <Text style={{ textDecorationLine: "underline" }}>another</Text> device or to the cloud. You’ll need it if you lose access to this device.
             </Text>
@@ -80,7 +91,7 @@ function RecoveryKitSheet() {
         </View>
         <View
           accessibilityLabel="Recovery kit preview"
-          style={{ width: 168, height: 217, borderRadius: 4, overflow: "hidden", borderWidth: 1, borderColor: colors.groupBorder, backgroundColor: "#FFFFFF" }}
+          style={{ width: 168, height: 217, borderRadius: 4, overflow: "hidden", borderWidth: 1, borderColor: theme.groupBorder, backgroundColor: ink.white }}
         >
           {preview ? <Image source={{ uri: preview }} style={{ width: 168, height: 217 }} /> : null}
         </View>
@@ -119,7 +130,6 @@ const phraseError = (r: Awaited<ReturnType<typeof enterRecoveryPhrase>>): string
 
 function PhraseSheet({ folder, onChooseFolder }: { folder: FolderInfo | null; onChooseFolder?: () => void }) {
   const theme = useTheme();
-  const colors = useFormColors();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -144,9 +154,9 @@ function PhraseSheet({ folder, onChooseFolder }: { folder: FolderInfo | null; on
           height: 96,
           borderRadius: 7,
           padding: 8,
-          backgroundColor: colors.field,
+          backgroundColor: theme.field,
           borderWidth: StyleSheet.hairlineWidth * 2,
-          borderColor: error ? colors.destructive : colors.fieldBorder,
+          borderColor: error ? theme.destructive : theme.fieldBorder,
         }}
       >
         <TextInput
@@ -163,19 +173,19 @@ function PhraseSheet({ folder, onChooseFolder }: { folder: FolderInfo | null; on
           enableFocusRing={false}
           autoCorrect={false}
           spellCheck={false}
-          style={{ flex: 1, fontSize: 13, lineHeight: 18, color: theme.textPrimary, fontFamily: "Menlo" }}
+          style={{ flex: 1, ...font.body, lineHeight: 18, color: theme.textPrimary, fontFamily: "Menlo" }}
         />
       </View>
       <View style={{ flexDirection: "row", marginTop: 6 }}>
-        <Text style={{ flex: 1, fontSize: 11.5, lineHeight: 15, color: error ? colors.destructive : theme.textSecondary }}>{error ?? ""}</Text>
-        <Text style={{ fontSize: 11.5, color: count > WORDS ? colors.destructive : theme.textTertiary, fontVariant: ["tabular-nums"] }}>
+        <Text style={{ flex: 1, ...font.footnote, lineHeight: 15, color: error ? theme.destructive : theme.textSecondary }}>{error ?? ""}</Text>
+        <Text style={{ ...font.footnote, color: count > WORDS ? theme.destructive : theme.textTertiary, fontVariant: ["tabular-nums"] }}>
           {count > WORDS ? "too many words" : `${count}/${WORDS} words`}
         </Text>
       </View>
       {folder ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10 }}>
           <Symbol name="folder" size={11} color={theme.textSecondary} style={{ width: 14, height: 14 }} />
-          <Text numberOfLines={1} style={{ flex: 1, fontSize: 11.5, color: theme.textSecondary }}>
+          <Text numberOfLines={1} style={{ flex: 1, ...font.footnote, color: theme.textSecondary }}>
             {folderLabel(folder)}
           </Text>
           {onChooseFolder ? <Button title="Change…" kind="plain" onPress={onChooseFolder} /> : null}
@@ -195,10 +205,9 @@ export function showConnectDevice() {
 
 function ConnectDeviceSheet() {
   const theme = useTheme();
-  const colors = useFormColors();
   const [qr, setQr] = useState<string | null>(null);
   const [words, setWords] = useState<string[] | null>(null);
-  useEffect(() => void SyncNative?.qrCode().then(setQr), []);
+  useEffect(() => void recoveryQrCode()?.then(setQr), []);
   return (
     <Sheet width={480} onClose={closeSettingsSheet}>
       <Title>Connect Another Device</Title>
@@ -207,17 +216,17 @@ function ConnectDeviceSheet() {
         of your recovery phrase.
       </Body>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 16, marginTop: 16 }}>
-        <View style={{ width: 132, height: 132, borderRadius: 8, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" }}>
+        <View style={{ width: 132, height: 132, borderRadius: 8, backgroundColor: ink.white, alignItems: "center", justifyContent: "center" }}>
           {qr ? <Image source={{ uri: qr }} style={{ width: 120, height: 120 }} /> : null}
         </View>
-        <Text style={{ flex: 1, fontSize: 12, lineHeight: 16, color: theme.textSecondary }}>
+        <Text style={{ flex: 1, ...font.small, lineHeight: 16, color: theme.textSecondary }}>
           Or scan this code with your iPhone’s camera to copy the words, then paste them on your other Mac with Universal Clipboard.
         </Text>
       </View>
       {words ? (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 14, padding: 10, borderRadius: 8, backgroundColor: colors.group }}>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 14, padding: 10, borderRadius: 8, backgroundColor: theme.groupFill }}>
           {words.map((w, i) => (
-            <Text key={i} style={{ width: "25%", paddingVertical: 3, fontSize: 12.5, color: theme.textPrimary, fontFamily: "Menlo" }}>
+            <Text key={i} style={{ width: "25%", paddingVertical: 3, ...settingsType.lead, color: theme.textPrimary, fontFamily: "Menlo" }}>
               <Text style={{ color: theme.textTertiary }}>{`${i + 1}`.padStart(2, " ")} </Text>
               {w}
             </Text>
@@ -227,8 +236,8 @@ function ConnectDeviceSheet() {
       <Buttons
         left={
           <>
-            <Button title={words ? "Hide Words" : "Show Words"} onPress={() => (words ? setWords(null) : void SyncNative?.recoveryWords().then(setWords))} />
-            <Button title="Copy Words" onPress={() => void SyncNative?.copyRecoveryPhrase()} />
+            <Button title={words ? "Hide Words" : "Show Words"} onPress={() => (words ? setWords(null) : void recoveryWords()?.then(setWords))} />
+            <Button title="Copy Words" onPress={() => void copyRecoveryPhrase()} />
           </>
         }
       >
