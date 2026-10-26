@@ -55,12 +55,12 @@ async function mergeWithTabOpen(showCompleted) {
   return { id, tab, merging: prs[0] };
 }
 
-test("with Show Completed off, a merged pull request's open tab leaves the folder once its merge has played", async () => {
+test("with Show Completed off, a merged pull request's open tab closes once its merge has played", async () => {
   const { id, tab, merging } = await mergeWithTabOpen(false);
   assert.ok(inFolder(tab, id), "the row keeps its tab while the merge plays");
   finishCompleting(id, [merging.id]);
-  assert.equal(S().tabs[tab].liveItem, undefined);
-  assert.ok(S().windows[w].tabIds.includes(tab), "the tab stays open, in the tab list");
+  assert.equal(S().tabs[tab], undefined);
+  assert.ok(!S().windows[w].tabIds.includes(tab), "the tab doesn't move to the tab list");
 });
 
 test("with Show Completed on, a merged pull request's open tab stays in the folder", async () => {
@@ -69,32 +69,32 @@ test("with Show Completed on, a merged pull request's open tab stays in the fold
   assert.ok(inFolder(tab, id));
 });
 
-test("turning Show Completed off takes the tabs of pull requests that already completed out of the folder", async () => {
+test("turning Show Completed off closes the tabs of pull requests that already completed", async () => {
   const { id, tab, merging } = await mergeWithTabOpen(true);
   finishCompleting(id, [merging.id]);
   updateFolder(id, { showCompleted: false });
-  assert.equal(S().tabs[tab].liveItem, undefined);
+  assert.equal(S().tabs[tab], undefined);
 });
 
-test("a merged pull request's tab you're looking at stays in the folder until you switch away", async () => {
+test("a merged pull request's tab you're looking at stays open until you switch away", async () => {
   const { id, tab, merging } = await mergeWithTabOpen(false);
   S().activate(tab);
   finishCompleting(id, [merging.id]);
   assert.ok(inFolder(tab, id));
   S().activate(start);
-  assert.equal(S().tabs[tab].liveItem, undefined);
+  assert.equal(S().tabs[tab], undefined);
 });
 
-test("a merged pull request's tab left selected in a profile the window isn't showing leaves the folder", async () => {
+test("a merged pull request's tab left selected in a profile the window isn't showing closes", async () => {
   const { id, tab, merging } = await mergeWithTabOpen(false);
   S().activate(tab);
   S().switchProfile(w, S().createProfile({ name: "Work" }));
   finishCompleting(id, [merging.id]);
-  assert.equal(S().tabs[tab].liveItem, undefined);
+  assert.equal(S().tabs[tab], undefined);
   S().switchProfile(w, "default");
 });
 
-test("a merged pull request's tab showing as a pane of the split on screen stays in the folder until the split is off screen", async () => {
+test("a merged pull request's tab showing as a pane of the split on screen stays open until the split is off screen", async () => {
   const { id, tab, merging } = await mergeWithTabOpen(false);
   const beside = S().newTab(w, { url: "https://beside.example/" });
   S().createSplit([beside, tab]);
@@ -102,23 +102,23 @@ test("a merged pull request's tab showing as a pane of the split on screen stays
   finishCompleting(id, [merging.id]);
   assert.ok(inFolder(tab, id));
   S().activate(start);
-  assert.equal(S().tabs[tab].liveItem, undefined);
+  assert.equal(S().tabs[tab], undefined);
 });
 
-test("a merged pull request's tab leaves the folder however many pull requests merge in the same refresh", async () => {
+test("a merged pull request's tab closes however many pull requests merge in the same refresh", async () => {
   const { id, prs } = await folderOf(false, 30);
   const tab = openLiveItem(w, id, prs[29], { background: true });
   await merge(id, prs);
   finishCompleting(id, prs.map((it) => it.id));
-  assert.equal(S().tabs[tab].liveItem, undefined);
+  assert.equal(S().tabs[tab], undefined);
 });
 
-test("a hidden pull request's tab leaves the folder when it merges", async () => {
+test("a hidden pull request's tab closes when it merges", async () => {
   const { id, prs } = await folderOf(false);
   const tab = openLiveItem(w, id, prs[0], { background: true });
   hideItems(id, [prs[0]]);
   await merge(id, [prs[0]]);
-  assert.equal(S().tabs[tab].liveItem, undefined);
+  assert.equal(S().tabs[tab], undefined);
 });
 
 test("a pull request that drops out of the folder without completing keeps its tab in the folder", async () => {
@@ -129,12 +129,12 @@ test("a pull request that drops out of the folder without completing keeps its t
   assert.ok(inFolder(tab, id));
 });
 
-test("a tab opened from the Completed list leaves the folder when Show Completed is turned off", async () => {
+test("a tab opened from the Completed list closes when Show Completed is turned off", async () => {
   const { id, prs } = await folderOf(true);
   await merge(id, [prs[0]]);
   finishCompleting(id, [prs[0].id]);
   const tab = openLiveItem(w, id, prs[0], { background: true });
   assert.ok(inFolder(tab, id));
   updateFolder(id, { showCompleted: false });
-  assert.equal(S().tabs[tab].liveItem, undefined);
+  assert.equal(S().tabs[tab], undefined);
 });

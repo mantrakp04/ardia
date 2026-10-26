@@ -205,7 +205,7 @@ function markCompletedTabs(folderId: string, gone: Record<string, CompletionStat
     if (gone[ref.itemId] && !hidden.has(ref.itemId) && !ref.completed) s.updateTab(t.id, { liveItem: { ...ref, completed: true } });
     else if (ref.completed && listed.has(ref.itemId)) s.updateTab(t.id, { liveItem: { folderId, itemId: ref.itemId } });
   }
-  releaseCompletedTabs();
+  closeCompletedTabs();
 }
 
 function onScreen(s: BrowserState, tabId: string) {
@@ -213,14 +213,13 @@ function onScreen(s: BrowserState, tabId: string) {
   return shown === tabId || !!splitTabIdsOf(splitOf(s, shown))?.includes(tabId);
 }
 
-function releaseCompletedTabs() {
+function closeCompletedTabs() {
   const s = useBrowser.getState();
   const { folders, items } = live();
-  for (const t of Object.values(s.tabs)) {
-    const ref = t.liveItem;
-    if (!ref?.completed || folders[ref.folderId]?.showCompleted !== false || onScreen(s, t.id)) continue;
-    if (!items[ref.folderId]?.some((it) => it.id === ref.itemId)) s.updateTab(t.id, { liveItem: undefined });
-  }
+  const tabs = Object.values(s.tabs)
+    .filter(({ id, liveItem: ref }) => ref?.completed && folders[ref.folderId]?.showCompleted === false && !onScreen(s, id) && !items[ref.folderId]?.some((it) => it.id === ref.itemId))
+    .map((t) => t.id);
+  if (tabs.length) s.closeTabs(tabs);
 }
 
 let started = false;
@@ -240,9 +239,9 @@ export function startLiveEngine() {
   useLive.subscribe((s, prev) => {
     if (s.folders !== prev.folders) orphans();
     if (s.items !== prev.items || s.hidden !== prev.hidden || s.completed !== prev.completed) syncLiveHomes();
-    if (s.folders !== prev.folders || s.items !== prev.items) releaseCompletedTabs();
+    if (s.folders !== prev.folders || s.items !== prev.items) closeCompletedTabs();
   });
-  releaseCompletedTabs();
+  closeCompletedTabs();
 
   useBrowser.subscribe((s, prev) => {
     if (s.groups !== prev.groups) syncLiveHomes();
@@ -270,7 +269,7 @@ export function startLiveEngine() {
 
   useBrowser.subscribe((s, prev) => {
     if (s.windows === prev.windows) return;
-    releaseCompletedTabs();
+    closeCompletedTabs();
     for (const windowId of s.windowOrder) {
       const before = activeTabId(prev, windowId);
       if (!before || before === activeTabId(s, windowId)) continue;
