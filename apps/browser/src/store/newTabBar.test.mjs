@@ -219,3 +219,51 @@ test("Move out of Pinned: two tabs pinned one after the other, unpinned together
   togglePinnedRows(w);
   assert.deepEqual(list(w), ["https://a.com/", "https://b.com/", "https://c.com/", "https://d.com/"], "pinned in the other order");
 });
+
+for (const [position, expected] of [
+  ["top", ["picked", "a", "b", "c"]],
+  ["bottom", ["a", "b", "c", "picked"]],
+  ["nextToCurrent", ["a", "b", "picked", "c"]],
+]) {
+  test(`horizontal new-tab bar respects ${position} without changing pinned tabs`, () => {
+    reset("commandBar");
+    S().updateSettings({ tabLayout: "top" });
+    const { w, ids: [pin, a, b, c] } = windowWith("pin", "a", "b", "c");
+    S().pinTabs([pin], true);
+    const pinnedBefore = { ...S().tabs[pin] };
+    S().activate(b);
+    S().updateSettings({ newTabPosition: position });
+    assert.equal(model.tabLayoutOf(S(), w), "top");
+    assert.equal(toggleNewTabBar(w), true);
+    openFromNewTabBar(w, panel(w).newTab, "https://picked.com/");
+    const picked = model.activeTabId(S(), w);
+    assert.equal(urlOf(picked), "https://picked.com/");
+    assert.equal(S().tabs[picked].pinned, false);
+    assert.equal(panel(w).open, false);
+    assert.deepEqual(S().tabs[pin], pinnedBefore);
+    assert.deepEqual(S().windows[w].tabIds.filter((id) => S().tabs[id].pinned), [pin]);
+    assert.deepEqual(list(w), expected.map((host) => `https://${host}.com/`));
+    assert.deepEqual(S().windows[w].tabIds.filter((id) => [a, b, c].includes(id)), [a, b, c]);
+  });
+}
+
+test("an incognito window's horizontal layout overrides the sidebar default for a bar pick", () => {
+  reset("commandBar");
+  S().updateSettings({ tabLayout: "sidebar" });
+  const w = S().createWindow({ incognito: true, url: "https://a.com/" });
+  const b = S().newTab(w, { url: "https://b.com/" });
+  S().newTab(w, { url: "https://c.com/" });
+  S().toggleTabLayout(w);
+  S().updateSettings({ tabLayout: "sidebar", newTabPosition: "bottom" });
+  S().activate(b);
+  assert.equal(S().settings.tabLayout, "sidebar");
+  assert.equal(model.tabLayoutOf(S(), w), "top");
+  assert.equal(toggleNewTabBar(w), true);
+  openFromNewTabBar(w, panel(w).newTab, "https://picked.com/");
+  const picked = model.activeTabId(S(), w);
+  assert.equal(urlOf(picked), "https://picked.com/");
+  assert.equal(S().tabs[picked].profileId, S().windows[w].profileId);
+  assert.equal(S().tabs[picked].pinned, false);
+  assert.equal(panel(w).open, false);
+  assert.deepEqual(list(w), ["https://a.com/", "https://b.com/", "https://c.com/", "https://picked.com/"]);
+});

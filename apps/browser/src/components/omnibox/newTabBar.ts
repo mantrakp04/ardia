@@ -1,7 +1,7 @@
 import { onAppEvent, onWindowEvent } from "@ardia/shell";
 import { webviews } from "../../lib/webviews";
 import { useBrowser, type BrowserState } from "../../store/browser";
-import { activeTabId, inPinnedContainer } from "../../store/model";
+import { activeTabId, inPinnedContainer, tabLayoutOf } from "../../store/model";
 import { isEmptyCardTab, NEW_TAB_BAR_POLICY, newTabOpensBar } from "../../store/newTabBar";
 import { isSmall } from "../../store/small";
 import type { NewTabTarget } from "../../store/types";
@@ -46,7 +46,7 @@ export function closeNewTabBar(windowId: string) {
 
 function topOfList(s: BrowserState, windowId: string): number | undefined {
   const w = s.windows[windowId];
-  if (!w || !NEW_TAB_BAR_POLICY.pickGoesToTopOfList) return undefined;
+  if (!w || !NEW_TAB_BAR_POLICY.pickGoesToTopOfList || tabLayoutOf(s, windowId) === "top") return undefined;
   const first = w.tabIds.findIndex((id) => s.tabs[id]?.profileId === w.profileId && !inPinnedContainer(s, id));
   return first >= 0 ? first : w.tabIds.length;
 }
