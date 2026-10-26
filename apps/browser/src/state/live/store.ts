@@ -1,7 +1,7 @@
-import { readDocument, writeDocument } from "../../platform/documents";
+import { readDocument, saveDocument, writeDocument } from "../../platform/documents";
 import { create } from "zustand";
 import { repoKey, stackMembers } from "./rows";
-import type { CompletedItem, CompletionState, FolderStatus, LiveAccount, LiveFolder, LiveFolderKind, LiveItem, LiveSourceId } from "./types";
+import type { CompletedItem, CompletionState, FolderStatus, LiveAccount, LiveFolder, LiveFolderKind, LiveItem, LiveSourceId, ProfileAccounts } from "./types";
 import { parseSaved, unchanged, versionedJson, type Migrations } from "../../lib/savedDocument";
 import { DEFAULT_COUNTDOWN_LEAD, keepDismissedNow, type DismissedNow } from "./meetings";
 
@@ -46,7 +46,8 @@ type LiveState = {
   status: Record<string, FolderStatus>;
   expandedStacks: Record<string, boolean>;
   showAll: Record<string, boolean>;
-  accounts: Partial<Record<LiveSourceId, LiveAccount>>;
+  accounts: Record<string, ProfileAccounts>;
+  legacyAccounts: ProfileAccounts;
   config: LiveConfig;
   calendar: CalendarSettings;
   meetingGroups: Record<string, MeetingGroup>;
@@ -67,9 +68,19 @@ export const DEFAULT_CALENDAR: CalendarSettings = {
 };
 
 const DOC = "live.json";
-const DOC_VERSION = 1;
-const DOC_MIGRATIONS: Migrations = { 0: unchanged };
-const PERSISTED = ["folders", "folderOrder", "items", "known", "unread", "hidden", "repoHidden", "completed", "expandedStacks", "accounts", "config", "calendar", "meetingGroups", "dismissedAlerts", "dismissedNow"] as const;
+const DOC_VERSION = 2;
+const DOC_MIGRATIONS: Migrations = { 0: unchanged, 1: (doc) => ({ ...doc, accounts: {}, legacyAccounts: withLegacyAuth(doc.accounts, doc.config) }) };
+
+function withLegacyAuth(accounts: unknown, config: unknown): ProfileAccounts {
+  const flat = (accounts ?? {}) as ProfileAccounts;
+  const saved = { ...DEFAULT_CONFIG, ...(config as Partial<LiveConfig> | undefined) };
+  const auth: ProfileAccounts = { ...flat };
+  if (flat.bitbucket) auth.bitbucket = { ...flat.bitbucket, user: saved.bitbucketUser };
+  if (flat.confluence) auth.confluence = { ...flat.confluence, user: saved.confluenceEmail, site: saved.confluenceSite };
+  if (flat.gdrive) auth.gdrive = { ...flat.gdrive, clientId: saved.googleClientId };
+  return auth;
+}
+const PERSISTED = ["folders", "folderOrder", "items", "known", "unread", "hidden", "repoHidden", "completed", "expandedStacks", "accounts", "legacyAccounts", "config", "calendar", "meetingGroups", "dismissedAlerts", "dismissedNow"] as const;
 
 function load(): Partial<LiveState> {
   try {
@@ -100,6 +111,7 @@ export const useLive = create<LiveState>()(() => ({
   expandedStacks: saved.expandedStacks ?? {},
   showAll: {},
   accounts: saved.accounts ?? {},
+  legacyAccounts: saved.legacyAccounts ?? {},
   config: { ...DEFAULT_CONFIG, ...saved.config },
   calendar: { ...DEFAULT_CALENDAR, ...saved.calendar },
   meetingGroups: saved.meetingGroups ?? {},
@@ -114,13 +126,16 @@ export const showAllKey = (folderId: string, section: string) => `${folderId}:${
 
 const SAVE_DELAY_MS = 800;
 let timer: ReturnType<typeof setTimeout> | undefined;
+const persisted = () => {
+  const s = live();
+  return versionedJson(Object.fromEntries(PERSISTED.map((k) => [k, s[k]])), DOC_VERSION);
+};
 
 function save() {
   clearTimeout(timer);
   timer = undefined;
-  const s = live();
   try {
-    writeDocument(DOC, versionedJson(Object.fromEntries(PERSISTED.map((k) => [k, s[k]])), DOC_VERSION));
+    writeDocument(DOC, persisted());
   } catch (error) {
     console.warn("Couldn't save live folders", error);
   }
@@ -128,6 +143,12 @@ function save() {
 
 export function flushLive() {
   if (timer !== undefined) save();
+}
+
+export function saveLiveDurably(): Promise<void> {
+  clearTimeout(timer);
+  timer = undefined;
+  return saveDocument(DOC, persisted());
 }
 
 useLive.subscribe((s, prev) => {
@@ -355,14 +376,27 @@ export function unhide(folderId: string) {
   });
 }
 
-export function setAccount(source: LiveSourceId, account: LiveAccount | null) {
+export const accountOf = (profileId: string, source: LiveSourceId): LiveAccount | undefined => live().accounts[profileId]?.[source];
+
+export function setAccount(profileId: string, source: LiveSourceId, account: LiveAccount | null) {
   setLive((s) => {
-    const accounts = { ...s.accounts };
-    if (account) accounts[source] = account;
-    else delete accounts[source];
-    return { accounts };
+    const profile = { ...s.accounts[profileId] };
+    if (account) profile[source] = account;
+    else delete profile[source];
+    return { accounts: { ...s.accounts, [profileId]: profile } };
   });
 }
+
+export function setLegacyAccount(source: LiveSourceId, account: LiveAccount | null) {
+  setLive((s) => {
+    const rest = { ...s.legacyAccounts };
+    if (account) rest[source] = account;
+    else delete rest[source];
+    return { legacyAccounts: rest };
+  });
+}
+
+export const removeProfileAccounts = (profileId: string) => setLive((s) => (s.accounts[profileId] ? { accounts: without(s.accounts, profileId) } : {}));
 
 export const updateConfig = (patch: Partial<LiveConfig>) => setLive((s) => ({ config: { ...s.config, ...patch } }));
 export const updateCalendarSettings = (patch: Partial<CalendarSettings>) => setLive((s) => ({ calendar: { ...s.calendar, ...patch } }));
