@@ -34,7 +34,7 @@ echo "==> today's build makes data"
 "$ac" eval "$made" '
   const s = ac.store.getState();
   const w = Object.keys(s.windows)[0];
-  s.updateSettings({ openLinksInLittleArdia: false, littleArdiaSize: [810, 610], shortcuts: { ...s.settings.shortcuts, newLittleArdia: ["cmd+opt+y"] } });
+  s.updateSettings({ linkRouting: { routes: [], defaultDestination: { kind: "recent" } }, littleArdiaSize: [810, 610], shortcuts: { ...s.settings.shortcuts, newLittleArdia: ["cmd+opt+y"] } });
   const history = s.newTab(w, { url: "ardia://history" });
   const example = s.newTab(w, { url: "https://example.com/" });
   ac.store.getState().pinTabs([example], true);
@@ -78,7 +78,7 @@ state="$("$ac" eval "$migrated" '
   return JSON.stringify({
     urls: tabs.map((t) => t.url),
     pinned: tabs.filter((t) => t.pin).map((t) => t.url),
-    little: s.settings.openLinksInLittleArdia,
+    little: s.settings.linkRouting?.defaultDestination?.kind === "little",
     size: s.settings.littleArdiaSize,
     shortcut: s.settings.shortcuts?.newLittleArdia ?? null,
     bookmark: JSON.stringify(s.bookmarks).includes("Migration Bookmark") && JSON.stringify(s.bookmarks).includes("ardia://downloads"),

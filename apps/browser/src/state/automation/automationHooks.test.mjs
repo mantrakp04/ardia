@@ -235,7 +235,7 @@ test("link.opening routes or drops links from other apps before any tab exists",
     { name: "slack-work", on: "link.opening", from: ["com.tinyspeck.slackmacgap"], route: { open: "tab" } },
   ]);
   approveRule(approvalFor(useHookRules.getState().hooks[1]).key);
-  S().updateSettings({ openLinksInLittleArdia: true });
+  S().updateSettings({ linkRouting: { routes: [], defaultDestination: { kind: "little" } } });
   const w = S().createWindow({ url: "https://a.example/" });
   const tabs = () => Object.keys(S().tabs).length;
   const before = tabs();

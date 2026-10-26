@@ -2,6 +2,7 @@ import { appUrlRoute } from "@ardia/core";
 import { SETTINGS_PANES, type SettingsPane } from "../settings/settingsWindows";
 
 const PANE_ALIASES: Record<string, SettingsPane> = {
+  airtrafficcontrol: "links",
   people: "profiles",
   manageprofile: "profiles",
   syncsetup: "sync",

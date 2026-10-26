@@ -18,6 +18,7 @@ import { ChoiceList, useMockFocus, type ChoiceOption } from "./ChoiceList";
 import { useOnboardingColors } from "./Parts";
 import { MockPanel, useScreen } from "./Screen";
 import { StepActions, StepLayout } from "./StepLayout";
+import { LITTLE_ARDIA, otherAppsOpenInLittleArdia, RECENT, withDefaultDestination } from "../../lib/linkRouting";
 
 const ICON = require("../../../assets/app-icon.png");
 
@@ -106,9 +107,10 @@ function DefaultBrowserQuestion() {
 }
 
 function LinksQuestion() {
-  const { values, mock } = useScreen(["openLinksInLittleArdia"]);
+  const { values, mock } = useScreen(["linkRouting"]);
   const focus = useMockFocus("links");
-  const little = values.openLinksInLittleArdia;
+  const little = otherAppsOpenInLittleArdia(values.linkRouting);
+  const choose = (v: boolean) => ({ linkRouting: v === little ? values.linkRouting : withDefaultDestination(values.linkRouting, v ? LITTLE_ARDIA : RECENT) });
   return (
     <StepLayout
       pageKey="links"
@@ -117,14 +119,14 @@ function LinksQuestion() {
       actions={
         <StepActions
           onContinue={() =>
-            confirmAnswer("links", { openLinksInLittleArdia: little }, [little ? "Links from other apps open in Little Ardia" : "Links from other apps open in a tab"])
+            confirmAnswer("links", choose(little), [little ? "Links from other apps open in Little Ardia" : "Links from other apps open in a tab"])
           }
           onSkip={() => skipStep()}
         />
       }
       preview={<MockPanel settings={mock} focus={focus.focus} />}
     >
-      <ChoiceList options={LINK_CHOICES} value={little} onChange={(v) => setOnboardingDraft({ openLinksInLittleArdia: v })} mock={focus} />
+      <ChoiceList options={LINK_CHOICES} value={little} onChange={(v) => setOnboardingDraft(choose(v))} mock={focus} />
     </StepLayout>
   );
 }

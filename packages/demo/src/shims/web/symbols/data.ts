@@ -335,6 +335,7 @@ const BODIES: readonly string[] = [
   "<path d=\"M165.66,101.66,139.31,128l26.35,26.34a8,8,0,0,1-11.32,11.32L128,139.31l-26.34,26.35a8,8,0,0,1-11.32-11.32L116.69,128,90.34,101.66a8,8,0,0,1,11.32-11.32L128,116.69l26.34-26.35a8,8,0,0,1,11.32,11.32ZM232,128A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88,88,0,1,0-88,88A88.1,88.1,0,0,0,216,128Z\"/>",
   "<path d=\"M12,2C17.53,2 22,6.47 22,12C22,17.53 17.53,22 12,22C6.47,22 2,17.53 2,12C2,6.47 6.47,2 12,2M15.59,7L12,10.59L8.41,7L7,8.41L10.59,12L7,15.59L8.41,17L12,13.41L15.59,17L17,15.59L13.41,12L17,8.41L15.59,7Z\" />",
   "<rect x=\"6.14\" y=\"6.14\" width=\"19.73\" height=\"19.73\" rx=\"2.38\"/><path d=\"M12.01 12.01L19.99 19.99\"/><path d=\"M19.99 12.01L12.01 19.99\"/>",
+  "<path d=\"m15 10 5 5-5 5\" /><path d=\"M4 4v7a4 4 0 0 0 4 4h12\" />",
 ];
 
 const ENCODED: Record<string, readonly EncodedLayer[]> = {
@@ -356,6 +357,7 @@ const ENCODED: Record<string, readonly EncodedLayer[]> = {
   "arrow.triangle.2.circlepath": [[18,32,0,1,0,[[1.459,1.0025,-0.0178,-0.0094,0.0627,0,1],[1.4515,0.9975,-0.0103,-0.0169,0.0823,0,1],[1.444,0.9975,-0.0066,0.015,0.0988,0,1],[1.4383,0.9975,-0.0037,0.0103,0.1108,0,1],[1.4327,0.9975,0.0009,0.0037,0.1273,0,1]]]],
   "arrow.triangle.pull": [[19,24,0,1,0,[[0.7711,0.85,0.0766,-0.0056,0.0822,0,1],[0.8311,0.85,0.0616,-0.0244,0.0875,0,1],[0.773,0.85,0.0616,-0.0487,0.1145,0,1],[0.7711,0.85,0.0691,-0.0262,0.122,0,1],[0.8405,0.85,0.0616,-0.0347,0.134,0,1]]]],
   "arrow.triangle.swap": [[20,256,1,1,0,[[1.4189,1.155,0.0119,0.0122,0,0,1],[1.4695,1.1675,-0.0096,-0.0019,0,0,1],[1.5126,1.1725,0.0091,0.0169,0,0,1],[1.5445,1.1775,-0.0134,0.0056,0,0,1],[1.5745,1.1675,0.0054,-0.0122,0.0158,0,1]]]],
+  "arrow.turn.down.right": [[330,24,0,1,0,[[1.1725,1.0975,0.015,-0.1317,0.0665,0,1],[1.1275,1.135,0.0225,-0.1308,0.089,0,1],[1.135,1.0975,0.0225,-0.1045,0.113,0,1],[1.1275,1.095,0.0188,-0.1045,0.1138,0,1],[1.0975,1.1075,0.0225,-0.1036,0.131,0,1]]]],
   "arrow.up": [[21,256,1,1,0,[[1.1733,1,0.0176,-0.0314,0.0007,0,1],[1.2071,0.9925,-0.0134,-0.023,0.009,0,1],[1.1846,0.9875,-0.0068,0.0117,0.0277,0,1],[1.1621,0.9925,-0.0021,0.007,0.0443,0,1],[1.2014,1,0.0035,0.0192,0.0525,0,1]]]],
   "arrow.up.arrow.down": [[22,24,0,1,0,[[1.3006,1.0325,-0.0122,0.0178,0.0665,0,1],[1.31,1.0375,0,0.0047,0.0867,0,1],[1.31,1.0375,0.0075,-0.0019,0.1003,0,1],[1.3081,1.04,0.0141,-0.0066,0.1138,0,1],[1.3063,1.045,-0.0159,-0.0131,0.128,0,1]]]],
   "arrow.up.forward": [[23,256,1,1,0,[[1.2348,1,0.0258,-0.0037,0,0,1],[1.2554,1,0.022,-0.0019,0.0105,0,1],[1.2273,1,-0.0005,-0.0178,0.0285,0,1],[1.246,1,0.0005,-0.0169,0.0428,0,1],[1.2442,1,0.0108,0.0131,0.0592,0,1]]]],
@@ -689,6 +691,7 @@ const NUDGES: Record<string, string> = {
   "arrow.triangle.2.circlepath": "b9g9degcaagecaheeeaagfdbebgfagccecfdbfgfdbg8aeface9aeabeg9cdedg9a8ccecgbbf8fdbg8aeface9ae9beg9ddedg9a8ccecgbbf8fdag8aeface9aeabeg9cded89a8ccecgb",
   "arrow.triangle.pull": "87972a38862a364a0a36590505080804030397a73b49173b486b0b570b07070b0b0707079e2d49475d385c08070b071a0a0505080707ad4d687e0c678b17361a3559080b0b060504",
   "arrow.triangle.swap": "d9h9deebdagecagecebafebagbgfcgccccfccf8fcbe9be7ace8abace9ace8d8999cdcc9cefbffba9bebagecagaieeaieddf9f9ccdcicefcffb9hcfcb8eca9a9eeiaeaefh8hcded9c",
+  "arrow.turn.down.right": "bjgdahggbffkiieffhimejhgejeihkijmmlobhfibfhdbcfhjefbfcjhfeijeeekieikmemhbgghbehdbbfgbdfifcjgfejjfdfjjdjjnlmfbgfhbehcbbfgbdfifbjgfdjieceiikiiekme",
   "arrow.up": "ccgcahgf9edigebbabdggdbidicfegcdeecfc9gabegcaadegab7a7dbg7bcddc9eacee6d7dagabe8cabdfgbbfa7ec88ccecc9e9ceefd8d989be9caaee8abeafeb97cbebd8f8dcfdde",
   "arrow.up.arrow.down": "99e9ad8cbafeca9e9eeaaffbcbe7b8cc9cad99e9ae8cba7eca9e9eeaaf7bcbefbgcc9cbd99e9ae8cba8eca9e9eeaaf7bcbdfbgcc9cadb9g9decceabegadeeebbffdbibcfjgbcickd",
   "arrow.up.forward": "a9da7fdeec99bf6cdd8aae5c7ecc6fbd4fa9c9eaagbe9dcaffad9ebbfhacdfadcgaddgbjchfaagce9dchfebceddigfacdebcefccefchcff7abcaa9dd7aa758dd8ab6d8b597cca6b8",

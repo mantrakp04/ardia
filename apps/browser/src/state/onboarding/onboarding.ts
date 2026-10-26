@@ -79,7 +79,7 @@ export const QUESTIONS: Record<Exclude<OnboardingStep, "intro">, Question[]> = {
   pins: [{ id: "pins", keys: [] }],
   home: [
     { id: "default", keys: [] },
-    { id: "links", keys: ["openLinksInLittleArdia"] },
+    { id: "links", keys: ["linkRouting"] },
   ],
   outro: [{ id: "outro", keys: [] }],
 };

@@ -25,6 +25,23 @@ test("every setting is either on the config allowlist or deliberately left out, 
   ]);
 });
 
+test("linkRouting's schema and validator agree on real routings and broken ones", () => {
+  const spec = SETTING_SPECS.linkRouting;
+  const route = (destination, match = "contains") => ({ id: "r", match, pattern: "github.com", destination });
+  const routings = [
+    { routes: [], defaultDestination: { kind: "little" } },
+    { routes: [route({ kind: "profile", profileId: "work" }), route({ kind: "group", profileId: "default", groupKey: "g" }, "equals")], defaultDestination: { kind: "recent" } },
+    { routes: [route({ kind: "profile" })], defaultDestination: { kind: "recent" } },
+    { routes: [route({ kind: "group", profileId: "default" })], defaultDestination: { kind: "recent" } },
+    { routes: [route({ kind: "recent" }, "starts")], defaultDestination: { kind: "recent" } },
+    { routes: [{ id: "r", match: "contains", pattern: "x" }], defaultDestination: { kind: "recent" } },
+    { routes: [], defaultDestination: { kind: "elsewhere" } },
+    { routes: [] },
+  ];
+  for (const value of routings) assert.equal(accepts(spec.schema, value), spec.valid(value), JSON.stringify(value));
+  assert.equal(accepts(spec.schema, routings[1]), true);
+});
+
 test("each setting's schema and its validator agree on its default and on every sample", () => {
   for (const key of SETTING_KEYS) {
     const spec = SETTING_SPECS[key];
