@@ -80,6 +80,7 @@ function loadPage(tabId, { scrollY = 0 } = {}) {
     document: { scrollingElement: doc, documentElement: doc },
     performance: { now: () => now },
     requestAnimationFrame: (fn) => frames.push(fn),
+    nextFrame: (fn) => frames.push(fn),
     after: (fn) => timers.push(fn),
     addEventListener: (type, fn) => (listeners[type] ??= []).push(fn),
     guard: (fn) => (...a) => fn(...a),
@@ -97,7 +98,7 @@ function loadPage(tabId, { scrollY = 0 } = {}) {
         this.watched.clear();
       }
     },
-    MutationObserver: class {
+    NativeMutationObserver: class {
       constructor(fn) {
         this.fn = fn;
         this.watching = false;
@@ -183,6 +184,43 @@ test("wheeling up or pressing Home at the page's top shows the bar, not inside a
   page.fire("keydown", { key: "ArrowDown" });
   assert.ok(hidden(tabId));
   page.fire("keydown", { key: "Home" });
+  assert.ok(!hidden(tabId));
+  useBrowser.getState().closeTab(tabId);
+});
+
+test("an overlay closed without changing size (hidden, transparent, slid out) gives the bar back at the page's top", () => {
+  for (const close of [(el) => (el.visible = false), (el) => (el.left = 1200)]) {
+    const tabId = hiddenTab();
+    const page = loadPage(tabId);
+    const dialog = page.overlay();
+    page.scroll(dialog, 1500);
+    assert.ok(hidden(tabId));
+    close(dialog);
+    page.fire("keydown", { key: "Home" });
+    assert.ok(!hidden(tabId));
+    const again = page.overlay();
+    page.scroll(again, 1500);
+    assert.ok(hidden(tabId));
+    close(again);
+    page.fire("click", { target: page.doc });
+    page.nextFrame();
+    assert.ok(!hidden(tabId));
+    useBrowser.getState().closeTab(tabId);
+  }
+});
+
+test("an overlay the app hides later, with no input or transition, gives the bar back at the page's top", () => {
+  const tabId = hiddenTab();
+  const page = loadPage(tabId);
+  const dialog = page.overlay();
+  page.scroll(dialog, 1500);
+  assert.ok(hidden(tabId));
+  page.fire("click", { target: { parent: dialog } });
+  page.nextFrame();
+  assert.ok(hidden(tabId));
+  dialog.visible = false;
+  page.mutated();
+  page.timersFire();
   assert.ok(!hidden(tabId));
   useBrowser.getState().closeTab(tabId);
 });
