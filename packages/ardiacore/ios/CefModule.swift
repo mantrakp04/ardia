@@ -31,7 +31,13 @@ public class CefModule: Module {
     AsyncFunction("devEvents") { (browserId: Int) in ArdiaCoreWebView.devEvents(browserId: Int32(browserId)) }.runOnQueue(.main)
     AsyncFunction("devWindowNumber") { (browserId: Int) in ArdiaCoreWebView.devWindowNumber(browserId: Int32(browserId)) }.runOnQueue(.main)
     AsyncFunction("devPictureInPicture") { ArdiaCoreWebView.devPictureInPicture() }.runOnQueue(.main)
-    AsyncFunction("devPictureInPictureAction") { (action: String) in ArdiaCoreWebView.devPictureInPictureAction(action) }.runOnQueue(.main)
+    AsyncFunction("devPictureInPictureAction") { (action: String) -> String in
+      #if DEBUG
+      return ArdiaCoreWebView.devPictureInPictureAction(action)
+      #else
+      return ""
+      #endif
+    }.runOnQueue(.main)
     AsyncFunction("devFocusPage") { (browserId: Int) in ArdiaCoreWebView.devFocusPage(browserId: Int32(browserId)) }.runOnQueue(.main)
     AsyncFunction("devWindow") { (windowNumber: Int, action: String) -> String in
       guard let window = NSApp.window(withWindowNumber: windowNumber) else { return "" }

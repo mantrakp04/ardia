@@ -5,6 +5,7 @@ public class AreaLightModule: Module {
     Name("ArdiaAreaLight")
 
     AsyncFunction("debugSnapshot") { (dir: String) -> [[String: Any]] in
+      #if DEBUG
       try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
       return MetalSurface.instances.enumerated().compactMap { index, view in
         guard let window = view.window, let content = window.contentView else { return nil }
@@ -18,6 +19,9 @@ public class AreaLightModule: Module {
           "hidden": view.isHiddenOrHasHiddenAncestor, "alpha": view.alphaValue,
         ]
       }
+      #else
+      return []
+      #endif
     }.runOnQueue(.main)
   }
 }
