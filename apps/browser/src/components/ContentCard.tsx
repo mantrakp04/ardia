@@ -68,6 +68,7 @@ import { closeWebNotification, showWebNotification } from "../lib/webNotificatio
 import { isSmallWindow } from "../store/small";
 import { closeLittleArdiaOnEscape } from "./littleArdia/actions";
 import { PeekOverlay } from "./peek/PeekOverlay";
+import { CaptureOverlay } from "./capture/CaptureOverlay";
 import { closePeekOnEscape, dismissPeek, startPeeks } from "./peek/actions";
 
 export function ContentCard() {
@@ -318,6 +319,7 @@ export function ContentCard() {
           page={(tabId, sourceId, width) => <PeekPage tabId={tabId} sourceId={sourceId} windowId={windowId} width={width} fullscreen={peekFullscreen} />}
         />
       )}
+      {!peekId && <CaptureOverlay windowId={windowId} panes={fullscreenTab && panes[fullscreenTab] ? { [fullscreenTab]: panes[fullscreenTab] } : panes} origin={origin} width={size.width} height={size.height} />}
       <SplitToast windowId={windowId} />
     </View>
   );

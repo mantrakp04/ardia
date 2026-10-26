@@ -126,6 +126,7 @@ const shortcuts = [
   ["⌘C", cmd("c", 8), { title: "Copy" }, "⌘C", "clipboard"],
   ["⇧⌘C", cmd("C", 8, "shift"), { command: "copyUrl" }, "⇧⌘C"],
   ["⌥⇧⌘C", cmd("C", 8, "shift", "option"), { command: "copyUrlAsMarkdown" }, "⌥⇧⌘C"],
+  ["⇧⌘2", cmd("@", 19, "shift"), { command: "capture" }, "⇧⌘2"],
   ["⌘V", cmd("v", 9), { title: "Paste" }, "⌘V", "clipboard"],
   ["⇧⌘V", cmd("V", 9, "shift"), { title: "Paste and Match Style" }, "⇧⌘V", "clipboard"],
   ["⌘A", cmd("a", 0), { title: "Select All" }, "⌘A"],

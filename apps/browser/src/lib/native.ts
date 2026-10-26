@@ -189,7 +189,7 @@ const PAGE_COMMANDS = [
   "reload", "forceReload", "zoomIn", "zoomOut", "zoomReset", "print", "devTools", "toggleDevTools", "findInPage", "findNext",
   "findPrevious", "useSelectionForFind", "copyUrl", "copyUrlAsMarkdown", "bookmarkPage", "addBookmarkToFolder", "toggleMute",
   "findAndReplace", "jumpToSelection", "viewSource", "javaScriptConsole", "inspectElements", "savePage", "emailPageLocation",
-  "printWithSystemDialog", "stop", "caretBrowsing", "share",
+  "printWithSystemDialog", "stop", "caretBrowsing", "share", "capture",
 ];
 const INTERNAL_PAGE_COMMANDS = ["copyUrl", "copyUrlAsMarkdown", "bookmarkPage", "addBookmarkToFolder"];
 const WINDOW_COMMANDS = [
@@ -264,6 +264,7 @@ export function menuState(s: BrowserState): MenuState {
   }
   if (!s.closedTabs.length && !s.closedWindows.length && !s.closedGroups.length) disabled.push("reopenClosedTab");
   if (!s.closedWindows.length) disabled.push("reopenClosedWindow");
+  if (peek) disabled.push("capture");
 
   const checked = [`setAppearance:${s.settings.appearance}`];
   if (s.settings.showFullUrl) checked.push("toggleFullUrl");

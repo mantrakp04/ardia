@@ -401,6 +401,19 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
     }
   }
 
+  func copyPicture(of rect: [Double], completion: @escaping (CGImage?) -> Void) {
+    guard let view = webView, let window, !view.isHidden, rect.count == 4 else { return completion(nil) }
+    let top = window.contentView?.frame.height ?? 0
+    let inWindow = NSRect(x: rect[0], y: top - rect[1] - rect[3], width: rect[2], height: rect[3])
+    let inPage = view.convert(inWindow, from: nil).intersection(view.bounds)
+    guard !inPage.isEmpty else { return completion(nil) }
+    let configuration = WKSnapshotConfiguration()
+    configuration.rect = inPage
+    view.takeSnapshot(with: configuration) { image, _ in
+      completion(image?.cgImage(forProposedRect: nil, context: nil, hints: nil))
+    }
+  }
+
   func navigationEntries() -> [[String: Any]] {
     guard let list = webView?.backForwardList else { return [] }
     let entry = { (item: WKBackForwardListItem, current: Bool) -> [String: Any] in

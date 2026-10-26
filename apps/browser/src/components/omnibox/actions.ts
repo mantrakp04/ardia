@@ -54,6 +54,7 @@ const DEFS: ActionDef[] = [
   { command: "toggleMute", title: ({ tab }) => (tab?.muted ? "Unmute Site" : "Mute Site"), icon: "speaker.slash", keywords: ["mute", "unmute", "silence"], needs: page },
   { command: "copyUrl", title: "Copy URL", icon: "link", hint: "⇧⌘C", keywords: ["copy link"], needs: page },
   { command: "copyUrlAsMarkdown", title: "Copy URL as Markdown", icon: "link", hint: "⌥⇧⌘C", keywords: ["markdown link"], needs: page },
+  { command: "capture", title: "Capture…", icon: "camera.viewfinder", hint: "⇧⌘2", keywords: ["screenshot", "capture area", "snip", "copy image"], needs: page },
   { command: "findInPage", title: "Find in Page", icon: "text.magnifyingglass", hint: "⌘F", needs: page },
   {
     command: "bookmarkPage",

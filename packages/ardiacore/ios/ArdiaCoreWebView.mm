@@ -2869,6 +2869,29 @@ static NSString *LinkKeyAction(NSString *key) {
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC), dispatch_get_main_queue(), ^{ answer(nil); });
 }
 
+- (void)copyPictureOfRect:(NSArray<NSNumber *> *)rect completion:(void (^)(CGImageRef))completion {
+  NSView *page = _tab.view;
+  NSWindow *window = self.window;
+  if (!page || !window || self.hidden || rect.count != 4 || ![_tab respondsToSelector:@selector(copyPicture:completion:)])
+    return completion(NULL);
+  const CGFloat top = NSHeight(window.contentView.frame);
+  const NSRect inWindow = NSMakeRect(rect[0].doubleValue, top - rect[1].doubleValue - rect[3].doubleValue, rect[2].doubleValue, rect[3].doubleValue);
+  const NSRect bounds = page.bounds;
+  const NSRect inPage = NSIntersectionRect([page convertRect:inWindow fromView:nil], bounds);
+  if (NSIsEmptyRect(inPage)) return completion(NULL);
+  const CGFloat fromTop = page.isFlipped ? NSMinY(inPage) - NSMinY(bounds) : NSMaxY(bounds) - NSMaxY(inPage);
+  const CGFloat fromLeft = NSMinX(inPage) - NSMinX(bounds);
+  [_tab copyPicture:1.0
+         completion:^(CGImageRef picture) {
+           if (!picture || NSWidth(bounds) <= 0 || NSHeight(bounds) <= 0) return completion(NULL);
+           const CGFloat sx = CGImageGetWidth(picture) / NSWidth(bounds), sy = CGImageGetHeight(picture) / NSHeight(bounds);
+           const CGRect pixels = CGRectIntegral(CGRectMake(fromLeft * sx, fromTop * sy, NSWidth(inPage) * sx, NSHeight(inPage) * sy));
+           CGImageRef cropped = CGImageCreateWithImageInRect(picture, pixels);
+           completion(cropped);
+           if (cropped) CGImageRelease(cropped);
+         }];
+}
+
 - (void)navigationEntries:(void (^)(NSArray<NSDictionary<NSString *, id> *> *))completion {
   completion([_tab respondsToSelector:@selector(navigationEntries)] ? _tab.navigationEntries : @[]);
 }

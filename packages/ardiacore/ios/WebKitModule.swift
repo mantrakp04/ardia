@@ -87,6 +87,9 @@ public class WebKitModule: Module {
       AsyncFunction("capturePicture") { (view: WebKitTabView, scale: Double, promise: Promise) in
         view.tab.capturePicture(scale) { promise.resolve($0) }
       }.runOnQueue(.main)
+      AsyncFunction("copyRegionToPasteboard") { (view: WebKitTabView, rect: [Double], promise: Promise) in
+        view.tab.copyPicture(of: rect) { promise.resolve(writePictureToPasteboard($0)) }
+      }.runOnQueue(.main)
       AsyncFunction("downloadFavicon") { (view: WebKitTabView, url: String, promise: Promise) in
         view.tab.downloadFavicon(url) { promise.resolve($0) }
       }.runOnQueue(.main)

@@ -38,6 +38,7 @@ import { togglePageEngine } from "./engines";
 import { goBack, goForward } from "../components/layout/history";
 import { openSplitPane } from "../components/layout/splitActions";
 import { runSidebarCommand } from "../components/sidebar/commands";
+import { toggleCapture } from "../components/capture/captureState";
 import { numberedTabs } from "../components/sidebar/entries";
 import { openExtensionFromMenu } from "../components/extensions/bridge";
 import { toggleCastPicker } from "../components/media/cast";
@@ -152,6 +153,8 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
       return void s.newTab(windowId, { newTabCommand: true });
     case "reopenClosedTab":
       return s.reopenClosed(windowId);
+    case "capture":
+      return page && !peekTabId(s, windowId) ? toggleCapture(windowId) : undefined;
     case "restoreClosed":
       return arg ? s.restoreClosed(arg, windowId) : undefined;
     case "focusCommandBar":
@@ -326,7 +329,7 @@ const LITTLE_ARDIA_PAGE_COMMANDS = new Set<string>([
   "copyUrlAsMarkdown", "findInPage", "findAndReplace", "jumpToSelection", "useSelectionForFind", "findNext", "findPrevious",
   "reload", "forceReload", "zoomIn", "zoomOut", "zoomReset", "devTools", "toggleDevTools", "inspectElements",
   "javaScriptConsole", "viewSource", "back", "forward", "bookmarkPage", "addBookmarkToFolder", "openBookmark", "toggleMute",
-  "cast", "openExtension", "addExtension", "autofill", "reopenClosedTab", "restoreClosed", "downloads",
+  "cast", "openExtension", "addExtension", "autofill", "reopenClosedTab", "restoreClosed", "downloads", "capture",
 ]);
 
 function runLittleArdiaCommand(command: string, arg: string | null | undefined, windowId: string): boolean {

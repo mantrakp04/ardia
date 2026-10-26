@@ -441,6 +441,8 @@ enum MainMenu {
       edits[1],
       cmd("Copy URL", "copyUrl", "c", [.command, .shift]),
       cmd("Copy URL as Markdown", "copyUrlAsMarkdown", "c", [.command, .option, .shift]),
+      cmd("Capture…", "capture", "2", [.command, .shift]),
+      cmd("Capture…", "capture", "@", .command).hiddenShortcut(),
       edits[2],
       paste,
       std("Delete", #selector(NSText.delete(_:))),
