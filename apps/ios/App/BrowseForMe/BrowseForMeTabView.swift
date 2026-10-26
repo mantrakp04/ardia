@@ -40,8 +40,8 @@ struct BrowseForMeTabView: View {
         }
         SearchModePill(mode: $mode, engineName: app.searchEngineName, engineURL: engineHomeURL)
           .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-          .padding(.trailing, Spacing.page)
-          .padding(.bottom, BrowseLayout.barHeight + 8)
+          .padding(.trailing, BrowseLayout.barSideInset)
+          .padding(.bottom, max(BrowseLayout.barHeight - insets.bottom, 0) + BrowseLayout.barSideInset)
       } else {
         RisingGradient(isAnimating: false)
       }

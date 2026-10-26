@@ -191,6 +191,7 @@ private struct SettingsRootList: View {
         }
         .id(SettingsRoute.bottomAnchor)
       }
+      .contentMargins(.top, Spacing.small, for: .scrollContent)
       .settingsChrome()
       #if DEBUG
       .task {

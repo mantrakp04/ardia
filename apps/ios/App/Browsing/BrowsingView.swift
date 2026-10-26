@@ -63,6 +63,7 @@ struct BrowsingView: View {
     .sheet(item: Binding(get: { app.web.shareRequest }, set: { app.web.shareRequest = $0 })) { url in
       ActivitySheet(url: url)
         .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.hidden)
         .ignoresSafeArea()
     }
     .fullScreenCover(item: Binding(get: { browse.readerTabID.map(ReaderTarget.init) }, set: { browse.readerTabID = $0?.id })) { target in

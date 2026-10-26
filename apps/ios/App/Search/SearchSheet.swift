@@ -93,15 +93,12 @@ struct SearchSheet<Above: View>: View {
   @Environment(\.colorScheme) private var colorSchemeForSheet
 
   private var grabber: some View {
-    Capsule()
-      .fill(isIncognito ? Color.white.opacity(0.18) : BrowsePalette.foregroundTertiary.opacity(0.5))
-      .frame(width: 36, height: 5)
-      .padding(.top, 6)
-      .frame(maxWidth: .infinity, minHeight: 14)
+    Color.clear
+      .frame(maxWidth: .infinity)
+      .frame(height: 14)
       .contentShape(.rect)
-      .gesture(dismissDrag)
+      .gesture(dismissDrag, isEnabled: canDismiss)
       .accessibilityHidden(true)
-      .opacity(canDismiss ? 1 : 0)
   }
 
   private var canDismiss: Bool {

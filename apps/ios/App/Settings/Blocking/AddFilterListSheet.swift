@@ -75,6 +75,7 @@ struct AddFilterListSheet: View {
     }
     .tint(Color.ardiaAccentText)
     .presentationDetents([.medium, .large])
+    .presentationDragIndicator(.hidden)
   }
 
   private func add() {
