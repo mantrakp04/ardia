@@ -121,7 +121,7 @@ function IconButtonView(props: IconProps) {
   if (!props.toolbar)
     return (
       <View tooltip={tooltip} style={style} {...hoverProps}>
-        <Pressable onPress={props.onPress} disabled={disabled}>
+        <Pressable onPress={props.onPress} disabled={disabled} accessibilityRole="button" accessibilityLabel={tooltip}>
           {({ pressed }) => plate(pressed)}
         </Pressable>
       </View>
