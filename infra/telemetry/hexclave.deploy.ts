@@ -21,6 +21,7 @@ export const deploy = ({ secret, service }: any) => ({
         CLICKHOUSE_ADMIN_PASSWORD: secret(SECRETS.clickhouseAdmin),
         CLICKHOUSE_OTEL_PASSWORD: secret(SECRETS.clickhouseOtel),
         CLICKHOUSE_READER_PASSWORD: secret(SECRETS.clickhouseReader),
+        OBJECTS_HOST: service("ph-objects").hostname(),
       },
     },
 

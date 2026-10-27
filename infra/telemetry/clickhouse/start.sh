@@ -23,6 +23,16 @@ fi
 
 ch() { clickhouse client --password "$CLICKHOUSE_ADMIN_PASSWORD" -q "$1"; }
 
+if [[ "${OBJECTS_HOST:-}" =~ ^[A-Za-z0-9.-]+$ ]]; then
+  if sed "s/__OBJECTS_HOST__/$OBJECTS_HOST/g" /etc/ac/replay_chunks.sql | clickhouse client --password "$CLICKHOUSE_ADMIN_PASSWORD" --multiquery; then
+    echo "[ac] replay view applied"
+  else
+    echo "[ac] replay view FAILED" >&2
+  fi
+else
+  echo "[ac] OBJECTS_HOST not set, replay view skipped"
+fi
+
 backfill_typed_columns() {
   local table=$1 probe=$2 columns=$3
   local unfilled pending

@@ -2,6 +2,7 @@ FROM docker.io/clickhouse/clickhouse-server@sha256:95f7cbf466dba734947775eb74808
 COPY --chmod=0644 clickhouse/config.d/ardia.xml /etc/clickhouse-server/config.d/ardia.xml
 COPY --chmod=0644 clickhouse/users.d/ardia.xml /etc/clickhouse-server/users.d/ardia.xml
 COPY --chmod=0644 clickhouse/schema.sql /etc/ac/schema.sql
+COPY --chmod=0644 clickhouse/replay_chunks.sql /etc/ac/replay_chunks.sql
 COPY --chmod=0755 clickhouse/start.sh /usr/local/bin/ac-clickhouse
 RUN chmod 0755 /etc/ac /etc/clickhouse-server/users.d
 ENV CLICKHOUSE_SKIP_USER_SETUP=1
