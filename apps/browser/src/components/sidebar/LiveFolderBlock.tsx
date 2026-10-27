@@ -40,7 +40,8 @@ export const LiveFolderBlock = memo(function LiveFolderBlock({ folderId, windowI
   const rows = useMemo(() => (folder ? folderRows(folder, items, showAll) : []), [folder, items, showAll]);
   const itemIds = useMemo(() => new Set(items.map((i) => i.id)), [items]);
   const hiddenList = useLive((s) => s.hidden[folderId] ?? EMPTY);
-  const hiddenIds = useMemo(() => new Set(hiddenList.map((i) => i.id)), [hiddenList]);
+  const repoHiddenList = useLive((s) => s.repoHidden[folderId] ?? EMPTY);
+  const hiddenIds = useMemo(() => new Set([...hiddenList, ...repoHiddenList].map((i) => i.id)), [hiddenList, repoHiddenList]);
   const profileId = usePageProfileId();
   const strays = useLiveStrays(windowId, profileId, folderId, itemIds, hiddenIds);
   const activeTab = useLiveActiveTab(windowId, profileId, folderId, itemIds, hiddenIds);

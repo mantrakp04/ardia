@@ -12,6 +12,7 @@ export type LiveFolder = {
   filters: { authored: boolean; reviewRequests: boolean };
   groupStacks: boolean;
   showCompleted: boolean;
+  hiddenRepos: string[];
   createdAt: number;
   after?: string | null;
 };

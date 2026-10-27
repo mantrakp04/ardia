@@ -16,6 +16,8 @@ export const PAGE_SIZE = 8;
 
 export type LiveTabPlace = "row" | "stray" | "hidden";
 
+export const repoKey = (it: LiveItem) => (it.pr ? `${it.source}:${it.pr.repo}` : null);
+
 export function liveTabPlace(itemId: string, shown: Set<string>, hidden: Set<string>): LiveTabPlace {
   return shown.has(itemId) ? "row" : hidden.has(itemId) ? "hidden" : "stray";
 }

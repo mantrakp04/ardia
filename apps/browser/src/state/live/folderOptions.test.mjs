@@ -7,7 +7,7 @@ docs.set("live.json", JSON.stringify({ folders: { old: savedBeforeOptions }, fol
 const { manualRefresh, refreshFolder } = await import("./engine.ts");
 const { SOURCES } = await import("./sources.ts");
 const { folderRows, liveTabPlace } = await import("./rows.ts");
-const { applyFetch, createFolder, finishCompleting, hideItems, live, setLive, updateFolder } = await import("./store.ts");
+const { applyFetch, createFolder, finishCompleting, hideItems, live, setLive, setRepoHidden, updateFolder } = await import("./store.ts");
 
 const pr = (id, number, headRef, baseRef) => ({
   id,
@@ -176,4 +176,73 @@ test("an open tab of a hidden pull request stays out of the folder instead of co
   assert.equal(liveTabPlace("a", shown, hidden), "hidden");
   assert.equal(liveTabPlace("b", shown, hidden), "row");
   assert.equal(liveTabPlace("gone", shown, hidden), "stray", "a tab whose pull request left the fetch still shows as its own row");
+});
+
+const inRepo = (id, repo, source = "bitbucket") => ({ ...pr(id, 1, `h-${id}`, "main"), source, pr: { ...pr(id, 1, `h-${id}`, "main").pr, repo } });
+
+test("a hidden repo stays out through fetches and manual refreshes, keeps its open tabs out of the folder, and comes back read", async () => {
+  const id = createFolder("p", "pullRequests", ["bitbucket"]);
+  const work = inRepo("w", "acme/app");
+  const personal = inRepo("m", "me/dotfiles");
+  const { fetch, resolveGone } = SOURCES.bitbucket;
+  const asked = [];
+  SOURCES.bitbucket.fetch = async () => [work, personal];
+  SOURCES.bitbucket.resolveGone = async (items) => (asked.push(...items.map((it) => it.id)), {});
+  try {
+    await refreshFolder(id);
+    setRepoHidden(id, "bitbucket:me/dotfiles", true);
+    const shown = () => live().items[id].map((it) => it.id).sort();
+    assert.deepEqual(shown(), ["w"]);
+    await refreshFolder(id);
+    await manualRefresh(id);
+    assert.deepEqual(shown(), ["w"]);
+    assert.deepEqual(asked, [], "a hidden repo's pull requests aren't checked for closing, so they never play a completion");
+    const tabPlace = (itemId) => liveTabPlace(itemId, new Set(shown()), new Set([...(live().hidden[id] ?? []), ...live().repoHidden[id]].map((it) => it.id)));
+    assert.equal(tabPlace("m"), "hidden");
+
+    setRepoHidden(id, "bitbucket:me/dotfiles", false);
+    SOURCES.bitbucket.fetch = async () => Promise.reject(new Error("offline"));
+    await refreshFolder(id);
+    assert.equal(tabPlace("m"), "hidden", "while the fetch that would bring it back fails, its open tab still has no stray row");
+    SOURCES.bitbucket.fetch = async () => [work, personal];
+    await refreshFolder(id);
+    assert.deepEqual(shown(), ["m", "w"]);
+    assert.deepEqual(live().unread[id], []);
+  } finally {
+    Object.assign(SOURCES.bitbucket, { fetch, resolveGone });
+  }
+});
+
+test("hiding a repo on one service keeps the same-named repo on the other", () => {
+  const id = createFolder("p", "pullRequests", ["github", "bitbucket"]);
+  applyFetch(id, [inRepo("g", "acme/app", "github"), inRepo("b", "acme/app")], {});
+  setRepoHidden(id, "bitbucket:acme/app", true);
+  assert.deepEqual(live().items[id].map((it) => it.id), ["g"]);
+});
+
+test("hiding a repo also keeps aside its completed pull requests, so their open tabs get no stray row", () => {
+  const id = createFolder("p", "pullRequests", []);
+  const merged = inRepo("x", "me/dotfiles");
+  applyFetch(id, [merged], {});
+  applyFetch(id, [], { x: "merged" });
+  finishCompleting(id, ["x"]);
+  setRepoHidden(id, "bitbucket:me/dotfiles", true);
+  assert.deepEqual(live().completed[id], []);
+  assert.deepEqual(live().repoHidden[id].map((it) => it.id), ["x"]);
+});
+
+test("a pull request hidden until refresh stays hidden when its repo is hidden and shown again, and a manual refresh doesn't show a hidden repo's", async () => {
+  const id = createFolder("p", "pullRequests", []);
+  const parked = inRepo("p1", "me/dotfiles");
+  const other = inRepo("p2", "me/dotfiles");
+  applyFetch(id, [parked, other], {});
+  hideItems(id, [parked]);
+  setRepoHidden(id, "bitbucket:me/dotfiles", true);
+  setRepoHidden(id, "bitbucket:me/dotfiles", false);
+  applyFetch(id, [parked, other], {});
+  assert.deepEqual(live().items[id].map((it) => it.id), ["p2"]);
+
+  setRepoHidden(id, "bitbucket:me/dotfiles", true);
+  await manualRefresh(id);
+  assert.deepEqual(live().items[id], []);
 });
