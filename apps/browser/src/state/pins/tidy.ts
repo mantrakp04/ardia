@@ -81,7 +81,13 @@ export function tidyPlan(s: Pick<BrowserState, "tabs" | "groups" | "windows" | "
   for (const g of folders) for (const site of folderSites(s, g)) if (!folderFor.has(site)) folderFor.set(site, g.id);
   const files: TidyPlan["files"] = [];
   const loose = new Map<string, Tab[]>();
+  const plannedSplits = new Set<string>();
   for (const t of kept) {
+    const split = splitOf(s, t.id);
+    if (split && splitRowPanes(s, split).includes(t.id)) {
+      if (plannedSplits.has(split.id)) continue;
+      plannedSplits.add(split.id);
+    }
     const site = siteKey(homeOf(t));
     if (!site) continue;
     const groupId = folderFor.get(site);
