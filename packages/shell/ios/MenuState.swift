@@ -33,6 +33,7 @@ struct MenuState {
   var undoReopensClosedTab = false
   var downloadsInProgress = 0
   var shortcuts: [String: [String]] = [:]
+  var shortcutsBeforeWebsites: Set<String> = []
   var extensions: [(id: String, title: String, icon: String?)] = []
   var fromApp = false
 
@@ -94,6 +95,7 @@ struct MenuState {
     undoReopensClosedTab = d["undoReopensClosedTab"] as? Bool ?? false
     downloadsInProgress = d["downloadsInProgress"] as? Int ?? 0
     shortcuts = d["shortcuts"] as? [String: [String]] ?? [:]
+    shortcutsBeforeWebsites = Set(d["shortcutsBeforeWebsites"] as? [String] ?? [])
     fromApp = true
     extensions = (d["extensions"] as? [[String: Any]] ?? []).map {
       (id: $0["id"] as? String ?? "", title: $0["title"] as? String ?? "", icon: $0["icon"] as? String)

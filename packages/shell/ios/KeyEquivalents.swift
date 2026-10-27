@@ -182,22 +182,10 @@ enum KeyEquivalents {
 
   private static func menuItem(for event: NSEvent, in menu: NSMenu? = NSApp.mainMenu) -> (NSMenuItem, NSMenu)? {
     guard let menu else { return nil }
-    let relevant: NSEvent.ModifierFlags = [.command, .shift, .option, .control, .function]
-    var key = event.charactersIgnoringModifiers ?? ""
-    if key == "\u{7f}" { key = "\u{8}" }
-    if key == "\u{19}" { key = "\t" }
-    let functionKey = key.unicodeScalars.first.map { (0xF700...0xF8FF).contains($0.value) } ?? false
-    var mods = event.modifierFlags.intersection(relevant)
-    if functionKey { mods.remove(.function) }
+    let press = MenuKeyPress(event)
     for item in menu.items {
       if let submenu = item.submenu, submenu !== NSApp.servicesMenu, let found = menuItem(for: event, in: submenu) { return found }
-      guard !item.keyEquivalent.isEmpty, !item.isHidden || item.allowsKeyEquivalentWhenHidden,
-            item.keyEquivalent.lowercased() == key.lowercased() else { continue }
-      let itemMods = item.keyEquivalentModifierMask.intersection(relevant)
-        .union(item.keyEquivalent != item.keyEquivalent.lowercased() ? .shift : [])
-      let printable = key.unicodeScalars.first.map { $0.value >= 0x20 && $0.value != 0x7f } ?? false
-      let shiftedSymbol = printable && key.lowercased() == key.uppercased() && !functionKey
-      if itemMods == mods || (shiftedSymbol && itemMods.union(.shift) == mods) { return (item, menu) }
+      if press.matches(item) { return (item, menu) }
     }
     return nil
   }

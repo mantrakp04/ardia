@@ -11,7 +11,7 @@ export const toolRows: Pick<Record<SettingsPane, SettingSection[]>, "shortcuts" 
           description: "Outside text fields, as in Arc; press it again for the tab closed before. In a text field ⌘Z still undoes typing.",
           keywords: ["undo", "undo close tab", "reopen", "restore tab", "arc", "cmd z"],
         },
-        actions: { title: "Customize keyboard shortcuts", keywords: ["hotkeys", "keybindings", "remap", "menu shortcuts"] },
+        actions: { title: "Customize keyboard shortcuts", keywords: ["hotkeys", "keybindings", "remap", "menu shortcuts", "prefer website", "prefer browser", "website shortcuts", "browser first"] },
       },
     },
     { section: "Extensions", rows: { extensionShortcuts: { title: "Extension shortcuts", description: "Shortcuts that extensions add, like opening their popup.", keywords: ["hotkeys"] } } },

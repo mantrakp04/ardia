@@ -33,6 +33,7 @@ namespace ardia_window {
 
 NSMapTable<NSWindow *, ArdiaWindowController *> *Controllers();
 extern BOOL (^gRefusesUnhandledKey)(NSWindow *, NSEvent *);
+extern BOOL (^gPerformsKeyBeforePage)(NSEvent *);
 
 void ConfigureWindow(NSWindow *window);
 extern const void *kLightsCenterKey;
@@ -54,6 +55,7 @@ void ApplyFullScreenReveal(NSWindow *window);
 void SetFullScreenRevealAmount(NSWindow *window, double amount);
 NSDictionary *FullScreenRevealState(NSWindow *window);
 
+NSSet<NSString *> *ReservedIdentifiers();
 NSMenuItem *ReservedMenuItemForEvent(NSEvent *event);
 bool IsReservedKey(NSEvent *event);
 bool IsSecondSidebarKeyPress(NSEvent *event);

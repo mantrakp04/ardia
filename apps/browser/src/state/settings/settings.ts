@@ -79,6 +79,7 @@ export type Settings = {
   defaultProfileId: string;
 
   shortcuts: Record<string, string[]>;
+  shortcutsBeforeWebsites: string[];
 
   openLinksInLittleArdia: boolean;
   littleArdiaSize: [number, number];
@@ -166,6 +167,7 @@ export const DEFAULT_SETTINGS: Settings = {
   spacesFollowAppearance: true,
   defaultProfileId: DEFAULT_PROFILE_ID,
   shortcuts: {},
+  shortcutsBeforeWebsites: [],
   openLinksInLittleArdia: true,
   littleArdiaSize: [900, 640],
   pageEngine: "chromium",

@@ -4,7 +4,7 @@
 
 using namespace ardia_window;
 
-namespace {
+namespace ardia_window {
 
 NSSet<NSString *> *ReservedIdentifiers() {
   static NSSet<NSString *> *reserved = [NSSet setWithArray:@[
@@ -14,6 +14,10 @@ NSSet<NSString *> *ReservedIdentifiers() {
   ]];
   return reserved;
 }
+
+}
+
+namespace {
 
 NSMenuItem *MenuItemWithIdentifier(NSMenu *menu, NSString *key, NSEventModifierFlags mods, NSSet<NSString *> *reserved) {
   const NSEventModifierFlags relevant = NSEventModifierFlagCommand | NSEventModifierFlagShift | NSEventModifierFlagOption | NSEventModifierFlagControl;

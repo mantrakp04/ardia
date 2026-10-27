@@ -1,6 +1,43 @@
 import AppKit
 import ArdiaCore
 
+struct MenuKeyPress {
+  private static let relevant: NSEvent.ModifierFlags = [.command, .shift, .option, .control, .function]
+  private let key: String
+  private let unshiftedKey: String
+  private let mods: NSEvent.ModifierFlags
+  private let shiftedSymbol: Bool
+
+  private static func normalized(_ characters: String?) -> String {
+    switch characters ?? "" {
+    case "\u{7f}": return "\u{8}"
+    case "\u{19}": return "\t"
+    case let key: return key
+    }
+  }
+
+  init(_ event: NSEvent) {
+    let key = Self.normalized(event.charactersIgnoringModifiers)
+    let functionKey = key.unicodeScalars.first.map { (0xF700...0xF8FF).contains($0.value) } ?? false
+    var mods = event.modifierFlags.intersection(Self.relevant)
+    if functionKey { mods.remove(.function) }
+    let printable = key.unicodeScalars.first.map { $0.value >= 0x20 && $0.value != 0x7f } ?? false
+    self.key = key.lowercased()
+    unshiftedKey = Self.normalized(event.characters(byApplyingModifiers: [])).lowercased()
+    self.mods = mods
+    shiftedSymbol = printable && key.lowercased() == key.uppercased() && !functionKey
+  }
+
+  func matches(_ item: NSMenuItem) -> Bool {
+    guard !item.keyEquivalent.isEmpty, !item.isHidden || item.allowsKeyEquivalentWhenHidden else { return false }
+    let equivalent = item.keyEquivalent.lowercased()
+    let itemMods = item.keyEquivalentModifierMask.intersection(Self.relevant)
+      .union(item.keyEquivalent != equivalent ? .shift : [])
+    if equivalent == key { return itemMods == mods || (shiftedSymbol && itemMods.union(.shift) == mods) }
+    return equivalent == unshiftedKey && itemMods == mods
+  }
+}
+
 extension MainMenu {
   private static let modifierNames: [(String, NSEvent.ModifierFlags)] = [
     ("control", .control), ("option", .option), ("shift", .shift), ("command", .command), ("function", .function),
@@ -48,6 +85,31 @@ extension MainMenu {
       let combo = shortcut(of: item)
       return combo.key.lowercased() == key && combo.mods.intersection([.control, .option, .command]) == mods.subtracting(.shift)
     }
+  }
+
+  private static var itemsBeforePage: [NSMenuItem] = []
+
+  static func performBeforePage(_ event: NSEvent) -> Bool {
+    guard !itemsBeforePage.isEmpty, event.type == .keyDown else { return false }
+    let press = MenuKeyPress(event)
+    var updated = Set<ObjectIdentifier>()
+    for item in itemsBeforePage where press.matches(item) && shownInMenuBar(item) {
+      guard let menu = item.menu else { continue }
+      if updated.insert(ObjectIdentifier(menu)).inserted { menu.update() }
+      guard item.isEnabled else { continue }
+      menu.performActionForItem(at: menu.index(of: item))
+      return true
+    }
+    return false
+  }
+
+  private static func shownInMenuBar(_ item: NSMenuItem) -> Bool {
+    var menu = item.menu
+    while let child = menu, let parent = child.supermenu {
+      guard let owner = parent.items.first(where: { $0.submenu === child }), !owner.isHidden else { return false }
+      menu = parent
+    }
+    return true
   }
 
   static func functionKey(_ key: Int) -> String { String(Character(UnicodeScalar(UInt16(key))!)) }
@@ -150,6 +212,13 @@ extension MainMenu {
       bound.insert(comboKey(item.keyEquivalent, item.keyEquivalentModifierMask))
     }
     for case let item as CommandItem in profiles.items { item.followPrimaryShortcut(bound: bound) }
+    let beforePage = MenuState.current.shortcutsBeforeWebsites
+    itemsBeforePage = []
+    if !beforePage.isEmpty {
+      walk(NSApp.mainMenu) { item, _ in
+        if let item = item as? Rebindable, beforePage.contains(item.shortcutId) { itemsBeforePage.append(item) }
+      }
+    }
   }
 
   static func shortcutList() -> [[String: Any]] {
@@ -157,6 +226,7 @@ extension MainMenu {
     func names(_ mods: NSEvent.ModifierFlags) -> [String] {
       modifierNames.filter { mods.contains($0.1) }.map(\.0)
     }
+    let reserved = ArdiaChromeWindowHost.reservedMenuIdentifiers
     for (id, group) in shortcutGroups() {
       let item = group.primary
       if let command = item as? CommandItem, dynamicCommands.contains(command.command) { continue }
@@ -174,7 +244,7 @@ extension MainMenu {
         "id": id, "title": item.defaultTitle, "path": group.path, "key": current.key,
         "modifiers": current.key.isEmpty ? [] : names(current.mods), "defaultKey": item.defaultKey,
         "defaultModifiers": item.defaultKey.isEmpty ? [] : names(item.defaultModifiers), "remappable": true,
-        "aliases": aliases,
+        "aliases": aliases, "alwaysBeforeWebsites": group.items.contains { reserved.contains($0.identifier?.rawValue ?? "") },
       ])
     }
     var seen = Set<String>()
@@ -187,6 +257,7 @@ extension MainMenu {
       list.append([
         "id": id, "title": item.title, "path": path, "key": current.key, "modifiers": mods,
         "defaultKey": current.key, "defaultModifiers": mods, "remappable": false, "aliases": [[String]](),
+        "alwaysBeforeWebsites": false,
       ])
     }
     return list

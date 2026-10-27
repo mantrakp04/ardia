@@ -39,6 +39,7 @@ export type MenuState = {
   downloadsInProgress?: number;
   extensions?: { id: string; title: string; icon?: string | null; enabled: boolean }[];
   shortcuts?: Record<string, string[]>;
+  shortcutsBeforeWebsites?: string[];
 };
 
 let menusShown = 0;

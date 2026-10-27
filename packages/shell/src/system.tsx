@@ -13,6 +13,7 @@ export type MenuShortcut = {
   defaultModifiers: ShortcutModifier[];
   remappable: boolean;
   aliases?: string[][];
+  alwaysBeforeWebsites: boolean;
 };
 
 export type ShortcutModifier = "control" | "option" | "shift" | "command" | "function";

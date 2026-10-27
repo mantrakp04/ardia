@@ -48,6 +48,7 @@ export const SYNCED_SETTINGS = [
   "addressBar",
   "commandBarPlacement",
   "shortcuts",
+  "shortcutsBeforeWebsites",
 ] as const satisfies readonly (keyof Settings)[];
 
 export const settingsAdapter: Adapter = {

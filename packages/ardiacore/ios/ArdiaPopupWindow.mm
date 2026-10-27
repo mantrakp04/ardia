@@ -310,12 +310,12 @@ NSImage *_Nullable PermissionIcon(NSDictionary *request) {
 
 - (BOOL)window:(ArdiaCoreWindow *)window preHandleKeyEvent:(NSEvent *)event {
   NSMenuItem *reserved = ReservedMenuItemForEvent(event);
-  if (!reserved) return NO;
   if ([reserved.identifier isEqualToString:@"ardia.command.closeTab"]) {
     [_coreWindow close];
     return YES;
   }
-  return [NSApp.mainMenu performKeyEquivalent:event];
+  if (reserved && [NSApp.mainMenu performKeyEquivalent:event]) return YES;
+  return gPerformsKeyBeforePage && gPerformsKeyBeforePage(event);
 }
 
 @end

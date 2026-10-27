@@ -5,7 +5,7 @@ import {
   resolvedShortcuts,
   useMenuBarRevision,
 } from "../../../state/commands/commandShortcuts";
-import { Symbol, Button, font, PopUp, SearchField, Toggle, useHover } from "../../ui";
+import { Symbol, Button, font, PopUp, SearchField, Toggle, useFormColors, useHover } from "../../ui";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useTheme } from "../../ui/theme";
@@ -27,6 +27,7 @@ const NO_SHORTCUT: Shortcut = { key: "", modifiers: [] };
 export function ShortcutsPane() {
   const theme = useTheme();
   const overrides = useSettings((s) => s.shortcuts);
+  const beforeWebsites = useSettings((s) => s.shortcutsBeforeWebsites);
   const profileOrder = useProfileOrder();
   const menuBar = useMenuBarRevision();
   const undoReopensClosedTab = useSettings((s) => s.undoReopensClosedTab);
@@ -45,6 +46,9 @@ export function ShortcutsPane() {
 
   const setShortcut = setShortcutOverride;
 
+  const toggleBeforeWebsites = (id: string) =>
+    updateSettings({ shortcutsBeforeWebsites: beforeWebsites.includes(id) ? beforeWebsites.filter((other) => other !== id) : [...beforeWebsites, id] });
+
   const record = async (item: MenuShortcut) => {
     setRecording(item.id);
     const combo = await recordShortcut();
@@ -56,17 +60,18 @@ export function ShortcutsPane() {
 
   const shown = (items ?? []).filter((item) => {
     if (!matchesQuery(query, item.title, item.path.join(" "), formatShortcut(effective(item)))) return false;
-    if (filter === "customized") return !!overrides[item.id];
+    if (filter === "customized") return !!overrides[item.id] || beforeWebsites.includes(item.id);
     if (filter === "conflicts") return conflictsOf(item).length > 0;
     return true;
   });
   const menus = [...new Set(shown.map((i) => i.path[0] ?? ""))];
-  const customizedCount = Object.keys(overrides).length;
+  const customizedCount = Object.keys(overrides).length + beforeWebsites.filter((id) => byId.has(id)).length;
 
   return (
     <View>
       <Text style={{ marginTop: 20, ...settingsType.lead, lineHeight: 17, color: theme.textSecondary }}>
-        Perform common actions in Ardia faster and from anywhere. Select an action to customize its keyboard shortcut.
+        Perform common actions in Ardia faster and from anywhere. Select an action to customize its keyboard shortcut. When a website uses
+        the same shortcut, the website gets it first; click the globe next to a shortcut to give it to Ardia first.
       </Text>
       <Group style={{ marginTop: 14 }}>
         <Row anchor="shortcuts.undoReopensClosedTab">
@@ -85,7 +90,7 @@ export function ShortcutsPane() {
           onChange={setFilter}
           minWidth={170}
         />
-        <Button title="Reset All Shortcuts" disabled={!customizedCount} onPress={() => updateSettings({ shortcuts: {} })} />
+        <Button title="Reset All Shortcuts" disabled={!customizedCount} onPress={() => updateSettings({ shortcuts: {}, shortcutsBeforeWebsites: [] })} />
       </Anchor>
       {items !== null && shown.length === 0 && (
         <Text style={{ marginTop: 30, textAlign: "center", ...font.body, color: theme.textTertiary }}>No matching actions</Text>
@@ -115,6 +120,13 @@ export function ShortcutsPane() {
                     {overrides[item.id] && (
                       <Button variant="icon" icon="arrow.uturn.backward" size={11} box={24} radius={6} onPress={() => setShortcut(item.id, null)} tooltip="Reset to Default" />
                     )}
+                    {item.remappable && (!!effective(item).key || beforeWebsites.includes(item.id)) && (
+                      <PrecedenceButton
+                        always={item.alwaysBeforeWebsites}
+                        beforeWebsites={beforeWebsites.includes(item.id)}
+                        onToggle={() => toggleBeforeWebsites(item.id)}
+                      />
+                    )}
                     <ShortcutField
                       combo={effective(item)}
                       remappable={item.remappable}
@@ -139,6 +151,30 @@ export function ShortcutsPane() {
         </>
       )}
     </View>
+  );
+}
+
+function PrecedenceButton({ always, beforeWebsites, onToggle }: { always: boolean; beforeWebsites: boolean; onToggle: () => void }) {
+  const theme = useTheme();
+  const colors = useFormColors();
+  if (always) {
+    return <Button variant="icon" icon="lock.fill" size={11} box={24} radius={6} disabled tooltip="Ardia always gets this shortcut before websites" />;
+  }
+  return (
+    <Button
+      variant="icon"
+      icon={beforeWebsites ? "macwindow" : "globe"}
+      size={11}
+      box={24}
+      radius={6}
+      color={beforeWebsites ? colors.accent : theme.textTertiary}
+      onPress={onToggle}
+      tooltip={
+        beforeWebsites
+          ? "Ardia gets this shortcut before websites. Click to let websites use it first."
+          : "Websites that use this shortcut get it first. Click to give it to Ardia first."
+      }
+    />
   );
 }
 

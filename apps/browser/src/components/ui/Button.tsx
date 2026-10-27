@@ -131,7 +131,7 @@ function IconButtonView({ icon, onPress, onLongPress, onContextMenu, disabled, a
   if (!toolbar)
     return (
       <View tooltip={tooltip} style={style} {...hoverProps}>
-        <Pressable onPress={onPress as (() => void) | undefined} disabled={disabled}>
+        <Pressable onPress={onPress as (() => void) | undefined} disabled={disabled} accessibilityRole="button" accessibilityLabel={tooltip}>
           {({ pressed }) => plate(pressed)}
         </Pressable>
       </View>

@@ -7,6 +7,7 @@ using namespace ardia_window;
 namespace ardia_window {
 
 BOOL (^gRefusesUnhandledKey)(NSWindow *, NSEvent *);
+BOOL (^gPerformsKeyBeforePage)(NSEvent *);
 
 NSMapTable<NSWindow *, ArdiaWindowController *> *Controllers() {
   static NSMapTable *controllers = [NSMapTable weakToStrongObjectsMapTable];
@@ -343,7 +344,8 @@ NSMapTable<ArdiaCoreProfile *, ArdiaWindowController *> *StandaloneWindows() {
 }
 
 - (BOOL)window:(ArdiaCoreWindow *)window preHandleKeyEvent:(NSEvent *)event {
-  return (IsReservedKey(event) || IsSecondSidebarKeyPress(event)) && [NSApp.mainMenu performKeyEquivalent:event];
+  if ((IsReservedKey(event) || IsSecondSidebarKeyPress(event)) && [NSApp.mainMenu performKeyEquivalent:event]) return YES;
+  return gPerformsKeyBeforePage && gPerformsKeyBeforePage(event);
 }
 
 - (BOOL)window:(ArdiaCoreWindow *)window handleKeyEvent:(NSEvent *)event {
