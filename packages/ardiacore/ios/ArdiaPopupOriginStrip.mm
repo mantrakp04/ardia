@@ -46,6 +46,7 @@ NSString *PopupOriginText(NSString *url) {
 
 - (instancetype)initWithFrame:(NSRect)frame {
   if (!(self = [super initWithFrame:frame])) return nil;
+  self.clipsToBounds = YES;
   _glyph = [[NSImageView alloc] initWithFrame:NSZeroRect];
   _glyph.symbolConfiguration = [NSImageSymbolConfiguration configurationWithPointSize:11 weight:NSFontWeightMedium];
   _origin = [NSTextField labelWithString:@""];
