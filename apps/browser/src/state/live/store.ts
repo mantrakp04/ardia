@@ -1,6 +1,6 @@
 import { readDocument, writeDocument } from "../../platform/documents";
 import { create } from "zustand";
-import { repoKey } from "./rows";
+import { repoKey, stackMembers } from "./rows";
 import type { CompletedItem, CompletionState, FolderStatus, LiveAccount, LiveFolder, LiveFolderKind, LiveItem, LiveSourceId } from "./types";
 import { parseSaved, unchanged, versionedJson, type Migrations } from "../../lib/savedDocument";
 import { DEFAULT_COUNTDOWN_LEAD, keepDismissedNow, type DismissedNow } from "./meetings";
@@ -338,7 +338,7 @@ export function releaseShownRepos(folderId: string, fetchedSources: Set<LiveSour
 }
 
 export function hideStack(folderId: string, stackId: string) {
-  hideItems(folderId, (live().items[folderId] ?? []).filter((it) => it.pr?.stack?.id === stackId));
+  hideItems(folderId, stackMembers(live().items[folderId] ?? [], stackId));
 }
 
 export function unhide(folderId: string) {
