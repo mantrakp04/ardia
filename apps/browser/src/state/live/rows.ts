@@ -26,6 +26,10 @@ export function liveTabOpen(tabs: Record<string, Tab>, folderId: string, itemIds
   return Object.values(tabs).some((t) => t.liveItem?.folderId === folderId && itemIds.includes(t.liveItem.itemId));
 }
 
+export function stackMembers(items: LiveItem[], stackId: string): LiveItem[] {
+  return items.filter((it) => it.pr?.stack?.id === stackId);
+}
+
 export function folderRows(folder: Pick<LiveFolder, "id" | "kind" | "groupStacks">, items: LiveItem[], showAll: Record<string, boolean>, page = PAGE_SIZE): FolderRow[] {
   const sections: [string, LiveItem[]][] =
     folder.kind === "pullRequests"
