@@ -355,6 +355,21 @@ test("Tidy on tabs files loose tabs into a group of their site, groups 2 or more
   assert.equal(canTidy(S(), w, undefined, "tabs"), false);
 });
 
+test("Tidy on tabs files a split once, by its first pane, even when its panes match two groups", () => {
+  reset();
+  const { w, ids: [j1, f1, l9, f9] } = windowWith("https://linkedin.com/1", "https://figma.com/1", "https://linkedin.com/9", "https://figma.com/9");
+  S().groupTabs([j1], { pinned: false, name: "Jobs" });
+  S().groupTabs([f1], { pinned: false, name: "Figma" });
+  const splitId = S().createSplit([l9, f9]);
+  const done = tidy(w, "tabs");
+  assert.equal(innermost(l9)?.name, "Jobs");
+  assert.equal(innermost(f9)?.name, "Jobs", "the split moves as one row");
+  assert.deepEqual(S().groups[innermost(f1).id].tabIds, [f1], "Figma is left as it was");
+  assert.deepEqual(splitTabIdsOf(S().splits[splitId]), [l9, f9]);
+  assert.equal(done.moved, 2);
+  assert.equal(done.groups, 1);
+});
+
 test("Undo of Tidy on tabs puts every tab back in its place and removes Tidy's groups", () => {
   reset();
   const { w, ids: [j1, l1, f1, g1, f2] } = windowWith("https://linkedin.com/1", "https://linkedin.com/9", "https://figma.com/1", "https://github.com/1", "https://figma.com/2");
