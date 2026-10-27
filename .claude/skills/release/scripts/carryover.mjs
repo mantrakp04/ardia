@@ -17,17 +17,33 @@ fs.mkdirSync(docs, { recursive: true });
 const previousBuild = phase === "create" || phase === "back";
 if (previousBuild && !fs.existsSync(path.join(docs, "onboarding.json")))
   fs.writeFileSync(path.join(docs, "onboarding.json"), JSON.stringify({ version: 1, completedAt: Date.now(), introMusicMuted: true }));
-try {
-  instance = await launch(app, {
-    data: docs, port, js: "none", ready: false, probe: true, log: path.join(path.dirname(path.resolve(out)), `${phase}.app.log`),
-    env: { HOME: home, CFFIXED_USER_HOME: home, ...(previousBuild ? {} : { ARDIA_DATA_DIR: null }) }, test: { reauth: "granted" },
-    switches: "--disable-backgrounding-occluded-windows", args: previousBuild ? ["--mute-audio"] : [],
-  });
-} catch (e) {
-  console.error(`carryover: the app didn't start (${e.message})`);
-  process.exit(2);
+async function start(scratchDataDir, logName) {
+  try {
+    instance = await launch(app, {
+      data: docs, port, js: "none", ready: false, probe: true, log: path.join(path.dirname(path.resolve(out)), logName),
+      env: { HOME: home, CFFIXED_USER_HOME: home, ...(scratchDataDir ? {} : { ARDIA_DATA_DIR: null }) }, test: { reauth: "granted" },
+      switches: "--disable-backgrounding-occluded-windows", args: previousBuild ? ["--mute-audio"] : [],
+    });
+  } catch (e) {
+    console.error(`carryover: the app didn't start (${e.message})`);
+    process.exit(2);
+  }
+  return instance.pid;
 }
-const { pid } = instance;
+async function quit(pid) {
+  execFileSync(process.env.CARRYOVER_QUIT, [String(pid)]);
+  for (let i = 0; i < 60 && alive(); i++) await sleep(500);
+  const quitted = !alive();
+  if (alive()) instance.kill("SIGKILL");
+  return quitted;
+}
+async function firstWindow() {
+  let w = null;
+  for (let i = 0; i < 60 && !w; i++) { w = await inApp(`return ${window} || null;`, 3000).catch(() => null); if (!w) await sleep(1000); }
+  if (!w) throw new Error("no window");
+  return w;
+}
+const pid = await start(previousBuild, `${phase}.app.log`);
 
 const step = (what) => { if (process.env.CARRYOVER_VERBOSE) console.error(`carryover ${phase}: ${what}`); };
 const legacy = path.basename(execFileSync("/usr/libexec/PlistBuddy", ["-c", "Print :CFBundleExecutable", `${app}/Contents/Info.plist`]).toString().trim()) === "Netnyahoo";
@@ -95,6 +111,17 @@ return safe(E.call("engine.info"), (i) => { r.dataDirectory = i && i.dataDirecto
     .then(() => safe(E.call("sites.zoomLevels", { profile: p }), (z) => put("zoom", z)))
     .then(() => safe(orError(E.call("extensions.list", { profile: p })), (l) => put("extensions", ((l && l.extensions) || []).filter((e) => !/uBlock/.test(e.name)).map((e) => e.name + (e.enabled ? "" : " (off)")).sort())));
 })).then(() => r);`;
+const REVEAL_PASSWORDS = `
+const s = ac.store.getState(), E = ac.engine;
+const seq = (items, f) => items.reduce((p, x) => p.then(() => f(x)), Promise.resolve());
+const orError = (p) => p.catch((e) => ({ error: e.message }));
+const r = {};
+return seq(s.profileOrder, (id) => {
+  const p = id === "default" ? "" : id, pw = [];
+  r[s.profiles[id].name + " passwords"] = pw;
+  return orError(E.call("passwords.unlock", { profile: p })).then(() => orError(E.call("passwords.list", { profile: p })))
+    .then((list) => seq((list && list.passwords) || [], (e) => orError(E.call("passwords.reveal", { profile: p, origin: e.origin, username: e.username })).then((v) => { pw.push(e.username + " " + (v && v.password)); })));
+}).then(() => r);`;
 const READ_BEFORE_ENGINE = `
 const s = ac.store.getState(), C = globalThis.expo.modules.ArdiaCEF, X = globalThis.expo.modules.ArdiaExtensions;
 const O = ${JSON.stringify(origin)};
@@ -118,9 +145,7 @@ return safe(C.engineInfo(), (i) => { r.dataDirectory = i && i.dataDirectory; }).
 
 const report = {};
 try {
-  let w = null;
-  for (let i = 0; i < 60 && !w; i++) { w = await inApp(`return ${window} || null;`, 3000).catch(() => null); if (!w) await sleep(1000); }
-  if (!w) throw new Error("no window");
+  const w = await firstWindow();
   const engineApi = await inApp("return !!ac.engine;");
   if (phase === "create") {
     const W = JSON.stringify(w);
@@ -191,10 +216,17 @@ try {
 } catch (e) {
   report.error = String(e.stack || e);
 }
-execFileSync(process.env.CARRYOVER_QUIT, [String(pid)]);
-for (let i = 0; i < 60 && alive(); i++) await sleep(500);
-report.quit = !alive();
-if (alive()) instance.kill("SIGKILL");
+report.quit = await quit(pid);
+if (!previousBuild && !report.error) {
+  try {
+    const revealPid = await start(true, `${phase}.reveal.app.log`);
+    await firstWindow();
+    Object.assign(report.read, await inApp(REVEAL_PASSWORDS, 90_000));
+    report.revealQuit = await quit(revealPid);
+  } catch (e) {
+    report.error = `revealing passwords: ${e.stack || e}`;
+  }
+}
 
 if (phase === "use") {
   fs.writeFileSync(out, JSON.stringify(report, null, 2));

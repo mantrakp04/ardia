@@ -49,7 +49,6 @@ typedef NS_ENUM(NSInteger, ArdiaPiPEdge) { ArdiaPiPEdgeNone = 0, ArdiaPiPEdgeLef
 @property (nonatomic) BOOL keepOnTop;
 + (instancetype)forWindow:(NSWindow *)window;
 - (instancetype)initWithWindow:(NSWindow *)window;
-- (void)setVideoFrame:(NSString *)frameId;
 - (void)roundCorners;
 - (void)backToTab;
 - (void)unstash;
@@ -69,7 +68,6 @@ typedef NS_ENUM(NSInteger, ArdiaPiPEdge) { ArdiaPiPEdgeNone = 0, ArdiaPiPEdgeLef
   ArdiaPiPEdge _stashedEdge;
   BOOL _keepOnTop;
   NSMutableArray *_observers;
-  NSString *_frameId;
   NSTimer *_slide;
   BOOL _animating;
   BOOL _sawDrag;

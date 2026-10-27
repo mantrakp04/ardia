@@ -11,7 +11,7 @@ export type ImportKind =
   | "pinnedTabs"
   | "favorites";
 
-export type BrowserFamily = "chromium" | "firefox" | "safari" | "arc" | "automation";
+export type BrowserFamily = "chromium" | "firefox" | "safari" | "arc";
 
 export type SpaceSummary = {
   id: string;
@@ -49,6 +49,7 @@ export type BrowserSource = {
   keychainService?: string;
   profiles: BrowserProfile[];
   sidebar?: "arc" | "zen";
+  asksAppForTabs?: boolean;
 };
 
 export type BookmarkRole = "toolbar" | "other" | "mobile" | "menu" | "readingList" | "liveGitHubPullRequests" | "liveBitbucketPullRequests";
@@ -193,8 +194,6 @@ export type DiaTabsResult = {
   favicons: ImportedFavicon[];
 };
 
-export type DiaAutomationStatus = "granted" | "denied" | "notDetermined" | "notRunning" | "notInstalled";
-
 export class ImportError extends Error {
   readonly code: string;
 
@@ -227,10 +226,6 @@ const Native = requireNativeModule<{
   importBookmarksHTML(path: string): Promise<string>;
   importPasswordsCSV(path: string): Promise<string>;
   chooseImportFile(kind: "safariExport" | "bookmarksHTML" | "passwordsCSV"): Promise<string | null>;
-  diaAutomationStatus(): Promise<string>;
-  requestDiaAutomation(): Promise<string>;
-  openAutomationSettings(): Promise<null>;
-  openDia(): Promise<null>;
   readDiaTabs(): Promise<string>;
 }>("ArdiaImport");
 
@@ -306,13 +301,5 @@ export const importBookmarksHTML = (path: string) => call<BookmarkNode>(Native.i
 export const importPasswordsCSV = (path: string) => call<Credential[]>(Native.importPasswordsCSV(path));
 
 export const chooseImportFile = (kind: "safariExport" | "bookmarksHTML" | "passwordsCSV") => Native.chooseImportFile(kind);
-
-export const diaAutomationStatus = () => call<DiaAutomationStatus>(Native.diaAutomationStatus());
-
-export const requestDiaAutomation = () => call<DiaAutomationStatus>(Native.requestDiaAutomation());
-
-export const openAutomationSettings = () => call<void>(Native.openAutomationSettings());
-
-export const openDia = () => call<void>(Native.openDia());
 
 export const readDiaTabs = () => call<DiaTabsResult>(Native.readDiaTabs());

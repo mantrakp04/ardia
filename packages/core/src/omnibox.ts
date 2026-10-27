@@ -66,9 +66,20 @@ const HOST = new RegExp(
   "i",
 );
 
+const JAVASCRIPT_URL = /^(?:view-source:)?javascript:/i;
+const JAVASCRIPT_PREFIX = /^[\u0000-\u0020\u007f]*javascript:/i;
+
+export const isJavaScriptUrl = (url: string) => JAVASCRIPT_URL.test(url.replace(/^[\u0000-\u0020]+/, "").replace(/[\t\n\r]/g, ""));
+
+export function withoutJavaScriptScheme(text: string): string {
+  let out = text;
+  while (JAVASCRIPT_PREFIX.test(out)) out = out.replace(JAVASCRIPT_PREFIX, "");
+  return out;
+}
+
 export function fixupUrl(raw: string): string | null {
   const url = fixup(raw);
-  return url && toAppUrl(url);
+  return url && !isJavaScriptUrl(url) ? toAppUrl(url) : null;
 }
 
 function fixup(raw: string): string | null {
@@ -118,7 +129,7 @@ export function resolveInput(raw: string, search = SEARCH_URL): string {
 export type PasteAction = { kind: "go"; url: string } | { kind: "search"; query: string };
 
 export function classifyPaste(text: string): PasteAction | null {
-  const trimmed = text.trim();
+  const trimmed = withoutJavaScriptScheme(text.trim()).trim();
   if (!trimmed) return null;
   const url = /\s/.test(trimmed) ? null : fixupUrl(trimmed);
   if (url && !/^(about|data):/i.test(url)) return { kind: "go", url: cleanUrl(url) };
@@ -130,13 +141,16 @@ export function sanitizePaste(text: string): string {
   const parts = text.trim().split(/(\s+)/);
   if (parts.length === 1 && !parts[0]) return " ";
   const spaced = parts.some((part, i) => i % 2 === 1 && !/[\r\n]/.test(part));
-  return parts.map((part, i) => (i % 2 === 0 || !/[\r\n]/.test(part) ? part : spaced ? " " : "")).join("");
+  return withoutJavaScriptScheme(parts.map((part, i) => (i % 2 === 0 || !/[\r\n]/.test(part) ? part : spaced ? " " : "")).join("")).trimStart();
 }
+
+const DEFAULT_PORTS: Record<string, string> = { http: "80", https: "443", ws: "80", wss: "443", ftp: "21" };
 
 export function breadcrumb(url: string, title?: string): { host: string; trail: string[] } {
   const parsed = parseUrl(url);
   const app = appUrlOrigin(url);
-  const host = app ?? (parsed ? displayHost(parsed.host).replace(/^www\./, "") : url);
+  const port = parsed?.port && parsed.port !== DEFAULT_PORTS[parsed.scheme] ? `:${parsed.port}` : "";
+  const host = app ?? (parsed ? displayHost(parsed.host).replace(/^www\./, "") + port : url);
   const seen = new Set([host.toLowerCase(), ...(app && parsed ? [parsed.host] : [])]);
   const trail = (title ?? "")
     .split(/\s[|/·–—-]\s/)
@@ -152,7 +166,8 @@ export function breadcrumb(url: string, title?: string): { host: string; trail: 
 
 export function urlForDisplay(url: string): string {
   if (appUrlOrigin(url)) return toAppUrl(url).replace(/^([^/]*\/\/[^/?#]*)\/(?=[?#]|$)/, "$1");
-  const rest = url.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "");
+  const authority = /^[a-z][a-z0-9+.-]*:\/\//i.exec(url);
+  const rest = authority ? url.slice(authority[0].length).replace(/^[^/?#]*@/, "") : url;
   const host = /^[^/?#:]*/.exec(rest)![0];
   return (displayHost(host) + rest.slice(host.length)).replace(/^www\./i, "");
 }

@@ -210,7 +210,9 @@ void InstallSharingIndicatorBounds(Class frameClass) {
   const IMP standard = method_getImplementation(method);
   const IMP ours = imp_implementationWithBlock(^(NSView *frameView) {
     ((void (*)(id, SEL))standard)(frameView, sel);
-    NSButton *close = [frameView.window standardWindowButton:NSWindowCloseButton];
+    NSWindow *window = frameView.window;
+    if (!objc_getAssociatedObject(window, kInsetLightsKey)) return;
+    NSButton *close = [window standardWindowButton:NSWindowCloseButton];
     KeepSharingIndicatorInWindow(frameView, close.layer ? close.layer.affineTransform.tx : 0);
   });
   if (!class_addMethod(frameClass, sel, ours, method_getTypeEncoding(method))) method_setImplementation(method, ours);
@@ -332,8 +334,8 @@ void SettleTrafficLights(NSWindow *window) {
 
 void InsetTrafficLights(NSWindow *window) {
   objc_setAssociatedObject(window, kInsetLightsKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-  InstallTrafficLightsOrigin(object_getClass(window.contentView.superview));
-  InstallSharingIndicatorBounds(object_getClass(window.contentView.superview));
+  InstallTrafficLightsOrigin([window.contentView.superview class]);
+  InstallSharingIndicatorBounds([window.contentView.superview class]);
   InstallSharingWindowBounds();
   RetileTrafficLights(window);
   LogTrafficLightsOf(window);
@@ -383,6 +385,7 @@ void ConfigureWindow(NSWindow *window) {
   window.tabbingMode = NSWindowTabbingModeDisallowed;
   InsetTrafficLights(window);
   WatchFullScreenLights(window);
+  SuppressFullScreenTitlebar(window);
 }
 
 }

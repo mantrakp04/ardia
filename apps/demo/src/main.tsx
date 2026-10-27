@@ -40,7 +40,7 @@ function warmOtherProfiles() {
 }
 
 const idle = (run: () => void) => ("requestIdleCallback" in window ? requestIdleCallback(run, { timeout: 1500 }) : setTimeout(run, 300));
-idle(warmOtherProfiles);
+if (!embed || params.has("warm")) idle(warmOtherProfiles);
 
 function DemoWindow() {
   return (

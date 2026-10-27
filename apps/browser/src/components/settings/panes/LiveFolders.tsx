@@ -12,9 +12,9 @@ import { live, updateConfig, updateFolder, useLive } from "../../../state/live/s
 import type { LiveAccount, LiveFolder, LiveSourceId } from "../../../state/live/types";
 import { useProfileRecords } from "../../../state/profiles/hooks";
 import { openUrlFromSettings, settingsBrowserWindow } from "../../../state/settings/settingsWindows";
-import { Button, font, Group, Sheet, TextField, Toggle, weight } from "../../ui";
+import { Button, font, Sheet, TextField, Toggle, weight } from "../../ui";
 import { Favicon } from "../../favicon/Favicon";
-import { Row, SectionHeader } from "../Form";
+import { Group, Row, SectionHeader } from "../Form";
 import { setting } from "../settingsIndex";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { settingsType } from "../tokens";

@@ -88,14 +88,13 @@ namespace {
 
 const void *kTitlebarRevealWatchKey = &kTitlebarRevealWatchKey;
 
-BOOL FullScreenTitlebarRevealed(NSWindow *window) {
-  ArdiaTitlebarRevealWatch *watch = window ? objc_getAssociatedObject(window, kTitlebarRevealWatchKey) : nil;
-  return watch && (window.styleMask & NSWindowStyleMaskFullScreen) && watch.revealAmount > 0;
-}
-
 }
 
 namespace ardia_window {
+
+NSView *FullScreenLightsView(NSWindow *window) {
+  return window ? objc_getAssociatedObject(window, kFullScreenLightsKey) : nil;
+}
 
 void PlaceFullScreenLights(NSWindow *window) {
   ArdiaFullScreenLights *lights = window ? objc_getAssociatedObject(window, kFullScreenLightsKey) : nil;
@@ -103,10 +102,10 @@ void PlaceFullScreenLights(NSWindow *window) {
   NSView *close = lights.subviews.firstObject;
   if (!lights || !frameView || !close) return;
   ArdiaWindowFullScreen *state = objc_getAssociatedObject(window, kWindowFullScreenKey);
-  lights.hidden = state.pageFullScreen || FullScreenTitlebarRevealed(window);
+  lights.hidden = state.pageFullScreen;
   const NSSize size = close.frame.size;
   const NSPoint center = LightsCenter(objc_getAssociatedObject(window, kLightsCenterKey), size);
-  const CGFloat top = center.y - size.height / 2;
+  const CGFloat top = center.y - size.height / 2 + FullScreenRevealHeight(window);
   [lights setFrameOrigin:NSMakePoint(center.x - size.width / 2,
                                      frameView.isFlipped ? top : NSHeight(frameView.bounds) - top - NSHeight(lights.frame))];
 }
@@ -132,28 +131,24 @@ void HideStandardLights(NSWindow *window, BOOL hide) {
   for (NSButton *button in TrafficLightButtons(window)) button.hidden = hide;
 }
 
-void ShowLightsForReveal(NSWindow *window) {
-  if (!objc_getAssociatedObject(window, kFullScreenLightsKey)) return;
-  HideStandardLights(window, !FullScreenTitlebarRevealed(window));
-  PlaceFullScreenLights(window);
-}
-
 void WatchTitlebarReveal(NSWindow *window) {
   if (!(window.styleMask & NSWindowStyleMaskFullScreen) || objc_getAssociatedObject(window, kTitlebarRevealWatchKey) ||
       ![NSTitlebarAccessoryViewController instancesRespondToSelector:@selector(setRevealAmount:)])
     return;
   ArdiaTitlebarRevealWatch *watch = [[ArdiaTitlebarRevealWatch alloc] init];
   watch.view = [[NSView alloc] initWithFrame:NSZeroRect];
-  watch.layoutAttribute = NSLayoutAttributeBottom;
+  watch.layoutAttribute = NSLayoutAttributeLeading;
   watch.fullScreenMinHeight = 0;
+  objc_setAssociatedObject(window, kTitlebarRevealWatchKey, watch, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  [window addTitlebarAccessoryViewController:watch];
   __weak NSWindow *weakWindow = window;
   __weak ArdiaTitlebarRevealWatch *weakWatch = watch;
   watch.revealChanged = ^{
     NSWindow *w = weakWindow;
-    if (w && objc_getAssociatedObject(w, kTitlebarRevealWatchKey) == weakWatch) ShowLightsForReveal(w);
+    ArdiaTitlebarRevealWatch *revealed = weakWatch;
+    if (w && revealed && objc_getAssociatedObject(w, kTitlebarRevealWatchKey) == revealed) SetFullScreenRevealAmount(w, revealed.revealAmount);
   };
-  objc_setAssociatedObject(window, kTitlebarRevealWatchKey, watch, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-  [window addTitlebarAccessoryViewController:watch];
+  SetFullScreenRevealAmount(window, 0);
 }
 
 void UnwatchTitlebarReveal(NSWindow *window) {
@@ -179,7 +174,9 @@ void UnwatchTitlebarReveal(NSWindow *window) {
   watch->_window = window;
   NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
   [center addObserver:watch selector:@selector(didEnter) name:NSWindowDidEnterFullScreenNotification object:window];
+  [center addObserver:watch selector:@selector(stopRevealing) name:NSWindowWillExitFullScreenNotification object:window];
   [center addObserver:watch selector:@selector(didExit) name:NSWindowDidExitFullScreenNotification object:window];
+  [center addObserver:watch selector:@selector(stopRevealing) name:NSWindowWillCloseNotification object:window];
   objc_setAssociatedObject(window, kFullScreenLightsWatchKey, watch, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
@@ -189,13 +186,19 @@ void UnwatchTitlebarReveal(NSWindow *window) {
   ShowFullScreenLights(window, YES);
   HideStandardLights(window, YES);
   WatchTitlebarReveal(window);
-  ShowLightsForReveal(window);
+}
+
+- (void)stopRevealing {
+  NSWindow *window = _window;
+  if (!window) return;
+  UnwatchTitlebarReveal(window);
+  SetFullScreenRevealAmount(window, 0);
 }
 
 - (void)didExit {
   NSWindow *window = _window;
   if (!window) return;
-  UnwatchTitlebarReveal(window);
+  [self stopRevealing];
   HideStandardLights(window, NO);
   ShowFullScreenLights(window, NO);
 }

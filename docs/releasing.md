@@ -294,7 +294,9 @@ requirement. Only Developer ID builds use the login keychain; test instances (`A
 `ARDIA_BACKGROUND`) and ad hoc builds use Chrome's mock keychain. `carryover.sh` checks it: the previous build makes
 two profiles with tabs, persistent and session cookies, localStorage, saved passwords, bookmarks, history, an address,
 a site permission, a zoom level and an unpacked extension, and the new build, started without `ARDIA_DATA_DIR`,
-must find and read all of it. Both run as test copies (bundle id `com.ardia.browser.carryover`, signed ad hoc) in
+must find and read all of it. Saved passwords are shown only after macOS re-authentication, which a hidden instance
+grants only as the `ARDIA_TEST` `reauth=granted` fake, and that counts only in a test instance (a scratch
+`ARDIA_DATA_DIR`), so the new build reveals them in a second launch on the same folder named as `ARDIA_DATA_DIR`. Both run as test copies (bundle id `com.ardia.browser.carryover`, signed ad hoc) in
 a fake home (`HOME` and `CFFIXED_USER_HOME`), so the real app's data, defaults and keychain are never touched.
 `rollback.sh <previous app> <new app>` (not part of smoke.sh) checks going back on the same setup: the previous build,
 then the new one adding a second session, then the previous one again must show both sessions' data without crashing

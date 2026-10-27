@@ -2,8 +2,10 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { Animated, Image, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { useTheme } from "../ui/theme";
 import { onboardingColors } from "./tokens";
+import { GlassBacking, IconRing, solidFill } from "./GlassBacking";
+import type { TileTheme } from "../../state/favicons/tileTheme";
 import { Radio, Symbol, useHover } from "../ui";
-import { questionsFor, STEPS, useOnboarding, type OnboardingStep } from "../../state/onboarding/onboarding";
+import { activeSteps, questionsFor, useOnboarding, type OnboardingStep } from "../../state/onboarding/onboarding";
 import { curve } from "../ui/motion";
 import { font, weight } from "../ui/tokens";
 import { onboardingMotion, onboardingType } from "./tokens";
@@ -27,7 +29,8 @@ export function StepProgress() {
   const step = useOnboarding((s) => s.step);
   const sub = useOnboarding((s) => s.sub);
   useOnboarding((s) => s.draft);
-  const steps: OnboardingStep[] = STEPS.filter((s) => s !== "intro");
+  useOnboarding((s) => s.source);
+  const steps: OnboardingStep[] = activeSteps().filter((s) => s !== "intro");
   const index = steps.indexOf(step);
   const count = questionsFor(step).length;
   return (
@@ -123,6 +126,8 @@ export function SectionLabel({ title, accessory }: { title: string; accessory?: 
 
 function RowFrame({ children, hovered, disabled, compact }: { children: ReactNode; hovered: boolean; disabled?: boolean; compact?: boolean }) {
   const colors = useOnboardingColors();
+  const fill = hovered && !disabled ? colors.button : colors.row;
+  const radius = compact ? 10 : 12;
   return (
     <View
       mouseDownCanMoveWindow={false}
@@ -133,12 +138,13 @@ function RowFrame({ children, hovered, disabled, compact }: { children: ReactNod
         minHeight: compact ? 36 : undefined,
         paddingVertical: compact ? 6 : 9,
         paddingHorizontal: 12,
-        borderRadius: compact ? 10 : 12,
-        backgroundColor: hovered && !disabled ? colors.button : colors.row,
+        borderRadius: radius,
+        backgroundColor: solidFill(fill),
         borderWidth: StyleSheet.hairlineWidth * 2,
         borderColor: colors.rowBorder,
       }}
     >
+      <GlassBacking fill={colors.row} radius={radius} border={StyleSheet.hairlineWidth * 2} highlight={hovered && !disabled ? colors.outlinedHover : null} />
       {children}
     </View>
   );
@@ -224,12 +230,13 @@ export function ChoiceRow({
               paddingVertical: 10,
               paddingHorizontal: 14,
               borderRadius: 12,
-              backgroundColor: selected || hovered ? colors.button : colors.row,
+              backgroundColor: solidFill(selected || hovered ? colors.button : colors.row),
               borderWidth: StyleSheet.hairlineWidth * 2,
               borderColor: selected ? colors.checkboxBorder : colors.rowBorder,
               transform: [{ scale: pressed ? 0.99 : 1 }],
             }}
           >
+            <GlassBacking fill={colors.row} radius={12} border={StyleSheet.hairlineWidth * 2} raised={selected} highlight={selected || hovered ? colors.outlinedHover : null} />
             <Radio on={selected} look="ring" />
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={{ ...font.body, fontWeight: weight.medium, color: colors.title }}>{title}</Text>
@@ -259,7 +266,8 @@ export function OptionRow<T extends string | number>({
   return (
     <RowFrame hovered={false} compact>
       <Text style={{ flex: 1, ...onboardingType.bodyCompact, fontWeight: weight.medium, color: colors.title }}>{title}</Text>
-      <View style={{ flexDirection: "row", gap: 2, padding: 2, borderRadius: 8, backgroundColor: colors.button }} accessibilityRole="radiogroup" accessibilityLabel={title}>
+      <View style={{ flexDirection: "row", gap: 2, padding: 2, borderRadius: 8, backgroundColor: solidFill(colors.button) }} accessibilityRole="radiogroup" accessibilityLabel={title}>
+        <GlassBacking fill={colors.button} radius={8} />
         {options.map((o) => (
           <Segment key={String(o.value)} title={o.title} image={o.image} selected={o.value === value} onPress={() => onChange(o.value)} />
         ))}
@@ -284,12 +292,13 @@ function Segment({ title, image, selected, onPress }: { title: string; image?: s
               borderRadius: 6,
               alignItems: "center",
               justifyContent: "center",
-              backgroundColor: selected ? colors.card : hovered ? colors.outlinedHover : "transparent",
+              backgroundColor: selected ? solidFill(colors.card) : hovered ? colors.outlinedHover : "transparent",
               borderWidth: selected ? StyleSheet.hairlineWidth * 2 : 0,
               borderColor: colors.rowBorder,
               transform: [{ scale: pressed ? 0.96 : 1 }],
             }}
           >
+            {selected ? <GlassBacking fill={colors.card} radius={6} border={StyleSheet.hairlineWidth * 2} raised /> : null}
             {image ? (
               <Image source={{ uri: image }} style={{ width: 26, height: 26 }} />
             ) : (
@@ -312,6 +321,7 @@ export function SelectTile({
   role,
   titlePad,
   titleLines,
+  ring,
   onPress,
   children,
 }: {
@@ -324,12 +334,16 @@ export function SelectTile({
   role: "radio" | "checkbox";
   titlePad?: number;
   titleLines?: number;
+  ring?: TileTheme | null;
   onPress: () => void;
   children: (hovered: boolean) => ReactNode;
 }) {
   const colors = useOnboardingColors();
   const { hovered, hoverProps } = useHover();
   const state = role === "radio" ? { selected } : { checked: selected };
+  const fill = selected || hovered ? colors.button : colors.row;
+  const ringed = selected && !!ring;
+  const border = selected ? 1.5 : StyleSheet.hairlineWidth * 2;
   return (
     <View {...hoverProps}>
       <Pressable onPress={onPress} accessibilityRole={role} accessibilityState={state} accessibilityLabel={title}>
@@ -343,12 +357,18 @@ export function SelectTile({
               alignItems: "center",
               justifyContent: "center",
               gap,
-              backgroundColor: selected || hovered ? colors.button : colors.row,
-              borderWidth: selected ? 1.5 : StyleSheet.hairlineWidth * 2,
-              borderColor: selected ? colors.title : colors.rowBorder,
+              backgroundColor: solidFill(fill),
+              borderWidth: border,
+              borderColor: ringed ? "transparent" : selected ? colors.title : colors.rowBorder,
               transform: [{ scale: pressed ? 0.96 : 1 }],
             }}
           >
+            <GlassBacking fill={colors.row} radius={12} border={border} raised={selected} highlight={selected || hovered ? colors.outlinedHover : null} />
+            {ringed ? (
+              <View pointerEvents="none" style={{ position: "absolute", top: -border, left: -border, right: -border, bottom: -border }}>
+                <IconRing ring={ring} radius={12} />
+              </View>
+            ) : null}
             {children(hovered)}
             <Text numberOfLines={titleLines} style={{ ...font.caption, fontWeight: weight.medium, paddingHorizontal: titlePad, color: selected ? colors.title : colors.subtitle }}>
               {title}

@@ -81,6 +81,8 @@ For the architecture and the test tooling, read `docs/agent-brief.md`.
   - Verify in proportion. A JS-only change needs no app build (Metro reloads it); run the checks for what
     you changed, each once before and once after, plus one final pass of the nearby checks. The full suite
     and Codex are for engine, native lifetime, focus, quit or security changes, and run once at the end.
+  - After a fix, test that fix and move on. Don't re-run the full suite, the whole release sequence or
+    checks that already passed; run only what covers the fix (the failed row, the smoke checks for its area).
 - **Build safely.** Build the app with `scripts/agent/build-app --as <you>`: quiet, in parallel with other agents'
   builds, and it refuses JS-only changes. Run `pod install`/`pnpm install` and Chromium builds through
   `scripts/agent/locked <pod|chromium> -- <command>` (usage in the script); its lock dies with its holder.

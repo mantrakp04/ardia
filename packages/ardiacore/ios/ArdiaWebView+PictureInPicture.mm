@@ -184,22 +184,19 @@ BOOL TracingPictureInPicture() {
   }
 }
 
-- (void)exitPictureInPictureInFrame:(NSString *)frameId {
-  if (frameId.length && _tab)
-    [_tab executeJavaScript:@"document.pictureInPictureElement && document.exitPictureInPicture()" frame:frameId];
-  else
-    [self exitPictureInPicture];
-}
-
 - (void)exitPictureInPicture {
   [_tab exitPictureInPicture];
 }
 
 - (void)tab:(ArdiaCoreTab *)tab didChangePictureInPicture:(NSDictionary<NSString *, id> *)state {
   if (![state[@"kind"] isEqual:@"document"]) {
-    if ([state[@"active"] boolValue] || !_inPictureInPicture) return;
-    _inPictureInPicture = NO;
-    [self emit:@"pictureInPicture" payload:@{@"kind" : @"video", @"active" : @NO}];
+    const BOOL active = [state[@"active"] boolValue];
+    if (!active && !_inPictureInPicture) return;
+    _inPictureInPicture = active;
+    [self emit:@"pictureInPicture" payload:@{@"kind" : @"video", @"active" : @(active)}];
+    if (!active) return;
+    ardia_pip::WatchZoom();
+    ardia_pip::VideoEntered(self, [NSURL URLWithString:tab.url ?: @""].host ?: @"");
     return;
   }
   _inPictureInPicture = [state[@"active"] boolValue];

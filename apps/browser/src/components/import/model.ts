@@ -1,20 +1,18 @@
 import type {
   BrowserProfile,
   BrowserSource,
-  DiaAutomationStatus,
   DiaTabsResult,
   ImportedExtension,
   ImportKind,
   ImportResult,
   SpaceSummary,
 } from "../../state/import/apply";
-import { plural } from "../../state/browser/model";
 
-export type { BrowserProfile, BrowserSource, DiaAutomationStatus, DiaTabsResult, ImportedExtension, ImportKind, ImportResult, SpaceSummary };
+export type { BrowserProfile, BrowserSource, DiaTabsResult, ImportedExtension, ImportKind, ImportResult, SpaceSummary };
 
 export const APP = "Ardia";
 
-export type Step = "loading" | "choose" | "profiles" | "safari" | "access" | "unlock" | "dia" | "progress" | "done";
+export type Step = "loading" | "choose" | "profiles" | "safari" | "access" | "unlock" | "progress" | "done";
 export type Status = "pending" | "active" | "done" | "failed";
 
 export const KINDS: { kind: ImportKind; title: string; icon: string }[] = [
@@ -33,8 +31,3 @@ export const kindTitle = (k: ImportKind) => KINDS.find((x) => x.kind === k)?.tit
 export const ENCRYPTED: ImportKind[] = ["passwords", "cookies", "autofill"];
 
 export const DIA_NOT_SHARED = "Custom tab names, colours, spaces and folders stay in Dia: its AppleScript doesn't share them.";
-
-export function diaProfileSummary(dia: DiaTabsResult | null, id: string): string | undefined {
-  const p = dia?.profiles.find((x) => x.id === id);
-  return p ? `${plural(p.pinned.length, "pinned tab")} · ${plural(p.tabs.length, "open tab")}` : undefined;
-}

@@ -67,6 +67,6 @@ export function withShortcut(title: string, hint: string | undefined): string {
 }
 
 export function useShortcutHint(id: string): string | undefined {
-  useMenuBarRevision();
+  useMenuBar(() => shortcutHint(id));
   return useBrowser((s) => shortcutHint(id, s));
 }

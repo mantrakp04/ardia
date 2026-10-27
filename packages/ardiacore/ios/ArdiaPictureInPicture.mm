@@ -106,16 +106,16 @@ void InstallZoomMonitor() {
                                                   }];
 }
 
-bool Attach(ArdiaWebView *view, NSString *host, NSString *frameId) {
+bool Attach(ArdiaWebView *view, NSString *host) {
   for (NSWindow *window in NSApp.windows) {
     ArdiaPiPController *controller = [ArdiaPiPController forWindow:window];
     if (!IsChromeVideoPictureInPicture(window) && !(controller && window.visible)) continue;
     if (!window.hasShadow) continue;
+    if (controller.view && controller.view.browserId != view.browserId) continue;
     BOOL fresh = !controller;
     if (fresh) controller = [[ArdiaPiPController alloc] initWithWindow:window];
     controller.view = view;
     controller.host = host;
-    [controller setVideoFrame:frameId];
     [controller roundCorners];
     PreventActivation(window);
     if (ardia_host::Background()) {
@@ -146,14 +146,13 @@ void TabRequestedActivation(ArdiaWebView *view) {
       return ActivateApp(@"Back to Tab (Chrome's button)");
 }
 
-void VideoChanged(ArdiaWebView *view, NSString *host, NSString *frameId, bool active) {
-  if (!active) return;
+void VideoEntered(ArdiaWebView *view, NSString *host) {
   __block int tries = 0;
   __block void (^look)(void);
   __weak ArdiaWebView *weakView = view;
   look = ^{
     ArdiaWebView *strongView = weakView;
-    if (!strongView || Attach(strongView, host, frameId) || ++tries >= 20) {
+    if (!strongView || Attach(strongView, host) || ++tries >= 20) {
       look = nil;
       return;
     }

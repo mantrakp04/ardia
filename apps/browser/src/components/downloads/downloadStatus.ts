@@ -19,10 +19,18 @@ function formatDuration(seconds: number) {
   return `${Math.round(seconds / 3600)} hr left`;
 }
 
+export const awaitsKeep = (d: Download) => d.state === "downloading" && d.dangerous === true;
+
+export function dangerWarning(d: Download, short = false) {
+  if (d.url.startsWith("http:")) return short ? "Blocked: not secure" : "Insecure download blocked";
+  return short ? "Blocked: unsafe file type" : "This type of file can harm your computer";
+}
+
 export function downloadStatus(d: Download, exists = true) {
   if (d.state === "finished") return exists ? formatBytes(d.total > 0 ? d.total : d.received) : "Deleted";
   if (d.state === "failed") return "Failed to Download";
   if (d.state === "cancelled") return "Cancelled";
+  if (awaitsKeep(d)) return dangerWarning(d);
   const progress = d.total > 0 ? `${formatBytes(d.received)} of ${formatBytes(d.total)}` : formatBytes(d.received);
   if (d.paused) return `${progress} — Paused`;
   if (d.speed > 0 && d.total > 0) return `${progress}, ${formatBytes(d.speed)}/s — ${formatDuration((d.total - d.received) / d.speed)}`;

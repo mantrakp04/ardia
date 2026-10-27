@@ -5,6 +5,7 @@ import {
   LEGACY_VISITOR_ID_KEY,
   LOGS_PATH,
   PRODUCTION_HOSTS,
+  SCROLL_SAMPLE_MS,
   SERVICE_NAME,
   SESSION_IDLE_MS,
   SESSION_MAX_MS,
@@ -490,7 +491,7 @@ if (enabled) {
   capture("$pageview", { title: document.title }, { uuid: pageviewId });
   measure();
 
-  addEventListener("scroll", () => (measuring ||= requestAnimationFrame(measure)), { passive: true });
+  addEventListener("scroll", () => (measuring ||= window.setTimeout(measure, SCROLL_SAMPLE_MS)), { passive: true });
   for (const type of ["click", "keydown", "scroll", "touchstart", "mousemove"])
     addEventListener(type, activity, { passive: true, capture: true });
   addEventListener("pagehide", () => hidden(true));

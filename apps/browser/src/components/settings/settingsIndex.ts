@@ -4,6 +4,7 @@ import { generalRows } from "./rows/generalRows";
 import { privacyRows } from "./rows/privacyRows";
 import { toolRows } from "./rows/toolRows";
 import type { SettingSection } from "./rows/types";
+import { ADVANCED_SETTINGS } from "./rows/advanced";
 
 export const PANES: { id: SettingsPane; title: string; icon: string }[] = [
   { id: "general", title: "General", icon: "gearshape" },
@@ -25,17 +26,19 @@ export const PANES: { id: SettingsPane; title: string; icon: string }[] = [
 
 const ROWS: Record<SettingsPane, SettingSection[]> = { ...generalRows, ...privacyRows, ...toolRows };
 
-export type SettingEntry = Searchable & { pane: SettingsPane; liquidGlassOnly?: true };
+export type SettingEntry = Searchable & { pane: SettingsPane; section: string; advanced: boolean; liquidGlassOnly?: true };
 
 const paneTitle = (pane: SettingsPane) => PANES.find((p) => p.id === pane)!.title;
 
 export const SETTINGS: SettingEntry[] = PANES.flatMap(({ id: pane }) =>
   ROWS[pane].flatMap(({ section, rows }) =>
-    Object.entries(rows).map(([key, row]) => ({ id: `${pane}.${key}`, pane, paneTitle: paneTitle(pane), section, ...row })),
+    Object.entries(rows).map(([key, row]) => ({ id: `${pane}.${key}`, pane, paneTitle: paneTitle(pane), section, advanced: ADVANCED_SETTINGS.has(`${pane}.${key}`), ...row })),
   ),
 );
 
 const byId = new Map(SETTINGS.map((s) => [s.id, s]));
+
+export const findSetting = (id: string): SettingEntry | undefined => byId.get(id);
 
 export function setting(id: string): SettingEntry {
   const entry = byId.get(id);
@@ -44,3 +47,7 @@ export function setting(id: string): SettingEntry {
 }
 
 export const SETTINGS_INDEX = prepare(SETTINGS);
+
+export const sectionEntries = (pane: SettingsPane, section: string) => SETTINGS.filter((s) => s.pane === pane && s.section === section);
+
+export const ADVANCED_PANES = new Set(PANES.map((p) => p.id).filter((pane) => SETTINGS.some((s) => s.pane === pane) && SETTINGS.every((s) => s.pane !== pane || s.advanced)));

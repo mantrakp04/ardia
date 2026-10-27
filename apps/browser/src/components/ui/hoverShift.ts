@@ -70,7 +70,45 @@ const frames = (n: number) => new Promise<void>((resolve) => {
   const step = () => (n-- <= 0 ? resolve() : requestAnimationFrame(step));
   step();
 });
-const moved = (a: Frame, b: Frame) => a.some((v, i) => Math.abs(v - b[i]!) > 0.01);
+const EPSILON = 0.01;
+const near = (a: number, b: number) => Math.abs(a - b) <= EPSILON;
+const moved = (a: Frame, b: Frame) => a.some((v, i) => !near(v, b[i]!));
+const right = (f: Frame) => f[0] + f[2];
+
+function hostParent(f: Fiber): Fiber | null {
+  let p = f.return;
+  while (p && !isHost(p)) p = p.return;
+  return p;
+}
+
+function opensOnHover(host: Fiber): boolean {
+  for (let x = host.return; x && !isHost(x); x = x.return) {
+    if (x.type === HoverSlot) return x.memoizedProps?.reserve === "hover";
+  }
+  return false;
+}
+
+type Measured = { host: Fiber; was: Frame | null; now: Frame | null };
+
+function hoverSlotOpenings(views: Measured[]): Set<Fiber> {
+  const allowed = new Set<Fiber>();
+  for (const slot of views) {
+    const { was, now } = slot;
+    if (!was || !now || !opensOnHover(slot.host)) continue;
+    const grow = now[2] - was[2];
+    if (grow <= EPSILON || !near(right(was), right(now)) || !near(was[1], now[1]) || !near(was[3], now[3])) continue;
+    allowed.add(slot.host);
+    const parent = hostParent(slot.host);
+    for (const v of views) {
+      if (v === slot || !v.was || !v.now || hostParent(v.host) !== parent) continue;
+      const narrowed =
+        near(v.was[0], v.now[0]) && near(v.was[1], v.now[1]) && near(v.was[3], v.now[3]) &&
+        near(v.was[2] - v.now[2], grow) && near(right(v.was), was[0]) && near(right(v.now), now[0]);
+      if (narrowed) allowed.add(v.host);
+    }
+  }
+  return allowed;
+}
 
 export async function check({ scopes, settleFrames = 3 }: { scopes?: string[]; settleFrames?: number } = {}): Promise<{ hovered: number; shifts: Shift[] }> {
   const targets: { scope: string; fiber: Fiber }[] = [];
@@ -92,11 +130,11 @@ export async function check({ scopes, settleFrames = 3 }: { scopes?: string[]; s
     props.onMouseEnter();
     await frames(settleFrames);
     const after = await Promise.all(views.map(([h]) => measure(h)));
-    views.forEach(([, f], i) => {
-      const was = before[i];
-      const now = after[i];
-      if (was && now && moved(was, now)) shifts.push({ scope, hovered: label(fiber), view: label(f), before: was, after: now });
-    });
+    const measured = views.map(([, host], i) => ({ host, was: before[i] ?? null, now: after[i] ?? null }));
+    const openings = hoverSlotOpenings(measured);
+    for (const { host, was, now } of measured) {
+      if (was && now && moved(was, now) && !openings.has(host)) shifts.push({ scope, hovered: label(fiber), view: label(host), before: was, after: now });
+    }
     props.onMouseLeave();
     await frames(settleFrames);
   }

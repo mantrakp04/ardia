@@ -3,11 +3,11 @@ import { useEffect, useState, type ReactNode } from "react";
 import { View } from "react-native";
 import { PROFILE_COLORS } from "../ui/theme";
 import { useWindowProfileValue } from "../../state/profiles/hooks";
-import type { PeekModifier, Settings } from "../../state/settings/settings";
+import { DEFAULT_SETTINGS, type PeekModifier, type Settings } from "../../state/settings/settings";
 import { ChoiceList, useMockFocus, type ChoiceOption } from "./ChoiceList";
 import { ThemeColorPicker } from "./Personalize";
 import { MockPanel, useScreen } from "./Screen";
-import { confirmAnswer, previewColor, previewLive, PRESETS, questionsFor, setOnboardingDraft, setOnboardingExtras, skipStep, useOnboarding, type QuestionId } from "../../state/onboarding/onboarding";
+import { confirmAnswer, previewColor, previewLive, previewTheme, PRESET_NAMES, PRESETS, questionsFor, setOnboardingDraft, setOnboardingExtras, skipStep, useOnboarding, type Preset, type QuestionId } from "../../state/onboarding/onboarding";
 import { StepActions, StepLayout } from "./StepLayout";
 import { CheckRow, OptionRow, Tag } from "./Parts";
 
@@ -76,20 +76,20 @@ const CMDL_CHOICES: ChoiceOption<Settings["commandBarPlacement"]>[] = [
   { value: "centred", preview: "cmdl-centred", title: "In the centre", subtitle: "Floats over the page, as in Arc" },
 ];
 
-function styleOf(values: Pick<Settings, (typeof LAYOUT_KEYS)[number]>) {
-  const matches = (preset: "arc" | "dia") =>
-    (["addressBar", "commandBarPlacement"] as const).every((k) => values[k] === PRESETS[preset][k]) && values.tabLayout === "sidebar";
-  if (matches("arc")) return "Arc-style";
-  if (matches("dia") || (values.tabLayout === "top" && values.commandBarPlacement === PRESETS.dia.commandBarPlacement)) return "Dia-style";
-  return "Your mix";
+function styleOf(values: Pick<Settings, (typeof LAYOUT_KEYS)[number]>, preset: Preset) {
+  const keys = values.tabLayout === "top" ? (["tabLayout", "commandBarPlacement"] as const) : LAYOUT_KEYS;
+  const matches = (p: Preset) => keys.every((k) => values[k] === (PRESETS[p][k] ?? DEFAULT_SETTINGS[k]));
+  const match = ([preset, "arc", "dia"] as const).find(matches);
+  return match ? `${PRESET_NAMES[match]}-style` : "Your mix";
 }
 
 export function LayoutStep() {
   const { id, focus } = useQuestion("layout");
   const { values, mock } = useScreen(LAYOUT_KEYS);
+  const preset = useOnboarding((s) => s.preset);
   useEffect(() => previewLive(values), []);
   const preview = <MockPanel settings={mock} focus={focus.focus} />;
-  const tag = <Tag title={styleOf(values)} />;
+  const tag = <Tag title={styleOf(values, preset)} />;
   const top = values.tabLayout === "top";
 
   if (id === "address")
@@ -183,6 +183,7 @@ export function TabsStep() {
     const options: ChoiceOption<Settings["newTabPosition"]>[] = [
       { value: "bottom", preview: "newtabpos-bottom", title: top ? "On the right" : "At the bottom", subtitle: top ? "After your other tabs, as in Dia" : "Under your other tabs, as in Dia" },
       { value: "top", preview: "newtabpos-top", title: top ? "On the left" : "At the top", subtitle: top ? "Before your other tabs, as in Arc" : "Above your other tabs, as in Arc" },
+      { value: "nextToCurrent", preview: "newtabpos-next", title: top ? "Next to the current tab" : "Below the current tab", subtitle: top ? "Right after the tab you're on" : "Right under the tab you're on" },
     ];
     return (
       <Page
@@ -315,6 +316,7 @@ export function LookStep() {
   const windowId = useOnboarding((s) => s.windowId) ?? "";
   const appIcon = useOnboarding((s) => s.extras.appIcon);
   const color = useWindowProfileValue(windowId, (p) => p?.color);
+  const customTheme = useWindowProfileValue(windowId, (p) => !!p?.theme);
   const [icons, setIcons] = useState<{ list: AppIcon[]; current: string | null }>({ list: [], current: null });
   const preview = <MockPanel settings={mock} focus={focus.focus} />;
   useEffect(() => {
@@ -388,10 +390,10 @@ export function LookStep() {
         </View>
       </Page>
     );
-  const name = color ? PROFILE_COLORS[color]?.name : null;
+  const name = customTheme ? "Custom" : color ? PROFILE_COLORS[color]?.name : null;
   return (
     <Page id="color" title="Pick a color" subtitle="It tints the sidebar and the window." patch={{}} picked={name ? [`${name} theme`] : []} preview={preview}>
-      <ThemeColorPicker windowId={windowId} size={32} onPick={(c) => previewColor(c)} />
+      <ThemeColorPicker windowId={windowId} size={32} gap={5} onPick={(c) => previewColor(c)} onTheme={previewTheme} />
     </Page>
   );
 }

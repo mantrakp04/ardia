@@ -1,7 +1,7 @@
 import { View } from "react-native";
 import { plural } from "../../../state/browser/model";
 import { Button, space, Text } from "../../ui";
-import { APP, diaProfileSummary } from "../model";
+import { APP } from "../model";
 import { Spacer, TargetPicker, Title } from "../Parts";
 import { Monogram, ProfileAvatar, SelectRow, SpaceIcon } from "../Rows";
 import type { ImportFlow } from "../useImportFlow";
@@ -9,7 +9,7 @@ import type { ImportFlow } from "../useImportFlow";
 const toggled = (id: string) => (v: boolean) => (prev: string[]) => (v ? [...prev, id] : prev.filter((x) => x !== id));
 
 export function ProfilesBody({ flow }: { flow: ImportFlow }) {
-  const { source, bySpaces, allSpaces, spaceless, spaces, sourceProfiles, isDiaTabs, dia } = flow;
+  const { source, bySpaces, allSpaces, spaceless, spaces, sourceProfiles } = flow;
   if (!source) return null;
   if (bySpaces)
     return (
@@ -44,11 +44,7 @@ export function ProfilesBody({ flow }: { flow: ImportFlow }) {
     );
   return (
     <>
-      {isDiaTabs ? (
-        <Title title="Choose Dia profiles" subtitle="Select the profiles whose tabs you want to bring over." />
-      ) : (
-        <Title title="Unlock your data for import" subtitle="Select the profiles you want to import." />
-      )}
+      <Title title="Unlock your data for import" subtitle="Select the profiles you want to import." />
       <Text size="small" tone="textSecondary" style={{ marginBottom: space.ml }}>{`Customize which profiles to bring over to ${APP}. The first goes into your selected profile; the others become new profiles.`}</Text>
       <View style={{ gap: space.s }}>
         {source.profiles.map((p) => (
@@ -58,7 +54,7 @@ export function ProfilesBody({ flow }: { flow: ImportFlow }) {
             onToggle={(v) => flow.setSourceProfiles(toggled(p.id)(v))}
             icon={<ProfileAvatar path={p.avatarPath} name={p.name} color={p.color} />}
             title={p.name}
-            subtitle={isDiaTabs ? diaProfileSummary(dia, p.id) : (p.email ?? (p.isDefault ? "Default profile" : undefined))}
+            subtitle={p.email ?? (p.isDefault ? "Default profile" : undefined)}
           />
         ))}
       </View>

@@ -9,15 +9,13 @@ function browserDetail(browser: BrowserSource) {
   const spaces = browser.profiles.reduce((n, p) => n + (p.spaces?.length ?? 0), 0);
   return browser.needsFullDiskAccess
     ? "Needs Full Disk Access"
-    : browser.family === "automation"
-      ? "Asks Dia while it's open"
-      : browser.requiresExport
-        ? "Direct or from an exported .zip"
-        : browser.sidebar && spaces
-          ? plural(spaces, "space")
-          : browser.profiles.length > 1
-            ? plural(browser.profiles.length, "profile")
-            : "";
+    : browser.requiresExport
+      ? "Direct or from an exported .zip"
+      : browser.sidebar && spaces
+        ? plural(spaces, "space")
+        : browser.profiles.length > 1
+          ? plural(browser.profiles.length, "profile")
+          : "";
 }
 
 export function BrowserRow({ browser, selected, onPress }: { browser: BrowserSource; selected: boolean; onPress: () => void }) {

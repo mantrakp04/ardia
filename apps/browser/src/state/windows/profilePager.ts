@@ -177,14 +177,9 @@ export function usePagerPages(windowId: string): { pages: PagerPage[]; paging: b
   const incognito = useBrowser((s) => !!s.windows[windowId]?.incognito);
   const order = useBrowser((s) => s.profileOrder);
   const all = !incognito && !!current && order.includes(current);
-  const pages = useMemo(
-    () =>
-      all
-        ? order.map((id, slot) => ({ id, slot }))
-        : restPages(current, order).map((p) => (p.id === current ? p : { ...p, resting: true })),
-    [all, current, order],
-  );
-  return { pages, paging: all, pager };
+  const everyPage = useMemo(() => order.map((id, slot) => ({ id, slot })), [order]);
+  const resting = useMemo(() => (all ? null : restPages(current, order).map((p) => (p.id === current ? p : { ...p, resting: true }))), [all, current, order]);
+  return { pages: resting ?? everyPage, paging: all, pager };
 }
 
 export function usePagerNativeConfig(windowId: string, width?: number): NativePagerConfig | undefined {

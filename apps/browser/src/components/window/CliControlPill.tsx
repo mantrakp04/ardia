@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Animated, Pressable, Text, View } from "react-native";
+import { Animated, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import { stopCliControl, useCliIndicator } from "../../state/app/cliControl";
 import { useTheme } from "../ui/theme";
 import { font, Panel, space, Symbol, useHover, weight } from "../ui";
@@ -8,7 +8,7 @@ import { CLI_PILL_MOTION, SHADOWS } from "./tokens";
 const PILL_HEIGHT = 32;
 const PILL_BOTTOM = 12;
 
-export function CliControlPill() {
+export function CliControlPill({ style }: { style?: Animated.WithAnimatedValue<ViewStyle> }) {
   const shown = useCliIndicator((s) => s.shown);
   const [mounted, setMounted] = useState(shown);
   const [appearAtOnce, setAppearAtOnce] = useState(shown);
@@ -17,14 +17,16 @@ export function CliControlPill() {
   }, [shown]);
   if (!mounted && !shown) return null;
   return (
-    <ShownCliControlPill
-      shown={shown}
-      appearAtOnce={appearAtOnce}
-      onHidden={() => {
-        setMounted(false);
-        setAppearAtOnce(false);
-      }}
-    />
+    <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, style]}>
+      <ShownCliControlPill
+        shown={shown}
+        appearAtOnce={appearAtOnce}
+        onHidden={() => {
+          setMounted(false);
+          setAppearAtOnce(false);
+        }}
+      />
+    </Animated.View>
   );
 }
 

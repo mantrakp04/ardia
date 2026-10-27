@@ -205,6 +205,14 @@ NSDictionary *ProbeFrame(NSWindow *window, ArdiaWindowFullScreen *state, CFTimeI
     NSData *json = [NSJSONSerialization dataWithJSONObject:state options:0 error:nil];
     return json ? [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding] : @"{}";
   }
+  if ([action hasPrefix:@"fullScreenReveal:"] || [action isEqualToString:@"fullScreenReveal"]) {
+    if (action.length > 17) {
+      if (!ardia_host::Background()) return @"test instances only";
+      SetFullScreenRevealAmount(window, [action substringFromIndex:17].doubleValue);
+    }
+    NSData *json = [NSJSONSerialization dataWithJSONObject:FullScreenRevealState(window) options:0 error:nil];
+    return json ? [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding] : @"{}";
+  }
   NSView *frameView = window.contentView.superview;
   if ([action isEqualToString:@"children"]) {
     NSMutableArray *children = [NSMutableArray array];

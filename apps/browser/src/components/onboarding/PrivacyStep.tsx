@@ -5,12 +5,13 @@ import { useSettings } from "../../state/browser/hooks";
 import { isSharing, setSharing } from "../../state/telemetry/client";
 import { SHARING_COPY } from "../../state/telemetry/copy";
 import { font, weight } from "../ui/tokens";
-import { Favicon } from "../favicon/Favicon";
+import { SiteLogo } from "./SiteLogo";
 import { CONTENT_WIDTH, ChoiceList, useMockFocus, type ChoiceOption } from "./ChoiceList";
 import { Page } from "./LayoutSteps";
 import { MockPanel, useScreen } from "./Screen";
 import { questionsFor, setOnboardingDraft, setOnboardingExtras, useOnboarding } from "../../state/onboarding/onboarding";
 import { CheckRow, SelectTile, useOnboardingColors } from "./Parts";
+import { useSiteRing } from "./GlassBacking";
 import { MONO, onboardingType, receiptStamp } from "./tokens";
 
 const KEYS = ["searchEngine", "commandBarPreference"] as const;
@@ -85,9 +86,10 @@ export function SearchPrivacyStep() {
 const TILE = (CONTENT_WIDTH - 8 * 3) / 4;
 
 function EngineTile({ title, url, selected, onPress }: { title: string; url: string; selected: boolean; onPress: () => void }) {
+  const ring = useSiteRing(url, selected);
   return (
-    <SelectTile title={title} width={TILE} height={64} gap={6} checkSize={12} selected={selected} role="radio" titleLines={1} onPress={onPress}>
-      {() => <Favicon url={url} size={18} />}
+    <SelectTile title={title} width={TILE} height={64} gap={6} checkSize={12} selected={selected} role="radio" titleLines={1} ring={ring} onPress={onPress}>
+      {() => <SiteLogo url={url} size={18} />}
     </SelectTile>
   );
 }

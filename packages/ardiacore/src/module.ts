@@ -10,6 +10,7 @@ export type Download = {
   path: string;
   state: DownloadState;
   paused: boolean;
+  dangerous?: boolean;
   received: number;
   total: number;
   speed: number;
@@ -130,6 +131,7 @@ export const onDownload = (listener: (d: Download) => void) => on("downloads.cha
 export const cancelDownload = (id: string) => call("downloads.cancel", { id });
 export const pauseDownload = (id: string) => call("downloads.pause", { id });
 export const resumeDownload = (id: string) => call("downloads.resume", { id });
+export const keepDownload = (id: string) => call("downloads.keep", { id });
 
 export type DownloadSettings = { folder: string; askWhereToSave: boolean; managed: boolean };
 export const getDownloadSettings = (profile = "") => call("downloads.settings", { profile });

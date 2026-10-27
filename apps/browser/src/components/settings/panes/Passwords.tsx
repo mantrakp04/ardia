@@ -14,7 +14,7 @@ import {
 } from "../../../state/site/passwords";
 import { orWarn } from "../../../lib/fallback";
 import { confirm, copyText, systemInfo } from "../../../state/app/system";
-import { Symbol, Button, font, Group, PopUp, SearchField, Sheet, TextField, Toggle, weight } from "../../ui";
+import { Symbol, Button, font, PopUp, SearchField, Sheet, TextField, Toggle, weight } from "../../ui";
 import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import { useTheme } from "../../ui/theme";
@@ -24,7 +24,7 @@ import { engineProfile, plural } from "../../../state/browser/model";
 import { importModule } from "../../../state/import/importApi";
 import { hostLabel, matchesQuery } from "../../pages/PageLayout";
 import { Favicon } from "../../favicon/Favicon";
-import { Row, SectionHeader } from "../Form";
+import { Group, Row, SectionHeader } from "../Form";
 import { passwordAutofill } from "../../../state/settings/paneData";
 import { store, useResource } from "../../../state/settings/resources";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";

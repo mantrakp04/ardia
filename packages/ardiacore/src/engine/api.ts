@@ -54,6 +54,7 @@ export type EngineCalls = {
   "downloads.cancel": [{ id: string }, null];
   "downloads.pause": [{ id: string }, null];
   "downloads.resume": [{ id: string }, null];
+  "downloads.keep": [{ id: string }, null];
   "downloads.settings": [Profile, DownloadSettings];
   "downloads.setSettings": [Profile & Partial<Pick<DownloadSettings, "folder" | "askWhereToSave">>, DownloadSettings];
 

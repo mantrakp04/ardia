@@ -1,6 +1,7 @@
 import { closeGroup } from "../browser/actions";
 import { shortcutHint, withShortcut } from "../commands/commandShortcuts";
 import { useBrowser, type BrowserState } from "../browser/store";
+import { useBrowserWhile } from "../tabs/tabWatch";
 import { rootOf } from "../groups/groups";
 import { closeIntent, closeKind, openPages } from "../tabs/tabs";
 import { middleClickTab } from "./clearTabs";
@@ -28,6 +29,8 @@ export function tabCloseControl(s: BrowserState, tabId: string): CloseControl {
 
 export const useTabCloseControl = (tabId: string) => useBrowser((s) => tabCloseControl(s, tabId));
 
+export const useTabCloseControlWhile = (tabId: string, live: boolean) => useBrowserWhile(live, (s) => (live ? tabCloseControl(s, tabId) : null));
+
 const openMembers = (s: BrowserState, groupId: string) => (s.groups[groupId]?.tabIds ?? []).flatMap((id) => openPages(s, id));
 
 export function groupCloseControl(s: BrowserState, groupId: string): CloseControl | null {
@@ -37,6 +40,8 @@ export function groupCloseControl(s: BrowserState, groupId: string): CloseContro
 }
 
 export const useGroupCloseControl = (groupId: string) => useBrowser((s) => groupCloseControl(s, groupId));
+
+export const useGroupCloseControlWhile = (groupId: string, live: boolean) => useBrowserWhile(live, (s) => (live ? groupCloseControl(s, groupId) : null));
 
 export function pressGroupClose(groupId: string) {
   const s = useBrowser.getState();

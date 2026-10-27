@@ -13,9 +13,9 @@ import { setWebsiteEngine } from "../../../state/engines/actions";
 import { useTheme } from "../../ui/theme";
 import { useSettings } from "../../../state/browser/hooks";
 import { updateSettings } from "../../../state/settings/actions";
-import { Button, font, Group, PopUp, Sheet, TextField, Toggle, weight } from "../../ui";
+import { Button, font, PopUp, Sheet, TextField, Toggle, weight } from "../../ui";
 import { Favicon } from "../../favicon/Favicon";
-import { Row, SectionHeader } from "../Form";
+import { Group, Row, SectionHeader } from "../Form";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 
 const ENGINE_OPTIONS: { value: PageEngine; title: string }[] = [
@@ -50,7 +50,7 @@ export function EnginesPane() {
       </Group>
 
       <SectionHeader anchor="engines.websiteRules" action={<Button title="Add Website Rule…" icon="plus" onPress={() => showSettingsSheet(<RuleSheet />)} />} />
-      <Group>
+      <Group of="engines.websiteRules">
         {sites.length === 0 ? (
           <Row title="No website rules" description="Choose “Opens in” in a site's controls, or add a rule here." />
         ) : (

@@ -1,5 +1,13 @@
 import { startCustomize, watchCustomize, type CustomizeState } from "./customizeFlow";
 import { playNudge } from "./nudge";
+import { prefersReducedMotion } from "./shims/web/gl/clock";
+import { powerUpFragment } from "./shims/web/gl/sources";
+import { prewarmSurfaces } from "./shims/web/gl/surface";
+
+const PREWARM_WAIT_MS = 3000;
+
+const whenIdle = (run: () => void) =>
+  "requestIdleCallback" in window ? requestIdleCallback(run, { timeout: PREWARM_WAIT_MS }) : setTimeout(run, PREWARM_WAIT_MS);
 
 type Inbound = { type: "ardia-demo:customize" } | { type: "ardia-demo:hello" } | { type: "ardia-demo:nudge" };
 
@@ -66,6 +74,7 @@ export function startEmbed() {
     requestAnimationFrame(() => {
       publish();
       post({ type: "ardia-demo:ready" });
+      if (!prefersReducedMotion()) whenIdle(() => prewarmSurfaces([powerUpFragment]));
     }),
   );
 }

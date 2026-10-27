@@ -3,7 +3,8 @@ import { Animated, StyleSheet, View } from "react-native";
 import { DockSelection, radius, Surface } from "../ui";
 import { hex, layout, useTheme } from "../ui/theme";
 import { useTileTheme, type TileTheme } from "../../state/favicons/tileTheme";
-import { useSettings, useTab } from "../../state/browser/hooks";
+import { useTab } from "../../state/browser/hooks";
+import { useBrowserWhile } from "../../state/tabs/tabWatch";
 import { GlassFill, liquidGlass } from "../ui/Glass";
 import { SLIDE } from "../tabstrip/stripReorder";
 import { TabBadges } from "../media/TabBadges";
@@ -11,7 +12,7 @@ import { TabIcon } from "./TabIcon";
 import { sidebarTokens, TILE_GLOW, useSidebarTokens } from "./tokens";
 
 const SELECTION_STROKE = 3;
-const GLASS_RIM = 1;
+const GLASS_RING = 2;
 export const TILE_RADIUS = radius.card;
 
 type FaceState = { width: number; active: boolean; selected: boolean; hovered: boolean; pressed: boolean };
@@ -20,7 +21,7 @@ export function TileFace({ tabId, badge, ...state }: FaceState & { tabId: string
   const theme = useTheme();
   const tab = useTab(tabId);
   const tileTheme = useTileTheme(tab?.url ?? "", tab?.favicon, tab?.customIcon, tab?.profileId ?? "");
-  const iconRing = useSettings((s) => s.pinnedTabIconRing);
+  const iconRing = useBrowserWhile(state.active, (s) => state.active && s.settings.pinnedTabIconRing);
   if (!tab) return null;
   const { width, active } = state;
   const icon = (
@@ -136,9 +137,10 @@ function GlassTile({ width, active, selected, hovered, pressed, tileTheme, child
           theme={tileTheme?.theme.kind}
           fill={tileTheme?.theme.kind === "template" ? tileTheme.theme.fill : undefined}
           cornerRadius={TILE_RADIUS}
-          strokeWidth={GLASS_RIM}
+          strokeWidth={GLASS_RING}
           dark={theme.dark}
           glass
+          colorRing
           style={StyleSheet.absoluteFill}
         />
       ) : selected ? (

@@ -9,12 +9,11 @@ import type { ImportFlow } from "../useImportFlow";
 const HIDDEN_KINDS: ImportKind[] = ["spaces", "pinnedTabs"];
 
 export function ChooseBody({ flow }: { flow: ImportFlow }) {
-  const { api, browsers, source, kinds, isDiaTabs, bySpaces, error } = flow;
+  const { api, browsers, source, kinds, bySpaces, error } = flow;
+  const appTabs = !!source?.asksAppForTabs;
   const shown = !source
     ? []
-    : isDiaTabs
-      ? KINDS.filter((k) => k.kind === "tabs" || k.kind === "pinnedTabs")
-      : KINDS.filter((k) => source.profiles.some((p) => p.available.includes(k.kind)) && !HIDDEN_KINDS.includes(k.kind));
+    : KINDS.filter((k) => source.profiles.some((p) => p.available.includes(k.kind)) && (!HIDDEN_KINDS.includes(k.kind) || (appTabs && k.kind === "pinnedTabs")));
   return (
     <>
       <Title title="Import from Another Browser" subtitle="Import once and stay in your flow. Your tabs, passwords, bookmarks and history come with you, and you stay signed in." />
@@ -38,7 +37,7 @@ export function ChooseBody({ flow }: { flow: ImportFlow }) {
             {shown.map((k) => (
               <Checkbox
                 key={k.kind}
-                label={k.kind === "tabs" && bySpaces ? "Spaces and tabs" : k.kind === "tabs" && isDiaTabs ? "Open tabs" : k.kind === "favorites" && source.sidebar === "zen" ? "Essentials" : k.title}
+                label={k.kind === "tabs" && bySpaces ? "Spaces and tabs" : k.kind === "tabs" && appTabs ? "Open tabs" : k.kind === "favorites" && source.sidebar === "zen" ? "Essentials" : k.title}
                 value={kinds.has(k.kind)}
                 onChange={(v) =>
                   flow.setKinds((prev) => {
@@ -51,9 +50,9 @@ export function ChooseBody({ flow }: { flow: ImportFlow }) {
               />
             ))}
           </View>
-          {isDiaTabs && (
+          {appTabs && (
             <Text size="small" tone="textSecondary" style={{ lineHeight: importType.smallLine, marginTop: space.ml }}>
-              {`${APP} asks Dia for each profile's open and pinned tabs while Dia is running. ${DIA_NOT_SHARED}`}
+              {`${APP} asks Dia for its open and pinned tabs, opening it in the background if it isn't running. ${DIA_NOT_SHARED}`}
             </Text>
           )}
         </View>

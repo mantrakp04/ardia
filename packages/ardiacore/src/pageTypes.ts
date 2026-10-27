@@ -184,6 +184,7 @@ export type WebViewProps = ViewProps & {
   onWindowClose?: () => void;
   onCommand?: (command: PageCommand) => void;
   onPageFocus?: () => void;
+  onPagePress?: () => void;
   onPageMessage?: (kind: string, data: unknown) => void;
   onReady?: () => void;
   onDiscarded?: (url: string) => void;

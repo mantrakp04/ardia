@@ -21,6 +21,9 @@ export const useProfileName = (profileId: string): string => useBrowser((s) => p
 export const useWindowProfileValue = <T>(windowId: string, select: (profile: Profile | undefined) => T): T =>
   useBrowser((s) => select(s.profiles[s.windows[windowId]?.profileId ?? ""]));
 
+export const useProfileLook = <T>(profileId: string, look: (profile: Profile | undefined, appDark: boolean, settings: Settings) => T): T =>
+  useBrowser((s) => look(s.profiles[profileId], s.ui.appDark, s.settings));
+
 export const useProfileLooks = <T>(pages: readonly { id: string }[], look: (profile: Profile | undefined, appDark: boolean, settings: Settings) => T): T[] =>
   useBrowser(useShallow((s) => pages.map((p) => look(s.profiles[p.id], s.ui.appDark, s.settings))));
 

@@ -9,9 +9,12 @@ type SearchUi = {
   focusRequest: number;
   reveal: { id: string; at: number } | null;
   flash: { id: string; at: number } | null;
+  revealedSections: string[];
 };
 
-export const useSettingsSearch = create<SearchUi>()(() => ({ query: "", selected: 0, focusRequest: 0, reveal: null, flash: null }));
+export const useSettingsSearch = create<SearchUi>()(() => ({ query: "", selected: 0, focusRequest: 0, reveal: null, flash: null, revealedSections: [] }));
+
+export const settingsSectionKey = (pane: SettingsPane, section: string) => `${pane}\u0000${section}`;
 
 export const setSettingsQuery = (query: string) => useSettingsSearch.setState({ query });
 
@@ -26,7 +29,9 @@ export const moveSettingsSelection = (step: number, count: number) =>
 
 export const clearSettingsReveal = () => useSettingsSearch.setState({ reveal: null });
 
-export function revealSetting({ id, pane }: { id: string; pane: SettingsPane }) {
+export function revealSetting({ id, pane, section }: { id: string; pane: SettingsPane; section: string }) {
+  const key = settingsSectionKey(pane, section);
+  useSettingsSearch.setState((s) => (s.revealedSections.includes(key) ? {} : { revealedSections: [...s.revealedSections, key] }));
   goToSettingsPane(pane, settingsProfileFor(pane, useSettingsNav.getState()));
   useSettingsSearch.setState({ reveal: { id, at: Date.now() } });
 }

@@ -62,7 +62,7 @@ const usesPageA = [
   "private-windows-create", "extension-installed-bubble", "popup-window", "autofill-save-prompts",
   "settings-services", "download-navigation", "page-events", "page-background", "external-app-answer",
   "notifications", "now-playing", "media-state", "auto-picture-in-picture", "pip-window", "page-focus",
-  "fullscreen-tab-switch", "fullscreen-native", "fullscreen-transition-picture", "fullscreen-hidden-page", "fullscreen-split-sibling",
+  "fullscreen-tab-switch", "fullscreen-native", "fullscreen-menu-bar-reveal", "fullscreen-transition-picture", "fullscreen-hidden-page", "fullscreen-split-sibling",
   "fullscreen-pip", "autofill-suggestions", "images", "extension-surfaces", "frozen", "discard",
   "permission-prompt", "popup-blocked", "move-tab-slow-mount", "move-last-tab-slow-mount",
   "move-tab-closed-while-parked", "move-tab-to-window", "title-bar-close", "last-used-profile",
@@ -309,6 +309,11 @@ const server = createServer((req, res) => {
   }
   if (url.pathname === "/login") return res.end(page("Login", `<form action="/b" method="get"><input name="u" id="u" autocomplete="username"><input type="password" name="p" id="p" autocomplete="current-password"><button id="go">Sign in</button></form>`));
   if (url.pathname === "/text") return res.end(page("Text", `<p id="t" style="font: 20px sans-serif; margin: 40px">Hello selection world, select me please</p>`));
+  if (url.pathname === "/drag")
+    return res.end(page("Drag", `<div id="card" draggable="true" style="position: absolute; left: 40px; top: 40px; width: 180px; height: 60px; background: #ccd">card</div>
+      <div id="clicker" style="position: absolute; left: 300px; top: 40px; width: 120px; height: 60px; background: #dcc">click</div>
+      <script>window.__events = []; for (const t of ["mousedown", "click", "dragstart", "dragend"]) addEventListener(t, (e) => __events.push([t, e.target.id || "", e.clientX, e.clientY]), true);
+      card.addEventListener("dragstart", (e) => e.dataTransfer.setData("text/plain", "card"));</script>`));
   if (url.pathname === "/capture-target") return res.end(page("Capture Target", "the tab that tab capture picks"));
   if (url.pathname === "/solid")
     return res.end(page(url.searchParams.get("t") ?? "Solid", "", `<style>html, body { margin: 0; height: 100%; background: #${url.searchParams.get("c") ?? "808080"} }</style>`));
@@ -1716,10 +1721,14 @@ try {
       const busyNow = "-";
       const hung = await until("onUnresponsive", async () => (await eventsOf(busy.id)).find((x) => x.name === "unresponsive"), 35000)
         .catch(async (e) => { throw new Error(`${e.message}; page ${busyNow}; key ${JSON.stringify(sent)}; events ${JSON.stringify((await eventsOf(busy.id)).map((x) => x.name).slice(-8))}; active ${(await state()).active === busy.id}`); });
+      const shown = await until("Page Unresponsive shown", async () => evalApp(`return ac.pageState.getState().pages["${busy.id}"]?.unresponsive === true`), 5000)
+        .catch(() => { throw new Error("the native unresponsive event never reached the tab's page state"); });
       await evalApp(`return ac.webviews.get("${busy.id}").resolveUnresponsive(false)`);
       const back = await until("onResponsive", async () => (await eventsOf(busy.id)).find((x) => x.name === "responsive"), 45000)
         .catch(async (e) => { throw new Error(`${e.message}; events ${JSON.stringify((await eventsOf(busy.id)).map((x) => x.name).slice(-10))}`); });
-      return { unresponsive: !!hung, responsive: !!back };
+      const cleared = await until("Page Unresponsive cleared", async () => evalApp(`return ac.pageState.getState().pages["${busy.id}"]?.unresponsive === false`), 5000)
+        .catch(() => { throw new Error("the responsive event never cleared the tab's page state"); });
+      return { unresponsive: !!hung, shown, responsive: !!back, cleared };
     } finally {
       await closeTab(busy.id);
       await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
@@ -3380,6 +3389,45 @@ try {
     }
   });
 
+  await check("page-drag", async () => {
+    const tab = await freshTab(`${base}/drag`);
+    try {
+      const target = await until("the page", () => pageTarget("/drag"));
+      const n = await engine("tabs.devWindowNumber", { tabId: tab });
+      const act = (action) => engine("windows.dev", { window: n, action });
+      const events = async () => (await cdp(target, "Runtime.evaluate", { expression: "window.__events", returnByValue: true })).result.value ?? [];
+      const press = async ([x, y]) => {
+        await act(`mouse:down:${x},${y}`);
+        await sleep(80);
+        await act(`mouse:up:${x},${y}`);
+      };
+      await act("fakeActiveClicks");
+      let spot = null;
+      for (const [x, y] of [[700, 420], [600, 500], [900, 300]])
+        if (!spot && (await act(`hit:${x},${y}`)).startsWith("RenderWidgetHostViewCocoa")) spot = [x, y];
+      if (!spot) throw new Error("no window point over the page");
+      await press(spot);
+      const down = await until("the calibration press", async () => (await events()).find((e) => e[0] === "mousedown"), 4000);
+      const at = (x, y) => [Math.round(x + spot[0] - down[2]), Math.round(y + spot[1] - down[3])];
+      const [x, y] = at(130, 70);
+      await act(`mouse:down:${x},${y}`);
+      for (let i = 1; i <= 12; i++) {
+        await act(`mouse:dragged:${x + i * 20},${y + i * 10}`);
+        await sleep(30);
+      }
+      await until("dragstart", async () => (await events()).some((e) => e[0] === "dragstart"), 5000);
+      await act(`mouse:up:${x + 240},${y + 120}`);
+      await until("dragend: the drag the page started reached AppKit and ended", async () => (await events()).some((e) => e[0] === "dragend"), 8000);
+      const clickerClicks = async () => (await events()).filter((e) => e[0] === "click" && e[1] === "clicker").length;
+      const clicksBefore = await clickerClicks();
+      await press(at(360, 70));
+      await until("a new click on the page after the drag", async () => (await clickerClicks()) > clicksBefore, 4000);
+      return { spot, events: (await events()).map((e) => `${e[0]}:${e[1]}`) };
+    } finally {
+      await closeTab(tab).catch(() => null);
+    }
+  });
+
   // MARK: Page full screen
   const fsFlag = (tabId) => evalApp(`return !!ac.pageState.getState().pages[${JSON.stringify(tabId)}]?.fullscreen`);
   const fsWindow = async (tabId, action = "fullScreen") => {
@@ -3530,6 +3578,94 @@ try {
       return out;
     } finally {
       await engine("windows.dev", { window: await engine("tabs.devWindowNumber", { tabId: first.id }), action: "fakeFullScreenMs:0" }).catch(() => null);
+      await closeTab(tab.id).catch(() => null);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    }
+  });
+
+  await check("fullscreen-menu-bar-reveal", async () => {
+    const tab = await openTab(`${base}/b?fs-reveal`, "Page B");
+    const n = await engine("tabs.devWindowNumber", { tabId: tab.id });
+    const win = (action) => engine("windows.dev", { window: n, action });
+    const reveal = async (amount) => JSON.parse(await win(amount === undefined ? "fullScreenReveal" : `fullScreenReveal:${amount}`));
+    const out = {};
+    try {
+      const t = await pageFor(tab.id, "/b?fs-reveal");
+      let moves = 0;
+      const pageOrigin = async () => {
+        await cdp(t, "Runtime.evaluate", { expression: "window.__origin = null; addEventListener('mousemove', (e) => { window.__origin = { y: e.screenY - e.clientY }; }, { once: true }); true", returnByValue: true });
+        await cdp(t, "Input.dispatchMouseEvent", { type: "mouseMoved", x: 60, y: 200 + ++moves });
+        return (await until("the page's mousemove", async () => (await cdp(t, "Runtime.evaluate", { expression: "window.__origin", returnByValue: true })).result.value, 3000)).y;
+      };
+      const windowed = { state: await reveal(), lights: await win("lights") };
+      if (windowed.state.height !== 0 || windowed.state.hostTop !== 0) throw new Error(`content moved outside full screen: ${JSON.stringify(windowed.state)}`);
+      const suppressible = windowed.state.titlebarMaxHeight !== null;
+      if (suppressible && !(windowed.state.titlebarMaxHeight > 0)) throw new Error(`the title bar is suppressed outside full screen: ${JSON.stringify(windowed.state)}`);
+      await fsWindow(tab.id, "fakeFullScreen:1");
+      await until("the window in full screen", async () => {
+        const w = await fsWindow(tab.id);
+        return w.fullScreen && !w.pageFullScreen?.transitioning ? w : null;
+      }, 6000);
+      const rest = await reveal(0);
+      const restOrigin = await pageOrigin();
+      if (!rest.lights || rest.lights.hidden || rest.standardLightsHidden.some((h) => !h)) throw new Error(`full-screen lights: ${JSON.stringify(rest)}`);
+      if (suppressible && (rest.titlebarMaxHeight !== 0 || rest.titlebarMinHeight !== 0)) throw new Error(`the system title bar isn't suppressed: ${JSON.stringify(rest)}`);
+      out.screen = { case: rest.overlap > 0 ? "menu bar over the window" : "window below the menu bar (notch)", menuBarHeight: rest.menuBarHeight, overlap: rest.overlap };
+      out.steps = [];
+      for (const amount of [0.5, 1, 0]) {
+        const s = await reveal(amount);
+        const h = s.height;
+        const bad = [];
+        if (Math.abs(h - amount * s.overlap) > 0.5) bad.push(`height ${h} for ${amount} × ${s.overlap}`);
+        if (s.hostTop !== h || s.rootTop !== h) bad.push(`content at ${s.hostTop}/${s.rootTop}`);
+        if (JSON.stringify([s.hostSize, s.rootSize, s.pages.map((p) => p.size)]) !== JSON.stringify([rest.hostSize, rest.rootSize, rest.pages.map((p) => p.size)])) bad.push("a size changed");
+        if (s.pages.some((p, i) => p.top !== rest.pages[i].top + h)) bad.push(`pages at ${s.pages.map((p) => p.top)}`);
+        if (!s.backdrops.length || s.backdrops.some((b) => b.top !== 0)) bad.push(`backdrops at ${s.backdrops.map((b) => b.top)}`);
+        if (s.lights.top !== rest.lights.top + h || s.lights.hidden) bad.push(`lights at ${s.lights.top}${s.lights.hidden ? " hidden" : ""}`);
+        const lightsHit = await win(`hit:${s.lights.left + 7},${s.lights.top + 7}`);
+        if (!lightsHit.includes("ArdiaFullScreenLights")) bad.push(`the close light hits ${lightsHit}`);
+        const origin = await pageOrigin();
+        if (origin !== restOrigin + h) bad.push(`Chromium places the page at ${origin}, not ${restOrigin + h}`);
+        if (bad.length) throw new Error(`reveal ${amount}: ${bad.join("; ")}: ${JSON.stringify(s)}`);
+        out.steps.push({ amount, height: h, lightsTop: s.lights.top, pageOrigin: origin });
+      }
+      const placed = await reveal(0.5);
+      const placedOrigin = await pageOrigin();
+      for (const name of ["NSWindowDidResizeNotification", "NSWindowDidChangeScreenNotification", "NSWindowDidChangeBackingPropertiesNotification"])
+        await win(`postNotification:window:${name}`);
+      const replaced = await reveal();
+      const replacedOrigin = await pageOrigin();
+      const where = (s) => JSON.stringify([s.height, s.hostTop, s.rootTop, s.backdrops, s.pages, s.lights]);
+      if (where(replaced) !== where(placed) || replacedOrigin !== placedOrigin) throw new Error(`a geometry change moved the revealed window: ${where(placed)} ${placedOrigin} → ${where(replaced)} ${replacedOrigin}`);
+      out.geometryChange = { height: replaced.height, pageOrigin: replacedOrigin };
+      await reveal(1);
+      await fsEnter(tab.id, t);
+      const video = await until("page full screen in the window", async () => {
+        const s = await reveal();
+        return s.pageFullScreen ? s : null;
+      }, 6000);
+      if (video.height !== 0 || video.hostTop !== 0 || !video.lights.hidden) throw new Error(`page full screen moved with the menu bar: ${JSON.stringify(video)}`);
+      await fsEscape(t);
+      await fsLeft(tab.id, t, "Esc ended the page's full screen");
+      const back = await until("the reveal back after page full screen", async () => {
+        const s = await reveal();
+        return !s.pageFullScreen ? s : null;
+      }, 6000);
+      if (back.height !== back.overlap || back.lights.hidden) throw new Error(`the reveal didn't come back after page full screen: ${JSON.stringify(back)}`);
+      out.video = { height: video.height, lightsHidden: video.lights.hidden, after: back.height };
+      await fsWindow(tab.id, "fakeFullScreen:0");
+      await until("the window out of full screen", async () => {
+        const w = await fsWindow(tab.id);
+        return !w.fullScreen && !w.pageFullScreen?.transitioning ? w : null;
+      }, 6000);
+      const after = { state: await reveal(), lights: await win("lights") };
+      if (after.state.height !== 0 || after.state.hostTop !== 0 || after.state.amount !== 0 || after.state.standardLightsHidden.some((h) => h)) throw new Error(`leaving full screen kept the reveal: ${JSON.stringify(after.state)}`);
+      if (after.lights !== windowed.lights || after.state.titlebarMaxHeight !== windowed.state.titlebarMaxHeight) throw new Error(`windowed lights ${windowed.lights} → ${after.lights}, title bar ${windowed.state.titlebarMaxHeight} → ${after.state.titlebarMaxHeight}`);
+      out.windowed = { lights: after.lights, titlebarMaxHeight: after.state.titlebarMaxHeight, suppressible };
+      return out;
+    } finally {
+      await win("fullScreenReveal:0").catch(() => null);
+      if ((await fsWindow(tab.id).catch(() => null))?.fullScreen) await fsWindow(tab.id, "fakeFullScreen:0").catch(() => null);
       await closeTab(tab.id).catch(() => null);
       await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
     }

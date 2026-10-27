@@ -22,3 +22,10 @@ test("empty and all-whitespace pastes", () => {
   assert.equal(sanitizePaste("\n\n"), " ");
   assert.equal(sanitizePaste("plain"), "plain");
 });
+
+test("javascript: is stripped from pasted text, repeatedly and after control characters", () => {
+  assert.equal(sanitizePaste("javascript:alert(1)"), "alert(1)");
+  assert.equal(sanitizePaste("JavaScript: javascript:alert(1)"), "alert(1)");
+  assert.equal(sanitizePaste("\u0001javascript://x%0Aalert(1)"), "//x%0Aalert(1)");
+  assert.equal(sanitizePaste("java\nscript:alert(1)"), "alert(1)");
+});
