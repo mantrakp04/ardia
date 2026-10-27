@@ -857,11 +857,16 @@
     return color;
   };
   const backgroundOf = (el) => el && parse(getComputedStyle(el).backgroundColor);
-  const pageBackground = () => {
+  const paintedBackground = () => {
     for (const el of [document.body, document.documentElement]) {
       const c = backgroundOf(el);
       if (c && c.a > 0) return c;
     }
+    return null;
+  };
+  const pageBackground = () => {
+    const painted = paintedBackground();
+    if (painted) return painted;
     const dark = /dark/.test(getComputedStyle(document.documentElement).colorScheme) && matchMedia("(prefers-color-scheme: dark)").matches;
     return dark ? { r: 18, g: 18, b: 18, a: 1 } : { r: 255, g: 255, b: 255, a: 1 };
   };
@@ -885,6 +890,22 @@
     }
     return null;
   };
+  const luminance = (c) => {
+    const [r, g, b] = [c.r, c.g, c.b].map((v) => {
+      const s = v / 255;
+      return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const isLight = (c) => {
+    const l = luminance(c);
+    return 1.05 / (l + 0.05) < (l + 0.05) / 0.05;
+  };
+  const neutral = (c) => Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b) <= 24;
+  const fromHex = (hexColor) => {
+    const n = parseInt(hexColor.slice(1, 7), 16);
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255, a: 1 };
+  };
   let lastTheme;
   let metaCache;
   const cachedMetaColor = () => (metaCache === undefined ? (metaCache = metaColor(scheduleTheme)) : metaCache);
@@ -892,6 +913,13 @@
     if (!document.documentElement) return;
     let color = cachedMetaColor();
     let source = color ? "meta" : null;
+    if (color && document.body && neutral(fromHex(color))) {
+      const drawn = headerColor(pageBackground()) || paintedBackground();
+      if (drawn && isLight(drawn) !== isLight(fromHex(color))) {
+        color = hex(drawn);
+        source = "header";
+      }
+    }
     if (!color && document.body) {
       const page = pageBackground();
       const header = headerColor(page);
