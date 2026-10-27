@@ -1196,7 +1196,7 @@
     scroller = el;
     if (el !== docScroller()) {
       scrollerGone.observe(el);
-      scrollerHidden.observe(document.documentElement, { attributes: true, childList: true, subtree: true });
+      for (let node = el; node; node = node.parentElement) scrollerHidden.observe(node, { attributes: true });
     }
     direction.rebase(el.scrollTop);
   };

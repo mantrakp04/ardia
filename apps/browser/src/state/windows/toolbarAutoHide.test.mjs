@@ -61,7 +61,7 @@ test("the top of the page reports top", () => {
   assert.deepEqual(p.sent, ["down", "up", "top"]);
 });
 
-const tracking = script.match(/\n( {2}const scrollDirection = [\s\S]*?\n {2}addEventListener\("resize"[^\n]*\n)/)?.[1];
+const tracking = script.match(/\n( {2}const scrollDirection = [\s\S]*?\n)\n {2}return receive;\n\}\)/)?.[1];
 assert.ok(tracking, "page_script.js tracks the scroll direction");
 const install = new Function("page", `with (page) {\n${tracking}}`);
 
@@ -101,14 +101,14 @@ function loadPage(tabId, { scrollY = 0 } = {}) {
     NativeMutationObserver: class {
       constructor(fn) {
         this.fn = fn;
-        this.watching = false;
+        this.watched = [];
         mutations.push(this);
       }
-      observe() {
-        this.watching = true;
+      observe(node, options) {
+        this.watched.push({ node, options });
       }
       disconnect() {
-        this.watching = false;
+        this.watched = [];
       }
     },
   };
@@ -125,19 +125,28 @@ function loadPage(tabId, { scrollY = 0 } = {}) {
     }
     now += 500;
   };
+  const body = { parentElement: doc };
   const overlay = () => {
-    const el = { scrollTop: 0, scrollHeight: 4000, clientHeight: 800, clientWidth: 1200, isConnected: true, visible: true, left: 0 };
+    const el = { scrollTop: 0, scrollHeight: 4000, clientHeight: 800, clientWidth: 1200, isConnected: true, visible: true, left: 0, parentElement: body };
     el.contains = (n) => n === el || n?.parent === el;
     el.checkVisibility = () => el.visible;
     el.getBoundingClientRect = () => ({ left: el.left, top: 0, right: el.left + el.clientWidth, bottom: el.clientHeight });
     return el;
   };
   const resized = () => observers.forEach((o) => o.watched.size && o.fn([]));
-  const mutated = () => mutations.forEach((o) => o.watching && o.fn([]));
+  const within = (node, root) => {
+    for (let n = node; n; n = n.parentElement) if (n === root) return true;
+    return false;
+  };
+  const mutated = (target, type = "attributes") =>
+    mutations.forEach((o) => {
+      const seen = o.watched.some(({ node, options }) => (node === target ? options[type] : options.subtree && options[type] && within(target, node)));
+      if (seen) o.fn([{ type, target }]);
+    });
   const nextFrame = () => frames.splice(0).forEach((fn) => fn());
   const timersFire = () => timers.splice(0).forEach((fn) => fn());
   const tick = (ms) => (now += ms);
-  return { doc, document: env.document, fire, scroll, overlay, resized, mutated, nextFrame, timersFire, tick };
+  return { doc, body, document: env.document, fire, scroll, overlay, resized, mutated, nextFrame, timersFire, tick, timers };
 }
 
 function hiddenTab() {
@@ -219,9 +228,33 @@ test("an overlay the app hides later, with no input or transition, gives the bar
   page.nextFrame();
   assert.ok(hidden(tabId));
   dialog.visible = false;
-  page.mutated();
+  page.mutated(dialog);
   page.timersFire();
   assert.ok(!hidden(tabId));
+  const again = page.overlay();
+  page.scroll(again, 1500);
+  assert.ok(hidden(tabId));
+  again.visible = false;
+  page.mutated(page.body);
+  page.timersFire();
+  assert.ok(!hidden(tabId));
+  useBrowser.getState().closeTab(tabId);
+});
+
+test("a full-window pane the app always scrolls (a chat, a mail list) doesn't recheck on every change inside it", () => {
+  const tabId = hiddenTab();
+  const page = loadPage(tabId);
+  const pane = page.overlay();
+  page.scroll(pane, 1500);
+  assert.ok(hidden(tabId));
+  const message = { parentElement: pane };
+  for (let i = 0; i < 50; i++) {
+    page.mutated(pane, "childList");
+    page.mutated(message, "attributes");
+    page.mutated(message, "characterData");
+  }
+  assert.equal(page.timers.length, 0);
+  assert.ok(hidden(tabId));
   useBrowser.getState().closeTab(tabId);
 });
 
