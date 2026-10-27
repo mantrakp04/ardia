@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { AppState } from "react-native";
 import { importModule } from "../../state/import/importApi";
 import { takePreferredImportSource } from "../../state/settings/settingsWindows";
-import { diaActions, DIA_POLL_MS } from "./diaActions";
 import { fileImports } from "./fileImports";
 import { importActions } from "./importActions";
 import { ENCRYPTED, type ImportKind } from "./model";
@@ -12,9 +11,8 @@ export function useImportFlow() {
   const api = importModule();
   const s = useImportState();
   const core = importActions(s, api);
-  const dia = diaActions(s, api, core);
   const files = fileImports(s, api, core);
-  const { step, source, kinds, sourceProfiles, fullDiskAccess, diaStatus } = s;
+  const { step, source, kinds, sourceProfiles, fullDiskAccess } = s;
 
   useEffect(() => {
     if (!api || !((step === "safari" && !fullDiskAccess) || step === "access")) return;
@@ -25,25 +23,13 @@ export function useImportFlow() {
   }, [step, fullDiskAccess, api, source?.id]);
 
   useEffect(() => {
-    if (!api || step !== "dia") return;
-    const timer = diaStatus === "notRunning" ? setInterval(() => void dia.refreshDia(), DIA_POLL_MS) : null;
-    const sub = AppState.addEventListener("change", (state) => {
-      if (state === "active" && (diaStatus === "denied" || diaStatus === "notRunning")) void dia.refreshDia();
-    });
-    return () => {
-      if (timer) clearInterval(timer);
-      sub.remove();
-    };
-  }, [step, diaStatus, api]);
-
-  useEffect(() => {
     if (!api) return s.setStep("choose");
     void api
       .listBrowsers()
       .then((list) => {
         s.setBrowsers(list);
         const preferred = takePreferredImportSource();
-        const first = list.find((b) => b.id === preferred) ?? list.find((b) => !b.needsFullDiskAccess && !b.requiresExport && b.family !== "automation") ?? list[0];
+        const first = list.find((b) => b.id === preferred) ?? list.find((b) => !b.needsFullDiskAccess && !b.requiresExport) ?? list[0];
         if (first) core.choose(first);
         s.setStep("choose");
       })
@@ -57,12 +43,6 @@ export function useImportFlow() {
   const next = () => {
     if (!source) return;
     s.setError(null);
-    if (step === "choose" && core.isDiaTabs) {
-      s.setDiaStatus("checking");
-      s.setStep("dia");
-      return void dia.refreshDia();
-    }
-    if (step === "profiles" && core.isDiaTabs && s.dia) return void dia.runDia(s.dia, sourceProfiles, kinds);
     if (step === "choose") {
       if (source.needsFullDiskAccess) return s.setStep("access");
       if (source.requiresExport) return s.setStep("safari");
@@ -94,16 +74,13 @@ export function useImportFlow() {
       extensions: s.extensions,
       notes: s.notes,
       step,
-      diaStatus,
-      dia: s.dia,
-      setDiaStatus: s.setDiaStatus,
-      takeDiaResult: dia.takeDiaResult,
+      status: s.status,
       setSourceProfiles: s.setSourceProfiles,
     };
     return () => void delete g.acImport;
   });
 
-  return { ...s, ...core, ...dia, ...files, api, next };
+  return { ...s, ...core, ...files, api, next };
 }
 
 export type ImportFlow = ReturnType<typeof useImportFlow>;

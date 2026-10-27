@@ -3,6 +3,7 @@ export {
   cancelDownload,
   pauseDownload,
   resumeDownload,
+  keepDownload,
   getDownloadSettings,
   setDownloadSettings,
   leftDownloadStaging,

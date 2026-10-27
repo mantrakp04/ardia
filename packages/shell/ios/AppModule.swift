@@ -6,7 +6,7 @@ import ExpoModulesCore
 public class AppModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ArdiaApp")
-    Constant("apiVersion") { () -> Int in 20 }
+    Constant("apiVersion") { () -> Int in 21 }
     Events("onNotificationResponse", "onScriptCommand")
 
     OnCreate {
@@ -116,6 +116,7 @@ public class AppModule: Module {
         "processStart": Self.processStart as Any,
         "bootTime": Self.bootTime as Any,
         "inApplicationsFolder": Self.inApplicationsFolder,
+        "updatePrewarm": UserDefaults.standard.dictionary(forKey: UpdatePrewarm.lastRunKey) as Any,
       ]
     }
 

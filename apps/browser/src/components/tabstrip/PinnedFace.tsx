@@ -1,10 +1,10 @@
-import { View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { useSettings, useTab } from "../../state/browser/hooks";
 import { useTileTheme } from "../../state/favicons/tileTheme";
 import { TabBadges } from "../media/TabBadges";
 import { TabIcon } from "../sidebar/TabIcon";
 import { DockSelection } from "../ui";
-import { liquidGlass } from "../ui/Glass";
+import { GlassFill, liquidGlass } from "../ui/Glass";
 import { useTheme } from "../ui/theme";
 import { ITEM_HEIGHT, PINNED_CELL, PINNED_FACE_INSET, PINNED_FACE_RADIUS, PINNED_RING_STROKE } from "./tokens";
 
@@ -15,6 +15,7 @@ export function PinnedFace({ tabId, active, hovered, pressed }: { tabId: string;
   const iconRing = useSettings((s) => s.pinnedTabIconRing);
   if (!tab) return null;
   const ring = active && liquidGlass && iconRing && tileTheme ? tileTheme : null;
+  const glassRing = active && liquidGlass && !iconRing;
   const template = ring?.theme.kind === "template" ? ring.theme : null;
   const face = { position: "absolute", left: PINNED_FACE_INSET, right: PINNED_FACE_INSET, top: PINNED_FACE_INSET, bottom: PINNED_FACE_INSET } as const;
   return (
@@ -31,6 +32,23 @@ export function PinnedFace({ tabId, active, hovered, pressed }: { tabId: string;
           dark={theme.dark}
           style={face}
         />
+      ) : glassRing ? (
+        <View style={face}>
+          <GlassFill radius={PINNED_FACE_RADIUS} fill={theme.pinnedSelectedFill} raised={!pressed} />
+          <DockSelection
+            image={tileTheme?.image}
+            emoji={tileTheme?.emoji}
+            theme={tileTheme?.theme.kind}
+            fill={tileTheme?.theme.kind === "template" ? tileTheme.theme.fill : undefined}
+            stroke={tileTheme?.theme.kind === "template" ? tileTheme.theme.stroke : undefined}
+            cornerRadius={PINNED_FACE_RADIUS}
+            strokeWidth={PINNED_RING_STROKE}
+            dark={theme.dark}
+            glass
+            colorRing
+            style={StyleSheet.absoluteFill}
+          />
+        </View>
       ) : (active || hovered || pressed) && (
         <View
           style={{

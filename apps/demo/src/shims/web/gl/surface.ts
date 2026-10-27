@@ -7,12 +7,48 @@ const METAL_LAYER_COLOR_SPACE: PredefinedColorSpace = "srgb";
 
 type Program = { program: WebGLProgram; uniforms: Map<string, { location: WebGLUniformLocation; type: number }> };
 
+type WarmContext = { canvas: HTMLCanvasElement; gl: WebGL2RenderingContext; programs: Map<string, Program> };
+
+const warm: WarmContext[] = [];
+
+function createContext(canvas: HTMLCanvasElement, preserveDrawingBuffer: boolean) {
+  const gl = canvas.getContext("webgl2", {
+    alpha: true,
+    premultipliedAlpha: true,
+    antialias: false,
+    depth: false,
+    stencil: false,
+    preserveDrawingBuffer,
+    powerPreference: "low-power",
+  });
+  if (gl && "drawingBufferColorSpace" in gl) gl.drawingBufferColorSpace = METAL_LAYER_COLOR_SPACE;
+  return gl;
+}
+
+function parkNewContext(): WarmContext | null {
+  const canvas = document.createElement("canvas");
+  const gl = createContext(canvas, false);
+  if (!gl) return null;
+  const slot = { canvas, gl, programs: new Map<string, Program>() };
+  warm.push(slot);
+  return slot;
+}
+
+function takeWarm(fragment: string): WarmContext | null {
+  const live = warm.filter((slot) => !slot.gl.isContextLost());
+  warm.length = 0;
+  warm.push(...live);
+  const index = warm.findIndex((slot) => slot.programs.has(fragment));
+  const pick = index >= 0 ? index : warm.findIndex((slot) => slot.programs.size === 0);
+  return pick >= 0 ? (warm.splice(pick, 1)[0] ?? null) : null;
+}
+
 export const webgl2Supported = (() => {
   let cached: boolean | undefined;
   return () => {
     if (cached === undefined) {
       try {
-        cached = typeof document !== "undefined" && !!document.createElement("canvas").getContext("webgl2");
+        cached = typeof document !== "undefined" && (warm.length > 0 || !!parkNewContext());
       } catch {
         cached = false;
       }
@@ -20,6 +56,16 @@ export const webgl2Supported = (() => {
     return cached;
   };
 })();
+
+export function prewarmSurfaces(fragments: string[]) {
+  if (!webgl2Supported()) return;
+  for (const fragment of fragments) {
+    if (warm.some((slot) => slot.programs.has(fragment))) continue;
+    const slot = warm.find((candidate) => candidate.programs.size === 0 && !candidate.gl.isContextLost()) ?? parkNewContext();
+    if (!slot) return;
+    slot.programs.set(fragment, compile(slot.gl, fragment));
+  }
+}
 
 function compile(gl: WebGL2RenderingContext, fragment: string): Program {
   const shader = (type: number, source: string) => {
@@ -68,7 +114,9 @@ export class GLSurface {
   private lost = false;
 
   constructor(private readonly fragment: string, private readonly onRestore: () => void, options: { preserveDrawingBuffer?: boolean } = {}) {
-    this.canvas = document.createElement("canvas");
+    const preserve = options.preserveDrawingBuffer ?? false;
+    const slot = preserve ? null : takeWarm(fragment);
+    this.canvas = slot?.canvas ?? document.createElement("canvas");
     this.canvas.addEventListener("webglcontextlost", (e) => {
       e.preventDefault();
       this.lost = true;
@@ -79,17 +127,8 @@ export class GLSurface {
       this.setUp();
       this.onRestore();
     });
-    this.gl = this.canvas.getContext("webgl2", {
-      alpha: true,
-      premultipliedAlpha: true,
-      antialias: false,
-      depth: false,
-      stencil: false,
-      preserveDrawingBuffer: options.preserveDrawingBuffer ?? false,
-      powerPreference: "low-power",
-    });
-    if (this.gl && "drawingBufferColorSpace" in this.gl) this.gl.drawingBufferColorSpace = METAL_LAYER_COLOR_SPACE;
-    this.setUp();
+    this.gl = slot?.gl ?? createContext(this.canvas, preserve);
+    this.setUp(slot?.programs.get(this.fragment));
   }
 
   get ok() {
@@ -100,10 +139,10 @@ export class GLSurface {
     return this.gl;
   }
 
-  private setUp() {
+  private setUp(compiled?: Program) {
     const gl = this.gl;
     if (!gl) return;
-    this.program = compile(gl, this.fragment);
+    this.program = compiled ?? compile(gl, this.fragment);
     gl.disable(gl.BLEND);
     gl.disable(gl.DITHER);
   }

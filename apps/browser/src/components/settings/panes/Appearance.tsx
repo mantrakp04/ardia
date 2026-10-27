@@ -1,11 +1,11 @@
 import { setAppearance, setAppIcon, type AppIcon } from "../../../state/app/appSettings";
-import { Symbol, font, Group, PopUp, Toggle, useHover } from "../../ui";
+import { Symbol, font, PopUp, Toggle, useHover } from "../../ui";
 import { Image, Pressable, Text, View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { useSettings, useShowPageFrame, useTabLayout } from "../../../state/browser/hooks";
 import { updateSettings } from "../../../state/settings/actions";
 import type { Settings } from "../../../state/settings/settings";
-import { Row, SectionHeader } from "../Form";
+import { Group, Row, SectionHeader } from "../Form";
 import { PictureChoice } from "../PictureChoice";
 import { modePreview } from "../tokens";
 import { useSettingsColors } from "../useSettingsColors";

@@ -62,7 +62,7 @@ const SETTING_FIELDS: { [K in SetupSettingKey]: Field<Settings[K]> } = {
   bookmarksBar: { key: "v", values: ["always", "newTab", "never"] },
 };
 
-const PRESET_FIELD: Field<Preset> = { key: "p", values: ["arc", "dia"] };
+const PRESET_FIELD: Field<Preset> = { key: "p", values: ["arc", "dia", "chrome", "safari", "firefox", "zen", "brave", "edge", "fresh"] };
 const COLOR_FIELD: Field<ProfileColor> = { key: "x", values: ["plum", "blue", "purple", "pink", "red", "orange", "yellow", "green", "neutral"] };
 const PINS_KEY = "f";
 

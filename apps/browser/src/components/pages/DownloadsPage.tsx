@@ -1,4 +1,4 @@
-import { cancelDownload, pauseDownload, resumeDownload, type Download } from "../../state/downloads/actions";
+import { cancelDownload, keepDownload, pauseDownload, resumeDownload, type Download } from "../../state/downloads/actions";
 import { fileExists, openFile, revealFile } from "../../state/app/system";
 import { useState } from "react";
 import { FlatList, Pressable, View } from "react-native";
@@ -6,7 +6,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useDownloads, useTab } from "../../state/browser/hooks";
 import { clearDownloads, removeDownload } from "../../state/windows/actions";
 import { openUrl } from "../../state/bookmarks/actions";
-import { downloadMenu, downloadStatus, FileIcon } from "../downloads/Downloads";
+import { awaitsKeep, downloadMenu, downloadStatus, FileIcon } from "../downloads/Downloads";
 import { Box, Button, MouseArea, opacity, radius, space, Symbol, Text, useHover, useTheme } from "../ui";
 import { EmptyState, hostLabel, matchesQuery, PAGE_WIDTH, PageHeader } from "./PageLayout";
 import { downloadCard, EMPTY_ICON, emptyIcon, pageList, pageType } from "./tokens";
@@ -56,6 +56,7 @@ function DownloadCard({ d, windowId }: { d: Download; windowId: string }) {
   const exists = d.state !== "finished" || fileExists(d.path);
   const done = d.state === "finished" && exists;
   const progress = d.total > 0 ? d.received / d.total : 0;
+  const blocked = awaitsKeep(d);
   return (
     <View {...hoverProps} style={CARD_WIDTH}>
       <MouseArea path={done ? d.path : null}>
@@ -79,7 +80,7 @@ function DownloadCard({ d, windowId }: { d: Download; windowId: string }) {
                 {hostLabel(d.url)}
               </Text>
             </Pressable>
-            {d.state === "downloading" && (
+            {d.state === "downloading" && !blocked && (
               <View style={{ height: downloadCard.progressHeight, borderRadius: downloadCard.progressRadius, marginTop: downloadCard.progressTop, backgroundColor: theme.rowHover }}>
                 <View
                   style={{
@@ -91,11 +92,16 @@ function DownloadCard({ d, windowId }: { d: Download; windowId: string }) {
                 />
               </View>
             )}
-            <Text lines={1} size="small" tone="textSecondary">
+            <Text lines={1} size="small" tone={blocked ? "destructive" : "textSecondary"}>
               {downloadStatus(d, exists)}
             </Text>
           </View>
-          {d.state === "downloading" ? (
+          {blocked ? (
+            <View style={ROW_BUTTONS}>
+              <Button title="Keep" onPress={() => void keepDownload(d.id)} />
+              <Button title="Discard" kind="destructive" onPress={() => void cancelDownload(d.id)} />
+            </View>
+          ) : d.state === "downloading" ? (
             <View style={ROW_BUTTONS}>
               <Button title={d.paused ? "Resume" : "Pause"} onPress={() => void (d.paused ? resumeDownload(d.id) : pauseDownload(d.id))} />
               <Button title="Cancel" onPress={() => void cancelDownload(d.id)} />

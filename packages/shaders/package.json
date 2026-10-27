@@ -7,11 +7,16 @@
   "types": "src/index.tsx",
   "scripts": {
     "typecheck": "tsc -p .",
-    "shaders:check": "node scripts/check-shaders.mjs"
+    "shaders:check": "node scripts/check-shaders.mjs",
+    "test": "node scripts/meadow.mjs --check",
+    "meadow": "node scripts/meadow.mjs"
   },
   "peerDependencies": {
     "expo": "*",
     "react": "*",
     "react-native": "*"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
   }
 }

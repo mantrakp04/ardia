@@ -24,7 +24,9 @@ final class ChannelUserDriver: NSObject, SPUUserDriver {
   func showUpdateFound(with appcastItem: SUAppcastItem, state: SPUUserUpdateState, reply: @escaping (SPUUserUpdateChoice) -> Void) {
     guard isOnChannel(appcastItem) else { return drop(appcastItem, answering: reply) }
     shownItem = appcastItem
-    standard.showUpdateFound(with: appcastItem, state: state, reply: awaiting(reply))
+    let staged = state.stage == .installing
+    if staged { UpdatePrewarm.warm(version: appcastItem.versionString) }
+    standard.showUpdateFound(with: appcastItem, state: state, reply: awaiting(reply, staged: staged))
   }
 
   func leaveOffChannelUpdate() {
@@ -44,15 +46,18 @@ final class ChannelUserDriver: NSObject, SPUUserDriver {
     SkippedUpdateDefaults.unchanged { reply(.skip) }
   }
 
-  private func awaiting(_ reply: @escaping (SPUUserUpdateChoice) -> Void) -> (SPUUserUpdateChoice) -> Void {
+  private func awaiting(_ reply: @escaping (SPUUserUpdateChoice) -> Void, staged: Bool = false) -> (SPUUserUpdateChoice) -> Void {
     let choice = PendingChoice(reply)
     pendingChoice = choice
     return { [weak self] picked in
       if self?.pendingChoice === choice { self?.pendingChoice = nil }
-      if picked == .install, let self, let item = self.shownItem, !self.isOnChannel(item) {
-        return self.drop(item, answering: choice.answer)
+      guard picked == .install, let self, let item = self.shownItem else { return choice.answer(picked) }
+      guard self.isOnChannel(item) else { return self.drop(item, answering: choice.answer) }
+      guard staged else { return choice.answer(.install) }
+      UpdatePrewarm.beforeInstall(version: item.versionString) { [weak self] in
+        if let self, !self.isOnChannel(item) { return self.drop(item, answering: choice.answer) }
+        choice.answer(.install)
       }
-      choice.answer(picked)
     }
   }
 
@@ -103,7 +108,8 @@ final class ChannelUserDriver: NSObject, SPUUserDriver {
   }
 
   func showReady(toInstallAndRelaunch reply: @escaping (SPUUserUpdateChoice) -> Void) {
-    standard.showReady(toInstallAndRelaunch: awaiting(reply))
+    if let item = shownItem, isOnChannel(item) { UpdatePrewarm.warm(version: item.versionString) }
+    standard.showReady(toInstallAndRelaunch: awaiting(reply, staged: true))
     leaveOffChannelUpdate()
   }
 

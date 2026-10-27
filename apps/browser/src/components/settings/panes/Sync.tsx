@@ -1,5 +1,5 @@
 import { showMenu } from "../../../state/app/system";
-import { Symbol, Button, font, Group, Toggle } from "../../ui";
+import { Symbol, Button, font, Toggle } from "../../ui";
 import { copyRecoveryPhrase, revealSyncFolder, type FolderInfo } from "../../../state/sync/recoveryKit";
 import { useEffect, useState } from "react";
 import { syncFolder } from "../../../state/settings/paneData";
@@ -20,7 +20,7 @@ import {
 } from "../../../state/sync/engine";
 import { DATA_TYPES, type SyncStatus } from "../../../state/sync/syncDoc";
 import { ProfileBadge } from "../../profiles/ProfileIcons";
-import { Row, SectionHeader } from "../Form";
+import { Group, Row, SectionHeader } from "../Form";
 import { folderLabel, showConnectDevice, showPhraseEntry, showRecoveryKit, showStopSync } from "./SyncSheets";
 import { settingsType } from "../tokens";
 

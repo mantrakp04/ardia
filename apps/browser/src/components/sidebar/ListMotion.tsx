@@ -156,11 +156,11 @@ type Core = {
   planner: Planner;
   height: (entry: string) => number;
   enabled: boolean;
-  native: boolean;
+  nativeTail: boolean;
   below?: ((delta: number) => void) | null;
 };
 
-function useMotion({ devKey, entries, from, planner, height, enabled, native, below }: Core) {
+function useMotion({ devKey, entries, from, planner, height, enabled, nativeTail, below }: Core) {
   const slides = useRef(new Map<string, Slide>()).current;
   const contexts = useRef(new Map<string, EntryMotion>()).current;
   const clipped = useRef(new Set<string>()).current;
@@ -258,7 +258,7 @@ function useMotion({ devKey, entries, from, planner, height, enabled, native, be
       slide.at = at;
       slide.until = at + slideMs + FRAME_SLACK_MS;
       slide.landed = false;
-      const timing = Animated.timing(slide.value, { toValue: 0, duration: slideMs, easing: SLIDE_EASING, useNativeDriver: native });
+      const timing = Animated.timing(slide.value, { toValue: 0, duration: slideMs, easing: SLIDE_EASING, useNativeDriver: nativeTail || m.key !== TAIL });
       const clips = i === 0 && token;
       timing.start(({ finished }) => {
         if (!finished) return;
@@ -345,7 +345,7 @@ export function useListMotion(windowId: string, profileId: string, entries: stri
     const snapshot = (e: string) => snapshotEntry(before.state, windowId, profileId, e);
     return buildPlan({ before, after, old, next, removed, added, slides, ghosts, t, tail: true, snapshot, clipAfter: grown, start });
   };
-  return useMotion({ devKey: windowId, entries, from, planner, height: (e) => height(workspaceSnapshot(), e), enabled, native: true });
+  return useMotion({ devKey: windowId, entries, from, planner, height: (e) => height(workspaceSnapshot(), e), enabled, nativeTail: true });
 }
 
 export function useGroupMotion(windowId: string, profileId: string, groupId: string, entries: string[], from: Capture, scope: ListMotionScope, enabled: boolean) {
@@ -369,7 +369,7 @@ export function useGroupMotion(windowId: string, profileId: string, groupId: str
     return { ...(plan ?? { moves: [], ghosts: [], clipped: [] }), below: old.end - next.end };
   };
   const below = scope.slideBelow ? (delta: number) => scope.slideBelow?.(`g:${groupId}`, delta) : null;
-  return useMotion({ devKey: `${windowId}:${groupId}`, entries, from, planner, height: (e) => height(workspaceSnapshot(), e), enabled, native: false, below });
+  return useMotion({ devKey: `${windowId}:${groupId}`, entries, from, planner, height: (e) => height(workspaceSnapshot(), e), enabled, nativeTail: false, below });
 }
 
 export const GhostSlot = memo(function GhostSlot({ snapshot, top, opacity }: { snapshot: EntrySnapshot; top: number; opacity: Animated.Value }) {

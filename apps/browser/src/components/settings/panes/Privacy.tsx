@@ -24,9 +24,9 @@ import { useTheme } from "../../ui/theme";
 import { currentSettings } from "../../../state/browser/current";
 import { useProfiles, useSettings } from "../../../state/browser/hooks";
 import { engineProfile } from "../../../state/browser/model";
-import { Button, Checkbox, font, Group, PopUp, Sheet, Toggle, weight } from "../../ui";
+import { Button, Checkbox, font, PopUp, Sheet, Toggle, weight } from "../../ui";
 import { Favicon } from "../../favicon/Favicon";
-import { Row, SectionHeader } from "../Form";
+import { Group, Row, SectionHeader } from "../Form";
 import { appLinks, contentBlocker, siteOrigins, zoomLevels } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
@@ -284,7 +284,7 @@ function AppLinks() {
           ) : undefined
         }
       />
-      <Group>
+      <Group of="privacy.appLinks">
         {allowed === null ? (
           <Row title=" " description=" " />
         ) : allowed.length === 0 ? (

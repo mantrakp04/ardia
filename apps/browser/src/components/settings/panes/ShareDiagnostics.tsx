@@ -2,8 +2,8 @@ import { ScrollView, Text, View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { setSharing, useTelemetry } from "../../../state/telemetry/client";
 import { SHARING_COPY, WHATS_SENT } from "../../../state/telemetry/copy";
-import { Button, font, Group, Sheet, Toggle, weight } from "../../ui";
-import { Row, SectionHeader } from "../Form";
+import { Button, font, Sheet, Toggle, weight } from "../../ui";
+import { Group, Row, SectionHeader } from "../Form";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { settingsType } from "../tokens";
 

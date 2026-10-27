@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, StyleSheet, View } from "react-native";
 import { PROFILE_COLORS } from "../ui/theme";
+import { themeAccent } from "../../lib/profileLook";
 import { curve } from "../ui/motion";
 import { onboardingMotion } from "./tokens";
 import { useSettings, useTabLayout } from "../../state/browser/hooks";
@@ -22,8 +23,7 @@ export function useScreen<K extends keyof Settings>(keys: readonly K[]) {
 
 export function useAccent() {
   const windowId = useOnboarding((s) => s.windowId);
-  const color = useWindowProfileValue(windowId ?? "", (p) => p?.color ?? "plum");
-  return (PROFILE_COLORS[color] ?? PROFILE_COLORS.plum).swatch;
+  return useWindowProfileValue(windowId ?? "", (p) => (p?.theme ? themeAccent(p.theme) : (PROFILE_COLORS[p?.color ?? "plum"] ?? PROFILE_COLORS.plum).swatch));
 }
 
 const MOCK_SIZE = { width: 420, height: 300 } as const;

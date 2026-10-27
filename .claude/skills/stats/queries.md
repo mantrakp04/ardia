@@ -113,6 +113,10 @@ FROM telemetry.events WHERE DAILY AND timestamp > now() - INTERVAL 12 WEEK GROUP
 SELECT toStartOfMonth(timestamp) AS month, countIf(properties['monthly'] = 'true') AS mau
 FROM telemetry.events WHERE DAILY GROUP BY month ORDER BY month;
 
+-- Only 0.2.41-nightly.3 and later send it, so until the older versions are gone these count part of the users.
+-- The report estimates the rest per day from update_check on older versions (checks ÷ 3 to checks) and prints
+-- the coverage; while it rises, a week-over-week or month-over-month change is the rollout, not growth.
+
 -- DAU split by version, channel, macOS or chip (yesterday, a full day)
 SELECT properties['$app_version'] AS version, properties['channel'] AS channel, properties['os_major'] AS macos,
        properties['arch'] AS arch, count()

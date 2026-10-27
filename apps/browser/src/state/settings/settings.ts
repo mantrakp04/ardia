@@ -57,6 +57,7 @@ export type Settings = {
   showClearButton: boolean;
   balancedTopApps: boolean;
   pinnedTabIconRing: boolean;
+  showAdvancedSettings: boolean;
   selectedTabGlow: SelectedTabGlow;
   pageScrollBars: "system" | "thin";
   fadeUnloadedTabs: boolean;
@@ -148,6 +149,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showClearButton: true,
   balancedTopApps: false,
   pinnedTabIconRing: false,
+  showAdvancedSettings: false,
   selectedTabGlow: "full",
   pageScrollBars: "system",
   fadeUnloadedTabs: false,

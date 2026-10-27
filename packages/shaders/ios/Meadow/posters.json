@@ -1,0 +1,58 @@
+[
+  {
+    "state": "dawn",
+    "frame": "wider",
+    "file": "dawn-wider-2196.webp",
+    "aspect": 2.3751243781094526,
+    "horizon": 0.65
+  },
+  {
+    "state": "dawn",
+    "frame": "wide",
+    "file": "dawn-wide-1766.webp",
+    "aspect": 1.7777777777777777,
+    "horizon": 0.65
+  },
+  {
+    "state": "dawn",
+    "frame": "laptop",
+    "file": "dawn-laptop-1917.webp",
+    "aspect": 1.531150159744409,
+    "horizon": 0.65
+  },
+  {
+    "state": "dawn",
+    "frame": "mid",
+    "file": "dawn-mid-1600.webp",
+    "aspect": 1.2994849153789552,
+    "horizon": 0.65
+  },
+  {
+    "state": "morning",
+    "frame": "wider",
+    "file": "morning-wider-1709.webp",
+    "aspect": 2.3751243781094526,
+    "horizon": 0.65
+  },
+  {
+    "state": "morning",
+    "frame": "wide",
+    "file": "morning-wide-1375.webp",
+    "aspect": 1.7777777777777777,
+    "horizon": 0.65
+  },
+  {
+    "state": "morning",
+    "frame": "laptop",
+    "file": "morning-laptop-1493.webp",
+    "aspect": 1.531150159744409,
+    "horizon": 0.65
+  },
+  {
+    "state": "morning",
+    "frame": "mid",
+    "file": "morning-mid-1354.webp",
+    "aspect": 1.2994849153789552,
+    "horizon": 0.65
+  }
+]

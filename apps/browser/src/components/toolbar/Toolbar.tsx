@@ -1,4 +1,4 @@
-import { breadcrumb, urlForDisplay } from "@ardia/core";
+import { appUrlOrigin, breadcrumb, urlForDisplay } from "@ardia/core";
 import { memo, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Animated, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
@@ -182,7 +182,7 @@ export const UrlField = memo(function UrlField({
   const full = isFile ? ` ${safeDecode(tab.url.slice("file://".length))}` : urlForDisplay(tab.url);
   const path = !isFile && full.startsWith(host) ? full.slice(host.length) : full;
   const web = isWebUrl(tab.url);
-  const trail = hovered ? path : showFullUrl ? path.replace(/\/$/, "") : !web && tab.title ? ` / ${tab.title}` : "";
+  const trail = hovered ? path : showFullUrl ? path.replace(/\/$/, "") : !web && appUrlOrigin(tab.url) && tab.title ? ` / ${tab.title}` : "";
 
   return (
     <View
@@ -223,7 +223,7 @@ export const UrlField = memo(function UrlField({
       <Pressable onPress={() => openPanel(tab.url)} style={{ flex: 1, height: sidebar?.height ?? 30, justifyContent: "center", paddingLeft: insecure ? LOCK.gap : sidebar ? 10 : urlTextLeft(false) }}>
         {sidebar ? (
           <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <Text numberOfLines={1} style={{ flexShrink: 1, ...font.body, fontWeight: weight.medium, color: palette.text }}>
+            <Text numberOfLines={1} ellipsizeMode="head" style={{ flexShrink: 1, ...font.body, fontWeight: weight.medium, color: palette.text }}>
               {host}
             </Text>
             <FadeLabel
@@ -235,14 +235,33 @@ export const UrlField = memo(function UrlField({
             />
           </View>
         ) : (
-          <Text numberOfLines={1} style={{ ...font.body, color: palette.text }}>
-            <Text style={{ fontWeight: weight.medium }}>{host}</Text>
-            {trail ? <Text style={{ color: palette.secondary }}>{trail}</Text> : null}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <Text numberOfLines={1} ellipsizeMode="head" style={{ flexShrink: 0, maxWidth: "100%", ...font.body, fontWeight: weight.medium, color: palette.text }}>
+              {host}
+            </Text>
+            {trail ? <Text numberOfLines={1} style={{ flexShrink: 1, ...font.body, color: palette.secondary }}>{trail}</Text> : null}
+          </View>
         )}
       </Pressable>
       </ContextMenuArea>
       <View style={{ flexDirection: "row", alignItems: "center", paddingRight: 3 }}>
+        {hovered && (
+          <>
+            <Button variant="icon" toolbar palette={palette} icon={bookmarked ? "bookmark.fill" : "bookmark"} size={13} box={24} radius={radius.m} onPress={toggleBookmark} tooltip={bookmarked ? "Remove Bookmark" : withShortcut("Bookmark This Page", bookmarkHint)} />
+            {!inSplit && !sidebar && (
+              <Button variant="icon" toolbar
+                palette={palette}
+                icon="rectangle.split.2x1"
+                size={13}
+                box={24}
+                radius={radius.m}
+                onPress={() => openSplitPane(windowId, { anchorTabId: tab.id })}
+                tooltip={withShortcut("Open Split View", splitHint)}
+              />
+            )}
+            <Button variant="icon" toolbar palette={palette} icon="slider.horizontal.3" size={13} box={24} radius={radius.m} onPress={toggleSiteControls} active={popover === "siteControls"} tooltip="Site Controls" />
+          </>
+        )}
         {capture && <CaptureIndicator camera={capture.camera} microphone={capture.microphone} screen={capture.screen} onPress={toggleSiteControls} />}
         <TranslateButton tabId={tab.id} palette={palette} onFocus={onFocus} />
         <ZoomIndicator tabId={tab.id} zoom={tab.zoom} palette={palette} onFocus={onFocus} />
@@ -260,23 +279,6 @@ export const UrlField = memo(function UrlField({
             active={popover === "popups"}
             tooltip="Pop-ups blocked on this page"
           />
-        )}
-        {hovered && (
-          <>
-            <Button variant="icon" toolbar palette={palette} icon={bookmarked ? "bookmark.fill" : "bookmark"} size={13} box={24} radius={radius.m} onPress={toggleBookmark} tooltip={bookmarked ? "Remove Bookmark" : withShortcut("Bookmark This Page", bookmarkHint)} />
-            {!inSplit && !sidebar && (
-              <Button variant="icon" toolbar
-                palette={palette}
-                icon="rectangle.split.2x1"
-                size={13}
-                box={24}
-                radius={radius.m}
-                onPress={() => openSplitPane(windowId, { anchorTabId: tab.id })}
-                tooltip={withShortcut("Open Split View", splitHint)}
-              />
-            )}
-            <Button variant="icon" toolbar palette={palette} icon="slider.horizontal.3" size={13} box={24} radius={radius.m} onPress={toggleSiteControls} active={popover === "siteControls"} tooltip="Site Controls" />
-          </>
         )}
         {sidebar?.accessory}
       </View>

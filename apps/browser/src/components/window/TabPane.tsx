@@ -1,6 +1,6 @@
 import { memo, useEffect, useLayoutEffect } from "react";
 import { Animated, View } from "react-native";
-import { layout, useTheme } from "../ui/theme";
+import { layout } from "../ui/theme";
 import { usePrewarm } from "../../state/tabs/prewarm";
 import { activate } from "../../state/tabs/actions";
 import { shallowEqual, useBrowserWhile, useStoreWhile, useTabValue } from "../../state/tabs/tabWatch";
@@ -22,6 +22,7 @@ import { revealToolbar } from "../../state/windows/toolbarAutoHide";
 import { pageKey, TabWebView } from "./TabWebView";
 import { PageOverlays } from "./PageOverlays";
 import { pageFrameRadius } from "./pageFrame";
+import { useProfileTheme } from "./ThemeScope";
 
 export const TabPane = memo(function TabPane({
   tabId,
@@ -66,11 +67,11 @@ export const TabPane = memo(function TabPane({
   popovers: boolean;
   peekShown: boolean;
 }) {
-  const theme = useTheme();
   const visible = !!rect;
   const showPageFrame = useShowPageFrame();
   const live = visible || !!warm;
   const own = useTabValue(tabId, paneTab, shallowEqual);
+  const theme = useProfileTheme(own.profileId);
   const isNewTab = !own.url;
   const emptyCard = useSettings((st) => isNewTab && st.newTabOpens === "commandBar");
   const newTabShown = useStoreWhile(usePages, live, (s) => !!s.pages[tabId]?.newTabShown);
@@ -149,4 +150,4 @@ export const TabPane = memo(function TabPane({
   );
 });
 
-const paneTab = (t: Tab | undefined) => ({ exists: !!t, url: t?.url ?? "" });
+const paneTab = (t: Tab | undefined) => ({ exists: !!t, url: t?.url ?? "", profileId: t?.profileId ?? "" });

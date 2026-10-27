@@ -1,5 +1,5 @@
 import { pagerState, selectPager, stepPager, switchPager, type NativePagerConfig, type PagerStateEvent, type SwipeEvent } from "../../platform/pager";
-import { useEffect, useMemo } from "react";
+import { useEffect, useLayoutEffect, useMemo } from "react";
 import { Animated, unstable_batchedUpdates } from "react-native";
 import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
@@ -101,6 +101,10 @@ class ProfilePager {
     return [i - 1, i, i + 1].filter((slot) => slot >= 0 && slot < order.length).map((slot) => ({ id: order[slot]!, slot }));
   }
 
+  reapplyNativePosition() {
+    this.pos.setOffset(0);
+  }
+
   get active() {
     return this.surfaces > 0 && !!this.current();
   }
@@ -177,14 +181,9 @@ export function usePagerPages(windowId: string): { pages: PagerPage[]; paging: b
   const incognito = useBrowser((s) => !!s.windows[windowId]?.incognito);
   const order = useBrowser((s) => s.profileOrder);
   const all = !incognito && !!current && order.includes(current);
-  const pages = useMemo(
-    () =>
-      all
-        ? order.map((id, slot) => ({ id, slot }))
-        : restPages(current, order).map((p) => (p.id === current ? p : { ...p, resting: true })),
-    [all, current, order],
-  );
-  return { pages, paging: all, pager };
+  const everyPage = useMemo(() => order.map((id, slot) => ({ id, slot })), [order]);
+  const resting = useMemo(() => (all ? null : restPages(current, order).map((p) => (p.id === current ? p : { ...p, resting: true }))), [all, current, order]);
+  return { pages: resting ?? everyPage, paging: all, pager };
 }
 
 export function usePagerNativeConfig(windowId: string, width?: number): NativePagerConfig | undefined {
@@ -203,8 +202,14 @@ export function usePagerNativeConfig(windowId: string, width?: number): NativePa
   );
 }
 
+export function useNativePagerPosition(windowId: string) {
+  const pager = pagerFor(windowId);
+  useLayoutEffect(() => pager.reapplyNativePosition());
+}
+
 export function usePageStyle(windowId: string, slot: number, width: number) {
   const { pos } = pagerFor(windowId);
+  useNativePagerPosition(windowId);
   return useMemo(() => ({ transform: [{ translateX: Animated.multiply(Animated.add(pos, -slot), -width) }] }), [pos, slot, width]);
 }
 

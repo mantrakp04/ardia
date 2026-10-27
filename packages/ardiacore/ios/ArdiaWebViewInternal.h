@@ -174,7 +174,6 @@ enum class ArdiaPageFocus { Unknown, Page, DevTools, Elsewhere };
 - (void)traceAutoPictureInPicture:(NSString *)what;
 - (void)awaitPictureInPicture:(int)tries completion:(void (^)(BOOL))completion;
 - (void)updateAutoPictureInPicture;
-- (void)exitPictureInPictureInFrame:(NSString *)frameId;
 @end
 
 @interface ArdiaWebView (NavigationInternal)
@@ -221,7 +220,7 @@ NSString *Text(NSDictionary *d, NSString *key, NSUInteger max);
 bool Flag(NSDictionary *d, NSString *key);
 bool Finite(NSDictionary *d, NSString *key, double *out);
 
-void AnswerHello(ArdiaCoreTab *tab, NSString *profile, NSDictionary *hello, NSString *frameId, BOOL main);
+void AnswerHello(ArdiaCoreTab *tab, NSString *profile, NSString *frameId, BOOL main, NSString *verifiedOrigin);
 NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab);
 
 extern NSString *gPeekModifier;

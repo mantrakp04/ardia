@@ -8,6 +8,7 @@ import { applyResult, emptyCounts, importArcSpace, profileColorFor, profileNamed
 import { addProfile } from "../../state/profiles/actions";
 import type { importModule } from "../../state/import/importApi";
 import { KINDS, type BrowserProfile, type BrowserSource, type ImportedExtension, type ImportKind, type ImportResult, type SpaceSummary } from "./model";
+import { APP_TAB_KINDS, importAppTabs, readAppTabs } from "./diaActions";
 import { importMotion } from "./tokens";
 import { NO_EXTENSIONS, type ImportState } from "./useImportState";
 
@@ -18,7 +19,6 @@ export function importActions(s: ImportState, api: ImportApi | null) {
   const allSpaces: (SpaceSummary & { profileId: string })[] = (source?.profiles ?? []).flatMap((p) => (p.spaces ?? []).map((sp) => ({ ...sp, profileId: p.id })));
   const bySpaces = !!source?.sidebar;
   const spaceless = (source?.profiles ?? []).filter((p) => !p.spaces?.length);
-  const isDiaTabs = source?.family === "automation";
 
   const choose = (b: BrowserSource) => {
     s.setSource(b);
@@ -26,14 +26,9 @@ export function importActions(s: ImportState, api: ImportApi | null) {
     s.setSourceProfiles((defaults.length ? defaults : b.profiles.slice(0, 1)).map((p) => p.id));
     const spaceProfiles = b.sidebar === "arc" || !defaults.length ? b.profiles : defaults;
     s.setSpaces(spaceProfiles.flatMap((p) => p.spaces ?? []).map((sp) => sp.id));
-    const available: ImportKind[] = b.requiresExport
-      ? ["bookmarks", "history", "passwords"]
-      : b.family === "automation"
-        ? ["tabs", "pinnedTabs"]
-        : [...new Set(b.profiles.flatMap((p) => p.available))];
+    const available: ImportKind[] = b.requiresExport ? ["bookmarks", "history", "passwords"] : [...new Set(b.profiles.flatMap((p) => p.available))];
     s.setKinds(new Set(available));
     if (b.family === "safari" && api) s.setFullDiskAccess(api.safariHasFullDiskAccess());
-    s.setDia(null);
     s.setExtensions(NO_EXTENSIONS);
     s.setNotes([]);
     s.setError(null);
@@ -77,10 +72,13 @@ export function importActions(s: ImportState, api: ImportApi | null) {
     const requested: ImportKind[] = [...wanted].filter((k) => k !== "tabs" || !selected.every(tabsLocked));
     if (bySpaces && requested.includes("tabs")) requested.push("spaces", "pinnedTabs");
     const order = KINDS.map((k) => k.kind).filter((k) => requested.includes(k));
-    s.setStatus(Object.fromEntries(order.map((k) => [k, "pending"])));
+    const fromApp = source.asksAppForTabs ? order.filter((k) => APP_TAB_KINDS.includes(k)) : [];
+    const fromFiles = order.filter((k) => !fromApp.includes(k));
+    s.setStatus(Object.fromEntries(order.map((k) => [k, fromApp.includes(k) ? "active" : "pending"])));
     s.setPreparing(bySpaces ? Math.max(1, spaces.length) : selected.length);
     s.setStep("progress");
     s.abort.current = new AbortController();
+    const signal = s.abort.current.signal;
     const total = emptyCounts();
     const failed = new Map<ImportKind, string[]>();
     const add = (c: ImportCounts) => (Object.keys(total) as (keyof ImportCounts)[]).forEach((k) => (total[k] += c[k]));
@@ -88,17 +86,18 @@ export function importActions(s: ImportState, api: ImportApi | null) {
     const found = new Map<string, ImportedExtension>();
     const left: string[] = [];
     let extensionsProfile = "";
+    const appTabs = fromApp.length ? readAppTabs(api) : null;
     if (source.family === "firefox" && requested.includes("passwords") && !api.isBrowserUnlocked(source.id)) {
       await api.unlockBrowser(source.id).catch(() => {});
     }
 
     for (const profile of selected) {
       let result: ImportResult;
-      const profileKinds = tabsLocked(profile) ? order.filter((k) => k !== "tabs") : order;
+      const profileKinds = tabsLocked(profile) ? fromFiles.filter((k) => k !== "tabs") : fromFiles;
       try {
         result = await api.importData(source.id, profile.id, profileKinds, {
           spaceIds: bySpaces ? spaces : undefined,
-          signal: s.abort.current.signal,
+          signal,
           onProgress: (p) => {
             if (p.phase === "start") s.setStatus((st) => ({ ...st, [p.kind]: "active" }));
             if (p.phase === "end") s.setStatus((st) => (st[p.kind] === "failed" ? st : { ...st, [p.kind]: "done" }));
@@ -107,6 +106,11 @@ export function importActions(s: ImportState, api: ImportApi | null) {
       } catch (e) {
         if ((e as { code?: string }).code === "cancelled") return;
         for (const k of profileKinds) failed.set(k, [...(failed.get(k) ?? []), profile.name]);
+        if (appTabs) {
+          const tabs = await appTabs;
+          if (signal.aborted) return;
+          total.tabs += importAppTabs(await destination(destinationIndex++, profile.name, profile.color), tabs, source.profiles, profile.id, wanted);
+        }
         continue;
       }
       for (const k of result.failed) failed.set(k, [...(failed.get(k) ?? []), profile.name]);
@@ -134,11 +138,23 @@ export function importActions(s: ImportState, api: ImportApi | null) {
       } else {
         const dest = await destination(destinationIndex++, result.profile?.name ?? profile.name, result.profile?.color ?? profile.color);
         add(await applyResult(dest, result, source.name, profileKinds, refused));
+        if (appTabs) {
+          const tabs = await appTabs;
+          if (signal.aborted) return;
+          total.tabs += importAppTabs(dest, tabs, source.profiles, profile.id, wanted);
+        }
         extensionsProfile ||= dest;
       }
       if (source.family === "chromium" || source.family === "arc") {
         for (const e of await api.listExtensions(source.id, profile.id).catch(() => [])) found.set(e.id, e);
       }
+    }
+    const appTabsResult = appTabs && (await appTabs);
+    if (signal.aborted) return;
+    if (appTabsResult) {
+      const note = "note" in appTabsResult ? appTabsResult.note : null;
+      if (note) left.push(note);
+      s.setStatus((st) => ({ ...st, ...Object.fromEntries(fromApp.map((k) => [k, note ? "failed" : "done"])) }));
     }
     s.setExtensions({ profileId: extensionsProfile, list: [...found.values()], opened: false });
     s.setNotes(left);
@@ -164,7 +180,7 @@ export function importActions(s: ImportState, api: ImportApi | null) {
 
   const close = () => void closeWindow(IMPORT_WINDOW_ID);
 
-  return { allSpaces, bySpaces, spaceless, isDiaTabs, choose, recheckAccess, destination, finish, run, unlock, close };
+  return { allSpaces, bySpaces, spaceless, choose, recheckAccess, destination, finish, run, unlock, close };
 }
 
 export type ImportCore = ReturnType<typeof importActions>;

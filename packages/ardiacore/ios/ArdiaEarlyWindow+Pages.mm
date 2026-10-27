@@ -174,7 +174,7 @@ BOOL ShowsLaunchOrigin(ArdiaCoreTab *tab, NSString *launchURL) {
   NSString *launch = OriginOfURL(launchURL);
   if (!launch) return NO;
   NSString *committed = tab.committedOrigin;
-  if (committed && ![committed isEqualToString:launch]) return NO;
+  if (committed.length && ![committed isEqualToString:launch]) return NO;
   NSString *url = tab.url;
   if (!url.length) return YES;
   if ([url isEqualToString:@"about:blank"]) return YES;

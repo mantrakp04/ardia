@@ -1,3 +1,4 @@
+import { GpuClock, Scaler } from "./budget";
 import { GrassBrush } from "./brush";
 import { ColorProbe, TextTones } from "./legibility";
 import { DAY_MOVE_MS, easeInOutSine, SUNRISE_HOLD_MS, sunriseElapsed, sunriseProgress } from "./clock";
@@ -29,10 +30,12 @@ export interface MeadowOptions {
   hint: HTMLElement | null;
   reducedMotion: boolean;
   onFirstFrame: () => void;
+  opening?: [from: number, to: number];
 }
 
 export interface Meadow {
   dispose(): void;
+  travelTo(cycle: number): void;
 }
 
 interface Tier {
@@ -45,7 +48,7 @@ interface Tier {
   brushRadius: number;
 }
 
-type ProgramName = "bakeHeight" | "bakeAux" | "terrain" | "sky" | "grass" | "paint" | "final" | "particles";
+type ProgramName = "bakeHeight" | "bakeAux" | "terrain" | "sky" | "grass" | "paint" | "final" | "particles" | "probe" | "cells";
 type Phase = "compile" | "bake" | "live" | "failed";
 type DayMode = "sunrise" | "cycle" | "drag" | "settle" | "rest";
 type Body = "sun" | "moon";
@@ -81,6 +84,17 @@ interface TerrainRead {
   sync: WebGLSync;
 }
 
+interface CellTable {
+  canvasWidth: number;
+  canvasHeight: number;
+  dpr: number;
+  columns: number;
+  rows: number;
+  shape: WebGLTexture;
+  stroke: WebGLTexture;
+  framebuffer: WebGLFramebuffer;
+}
+
 interface Targets {
   width: number;
   height: number;
@@ -103,6 +117,8 @@ const STACKED_HORIZON_SCREEN = 0.69;
 const SHARE_ROW_SLACK = 8;
 const TAP_PX = 10;
 const AMBIENT_FRAME_MS = 1000 / 30;
+const AMBIENT_EARLY_MS = 4;
+const MAX_HELD_FRAMES = 2;
 const ACTIVE_HOLD_MS = 700;
 const CYCLE_RAMP_SECONDS = 2.5;
 const DRAG_FOLLOW = 18;
@@ -111,16 +127,20 @@ const BODY_UP = degrees(-1.5);
 const CONTINUITY_PX = 120;
 const DRAG_SAMPLES = 360;
 const SKY_DARK_NIGHT = 0.4;
-const PROBE_INTERVAL_MS = 400;
+const PROBE_INTERVAL_MS = 1000;
+const MOVING_PROBE_INTERVAL_MS = 400;
 const FIREFLY_TEXT_REACH = 48;
 const SUN_MIN_RED = 200;
 const SUN_MAX_BLUE_SHARE = 0.45;
 const MOON_MIN_SUM = 520;
 const MOB_COMPILE_AFTER_FRAMES = 2;
+const STROKE_CELL_PX = 16;
+const CELL_MARGIN = 7;
 const KEEP_OUT_TITLE = ".hero-title .line > span";
 const KEEP_OUT_COPY = ".lede, .welcome, .cta-row > *, .send-more, [data-send-panel], .note";
 const TERRAIN_READ_SIZE: [number, number] = [384, 768];
 const INTERACTIVE = "a, button, input, textarea, select, label, summary, [data-send-panel]";
+const SLIVER_PX = 48;
 function degrees(value: number) {
   return (value * Math.PI) / 180;
 }
@@ -157,7 +177,8 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
   const pointer = { x: 0, y: 0, active: false, touch: false, downX: 0, downY: 0, downAt: 0, down: false, drag: null as Body | null, lastX: 0, lastY: 0 };
   const windOn = !reducedMotion;
   const look = { x: 0, y: 0, settled: true };
-  const startCycle = reducedMotion ? SUNRISE_TO : SUNRISE_FROM;
+  const [openFrom, openTo] = options.opening ?? [SUNRISE_FROM, SUNRISE_TO];
+  const startCycle = reducedMotion ? openTo : openFrom;
   const day = { c: startCycle, target: startCycle, mode: (reducedMotion ? "rest" : "sunrise") as DayMode, from: 0, to: 0, start: 0, ramp: 0 };
   const bodies = { sun: { x: -999, y: -999, up: false }, moon: { x: -999, y: -999, up: false }, radius: 40 };
   const projection: Mat4 = new Float32Array(16);
@@ -168,6 +189,8 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
   let batch: ProgramBatch<ProgramName> | null = null;
   let gpu: Gpu | null = null;
   let targets: Targets | null = null;
+  let cellTable: CellTable | null = null;
+  let cellTablesOff = !gl.getExtension("EXT_color_buffer_float");
   let bakeStrip = 0;
   let raf = 0;
   let ambientTimer = 0;
@@ -180,15 +203,17 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
   let firstFrameSent = false;
   let lastNow = 0;
   let windTime = 0;
-  let renderScale = 1;
-  let frameCost = 0;
-  let framesSinceScale = 0;
+  let clock = new GpuClock(gl);
+  const scaler = new Scaler();
+  let inFlight: WebGLSync | null = null;
+  let heldFrames = 0;
   let brushUploaded = false;
   let smearUploaded = false;
   let needsRender = true;
   let framing: Framing = framingFor(1.6);
   const veil = { left: 0, top: 0, right: 0, bottom: 0 };
-  const tones = new TextTones(hero, document.querySelector<HTMLElement>("[data-bar]"), (tone) => {
+  const bar = document.querySelector<HTMLElement>("[data-bar]");
+  const tones = new TextTones(hero, bar, (tone) => {
     hero.dataset.sky = tone;
   });
   let probe: ColorProbe | null = null;
@@ -241,6 +266,8 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
         paint: [SHADERS.fullscreenVs, SHADERS.paintFs],
         final: [SHADERS.fullscreenVs, SHADERS.finalFs],
         particles: [SHADERS.particleVs, SHADERS.particleFs],
+        probe: [SHADERS.fullscreenVs, SHADERS.probeFs],
+        cells: [SHADERS.fullscreenVs, SHADERS.cellFs],
       });
       phase = "compile";
     } catch (error) {
@@ -454,7 +481,7 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
 
   const ensureSize = () => {
     const budgetDpr = Math.sqrt(tier.pixelBudget / Math.max(1, cssWidth * cssHeight));
-    const dpr = Math.min(window.devicePixelRatio || 1, tier.dprCap, budgetDpr) * renderScale;
+    const dpr = Math.min(window.devicePixelRatio || 1, tier.dprCap, budgetDpr) * scaler.scale;
     const width = Math.max(1, Math.round(cssWidth * dpr));
     const height = Math.max(1, Math.round(cssHeight * dpr));
     if (canvas.width !== width || canvas.height !== height) {
@@ -479,8 +506,45 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
     const paintFramebuffer = createFramebuffer(gl, [paint]);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     targets = { width: paintWidth, height: paintHeight, sceneColor, sceneFlow, depth, sceneFramebuffer, paint, paintFramebuffer };
-    probe = new ColorProbe(gl, paintWidth, paintHeight);
+    if (gpu) probe = new ColorProbe(gl, gpu.programs.probe, paintWidth, paintHeight);
     probedCycle = -1;
+  };
+
+  const releaseCellTable = () => {
+    if (!cellTable) return;
+    gl.deleteTexture(cellTable.shape);
+    gl.deleteTexture(cellTable.stroke);
+    gl.deleteFramebuffer(cellTable.framebuffer);
+    cellTable = null;
+  };
+
+  const floatTarget = (width: number, height: number) => {
+    const texture = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA32F, width, height);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    return texture;
+  };
+
+  const ensureCellTable = (dpr: number) => {
+    if (cellTablesOff) return null;
+    const { width, height } = canvas;
+    if (cellTable && cellTable.canvasWidth === width && cellTable.canvasHeight === height && cellTable.dpr === dpr) return cellTable;
+    releaseCellTable();
+    const cellSize = STROKE_CELL_PX * dpr;
+    const columns = Math.ceil(width / cellSize) + CELL_MARGIN * 2 + 1;
+    const rows = Math.ceil(height / cellSize) + CELL_MARGIN * 2 + 1;
+    const shape = floatTarget(columns, rows);
+    const stroke = floatTarget(columns, rows);
+    const framebuffer = createFramebuffer(gl, [shape, stroke]);
+    const complete = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    cellTable = { canvasWidth: width, canvasHeight: height, dpr, columns, rows, shape, stroke, framebuffer };
+    if (complete) return cellTable;
+    releaseCellTable();
+    cellTablesOff = true;
+    return null;
   };
 
   const grassArea = (aspect: number) => {
@@ -581,6 +645,21 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
     day.start = performance.now();
   };
 
+  const travelTo = (cycle: number) => {
+    const delta = wrapCycle(cycle - day.c);
+    if (reducedMotion) {
+      day.c = day.target = wrapCycle(cycle);
+      day.mode = "rest";
+      needsRender = true;
+    } else if (delta > 1e-4) {
+      day.mode = "settle";
+      day.from = day.c;
+      day.to = day.c + delta;
+      day.start = performance.now();
+    }
+    wake();
+  };
+
   const release = (x: number, y: number) => {
     pointer.drag = null;
     if (Math.hypot(x - pointer.downX, y - pointer.downY) < TAP_PX) advanceToNextStop();
@@ -592,7 +671,7 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
   const updateDay = (now: number, dt: number) => {
     if (day.mode === "sunrise") {
       const elapsed = sunriseElapsed(now);
-      day.c = day.target = mix(SUNRISE_FROM, SUNRISE_TO, sunriseProgress(elapsed));
+      day.c = day.target = mix(openFrom, openTo, sunriseProgress(elapsed));
       if (elapsed > SUNRISE_HOLD_MS + DAY_MOVE_MS) resumeCycle();
       return;
     }
@@ -624,8 +703,9 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
 
   const captureProbe = (now: number, t: Targets) => {
     if (!probe || probe.pending) return;
-    if (reducedMotion ? probedCycle === day.c : now - lastProbeAt < PROBE_INTERVAL_MS) return;
-    probe.capture(t.paintFramebuffer, t.width, t.height);
+    const moving = day.mode === "drag" || day.mode === "settle" || day.mode === "sunrise";
+    if (reducedMotion ? probedCycle === day.c : now - lastProbeAt < (moving ? MOVING_PROBE_INTERVAL_MS : PROBE_INTERVAL_MS)) return;
+    probe.capture(t.paint);
     lastProbeAt = now;
     probedCycle = day.c;
   };
@@ -678,7 +758,7 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
       .float("uTime", windTime);
   };
 
-  const render = (now: number, dt: number) => {
+  const render = (now: number, dt: number, busy: boolean) => {
     if (!gpu || !targets) return;
     const g = gpu;
     const t = targets;
@@ -794,6 +874,7 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
       brushUploaded = true;
     }
 
+    clock.start(busy);
     gl.bindFramebuffer(gl.FRAMEBUFFER, t.sceneFramebuffer);
     gl.viewport(0, 0, t.width, t.height);
     gl.disable(gl.BLEND);
@@ -878,6 +959,22 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     captureProbe(now, t);
 
+    const cells = ensureCellTable(dpr);
+    if (cells) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, cells.framebuffer);
+      gl.viewport(0, 0, cells.columns, cells.rows);
+      bindTexture(gl, 1, t.sceneFlow);
+      programs.cells
+        .use()
+        .int("uFlow", 1)
+        .vec2("uResolution", width, height)
+        .float("uDpr", dpr)
+        .vec2("uCellOrigin", -CELL_MARGIN, -CELL_MARGIN);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      bindTexture(gl, 4, cells.shape);
+      bindTexture(gl, 5, cells.stroke);
+    }
+
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, width, height);
     bindTexture(gl, 0, t.paint);
@@ -904,7 +1001,12 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
       .vec2("uSunPx", bodies.sun.x * dpr, (cssHeight - bodies.sun.y) * dpr)
       .vec2("uMoonPx", moonPoint ? moonPoint.x * dpr : -9999, moonPoint ? (cssHeight - moonPoint.y) * dpr : -9999)
       .float("uSunRadiusPx", bodies.radius * dpr)
-      .float("uRelief", 1.5 * Math.min(1, Math.max(0.55, dpr / 2)));
+      .float("uRelief", 1.5 * Math.min(1, Math.max(0.55, dpr / 2)))
+      .int("uCellShape", 4)
+      .int("uCellStroke", 5)
+      .int("uCellTable", cells ? 1 : 0)
+      .vec2("uCellOrigin", -CELL_MARGIN, -CELL_MARGIN)
+      .ivec2("uCellCount", cells?.columns ?? 0, cells?.rows ?? 0);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
 
     if (!reducedMotion) {
@@ -920,6 +1022,7 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
         gl.disable(gl.BLEND);
       }
     }
+    clock.stop();
     gl.bindVertexArray(null);
 
     if (!firstFrameSent) {
@@ -949,22 +1052,7 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
       } else if (phase === "live") {
         readProbe();
         const busy = isBusy(now);
-        const dt = Math.min(0.1, Math.max(0, (now - lastNow) / 1000));
-        lastNow = now;
-        if (windOn && firstFrameSent) windTime += dt;
-        ensureSize();
-        const started = performance.now();
-        render(now, dt);
-        needsRender = false;
-        lastRenderAt = now;
-        if (terrainRead) pollTerrainRead(terrainRead);
-        if (mobBatch?.ready) finishMobs(mobBatch);
-        else if (!mobBatch && !mobGpu && !mobsOff && firstFrameSent && ++framesSinceFirst > MOB_COMPILE_AFTER_FRAMES) {
-          startMobs();
-          if (gpu && !terrainRead && !terrainReady) startTerrainRead(gpu);
-        }
-        if (busy && previousFrameBusy) trackCost(dt, performance.now() - started);
-        previousFrameBusy = busy;
+        if ((busy || now - lastRenderAt >= AMBIENT_FRAME_MS - AMBIENT_EARLY_MS) && !gpuBehind()) renderLive(now, busy);
       }
     } catch (error) {
       fail(error);
@@ -973,15 +1061,39 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
     schedule();
   };
 
-  const trackCost = (dt: number, cpuMs: number) => {
-    if (reducedMotion || dt <= 0) return;
-    frameCost = frameCost === 0 ? dt * 1000 : frameCost * 0.94 + dt * 1000 * 0.06;
-    framesSinceScale++;
-    if (framesSinceScale > 240 && frameCost > 24 && renderScale > 0.6 && cpuMs < 12) {
-      renderScale *= 0.85;
-      framesSinceScale = 0;
-      frameCost = 0;
+  const renderLive = (now: number, busy: boolean) => {
+    const dt = Math.min(0.1, Math.max(0, (now - lastNow) / 1000));
+    lastNow = now;
+    if (windOn && firstFrameSent) windTime += dt;
+    ensureSize();
+    const started = performance.now();
+    render(now, dt, busy);
+    needsRender = false;
+    lastRenderAt = now;
+    if (terrainRead) pollTerrainRead(terrainRead);
+    if (mobBatch?.ready) finishMobs(mobBatch);
+    else if (!mobBatch && !mobGpu && !mobsOff && firstFrameSent && ++framesSinceFirst > MOB_COMPILE_AFTER_FRAMES) {
+      startMobs();
+      if (gpu && !terrainRead && !terrainReady) startTerrainRead(gpu);
     }
+    inFlight = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    if (!reducedMotion) {
+      if (clock.available) clock.collect((ms, busyFrame) => busyFrame && scaler.gpu(ms, now));
+      else if (busy && previousFrameBusy && dt > 0) scaler.frame(dt * 1000, performance.now() - started, now);
+    }
+    previousFrameBusy = busy;
+  };
+
+  const gpuBehind = () => {
+    if (!inFlight) return false;
+    if (gl.getSyncParameter(inFlight, gl.SYNC_STATUS) !== gl.SIGNALED && heldFrames < MAX_HELD_FRAMES) {
+      heldFrames++;
+      return true;
+    }
+    gl.deleteSync(inFlight);
+    inFlight = null;
+    heldFrames = 0;
+    return false;
   };
 
   const pause = () => {
@@ -1164,15 +1276,21 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
     ambientTimer = 0;
     gpu = null;
     targets = null;
+    cellTable = null;
+    probe = null;
     batch = null;
     mobGpu = null;
     mobBatch = null;
     terrainRead = null;
     terrainReady = false;
     framesSinceFirst = 0;
+    inFlight = null;
+    heldFrames = 0;
   };
   const onRestored = () => {
     lost = false;
+    cellTablesOff = !gl.getExtension("EXT_color_buffer_float");
+    clock = new GpuClock(gl);
     bakeStrip = 0;
     brushUploaded = false;
     smearUploaded = false;
@@ -1228,15 +1346,28 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
     stack = next;
     framing = framingFor(canvas.width / Math.max(1, canvas.height), stack.clear, stack.horizon);
   };
+  let visibilityObserver: IntersectionObserver | null = null;
+  let coveredTop = -1;
+  const observeVisibility = () => {
+    const covered = Math.round((bar?.offsetHeight ?? 0) + SLIVER_PX);
+    if (covered === coveredTop) return;
+    coveredTop = covered;
+    visibilityObserver?.disconnect();
+    visibilityObserver = new IntersectionObserver(
+      (entries) => {
+        heroVisible = entries[entries.length - 1].isIntersecting;
+        if (heroVisible) wake();
+      },
+      { rootMargin: `-${covered}px 0px 0px 0px` },
+    );
+    visibilityObserver.observe(hero);
+  };
   const resizeObserver = new ResizeObserver(() => {
     measureHero();
     measureText();
+    observeVisibility();
     needsRender = true;
     wake();
-  });
-  const visibilityObserver = new IntersectionObserver((entries) => {
-    heroVisible = entries.some((entry) => entry.isIntersecting);
-    if (heroVisible) wake();
   });
 
   canvas.addEventListener("webglcontextlost", onLost);
@@ -1244,7 +1375,7 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
   document.addEventListener("visibilitychange", onVisibility);
   resizeObserver.observe(canvas);
   if (textBlock) resizeObserver.observe(textBlock);
-  visibilityObserver.observe(hero);
+  observeVisibility();
   const listeners: [EventTarget, string, EventListener, AddEventListenerOptions][] = [
     [window, "scroll", onScroll, { passive: true }],
     [window, "pointerdown", onPointerDown as EventListener, { passive: false }],
@@ -1264,6 +1395,7 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
   wake();
 
   return {
+    travelTo,
     dispose() {
       cancelAnimationFrame(raf);
       raf = 0;
@@ -1271,7 +1403,7 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
       ambientTimer = 0;
       phase = "failed";
       resizeObserver.disconnect();
-      visibilityObserver.disconnect();
+      visibilityObserver?.disconnect();
       canvas.removeEventListener("webglcontextlost", onLost);
       canvas.removeEventListener("webglcontextrestored", onRestored);
       document.removeEventListener("visibilitychange", onVisibility);
@@ -1279,6 +1411,9 @@ export function createMeadow(options: MeadowOptions): Meadow | null {
       delete hero.dataset.brushing;
       tones.reset();
       releaseTargets();
+      releaseCellTable();
+      if (inFlight) gl.deleteSync(inFlight);
+      inFlight = null;
     },
   };
 }

@@ -328,6 +328,7 @@
 			inputPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Ardia-macOS/Pods-Ardia-macOS-resources.sh",
 				"${PODS_ROOT}/../../../../packages/ardiacore/ios/page_script.js",
+				"${PODS_CONFIGURATION_BUILD_DIR}/ArdiaShaders/ArdiaMeadow.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/EXConstants.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/ExpoConstants_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoFileSystem/ExpoFileSystem_privacy.bundle",
@@ -340,6 +341,7 @@
 			name = "[CP] Copy Pods Resources";
 			outputPaths = (
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/page_script.js",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ArdiaMeadow.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXConstants.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoConstants_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoFileSystem_privacy.bundle",
@@ -383,7 +385,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Ardia-macOS/Ardia.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 83;
+				CURRENT_PROJECT_VERSION = 86;
 				DEAD_CODE_STRIPPING = NO;
 				DEVELOPMENT_TEAM = U5L5T3NGVV;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -391,7 +393,7 @@
 				INFOPLIST_FILE = "Ardia-macOS/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.2.41;
+				MARKETING_VERSION = 0.2.42;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -418,7 +420,7 @@
 				CODE_SIGN_ENTITLEMENTS = "Ardia-macOS/Ardia.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 83;
+				CURRENT_PROJECT_VERSION = 86;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = U5L5T3NGVV;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -426,7 +428,7 @@
 				INFOPLIST_FILE = "Ardia-macOS/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 0.2.41;
+				MARKETING_VERSION = 0.2.42;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",

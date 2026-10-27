@@ -150,23 +150,25 @@ const tick = "M3 13.5c2.2 1.4 4.3 3.6 6.4 6.6C13 13 17.6 7.4 25 2.6";
                         </div>
                       ))}
                     </div>
-                    <table class="visually-hidden">
-                      <caption>{c.caption}</caption>
-                      <thead>
-                        <tr>
-                          <th scope="col">Browser</th>
-                          <th scope="col">Median</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {c.cases[0].lanes.map((l) => (
+                    <div class="visually-hidden">
+                      <table>
+                        <caption>{c.caption}</caption>
+                        <thead>
                           <tr>
-                            <th scope="row">{l.bar?.isBest ? `${l.name} (best)` : l.name}</th>
-                            <td>{l.bar ? `${display(l.bar.value)}${unitText(l.bar.unit)}` : "not measured"}</td>
+                            <th scope="col">Browser</th>
+                            <th scope="col">Median</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {c.cases[0].lanes.map((l) => (
+                            <tr>
+                              <th scope="row">{l.bar?.isBest ? `${l.name} (best)` : l.name}</th>
+                              <td>{l.bar ? `${display(l.bar.value)}${unitText(l.bar.unit)}` : "not measured"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </>
                 )}
               </div>

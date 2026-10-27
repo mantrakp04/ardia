@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useRef } from "react";
+import { memo, useContext, useEffect, useMemo, useRef } from "react";
 import { Animated, ScrollView } from "react-native";
 import { PageProfileContext, useWindowId } from "../../state/browser/hooks";
 import { tabDragging } from "../../state/drag/tabDrag";
@@ -17,7 +17,7 @@ import { StripGroup } from "./StripGroup";
 import { DraggableChip } from "./TabChip";
 import { DOCK_GAP, FLARE, GAP, ITEM_HEIGHT, MAX_CHIP, MIN_CHIP, PINNED_CELL, PINNED_SPACING } from "./tokens";
 
-export function StripPage({ profileId, slot, pageWidth, current, resting }: { profileId: string; slot: number; pageWidth: number; current: boolean; resting: boolean }) {
+export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, current, resting }: { profileId: string; slot: number; pageWidth: number; current: boolean; resting: boolean }) {
   const windowId = useWindowId();
   const flare = useContext(FloatingStrip) ? 0 : FLARE;
   const pageStyle = usePageStyle(windowId, slot, pageWidth + flare * 2);
@@ -143,4 +143,4 @@ export function StripPage({ profileId, slot, pageWidth, current, resting }: { pr
       </PageProfileContext.Provider>
     </Animated.View>
   );
-}
+});

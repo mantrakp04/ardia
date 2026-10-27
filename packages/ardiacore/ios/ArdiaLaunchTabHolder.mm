@@ -93,10 +93,7 @@ static BOOL HeldSelector(SEL selector) {
     [invocation getArgument:&main atIndex:6];
     __unsafe_unretained NSString *origin = nil;
     [invocation getArgument:&origin atIndex:7];
-    if ([kind isEqualToString:@"hello"]) {
-      id hello = JSONValue(json);
-      AnswerHello(tab, _profile, [hello isKindOfClass:NSDictionary.class] ? hello : nil, frame ?: @"", main);
-    }
+    if ([kind isEqualToString:@"hello"]) AnswerHello(tab, _profile, frame ?: @"", main, origin);
     [self holdPageMessage:kind json:json frame:frame main:main origin:origin];
     return;
   }

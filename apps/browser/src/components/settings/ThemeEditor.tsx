@@ -24,7 +24,7 @@ import type { ProfileColor, ProfileTheme, ThemeMode, ThemeTexture } from "../../
 import { Button, font, Group, PopUp, Swatch, swatch, Symbol, ThemeSwatch } from "../ui";
 import { importArcTheme } from "../../state/profiles/arcThemes";
 import { Row, SectionHeader } from "./Form";
-import { ColorPad, DirectionDial, LABEL, LightnessBar, Preview, Slider } from "./ThemeControls";
+import { ColorPad, DirectionDial, LABEL, Labelled, LightnessBar, Preview, Slider } from "./ThemeControls";
 import { settingsInk } from "./tokens";
 
 export { arcThemeChoices, importArcTheme } from "../../state/profiles/arcThemes";
@@ -37,14 +37,16 @@ const MODES: { value: ThemeMode; symbol: string; title: string }[] = [
 
 const TEXTURE_NAMES: Record<ThemeTexture, string> = { grain: "Grain", sand: "Sand", denim: "Denim", tweed: "Tweed" };
 
-function useLiveTheme(profileId: string, theme: ProfileTheme | null | undefined) {
+function useLiveTheme(theme: ProfileTheme | null | undefined, apply: (theme: ProfileTheme) => void) {
   const [draft, setDraft] = useState<ProfileTheme | null>(null);
   const pending = useRef<ProfileTheme | null>(null);
   const frame = useRef<number | null>(null);
+  const applyLatest = useRef(apply);
+  applyLatest.current = apply;
   useEffect(() => () => void (frame.current !== null && cancelAnimationFrame(frame.current)), []);
   const flush = () => {
     frame.current = null;
-    if (pending.current) setProfileTheme(profileId, pending.current);
+    if (pending.current) applyLatest.current(pending.current);
   };
   const change = (next: ProfileTheme, settle = false) => {
     pending.current = next;
@@ -57,25 +59,31 @@ function useLiveTheme(profileId: string, theme: ProfileTheme | null | undefined)
   return { theme: draft ?? theme ?? null, change };
 }
 
-export function ThemeSection({ profileId }: { profileId: string }) {
+export function useThemeDraft(profileId: string, apply: (theme: ProfileTheme) => void) {
   const profile = useProfile(profileId, (p) => p);
-  const live = useLiveTheme(profileId, profile?.theme);
+  const live = useLiveTheme(profile?.theme, apply);
   const appDark = useAppDark();
   const source = useSettings((s) => spaceLookSource(s));
-  const editing = !!profile && !!live.theme;
+  const stored = live.theme;
+  const editsDark = !!stored && requestedDarkFor(stored, appDark, source);
+  const custom = stored?.dark ? resolveTheme(stored, editsDark) : stored;
+  const startCustom = () => {
+    if (profile && !custom) live.change(startingTheme(PROFILE_COLORS[profile.color]?.swatch ?? PROFILE_COLORS.plum.swatch), true);
+  };
+  const shown = stored ? shownLook(stored, appDark, source) : null;
+  return { profile, stored, custom, editsDark, shown, followsApp: source === "app", change: live.change, startCustom };
+}
+
+export function ThemeSection({ profileId }: { profileId: string }) {
+  const { profile, stored, custom, editsDark, shown, followsApp, change, startCustom } = useThemeDraft(profileId, (theme) => setProfileTheme(profileId, theme));
+  const editing = !!profile && !!stored;
   useEffect(() => {
     if (!editing) return;
     holdThemedWindowsKeyLook(true);
     return () => holdThemedWindowsKeyLook(false);
   }, [editing]);
   if (!profile) return null;
-  const stored = live.theme;
-  const editsDark = !!stored && requestedDarkFor(stored, appDark, source);
-  const custom = stored?.dark ? resolveTheme(stored, editsDark) : stored;
   const choosePreset = (color: ProfileColor) => choosePresetColor(profileId, color);
-  const chooseCustom = () => {
-    if (!custom) live.change(startingTheme(PROFILE_COLORS[profile.color]?.swatch ?? PROFILE_COLORS.plum.swatch), true);
-  };
   return (
     <>
       <SectionHeader
@@ -100,14 +108,14 @@ export function ThemeSection({ profileId }: { profileId: string }) {
                 <Swatch selected={!custom && profile.color === c} ring={PROFILE_COLORS[c].swatch} fill={PROFILE_COLORS[c].swatch} />
               </Pressable>
             ))}
-            <Pressable onPress={chooseCustom} tooltip="Custom">
+            <Pressable onPress={startCustom} tooltip="Custom">
               <Swatch selected={!!custom} ring={custom ? themeAccent(custom) : settingsInk.customSwatch}>
                 <CustomSwatch theme={custom} />
               </Swatch>
             </Pressable>
           </View>
         </Row>
-        {custom && stored ? <ThemeEditor theme={custom} shown={shownLook(stored, appDark, source)} followsApp={source === "app"} onChange={live.change} /> : null}
+        {custom && shown ? <ThemeEditor theme={custom} shown={shown} followsApp={followsApp} onChange={change} /> : null}
       </Group>
     </>
   );
@@ -126,8 +134,67 @@ const RAINBOW: ProfileTheme = {
   translucency: 0,
 };
 
-function CustomSwatch({ theme }: { theme: ProfileTheme | null }) {
+export function CustomSwatch({ theme }: { theme: ProfileTheme | null }) {
   return <ThemeSwatch colors={flatColors(theme ?? RAINBOW)} angle={theme ? lookAngle(theme) : DEFAULT_THEME_ANGLE} style={{ flex: 1 }} />;
+}
+
+function ThemeStops({ theme, onChange }: { theme: ProfileTheme; onChange: (next: ProfileTheme, settle?: boolean) => void }) {
+  const ui = useTheme();
+  const [selected, setSelected] = useState(0);
+  const index = Math.min(selected, theme.stops.length - 1);
+  return (
+    <View style={{ gap: 8 }}>
+      <ColorPad theme={theme} selected={index} onSelect={setSelected} onChange={onChange} />
+      <LightnessBar theme={theme} index={index} onChange={onChange} />
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+        <Text style={{ ...font.footnote, color: ui.textSecondary }}>
+          {theme.stops.length} of {MAX_THEME_STOPS} colours
+        </Text>
+        <View style={{ flexDirection: "row", gap: 4 }}>
+          <Button
+            variant="pill"
+            tone="control"
+            width={24}
+            height={20}
+            icon="minus"
+            tooltip="Remove Colour"
+            disabled={theme.stops.length <= 1}
+            onPress={() => {
+              onChange(withoutStop(theme, index), true);
+              setSelected(Math.max(0, index - 1));
+            }}
+          />
+          <Button
+            variant="pill"
+            tone="control"
+            width={24}
+            height={20}
+            icon="plus"
+            tooltip="Add Colour"
+            disabled={theme.stops.length >= MAX_THEME_STOPS}
+            onPress={() => {
+              onChange(withAddedStop(theme), true);
+              setSelected(theme.stops.length);
+            }}
+          />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+export function CompactThemeEditor({ theme, onChange }: { theme: ProfileTheme; onChange: (next: ProfileTheme, settle?: boolean) => void }) {
+  return (
+    <View style={{ flexDirection: "row", gap: 18 }}>
+      <ThemeStops theme={theme} onChange={onChange} />
+      <View style={{ flex: 1, gap: 14 }}>
+        <Slider stacked label="Intensity" value={theme.intensity} onChange={(v, settle) => onChange({ ...theme, intensity: v }, settle)} />
+        <Labelled label="Direction">
+          <DirectionDial angle={lookAngle(theme)} onChange={(angle, settle) => onChange(withAngle(theme, angle), settle)} />
+        </Labelled>
+      </View>
+    </View>
+  );
 }
 
 function ThemeEditor({
@@ -142,47 +209,9 @@ function ThemeEditor({
   onChange: (next: ProfileTheme, settle?: boolean) => void;
 }) {
   const ui = useTheme();
-  const [selected, setSelected] = useState(0);
-  const index = Math.min(selected, theme.stops.length - 1);
   return (
     <View style={{ padding: 12, flexDirection: "row", gap: 18 }}>
-      <View style={{ gap: 8 }}>
-        <ColorPad theme={theme} selected={index} onSelect={setSelected} onChange={onChange} />
-        <LightnessBar theme={theme} index={index} onChange={onChange} />
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-          <Text style={{ ...font.footnote, color: ui.textSecondary }}>
-            {theme.stops.length} of {MAX_THEME_STOPS} colours
-          </Text>
-          <View style={{ flexDirection: "row", gap: 4 }}>
-            <Button
-              variant="pill"
-              tone="control"
-              width={24}
-              height={20}
-              icon="minus"
-              tooltip="Remove Colour"
-              disabled={theme.stops.length <= 1}
-              onPress={() => {
-                onChange(withoutStop(theme, index), true);
-                setSelected(Math.max(0, index - 1));
-              }}
-            />
-            <Button
-              variant="pill"
-              tone="control"
-              width={24}
-              height={20}
-              icon="plus"
-              tooltip="Add Colour"
-              disabled={theme.stops.length >= MAX_THEME_STOPS}
-              onPress={() => {
-                onChange(withAddedStop(theme), true);
-                setSelected(theme.stops.length);
-              }}
-            />
-          </View>
-        </View>
-      </View>
+      <ThemeStops theme={theme} onChange={onChange} />
       <View style={{ flex: 1, gap: 11 }}>
         <Preview shown={shown} />
         <Slider label="Intensity" value={theme.intensity} onChange={(v, settle) => onChange({ ...theme, intensity: v }, settle)} />

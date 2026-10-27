@@ -12,6 +12,7 @@ import hills from "../../assets/paint/hills.png";
 import sun from "../../assets/paint/sun.png";
 
 const OPEN_COUNT = 6;
+const VIEW_KEY = "ac:release-notes-view";
 const placeInChannel = new Map<string, number>();
 const releases = (await loadReleases()).map((r) => {
   const channel = r.nightly ? "nightly" : "stable";
@@ -75,6 +76,43 @@ const jsonLd = [
   description={`What’s new, fixed and faster in every Ardia release, from 0.1.0 to ${latest.version}. The Mac browser with Arc’s sidebar ships often, and writes it all down.`}
   jsonLd={jsonLd}
 >
+  <script is:inline slot="head" define:vars={{ viewKey: VIEW_KEY }}>
+    const root = document.documentElement;
+    let target = "";
+    let saved = null;
+    try {
+      target = decodeURIComponent(location.hash.slice(1));
+    } catch {}
+    try {
+      saved = localStorage.getItem(viewKey);
+    } catch {}
+    const view = saved === "all" || /-nightly\.\d+$/.test(target) ? "all" : "stable";
+    root.dataset.notesView = view;
+    let radioSet = view === "stable";
+    let foldSet = !target;
+    if (!radioSet || !foldSet) {
+      const settle = () => {
+        if (!radioSet) {
+          const all = document.getElementById("view-all");
+          if (all) {
+            all.checked = true;
+            radioSet = true;
+          }
+        }
+        if (!foldSet) {
+          const fold = document.getElementById(target)?.querySelector("details[data-fold]");
+          if (fold) {
+            fold.open = true;
+            foldSet = true;
+          }
+        }
+        if (radioSet && foldSet) watch.disconnect();
+      };
+      const watch = new MutationObserver(settle);
+      watch.observe(root, { childList: true, subtree: true });
+      addEventListener("DOMContentLoaded", () => watch.disconnect(), { once: true });
+    }
+  </script>
   <Header home={`${base}/`} current="notes" />
   <main class="almanac">
     <section class="masthead" aria-labelledby="notes-title">
@@ -110,7 +148,7 @@ const jsonLd = [
       <span class="grass" aria-hidden="true"></span>
     </section>
 
-    <div class="log paint" data-log>
+    <div class="log paint">
       <div class="wrap layout">
         <nav class="index" aria-label="Releases">
           <div class="index-head">
@@ -412,19 +450,22 @@ const jsonLd = [
       color: var(--ink);
     }
   }
-  .log:not(:has(#view-all:checked)):is([data-js], :not(:has(.entry.nightly:target)))
+  :global(:root[data-notes-view="stable"]) .log :is(.entry.nightly, .index li.nightly, .month.nightly-only, .count-all, .nightly-note),
+  :global(:root:not([data-notes-view])) .log:not(:has(#view-all:checked)):not(:has(.entry.nightly:target))
     :is(.entry.nightly, .index li.nightly, .month.nightly-only, .count-all, .nightly-note) {
     display: none;
   }
-  .log:has(#view-all:checked) .count-stable,
-  .log:not([data-js]):has(.entry.nightly:target) .count-stable {
+  :global(:root[data-notes-view="all"]) .log .count-stable,
+  :global(:root:not([data-notes-view])) .log:is(:has(#view-all:checked), :has(.entry.nightly:target)) .count-stable {
     display: none;
   }
-  .log:has(#view-all:checked) .entry.latest:not(:first-of-type) {
+  :global(:root[data-notes-view="all"]) .log .entry.latest:not(:first-of-type),
+  :global(:root:not([data-notes-view])) .log:has(#view-all:checked) .entry.latest:not(:first-of-type) {
     padding-top: clamp(32px, 4vw, 52px);
     border-top: 1px solid var(--rule-strong);
   }
-  .log:has(#view-all:checked) .entry:first-of-type {
+  :global(:root[data-notes-view="all"]) .log .entry:first-of-type,
+  :global(:root:not([data-notes-view])) .log:has(#view-all:checked) .entry:first-of-type {
     padding-top: 0;
     border-top: 0;
   }
@@ -847,35 +888,44 @@ const jsonLd = [
 
   const latest = document.querySelector<HTMLElement>(".entry:not(.nightly)")?.id ?? null;
   const viewed = (trigger: "load" | "hashchange") =>
-    track("release_notes_viewed", { version: decodeURIComponent(location.hash.slice(1)) || null, latest, trigger });
+    track("release_notes_viewed", { version: targetId() || null, latest, trigger });
 
-  const log = document.querySelector<HTMLElement>("[data-log]");
-  if (log) log.dataset.js = "";
+  const root = document.documentElement;
   const viewSwitch = document.querySelector<HTMLFieldSetElement>("[data-view-switch]");
   const showAll = document.querySelector<HTMLInputElement>("#view-all");
   const viewKey = "ac:release-notes-view";
-  try {
-    if (showAll && localStorage.getItem(viewKey) === "all") showAll.checked = true;
-  } catch {}
+  const showView = (view: "all" | "stable") => {
+    root.dataset.notesView = view;
+    if (showAll) showAll.checked = view === "all";
+  };
+  if (showAll && root.dataset.notesView === "all" && !showAll.checked) showAll.checked = true;
   viewSwitch?.addEventListener("change", (e) => {
+    const view = (e.target as HTMLInputElement).value === "all" ? "all" : "stable";
+    showView(view);
     try {
-      localStorage.setItem(viewKey, (e.target as HTMLInputElement).value);
+      localStorage.setItem(viewKey, view);
     } catch {}
   });
 
   const isShown = (el: HTMLElement) => el.offsetParent !== null;
+  const targetId = () => {
+    try {
+      return decodeURIComponent(location.hash.slice(1));
+    } catch {
+      return "";
+    }
+  };
   const revealTarget = () => {
-    const id = decodeURIComponent(location.hash.slice(1));
+    const id = targetId();
     if (!id) return;
     const entry = document.getElementById(id);
     const wantsNightly = entry ? entry.classList.contains("nightly") : /-nightly\.\d+$/.test(id);
     const hidden = entry ? !isShown(entry) : false;
-    if (wantsNightly && showAll) showAll.checked = true;
+    if (wantsNightly && root.dataset.notesView !== "all") showView("all");
     const fold = entry?.querySelector<HTMLDetailsElement>("[data-fold]");
     if (fold && !fold.open) fold.open = true;
     if (entry && hidden && isShown(entry)) entry.scrollIntoView({ block: "start" });
   };
-  revealTarget();
   viewed("load");
   addEventListener("hashchange", () => {
     revealTarget();

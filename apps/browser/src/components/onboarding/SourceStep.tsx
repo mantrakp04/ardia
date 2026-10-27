@@ -7,12 +7,13 @@ import { importModule } from "../../state/import/importApi";
 import { isWebDemo } from "../../state/onboarding/demoSteps";
 import { openImport } from "../../state/settings/settingsWindows";
 import { CONTENT_WIDTH } from "./ChoiceList";
-import { chooseSource, confirmAnswer, presetFor, skipStep, useOnboarding, type BrowserSourceId } from "../../state/onboarding/onboarding";
+import { chooseSource, confirmAnswer, PRESET_NAMES, presetFor, presetPatch, skipStep, useOnboarding, type BrowserSourceId } from "../../state/onboarding/onboarding";
 import { StepActions, StepLayout } from "./StepLayout";
 import { SecondaryButton } from "./Buttons";
 import { CheckMark, SectionLabel, SelectTile, Tag, useOnboardingColors } from "./Parts";
 import { SetupCodeLink, SetupCodeStep } from "./SetupCodeStep";
 import { browserIcon } from "./browserIcons";
+import { GlassBacking, solidFill, useImageRing } from "./GlassBacking";
 
 const ICON = require("../../../assets/app-icon.png");
 
@@ -47,7 +48,9 @@ function detect(): Tile[] {
   return CANDIDATES.map((group) => {
     const found = group.find((c) => fileExists(c.app));
     if (found) return { id: found.id, name: found.name, app: found.app, icon: null, importId: found.importId };
-    return { id: group[0]!.id, name: [...new Set(group.filter((c) => !c.importId).map((c) => c.name))].join(" or "), app: null, icon: null };
+    const names = [...new Set(group.filter((c) => !c.importId).map((c) => c.name))];
+    const families = names.filter((name) => !names.some((other) => other !== name && name.startsWith(`${other} `)));
+    return { id: group[0]!.id, name: families.join(" or "), app: null, icon: null };
   });
 }
 
@@ -76,14 +79,14 @@ export function SourceStep() {
     setImporting(chosen.id);
   };
 
-  const done = () => confirmAnswer("source", {}, chosen ? [`Coming from ${chosen.name}`] : source === "fresh" ? ["Starting fresh"] : []);
+  const done = () => confirmAnswer("source", presetPatch(source), chosen ? [`Coming from ${chosen.name}`] : source === "fresh" ? ["Starting fresh"] : []);
 
   if (pastingCode) return <SetupCodeStep onBack={() => setPastingCode(false)} />;
 
   return (
     <StepLayout
       title="Where are you coming from?"
-      subtitle="Ardia sets itself up the way you're used to. Change anything later."
+      subtitle="Ardia sets itself up the way you're used to."
       actions={
         <>
           <StepActions
@@ -114,11 +117,12 @@ export function SourceStep() {
             gap: 12,
             padding: 12,
             borderRadius: 12,
-            backgroundColor: colors.row,
+            backgroundColor: solidFill(colors.row),
             borderWidth: StyleSheet.hairlineWidth * 2,
             borderColor: colors.rowBorder,
           }}
         >
+          <GlassBacking fill={colors.row} radius={12} border={StyleSheet.hairlineWidth * 2} />
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={{ ...font.body, fontWeight: weight.medium, color: colors.title }}>
               {importing === chosen.id ? `Importing from ${chosen.name}` : `Bring your stuff from ${chosen.name}`}
@@ -147,13 +151,14 @@ function TileGrid({ tiles, selected, onPress, fresh }: { tiles: Tile[]; selected
 
 function SourceTile({ title, icon, symbol, selected, onPress }: { title: string; icon: ImageSourcePropType | null; symbol: string; selected: boolean; onPress: () => void }) {
   const colors = useOnboardingColors();
+  const ring = useImageRing(icon, selected);
   return (
-    <SelectTile title={title} width={TILE} height={84} gap={6} checkSize={14} selected={selected} role="radio" titlePad={4} titleLines={1} onPress={onPress}>
+    <SelectTile title={title} width={TILE} height={68} gap={5} checkSize={13} selected={selected} role="radio" titlePad={4} titleLines={1} ring={ring} onPress={onPress}>
       {() =>
         icon ? (
-          <Image source={icon} style={{ width: 40, height: 40 }} />
+          <Image source={icon} style={{ width: 30, height: 30 }} />
         ) : (
-          <View style={{ width: 34, height: 34, margin: 3, borderRadius: 9, alignItems: "center", justifyContent: "center", backgroundColor: colors.iconContainer }}>
+          <View style={{ width: 26, height: 26, margin: 2, borderRadius: 7, alignItems: "center", justifyContent: "center", backgroundColor: colors.iconContainer }}>
             <Symbol name={symbol} size={15} color={colors.subtitle} style={{ width: 20, height: 20 }} />
           </View>
         )
@@ -186,7 +191,7 @@ function SourcePreview({ tile, fresh, found }: { tile: Tile | null; fresh: boole
       ) : null}
       {from.length ? <Symbol name="arrow.down" size={18} weight="medium" color={colors.steps} style={{ width: 24, height: 24 }} /> : null}
       <Image source={ICON} style={{ width: tile || fresh ? 96 : 72, height: tile || fresh ? 96 : 72 }} />
-      {tile || fresh ? <Tag title={preset === "arc" ? "Starts out Arc-style" : "Starts out Dia-style"} /> : null}
+      {tile || fresh ? <Tag title={`Starts out ${PRESET_NAMES[preset]}-style`} /> : null}
     </View>
   );
 }

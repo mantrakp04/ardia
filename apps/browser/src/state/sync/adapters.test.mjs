@@ -13,6 +13,21 @@ const ardiacore = await import("@ardia/ardiacore");
 
 const S = () => useBrowser.getState();
 
+const fakeSeal = (origin, username, password) => Buffer.from(JSON.stringify([origin, username, password])).toString("base64");
+const sealedLogins = (read = stub.readLogins) => ({
+  read: async () =>
+    (await read()).flatMap((l) => {
+      const origin = l.origin.replace(/\/$/, "");
+      return /^https?:\/\/[^/\s]+$/.test(origin) ? [{ origin, username: l.username, created: l.created, sealed: fakeSeal(origin, l.username, l.password) }] : [];
+    }),
+  save: async (profile, origin, username, sealed, replacing) => {
+    const [o, u, password] = JSON.parse(Buffer.from(sealed, "base64").toString());
+    if (o !== origin || u !== username) return false;
+    if (replacing && !(await ardiacore.deletePassword(profile, origin, username))) return false;
+    return ardiacore.savePassword(profile, origin, username, password);
+  },
+});
+
 class Folder {
   files = new Map();
   hidden = new Set();
@@ -47,7 +62,7 @@ class Device {
     this.scopes = { app: emptyScope(), p: emptyScope() };
     this.clock = new Clock(id);
     stub.passwordStores.set(id, new Map());
-    this.passwords = adapters.passwordsAdapter("default", () => true, stub.readLogins);
+    this.passwords = adapters.passwordsAdapter("default", () => true, sealedLogins());
   }
   with(fn) {
     stub.current.device = this.id;
@@ -981,6 +996,7 @@ test("passwords: saved on one Mac, changed or deleted on another; the newer edit
   await syncAll([b, a]);
   assert.deepEqual(list(a), ["https://bank.example alice=correct horse", "https://shop.example bob=sh0p"]);
   assert.equal((await a.sync()).published, 0);
+  for (const d of [a, b]) assert.ok(!JSON.stringify(d.scopes.p).includes("correct horse"), "the sync state holds only sealed passwords");
 });
 
 test("history: two Macs settle on the union of their visits in Chrome, publish nothing more, and deletions reach Chrome", async () => {
@@ -1836,10 +1852,14 @@ test("a bookmark made while another adapter is still reading survives that sync"
   });
   await a.sync();
   let reads = 0;
-  b.passwords = adapters.passwordsAdapter("default", () => true, async () => {
-    if (++reads === 2) S().addBookmark({ profileId: "default", url: "https://second.example/", title: "Made during the sync" });
-    return stub.readLogins();
-  });
+  b.passwords = adapters.passwordsAdapter(
+    "default",
+    () => true,
+    sealedLogins(async () => {
+      if (++reads === 2) S().addBookmark({ profileId: "default", url: "https://second.example/", title: "Made during the sync" });
+      return stub.readLogins();
+    }),
+  );
   await b.sync();
   assert.equal(reads >= 2, true, "the password read ran after the bookmarks' catch-up");
   const has = (d) => d.with(() => Object.values(S().bookmarks.nodes).some((n) => n.kind === "url" && n.url === "https://second.example/"));

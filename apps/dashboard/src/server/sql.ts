@@ -59,3 +59,28 @@ export const bucket = (step: Step) =>
   step === "hour" ? "toUnixTimestamp(toStartOfHour(timestamp)) * 1000" : "toUnixTimestamp(toStartOfDay(timestamp)) * 1000";
 
 export const dayBucket = "toUnixTimestamp(toStartOfDay(timestamp)) * 1000";
+
+export const DAILY = `(event = 'daily_active' AND source = 'ardia-app' AND ${prop("$lib")} = 'ardia-daily' AND properties['$environment'] = 'production')`;
+export const APP_SOURCE = `(source IN ('ardia-app', 'netnyahoo-app', 'posthog-cloud') AND ${prop("$lib")} IN ('ardia-telemetry', 'netnyahoo-telemetry'))`;
+export const ACTIVITY_EVENTS = "'app_launched', 'perf_memory', 'usage_counts'";
+
+export const TRACKED_SITE_EVENTS = [
+  "download_clicked",
+  "github_clicked",
+  "screenshot_opened",
+  "release_notes_viewed",
+  "notify_clicked",
+  "discord_clicked",
+  "send_to_mac_clicked",
+  "send_to_mac_fallback",
+  "demo_customize",
+  "demo_control",
+  "demo_setup_code_shown",
+  "demo_setup_code_copied",
+  "bench_row_switched",
+  "game_solved",
+  "press_kit_downloaded",
+  "press_kit_opened",
+]
+  .map((e) => `'${e}'`)
+  .join(", ");

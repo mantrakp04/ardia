@@ -20,7 +20,7 @@ const stubs = {
 };
 registerHooks({
   resolve(specifier, context, next) {
-    if (!/\/state\/tabs\/(?:tabLifecycle|tabKeepAlive)\.ts$/.test(context.parentURL ?? "") || !(specifier in stubs)) return next(specifier, context);
+    if (!/\/state\/tabs\/(?:tabLifecycle|tabKeepAlive|recentTabWarmup)\.ts$/.test(context.parentURL ?? "") || !(specifier in stubs)) return next(specifier, context);
     return { url: `data:text/javascript,${encodeURIComponent(stubs[specifier])}`, shortCircuit: true };
   },
 });
@@ -28,6 +28,7 @@ registerHooks({
 const { useBrowser } = await import("../browser/store.ts");
 const { webviews } = await import("../../platform/webviews.ts");
 const lifecycle = await import("./tabLifecycle.ts");
+const { reloadRecentTabs } = await import("./recentTabWarmup.ts");
 
 const S = () => useBrowser.getState();
 
@@ -167,7 +168,7 @@ test("a recent pin queued for warming at launch stays closed when the user close
   useBrowser.setState({ tabs: { ...S().tabs, [pin]: cold(pin), [warm]: cold(warm) } });
   const sys = { physicalMemory: 32 * 2 ** 30, onBattery: false, lowPowerMode: false, memoryPressure: "normal" };
 
-  const queued = lifecycle.reloadRecentTabs(sys);
+  const queued = reloadRecentTabs(sys);
   assert.ok(queued.includes(pin) && queued.includes(warm));
   S().activate(pin);
   S().closeTab(pin);

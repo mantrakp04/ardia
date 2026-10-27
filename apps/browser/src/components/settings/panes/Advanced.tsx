@@ -7,8 +7,8 @@ import { useSettings } from "../../../state/browser/hooks";
 import { updateSettings } from "../../../state/settings/actions";
 import { openInternalPage } from "../../../state/pages/urls";
 import type { BatterySaverWhen } from "../../../state/settings/settings";
-import { Button, font, Group, PopUp, Toggle } from "../../ui";
-import { Row, SectionHeader } from "../Form";
+import { Button, font, PopUp, Toggle } from "../../ui";
+import { Group, Row, SectionHeader } from "../Form";
 import { engineVersion, widevine as widevineComponent } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
 

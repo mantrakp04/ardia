@@ -129,11 +129,13 @@ export const NewTabOpensBar: Scene = ({ g, look, p, opts }) => {
   );
 };
 
-export function newTabAt(top: boolean): Scene {
+export function newTabAt(at: "top" | "bottom" | "next"): Scene {
   return ({ g, look, p, opts }) => {
     const t = tracker(p, sceneMs.newTabPosition);
     const list = listTop(opts);
     const shift = { transform: [{ translateY: t([[200, 0], [520, ROW.pitch * g.s]]) }] };
+    const slot = at === "top" ? 0 : at === "next" ? 1 : 4;
+    const pushed = at === "next" ? 1 : 0;
     return (
       <Std
         g={g}
@@ -141,22 +143,23 @@ export function newTabAt(top: boolean): Scene {
         opts={opts}
         rows={
           <>
-            <Animated.View style={[fill, top ? shift : null]}>
-              <Highlight g={g} look={look} y={rowY(0, list)} style={{ opacity: t.out(280, 220) }} />
-              <Rows g={g} look={look} n={4} top={list} newTab={false} />
+            <Highlight g={g} look={look} y={rowY(0, list)} style={[at === "top" ? shift : null, { opacity: t.out(280, 220) }]} />
+            {pushed ? <Rows g={g} look={look} n={1} top={list} newTab={false} /> : null}
+            <Animated.View style={[fill, at === "bottom" ? null : shift]}>
+              <Rows g={g} look={look} from={pushed} n={4 - pushed} top={rowY(pushed, list)} newTab={false} />
             </Animated.View>
             <TabRow
               g={g}
               look={look}
               t={BLANK}
-              y={rowY(top ? 0 : 4, list)}
+              y={rowY(slot, list)}
               selected
               style={{
-                opacity: t.in(top ? 320 : 220, 240),
-                transform: top ? [{ translateX: t([[320, -12 * g.s], [620, 0]]) }] : [{ translateY: t([[220, -8 * g.s], [520, 0]]) }, { scale: t([[220, 0.96], [520, 1]]) }],
+                opacity: t.in(at === "bottom" ? 220 : 320, 240),
+                transform: at === "bottom" ? [{ translateY: t([[220, -8 * g.s], [520, 0]]) }, { scale: t([[220, 0.96], [520, 1]]) }] : [{ translateX: t([[320, -12 * g.s], [620, 0]]) }],
               }}
             />
-            <NewTabButton g={g} look={look} y={rowY(4, list)} style={shift} />
+            <NewTabButton g={g} look={look} y={rowY(4, list)} style={at === "bottom" ? null : shift} />
           </>
         }
       />

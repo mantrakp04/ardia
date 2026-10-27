@@ -1,0 +1,9 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/apps/site/src/scripts/meadow/**", "$TURBO_ROOT$/apps/site/src/scripts/meadowApp.ts", "$TURBO_ROOT$/apps/site/src/data/heroPoster.ts", "$TURBO_ROOT$/apps/site/src/assets/hero/**"]
+    }
+  }
+}

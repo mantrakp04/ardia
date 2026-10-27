@@ -75,6 +75,40 @@ export function useProfilesValue<T>(key: string, select: (profiles: BrowserState
   return value;
 }
 
+const lookWatchers = new Set<() => void>();
+let watchingLooks = false;
+
+function watchLooks(listener: () => void): () => void {
+  if (!watchingLooks) {
+    watchingLooks = true;
+    subscribeOf(useBrowser)((s, prev) => {
+      if (s.profiles !== prev.profiles || s.ui.appDark !== prev.ui.appDark || s.settings !== prev.settings) for (const l of [...lookWatchers]) l();
+    });
+  }
+  lookWatchers.add(listener);
+  return () => lookWatchers.delete(listener);
+}
+
+type LookInputs = { profile: BrowserState["profiles"][string] | undefined; appDark: boolean; settings: BrowserState["settings"] };
+
+type Look<T> = (profile: LookInputs["profile"], appDark: boolean, settings: LookInputs["settings"]) => T;
+
+function lookSnapshot<T>(profileId: string, look: Look<T>): () => T {
+  let seen: (LookInputs & { value: T }) | null = null;
+  return () => {
+    const s = useBrowser.getState();
+    const profile = s.profiles[profileId];
+    if (seen && seen.profile === profile && seen.appDark === s.ui.appDark && seen.settings === s.settings) return seen.value;
+    seen = { profile, appDark: s.ui.appDark, settings: s.settings, value: look(profile, s.ui.appDark, s.settings) };
+    return seen.value;
+  };
+}
+
+export function useLookValue<T>(profileId: string, look: Look<T>): T {
+  const get = useMemo(() => lookSnapshot(profileId, look), [profileId]);
+  return useSyncExternalStore(watchLooks, get);
+}
+
 export function useStoreWhile<S, T>(store: Readable<S>, live: boolean, select: (s: S) => T): T {
   return useSyncExternalStore(live ? subscribeOf(store) : inert, () => select(store.getState()));
 }

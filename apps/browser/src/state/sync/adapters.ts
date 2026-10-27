@@ -1,7 +1,7 @@
 import { addHistoryVisits, deleteHistoryUrls } from "../../platform/history";
-import { deletePassword, savePassword } from "../../platform/passwords";
+import { deletePassword } from "../../platform/passwords";
 import { orWarn } from "../../lib/fallback";
-import { assignPositions, SyncNative, type Adapter, type SavedLogin } from "../../platform/sync";
+import { assignPositions, SyncNative, type Adapter, type SealedLogin } from "../../platform/sync";
 import { bookmarkUuidFor, ensureRoots, isBookmarkUuid } from "../bookmarks/bookmarks";
 import { MAX_HISTORY, MAX_VISIT_TIMES } from "../history/history";
 import { useBrowser } from "../browser/store";
@@ -277,39 +277,40 @@ export function deviceTabsAdapter(profileId: string, deviceId: string, name: () 
   };
 }
 
-type PasswordValue = { o: string; u: string; p: string };
+type PasswordValue = { o: string; u: string; s: string };
 const PASSWORD_READ_INTERVAL = 30_000;
 
-export function passwordsAdapter(
-  profileId: string,
-  forced: () => boolean,
-  readLogins: (engineProfile: string) => Promise<SavedLogin[] | null | undefined> = async (p) => SyncNative?.readPasswords(p),
-): Adapter {
+export type SealedPasswords = {
+  read: (engineProfile: string) => Promise<SealedLogin[] | null | undefined>;
+  save: (engineProfile: string, origin: string, username: string, sealed: string, replacing: boolean) => Promise<boolean>;
+};
+
+const nativePasswords: SealedPasswords = {
+  read: async (p) => SyncNative?.readPasswords(p),
+  save: async (p, origin, username, sealed, replacing) => !!(await SyncNative?.savePassword(p, origin, username, sealed, replacing)),
+};
+
+export function passwordsAdapter(profileId: string, forced: () => boolean, logins: SealedPasswords = nativePasswords): Adapter {
   let lastRead = 0;
   let quietUntil = 0;
   let created = new Map<string, number>();
   const profile = () => engineProfile(profileId);
-  const keyOf = (origin: string, username: string) => `pw:${origin}\n${username}`;
+  const keyOf = (origin: string, username: string) => `pws:${origin}\n${username}`;
   const read = async () => {
-    const logins = await readLogins(profile());
-    if (!logins) return null;
-    const out = new Map<string, PasswordValue & { c: number }>();
-    for (const l of logins) {
-      const origin = originOf(l);
-      if (origin) out.set(keyOf(origin, l.username), { o: origin, u: l.username, p: l.password, c: l.created });
-    }
-    return out;
+    const list = await logins.read(profile());
+    if (!list) return null;
+    return new Map(list.map((l) => [keyOf(l.origin, l.username), { o: l.origin, u: l.username, s: l.sealed, c: l.created }] as const));
   };
   return {
-    prefix: "pw:",
+    prefix: "pws:",
     extract: async () => {
       const now = Date.now();
       if (now < quietUntil || (now - lastRead < PASSWORD_READ_INTERVAL && !forced())) return null;
-      const logins = await read();
-      if (!logins) return null;
+      const local = await read();
+      if (!local) return null;
       lastRead = now;
-      created = new Map([...logins].map(([k, v]) => [k, v.c]));
-      return { values: new Map([...logins].map(([k, { o, u, p }]) => [k, { o, u, p } satisfies PasswordValue])) };
+      created = new Map([...local].map(([k, v]) => [k, v.c]));
+      return { values: new Map([...local].map(([k, { o, u, s }]) => [k, { o, u, s } satisfies PasswordValue])) };
     },
     editedAt: (v) => created.get(keyOf((v as PasswordValue).o, (v as PasswordValue).u)) || undefined,
     apply: async (visible, changed, base) => {
@@ -320,29 +321,22 @@ export function passwordsAdapter(
         const v = visible.get(key) as PasswordValue | undefined;
         const have = local.get(key);
         const known = base(key) as PasswordValue | undefined;
-        if (have && known?.p !== have.p) continue;
-        const [origin, username] = [key.slice(3, key.indexOf("\n")), key.slice(key.indexOf("\n") + 1)];
+        if (have && known?.s !== have.s) continue;
         if (v) {
-          if (have?.p === v.p) continue;
-          if (have) ok = (await deletePassword(profile(), origin, username).catch(orWarn(false))) && ok;
-          ok = (await savePassword(profile(), v.o, v.u, v.p).catch(orWarn(false))) && ok;
+          if (have?.s === v.s) continue;
+          ok = (await logins.save(profile(), v.o, v.u, v.s, !!have).catch(orWarn(false))) && ok;
         } else if (have) {
-          ok = (await deletePassword(profile(), origin, username).catch(orWarn(false))) && ok;
+          ok = (await deletePassword(profile(), have.o, have.u).catch(orWarn(false))) && ok;
         }
       }
       let settled = false;
       for (let i = 0; i < 20 && !settled; i++) {
         const now = await read();
-        settled = !!now && [...changed].every((k) => (visible.get(k) as PasswordValue | undefined)?.p === now.get(k)?.p);
+        settled = !!now && [...changed].every((k) => (visible.get(k) as PasswordValue | undefined)?.s === now.get(k)?.s);
         if (!settled) await new Promise((r) => setTimeout(r, 250));
       }
       if (!settled) quietUntil = Date.now() + 30_000;
       return ok;
     },
   };
-}
-
-function originOf(login: SavedLogin): string | null {
-  const realm = login.origin.replace(/\/$/, "");
-  return /^https?:\/\/[^/\s]+$/.test(realm) ? realm : null;
 }

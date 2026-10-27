@@ -13,6 +13,6 @@ export function classifyNoise(where: string, message: string, list: string, user
   if (/Non-Error promise rejection captured with value: \{\}/.test(message)) return "Safari empty rejection";
   if (/ResizeObserver loop/.test(message)) return "ResizeObserver";
   if (/Load failed|Failed to fetch|NetworkError|network error/i.test(message)) return "Network drop";
-  if (/wallet|ethereum|solana|metamask/i.test(message)) return "Wallet extension";
+  if (/wallet|ethereum|solana|metamask|LavaMoat/i.test(message)) return "Wallet extension";
   return null;
 }

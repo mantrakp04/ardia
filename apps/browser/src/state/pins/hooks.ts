@@ -1,7 +1,6 @@
 import { useShallow } from "zustand/react/shallow";
 import { useBrowser } from "../browser/store";
 import { activeTabId } from "../browser/model";
-import { isPageUnloaded } from "./pinShare";
 import { folderIn, folderLabel, folderMembers, tileFolderOf } from "./tileFolders";
 
 export const useTileFolderMembers = (windowId: string, folderId: string) => useBrowser(useShallow((s) => folderMembers(s, windowId, folderId)));
@@ -21,5 +20,3 @@ export const useSelectionInGroup = (windowId: string, groupId: string) =>
     const selection = s.selection[windowId];
     return !!selection?.length && !!s.groups[groupId]?.tabIds.some((id) => selection.includes(id));
   });
-
-export const useFadesUnloaded = (tabId: string | undefined) => useBrowser((s) => s.settings.fadeUnloadedTabs && !!tabId && isPageUnloaded(s, tabId));

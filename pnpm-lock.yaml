@@ -180,7 +180,11 @@ importers:
 
   packages/import: {}
 
-  packages/shaders: {}
+  packages/shaders:
+    devDependencies:
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
 
   packages/shell: {}
 

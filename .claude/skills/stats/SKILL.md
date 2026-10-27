@@ -13,7 +13,8 @@ node scripts/stats.mjs --since "8:30pm IST" # or 6h, 2d, 1w, "21:00 UTC", "2026-
 ```
 
 It takes about a second and prints the finished report: users and installs (daily, weekly and monthly active
-copies and new installs from the app's anonymous daily count, plus update checks), the site, phones, GitHub,
+copies and new installs from the app's anonymous daily count, with the copies on older versions that don't
+send it estimated from update checks and the share the count covers), the site, phones, GitHub,
 errors (real ones apart from known noise), and what changed since the last run. Relay it as it is, trimmed
 to what was asked, and add a line only for what needs the owner. When they ask for a visual (chart, graph,
 "show me"), call `html_render` with the `html` and `height` from the report's last line; it's an SVG the

@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { ScrollView, StyleSheet, View, type LayoutChangeEvent } from "react-native";
-import { previousStep, STEPS, useOnboarding } from "../../state/onboarding/onboarding";
+import { activeSteps, previousStep, useOnboarding } from "../../state/onboarding/onboarding";
 import { BackButton, PrimaryButton, SecondaryButton } from "./Buttons";
 import { CONTENT_WIDTH } from "./ChoiceList";
 import { Reveal, StepProgress, StepTitle, useOnboardingColors } from "./Parts";
@@ -49,15 +49,9 @@ export function StepLayout({
       <Reveal>
         <StepProgress />
       </Reveal>
-      {narrow ? (
-        <ScrollView key={pageKey} style={{ flex: 1, marginTop: 20 }}>
-          {body}
-        </ScrollView>
-      ) : (
-        <View key={pageKey} style={{ flex: 1, marginTop: 20, overflow: "hidden" }}>
-          {body}
-        </View>
-      )}
+      <ScrollView key={pageKey} style={{ flex: 1, marginTop: 20 }} showsVerticalScrollIndicator={false}>
+        {body}
+      </ScrollView>
       <Reveal delay={240} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingTop: 14 }}>
         {actions}
       </Reveal>
@@ -124,7 +118,8 @@ export function StepActions({
   const step = useOnboarding((s) => s.step);
   const sub = useOnboarding((s) => s.sub);
   const back = previousStep;
-  const first = STEPS[STEPS.indexOf(step) - 1] === "intro" && sub === 0;
+  const steps = activeSteps();
+  const first = steps[steps.indexOf(step) - 1] === "intro" && sub === 0;
   return (
     <>
       {first ? null : <BackButton onPress={back} />}

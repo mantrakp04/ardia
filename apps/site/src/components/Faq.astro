@@ -1,5 +1,6 @@
 ---
 import { FAQ } from "../data/faq";
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 ---
 
 <section class="faq paint edge edge-b" id="faq" aria-labelledby="faq-title" data-shot="press">
@@ -15,7 +16,17 @@ import { FAQ } from "../data/faq";
         FAQ.map((q) => (
           <div class="item" id={q.id}>
             <dt>{q.question}</dt>
-            <dd>{q.answer}</dd>
+            <dd>
+              {q.answer}
+              {q.more && (
+                <>
+                  {" "}
+                  <a class="link" href={`${base}/${q.more.path}`}>
+                    {q.more.label}
+                  </a>
+                </>
+              )}
+            </dd>
           </div>
         ))
       }

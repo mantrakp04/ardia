@@ -154,7 +154,9 @@ export function Stat({ label, value, sub, delta, source }: { label: string; valu
 
 const FUNNEL_RAMP = ["var(--chart-1)", "color-mix(in oklab, var(--chart-1) 78%, var(--card))", "color-mix(in oklab, var(--chart-1) 58%, var(--card))", "color-mix(in oklab, var(--chart-1) 42%, var(--card))"];
 
-export function Funnel({ steps, note }: { steps: { key: string; label: string; value: number | null; display?: string }[]; note?: ReactNode }) {
+export type FunnelStep = { key: string; label: string; value: number | null; display?: string; previous?: number | null; source?: Source | Source[] };
+
+export function Funnel({ steps, note }: { steps: FunnelStep[]; note?: ReactNode }) {
   const first = steps[0]?.value ?? 0;
   return (
     <div className="grid gap-3">
@@ -163,12 +165,18 @@ export function Funnel({ steps, note }: { steps: { key: string; label: string; v
           const prev = i > 0 ? steps[i - 1]!.value : null;
           const share = first && step.value !== null ? step.value / first : null;
           const conversion = prev && step.value !== null ? step.value / prev : null;
+          const before = i > 0 ? steps[i - 1]!.previous : null;
+          const previousConversion = before && step.previous != null ? step.previous / before : null;
           return (
             <li key={step.key} className="grid gap-1">
-              <div className="flex items-baseline justify-between gap-3 text-sm">
-                <span className="truncate">{step.label}</span>
-                <span className="flex shrink-0 items-baseline gap-3 tnum">
-                  {i > 0 ? <span className="text-xs text-muted-foreground">{formatPercent(conversion)} of previous</span> : null}
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate">{step.label}</span>
+                  <SourceBadges source={step.source} />
+                </span>
+                <span className="ml-auto flex shrink-0 items-center gap-2 tnum sm:gap-3">
+                  {i > 0 && previousConversion !== null ? <Delta value={conversion} previous={previousConversion} format="percent" /> : null}
+                  {i > 0 ? <span className="text-xs text-muted-foreground">{formatPercent(conversion)}<span className="hidden sm:inline"> of previous</span></span> : null}
                   <span className="font-semibold">{step.display ?? formatExact(step.value)}</span>
                 </span>
               </div>

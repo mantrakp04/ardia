@@ -7,8 +7,10 @@ public class DockSelectionModule: Module {
     Name("ArdiaDockSelection")
 
     AsyncFunction("iconTheme") { (uri: String?, emoji: String?) -> [String: Any]? in
-      guard let image = IconSource(uri: uri, emoji: emoji)?.load() else { return nil }
-      return IconTheme.generate(image)?.json
+      guard let source = IconSource(uri: uri, emoji: emoji), let image = source.load() else { return nil }
+      let theme = IconTheme.generate(image)
+      if case .blur? = theme, let blurred = BlurredIcon.of(source) { _ = GlassGlow.of(source, blurred: blurred.plain) }
+      return theme?.json
     }
 
     View(DockSelection.self) {
@@ -22,6 +24,7 @@ public class DockSelectionModule: Module {
       Prop("dark") { (view: DockSelection, v: Bool) in view.dark = v }
       Prop("iconSize") { (view: DockSelection, v: Double) in view.iconSize = v }
       Prop("glass") { (view: DockSelection, v: Bool?) in view.glass = v ?? false }
+      Prop("colorRing") { (view: DockSelection, v: Bool?) in view.colorRing = v ?? false }
     }
   }
 }

@@ -1,4 +1,5 @@
 import { requireNativeViewManager, requireOptionalNativeModule } from "expo-modules-core";
+import type { ComponentType } from "react";
 import { View, type ViewProps } from "react-native";
 
 export const DIA_SPECTRUM = ["#0358F7", "#5092C7", "#E1E1FE", "#FFD400", "#FA3D1D", "#FD02F5"];
@@ -77,4 +78,32 @@ const NativeThemeSwatch = hasThemeSwatch ? requireNativeViewManager<ThemeSwatchP
 export function ThemeSwatch({ grain = 0, padLightness = -1, angle = 135, style, ...props }: ThemeSwatchProps) {
   if (!NativeThemeSwatch) return <View pointerEvents="none" style={[style, { backgroundColor: "#80808040" }]} />;
   return <NativeThemeSwatch pointerEvents="none" grain={grain} padLightness={padLightness} angle={angle} style={style} {...props} />;
+}
+
+export type MeadowTone = { tone: "light" | "dark"; halo: number };
+
+const MEADOW_INK = {
+  light: { ink: "#16130F", halo: [243, 236, 223] },
+  dark: { ink: "#EFE8DC", halo: [18, 16, 26] },
+} as const;
+
+export function meadowTextStyle({ tone, halo }: MeadowTone) {
+  const { ink, halo: rgb } = MEADOW_INK[tone];
+  return {
+    color: ink,
+    textShadowColor: `rgba(${rgb.join(",")},${Math.min(1, Math.max(0, halo))})`,
+    textShadowRadius: 2,
+    textShadowOffset: { width: 0, height: 0 },
+  };
+}
+
+export type MeadowProps = ViewProps & { night: boolean; onTone?: (tone: MeadowTone) => void };
+
+type NativeMeadowProps = ViewProps & { night: boolean; onTone?: (event: { nativeEvent: MeadowTone }) => void };
+
+let NativeMeadow: ComponentType<NativeMeadowProps> | null = null;
+
+export function Meadow({ onTone, ...props }: MeadowProps) {
+  NativeMeadow ??= requireNativeViewManager<NativeMeadowProps>("ArdiaMeadow");
+  return <NativeMeadow pointerEvents="none" {...props} onTone={onTone ? (event) => onTone(event.nativeEvent) : undefined} />;
 }

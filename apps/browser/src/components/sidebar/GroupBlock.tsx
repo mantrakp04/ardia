@@ -19,7 +19,7 @@ import { entryHeightNow, foldedGroupHeight, headGap } from "../../state/sidebar/
 import { dismissHover, useGroupHover, useRowHover } from "../../state/sidebar/hover";
 import { HOVER_CARD_FADE_MS } from "./hoverMotion";
 import { GhostSlot, ListMotionContext, useGroupMotion } from "./ListMotion";
-import { pressGroupClose, useGroupCloseControl } from "../../state/sidebar/closeControl";
+import { pressGroupClose, useGroupCloseControlWhile } from "../../state/sidebar/closeControl";
 import { openGroupMenu } from "../../state/sidebar/menus";
 import { groupColorMenu } from "./groupColorMenu";
 import { registerRow, useSidebarUi } from "../../state/sidebar/sidebarUi";
@@ -161,7 +161,7 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
   const dropInto = useDropInto() === groupId;
   const { hovered, hoverProps } = useRowHover(windowId, collapsed && !renaming ? { kind: "group", id: groupId } : null);
   const countdown = useMeetingCountdown(groupId);
-  const closeControl = useGroupCloseControl(groupId);
+  const closeControl = useGroupCloseControlWhile(groupId, hovered && !renaming);
   if (!group) return null;
   const target = { kind: "group" as const, id: groupId };
 

@@ -3,7 +3,6 @@ import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
 import { space, useTheme, VisualEffect, WindowDragRegion } from "../ui";
 import type { Step } from "./model";
 import { ChooseBody, ChooseFooter } from "./steps/ChooseStep";
-import { DiaBody, DiaFooter } from "./steps/DiaStep";
 import { DoneBody, DoneFooter } from "./steps/DoneStep";
 import { ProfilesBody, ProfilesFooter } from "./steps/ProfilesStep";
 import { ProgressBody, ProgressFooter } from "./steps/ProgressStep";
@@ -25,7 +24,6 @@ const STEPS: Record<Step, { Body: StepView; Footer: StepView | null }> = {
   unlock: { Body: UnlockBody, Footer: UnlockFooter },
   safari: { Body: SafariBody, Footer: SafariFooter },
   access: { Body: AccessBody, Footer: AccessFooter },
-  dia: { Body: DiaBody, Footer: DiaFooter },
   progress: { Body: ProgressBody, Footer: ProgressFooter },
   done: { Body: DoneBody, Footer: DoneFooter },
 };

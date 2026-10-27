@@ -5,9 +5,8 @@ import { Symbol } from "../ui";
 import { useTheme } from "../ui/theme";
 import { sidebarTokens } from "./tokens";
 import { useTab } from "../../state/browser/hooks";
-import { ENGINE_NAMES, ENGINE_SYMBOLS } from "../../state/engines/engines";
-import { useEngineMark } from "../../state/engines/hooks";
-import { useFadesUnloaded } from "../../state/pins/hooks";
+import { ENGINE_NAMES, ENGINE_SYMBOLS, type PageEngine } from "../../state/engines/engines";
+import { FADED, markedEngine, useIconMarks } from "../../state/sidebar/rowState";
 import { NO_GROUP_ICON, SYMBOL_PREFIX } from "../../state/groups/groupIcons";
 import { Favicon } from "../favicon/Favicon";
 
@@ -20,6 +19,7 @@ export const TabIcon = memo(function TabIcon({
   color,
   profileId: profile,
   direct,
+  marks: givenMarks,
 }: {
   tabId?: string;
   url: string;
@@ -29,22 +29,22 @@ export const TabIcon = memo(function TabIcon({
   color?: string;
   profileId?: string;
   direct?: boolean;
+  marks?: number;
 }) {
   const sleeping = useIsSleeping(tabId ?? "");
-  const unloaded = useFadesUnloaded(tabId);
+  const marks = useIconMarks(tabId, givenMarks);
+  const engine = tabId && size >= 14 ? markedEngine(marks) : null;
   const props = { url, favicon, icon, size, color, direct };
   return (
-    <View style={{ opacity: sleeping || unloaded ? SLEEPING_OPACITY : 1 }}>
+    <View style={{ opacity: sleeping || marks & FADED ? SLEEPING_OPACITY : 1 }}>
       {profile || !tabId ? <Icon {...props} profileId={profile} /> : <TabProfileIcon {...props} tabId={tabId} />}
-      {tabId && size >= 14 ? <EngineMark tabId={tabId} size={size} /> : null}
+      {engine ? <EngineMark mark={engine} size={size} /> : null}
     </View>
   );
 });
 
-function EngineMark({ tabId, size }: { tabId: string; size: number }) {
+function EngineMark({ mark, size }: { mark: PageEngine; size: number }) {
   const theme = useTheme();
-  const mark = useEngineMark(tabId);
-  if (!mark) return null;
   const box = Math.round(size * 0.6);
   return (
     <View

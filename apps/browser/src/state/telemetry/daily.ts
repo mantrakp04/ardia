@@ -1,7 +1,8 @@
 import { readDocument, saveDocument } from "../../platform/documents";
 import { updaterState } from "../../platform/app";
 import { devTestValue } from "../../platform/launchConfig";
-import { appInfo, environment, logRequest, uuidv4, type RequestLogEntry } from "./client";
+import { appInfo, environment, uuidv4 } from "./client";
+import { logRequest, type RequestLogEntry } from "./requestLog";
 import { DEV_SEND_TEST_KEY, LOGS_URL } from "./config";
 import { EVENTS_SCOPE, eventRecord, logsRequest, outcome } from "./otlp";
 import { parseSaved, versionedJson, unchanged, type Migrations } from "../../lib/savedDocument";

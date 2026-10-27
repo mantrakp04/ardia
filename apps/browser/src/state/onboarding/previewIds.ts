@@ -9,6 +9,7 @@ export type PreviewId =
   | "newtab-commandbar"
   | "newtabpos-bottom"
   | "newtabpos-top"
+  | "newtabpos-next"
   | "tidy-keep"
   | "tidy-auto"
   | "quit-restore"
@@ -38,6 +39,7 @@ export const PREVIEW_IDS: readonly PreviewId[] = [
   "newtab-commandbar",
   "newtabpos-bottom",
   "newtabpos-top",
+  "newtabpos-next",
   "tidy-keep",
   "tidy-auto",
   "quit-restore",

@@ -249,7 +249,7 @@ extension AppUpdater: SPUUpdaterDelegate {
   }
 
   public func updater(_ updater: SPUUpdater, willInstallUpdateOnQuit item: SUAppcastItem, immediateInstallationBlock immediateInstallHandler: @escaping () -> Void) -> Bool {
-    if LaunchConfig.shared.switchOn("updatePrewarm") { UpdatePrewarm.start(version: item.versionString) }
+    UpdatePrewarm.start(version: item.versionString)
     return false
   }
 }
