@@ -7,7 +7,7 @@ import { layout, useTheme } from "../ui/theme";
 import { lineHeight } from "../ui/tokens";
 import { useLiveColors } from "../live/tokens";
 import { Fold, useFold } from "./Fold";
-import { useLiveTabOpen } from "../../state/sidebar/hooks";
+import { useStackTabOpen } from "../../state/sidebar/hooks";
 import { LiveItemRow } from "./LiveItemRow";
 import { RefreshSpinner } from "./RefreshSpinner";
 import { SectionLabel } from "./SectionLabel";
@@ -78,7 +78,7 @@ export function StackRow({ folderId, windowId, stack }: { folderId: string; wind
   const collapsed = useLive((s) => s.expandedStacks[stack.id] === false);
   const fold = useFold(collapsed);
   const { hovered, hoverProps } = useHover();
-  const tabOpen = useLiveTabOpen(folderId, stack.items.map((it) => it.id));
+  const tabOpen = useStackTabOpen(folderId, stack.id);
   const repo = stack.repo.split("/")[1] ?? stack.repo;
   return (
     <View>
