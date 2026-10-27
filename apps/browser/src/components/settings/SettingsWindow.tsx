@@ -5,6 +5,8 @@ import { useTheme } from "../ui/theme";
 import { useProfile, useSettings } from "../../state/browser/hooks";
 import { updateSettings } from "../../state/settings/actions";
 import { trackSettingsSection } from "../../state/telemetry/track";
+import { setTrafficLightsCenter } from "../../state/windows/nativeWindow";
+import { SETTINGS_WINDOW_ID } from "../../state/settings/settingsWindows";
 import { preparePane, usePaneLoaded } from "../../state/settings/paneData";
 import { anchorView, clearSettingsReveal, flashSetting, settingsSectionKey, useSettingsSearch } from "../../state/settings/searchState";
 import { ADVANCED_PANES, PANES, setting } from "./settingsIndex";
@@ -33,6 +35,7 @@ import { useSettingsColors } from "./useSettingsColors";
 
 const SIDEBAR = 214;
 const TOOLBAR = 52;
+const LIGHTS_CENTER: [number, number] = [25, TOOLBAR / 2];
 const HOLD_CAP_MS = 250;
 const REVEAL_MARGIN = 16;
 
@@ -75,6 +78,7 @@ export function SettingsWindow() {
   const title = shown ? (shown.pane === "profiles" && profileName ? profileName : PANES.find((p) => p.id === shown.pane)!.title) : "";
   const sheet = useSettingsSheet((s) => s.sheet);
   useEffect(() => trackSettingsSection(nav.pane), [nav.pane]);
+  useEffect(() => void setTrafficLightsCenter(SETTINGS_WINDOW_ID, LIGHTS_CENTER), []);
   const scroller = useRef<ScrollView>(null);
   const key = shown ? shownKey(shown) : "";
   useLayoutEffect(() => scroller.current?.scrollTo({ y: 0, animated: false }), [key]);

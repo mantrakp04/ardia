@@ -121,7 +121,9 @@ export function BlockedPopupsPrompt({ tabId, right, left, top }: { tabId: string
             }}
           />
         </PromptBody>
-        <MenuSeparator />
+        <View style={{ marginTop: PANEL.rowInset - PANEL.inset }}>
+          <MenuSeparator />
+        </View>
         {popups.slice(-5).map((p) => (
           <MenuRow
             key={p.id}

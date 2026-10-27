@@ -119,7 +119,7 @@ export function PrivacyPane() {
       <AppLinks />
       <ZoomLevels />
       {blocker && (
-        <Text style={{ marginTop: 14, ...font.footnote, color: theme.textTertiary }}>
+        <Text style={{ marginTop: 14, paddingHorizontal: 12, ...font.footnote, color: theme.textTertiary }}>
           {`${(blocker.stats.networkFilters ?? 0).toLocaleString()} network and ${(blocker.stats.cosmeticFilters ?? 0).toLocaleString()} cosmetic rules loaded.`}
         </Text>
       )}
@@ -163,7 +163,7 @@ function FilterListsSheet() {
           );
         })}
       </ScrollView>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 16 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 18 }}>
         <Text style={{ flex: 1, ...font.footnote, color: theme.textTertiary }}>
           {blocker?.version ? `Blocking by uBlock Origin ${blocker.version}, included with Ardia. Its lists update on their own.` : ""}
         </Text>
@@ -341,7 +341,7 @@ function SiteSheet({ profileId, origin, onChanged }: { profileId: string; origin
           ))}
         </Group>
       </ScrollView>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 16 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 18 }}>
         <Button
           title="Reset Permissions"
           onPress={() =>

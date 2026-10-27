@@ -73,7 +73,7 @@ export const TabsTop: Scene = ({ g, look, p }) => {
       <Backdrop g={g} look={look} />
       <Lights g={g} y={LIGHTS_Y.strip} x={20.75} />
       <Card g={g} look={look} rect={c}>
-        <Toolbar g={g} look={look} w={c.w} t={tab(0)} crumb={false} icons={[21, 56, 92]} />
+        <Toolbar g={g} look={look} w={c.w} t={tab(0)} crumb={false} icons={[20, 55, 90]} />
         <SwapCrumb g={g} look={look} t={t} a={tab(0)} b={tab(2)} ms={660} x={118} y={12} />
         <Animated.View style={[fill, { opacity: t.out(660, 200) }]}>
           <Page g={g} look={look} top={TOOLBAR_H} />

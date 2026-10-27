@@ -43,6 +43,7 @@ NSPoint LightsCenter(NSValue *center, NSSize size);
 void TranslateTrafficLights(NSWindow *window, CGFloat dx);
 void RetileTrafficLights(NSWindow *window);
 bool MoveTrafficLights(NSWindow *window, NSValue *center);
+void InsetTrafficLightsOnce(NSWindow *window);
 
 void WatchFullScreenLights(NSWindow *window);
 void PlaceFullScreenLights(NSWindow *window);

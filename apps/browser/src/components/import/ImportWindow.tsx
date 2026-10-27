@@ -44,7 +44,7 @@ export function ImportWindow() {
           flexDirection: "row",
           alignItems: "center",
           gap: space.m,
-          paddingHorizontal: space.xxl,
+          paddingHorizontal: importLayout.padX,
           height: importLayout.footerHeight,
           borderTopWidth: StyleSheet.hairlineWidth * 2,
           borderTopColor: theme.divider,

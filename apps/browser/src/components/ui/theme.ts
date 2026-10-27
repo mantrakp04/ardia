@@ -156,7 +156,7 @@ export const layout = {
   cardRadius: 10,
   toolbarHeight: 41,
   toolbarButton: 30,
-  toolbarIconCenters: [21, 56, 92, 127],
+  toolbarIconCenters: [20, 55, 90, 125],
   breadcrumbX: 153,
   trafficLightsWidth: 78,
 } as const;

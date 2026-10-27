@@ -75,6 +75,7 @@ export function CircleButton({
   size,
   symbolWeight,
   box,
+  iconOffset = 0,
   tooltip,
   onPress,
 }: {
@@ -83,6 +84,7 @@ export function CircleButton({
   size: number;
   symbolWeight: SymbolProps["weight"];
   box: number;
+  iconOffset?: number;
   tooltip?: string;
   onPress: () => void;
 }) {
@@ -102,7 +104,7 @@ export function CircleButton({
             borderColor: colors.noThanksBorder,
           }}
         >
-          <Symbol name={icon} size={size} weight={symbolWeight} color={colors.noThanksText} style={{ width: box, height: box }} />
+          <Symbol name={icon} size={size} weight={symbolWeight} color={colors.noThanksText} style={{ width: box, height: box, marginLeft: iconOffset }} />
         </View>
       )}
     </PressScale>
@@ -110,5 +112,5 @@ export function CircleButton({
 }
 
 export function BackButton({ onPress }: { onPress: () => void }) {
-  return <CircleButton title="Back" icon="chevron.left" size={12} symbolWeight="semibold" box={14} onPress={onPress} />;
+  return <CircleButton title="Back" icon="chevron.left" size={12} symbolWeight="semibold" box={14} iconOffset={3} onPress={onPress} />;
 }

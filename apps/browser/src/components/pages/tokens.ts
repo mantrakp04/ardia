@@ -28,7 +28,7 @@ export const pageList = { endPad: 40 } as const;
 
 export const downloadCard = { iconSize: 36, textGap: 3, progressHeight: 3, progressRadius: 1.5, progressTop: 3, progressMin: 0.03, menuBox: 26 } as const;
 
-export const historyRow = { height: 38, header: 44, headerInset: 30, timeWidth: 64, hostMaxWidth: 220, checkbox: 14, menuBox: 26, scrollSettleMs: 150 } as const;
+export const historyRow = { height: 38, header: 44, headerInset: 28, timeWidth: 64, hostMaxWidth: 220, checkbox: 14, menuBox: 26, scrollSettleMs: 150 } as const;
 
 export const bookmarkList = { row: 36, treeWidth: 230, treeRow: 28, headerHeight: 40, menuBox: 24, dropLine: 2, dropLineRadius: 1, folderIcon: 14, folderIconBox: 16, dragOpacity: 0.85, emptyIcon: 26, emptyIconBox: 36 } as const;
 

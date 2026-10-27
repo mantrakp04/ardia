@@ -99,6 +99,7 @@ NSView *ArdiaWindowRootView(NSWindow *window) {
   NSValue *current = objc_getAssociatedObject(window, kLightsCenterKey);
   if (current == center || [current isEqual:center]) return;
   objc_setAssociatedObject(window, kLightsCenterKey, center, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  if (center) InsetTrafficLightsOnce(window);
   RetileTrafficLights(window);
   PlaceFullScreenLights(window);
 }

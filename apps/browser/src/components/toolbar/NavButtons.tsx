@@ -10,7 +10,7 @@ import { closeHistoryMenu, goBack, goForward, historyItems, toggleHistoryMenu } 
 import { openModeFor, openUrl } from "../../state/bookmarks/actions";
 import type { ToolbarPalette } from "../ui/toolbarColors";
 import { useShortcutHint, withShortcut } from "../../state/commands/commandShortcuts";
-import { GLYPH } from "./tokens";
+import { CHEVRON_INSET, GLYPH } from "./tokens";
 
 export const ReloadButton = memo(function ReloadButton({
   tab,
@@ -86,6 +86,7 @@ export const HistoryButton = memo(function HistoryButton({
         palette={palette}
         icon={direction < 0 ? "chevron.left" : "chevron.right"}
         size={GLYPH}
+        glyphOffset={{ x: -direction * CHEVRON_INSET.x, y: CHEVRON_INSET.y }}
         hit={hit}
         disabled={disabled}
         onPress={onPress}

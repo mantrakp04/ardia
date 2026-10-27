@@ -39,7 +39,7 @@ export function ProfilesPane() {
 
   return (
     <View>
-      <Text style={{ marginTop: 20, ...settingsType.lead, lineHeight: 17, color: theme.textSecondary }}>
+      <Text style={{ marginTop: 22, paddingHorizontal: 12, ...settingsType.lead, lineHeight: 17, color: theme.textSecondary }}>
         Profiles keep your browsing organized. Each keeps its own history, logins, cookies, and extensions, unless you turn on Share data
         when you create it: then it uses another profile's, and only the tabs are its own.
       </Text>

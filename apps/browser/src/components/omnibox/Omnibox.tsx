@@ -337,7 +337,7 @@ export function Omnibox({
       items={items}
       selectedIndex={selectedIndex}
       trailing={tabScope ? `Search ${tabScope.name}  ⇥` : null}
-      dropdown={dropdown}
+      variant={variant}
       actions={rowActions}
     />
   );
@@ -367,7 +367,7 @@ export function Omnibox({
       bottom={
         <BottomRow
           hero={hero}
-          addChip={<AddChip onPress={barActions.openTabOrFile} />}
+          addChip={<AddChip large={hero} onPress={barActions.openTabOrFile} />}
           onDictate={barActions.dictate}
           label={destinationLabel(current)}
           enabled={!hero || !!typed.trim()}

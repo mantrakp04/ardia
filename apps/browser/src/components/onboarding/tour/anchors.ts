@@ -1,5 +1,6 @@
 import type { View } from "react-native";
 import { layout } from "../../ui/theme";
+import { TOOLBAR_LINE } from "../../toolbar/tokens";
 import { toolbarGeometry, type Rect } from "../../window/geometry";
 import { setTourAnchorLocator, tourWindowFacts, type TourAnchor } from "../../../state/onboarding/tour";
 import { measureRow } from "../../../state/sidebar/sidebarUi";
@@ -34,7 +35,7 @@ export async function locateAnchor(windowId: string, id: TourAnchor): Promise<Re
       const g = toolbarGeometry({ sidebarButton: true });
       if (g.sidebarButton === null) return null;
       const size = layout.toolbarButton;
-      return { x: url.left - g.urlLeft + g.sidebarButton - size / 2, y: url.top + 21.2 - size / 2, width: size, height: size };
+      return { x: url.left - g.urlLeft + g.sidebarButton - size / 2, y: url.top + TOOLBAR_LINE - size / 2, width: size, height: size };
     }
   }
 }

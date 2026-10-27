@@ -8,6 +8,9 @@ import { GlassBacking, solidFill, useSiteRing } from "./GlassBacking";
 import { SelectTile, useOnboardingColors } from "./Parts";
 import { StepActions, StepLayout } from "./StepLayout";
 import { trafficLights } from "./tokens";
+import { CONTENT_WIDTH } from "./ChoiceList";
+
+const PIN_TILE = (CONTENT_WIDTH - 8 * 3) / 4;
 
 export function PinnedTabsStep() {
   const windowId = useOnboarding((s) => s.windowId);
@@ -50,7 +53,7 @@ export function PinnedTabsStep() {
 function SiteTile({ title, url, selected, onPress }: { title: string; url: string; selected: boolean; onPress: () => void }) {
   const ring = useSiteRing(url, selected);
   return (
-    <SelectTile title={title} width={80} height={70} gap={7} checkSize={14} selected={selected} role="checkbox" ring={ring} onPress={onPress}>
+    <SelectTile title={title} width={PIN_TILE} height={70} gap={7} checkSize={14} selected={selected} role="checkbox" ring={ring} onPress={onPress}>
       {(hovered) => (
         <View style={{ opacity: selected || hovered ? 1 : 0.7 }}>
           <SiteLogo url={url} size={22} />

@@ -53,8 +53,10 @@ export function CastPicker({ tabId, paneWidth }: { tabId: string; paneWidth: num
             ))}
           </ScrollView>
         ) : (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: space.m, paddingHorizontal: PANEL.inset, paddingTop: space.xs, paddingBottom: space.xs }}>
-            <ActivityIndicator size="small" style={{ transform: [{ scale: 0.6 }], width: 14, height: 14 }} />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: PANEL.iconGap, paddingHorizontal: PANEL.inset, paddingTop: space.xs, paddingBottom: space.xs }}>
+            <View style={{ width: PANEL.iconSlot, alignItems: "center" }}>
+              <ActivityIndicator size="small" style={{ transform: [{ scale: 0.6 }], width: 14, height: 14 }} />
+            </View>
             <Text size="small" tone="textSecondary" style={FLEX}>
               Looking for devices… Cast devices need to be on the same Wi‑Fi network as this Mac.
             </Text>

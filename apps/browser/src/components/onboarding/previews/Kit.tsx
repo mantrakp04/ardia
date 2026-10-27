@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Animated, Text, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import { Surface, Symbol } from "../../ui";
 import { hex } from "../../ui/theme";
+import { TOOLBAR_LINE } from "../../toolbar/tokens";
 import type { ToolbarPalette } from "../../ui/toolbarColors";
 import { trafficLights } from "../tokens";
 import { NEW_TAB, tab, type Tab } from "./content";
@@ -77,7 +78,7 @@ export function TabRow({ g, look, t, x = ROW.x, y, w = ROW.w, selected, style, d
   return (
     <Animated.View style={[at(g, x, y, w, ROW.h), style as ViewStyle]}>
       {selected ? <Highlight g={g} look={look} x={0} y={0} w={w} /> : null}
-      <View style={[fill, { flexDirection: "row", alignItems: "center", paddingLeft: 10 * g.s, paddingRight: 8 * g.s, gap: 10 * g.s, opacity: dim ? 0.4 : 1 }]}>
+      <View style={[fill, { flexDirection: "row", alignItems: "center", paddingLeft: 9 * g.s, paddingRight: 6 * g.s, gap: 5 * g.s, opacity: dim ? 0.4 : 1 }]}>
         <Favicon g={g} t={t} />
         <View style={{ flex: 1 }}>
           <Label g={g} size={13} color={t === NEW_TAB ? look.t.textSecondary : selected ? look.t.tabSelectedText : look.t.textTab}>
@@ -133,7 +134,7 @@ export function Toolbar({ g, look, w, t, site, crumb = true, icons = TOOLBAR_ICO
   return (
     <Animated.View style={[at(g, 0, 0, w, TOOLBAR_H), style as ViewStyle]}>
       {palette.background ? <View style={[fill, { backgroundColor: palette.background }]} /> : null}
-      <NavIcons g={g} color={palette.icon} xs={icons} y={21.2} names={icons.length === 3 ? ["chevron.left", "chevron.right", "arrow.clockwise"] : undefined} />
+      <NavIcons g={g} color={palette.icon} xs={icons} y={TOOLBAR_LINE} names={icons.length === 3 ? ["chevron.left", "chevron.right", "arrow.clockwise"] : undefined} />
       {crumb ? <Crumb g={g} look={look} t={t} palette={palette} style={at(g, crumbX, 12, w - crumbX - 20, 18)} /> : null}
       {site ? null : <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: hairline, backgroundColor: palette.divider }} />}
     </Animated.View>
