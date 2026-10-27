@@ -15,6 +15,16 @@ const rep = reporter(join(scratch, "zoom-scroll-test.log"), { name: "zoom-scroll
 
 const server = createServer((req, res) => {
   res.writeHead(200, { "content-type": "text/html" });
+  if (req.url === "/framed-tall")
+    return res.end(`<!doctype html><title>framed tall</title><body style="margin:0"><iframe src="/" style="border:0;width:100vw;height:100vh">`);
+  if (req.url === "/framed")
+    return res.end(`<!doctype html><title>framed</title><body style="margin:0"><iframe src="/map" style="border:0;width:100vw;height:100vh">`);
+  if (req.url === "/map")
+    return res.end(`<!doctype html><title>map</title><body style="margin:0"><div id="map" style="height:100vh"></div><script>
+      let zooms = 0;
+      map.addEventListener("wheel", (e) => { if (e.metaKey) { e.preventDefault(); top.document.title = "map " + ++zooms; } }, { passive: false });
+      top.document.title = "map 0";
+    </script>`);
   res.end(`<!doctype html><title>tall</title><body style="font:20px system-ui;height:6000px"><h1>tall</h1>`);
 });
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
@@ -61,6 +71,24 @@ try {
   await scrollCase("⌘ + wheel-mouse notches zoom", [{ phase: "wheel", dy: 1 }, { phase: "wheel", dy: 1 }], true);
   await scrollCase("a trackpad scroll that ended doesn't stop the wheel from zooming",
     [...gesture(true), { phase: "wheel", dy: 1 }, { phase: "wheel", dy: 1 }], true);
+  await reset();
+
+  const takenByPage = (page, what) => rep.check(`${what} that takes ⌘-wheel gets it, and the browser doesn't zoom`, async () => {
+    await ac(`ac.store.getState().navigate("t1", "${url}${page}", { userInitiated: true }); return true;`);
+    for (let i = 0; i < 40 && (await ac(`return ac.store.getState().tabs.t1?.title;`)) !== "map 0"; i++) await sleep(250);
+    await scroll([{ phase: "wheel", dy: 1 }, { phase: "wheel", dy: 1 }]);
+    await sleep(800);
+    const title = await ac(`return ac.store.getState().tabs.t1.title;`);
+    const after = await zoom();
+    const detail = `page title ${title}, zoom ${after}`;
+    if (title !== "map 2" || after !== 1) throw new Error(detail);
+    return detail;
+  });
+  await takenByPage("map", "a page");
+  await takenByPage("framed", "a page in an iframe");
+  await ac(`ac.store.getState().navigate("t1", "${url}framed-tall", { userInitiated: true }); return true;`);
+  for (let i = 0; i < 40 && (await ac(`return ac.store.getState().tabs.t1?.title;`)) !== "framed tall"; i++) await sleep(250);
+  await scrollCase("⌘ + wheel over an iframe that doesn't take it zooms", [{ phase: "wheel", dy: 1 }, { phase: "wheel", dy: 1 }], true);
   await reset();
 } catch (error) {
   rep.record("setup", { error });

@@ -58,6 +58,7 @@ enum class ArdiaPageFocus { Unknown, Page, DevTools, Elsewhere };
   NSMutableDictionary<NSString *, NSString *> *_notificationFrames;
   NSMutableDictionary<NSString *, NSDictionary *> *_displayRequests;
   double _pinchScale;
+  NSMutableDictionary<NSNumber *, NSEvent *> *_commandScrolls;
   BOOL _autoPictureInPictureActive;
   BOOL _inPictureInPicture;
   BOOL _seenByUser;
@@ -195,6 +196,7 @@ enum class ArdiaPageFocus { Unknown, Page, DevTools, Elsewhere };
 @interface ArdiaWebView (InputMonitorsInternal)
 + (BOOL)prewarmForMouseEvent:(NSEvent *)event;
 - (BOOL)canWakeFrames;
+- (void)commandScrollZoom:(NSEvent *)event;
 @end
 
 namespace ardia_web_view {

@@ -144,6 +144,7 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
   if ([kind isEqualToString:@"hello"]) {
     PeekTrace(@{@"event" : @"hello", @"main" : @(main), @"frame" : frameId ?: @"", @"url" : Text(dict, @"url", 8192) ?: @""});
     if (main) [self resetPageMedia];
+    if (main) [_commandScrolls removeAllObjects];
     if (main && ![(Text(dict, @"url", 8192) ?: @"about:") hasPrefix:@"about:"]) _requestedURL = nil;
     [self noteScriptFrame:frameId main:main];
     [self callFrame:frameId kind:@"peekConfig" json:PeekConfigJSON()];
@@ -217,6 +218,12 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
     if (!Finite(dict, @"scale", &scale) || scale <= 0) return;
     _pinchScale = MIN(scale, 100);
     [self emitZoom];
+  } else if ([kind isEqualToString:@"commandWheel"] && dict) {
+    NSNumber *scrollId = [dict[@"id"] isKindOfClass:NSNumber.class] ? dict[@"id"] : nil;
+    NSEvent *event = scrollId ? _commandScrolls[scrollId] : nil;
+    if (!event) return;
+    [_commandScrolls removeObjectForKey:scrollId];
+    if ([Text(dict, @"handler", 16) isEqualToString:@"browser"]) [self commandScrollZoom:event];
   } else if ([kind isEqualToString:@"pipTrace"]) {
     if (TracingPictureInPicture())
       [_tab tracePictureInPicture:[NSString stringWithFormat:@"page (%@): %@", main ? @"main frame" : @"subframe", JSONString(dict ?: @{})]

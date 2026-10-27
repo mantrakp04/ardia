@@ -10,6 +10,8 @@ namespace {
 int gDevTrackpad = -1;
 NSUInteger gZoomScrolls = 0;
 constexpr NSTimeInterval kSwitchPrewarmGapSeconds = 0.1;
+constexpr NSTimeInterval kCommandScrollReplySeconds = 0.25;
+double gCommandScrollTotal = 0;
 
 NSString *gDevZoomMiss = nil;
 bool gGestureTrackpad = false;
@@ -55,10 +57,49 @@ bool CommandScrollZooms(NSEvent *event, bool trackpad) {
 
 @implementation ArdiaWebView (InputMonitors)
 
-- (BOOL)canWakeFrames {
-  if (!_tab || !_visible || _frozen || _tab.closed || _tab.discarded || self.isHiddenOrHasHiddenAncestor) return NO;
+- (BOOL)runsPageScript {
   NSString *url = _tab.url;
   return [url hasPrefix:@"https:"] || [url hasPrefix:@"http:"] || [url hasPrefix:@"file:"];
+}
+
+- (BOOL)canWakeFrames {
+  if (!_tab || !_visible || _frozen || _tab.closed || _tab.discarded || self.isHiddenOrHasHiddenAncestor) return NO;
+  return self.runsPageScript;
+}
+
+- (void)commandScrollZoom:(NSEvent *)event {
+  if (event.phase == NSEventPhaseBegan) gCommandScrollTotal = 0;
+  gCommandScrollTotal += event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.scrollingDeltaY * 30;
+  if (fabs(gCommandScrollTotal) < 30) return;
+  [self zoomStep:gCommandScrollTotal > 0 ? 1 : -1];
+  gCommandScrollTotal = 0;
+}
+
+- (void)offerCommandScroll:(NSEvent *)event at:(NSPoint)point {
+  static NSUInteger lastId = 0;
+  NSNumber *scrollId = @(++lastId);
+  if (!_commandScrolls) _commandScrolls = [NSMutableDictionary dictionary];
+  _commandScrolls[scrollId] = event;
+  const NSSize size = self.bounds.size;
+  const double pixelsPerDelta = event.hasPreciseScrollingDeltas ? 1 : 40;
+  const NSEventModifierFlags flags = event.modifierFlags;
+  [self callFrame:@"" kind:@"commandWheel" json:JSONString(@{
+    @"id" : scrollId,
+    @"x" : @(point.x / size.width),
+    @"y" : @(self.isFlipped ? point.y / size.height : 1 - point.y / size.height),
+    @"dx" : @(-event.scrollingDeltaX * pixelsPerDelta),
+    @"dy" : @(-event.scrollingDeltaY * pixelsPerDelta),
+    @"shift" : @((flags & NSEventModifierFlagShift) != 0),
+    @"alt" : @((flags & NSEventModifierFlagOption) != 0),
+    @"ctrl" : @((flags & NSEventModifierFlagControl) != 0),
+  })];
+  __weak ArdiaWebView *weakSelf = self;
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kCommandScrollReplySeconds * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    ArdiaWebView *view = weakSelf;
+    if (!view || !view->_commandScrolls[scrollId]) return;
+    [view->_commandScrolls removeObjectForKey:scrollId];
+    [view commandScrollZoom:event];
+  });
 }
 
 + (BOOL)prewarmForMouseEvent:(NSEvent *)event {
@@ -94,7 +135,6 @@ bool CommandScrollZooms(NSEvent *event, bool trackpad) {
 + (void)installScrollZoom {
   static id monitor, touchMonitor;
   if (monitor) return;
-  static double accumulated = 0;
   static NSUInteger touching = 0;
   static NSTimeInterval touchedAt = 0;
   touchMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskGesture handler:^NSEvent *(NSEvent *event) {
@@ -126,13 +166,9 @@ bool CommandScrollZooms(NSEvent *event, bool trackpad) {
       gDevZoomMiss = [NSString stringWithFormat:@"not over a page: window %ld %@, hit %@", (long)window.windowNumber,
                                                 NSStringFromPoint(point), [content hitTest:[content.superview convertPoint:point fromView:nil]]];
     if (!view || !view->_tab) return event;
-    if (event.phase == NSEventPhaseBegan) accumulated = 0;
-    accumulated += event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.scrollingDeltaY * 30;
     gZoomScrolls++;
-    if (fabs(accumulated) >= 30) {
-      [view zoomStep:accumulated > 0 ? 1 : -1];
-      accumulated = 0;
-    }
+    if (view.runsPageScript) [view offerCommandScroll:event at:[view convertPoint:point fromView:nil]];
+    else [view commandScrollZoom:event];
     return nil;
   }];
 }
