@@ -51,7 +51,7 @@ import { instanceEntries } from "../../../scripts/lib/launchEnv.mjs";
 // MARK: What each check needs
 
 const usesPageA = [
-  "visibility", "occlusion", "favicon", "navigate-back-forward-reload", "target-blank", "window-open",
+  "visibility", "occlusion", "page-picture-fit", "favicon", "navigate-back-forward-reload", "target-blank", "window-open",
   "cmd-click", "evaluate", "tab-strips", "tab-switch", "status-text", "load-error", "chrome-strings",
   "context-menu-search", "duplicate-and-reopen", "device-chooser", "bluetooth-chooser",
   "bluetooth-settings", "cast-dialog", "cast-routes", "theme-commit", "user-selection",
@@ -887,6 +887,42 @@ try {
     if (allow ? !samples.slice(4).every((v) => v === "hidden") : !samples.every((v) => v === "visible"))
       throw new Error(`while covered the page was ${JSON.stringify(samples)}, expected ${expected}`);
     return { chromeOccluded: w.chromeOccluded, macOSVisible: w.occlusionVisible, samples, escape, back };
+  });
+
+  await check("page-picture-fit", async () => {
+    await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    await until("A shown", async () => (await state()).active === first.id);
+    const windowNumber = await engine("tabs.devWindowNumber", { tabId: first.id });
+    const tab = JSON.stringify(first.id);
+    const shareBar = (on) =>
+      evalApp(`
+        const pages = ac.pageState.getState().pages;
+        ac.pageState.setState({ pages: { ...pages, [${tab}]: { ...pages[${tab}], mediaAccess: { ...pages[${tab}]?.mediaAccess, screen: ${on} } } } });
+        ac.media.setState((m) => { const tabShares = { ...m.tabShares }; if (${on}) tabShares[${tab}] = { capturedTabId: ${tab}, origin: "${base}", dismissed: {} }; else delete tabShares[${tab}]; return { tabShares }; });
+        return true`);
+    const misfits = async () =>
+      JSON.parse(await engine("windows.dev", { window: windowNumber, action: "pageLayers" })).flatMap(({ view, layers }) => {
+        const box = layers.find((l) => l.flipped)?.frame;
+        const host = layers.find((l) => l.class === "CALayerHost")?.frame;
+        const off = (a, b) => a && b.some((v, i) => Math.abs(a[i] - v) > 0.5);
+        return off(box, view) || (host && Math.abs(host[1] - view[1]) > 0.5) ? [{ view, box, host }] : [];
+      });
+    const steps = [];
+    for (let i = 0; i < 3; i++) {
+      await shareBar(true);
+      await sleep(600);
+      await shareBar(false);
+      await sleep(600);
+      steps.push({ shareBar: i, misfits: await misfits() });
+    }
+    for (let i = 0; i < 2; i++) {
+      await evalApp(`ac.store.getState().toggleSidebar(${JSON.stringify(mainWindow)}); return true`);
+      await sleep(900);
+      steps.push({ sidebar: i, misfits: await misfits() });
+    }
+    const bad = steps.filter((s) => s.misfits.length);
+    if (bad.length) throw new Error(`Chrome's picture left its page view: ${JSON.stringify(bad)}`);
+    return { steps: steps.length };
   });
 
   await check("favicon", async () => {

@@ -61,6 +61,251 @@ test("the top of the page reports top", () => {
   assert.deepEqual(p.sent, ["down", "up", "top"]);
 });
 
+const tracking = script.match(/\n( {2}const scrollDirection = [\s\S]*?\n)\n {2}return receive;\n\}\)/)?.[1];
+assert.ok(tracking, "page_script.js tracks the scroll direction");
+const install = new Function("page", `with (page) {\n${tracking}}`);
+
+function loadPage(tabId, { scrollY = 0 } = {}) {
+  const listeners = {};
+  const frames = [];
+  const timers = [];
+  const observers = [];
+  const mutations = [];
+  let now = 1000;
+  const doc = { scrollTop: scrollY, scrollHeight: 4800, clientHeight: 800, clientWidth: 1200, contains: () => true };
+  const env = {
+    scrollY,
+    innerHeight: 800,
+    innerWidth: 1200,
+    document: { scrollingElement: doc, documentElement: doc },
+    performance: { now: () => now },
+    requestAnimationFrame: (fn) => frames.push(fn),
+    nextFrame: (fn) => frames.push(fn),
+    after: (fn) => timers.push(fn),
+    addEventListener: (type, fn) => (listeners[type] ??= []).push(fn),
+    guard: (fn) => (...a) => fn(...a),
+    send: (kind, data) => kind === "scroll" && noteScroll(tabId, data),
+    ResizeObserver: class {
+      constructor(fn) {
+        this.fn = fn;
+        this.watched = new Set();
+        observers.push(this);
+      }
+      observe(el) {
+        this.watched.add(el);
+      }
+      disconnect() {
+        this.watched.clear();
+      }
+    },
+    NativeMutationObserver: class {
+      constructor(fn) {
+        this.fn = fn;
+        this.watched = [];
+        mutations.push(this);
+      }
+      observe(node, options) {
+        this.watched.push({ node, options });
+      }
+      disconnect() {
+        this.watched = [];
+      }
+    },
+  };
+  install(env);
+  const fire = (type, e) => (listeners[type] ?? []).forEach((fn) => fn({ type, ...e }));
+  const scroll = (el, to, steps = 20) => {
+    const from = el.scrollTop;
+    for (let i = 1; i <= steps; i++) {
+      now += 16;
+      fire("wheel", { deltaY: Math.sign(to - from), target: el === doc ? doc : { parent: el } });
+      el.scrollTop = from + ((to - from) * i) / steps;
+      fire("scroll", { target: el === doc ? env.document : el });
+      frames.splice(0).forEach((fn) => fn());
+    }
+    now += 500;
+  };
+  const body = { parentElement: doc };
+  const overlay = () => {
+    const el = { scrollTop: 0, scrollHeight: 4000, clientHeight: 800, clientWidth: 1200, isConnected: true, visible: true, left: 0, parentElement: body };
+    el.contains = (n) => n === el || n?.parent === el;
+    el.checkVisibility = () => el.visible;
+    el.getBoundingClientRect = () => ({ left: el.left, top: 0, right: el.left + el.clientWidth, bottom: el.clientHeight });
+    return el;
+  };
+  const resized = () => observers.forEach((o) => o.watched.size && o.fn([]));
+  const within = (node, root) => {
+    for (let n = node; n; n = n.parentElement) if (n === root) return true;
+    return false;
+  };
+  const mutated = (target, type = "attributes") =>
+    mutations.forEach((o) => {
+      const seen = o.watched.some(({ node, options }) => (node === target ? options[type] : options.subtree && options[type] && within(target, node)));
+      if (seen) o.fn([{ type, target }]);
+    });
+  const nextFrame = () => frames.splice(0).forEach((fn) => fn());
+  const timersFire = () => timers.splice(0).forEach((fn) => fn());
+  const tick = (ms) => (now += ms);
+  return { doc, body, document: env.document, fire, scroll, overlay, resized, mutated, nextFrame, timersFire, tick, timers };
+}
+
+function hiddenTab() {
+  useBrowser.getState().hydrate({});
+  const w = useBrowser.getState().createWindow({ url: "https://a.com" });
+  return useBrowser.getState().newTab(w, { url: "https://example.com" });
+}
+const hidden = (tabId) => useToolbarAutoHide.getState().scrolledDown[tabId] === true;
+
+test("a new document at the top shows the bar the last one hid (a reload, the same address)", () => {
+  const tabId = hiddenTab();
+  const first = loadPage(tabId);
+  first.scroll(first.doc, 1500);
+  assert.ok(hidden(tabId));
+  loadPage(tabId);
+  assert.ok(!hidden(tabId));
+  useBrowser.getState().closeTab(tabId);
+});
+
+test("an overlay that scrolled the bar away shows it again when it goes away at the page's top", () => {
+  const tabId = hiddenTab();
+  const page = loadPage(tabId);
+  const dialog = page.overlay();
+  page.scroll(dialog, 1500);
+  assert.ok(hidden(tabId));
+  dialog.clientHeight = dialog.clientWidth = dialog.scrollTop = 0;
+  page.resized();
+  assert.ok(!hidden(tabId));
+  useBrowser.getState().closeTab(tabId);
+});
+
+test("wheeling up or pressing Home at the page's top shows the bar, not inside a scrolled overlay", () => {
+  const tabId = hiddenTab();
+  const page = loadPage(tabId);
+  const dialog = page.overlay();
+  page.scroll(dialog, 1500);
+  page.fire("wheel", { deltaY: -3, target: { parent: dialog } });
+  assert.ok(hidden(tabId));
+  page.fire("wheel", { deltaY: -3, target: page.doc });
+  assert.ok(!hidden(tabId));
+  page.scroll(dialog, 3000);
+  assert.ok(hidden(tabId));
+  dialog.scrollTop = 0;
+  page.fire("keydown", { key: "ArrowDown" });
+  assert.ok(hidden(tabId));
+  page.fire("keydown", { key: "Home" });
+  assert.ok(!hidden(tabId));
+  useBrowser.getState().closeTab(tabId);
+});
+
+test("an overlay closed without changing size (hidden, transparent, slid out) gives the bar back at the page's top", () => {
+  for (const close of [(el) => (el.visible = false), (el) => (el.left = 1200)]) {
+    const tabId = hiddenTab();
+    const page = loadPage(tabId);
+    const dialog = page.overlay();
+    page.scroll(dialog, 1500);
+    assert.ok(hidden(tabId));
+    close(dialog);
+    page.fire("keydown", { key: "Home" });
+    assert.ok(!hidden(tabId));
+    const again = page.overlay();
+    page.scroll(again, 1500);
+    assert.ok(hidden(tabId));
+    close(again);
+    page.fire("click", { target: page.doc });
+    page.nextFrame();
+    assert.ok(!hidden(tabId));
+    useBrowser.getState().closeTab(tabId);
+  }
+});
+
+test("an overlay the app hides later, with no input or transition, gives the bar back at the page's top", () => {
+  const tabId = hiddenTab();
+  const page = loadPage(tabId);
+  const dialog = page.overlay();
+  page.scroll(dialog, 1500);
+  assert.ok(hidden(tabId));
+  page.fire("click", { target: { parent: dialog } });
+  page.nextFrame();
+  assert.ok(hidden(tabId));
+  dialog.visible = false;
+  page.mutated(dialog);
+  page.timersFire();
+  assert.ok(!hidden(tabId));
+  const again = page.overlay();
+  page.scroll(again, 1500);
+  assert.ok(hidden(tabId));
+  again.visible = false;
+  page.mutated(page.body);
+  page.timersFire();
+  assert.ok(!hidden(tabId));
+  useBrowser.getState().closeTab(tabId);
+});
+
+test("a full-window pane the app always scrolls (a chat, a mail list) doesn't recheck on every change inside it", () => {
+  const tabId = hiddenTab();
+  const page = loadPage(tabId);
+  const pane = page.overlay();
+  page.scroll(pane, 1500);
+  assert.ok(hidden(tabId));
+  const message = { parentElement: pane };
+  for (let i = 0; i < 50; i++) {
+    page.mutated(pane, "childList");
+    page.mutated(message, "attributes");
+    page.mutated(message, "characterData");
+  }
+  assert.equal(page.timers.length, 0);
+  assert.ok(hidden(tabId));
+  useBrowser.getState().closeTab(tabId);
+});
+
+test("two full-window scrollers moving together (synced panes) still hide and show the bar", () => {
+  const tabId = hiddenTab();
+  const page = loadPage(tabId);
+  const pane = page.overlay();
+  const both = (to) => {
+    const from = page.doc.scrollTop;
+    for (let i = 1; i <= 20; i++) {
+      page.fire("wheel", { deltaY: Math.sign(to - from), target: page.doc });
+      page.doc.scrollTop = from + ((to - from) * i) / 20;
+      page.fire("scroll", { target: page.document });
+      page.nextFrame();
+      page.tick(8);
+      pane.scrollTop = page.doc.scrollTop;
+      page.fire("scroll", { target: pane });
+      page.nextFrame();
+      page.tick(8);
+    }
+  };
+  both(1500);
+  assert.ok(hidden(tabId));
+  both(1200);
+  assert.ok(!hidden(tabId));
+  useBrowser.getState().closeTab(tabId);
+});
+
+test("the page jumping to its top shows the bar when a small scroller moves in the same frame", () => {
+  const tabId = hiddenTab();
+  const page = loadPage(tabId);
+  page.scroll(page.doc, 1500);
+  assert.ok(hidden(tabId));
+  const nav = { scrollTop: 30, scrollHeight: 400, clientHeight: 220, clientWidth: 200 };
+  page.doc.scrollTop = 0;
+  page.fire("scroll", { target: page.document });
+  page.fire("scroll", { target: nav });
+  page.nextFrame();
+  assert.ok(!hidden(tabId));
+  useBrowser.getState().closeTab(tabId);
+});
+
+test("wheeling up mid-page doesn't show the bar before the up threshold", () => {
+  const tabId = hiddenTab();
+  const page = loadPage(tabId);
+  page.scroll(page.doc, 1500);
+  page.fire("wheel", { deltaY: -3, target: page.doc });
+  assert.ok(hidden(tabId));
+  useBrowser.getState().closeTab(tabId);
+});
+
 test("a page with little to scroll never hides the bar", () => {
   const p = page({ range: 100 });
   for (let y = 5; y <= 100; y += 5) p.to(y);

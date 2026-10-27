@@ -140,6 +140,8 @@ the app as a person would rather than writing a new helper:
 | `ArdiaApp.devMenuItems(title, path?)` | A menu bar menu's items as AppKit has them, its own included (Window › Fill, Move & Resize…); `"tiling:<windowId>"` is the window's green-button menu and whether AppKit tiles it; `path` picks an item |
 | `ArdiaApp.devPostKey(windowId, key, keyCode, modifiers)` | Posts one key press to the app's event queue (`"menu:<key>"`: straight to the menu bar's key equivalents). System hot keys (fn-⌃ tiling) can't be posted |
 | `devSnapshotWindow(windowId, path, transparent?)` | Writes the window's layers to a PNG in-process (works with the screen locked; `false` = failed) |
+| `ac.engine.call("windows.dev", { window, action: "pageLayers" })` | Where each shown Chrome page view sits in the window and where its own layers sit (top-left points, test instances): the flipped container Chrome draws into and the `CALayerHost` that holds the page's picture. A snapshot or a `Page.captureScreenshot` can't show a picture drawn off its view; this can: the host's y is the picture's top |
+| `ac.engine.call("windows.dev", { window, action: "resize:<w>,<h>[,1]" })` | Resizes a test instance's window, keeping its top-left (`,1`: AppKit's animated resize) |
 | `devRenderIntroMusic(cues, path)` | Renders the onboarding intro music to an audio file, for a video's soundtrack |
 
 ## Hover never moves anything

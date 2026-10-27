@@ -178,6 +178,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       }}
       onLoadError={() => {
         pending.current = null;
+        revealToolbar(tabId);
       }}
       onDownloadNavigation={({ committedUrl, skipped }) => {
         pending.current = null;

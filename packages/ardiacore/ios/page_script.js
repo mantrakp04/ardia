@@ -1120,6 +1120,12 @@
       rebase(y) {
         anchor = last = y;
       },
+      atTop(y) {
+        if (y > 2 || sent === "top") return null;
+        anchor = last = y;
+        sent = "top";
+        return sent;
+      },
       scrolled(y, range, viewport, now, user) {
         resized(viewport, now);
         if (now - lastAt > GESTURE) {
@@ -1151,31 +1157,93 @@
     };
   };
   const direction = scrollDirection();
+  const showIfAtTop = (y) => direction.atTop(y) && send("scroll", { state: "top" });
+  showIfAtTop(scrollY);
   let scroller = null;
-  let scrollTarget = null;
+  const scrollTargets = new Set();
   let inputAt = -1e9;
-  const noteInput = () => {
-    inputAt = performance.now();
-    if (!scroller && document.scrollingElement) direction.rebase((scroller = document.scrollingElement).scrollTop);
+  let followedAt = -1e9;
+  const KEEP_FOLLOWING = 300;
+  const docScroller = () => document.scrollingElement || document.documentElement;
+  const fillsWindow = (el) => el.clientHeight >= innerHeight * 0.5 && el.clientWidth >= innerWidth * 0.5;
+  const onScreen = (el) => {
+    const r = el.getBoundingClientRect();
+    return (
+      Math.min(r.right, innerWidth) - Math.max(r.left, 0) >= innerWidth * 0.5 &&
+      Math.min(r.bottom, innerHeight) - Math.max(r.top, 0) >= innerHeight * 0.5
+    );
   };
+  const showing = (el) =>
+    el.isConnected && fillsWindow(el) && el.checkVisibility({ opacityProperty: true, visibilityProperty: true }) && onScreen(el);
+  const leaveHiddenScroller = guard(() => {
+    const doc = docScroller();
+    if (!doc || !scroller || scroller === doc || showing(scroller)) return;
+    follow(doc);
+    showIfAtTop(doc.scrollTop);
+  });
+  const recheckBy = (schedule) => {
+    let queued = false;
+    return () => {
+      if (queued || !scroller || scroller === docScroller()) return;
+      queued = true;
+      schedule(() => {
+        queued = false;
+        leaveHiddenScroller();
+      });
+    };
+  };
+  const recheckScroller = recheckBy(nextFrame);
+  const MUTATION_RECHECK = 150;
+  const scrollerGone = new ResizeObserver(leaveHiddenScroller);
+  const scrollerHidden = new NativeMutationObserver(recheckBy((fn) => after(fn, MUTATION_RECHECK)));
+  const follow = (el) => {
+    scrollerGone.disconnect();
+    scrollerHidden.disconnect();
+    scroller = el;
+    if (el !== docScroller()) {
+      scrollerGone.observe(el);
+      for (let node = el; node; node = node.parentElement) scrollerHidden.observe(node, { attributes: true });
+    }
+    direction.rebase(el.scrollTop);
+  };
+  const UP_KEYS = new Set(["ArrowUp", "PageUp", "Home"]);
+  const towardTop = (e) =>
+    e.type === "wheel" ? e.deltaY < 0 : e.type === "keydown" && (UP_KEYS.has(e.key) || (e.key === " " && e.shiftKey));
+  const noteInput = guard((e) => {
+    inputAt = performance.now();
+    const doc = docScroller();
+    if (!doc) return;
+    if (!scroller) follow(doc);
+    if (e.type === "keydown") recheckScroller();
+    if (!towardTop(e) || doc.scrollTop > 2) return;
+    if (scroller !== doc && (!showing(scroller) || (e.type === "wheel" && !scroller.contains(e.target)))) follow(doc);
+    showIfAtTop(scroller.scrollTop);
+  });
   for (const type of ["wheel", "keydown", "mousedown", "touchstart"]) addEventListener(type, noteInput, { passive: true, capture: true });
-  addEventListener("mousemove", (e) => e.buttons && noteInput(), { passive: true, capture: true });
+  addEventListener("mousemove", (e) => e.buttons && noteInput(e), { passive: true, capture: true });
+  for (const type of ["click", "transitionend", "animationend"]) addEventListener(type, recheckScroller, { passive: true, capture: true });
   const measureScroll = guard(() => {
-    const target = scrollTarget;
-    scrollTarget = null;
-    const doc = document.scrollingElement || document.documentElement;
-    const el = target === document || target === doc ? doc : target;
-    if (!el || !doc || (el !== doc && (el.clientHeight < innerHeight * 0.5 || el.clientWidth < innerWidth * 0.5))) return;
-    if (el !== scroller) direction.rebase((scroller = el).scrollTop);
+    const targets = [...scrollTargets];
+    scrollTargets.clear();
+    const doc = docScroller();
+    if (!doc) return;
+    const filling = targets.map((t) => (t === document || t === doc ? doc : t)).filter((el) => el === doc || fillsWindow(el));
+    if (!filling.length) return;
+    const el = filling.includes(scroller) ? scroller : filling[filling.length - 1];
     const now = performance.now();
+    if (el !== scroller) {
+      if (scroller && now - followedAt < KEEP_FOLLOWING && (scroller === doc || showing(scroller))) return;
+      follow(el);
+    }
+    followedAt = now;
     const state = direction.scrolled(el.scrollTop, el.scrollHeight - el.clientHeight, innerHeight, now, now - inputAt < 1000);
     if (state) send("scroll", { state });
   });
   addEventListener(
     "scroll",
     (e) => {
-      if (!scrollTarget) requestAnimationFrame(measureScroll);
-      scrollTarget = e.target;
+      if (!scrollTargets.size) requestAnimationFrame(measureScroll);
+      scrollTargets.add(e.target);
     },
     { passive: true, capture: true },
   );
