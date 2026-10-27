@@ -4,11 +4,12 @@ import { useSettings, useTabLayout } from "../../../state/browser/hooks";
 import { chooseTabLayout, updateSettings } from "../../../state/settings/actions";
 import { peekModifierOf, splitLinkModifierOf, type PeekModifier, type Settings, type SplitLinkModifier } from "../../../state/settings/settings";
 import { liquidGlass } from "../../ui/Glass";
-import { Checkbox, PopUp, Toggle } from "../../ui";
+import { PopUp, Toggle } from "../../ui";
 import { Group, Row, SectionHeader } from "../Form";
 import { PictureChoice } from "../PictureChoice";
 import { setting } from "../settingsIndex";
 import { useSettingsColors } from "../useSettingsColors";
+import { CleanUpRow } from "./CleanUpRow";
 
 const PEEK_WITH: { value: PeekModifier; title: string }[] = [
   { value: "shift", title: "⇧-click" },
@@ -55,13 +56,6 @@ const NEW_TABS_ACROSS: { value: Settings["newTabPosition"]; title: string }[] = 
 const NEW_TAB_BUTTON: { value: Settings["newTabButtonPosition"]; title: string }[] = [
   { value: "bottom", title: "At the bottom" },
   { value: "top", title: "At the top" },
-];
-
-const CLEAN_UP = [
-  { value: "12", title: "12 hours" },
-  { value: "24", title: "24 hours" },
-  { value: "168", title: "7 days" },
-  { value: "720", title: "30 days" },
 ];
 
 export function TabsPane() {
@@ -135,15 +129,8 @@ export function TabsPane() {
         title="Clean up"
         description="Closes tabs you haven't used (and duplicates) automatically, like the tab menu's Clean Up Daily. Pinned, playing and selected tabs stay; cleaned tabs are listed under Recently Cleaned."
       />
-      <Group>
-        <Row anchor="tabs.cleanUp" description={null} title={<Checkbox value={settings.cleanUpInactiveTabsAfterHours !== null} onChange={(v) => update({ cleanUpInactiveTabsAfterHours: v ? 24 : null })} label="Clean up tabs I haven't used in:" />}>
-          <PopUp
-            value={String(settings.cleanUpInactiveTabsAfterHours ?? 24)}
-            options={CLEAN_UP}
-            disabled={settings.cleanUpInactiveTabsAfterHours === null}
-            onChange={(v) => update({ cleanUpInactiveTabsAfterHours: Number(v) })}
-          />
-        </Row>
+      <Group of="tabs.cleanUp">
+        <CleanUpRow hours={settings.cleanUpInactiveTabsAfterHours} />
       </Group>
     </View>
   );

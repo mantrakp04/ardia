@@ -195,8 +195,8 @@ export const generalRows: Pick<Record<SettingsPane, SettingSection[]>, "general"
       rows: {
         cleanUp: {
           title: "Clean up tabs I haven't used in",
-          description: "Closes tabs you haven't used (and duplicates) automatically, like the tab menu's Clean Up Daily.",
-          keywords: ["archive", "auto close", "inactive tabs", "duplicates"],
+          description: "Closes tabs you haven't used (and duplicates) automatically after a preset or custom time in minutes, hours or days, like the tab menu's Clean Up Daily.",
+          keywords: ["archive", "auto close", "inactive tabs", "duplicates", "custom time", "30 minutes", "timeout", "duration"],
         },
       },
     },

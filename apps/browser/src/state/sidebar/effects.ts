@@ -9,7 +9,7 @@ import { dismissHover } from "../sidebar/hover";
 import { sidebarUi } from "../sidebar/sidebarUi";
 import { cancelSwitcher, commitSwitcher, moveSwitcher } from "../sidebar/switcher";
 
-const AUTO_CLEAN_EVERY_MS = 30 * 60 * 1000;
+const AUTO_CLEAN_EVERY_MS = 60 * 1000;
 let started = false;
 
 export function startSidebarEffects() {
@@ -43,10 +43,14 @@ export function startSidebarEffects() {
 
   everySlowly({
     every: AUTO_CLEAN_EVERY_MS,
+    needed: () => useBrowser.getState().settings.cleanUpInactiveTabsAfterHours !== null,
+    watch: (changed) => useBrowser.subscribe((s, prev) => {
+      if (s.settings.cleanUpInactiveTabsAfterHours !== prev.settings.cleanUpInactiveTabsAfterHours) changed();
+    }),
     run: () => {
       const s = useBrowser.getState();
       const hours = s.settings.cleanUpInactiveTabsAfterHours;
-      if (hours === null) return;
+      if (hours === null || !Number.isFinite(hours) || hours <= 0) return;
       for (const id of s.windowOrder) s.cleanUpTabs(id, { inactiveForMs: hours * 3_600_000 });
     },
   });
