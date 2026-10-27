@@ -2,7 +2,7 @@ import { CONFLUENCE_CQL, DRIVE_QUERY, mapBitbucket, mapConfluence, mapDrive, map
 import { DETAILS_PAGE, detailIds, detailNodes, GITHUB_DETAILS_QUERY, GITHUB_QUERY, GITHUB_STATE_QUERY, GITHUB_VARIABLES, mapGithub, VIEWER_QUERY, withDetails, type DetailsResponse, type GithubResponse } from "./github";
 import { basic, deleteSecret, endpoints, form, getSecret, request, setSecret } from "./net";
 import { useBrowser } from "../browser/store";
-import { accountOf, live, saveLiveDurably, setAccount, setLegacyAccount, updateConfig } from "./store";
+import { accountOf, live, removeProfileAccounts, saveLiveDurably, setAccount, setLegacyAccount, updateConfig } from "./store";
 import { LiveError, type CompletionState, type LiveAccount, type LiveFolder, type LiveItem, type LiveSourceId } from "./types";
 import { symbolIcon } from "../../lib/customIcon";
 
@@ -150,16 +150,22 @@ const confluence: LiveSource = {
 type GoogleTokens = { access_token: string; refresh_token: string; expires_at: number; client_secret: string; client_id?: string };
 
 async function googleAccessToken(profileId: string): Promise<string> {
-  const stored = JSON.parse(await secret("gdrive", profileId)) as GoogleTokens;
+  const raw = await secret("gdrive", profileId);
+  const stored = JSON.parse(raw) as GoogleTokens;
   if (stored.expires_at > Date.now() + 60_000) return stored.access_token;
   const json = await request<{ access_token: string; expires_in: number }>(endpoints.googleToken, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: form({ client_id: stored.client_id ?? accountOf(profileId, "gdrive")?.clientId ?? live().config.googleClientId, client_secret: stored.client_secret, refresh_token: stored.refresh_token, grant_type: "refresh_token" }),
   });
-  if (!profileExists(profileId) || !accountOf(profileId, "gdrive")) throw new LiveError("notConfigured", "Not signed in");
-  await setSecret("gdrive", profileId, JSON.stringify({ ...stored, access_token: json.access_token, expires_at: Date.now() + json.expires_in * 1000 }));
-  return json.access_token;
+  const refreshed = JSON.stringify({ ...stored, access_token: json.access_token, expires_at: Date.now() + json.expires_in * 1000 });
+  const kept = await locked("gdrive", profileId, async () => {
+    if (!profileExists(profileId) || !accountOf(profileId, "gdrive")) throw new LiveError("notConfigured", "Not signed in");
+    if ((await getSecret("gdrive", profileId)) !== raw) return false;
+    await setSecret("gdrive", profileId, refreshed);
+    return true;
+  });
+  return kept ? json.access_token : googleAccessToken(profileId);
 }
 
 const gdrive: LiveSource = {
@@ -185,12 +191,24 @@ const profileExists = (profileId: string) => !!useBrowser.getState().profiles[pr
 let adoption: Promise<void> = Promise.resolve();
 export const legacyAdoption = () => adoption;
 
-async function saveConnection(profileId: string, source: LiveSourceId, value: string, connected: LiveAccount) {
-  await adoption;
-  if (!profileExists(profileId)) throw new LiveError("other", "This profile was deleted");
-  if (!(await setSecret(source, profileId, value))) throw new LiveError("other", "Couldn't save to the keychain");
-  if (!profileExists(profileId)) return void (await deleteSecret(source, profileId));
-  setAccount(profileId, source, connected);
+const connectionQueues = new Map<string, Promise<unknown>>();
+
+function locked<T>(source: LiveSourceId, profileId: string, work: () => Promise<T>): Promise<T> {
+  const key = `${source}:${profileId}`;
+  const result = (connectionQueues.get(key) ?? Promise.resolve()).then(work);
+  const settled = result.catch(() => {});
+  connectionQueues.set(key, settled);
+  void settled.then(() => connectionQueues.get(key) === settled && connectionQueues.delete(key));
+  return result;
+}
+
+function saveConnection(profileId: string, source: LiveSourceId, value: string, connected: LiveAccount) {
+  return locked(source, profileId, async () => {
+    if (!profileExists(profileId)) throw new LiveError("other", "This profile was deleted");
+    if (!(await setSecret(source, profileId, value))) throw new LiveError("other", "Couldn't save to the keychain");
+    if (!profileExists(profileId)) return void (await deleteSecret(source, profileId));
+    setAccount(profileId, source, connected);
+  });
 }
 
 export async function connectGithub(profileId: string, token: string) {
@@ -265,14 +283,17 @@ export async function connectGoogle(profileId: string, clientId: string, clientS
   updateConfig({ googleClientId: clientId });
 }
 
-export async function disconnect(profileId: string, source: LiveSourceId) {
-  await deleteSecret(source, profileId);
-  setAccount(profileId, source, null);
+export function disconnect(profileId: string, source: LiveSourceId) {
+  return locked(source, profileId, async () => {
+    await deleteSecret(source, profileId);
+    setAccount(profileId, source, null);
+  });
 }
 
 export async function forgetProfileAccounts(profileId: string) {
-  const sources = Object.keys(live().accounts[profileId] ?? {}) as LiveSourceId[];
-  await Promise.all(sources.map((source) => disconnect(profileId, source)));
+  const sources = Object.keys(SOURCES) as LiveSourceId[];
+  await Promise.all(sources.map((source) => locked(source, profileId, () => deleteSecret(source, profileId))));
+  removeProfileAccounts(profileId);
 }
 
 export function adoptLegacyAccounts(profileIds: string[]): Promise<void> {
@@ -289,30 +310,31 @@ function withClientId(tokens: string, clientId: string | undefined): string {
   }
 }
 
+function copyLegacy(source: LiveSourceId, profileId: string, value: string, legacy: LiveAccount): Promise<boolean> {
+  return locked(source, profileId, async () => {
+    if (!profileExists(profileId) || accountOf(profileId, source)) return true;
+    if (!(await setSecret(source, profileId, value))) return false;
+    if (profileExists(profileId)) setAccount(profileId, source, legacy);
+    else await deleteSecret(source, profileId);
+    return true;
+  });
+}
+
 async function adopt(profileIds: string[]) {
-  const legacy = live().legacyAccounts;
-  for (const source of Object.keys(legacy) as LiveSourceId[]) {
+  for (const source of Object.keys(live().legacyAccounts) as LiveSourceId[]) {
     const saved = await getSecret(source, null);
     if (!saved) continue;
-    const value = source === "gdrive" ? withClientId(saved, legacy.gdrive?.clientId) : saved;
-    let copied = true;
-    for (const profileId of profileIds) {
-      if (!profileExists(profileId) || accountOf(profileId, source)) continue;
-      if (!(await setSecret(source, profileId, value))) {
-        copied = false;
-        continue;
-      }
-      if (profileExists(profileId)) setAccount(profileId, source, legacy[source]!);
-      else await deleteSecret(source, profileId);
-    }
-    if (!copied) continue;
-    setLegacyAccount(source, null);
+    const { owedTo = profileIds, ...legacy } = live().legacyAccounts[source]!;
+    const value = source === "gdrive" ? withClientId(saved, legacy.clientId) : saved;
+    const stillOwed: string[] = [];
+    for (const profileId of owedTo) if (!(await copyLegacy(source, profileId, value, legacy))) stillOwed.push(profileId);
+    setLegacyAccount(source, stillOwed.length ? { ...legacy, owedTo: stillOwed } : null);
     try {
       await saveLiveDurably();
     } catch {
       continue;
     }
-    await deleteSecret(source, null);
+    if (!stillOwed.length) await deleteSecret(source, null);
   }
 }
 

@@ -1,7 +1,7 @@
 import { readDocument, saveDocument, writeDocument } from "../../platform/documents";
 import { create } from "zustand";
 import { repoKey, stackMembers } from "./rows";
-import type { CompletedItem, CompletionState, FolderStatus, LiveAccount, LiveFolder, LiveFolderKind, LiveItem, LiveSourceId, ProfileAccounts } from "./types";
+import type { CompletedItem, CompletionState, FolderStatus, LegacyAccount, LiveAccount, LiveFolder, LiveFolderKind, LiveItem, LiveSourceId, ProfileAccounts } from "./types";
 import { parseSaved, unchanged, versionedJson, type Migrations } from "../../lib/savedDocument";
 import { DEFAULT_COUNTDOWN_LEAD, keepDismissedNow, type DismissedNow } from "./meetings";
 
@@ -47,7 +47,7 @@ type LiveState = {
   expandedStacks: Record<string, boolean>;
   showAll: Record<string, boolean>;
   accounts: Record<string, ProfileAccounts>;
-  legacyAccounts: ProfileAccounts;
+  legacyAccounts: Partial<Record<LiveSourceId, LegacyAccount>>;
   config: LiveConfig;
   calendar: CalendarSettings;
   meetingGroups: Record<string, MeetingGroup>;
@@ -387,7 +387,7 @@ export function setAccount(profileId: string, source: LiveSourceId, account: Liv
   });
 }
 
-export function setLegacyAccount(source: LiveSourceId, account: LiveAccount | null) {
+export function setLegacyAccount(source: LiveSourceId, account: LegacyAccount | null) {
   setLive((s) => {
     const rest = { ...s.legacyAccounts };
     if (account) rest[source] = account;

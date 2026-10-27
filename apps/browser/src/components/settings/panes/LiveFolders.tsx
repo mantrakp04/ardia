@@ -20,7 +20,7 @@ import { settingsType } from "../tokens";
 import { perLook } from "../../ui/tokens";
 
 export function LiveFoldersPane({ profileId: chosen }: { profileId: string | null }) {
-  const profileId = extensionsProfileId(chosen);
+  const [profileId] = useState(() => extensionsProfileId(chosen));
   const folders = useLive(useShallow((s) => s.folderOrder.map((id) => s.folders[id]!).filter((f) => f?.profileId === profileId)));
   useLive((s) => s.status);
   useLive((s) => s.hidden);
