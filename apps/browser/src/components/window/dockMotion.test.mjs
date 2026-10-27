@@ -91,9 +91,9 @@ test("the motion flag is per window, and ending it twice is harmless", () => {
   assert.deepEqual(dm.useDockMotion.getState().moving, {});
 });
 
-test("the toolbar's buttons don't move with the sidebar: the hidden sidebar's toolbar starts at the card's edge, as Dia's", () => {
+test("the toolbar's buttons don't move with the sidebar: the hidden sidebar's toolbar starts at the card's edge and steps an even 35", () => {
   const g = toolbarGeometry({ sidebarButton: true });
-  assert.deepEqual([g.sidebarButton, g.back, g.forward, g.reload], [21, 56, 92, 127]);
+  assert.deepEqual([g.sidebarButton, g.back, g.forward, g.reload], [20, 55, 90, 125]);
 });
 
 test("the sidebar's own button (address bar in the sidebar) always fits; back, forward and reload as there's room, never overlapping", () => {

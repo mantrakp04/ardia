@@ -182,7 +182,7 @@ function CoachMark({ stop, index, count, windowId }: { stop: TourStop; index: nu
       shadowRadius={shadow.dialog.radius}
       shadowOffset={shadow.dialog.offset}
     >
-      <View style={{ paddingHorizontal: 18, paddingTop: 15, paddingBottom: 14, gap: 7 }} accessibilityRole="none">
+      <View style={{ paddingHorizontal: 18, paddingTop: 16, paddingBottom: 18, gap: 7 }} accessibilityRole="none">
         <Text style={{ ...onboardingType.coachCount, color: theme.textTertiary }}>
           {`${index + 1} OF ${count}`}
         </Text>

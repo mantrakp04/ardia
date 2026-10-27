@@ -36,11 +36,11 @@ export function SyncPane() {
   }, [enabled, status]);
 
   if (status === "unavailable") {
-    return <Text style={{ marginTop: 20, ...settingsType.lead, color: theme.textSecondary }}>Sync isn’t available in this build.</Text>;
+    return <Text style={{ marginTop: 22, paddingHorizontal: 12, ...settingsType.lead, color: theme.textSecondary }}>Sync isn’t available in this build.</Text>;
   }
   return (
     <View>
-      <Text style={{ marginTop: 20, ...settingsType.lead, lineHeight: 17, color: theme.textSecondary }}>
+      <Text style={{ marginTop: 22, paddingHorizontal: 12, ...settingsType.lead, lineHeight: 17, color: theme.textSecondary }}>
         Sync your profiles, bookmarks, history, open tabs, pinned tabs, groups, passwords, extensions and settings across your Macs. It all goes through a folder
         you choose, like one in iCloud Drive, and it’s end-to-end encrypted: only your devices can read it.
       </Text>
@@ -125,8 +125,8 @@ function SyncOff({ info }: { info: FolderInfo | null }) {
           </Row>
         ) : null}
       </Group>
-      {failure ? <Text style={{ marginTop: 8, ...font.small, color: theme.destructive }}>{failure}</Text> : null}
-      <Text style={{ marginTop: 12, ...font.footnote, lineHeight: 15, color: theme.textTertiary }}>
+      {failure ? <Text style={{ marginTop: 8, paddingHorizontal: 12, ...font.small, color: theme.destructive }}>{failure}</Text> : null}
+      <Text style={{ marginTop: 12, paddingHorizontal: 12, ...font.footnote, lineHeight: 15, color: theme.textTertiary }}>
         No server and no account: your Macs meet in the sync folder. Your recovery phrase never leaves your devices, and without it the folder is
         unreadable, file names included.
       </Text>

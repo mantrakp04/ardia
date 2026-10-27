@@ -9,7 +9,7 @@ import {
   type UpdateChannel,
 } from "../../../state/app/appSettings";
 import { pickFolder } from "../../../state/app/system";
-import { Symbol, Button, font, PopUp, Toggle } from "../../ui";
+import { Symbol, Button, font, PopUp, radius, space, Toggle } from "../../ui";
 import { useEffect, useState } from "react";
 import { AppState, Text, View } from "react-native";
 import { useTheme } from "../../ui/theme";
@@ -232,11 +232,12 @@ function DefaultBrowserBanner() {
   return (
     <Anchor
       id="general.defaultBrowser"
-      radius={12}
+      radius={radius.card}
       style={{
-        marginTop: 20,
-        padding: 14,
-        borderRadius: 12,
+        marginTop: 22,
+        paddingHorizontal: space.l,
+        paddingVertical: space.lx,
+        borderRadius: radius.card,
         flexDirection: "row",
         alignItems: "center",
         gap: 12,
@@ -249,7 +250,7 @@ function DefaultBrowserBanner() {
         name={isDefault ? "checkmark.seal.fill" : "safari"}
         size={20}
         color={isDefault ? theme.success : theme.icon}
-        style={{ width: 28, height: 28 }}
+        style={{ width: 20, height: 28 }}
       />
       <Text style={{ flex: 1, ...font.body, color: theme.textPrimary }}>
         {isDefault ? `${APP} is your default browser` : `${APP} works best as your default browser`}

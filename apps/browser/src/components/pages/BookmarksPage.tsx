@@ -145,7 +145,7 @@ export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: 
           />
         </ScrollView>
         <Box radius="panel" fill="groupFill" border="groupBorder" style={LIST_CARD}>
-          <Box row padX="lx" gap="m" style={LIST_HEADER}>
+          <Box row padX="xl" gap="m" style={LIST_HEADER}>
             <Text lines={1} weight="semibold" style={LIST_TITLE}>
               {searching ? `Results for “${query.trim()}”` : folderTitle}
             </Text>
@@ -222,7 +222,7 @@ function DropLine({ color }: { color: string }) {
 
 const BODY = { flex: 1, flexDirection: "row", paddingHorizontal: space.xl, paddingBottom: space.xl, gap: space.xl } as const;
 const TREE = { width: bookmarkList.treeWidth, flexGrow: 0 } as const;
-const TREE_CONTENT = { paddingVertical: space.xs } as const;
+const TREE_CONTENT = { paddingTop: space.sm, paddingBottom: space.xs } as const;
 const LIST_CARD = { flex: 1, overflow: "hidden" } as const;
 const LIST_HEADER = { height: bookmarkList.headerHeight, alignItems: "center" } as const;
 const LIST_TITLE = { flex: 1 } as const;

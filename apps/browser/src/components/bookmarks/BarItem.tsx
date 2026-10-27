@@ -20,7 +20,7 @@ const BUTTON = {
   justifyContent: "center",
   gap: space.s,
 } as const;
-const ICON = { width: bookmarksBar.iconBox, height: bookmarksBar.iconBox } as const;
+const ICON = { width: bookmarksBar.favicon, height: bookmarksBar.iconBox } as const;
 const TITLE = { flexShrink: 1 } as const;
 
 export function BarItem({

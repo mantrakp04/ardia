@@ -12,19 +12,18 @@ import { barWidth } from "../ntp/NewTabPage";
 import { closeNewTabBar } from "../../state/omnibox/newTabBar";
 import type { NewTabTarget } from "../../state/browser/types";
 import { Omnibox } from "./Omnibox";
-import { PANEL_TEXT_LEFT, GROW } from "./tokens";
+import { DROPDOWN_RADIUS, PANEL_RADIUS, PANEL_TEXT_LEFT, GROW } from "./tokens";
 import { closePanelToHeroBar, type BarDismissal } from "../../state/omnibox/barState";
-import { insecureLevel, URL_FIELD, urlTextLeft } from "../toolbar/Toolbar";
+import { insecureLevel, urlTextLeft } from "../toolbar/Toolbar";
+import { URL_FIELD } from "../toolbar/tokens";
 import { hairline, shadow } from "../ui/tokens";
 
 const RIGHT_OF_URL = 40;
 const ABOVE_PANE = 5.5;
-const PANEL_RADIUS = 17;
 const MIN_WIDTH = 420;
 const WINDOW_MARGIN = 12;
 const DROPDOWN_MIN_WIDTH = 350;
 const DROPDOWN_PAST_FIELD = 137;
-const DROPDOWN_RADIUS = 12;
 const PANEL_OPEN_HEIGHT = 107;
 const CENTRED_TOP_SHARE = 0.22;
 

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
-import { Image, Pressable, Text as NativeText, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text as NativeText, View } from "react-native";
 import { plural } from "../../state/browser/model";
-import { Box, Checkbox, ink, Radio, Symbol, Text, useHover, useTheme } from "../ui";
+import { Box, Checkbox, ink, Radio, space, Symbol, Text, useHover, useTheme } from "../ui";
 import type { BrowserSource, SpaceSummary } from "./model";
 import { accentAlpha, importColors, importLayout, importType } from "./tokens";
 
@@ -35,7 +35,7 @@ export function BrowserRow({ browser, selected, onPress }: { browser: BrowserSou
           border="groupBorder"
           style={{
             height: importLayout.browserRow,
-            ...(selected ? { backgroundColor: `${theme.formAccent}${accentAlpha.selected}`, borderWidth: importLayout.selectedBorder, borderColor: theme.formAccent } : null),
+            ...(selected ? { backgroundColor: `${theme.formAccent}${accentAlpha.selected}`, borderWidth: importLayout.selectedBorder, borderColor: theme.formAccent, paddingHorizontal: space.l + StyleSheet.hairlineWidth * 2 - importLayout.selectedBorder } : null),
           }}
         >
           <Radio on={selected} look="form" />

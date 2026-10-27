@@ -130,7 +130,7 @@ function RuleSheet({ site, engine: initial }: { site?: string; engine?: PageEngi
   return (
     <Sheet width={440} onClose={closeSettingsSheet}>
       <Text style={{ ...font.heading, fontWeight: weight.semibold, color: theme.textPrimary }}>{site ? "Edit Website Rule" : "Add Website Rule"}</Text>
-      <Text style={{ ...font.small, marginTop: 6, color: theme.textSecondary }}>
+      <Text style={{ ...font.small, marginTop: 4, color: theme.textSecondary }}>
         A rule matches the site's address exactly: its scheme, host and port. Subdomains need their own rule.
       </Text>
       <View style={{ marginTop: 12 }}>

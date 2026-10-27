@@ -36,7 +36,7 @@ export function SettingsSearchField() {
         if (!count) return;
         moveSettingsSelection(step, count);
       }}
-      style={{ marginHorizontal: 10, marginBottom: 10 }}
+      style={{ marginHorizontal: 10, marginBottom: 10, paddingHorizontal: 10 }}
     />
   );
 }
@@ -82,7 +82,7 @@ export function SettingsSearchResults({ query }: { query: string }) {
     <ScrollView ref={scroller} contentContainerStyle={{ paddingHorizontal: 10, paddingBottom: 12 }}>
       {groups.map((group) => (
         <View key={group.pane.id} onLayout={(e) => group.rows.forEach((r, i) => rowTops.set(r.index, e.nativeEvent.layout.y + 26 + i * RESULT_HEIGHT))}>
-          <View style={{ height: 26, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, marginTop: 4 }}>
+          <View style={{ height: 26, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 6, marginTop: 4 }}>
             <Symbol name={group.pane.icon} size={11} color={theme.textTertiary} style={{ width: 16, height: 16 }} />
             <Text numberOfLines={1} style={{ ...font.caption, fontWeight: weight.semibold, color: theme.textTertiary }}>
               {group.pane.title}

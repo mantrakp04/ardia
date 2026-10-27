@@ -5,7 +5,7 @@ import {
   resolvedShortcuts,
   useMenuBarRevision,
 } from "../../../state/commands/commandShortcuts";
-import { Symbol, Button, font, PopUp, SearchField, Toggle, useHover } from "../../ui";
+import { Symbol, Button, font, PopUp, radius, SearchField, Toggle, useHover } from "../../ui";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useTheme } from "../../ui/theme";
@@ -65,7 +65,7 @@ export function ShortcutsPane() {
 
   return (
     <View>
-      <Text style={{ marginTop: 20, ...settingsType.lead, lineHeight: 17, color: theme.textSecondary }}>
+      <Text style={{ marginTop: 22, paddingHorizontal: 12, ...settingsType.lead, lineHeight: 17, color: theme.textSecondary }}>
         Perform common actions in Ardia faster and from anywhere. Select an action to customize its keyboard shortcut.
       </Text>
       <Group style={{ marginTop: 14 }}>
@@ -74,7 +74,7 @@ export function ShortcutsPane() {
         </Row>
       </Group>
       <Anchor id="shortcuts.actions" radius={8} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 14 }}>
-        <SearchField value={query} onChangeText={setQuery} placeholder="Search actions" style={{ flex: 1 }} />
+        <SearchField value={query} onChangeText={setQuery} placeholder="Search actions" style={{ flex: 1, height: 22, borderRadius: radius.control }} />
         <PopUp
           value={filter}
           options={[

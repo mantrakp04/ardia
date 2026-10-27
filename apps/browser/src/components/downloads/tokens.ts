@@ -28,7 +28,7 @@ export function downloadsRowFill(theme: Theme, hovered: boolean, pressed: boolea
 const HEADER = 24;
 const INK_INSET = PANEL.inset + 1;
 const HEADER_CAP_TOP = 7.5;
-const FOOTER_TEXT_DROP = 12;
+const FOOTER_TEXT_DROP = 11;
 const ROW_BUTTON = 22;
 const PAD_TOP = INK_INSET - HEADER_CAP_TOP;
 const PAD_BOTTOM = INK_INSET - FOOTER_TEXT_DROP;

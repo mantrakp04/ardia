@@ -10,7 +10,7 @@ import { setFind as setTabFind } from "../../state/windows/actions";
 import type { FindState } from "../../state/browser/types";
 import { Button, font, Panel, radius, space, Symbol } from "../ui";
 import { replaceInField } from "../../state/site/selection";
-import { FIND_APPEAR, FIND_SHADOW } from "./tokens";
+import { FIND_APPEAR, FIND_BAR, FIND_SHADOW } from "./tokens";
 
 export function FindBar({ tabId }: { tabId: string }) {
   const hasPage = useTab(tabId, (t) => !!t?.url);
@@ -79,14 +79,14 @@ function FindBarPanel({ tabId, find }: { tabId: string; find: FindState }) {
     <Animated.View
       style={{
         position: "absolute",
-        top: space.ml,
-        right: space.l,
+        top: FIND_BAR.margin,
+        right: FIND_BAR.margin,
         opacity: appear,
         transform: [{ translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [-6, 0] }) }],
       }}
     >
       <Panel fill={theme.panel} radius={radius.panel} border={theme.panelBorder} shadow={FIND_SHADOW} style={{ width: 340 }}>
-        <View style={{ height: 40, flexDirection: "row", alignItems: "center", paddingLeft: 11, paddingRight: space.xs, gap: space.xxs }}>
+        <View style={{ height: 40, flexDirection: "row", alignItems: "center", paddingLeft: FIND_BAR.left, paddingRight: FIND_BAR.right, gap: space.xxs }}>
           <Symbol name="magnifyingglass" size={13} color={theme.textSecondary} style={{ width: 16, height: 16, marginRight: 5 }} />
           <TextInput
             ref={input}
@@ -118,14 +118,14 @@ function FindBarPanel({ tabId, find }: { tabId: string; find: FindState }) {
               <Text style={{ ...font.small, color: theme.textSecondary, fontVariant: ["tabular-nums"] }}>{find.count}</Text>
             </View>
           ) : null}
-          <Button variant="icon" icon="chevron.up" size={12} box={26} radius={radius.m} disabled={!find.count} onPress={() => run(true)} tooltip={withShortcut("Previous", previousHint)} />
-          <Button variant="icon" icon="chevron.down" size={12} box={26} radius={radius.m} disabled={!find.count} onPress={() => run(false)} tooltip={withShortcut("Next", nextHint)} />
+          <Button variant="icon" icon="chevron.up" size={12} box={26} radius={FIND_BAR.buttonRadius} disabled={!find.count} onPress={() => run(true)} tooltip={withShortcut("Previous", previousHint)} />
+          <Button variant="icon" icon="chevron.down" size={12} box={26} radius={FIND_BAR.buttonRadius} disabled={!find.count} onPress={() => run(false)} tooltip={withShortcut("Next", nextHint)} />
           <View style={{ width: 1, height: 18, marginHorizontal: 3, backgroundColor: separator }} />
-          <Button variant="icon" icon="xmark" size={11} box={26} radius={radius.m} onPress={close} tooltip="Done (Esc)" />
+          <Button variant="icon" icon="xmark" size={11} box={26} radius={FIND_BAR.buttonRadius} onPress={close} tooltip="Done (Esc)" />
         </View>
         {find.replace && <View style={{ height: StyleSheet.hairlineWidth * 2, backgroundColor: separator }} />}
         {find.replace && (
-          <View style={{ height: 38, flexDirection: "row", alignItems: "center", paddingLeft: 11, paddingRight: space.s, gap: space.xs }}>
+          <View style={{ height: 38, flexDirection: "row", alignItems: "center", paddingLeft: FIND_BAR.left, paddingRight: space.s, gap: space.xs }}>
             <Symbol name="arrow.triangle.swap" size={12} color={theme.textSecondary} style={{ width: 16, height: 16, marginRight: 3 }} />
             <TextInput
               value={replacement}

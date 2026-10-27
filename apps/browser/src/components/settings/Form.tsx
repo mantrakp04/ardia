@@ -78,7 +78,7 @@ export function SectionHeader({ title, description, action, anchor }: { title?: 
   const text = title ?? entry?.section ?? "";
   if (useHiddenSection(entry?.pane ?? pane, entry?.section ?? title)) return null;
   return (
-    <Anchor id={anchor} keep radius={6} style={{ flexDirection: "row", alignItems: "flex-end", marginTop: 22, marginBottom: space.m, paddingHorizontal: space.xxs }}>
+    <Anchor id={anchor} keep radius={6} style={{ flexDirection: "row", alignItems: "flex-end", marginTop: 22, marginBottom: space.m, paddingHorizontal: space.l }}>
       <View style={{ flex: 1 }}>
         <Text style={{ ...font.body, fontWeight: weight.semibold, color: theme.textPrimary }}>{text}</Text>
         {description ? <Text style={{ ...font.small, marginTop: 3, color: theme.textSecondary, lineHeight: 16 }}>{description}</Text> : null}

@@ -156,7 +156,7 @@ export function MiniArdia({ g, look, rect, tabs, sel, dim, rowStyle, extra, card
         <TabRow key={i} g={g} look={look} t={tb} y={rowY(i)} w={MINI_SIDE - 12} selected={i === sel} style={[dim?.(i), rowStyle?.(i)]} />
       ))}
       <Card g={g} look={look} rect={card}>
-        <Toolbar g={g} look={look} w={card.w} t={tabs[sel ?? 0] ?? tab(0)} icons={[21, 56]} crumbX={84} />
+        <Toolbar g={g} look={look} w={card.w} t={tabs[sel ?? 0] ?? tab(0)} icons={[20, 55]} crumbX={84} />
         {cardContent ?? <Page g={g} look={look} top={TOOLBAR_H} />}
       </Card>
     </Window>

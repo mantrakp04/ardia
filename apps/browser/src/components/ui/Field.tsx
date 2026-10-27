@@ -176,7 +176,7 @@ export function PopUp<T extends string>({
               height: 22,
               borderRadius: radius.control,
               paddingLeft: 9,
-              paddingRight: space.xs,
+              paddingRight: space.xxs,
               flexDirection: "row",
               alignItems: "center",
               gap: space.s,

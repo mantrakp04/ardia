@@ -3,7 +3,8 @@ import { Pressable, View } from "react-native";
 import { Symbol, Text, useHover, useTheme } from "../ui";
 import { ADD_CHIP } from "./tokens";
 
-export const AddChip = memo(function AddChip({ onPress }: { onPress(): void }) {
+export const AddChip = memo(function AddChip({ large, onPress }: { large: boolean; onPress(): void }) {
+  const height = large ? ADD_CHIP.heroHeight : ADD_CHIP.height;
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   return (
@@ -11,8 +12,8 @@ export const AddChip = memo(function AddChip({ onPress }: { onPress(): void }) {
       <Pressable onPress={onPress}>
         <View
           style={{
-            height: ADD_CHIP.height,
-            borderRadius: ADD_CHIP.radius,
+            height,
+            borderRadius: height / 2,
             borderWidth: ADD_CHIP.border,
             borderColor: theme.chipBorder,
             backgroundColor: hovered ? theme.rowHover : undefined,

@@ -85,7 +85,7 @@ export function BottomRow({ hero, addChip, onDictate, label, enabled, onGo }: { 
       {addChip}
       <View style={{ flex: 1 }} />
       <Button variant="icon" icon="mic" size={BAR.bottom.mic} color={theme.textTertiary} tooltip="Dictate" onPress={onDictate} />
-      <GoButton label={label} enabled={enabled} onPress={onGo} />
+      <GoButton label={label} large={hero} enabled={enabled} onPress={onGo} />
     </View>
   );
 }

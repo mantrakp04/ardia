@@ -42,7 +42,7 @@ export function WhatsSentSheet() {
           </View>
         ))}
       </ScrollView>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 16 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 18 }}>
         <Text style={{ flex: 1, ...font.footnote, lineHeight: 15, color: theme.textTertiary }}>{SHARING_COPY.footnote}</Text>
         <Button title="Done" kind="primary" onPress={closeSettingsSheet} />
       </View>

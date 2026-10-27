@@ -18,7 +18,7 @@ export const CRUMB_X = 153;
 export const STRIP_H = 42;
 export const CHIP = { x: 76, w: 173, gap: 4, top: 5, h: 32 } as const;
 export const LIGHTS_Y = { toolbar: 27, field: 24, strip: 20.75 } as const;
-export const TOOLBAR_ICONS = [21, 56, 92, 127] as const;
+export const TOOLBAR_ICONS = [20, 55, 90, 125] as const;
 export const SIDEBAR_ICONS = [98, 133, 168] as const;
 export const rowY = (i: number, top: number = ROW.top) => top + i * ROW.pitch;
 

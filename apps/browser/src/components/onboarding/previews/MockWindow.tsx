@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, View, type LayoutChangeEvent } from "react-native";
 import { Surface } from "../../ui";
 import { hex, useTheme } from "../../ui/theme";
+import { TOOLBAR_LINE } from "../../toolbar/tokens";
 import { ink } from "../../ui/tokens";
 import { DEFAULT_SETTINGS, type Settings } from "../../../state/settings/settings";
 import type { PreviewId } from "../../../state/onboarding/previewIds";
@@ -222,10 +223,10 @@ const WindowState = memo(function WindowState({ g, look, accent, lay, addr, site
         <Animated.View style={{ position: "absolute", left: 0, right: 0, top: 0, height: TOOLBAR_H * s, backgroundColor: look.card, opacity: fade(addr, 1, 0) }}>
           {bandSite}
           <Animated.View style={[fill, { opacity: fade(lay, 1, 0) }]}>
-            <NavIcons g={g} color={look.plain.icon} xs={TOOLBAR_ICONS} y={21.2} />
+            <NavIcons g={g} color={look.plain.icon} xs={TOOLBAR_ICONS} y={TOOLBAR_LINE} />
           </Animated.View>
           <Animated.View style={[fill, { opacity: lay }]}>
-            <NavIcons g={g} color={look.plain.icon} xs={[21, 56, 92]} y={21.2} names={["chevron.left", "chevron.right", "arrow.clockwise"]} />
+            <NavIcons g={g} color={look.plain.icon} xs={[20, 55, 90]} y={TOOLBAR_LINE} names={["chevron.left", "chevron.right", "arrow.clockwise"]} />
           </Animated.View>
           <Animated.View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: hairline, backgroundColor: look.plain.divider, opacity: fade(site, 1, 0) }} />
         </Animated.View>

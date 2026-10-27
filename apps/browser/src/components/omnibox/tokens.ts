@@ -2,6 +2,8 @@ import { curve } from "../ui/motion";
 import { font, radius, space } from "../ui/tokens";
 
 export const PANEL_TEXT_LEFT = 48;
+export const PANEL_RADIUS = 17;
+export const DROPDOWN_RADIUS = 12;
 const PANEL_ICON_LEFT = 21;
 const FIELD_TEXT_INSET = 2.5;
 const ICON_SLOT = 18;
@@ -18,9 +20,9 @@ export const BAR_TYPE = {
 export const BAR = {
   iconSlot: ICON_SLOT,
   leadingIcon: 15,
-  panelFieldLift: -3,
+  panelFieldLift: -2,
   panel: {
-    height: 55,
+    height: 54,
     heroHeight: 60,
     iconLeft: PANEL_ICON_LEFT,
     heroIconLeft: 18,
@@ -30,12 +32,12 @@ export const BAR = {
   },
   dropdown: { height: 44, left: 13, right: 9, gap: 9 },
   siteControls: { icon: 15, box: 26, radius: 13 },
-  bottom: { left: 14, heroLeft: 13, right: 13, heroRight: 15, height: 52, heroHeight: 43, heroBelow: space.m, mic: 14 },
+  bottom: { left: 14, heroLeft: 13.5, right: 14, heroRight: 13.5, height: 53, heroHeight: 43, heroBelow: space.m, mic: 14 },
 } as const;
 
 export const ADD_CHIP = {
-  height: 32,
-  radius: 16,
+  height: 28,
+  heroHeight: 32,
   border: 1,
   left: 9,
   right: 12,
@@ -47,10 +49,11 @@ export const ADD_CHIP = {
 
 export const GO_BUTTON = {
   before: space.m,
-  minWidth: 99,
-  height: 32,
+  minWidth: 92,
+  heroMinWidth: 99,
+  height: 29,
+  heroHeight: 32,
   padX: space.xl,
-  radius: 16,
   hoverOpacity: 0.9,
   gap: space.s,
   glyph: 11,
@@ -69,16 +72,20 @@ export const SCOPE_CHIP = {
   maxWidth: 220,
 } as const;
 
+export type SuggestionVariant = "panel" | "hero" | "sidebar";
+
+export type SuggestionRowMetrics = { inset: number; below: number; height: number; gapY: number; radius: number; left: number; right: number; gap: number };
+
+const PANEL_ROW_INSET = 4;
+const DROPDOWN_ROW_INSET = 4;
+
+export const SUGGESTION_ROWS: Record<SuggestionVariant, SuggestionRowMetrics> = {
+  panel: { inset: PANEL_ROW_INSET, below: 0, height: 36, gapY: 0, radius: PANEL_RADIUS - PANEL_ROW_INSET, left: 18, right: 18, gap: 9 },
+  hero: { inset: 9, below: space.xxs, height: 35, gapY: 2.5, radius: 11, left: 10, right: 13, gap: 10.5 },
+  sidebar: { inset: DROPDOWN_ROW_INSET, below: DROPDOWN_ROW_INSET, height: 35, gapY: 2.5, radius: DROPDOWN_RADIUS - DROPDOWN_ROW_INSET, left: 10, right: 15, gap: 12 },
+};
+
 export const SUGGESTION = {
-  listX: 9,
-  dropdownListX: space.s,
-  listBelow: space.xxs,
-  dropdownListBelow: space.s,
-  height: 35,
-  gapY: 2.5,
-  radius: 11,
-  padX: 13,
-  gap: 11,
   icon: 13,
   calcIcon: 14,
   iconBox: 16,

@@ -3,7 +3,7 @@ import { memo } from "react";
 import { Image, Pressable, Text as NativeText, View } from "react-native";
 import { Button, Symbol, Text, useHover, useTheme } from "../ui";
 import { Favicon } from "../favicon/Favicon";
-import { SUGGESTION } from "./tokens";
+import { SUGGESTION, SUGGESTION_ROWS, type SuggestionRowMetrics, type SuggestionVariant } from "./tokens";
 
 const ICON_BOX = { width: SUGGESTION.iconBox, height: SUGGESTION.iconBox } as const;
 
@@ -56,24 +56,26 @@ export const SuggestionList = memo(function SuggestionList({
   items,
   selectedIndex,
   trailing,
-  dropdown,
+  variant,
   actions,
 }: {
   items: Suggestion[];
   selectedIndex: number;
   trailing: string | null;
-  dropdown: boolean;
+  variant: SuggestionVariant;
   actions: RowActions;
 }) {
   if (!items.length) return null;
+  const metrics = SUGGESTION_ROWS[variant];
   return (
-    <View style={{ paddingHorizontal: dropdown ? SUGGESTION.dropdownListX : SUGGESTION.listX, paddingBottom: dropdown ? SUGGESTION.dropdownListBelow : SUGGESTION.listBelow }}>
+    <View style={{ paddingHorizontal: metrics.inset, paddingBottom: metrics.below }}>
       {items.map((s, i) => (
         <SuggestionRow
           key={i}
           suggestion={s}
           selected={i === selectedIndex}
           trailing={i === 0 ? trailing : null}
+          metrics={metrics}
           actions={actions}
         />
       ))}
@@ -94,11 +96,13 @@ const SuggestionRow = memo(
     suggestion: s,
     selected,
     trailing,
+    metrics,
     actions,
   }: {
     suggestion: Suggestion;
     selected: boolean;
     trailing: string | null;
+    metrics: SuggestionRowMetrics;
     actions: RowActions;
   }) {
     const theme = useTheme();
@@ -112,13 +116,14 @@ const SuggestionRow = memo(
         <Pressable onPress={() => actions.choose(s)}>
           <View
             style={{
-              height: SUGGESTION.height,
-              marginVertical: SUGGESTION.gapY,
-              borderRadius: SUGGESTION.radius,
+              height: metrics.height,
+              marginVertical: metrics.gapY,
+              borderRadius: metrics.radius,
               flexDirection: "row",
               alignItems: "center",
-              paddingHorizontal: SUGGESTION.padX,
-              gap: SUGGESTION.gap,
+              paddingLeft: metrics.left,
+              paddingRight: metrics.right,
+              gap: metrics.gap,
               backgroundColor: selected ? theme.commandBarSelected : hovered ? theme.commandBarHover : undefined,
             }}
           >
@@ -142,5 +147,5 @@ const SuggestionRow = memo(
       </View>
     );
   },
-  (a, b) => a.selected === b.selected && a.trailing === b.trailing && a.actions === b.actions && sameSuggestion(a.suggestion, b.suggestion),
+  (a, b) => a.selected === b.selected && a.trailing === b.trailing && a.metrics === b.metrics && a.actions === b.actions && sameSuggestion(a.suggestion, b.suggestion),
 );

@@ -9,6 +9,7 @@ import { tidyPins } from "../../state/sidebar/tidyPinsUi";
 
 const CLEAR_DIVIDER_HEIGHT = 16;
 const PADDING = 9;
+const TRAILING = 12;
 
 const hoveredSidebars = new Set<string>();
 const hoverListeners = new Set<() => void>();
@@ -39,7 +40,7 @@ export const ClearDivider = memo(function ClearDivider({ windowId, profileId, sp
   const theme = useTheme();
   const shown = useSidebarHovered(windowId);
   return (
-    <View style={{ height: CLEAR_DIVIDER_HEIGHT, marginTop: spaced ? 7 : 0, flexDirection: "row", alignItems: "center", paddingLeft: PADDING, paddingRight: PADDING }}>
+    <View style={{ height: CLEAR_DIVIDER_HEIGHT, marginTop: spaced ? 7 : 0, flexDirection: "row", alignItems: "center", paddingLeft: PADDING, paddingRight: TRAILING }}>
       <View style={{ flex: 1, height: 1, backgroundColor: theme.divider }} />
       <View>
         <View style={{ position: "absolute", left: 0, right: 0, top: (CLEAR_DIVIDER_HEIGHT - 1) / 2, height: 1, backgroundColor: theme.divider, opacity: shown ? 0 : 1 }} />

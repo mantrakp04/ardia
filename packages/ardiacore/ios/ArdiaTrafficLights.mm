@@ -345,6 +345,10 @@ void InsetTrafficLights(NSWindow *window) {
 
 namespace ardia_window {
 
+void InsetTrafficLightsOnce(NSWindow *window) {
+  if (!objc_getAssociatedObject(window, kInsetLightsKey)) InsetTrafficLights(window);
+}
+
 bool MoveTrafficLights(NSWindow *window, NSValue *center) {
   NSArray<NSButton *> *buttons = TrafficLightButtons(window);
   if (!buttons.count || !objc_getAssociatedObject(window, kInsetLightsKey) || (window.styleMask & NSWindowStyleMaskFullScreen))
