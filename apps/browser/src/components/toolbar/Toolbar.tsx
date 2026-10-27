@@ -123,12 +123,16 @@ export function Toolbar({
   );
 }
 
-export function ToolbarBackdrop({ tabId }: { tabId: string }) {
+export function useSitePalette(tabId: string): { url: string; palette: ToolbarPalette } {
   const theme = useTheme();
   const url = useTab(tabId, (t) => t?.url ?? "");
   const themeColor = useTabLive(tabId, (l) => l.themeColor);
   const extendColor = useSettings((s) => s.extendWebsiteColor);
-  const palette = toolbarPalette(theme, extendColor && url ? themeColor : null);
+  return { url, palette: toolbarPalette(theme, extendColor && url ? themeColor : null) };
+}
+
+export function ToolbarBackdrop({ tabId }: { tabId: string }) {
+  const { url, palette } = useSitePalette(tabId);
   const band = useEasedColor(palette.background);
   return (
     <View pointerEvents="none" style={{ height: layout.toolbarHeight }}>

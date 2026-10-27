@@ -116,9 +116,9 @@ export const TabPane = memo(function TabPane({
       ) : (
         <View style={{ height: layout.toolbarHeight }} />
       )}
-      {!autoLayout && bookmarksBar && <BookmarksBar placeholder={!visible} />}
+      {!autoLayout && bookmarksBar && <BookmarksBar tabId={tabId} placeholder={!visible} />}
       <Animated.View style={autoLayout ? motion.groupStyle : { flex: 1 }}>
-        {autoLayout && bookmarksBar && <BookmarksBar placeholder={!visible} />}
+        {autoLayout && bookmarksBar && <BookmarksBar tabId={tabId} placeholder={!visible} />}
         <View style={autoLayout ? { height: motion.pageHeight } : { flex: 1 }}>
           {visible && !fullscreen && <ShareBar tabId={tabId} />}
           <View style={{ flex: 1 }}>

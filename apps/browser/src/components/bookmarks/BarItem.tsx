@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { createContext, useContext, useMemo, useRef, useState } from "react";
 import { Animated, PanResponder, Pressable, View, type LayoutRectangle } from "react-native";
 import { addFolderToSidebar } from "../../state/bookmarks/bookmarkGroups";
 import { useBookmarkProfileId, useBookmarks, useSidebarEdge } from "../../state/bookmarks/hooks";
@@ -10,6 +10,9 @@ import { useSidebarWidth } from "../sidebar/tokens";
 import { ContextMenuArea, MouseArea, radius, space, Symbol, Text, useHover, useTheme } from "../ui";
 import { openBarMenu, openFolderMenu, openImportButtonMenu, type ClickMods } from "../../state/bookmarks/barMenus";
 import { bookmarksBar } from "./tokens";
+import type { ToolbarPalette } from "../ui/toolbarColors";
+
+export const BarPalette = createContext<ToolbarPalette | null>(null);
 
 const BUTTON = {
   height: bookmarksBar.item,
@@ -135,6 +138,7 @@ export function BarButton({
   highlighted?: boolean;
 }) {
   const theme = useTheme();
+  const site = useContext(BarPalette);
   const { hovered, hoverProps } = useHover();
   const windowId = useWindowId();
   const profileId = useBookmarkProfileId(windowId);
@@ -145,16 +149,16 @@ export function BarButton({
           <View
             style={[
               BUTTON,
-              { width, paddingHorizontal: title ? space.sm : 0, backgroundColor: pressed ? theme.toolbarPressed : hovered || highlighted ? theme.toolbarHover : undefined },
+              { width, paddingHorizontal: title ? space.sm : 0, backgroundColor: pressed ? (site?.pressed ?? theme.toolbarPressed) : hovered || highlighted ? (site?.hover ?? theme.toolbarHover) : undefined },
             ]}
           >
             {favicon ? (
               <Favicon url={favicon.url} favicon={favicon.favicon} size={bookmarksBar.favicon} profileId={profileId} />
             ) : icon ? (
-              <Symbol name={icon} size={bookmarksBar.icon} color={theme.icon} style={ICON} />
+              <Symbol name={icon} size={bookmarksBar.icon} color={site?.icon ?? theme.icon} style={ICON} />
             ) : null}
             {title ? (
-              <Text lines={1} size="small" tone="textTab" style={TITLE}>
+              <Text lines={1} size="small" tone="textTab" style={site ? [TITLE, { color: site.text }] : TITLE}>
                 {title}
               </Text>
             ) : null}
