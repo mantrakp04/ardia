@@ -222,6 +222,11 @@ export const generalRows: Pick<Record<SettingsPane, SettingSection[]>, "general"
           description: "In the centre, ⌘L and a click on the address show it over the middle of the page, as in Arc.",
           keywords: ["cmd l", "command bar", "centred", "centered", "arc", "url bar", "location bar"],
         },
+        subtleAddressBar: {
+          title: "Subtle address bar",
+          description: "The address is in regular weight and dimmed until you point at it, and the toolbar field has no background until the command bar opens.",
+          keywords: ["url bar", "location bar", "bold", "dim", "minimal", "background", "highlight"],
+        },
       },
     },
     {

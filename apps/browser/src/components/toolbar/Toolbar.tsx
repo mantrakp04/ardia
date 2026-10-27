@@ -5,7 +5,7 @@ import { Animated, Pressable, StyleSheet, Text, View, type ViewStyle } from "rea
 import { layout, useTheme } from "../ui/theme";
 import { activate } from "../../state/tabs/actions";
 import { openPanel as openWindowPanel, toggleSidebar } from "../../state/windows/actions";
-import { useIsBookmarked, useSettings, useTab, useTabLive } from "../../state/browser/hooks";
+import { useIsBookmarked, useSettings, useTab, useTabLive, useWindowUi } from "../../state/browser/hooks";
 import type { Tab } from "../../state/browser/types";
 import { Button, ContextMenuArea, FadeLabel, font, ink, radius, Symbol, useHover, weight, WindowDragRegion } from "../ui";
 import { type ToolbarGeometry } from "../window/geometry";
@@ -36,6 +36,7 @@ export const useToolbarTab = (tabId: string | undefined) => useTab(tabId, useSha
 export const URL_FIELD = { top: 21.2 - 15, height: 30 } as const;
 export const urlFieldRight = (inSplit: boolean, extensionsWidth: number) => (inSplit ? 12 + 2 * 28 : 12) + extensionsWidth;
 const LOCK = { left: 7, width: 18, gap: 3 } as const;
+const SUBTLE_URL_OPACITY = 0.65;
 export const urlTextLeft = (insecure: boolean) => (insecure ? LOCK.left + LOCK.width + LOCK.gap : 8);
 export const insecureLevel = (p: PageState) =>
   p.security && (p.security.level === "insecure" || p.security.level === "certificateError") ? p.security.level : null;
@@ -157,6 +158,8 @@ export const UrlField = memo(function UrlField({
 }) {
   const theme = useTheme();
   const showFullUrl = useSettings((s) => s.showFullUrl);
+  const subtle = useSettings((s) => s.subtleAddressBar);
+  const commandBarOpen = !!useWindowUi().panel?.open;
   const bookmarkHint = useShortcutHint("bookmarkPage");
   const splitHint = useShortcutHint("openSplitPane");
   const bookmarked = useIsBookmarked(tab.url);
@@ -177,6 +180,9 @@ export const UrlField = memo(function UrlField({
   const { hovered: pointerOver, hoverProps } = useHover();
   const popover = usePages((p) => p.popover[tab.id] ?? null);
   const hovered = pointerOver || popover === "siteControls";
+  const hostWeight = subtle ? weight.regular : weight.medium;
+  const urlOpacity = subtle && !hovered && !commandBarOpen ? SUBTLE_URL_OPACITY : 1;
+  const toolbarFieldShown = subtle ? commandBarOpen : hovered;
   const isFile = tab.url.startsWith("file:");
   const host = isFile ? "File" : breadcrumb(tab.url).host;
   const full = isFile ? ` ${safeDecode(tab.url.slice("file://".length))}` : urlForDisplay(tab.url);
@@ -199,15 +205,15 @@ export const UrlField = memo(function UrlField({
               backgroundColor: liquidGlass ? undefined : hovered ? theme.tabHover : theme.pinnedResting,
               overflow: "hidden",
             }
-          : { height: 30, borderRadius: radius.l, backgroundColor: hovered && !liquidGlass ? palette.pill : undefined },
+          : { height: 30, borderRadius: radius.l, backgroundColor: toolbarFieldShown && !liquidGlass ? palette.pill : undefined },
       ]}
     >
       {liquidGlass ? (
         sidebar ? (
           <GlassFill tint={null} opacity={hovered ? FIELD_GLASS_HOVER_OPACITY : FIELD_GLASS_OPACITY} radius={SIDEBAR_FIELD.radius} border={StyleSheet.hairlineWidth * 2} fill={theme.pinnedResting} />
-        ) : (
-          <GlassFill tint={null} opacity={hovered ? FIELD_GLASS_HOVER_OPACITY : FIELD_GLASS_OPACITY} radius={radius.l} fill={palette.pill} dark={palette.background ? palette.text.startsWith(ink.white) : undefined} />
-        )
+        ) : !subtle || commandBarOpen ? (
+          <GlassFill tint={null} opacity={toolbarFieldShown ? FIELD_GLASS_HOVER_OPACITY : FIELD_GLASS_OPACITY} radius={radius.l} fill={palette.pill} dark={palette.background ? palette.text.startsWith(ink.white) : undefined} />
+        ) : null
       ) : null}
       {insecure && (
         <Pressable onPress={toggleSiteControls} style={{ paddingLeft: LOCK.left }} tooltip="Connection is not secure">
@@ -222,8 +228,8 @@ export const UrlField = memo(function UrlField({
       <ContextMenuArea style={{ flex: 1 }} onContextMenu={() => void showUrlBarMenu(tab)}>
       <Pressable onPress={() => openPanel(tab.url)} style={{ flex: 1, height: sidebar?.height ?? 30, justifyContent: "center", paddingLeft: insecure ? LOCK.gap : sidebar ? 10 : urlTextLeft(false) }}>
         {sidebar ? (
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <Text numberOfLines={1} ellipsizeMode="head" style={{ flexShrink: 1, ...font.body, fontWeight: weight.medium, color: palette.text }}>
+          <View style={{ flexDirection: "row", alignItems: "center", opacity: urlOpacity }}>
+            <Text numberOfLines={1} ellipsizeMode="head" style={{ flexShrink: 1, ...font.body, fontWeight: hostWeight, color: palette.text }}>
               {host}
             </Text>
             <FadeLabel
@@ -235,8 +241,8 @@ export const UrlField = memo(function UrlField({
             />
           </View>
         ) : (
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
-            <Text numberOfLines={1} ellipsizeMode="head" style={{ flexShrink: 0, maxWidth: "100%", ...font.body, fontWeight: weight.medium, color: palette.text }}>
+          <View style={{ flexDirection: "row", alignItems: "center", opacity: urlOpacity }}>
+            <Text numberOfLines={1} ellipsizeMode="head" style={{ flexShrink: 0, maxWidth: "100%", ...font.body, fontWeight: hostWeight, color: palette.text }}>
               {host}
             </Text>
             {trail ? <Text numberOfLines={1} style={{ flexShrink: 1, ...font.body, color: palette.secondary }}>{trail}</Text> : null}

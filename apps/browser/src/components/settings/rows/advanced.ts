@@ -25,6 +25,7 @@ export const ADVANCED_SETTINGS: ReadonlySet<string> = new Set([
   "tabs.optShiftClickOpensInGroup",
   "tabs.autoGroupMeetingTabs",
   "appearance.spacesFollowAppearance",
+  "appearance.subtleAddressBar",
   "appearance.selectedTabGlow",
   "appearance.pageScrollBars",
   "privacy.filterLists",
