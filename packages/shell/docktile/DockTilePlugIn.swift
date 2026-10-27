@@ -20,7 +20,7 @@ final class ArdiaDockTilePlugIn: NSObject, NSDockTilePlugIn {
     guard dockTile != nil, let app, let bundleId = app.bundleIdentifier else { return }
 
     let iconName = app.object(forInfoDictionaryKey: "CFBundleIconName") as? String ?? "AppIcon"
-    if let artwork = app.image(forResource: iconName) { AppIcons.base = artwork }
+    AppIcons.base = app.image(forResource: iconName) ?? NSWorkspace.shared.icon(forFile: app.bundlePath)
     AppIcons.markNamed = { [app] in app.image(forResource: $0) }
     observer = DistributedNotificationCenter.default().addObserver(
       forName: AppIcons.changedNotification(bundleId: bundleId), object: nil, queue: .main
