@@ -1,5 +1,6 @@
 #import "ArdiaWebViewInternal.h"
 #import "ArdiaEarlyWindow.h"
+#import "ArdiaSwipeInternal.h"
 
 #import <QuartzCore/QuartzCore.h>
 
@@ -8,6 +9,52 @@ using namespace ardia_web_view;
 namespace {
 
 constexpr CFTimeInterval kLeaveScreenDelay = 0.1;
+
+BOOL IsChromePictureContainer(CALayer *layer) {
+  return layer.geometryFlipped && layer.autoresizingMask == (kCALayerWidthSizable | kCALayerHeightSizable) &&
+         CGPointEqualToPoint(layer.anchorPoint, CGPointZero);
+}
+
+}
+
+@interface ArdiaPagePictureFit : NSObject <CALayoutManager>
+@end
+
+@implementation ArdiaPagePictureFit
+
++ (instancetype)shared {
+  static ArdiaPagePictureFit *fit = [ArdiaPagePictureFit new];
+  return fit;
+}
+
+- (void)layoutSublayersOfLayer:(CALayer *)layer {
+  [CATransaction begin];
+  [CATransaction setDisableActions:YES];
+  for (CALayer *sublayer in layer.sublayers)
+    if (IsChromePictureContainer(sublayer) && !CGRectEqualToRect(sublayer.frame, layer.bounds)) sublayer.frame = layer.bounds;
+  [CATransaction commit];
+}
+
+@end
+
+namespace {
+
+void FitPagePictures(NSView *host) {
+  NSMutableArray<NSView *> *views = [NSMutableArray arrayWithObject:host];
+  while (views.count) {
+    NSView *view = views.lastObject;
+    [views removeLastObject];
+    if (!ardia_swipe::IsRenderWidgetView(view)) {
+      [views addObjectsFromArray:view.subviews];
+      continue;
+    }
+    CALayer *layer = view.layer;
+    if (!layer || (layer.layoutManager && layer.layoutManager != ArdiaPagePictureFit.shared)) continue;
+    layer.layoutManager = ArdiaPagePictureFit.shared;
+    [ArdiaPagePictureFit.shared layoutSublayersOfLayer:layer];
+  }
+}
+
 }
 
 @interface ArdiaNeighbourWake : NSObject
@@ -61,6 +108,7 @@ bool gPaintingScheduled = false;
   } else {
     page.frame = self.bounds;
   }
+  FitPagePictures(self);
 }
 
 - (BOOL)paints {

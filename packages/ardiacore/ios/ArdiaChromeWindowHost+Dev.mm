@@ -39,6 +39,51 @@ NSEvent *Key(NSWindow *window, NSEventType type, NSEventModifierFlags flags, NSS
 
 namespace {
 
+NSArray *TopLeftRect(CGRect r, CALayer *root) {
+  const CGFloat y = root.geometryFlipped ? CGRectGetMinY(r) : root.bounds.size.height - CGRectGetMaxY(r);
+  return @[ @(round(CGRectGetMinX(r) * 2) / 2), @(round(y * 2) / 2), @(round(CGRectGetWidth(r) * 2) / 2), @(round(CGRectGetHeight(r) * 2) / 2) ];
+}
+
+NSArray *PageLayers(NSWindow *window) {
+  Class pageClass = NSClassFromString(@"RenderWidgetHostViewCocoa");
+  NSView *content = window.contentView;
+  CALayer *root = content.layer;
+  NSMutableArray *pages = [NSMutableArray array];
+  if (!pageClass || !root) return pages;
+  NSMutableArray<NSView *> *views = [NSMutableArray arrayWithObject:content];
+  while (views.count) {
+    NSView *view = views.lastObject;
+    [views removeLastObject];
+    if (![view isKindOfClass:pageClass]) {
+      [views addObjectsFromArray:view.subviews];
+      continue;
+    }
+    if (view.isHiddenOrHasHiddenAncestor || !view.layer) continue;
+    const NSRect r = [view convertRect:view.bounds toView:content];
+    NSMutableArray *layers = [NSMutableArray array];
+    NSMutableArray<CALayer *> *walk = [NSMutableArray arrayWithObject:view.layer];
+    while (walk.count && layers.count < 32) {
+      CALayer *layer = walk.firstObject;
+      [walk removeObjectAtIndex:0];
+      NSMutableDictionary *entry = [@{
+        @"class" : NSStringFromClass(layer.class),
+        @"frame" : TopLeftRect([layer convertRect:layer.bounds toLayer:root], root),
+        @"flipped" : @(layer.geometryFlipped),
+      } mutableCopy];
+      if (!CATransform3DIsIdentity(layer.transform)) entry[@"transformY"] = @(layer.transform.m42);
+      if (!CATransform3DIsIdentity(layer.sublayerTransform)) entry[@"sublayerTransformY"] = @(layer.sublayerTransform.m42);
+      if (!CGPointEqualToPoint(layer.bounds.origin, CGPointZero)) entry[@"boundsOrigin"] = @[ @(layer.bounds.origin.x), @(layer.bounds.origin.y) ];
+      [layers addObject:entry];
+      [walk addObjectsFromArray:layer.sublayers ?: @[]];
+    }
+    [pages addObject:@{
+      @"view" : @[ @(NSMinX(r)), @(content.isFlipped ? NSMinY(r) : content.bounds.size.height - NSMaxY(r)), @(NSWidth(r)), @(NSHeight(r)) ],
+      @"layers" : layers,
+    }];
+  }
+  return pages;
+}
+
 NSDictionary *ProbeFrame(NSWindow *window, ArdiaWindowFullScreen *state, CFTimeInterval start, NSSize before) {
   NSView *content = window.contentView;
   CALayer *layer = content.layer;
@@ -497,6 +542,21 @@ NSDictionary *ProbeFrame(NSWindow *window, ArdiaWindowFullScreen *state, CFTimeI
     }
     NSData *json = [NSJSONSerialization dataWithJSONObject:out options:0 error:nil];
     return [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding];
+  }
+  if ([action isEqualToString:@"pageLayers"]) {
+    if (!ardia_host::Background()) return @"test instances only";
+    NSData *json = [NSJSONSerialization dataWithJSONObject:PageLayers(window) options:0 error:nil];
+    return json ? [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding] : @"[]";
+  }
+  if ([action hasPrefix:@"resize:"]) {
+    if (!ardia_host::Background()) return @"test instances only";
+    NSArray<NSString *> *n = [[action substringFromIndex:7] componentsSeparatedByString:@","];
+    if (n.count < 2) return @"resize:<width>,<height>[,animate]";
+    NSRect frame = window.frame;
+    frame.origin.y = NSMaxY(frame) - n[1].doubleValue;
+    frame.size = NSMakeSize(n[0].doubleValue, n[1].doubleValue);
+    [window setFrame:frame display:YES animate:n.count > 2 && n[2].boolValue];
+    return NSStringFromRect(window.frame);
   }
   if ([action isEqualToString:@"responder"]) {
     id r = window.firstResponder;
