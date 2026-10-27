@@ -11,6 +11,7 @@
       "DialogsModule",
       "DocumentsModule",
       "SymbolModule",
+      "BadgeGlyphModule",
       "FadeLabelModule",
       "ActivitySpinnerModule",
       "ContextMenuAreaModule",

@@ -1,5 +1,6 @@
 export {
   ActivitySpinner,
+  BadgeGlyph,
   ContextMenuArea,
   DockSelection,
   FadeLabel,

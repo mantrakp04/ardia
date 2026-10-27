@@ -9,6 +9,6 @@ let package = Package(
   ],
   targets: [
     .target(name: "ArdiaUpdaterCore", path: "ios/UpdaterCore"),
-    .testTarget(name: "ArdiaUpdaterCoreTests", dependencies: ["ArdiaUpdaterCore"], path: "tests"),
+    .testTarget(name: "ArdiaUpdaterCoreTests", dependencies: ["ArdiaUpdaterCore"], path: "tests", exclude: ["BadgeGlyphTests.swift", "badge-glyph.sh"]),
   ]
 )

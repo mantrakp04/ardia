@@ -20,6 +20,7 @@ export { TooltipAbove } from "./TooltipAbove";
 export { useHover } from "./useHover";
 export {
   ActivitySpinner,
+  BadgeGlyph,
   ContextMenuArea,
   DIA_SPECTRUM,
   DockSelection,
