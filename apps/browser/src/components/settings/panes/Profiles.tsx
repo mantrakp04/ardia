@@ -1,4 +1,4 @@
-import { ContextMenuArea, Symbol, Box, Button, font, PopUp, TextField, useHover } from "../../ui";
+import { ContextMenuArea, Symbol, Box, Button, font, PopUp, radius, TextField, useHover } from "../../ui";
 import { hapticTick, showMenu } from "../../../state/app/system";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
@@ -67,6 +67,7 @@ export function ProfilesPane() {
 }
 
 const ROW_HEIGHT = 46;
+const CARD_INNER_RADIUS = radius.card - StyleSheet.hairlineWidth * 2;
 const settle = (value: Animated.Value, toValue: number) =>
   Animated.timing(value, { toValue, duration: settingsMotion.profileRowSettle, easing: curve.outCubic, useNativeDriver: true });
 
@@ -125,7 +126,7 @@ function ProfileList() {
   return (
     <Box fill="groupFill" border="groupBorder" radius="card">
       {order.map((id, i) => (
-        <ProfileRow key={id} profileId={id} first={i === 0} offset={offsetOf(id)} lifted={dragging === id} controller={controller} />
+        <ProfileRow key={id} profileId={id} first={i === 0} last={i === order.length - 1} offset={offsetOf(id)} lifted={dragging === id} controller={controller} />
       ))}
     </Box>
   );
@@ -136,12 +137,14 @@ type DragController = { start(id: string): void; move(dy: number): void; end(com
 function ProfileRow({
   profileId,
   first,
+  last,
   offset,
   lifted,
   controller,
 }: {
   profileId: string;
   first: boolean;
+  last: boolean;
   offset: Animated.Value;
   lifted: boolean;
   controller: DragController;
@@ -201,6 +204,10 @@ function ProfileRow({
                 flexDirection: "row",
                 alignItems: "center",
                 gap: 10,
+                borderTopLeftRadius: first ? CARD_INNER_RADIUS : 0,
+                borderTopRightRadius: first ? CARD_INNER_RADIUS : 0,
+                borderBottomLeftRadius: last ? CARD_INNER_RADIUS : 0,
+                borderBottomRightRadius: last ? CARD_INNER_RADIUS : 0,
                 backgroundColor: hovered && !lifted ? theme.rowHover : undefined,
               }}
             >
