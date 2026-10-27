@@ -3,7 +3,7 @@ import { Animated, Pressable, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { switchProfile } from "../../state/browser/actions";
 import { useTheme } from "../ui/theme";
-import { useIsIncognito, useProfile } from "../../state/browser/hooks";
+import { useIsIncognito, useProfile, useSettings } from "../../state/browser/hooks";
 import { useProfileOrder } from "../../state/profiles/hooks";
 import { usePagerPages, type PagerPage } from "../../state/windows/profilePager";
 import { useHover } from "../ui";
@@ -21,7 +21,8 @@ const DOT_CENTER_TO_TOOLTIP = 18.25;
 export function useProfileDotsShown() {
   const incognito = useIsIncognito();
   const count = useProfileOrder((o) => o.length);
-  return !incognito && count > 1;
+  const enabled = useSettings((s) => s.showProfileDots);
+  return enabled && !incognito && count > 1;
 }
 
 export function ProfileDots({ windowId }: { windowId: string }) {

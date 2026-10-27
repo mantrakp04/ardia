@@ -41,6 +41,7 @@ export function AppearancePane() {
       <AddressBarPicker />
       <SelectedTabGlowPicker />
       <ScrollBarsPicker />
+      <ProfileDotsToggle />
       <AppIconPicker />
     </View>
   );
@@ -76,6 +77,20 @@ function AddressBarPicker() {
             onChange={(v) => updateSettings({ commandBarPlacement: v })}
             minWidth={160}
           />
+        </Row>
+      </Group>
+    </>
+  );
+}
+
+function ProfileDotsToggle() {
+  const showProfileDots = useSettings((s) => s.showProfileDots);
+  return (
+    <>
+      <SectionHeader title="Sidebar" />
+      <Group>
+        <Row anchor="appearance.profileDots">
+          <Toggle value={showProfileDots} onChange={(v) => updateSettings({ showProfileDots: v })} />
         </Row>
       </Group>
     </>

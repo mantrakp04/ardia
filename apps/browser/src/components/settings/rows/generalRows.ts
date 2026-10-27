@@ -244,6 +244,16 @@ export const generalRows: Pick<Record<SettingsPane, SettingSection[]>, "general"
         },
       },
     },
+    {
+      section: "Sidebar",
+      rows: {
+        profileDots: {
+          title: "Show profile dots",
+          description: "The dots at the bottom of the sidebar that switch profiles. Swiping and ⌃1–⌃9 still work.",
+          keywords: ["dots", "pager", "profile switcher", "page dots", "bolinhas"],
+        },
+      },
+    },
     { section: "App Icon", rows: { appIcon: { title: "App Icon", description: "Shown in the Dock and the app switcher. The Dock keeps it after you quit.", keywords: ["dock icon", "logo"] } } },
   ],
 };

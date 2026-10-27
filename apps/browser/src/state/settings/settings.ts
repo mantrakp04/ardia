@@ -73,6 +73,7 @@ export type Settings = {
 
   appearance: "auto" | "light" | "dark";
   addressBar: "toolbar" | "sidebar";
+  showProfileDots: boolean;
   commandBarPlacement: "field" | "centred";
   spacesFollowAppearance: boolean;
 
@@ -162,6 +163,7 @@ export const DEFAULT_SETTINGS: Settings = {
   hideBookmarksBarImport: false,
   appearance: "auto",
   addressBar: "toolbar",
+  showProfileDots: true,
   commandBarPlacement: "field",
   spacesFollowAppearance: true,
   defaultProfileId: DEFAULT_PROFILE_ID,
