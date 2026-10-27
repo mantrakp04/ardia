@@ -68,6 +68,7 @@ const DURATION_UNITS: Option<DurationUnit>[] = [
 ];
 
 export function TabsPane() {
+  const tabSwitcherScope = useSettings((s) => s.tabSwitcherScope);
   const newTabOpens = useSettings((s) => s.newTabOpens);
   const newTabPosition = useSettings((s) => s.newTabPosition);
   const newTabButtonPosition = useSettings((s) => s.newTabButtonPosition);
@@ -107,6 +108,17 @@ export function TabsPane() {
         </Row>
         <Row anchor="tabs.newTabButtonPosition">
           <PopUp value={newTabButtonPosition} options={NEW_TAB_BUTTON} onChange={(v) => updateSettings({ newTabButtonPosition: v })} minWidth={190} />
+        </Row>
+        <Row anchor="tabs.tabSwitcherScope">
+          <PopUp
+            value={tabSwitcherScope}
+            options={[
+              { value: "currentProfile", title: "Current profile" },
+              { value: "allProfiles", title: "All profiles" },
+            ]}
+            onChange={(tabSwitcherScope) => updateSettings({ tabSwitcherScope })}
+            minWidth={160}
+          />
         </Row>
         <SettingToggle anchor="tabs.shareTabsAcrossWindows" />
         <SettingToggle anchor="tabs.warnBeforeClosingLastTab" />
