@@ -370,6 +370,18 @@ test("Tidy on tabs files a split once, by its first pane, even when its panes ma
   assert.equal(done.groups, 1);
 });
 
+test("Tidy on tabs files a flipped split by the pane it shows first", () => {
+  reset();
+  const { w, ids: [j1, f1, l9, f9] } = windowWith("https://linkedin.com/1", "https://figma.com/1", "https://linkedin.com/9", "https://figma.com/9");
+  S().groupTabs([j1], { pinned: false, name: "Jobs" });
+  S().groupTabs([f1], { pinned: false, name: "Figma" });
+  const splitId = S().createSplit([l9, f9]);
+  S().flipSplit(splitId);
+  tidy(w, "tabs");
+  assert.equal(innermost(f9)?.name, "Figma");
+  assert.equal(innermost(l9)?.name, "Figma");
+});
+
 test("Undo of Tidy on tabs puts every tab back in its place and removes Tidy's groups", () => {
   reset();
   const { w, ids: [j1, l1, f1, g1, f2] } = windowWith("https://linkedin.com/1", "https://linkedin.com/9", "https://figma.com/1", "https://github.com/1", "https://figma.com/2");
