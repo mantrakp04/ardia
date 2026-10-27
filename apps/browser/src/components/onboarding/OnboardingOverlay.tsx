@@ -18,6 +18,7 @@ import { SetupCodeOutro } from "./SetupCodeOutro";
 import { isWebDemo } from "../../state/onboarding/demoSteps";
 import { ToolTour } from "./tour/ToolTour";
 import { useOnboardingColors } from "./Parts";
+import { DevResetOnboarding } from "./DevResetOnboarding";
 
 const CARD = { width: 880, height: 560, margin: 40 };
 
@@ -29,6 +30,7 @@ export function OnboardingOverlay() {
     <>
       {active ? <Overlay key={session} session={session} /> : null}
       <ToolTour />
+      {__DEV__ ? <DevResetOnboarding /> : null}
     </>
   );
 }

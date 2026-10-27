@@ -1,4 +1,4 @@
-import { cancelDownload, pauseDownload, resumeDownload, type Download } from "../../state/downloads/actions";
+import { cancelDownload, keepDownload, pauseDownload, resumeDownload, type Download } from "../../state/downloads/actions";
 import {
   ContextMenuArea,
   MouseArea,
@@ -32,12 +32,12 @@ import { openInternalPage } from "../../state/pages/urls";
 import { useSidebarWidth } from "../sidebar/tokens";
 import { hairline, shadow } from "../ui/tokens";
 import { DOWNLOADS_PANEL, type DownloadsPlacement } from "./downloadsPlacement";
-import { downloadStatus } from "./downloadStatus";
+import { awaitsKeep, dangerWarning, downloadStatus } from "./downloadStatus";
 import { FooterButton } from "./FooterButton";
 import { useDownloadsPlacement } from "./useDownloadsPlacement";
 import { DOWNLOADS_LIST as L, downloadsRowFill, FILE_ICON_GLYPH_SHARE, MAGNET, useDownloadsColors } from "./tokens";
 
-export { downloadStatus } from "./downloadStatus";
+export { awaitsKeep, downloadStatus } from "./downloadStatus";
 export { DownloadsButton } from "./DownloadsButton";
 
 const g = globalThis as { __acDownloadsWatch?: () => void };
@@ -46,8 +46,12 @@ g.__acDownloadsWatch = watchOpenWhenDone((path) => void openFile(path));
 
 export async function downloadMenu(d: Download, windowId: string) {
   const exists = d.state === "finished" && fileExists(d.path);
-  const items: MenuItem[] =
-    d.state === "downloading"
+  const items: MenuItem[] = awaitsKeep(d)
+    ? [
+        { id: "keep", title: "Keep" },
+        { id: "cancel", title: "Discard" },
+      ]
+    : d.state === "downloading"
       ? [
           { id: "whenDone", title: "Open When Done", checked: opensWhenDone(d.id) },
           { id: d.paused ? "resume" : "pause", title: d.paused ? "Resume" : "Pause" },
@@ -69,6 +73,7 @@ export async function downloadMenu(d: Download, windowId: string) {
   if (choice === "whenDone") toggleOpenWhenDone(d.id);
   if (choice === "pause") void pauseDownload(d.id);
   if (choice === "resume") void resumeDownload(d.id);
+  if (choice === "keep") void keepDownload(d.id);
   if (choice === "cancel") void cancelDownload(d.id);
   if (choice === "open") void openFile(d.path);
   if (choice === "reveal") void revealFile(d.path);
@@ -244,6 +249,7 @@ function DownloadRow({ d, windowId }: { d: Download; windowId: string }) {
   }, [finishedPath]);
   const progress = d.total > 0 ? d.received / d.total : 0;
   const done = d.state === "finished" && exists;
+  const blocked = awaitsKeep(d);
   return (
     <View {...hoverProps}>
       <MouseArea path={done ? d.path : null}>
@@ -272,18 +278,23 @@ function DownloadRow({ d, windowId }: { d: Download; windowId: string }) {
                   >
                     {d.filename || "Preparing…"}
                   </Text>
-                  {d.state === "downloading" ? (
+                  {d.state === "downloading" && !blocked ? (
                     <View style={{ height: L.progressHeight, borderRadius: L.progressRadius, marginTop: L.progressAbove, marginBottom: L.progressBelow, backgroundColor: colors.progressTrack }}>
                       <View
                         style={{ width: `${Math.max(progress, L.progressMin) * 100}%`, height: L.progressHeight, borderRadius: L.progressRadius, backgroundColor: d.paused ? theme.textTertiary : theme.accent }}
                       />
                     </View>
                   ) : null}
-                  <Text lines={1} size="caption" tone="textSecondary" style={{ lineHeight: PANEL.subtitleLine }}>
-                    {downloadStatus(d, exists)}
+                  <Text lines={1} size="caption" tone={blocked ? "destructive" : "textSecondary"} style={{ lineHeight: PANEL.subtitleLine }}>
+                    {blocked ? dangerWarning(d, true) : downloadStatus(d, exists)}
                   </Text>
                 </View>
-                {d.state === "downloading" ? (
+                {blocked ? (
+                  <View style={{ flexDirection: "row", marginRight: -L.textButtonPad }}>
+                    <Button variant="text" plate="hover" height={L.clearHeight} pad="sm" weight="regular" tone="textSecondary" title="Keep" onPress={() => void keepDownload(d.id)} />
+                    <Button variant="text" plate="hover" height={L.clearHeight} pad="sm" title="Discard" onPress={() => void cancelDownload(d.id)} />
+                  </View>
+                ) : d.state === "downloading" ? (
                   <View style={{ flexDirection: "row", marginRight: -L.rowButtonBearing }}>
                     <RowButton
                       icon={d.paused ? "play.circle.fill" : "pause.circle.fill"}

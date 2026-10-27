@@ -110,7 +110,7 @@ export function PageLabel({ tab, hovered = false, label }: { tab: Tab; hovered?:
       )}
       {tab.url ? (
         <View style={{ flex: 1, flexDirection: "row", alignItems: "center" }}>
-          <Text accessible={!!label} accessibilityLabel={label} lines={1} weight="medium" style={HOST}>
+          <Text accessible={!!label} accessibilityLabel={label} lines={1} ellipsizeMode="head" weight="medium" style={HOST}>
             {host}
           </Text>
           {title && title !== host ? <FadeLabel text={`  ${title}`} fontSize={font.body.fontSize} color={theme.textSecondary} fadeWidth={14} style={{ flex: 1, height: 18 }} /> : null}

@@ -18,6 +18,8 @@ export const deploy = ({ secret, service, hexclave }: any) => ({
         REPLAYS_HOST: service("ph-objects").hostname(),
         DASHBOARD_ALLOWED_EMAILS: "mantrakp@gmail.com",
         GITHUB_TOKEN: secret("DASHBOARD_GITHUB_TOKEN"),
+        TRIAGE_CLICKHOUSE_USER: "sandbox",
+        TRIAGE_CLICKHOUSE_PASSWORD: secret("DASHBOARD_TRIAGE_CLICKHOUSE_PASSWORD", ""),
       },
     },
   },

@@ -9,7 +9,7 @@ import { adoptIconPage, dropOutlivedFavicon, noteIconPage } from "../../state/fa
 import { restoredThemeColor } from "../../state/windows/launchLook";
 import { noteTabReady } from "../../state/app/cliControl";
 import { isQuitting } from "../../state/app/nativeSync";
-import { useTheme } from "../ui/theme";
+import { useProfileTheme } from "./ThemeScope";
 import { opaqueCard } from "../ui/opaqueCard";
 import { handOff, takeHandOff, wantsPage } from "../../state/tabs/tabPages";
 import { noteDiscarded, noteGone, noteReady } from "../../state/tabs/tabLifecycle";
@@ -65,7 +65,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
   }, [tabId]);
   const autoPictureInPicture = useAutoPictureInPicture(tabId, visible);
   const pageColor = useProfilesValue(profileId, (profiles) => (isIncognitoProfile(profileId) ? "incognito" : (profiles[profileId]?.color ?? "plum")));
-  const theme = useTheme();
+  const theme = useProfileTheme(profileId);
   const backdrop = useMemo(() => opaqueCard(theme), [theme.card, theme.windowTint[0], theme.windowTint[1]]);
 
   const lastPage = useRef<string | null>(null);
@@ -231,6 +231,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       onAutofillPrompt={(prompt, id) => showAutofillPrompt(tabId, prompt, id)}
       onExternalApp={(externalApp) => patchPage(tabId, { externalApp })}
       onPageFocus={() => activateFocusedPane(tabId)}
+      onPagePress={() => activateFocusedPane(tabId)}
       onWindowClose={() => !isQuitting() && closeTabNow(tabId)}
       onNotification={(notification) => showWebNotification(tabId, notification)}
       onCommand={({ command, text, modifiers }) => {

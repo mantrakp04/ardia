@@ -10,6 +10,7 @@ public class ImportModule: Module {
       .appendingPathComponent("\(Bundle.main.bundleIdentifier ?? "Ardia")/ImportIcons", isDirectory: true)
     return Importer(discovery: BrowserDiscovery(
       applicationSupport: support,
+      diaApp: ImportModule.diaBundleId,
       locateApp: AppIcons.locate,
       iconFor: { app, id in AppIcons.png(for: app, id: id, directory: icons) }
     ))
@@ -114,34 +115,12 @@ public class ImportModule: Module {
       }
     }
 
-    AsyncFunction("diaAutomationStatus") { (promise: Promise) in
-      self.run(promise) { try Self.json(DiaAutomation.status(Self.diaBundleId, ask: false)) }
-    }
-
-    AsyncFunction("requestDiaAutomation") { (promise: Promise) in
-      self.run(promise) { try Self.json(DiaAutomation.status(Self.diaBundleId, ask: true)) }
-    }
-
-    AsyncFunction("openAutomationSettings") { (promise: Promise) in
-      NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")!)
-      promise.resolve(nil)
-    }.runOnQueue(.main)
-
-    AsyncFunction("openDia") { (promise: Promise) in
-      guard let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.diaBundleId) else {
-        return promise.reject("notFound", "Dia isn't installed")
-      }
-      let config = NSWorkspace.OpenConfiguration()
-      config.activates = false
-      NSWorkspace.shared.openApplication(at: app, configuration: config) { _, error in
-        if let error { promise.reject("unreadable", error.localizedDescription) } else { promise.resolve(nil) }
-      }
-    }.runOnQueue(.main)
-
     AsyncFunction("readDiaTabs") { (promise: Promise) in
       self.run(promise) {
-        guard DiaAutomation.isRunning(Self.diaBundleId) else { throw ImportError.notRunning("Dia isn't running") }
-        var result = try DiaTabsImport.read(from: DiaAppleEvents(bundleIdentifier: Self.diaBundleId))
+        let fixture = LaunchConfig.shared.testValue("importDiaWindows").map { URL(fileURLWithPath: $0) }
+        let app = WorkspaceDiaApp(bundleIdentifier: Self.diaBundleId, consent: fixture.map { _ in { .granted } })
+        let source: DiaScriptingSource = fixture.map(DiaFixtureWindows.init(url:)) ?? DiaAppleEvents(bundleIdentifier: Self.diaBundleId)
+        var result = try DiaTabsFetch.read(app: app, source: source)
         result.favicons = self.importer.favicons(browserId: "dia", pages: result.profiles.flatMap { $0.pinned.map(\.url) + $0.tabs.map(\.url) })
         return try Self.json(result)
       }

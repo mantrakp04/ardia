@@ -854,13 +854,55 @@ void main() {
 }
 `;
 
-const FINAL_FS = `${HEADER}${COMMON}
-uniform sampler2D uPaint;
+const STROKE_CELLS = `
 uniform sampler2D uFlow;
-uniform sampler2D uSmear;
-uniform sampler2D uHorizonTex;
 uniform vec2 uResolution;
 uniform float uDpr;
+
+vec2 hash22(vec2 p) {
+  return vec2(hash12(p), hash12(p + 19.19));
+}
+
+vec2 strokeCenter(vec2 id, float cellSize) {
+  return (id + hash22(id)) * cellSize;
+}
+
+vec4 strokeShape(vec2 id, vec2 center, out vec2 along) {
+  vec2 jitter = hash22(id);
+  vec4 flow = texture(uFlow, center / uResolution);
+  vec2 orientation = flow.xy * 2.0 - 1.0;
+  float angle = 0.5 * atan(orientation.y, orientation.x) + (jitter.x - 0.5) * 0.28;
+  along = vec2(cos(angle), sin(angle));
+  float size = mix(0.4, 1.0, flow.z);
+  float halfLength = mix(11.0, 27.0, size) * uDpr * (0.85 + jitter.y * 0.3);
+  float halfWidth = mix(3.4, 7.5, size) * uDpr * (0.85 + jitter.x * 0.3);
+  return vec4(halfLength, halfWidth, flow.a, hash12(id + 7.13));
+}
+`;
+
+const CELL_FS = `${HEADER}${COMMON}${STROKE_CELLS}
+uniform vec2 uCellOrigin;
+layout(location = 0) out vec4 outShape;
+layout(location = 1) out vec4 outStroke;
+
+void main() {
+  vec2 id = floor(gl_FragCoord.xy) + uCellOrigin;
+  vec2 center = strokeCenter(id, 16.0 * uDpr);
+  vec2 along;
+  outStroke = strokeShape(id, center, along);
+  outShape = vec4(center, along);
+}
+`;
+
+const FINAL_FS = `${HEADER}${COMMON}${STROKE_CELLS}
+uniform sampler2D uPaint;
+uniform sampler2D uSmear;
+uniform sampler2D uHorizonTex;
+uniform highp sampler2D uCellShape;
+uniform highp sampler2D uCellStroke;
+uniform bool uCellTable;
+uniform vec2 uCellOrigin;
+uniform ivec2 uCellCount;
 uniform vec3 uLight;
 uniform vec3 uSpecColor;
 uniform vec2 uSunPx;
@@ -869,12 +911,6 @@ uniform float uSunRadiusPx;
 uniform float uRelief;
 in vec2 vUv;
 out vec4 outColor;
-
-
-vec2 hash22(vec2 p) {
-  return vec2(hash12(p), hash12(p + 19.19));
-}
-
 
 void main() {
   vec2 pixel = gl_FragCoord.xy;
@@ -897,27 +933,35 @@ void main() {
   for (int j = -2; j <= 2; j++) {
     for (int i = -2; i <= 2; i++) {
       vec2 id = cell + vec2(float(i), float(j));
-      vec2 jitter = hash22(id);
-      vec2 center = (id + jitter) * cellSize;
+      ivec2 slot = ivec2(id - uCellOrigin);
+      bool cached = uCellTable && all(greaterThanEqual(slot, ivec2(0))) && all(lessThan(slot, uCellCount));
+      vec2 center;
+      vec2 along;
+      vec4 shape;
+      if (cached) {
+        shape = texelFetch(uCellShape, slot, 0);
+        center = shape.xy;
+      } else {
+        center = strokeCenter(id, cellSize);
+      }
       vec2 d = painted - center;
       if (dot(d, d) > reach2) continue;
-      vec4 flow = texture(uFlow, center / uResolution);
-      vec2 orientation = flow.xy * 2.0 - 1.0;
-      float angle = 0.5 * atan(orientation.y, orientation.x) + (jitter.x - 0.5) * 0.28;
-      vec2 along = vec2(cos(angle), sin(angle));
-      float size = mix(0.4, 1.0, flow.z);
-      float halfLength = mix(11.0, 27.0, size) * uDpr * (0.85 + jitter.y * 0.3);
-      float halfWidth = mix(3.4, 7.5, size) * uDpr * (0.85 + jitter.x * 0.3);
-      float a = dot(d, along) / halfLength;
-      float b = dot(d, vec2(-along.y, along.x)) / (halfWidth * (1.0 - 0.35 * smoothstep(0.1, 1.0, a)));
-      if (pow(abs(a), 2.6) + b * b < 1.0 && step(abs(flow.a - CREATURE_REGION), 0.04) >= creatureAtPixel) {
-        float order = hash12(id + 7.13);
-        if (order > bestOrder) {
-          bestOrder = order;
+      vec4 stroke;
+      if (cached) {
+        along = shape.zw;
+        stroke = texelFetch(uCellStroke, slot, 0);
+      } else {
+        stroke = strokeShape(id, center, along);
+      }
+      float a = dot(d, along) / stroke.x;
+      float b = dot(d, vec2(-along.y, along.x)) / (stroke.y * (1.0 - 0.35 * smoothstep(0.1, 1.0, a)));
+      if (pow(abs(a), 2.6) + b * b < 1.0 && step(abs(stroke.z - CREATURE_REGION), 0.04) >= creatureAtPixel) {
+        if (stroke.w > bestOrder) {
+          bestOrder = stroke.w;
           bestLocal = vec2(a, b);
           bestCenter = center;
-          bestSeed = jitter.y;
-          bestRegion = flow.a;
+          bestSeed = hash12(id + 19.19);
+          bestRegion = stroke.z;
         }
       }
     }
@@ -955,6 +999,26 @@ void main() {
 
   color += (hash12(pixel + fract(uTime * 3.7) * 97.0) - 0.5) / 255.0;
   outColor = vec4(color, 1.0);
+}
+`;
+
+const PROBE_FS = `${HEADER}
+uniform sampler2D uSource;
+uniform vec2 uHalfSize;
+uniform vec2 uProbeSize;
+out vec4 outColor;
+
+vec4 halfTexel(vec2 cell) {
+  return texture(uSource, (clamp(cell, vec2(0.0), uHalfSize - 1.0) + 0.5) / uHalfSize);
+}
+
+void main() {
+  vec2 st = gl_FragCoord.xy / uProbeSize * uHalfSize - 0.5;
+  vec2 cell = floor(st);
+  vec2 f = st - cell;
+  vec4 bottom = mix(halfTexel(cell), halfTexel(cell + vec2(1.0, 0.0)), f.x);
+  vec4 top = mix(halfTexel(cell + vec2(0.0, 1.0)), halfTexel(cell + vec2(1.0, 1.0)), f.x);
+  outColor = mix(bottom, top, f.y);
 }
 `;
 
@@ -1007,6 +1071,8 @@ export const SHADERS = {
   grassFs: GRASS_FS,
   paintFs: PAINT_FS,
   finalFs: FINAL_FS,
+  cellFs: CELL_FS,
+  probeFs: PROBE_FS,
   particleVs: PARTICLE_VS,
   particleFs: PARTICLE_FS,
   mobVs: MOB_VS,

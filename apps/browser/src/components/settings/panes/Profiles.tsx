@@ -1,4 +1,4 @@
-import { ContextMenuArea, Symbol, Box, Button, font, Group, PopUp, TextField, useHover } from "../../ui";
+import { ContextMenuArea, Symbol, Box, Button, font, PopUp, TextField, useHover } from "../../ui";
 import { hapticTick, showMenu } from "../../../state/app/system";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
@@ -12,7 +12,7 @@ import { useProfile, useProfiles, useSettings } from "../../../state/browser/hoo
 import { sharingProfiles } from "../../../state/profiles/profiles";
 import type { Profile } from "../../../state/browser/types";
 import { ClearDataDialog } from "../../pages/ClearDataDialog";
-import { Row, SectionHeader } from "../Form";
+import { Group, Row, SectionHeader } from "../Form";
 import { ColorStack } from "../../profiles/CreateProfile";
 import { iconMenuItems, PROFILE_SYMBOLS, ProfileBadge, profileSymbol } from "../../profiles/ProfileIcons";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";

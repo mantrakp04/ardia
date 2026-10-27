@@ -4,7 +4,7 @@ import { PSL_TLDS } from "./tlds.ts";
 import { domainToASCII } from "node:url";
 import { cleanUrl } from "./cleanUrl.ts";
 import { displayHost, hostSpoofReason, punycodeEncode } from "./idn.ts";
-import { breadcrumb, fixupUrl, resolveInput, urlForDisplay } from "./omnibox.ts";
+import { breadcrumb, classifyPaste, fixupUrl, resolveInput, urlForDisplay } from "./omnibox.ts";
 import { displayUrl } from "./suggest.ts";
 
 test("resolveInput turns typed text into a URL", () => {
@@ -177,4 +177,32 @@ test("random hosts: a known TLD or a port navigates, a bare unknown name or a sp
     assert.equal(bare, null, unknown);
     assert.ok(fixupUrl(`${unknown}:${1 + rnd(65535)}`), "a port makes it a URL");
   }
+});
+
+test("javascript: never comes out of typed or pasted address bar text", () => {
+  for (const text of ["javascript://x%0Aalert(document.domain)", "JAVASCRIPT://x", "view-source:javascript:alert(1)", "javascript:alert(1)"]) {
+    assert.equal(fixupUrl(text), null, text);
+    assert.ok(!/^javascript:/i.test(resolveInput(text)), text);
+  }
+  assert.deepEqual(classifyPaste("javascript://x%0Aalert(document.domain)"), { kind: "search", query: "//x%0Aalert(document.domain)" });
+  assert.deepEqual(classifyPaste(" javascript:javascript:alert(1)"), { kind: "search", query: "alert(1)" });
+  assert.equal(classifyPaste("javascript:"), null);
+  assert.deepEqual(classifyPaste("javascript:example.com"), { kind: "go", url: "https://example.com" });
+});
+
+test("display drops userinfo and keeps non-default ports in the host", () => {
+  assert.equal(urlForDisplay("https://user:pass@example.com/a"), "example.com/a");
+  assert.equal(urlForDisplay("https://accounts.google.com@evil.com/"), "evil.com/");
+  assert.equal(urlForDisplay("https://example.com:8443/a"), "example.com:8443/a");
+  assert.equal(urlForDisplay("mailto:hi@example.com"), "mailto:hi@example.com");
+  assert.equal(breadcrumb("https://example.com:8443/a").host, "example.com:8443");
+  assert.equal(breadcrumb("https://example.com:443/a").host, "example.com");
+  assert.equal(breadcrumb("http://localhost:3000/").host, "localhost:3000");
+  assert.equal(breadcrumb("https://user:pass@example.com/").host, "example.com");
+});
+
+test("Latin lookalikes of finance domains stay punycode", () => {
+  assert.equal(shown("fidélity.com"), ascii("fidélity.com"));
+  assert.equal(shown("schwáb.com"), ascii("schwáb.com"));
+  assert.equal(shown("bücher.de"), "bücher.de");
 });

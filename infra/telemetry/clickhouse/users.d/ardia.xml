@@ -7,7 +7,53 @@
             <max_result_rows>1000000</max_result_rows>
             <result_overflow_mode>break</result_overflow_mode>
         </reader>
+        <sandbox>
+            <max_execution_time>180</max_execution_time>
+            <max_memory_usage>2000000000</max_memory_usage>
+            <max_threads>2</max_threads>
+            <max_insert_threads>1</max_insert_threads>
+            <max_memory_usage_for_user>2000000000</max_memory_usage_for_user>
+            <max_concurrent_queries_for_user>2</max_concurrent_queries_for_user>
+            <max_untracked_memory>4194304</max_untracked_memory>
+            <max_temporary_data_on_disk_size_for_user>1000000000</max_temporary_data_on_disk_size_for_user>
+            <max_temporary_data_on_disk_size_for_query>1000000000</max_temporary_data_on_disk_size_for_query>
+            <dynamic_disk_allow_from_env>0</dynamic_disk_allow_from_env>
+            <dynamic_disk_allow_include>0</dynamic_disk_allow_include>
+            <dynamic_disk_allow_from_zk>0</dynamic_disk_allow_from_zk>
+            <constraints>
+                <max_execution_time><min>1</min><max>180</max></max_execution_time>
+                <max_memory_usage><min>1</min><max>2000000000</max></max_memory_usage>
+                <max_threads><min>1</min><max>2</max></max_threads>
+                <max_insert_threads><readonly/></max_insert_threads>
+                <max_memory_usage_for_user><readonly/></max_memory_usage_for_user>
+                <max_concurrent_queries_for_user><readonly/></max_concurrent_queries_for_user>
+                <max_untracked_memory><readonly/></max_untracked_memory>
+                <max_temporary_data_on_disk_size_for_user><min>1</min><max>1000000000</max></max_temporary_data_on_disk_size_for_user>
+                <max_temporary_data_on_disk_size_for_query><min>1</min><max>1000000000</max></max_temporary_data_on_disk_size_for_query>
+                <dynamic_disk_allow_from_env><readonly/></dynamic_disk_allow_from_env>
+                <dynamic_disk_allow_include><readonly/></dynamic_disk_allow_include>
+                <dynamic_disk_allow_from_zk><readonly/></dynamic_disk_allow_from_zk>
+                <merge_tree_disk><readonly/></merge_tree_disk>
+                <merge_tree_storage_policy><readonly/></merge_tree_storage_policy>
+            </constraints>
+        </sandbox>
     </profiles>
+
+    <quotas>
+        <sandbox>
+            <interval>
+                <duration>3600</duration>
+                <queries>3600</queries>
+                <errors>600</errors>
+                <execution_time>1800</execution_time>
+                <written_bytes>500000000</written_bytes>
+            </interval>
+            <interval>
+                <duration>86400</duration>
+                <written_bytes>2000000000</written_bytes>
+            </interval>
+        </sandbox>
+    </quotas>
 
     <users>
         <default>
@@ -43,5 +89,24 @@
                 <query>GRANT SELECT ON system.processes</query>
             </grants>
         </reader>
+        <sandbox>
+            <password from_env="CLICKHOUSE_SANDBOX_PASSWORD"/>
+            <networks><ip>::/0</ip></networks>
+            <profile>sandbox</profile>
+            <quota>sandbox</quota>
+            <grants>
+                <query>GRANT SELECT, INSERT, CREATE TABLE, CREATE VIEW, DROP TABLE, DROP VIEW, TRUNCATE, OPTIMIZE, SHOW TABLES ON sandbox.*</query>
+                <query>GRANT ALTER ADD COLUMN, ALTER DROP COLUMN, ALTER MODIFY COLUMN, ALTER RENAME COLUMN, ALTER COMMENT COLUMN, ALTER DELETE, ALTER UPDATE ON sandbox.*</query>
+                <query>GRANT TABLE ENGINE ON MergeTree</query>
+                <query>GRANT TABLE ENGINE ON ReplacingMergeTree</query>
+                <query>GRANT TABLE ENGINE ON SummingMergeTree</query>
+                <query>GRANT TABLE ENGINE ON AggregatingMergeTree</query>
+                <query>GRANT TABLE ENGINE ON CollapsingMergeTree</query>
+                <query>GRANT TABLE ENGINE ON VersionedCollapsingMergeTree</query>
+                <query>GRANT TABLE ENGINE ON Log</query>
+                <query>GRANT TABLE ENGINE ON TinyLog</query>
+                <query>GRANT TABLE ENGINE ON StripeLog</query>
+            </grants>
+        </sandbox>
     </users>
 </clickhouse>

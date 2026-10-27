@@ -6,6 +6,8 @@ export const Animated = { createAnimatedComponent: <Component>(component: Compon
 
 export const findNodeHandle = () => null;
 
+export const unstable_batchedUpdates = (update: () => void) => update();
+
 type Curve = (t: number) => number;
 const identity: Curve = (t) => t;
 export const Easing = {

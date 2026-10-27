@@ -5,7 +5,7 @@ interface Props {
   label?: string;
   meta?: string;
   class?: string;
-  location: "hero" | "closing" | "release_notes" | "menu" | "office-band";
+  location: "hero" | "closing" | "release_notes" | "menu" | "office-band" | "arc";
   nightly?: boolean;
 }
 const { label = "Download for Mac", meta = "Apple Silicon", class: className, location, nightly = false } = Astro.props;

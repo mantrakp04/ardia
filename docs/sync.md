@@ -91,6 +91,13 @@ reset by email, because there's no one to email.
     shows "not syncing" with Enter Recovery Phrase…, and the same device carries on.
 - The key never crosses to JS. The words do, only for the Recovery Kit and Connect Another Device
   sheets, or when the user types them.
+- Every native call that hands out the phrase (Show Words, the QR code, Save, Save as Text, Copy
+  and Share of the kit, Copy Words, Copy Recovery Code) first asks macOS for device-owner
+  authentication (Touch ID or the login password). A success is good for 60 s, like the
+  Passwords pane; Stop Syncing ends it early. Cancelling returns nothing and changes nothing.
+  The kit preview in the sheet is drawn with dots instead of the words. Hidden test instances
+  never prompt: `ARDIA_TEST=reauth=granted` grants, anything else denies (#241).
+- The temporary kit for Copy and Share (`$TMPDIR/Ardia Recovery Kit/`) is deleted at launch.
 
 A wrong phrase is caught in one of two ways. A typo fails the checksum. A valid but different
 phrase derives a chain tag that isn't in the folder: "This recovery phrase doesn’t match the
@@ -317,9 +324,28 @@ Saved passwords are Chrome's (its password manager).
   (`ChromiumSecrets`, `packages/import`). Chrome's key is its "Ardia Safe Storage" item, or
   the mock keychain's where ArdiaHost uses that (test instances, ad hoc builds). No Touch ID prompt is needed each cycle, and no
   Chromium change.
-- **Writing.** Writes go through Chrome's API (`savePassword`, `deletePassword` in
-  `@ardia/ardiacore`), so Chrome's in-memory store and autofill see them at once. A changed
-  password is a delete plus an add: the update API needs the device check.
+- **Sealed for JS.** Plain passwords never reach JS (#241). The native read gives JS each login's
+  origin, username, creation time and the password sealed with the sync key (AES-256-GCM, its
+  own HKDF key, bound to origin and username). The nonce is an HMAC of the login and password,
+  so the same password seals the same on every Mac and the adapter can compare without opening
+  it. Applying a remote password hands the sealed value back to `ArdiaSync.savePassword`, which
+  opens it for that login only and writes through Chrome's API.
+- **Keys.** Records are `pws:<origin>\n<username>` → `{ o, u, s }`. Builds before this used
+  `pw:` with the plain password; new builds ignore `pw:` records and never tombstone them, so a
+  Mac still on an old build keeps its passwords and syncs them only with other old builds until
+  it updates. Those legacy records still never reach JS in the clear: `read` and `openLocal`
+  seal each `pw:` value's `p` into `s` the same way and drop `pw:` entries from the local base,
+  and `write` opens `s` back into `p`, so the folder keeps the old format and an old build's
+  records survive a new build's compaction unchanged. The next local state checkpoint holds only
+  the sealed form. A document with `pw:` records that can't be parsed or sealed (after replacing
+  lone surrogate escapes, which `JSONSerialization` rejects) is never handed over in the clear:
+  a folder file is reported as damaged, and a local state or journal file reads as missing while
+  `sealLocal` and `write` refuse for the rest of the session, so the files on disk and the
+  folder stay as they were and sync shows an error instead of saving a rebuilt state over them.
+- **Writing.** Writes go through Chrome's API (`ArdiaServices.savePassword` from the sync module,
+  `deletePassword` in `@ardia/ardiacore`), so Chrome's in-memory store and autofill see them at
+  once. A changed password is a delete plus an add, done natively only after the sealed value
+  opens: the update API needs the device check.
 - **Safety.**
   - A read that finds any row it can't decrypt is skipped (a partial list would read as
     deletions).

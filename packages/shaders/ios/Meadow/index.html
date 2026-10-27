@@ -1,0 +1,1029 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'">
+<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}
+.hero{position:absolute;inset:0;overflow:hidden}
+.meadow-canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.hero-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.hero-title{display:flex;flex-direction:column;align-items:center;gap:18px;margin:0;color:transparent;font-family:-apple-system,system-ui,sans-serif;font-weight:normal}
+.line{display:block}
+.line>span{display:block}
+.icon{width:96px;height:96px}
+.wordmark{font-size:64px;font-weight:200;letter-spacing:-1.5px}
+.tagline{font-size:17px;font-weight:300}</style>
+</head>
+<body aria-hidden="true">
+<section class="hero" data-meadow>
+<canvas class="meadow-canvas" data-meadow-canvas></canvas>
+<div class="hero-text"><div class="hero-title"><span class="line"><span class="icon"></span></span><span class="line"><span class="wordmark">Ardia</span></span><span class="line"><span class="tagline">Your new home on the internet</span></span></div></div>
+</section>
+<script>"use strict";(()=>{var Gt=null;function tn(t){Gt===null&&(Gt=performance.now(),t.dataset.sunrise="run")}function Gr(t=performance.now()){return Gt===null?0:t-Gt}function Ut(t){let e=Math.min(1,Math.max(0,t));return(1-Math.cos(Math.PI*e))/2}function rn(t){return Ut((t-300)/2850)}var on=2.5*Math.PI/180,ve=[34,10,-18,-46].map(t=>t*Math.PI/180),ce=t=>t*Math.PI/180,Aa=(t,e,o)=>{let n=Math.min(1,Math.max(0,(o-t)/(e-t)));return n*n*(3-2*n)},sn=ce(26),nn=ce(14),ln=ce(34),cn=ce(6),an=ce(6),Ra=.8,_a=.7,Fa=ce(72),La=1.9;function Wt(t,e=0,o=0){let n=Aa(.55,1.45,t);if(t>=.9||e<.3||e>.85){let v=ce(62+-22*n),g=Math.tan(v/2),x=-.4+.1*n,w=ce(27-1*n),A=g*Math.max(t,.9);return{verticalFov:v,pitch:Math.atan(-x*g),yaw:0,sunPeak:w,sunCeiling:w,sunSweep:1,sunRadius:on,hillScale:1,moonRise:Math.atan(.86*A),moonSet:Math.atan(.36*A),moonPeak:nn}}let a=Fa,r=Math.tan(a/2),s=1-2*Math.max(e+.1,Math.min(o,e+(1-e)*.5)),c=Math.atan(-s*r),h=on*Ra,f=1-2*(e+h/r/2*1.25+.006),i=Math.max(ce(4),c+Math.atan(f*r));return{verticalFov:a,pitch:c,yaw:0,sunPeak:(i+cn)*La,sunCeiling:i,sunRadius:h,hillScale:_a,sunSweep:Math.min(1,Math.max(.3,Math.atan(.38*r*t)/ce(10))),moonRise:Math.atan(.78*r*t),moonSet:Math.atan(.3*r*t),moonPeak:Math.min(nn,i)}}function it(t,e,o=e,n=1){let a=Math.max(0,Math.sin(Math.PI*Math.min(1,Math.max(0,t))));return{azimuth:(ce(16.2)+(ce(-4.6)-ce(16.2))*t)*n,elevation:Math.min(o,-cn+e*a**.8)}}function Vt(t,e){let o=Math.min(1,Math.max(0,t)),n=Math.sin(Math.PI*o)**.6;return{azimuth:e.moonRise+(e.moonSet-e.moonRise)*o,elevation:-an+(e.moonPeak+an)*n,arc:n}}function Oe(t,e){return[Math.sin(t)*Math.cos(e),Math.sin(e),Math.cos(t)*Math.cos(e)]}var Wr=.06,Kt=.3,Vr=.84,un={horizon:"#2c416c",low:"#25375f",mid:"#1b2a50",top:"#111b38",glow:"#3b4f86",glowStrength:0,key:[.34,.5,.72],ambient:.62,haze:14e-5,mist:7e-4,night:1},ut=[{p:0,...un},{p:.06,horizon:"#e6998b",low:"#c98190",mid:"#9a83a8",top:"#7c85ab",glow:"#ff8a5c",glowStrength:.42,key:[.95,.42,.26],ambient:.82,haze:19e-5,mist:.0012,night:0},{p:.14,horizon:"#f4b08a",low:"#e3a8a0",mid:"#b8a7bd",top:"#919abb",glow:"#ffa064",glowStrength:.45,key:[1.35,.78,.46],ambient:.9,haze:16e-5,mist:7e-4,night:0},{p:.3,horizon:"#f7e5c2",low:"#f3e8d4",mid:"#e1e4dc",top:"#bccfd9",glow:"#ffcf7c",glowStrength:.26,key:[2.05,1.62,1.08],ambient:1,haze:11e-5,mist:15e-5,night:0},{p:.58,horizon:"#f4ead6",low:"#ebe8dc",mid:"#d6e0e0",top:"#aec7d7",glow:"#ffe0a0",glowStrength:.2,key:[2.25,1.92,1.42],ambient:1.05,haze:1e-4,mist:1e-4,night:0},{p:.84,horizon:"#f8c47c",low:"#f2cd9c",mid:"#e2bfa4",top:"#b9b0b6",glow:"#ffb35a",glowStrength:.5,key:[2.15,1.3,.58],ambient:.95,haze:16e-5,mist:3e-4,night:0},{p:.92,horizon:"#ef9070",low:"#c96f76",mid:"#b36871",top:"#5d5281",glow:"#ff7a4f",glowStrength:.55,key:[1.05,.44,.3],ambient:.74,haze:18e-5,mist:8e-4,night:.15},{p:1,...un}],lt=t=>{let e=parseInt(t.slice(1),16);return[e>>16&255,e>>8&255,e&255].map(o=>(o/255)**2.2)},hn=ut.map(t=>({horizon:lt(t.horizon),low:lt(t.low),mid:lt(t.mid),top:lt(t.top),glow:lt(t.glow)})),Fe=(t,e,o)=>t+(e-t)*o,qe=(t,e,o)=>[Fe(t[0],e[0],o),Fe(t[1],e[1],o),Fe(t[2],e[2],o)],Ur=t=>t*t*(3-2*t),ct=t=>t*Math.PI/180,fn=.16;function Kr(t,e,o=.5){let n=Math.min(1,Math.max(0,t)),a=0;for(;a<ut.length-2&&ut[a+1].p<=n;)a++;let r=ut[a],s=ut[a+1],c=Ur((n-r.p)/Math.max(1e-6,s.p-r.p)),h=hn[a],f=hn[a+1],i=Fe(r.night,s.night,c),v=it(n,e.sunPeak,e.sunCeiling,e.sunSweep),g=Oe(v.azimuth,v.elevation),x=it(n,sn),w=Vt(o,e),A=ct(30)+(ct(6)-ct(30))*Math.min(1,Math.max(0,o)),p=ct(-5)+(ln+ct(5))*w.arc,S=Oe(w.azimuth,w.elevation),Q=i>.5,te=Ur(Q?Math.min(1,(i-.5)/fn):Math.min(1,(.5-i)/fn)),J=Q?A:x.azimuth,ae=Q?p:x.elevation,k=Fe(r.glowStrength,s.glowStrength,c),z=qe(h.top,f.top,c);return{sunDir:g,sunElevation:v.elevation,keyDir:Oe(J,ae),keyColor:qe(r.key,s.key,c).map(M=>M*te),keyElevation:ae,moonDir:S,moonElevation:w.elevation,skyHorizon:qe(h.horizon,f.horizon,c),skyLow:qe(h.low,f.low,c),skyMid:qe(h.mid,f.mid,c),skyTop:z,glow:qe(h.glow,f.glow,c).map(M=>M*k),ambient:Fe(r.ambient,s.ambient,c),haze:Fe(r.haze,s.haze,c),mist:Fe(r.mist,s.mist,c),night:i,shadowMix:Pa(J),topLuminance:.2126*z[0]+.7152*z[1]+.0722*z[2]}}function Pa(t){let e=[0,0,0,0];if(t>=ve[0])return e[0]=1,e;for(let o=0;o<ve.length-1;o++){let n=ve[o],a=ve[o+1];if(t<=n&&t>=a){let r=(n-t)/(n-a);return e[o]=1-r,e[o+1]=r,e}}return e[3]=1,e}var Na=.92,mn=[{seconds:0,p:0,moon:.82},{seconds:7,p:Wr,moon:1},{seconds:6,p:.14,moon:1},{seconds:9,p:Kt,moon:1},{seconds:12,p:.58,moon:1},{seconds:12,p:Vr,moon:1},{seconds:8,p:Na,moon:0},{seconds:7,p:1,moon:.2},{seconds:16,p:1,moon:.82}],Xr=mn.reduce((t,e)=>t+e.seconds,0),re=(()=>{let t=0;return mn.map(e=>(t+=e.seconds,{c:t/Xr,p:e.p,moon:e.moon}))})(),dn=ka(re.map(t=>t.c),re.map(t=>t.p));function ka(t,e){let o=t.length,n=t.slice(0,-1).map((r,s)=>(e[s+1]-e[s])/(t[s+1]-r));return t.map((r,s)=>{if(s===0)return n[0];if(s===o-1)return n[o-2];let c=n[s-1],h=n[s];return c*h<=0?0:2*c*h/(c+h)})}var fe=t=>t-Math.floor(t);function Yt(t,e){let o=fe(e-t);return o>.5?o-1:o}function Ca(t){let e=0;for(;e<re.length-2&&re[e+1].c<=t;)e++;return e}function ht(t){let e=fe(t),o=Ca(e),n=re[o],a=re[o+1],r=a.c-n.c,s=(e-n.c)/r,c=s*s,h=c*s,f=(2*h-3*c+1)*n.p+(h-2*c+s)*r*dn[o]+(-2*h+3*c)*a.p+(h-c)*r*dn[o+1],v=a.moon>=n.moon?n.moon+(a.moon-n.moon)*s:1;return{p:Math.min(1,Math.max(0,f)),moon:v}}function Xt(t){for(let e=0;e<re.length-1;e++){let o=re[e],n=re[e+1];if(n.p<=o.p||t<o.p||t>n.p)continue;let a=o.c,r=n.c;for(let s=0;s<30;s++){let c=(a+r)/2;ht(c).p<t?a=c:r=c}return(a+r)/2}return 0}var pn=[0,re[re.length-2].c],$t=[re[re.length-3].c,1+re[1].c],qt=[Xt(Kt),Xt(Vr),(re[re.length-2].c+1)/2],jt=Xt(Wr),ft=Xt(Kt);var Yr=t=>typeof t=="function"&&/\[native code\]\s*\}\s*$/.test(Function.prototype.toString.call(t)),$r=t=>{let e=[...t].sort((o,n)=>o-n);return e[e.length>>1]},dt=class{constructor(e){this.gl=e;let o=!Yr(e.drawArrays)||!Yr(e.drawElements)||!Yr(e.drawArraysInstanced);this.ext=o?null:e.getExtension("EXT_disjoint_timer_query_webgl2")}gl;ext;pending=[];running=null;get available(){return this.ext!==null}start(e){let{gl:o,ext:n}=this;if(!n||this.running||this.pending.length>=4||o.getQuery(n.TIME_ELAPSED_EXT,o.CURRENT_QUERY))return;let a=o.createQuery();a&&(o.beginQuery(n.TIME_ELAPSED_EXT,a),this.running={query:a,busy:e})}stop(){!this.ext||!this.running||(this.gl.endQuery(this.ext.TIME_ELAPSED_EXT),this.pending.push(this.running),this.running=null)}collect(e){let{gl:o,ext:n}=this;if(n)for(;this.pending.length;){let{query:a,busy:r}=this.pending[0];if(!o.getQueryParameter(a,o.QUERY_RESULT_AVAILABLE))return;let s=o.getParameter(n.GPU_DISJOINT_EXT),c=o.getQueryParameter(a,o.QUERY_RESULT);o.deleteQuery(a),this.pending.shift(),s||e(c/1e6,r)}}},Zt=class{scale=1;ceiling=1;samples=[];frames=[];cpu=[];changedAt=0;lastRose=!1;gpu(e,o){if(this.samples.push(e),this.samples.length<16)return!1;let n=$r(this.samples);if(this.samples.length=0,n>12&&this.scale>.5){let a=Math.min(.92,Math.max(.6,Math.sqrt(9/n))),r=Math.max(.5,this.scale*a);return this.lastRose&&(this.ceiling=r),this.change(r,!1,o)}if(n<4.5&&this.scale<this.ceiling&&o-this.changedAt>4e3){let a=Math.min(1.25,Math.sqrt(9/n));return this.change(Math.min(this.ceiling,this.scale*a),!0,o)}return!1}frame(e,o,n){if(this.frames.push(e),this.cpu.push(o),this.frames.length<40)return!1;let a=$r(this.frames)>24&&$r(this.cpu)<8;return this.frames.length=0,this.cpu.length=0,!a||this.scale<=.6?!1:this.change(Math.max(.6,this.scale*.85),!1,n)}change(e,o,n){return Math.abs(e-this.scale)<.01?!1:(this.scale=e,this.lastRose=o,this.changedAt=n,this.samples.length=0,this.frames.length=0,this.cpu.length=0,!0)}};var Qt=class{columns;rows;field;velocity;hold;previous={u:0,v:0,active:!1};idleFrames=0;glowing=!1;constructor(e,o){this.columns=e,this.rows=o,this.field=new Float32Array(e*o*4),this.velocity=new Float32Array(e*o*2),this.hold=new Float32Array(e*o)}get settled(){return this.idleFrames>8}get resting(){return this.settled&&!this.glowing}step(e,o,n,a,r){let{columns:s,rows:c,field:h,velocity:f,hold:i}=this,v=this.previous,g=0,x=0;o.active&&v.active&&e>0&&(g=(o.u-v.u)*n/e,x=(o.v-v.v)*a/e),v.u=o.u,v.v=o.v,v.active=o.active;let w=Math.min(Math.hypot(g,x),3e3),A=w>1?Math.min(w/700,2)/w:0,p=r*(1+Math.min(w/2400,.5)),S=Math.exp(-e/3.4),Q=0,te=!1;for(let J=0;J<c;J++){let ae=(J+.5)/c;for(let k=0;k<s;k++){let z=J*s+k,M=z*4,O=z*2,I=0,R=0,X=0;if(o.active){let C=((k+.5)/s-o.u)*n,ue=(ae-o.v)*a,se=Math.hypot(C,ue);if(se<p){let ye=1-se/p;X=ye*ye*(3-2*ye);let ie=Math.min(1,se/(p*.12)),D=1.45*Math.min(1,X*1.7)*ie;I=C/(se||1)*D,R=ue/(se||1)*D}}let Y=X>.02;i[z]=Y?Math.max(i[z],.85*Math.min(1,X*2)):Math.max(0,i[z]-e);let F=7+-6*Math.min(1,i[z]/.12),xe=F*F,et=2*F,Be=Y?520*X+xe:xe,Ge=Y?46*Math.sqrt(X)+et:et,Ue=k>0?M-4:M,We=k<s-1?M+4:M,Ve=J>0?M-s*4:M,St=J<c-1?M+s*4:M;for(let C=0;C<2;C++){let ue=h[M+C],se=(h[Ue+C]+h[We+C]+h[Ve+C]+h[St+C])*.25,ye=C===0?I:R,ie=(C===0?g:x)*A*X,D=Be*(ye-ue)-Ge*f[O+C]+4*(se-ue);f[O+C]+=D*e+ie*14*e;let de=Math.max(-1.55,Math.min(1.55,ue+f[O+C]*e));h[M+C]=de,Q+=Math.abs(de-ue)+Math.abs(f[O+C])*.01}let Ae=Math.max(h[M+2]*S,X*X),Ke=Ae<.004?0:Ae;te||=Ke>0,h[M+2]=Ke}}this.idleFrames=Q<.004?this.idleFrames+1:0,this.glowing=te}};var qr=Float32Array.from({length:256},(t,e)=>{let o=e/255;return o<=.04045?o/12.92:((o+.055)/1.055)**2.4}),Ia=t=>!!t?.offsetParent&&t.offsetWidth>0,Jt=class{constructor(e,o,n){this.hero=e;this.bar=o;this.onHeaderTone=n;let a=h=>e.querySelector(h),r=h=>[...e.querySelectorAll(h)],s=(h,f,i,v=!1)=>({name:h,large:v,toned:f.filter(g=>!!g),read:()=>i().filter(Ia),boxes:[],tone:"light",darkest:1,brightest:0,halo:0,shownHalo:"",changedAt:-1/0}),c=a("[data-send-panel]")?.parentElement??null;this.groups=[s("title",[a(".hero-title")],()=>r(".hero-title .line > span"),!0),s("lede",[a(".lede"),a(".welcome")],()=>[a(".lede"),a(".welcome")]),s("cta",[a(".cta-row")],()=>[a(".cta-row .source")]),s("send",[c],()=>[a(".send-more")]),s("note",[a(".note")],()=>[a(".note")])],this.header=s("header",o?[o]:[],()=>o?[...o.querySelectorAll(".mark, .links, .menu-btn")]:[]),this.all=[...this.groups,this.header]}hero;bar;onHeaderTone;groups;header;all;decided=!1;samples=[];measure(e){let o=this.hero,n=o.getBoundingClientRect(),a=document.createRange(),r=(h,f)=>{a.selectNodeContents(h);let i=1/0,v=-1/0;for(let g of a.getClientRects())g.width<1||(i=Math.min(i,g.left-n.left),v=Math.max(v,g.right-n.left));return Number.isFinite(i)?{left:i,top:f.top,right:v,bottom:f.bottom}:f},s=h=>{let f=0,i=0,v=h;for(;v&&v!==o;)f+=v.offsetLeft,i+=v.offsetTop,v=v.offsetParent;return{left:f,top:i,right:f+h.offsetWidth,bottom:i+h.offsetHeight}};for(let h of this.groups)h.boxes=h.read().map(f=>r(f,s(f)));let c=this.bar?.getBoundingClientRect();this.header.boxes=c?this.header.read().map(h=>{let f=h.getBoundingClientRect(),i=f.top-c.top-e;return{left:f.left-c.left,top:i,right:f.right-c.left,bottom:i+f.height}}):[]}fallback(e){if(!this.decided)for(let o of this.all)this.apply(o,e)}decide(e,o,n,a,r){this.decided=!0;for(let s of this.all){if(!this.measureGroup(s,e,o,n,a,r))continue;let c=(s.darkest+.05)/(.0068+.05),h=(.8+.05)/(s.brightest+.05),f=c>=h?"light":"dark",i=f==="light"?c/h:h/c,v=performance.now()-s.changedAt>2500;f!==s.tone&&i>1.12&&v&&this.apply(s,f)}}ease(e){let o=1-Math.exp(-e/.5);for(let n of this.all){let a=this.decided?this.haloFor(n):0;n.halo+=(a-n.halo)*o;let r=(Math.round(n.halo/.05)*.05).toFixed(2);if(r!==n.shownHalo){n.shownHalo=r;for(let s of n.toned)s.style.setProperty("--halo",r)}}}haloFor(e){let o=e.tone==="light"?((e.large?.14:.3)-e.darkest)/(.84-e.darkest):(e.brightest-(e.large?.2:.1))/Math.max(e.brightest-.0068,.001);return Math.min(1,Math.max(0,o/.26))}shadeAt(e,o,n){let a=1/0;for(let r of this.all)for(let s of r.boxes){let c=Math.max(s.left-e,0,e-s.right),h=Math.max(s.top-o,0,o-s.bottom);a=Math.min(a,Math.hypot(c,h))}return Math.min(1,.15+.85*a/n)}measureGroup(e,o,n,a,r,s){let c=this.samples;c.length=0;for(let h of e.boxes){let f=Math.max(0,Math.floor((h.left-4)/r*n)),i=Math.min(n-1,Math.ceil((h.right+4)/r*n)),v=Math.max(0,Math.floor((1-(h.bottom+4)/s)*a)),g=Math.min(a-1,Math.ceil((1-(h.top-4)/s)*a));for(let x=v;x<=g;x++)for(let w=f;w<=i;w++){let A=(x*n+w)*4;c.push(.2126*qr[o[A]]+.7152*qr[o[A+1]]+.0722*qr[o[A+2]])}}return c.length<2?!1:(c.sort((h,f)=>h-f),e.darkest=c[Math.floor(c.length*.06)],e.brightest=c[Math.min(c.length-1,Math.floor(c.length*.94))],!0)}apply(e,o){if(e===this.header){e.tone!==o&&(this.onHeaderTone(o),this.decided&&(e.changedAt=performance.now())),e.tone=o;return}if(!(e.tone===o&&e.toned.every(n=>n.dataset.tone===o))){e.tone!==o&&this.decided&&(e.changedAt=performance.now()),e.tone=o;for(let n of e.toned)n.dataset.tone=o}}reset(){for(let e of this.all)for(let o of e.toned)delete o.dataset.tone,o.style.removeProperty("--halo")}},er=class{constructor(e,o,n,a){this.gl=e;this.program=o;this.height=Math.max(8,Math.round(96*a/n)),this.halfWidth=Math.max(this.width,Math.round(n/4)),this.halfHeight=Math.max(this.height,Math.round(a/4)),this.pixels=new Uint8Array(this.width*this.height*4),this.texture=e.createTexture(),e.bindTexture(e.TEXTURE_2D,this.texture),e.texStorage2D(e.TEXTURE_2D,1,e.RGBA8,this.width,this.height),this.framebuffer=e.createFramebuffer(),e.bindFramebuffer(e.FRAMEBUFFER,this.framebuffer),e.framebufferTexture2D(e.FRAMEBUFFER,e.COLOR_ATTACHMENT0,e.TEXTURE_2D,this.texture,0),e.bindFramebuffer(e.FRAMEBUFFER,null)}gl;program;width=96;height;pixels;texture;framebuffer;buffer=null;halfWidth;halfHeight;sync=null;get pending(){return this.sync!==null}capture(e){let o=this.gl;this.sync||(o.bindFramebuffer(o.FRAMEBUFFER,this.framebuffer),o.viewport(0,0,this.width,this.height),o.activeTexture(o.TEXTURE0),o.bindTexture(o.TEXTURE_2D,e),this.program.use().int("uSource",0).vec2("uHalfSize",this.halfWidth,this.halfHeight).vec2("uProbeSize",this.width,this.height),o.drawArrays(o.TRIANGLES,0,3),this.buffer=o.createBuffer(),o.bindBuffer(o.PIXEL_PACK_BUFFER,this.buffer),o.bufferData(o.PIXEL_PACK_BUFFER,this.pixels.byteLength,o.STREAM_READ),o.readPixels(0,0,this.width,this.height,o.RGBA,o.UNSIGNED_BYTE,0),o.bindBuffer(o.PIXEL_PACK_BUFFER,null),o.bindFramebuffer(o.FRAMEBUFFER,null),this.sync=o.fenceSync(o.SYNC_GPU_COMMANDS_COMPLETE,0),o.flush())}colorAt(e,o,n,a,r,s=!1){let c=e/a*this.width-.5,h=(1-o/r)*this.height-.5,f=Math.max(1,Math.round(n/a*this.width)),i=null;for(let v=Math.round(h)-f;v<=Math.round(h)+f;v++)for(let g=Math.round(c)-f;g<=Math.round(c)+f;g++){if(g<0||v<0||g>=this.width||v>=this.height||Math.hypot(g-c,v-h)>f+.5)continue;let x=(v*this.width+g)*4,w=[this.pixels[x],this.pixels[x+1],this.pixels[x+2]],A=s?w[0]-w[2]:w[0]+w[1];(!i||A>(s?i[0]-i[2]:i[0]+i[1]))&&(i=w)}return i}poll(){let e=this.gl;return!this.sync||e.getSyncParameter(this.sync,e.SYNC_STATUS)!==e.SIGNALED?!1:(e.deleteSync(this.sync),this.sync=null,e.bindBuffer(e.PIXEL_PACK_BUFFER,this.buffer),e.getBufferSubData(e.PIXEL_PACK_BUFFER,0,this.pixels),e.bindBuffer(e.PIXEL_PACK_BUFFER,null),e.deleteBuffer(this.buffer),this.buffer=null,!0)}dispose(){let e=this.gl;this.sync&&e.deleteSync(this.sync),this.sync=null,e.deleteTexture(this.texture),e.deleteFramebuffer(this.framebuffer),e.deleteBuffer(this.buffer),this.buffer=null}};var jr=class{constructor(e,o){this.gl=e;this.handle=o}gl;handle;locations=new Map;use(){return this.gl.useProgram(this.handle),this}at(e){let o=this.locations.get(e);return o===void 0&&(o=this.gl.getUniformLocation(this.handle,e),this.locations.set(e,o)),o}float(e,o){return this.gl.uniform1f(this.at(e),o),this}vec2(e,o,n){return this.gl.uniform2f(this.at(e),o,n),this}vec3(e,o){return this.gl.uniform3f(this.at(e),o[0],o[1],o[2]),this}vec4(e,o,n,a,r){return this.gl.uniform4f(this.at(e),o,n,a,r),this}vec4s(e,o,n){return n>0&&this.gl.uniform4fv(this.at(e),o,0,n*4),this}ivec2(e,o,n){return this.gl.uniform2i(this.at(e),o,n),this}int(e,o){return this.gl.uniform1i(this.at(e),o),this}mat4(e,o){return this.gl.uniformMatrix4fv(this.at(e),!1,o),this}},mt=class{constructor(e,o){this.gl=e;this.parallel=e.getExtension("KHR_parallel_shader_compile");for(let n of Object.keys(o)){let[a,r]=o[n],s=this.compile(e.VERTEX_SHADER,a),c=this.compile(e.FRAGMENT_SHADER,r),h=e.createProgram();e.attachShader(h,s),e.attachShader(h,c),e.linkProgram(h),this.pending.set(n,{program:h,vertex:s,fragment:c})}}gl;pending=new Map;parallel;compile(e,o){let n=this.gl.createShader(e);return this.gl.shaderSource(n,o),this.gl.compileShader(n),n}get ready(){if(!this.parallel)return!0;for(let{program:e}of this.pending.values())if(!this.gl.getProgramParameter(e,this.parallel.COMPLETION_STATUS_KHR))return!1;return!0}finish(){let{gl:e}=this,o={};for(let[n,{program:a,vertex:r,fragment:s}]of this.pending){if(!e.getProgramParameter(a,e.LINK_STATUS)){let c=[e.getShaderInfoLog(r),e.getShaderInfoLog(s),e.getProgramInfoLog(a)].filter(Boolean).join(`
+`);throw new Error(`meadow ${n}: ${c}`)}e.detachShader(a,r),e.detachShader(a,s),e.deleteShader(r),e.deleteShader(s),o[n]=new jr(e,a)}return o}};function ge(t,e,o,n=t.RGBA8,a=t.RGBA,r=t.UNSIGNED_BYTE){let s=t.createTexture();return t.bindTexture(t.TEXTURE_2D,s),t.texImage2D(t.TEXTURE_2D,0,n,e,o,0,a,r,null),t.texParameteri(t.TEXTURE_2D,t.TEXTURE_MIN_FILTER,t.LINEAR),t.texParameteri(t.TEXTURE_2D,t.TEXTURE_MAG_FILTER,t.LINEAR),t.texParameteri(t.TEXTURE_2D,t.TEXTURE_WRAP_S,t.CLAMP_TO_EDGE),t.texParameteri(t.TEXTURE_2D,t.TEXTURE_WRAP_T,t.CLAMP_TO_EDGE),s}function je(t,e){let o=t.createFramebuffer();return t.bindFramebuffer(t.FRAMEBUFFER,o),e.forEach((n,a)=>{t.framebufferTexture2D(t.FRAMEBUFFER,t.COLOR_ATTACHMENT0+a,t.TEXTURE_2D,n,0)}),t.drawBuffers(e.map((n,a)=>t.COLOR_ATTACHMENT0+a)),o}function Z(t,e,o){t.activeTexture(t.TEXTURE0+e),t.bindTexture(t.TEXTURE_2D,o)}function tr(t,e,o,n,a=new Float32Array(16)){let r=1/Math.tan(t/2),s=1/(o-n);return a.fill(0),a[0]=r/e,a[5]=r,a[10]=(n+o)*s,a[11]=-1,a[14]=2*n*o*s,a}function rr(t,e,o,n=new Float32Array(16)){let a=[Math.sin(e)*Math.cos(o),Math.sin(o),Math.cos(e)*Math.cos(o)],r=Ha([a[2],0,-a[0]]),s=Da(a,r);return n[3]=0,n[7]=0,n[11]=0,n[0]=r[0],n[4]=r[1],n[8]=r[2],n[1]=s[0],n[5]=s[1],n[9]=s[2],n[2]=-a[0],n[6]=-a[1],n[10]=-a[2],n[12]=-Zr(r,t),n[13]=-Zr(s,t),n[14]=Zr(a,t),n[15]=1,n}function or(t,e,o=new Float32Array(16)){for(let n=0;n<4;n++)for(let a=0;a<4;a++){let r=0;for(let s=0;s<4;s++)r+=t[s*4+a]*e[n*4+s];o[n*4+a]=r}return o}function bn(t,e=new Float32Array(16)){e[0]=t[5]*t[10]*t[15]-t[5]*t[11]*t[14]-t[9]*t[6]*t[15]+t[9]*t[7]*t[14]+t[13]*t[6]*t[11]-t[13]*t[7]*t[10],e[4]=-t[4]*t[10]*t[15]+t[4]*t[11]*t[14]+t[8]*t[6]*t[15]-t[8]*t[7]*t[14]-t[12]*t[6]*t[11]+t[12]*t[7]*t[10],e[8]=t[4]*t[9]*t[15]-t[4]*t[11]*t[13]-t[8]*t[5]*t[15]+t[8]*t[7]*t[13]+t[12]*t[5]*t[11]-t[12]*t[7]*t[9],e[12]=-t[4]*t[9]*t[14]+t[4]*t[10]*t[13]+t[8]*t[5]*t[14]-t[8]*t[6]*t[13]-t[12]*t[5]*t[10]+t[12]*t[6]*t[9],e[1]=-t[1]*t[10]*t[15]+t[1]*t[11]*t[14]+t[9]*t[2]*t[15]-t[9]*t[3]*t[14]-t[13]*t[2]*t[11]+t[13]*t[3]*t[10],e[5]=t[0]*t[10]*t[15]-t[0]*t[11]*t[14]-t[8]*t[2]*t[15]+t[8]*t[3]*t[14]+t[12]*t[2]*t[11]-t[12]*t[3]*t[10],e[9]=-t[0]*t[9]*t[15]+t[0]*t[11]*t[13]+t[8]*t[1]*t[15]-t[8]*t[3]*t[13]-t[12]*t[1]*t[11]+t[12]*t[3]*t[9],e[13]=t[0]*t[9]*t[14]-t[0]*t[10]*t[13]-t[8]*t[1]*t[14]+t[8]*t[2]*t[13]+t[12]*t[1]*t[10]-t[12]*t[2]*t[9],e[2]=t[1]*t[6]*t[15]-t[1]*t[7]*t[14]-t[5]*t[2]*t[15]+t[5]*t[3]*t[14]+t[13]*t[2]*t[7]-t[13]*t[3]*t[6],e[6]=-t[0]*t[6]*t[15]+t[0]*t[7]*t[14]+t[4]*t[2]*t[15]-t[4]*t[3]*t[14]-t[12]*t[2]*t[7]+t[12]*t[3]*t[6],e[10]=t[0]*t[5]*t[15]-t[0]*t[7]*t[13]-t[4]*t[1]*t[15]+t[4]*t[3]*t[13]+t[12]*t[1]*t[7]-t[12]*t[3]*t[5],e[14]=-t[0]*t[5]*t[14]+t[0]*t[6]*t[13]+t[4]*t[1]*t[14]-t[4]*t[2]*t[13]-t[12]*t[1]*t[6]+t[12]*t[2]*t[5],e[3]=-t[1]*t[6]*t[11]+t[1]*t[7]*t[10]+t[5]*t[2]*t[11]-t[5]*t[3]*t[10]-t[9]*t[2]*t[7]+t[9]*t[3]*t[6],e[7]=t[0]*t[6]*t[11]-t[0]*t[7]*t[10]-t[4]*t[2]*t[11]+t[4]*t[3]*t[10]+t[8]*t[2]*t[7]-t[8]*t[3]*t[6],e[11]=-t[0]*t[5]*t[11]+t[0]*t[7]*t[9]+t[4]*t[1]*t[11]-t[4]*t[3]*t[9]-t[8]*t[1]*t[7]+t[8]*t[3]*t[5],e[15]=t[0]*t[5]*t[10]-t[0]*t[6]*t[9]-t[4]*t[1]*t[10]+t[4]*t[2]*t[9]+t[8]*t[1]*t[6]-t[8]*t[2]*t[5];let o=t[0]*e[0]+t[1]*e[4]+t[2]*e[8]+t[3]*e[12],n=o===0?0:1/o;for(let a=0;a<16;a++)e[a]*=n;return e}function Qr(t,e,o,n){let a=t[3]*e+t[7]*o+t[11]*n+t[15];return[(t[0]*e+t[4]*o+t[8]*n+t[12])/a,(t[1]*e+t[5]*o+t[9]*n+t[13])/a,(t[2]*e+t[6]*o+t[10]*n+t[14])/a]}function Zr(t,e){return t[0]*e[0]+t[1]*e[1]+t[2]*e[2]}function Da(t,e){return[t[1]*e[2]-t[2]*e[1],t[2]*e[0]-t[0]*e[2],t[0]*e[1]-t[1]*e[0]]}function Ha(t){let e=Math.hypot(t[0],t[1],t[2])||1;return[t[0]/e,t[1]/e,t[2]/e]}var Ze=24,vt=16,ur=.75/16,hr=160,co=36,za=0,U=1,gt=2,xt=3,mr=4,pr=5,Rn=6,oo=7,_n=0,nr=1,Oa=.75,Jr=2.4,pt=22,vn=.45,gn=60,Ba=.6,Ga=.85,Ua=.6,Wa=.8,xn=60,Va=.32,Ka=1.035,yn=15e3,En=48,Xa=90,Ya=Math.log(16e3/1),$a=t=>{let e=parseInt(t.slice(1),16);return[(e>>16&255)/255,(e>>8&255)/255,(e&255)/255].map(o=>o**2.2)};function y(t,e,o,n,a=za,r=0,s=0){return{size:t,pivot:e,offset:o,color:$a(n),role:a,glow:r,side:e[0]<0?-1:1,leg:s}}function Me(t){let e=0,o=0;for(let n of t.parts)e=Math.max(e,n.pivot[1]+n.offset[1]+n.size[1]/2),o=Math.max(o,Math.abs(n.pivot[0]+n.offset[0])+n.size[0]/2,Math.abs(n.pivot[2]+n.offset[2])+n.size[2]/2);return{...t,height:e*ur*t.scale,reach:(o+3)*ur*t.scale}}var br=(t,e,o,n)=>[y(e,[o,n,0],[0,-n/2,0],t,gt),y(e,[-o,n,0],[0,-n/2,0],t,xt)],uo=(t,e,o,n,a,r,s=0)=>[y(e,[o,n,a],[0,-n/2,s],t,gt),y(e,[-o,n,a],[0,-n/2,s],t,xt),y(e,[o,n,r],[0,-n/2,-s],t,xt),y(e,[-o,n,r],[0,-n/2,-s],t,gt)],qa=t=>{let e=[];return[2.6,.9,-.9,-2.6].forEach((n,a)=>{for(let r of[1,-1])e.push(y([15,1.8,1.8],[3*r,6,n],[7.5*r,0,0],t,Rn,0,a))}),e},wn=Me({temper:"villager",night:!1,scale:1,speed:.55,stride:1.2,swing:.55,bob:.02,armBase:0,armSwing:0,near:10,minShare:.03,maxShare:.2,parts:[...br("#4a3322",[4,12,4],2,12),y([8,13,6],[0,11,0],[0,6.5,0],"#7b5534"),y([10,4,4.4],[0,21,0],[0,-1.5,4],"#9a6c46"),y([8,10,8],[0,24,0],[0,5,0],"#c9987a",U),y([2,4,2],[0,24,0],[0,2.5,5],"#a87358",U),y([8.2,1.4,.6],[0,24,0],[0,6.6,4.1],"#3a2a1e",U)]}),Sn=Me({temper:"cow",night:!1,scale:1,speed:.3,stride:1.1,swing:.45,bob:.015,armBase:0,armSwing:0,near:7,minShare:.024,maxShare:.17,parts:[...uo("#2f2219",[4,12,4],4,12,6.5,-6.5),y([12,10,18],[0,12,0],[0,5,0],"#3b2a20"),y([12.6,6,7],[0,12,0],[0,6,2.5],"#ebe5d8"),y([12.6,5,4],[0,12,0],[0,3.5,-6.5],"#ebe5d8"),y([8,8,6],[0,17,8.5],[0,0,3],"#3b2a20",U),y([6,3.5,1.5],[0,17,8.5],[0,-2,6.6],"#d8c3b2",U),y([11,1.6,1.6],[0,17,8.5],[0,4.6,2],"#e4dcc8",U)]}),eo=Me({temper:"sheep",night:!1,scale:1,speed:.36,stride:1,swing:.5,bob:.015,armBase:0,armSwing:0,near:3.2,minShare:.022,maxShare:.17,parts:[...uo("#bba996",[4,12,4],3.5,12,6,-6),y([13,12,19],[0,11,0],[0,6,0],"#e9e3d3"),y([6,6,8],[0,17,9],[0,0,3.5],"#c5ad97",U),y([7,3,5],[0,17,9],[0,2.8,2.5],"#e9e3d3",U)]}),Tn=Me({temper:"chicken",night:!1,scale:1.3,speed:.6,stride:.38,swing:.9,bob:.02,armBase:0,armSwing:0,near:2.3,minShare:.02,maxShare:.13,parts:[y([1.5,5,1.5],[1.5,5,0],[0,-2.5,0],"#e2a032",gt),y([1.5,5,1.5],[-1.5,5,0],[0,-2.5,0],"#e2a032",xt),y([6,6,8],[0,5,0],[0,3,0],"#f3f0e8"),y([1,4,6],[3.5,10,0],[0,-2,0],"#e2ddd1",oo),y([1,4,6],[-3.5,10,0],[0,-2,0],"#e2ddd1",oo),y([4,6,3],[0,9,3],[0,3,.5],"#f3f0e8",U),y([4,2,2],[0,9,3],[0,4,3],"#e2a032",U),y([2,2,1.4],[0,9,3],[0,2,2.6],"#c63a2c",U)]}),Mn=Me({temper:"zombie",night:!0,scale:1,speed:.34,stride:1,swing:.45,bob:.03,armBase:-1.45,armSwing:.08,near:10,minShare:.03,maxShare:.2,parts:[...br("#34477e",[4,12,4],2,12),y([8,12,4],[0,12,0],[0,6,0],"#2b8a8a"),y([4,12,4],[6,22,0],[0,-4,0],"#5d8a48",mr),y([4,12,4],[-6,22,0],[0,-4,0],"#5d8a48",pr),y([8,8,8],[0,24,0],[0,4,0],"#5d8a48",U),y([6,1.6,.6],[0,24,0],[0,4.2,4.1],"#1d2a1a",U)]}),An=Me({temper:"skeleton",night:!0,scale:1,speed:.5,stride:1.1,swing:.36,bob:.008,armBase:-.12,armSwing:.22,near:10,minShare:.03,maxShare:.2,parts:[...br("#cbc7bd",[2,12,2],2,12),y([8,12,3],[0,12,0],[0,6,0],"#b6b1a6"),y([2,12,2],[5,22,0],[0,-5,0],"#cbc7bd",mr),y([2,12,2],[-5,22,0],[0,-5,0],"#cbc7bd",pr),y([8,8,8],[0,24,0],[0,4,0],"#d9d5cb",U),y([6,2,.6],[0,24,0],[0,4,4.1],"#2b2723",U)]}),ja=Me({temper:"spider",night:!0,scale:1.25,speed:1.3,stride:.7,swing:0,bob:.01,armBase:0,armSwing:0,near:2.6,minShare:.016,maxShare:.1,parts:[y([10,8,12],[0,6,0],[0,1.5,-7],"#2c2421"),y([6,6,6],[0,6,0],[0,0,0],"#2c2421"),y([8,7,7],[0,6,3],[0,.5,3.5],"#372d29",U),y([6,2,.6],[0,6,3],[0,1.5,7.1],"#d4291f",U,.9),...qa("#2c2421")]}),Za=Me({temper:"creeper",night:!0,scale:1,speed:.26,stride:.6,swing:.5,bob:.01,armBase:0,armSwing:0,near:5,minShare:.026,maxShare:.16,parts:[...uo("#3f8a35",[4,6,4],2,6,2,-2,2),y([8,12,4],[0,6,0],[0,6,0],"#4f9c40"),y([8,8,8],[0,18,0],[0,4,0],"#5aa84a",U),y([2.2,2.2,.6],[0,18,0],[2,5,4.1],"#13200f",U),y([2.2,2.2,.6],[0,18,0],[-2,5,4.1],"#13200f",U),y([2,1.8,.6],[0,18,0],[0,3.1,4.1],"#13200f",U),y([4,2.4,.6],[0,18,0],[0,1.2,4.1],"#13200f",U)]}),Qa=Me({temper:"enderman",night:!0,scale:1,speed:.36,stride:1.8,swing:.3,bob:.02,armBase:0,armSwing:.2,near:14,minShare:.045,maxShare:.26,parts:[...br("#16131b",[2,30,2],2,30),y([8,12,4],[0,30,0],[0,6,0],"#1c1822"),y([2,30,2],[5,41,0],[0,-14,0],"#16131b",mr),y([2,30,2],[-5,41,0],[0,-14,0],"#16131b",pr),y([8,8,8],[0,42,0],[0,4,0],"#1f1b25",U),y([6.4,1.3,.6],[0,42,0],[0,3.4,4.1],"#d68af5",U,1)]}),Fn=[[Sn,!0],[wn,!0],[eo,!0],[eo,!0],[Tn,!0],[eo,!1],[Sn,!1],[wn,!1],[Tn,!1],[Mn,!0],[Za,!0],[Qa,!0],[An,!0],[ja,!0],[Mn,!1],[An,!1]],ui=Fn.map(([t])=>t.temper),Ln=(()=>{let t=[[[1,0,0],[0,1,0],[0,0,1]],[[-1,0,0],[0,0,1],[0,1,0]],[[0,1,0],[0,0,1],[1,0,0]],[[0,-1,0],[1,0,0],[0,0,1]],[[0,0,1],[1,0,0],[0,1,0]],[[0,0,-1],[0,1,0],[1,0,0]]],e=[[-1,-1],[1,-1],[1,1],[-1,-1],[1,1],[-1,1]],o=new Float32Array(co*6),n=0;for(let[a,r,s]of t)for(let[c,h]of e){for(let f=0;f<3;f++)o[n+f]=(a[f]+c*r[f]+h*s[f])*.5;for(let f=0;f<3;f++)o[n+3+f]=a[f];n+=6}return o})(),to=t=>t-Math.floor(t),ir=t=>Math.min(1,Math.max(0,t)),lr=(t,e,o)=>{let n=ir((o-t)/(e-t));return n*n*(3-2*n)},Pn=(t,e)=>Math.atan2(Math.sin(e-t),Math.cos(e-t)),ro=(t,e,o)=>t+Math.max(-o,Math.min(o,Pn(t,e)));function ar(t,e){let o=to(t*.1031),n=to(e*.1031),a=o,r=o*(n+33.33)+n*(a+33.33)+a*(o+33.33);return o+=r,n+=r,a+=r,to((o+n)*a)}function sr(t,e){let o=Math.floor(t),n=Math.floor(e),a=t-o,r=e-n,s=a*a*a*(a*(a*6-15)+10),c=r*r*r*(r*(r*6-15)+10),h=ar(o,n),f=ar(o+1,n),i=ar(o,n+1),v=ar(o+1,n+1);return(h+(f-h)*s+(i-h)*c+(h-f-i+v)*s*c)*2-1}function Ja(t,e){let o=.16*sr(t*.09,e*.09)+.07*sr(t*.33+7,e*.33+7),n=lr(30,360,e);return o+n*(6+8*sr(t*.004+3,e*.004+3)+2.5*sr(t*.018+1.3,e*.018+1.3))}var no=class{constructor(e,o,n,a,r){this.kind=e;this.narrow=o;this.seed=n>>>0,this.speedScale=this.between(.78,1.25),this.pauseScale=this.between(.7,1.45),this.gaitScale=this.between(.82,1.18),this.strideScale=this.between(.88,1.12),this.quirk=this.random(),this.band=(a*.618+this.random()*.12)%1,this.lurch=this.between(0,Math.PI*2);let s=(a*.37+this.quirk*.2)%1;this.threshold=e.night?.42+s*.42:.05+s*.22,this.delay=r?0:.2+a*.25+this.random()*.4}kind;narrow;x=0;z=0;yaw=Math.PI;faceTo=NaN;tx=0;tz=0;mode=_n;timer=0;phase=0;gait=0;pace=1;head=0;headTo=0;headYaw=0;headYawTo=0;glance=0;act="rest";actTime=0;presence=0;blink=1;jumped=!1;swell=0;flap=0;lift=0;hold=0;zig=1;zigTimer=0;lurch=0;placed=!1;leaving=!1;delay;threshold;speedScale;pauseScale;gaitScale;strideScale;quirk;band;seed;random(){this.seed=this.seed+1831565813>>>0;let e=this.seed;return e=Math.imul(e^e>>>15,e|1),e^=e+Math.imul(e^e>>>7,e|61),((e^e>>>14)>>>0)/4294967296}between(e,o){return e+this.random()*(o-e)}chance(e){return this.random()<e}},fr=class{constructor(e){this.reduced=e;let o=0,n=0;this.mobs=Fn.map(([a,r],s)=>{let c=a.night?n++:o++;return new no(a,r,2654435769^Math.imul(s+1,2654435761),c,e)})}reduced;data=new Float32Array(hr*Ze);contacts=new Float32Array(vt*4);shadow=new Float32Array(2);contactCount=0;mobs;restProjection=new Float32Array(16);restView=new Float32Array(16);restViewProj=new Float32Array(16);rect={left:0,top:0,right:0,bottom:0};keepOut=[];column=null;terrain=null;terrainWidth=1;terrainHeight=1;hillScale=1;width=1;height=1;tanHalfTall=1;tanHalfWide=1;pitchSin=0;pitchCos=1;horizonY=0;narrow=!1;stale=!0;laidOut=!1;budget=En;unsettled=0;searchFrames=0;time=0;sx=0;sy=0;gx=0;gz=0;layout(e,o,n,a){tr(e.verticalFov,o,.2,4e4,this.restProjection),rr([0,.72,0],e.yaw,e.pitch,this.restView),or(this.restProjection,this.restView,this.restViewProj),this.width=n,this.height=a,this.tanHalfTall=Math.tan(e.verticalFov/2),this.tanHalfWide=this.tanHalfTall*o,this.pitchSin=Math.sin(e.pitch),this.pitchCos=Math.cos(e.pitch),this.horizonY=(.5+Math.tan(e.pitch)/this.tanHalfTall*.5)*a,this.hillScale=e.hillScale,this.narrow=n<700,this.stale=!0,this.laidOut=!0}get searching(){return this.unsettled>0&&this.searchFrames<Xa}setKeepOut(e,o){this.keepOut=e,this.column=o,this.stale=!0}setTerrain(e,o,n){this.terrain=e,this.terrainWidth=o,this.terrainHeight=n,this.stale=!0}footprints(){let e=[];for(let o of this.mobs)!o.placed||o.presence*o.blink<.5||!this.frame(o.kind,o.x,o.z)||e.push({kind:o.kind.temper,x:(this.rect.left+this.rect.right)/2,y:this.rect.bottom,top:this.rect.top});return e}step(e,o){if(this.laidOut){this.time+=e,this.budget=En,this.unsettled=0,this.stale&&(this.searchFrames=0,this.revalidate());for(let n of this.mobs){n.delay=Math.max(0,n.delay-e);let a=this.presenceFor(n,o);if(n.presence===0){if(a===0)continue;if((!this.reduced||!n.placed)&&!this.spawn(n)){this.reduced||(n.delay=Ba),this.unsettled++;continue}}this.reduced?n.presence=a:(n.presence+=(a-n.presence)*(1-Math.exp(-e/Oa)),Math.abs(a-n.presence)<.004&&(n.presence=a)),!this.reduced&&(!n.kind.night&&a<n.presence-.05&&!n.leaving&&(n.leaving=!0,this.aim(n,.12,.3,-1)&&this.walk(n,1.2)),this.behave(n,e))}this.searchFrames=this.unsettled>0?this.searchFrames+1:0}}fill(e,o){let{data:n,contacts:a}=this,r=0,s=0;for(let f=0;f<this.mobs.length;f++){let i=this.mobs[f],v=i.presence*i.blink;if(!i.placed||v<=.002)continue;let g=i.kind;if(r+g.parts.length>hr)break;let x=this.sizeAt(g,i.z),w=g.scale*x*(1+.07*i.swell),A=Math.sin(i.phase)*i.gait*g.swing*i.gaitScale,p=g.temper==="zombie"?.55:1,S=g.night?-(1-i.presence)*g.height*x*.45:0,Q=(i.lift+Math.abs(Math.cos(i.phase))*i.gait*g.bob)*x+S,te=i.act==="graze"?Math.sin(this.time*(6+i.quirk*3)+f)*.05*lr(.4,.8,i.head):0,J=i.head+te,ae=g.temper==="zombie"?Math.sin(this.time*(1.4+i.quirk)+f)*.08:0,k=g.armBase-A*g.armSwing+ae,z=g.armBase+A*g.armSwing-ae,M=i.swell*.3;for(let I=0;I<g.parts.length;I++){let R=g.parts[I],X=0,Y=0,ee=0;if(R.role===U)Y=J,X=i.headYaw;else if(R.role===gt)Y=A;else if(R.role===xt)Y=-A*p;else if(R.role===mr)Y=k;else if(R.role===pr)Y=z;else if(R.role===oo)ee=R.side*i.flap;else if(R.role===Rn){let xe=i.phase+R.leg*Math.PI*.5+(R.side>0?0:Math.PI);X=-R.side*(.65-R.leg*.43+Math.sin(xe)*.28*i.gait),ee=-R.side*(.42-Math.max(0,Math.cos(xe))*.3*i.gait)}let F=r*Ze;n[F]=i.x,n[F+1]=i.z,n[F+2]=i.yaw,n[F+3]=Q,n[F+4]=R.pivot[0]*w,n[F+5]=R.pivot[1]*w,n[F+6]=R.pivot[2]*w,n[F+7]=X,n[F+8]=R.offset[0]*w,n[F+9]=R.offset[1]*w,n[F+10]=R.offset[2]*w,n[F+11]=Y,n[F+12]=R.size[0]*w,n[F+13]=R.size[1]*w,n[F+14]=R.size[2]*w,n[F+15]=ee,n[F+16]=R.color[0],n[F+17]=R.color[1],n[F+18]=R.color[2],n[F+19]=v,n[F+20]=R.glow,n[F+21]=f*7.13+I*1.37,n[F+22]=M,n[F+23]=0,r++}let O=Math.max(g.reach*x*1.6,.75);if(s<vt&&i.z-O<46){let I=s*4;a[I]=i.x,a[I+1]=i.z,a[I+2]=O,a[I+3]=v,s++}}let c=Math.hypot(e[0],e[2])||1,h=.45*Math.min(1,o);return this.shadow[0]=-e[0]/c*h,this.shadow[1]=-e[2]/c*h,this.contactCount=s,r}cast(e){let o=0;for(let n of this.mobs)n.kind.night===e&&(n.narrow||!this.narrow)&&o++;return o}sizeAt(e,o){let n=e.height/(2*this.tanHalfTall*Math.max(o,.1)),a=e.minShare*(this.narrow?Ga:1),r=e.maxShare*(this.narrow?Ua:1);return n<a?a/n:n>r?r/n:1}presenceFor(e,o){if(e.delay>0||this.narrow&&!e.narrow)return 0;let n=e.threshold;return e.kind.night?lr(n-.08,n+.08,o):1-lr(n-.05,n+.05,o)}revalidate(){this.stale=!1;for(let e of this.mobs)!e.placed||this.valid(e.kind,e.x,e.z,e,!1)||this.spawn(e)||(e.placed=!1,e.presence=0)}ground(e,o){let n=Ja(e,o);return o<xn||!this.terrain?n:n+(this.baked(e,o)-n)*this.hillScale}baked(e,o){let n=this.terrain,a=this.terrainWidth,r=this.terrainHeight,s=e/(6+o*1.05)*.5+.5,c=Math.log(Math.max(o,1)/1)/Ya;if(s<0||s>1||c>1)return-60;let h=s*a-.5,f=c*r-.5,i=Math.max(0,Math.min(a-1,Math.floor(h))),v=Math.max(0,Math.min(r-1,Math.floor(f))),g=Math.min(a-1,i+1),x=Math.min(r-1,v+1),w=ir(h-i),A=ir(f-v),p=(ae,k)=>{let z=(k*a+ae)*4;return(n[z]*256+n[z+1])/65535*2300+-60},S=p(i,v),Q=p(g,v),te=p(i,x),J=p(g,x);return S+(Q-S)*w+(te-S)*A+(S-Q-te+J)*w*A}spawn(e){let o=this.horizonY-this.height*Va,n=this.height*.985;for(let a=0;a<40;a++){if(this.budget<=0)return!1;let r=(e.random()-.5)*(.22+a*.03),s=o+(n-o)*ir(e.band+r),c=e.random()*this.width;if(!this.unproject(c,s))continue;let h=this.gx,f=this.gz;if(this.valid(e.kind,h,f,e,!0))return this.settle(e,h,f),!0}return!1}settle(e,o,n){let a=e.kind;if(e.x=o,e.z=n,e.yaw=(e.chance(.5)?-1:1)*Math.PI*.5+e.between(-.8,.8),e.placed=!0,e.leaving=!1,e.blink=1,e.swell=0,e.flap=0,e.lift=0,e.gait=0,e.hold=0,e.phase=e.between(0,Math.PI*2),this.rest(e),e.timer=e.between(.3,2.5),this.reduced){let r=a.temper==="cow"||a.temper==="sheep";e.head=r&&e.chance(.6)?.9:e.between(-.12,.1),e.headYaw=e.between(-.4,.4),e.act=e.head>.5?"graze":"rest"}}valid(e,o,n,a,r){if(n<e.near*(this.narrow?Wa:1)||n>yn*.8||!this.frame(e,o,n))return!1;let{left:s,right:c,top:h,bottom:f}=this.rect;if(s<this.width*.015||c>this.width*.985||f>this.height*.96||h<this.height*.02)return!1;for(let x of this.keepOut)if(c>x.left-pt&&s<x.right+pt&&f>x.top-pt&&h<x.bottom+pt)return!1;let i=this.narrow?null:this.column;if(i&&s<i.right+pt&&f>i.top||n>xn&&!this.visible(o,n,(s+c)/2,f))return!1;if(!r)return!0;let v=this.sizeAt(e,n),g=0;for(let x of this.mobs)x===a||!x.placed||x.presence===0||(this.frame(x.kind,x.x,x.z)&&Math.abs(this.rect.bottom-f)<=gn||x.mode===nr&&this.frame(x.kind,x.tx,x.tz)&&Math.abs(this.rect.bottom-f)<=gn)&&g++;if(g+1>Math.floor(this.cast(e.night)/2))return!1;for(let x of this.mobs){if(x===a||!x.placed||x.presence===0)continue;let w=e.reach*v+x.kind.reach*this.sizeAt(x.kind,x.z)+.4;if(Math.hypot(o-x.x,n-x.z)<w||x.mode===nr&&Math.hypot(o-x.tx,n-x.tz)<w||this.crowds(x,s,c,h,f))return!1}return!0}visible(e,o,n,a){return this.unproject(n,a-1)?Math.abs(this.gz-o)<o*.06+1&&Math.abs(this.gx-e)<o*.06+1:!1}clearPath(e,o,n){for(let a=1;a<=3;a++){let r=a/4;if(!this.valid(e.kind,e.x+(o-e.x)*r,e.z+(n-e.z)*r,e,!1))return!1}return!0}frame(e,o,n){let a=this.ground(o,n),r=this.sizeAt(e,n),s=e.reach*r;return!this.toScreen(o-s,a,n)||(this.rect.left=this.sx,this.rect.bottom=this.sy,!this.toScreen(o+s,a+e.height*r,n))?!1:(this.rect.right=this.sx,this.rect.top=this.sy,!0)}crowds(e,o,n,a,r){if(!this.frame(e.kind,e.x,e.z))return!1;let s=Math.min(n,this.rect.right)-Math.max(o,this.rect.left),c=Math.min(r,this.rect.bottom)-Math.max(a,this.rect.top),h=Math.min(n-o,this.rect.right-this.rect.left),f=Math.min(r-a,this.rect.bottom-this.rect.top);return s>vn*h&&c>vn*f}toScreen(e,o,n){let a=this.restViewProj,r=a[3]*e+a[7]*o+a[11]*n+a[15];return r<=0?!1:(this.sx=((a[0]*e+a[4]*o+a[8]*n+a[12])/r*.5+.5)*this.width,this.sy=(.5-(a[1]*e+a[5]*o+a[9]*n+a[13])/r*.5)*this.height,!0)}unproject(e,o){this.budget--;let n=e/this.width*2-1,r=(1-o/this.height*2)*this.tanHalfTall,s=n*this.tanHalfWide,c=r*this.pitchCos+this.pitchSin,h=this.pitchCos-r*this.pitchSin;if(h<=0)return!1;let f=.3,i=f;for(;i<yn;){i=i*Ka+.04;let v=h*i;if(.72+c*i<=this.ground(s*i,v)){let g=f,x=i;for(let w=0;w<10;w++){let A=(g+x)/2;.72+c*A<=this.ground(s*A,h*A)?x=A:g=A}return this.gx=s*x,this.gz=h*x,!0}if(!this.terrain&&c>=0)return!1;f=i}return!1}aim(e,o,n,a=0){if(!this.frame(e.kind,e.x,e.z))return!1;let r=(this.rect.left+this.rect.right)/2,s=this.rect.bottom;for(let c=0;c<18;c++){if(this.budget<=0)return!1;let h=e.between(0,Math.PI*2),f=e.between(o,n)*this.width,i=r+Math.cos(h)*f,v=s+Math.sin(h)*f*.75;if(a!==0&&Math.sign(v-s)!==Math.sign(a)&&(v=s-(v-s)),!this.unproject(i,v))continue;let g=this.gx,x=this.gz;if(!(!this.valid(e.kind,g,x,e,!0)||!this.clearPath(e,g,x)))return e.tx=g,e.tz=x,!0}return!1}flock(e){let o=0,n=0,a=0;for(let s of this.mobs)s===e||s.kind!==e.kind||!s.placed||s.presence===0||(o+=s.x,n+=s.z,a++);if(a===0)return!1;o/=a,n/=a;let r=Math.max(1.4,n*.09);for(let s=0;s<14;s++){let c=e.between(0,Math.PI*2),h=r*e.between(.6,1.6),f=o+Math.sin(c)*h,i=n+Math.cos(c)*h;if(!(!this.valid(e.kind,f,i,e,!0)||!this.clearPath(e,f,i)))return e.tx=f,e.tz=i,!0}return!1}walk(e,o=1){e.mode=nr,e.act="rest",e.pace=o,e.headTo=e.kind.temper==="zombie"?.12:0,e.headYawTo=0,e.faceTo=NaN,e.swell=0,e.hold=0,e.zigTimer=0}rest(e){e.mode=_n,e.actTime=0,e.jumped=!1,e.act="rest",e.headTo=e.between(-.15,.1),e.headYawTo=0,e.faceTo=NaN,e.glance=0;let o=e.between(1.5,3.5);switch(e.kind.temper){case"villager":e.act="look",o=e.between(2.2,5),e.chance(.4)&&(e.faceTo=Math.atan2(-e.x,-e.z)+e.between(-.5,.5));break;case"cow":e.chance(.82)?(e.act="graze",e.headTo=e.between(.9,1.1),o=e.between(7,15)):o=e.between(2,4);break;case"sheep":e.chance(.7)?(e.act="graze",e.headTo=e.between(.95,1.15),o=e.between(3,8)):(e.act="look",o=e.between(1.5,3));break;case"chicken":{let n=e.random();n<.45?(e.act="peck",o=e.between(.9,2.4)):n<.75?(e.act="flap",o=e.between(.7,1.1)):(e.act="look",o=e.between(.5,1.4));break}case"zombie":o=e.between(1.5,4),e.headTo=e.between(.1,.3);break;case"skeleton":e.act="look",o=e.between(1.4,2.8);break;case"spider":e.act="freeze",o=e.between(.9,3.6),e.gait=0;break;case"enderman":o=e.between(6,14),e.headTo=e.between(-.05,.2),e.chance(.5)&&(e.faceTo=Math.atan2(-e.x,-e.z)+e.between(-.3,.3));break;case"creeper":e.chance(.45)?(e.act="stare",o=3.6,e.faceTo=Math.atan2(-e.x,-e.z)):o=e.between(1.2,3);break}e.timer=o*e.pauseScale}plan(e){let o=!1;switch(e.kind.temper){case"villager":o=e.chance(.8)&&this.aim(e,.2,.48),o&&this.walk(e);break;case"cow":o=e.chance(.4)&&this.aim(e,.05,.16),o&&this.walk(e,.8);break;case"sheep":o=e.chance(.6)&&(this.flock(e)||this.aim(e,.08,.22)),o&&this.walk(e,.9);break;case"chicken":o=e.chance(.55)&&this.aim(e,.04,.14),o&&this.walk(e,1.8);break;case"zombie":o=e.chance(.75)&&this.aim(e,.12,.32),o&&this.walk(e);break;case"skeleton":o=e.chance(.78)&&this.aim(e,.15,.38),o&&this.walk(e);break;case"spider":o=e.chance(.8)&&this.aim(e,.12,.36),o&&this.walk(e);break;case"enderman":if(e.chance(.4)){e.act="blink",e.actTime=0,e.jumped=!1,e.timer=1;return}o=e.chance(.4)&&this.aim(e,.05,.14),o&&this.walk(e,.7);break;case"creeper":o=e.chance(.75)&&this.aim(e,.06,.2,1),o&&this.walk(e);break}o||this.rest(e)}behave(e,o){let n=e.kind,a=!1;e.mode===nr?a=this.travel(e,o):(e.timer-=o,e.actTime+=o,this.perform(e,o),e.timer<=0&&(e.leaving||e.act==="blink"?this.rest(e):this.plan(e)));let r=n.temper==="spider"&&!a?30:n.temper==="skeleton"?10:7;e.gait+=((a?1:0)-e.gait)*(1-Math.exp(-o*r)),e.head+=(e.headTo-e.head)*(1-Math.exp(-o*(e.act==="peck"?16:3.5)));let s=n.temper==="skeleton"?14:3;e.headYaw+=(e.headYawTo-e.headYaw)*(1-Math.exp(-o*s))}travel(e,o){let n=e.kind;if(e.hold>0)return e.hold-=o,Number.isNaN(e.faceTo)||(e.yaw=ro(e.yaw,e.faceTo,Jr*.5*o)),e.hold<=0&&(e.faceTo=NaN),!1;let a=e.tx-e.x,r=e.tz-e.z,s=Math.hypot(a,r),c=Math.max(1,e.z/22);if(s<.07*c)return this.rest(e),!1;let h=Math.atan2(a,r),f=Jr,i=n.speed*e.speedScale*e.pace*c;n.temper==="spider"?(e.zigTimer-=o,e.zigTimer<=0&&(e.zig=-e.zig,e.zigTimer=e.between(.22,.55)),h+=e.zig*.65*Math.min(1,s/(1.5*c)),f=7):n.temper==="zombie"?(e.lurch+=o*(2+e.quirk*1.2),i*=.25+.95*Math.max(0,Math.sin(e.lurch))**.7,h+=Math.sin(e.lurch*.37+e.quirk*6)*.25):n.temper==="creeper"?e.chance(o*.3)&&(e.hold=e.between(.6,1.6),e.faceTo=Math.atan2(-e.x,-e.z)):n.temper==="chicken"&&(e.flap=e.quirk>.4?.35*Math.abs(Math.sin(this.time*22+e.quirk*9)):0);let v=Pn(e.yaw,h);e.yaw=ro(e.yaw,h,f*o);let g=Math.min(s,i*Math.max(0,1-Math.abs(v)/1.1)*o);return e.x+=Math.sin(e.yaw)*g,e.z+=Math.cos(e.yaw)*g,e.phase+=g/(n.stride*e.strideScale*c)*Math.PI*2,g>0}perform(e,o){Number.isNaN(e.faceTo)||(e.yaw=ro(e.yaw,e.faceTo,Jr*.6*o));let n=e.actTime;if(e.lift=0,e.flap=0,e.swell=0,e.blink=1,e.act==="look"){if(e.glance-=o,e.glance<=0){let a=e.kind.temper==="villager"?.8:.55;e.headYawTo=e.chance(.3)?0:e.between(-a,a),e.headTo=e.between(-.2,.15),e.glance=e.between(.6,1.6)}}else if(e.act==="peck")e.headTo=Math.sin(n*(8+e.quirk*4))>.3?1.15:.05;else if(e.act==="flap"){let a=n<.7?Math.sin(n/.7*Math.PI):0;e.lift=a*.16,e.flap=Math.abs(Math.sin(n*24))*1.1*Math.min(1,a*3)}else e.act==="stare"?e.swell=n>.9&&n<3.3?.5-.5*Math.cos((n-.9)*Math.PI*2*1.25):0:e.act==="blink"&&this.teleport(e,n)}teleport(e,o){if(o<.22){e.blink=1-o/.22;return}if(!e.jumped){let n=e.timer;e.jumped=!0,this.spawn(e)&&(e.yaw=Math.atan2(-e.x,-e.z)+e.between(-.6,.6)),e.act="blink",e.actTime=o,e.jumped=!0,e.timer=n}e.blink=Math.min(1,(o-.22)/.35)}};var Nn=[[.95,.66,.72],[.98,.95,.88],[.96,.77,.27],[.73,.64,.86],[.93,.49,.42]],vr=class{data=new Float32Array(1746);fireflies=[];petals=[];sparks=[];sparkDebt=0;width=1;height=1;time=0;get busy(){return this.petals.length>0||this.sparks.length>0}sparkle(e,o,n,a,r){if(!(r<.5||a<40))for(this.sparkDebt+=e*Math.min(a/500,1.6)*34*r;this.sparkDebt>=1;){this.sparkDebt-=1,this.sparks.length>=70&&this.sparks.shift();let s=Math.random()*Math.PI*2,c=18+Math.random()*46;this.sparks.push({x:o+Math.cos(s)*c,y:n+Math.sin(s)*c*.45,vx:(Math.random()-.5)*24,vy:-12-Math.random()*30,age:0,life:.45+Math.random()*.6,size:7+Math.random()*9})}}resize(e,o){if(this.fireflies.length===0)for(let n=0;n<34;n++)this.fireflies.push({x:Math.random()*e,y:o*(.45+Math.random()*.45),vx:0,vy:0,phase:Math.random()*Math.PI*2,speed:.6+Math.random()*.8});else for(let n of this.fireflies)n.x*=e/this.width,n.y*=o/this.height;this.width=e,this.height=o}burst(e,o,n){for(let r of this.fireflies){let s=r.x-e,c=r.y-o,h=Math.hypot(s,c)||1;if(h<260){let f=(1-h/260)*520;r.vx+=s/h*f,r.vy+=c/h*f-80}}if(n>.6)return;let a=16;for(let r=0;r<a;r++){this.petals.length>=90&&this.petals.shift();let s=-Math.PI/2+(Math.random()-.5)*Math.PI*1.5,c=180+Math.random()*320;this.petals.push({x:e,y:o,vx:Math.cos(s)*c,vy:Math.sin(s)*c,age:0,life:1.8+Math.random()*1.4,angle:Math.random()*Math.PI*2,spin:(Math.random()-.5)*9,size:9+Math.random()*8,color:Nn[Math.floor(Math.random()*Nn.length)]})}}step(e,o,n){this.time+=e;let{width:a,height:r}=this;for(let s of this.fireflies){let c=this.time*s.speed+s.phase;if(s.vx+=(Math.sin(c*1.3)*22+Math.cos(c*.7+s.phase)*14)*e,s.vy+=(Math.cos(c*1.1)*16-9)*e,n.active&&o>.3){let f=s.x-n.x,i=s.y-n.y,v=Math.hypot(f,i)||1;v<120&&(s.vx+=f/v*240*e,s.vy+=i/v*240*e)}let h=Math.exp(-e*1.6);s.vx*=h,s.vy*=h,s.x+=s.vx*e,s.y+=s.vy*e,s.y<r*.3&&(s.y=r*.95),s.y>r&&(s.y=r*.45),s.x<-20&&(s.x=a+20),s.x>a+20&&(s.x=-20)}for(let s of this.petals){s.age+=e;let c=Math.exp(-e*2.2);s.vx=s.vx*c+Math.sin(s.age*5+s.angle)*60*e,s.vy=s.vy*c+260*e,s.x+=s.vx*e,s.y+=s.vy*e,s.angle+=s.spin*e}for(let s of this.sparks)s.age+=e,s.x+=s.vx*e,s.y+=s.vy*e;for(let s=this.sparks.length-1;s>=0;s--)this.sparks[s].age>this.sparks[s].life&&this.sparks.splice(s,1);for(let s=this.petals.length-1;s>=0;s--)this.petals[s].age>this.petals[s].life&&this.petals.splice(s,1)}fill(e,o,n=()=>1){let{data:a}=this,r=0,s=(c,h,f,i,v,g,x,w,A)=>{a[r]=c*e,a[r+1]=h*e,a[r+2]=f*e,a[r+3]=i,a[r+4]=v,a[r+5]=g,a[r+6]=x,a[r+7]=w,a[r+8]=A,r+=9};if(o>.02)for(let c of this.fireflies){let h=Math.max(0,Math.sin(this.time*1.7*c.speed+c.phase*3))**2,f=o*(.25+.75*h)*n(c.x,c.y);s(c.x,c.y,22+10*h,0,.9*f,1*f,.45*f,0,0)}for(let c of this.sparks){let h=c.age/c.life,f=Math.min(1,h/.12)*(1-h)*(1-h)*o*n(c.x,c.y);s(c.x,c.y,c.size*(.7+.5*(1-h)),0,.9*f,1*f,.92*f,0,0)}for(let c of this.petals){let h=Math.min(1,(c.life-c.age)/.6)*Math.min(1,c.age/.05);s(c.x,c.y,c.size,c.angle,c.color[0]*h,c.color[1]*h,c.color[2]*h,h,1)}return r/9}},yt=36;var ts=t=>{let e=parseInt(t.slice(1),16);return[e>>16&255,e>>8&255,e&255].map(o=>((o/255)**2.2).toFixed(4))},T=t=>`vec3(${ts(t).join(", ")})`,Pe=t=>Number.isInteger(t)?`${t}.0`:`${t}`,oe=`#version 300 es
+precision highp float;
+precision highp int;
+precision highp sampler2D;
+`,be=`
+uniform vec3 uSunDir;
+uniform vec3 uKeyDir;
+uniform vec3 uKeyColor;
+uniform float uKeyElev;
+uniform vec4 uShadowMix;
+uniform vec3 uMoonDir;
+uniform vec3 uCamPos;
+uniform vec3 uSkyHorizon;
+uniform vec3 uSkyLow;
+uniform vec3 uSkyMid;
+uniform vec3 uSkyTop;
+uniform vec3 uGlow;
+uniform float uSkySpan;
+uniform float uAmbient;
+uniform float uHaze;
+uniform float uMist;
+uniform float uNight;
+uniform float uTime;
+uniform vec4 uVeil;
+uniform vec2 uVeilFeather;
+uniform vec2 uTargetSize;
+
+const float PI = 3.14159265;
+const float TZN = ${Pe(1)};
+const float TZF = ${Pe(16e3)};
+const float TW0 = ${Pe(6)};
+const float TSLOPE = ${Pe(1.05)};
+const float HMIN = ${Pe(-60)};
+const float HRANGE = ${Pe(2300)};
+const mat2 OCTAVE_TURN = mat2(0.8, -0.6, 0.6, 0.8);
+
+float hash12(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
+float valueNoise(vec2 x) {
+  vec2 cell = floor(x);
+  vec2 f = fract(x);
+  vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+  float a = hash12(cell);
+  float b = hash12(cell + vec2(1.0, 0.0));
+  float c = hash12(cell + vec2(0.0, 1.0));
+  float d = hash12(cell + vec2(1.0, 1.0));
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y) * 2.0 - 1.0;
+}
+
+float fbm(vec2 p, int octaves) {
+  float sum = 0.0;
+  float amp = 0.5;
+  for (int i = 0; i < octaves; i++) {
+    sum += amp * valueNoise(p);
+    p = OCTAVE_TURN * p * 2.03 + vec2(4.1, 1.7);
+    amp *= 0.5;
+  }
+  return sum;
+}
+
+vec2 terrainWorld(vec2 uv) {
+  float z = TZN * pow(TZF / TZN, uv.y);
+  return vec2((uv.x * 2.0 - 1.0) * (TW0 + z * TSLOPE), z);
+}
+
+vec2 terrainUv(vec2 p) {
+  float z = max(p.y, TZN);
+  return vec2(p.x / (TW0 + z * TSLOPE) * 0.5 + 0.5, log(z / TZN) / log(TZF / TZN));
+}
+
+float decodeHeight(vec4 texel) {
+  return (texel.r * 65280.0 + texel.g * 255.0) / 65535.0 * HRANGE + HMIN;
+}
+
+vec2 decodeGradient(vec2 encoded) {
+  vec2 e = encoded * 2.0 - 1.0;
+  return e / max(1.0 - abs(e), 0.004);
+}
+
+float meadowHeight(vec2 p) {
+  float near = 0.16 * valueNoise(p * 0.09) + 0.07 * valueNoise(p * 0.33 + 7.0);
+  float far = smoothstep(30.0, 360.0, p.y);
+  return near + far * (6.0 + 8.0 * valueNoise(p * 0.004 + 3.0) + 2.5 * valueNoise(p * 0.018 + 1.3));
+}
+
+float bakedHeight(sampler2D heightTex, vec2 uv) {
+  ivec2 size = textureSize(heightTex, 0);
+  vec2 st = uv * vec2(size) - 0.5;
+  ivec2 base = ivec2(floor(st));
+  vec2 f = fract(st);
+  ivec2 top = size - 1;
+  float a = decodeHeight(texelFetch(heightTex, clamp(base, ivec2(0), top), 0));
+  float b = decodeHeight(texelFetch(heightTex, clamp(base + ivec2(1, 0), ivec2(0), top), 0));
+  float c = decodeHeight(texelFetch(heightTex, clamp(base + ivec2(0, 1), ivec2(0), top), 0));
+  float d = decodeHeight(texelFetch(heightTex, clamp(base + ivec2(1, 1), ivec2(0), top), 0));
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+vec3 skyGradient(float h) {
+  vec3 col = mix(uSkyHorizon, uSkyLow, smoothstep(0.0, 0.16, h));
+  col = mix(col, uSkyMid, smoothstep(0.12, 0.55, h));
+  return mix(col, uSkyTop, smoothstep(0.5, 1.0, h));
+}
+
+float sunGlowAmount(vec3 dir) {
+  float mu = max(dot(dir, uSunDir), 0.0);
+  float nearHorizon = exp(-max(dir.y, 0.0) * 9.0);
+  return pow(mu, 4.0) * (0.4 + 0.6 * nearHorizon) + pow(mu, 28.0) * 1.4 + pow(mu, 380.0) * 2.0 + nearHorizon * (0.3 + 0.7 * mu) * 0.45;
+}
+
+vec3 moonGlow(vec3 dir) {
+  float moon = max(dot(dir, uMoonDir), 0.0);
+  return ${T("#5d74a8")} * uNight * (pow(moon, 30.0) * 0.5 + pow(moon, 6.0) * 0.12);
+}
+
+vec3 skyBase(vec3 dir) {
+  return skyGradient(clamp(max(dir.y, 0.0) / uSkySpan, 0.0, 1.0)) + uGlow * sunGlowAmount(dir) + moonGlow(dir);
+}
+
+float valleyMist(vec2 fragCoord) {
+  vec2 uv = fragCoord / uTargetSize;
+  vec2 outside = max(max(uVeil.xy - uv, uv - uVeil.zw), 0.0) / uVeilFeather;
+  float drift = fbm(uv * vec2(3.0, 5.0) + 3.1, 3) * 0.9 + fbm(uv * vec2(9.0, 4.0) - 1.7, 2) * 0.35;
+  float bank = 1.0 - smoothstep(0.0, 1.0, length(outside) + drift);
+  return bank * (1.0 - smoothstep(0.35, 0.75, uNight));
+}
+
+vec3 mistPaint() {
+  return skyGradient(0.07) + uGlow * 0.25;
+}
+
+float shadowHorizon(vec4 horizons) {
+  return dot(horizons, uShadowMix) * 1.1 - 0.25;
+}
+
+float heightIntegral(float startY, float dirY, float dist, float falloff) {
+  float k = dirY * falloff * dist;
+  float shape = abs(k) < 1e-4 ? 1.0 - 0.5 * k : (1.0 - exp(-k)) / k;
+  return exp(-startY * falloff) * dist * shape;
+}
+
+vec3 atmosphere(vec3 col, vec3 worldPos) {
+  vec3 ray = worldPos - uCamPos;
+  float dist = length(ray);
+  vec3 dir = ray / max(dist, 1e-4);
+  float haze = 1.0 - exp(-uHaze * heightIntegral(uCamPos.y, dir.y, dist, 0.00105));
+  float mist = 1.0 - exp(-uMist * heightIntegral(uCamPos.y, dir.y, dist, 0.028));
+  vec3 fogColor = skyBase(normalize(vec3(dir.x, max(dir.y, 0.012), dir.z)));
+  fogColor += uKeyColor * pow(max(dot(dir, uSunDir), 0.0), 7.0) * 0.06 * (1.0 - uNight);
+  col = mix(col, fogColor, haze);
+  vec3 mistColor = mix(fogColor, vec3(1.0, 0.96, 0.92) * uAmbient * mix(0.8, 0.25, uNight), 0.35);
+  return mix(col, mistColor, mist * 0.92);
+}
+
+vec3 encodeColor(vec3 c) {
+  vec3 shoulder = 0.8 + 0.2 * (1.0 - exp(-(c - 0.8) / 0.2));
+  c = mix(c, shoulder, step(0.8, c));
+  return pow(max(c, 0.0), vec3(1.0 / 2.2));
+}
+
+const float CREATURE_REGION = 0.62;
+
+vec4 encodeFlow(vec2 dir, float strokeScale, float region) {
+  float angle = atan(dir.y, dir.x);
+  return vec4(cos(2.0 * angle) * 0.5 + 0.5, sin(2.0 * angle) * 0.5 + 0.5, strokeScale, region);
+}
+`,rs=`${oe}
+out vec2 vUv;
+void main() {
+  vec2 corner = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
+  vUv = corner;
+  gl_Position = vec4(corner * 2.0 - 1.0, 1.0, 1.0);
+}
+`,os=`${oe}${be}
+uniform vec2 uBakeSize;
+layout(location = 0) out vec4 outHeight;
+layout(location = 1) out vec4 outMaterial;
+
+vec3 noised(vec2 x) {
+  vec2 cell = floor(x);
+  vec2 f = fract(x);
+  vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+  vec2 du = 30.0 * f * f * (f * (f - 2.0) + 1.0);
+  float a = hash12(cell);
+  float b = hash12(cell + vec2(1.0, 0.0));
+  float c = hash12(cell + vec2(0.0, 1.0));
+  float d = hash12(cell + vec2(1.0, 1.0));
+  float k1 = b - a;
+  float k2 = c - a;
+  float k4 = a - b - c + d;
+  return vec3(-1.0 + 2.0 * (a + k1 * u.x + k2 * u.y + k4 * u.x * u.y), 2.0 * du * vec2(k1 + k4 * u.y, k2 + k4 * u.x));
+}
+
+float erodedFbm(vec2 p, int octaves) {
+  float sum = 0.0;
+  float amp = 0.5;
+  vec2 slope = vec2(0.0);
+  for (int i = 0; i < octaves; i++) {
+    vec3 n = noised(p);
+    slope += n.yz;
+    sum += amp * n.x / (1.0 + dot(slope, slope));
+    amp *= 0.5;
+    p = OCTAVE_TURN * p * 2.0;
+  }
+  return sum;
+}
+
+float ridgedFbm(vec2 p, int octaves) {
+  float sum = 0.0;
+  float amp = 0.5;
+  float weight = 1.0;
+  for (int i = 0; i < octaves; i++) {
+    float n = 1.0 - abs(valueNoise(p));
+    n *= n;
+    sum += n * amp * weight;
+    weight = clamp(n * 1.8, 0.0, 1.0);
+    amp *= 0.5;
+    p = OCTAVE_TURN * p * 2.07 + vec2(1.7, 9.2);
+  }
+  return sum;
+}
+
+float smax(float a, float b, float k) {
+  float h = max(k - abs(a - b), 0.0) / k;
+  return max(a, b) + h * h * k * 0.25;
+}
+
+float dome(vec2 p, vec2 center, vec2 radius, float height) {
+  float r = length((p - center) / radius);
+  return height * pow(0.5 + 0.5 * cos(PI * min(r, 1.0)), 1.15);
+}
+
+float terrainHeight(vec2 p, out vec3 weights) {
+  float meadow = meadowHeight(p);
+
+  float dark = -1e4;
+  float crestZ = 900.0 + 190.0 * valueNoise(vec2(p.x / 950.0, 4.2));
+  float dz = p.y - crestZ;
+  float profile = exp(-pow(dz / (dz < 0.0 ? 360.0 : 640.0), 2.0));
+  if (profile > 0.002) {
+    float rise = smoothstep(-60.0, 820.0, p.x);
+    float detail = erodedFbm(p / 300.0 + vec2(5.3, 1.1), 7);
+    float canopy = 0.55 + 0.45 * valueNoise(p / 10.0) + 0.3 * valueNoise(p / 4.1);
+    dark = (190.0 * rise + 24.0 * smoothstep(-240.0, 60.0, p.x)) * profile + 38.0 * detail * profile * mix(0.4, 1.0, rise) + 9.0 * canopy * smoothstep(0.04, 0.3, profile) - 4.0 - 40.0 * (1.0 - profile);
+  }
+
+  float sage = -1e4;
+  float sageBody = max(
+    dome(p, vec2(-1700.0, 3800.0), vec2(2150.0, 1500.0), 880.0),
+    dome(p, vec2(-120.0, 4550.0), vec2(1950.0, 1300.0), 470.0)
+  );
+  if (sageBody > 0.5) {
+    sage = sageBody + 105.0 * erodedFbm(p / 760.0 + vec2(2.0, 7.0), 8) * smoothstep(0.0, 140.0, sageBody) - 12.0;
+  }
+
+  float far = -1e4;
+  float farMask = smoothstep(6200.0, 8800.0, p.y) * (1.0 - smoothstep(14600.0, 15900.0, p.y));
+  if (farMask > 0.001) {
+    far = farMask * (1380.0 * ridgedFbm(p / 3900.0 + vec2(3.3, 8.1), 9) + 190.0 * erodedFbm(p / 1300.0, 6) - 140.0);
+  }
+
+  float h = smax(meadow, dark, 30.0);
+  h = smax(h, sage, 140.0);
+  h = smax(h, far, 260.0);
+  weights = vec3(
+    smoothstep(-16.0, 16.0, dark - max(meadow, max(sage, far))),
+    smoothstep(-60.0, 60.0, sage - max(meadow, max(dark, far))),
+    smoothstep(-110.0, 110.0, far - max(meadow, max(dark, sage)))
+  );
+  return h;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / uBakeSize;
+  vec2 p = terrainWorld(uv);
+  vec2 texel = vec2(2.0 * (TW0 + p.y * TSLOPE) / uBakeSize.x, p.y * log(TZF / TZN) / uBakeSize.y);
+  vec3 weights;
+  vec3 ignored;
+  float h = terrainHeight(p, weights);
+  float hx = terrainHeight(p + vec2(texel.x, 0.0), ignored);
+  float hz = terrainHeight(p + vec2(0.0, texel.y), ignored);
+  vec2 gradient = vec2(hx - h, hz - h) / texel;
+  float packedHeight = floor(clamp((h - HMIN) / HRANGE, 0.0, 1.0) * 65535.0);
+  float high = floor(packedHeight / 256.0);
+  outHeight = vec4(high / 255.0, (packedHeight - high * 256.0) / 255.0, gradient / (1.0 + abs(gradient)) * 0.5 + 0.5);
+  outMaterial = vec4(weights, 1.0);
+}
+`,ns=`${oe}${be}
+uniform sampler2D uHeightTex;
+uniform vec4 uAzimuths;
+layout(location = 0) out vec4 outAux;
+layout(location = 1) out vec4 outHorizons;
+
+float heightAt(vec2 p) {
+  vec2 uv = terrainUv(p);
+  if (uv.y > 1.0 || uv.x < 0.0 || uv.x > 1.0) return HMIN;
+  ivec2 size = textureSize(uHeightTex, 0);
+  ivec2 texel = clamp(ivec2(uv * vec2(size)), ivec2(0), size - 1);
+  return decodeHeight(texelFetch(uHeightTex, texel, 0));
+}
+
+float horizonToward(vec2 p, float lifted, float azimuth) {
+  vec2 dir = vec2(sin(azimuth), cos(azimuth));
+  float t = max(0.6, p.y * 0.006);
+  float maxSlope = -0.3;
+  for (int i = 0; i < 46; i++) {
+    maxSlope = max(maxSlope, (heightAt(p + dir * t) - lifted) / t);
+    t *= 1.22;
+    if (t > 26000.0) break;
+  }
+  return (atan(maxSlope) + 0.25) / 1.1;
+}
+
+void main() {
+  ivec2 coord = ivec2(gl_FragCoord.xy);
+  ivec2 size = textureSize(uHeightTex, 0);
+  vec2 p = terrainWorld((vec2(coord) + 0.5) / vec2(size));
+  float h0 = decodeHeight(texelFetch(uHeightTex, coord, 0));
+  float lifted = h0 + 0.3 + p.y * 0.0015;
+  outHorizons = vec4(
+    horizonToward(p, lifted, uAzimuths.x),
+    horizonToward(p, lifted, uAzimuths.y),
+    horizonToward(p, lifted, uAzimuths.z),
+    horizonToward(p, lifted, uAzimuths.w)
+  );
+
+  float radius = 1.5 + p.y * 0.012;
+  float occlusion = 0.0;
+  float neighborSum = 0.0;
+  for (int k = 0; k < 8; k++) {
+    float angle = float(k) * PI * 0.25 + 0.3;
+    vec2 dir = vec2(cos(angle), sin(angle));
+    float nearH = heightAt(p + dir * radius);
+    float farH = heightAt(p + dir * radius * 3.5);
+    occlusion += max(0.0, atan((nearH - h0) / radius)) + max(0.0, atan((farH - h0) / (radius * 3.5)));
+    neighborSum += nearH;
+  }
+  float ao = 1.0 - clamp(occlusion / 16.0 * 2.2, 0.0, 1.0);
+  float curvature = clamp((neighborSum / 8.0 - h0) / radius * 3.0, -1.0, 1.0);
+  outAux = vec4(ao, curvature * 0.5 + 0.5, 0.0, 1.0);
+}
+`,as=`${oe}${be}
+layout(location = 0) in vec2 aUv;
+uniform mat4 uViewProj;
+uniform sampler2D uHeightTex;
+uniform float uHillScale;
+out vec2 vUv;
+out vec3 vWorld;
+
+void main() {
+  vec2 p = terrainWorld(aUv);
+  float h = p.y < 60.0 ? meadowHeight(p) : mix(meadowHeight(p), bakedHeight(uHeightTex, aUv), uHillScale);
+  vWorld = vec3(p.x, h, p.y);
+  vUv = aUv;
+  gl_Position = uViewProj * vec4(vWorld, 1.0);
+}
+`,ss=`${oe}${be}
+uniform sampler2D uHeightTex;
+uniform sampler2D uMaterialTex;
+uniform sampler2D uAuxTex;
+uniform sampler2D uHorizonTex;
+uniform float uGrassFar;
+in vec2 vUv;
+in vec3 vWorld;
+layout(location = 0) out vec4 outColor;
+layout(location = 1) out vec4 outFlow;
+
+void main() {
+  vec2 gradient = decodeGradient(texture(uHeightTex, vUv).ba);
+  vec2 footprintAxes = max(abs(dFdx(vWorld.xz)), abs(dFdy(vWorld.xz)));
+  float footprint = max(footprintAxes.x, footprintAxes.y);
+  float detailScale = max(footprint * 6.0, 0.8);
+  vec2 q = vWorld.xz / detailScale;
+  float base = fbm(q, 3);
+  gradient += vec2(fbm(q + vec2(0.35, 0.0), 3) - base, fbm(q + vec2(0.0, 0.35), 3) - base) / 0.35 * 0.3;
+  vec3 n = normalize(vec3(-gradient.x, 1.0, -gradient.y));
+
+  vec4 material = texture(uMaterialTex, vUv);
+  vec4 aux = texture(uAuxTex, vUv);
+  float horizon = shadowHorizon(texture(uHorizonTex, vUv));
+  float ao = aux.r;
+  float curvature = aux.g * 2.0 - 1.0;
+  float slope = 1.0 - n.y;
+
+  float patchNoise = fbm(vWorld.xz * 0.006, 4);
+  vec3 meadow = mix(${T("#5b7a33")}, ${T("#8f9a4a")}, smoothstep(-0.3, 0.4, patchNoise));
+  meadow *= mix(0.5, 1.0, smoothstep(uGrassFar * 0.55, uGrassFar * 1.6, vWorld.z));
+  vec3 forest = mix(${T("#164536")}, ${T("#3c7259")}, smoothstep(-0.25, 0.55, patchNoise + fbm(vWorld.xz * 0.03, 3) * 0.5));
+  vec3 sage = mix(${T("#8ba65c")}, ${T("#b9c482")}, smoothstep(-0.35, 0.45, fbm(vWorld.xz * 0.0021 + 3.0, 4)));
+  sage = mix(sage, ${T("#a39b80")}, smoothstep(0.45, 0.75, slope) * 0.45);
+  vec3 farLand = mix(${T("#7b9474")}, ${T("#9a9ca4")}, smoothstep(0.28, 0.55, slope) * 0.8 + smoothstep(600.0, 1300.0, vWorld.y) * 0.4);
+
+  float wDark = material.r;
+  float wSage = material.g * (1.0 - wDark);
+  float wFar = material.b * (1.0 - wDark) * (1.0 - wSage);
+  vec3 albedo = meadow;
+  albedo = mix(albedo, farLand, wFar);
+  albedo = mix(albedo, sage, wSage);
+  albedo = mix(albedo, forest, wDark);
+  albedo *= mix(1.0, 0.8, clamp(curvature, 0.0, 1.0)) * mix(1.0, 1.15, clamp(-curvature, 0.0, 1.0));
+  albedo = mix(albedo, ${T("#0f3b33")} * 1.4, uNight * 0.55);
+
+  vec3 L = uKeyDir;
+  vec3 V = normalize(uCamPos - vWorld);
+  float lit = smoothstep(-0.014, 0.014, uKeyElev - horizon);
+  float wrap = max((dot(n, L) + 0.35) / 1.35, 0.0);
+  vec3 skyLight = skyBase(normalize(vec3(n.x * 0.6, max(n.y, 0.0) + 0.45, n.z * 0.6)));
+  float skyLuma = dot(skyLight, vec3(0.2126, 0.7152, 0.0722));
+  vec3 hillShade = mix(skyLight, skyLuma * ${T("#9fd0bc")} * 1.25, (wDark + wSage) * 0.6 * (1.0 - uNight));
+  vec3 ambient = hillShade * mix(0.5, 1.0, ao) * 1.15 * uAmbient;
+  ambient += skyLight * max(dot(n, normalize(vec3(-L.x, 0.6, -L.z))), 0.0) * 0.55 * mix(0.6, 1.0, ao) * uAmbient;
+  vec3 direct = uKeyColor * wrap * lit * 0.85;
+  float rim = pow(1.0 - max(dot(n, V), 0.0), 3.0) * pow(max(dot(-V, L), 0.0), 2.0);
+  vec3 col = albedo * (ambient + direct) + uKeyColor * rim * lit * 0.18 * (1.0 - wFar);
+  col = mix(atmosphere(col, vWorld), col, (wDark * 0.8 + wSage * 0.55) * (1.0 - uNight * 0.5));
+  col = mix(col, mistPaint(), valleyMist(gl_FragCoord.xy) * 0.82);
+  outColor = vec4(encodeColor(col), 1.0);
+
+  vec2 screenSlope = vec2(dFdx(vWorld.y), dFdy(vWorld.y)) + vec2(dFdx(vWorld.z), dFdy(vWorld.z)) * 0.02;
+  vec2 contour = length(screenSlope) > 1e-5 ? vec2(screenSlope.y, -screenSlope.x) : vec2(1.0, 0.0);
+  outFlow = encodeFlow(contour, mix(0.85, 0.6, wDark), 0.5);
+}
+`,is=`${oe}${be}
+const float SKY_BANDS = 7.0;
+uniform mat4 uInvViewProj;
+uniform float uSunRadius;
+uniform vec2 uSunNdc;
+uniform float uSunDiscNdc;
+uniform float uAspect;
+in vec2 vUv;
+layout(location = 0) out vec4 outColor;
+layout(location = 1) out vec4 outFlow;
+
+void main() {
+  vec4 farPoint = uInvViewProj * vec4(vUv * 2.0 - 1.0, 1.0, 1.0);
+  vec3 dir = normalize(farPoint.xyz / farPoint.w - uCamPos);
+  float mu = max(dot(dir, uSunDir), 0.0);
+  vec2 plane = dir.xz / (dir.y + 0.07);
+  float h = clamp(max(dir.y, 0.0) / uSkySpan, 0.0, 1.0);
+  float wobble = fbm(vec2(plane.x * 0.35 + uTime * 0.004, h * 2.5 + 1.7), 3) * 0.045;
+  float bandPosition = (h + wobble) * SKY_BANDS;
+  float bandEdge = smoothstep(0.8, 1.0, fract(bandPosition));
+  float bandH = clamp((floor(bandPosition) + bandEdge + 0.5) / SKY_BANDS, 0.0, 1.0);
+  float glow = sunGlowAmount(dir);
+  float glowSteps = floor(glow * 6.0) / 6.0 + smoothstep(0.75, 1.0, fract(glow * 6.0)) / 6.0;
+  vec3 col = mix(skyGradient(h), skyGradient(bandH), 0.82) + uGlow * mix(glow, glowSteps, 0.7) + moonGlow(dir);
+
+  if (dir.y > 0.0) {
+    vec2 drift = vec2(uTime * 0.006, uTime * 0.0015);
+    float body = fbm(plane * vec2(0.5, 1.5) + drift + vec2(3.1, 0.4), 5);
+    float streak = fbm(plane * vec2(0.22, 2.6) + drift * 0.7 + vec2(-1.3, 5.0), 4);
+    float cover = smoothstep(0.3, 0.36, body * 0.75 + streak * 0.55) * smoothstep(0.04, 0.2, h) * (1.0 - smoothstep(0.5, 0.9, h));
+    vec3 lit = mix(uSkyHorizon * 1.12 + uGlow * 0.6, ${T("#5a6b9a")}, uNight);
+    vec3 shade = mix(mix(uSkyMid, uSkyTop, 0.5) * 0.94, ${T("#1c2748")}, uNight);
+    vec3 cloud = mix(shade, lit, smoothstep(0.02, 0.08, streak)) + uGlow * pow(mu, 6.0) * 1.2;
+    col = mix(col, cloud, cover * 0.62);
+    vec2 starCell = floor(plane * 90.0);
+    float stars = step(0.9965, hash12(starCell)) * smoothstep(0.1, 0.4, dir.y / uSkySpan);
+    col += vec3(0.9, 0.92, 1.0) * stars * uNight * (0.6 + 0.4 * sin(uTime * 3.0 + hash12(starCell + 3.0) * 30.0));
+  }
+
+  float c = dot(dir, uSunDir);
+  float angle = sqrt(max(2.0 * (1.0 - c), 0.0));
+  float edge = fwidth(angle) * 1.2;
+  float disc = 1.0 - smoothstep(uSunRadius - edge, uSunRadius + edge, angle);
+  float limb = clamp(angle / uSunRadius, 0.0, 1.0);
+  float daylight = smoothstep(0.0, 0.25, uSunDir.y);
+  vec3 sunCore = mix(${T("#ff9238")}, ${T("#f9bb34")}, daylight);
+  vec3 sunRim = mix(${T("#e45a28")}, ${T("#ec9420")}, daylight);
+  col = mix(col, mix(sunCore, sunRim, limb * limb), disc);
+
+  float moonAngle = sqrt(max(2.0 * (1.0 - dot(dir, uMoonDir)), 0.0));
+  float moonDisc = (1.0 - smoothstep(uSunRadius * 0.8 - edge, uSunRadius * 0.8 + edge, moonAngle)) * uNight;
+  col = mix(col, ${T("#f4efdc")} * mix(0.9, 1.0, valueNoise(dir.xy * 140.0) * 0.5 + 0.5), moonDisc);
+  outColor = vec4(encodeColor(col), 1.0);
+
+  vec2 ndc = vUv * 2.0 - 1.0;
+  vec2 fromSun = (ndc - uSunNdc) * vec2(uAspect, 1.0);
+  float sunDistance = length(fromSun);
+  vec2 swirl = vec2(-fromSun.y, fromSun.x);
+  float warp = fbm(plane * 0.7 + vec2(uTime * 0.01, 0.0), 3);
+  vec2 sweep = vec2(1.0, 0.35 * warp + 0.12 * sin(ndc.x * 2.5 + ndc.y * 4.0));
+  vec2 flow = mix(normalize(swirl + 1e-4), normalize(sweep), smoothstep(0.08, 0.55, sunDistance));
+  outFlow = encodeFlow(flow, mix(0.0, 1.0, smoothstep(uSunDiscNdc * 1.1, uSunDiscNdc * 5.0, sunDistance)), 0.0);
+}
+`,ls=`${oe}${be}
+layout(location = 0) in vec2 aBlade;
+uniform mat4 uViewProj;
+uniform vec2 uGrid;
+uniform vec4 uGrassArea;
+uniform float uWind;
+uniform vec2 uWindDir;
+uniform float uPixelAngle;
+uniform sampler2D uBrushTex;
+uniform sampler2D uHorizonTex;
+uniform vec4 uMobs[${vt}];
+uniform int uMobCount;
+uniform vec2 uMobShadow;
+out vec3 vWorld;
+out vec3 vNormal;
+out vec3 vTint;
+out float vAlong;
+out float vLit;
+out float vSide;
+out float vBrushed;
+out float vGlow;
+out float vFlower;
+out float vShade;
+
+const float SEGMENTS = ${Pe(6)};
+
+void main() {
+  int columns = int(uGrid.x);
+  vec2 cellIndex = vec2(float(gl_InstanceID % columns), float(gl_InstanceID / columns));
+  float h1 = hash12(cellIndex + 0.37);
+  float h2 = hash12(cellIndex + 17.3);
+  float h3 = hash12(cellIndex + 41.7);
+  float h4 = hash12(cellIndex + 73.1);
+  float h5 = hash12(cellIndex + 5.9);
+  vec2 cell = (cellIndex + vec2(h1, h2)) / uGrid;
+  float depthT = pow(cell.y, ${Pe(.62)});
+  float z = 1.0 / mix(1.0 / uGrassArea.x, 1.0 / uGrassArea.y, depthT);
+  vec2 root = vec2((cell.x * 2.0 - 1.0) * (uGrassArea.z + z * uGrassArea.w), z);
+  float ground = meadowHeight(root) - 0.02;
+  float flower = step(0.9955, h4) * (1.0 - smoothstep(4.0, 12.0, z));
+
+  float clump = valueNoise(root * 1.6) * 0.5 + 0.5;
+  float meadowPatch = valueNoise(root * 0.21 + 11.0) * 0.5 + 0.5;
+  float height = mix(0.22, 0.6, h3) * mix(0.6, 1.2, clump) * mix(0.75, 1.12, meadowPatch);
+  height = mix(height, 0.42 + 0.16 * h3, flower);
+  height *= mix(1.0, 0.4, smoothstep(uGrassArea.y * 0.55, uGrassArea.y, z));
+  float trample = 0.0;
+  float shade = 0.0;
+  vec2 away = vec2(0.0);
+  for (int i = 0; i < ${vt}; i++) {
+    if (i >= uMobCount) break;
+    vec4 mob = uMobs[i];
+    vec2 d = root - mob.xy;
+    vec2 reach = d / mob.z;
+    reach.y *= d.y < 0.0 ? 0.42 : 1.0;
+    float inside = 1.0 - dot(reach, reach);
+    if (inside > 0.0) {
+      inside *= inside * mob.w;
+      trample = max(trample, inside);
+      away += d / max(length(d), 1e-3) * inside;
+    }
+    vec2 footprint = (d - uMobShadow * mob.z) / (mob.z * 0.8);
+    shade = max(shade, (1.0 - min(dot(footprint, footprint), 1.0)) * mob.w);
+  }
+  height *= 1.0 - 0.75 * trample;
+  vShade = shade;
+  float pixelWorld = z * uPixelAngle;
+  float width = max(mix(0.01, 0.02, h4) * mix(1.3, 0.9, clump), pixelWorld * 1.6);
+
+  float facing = h5 * 6.2831853;
+  vec2 facingDir = vec2(cos(facing), sin(facing));
+  float gust = valueNoise(root * 0.09 - uWindDir * uTime * 0.85) * 0.5 + 0.5;
+  gust = gust * gust * (3.0 - 2.0 * gust);
+  float ripple = valueNoise(root * 0.42 - uWindDir * uTime * 1.9);
+  float flutter = sin(uTime * (2.4 + h1 * 1.6) + h2 * 6.2831853 + dot(root, uWindDir) * 1.4);
+  float windBend = uWind * (0.1 + 0.62 * gust + 0.12 * ripple + 0.06 * flutter + flower * 0.12 * flutter);
+  vec2 bendVec = facingDir * mix(0.08, 0.42, h1) * (1.0 - flower * 0.7) + uWindDir * windBend;
+  vec3 brushSample = texture(uBrushTex, vec2(cell.x, depthT)).xyz;
+  vec2 brush = brushSample.xy;
+  bendVec += brush * (1.0 + flower * 0.4) + away * 0.9;
+  vBrushed = clamp(length(brush) / 1.1, 0.0, 1.0);
+  vGlow = brushSample.z * mix(0.12, 1.0, step(0.58, h3) * (0.6 + 0.4 * h5)) * (1.0 - smoothstep(10.0, 30.0, z));
+  float bend = length(bendVec);
+  vec2 bendDir = bend > 1e-4 ? bendVec / bend : facingDir;
+  bend = min(bend, 1.5);
+
+  float s = aBlade.x / SEGMENTS;
+  float arc = bend * s;
+  float safeBend = max(bend, 1e-3);
+  float outward = height * (1.0 - cos(arc)) / safeBend;
+  float upward = height * sin(arc) / safeBend;
+  vec3 spine = vec3(root.x, ground, root.y) + vec3(bendDir.x * outward, upward, bendDir.y * outward);
+  vec3 tangent = vec3(bendDir.x * sin(arc), cos(arc), bendDir.y * sin(arc));
+
+  vec3 toCamera = normalize(uCamPos - spine);
+  vec3 across = vec3(-facingDir.y, 0.0, facingDir.x);
+  vec3 cameraAcross = normalize(cross(vec3(0.0, 1.0, 0.0), toCamera));
+  across = normalize(mix(across, cameraAcross * (dot(across, cameraAcross) < 0.0 ? -1.0 : 1.0), 0.6));
+  float taper = pow(max(1.0 - s, 0.0), 0.62);
+  float head = smoothstep(0.78, 0.9, s) * (1.0 - smoothstep(0.94, 1.0, s));
+  float profile = mix(taper, 0.28 + head * 2.6, flower);
+  vec3 position = spine + across * aBlade.y * width * profile * 0.5;
+
+  vec3 normal = normalize(cross(across, tangent));
+  if (dot(normal, toCamera) < 0.0) normal = -normal;
+  vNormal = normalize(normal + across * aBlade.y * 0.55);
+
+  vec3 deep = ${T("#355d2f")};
+  vec3 fresh = ${T("#7a963f")};
+  vec3 dry = ${T("#b8a764")};
+  vTint = mix(mix(fresh, deep, h2 * 0.75), dry, smoothstep(0.86, 0.98, h4) * 0.7);
+  vTint = mix(vTint, ${T("#94a24b")}, smoothstep(0.55, 0.9, meadowPatch) * 0.45);
+  float petal = hash12(cellIndex + 91.0);
+  vec3 bloom = petal < 0.35 ? ${T("#f6efe0")} : petal < 0.6 ? ${T("#f2bf3a")} : petal < 0.8 ? ${T("#e98aa0")} : ${T("#9c8fd6")};
+  vTint = mix(vTint, bloom, flower * step(0.8, s));
+  vFlower = flower;
+  vAlong = s;
+  vSide = aBlade.y;
+  vLit = smoothstep(-0.014, 0.014, uKeyElev - shadowHorizon(texture(uHorizonTex, terrainUv(root))));
+  vWorld = position;
+  gl_Position = uViewProj * vec4(position, 1.0);
+}
+`,cs=`${oe}${be}
+in vec3 vWorld;
+in vec3 vNormal;
+in vec3 vTint;
+in float vAlong;
+in float vLit;
+in float vSide;
+in float vBrushed;
+in float vGlow;
+in float vFlower;
+in float vShade;
+layout(location = 0) out vec4 outColor;
+layout(location = 1) out vec4 outFlow;
+
+void main() {
+  vec3 n = normalize(vNormal);
+  vec3 V = normalize(uCamPos - vWorld);
+  vec3 L = uKeyDir;
+  float s = vAlong;
+  float petals = vFlower * step(0.8, s);
+  vec3 albedo = mix(${T("#16301a")}, vTint, max(smoothstep(0.0, 0.6, s), petals));
+  albedo = mix(albedo, ${T("#b4b26e")}, smoothstep(0.65, 1.0, s) * 0.3 * (1.0 - petals));
+  albedo = mix(albedo, ${T("#0c3d2b")} * 1.6, uNight * 0.6 * (1.0 - petals));
+  albedo = mix(albedo, ${T("#22200f")}, vBrushed * 0.6 * (1.0 - petals) * (1.0 - uNight));
+  float ao = mix(0.28, 1.0, smoothstep(0.0, 0.8, s)) * (1.0 - vBrushed * 0.82 * (1.0 - s * 0.25)) * (1.0 - vShade * 0.5 * (1.0 - s * 0.5));
+  float wrap = max(dot(n, L) * 0.5 + 0.5, 0.0);
+  float backlight = pow(max(dot(-V, L), 0.0), 8.0);
+  float edge = smoothstep(0.35, 1.0, abs(vSide));
+  float translucency = backlight * smoothstep(0.3, 1.0, s) * (0.3 + 0.7 * edge);
+  vec3 skyLight = skyBase(normalize(vec3(n.x * 0.5, 0.75, n.z * 0.5)));
+  vec3 col = albedo * (skyLight * 0.8 * ao * uAmbient + uKeyColor * wrap * vLit * ao * 0.62);
+  col += albedo * ${T("#f2e48a")} * uKeyColor * translucency * vLit * 1.1 * (1.0 - uNight);
+  float underside = vGlow * smoothstep(0.25, 1.0, s) + vBrushed * 0.18 * s;
+  col += mix(${T("#1f9c7c")}, ${T("#b4f5dc")}, s * vGlow) * underside * uNight * 0.36;
+  col = atmosphere(col, vWorld);
+  col = mix(col, mistPaint(), valleyMist(gl_FragCoord.xy) * 0.82);
+  outColor = vec4(encodeColor(col), 1.0);
+  vec2 along = vec2(dFdx(vAlong), dFdy(vAlong));
+  outFlow = encodeFlow(length(along) > 1e-6 ? along : vec2(0.0, 1.0), mix(0.32, 0.18, petals), 1.0);
+}
+`,us=`${oe}${be}
+layout(location = 0) in vec3 aCorner;
+layout(location = 1) in vec3 aNormal;
+layout(location = 2) in vec4 aRoot;
+layout(location = 3) in vec4 aPivot;
+layout(location = 4) in vec4 aOffset;
+layout(location = 5) in vec4 aSize;
+layout(location = 6) in vec4 aColor;
+layout(location = 7) in vec4 aExtra;
+uniform mat4 uViewProj;
+uniform sampler2D uHorizonTex;
+uniform sampler2D uHeightTex;
+uniform float uHillScale;
+uniform float uPx;
+out vec3 vWorld;
+out vec3 vNormal;
+out vec3 vColor;
+out vec3 vLocal;
+out vec2 vStroke;
+out float vFade;
+out float vGlow;
+out float vFlash;
+out float vSeed;
+out float vLit;
+out float vGround;
+
+mat3 turnY(float a) {
+  float c = cos(a);
+  float s = sin(a);
+  return mat3(c, 0.0, -s, 0.0, 1.0, 0.0, s, 0.0, c);
+}
+
+mat3 turnX(float a) {
+  float c = cos(a);
+  float s = sin(a);
+  return mat3(1.0, 0.0, 0.0, 0.0, c, s, 0.0, -s, c);
+}
+
+mat3 turnZ(float a) {
+  float c = cos(a);
+  float s = sin(a);
+  return mat3(c, s, 0.0, -s, c, 0.0, 0.0, 0.0, 1.0);
+}
+
+void main() {
+  vec3 local = aOffset.xyz + aCorner * aSize.xyz;
+  mat3 part = turnY(aRoot.z) * turnY(aPivot.w) * turnX(aOffset.w) * turnZ(aSize.w);
+  vec3 model = turnY(aRoot.z) * aPivot.xyz + part * local;
+  float meadow = meadowHeight(aRoot.xy);
+  float ground = aRoot.y < 60.0 ? meadow : mix(meadow, bakedHeight(uHeightTex, terrainUv(aRoot.xy)), uHillScale);
+  vec3 world = vec3(aRoot.x, ground - 0.02 + aRoot.w, aRoot.y) + model * uPx;
+  vec3 size = aSize.xyz;
+  vec3 major = size.x >= size.y && size.x >= size.z ? vec3(1.0, 0.0, 0.0) : size.y >= size.z ? vec3(0.0, 1.0, 0.0) : vec3(0.0, 0.0, 1.0);
+  vec4 clip = uViewProj * vec4(world, 1.0);
+  vec4 ahead = uViewProj * vec4(world + part * major * 0.05, 1.0);
+  vStroke = (ahead.xy / ahead.w - clip.xy / clip.w) * uTargetSize;
+  vNormal = part * aNormal;
+  vWorld = world;
+  vLocal = local;
+  vColor = aColor.rgb;
+  vFade = aColor.a;
+  vGlow = aExtra.x;
+  vSeed = aExtra.y;
+  vFlash = aExtra.z;
+  vGround = model.y * uPx;
+  vLit = smoothstep(-0.014, 0.014, uKeyElev - shadowHorizon(texture(uHorizonTex, terrainUv(aRoot.xy))));
+  gl_Position = clip;
+}
+`,hs=`${oe}${be}
+in vec3 vWorld;
+in vec3 vNormal;
+in vec3 vColor;
+in vec3 vLocal;
+in vec2 vStroke;
+in float vFade;
+in float vGlow;
+in float vFlash;
+in float vSeed;
+in float vLit;
+in float vGround;
+layout(location = 0) out vec4 outColor;
+layout(location = 1) out vec4 outFlow;
+
+void main() {
+  float dissolve = valueNoise(gl_FragCoord.xy * 0.21 + vSeed * 3.1) * 0.5 + 0.5;
+  if (dissolve > vFade * 1.12 - 0.06) discard;
+  vec3 n = normalize(vNormal);
+  vec3 L = uKeyDir;
+  vec3 V = normalize(uCamPos - vWorld);
+  float texel = hash12(floor(vLocal.xy * 0.5) + floor(vLocal.z * 0.5) * 7.31 + vSeed);
+  vec3 albedo = vColor * (0.9 + 0.2 * texel);
+  albedo = mix(albedo, vec3(1.0), vFlash);
+  albedo = mix(albedo, albedo * ${T("#8fa3d4")}, uNight * 0.45);
+  float ao = mix(0.5, 1.0, smoothstep(0.0, 0.5, vGround));
+  float wrap = max((dot(n, L) + 0.6) / 1.6, 0.0);
+  vec3 skyLight = skyBase(normalize(vec3(n.x * 0.6, max(n.y, 0.0) + 0.45, n.z * 0.6)));
+  vec3 bounce = ${T("#b7b56a")} * (1.0 - max(n.y, 0.0)) * (1.0 - uNight * 0.7);
+  vec3 col = albedo * ((skyLight * 0.75 + bounce * 0.35) * uAmbient * ao + uKeyColor * wrap * vLit * 0.62 * ao);
+  float rim = pow(1.0 - max(dot(n, V), 0.0), 2.0) * pow(max(dot(-V, L), 0.0), 2.0);
+  col += uKeyColor * rim * vLit * 0.12;
+  col *= mix(1.0, 1.35, uNight);
+  col += vColor * vGlow * mix(0.5, 1.8, uNight);
+  col = mix(atmosphere(col, vWorld), col, smoothstep(150.0, 900.0, vWorld.z) * 0.6 * (1.0 - uNight * 0.5));
+  col = mix(mistPaint(), col, smoothstep(0.0, 0.75, vFade));
+  outColor = vec4(encodeColor(col), 1.0);
+  outFlow = encodeFlow(length(vStroke) > 1e-4 ? vStroke : vec2(0.0, 1.0), 0.08, CREATURE_REGION);
+}
+`,fs=`${oe}
+uniform sampler2D uScene;
+uniform sampler2D uFlow;
+uniform vec2 uTexel;
+uniform float uRadius;
+in vec2 vUv;
+out vec4 outColor;
+
+void main() {
+  vec4 flow = texture(uFlow, vUv);
+  vec2 orientation = flow.xy * 2.0 - 1.0;
+  float coherence = clamp(length(orientation), 0.0, 1.0);
+  float angle = 0.5 * atan(orientation.y, orientation.x);
+  vec2 along = vec2(cos(angle), sin(angle));
+  vec2 across = vec2(-along.y, along.x);
+  float radius = uRadius * mix(0.7, 1.6, flow.z);
+  float stretch = mix(1.0, 2.3, coherence);
+  vec2 axisA = along * radius * stretch * uTexel;
+  vec2 axisB = across * radius / stretch * uTexel;
+  vec3 sum0 = vec3(0.0), sum1 = vec3(0.0), sum2 = vec3(0.0), sum3 = vec3(0.0);
+  vec3 sq0 = vec3(0.0), sq1 = vec3(0.0), sq2 = vec3(0.0), sq3 = vec3(0.0);
+  float w0 = 0.0, w1 = 0.0, w2 = 0.0, w3 = 0.0;
+  for (int j = -3; j <= 3; j++) {
+    for (int i = -3; i <= 3; i++) {
+      vec2 q = vec2(float(i), float(j)) / 3.0;
+      float d2 = dot(q, q);
+      if (d2 > 1.05) continue;
+      vec3 c = texture(uScene, vUv + axisA * q.x + axisB * q.y).rgb;
+      float w = exp(-d2 * 1.6);
+      vec3 cw = c * w;
+      vec3 c2w = c * c * w;
+      if (q.x >= 0.0 && q.y >= 0.0) { sum0 += cw; sq0 += c2w; w0 += w; }
+      if (q.x <= 0.0 && q.y >= 0.0) { sum1 += cw; sq1 += c2w; w1 += w; }
+      if (q.x <= 0.0 && q.y <= 0.0) { sum2 += cw; sq2 += c2w; w2 += w; }
+      if (q.x >= 0.0 && q.y <= 0.0) { sum3 += cw; sq3 += c2w; w3 += w; }
+    }
+  }
+  vec3 m0 = sum0 / w0, m1 = sum1 / w1, m2 = sum2 / w2, m3 = sum3 / w3;
+  float v0 = dot(abs(sq0 / w0 - m0 * m0), vec3(1.0));
+  float v1 = dot(abs(sq1 / w1 - m1 * m1), vec3(1.0));
+  float v2 = dot(abs(sq2 / w2 - m2 * m2), vec3(1.0));
+  float v3 = dot(abs(sq3 / w3 - m3 * m3), vec3(1.0));
+  float k0 = 1.0 / (1.0 + pow(v0 * 900.0, 2.0));
+  float k1 = 1.0 / (1.0 + pow(v1 * 900.0, 2.0));
+  float k2 = 1.0 / (1.0 + pow(v2 * 900.0, 2.0));
+  float k3 = 1.0 / (1.0 + pow(v3 * 900.0, 2.0));
+  vec3 color = (m0 * k0 + m1 * k1 + m2 * k2 + m3 * k3) / (k0 + k1 + k2 + k3);
+  float levels = mix(26.0, 18.0, step(flow.a, 0.25));
+  color = mix(color, floor(color * levels + 0.5) / levels, 0.35);
+  outColor = vec4(color, 1.0);
+}
+`,kn=`
+uniform sampler2D uFlow;
+uniform vec2 uResolution;
+uniform float uDpr;
+
+vec2 hash22(vec2 p) {
+  return vec2(hash12(p), hash12(p + 19.19));
+}
+
+vec2 strokeCenter(vec2 id, float cellSize) {
+  return (id + hash22(id)) * cellSize;
+}
+
+vec4 strokeShape(vec2 id, vec2 center, out vec2 along) {
+  vec2 jitter = hash22(id);
+  vec4 flow = texture(uFlow, center / uResolution);
+  vec2 orientation = flow.xy * 2.0 - 1.0;
+  float angle = 0.5 * atan(orientation.y, orientation.x) + (jitter.x - 0.5) * 0.28;
+  along = vec2(cos(angle), sin(angle));
+  float size = mix(0.4, 1.0, flow.z);
+  float halfLength = mix(11.0, 27.0, size) * uDpr * (0.85 + jitter.y * 0.3);
+  float halfWidth = mix(3.4, 7.5, size) * uDpr * (0.85 + jitter.x * 0.3);
+  return vec4(halfLength, halfWidth, flow.a, hash12(id + 7.13));
+}
+`,ds=`${oe}${be}${kn}
+uniform vec2 uCellOrigin;
+layout(location = 0) out vec4 outShape;
+layout(location = 1) out vec4 outStroke;
+
+void main() {
+  vec2 id = floor(gl_FragCoord.xy) + uCellOrigin;
+  vec2 center = strokeCenter(id, 16.0 * uDpr);
+  vec2 along;
+  outStroke = strokeShape(id, center, along);
+  outShape = vec4(center, along);
+}
+`,ms=`${oe}${be}${kn}
+uniform sampler2D uPaint;
+uniform sampler2D uSmear;
+uniform sampler2D uHorizonTex;
+uniform highp sampler2D uCellShape;
+uniform highp sampler2D uCellStroke;
+uniform bool uCellTable;
+uniform vec2 uCellOrigin;
+uniform ivec2 uCellCount;
+uniform vec3 uLight;
+uniform vec3 uSpecColor;
+uniform vec2 uSunPx;
+uniform vec2 uMoonPx;
+uniform float uSunRadiusPx;
+uniform float uRelief;
+in vec2 vUv;
+out vec4 outColor;
+
+void main() {
+  vec2 pixel = gl_FragCoord.xy;
+  vec2 smear = texture(uSmear, pixel / uResolution).xy;
+  float regionAtPixel = texture(uFlow, pixel / uResolution).a;
+  vec2 painted = pixel - smear * uResolution * mix(0.35, 1.0, regionAtPixel);
+  float creatureAtPixel = step(abs(regionAtPixel - CREATURE_REGION), 0.04);
+  vec2 uv = painted / uResolution;
+  vec3 base = texture(uPaint, uv).rgb;
+
+  float cellSize = 16.0 * uDpr;
+  float reach = 32.3 * uDpr;
+  float reach2 = reach * reach;
+  vec2 cell = floor(painted / cellSize);
+  float bestOrder = -1.0;
+  vec2 bestLocal = vec2(0.0);
+  vec2 bestCenter = vec2(0.0);
+  float bestSeed = 0.0;
+  float bestRegion = 0.0;
+  for (int j = -2; j <= 2; j++) {
+    for (int i = -2; i <= 2; i++) {
+      vec2 id = cell + vec2(float(i), float(j));
+      ivec2 slot = ivec2(id - uCellOrigin);
+      bool cached = uCellTable && all(greaterThanEqual(slot, ivec2(0))) && all(lessThan(slot, uCellCount));
+      vec2 center;
+      vec2 along;
+      vec4 shape;
+      if (cached) {
+        shape = texelFetch(uCellShape, slot, 0);
+        center = shape.xy;
+      } else {
+        center = strokeCenter(id, cellSize);
+      }
+      vec2 d = painted - center;
+      if (dot(d, d) > reach2) continue;
+      vec4 stroke;
+      if (cached) {
+        along = shape.zw;
+        stroke = texelFetch(uCellStroke, slot, 0);
+      } else {
+        stroke = strokeShape(id, center, along);
+      }
+      float a = dot(d, along) / stroke.x;
+      float b = dot(d, vec2(-along.y, along.x)) / (stroke.y * (1.0 - 0.35 * smoothstep(0.1, 1.0, a)));
+      if (pow(abs(a), 2.6) + b * b < 1.0 && step(abs(stroke.z - CREATURE_REGION), 0.04) >= creatureAtPixel) {
+        if (stroke.w > bestOrder) {
+          bestOrder = stroke.w;
+          bestLocal = vec2(a, b);
+          bestCenter = center;
+          bestSeed = hash12(id + 19.19);
+          bestRegion = stroke.z;
+        }
+      }
+    }
+  }
+
+  float height = 0.0;
+  vec3 color = base;
+  if (bestOrder >= 0.0) {
+    float across = abs(bestLocal.y);
+    float body = sqrt(max(1.0 - across * across, 0.0)) * (1.0 - smoothstep(0.8, 1.0, abs(bestLocal.x)));
+    float groove = 1.0 - abs(valueNoise(vec2(bestLocal.x * 0.8, bestLocal.y * 4.2) + bestSeed * 61.0));
+    float lip = exp(-pow((bestLocal.x - 0.8) / 0.12, 2.0)) * (1.0 - across * 0.7);
+    float banks = smoothstep(0.6, 0.86, across) * (1.0 - smoothstep(0.86, 1.0, across));
+    float gain = bestRegion < 0.25 ? 0.78 : bestRegion < 0.75 ? 1.0 : 0.7;
+    height = (0.4 * body + 0.3 * groove * groove * body + 0.34 * lip + 0.2 * banks + bestOrder * 0.16) * gain;
+    vec3 dab = texture(uPaint, bestCenter / uResolution).rgb * (0.96 + bestSeed * 0.08);
+    color = mix(base, dab, 0.55) * (1.0 - 0.05 * bestLocal.x);
+  }
+  vec2 weave = sin(pixel / uDpr * vec2(1.05, 1.15));
+  float grain = weave.x * weave.y * 0.5 + valueNoise(pixel / uDpr * 0.7) * 0.5;
+  height += grain * 0.012;
+
+  vec3 normal = normalize(vec3(-dFdx(height) * uRelief / uDpr, -dFdy(height) * uRelief / uDpr, 1.0));
+  float diffuse = dot(normal, uLight) - uLight.z;
+  vec3 halfway = normalize(uLight + vec3(0.0, 0.0, 1.0));
+  float spec = max(pow(max(dot(normal, halfway), 0.0), 18.0) - pow(halfway.z, 18.0), 0.0);
+  color = color * (1.0 + diffuse * 0.8) * (1.0 + grain * 0.03) + uSpecColor * spec * mix(0.1, 0.22, bestRegion);
+
+  float sunDistance = length(pixel - uSunPx);
+  float sunVisible = smoothstep(-0.03, 0.06, asin(uSunDir.y) - shadowHorizon(texture(uHorizonTex, terrainUv(uCamPos.xz))));
+  float glow = exp(-max(sunDistance - uSunRadiusPx, 0.0) / (uSunRadiusPx * 0.8)) * 0.4 + exp(-sunDistance / (uSunRadiusPx * 5.0)) * 0.14;
+  color += pow(uGlow * 1.4 + vec3(0.035, 0.018, 0.0), vec3(1.0 / 2.2)) * glow * 0.5 * sunVisible * (1.0 - uNight);
+  float moonDistance = length(pixel - uMoonPx);
+  color += vec3(0.55, 0.62, 0.8) * exp(-max(moonDistance - uSunRadiusPx * 0.8, 0.0) / (uSunRadiusPx * 1.4)) * 0.3 * uNight;
+
+  color += (hash12(pixel + fract(uTime * 3.7) * 97.0) - 0.5) / 255.0;
+  outColor = vec4(color, 1.0);
+}
+`,ps=`${oe}
+uniform sampler2D uSource;
+uniform vec2 uHalfSize;
+uniform vec2 uProbeSize;
+out vec4 outColor;
+
+vec4 halfTexel(vec2 cell) {
+  return texture(uSource, (clamp(cell, vec2(0.0), uHalfSize - 1.0) + 0.5) / uHalfSize);
+}
+
+void main() {
+  vec2 st = gl_FragCoord.xy / uProbeSize * uHalfSize - 0.5;
+  vec2 cell = floor(st);
+  vec2 f = st - cell;
+  vec4 bottom = mix(halfTexel(cell), halfTexel(cell + vec2(1.0, 0.0)), f.x);
+  vec4 top = mix(halfTexel(cell + vec2(0.0, 1.0)), halfTexel(cell + vec2(1.0, 1.0)), f.x);
+  outColor = mix(bottom, top, f.y);
+}
+`,bs=`${oe}
+layout(location = 0) in vec4 aPlace;
+layout(location = 1) in vec4 aColor;
+layout(location = 2) in float aKind;
+uniform vec2 uResolution;
+out vec4 vColor;
+out float vKind;
+out float vAngle;
+void main() {
+  vColor = aColor;
+  vKind = aKind;
+  vAngle = aPlace.w;
+  gl_Position = vec4(aPlace.x / uResolution.x * 2.0 - 1.0, 1.0 - aPlace.y / uResolution.y * 2.0, 0.0, 1.0);
+  gl_PointSize = aPlace.z;
+}
+`,vs=`${oe}
+in vec4 vColor;
+in float vKind;
+in float vAngle;
+out vec4 outColor;
+void main() {
+  vec2 q = gl_PointCoord * 2.0 - 1.0;
+  if (vKind < 0.5) {
+    float r2 = dot(q, q);
+    float glow = exp(-r2 * 5.0) * 0.8 + exp(-r2 * 40.0) * 1.2;
+    outColor = vec4(vColor.rgb * glow, 0.0);
+    return;
+  }
+  vec2 r = mat2(cos(vAngle), sin(vAngle), -sin(vAngle), cos(vAngle)) * q;
+  float shape = length(vec2(r.x, r.y * 1.9 + r.x * r.x * 0.6));
+  float alpha = (1.0 - smoothstep(0.78, 0.95, shape)) * vColor.a;
+  float shade = 0.82 + 0.18 * r.y;
+  outColor = vec4(vColor.rgb * shade * alpha / max(vColor.a, 1e-3), alpha);
+}
+`,V={fullscreenVs:rs,bakeHeightFs:os,bakeAuxFs:ns,terrainVs:as,terrainFs:ss,skyFs:is,grassVs:ls,grassFs:cs,paintFs:fs,finalFs:ms,cellFs:ds,probeFs:ps,particleVs:bs,particleFs:vs,mobVs:us,mobFs:hs};var gr=class{columns;rows;field;last={x:0,y:0,set:!1};idle=0;constructor(e,o){this.columns=e,this.rows=o,this.field=new Float32Array(e*o*2)}get settled(){return this.idle>4}step(e,o,n,a,r){let{columns:s,rows:c,field:h}=this,f=Math.exp(-e/.45),i=0;for(let S=0;S<h.length;S++)h[S]*=f,i=Math.max(i,Math.abs(h[S]));let v=this.last;if(this.idle=i<3e-4?this.idle+1:0,!o.active||e<=0){v.set=!1;return}let g=v.set,x=(o.x-v.x)/n,w=-(o.y-v.y)/a;if(v.x=o.x,v.y=o.y,v.set=!0,!g||Math.abs(x)+Math.abs(w)<1e-5)return;this.idle=0;let A=o.x/n,p=1-o.y/a;for(let S=0;S<c;S++){let Q=((S+.5)/c-p)*a;if(!(Math.abs(Q)>r))for(let te=0;te<s;te++){let J=((te+.5)/s-A)*n,ae=Math.hypot(J,Q);if(ae>r)continue;let k=1-ae/r,z=k*k*(3-2*k),M=(S*s+te)*2;h[M]=Cn(h[M]+x*z*.6),h[M+1]=Cn(h[M+1]+w*z*.6)}}}};function Cn(t){return Math.max(-.045,Math.min(.045,t))}var xr=4,yr=84,Er=30,wr=64,Sr=40,Dn=.62,Hn=Ws(1,.32),ys=.69,Es=8,ws=10,zn=1e3/30,Ss=4,Ts=2,Ms=700,As=2.5,Rs=18,_s=46,On=Tr(-1.5),Fs=120,Bn=360,Ls=.4,Ps=1e3,Ns=400,ks=48,Cs=200,Is=.45,Ds=520,Hs=2,zs=16,Qe=7,Os=".hero-title .line > span",Bs=".lede, .welcome, .cta-row > *, .send-more, [data-send-panel], .note",Gn=[384,768],Gs="a, button, input, textarea, select, label, summary, [data-send-panel]",Us=48;function Tr(t){return t*Math.PI/180}var wt=(t,e,o)=>t+(e-t)*o;function Ws(t,e){let o=Math.hypot(t,e);return[t/o,e/o]}function Vs(){let e=matchMedia("(pointer: coarse)").matches&&Math.min(screen.width,screen.height)<700;return e?{phone:e,dprCap:2,pixelBudget:11e5,blades:3e4,bakeSize:[512,1024],gridSize:[300,380],brushRadius:96}:{phone:e,dprCap:1.6,pixelBudget:24e5,blades:8e4,bakeSize:[768,1536],gridSize:[520,600],brushRadius:130}}function Un(t){let{canvas:e,hero:o,hint:n,reducedMotion:a}=t,r=e.getContext("webgl2",{antialias:!1,alpha:!1,depth:!1,stencil:!1,premultipliedAlpha:!1,preserveDrawingBuffer:!1});if(!r)return null;let s=Vs(),c=new Qt(yr,Er),h=new gr(wr,Sr),f=new vr,i={x:0,y:0,active:!1,touch:!1,downX:0,downY:0,downAt:0,down:!1,drag:null,lastX:0,lastY:0},v=!a,g={x:0,y:0,settled:!0},[x,w]=t.opening??[jt,ft],A=a?w:x,p={c:A,target:A,mode:a?"rest":"sunrise",from:0,to:0,start:0,ramp:0},S={sun:{x:-999,y:-999,up:!1},moon:{x:-999,y:-999,up:!1},radius:40},Q=new Float32Array(16),te=new Float32Array(16),J=new Float32Array(16),ae=new Float32Array(16),k="compile",z=null,M=null,O=null,I=null,R=!r.getExtension("EXT_color_buffer_float"),X=0,Y=0,ee=0,F=!1,xe=0,et=0,Be=!1,Ge=!1,Ue=!0,We=!1,Ve=0,St=0,Ae=new dt(r),Ke=new Zt,C=null,ue=0,se=!1,ye=!1,ie=!0,D=Wt(1.6),de={left:0,top:0,right:0,bottom:0},mo=document.querySelector("[data-bar]"),Ne=new Jt(o,mo,l=>{o.dataset.sky=l}),ne=null,Mr=!1,po=-1/0,Tt=-1,bo=!0,vo=!0,ke={clear:0,horizon:0},B=1,G=1,go=0,Mt=0,tt=window.scrollY,At=window.scrollX,Ar=!1,j=null,Xe=[0,.72,0],Rr=0,xo=!1,yo="",Eo=null,_r=0,wo="",le=new fr(a),Ye=null,me=null,Rt=!1,So=null,To=0,Mo=0,Ce=null,Fr=!1,Ao=l=>{k="failed",e.dataset.meadow="failed",console.warn(l)},Ro=()=>{try{z=new mt(r,{bakeHeight:[V.fullscreenVs,V.bakeHeightFs],bakeAux:[V.fullscreenVs,V.bakeAuxFs],terrain:[V.terrainVs,V.terrainFs],sky:[V.fullscreenVs,V.skyFs],grass:[V.grassVs,V.grassFs],paint:[V.fullscreenVs,V.paintFs],final:[V.fullscreenVs,V.finalFs],particles:[V.particleVs,V.particleFs],probe:[V.fullscreenVs,V.probeFs],cells:[V.fullscreenVs,V.cellFs]}),k="compile"}catch(l){Ao(l)}},Kn=l=>{let u=r.createVertexArray(),m=[];for(let H=0;H<6;H++)m.push(H,-1,H,1);m.push(6,0);let d=r.createVertexArray();r.bindVertexArray(d),r.bindBuffer(r.ARRAY_BUFFER,r.createBuffer()),r.bufferData(r.ARRAY_BUFFER,new Float32Array(m),r.STATIC_DRAW),r.enableVertexAttribArray(0),r.vertexAttribPointer(0,2,r.FLOAT,!1,0,0);let[b,E]=s.gridSize,_=new Float32Array((b+1)*(E+1)*2);for(let H=0;H<=E;H++){let pe=1-(1-H/E)**1.5;for(let ze=0;ze<=b;ze++){let It=(H*(b+1)+ze)*2;_[It]=ze/b,_[It+1]=pe}}let P=new Uint32Array(E*((b+1)*2+1)),K=0;for(let H=0;H<E;H++){for(let pe=0;pe<=b;pe++)P[K++]=(H+1)*(b+1)+pe,P[K++]=H*(b+1)+pe;P[K++]=4294967295}let N=r.createVertexArray();r.bindVertexArray(N),r.bindBuffer(r.ARRAY_BUFFER,r.createBuffer()),r.bufferData(r.ARRAY_BUFFER,_,r.STATIC_DRAW),r.enableVertexAttribArray(0),r.vertexAttribPointer(0,2,r.FLOAT,!1,0,0),r.bindBuffer(r.ELEMENT_ARRAY_BUFFER,r.createBuffer()),r.bufferData(r.ELEMENT_ARRAY_BUFFER,P,r.STATIC_DRAW);let L=r.createVertexArray();r.bindVertexArray(L);let Se=r.createBuffer();r.bindBuffer(r.ARRAY_BUFFER,Se),r.bufferData(r.ARRAY_BUFFER,f.data.byteLength,r.DYNAMIC_DRAW),r.enableVertexAttribArray(0),r.vertexAttribPointer(0,4,r.FLOAT,!1,yt,0),r.enableVertexAttribArray(1),r.vertexAttribPointer(1,4,r.FLOAT,!1,yt,16),r.enableVertexAttribArray(2),r.vertexAttribPointer(2,1,r.FLOAT,!1,yt,32),r.bindVertexArray(null);let[De,Re]=s.bakeSize,_e=ge(r,De,Re),$=ge(r,De,Re),kt=ge(r,De,Re),Ct=ge(r,De,Re),W=je(r,[_e,$]),He=je(r,[kt,Ct]),Ir=ge(r,yr,Er,r.RGBA16F,r.RGBA,r.FLOAT),he=ge(r,wr,Sr,r.RG16F,r.RG,r.FLOAT);return r.bindFramebuffer(r.FRAMEBUFFER,null),{programs:l,emptyVao:u,grassVao:d,terrainVao:N,particleVao:L,particleBuffer:Se,terrainIndexCount:P.length,heightTex:_e,materialTex:$,auxTex:kt,horizonTex:Ct,bakeFramebuffer:W,auxFramebuffer:He,brushTex:Ir,smearTex:he}},Xn=()=>{try{Ye=new mt(r,{mob:[V.mobVs,V.mobFs]})}catch(l){Rt=!0,console.warn(l)}},Yn=l=>{let[u,m]=Gn,[d,b]=s.bakeSize,E=r.createTexture();r.bindTexture(r.TEXTURE_2D,E),r.texStorage2D(r.TEXTURE_2D,1,r.RGBA8,u,m);let _=r.createFramebuffer();r.bindFramebuffer(r.FRAMEBUFFER,_),r.framebufferTexture2D(r.FRAMEBUFFER,r.COLOR_ATTACHMENT0,r.TEXTURE_2D,E,0),r.bindFramebuffer(r.READ_FRAMEBUFFER,l.bakeFramebuffer),r.readBuffer(r.COLOR_ATTACHMENT0),r.bindFramebuffer(r.DRAW_FRAMEBUFFER,_),r.blitFramebuffer(0,0,d,b,0,0,u,m,r.COLOR_BUFFER_BIT,r.NEAREST),r.bindFramebuffer(r.READ_FRAMEBUFFER,_);let P=r.createBuffer();r.bindBuffer(r.PIXEL_PACK_BUFFER,P),r.bufferData(r.PIXEL_PACK_BUFFER,u*m*4,r.STREAM_READ),r.readPixels(0,0,u,m,r.RGBA,r.UNSIGNED_BYTE,0),r.bindBuffer(r.PIXEL_PACK_BUFFER,null),r.bindFramebuffer(r.FRAMEBUFFER,null),Ce={texture:E,framebuffer:_,buffer:P,sync:r.fenceSync(r.SYNC_GPU_COMMANDS_COMPLETE,0)},r.flush()},$n=l=>{if(r.getSyncParameter(l.sync,r.SYNC_STATUS)!==r.SIGNALED)return;let[u,m]=Gn,d=new Uint8Array(u*m*4);r.bindBuffer(r.PIXEL_PACK_BUFFER,l.buffer),r.getBufferSubData(r.PIXEL_PACK_BUFFER,0,d),r.bindBuffer(r.PIXEL_PACK_BUFFER,null),r.deleteSync(l.sync),r.deleteTexture(l.texture),r.deleteFramebuffer(l.framebuffer),r.deleteBuffer(l.buffer),Ce=null,Fr=!0,le.setTerrain(d,u,m),ie=!0},qn=l=>{Ye=null;try{let u=l.finish().mob,m=r.createVertexArray();r.bindVertexArray(m),r.bindBuffer(r.ARRAY_BUFFER,r.createBuffer()),r.bufferData(r.ARRAY_BUFFER,Ln,r.STATIC_DRAW),r.enableVertexAttribArray(0),r.vertexAttribPointer(0,3,r.FLOAT,!1,24,0),r.enableVertexAttribArray(1),r.vertexAttribPointer(1,3,r.FLOAT,!1,24,12);let d=r.createBuffer();r.bindBuffer(r.ARRAY_BUFFER,d),r.bufferData(r.ARRAY_BUFFER,le.data.byteLength,r.DYNAMIC_DRAW);for(let b=0;b<Ze/4;b++)r.enableVertexAttribArray(2+b),r.vertexAttribPointer(2+b,4,r.FLOAT,!1,Ze*4,b*16),r.vertexAttribDivisor(2+b,1);r.bindVertexArray(null),me={program:u,vao:m,buffer:d},ie=!0}catch(u){Rt=!0,console.warn(u)}},jn=l=>{let[u,m]=s.bakeSize,d=Math.ceil(m/xr),b=X%xr;return r.disable(r.DEPTH_TEST),r.disable(r.BLEND),r.bindVertexArray(l.emptyVao),r.viewport(0,0,u,m),r.enable(r.SCISSOR_TEST),r.scissor(0,b*d,u,d),X<xr?(r.bindFramebuffer(r.FRAMEBUFFER,l.bakeFramebuffer),l.programs.bakeHeight.use().vec2("uBakeSize",u,m)):(r.bindFramebuffer(r.FRAMEBUFFER,l.auxFramebuffer),Z(r,0,l.heightTex),l.programs.bakeAux.use().int("uHeightTex",0).vec4("uAzimuths",ve[0],ve[1],ve[2],ve[3])),r.drawArrays(r.TRIANGLES,0,3),r.disable(r.SCISSOR_TEST),r.bindFramebuffer(r.FRAMEBUFFER,null),X++,X>=xr*2},_o=()=>{ne?.dispose(),ne=null,O&&(r.deleteTexture(O.sceneColor),r.deleteTexture(O.sceneFlow),r.deleteTexture(O.paint),r.deleteRenderbuffer(O.depth),r.deleteFramebuffer(O.sceneFramebuffer),r.deleteFramebuffer(O.paintFramebuffer),O=null)},Zn=()=>{let l=Math.sqrt(s.pixelBudget/Math.max(1,B*G)),u=Math.min(window.devicePixelRatio||1,s.dprCap,l)*Ke.scale,m=Math.max(1,Math.round(B*u)),d=Math.max(1,Math.round(G*u));(e.width!==m||e.height!==d)&&(e.width=m,e.height=d,D=Wt(m/d,ke.clear,ke.horizon),f.resize(B,G),ie=!0);let b=Math.max(1,Math.round(m*Dn)),E=Math.max(1,Math.round(d*Dn));if(O&&O.width===b&&O.height===E)return;_o();let _=ge(r,b,E),P=ge(r,b,E),K=je(r,[_,P]),N=r.createRenderbuffer();r.bindRenderbuffer(r.RENDERBUFFER,N),r.renderbufferStorage(r.RENDERBUFFER,r.DEPTH_COMPONENT24,b,E),r.framebufferRenderbuffer(r.FRAMEBUFFER,r.DEPTH_ATTACHMENT,r.RENDERBUFFER,N);let L=ge(r,b,E),Se=je(r,[L]);r.bindFramebuffer(r.FRAMEBUFFER,null),O={width:b,height:E,sceneColor:_,sceneFlow:P,depth:N,sceneFramebuffer:K,paint:L,paintFramebuffer:Se},M&&(ne=new er(r,M.programs.probe,b,E)),Tt=-1},Lr=()=>{I&&(r.deleteTexture(I.shape),r.deleteTexture(I.stroke),r.deleteFramebuffer(I.framebuffer),I=null)},Fo=(l,u)=>{let m=r.createTexture();return r.bindTexture(r.TEXTURE_2D,m),r.texStorage2D(r.TEXTURE_2D,1,r.RGBA32F,l,u),r.texParameteri(r.TEXTURE_2D,r.TEXTURE_MIN_FILTER,r.NEAREST),r.texParameteri(r.TEXTURE_2D,r.TEXTURE_MAG_FILTER,r.NEAREST),m},Qn=l=>{if(R)return null;let{width:u,height:m}=e;if(I&&I.canvasWidth===u&&I.canvasHeight===m&&I.dpr===l)return I;Lr();let d=zs*l,b=Math.ceil(u/d)+Qe*2+1,E=Math.ceil(m/d)+Qe*2+1,_=Fo(b,E),P=Fo(b,E),K=je(r,[_,P]),N=r.checkFramebufferStatus(r.FRAMEBUFFER)===r.FRAMEBUFFER_COMPLETE;return r.bindFramebuffer(r.FRAMEBUFFER,null),I={canvasWidth:u,canvasHeight:m,dpr:l,columns:b,rows:E,shape:_,stroke:P,framebuffer:K},N?I:(Lr(),R=!0,null)},Jn=l=>{let u=Math.tan(D.verticalFov/2)*l;return{near:1.5,far:46,rootWidth:.3,slope:u*1.08+.1}},Lo=(l,u,m)=>{if(!j)return null;let d=j[3]*l+j[7]*u+j[11]*m+j[15];if(d<=0)return null;let b=(j[0]*l+j[4]*u+j[8]*m+j[12])/d,E=(j[1]*l+j[5]*u+j[9]*m+j[13])/d;return{x:(b*.5+.5)*B,y:(.5-E*.5)*G,ndcX:b,ndcY:E}},_t=l=>Lo(Xe[0]+l[0]*1e4,Xe[1]+l[1]*1e4,Xe[2]+l[2]*1e4),ea=(l,u)=>{let{p:m,moon:d}=ht(l);if(u==="sun"){let E=it(m,D.sunPeak,D.sunCeiling,D.sunSweep);return _t(Oe(E.azimuth,E.elevation))}let b=Vt(d,D);return _t(Oe(b.azimuth,b.elevation))},Po=(l,u,m)=>{let[d,b]=m==="sun"?pn:$t,E=p.target,_=1/0;for(let P=0;P<=Bn;P++){let K=d+(b-d)*P/Bn,N=ea(K,m);if(!N)continue;let L=Math.hypot(N.x-l,N.y-u)+Math.abs(Yt(p.target,K))*Fs;L<_&&(_=L,E=fe(K))}return E},Ft=(l,u)=>{let m=null,d=Math.max(_s,S.radius*1.7);for(let b of["sun","moon"]){let E=S[b];if(!E.up)continue;let _=Math.hypot(l-E.x,u-E.y);_<d&&(d=_,m=b)}return m},Ie=l=>{l!==yo&&(yo=l,l?o.dataset.cursor=l:delete o.dataset.cursor)},No=l=>{i.drag=l,p.mode="drag",p.target=p.c,xo=!0,n?.classList.remove("is-shown"),Ie("grabbing"),Ee()},Pr=()=>{p.mode=a?"rest":"cycle",p.ramp=0},ta=()=>{let l=1;for(let u of qt){let m=fe(u-p.c);m>.01&&m<l&&(l=m)}if(a){p.c=p.target=fe(p.c+l),p.mode="rest",ie=!0;return}p.mode="settle",p.from=p.c,p.to=p.c+l,p.start=performance.now()},ra=l=>{let u=fe(l-p.c);a?(p.c=p.target=fe(l),p.mode="rest",ie=!0):u>1e-4&&(p.mode="settle",p.from=p.c,p.to=p.c+u,p.start=performance.now()),Ee()},Nr=(l,u)=>{i.drag=null,Math.hypot(l-i.downX,u-i.downY)<ws?ta():Pr(),Ie(Ft(l,u)?"grab":""),Ee()},oa=(l,u)=>{if(p.mode==="sunrise"){let d=Gr(l);p.c=p.target=wt(x,w,rn(d)),d>3150&&Pr();return}if(p.mode==="settle"){let d=(l-p.start)/2850;p.c=p.target=fe(wt(p.from,p.to,Ut(d))),d>=1&&Pr();return}if(p.mode==="cycle"){p.ramp=Math.min(1,p.ramp+u/As);let d=Ut(p.ramp)*u/Xr;p.target=fe(p.target+d),p.c=fe(p.c+d)}let m=Yt(p.c,p.target);p.c=Math.abs(m)<1e-5?p.target:fe(p.c+m*(1-Math.exp(-u*Rs)))},ko=l=>ie||!me&&!Rt||Ce||p.mode==="sunrise"||p.mode==="drag"||p.mode==="settle"||Math.abs(Yt(p.c,p.target))>1e-4||me&&le.searching?!0:a?!!ne&&(ne.pending||Tt!==p.c):l<et||!g.settled||!c.settled||!h.settled||f.busy,na=(l,u)=>Ne.shadeAt(l,u,ks),aa=(l,u)=>{if(!ne||ne.pending)return;let m=p.mode==="drag"||p.mode==="settle"||p.mode==="sunrise";(a?Tt===p.c:l-po<(m?Ns:Ps))||(ne.capture(u.paint),po=l,Tt=p.c)},sa=()=>{if(!ne?.poll())return;Ne.decide(ne.pixels,ne.width,ne.height,B,G),Mr||(Mr=!0,Ne.ease(1/0));let l=ne.colorAt(S.sun.x,S.sun.y,S.radius*.45,B,G,!0),u=ne.colorAt(S.moon.x,S.moon.y,S.radius*.8,B,G);bo=!!l&&l[0]>=Cs&&l[2]<=l[0]*Is,vo=!!u&&u[0]+u[1]+u[2]>=Ds};function Co(){Ar&&(Ar=!1,tt=window.scrollY,At=window.scrollX)}let rt=(l,u,m)=>l.vec4("uVeil",(de.left-24)/B,1-(de.bottom+10)/G,(de.right+24)/B,1-(de.top-10)/G).vec2("uVeilFeather",64/B,64/G).vec2("uTargetSize",O?.width??1,O?.height??1).vec3("uSunDir",u.sunDir).vec3("uKeyDir",u.keyDir).vec3("uKeyColor",u.keyColor).float("uKeyElev",u.keyElevation).vec4("uShadowMix",...u.shadowMix).vec3("uMoonDir",u.moonDir).vec3("uCamPos",Xe).vec3("uSkyHorizon",u.skyHorizon).vec3("uSkyLow",u.skyLow).vec3("uSkyMid",u.skyMid).vec3("uSkyTop",u.skyTop).vec3("uGlow",u.glow).float("uSkySpan",m).float("uAmbient",u.ambient).float("uHaze",u.haze).float("uMist",u.mist).float("uNight",u.night).float("uTime",St),ia=(l,u,m)=>{if(!M||!O)return;let d=M,b=O,{programs:E}=d,{width:_,height:P}=e,K=_/P,N=_/B;oa(l,u),Co();let L=a?0:Math.min(1,Math.max(0,tt/G));if(!i.drag){let q=1-Math.exp(-u*2.4),Ht=!a&&i.active&&!i.touch,zt=Math.max(-1,Math.min(1,Ht?i.x/B*2-1:0)),Ot=Math.max(-1,Math.min(1,Ht?1-i.y/G*2:0));g.x+=(zt-g.x)*q,g.y+=(Ot-g.y)*q,g.settled=Math.abs(zt-g.x)+Math.abs(Ot-g.y)<.03}Xe=[g.x*.34,.72+g.y*.07+L*.85,-L*.6];let Se=D.yaw-g.x*Tr(1.1),De=D.pitch+g.y*Tr(.7)-L*Tr(4);tr(D.verticalFov,K,.2,4e4,Q),j=or(Q,rr(Xe,Se,De,te),J);let Re=bn(j,ae),_e=Math.tan(D.verticalFov/2),$=Jn(K),{p:kt,moon:Ct}=ht(p.c),W=Kr(kt,D,Ct),He=Math.max(.15,Math.sin(De+D.verticalFov/2)),Ir=2*_e/b.height,he=_t(W.sunDir),H=_t(W.moonDir);S.radius=D.sunRadius/_e*G/2,S.sun.x=he?he.x:-999,S.sun.y=he?he.y:-999,S.sun.up=!!he&&bo&&W.sunElevation>On&&W.night<.6,S.moon.x=H?H.x:-999,S.moon.y=H?H.y:-999,S.moon.up=!!H&&vo&&W.moonElevation>On&&W.night>.3;let pe=0;me&&((D!==So||B!==To)&&(le.layout(D,K,B,G),So=D,To=B),le.step(a?0:u,W.night),pe=Math.min(hr,le.fill(W.keyDir,Math.max(W.keyColor[0],W.keyColor[1],W.keyColor[2]))));let ze=Lo(0,0,46*.75);if(Rr=ze?ze.y:G*.7,Mr&&(Ne.fallback(W.night>Ls?"dark":"light"),Ne.ease(a?1/0:u)),n&&ha(l),a)se||(r.bindTexture(r.TEXTURE_2D,d.brushTex),r.texSubImage2D(r.TEXTURE_2D,0,0,0,yr,Er,r.RGBA,r.FLOAT,c.field),r.bindTexture(r.TEXTURE_2D,d.smearTex),r.texSubImage2D(r.TEXTURE_2D,0,0,0,wr,Sr,r.RG,r.FLOAT,h.field),se=!0);else{let q={u:0,v:0,active:!1};if(i.active&&!i.drag){let st=i.x/B*2-1,Qo=1-i.y/G*2,$e=Qr(Re,st,Qo,-1),Br=Qr(Re,st,Qo,1),Jo=Br[1]-$e[1];if(Jo<0){let en=(.24-$e[1])/Jo,Ma=$e[0]+(Br[0]-$e[0])*en,Bt=$e[2]+(Br[2]-$e[2])*en;Bt>$.near*.6&&Bt<$.far&&(q.u=(Ma/($.rootWidth+Bt*$.slope)+1)/2,q.v=(1/Bt-1/$.near)/(1/$.far-1/$.near),q.active=q.u>-.2&&q.u<1.2)}}let Ht=G/2/_e,zt=u>0?Math.hypot(i.x-i.lastX,i.y-i.lastY)/u:0;i.lastX=i.x,i.lastY=i.y,q.active&&f.sparkle(Math.min(u,1/30),i.x,i.y,zt,W.night);let Ot=B*$.slope/(_e*K),Ta=Ht*(.72-.24)*(1/$.near-1/$.far),qo=Math.min(u,1/30),jo=Math.min(4,Math.max(1,Math.ceil(u*60-.01)));if(q.active||!c.resting)for(let st=0;st<jo;st++)c.step(Math.min(u,1/15)/jo,q,Ot,Ta,s.brushRadius);(!c.resting||!se)&&(r.bindTexture(r.TEXTURE_2D,d.brushTex),r.texSubImage2D(r.TEXTURE_2D,0,0,0,yr,Er,r.RGBA,r.FLOAT,c.field),se=c.resting);let Zo=i.active&&!i.drag;(Zo||!h.settled)&&h.step(qo,{x:i.x,y:i.y,active:Zo},B,G,s.phone?70:90),(!h.settled||!ye)&&(r.bindTexture(r.TEXTURE_2D,d.smearTex),r.texSubImage2D(r.TEXTURE_2D,0,0,0,wr,Sr,r.RG,r.FLOAT,h.field),ye=h.settled),f.step(qo,W.night,{x:i.x,y:i.y,active:i.active})}Ae.start(m),r.bindFramebuffer(r.FRAMEBUFFER,b.sceneFramebuffer),r.viewport(0,0,b.width,b.height),r.disable(r.BLEND),r.enable(r.DEPTH_TEST),r.depthFunc(r.LESS),r.depthMask(!0),r.clearDepth(1),r.clear(r.DEPTH_BUFFER_BIT);let It=Math.min(b.height*.7,b.height/2/_e*.72*(1/$.near-1/$.far)*.45),Dr=Math.max(8,Math.round(Math.sqrt(s.blades*b.width/Math.max(1,It)))),ya=s.phone?s.blades:s.blades*Math.min(1.3,Math.max(.5,B*G/(1440*900))),Yo=Math.max(8,Math.round(ya/Dr));Z(r,0,d.brushTex),Z(r,1,d.horizonTex),rt(E.grass.use(),W,He).mat4("uViewProj",j).vec2("uGrid",Dr,Yo).vec4("uGrassArea",$.near,$.far,$.rootWidth,$.slope).float("uWind",v?1:0).vec2("uWindDir",Hn[0],Hn[1]).float("uPixelAngle",Ir).int("uBrushTex",0).int("uHorizonTex",1).vec4s("uMobs",le.contacts,le.contactCount).int("uMobCount",me?le.contactCount:0).vec2("uMobShadow",le.shadow[0],le.shadow[1]),r.bindVertexArray(d.grassVao),r.drawArraysInstanced(r.TRIANGLE_STRIP,0,13,Dr*Yo),me&&pe>0&&(Z(r,2,d.heightTex),rt(me.program.use(),W,He).mat4("uViewProj",j).int("uHorizonTex",1).int("uHeightTex",2).float("uHillScale",D.hillScale).float("uPx",ur),r.bindVertexArray(me.vao),r.bindBuffer(r.ARRAY_BUFFER,me.buffer),r.bufferSubData(r.ARRAY_BUFFER,0,le.data,0,pe*Ze),r.drawArraysInstanced(r.TRIANGLES,0,co,pe)),Z(r,0,d.heightTex),Z(r,1,d.materialTex),Z(r,2,d.auxTex),Z(r,3,d.horizonTex),rt(E.terrain.use(),W,He).mat4("uViewProj",j).int("uHeightTex",0).int("uMaterialTex",1).int("uAuxTex",2).int("uHorizonTex",3).float("uGrassFar",$.far).float("uHillScale",D.hillScale),r.bindVertexArray(d.terrainVao),r.drawElements(r.TRIANGLE_STRIP,d.terrainIndexCount,r.UNSIGNED_INT,0),r.depthFunc(r.LEQUAL),r.depthMask(!1),r.bindVertexArray(d.emptyVao),rt(E.sky.use(),W,He).mat4("uInvViewProj",Re).float("uSunRadius",D.sunRadius).vec2("uSunNdc",he?he.ndcX:0,he?he.ndcY:2).float("uSunDiscNdc",S.radius/(G/2)).float("uAspect",K),r.drawArrays(r.TRIANGLES,0,3),r.depthMask(!0),r.disable(r.DEPTH_TEST),r.bindFramebuffer(r.FRAMEBUFFER,b.paintFramebuffer),Z(r,0,b.sceneColor),Z(r,1,b.sceneFlow),E.paint.use().int("uScene",0).int("uFlow",1).vec2("uTexel",1/b.width,1/b.height).float("uRadius",2.3*(b.width/B)),r.drawArrays(r.TRIANGLES,0,3),aa(l,b);let Te=Qn(N);Te&&(r.bindFramebuffer(r.FRAMEBUFFER,Te.framebuffer),r.viewport(0,0,Te.columns,Te.rows),Z(r,1,b.sceneFlow),E.cells.use().int("uFlow",1).vec2("uResolution",_,P).float("uDpr",N).vec2("uCellOrigin",-Qe,-Qe),r.drawArrays(r.TRIANGLES,0,3),Z(r,4,Te.shape),Z(r,5,Te.stroke)),r.bindFramebuffer(r.FRAMEBUFFER,null),r.viewport(0,0,_,P),Z(r,0,b.paint),Z(r,1,b.sceneFlow),Z(r,2,d.smearTex),Z(r,3,d.horizonTex);let Hr=Math.min(1,Math.max(0,(W.night-.35)/.3)),Dt=Hr*Hr*(3-2*Hr),zr=q=>q?Math.atan2(G/2-q.y,q.x-B/2):Math.PI/2,Or=zr(he),Ea=Math.atan2(Math.sin(zr(H)-Or),Math.cos(zr(H)-Or)),$o=Or+Ea*Dt,wa=[Math.cos($o)*.62,Math.sin($o)*.62,.78],Sa=[wt(1,.45,Dt),wt(.9,.55,Dt),wt(.72,.75,Dt)];if(rt(E.final.use(),W,He).int("uPaint",0).int("uFlow",1).int("uSmear",2).int("uHorizonTex",3).vec2("uResolution",_,P).float("uDpr",N).vec3("uLight",wa).vec3("uSpecColor",Sa).vec2("uSunPx",S.sun.x*N,(G-S.sun.y)*N).vec2("uMoonPx",H?H.x*N:-9999,H?(G-H.y)*N:-9999).float("uSunRadiusPx",S.radius*N).float("uRelief",1.5*Math.min(1,Math.max(.55,N/2))).int("uCellShape",4).int("uCellStroke",5).int("uCellTable",Te?1:0).vec2("uCellOrigin",-Qe,-Qe).ivec2("uCellCount",Te?.columns??0,Te?.rows??0),r.drawArrays(r.TRIANGLES,0,3),!a){let q=f.fill(N,W.night,na);q>0&&(r.enable(r.BLEND),r.blendFunc(r.ONE,r.ONE_MINUS_SRC_ALPHA),r.bindVertexArray(d.particleVao),r.bindBuffer(r.ARRAY_BUFFER,d.particleBuffer),r.bufferSubData(r.ARRAY_BUFFER,0,f.data,0,q*yt/4),E.particles.use().vec2("uResolution",_,P),r.drawArrays(r.POINTS,0,q),r.disable(r.BLEND))}Ae.stop(),r.bindVertexArray(null),We||(We=!0,e.dataset.meadow="ready",t.onFirstFrame())},la=l=>{if(Y=0,!(Ge||k==="failed")){try{if(k==="compile"){if(z?.ready){let u=z.finish();z=null,M=Kn(u),k="bake",X=0}}else if(k==="bake"&&M)jn(M)&&(k="live",Ve=l);else if(k==="live"){sa();let u=ko(l);(u||l-xe>=zn-Ss)&&!ua()&&ca(l,u)}}catch(u){Ao(u);return}kr()}},ca=(l,u)=>{let m=Math.min(.1,Math.max(0,(l-Ve)/1e3));Ve=l,v&&We&&(St+=m),Zn();let d=performance.now();ia(l,m,u),ie=!1,xe=l,Ce&&$n(Ce),Ye?.ready?qn(Ye):!Ye&&!me&&!Rt&&We&&++Mo>Hs&&(Xn(),M&&!Ce&&!Fr&&Yn(M)),C=r.fenceSync(r.SYNC_GPU_COMMANDS_COMPLETE,0),a||(Ae.available?Ae.collect((b,E)=>E&&Ke.gpu(b,l)):u&&Be&&m>0&&Ke.frame(m*1e3,performance.now()-d,l)),Be=u},ua=()=>C?r.getSyncParameter(C,r.SYNC_STATUS)!==r.SIGNALED&&ue<Ts?(ue++,!0):(r.deleteSync(C),C=null,ue=0,!1):!1,Lt=()=>{F=!0,Be=!1},kr=()=>{if(!(Y||ee||Ge||k==="failed")){if(document.hidden)return Lt();if(k==="live"){if(!Ue)return Lt();let l=performance.now();if(!ko(l)){if(a)return Lt();let u=xe+zn-l-6;if(u>0){Be=!1,ee=window.setTimeout(()=>{ee=0,kr()},u);return}}}Y=requestAnimationFrame(la)}};function Ee(){F&&(F=!1,Ve=performance.now()),ee&&(clearTimeout(ee),ee=0),kr()}let we=()=>{et=performance.now()+Ms,Ee()},ha=l=>{if(!n)return;let u=S.sun.up?"sun":S.moon.up?"moon":null,m=a||Gr(l)>3650,d=!xo&&u!==null&&(p.mode==="cycle"||p.mode==="rest")&&m;d&&u!==Eo&&(Eo=u,n.textContent=`Drag the ${u}`,_r=n.offsetWidth);let b=u?S[u]:null,E=d&&!!b&&b.x>0&&b.x<B;if(n.classList.toggle("is-shown",E),!E||!b)return;let _=u==="moon"?S.radius*.8:S.radius,P=b.x+_+24+_r<B,K=P?b.x+_+14:b.x-_-14-_r,N=P?"right":"left",L=`translate(${Math.round(K)}px, ${Math.round(b.y-7)}px)`;n.dataset.side!==N&&(n.dataset.side=N),L!==wo&&(wo=L,n.style.transform=L)},ot=(l,u)=>(Co(),{x:l-(go-At),y:u-(Mt-tt)}),nt=l=>l instanceof Element&&!!l.closest(Gs),Io=(l,u)=>Math.hypot(l-i.downX,u-i.downY)<10&&performance.now()-i.downAt<400,Do=()=>{let{p:l,moon:u}=ht(p.c);return Kr(l,D,u).night},Ho=(l,u)=>u>=0&&u<=G&&l>=0&&l<=B,fa=l=>{if(l.pointerType==="touch"||l.button!==0||nt(l.target))return;let{x:u,y:m}=ot(l.clientX,l.clientY);if(!Ho(u,m))return;Object.assign(i,{x:u,y:m,active:!0,touch:!1,down:!0,downX:u,downY:m,downAt:performance.now()});let d=Ft(u,m);d&&(l.preventDefault(),No(d)),we()},da=l=>{if(l.pointerType==="touch")return;let{x:u,y:m}=ot(l.clientX,l.clientY),d=Ho(u,m),b=i.active;if(Object.assign(i,{x:u,y:m,active:d,touch:!1}),i.drag){p.target=Po(u,m,i.drag),we();return}(d||b)&&we(),!d||nt(l.target)?Ie(""):Ft(u,m)?Ie("grab"):!a&&m>Rr?Ie("brush"):Ie("")},ma=l=>{if(l.pointerType==="touch")return;let{x:u,y:m}=ot(l.clientX,l.clientY);i.drag?Nr(u,m):!a&&i.down&&Io(u,m)&&!nt(l.target)&&f.burst(u,m,Do()),i.down=!1,we()},zo=()=>{i.active=!1,i.drag&&Nr(i.x,i.y),Ie(""),we()},pa=l=>{let u=l.touches[0];if(!u||l.touches.length>1)return;let{x:m,y:d}=ot(u.clientX,u.clientY);if(Object.assign(i,{x:m,y:d,active:!0,touch:!0,down:!0,downX:m,downY:d,downAt:performance.now()}),we(),nt(l.target))return;let b=Ft(m,d);b?(l.preventDefault(),No(b)):!a&&d>Rr&&(o.dataset.brushing="")},ba=l=>{let u=l.touches[0];if(!u)return;let{x:m,y:d}=ot(u.clientX,u.clientY);Object.assign(i,{x:m,y:d,active:!0,touch:!0}),we(),i.drag&&(l.preventDefault(),p.target=Po(m,d,i.drag))},Oo=l=>{delete o.dataset.brushing,i.drag?Nr(i.x,i.y):!a&&i.down&&Io(i.x,i.y)&&!nt(l.target)&&f.burst(i.x,i.y,Do()),i.down=!1,i.active=!1,we()},va=()=>{Ar=!0,!a&&Ue&&we()},Bo=()=>{if(!document.hidden)return Ee();cancelAnimationFrame(Y),Y=0,clearTimeout(ee),ee=0,Lt()},Go=l=>{l.preventDefault(),Ge=!0,cancelAnimationFrame(Y),Y=0,clearTimeout(ee),ee=0,M=null,O=null,I=null,ne=null,z=null,me=null,Ye=null,Ce=null,Fr=!1,Mo=0,C=null,ue=0},Uo=()=>{Ge=!1,R=!r.getExtension("EXT_color_buffer_float"),Ae=new dt(r),X=0,se=!1,ye=!1,ie=!0,Ro(),Ee()},at=o.querySelector(".hero-text"),ga=o.querySelector(".lede"),Pt=l=>{let u=0,m=0,d=l;for(;d&&d!==o;)u+=d.offsetLeft,m+=d.offsetTop,d=d.offsetParent;return{left:u,top:m,right:u+l.offsetWidth,bottom:m+l.offsetHeight}},Wo=()=>{let l=o.getBoundingClientRect();tt=window.scrollY,At=window.scrollX,Mt=l.top+tt,go=l.left+At,B=Math.max(1,e.clientWidth),G=Math.max(1,e.clientHeight)},xa=()=>{let l=e.offsetHeight;if(!at||l<=0)return;let u=[ga].filter(L=>!!L?.offsetParent).map(Pt);u.length&&(de.left=Math.min(...u.map(L=>L.left)),de.top=Math.min(...u.map(L=>L.top)),de.right=Math.max(...u.map(L=>L.right)),de.bottom=Math.max(...u.map(L=>L.bottom))),Ne.measure(Mt);let m=L=>[...o.querySelectorAll(L)].filter(Se=>!!Se.offsetParent&&Se.offsetWidth>0).map(Pt),d=m(Bs),b=d.length?{left:0,top:Math.min(...d.map(L=>L.top)),right:Math.max(...d.map(L=>L.right)),bottom:l}:null,E=at.querySelector(".send-more"),_=E?.offsetParent?Pt(E).bottom-Es:Pt(at).bottom,P=Math.min(l,window.innerHeight-Math.max(0,Mt)),K={left:-1/0,top:P,right:1/0,bottom:1/0};le.setKeepOut([...m(Os),...d,K],b);let N={clear:_/l,horizon:P*ys/l};Math.abs(N.clear-ke.clear)<.002&&Math.abs(N.horizon-ke.horizon)<.002||(ke=N,D=Wt(e.width/Math.max(1,e.height),ke.clear,ke.horizon))},Nt=null,Vo=-1,Ko=()=>{let l=Math.round((mo?.offsetHeight??0)+Us);l!==Vo&&(Vo=l,Nt?.disconnect(),Nt=new IntersectionObserver(u=>{Ue=u[u.length-1].isIntersecting,Ue&&Ee()},{rootMargin:`-${l}px 0px 0px 0px`}),Nt.observe(o))},Cr=new ResizeObserver(()=>{Wo(),xa(),Ko(),ie=!0,Ee()});e.addEventListener("webglcontextlost",Go),e.addEventListener("webglcontextrestored",Uo),document.addEventListener("visibilitychange",Bo),Cr.observe(e),at&&Cr.observe(at),Ko();let Xo=[[window,"scroll",va,{passive:!0}],[window,"pointerdown",fa,{passive:!1}],[window,"pointermove",da,{passive:!0}],[window,"pointerup",ma,{passive:!0}],[window,"blur",zo,{passive:!0}],[document.documentElement,"pointerleave",zo,{passive:!0}],[o,"touchstart",pa,{passive:!1}],[o,"touchmove",ba,{passive:!1}],[o,"touchend",Oo,{passive:!0}],[o,"touchcancel",Oo,{passive:!0}]];for(let[l,u,m,d]of Xo)l.addEventListener(u,m,d);return Wo(),Ro(),Ee(),{travelTo:ra,dispose(){cancelAnimationFrame(Y),Y=0,clearTimeout(ee),ee=0,k="failed",Cr.disconnect(),Nt?.disconnect(),e.removeEventListener("webglcontextlost",Go),e.removeEventListener("webglcontextrestored",Uo),document.removeEventListener("visibilitychange",Bo);for(let[l,u,m]of Xo)l.removeEventListener(u,m);delete o.dataset.brushing,Ne.reset(),_o(),Lr(),C&&r.deleteSync(C),C=null}}}var Ks=window.webkit?.messageHandlers?.meadow,Je=t=>Ks?.postMessage(t),Wn=qt[2],Xs=$t[0],fo=location.hash==="#night";function Ys(t){requestAnimationFrame(()=>requestAnimationFrame(t))}function $s(t){let e=new MutationObserver(()=>{t.dataset.meadow==="failed"&&(e.disconnect(),Je({state:"failed"}))});e.observe(t,{attributes:!0,attributeFilter:["data-meadow"]})}function qs(t){let e="",o=()=>{let n=t.dataset.tone??(fo?"dark":"light"),a=Number.parseFloat(t.style.getPropertyValue("--halo"))||0,r=`${n}:${a}`;r!==e&&(e=r,Je({state:"tone",tone:n,halo:a}))};new MutationObserver(o).observe(t,{attributes:!0,attributeFilter:["data-tone","style"]}),o()}function js(t){let e=t.querySelector("[data-meadow-canvas]");if(!e||!("WebGL2RenderingContext"in window))return Je({state:"failed"});$s(e);let o=t.querySelector(".hero-title");o&&qs(o),o&&fo&&(o.dataset.tone="dark");let n=Un({canvas:e,hero:t,hint:null,reducedMotion:matchMedia("(prefers-reduced-motion: reduce)").matches,opening:fo?[Xs,Wn]:[jt,ft],onFirstFrame(){Ys(()=>{t.dataset.meadow="ready",tn(t),Je({state:"ready",at:performance.now()})})}});if(!n)return Je({state:"failed"});Object.assign(window,{meadowNight:a=>n.travelTo(a?Wn:ft)})}var Vn=document.querySelector("[data-meadow]");Vn?js(Vn):Je({state:"failed"});})();</script>
+</body>
+</html>

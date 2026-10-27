@@ -25,7 +25,7 @@ public final class Importer: @unchecked Sendable {
       lock.withLock { if generation == started { keys[browserId] = key } }
     case .firefox:
       lock.withLock { firefoxPasswords[browserId] = primaryPassword }
-    case .safari, .automation:
+    case .safari:
       break
     }
   }

@@ -17,16 +17,17 @@ import { modifiersOf } from "../../lib/keys";
 import { dismissHover, useRowHover } from "../../state/sidebar/hover";
 import { openLiveItemMenu } from "../../state/sidebar/liveMenus";
 import { registerRow } from "../../state/sidebar/sidebarUi";
-import { useShortcutHint, withShortcut } from "../../state/commands/commandShortcuts";
+import { withShortcut } from "../../state/commands/commandShortcuts";
 import { TabIcon } from "./TabIcon";
-import { SELECTED_ROW_SHADOW_OFFSET, SIDEBAR_MOTION, SIDEBAR_TYPE, sidebarTokens, TABULAR_NUMS, useSelectedTabGlow } from "./tokens";
+import { SELECTED_ROW_SHADOW_OFFSET, SIDEBAR_MOTION, SIDEBAR_TYPE, sidebarTokens, TABULAR_NUMS } from "./tokens";
+import { useSelectedTabGlow, useSidebarRowLook } from "./rowLook";
 
 const liveRowKey = (folderId: string, itemId: string) => `live|${folderId}|${itemId}`;
 
 export function LiveItemRow({ folderId, item, windowId, inStack = false }: { folderId: string; item: LiveItem; windowId: string; inStack?: boolean }) {
   const indent = inStack ? 10 : 0;
   const theme = useTheme();
-  const closeHint = useShortcutHint("closeTab");
+  const { closeTabHint: closeHint } = useSidebarRowLook();
   const glow = useSelectedTabGlow();
   const colors = useLiveColors();
   const key = liveRowKey(folderId, item.id);
@@ -87,6 +88,7 @@ export function LiveItemRow({ folderId, item, windowId, inStack = false }: { fol
                 <HoverSlot
                   hovered={hovered && !!tabId && !completion}
                   width={22}
+                  reserve={inStack && item.pr?.stack ? "always" : "hover"}
                   hover={<Button variant="icon" icon="xmark" size={10} weight="semibold" box={22} radius={radius.m} onPress={() => tabId && void closeTab(tabId)} tooltip={withShortcut("Close Tab", closeHint)} />}
                 >
                   <Trailing item={item} completion={completion} colors={colors} />

@@ -1,6 +1,8 @@
+import { useCallback, useLayoutEffect, useRef } from "react";
 import { Pressable, View } from "react-native";
 import { useTheme } from "../ui/theme";
-import { Box, Checkbox, Symbol, Text } from "../ui";
+import { Box, Checkbox, duration, Symbol, Text } from "../ui";
+import { watchWindowActivation, windowActivatedAt } from "../../state/site/promptGuard";
 import { siteLine, useSiteTokens } from "./tokens";
 
 const ICON_TILE = { width: 30, height: 30, alignItems: "center", justifyContent: "center" } as const;
@@ -30,5 +32,28 @@ export function CheckRow({ value, onChange, label }: { value: boolean; onChange:
         {label}
       </Text>
     </Pressable>
+  );
+}
+
+export const PROMPT_INPUT_DELAY_MS = 500;
+
+export function usePromptInputGuard(promptKey: string | number | null | undefined) {
+  const visibleAt = useRef(Number.POSITIVE_INFINITY);
+  const lastInputAt = useRef(0);
+  useLayoutEffect(() => {
+    watchWindowActivation();
+    visibleAt.current = promptKey == null ? Number.POSITIVE_INFINITY : Date.now() + duration.popoverOpen;
+  }, [promptKey]);
+  return useCallback(
+    <A extends unknown[]>(action: (...args: A) => void) =>
+      (...args: A) => {
+        const now = Date.now();
+        const previousInputAt = lastInputAt.current;
+        lastInputAt.current = now;
+        const settledAt = Math.max(visibleAt.current, windowActivatedAt()) + PROMPT_INPUT_DELAY_MS;
+        if (now < settledAt || now - previousInputAt < PROMPT_INPUT_DELAY_MS) return;
+        action(...args);
+      },
+    [],
   );
 }

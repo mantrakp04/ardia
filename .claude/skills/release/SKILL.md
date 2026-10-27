@@ -223,6 +223,11 @@ don't publish) or the check itself going stale after an intended change (fix the
 `.claude/skills/release/scripts/smoke.mjs`, and say so). When a release fixes a new class of bug that can be observed over CDP or
 the window list, add a check for it to `smoke.mjs` so the next release guards it.
 
+**After a fix mid-release, test only the fix.** When the smoke test, the ratchet or the perf gate fails and you fix it,
+rebuild and re-run only what covers that fix: the failed rows (a launch-only native-bench for a launch row, the
+ratchet for counts), plus the smoke test when the fix touches what it checks. Don't repeat the checks that already
+passed on the earlier candidate; move on to publishing.
+
 ### 4b. Perf ratchet (stable only)
 
 Check the candidate's counts against the ceilings before publishing (about two minutes, no perflab lock needed: they

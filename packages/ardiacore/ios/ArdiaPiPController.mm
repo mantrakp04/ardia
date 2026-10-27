@@ -204,11 +204,8 @@ NSString *CornerName(int corner) {
   [NSObject cancelPreviousPerformRequestsWithTarget:self];
   [_slide invalidate];
   [_overlay removeFromSuperview];
-  _frameId = nil;
   objc_setAssociatedObject(_window, kControllerKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
-
-- (void)setVideoFrame:(NSString *)frameId { _frameId = [frameId copy]; }
 
 - (void)roundCorners {
   NSView *content = _window.contentView;
@@ -258,7 +255,7 @@ NSString *CornerName(int corner) {
   if (!view) return;
   ActivateApp(@"Back to Tab (menu)");
   [view emit:@"activateRequest" payload:@{@"reason" : @"pictureInPicture"}];
-  [view exitPictureInPictureInFrame:_frameId];
+  [view exitPictureInPicture];
 }
 
 - (void)windowMoved {

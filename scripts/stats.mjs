@@ -101,7 +101,7 @@ const both = (select, where, { final = false } = {}) =>
   [OTEL, HISTORY]
     .map((t) => `SELECT ${fill(select, t)} FROM ${t.table}${final ? t.final : ""} WHERE ${fill(where, t)} AND ${t.base}`)
     .join(" UNION ALL ");
-const VERSION = "'^[0-9]+\\\\.[0-9]+\\\\.[0-9]+$'";
+const VERSION = "'^[0-9]+\\\\.[0-9]+\\\\.[0-9]+(-nightly\\\\.[0-9]+)?$'";
 
 const problems = [];
 const attempt = async (name, fn) => {
@@ -138,9 +138,9 @@ const headline = () =>
      FROM (${both("{d} AS d, {t} AS t", `{ts} > now() - INTERVAL ${Math.max(7, Math.ceil(span / 864e5))} DAY AND {app}`)})),
     (SELECT tuple(countIf(day = today()), countIf(day = yesterday()), countIf(weekly AND day >= toMonday(today())),
                   countIf(weekly AND day >= toMonday(today()) - 7 AND day < toMonday(today())), countIf(monthly AND day >= toStartOfMonth(today())),
-                  countIf(isFirst AND day = today()), countIf(isFirst AND day = yesterday()))
+                  countIf(isFirst AND day = today()), countIf(isFirst AND day = yesterday()), groupUniqArray(version))
      FROM (SELECT toDate(Timestamp) AS day, LogAttributes['weekly'] = 'true' AS weekly, LogAttributes['monthly'] = 'true' AS monthly,
-                  LogAttributes['first'] = 'true' AS isFirst
+                  LogAttributes['first'] = 'true' AS isFirst, LogAttributes['$app_version'] AS version
            FROM telemetry.otel_logs FINAL WHERE ${DAILY} AND Timestamp > now() - INTERVAL 40 DAY))`);
 
 const githubQuery = (releases, after) => `{ repository(owner: "mantrakp04", name: "ardia") { stargazerCount forkCount issues(states: OPEN) { totalCount }
@@ -207,6 +207,20 @@ const [rows, head, gitHub] = await Promise.all([
 ]);
 
 const uniq = (list) => new Set(list).size;
+const compareVersions = (a, b) => {
+  const parse = (v) => {
+    const [core = "", pre = ""] = v.split("-nightly.");
+    return [...core.split(".").map(Number), pre ? Number(pre) : Number.POSITIVE_INFINITY];
+  };
+  const pa = parse(a);
+  const pb = parse(b);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] ?? 0;
+    const y = pb[i] ?? 0;
+    if (x !== y) return x < y ? -1 : 1;
+  }
+  return 0;
+};
 const tally = (pairs, top = 6) => {
   const sets = new Map();
   for (const [key, id] of pairs) {
@@ -247,7 +261,7 @@ function classifyError({ message, list, ua, where }) {
   if (/Non-Error promise rejection captured with value: \{\}/.test(message)) return "Safari empty promise rejection (known)";
   if (/ResizeObserver loop/.test(message)) return "ResizeObserver";
   if (/Load failed|Failed to fetch|NetworkError|network error/i.test(message)) return "network drop";
-  if (/wallet|ethereum|solana|metamask/i.test(message)) return "wallet extension";
+  if (/wallet|ethereum|solana|metamask|LavaMoat/i.test(message)) return "wallet extension";
   return null;
 }
 
@@ -318,8 +332,11 @@ if (head) {
     oldVersionsSeen: copies.filter((c) => older(c[0]) && Number(c[1]) + Number(c[2]) > 0).map((c) => c[0]),
   };
   data.app = { window: appWindow, today: appToday, week: appWeek };
-  const [dauToday, dauYesterday, wau, wauLastWeek, mau, newToday, newYesterday] = active.map(Number);
-  data.active = { dauToday, dauYesterday, wau, wauLastWeek, mau, newToday, newYesterday };
+  const [dauToday, dauYesterday, wau, wauLastWeek, mau, newToday, newYesterday] = active.slice(0, 7).map(Number);
+  const pingSince = [...active[7]].sort(compareVersions)[0] ?? null;
+  const silent = pingSince ? copies.filter((c) => compareVersions(c[0], pingSince) < 0) : copies;
+  const silentYesterday = { low: silent.reduce((s, c) => s + Math.ceil(c[1] / 3), 0), high: silent.reduce((s, c) => s + Number(c[1]), 0) };
+  data.active = { dauToday, dauYesterday, wau, wauLastWeek, mau, newToday, newYesterday, pingSince, silentYesterday };
 }
 
 const previous = existsSync(STATE) ? JSON.parse(readFileSync(STATE, "utf8")) : null;
@@ -371,12 +388,16 @@ function report() {
     if (gitHub) out.push(`- DMG downloads ${n(gitHub.dmg)} all time; ${gitHub.latest?.version} has ${n(gitHub.latest?.dmg)} DMG, ${n(gitHub.latest?.zip)} update zips (${n(gitHub.zips)} zips all time)`);
     if (data.active) {
       const a = data.active;
-      out.push(`- Daily active ${n(a.dauToday)} today so far, ${n(a.dauYesterday)} yesterday; weekly ${n(a.wau)} this week (${n(a.wauLastWeek)} last week), monthly ${n(a.mau)} this month; new installs ${n(a.newToday)} today, ${n(a.newYesterday)} yesterday (UTC, from the anonymous daily count)`);
+      const { low, high } = a.silentYesterday;
+      const cover = (extra) => Math.round((100 * a.dauYesterday) / Math.max(1, a.dauYesterday + extra));
+      const older = high > 0 ? `; older versions don't send it and ran on another ${n(low)}–${n(high)} copies (update checks ÷ 3 to checks), so about ${n(a.dauYesterday + low)}–${n(a.dauYesterday + high)} in all and the count covers ${cover(high)}–${cover(low)}%` : "";
+      out.push(`- Daily active ${n(a.dauYesterday)} counted yesterday, ${n(a.dauToday)} today so far (UTC${a.pingSince ? `, sent by ${a.pingSince} and later` : ""})${older}`);
+      const trend = cover(high) >= 95 ? ` (${n(a.wauLastWeek)} last week)` : " (counted copies only: they climb as copies update, so not comparable with last week yet)";
+      out.push(`- Weekly ${n(a.wau)} this week, monthly ${n(a.mau)} this month${trend}; new installs ${n(a.newToday)} today, ${n(a.newYesterday)} yesterday`);
     }
     if (data.copies) {
       const c = data.copies;
       out.push(`- First launches ${n(c.firstLaunches)} all time; ${n(c.firstToday)} today, ${n(c.firstYesterday)} yesterday (UTC days)`);
-      out.push(`- Copies running: ${c.today.low}–${c.today.high} today, ${c.yesterday.low}–${c.yesterday.high} yesterday`);
       if (c.oldVersionsSeen.length) out.push(`- Still checking in on ${c.oldVersionsSeen.join(", ")}: their opt-in usage and errors go to PostHog Cloud, which nothing reads`);
     }
     if (data.app) out.push(`- Opted-in app users: ${n(data.app.window)} in the window, ${n(data.app.today)} today, ${n(data.app.week)} in 7 days`);

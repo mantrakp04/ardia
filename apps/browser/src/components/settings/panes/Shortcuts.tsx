@@ -5,7 +5,7 @@ import {
   resolvedShortcuts,
   useMenuBarRevision,
 } from "../../../state/commands/commandShortcuts";
-import { Symbol, Button, font, Group, PopUp, SearchField, Toggle, useHover } from "../../ui";
+import { Symbol, Button, font, PopUp, SearchField, Toggle, useHover } from "../../ui";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useTheme } from "../../ui/theme";
@@ -13,7 +13,7 @@ import { useSettings } from "../../../state/browser/hooks";
 import { useProfileOrder } from "../../../state/profiles/hooks";
 import { setShortcutOverride, updateSettings } from "../../../state/settings/actions";
 import { openUrls } from "../../../state/browser/actions";
-import { Anchor, Row, SectionHeader } from "../Form";
+import { Anchor, Group, Row, SectionHeader } from "../Form";
 import { matchesQuery } from "../../pages/PageLayout";
 import { shortcutItems } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";

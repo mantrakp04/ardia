@@ -5,7 +5,6 @@ export type {
   BrowserProfile,
   BrowserSource,
   Credential,
-  DiaAutomationStatus,
   DiaTabsProfile,
   DiaTabsResult,
   ImportedExtension,

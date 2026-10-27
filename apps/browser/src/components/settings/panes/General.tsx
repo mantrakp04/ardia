@@ -9,7 +9,7 @@ import {
   type UpdateChannel,
 } from "../../../state/app/appSettings";
 import { pickFolder } from "../../../state/app/system";
-import { Symbol, Button, font, Group, PopUp, Toggle } from "../../ui";
+import { Symbol, Button, font, PopUp, Toggle } from "../../ui";
 import { useEffect, useState } from "react";
 import { AppState, Text, View } from "react-native";
 import { useTheme } from "../../ui/theme";
@@ -18,7 +18,7 @@ import { currentSettings } from "../../../state/browser/current";
 import { useProfiles, useSettings } from "../../../state/browser/hooks";
 import { engineProfile } from "../../../state/browser/model";
 import { SHARING_COPY } from "../../../state/telemetry/copy";
-import { Anchor, Row, SectionHeader } from "../Form";
+import { Anchor, Group, Row, SectionHeader } from "../Form";
 import { defaultBrowser, downloadSettings, loginItem, updater } from "../../../state/settings/paneData";
 import { store, useResource } from "../../../state/settings/resources";
 import { openImport } from "../../../state/settings/settingsWindows";

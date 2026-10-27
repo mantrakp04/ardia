@@ -10,6 +10,8 @@ const DESKTOP_BOX_WIDTH = 860;
 const REVEAL_FALLBACK_MS = 1500;
 const NUDGE_DELAY_MS = 900;
 const FAR_SCREENS = 1;
+const NEAR_SCREENS = 1;
+const MOUNT_WAIT_MS = 300;
 const COPIED_FOR_MS = 1800;
 
 const root = document.querySelector<HTMLElement>("[data-demo]");
@@ -109,22 +111,13 @@ function watchForNudge(frame: HTMLIFrameElement, box: HTMLElement) {
 }
 
 function restWhileFar(box: HTMLElement) {
-  let top = 0;
-  let bottom = 0;
-  const update = () => {
-    const margin = innerHeight * FAR_SCREENS;
-    const far = bottom < scrollY - margin || top > scrollY + innerHeight + margin;
-    if (far !== box.hasAttribute("data-far")) box.toggleAttribute("data-far", far);
-  };
-  const measure = () => {
-    const rect = box.getBoundingClientRect();
-    top = rect.top + scrollY;
-    bottom = rect.bottom + scrollY;
-    update();
-  };
-  addEventListener("scroll", update, { passive: true });
-  addEventListener("resize", measure, { passive: true });
-  new ResizeObserver(measure).observe(document.body);
+  new IntersectionObserver(
+    (entries) => {
+      const far = !entries[entries.length - 1].isIntersecting;
+      if (far !== box.hasAttribute("data-far")) box.toggleAttribute("data-far", far);
+    },
+    { rootMargin: `${FAR_SCREENS * 100}% 0px` },
+  ).observe(box);
 }
 
 function mount(box: HTMLElement, src: string) {
@@ -172,24 +165,43 @@ function mount(box: HTMLElement, src: string) {
 }
 
 function start() {
-  if (!root || !stage || root.dataset.mounted === "") return;
-  root.dataset.mounted = "";
+  if (!root || !stage) return;
   const src = root.dataset.demoSrc!;
-  const near = new IntersectionObserver(
-    (entries) => {
-      if (!entries.some((e) => e.isIntersecting)) return;
-      near.disconnect();
-      mount(stage, src);
-    },
-    { rootMargin: "100% 0px" },
-  );
-  near.observe(root);
+  let visible = false;
+  let near = false;
+  let scrolled = scrollY > 0 || location.hash === "#demo";
+  const observers: IntersectionObserver[] = [];
+  const stopScrollWatch = () => removeEventListener("scroll", onScroll);
+  const tryMount = () => {
+    if (root.dataset.mounted === "" || !(visible || (near && scrolled))) return;
+    root.dataset.mounted = "";
+    for (const io of observers) io.disconnect();
+    stopScrollWatch();
+    const run = () => mount(stage, src);
+    if ("requestIdleCallback" in window) requestIdleCallback(run, { timeout: MOUNT_WAIT_MS });
+    else setTimeout(run, 0);
+  };
+  function onScroll() {
+    scrolled = true;
+    stopScrollWatch();
+    tryMount();
+  }
+  const watch = (rootMargin: string, set: (on: boolean) => void) => {
+    const io = new IntersectionObserver((entries) => {
+      set(entries[entries.length - 1].isIntersecting);
+      tryMount();
+    }, { rootMargin });
+    io.observe(root);
+    observers.push(io);
+  };
+  watch("0px", (on) => (visible = on));
+  watch(`0px 0px ${NEAR_SCREENS * 100}% 0px`, (on) => (near = on));
+  if (!scrolled) addEventListener("scroll", onScroll, { passive: true });
 }
 
 function afterLoad(run: () => void) {
-  const idle = () => ("requestIdleCallback" in window ? requestIdleCallback(run, { timeout: 2000 }) : setTimeout(run, 200));
-  if (document.readyState === "complete") idle();
-  else addEventListener("load", idle, { once: true });
+  if (document.readyState === "complete") run();
+  else addEventListener("load", run, { once: true });
 }
 
 afterLoad(start);

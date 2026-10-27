@@ -9,6 +9,7 @@ export const PAD = 172;
 const KNOB = 22;
 export const LABEL = 112;
 const LIGHTNESS_STEPS = 24;
+const THUMB = 14;
 const DIAL = 28;
 const DIAL_SNAP = 4;
 const DIAL_BORDER = StyleSheet.hairlineWidth * 2;
@@ -171,32 +172,45 @@ export function LightnessBar({ theme, index, onChange }: { theme: ProfileTheme; 
     </View>
   );
 }
+export function Labelled({ label, children }: { label: string; children: ReactNode }) {
+  const ui = useTheme();
+  return (
+    <View style={{ gap: 6 }}>
+      <Text numberOfLines={1} style={{ ...font.small, color: ui.textPrimary }}>{label}</Text>
+      {children}
+    </View>
+  );
+}
 export function Slider({
   label,
   value,
   onChange,
+  stacked,
   children,
 }: {
   label: string;
   value: number;
   onChange: (value: number, settle: boolean) => void;
+  stacked?: boolean;
   children?: ReactNode;
 }) {
   const ui = useTheme();
+  const track = (
+    <Track
+      value={value}
+      onChange={onChange}
+      bar={
+        <View style={{ height: 4, borderRadius: 2, backgroundColor: ui.switchOff, overflow: "hidden" }}>
+          <View style={{ width: `${value * 100}%`, height: 4, backgroundColor: ui.formAccent }} />
+        </View>
+      }
+    />
+  );
+  if (stacked) return <Labelled label={label}>{track}</Labelled>;
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
       <Text numberOfLines={1} style={{ width: LABEL, ...font.small, color: ui.textPrimary }}>{label}</Text>
-      <View style={{ flex: 1 }}>
-        <Track
-          value={value}
-          onChange={onChange}
-          bar={
-            <View style={{ height: 4, borderRadius: 2, backgroundColor: ui.switchOff, overflow: "hidden" }}>
-              <View style={{ width: `${value * 100}%`, height: 4, backgroundColor: ui.formAccent }} />
-            </View>
-          }
-        />
-      </View>
+      <View style={{ flex: 1 }}>{track}</View>
       {children}
     </View>
   );
@@ -218,14 +232,12 @@ function Track({
   const frame = useRef({ x: 0, width: 1 });
   const measure = () => ref.current?.measureInWindow((x, _y, width) => (frame.current = { x, width: Math.max(1, width) }));
   const at = (e: GestureResponderEvent) => clamp01((e.nativeEvent.pageX - frame.current.x) / frame.current.width);
-  const thumb = 14;
   return (
     <View
-      ref={ref}
       onLayout={measure}
       onMouseEnter={measure}
       tooltip={tooltip}
-      style={{ height: 20, justifyContent: "center" }}
+      style={{ paddingHorizontal: THUMB / 2 }}
       onStartShouldSetResponder={() => true}
       onResponderGrant={(e) => {
         measure();
@@ -235,24 +247,26 @@ function Track({
       onResponderRelease={(e) => onChange(at(e), true)}
       onResponderTerminate={() => onChange(value, true)}
     >
-      {bar}
-      <View
-        pointerEvents="none"
-        style={{
-          position: "absolute",
-          left: `${value * 100}%`,
-          marginLeft: -thumb / 2,
-          width: thumb,
-          height: thumb,
-          borderRadius: thumb / 2,
-          backgroundColor: thumbColor ?? ink.white,
-          borderWidth: thumbColor ? 2 : StyleSheet.hairlineWidth * 2,
-          borderColor: thumbColor ? ink.white : settingsInk.thumbBorder,
-        }}
-      >
-        {thumbColor ? (
-          <View style={{ position: "absolute", left: -3, top: -3, right: -3, bottom: -3, borderRadius: thumb / 2 + 3, borderWidth: 1, borderColor: settingsInk.knobOutline }} />
-        ) : null}
+      <View ref={ref} style={{ height: 20, justifyContent: "center" }}>
+        {bar}
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            left: `${value * 100}%`,
+            marginLeft: -THUMB / 2,
+            width: THUMB,
+            height: THUMB,
+            borderRadius: THUMB / 2,
+            backgroundColor: thumbColor ?? ink.white,
+            borderWidth: thumbColor ? 2 : StyleSheet.hairlineWidth * 2,
+            borderColor: thumbColor ? ink.white : settingsInk.thumbBorder,
+          }}
+        >
+          {thumbColor ? (
+            <View style={{ position: "absolute", left: -3, top: -3, right: -3, bottom: -3, borderRadius: THUMB / 2 + 3, borderWidth: 1, borderColor: settingsInk.knobOutline }} />
+          ) : null}
+        </View>
       </View>
     </View>
   );

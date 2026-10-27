@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import { cancelChooser, chooseDevice, openChooserBluetoothSettings, rescanDevices, useDeviceChooser } from "../../state/site/deviceChoosers";
 import { Button, PANEL, Popover, Symbol, Text, useHover } from "../ui";
-import { IconTile } from "./PromptParts";
+import { IconTile, usePromptInputGuard } from "./PromptParts";
 import { noticeType, UNAVAILABLE_OPACITY, useSiteTokens } from "./tokens";
 
 function Signal({ level, color }: { level: number; color: string }) {
@@ -55,14 +55,15 @@ export function DeviceChooser({ tabId, left, top }: { tabId: string; left: numbe
   const chooser = useDeviceChooser(tabId);
   const [selected, setSelected] = useState<number | null>(null);
   useEffect(() => setSelected(null), [chooser?.id]);
+  const guard = usePromptInputGuard(chooser?.id);
   if (!chooser) return null;
   const scanning = chooser.bothButtonsEnabled;
   const blocked = chooser.adapterOff || chooser.unauthorized;
   const valid = scanning || (selected !== null && selected < chooser.options.length);
-  const choose = (index = selected) => {
+  const choose = guard((index: number | null = selected) => {
     if (scanning) return chooseDevice(chooser.id, -1);
     if (index !== null) chooseDevice(chooser.id, index);
-  };
+  });
   const cancel = () => cancelChooser(chooser.id);
 
   let body;

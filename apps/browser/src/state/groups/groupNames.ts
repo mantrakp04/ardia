@@ -7,7 +7,9 @@ const SEPARATORS = [" / ", " | ", " - ", " — ", " – ", " · ", " • ", " ::
 
 const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
-const isIpAddress = (host: string) => host.startsWith("[") || /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
+const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
+
+const isIpAddress = (host: string) => host[0] === "[" || (host[0]! >= "0" && host[0]! <= "9" && IPV4.test(host));
 
 function hostLabel(host: string): string {
   if (isIpAddress(host)) return host;

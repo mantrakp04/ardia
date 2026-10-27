@@ -10,6 +10,7 @@ import { ensureNotificationPermission } from "./webNotifications";
 import { useBrowser } from "../browser/store";
 import { patchPage, pageOf, usePages } from "../tabs/pageState";
 import { startDeviceChoosers } from "./deviceChoosers";
+import { originForSecurityDisplay } from "../../lib/url";
 
 const queues = new Map<string, PermissionRequest[]>();
 let started = false;
@@ -98,10 +99,7 @@ const KINDS: Record<PermissionKind, Describe> = {
 const list = (words: string[]) => (words.length < 2 ? (words[0] ?? "") : `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`);
 
 export function describePermission(request: PermissionRequest): { icons: string[]; question: string } {
-  let site = request.origin;
-  try {
-    site = new URL(request.origin).hostname.replace(/^www\./, "") || request.origin;
-  } catch {}
+  const site = originForSecurityDisplay(request.origin);
   const kinds = request.permissions.map((k) => KINDS[k] ?? { icon: "questionmark.circle", noun: k });
   const icons = [...new Set(kinds.map((k) => k.icon))];
   const single = kinds.length === 1 ? kinds[0]!.question : undefined;

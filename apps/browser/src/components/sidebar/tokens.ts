@@ -1,9 +1,8 @@
-import { layout, selectedTabGlow, useTheme } from "../ui/theme";
+import { layout, useTheme } from "../ui/theme";
 import { colorRoles, ink, shadow, type ShadowLevel } from "../ui/tokens";
 import { useSettings } from "../../state/browser/hooks";
 import type { GroupColor } from "../../state/browser/types";
 import { useSidebarUi } from "../../state/sidebar/sidebarUi";
-import { useSelectedTabGlowSetting } from "../../state/app/theme";
 
 const DARK = {
   groupFill: "rgba(255,255,255,0.1)",
@@ -90,10 +89,6 @@ export const SIDEBAR_MOTION = { liveFold: 360, fold: 150, listSlide: 140, listFa
 export const TABULAR_NUMS: ("tabular-nums")[] = ["tabular-nums"];
 
 export const SIDEBAR_TYPE = { divider: 10, count: 10, cardAction: 10.5, compact: 12.5, searchField: 16, emoji: 18 } as const;
-
-export function useSelectedTabGlow() {
-  return selectedTabGlow(useTheme(), useSelectedTabGlowSetting());
-}
 
 export type GroupTint = Exclude<GroupColor, "none">;
 

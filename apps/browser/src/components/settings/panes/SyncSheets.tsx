@@ -207,7 +207,6 @@ function ConnectDeviceSheet() {
   const theme = useTheme();
   const [qr, setQr] = useState<string | null>(null);
   const [words, setWords] = useState<string[] | null>(null);
-  useEffect(() => void recoveryQrCode()?.then(setQr), []);
   return (
     <Sheet width={480} onClose={closeSettingsSheet}>
       <Title>Connect Another Device</Title>
@@ -217,7 +216,7 @@ function ConnectDeviceSheet() {
       </Body>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 16, marginTop: 16 }}>
         <View style={{ width: 132, height: 132, borderRadius: 8, backgroundColor: ink.white, alignItems: "center", justifyContent: "center" }}>
-          {qr ? <Image source={{ uri: qr }} style={{ width: 120, height: 120 }} /> : null}
+          {qr ? <Image source={{ uri: qr }} style={{ width: 120, height: 120 }} /> : <Button title="Show Code" onPress={() => void recoveryQrCode()?.then(setQr)} />}
         </View>
         <Text style={{ flex: 1, ...font.small, lineHeight: 16, color: theme.textSecondary }}>
           Or scan this code with your iPhone’s camera to copy the words, then paste them on your other Mac with Universal Clipboard.

@@ -18,7 +18,7 @@ if (videos.length && !saveData && "IntersectionObserver" in window) {
         const video = target as HTMLVideoElement;
         if (isIntersecting && !reduced.matches) {
           load(video);
-          video.play().catch(() => {});
+          video.play()?.catch(() => {});
         } else video.pause();
       }
     },

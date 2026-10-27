@@ -15,7 +15,7 @@ reflects every choice so far and animates from one state to the next.
 | # | Screen | Choices |
 |---|---|---|
 | 1 | Intro | unchanged |
-| 2 | Where are you coming from? | Arc · Dia · Chrome · Safari · Firefox · Brave/Edge · Starting fresh. Browsers found on this Mac come first ("Found on this Mac"). Picking one sets the preset (Arc → Arc, otherwise Dia) and, unless it's "Starting fresh", offers the import for that browser, which runs while the next screens are shown. |
+| 2 | Where are you coming from? | Arc · Dia · Chrome · Safari · Firefox · Brave/Edge · Starting fresh. Browsers found on this Mac come first ("Found on this Mac"). Picking one sets that browser's preset (see Presets) and, unless it's "Starting fresh", offers the import for that browser, which runs while the next screens are shown. |
 | 3 | Layout | Tabs: Sidebar / Top · Address bar: Toolbar / Sidebar (hidden with top tabs) · ⌘L: Under the address / Centred. A tag shows "Arc-style", "Dia-style" or "Your mix". |
 | 4 | Tabs | ⌘T: New Tab page / Command bar · New tabs: Bottom / Top · Old tabs: Keep / Tidy after 12 h, 1 day, 1 week · On quit: Restore / Start fresh · Windows: Separate / Shared tabs. More options: Top Apps grid, peek modifier, ⌘Z reopens closed tab, ⌘-click tab groups. |
 | 5 | Look | Theme color · Auto / Light / Dark · Website color in the tab bar on / off. More options: app icon, hide toolbar while scrolling, bookmarks bar. |
@@ -29,20 +29,47 @@ CLI step leaves onboarding and stays in Settings › Advanced.
 
 ## Presets
 
-| | Dia | Arc |
-|---|---|---|
-| `addressBar` | toolbar | sidebar |
-| `commandBarPlacement` | field | centred |
-| `newTabOpens` | page | commandBar |
-| `newTabPosition` | bottom | top |
-| `balancedTopApps` | false | true |
-| `shareTabsAcrossWindows` | false | true |
-| `cleanUpInactiveTabsAfterHours` | null | 12 |
-| `openLinksInLittleArdia` | true | true |
+Every browser on the "Where are you coming from?" screen has its own preset (`PRESETS` in
+`state/onboarding/onboarding.ts`), so each screen starts out the way that browser behaves. "Starting fresh" keeps
+Ardia's defaults except where its column says otherwise. Chrome, Firefox, Safari, Brave and Edge share one classic-tabs base.
 
-A preset fills an onboarding draft. A screen writes its keys with `updateSettings` when you press Continue, so
-only the keys someone actually saw land in `chosen`. A skipped screen writes nothing, so later default changes
-still reach people who never saw it.
+Picking a browser applies its whole preset when you press Continue and skips every question the preset answers, so
+the flow is Source → Color → Crash reports → Pins → Default browser → Outro (6 steps). Everything stays in
+Settings. "Starting fresh" or skipping the Source screen keeps the full questionnaire.
+
+| Setting | Arc | Dia | Zen | Chrome | Firefox | Safari | Brave | Edge | Starting fresh |
+|---|---|---|---|---|---|---|---|---|---|
+| Tabs (`tabLayout`) | sidebar | sidebar | sidebar | top | top | top | top | top | sidebar |
+| Address bar (`addressBar`) | sidebar | toolbar | sidebar | toolbar | toolbar | toolbar | toolbar | toolbar | sidebar |
+| ⌘L (`commandBarPlacement`) | centred | field | centred | field | field | field | field | field | centred |
+| ⌘T (`newTabOpens`) | commandBar | page | commandBar | page | page | page | page | page | page |
+| New tabs (`newTabPosition`, `newTabButtonPosition`) | top | bottom | top | bottom | bottom | bottom | bottom | bottom | below the current tab |
+| Old tabs (`cleanUpInactiveTabsAfterHours`) | 12 h | keep | keep | keep | keep | keep | keep | keep | keep |
+| On quit (`restoreSession`) | restore | restore | restore | restore | restore | restore | restore | restore | restore |
+| Windows (`shareTabsAcrossWindows`) | shared | separate | separate | separate | separate | separate | separate | separate | separate |
+| Top Apps grow (`balancedTopApps`) | on | off | on | off | off | off | off | off | off |
+| Peek (`peekModifier`) | ⇧-click | ⇧-click | ⌥-click | ⌥-click | ⌥-click | ⌥-click | ⌥-click | ⌥-click | ⇧-click |
+| ⌘Z reopens tab (`undoReopensClosedTab`) | on | off | off | off | off | off | off | off | off |
+| ⌘-click makes a group (`cmdClickCreatesTabGroup`) | off | on | off | off | off | off | off | off | on |
+| Appearance (`appearance`) | auto | auto | auto | auto | auto | auto | auto | auto | auto |
+| Site color in tab bar (`extendWebsiteColor`) | off | on | off | off | off | on | off | off | on |
+| Hide toolbar while scrolling (`hideToolbarWhileScrolling`) | on | on | off | off | off | off | off | off | on |
+| Bookmarks bar (`bookmarksBar`) | never | never | never | New Tab | New Tab | never | New Tab | New Tab | never |
+| Search engine (`searchEngine`) | Google | Google | Google | Google | Google | Google | Brave Search | Bing | Google |
+| Typing a word (`commandBarPreference`) | website | website | search | search | search | search | search | search | website |
+| Links from other apps (`openLinksInLittleArdia`) | Little Ardia | Little Ardia | tab | tab | tab | tab | tab | tab | Little Ardia |
+
+Deliberate departures from the source browser:
+
+- On quit always restores. Chrome, Brave and Edge open a blank New Tab page by default, but losing your tabs on the
+  first quit is a bad surprise.
+- Peek uses ⌥-click for browsers without peek. Their ⇧-click opens a new window (Chrome, Edge, Brave, Firefox) or adds
+  to the Reading List (Safari), and ⌥-click only downloads the link, which hardly anyone does on purpose.
+  Zen's Glance is ⌥-click too.
+
+The Layout screen's tag names the chosen browser when the layout still matches its preset ("Chrome-style"), then
+Arc or Dia when it matches theirs, otherwise "Your mix". Setup codes store the preset as its index in
+`["arc", "dia", "chrome", "safari", "firefox", "zen", "brave", "edge", "fresh"]`, so older codes still read.
 
 ## Animation rules
 

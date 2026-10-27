@@ -314,6 +314,7 @@ ArdiaEarlyShown *ShownForWindow(NSWindow *window) {
     [CATransaction setDisableActions:YES];
     [page removeFromSuperview];
     page.frame = s.pageRect;
+    page.hidden = NO;
     [s.cover addSubview:page];
     [CATransaction commit];
     s.tab = tab;

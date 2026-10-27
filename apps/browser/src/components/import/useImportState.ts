@@ -1,10 +1,9 @@
 import { useRef, useState } from "react";
 import { defaultTarget, emptyCounts, type ImportCounts } from "../../state/import/apply";
-import type { BrowserSource, DiaAutomationStatus, DiaTabsResult, ImportedExtension, ImportKind, Status, Step } from "./model";
+import type { BrowserSource, ImportedExtension, ImportKind, Status, Step } from "./model";
 
 export type ImportFailure = { kind: ImportKind; profiles: string[] };
 export type FoundExtensions = { profileId: string; list: ImportedExtension[]; opened: boolean };
-export type DiaStatus = DiaAutomationStatus | "checking" | "reading";
 
 export const NO_EXTENSIONS: FoundExtensions = { profileId: "", list: [], opened: false };
 
@@ -26,10 +25,6 @@ export function useImportState() {
   const [safariCookies, setSafariCookies] = useState(true);
   const [notes, setNotes] = useState<string[]>([]);
   const [extensions, setExtensions] = useState<FoundExtensions>(NO_EXTENSIONS);
-  const [diaStatus, setDiaStatus] = useState<DiaStatus>("checking");
-  const [dia, setDia] = useState<DiaTabsResult | null>(null);
-  const [asking, setAsking] = useState(false);
-  const diaLaunched = useRef(0);
   const abort = useRef<AbortController | null>(null);
   return {
     step,
@@ -66,13 +61,6 @@ export function useImportState() {
     setNotes,
     extensions,
     setExtensions,
-    diaStatus,
-    setDiaStatus,
-    dia,
-    setDia,
-    asking,
-    setAsking,
-    diaLaunched,
     abort,
   };
 }

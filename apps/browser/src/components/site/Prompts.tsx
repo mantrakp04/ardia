@@ -18,7 +18,7 @@ import { engineProfile } from "../../state/browser/model";
 import { Button, MenuRow, MenuSeparator, PANEL, PanelCloseButton, Popover, Symbol, Text, useHover } from "../ui";
 import { answerPermission, describePermission } from "../../state/site/permissions";
 import { hostOrOrigin } from "../../lib/url";
-import { CheckRow, IconTile } from "./PromptParts";
+import { CheckRow, IconTile, usePromptInputGuard } from "./PromptParts";
 import { useSiteTokens } from "./tokens";
 
 export function PromptBody({
@@ -60,16 +60,17 @@ export function PromptBody({
 
 export function PermissionPrompt({ tabId, left, top }: { tabId: string; left: number; top: number }) {
   const request = usePage(tabId, (p) => p.permission);
+  const guard = usePromptInputGuard(request?.id);
   if (!request) return null;
   const { icons, question } = describePermission(request);
   return (
     <Popover key={request.id} width={300} top={top} left={left} modal={false}>
       <View>
         <PromptBody icons={icons} title={question} message="Click the lock to change this any time">
-          <Button variant="pill" title="Don't Allow" onPress={() => answerPermission(tabId, request.id, "deny")} />
-          <Button variant="pill" title="Allow" primary onPress={() => answerPermission(tabId, request.id, "accept")} />
+          <Button variant="pill" title="Don't Allow" onPress={guard(() => answerPermission(tabId, request.id, "deny"))} />
+          <Button variant="pill" title="Allow" primary onPress={guard(() => answerPermission(tabId, request.id, "accept"))} />
         </PromptBody>
-        <PanelCloseButton onPress={() => answerPermission(tabId, request.id, "dismiss")} />
+        <PanelCloseButton onPress={guard(() => answerPermission(tabId, request.id, "dismiss"))} />
       </View>
     </Popover>
   );
@@ -159,15 +160,16 @@ export function PasswordPrompt({ tabId, right, top }: { tabId: string; right: nu
   const { well } = useSiteTokens();
   const prompt = usePage(tabId, (p) => p.passwordPrompt);
   const [chosen, setChosen] = useState<string | null>(null);
+  const guard = usePromptInputGuard(prompt ? `${prompt.origin}|${prompt.username}|${prompt.state}` : null);
   if (!prompt) return null;
   const site = hostOrOrigin(prompt.origin);
   const update = prompt.state === "update";
   const username = chosen ?? prompt.username;
-  const answer = (action: PasswordPromptAnswer) => {
+  const answer = guard((action: PasswordPromptAnswer) => {
     void webviews.get(tabId)?.resolvePasswordPrompt(action, action === "save" || action === "update" ? { username } : undefined);
     setChosen(null);
     patchPage(tabId, { passwordPrompt: null });
-  };
+  });
   const choices = update && prompt.usernames.length > 1 ? prompt.usernames : [];
   return (
     <Popover key={`${prompt.origin}|${prompt.username}|${prompt.state}`} width={update ? 310 : 350} top={top} right={right} modal={false}>
@@ -215,11 +217,12 @@ export function showAutofillPrompt(tabId: string, prompt: ChromeAutofillPrompt |
 export function AutofillPrompt({ tabId, right, top }: { tabId: string; right: number; top: number }) {
   const { well } = useSiteTokens();
   const prompt = usePage(tabId, (p) => p.autofillPrompt);
+  const guard = usePromptInputGuard(prompt?.id);
   if (!prompt) return null;
-  const answer = (action: AutofillPromptAnswer) => {
+  const answer = guard((action: AutofillPromptAnswer) => {
     void webviews.get(tabId)?.resolveAutofillPrompt(prompt.id, action);
     patchPage(tabId, { autofillPrompt: null });
-  };
+  });
   const changes = prompt.changes ?? [];
   const values = (key: "to" | "from") => changes.filter((c) => c[key]).map((c) => c[key]);
   const section = (lines: string[], label?: string) => (
@@ -272,11 +275,12 @@ export function AutofillPrompt({ tabId, right, top }: { tabId: string; right: nu
 export function ExternalAppPrompt({ tabId, left, top }: { tabId: string; left: number; top: number }) {
   const request = usePage(tabId, (p) => p.externalApp);
   const [always, setAlways] = useState(false);
+  const guard = usePromptInputGuard(request?.id);
   if (!request) return null;
-  const answer = (open: boolean) => {
+  const answer = guard((open: boolean) => {
     answerExternalApp(tabId, open, open && always);
     setAlways(false);
-  };
+  });
   return (
     <Popover key={request.id} width={340} top={top} left={left} modal={false}>
       <View>
@@ -286,7 +290,7 @@ export function ExternalAppPrompt({ tabId, left, top }: { tabId: string; left: n
           title={request.title}
           message={request.message}
           detail={
-            request.remember ? <CheckRow value={always} onChange={setAlways} label={request.remember} /> : undefined
+            request.remember ? <CheckRow value={always} onChange={guard(setAlways)} label={request.remember} /> : undefined
           }
         >
           {request.app ? (

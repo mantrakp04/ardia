@@ -32,6 +32,7 @@ import { syncFiles } from "./syncFiles";
 import { confirmThemes, settleAppliedThemes } from "./syncThemes";
 import { addLinkedProfile, linkedProfileId, linkProfiles, remoteProfileRecord, sharedDataChain } from "./profileLinks";
 import { summarize } from "./syncSummary";
+import { onAppEvent } from "../../platform/app";
 
 const CYCLE_MS = 15_000;
 const AFTER_EDIT_MS = 3_000;
@@ -60,7 +61,7 @@ let timer: ReturnType<typeof setTimeout> | undefined;
 let forcePasswords = false;
 const passwordAdapters = new Map<string, Adapter>();
 const extensionAdapters = new Map<string, ExtensionsAdapter>();
-const { read, loadState, persistJournal, clearJournal, save } = syncFiles(() => doc);
+const { read, loadState, persistJournal, watchScope, clearJournal, save, checkpoint } = syncFiles(() => doc);
 
 function load() {
   const loaded = read();
@@ -155,17 +156,22 @@ async function runCycle({ retiring = false } = {}) {
     const clock = new Clock(doc.deviceId, doc.clock);
     const device = doc.deviceId;
     const app = (doc.scopes[APP_SCOPE] ??= { ...emptyScope(), awaitRemote: doc.joining });
+    const appSettled = watchScope(APP_SCOPE, app, clock);
     settleAppliedThemes(doc.profiles, app);
     if (doc.types.settings && !retiring) app.unapplied = [...new Set([...app.unapplied, ...settingsToReapply(app.records)])];
-    await syncScope({
-      scope: APP_SCOPE,
-      state: app,
-      transport,
-      adapters: appAdapters(retiring),
-      clock,
-      device,
-      options: { persist: persistJournal(APP_SCOPE) },
-    });
+    try {
+      await syncScope({
+        scope: APP_SCOPE,
+        state: app,
+        transport,
+        adapters: appAdapters(retiring),
+        clock,
+        device,
+        options: { persist: persistJournal(APP_SCOPE) },
+      });
+    } finally {
+      await appSettled();
+    }
     if (app.joined) linkProfiles(doc, app);
     confirmThemes(doc.profiles, app);
     let pending = app.pending;
@@ -176,15 +182,20 @@ async function runCycle({ retiring = false } = {}) {
       if (!retire && !link.enabled) continue;
       const scope = `p:${link.syncId}`;
       const state = (doc.scopes[scope] ??= emptyScope());
-      await syncScope({
-        scope,
-        state,
-        transport,
-        adapters: profileAdapters(profileId, retire),
-        clock,
-        device,
-        options: { expired: historyExpired, persist: persistJournal(scope) },
-      });
+      const settled = watchScope(scope, state, clock);
+      try {
+        await syncScope({
+          scope,
+          state,
+          transport,
+          adapters: profileAdapters(profileId, retire),
+          clock,
+          device,
+          options: { expired: historyExpired, persist: persistJournal(scope) },
+        });
+      } finally {
+        await settled();
+      }
       pending += state.pending;
       if (!retire && doc.types.extensions && !s.profiles[profileId]?.dataId && extensionSyncAvailable()) await extensionsOf(profileId).reconcile(visible(state, "ext:"), Date.now());
       if (retire) {
@@ -237,7 +248,7 @@ async function resetFromElsewhere() {
   await SyncNative?.forget(doc.deviceId!);
   doc = { ...emptyDoc(), folder: doc.folder, types: doc.types };
   clearJournal();
-  save();
+  save({ stateNow: true });
   publishUi({ status: "reset", error: "This device is out of sync. Sync may have been reset from another device." });
 }
 
@@ -261,7 +272,7 @@ export async function chooseSyncFolder(): Promise<string | null> {
 function begin(folder: string, deviceId: string, joining: boolean) {
   doc = { ...emptyDoc(), types: doc.types, enabled: true, folder, deviceId, setupAt: Date.now(), joining };
   clearJournal();
-  save();
+  save({ stateNow: true });
   publishUi({ status: "starting", error: null });
   scheduleSync(0);
 }
@@ -321,7 +332,7 @@ export async function stopSync({ deleteData = false } = {}) {
   passwordAdapters.clear();
   extensionAdapters.clear();
   clearJournal();
-  save();
+  save({ stateNow: true });
   publishUi({ status: "off", error: null });
 }
 
@@ -371,6 +382,7 @@ export function startSync() {
       scheduleSync(500);
     });
   }
+  onAppEvent((e) => e.type === "willQuit" && checkpoint());
   useBrowser.subscribe((s, prev) => {
     if (!doc.enabled || running) return;
     if (s.bookmarks !== prev.bookmarks || s.settings !== prev.settings || s.profiles !== prev.profiles || s.groups !== prev.groups) scheduleSync();

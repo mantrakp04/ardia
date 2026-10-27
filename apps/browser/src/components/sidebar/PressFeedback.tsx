@@ -16,7 +16,9 @@ AccessibilityInfo.isReduceMotionEnabled().then(
 );
 AccessibilityInfo.addEventListener("reduceMotionChanged", (on) => (reduceMotion = on));
 
-export function PressFeedback({ pressed, style, children }: { pressed: boolean; style?: StyleProp<ViewStyle>; children: ReactNode }) {
+export type PressMotion = { opacity: Animated.AnimatedInterpolation<number>; transform: { scale: Animated.AnimatedInterpolation<number> }[] };
+
+export function usePressMotion(pressed: boolean): PressMotion | null {
   const progress = useRef<Animated.Value | null>(null);
   if (pressed && !progress.current) progress.current = new Animated.Value(0);
   const value = progress.current;
@@ -35,5 +37,10 @@ export function PressFeedback({ pressed, style, children }: { pressed: boolean; 
     animation.start();
     return () => animation.stop();
   }, [pressed, value]);
+  return motion;
+}
+
+export function PressFeedback({ pressed, style, children }: { pressed: boolean; style?: StyleProp<ViewStyle>; children: ReactNode }) {
+  const motion = usePressMotion(pressed);
   return <Animated.View style={[style, motion]}>{children}</Animated.View>;
 }

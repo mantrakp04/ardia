@@ -1,12 +1,14 @@
-import { Symbol, VisualEffect, WindowDragRegion, Button, font, useHover, weight } from "../ui";
+import { Symbol, VisualEffect, WindowDragRegion, Button, font, Toggle, useHover, weight } from "../ui";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useTheme } from "../ui/theme";
-import { useProfile } from "../../state/browser/hooks";
+import { useProfile, useSettings } from "../../state/browser/hooks";
+import { updateSettings } from "../../state/settings/actions";
 import { trackSettingsSection } from "../../state/telemetry/track";
 import { preparePane, usePaneLoaded } from "../../state/settings/paneData";
-import { anchorView, clearSettingsReveal, flashSetting, useSettingsSearch } from "../../state/settings/searchState";
-import { PANES, setting } from "./settingsIndex";
+import { anchorView, clearSettingsReveal, flashSetting, settingsSectionKey, useSettingsSearch } from "../../state/settings/searchState";
+import { ADVANCED_PANES, PANES, setting } from "./settingsIndex";
+import { SettingsPaneContext } from "./Form";
 import { SettingsSearchField, SettingsSearchResults } from "./SettingsSearch";
 import { AdvancedPane } from "./panes/Advanced";
 import { AppearancePane } from "./panes/Appearance";
@@ -82,6 +84,11 @@ export function SettingsWindow() {
   const query = useSettingsSearch((s) => s.query);
   const reveal = useSettingsSearch((s) => s.reveal);
   const revealPane = reveal ? setting(reveal.id).pane : null;
+  const showAdvanced = useSettings((s) => s.showAdvancedSettings);
+  const revealedSections = useSettingsSearch((s) => s.revealedSections);
+  const panes = PANES.filter(
+    (p) => showAdvanced || !ADVANCED_PANES.has(p.id) || nav.pane === p.id || revealedSections.some((k) => k.startsWith(settingsSectionKey(p.id, ""))),
+  );
   const switched = useRef(key);
   useEffect(() => {
     if (!reveal) return;
@@ -118,12 +125,13 @@ export function SettingsWindow() {
         {query.trim() ? (
           <SettingsSearchResults query={query} />
         ) : (
-          <ScrollView contentContainerStyle={{ paddingHorizontal: 10, paddingBottom: 12, gap: 1 }}>
-            {PANES.map((p) => (
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 10, paddingBottom: 12, gap: 1 }}>
+            {panes.map((p) => (
               <SidebarItem key={p.id} title={p.title} icon={p.icon} selected={nav.pane === p.id} onPress={() => goToSettingsPane(p.id, settingsProfileFor(p.id, nav))} />
             ))}
           </ScrollView>
         )}
+        <AdvancedToggle />
       </View>
       <View style={{ width: StyleSheet.hairlineWidth * 2, backgroundColor: look.sidebarDivider }} />
       <View style={{ flex: 1 }}>
@@ -140,7 +148,11 @@ export function SettingsWindow() {
           onLayout={(e) => void (viewport.current = e.nativeEvent.layout.height)}
           contentContainerStyle={{ alignItems: "center", paddingBottom: 40 }}>
           <View key={key} ref={content} collapsable={false} style={{ width: "100%", maxWidth: 600, paddingHorizontal: 24 }}>
-            {shown ? <Pane {...shown} /> : null}
+            {shown ? (
+              <SettingsPaneContext.Provider value={shown.pane}>
+                <Pane {...shown} />
+              </SettingsPaneContext.Provider>
+            ) : null}
           </View>
         </ScrollView>
       </View>
@@ -205,6 +217,17 @@ function SidebarItem({ title, icon, selected, onPress }: { title: string; icon: 
           <Text style={{ ...font.body, color: selected ? theme.onAccent : theme.textPrimary }}>{title}</Text>
         </View>
       </Pressable>
+    </View>
+  );
+}
+
+function AdvancedToggle() {
+  const theme = useTheme();
+  const shown = useSettings((s) => s.showAdvancedSettings);
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 18, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth * 2, borderTopColor: theme.divider }}>
+      <Text style={{ flex: 1, ...font.small, color: theme.textSecondary }}>Show advanced settings</Text>
+      <Toggle value={shown} onChange={(v) => updateSettings({ showAdvancedSettings: v })} />
     </View>
   );
 }

@@ -392,6 +392,8 @@ const top = (counter, n = 6) =>
     .map(([k, v]) => `${k} ${Math.round(v)}`)
     .join(", ");
 
+const harnessMs = (stats) => sum(Object.fromEntries(Object.entries(stats.timerMs ?? {}).filter(([k]) => k.includes("pollDevEval"))));
+
 function statLine(stats) {
   return {
     commits: stats.commits,
@@ -401,7 +403,7 @@ function statLine(stats) {
     storeUpdates: stats.storeUpdates?.browser ?? 0,
     listenerMs: sum(stats.listenerMs),
     listenerCalls: sum(stats.listenerCalls),
-    taskMs: sum(stats.taskMs),
+    taskMs: sum(stats.taskMs) - harnessMs(stats),
     tasks: sum(stats.tasks),
     writes: sum(stats.writes),
     writeKB: sum(stats.writeBytes) / 1024,

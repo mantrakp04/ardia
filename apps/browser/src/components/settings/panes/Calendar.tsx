@@ -5,8 +5,8 @@ import { ALERT_LEADS } from "../../../state/live/meetings";
 import { updateCalendarSettings, useLive } from "../../../state/live/store";
 import { useSettings } from "../../../state/browser/hooks";
 import { updateSettings } from "../../../state/settings/actions";
-import { Button, Checkbox, font, Group, PopUp, Toggle, weight } from "../../ui";
-import { Row, SectionHeader } from "../Form";
+import { Button, Checkbox, font, PopUp, Toggle, weight } from "../../ui";
+import { Group, Row, SectionHeader } from "../Form";
 
 export function CalendarPane() {
   const theme = useTheme();

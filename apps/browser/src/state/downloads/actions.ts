@@ -1,1 +1,1 @@
-export { cancelDownload, pauseDownload, resumeDownload, setDownloadSettings, type Download, type DownloadSettings } from "../../platform/downloads";
+export { cancelDownload, keepDownload, pauseDownload, resumeDownload, setDownloadSettings, type Download, type DownloadSettings } from "../../platform/downloads";

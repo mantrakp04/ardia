@@ -54,6 +54,7 @@ type NativeEvents = {
   onWindowClose: object;
   onCommand: PageCommand;
   onPageFocus: object;
+  onPagePress: object;
   onPageMessage: { kind: string; data: unknown };
   onReady: object;
   onPageLayout: { layout: PageLayout | null };
@@ -99,6 +100,7 @@ const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<
   onWindowClose: () => [],
   onCommand: (e) => [e],
   onPageFocus: () => [],
+  onPagePress: () => [],
   onPageMessage: (e) => [e.kind, e.data],
   onReady: () => [],
   onPageLayout: (e) => [e.layout],

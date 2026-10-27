@@ -1,6 +1,7 @@
 import { devCrash } from "../../platform/app";
 import { onboardingCompletedAt } from "../onboarding/onboarding";
-import { devState, flush, requestLog, setSharing, useTelemetry } from "./client";
+import { devState, flush, setSharing, useTelemetry } from "./client";
+import { requestLog } from "./requestLog";
 import { devDaily, sendDailyPing, startDaily } from "./daily";
 import { captureException, installErrorReporting, reportNativeCrashes } from "./errors";
 import { devJourneys, emitJourneys } from "./journeys";

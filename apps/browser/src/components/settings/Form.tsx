@@ -1,14 +1,51 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { Children, createContext, isValidElement, useContext, useEffect, useRef, type ReactNode } from "react";
 import { Animated, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
-import { registerAnchor, useSettingsSearch } from "../../state/settings/searchState";
+import { registerAnchor, settingsSectionKey, useSettingsSearch } from "../../state/settings/searchState";
+import { useSettings } from "../../state/browser/hooks";
+import type { SettingsPane } from "../../state/settings/settingsWindows";
 import { curve } from "../ui/motion";
-import { Row as PlainRow } from "../ui/Row";
+import { Group as PlainGroup, Row as PlainRow } from "../ui/Row";
 import { useTheme } from "../ui/theme";
 import { font, space, weight } from "../ui/tokens";
-import { setting } from "./settingsIndex";
+import { findSetting, sectionEntries, setting, type SettingEntry } from "./settingsIndex";
 import { settingsMotion } from "./tokens";
 
-export function Anchor({ id, children, radius = 0, style }: { id?: string; children: ReactNode; radius?: number; style?: StyleProp<ViewStyle> }) {
+export const SettingsPaneContext = createContext<SettingsPane | null>(null);
+
+export function useHiddenSetting() {
+  const shown = useSettings((s) => s.showAdvancedSettings);
+  const revealed = useSettingsSearch((s) => s.revealedSections);
+  return (entry: SettingEntry | undefined) => !!entry && entry.advanced && !shown && !revealed.includes(settingsSectionKey(entry.pane, entry.section));
+}
+
+function useHiddenSection(pane: SettingsPane | null | undefined, section: string | undefined) {
+  const hidden = useHiddenSetting();
+  if (!pane || !section) return false;
+  const entries = sectionEntries(pane, section);
+  return entries.length > 0 && entries.every(hidden);
+}
+
+export function Group({ children, style, of }: { children: ReactNode; style?: StyleProp<ViewStyle>; of?: string }) {
+  const hidden = useHiddenSetting();
+  if (of && hidden(findSetting(of))) return null;
+  const rows = Children.toArray(children).filter(
+    (child) => !(isValidElement<{ anchor?: unknown }>(child) && typeof child.props.anchor === "string" && hidden(findSetting(child.props.anchor))),
+  );
+  if (!rows.length) return null;
+  return <PlainGroup style={style}>{rows}</PlainGroup>;
+}
+
+export function Anchor({ id, children, radius = 0, style, keep }: { id?: string; children: ReactNode; radius?: number; style?: StyleProp<ViewStyle>; keep?: boolean }) {
+  const hidden = useHiddenSetting();
+  if (!keep && id && hidden(findSetting(id))) return null;
+  return (
+    <ShownAnchor id={id} radius={radius} style={style}>
+      {children}
+    </ShownAnchor>
+  );
+}
+
+function ShownAnchor({ id, children, radius, style }: { id?: string; children: ReactNode; radius: number; style?: StyleProp<ViewStyle> }) {
   const theme = useTheme();
   const ref = useRef<View>(null);
   const flash = useSettingsSearch((s) => (id && s.flash?.id === id ? s.flash.at : 0));
@@ -36,10 +73,12 @@ export function Anchor({ id, children, radius = 0, style }: { id?: string; child
 
 export function SectionHeader({ title, description, action, anchor }: { title?: string; description?: string; action?: ReactNode; anchor?: string }) {
   const theme = useTheme();
+  const pane = useContext(SettingsPaneContext);
   const entry = anchor ? setting(anchor) : undefined;
   const text = title ?? entry?.section ?? "";
+  if (useHiddenSection(entry?.pane ?? pane, entry?.section ?? title)) return null;
   return (
-    <Anchor id={anchor} radius={6} style={{ flexDirection: "row", alignItems: "flex-end", marginTop: 22, marginBottom: space.m, paddingHorizontal: space.xxs }}>
+    <Anchor id={anchor} keep radius={6} style={{ flexDirection: "row", alignItems: "flex-end", marginTop: 22, marginBottom: space.m, paddingHorizontal: space.xxs }}>
       <View style={{ flex: 1 }}>
         <Text style={{ ...font.body, fontWeight: weight.semibold, color: theme.textPrimary }}>{text}</Text>
         {description ? <Text style={{ ...font.small, marginTop: 3, color: theme.textSecondary, lineHeight: 16 }}>{description}</Text> : null}

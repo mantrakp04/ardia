@@ -6,23 +6,24 @@ import { useIsActiveTab, usePageProfileId, useTab, useWindow, useWindowId } from
 import { returnToPinnedUrl } from "../../state/pins/actions";
 import { useSplitRowKey } from "../../state/sidebar/hooks";
 import { HoverSlot } from "../ui/HoverSlot";
-import { ActivitySpinner, Button, ContextMenuArea, FadeLabel, font, ink, MouseArea, radius, Surface, Symbol, useHover } from "../ui";
+import { ActivitySpinner, Button, ContextMenuArea, FadeLabel, font, ink, MouseArea, OutsidePressArea, radius, Surface, Symbol, useHover } from "../ui";
 import { isPinnedRow } from "../../state/browser/model";
 import { awayFromPin } from "../../state/pins/organize";
 import { clickTab, commitRename, endRename, startRename, tabTitle } from "../../state/sidebar/actions";
 import { useDragItem, useDropOnto } from "./DragProvider";
 import { useShift, type EntryMotion } from "./EntryMotion";
 import { dismissHover, useRowHover } from "../../state/sidebar/hover";
-import { pressTabClose, useTabCloseControl } from "../../state/sidebar/closeControl";
+import { pressTabClose, useTabCloseControlWhile } from "../../state/sidebar/closeControl";
 import { middleClickTab } from "../../state/sidebar/clearTabs";
 import { openTabMenu } from "../../state/sidebar/menus";
-import { ACTIVE, LOADING, PLAYING, SELECTED, useRowState } from "../../state/sidebar/rowState";
+import { ACTIVE, ICON_MARKS, LOADING, PLAYING, SELECTED, useRowState } from "../../state/sidebar/rowState";
 import { registerRow, useSidebarUi } from "../../state/sidebar/sidebarUi";
-import { PressFeedback } from "./PressFeedback";
+import { PressFeedback, usePressMotion } from "./PressFeedback";
 import { TabIcon } from "./TabIcon";
 import { TabBadges } from "../media/TabBadges";
-import { SELECTED_ROW_SHADOW_OFFSET, useSelectedTabGlow, useSidebarTokens } from "./tokens";
-import { useShortcutHint, withShortcut } from "../../state/commands/commandShortcuts";
+import { SELECTED_ROW_SHADOW_OFFSET, useSidebarTokens } from "./tokens";
+import { useSelectedTabGlow, useSidebarRowLook } from "./rowLook";
+import { withShortcut } from "../../state/commands/commandShortcuts";
 import { modifiersOf } from "../../lib/keys";
 
 export const TabRowItem = memo(function TabRowItem({
@@ -57,10 +58,11 @@ export const TabRow = memo(function TabRow({ tabId, onto = false, shift = null }
   const loading = !!(flags & LOADING);
   const renaming = useSidebarUi((u) => u.renaming?.kind === "tab" && u.renaming.id === tabId);
   const { hovered, hoverProps } = useRowHover(windowId, renaming ? null : { kind: "tab", id: tabId });
-  const [moved, movedRef] = useShift(shift, useCallback((v: View | null) => registerRow(windowId, tabId, v), [windowId, tabId]));
+  const [pressed, setPressed] = useState(false);
+  const [moved, movedRef] = useShift(shift, useCallback((v: View | null) => registerRow(windowId, tabId, v), [windowId, tabId]), usePressMotion(pressed));
   const backToPin = useHover();
-  const closeControl = useTabCloseControl(tabId);
-  const backToPinHint = useShortcutHint("returnToPinnedUrl");
+  const closeControl = useTabCloseControlWhile(tabId, hovered && !renaming);
+  const { backToPinHint } = useSidebarRowLook();
   if (!tab) return null;
   const resettable = (isPinnedRow(tab) || !tab.pinned) && awayFromPin(tab);
   const resetting = resettable && backToPin.hovered && !renaming;
@@ -84,71 +86,70 @@ export const TabRow = memo(function TabRow({ tabId, onto = false, shift = null }
           }}
         >
           <Pressable
+            onPressIn={() => setPressed(true)}
+            onPressOut={() => setPressed(false)}
             onPress={(e) => {
               dismissHover();
               clickTab(windowId, tabId, modifiersOf(e));
             }}
           >
-            {({ pressed }) => (
-              <PressFeedback pressed={pressed}>
-                <Surface
-                  fill={hex(onto || (!active && pressed) ? theme.tabPressed : fill)}
-                  cornerRadius={radius.card}
-                  borderWidth={border}
-                  borderColor={selected && !active ? hex(tokens.multiSelectedStroke) : undefined}
-                  borderColors={active ? theme.tabSelectedBorder.map(hex) : undefined}
-                  shadowColor={active ? glow.shadowColor : undefined}
-                  shadowOpacity={active ? glow.shadowOpacity : 0}
-                  shadowRadius={glow.shadowRadius}
-                  shadowOffset={SELECTED_ROW_SHADOW_OFFSET}
-                  style={{ height: layout.rowHeight, flexDirection: "row", alignItems: "center", paddingLeft: 9 - border, paddingRight: 6 - border }}
-                >
-                  {resettable ? (
-                    <View {...backToPin.hoverProps}>
-                      <Pressable onPress={() => returnToPinnedUrl(tab.id)} tooltip={withShortcut("Back to Pinned URL", backToPinHint)}>
-                        {resetting ? (
-                          <View style={{ width: 16, height: 16, alignItems: "center", justifyContent: "center" }}>
-                            <Symbol name="arrow.uturn.backward" size={11} weight="semibold" color={active ? theme.tabSelectedText : theme.textTab} style={{ width: 16, height: 16 }} />
-                          </View>
-                        ) : (
-                          <View>
-                            <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} />
-                            <TabBadges tabId={tab.id} />
-                          </View>
-                        )}
-                      </Pressable>
-                    </View>
-                  ) : (
-                    <View>
-                      <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} />
-                      <TabBadges tabId={tab.id} />
-                    </View>
-                  )}
-                  {(playingAudio || tab.muted) && (
-                    <Pressable onPress={() => toggleMute(tab.id)} style={{ marginLeft: 6 }} tooltip={tab.muted ? "Unmute Site" : "Mute Site"}>
-                      <Symbol name={tab.muted ? "speaker.slash" : "speaker.wave.2"} size={12} color={theme.textTab} style={{ width: 18, height: 16 }} />
-                    </Pressable>
-                  )}
-                  {renaming ? (
-                    <RenameField
-                      initial={tab.customTitle ?? tab.title}
-                      placeholder={tab.title || "Tab name"}
-                      color={active ? theme.tabSelectedText : theme.textPrimary}
-                      onDone={(text) => (text === null ? endRename({ kind: "tab", id: tabId }) : commitRename({ kind: "tab", id: tabId }, text))}
-                    />
-                  ) : (
-                    <FadeLabel text={title} fontSize={font.body.fontSize} color={active ? theme.tabSelectedText : theme.textTab} style={{ flex: 1, height: 18, marginLeft: 5 }} />
-                  )}
-                  <HoverSlot
-                    hovered={hovered && !renaming}
-                    width={22}
-                    hover={<Button variant="icon" icon={closeControl.icon} size={10} weight="semibold" box={22} radius={radius.m} onPress={() => pressTabClose(tab.id)} tooltip={closeControl.tooltip} />}
-                  >
-                    {loading && <ActivitySpinner style={{ width: 12, height: 12, marginRight: 2 }} />}
-                  </HoverSlot>
-                </Surface>
-              </PressFeedback>
-            )}
+            <Surface
+              fill={hex(onto || (!active && pressed) ? theme.tabPressed : fill)}
+              cornerRadius={radius.card}
+              borderWidth={border}
+              borderColor={selected && !active ? hex(tokens.multiSelectedStroke) : undefined}
+              borderColors={active ? theme.tabSelectedBorder.map(hex) : undefined}
+              shadowColor={active ? glow.shadowColor : undefined}
+              shadowOpacity={active ? glow.shadowOpacity : 0}
+              shadowRadius={glow.shadowRadius}
+              shadowOffset={SELECTED_ROW_SHADOW_OFFSET}
+              style={{ height: layout.rowHeight, flexDirection: "row", alignItems: "center", paddingLeft: 9 - border, paddingRight: 6 - border }}
+            >
+              {resettable ? (
+                <View {...backToPin.hoverProps}>
+                  <Pressable onPress={() => returnToPinnedUrl(tab.id)} tooltip={withShortcut("Back to Pinned URL", backToPinHint)}>
+                    {resetting ? (
+                      <View style={{ width: 16, height: 16, alignItems: "center", justifyContent: "center" }}>
+                        <Symbol name="arrow.uturn.backward" size={11} weight="semibold" color={active ? theme.tabSelectedText : theme.textTab} style={{ width: 16, height: 16 }} />
+                      </View>
+                    ) : (
+                      <View>
+                        <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} marks={flags & ICON_MARKS} />
+                        <TabBadges tabId={tab.id} />
+                      </View>
+                    )}
+                  </Pressable>
+                </View>
+              ) : (
+                <View>
+                  <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} profileId={tab.profileId} marks={flags & ICON_MARKS} />
+                  <TabBadges tabId={tab.id} />
+                </View>
+              )}
+              {(playingAudio || tab.muted) && (
+                <Pressable onPress={() => toggleMute(tab.id)} style={{ marginLeft: 6 }} tooltip={tab.muted ? "Unmute Site" : "Mute Site"}>
+                  <Symbol name={tab.muted ? "speaker.slash" : "speaker.wave.2"} size={12} color={theme.textTab} style={{ width: 18, height: 16 }} />
+                </Pressable>
+              )}
+              {renaming ? (
+                <RenameField
+                  initial={tab.customTitle ?? tab.title}
+                  placeholder={tab.title || "Tab name"}
+                  color={active ? theme.tabSelectedText : theme.textPrimary}
+                  onDone={(text) => (text === null ? endRename({ kind: "tab", id: tabId }) : commitRename({ kind: "tab", id: tabId }, text))}
+                />
+              ) : (
+                <FadeLabel text={title} fontSize={font.body.fontSize} color={active ? theme.tabSelectedText : theme.textTab} style={{ flex: 1, height: 18, marginLeft: 5 }} />
+              )}
+              <HoverSlot
+                hovered={hovered && !renaming}
+                width={22}
+                reserve="hover"
+                hover={closeControl && <Button variant="icon" icon={closeControl.icon} size={10} weight="semibold" box={22} radius={radius.m} onPress={() => pressTabClose(tab.id)} tooltip={closeControl.tooltip} />}
+              >
+                {loading && <ActivitySpinner style={{ width: 12, height: 12, marginRight: 2 }} />}
+              </HoverSlot>
+            </Surface>
           </Pressable>
         </ContextMenuArea>
       </MouseArea>
@@ -185,21 +186,23 @@ export function RenameField({
     return () => clearTimeout(t);
   }, []);
   return (
-    <TextInput
-      ref={input}
-      value={text}
-      onChangeText={setText}
-      placeholder={placeholder}
-      placeholderTextColor={theme.placeholder}
-      selectionColor={theme.selection}
-      selectTextOnFocus
-      enableFocusRing={false}
-      onSubmitEditing={() => finish(text)}
-      onBlur={() => finish(text)}
-      keyDownEvents={[{ key: "Escape" }]}
-      onKeyDown={(e) => e.nativeEvent.key === "Escape" && finish(null)}
-      style={{ flex: 1, height: 18, marginLeft: 5, fontSize, fontWeight: weight, color, paddingVertical: 0, paddingHorizontal: 0 }}
-    />
+    <OutsidePressArea onOutsidePress={() => finish(text)} style={{ flex: 1, height: 18, marginLeft: 5 }}>
+      <TextInput
+        ref={input}
+        value={text}
+        onChangeText={setText}
+        placeholder={placeholder}
+        placeholderTextColor={theme.placeholder}
+        selectionColor={theme.selection}
+        selectTextOnFocus
+        enableFocusRing={false}
+        onSubmitEditing={() => finish(text)}
+        onBlur={() => finish(text)}
+        keyDownEvents={[{ key: "Escape" }]}
+        onKeyDown={(e) => e.nativeEvent.key === "Escape" && finish(null)}
+        style={{ flex: 1, fontSize, fontWeight: weight, color, paddingVertical: 0, paddingHorizontal: 0 }}
+      />
+    </OutsidePressArea>
   );
 }
 

@@ -594,8 +594,13 @@ async function launchRun(side, i) {
   try {
     await app.launch();
     const page = await app.pageState("id=seed", 30_000, (s) => s.fcp);
-    const content = app.marks().find((m) => m.content >= app.t0);
-    const committed = content && app.marks().find((m) => m.committed >= content.content && m.window === content.window);
+    const contentMarks = () => {
+      const marks = app.marks();
+      const content = marks.find((m) => m.content >= app.t0);
+      return { content, committed: content && marks.find((m) => m.committed >= content.content && m.window === content.window) };
+    };
+    let { content, committed } = contentMarks();
+    for (const end = Date.now() + 5000; !committed && Date.now() < end; await sleep(20)) ({ content, committed } = contentMarks());
     const r = {
       window: app.windowAt - app.t0,
       withContent: committed ? Math.max(app.windowAt, committed.committed) - app.t0 : NaN,

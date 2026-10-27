@@ -7,10 +7,10 @@ import { accentAlpha, importColors, importLayout, importMotion } from "../tokens
 import type { ImportFlow } from "../useImportFlow";
 
 export function ProgressBody({ flow }: { flow: ImportFlow }) {
-  const { status, isDiaTabs, source, preparing } = flow;
+  const { status, source, preparing } = flow;
   return (
     <>
-      <Title title={`Importing from ${isDiaTabs ? "Dia" : (source?.name ?? "file")}`} subtitle={preparing > 1 ? `Preparing ${preparing} profiles` : "Preparing your profile"} spinner />
+      <Title title={`Importing from ${source?.name ?? "file"}`} subtitle={preparing > 1 ? `Preparing ${preparing} profiles` : "Preparing your profile"} spinner />
       <Text size="small" tone="textSecondary" style={{ marginBottom: space.l }}>
         Hold on while we fetch your data...
       </Text>

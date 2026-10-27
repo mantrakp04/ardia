@@ -1,4 +1,4 @@
-import { DIA_SPECTRUM, PowerUp } from "../ui";
+import { DIA_SPECTRUM, Meadow, meadowTextStyle, PowerUp, type MeadowTone } from "../ui";
 import {
   playIntroMusic,
   setIntroMusicMuted,
@@ -7,6 +7,7 @@ import {
   introMusicMuted,
   saveIntroMusicMuted,
 } from "../../state/onboarding/onboarding";
+import { isWebDemo } from "../../state/onboarding/demoSteps";
 import { useEffect, useRef, useState } from "react";
 import { Animated, Image, StyleSheet, Text, View } from "react-native";
 import { useTheme } from "../ui/theme";
@@ -32,6 +33,7 @@ const CUES: IntroMusicCues = (() => {
 })();
 
 const ms = (s: number) => Math.round(s * 1000);
+const OPENING_TONE: Record<"day" | "night", MeadowTone> = { day: { tone: "light", halo: 0 }, night: { tone: "dark", halo: 0 } };
 
 export function Intro({ onDone }: { onDone: () => void }) {
   const colors = useOnboardingColors();
@@ -42,6 +44,8 @@ export function Intro({ onDone }: { onDone: () => void }) {
   const exit = useRef(new Animated.Value(0)).current;
   const done = useRef(false);
   const [muted, setMuted] = useState(introMusicMuted);
+  const [tone, setTone] = useState(() => OPENING_TONE[dark ? "night" : "day"]);
+  const ink = isWebDemo ? null : meadowTextStyle(tone);
 
   const finish = () => {
     if (done.current) return;
@@ -90,7 +94,11 @@ export function Intro({ onDone }: { onDone: () => void }) {
         },
       ]}
     >
-      <PowerUp palette={DIA_SPECTRUM} speed={0.8} origin={0.5} style={[StyleSheet.absoluteFill, { opacity: dark ? 0.9 : 0.6 }]} />
+      {isWebDemo ? (
+        <PowerUp palette={DIA_SPECTRUM} speed={0.8} origin={0.5} style={[StyleSheet.absoluteFill, { opacity: dark ? 0.9 : 0.6 }]} />
+      ) : (
+        <Meadow night={dark} onTone={setTone} style={StyleSheet.absoluteFill} />
+      )}
       <Animated.View
         style={{
           alignItems: "center",
@@ -113,6 +121,7 @@ export function Intro({ onDone }: { onDone: () => void }) {
               style={{
                 ...onboardingType.wordmark,
                 color: colors.title,
+                ...ink,
                 opacity: letters[i],
                 transform: [{ translateY: letters[i]!.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
               }}
@@ -122,7 +131,7 @@ export function Intro({ onDone }: { onDone: () => void }) {
           ))}
         </View>
         <Animated.View style={{ opacity: tagline, transform: [{ translateY: tagline.interpolate({ inputRange: [0, 1], outputRange: [6, 0] }) }] }}>
-          <Text style={{ ...onboardingType.tagline, color: colors.subtitle }}>Your new home on the internet</Text>
+          <Text style={{ ...onboardingType.tagline, color: colors.subtitle, ...ink }}>Your new home on the internet</Text>
         </Animated.View>
       </Animated.View>
       <View style={{ position: "absolute", left: 28, bottom: 28 }}>

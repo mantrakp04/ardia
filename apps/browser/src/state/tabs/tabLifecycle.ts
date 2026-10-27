@@ -6,22 +6,23 @@ import { create } from "zustand";
 import { isTabReady } from "./pageState";
 import { showToast } from "../splits/actions";
 import { hasUnsavedInput, keepAliveReason, shownTabIds } from "./tabKeepAlive";
-import { isInternalTab } from "../pages/urls";
 import { openSettings } from "../settings/settingsWindows";
 import { useBrowser, type BrowserState } from "../browser/store";
 import type { BatterySaverWhen } from "../settings/settings";
-import { engineProfile, isIncognitoProfile, wake } from "../browser/model";
-import { restoredLazily } from "./pageSession";
-import { holderOf } from "../pins/pinShare";
+import { engineProfile, isIncognitoProfile } from "../browser/model";
+import { reloadRecentTabs } from "./recentTabWarmup";
 import { switchOn } from "../../platform/killSwitches";
 import { applyHeldReports } from "../../platform/nativeEvents";
 import { everySlowly, reschedule } from "../../platform/slowTimers";
 import { webviews } from "../../platform/webviews";
 
 const POLICY = {
-  protectedRecent: 10,
-  idleMs: 30 * 60_000,
-  profileIdleMs: 10 * 60_000,
+  protectedRecent: 4,
+  recentIdleMs: 60 * 60_000,
+  idleMs: 20 * 60_000,
+  recentAwayMs: 4 * 60 * 60_000,
+  awayMs: 2 * 60 * 60_000,
+  profileIdleMs: 5 * 60_000,
   perSweep: 6,
   busyCpu: 10,
   freezeAfterMs: 60_000,
@@ -53,6 +54,7 @@ function setAppActive(active: boolean) {
 }
 
 const hiddenAt = new Map<string, number>();
+const hiddenSince = new Map<string, number>();
 const unusedSince = new Map<string, number>();
 const loadedProfiles = new Set<string>();
 const busyStreak = new Map<string, number>();
@@ -89,7 +91,10 @@ export function noteGone(tabId: string) {
 
 function forget(tabId: string, all: boolean) {
   busyStreak.delete(tabId);
-  if (all) hiddenAt.delete(tabId);
+  if (all) {
+    hiddenAt.delete(tabId);
+    hiddenSince.delete(tabId);
+  }
   const l = useLifecycle.getState();
   if (l.discarded[tabId]) useLifecycle.setState({ discarded: omit(l.discarded, tabId) });
 }
@@ -112,23 +117,25 @@ export async function sweep(overrides: Partial<typeof POLICY> = {}): Promise<str
     const s = store();
     const shown = shownTabIds(s);
     const now = activeClock();
+    const wallNow = Date.now();
     const pressure = currentSystem()?.memoryPressure ?? "normal";
-    const recent = new Set(
-      Object.values(s.tabs)
-        .filter((t) => t.url)
-        .sort((a, b) => b.lastActiveAt - a.lastActiveAt)
-        .slice(0, pressure === "critical" ? 0 : policy.protectedRecent)
-        .map((t) => t.id),
-    );
     const unused = unusedProfiles(s, now, policy.profileIdleMs);
-    const candidates = [...webviews.keys()].filter((id) => {
-      const tab = s.tabs[id];
-      if (!tab || shown.has(id) || useLifecycle.getState().discarded[id]) return false;
-      const idle = now - (hiddenAt.get(id) ?? now);
-      if (!unused.has(tab.profileId) && (recent.has(id) || (pressure === "normal" && idle < policy.idleMs))) return false;
-      return !keepAliveReason(s, id);
-    });
-    candidates.sort((a, b) => (hiddenAt.get(a) ?? now) - (hiddenAt.get(b) ?? now));
+    const hidden = loadedTabIds().filter((id) => s.tabs[id] && !shown.has(id));
+    const inUnusedProfile = (id: string) => unused.has(s.tabs[id]!.profileId);
+    const recent = new Set(
+      hidden
+        .filter((id) => s.tabs[id]!.url && !inUnusedProfile(id))
+        .sort((a, b) => s.tabs[b]!.lastActiveAt - s.tabs[a]!.lastActiveAt)
+        .slice(0, pressure === "critical" ? 0 : policy.protectedRecent),
+    );
+    const hiddenFor = (id: string) => now - (hiddenAt.get(id) ?? now);
+    const restedEnough = (id: string) => {
+      const away = wallNow - (hiddenSince.get(id) ?? wallNow);
+      if (recent.has(id)) return hiddenFor(id) >= policy.recentIdleMs || away >= policy.recentAwayMs;
+      return pressure !== "normal" || hiddenFor(id) >= policy.idleMs || away >= policy.awayMs;
+    };
+    const candidates = hidden.filter((id) => (inUnusedProfile(id) || restedEnough(id)) && !keepAliveReason(s, id));
+    candidates.sort((a, b) => Number(inUnusedProfile(b)) - Number(inUnusedProfile(a)) || hiddenFor(b) - hiddenFor(a));
     for (const id of candidates) {
       if (slept.length >= policy.perSweep) break;
       if (await sleepTab(id)) slept.push(id);
@@ -266,29 +273,6 @@ export async function freezeTab(id: string): Promise<boolean> {
   return true;
 }
 
-export function reloadRecentTabs(sys: SystemState) {
-  const gb = sys.physicalMemory / 2 ** 30;
-  const busy = sys.onBattery || sys.lowPowerMode || sys.memoryPressure !== "normal";
-  const count = busy ? 0 : gb >= 32 ? 4 : gb >= 16 ? 3 : gb >= 8 ? 1 : 0;
-  const s = store();
-  const shown = shownTabIds(s);
-  const since = Date.now() - 24 * 60 * 60_000;
-  const ids = Object.values(s.tabs)
-    .filter((t) => restoredLazily(t) && !shown.has(t.id) && !isInternalTab(t) && t.lastActiveAt >= since)
-    .filter((t) => s.windows[t.windowId]?.profileId === t.profileId)
-    .sort((a, b) => b.lastActiveAt - a.lastActiveAt)
-    .slice(0, count)
-    .map((t) => t.id);
-  ids.forEach((id, i) =>
-    setTimeout(() => {
-      const now = store();
-      const t = now.tabs[id];
-      if (t && restoredLazily(t) && !holderOf(now, id)) now.updateTab(id, wake(t));
-    }, 2000 * (i + 1)),
-  );
-  return ids;
-}
-
 let started = false;
 
 export function startTabLifecycle() {
@@ -302,12 +286,18 @@ export function startTabLifecycle() {
   const track = (s: BrowserState) => {
     const shown = shownTabIds(s);
     const now = activeClock();
-    for (const id of lastShown) if (!shown.has(id)) hiddenAt.set(id, now);
+    const wallNow = Date.now();
+    const hide = (id: string) => {
+      hiddenAt.set(id, now);
+      hiddenSince.set(id, wallNow);
+    };
+    for (const id of lastShown) if (!shown.has(id)) hide(id);
     for (const id of shown) {
       hiddenAt.delete(id);
+      hiddenSince.delete(id);
       busyStreak.delete(id);
     }
-    for (const id of webviews.keys()) if (!shown.has(id) && !hiddenAt.has(id)) hiddenAt.set(id, now);
+    for (const id of webviews.keys()) if (!shown.has(id) && !hiddenAt.has(id)) hide(id);
     lastShown = shown;
   };
   track(store());
@@ -366,11 +356,12 @@ export function startTabLifecycle() {
         appActive,
         activeClock: activeClock(),
         hiddenAt: Object.fromEntries(hiddenAt),
+        hiddenSince: Object.fromEntries(hiddenSince),
         loadedProfiles: [...loadedProfiles],
         loaded: loadedTabIds(),
         chromeSaver,
       }),
-      keepAliveReason: (id: string) => keepAliveReason(store(), id),
+      keepAliveReason: async (id: string) => keepAliveReason(store(), id) ?? ((await hasUnsavedInput(webviews.get(id)!).catch(() => null)) ? "unsaved input" : null),
       memory: () =>
         listTasks()
           .catch((): EngineTask[] => [])

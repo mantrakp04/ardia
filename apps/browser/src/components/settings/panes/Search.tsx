@@ -1,5 +1,5 @@
 import { engineHost, type SearchEngine } from "@ardia/core";
-import { Symbol, Button, font, Group, Sheet, TextField, Toggle, weight } from "../../ui";
+import { Symbol, Button, font, Sheet, TextField, Toggle, weight } from "../../ui";
 import { useState } from "react";
 import { Text, View } from "react-native";
 import { useTheme } from "../../ui/theme";
@@ -10,7 +10,7 @@ import { engineProfile } from "../../../state/browser/model";
 import { controllingSearchExtension, defaultSearchEngine, searchEngines } from "../../../state/settings/settings";
 import { extensionsProfileId, setEnabled } from "../../../state/extensions/actions";
 import { Favicon } from "../../favicon/Favicon";
-import { Row, SectionHeader } from "../Form";
+import { Group, Row, SectionHeader } from "../Form";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { openSettings } from "../../../state/settings/settingsWindows";
 
@@ -54,7 +54,7 @@ export function SearchPane() {
         description="Type a shortcut and press Tab in the command bar to search a site directly."
         action={<Button title="Add…" icon="plus" onPress={() => showSettingsSheet(<EngineSheet />)} />}
       />
-      <Group>
+      <Group of="search.otherEngines">
         {custom.length === 0 ? (
           <Row title="No custom search engines" description="Add one with a URL where %s stands for the search terms." />
         ) : (

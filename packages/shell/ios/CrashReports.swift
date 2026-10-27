@@ -46,10 +46,8 @@ enum CrashReports {
       isThisExecutable(procPath: procPath, sliceUUID: header["slice_uuid"] as? String, executable: executable)
     else { return nil }
     let exception = body["exception"] as? [String: Any] ?? [:]
-    let images = (body["usedImages"] as? [[String: Any]] ?? []).map { image -> String in
-      if let name = image["name"] as? String, !name.isEmpty { return name }
-      return (image["path"] as? String).map { URL(fileURLWithPath: $0).lastPathComponent } ?? "???"
-    }
+    let usedImages = body["usedImages"] as? [[String: Any]] ?? []
+    let images = usedImages.map(imageName)
     let threads = body["threads"] as? [[String: Any]] ?? []
     let faulting = body["faultingThread"] as? Int ?? threads.firstIndex { $0["triggered"] as? Bool == true } ?? 0
     let frames = threads.indices.contains(faulting) ? threads[faulting]["frames"] as? [[String: Any]] ?? [] : []
@@ -58,6 +56,7 @@ enum CrashReports {
         let index = frame["imageIndex"] as? Int ?? -1
         var out: [String: Any] = ["image": images.indices.contains(index) ? images[index] : "???"]
         if let symbol = frame["symbol"] as? String { out["symbol"] = symbol }
+        if let distance = frame["symbolLocation"] as? Int { out["symbolOffset"] = distance }
         if let offset = frame["imageOffset"] as? Int { out["offset"] = offset }
         return out
       }
@@ -66,7 +65,14 @@ enum CrashReports {
     if let thrown = body["lastExceptionBacktrace"] as? [[String: Any]], !thrown.isEmpty {
       report["exceptionFrames"] = simplified(thrown)
     }
-    if let name = exceptionName(body) { report["exceptionName"] = name }
+    let appImages = bundledImages(usedImages, procPath: procPath)
+    if !appImages.isEmpty { report["images"] = appImages }
+    let thrown = thrownException(body)
+    if let name = thrown.name { report["exceptionName"] = name }
+    if let reason = thrown.reason { report["exceptionReason"] = reason }
+    if let subtype = exception["subtype"] as? String, let kind = subtype.split(separator: " ").first {
+      report["exceptionSubtype"] = String(kind)
+    }
     for (key, value) in [
       ("incidentId", header["incident_id"]), ("appVersion", header["app_version"]), ("build", header["build_version"]),
       ("exceptionType", exception["type"]), ("signal", exception["signal"]),
@@ -76,24 +82,55 @@ enum CrashReports {
     return report
   }
 
-  private static func exceptionName(_ body: [String: Any]) -> String? {
+  private static func imageName(_ image: [String: Any]) -> String {
+    if let name = image["name"] as? String, !name.isEmpty { return name }
+    return (image["path"] as? String).map { URL(fileURLWithPath: $0).lastPathComponent } ?? "???"
+  }
+
+  private static func bundledImages(_ images: [[String: Any]], procPath: String) -> [[String: String]] {
+    guard let contents = procPath.range(of: ".app/Contents/", options: .backwards) else { return [] }
+    let app = procPath[..<contents.lowerBound].split(separator: "/").last.map(String.init) ?? ""
+    guard !app.isEmpty else { return [] }
+    let bundle = "/\(app).app/Contents/"
+    var seen = Set<String>()
+    return images.compactMap { image -> [String: String]? in
+      guard let path = image["path"] as? String, path.contains(bundle),
+        let uuid = image["uuid"] as? String, seen.insert(uuid.lowercased()).inserted else { return nil }
+      return ["name": imageName(image), "uuid": uuid.lowercased()]
+    }.prefix(24).map { $0 }
+  }
+
+  private static func thrownException(_ body: [String: Any]) -> (name: String?, reason: String?) {
     let valid = try! NSRegularExpression(pattern: "^[A-Z][A-Za-z0-9_]{2,63}$")
     func checked(_ full: String) -> String? {
       let name = String(full.prefix { $0 != ":" })
       return valid.firstMatch(in: name, range: NSRange(name.startIndex..., in: name)) == nil ? nil : name
     }
-    if let reason = body["exceptionReason"] as? [String: Any], let name = reason["name"] as? String {
-      return checked(name)
+    func firstLine(_ reason: String?) -> String? {
+      guard let line = reason?.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false).first, !line.isEmpty else {
+        return nil
+      }
+      return String(line)
     }
-    let uncaught = try! NSRegularExpression(pattern: "uncaught exception '([^']{1,64})'")
+    if let details = body["exceptionReason"] as? [String: Any], let name = details["name"] as? String {
+      return (checked(name), firstLine(details["composed_message"] as? String ?? details["format_string"] as? String))
+    }
+    let uncaught = try! NSRegularExpression(
+      pattern: "uncaught exception '(.{1,2000}?)', reason: '(.*)'\\s*$", options: [.dotMatchesLineSeparators])
+    let named = try! NSRegularExpression(pattern: "uncaught exception '([^']{1,64})'")
     for case let lines as [String] in (body["asi"] as? [String: Any] ?? [:]).values {
       for line in lines {
-        guard let match = uncaught.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
-          let range = Range(match.range(at: 1), in: line) else { continue }
-        return checked(String(line[range]))
+        let whole = NSRange(line.startIndex..., in: line)
+        if let match = uncaught.firstMatch(in: line, range: whole),
+          let name = Range(match.range(at: 1), in: line), let reason = Range(match.range(at: 2), in: line) {
+          return (checked(String(line[name])), firstLine(String(line[reason])))
+        }
+        if let match = named.firstMatch(in: line, range: whole), let name = Range(match.range(at: 1), in: line) {
+          return (checked(String(line[name])), nil)
+        }
       }
     }
-    return nil
+    return (nil, nil)
   }
 
   #if DEBUG

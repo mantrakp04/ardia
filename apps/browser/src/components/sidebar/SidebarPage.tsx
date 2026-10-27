@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Animated, ScrollView, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { switchOn } from "../../state/app/switches";
 import { ContextMenuArea, WindowDragRegion } from "../ui";
@@ -30,16 +30,15 @@ type PageProps = {
   width: number;
   current: boolean;
   resting: boolean;
-  docked: boolean;
+  dockAbove: number;
   height: number;
   rows: number | undefined;
   geometry: RefObject<SidebarGeometry> | undefined;
-  onListHeight: (profileId: string, height: number) => void;
   onScrollView: (view: ScrollView | null) => void;
   onScrollY: (y: number) => void;
 };
 
-export function SidebarPage({ profileId, slot, width, current, resting, docked, height, rows, geometry, onListHeight, onScrollView, onScrollY }: PageProps) {
+export const SidebarPage = memo(function SidebarPage({ profileId, slot, width, current, resting, dockAbove, height, rows, geometry, onScrollView, onScrollY }: PageProps) {
   const windowId = useWindowId();
   const topGap = listTopGap(useAddressBarInSidebar());
   const pageStyle = usePageStyle(windowId, slot, width);
@@ -86,9 +85,16 @@ export function SidebarPage({ profileId, slot, width, current, resting, docked, 
     }),
   );
   const edge = useMemo(() => scrollY.interpolate({ inputRange: [0, 1], outputRange: [0, GLOW_ROOM], extrapolate: "clamp" }), [scrollY]);
+  const unedge = useMemo(() => Animated.multiply(edge, -1), [edge]);
   const fixed = useRef<{ height: number; list: number | null }>({ height: 0, list: null });
+  const listHeight = useRef(0);
+  const [, setDockChanges] = useState(0);
+  const docked = listHeight.current > dockAbove;
   const report = () => {
-    if (!resting && fixed.current.list !== null) onListHeight(profileId, fixed.current.height + fixed.current.list + playerHeight);
+    if (resting || fixed.current.list === null) return;
+    const before = listHeight.current > dockAbove;
+    listHeight.current = fixed.current.height + fixed.current.list + playerHeight;
+    if (listHeight.current > dockAbove !== before) setDockChanges((n) => n + 1);
   };
   const reportList = (list: number) => {
     fixed.current.list = list;
@@ -120,7 +126,7 @@ export function SidebarPage({ profileId, slot, width, current, resting, docked, 
                     <ScrollEdgeLine opacity={scrollEdge.opacity} />
                   </View>
                   <Animated.View style={{ flex: 1, marginTop: -GLOW_ROOM, overflow: "hidden", transform: [{ translateY: edge }] }}>
-                    <Animated.View style={{ flex: 1, transform: [{ translateY: Animated.multiply(edge, -1) }] }}>
+                    <Animated.View style={{ flex: 1, transform: [{ translateY: unedge }] }}>
                       <Animated.ScrollView
                         ref={current ? onScrollView : undefined}
                         onLayout={
@@ -175,7 +181,7 @@ export function SidebarPage({ profileId, slot, width, current, resting, docked, 
       </PageProfileContext.Provider>
     </Animated.View>
   );
-}
+});
 
 function TilesPlacement({ controller, fixed, room, children }: { controller: ReturnType<typeof useDragController>; fixed: boolean; room: number; children: ReactNode }) {
   if (controller) {

@@ -328,6 +328,7 @@ const fakeModules = {
     cancel: ({ id }) => (cancelledDownloads.push(id as string), null),
     pause: () => null,
     resume: () => null,
+    keep: () => null,
     settings: passing("ac_downloads_settings"),
     setSettings: passing("ac_downloads_set_settings"),
   }),

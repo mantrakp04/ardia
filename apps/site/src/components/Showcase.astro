@@ -4,7 +4,8 @@ import DownloadButton from "./DownloadButton.astro";
 import Plate from "./Plate.astro";
 import windowShot from "../assets/shots/window.webp";
 
-const demoSrc = `${import.meta.env.DEV ? (import.meta.env.PUBLIC_DEMO_URL ?? "http://127.0.0.1:5191/") : `${import.meta.env.BASE_URL.replace(/\/?$/, "/")}demo/`}?embed`;
+const fullPage = /\/try\/?$/.test(Astro.url.pathname);
+const demoSrc = `${import.meta.env.DEV ? (import.meta.env.PUBLIC_DEMO_URL ?? "http://127.0.0.1:5191/") : `${import.meta.env.BASE_URL.replace(/\/?$/, "/")}demo/`}?embed${fullPage ? "&warm" : ""}`;
 ---
 
 <section class="showcase" id="demo" aria-label="The app" data-shot="office">
@@ -230,8 +231,12 @@ const demoSrc = `${import.meta.env.DEV ? (import.meta.env.PUBLIC_DEMO_URL ?? "ht
   .demo-controls[hidden] {
     display: none;
   }
+  :global(.js) .demo-controls[hidden] {
+    display: flex;
+    visibility: hidden;
+  }
   @media (prefers-reduced-motion: no-preference) {
-    .demo-controls {
+    .demo-controls:not([hidden]) {
       animation: band-in 600ms var(--ease-out) both;
     }
   }

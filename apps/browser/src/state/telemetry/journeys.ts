@@ -234,8 +234,9 @@ function sendLaunch(l: Launch, content: number | null, paints: number[]) {
   const s = useBrowser.getState();
   let history = 0;
   for (const list of Object.values(s.history)) history += list.length;
-  const { bootTime } = appInfo();
+  const { bootTime, appBuild, updatePrewarm } = appInfo();
   const { lastLaunchAt, lastQuitAt, firstOfVersion } = previousLaunch;
+  const prewarm = firstOfVersion && updatePrewarm?.build === appBuild ? updatePrewarm : null;
   const ms = (at: number | null | undefined) => (at == null || !(at - l.t0 >= 0 && at - l.t0 < 10 * MINUTE) ? null : Math.round(at - l.t0));
   capture("perf_launch", {
     launch_ms: ms(l.firstWindow),
@@ -246,11 +247,13 @@ function sendLaunch(l: Launch, content: number | null, paints: number[]) {
     tab_request_ms: ms(tab ? mark(tab, "request", l.t0) : null),
     tab_commit_ms: ms(tab ? mark(tab, "commit", l.t0) : null),
     tab_paint_ms: ms(paint),
-    tabs: bucket(l.tabs, [[0, "0"], [1, "1"], [5, "2-5"], [20, "6-20"], [50, "21-50"], [100, "51-100"], [200, "101-200"]], "200+"),
+    tabs: l.tabs,
     windows: Math.min(l.windows, 10),
     history: bucket(history, [[0, "0"], [99, "<100"], [999, "<1k"], [4999, "<5k"], [19_999, "<20k"]], "20k+"),
     cold: bootTime && lastLaunchAt ? lastLaunchAt < bootTime : null,
     first_of_version: firstOfVersion,
+    update_prewarm: firstOfVersion ? (prewarm ? (prewarm.status === 0 ? "done" : "failed") : "none") : null,
+    update_prewarm_ago: prewarm?.at ? ago(l.t0 - prewarm.at) : null,
     since_quit: lastQuitAt && (!lastLaunchAt || lastQuitAt >= lastLaunchAt) ? ago(l.t0 - lastQuitAt) : lastLaunchAt ? "unclean" : "unknown",
     since_boot: bootTime ? bucket(l.t0 - bootTime, [[2 * MINUTE, "<2m"], [10 * MINUTE, "<10m"], [HOUR, "<1h"], [DAY, "<1d"]], "1d+") : "unknown",
   });
