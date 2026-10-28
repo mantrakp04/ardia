@@ -66,6 +66,43 @@ test("closing the sidebar player hands it to the next tab", async () => {
   for (const id of [b, c]) webviews.delete(id);
 });
 
+test("leaving a tab gives it the sidebar player only if it is playing then", async () => {
+  S().hydrate({});
+  const w = S().createWindow({ url: "a.com" });
+  const [a] = S().windows[w].tabIds;
+  const b = S().newTab(w, { url: "b.com" });
+  const pick = () => media.playerTabFor(M(), [a, b]);
+
+  media.setNowPlaying(b, report());
+  media.setNowPlaying(b, report({ playbackState: "paused" }));
+  S().activate(a);
+  assert.equal(pick(), undefined, "paused before leaving");
+
+  media.setNowPlaying(b, report());
+  assert.equal(pick(), b, "playing again in the background");
+  media.setNowPlaying(b, report({ playbackState: "paused" }));
+  assert.equal(pick(), b, "paused from the player keeps it");
+
+  S().activate(b);
+  media.setNowPlaying(b, report());
+  S().activate(a);
+  assert.equal(pick(), b, "playing when left");
+});
+
+test("a pause the page reports just after you leave the tab gives it no sidebar player", async () => {
+  S().hydrate({});
+  const w = S().createWindow({ url: "a.com" });
+  const [a] = S().windows[w].tabIds;
+  const b = S().newTab(w, { url: "b.com" });
+  const pick = () => media.playerTabFor(M(), [a, b]);
+
+  media.setNowPlaying(b, report());
+  S().activate(a);
+  assert.equal(pick(), b, "playing when left");
+  media.setNowPlaying(b, report({ playbackState: "paused" }));
+  assert.equal(pick(), undefined, "the pause was on its way when the tab was left");
+});
+
 test("media that never played with sound gets no sidebar player until it does", async () => {
   S().hydrate({});
   const w = S().createWindow({ url: "a.com" });
