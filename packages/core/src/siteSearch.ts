@@ -79,7 +79,11 @@ function engineScope(e: SearchEngine): SearchScope {
 }
 
 export function scopedSearchUrl(scope: SearchScope, query: string, defaultEngine: Pick<SearchEngine, "url">, from = ""): string {
-  if (!query.trim()) return fixupUrl(from) ?? `https://${scope.host}`;
+  if (!query.trim()) {
+    const address = from.trim();
+    const scopedAddress = scope.kind !== "engine" && hostOf(`https://${address}`) === scope.host;
+    return fixupUrl(address) ?? `https://${scopedAddress ? address : scope.host}`;
+  }
   if (scope.kind === "history") return searchUrl(defaultEngine, `site:${scope.host} ${query.trim()}`);
   return searchUrlFor(scope.url, query);
 }

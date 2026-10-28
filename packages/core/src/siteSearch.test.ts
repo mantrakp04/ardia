@@ -27,6 +27,22 @@ test("an empty history scope opens its site instead of searching for the site fi
   assert.equal(scopedSearchUrl(scope, "", BUILT_IN_ENGINES[0]!), "https://example.org");
 });
 
+test("an empty history search preserves paths on an unrecognized domain suffix", () => {
+  const scope = offeredSiteSearch("foo.zzzz/x", "", { ...sources, hosts: ["foo.zzzz"] })!;
+  assert.equal(scope.kind, "history");
+  assert.equal(scopedSearchUrl(scope, "", BUILT_IN_ENGINES[0]!, "foo.zzzz/x "), "https://foo.zzzz/x");
+});
+
+test("an empty site keyword search opens the site's host", () => {
+  const scope = offeredSiteSearch("github", "", sources)!;
+  assert.equal(scopedSearchUrl(scope, "", BUILT_IN_ENGINES[0]!, "github "), "https://github.com");
+});
+
+test("an empty custom engine search does not turn an unrecognized keyword into an address", () => {
+  const scope: SearchScope = { kind: "engine", name: "Example", host: "example.com", url: "https://example.com/search?q=%s" };
+  assert.equal(scopedSearchUrl(scope, "", BUILT_IN_ENGINES[0]!, "foo.zzzz/x "), "https://example.com");
+});
+
 test("a nonempty site search still searches the chosen site", () => {
   const scope = offeredSiteSearch("github.com", "", sources)!;
   assert.equal(scopedSearchUrl(scope, "  ardia browser  ", BUILT_IN_ENGINES[0]!, "github.com/ardia"), "https://github.com/search?q=ardia%20browser");
