@@ -41,7 +41,15 @@ export async function request<T>(url: string, init: RequestInit = {}): Promise<T
   return (await res.json()) as T;
 }
 
-export const siteUrl = (site: string) => site.trim().replace(/\/+$/, "").replace(/^(?!https?:\/\/)/, "https://");
+export const siteUrl = (site: string) => site.trim().replace(/\/+$/, "").replace(/^(?!https?:\/\/)/i, "https://");
+
+const LOOPBACK = /^http:\/\/(localhost|127(\.\d{1,3}){3}|\[::1\])(:\d+)?(\/|$)/i;
+
+export function httpsSiteUrl(site: string): string {
+  const base = siteUrl(site);
+  if (/^http:\/\//i.test(base) && !LOOPBACK.test(base)) throw new LiveError("notConfigured", "Ardia sends tokens only over HTTPS. Use the server's https:// address");
+  return base;
+}
 
 export const form = (fields: Record<string, string>) =>
   Object.entries(fields)

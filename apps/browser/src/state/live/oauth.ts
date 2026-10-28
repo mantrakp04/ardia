@@ -2,7 +2,7 @@ import { base64Url, sha256 } from "../../lib/sha256";
 import { secureRandomHex } from "../../platform/secureRandom";
 import { useBrowser } from "../browser/store";
 import { GITEA_SCOPES } from "./gitea";
-import { endpoints, form, siteUrl } from "./net";
+import { endpoints, form, httpsSiteUrl } from "./net";
 import { connectGitea, connectGoogle, giteaTokens } from "./sources";
 
 export const OAUTH_REDIRECT = "http://127.0.0.1:53682/ardia-oauth";
@@ -65,7 +65,7 @@ export async function connectGoogleDrive(windowId: string, clientId: string, cli
 }
 
 export async function signInGitea(windowId: string, site: string, clientId: string): Promise<void> {
-  const base = siteUrl(site);
+  const base = httpsSiteUrl(site);
   const id = clientId.trim();
   const verifier = secureRandomHex(64);
   const state = secureRandomHex(32);

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { giteaCompletion, giteaLink, giteaRefs, giteaReview, mapGitea } from "./gitea.ts";
+import { httpsSiteUrl } from "./net.ts";
 
 const fixture = JSON.parse(readFileSync(new URL("./fixtures/gitea.json", import.meta.url), "utf8"));
 const SITE = "https://gitea.example.com";
@@ -108,4 +109,13 @@ test("a pull request that leaves the folder completes as merged, closed or revie
   assert.equal(giteaCompletion({ state: "open", merged: false }, "review"), "reviewed");
   assert.equal(giteaCompletion({ state: "open", merged: false }, "team"), "reviewed");
   assert.equal(giteaCompletion({ state: "open", merged: false }, "authored"), null);
+});
+
+test("a Gitea server gets tokens only over HTTPS, or over plain HTTP on this Mac", () => {
+  assert.equal(httpsSiteUrl(" git.example.com/ "), "https://git.example.com");
+  assert.equal(httpsSiteUrl("https://example.com/git/"), "https://example.com/git");
+  for (const site of ["http://localhost:3000", "http://127.0.0.1:3000/gitea", "http://[::1]:3000", "http://LOCALHOST"]) assert.equal(httpsSiteUrl(site), site.replace(/\/$/, ""));
+  for (const site of ["http://git.example.com", "HTTP://git.example.com", "http://192.168.1.10:3000", "http://localhost.example.com", "http://127.0.0.1.example.com", "http://localhost@example.com"]) {
+    assert.throws(() => httpsSiteUrl(site), { kind: "notConfigured" }, site);
+  }
 });

@@ -1,7 +1,7 @@
 import { CONFLUENCE_CQL, DRIVE_QUERY, mapBitbucket, mapConfluence, mapDrive, mapNotion, NOTION_SEARCH_BODY, type BitbucketPR, type BitbucketStatuses, type ConfluenceSearch, type DriveFiles, type NotionSearch, type NotionUsers } from "./documents";
 import { GITEA_DEFAULT_SITE, GITEA_SEARCH, giteaCompletion, giteaRefs, mapGitea, type GiteaCombinedStatus, type GiteaDetails, type GiteaIssue, type GiteaPull, type GiteaPullRef, type GiteaReview } from "./gitea";
 import { DETAILS_PAGE, detailIds, detailNodes, GITHUB_DETAILS_QUERY, GITHUB_QUERY, GITHUB_STATE_QUERY, GITHUB_VARIABLES, mapGithub, VIEWER_QUERY, withDetails, type DetailsResponse, type GithubResponse } from "./github";
-import { basic, deleteSecret, endpoints, form, getSecret, request, setSecret, siteUrl } from "./net";
+import { basic, deleteSecret, endpoints, form, getSecret, httpsSiteUrl, request, setSecret, siteUrl } from "./net";
 import { live, setAccount, updateConfig } from "./store";
 import { LiveError, type CompletionState, type LiveAccount, type LiveFolder, type LiveItem, type LiveSourceId } from "./types";
 import { symbolIcon } from "../../lib/customIcon";
@@ -326,7 +326,7 @@ export async function startGithubDeviceFlow(clientId: string): Promise<DeviceFlo
 }
 
 export async function connectGitea(site: string, credentials: GiteaCredentials) {
-  const base = siteUrl(site);
+  const base = httpsSiteUrl(site);
   const token = "token" in credentials ? credentials.token : credentials.access;
   const get = <T>(path: string) => giteaGet<T>(base, token, path);
   const [me] = await Promise.all([
