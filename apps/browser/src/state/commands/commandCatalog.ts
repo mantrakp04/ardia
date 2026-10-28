@@ -140,6 +140,7 @@ export const COMMANDS: Readonly<Record<BrowserCommand, CommandSpec>> = {
   },
   openFile: { title: "Open File…", keys: ["⌘O"] },
   savePage: { title: "Save Page As…", ...pageInLittleArdia },
+  installApp: { title: "Install Page as App…", barTitle: "Install Page as App", symbol: "plus.app", ...pageInLittleArdia },
   emailPageLocation: { title: "Email Page Location", keys: ["⇧⌘I"], ...pageInLittleArdia },
   printWithSystemDialog: { title: "Print Using System Dialog…", keys: ["⌥⌘P"], ...pageInLittleArdia },
   stop: { title: "Stop", keys: ["⌘."], ...pageInLittleArdia },

@@ -54,6 +54,9 @@ export function startDevHarness() {
     get toasts(): typeof import("../../state/splits/actions").useToasts {
       return require("../../state/splits/actions").useToasts;
     },
+    get webApps(): typeof import("../../state/webApps/webApps") {
+      return require("../../state/webApps/webApps");
+    },
     get extensions(): typeof import("../../state/extensions/actions") {
       return require("../../state/extensions/actions");
     },

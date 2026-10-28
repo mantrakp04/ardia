@@ -27,6 +27,7 @@ export type SystemNative = {
   setLaunchAtLogin(enabled: boolean): Promise<void>;
   fileExists(path: string): boolean;
   openFile(path: string): Promise<boolean>;
+  installWebApp(name: string, url: string, profile: string, icon: string | null): Promise<string | null>;
   revealFile(path: string): Promise<boolean>;
   moveToTrash(path: string): Promise<boolean>;
   fileIcon(path: string, size: number): Promise<string | null>;
@@ -48,6 +49,7 @@ export const setLaunchAtLogin = (enabled: boolean) => System.setLaunchAtLogin(en
 
 export const fileExists = (path: string) => System.fileExists(path);
 export const openFile = (path: string) => System.openFile(path);
+export const installWebApp = (name: string, url: string, profile: string, icon: string | null) => System.installWebApp(name, url, profile, icon);
 export const revealFile = (path: string) => System.revealFile(path);
 export const moveToTrash = (path: string) => System.moveToTrash(path);
 export const fileIcon = (path: string, size = 32) => System.fileIcon(path, size);

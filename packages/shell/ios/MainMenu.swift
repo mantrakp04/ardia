@@ -93,6 +93,7 @@ enum MainMenu {
       cmd("Clean Up Tabs", "cleanUpTabs", "k", [.command, .option]),
       .separator(),
       cmd("Save Page As…", "savePage"),
+      cmd("Install Page as App…", "installApp"),
       sub("Share", [], menu: shareMenu),
       cmd("Email Page Location", "emailPageLocation", "i", [.command, .shift]),
       cmd("Print…", "print", "p"),

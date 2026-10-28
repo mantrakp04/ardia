@@ -23,6 +23,7 @@ import { sidebarMenuState } from "../sidebar/commands";
 import { openWindow as createWindow } from "../browser/actions";
 import { createWindowSync, type WindowPort } from "../windows/windowSync";
 import { openExternalUrls } from "../littleArdia/actions";
+import { openWebApp } from "../webApps/webApps";
 import { SMALL_LIGHTS_CENTER } from "../windows/small";
 import { runCommand } from "../commands/commands";
 import { LITTLE_ARDIA_DISABLED_COMMANDS, PAGE_COMMANDS, PAGE_COMMANDS_OFF_INTERNAL_PAGES, WINDOW_COMMANDS } from "../commands/commandCatalog";
@@ -60,7 +61,10 @@ export function startNativeSync() {
   onCommand((e) => settlingCommandFocus(e, runCommand));
   startWindowCloseGuard();
   startExtensionsBridge();
-  onOpenURLs((urls, pointer) => openExternalUrls(urls, pointer));
+  onOpenURLs((urls, pointer) => {
+    const rest = urls.filter((url) => !openWebApp(url));
+    if (rest.length) openExternalUrls(rest, pointer);
+  });
   void lastTabClosesWindow()
     .catch(() => true)
     .then((closes) => setLastTabKeepsWindow(!closes));

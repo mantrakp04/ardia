@@ -100,6 +100,7 @@ export type BrowserCommand =
   | "autofill"
   | "openFile"
   | "savePage"
+  | "installApp"
   | "emailPageLocation"
   | "printWithSystemDialog"
   | "stop"

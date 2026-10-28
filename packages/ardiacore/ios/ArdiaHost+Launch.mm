@@ -54,7 +54,7 @@ static void ParkLaunchLinks(NSArray<NSURL *> *links, NSString *dir, NSDictionary
   if (!links.count || !linkProfile || LaunchTabSwitchedOff()) return;
   NSMutableArray<NSString *> *urls = [NSMutableArray array];
   for (NSURL *link in links)
-    if (!link.isFileURL && link.absoluteString.length) [urls addObject:link.absoluteString];
+    if ([@[ @"http", @"https" ] containsObject:link.scheme.lowercaseString ?: @""]) [urls addObject:link.absoluteString];
   [ArdiaWebView startLinkTabs:urls profile:linkProfile];
 }
 

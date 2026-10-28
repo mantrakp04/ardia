@@ -55,6 +55,7 @@ import {
   openLittleArdia,
   openLittleArdiaProfileMenu,
 } from "../littleArdia/actions";
+import { installPageAsApp } from "../webApps/webApps";
 import { runPeekCommand } from "../peek/actions";
 import { peekTabId } from "../peek/peek";
 import { expectFocus, findFocus } from "../focus/focusClaims";
@@ -173,6 +174,8 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
       return void web?.runPageCommand("systemPrint");
     case "savePage":
       return void web?.runPageCommand("savePage");
+    case "installApp":
+      return page ? void installPageAsApp(page, windowId) : undefined;
     case "caretBrowsing":
       return void web?.runPageCommand("caretBrowsing");
     case "emailPageLocation":
