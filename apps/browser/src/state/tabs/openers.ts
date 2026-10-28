@@ -87,14 +87,14 @@ const hiddenInGroup = (s: BrowserState, id: string) => {
   return !!g && (g.collapsed || ancestorIds(s.groups, g.id).some((x) => s.groups[x]!.collapsed));
 };
 
-export function openerSuccessor(s: BrowserState, closed: string, order: string[], left: string[]): string | undefined {
+export function closeSuccessor(s: BrowserState, closed: string, order: string[], left: string[]): string | undefined {
   const at = order.indexOf(closed);
-  const candidates = [...left.filter((id) => order.indexOf(id) > at), ...left.filter((id) => order.indexOf(id) < at).reverse()].filter(
-    (id) => !s.tabs[id]!.unloaded && !hiddenInGroup(s, id),
-  );
-  const opener = s.tabs[closed]?.openerId;
-  return (
-    candidates.find((id) => s.tabs[id]!.openerId === closed) ??
-    (opener ? (candidates.find((id) => s.tabs[id]!.openerId === opener) ?? (candidates.includes(opener) ? opener : undefined)) : undefined)
-  );
+  const nearest = [...left.filter((id) => order.indexOf(id) > at), ...left.filter((id) => order.indexOf(id) < at).reverse()];
+  const awake = nearest.filter((id) => !s.tabs[id]!.unloaded);
+  const visible = awake.filter((id) => !hiddenInGroup(s, id));
+  const split = splitOf(s, closed)?.tabIds ?? [];
+  const panes = awake.filter((id) => split.includes(id));
+  const pool = panes.length ? panes : visible.length ? visible : awake.length ? awake : nearest;
+  const used = pool.filter((id) => s.tabs[id]!.lastActiveAt > s.tabs[id]!.createdAt);
+  return used.reduce<string | undefined>((best, id) => (!best || s.tabs[id]!.lastActiveAt > s.tabs[best]!.lastActiveAt ? id : best), undefined) ?? pool[0];
 }

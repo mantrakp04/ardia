@@ -15,7 +15,7 @@ import {
   wake,
   without,
 } from "../browser/model";
-import { forgetOpeners, insertionIndex, openerSuccessor } from "./openers";
+import { forgetOpeners, insertionIndex, closeSuccessor } from "./openers";
 import { isClosedPin, onUrlChange, pruneSelection, samePage } from "../pins/organize";
 import { hasOwnOrSharedPage, hasPage, isLazy } from "./pageSession";
 import { isPeekTab, withoutPeek } from "../peek/peek";
@@ -97,7 +97,10 @@ export function activated(s: BrowserState, id: string, shareLivePins = true): Pa
   const frozen = lazy && (!!holder || !!tab.pageIn);
   const { unloaded: _, ...rest } = tab;
   const share = holder ? { pageIn: holder.id, url: holder.url, title: holder.title, favicon: holder.favicon, muted: holder.muted } : {};
-  const nextTab: Tab = { ...rest, lastActiveAt: Date.now(), ...(frozen ? share : lazy ? wake(tab) : {}) };
+  const now = Date.now();
+  const nextTab: Tab = { ...rest, lastActiveAt: now, ...(frozen ? share : lazy ? wake(tab) : {}) };
+  const leaving = w.activeTabIds[w.profileId];
+  const left = leaving && leaving !== id && s.tabs[leaving] ? { [leaving]: { ...s.tabs[leaving]!, lastActiveAt: Math.max(now, s.tabs[leaving]!.createdAt + 1) } } : {};
   const window: BrowserWindow = {
     ...w,
     profileId: w.incognito ? w.profileId : tab.profileId,
@@ -105,7 +108,7 @@ export function activated(s: BrowserState, id: string, shareLivePins = true): Pa
   };
   const ui = s.windowUi[w.id];
   return {
-    tabs: { ...s.tabs, [id]: nextTab },
+    tabs: { ...s.tabs, ...left, [id]: nextTab },
     windows: { ...s.windows, [w.id]: window },
     ...(ui?.panel.open ? { windowUi: { ...s.windowUi, [w.id]: { ...ui, panel: { open: false, initialText: "" } } } } : {}),
   };
@@ -156,10 +159,7 @@ export function removeTabs(s: BrowserState, ids: string[], record: boolean): Bro
       if (!gone.has(activeId)) continue;
       const before = w.tabIds.filter((id) => s.tabs[id]?.profileId === profileId);
       const left = before.filter((id) => !gone.has(id));
-      const awake = left.filter((id) => !s.tabs[id]?.unloaded);
-      const after = awake.length ? awake : left;
-      const index = before.indexOf(activeId);
-      const next = openerSuccessor(s, activeId, before, left) ?? after.find((id) => before.indexOf(id) > index) ?? after.at(-1);
+      const next = closeSuccessor(s, activeId, before, left);
       if (next) activeTabIds[profileId] = next;
       else delete activeTabIds[profileId];
     }

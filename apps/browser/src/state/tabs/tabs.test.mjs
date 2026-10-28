@@ -6,6 +6,8 @@ const organize = await import("../pins/organize.ts");
 const { controllingSearchExtension, defaultSearchEngine, searchUrlPrefix } = await import("../settings/settings.ts");
 const media = await import("../media/media.ts");
 
+let clock = Date.now();
+Date.now = () => (clock += 1000);
 const S = () => useBrowser.getState();
 const view = (w) => model.viewTabIds(S(), w).map((id) => S().tabs[id].url);
 const short = (url) => url.replace(/^https:\/\/|\.com$/g, "");
@@ -34,36 +36,51 @@ test("links opened behind line up after their opener in order", () => {
   assert.equal(shown(w), "a", "opened behind: the opener stays in front");
 });
 
-test("closing a page opened in front returns to its opener unless you moved away", () => {
+test("closing the shown tab goes back to the tab used before it, not its neighbour", () => {
   reset();
-  const [w, a, b] = setup("a", "b");
-  const c = open(w, "c", a, false);
-  S().closeTab(c);
-  assert.equal(shown(w), "a");
-
-  const d = open(w, "d", a, false);
-  S().activate(b);
-  S().activate(d);
+  const [w, a, , c] = setup("a", "b", "c");
+  S().activate(c);
+  S().activate(a);
+  S().closeTab(a);
+  assert.equal(shown(w), "c", "not b, the tab after it");
+  const d = open(w, "d", c, false);
   S().closeTab(d);
-  assert.equal(shown(w), "b", "after moving away, the tab after it");
+  assert.equal(shown(w), "c", "a page opened in front goes back to its opener");
 });
 
-test("closing goes to the page's own tabs, then its siblings, then its opener", () => {
+test("tabs opened behind don't count as used until they're shown", () => {
   reset();
-  const [w, a] = setup("a", "b");
+  const [w, a, b] = setup("a", "b");
+  S().activate(b);
+  S().activate(a);
   const c1 = open(w, "c1", a);
-  const c2 = open(w, "c2", a);
+  open(w, "c2", a);
   S().activate(c1);
   const g = open(w, "g", c1);
   S().closeTab(c1);
-  assert.equal(shown(w), "g", "a tab it opened");
+  assert.equal(shown(w), "a", "not a tab it opened or a sibling");
   assert.equal(S().tabs[g].openerId, a, "a closed tab's tabs take its opener");
+  S().closeTab(a);
+  assert.equal(shown(w), "b", "not the tabs a opened behind");
+});
+
+test("closing a pane shows the split's other pane, not the tab used before the split", () => {
+  reset();
+  const [w, , b, c] = setup("a", "b", "c");
+  S().createSplit([b, c]);
+  S().activate(b);
+  S().closeTab(b);
+  assert.equal(shown(w), "c");
+});
+
+test("⌃Tab starts with the shown tab, then the tab you left, before tabs opened behind", () => {
+  reset();
+  const [w, a, b] = setup("a", "b", "c");
+  S().activate(b);
+  open(w, "l", b);
   S().activate(a);
-  S().activate(c2);
-  S().closeTab(c2);
-  assert.equal(shown(w), "g", "a sibling");
-  S().closeTab(g);
-  assert.equal(shown(w), "a", "no siblings left: the opener");
+  open(w, "m", a);
+  assert.deepEqual(organize.recentTabIds(S(), w).map((id) => short(S().tabs[id].url)), ["a", "b", "c", "m", "l"]);
 });
 
 test("closing a group that holds the shown tab shows the tab just above the group", () => {
@@ -103,22 +120,12 @@ test("a pinned tab's links keep their group down to the last one; a loose tab's 
 
 test("closing a pinned tab selects the regular tab the window showed last, not the neighbour", () => {
   reset();
-  let clock = Date.now();
-  const select = (id) => {
-    const now = Date.now;
-    Date.now = () => (clock += 1000);
-    try {
-      S().activate(id);
-    } finally {
-      Date.now = now;
-    }
-  };
   const [w, p, q, , b] = setup("p", "q", "a", "b", "c");
   S().togglePin(p);
   S().togglePin(q);
-  select(b);
-  select(q);
-  select(p);
+  S().activate(b);
+  S().activate(q);
+  S().activate(p);
   S().closeTab(p);
   assert.equal(model.activeTabId(S(), w), b, "back to the regular tab used before the pinned ones");
   assert.ok(S().tabs[b].navigation);
