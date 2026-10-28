@@ -160,7 +160,7 @@ export function Omnibox({
       }
     }
     if (!s) {
-      if (scope) return;
+      if (scope) return go(scopedSearchUrl(scope, typed, engine, scopeFrom.current), disposition);
       const text = edited ? value : initialText || value;
       return go(resolveInput(text, engine.url), disposition);
     }
@@ -373,7 +373,7 @@ export function Omnibox({
           addChip={<AddChip onPress={barActions.openTabOrFile} />}
           onDictate={barActions.dictate}
           label={destinationLabel(current)}
-          enabled={!hero || !!typed.trim()}
+          enabled={!hero || !!scope || !!typed.trim()}
           onGo={barActions.choose}
         />
       }

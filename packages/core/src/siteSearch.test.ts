@@ -1,9 +1,36 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { BUILT_IN_ENGINES } from "./engines.ts";
-import { asksForBackspace, keywordBySpace, offeredSiteSearch, siteSearchKey, type SearchScope, type SiteSearchKeyState } from "./siteSearch.ts";
+import { asksForBackspace, keywordBySpace, offeredSiteSearch, scopedSearchUrl, siteSearchKey, type SearchScope, type SiteSearchKeyState } from "./siteSearch.ts";
 
 const sources = { engines: BUILT_IN_ENGINES };
+
+test("an empty site search opens the completed address that entered it", () => {
+  const entry = siteSearchKey("Tab", {}, bar("git", "hub.com/ardia"));
+  assert.equal(entry?.kind, "enter");
+  if (entry?.kind !== "enter") return;
+  assert.equal(scopedSearchUrl(entry.scope, "", BUILT_IN_ENGINES[0]!, entry.from), "https://github.com/ardia");
+});
+
+test("an empty engine keyword search opens the engine's site", () => {
+  const scope = offeredSiteSearch("google", "", sources)!;
+  assert.equal(scopedSearchUrl(scope, "", BUILT_IN_ENGINES[0]!, "google "), "https://google.com");
+});
+
+test("whitespace-only scoped searches open the original address", () => {
+  const scope = offeredSiteSearch("x.com", "", sources)!;
+  assert.equal(scopedSearchUrl(scope, "  ", BUILT_IN_ENGINES[0]!, "https://x.com/home "), "https://x.com/home");
+});
+
+test("an empty history scope opens its site instead of searching for the site filter", () => {
+  const scope: SearchScope = { kind: "history", name: "example.org", host: "example.org", url: "" };
+  assert.equal(scopedSearchUrl(scope, "", BUILT_IN_ENGINES[0]!), "https://example.org");
+});
+
+test("a nonempty site search still searches the chosen site", () => {
+  const scope = offeredSiteSearch("github.com", "", sources)!;
+  assert.equal(scopedSearchUrl(scope, "  ardia browser  ", BUILT_IN_ENGINES[0]!, "github.com/ardia"), "https://github.com/search?q=ardia%20browser");
+});
 
 function bar(typed: string, completion = "", scope: SearchScope | null = null, scopeFrom = ""): SiteSearchKeyState {
   return { typed, completion, scope, offered: scope ? null : offeredSiteSearch(typed, completion, sources), scopeFrom };
