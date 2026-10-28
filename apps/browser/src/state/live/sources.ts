@@ -1,6 +1,6 @@
 import { CONFLUENCE_CQL, DRIVE_QUERY, mapBitbucket, mapConfluence, mapDrive, mapNotion, NOTION_SEARCH_BODY, type BitbucketPR, type BitbucketStatuses, type ConfluenceSearch, type DriveFiles, type NotionSearch, type NotionUsers } from "./documents";
 import { DETAILS_PAGE, detailIds, detailNodes, GITHUB_DETAILS_QUERY, GITHUB_QUERY, GITHUB_STATE_QUERY, GITHUB_VARIABLES, mapGithub, VIEWER_QUERY, withDetails, type DetailsResponse, type GithubResponse } from "./github";
-import { basic, deleteSecret, endpoints, form, getSecret, request, setSecret } from "./net";
+import { basic, deleteSecret, endpoints, form, getSecret, request, setSecret, siteUrl } from "./net";
 import { live, setAccount, updateConfig } from "./store";
 import { LiveError, type CompletionState, type LiveAccount, type LiveFolder, type LiveItem, type LiveSourceId } from "./types";
 import { symbolIcon } from "../../lib/customIcon";
@@ -225,7 +225,7 @@ export async function connectNotion(token: string) {
 }
 
 export async function connectConfluence(site: string, email: string, token: string) {
-  const base = site.trim().replace(/\/+$/, "").replace(/^(?!https?:\/\/)/, "https://");
+  const base = siteUrl(site);
   const me = await request<{ accountId: string; displayName: string }>(`${endpoints.confluence(base)}/wiki/rest/api/user/current`, {
     headers: { Authorization: basic(email.trim(), token.trim()) },
   });

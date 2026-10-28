@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { deleteLiveFolder, manualRefresh, statusText } from "../../../state/live/engine";
-import { connectGoogleDrive } from "../../../state/live/googleAuth";
+import { connectGoogleDrive } from "../../../state/live/oauth";
 import { isMocked } from "../../../state/live/net";
 import { connectBitbucket, connectConfluence, connectGithub, connectNotion, disconnect, SOURCES, startGithubDeviceFlow, type DeviceFlow } from "../../../state/live/sources";
 import { live, updateConfig, updateFolder, useLive } from "../../../state/live/store";

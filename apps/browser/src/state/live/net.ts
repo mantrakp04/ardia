@@ -40,6 +40,8 @@ export async function request<T>(url: string, init: RequestInit = {}): Promise<T
   return (await res.json()) as T;
 }
 
+export const siteUrl = (site: string) => site.trim().replace(/\/+$/, "").replace(/^(?!https?:\/\/)/, "https://");
+
 export const form = (fields: Record<string, string>) =>
   Object.entries(fields)
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
