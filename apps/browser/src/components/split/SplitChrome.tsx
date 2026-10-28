@@ -8,7 +8,10 @@ import type { SplitView } from "../../state/browser/types";
 import { resize, type Divider, type Rect } from "../window/geometry";
 import { font, Panel, radius, space, Symbol, useHover, VisualEffect, weight } from "../ui";
 import { hideToast, useToasts } from "../../state/splits/actions";
-import { useWindowId } from "../../state/browser/hooks";
+import { useTab, useWindowId } from "../../state/browser/hooks";
+import { tabLabel } from "../../state/browser/model";
+import { Favicon } from "../favicon/Favicon";
+import { markHoverProps } from "../../lib/hoverMarks";
 import { overPeek } from "../../state/windows/dockMotion";
 import { zoneHit, zoneRect, type ZoneStage } from "./splitDrop";
 import { setDropTarget, setOnPage, setTargetResolver, useTabDrag } from "../../state/drag/tabDrag";
@@ -234,6 +237,11 @@ export const SplitToast = memo(function SplitToast({ windowId }: { windowId: str
   const toast = useToasts((s) => s.toasts[windowId] ?? null);
   const appear = useRef(new Animated.Value(0)).current;
   const [shown, setShown] = useState(toast);
+  const shownId = useRef<number | null>(null);
+  shownId.current = shown?.id ?? null;
+  const [hoveredId, setHoveredId] = useState<number | null>(null);
+  const [hoverProps] = useState(() => markHoverProps({ onMouseEnter: () => setHoveredId(shownId.current), onMouseLeave: () => setHoveredId(null) }));
+  const hovered = !!toast && hoveredId === toast.id;
   useEffect(() => {
     if (toast) return setShown(toast);
     if (!shown) return;
@@ -246,49 +254,105 @@ export const SplitToast = memo(function SplitToast({ windowId }: { windowId: str
     setShown(toast);
     appear.setValue(0);
     Animated.spring(appear, { toValue: 1, useNativeDriver: true, ...SPLIT_MOTION.toastIn }).start();
-    if (toast.sticky) return;
+  }, [toast?.id]);
+  useEffect(() => {
+    if (!toast || toast.sticky || hovered) return;
+    let fading = false;
     const timer = setTimeout(() => {
+      fading = true;
       Animated.timing(appear, { toValue: 0, ...SPLIT_MOTION.toastOut, useNativeDriver: true }).start(({ finished }) => {
         if (!finished) return;
         setShown(null);
         hideToast(windowId, toast.id);
       });
     }, toast.action ? 4000 : 2600);
-    return () => clearTimeout(timer);
-  }, [toast?.id]);
+    return () => {
+      clearTimeout(timer);
+      if (!fading) return;
+      appear.stopAnimation();
+      Animated.spring(appear, { toValue: 1, useNativeDriver: true, ...SPLIT_MOTION.toastIn }).start();
+    };
+  }, [toast?.id, toast?.tabId, hovered]);
   if (!shown) return null;
   const toastColors = splitColors(theme.dark);
+  const dismiss = () => {
+    setShown(null);
+    hideToast(windowId, shown.id);
+  };
+  const interactive = !!(shown.action || shown.onPress);
   return (
-    <View pointerEvents={shown.action ? "box-none" : "none"} style={{ position: "absolute", left: 0, right: 0, bottom: 22, alignItems: "center" }}>
+    <View pointerEvents={interactive ? "box-none" : "none"} style={{ position: "absolute", left: 0, right: 0, bottom: 22, alignItems: "center" }}>
       <Animated.View style={{ opacity: appear, transform: [{ translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }, { scale: appear.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }] }}>
-        <Panel
-          fill={toastColors.toastFill}
-          radius={radius.sheet}
-          border={toastColors.toastBorder}
-          shadow={SPLIT_SHADOWS.toast}
-          style={{ paddingHorizontal: space.xl, paddingVertical: space.ml, flexDirection: "row", alignItems: "center", gap: space.ml, maxWidth: 420 }}
+        <Pressable
+          {...hoverProps}
+          disabled={!shown.onPress}
+          onPress={() => {
+            shown.onPress?.();
+            dismiss();
+          }}
         >
-          <VisualEffect material="hudWindow" cornerRadius={radius.sheet} style={StyleSheet.absoluteFill} />
-          <Symbol name={shown.icon ?? "rectangle.split.3x1"} size={15} color={theme.icon} style={{ width: 20, height: 20 }} />
-          <View style={{ flexShrink: 1 }}>
-            <Text style={{ ...font.body, fontWeight: weight.semibold, color: theme.textPrimary }}>{shown.title}</Text>
-            {shown.message ? <Text style={{ ...font.small, color: theme.textSecondary, marginTop: 1 }}>{shown.message}</Text> : null}
-          </View>
-          {shown.action ? (
-            <ToastAction
-              title={shown.action.title}
-              onPress={() => {
-                shown.action!.run();
-                setShown(null);
-                hideToast(windowId, shown.id);
-              }}
-            />
-          ) : null}
-        </Panel>
+          <Panel
+            fill={toastColors.toastFill}
+            radius={radius.sheet}
+            border={toastColors.toastBorder}
+            shadow={SPLIT_SHADOWS.toast}
+            style={{ paddingHorizontal: space.xl, paddingVertical: space.ml, flexDirection: "row", alignItems: "center", gap: space.ml, maxWidth: 420 }}
+          >
+            <VisualEffect material="hudWindow" cornerRadius={radius.sheet} style={StyleSheet.absoluteFill} />
+            {shown.tabId ? (
+              <ToastTabIcon key={shown.tabId} tabId={shown.tabId} />
+            ) : (
+              <Symbol name={shown.icon ?? "rectangle.split.3x1"} size={15} color={theme.icon} style={{ width: 20, height: 20 }} />
+            )}
+            <View style={{ flexShrink: 1 }}>
+              <Text style={{ ...font.body, fontWeight: weight.semibold, color: theme.textPrimary }}>{shown.title}</Text>
+              {shown.message ? (
+                <Text style={{ ...font.small, color: theme.textSecondary, marginTop: 1 }}>{shown.message}</Text>
+              ) : shown.tabId ? (
+                <ToastTabLabel tabId={shown.tabId} />
+              ) : null}
+            </View>
+            {shown.action ? (
+              <ToastAction
+                title={shown.action.title}
+                onPress={() => {
+                  shown.action!.run();
+                  dismiss();
+                }}
+              />
+            ) : null}
+          </Panel>
+        </Pressable>
       </Animated.View>
     </View>
   );
 });
+
+function ToastTabIcon({ tabId }: { tabId: string }) {
+  const url = useTab(tabId, (t) => t?.url);
+  const favicon = useTab(tabId, (t) => t?.favicon);
+  const profileId = useTab(tabId, (t) => t?.profileId);
+  const pop = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.spring(pop, { toValue: 1, useNativeDriver: true, ...SPLIT_MOTION.toastIn }).start();
+  }, [pop]);
+  return (
+    <Animated.View style={{ width: 20, height: 20, alignItems: "center", justifyContent: "center", opacity: pop, transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }] }}>
+      {url !== undefined ? <Favicon url={url} favicon={favicon} profileId={profileId} /> : null}
+    </Animated.View>
+  );
+}
+
+function ToastTabLabel({ tabId }: { tabId: string }) {
+  const theme = useTheme();
+  const label = useTab(tabId, (t) => (t?.url ? tabLabel(t) : null));
+  if (!label) return null;
+  return (
+    <Text numberOfLines={1} style={{ ...font.small, color: theme.textSecondary, marginTop: 1, maxWidth: 260 }}>
+      {label}
+    </Text>
+  );
+}
 
 function ToastAction({ title, onPress }: { title: string; onPress(): void }) {
   const theme = useTheme();

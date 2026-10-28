@@ -9,7 +9,7 @@ import { MAX_SPLIT_PANES, slotsOf, splitOf, type OpenPaneOptions, type SplitSide
 const store = () => useBrowser.getState();
 
 type Toast = { id: number; title: string; message?: string } & ToastOptions;
-export type ToastOptions = { icon?: string; action?: { title: string; run(): void }; key?: string; sticky?: boolean };
+export type ToastOptions = { icon?: string; tabId?: string; onPress?(): void; action?: { title: string; run(): void }; key?: string; sticky?: boolean };
 export const useToasts = create<{ toasts: Record<string, Toast | null> }>()(() => ({ toasts: {} }));
 let toastSeq = 0;
 export function showToast(windowId: string, title: string, message?: string, options?: ToastOptions) {

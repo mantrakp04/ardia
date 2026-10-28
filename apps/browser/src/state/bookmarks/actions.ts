@@ -5,6 +5,7 @@ import { folderLinks } from "./bookmarks";
 import { storeAction, useBrowser } from "../browser/store";
 import { activeTabId, bookmarkProfileId, resolveWindowId, viewTabIds } from "../browser/model";
 import { originalProfile } from "../windows/small";
+import { announceBackgroundTab } from "../tabs/backgroundTabToast";
 
 type OpenMode = "current" | "background" | "foreground" | "window" | "incognito" | "split";
 
@@ -31,7 +32,8 @@ export function openUrl(url: string, windowId: string | null | undefined, mode: 
     return void s.newTab(id, { url });
   }
   if (mode === "current" && tabId) return s.navigate(tabId, url);
-  s.newTab(id, { url, background: mode === "background", openerId: mode === "background" ? tabId : undefined });
+  const created = s.newTab(id, { url, background: mode === "background", openerId: mode === "background" ? tabId : undefined });
+  if (mode === "background") announceBackgroundTab(created);
 }
 
 export type OpenAllMode = "tabs" | "window" | "incognito";
