@@ -32,9 +32,7 @@ NSString *Localize(id value, NSDictionary<NSString *, NSDictionary *> *messages)
   NSString *s = value;
   if (![s hasPrefix:@"__MSG_"] || ![s hasSuffix:@"__"] || s.length <= 8) return s;
   NSString *key = [[s substringWithRange:NSMakeRange(6, s.length - 8)] lowercaseString];
-  for (NSString *k in messages)
-    if ([k.lowercaseString isEqualToString:key]) return messages[k][@"message"];
-  return s;
+  return messages[key][@"message"];
 }
 
 bool ValidMessages(NSDictionary *messages) {
@@ -50,22 +48,31 @@ bool ValidMessages(NSDictionary *messages) {
 NSDictionary *Messages(NSString *folder, NSDictionary *manifest, NSString **error) {
   NSString *locales = [folder stringByAppendingPathComponent:@"_locales"];
   NSMutableArray<NSString *> *candidates = [NSMutableArray array];
-  for (NSString *lang in NSLocale.preferredLanguages) {
+  for (NSString *lang in NSBundle.mainBundle.preferredLocalizations) {
     NSString *l = [lang stringByReplacingOccurrencesOfString:@"-" withString:@"_"];
-    [candidates addObject:l];
-    NSRange sep = [l rangeOfString:@"_"];
-    if (sep.location != NSNotFound) [candidates addObject:[l substringToIndex:sep.location]];
+    while (l.length) {
+      [candidates addObject:l];
+      NSRange sep = [l rangeOfString:@"_" options:NSBackwardsSearch];
+      if (sep.location == NSNotFound) break;
+      l = [l substringToIndex:sep.location];
+    }
   }
   if ([manifest[@"default_locale"] isKindOfClass:NSString.class]) [candidates addObject:manifest[@"default_locale"]];
-  [candidates addObjectsFromArray:@[ @"en", @"en_US" ]];
+  else [candidates addObjectsFromArray:@[ @"en", @"en_US" ]];
+  NSMutableDictionary<NSString *, NSDictionary *> *merged = [NSMutableDictionary dictionary];
   for (NSString *locale in candidates) {
     NSDictionary *messages = LoadJSON([[locales stringByAppendingPathComponent:locale] stringByAppendingPathComponent:@"messages.json"]);
     if (!messages) continue;
-    if (ValidMessages(messages)) return messages;
-    *error = [NSString stringWithFormat:@"The localization file _locales/%@/messages.json is invalid", locale];
-    return nil;
+    if (!ValidMessages(messages)) {
+      *error = [NSString stringWithFormat:@"The localization file _locales/%@/messages.json is invalid", locale];
+      return nil;
+    }
+    for (NSString *key in messages) {
+      NSString *normalized = key.lowercaseString;
+      if (!merged[normalized]) merged[normalized] = messages[key];
+    }
   }
-  return @{};
+  return merged;
 }
 
 NSString *IconPath(id icons, int size) {

@@ -39,7 +39,7 @@
 //   launch(log, test, args, opts) · appUp(log)   (re)start the app on the run's data dir; `exited` is set once it's gone
 //   onScreenWindows() · firstPixel(png) · writePopupExtension(opts) · fixtureCrx()
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import { basename, join, resolve } from "node:path";
@@ -4458,6 +4458,133 @@ try {
     } finally {
       await closeTab(tab.id);
       echo.close();
+    }
+  });
+
+  await check("startup-extension-locale", async () => {
+    const command = execFileSync("ps", ["-ww", "-o", "args=", "-p", String(pid)], { encoding: "utf8", timeout: 5000 });
+    const appleLanguages = command.match(/(?:^|\s)-AppleLanguages\s+(\([^)]*\))(?=\s|$)/)?.[1];
+    if (/(?:^|\s)-AppleLanguages(?:\s|=)/.test(command) && !appleLanguages)
+      throw new Error("pass the instance's -AppleLanguages as a parenthesized preference array");
+    const bundle = JSON.parse(execFileSync("osascript", ["-l", "JavaScript", "-e",
+      `ObjC.import("Foundation");
+       const b = $.NSBundle.bundleWithPath($(${JSON.stringify(app)}));
+       const locales = b.infoDictionary.objectForKey("CFBundleLocalizations");
+       if (!locales || !locales.count) throw new Error("the app has no CFBundleLocalizations");
+       const preferences = $.NSLocale.preferredLanguages;
+       JSON.stringify({ declared: ObjC.deepUnwrap(locales), preferences: ObjC.deepUnwrap(preferences),
+         selected: ObjC.deepUnwrap($.NSBundle.preferredLocalizationsFromArrayForPreferences(locales, preferences))[0] })`,
+      ...(appleLanguages ? ["-AppleLanguages", appleLanguages] : [])], { encoding: "utf8", timeout: 15000 }));
+    const locales = "en-US ar bg bs ca cs cy da de el en-GB es-ES et fa fi fr ga-IE he hu id is it ja ko lt nb nl nn-NO pl pt-BR pt-PT ro ru sk sv-SE th tr uk vi zh-CN zh-TW".split(" ");
+    if (JSON.stringify(bundle.declared.slice().sort()) !== JSON.stringify(locales.slice().sort()))
+      throw new Error(`CFBundleLocalizations differs from Zen's 41 choices: ${JSON.stringify(bundle.declared)}`);
+    const expected = bundle.selected;
+    const uiLocale = expected.replaceAll("-", "_");
+    const parent = expected.split("-")[0];
+    const defaultLocale = parent === "en" ? "fr" : "en";
+    const allLocales = [...new Set(locales.flatMap((locale) => [locale.replaceAll("-", "_"), locale.split("-")[0]]))];
+    const before = await state();
+    const fixtures = mkdtempSync(join(scratch, "fixture-ext-startup-locale-"));
+    const observations = [];
+    const snapshot = `({ uiLanguage: chrome.i18n.getUILanguage(), uiLocale: chrome.i18n.getMessage("@@ui_locale"),
+      message: chrome.i18n.getMessage("localeProbe"), fallback: chrome.i18n.getMessage("defaultOnly"), name: chrome.runtime.getManifest().name })`;
+    const verify = (where, actual, locale, fallback, name) => {
+      const wanted = { uiLanguage: expected, uiLocale, message: `locale:${locale}`, fallback: `default:${fallback}`, name };
+      for (const [key, value] of Object.entries(wanted))
+        if (actual?.[key] !== value) throw new Error(`${where}.${key}: ${JSON.stringify(actual?.[key])}, expected ${JSON.stringify(value)}; NSBundle ${JSON.stringify(bundle)}`);
+    };
+    const exercise = async (variant, available, fallback, messageLocale) => {
+      const dir = join(fixtures, variant);
+      mkdirSync(dir);
+      const name = `Ardia locale ${variant}: ${messageLocale}`;
+      const title = `Locale probe ${variant}`;
+      for (const locale of new Set([...available, fallback])) {
+        const messages = { extensionName: { message: `Ardia locale ${variant}: ${locale}` }, localeProbe: { message: `locale:${locale}` } };
+        if (locale === fallback) messages.defaultOnly = { message: `default:${fallback}` };
+        const path = join(dir, "_locales", locale);
+        mkdirSync(path, { recursive: true });
+        writeFileSync(join(path, "messages.json"), JSON.stringify(messages));
+      }
+      writeFileSync(join(dir, "manifest.json"), JSON.stringify({ manifest_version: 3, version: "1.0", name: "__MSG_extensionName__",
+        default_locale: fallback, background: { service_worker: "worker.js" }, options_page: "options.html" }));
+      writeFileSync(join(dir, "worker.js"), `globalThis.__acLocaleCold = ${snapshot};
+        chrome.runtime.onMessage.addListener((message, sender, reply) => {
+          if (message === "locale-probe") reply({ cold: globalThis.__acLocaleCold, current: ${snapshot} });
+        });`);
+      writeFileSync(join(dir, "options.html"), `<!doctype html><title>${title}</title><output></output><script src="options.js"></script>`);
+      writeFileSync(join(dir, "options.js"), `globalThis.__acLocalePage = ${snapshot};
+        document.querySelector("output").textContent = globalThis.__acLocalePage.message;`);
+      let installed;
+      let cleanupError;
+      try {
+        const inspected = await exts(`inspectUnpacked(${JSON.stringify(dir)})`);
+        if (inspected?.name !== name) throw new Error(`${variant} inspected manifest: ${JSON.stringify(inspected)}, expected ${name}`);
+        installed = await exts(`install(${JSON.stringify(dir)}, "")`);
+        if (installed?.error || !installed?.id) throw new Error(`${variant} install: ${JSON.stringify(installed)}`);
+        const origin = `chrome-extension://${installed.id}/`;
+        const worker = await until(`${variant}'s cold extension worker`, async () => {
+          for (const target of (await targets()).filter((t) => t.type === "service_worker" && t.url === `${origin}worker.js`)) {
+            const result = await cdp(target, "Runtime.evaluate", { expression: "globalThis.__acLocaleCold", returnByValue: true });
+            if (result.exceptionDetails) throw new Error(JSON.stringify(result.exceptionDetails));
+            if (result.result?.value) return { target: target.id, cold: result.result.value };
+          }
+          return null;
+        });
+        verify(`${variant}.coldWorker`, worker.cold, messageLocale, fallback, name);
+        const listed = await until(`${variant}'s installed manifest`, async () =>
+          (await exts('list("")')).extensions?.find((e) => e.id === installed.id));
+        if (listed.name !== name) throw new Error(`${variant} installed manifest name: ${listed.name}, expected ${name}`);
+        const tab = await openTab(`${origin}options.html`, title);
+        const target = await until(`${variant}'s options target`, () => pageFor(tab.id, `${origin}options.html`));
+        const result = await cdp(target, "Runtime.evaluate", {
+          expression: `chrome.runtime.sendMessage("locale-probe").then((worker) => ({ page: globalThis.__acLocalePage,
+            rendered: document.querySelector("output").textContent, worker }))`, awaitPromise: true, returnByValue: true,
+        });
+        if (result.exceptionDetails) throw new Error(JSON.stringify(result.exceptionDetails));
+        const seen = result.result?.value;
+        verify(`${variant}.options`, seen?.page, messageLocale, fallback, name);
+        verify(`${variant}.workerColdFromOptions`, seen?.worker?.cold, messageLocale, fallback, name);
+        verify(`${variant}.workerFromOptions`, seen?.worker?.current, messageLocale, fallback, name);
+        if (seen.rendered !== `locale:${messageLocale}`) throw new Error(`${variant} rendered message: ${seen.rendered}`);
+        const observation = { variant, messageLocale, defaultLocale: fallback, inspected: inspected.name, installed: listed.name, coldWorker: worker.cold, ...seen };
+        observations.push(observation);
+        log("  extension locale:", observation);
+      } finally {
+        if (installed?.id) {
+          try {
+            const owned = await evalApp(`return Object.values(ac.store.getState().tabs).filter((t) => t.url?.startsWith(${JSON.stringify(`chrome-extension://${installed.id}/`)})).map((t) => t.id)`);
+            for (const id of owned) await closeTab(id);
+          } catch (error) {
+            cleanupError = error;
+          }
+          try {
+            const removed = await exts(`uninstall(${JSON.stringify(installed.id)}, "")`);
+            if (removed?.error) throw new Error(`${variant} uninstall: ${removed.error}`);
+          } catch (error) {
+            cleanupError ??= error;
+          }
+        }
+      }
+      if (cleanupError) throw cleanupError;
+    };
+    try {
+      if (before.profileId !== "default") {
+        await evalApp(`ac.actions.switchProfile(${JSON.stringify(mainWindow)}, "default"); return true`);
+        await until("the default profile", async () => (await state()).profileId === "default");
+      }
+      await exercise("all-locales", allLocales, "en", uiLocale);
+      await exercise("missing-locale", [], defaultLocale, defaultLocale);
+      if (parent !== expected) await exercise("parent-only", [parent], defaultLocale, parent);
+      return { bundle, appleLanguages: appleLanguages ?? null, fixtureLocales: allLocales, observations,
+        notRun: { otherLocales: locales.filter((locale) => locale !== expected),
+          parentLocales: ["ga-IE", "nn-NO"].filter((locale) => locale !== expected),
+          restart: "same profile en-US -> cy/ga-IE/nn-NO; persisted manifest current_locale, renderer cache invalidation and restarted workers" } };
+    } finally {
+      rmSync(fixtures, { recursive: true, force: true });
+      await evalApp(`const s = ac.store.getState();
+        if (s.windows[${JSON.stringify(mainWindow)}] && s.profiles[${JSON.stringify(before.profileId)}])
+          ac.actions.switchProfile(${JSON.stringify(mainWindow)}, ${JSON.stringify(before.profileId)});
+        if (s.tabs[${JSON.stringify(before.active)}]) ac.actions.switchToTab(${JSON.stringify(before.active)}); return true`).catch((e) => log("  locale check restore:", e.message));
     }
   });
 

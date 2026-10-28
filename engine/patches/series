@@ -25,6 +25,7 @@ chromium chromium-devtools-find-detach-keeps-selection.patch
 chromium chromium-extension-install-prompt-hook.patch
 chromium chromium-webstore-direct.patch
 chromium chromium-extension-updates.patch
+chromium chromium-extension-system-locale.patch
 chromium chromium-component-updater-security-only.patch
 chromium chromium-extension-omaha-attributes.patch
 chromium chromium-extension-management-policy-hook.patch

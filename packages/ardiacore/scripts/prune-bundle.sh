@@ -17,12 +17,31 @@ report() {
 }
 
 languages=" en "
-development="$(plutil -extract CFBundleDevelopmentRegion raw "$app/Contents/Info.plist" 2>/dev/null || true)"
-[ -n "$development" ] && [[ "$languages" != *" ${development//-/_} "* ]] && languages+="${development//-/_} "
+ubo_languages=" en "
+add_language() {
+  local name="${1//-/_}"
+  [[ "$ubo_languages" == *" $name "* ]] || ubo_languages+="$name "
+  case "$name" in
+    en_US|en_GB|es_ES|ga_IE|nn_NO|pt_BR|pt_PT|sv_SE|zh_CN|zh_TW) ubo_languages+="${name%_*} " ;;
+  esac
+  case "$name" in
+    en_US) name=en ;;
+    es_ES) name=es ;;
+    sv_SE) name=sv ;;
+  esac
+  [[ "$languages" == *" $name "* ]] || languages+="$name "
+}
+development="$(plutil -extract CFBundleDevelopmentRegion raw "$app/Contents/Info.plist" 2>/dev/null)" || development=""
+[ -n "$development" ] && add_language "$development"
+index=0
+while name="$(plutil -extract "CFBundleLocalizations.$index" raw -expect string "$app/Contents/Info.plist" 2>/dev/null)"; do
+  add_language "$name"
+  index=$((index + 1))
+done
 for lproj in "$resources"/*.lproj; do
   [ -d "$lproj" ] || continue
   name="$(basename "$lproj" .lproj)"
-  [ "$name" = Base ] || [[ "$languages" == *" ${name//-/_} "* ]] || languages+="${name//-/_} "
+  [ "$name" = Base ] || add_language "$name"
 done
 
 if enabled ARDIA_PRUNE_LOCALES; then
@@ -85,12 +104,13 @@ fi
 
 ubo="$resources/Extensions/ublock"
 if enabled ARDIA_PRUNE_UBO_LOCALES && [ -d "$ubo/_locales" ]; then
-  default_locale="$(plutil -extract default_locale raw "$ubo/manifest.json" 2>/dev/null || echo en)"
+  default_locale="$(plutil -extract default_locale raw "$ubo/manifest.json" 2>/dev/null)" || default_locale=en
   [ -f "$ubo/_locales/$default_locale/messages.json" ] || die "uBlock Origin has no _locales/$default_locale"
   doomed=()
   for dir in "$ubo"/_locales/*/; do
     name="$(basename "$dir")"
-    [ "$name" = "$default_locale" ] || [[ "$languages" == *" $name "* ]] || doomed+=("${dir%/}")
+    if [ "$name" = no ] && [[ "$ubo_languages" == *" nb "* ]]; then continue; fi
+    [ "$name" = "$default_locale" ] || [[ "$ubo_languages" == *" $name "* ]] || doomed+=("${dir%/}")
   done
   freed="$(bytes ${doomed[@]+"${doomed[@]}"})"
   rm -rf ${doomed[@]+"${doomed[@]}"}
