@@ -176,6 +176,7 @@ enum MainMenu {
       cmd("Stop", "stop", "."),
       cmd("Refresh", "reload", "r"),
       cmd("Force Refresh the Page", "forceReload", "r", [.command, .shift]).alternate(),
+      cmd("Refresh", "reload", functionKey(NSF5FunctionKey), []).hiddenShortcut(),
       .separator(),
       cmd("Show Tabs in Sidebar", "toggleTabLayout", "s", [.command, .shift]),
       cmd("Auto-Hide Tabs", "toggleSidebar", "s"),

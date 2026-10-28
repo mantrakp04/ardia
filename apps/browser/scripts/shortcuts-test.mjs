@@ -140,6 +140,7 @@ const shortcuts = [
   ["⌘.", cmd(".", 47), { command: "stop" }, "(Chrome's)"],
   ["⌘R", cmd("r", 15), { command: "reload" }, "⌘R"],
   ["⇧⌘R", cmd("R", 15, "shift"), { command: "forceReload" }, "⇧⌘R"],
+  ["F5", K(F(0xf708), 96, "function"), { command: "reload" }, "F5"],
   ["⇧⌘S", cmd("S", 1, "shift"), { command: "toggleTabLayout" }, "⇧⌘S"],
   ["⌘S", cmd("s", 1), { command: "toggleSidebar" }, "⌘S", "page-field"],
   ["⇧⌘L", cmd("L", 37, "shift"), { command: "toggleSidebar" }, "(Chrome's)", "page-field"],
