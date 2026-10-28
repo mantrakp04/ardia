@@ -4,9 +4,9 @@ import { useEffect, useState, type ReactNode } from "react";
 import { View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { deleteLiveFolder, manualRefresh, statusText } from "../../../state/live/engine";
-import { connectGoogleDrive } from "../../../state/live/oauth";
-import { isMocked } from "../../../state/live/net";
-import { connectBitbucket, connectConfluence, connectGithub, connectNotion, disconnect, SOURCES, startGithubDeviceFlow, type DeviceFlow } from "../../../state/live/sources";
+import { connectGoogleDrive, OAUTH_REDIRECT, signInGitea } from "../../../state/live/oauth";
+import { isMocked, siteUrl } from "../../../state/live/net";
+import { connectBitbucket, connectConfluence, connectGitea, connectGithub, connectNotion, disconnect, SOURCES, startGithubDeviceFlow, type DeviceFlow } from "../../../state/live/sources";
 import { live, updateConfig, updateFolder, useLive } from "../../../state/live/store";
 import type { LiveAccount, LiveFolder, LiveSourceId } from "../../../state/live/types";
 import { useProfileRecords } from "../../../state/profiles/hooks";
@@ -36,6 +36,7 @@ export function LiveFoldersPane() {
       <SectionHeader title="Pull Requests" />
       <Group>
         <SourceRow id="github" />
+        <SourceRow id="gitea" />
         <SourceRow id="bitbucket" />
       </Group>
 
@@ -82,20 +83,22 @@ function FolderOption({ id, searchable, value, onChange }: { id: SettingId; sear
   );
 }
 
-function connectedAs(id: LiveSourceId, account: LiveAccount): string {
-  if (!account.name || account.name === account.login) return account.login;
-  return id === "github" || id === "gdrive" ? `${account.name} (${account.login})` : account.name;
+function connectedAs(id: LiveSourceId, account: LiveAccount, giteaSite: string): string {
+  const who =
+    !account.name || account.name === account.login ? account.login : id === "github" || id === "gitea" || id === "gdrive" ? `${account.name} (${account.login})` : account.name;
+  return id === "gitea" ? `${who} on ${giteaSite.replace(/^https?:\/\//, "")}` : who;
 }
 
 function SourceRow({ id }: { id: LiveSourceId }) {
   const account = useLive((s) => s.accounts[id]);
+  const giteaSite = useLive((s) => s.config.giteaSite);
   const source = SOURCES[id];
   return (
     <Row
       anchor={`liveFolders.${id}`}
       icon={<Favicon url={source.site} size={18} />}
       title={source.name}
-      description={account ? `Connected as ${connectedAs(id, account)}` : undefined}
+      description={account ? `Connected as ${connectedAs(id, account, giteaSite)}` : undefined}
     >
       {account ? (
         <Button title="Disconnect" onPress={() => void disconnect(id)} />
@@ -127,6 +130,9 @@ function ConnectSheet({ id }: { id: LiveSourceId }) {
   switch (id) {
     case "github":
       body = <GithubConnect busy={busy} run={run} />;
+      break;
+    case "gitea":
+      body = <GiteaConnect busy={busy} run={run} />;
       break;
     case "bitbucket":
       body = <BitbucketConnect busy={busy} run={run} />;
@@ -220,6 +226,55 @@ function GithubConnect({ busy, run }: ConnectProps) {
       <DialogActions>
         <Button title="Sign In with GitHub…" disabled={!clientId.trim() || busy} onPress={() => void signIn()} />
       </DialogActions>
+    </View>
+  );
+}
+
+function GiteaConnect({ busy, run }: ConnectProps) {
+  const theme = useTheme();
+  const config = live().config;
+  const [site, setSite] = useState(config.giteaSite);
+  const [token, setToken] = useState("");
+  const [clientId, setClientId] = useState(config.giteaClientId);
+  const hasSite = !!site.trim();
+  const connect = () => void run(() => connectGitea(site, { token: token.trim() }));
+  const signIn = () =>
+    void run(async () => {
+      const windowId = settingsBrowserWindow();
+      if (!windowId) throw new Error("Open a browser window first");
+      void focusWindow(windowId);
+      await signInGitea(windowId, site, clientId);
+    });
+  return (
+    <View>
+      <Field label="Server">
+        <TextField value={site} onChangeText={setSite} placeholder="https://gitea.example.com" />
+      </Field>
+      <Help>
+        Create an access token on your server (Settings › Applications) with read access to issue, repository and user. Works with Gitea and Forgejo, Codeberg included.
+      </Help>
+      <Field label="Access token">
+        <TextField value={token} onChangeText={setToken} secure onSubmit={() => hasSite && token.trim() && connect()} />
+      </Field>
+      <Actions>
+        <Button title="Create Token…" disabled={!hasSite} onPress={() => openUrlFromSettings(`${siteUrl(site)}/user/settings/applications`)} />
+        <Button title="Cancel" onPress={closeSettingsSheet} />
+        <Button title={busy ? "Checking…" : "Connect"} kind="primary" disabled={!hasSite || !token.trim() || busy} onPress={connect} />
+      </Actions>
+      <View style={{ height: 1, backgroundColor: theme.divider, marginVertical: 14 }} />
+      <Help>Or sign in with an OAuth2 application you create on your server (Settings › Applications), with Confidential Client turned off and this redirect URI:</Help>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <Text selectable style={{ flex: 1, ...font.small, fontFamily: "Menlo", color: theme.textPrimary }}>
+          {OAUTH_REDIRECT}
+        </Text>
+        <Button title="Copy" onPress={() => copyText(OAUTH_REDIRECT)} />
+      </View>
+      <Field label="OAuth app client ID">
+        <TextField value={clientId} onChangeText={setClientId} />
+      </Field>
+      <Actions>
+        <Button title={busy ? "Waiting for Gitea…" : "Sign In with Gitea…"} disabled={!hasSite || !clientId.trim() || busy} onPress={signIn} />
+      </Actions>
     </View>
   );
 }

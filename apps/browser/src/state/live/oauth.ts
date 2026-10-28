@@ -1,8 +1,9 @@
 import { base64Url, sha256 } from "../../lib/sha256";
 import { secureRandomHex } from "../../platform/secureRandom";
 import { useBrowser } from "../browser/store";
-import { endpoints, form } from "./net";
-import { connectGoogle } from "./sources";
+import { GITEA_SCOPES } from "./gitea";
+import { endpoints, form, siteUrl } from "./net";
+import { connectGitea, connectGoogle, giteaTokens } from "./sources";
 
 export const OAUTH_REDIRECT = "http://127.0.0.1:53682/ardia-oauth";
 const GOOGLE_SCOPE = "https://www.googleapis.com/auth/drive.metadata.readonly";
@@ -61,4 +62,25 @@ export async function connectGoogleDrive(windowId: string, clientId: string, cli
   const code = params.get("code");
   if (!code) throw new Error(params.get("error") ?? "Google didn't grant access");
   await connectGoogle(clientId.trim(), clientSecret.trim(), code, verifier, OAUTH_REDIRECT);
+}
+
+export async function signInGitea(windowId: string, site: string, clientId: string): Promise<void> {
+  const base = siteUrl(site);
+  const id = clientId.trim();
+  const verifier = secureRandomHex(64);
+  const state = secureRandomHex(32);
+  const url = `${endpoints.gitea(base)}/login/oauth/authorize?${form({
+    client_id: id,
+    redirect_uri: OAUTH_REDIRECT,
+    response_type: "code",
+    scope: GITEA_SCOPES,
+    code_challenge: base64Url(sha256(verifier)),
+    code_challenge_method: "S256",
+    state,
+  })}`;
+  const params = await authorizeInTab(windowId, url, state);
+  const code = params.get("code");
+  if (!code) throw new Error(params.get("error_description") || params.get("error") || "Gitea didn't grant access");
+  const tokens = await giteaTokens(base, { grant_type: "authorization_code", client_id: id, code, code_verifier: verifier, redirect_uri: OAUTH_REDIRECT });
+  await connectGitea(base, { ...tokens, clientId: id });
 }

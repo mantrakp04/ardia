@@ -1,4 +1,5 @@
 import { CONFLUENCE_CQL, DRIVE_QUERY, mapBitbucket, mapConfluence, mapDrive, mapNotion, NOTION_SEARCH_BODY, type BitbucketPR, type BitbucketStatuses, type ConfluenceSearch, type DriveFiles, type NotionSearch, type NotionUsers } from "./documents";
+import { GITEA_DEFAULT_SITE, GITEA_SEARCH, giteaCompletion, giteaRefs, mapGitea, type GiteaCombinedStatus, type GiteaDetails, type GiteaIssue, type GiteaPull, type GiteaPullRef, type GiteaReview } from "./gitea";
 import { DETAILS_PAGE, detailIds, detailNodes, GITHUB_DETAILS_QUERY, GITHUB_QUERY, GITHUB_STATE_QUERY, GITHUB_VARIABLES, mapGithub, VIEWER_QUERY, withDetails, type DetailsResponse, type GithubResponse } from "./github";
 import { basic, deleteSecret, endpoints, form, getSecret, request, setSecret, siteUrl } from "./net";
 import { live, setAccount, updateConfig } from "./store";
@@ -62,6 +63,121 @@ const github: LiveSource = {
       else if (n.state === "CLOSED") out[item.id] = "closed";
       else if (item.section === "review" || item.section === "team") out[item.id] = "reviewed";
     }
+    return out;
+  },
+};
+
+type GiteaTokens = { access: string; refresh: string; expiresAt: number };
+export type GiteaCredentials = { token: string } | (GiteaTokens & { clientId: string });
+type GiteaLogin = GiteaCredentials & { site: string };
+
+const GITEA_BATCH = 6;
+let giteaSession = 0;
+let giteaAccess: Promise<{ site: string; token: string }> | null = null;
+
+async function inBatches<T, R>(items: T[], size: number, run: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = [];
+  for (let i = 0; i < items.length; i += size) out.push(...(await Promise.all(items.slice(i, i + size).map(run))));
+  return out;
+}
+
+const giteaGet = <T>(site: string, token: string, path: string) =>
+  request<T>(`${endpoints.gitea(site)}/api/v1${path}`, { headers: { Authorization: `Bearer ${token}` } });
+
+function oauthRefusal(message: string): string {
+  try {
+    const json = JSON.parse(message.replace(/^\d+ /, "")) as { error?: string; error_description?: string };
+    return json.error_description || json.error || "Gitea didn't accept the sign-in";
+  } catch {
+    return "Gitea didn't accept the sign-in";
+  }
+}
+
+export async function giteaTokens(site: string, fields: Record<string, string>): Promise<GiteaTokens> {
+  const json = await request<{ access_token: string; refresh_token: string; expires_in: number }>(`${endpoints.gitea(site)}/login/oauth/access_token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: form(fields),
+  }).catch((error: unknown) => {
+    const refused = error instanceof LiveError && (error.kind === "signedOut" || (error.kind === "other" && /^4\d\d /.test(error.message)));
+    throw refused ? new LiveError("signedOut", oauthRefusal(error.message)) : error;
+  });
+  return { access: json.access_token, refresh: json.refresh_token, expiresAt: Date.now() + json.expires_in * 1000 };
+}
+
+async function readGiteaLogin(): Promise<{ site: string; token: string }> {
+  const session = giteaSession;
+  const stored = JSON.parse(await secret("gitea")) as GiteaLogin;
+  if ("token" in stored) return { site: stored.site, token: stored.token };
+  if (stored.expiresAt > Date.now() + 60_000) return { site: stored.site, token: stored.access };
+  const tokens = await giteaTokens(stored.site, { grant_type: "refresh_token", refresh_token: stored.refresh, client_id: stored.clientId });
+  if (session === giteaSession) await setSecret("gitea", JSON.stringify({ ...stored, ...tokens }));
+  return { site: stored.site, token: tokens.access };
+}
+
+function giteaLogin(): Promise<{ site: string; token: string }> {
+  giteaAccess ??= readGiteaLogin().finally(() => (giteaAccess = null));
+  return giteaAccess;
+}
+
+const missing = (error: unknown): null => {
+  if (error instanceof LiveError && error.kind === "other" && error.message.startsWith("404")) return null;
+  throw error;
+};
+
+type RequiredApprovals = (repo: string, branch: string) => Promise<number | null>;
+
+function giteaRequiredApprovals(get: <T>(path: string) => Promise<T>): RequiredApprovals {
+  const branches = new Map<string, Promise<number | null>>();
+  return (repo, branch) => {
+    const key = `${repo}:${branch}`;
+    if (!branches.has(key)) {
+      const path = `/repos/${repo}/branches/${branch.split("/").map(encodeURIComponent).join("/")}`;
+      branches.set(key, get<{ required_approvals?: number }>(path).then((b) => b.required_approvals ?? 0, () => null));
+    }
+    return branches.get(key)!;
+  };
+}
+
+async function giteaDetails(get: <T>(path: string) => Promise<T>, requiredApprovals: RequiredApprovals, ref: GiteaPullRef): Promise<GiteaDetails | null> {
+  const path = `/repos/${ref.repo}/pulls/${ref.number}`;
+  const pull = await get<GiteaPull>(path).catch(missing);
+  if (!pull) return null;
+  const [reviews, status, required] = await Promise.all([
+    get<GiteaReview[]>(`${path}/reviews?limit=50`).catch(() => null),
+    get<GiteaCombinedStatus>(`/repos/${ref.repo}/commits/${pull.head.sha}/status?limit=50`).catch(() => null),
+    requiredApprovals(ref.repo, pull.base.ref),
+  ]);
+  return { ...ref, pull, reviews, status, requiredApprovals: required };
+}
+
+const gitea: LiveSource = {
+  id: "gitea",
+  name: "Gitea",
+  kind: "pullRequests",
+  get site() {
+    return live().config.giteaSite || GITEA_DEFAULT_SITE;
+  },
+  async fetch(folder) {
+    const me = live().accounts.gitea;
+    if (!me) throw new LiveError("notConfigured", "Not signed in");
+    const { site, token } = await giteaLogin();
+    const get = <T>(path: string) => giteaGet<T>(site, token, path);
+    const search = (filter: "created" | "review_requested", on: boolean) => (on ? get<GiteaIssue[]>(`${GITEA_SEARCH}&${filter}=true`) : Promise.resolve([]));
+    const [authored, review] = await Promise.all([search("created", folder.filters.authored), search("review_requested", folder.filters.reviewRequests)]);
+    const requiredApprovals = giteaRequiredApprovals(get);
+    const details = await inBatches(giteaRefs(authored, review), GITEA_BATCH, (ref) => giteaDetails(get, requiredApprovals, ref));
+    return mapGitea(site, me.login, details.filter((d): d is GiteaDetails => !!d));
+  },
+  async resolveGone(items) {
+    const { site, token } = await giteaLogin();
+    const out: Record<string, CompletionState> = {};
+    await inBatches(items, GITEA_BATCH, async (item) => {
+      if (!item.pr) return;
+      const pull = await giteaGet<GiteaPull>(site, token, `/repos/${item.pr.repo}/pulls/${item.pr.number}`).catch(() => null);
+      const state = pull && giteaCompletion(pull, item.section);
+      if (state) out[item.id] = state;
+    });
     return out;
   },
 };
@@ -169,7 +285,7 @@ const gdrive: LiveSource = {
   },
 };
 
-export const SOURCES: Record<LiveSourceId, LiveSource> = { github, bitbucket, notion, confluence, gdrive };
+export const SOURCES: Record<LiveSourceId, LiveSource> = { github, gitea, bitbucket, notion, confluence, gdrive };
 
 const account = (login: string, name: string | null, avatar: string | null): LiveAccount => ({ login, name, avatar, connectedAt: Date.now() });
 
@@ -207,6 +323,26 @@ export async function startGithubDeviceFlow(clientId: string): Promise<DeviceFlo
     throw new LiveError("signedOut", cancelled ? "Cancelled" : "The code expired");
   })();
   return { userCode: code.user_code, verificationUri: code.verification_uri, expiresAt, done, cancel: () => (cancelled = true) };
+}
+
+export async function connectGitea(site: string, credentials: GiteaCredentials) {
+  const base = siteUrl(site);
+  const token = "token" in credentials ? credentials.token : credentials.access;
+  const get = <T>(path: string) => giteaGet<T>(base, token, path);
+  const [me] = await Promise.all([
+    get<{ login: string; full_name?: string; avatar_url?: string }>("/user"),
+    get("/repos/issues/search?type=pulls&limit=1"),
+    get("/repos/search?limit=1"),
+  ]).catch((error: unknown) => {
+    if (error instanceof LiveError && error.kind === "signedOut")
+      throw new LiveError("signedOut", error.message.startsWith("403") ? "The token needs read access to issues, repositories and your user" : "Gitea didn't accept the token");
+    if (error instanceof LiveError && !(error.kind === "other" && error.message.startsWith("404"))) throw error;
+    throw new LiveError("notConfigured", `There's no Gitea or Forgejo at ${base}`);
+  });
+  giteaSession++;
+  await setSecret("gitea", JSON.stringify({ ...credentials, site: base } satisfies GiteaLogin));
+  updateConfig({ giteaSite: base, ...("clientId" in credentials ? { giteaClientId: credentials.clientId } : {}) });
+  setAccount("gitea", account(me.login, me.full_name || null, me.avatar_url || null));
 }
 
 export async function connectBitbucket(user: string, token: string) {
@@ -251,6 +387,7 @@ export async function connectGoogle(clientId: string, clientSecret: string, code
 }
 
 export async function disconnect(source: LiveSourceId) {
+  if (source === "gitea") giteaSession++;
   await deleteSecret(source);
   setAccount(source, null);
 }
