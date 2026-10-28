@@ -44,7 +44,7 @@ export function DropdownFrame({ rootRef, onContextMenu, leadingIcon, scope, fiel
   );
 }
 
-export function PanelFrame({ rootRef, onContextMenu, leadingIcon, scope, field, list, hero, bottom }: FrameProps & { hero: boolean; bottom: ReactNode }) {
+export function PanelFrame({ rootRef, onContextMenu, leadingIcon, scope, field, list, hero, rowHeight, bottom }: FrameProps & { hero: boolean; rowHeight: number; bottom: ReactNode }) {
   return (
     <View ref={rootRef}>
       <ContextMenuArea captureDescendants onContextMenu={onContextMenu}>
@@ -52,7 +52,7 @@ export function PanelFrame({ rootRef, onContextMenu, leadingIcon, scope, field, 
           style={{
             flexDirection: "row",
             alignItems: "center",
-            height: hero ? BAR.panel.heroHeight : BAR.panel.height,
+            height: hero ? BAR.panel.heroHeight : rowHeight,
             paddingLeft: hero ? BAR.panel.heroIconLeft : BAR.panel.iconLeft,
             paddingRight: BAR.panel.right,
             gap: hero ? BAR.panel.heroGap : BAR.panel.gap,

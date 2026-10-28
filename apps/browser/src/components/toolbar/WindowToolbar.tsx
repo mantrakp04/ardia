@@ -1,10 +1,10 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { Animated, View } from "react-native";
-import { layout } from "../ui/theme";
 import { AutoHideToolbar } from "./AutoHideToolbar";
 import type { ToolbarGeometry } from "../window/geometry";
 import type { ToolbarMode } from "../../state/windows/toolbarAutoHide";
 import { Toolbar } from "./Toolbar";
+import { useToolbarRow } from "./useToolbarRow";
 
 type PaneChrome = { tabId: string; mode: ToolbarMode; bar: Animated.Value; fade: Animated.Value };
 
@@ -22,14 +22,14 @@ export function publishPaneChrome(windowId: string, chrome: PaneChrome) {
   for (const listener of listeners) listener();
 }
 
-const FRAME = { position: "absolute", left: 0, top: 0, right: 0, height: layout.toolbarHeight } as const;
-
 export function WindowToolbar({ windowId, tabId, geometry, autoHide }: { windowId: string; tabId: string; geometry: ToolbarGeometry; autoHide: boolean }) {
   const chrome = useSyncExternalStore(subscribe, () => chromes.get(windowId));
   useEffect(() => () => void chromes.delete(windowId), [windowId]);
+  const height = useToolbarRow().height;
+  const frame = useMemo(() => ({ position: "absolute" as const, left: 0, top: 0, right: 0, height }), [height]);
   if (!autoHide) {
     return (
-      <View pointerEvents="box-none" style={FRAME}>
+      <View pointerEvents="box-none" style={frame}>
         <Toolbar tabId={tabId} geometry={geometry} windowId={windowId} inSplit={false} focused bare />
       </View>
     );

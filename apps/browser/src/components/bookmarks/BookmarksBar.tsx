@@ -1,5 +1,5 @@
 import { memo, useState } from "react";
-import { StyleSheet, View, type LayoutRectangle } from "react-native";
+import { Animated, StyleSheet, View, type LayoutRectangle } from "react-native";
 import { folderChildren } from "../../state/bookmarks/bookmarks";
 import { currentBookmarks } from "../../state/browser/current";
 import { useBookmarkProfileId, useBookmarks } from "../../state/bookmarks/hooks";
@@ -7,16 +7,33 @@ import { useSettings, useWindowId } from "../../state/browser/hooks";
 import { moveBookmark } from "../../state/bookmarks/actions";
 import type { Settings } from "../../state/settings/settings";
 import { ContextMenuArea, space, Text, useTheme } from "../ui";
+import { ThemeContext } from "../ui/theme";
+import { siteScopedTheme, useEasedColor } from "../ui/toolbarColors";
+import { useSitePalette } from "../toolbar/useSitePalette";
 import { BarButton, BarItem, ImportButton } from "./BarItem";
 import { openBarMenu, openFolderMenu } from "../../state/bookmarks/barMenus";
 import { bookmarksBar } from "./tokens";
 
 export const BOOKMARKS_BAR_HEIGHT = bookmarksBar.height;
 
-export const BookmarksBar = memo(function BookmarksBar({ placeholder }: { placeholder?: boolean }) {
+export const BookmarksBar = memo(function BookmarksBar({ tabId, placeholder }: { tabId: string; placeholder?: boolean }) {
   const windowId = useWindowId();
-  return placeholder ? <View style={{ height: BOOKMARKS_BAR_HEIGHT }} /> : <Bar windowId={windowId} />;
+  return placeholder ? <View style={{ height: BOOKMARKS_BAR_HEIGHT }} /> : <SiteColoredBar windowId={windowId} tabId={tabId} />;
 });
+
+function SiteColoredBar({ windowId, tabId }: { windowId: string; tabId: string }) {
+  const theme = useTheme();
+  const palette = useSitePalette(tabId);
+  const band = useEasedColor(palette.background);
+  return (
+    <ThemeContext.Provider value={siteScopedTheme(theme, palette)}>
+      <View>
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: band }]} />
+        <Bar windowId={windowId} />
+      </View>
+    </ThemeContext.Provider>
+  );
+}
 
 export function bookmarksBarShown(mode: BookmarksBarMode, tab: { url: string } | undefined): boolean {
   if (!tab || mode === "never") return false;

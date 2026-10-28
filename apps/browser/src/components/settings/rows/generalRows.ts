@@ -53,12 +53,17 @@ export const generalRows: Pick<Record<SettingsPane, SettingSection[]>, "general"
       },
     },
     {
-      section: "Import",
+      section: "Import and Export",
       rows: {
         importBrowser: {
           title: "Import from another browser",
           description: "Bookmarks, history, passwords, tabs and Arc spaces from Chrome, Arc, Safari, Firefox and more.",
           keywords: ["migrate", "switch", "transfer"],
+        },
+        exportBookmarks: {
+          title: "Export bookmarks",
+          description: "To an HTML file that Chrome, Safari, Firefox and every other browser can import.",
+          keywords: ["backup", "html", "netscape", "bookmarks.html", "save bookmarks", "transfer"],
         },
         setupCode: {
           title: "Apply a setup code",
@@ -70,6 +75,16 @@ export const generalRows: Pick<Record<SettingsPane, SettingSection[]>, "general"
   ],
   profiles: [
     { section: "New windows open with", rows: { defaultProfile: { title: "Default profile", description: "Used for new windows. Links from other apps open in the profile you used last.", keywords: ["new window"] } } },
+    {
+      section: "Profile switcher",
+      rows: {
+        switcherIcons: {
+          title: "Show profile icons instead of dots",
+          description: "As in Arc: the switcher at the bottom of the sidebar shows each profile's symbol or emoji, and a profile without one keeps its dot. Right-click the switcher to pick an icon.",
+          keywords: ["spaces", "space icons", "profile dots", "switcher", "emoji", "symbol", "sidebar footer", "arc"],
+        },
+      },
+    },
     { section: "Profiles", rows: { list: { title: "Profiles", description: "Drag to reorder. ⌃1–⌃9 switch to the first nine.", keywords: ["create profile", "new profile", "delete profile", "reorder", "work", "personal"] } } },
   ],
   sync: [
@@ -196,7 +211,7 @@ export const generalRows: Pick<Record<SettingsPane, SettingSection[]>, "general"
         cleanUp: {
           title: "Clean up tabs I haven't used in",
           description: "Closes tabs you haven't used (and duplicates) automatically, like the tab menu's Clean Up Daily.",
-          keywords: ["archive", "auto close", "inactive tabs", "duplicates"],
+          keywords: ["archive", "auto close", "inactive tabs", "duplicates", "custom", "minutes"],
         },
       },
     },
@@ -221,6 +236,11 @@ export const generalRows: Pick<Record<SettingsPane, SettingSection[]>, "general"
           title: "⌘L opens the command bar",
           description: "In the centre, ⌘L and a click on the address show it over the middle of the page, as in Arc.",
           keywords: ["cmd l", "command bar", "centred", "centered", "arc", "url bar", "location bar"],
+        },
+        compactToolbar: {
+          title: "Compact toolbar",
+          description: "A 28 pt toolbar instead of Dia's 41 pt, so the page gets more height and a 16:9 video can fill a maximized window. For the address bar in the toolbar and for tabs at the top.",
+          keywords: ["toolbar height", "smaller toolbar", "thin toolbar", "slim", "dense", "helium", "video", "16:9", "black bars", "url bar"],
         },
       },
     },

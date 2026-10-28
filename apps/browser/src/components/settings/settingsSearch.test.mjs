@@ -13,6 +13,7 @@ test("synonyms find the setting they stand for", () => {
   assert.equal(first("dark mode"), "appearance.theme");
   assert.equal(first("adblock"), "privacy.blockAds");
   assert.equal(first("pip"), "tabs.autoPictureInPicture");
+  assert.equal(first("mouse wheel"), "privacy.commandScrollZoom");
   assert.equal(first("vertical tabs"), "tabs.layout");
   assert.equal(first("1password"), "passwords.managerApps");
 });

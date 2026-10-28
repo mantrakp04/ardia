@@ -1,6 +1,6 @@
 import type { BrowserState } from "../browser/store";
 import { activeTabId } from "../browser/model";
-import { useMedia } from "../media/media";
+import { showsSidebarPlayer, useMedia } from "../media/media";
 import { isInternalTab } from "../pages/urls";
 import { peekTabId } from "../peek/peek";
 import { splitOf } from "../splits/splits";
@@ -40,7 +40,7 @@ export function keepAliveReason(s: BrowserState, id: string): string | null {
   if (media.pipOpen[id]) return "picture in picture";
   if (media.displayRequests[id]) return "choosing a screen to share";
   const session = media.sessions[id];
-  if (session?.playbackState === "playing" || (tab.pinned && session)) return "media";
+  if (session?.playbackState === "playing" || (tab.pinned && session) || showsSidebarPlayer(s, media, id)) return "media";
   if (splitOf(s, id)) return "in a split";
   return null;
 }

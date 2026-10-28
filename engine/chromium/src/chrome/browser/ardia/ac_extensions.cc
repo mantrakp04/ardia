@@ -41,6 +41,7 @@
 #include "extensions/browser/requirements_checker.h"
 #include "extensions/browser/uninstall_reason.h"
 #include "extensions/browser/unpacked_installer.h"
+#include "extensions/browser/user_script_manager.h"
 #include "extensions/browser/disable_reason.h"
 #include "extensions/common/extension.h"
 
@@ -107,6 +108,8 @@ base::DictValue Entry(const developer::ExtensionInfo& info) {
                               : base::Value(info.home_page.url))
       .Set("incognito", info.incognito_access.is_active)
       .Set("fileAccess", info.file_access.is_active)
+      .Set("userScriptsAvailable", info.user_scripts_access.is_enabled)
+      .Set("userScripts", info.user_scripts_access.is_active)
       .Set("pinned", info.pinned_to_toolbar.value_or(false))
       .Set("mayModify", info.user_may_modify)
       .Set("blockedByPolicy", info.disable_reasons.blocked_by_policy)
@@ -502,6 +505,18 @@ AC_ENGINE_CALL(ac_extensions_configure) {
   }
   if (std::optional<bool> allow = call.args().FindBool("incognito")) {
     extensions::util::SetIsIncognitoEnabled(id, profile, *allow);
+  }
+  if (std::optional<bool> allow = call.args().FindBool("userScripts")) {
+    const extensions::Extension* extension = ardia::Find(profile, id);
+    extensions::UserScriptManager* manager =
+        extensions::ExtensionSystem::Get(profile)->user_script_manager();
+    if (!extension || !manager ||
+        !extensions::UserScriptManager::IsUserScriptsAPIPermissionAvailable(
+            *extension)) {
+      return call.TakeReply().Error(
+          "This extension doesn't ask to run user scripts");
+    }
+    manager->SetUserScriptPrefEnabled(id, *allow);
   }
   if (const std::string* access = call.args().FindString("siteAccess")) {
     const extensions::Extension* extension = ardia::Find(profile, id);

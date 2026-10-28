@@ -1,7 +1,7 @@
 import { breadcrumb } from "@ardia/core";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
-import { layout, useTheme } from "../ui/theme";
+import { useTheme } from "../ui/theme";
 import { useSettings, useTab, useTabLive } from "../../state/browser/hooks";
 import { useBrowserWhile, useStoreWhile } from "../../state/tabs/tabWatch";
 import type { ToolbarGeometry } from "../window/geometry";
@@ -14,6 +14,7 @@ import { Toolbar } from "./Toolbar";
 import { curve } from "../ui/motion";
 import { font, weight } from "../ui";
 import { TOOLBAR_MOTION } from "./tokens";
+import { useToolbarRow } from "./useToolbarRow";
 
 const HIDE_MS = TOOLBAR_MOTION.hide;
 const HIDE_EASING = curve.outQuad;
@@ -22,7 +23,6 @@ const SHOW_EASING = curve.outCubic;
 const PEEK_DELAY = 150;
 const UNPEEK_DELAY = 250;
 const SHRINK = 0.94;
-const BAR_ROOM = layout.toolbarHeight - STRIP_HEIGHT;
 
 let reduceMotion = false;
 AccessibilityInfo.isReduceMotionEnabled().then(
@@ -66,7 +66,7 @@ export function useToolbarMotion({
 }): ToolbarMotion {
   const collapsed = mode !== "shown";
   const hidden = mode === "collapsed";
-  const shownTop = layout.toolbarHeight + extra;
+  const shownTop = useToolbarRow().height + extra;
   const room = shownTop - STRIP_HEIGHT;
   const [tallState, setTall] = useState({ on: collapsed, doc });
   let tall = tallState;
@@ -150,15 +150,15 @@ export function AutoHideBackdrop({ tabId, mode, motion }: { tabId: string; mode:
   const palette = toolbarPalette(theme, extendColor && url ? themeColor : null);
   const band = useEasedColor(palette.background);
   const { bar } = motion;
-  const H = layout.toolbarHeight;
+  const H = useToolbarRow().height;
   const [moved, setMoved] = useState(mode !== "shown");
   if (!moved && mode !== "shown") setMoved(true);
   const anim = useMemo(
     () =>
       moved && {
         bandScale: bar.interpolate({ inputRange: [0, 1], outputRange: [1, STRIP_HEIGHT / H] }),
-        bandLift: bar.interpolate({ inputRange: [0, 1], outputRange: [0, -BAR_ROOM / 2] }),
-        dividerTop: bar.interpolate({ inputRange: [0, 1], outputRange: [0, -BAR_ROOM] }),
+        bandLift: bar.interpolate({ inputRange: [0, 1], outputRange: [0, -(H - STRIP_HEIGHT) / 2] }),
+        dividerTop: bar.interpolate({ inputRange: [0, 1], outputRange: [0, -(H - STRIP_HEIGHT)] }),
       },
     [moved, bar, H],
   );
@@ -212,7 +212,7 @@ export function AutoHideToolbar({
   };
 
   const { bar, fade } = motion;
-  const H = layout.toolbarHeight;
+  const H = useToolbarRow().height;
   const [moved, setMoved] = useState(mode !== "shown");
   if (!moved && mode !== "shown") setMoved(true);
   const anim = useMemo(

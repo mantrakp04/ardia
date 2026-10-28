@@ -1,1 +1,1 @@
-export { bookmarkTree, applyBookmarkOps, watchBookmarks, onBookmarksChanged, type EngineBookmark, type BookmarkOp } from "@ardia/ardiacore";
+export { bookmarkTree, applyBookmarkOps, watchBookmarks, onBookmarksChanged, exportBookmarksHtml, type EngineBookmark, type BookmarkOp } from "@ardia/ardiacore";

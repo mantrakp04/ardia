@@ -10,6 +10,7 @@ import { activeTabId } from "../browser/model";
 import { peekTabId } from "../peek/peek";
 import { splitOf } from "../splits/splits";
 import { hostOf } from "../../lib/url";
+import { isSleeping } from "../tabs/sleepingTabs";
 
 export type Session = NowPlaying & {
   playedAt: number;
@@ -18,6 +19,7 @@ export type Session = NowPlaying & {
 type Store = {
   sessions: Record<string, Session>;
   dismissed: Record<string, true>;
+  leftPaused: Record<string, true>;
   pip: Record<string, "manual">;
   pipOpen: Record<string, PictureInPictureState["kind"]>;
   displayRequests: Record<string, DisplayMediaRequest>;
@@ -30,7 +32,7 @@ export type TabShare = {
   dismissed: Record<string, true>;
 };
 
-export const useMedia = create<Store>()(() => ({ sessions: {}, dismissed: {}, pip: {}, pipOpen: {}, displayRequests: {}, tabShares: {} }));
+export const useMedia = create<Store>()(() => ({ sessions: {}, dismissed: {}, leftPaused: {}, pip: {}, pipOpen: {}, displayRequests: {}, tabShares: {} }));
 
 export function setPictureInPictureState(tabId: string, { kind, active }: PictureInPictureState) {
   useMedia.setState((s) => {
@@ -91,7 +93,54 @@ export function formatTime(seconds: number): string {
 }
 
 export function mediaCommand(tabId: string, action: MediaCommand, seconds?: number) {
-  void webviews.get(tabId)?.mediaCommand(action, seconds);
+  if (!isSleeping(tabId)) return void webviews.get(tabId)?.mediaCommand(action, seconds);
+  if (action === "play" || action === "toggle") wakeToPlay(tabId);
+}
+
+const WAKE_TO_PLAY_MS = 20_000;
+const LOADED_WITHOUT_SESSION_MS = 1500;
+const RESUME_SEEK_MIN_SECONDS = 5;
+const waking = new Set<string>();
+
+function wakeToPlay(tabId: string) {
+  const handle = webviews.get(tabId);
+  if (!handle || waking.has(tabId)) return;
+  const before = useMedia.getState().sessions[tabId];
+  waking.add(tabId);
+  let sawLoading = false;
+  let loaded: ReturnType<typeof setTimeout> | undefined;
+  const unsubscribe: (() => void)[] = [];
+  const finish = () => {
+    for (const stop of unsubscribe) stop();
+    clearTimeout(deadline);
+    clearTimeout(loaded);
+    waking.delete(tabId);
+  };
+  const resume = (after: NowPlaying | null) => {
+    finish();
+    for (const [action, seconds] of resumeCommands(before, after)) void webviews.get(tabId)?.mediaCommand(action, seconds);
+  };
+  const deadline = setTimeout(finish, WAKE_TO_PLAY_MS);
+  unsubscribe.push(
+    useMedia.subscribe((m) => {
+      const after = m.sessions[tabId];
+      if (after && after !== before && after.playbackState !== "none") resume(after);
+    }),
+    useBrowser.subscribe((s) => {
+      if (loaded || isSleeping(tabId)) return;
+      if (s.live[tabId]?.isLoading) sawLoading = true;
+      else if (sawLoading) loaded = setTimeout(() => resume(null), LOADED_WITHOUT_SESSION_MS);
+    }),
+  );
+  void handle.reload().catch(finish);
+}
+
+export function resumeCommands(before: Session | undefined, after: NowPlaying | null): [MediaCommand, number?][] {
+  if (after?.playbackState === "playing") return [];
+  const at = before ? positionOf(before) : 0;
+  const sameMedia = !after || (!!before?.title && before.title === after.title);
+  const moved = !after || Math.abs(after.position - at) > RESUME_SEEK_MIN_SECONDS;
+  return sameMedia && at > RESUME_SEEK_MIN_SECONDS && moved ? [["seekTo", at], ["play"]] : [["play"]];
 }
 
 export const hasTrackControls = (session: Session) => session.actions.includes("nexttrack") || session.actions.includes("previoustrack");
@@ -106,11 +155,45 @@ export function isTabShown(s: BrowserState, tabId: string, profileId?: string): 
   return active === tabId || peekTabId(s, windowId) === tabId || !!splitOf(s, active)?.tabIds.includes(tabId);
 }
 
+export function hasPlayer(m: Pick<Store, "sessions" | "dismissed">, tabId: string): boolean {
+  const session = m.sessions[tabId];
+  return !!session && session.controllable && !m.dismissed[tabId] && !!session.playedAt && session.playbackState !== "none";
+}
+
+export const showsSidebarPlayer = (s: BrowserState, m: Store, tabId: string) =>
+  s.settings.sidebarMediaControls && !m.leftPaused[tabId] && hasPlayer(m, tabId);
+
+function hiddenPlayerTabIds(s: BrowserState, m: Store): Set<string> {
+  const ids = new Set<string>();
+  if (!s.settings.sidebarMediaControls) return ids;
+  for (const id of Object.keys(m.sessions)) {
+    const tab = s.tabs[id];
+    if (tab && s.windows[tab.windowId] && !isTabShown(s, id, tab.profileId)) ids.add(id);
+  }
+  return ids;
+}
+
+let hiddenBefore = new Set<string>();
+
+function noteLeftPaused() {
+  const m = useMedia.getState();
+  if (!hiddenBefore.size && !Object.keys(m.sessions).length) return;
+  const hidden = hiddenPlayerTabIds(useBrowser.getState(), m);
+  const left = { ...m.leftPaused };
+  for (const id of Object.keys(left)) if (!hidden.has(id) || isPlaying(m.sessions[id])) delete left[id];
+  for (const id of hidden) if (!hiddenBefore.has(id) && !isPlaying(m.sessions[id])) left[id] = true;
+  hiddenBefore = hidden;
+  const keys = Object.keys(left);
+  if (keys.length !== Object.keys(m.leftPaused).length || keys.some((id) => !m.leftPaused[id])) useMedia.setState({ leftPaused: left });
+}
+
+useBrowser.subscribe(noteLeftPaused);
+useMedia.subscribe((m, prev) => {
+  if (m.sessions !== prev.sessions) noteLeftPaused();
+});
+
 export function playerTabFor(m: Pick<Store, "sessions" | "dismissed">, tabIds: string[], current?: string): string | undefined {
-  const eligible = (id: string) => {
-    const session = m.sessions[id];
-    return !!session && session.controllable && !m.dismissed[id] && !!session.playedAt && session.playbackState !== "none";
-  };
+  const eligible = (id: string) => hasPlayer(m, id);
   if (current && tabIds.includes(current) && eligible(current)) return current;
   let best: Session | undefined;
   let bestId: string | undefined;

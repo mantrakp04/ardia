@@ -1953,6 +1953,8 @@ try {
     const trackpad = await scroll(gesture(true));
     await sleep(800);
     const afterTrackpad = await zoom();
+    await scroll([{ phase: "command" }]);
+    await sleep(400);
     const wheel = await scroll([{ phase: "wheel", dy: 1 }, { phase: "wheel", dy: 1 }]);
     const afterWheel = await until("zoomed", async () => { const z = await zoom(); return z > 1 ? z : null; }, 5000)
       .catch(async (e) => {
@@ -1960,6 +1962,7 @@ try {
         const ui = await evalApp(`return ac.store.getState().windowUi[${JSON.stringify(mainWindow)}] ?? null`).catch(() => null);
         throw new Error(`${e.message}; trackpad ${JSON.stringify(trackpad)} wheel ${JSON.stringify(wheel)} zoom ${await zoom()} why ${JSON.stringify(why)} ui ${JSON.stringify(ui)} events ${JSON.stringify((await eventsOf(first.id)).filter((x) => x.name === "zoom").slice(-2))}`);
       });
+    await scroll([{ phase: "commandUp" }]);
     await reset();
     if (trackpad.some(Boolean) || afterTrackpad !== 1) throw new Error(`a trackpad ⌘-scroll zoomed: ${JSON.stringify(trackpad)} → ${afterTrackpad}`);
     if (!wheel.some(Boolean)) throw new Error(`the wheel didn't zoom: ${JSON.stringify(wheel)}`);

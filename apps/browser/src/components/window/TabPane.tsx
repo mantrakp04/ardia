@@ -19,10 +19,13 @@ import { Toolbar, ToolbarBackdrop } from "../toolbar/Toolbar";
 import { AutoHideBackdrop, AutoHideToolbar, useToolbarMode, useToolbarMotion } from "../toolbar/AutoHideToolbar";
 import { publishPaneChrome } from "../toolbar/WindowToolbar";
 import { revealToolbar } from "../../state/windows/toolbarAutoHide";
+import { useToolbarRow } from "../toolbar/useToolbarRow";
 import { pageKey, TabWebView } from "./TabWebView";
 import { PageOverlays } from "./PageOverlays";
 import { pageFrameRadius } from "./pageFrame";
 import { useProfileTheme } from "./ThemeScope";
+
+const LINGERING_PANE = "ardia.lingeringPane";
 
 export const TabPane = memo(function TabPane({
   tabId,
@@ -45,6 +48,8 @@ export const TabPane = memo(function TabPane({
   windowToolbar,
   popovers,
   peekShown,
+  lingering,
+  seeThrough,
 }: {
   tabId: string;
   windowId: string;
@@ -66,12 +71,15 @@ export const TabPane = memo(function TabPane({
   windowToolbar: boolean;
   popovers: boolean;
   peekShown: boolean;
+  lingering: boolean;
+  seeThrough: boolean;
 }) {
   const visible = !!rect;
   const showPageFrame = useShowPageFrame();
   const live = visible || !!warm;
   const own = useTabValue(tabId, paneTab, shallowEqual);
   const theme = useProfileTheme(own.profileId);
+  const toolbarHeight = useToolbarRow().height;
   const isNewTab = !own.url;
   const emptyCard = useSettings((st) => isNewTab && st.newTabOpens === "commandBar");
   const newTabShown = useStoreWhile(usePages, live, (s) => !!s.pages[tabId]?.newTabShown);
@@ -91,14 +99,15 @@ export const TabPane = memo(function TabPane({
   useEffect(() => {
     if (visible) revealToolbar(tabId);
   }, [visible]);
-  const chromeInWindow = hideBar && windowToolbar;
+  const chromeInWindow = hideBar && windowToolbar && !lingering;
   useLayoutEffect(() => {
     if (chromeInWindow) publishPaneChrome(windowId, { tabId, mode, bar: motion.bar, fade: motion.fade });
   });
 
   return (
     <View
-      pointerEvents={visible && !covered ? "auto" : "none"}
+      pointerEvents={visible && !covered && !lingering ? "auto" : "none"}
+      nativeID={lingering ? LINGERING_PANE : undefined}
       onTouchStart={() => {
         if (visible && !focused) activate(tabId);
       }}
@@ -108,7 +117,7 @@ export const TabPane = memo(function TabPane({
         borderRadius: pageFrameRadius(showPageFrame, fullscreen, small),
         overflow: "hidden",
         opacity: covered ? 0 : 1,
-        backgroundColor: visible && !fullscreen ? theme.card : undefined,
+        backgroundColor: visible && !fullscreen && !seeThrough ? theme.card : undefined,
       }}
     >
       {!toolbar || fullscreen || autoLayout ? null : visible && !windowToolbar ? (
@@ -116,11 +125,11 @@ export const TabPane = memo(function TabPane({
       ) : visible ? (
         <ToolbarBackdrop tabId={tabId} />
       ) : (
-        <View style={{ height: layout.toolbarHeight }} />
+        <View style={{ height: toolbarHeight }} />
       )}
-      {!autoLayout && bookmarksBar && <BookmarksBar placeholder={!visible} />}
+      {!autoLayout && bookmarksBar && <BookmarksBar tabId={tabId} placeholder={!visible} />}
       <Animated.View style={autoLayout ? motion.groupStyle : { flex: 1 }}>
-        {autoLayout && bookmarksBar && <BookmarksBar placeholder={!visible} />}
+        {autoLayout && bookmarksBar && <BookmarksBar tabId={tabId} placeholder={!visible} />}
         <View style={autoLayout ? { height: motion.pageHeight } : { flex: 1 }}>
           {visible && !fullscreen && <ShareBar tabId={tabId} />}
           <View style={{ flex: 1 }}>

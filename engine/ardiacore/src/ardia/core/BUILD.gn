@@ -58,6 +58,8 @@ source_set("core") {
     "ac_devtools_call.mm",
     "ac_device_chooser.h",
     "ac_device_chooser.mm",
+    "ac_extension_drop.mm",
+    "ac_extension_drop.h",
     "ac_extension_shortcuts.h",
     "ac_extension_shortcuts.mm",
     "ac_extension_view.h",

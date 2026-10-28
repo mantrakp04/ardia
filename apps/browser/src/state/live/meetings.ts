@@ -91,8 +91,14 @@ export function relatedLinks(event: Pick<CalendarEvent, "url" | "location" | "no
 
 export const isMeeting = (e: CalendarEvent) => !e.allDay && !e.cancelled && !e.declined;
 
-export function currentOrNext(events: CalendarEvent[], now: number): CalendarEvent | null {
-  const meetings = events.filter(isMeeting).filter((e) => e.end > now);
+export type DismissedNow = Record<string, number>;
+
+const NONE_DISMISSED: DismissedNow = {};
+
+const isDismissed = (e: CalendarEvent, dismissed: DismissedNow) => dismissed[e.occurrence] !== undefined;
+
+export function currentOrNext(events: CalendarEvent[], now: number, dismissed: DismissedNow = NONE_DISMISSED): CalendarEvent | null {
+  const meetings = events.filter(isMeeting).filter((e) => e.end > now && !isDismissed(e, dismissed));
   const current = meetings.filter((e) => e.start <= now).sort((a, b) => b.start - a.start)[0];
   return current ?? meetings.sort((a, b) => a.start - b.start)[0] ?? null;
 }
@@ -106,14 +112,32 @@ export function eventForCall(events: CalendarEvent[], url: string, now: number):
 
 const MINUTE = 60_000;
 
-export function badgeText(events: CalendarEvent[], now: number, withinMs = 60 * MINUTE): string | null {
-  const e = currentOrNext(events, now);
+export const COUNTDOWN_LEADS = [5, 10, 15, 30, 60] as const;
+export const DEFAULT_COUNTDOWN_LEAD = 60;
+
+export const countdownLeadTitle = (minutes: number) => (minutes === 60 ? "1 Hour Before" : `${minutes} Minutes Before`);
+
+export function badgeText(events: CalendarEvent[], now: number, leadMinutes: number = DEFAULT_COUNTDOWN_LEAD, dismissed: DismissedNow = NONE_DISMISSED): string | null {
+  const e = currentOrNext(events, now, dismissed);
   if (!e) return null;
   if (e.start <= now) return "Now";
   const ms = e.start - now;
-  if (ms > withinMs) return null;
+  if (ms > leadMinutes * MINUTE) return null;
   const min = Math.ceil(ms / MINUTE);
   return min >= 60 ? `${Math.floor(min / 60)}h` : `${min}m`;
+}
+
+export function nowBadgeEvent(events: CalendarEvent[], now: number, dismissed: DismissedNow = NONE_DISMISSED): CalendarEvent | null {
+  const e = currentOrNext(events, now, dismissed);
+  return e && e.start <= now ? e : null;
+}
+
+const MAX_DISMISSED_NOW = 50;
+
+export function keepDismissedNow(saved: unknown, now: number): DismissedNow {
+  if (!saved || typeof saved !== "object" || Array.isArray(saved)) return {};
+  const live = Object.entries(saved).filter(([, end]) => typeof end === "number" && end > now);
+  return Object.fromEntries(live.slice(-MAX_DISMISSED_NOW));
 }
 
 export function relativeTime(at: number, now: number): string {

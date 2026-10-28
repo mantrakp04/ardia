@@ -6,11 +6,12 @@ import { useIsActiveTab, useSettings, useTab, useTabLive, useWindowId } from "..
 import { firstStaying } from "../../state/drag/drops";
 import { clickTab } from "../../state/sidebar/actions";
 import { pressTabClose, useTabCloseControl } from "../../state/sidebar/closeControl";
+import { middleClickTab } from "../../state/sidebar/clearTabs";
 import { openTabMenu } from "../../state/sidebar/menus";
 import { currentMovingTabIds } from "../../state/tabs/topStrip";
 import { TabBadges } from "../media/TabBadges";
 import { TabIcon } from "../sidebar/TabIcon";
-import { Button, ContextMenuArea, FadeLabel, Symbol, useHover } from "../ui";
+import { Button, ContextMenuArea, FadeLabel, MouseArea, Symbol, useHover } from "../ui";
 import { HoverSlot } from "../ui/HoverSlot";
 import { useTheme } from "../ui/theme";
 import { toolbarPalette, useEasedColor } from "../ui/toolbarColors";
@@ -124,45 +125,47 @@ export function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width:
         <View pointerEvents="none" style={{ position: "absolute", left: 0, width, top: ITEM_TOP, height: ITEM_HEIGHT, borderRadius: TAB_RADIUS, backgroundColor: theme.windowTint[0] }} />
       )}
       {onto && <OntoRing width={width} />}
-      <ContextMenuArea onContextMenu={() => void openTabMenu(windowId, tab)} style={StyleSheet.absoluteFill}>
-        <Pressable onPress={(e) => clickTab(windowId, tab.id, modifiersOf(e))} style={{ flex: 1 }}>
-          {({ pressed }) => (
-            <ItemRow hovered={(hovered || dragged) && !active && !onto} pressed={pressed && !active}>
-              <View pointerEvents="none">
-                <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
-                <TabBadges tabId={tab.id} pip={false} />
-              </View>
-              {(playing || tab.muted) && (
-                <Pressable onPress={() => toggleMute(tab.id)} style={{ marginLeft: CHIP_LABEL_GAP }} tooltip={tab.muted ? "Unmute" : "Mute"}>
-                  <Symbol name={tab.muted ? "speaker.slash" : "speaker.wave.2"} size={11} color={onBand ? palette.icon : theme.textTab} style={{ width: 16, height: 16 }} />
-                </Pressable>
-              )}
-              <FadeLabel
-                text={title}
-                fontSize={font.small.fontSize}
-                color={onBand ? palette.text : active ? theme.tabSelectedText : theme.textTab}
-                style={{ flex: 1, height: 16, marginLeft: CHIP_LABEL_GAP }}
-              />
-              <HoverSlot
-                hovered={hovered}
-                width={20}
-                hover={
-                  <Button variant="icon"
-                    icon={tuck ? "minus" : closeControl.icon}
-                    size={9}
-                    weight="semibold"
-                    box={20}
-                    radius={5}
-                    color={onBand ? palette.icon : undefined}
-                    onPress={tuck ?? (() => pressTabClose(tab.id))}
-                    tooltip={tuck ? "Hide in Group" : closeControl.tooltip}
-                  />
-                }
-              />
-            </ItemRow>
-          )}
-        </Pressable>
-      </ContextMenuArea>
+      <MouseArea onMiddleClick={() => middleClickTab(tab.id)} style={StyleSheet.absoluteFill}>
+        <ContextMenuArea onContextMenu={() => void openTabMenu(windowId, tab)} style={StyleSheet.absoluteFill}>
+          <Pressable onPress={(e) => clickTab(windowId, tab.id, modifiersOf(e))} style={{ flex: 1 }}>
+            {({ pressed }) => (
+              <ItemRow hovered={(hovered || dragged) && !active && !onto} pressed={pressed && !active}>
+                <View pointerEvents="none">
+                  <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
+                  <TabBadges tabId={tab.id} pip={false} />
+                </View>
+                {(playing || tab.muted) && (
+                  <Pressable onPress={() => toggleMute(tab.id)} style={{ marginLeft: CHIP_LABEL_GAP }} tooltip={tab.muted ? "Unmute" : "Mute"}>
+                    <Symbol name={tab.muted ? "speaker.slash" : "speaker.wave.2"} size={11} color={onBand ? palette.icon : theme.textTab} style={{ width: 16, height: 16 }} />
+                  </Pressable>
+                )}
+                <FadeLabel
+                  text={title}
+                  fontSize={font.small.fontSize}
+                  color={onBand ? palette.text : active ? theme.tabSelectedText : theme.textTab}
+                  style={{ flex: 1, height: 16, marginLeft: CHIP_LABEL_GAP }}
+                />
+                <HoverSlot
+                  hovered={hovered}
+                  width={20}
+                  hover={
+                    <Button variant="icon"
+                      icon={tuck ? "minus" : closeControl.icon}
+                      size={9}
+                      weight="semibold"
+                      box={20}
+                      radius={5}
+                      color={onBand ? palette.icon : undefined}
+                      onPress={tuck ?? (() => pressTabClose(tab.id))}
+                      tooltip={tuck ? "Hide in Group" : closeControl.tooltip}
+                    />
+                  }
+                />
+              </ItemRow>
+            )}
+          </Pressable>
+        </ContextMenuArea>
+      </MouseArea>
     </View>
   );
 }

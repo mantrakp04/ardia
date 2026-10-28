@@ -1,8 +1,5 @@
 import { listTasks, onSystemState, setBatterySaver, systemState, type EngineTask, type SystemState } from "../../platform/performance";
 import { releaseProfile } from "../../platform/profiles";
-import { onAppEvent } from "../../platform/app";
-import { onWindowEvent } from "../../platform/windows";
-import { create } from "zustand";
 import { isTabReady } from "./pageState";
 import { showToast } from "../splits/actions";
 import { hasUnsavedInput, keepAliveReason, shownTabIds } from "./tabKeepAlive";
@@ -15,46 +12,22 @@ import { switchOn } from "../../platform/killSwitches";
 import { applyHeldReports } from "../../platform/nativeEvents";
 import { everySlowly, reschedule } from "../../platform/slowTimers";
 import { webviews } from "../../platform/webviews";
+import { useLifecycle } from "./sleepingTabs";
+import { awakeClock, sleepAfterMs, SLEEP_POLICY } from "./sleepPolicy";
 
-const POLICY = {
-  protectedRecent: 4,
-  recentIdleMs: 60 * 60_000,
-  idleMs: 20 * 60_000,
-  recentAwayMs: 4 * 60 * 60_000,
-  awayMs: 2 * 60 * 60_000,
-  profileIdleMs: 5 * 60_000,
-  perSweep: 6,
-  busyCpu: 10,
-  freezeAfterMs: 60_000,
-};
+export { useIsSleeping, useLifecycle } from "./sleepingTabs";
+
+const POLICY = SLEEP_POLICY;
 
 const SWEEP_MS = 30_000;
 const FREEZE_SWEEP_MS = 30_000;
 
-type Lifecycle = {
-  discarded: Record<string, true>;
-  batterySaver: boolean;
-};
-
-export const useLifecycle = create<Lifecycle>()(() => ({ discarded: {}, batterySaver: false }));
-
-export const useIsSleeping = (tabId: string) => useLifecycle((l) => !!l.discarded[tabId]);
-
 const store = () => useBrowser.getState();
 
-let appActive = true;
-let activeSince = Date.now();
-let activeTotal = 0;
-const activeClock = () => activeTotal + (appActive ? Date.now() - activeSince : 0);
-function setAppActive(active: boolean) {
-  if (active === appActive) return;
-  if (appActive) activeTotal += Date.now() - activeSince;
-  else activeSince = Date.now();
-  appActive = active;
-}
+const clock = awakeClock(() => Date.now(), POLICY.maxAwakeStepMs);
+const awakeNow = () => clock.read();
 
 const hiddenAt = new Map<string, number>();
-const hiddenSince = new Map<string, number>();
 const unusedSince = new Map<string, number>();
 const loadedProfiles = new Set<string>();
 const busyStreak = new Map<string, number>();
@@ -78,6 +51,7 @@ export async function sleepTab(id: string): Promise<boolean> {
 export function noteReady(tabId: string) {
   const tab = store().tabs[tabId];
   if (tab) loadedProfiles.add(engineProfile(tab.profileId));
+  if (useLifecycle.getState().discarded[tabId] && hiddenAt.has(tabId)) hiddenAt.set(tabId, awakeNow());
   forget(tabId, false);
 }
 
@@ -91,10 +65,7 @@ export function noteGone(tabId: string) {
 
 function forget(tabId: string, all: boolean) {
   busyStreak.delete(tabId);
-  if (all) {
-    hiddenAt.delete(tabId);
-    hiddenSince.delete(tabId);
-  }
+  if (all) hiddenAt.delete(tabId);
   const l = useLifecycle.getState();
   if (l.discarded[tabId]) useLifecycle.setState({ discarded: omit(l.discarded, tabId) });
 }
@@ -116,8 +87,7 @@ export async function sweep(overrides: Partial<typeof POLICY> = {}): Promise<str
     const policy = { ...POLICY, ...overrides };
     const s = store();
     const shown = shownTabIds(s);
-    const now = activeClock();
-    const wallNow = Date.now();
+    const now = awakeNow();
     const pressure = currentSystem()?.memoryPressure ?? "normal";
     const unused = unusedProfiles(s, now, policy.profileIdleMs);
     const hidden = loadedTabIds().filter((id) => s.tabs[id] && !shown.has(id));
@@ -126,15 +96,11 @@ export async function sweep(overrides: Partial<typeof POLICY> = {}): Promise<str
       hidden
         .filter((id) => s.tabs[id]!.url && !inUnusedProfile(id))
         .sort((a, b) => s.tabs[b]!.lastActiveAt - s.tabs[a]!.lastActiveAt)
-        .slice(0, pressure === "critical" ? 0 : policy.protectedRecent),
+        .slice(0, policy.protectedRecent),
     );
     const hiddenFor = (id: string) => now - (hiddenAt.get(id) ?? now);
-    const restedEnough = (id: string) => {
-      const away = wallNow - (hiddenSince.get(id) ?? wallNow);
-      if (recent.has(id)) return hiddenFor(id) >= policy.recentIdleMs || away >= policy.recentAwayMs;
-      return pressure !== "normal" || hiddenFor(id) >= policy.idleMs || away >= policy.awayMs;
-    };
-    const candidates = hidden.filter((id) => (inUnusedProfile(id) || restedEnough(id)) && !keepAliveReason(s, id));
+    const restedEnough = (id: string) => hiddenFor(id) >= sleepAfterMs(policy, pressure, recent.has(id));
+    const candidates = hidden.filter((id) => restedEnough(id) && !keepAliveReason(s, id));
     candidates.sort((a, b) => Number(inUnusedProfile(b)) - Number(inUnusedProfile(a)) || hiddenFor(b) - hiddenFor(a));
     for (const id of candidates) {
       if (slept.length >= policy.perSweep) break;
@@ -249,7 +215,7 @@ async function freezeBusyTabs(overrides: Partial<typeof POLICY> = {}): Promise<s
         if (tabId && isTabReady(tabId)) cpu.set(tabId, Math.max(cpu.get(tabId) ?? 0, task.cpu));
       }
     }
-    const now = activeClock();
+    const now = awakeNow();
     for (const id of loadedTabIds()) {
       if (shown.has(id)) continue;
       const streak = (cpu.get(id) ?? 0) >= policy.busyCpu ? (busyStreak.get(id) ?? 0) + 1 : 0;
@@ -279,22 +245,14 @@ export function startTabLifecycle() {
   if (started) return;
   started = true;
 
-  onWindowEvent((e) => e.type === "focus" && setAppActive(true));
-  onAppEvent((e) => (e.type === "resignActive" || e.type === "screenLocked") && setAppActive(false));
-
   let lastShown = new Set<string>();
   const track = (s: BrowserState) => {
     const shown = shownTabIds(s);
-    const now = activeClock();
-    const wallNow = Date.now();
-    const hide = (id: string) => {
-      hiddenAt.set(id, now);
-      hiddenSince.set(id, wallNow);
-    };
+    const now = awakeNow();
+    const hide = (id: string) => hiddenAt.set(id, now);
     for (const id of lastShown) if (!shown.has(id)) hide(id);
     for (const id of shown) {
       hiddenAt.delete(id);
-      hiddenSince.delete(id);
       busyStreak.delete(id);
     }
     for (const id of webviews.keys()) if (!shown.has(id) && !hiddenAt.has(id)) hide(id);
@@ -350,13 +308,12 @@ export function startTabLifecycle() {
       freezeBusyTabs,
       freezeTab,
       reloadRecentTabs,
+      advance: (ms: number) => clock.advance(ms),
       state: () => ({
         ...useLifecycle.getState(),
         system: currentSystem(),
-        appActive,
-        activeClock: activeClock(),
+        awakeClock: awakeNow(),
         hiddenAt: Object.fromEntries(hiddenAt),
-        hiddenSince: Object.fromEntries(hiddenSince),
         loadedProfiles: [...loadedProfiles],
         loaded: loadedTabIds(),
         chromeSaver,

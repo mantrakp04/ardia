@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react";
 import { opaqueThemeTint, PRESET_BACKDROP, resolveTheme, requestedDarkFor, rgbToHsl, shownLook, themeAccent, themeBackdrop, themePalette, type LookSource, type ProfileColor, type ProfileLookFields, type ProfileTheme, type ThemeBackdropProps } from "../../lib/profileLook";
 import { backdropTint, opaqueTint, tintForHue, type BackdropTint } from "../../lib/windowTint";
-import { DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
+import { CARD_INSET, DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
 import { SIDEBAR_ROW } from "../../lib/sidebarMetrics";
 import { colorRoles, ink, INCOGNITO_TINT, PROFILE_COLORS, type ColorRoles, type ProfileColorSpec } from "./tokens";
 
@@ -143,18 +143,19 @@ export function selectedTabGlow(theme: Theme, setting: SelectedTabGlowLevel) {
   return { shadowColor: hex(theme.tabSelectedShadow), shadowOpacity: level.opacity, shadowRadius: theme.tabSelectedShadowRadius * level.radius };
 }
 
+const SIDEBAR_INSET = 6;
+
 export const layout = {
   sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
   sidebarHeader: 46,
-  sidebarInset: 6,
+  sidebarInset: SIDEBAR_INSET,
   pinnedTop: 54,
   pinnedHeight: 41,
   rowHeight: SIDEBAR_ROW.height,
   rowGap: SIDEBAR_ROW.gap,
-  cardTop: 6,
-  cardInset: 7,
+  cardInset: CARD_INSET,
+  sidebarCardGap: CARD_INSET - SIDEBAR_INSET,
   cardRadius: 10,
-  toolbarHeight: 41,
   toolbarButton: 30,
   toolbarIconCenters: [21, 56, 92, 127],
   breadcrumbX: 153,

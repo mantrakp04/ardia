@@ -271,6 +271,7 @@ enum MainMenu {
       cmd("Bookmark This Page", "bookmarkPage", "d"),
       cmd("Bookmark All Tabs…", "bookmarkAllTabs", "d", [.command, .shift]),
       cmd("Manage Bookmarks", "manageBookmarks", "b", [.command, .option]),
+      cmd("Export Bookmarks…", "exportBookmarks"),
     ])
     bookmarksFixedCount = bookmarks.items.count
     history = top("History", [])

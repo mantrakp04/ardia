@@ -132,6 +132,7 @@ using namespace ardia_web_view;
 
 - (void)mediaCommand:(NSString *)action seconds:(double)seconds {
   [self thawHiddenPage];
+  if ([action isEqualToString:@"play"] || [action isEqualToString:@"toggle"]) [_tab grantUserActivationToFrame:_nowPlayingFrame ?: @""];
   [self callFrame:_nowPlayingFrame ?: @"" kind:@"media" json:JSONString(@{@"action" : action ?: @"", @"seconds" : @(seconds)})];
 }
 

@@ -142,6 +142,7 @@ if [ -f "$notes" ]; then
   grep -Eq '^date: *[0-9]{4}-[0-9]{2}-[0-9]{2} *$' <<< "$meta" && [ -n "$headline" ] \
     || die "$notes needs 'date: YYYY-MM-DD' and 'headline:' frontmatter"
   notes_channel="$(sed -n 's/^channel: *//p' <<< "$meta" | tr -d ' ')"
+  notes_video="$(sed -n 's/^video: *//p' <<< "$meta" | tr -d ' ')"
   [ "${notes_channel:-stable}" = "$channel" ] \
     || die "$notes says 'channel: ${notes_channel:-stable}' but this is a $channel release (nightly notes carry 'channel: nightly')"
 elif [ "$rc" = 1 ]; then
@@ -469,6 +470,7 @@ source_line="This build's source, with the engine's patches and build scripts: h
 [ -n "$helium_engine" ] && [ -n "$engine_release" ] && source_line="$source_line The engine's Helium and uBlock sources as built, and where Chromium's is: https://github.com/$repo/releases/download/$engine_tag/$(basename "$engine_source")"
 {
   notes_body
+  [ -n "${notes_video:-}" ] && printf '\n## Before and after\n\nThe fixes, filmed on the previous release and on this one: %s\n' "${notes_page%/release-notes}/release-videos/$notes_video.mp4"
   cat <<EOF
 
 ## Install

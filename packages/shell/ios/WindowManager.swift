@@ -274,7 +274,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     window.isReleasedWhenClosed = false
     window.minSize = settings ? NSSize(width: 720, height: 480) : size
     window.tabbingMode = .disallowed
-    let controller = NSViewController()
+    let controller = UtilityContentController()
     let root = makeContentView(id)
     controller.view = root
     controller.view.frame = NSRect(origin: .zero, size: size)

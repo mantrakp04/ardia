@@ -37,6 +37,9 @@ NS_ASSUME_NONNULL_BEGIN
     extensionInstallPrompt:(NSDictionary<NSString*, id>*)prompt
                        tab:(nullable ArdiaCoreTab*)tab;
 - (void)engine:(ArdiaCoreEngine*)engine
+    extensionInstallFailed:(NSString*)message
+                       tab:(nullable ArdiaCoreTab*)tab;
+- (void)engine:(ArdiaCoreEngine*)engine
     deviceChooser:(NSDictionary<NSString*, id>*)chooser
               tab:(ArdiaCoreTab*)tab;
 - (void)engine:(ArdiaCoreEngine*)engine
@@ -314,6 +317,7 @@ ARDIACORE_EXPORT
 - (BOOL)hasLiveFrame:(NSString*)frameId;
 - (void)callPage:(NSString*)kind json:(NSString*)json;
 - (void)callFrame:(NSString*)frameId kind:(NSString*)kind json:(NSString*)json;
+- (void)grantUserActivationToFrame:(NSString*)frameId;
 @property(nonatomic, nullable) NSColor* pageBackgroundColor;
 @property(nonatomic, copy, nullable) NSString* pageColor;
 @property(nonatomic, nullable) NSColor* contentsBackgroundColor;

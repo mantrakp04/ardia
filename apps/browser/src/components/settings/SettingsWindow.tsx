@@ -137,8 +137,8 @@ export function SettingsWindow() {
       <View style={{ flex: 1 }}>
         <View style={{ height: TOOLBAR, flexDirection: "row", alignItems: "center", paddingHorizontal: 12, gap: 2 }}>
           <WindowDragRegion style={StyleSheet.absoluteFill} />
-          <Button variant="icon" icon="chevron.left" size={13} box={28} radius={6} disabled={!nav.back.length} onPress={settingsBack} tooltip="Back" />
-          <Button variant="icon" icon="chevron.right" size={13} box={28} radius={6} disabled={!nav.forward.length} onPress={settingsForward} tooltip="Forward" />
+          <Button variant="icon" toolbar icon="chevron.left" size={13} box={28} radius={6} disabled={!nav.back.length} onPress={() => settingsBack()} tooltip="Back" />
+          <Button variant="icon" toolbar icon="chevron.right" size={13} box={28} radius={6} disabled={!nav.forward.length} onPress={() => settingsForward()} tooltip="Forward" />
           <Text style={{ marginLeft: 8, ...font.heading, fontWeight: weight.semibold, color: theme.textPrimary }}>{title}</Text>
         </View>
         <ScrollView

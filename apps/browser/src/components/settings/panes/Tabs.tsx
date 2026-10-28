@@ -1,10 +1,14 @@
+import { useState } from "react";
 import { View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { useSettings, useTabLayout } from "../../../state/browser/hooks";
 import { chooseTabLayout, updateSettings } from "../../../state/settings/actions";
 import { peekModifierOf, splitLinkModifierOf, type PeekModifier, type Settings, type SplitLinkModifier } from "../../../state/settings/settings";
 import { liquidGlass } from "../../ui/Glass";
-import { Checkbox, PopUp, Toggle } from "../../ui";
+import { Box, Button, Checkbox, PopUp, Sheet, Text, TextField, Toggle, type Option } from "../../ui";
+import { durationMinutes, durationParts, type DurationUnit } from "../../../lib/time";
+import { cleanUpChoices, CUSTOM_CLEAN_UP, DAILY_CLEAN_UP_MINUTES } from "../../../state/settings/cleanUpAfter";
+import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { Group, Row, SectionHeader } from "../Form";
 import { PictureChoice } from "../PictureChoice";
 import { setting } from "../settingsIndex";
@@ -57,11 +61,10 @@ const NEW_TAB_BUTTON: { value: Settings["newTabButtonPosition"]; title: string }
   { value: "top", title: "At the top" },
 ];
 
-const CLEAN_UP = [
-  { value: "12", title: "12 hours" },
-  { value: "24", title: "24 hours" },
-  { value: "168", title: "7 days" },
-  { value: "720", title: "30 days" },
+const DURATION_UNITS: Option<DurationUnit>[] = [
+  { value: "minutes", title: "Minutes" },
+  { value: "hours", title: "Hours" },
+  { value: "days", title: "Days" },
 ];
 
 export function TabsPane() {
@@ -135,17 +138,53 @@ export function TabsPane() {
         title="Clean up"
         description="Closes tabs you haven't used (and duplicates) automatically, like the tab menu's Clean Up Daily. Pinned, playing and selected tabs stay; cleaned tabs are listed under Recently Cleaned."
       />
-      <Group>
-        <Row anchor="tabs.cleanUp" description={null} title={<Checkbox value={settings.cleanUpInactiveTabsAfterHours !== null} onChange={(v) => update({ cleanUpInactiveTabsAfterHours: v ? 24 : null })} label="Clean up tabs I haven't used in:" />}>
-          <PopUp
-            value={String(settings.cleanUpInactiveTabsAfterHours ?? 24)}
-            options={CLEAN_UP}
-            disabled={settings.cleanUpInactiveTabsAfterHours === null}
-            onChange={(v) => update({ cleanUpInactiveTabsAfterHours: Number(v) })}
-          />
-        </Row>
-      </Group>
+      <CleanUpRow minutes={settings.cleanUpInactiveTabsAfterMinutes} />
     </View>
+  );
+}
+
+function CleanUpRow({ minutes }: { minutes: number | null }) {
+  const shown = minutes ?? DAILY_CLEAN_UP_MINUTES;
+  return (
+    <Group>
+      <Row anchor="tabs.cleanUp" description={null} title={<Checkbox value={minutes !== null} onChange={(v) => updateSettings({ cleanUpInactiveTabsAfterMinutes: v ? DAILY_CLEAN_UP_MINUTES : null })} label="Clean up tabs I haven't used in:" />}>
+        <PopUp
+          value={String(shown)}
+          options={cleanUpChoices(shown)}
+          disabled={minutes === null}
+          onChange={(v) => (v === CUSTOM_CLEAN_UP ? showSettingsSheet(<CustomCleanUpSheet minutes={shown} />) : updateSettings({ cleanUpInactiveTabsAfterMinutes: Number(v) }))}
+        />
+      </Row>
+    </Group>
+  );
+}
+
+function CustomCleanUpSheet({ minutes }: { minutes: number }) {
+  const start = durationParts(minutes);
+  const [amount, setAmount] = useState(String(start.amount));
+  const [unit, setUnit] = useState<DurationUnit>(start.unit);
+  const [invalid, setInvalid] = useState(false);
+  const save = () => {
+    const chosen = durationMinutes(amount, unit);
+    if (chosen === null) return setInvalid(true);
+    updateSettings({ cleanUpInactiveTabsAfterMinutes: chosen });
+    closeSettingsSheet();
+  };
+  return (
+    <Sheet width={380} onClose={closeSettingsSheet}>
+      <Text size="heading" weight="semibold">Custom Clean Up Time</Text>
+      <Text size="small" tone="textSecondary" style={{ marginTop: 6 }}>Clean up tabs I haven't used in:</Text>
+      <Box row gap="m" style={{ marginTop: 12, alignItems: "center" }}>
+        <TextField value={amount} onChangeText={(text) => { setAmount(text); setInvalid(false); }} onSubmit={save} onEscape={closeSettingsSheet} autoFocus selectOnFocus style={{ width: 80 }} />
+        <PopUp value={unit} options={DURATION_UNITS} onChange={(next) => { setUnit(next); setInvalid(false); }} minWidth={110} />
+      </Box>
+      {invalid && <Text size="small" tone="destructive" style={{ marginTop: 10 }}>Enter a number above zero, up to 365 days.</Text>}
+      <Box row gap="m" style={{ marginTop: 18 }}>
+        <View style={{ flex: 1 }} />
+        <Button title="Cancel" onPress={closeSettingsSheet} />
+        <Button title="Save" kind="primary" onPress={save} />
+      </Box>
+    </Sheet>
   );
 }
 

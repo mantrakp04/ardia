@@ -6,6 +6,7 @@ export {
   clearSiteData,
   setZoom,
   getZoomLevels,
+  setCommandScrollZoom,
   resolveExternalApp,
   getExternalAppAllowances,
   removeExternalAppAllowance,

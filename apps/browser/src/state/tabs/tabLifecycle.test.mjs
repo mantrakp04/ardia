@@ -180,3 +180,74 @@ test("a recent pin queued for warming at launch stays closed when the user close
   assert.ok(S().tabs[warm].navigation, "a pin left alone still warms up");
   assert.equal(!!S().tabs[warm].unloaded, false);
 });
+
+const media = await import("../media/media.ts");
+const nowPlaying = (overrides = {}) => ({
+  title: "Episode", artist: "", album: "", artwork: null, playbackState: "playing", position: 10, duration: 3600,
+  playbackRate: 1, timestamp: Date.now(), hasVideo: false, actions: ["play", "pause"], controllable: true, ...overrides,
+});
+
+test("a background tab sleeps after 4 h awake, and a night asleep doesn't count toward it", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
+  globalThis.batterySaverReply = async () => ({ state: STATE.off, active: false });
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://a.com" });
+  const b = S().newTab(w, { url: "https://b.com", background: true });
+  const page = fakePage();
+  webviews.set(b, page.handle);
+  const notRecent = { protectedRecent: 0 };
+  lifecycle.startTabLifecycle();
+  await lifecycle.sweep(notRecent);
+
+  t.mock.timers.setTime(Date.now() + 10 * 60 * 60_000);
+  assert.deepEqual(await lifecycle.sweep(notRecent), [], "ten hours with the lid shut");
+
+  let sleptAfterMinutes = null;
+  for (let awake = 1; awake <= 5 * 60 && sleptAfterMinutes === null; awake++) {
+    t.mock.timers.setTime(Date.now() + 60_000);
+    if ((await lifecycle.sweep(notRecent)).includes(b)) sleptAfterMinutes = awake;
+  }
+  assert.equal(sleptAfterMinutes, 4 * 60 - 5, "4 h awake in all, the 5 min the clock credits the night included");
+  webviews.delete(b);
+});
+
+test("a paused tab with a sidebar player stays awake; closing the player lets it sleep", async () => {
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://a.com" });
+  const b = S().newTab(w, { url: "https://b.com", background: true });
+  const page = fakePage();
+  webviews.set(b, page.handle);
+  media.setNowPlaying(b, nowPlaying());
+  media.setNowPlaying(b, nowPlaying({ playbackState: "paused" }));
+
+  assert.deepEqual(await lifecycle.sweep({ sleepAfterMs: 0, recentSleepAfterMs: 0 }), []);
+  assert.equal(await lifecycle.sleepTab(b), false);
+  media.dismissPlayer(b);
+  assert.deepEqual(await lifecycle.sweep({ sleepAfterMs: 0, recentSleepAfterMs: 0 }), [b]);
+  media.setNowPlaying(b, null);
+  webviews.delete(b);
+});
+
+test("a paused tab sleeps when no sidebar player would show it: media controls off, or left paused", async () => {
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://a.com" });
+  const b = S().newTab(w, { url: "https://b.com", background: true });
+  const page = fakePage();
+  webviews.set(b, page.handle);
+  const asleep = async () => (await lifecycle.sweep({ sleepAfterMs: 0, recentSleepAfterMs: 0 })).includes(b);
+
+  media.setNowPlaying(b, nowPlaying());
+  media.setNowPlaying(b, nowPlaying({ playbackState: "paused" }));
+  S().updateSettings({ sidebarMediaControls: false });
+  assert.equal(await asleep(), true, "media controls are off");
+  S().updateSettings({ sidebarMediaControls: true });
+
+  S().activate(b);
+  S().activate(S().windows[w].tabIds[0]);
+  assert.equal(await asleep(), true, "left paused: the card skips it");
+  media.setNowPlaying(b, nowPlaying());
+  media.setNowPlaying(b, nowPlaying({ playbackState: "paused" }));
+  assert.equal(await asleep(), false, "played again from the background: its card is back");
+  media.setNowPlaying(b, null);
+  webviews.delete(b);
+});

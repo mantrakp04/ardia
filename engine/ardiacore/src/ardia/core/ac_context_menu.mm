@@ -3,6 +3,7 @@
 #import <AppKit/AppKit.h>
 #include <os/log.h>
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -27,7 +28,9 @@
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
+#include "content/public/common/drop_data.h"
 #include "ardia/core/ac_browser.h"
+#include "ardia/core/ac_extension_drop.h"
 #include "ardia/core/ac_launch_switches.h"
 #import "ardia/core/ardiacore_internal.h"
 #include "ui/events/event_constants.h"
@@ -298,6 +301,16 @@ class ACViewDelegate : public ChromeWebContentsViewDelegateViewsMac {
     menu->RemoveViewlessItems();
     menu->AddHostItems();
     return menu;
+  }
+
+  void OnPerformingDrop(const content::DropData& drop_data,
+                        DropCompletionCallback callback) override {
+    if (TabOf(contents_) && InstallDroppedExtensions(contents_, drop_data)) {
+      std::move(callback).Run(std::nullopt);
+      return;
+    }
+    ChromeWebContentsViewDelegateViewsMac::OnPerformingDrop(drop_data,
+                                                            std::move(callback));
   }
 
   void BuildMenuAsync(

@@ -1,4 +1,4 @@
-import { ContextMenuArea, Symbol, Box, Button, font, PopUp, TextField, useHover } from "../../ui";
+import { ContextMenuArea, Symbol, Box, Button, font, PopUp, TextField, Toggle, useHover } from "../../ui";
 import { hapticTick, showMenu } from "../../../state/app/system";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
@@ -8,6 +8,7 @@ import { hex, profileAccent, useTheme } from "../../ui/theme";
 import { useProfileDataStats, useProfileOrder, useProfileRecords } from "../../../state/profiles/hooks";
 import { currentProfileOrder, currentProfiles } from "../../../state/browser/current";
 import { reorderProfiles, setDefaultProfile, updateProfile } from "../../../state/profiles/actions";
+import { updateSettings } from "../../../state/settings/actions";
 import { useProfile, useProfiles, useSettings } from "../../../state/browser/hooks";
 import { sharingProfiles } from "../../../state/profiles/profiles";
 import type { Profile } from "../../../state/browser/types";
@@ -36,6 +37,7 @@ export function ProfilesPane() {
   const theme = useTheme();
   const profiles = useProfiles();
   const defaultId = useSettings((s) => s.defaultProfileId);
+  const switcherIcons = useSettings((s) => s.profileSwitcherIcons);
 
   return (
     <View>
@@ -53,6 +55,13 @@ export function ProfilesPane() {
             onChange={(id) => setDefaultProfile(id)}
             minWidth={160}
           />
+        </Row>
+      </Group>
+
+      <SectionHeader title="Profile switcher" />
+      <Group>
+        <Row anchor="profiles.switcherIcons">
+          <Toggle value={switcherIcons} onChange={(profileSwitcherIcons) => updateSettings({ profileSwitcherIcons })} />
         </Row>
       </Group>
 
@@ -168,11 +177,13 @@ function ProfileRow({
   const openMenu = async () => {
     const choice = await showMenu([
       { id: "details", title: "Show Profile Details" },
+      { id: "icon", title: "Icon", children: iconMenuItems(profile.icon) },
       { id: "default", title: "Make Default Profile", enabled: !isDefault },
       { separator: true },
       { id: "delete", title: "Delete Profile…", enabled: currentProfileOrder().length > 1 },
     ]);
-    if (choice === "details") goToSettingsPane("profiles", profileId);
+    if (choice?.startsWith("icon:")) updateProfile(profileId, { icon: choice.slice("icon:".length) || null });
+    else if (choice === "details") goToSettingsPane("profiles", profileId);
     else if (choice === "default") setDefaultProfile(profileId);
     else if (choice === "delete") void deleteProfile(profileId);
   };

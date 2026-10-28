@@ -69,6 +69,7 @@ NS_ASSUME_NONNULL_BEGIN
 @interface ArdiaWebView (InputMonitors)
 + (void)installScrollZoom;
 + (void)installSwitchPrewarm;
++ (void)setCommandScrollZoomEnabled:(BOOL)enabled NS_SWIFT_NAME(setCommandScrollZoomEnabled(_:));
 + (NSArray<NSNumber *> *)devScrollZoom:(NSArray<NSDictionary<NSString *, id> *> *)steps
                                browser:(int)browserId NS_SWIFT_NAME(devScrollZoom(_:browserId:));
 @end

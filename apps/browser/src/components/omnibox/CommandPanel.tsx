@@ -12,9 +12,11 @@ import { barWidth } from "../ntp/NewTabPage";
 import { closeNewTabBar } from "../../state/omnibox/newTabBar";
 import type { NewTabTarget } from "../../state/browser/types";
 import { Omnibox } from "./Omnibox";
-import { PANEL_TEXT_LEFT, GROW } from "./tokens";
+import { BAR, PANEL_TEXT_LEFT, GROW } from "./tokens";
 import { closePanelToHeroBar, type BarDismissal } from "../../state/omnibox/barState";
-import { insecureLevel, URL_FIELD, urlTextLeft } from "../toolbar/Toolbar";
+import { insecureLevel, urlTextLeft } from "../toolbar/Toolbar";
+import { useToolbarRow } from "../toolbar/useToolbarRow";
+import { compactLift, urlFieldOf } from "../../lib/toolbarRow";
 import { hairline, shadow } from "../ui/tokens";
 
 const RIGHT_OF_URL = 40;
@@ -47,6 +49,7 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
   const anchor = useUrlAnchors((s) => (panel.open ? s[windowId] : undefined));
   const centred = useCommandBarCentred(windowId, panel.open && !panel.newTab);
   const card = useCardAnchors((s) => (panel.newTab || centred ? s[windowId] : undefined));
+  const toolbarRow = useToolbarRow();
   const overRows = panel.open && !panel.newTab && !centred && !!anchor?.sidebar;
   useEffect(() => {
     if (panel.open) dismissHover();
@@ -89,11 +92,13 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
   const top = Math.max(0.5, anchor.top - ABOVE_PANE);
   const covering = anchor.left + anchor.width + RIGHT_OF_URL - left;
   const width = Math.min(Math.max(covering, MIN_WIDTH), room(left, covering));
-  const from = hasField ? { left: anchor.left, top: anchor.top + URL_FIELD.top, width: anchor.width, height: URL_FIELD.height } : null;
+  const field = urlFieldOf(toolbarRow);
+  const lift = compactLift(toolbarRow);
+  const from = hasField ? { left: anchor.left, top: anchor.top + field.top, width: anchor.width, height: field.height } : null;
   return (
-    <Grow from={from} frame={{ left, top, width }} openHeight={PANEL_OPEN_HEIGHT} radius={PANEL_RADIUS} surface={surface(PANEL_RADIUS)}>
+    <Grow from={from} frame={{ left, top, width }} openHeight={PANEL_OPEN_HEIGHT - 2 * lift} radius={PANEL_RADIUS} surface={surface(PANEL_RADIUS)}>
       <OutsidePressArea onOutsidePress={onCancel}>
-        <Omnibox key={activeId} variant="panel" tabId={activeId} initialText={panel.initialText} onCancel={onCancel} onDone={onDone} />
+        <Omnibox key={activeId} variant="panel" tabId={activeId} initialText={panel.initialText} fieldRowHeight={BAR.panel.height - 2 * lift} onCancel={onCancel} onDone={onDone} />
       </OutsidePressArea>
     </Grow>
   );

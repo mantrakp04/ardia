@@ -27,3 +27,14 @@ Mark sent, Skip and Back to queue write to ClickHouse:
 2. a newer version of the row in `sandbox.ardia_replies` with the new `status` and `status_at`.
 
 `ch_sync.py` truncates and reloads `ardia_replies` from SQLite on every sync, so step 2 only lasts until the next sync. `ardia_reply_actions` is never touched by the sync, and the dashboard overlays its latest action on each reply unless SQLite later records a non-drafted status that is newer. To make an action permanent in SQLite, read it back from `ardia_reply_actions`.
+
+## Recheck
+
+Each waiting draft has a **Recheck** button, and the toolbar has **Recheck all N** for every waiting draft in the current filter and search that isn't already queued. Recheck never changes a reply's status. It asks the next scheduled triage run to re-verify the draft (is the fix still in a build, was it reverted, did someone already answer, is the version wording current) so it gets fixed up without a back and forth.
+
+1. The button inserts a row in `sandbox.ardia_reply_actions` with `status = 'recheck'` (same table, `at` and `actor` as the other buttons). The status overlay ignores `recheck` rows.
+2. The card shows a **recheck queued** pill until the draft has been re-checked after the press, plus "checked 3h ago" (or "never checked") from `last_checked_at`.
+3. `ch_sync.py` folds each `recheck` action into SQLite before it reloads ClickHouse: it sets `replies.needs_recheck = 1` and `replies.recheck_requested_at` to the press time, leaves `status` and `status_at` alone, and skips a press that is already recorded or older than `last_checked_at`. The action watermark (`state.ch_reply_actions_applied_at`) advances as for any other action.
+4. The routine lists flagged drafts with `python3 recheck_replies.py list` (`--json` for machine use), re-verifies and edits them, then runs `python3 recheck_replies.py clear ID … [--note "…"]` (or `clear --all`), which sets `last_checked_at` to now and `needs_recheck` back to 0. `recheck_replies.py touch ID …` stamps `last_checked_at` without a flag. The next `ch_sync.py` run mirrors the result and the pill clears.
+
+`needs_recheck` (UInt8), `recheck_requested_at` and `last_checked_at` (nullable DateTime64) are columns of `sandbox.ardia_replies` and of the `ardia_v_reply_queue` view. `ch_sync.py` adds any column missing from an existing ClickHouse table on start, so older mirrors pick them up without a rebuild.

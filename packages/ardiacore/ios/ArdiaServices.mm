@@ -342,7 +342,7 @@ NSString *StoreFolder(NSString *profile, NSString *extensionId, id version) {
 
 + (void)configureExtension:(NSString *)extensionId profile:(NSString *)profile options:(NSDictionary *)options reply:(ArdiaServiceReply)reply {
   NSMutableDictionary *args = [NSMutableDictionary dictionaryWithObject:extensionId forKey:@"id"];
-  for (NSString *key in @[ @"pinned", @"incognito", @"fileAccess", @"siteAccess" ])
+  for (NSString *key in @[ @"pinned", @"incognito", @"fileAccess", @"userScripts", @"siteAccess" ])
     if (options[key]) args[key] = options[key];
   [self run:@"ac_extensions_configure" profile:profile args:args event:@"configured" reply:reply];
 }

@@ -94,7 +94,7 @@ async function state(name) {
       status: u.status, error: u.error, enabled: u.enabled, pending: u.pending,
       bookmarks: [walk(roots.bar), walk(roots.other)],
       history: (s.history.default || []).map((h) => h.url).sort(),
-      settings: { appearance: s.settings.appearance, searchEngine: s.settings.searchEngine, showFullUrl: s.settings.showFullUrl, cleanUp: s.settings.cleanUpInactiveTabsAfterHours },
+      settings: { appearance: s.settings.appearance, searchEngine: s.settings.searchEngine, showFullUrl: s.settings.showFullUrl, cleanUp: s.settings.cleanUpInactiveTabsAfterMinutes },
       pinned: Object.values(s.tabs).filter((t) => t.pinned).map((t) => t.pinnedUrl || t.url).sort(),
       rows: Object.values(s.tabs).filter((t) => t.pinned && t.pinnedAsRow).map((t) => t.pinnedUrl || t.url).sort(),
       groups: Object.values(s.groups).filter((g) => g.pinned).map((g) => g.name + ": " + g.tabIds.map((id) => s.tabs[id].url).join(", ")).sort(),
@@ -210,7 +210,7 @@ try {
     s.removeBookmark(nodes.find((n) => n.title === "ACE2E Bookmark Gamma from B").id);
     s.addBookmark({ profileId: "default", url: "${W}/delta.html?nne2e=bmD", title: "ACE2E Bookmark Delta from B" });
     s.removeHistory("default", ["${W}/visited.html?nne2e=hist1"]);
-    s.updateSettings({ showFullUrl: true, cleanUpInactiveTabsAfterHours: 24 });
+    s.updateSettings({ showFullUrl: true, cleanUpInactiveTabsAfterMinutes: 1440 });
     return ac.engine.call("passwords.remove", { profile: "", origin: "https://nne2e-shop.example", username: "nne2e-bob" }).catch((e) => ({ error: e.message }));`,
   );
   await visit("B", `${W}/visited2.html?nne2e=hist2`);
@@ -219,7 +219,7 @@ try {
   a = await state("A");
   check("B's rename, delete and new bookmark reach A", text(a.bookmarks).includes("Beta Renamed on B") && !text(a.bookmarks).includes("Gamma from B") && text(a.bookmarks).includes("Delta from B"));
   check("B's history delete and new visit reach A", !a.history.some((u) => u.includes("hist1")) && a.history.some((u) => u.includes("hist2")));
-  check("B's settings reach A", a.settings.showFullUrl === true && a.settings.cleanUp === 24);
+  check("B's settings reach A", a.settings.showFullUrl === true && a.settings.cleanUp === 1440);
   check("B's password change and deletion reach A", text(a.passwords) === text(["https://nne2e-bank.example nne2e-alice=ACE2E-changed-on-B"]), text(a.passwords));
 
   await ev(
@@ -230,7 +230,7 @@ try {
     s.moveBookmark(nodes.find((n) => n.title === "ACE2E Bookmark Alpha").id, s.bookmarks.roots.default.bar, 0);
     s.removeBookmark(nodes.find((n) => n.title === "ACE2E Folder").id);
     s.addBookmark({ profileId: "default", url: "${W}/alpha.html?nne2e=bmA2", title: "ACE2E Second from A", parentId: s.bookmarks.roots.default.other });
-    s.updateSettings({ appearance: "light", cleanUpInactiveTabsAfterHours: null });
+    s.updateSettings({ appearance: "light", cleanUpInactiveTabsAfterMinutes: null });
     const w = ac.store.getState().windowOrder[0];
     ac.store.getState().pinTabs([s.newTab(w, { url: "${W}/beta.html?nne2e=pin2" })], true);
     ac.store.getState().pinTabs([s.newTab(w, { url: "${W}/row.html?nne2e=row1" })], true, true);

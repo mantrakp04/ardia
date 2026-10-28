@@ -92,6 +92,7 @@ static BOOL InTabPage(NSView *view) {
     return;
   }
   if (!_visible || page.isHiddenOrHasHiddenAncestor) return;
+  [self takeFocusFromLingeringPane];
   _focusOnActivate = NO;
   NSResponder *responder = window.firstResponder;
   NSView *view = [responder isKindOfClass:NSView.class] ? (NSView *)responder : nil;

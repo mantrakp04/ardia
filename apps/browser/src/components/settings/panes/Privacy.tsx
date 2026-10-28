@@ -30,6 +30,7 @@ import { Group, Row, SectionHeader } from "../Form";
 import { appLinks, contentBlocker, siteOrigins, zoomLevels } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
+import { updateSettings } from "../../../state/settings/actions";
 import { ShareDiagnosticsSection } from "./ShareDiagnostics";
 
 const CATEGORIES: { id: FilterListCategory; toggle: string; section: string; anchor?: string }[] = [
@@ -67,6 +68,7 @@ async function setCategory(s: ContentBlockerState, c: FilterListCategory, on: bo
 export function PrivacyPane() {
   const theme = useTheme();
   const [blocker, refresh] = useContentBlocker();
+  const commandScrollZoom = useSettings((s) => s.commandScrollZoom ?? true);
 
   const toggleCategory = async (c: FilterListCategory, on: boolean) => {
     if (!blocker) return;
@@ -117,6 +119,12 @@ export function PrivacyPane() {
 
       <SitePermissions />
       <AppLinks />
+      <SectionHeader anchor="privacy.commandScrollZoom" />
+      <Group>
+        <Row anchor="privacy.commandScrollZoom">
+          <Toggle value={commandScrollZoom} onChange={(v) => updateSettings({ commandScrollZoom: v })} />
+        </Row>
+      </Group>
       <ZoomLevels />
       {blocker && (
         <Text style={{ marginTop: 14, ...font.footnote, color: theme.textTertiary }}>

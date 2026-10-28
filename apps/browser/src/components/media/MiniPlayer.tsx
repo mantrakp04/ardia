@@ -91,14 +91,14 @@ export function MiniPlayer({ tabId, onBackToTab }: { tabId: string; onBackToTab:
   );
 }
 
-export function skip(tabId: string, session: Session, seconds: number) {
+function skip(tabId: string, session: Session, seconds: number) {
   const now = Date.now();
   const position = Math.max(0, Math.min(session.duration ?? Infinity, positionOf(session, now) + seconds));
   setNowPlaying(tabId, { ...session, position, timestamp: now });
   mediaCommand(tabId, "seekBy", seconds);
 }
 
-export function seekTo(tabId: string, session: Session, seconds: number) {
+function seekTo(tabId: string, session: Session, seconds: number) {
   setNowPlaying(tabId, { ...session, position: seconds, timestamp: Date.now() });
   mediaCommand(tabId, "seekTo", seconds);
 }
@@ -232,7 +232,7 @@ function TimeBar({ tabId, session, tokens }: { tabId: string; session: Session; 
 
 const HOVER_SEGMENTS = 40;
 
-export function SeekBar({
+function SeekBar({
   session,
   tokens,
   height,

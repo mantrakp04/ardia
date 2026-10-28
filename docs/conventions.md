@@ -173,7 +173,7 @@ writeDocument(DOC, versionedJson(data, VERSION));
   depends on: a version says which shape to expect, not that the data is valid.
 - The field is `version`, except in `sync.json` (`v`) and `ardia-cli.json` (`schemaVersion`; its `version` is the
   installed CLI's version).
-- Covered: `session.json` (2), `downloads.json` (2), `launch-look.json` (2), `bookmarks-cache.json`, `telemetry.json`,
+- Covered: `session.json` (3), `downloads.json` (2), `launch-look.json` (2), `bookmarks-cache.json`, `telemetry.json`,
   `telemetry-queue.json`, `telemetry-daily.json`, `release-notes.json`, `onboarding.json`,
   `default-browser-offer.json`, `sync.json`, `sync-extensions.json`, `live.json`, `ardia-cli.json`,
   `bangs-state.json` and `Scripts/status.json` (all 1).

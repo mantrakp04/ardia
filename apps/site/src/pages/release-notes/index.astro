@@ -234,14 +234,14 @@ const jsonLd = [
                   </h2>
                 </header>
                 {r.open ? (
-                  <NotesBody html={r.html} />
+                  <NotesBody html={r.html} video={r.video} />
                 ) : (
                   <details class="fold" data-fold>
                     <summary class="label">
                       <span class="fold-open">Read the notes</span>
                       <span class="fold-close">Fold them back</span>
                     </summary>
-                    <NotesBody html={r.html} />
+                    <NotesBody html={r.html} video={r.video} />
                   </details>
                 )}
               </article>

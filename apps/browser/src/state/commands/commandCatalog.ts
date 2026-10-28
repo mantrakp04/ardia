@@ -101,6 +101,7 @@ export const COMMANDS: Readonly<Record<BrowserCommand, CommandSpec>> = {
   showHistory: { title: "Show History…", barTitle: "History", symbol: "clock", keys: ["⌘Y"] },
   clearBrowsingData: { title: "Clear Browsing Data…", symbol: "trash", keys: ["⇧⌘⌫"] },
   manageBookmarks: { title: "Manage Bookmarks", barTitle: "Bookmarks", symbol: "book", keys: ["⌥⌘B"] },
+  exportBookmarks: { title: "Export Bookmarks…", symbol: "square.and.arrow.up" },
   bookmarkAllTabs: { title: "Bookmark All Tabs…", keys: ["⇧⌘D"], ...offInLittleArdia },
   setBookmarksBar: { variants: { always: { title: "Always" }, newTab: { title: "On New Tab Only" }, never: { title: "Never" } } },
   toggleBookmarksBar: { title: "Toggle Bookmarks Bar", symbol: "menubar.rectangle", keys: ["⇧⌘B"] },

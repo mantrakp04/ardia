@@ -46,6 +46,7 @@ NSString *PopupOriginText(NSString *url) {
 
 - (instancetype)initWithFrame:(NSRect)frame {
   if (!(self = [super initWithFrame:frame])) return nil;
+  self.clipsToBounds = YES;
   _glyph = [[NSImageView alloc] initWithFrame:NSZeroRect];
   _glyph.symbolConfiguration = [NSImageSymbolConfiguration configurationWithPointSize:11 weight:NSFontWeightMedium];
   _origin = [NSTextField labelWithString:@""];
@@ -77,7 +78,7 @@ NSString *PopupOriginText(NSString *url) {
 
 - (void)drawRect:(NSRect)dirtyRect {
   [NSColor.windowBackgroundColor setFill];
-  NSRectFill(dirtyRect);
+  NSRectFill(NSIntersectionRect(dirtyRect, self.bounds));
   [NSColor.separatorColor setFill];
   NSRectFillUsingOperation(NSMakeRect(0, 0, NSWidth(self.bounds), 1 / MAX(self.window.backingScaleFactor, 1)),
                            NSCompositingOperationSourceOver);

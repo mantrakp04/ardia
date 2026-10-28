@@ -287,8 +287,8 @@ export const createOrganizeSlice: StateCreator<BrowserState, [], [], OrganizeSli
 
   cleanUpTabs(windowId, options = {}) {
     const s = get();
-    const hours = s.settings.cleanUpInactiveTabsAfterHours;
-    const ids = cleanUpCandidates(s, windowId, options.inactiveForMs ?? (hours ? hours * 3_600_000 : CLEAN_UP_AFTER_MS));
+    const minutes = s.settings.cleanUpInactiveTabsAfterMinutes;
+    const ids = cleanUpCandidates(s, windowId, options.inactiveForMs ?? (minutes ? minutes * 60_000 : CLEAN_UP_AFTER_MS));
     if (!ids.length) return 0;
     const entries = closedEntries(s, ids);
     const next = closeQuietly(s, ids);

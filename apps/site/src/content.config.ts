@@ -12,6 +12,7 @@ const releaseNotes = defineCollection({
     date: z.coerce.date(),
     headline: z.string().min(1),
     channel: z.enum(["stable", "nightly"]).default("stable"),
+    video: z.string().regex(/^[a-z0-9-]+$/).optional(),
   }),
 });
 

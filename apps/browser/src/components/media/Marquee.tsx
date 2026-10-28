@@ -1,29 +1,29 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Animated, Text, View, type TextStyle } from "react-native";
 import { curve } from "../ui/motion";
 import { fadeStepColor, mediaMotion } from "./tokens";
 
 const FADE = 12;
-const FADE_STEPS = 8;
+const FADE_STEPS = 6;
 
 type MarqueeGroup = {
   progress: Animated.Value;
   report(key: string, overflow: number): void;
 };
 
-export function useMarqueeGroup(resetKey: string): MarqueeGroup {
+export function useMarqueeGroup(resetKey: string, iterations = -1): MarqueeGroup {
   const progress = useRef(new Animated.Value(0)).current;
   const [overflows, setOverflows] = useState<Record<string, number>>({});
   const max = Math.max(0, ...Object.values(overflows));
   useEffect(() => {
     progress.setValue(0);
-    if (max < 1) return;
+    if (max < 1 || iterations === 0) return;
     const duration = (max / mediaMotion.marqueeSpeed) * 1000;
     const leg = (toValue: number) => Animated.timing(progress, { toValue, duration, easing: curve.linear, useNativeDriver: true });
-    const loop = Animated.loop(Animated.sequence([Animated.delay(mediaMotion.marqueePause), leg(1), Animated.delay(mediaMotion.marqueePause), leg(0)]));
+    const loop = Animated.loop(Animated.sequence([Animated.delay(mediaMotion.marqueePause), leg(1), Animated.delay(mediaMotion.marqueePause), leg(0)]), { iterations });
     loop.start();
     return () => loop.stop();
-  }, [max, resetKey]);
+  }, [max, resetKey, iterations]);
   return useMemo(
     () => ({
       progress,
@@ -46,29 +46,56 @@ export function Marquee({
   group: MarqueeGroup;
   style: TextStyle;
   height: number;
-  background: [number, number, number];
+  background?: [number, number, number];
 }) {
   const [box, setBox] = useState(0);
   const [natural, setNatural] = useState(0);
   const overflow = box > 0 && natural > box + 0.5 ? natural - box : 0;
   useEffect(() => group.report(id, overflow), [overflow]);
   const x = overflow ? group.progress.interpolate({ inputRange: [0, 1], outputRange: [0, -overflow] }) : 0;
-  const leading = overflow ? group.progress.interpolate({ inputRange: [0, 0.03], outputRange: [0, 1], extrapolate: "clamp" }) : 0;
-  const trailing = overflow ? group.progress.interpolate({ inputRange: [0.97, 1], outputRange: [1, 0], extrapolate: "clamp" }) : 0;
+  const line = (left: number, measure: boolean) => (
+    <Animated.View style={{ position: "absolute", left: -left, top: 0, height, width: 4000, flexDirection: "row", alignItems: "center", transform: [{ translateX: x }] }}>
+      <Text numberOfLines={1} onLayout={measure ? (e) => setNatural(e.nativeEvent.layout.width) : undefined} style={style}>
+        {text}
+      </Text>
+    </Animated.View>
+  );
   return (
     <View style={{ height, overflow: "hidden" }} onLayout={(e) => setBox(e.nativeEvent.layout.width)}>
-      <Animated.View style={{ position: "absolute", left: 0, top: 0, height, width: 4000, flexDirection: "row", alignItems: "center", transform: [{ translateX: x }] }}>
-        <Text numberOfLines={1} onLayout={(e) => setNatural(e.nativeEvent.layout.width)} style={style}>
-          {text}
-        </Text>
-      </Animated.View>
-      {overflow ? (
+      {!overflow ? (
+        line(0, true)
+      ) : background ? (
         <>
-          <Fade side="left" opacity={leading} background={background} height={height} />
-          <Fade side="right" opacity={trailing} background={background} height={height} />
+          {line(0, true)}
+          <Fade side="left" opacity={group.progress.interpolate({ inputRange: [0, 0.03], outputRange: [0, 1], extrapolate: "clamp" })} background={background} height={height} />
+          <Fade side="right" opacity={group.progress.interpolate({ inputRange: [0.97, 1], outputRange: [1, 0], extrapolate: "clamp" })} background={background} height={height} />
         </>
-      ) : null}
+      ) : (
+        <>
+          <View style={{ position: "absolute", left: FADE, top: 0, width: Math.max(0, box - FADE * 2), height, overflow: "hidden" }}>{line(FADE, true)}</View>
+          {Array.from({ length: FADE_STEPS }, (_, i) => {
+            const left = (i * FADE) / FADE_STEPS;
+            const kept = (i + 0.5) / FADE_STEPS;
+            const opacity = group.progress.interpolate({ inputRange: [0, 0.03], outputRange: [1, kept], extrapolate: "clamp" });
+            return <FadeSlice key={`l${i}`} left={left} height={height} opacity={opacity} line={line(left, false)} />;
+          })}
+          {Array.from({ length: FADE_STEPS }, (_, i) => {
+            const left = box - FADE + (i * FADE) / FADE_STEPS;
+            const kept = 1 - (i + 0.5) / FADE_STEPS;
+            const opacity = group.progress.interpolate({ inputRange: [0.97, 1], outputRange: [kept, 1], extrapolate: "clamp" });
+            return <FadeSlice key={`r${i}`} left={left} height={height} opacity={opacity} line={line(left, false)} />;
+          })}
+        </>
+      )}
     </View>
+  );
+}
+
+function FadeSlice({ left, height, opacity, line }: { left: number; height: number; opacity: Animated.AnimatedInterpolation<number>; line: ReactNode }) {
+  return (
+    <Animated.View pointerEvents="none" style={{ position: "absolute", left, top: 0, width: FADE / FADE_STEPS, height, overflow: "hidden", opacity }}>
+      {line}
+    </Animated.View>
   );
 }
 

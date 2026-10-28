@@ -1,6 +1,7 @@
 #import "ArdiaWebViewInternal.h"
 
 #import <IOKit/IOKitLib.h>
+#import <QuartzCore/QuartzCore.h>
 #import <dlfcn.h>
 
 using namespace ardia_web_view;
@@ -8,11 +9,22 @@ using namespace ardia_web_view;
 namespace {
 
 int gDevTrackpad = -1;
+NSValue *gDevPointer = nil;
 NSUInteger gZoomScrolls = 0;
+NSUInteger gZoomCandidates = 0;
 constexpr NSTimeInterval kSwitchPrewarmGapSeconds = 0.1;
+constexpr double kZoomStepDelta = 30;
+constexpr double kWheelLineDelta = 30;
+constexpr CFTimeInterval kCommandWheelCreditSeconds = 0.5;
+constexpr CFTimeInterval kCommandWheelRearmSeconds = 1;
+constexpr NSUInteger kCommandWheelCreditLimit = 64;
+constexpr unsigned short kCommandKeyCode = 55;
 
 NSString *gDevZoomMiss = nil;
 bool gGestureTrackpad = false;
+bool gCommandScrollZoom = true;
+bool gCommandHeld = false;
+double gZoomAccumulated = 0;
 
 BOOL FromTrackpad(NSEvent *event) {
   if (gDevTrackpad >= 0) return gDevTrackpad;
@@ -49,6 +61,37 @@ bool CommandScrollZooms(NSEvent *event, bool trackpad) {
   else if (event.phase == NSEventPhaseNone && event.momentumPhase == NSEventPhaseNone) gGestureTrackpad = false;
   else gGestureTrackpad = gGestureTrackpad || trackpad;
   return (event.modifierFlags & NSEventModifierFlagCommand) && !gGestureTrackpad;
+}
+
+NSMapTable<ArdiaWebView *, NSNumber *> *ArmedViews() {
+  static NSMapTable *armed = [NSMapTable weakToStrongObjectsMapTable];
+  return armed;
+}
+
+NSMapTable<ArdiaWebView *, NSMutableArray<NSArray<NSNumber *> *> *> *WheelCredits() {
+  static NSMapTable *credits = [NSMapTable weakToStrongObjectsMapTable];
+  return credits;
+}
+
+void DropStaleCredits(NSMutableArray<NSArray<NSNumber *> *> *credits, CFTimeInterval now) {
+  while (credits.count && now - credits.firstObject.firstObject.doubleValue > kCommandWheelCreditSeconds) [credits removeObjectAtIndex:0];
+}
+
+int DirectionOf(double delta) {
+  return (delta > 0) - (delta < 0);
+}
+
+ArdiaWebView *PageViewAt(NSWindow *window, NSPoint inWindow) {
+  NSView *content = window.contentView;
+  NSView *hit = content ? [content hitTest:[content.superview convertPoint:inWindow fromView:nil]] : nil;
+  while (hit && ![hit isKindOfClass:ArdiaWebView.class]) hit = hit.superview;
+  return (ArdiaWebView *)hit;
+}
+
+NSWindow *AppWindowAt(NSPoint screen) {
+  for (NSWindow *window in NSApp.orderedWindows)
+    if (window.isVisible && !window.ignoresMouseEvents && NSPointInRect(screen, window.frame)) return window;
+  return nil;
 }
 
 }
@@ -91,10 +134,71 @@ bool CommandScrollZooms(NSEvent *event, bool trackpad) {
   }];
 }
 
++ (void)setCommandScrollZoomEnabled:(BOOL)enabled {
+  gCommandScrollZoom = enabled;
+  if (!enabled) [ArdiaWebView disarmCommandWheels];
+}
+
++ (void)disarmCommandWheels {
+  if (!ArmedViews().count) return;
+  for (ArdiaWebView *view in [ArmedViews() keyEnumerator].allObjects) [view pushCommandWheelArmed:NO];
+  [ArmedViews() removeAllObjects];
+}
+
+- (void)pushCommandWheelArmed:(BOOL)armed {
+  if (!_tab) return;
+  NSString *json = armed ? @"{\"armed\":true}" : @"{\"armed\":false}";
+  [self callFrame:@"" kind:@"commandWheel" json:json];
+  for (NSString *frameId in [ScriptFramesOf(_tab) copy]) [self callFrame:frameId kind:@"commandWheel" json:json];
+}
+
+- (void)armCommandWheel {
+  const CFTimeInterval now = CACurrentMediaTime();
+  NSNumber *armedAt = [ArmedViews() objectForKey:self];
+  if (armedAt && now - armedAt.doubleValue <= kCommandWheelRearmSeconds) return;
+  [ArmedViews() setObject:@(now) forKey:self];
+  [self pushCommandWheelArmed:YES];
+}
+
+- (BOOL)runsPageScript {
+  NSString *url = _tab.url;
+  return [url hasPrefix:@"https:"] || [url hasPrefix:@"http:"] || [url hasPrefix:@"file:"];
+}
+
+- (void)offerCommandWheel:(double)delta {
+  NSMutableArray<NSArray<NSNumber *> *> *credits = [WheelCredits() objectForKey:self];
+  if (!credits) [WheelCredits() setObject:(credits = [NSMutableArray array]) forKey:self];
+  const CFTimeInterval now = CACurrentMediaTime();
+  DropStaleCredits(credits, now);
+  if (credits.count >= kCommandWheelCreditLimit) [credits removeObjectAtIndex:0];
+  [credits addObject:@[ @(now), @(delta) ]];
+  [self armCommandWheel];
+}
+
+- (void)commandWheelFromPage:(NSDictionary *)reply {
+  double pageDelta = 0;
+  if (!Finite(reply, @"dy", &pageDelta)) return;
+  NSMutableArray<NSArray<NSNumber *> *> *credits = [WheelCredits() objectForKey:self];
+  DropStaleCredits(credits, CACurrentMediaTime());
+  const int direction = DirectionOf(-pageDelta);
+  while (credits.count && DirectionOf(credits.firstObject.lastObject.doubleValue) != direction) [credits removeObjectAtIndex:0];
+  if (!credits.count) return;
+  const double delta = credits.firstObject.lastObject.doubleValue;
+  [credits removeObjectAtIndex:0];
+  if (!Flag(reply, @"handled")) [self zoomByScroll:delta];
+}
+
+- (void)zoomByScroll:(double)delta {
+  gZoomScrolls++;
+  gZoomAccumulated += delta;
+  if (fabs(gZoomAccumulated) < kZoomStepDelta) return;
+  [self zoomStep:gZoomAccumulated > 0 ? 1 : -1];
+  gZoomAccumulated = 0;
+}
+
 + (void)installScrollZoom {
-  static id monitor, touchMonitor;
+  static id monitor, touchMonitor, flagsMonitor;
   if (monitor) return;
-  static double accumulated = 0;
   static NSUInteger touching = 0;
   static NSTimeInterval touchedAt = 0;
   touchMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskGesture handler:^NSEvent *(NSEvent *event) {
@@ -102,38 +206,51 @@ bool CommandScrollZooms(NSEvent *event, bool trackpad) {
     touchedAt = event.timestamp;
     return event;
   }];
+  flagsMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskFlagsChanged handler:^NSEvent *(NSEvent *event) {
+    gCommandHeld = event.modifierFlags & NSEventModifierFlagCommand;
+    if (!gCommandHeld) {
+      [ArdiaWebView disarmCommandWheels];
+      return event;
+    }
+    if (!gCommandScrollZoom) return event;
+    const NSPoint screen = gDevPointer ? gDevPointer.pointValue : NSEvent.mouseLocation;
+    NSWindow *window = AppWindowAt(screen);
+    ArdiaWebView *view = window ? PageViewAt(window, [window convertPointFromScreen:screen]) : nil;
+    if (view && view->_tab && [view runsPageScript]) [view armCommandWheel];
+    return event;
+  }];
   monitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskScrollWheel handler:^NSEvent *(NSEvent *event) {
     BOOL fingers = (event.phase & (NSEventPhaseBegan | NSEventPhaseMayBegin)) && touching >= 2 && event.timestamp - touchedAt < 0.5;
     BOOL trackpad = event.phase != NSEventPhaseNone && (fingers || FromTrackpad(event));
     if (gDevTrackpad >= 0) gDevZoomMiss = @"not a zoom (a trackpad gesture, or no ⌘)";
-    if (!CommandScrollZooms(event, trackpad)) return event;
+    if (!CommandScrollZooms(event, trackpad)) {
+      [ArdiaWebView disarmCommandWheels];
+      return event;
+    }
+    if (!gCommandScrollZoom) {
+      if (gDevTrackpad >= 0) gDevZoomMiss = @"⌘-scroll zoom is off in Settings";
+      return event;
+    }
     NSWindow *window = event.window;
     NSPoint point = event.locationInWindow;
     if (!window) {
-      NSPoint screen = event.locationInWindow;
-      for (NSWindow *w in NSApp.orderedWindows)
-        if (w.isVisible && !w.ignoresMouseEvents && NSPointInRect(screen, w.frame)) {
-          window = w;
-          break;
-        }
-      point = [window convertPointFromScreen:screen];
+      window = AppWindowAt(point);
+      point = [window convertPointFromScreen:point];
     }
-    NSView *content = window.contentView;
-    NSView *hit = content ? [content hitTest:[content.superview convertPoint:point fromView:nil]] : nil;
-    while (hit && ![hit isKindOfClass:ArdiaWebView.class]) hit = hit.superview;
-    ArdiaWebView *view = (ArdiaWebView *)hit;
+    ArdiaWebView *view = PageViewAt(window, point);
     if (gDevTrackpad >= 0 && (!view || !view->_tab))
-      gDevZoomMiss = [NSString stringWithFormat:@"not over a page: window %ld %@, hit %@", (long)window.windowNumber,
-                                                NSStringFromPoint(point), [content hitTest:[content.superview convertPoint:point fromView:nil]]];
+      gDevZoomMiss = [NSString stringWithFormat:@"not over a page: window %ld %@, hit %@", (long)window.windowNumber, NSStringFromPoint(point),
+                                                [window.contentView hitTest:[window.contentView.superview convertPoint:point fromView:nil]]];
     if (!view || !view->_tab) return event;
-    if (event.phase == NSEventPhaseBegan) accumulated = 0;
-    accumulated += event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.scrollingDeltaY * 30;
-    gZoomScrolls++;
-    if (fabs(accumulated) >= 30) {
-      [view zoomStep:accumulated > 0 ? 1 : -1];
-      accumulated = 0;
+    if (event.phase == NSEventPhaseBegan) gZoomAccumulated = 0;
+    const double delta = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.scrollingDeltaY * kWheelLineDelta;
+    gZoomCandidates++;
+    if (![view runsPageScript]) {
+      [view zoomByScroll:delta];
+      return nil;
     }
-    return nil;
+    [view offerCommandWheel:delta];
+    return event;
   }];
 }
 
@@ -168,6 +285,24 @@ bool CommandScrollZooms(NSEvent *event, bool trackpad) {
   NSMutableArray *zoomed = [NSMutableArray array];
   for (NSDictionary *step in steps) {
     NSString *phase = step[@"phase"];
+    if ([phase isEqualToString:@"command"] || [phase isEqualToString:@"commandUp"]) {
+      const BOOL down = [phase isEqualToString:@"command"];
+      NSEvent *flags = [NSEvent keyEventWithType:NSEventTypeFlagsChanged
+                                        location:inWindow
+                                   modifierFlags:down ? NSEventModifierFlagCommand : 0
+                                       timestamp:NSProcessInfo.processInfo.systemUptime
+                                    windowNumber:window.windowNumber
+                                         context:nil
+                                      characters:@""
+                     charactersIgnoringModifiers:@""
+                                       isARepeat:NO
+                                         keyCode:kCommandKeyCode];
+      gDevPointer = [NSValue valueWithPoint:screen];
+      [NSApp sendEvent:flags];
+      gDevPointer = nil;
+      [zoomed addObject:@(gCommandHeld == down)];
+      continue;
+    }
     BOOL wheel = [phase isEqualToString:@"wheel"];
     int32_t dy = (int32_t)[step[@"dy"] intValue];
     CGEventRef cg = CGEventCreateScrollWheelEvent2(NULL, wheel ? kCGScrollEventUnitLine : kCGScrollEventUnitPixel, 1, dy, 0, 0);
@@ -187,12 +322,12 @@ bool CommandScrollZooms(NSEvent *event, bool trackpad) {
     NSEvent *event = [NSEvent eventWithCGEvent:cg];
     CFRelease(cg);
     gDevTrackpad = [step[@"trackpad"] boolValue];
-    NSUInteger before = gZoomScrolls;
+    NSUInteger before = gZoomCandidates;
     gDevZoomMiss = nil;
     [NSApp sendEvent:event];
     gDevTrackpad = -1;
-    [zoomed addObject:@(gZoomScrolls > before)];
-    if (wheel && gZoomScrolls == before)
+    [zoomed addObject:@(gZoomCandidates > before)];
+    if (wheel && gZoomCandidates == before)
       NSLog(@"[scroll-zoom] a ⌘-wheel step didn't zoom: %@", gDevZoomMiss ?: @"the zoom monitor never saw it");
   }
   return zoomed;

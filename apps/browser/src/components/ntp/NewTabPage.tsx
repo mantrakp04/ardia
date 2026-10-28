@@ -1,4 +1,5 @@
-import { PowerUp, hex, ink, layout, spring as springOf, Surface, useTheme } from "../ui";
+import { PowerUp, hex, ink, spring as springOf, Surface, useTheme } from "../ui";
+import { TOOLBAR_ROWS } from "../../lib/toolbarRow";
 import { useEffect, useState } from "react";
 import { AccessibilityInfo, Animated, StyleSheet, View } from "react-native";
 import { useWindow, useWindowId } from "../../state/browser/hooks";
@@ -88,7 +89,7 @@ export function NewTabPage({ tabId, toolbar = true }: { tabId: string; toolbar?:
 
   const width = barWidth(size.width);
   const x = Math.max(size.width / 2 - width / 2, 14) + DIA_OFFSET;
-  const under = toolbar ? 0 : layout.toolbarHeight;
+  const under = toolbar ? 0 : TOOLBAR_ROWS.regular.height;
   const top = newTabBarTop(size.height, under, heading ? headingHeight : 0);
 
   const bar = { x, y: top, width, height: panelHeight };

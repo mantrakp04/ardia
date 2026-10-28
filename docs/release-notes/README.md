@@ -33,6 +33,10 @@ Frontmatter, both required:
 
 - `date`: the day the release is published, `YYYY-MM-DD`.
 - `headline`: one line, the deadpan part (below).
+- `video` (optional): the release's before-and-after film, by the name of its files in
+  `apps/site/public/release-videos/` (`fixes-0243n1` for `fixes-0243n1.mp4` and `fixes-0243n1.jpg`). The site plays
+  it above the notes under Watch, and the GitHub release body links it. Every release gets one (the release skill's
+  step 6b); nightlies that share a film name the same one.
 
 Body:
 
@@ -53,7 +57,7 @@ Body:
   moved in the release's perf gate (columns old version, new version, change; plain-language row names), then one
   sentence on what moved most. The site renders it as a table that scrolls inside its own box on a phone; GitHub and
   Sparkle render it as Markdown.
-- Nothing else: no images, no other tables, no nested lists, no links unless the item is about a page. The site
+- Nothing else: no images (the film goes in `video`), no other tables, no nested lists, no links unless the item is about a page. The site
   numbers the items and puts the section names in the margin.
 
 ## Nightlies

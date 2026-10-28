@@ -23,7 +23,7 @@ const CLASSIC_TABS: Partial<Settings> = {
   newTabOpens: "page",
   newTabPosition: "bottom",
   newTabButtonPosition: "bottom",
-  cleanUpInactiveTabsAfterHours: null,
+  cleanUpInactiveTabsAfterMinutes: null,
   restoreSession: true,
   shareTabsAcrossWindows: false,
   balancedTopApps: false,
@@ -37,6 +37,7 @@ const CLASSIC_TABS: Partial<Settings> = {
   searchEngine: "google",
   commandBarPreference: "search",
   openLinksInLittleArdia: false,
+  profileSwitcherIcons: false,
 };
 
 export const PRESETS: Record<Preset, Partial<Settings>> = {
@@ -47,7 +48,7 @@ export const PRESETS: Record<Preset, Partial<Settings>> = {
     newTabOpens: "page",
     newTabPosition: "bottom",
     newTabButtonPosition: "bottom",
-    cleanUpInactiveTabsAfterHours: null,
+    cleanUpInactiveTabsAfterMinutes: null,
     restoreSession: true,
     shareTabsAcrossWindows: false,
     balancedTopApps: false,
@@ -61,6 +62,7 @@ export const PRESETS: Record<Preset, Partial<Settings>> = {
     searchEngine: "google",
     commandBarPreference: "website",
     openLinksInLittleArdia: true,
+    profileSwitcherIcons: false,
   },
   arc: {
     tabLayout: "sidebar",
@@ -69,7 +71,7 @@ export const PRESETS: Record<Preset, Partial<Settings>> = {
     newTabOpens: "commandBar",
     newTabPosition: "top",
     newTabButtonPosition: "top",
-    cleanUpInactiveTabsAfterHours: 12,
+    cleanUpInactiveTabsAfterMinutes: 12 * 60,
     restoreSession: true,
     shareTabsAcrossWindows: true,
     balancedTopApps: true,
@@ -83,6 +85,7 @@ export const PRESETS: Record<Preset, Partial<Settings>> = {
     searchEngine: "google",
     commandBarPreference: "website",
     openLinksInLittleArdia: true,
+    profileSwitcherIcons: true,
   },
   zen: {
     tabLayout: "sidebar",
@@ -91,7 +94,7 @@ export const PRESETS: Record<Preset, Partial<Settings>> = {
     newTabOpens: "commandBar",
     newTabPosition: "top",
     newTabButtonPosition: "top",
-    cleanUpInactiveTabsAfterHours: null,
+    cleanUpInactiveTabsAfterMinutes: null,
     restoreSession: true,
     shareTabsAcrossWindows: false,
     balancedTopApps: true,
@@ -105,13 +108,14 @@ export const PRESETS: Record<Preset, Partial<Settings>> = {
     searchEngine: "google",
     commandBarPreference: "search",
     openLinksInLittleArdia: false,
+    profileSwitcherIcons: true,
   },
   chrome: CLASSIC_TABS,
   firefox: CLASSIC_TABS,
   safari: { ...CLASSIC_TABS, extendWebsiteColor: true, bookmarksBar: "never" },
   brave: { ...CLASSIC_TABS, searchEngine: "brave" },
   edge: { ...CLASSIC_TABS, searchEngine: "bing" },
-  fresh: { addressBar: "sidebar", commandBarPlacement: "centred", newTabPosition: "nextToCurrent", newTabButtonPosition: "bottom" },
+  fresh: { addressBar: "sidebar", commandBarPlacement: "centred", newTabPosition: "nextToCurrent", newTabButtonPosition: "bottom", profileSwitcherIcons: false },
 };
 
 export const setsUpLikeBrowser = (source: BrowserSourceId | null): source is Exclude<BrowserSourceId, "fresh"> => !!source && source !== "fresh";

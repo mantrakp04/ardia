@@ -32,6 +32,7 @@
 #include "ipc/ipc_channel_proxy.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
 #include "mojo/public/cpp/bindings/callback_helpers.h"
+#include "third_party/blink/public/mojom/frame/user_activation_notification_type.mojom.h"
 #include "ardia/core/ac_browser.h"
 #include "ardia/core/ac_content_hooks.h"
 #include "ardia/core/ac_page_limits.h"
@@ -411,6 +412,16 @@ void PageChannel::ExecuteInFrame(const std::string& frame_id,
     Execute(code);
   } else if (auto page = PageOf(target)) {
     page->Execute(code);
+  }
+}
+
+void PageChannel::GrantUserActivation(const std::string& frame_id) {
+  content::RenderFrameHost* target =
+      frame_id.empty() ? GetWebContents().GetPrimaryMainFrame()
+                       : FindFrame(frame_id);
+  if (target && target->IsRenderFrameLive()) {
+    target->NotifyUserActivation(
+        blink::mojom::UserActivationNotificationType::kInteraction);
   }
 }
 

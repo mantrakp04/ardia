@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { switchOn } from "../../platform/killSwitches";
-import { ARC_LIGHTS_CENTER, LIGHTS_CENTER, lightsCenter, TOP_STRIP_LIGHTS_CENTER } from "./dockMotion";
+import { ARC_LIGHTS_CENTER, lightsCenter, toolbarLightsCenter, TOP_STRIP_LIGHTS_CENTER } from "./dockMotion";
 import { DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { useWindowId } from "../browser/hooks";
@@ -34,8 +34,10 @@ export function openingLightsCenter(s: BrowserState, windowId: string): [number,
   if (!w) return null;
   const open = w.sidebarOpen ?? true;
   if ((w.tabLayout ?? s.settings.tabLayout) === "top") return open ? [...TOP_STRIP_LIGHTS_CENTER] : lightsCenter(DEFAULT_SIDEBAR_WIDTH);
-  return lightsCenter(open ? 0 : (s.settings.sidebarWidth ?? DEFAULT_SIDEBAR_WIDTH), 0, s.settings.addressBar === "sidebar" ? ARC_LIGHTS_CENTER : LIGHTS_CENTER);
+  return lightsCenter(open ? 0 : (s.settings.sidebarWidth ?? DEFAULT_SIDEBAR_WIDTH), 0, s.settings.addressBar === "sidebar" ? ARC_LIGHTS_CENTER : toolbarLightsCenter(s.settings.compactToolbar));
 }
+
+export const useToolbarLightsCenter = (): readonly [number, number] => toolbarLightsCenter(useBrowser((s) => s.settings.compactToolbar));
 
 type UrlAnchor = { left: number; top: number; width: number; sidebar?: { height: number } };
 

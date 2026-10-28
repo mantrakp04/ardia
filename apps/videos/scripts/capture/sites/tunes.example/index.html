@@ -1,0 +1,21 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Tunes · Late Night Drive</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}body{font-family:-apple-system,"Helvetica Neue",Helvetica,Arial,sans-serif;color:#1d1d1f;overflow:hidden}</style>
+<style>
+body{background:linear-gradient(160deg,#1c1530,#3b1d4a 55%,#6a2c4f);color:#fff;display:flex;align-items:center;justify-content:center}
+.card{display:flex;gap:34px;align-items:center}
+.art{width:260px;height:260px;border-radius:18px;background:linear-gradient(135deg,#ff8a5b,#c83e7a 50%,#4b2a86);box-shadow:0 30px 60px rgba(0,0,0,.4)}
+h1{font-size:40px;font-weight:800;max-width:520px;line-height:1.08}p{margin-top:12px;font-size:19px;opacity:.75}
+.bar{margin-top:26px;width:440px;height:5px;border-radius:3px;background:rgba(255,255,255,.2)}.bar i{display:block;width:34%;height:100%;border-radius:3px;background:#fff}
+</style></head><body>
+<div class="card"><div class="art"></div><div><h1>Late Night Drive Through the City Lights (Extended Mix)</h1><p>The Midnight Arcade · Neon Avenues</p><div class="bar"><i></i></div></div></div>
+<audio id="a" src="/img/tone.wav" autoplay></audio>
+<script>
+const a = document.getElementById("a");
+a.volume = 0.05;
+navigator.mediaSession.metadata = new MediaMetadata({ title: "Late Night Drive Through the City Lights (Extended Mix)", artist: "The Midnight Arcade", album: "Neon Avenues" });
+const go = () => a.play().catch(() => {});
+a.addEventListener("loadedmetadata", () => navigator.mediaSession.setPositionState({ duration: a.duration, position: a.currentTime, playbackRate: 1 }));
+go();
+addEventListener("click", go);
+</script>
+</body></html>

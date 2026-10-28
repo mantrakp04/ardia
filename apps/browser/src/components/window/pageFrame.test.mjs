@@ -50,11 +50,20 @@ test("the page frame choice is global, saved both ways, and never changes a tab'
 
 test("page-frame insets release the real content area while keeping the top tab strip's space", async () => {
   const { pageFrameInsets } = await import("./pageFrame.ts");
-  assert.deepEqual(pageFrameInsets(true), { top: 6, right: 7, bottom: 7, left: 7 });
+  const { CARD_INSET } = await import("../../lib/windowLayout.ts");
+  assert.deepEqual(pageFrameInsets(true), { top: CARD_INSET, right: CARD_INSET, bottom: CARD_INSET, left: CARD_INSET });
   assert.deepEqual(pageFrameInsets(false), { top: 0, right: 0, bottom: 0, left: 0 });
-  assert.deepEqual(pageFrameInsets(true, 42, 6), { top: 42, right: 6, bottom: 6, left: 6 });
-  assert.deepEqual(pageFrameInsets(false, 42, 6), { top: 42, right: 0, bottom: 0, left: 0 });
-  assert.deepEqual(pageFrameInsets(false, 0, 6), pageFrameInsets(false));
+  assert.deepEqual(pageFrameInsets(true, 42), { top: 42, right: CARD_INSET, bottom: CARD_INSET, left: CARD_INSET });
+  assert.deepEqual(pageFrameInsets(false, 42), { top: 42, right: 0, bottom: 0, left: 0 });
+  assert.deepEqual(pageFrameInsets(false, 0), pageFrameInsets(false));
+});
+
+test("a docked sidebar keeps main's gap to the framed card and none without the frame", async () => {
+  const { pageFrameDockedLeft } = await import("./pageFrame.ts");
+  const { dockedCardLeft } = await import("./dockMotion.ts");
+  assert.equal(pageFrameDockedLeft(true, 240), dockedCardLeft(240));
+  assert.ok(pageFrameDockedLeft(true, 240) > 240);
+  assert.equal(pageFrameDockedLeft(false, 240), 240);
 });
 
 test("the existing settings adapter syncs an explicit frame choice and leaves the default unsent", () => {

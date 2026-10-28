@@ -2,21 +2,25 @@ import { useState } from "react";
 import { Animated, Pressable, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { switchProfile } from "../../state/browser/actions";
-import { useTheme } from "../ui/theme";
-import { useIsIncognito, useProfile } from "../../state/browser/hooks";
-import { useProfileOrder } from "../../state/profiles/hooks";
+import { showMenu } from "../../state/app/system";
+import { layout, useTheme } from "../ui/theme";
+import { useIsIncognito, useProfile, useSettings } from "../../state/browser/hooks";
+import { useProfileOrder, useProfileRecords } from "../../state/profiles/hooks";
+import { setSwitcherIcon } from "../../state/profiles/actions";
+import { currentProfile, currentSettings } from "../../state/browser/current";
+import { updateSettings } from "../../state/settings/actions";
+import { openSettings } from "../../state/settings/settingsWindows";
 import { useNativePagerPosition, usePagerPages, type PagerPage } from "../../state/windows/profilePager";
-import { useHover } from "../ui";
+import { ContextMenuArea, useHover } from "../ui";
 import { TooltipAbove } from "../ui/TooltipAbove";
+import { SIDEBAR_FOOTER_DOWNLOADS } from "../sidebar/geometry";
+import { iconMenuItems, switcherCellWidth, switcherIcons, SwitcherMark } from "./ProfileIcons";
+import { profileSwitcher } from "./tokens";
 
-export const PROFILE_DOTS_HEIGHT = 41;
-const CELL = 12;
-const DOT = 6;
-const BAND = 28;
-const SELECTED = 0.85;
-const HOVERED = 0.4;
-const IDLE = 0.2;
-const DOT_CENTER_TO_TOOLTIP = 18.25;
+export const PROFILE_DOTS_HEIGHT = profileSwitcher.height;
+const { band: BAND, dotTooltipLift } = profileSwitcher;
+const SIDE_ROOM = layout.sidebarInset;
+const SIDE_ROOM_BESIDE_DOWNLOADS = layout.sidebarInset + SIDEBAR_FOOTER_DOWNLOADS.size + 4;
 
 export function useProfileDotsShown() {
   const incognito = useIsIncognito();
@@ -24,46 +28,69 @@ export function useProfileDotsShown() {
   return !incognito && count > 1;
 }
 
-export function ProfileDots({ windowId }: { windowId: string }) {
+export function ProfileDots({ windowId, width, besideDownloads }: { windowId: string; width: number; besideDownloads: boolean }) {
   const ids = useProfileOrder(useShallow((o) => o));
+  const saved = useProfileRecords(useShallow((profiles) => ids.map((id) => profiles[id]?.icon ?? null)));
+  const shown = useSettings((s) => s.profileSwitcherIcons);
+  const icons = switcherIcons(saved, shown, width - 2 * (besideDownloads ? SIDE_ROOM_BESIDE_DOWNLOADS : SIDE_ROOM));
   const { pages, pager } = usePagerPages(windowId);
   return (
     <View style={{ height: PROFILE_DOTS_HEIGHT, alignItems: "center" }}>
       <View style={{ marginTop: (PROFILE_DOTS_HEIGHT - 3 - BAND) / 2, height: BAND, flexDirection: "row" }}>
-        {ids.map((id) => (
-          <Dot key={id} id={id} windowId={windowId} page={pages.find((p) => p.id === id)} pos={pager.pos} />
+        {ids.map((id, i) => (
+          <Dot key={id} id={id} windowId={windowId} icon={icons[i] ?? null} page={pages.find((p) => p.id === id)} pos={pager.pos} />
         ))}
       </View>
     </View>
   );
 }
 
-function Dot({ id, windowId, page, pos }: { id: string; windowId: string; page: PagerPage | undefined; pos: Animated.Value }) {
+function Dot({ id, windowId, icon, page, pos }: { id: string; windowId: string; icon: string | null; page: PagerPage | undefined; pos: Animated.Value }) {
   const theme = useTheme();
   useNativePagerPosition(windowId);
   const name = useProfile(id, (p) => p?.name ?? "");
   const { hovered, hoverProps } = useHover();
   const [pressed, setPressed] = useState(false);
   if (pressed && !hovered) setPressed(false);
-  const rest = hovered ? HOVERED : IDLE;
+  const levels = icon ? profileSwitcher.icons : profileSwitcher.dots;
+  const rest = hovered ? levels.hovered : levels.idle;
   const opacity = page
-    ? pos.interpolate({ inputRange: [page.slot - 1, page.slot, page.slot + 1], outputRange: [rest, SELECTED, rest], extrapolate: "clamp" })
+    ? pos.interpolate({ inputRange: [page.slot - 1, page.slot, page.slot + 1], outputRange: [rest, levels.selected, rest], extrapolate: "clamp" })
     : rest;
+  const cell = switcherCellWidth(icon);
   return (
     <View {...hoverProps}>
-      <TooltipAbove text={name} active={hovered && !pressed} centerX={CELL / 2} bottom={BAND / 2 + DOT_CENTER_TO_TOOLTIP} />
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={name}
-        onPress={() => {
-          setPressed(true);
-          switchProfile(windowId, id, true);
-        }}
-      >
-        <View style={{ width: CELL, height: BAND, alignItems: "center", justifyContent: "center" }}>
-          <Animated.View style={{ width: DOT, height: DOT, borderRadius: DOT / 2, backgroundColor: theme.mark, opacity }} />
-        </View>
-      </Pressable>
+      <TooltipAbove text={name} active={hovered && !pressed} centerX={cell / 2} bottom={BAND / 2 + dotTooltipLift} />
+      <ContextMenuArea onContextMenu={() => void openSwitcherMenu(id)}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={name}
+          onPress={() => {
+            setPressed(true);
+            switchProfile(windowId, id, true);
+          }}
+        >
+          <View style={{ width: cell, height: BAND, alignItems: "center", justifyContent: "center" }}>
+            <Animated.View style={{ opacity }}>
+              <SwitcherMark icon={icon} color={theme.mark} />
+            </Animated.View>
+          </View>
+        </Pressable>
+      </ContextMenuArea>
     </View>
   );
+}
+
+async function openSwitcherMenu(profileId: string) {
+  const icon = currentProfile(profileId)?.icon ?? null;
+  const shown = currentSettings().profileSwitcherIcons;
+  const choice = await showMenu([
+    { id: "icon", title: "Icon", symbol: "face.smiling", children: iconMenuItems(icon, "None") },
+    { id: "showIcons", title: "Show Profile Icons", checked: shown },
+    { separator: true },
+    { id: "settings", title: "Profile Settings…", symbol: "gearshape" },
+  ]);
+  if (choice?.startsWith("icon:")) setSwitcherIcon(profileId, choice.slice("icon:".length) || null);
+  else if (choice === "showIcons") updateSettings({ profileSwitcherIcons: !shown });
+  else if (choice === "settings") openSettings("profiles", profileId);
 }

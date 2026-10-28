@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { Animated } from "react-native";
 import type { Theme } from "./theme";
 import { duration as durations } from "./motion";
-import { ink, siteToolbarRoles } from "./tokens";
+import { colorRoles, ink, siteToolbarRoles } from "./tokens";
 import { curve } from "./motion";
 
 export type ToolbarPalette = {
@@ -34,6 +34,11 @@ export function luminance(color: string): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
+export function isLightBackground(color: string): boolean {
+  const l = luminance(color);
+  return 1.05 / (l + 0.05) < (l + 0.05) / 0.05;
+}
+
 const cache = new Map<string, ToolbarPalette>();
 
 export function toolbarPalette(theme: Theme, websiteColor: string | null): ToolbarPalette {
@@ -53,13 +58,38 @@ export function toolbarPalette(theme: Theme, websiteColor: string | null): Toolb
       divider: theme.divider,
     };
   } else {
-    const l = luminance(websiteColor);
-    const light = (1.05 / (l + 0.05)) < ((l + 0.05) / 0.05);
-    const roles = light ? siteToolbarRoles.onLight : siteToolbarRoles.onDark;
+    const roles = isLightBackground(websiteColor) ? siteToolbarRoles.onLight : siteToolbarRoles.onDark;
     palette = { background: websiteColor.slice(0, 7), ...roles };
   }
   cache.set(key, palette);
   return palette;
+}
+
+const siteThemes = new WeakMap<Theme, WeakMap<ToolbarPalette, Theme>>();
+
+export function siteScopedTheme(theme: Theme, palette: ToolbarPalette): Theme {
+  if (!palette.background) return theme;
+  let byPalette = siteThemes.get(theme);
+  if (!byPalette) siteThemes.set(theme, (byPalette = new WeakMap()));
+  let scoped = byPalette.get(palette);
+  if (scoped) return scoped;
+  const light = isLightBackground(palette.background);
+  scoped = {
+    ...theme,
+    dark: !light,
+    faviconTile: (light ? colorRoles.light : colorRoles.dark).faviconTile,
+    textPrimary: palette.text,
+    textTab: palette.text,
+    textSecondary: palette.secondary,
+    textTertiary: palette.secondary,
+    icon: palette.icon,
+    iconDisabled: palette.iconDisabled,
+    toolbarHover: palette.hover,
+    toolbarPressed: palette.pressed,
+    divider: palette.divider,
+  };
+  byPalette.set(palette, scoped);
+  return scoped;
 }
 
 export function useEasedColor(color: string | null, duration: number = durations.colorEase) {

@@ -28,6 +28,16 @@ export const privacyRows: Pick<Record<SettingsPane, SettingSection[]>, "privacy"
     },
     { section: "Apps allowed to open links", rows: { appLinks: { title: "Apps allowed to open links", description: "Sites that open another app without asking first.", keywords: ["external apps", "protocol handlers", "zoom links"] } } },
     {
+      section: "Zoom",
+      rows: {
+        commandScrollZoom: {
+          title: "Zoom with ⌘ and the mouse wheel",
+          description: "Sites that use ⌘-scroll themselves, like maps, still get it. ⌘+, ⌘− and ⌘0 zoom either way.",
+          keywords: ["scroll wheel", "command scroll", "cmd scroll", "mouse zoom", "accidental zoom", "page zoom"],
+        },
+      },
+    },
+    {
       section: "Crash reports and usage",
       rows: {
         shareDiagnostics: { title: "Share anonymous crash reports and usage stats", keywords: ["telemetry", "analytics", "diagnostics", "crash"] },

@@ -1,6 +1,7 @@
 import { useContext, useMemo, useRef } from "react";
 import { Animated, Pressable, View } from "react-native";
 import { modifiersOf } from "../../lib/keys";
+import { closeTab } from "../../state/browser/actions";
 import { useIsActiveTab, useTab, useWindowId } from "../../state/browser/hooks";
 import { folderIdOfCell } from "../../state/pins/tileFolders";
 import { clickTab } from "../../state/sidebar/actions";
@@ -8,7 +9,7 @@ import { openTabMenu } from "../../state/sidebar/menus";
 import { openTileFolderMenu } from "../../state/sidebar/tileFolderUi";
 import { currentMovingTabIds, openTileFolderStripMenu, useTileFolderLabel } from "../../state/tabs/topStrip";
 import { FolderMosaic } from "../sidebar/FolderTile";
-import { ContextMenuArea, useHover } from "../ui";
+import { ContextMenuArea, MouseArea, useHover } from "../ui";
 import { useTheme } from "../ui/theme";
 import { DockContext } from "./context";
 import { pinOut } from "./dockCross";
@@ -86,11 +87,13 @@ function PinnedCell({ tabId, geometry, from }: { tabId: string; geometry: DragGe
   return (
     <Animated.View ref={drag.ref} {...drag.panHandlers} mouseDownCanMoveWindow={false} style={drag.style}>
       <View {...hoverProps} style={{ opacity: drag.crossed ? 0 : 1 }} tooltip={`${tab.customTitle || tab.title || tab.url}${tab.url ? `\n${tab.url}` : ""}`}>
-        <ContextMenuArea onContextMenu={() => void openTabMenu(windowId, tab)}>
-          <Pressable onPress={(e) => clickTab(windowId, tab.id, modifiersOf(e))}>
-            {({ pressed }) => <PinnedFace tabId={tabId} active={active} hovered={hovered} pressed={pressed} />}
-          </Pressable>
-        </ContextMenuArea>
+        <MouseArea onMiddleClick={() => void closeTab(tabId)}>
+          <ContextMenuArea onContextMenu={() => void openTabMenu(windowId, tab)}>
+            <Pressable onPress={(e) => clickTab(windowId, tab.id, modifiersOf(e))}>
+              {({ pressed }) => <PinnedFace tabId={tabId} active={active} hovered={hovered} pressed={pressed} />}
+            </Pressable>
+          </ContextMenuArea>
+        </MouseArea>
       </View>
       {drag.crossed && strip && (
         <FadeIn style={{ left: 0, top: -(ITEM_TOP + 0.5), width: strip.chip, height: TOP_STRIP_HEIGHT }}>

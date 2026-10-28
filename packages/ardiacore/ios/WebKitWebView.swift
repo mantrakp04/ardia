@@ -26,8 +26,8 @@ final class WebKitWebView: WKWebView {
   }
 
   func stopCapture(_ kind: String) {
-    if kind == "camera" { setCameraCaptureState(.none, completionHandler: nil) }
-    if kind == "microphone" { setMicrophoneCaptureState(.none, completionHandler: nil) }
+    if kind == "camera" { setCameraCaptureState(.none, completionHandler: {}) }
+    if kind == "microphone" { setMicrophoneCaptureState(.none, completionHandler: {}) }
   }
 
   override func becomeFirstResponder() -> Bool {

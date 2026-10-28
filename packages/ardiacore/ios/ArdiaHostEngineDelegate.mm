@@ -174,6 +174,10 @@ using namespace ardia_host;
   [ArdiaEvents emit:@"extensions.installPrompt" data:payload];
 }
 
+- (void)engine:(ArdiaCoreEngine *)engine extensionInstallFailed:(NSString *)message tab:(ArdiaCoreTab *)tab {
+  [ArdiaEvents emit:@"extensions.installFailed" data:@{@"message" : message ?: @"", @"tabId" : ardia_host::AppTabIdValue(tab)}];
+}
+
 - (void)engine:(ArdiaCoreEngine *)engine permissionRequestDismissed:(NSString *)requestId {
   ardia_host::DropPopupWindowPermission(requestId ?: @"");
   ardia_host::DropHeldEvent(@"permissions.requested", requestId ?: @"");

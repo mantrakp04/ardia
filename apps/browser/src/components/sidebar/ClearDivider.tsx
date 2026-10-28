@@ -1,6 +1,5 @@
-import { memo, useEffect, useMemo, useSyncExternalStore } from "react";
+import { memo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
-import { markHoverProps } from "../../lib/hoverMarks";
 import { useTheme } from "../ui/theme";
 import { Symbol, useHover, weight } from "../ui";
 import { SIDEBAR_TYPE } from "./tokens";
@@ -9,45 +8,41 @@ import { tidyPins } from "../../state/sidebar/tidyPinsUi";
 
 const CLEAR_DIVIDER_HEIGHT = 16;
 const PADDING = 9;
-
-const hoveredSidebars = new Set<string>();
-const hoverListeners = new Set<() => void>();
-
-function setSidebarHovered(windowId: string, hovered: boolean) {
-  if (hovered === hoveredSidebars.has(windowId)) return;
-  if (hovered) hoveredSidebars.add(windowId);
-  else hoveredSidebars.delete(windowId);
-  for (const listener of hoverListeners) listener();
-}
-
-const subscribeSidebarHover = (listener: () => void) => {
-  hoverListeners.add(listener);
-  return () => void hoverListeners.delete(listener);
-};
-
-export function useSidebarHoverProps(windowId: string) {
-  const props = useMemo(() => markHoverProps({ onMouseEnter: () => setSidebarHovered(windowId, true), onMouseLeave: () => setSidebarHovered(windowId, false) }), [windowId]);
-  useEffect(() => () => setSidebarHovered(windowId, false), [windowId]);
-  return props;
-}
-
-const useSidebarHovered = (windowId: string) => useSyncExternalStore(subscribeSidebarHover, () => hoveredSidebars.has(windowId));
+const SPACED_TOP = 7;
 
 type DividerProps = { windowId: string; profileId: string; spaced: boolean; clear: boolean; tidy: boolean };
 
 export const ClearDivider = memo(function ClearDivider({ windowId, profileId, spaced, clear, tidy }: DividerProps) {
   const theme = useTheme();
-  const shown = useSidebarHovered(windowId);
+  const { hovered: shown, hoverProps } = useHover();
+  const [actionsWidth, setActionsWidth] = useState(0);
+  const [lineWidth, setLineWidth] = useState(0);
   return (
-    <View style={{ height: CLEAR_DIVIDER_HEIGHT, marginTop: spaced ? 7 : 0, flexDirection: "row", alignItems: "center", paddingLeft: PADDING, paddingRight: PADDING }}>
-      <View style={{ flex: 1, height: 1, backgroundColor: theme.divider }} />
-      <View>
-        <View style={{ position: "absolute", left: 0, right: 0, top: (CLEAR_DIVIDER_HEIGHT - 1) / 2, height: 1, backgroundColor: theme.divider, opacity: shown ? 0 : 1 }} />
-        <View style={{ flexDirection: "row", alignItems: "center", opacity: shown ? 1 : 0 }}>
-          {tidy ? <DividerButton title="Tidy" symbol="sparkles" iconWidth={10} label="Tidy pinned tabs" onPress={() => tidyPins(windowId, profileId)} /> : null}
-          {tidy && clear ? <View style={{ width: 1, height: 9, marginLeft: 8, backgroundColor: theme.divider }} /> : null}
-          {clear ? <DividerButton title="Clear" symbol="arrow.down" iconWidth={8} label="Clear unpinned tabs" onPress={() => closeAllTabs(windowId)} /> : null}
-        </View>
+    <View
+      {...hoverProps}
+      onLayout={(e) => setLineWidth(Math.max(0, e.nativeEvent.layout.width - 2 * PADDING))}
+      style={{
+        height: CLEAR_DIVIDER_HEIGHT,
+        marginTop: spaced ? SPACED_TOP : 0,
+        marginBottom: spaced ? SPACED_TOP : 0,
+        flexDirection: "row",
+        alignItems: "center",
+        paddingLeft: PADDING,
+        paddingRight: PADDING,
+      }}
+    >
+      <View style={{ flex: 1, height: 1, marginRight: shown ? actionsWidth : 0, overflow: "hidden" }}>
+        {lineWidth ? (
+          <View style={{ position: "absolute", left: 0, top: -1, width: lineWidth, height: 2, borderBottomWidth: 1, borderStyle: "dashed", borderColor: theme.divider }} />
+        ) : null}
+      </View>
+      <View
+        onLayout={(e) => setActionsWidth(e.nativeEvent.layout.width)}
+        style={{ position: "absolute", right: PADDING, top: 0, bottom: 0, flexDirection: "row", alignItems: "center", opacity: shown ? 1 : 0 }}
+      >
+        {tidy ? <DividerButton title="Tidy" symbol="sparkles" iconWidth={10} label="Tidy pinned tabs" onPress={() => tidyPins(windowId, profileId)} /> : null}
+        {tidy && clear ? <View style={{ width: 1, height: 9, marginLeft: 8, backgroundColor: theme.divider }} /> : null}
+        {clear ? <DividerButton title="Clear" symbol="arrow.down" iconWidth={8} label="Clear unpinned tabs" onPress={() => closeAllTabs(windowId)} /> : null}
       </View>
     </View>
   );

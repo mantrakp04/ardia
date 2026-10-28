@@ -8,7 +8,7 @@ import { useSiteTokens } from "./tokens";
 import { popoverOf, setPopover, usePages } from "../../state/tabs/pageState";
 import { type ToolbarPalette } from "../ui/toolbarColors";
 
-export const ZoomIndicator = memo(function ZoomIndicator({ tabId, zoom, palette, onFocus }: { tabId: string; zoom: number; palette: ToolbarPalette; onFocus: () => void }) {
+export const ZoomIndicator = memo(function ZoomIndicator({ tabId, zoom, palette, box, radius, onFocus }: { tabId: string; zoom: number; palette: ToolbarPalette; box: number; radius: number; onFocus: () => void }) {
   const open = usePages((p) => p.popover[tabId] === "zoom");
   if (Math.abs(zoom - 1) < 0.001) return null;
   return (
@@ -16,8 +16,8 @@ export const ZoomIndicator = memo(function ZoomIndicator({ tabId, zoom, palette,
       palette={palette}
       icon={zoom > 1 ? "plus.magnifyingglass" : "minus.magnifyingglass"}
       size={13}
-      box={24}
-      radius={6}
+      box={box}
+      radius={radius}
       onPress={() => {
         onFocus();
         setPopover(tabId, popoverOf(tabId) === "zoom" ? null : "zoom");

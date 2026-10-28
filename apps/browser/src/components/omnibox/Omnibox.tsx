@@ -44,9 +44,11 @@ export function Omnibox({
   onDone = onCancel,
   opensTab,
   floating = false,
+  fieldRowHeight = BAR.panel.height,
 }: {
   variant: Variant;
   floating?: boolean;
+  fieldRowHeight?: number;
   tabId: string;
   initialText?: string;
   opensTab?: NewTabTarget;
@@ -364,6 +366,7 @@ export function Omnibox({
       field={field}
       list={listAway ? null : suggestionList}
       hero={hero}
+      rowHeight={fieldRowHeight}
       bottom={
         <BottomRow
           hero={hero}

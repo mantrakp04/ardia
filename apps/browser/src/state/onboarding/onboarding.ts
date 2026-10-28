@@ -30,6 +30,7 @@ export type QuestionId =
   | "windows"
   | "tabsMore"
   | "color"
+  | "switcher"
   | "appearance"
   | "siteColor"
   | "lookMore"
@@ -41,7 +42,7 @@ export type QuestionId =
   | "links"
   | "outro";
 
-type Question = { id: QuestionId; keys: readonly (keyof Settings)[] };
+type Question = { id: QuestionId; keys: readonly (keyof Settings)[]; askedWithPreset?: true };
 
 const QUESTIONS: Record<Exclude<OnboardingStep, "intro">, Question[]> = {
   source: [{ id: "source", keys: [] }],
@@ -53,13 +54,14 @@ const QUESTIONS: Record<Exclude<OnboardingStep, "intro">, Question[]> = {
   tabs: [
     { id: "newTab", keys: ["newTabOpens"] },
     { id: "newTabPosition", keys: ["newTabPosition", "newTabButtonPosition"] },
-    { id: "tidy", keys: ["cleanUpInactiveTabsAfterHours"] },
+    { id: "tidy", keys: ["cleanUpInactiveTabsAfterMinutes"] },
     { id: "quit", keys: ["restoreSession"] },
     { id: "windows", keys: ["shareTabsAcrossWindows"] },
     { id: "tabsMore", keys: ["balancedTopApps", "peekModifier", "undoReopensClosedTab", "cmdClickCreatesTabGroup"] },
   ],
   look: [
     { id: "color", keys: [] },
+    { id: "switcher", keys: ["profileSwitcherIcons"], askedWithPreset: true },
     { id: "appearance", keys: ["appearance"] },
     { id: "siteColor", keys: ["extendWebsiteColor"] },
     { id: "lookMore", keys: ["hideToolbarWhileScrolling", "bookmarksBar"] },
@@ -79,16 +81,18 @@ const QUESTIONS: Record<Exclude<OnboardingStep, "intro">, Question[]> = {
 
 export const QUESTION_ORDER: QuestionId[] = Object.values(QUESTIONS).flatMap((list) => list.map((q) => q.id));
 
-const answeredByPreset = (q: Question, preset: Preset) => q.keys.length > 0 && q.keys.every((k) => k in PRESETS[preset]);
+const answeredByPreset = (q: Question, preset: Preset) => !q.askedWithPreset && q.keys.length > 0 && q.keys.every((k) => k in PRESETS[preset]);
+
+const SIDEBAR_ONLY: readonly QuestionId[] = ["address", "switcher"];
 
 export function questionsFor(step: OnboardingStep): Question[] {
   if (step === "intro") return [];
   const { windowId, draft, preset, source } = useOnboarding.getState();
   const list = setsUpLikeBrowser(source) ? QUESTIONS[step].filter((q) => !answeredByPreset(q, preset)) : QUESTIONS[step];
-  if (step !== "layout") return list;
+  if (!list.some((q) => SIDEBAR_ONLY.includes(q.id))) return list;
   const b = useBrowser.getState();
   const { tabLayout } = resolveDraft(["tabLayout"], draft, preset, { ...b.settings, tabLayout: tabLayoutOf(b, windowId) });
-  return tabLayout === "top" ? list.filter((q) => q.id !== "address") : list;
+  return tabLayout === "top" ? list.filter((q) => !SIDEBAR_ONLY.includes(q.id)) : list;
 }
 
 export const activeSteps = () => STEPS.filter((step) => step === "intro" || questionsFor(step).length > 0);

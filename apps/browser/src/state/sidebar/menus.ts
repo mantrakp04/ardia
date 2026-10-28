@@ -22,12 +22,13 @@ import {
 import { isCalendarUrl } from "../live/meetings";
 import { bookmarkTab } from "../bookmarks/actions";
 import { canShare, shareTab } from "../site/share";
-import { calendarMenuItem, newLiveFolderMenuItem, runCalendarMenu, runNewLiveFolder } from "./liveMenus";
+import { calendarMenuItem, dismissNowMenuItems, newLiveFolderMenuItem, runCalendarMenu, runNewLiveFolder } from "./liveMenus";
 import { openSyncedTab, syncedDevicesMenuItem } from "../sync/menu";
 import { setSidebarUi } from "../sidebar/sidebarUi";
 import { hasOwnGroupIcon } from "../groups/groupIcons";
 import { newFolderWithTab, removeFromFolder } from "./tileFolderUi";
 import { closeAllTabs } from "./clearTabs";
+import { DAILY_CLEAN_UP_MINUTES } from "../settings/cleanUpAfter";
 import { toggleNewTabBar } from "../omnibox/newTabBar";
 import { togglePageEngine } from "../engines/actions";
 import { canSwitchEngine, ENGINE_NAMES, ENGINE_SYMBOLS, otherEngine, tabEngine } from "../engines/engines";
@@ -120,7 +121,7 @@ export async function openTabMenu(windowId: string, tab: Tab) {
           },
         ]
       : []),
-    ...(tab.pinned && isCalendarUrl(tab.pinnedUrl ?? tab.url) ? [calendarMenuItem()] : []),
+    ...(tab.pinned && isCalendarUrl(tab.pinnedUrl ?? tab.url) ? [...(pinSection(tab) === "tile" ? dismissNowMenuItems() : []), calendarMenuItem()] : []),
     sep,
     { id: "duplicate", title: "Duplicate", symbol: "plus.square.on.square" },
     { id: "bookmark", title: "Add to Bookmarks…", symbol: "bookmark", enabled: !!tab.url, ...menuShortcut("bookmarkPage") },
@@ -345,7 +346,7 @@ export async function openOverflowMenu(windowId: string) {
   const deleted = keptDeletedGroups(s.deletedGroups)
     .reverse()
     .map((c) => ({ id: `restore:${c.id}`, title: `${c.group.name} (${plural(c.tabs.length, "Tab")})`, symbol: "trash" }));
-  const daily = s.settings.cleanUpInactiveTabsAfterHours !== null;
+  const daily = s.settings.cleanUpInactiveTabsAfterMinutes !== null;
   const synced = syncedDevicesMenuItem(w.profileId);
   const choice = await showMenu([
     { id: "search", title: "Search Tabs…", symbol: "magnifyingglass", ...menuShortcut("searchTabs") },
@@ -388,7 +389,7 @@ export async function openOverflowMenu(windowId: string) {
   else if (choice.startsWith("cleaned:")) s.restoreCleaned(choice.slice(8), windowId);
   else if (choice === "restoreAll") s.restoreCleaned(undefined, windowId);
   else if (choice === "clean") s.cleanUpTabs(windowId);
-  else if (choice === "daily") s.updateSettings({ cleanUpInactiveTabsAfterHours: daily ? null : 24 });
+  else if (choice === "daily") s.updateSettings({ cleanUpInactiveTabsAfterMinutes: daily ? null : DAILY_CLEAN_UP_MINUTES });
   else if (choice === "mute") muteAll(windowId, !muted);
   else if (choice === "closeAll") closeAllTabs(windowId);
 }

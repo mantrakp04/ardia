@@ -77,6 +77,7 @@ const DEFS: ActionDef[] = [
   { command: "openSettings", keywords: ["preferences", "prefs", "options"] },
   { command: "clearBrowsingData", keywords: ["clear history", "clear cache", "clear cookies"] },
   { command: "importBrowserData", keywords: ["import bookmarks", "import passwords"] },
+  { command: "exportBookmarks", keywords: ["export bookmarks", "backup bookmarks", "bookmarks html"] },
   { command: "keyboardShortcuts", keywords: ["shortcuts", "hotkeys"] },
   { command: "mergeAllWindows", needs: "profiles" },
   { command: "newProfile", keywords: ["create profile"], needs: "profiles" },

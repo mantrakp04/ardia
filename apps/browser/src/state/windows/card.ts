@@ -133,6 +133,18 @@ export function downloadNavigated(tabId: string, committedUrl: string | null | u
   useBrowser.getState().updateTab(tabId, { url: "", title: "", favicon: null });
 }
 
+const WEB_PAGE = /^(https?|file):/i;
+
+export function newTabLingeringOver(windowId: string, from: string | undefined, to: string | undefined, mounted: string[]): string | undefined {
+  if (!from || !to || from === to || !mounted.includes(to)) return undefined;
+  const s = useBrowser.getState();
+  const was = s.tabs[from];
+  const next = s.tabs[to];
+  if (!was || !next || was.url || was.windowId !== windowId || next.windowId !== windowId || !WEB_PAGE.test(next.url)) return undefined;
+  if (isSmallWindow(s.windows[windowId]) || splitOf(s, from) || splitOf(s, to)) return undefined;
+  return from;
+}
+
 export function activateFocusedPane(tabId: string) {
   const s = useBrowser.getState();
   const t = s.tabs[tabId];

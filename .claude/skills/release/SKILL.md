@@ -431,6 +431,34 @@ The SEO data follows `release.ts` and the notes by itself, with no extra step; c
 Deploying makes things public. The user has asked for releases to go all the way through, so deploy as
 part of a release; for site changes outside a release, ask first.
 
+### 6b. The before-and-after film (every release, nightlies included)
+
+Each release gets a Remotion film of its fixes: the same clicks on the previous release and on this one, side by side
+(`apps/videos/src/videos/fixes-<id>`, like `fixes-0243n1`; footage in `apps/videos/public/footage/<id>`, filmed in
+hidden instances, captured by pid). Once the release is published:
+
+```bash
+pnpm -C apps/videos render fixes-<id>
+ffmpeg -i apps/videos/out/fixes-<id>.mp4 -an -c:v libx264 -preset slow -crf 26 -pix_fmt yuv420p -movflags +faststart \
+  apps/site/public/release-videos/fixes-<id>.mp4
+ffmpeg -ss 1 -i apps/site/public/release-videos/fixes-<id>.mp4 -frames:v 1 -vf scale=1600:-1 -q:v 4 \
+  apps/site/public/release-videos/fixes-<id>.jpg
+```
+
+Keep the web copy under about 8 MB. Add `video: fixes-<id>` to the frontmatter of `docs/release-notes/<version>.md`
+(and of any nightly the film also covers), commit the composition, the two files and the notes, and push: the site
+redeploys and plays it above the notes. `release.sh` links it in the GitHub body only when `video:` was set before
+the build, so for a film made after publishing add the same section by hand:
+
+```bash
+gh release view v<version> -R mantrakp04/ardia --json body -q .body > /tmp/body.md
+printf '\n## Before and after\n\nThe fixes, filmed on the previous release and on this one: https://ardia.dev/release-videos/fixes-<id>.mp4\n' >> /tmp/body.md
+gh release edit v<version> -R mantrakp04/ardia --notes-file /tmp/body.md
+```
+
+The section goes before `## Install` when release.sh writes it; appended at the end is fine by hand. Keep the footage
+until the film is on the site: without it the film can't be rendered again.
+
 ## 7. Report
 
 Tell the user, briefly: the version and headline, what's in it (from the notes), any landing-page claims changed, the smoke result

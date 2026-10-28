@@ -18,14 +18,14 @@ import {
   useTheme,
 } from "../ui";
 import { copyText, fileExists, fileIcon, moveToTrash, openFile, revealFile, showMenu, type MenuItem } from "../../state/app/system";
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Image, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { useDownloads, useSidebarOpen, useWindowId, useWindowUi } from "../../state/browser/hooks";
 import { clearDownloads, removeDownload, setDownloadsOpen } from "../../state/windows/actions";
 import { onDownloadsChanged, opensWhenDone, toggleOpenWhenDone, watchNewDownloads, watchOpenWhenDone } from "../../state/windows/downloadWatch";
 import { useDownload } from "../../state/windows/hooks";
-import { useAddressBarInSidebar, useTabLayout } from "../../state/windows/layout";
+import { useAddressBarInSidebar, useTabLayout, useToolbarLightsCenter } from "../../state/windows/layout";
 import { SIDEBAR_FOOTER_DOWNLOADS } from "../sidebar/geometry";
 import { PROFILE_DOTS_HEIGHT } from "../profiles/ProfileDots";
 import { openInternalPage } from "../../state/pages/urls";
@@ -130,7 +130,9 @@ function DownloadsPanel({ windowId, closing, onClosed }: { windowId: string; clo
   const appear = usePopoverMotion(closing, onClosed, placed);
 
   const upward = p?.bottom !== undefined;
-  const motion = usePopoverMotionStyle(appear, p ? `${p.arrowX}px ${upward ? "bottom" : "top"}` : "top", upward);
+  const arrowX = p?.arrowX;
+  const origin = useMemo(() => (arrowX === undefined ? "top" : ([arrowX, upward ? "100%" : 0, 0] as [number, string | number, number])), [arrowX, upward]);
+  const motion = usePopoverMotionStyle(appear, origin, upward);
   const arrowRoom = p && p.arrow !== "none" ? DOWNLOADS_PANEL.arrowHeight : 0;
   const listMax = p ? Math.max(L.row, Math.min(L.visibleRows * L.row, p.room - L.chrome)) : L.visibleRows * L.row;
 
@@ -326,6 +328,7 @@ export function DownloadMagnet() {
   const sidebarWidth = useSidebarWidth(windowId);
   const topStrip = useTabLayout() === "top";
   const addressBar = useAddressBarInSidebar();
+  const lightsY = useToolbarLightsCenter()[1];
   const [flight, setFlight] = useState<{ id: string; path: string } | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const t = useRef(new Animated.Value(0)).current;
@@ -345,7 +348,7 @@ export function DownloadMagnet() {
     : addressBar
       ? footer
       : sidebarOpen
-        ? { x: sidebarWidth - MAGNET.sidebarTarget.right, y: MAGNET.sidebarTarget.y }
+        ? { x: sidebarWidth - MAGNET.sidebarTarget.right, y: lightsY }
         : MAGNET.closedTarget;
   const start = { x: sidebar + (size.width - sidebar) / 2, y: size.height * MAGNET.startShare };
   const icon = MAGNET.icon;

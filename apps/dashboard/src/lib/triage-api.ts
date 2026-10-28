@@ -6,6 +6,7 @@ import { requireAllowed } from "./api";
 import { TRIAGE_VIEWS } from "./triage-views";
 
 const STATUSES: readonly ReplyStatus[] = ["drafted", "sent", "skipped"];
+export const MAX_RECHECK_BATCH = 1000;
 
 export const getTriage = createServerFn({ method: "POST" })
   .middleware([requireAllowed])
@@ -34,4 +35,18 @@ export const updateReplyStatus = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { setReplyStatus } = await import("../server/triage/replies");
     return setReplyStatus(data.id, data.status, context.email);
+  });
+
+export const requestReplyRecheck = createServerFn({ method: "POST" })
+  .middleware([requireAllowed])
+  .validator((input: { ids: number[] }) => {
+    const ids = Array.isArray(input?.ids) ? input.ids.map(Number) : [];
+    if (!ids.length) throw new Error("No replies to recheck");
+    if (ids.length > MAX_RECHECK_BATCH) throw new Error(`Recheck at most ${MAX_RECHECK_BATCH} replies at once`);
+    if (ids.some((id) => !Number.isInteger(id) || id <= 0 || id > 4_294_967_295)) throw new Error("Not a reply id");
+    return { ids };
+  })
+  .handler(async ({ data, context }) => {
+    const { requestRecheck } = await import("../server/triage/replies");
+    return requestRecheck(data.ids, context.email);
   });

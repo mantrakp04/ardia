@@ -1,0 +1,107 @@
+{
+  "id": "fixes-0243n1",
+  "segments": [
+    {
+      "scene": "tabflash",
+      "title": "No blank frame after ⌘W",
+      "body": "Close a tab and the next page is there at once. On 0.2.42 the page area went blank for a frame on 4 of the 8 presses filmed, like the second one here; 0.2.43-nightly.2 blanked on none of 8.",
+      "layout": "side",
+      "cam": [0, 0, 1360, 860],
+      "cursor": false,
+      "afterVersion": "0.2.43-nightly.2",
+      "note": "One of several presses",
+      "lead": 0.3,
+      "tail": 1.25,
+      "rate": 0.25
+    },
+    {
+      "scene": "headreload",
+      "title": "Reload fits at 210 pt",
+      "body": "With the address bar in the sidebar, the header shows reload next to back and forward once the sidebar is 210 pt wide. 0.2.42 held it back until 216 pt.",
+      "layout": "side",
+      "cam": [0, 0, 330, 300],
+      "lead": 0.5,
+      "tail": 2.3
+    },
+    {
+      "scene": "sunken",
+      "title": "A sunken address field",
+      "body": "The sidebar's address field is sunk into the sidebar, with the site controls on their own plate. Clear waits for the pointer on its dashed divider instead of showing whenever you're in the sidebar.",
+      "layout": "side",
+      "cam": [0, 0, 330, 300],
+      "lead": 0.9,
+      "tail": 5.0
+    },
+    {
+      "scene": "player",
+      "title": "The player is one row",
+      "body": "The sidebar player fits on one row. A long title scrolls, and pointing at it brings in mute and close while the pause button stays where it was.",
+      "layout": "side",
+      "cam": [0, 640, 360, 220],
+      "lead": 1.2,
+      "tail": 4.6
+    },
+    {
+      "scene": "spaceicons",
+      "title": "Icons in the profile switcher",
+      "body": "Turn on icons in Settings › Profiles and the switcher at the bottom of the sidebar shows each profile's icon, a planet and a flame like Arc's spaces, instead of three dots.",
+      "layout": "side",
+      "cam": [0, 740, 260, 120],
+      "lead": 0.9,
+      "tail": 3.6
+    },
+    {
+      "scene": "middleclose",
+      "title": "Middle-click closes a tab",
+      "body": "With tabs on top, a middle-click on a tab closes it, as in every other browser. 0.2.42 ignored it.",
+      "layout": "stack",
+      "cam": [140, 0, 900, 150],
+      "lead": 1.0,
+      "tail": 3.6
+    },
+    {
+      "scene": "littleback",
+      "title": "Back and forward in Little Ardia",
+      "body": "Little Ardia's bar has back and forward buttons. On 0.2.42 the same click landed in the address field.",
+      "layout": "side",
+      "cam": [200, 60, 640, 460],
+      "lead": 1.0,
+      "tail": 3.4
+    },
+    {
+      "scene": "cardframe",
+      "title": "An even 9 pt frame",
+      "body": "With the sidebar hidden, the page now sits 9 pt from the window's edge on every side. 0.2.42 left 6 pt at the top and 7 pt at the sides and bottom.",
+      "layout": "side",
+      "cam": [0, 0, 880, 790],
+      "cursor": false,
+      "lead": 0.3,
+      "tail": 2.6,
+      "tiles": [[0, 0, 96, 86], [1264, 0, 96, 86], [0, 774, 96, 86], [1264, 774, 96, 86]],
+      "tileNotes": {
+        "before": ["6 pt top · 7 pt left", "6 pt top · 7 pt right", "7 pt bottom · 7 pt left", "7 pt bottom · 7 pt right"],
+        "after": ["9 pt top · 9 pt left", "9 pt top · 9 pt right", "9 pt bottom · 9 pt left", "9 pt bottom · 9 pt right"]
+      }
+    },
+    {
+      "scene": "compact",
+      "title": "A compact toolbar",
+      "body": "Settings › Appearance › Compact toolbar trims the toolbar from 41 to 28 pt, and a 16:9 video gets the height back.",
+      "layout": "side",
+      "cam": [0, 0, 1360, 860],
+      "cursor": false,
+      "lead": 0.6,
+      "tail": 2.4
+    },
+    {
+      "scene": "popup",
+      "title": "Sign-in popups paint",
+      "body": "A sign-in popup, like Sign in with Google, shows its page as soon as it opens. On 0.2.42 it opened blank.",
+      "layout": "side",
+      "cam": [440, 90, 680, 700],
+      "sync": "overlay",
+      "lead": 1.3,
+      "tail": 3.5
+    }
+  ]
+}

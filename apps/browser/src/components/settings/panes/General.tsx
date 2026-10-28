@@ -22,6 +22,7 @@ import { Anchor, Group, Row, SectionHeader } from "../Form";
 import { defaultBrowser, downloadSettings, loginItem, updater } from "../../../state/settings/paneData";
 import { store, useResource } from "../../../state/settings/resources";
 import { openImport } from "../../../state/settings/settingsWindows";
+import { ExportBookmarksRow } from "./ExportBookmarksRow";
 import { SetupCodeRow } from "./SetupCodeRow";
 
 const APP = "Ardia";
@@ -106,11 +107,12 @@ export function GeneralPane() {
 
       <UpdatesSection />
 
-      <SectionHeader title="Import" />
+      <SectionHeader title="Import and Export" />
       <Group>
         <Row anchor="general.importBrowser">
           <Button title="Import…" onPress={openImport} />
         </Row>
+        <ExportBookmarksRow />
         <SetupCodeRow />
       </Group>
     </View>

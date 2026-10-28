@@ -46,10 +46,11 @@ export type Settings = {
   peekModifier: PeekModifier;
   splitLinkModifier: SplitLinkModifier;
   autoGroupMeetingTabs: boolean;
-  cleanUpInactiveTabsAfterHours: number | null;
+  cleanUpInactiveTabsAfterMinutes: number | null;
   mutedSites: string[];
   neverTranslateSites: Record<string, string[]>;
   autoPictureInPicture: boolean;
+  commandScrollZoom: boolean;
   videoUpscaling: boolean;
   sidebarMediaControls: boolean;
   sidebarWidth: number;
@@ -74,10 +75,12 @@ export type Settings = {
   appearance: "auto" | "light" | "dark";
   showPageFrame: boolean;
   addressBar: "toolbar" | "sidebar";
+  compactToolbar: boolean;
   commandBarPlacement: "field" | "centred";
   spacesFollowAppearance: boolean;
 
   defaultProfileId: string;
+  profileSwitcherIcons: boolean;
 
   shortcuts: Record<string, string[]>;
 
@@ -138,10 +141,11 @@ export const DEFAULT_SETTINGS: Settings = {
   peekModifier: "shift",
   splitLinkModifier: "altShift",
   autoGroupMeetingTabs: true,
-  cleanUpInactiveTabsAfterHours: null,
+  cleanUpInactiveTabsAfterMinutes: null,
   mutedSites: [],
   neverTranslateSites: {},
   autoPictureInPicture: true,
+  commandScrollZoom: true,
   videoUpscaling: true,
   sidebarMediaControls: true,
   sidebarWidth: 190,
@@ -164,9 +168,11 @@ export const DEFAULT_SETTINGS: Settings = {
   appearance: "auto",
   showPageFrame: true,
   addressBar: "toolbar",
+  compactToolbar: false,
   commandBarPlacement: "field",
   spacesFollowAppearance: true,
   defaultProfileId: DEFAULT_PROFILE_ID,
+  profileSwitcherIcons: false,
   shortcuts: {},
   openLinksInLittleArdia: true,
   littleArdiaSize: [900, 640],

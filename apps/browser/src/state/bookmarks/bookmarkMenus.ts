@@ -8,6 +8,7 @@ import { editBookmark } from "./edit";
 import { currentBookmarks } from "../browser/current";
 import type { BookmarkNode } from "../browser/types";
 import { openImport } from "../settings/settingsWindows";
+import { exportBookmarksFromWindow } from "./exportHtml";
 
 export async function openOrganizeMenu(windowId: string, profileId: string, folderId: string | null) {
   const choice = await showMenu([
@@ -15,11 +16,13 @@ export async function openOrganizeMenu(windowId: string, profileId: string, fold
     { id: "folder", title: "Add New Folder…" },
     { separator: true },
     { id: "import", title: "Import Bookmarks…" },
+    { id: "export", title: "Export Bookmarks…" },
   ]);
   const parentId = folderId ?? undefined;
   if (choice === "bookmark") editBookmark(null, windowId, { profileId, parentId });
   if (choice === "folder") editBookmark(null, windowId, { profileId, parentId, folder: true });
   if (choice === "import") openImport();
+  if (choice === "export") void exportBookmarksFromWindow(windowId);
 }
 
 export async function openBookmarkRowMenu(

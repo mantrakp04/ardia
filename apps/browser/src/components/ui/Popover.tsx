@@ -64,7 +64,7 @@ export function usePopoverMotion(closing: boolean, onClosed?: () => void, ready 
   return appear;
 }
 
-export function usePopoverMotionStyle(appear: Animated.Value, origin: string, upward = false) {
+export function usePopoverMotionStyle(appear: Animated.Value, origin: string | [number | string, number | string, number], upward = false) {
   return useMemo(
     () => ({
       opacity: appear,

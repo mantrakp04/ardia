@@ -324,8 +324,9 @@ static ArdiaCoreTab *StartParkedPage(NSString *url, NSString *profileName, NSStr
     [ArdiaServices call:@"ac_tab_restore_tag" profile:_profile args:@{@"tab" : @(tab.tabId), @"key" : _transferKey}
               completion:^(NSDictionary *) {}];
   [[ArdiaWindowController holding:tab] noteClosing:tab];
+  ArdiaWebView *holder = _lentTo;
   [self detach];
-  [tab closeNow];
+  if (![holder closesLentTab:tab]) [tab closeNow];
 }
 
 @end

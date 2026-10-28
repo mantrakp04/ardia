@@ -1,15 +1,14 @@
 import { onAppEvent } from "../../platform/app";
 import { onWindowEvent } from "../../platform/windows";
-import { everySlowly } from "../../platform/slowTimers";
 import { webviews } from "../../platform/webviews";
 import { startLive } from "../live";
+import { startAutoCleanUp } from "../pins/autoCleanUp";
 import { useBrowser } from "../browser/store";
 import { changedIds } from "../browser/changes";
 import { dismissHover } from "../sidebar/hover";
 import { sidebarUi } from "../sidebar/sidebarUi";
 import { cancelSwitcher, commitSwitcher, moveSwitcher } from "../sidebar/switcher";
 
-const AUTO_CLEAN_EVERY_MS = 30 * 60 * 1000;
 let started = false;
 
 export function startSidebarEffects() {
@@ -41,13 +40,5 @@ export function startSidebarEffects() {
     if (e.type === "focus" && hover && hover.windowId !== e.id) dismissHover();
   });
 
-  everySlowly({
-    every: AUTO_CLEAN_EVERY_MS,
-    run: () => {
-      const s = useBrowser.getState();
-      const hours = s.settings.cleanUpInactiveTabsAfterHours;
-      if (hours === null) return;
-      for (const id of s.windowOrder) s.cleanUpTabs(id, { inactiveForMs: hours * 3_600_000 });
-    },
-  });
+  startAutoCleanUp();
 }

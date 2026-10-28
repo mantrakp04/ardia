@@ -1,11 +1,25 @@
 ---
 interface Props {
   html: string;
+  video?: string;
 }
-const { html } = Astro.props;
+const { html, video } = Astro.props;
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 ---
 
-<div class="notes" set:html={html} />
+<div class="notes">
+  {
+    video && (
+      <>
+        <p class="sec sec-watch">Watch</p>
+        <video class="watch" controls playsinline preload="none" poster={`${base}/release-videos/${video}.jpg`}>
+          <source src={`${base}/release-videos/${video}.mp4`} type="video/mp4" />
+        </video>
+      </>
+    )
+  }
+  <Fragment set:html={html} />
+</div>
 
 <style>
   .notes {
@@ -62,6 +76,23 @@ const { html } = Astro.props;
   }
   .notes > :global(.sec-not-yet)::before {
     background-color: var(--stamp);
+  }
+  .notes > .sec-watch {
+    max-width: none;
+    margin-bottom: 0;
+    color: inherit;
+  }
+  .notes > .sec-watch::before {
+    background-color: #7fa6bd;
+  }
+  .watch {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    margin: 0 0 28px;
+    border-radius: 4px;
+    border: 1px solid var(--rule-strong);
+    background: #f1ebe2;
   }
   .notes > :global(ul) {
     list-style: none;

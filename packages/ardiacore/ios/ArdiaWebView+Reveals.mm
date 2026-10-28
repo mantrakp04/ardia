@@ -12,6 +12,23 @@ void OnMain(void (^block)(void)) {
 }
 }
 
+namespace ardia_web_view {
+
+NSView *PaneUnder(NSView *view, NSView *ancestor) {
+  for (NSView *v = view; v; v = v.superview)
+    if (v.superview == ancestor) return v;
+  return nil;
+}
+
+NSView *SharedAncestor(NSView *a, NSView *b) {
+  NSHashTable<NSView *> *chain = [NSHashTable weakObjectsHashTable];
+  for (NSView *v = a.superview; v; v = v.superview) [chain addObject:v];
+  for (NSView *v = b.superview; v; v = v.superview)
+    if ([chain containsObject:v]) return v;
+  return nil;
+}
+}
+
 @implementation ArdiaWebView (Reveals)
 
 static ArdiaWebView *ViewForKey(NSString *key) {
@@ -46,20 +63,6 @@ static ArdiaWebView *ViewForKey(NSString *key) {
     [other dropFront];
     if (other != keep) [other dropReveal];
   }
-}
-
-static NSView *PaneUnder(NSView *view, NSView *ancestor) {
-  for (NSView *v = view; v; v = v.superview)
-    if (v.superview == ancestor) return v;
-  return nil;
-}
-
-static NSView *SharedAncestor(NSView *a, NSView *b) {
-  NSHashTable<NSView *> *chain = [NSHashTable weakObjectsHashTable];
-  for (NSView *v = a.superview; v; v = v.superview) [chain addObject:v];
-  for (NSView *v = b.superview; v; v = v.superview)
-    if ([chain containsObject:v]) return v;
-  return nil;
 }
 
 + (void)revealOffered:(NSString *)adoptId over:(NSString *)transferKey {

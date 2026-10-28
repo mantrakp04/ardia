@@ -38,7 +38,7 @@ import {
 } from "./tokens";
 import { WindowDropGlow } from "./WindowDropGlow";
 
-export { TOP_CARD_INSET, TOP_STRIP_HEIGHT } from "./tokens";
+export { TOP_STRIP_HEIGHT } from "./tokens";
 
 export function TopTabStrip({ width, floating = false, hidden = false, swipe = true }: { width: number; floating?: boolean; hidden?: boolean; swipe?: boolean }) {
   const windowId = useWindowId();

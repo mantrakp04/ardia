@@ -14,7 +14,7 @@ import { OnboardingOverlay } from "./components/onboarding";
 import { CreateProfileHost } from "./components/profiles/CreateProfile";
 import { useFullscreenTab } from "./state/tabs/pageState";
 import { ProfileTint } from "./components/window/ProfileSwipe";
-import { TOP_CARD_INSET, TOP_STRIP_HEIGHT, TopStripPeek, TopTabStrip } from "./components/tabstrip/TopTabStrip";
+import { TOP_STRIP_HEIGHT, TopStripPeek, TopTabStrip } from "./components/tabstrip/TopTabStrip";
 import { useTabLayout } from "./state/windows/layout";
 import { WindowProfile } from "./components/window/WindowProfile";
 import { DockedLayout } from "./components/window/SidebarDock";
@@ -73,7 +73,7 @@ function BrowserWindow() {
       <DockedLayout
         fullscreen={fullscreen}
         topTabs={topTabs}
-        inset={pageFrameInsets(showPageFrame, topTabs ? TOP_STRIP_HEIGHT : 0, TOP_CARD_INSET)}
+        inset={pageFrameInsets(showPageFrame, topTabs ? TOP_STRIP_HEIGHT : 0)}
         topStrip={
           topTabs
             ? { strip: <TopTabStrip width={width} hidden={fullscreen} />, peek: <TopStripPeek windowWidth={width} enabled={!fullscreen} /> }

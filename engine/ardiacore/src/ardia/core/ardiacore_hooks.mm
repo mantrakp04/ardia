@@ -132,6 +132,14 @@ void ResolveExtensionInstallPrompt(const std::string& request_id, bool accepted)
   std::move(done).Run(Payload(accepted ? Result::ACCEPTED : Result::USER_CANCELED));
 }
 
+void HostExtensionInstallFailed(content::WebContents* contents, const std::u16string& message) {
+  if (![g_delegate respondsToSelector:@selector(engine:extensionInstallFailed:tab:)]) {
+    return;
+  }
+  ArdiaCoreTab* tab = contents ? TabBridge::GetOrCreate(contents)->tab() : nil;
+  [g_delegate engine:g_engine extensionInstallFailed:NS(message) tab:tab];
+}
+
 void HostCastRoutes(Profile* profile, NSArray* routes) {
   if ([g_delegate respondsToSelector:@selector(engine:castRoutes:profile:)]) {
     [g_delegate engine:g_engine castRoutes:routes profile:[ArdiaCoreProfile wrapperFor:profile]];

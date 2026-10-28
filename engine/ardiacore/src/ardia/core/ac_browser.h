@@ -187,6 +187,7 @@ bool HostExtensionInstallPrompt(
     const extensions::InstallPromptData& prompt,
     extensions::ExtensionInstallPromptClient::DoneCallback* done_callback);
 void ResolveExtensionInstallPrompt(const std::string& request_id, bool accepted);
+void HostExtensionInstallFailed(content::WebContents* contents, const std::u16string& message);
 
 void InstallRuleMatchedHook();
 

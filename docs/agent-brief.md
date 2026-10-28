@@ -101,7 +101,7 @@ Engine files are in `engine/ardiacore/src/ardia/core`, app files in `packages/ar
   (`ardia_web_view`, `ardia_window`, `ardia_early_window`, `ardia_pip`, `ardia_swipe`, `ardia_content_blocker`,
   `ardia_host`). Property accessors, `+initialize` and `dealloc` stay in the class's primary file, so no category
   overrides them. `ArdiaWebView` is split into `+Transfer` (parking, launch and link tabs), `+Tab` (attach, detach,
-  Chrome's tab events, discard), `+Painting`, `+Focus`, `+Reveals`, `+PageMessages`, `+Peek`, `+PictureInPicture`,
+  Chrome's tab events, discard), `+Painting`, `+StandIn` (a closing page kept up for the next tab), `+Focus`, `+Reveals`, `+PageMessages`, `+Peek`, `+PictureInPicture`,
   `+ContextMenu`, `+Navigation`, `+PageCommands`, `+Site` and `+InputMonitors`. `ArdiaTabRegistry.mm` holds tab
   ↔ view, offered tabs and browser ids. Windows: `ArdiaWindowController`, `ArdiaChromeWindowHost` (+`Dev`, the dev harness),
   `ArdiaTrafficLights`, `ArdiaWindowFullScreen`, `ArdiaPopupWindow`, `ArdiaReservedKeys`. Launch: `ArdiaHost+Launch`,

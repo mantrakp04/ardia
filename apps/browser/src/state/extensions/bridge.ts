@@ -21,6 +21,7 @@ import { shownPageId } from "../peek/peek";
 import { usePages } from "../tabs/pageState";
 import { refreshActionStates } from "./actionStates";
 import { startExtensionSearchEngines } from "./searchEngines";
+import { watchExtensionInstallFailures } from "./crxDrop";
 import * as state from "./actions";
 import {
   activateExtension,
@@ -62,6 +63,7 @@ export function startExtensionsBridge() {
   startSidePanels();
   startActionPopups();
   startWebStoreIntegration();
+  watchExtensionInstallFailures();
   if (__DEV__) Object.assign(globalThis, { acExtensionsApp: { ...state, bridge: { openExtensionFromMenu } } });
 }
 

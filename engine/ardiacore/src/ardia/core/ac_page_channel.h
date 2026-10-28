@@ -67,6 +67,7 @@ class PageChannel : public content::WebContentsObserver,
   void Evaluate(const std::string& code,
                 base::OnceCallback<void(const std::optional<std::string>&)> callback);
   bool HasFrame(const std::string& frame_id);
+  void GrantUserActivation(const std::string& frame_id);
   PictureInPictureRoute EnterPictureInPictureForClick(
       std::optional<base::TimeTicks> click,
       base::OnceCallback<void(bool)> element_opened);

@@ -20,6 +20,7 @@ import {
   toggleMute,
 } from "../browser/actions";
 import { bookmarkAllTabs, bookmarkTab } from "../bookmarks/actions";
+import { exportBookmarksFromWindow } from "../bookmarks/exportHtml";
 import { requestClearData } from "../profiles/clearDataRequest";
 import { openInternalPage } from "../pages/urls";
 import { isUtilityWindowId, openImport, openSettings, SETTINGS_WINDOW_ID } from "../settings/settingsWindows";
@@ -291,6 +292,8 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
       return requestClearData(windowId);
     case "manageBookmarks":
       return openInternalPage("bookmarks", windowId);
+    case "exportBookmarks":
+      return void exportBookmarksFromWindow(windowId);
     case "bookmarkAllTabs":
       return bookmarkAllTabs(windowId);
     case "mergeAllWindows":

@@ -1,13 +1,10 @@
-import { appIcons, currentAppIcon, setAppIcon, type AppIcon } from "../../state/app/appSettings";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { View } from "react-native";
-import { PROFILE_COLORS } from "../ui/theme";
-import { useWindowProfileValue } from "../../state/profiles/hooks";
+import { durationTitle } from "../../lib/time";
 import { DEFAULT_SETTINGS, type PeekModifier, type Settings } from "../../state/settings/settings";
 import { ChoiceList, useMockFocus, type ChoiceOption } from "./ChoiceList";
-import { ThemeColorPicker } from "./Personalize";
 import { MockPanel, useScreen } from "./Screen";
-import { confirmAnswer, previewColor, previewLive, previewTheme, PRESET_NAMES, PRESETS, questionsFor, setOnboardingDraft, setOnboardingExtras, skipStep, useOnboarding, type Preset, type QuestionId } from "../../state/onboarding/onboarding";
+import { confirmAnswer, previewLive, PRESET_NAMES, PRESETS, questionsFor, setOnboardingDraft, skipStep, useOnboarding, type Preset, type QuestionId } from "../../state/onboarding/onboarding";
 import { StepActions, StepLayout } from "./StepLayout";
 import { CheckRow, OptionRow, Tag } from "./Parts";
 
@@ -49,14 +46,14 @@ export function Page({
   );
 }
 
-function useQuestion(step: "layout" | "tabs" | "look") {
+export function useQuestion(step: "layout" | "tabs" | "look") {
   const sub = useOnboarding((s) => s.sub);
   useOnboarding((s) => s.draft);
   const id = questionsFor(step)[sub]?.id;
   return { id, focus: useMockFocus(id) };
 }
 
-function change(patch: Partial<Settings>, live = false) {
+export function change(patch: Partial<Settings>, live = false) {
   setOnboardingDraft(patch);
   if (live) previewLive(patch);
 }
@@ -140,7 +137,7 @@ export function LayoutStep() {
   );
 }
 
-const TABS_KEYS = ["newTabOpens", "newTabPosition", "newTabButtonPosition", "cleanUpInactiveTabsAfterHours", "restoreSession", "shareTabsAcrossWindows"] as const;
+const TABS_KEYS = ["newTabOpens", "newTabPosition", "newTabButtonPosition", "cleanUpInactiveTabsAfterMinutes", "restoreSession", "shareTabsAcrossWindows"] as const;
 const TABS_MORE = ["balancedTopApps", "peekModifier", "undoReopensClosedTab", "cmdClickCreatesTabGroup"] as const;
 
 const NEW_TAB_CHOICES: ChoiceOption<Settings["newTabOpens"]>[] = [
@@ -160,9 +157,9 @@ const WINDOW_CHOICES: ChoiceOption<boolean>[] = [
   { value: true, preview: "windows-shared", title: "Shared", subtitle: "Every window shows the same tabs, as in Arc" },
 ];
 const TIDY_AFTER = [
-  { value: 12, title: "12 h" },
-  { value: 24, title: "1 day" },
-  { value: 168, title: "1 week" },
+  { value: 12 * 60, title: "12 h" },
+  { value: 24 * 60, title: "1 day" },
+  { value: 7 * 24 * 60, title: "1 week" },
 ];
 const PEEK_WITH: { value: PeekModifier; title: string }[] = [
   { value: "shift", title: "⇧-click" },
@@ -170,13 +167,13 @@ const PEEK_WITH: { value: PeekModifier; title: string }[] = [
   { value: "off", title: "Off" },
 ];
 
-const hoursLabel = (h: number) => (h === 12 ? "12 hours" : TIDY_AFTER.find((o) => o.value === h)?.title ?? `${h} hours`);
+const tidyLabel = (minutes: number) => (minutes !== TIDY_AFTER[0]!.value && TIDY_AFTER.find((o) => o.value === minutes)?.title) || durationTitle(minutes);
 
 export function TabsStep() {
   const { id, focus } = useQuestion("tabs");
   const { values, mock } = useScreen([...TABS_KEYS, ...TABS_MORE]);
   const top = mock.tabLayout === "top";
-  const tidy = values.cleanUpInactiveTabsAfterHours;
+  const tidy = values.cleanUpInactiveTabsAfterMinutes;
   const preview = <MockPanel settings={mock} focus={focus.focus} />;
 
   if (id === "newTabPosition") {
@@ -204,22 +201,22 @@ export function TabsStep() {
         id={id}
         title="What about old tabs?"
         subtitle="Tabs you opened and forgot."
-        patch={{ cleanUpInactiveTabsAfterHours: tidy }}
-        picked={[tidy === null ? "Old tabs stay until you close them" : `Old tabs tidy up after ${hoursLabel(tidy)}`]}
+        patch={{ cleanUpInactiveTabsAfterMinutes: tidy }}
+        picked={[tidy === null ? "Old tabs stay until you close them" : `Old tabs tidy up after ${tidyLabel(tidy)}`]}
         preview={preview}
       >
         <ChoiceList
           options={TIDY_CHOICES}
           value={tidy === null ? "keep" : "tidy"}
-          onChange={(v) => change({ cleanUpInactiveTabsAfterHours: v === "keep" ? null : (tidy ?? 12) })}
+          onChange={(v) => change({ cleanUpInactiveTabsAfterMinutes: v === "keep" ? null : (tidy ?? TIDY_AFTER[0]!.value) })}
           mock={focus}
         />
         {tidy === null ? null : (
           <OptionRow
             title="Tidy after"
             value={tidy}
-            options={TIDY_AFTER.some((o) => o.value === tidy) ? TIDY_AFTER : [...TIDY_AFTER, { value: tidy, title: hoursLabel(tidy) }]}
-            onChange={(cleanUpInactiveTabsAfterHours) => change({ cleanUpInactiveTabsAfterHours })}
+            options={TIDY_AFTER.some((o) => o.value === tidy) ? TIDY_AFTER : [...TIDY_AFTER, { value: tidy, title: tidyLabel(tidy) }]}
+            onChange={(cleanUpInactiveTabsAfterMinutes) => change({ cleanUpInactiveTabsAfterMinutes })}
           />
         )}
       </Page>
@@ -288,112 +285,6 @@ export function TabsStep() {
       preview={preview}
     >
       <ChoiceList options={NEW_TAB_CHOICES} value={values.newTabOpens} onChange={(newTabOpens) => change({ newTabOpens })} mock={focus} />
-    </Page>
-  );
-}
-
-const LOOK_KEYS = ["appearance", "extendWebsiteColor", "hideToolbarWhileScrolling", "bookmarksBar"] as const;
-
-const APPEARANCE_CHOICES: ChoiceOption<Settings["appearance"]>[] = [
-  { value: "auto", preview: "appearance-auto", title: "Automatic", subtitle: "Light by day, dark by night, like your Mac" },
-  { value: "light", preview: "appearance-light", title: "Light", subtitle: "Always light" },
-  { value: "dark", preview: "appearance-dark", title: "Dark", subtitle: "Always dark" },
-];
-const SITE_COLOR_CHOICES: ChoiceOption<boolean>[] = [
-  { value: true, preview: "sitecolor-on", title: "Take on the site's color", subtitle: "The tab bar blends into the page" },
-  { value: false, preview: "sitecolor-off", title: "Keep my theme color", subtitle: "The same color on every site" },
-];
-const BOOKMARKS_BAR: { value: Settings["bookmarksBar"]; title: string }[] = [
-  { value: "always", title: "Always" },
-  { value: "newTab", title: "New Tab" },
-  { value: "never", title: "Never" },
-];
-const APPEARANCE_LABEL = { auto: "automatic", light: "always light", dark: "always dark" } as const;
-
-export function LookStep() {
-  const { id, focus } = useQuestion("look");
-  const { values, mock } = useScreen(LOOK_KEYS);
-  const windowId = useOnboarding((s) => s.windowId) ?? "";
-  const appIcon = useOnboarding((s) => s.extras.appIcon);
-  const color = useWindowProfileValue(windowId, (p) => p?.color);
-  const customTheme = useWindowProfileValue(windowId, (p) => !!p?.theme);
-  const [icons, setIcons] = useState<{ list: AppIcon[]; current: string | null }>({ list: [], current: null });
-  const preview = <MockPanel settings={mock} focus={focus.focus} />;
-  useEffect(() => {
-    previewLive({ appearance: values.appearance, extendWebsiteColor: values.extendWebsiteColor });
-    void Promise.all([appIcons(56), currentAppIcon()]).then(
-      ([list, current]) => setIcons({ list, current }),
-      () => {},
-    );
-  }, []);
-
-  if (id === "appearance")
-    return (
-      <Page
-        id={id}
-        title="Light or dark?"
-        subtitle="Incognito windows are always dark."
-        patch={{ appearance: values.appearance }}
-        picked={[`Appearance ${APPEARANCE_LABEL[values.appearance]}`]}
-        preview={preview}
-      >
-        <ChoiceList options={APPEARANCE_CHOICES} value={values.appearance} onChange={(appearance) => change({ appearance }, true)} mock={focus} />
-      </Page>
-    );
-  if (id === "siteColor")
-    return (
-      <Page
-        id={id}
-        title="Let sites tint the tab bar?"
-        subtitle="Many sites have a color of their own."
-        patch={{ extendWebsiteColor: values.extendWebsiteColor }}
-        picked={[]}
-        preview={preview}
-      >
-        <ChoiceList
-          options={SITE_COLOR_CHOICES}
-          value={values.extendWebsiteColor}
-          onChange={(extendWebsiteColor) => change({ extendWebsiteColor }, true)}
-          mock={focus}
-        />
-      </Page>
-    );
-  if (id === "lookMore")
-    return (
-      <Page
-        id={id}
-        title="A few finishing touches"
-        subtitle="All of these live in Settings too."
-        patch={{ hideToolbarWhileScrolling: values.hideToolbarWhileScrolling, bookmarksBar: values.bookmarksBar }}
-        picked={[]}
-        preview={preview}
-        onConfirm={() => {
-          if (appIcon && appIcon !== icons.current) void setAppIcon(appIcon);
-        }}
-      >
-        <View style={{ gap: 8 }}>
-          {icons.list.length > 1 ? (
-            <OptionRow
-              title="App icon"
-              value={appIcon ?? icons.current ?? icons.list[0]!.id}
-              options={icons.list.map((i) => ({ value: i.id, title: i.name, image: i.preview }))}
-              onChange={(id) => setOnboardingExtras({ appIcon: id })}
-            />
-          ) : null}
-          <CheckRow
-            title="Hide toolbar while scrolling"
-            subtitle="Scroll up to bring it back"
-            value={values.hideToolbarWhileScrolling}
-            onChange={(hideToolbarWhileScrolling) => change({ hideToolbarWhileScrolling })}
-          />
-          <OptionRow title="Bookmarks bar" value={values.bookmarksBar} options={BOOKMARKS_BAR} onChange={(bookmarksBar) => change({ bookmarksBar })} />
-        </View>
-      </Page>
-    );
-  const name = customTheme ? "Custom" : color ? PROFILE_COLORS[color]?.name : null;
-  return (
-    <Page id="color" title="Pick a color" subtitle="It tints the sidebar and the window." patch={{}} picked={name ? [`${name} theme`] : []} preview={preview}>
-      <ThemeColorPicker windowId={windowId} size={32} gap={5} onPick={(c) => previewColor(c)} onTheme={previewTheme} />
     </Page>
   );
 }

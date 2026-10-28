@@ -45,6 +45,7 @@ NSDictionary<NSString *, NSString *> *PrivateSessionPolicy() {
     @"ac_bookmarks_tree" : kNoEngineData,
     @"ac_bookmarks_apply" : kNoEngineData,
     @"ac_bookmarks_watch" : kNoEngineData,
+    @"ac_bookmarks_export_html" : kNoEngineData,
     @"ac_tabs_last_tab_policy" : kNoEngineData,
     @"ac_task_manager_open" : kNoEngineData,
     @"ac_battery_saver" : kNoEngineData,

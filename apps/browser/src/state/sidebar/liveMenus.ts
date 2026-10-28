@@ -6,9 +6,9 @@ import { closeTab } from "../browser/actions";
 import { menuShortcut } from "../commands/commandShortcuts";
 import { calendarConnected, connectCalendar, setCalendarHidden, useCalendar } from "../live/calendar";
 import { deleteLiveFolder, manualRefresh, newLiveFolder, openLiveItem, refreshFolder, statusText } from "../live/engine";
-import { ALERT_LEADS } from "../live/meetings";
+import { ALERT_LEADS, nowBadgeEvent } from "../live/meetings";
 import { SOURCES } from "../live/sources";
-import { hideItems, live, markRead, setLive, updateCalendarSettings, updateFolder } from "../live/store";
+import { dismissNowBadge, hideItems, live, markRead, setLive, updateCalendarSettings, updateFolder } from "../live/store";
 import type { LiveItem, LiveSourceId } from "../live/types";
 import { useBrowser } from "../browser/store";
 import { openSettings } from "../settings/settingsWindows";
@@ -141,6 +141,15 @@ export async function openLiveStackMenu(folderId: string, stackId: string) {
   if (choice === "hide") hideItems(folderId, (live().items[folderId] ?? []).filter((it) => it.pr?.stack?.id === stackId));
 }
 
+const DISMISS_NOW = "cal:dismissNow:";
+
+export function dismissNowMenuItems(now = Date.now()): MenuItem[] {
+  const { calendar, dismissedNow } = live();
+  if (!calendar.showTimeToNext) return [];
+  const event = nowBadgeEvent(useCalendar.getState().events, now, dismissedNow);
+  return event ? [{ id: `${DISMISS_NOW}${event.occurrence}`, title: `Hide “Now” for ${event.title || "This Meeting"}`, symbol: "eye.slash" }] : [];
+}
+
 export function calendarMenuItem(): MenuItem {
   const settings = live().calendar;
   const { calendars } = useCalendar.getState();
@@ -179,7 +188,10 @@ export function calendarMenuItem(): MenuItem {
 export function runCalendarMenu(choice: string): boolean {
   if (!choice.startsWith("cal:")) return false;
   const settings = live().calendar;
-  if (choice === "cal:connect") void connectCalendar();
+  if (choice.startsWith(DISMISS_NOW)) {
+    const event = useCalendar.getState().events.find((e) => e.occurrence === choice.slice(DISMISS_NOW.length));
+    if (event) dismissNowBadge(event);
+  } else if (choice === "cal:connect") void connectCalendar();
   else if (choice.startsWith("cal:lead:")) updateCalendarSettings({ alertLead: choice.slice(9) });
   else if (choice === "cal:preview") updateCalendarSettings({ showPreview: !settings.showPreview });
   else if (choice === "cal:badge") updateCalendarSettings({ showTimeToNext: !settings.showTimeToNext });

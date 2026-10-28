@@ -84,15 +84,16 @@ export function addFromWebStore(windowId: string, urlOrId: string, profile = ext
   else openWindow({ profileId: s.profileOrder.find((p) => engineProfile(p) === profile), url });
 }
 
-export async function loadUnpacked(windowId: string, profile = extensionProfile(useBrowser.getState(), windowId)) {
+export async function loadUnpacked(windowId: string, profile = extensionProfile(useBrowser.getState(), windowId)): Promise<boolean> {
   const path = await chooseExtensionFolder();
-  if (!path) return;
+  if (!path) return false;
   try {
     const pkg = await inspectUnpackedExtension(path);
     useExtensions.setState({ install: { windowId, profile, source: "unpacked", status: "ready", pkg } });
   } catch (error) {
     useExtensions.setState({ install: { windowId, profile, source: "unpacked", status: "error", error: message(error) } });
   }
+  return true;
 }
 
 export function showInstallPrompt(windowId: string, prompt: ExtensionInstallPrompt) {

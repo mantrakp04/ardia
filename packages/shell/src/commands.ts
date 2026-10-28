@@ -70,6 +70,7 @@ export type BrowserCommand =
   | "showHistory"
   | "clearBrowsingData"
   | "manageBookmarks"
+  | "exportBookmarks"
   | "bookmarkAllTabs"
   | "setBookmarksBar"
   | "toggleBookmarksBar"

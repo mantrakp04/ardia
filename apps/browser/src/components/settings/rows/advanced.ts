@@ -42,6 +42,7 @@ export const ADVANCED_SETTINGS: ReadonlySet<string> = new Set([
   "calendar.alertCondition",
   "calendar.preview",
   "calendar.timeToNext",
+  "calendar.countdownLead",
   "calendar.autoGroup",
   "engines.defaultEngine",
   "engines.recommendedDefault",

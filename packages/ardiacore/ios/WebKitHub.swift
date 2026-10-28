@@ -283,8 +283,8 @@ final class WebKitHub: NSObject, WKScriptMessageHandler {
     webView.navigationDelegate = nil
     webView.uiDelegate = nil
     webView.stopLoading()
-    webView.pauseAllMediaPlayback(completionHandler: nil)
-    webView.closeAllMediaPresentations(completionHandler: nil)
+    webView.pauseAllMediaPlayback(completionHandler: {})
+    webView.closeAllMediaPresentations(completionHandler: {})
     webView.removeFromSuperview()
   }
 

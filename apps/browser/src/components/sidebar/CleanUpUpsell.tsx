@@ -5,6 +5,7 @@ import { font, radius, Symbol, weight } from "../ui";
 import { useTheme } from "../ui/theme";
 import { useSettings, useWindow } from "../../state/browser/hooks";
 import { cleanUpTabs } from "../../state/pins/actions";
+import { DAILY_CLEAN_UP_MINUTES } from "../../state/settings/cleanUpAfter";
 import { updateSettings } from "../../state/settings/actions";
 import { cleanUpCandidateCount } from "../../state/sidebar/current";
 import { useShownTabId } from "../../state/sidebar/hooks";
@@ -19,7 +20,7 @@ export const CleanUpUpsell = memo(function CleanUpUpsell({ windowId, shift }: { 
   const tokens = useSidebarTokens();
   const [count, setCount] = useState(0);
   const [hidden, setHidden] = useState(upsellDeclined);
-  const daily = useSettings((st) => st.cleanUpInactiveTabsAfterHours !== null);
+  const daily = useSettings((st) => st.cleanUpInactiveTabsAfterMinutes !== null);
   const tabIds = useWindow(windowId, (w) => w?.tabIds);
   const profileId = useWindow(windowId, (w) => w?.profileId);
   const activeId = useShownTabId(windowId);
@@ -67,7 +68,7 @@ export const CleanUpUpsell = memo(function CleanUpUpsell({ windowId, shift }: { 
           dismiss();
         }, true)}
         {button("Clean Up Daily", () => {
-          updateSettings({ cleanUpInactiveTabsAfterHours: 24 });
+          updateSettings({ cleanUpInactiveTabsAfterMinutes: DAILY_CLEAN_UP_MINUTES });
           cleanUpTabs(windowId);
         })}
         {button("Not Now", dismiss)}

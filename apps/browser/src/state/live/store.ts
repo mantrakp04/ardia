@@ -2,6 +2,7 @@ import { readDocument, writeDocument } from "../../platform/documents";
 import { create } from "zustand";
 import type { CompletedItem, CompletionState, FolderStatus, LiveAccount, LiveFolder, LiveFolderKind, LiveItem, LiveSourceId } from "./types";
 import { parseSaved, unchanged, versionedJson, type Migrations } from "../../lib/savedDocument";
+import { DEFAULT_COUNTDOWN_LEAD, keepDismissedNow, type DismissedNow } from "./meetings";
 
 export type LiveConfig = {
   githubClientId: string;
@@ -16,6 +17,7 @@ export type CalendarSettings = {
   alertCondition: "always" | "activeOnly";
   showPreview: boolean;
   showTimeToNext: boolean;
+  countdownLead: number;
   hiddenCalendarIds: string[];
   prompted: boolean;
 };
@@ -47,6 +49,7 @@ type LiveState = {
   calendar: CalendarSettings;
   meetingGroups: Record<string, MeetingGroup>;
   dismissedAlerts: string[];
+  dismissedNow: DismissedNow;
 };
 
 export const DEFAULT_CONFIG: LiveConfig = { githubClientId: "", bitbucketUser: "", confluenceSite: "", confluenceEmail: "", googleClientId: "" };
@@ -56,6 +59,7 @@ export const DEFAULT_CALENDAR: CalendarSettings = {
   alertCondition: "always",
   showPreview: true,
   showTimeToNext: true,
+  countdownLead: DEFAULT_COUNTDOWN_LEAD,
   hiddenCalendarIds: [],
   prompted: false,
 };
@@ -63,7 +67,7 @@ export const DEFAULT_CALENDAR: CalendarSettings = {
 const DOC = "live.json";
 const DOC_VERSION = 1;
 const DOC_MIGRATIONS: Migrations = { 0: unchanged };
-const PERSISTED = ["folders", "folderOrder", "items", "known", "unread", "hidden", "completed", "expandedStacks", "accounts", "config", "calendar", "meetingGroups", "dismissedAlerts"] as const;
+const PERSISTED = ["folders", "folderOrder", "items", "known", "unread", "hidden", "completed", "expandedStacks", "accounts", "config", "calendar", "meetingGroups", "dismissedAlerts", "dismissedNow"] as const;
 
 function load(): Partial<LiveState> {
   try {
@@ -97,6 +101,7 @@ export const useLive = create<LiveState>()(() => ({
   calendar: { ...DEFAULT_CALENDAR, ...saved.calendar },
   meetingGroups: saved.meetingGroups ?? {},
   dismissedAlerts: saved.dismissedAlerts ?? [],
+  dismissedNow: keepDismissedNow(saved.dismissedNow, Date.now()),
 }));
 
 export const live = () => useLive.getState();
@@ -280,6 +285,10 @@ export const updateCalendarSettings = (patch: Partial<CalendarSettings>) => setL
 
 export function dismissAlert(occurrence: string) {
   setLive((s) => (s.dismissedAlerts.includes(occurrence) ? {} : { dismissedAlerts: [...s.dismissedAlerts, occurrence].slice(-200) }));
+}
+
+export function dismissNowBadge(event: { occurrence: string; end: number }, now = Date.now()) {
+  setLive((s) => (s.dismissedNow[event.occurrence] !== undefined ? {} : { dismissedNow: keepDismissedNow({ ...s.dismissedNow, [event.occurrence]: event.end }, now) }));
 }
 
 export function setMeetingGroup(group: MeetingGroup | null, groupId?: string) {

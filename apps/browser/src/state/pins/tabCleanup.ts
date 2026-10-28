@@ -89,13 +89,32 @@ function newClosedEntryIds(before: BrowserState, after: BrowserState): string[] 
   return after.closedTabs.filter((c) => !before.closedTabs.includes(c)).map((c) => c.id);
 }
 
-export function cleanUpCandidates(s: BrowserState, windowId: string, inactiveForMs = CLEAN_UP_AFTER_MS, now = Date.now()): string[] {
-  const view = viewTabIds(s, windowId);
+const deselectedAt = new Map<string, number>();
+
+export function noteDeselectedTabs(s: BrowserState, ids: readonly string[], at = Date.now()) {
+  for (const id of deselectedAt.keys()) if (!s.tabs[id]) deselectedAt.delete(id);
+  for (const id of ids) if (s.tabs[id]) deselectedAt.set(id, at);
+}
+
+function inactivity(s: BrowserState, windowId: string) {
   const active = activeTabId(s, windowId);
   const grouped = new Set(Object.values(s.groups).flatMap((g) => g.tabIds));
   const inSplit = new Set(Object.values(s.splits).flatMap((v) => v.tabIds));
   const keep = (t: Tab) => t.id === active || inPinnedContainer(s, t.id) || s.live[t.id]?.playingAudio;
   const used = sharedLastUsed(s);
+  return {
+    active,
+    inSplit,
+    used,
+    keep,
+    expires: (t: Tab) => !keep(t) && !grouped.has(t.id) && !inSplit.has(t.id),
+    lastUsed: (t: Tab) => Math.max(lastUsedOf(used, t), deselectedAt.get(t.id) ?? 0),
+  };
+}
+
+export function cleanUpCandidates(s: BrowserState, windowId: string, inactiveForMs = CLEAN_UP_AFTER_MS, now = Date.now()): string[] {
+  const view = viewTabIds(s, windowId);
+  const { active, inSplit, used, keep, expires, lastUsed } = inactivity(s, windowId);
   const out = new Set<string>();
   const byPage = new Map<string, Tab[]>();
   for (const id of view) {
@@ -111,10 +130,19 @@ export function cleanUpCandidates(s: BrowserState, windowId: string, inactiveFor
   }
   for (const id of view) {
     const t = s.tabs[id]!;
-    if (keep(t) || grouped.has(id) || inSplit.has(id)) continue;
-    if (now - lastUsedOf(used, t) >= inactiveForMs) out.add(id);
+    if (expires(t) && now - lastUsed(t) >= inactiveForMs) out.add(id);
   }
   return view.filter((id) => out.has(id));
+}
+
+export function nextCleanUpAt(s: BrowserState, windowId: string, inactiveForMs: number): number {
+  const { expires, lastUsed } = inactivity(s, windowId);
+  let next = Infinity;
+  for (const id of viewTabIds(s, windowId)) {
+    const t = s.tabs[id]!;
+    if (expires(t)) next = Math.min(next, lastUsed(t) + inactiveForMs);
+  }
+  return next;
 }
 
 export function abandonedNewTabs(s: BrowserState, windowId: string): string[] {

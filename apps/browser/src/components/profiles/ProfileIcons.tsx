@@ -3,7 +3,7 @@ import { Text, View } from "react-native";
 import { ink, Symbol, weight } from "../ui";
 import { profileAccent } from "../ui/theme";
 import type { Profile } from "../../state/browser/types";
-import { profileColors } from "./tokens";
+import { profileColors, profileSwitcher } from "./tokens";
 
 export const PROFILE_SYMBOLS: { name: string; title: string }[] = [
   { name: "house.fill", title: "Home" },
@@ -33,9 +33,9 @@ const EMOJI = ["😀", "😎", "🤓", "🧑‍💻", "💼", "🏠", "🎓", "�
 const SYMBOL_PREFIX = "symbol:";
 export const profileSymbol = (icon: string | null) => (icon?.startsWith(SYMBOL_PREFIX) ? icon.slice(SYMBOL_PREFIX.length) : null);
 
-export function iconMenuItems(current: string | null): MenuItem[] {
+export function iconMenuItems(current: string | null, noneTitle = "Initial"): MenuItem[] {
   return [
-    { id: "icon:", title: "Initial", checked: !current },
+    { id: "icon:", title: noneTitle, checked: !current },
     { separator: true },
     ...PROFILE_SYMBOLS.map((s) => ({ id: `icon:${SYMBOL_PREFIX}${s.name}`, title: s.title, symbol: s.name, checked: current === SYMBOL_PREFIX + s.name })),
     { separator: true },
@@ -46,6 +46,26 @@ export function iconMenuItems(current: string | null): MenuItem[] {
       children: EMOJI.map((e) => ({ id: `icon:${e}`, title: e, checked: current === e })),
     },
   ];
+}
+
+export const switcherCellWidth = (icon: string | null) => (icon ? profileSwitcher.iconCell : profileSwitcher.dotCell);
+
+export function switcherIcons(icons: (string | null)[], shown: boolean, room: number): (string | null)[] {
+  const fits = icons.reduce((width, icon) => width + switcherCellWidth(icon), 0) <= room;
+  return shown && fits ? icons : icons.map(() => null);
+}
+
+export function SwitcherMark({ icon, color, scale = 1 }: { icon: string | null; color: string; scale?: number }) {
+  const { iconCell, icon: size, dot } = profileSwitcher;
+  const symbol = profileSymbol(icon);
+  if (symbol) return <Symbol name={symbol} size={size * scale} weight="semibold" color={color} style={{ width: iconCell * scale, height: iconCell * scale }} />;
+  if (icon)
+    return (
+      <Text numberOfLines={1} style={{ width: iconCell * scale, fontSize: size * scale, lineHeight: iconCell * scale, textAlign: "center", color }}>
+        {icon}
+      </Text>
+    );
+  return <View style={{ width: dot * scale, height: dot * scale, borderRadius: (dot / 2) * scale, backgroundColor: color }} />;
 }
 
 export function ProfileBadge({ profile, size = 26 }: { profile: Pick<Profile, "name" | "color" | "icon"> & Partial<Pick<Profile, "theme">>; size?: number }) {

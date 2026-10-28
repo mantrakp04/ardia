@@ -28,7 +28,7 @@ export function useAccent() {
 
 const MOCK_SIZE = { width: 420, height: 300 } as const;
 
-export function MockPanel({ settings, focus, overlay }: { settings: Partial<Settings>; focus: PreviewId | null; overlay?: ReactNode }) {
+export function MockPanel({ settings, focus, overlay, switcher }: { settings: Partial<Settings>; focus: PreviewId | null; overlay?: ReactNode; switcher?: boolean }) {
   const accent = useAccent();
   const t = useRef(new Animated.Value(overlay ? 1 : 0)).current;
   const [shown, setShown] = useState(overlay);
@@ -41,7 +41,7 @@ export function MockPanel({ settings, focus, overlay }: { settings: Partial<Sett
   return (
     <View style={{ alignItems: "center", justifyContent: "center" }}>
       <Animated.View style={{ width: MOCK_SIZE.width, height: MOCK_SIZE.height, opacity: t.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }}>
-        <MockWindow settings={settings} accent={accent} focus={focus} />
+        <MockWindow settings={settings} accent={accent} focus={focus} switcher={switcher} />
       </Animated.View>
       {overlay || shown ? (
         <Animated.View

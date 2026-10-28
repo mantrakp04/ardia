@@ -2,12 +2,13 @@ import { appUrlOrigin, breadcrumb, urlForDisplay } from "@ardia/core";
 import { memo, useCallback, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { Animated, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
-import { layout, useTheme } from "../ui/theme";
+import { useTheme } from "../ui/theme";
+import { TOOLBAR_ROWS, urlFieldOf, type ToolbarRow } from "../../lib/toolbarRow";
 import { activate } from "../../state/tabs/actions";
 import { openPanel as openWindowPanel, toggleSidebar } from "../../state/windows/actions";
 import { useIsBookmarked, useSettings, useTab, useTabLive } from "../../state/browser/hooks";
 import type { Tab } from "../../state/browser/types";
-import { Button, ContextMenuArea, FadeLabel, font, ink, radius, Symbol, useHover, weight, WindowDragRegion } from "../ui";
+import { Button, ContextMenuArea, FadeLabel, font, ink, Symbol, useHover, weight, WindowDragRegion } from "../ui";
 import { type ToolbarGeometry } from "../window/geometry";
 import { popoverOf, setPopover, usePage, usePages, type PageState } from "../../state/tabs/pageState";
 import { useHistoryAvailability } from "../../state/tabs/navigation";
@@ -16,6 +17,7 @@ import { closePane, openSplitPane, showSplitMenu } from "../../state/splits/acti
 import { toolbarPalette, useEasedColor, type ToolbarPalette } from "../ui/toolbarColors";
 import { setToolbarExtensionsWidth } from "../../state/windows/layout";
 import { SIDEBAR_FIELD } from "../sidebar/geometry";
+import { FieldSiteButton, SidebarFieldFill } from "../sidebar/SidebarField";
 import { showUrlBarMenu } from "../../state/omnibox/paste";
 import { ToolbarExtensions, useToolbarExtensionsWidth } from "../extensions/ToolbarExtensions";
 import { FIELD_GLASS_HOVER_OPACITY, FIELD_GLASS_OPACITY, GlassFill, liquidGlass } from "../ui/Glass";
@@ -26,6 +28,7 @@ import { curve } from "../ui/motion";
 import { HistoryButton, ReloadButton } from "./NavButtons";
 import { ProgressBar, TabProgressBar } from "./ProgressBar";
 import { GLYPH, TOOLBAR_MOTION } from "./tokens";
+import { useToolbarRow } from "./useToolbarRow";
 
 type ToolbarTab = Pick<Tab, "id" | "url" | "title" | "windowId" | "zoom">;
 const toolbarTab = (t: Tab | undefined): ToolbarTab | undefined =>
@@ -33,9 +36,9 @@ const toolbarTab = (t: Tab | undefined): ToolbarTab | undefined =>
 const isWebUrl = (url: string) => /^https?:/i.test(url);
 export const useToolbarTab = (tabId: string | undefined) => useTab(tabId, useShallow(toolbarTab));
 
-export const URL_FIELD = { top: 21.2 - 15, height: 30 } as const;
-export const urlFieldRight = (inSplit: boolean, extensionsWidth: number) => (inSplit ? 12 + 2 * 28 : 12) + extensionsWidth;
+export const urlFieldRight = (inSplit: boolean, extensionsWidth: number, row: ToolbarRow) => (inSplit ? 12 + 2 * (row.button - 2) : 12) + extensionsWidth;
 const LOCK = { left: 7, width: 18, gap: 3 } as const;
+const SIDEBAR_TEXT_GAP = 6;
 export const urlTextLeft = (insecure: boolean) => (insecure ? LOCK.left + LOCK.width + LOCK.gap : 8);
 export const insecureLevel = (p: PageState) =>
   p.security && (p.security.level === "insecure" || p.security.level === "certificateError") ? p.security.level : null;
@@ -65,7 +68,8 @@ export function Toolbar({
   const palette = toolbarPalette(theme, website);
   const band = useEasedColor(bare ? null : palette.background);
   const history = useHistoryAvailability(tabId);
-  const extensionsWidth = useToolbarExtensionsWidth(windowId);
+  const row = useToolbarRow();
+  const extensionsWidth = useToolbarExtensionsWidth(windowId, Infinity, row.extensionButton);
   useEffect(() => setToolbarExtensionsWidth(windowId, extensionsWidth), [windowId, extensionsWidth]);
   const dim = useRef(new Animated.Value(focused ? 1 : 0.5)).current;
   const dimmedFor = useRef(focused);
@@ -78,17 +82,17 @@ export function Toolbar({
     if (!focused) activate(tabId);
   }, [focused, tabId]);
   const at = useMemo(() => {
-    const top = 21.2 - layout.toolbarButton / 2;
-    const place = (center: number | null) => ({ position: "absolute" as const, top, left: (center ?? 0) - layout.toolbarButton / 2 });
-    return { sidebarButton: place(geometry.sidebarButton), back: place(geometry.back), forward: place(geometry.forward), reload: place(geometry.reload) };
-  }, [geometry]);
-  const right = urlFieldRight(inSplit, extensionsWidth);
-  const urlStyle = useMemo(() => ({ position: "absolute" as const, left: geometry.urlLeft, right, top: URL_FIELD.top }), [geometry.urlLeft, right]);
-  if (!tab) return <View style={{ height: layout.toolbarHeight }} />;
-  const top = 21.2 - layout.toolbarButton / 2;
+    const top = row.center - row.button / 2;
+    const place = (center: number | null) => ({ position: "absolute" as const, top, left: (center ?? 0) - row.button / 2 });
+    const hit = { width: row.button, height: row.button, plateX: 0, plateY: 0, box: row.button, radius: row.buttonRadius };
+    return { top, hit, sidebarButton: place(geometry.sidebarButton), back: place(geometry.back), forward: place(geometry.forward), reload: place(geometry.reload) };
+  }, [geometry, row]);
+  const right = urlFieldRight(inSplit, extensionsWidth, row);
+  const urlStyle = useMemo(() => ({ position: "absolute" as const, left: geometry.urlLeft, right, top: urlFieldOf(row).top }), [geometry.urlLeft, right, row]);
+  if (!tab) return <View style={{ height: row.height }} />;
 
   return (
-    <View style={{ height: layout.toolbarHeight }}>
+    <View style={{ height: row.height }}>
       {!bare && <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: band }]} />}
       <WindowDragRegion style={StyleSheet.absoluteFill} />
       <Animated.View style={[StyleSheet.absoluteFill, { opacity: dim }]} pointerEvents="box-none">
@@ -98,21 +102,23 @@ export function Toolbar({
             palette={palette}
             icon="sidebar.left"
             size={GLYPH}
+            box={row.button}
+            radius={row.buttonRadius}
             onPress={() => toggleSidebar(windowId)}
             tooltip={withShortcut("Auto-Hide Tabs", sidebarHint)}
           />
         )}
-        <HistoryButton style={at.back} tabId={tab.id} windowId={tab.windowId} direction={-1} disabled={!history.back} palette={palette} onFocus={focus} />
-        <HistoryButton style={at.forward} tabId={tab.id} windowId={tab.windowId} direction={1} disabled={!history.forward} palette={palette} onFocus={focus} />
-        <ReloadButton style={at.reload} tab={tab} loading={isLoading} palette={palette} onFocus={focus} />
-        <ToolbarExtensions tabId={tab.id} windowId={windowId} palette={palette} top={21.2 - 14} right={inSplit ? 8 + 60 : 8} />
+        <HistoryButton style={at.back} hit={at.hit} tabId={tab.id} windowId={tab.windowId} direction={-1} disabled={!history.back} palette={palette} onFocus={focus} />
+        <HistoryButton style={at.forward} hit={at.hit} tabId={tab.id} windowId={tab.windowId} direction={1} disabled={!history.forward} palette={palette} onFocus={focus} />
+        <ReloadButton style={at.reload} hit={at.hit} tab={tab} loading={isLoading} palette={palette} onFocus={focus} />
+        <ToolbarExtensions tabId={tab.id} windowId={windowId} palette={palette} top={row.center - row.extensionButton / 2} right={inSplit ? 8 + 2 * row.button : 8} button={row.extensionButton} />
         {tab.url ? (
           <UrlField tab={tab} palette={palette} windowId={windowId} inSplit={inSplit} onFocus={focus} style={urlStyle} />
         ) : null}
         {inSplit && (
-          <View style={{ position: "absolute", top, right: 8, flexDirection: "row", gap: -2 }}>
-            <Button variant="icon" toolbar palette={palette} icon="rectangle.split.2x1" size={14} box={30} onPress={() => showSplitMenu(tab.id)} tooltip="Split View" />
-            <Button variant="icon" toolbar palette={palette} icon="xmark" size={12} weight="medium" box={30} onPress={() => closePane(tab.id)} tooltip="Close Pane" />
+          <View style={{ position: "absolute", top: at.top, right: 8, flexDirection: "row", gap: -2 }}>
+            <Button variant="icon" toolbar palette={palette} icon="rectangle.split.2x1" size={14} box={row.button} radius={row.buttonRadius} onPress={() => showSplitMenu(tab.id)} tooltip="Split View" />
+            <Button variant="icon" toolbar palette={palette} icon="xmark" size={12} weight="medium" box={row.button} radius={row.buttonRadius} onPress={() => closePane(tab.id)} tooltip="Close Pane" />
           </View>
         )}
       </Animated.View>
@@ -130,8 +136,9 @@ export function ToolbarBackdrop({ tabId }: { tabId: string }) {
   const extendColor = useSettings((s) => s.extendWebsiteColor);
   const palette = toolbarPalette(theme, extendColor && url ? themeColor : null);
   const band = useEasedColor(palette.background);
+  const row = useToolbarRow();
   return (
-    <View pointerEvents="none" style={{ height: layout.toolbarHeight }}>
+    <View pointerEvents="none" style={{ height: row.height }}>
       <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: band }]} />
       {url ? <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 1, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.divider }} /> : null}
     </View>
@@ -156,6 +163,8 @@ export const UrlField = memo(function UrlField({
   sidebar?: { height: number; progress: number | null; accessory?: ReactNode };
 }) {
   const theme = useTheme();
+  const toolbarRow = useToolbarRow();
+  const row = sidebar ? TOOLBAR_ROWS.regular : toolbarRow;
   const showFullUrl = useSettings((s) => s.showFullUrl);
   const bookmarkHint = useShortcutHint("bookmarkPage");
   const splitHint = useShortcutHint("openSplitPane");
@@ -194,33 +203,37 @@ export const UrlField = memo(function UrlField({
           ? {
               height: sidebar.height,
               borderRadius: SIDEBAR_FIELD.radius,
-              borderWidth: StyleSheet.hairlineWidth * 2,
-              borderColor: liquidGlass ? "transparent" : theme.pinnedRestingStroke,
-              backgroundColor: liquidGlass ? undefined : hovered ? theme.tabHover : theme.pinnedResting,
               overflow: "hidden",
             }
-          : { height: 30, borderRadius: radius.l, backgroundColor: hovered && !liquidGlass ? palette.pill : undefined },
+          : { height: row.field, borderRadius: row.fieldRadius, backgroundColor: hovered && !liquidGlass ? palette.pill : undefined },
       ]}
     >
-      {liquidGlass ? (
-        sidebar ? (
-          <GlassFill tint={null} opacity={hovered ? FIELD_GLASS_HOVER_OPACITY : FIELD_GLASS_OPACITY} radius={SIDEBAR_FIELD.radius} border={StyleSheet.hairlineWidth * 2} fill={theme.pinnedResting} />
-        ) : (
-          <GlassFill tint={null} opacity={hovered ? FIELD_GLASS_HOVER_OPACITY : FIELD_GLASS_OPACITY} radius={radius.l} fill={palette.pill} dark={palette.background ? palette.text.startsWith(ink.white) : undefined} />
-        )
+      {sidebar ? (
+        <SidebarFieldFill hovered={hovered} />
+      ) : liquidGlass ? (
+        <GlassFill tint={null} opacity={hovered ? FIELD_GLASS_HOVER_OPACITY : FIELD_GLASS_OPACITY} radius={row.fieldRadius} fill={palette.pill} dark={palette.background ? palette.text.startsWith(ink.white) : undefined} />
       ) : null}
-      {insecure && (
+      {sidebar ? (
+        <FieldSiteButton
+          icon={insecure ? "lock.open.trianglebadge.exclamationmark.fill" : "slider.horizontal.3"}
+          color={insecure === "certificateError" ? theme.destructive : undefined}
+          tooltip={insecure ? "Connection is not secure" : "Site Controls"}
+          active={popover === "siteControls"}
+          palette={palette}
+          onPress={toggleSiteControls}
+        />
+      ) : insecure && (
         <Pressable onPress={toggleSiteControls} style={{ paddingLeft: LOCK.left }} tooltip="Connection is not secure">
           <Symbol
             name="lock.open.trianglebadge.exclamationmark.fill"
             size={12}
             color={insecure === "certificateError" ? theme.destructive : palette.secondary}
-            style={{ width: LOCK.width, height: 30 }}
+            style={{ width: LOCK.width, height: row.field }}
           />
         </Pressable>
       )}
       <ContextMenuArea style={{ flex: 1 }} onContextMenu={() => void showUrlBarMenu(tab)}>
-      <Pressable onPress={() => openPanel(tab.url)} style={{ flex: 1, height: sidebar?.height ?? 30, justifyContent: "center", paddingLeft: insecure ? LOCK.gap : sidebar ? 10 : urlTextLeft(false) }}>
+      <Pressable onPress={() => openPanel(tab.url)} style={{ flex: 1, height: sidebar?.height ?? row.field, justifyContent: "center", paddingLeft: sidebar ? SIDEBAR_TEXT_GAP : insecure ? LOCK.gap : urlTextLeft(false) }}>
         {sidebar ? (
           <View style={{ flexDirection: "row", alignItems: "center" }}>
             <Text numberOfLines={1} ellipsizeMode="head" style={{ flexShrink: 1, ...font.body, fontWeight: weight.medium, color: palette.text }}>
@@ -247,31 +260,33 @@ export const UrlField = memo(function UrlField({
       <View style={{ flexDirection: "row", alignItems: "center", paddingRight: 3 }}>
         {hovered && (
           <>
-            <Button variant="icon" toolbar palette={palette} icon={bookmarked ? "bookmark.fill" : "bookmark"} size={13} box={24} radius={radius.m} onPress={toggleBookmark} tooltip={bookmarked ? "Remove Bookmark" : withShortcut("Bookmark This Page", bookmarkHint)} />
+            <Button variant="icon" toolbar palette={palette} icon={bookmarked ? "bookmark.fill" : "bookmark"} size={13} box={row.fieldButton} radius={row.fieldButtonRadius} onPress={toggleBookmark} tooltip={bookmarked ? "Remove Bookmark" : withShortcut("Bookmark This Page", bookmarkHint)} />
             {!inSplit && !sidebar && (
               <Button variant="icon" toolbar
                 palette={palette}
                 icon="rectangle.split.2x1"
                 size={13}
-                box={24}
-                radius={radius.m}
+                box={row.fieldButton}
+                radius={row.fieldButtonRadius}
                 onPress={() => openSplitPane(windowId, { anchorTabId: tab.id })}
                 tooltip={withShortcut("Open Split View", splitHint)}
               />
             )}
-            <Button variant="icon" toolbar palette={palette} icon="slider.horizontal.3" size={13} box={24} radius={radius.m} onPress={toggleSiteControls} active={popover === "siteControls"} tooltip="Site Controls" />
+            {!sidebar && (
+              <Button variant="icon" toolbar palette={palette} icon="slider.horizontal.3" size={13} box={row.fieldButton} radius={row.fieldButtonRadius} onPress={toggleSiteControls} active={popover === "siteControls"} tooltip="Site Controls" />
+            )}
           </>
         )}
-        {capture && <CaptureIndicator camera={capture.camera} microphone={capture.microphone} screen={capture.screen} onPress={toggleSiteControls} />}
-        <TranslateButton tabId={tab.id} palette={palette} onFocus={onFocus} />
-        <ZoomIndicator tabId={tab.id} zoom={tab.zoom} palette={palette} onFocus={onFocus} />
+        {capture && <CaptureIndicator camera={capture.camera} microphone={capture.microphone} screen={capture.screen} box={row.fieldButton} onPress={toggleSiteControls} />}
+        <TranslateButton tabId={tab.id} palette={palette} box={row.fieldButton} radius={row.fieldButtonRadius} onFocus={onFocus} />
+        <ZoomIndicator tabId={tab.id} zoom={tab.zoom} palette={palette} box={row.fieldButton} radius={row.fieldButtonRadius} onFocus={onFocus} />
         {popups > 0 && (
           <Button variant="icon" toolbar
             palette={palette}
             icon="macwindow.badge.plus"
             size={13}
-            box={24}
-            radius={radius.m}
+            box={row.fieldButton}
+            radius={row.fieldButtonRadius}
             onPress={() => {
               onFocus();
               setPopover(tab.id, currentPopover(tab.id) === "popups" ? null : "popups");
@@ -287,12 +302,12 @@ export const UrlField = memo(function UrlField({
   );
 });
 
-function CaptureIndicator({ camera, microphone, screen, onPress }: { camera: boolean; microphone: boolean; screen: boolean; onPress: () => void }) {
+function CaptureIndicator({ camera, microphone, screen, box, onPress }: { camera: boolean; microphone: boolean; screen: boolean; box: number; onPress: () => void }) {
   const theme = useTheme();
   const icon = screen ? "rectangle.inset.filled.on.rectangle" : camera ? "video.fill" : "mic.fill";
   const what = [camera && "camera", microphone && "microphone", screen && "screen"].filter(Boolean).join(" and ");
   return (
-    <Pressable onPress={onPress} tooltip={`This page is using your ${what}`} style={{ width: 24, height: 24, alignItems: "center", justifyContent: "center" }}>
+    <Pressable onPress={onPress} tooltip={`This page is using your ${what}`} style={{ width: box, height: box, alignItems: "center", justifyContent: "center" }}>
       <Symbol name={icon} size={12} color={theme.destructive} style={{ width: 18, height: 18 }} />
     </Pressable>
   );

@@ -203,8 +203,9 @@
       return setPositionState.apply(this, arguments);
     };
   }
+  const playableMedia = (all) => all.find((m) => m.currentSrc || m.srcObject || m.src || m.querySelector("source[src]")) || null;
   handlers.media = ({ action, seconds }) => {
-    const el = pickMedia();
+    const el = pickMedia() || playableMedia([...document.querySelectorAll("video,audio")]);
     const call = (name, details) => {
       const h = actions.get(name);
       if (!h) return false;
@@ -795,6 +796,39 @@
     }
   } catch (e) {}
 
+  try {
+    const getterOf = (proto, name) => {
+      const get = Object.getOwnPropertyDescriptor(proto, name).get;
+      return (o) => apply(get, o, []);
+    };
+    const withCommand = getterOf(MouseEvent.prototype, "metaKey");
+    const cancelable = getterOf(Event.prototype, "cancelable");
+    const prevented = getterOf(Event.prototype, "defaultPrevented");
+    const deltaY = getterOf(WheelEvent.prototype, "deltaY");
+    const cancel = Event.prototype.preventDefault;
+    const listen = EventTarget.prototype.addEventListener;
+    const unlisten = EventTarget.prototype.removeEventListener;
+    const blocking = { passive: false };
+    let armed = false;
+    const disarm = () => {
+      if (!armed) return;
+      armed = false;
+      apply(unlisten, window, ["wheel", onCommandWheel, blocking]);
+    };
+    const onCommandWheel = guard((e) => {
+      if (!withCommand(e)) return disarm();
+      const handled = prevented(e) || !cancelable(e);
+      if (!handled) apply(cancel, e, []);
+      send("commandWheel", { handled, dy: deltaY(e) });
+    });
+    handlers.commandWheel = (message) => {
+      if (!(message && message.armed)) return disarm();
+      if (armed) return;
+      armed = true;
+      apply(listen, window, ["wheel", onCommandWheel, blocking]);
+    };
+  } catch (e) {}
+
   handlers.config = (config) => {
     handlers.peekConfig({ modifier: config.peek, split: config.split, trace: config.peekTrace });
     blockAutoplay = !!config.blockAutoplay;
@@ -885,18 +919,37 @@
     }
     return null;
   };
+  const fromHex = (value) => {
+    const n = parseInt(value.slice(1, 7), 16);
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255, a: 1 };
+  };
+  const relativeLuminance = (c) => {
+    const linear = (v) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+    return 0.2126 * linear(c.r) + 0.7152 * linear(c.g) + 0.0722 * linear(c.b);
+  };
+  const clearlyLight = (c) => relativeLuminance(c) >= 0.5;
+  const takesLightInk = (c) => {
+    const l = relativeLuminance(c) + 0.05;
+    return 1.05 / l >= l / 0.05;
+  };
   let lastTheme;
   let metaCache;
+  let lightMetaOnDarkPage = false;
   const cachedMetaColor = () => (metaCache === undefined ? (metaCache = metaColor(scheduleTheme)) : metaCache);
   const reportTheme = guard(() => {
     if (!document.documentElement) return;
-    let color = cachedMetaColor();
-    let source = color ? "meta" : null;
-    if (!color && document.body) {
+    const meta = cachedMetaColor();
+    let color = meta;
+    let source = meta ? "meta" : null;
+    lightMetaOnDarkPage = false;
+    if (document.body && (!meta || clearlyLight(fromHex(meta)))) {
       const page = pageBackground();
       const header = headerColor(page);
-      color = hex(header || page);
-      source = header ? "header" : "background";
+      lightMetaOnDarkPage = !!meta && takesLightInk(page);
+      if (!meta || (lightMetaOnDarkPage && (!header || takesLightInk(header)))) {
+        color = hex(header || page);
+        source = header ? "header" : "background";
+      }
     }
     const key = color + source;
     if (key === lastTheme) return;
@@ -951,7 +1004,7 @@
   let scrollSettle = 0;
   let scrollSettled = false;
   const sampleScroll = guard((settled) => {
-    if (!document.documentElement || cachedMetaColor()) return;
+    if (!document.documentElement || (cachedMetaColor() && !lightMetaOnDarkPage)) return;
     const past = window.scrollY > 4;
     const now = performance.now();
     if (!settled && past === scrolledPastTop && now - scrollSampledAt < 150) return;
@@ -972,7 +1025,7 @@
     );
   };
   const scrollTheme = () => {
-    if (metaCache) return;
+    if (metaCache && !lightMetaOnDarkPage) return;
     apply(clearTimer, window, [scrollSettle]);
     scrollSettle = after(() => {
       scrollSettled = true;

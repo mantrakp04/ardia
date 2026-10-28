@@ -9,6 +9,7 @@
 #include <string>
 #include <utility>
 
+#include "base/files/file_path.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
@@ -17,6 +18,7 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "base/uuid.h"
+#include "chrome/browser/bookmarks/bookmark_html_writer.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/ardia/ac_engine.h"
 #include "chrome/browser/profiles/profile.h"
@@ -450,4 +452,39 @@ AC_ENGINE_CALL(ac_bookmarks_watch) {
         std::make_unique<ardia::Watcher>(call.profile(), model);
   }
   call.TakeReply().Ok();
+}
+
+AC_ENGINE_CALL(ac_bookmarks_export_html) {
+  Call call(profile_dir, args_json, reply, context);
+  if (!call) {
+    return;
+  }
+  bookmarks::BookmarkModel* model = ardia::ModelFor(call.profile());
+  if (!model) {
+    return call.TakeReply().Error("no bookmarks");
+  }
+  const std::string path = call.String("path");
+  if (path.empty() || path[0] != '/') {
+    return call.TakeReply().Error("an absolute path required");
+  }
+  ardia::WhenLoaded::Run(
+      model,
+      base::BindOnce(
+          [](base::WeakPtr<Profile> profile, base::FilePath path, Reply reply) {
+            if (!profile || !ardia::ModelFor(profile.get())) {
+              return reply.Error("profile went away");
+            }
+            bookmark_html_writer::WriteBookmarks(
+                profile.get(), path,
+                base::BindOnce(
+                    [](Reply reply, bookmark_html_writer::Result result) {
+                      if (result != bookmark_html_writer::Result::kSuccess) {
+                        return reply.Error("couldn't write the file");
+                      }
+                      reply.Ok();
+                    },
+                    std::move(reply)));
+          },
+          call.profile()->GetWeakPtr(), base::FilePath(path),
+          call.TakeReply()));
 }

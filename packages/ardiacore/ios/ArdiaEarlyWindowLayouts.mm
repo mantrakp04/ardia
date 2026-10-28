@@ -45,6 +45,7 @@ NSString *StateOf(NSDictionary *session, NSString *windowId) {
   NSMutableDictionary *state = [NSMutableDictionary dictionary];
   for (NSString *key in @[ @"tabLayout", @"addressBar", @"sidebarWidth", @"bookmarksBar", @"appearance", @"showPageFrame", @"hideToolbarWhileScrolling", @"showFullUrl" ])
     if (settings[key]) state[[@"s." stringByAppendingString:key]] = settings[key];
+  if ([settings[@"compactToolbar"] isEqual:@YES]) state[@"s.compactToolbar"] = @YES;
   for (NSString *key in @[ @"sidebarOpen", @"tabLayout", @"profileId", @"incognito" ])
     if (window[key]) state[[@"w." stringByAppendingString:key]] = window[key];
   NSData *data = [NSJSONSerialization dataWithJSONObject:state options:NSJSONWritingSortedKeys error:nil];

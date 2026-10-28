@@ -6,3 +6,6 @@ export const SMALL_WINDOW_FRAME = {
 };
 
 export const PAGE_PROGRESS_GROW = 200;
+
+export const TRAFFIC_LIGHT_PITCH = 23;
+export const NAV_CENTER_PAST_ZOOM = 27;
