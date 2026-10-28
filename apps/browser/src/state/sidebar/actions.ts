@@ -11,6 +11,7 @@ import type { ClickMods } from "../drag/drops";
 import { groupLabel, groupOf, selectedTabIds } from "../pins/organize";
 import type { Tab } from "../browser/types";
 import { measureRow, setSidebarUi, sidebarUi, type Target } from "./sidebarUi";
+import { showsRevealed } from "./entries";
 
 const store = () => useBrowser.getState();
 
@@ -154,3 +155,11 @@ export const allMuted = (windowId: string) => {
   const view = viewTabIds(s, windowId).filter((id) => s.tabs[id]!.url);
   return view.length > 0 && view.every((id) => s.tabs[id]!.muted);
 };
+
+export function pressGroupHeader(windowId: string, profileId: string, groupId: string) {
+  const s = useBrowser.getState();
+  const g = s.groups[groupId];
+  if (!g) return;
+  if (g.collapsed && showsRevealed(s, windowId, profileId, groupId)) s.hideRevealed(groupId);
+  else s.updateGroup(groupId, { collapsed: !g.collapsed });
+}

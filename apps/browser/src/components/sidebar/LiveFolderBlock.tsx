@@ -68,7 +68,7 @@ export const LiveFolderBlock = memo(function LiveFolderBlock({ folderId, windowI
         <View ref={headerRef} {...handle} style={{ marginHorizontal: -PAD }}>
           <FolderHeader folderId={folderId} windowId={windowId} collapsed={collapsed} />
         </View>
-        <Fold fold={fold} collapsed={collapsed} entries={entries} keep={keep} gap={layout.rowGap} padBottom={PAD} />
+        <Fold fold={fold} collapsed={collapsed} entries={entries} keep={keep ? [keep] : []} gap={layout.rowGap} padBottom={PAD} />
       </View>
     </Animated.View>
   );

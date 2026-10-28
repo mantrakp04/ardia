@@ -1,16 +1,17 @@
 import type { StateCreator } from "zustand";
 import type { BrowserState } from "../browser/store";
-import { newId } from "../browser/model";
+import { newId, without } from "../browser/model";
 import { closingGroup } from "../pins/organize";
 import { withSplitRows } from "../splits/splits";
 import { withNewTab } from "../tabs/tabs";
 import type { BrowserWindow, ClosedGroupInfo, GroupColor, Tab, TabGroup } from "../browser/types";
-import { depthOf, innermostGroupOf, nestGroups, reparent } from "./groupNesting";
+import { depthOf, descendantIds, innermostGroupOf, nestGroups, reparent } from "./groupNesting";
 
 export { ancestorIds, canNest, commonGroup, depthOf, descendantIds, groupPath, innermostGroupOf, nestGroups, reparent, rootOf, withParent } from "./groupNesting";
 
 export type GroupsSlice = {
   groups: Record<string, TabGroup>;
+  revealedInFold: Record<string, string[]>;
 
   createGroup(tabIds: string[], options?: { name?: string; icon?: string | null; color?: GroupColor | null }): string;
   updateGroup(id: string, patch: Partial<Pick<TabGroup, "name" | "icon" | "color" | "collapsed" | "pinned">>): void;
@@ -20,6 +21,7 @@ export type GroupsSlice = {
   newNestedGroup(parentId: string): string;
   closeGroup(groupId: string): void;
   deleteGroup(groupId: string): void;
+  hideRevealed(groupId: string): void;
 };
 
 export function syncGroupOrder(groups: Record<string, TabGroup>, window: BrowserWindow): Record<string, TabGroup> {
@@ -143,6 +145,7 @@ export function settleNesting(s: Pick<BrowserState, "groups" | "windows" | "tabs
 
 export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> = (set, get) => ({
   groups: {},
+  revealedInFold: {},
 
   createGroup(tabIds, options = {}) {
     const s = get();
@@ -177,6 +180,13 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
       if (patch.pinned === undefined || patch.pinned === g.pinned || !w) return { groups };
       const window = { ...w, tabIds: orderSections(w.tabIds, s.tabs, groups) };
       return { groups: syncGroupOrder(groups, window), windows: { ...s.windows, [w.id]: window } };
+    });
+  },
+
+  hideRevealed(groupId) {
+    set((s) => {
+      const ids = [groupId, ...descendantIds(s.groups, groupId)].filter((id) => s.revealedInFold[id]);
+      return ids.length ? { revealedInFold: without(s.revealedInFold, ids) } : {};
     });
   },
 

@@ -10,7 +10,7 @@ import { useStoreWhile } from "../tabs/tabWatch";
 import { splitOf, splitRowPanes } from "../splits/splits";
 import { downloadsIn } from "../windows/ui";
 import { tabTitle } from "./actions";
-import { groupEntries, keptEntry, sidebarEntries } from "./entries";
+import { groupEntries, keptEntries, sidebarEntries } from "./entries";
 import { groupTabIds } from "./groupPanelRows";
 import { capture, type Capture } from "./listCapture";
 import type { Hover } from "./sidebarUi";
@@ -39,7 +39,8 @@ export const useCapturedSidebarEntries = (windowId: string, profileId: string, c
     return capture(captured, s, entries.list, entries);
   });
 
-export const useKeptEntry = (windowId: string, profileId: string, entries: string[]) => useBrowser((s) => keptEntry(s, windowId, profileId, entries));
+export const useKeptEntries = (windowId: string, profileId: string, foldId: string, entries: string[]) =>
+  useBrowser(useShallow((s) => keptEntries(s, windowId, profileId, foldId, entries)));
 
 export const useGroupFirstTabIcon = (groupId: string) =>
   useBrowser(

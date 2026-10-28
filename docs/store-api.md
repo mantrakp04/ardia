@@ -19,6 +19,9 @@ store but through `storeAction` wrappers in each domain's `actions.ts` (`newTab`
 - `tabs` (persisted) vs `live` (loading/progress/back-forward/audio/theme colour; never persisted).
 - `groups`: `{ windowId, profileId, name, icon, color, collapsed, pinned, tabIds }` (members contiguous). `color` is
   `null` for Neutral, `"none"` for a transparent group, or one of Chrome's nine group colours.
+  `revealedInFold[groupId]` (not saved): the tabs activated while that group was collapsed, which stay under its header;
+  `settleRevealed` (state/groups/foldReveals.ts) keeps it (cleared when the group expands, pruned of closed, moved-out
+  and, in a pinned group, unloaded tabs), `hideRevealed(groupId)` empties it.
 - `splits` (state/splits/splits.ts): `{ windowId, tabIds (2–3, pane order), orientation, sizes, stack? }` — `stack` = two panes sharing a slot the other way (Add Bottom Split). Members are contiguous in `window.tabIds`; the window's active tab is the focused pane. A split is one sidebar row (`splitRowPanes`): its panes are all unpinned, or all pinned rows; `placing`, `withGroup`, `createGroup`, `addTabsToGroup` and `removeTabsFromGroup` take every pane of a row they're given one of (`withSplitRows`), pinned panes are always rows, and a pinned split is mirrored to the profile's windows (pinMirror) and parked with them (`ParkedPins.splits`). `window.tabLayout` ("sidebar" | "top", unset = Settings).
 - `history[profileId]`: a view of Chrome's history (HistoryService), one entry per URL, not saved; `historyReady[profileId]`
   once it has been read (state/history/engineSync.ts). `bookmarks`: `{ nodes, roots[profileId]: { bar, other } }`.

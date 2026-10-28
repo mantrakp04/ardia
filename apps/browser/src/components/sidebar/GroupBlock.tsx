@@ -1,16 +1,15 @@
-import { createContext, memo, useContext, useEffect, useState } from "react";
+import { createContext, memo, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Pressable, Text, View } from "react-native";
 import { hex, layout, useTheme } from "../ui/theme";
 import { useGroup, usePageProfileId, useWindowId } from "../../state/browser/hooks";
-import { updateGroup } from "../../state/groups/actions";
 import { useGroupLabel } from "../../state/groups/hooks";
 import { useSelectionInGroup } from "../../state/pins/hooks";
 import { newCapture } from "../../state/sidebar/listCapture";
-import { useCapturedGroupEntries, useGroupFirstTabIcon, useKeptEntry } from "../../state/sidebar/hooks";
+import { useCapturedGroupEntries, useGroupFirstTabIcon, useKeptEntries } from "../../state/sidebar/hooks";
 import { MeetingTimeLabel, useMeetingCountdown } from "../live/MeetingCountdown";
 import { HoverSlot } from "../ui/HoverSlot";
 import { Button, ContextMenuArea, FadeLabel, font, ink, radius, Surface, Symbol, weight } from "../ui";
-import { commitRename, endRename, startRename } from "../../state/sidebar/actions";
+import { commitRename, endRename, pressGroupHeader, startRename } from "../../state/sidebar/actions";
 import { useDragFolded, useDragItem, useDropInto } from "./DragProvider";
 import { useShift, type EntryMotion } from "./EntryMotion";
 import { Fold, useFold } from "./Fold";
@@ -34,6 +33,9 @@ const NO_GROUPS: ReadonlySet<string> = new Set();
 
 type ReportInnerHover = (groupId: string, hovered: boolean) => void;
 const InnerGroupHover = createContext<ReportInnerHover | null>(null);
+
+type FoldScope = { id: string; open: Animated.Value; collapsed: boolean };
+const FoldScopeContext = createContext<FoldScope | null>(null);
 
 function useInnermostHover(groupId: string, hovered: boolean) {
   const reportToParent = useContext(InnerGroupHover);
@@ -86,61 +88,78 @@ export const GroupBlock = memo(function GroupBlock({
   const entries = useCapturedGroupEntries(groupId, captured);
   const selectedInside = useSelectionInGroup(windowId, groupId);
   const profileId = usePageProfileId();
-  const activeEntry = useKeptEntry(windowId, profileId, entries);
+  const outer = useContext(FoldScopeContext);
+  const flat = !!outer?.collapsed;
+  const keptInFold = useKeptEntries(windowId, profileId, flat ? outer!.id : groupId, entries);
   const foldedHeight = () => foldedGroupHeight(windowId, profileId, groupId);
   const { wrapper, handle, headerRef } = useDragItem(`g:${groupId}`, { kind: "group", tabIds: tabIds.split(",").filter(Boolean), section, groupId, collapsed: stored, foldedHeight, parentGroup }, own?.clip);
   const tail = useDragItem(`tail:group:${groupId}`, { kind: "tail", tabIds: [], section, parentGroup: groupId });
 
-  const fold = useFold(collapsed);
-  const scope = useContext(ListMotionContext);
-  const motion = useGroupMotion(windowId, profileId, groupId, entries, captured, section === "list" && !parentGroup ? scope : { enabled: scope.enabled, slideBelow: null }, scope.enabled && !collapsed);
+  const fold = useFold(collapsed || flat);
+  const scope = useMemo(() => ({ id: groupId, open: fold.open, collapsed }), [groupId, fold.open, collapsed]);
+  const whole = useRef(new Animated.Value(1)).current;
+  const chrome = useChrome(outer?.open ?? whole);
+  const listMotion = useContext(ListMotionContext);
+  const motion = useGroupMotion(windowId, profileId, groupId, entries, captured, section === "list" && !parentGroup ? listMotion : { enabled: listMotion.enabled, slideBelow: null }, listMotion.enabled && !collapsed);
   const [moved, movedRef] = useShift(own?.shift ?? null);
   const box = useGroupHover(windowId, groupId);
   const dropInto = useDropInto() === groupId;
-  const nested = useInnermostHover(groupId, box.hovered);
+  const nested = useInnermostHover(groupId, box.hovered && !flat);
   const boxOpacity = useBoxOpacity(nested.innermost || dropInto);
 
   const { fill, stroke } = groupSurface(color, tokens);
 
   return (
     <Animated.View ref={wrapper.ref} style={wrapper.style}>
-      <View {...moved} {...box.hoverProps} ref={movedRef} style={[{ paddingVertical: GROUP_BORDER }, moved.style as object]}>
-        <Animated.View
-          pointerEvents="none"
-          style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: GROUP_RADIUS, backgroundColor: fill, borderWidth: GROUP_BORDER, borderColor: stroke, opacity: boxOpacity }}
-        />
-        <View ref={headerRef} {...handle}>
-          <GroupHeader groupId={groupId} windowId={windowId} collapsed={collapsed} open={fold.open} />
-        </View>
-        <InnerGroupHover.Provider value={nested.reportInside}>
-          <Fold
-            fold={fold}
-            collapsed={collapsed}
-            entries={motion.slots(entries).map((slot) =>
-              "ghost" in slot
-                ? { key: slot.ghost.key, ghost: true, node: <GhostSlot snapshot={slot.ghost.snapshot} top={slot.top} opacity={slot.ghost.opacity} /> }
-                : {
-                    key: slot.entry,
-                    node: (
-                      <Entry entry={slot.entry} section={section} groupId={groupId} motion={motion.motion(slot.entry)} />
-                    ),
-                  },
-            )}
-            keep={activeEntry}
-            gap={layout.rowGap}
-            rowHeight={(key) => entryHeightNow(windowId, profileId, key)}
-            padTop={headGap(collapsed && activeEntry ? activeEntry : entries[0])}
-            padBottom={PAD}
-            indent={GROUP_INDENT}
-            mountClosed={selectedInside}
-            footer={<Animated.View ref={tail.wrapper.ref} style={tail.wrapper.style} />}
-          />
-        </InnerGroupHover.Provider>
+      <View {...moved} {...box.hoverProps} ref={movedRef} style={moved.style as object}>
+        <Animated.View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, opacity: chrome.box }}>
+          <Animated.View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: GROUP_RADIUS, backgroundColor: fill, borderWidth: GROUP_BORDER, borderColor: stroke, opacity: boxOpacity }} />
+        </Animated.View>
+        <Animated.View style={{ paddingVertical: chrome.border }}>
+          <Animated.View pointerEvents={flat ? "none" : "auto"} style={{ height: chrome.header, opacity: chrome.box, overflow: "hidden" }}>
+            <View ref={headerRef} {...handle}>
+              <GroupHeader groupId={groupId} windowId={windowId} collapsed={collapsed} open={fold.open} />
+            </View>
+          </Animated.View>
+          <InnerGroupHover.Provider value={nested.reportInside}>
+            <FoldScopeContext.Provider value={flat ? outer : scope}>
+              <Fold
+                fold={fold}
+                collapsed={collapsed || flat}
+                entries={motion.slots(entries).map((slot) =>
+                  "ghost" in slot
+                    ? { key: slot.ghost.key, ghost: true, node: <GhostSlot snapshot={slot.ghost.snapshot} top={slot.top} opacity={slot.ghost.opacity} /> }
+                    : {
+                        key: slot.entry,
+                        node: (
+                          <Entry entry={slot.entry} section={section} groupId={groupId} motion={motion.motion(slot.entry)} />
+                        ),
+                      },
+                )}
+                keep={keptInFold}
+                gap={layout.rowGap}
+                rowHeight={(key) => entryHeightNow(windowId, profileId, key)}
+                padTop={collapsed || flat ? 0 : headGap(entries[0])}
+                padBottom={flat ? 0 : PAD}
+                indent={chrome.indent}
+                mountClosed={selectedInside}
+                footer={<Animated.View ref={tail.wrapper.ref} style={tail.wrapper.style} />}
+              />
+            </FoldScopeContext.Provider>
+          </InnerGroupHover.Provider>
+        </Animated.View>
         {motion.tail ? <Animated.View style={{ marginTop: motion.tail }} /> : null}
       </View>
     </Animated.View>
   );
 });
+
+function useChrome(shown: Animated.Value) {
+  return useMemo(() => {
+    const to = (value: number) => shown.interpolate({ inputRange: [0, 1], outputRange: [0, value], extrapolate: "clamp" });
+    return { box: to(1), border: to(GROUP_BORDER), header: to(layout.rowHeight), indent: to(GROUP_INDENT) };
+  }, [shown]);
+}
 
 const Entry = memo(function Entry({ entry, section, groupId, motion }: { entry: string; section: "list" | "pinnedGroups"; groupId: string; motion: EntryMotion | null }) {
   if (entry.startsWith("g:")) return <GroupBlock groupId={entry.slice(2)} section={section} parentGroup={groupId} motion={motion} />;
@@ -152,6 +171,7 @@ const Entry = memo(function Entry({ entry, section, groupId, motion }: { entry: 
 });
 
 function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; windowId: string; collapsed: boolean; open: Animated.Value }) {
+  const profileId = usePageProfileId();
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const group = useGroup(groupId, (g) => g);
@@ -176,7 +196,7 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
         <Pressable
           onPress={() => {
             dismissHover();
-            if (!renaming) updateGroup(groupId, { collapsed: !collapsed });
+            if (!renaming) pressGroupHeader(windowId, profileId, groupId);
           }}
         >
           {({ pressed }) => (

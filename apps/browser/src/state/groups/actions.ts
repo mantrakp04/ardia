@@ -5,3 +5,4 @@ export const removeTabsFromGroup = storeAction("removeTabsFromGroup");
 export const ungroup = storeAction("ungroup");
 export const newNestedGroup = storeAction("newNestedGroup");
 export const deleteGroup = storeAction("deleteGroup");
+export const hideRevealed = storeAction("hideRevealed");

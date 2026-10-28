@@ -113,8 +113,13 @@ export function swapPinPage(s: BrowserState, id: string): { state: BrowserState;
     const next = swapIds(ids, a, b);
     if (next !== ids) selection = { ...selection, [w]: next };
   }
+  let revealedInFold = s.revealedInFold;
+  for (const [groupId, ids] of Object.entries(s.revealedInFold)) {
+    const next = swapIds(ids, a, b);
+    if (next !== ids) revealedInFold = { ...revealedInFold, [groupId]: next };
+  }
   const live = { ...s.live, [b]: { ...(s.live[a] ?? s.live[b]!) } };
-  return { state: { ...s, tabs, windows, groups, selection, live }, holderId: a };
+  return { state: { ...s, tabs, windows, groups, selection, revealedInFold, live }, holderId: a };
 }
 
 export function frozenCopiesOf(s: BrowserState, holderId: string): Tab[] {

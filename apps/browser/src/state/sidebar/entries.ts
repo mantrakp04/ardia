@@ -1,5 +1,6 @@
 import type { BrowserState } from "../browser/store";
 import { activeTabId, viewTabIds } from "../browser/model";
+import { revealedTabs } from "../groups/foldReveals";
 import { hiddenEmptyCard } from "../omnibox/newTabBarPolicy";
 import { splitRowPanes } from "../splits/splits";
 import { splitIndex, stableList } from "../browser/structure";
@@ -94,10 +95,19 @@ function childGroups(groups: BrowserState["groups"], parentId: string): BrowserS
   return index.get(parentId) ?? NO_CHILDREN;
 }
 
-export function keptEntry(s: BrowserState, windowId: string, profileId: string, entries: string[]): string | null {
+export function keptEntries(s: BrowserState, windowId: string, profileId: string, foldId: string, entries: string[]): string[] {
   const active = activeTabId(s, windowId, profileId);
-  if (!active) return null;
-  return entries.find((e) => holdsTab(s, e, active)) ?? null;
+  const revealed = revealedTabs(s, foldId);
+  return entries.filter((e) => (active && holdsTab(s, e, active)) || revealed.some((id) => holdsTab(s, e, id)));
+}
+
+export function keptRows(s: BrowserState, windowId: string, profileId: string, groupId: string, foldId = groupId): string[] {
+  return keptEntries(s, windowId, profileId, foldId, groupEntries(s, groupId)).flatMap((e) => (e.startsWith("g:") ? keptRows(s, windowId, profileId, e.slice(2), foldId) : [e]));
+}
+
+export function showsRevealed(s: BrowserState, windowId: string, profileId: string, groupId: string): boolean {
+  const active = activeTabId(s, windowId, profileId);
+  return keptRows(s, windowId, profileId, groupId).some((e) => !active || !holdsTab(s, e, active));
 }
 
 export function holdsTab(s: BrowserState, entry: string, tabId: string): boolean {

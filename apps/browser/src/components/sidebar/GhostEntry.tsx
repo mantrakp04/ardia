@@ -7,7 +7,7 @@ import type { GroupColor } from "../../state/browser/types";
 import { groupLabel } from "../../state/pins/organize";
 import { splitRowPanes } from "../../state/splits/splits";
 import { tabTitle } from "../../state/sidebar/actions";
-import { groupEntries, keptEntry } from "../../state/sidebar/entries";
+import { groupEntries, keptRows } from "../../state/sidebar/entries";
 import { GROUP_BORDER, GROUP_INDENT, GROUP_PAD, GROUP_RADIUS } from "./geometry";
 import { headGap } from "../../state/sidebar/geometry";
 import { pointerOnGroup, pointerOnRow } from "../../state/sidebar/hover";
@@ -62,7 +62,7 @@ export function snapshotEntry(s: BrowserState, windowId: string, profileId: stri
   const group = s.groups[id];
   if (!group) return null;
   const entries = groupEntries(s, id);
-  const kept = group.collapsed ? keptEntry(s, windowId, profileId, entries) : null;
+  const kept = group.collapsed ? keptRows(s, windowId, profileId, id) : [];
   const first = s.tabs[group.tabIds[0] ?? ""];
   return {
     kind: "group",
@@ -72,7 +72,7 @@ export function snapshotEntry(s: BrowserState, windowId: string, profileId: stri
     icon: group.icon || first ? { url: first?.url ?? "", favicon: first?.favicon, icon: group.icon ?? first?.customIcon, profileId: first?.profileId } : null,
     collapsed: !!group.collapsed,
     hovered: pointerOnGroup(id),
-    members: (group.collapsed ? (kept ? [kept] : []) : entries).flatMap((e) => (e.startsWith("t:") ? tabShot(s, e.slice(2), false) : snapshotEntry(s, windowId, profileId, e)) ?? []),
+    members: (group.collapsed ? kept : entries).flatMap((e) => (e.startsWith("t:") ? tabShot(s, e.slice(2), false) : snapshotEntry(s, windowId, profileId, e)) ?? []),
   };
 }
 
