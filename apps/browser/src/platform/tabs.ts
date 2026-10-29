@@ -38,4 +38,5 @@ export const routeLinkTabs = (urls: string[]) => call("tabs.routeLinkTabs", { ur
 
 export const onTabStripTransaction = (listener: (tx: TabStripTransaction) => void) => on("tabs.strips", listener);
 export const tabStrips = () => call("tabs.strips");
+export const onPageFocusLost = (listener: () => void) => on("tabs.pageFocusLost", listener);
 export const lastTabClosesWindow = () => call("tabs.lastTabPolicy").then((r) => r.closesWindow);

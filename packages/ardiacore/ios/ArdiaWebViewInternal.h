@@ -197,6 +197,7 @@ struct ArdiaPageFocusState {
 - (void)requestFocusRestoreIn:(NSWindow *)window;
 - (void)restoreFocusIfDue;
 - (void)focusAfterLoad;
+- (void)restorePageFocusAfterClick;
 @end
 
 @interface ArdiaWebView (RevealsInternal)
