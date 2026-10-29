@@ -1,41 +1,9 @@
 #import "ArdiaSwipeInternal.h"
 #import "ArdiaChromeWindowHost.h"
 
-#import <objc/message.h>
-#import <objc/runtime.h>
-
 using namespace ardia_swipe;
 
 namespace ardia_swipe {
-
-BOOL IsRenderWidgetView(NSView *view) {
-  static Class cls = NSClassFromString(@"RenderWidgetHostViewCocoa");
-  return cls && [view isKindOfClass:cls];
-}
-
-ArdiaRendererScrollObserver *ObserverFor(NSView *hit) {
-  static Ivar ivar = class_getInstanceVariable(NSClassFromString(@"RenderWidgetHostViewCocoa"), "_responderDelegate");
-  for (NSView *v = hit; v; v = v.superview) {
-    if (!IsRenderWidgetView(v)) continue;
-    static const void *kKey = &kKey;
-    ArdiaRendererScrollObserver *observer = objc_getAssociatedObject(v, kKey);
-    if (!observer) {
-      if (!ivar) return nil;
-      NSObject *original = object_getIvar(v, ivar);
-      observer = [[ArdiaRendererScrollObserver alloc] initWithOriginal:original];
-      objc_setAssociatedObject(v, kKey, observer, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-      object_setIvar(v, ivar, observer);
-    }
-    return observer;
-  }
-  return nil;
-}
-
-BOOL InRenderer(NSView *hit) {
-  for (NSView *v = hit; v; v = v.superview)
-    if (IsRenderWidgetView(v)) return YES;
-  return NO;
-}
 
 NSView *HitView(NSWindow *window, NSPoint locationInWindow) {
   NSView *frame = window.contentView.superview ?: window.contentView;
@@ -88,7 +56,7 @@ BOOL HasNativePager(NSView<ArdiaSwipeTarget> *target) {
 }
 
 NSView *FirstRenderer(NSView *view) {
-  if (IsRenderWidgetView(view)) return view;
+  if ([ArdiaCorePageView isPageView:view]) return view;
   for (NSView *sub in view.subviews)
     if (NSView *found = FirstRenderer(sub)) return found;
   return nil;
@@ -102,7 +70,7 @@ NSView *ReactRoot(NSView *view, NSWindow *window) {
 }
 
 NSView<ArdiaSwipeTarget> *MisroutedRendererTarget(NSWindow *window, NSPoint location, NSView *hit) {
-  if (!IsRenderWidgetView(hit) || NSPointInRect([hit convertPoint:location fromView:nil], hit.bounds)) return nil;
+  if (![ArdiaCorePageView isPageView:hit] || NSPointInRect([hit convertPoint:location fromView:nil], hit.bounds)) return nil;
   NSView *root = ReactRoot(hit, window);
   NSView<ArdiaSwipeTarget> *best = nil;
   for (NSView<ArdiaSwipeTarget> *target in Targets()) {
@@ -125,7 +93,7 @@ NSView *ResolveHit(NSWindow *window, NSPoint location, NSView<ArdiaSwipeTarget> 
   if (!pager) return hit;
   NSView *container = pager.superview;
   NSView *inner = [container hitTest:[container.superview convertPoint:location fromView:nil]];
-  if (!inner || IsRenderWidgetView(inner) || inner.window != window || ![inner isDescendantOf:container]) return hit;
+  if (!inner || [ArdiaCorePageView isPageView:inner] || inner.window != window || ![inner isDescendantOf:container]) return hit;
   if (!NSPointInRect([inner convertPoint:location fromView:nil], inner.bounds)) return hit;
   if (TargetAt(window, location, inner) != pager) return hit;
   *target = pager;

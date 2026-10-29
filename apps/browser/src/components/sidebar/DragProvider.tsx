@@ -1,3 +1,4 @@
+import { devRegister } from "../dev/devRegister";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Animated, PanResponder, type View } from "react-native";
 import { useStore } from "zustand";
@@ -16,10 +17,10 @@ const DragContext = createContext<DragController | null>(null);
 
 export function DragProvider({ children }: { children: (ghost: Ghost | null, controller: DragController) => ReactNode }) {
   const controller = useMemo(() => new DragController(), []);
-  if (__DEV__) (globalThis as { sidebarDrag?: DragController }).sidebarDrag = controller;
   const [ghost, setGhost] = useState<Ghost | null>(null);
   controller.setGhost = setGhost;
   useEffect(() => () => void (controller.active && controller.end(false)), [controller]);
+  useEffect(() => devRegister("sidebarDrag", null, controller), [controller]);
   useEffect(() => {
     const sub = onAppEvent((e) => e.type === "dragEscape" && controller.active && controller.end(false));
     return () => sub.remove();

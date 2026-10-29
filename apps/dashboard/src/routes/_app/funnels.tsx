@@ -104,10 +104,9 @@ function Phones({ s }: { s: Site }) {
           { key: "sent", label: "Shared or copied the link", value: c.succeeded, previous: p?.succeeded },
         ]}
       />
-      <div className="grid grid-cols-3 gap-3 border-y py-4">
+      <div className="grid grid-cols-2 gap-3 border-y py-4">
         <Stat label="Cancelled the sheet" value={formatPercent(c.tappers ? c.cancelled / c.tappers : null, 0)} sub={`${formatExact(c.cancelled)} of ${formatExact(c.tappers)} tappers`} />
         <Stat label="Macs opened a link" value={formatExact(c.macLinks)} sub="from sent links, in the range" />
-        <Stat label="Used the fallback" value={formatExact(c.fallback)} sub="email or copy, no share sheet" />
       </div>
       <BarList
         dimension="Outcome, at least once"

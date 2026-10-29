@@ -18,8 +18,9 @@ Pages without a custom domain).
 
 ## Updating
 
-- **A release:** bump `VERSION` and `DMG_SIZE` in `src/data/release.ts`. The download button links to
-  `releases/latest/download/Ardia-<version>.dmg`.
+- **A release:** `.claude/skills/release/scripts/site-version.mjs <version>` writes `src/data/release.json` (the
+  version and the DMG's size) from the published release. The download button links to
+  `releases/download/v<version>/Ardia-<version>.dmg`.
 - **Release notes:** `/release-notes` renders the repo's `docs/release-notes/<version>.md` (one file per version,
   `src/content.config.ts`), newest first, each at `/release-notes#<version>`. The app opens that anchor after it
   updates, so rebuild and redeploy the site when a release ships (`docs/releasing.md`).
@@ -70,9 +71,12 @@ No third-party script loads. Event and property names follow PostHog's conventio
 `$browser`, `$os`, `$device_type` …), so the September history in `telemetry.posthog_events` and new events read
 the same. Console warnings and errors go out as plain logs. Replays mask every input and the text of anything marked `.ac-private` or
 `data-private`; rrweb and web-vitals load in their own chunks after the page has. Settings (hosts, sample rate,
-minimum session length, flags) are in `src/data/telemetry.ts`. The named events are listed at the top of
-`src/scripts/analytics.ts`; tag a link with `data-track="event"` and `data-track-<prop>="value"`, or call
-`track()` from `src/scripts/track.ts`.
+minimum session length, flags) are in `src/data/telemetry.ts`, with the event names (`SITE_EVENTS`), the
+sources and libs, the noise rules and the replay upload contract that `scripts/stats.mjs` and `scripts/replay.mjs` import
+too. Tag a link with `data-track="event"` and `data-track-<prop>="value"`, or call `capture()` from
+`src/scripts/telemetry`; `src/data/telemetry.test.ts` (in `pnpm test`) fails when an event isn't listed or a listed one
+is no longer sent. Every event carries `ardia_device` (`mac`, `phone`, `other`) and `ardia_os` from `Device.astro`, the
+same answer the page acted on.
 
 Visitors are sorted before the first paint (`src/components/Device.astro`): phones and tablets get
 "Send to my Mac" instead of Download (`src/scripts/send-to-mac.ts`), Windows and Linux get a "Mac only for now"

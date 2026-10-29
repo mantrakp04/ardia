@@ -2,6 +2,7 @@ import type { AppEvent, CommandEvent, ConfirmOptions, InlineWrite, LaunchConfig,
 import { unstable_batchedUpdates } from "react-dom";
 import { emitNativeEvent, provideNativeModule } from "./expo-modules-core";
 import { NATIVE_CHANGE } from "./react-native";
+import { setTrafficLightsCenter } from "./web/windowChrome";
 
 export * from "@ardia-real/shell";
 export { Symbol } from "./web/Symbol";
@@ -18,7 +19,6 @@ export {
 export { FadeLabel } from "./web/FadeLabel";
 export { MouseArea } from "./web/MouseArea";
 export { showMenu } from "./web/menus";
-export { setTrafficLightsCenter } from "./web/windowChrome";
 
 const SYSTEM_INFO: SystemInfo = {
   appName: "Ardia",
@@ -53,40 +53,44 @@ provideNativeModule("ArdiaApp", {
   appIcon: async () => null,
 });
 provideNativeModule("ArdiaCalendar", { authorizationStatus: () => "notDetermined" });
+provideNativeModule("ArdiaCli", { installedVersion: () => null });
+provideNativeModule("ArdiaUserScripts", { watch: () => {}, read: async () => ({ state: "empty" }), readStatus: async () => null });
 
 const documents = new Map<string, string>();
-export const readDocument = (name: string) => documents.get(name) ?? null;
-export const writeDocument = (name: string, contents: string) => void documents.set(name, contents);
-export const fetchBangList = (_etag: string | null): Promise<{ status: number; etag: string | null; contentType: string | null; body: string | null; bytes: number }> =>
-  Promise.resolve({ status: 304, etag: null, contentType: null, body: null, bytes: 0 });
-export const saveDocument = async (name: string, contents: string) => void documents.set(name, contents);
-export const removeDocument = (name: string) => void documents.delete(name);
-
-export function copyText(text: string) {
-  void navigator.clipboard?.writeText(text).catch(() => {});
-}
-
-export const confirm = async (options: ConfirmOptions) => ({
-  confirmed: window.confirm([options.title, options.message].filter(Boolean).join("\n\n")),
-  suppressed: false,
-});
-
-export const prompt = async (options: PromptOptions) =>
-  window.prompt(options.message ? `${options.title}\n\n${options.message}` : options.title, options.value ?? "");
-
 const darkQuery = typeof window === "undefined" ? null : window.matchMedia("(prefers-color-scheme: dark)");
-export const isDarkAppearance = async () => !!darkQuery?.matches;
 let appearance: "auto" | "light" | "dark" = "auto";
-export const setAppearance = async (mode: "auto" | "light" | "dark") => {
-  if (mode === appearance) return;
-  appearance = mode;
-  emitAppEvent({ type: "appearance", dark: mode === "auto" ? !!darkQuery?.matches : mode === "dark" });
-};
+
+provideNativeModule("ArdiaDocuments", {
+  readDocument: (name: string) => documents.get(name) ?? null,
+  writeDocument: (name: string, contents: string) => void documents.set(name, contents),
+  saveDocument: async (name: string, contents: string) => void documents.set(name, contents),
+  removeDocument: (name: string) => void documents.delete(name),
+});
+provideNativeModule("ArdiaShell", {
+  fetchBangList: async (_etag: string | null) => ({ status: 304, etag: null, contentType: null, body: null, bytes: 0 }),
+  copyText: (text: string) => void navigator.clipboard?.writeText(text).catch(() => {}),
+  isDarkAppearance: async () => !!darkQuery?.matches,
+  setAppearance: async (mode: "auto" | "light" | "dark") => {
+    if (mode === appearance) return;
+    appearance = mode;
+    emitAppEvent({ type: "appearance", dark: mode === "auto" ? !!darkQuery?.matches : mode === "dark" });
+  },
+});
+provideNativeModule("ArdiaDialogs", {
+  confirm: async (options: ConfirmOptions) => ({
+    confirmed: window.confirm([options.title, options.message].filter(Boolean).join("\n\n")),
+    suppressed: false,
+  }),
+  prompt: async (options: PromptOptions) =>
+    window.prompt(options.message ? `${options.title}\n\n${options.message}` : options.title, options.value ?? ""),
+});
+provideNativeModule("ArdiaAppWindows", {
+  windowIds: async () => [] as string[],
+  windowFrame: async (_id: string): Promise<[number, number, number, number] | null> => null,
+  setTrafficLightsCenter: async (windowId: string, next: [number, number] | null) => setTrafficLightsCenter(windowId, next),
+});
 darkQuery?.addEventListener("change", (e) => appearance === "auto" && emitAppEvent({ type: "appearance", dark: e.matches }));
 
-export const windowIds = async () => [] as string[];
-export const windowFrame = async (_id: string): Promise<[number, number, number, number] | null> => null;
-export const systemInfo = () => SYSTEM_INFO;
 export const launchEnvironment = (_name: string) => null;
 
 const valueSetter = typeof window === "undefined" ? undefined : Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
@@ -102,6 +106,6 @@ export async function completeInline(tag: number, typed: string, completion: str
   return 1;
 }
 
-export const emitCommand = (event: CommandEvent) => emitNativeEvent("ArdiaShell", "onCommand", event);
-export const emitWindowEvent = (event: WindowEvent) => emitNativeEvent("ArdiaShell", "onWindowEvent", event);
+export const emitCommand = (event: CommandEvent) => emitNativeEvent("ArdiaMenus", "onCommand", event);
+export const emitWindowEvent = (event: WindowEvent) => emitNativeEvent("ArdiaAppWindows", "onWindowEvent", event);
 export const emitAppEvent = (event: AppEvent) => emitNativeEvent("ArdiaShell", "onAppEvent", event);

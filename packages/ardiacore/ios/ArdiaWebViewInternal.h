@@ -1,10 +1,111 @@
 #import "ArdiaInternal.h"
 #import "ArdiaWebView.h"
+#import "ArdiaNowPlaying.h"
+#import "ArdiaTabLifecycle.h"
 
 enum class ArdiaPageFocus { Unknown, Page, DevTools, Elsewhere };
 
+@class ArdiaWebView;
+
+struct ArdiaRequests {
+  BOOL loadedOnce{};
+  NSString *requestedURL;
+};
+
+struct ArdiaSentReports {
+  BOOL navigationQueued{};
+  NSDictionary *navigation;
+  NSDictionary *pageLayout;
+  NSString *favicon;
+  NSUInteger blockedGeneration{};
+  BOOL blockedEmitQueued{};
+  CFTimeInterval progressAt{};
+  double progress{};
+  BOOL progressQueued{};
+};
+
+struct ArdiaLeave {
+  BOOL active{};
+  NSUInteger generation{};
+};
+
+struct ArdiaFrameHold {
+  BOOL awaiting{};
+  NSUInteger generation{};
+  NSArray *mark;
+  __weak NSView *pane;
+  CGFloat paneZ{};
+  BOOL holding{};
+  __weak ArdiaWebView *holdingFor;
+  NSUInteger holdGeneration{};
+  __weak ArdiaWebView *tookOverFrom;
+  CFTimeInterval tookOverAt{};
+};
+
+struct ArdiaStandIn {
+  __weak NSView *page;
+  ArdiaCoreTab *tab;
+  __weak ArdiaWebView *lender;
+  BOOL closes{};
+  BOOL leaving{};
+  float opacity{};
+  NSUInteger generation{};
+  __weak ArdiaWebView *lentTo;
+};
+
+struct ArdiaLittlePage {
+  BOOL held{};
+  BOOL settled{};
+  float opacity{};
+  NSUInteger generation{};
+};
+
+struct ArdiaReveal {
+  BOOL active{};
+  NSUInteger generation{};
+  __weak NSView *loweredPane;
+  CGFloat loweredPaneZ{};
+  __weak NSView *frontedPage;
+  NSUInteger frontGeneration{};
+};
+
+struct ArdiaPageReports {
+  NSString *theme;
+  NSString *themeSource;
+  NSInteger blockedCount{};
+  NSString *lastBlocked;
+  ArdiaNowPlaying *nowPlaying;
+  NSMutableDictionary<NSString *, NSString *> *notificationFrames;
+  NSMutableDictionary<NSString *, NSDictionary *> *displayRequests;
+  double pinchScale{};
+  BOOL capturing{};
+  BOOL crashed{};
+  BOOL seenByUser{YES};
+  BOOL inPictureInPicture{};
+  BOOL autoPictureInPictureActive{};
+};
+
+struct ArdiaPageFocusState {
+  ArdiaPageFocus page{ArdiaPageFocus::Unknown};
+  __weak NSView *devTools;
+  BOOL onActivate{};
+  BOOL keepsOutgoing{};
+  CFTimeInterval activatedAt{};
+  __weak NSWindow *activatedIn;
+};
+
 @interface ArdiaWebView () <ArdiaCoreTabDelegate> {
   __weak id<ArdiaWebViewDelegate> _delegate;
+  ArdiaTabLifecycle _life;
+  ArdiaRequests _requests;
+  ArdiaSentReports _sent;
+  ArdiaLeave _leave;
+  ArdiaFrameHold _frameHold;
+  ArdiaStandIn _standIn;
+  ArdiaLittlePage _littlePage;
+  ArdiaReveal _reveal;
+  ArdiaPageFocusState _focus;
+  ArdiaPageReports _reports;
   NSString *_profile;
   NSString *_initialURL;
   NSString *_adoptId;
@@ -23,67 +124,12 @@ enum class ArdiaPageFocus { Unknown, Page, DevTools, Elsewhere };
   BOOL _autoPictureInPicture;
   BOOL _frozen;
   ArdiaCoreTab *_tab;
-  BOOL _loadedOnce;
-  BOOL _pendingUserInitiated;
-  NSString *_requestedURL;
-  BOOL _creating;
-  BOOL _closing;
-  BOOL _launchCloseSent;
-  BOOL _offerClosed;
-  BOOL _moving;
-  NSString *_pendingURL;
-  NSString *_creatingURL;
-  CFTimeInterval _creatingAt;
-  NSString *_transferredURL;
   BOOL _muted;
   NSInteger _tabIndex;
   BOOL _pinned;
   NSView *_devtoolsView;
-  BOOL _navigationQueued;
-  NSString *_pageTheme;
-  NSString *_pageThemeSource;
-  NSUInteger _createGeneration;
-  NSUInteger _blockedGeneration;
-  NSInteger _blockedCount;
-  NSString *_lastBlocked;
-  BOOL _blockedEmitQueued;
-  NSDictionary *_sentNavigation;
-  NSDictionary *_sentPageLayout;
-  NSString *_lastFavicon;
-  CFTimeInterval _sentProgressAt;
-  double _sentProgress;
-  BOOL _progressQueued;
   CFTimeInterval _linkDropAt;
-  NSMutableDictionary<NSString *, NSDictionary *> *_nowPlaying;
-  NSString *_nowPlayingFrame;
-  NSMutableDictionary<NSString *, NSString *> *_notificationFrames;
-  NSMutableDictionary<NSString *, NSDictionary *> *_displayRequests;
-  double _pinchScale;
-  BOOL _autoPictureInPictureActive;
-  BOOL _inPictureInPicture;
-  BOOL _seenByUser;
   id _sightObserver;
-  BOOL _capturing;
-  BOOL _crashed;
-  BOOL _leaving;
-  NSUInteger _leaveGeneration;
-  BOOL _handingOff;
-  BOOL _revealed;
-  BOOL _littlePageHeld;
-  BOOL _littlePageSettled;
-  float _littlePageOpacity;
-  NSUInteger _littlePageGeneration;
-  NSUInteger _revealGeneration;
-  __weak NSView *_loweredPane;
-  CGFloat _loweredPaneZ;
-  __weak NSView *_frontedPage;
-  NSUInteger _frontGeneration;
-  ArdiaPageFocus _pageFocus;
-  __weak NSView *_focusedDevTools;
-  BOOL _focusOnActivate;
-  BOOL _keepsOutgoingFocus;
-  CFTimeInterval _focusActivatedAt;
-  __weak NSWindow *_focusActivatedIn;
 }
 - (ArdiaWindowController *)controller;
 - (void)emit:(NSString *)name payload:(NSDictionary *)payload;
@@ -105,7 +151,6 @@ enum class ArdiaPageFocus { Unknown, Page, DevTools, Elsewhere };
 - (void)detach;
 - (void)stashPageReports;
 - (void)takePageReports;
-- (void)takeReports:(NSDictionary *)reports;
 - (void)placeTab;
 - (void)openedTab:(ArdiaCoreTab *)tab adoptId:(NSString *)adoptId disposition:(NSString *)disposition;
 - (void)announceOpenedTab:(ArdiaCoreTab *)tab adoptId:(NSString *)adoptId disposition:(NSString *)disposition tries:(int)tries;
@@ -116,8 +161,6 @@ enum class ArdiaPageFocus { Unknown, Page, DevTools, Elsewhere };
 @end
 
 @interface ArdiaWebView (PaintingInternal)
-+ (void)wakeNeighbourPagesIn:(NSWindow *)window seconds:(CFTimeInterval)seconds committed:(BOOL)committed;
-+ (void)releaseNeighbourPagesIn:(NSWindow *)window;
 + (void)sleepNeighbourPagesIn:(NSWindow *)window after:(CFTimeInterval)delay;
 + (void)repaintWarmPagesIn:(NSWindow *)window;
 + (void)noteShown:(ArdiaCoreTab *)tab;
@@ -134,6 +177,18 @@ enum class ArdiaPageFocus { Unknown, Page, DevTools, Elsewhere };
 - (void)userSightChanged;
 - (void)schedulePainting;
 - (void)leaveScreen;
+- (void)beginFrameHoldIfCold;
+- (void)finishFrameHold;
+- (void)stopHolding;
+- (void)takeFocusFromLingeringPane;
+@end
+
+@interface ArdiaWebView (StandInInternal)
+- (void)lendPageToSuccessor;
+- (void)reclaimLentPage;
+- (BOOL)closesLentTab:(ArdiaCoreTab *)tab;
+- (void)dropStandIn;
+- (void)finishStandIn;
 @end
 
 @interface ArdiaWebView (FocusInternal)
@@ -167,6 +222,7 @@ enum class ArdiaPageFocus { Unknown, Page, DevTools, Elsewhere };
 
 @interface ArdiaWebView (PeekInternal)
 - (void)pushPeekModifier;
+- (BOOL)peeksLinksToOtherSites;
 - (void)fallBackFromPeek:(NSDictionary *)dict url:(NSString *)url frame:(NSString *)frameId reason:(NSString *)reason test:(BOOL)test;
 - (void)peekLink:(NSDictionary *)dict frame:(NSString *)frameId main:(BOOL)main;
 @end
@@ -197,6 +253,7 @@ enum class ArdiaPageFocus { Unknown, Page, DevTools, Elsewhere };
 @interface ArdiaWebView (InputMonitorsInternal)
 + (BOOL)prewarmForMouseEvent:(NSEvent *)event;
 - (BOOL)canWakeFrames;
+- (void)commandWheelFromPage:(NSDictionary *)reply;
 @end
 
 namespace ardia_web_view {
@@ -206,11 +263,12 @@ constexpr CFTimeInterval kNeighbourPagesAwakeSeconds = 10;
 bool TraceVisibility();
 NSHashTable<ArdiaWebView *> *LiveViews();
 bool SamePage(NSString *a, NSString *b);
-id JSONValue(NSString *json);
-NSString *JSONString(id value);
 NSString *OriginOf(NSString *url);
+NSString *VerifiedOrigin(NSString *origin);
 void NoteEvent(int browserId, NSString *name, NSDictionary *payload);
 void AcceptDrops(NSView *root, BOOL accept);
+NSView *PaneUnder(NSView *view, NSView *ancestor);
+NSView *SharedAncestor(NSView *a, NSView *b);
 
 template <typename T>
 T *Field(NSDictionary *d, NSString *key) {
@@ -230,7 +288,7 @@ void InstallPeekMonitor();
 BOOL PeekTracing();
 void PeekTrace(NSDictionary *entry);
 NSString *SplitLinkModifier();
-NSString *PeekConfigJSON();
+NSString *PeekConfigJSON(ArdiaWebView *view);
 
 void InstallControlPressMonitor();
 BOOL TracingPictureInPicture();

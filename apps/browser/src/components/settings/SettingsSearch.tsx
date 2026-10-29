@@ -2,16 +2,17 @@ import { Symbol, font, SearchField, weight } from "../ui";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, View, type TextInput } from "react-native";
 import { useTheme } from "../ui/theme";
-import { liquidGlass } from "../ui/Glass";
 import { groupByPane, search } from "./searchMatch";
 import { currentSettingsSearch, moveSettingsSelection, revealSetting, selectSettingsResult, setSettingsQuery, useSettingsSearch } from "../../state/settings/searchState";
 import { PANES, SETTINGS_INDEX, type SettingEntry } from "./settingsIndex";
+import { useUnshownSettings } from "./Form";
 import { settingsInk } from "./tokens";
 
 export function SettingsSearchField() {
   const query = useSettingsSearch((s) => s.query);
   const focusRequest = useSettingsSearch((s) => s.focusRequest);
   const input = useRef<TextInput>(null);
+  const unshown = useUnshownSettings();
   useEffect(() => {
     if (!focusRequest) return;
     input.current?.focus();
@@ -28,11 +29,11 @@ export function SettingsSearchField() {
       placeholder="Search"
       onSubmit={() => {
         const { query, selected } = currentSettingsSearch();
-        const hit = settingsResults(query)[selected];
+        const hit = settingsResults(query, unshown)[selected];
         if (hit) revealSetting(hit);
       }}
       onArrow={(step) => {
-        const count = settingsResults(currentSettingsSearch().query).length;
+        const count = settingsResults(currentSettingsSearch().query, unshown).length;
         if (!count) return;
         moveSettingsSelection(step, count);
       }}
@@ -41,19 +42,20 @@ export function SettingsSearchField() {
   );
 }
 
-const SHOWN_INDEX = liquidGlass ? SETTINGS_INDEX : SETTINGS_INDEX.filter((p) => !p.entry.liquidGlassOnly);
+let cached: { query: string; unshown: ReadonlySet<string>; results: SettingEntry[] } = { query: "", unshown: new Set(), results: [] };
 
-let cached: { query: string; results: SettingEntry[] } = { query: "", results: [] };
-
-export function settingsResults(query: string): SettingEntry[] {
-  if (cached.query !== query) cached = { query, results: groupByPane(search(SHOWN_INDEX, query)).flatMap((g) => g.hits.map((h) => h.entry)) };
+export function settingsResults(query: string, unshown: ReadonlySet<string>): SettingEntry[] {
+  if (cached.query !== query || cached.unshown !== unshown) {
+    const hits = search(SETTINGS_INDEX.filter((p) => !unshown.has(p.entry.id)), query);
+    cached = { query, unshown, results: groupByPane(hits).flatMap((g) => g.hits.map((h) => h.entry)) };
+  }
   return cached.results;
 }
 
 export function SettingsSearchResults({ query }: { query: string }) {
   const theme = useTheme();
   const selected = useSettingsSearch((s) => s.selected);
-  const results = settingsResults(query);
+  const results = settingsResults(query, useUnshownSettings());
   const groups = useMemo(() => {
     const out: { pane: (typeof PANES)[number]; rows: { entry: SettingEntry; index: number }[] }[] = [];
     results.forEach((entry, index) => {

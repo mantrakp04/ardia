@@ -24,6 +24,8 @@ class Canvas;
 inline constexpr int kArdiaPipButtonMargin = 12;
 inline constexpr int kArdiaPipButtonSize = 28;
 
+void SetArdiaPipButtonDrawnNatively(views::View* button, bool natively);
+
 class ArdiaBackToTabButton : public OverlayWindowBackToTabButton {
   METADATA_HEADER(ArdiaBackToTabButton, OverlayWindowBackToTabButton)
 
@@ -111,7 +113,8 @@ class ArdiaControlsFadeAnimation : public OverlayControlsFadeAnimation {
  public:
   ArdiaControlsFadeAnimation(
       const std::vector<raw_ptr<views::View>>& controls,
-      Type type);
+      Type type,
+      base::RepeatingClosure on_step);
   ArdiaControlsFadeAnimation(const ArdiaControlsFadeAnimation&) =
       delete;
   ArdiaControlsFadeAnimation& operator=(
@@ -119,6 +122,9 @@ class ArdiaControlsFadeAnimation : public OverlayControlsFadeAnimation {
   ~ArdiaControlsFadeAnimation() override;
 
   void AnimateToState(double state) override;
+
+ private:
+  base::RepeatingClosure on_step_;
 };
 
 #endif

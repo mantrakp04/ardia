@@ -5,12 +5,14 @@ import { useBrowser, type BrowserState } from "./store";
 import { activeTabId, bookmarkProfileId, IDLE_LIVE, profileFor, tabLayoutOf } from "./model";
 import type { Settings } from "../settings/settings";
 import type { BrowserWindow, FindState, Profile, Tab, TabGroup, TabLive } from "./types";
-import { CLOSED_FIND, DEFAULT_WINDOW_UI, downloadsIn } from "../windows/ui";
+import { CLOSED_FIND, DEFAULT_WINDOW_UI } from "../windows/ui";
+import { downloadsIn } from "../downloads/downloadsSlice";
+import { focusedWindowOf } from "../windows/ui";
 
 export const WindowContext = createContext<string | null>(null);
 
 export function useWindowId(): string {
-  return useContext(WindowContext) ?? useBrowser.getState().ui.focusedWindowId ?? "";
+  return useContext(WindowContext) ?? focusedWindowOf(useBrowser.getState()) ?? "";
 }
 
 function useWindowField<T>(select: (w: BrowserWindow) => T, fallback: T): T {
@@ -29,7 +31,7 @@ export function usePageProfileId(): string {
   return page ?? own;
 }
 
-export const useIsIncognito = () => useWindowField((w) => w.incognito, false);
+export const useIsIncognito = () => useWindowField((w) => w.kind === "private", false);
 export const useSidebarOpen = () => useWindowField((w) => w.sidebarOpen, true);
 export const useWindowProfileId = () => useWindowField((w) => w.profileId, "");
 
@@ -95,9 +97,11 @@ export function useWindowUi() {
 
 export const useSettings = <T>(select: (settings: Settings) => T): T => useBrowser((s) => select(s.settings));
 
+export const useChosenSettings = (): readonly string[] => useBrowser((s) => s.settingsMeta.chosen);
+
 export function useIsBookmarked(url: string): boolean {
   const id = useWindowId();
-  return useBrowser((s) => isBookmarked(s.bookmarks, bookmarkProfileId(s, s.windows[id]), url));
+  return useBrowser((s) => isBookmarked(s, bookmarkProfileId(s, s.windows[id]), url));
 }
 
 export const useAppDark = (): boolean => useBrowser((s) => s.ui.appDark);

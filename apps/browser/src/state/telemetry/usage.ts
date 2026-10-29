@@ -5,9 +5,11 @@ import { useTranslate } from "../site/translate";
 import { useBrowser } from "../browser/store";
 import { useSync } from "../sync/engine";
 import { capture, endSession, flush, isSharing, startClient } from "./client";
+import { percentile } from "./transport";
 import { reportNativeCrashes } from "./errors";
 import { emitJourneys, journeysEnding, startJourneys } from "./journeys";
 import { takeOmniboxLatency } from "./track";
+import { splitTabIds } from "../splits/splits";
 
 const HOUR_MS = 60 * 60_000;
 const FIRST_MEMORY_SAMPLE_MS = 10 * 60_000;
@@ -40,11 +42,11 @@ function watchStore() {
       for (const id in s.windows) {
         const w = s.windows[id]!;
         const before = prev.windows[id];
-        if (before && before.profileId !== w.profileId && !w.incognito) profileSwitched(size(s.profiles));
+        if (before && before.profileId !== w.profileId && w.kind !== "private") profileSwitched(size(s.profiles));
       }
     }
     if (s.splits !== prev.splits) {
-      for (const id in s.splits) if (!prev.splits[id]) capture("split_view_opened", { panes: s.splits[id]!.tabIds.length });
+      for (const id in s.splits) if (!prev.splits[id]) capture("split_view_opened", { panes: splitTabIds(s.splits[id]!).length });
     }
     if (s.windowUi !== prev.windowUi) {
       for (const id in s.windowUi) if (s.windowUi[id]?.panel.open && !prev.windowUi[id]?.panel.open) capture("command_bar_opened");
@@ -115,7 +117,7 @@ async function sampleMemory() {
 function emitOmniboxLatency() {
   const samples = takeOmniboxLatency().sort((a, b) => a - b);
   if (!samples.length || !isSharing()) return;
-  const at = (p: number) => samples[Math.min(samples.length - 1, Math.floor(p * samples.length))]!;
+  const at = (p: number) => percentile(samples, p);
   capture("perf_omnibox", { samples: samples.length, p50_ms: at(0.5), p95_ms: at(0.95), max_ms: samples.at(-1)! });
 }
 

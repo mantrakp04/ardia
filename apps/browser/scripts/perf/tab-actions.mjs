@@ -211,8 +211,8 @@ class Rig {
     return this.eval(`
       const S = () => ac.store.getState();
       const state = (s) => {
-        const w = s.windows[s.ui.focusedWindowId];
-        return w ? [s.ui.focusedWindowId, w.profileId, w.activeTabIds[w.profileId], w.tabIds.length, w.tabIds.filter((id) => s.tabs[id]?.pinned).length, w.tabIds.join(",")].join("|") : "";
+        const w = s.windows[s.ui.focusOrder[0]];
+        return w ? [s.ui.focusOrder[0], w.profileId, w.activeTabIds[w.profileId], w.tabIds.length, w.tabIds.filter((id) => s.tabs[id]?.pin).length, w.tabIds.join(",")].join("|") : "";
       };
       const tb = globalThis.__tb = { changes: [], last: state(S()), offset: Date.now() - performance.now() };
       ac.store.subscribe((s) => {
@@ -292,9 +292,9 @@ function analyse(rec, startAt, endWindow = 500) {
 async function runAction(rig, ctx, name) {
   const { w1 } = ctx;
   const S = (body) => rig.store(body);
-  const focus = async () => S(`if (S().ui.focusedWindowId !== ${JSON.stringify(w1)}) S().focusWindow?.(${JSON.stringify(w1)}); return S().ui.focusedWindowId;`);
+  const focus = async () => S(`if (S().ui.focusOrder[0] !== ${JSON.stringify(w1)}) S().focusWindow?.(${JSON.stringify(w1)}); return S().ui.focusOrder[0];`);
   await focus();
-  const viewList = () => S(`const s = S(), w = s.windows[${JSON.stringify(w1)}]; return w.tabIds.filter((id) => s.tabs[id].profileId === w.profileId && !s.tabs[id].pinned && !s.groups[Object.keys(s.groups).find((g) => s.groups[g].tabIds.includes(id))]?.collapsed);`);
+  const viewList = () => S(`const s = S(), w = s.windows[${JSON.stringify(w1)}]; return w.tabIds.filter((id) => s.tabs[id].profileId === w.profileId && !s.tabs[id].pin && !s.groups[Object.keys(s.groups).find((g) => s.groups[g].tabIds.includes(id))]?.collapsed);`);
   const active = () => S(`const w = S().windows[${JSON.stringify(w1)}]; return w.activeTabIds[w.profileId];`);
   let expectTab = null;
   let start = "event";
@@ -302,7 +302,7 @@ async function runAction(rig, ctx, name) {
   const key = (chars, keyCode, mods, extra = {}) => () => rig.op({ op: "key", window: ctx.win.number, chars, keyCode, mods, ...extra });
   const activate = (id) => S(`S().setSelection(${JSON.stringify(w1)}, []); S().activate(${JSON.stringify(id)}); return true;`);
   const shown = async (ids) => {
-    const tiles = await S(`const s = S(), w = s.windows[${JSON.stringify(w1)}]; return w.tabIds.filter((id) => s.tabs[id].profileId === w.profileId && s.tabs[id].pinned && !s.tabs[id].pinnedAsRow);`);
+    const tiles = await S(`const s = S(), w = s.windows[${JSON.stringify(w1)}]; return w.tabIds.filter((id) => s.tabs[id].profileId === w.profileId && s.tabs[id].pin?.as === "tile");`);
     let top = 60;
     for (const id of tiles) {
       const r = await rowPoint(rig, w1, id);
@@ -378,7 +378,7 @@ async function runAction(rig, ctx, name) {
       await activate(ctx.pinned.shift());
     }
     await sleep(300);
-    const pinned = await S(`const s = S(), w = s.windows[${JSON.stringify(w1)}]; return s.tabs[w.activeTabIds[w.profileId]].pinned;`);
+    const pinned = await S(`const s = S(), w = s.windows[${JSON.stringify(w1)}]; return !!s.tabs[w.activeTabIds[w.profileId]].pin;`);
     if ((name === "pin") === pinned) return null;
     send = () => rig.op({ op: "menu", path: ["Tabs", "Move to Top Apps|Unpin from Top Apps"] });
   } else if (name === "moveDown") {
@@ -387,7 +387,7 @@ async function runAction(rig, ctx, name) {
     send = key("", KEYS.pagedown, ["ctrl", "shift"], { chars: String.fromCharCode(0xf72d) });
   }
   await sleep(600);
-  const shape = () => S(`const s = S(), w = s.windows[${JSON.stringify(w1)}]; const a = w.activeTabIds[w.profileId]; return { count: w.tabIds.length, pinned: !!s.tabs[a]?.pinned, index: w.tabIds.indexOf(a), active: a };`);
+  const shape = () => S(`const s = S(), w = s.windows[${JSON.stringify(w1)}]; const a = w.activeTabIds[w.profileId]; return { count: w.tabIds.length, pinned: !!s.tabs[a]?.pin, index: w.tabIds.indexOf(a), active: a };`);
   const was = await shape();
   const before = await active();
   if (ctx.countAdds) await rig.op({ op: "adds", reset: true });

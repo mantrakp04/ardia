@@ -2,8 +2,8 @@ import { ScrollView, Text, View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { setSharing, useTelemetry } from "../../../state/telemetry/client";
 import { SHARING_COPY, WHATS_SENT } from "../../../state/telemetry/copy";
-import { Button, font, Sheet, Toggle, weight } from "../../ui";
-import { Group, Row, SectionHeader } from "../Form";
+import { Button, font, Sheet, Toggle } from "../../ui";
+import { Group, Row, SectionHeader, SheetTitle } from "../Form";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { settingsType } from "../tokens";
 
@@ -26,7 +26,7 @@ export function WhatsSentSheet() {
   const theme = useTheme();
   return (
     <Sheet width={500} onClose={closeSettingsSheet}>
-      <Text style={{ ...font.heading, fontWeight: weight.semibold, color: theme.textPrimary }}>{SHARING_COPY.whatsSent}</Text>
+      <SheetTitle>{SHARING_COPY.whatsSent}</SheetTitle>
       <Text style={{ ...font.small, marginTop: 4, color: theme.textSecondary, lineHeight: 16 }}>
         Only while “{SHARING_COPY.toggle}” is on, except what’s under “Even with sharing off”.
       </Text>

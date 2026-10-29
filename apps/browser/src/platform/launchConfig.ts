@@ -1,8 +1,8 @@
-import { launchConfig as readLaunchConfig, type LaunchConfig } from "@ardia/shell";
+import { nativeModule, type LaunchConfig } from "@ardia/shell";
 
 let config: LaunchConfig | null = null;
 
-const current = (): LaunchConfig => (config ??= readLaunchConfig());
+const current = (): LaunchConfig => (config ??= nativeModule("ArdiaApp").launchConfig());
 
 export const switchOverride = (name: string): boolean | undefined => current().switches[name];
 

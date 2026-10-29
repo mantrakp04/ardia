@@ -28,6 +28,18 @@ final class CommandItem: NSMenuItem, Rebindable {
     tag = Self.chromeMenuTag
   }
 
+  convenience init(_ command: CommandTable.Command, arg: String? = nil, title: String? = nil) {
+    let id = arg.map { "\(command.rawValue):\($0)" } ?? command.rawValue
+    let key = CommandTable.keys[id]?.first
+    self.init(title ?? CommandTable.titles[id] ?? id, command.rawValue, arg: arg, key: key?.key ?? "", key?.mods ?? .command)
+  }
+
+  func aliasItems() -> [CommandItem] {
+    (CommandTable.keys[shortcutId] ?? []).dropFirst().map {
+      CommandItem(defaultTitle, command, arg: arg, key: $0.key, $0.mods).hiddenShortcut()
+    }
+  }
+
   static let chromeMenuTag = 1
 
   required init(coder: NSCoder) { fatalError("init(coder:) is not supported") }
@@ -55,13 +67,8 @@ final class CommandItem: NSMenuItem, Rebindable {
     return self
   }
 
-  func followPrimaryShortcut(bound: Set<String>) {
-    guard let primary = commandAlternateOf else { return }
-    let mods = primary.keyEquivalentModifierMask.union(.command)
-    if keyEquivalent != primary.keyEquivalent { keyEquivalent = primary.keyEquivalent }
-    if keyEquivalentModifierMask != mods { keyEquivalentModifierMask = mods }
-    let collides = !primary.keyEquivalent.isEmpty && bound.contains(MainMenu.comboKey(primary.keyEquivalent, mods))
-    let hidden = primary.keyEquivalentModifierMask.contains(.command) || collides
-    if isHidden != hidden { isHidden = hidden }
+  func applyAlternate(_ bound: [[String]]) {
+    MainMenu.setShortcut(self, bound.first)
+    if isHidden != bound.isEmpty { isHidden = bound.isEmpty }
   }
 }

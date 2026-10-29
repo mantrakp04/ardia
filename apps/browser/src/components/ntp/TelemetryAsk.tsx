@@ -18,7 +18,7 @@ const ASK_HEIGHT = 26;
 
 export function TelemetryAsk({ windowId }: { windowId: string }) {
   const due = useTelemetry((s) => !s.decided && !s.askDone);
-  const incognito = useWindow(windowId, (w) => !!w?.incognito);
+  const incognito = useWindow(windowId, (w) => w?.kind === "private");
   const onboarding = useOnboarding((s) => s.windowId !== null);
   const checkIn = useDefaultBrowserCheckIn(windowId).visible;
   const releaseNotes = usePendingReleaseNotes() !== null;

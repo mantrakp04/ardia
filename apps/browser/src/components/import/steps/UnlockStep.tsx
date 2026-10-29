@@ -2,11 +2,13 @@ import { Button } from "../../ui";
 import { APP } from "../model";
 import { ErrorText, Handoff, Spacer, Title } from "../Parts";
 import { importLayout } from "../tokens";
-import type { ImportFlow } from "../useImportFlow";
+import { backTo, importsBySpaces, type ImportFlow } from "../../../state/import/flow";
+import { skipEncryptedData, unlockAndImport } from "../../../state/import/runImport";
 
 export function UnlockBody({ flow }: { flow: ImportFlow }) {
-  const { source, sourceProfiles, error } = flow;
-  if (!source) return null;
+  const { source, sourceProfiles, step } = flow;
+  if (!source || step.name !== "unlock") return null;
+  const { error } = step;
   const many = sourceProfiles.length > 1;
   return (
     <>
@@ -31,23 +33,15 @@ export function UnlockBody({ flow }: { flow: ImportFlow }) {
 }
 
 export function UnlockFooter({ flow }: { flow: ImportFlow }) {
-  const { source, bySpaces, kinds, unlocking } = flow;
-  if (!source) return null;
+  const { source, step } = flow;
+  if (!source || step.name !== "unlock") return null;
+  const { unlocking } = step;
   return (
     <>
-      <Button title="Back" onPress={() => flow.setStep(source.profiles.length > 1 || bySpaces ? "profiles" : "choose")} />
+      <Button title="Back" onPress={() => backTo(source.profiles.length > 1 || importsBySpaces(source) ? "profiles" : "choose")} />
       <Spacer />
-      <Button
-        title="Skip Encrypted Data"
-        onPress={() => {
-          const without = new Set(kinds);
-          without.delete("passwords");
-          without.delete("cookies");
-          flow.setKinds(without);
-          void flow.run(without, true);
-        }}
-      />
-      <Button title={unlocking ? "Waiting for password..." : "Continue"} kind="primary" disabled={unlocking} onPress={() => void flow.unlock()} />
+      <Button title="Skip Encrypted Data" onPress={skipEncryptedData} />
+      <Button title={unlocking ? "Waiting for password..." : "Continue"} kind="primary" disabled={unlocking} onPress={() => void unlockAndImport()} />
     </>
   );
 }

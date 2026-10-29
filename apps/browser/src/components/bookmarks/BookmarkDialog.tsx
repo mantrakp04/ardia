@@ -5,10 +5,11 @@ import { useWindowId } from "../../state/browser/hooks";
 import { Box, Button, Dialog, layout, Text, TextField } from "../ui";
 import { addBookmarkFolder, addBookmarkTree, closeBookmarkDialog, moveBookmark, profileOfBookmark, removeBookmark, updateBookmark, useBookmarkDialog, type BookmarkDialogState } from "../../state/bookmarks/actions";
 import { useBookmarks } from "../../state/bookmarks/hooks";
-import { currentBookmarks } from "../../state/browser/current";
+import { currentBookmarkRoots, currentBookmarks } from "../../state/browser/current";
 import { FieldLabel, FolderPicker } from "./DialogParts";
 import { bookmarkDialog, folderPicker } from "./tokens";
 import { useAddressBarInSidebar } from "../../state/windows/layout";
+import { useToolbarRow } from "../toolbar/useToolbarRow";
 import { SIDEBAR_HEADER_WITH_FIELD } from "../sidebar/geometry";
 
 export function BookmarkDialog() {
@@ -20,11 +21,12 @@ export function BookmarkDialog() {
 
 function DialogPanel({ state }: { state: BookmarkDialogState }) {
   const addressBar = useAddressBarInSidebar();
+  const toolbarHeight = useToolbarRow().height;
   const bookmark = useBookmarks((b) => (state.kind === "page" ? b.nodes[state.bookmarkId] : undefined));
   const profileId = state.kind === "page" ? profileOfBookmark(state.bookmarkId) : state.profileId;
   const [name, setName] = useState(() => (state.kind === "page" ? (bookmark?.title ?? "") : ""));
   const [folderId, setFolderId] = useState<string | null>(() =>
-    state.kind === "page" ? (bookmark?.parentId ?? null) : (currentBookmarks().roots[state.profileId]?.bar ?? null),
+    state.kind === "page" ? (bookmark?.parentId ?? null) : (currentBookmarkRoots(state.profileId)?.bar ?? null),
   );
   const close = closeBookmarkDialog;
 
@@ -66,7 +68,7 @@ function DialogPanel({ state }: { state: BookmarkDialogState }) {
       place={
         addressBar
           ? { top: SIDEBAR_HEADER_WITH_FIELD + bookmarkDialog.belowField, left: layout.sidebarInset }
-          : { top: layout.cardTop + layout.toolbarHeight - bookmarkDialog.belowToolbar, right: layout.cardInset + bookmarkDialog.rightInset }
+          : { top: layout.cardInset + toolbarHeight - bookmarkDialog.belowToolbar, right: layout.cardInset + bookmarkDialog.rightInset }
       }
     >
       <Text weight="semibold">{heading}</Text>

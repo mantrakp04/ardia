@@ -15,6 +15,7 @@ import { radius, space } from "../ui/tokens";
 import { mediaType, useMediaTokens } from "./tokens";
 import { Favicon } from "../favicon/Favicon";
 import { useMedia } from "../../state/media/media";
+import { originForSecurityDisplay } from "../../lib/url";
 
 const WIDTH = 460;
 const REFRESH_MS = 2500;
@@ -28,14 +29,6 @@ const audioLabel = (kind: SourceKind, audio: DisplayMediaAudio) =>
 
 const audioOffered = (kind: SourceKind | null, audio: DisplayMediaAudio | null) =>
   !!audio && (kind === "tab" ? audio.tab : kind === "screen" ? audio.screen : kind === "window" ? !!audio.window : false);
-
-const hostOf = (origin: string) => {
-  try {
-    return new URL(origin).host || origin;
-  } catch {
-    return origin;
-  }
-};
 
 export function SharePicker({ tabId, paneWidth }: { tabId: string; paneWidth: number }) {
   const theme = useTheme();
@@ -85,8 +78,8 @@ export function SharePicker({ tabId, paneWidth }: { tabId: string; paneWidth: nu
     answerDisplayMedia(tabId, id, audioFor(kind));
   };
   const cancel = () => answerDisplayMedia(tabId, null);
-  const frameHost = request.frameOrigin ? hostOf(request.frameOrigin) : "";
-  const receiver = frameHost && frameHost !== hostOf(request.origin) ? `${frameHost}, a frame on this page,` : "The site";
+  const frameHost = request.frameOrigin ? originForSecurityDisplay(request.frameOrigin) : "";
+  const receiver = frameHost && frameHost !== originForSecurityDisplay(request.origin) ? `${frameHost}, a frame on this page,` : "The site";
   const width = Math.min(WIDTH, paneWidth - 24);
 
   return (
@@ -100,7 +93,7 @@ export function SharePicker({ tabId, paneWidth }: { tabId: string; paneWidth: nu
               <Symbol name="rectangle.inset.filled.and.person.filled" size={15} color={theme.icon} style={{ width: 22, height: 22 }} />
             </View>
           }
-          title={`Share your screen with ${hostOf(request.origin)}`}
+          title={`Share your screen with ${originForSecurityDisplay(request.origin)}`}
           subtitle={
             audioFor(selectedKind)
               ? `${receiver} will see and hear what you choose.`

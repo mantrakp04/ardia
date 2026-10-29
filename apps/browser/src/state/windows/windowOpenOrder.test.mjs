@@ -6,7 +6,7 @@ const { windowOpens } = await import("./windowOpenOrder.ts");
 const state = (order, focused) => ({
   windowOrder: order,
   windows: Object.fromEntries(order.map((id) => [id, { id }])),
-  ui: { focusedWindowId: focused },
+  ui: { focusOrder: focused ? [focused] : [] },
 });
 
 test("launch: the focused window first, the rest behind it in window order", () => {

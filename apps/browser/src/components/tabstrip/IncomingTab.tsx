@@ -7,8 +7,8 @@ import type { DragGeometry } from "./stripGroups";
 import { GAP, INCOMING_GAP_MS, TOP_STRIP_HEIGHT } from "./tokens";
 
 export function useIncomingTab(windowId: string, current: boolean, top: DragGeometry) {
-  const active = useTabDrag((d) => current && d.tabIds.length > 0 && d.windowId !== windowId);
-  const point = useTabDrag((d) => (current && d.overWindow === windowId ? d.overPoint : null));
+  const active = useTabDrag((d) => current && (d.phase === "external" || (d.phase === "tab" && d.windowId !== windowId)));
+  const point = useTabDrag((d) => (current && d.phase !== "idle" && d.overWindow === windowId ? d.overPoint : null));
   const origin = useRef<View>(null);
   const [start, setStart] = useState<number | null>(null);
   useEffect(() => {

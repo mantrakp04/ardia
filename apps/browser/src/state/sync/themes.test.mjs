@@ -6,6 +6,7 @@ globalThis.__DEV__ = false;
 const { useBrowser } = await import("../browser/store.ts");
 const { Clock, emptyScope, syncScope } = await import("@ardia/sync");
 const adapters = await import("./profileAdapters.ts");
+const { settleThemeAdoption } = await import("./syncThemes.ts");
 
 const S = () => useBrowser.getState();
 const LINKS = () => ({ default: { syncId: "s1" } });
@@ -236,7 +237,7 @@ test("a joining Mac with its own theme waits for a pth: file still downloading i
   const link = { syncId: "s1", themeAdopting: true };
   joining.adapters = [
     adapters.profilesAdapter(LINKS),
-    adapters.profileThemesAdapter(() => ({ default: link }), () => joining.scope.records, () => delete link.themeAdopting),
+    adapters.profileThemesAdapter(() => ({ default: link }), () => joining.scope.records),
   ];
   joining.with(() => S().updateProfile("default", { theme: own }));
   await rounds([joining], 3);
@@ -246,6 +247,7 @@ test("a joining Mac with its own theme waits for a pth: file still downloading i
   folder.downloading.delete(themeFile);
   await rounds([joining, first], 3);
   assert.deepEqual(joining.profile().theme, THEME, "the downloaded theme applies");
+  settleThemeAdoption({ default: link }, joining.scope, true);
   assert.equal(link.themeAdopting, undefined, "and the profile is adopted");
   assert.deepEqual(first.profile().theme, THEME, "and the first Mac keeps it");
   assert.equal(await rounds([joining, first], 3), 0);

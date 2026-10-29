@@ -1,8 +1,9 @@
+import { currentEngineProfile } from "../../state/browser/current";
 import { clearBrowsingData, type BrowsingDataType } from "../../state/profiles/profileData";
 import { useState } from "react";
 import { View } from "react-native";
 import { pruneProfileFavicons } from "../../state/favicons/favicons";
-import { engineProfile, isIncognitoProfile } from "../../state/browser/model";
+import { isIncognitoProfile } from "../../state/browser/model";
 import { useProfileName, useProfileOrder } from "../../state/profiles/hooks";
 import { clearHistory } from "../../state/history/actions";
 import { Box, Button, Checkbox, Dialog, PopUp, space, Text } from "../ui";
@@ -34,7 +35,7 @@ export function ClearDataDialog({ profileId, onClose }: { profileId: string; onC
       pruneProfileFavicons(profileId);
     }
     const types: BrowsingDataType[] = [...(history ? ["history" as const] : []), ...(siteData ? ["siteData" as const, "cache" as const] : [])];
-    if (types.length && !isIncognitoProfile(profileId)) await clearBrowsingData(engineProfile(profileId), types, since);
+    if (types.length && !isIncognitoProfile(profileId)) await clearBrowsingData(currentEngineProfile(profileId), types, since);
     setBusy(false);
     onClose();
   };

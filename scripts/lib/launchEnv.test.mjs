@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { launchVariables, mergeLaunchEnv } from "./launchEnv.mjs";
+import { readFileSync } from "node:fs";
+import { COMMA_KEYS, INSTANCE_KEYS, TEST_KEYS, launchVariables, mergeLaunchEnv } from "./launchEnv.mjs";
 
 test("an extra ARDIA_INSTANCE adds to the defaults instead of replacing them", () => {
   const base = { ARDIA_BACKGROUND: "1", ...launchVariables({ instance: { updateFeed: "http://127.0.0.1:1/appcast.xml", allowOcclusion: true } }) };
@@ -28,4 +29,21 @@ test("repeated entries of one variable each add their keys", () => {
 
 test("other variables pass through, a null one included (it unsets the variable)", () => {
   assert.deepEqual(mergeLaunchEnv({ HOME: "/h", ARDIA_DATA_DIR: "/d" }, { ARDIA_DATA_DIR: null }), { HOME: "/h", ARDIA_DATA_DIR: null });
+});
+
+test("a comma-holding value stops at the next key the app knows", () => {
+  const merged = mergeLaunchEnv({ ARDIA_TEST: "liveMock=http://x/a,b" }, { ARDIA_TEST: "appMenu" }, { ARDIA_TEST: "importDiaWindows=2" });
+  assert.equal(merged.ARDIA_TEST, "liveMock=http://x/a,b,appMenu,importDiaWindows=2");
+});
+
+test("the key tables match the ones ArdiaLaunchConfig.mm reads", () => {
+  const source = readFileSync(new URL("../../packages/ardiacore/ios/ArdiaLaunchConfig.mm", import.meta.url), "utf8");
+  const keysOf = (fn) => {
+    const body = source.match(new RegExp(`\\*${fn}\\(\\) \\{\\n  return @\\[([^\\]]*)\\]`))?.[1];
+    assert.ok(body, `${fn}() not found in ArdiaLaunchConfig.mm`);
+    return [...body.matchAll(/@"(\w+)"/g)].map((m) => m[1]);
+  };
+  assert.deepEqual(new Set(INSTANCE_KEYS), new Set(keysOf("InstanceKeys")));
+  assert.deepEqual(new Set(TEST_KEYS), new Set([...keysOf("EngineTestKeys"), ...keysOf("AppTestKeys")]));
+  assert.deepEqual(new Set(COMMA_KEYS), new Set(keysOf("KeysWhoseValuesHoldCommas")));
 });

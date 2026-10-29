@@ -14,7 +14,6 @@ permissions:
   contents: read
 
 env:
-  HEXCLAVE_PROJECT: 49be2e2e-87c4-433e-b42f-f255854bff56
   HEXCLAVE: ${{ github.workspace }}/infra/hexclave-cli/node_modules/.bin/hexclave
 
 jobs:
@@ -142,7 +141,8 @@ jobs:
           CLICKHOUSE: ${{ needs.changes.outputs.clickhouse }}
           COLLECTOR: ${{ needs.changes.outputs.collector }}
         run: |
-          deploy() { "$HEXCLAVE" deploy --cloud-project-id "$HEXCLAVE_PROJECT" "$@"; }
+          . ../lib.sh
+          deploy() { hexclave_deploy "$@"; }
           if [ "$WHOLE_GROUP" = true ]; then
             deploy
             exit 0

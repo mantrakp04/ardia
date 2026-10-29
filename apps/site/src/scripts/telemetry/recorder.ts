@@ -1,5 +1,14 @@
 import { record as rrweb } from "@rrweb/record";
-import { BLOCK_SELECTOR, PRIVATE_SELECTOR, REPLAY_CHUNK_MS, REPLAY_MIN_SESSION_MS, REPLAY_PATH } from "../../data/telemetry";
+import {
+  BLOCK_SELECTOR,
+  PRIVATE_SELECTOR,
+  REPLAY_CHUNK_MS,
+  REPLAY_MAX_CHUNK_BYTES,
+  REPLAY_MIN_SESSION_MS,
+  REPLAY_SEQ_DIGITS,
+  replayUploadPath,
+} from "../../data/telemetry";
+import { KEYS, readJSON, write } from "../storage";
 import { capture, distinctId, onHide, onSessionChange, sessionId, sessionStart } from "./core";
 import { sampled } from "./replay";
 
@@ -9,23 +18,18 @@ interface eventWithTime {
   timestamp: number;
 }
 
-const MAX_CHUNK = 1_900_000;
 const MAX_BEACON = 60_000;
 
-const SEQ_KEY = "ac:replay_seq";
+const LAST_SEQ = 10 ** REPLAY_SEQ_DIGITS - 1;
 let memorySeq: { sid: string; next: number } = { sid: "", next: 0 };
 
-function nextSeq(sid: string): number {
-  let state = memorySeq;
-  try {
-    const stored = JSON.parse(localStorage.getItem(SEQ_KEY) ?? "null") as typeof memorySeq | null;
-    if (stored && typeof stored.next === "number") state = stored;
-  } catch {}
+function nextSeq(sid: string): number | null {
+  const stored = readJSON<typeof memorySeq>(KEYS.replaySeq);
+  const state = stored && typeof stored.next === "number" ? stored : memorySeq;
   const seq = state.sid === sid ? state.next : 0;
+  if (seq > LAST_SEQ) return null;
   memorySeq = { sid, next: seq + 1 };
-  try {
-    localStorage.setItem(SEQ_KEY, JSON.stringify(memorySeq));
-  } catch {}
+  write(KEYS.replaySeq, JSON.stringify(memorySeq));
   return seq;
 }
 
@@ -62,11 +66,12 @@ async function gzipOrPlain(text: string): Promise<ArrayBuffer | string> {
 async function upload(sid: string, events: eventWithTime[]): Promise<void> {
   if (!events.length) return;
   const seq = nextSeq(sid);
+  if (seq === null) return;
   const text = document_(sid, seq, events);
   const body = await gzipOrPlain(text);
   const compress = typeof body !== "string";
   const bytes = typeof body === "string" ? body.length : body.byteLength;
-  if (bytes > MAX_CHUNK) {
+  if (bytes > REPLAY_MAX_CHUNK_BYTES) {
     if (events.length === 1) return;
     const half = Math.ceil(events.length / 2);
     await upload(sid, events.slice(0, half));
@@ -74,7 +79,7 @@ async function upload(sid: string, events: eventWithTime[]): Promise<void> {
     return;
   }
   report(sid, seq, events, bytes);
-  await fetch(`${REPLAY_PATH}/${sid}/${seq}.json${compress ? ".gz" : ""}`, {
+  await fetch(replayUploadPath(sid, seq, compress), {
     method: "POST",
     body,
     headers: { "Content-Type": "application/octet-stream" },
@@ -89,12 +94,14 @@ function beacon(sid: string, events: eventWithTime[]) {
   const send = () => {
     if (!piece.length) return;
     const seq = nextSeq(sid);
-    const text = document_(sid, seq, piece);
-    report(sid, seq, piece, text.length);
-    const url = `${REPLAY_PATH}/${sid}/${seq}.json`;
-    const blob = new Blob([text], { type: "application/octet-stream" });
-    if (!navigator.sendBeacon?.(url, blob))
-      fetch(url, { method: "POST", body: blob, keepalive: true, credentials: "omit" }).catch(() => {});
+    if (seq !== null) {
+      const text = document_(sid, seq, piece);
+      report(sid, seq, piece, text.length);
+      const url = replayUploadPath(sid, seq, false);
+      const blob = new Blob([text], { type: "application/octet-stream" });
+      if (!navigator.sendBeacon?.(url, blob))
+        fetch(url, { method: "POST", body: blob, keepalive: true, credentials: "omit" }).catch(() => {});
+    }
     piece = [];
     size = 200;
   };

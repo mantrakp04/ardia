@@ -1,4 +1,5 @@
 ---
+import { base, homeUrl } from "../data/site";
 import Base from "../layouts/Base.astro";
 import Header from "../components/Header.astro";
 import Bench from "../components/Bench.astro";
@@ -7,9 +8,9 @@ import Footer from "../components/Footer.astro";
 import { bench, BENCH_METHOD } from "../data/bench";
 import { scorecardOf } from "../data/benchScorecard";
 import { REPO } from "../data/release";
+import { breadcrumbs } from "../data/jsonLd";
 
-const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-const home = new URL(import.meta.env.BASE_URL, Astro.site).href;
+const home = homeUrl(Astro.site);
 const url = new URL("benchmarks/", home).href;
 const card = bench ? scorecardOf(bench) : null;
 const rivalNames = bench?.rivals ?? ["Dia", "Helium"];
@@ -45,14 +46,7 @@ const jsonLd = [
         },
       ]
     : []),
-  {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Ardia", item: home },
-      { "@type": "ListItem", position: 2, name: "Benchmarks", item: url },
-    ],
-  },
+  breadcrumbs(home, ["Benchmarks", url]),
 ];
 ---
 

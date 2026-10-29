@@ -2,7 +2,6 @@ import { duration } from "../ui/motion";
 import { colorRoles, ink, type ShadowLevel } from "../ui/tokens";
 
 export const TOP_STRIP_HEIGHT = 42;
-export const TOP_CARD_INSET = 6;
 export const MID = 21;
 export const ITEM_HEIGHT = 32;
 export const ITEM_TOP = MID - ITEM_HEIGHT / 2;

@@ -152,6 +152,13 @@ using ardiacore::NS;
   }
 }
 
+- (void)grantUserActivationToFrame:(NSString*)frameId {
+  if (_contents) {
+    ardiacore::PageChannel::GetOrCreate(_contents)->GrantUserActivation(
+        base::SysNSStringToUTF8(frameId));
+  }
+}
+
 - (void)callFrame:(NSString*)frameId kind:(NSString*)kind json:(NSString*)json {
   if (_contents) {
     ardiacore::EndAheadBlank(_contents);

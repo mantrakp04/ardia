@@ -1,3 +1,15 @@
+import {
+  APP_LIBS,
+  APP_SOURCES,
+  DAILY_LIB,
+  HISTORY_SOURCE,
+  PRODUCTION_HOSTS,
+  SITE_EVENTS,
+  SITE_LIBS,
+  SITE_SOURCES,
+  visitorOnSql,
+  type SiteEvent,
+} from "../../../site/src/data/telemetry";
 import type { Step, Window } from "../lib/range";
 
 const TYPED_COLUMNS_LIVE = true;
@@ -17,9 +29,10 @@ const TYPED_COLUMNS: Record<string, string> = {
 
 export const prop = (key: string) => (TYPED_COLUMNS_LIVE && TYPED_COLUMNS[key] ? TYPED_COLUMNS[key] : `properties['${key}']`);
 
-export const HOSTS = "'ardia.dev', 'www.ardia.dev', 'netnyahoo.com', 'www.netnyahoo.com'";
-export const SITE = `(source IN ('ardia-site', 'netnyahoo-site', 'posthog-cloud') AND ${prop("$lib")} IN ('web', 'ardia-web', 'netnyahoo-web') AND ${prop("$host")} IN (${HOSTS}))`;
-export const APP_LIB = `(source IN ('ardia-app', 'netnyahoo-app', 'posthog-cloud') AND ${prop("$lib")} IN ('ardia-telemetry', 'netnyahoo-telemetry'))`;
+const sqlList = (values: readonly string[]) => values.map((v) => `'${v}'`).join(", ");
+
+export const SITE = `(source IN (${sqlList([...SITE_SOURCES, HISTORY_SOURCE])}) AND ${prop("$lib")} IN (${sqlList(SITE_LIBS)}) AND ${prop("$host")} IN (${sqlList(PRODUCTION_HOSTS)}))`;
+export const APP_SOURCE = `(source IN (${sqlList([...APP_SOURCES, HISTORY_SOURCE])}) AND ${prop("$lib")} IN (${sqlList(APP_LIBS)}))`;
 export const APP_EVENTS = [
   "app_launched",
   "app_session_ended",
@@ -39,10 +52,9 @@ export const APP_EVENTS = [
   "translate_used",
   "usage_counts",
 ];
-export const APP_EVENT_LIST = APP_EVENTS.map((e) => `'${e}'`).join(", ");
-export const APP = `(event IN (${APP_EVENT_LIST}) AND ${APP_LIB})`;
-export const MAC = `(${prop("$os")} = 'Mac OS X' AND ${prop("$device_type")} = 'Desktop')`;
-export const PHONE = `(${prop("$device_type")} IN ('Mobile', 'Tablet'))`;
+export const APP = `(event IN (${sqlList(APP_EVENTS)}) AND ${APP_SOURCE})`;
+export const MAC = `(${visitorOnSql("mac", prop)})`;
+export const PHONE = `(${visitorOnSql("phone", prop)})`;
 export const ARDIA_VERSION = `match(${prop("version")}, '^0\\\\.[0-9]+\\\\.[0-9]+(-nightly\\\\.[0-9]+)?$')`;
 export const NIGHTLY = `position(${prop("version")}, '-nightly') > 0`;
 export const FIRST = `properties['first'] = 'true'`;
@@ -60,27 +72,8 @@ export const bucket = (step: Step) =>
 
 export const dayBucket = "toUnixTimestamp(toStartOfDay(timestamp)) * 1000";
 
-export const DAILY = `(event = 'daily_active' AND source = 'ardia-app' AND ${prop("$lib")} = 'ardia-daily' AND properties['$environment'] = 'production')`;
-export const APP_SOURCE = `(source IN ('ardia-app', 'netnyahoo-app', 'posthog-cloud') AND ${prop("$lib")} IN ('ardia-telemetry', 'netnyahoo-telemetry'))`;
+export const DAILY = `(event = 'daily_active' AND source = '${APP_SOURCES[0]}' AND ${prop("$lib")} = '${DAILY_LIB}' AND properties['$environment'] = 'production')`;
 export const ACTIVITY_EVENTS = "'app_launched', 'perf_memory', 'usage_counts'";
 
-export const TRACKED_SITE_EVENTS = [
-  "download_clicked",
-  "github_clicked",
-  "screenshot_opened",
-  "release_notes_viewed",
-  "notify_clicked",
-  "discord_clicked",
-  "send_to_mac_clicked",
-  "send_to_mac_fallback",
-  "demo_customize",
-  "demo_control",
-  "demo_setup_code_shown",
-  "demo_setup_code_copied",
-  "bench_row_switched",
-  "game_solved",
-  "press_kit_downloaded",
-  "press_kit_opened",
-]
-  .map((e) => `'${e}'`)
-  .join(", ");
+const NOT_A_CLICK: readonly SiteEvent[] = ["section_viewed", "mac_link_visit", "non_mac_visit"];
+export const CLICK_SITE_EVENTS = sqlList(SITE_EVENTS.filter((e) => !NOT_A_CLICK.includes(e)));

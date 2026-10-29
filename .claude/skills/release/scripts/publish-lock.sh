@@ -1,23 +1,18 @@
-# shellcheck shell=bash disable=SC2154
-lock_repo_url="https://github.com/$repo.git"
-lock_name="release-lock"
-if [ -n "${PUBLISH_LOCK:-}" ]; then
-  [ "$dry" = 1 ] || die "PUBLISH_LOCK renames the lock for dry runs only: every real publish shares release-lock"
-  [[ "$PUBLISH_LOCK" =~ ^[A-Za-z0-9._-]+$ ]] || die "PUBLISH_LOCK must be a plain branch name"
-  lock_name="$PUBLISH_LOCK"
-fi
-lock_ref="refs/heads/$lock_name"
+lock_root="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
+. "$lock_root/scripts/lib/releases.sh"
+lock_repo_url="$REPO_URL.git"
 lock_sha=""
 lock_max_age=7200
+lock_fail() { echo "error: $*" >&2; exit 1; }
 if [ -n "${GITHUB_RUN_ID:-}" ]; then
-  lock_holder="CI run ${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-$repo}/actions/runs/$GITHUB_RUN_ID"
+  lock_holder="CI run ${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-$REPO}/actions/runs/$GITHUB_RUN_ID"
 else
   lock_holder="$(id -un)@$(hostname -s)"
 fi
 lock_holder="$(LC_ALL=C tr -cd 'A-Za-z0-9@._:/ -' <<<"$lock_holder")"
 
 lock_git() {
-  git -C "$root" -c credential.helper= -c 'credential.helper=!gh auth git-credential' "$@"
+  git -C "$lock_root" -c credential.helper= -c 'credential.helper=!gh auth git-credential' "$@"
 }
 
 lock_push() {
@@ -43,7 +38,14 @@ new_lock_commit() {
 }
 
 take_lock() {
-  local purpose="$1" commit existing message since now age
+  local purpose="$1" dry="$2" break_lock="$3" commit existing message since now age
+  lock_name="release-lock"
+  if [ -n "${PUBLISH_LOCK:-}" ]; then
+    [ "$dry" = 1 ] || lock_fail "PUBLISH_LOCK renames the lock for dry runs only: every real publish shares release-lock"
+    [[ "$PUBLISH_LOCK" =~ ^[A-Za-z0-9._-]+$ ]] || lock_fail "PUBLISH_LOCK must be a plain branch name"
+    lock_name="$PUBLISH_LOCK"
+  fi
+  lock_ref="refs/heads/$lock_name"
   commit="$(new_lock_commit "$purpose")"
   if lock_push "" "$commit:$lock_ref"; then
     lock_sha="$commit"
@@ -51,22 +53,22 @@ take_lock() {
     return 0
   fi
   existing="$(lock_remote_sha)" \
-    || die "couldn't take the publish lock ($lock_name), and couldn't read it either: check git's access to $repo"
+    || lock_fail "couldn't take the publish lock ($lock_name), and couldn't read it either: check git's access to $REPO"
   message="$(lock_message "$existing")" || message=""
   since="$(sed -n 's/^publish lock: .* since \([0-9][0-9]*\)$/\1/p' <<<"$message" | head -1)"
   now="$(date -u +%s)"
   if [ -z "$since" ] || [ "$since" -gt "$now" ]; then
-    die "publishing is locked ($lock_name at ${existing:0:12}), and its holder and time can't be read: it can't be broken; check the branch by hand"
+    lock_fail "publishing is locked ($lock_name at ${existing:0:12}), and its holder and time can't be read: it can't be broken; check the branch by hand"
   fi
   age=$(( now - since ))
   if [ "$age" -lt "$lock_max_age" ]; then
-    die "publishing is locked by $message ($((age / 60)) min ago, branch $lock_name): wait for it to finish (a lock under 2 h can't be broken)"
+    lock_fail "publishing is locked by $message ($((age / 60)) min ago, branch $lock_name): wait for it to finish (a lock under 2 h can't be broken)"
   fi
   [ "$break_lock" = 1 ] \
-    || die "publishing is locked by $message ($((age / 60)) min ago, branch $lock_name): if that publish is dead, run again with --break-lock"
+    || lock_fail "publishing is locked by $message ($((age / 60)) min ago, branch $lock_name): if that publish is dead, run again with --break-lock"
   echo "breaking a $((age / 60)) min old publish lock: $message"
   lock_push "$existing" "$commit:$lock_ref" \
-    || die "the publish lock ($lock_name) changed while it was being broken: someone else holds it now"
+    || lock_fail "the publish lock ($lock_name) changed while it was being broken: someone else holds it now"
   lock_sha="$commit"
   echo "took the publish lock ($lock_name) as $lock_holder"
 }

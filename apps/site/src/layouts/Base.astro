@@ -6,6 +6,8 @@ import monaLatin from "../assets/fonts/mona-sans-core.woff2?url";
 import martianLatin from "../assets/fonts/martian-mono-core.woff2?url";
 import "../styles/global.css";
 import Device from "../components/Device.astro";
+import { colour } from "../data/press";
+import { base } from "../data/site";
 
 interface Props {
   title: string;
@@ -15,7 +17,6 @@ interface Props {
   article?: { published: string };
 }
 const { title, description, jsonLd = [], noindex = false, article } = Astro.props;
-const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 const canonical = new URL(Astro.url.pathname, Astro.site);
 const ogVersion = createHash("sha256").update(readFileSync(`${process.cwd()}/public/og.png`)).digest("hex").slice(0, 10);
 const og = new URL(`${base}/og.png?v=${ogVersion}`, Astro.site);
@@ -31,7 +32,7 @@ const OG_ALT =
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
-    <meta name="theme-color" content="#f1ece2" />
+    <meta name="theme-color" content={colour("Paper").toLowerCase()} />
     <meta name="color-scheme" content="light" />
     <link rel="icon" href={`${base}/favicon.ico`} sizes="48x48" />
     <link rel="icon" href={`${base}/favicon.png`} type="image/png" sizes="64x64" />

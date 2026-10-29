@@ -1,7 +1,7 @@
 import { useBrowser } from "../browser/store";
 import { activeTabId } from "../browser/model";
 import type { HistoryEntry } from "../browser/types";
-import { hostOf } from "../../lib/url";
+import { hostOf } from "@ardia/core";
 
 type PinnableSite = { id: string; title: string; url: string };
 
@@ -25,7 +25,7 @@ export function pinnedHosts(windowId: string): Set<string> {
   const w = s.windows[windowId];
   if (!w) return new Set();
   const inPinnedGroup = new Set(Object.values(s.groups).filter((g) => g.pinned && g.profileId === w.profileId).flatMap((g) => g.tabIds));
-  const pinned = Object.values(s.tabs).filter((t) => t.profileId === w.profileId && (t.pinned || inPinnedGroup.has(t.id)));
+  const pinned = Object.values(s.tabs).filter((t) => t.profileId === w.profileId && (t.pin || inPinnedGroup.has(t.id)));
   const parked = s.parkedPins[w.profileId]?.tabs ?? [];
   return new Set([...pinned, ...parked].map((t) => hostOf(t.pinnedUrl || t.url)).filter(Boolean));
 }

@@ -1,30 +1,39 @@
 import { onWindowEvent, setTrafficLightsCenter, watchLeftEdge } from "../../state/windows/nativeWindow";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AccessibilityInfo, Animated, StyleSheet, View } from "react-native";
+import { Animated, StyleSheet, View } from "react-native";
 import { switchOn } from "../../state/app/switches";
 import { layout, useTheme } from "../ui/theme";
 import { spring, curve } from "../ui/motion";
-import { Panel, WindowDragRegion } from "../ui";
+import { Panel, reduceMotion, WindowDragRegion } from "../ui";
 import { SHADOWS } from "./tokens";
 import { useWindowId } from "../../state/browser/hooks";
 import { useSidebarDockState } from "../../state/windows/hooks";
+import { useToolbarLightsCenter } from "../../state/windows/layout";
 import { Sidebar } from "../sidebar/Sidebar";
 import { dismissHoverIn } from "../../state/sidebar/hover";
 import { useSidebarUi } from "../../state/sidebar/sidebarUi";
-import { peekHeld, watchPeekHolds } from "../../state/peek/peekHold";
+import { peekHeld, watchHolds } from "../../state/app/transientUi";
 import { ProfileSwipe } from "./ProfileSwipe";
 import {
   ARC_HIDE_MS,
   DOCK_SPRING,
   PEEK_BOTTOM,
   PEEK_ORIGIN,
+  PEEK_EDGE_STRIP,
   PEEK_RADIUS,
+  dockMove,
+  dockState,
+  dockedCardLeft,
+  inPeekHold,
+  leftEdgeWatchWidth,
+  peekHoldWidth,
+  shownAs,
+  watchesLeftEdge,
 } from "./dockMotion";
 import {
   ARC_LIGHTS_CENTER,
   devPeeks,
   dockMoving,
-  LIGHTS_CENTER,
   lightsCenter,
   peekShown,
   setDockMoving,
@@ -35,16 +44,7 @@ import {
 import { useTabDrag } from "../../state/drag/tabDrag";
 import { usePeek } from "./usePeek";
 
-let reduceMotion = false;
-AccessibilityInfo.isReduceMotionEnabled().then(
-  (on) => (reduceMotion = on),
-  () => {},
-);
-AccessibilityInfo.addEventListener("reduceMotionChanged", (on) => (reduceMotion = on));
-
 const SPRING = spring(DOCK_SPRING);
-const STRIP_WIDTH = 8;
-const HOLD_SLACK = 24;
 
 function useSidebarDock(open: boolean, animate: boolean, arc: boolean): { dock: Animated.Value; away: boolean } {
   const windowId = useWindowId();
@@ -54,23 +54,17 @@ function useSidebarDock(open: boolean, animate: boolean, arc: boolean): { dock: 
   useEffect(() => {
     if (was.current === open) return;
     was.current = open;
-    if (!animate || reduceMotion || !switchOn("sidebarSlide")) {
+    const move = dockMove({ open, animated: animate && !reduceMotion() && switchOn("sidebarSlide"), arc, peekOut: peekShown(windowId) });
+    if (move === "jump") {
       dock.stopAnimation();
       dock.setValue(open ? 1 : 0);
       setDockMoving(windowId, false);
       setAway(!open);
       return;
     }
-    if (arc && open && peekShown(windowId)) {
-      dock.stopAnimation();
-      dock.setValue(1);
-      setDockMoving(windowId, false);
-      setAway(false);
-      return;
-    }
     if (open) setAway(false);
     setDockMoving(windowId, true);
-    (arc && !open
+    (move === "arcHide"
       ? Animated.timing(dock, { toValue: 0, duration: ARC_HIDE_MS, easing: curve.outCubic, useNativeDriver: false })
       : Animated.spring(dock, {
           toValue: open ? 1 : 0,
@@ -120,20 +114,20 @@ export function DockedLayout({
 }) {
   const windowId = useWindowId();
   const [open, sidebarWidth, addressBar] = useSidebarDockState(windowId);
-  const savedWidth = sidebarWidth ?? layout.sidebarWidth;
-  const width = useSidebarUi((u) => u.dragWidth[windowId]) ?? savedWidth;
+  const width = useSidebarUi((u) => u.dragWidth[windowId]) ?? sidebarWidth;
   const arc = addressBar && !topTabs && switchOn("sidebarSlide");
-  const lights = addressBar && !topTabs ? ARC_LIGHTS_CENTER : LIGHTS_CENTER;
+  const toolbarLights = useToolbarLightsCenter();
+  const lights = addressBar && !topTabs ? ARC_LIGHTS_CENTER : toolbarLights;
   const { dock, away } = useSidebarDock(open, !fullscreen, arc);
   const left = useMemo(
     () =>
       dock.interpolate({
         inputRange: [0, 1],
-        outputRange: [inset.left, width],
+        outputRange: [inset.left, dockedCardLeft(width)],
       }),
     [dock, width, inset.left],
   );
-  const top = useMemo(() => dock.interpolate({ inputRange: [0, 1], outputRange: [layout.cardTop, inset.top] }), [dock, inset.top]);
+  const top = useMemo(() => dock.interpolate({ inputRange: [0, 1], outputRange: [layout.cardInset, inset.top] }), [dock, inset.top]);
   const stripY = useMemo(() => dock.interpolate({ inputRange: [0, 1], outputRange: [-inset.top, 0] }), [dock, inset.top]);
   const stripShown = topTabs && (open || !away);
   const moving = useDockMotion((m) => !!m.moving[windowId]);
@@ -194,16 +188,17 @@ function SidebarDock({
   const peek = usePeek(!open && !moving && !fullscreen, arc, () => edgeOver.current || peekHeld(windowId), () => dismissHoverIn(windowId));
   const latestPeek = useRef(peek);
   latestPeek.current = peek;
-  useEffect(() => (peek.live ? watchPeekHolds(() => latestPeek.current.recheck()) : undefined), [peek.live]);
-  const holdWidth = PEEK_ORIGIN[0] + width + HOLD_SLACK;
+  useEffect(() => (peek.live ? watchHolds("peek", () => latestPeek.current.recheck()) : undefined), [peek.live]);
+  const state = dockState({ open, fullscreen, moving, peekLive: peek.live });
+  const holdWidth = peekHoldWidth(width);
   const holdHeight = useRef(Infinity);
-  const inHold = (x: number, y: number) => x >= 0 && x < holdWidth && y >= 0 && y < holdHeight.current;
-  const peeking = !open && !fullscreen && peek.live;
-  const shown = fullscreen ? "fullscreen" : open ? "docked" : peek.live ? "peek" : "away";
+  const inHold = (x: number, y: number) => inPeekHold(x, y, holdWidth, holdHeight.current);
+  const peeking = state === "peeking";
+  const shown = shownAs(state);
   useLayoutEffect(() => () => dismissHoverIn(windowId), [windowId, shown]);
-  const watching = !open && !fullscreen && !moving;
-  const draggingTab = useTabDrag((d) => d.windowId === windowId && d.tabIds.length > 0);
-  const nativeHold = peeking ? holdWidth : draggingTab ? STRIP_WIDTH : 0;
+  const watching = watchesLeftEdge(state, moving);
+  const draggingTab = useTabDrag((d) => d.phase === "tab" && d.windowId === windowId);
+  const nativeHold = leftEdgeWatchWidth(peeking, draggingTab, holdWidth);
   useEffect(() => {
     if (!watching) return;
     const sub = onWindowEvent((e) => {
@@ -224,7 +219,7 @@ function SidebarDock({
   useEffect(() => () => setPeekShown(windowId, false), [windowId]);
   const panel = useRef(false);
   if (peeking) panel.current = true;
-  const away = fullscreen || (!open && !moving && !peek.live);
+  const away = state === "fullscreen" || state === "away";
   const slideOut = useMemo(() => dock.interpolate({ inputRange: [0, 1], outputRange: [-width, 0] }), [dock, width]);
   const peekIn = useMemo(
     () => peek.slide.interpolate({ inputRange: [0, 1], outputRange: [-12, width] }),
@@ -279,7 +274,7 @@ function SidebarDock({
             left: 0,
             top: 0,
             bottom: layout.cardInset,
-            width: !open && !fullscreen ? STRIP_WIDTH : 0,
+            width: !open && !fullscreen ? PEEK_EDGE_STRIP : 0,
           }}
         />
       )}

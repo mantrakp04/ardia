@@ -1,36 +1,19 @@
 import AppKit
 import ExpoModulesCore
 
-final class ChromiumTabView: ExpoView, ArdiaWebViewDelegate {
-  let browser = ArdiaWebView(frame: .zero)
+final class ChromiumTabView: PageTabHost, ArdiaWebViewDelegate {
   let onPageEvent = EventDispatcher()
-  var pageEvents: Set<String> = []
 
-  private var propsReady = false
+  override var pageEventDispatcher: EventDispatcher { onPageEvent }
+
+  override class func makePage() -> PageTab { ArdiaWebView(frame: .zero) }
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
-    browser.delegate = self
-    wantsLayer = true
-  }
-
-  override func setFrameSize(_ newSize: NSSize) {
-    super.setFrameSize(newSize)
-    browser.frame = bounds
-  }
-
-  func propsDidUpdate() {
-    guard !propsReady else { return }
-    propsReady = true
-    browser.frame = bounds
-    addSubview(browser)
-  }
-
-  deinit {
-    browser.closeBrowser()
+    (page as? ArdiaWebView)?.delegate = self
   }
 
   func webView(_ view: ArdiaWebView, event name: String, payload: [String: Any]) {
-    PageEvents.send(onPageEvent, wanted: pageEvents, name: name, payload: payload)
+    send(name, payload: payload)
   }
 }

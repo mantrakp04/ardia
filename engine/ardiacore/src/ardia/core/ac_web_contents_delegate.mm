@@ -13,6 +13,7 @@
 #include "ardia/core/ac_contents_background.h"
 #include "ardia/core/ac_desktop_capture.h"
 #include "ardia/core/ac_fake_media.h"
+#include "ardia/core/ac_app_urls.h"
 #include "ardia/core/ac_page_channel.h"
 #import "ardia/core/ardiacore_internal.h"
 #include "ui/gfx/geometry/rect.h"
@@ -66,10 +67,7 @@ content::WebContents* ACWebContentsDelegate::OpenURLFromTab(
   if (source && params.url.SchemeIs(url::kJavaScriptScheme)) {
     EndAheadBlank(source);
   }
-  if (IsAppURL(params.url)) {
-    if (source && IsWebUIURL(source->GetLastCommittedURL())) {
-      ReportAppURLRequest(source, params.url, params.user_gesture);
-    }
+  if (InterceptAppURL(source, params.url, params.user_gesture)) {
     return nullptr;
   }
   WindowHost* host = host_.get();
@@ -78,10 +76,8 @@ content::WebContents* ACWebContentsDelegate::OpenURLFromTab(
         source, params, std::move(navigation_handle_callback));
   }
   content::OpenURLParams tab_params(params);
-  WindowHost::PendingOpen open{params.disposition,
-                              source ? source->GetWeakPtr() : nullptr};
-  base::AutoReset<WindowHost::PendingOpen> pending(&host->pending_open(),
-                                                   std::move(open));
+  auto pending = host->ScopedPendingOpen(
+      {params.disposition, source ? source->GetWeakPtr() : nullptr});
   if (IsWindowDisposition(params.disposition)) {
     tab_params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
   } else if (params.disposition == WindowOpenDisposition::NEW_SPLIT_VIEW) {
@@ -99,15 +95,12 @@ content::WebContents* ACWebContentsDelegate::AddNewContents(
     const blink::mojom::WindowFeatures& window_features,
     bool user_gesture,
     bool* was_blocked) {
-  if (IsAppURL(target_url)) {
-    if (source && IsWebUIURL(source->GetLastCommittedURL())) {
-      ReportAppURLRequest(source, target_url, user_gesture);
-    }
+  if (InterceptAppURL(source, target_url, user_gesture)) {
     return nullptr;
   }
   if (host_ && new_contents) {
     TabBridge* bridge = TabBridge::GetOrCreate(new_contents.get());
-    bridge->set_open(disposition, source);
+    bridge->set_open({disposition, source ? source->GetWeakPtr() : nullptr});
     if (disposition == WindowOpenDisposition::NEW_POPUP) {
       NSMutableDictionary* features = [NSMutableDictionary dictionary];
       const gfx::Rect& bounds = window_features.bounds;

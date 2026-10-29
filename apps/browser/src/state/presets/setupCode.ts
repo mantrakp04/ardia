@@ -14,7 +14,7 @@ export const SETUP_SETTING_KEYS = [
   "newTabOpens",
   "newTabPosition",
   "newTabButtonPosition",
-  "cleanUpInactiveTabsAfterHours",
+  "cleanUpInactiveTabsAfterMinutes",
   "restoreSession",
   "shareTabsAcrossWindows",
   "balancedTopApps",
@@ -42,14 +42,14 @@ type Field<T> = { key: string; values: readonly T[] };
 
 const BOOL = [false, true] as const;
 
-const SETTING_FIELDS: { [K in SetupSettingKey]: Field<Settings[K]> } = {
+export const SETTING_FIELDS: { [K in SetupSettingKey]: Field<Settings[K]> } = {
   tabLayout: { key: "t", values: ["sidebar", "top"] },
   addressBar: { key: "a", values: ["toolbar", "sidebar"] },
   commandBarPlacement: { key: "c", values: ["field", "centred"] },
   newTabOpens: { key: "n", values: ["page", "commandBar"] },
   newTabPosition: { key: "o", values: ["top", "bottom", "nextToCurrent"] },
   newTabButtonPosition: { key: "b", values: ["top", "bottom"] },
-  cleanUpInactiveTabsAfterHours: { key: "i", values: [null, 12, 24, 168] },
+  cleanUpInactiveTabsAfterMinutes: { key: "i", values: [null, 12 * 60, 24 * 60, 7 * 24 * 60] },
   restoreSession: { key: "r", values: BOOL },
   shareTabsAcrossWindows: { key: "w", values: BOOL },
   balancedTopApps: { key: "g", values: BOOL },

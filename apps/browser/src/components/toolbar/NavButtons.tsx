@@ -11,6 +11,7 @@ import { openModeFor, openUrl } from "../../state/bookmarks/actions";
 import type { ToolbarPalette } from "../ui/toolbarColors";
 import { useShortcutHint, withShortcut } from "../../state/commands/commandShortcuts";
 import { GLYPH } from "./tokens";
+import { showReloadMenu } from "../../state/site/reloadMenu";
 
 export const ReloadButton = memo(function ReloadButton({
   tab,
@@ -42,6 +43,10 @@ export const ReloadButton = memo(function ReloadButton({
         if (loading) return void web()?.stopLoading();
         if (m.metaKey) return void newTab(tab.windowId, { url: tab.url, background: true, openerId: tab.id });
         void withLivePage(tab.id, (page) => (m.shiftKey ? page.forceReload() : page.reload()));
+      }}
+      onContextMenu={() => {
+        onFocus();
+        void showReloadMenu(tab.id);
       }}
       tooltip={loading ? "Stop Loading This Page" : withShortcut("Refresh", reloadHint)}
     />

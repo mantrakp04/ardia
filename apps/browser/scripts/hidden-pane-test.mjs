@@ -81,7 +81,7 @@ try {
 
   const hiddenChanges = await ac(`${S}
     const url = ${JSON.stringify(page("HiddenLoad"))};
-    S().updateTab("b", { navigation: { url, seq: Date.now() } });
+    S().updateTab("b", { page: { kind: "loaded", nav: { url, seq: Date.now() } } });
     let ok = false;
     return audit.until(() => S().tabs.b.title === "HiddenLoad").then((loadedIt) => {
       ok = loadedIt;
@@ -90,14 +90,14 @@ try {
       ac.pageState.setState((p) => ({ pages: { ...p.pages, b: { ...(p.pages.b || {}), permission: { id: "audit", tabId: "b", origin: "https://example.com", permissions: ["notifications"] } } } }));
       S().updateLive("b", { isLoading: true });
       return audit.frames(3);
-    }).then(() => ({ ok, url: S().tabs.b.url, title: S().tabs.b.title, renderedB: audit.props("UrlField", "b").length }));`, 60_000);
+    }).then(() => ({ ok, url: S().tabs.b.url, title: S().tabs.b.title, renderedB: audit.props("ToolbarUrlField", "b").length }));`, 60_000);
   check("a hidden tab loads what it's sent to (its own tab's navigation)", hiddenChanges.ok, `${hiddenChanges.url} "${hiddenChanges.title}"`);
   check("nothing of B's toolbar renders while it's hidden", hiddenChanges.renderedB === 0);
 
   const shown = await ac(`${S}
     S().activate("b");
     return audit.frames(3).then(() => ({
-      url: audit.props("UrlField", "b")[0]?.props.tab.url,
+      url: audit.props("ToolbarUrlField", "b")[0]?.props.tab.url,
       zoom: audit.props("ZoomIndicator", "b")[0]?.props.zoom,
       loading: audit.props("ReloadButton", "b")[0]?.props.loading,
       find: audit.props("FindBar", "b")[0]?.rendered,
@@ -110,7 +110,7 @@ try {
   check("shown: the permission prompt that came while hidden", shown.prompt === true);
 
   const panes = await ac(`${S}
-    const want = () => S().windows.w1.tabIds.filter((id) => S().tabs[id]?.navigation || S().tabs[id]?.adoptId).sort().join(",");
+    const want = () => S().windows.w1.tabIds.filter((id) => S().tabs[id]?.page.nav || S().tabs[id]?.page.adopt).sort().join(",");
     const have = () => [...ac.webviews.keys()].filter((id) => S().tabs[id]?.windowId === "w1").sort().join(",");
     const steps = [];
     let e;

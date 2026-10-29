@@ -3,19 +3,20 @@ import { Animated, findNodeHandle, PanResponder, type View } from "react-native"
 import { beginTabDrag, cancelTabDrag, endTabDrag, setDragPicture, tabDragging, updateTabDrag } from "../../state/drag/tabDrag";
 import { setStripOnto, storeChangedSince, storeMark } from "../../state/tabs/topStrip";
 import { curve } from "../ui/motion";
-import { dropOnto, ontoKey, reorder, type DropTarget, type Landing, type StripDrag } from "./model";
+import { dropOnto, ontoKey, releaseDrop, reorder, type DropTarget, type Landing, type StripDrag } from "./model";
 import { raiseView } from "../../state/windows/nativeWindow";
 import { aimDrop, dragRange, dropIndex } from "./stripGroups";
 import { makeRoom, registerSlot, reorderOffsets, settleRoom, SLIDE } from "./stripReorder";
 import { LIFT_MS, LIFT_SLOP, ONTO_EDGE, TOP_STRIP_HEIGHT } from "./tokens";
+
+const IDLE = { kind: "idle" } as const;
 
 export function useStripDrag(item: StripDrag) {
   const dx = useRef(new Animated.Value(0)).current;
   const shift = useRef(new Animated.Value(0)).current;
   const translateX = useRef(Animated.add(dx, shift)).current;
   const lift = useRef(new Animated.Value(0)).current;
-  const [dragging, setDragging] = useState(false);
-  const [crossed, setCrossed] = useState(false);
+  const [look, setLook] = useState<"rest" | "dragging" | "crossed">("rest");
   const view = useRef<View>(null);
   const latest = useRef(item);
   latest.current = item;
@@ -50,65 +51,64 @@ export function useStripDrag(item: StripDrag) {
       latest.current.cross?.clear();
       drag.current.to = NaN;
     }
-    setCrossed(on);
+    setLook(on ? "crossed" : "dragging");
   };
-  const owns = useRef(false);
+  const phase = useRef<{ kind: "idle" } | { kind: "dragging" } | { kind: "settling"; land: () => void }>(IDLE);
   const raised = useRef<number | null>(null);
   const raise = (on: boolean) => {
     const tag = on ? findNodeHandle(view.current) : raised.current;
     raiseView(tag, latest.current.levels ?? (latest.current.groupId ? 1 : 0), on);
     raised.current = on ? tag : null;
   };
+  const rest = () => {
+    dx.setValue(0);
+    setLook("rest");
+    raise(false);
+  };
   const reset = () => {
-    owns.current = false;
+    phase.current = IDLE;
     setCross(false);
     setOnto(null);
     makeRoomAt(-1);
-    dx.setValue(0);
     setLifted(false);
-    setDragging(false);
-    raise(false);
+    rest();
   };
-  const settle = useRef<{ land: () => void } | null>(null);
+  const settleTo = (toValue: number, done: () => void) => {
+    const landing = {
+      kind: "settling" as const,
+      land: () => {
+        if (phase.current !== landing) return;
+        phase.current = IDLE;
+        done();
+        rest();
+      },
+    };
+    phase.current = landing;
+    Animated.spring(dx, { toValue, ...SLIDE }).start(() => landing.land());
+  };
   const settleInto = (to: number | null, commit: () => boolean) => {
     const { geometry, from } = latest.current;
-    if (to === null) makeRoomAt(-1);
-    const landing = {
-      land: () => {
-        if (settle.current !== landing) return;
-        settle.current = null;
-        if (to !== null) {
-          settleRoom(geometry);
-          commit();
-        }
-        dx.setValue(0);
-        setDragging(false);
-        raise(false);
-      },
-    };
-    settle.current = landing;
-    Animated.spring(dx, { toValue: to === null ? 0 : (reorderOffsets(geometry, from, to)[from] ?? 0), ...SLIDE }).start(() => landing.land());
+    if (to === null) {
+      makeRoomAt(-1);
+      return settleTo(0, () => {});
+    }
+    settleTo(reorderOffsets(geometry, from, to)[from] ?? 0, () => {
+      settleRoom(geometry);
+      commit();
+    });
   };
-  const settleAcross = ({ dx: toValue, commit }: Landing) => {
-    const landing = {
-      land: () => {
-        if (settle.current !== landing) return;
-        settle.current = null;
-        commit();
-        drag.current.crossed = false;
-        setCrossed(false);
-        dx.setValue(0);
-        setDragging(false);
-        raise(false);
-      },
-    };
-    settle.current = landing;
-    Animated.spring(dx, { toValue, ...SLIDE }).start(() => landing.land());
+  const settleAcross = ({ dx: toValue, commit }: Landing) =>
+    settleTo(toValue, () => {
+      commit();
+      drag.current.crossed = false;
+    });
+  const landSettle = () => {
+    if (phase.current.kind === "settling") phase.current.land();
   };
   useEffect(
     () => () => {
-      settle.current?.land();
-      if (!owns.current) return;
+      landSettle();
+      if (phase.current.kind !== "dragging") return;
       setOnto(null);
       if (drag.current.crossed) latest.current.cross?.clear();
       settleRoom(latest.current.geometry);
@@ -129,14 +129,14 @@ export function useStripDrag(item: StripDrag) {
         onPanResponderGrant: (e) => {
           const ids = latest.current.ids();
           const grab: [number, number] = [e.nativeEvent.pageX, e.nativeEvent.pageY];
-          settle.current?.land();
+          landSettle();
           dx.stopAnimation();
           dx.setValue(0);
           const mine = { stripBottom: TOP_STRIP_HEIGHT, lifted: false, ids, dx: 0, to: -1, grab: latest.current.width / 2, crossed: false, onto: null };
           setOnto(null);
           drag.current = mine;
-          owns.current = true;
-          setDragging(true);
+          phase.current = { kind: "dragging" };
+          setLook("dragging");
           if (latest.current.from >= 0) raise(true);
           if (latest.current.local) return;
           const seq = beginTabDrag(ids.length === 1 ? latest.current.tabId : null, ids);
@@ -164,29 +164,39 @@ export function useStripDrag(item: StripDrag) {
           if (!local) updateTabDrag(g.moveX, g.moveY, lifted);
         },
         onPanResponderRelease: (_, g) => {
-          const lifted = drag.current.lifted;
           const { local, drop, from, range, geometry } = latest.current;
-          owns.current = false;
-          if ((!local && (endTabDrag() || lifted)) || (from < 0 && !drop)) return reset();
-          const ids = drag.current.ids;
-          const landing = drag.current.crossed ? latest.current.cross?.land(drag.current.dx, drag.current.grab, ids) : null;
-          if (landing) return settleAcross(landing);
-          setCross(false);
-          const onto = drag.current.onto;
-          setOnto(null);
-          if (!local && onto && dropOnto(onto, ids)) {
-            settleRoom(geometry);
-            return reset();
-          }
-          const bounds = typeof range === "function" ? range(drag.current.grab) : range;
+          const { ids, lifted, crossed, grab } = drag.current;
+          phase.current = IDLE;
+          const bounds = typeof range === "function" ? range(grab) : range;
           const travelled = bounds ? Math.max(bounds[0], Math.min(bounds[1], g.dx)) : g.dx;
-          if (!local) {
-            const mark = storeMark();
-            const moved = drop?.(travelled, ids) || (from >= 0 && ids.length > 1 && reorder(ids, latest.current, indexAt(g.dx)));
-            if (moved && storeChangedSince(mark)) settleRoom(geometry);
-            if (moved) return reset();
-          }
-          if (from < 0) return reset();
+          let onto: DropTarget | null = null;
+          const outcome = releaseDrop({
+            local: !!local,
+            lifted,
+            from,
+            drops: !!drop,
+            crossed,
+            endWindowDrag: endTabDrag,
+            landAcross: () => latest.current.cross?.land(drag.current.dx, grab, ids),
+            clearAim: () => {
+              setCross(false);
+              onto = drag.current.onto;
+              setOnto(null);
+            },
+            dropOnto: () => {
+              const dropped = !!(onto && dropOnto(onto, ids));
+              if (dropped) settleRoom(geometry);
+              return dropped;
+            },
+            move: () => {
+              const mark = storeMark();
+              const moved = drop?.(travelled, ids) || (from >= 0 && ids.length > 1 && reorder(ids, latest.current, indexAt(g.dx)));
+              if (moved && storeChangedSince(mark)) settleRoom(geometry);
+              return !!moved;
+            },
+          });
+          if (outcome.kind === "across") return settleAcross(outcome.landing);
+          if (outcome.kind !== "settle") return reset();
           const to = indexAt(g.dx);
           settleInto(to === from ? null : to, () => {
             const mark = storeMark();
@@ -203,11 +213,12 @@ export function useStripDrag(item: StripDrag) {
       }),
     [],
   );
+  const dragging = look !== "rest";
   const style = {
     zIndex: dragging ? 10 : 0,
     opacity: lift.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
     marginRight: lift.interpolate({ inputRange: [0, 1], outputRange: [0, -(item.width + item.gap)] }),
     transform: [{ translateX }],
   };
-  return { ref: view, panHandlers: responder.panHandlers, style, dragging, crossed, grab: drag.current.grab, dx };
+  return { ref: view, panHandlers: responder.panHandlers, style, dragging, crossed: look === "crossed", grab: drag.current.grab, dx };
 }

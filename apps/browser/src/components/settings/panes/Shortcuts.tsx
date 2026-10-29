@@ -43,15 +43,14 @@ export function ShortcutsPane() {
   const effective = (item: MenuShortcut): Shortcut => resolved.bindings.get(item.id)?.[0] ?? NO_SHORTCUT;
   const conflictsOf = (item: MenuShortcut) => resolved.conflictsOf(item.id).flatMap((id) => byId.get(id) ?? []);
 
-  const setShortcut = setShortcutOverride;
 
   const record = async (item: MenuShortcut) => {
     setRecording(item.id);
     const combo = await recordShortcut();
     setRecording(null);
     if (!combo) return;
-    const isDefault = sameShortcut(combo, { key: item.defaultKey, modifiers: item.defaultModifiers });
-    setShortcut(item.id, isDefault ? null : combo);
+    const isDefault = sameShortcut(combo, resolved.defaultsOf(item.id)[0] ?? NO_SHORTCUT);
+    setShortcutOverride(item.id, isDefault ? null : combo);
   };
 
   const shown = (items ?? []).filter((item) => {
@@ -113,14 +112,14 @@ export function ShortcutsPane() {
                     }
                   >
                     {overrides[item.id] && (
-                      <Button variant="icon" icon="arrow.uturn.backward" size={11} box={24} radius={6} onPress={() => setShortcut(item.id, null)} tooltip="Reset to Default" />
+                      <Button variant="icon" icon="arrow.uturn.backward" size={11} box={24} radius={6} onPress={() => setShortcutOverride(item.id, null)} tooltip="Reset to Default" />
                     )}
                     <ShortcutField
                       combo={effective(item)}
                       remappable={item.remappable}
                       recording={recording === item.id}
                       onRecord={() => void record(item)}
-                      onClear={() => setShortcut(item.id, item.defaultKey ? { key: "", modifiers: [] } : null)}
+                      onClear={() => setShortcutOverride(item.id, resolved.defaultsOf(item.id).length ? NO_SHORTCUT : null)}
                     />
                   </Row>
                 );

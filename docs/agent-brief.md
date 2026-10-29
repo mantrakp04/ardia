@@ -101,7 +101,7 @@ Engine files are in `engine/ardiacore/src/ardia/core`, app files in `packages/ar
   (`ardia_web_view`, `ardia_window`, `ardia_early_window`, `ardia_pip`, `ardia_swipe`, `ardia_content_blocker`,
   `ardia_host`). Property accessors, `+initialize` and `dealloc` stay in the class's primary file, so no category
   overrides them. `ArdiaWebView` is split into `+Transfer` (parking, launch and link tabs), `+Tab` (attach, detach,
-  Chrome's tab events, discard), `+Painting`, `+Focus`, `+Reveals`, `+PageMessages`, `+Peek`, `+PictureInPicture`,
+  Chrome's tab events, discard), `+Painting`, `+StandIn` (a closing page kept up for the next tab), `+Focus`, `+Reveals`, `+PageMessages`, `+Peek`, `+PictureInPicture`,
   `+ContextMenu`, `+Navigation`, `+PageCommands`, `+Site` and `+InputMonitors`. `ArdiaTabRegistry.mm` holds tab
   ↔ view, offered tabs and browser ids. Windows: `ArdiaWindowController`, `ArdiaChromeWindowHost` (+`Dev`, the dev harness),
   `ArdiaTrafficLights`, `ArdiaWindowFullScreen`, `ArdiaPopupWindow`, `ArdiaReservedKeys`. Launch: `ArdiaHost+Launch`,
@@ -125,9 +125,11 @@ Engine files are in `engine/ardiacore/src/ardia/core`, app files in `packages/ar
   must be named `ArdiaCore*` to be exported (the `ardiacore.exports` wildcard). The pod reads `ArdiaCore.h` from the repo and
   the app and the engine ship together, so the app calls new selectors directly (no `respondsToSelector:`).
 - **Adding an engine call** (Chrome's services are `ac_*` C calls in `engine/chromium`, which the app finds with
-  dlsym through `ArdiaEngineBridge`): (1) write `AC_ENGINE_CALL(ac_<domain>_<verb>)` in
-  `engine/chromium/src/chrome/browser/ardia/ac_<domain>.cc` (conventions in `public/ac_engine.h`; a new file goes
-  in that `BUILD.gn`; `ac_engine.exports` exports every `ac_*`); (2) `scripts/agent/engine-build`; (3) call it with
+  dlsym through `ArdiaEngineBridge`): (1) write `AC_PROFILE_CALL(ac_<domain>_<verb>) { … }` in
+  `engine/chromium/src/chrome/browser/ardia/ac_<domain>.cc` (`AC_ARGS_CALL` for a call that needs no profile; conventions
+  in `public/ac_engine.h` and `ac_engine.h`; a new file goes in that `BUILD.gn`; `ac_engine.exports` exports every
+  `ac_*`). A private window's calls arrive with `offTheRecord: true` and are refused unless the call says
+  `ardia::OffTheRecord::kAllow`: the engine alone decides which calls serve a private session; (2) `scripts/agent/engine-build`; (3) call it with
   `ArdiaEngineBridge call:` (`callWithSecret:` for secrets); for JS, add `"verb": EngineCall.passing("ac_<domain>_<verb>")`
   to the domain module's call table and its `"domain.verb": [args, result]` row to `packages/ardiacore/src/engine/api.ts`.
 - **The page script** is `packages/ardiacore/ios/page_script.js`, a pod resource: `ArdiaHostEngineDelegate.mm` hands it to the
@@ -239,6 +241,10 @@ Engine files are in `engine/ardiacore/src/ardia/core`, app files in `packages/ar
     key as AppKit dispatches it (Chrome's window, then the menu bar), `ac.shell.devTypeKeys("key", text, ms)` types
     into whatever window is key, and
     `node apps/browser/scripts/shortcuts-test.mjs <Debug app>` checks every shortcut in every focus.
+    `expo.modules.ArdiaDev.devMenuBar()` returns the whole menu bar (titles, keys, hidden, checked, enabled) to diff
+    a menu change before and after. The menu's titles and default keys live in `state/commands/commandCatalog.ts`;
+    after editing it, run `node apps/browser/scripts/command-tables.mjs` to regenerate `BrowserCommand` and
+    `packages/shell/ios/CommandTable.swift`.
   - Page content: `scripts/agent/ac page <data dir> <url part> '<expression>'`, or CDP on the instance's port
     (`http://localhost:<port>/json`, `Runtime.evaluate`, `Page.captureScreenshot`). A `ARDIA_BACKGROUND` instance's windows answer NO to
     `-[NSWindow isOccluded]` (`ArdiaHost+Launch.mm`), so a covered window shows a tab at once instead of after Chrome's 1 s
@@ -294,8 +300,10 @@ The only variables the app and engine read, through `ArdiaLaunchConfig` (`packag
 | | `safeStorageAnswer=start-over` | Answers the Safe Storage dialog with Start Over (background mode) |
 | | `reauth=granted` | Grants macOS re-auth requests in background mode (otherwise refused) |
 | | `bluetoothChooser` · `mediaRouteProvider` · `externalProtocolNoLaunch` · `systemMediaPermission=denied\|ask\|ask-slow` | Engine fakes: Bluetooth chooser events, a test Cast sink, external protocols recorded instead of opened, camera and microphone permission |
+| | `externalProtocolApp=<app path>` | With `externalProtocolNoLaunch`, the app that answers for a link no installed app opens (an `obsidian://` link without Obsidian), so its prompt and recorded launch can be tested |
 | | `applyProfileGate` | Applies the real-profile switch gate on the mock keychain too |
 | | `contextMenu` | Context menus dump to `<data dir>/context-menu.json` and take their pick from `….pick` |
+| | `appMenu` · `appDialog` | The app's own menus (`showMenu`) dump to `<data dir>/menu.json` and take their pick from `….pick` · `confirm` and `prompt` dump to `dialog.json` and take their answer from `….pick` |
 | | `pipSelfTest=close\|backToTab\|hover\|style` · `pipHover=close\|back` | PiP self-tests on the first PiP window (background mode), results in the data dir |
 | | `fakeFullScreenMs=<ms>` | Length of the acted-out full-screen transition |
 | | `shadersKeyWindow` | Metal views act as in the key window (the New Tab intro) |
@@ -304,6 +312,7 @@ The only variables the app and engine read, through `ArdiaLaunchConfig` (`packag
 | | `cliInstallScript=<path>` | Another `ardia` installer script |
 | | `legacySource=<home>` · `legacyCrashAfter=<step>` | The Netnyahoo → Ardia migration from a scratch home |
 | | `bangsUrl` · `onboarding` · `whatsNew` · `telemetry` · `liveMock=<url>` · `calendarFixture` | Debug builds only: bang list, run onboarding, show What's New, send telemetry, live folders from a mock, the calendar fixture |
+| | `loginsDelay=<profile\|account>:<ms>`, `loginsReleaseAfter=<profile\|account>`, `loginsTimeout=<s>` | Sync's password read (`ac_passwords_logins`): hold one store's answer, drop the read as a profile shutdown does once that store has answered, and the bridge's deadline (30 s otherwise) |
 | `ARDIA_PREWARM` | set | Not a setting: an older running app sets it on the staged update it prewarms, which then exits at once |
 
 `ARDIA_TEST` and `ARDIA_TRACE` count only in a test instance: a build that isn't signed for distribution (Debug and

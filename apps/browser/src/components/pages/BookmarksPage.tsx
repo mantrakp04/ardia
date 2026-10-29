@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, View } from "react-native";
 import { folderChildren, type RemovedBookmarks } from "../../state/bookmarks/bookmarks";
 import { useTab } from "../../state/browser/hooks";
 import { currentBookmarks } from "../../state/browser/current";
-import { useBookmarks } from "../../state/bookmarks/hooks";
+import { useBookmarkRoots, useBookmarks } from "../../state/bookmarks/hooks";
 import { plural } from "../../state/browser/model";
 import type { BookmarkNode, Bookmarks } from "../../state/browser/types";
 import { moveBookmark, openFolder, removeBookmarks, restoreBookmarks } from "../../state/bookmarks/actions";
@@ -24,7 +24,7 @@ export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: 
   const theme = useTheme();
   const colors = theme.dark ? pagesColors.dark : pagesColors.light;
   const windowId = useTab(tabId, (t) => t?.windowId ?? "");
-  const roots = useBookmarks((b) => b.roots[profileId]);
+  const roots = useBookmarkRoots(profileId);
   const [folderId, setFolderId] = useState<string | null>(roots?.bar ?? null);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
@@ -188,6 +188,7 @@ export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: 
                       setFolderId(folder);
                     }}
                     onDelete={() => remove(selected.includes(id) ? selected : [id])}
+                    menuSelection={() => ids.filter((x) => selected.includes(x))}
                     onDragStart={() => onDragStart(id)}
                     onDragMove={onDragMove}
                     onDragEnd={onDragEnd}

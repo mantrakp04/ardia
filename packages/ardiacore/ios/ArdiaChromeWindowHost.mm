@@ -162,6 +162,14 @@ NSView *ArdiaWindowRootView(NSWindow *window) {
   [ArdiaEarlyWindow rootEmbedded:root inWindow:window];
 }
 
++ (NSView *)embeddedRootOfWindow:(NSWindow *)window {
+  return [ArdiaCoreWindow embeddedRootOfWindow:window];
+}
+
++ (Class)contentViewClass {
+  return ArdiaCoreWindow.contentViewClass;
+}
+
 + (NSView *)rootViewOfWindow:(NSWindow *)window {
   return [ArdiaWindowController forNSWindow:window].root;
 }

@@ -1,9 +1,7 @@
 import AppKit
 import ArdiaCore
 import ExpoModulesCore
-import ArdiaImport
 import LocalAuthentication
-import Security
 
 public class SyncModule: Module {
   private let state = KeyState()
@@ -105,7 +103,12 @@ public class SyncModule: Module {
 
     AsyncFunction("read") { (folder: String, scope: String, known: [String]) throws -> [String: Any] in
       let vault = try self.vault(folder)
-      let listing = try vault.read(scope: scope, skipping: Set(known))
+      let listing: SyncVault.Listing
+      do {
+        listing = try vault.read(scope: scope, skipping: Set(known))
+      } catch {
+        throw Exception(name: "folderUnreadable", description: "The sync folder couldn't be read: \(error.localizedDescription)", code: "ERR_SYNC_FOLDER_UNREADABLE")
+      }
       var files: [[String: Any]] = []
       var damaged: [[String: Any]] = listing.damaged.map { ["id": $0.id, "age": $0.age * 1000] }
       for file in listing.files {
@@ -209,27 +212,13 @@ public class SyncModule: Module {
       NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path, isDirectory: true)])
     }.runOnQueue(.main)
 
-    AsyncFunction("readPasswords") { (engineProfile: String) -> [[String: Any]]? in
-      guard let keys = self.state.keys else { return nil }
-      do {
-        let key = ChromiumCrypto.deriveKey(secret: try Self.safeStorageSecret())
-        let result = try ChromiumSecrets.logins(profile: Self.profileDirectory(engineProfile), key: key)
-        if result.undecryptable > 0 {
-          NSLog("[sync] \(result.undecryptable) saved passwords didn't decrypt; not syncing passwords now")
-          return nil
+    AsyncFunction("readPasswords") { (engineProfile: String, promise: Promise) in
+      DispatchQueue.main.async {
+        ArdiaEngineBridge.callForSecretReply("ac_passwords_logins", profile: engineProfile, timeout: Self.loginsTimeout) { reply in
+          promise.resolve(self.sealedLogins(reply))
         }
-        return try result.items.compactMap { c -> [String: Any]? in
-          guard let origin = Self.loginOrigin(c.realm ?? c.url) else { return nil }
-          return ["origin": origin, "username": c.username, "sealed": try keys.sealPassword(c.password, origin: origin, username: c.username),
-                  "created": c.created ?? 0]
-        }
-      } catch ImportError.notFound(_) {
-        return []
-      } catch {
-        NSLog("[sync] reading passwords: \(error)")
-        return nil
       }
-    }.runOnQueue(Self.work)
+    }
 
     AsyncFunction("savePassword") { (engineProfile: String, origin: String, username: String, sealed: String, replacing: Bool, promise: Promise) in
       guard let keys = self.state.keys, let password = try? keys.openPassword(sealed, origin: origin, username: username) else {
@@ -265,6 +254,27 @@ public class SyncModule: Module {
         }
       }
     }
+  }
+
+  private func sealedLogins(_ reply: [String: Any]?) -> [[String: Any]]? {
+    guard let keys = state.keys else { return nil }
+    guard let logins = reply?["logins"] as? [[String: Any]] else {
+      NSLog("[sync] reading passwords: \(reply?["error"] ?? "no reply")")
+      return nil
+    }
+    var sealed: [[String: Any]] = []
+    var seen = Set<String>()
+    for login in logins {
+      guard let realm = login["realm"] as? String, let username = login["username"] as? String,
+            let password = login["password"] as? String, let created = login["created"] as? Double else {
+        NSLog("[sync] reading passwords: a malformed login; not syncing passwords now")
+        return nil
+      }
+      guard seen.insert("\(realm)\u{0}\(username)").inserted, let origin = Self.loginOrigin(realm) else { continue }
+      guard let seal = try? keys.sealPassword(password, origin: origin, username: username) else { return nil }
+      sealed.append(["origin": origin, "username": username, "sealed": seal, "created": created])
+    }
+    return sealed
   }
 
   static func loginOrigin(_ realm: String) -> String? {
@@ -343,29 +353,7 @@ public class SyncModule: Module {
 
   static let keyStore: SyncKeyStore = dataDirectory.map { FileKeyStore(directory: $0) } ?? KeychainKeyStore()
 
-  static func profileDirectory(_ engineProfile: String) -> URL {
-    let root = dataDirectory?.appendingPathComponent("Chromium", isDirectory: true)
-      ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-      .appendingPathComponent(Bundle.main.bundleIdentifier ?? "com.ardia.browser", isDirectory: true)
-      .appendingPathComponent("Chromium", isDirectory: true)
-    return root.appendingPathComponent(engineProfile.isEmpty ? "Default" : "Profile \(engineProfile)", isDirectory: true)
-  }
-
-  static func safeStorageSecret() throws -> Data {
-    if dataDirectory != nil || !isTeamSigned { return Data("mock_password".utf8) }
-    return try SafeStorageKeychain.secret(service: "Ardia Safe Storage", account: "Ardia")
-  }
-
-  static let isTeamSigned: Bool = {
-    var code: SecCode?
-    guard SecCodeCopySelf([], &code) == errSecSuccess, let code else { return false }
-    var staticCode: SecStaticCode?
-    guard SecCodeCopyStaticCode(code, [], &staticCode) == errSecSuccess, let staticCode else { return false }
-    var info: CFDictionary?
-    guard SecCodeCopySigningInformation(staticCode, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
-          let dict = info as? [String: Any] else { return false }
-    return dict[kSecCodeInfoTeamIdentifier as String] != nil
-  }()
+  static let loginsTimeout = LaunchConfig.shared.testValue("loginsTimeout").flatMap(TimeInterval.init) ?? 30
 }
 
 private final class KeyState {

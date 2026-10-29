@@ -74,7 +74,7 @@ export function ExtensionSidePanel() {
   );
 
   if (!shown) return null;
-  const room = width + layout.cardInset - 1;
+  const room = width + layout.cardInset;
   return (
     <Animated.View style={{ width: appear.interpolate({ inputRange: [0, 1], outputRange: [0, room] }), overflow: "hidden" }}>
       <Animated.View style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: width, opacity: appear }}>

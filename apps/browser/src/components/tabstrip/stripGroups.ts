@@ -1,4 +1,7 @@
+import type { StripDock, StripEntry, StripGroupEntry, StripMember } from "../../state/tabs/topStrip";
 import { spring } from "../ui/motion";
+import type { Dock, DropTarget } from "./model";
+import { DOCK_GAP, GAP, ITEM_HEIGHT, MAX_CHIP, MIN_CHIP, PINNED_CELL, PINNED_SPACING } from "./tokens";
 
 export const GROUP_MARGIN_LEFT = 3.5;
 export const GROUP_MARGIN_RIGHT = 4;
@@ -122,4 +125,76 @@ export function revealOffset(left: number, width: number, scrolled: number, view
 
 export function memberInteractive(shown: boolean, expanded: boolean, moving: boolean): boolean {
   return shown || (expanded && !moving);
+}
+
+export const holds = (m: StripMember, tabId: string) => (m.kind === "tab" ? m.id === tabId : m.tabIds.includes(tabId));
+export const tabsOf = (m: StripMember) => (m.kind === "tab" ? [m.id] : m.tabIds);
+export const units = (m: StripMember, activeId: string) => (m.kind === "split" ? Math.min(m.tabIds.length, 2) : m.kind === "folder" ? (holds(m, activeId) ? 1 : 0) : 1);
+export const CELL_STEP = PINNED_CELL + PINNED_SPACING;
+export const dockWidth = (cells: number) => cells * CELL_STEP - PINNED_SPACING;
+
+export type StripMeasures = { groupChip: (groupId: string) => number | undefined; folderChip: (groupId: string) => number | undefined };
+export type StripLayout = {
+  chip: number;
+  top: DragGeometry;
+  targets: (DropTarget | null)[];
+  memberWidth: (m: StripMember) => number;
+  spanOf: (tabId: string) => [number, number] | null;
+};
+
+const dockEntry = (entries: StripEntry[]) => entries.find((e): e is StripDock => e.kind === "dock");
+const dockTabs = (dock: StripDock, cell: string) => dock.members.get(cell) ?? [cell];
+const dockSpan = (dock: StripDock | undefined) => (dock?.ids.length ? dockWidth(dock.ids.length) + DOCK_GAP : 0);
+
+export function layoutDock(dock: StripDock | undefined): Dock | null {
+  if (!dock?.ids.length) return null;
+  return { ids: dock.ids, left: -dockSpan(dock), geometry: dragGeometry(dock.ids.map((id) => ({ tabIds: dockTabs(dock, id), width: PINNED_CELL })), PINNED_SPACING) };
+}
+
+export function layoutStrip(entries: StripEntry[], activeId: string, pageWidth: number, measured: StripMeasures, dockLayout: Dock | null): StripLayout {
+  const dock = dockEntry(entries);
+  const rows = entries.filter((e): e is StripGroupEntry | StripMember => e.kind !== "dock");
+  const groupChip = (g: StripGroupEntry) => measured.groupChip(g.id) ?? 0;
+  const folderChip = (m: StripMember) => measured.folderChip(m.id) ?? 0;
+  const visible = rows.flatMap((e) => (e.kind !== "group" ? [e] : e.collapsed ? e.members.filter((m) => holds(m, activeId)) : e.members));
+  const chip = stripTabWidth({
+    pageWidth,
+    dockWidth: dockSpan(dock),
+    groups: rows.flatMap((e) => (e.kind === "group" ? [{ chip: groupChip(e), expanded: !e.collapsed, shown: e.members.some((m) => holds(m, activeId)) }] : [])),
+    tabUnits: visible.reduce((n, m) => n + units(m, activeId), 0),
+    fixed: visible.reduce((n, m) => n + (m.kind === "folder" ? folderChip(m) + (holds(m, activeId) ? MEMBERS_INSET : GAP) : 0), 0),
+    gap: GAP,
+    plus: ITEM_HEIGHT,
+    min: MIN_CHIP,
+    max: MAX_CHIP,
+  });
+  const memberWidth = (m: StripMember) => (m.kind === "folder" ? folderChip(m) + (holds(m, activeId) ? MEMBERS_INSET + chip : 0) : chip * units(m, activeId));
+  const groups = new Map(
+    rows.flatMap((e) => {
+      if (e.kind !== "group") return [];
+      const widths = e.members.map(memberWidth);
+      return [[e, { widths, ...groupLayout(groupChip(e), widths, GAP, !e.collapsed, e.members.findIndex((m) => holds(m, activeId))) }] as const];
+    }),
+  );
+  const top = dragGeometry(
+    rows.map((e): DragSlot => {
+      if (e.kind !== "group") return { tabIds: tabsOf(e), width: chip * units(e, activeId) };
+      return { tabIds: e.members.flatMap(tabsOf), width: groups.get(e)!.width, marginLeft: GROUP_MARGIN_LEFT, marginRight: GROUP_MARGIN_RIGHT };
+    }),
+    GAP,
+  );
+  const targets = rows.map((e) => (e.kind === "split" || e.kind === "folder" ? null : { kind: e.kind, id: e.id }));
+  const spanOf = (tabId: string): [number, number] | null => {
+    const cell = dock && dockLayout ? dockCellOf(dock.ids, (id) => dockTabs(dock, id), tabId) : -1;
+    if (cell >= 0) return [dockLayout!.geometry.lefts[cell]!, PINNED_CELL];
+    const i = top.slots.findIndex((slot) => slot.tabIds.includes(tabId));
+    if (i < 0) return null;
+    const left = dockSpan(dock) + top.lefts[i]!;
+    const row = rows[i]!;
+    if (row.kind !== "group") return [left, top.slots[i]!.width];
+    const at = row.members.findIndex((m) => holds(m, tabId));
+    const { widths, offsets } = groups.get(row)!;
+    return [left + groupChip(row) + MEMBERS_INSET + (row.collapsed ? 0 : offsets[at]!), widths[at]!];
+  };
+  return { chip, top, targets, memberWidth, spanOf };
 }

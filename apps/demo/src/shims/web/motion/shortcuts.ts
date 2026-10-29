@@ -145,7 +145,7 @@ function onKeyDown(e: KeyboardEvent) {
   e.preventDefault();
   e.stopPropagation();
   if (shortcut.command === "tabSwitcher") switcher.holding = shortcut.mods.find((m) => m !== "shift") ?? null;
-  emitCommand({ command: shortcut.command, arg, windowId: useBrowser.getState().ui.focusedWindowId });
+  emitCommand({ command: shortcut.command, arg, windowId: useBrowser.getState().ui.focusOrder[0] ?? null });
 }
 
 function onKeyUp(e: KeyboardEvent) {
@@ -164,7 +164,7 @@ function onBlur() {
   emitAppEvent({ type: "switcherReleased" });
 }
 
-provideNativeModule("ArdiaShell", {
+provideNativeModule("ArdiaFocus", {
   setSwitcherCapture: async (active: boolean) => void (switcher.capturing = active),
 });
 

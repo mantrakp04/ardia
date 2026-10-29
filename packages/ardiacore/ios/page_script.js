@@ -203,8 +203,9 @@
       return setPositionState.apply(this, arguments);
     };
   }
+  const playableMedia = (all) => all.find((m) => m.currentSrc || m.srcObject || m.src || m.querySelector("source[src]")) || null;
   handlers.media = ({ action, seconds }) => {
-    const el = pickMedia();
+    const el = pickMedia() || playableMedia([...document.querySelectorAll("video,audio")]);
     const call = (name, details) => {
       const h = actions.get(name);
       if (!h) return false;
@@ -573,10 +574,12 @@
   let peekKey = null;
   let splitKey = null;
   let peekTrace = false;
+  let peekOtherSites = false;
   handlers.peekConfig = (config) => {
     peekKey = config && (config.modifier === "alt" || config.modifier === "shift") ? config.modifier : null;
     splitKey = config && (config.split === "alt" || config.split === "altShift") ? config.split : null;
     peekTrace = !!(config && config.trace);
+    peekOtherSites = !!(config && config.otherSites === true);
   };
   try {
     const getter = (proto, name) => {
@@ -600,14 +603,22 @@
     const getAttributeNS = Element.prototype.getAttributeNS;
     const test = RegExp.prototype.test;
     const includes = Array.prototype.includes;
+    const sliceText = String.prototype.slice;
     const { hypot } = Math;
     const URLCtor = URL;
     const SVG = "http://www.w3.org/2000/svg";
     const PRESS_SLOP = 5;
+    const MAX_SITE_PEEK_URL = 8192;
     const namespace = getter(Element.prototype, "namespaceURI");
     const timeStamp = getter(Event.prototype, "timeStamp");
     const persisted = getter(PageTransitionEvent.prototype, "persisted");
     const pageOrigin = location.origin;
+    const pageHost = location.hostname;
+    const pageIsWeb = apply(test, /^https?:$/, [location.protocol]);
+    const hostnameOf = getter(URL.prototype, "hostname");
+    const querySelector = Document.prototype.querySelector;
+    const selectionOf = Document.prototype.getSelection;
+    const collapsed = getter(Selection.prototype, "isCollapsed");
     const now = () => apply(dateNow, Date, []);
     const linkUrl = (el) => {
       const name = localName(el);
@@ -659,15 +670,38 @@
       if (key === "altShift" || key === "altMeta") return key;
       return key === "alt" && splitKey === "alt" ? key : null;
     };
-    const anyKey = () => !!(peekKey || splitKey);
-    const trace = (what, data) => peekTrace && send("peekTrace", { what, key: peekKey, split: splitKey, ...data });
+    const anyKey = () => !!(peekKey || splitKey || peekOtherSites);
+    const trace = (what, data) => peekTrace && send("peekTrace", { what, key: peekKey, split: splitKey, otherSites: peekOtherSites, ...data });
+    const plainPress = (e) => !altKey(e) && !shiftKey(e) && !metaKey(e) && !ctrlKey(e);
+    const siteKey = (e) => (peekOtherSites && isTop && pageIsWeb && plainPress(e) ? "site" : null);
+    const withoutWww = (host) => (apply(test, /^www\./i, [host]) ? apply(sliceText, host, [4]) : host);
+    const targetOf = (link) => {
+      const own = apply(getAttribute, link, ["target"]);
+      if (own !== null) return own;
+      const base = apply(querySelector, document, ["base[target]"]);
+      return base ? apply(getAttribute, base, ["target"]) || "" : "";
+    };
+    const replacesPage = (link) => apply(test, /^(_self|_top|_parent)?$/i, [targetOf(link)]);
+    const otherSite = (url) => withoutWww(hostnameOf(new URLCtor(url))) !== withoutWww(pageHost);
+    const selecting = () => {
+      const selection = apply(selectionOf, document, []);
+      return !!selection && !collapsed(selection);
+    };
     let press = null;
     let peeked = null;
     let sent = null;
     handlers.peekRefused = (refusal) => {
       const gesture = sent;
-      if (!gesture || !refusal || !refusal.download || refusal.url !== gesture.url || now() - gesture.at > 60000) return;
+      if (!gesture || !refusal || !(refusal.download || refusal.follow) || refusal.url !== gesture.url || now() - gesture.at > 60000) return;
       sent = null;
+      if (refusal.follow) {
+        trace("native refused, following the link as the click would have", { url: gesture.url, reason: refusal.reason });
+        if (namespace(gesture.link) === XHTML) return apply(clickElement, gesture.link, []);
+        const follow = apply(createElement, document, ["a"]);
+        apply(setAttribute, follow, ["href", gesture.url]);
+        apply(setAttribute, follow, ["target", "_self"]);
+        return apply(clickElement, follow, []);
+      }
       trace("native refused, downloading as the click would have", { url: gesture.url, reason: refusal.reason });
       const a = apply(createElement, document, ["a"]);
       apply(setAttribute, a, ["href", gesture.url]);
@@ -693,15 +727,19 @@
         const pressed = press;
         press = null;
         if (!pressed || !anyKey() || !e.isTrusted || button(e) !== 0) return;
-        const key = chosen(e);
+        const key = chosen(e) || siteKey(e);
         if (!key) return trace("other keys", { url: pressed.url, ...keys(e) });
         const hit = linkAt(e);
         const moved = hypot(clientX(e) - pressed.x, clientY(e) - pressed.y);
         if (!hit || hit.link !== pressed.link) return trace("released off the link", { url: pressed.url, moved });
         if (!peekable(hit)) return trace("the link changed during the press", { url: hit.url, moved });
         if (moved > PRESS_SLOP) return trace("moved too far", { url: hit.url, moved });
+        if (key === "site" && hit.url.length > MAX_SITE_PEEK_URL) return trace("the link is too long to hand over", { length: hit.url.length });
+        if (key === "site" && !replacesPage(hit.link)) return trace("the link opens elsewhere", { url: hit.url });
+        if (key === "site" && !otherSite(hit.url)) return trace("the link stays on this site", { url: hit.url });
+        if (key === "site" && selecting()) return trace("the click belongs to a selection", { url: hit.url });
         peeked = { link: hit.link, stamp: timeStamp(e) };
-        sent = { url: hit.url, at: now() };
+        sent = { url: hit.url, at: now(), link: hit.link };
         const scale = ratio(window);
         send("peek", { url: hit.url, key, origin: pageOrigin, x: clientX(e) * scale, y: clientY(e) * scale, moved });
       }),
@@ -795,8 +833,41 @@
     }
   } catch (e) {}
 
+  try {
+    const getterOf = (proto, name) => {
+      const get = Object.getOwnPropertyDescriptor(proto, name).get;
+      return (o) => apply(get, o, []);
+    };
+    const withCommand = getterOf(MouseEvent.prototype, "metaKey");
+    const cancelable = getterOf(Event.prototype, "cancelable");
+    const prevented = getterOf(Event.prototype, "defaultPrevented");
+    const deltaY = getterOf(WheelEvent.prototype, "deltaY");
+    const cancel = Event.prototype.preventDefault;
+    const listen = EventTarget.prototype.addEventListener;
+    const unlisten = EventTarget.prototype.removeEventListener;
+    const blocking = { passive: false };
+    let armed = false;
+    const disarm = () => {
+      if (!armed) return;
+      armed = false;
+      apply(unlisten, window, ["wheel", onCommandWheel, blocking]);
+    };
+    const onCommandWheel = guard((e) => {
+      if (!withCommand(e)) return disarm();
+      const handled = prevented(e) || !cancelable(e);
+      if (!handled) apply(cancel, e, []);
+      send("commandWheel", { handled, dy: deltaY(e) });
+    });
+    handlers.commandWheel = (message) => {
+      if (!(message && message.armed)) return disarm();
+      if (armed) return;
+      armed = true;
+      apply(listen, window, ["wheel", onCommandWheel, blocking]);
+    };
+  } catch (e) {}
+
   handlers.config = (config) => {
-    handlers.peekConfig({ modifier: config.peek, split: config.split, trace: config.peekTrace });
+    handlers.peekConfig({ modifier: config.peek, split: config.split, trace: config.peekTrace, otherSites: config.peekOtherSites });
     blockAutoplay = !!config.blockAutoplay;
     pipTrace = !!config.pipTrace;
     if (pipTrace && pipHandlerSet !== null)
@@ -885,18 +956,37 @@
     }
     return null;
   };
+  const fromHex = (value) => {
+    const n = parseInt(value.slice(1, 7), 16);
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255, a: 1 };
+  };
+  const relativeLuminance = (c) => {
+    const linear = (v) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+    return 0.2126 * linear(c.r) + 0.7152 * linear(c.g) + 0.0722 * linear(c.b);
+  };
+  const clearlyLight = (c) => relativeLuminance(c) >= 0.5;
+  const takesLightInk = (c) => {
+    const l = relativeLuminance(c) + 0.05;
+    return 1.05 / l >= l / 0.05;
+  };
   let lastTheme;
   let metaCache;
+  let lightMetaOnDarkPage = false;
   const cachedMetaColor = () => (metaCache === undefined ? (metaCache = metaColor(scheduleTheme)) : metaCache);
   const reportTheme = guard(() => {
     if (!document.documentElement) return;
-    let color = cachedMetaColor();
-    let source = color ? "meta" : null;
-    if (!color && document.body) {
+    const meta = cachedMetaColor();
+    let color = meta;
+    let source = meta ? "meta" : null;
+    lightMetaOnDarkPage = false;
+    if (document.body && (!meta || clearlyLight(fromHex(meta)))) {
       const page = pageBackground();
       const header = headerColor(page);
-      color = hex(header || page);
-      source = header ? "header" : "background";
+      lightMetaOnDarkPage = !!meta && takesLightInk(page);
+      if (!meta || (lightMetaOnDarkPage && (!header || takesLightInk(header)))) {
+        color = hex(header || page);
+        source = header ? "header" : "background";
+      }
     }
     const key = color + source;
     if (key === lastTheme) return;
@@ -951,7 +1041,7 @@
   let scrollSettle = 0;
   let scrollSettled = false;
   const sampleScroll = guard((settled) => {
-    if (!document.documentElement || cachedMetaColor()) return;
+    if (!document.documentElement || (cachedMetaColor() && !lightMetaOnDarkPage)) return;
     const past = window.scrollY > 4;
     const now = performance.now();
     if (!settled && past === scrolledPastTop && now - scrollSampledAt < 150) return;
@@ -972,7 +1062,7 @@
     );
   };
   const scrollTheme = () => {
-    if (metaCache) return;
+    if (metaCache && !lightMetaOnDarkPage) return;
     apply(clearTimer, window, [scrollSettle]);
     scrollSettle = after(() => {
       scrollSettled = true;

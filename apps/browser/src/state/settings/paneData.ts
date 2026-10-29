@@ -1,3 +1,4 @@
+import { useBrowser } from "../browser/store";
 import {
   engineInfo,
   listComponents,
@@ -6,14 +7,20 @@ import {
   currentAppIcon,
   isDefaultBrowser,
   launchAtLoginStatus,
+  setAppIcon,
+  setAsDefaultBrowser,
+  setAutomaticUpdateChecks,
+  setAutomaticUpdateDownloads,
+  setUpdateChannel,
   updaterState,
+  type UpdateChannel,
   type UpdaterState,
 } from "../../platform/app";
-import { getAutofillSettings, listAddresses, listCards, type SavedAddress, type SavedCard } from "../../platform/autofill";
+import { getAutofillSettings, listAddresses, listCards, setAutofillSettings, type SavedAddress, type SavedCard } from "../../platform/autofill";
 import { getContentBlocker } from "../../platform/contentBlocker";
-import { getDownloadSettings } from "../../platform/downloads";
+import { getDownloadSettings, setDownloadSettings, type DownloadSettings } from "../../platform/downloads";
 import { getExternalAppAllowances, getSiteSettingsOrigins, getZoomLevels } from "../../platform/siteSettings";
-import { getPasswordAutofill } from "../../platform/passwords";
+import { getPasswordAutofill, setPasswordAutofill } from "../../platform/passwords";
 import { orWarn } from "../../lib/fallback";
 import { menuShortcuts } from "../../platform/commands";
 import { setMenuBarShortcuts } from "../commands/commandShortcuts";
@@ -21,7 +28,7 @@ import { currentSettings } from "../browser/current";
 import { engineProfile } from "../browser/model";
 import { currentSyncFolder, folderInfo } from "../sync/engine";
 import { extensionsProfileId, refreshExtensions } from "../extensions/actions";
-import { load, loadAll, need, resource, useAllLoaded, type Needed } from "./resources";
+import { cached, load, loadAll, need, resource, store, useAllLoaded, type Needed } from "./resources";
 import type { SettingsPane } from "./settingsWindows";
 
 export const APP_ICON_SIZE = 56;
@@ -59,10 +66,10 @@ export const widevine = resource("widevine", () =>
   ),
 );
 
-const defaultProfile = () => engineProfile(currentSettings().defaultProfileId);
+const defaultProfile = () => engineProfile(useBrowser.getState(), currentSettings().defaultProfileId);
 
 export function paneNeeds(pane: SettingsPane, profileId: string | null): Needed[] {
-  const profile = profileId ? engineProfile(profileId) : defaultProfile();
+  const profile = profileId ? engineProfile(useBrowser.getState(), profileId) : defaultProfile();
   switch (pane) {
     case "general":
       return [need(loginItem), need(defaultBrowser), need(updater), need(downloadSettings, profile)];
@@ -77,7 +84,7 @@ export function paneNeeds(pane: SettingsPane, profileId: string | null): Needed[
     case "autofill":
       return [need(addresses, profile), need(cards, profile), need(autofillEnabled, profile)];
     case "extensions":
-      return [need(extensionList, engineProfile(extensionsProfileId(profileId)))];
+      return [need(extensionList, engineProfile(useBrowser.getState(), extensionsProfileId(profileId)))];
     case "shortcuts":
       return [need(shortcutItems)];
     case "advanced":
@@ -90,3 +97,34 @@ export function paneNeeds(pane: SettingsPane, profileId: string | null): Needed[
 export const usePaneLoaded = (pane: SettingsPane, profileId: string | null) => useAllLoaded(paneNeeds(pane, profileId));
 
 export const preparePane = (pane: SettingsPane, profileId: string | null) => loadAll(paneNeeds(pane, profileId));
+
+export async function setPasswordAutofillFor(profile: string, on: boolean) {
+  await setPasswordAutofill(on, profile);
+  store(passwordAutofill, [profile], on);
+}
+
+export async function setAutofillFor(profile: string, kind: "addresses" | "cards", on: boolean) {
+  await setAutofillSettings({ [kind]: on }, profile);
+  const enabled = cached(autofillEnabled, [profile]);
+  if (enabled) store(autofillEnabled, [profile], { ...enabled, [kind]: on });
+}
+
+export const setDownloadsFor = (patch: Partial<Pick<DownloadSettings, "folder" | "askWhereToSave">>, profiles: string[]) =>
+  Promise.all(profiles.map((p) => setDownloadSettings(patch, p).then((next) => store(downloadSettings, [p], next), orWarn(undefined))));
+
+export function setUpdaterPrefs(patch: { automaticChecks?: boolean; automaticDownloads?: boolean; channel?: UpdateChannel }) {
+  const state = cached(updater, []);
+  if (state) store(updater, [], { ...state, ...patch });
+  const reload = () => void load(updater, [], { fresh: true }).catch(() => {});
+  if (patch.automaticChecks !== undefined) void setAutomaticUpdateChecks(patch.automaticChecks).finally(reload);
+  if (patch.automaticDownloads !== undefined) void setAutomaticUpdateDownloads(patch.automaticDownloads).finally(reload);
+  if (patch.channel !== undefined) void setUpdateChannel(patch.channel).finally(reload);
+}
+
+export function chooseAppIcon(id: string) {
+  const choices = cached(appIconChoices, []);
+  if (choices) store(appIconChoices, [], { ...choices, current: id });
+  void setAppIcon(id);
+}
+
+export const makeDefaultBrowser = () => setAsDefaultBrowser().then((isDefault) => store(defaultBrowser, [], isDefault));

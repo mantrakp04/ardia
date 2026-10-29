@@ -14,8 +14,16 @@ public enum RecoveryKit {
   ]
   static let warning = "Keep this kit somewhere safe, like a password manager or a printed copy. Anyone with these words and your sync folder can read your synced data. Ardia can’t recover the words for you: there’s no server and no other copy."
 
+  static func createdDate(_ created: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_\(Locale.current.region?.identifier ?? "US")")
+    formatter.dateStyle = .long
+    formatter.timeStyle = .none
+    return formatter.string(from: created)
+  }
+
   public static func text(words: [String], created: Date, device: String) -> String {
-    let date = DateFormatter.localizedString(from: created, dateStyle: .long, timeStyle: .none)
+    let date = createdDate(created)
     var lines = ["Ardia Recovery Kit", "Created \(date) on \(device)", "", intro, ""]
     lines += steps.enumerated().map { "\($0 + 1). \($1)" }
     lines += ["", "Recovery phrase:", ""]
@@ -71,7 +79,7 @@ public enum RecoveryKit {
     }
 
     text("Ardia Recovery Kit", .boldSystemFont(ofSize: 26), ink, spacing: 4)
-    let date = DateFormatter.localizedString(from: created, dateStyle: .long, timeStyle: .none)
+    let date = createdDate(created)
     text("Created \(date) on \(device)", .systemFont(ofSize: 12), grey, spacing: 26)
     text(intro, .systemFont(ofSize: 13), ink, spacing: 10)
     for (i, step) in steps.enumerated() {

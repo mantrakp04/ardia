@@ -5,7 +5,6 @@
 #import "ArdiaStartup.h"
 #import "ArdiaTabParking.h"
 #import "ArdiaWebViewInternal.h"
-#import "ArdiaNotifications.h"
 
 #import <Security/Security.h>
 #import <objc/runtime.h>
@@ -22,7 +21,7 @@ using namespace ardia_host;
 
 - (void)engineDidStart {
   NSLog(@"[ardiacore] engine started (Chromium %@)", ArdiaCoreEngine.sharedEngine.chromiumVersion);
-  gStarted = YES;
+  ArdiaLaunchSequence.shared.engineRunning = YES;
   WatchReservedShortcuts();
   ardia_host::InstallActivationGuardsLate();
   if (gScratchDataDir && ardia_host::Background())
@@ -32,15 +31,13 @@ using namespace ardia_host;
   ardia_host::LoadContentBlocker(@"");
   [ArdiaWebView installScrollZoom];
   [ArdiaWebView installSwitchPrewarm];
-  [ArdiaWebView installOutgoingFocusSnapshots];
   [ArdiaServices watchDownloads:@""];
 
   NSBundle *bundle = [NSBundle bundleForClass:ArdiaHostEngineDelegate.class];
   NSString *path = [bundle pathForResource:@"page_script" ofType:@"js"];
   NSString *script = path ? [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:nil] : nil;
   if (script) engine.pageScript = script;
-  if (gAppKitDidFinish) StartEarlyWindow();
-  else gEarlyWindowPending = true;
+  [ArdiaLaunchSequence.shared reach:ArdiaLaunchEngineStarted];
 
   CFRunLoopObserverRef idle = CFRunLoopObserverCreateWithHandler(
       nullptr, kCFRunLoopBeforeWaiting, false, 0, ^(CFRunLoopObserverRef observer, CFRunLoopActivity) {
@@ -75,11 +72,18 @@ using namespace ardia_host;
   NSApp.delegate = gAppDelegate;
   gBootstrap = nil;
   NSNotification *note = [NSNotification notificationWithName:NSApplicationWillFinishLaunchingNotification object:NSApp];
-  if (gAppKitWillFinish && [gAppDelegate respondsToSelector:@selector(applicationWillFinishLaunching:)])
+  ArdiaLaunchSequence *launch = ArdiaLaunchSequence.shared;
+  if ([launch reached:ArdiaLaunchAppKitWillFinish] && [gAppDelegate respondsToSelector:@selector(applicationWillFinishLaunching:)])
     [gAppDelegate applicationWillFinishLaunching:note];
-  if (!gAppKitDidFinish) {
+  if (![launch reached:ArdiaLaunchAppKitDidFinish]) {
     NSLog(@"[ardiacore] app delegate %@ set before AppKit finished launching", NSStringFromClass([gAppDelegate class]));
-    gPendingLaunchURLs = launchURLs;
+    if (launchURLs.count)
+      [launch after:ArdiaLaunchAppKitDidFinish
+                 do:^{
+                   dispatch_async(dispatch_get_main_queue(), ^{
+                     if ([gAppDelegate respondsToSelector:@selector(application:openURLs:)]) [gAppDelegate application:NSApp openURLs:launchURLs];
+                   });
+                 }];
     return;
   }
   note = [NSNotification notificationWithName:NSApplicationDidFinishLaunchingNotification object:NSApp];
@@ -91,12 +95,12 @@ using namespace ardia_host;
 }
 
 - (void)engineWillShutDown {
-  gStarted = NO;
+  [ArdiaLaunchSequence.shared engineShutDown];
 }
 
 - (void)engineQuitCancelled {
   NSLog(@"[ardiacore] quit cancelled");
-  [NSNotificationCenter.defaultCenter postNotificationName:ArdiaQuitCancelledNotification object:nil];
+  if (ArdiaHost.quitCancelledHandler) ArdiaHost.quitCancelledHandler();
 }
 
 - (void)engine:(ArdiaCoreEngine *)engine permissionRequest:(NSDictionary *)request tab:(ArdiaCoreTab *)tab {
@@ -166,12 +170,19 @@ using namespace ardia_host;
   return YES;
 }
 
-- (void)engine:(ArdiaCoreEngine *)engine extensionInstallPrompt:(NSDictionary *)prompt tab:(ArdiaCoreTab *)tab {
+- (void)engine:(ArdiaCoreEngine *)engine
+    extensionInstallPrompt:(NSDictionary *)prompt
+                   profile:(ArdiaCoreProfile *)profile
+                       tab:(ArdiaCoreTab *)tab {
   NSMutableDictionary *payload = [prompt mutableCopy];
   payload[@"tabId"] = ardia_host::AppTabIdValue(tab);
-  if ([prompt[@"profile"] isKindOfClass:NSString.class]) payload[@"profile"] = ardia_host::ProfileNameOfDirectory(prompt[@"profile"]);
+  payload[@"profile"] = ardia_host::ProfileName(profile);
   gInstallPrompts[payload[@"requestId"] ?: @""] = payload;
   [ArdiaEvents emit:@"extensions.installPrompt" data:payload];
+}
+
+- (void)engine:(ArdiaCoreEngine *)engine extensionInstallFailed:(NSString *)message tab:(ArdiaCoreTab *)tab {
+  [ArdiaEvents emit:@"extensions.installFailed" data:@{@"message" : message ?: @"", @"tabId" : ardia_host::AppTabIdValue(tab)}];
 }
 
 - (void)engine:(ArdiaCoreEngine *)engine permissionRequestDismissed:(NSString *)requestId {

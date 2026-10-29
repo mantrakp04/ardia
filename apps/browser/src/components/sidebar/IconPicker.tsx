@@ -6,7 +6,8 @@ import { useLive } from "../../state/live/store";
 import { setIcon } from "../../state/sidebar/actions";
 import { setSidebarUi, useSidebarUi } from "../../state/sidebar/sidebarUi";
 import { useIconPickerCurrent } from "../../state/sidebar/hooks";
-import { NO_GROUP_ICON, SYMBOL_PREFIX } from "../../state/groups/groupIcons";
+import { NO_GROUP_ICON } from "../../state/groups/groupIcons";
+import { iconSymbol, symbolIcon } from "../../lib/customIcon";
 import { SIDEBAR_SHADOW, SIDEBAR_TYPE, useSidebarTokens } from "./tokens";
 
 const EMOJI: [string, string][] = [
@@ -56,13 +57,13 @@ function PickerPanel({ picker, sidebarWidth }: { picker: Picker; sidebarWidth: n
   const tokens = useSidebarTokens();
   const liveIcon = useLive((s) => (picker.kind === "live" ? s.folders[picker.id.split("|")[1] ?? ""]?.icon : null));
   const current = useIconPickerCurrent(picker.kind, picker.id, liveIcon);
-  const [tab, setTab] = useState<"emoji" | "symbols">(current?.startsWith(SYMBOL_PREFIX) ? "symbols" : "emoji");
+  const [tab, setTab] = useState<"emoji" | "symbols">(iconSymbol(current) ? "symbols" : "emoji");
   const [query, setQuery] = useState("");
   const items = useMemo(() => {
     const q = query.trim().toLowerCase();
     return tab === "emoji"
       ? EMOJI.filter(([, words]) => !q || words.includes(q)).map(([e]) => e)
-      : SYMBOLS.filter((name) => !q || name.includes(q)).map((name) => SYMBOL_PREFIX + name);
+      : SYMBOLS.filter((name) => !q || name.includes(q)).map(symbolIcon);
   }, [tab, query]);
   const close = () => setSidebarUi({ iconPicker: null });
   const choose = (icon: string | null) => {
@@ -158,6 +159,7 @@ function Cell({ icon, selected, onPress }: { icon: string; selected: boolean; on
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const [hovered, setHovered] = useState(false);
+  const symbol = iconSymbol(icon);
   return (
     <Pressable onPress={onPress}>
       <View
@@ -172,8 +174,8 @@ function Cell({ icon, selected, onPress }: { icon: string; selected: boolean; on
           backgroundColor: hovered || selected ? tokens.pickerCellHover : undefined,
         }}
       >
-        {icon.startsWith(SYMBOL_PREFIX) ? (
-          <Symbol name={icon.slice(SYMBOL_PREFIX.length)} size={15} color={theme.icon} style={{ width: 20, height: 20 }} />
+        {symbol ? (
+          <Symbol name={symbol} size={15} color={theme.icon} style={{ width: 20, height: 20 }} />
         ) : (
           <Text style={{ fontSize: SIDEBAR_TYPE.emoji }}>{icon}</Text>
         )}

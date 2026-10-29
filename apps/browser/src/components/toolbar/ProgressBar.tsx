@@ -2,13 +2,14 @@ import { memo, useEffect, useRef } from "react";
 import { Animated } from "react-native";
 import { usePageProgress } from "../../state/tabs/pageProgress";
 import { curve } from "../ui/motion";
+import { space } from "../ui/tokens";
 import { TOOLBAR_MOTION } from "./tokens";
 
-export const TabProgressBar = memo(function TabProgressBar({ tabId, color }: { tabId: string; color: string }) {
-  return <ProgressBar progress={usePageProgress(tabId)} color={color} />;
+export const TabProgressBar = memo(function TabProgressBar({ tabId, color, inset }: { tabId: string; color: string; inset?: boolean }) {
+  return <ProgressBar progress={usePageProgress(tabId)} color={color} inset={inset} />;
 });
 
-export function ProgressBar({ progress, color }: { progress: number; color: string }) {
+export function ProgressBar({ progress, color, inset = false }: { progress: number; color: string; inset?: boolean }) {
   const width = useRef(new Animated.Value(Math.max(progress, 0.08))).current;
   const shownFor = useRef(Math.max(progress, 0.08));
   useEffect(() => {
@@ -21,10 +22,11 @@ export function ProgressBar({ progress, color }: { progress: number; color: stri
     <Animated.View
       style={{
         position: "absolute",
-        left: 0,
+        left: inset ? space.m : 0,
         bottom: 0,
         height: 1.5,
-        width: width.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }),
+        borderRadius: inset ? 1 : 0,
+        width: width.interpolate({ inputRange: [0, 1], outputRange: ["0%", inset ? "96%" : "100%"] }),
         backgroundColor: color,
         opacity: 0.85,
       }}

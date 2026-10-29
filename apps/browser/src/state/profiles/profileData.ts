@@ -1,6 +1,6 @@
 import { deleteProfileData } from "../../platform/profiles";
 import { useBrowser } from "../browser/store";
-import { engineIdOf } from "./profiles";
+import { engineProfile } from "../browser/model";
 
 export { clearBrowsingData, type BrowsingDataType } from "../../platform/profiles";
 
@@ -9,7 +9,10 @@ const CLOSE_DELAY_MS = 1500;
 const failed = new Set<string>();
 let running = false;
 
-const inUse = (engine: string) => Object.values(useBrowser.getState().profiles).some((p) => engineIdOf(p) === engine);
+const inUse = (engine: string) => {
+  const s = useBrowser.getState();
+  return Object.keys(s.profiles).some((id) => engineProfile(s, id) === engine);
+};
 
 async function drain() {
   if (running) return;

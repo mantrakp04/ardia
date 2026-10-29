@@ -4,10 +4,12 @@ import { useBrowser } from "../browser/store";
 import { changedIds } from "../browser/changes";
 import { earlyLaunchTabOn, launchTab } from "./launchTab";
 import { engineProfile } from "../browser/model";
-import { hasPage } from "./pageSession";
+import { hasPage, navigationOf } from "./pageSession";
 import { tabEngine } from "../engines/engines";
 import type { Tab } from "../browser/types";
-import { issuedSeq, webviews } from "../../platform/webviews";
+import { webviews } from "../../platform/webviews";
+import { issuedSeq } from "./earlyNavigate";
+import { focusedWindowOf } from "../windows/ui";
 
 export const wantsPage = (t: Tab | undefined): t is Tab => !!t && hasPage(t) && !isInternalTab(t);
 
@@ -41,8 +43,8 @@ export function startTabPages() {
     for (const id of changedIds(s.tabs, prev.tabs)) {
       const tab = s.tabs[id];
       const before = prev.tabs[id];
-      const profile = tab && engineProfile(tab.profileId);
-      if (tab && before && tab.windowId !== before.windowId && webviews.has(id) && profile === engineProfile(before.profileId)) handOff(id, profile!, tabEngine(s, id));
+      const profile = tab && engineProfile(s, tab.profileId);
+      if (tab && before && tab.windowId !== before.windowId && webviews.has(id) && profile === engineProfile(s, before.profileId)) handOff(id, profile!, tabEngine(s, id));
       const kept = handedOff.get(id);
       if (kept !== undefined && !(wantsPage(tab) && profile === kept)) {
         handedOff.delete(id);
@@ -55,12 +57,12 @@ export function startTabPages() {
 
 function claimLaunch() {
   const s = useBrowser.getState();
-  const launch = earlyLaunchTabOn() ? launchTab(s, s.ui.focusedWindowId) : null;
+  const launch = earlyLaunchTabOn() ? launchTab(s, focusedWindowOf(s)) : null;
   const tab = launch ? s.tabs[launch.id] : undefined;
-  const kept = launch && wantsPage(tab) && tab.navigation?.url === launch.url && tabEngine(s, launch.id) === "chromium" ? launch : null;
+  const kept = launch && wantsPage(tab) && navigationOf(tab)?.url === launch.url && tabEngine(s, launch.id) === "chromium" ? launch : null;
   if (kept) {
     handedOff.set(kept.id, kept.profile);
-    handoffs.set(kept.id, { seq: tab?.navigation?.seq, engine: "chromium" });
+    handoffs.set(kept.id, { seq: navigationOf(tab)?.seq, engine: "chromium" });
   }
   claimLaunchTab(kept?.id ?? "", kept?.url ?? "", kept?.profile ?? "");
 }

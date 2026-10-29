@@ -2,14 +2,11 @@ import ExpoModulesCore
 
 public class HistoryModule: Module {
   public func definition() -> ModuleDefinition {
-    Name("ArdiaHistory")
-    Events("history")
+    Name(Self.calls.moduleName)
+    Events(Self.calls.domain)
+    Self.calls.forwardEvents(to: self)
 
-    OnCreate { EngineCall.listen("history", self) }
-
-    AsyncFunction("call") { (name: String, profile: String, args: String, promise: Promise) in
-      HistoryModule.calls.run(name, profile, args, promise)
-    }.runOnQueue(.main)
+    Self.calls.function
   }
 
   static let calls = CallTable(domain: "history", handlers: [

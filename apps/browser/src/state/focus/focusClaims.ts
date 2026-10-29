@@ -1,20 +1,12 @@
+import { cancelFocusMove, claimFocus } from "../../platform/focus";
+
 type Running = { generation: number; windowId: string; source: string | undefined; expects: boolean };
 type Awaiting = { generation: number; source: string | undefined; destinations: Set<string>; claimed: boolean };
 
 let running: Running | null = null;
-let sendClaim: ((generation: number, tag: number) => void) | null = null;
-let sendCancel: ((generation: number, restoringSource: boolean) => void) | null = null;
 const awaiting = new Map<string, Awaiting>();
 const CLAIM_TRIES = 20;
 const CLAIM_RETRY_MS = 50;
-
-export function setFocusSenders(
-  claim: (generation: number, tag: number) => void,
-  cancel: (generation: number, restoringSource: boolean) => void,
-) {
-  sendClaim = claim;
-  sendCancel = cancel;
-}
 
 export function runFocusMove(generation: number, windowId: string, source: string | undefined, run: () => void): boolean {
   const outer = running;
@@ -48,7 +40,7 @@ export function claimFocusTag(windowId: string, destination: string, tagOf: () =
     }
     request.claimed = true;
     request.destinations = new Set([destination]);
-    sendClaim?.(request.generation, tag);
+    claimFocus(request.generation, tag);
   };
   setTimeout(() => attempt(CLAIM_TRIES), 0);
 }
@@ -60,7 +52,7 @@ export function cancelAbandonedFocus(
   for (const [windowId, request] of awaiting) {
     if (running?.windowId === windowId || [...request.destinations].some((d) => stillPossible(windowId, d))) continue;
     awaiting.delete(windowId);
-    sendCancel?.(request.generation, request.source !== undefined && shownTab(windowId) === request.source);
+    cancelFocusMove(request.generation, request.source !== undefined && shownTab(windowId) === request.source);
   }
 }
 

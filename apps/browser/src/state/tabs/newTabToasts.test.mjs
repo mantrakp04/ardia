@@ -68,11 +68,11 @@ test("the default clock invokes global timers with their global receiver", () =>
       time.clear(timer);
     };
     q = createNewTabToasts();
-    q.add({ id: "a", windowId: "w", profileId: "p" });
+    q.add({ id: "a", windowId: "w", profileId: "p", page: { kind: "idle" } });
     q.present("a");
     time.advance(5000);
     assert.deepEqual(q.useStore.getState().items, []);
-    q.add({ id: "b", windowId: "w", profileId: "p" });
+    q.add({ id: "b", windowId: "w", profileId: "p", page: { kind: "idle" } });
     q.present("b");
     q.remove("b");
     assert.equal(time.jobs.size, 0);
@@ -103,10 +103,10 @@ test("a manually reopened window announces its restored page without announcing 
   assert.ok(S().parkedPins.default.tabs.some((t) => t.id === pin));
   assert.deepEqual(notices(), []);
   S().reopenClosedWindow();
-  assert.equal(S().tabs[pin].unloaded, true);
+  assert.equal(S().tabs[pin].page.kind, "asleep");
   assert.equal(notices().length, 1);
   assert.equal(S().tabs[notices()[0].tabId].url, "https://example.com/");
-  assert.ok(notices().every((t) => !S().tabs[t.tabId].unloaded));
+  assert.ok(notices().every((t) => S().tabs[t.tabId].page.kind !== "asleep"));
   newTabToasts.add(S().tabs[pin]);
   assert.equal(notices().length, 1);
 });
@@ -172,7 +172,7 @@ test("imported tabs and extension-store import openings do not announce user-cre
 });
 
 test("Little Ardia redirects a user-created tab to a new main window and announces it once", () => {
-  const little = S().createWindow({ small: true, url: "https://example.com/" });
+  const little = S().createWindow({ kind: "small", url: "https://example.com/" });
   const id = S().newTab(little, { url: "https://example.org/", background: true });
   assert.ok(S().tabs[id]);
   assert.notEqual(S().tabs[id].windowId, little);
@@ -210,10 +210,10 @@ test("each notice expires five seconds from its first appearance without restart
   const time = fakeTime();
   const q = createNewTabToasts(time);
   const items = () => q.useStore.getState().items;
-  q.add({ id: "a", windowId: "w", profileId: "p" });
+  q.add({ id: "a", windowId: "w", profileId: "p", page: { kind: "idle" } });
   q.present("a");
   time.advance(2000);
-  q.add({ id: "b", windowId: "w", profileId: "p" });
+  q.add({ id: "b", windowId: "w", profileId: "p", page: { kind: "idle" } });
   q.present("b");
   q.present("a");
   time.advance(2820);
@@ -229,8 +229,8 @@ test("each notice expires five seconds from its first appearance without restart
 test("overflow, an obscuring pane and another profile defer the first appearance without losing queued notices", () => {
   const time = fakeTime();
   const q = createNewTabToasts(time);
-  for (const id of ["a", "b", "c"]) q.add({ id, windowId: "w", profileId: "p" });
-  q.add({ id: "other", windowId: "other", profileId: "p" });
+  for (const id of ["a", "b", "c"]) q.add({ id, windowId: "w", profileId: "p", page: { kind: "idle" } });
+  q.add({ id: "other", windowId: "other", profileId: "p", page: { kind: "idle" } });
   const items = () => q.useStore.getState().items;
   assert.equal(newTabToastCapacity(0), 0);
   assert.deepEqual(visibleNewTabToasts(items(), "w", "p", 100, true), []);
@@ -299,7 +299,7 @@ test("closing windows, unloading pinned tabs and disposing queues clean their in
   q.prune(S());
   assert.deepEqual(q.useStore.getState().items, []);
   assert.equal(time.jobs.size, 0);
-  q.add({ id: "c", windowId: "w", profileId: "p" });
+  q.add({ id: "c", windowId: "w", profileId: "p", page: { kind: "idle" } });
   q.present("c");
   q.clear();
   time.advance(10000);

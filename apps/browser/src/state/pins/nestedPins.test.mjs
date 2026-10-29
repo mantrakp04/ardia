@@ -14,7 +14,7 @@ const path = (g) => (g.parentId && S().groups[g.parentId] ? `${path(S().groups[g
 const pinnedArea = (w) =>
   model.viewTabIds(S(), w).filter((id) => model.inPinnedContainer(S(), id)).map((id) => {
     const t = S().tabs[id];
-    if (t.pinned) return `${t.pinnedAsRow ? "row" : "tile"}:${host(id)}`;
+    if (!!t.pin) return `${(t.pin?.as === "row") ? "row" : "tile"}:${host(id)}`;
     return `${path(innermost(id))}:${host(id)}`;
   });
 

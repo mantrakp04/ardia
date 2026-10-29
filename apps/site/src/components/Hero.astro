@@ -37,17 +37,17 @@ const posterTones = HERO_POSTERS.map(({ media, tones, sky, headerHalo }) => ({ m
     <div class="hero-text">
       <h1 class="poster hero-title">
         <span class="visually-hidden">Ardia, the sidebar browser for Mac: </span>
-        <span class="line"><span>Touch</span></span>{" "}
-        <span class="line"><span>grass.</span></span>
+        <span class="line"><span data-meadow-keep-out="title">Touch</span></span>{" "}
+        <span class="line"><span data-meadow-keep-out="title">grass.</span></span>
       </h1>
-      <p class="lede" data-reveal style="--i: 2">
+      <p class="lede" data-reveal data-meadow-keep-out="copy" style="--i: 2">
         Arc’s sidebar and Dia’s polish on real Chromium. Free and open source. Ads and trackers stay out.
       </p>
-      <p class="label welcome not-phone" data-welcome hidden>Sent from your phone. Here it is.</p>
+      <p class="label welcome not-phone" data-welcome data-meadow-keep-out="copy" hidden>Sent from your phone. Here it is.</p>
       <div data-reveal style="--i: 3">
         <SendToMac location="hero" main />
       </div>
-      <div class="cta-row" data-reveal style="--i: 3">
+      <div class="cta-row" data-reveal data-meadow-keep-out="row" style="--i: 3">
         <DownloadButton location="hero" class="not-phone" />
         <DownloadButton location="hero" class="not-phone" nightly label="Nightly" meta="Wet paint" />
         <a

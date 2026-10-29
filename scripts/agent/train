@@ -95,16 +95,21 @@ def build_once(n, config, who):
                        capture_output=True, text=True, cwd=REPO)
     text = p.stdout + p.stderr
     log = f"{REPO}/apps/browser/build-train/build-app.log"
-    rec.update(done=True, ok=p.returncode == 0, log=log, seconds=round(time.time() - started))
-    if p.returncode == 0:
-        m = re.findall(r"(/\S+?\.app)\b", text)
-        src = m[-1] if m else None
-        dst = f"{OUT}/{n:04d}-{config}/Ardia.app"
+    apps = re.findall(r"^app: (/.+\.app)$", p.stdout, re.M)
+    dst = f"{OUT}/{n:04d}-{config}/Ardia.app"
+    ok = p.returncode == 0 and len(apps) == 1
+    if ok:
         os.makedirs(os.path.dirname(dst), exist_ok=True)
-        subprocess.run(["cp", "-cR", src, dst], check=False)
+        copy = subprocess.run(["cp", "-cR", apps[0], dst], capture_output=True, text=True)
+        ok = copy.returncode == 0
+        text += copy.stderr
+    elif p.returncode == 0:
+        text += "\ntrain: build-app succeeded but printed no single `app: <path>` line"
+    rec.update(done=True, ok=ok, log=log, seconds=round(time.time() - started))
+    if ok:
         rec["app"] = dst
     else:
-        rec["errors"] = "\n".join(l for l in text.splitlines() if "error" in l.lower())[-4000:]
+        rec["errors"] = text[-4000:]
     json.dump(rec, open(f"{BUILDS}/{n:04d}-{config}.json", "w"))
     outs = sorted((d for d in os.listdir(OUT) if d.endswith(config)), key=lambda d: os.path.getmtime(f"{OUT}/{d}")) if os.path.isdir(OUT) else []
     for d in outs[:-4]:

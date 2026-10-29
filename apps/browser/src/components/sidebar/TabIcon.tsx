@@ -7,7 +7,8 @@ import { sidebarTokens } from "./tokens";
 import { useTab } from "../../state/browser/hooks";
 import { ENGINE_NAMES, ENGINE_SYMBOLS, type PageEngine } from "../../state/engines/engines";
 import { FADED, markedEngine, useIconMarks } from "../../state/sidebar/rowState";
-import { NO_GROUP_ICON, SYMBOL_PREFIX } from "../../state/groups/groupIcons";
+import { NO_GROUP_ICON } from "../../state/groups/groupIcons";
+import { iconSymbol } from "../../lib/customIcon";
 import { Favicon } from "../favicon/Favicon";
 
 export const TabIcon = memo(function TabIcon({
@@ -92,9 +93,10 @@ function Icon({
   direct?: boolean;
 }) {
   const theme = useTheme();
-  if (icon?.startsWith(SYMBOL_PREFIX)) {
+  const symbol = iconSymbol(icon);
+  if (symbol) {
     const ink = icon === NO_GROUP_ICON ? sidebarTokens(theme).noGroupIcon : theme.icon;
-    return <Symbol name={icon.slice(SYMBOL_PREFIX.length)} size={size - 3} weight="medium" color={color ?? ink} style={{ width: size, height: size }} />;
+    return <Symbol name={symbol} size={size - 3} weight="medium" color={color ?? ink} style={{ width: size, height: size }} />;
   }
   if (icon) {
     return (

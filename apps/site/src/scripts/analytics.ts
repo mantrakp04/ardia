@@ -1,8 +1,14 @@
-import { track, type Props } from "./track";
+import { capture, type Props } from "./telemetry";
+import { KEYS, firstThisSession } from "./storage";
+import { SENT_REFS } from "../data/release";
+import type { SiteEvent } from "../data/telemetry";
+
+const root = document.documentElement;
 
 function onTrackedClick(e: MouseEvent) {
   const el = (e.target as Element | null)?.closest<HTMLElement>("[data-track]");
   if (!el) return;
+  if (root.dataset.device === "phone" && el.hasAttribute("data-download")) return;
   const props: Props = {};
   for (const [k, v] of Object.entries(el.dataset)) {
     if (k.startsWith("track") && k !== "track" && v !== undefined) {
@@ -11,7 +17,7 @@ function onTrackedClick(e: MouseEvent) {
     }
   }
   const leaves = el instanceof HTMLAnchorElement && el.origin !== location.origin && !el.hasAttribute("download");
-  track(el.dataset.track!, props, leaves ? { send_instantly: true } : undefined);
+  capture(el.dataset.track as SiteEvent, props, leaves ? { send_instantly: true } : undefined);
 }
 document.addEventListener("click", onTrackedClick, { capture: true });
 
@@ -22,7 +28,7 @@ if (sections.length) {
       for (const e of entries) {
         if (!e.isIntersecting) continue;
         seen.unobserve(e.target);
-        track("section_viewed", { section: (e.target as HTMLElement).dataset.shot ?? null });
+        capture("section_viewed", { section: (e.target as HTMLElement).dataset.shot ?? null });
       }
     },
     { threshold: 0.35 },
@@ -30,22 +36,8 @@ if (sections.length) {
   for (const s of sections) seen.observe(s);
 }
 
-const sentRef = new URLSearchParams(location.search).get("ref");
-if (sentRef === "mac" || sentRef === "share" || sentRef === "email") {
-  let seen = false;
-  try {
-    seen = sessionStorage.getItem("ac:mac_link_visit") === "1";
-    sessionStorage.setItem("ac:mac_link_visit", "1");
-  } catch {}
-  if (!seen) track("mac_link_visit", { ref: sentRef, device: document.documentElement.dataset.device ?? null });
-}
+const sentRef = SENT_REFS.find((ref) => ref === new URLSearchParams(location.search).get("ref"));
+if (sentRef && firstThisSession(KEYS.macLinkVisit)) capture("mac_link_visit", { ref: sentRef, device: root.dataset.device ?? null });
 
-const { device, os } = document.documentElement.dataset;
-if (device === "other") {
-  let seen = false;
-  try {
-    seen = sessionStorage.getItem("ac:non_mac_visit") === "1";
-    sessionStorage.setItem("ac:non_mac_visit", "1");
-  } catch {}
-  if (!seen) track("non_mac_visit", { os: os ?? null });
-}
+const { device, os } = root.dataset;
+if (device === "other" && firstThisSession(KEYS.nonMacVisit)) capture("non_mac_visit", { os: os ?? null });

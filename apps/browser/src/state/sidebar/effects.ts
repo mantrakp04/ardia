@@ -1,15 +1,15 @@
 import { onAppEvent } from "../../platform/app";
 import { onWindowEvent } from "../../platform/windows";
-import { everySlowly } from "../../platform/slowTimers";
 import { webviews } from "../../platform/webviews";
 import { startLive } from "../live";
+import { startAutoCleanUp } from "../pins/autoCleanUp";
 import { useBrowser } from "../browser/store";
 import { changedIds } from "../browser/changes";
+import { isSilenced } from "../tabs/mute";
 import { dismissHover } from "../sidebar/hover";
 import { sidebarUi } from "../sidebar/sidebarUi";
 import { cancelSwitcher, commitSwitcher, moveSwitcher } from "../sidebar/switcher";
 
-const AUTO_CLEAN_EVERY_MS = 30 * 60 * 1000;
 let started = false;
 
 export function startSidebarEffects() {
@@ -20,9 +20,13 @@ export function startSidebarEffects() {
   useBrowser.subscribe((s, prev) => {
     const switcher = sidebarUi().switcher;
     if (switcher && s.windows !== prev.windows && !s.windows[switcher.windowId]) cancelSwitcher();
-    for (const id of changedIds(s.tabs, prev.tabs)) {
-      const muted = s.tabs[id]?.muted;
-      if (muted !== undefined && prev.tabs[id] && prev.tabs[id]!.muted !== muted) void webviews.get(id)?.setMuted(muted);
+    const sitesChanged = s.settings.mutedSites !== prev.settings.mutedSites || s.privateSiteMutes !== prev.privateSiteMutes;
+    for (const id of sitesChanged ? Object.keys(s.tabs) : changedIds(s.tabs, prev.tabs)) {
+      const tab = s.tabs[id];
+      const was = prev.tabs[id];
+      if (!tab || !was || (!sitesChanged && tab.url === was.url && tab.muted === was.muted)) continue;
+      const silenced = isSilenced(s, tab);
+      if (silenced !== isSilenced(prev, was)) void webviews.get(id)?.setMuted(silenced);
     }
   });
 
@@ -41,13 +45,5 @@ export function startSidebarEffects() {
     if (e.type === "focus" && hover && hover.windowId !== e.id) dismissHover();
   });
 
-  everySlowly({
-    every: AUTO_CLEAN_EVERY_MS,
-    run: () => {
-      const s = useBrowser.getState();
-      const hours = s.settings.cleanUpInactiveTabsAfterHours;
-      if (hours === null) return;
-      for (const id of s.windowOrder) s.cleanUpTabs(id, { inactiveForMs: hours * 3_600_000 });
-    },
-  });
+  startAutoCleanUp();
 }

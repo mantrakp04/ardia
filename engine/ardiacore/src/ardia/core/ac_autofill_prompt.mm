@@ -21,7 +21,6 @@
 #include "chrome/browser/ui/autofill/payments/save_card_ui.h"
 #include "chrome/browser/ui/autofill/save_address_bubble_controller.h"
 #include "chrome/browser/ui/autofill/update_address_bubble_controller.h"
-#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "components/autofill/core/browser/data_model/addresses/autofill_profile.h"
 #include "components/autofill/core/browser/data_model/addresses/autofill_profile_comparator.h"
 #include "components/autofill/core/browser/data_model/payments/credit_card.h"
@@ -151,9 +150,7 @@ class Prompt : public autofill::AutofillBubbleBase {
     if (!contents_) {
       return;
     }
-    BrowserWindowInterface* browser =
-        GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(contents_.get());
-    WindowHost* host = browser ? WindowHost::ForBrowser(browser) : nullptr;
+    WindowHost* host = WindowHost::ForContents(contents_.get());
     ArdiaCoreWindow* owner = host ? host->owner() : nil;
     id<ArdiaCoreWindowDelegate> delegate = owner.delegate;
     TabBridge* bridge = TabBridge::FromWebContents(contents_.get());

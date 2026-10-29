@@ -4,24 +4,32 @@ import { Button, space, Text } from "../../ui";
 import { APP } from "../model";
 import { Spacer, TargetPicker, Title } from "../Parts";
 import { Monogram, ProfileAvatar, SelectRow, SpaceIcon } from "../Rows";
-import type { ImportFlow } from "../useImportFlow";
-
-const toggled = (id: string) => (v: boolean) => (prev: string[]) => (v ? [...prev, id] : prev.filter((x) => x !== id));
+import {
+  backTo,
+  importsBySpaces,
+  setImportTarget,
+  spacelessProfiles,
+  spacesOf,
+  toggleImportSpace,
+  toggleSourceProfile,
+  type ImportFlow,
+} from "../../../state/import/flow";
+import { continueImport } from "../../../state/import/runImport";
 
 export function ProfilesBody({ flow }: { flow: ImportFlow }) {
-  const { source, bySpaces, allSpaces, spaceless, spaces, sourceProfiles } = flow;
+  const { source, spaces, sourceProfiles } = flow;
   if (!source) return null;
-  if (bySpaces)
+  if (importsBySpaces(source))
     return (
       <>
         <Title title="Select spaces to import" subtitle={`We'll import your ${source.name} spaces, tabs, and folders to ${APP}.`} />
         <Text size="small" tone="textSecondary" style={{ marginBottom: space.ml }}>{`Customize which spaces to bring over to ${APP}. Each space becomes a profile, and the spaces of one ${source.name} profile share its logins, cookies, extensions and history, as in ${source.name}.`}</Text>
         <View style={{ gap: space.s }}>
-          {allSpaces.map((s) => (
+          {spacesOf(source).map((s) => (
             <SelectRow
               key={s.id}
               selected={spaces.includes(s.id)}
-              onToggle={(v) => flow.setSpaces(toggled(s.id)(v))}
+              onToggle={(v) => toggleImportSpace(s.id, v)}
               icon={<SpaceIcon space={s} />}
               title={s.name || "Space"}
               subtitle={`${plural(s.pinnedCount, "pinned tab")} · ${plural(s.tabCount, "tab")}`}
@@ -29,11 +37,11 @@ export function ProfilesBody({ flow }: { flow: ImportFlow }) {
           ))}
           {source.sidebar !== "zen"
             ? null
-            : spaceless.map((p) => (
+            : spacelessProfiles(source).map((p) => (
                 <SelectRow
                   key={p.id}
                   selected={sourceProfiles.includes(p.id)}
-                  onToggle={(v) => flow.setSourceProfiles(toggled(p.id)(v))}
+                  onToggle={(v) => toggleSourceProfile(p.id, v)}
                   icon={<Monogram name={p.name} color={p.color} />}
                   title={p.name}
                   subtitle={p.isDefault ? "Default profile" : undefined}
@@ -51,7 +59,7 @@ export function ProfilesBody({ flow }: { flow: ImportFlow }) {
           <SelectRow
             key={p.id}
             selected={sourceProfiles.includes(p.id)}
-            onToggle={(v) => flow.setSourceProfiles(toggled(p.id)(v))}
+            onToggle={(v) => toggleSourceProfile(p.id, v)}
             icon={<ProfileAvatar path={p.avatarPath} name={p.name} color={p.color} />}
             title={p.name}
             subtitle={p.email ?? (p.isDefault ? "Default profile" : undefined)}
@@ -63,18 +71,19 @@ export function ProfilesBody({ flow }: { flow: ImportFlow }) {
 }
 
 export function ProfilesFooter({ flow }: { flow: ImportFlow }) {
-  const { source, bySpaces, spaces, spaceless, sourceProfiles } = flow;
+  const { source, spaces, sourceProfiles } = flow;
   if (!source) return null;
+  const bySpaces = importsBySpaces(source);
   return (
     <>
-      <Button title="Back" onPress={() => flow.setStep("choose")} />
+      <Button title="Back" onPress={() => backTo("choose")} />
       <Spacer />
-      <TargetPicker target={flow.target} onChange={flow.setTarget} />
+      <TargetPicker target={flow.target} onChange={setImportTarget} />
       <Button
         title="Continue"
         kind="primary"
-        disabled={bySpaces ? !spaces.length && (source.sidebar !== "zen" || !spaceless.some((p) => sourceProfiles.includes(p.id))) : !sourceProfiles.length}
-        onPress={flow.next}
+        disabled={bySpaces ? !spaces.length && (source.sidebar !== "zen" || !spacelessProfiles(source).some((p) => sourceProfiles.includes(p.id))) : !sourceProfiles.length}
+        onPress={continueImport}
       />
     </>
   );

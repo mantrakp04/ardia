@@ -1,4 +1,5 @@
 import AppKit
+import ArdiaCore
 
 enum MainMenu {
   private static var moveToProfile = NSMenu(title: "Move to Profile")
@@ -26,13 +27,11 @@ enum MainMenu {
     profilesSeparator = NSMenuItem.separator()
     littleArdiaInProfile = NSMenu(title: "New Little Ardia Window in Profile")
 
-    func std(_ title: String, _ action: Selector, _ key: String = "", _ mods: NSEvent.ModifierFlags = .command) -> StandardItem {
-      StandardItem(title, action, key: key, mods)
-    }
+    func std(_ title: String, _ action: Selector) -> StandardItem { StandardItem(title, action) }
     func sub(_ title: String, _ items: [NSMenuItem], menu: NSMenu? = nil) -> NSMenuItem {
       let submenu = menu ?? NSMenu(title: title)
       submenu.autoenablesItems = true
-      items.forEach(submenu.addItem)
+      items.flatMap(withAliases).forEach(submenu.addItem)
       let root = NSMenuItem(title: title, action: nil, keyEquivalent: "")
       root.submenu = submenu
       return root
@@ -42,16 +41,17 @@ enum MainMenu {
       main.addItem(item)
       return item.submenu!
     }
-    func cmd(_ title: String, _ command: String, arg: String? = nil, _ key: String = "", _ mods: NSEvent.ModifierFlags = .command) -> CommandItem {
-      CommandItem(title, command, arg: arg, key: key, mods)
+    func cmd(_ command: CommandTable.Command, arg: String? = nil, title: String? = nil) -> CommandItem {
+      CommandItem(command, arg: arg, title: title)
     }
+    func hidden(_ command: CommandTable.Command, arg: String? = nil) -> CommandItem { cmd(command, arg: arg).hiddenShortcut() }
 
     let shareMenu = NSMenu(title: "Share")
     shareMenu.delegate = ShareMenu.shared
 
-    let quit = std("Quit \(appName)", #selector(MenuTarget.quit(_:)), "q")
+    let quit = std("Quit \(appName)", #selector(MenuTarget.quit(_:)))
     quit.target = MenuTarget.shared
-    let closeWindow = std("Close Window", #selector(MenuTarget.closeWindow(_:)), "w", [.command, .shift])
+    let closeWindow = std("Close Window", #selector(MenuTarget.closeWindow(_:)))
     closeWindow.target = MenuTarget.shared
     let services = NSMenu(title: "Services")
     NSApp.servicesMenu = services
@@ -59,13 +59,13 @@ enum MainMenu {
       aboutItem("About \(appName)"),
       updatesItem(),
       .separator(),
-      cmd("Settings…", "openSettings", ","),
-      cmd("Import from Another Browser…", "importBrowserData"),
+      cmd(.openSettings),
+      cmd(.importBrowserData),
       .separator(),
       sub("Services", [], menu: services),
       .separator(),
-      std("Hide \(appName)", #selector(NSApplication.hide(_:)), "h"),
-      std("Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]),
+      std("Hide \(appName)", #selector(NSApplication.hide(_:))),
+      std("Hide Others", #selector(NSApplication.hideOtherApplications(_:))),
       std("Show All", #selector(NSApplication.unhideAllApplications(_:))),
       .separator(),
       quit,
@@ -73,65 +73,64 @@ enum MainMenu {
 
     littleArdiaInProfileItem = sub("New Little Ardia Window in Profile", [], menu: littleArdiaInProfile)
     _ = top("File", [
-      cmd("New Tab", "newTab", "t"),
-      cmd("New Tab in Group", "newTabInGroup", "t", [.command, .option]),
-      cmd("New Window", "newWindow", "n"),
-      cmd("New Incognito Window", "newIncognitoWindow", "n", [.command, .shift]),
-      cmd("New Little Ardia Window", "newLittleArdia", "n", [.command, .option]),
+      cmd(.newTab),
+      cmd(.newTabInGroup),
+      cmd(.newWindow),
+      cmd(.newIncognitoWindow),
+      cmd(.newLittleArdia),
       littleArdiaInProfileItem,
-      cmd("Open Links from Other Apps in Main Window", "toggleOpenLinksInLittleArdia"),
-      cmd("Reopen Closed Tab", "reopenClosedTab", "t", [.command, .shift]),
-      cmd("Reopen Closed Window", "reopenClosedWindow"),
-      cmd("Open File…", "openFile", "o"),
+      cmd(.toggleOpenLinksInLittleArdia),
+      cmd(.reopenClosedTab),
+      cmd(.reopenClosedWindow),
+      cmd(.openFile),
       .separator(),
-      cmd("Open Command Bar", "focusCommandBar", "l"),
-      cmd("Open Command Bar", "focusCommandBar", functionKey(NSF5FunctionKey), .control).hiddenShortcut(),
+      cmd(.focusCommandBar),
       .separator(),
       closeWindow,
-      cmd("Close Tab", "closeTab", "w"),
-      cmd("Close All Tabs", "closeAllTabs", "k", [.command, .shift]),
-      cmd("Clean Up Tabs", "cleanUpTabs", "k", [.command, .option]),
+      cmd(.closeTab),
+      cmd(.closeAllTabs),
+      cmd(.cleanUpTabs),
       .separator(),
-      cmd("Save Page As…", "savePage"),
+      cmd(.savePage),
       sub("Share", [], menu: shareMenu),
-      cmd("Email Page Location", "emailPageLocation", "i", [.command, .shift]),
-      cmd("Print…", "print", "p"),
-      cmd("Print Using System Dialog…", "printWithSystemDialog", "p", [.command, .option]),
+      cmd(.emailPageLocation),
+      cmd(.print),
+      cmd(.printWithSystemDialog),
     ])
 
-    let paste = std("Paste and Match Style", #selector(MenuTarget.pasteAndMatchStyle(_:)), "v", [.command, .shift])
+    let paste = std("Paste and Match Style", #selector(MenuTarget.pasteAndMatchStyle(_:)))
     paste.target = MenuTarget.shared
     let edits = [
-      std("Cut", #selector(NSText.cut(_:)), "x"), std("Copy", #selector(NSText.copy(_:)), "c"),
-      std("Paste", #selector(NSText.paste(_:)), "v"), std("Select All", #selector(NSText.selectAll(_:)), "a"),
+      std("Cut", #selector(NSText.cut(_:))), std("Copy", #selector(NSText.copy(_:))),
+      std("Paste", #selector(NSText.paste(_:))), std("Select All", #selector(NSText.selectAll(_:))),
     ]
     edits.forEach { $0.target = MenuTarget.shared }
-    let undo = std("Undo", MenuTarget.undoAction, "z")
+    let undo = std("Undo", MenuTarget.undoAction)
     Self.undo = undo
     _ = top("Edit", [
       undo,
-      std("Redo", Selector(("redo:")), "z", [.command, .shift]),
+      std("Redo", Selector(("redo:"))),
       .separator(),
       edits[0],
       edits[1],
-      cmd("Copy URL", "copyUrl", "c", [.command, .shift]),
-      cmd("Copy URL as Markdown", "copyUrlAsMarkdown", "c", [.command, .option, .shift]),
+      cmd(.copyUrl),
+      cmd(.copyUrlAsMarkdown),
       edits[2],
       paste,
       std("Delete", #selector(NSText.delete(_:))),
       edits[3],
       .separator(),
       sub("Find", [
-        cmd("Find…", "findInPage", "f"),
-        cmd("Find and Replace…", "findAndReplace", "f", [.command, .option]),
-        cmd("Find Next", "findNext", "g"),
-        cmd("Find Previous", "findPrevious", "g", [.command, .shift]),
-        cmd("Use Selection for Find", "useSelectionForFind", "e"),
-        cmd("Jump to Selection", "jumpToSelection", "j"),
+        cmd(.findInPage),
+        cmd(.findAndReplace),
+        cmd(.findNext),
+        cmd(.findPrevious),
+        cmd(.useSelectionForFind),
+        cmd(.jumpToSelection),
       ]),
       sub("Spelling and Grammar", [
-        std("Show Spelling and Grammar", #selector(NSText.showGuessPanel(_:)), ":"),
-        std("Check Document Now", #selector(NSText.checkSpelling(_:)), ";"),
+        std("Show Spelling and Grammar", #selector(NSText.showGuessPanel(_:))),
+        std("Check Document Now", #selector(NSText.checkSpelling(_:))),
         .separator(),
         std("Check Spelling While Typing", #selector(NSTextView.toggleContinuousSpellChecking(_:))),
         std("Check Grammar With Spelling", #selector(NSTextView.toggleGrammarChecking(_:))),
@@ -157,146 +156,122 @@ enum MainMenu {
         std("Stop Speaking", #selector(NSTextView.stopSpeaking(_:))),
       ]),
       sub("AutoFill", [
-        cmd("Contact…", "autofill", arg: "contact"),
-        cmd("Passwords…", "autofill", arg: "passwords"),
-        cmd("Credit Card…", "autofill", arg: "creditCard"),
+        cmd(.autofill, arg: "contact"),
+        cmd(.autofill, arg: "passwords"),
+        cmd(.autofill, arg: "creditCard"),
       ]),
     ])
 
-    let fullScreen = std("Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f", .function)
-    let fullScreenAlias = std("Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control])
-    fullScreenAlias.isHidden = true
-    fullScreenAlias.allowsKeyEquivalentWhenHidden = true
     _ = top("View", [
       sub("Appearance", [
-        cmd("Automatic", "setAppearance", arg: "auto"),
-        cmd("Light", "setAppearance", arg: "light"),
-        cmd("Dark", "setAppearance", arg: "dark"),
+        cmd(.setAppearance, arg: "auto"),
+        cmd(.setAppearance, arg: "light"),
+        cmd(.setAppearance, arg: "dark"),
       ]),
-      cmd("Stop", "stop", "."),
-      cmd("Refresh", "reload", "r"),
-      cmd("Force Refresh the Page", "forceReload", "r", [.command, .shift]).alternate(),
+      cmd(.stop),
+      cmd(.reload),
+      cmd(.forceReload).alternate(),
       .separator(),
-      cmd("Show Tabs in Sidebar", "toggleTabLayout", "s", [.command, .shift]),
-      cmd("Auto-Hide Tabs", "toggleSidebar", "s"),
-      cmd("Auto-Hide Tabs", "toggleSidebar", "l", [.command, .shift]).hiddenShortcut(),
-      cmd("Auto-Hide Tabs", "toggleSidebar", "f", [.command, .shift]).hiddenShortcut(),
+      cmd(.toggleTabLayout),
+      cmd(.toggleSidebar),
       .separator(),
-      cmd("Open Split Pane", "openSplitPane", "=", [.control, .shift]),
-      cmd("Focus Next Split Pane", "focusNextPane", "]", [.control, .shift]),
-      cmd("Focus Previous Split Pane", "focusPreviousPane", "[", [.control, .shift]),
-      cmd("Open Split Pane", "openSplitPane", "+", .control).hiddenShortcut(),
-      cmd("Focus Next Split Pane", "focusNextPane", "}", .control).hiddenShortcut(),
-      cmd("Focus Previous Split Pane", "focusPreviousPane", "{", .control).hiddenShortcut(),
+      cmd(.openSplitPane),
+      cmd(.focusNextPane),
+      cmd(.focusPreviousPane),
       .separator(),
       sub("Show Bookmarks Bar", [
-        cmd("Always", "setBookmarksBar", arg: "always"),
-        cmd("On New Tab Only", "setBookmarksBar", arg: "newTab"),
-        cmd("Never", "setBookmarksBar", arg: "never"),
+        cmd(.setBookmarksBar, arg: "always"),
+        cmd(.setBookmarksBar, arg: "newTab"),
+        cmd(.setBookmarksBar, arg: "never"),
         .separator(),
-        cmd("Toggle Bookmarks Bar", "toggleBookmarksBar", "b", [.command, .shift]),
+        cmd(.toggleBookmarksBar),
       ]),
       .separator(),
-      cmd("Show Full URL", "toggleFullUrl"),
-      cmd("Show Address Bar in Sidebar", "toggleAddressBar"),
-      cmd("Cast…", "cast"),
-      cmd("Open Page in WebKit", "togglePageEngine"),
+      cmd(.toggleFullUrl),
+      cmd(.toggleAddressBar),
+      cmd(.cast),
+      cmd(.togglePageEngine),
       .separator(),
-      cmd("Zoom to Actual Size", "zoomReset", "0"),
-      cmd("Zoom In", "zoomIn", "+"),
-      cmd("Zoom In", "zoomIn", "=").hiddenShortcut(),
-      cmd("Zoom Out", "zoomOut", "-"),
+      cmd(.zoomReset),
+      cmd(.zoomIn),
+      cmd(.zoomOut),
       .separator(),
-      fullScreen,
-      fullScreenAlias,
+      std("Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:))),
       .separator(),
       sub("Developer", [
-        cmd("View Source", "viewSource", "u", [.command, .option]),
-        cmd("Developer Tools", "devTools", "i", [.command, .option]),
-        cmd("Inspect Elements", "inspectElements", "c", [.command, .option]),
-        cmd("JavaScript Console", "javaScriptConsole", "j", [.command, .option]),
-        cmd("Allow JavaScript from Apple Events", "toggleJavaScriptFromAppleEvents"),
-        cmd("Toggle Developer Tools", "toggleDevTools", functionKey(NSF12FunctionKey), []).hiddenShortcut(),
-        cmd("Caret Browsing", "caretBrowsing", functionKey(NSF7FunctionKey), []).hiddenShortcut(),
+        cmd(.viewSource),
+        cmd(.devTools),
+        cmd(.inspectElements),
+        cmd(.javaScriptConsole),
+        cmd(.toggleJavaScriptFromAppleEvents),
+        hidden(.toggleDevTools),
+        hidden(.caretBrowsing),
       ]),
     ])
 
-    let selectTab = (1...8).map { cmd("Select Tab \($0)", "selectTab", arg: "\($0)", "\($0)").hiddenShortcut() }
     _ = top("Tabs", [
-      cmd("Go Back", "back", "["),
-      cmd("Go Forward", "forward", "]"),
-      cmd("Go Back", "back", leftArrow).hiddenShortcut(),
-      cmd("Go Forward", "forward", rightArrow).hiddenShortcut(),
+      cmd(.back),
+      cmd(.forward),
       .separator(),
-      cmd("Next Tab", "nextTab", "]", [.command, .shift]),
-      cmd("Previous Tab", "previousTab", "[", [.command, .shift]),
-      cmd("Next Tab", "nextTab", "}").hiddenShortcut(),
-      cmd("Previous Tab", "previousTab", "{").hiddenShortcut(),
-      cmd("Next Tab", "nextTab", functionKey(NSRightArrowFunctionKey), [.command, .option]).hiddenShortcut(),
-      cmd("Previous Tab", "previousTab", functionKey(NSLeftArrowFunctionKey), [.command, .option]).hiddenShortcut(),
-      cmd("Next Tab", "nextTab", functionKey(NSPageDownFunctionKey), .control).hiddenShortcut(),
-      cmd("Previous Tab", "previousTab", functionKey(NSPageUpFunctionKey), .control).hiddenShortcut(),
-      cmd("Next Tab", "nextTab", functionKey(NSDownArrowFunctionKey), [.command, .option]).hiddenShortcut(),
-      cmd("Previous Tab", "previousTab", functionKey(NSUpArrowFunctionKey), [.command, .option]).hiddenShortcut(),
-      cmd("Move Tab Down", "moveTabDown", functionKey(NSPageDownFunctionKey), [.control, .shift]).hiddenShortcut(),
-      cmd("Move Tab Up", "moveTabUp", functionKey(NSPageUpFunctionKey), [.control, .shift]).hiddenShortcut(),
-      cmd("Search Tabs…", "searchTabs", "a", [.command, .shift]),
-      cmd("Tab Switcher (forward)", "tabSwitcher", arg: "forward", "\t", .control).hiddenShortcut(),
-      cmd("Tab Switcher (backward)", "tabSwitcher", arg: "backward", "\t", [.control, .shift]).hiddenShortcut(),
-      cmd("Back to Pinned URL", "returnToPinnedUrl", "\r").hiddenShortcut(),
-    ] + selectTab + [
-      cmd("Select Last Tab", "selectLastTab", "9").hiddenShortcut(),
+      cmd(.nextTab),
+      cmd(.previousTab),
+      hidden(.moveTabDown),
+      hidden(.moveTabUp),
+      cmd(.searchTabs),
+      hidden(.tabSwitcher, arg: "forward"),
+      hidden(.tabSwitcher, arg: "backward"),
+      hidden(.returnToPinnedUrl),
+    ] + (1...8).map { hidden(.selectTab, arg: "\($0)") } + [
+      hidden(.selectLastTab),
       .separator(),
-      cmd("Move to Top Apps", "togglePin"),
-      cmd("Move Pinned Tab to Top Apps", "togglePin", arg: "tile").hiddenWhenDisabled(),
-      cmd("Move to Pinned", "togglePinnedRow", "d", [.command, .option, .shift]),
-      cmd("Duplicate", "duplicateTab"),
-      cmd("New Group with Tab", "newGroupWithTabs", "n", [.command, .control]),
-      cmd("New Group with Tab", "newGroupWithTabs", "p", [.command, .control]).hiddenShortcut(),
-      cmd("New Tab in Group", "newTabInGroup", "c", [.command, .control]).hiddenShortcut(),
-      cmd("Close Group", "closeTabGroup", "w", [.command, .control]).hiddenShortcut(),
+      cmd(.togglePin),
+      cmd(.togglePin, arg: "tile").hiddenWhenDisabled(),
+      cmd(.togglePinnedRow),
+      cmd(.duplicateTab),
+      cmd(.newGroupWithTabs),
+      hidden(.closeTabGroup),
       .separator(),
       sub("Move to Profile", [], menu: moveToProfile),
       sub("Move to Window", [], menu: moveToWindow),
       .separator(),
-      cmd("Add to Bookmarks…", "bookmarkPage", "d"),
+      cmd(.bookmarkPage),
       sub("Add Bookmark to Folder", [], menu: bookmarkToFolder),
       .separator(),
-      cmd("Rename…", "renameTab"),
-      cmd("Change Icon…", "changeTabIcon"),
-      cmd("Mute Site", "toggleMute"),
+      cmd(.renameTab),
+      cmd(.changeTabIcon),
+      cmd(.toggleMute),
     ])
 
     bookmarks = top("Bookmarks", [
-      cmd("Bookmark This Page", "bookmarkPage", "d"),
-      cmd("Bookmark All Tabs…", "bookmarkAllTabs", "d", [.command, .shift]),
-      cmd("Manage Bookmarks", "manageBookmarks", "b", [.command, .option]),
+      cmd(.bookmarkPage, title: "Bookmark This Page"),
+      cmd(.bookmarkAllTabs),
+      cmd(.manageBookmarks),
+      cmd(.exportBookmarks),
     ])
     bookmarksFixedCount = bookmarks.items.count
     history = top("History", [])
     extensions = top("Extensions", [])
 
     profilesItem = sub("Profiles", [], menu: profiles)
-    let minimizeAll = std("Minimize All", #selector(NSApplication.miniaturizeAll(_:)), "m", [.command, .option])
+    let minimizeAll = std("Minimize All", #selector(NSApplication.miniaturizeAll(_:)))
     let arrange = std("Arrange in Front", #selector(MenuTarget.arrangeWindowsInFront(_:)))
     arrange.target = MenuTarget.shared
     let keepOnTop = std("Keep Window on Top", #selector(MenuTarget.toggleKeepOnTop(_:)))
     keepOnTop.target = MenuTarget.shared
     minimizeAll.isAlternate = true
     let windowMenu = top("Window", [
-      std("Minimize", #selector(NSWindow.performMiniaturize(_:)), "m"),
+      std("Minimize", #selector(NSWindow.performMiniaturize(_:))),
       minimizeAll,
       std("Zoom", #selector(NSWindow.performZoom(_:))),
       arrange,
       keepOnTop,
       .separator(),
-      cmd("Downloads", "downloads", "j", [.command, .shift]),
-      cmd("Downloads", "downloads", "l", [.command, .option]).hiddenShortcut(),
-      CommandItem("Task Manager", "taskManager", key: ""),
-      cmd("Merge All Windows", "mergeAllWindows"),
+      cmd(.downloads),
+      cmd(.taskManager),
+      cmd(.mergeAllWindows),
       profilesSeparator,
       profilesItem,
-      cmd("Show Profiles Menu", "openProfileMenu", "m", [.command, .shift]).hiddenShortcut(),
+      hidden(.openProfileMenu),
     ])
     NSApp.windowsMenu = windowMenu
 
@@ -305,6 +280,14 @@ enum MainMenu {
     built = nil
     refresh()
     return main
+  }
+
+  private static func withAliases(_ item: NSMenuItem) -> [NSMenuItem] {
+    switch item {
+    case let item as CommandItem: [item] + item.aliasItems()
+    case let item as StandardItem: [item] + item.aliasItems()
+    default: [item]
+    }
   }
 
   static func keyEquivalent(_ key: String, _ mods: NSEvent.ModifierFlags) -> (key: String, mods: NSEvent.ModifierFlags) {
@@ -327,14 +310,14 @@ enum MainMenu {
   }
 
   private static func videoTourItem() -> NSMenuItem {
-    let item = CommandItem("Video Tour", "videoTour", key: "")
+    let item = CommandItem(.videoTour)
     let url = Bundle.main.object(forInfoDictionaryKey: "ACVideoTourURL") as? String ?? ""
     item.isHidden = URL(string: url)?.scheme?.hasPrefix("http") != true
     return item
   }
 
   private static func releaseNotesItem() -> NSMenuItem {
-    let item = CommandItem("Release Notes", "releaseNotes", key: "")
+    let item = CommandItem(.releaseNotes)
     let url = Bundle.main.object(forInfoDictionaryKey: "ACReleaseNotesURL") as? String ?? ""
     item.isHidden = URL(string: url)?.scheme?.hasPrefix("http") != true
     return item
@@ -342,34 +325,32 @@ enum MainMenu {
 
   private static func helpItems() -> [NSMenuItem] {
     var items: [NSMenuItem] = [
-      CommandItem("Send Feedback…", "sendFeedback", key: "i", [.command, .option, .shift]),
-      CommandItem("Keyboard Shortcuts", "keyboardShortcuts", key: ""),
-      CommandItem("Tool Tour", "toolTour", key: ""),
+      CommandItem(.sendFeedback),
+      CommandItem(.keyboardShortcuts),
+      CommandItem(.toolTour),
       videoTourItem(),
       releaseNotesItem(),
       .separator(),
-      CommandItem("Copy Diagnostics", "copyDiagnostics", key: ""),
-      CommandItem("Record Performance Issue…", "recordPerformanceIssue", key: ""),
+      CommandItem(.copyDiagnostics),
+      CommandItem(.recordPerformanceIssue),
     ]
     #if DEBUG
-    items += [.separator(), CommandItem("Show Onboarding", "showOnboarding", key: "")]
+    items += [.separator(), CommandItem(.showOnboarding)]
     #endif
     return items
   }
 
   private static func extensionIcon(_ dataURL: String?) -> NSImage? {
-    guard let dataURL, let comma = dataURL.firstIndex(of: ",") else { return nil }
+    guard let dataURL else { return nil }
     if let cached = extensionIcons[dataURL] { return cached }
-    guard let data = Data(base64Encoded: String(dataURL[dataURL.index(after: comma)...])),
-      let image = NSImage(data: data)
-    else { return nil }
+    guard let image = NSImage(dataURL: dataURL) else { return nil }
     image.size = NSSize(width: 16, height: 16)
     extensionIcons[dataURL] = image
     return image
   }
 
-  private static var built: (profiles: [MenuState.Entry], windows: [MenuState.Entry], bookmarks: Int?,
-                             extensions: [String], history: [[MenuState.Entry]])?
+  private static var built: (profiles: [MenuEntry], windows: [MenuEntry], bookmarks: Int?,
+                             extensions: [String], history: [[MenuEntry]])?
 
   static func refresh() {
     let state = MenuState.current
@@ -395,7 +376,7 @@ enum MainMenu {
     return item
   }
 
-  private static func folderItem(_ title: String, _ children: [MenuState.Bookmark], id: String? = nil, holdsArcHolders: Bool = false, arcHolder: Bool = false) -> NSMenuItem {
+  private static func folderItem(_ title: String, _ children: [MenuBookmark], id: String? = nil, holdsArcHolders: Bool = false, arcHolder: Bool = false) -> NSMenuItem {
     let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
     let menu = NSMenu(title: title)
     addBookmarks(children, to: menu, holdsArcHolders: holdsArcHolders)
@@ -412,7 +393,7 @@ enum MainMenu {
     return item
   }
 
-  private static func hasGroupLinks(_ nodes: [MenuState.Bookmark]) -> Bool {
+  private static func hasGroupLinks(_ nodes: [MenuBookmark]) -> Bool {
     nodes.contains { node in
       if let children = node.children { return hasGroupLinks(children) }
       let url = (node.url ?? "").lowercased()
@@ -420,7 +401,7 @@ enum MainMenu {
     }
   }
 
-  private static func addBookmarks(_ nodes: [MenuState.Bookmark], to menu: NSMenu, holdsArcHolders: Bool = false) {
+  private static func addBookmarks(_ nodes: [MenuBookmark], to menu: NSMenu, holdsArcHolders: Bool = false) {
     for node in nodes {
       if let children = node.children {
         menu.addItem(folderItem(node.title, children, id: node.id, arcHolder: holdsArcHolders && node.title.hasSuffix(" (Arc)")))
@@ -478,8 +459,8 @@ enum MainMenu {
     profiles.removeAllItems()
     profilesItem.isHidden = state.profiles.count < 2
     profilesSeparator.isHidden = profilesItem.isHidden
-    for (i, p) in state.profiles.enumerated() {
-      let item = CommandItem(p.title, "switchProfile", arg: p.id, key: i < 9 ? "\(i + 1)" : "", .control)
+    for p in state.profiles {
+      let item = CommandItem(p.title, "switchProfile", arg: p.id)
       item.tracksChecked = false
       item.state = p.current ? .on : .off
       profiles.addItem(item)
@@ -488,10 +469,10 @@ enum MainMenu {
       profiles.addItem(newWindow)
     }
     profiles.addItem(.separator())
-    profiles.addItem(CommandItem("Next Profile", "nextProfile"))
-    profiles.addItem(CommandItem("Previous Profile", "previousProfile"))
+    profiles.addItem(CommandItem(.nextProfile))
+    profiles.addItem(CommandItem(.previousProfile))
     profiles.addItem(.separator())
-    profiles.addItem(CommandItem("New Profile…", "newProfile"))
+    profiles.addItem(CommandItem(.newProfile))
 
     littleArdiaInProfile.removeAllItems()
     littleArdiaInProfileItem.isHidden = state.profiles.count < 2
@@ -507,21 +488,21 @@ enum MainMenu {
 
   private static func buildBookmarkMenus(_ state: MenuState) {
     bookmarkToFolder.removeAllItems()
-    for f in state.bookmarkFolders { bookmarkToFolder.addItem(CommandItem(f.title, "addBookmarkToFolder", arg: f.id)) }
+    for f in state.bookmarks.bookmarkFolders { bookmarkToFolder.addItem(CommandItem(f.title, "addBookmarkToFolder", arg: f.id)) }
     bookmarkToFolder.addItem(.separator())
     bookmarkToFolder.addItem(CommandItem("New Folder…", "addBookmarkToFolder", arg: "new"))
 
     while bookmarks.items.count > bookmarksFixedCount { bookmarks.removeItem(at: bookmarksFixedCount) }
     bookmarks.addItem(.separator())
-    if !state.recentBookmarks.isEmpty {
+    if !state.bookmarks.recentBookmarks.isEmpty {
       let header = NSMenuItem(title: "Recent Bookmarks", action: nil, keyEquivalent: "")
       header.isEnabled = false
       bookmarks.addItem(header)
-      addBookmarks(state.recentBookmarks, to: bookmarks)
+      addBookmarks(state.bookmarks.recentBookmarks, to: bookmarks)
       bookmarks.addItem(.separator())
     }
-    bookmarks.addItem(folderItem("Bookmarks Bar", state.bookmarksBar, holdsArcHolders: true))
-    bookmarks.addItem(folderItem("Other Bookmarks", state.otherBookmarks))
+    bookmarks.addItem(folderItem("Bookmarks Bar", state.bookmarks.bookmarksBar, holdsArcHolders: true))
+    bookmarks.addItem(folderItem("Other Bookmarks", state.bookmarks.otherBookmarks))
   }
 
   private static func buildExtensions(_ state: MenuState) {
@@ -532,15 +513,15 @@ enum MainMenu {
       extensions.addItem(item)
     }
     if !state.extensions.isEmpty { extensions.addItem(.separator()) }
-    extensions.addItem(CommandItem("Add Extension…", "addExtension"))
-    extensions.addItem(CommandItem("Manage Extensions…", "manageExtensions"))
-    extensions.addItem(CommandItem("Pin Extensions…", "pinExtensions"))
+    extensions.addItem(CommandItem(.addExtension))
+    extensions.addItem(CommandItem(.manageExtensions))
+    extensions.addItem(CommandItem(.pinExtensions))
   }
 
   private static func buildHistory(_ state: MenuState) {
     history.removeAllItems()
-    history.addItem(CommandItem("Show History…", "showHistory", key: "y"))
-    history.addItem(CommandItem("Clear Browsing Data…", "clearBrowsingData", key: "\u{8}", [.command, .shift]))
+    history.addItem(CommandItem(.showHistory))
+    history.addItem(CommandItem(.clearBrowsingData))
     history.addItem(.separator())
     let header = NSMenuItem(title: "Recently Closed", action: nil, keyEquivalent: "")
     header.isEnabled = false

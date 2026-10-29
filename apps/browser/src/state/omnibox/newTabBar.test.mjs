@@ -12,7 +12,7 @@ const reset = (newTabOpens = "page") => {
   forgetListSpots();
 };
 const urlOf = (id) => S().tabs[id]?.url;
-const list = (w) => S().windows[w].tabIds.filter((id) => !S().tabs[id].pinned).map(urlOf);
+const list = (w) => S().windows[w].tabIds.filter((id) => !S().tabs[id].pin).map(urlOf);
 const rows = (w) => S().windows[w].tabIds.filter((id) => model.isPinnedRow(S().tabs[id])).map(urlOf);
 const panel = (w) => S().windowUi[w]?.panel ?? { open: false };
 
@@ -69,7 +69,7 @@ for (const [newTabPosition, expected] of [
     const picked = model.activeTabId(S(), w);
     assert.equal(urlOf(picked), "https://picked.com/");
     assert.deepEqual(list(w), expected, "one tab, placed as Add new tabs says");
-    assert.equal(S().tabs[picked].pinned, false);
+    assert.equal(!!S().tabs[picked].pin, false);
     assert.equal(Object.values(S().groups).some((g) => g.tabIds.includes(picked)), false);
     assert.equal(panel(w).open, false);
   });
@@ -143,7 +143,7 @@ test("Move to Pinned on a selection, and on a tile", () => {
   S().activate(b);
   S().setSelection(w, []);
   togglePinnedRows(w);
-  assert.equal(S().tabs[b].pinned, false, "a tile is unpinned, not made a row");
+  assert.equal(!!S().tabs[b].pin, false, "a tile is unpinned, not made a row");
   assert.deepEqual(rows(w), []);
 });
 
@@ -179,11 +179,11 @@ test("Move out of Pinned from another window puts the first window's tab back wh
   S().activate(b);
   togglePinnedRows(w);
   const w2 = S().createWindow({ url: "https://other.com/" });
-  const copy = S().windows[w2].tabIds.find((id) => S().tabs[id].pinnedAsRow);
+  const copy = S().windows[w2].tabIds.find((id) => (S().tabs[id].pin?.as === "row"));
   assert.ok(copy, "the row is mirrored into the second window");
   S().activate(copy);
   togglePinnedRows(w2);
-  assert.equal(S().tabs[b].pinned, false);
+  assert.equal(!!S().tabs[b].pin, false);
   assert.deepEqual(list(w), ["https://a.com/", "https://b.com/", "https://c.com/"]);
   assert.deepEqual(rows(w2), []);
 });
@@ -198,7 +198,7 @@ test("a blank pinned tab is never the empty card a pick fills", () => {
   assert.deepEqual(panel(w).newTab, { kind: "list" });
   openFromNewTabBar(w, panel(w).newTab, "https://new.com/");
   assert.equal(S().tabs[blank].url, "");
-  assert.equal(S().tabs[blank].pinned, true);
+  assert.equal(!!S().tabs[blank].pin, true);
 });
 
 test("Move out of Pinned: two tabs pinned one after the other, unpinned together, keep their order", () => {

@@ -1,7 +1,6 @@
-import { devtools, sleep } from "./instance.mjs";
+import { devtools, sleep, uboReady } from "./instance.mjs";
 
 const [port, seconds = "90"] = process.argv.slice(2);
-const extensionId = "fajbdaomknpkicfjcpipdmcpoamdmilh";
 const adUrl = "https://ib.adnxs.com/ut/v3?ardia-release-check";
 const deadline = Date.now() + Number(seconds) * 1000;
 const left = () => Math.max(1, deadline - Date.now());
@@ -21,27 +20,6 @@ async function getJson(path) {
 
 async function connect(target) {
   return bounded(devtools(target), `connecting to ${target.url}`);
-}
-
-async function readiness() {
-  while (Date.now() < deadline) {
-    const list = await getJson("/json/list").catch(() => []);
-    const background = list.find((t) => t.type === "background_page" && t.url.includes(extensionId));
-    if (background) {
-      const session = await connect(background).catch(() => null);
-      try {
-        const state = session && (await session.eval(
-          `self.µBlock?.isReadyPromise ? µBlock.isReadyPromise.then(() => ({ ready: µBlock.supportStats.allReadyAfter ?? "ready" })) : null`,
-          { timeout: Math.min(10000, left()) },
-        ).catch(() => null));
-        if (state) return state;
-      } finally {
-        session?.close();
-      }
-    }
-    await sleep(Math.min(500, left()));
-  }
-  throw new Error(`uBlock Origin wasn't ready within ${seconds} s`);
 }
 
 async function blocks() {
@@ -76,9 +54,9 @@ async function blocks() {
 }
 
 try {
-  const state = await readiness();
+  const ready = await uboReady(port, { seconds: Number(seconds), until: deadline });
   const blocked = await bounded(blocks(), "the blocking check");
-  console.log(`uBlock Origin ready (${state.ready}) and blocking (${blocked})`);
+  console.log(`uBlock Origin ready (${ready}) and blocking (${blocked})`);
   process.exit(0);
 } catch (e) {
   console.error(`error: ${e.message}`);

@@ -5,30 +5,26 @@ import {
   revealCardNumber,
   saveAddress,
   saveCard,
-  setAutofillSettings,
   type SavedAddress,
   type SavedCard,
 } from "../../../state/site/autofill";
 import { orWarn } from "../../../lib/fallback";
 import { confirm, copyText } from "../../../state/app/system";
-import { Symbol, Button, font, type Option, PopUp, Sheet, TextField, Toggle, weight } from "../../ui";
+import { Symbol, Button, font, type Option, PopUp, Sheet, TextField, Toggle } from "../../ui";
 import { useState } from "react";
 import { Text, View } from "react-native";
 import { useTheme } from "../../ui/theme";
-import { currentSettings } from "../../../state/browser/current";
-import { useProfiles } from "../../../state/browser/hooks";
-import { engineProfile } from "../../../state/browser/model";
-import { Group, Row, SectionHeader } from "../Form";
+import { currentEngineProfile } from "../../../state/browser/current";
+import { Group, ProfilePicker, Row, SectionHeader, SheetActions, SheetTitle, useSettingsProfile } from "../Form";
 import { NetworkBadge } from "../../site/Autofill";
-import { addresses as addressList, autofillEnabled, cards as cardList } from "../../../state/settings/paneData";
-import { store, useResource } from "../../../state/settings/resources";
+import { addresses as addressList, autofillEnabled, cards as cardList, setAutofillFor } from "../../../state/settings/paneData";
+import { useResource } from "../../../state/settings/resources";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 
 export function AutofillPane({ profileId: initial }: { profileId?: string | null }) {
   const theme = useTheme();
-  const profiles = useProfiles();
-  const [profileId, setProfileId] = useState(() => initial ?? currentSettings().defaultProfileId);
-  const profile = engineProfile(profileId);
+  const [profileId, setProfileId] = useSettingsProfile(initial);
+  const profile = currentEngineProfile(profileId);
   const [addresses, reloadAddresses] = useResource(addressList, profile);
   const [cards, reloadCards] = useResource(cardList, profile);
   const [enabled] = useResource(autofillEnabled, profile);
@@ -37,19 +33,14 @@ export function AutofillPane({ profileId: initial }: { profileId?: string | null
     void reloadAddresses();
     void reloadCards();
   };
-  const toggle = (key: "addresses" | "cards", value: boolean) =>
-    void setAutofillSettings({ [key]: value }, profile).then(() => enabled && store(autofillEnabled, [profile], { ...enabled, [key]: value }));
+  const toggle = (kind: "addresses" | "cards", on: boolean) => void setAutofillFor(profile, kind, on);
 
   return (
     <View>
       <SectionHeader
         title="Autofill"
         description="Addresses and cards you save are offered when you fill in a form, separately for each profile. Card numbers are kept in your macOS Keychain."
-        action={
-          profiles.length > 1 ? (
-            <PopUp value={profileId} options={profiles.map((p) => ({ value: p.id, title: p.name }))} onChange={setProfileId} />
-          ) : undefined
-        }
+        action={<ProfilePicker value={profileId} onChange={setProfileId} />}
       />
       <Group>
         <Row anchor="autofill.addresses">
@@ -147,12 +138,10 @@ async function confirmDelete(title: string, message: string) {
 
 function SheetButtons({ canDelete, onDelete, onSave, saveDisabled }: { canDelete: boolean; onDelete: () => void; onSave: () => void; saveDisabled?: boolean }) {
   return (
-    <View style={{ flexDirection: "row", gap: 8, marginTop: 18 }}>
-      {canDelete ? <Button title="Delete" kind="destructive" onPress={onDelete} /> : null}
-      <View style={{ flex: 1 }} />
+    <SheetActions destructive={canDelete ? <Button title="Delete" kind="destructive" onPress={onDelete} /> : null}>
       <Button title="Cancel" onPress={closeSettingsSheet} />
       <Button title="Save" kind="primary" disabled={saveDisabled} onPress={onSave} />
-    </View>
+    </SheetActions>
   );
 }
 
@@ -170,7 +159,6 @@ const ADDRESS_FIELDS: { key: keyof SavedAddress | "line1" | "line2"; title: stri
 ];
 
 function AddressSheet({ profile, saved, onChanged }: { profile: string; saved?: SavedAddress; onChanged: () => void }) {
-  const theme = useTheme();
   const [lines] = useState(() => (saved?.street ?? "").split("\n"));
   const [values, setValues] = useState<Record<string, string>>(() => ({
     name: saved?.name ?? "",
@@ -203,7 +191,7 @@ function AddressSheet({ profile, saved, onChanged }: { profile: string; saved?: 
 
   return (
     <Sheet width={460} onClose={closeSettingsSheet}>
-      <Text style={{ ...font.heading, fontWeight: weight.semibold, color: theme.textPrimary }}>{saved ? "Edit Address" : "Add Address"}</Text>
+      <SheetTitle>{saved ? "Edit Address" : "Add Address"}</SheetTitle>
       <View style={{ marginTop: 14 }}>
         <Group>
           {ADDRESS_FIELDS.map((f, i) => (
@@ -258,9 +246,9 @@ function CardSheet({ profile, saved, onChanged }: { profile: string; saved?: Sav
     <Sheet width={460} onClose={closeSettingsSheet}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         {saved ? <NetworkBadge network={saved.network} /> : null}
-        <Text style={{ ...font.heading, fontWeight: weight.semibold, color: theme.textPrimary }}>
+        <SheetTitle>
           {saved ? `${cardNetworkName(saved.network)} •••• ${saved.last4}` : "Add Card"}
-        </Text>
+        </SheetTitle>
       </View>
       <View style={{ marginTop: 14 }}>
         <Group>

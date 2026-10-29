@@ -1,5 +1,5 @@
 import { useTheme } from "../ui/theme";
-import { colorRoles, ink, weight } from "../ui/tokens";
+import { colorRoles, ink, weight, type ShadowLevel } from "../ui/tokens";
 
 const DARK = {
   success: colorRoles.dark.success,
@@ -37,10 +37,12 @@ export function useLiveColors(): LiveColors {
 
 export const LIVE_NOW_TEXT = ink.white;
 
+const panelShadowShare = (share: number) => ({ dark: colorRoles.dark.panelShadowOpacity * share, light: colorRoles.light.panelShadowOpacity * share });
+
 export const liveShadow = {
-  hoverCard: { color: ink.black, opacityScale: 0.8, radius: 16, offset: [0, 6] as [number, number] },
-  alert: { color: ink.black, radius: 20, offset: [0, 8] as [number, number] },
-};
+  hoverCard: { color: ink.black, opacity: panelShadowShare(0.8), radius: 16, offset: [0, 6] },
+  alert: { color: ink.black, opacity: panelShadowShare(1), radius: 20, offset: [0, 8] },
+} satisfies Record<string, ShadowLevel>;
 
 export const liveMotion = {
   badgeSpring: { speed: 16, bounciness: 10 },

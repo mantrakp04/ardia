@@ -1,11 +1,12 @@
 ---
+import { base } from "../data/site";
 import Shot from "./Shot.astro";
 import DownloadButton from "./DownloadButton.astro";
 import Plate from "./Plate.astro";
 import windowShot from "../assets/shots/window.webp";
 
 const fullPage = /\/try\/?$/.test(Astro.url.pathname);
-const demoSrc = `${import.meta.env.DEV ? (import.meta.env.PUBLIC_DEMO_URL ?? "http://127.0.0.1:5191/") : `${import.meta.env.BASE_URL.replace(/\/?$/, "/")}demo/`}?embed${fullPage ? "&warm" : ""}`;
+const demoSrc = `${import.meta.env.DEV ? (import.meta.env.PUBLIC_DEMO_URL ?? "http://127.0.0.1:5191/") : `${base}/demo/`}?embed${fullPage ? "&warm" : ""}`;
 ---
 
 <section class="showcase" id="demo" aria-label="The app" data-shot="office">

@@ -10,7 +10,6 @@ import {
   resolveTheme,
   shownLook,
   startingTheme,
-  THEME_TEXTURES,
   themeAccent,
   withAddedStop,
   withAngle,
@@ -18,6 +17,7 @@ import {
   spaceLookSource,
   type ShownLook,
 } from "../../lib/profileLook";
+import { THEME_TEXTURES } from "@ardia/core";
 import { PROFILE_COLORS, useTheme } from "../ui/theme";
 import { useAppDark, useProfile, useSettings } from "../../state/browser/hooks";
 import type { ProfileColor, ProfileTheme, ThemeMode, ThemeTexture } from "../../state/browser/types";
@@ -152,8 +152,7 @@ function ThemeStops({ theme, onChange }: { theme: ProfileTheme; onChange: (next:
         </Text>
         <View style={{ flexDirection: "row", gap: 4 }}>
           <Button
-            variant="pill"
-            tone="control"
+            variant="stepper"
             width={24}
             height={20}
             icon="minus"
@@ -165,8 +164,7 @@ function ThemeStops({ theme, onChange }: { theme: ProfileTheme; onChange: (next:
             }}
           />
           <Button
-            variant="pill"
-            tone="control"
+            variant="stepper"
             width={24}
             height={20}
             icon="plus"

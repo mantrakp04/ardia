@@ -21,12 +21,11 @@ final class CliInstaller {
     return environment
   }
 
-  private static var isolated: Bool { ArdiaIsolatedDataDirectory() != nil }
 
 
   static var home: URL? {
     if let path = LaunchConfig.shared.instance("cliHome") { return URL(fileURLWithPath: path, isDirectory: true) }
-    if isolated { return nil }
+    if LaunchConfig.shared.isolated { return nil }
     return FileManager.default.homeDirectoryForCurrentUser
       .appendingPathComponent("Library/Application Support/Ardia/CLI", isDirectory: true)
   }
@@ -40,7 +39,7 @@ final class CliInstaller {
   }
 
   private static func script() -> URL? {
-    if isolated, let path = LaunchConfig.shared.testValue("cliInstallScript") {
+    if LaunchConfig.shared.isolated, let path = LaunchConfig.shared.testValue("cliInstallScript") {
       return URL(fileURLWithPath: path).resolvingSymlinksInPath()
     }
     return Bundle.main.url(forResource: "ardia-cli-install", withExtension: "sh")?.resolvingSymlinksInPath()
@@ -80,7 +79,7 @@ final class CliInstaller {
   }
 
   private func run() {
-    if Self.isolated && (LaunchConfig.shared.instance("cliHome") == nil || LaunchConfig.shared.instance("cliBinDir") == nil) {
+    if LaunchConfig.shared.isolated && (LaunchConfig.shared.instance("cliHome") == nil || LaunchConfig.shared.instance("cliBinDir") == nil) {
       return finish(failure("A test instance installs only with ARDIA_INSTANCE cliHome and cliBinDir set."))
     }
     let version = Self.appVersion

@@ -1,29 +1,21 @@
 #!/usr/bin/env node
 
+import { downloadsOf, releaseDownloads } from "./stats/github.mjs";
+import { RELEASE_VERSION } from "./stats/queries.mjs";
 import { clickhouse, hasTelemetryEnv } from "./telemetry-env.mjs";
 
-const REPO = "mantrakp04/ardia";
 const days = Math.max(1, Number(process.argv[2] ?? 14) || 14);
 const key = hasTelemetryEnv();
 
-async function github() {
-  const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=100`, {
-    headers: { Accept: "application/vnd.github+json", ...(process.env.GH_TOKEN ? { Authorization: `Bearer ${process.env.GH_TOKEN}` } : {}) },
-  });
-  if (!res.ok) throw new Error(`GitHub: ${res.status} ${await res.text()}`);
-  const byVersion = new Map();
-  for (const release of await res.json()) {
-    const version = release.tag_name.replace(/^v/, "");
-    const count = (ext) => release.assets.find((a) => a.name.endsWith(ext))?.download_count ?? 0;
-    byVersion.set(version, { dmg: count(".dmg"), zip: count(".zip"), feed: count("appcast.xml"), published: release.published_at ?? "" });
-  }
-  return byVersion;
-}
-
-const WHERE = `event = 'update_check' AND match(properties['version'], '^[0-9]+\\\\.[0-9]+\\\\.[0-9]+$')`;
+const WHERE = `event = 'update_check' AND match(properties['version'], '${RELEASE_VERSION}')`;
 const FIRST = `properties['first'] = 'true'`;
 
-const releases = await github();
+const releases = new Map(
+  (await releaseDownloads()).map(({ version, published, assets }) => [
+    version,
+    { dmg: downloadsOf(assets, ".dmg"), zip: downloadsOf(assets, ".zip"), feed: downloadsOf(assets, "appcast.xml"), published },
+  ]),
+);
 let firstByVersion = new Map();
 let daily = [];
 if (key) {

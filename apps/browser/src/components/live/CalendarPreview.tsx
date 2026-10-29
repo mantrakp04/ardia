@@ -12,9 +12,10 @@ import { dismissHover } from "../../state/sidebar/hover";
 import type { Anchor } from "../../state/sidebar/sidebarUi";
 import { Avatar, HoverSurface } from "./LiveItemCard";
 import { liveType, useLiveColors } from "./tokens";
+import { UI_LOCALE } from "../../lib/uiLocale";
 
 export function useIsCalendarTab(tabId: string | null): boolean {
-  const pinnedCalendar = useTab(tabId ?? undefined, (t) => !!t?.pinned && isCalendarUrl(t.pinnedUrl ?? t.url));
+  const pinnedCalendar = useTab(tabId ?? undefined, (t) => !!t?.pin && isCalendarUrl(t.pinnedUrl ?? t.url));
   const on = useLive((s) => s.calendar.showPreview);
   return pinnedCalendar && on;
 }
@@ -31,7 +32,7 @@ export function CalendarPreview({ tabId, windowId, anchor }: { tabId: string; wi
   const upcoming = today.filter((e) => e.end > now);
   const allDay = upcoming.filter((e) => e.allDay);
   const timed = upcoming.filter((e) => !e.allDay);
-  const date = new Date(now).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+  const date = new Date(now).toLocaleDateString(UI_LOCALE, { weekday: "short", month: "short", day: "numeric" });
 
   let body: React.ReactNode;
   if (!connected) body = <SignIn denied={access === "denied" || access === "restricted"} />;

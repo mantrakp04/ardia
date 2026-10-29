@@ -21,7 +21,7 @@ export type SwipeStep = {
   delayMs?: number;
 };
 
-export type NativePagerConfig = { key: string; selected: number; count: number; width?: number; ack?: number; order?: string };
+export type NativePagerConfig = { key: string; selected: number; count: number; width?: number; ack?: number; order?: readonly string[] };
 
 export type PagerStateEvent = {
   phase: "began" | "selected" | "settled";
@@ -67,9 +67,9 @@ type NativeHandle = { devLocate(): Promise<{ windowNumber: number; x: number; y:
 
 export type SwipeModule = {
   haptic(pattern: string): void;
-  switchPager(key: string, index: number, order?: string): Promise<boolean>;
-  stepPager(key: string, delta: number, wrap: boolean, order?: string): Promise<boolean>;
-  selectPager(key: string, profileId: string, order: string): Promise<boolean>;
+  switchPager(key: string, index: number, order?: readonly string[]): Promise<boolean>;
+  stepPager(key: string, delta: number, wrap: boolean, order?: readonly string[]): Promise<boolean>;
+  selectPager(key: string, profileId: string, order: readonly string[]): Promise<boolean>;
   pagerState(key: string): PagerSnapshot | null;
   devPagerState(key: string): Promise<unknown>;
   devSimulate(x: number, y: number, windowNumber: number, steps: SwipeStep[], ignorePreference: boolean): Promise<unknown>;
@@ -83,10 +83,10 @@ const animatedNative = () => (AnimatedNative ??= Animated.createAnimatedComponen
 
 export const swipeHaptic = (pattern: "levelChange" | "alignment" | "generic") => Module.haptic(pattern);
 
-export const switchPager = (key: string, index: number, order?: string): Promise<boolean> => Module.switchPager(key, index, order);
-export const stepPager = (key: string, delta: -1 | 1, wrap = false, order?: string): Promise<boolean> =>
+export const switchPager = (key: string, index: number, order?: readonly string[]): Promise<boolean> => Module.switchPager(key, index, order);
+export const stepPager = (key: string, delta: -1 | 1, wrap = false, order?: readonly string[]): Promise<boolean> =>
   Module.stepPager(key, delta, wrap, order);
-export const selectPager = (key: string, profileId: string, order: string): Promise<boolean> =>
+export const selectPager = (key: string, profileId: string, order: readonly string[]): Promise<boolean> =>
   Module.selectPager(key, profileId, order);
 export const pagerState = (key: string): PagerSnapshot | null => Module.pagerState(key);
 export const devPagerState = (key: string): Promise<unknown> => Module.devPagerState(key);

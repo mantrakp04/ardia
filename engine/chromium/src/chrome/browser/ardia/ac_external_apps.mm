@@ -4,10 +4,12 @@
 
 #import <AppKit/AppKit.h>
 
+#include <optional>
 #include <string>
 #include <utility>
 
 #include "base/strings/sys_string_conversions.h"
+#include "chrome/browser/ardia/ac_engine.h"
 #include "chrome/common/pref_names.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
@@ -17,24 +19,37 @@ namespace {
 
 const char* const kPairs = prefs::kProtocolHandlerPerOriginAllowedProtocols;
 
-NSString* AppName(NSURL* app) {
-  NSBundle* bundle = [NSBundle bundleWithURL:app];
-  for (NSString* key in @[ @"CFBundleDisplayName", @"CFBundleName" ]) {
-    NSString* name = bundle.localizedInfoDictionary[key]
-                         ?: bundle.infoDictionary[key];
-    if ([name isKindOfClass:NSString.class] && name.length) {
-      return name;
-    }
-  }
-  return app.lastPathComponent.stringByDeletingPathExtension;
+base::DictValue Allowance(const std::string& origin,
+                          const std::string& scheme) {
+  NSURL* probe = [NSURL
+      URLWithString:[base::SysUTF8ToNSString(scheme) stringByAppendingString:@":"]];
+  NSURL* app =
+      probe ? [NSWorkspace.sharedWorkspace URLForApplicationToOpenURL:probe]
+            : nil;
+  const std::optional<ExternalApp> described =
+      app ? std::optional<ExternalApp>(DescribeExternalApp(app)) : std::nullopt;
+  return base::DictValue()
+      .Set("origin", origin)
+      .Set("scheme", scheme)
+      .Set("app", described
+                      ? base::Value(base::SysNSStringToUTF8(described->name))
+                      : base::Value())
+      .Set("icon", described && described->icon
+                       ? base::Value(base::SysNSStringToUTF8(described->icon))
+                       : base::Value());
 }
 
-NSString* IconDataURI(NSURL* app, int pixels) {
+}
+
+ExternalApp DescribeExternalApp(NSURL* app) {
+  constexpr CGFloat kIconPixels = 128;
+  NSString* name = [NSFileManager.defaultManager displayNameAtPath:app.path]
+                       .stringByDeletingPathExtension;
   NSImage* icon = [NSWorkspace.sharedWorkspace iconForFile:app.path];
   NSBitmapImageRep* rep = [[NSBitmapImageRep alloc]
       initWithBitmapDataPlanes:nil
-                    pixelsWide:pixels
-                    pixelsHigh:pixels
+                    pixelsWide:kIconPixels
+                    pixelsHigh:kIconPixels
                  bitsPerSample:8
                samplesPerPixel:4
                       hasAlpha:YES
@@ -43,48 +58,24 @@ NSString* IconDataURI(NSURL* app, int pixels) {
                    bytesPerRow:0
                   bitsPerPixel:0];
   if (!icon || !rep) {
-    return nil;
+    return {name, nil};
   }
   [NSGraphicsContext saveGraphicsState];
   NSGraphicsContext.currentContext =
       [NSGraphicsContext graphicsContextWithBitmapImageRep:rep];
-  [icon drawInRect:NSMakeRect(0, 0, pixels, pixels)
-          fromRect:NSZeroRect
-         operation:NSCompositingOperationCopy
-          fraction:1];
+  [icon drawInRect:NSMakeRect(0, 0, kIconPixels, kIconPixels)];
   [NSGraphicsContext restoreGraphicsState];
   NSData* png = [rep representationUsingType:NSBitmapImageFileTypePNG
                                   properties:@{}];
-  return png ? [@"data:image/png;base64,"
-                   stringByAppendingString:[png base64EncodedStringWithOptions:0]]
-             : nil;
-}
-
-base::DictValue Allowance(const std::string& origin,
-                          const std::string& scheme) {
-  NSURL* probe = [NSURL
-      URLWithString:[base::SysUTF8ToNSString(scheme) stringByAppendingString:@":"]];
-  NSURL* app =
-      probe ? [NSWorkspace.sharedWorkspace URLForApplicationToOpenURL:probe]
-            : nil;
-  NSString* icon = app ? IconDataURI(app, 64) : nil;
-  return base::DictValue()
-      .Set("origin", origin)
-      .Set("scheme", scheme)
-      .Set("app", app ? base::Value(base::SysNSStringToUTF8(AppName(app)))
-                      : base::Value())
-      .Set("icon", icon ? base::Value(base::SysNSStringToUTF8(icon))
-                        : base::Value());
+  return {name,
+          png ? [@"data:image/png;base64,"
+                    stringByAppendingString:[png base64EncodedStringWithOptions:0]]
+              : nil};
 }
 
 }
-}
 
-AC_ENGINE_CALL(ac_external_apps_allowances) {
-  ardia::Call call(profile_dir, args_json, reply, context);
-  if (!call) {
-    return;
-  }
+AC_PROFILE_CALL(ac_external_apps_allowances) {
   base::ListValue allowances;
   for (const auto [origin, schemes] :
        call.profile()->GetPrefs()->GetDict(ardia::kPairs)) {
@@ -101,11 +92,7 @@ AC_ENGINE_CALL(ac_external_apps_allowances) {
       base::DictValue().Set("allowances", std::move(allowances)));
 }
 
-AC_ENGINE_CALL(ac_external_apps_remove) {
-  ardia::Call call(profile_dir, args_json, reply, context);
-  if (!call) {
-    return;
-  }
+AC_PROFILE_CALL(ac_external_apps_remove) {
   const std::string origin = call.String("origin");
   const std::string scheme = call.String("scheme");
   if (origin.empty() || scheme.empty()) {

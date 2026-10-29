@@ -1,7 +1,7 @@
 import { type SystemCalendar, connectCalendar, setCalendarHidden, useCalendar } from "../../../state/live/calendar";
 import { Linking, Text, View } from "react-native";
 import { useTheme } from "../../ui/theme";
-import { ALERT_LEADS } from "../../../state/live/meetings";
+import { ALERT_LEADS, COUNTDOWN_LEADS, countdownLeadTitle } from "../../../state/live/meetings";
 import { updateCalendarSettings, useLive } from "../../../state/live/store";
 import { useSettings } from "../../../state/browser/hooks";
 import { updateSettings } from "../../../state/settings/actions";
@@ -71,6 +71,15 @@ export function CalendarPane() {
         </Row>
         <Row anchor="calendar.timeToNext">
           <Toggle value={settings.showTimeToNext} onChange={(v) => updateCalendarSettings({ showTimeToNext: v })} />
+        </Row>
+        <Row anchor="calendar.countdownLead">
+          <PopUp
+            value={String(settings.countdownLead)}
+            options={COUNTDOWN_LEADS.map((m) => ({ value: String(m), title: countdownLeadTitle(m) }))}
+            disabled={!settings.showTimeToNext}
+            onChange={(v) => updateCalendarSettings({ countdownLead: Number(v) })}
+            minWidth={170}
+          />
         </Row>
       </Group>
 

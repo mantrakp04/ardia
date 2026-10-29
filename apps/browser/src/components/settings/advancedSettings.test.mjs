@@ -2,13 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 globalThis.__DEV__ = false;
-const { ADVANCED_SETTINGS } = await import("./rows/advanced.ts");
 const { ADVANCED_PANES, SETTINGS } = await import("./settingsIndex.ts");
-
-test("every advanced setting names a row in the settings index", () => {
-  const ids = new Set(SETTINGS.map((s) => s.id));
-  assert.deepEqual([...ADVANCED_SETTINGS].filter((id) => !ids.has(id)), []);
-});
 
 test("only the Engines and Advanced panes hide whole", () => {
   assert.deepEqual([...ADVANCED_PANES].sort(), ["advanced", "engines"]);

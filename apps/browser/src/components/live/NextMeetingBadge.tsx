@@ -9,12 +9,14 @@ import { useSidebarTokens } from "../sidebar/tokens";
 import { LIVE_NOW_TEXT, liveMotion, liveType, useLiveColors } from "./tokens";
 
 export const NextMeetingBadge = memo(function NextMeetingBadge({ tabId }: { tabId: string }) {
-  const pinnedUrl = useTab(tabId, (t) => (t?.pinned ? (t.pinnedUrl ?? t.url) : null));
+  const pinnedUrl = useTab(tabId, (t) => (t?.pin ? (t.pinnedUrl ?? t.url) : null));
   const calendar = pinnedUrl !== null && isCalendarUrl(pinnedUrl);
   const on = useLive((s) => s.calendar.showTimeToNext);
+  const lead = useLive((s) => s.calendar.countdownLead);
+  const dismissed = useLive((s) => s.dismissedNow);
   const events = useCalendar((s) => s.events);
   const now = useNow(15_000, calendar && on);
-  const text = calendar && on ? badgeText(events, now) : null;
+  const text = calendar && on ? badgeText(events, now, lead, dismissed) : null;
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const colors = useLiveColors();

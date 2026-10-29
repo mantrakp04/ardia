@@ -1,5 +1,11 @@
 import type { AreaLightPalette } from "@ardia/shaders";
 import type { ProfileColor } from "../../lib/profileLook";
+import { parseColor } from "../../lib/color";
+
+export function withAlpha(color: string, alpha: number): string {
+  const [r, g, b] = parseColor(color);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
 
 export const ink = { white: "#FFFFFF", black: "#000000", clear: "#00000000", neutralGrey: "#808080A6" } as const;
 
@@ -198,6 +204,8 @@ const lightRoles: ColorRoles = {
 export const colorRoles = { dark: darkRoles, light: lightRoles } as const;
 
 export type ColorRole = { [K in keyof ColorRoles]: ColorRoles[K] extends string ? K : never }[keyof ColorRoles];
+
+export const glassRim = { rest: "rgba(255,255,255,0.2)", lit: "rgba(255,255,255,0.3)" } as const;
 
 export const closeOnArt = { rest: "rgba(255,255,255,0.1)", hover: "rgba(255,255,255,0.2)", pressed: "rgba(255,255,255,0.3)", glyph: "#FFFFFF8C" } as const;
 

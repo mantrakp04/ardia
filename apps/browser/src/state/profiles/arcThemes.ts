@@ -7,7 +7,6 @@ import { importModule } from "../../platform/importModule";
 
 export async function arcThemeChoices(): Promise<{ id: string; name: string; emoji?: string; color?: string; theme: ProfileTheme }[]> {
   const api = importModule();
-  if (!api) return [];
   const browsers = await api.listBrowsers().catch(() => []);
   const arc = browsers.find((b) => b.id === "arc");
   return (arc?.profiles ?? []).flatMap((p) =>

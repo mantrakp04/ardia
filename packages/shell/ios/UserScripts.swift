@@ -27,7 +27,7 @@ final class UserScripts {
     init(_ message: String) { self.message = message }
   }
 
-  private var dir: URL? { try? ShellModule.documentURL("Scripts") }
+  private var dir: URL? { try? DocumentStore.url("Scripts") }
 
   func start() {
     UserScripts.work.async { self.arm() }

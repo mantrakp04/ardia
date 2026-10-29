@@ -76,7 +76,7 @@ final class ChromiumChannelTests: XCTestCase {
     let importer = Importer(discovery: Fixtures.discovery())
     let locked = try importer.importData(browserId: "braveBeta", profileId: "Profile 1", kinds: [.tabs])
     XCTAssertEqual(locked.failed, [.tabs])
-    XCTAssertEqual(locked.warnings.first?.code, "locked")
+    XCTAssertEqual(locked.warnings.first?.code, .locked)
 
     try importer.unlock(browserId: "braveBeta", secret: fixtureSecret)
     let open = try importer.importData(browserId: "braveBeta", profileId: "Profile 1", kinds: [.tabs])
@@ -89,7 +89,7 @@ final class ChromiumChannelTests: XCTestCase {
     importer.setKey(ChromiumCrypto.deriveKey(secret: Data("wrong".utf8)), for: "braveBeta")
     let result = try importer.importData(browserId: "braveBeta", profileId: "Default", kinds: [.cookies, .tabs])
     XCTAssertEqual(result.failed, [.cookies])
-    XCTAssertTrue(result.warnings.contains { $0.kind == .cookies && $0.code == "locked" })
+    XCTAssertTrue(result.warnings.contains { $0.kind == .cookies && $0.code == .locked })
     XCTAssertEqual(result.tabs.count, 2)
   }
 

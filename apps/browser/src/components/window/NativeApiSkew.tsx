@@ -12,5 +12,5 @@ export function startSkewed(message: string) {
     </View>
   ));
   openSkewWindow();
-  if (__DEV__) answerWithSkew(message, "dev-eval.js", "dev-eval-result.json");
+  if (__DEV__) answerWithSkew(message);
 }

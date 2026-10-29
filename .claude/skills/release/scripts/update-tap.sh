@@ -6,23 +6,20 @@ dry=0
 [ "${2:-}" = --dry-run ] && dry=1
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$(git -C "$here" rev-parse --show-toplevel)"
-repo="mantrakp04/ardia"
+. "$root/scripts/lib/releases.sh"
 tap="mantrakp04/homebrew-tap"
 dist="${RELEASE_DIST:-$root/dist/$version}"
 die() { echo "error: $*" >&2; exit 1; }
 
-if [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  cask="Casks/ardia.rb"
-elif [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-nightly\.[0-9]+$ ]]; then
-  cask="Casks/ardia@nightly.rb"
-else
-  die "$version is neither a stable nor a nightly version"
-fi
+case "$(channel_of "$version")" in
+  stable) cask="Casks/ardia.rb" ;;
+  nightly) cask="Casks/ardia@nightly.rb" ;;
+esac
 
 dmg_name="Ardia-$version.dmg"
 local_sum=""
 [ -f "$dist/$dmg_name" ] && local_sum="$(shasum -a 256 "$dist/$dmg_name" | cut -d' ' -f1)"
-published="$(gh release view "v$version" -R "$repo" --json assets \
+published="$(gh release view "v$version" -R "$REPO" --json assets \
   -q ".assets[] | select(.name == \"$dmg_name\") | .digest" 2>/dev/null || true)"
 published="${published#sha256:}"
 [ -n "$published" ] || [ "$dry" = 1 ] || die "v$version's release has no $dmg_name yet: publish it first"

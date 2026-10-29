@@ -2,6 +2,7 @@ import { readDocument, writeDocument } from "../../platform/documents";
 import { create } from "zustand";
 import type { CompletedItem, CompletionState, FolderStatus, LiveAccount, LiveFolder, LiveFolderKind, LiveItem, LiveSourceId } from "./types";
 import { parseSaved, unchanged, versionedJson, type Migrations } from "../../lib/savedDocument";
+import { DEFAULT_COUNTDOWN_LEAD, keepDismissedNow, type DismissedNow } from "./meetings";
 
 export type LiveConfig = {
   githubClientId: string;
@@ -16,6 +17,7 @@ export type CalendarSettings = {
   alertCondition: "always" | "activeOnly";
   showPreview: boolean;
   showTimeToNext: boolean;
+  countdownLead: number;
   hiddenCalendarIds: string[];
   prompted: boolean;
 };
@@ -47,6 +49,7 @@ type LiveState = {
   calendar: CalendarSettings;
   meetingGroups: Record<string, MeetingGroup>;
   dismissedAlerts: string[];
+  dismissedNow: DismissedNow;
 };
 
 export const DEFAULT_CONFIG: LiveConfig = { githubClientId: "", bitbucketUser: "", confluenceSite: "", confluenceEmail: "", googleClientId: "" };
@@ -56,6 +59,7 @@ export const DEFAULT_CALENDAR: CalendarSettings = {
   alertCondition: "always",
   showPreview: true,
   showTimeToNext: true,
+  countdownLead: DEFAULT_COUNTDOWN_LEAD,
   hiddenCalendarIds: [],
   prompted: false,
 };
@@ -63,7 +67,7 @@ export const DEFAULT_CALENDAR: CalendarSettings = {
 const DOC = "live.json";
 const DOC_VERSION = 1;
 const DOC_MIGRATIONS: Migrations = { 0: unchanged };
-const PERSISTED = ["folders", "folderOrder", "items", "known", "unread", "hidden", "completed", "expandedStacks", "accounts", "config", "calendar", "meetingGroups", "dismissedAlerts"] as const;
+const PERSISTED = ["folders", "folderOrder", "items", "known", "unread", "hidden", "completed", "expandedStacks", "accounts", "config", "calendar", "meetingGroups", "dismissedAlerts", "dismissedNow"] as const;
 
 function load(): Partial<LiveState> {
   try {
@@ -97,10 +101,13 @@ export const useLive = create<LiveState>()(() => ({
   calendar: { ...DEFAULT_CALENDAR, ...saved.calendar },
   meetingGroups: saved.meetingGroups ?? {},
   dismissedAlerts: saved.dismissedAlerts ?? [],
+  dismissedNow: keepDismissedNow(saved.dismissedNow, Date.now()),
 }));
 
 export const live = () => useLive.getState();
-export const setLive = (patch: Partial<LiveState> | ((s: LiveState) => Partial<LiveState>)) => useLive.setState(patch);
+const setLive = (patch: Partial<LiveState> | ((s: LiveState) => Partial<LiveState>)) => useLive.setState(patch);
+
+export const showAllKey = (folderId: string, section: string) => `${folderId}:${section}`;
 
 let timer: ReturnType<typeof setTimeout> | undefined;
 useLive.subscribe((s, prev) => {
@@ -155,18 +162,38 @@ const without = <T>(record: Record<string, T>, key: string) => {
   return rest;
 };
 
+const stackIds = (items: LiveItem[] | undefined) => (items ?? []).flatMap((it) => (it.pr?.stack ? [it.pr.stack.id] : []));
+
+function stacksOnlyIn(s: LiveState, id: string): Set<string> {
+  const elsewhere = new Set(s.folderOrder.filter((f) => f !== id).flatMap((f) => [...stackIds(s.items[f]), ...stackIds(s.hidden[f])]));
+  return new Set([...stackIds(s.items[id]), ...stackIds(s.hidden[id])].filter((stack) => !elsewhere.has(stack)));
+}
+
 export function removeFolder(id: string) {
-  setLive((s) => ({
-    folders: without(s.folders, id),
-    folderOrder: s.folderOrder.filter((f) => f !== id),
-    items: without(s.items, id),
-    known: without(s.known, id),
-    unread: without(s.unread, id),
-    hidden: without(s.hidden, id),
-    completed: without(s.completed, id),
-    completing: without(s.completing, id),
-    status: without(s.status, id),
-  }));
+  setLive((s) => {
+    const stacks = stacksOnlyIn(s, id);
+    return {
+      folders: without(s.folders, id),
+      folderOrder: s.folderOrder.filter((f) => f !== id),
+      items: without(s.items, id),
+      known: without(s.known, id),
+      unread: without(s.unread, id),
+      hidden: without(s.hidden, id),
+      completed: without(s.completed, id),
+      completing: without(s.completing, id),
+      status: without(s.status, id),
+      showAll: Object.fromEntries(Object.entries(s.showAll).filter(([key]) => !key.startsWith(showAllKey(id, "")))),
+      expandedStacks: Object.fromEntries(Object.entries(s.expandedStacks).filter(([stack]) => !stacks.has(stack))),
+    };
+  });
+}
+
+export const showAllIn = (folderId: string, section: string) => setLive((s) => ({ showAll: { ...s.showAll, [showAllKey(folderId, section)]: true } }));
+
+export const toggleStack = (stackId: string) => setLive((s) => ({ expandedStacks: { ...s.expandedStacks, [stackId]: s.expandedStacks[stackId] === false } }));
+
+export function markUnread(folderId: string, itemId: string) {
+  setLive((s) => ((s.unread[folderId] ?? []).includes(itemId) ? {} : { unread: { ...s.unread, [folderId]: [...(s.unread[folderId] ?? []), itemId] } }));
 }
 
 export function arrangeFolders(placed: { id: string; after: string | null }[]) {
@@ -280,6 +307,10 @@ export const updateCalendarSettings = (patch: Partial<CalendarSettings>) => setL
 
 export function dismissAlert(occurrence: string) {
   setLive((s) => (s.dismissedAlerts.includes(occurrence) ? {} : { dismissedAlerts: [...s.dismissedAlerts, occurrence].slice(-200) }));
+}
+
+export function dismissNowBadge(event: { occurrence: string; end: number }, now = Date.now()) {
+  setLive((s) => (s.dismissedNow[event.occurrence] !== undefined ? {} : { dismissedNow: keepDismissedNow({ ...s.dismissedNow, [event.occurrence]: event.end }, now) }));
 }
 
 export function setMeetingGroup(group: MeetingGroup | null, groupId?: string) {

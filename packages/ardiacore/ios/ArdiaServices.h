@@ -29,8 +29,15 @@ typedef void (^ArdiaServiceReply)(id _Nullable value, NSString *_Nullable error)
 + (void)exportPasswords:(NSString *)profile path:(nullable NSString *)path reply:(ArdiaServiceReply)reply
     NS_SWIFT_NAME(exportPasswords(profile:path:reply:));
 
-+ (BOOL)boolPreference:(NSString *)name profile:(NSString *)profile NS_SWIFT_NAME(boolPreference(_:profile:));
-+ (void)setBoolPreference:(NSString *)name value:(BOOL)value profile:(NSString *)profile NS_SWIFT_NAME(setBoolPreference(_:value:profile:));
+typedef NS_ENUM(NSInteger, ArdiaProfileToggle) {
+  ArdiaProfileTogglePasswordsOffered,
+  ArdiaProfileToggleAddressesAutofilled,
+  ArdiaProfileToggleCardsAutofilled,
+};
+
++ (BOOL)profileToggle:(ArdiaProfileToggle)toggle profile:(NSString *)profile NS_SWIFT_NAME(profileToggle(_:profile:));
++ (void)setProfileToggle:(ArdiaProfileToggle)toggle value:(BOOL)value profile:(NSString *)profile
+    NS_SWIFT_NAME(setProfileToggle(_:value:profile:));
 
 + (void)addresses:(NSString *)profile reply:(ArdiaServiceReply)reply NS_SWIFT_NAME(addresses(profile:reply:));
 + (void)saveAddress:(NSDictionary<NSString *, id> *)address profile:(NSString *)profile reply:(ArdiaServiceReply)reply

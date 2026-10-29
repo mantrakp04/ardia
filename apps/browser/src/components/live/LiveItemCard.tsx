@@ -7,8 +7,9 @@ import { ago } from "../../state/live/meetings";
 import { useLive } from "../../state/live/store";
 import type { LiveItem, PullRequestCheck } from "../../state/live/types";
 import { newTab } from "../../state/tabs/actions";
-import { Box, Button, curve, font, hairline, hex, radius, space, Surface, Symbol, Text, useHover, useTheme, weight } from "../ui";
-import { cardHoverProps, dismissHover } from "../../state/sidebar/hover";
+import { Box, Button, curve, font, hairline, Panel, radius, space, Symbol, Text, useHover, useTheme, weight } from "../ui";
+import { dismissHover } from "../../state/sidebar/hover";
+import { cardHoverProps } from "../sidebar/hoverController";
 import { hoverCardOrigin } from "../sidebar/hoverMotion";
 import type { Anchor } from "../../state/sidebar/sidebarUi";
 import { TabIcon } from "../sidebar/TabIcon";
@@ -24,21 +25,18 @@ export function HoverSurface({ anchor, width, children }: { anchor: Anchor; widt
   const theme = useTheme();
   return (
     <View onLayout={cardHoverProps.onLayout} style={{ position: "absolute", ...hoverCardOrigin(anchor), width }}>
-      <Surface
+      <Panel
         onMouseEnter={cardHoverProps.onMouseEnter}
         onMouseLeave={cardHoverProps.onMouseLeave}
-        fill={hex(theme.panel)}
-        cornerRadius={radius.panel}
-        borderColor={hex(theme.panelBorder)}
-        borderWidth={hairline.panel}
-        shadowColor={liveShadow.hoverCard.color}
-        shadowOpacity={theme.panelShadowOpacity * liveShadow.hoverCard.opacityScale}
-        shadowRadius={liveShadow.hoverCard.radius}
-        shadowOffset={liveShadow.hoverCard.offset}
+        glass="panel"
+        fill={theme.panel}
+        radius={radius.panel}
+        border={theme.panelBorder}
+        shadow={liveShadow.hoverCard}
         style={HOVER_CARD}
       >
         {children}
-      </Surface>
+      </Panel>
     </View>
   );
 }

@@ -1,6 +1,6 @@
 // Copyright 2026 Ardia. Apache-2.0.
 
-#include "chrome/browser/ardia/ac_extension_actions.h"
+#include "chrome/browser/ardia/ac_engine.h"
 
 #include <string>
 #include <utility>
@@ -126,12 +126,7 @@ class ActionWatch : public ProfileState,
 }
 }
 
-AC_ENGINE_CALL(ac_extensions_watch_actions) {
-  ardia::Call call(profile_dir, args_json, reply, context,
-                   ardia::OffTheRecord::kAllow);
-  if (!call) {
-    return;
-  }
-  ardia::StateFor<ardia::ActionWatch>(call.profile()->GetOriginalProfile());
+AC_PROFILE_CALL(ac_extensions_watch_actions) {
+  ardia::StateFor<ardia::ActionWatch>(call.profile());
   call.TakeReply().Ok();
 }

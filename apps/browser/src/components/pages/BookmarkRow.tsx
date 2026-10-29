@@ -26,6 +26,7 @@ export function BookmarkRow({
   onSelect,
   onOpenFolder,
   onDelete,
+  menuSelection,
   onDragStart,
   onDragMove,
   onDragEnd,
@@ -40,6 +41,7 @@ export function BookmarkRow({
   onSelect: (e: { metaKey?: boolean; shiftKey?: boolean }) => void;
   onOpenFolder: (folder?: string) => void;
   onDelete: () => void;
+  menuSelection: () => string[];
   onDragStart: () => void;
   onDragMove: (x: number, y: number) => void;
   onDragEnd: (x: number, y: number) => void;
@@ -83,7 +85,7 @@ export function BookmarkRow({
   const open = (mode: Parameters<typeof openUrl>[2]) => node.kind === "url" && openUrl(node.url, windowId, mode);
   const menu = () => {
     if (!selected) onSelect({});
-    return openBookmarkRowMenu(node, { windowId, profileId, showPath, onOpenFolder, onDelete });
+    return openBookmarkRowMenu(node, { windowId, profileId, showPath, selection: selected ? menuSelection() : [id], onOpenFolder, onDelete });
   };
 
   return (

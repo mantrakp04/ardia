@@ -56,16 +56,22 @@ const usesPageA = [
   "context-menu-search", "duplicate-and-reopen", "device-chooser", "bluetooth-chooser",
   "bluetooth-settings", "cast-dialog", "cast-routes", "theme-commit", "user-selection",
   "password-prompt", "screen-share-picker", "tab-capture", "share-instead-two-captures",
-  "restore-after-close", "discard-outcomes", "capture-picture", "unresponsive", "permission-dismissed",
+  "restore-after-close", "discard-outcomes", "memory-saver", "capture-picture", "unresponsive", "permission-dismissed",
   "save-page", "activate-request", "extension-popup-and-panel", "scroll-zoom", "print-preview",
   "extension-prompts", "traffic-lights-after-profile-switch", "extension-configure",
   "private-windows-create", "extension-installed-bubble", "popup-window", "autofill-save-prompts",
   "settings-services", "download-navigation", "page-events", "page-background", "external-app-answer",
+  "external-app-from-extension",
   "notifications", "now-playing", "media-state", "auto-picture-in-picture", "pip-window", "page-focus",
   "fullscreen-tab-switch", "fullscreen-native", "fullscreen-menu-bar-reveal", "fullscreen-transition-picture", "fullscreen-hidden-page", "fullscreen-split-sibling",
   "fullscreen-pip", "autofill-suggestions", "images", "extension-surfaces", "frozen", "discard",
   "permission-prompt", "popup-blocked", "move-tab-slow-mount", "move-last-tab-slow-mount",
   "move-tab-closed-while-parked", "move-tab-to-window", "title-bar-close", "last-used-profile",
+  "webkit-tab", "webkit-move-tab", "webkit-zoom", "webkit-now-playing", "webkit-scroll", "webkit-js-reload",
+  "window-close-before-reveal", "window-close-during-exit", "window-close-while-full-screen-restore-waits",
+  "webkit-clearing-keeps-zoom", "webkit-private-session-ends-mid-transfer", "webkit-now-playing-frames",
+  "page-view-calls", "tab-close-then-load", "tab-close-before-create", "tab-load-before-attach", "tab-create-interrupted-by-move", "tab-close-while-lent",
+  "page-reports-follow-the-tab",
 ];
 const needs = {
   ...Object.fromEntries([...usesPageA, "task-manager", "internal-pages-not-history", "second-profile"].map((name) => [name, ["open-url"]])),
@@ -73,7 +79,6 @@ const needs = {
   "tab-keys-from-page": ["open-url", "target-blank"],
   "window-close": ["window-open"],
   "site-data-clear": ["open-url"],
-  "frozen": ["open-url", "cmd-click"],
   "discard": ["open-url", "cmd-click"],
   "duplicate-and-reopen": ["open-url", "navigate-back-forward-reload"],
   "context-menu-activation-log": ["context-menu-search"],
@@ -278,7 +283,7 @@ const server = createServer((req, res) => {
     res.writeHead(200, { "content-type": "audio/wav", "content-length": String(wav.length) });
     return res.end(wav);
   }
-  res.writeHead(200, { "content-type": "text/html" });
+  res.writeHead(200, { "content-type": "text/html", ...(url.pathname === "/fresh" ? { "cache-control": "no-store" } : {}) });
   if (url.pathname === "/cam")
     return res.end(page("Cam", "cam", `<script>
       window.__asks = []; window.__streams = [];
@@ -329,6 +334,10 @@ const server = createServer((req, res) => {
       };
     </script>`));
   if (url.pathname === "/media") return res.end(page("Media", `<audio id="tone" src="/tone.wav" loop></audio>`));
+  if (url.pathname === "/fresh") return res.end(page("Fresh", "fresh"));
+  if (url.pathname === "/np-frames") return res.end(page("NP frames", `<audio id="tone" src="/tone.wav" loop></audio><iframe src="/np-child"></iframe>`));
+  if (url.pathname === "/np-child") return res.end(page("NP child", `<audio id="tone" src="/tone.wav" loop></audio>`));
+  if (url.pathname === "/tall") return res.end(page("Tall", `<div style="height: 8000px; background: linear-gradient(#fff, #ccc)">tall</div>`));
   if (url.pathname === "/form")
     return res.end(page("Form", `<form action="/form" method="get" autocomplete="on"><input id="c" name="city" autocomplete="on" style="font-size: 20px; margin: 80px; width: 300px"><button id="b">go</button></form>`));
   if (url.pathname === "/video")
@@ -412,6 +421,9 @@ const tlsCert = readFileSync(join(tlsDir, "cert.pem"));
 const tlsServer = createHttpsServer({ key: readFileSync(join(tlsDir, "key.pem")), cert: tlsCert }, (req, res) => server.emit("request", req, res));
 await listen(tlsServer, kept?.meta.https ?? 0);
 const secureBase = `https://127.0.0.1:${tlsServer.address().port}`;
+const webkitServer = createServer((req, res) => server.emit("request", req, res));
+await listen(webkitServer, kept?.meta.webkit ?? 0);
+const webkitBase = `http://127.0.0.1:${webkitServer.address().port}`;
 const tlsSpki = createHash("sha256").update(new X509Certificate(tlsCert).publicKey.export({ type: "spki", format: "der" })).digest("base64");
 
 // MARK: The app
@@ -432,7 +444,7 @@ async function launch(logName = "app.out.log", test = {}, args = [], opts = {}) 
     test: { reauth: "granted", mediaRouteProvider: true, bluetoothChooser: true, externalProtocolNoLaunch: true, ...test },
     trace: [...new Set(["trafficLights", ...runner.trace.filter((area) => ["visibility", "pip"].includes(area))])],
     switches: `--auto-select-tab-capture-source-by-title=Capture Target ${chromeSwitches} ${opts.switches ?? ""}`.trim(),
-    meta: { http: server.address().port, https: tlsServer.address().port },
+    meta: { http: server.address().port, https: tlsServer.address().port, webkit: webkitServer.address().port },
   });
   adopt(instance);
   const output = await settledAudioOutput(pid);
@@ -606,8 +618,8 @@ const eventsOf = async (tabId) => {
   return (await browserOf(tabId)) ? engine("tabs.devEvents", { tabId }) : [];
 };
 const state = () =>
-  evalApp(`const s = ac.store.getState(); const w = s.windows[${JSON.stringify(mainWindow)}] ?? Object.values(s.windows).filter((w) => !w.incognito && w.kind !== "small").sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))[0];
-    return { windowId: w?.id, profileId: w?.profileId, tabs: (w?.tabIds ?? []).map((id) => ({ id, url: s.tabs[id]?.url, title: s.tabs[id]?.title, favicon: s.tabs[id]?.favicon?.slice(0, 40), adoptId: s.tabs[id]?.adoptId, profileId: s.tabs[id]?.profileId, loading: s.live[id]?.isLoading, back: s.live[id]?.canGoBack, fwd: s.live[id]?.canGoForward })), active: w ? w.activeTabIds[w.profileId] : null, windows: Object.keys(s.windows).length, profiles: s.profileOrder };`);
+  evalApp(`const s = ac.store.getState(); const w = s.windows[${JSON.stringify(mainWindow)}] ?? Object.values(s.windows).filter((w) => w.kind === "main").sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0))[0];
+    return { windowId: w?.id, profileId: w?.profileId, tabs: (w?.tabIds ?? []).map((id) => ({ id, url: s.tabs[id]?.url, title: s.tabs[id]?.title, favicon: s.tabs[id]?.favicon?.slice(0, 40), adoptId: s.tabs[id]?.page.adopt, profileId: s.tabs[id]?.profileId, loading: s.live[id]?.isLoading, back: s.live[id]?.canGoBack, fwd: s.live[id]?.canGoForward })), active: w ? w.activeTabIds[w.profileId] : null, windows: Object.keys(s.windows).length, profiles: s.profileOrder };`);
 
 // MARK: Helpers
 
@@ -776,11 +788,11 @@ try {
     const personalTab = await evalApp(`return ac.store.getState().newTab(${JSON.stringify(home)}, { url: "${base}/cookie?personal" })`);
     await shows(home, "Cookie");
     const steps = [];
-    const p1 = await open({ incognito: true, url: `${base}/cookie?private1` });
+    const p1 = await open({ kind: "private", url: `${base}/cookie?private1` });
     await shows(p1, "Cookie");
     if ((await cookie("/cookie?private1")).includes("personal")) throw new Error("a private window sees Personal's cookie");
     await close(p1);
-    const p2 = await open({ incognito: true, url: `${base}/b?private2` });
+    const p2 = await open({ kind: "private", url: `${base}/b?private2` });
     await shows(p2, "Page B");
     steps.push("private, reopened at once");
     if ((await cookie("/b?private2")).includes("personal")) throw new Error("the reopened private window sees Personal's cookie");
@@ -791,13 +803,13 @@ try {
     steps.push("private, a tab after its last tab closed");
     await close(p2);
     await sleep(2500);
-    const p4 = await open({ incognito: true, url: `${base}/d?private4` });
+    const p4 = await open({ kind: "private", url: `${base}/d?private4` });
     await shows(p4, "Page D");
     steps.push("private, reopened later");
     if ((await cookie("/d?private4")).includes("personal")) throw new Error("a later private window sees Personal's cookie");
     let last = p4;
     for (let round = 0; round < 4; round++) {
-      const next = await evalApp(`const s = ac.store.getState(); s.closeWindow(${JSON.stringify(last)}); return ac.actions.openWindow({ incognito: true, url: "${base}/e?churn${round}" })`);
+      const next = await evalApp(`const s = ac.store.getState(); s.closeWindow(${JSON.stringify(last)}); return ac.actions.openWindow({ kind: "private", url: "${base}/e?churn${round}" })`);
       await shows(next, "Page E");
       await sleep(round % 2 ? 200 : 1500);
       await evalApp(`ac.store.getState().newTab(${JSON.stringify(next)}, { url: "${base}/b?churn${round}" }); return true`);
@@ -1098,7 +1110,7 @@ try {
       const vis = (await cdp(t, "Runtime.evaluate", { expression: "document.visibilityState + '/' + document.hasFocus()", returnByValue: true })).result.value;
       throw new Error(`no context menu reported (page ${vis}); events: ${JSON.stringify((await eventsOf(first.id)).slice(-6).map((x) => x.name))}`);
     }
-    const selection = !!(await eventsOf(first.id)).findLast((x) => x.name === "pageMessage" && x.payload?.kind === "selection");
+    const selection = !!(await eventsOf(first.id)).findLast((x) => x.name === "selection");
     const labels = e.payload.items.filter((i) => !i.separator).map((i) => i.label);
     const search = labels.filter((l) => /^Search .* for /.test(l));
     if (!search.some((l) => l.startsWith("Search Acceptance for “to B”"))) throw new Error(`no app search item: ${JSON.stringify(labels)}`);
@@ -1335,9 +1347,9 @@ try {
       for (let k = 1; k <= 8; k++)
         await cdp(t, "Input.dispatchMouseEvent", { type: "mouseMoved", x: box.x + 2 + ((box.width - 10) * k) / 8, y, button: "left", buttons: 1 });
       await cdp(t, "Input.dispatchMouseEvent", { type: "mouseReleased", x: box.x + box.width - 8, y, button: "left", buttons: 0, clickCount: 1 });
-      const e = await until("onPageMessage selection", async () =>
-        (await eventsOf(first.id)).findLast((x) => x.name === "pageMessage" && x.payload?.kind === "selection" && x.payload?.data), 6000);
-      return { text: String(JSON.stringify(e.payload.data)).slice(0, 80) };
+      const e = await until("onSelection", async () =>
+        (await eventsOf(first.id)).findLast((x) => x.name === "selection" && x.payload?.selection), 6000);
+      return { text: String(JSON.stringify(e.payload.selection)).slice(0, 80) };
     } finally {
       await backToA();
     }
@@ -1552,7 +1564,7 @@ try {
   // MARK: Tab lifecycle
 
   await check("restore-after-close", async () => {
-    const shell = "globalThis.expo.modules.ArdiaShell";
+    const shell = "globalThis.expo.modules.ArdiaDialogs";
     const s = (expr) => evalApp(`const s = ac.store.getState(); return ${expr}`);
     const toB = async (tabId, tag) => {
       await until(`A?${tag} loaded`, async () => (await s(`s.tabs["${tabId}"]?.title === "Page A" && !s.live["${tabId}"]?.isLoading && !!ac.webviews.get("${tabId}")`)) || null, 15000);
@@ -1671,16 +1683,9 @@ try {
       if (!(await renderer())) throw new Error("no renderer before the discard");
       out.unload = await raw("{ unload: true }");
       out.afterUnload = { renderer: await renderer(), ...(await flags()) };
-      out.slept = await evalApp(`return globalThis.acLifecycle.sleepTab("${tab.id}")`);
+      out.slept = await raw();
       out.afterSleep = { renderer: await until("the renderer gone", async () => ((await renderer()) ? null : "gone"), 5000).catch(() => "still there"), ...(await flags()) };
       out.again = await raw();
-      const other = await openTab(`${base}/e?refused`, "Page E", true);
-      try {
-        out.refusedSlept = await evalApp(`const h = ac.webviews.get("${other.id}"); h.discard = () => Promise.resolve("refused"); return globalThis.acLifecycle.sleepTab("${other.id}")`);
-        out.refusedFlags = await evalApp(`return !!globalThis.acLifecycle.state().discarded["${other.id}"]`);
-      } finally {
-        await closeTab(other.id);
-      }
       await evalApp(`ac.actions.switchToTab("${tab.id}"); return true`);
       out.woke = await until("awake", async () => {
         const f = await flags();
@@ -1688,15 +1693,37 @@ try {
       }, 10000).catch(async () => ({ renderer: await renderer(), ...(await flags()) }));
       const problems = [];
       if (out.unload !== "unsupported" || !out.afterUnload.renderer || out.afterUnload.sleeping) problems.push(`unload: ${JSON.stringify([out.unload, out.afterUnload])}`);
-      if (out.slept !== true || out.afterSleep.renderer !== "gone" || !out.afterSleep.sleeping) problems.push(`discard: ${JSON.stringify([out.slept, out.afterSleep])}`);
+      if (out.slept !== "discarded" || out.afterSleep.renderer !== "gone" || !out.afterSleep.sleeping) problems.push(`discard: ${JSON.stringify([out.slept, out.afterSleep])}`);
       if (out.again !== "already") problems.push(`again: ${JSON.stringify(out.again)}`);
-      if (out.refusedSlept !== false || out.refusedFlags) problems.push(`refused: ${JSON.stringify([out.refusedSlept, out.refusedFlags])}`);
       if (out.woke.sleeping || !out.woke.renderer || !out.woke.loaded) problems.push(`wake: ${JSON.stringify(out.woke)}`);
       if (problems.length) throw new Error(problems.join("; "));
       return out;
     } finally {
       await closeTab(tab.id);
       await evalApp(`ac.actions.switchToTab("${first.id}"); return true`).catch(() => null);
+    }
+  });
+
+  await check("memory-saver", async () => {
+    const saved = await evalApp(`const s = ac.store.getState().settings; return { memorySaver: s.memorySaver, memorySaverMode: s.memorySaverMode, keepActiveSites: s.keepActiveSites }`);
+    const read = () => engine("engine.memorySaver", {});
+    const set = (patch) => evalApp(`ac.store.getState().updateSettings(${JSON.stringify(patch)}); return true`);
+    try {
+      const out = { launch: await read() };
+      await set({ memorySaver: false });
+      out.off = await until("Memory Saver off", async () => { const r = await read(); return r.state === "off" && !r.active ? r : null; }, 5000);
+      await set({ memorySaver: true, memorySaverMode: "maximum", keepActiveSites: ["127.0.0.1/Editor?Doc=AbC", "[*.]example.com"] });
+      out.on = await until("Memory Saver on", async () => { const r = await read(); return r.state === "on" && r.active && r.aggressiveness === "maximum" && r.sites.length === 2 ? r : null; }, 5000);
+      out.valid = await engine("engine.validateKeepActiveSite", { site: "music.youtube.com" });
+      out.invalid = await engine("engine.validateKeepActiveSite", { site: "" });
+      const problems = [];
+      if (out.launch.state !== (saved.memorySaver === false ? "off" : "on")) problems.push(`launch: ${JSON.stringify(out.launch)}`);
+      if (!out.on.sites.includes("127.0.0.1/Editor?Doc=AbC")) problems.push(`sites: ${JSON.stringify(out.on.sites)}`);
+      if (!out.valid.valid || out.invalid.valid) problems.push(`validate: ${JSON.stringify([out.valid, out.invalid])}`);
+      if (problems.length) throw new Error(problems.join("; "));
+      return out;
+    } finally {
+      await set(saved).catch(() => null);
     }
   });
 
@@ -1831,7 +1858,7 @@ try {
   });
 
   await check("private-release", async () => {
-    const a = await evalApp(`return ac.actions.openWindow({ incognito: true, url: "${base}/cookie?private1" })`);
+    const a = await evalApp(`return ac.actions.openWindow({ kind: "private", url: "${base}/cookie?private1" })`);
     await until("the private cookie set", async () => {
       const tabs = await evalApp(`const s = ac.store.getState(); return (s.windows["${a}"]?.tabIds ?? []).map((i) => s.tabs[i]?.title)`);
       return tabs.includes("Cookie") ? true : null;
@@ -1839,7 +1866,7 @@ try {
     await sleep(500);
     await evalApp(`ac.store.getState().closeWindow("${a}"); return true`);
     await sleep(2000);
-    const b = await evalApp(`return ac.actions.openWindow({ incognito: true, url: "${base}/b?private2" })`);
+    const b = await evalApp(`return ac.actions.openWindow({ kind: "private", url: "${base}/b?private2" })`);
     try {
       await until("the second private window's page", async () => {
         const tabs = await evalApp(`const s = ac.store.getState(); return (s.windows["${b}"]?.tabIds ?? []).map((i) => s.tabs[i]?.title)`);
@@ -1856,13 +1883,13 @@ try {
 
   await check("private-churn", async () => {
     const titles = (w) => evalApp(`const s = ac.store.getState(); return (s.windows[${JSON.stringify(w)}]?.tabIds ?? []).map((i) => s.tabs[i]?.title)`);
-    let last = await evalApp(`return ac.actions.openWindow({ incognito: true, url: "${base}/e?churn-start" })`);
+    let last = await evalApp(`return ac.actions.openWindow({ kind: "private", url: "${base}/e?churn-start" })`);
     const waits = [];
     try {
       await until("the first private page", async () => ((await titles(last)).includes("Page E") ? true : null), 15000);
       for (let round = 0; round < 50; round++) {
         const started = Date.now();
-        const next = await evalApp(`ac.store.getState().closeWindow(${JSON.stringify(last)}); return ac.actions.openWindow({ incognito: true, url: "${base}/e?churn${round}" })`);
+        const next = await evalApp(`ac.store.getState().closeWindow(${JSON.stringify(last)}); return ac.actions.openWindow({ kind: "private", url: "${base}/e?churn${round}" })`);
         last = next;
         await until(`round ${round}: a live tab`, async () => ((await titles(next)).includes("Page E") ? true : null), 15000);
         waits.push(Date.now() - started);
@@ -1873,7 +1900,7 @@ try {
         }
       }
       for (let round = 0; round < 10; round++)
-        last = await evalApp(`ac.store.getState().closeWindow(${JSON.stringify(last)}); return ac.actions.openWindow({ incognito: true, url: "${base}/e?burst${round}" })`);
+        last = await evalApp(`ac.store.getState().closeWindow(${JSON.stringify(last)}); return ac.actions.openWindow({ kind: "private", url: "${base}/e?burst${round}" })`);
       await until("the burst's last window: a live tab", async () => ((await titles(last)).includes("Page E") ? true : null), 15000);
       await sleep(1500);
       if (!(await titles(last)).includes("Page E")) throw new Error(`the burst's last tab went: ${JSON.stringify(await titles(last))}`);
@@ -1953,6 +1980,8 @@ try {
     const trackpad = await scroll(gesture(true));
     await sleep(800);
     const afterTrackpad = await zoom();
+    await scroll([{ phase: "command" }]);
+    await sleep(400);
     const wheel = await scroll([{ phase: "wheel", dy: 1 }, { phase: "wheel", dy: 1 }]);
     const afterWheel = await until("zoomed", async () => { const z = await zoom(); return z > 1 ? z : null; }, 5000)
       .catch(async (e) => {
@@ -1960,6 +1989,7 @@ try {
         const ui = await evalApp(`return ac.store.getState().windowUi[${JSON.stringify(mainWindow)}] ?? null`).catch(() => null);
         throw new Error(`${e.message}; trackpad ${JSON.stringify(trackpad)} wheel ${JSON.stringify(wheel)} zoom ${await zoom()} why ${JSON.stringify(why)} ui ${JSON.stringify(ui)} events ${JSON.stringify((await eventsOf(first.id)).filter((x) => x.name === "zoom").slice(-2))}`);
       });
+    await scroll([{ phase: "commandUp" }]);
     await reset();
     if (trackpad.some(Boolean) || afterTrackpad !== 1) throw new Error(`a trackpad ⌘-scroll zoomed: ${JSON.stringify(trackpad)} → ${afterTrackpad}`);
     if (!wheel.some(Boolean)) throw new Error(`the wheel didn't zoom: ${JSON.stringify(wheel)}`);
@@ -2185,7 +2215,7 @@ try {
     });
     log("  chrome.windows.create:", JSON.stringify(made.result?.value ?? made.exceptionDetails?.exception?.description ?? made));
     const tab = await until("the window's tab in the app", async () => {
-      const tabs = await evalApp(`const s = ac.store.getState(); return Object.values(s.tabs).map((t) => ({ id: t.id, url: t.url, adoptId: t.adoptId, windowId: t.windowId }))`);
+      const tabs = await evalApp(`const s = ac.store.getState(); return Object.values(s.tabs).map((t) => ({ id: t.id, url: t.url, adoptId: t.page.adopt, windowId: t.windowId }))`);
       return tabs.find((t) => t.url?.includes("e?window")) ?? null;
     }, 15000);
     try {
@@ -2204,7 +2234,7 @@ try {
     const installed = await engineOrError("extensions.install", { profile: "", path: extPath });
     if (installed?.error) throw new Error(installed.error);
     await engineOrError("extensions.configure", { profile: "", id: installed.id, options: { incognito: true } });
-    const privateTabs = () => evalApp(`const s = ac.store.getState(); return Object.values(s.tabs).map((t) => ({ id: t.id, url: t.url, title: t.title, windowId: t.windowId, incognito: !!s.windows[t.windowId]?.incognito, adoptId: t.adoptId }))`);
+    const privateTabs = () => evalApp(`const s = ac.store.getState(); return Object.values(s.tabs).map((t) => ({ id: t.id, url: t.url, title: t.title, windowId: t.windowId, incognito: s.windows[t.windowId]?.kind === "private", adoptId: t.page.adopt }))`);
     const opened = [];
     try {
       const worker = await until("the extension's worker", async () => {
@@ -2587,7 +2617,7 @@ try {
     const out = [];
     for (const step of ["first", "after-release"]) {
       const tag = `private-${step}-${Date.now()}`;
-      const w = await evalApp(`return ac.actions.openWindow({ incognito: true, url: "${origin}/adfirst?${tag}" })`);
+      const w = await evalApp(`return ac.actions.openWindow({ kind: "private", url: "${origin}/adfirst?${tag}" })`);
       try {
         await until(`the ${step} private page`, () => evalApp(`const s = ac.store.getState(); const id = s.windows[${JSON.stringify(w)}]?.tabIds[0];
           return id && s.tabs[id]?.title === "Ad first" && !s.live[id]?.isLoading ? true : null`), 20000);
@@ -2709,14 +2739,14 @@ try {
 
   await check("site-settings", async () => {
     const origin = "https://settings.test";
-    await engine("sites.setSetting", { profile: "", origin, type: "popups", value: "allow" });
+    await engine("sites.setSetting", { profile: "", engine: "chromium", origin, type: "popups", value: "allow" });
     const settings = await until("the setting", async () => {
-      const s = await engine("sites.settings", { profile: "", origin });
+      const s = await engine("sites.settings", { profile: "", engine: "chromium", origin });
       return s?.popups?.value === "allow" ? s : null;
     });
     const origins = await engine("sites.origins", { profile: "" });
     await engine("sites.reset", { profile: "", origin });
-    const cleared = await engine("sites.clearData", { profile: "", origin });
+    const cleared = await engine("sites.clearData", { profile: "", engine: "chromium", origin });
     return { popups: settings.popups, origins: origins.length, cleared };
   });
 
@@ -2752,7 +2782,7 @@ try {
         await closeTab(tab.id);
       }
     };
-    await engine("sites.setSetting", { profile: "", origin: secure, type: "notifications", value: "allow" });
+    await engine("sites.setSetting", { profile: "", engine: "chromium", origin: secure, type: "notifications", value: "allow" });
     const persistTab = await openTab(`${secure}/site-data`, "Site data", true);
     try {
       const t = await until("the secure page", () => pageTarget(`${secure}/site-data`));
@@ -2770,13 +2800,13 @@ try {
     for (const k of ["embeddedOnSite", "siteEmbeddedElsewhere"])
       if (before[k]?.cookie !== "chips=1" || before[k]?.ls !== "yes") throw new Error(`the fixture's partitioned data: ${JSON.stringify(before)}`);
     if (before.persisted !== true) throw new Error(`persistent storage wasn't granted: ${JSON.stringify(before)}`);
-    const cleared = await engine("sites.clearData", { profile: "", origin: one });
+    const cleared = await engine("sites.clearData", { profile: "", engine: "chromium", origin: one });
     const after = {
       one: await read(`${one}/site-data`), two: await read(`${two}/site-data`),
       embeddedOnSite: await readFrame(secure, `${thirdParty}/frame-probe`),
       siteEmbeddedElsewhere: await readFrame(elsewhere, `${secure}/frame-probe`),
       persisted: await persisted(),
-      notifications: (await engine("sites.settings", { profile: "", origin: secure }))?.notifications?.value,
+      notifications: (await engine("sites.settings", { profile: "", engine: "chromium", origin: secure }))?.notifications?.value,
     };
     await engine("sites.reset", { profile: "", origin: secure });
     const wrong = [];
@@ -2936,10 +2966,10 @@ try {
 
   await check("settings-services", async () => {
     await engine("profiles.clearBrowsingData", { profile: "", types: ["cache", "history"], since: null }, 90000);
-    await engine("sites.setSetting", { profile: "", origin: "https://reset.test", type: "sound", value: "block" });
+    await engine("sites.setSetting", { profile: "", engine: "chromium", origin: "https://reset.test", type: "sound", value: "block" });
     await engine("sites.reset", { profile: "", origin: "https://reset.test" });
     const reset = await until("the site reset", async () => {
-      const r = await engine("sites.settings", { profile: "", origin: "https://reset.test" });
+      const r = await engine("sites.settings", { profile: "", engine: "chromium", origin: "https://reset.test" });
       return r?.sound?.isDefault ? r.sound : null;
     });
     const before = await engine("contentBlocker.state");
@@ -3141,8 +3171,30 @@ try {
       removed: true, launched: false };
   });
 
+  await check("external-app-from-extension", async () => {
+    await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    await until("A shown", async () => (await state()).active === first.id);
+    return withPopupExtension({}, async (id) => {
+      const worker = await until("the extension's worker", async () =>
+        (await targets()).find((t) => t.type === "service_worker" && t.url.includes(`${id}/worker.js`)) ?? null, 10000);
+      await evalApp(`ac.pageState.setState((s) => ({ pages: { ...s.pages, "${first.id}": { ...s.pages["${first.id}"], externalApp: null } } })); return true`);
+      const url = "shortcuts://ardiacore-acceptance-extension?file=Clipped%20page&clipboard";
+      const expression = `chrome.tabs.query({ url: "${base}/a*" }).then(([tab]) => { chrome.tabs.update(tab.id, { url: ${JSON.stringify(url)} }); return "sent"; }, (e) => e.message)`;
+      const sent = (await cdp(worker, "Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true })).result.value;
+      if (sent !== "sent") throw new Error(`chrome.tabs.update(): ${sent}`);
+      const request = await until("the prompt", async () => evalApp(`return ac.pageState.getState().pages["${first.id}"]?.externalApp ?? null`), 10000);
+      if (request.origin !== `chrome-extension://${id}`) throw new Error(`the prompt names ${request.origin}`);
+      await evalApp(`ac.pageState.setState((s) => ({ pages: { ...s.pages, "${first.id}": { ...s.pages["${first.id}"], externalApp: null } } }));
+        return ac.engine.call("permissions.resolveExternalApp", ${JSON.stringify({ id: request.id, open: true, remember: false })}).then(() => true)`);
+      const launch = await until("the recorded launch", async () =>
+        (await engine("permissions.devExternalLaunches")).find((l) => l.url === url) ?? null, 8000)
+        .catch(() => { throw new Error("Open on an extension's link launched nothing"); });
+      return { origin: request.origin, app: request.app, launched: launch.url };
+    });
+  });
+
   await check("notifications", async () => {
-    await engine("sites.setSetting", { profile: "", origin: base, type: "notifications", value: "allow" });
+    await engine("sites.setSetting", { profile: "", engine: "chromium", origin: base, type: "notifications", value: "allow" });
     await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
     const t = await pageFor(first.id, `${base}/a`);
     await cdp(t, "Runtime.evaluate", {
@@ -3157,7 +3209,7 @@ try {
     }, 8000);
     await cdp(t, "Runtime.evaluate", { expression: "window.__n2 = new Notification('Second'); setTimeout(() => window.__n2.close(), 300); true", userGesture: true });
     const closed = await until("onNotificationClose", async () => (await eventsOf(first.id)).find((x) => x.name === "notificationClose"), 8000);
-    await engine("sites.setSetting", { profile: "", origin: base, type: "notifications", value: "default" });
+    await engine("sites.setSetting", { profile: "", engine: "chromium", origin: base, type: "notifications", value: "default" });
     return { title: e.payload.title, body: e.payload.body, clicked, closed: !!closed };
   });
 
@@ -4107,7 +4159,7 @@ try {
       const remote = `${ok(remoteFetch) ? "ok" : "null"}${reachable ? "" : " (not reachable from this script)"}`;
       const noWindow = await fetchIcon(`${favBase}/icon.png?no-private-window`, "incognito:nnfav@");
       if (noWindow.uri !== null) throw new Error("a fetch made a private profile");
-      privateWindow = await evalApp(`return ac.actions.openWindow({ incognito: true, url: "${favBase}/icon.png?private-page" })`);
+      privateWindow = await evalApp(`return ac.actions.openWindow({ kind: "private", url: "${favBase}/icon.png?private-page" })`);
       const privateProfile = await until("the private window's engine profile", async () =>
         (await engine("tabs.strips")).strips.find((st) => st.appWindow === privateWindow)?.profile ?? null, 10000);
       if (!privateProfile.startsWith("incognito:")) throw new Error(`the private window's engine profile: ${JSON.stringify(privateProfile)}`);
@@ -4147,20 +4199,23 @@ try {
   });
 
   await check("frozen", async () => {
-    const s = await state();
-    const other = s.tabs.find((x) => x.id !== first.id && x.id !== s.active && x.url?.startsWith(`${base}/d`));
-    if (!other) throw new Error("no background tab");
-    const t = await pageTarget(`${base}/d`);
-    await cdp(t, "Runtime.evaluate", { expression: "window.__life = []; document.addEventListener('freeze', () => __life.push('freeze')); document.addEventListener('resume', () => __life.push('resume')); true" });
-    await evalApp(`return ac.webviews.get("${other.id}")?.setFrozen(true)`);
-    await sleep(1500);
-    await evalApp(`return ac.webviews.get("${other.id}")?.setFrozen(false)`);
-    const life = await until("freeze and resume", async () => {
-      const r = await cdp(t, "Runtime.evaluate", { expression: "JSON.stringify(window.__life)", returnByValue: true });
-      const l = JSON.parse(r.result.value ?? "[]");
-      return l.includes("freeze") && l.includes("resume") ? l : null;
-    }, 8000);
-    return { life };
+    const other = await openTab(`${base}/d?frozen`, "Page D", true);
+    try {
+      const t = await pageFor(other.id, `${base}/d?frozen`);
+      await until("the page hidden", async () => (await cdp(t, "Runtime.evaluate", { expression: "document.visibilityState", returnByValue: true })).result.value === "hidden" || null, 8000);
+      await cdp(t, "Runtime.evaluate", { expression: "window.__life = []; document.addEventListener('freeze', () => __life.push('freeze')); document.addEventListener('resume', () => __life.push('resume')); true" });
+      await evalApp(`return ac.webviews.get("${other.id}")?.setFrozen(true)`);
+      await sleep(1500);
+      await evalApp(`return ac.webviews.get("${other.id}")?.setFrozen(false)`);
+      const life = await until("freeze and resume", async () => {
+        const r = await cdp(t, "Runtime.evaluate", { expression: "JSON.stringify(window.__life)", returnByValue: true });
+        const l = JSON.parse(r.result.value ?? "[]");
+        return l.includes("freeze") && l.includes("resume") ? l : null;
+      }, 8000);
+      return { life };
+    } finally {
+      await closeTab(other.id);
+    }
   });
 
   await check("discard", async () => {
@@ -4235,7 +4290,7 @@ try {
     return { before, after };
   });
   await check("incognito-window", async () => {
-    const id = await evalApp(`return ac.actions.openWindow({ incognito: true, url: "${base}/b?private" })`);
+    const id = await evalApp(`return ac.actions.openWindow({ kind: "private", url: "${base}/b?private" })`);
     const t = await until("a private tab", async () => {
       const tabs = await evalApp(`const s = ac.store.getState(); return (s.windows["${id}"]?.tabIds ?? []).map((i) => ({ url: s.tabs[i]?.url, title: s.tabs[i]?.title, profile: s.tabs[i]?.profileId }))`);
       return tabs.find((x) => x.title === "Page B") ?? null;
@@ -4348,6 +4403,524 @@ try {
     return { windowId, kept, strip: holding.strip, window: holding.window };
   });
 
+  // MARK: Page view lifecycle
+
+  const toFirst = () => evalApp(`ac.actions.switchToTab(${JSON.stringify(first.id)}); return true`).catch(() => null);
+  const chromeTabKeys = async () => (await engine("tabs.strips")).strips.flatMap((st) => st.tabs.map((t) => t.key));
+  const reopenClosed = async (tag, then) => {
+    const tab = await openTab(`${base}/c?${tag}`, "Page C");
+    await sleep(800);
+    const entry = await evalApp(`ac.store.getState().closeTab(${JSON.stringify(tab.id)}); return ac.store.getState().closedTabs.find((c) => c.tabId === ${JSON.stringify(tab.id)})?.id ?? null`);
+    if (!entry) throw new Error(`no closed entry for ${tag}`);
+    await sleep(800);
+    return evalApp(`const s = ac.store.getState(); const before = new Set(Object.keys(s.tabs));
+      s.restoreClosed(${JSON.stringify(entry)}, ${JSON.stringify(mainWindow)});
+      const id = Object.keys(ac.store.getState().tabs).find((t) => !before.has(t)); ac.store.getState().activate(id); ${then}; return id`);
+  };
+
+  const pagePhase = (id) => engine("tabs.devPagePhase", { tabId: id });
+
+  await check("tab-close-then-load", async () => {
+    const id = await freshTab(`${base}/c?close-then-load`);
+    try {
+      if (!(await engine("tabs.devClosePage", { tabId: id }))) throw new Error("no page view to close");
+      await evalApp(`return ac.webviews.get(${JSON.stringify(id)})?.loadUrl(${JSON.stringify(`${base}/d?after-close`)}, true)`);
+      await sleep(2000);
+      const phase = await pagePhase(id);
+      const keys = (await chromeTabKeys()).filter((k) => k === id).length;
+      if (phase !== "closing" || keys) throw new Error(`a load after close brought the page back: ${JSON.stringify({ phase, keys })}`);
+      return { phase };
+    } finally {
+      await closeTab(id).catch(() => null);
+      await toFirst();
+    }
+  });
+
+  await check("tab-close-before-create", async () => {
+    const leaked = [];
+    for (const delay of [0, 20, 60, 120]) {
+      const id = await reopenClosed(`close-before-${delay}`, `setTimeout(() => ac.store.getState().closeTab(id), ${delay})`);
+      await sleep(2500);
+      if ((await chromeTabKeys()).includes(id)) leaked.push({ delay, id });
+    }
+    await toFirst();
+    if (leaked.length) throw new Error(`a tab closed while its page was being made kept a Chrome tab: ${JSON.stringify(leaked)}`);
+    return { delays: [0, 20, 60, 120] };
+  });
+
+  await check("tab-load-before-attach", async () => {
+    const id = await reopenClosed("load-before", `ac.store.getState().navigate(id, ${JSON.stringify(`${base}/d?pending`)}, { userInitiated: true })`);
+    try {
+      const loaded = await until("the load asked for before the page existed", async () => (await state()).tabs.find((t) => t.id === id && t.title === "Page D" && !t.loading), 15000)
+        .catch(async (e) => { throw new Error(`${e.message}; tab ${JSON.stringify(await evalApp(`const s = ac.store.getState(); const t = s.tabs[${JSON.stringify(id)}]; return { url: t?.url, title: t?.title, page: t?.page }`))}; pages ${JSON.stringify((await targets()).filter((t) => t.url.includes("/c?load-before") || t.url.includes("/d?pending")).map((t) => t.url))}`); });
+      const keys = (await chromeTabKeys()).filter((k) => k === id).length;
+      if (keys !== 1) throw new Error(`the tab has ${keys} Chrome tabs`);
+      return { url: loaded.url };
+    } finally {
+      await closeTab(id);
+      await toFirst();
+    }
+  });
+
+  await check("tab-create-interrupted-by-move", async () => {
+    const id = await reopenClosed("create-moved", `ac.store.getState().moveTabsToWindow([id], null)`);
+    try {
+      const windowId = await until("the tab in its new window", () => evalApp(`const s = ac.store.getState(); const w = s.tabs[${JSON.stringify(id)}]?.windowId; return w && w !== ${JSON.stringify(mainWindow)} && ac.webviews.get(${JSON.stringify(id)}) ? w : null`), 15000);
+      await until("its page", async () => evalApp(`const s = ac.store.getState(); return s.tabs[${JSON.stringify(id)}]?.title === "Page C" && !s.live[${JSON.stringify(id)}]?.isLoading || null`), 15000);
+      await sleep(1500);
+      const keys = (await chromeTabKeys()).filter((k) => k === id).length;
+      if (keys !== 1) throw new Error(`the moved tab has ${keys} Chrome tabs`);
+      return { windowId };
+    } finally {
+      await closeWindowOf(id).catch(() => null);
+      await closeTab(id).catch(() => null);
+      await toFirst();
+    }
+  });
+
+  await check("tab-close-while-lent", async () => {
+    const a = await openTab(`${base}/a?lender`, "Page A");
+    const b = await openTab(`${base}/b?holder`, "Page B");
+    try {
+      await evalApp(`ac.actions.switchToTab(${JSON.stringify(a.id)}); return true`);
+      await until("A shown", async () => (await state()).active === a.id);
+      await sleep(500);
+      await evalApp(`ac.actions.switchToTab(${JSON.stringify(b.id)}); ac.store.getState().closeTab(${JSON.stringify(a.id)}); return true`);
+      await until("A's Chrome tab gone", async () => !(await chromeTabKeys()).includes(a.id) || null, 5000);
+      await until("B shown with its page", async () => (await state()).active === b.id && (await evalApp(`return !!ac.webviews.get(${JSON.stringify(b.id)})`)) || null, 5000);
+      const t = await pageFor(b.id, "/b?holder");
+      const title = (await cdp(t, "Runtime.evaluate", { expression: "document.title", returnByValue: true })).result.value;
+      return { title };
+    } finally {
+      await closeTab(a.id).catch(() => null);
+      await closeTab(b.id).catch(() => null);
+      await toFirst();
+    }
+  });
+
+  await check("page-reports-follow-the-tab", async () => withPopupExtension({}, async () => {
+    await engine("sites.setSetting", { profile: "", engine: "chromium", origin: base, type: "notifications", value: "allow" });
+    const blocked = (id) => evalApp(`return ac.pageState.getState().pages[${JSON.stringify(id)}]?.blocked ?? 0`);
+    const theme = (id) => evalApp(`return ac.store.getState().live[${JSON.stringify(id)}]?.themeColor ?? null`);
+    const ads = await freshTab(`${base}/ac-ads?reports`);
+    const red = (await openTab(`${base}/red-header?reports`, "Red header")).id;
+    let windowId = null;
+    try {
+      await until("the ad page's count", async () => (await blocked(ads)) === 2 || null, 8000);
+      await until("the red header's colour", async () => (await theme(red)) === "#C80000" || null, 5000);
+      const redPage = await pageFor(red, "/red-header?reports");
+      await cdp(redPage, "Runtime.evaluate", { expression: "window.__clicked = false; const n = new Notification('Reports', { tag: 'reports' }); n.onclick = () => (window.__clicked = true); true", userGesture: true });
+      const note = await until("the notification", async () => (await eventsOf(red)).findLast((x) => x.name === "notification"), 8000);
+      windowId = await evalApp(`return ac.store.getState().moveTabsToWindow([${JSON.stringify(ads)}, ${JSON.stringify(red)}], null)`);
+      await until("both tabs in the new window", () => evalApp(`const s = ac.store.getState(); return [${JSON.stringify(ads)}, ${JSON.stringify(red)}].every((id) => s.tabs[id]?.windowId === ${JSON.stringify(windowId)} && ac.webviews.get(id)) || null`), 10000);
+      await sleep(1000);
+      const adsPage = await pageFor(ads, "/ac-ads?reports");
+      await cdp(adsPage, "Runtime.evaluate", { expression: "document.body.appendChild(Object.assign(new Image(), { src: '/nnblock-again.png' })); true" });
+      const count = await until("the count carried on", async () => { const n = await blocked(ads); return n >= 3 ? n : null; }, 8000)
+        .catch(async (e) => { throw new Error(`${e.message}; count ${await blocked(ads)}`); });
+      if (count !== 3) throw new Error(`the moved page's count is ${count}, not 3`);
+      if ((await theme(red)) !== "#C80000") throw new Error(`the moved page's colour is ${await theme(red)}`);
+      await evalApp(`return ac.webviews.get(${JSON.stringify(red)}).notificationAction(${JSON.stringify(note.payload.id)}, "click")`);
+      const movedRed = await pageFor(red, "/red-header?reports");
+      await until("the click reaching the moved page", async () => (await cdp(movedRed, "Runtime.evaluate", { expression: "window.__clicked", returnByValue: true })).result.value === true || null, 8000);
+      return { count, notification: note.payload.id };
+    } finally {
+      await engine("sites.setSetting", { profile: "", engine: "chromium", origin: base, type: "notifications", value: "default" });
+      if (windowId) await evalApp(`ac.store.getState().closeWindow(${JSON.stringify(windowId)}); return true`).catch(() => null);
+      await closeTab(ads).catch(() => null);
+      await closeTab(red).catch(() => null);
+      await toFirst();
+    }
+  }));
+
+  // MARK: Window lifetime
+
+  const q = JSON.stringify;
+  const windowsNative = "globalThis.expo.modules.ArdiaAppWindows";
+  const shellCall = (fn, ...args) => evalApp(`return ${windowsNative}.${fn}(${args.map((a) => q(a)).join(", ")})`);
+  const nativeWindowIds = () => shellCall("windowIds");
+  const storeWindow = (id) => evalApp(`return ac.store.getState().windows[${q(id)}] ?? null`);
+  const newWindow = () => evalApp(`return ac.store.getState().createWindow({})`);
+  const shownWindow = async () => {
+    const id = await newWindow();
+    await until("the new window on screen", async () => (await nativeWindowIds()).includes(id) || null, 10000);
+    await sleep(1200);
+    return id;
+  };
+  const dropWindow = (id) => evalApp(`if (ac.store.getState().windows[${q(id)}]) ac.store.getState().closeWindow(${q(id)}); return true`);
+  const backToMain = () => evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+
+  await check("window-close-before-reveal", async () => {
+    const id = await evalApp(`const s = ac.store.getState(); const id = s.createWindow({});
+      setTimeout(() => ${windowsNative}.closeWindow(id), 30); return id`);
+    try {
+      await sleep(2500);
+      const ids = await nativeWindowIds();
+      if (ids.includes(id)) throw new Error(`a window closed before its content showed came back: ${q(ids)}`);
+      const s = await state();
+      if (!s.windowId) throw new Error("the main window went with it");
+      return { closed: id, windows: ids.length };
+    } finally {
+      await dropWindow(id);
+      await backToMain();
+    }
+  });
+
+  await check("window-close-during-exit", async () => {
+    const id = await shownWindow();
+    try {
+      const outcome = await evalApp(`const m = ${windowsNative};
+        const done = m.animateWindowClose(${q(id)}, null).then(() => "done");
+        setTimeout(() => m.closeWindow(${q(id)}), 40);
+        return Promise.race([done, new Promise((r) => setTimeout(() => r("hung"), 3000))])`);
+      if (outcome !== "done") throw new Error(`the exit animation's caller never heard back: ${outcome}`);
+      await sleep(500);
+      if ((await nativeWindowIds()).includes(id)) throw new Error("the window outlived its close");
+      return { outcome };
+    } finally {
+      await dropWindow(id);
+      await backToMain();
+    }
+  });
+
+  await check("window-close-while-full-screen-restore-waits", async () => {
+    const waited = await evalApp(`const s = ac.store.getState(); const id = s.createWindow({}); const m = ${windowsNative};
+      m.restoreFullScreen([id], null); setTimeout(() => m.closeWindow(id), 30); return id`);
+    let next = null;
+    try {
+      await sleep(2500);
+      if ((await nativeWindowIds()).includes(waited)) throw new Error("the window full screen restore waited on came back");
+      next = await shownWindow();
+      await shellCall("restoreFullScreen", [next], null);
+      const entered = await until("the next window in full screen", async () => (await storeWindow(next))?.fullScreen || null, 8000);
+      return { waited, next, entered: !!entered };
+    } finally {
+      await dropWindow(waited);
+      if (next) await dropWindow(next);
+      await backToMain();
+    }
+  });
+
+  // MARK: WebKit tabs
+
+  const useWebKit = () =>
+    evalApp(`const s = ac.store.getState(); s.updateSettings({ websiteEngines: { ...s.settings.websiteEngines, ${q(webkitBase)}: "webkit" } }); return true`);
+  const pageValue = (id, expr) =>
+    evalApp(`return ac.webviews.get(${q(id)})?.evaluate(${q(`post("result", JSON.stringify(${expr}))`)}) ?? null`);
+  const inPage = (id, code) => evalApp(`ac.webviews.get(${q(id)})?.executeJavaScript(${q(code)}); return true`);
+  const chromiumBrowser = (id) => engine("tabs.devBrowserId", { tabId: id }).catch(() => null);
+  const loadedAs = (id, title) =>
+    evalApp(`const s = ac.store.getState(); return s.tabs[${q(id)}]?.title === ${q(title)} && !s.live[${q(id)}]?.isLoading ? true : null`);
+  const webkitTab = async (path, title, windowId = mainWindow) => {
+    await useWebKit();
+    const id = await evalApp(`return ac.store.getState().newTab(${q(windowId)}, { url: ${q(webkitBase + path)} })`);
+    await shownAndMounted(id);
+    await until(`${path} in WebKit`, () => loadedAs(id, title), 15000);
+    if ((await chromiumBrowser(id)) || (await targets()).some((t) => t.url.startsWith(webkitBase + path))) throw new Error(`${path} opened in Chromium`);
+    return id;
+  };
+  const markPage = async (id, mark) => {
+    await inPage(id, `document.documentElement.dataset.mark = ${q(mark)}`);
+    await until("the page mark", async () => (await pageValue(id, "document.documentElement.dataset.mark ?? null")) === mark, 5000);
+  };
+  const pageMark = (id) => pageValue(id, `document.documentElement.dataset.mark ?? "gone"`);
+
+  await check("webkit-tab", async () => {
+    const id = await webkitTab("/a?wk", "Page A");
+    try {
+      await until("its favicon", async () => (await state()).tabs.find((t) => t.id === id)?.favicon || null, 10000);
+      await evalApp(`ac.store.getState().navigate(${q(id)}, "${webkitBase}/b?wk", { userInitiated: true }); return true`);
+      await until("B in WebKit", async () => (await loadedAs(id, "Page B")) && (await live(id))?.canGoBack, 15000);
+      await evalApp(`return ac.webviews.get(${q(id)}).goBack()`);
+      await until("back to A", async () => (await loadedAs(id, "Page A")) && (await live(id))?.canGoForward, 15000);
+      await markPage(id, "before-reload");
+      await evalApp(`return ac.webviews.get(${q(id)}).reload()`);
+      await until("the reload", async () => (await pageMark(id)) === "gone", 10000);
+      const before = (await state()).tabs.find((t) => t.id === id);
+      await evalApp(`return ac.webviews.get(${q(id)}).zoomStep(1)`);
+      const zoom = await until("a zoom step", () => evalApp(`const z = ac.store.getState().tabs[${q(id)}]?.zoom; return z > 1 ? z : null`), 5000);
+      await evalApp(`return ac.webviews.get(${q(id)}).zoomStep(0)`);
+      await until("zoom reset", () => evalApp(`return ac.store.getState().tabs[${q(id)}]?.zoom === 1 || null`), 5000);
+      const entries = await evalApp(`return ac.webviews.get(${q(id)}).navigationEntries()`);
+      return { favicon: !!before.favicon, zoom, entries: entries?.length };
+    } finally {
+      await closeTab(id);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    }
+  });
+
+  await check("webkit-move-tab", async () => {
+    const id = await webkitTab("/c?wk-move", "Page C");
+    try {
+      await markPage(id, "moved");
+      const windowId = await evalApp(`return ac.store.getState().moveTabsToWindow([${q(id)}], null)`);
+      await until("the tab's view in the new window", () => evalApp(`return !!ac.webviews.get(${q(id)}) && ac.store.getState().tabs[${q(id)}]?.windowId === ${q(windowId)}`), 10000);
+      await sleep(800);
+      const mark = await pageMark(id);
+      if (mark !== "moved") throw new Error(`the WebKit page reloaded or went on the move: ${mark}`);
+      return { windowId, mark };
+    } finally {
+      await closeWindowOf(id).catch(() => null);
+      await closeTab(id).catch(() => null);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    }
+  });
+
+  await check("webkit-zoom", async () => {
+    const a = await webkitTab("/a?wk-zoom", "Page A");
+    let b = null;
+    try {
+      await evalApp(`return ac.webviews.get(${q(a)}).zoomStep(1)`);
+      const zoom = await until("A zoomed", () => evalApp(`const z = ac.store.getState().tabs[${q(a)}]?.zoom; return z > 1 ? z : null`), 5000);
+      b = await webkitTab("/b?wk-zoom", "Page B");
+      const shared = await until("B on the same host takes it", () => evalApp(`const z = ac.store.getState().tabs[${q(b)}]?.zoom; return z === ${zoom} ? z : null`), 5000);
+      await evalApp(`return ac.webviews.get(${q(b)}).zoomStep(0)`);
+      await until("zoom reset", () => evalApp(`return ac.store.getState().tabs[${q(b)}]?.zoom === 1 || null`), 5000);
+      return { zoom, shared };
+    } finally {
+      await closeTab(a);
+      if (b) await closeTab(b);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    }
+  });
+
+  await check("webkit-site-permissions", async () => {
+    const origin = webkitBase;
+    const read = () => engine("sites.settings", { engine: "webkit", profile: "", origin });
+    const fresh = await read();
+    if (fresh.camera?.value !== "ask" || !fresh.camera?.isDefault) throw new Error(`a fresh origin isn't Ask: ${q(fresh)}`);
+    await engine("sites.setSetting", { engine: "webkit", profile: "", origin, type: "camera", value: "allow" });
+    await engine("sites.setSetting", { engine: "webkit", profile: "", origin, type: "microphone", value: "block" });
+    const set = await read();
+    if (set.camera?.value !== "allow" || set.microphone?.value !== "block") throw new Error(`not remembered: ${q(set)}`);
+    await engine("sites.clearData", { engine: "webkit", profile: "", origin: `${origin}/` }).catch(() => null);
+    const afterSiteClear = await read();
+    await engine("profiles.clearBrowsingData", { profile: "", types: ["siteData"], since: Date.now() - 30000 });
+    const afterBroadClear = await read();
+    await engine("sites.setSetting", { engine: "webkit", profile: "", origin, type: "camera", value: "ask" });
+    await engine("sites.setSetting", { engine: "webkit", profile: "", origin, type: "microphone", value: "ask" });
+    if (afterSiteClear.camera?.value !== "allow") throw new Error(`clearing one site's data dropped its permissions: ${q(afterSiteClear)}`);
+    if (afterBroadClear.camera?.value !== "ask") throw new Error(`clearing all site data kept its permissions: ${q(afterBroadClear)}`);
+    return { set, afterSiteClear: afterSiteClear.camera.value, afterBroadClear: afterBroadClear.camera.value };
+  });
+
+  const session = (id) => evalApp(`return ac.media.getState().sessions[${q(id)}] ?? null`);
+
+  await check("webkit-now-playing", async () => {
+    const id = await webkitTab("/media?wk", "Media");
+    try {
+      await evalApp(`return ac.webviews.get(${q(id)}).setMuted(true)`);
+      await inPage(id, "navigator.mediaSession.metadata = new MediaMetadata({ title: 'NN Tone', artist: 'Acceptance' }); document.getElementById('tone').play()");
+      const playing = await until("now playing", async () => {
+        const s = await session(id);
+        return s?.title === "NN Tone" && s.playbackState === "playing" ? s : null;
+      }, 10000);
+      await evalApp(`return ac.webviews.get(${q(id)}).mediaCommand("pause")`);
+      await until("paused by the app", async () => (await pageValue(id, "document.getElementById('tone').paused")) === true, 8000);
+      await evalApp(`return ac.webviews.get(${q(id)}).mediaCommand("seekTo", 0.5)`);
+      const at = await until("the seek", async () => {
+        const t = await pageValue(id, "document.getElementById('tone').currentTime");
+        return Math.abs(t - 0.5) < 0.05 ? t : null;
+      }, 5000);
+      await evalApp(`ac.store.getState().navigate(${q(id)}, "${webkitBase}/b?wk-np", { userInitiated: true }); return true`);
+      await until("B", () => loadedAs(id, "Page B"), 10000);
+      await until("the session gone with the page", async () => !(await session(id)), 8000);
+      return { title: playing.title, artist: playing.artist, seekedTo: at };
+    } finally {
+      await closeTab(id);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    }
+  });
+
+  await check("webkit-now-playing-frames", async () => {
+    const id = await webkitTab("/np-frames", "NP frames");
+    const child = (expr) => pageValue(id, `(() => { const d = document.querySelector("iframe").contentDocument; return ${expr}; })()`);
+    try {
+      await evalApp(`return ac.webviews.get(${q(id)}).setMuted(true)`);
+      await until("the child frame", async () => (await child(`!!d.getElementById("tone")`)) === true, 8000);
+      await inPage(id, `document.getElementById("tone").play()`);
+      await until("the main frame playing", async () => (await pageValue(id, `document.getElementById("tone").currentTime > 0`)) === true, 8000);
+      await inPage(id, `document.getElementById("tone").pause()`);
+      await until("the main frame's paused session", async () => (await session(id))?.playbackState === "paused" || null, 8000);
+      await inPage(id, `const f = document.querySelector("iframe").contentWindow;
+        f.navigator.mediaSession.metadata = new f.MediaMetadata({ title: "C".repeat(5000), artist: "Frame" });
+        f.navigator.mediaSession.playbackState = "playing";
+        f.navigator.mediaSession.setActionHandler("pause", () => { f.document.documentElement.dataset.paused = "by-handler"; f.document.getElementById("tone").pause(); });
+        f.document.getElementById("tone").addEventListener("seeked", (e) => { f.document.documentElement.dataset.seeked = String(Math.round(e.target.currentTime * 100)); });
+        f.document.getElementById("tone").play();`);
+      const picked = await until("the child frame's session", async () => {
+        const s = await session(id);
+        return s?.artist === "Frame" ? s : null;
+      }, 10000).catch(async (e) => {
+        const s = await session(id);
+        throw new Error(`${e.message}; session ${q(s && { title: s.title?.slice(0, 20), artist: s.artist, state: s.playbackState, controllable: s.controllable })}`);
+      });
+      if (picked.title.length > 1024) throw new Error(`an oversized title came through: ${picked.title.length} characters`);
+      await inPage(id, `const f = document.querySelector("iframe").contentWindow;
+        f.document.dispatchEvent(new f.CustomEvent("ardia:media-session", { detail: JSON.stringify({ actions: ["pause", 5, "x".repeat(200)], position: { position: "x" } }) }));`);
+      await sleep(400);
+      const forged = await session(id);
+      if (!forged || forged.actions.some((a) => typeof a !== "string" || a.length > 64)) throw new Error(`forged actions came through: ${q(forged?.actions)}`);
+      const seeked = (at) => until(`the child's own seek to ${at}`, async () => (await child(`d.documentElement.dataset.seeked ?? null`)) === String(Math.round(at * 100)) || null, 8000)
+        .catch(async (e) => {
+          const s = await session(id);
+          throw new Error(`${e.message}; child seeked ${await child(`d.documentElement.dataset.seeked ?? null`)}; session ${q(s && { artist: s.artist, state: s.playbackState })}`);
+        });
+      await evalApp(`return ac.webviews.get(${q(id)}).mediaCommand("seekTo", 0.25)`);
+      await seeked(0.25);
+      const windowId = await evalApp(`return ac.store.getState().moveTabsToWindow([${q(id)}], null)`);
+      await until("the tab in its new window", () => evalApp(`return !!ac.webviews.get(${q(id)}) && ac.store.getState().tabs[${q(id)}]?.windowId === ${q(windowId)}`), 10000);
+      await sleep(800);
+      await evalApp(`return ac.webviews.get(${q(id)}).mediaCommand("seekTo", 0.5)`);
+      await seeked(0.5);
+      await evalApp(`return ac.webviews.get(${q(id)}).mediaCommand("pause")`);
+      await until("the pause routed to the child's own handler", async () =>
+        (await child(`d.documentElement.dataset.paused ?? null`)) === "by-handler" && (await child(`d.getElementById("tone").paused`)) === true, 8000);
+      return { title: picked.title.length, actions: forged.actions };
+    } finally {
+      await closeWindowOf(id).catch(() => null);
+      await closeTab(id).catch(() => null);
+      await backToMain();
+    }
+  });
+
+  await check("webkit-scroll", async () => {
+    const id = await webkitTab("/tall", "Tall");
+    const down = () => evalApp(`return !!ac.toolbarAutoHide.useToolbarAutoHide.getState().scrolledDown[${q(id)}]`);
+    const scroll = (code) => inPage(id, `dispatchEvent(new WheelEvent("wheel", { deltaY: 1 })); ${code}`);
+    try {
+      await scroll("scrollBy(0, 600)");
+      await until("scrolled down", async () => (await down()) || null, 5000).catch(async (e) => {
+        const frames = await evalApp(`return ac.webviews.get(${q(id)}).evaluate(${q(`requestAnimationFrame(() => post("result", "true")); setTimeout(() => post("result", "false"), 1500)`)})`);
+        throw new Error(`${e.message}; animation frames run: ${frames}; scrollY ${await pageValue(id, "scrollY")}`);
+      });
+      await sleep(400);
+      await scroll("scrollBy(0, -200)");
+      await until("scrolled up", async () => !(await down()) || null, 5000);
+      await scroll("scrollBy(0, 600)");
+      await until("down again", async () => (await down()) || null, 5000);
+      await scroll("scrollTo(0, 0)");
+      await until("at the top", async () => !(await down()) || null, 5000);
+      return { ok: true };
+    } finally {
+      await closeTab(id);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    }
+  });
+
+  await check("webkit-clearing-keeps-zoom", async () => {
+    const a = await webkitTab("/a?wk-clear", "Page A");
+    const origin = webkitBase;
+    try {
+      await evalApp(`return ac.webviews.get(${q(a)}).zoomStep(1)`);
+      const zoom = await until("A zoomed", () => evalApp(`const z = ac.store.getState().tabs[${q(a)}]?.zoom; return z > 1 ? z : null`), 5000);
+      await engine("sites.setSetting", { engine: "webkit", profile: "", origin, type: "camera", value: "allow" });
+      await engine("sites.clearData", { engine: "webkit", profile: "", origin: `${origin}/` });
+      if ((await engine("sites.settings", { engine: "webkit", profile: "", origin })).camera?.value !== "allow") throw new Error("one site's data clear dropped its permission");
+      await engine("profiles.clearBrowsingData", { profile: "", types: ["siteData"], since: Date.now() - 30000 });
+      if ((await engine("sites.settings", { engine: "webkit", profile: "", origin })).camera?.value !== "ask") throw new Error("clearing site data kept the permission");
+      const b = await webkitTab("/b?wk-clear", "Page B");
+      try {
+        const kept = await until("zoom kept through the clear", () => evalApp(`const z = ac.store.getState().tabs[${q(b)}]?.zoom; return z === ${zoom} ? z : null`), 5000);
+        await evalApp(`return ac.webviews.get(${q(b)}).zoomStep(0)`);
+        return { zoom, kept };
+      } finally {
+        await closeTab(b);
+      }
+    } finally {
+      await closeTab(a);
+      await backToMain();
+    }
+  });
+
+  await check("webkit-private-session-ends-mid-transfer", async () => {
+    await useWebKit();
+    const windowId = await evalApp(`return ac.actions.openWindow({ kind: "private", url: ${q(`${webkitBase}/c?wk-private`)} })`);
+    try {
+      const id = await until("the private WebKit tab", () => evalApp(`const s = ac.store.getState(); const id = s.windows[${q(windowId)}]?.tabIds[0];
+        return id && s.tabs[id]?.title === "Page C" && !s.live[id]?.isLoading ? id : null`), 15000);
+      if (await chromiumBrowser(id)) throw new Error("the private tab opened in Chromium");
+      await evalApp(`globalThis.expo.modules.ArdiaTabs.prepareTransfer(${q(id)}); return true`);
+      await engine("webKit.endPrivateSession", { session: "" });
+      await sleep(500);
+      const parked = await engine("webKit.devParkedTransfers");
+      await evalApp(`globalThis.expo.modules.ArdiaTabs.releaseTransfer(${q(id)}); return true`);
+      if (parked.includes(id)) throw new Error("the ended session's page stayed parked for the transfer");
+      return { tab: id, parked };
+    } finally {
+      await dropWindow(windowId);
+      await backToMain();
+    }
+  });
+
+  await check("page-view-calls", async () => {
+    const raw = (id, module, view, fn, ...args) => evalApp(`const tag = ac.webviews.get(${q(id)}).nativeTag();
+      return globalThis.expo.modules.${module}.ViewPrototypes.${module}_${view}.${fn}.call({ nativeTag: tag }, ...${q(args)})`);
+    const exercise = async (id, module, view, path) => {
+      const call = (fn, ...args) => raw(id, module, view, fn, ...args).catch((e) => ({ error: String(e?.message ?? e).slice(0, 160) }));
+      const out = {};
+      out.loadUrl = await call("loadUrl", path);
+      await until(`${view} on Page B`, () => loadedAs(id, "Page B"), 15000);
+      for (const [fn, args] of [
+        ["evaluate", [`post("result", JSON.stringify(document.title))`]], ["navigationEntries", []], ["capturePicture", [0.25]],
+        ["downloadFavicon", [`${base}/icon.png`]], ["downloadImage", [`${base}/icon.png`, 64]], ["getSecurityInfo", []],
+        ["pageCookies", [[`${base}/`]]], ["clearSiteData", []], ["mediaCommand", ["pause"]], ["requestPictureInPicture", [null, null]],
+        ["takeControlPress", []], ["exitPictureInPicture", []], ["openBlockedPopup", ["no-such-popup"]], ["executeExtensionAction", ["no-such-extension"]],
+        ["mediaCaptureSourceId", []], ["resolveDisplayMedia", ["no-such-request", null, false]], ["notificationAction", ["no-such-note", "click"]],
+        ["resolveUnresponsive", [false]], ["showDevTools", []], ["setFrozen", [false]], ["discard", []],
+      ]) out[fn] = await call(fn, ...args);
+      return out;
+    };
+    const chromium = await freshTab(`${base}/a?view-calls`);
+    let webkit = null;
+    try {
+      const c = await exercise(chromium, "ArdiaWebView", "ChromiumTabView", `${base}/b?view-calls`);
+      webkit = await webkitTab("/a?view-calls", "Page A");
+      const w = await exercise(webkit, "ArdiaWebKit", "WebKitTabView", `${webkitBase}/b?view-calls`);
+      const errors = [...Object.entries(c).map(([k, v]) => ["chromium", k, v]), ...Object.entries(w).map(([k, v]) => ["webkit", k, v])].filter(([, , v]) => v && v.error);
+      if (errors.length) throw new Error(`calls that didn't complete: ${q(errors)}`);
+      const expect = (what, ok) => { if (!ok) throw new Error(`${what}: ${q({ chromium: c, webkit: w }).slice(0, 1500)}`); };
+      expect("evaluate answers on both", JSON.parse(c.evaluate) === "Page B" && JSON.parse(w.evaluate) === "Page B");
+      expect("history entries on both", Array.isArray(c.navigationEntries) && c.navigationEntries.length >= 2 && Array.isArray(w.navigationEntries) && w.navigationEntries.length >= 2);
+      expect("security info on both", typeof c.getSecurityInfo?.level === "string" && typeof w.getSecurityInfo?.level === "string");
+      expect("Chromium's own answers", typeof c.mediaCaptureSourceId === "string" && c.discard !== "unsupported" && typeof c.takeControlPress === "boolean");
+      expect("WebKit's unsupported answers", w.discard === "unsupported" && w.takeControlPress === true && w.executeExtensionAction == null &&
+        w.mediaCaptureSourceId == null && Array.isArray(w.pageCookies) && w.pageCookies.length === 0);
+      expect("site data cleared on both", typeof c.clearSiteData === "object" && typeof w.clearSiteData === "object");
+      return { chromium: Object.keys(c).length, webkit: Object.keys(w).length, discard: c.discard };
+    } finally {
+      await closeTab(chromium).catch(() => null);
+      if (webkit) await closeTab(webkit).catch(() => null);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    }
+  });
+
+  await check("webkit-js-reload", async () => {
+    const id = await webkitTab("/d?wk-reload", "Page D");
+    try {
+      await markPage(id, "before-js-reload");
+      await until("the tab saved", () => existsSync(join(data, "session.json")) && readFileSync(join(data, "session.json"), "utf8").includes(id), 10000);
+      await evalApp(`setTimeout(() => { try { globalThis.nativeModuleProxy.DevSettings.reload(); } catch {} }, 50); return true`);
+      await sleep(1500);
+      await until("the reloaded app", async () => {
+        try {
+          return await evalApp(`return Object.keys(ac.store.getState().windows).length > 0 && !!ac.webviews.get(${q(id)})`, 3000);
+        } catch (e) {
+          if (exited) throw e;
+          return null;
+        }
+      }, 60000);
+      await sleep(1000);
+      const mark = await pageMark(id);
+      if (mark !== "before-js-reload") throw new Error(`the WebKit page reloaded or went with JS: ${mark}`);
+      return { mark };
+    } finally {
+      mainWindow = (await state()).windowId ?? mainWindow;
+      await closeTab(id).catch(() => null);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`).catch(() => null);
+    }
+  });
+
   // MARK: Startup and engine
 
   await check("title-bar-close", async () => {
@@ -4424,19 +4997,10 @@ try {
   });
 
   await check("startup-accept-language", async () => {
-    const system = JSON.parse(execFileSync("osascript", ["-l", "JavaScript", "-e",
-      `ObjC.import("Foundation"); const out = []; const all = $.NSLocale.preferredLanguages;
-       for (let i = 0; i < all.count; i++) { const l = $.NSLocale.localeWithLocaleIdentifier(all.objectAtIndex(i));
-         out.push([ObjC.unwrap(l.languageCode), ObjC.unwrap(l.regionCode) ?? null, ObjC.unwrap(l.scriptCode) ?? null]); }
-       JSON.stringify(out)`]).toString());
-    const expected = [];
-    for (let [language, region, script] of system) {
-      if (!language) continue;
-      if (language === "zh" && !region) region = script === "Hant" ? "TW" : "CN";
-      for (const tag of region ? [`${language}-${region}`, language] : [language]) if (!expected.includes(tag)) expected.push(tag);
-    }
-    const reduced = expected.slice(0, 1);
-    const reducedHeader = reduced[0].includes("-") ? [reduced[0], reduced[0].split("-")[0]] : reduced;
+    const uiLocale = JSON.parse(execFileSync("osascript", ["-l", "JavaScript", "-e",
+      `ObjC.import("Foundation"); const bundle = $.NSBundle.bundleWithPath(${JSON.stringify(app)});
+       JSON.stringify(ObjC.unwrap($.NSBundle.preferredLocalizationsFromArrayForPreferences(bundle.localizations, $.NSLocale.preferredLanguages).objectAtIndex(0)))`]).toString())
+      .replace("_", "-").replace(/^en$/, "en-US");
     let header = null;
     const echo = createServer((req, res) => {
       header = req.headers["accept-language"] ?? "";
@@ -4449,9 +5013,12 @@ try {
       const t = await pageFor(tab.id, "/languages");
       const languages = (await cdp(t, "Runtime.evaluate", { expression: "navigator.languages", returnByValue: true })).result.value;
       const sent = (header ?? "").split(",").map((s) => s.split(";")[0].trim()).filter(Boolean);
-      if (JSON.stringify(languages) !== JSON.stringify(reduced)) throw new Error(`navigator.languages ${JSON.stringify(languages)}, expected ${JSON.stringify(reduced)} (Helium's reduced Accept-Language: the first of ${JSON.stringify(expected)})`);
-      if (JSON.stringify(sent) !== JSON.stringify(reducedHeader)) throw new Error(`Accept-Language "${header}", expected ${JSON.stringify(reducedHeader)} (Helium's reduced Accept-Language: the first of ${JSON.stringify(expected)})`);
-      return { system: expected, languages, header };
+      const primary = (tag) => tag.split("-")[0];
+      const seeded = ["af", "ur"].includes(primary(uiLocale)) ? "en" : primary(uiLocale);
+      if (languages.length !== 1 || primary(languages[0]) !== seeded) throw new Error(`navigator.languages ${JSON.stringify(languages)}, expected one ${seeded} tag (a new profile's languages come from the UI locale ${uiLocale}'s IDS_ACCEPT_LANGUAGES, reduced as Helium does)`);
+      const reducedHeader = languages[0].includes("-") ? [languages[0], primary(languages[0])] : languages;
+      if (JSON.stringify(sent) !== JSON.stringify(reducedHeader)) throw new Error(`Accept-Language "${header}", expected ${JSON.stringify(reducedHeader)} (Helium's reduced Accept-Language)`);
+      return { uiLocale, languages, header };
     } finally {
       await closeTab(tab.id);
       echo.close();
@@ -4509,7 +5076,7 @@ try {
     await secret("ArdiaPasswords", "save", "", origin, "nnoriginal", "s3cret");
     await engineOrError("autofill.saveAddress", { profile: "", address: { fullName: "Original Mascot", city: "Haifa", country: "IL" } });
     await engine("sites.setZoom", { profile: "", host: "original.test", zoom: 1.5 });
-    await engine("sites.setSetting", { profile: "", origin, type: "popups", value: "allow" });
+    await engine("sites.setSetting", { profile: "", engine: "chromium", origin, type: "popups", value: "allow" });
     await engine("webKit.devTouchStore", { profile: "" });
     await until("the data saved", async () => {
       const p = await engineOrError("passwords.list", { profile: "" }), a = await engineOrError("autofill.addresses", { profile: "" }), z = await engine("sites.zoomLevels", { profile: "" }), o = await engine("sites.origins", { profile: "" });
@@ -4706,6 +5273,26 @@ try {
     return { restored: tab.url, loadedAfterMs, racedAtLaunch, nextDocuments: documents };
   });
 
+  await check("launch-tab-relaunch", async () => {
+    const windowId = await appUp("app-launch-tab.out.log");
+    const path = `/fresh?launch-tab-${Date.now()}`;
+    const id = await evalApp(`const s = ac.store.getState(); const id = s.newTab(${JSON.stringify(windowId)}, { url: "${base}${path}" }); ac.store.getState().activate(id); return id`);
+    await until("the launch tab's page", async () => (await state()).tabs.find((t) => t.id === id && t.title === "Fresh" && !t.loading), 15000);
+    await until("it saved as the launch tab", async () => JSON.parse(savedSession() || "{}").launchTab?.id === id || null, 10000);
+    await sleep(1000);
+    await pressQuit(windowId);
+    await until("the quit", async () => exited, 30000);
+    const layout = JSON.parse(readFileSync(join(data, "launch-layout.json"), "utf8"));
+    if (layout.version !== 3 || !layout.windows?.[windowId]) throw new Error(`no launch layout for the window: ${JSON.stringify(Object.keys(layout.windows ?? {}))}`);
+    const before = served.get(path) ?? 0;
+    await appUp("app-launch-tab-2.out.log");
+    const tab = await until("the launch tab restored", async () => (await state()).tabs.find((t) => t.id === id && t.title === "Fresh" && !t.loading), 20000);
+    await sleep(1500);
+    const loads = (served.get(path) ?? 0) - before;
+    if (loads !== 1) throw new Error(`the launch tab's page loaded ${loads} times after the relaunch`);
+    return { tab: tab.id, loads, layoutWindows: Object.keys(layout.windows).length };
+  });
+
   await check("closed-tabs-own-lists", async () => {
     let windowId = await appUp("app-closed-tabs.out.log");
     const s = (expr) => evalApp(`const s = ac.store.getState(); return ${expr}`);
@@ -4756,7 +5343,7 @@ try {
     await sleep(1500);
     await until("the reloaded app", async () => {
       try {
-        return await evalApp(`const s = ac.store.getState(); return Object.keys(s.windows).length > 0 && !!s.historyReady.default && !!ac.webviews.get(${JSON.stringify(id)})`, 3000);
+        return await evalApp(`const s = ac.store.getState(); return Object.keys(s.windows).length > 0 && !!ac.history.historyViewOf(s, "default")?.ready && !!ac.webviews.get(${JSON.stringify(id)})`, 3000);
       } catch (e) {
         if (exited) throw e;
         return null;
@@ -4767,6 +5354,58 @@ try {
     if (out.loads !== 1 || JSON.stringify(out.visits) !== "[1]" || out.url !== `${base}${path}`) throw new Error(`after the reload: ${JSON.stringify(out)}`);
     return out;
   });
+  await check("open-url-across-reload", async () => {
+    await appUp("app-url-reload.out.log");
+    const path = `/a?across-reload-${Date.now()}`;
+    await evalApp(`globalThis.expo.modules.ArdiaDev.devReceiveURLsWhenDetached(["${base}${path}"], 20000);
+      setTimeout(() => { try { globalThis.nativeModuleProxy.DevSettings.reload(); } catch {} }, 50); return true`);
+    await sleep(1500);
+    const delivery = await until("the URL handed over", async () => {
+      try {
+        const d = await evalApp(`return globalThis.expo.modules.ArdiaDev.devURLDelivery()`, 3000);
+        return d?.state === "received" || d?.state === "neverDetached" ? d : null;
+      } catch (e) {
+        if (exited) throw e;
+        return null;
+      }
+    }, 60000);
+    if (delivery.state !== "received" || delivery.attachedAfter) throw new Error(`the open-URL sink outlived the reload: ${JSON.stringify(delivery)}`);
+    const opened = () => evalApp(`return Object.values(ac.store.getState().tabs).filter((t) => JSON.stringify(t).includes(${JSON.stringify(path)})).length`);
+    await until("its tab", async () => (await opened()) || null, 30000);
+    await sleep(2000);
+    const tabs = await opened();
+    if (tabs !== 1 || served.get(path) !== 1) throw new Error(`delivered ${tabs} times, loaded ${served.get(path)} times`);
+    return { waitedMs: Math.round(delivery.waitedMs), tabs, loads: served.get(path) };
+  });
+  await check("drag-preview-across-reload", async () => {
+    const windowId = await appUp("app-drag-reload.out.log");
+    const preview = () => evalApp(`return globalThis.expo.modules.ArdiaDev.devDragPreviewState()`);
+    const edges = async () => (await evalApp(`return ac.shell.devLeftEdgeStats(false)`)).watched;
+    const edgesBefore = await edges();
+    await evalApp(`const d = ac.shell.dragPreview; d.begin(${JSON.stringify(windowId)}, [40, 40, 160, 28], [20, 14]);
+      d.placeholder("Reload probe", null); d.update("pill", [300, 300]); ac.shell.watchLeftEdge(${JSON.stringify(windowId)}, true); return true`);
+    const shown = await until("the preview", async () => {
+      const p = await preview();
+      return p.visible ? p : null;
+    }, 5000);
+    const edgesWatched = await edges();
+    await evalApp(`setTimeout(() => { try { globalThis.nativeModuleProxy.DevSettings.reload(); } catch {} }, 50); return true`);
+    await sleep(1500);
+    await until("the reloaded app", async () => {
+      try {
+        return await evalApp(`return Object.keys(ac.store.getState().windows).length > 0`, 3000);
+      } catch (e) {
+        if (exited) throw e;
+        return null;
+      }
+    }, 60000);
+    await sleep(1000);
+    const after = await preview();
+    if (after.visible || after.shape !== "hidden") throw new Error(`the preview outlived the reload: ${JSON.stringify(after)}`);
+    return { shown: shown.shape, after: { visible: after.visible, shape: after.shape }, edges: { before: edgesBefore, watched: edgesWatched, afterReload: await edges() } };
+  });
+
+
 
   await check("quit-js-stall", async () => {
     const windowId = await appUp("app-quit-stall.out.log");
@@ -4898,6 +5537,8 @@ try {
     if (!w) throw new Error("no window to work in");
     await sleep(1000);
     const W = JSON.stringify(w);
+    const [centerX, centerY] = await evalApp(`return ac.windowLayout.openingLightsCenter(ac.store.getState(), ${W})`);
+    const dockedClose = `close=(${(centerX - 7).toFixed(1)},${(centerY - 7).toFixed(1)}) `;
     const logLength = () => (existsSync(lightsLog) ? readFileSync(lightsLog, "utf8").length : 0);
     const from = logLength();
     const run = async (body, settle = 500) => {
@@ -4924,17 +5565,19 @@ try {
     const linesOf = (a, b) => log.slice(a, b).split("\n").filter(Boolean);
     const sample = (line) => line.match(/ -> (.*?) \| /)?.[1] ?? line;
     const rest = (a, b) => linesOf(a, b).filter((line) => line.includes(" layout -> ")).slice(-1);
-    const docked = [...linesOf(from, hiding), ...rest(showing, shown), ...linesOf(shown)];
+    const window = (line) => line.match(/window=(\d+)/)?.[1];
+    const placed = new Set(linesOf(0, from).map(window));
+    const onceSettled = (line) => placed.has(window(line)) || (line.includes(" layout -> ") && !!placed.add(window(line)));
+    const docked = [...linesOf(from, hiding), ...rest(showing, shown), ...linesOf(shown)].filter(onceSettled);
     const away = [...rest(hiding, hidden), ...linesOf(hidden, showing)];
     if (!away.length || !rest(showing, shown).length) throw new Error(`no settled layout logged for the sidebar's slides`);
     const lines = [...docked, ...away];
     const healthy = (line) => sample(line).endsWith(" hidden=0 alpha=1.00") && !/ _NSTheme\w*Widget set/.test(line);
-    const bad = docked.filter((line) => !sample(line).startsWith("close=(18.0,20.0) ") || !healthy(line));
+    const bad = docked.filter((line) => !sample(line).startsWith(dockedClose) || !healthy(line));
     const out = (line) => {
       const xs = [...sample(line).matchAll(/=\((-?[\d.]+),(-?[\d.]+)\)/g)].map((m) => [Number(m[1]), Number(m[2])]);
-      return xs.length === 3 && xs.every(([x, y]) => x + 14 <= 0 && y === 20);
+      return xs.length === 3 && xs.every(([x, y]) => x + 14 <= 0 && y === centerY - 7);
     };
-    const window = (line) => line.match(/window=(\d+)/)?.[1];
     const badAway = away.filter((line) => window(line) === window(docked[0] ?? "") && (!out(line) || !healthy(line)));
     const moved = [];
     for (const [phase, set] of [["docked", docked], ["hidden", away]]) {
@@ -5007,7 +5650,7 @@ try {
   });
 
   await check("context-menu-incognito", async () => {
-    const menuLog = join(scratch, "context-menu.json");
+    const menuLog = join(data, "context-menu.json");
     const tab = await until("A", async () => (await state()).tabs.find((t) => t.url?.endsWith("/a?menu") && !t.loading));
     await evalApp(`ac.actions.switchToTab("${tab.id}"); return true`);
     const t = await pageFor(tab.id, "/a?menu");
@@ -5021,7 +5664,7 @@ try {
     await cdp(t, "Input.dispatchMouseEvent", { type: "mouseReleased", ...at });
     const newTabs = () => evalApp(`const s = ac.store.getState(), before = new Set(${JSON.stringify(tabsBefore)});
       return Object.values(s.tabs).filter((t) => !before.has(t.id)).map((t) => ({ id: t.id, url: t.url, title: t.title, windowId: t.windowId,
-        incognito: !!s.windows[t.windowId]?.incognito, newWindow: !${JSON.stringify(windowsBefore)}.includes(t.windowId) }))`);
+        incognito: s.windows[t.windowId]?.kind === "private", newWindow: !${JSON.stringify(windowsBefore)}.includes(t.windowId) }))`);
     const landed = await until("the link's page in the app", async () => (await newTabs()).find((t) => t.url?.endsWith("/b") && t.title === "Page B") ?? null, 15000)
       .catch(async (e) => { throw new Error(`${e.message}; new tabs ${JSON.stringify(await newTabs())}`); });
     await sleep(500);
@@ -5032,7 +5675,7 @@ try {
   });
 
   await check("context-menu-split", async () => {
-    const menuLog = join(scratch, "context-menu.json");
+    const menuLog = join(data, "context-menu.json");
     const tab = await until("A", async () => (await state()).tabs.find((t) => t.url?.endsWith("/a?menu") && !t.loading));
     await evalApp(`ac.actions.switchToTab("${tab.id}"); return true`);
     await sleep(500);
@@ -5041,7 +5684,8 @@ try {
     const groupsBefore = await evalApp(`return Object.keys(ac.store.getState().groups)`);
     const result = () => evalApp(`const s = ac.store.getState(), before = new Set(${JSON.stringify(tabsBefore)}), groupsBefore = new Set(${JSON.stringify(groupsBefore)});
       const opened = Object.values(s.tabs).filter((t) => !before.has(t.id)).map((t) => ({ id: t.id, url: t.url, windowId: t.windowId }));
-      const split = Object.values(s.splits).find((v) => v.tabIds.includes(${JSON.stringify(tab.id)})) ?? null;
+      const found = Object.values(s.splits).find((v) => v.slots.flatMap((x) => x.stack ?? [x.tabId]).includes(${JSON.stringify(tab.id)}));
+      const split = found ? { tabIds: found.slots.flatMap((x) => x.stack ?? [x.tabId]) } : null;
       return { opened, split, newGroups: Object.keys(s.groups).filter((g) => !groupsBefore.has(g)) }`);
     const openInSplit = async (path) => {
       const box = JSON.parse((await cdp(t, "Runtime.evaluate", { expression: `(() => { const a = document.getElementById('next'); a.setAttribute('href', ${JSON.stringify(path)}); return JSON.stringify(a.getBoundingClientRect()); })()`, returnByValue: true })).result.value);

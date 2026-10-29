@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { BrowserWindow, Tab } from "../browser/types";
+import { isAsleep } from "./pageSession";
 
 export const NEW_TAB_TOAST_LIFETIME = 5000;
 export const NEW_TAB_TOAST_FADE = 180;
@@ -16,7 +17,7 @@ export type NewTabToast = {
 };
 
 type ToastState = { items: NewTabToast[] };
-type Owner = Pick<Tab, "id" | "windowId" | "profileId" | "unloaded">;
+type Owner = Pick<Tab, "id" | "windowId" | "profileId" | "page">;
 type Browser = { tabs: Record<string, Tab>; windows: Record<string, BrowserWindow>; activate(id: string): void };
 type Timing = { now(): number; set(run: () => void, ms: number): ReturnType<typeof setTimeout>; clear(timer: ReturnType<typeof setTimeout>): void };
 
@@ -38,7 +39,7 @@ export function createNewTabToasts(timing: Timing = { now: () => Date.now(), set
     useStore.setState((s) => ({ items: s.items.filter((t) => t.tabId !== tabId) }));
   };
   const add = (tab: Owner | undefined) => {
-    if (!tab || tab.unloaded || useStore.getState().items.some((t) => t.tabId === tab.id)) return;
+    if (!tab || isAsleep(tab) || useStore.getState().items.some((t) => t.tabId === tab.id)) return;
     useStore.setState((s) => ({ items: [...s.items, { tabId: tab.id, windowId: tab.windowId, profileId: tab.profileId, appearedAt: null, leaving: false }] }));
   };
   const present = (tabId: string) => {
@@ -59,7 +60,7 @@ export function createNewTabToasts(timing: Timing = { now: () => Date.now(), set
   const prune = (s: Pick<Browser, "tabs" | "windows">) => {
     for (const toast of useStore.getState().items) {
       const tab = s.tabs[toast.tabId];
-      if (!tab || tab.unloaded || tab.windowId !== toast.windowId || tab.profileId !== toast.profileId || !s.windows[toast.windowId]) remove(toast.tabId);
+      if (!tab || isAsleep(tab) || tab.windowId !== toast.windowId || tab.profileId !== toast.profileId || !s.windows[toast.windowId]) remove(toast.tabId);
     }
   };
   const activate = (tabId: string, windowId: string, profileId: string, s: Browser) => {
@@ -67,7 +68,7 @@ export function createNewTabToasts(timing: Timing = { now: () => Date.now(), set
     const tab = s.tabs[tabId];
     if (!toast || toast.windowId !== windowId || toast.profileId !== profileId) return;
     remove(tabId);
-    if (tab && !tab.unloaded && tab.windowId === windowId && tab.profileId === profileId && s.windows[windowId]?.profileId === profileId) s.activate(tabId);
+    if (tab && !isAsleep(tab) && tab.windowId === windowId && tab.profileId === profileId && s.windows[windowId]?.profileId === profileId) s.activate(tabId);
   };
   return { useStore, add, present, remove, clear, prune, activate };
 }

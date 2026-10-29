@@ -1,4 +1,13 @@
 export const CURATED = {
+  "globe.americas.fill": "PF:globe-hemisphere-west-fill M:earth TF:world L:earth P:globe-hemisphere-west",
+  "minus.circle": "L:circle-minus T:circle-minus P:minus-circle I:minus-circle M:minus-circle-outline",
+  "pause": "L:pause T:player-pause P:pause I:pause M:pause",
+  "play": "L:play T:player-play P:play I:play M:play-outline",
+  "person": "L:user T:user P:user I:user M:account-outline",
+  "photo": "L:image T:photo P:image I:media-image M:image-outline",
+  "plus.app": "L:square-plus T:square-rounded-plus P:plus-square I:plus-square M:plus-box-outline",
+  "rectangle.compress.vertical": "L:fold-vertical T:fold M:arrow-collapse-vertical L:shrink",
+  "rectangle.expand.vertical": "L:unfold-vertical T:arrows-vertical M:arrow-expand-vertical L:expand",
   pianokeys: "L:piano T:piano P:piano-keys M:piano",
   cursorarrow: "PF:cursor-fill M:cursor-default TF:pointer IS:cursor-pointer",
   gyroscope: "L:orbit T:3d-rotate M:rotate-orbit L:rotate-3d T:rotate-360 L:atom",

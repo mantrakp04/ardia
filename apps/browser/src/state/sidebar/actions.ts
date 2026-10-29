@@ -6,10 +6,13 @@ import { useBrowser } from "../browser/store";
 import { webviews } from "../../platform/webviews";
 import { focusHeroBar } from "../omnibox/barState";
 import { ancestorIds } from "../groups/groups";
-import { activeTabId, bookmarkProfileId, inPinnedContainer, pinSection, tabLayoutOf, viewTabIds } from "../browser/model";
+import { activeTabId, bookmarkProfileId, inPinnedContainer, pinSection, tabLayoutOf, tabTitle, viewTabIds } from "../browser/model";
 import type { ClickMods } from "../drag/drops";
-import { groupLabel, groupOf, selectedTabIds } from "../pins/organize";
+import { selectedTabIds } from "../pins/organize";
+import { groupLabel, groupOf } from "../pins/tabGrouping";
 import type { Tab } from "../browser/types";
+import type { BookmarkFolderChoice } from "./menuParts";
+import { DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
 import { measureRow, setSidebarUi, sidebarUi, type Target } from "./sidebarUi";
 
 const store = () => useBrowser.getState();
@@ -17,6 +20,8 @@ const store = () => useBrowser.getState();
 export function clickTab(windowId: string, tabId: string, mods: ClickMods = {}) {
   store().clickTab(windowId, tabId, mods);
 }
+
+export const resetSidebarWidth = () => store().updateSettings({ sidebarWidth: DEFAULT_SIDEBAR_WIDTH });
 
 export function returnFocusToPage(windowId: string) {
   const s = store();
@@ -41,7 +46,7 @@ export async function startRename(windowId: string, target: Target) {
   if (target.kind === "tab") {
     const tab = s.tabs[target.id];
     if (!tab) return;
-    if (tab.pinned && !tab.pinnedAsRow) {
+    if (pinSection(tab) === "tile") {
       const name = await prompt({
         title: "Rename Tab",
         value: tab.customTitle ?? tab.title,
@@ -107,9 +112,6 @@ export function newGroupWithSelection(windowId: string, ids = selectedTabIds(sto
   return groupId;
 }
 
-const urlLabel = (url: string) => url.replace(/^[a-z][\w+.-]*:\/\//i, "").replace(/^www\./, "").replace(/\/$/, "");
-export const tabTitle = (t: Pick<Tab, "customTitle" | "title" | "url">) => t.customTitle || t.title || (t.url && urlLabel(t.url)) || "New Tab";
-
 export function copyUrls(ids: string[], markdown: boolean) {
   const tabs = ids.map((id) => store().tabs[id]).filter((t): t is Tab => !!t?.url);
   if (!tabs.length) return;
@@ -117,11 +119,11 @@ export function copyUrls(ids: string[], markdown: boolean) {
   copyText(markdown && lines.length > 1 ? lines.map((l) => `- ${l}`).join("\n") : lines.join("\n"));
 }
 
-export async function bookmarkTabs(windowId: string, ids: string[], folder: string | "bar" | "new") {
+export async function bookmarkTabs(windowId: string, ids: string[], folder: BookmarkFolderChoice) {
   const s = store();
   const profileId = bookmarkProfileId(s, s.windows[windowId]);
-  let parentId: string | undefined = folder === "bar" ? undefined : folder;
-  if (folder === "new") {
+  let parentId = folder.kind === "folder" ? folder.parentId : undefined;
+  if (folder.kind === "newFolder") {
     const title = await prompt({ title: "New Folder", placeholder: "Folder name", confirmTitle: "Create", windowId });
     if (!title) return;
     parentId = store().addBookmarkFolder({ profileId, title });

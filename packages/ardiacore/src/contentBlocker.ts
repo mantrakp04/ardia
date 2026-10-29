@@ -1,5 +1,3 @@
-import { call, on } from "./engine/call";
-
 export type FilterListCategory = "ads" | "trackers" | "cookies" | "regional" | "annoyances" | "security";
 
 export type FilterList = {
@@ -30,10 +28,3 @@ export type ContentBlockerState = {
   allowedHosts: string[];
   stats: ContentBlockerStats;
 };
-
-export const getContentBlocker = () => call("contentBlocker.state");
-export const setContentBlockerEnabled = (enabled: boolean) => call("contentBlocker.setEnabled", { enabled });
-export const setFilterListEnabled = (id: string, enabled: boolean) => call("contentBlocker.setListEnabled", { id, enabled });
-export const isContentBlockerAllowed = (host: string) => call("contentBlocker.isAllowed", { host });
-export const setContentBlockerAllowed = (host: string, allowed: boolean) => call("contentBlocker.setAllowed", { host, allowed });
-export const onContentBlockerChange = (listener: (stats: ContentBlockerStats) => void) => on("contentBlocker.changed", listener);

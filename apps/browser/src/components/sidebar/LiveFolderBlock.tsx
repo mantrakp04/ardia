@@ -25,6 +25,7 @@ import { TABULAR_NUMS, useSidebarTokens } from "./tokens";
 import { MoreRow, NoteRow, SectionTitle, StackRow } from "./LiveFolderRows";
 import { LiveItemRow } from "./LiveItemRow";
 import { CompletedFooter, useCompletedShown } from "./CompletedFooter";
+import { entryKey } from "../../state/sidebar/entryKey";
 
 const PAD = GROUP_PAD;
 const EMPTY: LiveItem[] = [];
@@ -35,7 +36,7 @@ export const LiveFolderBlock = memo(function LiveFolderBlock({ folderId, windowI
   const folder = useLive((s) => s.folders[folderId]);
   const items = useLive((s) => s.items[folderId] ?? EMPTY);
   const showAll = useLive((s) => s.showAll);
-  const folded = useDragFolded(`lf:${folderId}`);
+  const folded = useDragFolded(entryKey("live", folderId));
   const collapsed = folded || !!folder?.collapsed;
   const rows = useMemo(() => (folder ? folderRows(folder, items, showAll) : []), [folder, items, showAll]);
   const itemIds = useMemo(() => new Set(items.map((i) => i.id)), [items]);
@@ -48,7 +49,7 @@ export const LiveFolderBlock = memo(function LiveFolderBlock({ folderId, windowI
   const completed = useCompletedShown(folderId).length > 0;
   const fold = useFold(collapsed);
   const foldedHeight = () => GROUP_BORDER * 2 + layout.rowHeight + (activeTab ? layout.rowHeight + PAD : 0);
-  const { wrapper, handle, headerRef } = useDragItem(`lf:${folderId}`, { kind: "live", tabIds: NONE, section: "pinnedGroups", liveFolderId: folderId, collapsed: !!folder?.collapsed, foldedHeight });
+  const { wrapper, handle, headerRef } = useDragItem(entryKey("live", folderId), { kind: "live", tabIds: NONE, section: "pinnedGroups", liveFolderId: folderId, collapsed: !!folder?.collapsed, foldedHeight });
   if (!folder) return null;
 
   const entries: FoldEntry[] = rows.length

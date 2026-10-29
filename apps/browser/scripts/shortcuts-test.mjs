@@ -69,9 +69,9 @@ async function diagnoseHang() {
   const js = await app.eval("return Math.round(performance.now() / 1000)", { timeout: 3000 })
     .then((up) => `the JS thread answers (JS context up ${up} s, test up ${Math.round((Date.now() - startedAt) / 1000)} s)`, () => "the JS thread doesn't answer either");
   try { copyFileSync(join(data, "app.out.log"), join(scratch, "app.out.log")); } catch {}
-  const main = await app.eval("return globalThis.expo.modules.ArdiaApp.devFocusHandoffTrace().then(() => 1)", { timeout: 3000 })
+  const main = await app.eval("return globalThis.expo.modules.ArdiaDev.devFocusHandoffTrace().then(() => 1)", { timeout: 3000 })
     .then(() => "the main thread answers", () => "the main thread doesn't answer");
-  const presses = await app.eval("return globalThis.expo.modules.ArdiaApp.devKeyEquivalentTrace()", { timeout: 3000 }).catch(() => []);
+  const presses = await app.eval("return globalThis.expo.modules.ArdiaDev.devKeyEquivalentTrace()", { timeout: 3000 }).catch(() => []);
   const seen = await app.eval("return (globalThis.__devEvalLog ?? []).join(' | ')", { timeout: 3000 }).catch(() => null);
   const proxy = app.js?.pid ? (isAlive(app.js.pid) ? `Metro proxy ${app.js.pid} alive` : `Metro proxy ${app.js.pid} gone`) : "no Metro proxy";
   return `hang: ${js}; ${main}; ${proxy}; pending eval ${pending}, result file ${landed}, JS evals: ${seen}; native presses: ${presses.slice(-6).join(" / ")}; main-thread sample in ${sampleFile} (kept: ${scratch})`;
@@ -98,7 +98,7 @@ const K = (key, keyCode, ...modifiers) => ({ key, keyCode, modifiers });
 const cmd = (key, keyCode, ...more) => K(key, keyCode, "command", ...more);
 
 const devToolsOwn = new Set([
-  "⌘O", "⌘P", "⇧⌘C", "⌘F", "⌥⌘F", "⌘G", "⇧⌘G", "⌘R", "⇧⌘R", "⌘0", "⌘+", "⌘=", "⌘-", "⌥⌘C", "⌘[", "⌘]",
+  "⌘O", "⌘P", "⌘F", "⌥⌘F", "⌘G", "⇧⌘G", "⌘R", "⇧⌘R", "⌘0", "⌘+", "⌘=", "⌘-", "⌥⌘C", "⌘[", "⌘]",
   "⌃⇧⇟", "⌃⇧⇞", "⌘↩", "⌥⌘B", "⇧⌘M",
 ]);
 const shortcuts = [
@@ -200,6 +200,11 @@ const shortcuts = [
   ["⌃1", K("1", 18, "control"), { command: "switchProfile", arg: "default" }, "⌃1"],
   ["⌃2", K("2", 19, "control"), { command: "switchProfile", arg: "p-work" }, "⌃2"],
 ];
+
+const reservedShortcuts = new Set([
+  "⌘W", "⇧⌘W", "⇧⌘N", "⌘T", "⌘N", "⇧⌘T", "⇧⌘]", "⇧⌘[", "⌥⌘→", "⌥⌘←", "⌃⇟", "⌃⇞", "⌥⌘↓", "⌥⌘↑", "⌃Tab", "⌃⇧Tab", "⌘Q",
+  "⇧⌘C", "⌥⌘I", "F12", "⇧⌘A",
+]);
 
 const same = (f, expect) =>
   expect.command
@@ -384,9 +389,9 @@ const devWindow = (action) =>
     return ac.engine.call("windows.list").then((ws) => ws.filter((w) => w.hasRoot).find((w) => {
       const r = w.frame.match(/[-\\d.]+/g).map(Number); return Math.abs(r[0] - f[0]) < 2 && Math.abs(r[2] - f[2]) < 2; }))
       .then((w) => ac.engine.call("windows.dev", { window: w.window, action: ${JSON.stringify(action)} }));`);
-const postKeys = (presses) => ac(`return globalThis.expo.modules.ArdiaApp.devPostKeys("w1", ${JSON.stringify(presses)});`);
+const postKeys = (presses) => ac(`return globalThis.expo.modules.ArdiaDev.devPostKeys("w1", ${JSON.stringify(presses)});`);
 const keyPress = (key, keyCode, after = 0, modifiers = ["command"]) => ({ key, keyCode, modifiers, after });
-const post = (key, keyCode, modifiers = ["command"]) => ac(`return globalThis.expo.modules.ArdiaApp.devPostKey("w1", ${JSON.stringify(key)}, ${keyCode}, ${JSON.stringify(modifiers)});`);
+const post = (key, keyCode, modifiers = ["command"]) => ac(`return globalThis.expo.modules.ArdiaDev.devPostKey("w1", ${JSON.stringify(key)}, ${keyCode}, ${JSON.stringify(modifiers)});`);
 const clipboard = {
   set: (text) => ac(`globalThis.nativeModuleProxy.Clipboard.setString(${JSON.stringify(text)}); return 1;`),
   get: () => ac(`return globalThis.nativeModuleProxy.Clipboard.getString();`),
@@ -494,7 +499,7 @@ for (const busy of [0, 120]) {
   await busyJsOnce(150);
   await postKeys([keyPress("l", 37), keyPress("\r", 36, 20, []), keyPress("v", 9, 20)]);
   await sleep(2000);
-  const trace = await ac(`return globalThis.expo.modules.ArdiaApp.devFocusHandoffTrace();`);
+  const trace = await ac(`return globalThis.expo.modules.ArdiaDev.devFocusHandoffTrace();`);
   const replayAt = trace.findLastIndex((l) => / replay /.test(l));
   const dropped = replayAt >= 0 && trace.slice(replayAt).some((l) => / drop /.test(l));
   const inPage = await pageField("f.value");
@@ -568,7 +573,7 @@ for (const [name, keys, busy, firstExpected] of handoffEnds) {
   await sleep(600);
   const second = await pastesIn(active);
   const responder = await devWindow("responder");
-  const trace = first === firstExpected ? "" : `; trace ${(await ac(`return globalThis.expo.modules.ArdiaApp.devFocusHandoffTrace();`)).slice(-8).join(" / ")}`;
+  const trace = first === firstExpected ? "" : `; trace ${(await ac(`return globalThis.expo.modules.ArdiaDev.devFocusHandoffTrace();`)).slice(-8).join(" / ")}`;
   check(`${name} then ⌘V: ${firstExpected ? "pastes once into the page that has the focus" : "dropped with a beep, nowhere else"}; the next ⌘V pastes`,
     first === firstExpected && strays === 0 && second === firstExpected + 1 && responder.startsWith("RenderWidgetHostViewCocoa"),
     `active ${active}, pastes ${first} then ${second}, elsewhere ${strays}, first responder ${responder}${trace}`);
@@ -623,13 +628,99 @@ for (const where of ["the find field", "the page"]) {
   const after = await ac(`const s = ac.store.getState(), w = s.windows.w1, a = w.activeTabIds[w.profileId]; return { active: a, find: !!s.find[a]?.open };`);
   check("Esc closes only the find bar", after.active === "t3" && !after.find, JSON.stringify(after));
 }
-await press(cmd("q", 12), { focus: "window", wait: 0 });
+const FLAGS = { command: 0x100000, shift: 0x20000, control: 0x40000, option: 0x80000, function: 0x800000 };
+const w1Native = await ac(`const f = ac.store.getState().windows.w1.frame;
+  return ac.engine.call("windows.list").then((ws) => ws.filter((w) => w.hasRoot).find((w) => {
+    const r = w.frame.match(/[-\\d.]+/g).map(Number); return Math.abs(r[0] - f[0]) < 2 && Math.abs(r[2] - f[2]) < 2; })?.window);`);
+const w1Dev = (action) => ac(`return ac.engine.call("windows.dev", { window: ${JSON.stringify(w1Native)}, action: ${JSON.stringify(action)} });`);
+const reservedBy = async ({ key, keyCode, modifiers }) =>
+  w1Dev(`reserved:${modifiers.reduce((f, m) => f | FLAGS[m], 0)}:${key}:${keyCode}`);
+const swallowKeys = () => cdp("?t3", "(window.keys = [], window.swallowing ??= (addEventListener('keydown', (e) => { window.keys.push(e.key); e.preventDefault(); }, true), true), true)");
+const pageKeys = async () => (await cdp("?t3", "window.keys?.length ?? -1")) ?? -1;
+{
+  const wrong = [];
+  for (const [name, key] of shortcuts) {
+    if (key.key === ":") continue;
+    const by = await reservedBy(key);
+    if (!!by !== reservedShortcuts.has(name)) wrong.push(`${name} ${by || "goes to the page"}`);
+  }
+  const profileWindow = await reservedBy(K("1", 18, "control", "command"));
+  if (profileWindow) wrong.push(`⌃⌘1 (the first profile in a new window) ${profileWindow}`);
+  check("Helium's reserved set: exactly its commands' keys are reserved, every other shortcut goes to the page first", !wrong.length, wrong.join("; "));
+}
+await showPage("t3");
+await sleep(1000);
+{
+  const wrong = [];
+  for (const [name, key, expect, , only] of shortcuts) {
+    if (only === "window-only" || only === "clipboard") continue;
+    await swallowKeys();
+    const r = await press(key, { focus: "page", asKey: true, wait: 600, dry: true });
+    const seen = await pageKeys();
+    const fired = (r.fired ?? []).some((f) => same(f, expect));
+    const off = !fired && (r.matched ?? []).some((m) => same(m, expect) && !m.enabled);
+    const ok = reservedShortcuts.has(name) ? (fired && seen === 0) || off : !fired && seen > 0;
+    if (!ok) wrong.push(`${name}: ${describe(r)}, the page saw ${seen} keydown`);
+  }
+  check("a page that cancels every keydown: Ardia acts on the reserved shortcuts, the page gets every other one", !wrong.length, wrong.join("; "));
+}
+{
+  await swallowKeys();
+  await press(K("1", 18, "control"), { focus: "page", asKey: true, wait: 800 });
+  const profile = (await state()).profile, seen = await pageKeys();
+  check("⌃1 in a page that cancels it stays with the page (Switch Profile isn't reserved)", profile === "default" && seen === 1, `profile ${profile}, the page saw ${seen} keydown`);
+}
+{
+  const rebound = K("k", 40, "control", "option", "command");
+  await ac(`ac.store.getState().updateSettings({ shortcuts: { ...ac.store.getState().settings.shortcuts, newTab: ["k", "control", "option", "command"] } }); return 1;`);
+  let by = "", old = "x";
+  for (let i = 0; i < 30 && (by !== "ardia.command.newTab" || old); i++) {
+    await sleep(100);
+    [by, old] = [await reservedBy(rebound), await reservedBy(cmd("t", 17))];
+  }
+  check("New Tab rebound to ⌃⌥⌘K: the new keys are reserved and ⌘T goes to the page", by === "ardia.command.newTab" && !old, `⌃⌥⌘K ${by || "page"}, ⌘T ${old || "page"}`);
+  await ac(`const { newTab, ...rest } = ac.store.getState().settings.shortcuts; ac.store.getState().updateSettings({ shortcuts: rest }); return 1;`);
+  for (let i = 0; i < 30 && !(await reservedBy(cmd("t", 17))); i++) await sleep(100);
+}
+{
+  const fullScreenKey = cmd("f", 3, "control");
+  const states = async () => Object.fromEntries(await Promise.all(
+    [["⌘T", cmd("t", 17)], ["⌘W", cmd("w", 13)], ["⌘Q", cmd("q", 12)], ["⌃⌘F", fullScreenKey], ["🌐F", K("f", 3, "function")], ["⌃1", K("1", 18, "control")]]
+      .map(async ([name, key]) => [name, !!(await reservedBy(key))])));
+  const windowed = await states();
+  check("windowed: Full Screen goes to the page first, as in Chrome", !windowed["⌃⌘F"] && !windowed["🌐F"] && windowed["⌘T"], JSON.stringify(windowed));
+  await w1Dev("fakeFullScreen:1");
+  const browserShown = await states();
+  check("full screen with the sidebar: Helium's set plus Full Screen", browserShown["⌘T"] && browserShown["⌘W"] && browserShown["⌘Q"] && browserShown["⌃⌘F"] && browserShown["🌐F"] && !browserShown["⌃1"], JSON.stringify(browserShown));
+  const page = await app.page("?t3");
+  await page.eval("document.documentElement.requestFullscreen().then(() => true, (e) => String(e))", { userGesture: true, timeout: 5000 }).catch(String);
+  let full = false;
+  for (let i = 0; i < 40 && !full; i++) {
+    await sleep(100);
+    full = !!JSON.parse(await w1Dev("fullScreen")).pageFullScreen?.page;
+  }
+  const pageShown = await states();
+  check("a page in full screen: only Quit and Full Screen are reserved", full && !pageShown["⌘T"] && !pageShown["⌘W"] && pageShown["⌘Q"] && pageShown["⌃⌘F"] && !pageShown["⌃1"], `page full screen ${full}, ${JSON.stringify(pageShown)}`);
+  await swallowKeys();
+  const r = await press(cmd("w", 13), { focus: "page", asKey: true, wait: 600, dry: true });
+  const seen = await pageKeys();
+  check("…and ⌘W reaches a page in full screen that cancels it", seen === 1 && !(r.fired ?? []).length, `${describe(r)}, the page saw ${seen} keydown`);
+  await page.eval("document.exitFullscreen().then(() => true, (e) => String(e))", { timeout: 5000 }).catch(String);
+  page.close();
+  for (let i = 0; i < 40 && JSON.parse(await w1Dev("fullScreen")).pageFullScreen?.page; i++) await sleep(100);
+  await w1Dev("fakeFullScreen:0");
+  await sleep(500);
+}
+await showPage("t3");
+await sleep(1000);
+await swallowKeys();
+await press(cmd("q", 12), { focus: "page", asKey: true, wait: 0 });
 let quit = false;
 for (let i = 0; i < 150 && !quit; i++) {
   await sleep(100);
   quit = app.exited;
 }
-check("⌘Q quits", quit, quit ? "" : "still running after 15 s");
+check("⌘Q in a page that cancels every keydown quits", quit, quit ? "" : "still running after 15 s");
 
 const cols = Object.keys(focuses);
 rep.log(`\n${"shortcut".padEnd(8)} ${"Dia".padEnd(26)} ${cols.map((c) => c.padEnd(10)).join(" ")}`);

@@ -3,7 +3,8 @@ import { forwardRef, useEffect, useRef, type ReactNode } from "react";
 import type { StyleProp, View, ViewStyle } from "react-native";
 import { currentWindow } from "../../state/browser/current";
 import { openDroppedUrls } from "../../state/drag/windowDrop";
-import type { TabPlacement } from "../../state/pins/organize";
+import { installDroppedCrx } from "../../state/extensions/crxDrop";
+import type { TabPlacement } from "../../state/pins/placing";
 import { FileDropArea, type DroppedItem, type DropUpdate } from "../ui";
 
 export type DropPoint = [number, number];
@@ -91,7 +92,7 @@ export const TabDropArea = forwardRef<View, Props>(function TabDropArea({ target
       inside.current = false;
       const windowId = latest.current.windowId;
       const profileId = currentWindow(windowId)?.profileId;
-      const urls = droppedUrls(e.items);
+      const urls = installDroppedCrx(windowId, droppedUrls(e.items));
       void run(() => {
         const current = token === generation.current;
         const placement = current ? latest.current.drop(at(e), token) : null;

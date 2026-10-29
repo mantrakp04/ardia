@@ -96,7 +96,7 @@ test("a drop doesn't bring back an anchor that moved to another profile while th
   const held = [`t:${ids.a}`, `t:${ids.b}`, `lf:${lf}`, `t:${ids.c}`];
   S().moveTabToProfile(ids.b, other);
   assert.equal(S().tabs[ids.b].profileId, other);
-  assert.ok(S().tabs[ids.b].pinned && S().tabs[ids.b].pinnedAsRow, "still a pinned row, in the other profile");
+  assert.ok(!!S().tabs[ids.b].pin && (S().tabs[ids.b].pin?.as === "row"), "still a pinned row, in the other profile");
   order.arrangeLive(held);
   assert.deepEqual(sequence(w), ["a", "LF", "c"]);
 });

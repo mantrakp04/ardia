@@ -1,6 +1,6 @@
 import { resolveInput } from "@ardia/core";
 import { useState } from "react";
-import { currentBookmarks, currentSettings } from "../../state/browser/current";
+import { currentBookmarkRoots, currentBookmarks, currentSettings } from "../../state/browser/current";
 import { addBookmark, addBookmarkFolder, moveBookmark, updateBookmark } from "../../state/bookmarks/actions";
 import { useWindowId } from "../../state/browser/hooks";
 import { searchUrlPrefix } from "../../state/settings/settings";
@@ -21,7 +21,7 @@ function Sheet({ state }: { state: EditorState }) {
   const [title, setTitle] = useState(node?.title ?? "");
   const [url, setUrl] = useState(node?.kind === "url" ? node.url : "");
   const [parentId, setParentId] = useState<string | null>(
-    node?.parentId ?? state.parentId ?? currentBookmarks().roots[state.profileId]?.bar ?? null,
+    node?.parentId ?? state.parentId ?? currentBookmarkRoots(state.profileId)?.bar ?? null,
   );
   const close = closeBookmarkEditor;
   const resolvedUrl = url.trim() ? resolveInput(url, searchUrlPrefix(currentSettings())) : "";

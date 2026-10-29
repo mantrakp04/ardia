@@ -1,6 +1,6 @@
 // Copyright 2026 Ardia. Apache-2.0.
 
-#include "chrome/browser/ardia/ac_search_engines.h"
+#include "chrome/browser/ardia/ac_engine.h"
 
 #include <utility>
 #include <vector>
@@ -79,11 +79,7 @@ class SearchEnginesState : public ProfileState {
 }
 }
 
-AC_ENGINE_CALL(ac_search_engines_list) {
-  ardia::Call call(profile_dir, args_json, reply, context);
-  if (!call) {
-    return;
-  }
+AC_PROFILE_CALL(ac_search_engines_list) {
   TemplateURLService* service =
       TemplateURLServiceFactory::GetForProfile(call.profile());
   if (!service) {

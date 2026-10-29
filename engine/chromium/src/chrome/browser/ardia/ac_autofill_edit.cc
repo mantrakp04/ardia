@@ -9,7 +9,7 @@
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/uuid.h"
-#include "chrome/browser/ardia/ac_autofill.h"
+#include "chrome/browser/ardia/ac_engine.h"
 #include "chrome/browser/ardia/ac_autofill_internal.h"
 #include "chrome/browser/ardia/ac_sensitive_args.h"
 #include "components/autofill/core/browser/data_manager/addresses/address_data_manager.h"
@@ -23,8 +23,7 @@ using ardia::Call;
 using ardia::Reply;
 using autofill::PersonalDataManager;
 
-AC_ENGINE_CALL(ac_autofill_save_address) {
-  AC_AUTOFILL_CALL();
+AC_PROFILE_CALL(ac_autofill_save_address) {
   const base::DictValue* address = call.args().FindDict("address");
   if (!address) {
     return call.TakeReply().Error("address required");
@@ -92,26 +91,13 @@ AC_ENGINE_CALL(ac_autofill_save_address) {
       call.TakeReply());
 }
 
-AC_ENGINE_CALL(ac_autofill_save_card) {
-  Call call(profile_dir, nullptr, reply, context);
-  if (!call) {
-    return;
-  }
-  ardia::SensitiveArgs args(args_json,
-                            ardia::autofill_internal::kMaxImportBytes);
-  if (!args.dict()) {
-    return call.TakeReply().Error(args.too_large()
-                                      ? "arguments too large"
-                                      : "arguments are not a JSON object");
-  }
-  if (args.dict()->FindBool("offTheRecord").value_or(false)) {
-    return call.TakeReply().Error("not for a private session");
-  }
-  const base::DictValue* card = args.dict()->FindDict("card");
+AC_PROFILE_CALL(ac_autofill_save_card,
+                ardia::Sensitive{ardia::autofill_internal::kMaxImportBytes}) {
+  const base::DictValue* card = call.args().FindDict("card");
   if (!card) {
     return call.TakeReply().Error("card required");
   }
-  std::optional<ardia::Secret> number = args.SecretAt("number");
+  std::optional<ardia::Secret> number = call.SecretAt("number");
   if (!number) {
     return call.TakeReply().Error("bad arguments");
   }
@@ -190,8 +176,7 @@ AC_ENGINE_CALL(ac_autofill_save_card) {
       call.TakeReply());
 }
 
-AC_ENGINE_CALL(ac_autofill_remove) {
-  AC_AUTOFILL_CALL();
+AC_PROFILE_CALL(ac_autofill_remove) {
   ardia::autofill_internal::Load(
       call,
       base::BindOnce(

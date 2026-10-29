@@ -8,22 +8,25 @@ export const IMPORT_WINDOW_ID = "import";
 export const isUtilityWindowId = (id: string | null | undefined) =>
   id === SETTINGS_WINDOW_ID || id === IMPORT_WINDOW_ID;
 
-export type SettingsPane =
-  | "general"
-  | "profiles"
-  | "sync"
-  | "tabs"
-  | "appearance"
-  | "privacy"
-  | "passwords"
-  | "autofill"
-  | "extensions"
-  | "search"
-  | "engines"
-  | "shortcuts"
-  | "liveFolders"
-  | "calendar"
-  | "advanced";
+export const SETTINGS_PANES = [
+  "general",
+  "profiles",
+  "sync",
+  "tabs",
+  "appearance",
+  "privacy",
+  "passwords",
+  "autofill",
+  "extensions",
+  "search",
+  "engines",
+  "shortcuts",
+  "liveFolders",
+  "calendar",
+  "advanced",
+] as const;
+
+export type SettingsPane = (typeof SETTINGS_PANES)[number];
 
 export type SettingsPlace = { pane: SettingsPane; profileId: string | null; detail: string | null };
 
@@ -63,22 +66,22 @@ export function openSettings(pane?: SettingsPane, profileId?: string | null) {
   void openWindow(SETTINGS_WINDOW_ID, { kind: "settings", title: "Settings" });
 }
 
-let preferredImportSource: string | null = null;
+export const useImportRequest = create<{ source: string | null }>()(() => ({ source: null }));
 
 export function takePreferredImportSource() {
-  const id = preferredImportSource;
-  preferredImportSource = null;
-  return id;
+  const { source } = useImportRequest.getState();
+  useImportRequest.setState({ source: null });
+  return source;
 }
 
 export function openImport(browserId?: string) {
-  preferredImportSource = browserId ?? null;
+  useImportRequest.setState({ source: browserId ?? null });
   void openWindow(IMPORT_WINDOW_ID, { kind: "import", title: "Import from Another Browser" });
 }
 
 export function settingsBrowserWindow(): string | null {
   const s = useBrowser.getState();
-  return s.ui.focusOrder.find((id) => s.windows[id] && !s.windows[id]!.incognito) ?? s.windowOrder.find((id) => !s.windows[id]!.incognito) ?? null;
+  return s.ui.focusOrder.find((id) => s.windows[id] && s.windows[id]!.kind !== "private") ?? s.windowOrder.find((id) => s.windows[id]!.kind !== "private") ?? null;
 }
 
 export function openUrlFromSettings(url: string) {

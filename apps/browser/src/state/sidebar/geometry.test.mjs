@@ -10,14 +10,14 @@ const S = () => useBrowser.getState();
 const profile = { id: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 };
 const tab = (i) => ({
   id: `t${i}`, windowId: "w", profileId: "default", url: `https://example.com/${i}`, title: `Tab ${i}`, favicon: null, pinned: false,
-  muted: false, zoom: 1, customTitle: null, customIcon: null, pinnedUrl: null, openerId: null, createdAt: i, lastActiveAt: i,
+  muted: false, zoom: 1, customTitle: null, customIcon: null, pinnedUrl: null, page: { kind: "idle" }, openerId: null, createdAt: i, lastActiveAt: i,
 });
 
 function hydrate({ collapsed = false, nested = null, active = "t0" } = {}) {
   const tabs = Array.from({ length: 40 }, (_, i) => tab(i));
   S().hydrate({
     profiles: { default: profile },
-    windows: { w: { id: "w", profileId: "default", incognito: false, tabIds: tabs.map((t) => t.id), activeTabIds: { default: active }, sidebarOpen: true, frame: [0, 0, 1200, 800], createdAt: 0 } },
+    windows: { w: { id: "w", profileId: "default", kind: "main", tabIds: tabs.map((t) => t.id), activeTabIds: { default: active }, sidebarOpen: true, frame: [0, 0, 1200, 800], createdAt: 0 } },
     tabs: Object.fromEntries(tabs.map((t) => [t.id, t])),
     groups: {
       g: { id: "g", windowId: "w", profileId: "default", name: "G", icon: null, color: "blue", collapsed, pinned: false, tabIds: ["t2", "t3", "t4", "t5", "t6"], createdAt: 0 },

@@ -1,30 +1,15 @@
 import { toAppUrl, urlForDisplay } from "@ardia/core";
-import { useEffect, useRef, useState } from "react";
 import { Animated, StyleSheet, Text, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import { webviews } from "../../state/tabs/webviewHandles";
-import { Button, font, Panel, radius, space, Symbol, weight } from "../ui";
+import { Button, font, Panel, radius, space, Symbol, usePresence, weight } from "../ui";
 import { patchPage, usePage } from "../../state/tabs/pageState";
 import { SAD_TAB_TITLE_SIZE, SHADOWS, STATUS_MOTION, windowColors } from "./tokens";
 
 export function StatusBubble({ tabId, maxWidth }: { tabId: string; maxWidth: number }) {
   const colors = windowColors(useTheme().dark);
   const status = usePage(tabId, (p) => p.status);
-  const [shown, setShown] = useState(status);
-  const opacity = useRef(new Animated.Value(status ? 1 : 0)).current;
-  useEffect(() => {
-    if (status) {
-      setShown(status);
-      Animated.timing(opacity, { toValue: 1, ...STATUS_MOTION.show, useNativeDriver: true }).start();
-      return;
-    }
-    const timer = setTimeout(() => {
-      Animated.timing(opacity, { toValue: 0, ...STATUS_MOTION.hide, useNativeDriver: true }).start(({ finished }) => {
-        if (finished) setShown("");
-      });
-    }, 180);
-    return () => clearTimeout(timer);
-  }, [status]);
+  const { shown, appear: opacity } = usePresence(status || null, STATUS_MOTION);
   if (!shown) return null;
   return (
     <Animated.View pointerEvents="none" style={{ position: "absolute", left: space.s, bottom: space.s, maxWidth, opacity }}>

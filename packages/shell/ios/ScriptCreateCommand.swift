@@ -15,7 +15,7 @@ final class ScriptCreateCommand: NSCreateCommand {
       var body: [String: Any] = ["command": "newTab"]
       if let url { body["url"] = url }
       let location = arguments?["Location"] as? NSPositionalSpecifier
-      if let window = (location?.insertionContainer as? ScriptWindow) ?? ShellScripting.orderedWindowInfos.first.map({ ScriptWindow(id: $0.id) }) {
+      if let window = (location?.insertionContainer as? ScriptWindow) ?? ShellScripting.orderedWindows.first.map({ ScriptWindow(id: $0.id) }) {
         body["windowId"] = window.uniqueID
         if let index = location?.insertionIndex, index >= 0 { body["index"] = index }
       }

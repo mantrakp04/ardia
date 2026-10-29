@@ -17,7 +17,7 @@ const extra = {
         const id = w.activeTabIds?.[w.profileId];
         if (!id) continue;
         ids.add(id);
-        for (const split of Object.values(s.splits ?? {})) if (split.tabIds?.includes(id)) for (const pane of split.tabIds) ids.add(pane);
+        for (const split of Object.values(s.splits ?? {})) if (split.slots.flatMap((x) => x.stack ?? [x.tabId]).includes(id)) for (const pane of split.slots.flatMap((x) => x.stack ?? [x.tabId])) ids.add(pane);
       }
       return ids;
     };
@@ -28,7 +28,7 @@ const extra = {
       for (const [id, t] of Object.entries(s.tabs)) {
         const was = prev.tabs[id];
         if (!was || t === was || shown.has(id)) continue;
-        if ((t.navigation && !was.navigation) || (t.adoptId && !was.adoptId)) {
+        if ((t.page.nav && !was.page.nav) || (t.page.adopt && !was.page.adopt)) {
           backgroundWakeAt = Date.now();
           return;
         }

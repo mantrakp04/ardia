@@ -1,7 +1,7 @@
 import { useBrowser, type BrowserState } from "../browser/store";
-import { activeTab, pinnedSectionTitle } from "../browser/model";
-import { groupOf, selectedTabIds } from "../pins/organize";
-import { pinKeyOf } from "../pins/pinMirror";
+import { activeTab, pinKeyOf, pinnedSectionTitle } from "../browser/model";
+import { selectedTabIds } from "../pins/organize";
+import { groupOf } from "../pins/tabGrouping";
 import type { Tab } from "../browser/types";
 
 type ListSpot = { windowId: string; key: string; list: string[]; index: number; order: number; groupId: string | null };
@@ -10,12 +10,12 @@ const listSpots = new Map<string, ListSpot>();
 let spotOrder = 0;
 const store = () => useBrowser.getState();
 
-export const movePinnedTitle = (s: BrowserState, tab: Tab | undefined) => (tab?.pinned ? "Move out of Pinned" : `Move to ${pinnedSectionTitle(s, tab)}`);
+export const movePinnedTitle = (s: BrowserState, tab: Tab | undefined) => (tab?.pin ? "Move out of Pinned" : `Move to ${pinnedSectionTitle(s, tab)}`);
 
 const listTabIds = (s: BrowserState, windowId: string, profileId: string, except: Set<string>) =>
   (s.windows[windowId]?.tabIds ?? []).filter((id) => {
     const t = s.tabs[id];
-    return t && !t.pinned && t.profileId === profileId && !except.has(id) && !groupOf(s, id)?.pinned;
+    return t && !t.pin && t.profileId === profileId && !except.has(id) && !groupOf(s, id)?.pinned;
   });
 
 export function togglePinnedRows(windowId: string) {
@@ -23,8 +23,8 @@ export function togglePinnedRows(windowId: string) {
   const tab = activeTab(s, windowId);
   if (!tab) return;
   const selected = selectedTabIds(s, windowId).map((id) => s.tabs[id]!).filter((t) => t.profileId === tab.profileId);
-  if (!tab.pinned) return moveToPinnedRows(s, windowId, selected.filter((t) => !t.pinned));
-  moveOutOfPinned(selected.filter((t) => t.pinned));
+  if (!tab.pin) return moveToPinnedRows(s, windowId, selected.filter((t) => !t.pin));
+  moveOutOfPinned(selected.filter((t) => t.pin));
 }
 
 function moveToPinnedRows(s: BrowserState, windowId: string, tabs: Tab[]) {
@@ -74,7 +74,7 @@ function moveOutOfPinned(tabs: Tab[]) {
   for (const spot of ordered) {
     const s = store();
     const t = s.tabs[spot.tabId];
-    if (!t || t.pinned || t.windowId !== spot.windowId) continue;
+    if (!t || t.pin || t.windowId !== spot.windowId) continue;
     const pending = ordered.filter((o) => o !== spot && !placed.includes(o)).map((o) => o.tabId);
     const now = listTabIds(s, spot.windowId, t.profileId, new Set([t.id, ...pending]));
     const keys = now.map((id) => pinKeyOf(s.tabs[id]!));

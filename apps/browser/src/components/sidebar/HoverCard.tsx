@@ -3,7 +3,7 @@ import { Animated, Pressable, StyleSheet, Text, View, type AccessibilityActionEv
 import { displayUrl } from "@ardia/core";
 import { useTheme } from "../ui/theme";
 import { useIsBookmarked, useTab } from "../../state/browser/hooks";
-import { plural } from "../../state/browser/model";
+import { plural, tabTitle } from "../../state/browser/model";
 import { useTileFolderLabel, useTileFolderMembers } from "../../state/pins/hooks";
 import { returnToPinnedUrl } from "../../state/pins/actions";
 import { togglePin } from "../../state/tabs/actions";
@@ -14,11 +14,12 @@ import { openInSplit } from "../../state/splits/actions";
 import { CalendarPreview, useIsCalendarTab } from "../live/CalendarPreview";
 import { LiveItemCard } from "../live/LiveItemCard";
 import { useIsSleeping } from "../../state/tabs/tabLifecycle";
-import { FadeLabel, font, Panel, radius, Symbol, useHover, weight } from "../ui";
+import { FadeLabel, font, GlassFill, liquidGlass, Panel, radius, Symbol, useHover, weight } from "../ui";
 import { SIDEBAR_SHADOW, SIDEBAR_TYPE } from "./tokens";
-import { clickTab, tabTitle, toggleBookmarkInWindow } from "../../state/sidebar/actions";
+import { clickTab, toggleBookmarkInWindow } from "../../state/sidebar/actions";
 import { GroupPanel } from "./GroupPanel";
-import { cardHoverProps, dismissHover, setHoverSpace } from "../../state/sidebar/hover";
+import { dismissHover, setHoverSpace } from "../../state/sidebar/hover";
+import { cardHoverProps } from "./hoverController";
 import { hoverCardOrigin, useHoverCardMotion, useHoverCardPlacement } from "./hoverMotion";
 import { useSidebarUi, type Anchor, type Hover } from "../../state/sidebar/sidebarUi";
 import { TabIcon } from "./TabIcon";
@@ -62,6 +63,7 @@ function Card({ anchor, children }: { anchor: Anchor; children: React.ReactNode 
   return (
     <Panel
       {...cardHoverProps}
+      glass="panel"
       fill={theme.panel}
       radius={radius.panel}
       border={theme.panelBorder}
@@ -106,7 +108,7 @@ function TabCard({ tabId, windowId, anchor }: { tabId: string; windowId: string;
         </Text>
       ) : null}
       <View style={{ flexDirection: "row", gap: 4, marginTop: 8 }}>
-        <Action icon={tab.pinned ? "pin.slash" : "pin"} label={tab.pinned ? "Unpin" : "Pin"} onPress={() => togglePin(tabId)} />
+        <Action icon={tab.pin ? "pin.slash" : "pin"} label={tab.pin ? "Unpin" : "Pin"} onPress={() => togglePin(tabId)} />
         {tab.url ? (
           <Action
             icon={bookmarked ? "bookmark.fill" : "bookmark"}
@@ -114,7 +116,7 @@ function TabCard({ tabId, windowId, anchor }: { tabId: string; windowId: string;
             onPress={() => toggleBookmarkInWindow(windowId, { url: tab.url, title: tabTitle(tab), favicon: tab.favicon })}
           />
         ) : null}
-        {!isActive && !tab.pinned ? (
+        {!isActive && !tab.pin ? (
           <Action
             icon="rectangle.split.2x1"
             label="Split"
@@ -162,9 +164,10 @@ function Action({ icon, label, onPress }: { icon: string; label: string; onPress
               alignItems: "center",
               justifyContent: "center",
               gap: 3,
-              backgroundColor: pressed ? theme.toolbarPressed : hovered ? theme.toolbarHover : theme.urlPill,
+              backgroundColor: liquidGlass ? undefined : pressed ? theme.toolbarPressed : hovered ? theme.toolbarHover : theme.urlPill,
             }}
           >
+            {liquidGlass ? <GlassFill fill={pressed ? theme.toolbarPressed : hovered ? theme.toolbarHover : theme.urlPill} radius={radius.l} state={hovered && !pressed ? "lit" : "rest"} /> : null}
             <Symbol name={icon} size={13} color={theme.icon} style={{ width: 18, height: 16 }} />
             <Text style={{ fontSize: SIDEBAR_TYPE.cardAction, color: theme.textSecondary }}>{label}</Text>
           </View>

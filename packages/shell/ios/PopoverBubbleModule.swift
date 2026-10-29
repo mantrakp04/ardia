@@ -1,4 +1,5 @@
 import AppKit
+import ArdiaCore
 import Carbon.HIToolbox
 import ExpoModulesCore
 
@@ -14,12 +15,13 @@ public class PopoverBubbleModule: Module {
       Prop("arrowX") { (view: PopoverBubble, v: Double) in view.arrowX = v }
       Prop("arrowWidth") { (view: PopoverBubble, v: Double) in view.arrowWidth = v }
       Prop("arrowHeight") { (view: PopoverBubble, v: Double) in view.arrowHeight = v }
-      Prop("tint") { (view: PopoverBubble, hex: String?) in view.tint = hex.flatMap(NSColor.init(hex:)) }
-      Prop("edgeColor") { (view: PopoverBubble, hex: String?) in view.edgeColor = hex.flatMap(NSColor.init(hex:)) }
+      Prop("tint") { (view: PopoverBubble, hex: String?) in view.tint = hex.flatMap { RGBA(hex: $0)?.srgb } }
+      Prop("edgeColor") { (view: PopoverBubble, hex: String?) in view.edgeColor = hex.flatMap { RGBA(hex: $0)?.srgb } }
       Prop("edgeWidth") { (view: PopoverBubble, v: Double) in view.edgeWidth = v }
       Prop("bubbleShadowOpacity") { (view: PopoverBubble, v: Double) in view.bubbleShadowOpacity = v }
       Prop("bubbleShadowRadius") { (view: PopoverBubble, v: Double) in view.bubbleShadowRadius = v }
       Prop("bubbleShadowOffsetY") { (view: PopoverBubble, v: Double) in view.bubbleShadowOffsetY = v }
+      Prop("glass") { (view: PopoverBubble, glass: Bool?) in view.glass = glass ?? false }
     }
   }
 }

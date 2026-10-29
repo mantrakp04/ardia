@@ -1,4 +1,5 @@
 import { useTheme } from "../ui/theme";
+import { shadow, type ShadowLevel } from "../ui/tokens";
 
 const DARK = {
   tile: "rgba(255,255,255,0.07)",
@@ -51,6 +52,6 @@ export const noticeType = { fontSize: 12.5 } as const;
 
 export const siteLine = { section: 15, checkLabel: 16 } as const;
 
-export const selectionBar = { radius: 10, shadowRadius: 14, shadowOffset: [0, 6] as [number, number], showDelay: 150 } as const;
+export const selectionBar = { radius: 10, shadow: { ...shadow.popover, radius: 14, offset: [0, 6] } satisfies ShadowLevel, showDelay: 150 } as const;
 
 export const UNAVAILABLE_OPACITY = 0.4;

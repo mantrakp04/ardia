@@ -1,0 +1,72 @@
+{
+  "id": "fixes-0243n4",
+  "segments": [
+    {
+      "scene": "zoompopover",
+      "title": "Zoom shows its level",
+      "body": "Press ⌘+ twice, then ⌘− twice. Each press now opens a small panel under the magnifier with the new level, which closes on its own 1.5 s after the last one. 0.2.43-nightly.3 zoomed the page and showed nothing.",
+      "layout": "side",
+      "cam": [600, 0, 760, 684],
+      "lead": 0.5,
+      "tail": 6.3
+    },
+    {
+      "scene": "pinnedfold",
+      "title": "Fold the pinned tabs",
+      "body": "Point at the line between the pinned tabs and the rest and “Pinned” appears at its left end. Click it and the pinned rows fold away, leaving “› Pinned” on the line. On 0.2.43-nightly.3 the line showed only Clear, and the same click did nothing.",
+      "layout": "side",
+      "cam": [0, 0, 280, 400],
+      "lead": 1.7,
+      "tail": 3.2
+    },
+    {
+      "scene": "barfolder",
+      "title": "Bookmark folders with favicons",
+      "body": "Click a folder on the bookmarks bar: the menu is now Ardia's own, with each site's icon, and a click elsewhere closes it. Then the bar's new Large size. 0.2.43-nightly.3 opened a native menu with a globe on every row, and had no Large size.",
+      "layout": "side",
+      "cam": [262, 0, 640, 440],
+      "note": "Before menu drawn from the items nightly.3 logged",
+      "lead": 0.6,
+      "tail": 8.6,
+      "beforeMenu": { "from": "up", "until": "close" }
+    },
+    {
+      "scene": "tabmute",
+      "title": "Mute one tab, not the site",
+      "body": "Two tabs on the same site are playing. Click the speaker on the first: only that tab goes quiet, and the second keeps playing. On 0.2.43-nightly.3 the same click muted both.",
+      "layout": "side",
+      "cam": [0, 206, 280, 180],
+      "lead": 1.0,
+      "tail": 3.2
+    },
+    {
+      "scene": "pinnedpeek",
+      "title": "Links from pinned tabs peek",
+      "body": "In a pinned tab, a plain click on a link to another site opens it in a Peek, and the pinned tab stays on its page (Settings › Tabs › Links, on here). On 0.2.43-nightly.3 the pinned tab went to the other site.",
+      "layout": "side",
+      "cam": [0, 0, 1360, 860],
+      "lead": 1.4,
+      "tail": 3.0
+    },
+    {
+      "scene": "memorysaver",
+      "title": "Memory Saver settings",
+      "body": "Settings › Advanced › Performance now has Chrome's Memory Saver: on by default, a choice of how much memory to save, and a list of sites to always keep active. 0.2.43-nightly.3 had no setting for it, only Battery Saver.",
+      "layout": "side",
+      "cam": [0, 0, 820, 640],
+      "cursor": false,
+      "still": { "before": "memsaver-b.png", "after": "memsaver-a.png", "w": 820, "h": 640 },
+      "length": 4.5
+    },
+    {
+      "scene": "switchericons",
+      "title": "Smaller profile icons",
+      "body": "With profile icons on, the switcher at the bottom of the sidebar draws them at 11 pt in an 18 pt cell. 0.2.43-nightly.3 drew them at 13 pt in a 22 pt cell.",
+      "layout": "side",
+      "cam": [60, 782, 150, 76],
+      "cursor": false,
+      "lead": 0.3,
+      "tail": 3.9
+    }
+  ]
+}

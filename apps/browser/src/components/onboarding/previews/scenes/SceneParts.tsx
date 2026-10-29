@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { View } from "react-native";
 import { Surface } from "../../../ui";
-import { at, atRect, fill, type Geo, hairline, LIGHTS_Y, type Rect, ROW, rowY, SIDEBAR_ICONS, sideCard, TOOLBAR_H } from "../geometry";
+import { at, atRect, CARD, fill, type Geo, hairline, LIGHTS_Y, type Rect, ROW, rowY, SIDEBAR_ICONS, sideCard, TOOLBAR_H } from "../geometry";
 import { type Article, NOTES, type Suggestion, tab, type Tab } from "../content";
 import { type Look, pick } from "../look";
 import type { Tracker } from "../timeline";
@@ -146,7 +146,7 @@ export function Window({ g, look, rect, children }: { g: Geo; look: Look; rect: 
 export const MINI_SIDE = 150;
 
 export function MiniArdia({ g, look, rect, tabs, sel, dim, rowStyle, extra, cardContent }: { g: Geo; look: Look; rect: Rect; tabs: Tab[]; sel?: number; dim?: (i: number) => object | null; rowStyle?: (i: number) => object | null; extra?: ReactNode; cardContent?: ReactNode }) {
-  const card: Rect = { x: MINI_SIDE + 7, y: 6, w: rect.w - MINI_SIDE - 14, h: rect.h - 13 };
+  const card: Rect = { x: MINI_SIDE + CARD - ROW.x, y: CARD, w: rect.w - MINI_SIDE - 2 * CARD + ROW.x, h: rect.h - 2 * CARD };
   return (
     <Window g={g} look={look} rect={rect}>
       <Backdrop g={g} look={look} />

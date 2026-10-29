@@ -216,11 +216,16 @@ public struct ProfileSuggestion: Codable, Equatable, Sendable {
 }
 
 public struct ImportWarning: Codable, Equatable, Sendable {
+  public enum Code: String, Codable, Sendable {
+    case empty, undecryptable, skipped, locked, unreadable, unsupported, notRunning
+    case unreadableBookmarks, unreadableHistory, unreadableTabs, unreadableCookies, unreadableFile
+  }
+
   public var kind: ImportKind?
-  public var code: String
+  public var code: Code
   public var message: String
 
-  public init(_ kind: ImportKind?, _ code: String, _ message: String) {
+  public init(_ kind: ImportKind?, _ code: Code, _ message: String) {
     self.kind = kind
     self.code = code
     self.message = message
@@ -284,6 +289,16 @@ public enum ImportError: Error, Equatable, CustomStringConvertible {
     case .unsupported: "unsupported"
     case .locked: "locked"
     case .notRunning: "notRunning"
+    }
+  }
+
+  public var warningCode: ImportWarning.Code {
+    switch self {
+    case .cancelled, .unreadable: .unreadable
+    case .notFound: .empty
+    case .unsupported: .unsupported
+    case .locked: .locked
+    case .notRunning: .notRunning
     }
   }
 

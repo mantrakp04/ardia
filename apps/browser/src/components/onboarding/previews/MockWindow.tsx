@@ -8,12 +8,13 @@ import type { PreviewId } from "../../../state/onboarding/previewIds";
 import { tab } from "./content";
 import { DEMOS } from "./demos";
 import { Pill } from "./Floating";
-import { CHIP, CRUMB_X, FIELD, fill, geo, hairline, LIGHTS_Y, ROW, SIDEBAR_ICONS, SIDEBAR_W, STRIP_H, TOOLBAR_H, TOOLBAR_ICONS, type Geo } from "./geometry";
+import { CARD, CHIP, CRUMB_X, FIELD, fill, geo, hairline, LIGHTS_Y, ROW, SIDE_CARD_X, SIDEBAR_ICONS, STRIP_H, TOOLBAR_H, TOOLBAR_ICONS, type Geo } from "./geometry";
 import { Backdrop, Crumb, Glyph, Label, Lights, NavIcons, Rows, TabRow } from "./Kit";
 import { lookFor, type Look } from "./look";
 import { Page } from "./MockPages";
 import type { SceneOpts } from "./scene";
 import { tracker, useDemo } from "./timeline";
+import { MockSwitcher } from "./Switcher";
 import { mockInk, mockMotion, sceneMs } from "./tokens";
 
 const INSET = { x: 8, top: 5, bottom: 13 };
@@ -59,7 +60,9 @@ function useFadeBetween<T>(value: T) {
   return { layers, fade };
 }
 
-export function MockWindow({ settings, accent, focus }: { settings: Partial<Settings>; accent: string; focus: PreviewId | null }) {
+type MockWindowProps = { settings: Partial<Settings>; accent: string; focus: PreviewId | null; switcher?: boolean };
+
+export function MockWindow({ settings, accent, focus, switcher = false }: MockWindowProps) {
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const onLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -67,12 +70,12 @@ export function MockWindow({ settings, accent, focus }: { settings: Partial<Sett
   };
   return (
     <View style={{ flex: 1, alignSelf: "stretch" }} onLayout={onLayout}>
-      {size ? <Window width={size.width} height={size.height} settings={settings} accent={accent} focus={focus} /> : null}
+      {size ? <Window width={size.width} height={size.height} settings={settings} accent={accent} focus={focus} switcher={switcher} /> : null}
     </View>
   );
 }
 
-function Window({ width, height, settings, accent, focus }: { width: number; height: number; settings: Partial<Settings>; accent: string; focus: PreviewId | null }) {
+function Window({ width, height, settings, accent, focus, switcher }: MockWindowProps & { width: number; height: number; switcher: boolean }) {
   const inner = { w: width - INSET.x * 2, h: height - INSET.top - INSET.bottom };
   const g = useMemo(() => geo(inner.w, inner.h), [inner.w, inner.h]);
   const shape = shapeOf(settings);
@@ -81,6 +84,7 @@ function Window({ width, height, settings, accent, focus }: { width: number; hei
   const lay = useTo(shape.top ? 1 : 0, false);
   const addr = useTo(shape.addressInSidebar ? 1 : 0, false);
   const site = useTo(shape.siteColor ? 1 : 0, true, mockMotion.fade);
+  const icons = useTo(settings.profileSwitcherIcons ? 1 : 0, true, mockMotion.fade);
   const theme = useFadeBetween(dark);
   const focusShown = useTo(focus ? 1 : 0, true, mockMotion.focus);
   const [demo, setDemo] = useState(focus);
@@ -92,7 +96,7 @@ function Window({ width, height, settings, accent, focus }: { width: number; hei
   const look = lookFor(dark, accent);
   const opts = useMemo<SceneOpts>(() => ({ addressInSidebar: shape.addressInSidebar, systemDark, accent }), [shape.addressInSidebar, systemDark, accent]);
   const radius = 12 * g.s;
-  const layer = (isDark: boolean) => <WindowState g={g} look={lookFor(isDark, accent)} accent={accent} lay={lay} addr={addr} site={site} />;
+  const layer = (isDark: boolean) => <WindowState g={g} look={lookFor(isDark, accent)} accent={accent} lay={lay} addr={addr} site={site} icons={switcher ? icons : null} />;
   return (
     <View style={{ width, height }}>
       <View style={{ position: "absolute", left: INSET.x, top: INSET.top, width: inner.w, height: inner.h }}>
@@ -111,7 +115,7 @@ function Window({ width, height, settings, accent, focus }: { width: number; hei
           <Animated.View style={[fill, { opacity: focusShown.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]}>
             {theme.layers.below !== null ? <View style={fill}>{layer(theme.layers.below)}</View> : null}
             <Animated.View style={[fill, { opacity: theme.layers.below !== null ? theme.fade : 1 }]}>{layer(theme.layers.above)}</Animated.View>
-            {shape.appearance === "auto" ? <AutoBadge key={String(dark)} g={g} look={look} /> : null}
+            {shape.appearance === "auto" && !switcher ? <AutoBadge key={String(dark)} g={g} look={look} /> : null}
           </Animated.View>
           {demo ? (
             <Animated.View style={[fill, { opacity: focusShown }]}>
@@ -157,16 +161,18 @@ function AccentBackdrop({ g, look, accent }: { g: Geo; look: Look; accent: strin
   );
 }
 
-const WindowState = memo(function WindowState({ g, look, accent, lay, addr, site }: { g: Geo; look: Look; accent: string; lay: Animated.Value; addr: Animated.Value; site: Animated.Value }) {
+type WindowStateProps = { g: Geo; look: Look; accent: string; lay: Animated.Value; addr: Animated.Value; site: Animated.Value; icons: Animated.Value | null };
+
+const WindowState = memo(function WindowState({ g, look, accent, lay, addr, site, icons }: WindowStateProps) {
   const s = g.s;
   const lerp = (v: Animated.Value, a: number, b: number) => v.interpolate({ inputRange: [0, 1], outputRange: [a * s, b * s] });
   const fade = (v: Animated.Value, a: number, b: number) => v.interpolate({ inputRange: [0, 1], outputRange: [a, b] });
-  const sideCardW = g.W - SIDEBAR_W - 14;
+  const sideCardW = g.W - SIDE_CARD_X - CARD;
   const step = CHIP.w + CHIP.gap;
   const chips = Math.max(1, Math.min(4, Math.floor((g.W - CHIP.x - 40) / step)));
   const rows = Math.max(1, Math.min(6, Math.floor((g.H - ROW.topWithField - ROW.pitch - 20) / ROW.pitch)));
-  const crumbLeft = Animated.add(lerp(lay, SIDEBAR_W + 7 + CRUMB_X, 6 + 118), lerp(addr, 0, FIELD.x + 12 - (SIDEBAR_W + 7 + CRUMB_X)));
-  const crumbTop = Animated.add(lerp(lay, 6 + 12, STRIP_H + 12), lerp(addr, 0, FIELD.y + 8 - 18));
+  const crumbLeft = Animated.add(lerp(lay, SIDE_CARD_X + CRUMB_X, CARD + 118), lerp(addr, 0, FIELD.x + 12 - (SIDE_CARD_X + CRUMB_X)));
+  const crumbTop = Animated.add(lerp(lay, CARD + 12, STRIP_H + 12), lerp(addr, 0, FIELD.y + 8 - (CARD + 12)));
   const bandSite = (
     <Animated.View style={[fill, { opacity: site }]}>
       <View style={[fill, { backgroundColor: look.site.background ?? look.card }]} />
@@ -183,6 +189,12 @@ const WindowState = memo(function WindowState({ g, look, accent, lay, addr, site
         <Animated.View style={[fill, { transform: [{ translateY: lerp(addr, 0, ROW.topWithField - ROW.top) }] }]}>
           <Rows g={g} look={look} n={rows} sel={0} />
         </Animated.View>
+        {icons ? (
+          <>
+            <MockSwitcher g={g} look={look} icons={false} style={{ opacity: fade(icons, 1, 0) }} />
+            <MockSwitcher g={g} look={look} icons style={{ opacity: icons }} />
+          </>
+        ) : null}
         <Animated.View
           style={{
             position: "absolute",
@@ -205,10 +217,10 @@ const WindowState = memo(function WindowState({ g, look, accent, lay, addr, site
       <Animated.View
         style={{
           position: "absolute",
-          left: lerp(lay, SIDEBAR_W + 7, 6),
-          top: lerp(lay, 6, STRIP_H),
-          width: lerp(lay, sideCardW, g.W - 12),
-          height: lerp(lay, g.H - 13, g.H - STRIP_H - 6),
+          left: lerp(lay, SIDE_CARD_X, CARD),
+          top: lerp(lay, CARD, STRIP_H),
+          width: lerp(lay, sideCardW, g.W - 2 * CARD),
+          height: lerp(lay, g.H - 2 * CARD, g.H - STRIP_H - CARD),
           borderRadius: 10 * s,
           backgroundColor: look.page,
           borderWidth: hairline,

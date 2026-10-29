@@ -1,3 +1,4 @@
+import { REPO } from "./release";
 type RawBrowser = {
   name: string;
   version?: string | null;
@@ -15,6 +16,8 @@ type RawRow = {
   group?: string;
   browsers: RawBrowser[] | Record<string, RawBrowser>;
 };
+type MeasuredBrowser = Omit<RawBrowser, "median"> & { median: number };
+type Measured = Omit<RawRow, "browsers"> & { browsers: RawBrowser[]; measured: MeasuredBrowser[] };
 type RawMachine = { model?: string; chip?: string; cores?: number | string; ram?: string | number; macOS?: string };
 type RawBench = { date: string; machine: string | RawMachine; method?: string; rows: RawRow[] };
 
@@ -73,7 +76,7 @@ const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 type Kind = { word: string; speed: boolean };
-function kindOf(row: RawRow): Kind {
+function kindOf(row: Measured): Kind {
   const text = `${row.id} ${row.label} ${row.unit}`.toLowerCase();
   if (!row.lowerIsBetter) return { word: /speedometer/.test(text) ? "faster" : "higher", speed: true };
   if (/power|energy/.test(text) || /^m?w$/i.test(row.unit)) return { word: "less power", speed: false };
@@ -86,7 +89,7 @@ function kindOf(row: RawRow): Kind {
   return { word: "lower", speed: false };
 }
 
-function margin(better: number, worse: number, row: RawRow, kind: Kind): Figure | null {
+function margin(better: number, worse: number, row: Measured, kind: Kind): Figure | null {
   if (better <= 0 || worse <= 0) return null;
   const ratio = row.lowerIsBetter ? worse / better : better / worse;
   if (!(ratio > 1)) return null;
@@ -101,15 +104,15 @@ function margin(better: number, worse: number, row: RawRow, kind: Kind): Figure 
 
 const isBetter = (a: number, b: number, lower: boolean) => (lower ? a < b : a > b);
 
-function leadOverDia(row: RawRow, entries: RawBrowser[]): number {
-  const ardia = entries.find((b) => isArdia(b.name))!.median as number;
-  const rival = (entries.find((b) => /^dia\b/i.test(b.name.trim())) ?? entries.find((b) => !isArdia(b.name)))!.median as number;
+function leadOverDia(row: Measured, entries: MeasuredBrowser[]): number {
+  const ardia = entries.find((b) => isArdia(b.name))!.median;
+  const rival = (entries.find((b) => /^dia\b/i.test(b.name.trim())) ?? entries.find((b) => !isArdia(b.name)))!.median;
   if (ardia <= 0 || rival <= 0) return 0;
   return Math.log(row.lowerIsBetter ? rival / ardia : ardia / rival);
 }
 
-function callFor(row: RawRow, entries: RawBrowser[], kind: Kind): Call {
-  const value = (b: RawBrowser) => b.median as number;
+function callFor(row: Measured, entries: MeasuredBrowser[], kind: Kind): Call {
+  const value = (b: MeasuredBrowser) => b.median;
   const ardia = entries.find((b) => isArdia(b.name))!;
   const others = entries.filter((b) => b !== ardia);
   const ranked = [...others].sort((x, y) => (row.lowerIsBetter ? value(x) - value(y) : value(y) - value(x)));
@@ -158,21 +161,21 @@ function callFor(row: RawRow, entries: RawBrowser[], kind: Kind): Call {
   };
 }
 
-function shapeRow(row: RawRow): Omit<Row, "sub"> | null {
-  const entries = (row.browsers as RawBrowser[]).filter((b) => typeof b.median === "number" && Number.isFinite(b.median) && b.median >= 0);
+function shapeRow(row: Measured): Omit<Row, "sub"> | null {
+  const entries = row.measured;
   if (entries.length < 2 || !entries.some((b) => isArdia(b.name))) return null;
   const kind = kindOf(row);
   const sorted = [...entries].sort((x, y) =>
-    row.lowerIsBetter ? (x.median as number) - (y.median as number) : (y.median as number) - (x.median as number),
+    row.lowerIsBetter ? x.median - y.median : y.median - x.median,
   );
-  const best = sorted[0].median as number;
-  const top = Math.max(...entries.map((b) => b.median as number)) || 1;
+  const best = sorted[0].median;
+  const top = Math.max(...entries.map((b) => b.median)) || 1;
   const ns = entries.map((b) => b.n ?? 0).filter((n) => n > 0);
   const n = ns.length ? Math.min(...ns) : 0;
   const direction = row.lowerIsBetter ? "Lower is better" : "Higher is better";
   const runs = n > 1 ? `Median of ${n === Math.max(...ns) ? n : `${n}+`} runs` : null;
   const bars: Bar[] = sorted.map((b) => {
-    const v = b.median as number;
+    const v = b.median;
     const decimals = decimalsFor(v);
     const range =
       typeof b.min === "number" && typeof b.max === "number" && b.max > b.min
@@ -200,7 +203,7 @@ function shapeRow(row: RawRow): Omit<Row, "sub"> | null {
   };
 }
 
-function groupRows(rows: RawRow[]): Group[] {
+function groupRows(rows: Measured[]): Group[] {
   const groups = new Map<string, { label: string; rows: Row[]; power: boolean }>();
   const keyed = rows.flatMap((raw) => {
     const row = shapeRow(raw);
@@ -235,10 +238,10 @@ function groupRows(rows: RawRow[]): Group[] {
     .map(({ lead: _lead, power: _power, ...g }) => g);
 }
 
-function versionsOf(rows: RawRow[]): string {
+function versionsOf(rows: Measured[]): string {
   const seen = new Map<string, string>();
   for (const row of rows)
-    for (const b of row.browsers as RawBrowser[]) {
+    for (const b of row.browsers) {
       if (seen.has(b.name)) continue;
       const engine = b.chromium && !/chrome/i.test(b.name) ? ` (Chromium ${b.chromium})` : "";
       seen.set(b.name, `${b.name} ${b.version ?? ""}`.trim() + engine);
@@ -259,15 +262,16 @@ function machineOf(machine: string | RawMachine): string {
   return [machine.model, machine.chip, ram, machine.macOS && `macOS ${machine.macOS}`].filter(Boolean).join(", ");
 }
 
-const shownRows = (rows: RawRow[]): RawRow[] =>
-  rows.map((row) => ({
-    ...row,
-    browsers: (Array.isArray(row.browsers) ? row.browsers : Object.values(row.browsers)).filter((b) => SHOWN.test(b.name.trim())),
-  }));
+const hasMedian = (b: RawBrowser): b is MeasuredBrowser => typeof b.median === "number" && Number.isFinite(b.median) && b.median >= 0;
+
+function measure(row: RawRow): Measured {
+  const browsers = (Array.isArray(row.browsers) ? row.browsers : Object.values(row.browsers)).filter((b) => SHOWN.test(b.name.trim()));
+  return { ...row, browsers, measured: browsers.filter(hasMedian) };
+}
 
 function build(source: RawBench | undefined, isSample: boolean): Bench | null {
   if (!source?.rows?.length) return null;
-  const raw = { ...source, machine: machineOf(source.machine), rows: shownRows(source.rows) };
+  const raw = { ...source, machine: machineOf(source.machine), rows: source.rows.map(measure) };
   const groups = groupRows(raw.rows);
   if (!groups.length) return null;
   return {
@@ -277,10 +281,10 @@ function build(source: RawBench | undefined, isSample: boolean): Bench | null {
     measured: raw.date,
     machine: raw.machine,
     versions: versionsOf(raw.rows),
-    rivals: [...new Set(raw.rows.flatMap((r) => (r.browsers as RawBrowser[]).map((b) => b.name)))].filter((n) => !isArdia(n)),
+    rivals: [...new Set(raw.rows.flatMap((r) => r.browsers.map((b) => b.name)))].filter((n) => !isArdia(n)),
   };
 }
 
 export const bench: Bench | null = real ? build(real, false) : build(sample, true);
 export const display = (f: Figure) => number(f.value, f.decimals);
-export const BENCH_METHOD = "https://github.com/mantrakp04/ardia/blob/main/docs/perf/vs-browsers.md";
+export const BENCH_METHOD = `${REPO}/blob/main/docs/perf/vs-browsers.md`;

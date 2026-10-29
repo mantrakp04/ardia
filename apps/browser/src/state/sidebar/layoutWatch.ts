@@ -1,7 +1,10 @@
 import { writeDocument } from "../../platform/documents";
 import { sidebarEntries } from "./entries";
+import { shownPinnedEntries } from "./pinnedFold";
 import { rowIds, rowView } from "./sidebarUi";
 import { useBrowser } from "../browser/store";
+import { parseEntry } from "./entryKey";
+import { focusedWindowOf } from "../windows/ui";
 
 const WATCH_MS = 8000;
 const MOVED = 0.5;
@@ -36,8 +39,9 @@ function missingRows(): string[] {
   for (const windowId of s.windowOrder) {
     const w = s.windows[windowId];
     if (!w || !w.sidebarOpen) continue;
-    const { tiles, pinned, list } = sidebarEntries(s, windowId, w.profileId);
-    const ids = [...tiles, ...[...pinned, ...list].map((e) => (e.startsWith("s:") ? e : e.slice(2)))];
+    const { tiles, pinned: all, list } = sidebarEntries(s, windowId, w.profileId);
+    const pinned = shownPinnedEntries(s, windowId, w.profileId, all);
+    const ids = [...tiles, ...[...pinned, ...list].map((e) => (parseEntry(e).kind === "split" ? e : parseEntry(e).id))];
     for (const id of ids) if (!rowView(windowId, id)) missing.push(`${windowId}|${id}`);
   }
   return missing;
@@ -46,10 +50,10 @@ function missingRows(): string[] {
 let edits: string[] = [];
 function edit() {
   const s = useBrowser.getState();
-  const windowId = s.ui.focusedWindowId ?? s.windowOrder[0];
+  const windowId = focusedWindowOf(s) ?? s.windowOrder[0];
   const w = windowId ? s.windows[windowId] : undefined;
   if (!w) return;
-  const mine = w.tabIds.filter((id) => s.tabs[id]?.profileId === w.profileId && !s.tabs[id]?.pinned);
+  const mine = w.tabIds.filter((id) => s.tabs[id]?.profileId === w.profileId && !s.tabs[id]?.pin);
   const added = s.newTab(w.id, { url: "about:blank#layout-edit", background: true, notify: false });
   s.moveTab(added, 0);
   const closed = mine[3];

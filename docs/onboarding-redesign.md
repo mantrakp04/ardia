@@ -44,7 +44,7 @@ Settings. "Starting fresh" or skipping the Source screen keeps the full question
 | ⌘L (`commandBarPlacement`) | centred | field | centred | field | field | field | field | field | centred |
 | ⌘T (`newTabOpens`) | commandBar | page | commandBar | page | page | page | page | page | page |
 | New tabs (`newTabPosition`, `newTabButtonPosition`) | top | bottom | top | bottom | bottom | bottom | bottom | bottom | below the current tab |
-| Old tabs (`cleanUpInactiveTabsAfterHours`) | 12 h | keep | keep | keep | keep | keep | keep | keep | keep |
+| Old tabs (`cleanUpInactiveTabsAfterMinutes`) | 12 h | keep | keep | keep | keep | keep | keep | keep | keep |
 | On quit (`restoreSession`) | restore | restore | restore | restore | restore | restore | restore | restore | restore |
 | Windows (`shareTabsAcrossWindows`) | shared | separate | separate | separate | separate | separate | separate | separate | separate |
 | Top Apps grow (`balancedTopApps`) | on | off | on | off | off | off | off | off | off |

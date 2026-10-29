@@ -1,6 +1,9 @@
 ---
-const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-const target = `${base}/?ref=mac`;
+import { colour } from "../data/press";
+import { base } from "../data/site";
+import { sentPath } from "../data/release";
+
+const target = sentPath("mac");
 ---
 
 <!doctype html>
@@ -17,7 +20,7 @@ const target = `${base}/?ref=mac`;
     <meta http-equiv="refresh" content={`0; url=${target}`} />
     <script is:inline define:vars={{ target }}>location.replace(target + location.hash);</script>
   </head>
-  <body style="background:#f1ece2;color:#16130f;font:16px/1.5 -apple-system,'Helvetica Neue',sans-serif;padding:24px">
+  <body style={`background:${colour("Paper").toLowerCase()};color:${colour("Ink").toLowerCase()};font:16px/1.5 -apple-system,'Helvetica Neue',sans-serif;padding:24px`}>
     <a href={target}>Ardia for Mac</a>
   </body>
 </html>

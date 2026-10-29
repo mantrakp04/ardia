@@ -1,4 +1,5 @@
 import type { ActionState, ExtensionInstallPrompt, ExtensionPackage, InstalledExtension } from "../../platform/extensions";
+import type { SettingsPane, SettingsPlace } from "../settings/settingsWindows";
 import { useMemo } from "react";
 import { create } from "zustand";
 import { useBrowser, type BrowserState } from "../browser/store";
@@ -10,15 +11,13 @@ export type { ActionState, InstalledExtension } from "../../platform/extensions"
 
 export type Anchor = { x: number; y: number; width: number; height: number };
 
-export type InstallRequest = {
-  windowId: string;
-  profile: string;
-  source: "webStore" | "unpacked";
-  status: "ready" | "installing" | "error";
-  pkg?: ExtensionPackage;
-  error?: string;
-  prompt?: ExtensionInstallPrompt;
-};
+export const extensionPageUrl = (extensionId: string, path: string) => `chrome-extension://${extensionId}/${path.replace(/^\//, "")}`;
+
+export type InstallRequest = { windowId: string; profile: string; source: "webStore" | "unpacked" } & (
+  | { status: "error"; error: string }
+  | { status: "ready" | "installing"; pkg: ExtensionPackage }
+  | { status: "prompt"; prompt: ExtensionInstallPrompt }
+);
 
 type ExtensionsStore = {
   lists: Record<string, InstalledExtension[]>;
@@ -42,7 +41,7 @@ const EMPTY: InstalledExtension[] = [];
 
 export function extensionProfile(s: BrowserState, windowId: string | null | undefined): string {
   const w = windowId ? s.windows[windowId] : undefined;
-  return !w ? "" : (privateSession(w.profileId) ?? engineProfile(w.profileId));
+  return !w ? "" : (privateSession(s, w.profileId) ?? engineProfile(s, w.profileId));
 }
 
 export function settingsProfileOf(s: BrowserState, windowId: string | null | undefined): string | null {
@@ -59,13 +58,13 @@ export function extensionsProfileId(profileId?: string | null, windowId?: string
   return settingsProfileOf(s, windowId) ?? settingsProfileOf(s, focused) ?? s.settings.defaultProfileId;
 }
 
-export const settingsProfileFor = (pane: string, current: { pane: string; profileId: string | null }): string | null =>
+export const settingsProfileFor = (pane: SettingsPane, current: SettingsPlace): string | null =>
   pane === "extensions" ? extensionsProfileId(current.pane === "extensions" ? current.profileId : null) : null;
 
-export const isPrivate = (s: BrowserState, windowId: string) => !!s.windows[windowId]?.incognito;
+export const isPrivate = (s: BrowserState, windowId: string) => s.windows[windowId]?.kind === "private";
 
 export const pageProfile = (s: BrowserState, windowId: string) =>
-  isPrivate(s, windowId) ? engineProfile(s.windows[windowId]!.profileId) : extensionProfile(s, windowId);
+  isPrivate(s, windowId) ? engineProfile(s, s.windows[windowId]!.profileId) : extensionProfile(s, windowId);
 
 const showsExtension = (priv: boolean, ext: InstalledExtension) => ext.enabled && (!priv || (ext.incognito && !!ext.incognitoSplit));
 

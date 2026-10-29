@@ -1,9 +1,5 @@
 #import "ArdiaSwipeInternal.h"
 
-#import <dlfcn.h>
-#import <objc/message.h>
-#import <objc/runtime.h>
-
 using namespace ardia_swipe;
 
 namespace {
@@ -214,10 +210,10 @@ void Begin(NSWindow *window, NSPoint location, BOOL ignoreSystemPreference, NSTi
   gGesture.state = State::Pending;
   gGesture.target = target;
   gGesture.hit = hit;
-  ArdiaRendererScrollObserver *renderer = ObserverFor(hit);
+  ArdiaRendererScroll *renderer = RendererScrollFor(hit);
   [renderer reset];
   gGesture.renderer = renderer;
-  gGesture.rendererHit = InRenderer(hit);
+  gGesture.rendererHit = PageViewOf(hit) != nil;
 }
 
 BOOL Reject(NSString *reason, NSDictionary *extra = nil) {
@@ -245,7 +241,7 @@ BOOL ShouldTrack() {
   if (below || kStartDominance * fabs(dx) < fabs(dy)) return Wait(@"belowStart");
   int direction = dx > 0 ? 1 : -1;
 
-  ArdiaRendererScrollObserver *renderer = gGesture.renderer;
+  ArdiaRendererScroll *renderer = gGesture.renderer;
   if (renderer) {
     switch (renderer.scroll) {
       case RendererScroll::FirstUpdateConsumed:

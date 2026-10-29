@@ -1,4 +1,5 @@
 #import "ArdiaSwipe.h"
+#import "ArdiaCore.h"
 
 namespace ardia_swipe {
 
@@ -6,11 +7,7 @@ enum class RendererScroll { Idle, AwaitingBegin, AwaitingFirstUpdate, FirstUpdat
 
 }
 
-@interface ArdiaRendererScrollObserver : NSObject {
- @public
-  NSObject *_original;
-}
-- (instancetype)initWithOriginal:(NSObject *)original;
+@interface ArdiaRendererScroll : NSObject
 - (void)reset;
 @property (nonatomic) ardia_swipe::RendererScroll scroll;
 @property (nonatomic) BOOL overscrolled;
@@ -24,7 +21,7 @@ enum class State { Idle, Pending, Tracking, Ignored };
 struct Gesture {
   State state = State::Idle;
   __weak NSView<ArdiaSwipeTarget> *target;
-  __weak ArdiaRendererScrollObserver *renderer;
+  __weak ArdiaRendererScroll *renderer;
   __weak NSView *hit;
   BOOL rendererHit = NO;
   CGFloat dx = 0, dy = 0;
@@ -43,11 +40,6 @@ struct Gesture {
 
 namespace ardia_swipe {
 
-constexpr size_t kInputEventTypeOffset = 40;
-constexpr int kGestureScrollBegin = 11;
-constexpr int kGestureScrollUpdate = 13;
-constexpr size_t kOverscrollBehaviorOffset = 32;
-constexpr int kOverscrollBehaviorAuto = 1;
 extern NSMutableArray *gTrace;
 extern BOOL gWrongRendererHit;
 extern BOOL gLegacyHitRouting;
@@ -57,9 +49,8 @@ BOOL HandleDiscreteSwipe(NSWindow *window, NSPoint location, CGFloat deltaX);
 
 NSArray *RectValue(NSRect r);
 NSHashTable<NSView<ArdiaSwipeTarget> *> *Targets();
-BOOL IsRenderWidgetView(NSView *view);
-ArdiaRendererScrollObserver *ObserverFor(NSView *hit);
-BOOL InRenderer(NSView *hit);
+NSView *PageViewOf(NSView *hit);
+ArdiaRendererScroll *RendererScrollFor(NSView *hit);
 NSView *HitView(NSWindow *window, NSPoint locationInWindow);
 NSView<ArdiaSwipeTarget> *TargetAt(NSWindow *window, NSPoint locationInWindow, NSView *hit, NSMutableArray *why = nil);
 NSArray *HitChain(NSView *hit);

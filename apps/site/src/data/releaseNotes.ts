@@ -9,6 +9,7 @@ export type Release = {
   summary: string;
   html: string;
   description: string;
+  video?: string;
 };
 
 const DESCRIPTION_LIMIT = 158;
@@ -83,10 +84,11 @@ export async function releases(sectionLevel: 2 | 3 = 3): Promise<Release[]> {
       version: n.id,
       date: n.data.date,
       headline: n.data.headline,
-      nightly: n.data.channel === "nightly",
+      nightly: /-nightly\.\d+$/.test(n.id),
       summary: summaryOf(tally(raw)),
       html: asSections(raw, sectionLevel),
       description: describe(n.data.headline, raw),
+      video: n.data.video,
     };
   });
 }

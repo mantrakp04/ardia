@@ -11,6 +11,7 @@ export const sceneMs = {
   windows: 1400,
   appearance: 1200,
   siteColor: 1300,
+  switcher: 1300,
   typed: 1300,
   block: 1300,
   links: 1500,

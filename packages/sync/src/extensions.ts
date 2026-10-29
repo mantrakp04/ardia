@@ -33,7 +33,7 @@ export interface ExtensionsHost {
 }
 
 export type ExtensionsAdapter = Adapter & {
-  reconcile(visible: Map<string, unknown>, now: number): Promise<void>;
+  reconcile(visible: Map<string, unknown>, now: number, held?: () => boolean): Promise<void>;
 };
 
 export const EXTENSION_PREFIX = "ext:";
@@ -108,7 +108,9 @@ export function extensionsAdapter(host: ExtensionsHost): ExtensionsAdapter {
     local: LocalExtensions,
     intents: Record<string, ExtensionIntent>,
     joined: boolean,
+    held: () => boolean,
   ) => {
+    if (held()) return false;
     const e = local.extensions.find((x) => x.id === id);
     const pending = local.pending.includes(id);
     const queued = !!local.queued?.includes(id);
@@ -177,11 +179,11 @@ export function extensionsAdapter(host: ExtensionsHost): ExtensionsAdapter {
       const intents = host.intents();
       let ok = true;
       for (const id of new Set([...changed].map(extensionIdOf))) {
-        ok = (await reconcileOne(id, visible.get(extensionKey(id)), visible.get(extensionApprovalKey(id)), local, intents, records.joined)) && ok;
+        ok = (await reconcileOne(id, visible.get(extensionKey(id)), visible.get(extensionApprovalKey(id)), local, intents, records.joined, records.held)) && ok;
       }
-      return ok;
+      return ok && !records.held();
     },
-    reconcile: async (visible, now) => {
+    reconcile: async (visible, now, held = () => false) => {
       const local = await host.read();
       if (!local?.ready) return;
       const intents = host.intents();
@@ -191,12 +193,13 @@ export function extensionsAdapter(host: ExtensionsHost): ExtensionsAdapter {
         const e = local.extensions.find((x) => x.id === id);
         const approval = visible.get(extensionApprovalKey(id));
         if (e) {
-          if (e.syncable && grantable(isApproval(approval) ? approval : null, e)) await reconcileOne(id, record, approval, local, intents, true);
+          if (e.syncable && grantable(isApproval(approval) ? approval : null, e)) await reconcileOne(id, record, approval, local, intents, true, held);
           continue;
         }
+        if (held()) return;
         if (local.pending.includes(id) || now - (tried.get(id) ?? -Infinity) < EXTENSION_RETRY_MS) continue;
         tried.set(id, now);
-        await reconcileOne(id, record, approval, local, intents, true);
+        await reconcileOne(id, record, approval, local, intents, true, held);
       }
     },
   };

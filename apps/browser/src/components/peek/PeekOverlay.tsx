@@ -1,7 +1,7 @@
 import { breadcrumb } from "@ardia/core";
-import { WindowBackdrop, ink, MagnifyArea, Surface, type MagnifyUpdate } from "../ui";
+import { GlassFill, liquidGlass, WindowBackdrop, ink, MagnifyArea, reduceMotion, reduceMotionKnown, Surface, type MagnifyUpdate } from "../ui";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { AccessibilityInfo, Animated, Pressable, StyleSheet, View } from "react-native";
+import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { hex, layout, useTheme } from "../ui/theme";
 import { usePeekSplitFull, usePeeks } from "../../state/peek/hooks";
 import { useTab } from "../../state/browser/hooks";
@@ -16,12 +16,6 @@ const MIN_INSET = 16;
 const START_SCALE = 0.12;
 const GROW = PEEK_MOTION.grow;
 
-let reduceMotion: boolean | null = null;
-const reduceMotionKnown = AccessibilityInfo.isReduceMotionEnabled().then(
-  (on) => (reduceMotion = on),
-  () => (reduceMotion = false),
-);
-AccessibilityInfo.addEventListener("reduceMotionChanged", (on) => (reduceMotion = on));
 
 export function peekFrame(width: number, height: number) {
   const x = Math.max(MIN_INSET, Math.round(width * INSET_FRACTION));
@@ -69,7 +63,10 @@ function PeekCard({
   const theme = useTheme();
   const windowFrame = theme.dark ? SMALL_WINDOW_FRAME.dark : SMALL_WINDOW_FRAME.light;
   const frame = peekFrame(width, height);
-  const [motion, setMotion] = useState<"fade" | "grow" | null>(() => (reduceMotion === null ? null : reduceMotion ? "fade" : "grow"));
+  const [motion, setMotion] = useState<"fade" | "grow" | null>(() => {
+    const reduce = reduceMotion();
+    return reduce === null ? null : reduce ? "fade" : "grow";
+  });
   const fade = motion === "fade";
   const [progress] = useState(() => new Animated.Value(0));
   const [expand] = useState(() => new Animated.Value(0));
@@ -84,7 +81,7 @@ function PeekCard({
   useEffect(() => {
     if (motion) return;
     let live = true;
-    void reduceMotionKnown.then(() => live && setMotion(reduceMotion ? "fade" : "grow"));
+    void reduceMotionKnown.then((reduce) => live && setMotion(reduce ? "fade" : "grow"));
     return () => void (live = false);
   }, []);
 
@@ -166,7 +163,8 @@ function PeekCard({
             : { position: "absolute", ...frame, opacity: cardOpacity, transform: [{ translateX }, { translateY }, { scaleX }, { scaleY }] }
         }
       >
-        {!fullscreen && (
+        {!fullscreen && liquidGlass && <GlassFill kind="panel" fill={theme.panel} radius={SMALL_WINDOW_RADIUS} />}
+        {!fullscreen && !liquidGlass && (
           <Surface
             fill={hex(theme.panel)}
             cornerRadius={SMALL_WINDOW_RADIUS}
@@ -179,7 +177,7 @@ function PeekCard({
         )}
         <MagnifyArea enabled={!fullscreen && !!motion} onMagnify={(update) => pinch.current(update)} style={{ flex: 1 }}>
           <View style={{ flex: 1, borderRadius: fullscreen ? 0 : SMALL_WINDOW_RADIUS, overflow: "hidden" }}>
-            {!fullscreen && <WindowBackdrop vibrancy {...theme.backdrop} colors={theme.windowTint} grainOpacity={theme.grain} style={StyleSheet.absoluteFill} />}
+            {!fullscreen && !liquidGlass && <WindowBackdrop vibrancy {...theme.backdrop} colors={theme.windowTint} grainOpacity={theme.grain} style={StyleSheet.absoluteFill} />}
             {!fullscreen && <PeekBar windowId={windowId} tabId={peek.tabId} />}
             <View
               style={

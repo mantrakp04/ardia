@@ -1,4 +1,5 @@
 import AppKit
+import ArdiaCore
 import Carbon.HIToolbox
 import ExpoModulesCore
 
@@ -20,8 +21,20 @@ enum DocumentStore {
     forName: NSApplication.willTerminateNotification, object: nil, queue: nil
   ) { _ in flush() }
 
+  static func url(_ name: String) throws -> URL {
+    let dir: URL
+    if let custom = LaunchConfig.shared.dataDirectory {
+      dir = URL(fileURLWithPath: custom, isDirectory: true)
+    } else {
+      let base = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+      dir = base.appendingPathComponent(Bundle.main.bundleIdentifier ?? "Ardia", isDirectory: true)
+    }
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    return dir.appendingPathComponent((name as NSString).lastPathComponent)
+  }
+
   static func read(_ name: String) -> String? {
-    guard let url = try? ShellModule.documentURL(name) else { return nil }
+    guard let url = try? url(name) else { return nil }
     lock.lock()
     let pending = staged[url.lastPathComponent]?.contents
     lock.unlock()
@@ -30,7 +43,7 @@ enum DocumentStore {
 
   static func write(_ name: String, _ contents: String, done: Done? = nil) throws {
     _ = flushOnQuit
-    let url = try ShellModule.documentURL(name)
+    let url = try url(name)
     let key = url.lastPathComponent
     lock.lock()
     if closed {
@@ -46,7 +59,7 @@ enum DocumentStore {
   }
 
   static func remove(_ name: String) throws {
-    let url = try ShellModule.documentURL(name)
+    let url = try url(name)
     lock.lock()
     if closed { return lock.unlock() }
     generation += 1

@@ -1,14 +1,9 @@
-#import "ArdiaIsolation.h"
-
 #import <ArdiaCore/ArdiaLaunchConfig.h>
 
 #import <AppKit/AppKit.h>
 #import <objc/runtime.h>
 
-static NSString *gDataDirectory;
 static NSUserDefaults *gDefaults;
-
-NSString *ArdiaIsolatedDataDirectory(void) { return gDataDirectory; }
 
 static NSUserDefaults *IsolatedStandardUserDefaults(id self, SEL _cmd) { return gDefaults; }
 
@@ -41,14 +36,14 @@ static void IsolatePasteboard(NSString *dataDirectory) {
 @implementation ArdiaIsolation
 
 + (void)load {
-  gDataDirectory = ArdiaLaunchConfig.shared.dataDirectory;
-  if (!gDataDirectory) return;
+  NSString *dataDirectory = ArdiaLaunchConfig.shared.dataDirectory;
+  if (!dataDirectory) return;
 #if DEBUG
-  IsolatePasteboard(gDataDirectory);
+  IsolatePasteboard(dataDirectory);
 #endif
   NSString *domain = NSBundle.mainBundle.bundleIdentifier ?: @"com.ardia.browser";
   gDefaults = [[NSUserDefaults alloc]
-      initWithSuiteName:[[gDataDirectory stringByAppendingPathComponent:@"Preferences"] stringByAppendingPathComponent:domain]];
+      initWithSuiteName:[[dataDirectory stringByAppendingPathComponent:@"Preferences"] stringByAppendingPathComponent:domain]];
   if (!gDefaults) return;
   method_setImplementation(class_getClassMethod(NSUserDefaults.class, @selector(standardUserDefaults)),
                            (IMP)IsolatedStandardUserDefaults);

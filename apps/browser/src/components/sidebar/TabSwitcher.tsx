@@ -1,10 +1,10 @@
+import { tabTitle } from "../../state/browser/model";
 import { useEffect } from "react";
 import { Pressable, Text, View } from "react-native";
 import { displayUrl } from "@ardia/core";
 import { FadeLabel, font, Panel, radius, weight } from "../ui";
 import { useTheme } from "../ui/theme";
 import { useTab } from "../../state/browser/hooks";
-import { tabTitle } from "../../state/sidebar/actions";
 import { useSidebarUi } from "../../state/sidebar/sidebarUi";
 import { commitSwitcher, hoverSwitcherRow, leaveSwitcherRow } from "../../state/sidebar/switcher";
 import { TabIcon } from "./TabIcon";

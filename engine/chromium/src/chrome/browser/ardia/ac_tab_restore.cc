@@ -148,11 +148,7 @@ sessions::TabRestoreService* ServiceFor(Profile* profile) {
 using ardia::Call;
 using ardia::Reply;
 
-AC_ENGINE_CALL(ac_tab_restore_take) {
-  Call call(profile_dir, args_json, reply, context);
-  if (!call) {
-    return;
-  }
+AC_PROFILE_CALL(ac_tab_restore_take) {
   sessions::TabRestoreService* service = ardia::ServiceFor(call.profile());
   if (!service) {
     return call.TakeReply().Error("no tab restore service");
@@ -174,18 +170,4 @@ AC_ENGINE_CALL(ac_tab_restore_take) {
             ardia::Take(service, key, std::move(reply));
           },
           profile, key, call.TakeReply()));
-}
-
-AC_ENGINE_CALL(ac_tab_restore_load) {
-  Call call(profile_dir, args_json, reply, context);
-  if (!call) {
-    return;
-  }
-  sessions::TabRestoreService* service = ardia::ServiceFor(call.profile());
-  if (!service) {
-    return call.TakeReply().Error("no tab restore service");
-  }
-  ardia::WhenLoaded::Run(
-      service,
-      base::BindOnce([](Reply reply) { reply.Ok(); }, call.TakeReply()));
 }

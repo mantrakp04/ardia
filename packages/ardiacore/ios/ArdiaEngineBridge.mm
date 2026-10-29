@@ -1,76 +1,67 @@
 #import "ArdiaEngineBridge.h"
 
 #import "ArdiaInternal.h"
+#import "ArdiaRuntime.h"
 
 #import <dlfcn.h>
 #include <stdlib.h>
 
 #include "../../../engine/chromium/src/chrome/browser/ardia/public/ac_engine.h"
 
+using namespace ardia_runtime;
+
+@interface ArdiaSecretReply : NSObject
+- (instancetype)initWithCompletion:(void (^)(NSDictionary *))completion;
+- (void)settle:(NSDictionary *)reply;
+@end
+
+@implementation ArdiaSecretReply {
+  void (^_completion)(NSDictionary *);
+}
+
+- (instancetype)initWithCompletion:(void (^)(NSDictionary *))completion {
+  if ((self = [super init])) _completion = [completion copy];
+  return self;
+}
+
+- (void)settle:(NSDictionary *)reply {
+  void (^completion)(NSDictionary *) = _completion;
+  _completion = nil;
+  if (completion) completion(reply);
+}
+
+@end
+
 namespace {
 
 bool gForwarding = false;
 NSMutableArray<NSArray *> *gPendingForwards;
 
-NSDictionary<NSString *, NSString *> *AppEventOfTopic() {
-  static NSDictionary *events = @{
-    @"history.changed" : @"history.changed",
-    @"bookmarks.changed" : @"bookmarks.changed",
-    @"extensions.action" : @"extensions.action",
-    @"extensions.sync" : @"extensions.sync",
-    @"cliControl" : @"engine.cliControl",
-  };
-  return events;
+NSSet<NSString *> *ForwardedTopics() {
+  static NSSet *topics = [NSSet setWithArray:@[ @"history.changed", @"bookmarks.changed", @"extensions.action", @"extensions.sync", @"cliControl" ]];
+  return topics;
 }
 
-NSString *const kServesPrivateSession = @"session";
-NSString *const kNoEngineData = @"no engine data for a private profile";
-
-NSDictionary<NSString *, NSString *> *PrivateSessionPolicy() {
-  static NSDictionary *policy = @{
-    @"ac_site_settings_get" : kServesPrivateSession,
-    @"ac_site_settings_origins" : kServesPrivateSession,
-    @"ac_site_settings_set" : kServesPrivateSession,
-    @"ac_site_settings_reset" : kServesPrivateSession,
-    @"ac_site_data_clear" : kServesPrivateSession,
-    @"ac_zoom_list" : kServesPrivateSession,
-    @"ac_zoom_set" : kServesPrivateSession,
-    @"ac_history_query" : kNoEngineData,
-    @"ac_history_add" : kNoEngineData,
-    @"ac_history_import" : kNoEngineData,
-    @"ac_history_delete_urls" : kNoEngineData,
-    @"ac_history_watch" : kNoEngineData,
-    @"ac_favicons_get" : kNoEngineData,
-    @"ac_favicons_set" : kNoEngineData,
-    @"ac_bookmarks_tree" : kNoEngineData,
-    @"ac_bookmarks_apply" : kNoEngineData,
-    @"ac_bookmarks_watch" : kNoEngineData,
-    @"ac_tabs_last_tab_policy" : kNoEngineData,
-    @"ac_task_manager_open" : kNoEngineData,
-    @"ac_battery_saver" : kNoEngineData,
-    @"ac_memory_trim" : kNoEngineData,
-    @"ac_cli_control" : kNoEngineData,
-    @"ac_extensions_watch_actions" : kNoEngineData,
-    @"ac_extensions_sync_state" : kNoEngineData,
-    @"ac_extensions_sync_apply" : kNoEngineData,
-    @"ac_downloads_settings" : kNoEngineData,
-    @"ac_downloads_set_settings" : kNoEngineData,
-  };
-  return policy;
+NSString *AppEventOfTopic(NSString *topic) {
+  return [topic isEqualToString:@"cliControl"] ? @"engine.cliControl" : topic;
 }
 
 void *Symbol(const char *name) {
   return dlsym(RTLD_DEFAULT, name);
 }
 
-NSString *JSON(id value) {
-  NSData *data = [NSJSONSerialization dataWithJSONObject:value options:0 error:nil];
-  return data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : @"{}";
-}
-
 void Replied(void *context, const char *json) {
   void (^completion)(NSString *) = (__bridge_transfer void (^)(NSString *))context;
-  completion(json ? @(json) : JSON(@{@"error" : @"bad reply from the engine"}));
+  completion(json ? @(json) : JSONText(@{@"error" : @"bad reply from the engine"}));
+}
+
+void RepliedSecret(void *context, const char *json) {
+  ArdiaSecretReply *reply = (__bridge_transfer ArdiaSecretReply *)context;
+  if (!json) return [reply settle:nil];
+  NSMutableData *bytes = [NSMutableData dataWithBytes:json length:strlen(json)];
+  id parsed = [NSJSONSerialization JSONObjectWithData:bytes options:0 error:nil];
+  WipeSecret(bytes);
+  [reply settle:[parsed isKindOfClass:NSDictionary.class] ? parsed : nil];
 }
 
 NSString *RealPath(NSString *path) {
@@ -91,14 +82,14 @@ NSMutableDictionary<NSString *, NSMutableArray *> *Observers() {
 }
 
 bool Forwarded(NSString *topic) {
-  return gForwarding && AppEventOfTopic()[topic] != nil;
+  return gForwarding && [ForwardedTopics() containsObject:topic];
 }
 
 void FlushForwards() {
   NSArray<NSArray *> *events = gPendingForwards;
   gPendingForwards = nil;
   for (NSArray *event in events)
-    [ArdiaEvents emit:AppEventOfTopic()[event[0]] data:event[1]];
+    [ArdiaEvents emit:AppEventOfTopic(event[0]) data:event[1]];
 }
 
 void Forward(NSString *topic, NSDictionary *payload) {
@@ -141,46 +132,57 @@ void InstallSink() {
 
 + (void)call:(NSString *)name profile:(NSString *)profile args:(NSString *)args completion:(void (^)(NSString *))completion {
   auto call = (ac_engine_call_t)Symbol(name.UTF8String);
-  if (!call) return completion(JSON(@{@"error" : [NSString stringWithFormat:@"the engine has no %@", name]}));
+  if (!call) return completion(JSONText(@{@"error" : [NSString stringWithFormat:@"the engine has no %@", name]}));
   if (ardia_host::IsPrivateProfile(profile)) {
-    NSString *policy = PrivateSessionPolicy()[name];
-    if (![policy isEqualToString:kServesPrivateSession]) return completion(JSON(@{@"error" : policy ?: @"private profile"}));
     NSData *bytes = [(args.length ? args : @"{}") dataUsingEncoding:NSUTF8StringEncoding];
     NSMutableDictionary *parsed = [[NSJSONSerialization JSONObjectWithData:bytes options:0 error:nil] mutableCopy];
-    if (![parsed isKindOfClass:NSMutableDictionary.class]) return completion(JSON(@{@"error" : @"bad arguments"}));
+    if (![parsed isKindOfClass:NSMutableDictionary.class]) return completion(JSONText(@{@"error" : @"bad arguments"}));
     parsed[@"offTheRecord"] = @YES;
-    args = JSON(parsed);
+    args = JSONText(parsed);
   }
   NSString *data = ardia_host::OriginalProfileName(profile);
   void (^done)(NSString *) = [completion copy];
   NSString *argsCopy = [args copy];
   ardia_host::WithProfile(data, ^(ArdiaCoreProfile *p) {
-    if (!p || !ArdiaHost.isStarted) return done(JSON(@{@"error" : @"profile not loaded"}));
+    if (!p || !ArdiaHost.isStarted) return done(JSONText(@{@"error" : @"profile not loaded"}));
     call(p.path.UTF8String, argsCopy.UTF8String, Replied, (__bridge_retained void *)done);
   });
 }
 
 + (void)callWithSecret:(NSString *)name profile:(NSString *)profile args:(NSMutableData *)args completion:(void (^)(NSString *))completion {
   NSMutableData *secret = args;
-  void (^wipe)(void) = ^{
-    volatile unsigned char *bytes = (volatile unsigned char *)secret.mutableBytes;
-    for (NSUInteger i = 0; i < secret.length; i++) bytes[i] = 0;
-  };
+  void (^wipe)(void) = ^{ WipeSecret(secret); };
   auto call = (ac_engine_call_t)Symbol(name.UTF8String);
   const char *bytes = (const char *)secret.bytes;
   if (!call || ardia_host::IsPrivateProfile(profile) || !secret.length || bytes[secret.length - 1] != 0) {
     wipe();
-    return completion(JSON(@{@"error" : !call ? [NSString stringWithFormat:@"the engine has no %@", name]
+    return completion(JSONText(@{@"error" : !call ? [NSString stringWithFormat:@"the engine has no %@", name]
                                      : ardia_host::IsPrivateProfile(profile) ? @"private profile" : @"bad arguments"}));
   }
   void (^done)(NSString *) = [completion copy];
   ardia_host::WithProfile(profile ?: @"", ^(ArdiaCoreProfile *p) {
     if (!p || !ArdiaHost.isStarted || p.offTheRecord) {
       wipe();
-      return done(JSON(@{@"error" : @"profile not loaded"}));
+      return done(JSONText(@{@"error" : @"profile not loaded"}));
     }
     call(p.path.UTF8String, (const char *)secret.mutableBytes, Replied, (__bridge_retained void *)done);
     wipe();
+  });
+}
+
++ (void)callForSecretReply:(NSString *)name
+                   profile:(NSString *)profile
+                   timeout:(NSTimeInterval)timeout
+                completion:(void (^)(NSDictionary<NSString *, id> *))completion {
+  ArdiaSecretReply *reply = [[ArdiaSecretReply alloc] initWithCompletion:completion];
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(timeout * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    [reply settle:nil];
+  });
+  auto call = (ac_engine_call_t)Symbol(name.UTF8String);
+  if (!call || ardia_host::IsPrivateProfile(profile)) return [reply settle:nil];
+  ardia_host::WithProfile(profile ?: @"", ^(ArdiaCoreProfile *p) {
+    if (!p || !ArdiaHost.isStarted || p.offTheRecord) return [reply settle:nil];
+    call(p.path.UTF8String, "{}", RepliedSecret, (__bridge_retained void *)reply);
   });
 }
 

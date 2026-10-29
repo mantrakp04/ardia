@@ -1,3 +1,4 @@
+import { tabTitle } from "../../state/browser/model";
 import { discardKeyResponder, restoreKeyResponder, saveKeyResponder } from "../../state/windows/nativeWindow";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
@@ -8,9 +9,10 @@ import { sharedTabsForPanel } from "../../state/sidebar/current";
 import { useGroupPanelTabIds, useTabsById } from "../../state/sidebar/hooks";
 import type { Tab } from "../../state/browser/types";
 import { FadeLabel, menuRowFill, MenuSeparator, PANEL, PopoverSurface, Symbol } from "../ui";
-import { clickTab, returnFocusToPage, tabTitle } from "../../state/sidebar/actions";
+import { clickTab, returnFocusToPage } from "../../state/sidebar/actions";
 import { byRecentUse, matchingRows, type GroupPanelTab } from "../../state/sidebar/groupPanelRows";
-import { cardHoverProps, dismissHover, holdHover } from "../../state/sidebar/hover";
+import { dismissHover, holdHover } from "../../state/sidebar/hover";
+import { cardHoverProps } from "./hoverController";
 import { hoverCardOrigin } from "./hoverMotion";
 import { useSidebarUi, type Anchor } from "../../state/sidebar/sidebarUi";
 import { TabIcon } from "./TabIcon";

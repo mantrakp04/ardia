@@ -1,11 +1,14 @@
 #include "ardia/core/ac_seams.h"
 
+#import <AppKit/AppKit.h>
+
 #include <memory>
 
 #include "base/functional/callback.h"
 #include "chrome/browser/lifetime/browser_shutdown.h"
+#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "components/permissions/chooser_controller.h"
 #include "components/sessions/core/live_tab.h"
 #include "components/sessions/core/session_id.h"
@@ -18,14 +21,18 @@
 #include "ardia/core/ac_cast_dialog.h"
 #include "ardia/core/ac_browser_window.h"
 #include "ardia/core/ac_device_chooser.h"
+#include "ardia/core/ac_extension_shortcuts.h"
+#include "ardia/core/ac_extension_view.h"
+#include "ardia/core/ac_installed_bubble.h"
+#import "ardia/core/ardiacore_api_internal.h"
+#import "ardia/core/ardiacore_internal.h"
 
 namespace ardiacore {
 
 namespace {
 
 bool HandlePasswordBubble(content::WebContents* web_contents) {
-  WindowHost* host = WindowHost::ForBrowser(
-      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(web_contents));
+  WindowHost* host = WindowHost::ForContents(web_contents);
   return host && host->OfferPasswordSave(web_contents);
 }
 
@@ -37,10 +44,7 @@ bool HandleExtensionSidePanel(BrowserWindowInterface* browser_window,
   if (!contents && browser_window && browser_window->GetActiveTabInterface()) {
     contents = browser_window->GetActiveTabInterface()->GetContents();
   }
-  BrowserWindowInterface* browser =
-      contents ? GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(contents)
-               : browser_window;
-  if (!contents || !WindowHost::ForBrowser(browser)) {
+  if (!WindowHost::ForContents(contents)) {
     return false;
   }
   return HostExtensionSidePanel(contents, extension_id, open);
@@ -91,6 +95,46 @@ std::unique_ptr<BrowserWebContentsDelegate> CreateWebContentsDelegate(
       ours->host_weak());
 }
 
+const char* BrowserTypeName(BrowserWindowInterface::Type type) {
+  switch (type) {
+    case BrowserWindowInterface::TYPE_NORMAL:
+      return "normal";
+    case BrowserWindowInterface::TYPE_POPUP:
+      return "popup";
+    case BrowserWindowInterface::TYPE_DEVTOOLS:
+      return "devtools";
+    case BrowserWindowInterface::TYPE_PICTURE_IN_PICTURE:
+      return "picture_in_picture";
+    default:
+      return "app";
+  }
+}
+
+BrowserWindow* WindowForChromeBrowser(Browser* browser) {
+  if (ACBrowserWindow::IsOurs(browser) ||
+      browser->GetType() == BrowserWindowInterface::TYPE_PICTURE_IN_PICTURE) {
+    return nullptr;
+  }
+  ArdiaCoreWindow* window = [g_delegate
+      engineWindowForNewBrowserOfProfile:[ArdiaCoreProfile
+                                             wrapperFor:browser->GetProfile()]
+                                    type:@(BrowserTypeName(browser->GetType()))];
+  WindowHost* host = window.host;
+  return host ? host->HostChromeBrowser(browser) : nullptr;
+}
+
+bool IsReservedAccelerator(const ui::Accelerator& accelerator) {
+  NSEvent* event = NSApp.currentEvent;
+  return event.type == NSEventTypeKeyDown &&
+         ExtensionShortcuts::AcceleratorFor(event) == accelerator &&
+         [g_delegate engineIsReservedKeyEvent:event];
+}
+
+bool IsHistoryEligible(content::WebContents* contents) {
+  WindowHost* host = WindowHost::ForContents(contents);
+  return !host || !host->internal();
+}
+
 void DevToolsDockChanged(BrowserWindowInterface* browser,
                          content::WebContents* inspected,
                          content::WebContents* devtools) {
@@ -102,6 +146,14 @@ void DevToolsDockChanged(BrowserWindowInterface* browser,
 }
 
 void InstallChromeHooks() {
+  g_ardia_browser_window_factory = &WindowForChromeBrowser;
+  g_ardia_reserved_accelerator = &IsReservedAccelerator;
+  g_ardia_reserved_global_accelerator = &IsReservedGlobalAccelerator;
+  g_ardia_global_shortcuts_resumed = &GlobalShortcutsResumed;
+  g_ardia_history_eligible = &IsHistoryEligible;
+  InstallRuleMatchedHook();
+  InstallExtensionInstalledHook();
+  InstallActionPopupHook();
   g_ardia_password_bubble = &HandlePasswordBubble;
   g_ardia_extension_install_prompt = &HostExtensionInstallPrompt;
   g_ardia_device_chooser = &HandleDeviceChooser;

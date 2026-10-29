@@ -1,7 +1,7 @@
 import { windowFor, type RangeKey } from "../../lib/range";
 import { num, query, str } from "../clickhouse";
 import { THRESHOLDS } from "../../lib/thresholds";
-import { MAC, PHONE, SITE, TRACKED_SITE_EVENTS, bucket, compareStart, isCurrent, isPrevious, since, prop } from "../sql";
+import { MAC, PHONE, SITE, CLICK_SITE_EVENTS, bucket, compareStart, isCurrent, isPrevious, since, prop } from "../sql";
 import { fill, windowInfo } from "../series";
 
 const COUNTRY = new Intl.DisplayNames(["en"], { type: "region" });
@@ -172,7 +172,7 @@ export async function siteFriction(range: RangeKey, signal?: AbortSignal) {
       `WITH tracked AS (
          SELECT session_id, groupArray(toUnixTimestamp64Milli(timestamp)) AS ts
          FROM telemetry.events
-         WHERE event IN (${TRACKED_SITE_EVENTS}) AND ${from} AND ${SITE} AND session_id != ''
+         WHERE event IN (${CLICK_SITE_EVENTS}) AND ${from} AND ${SITE} AND session_id != ''
          GROUP BY session_id
        )
        SELECT event AS kind, substring(properties['$el_text'], 1, 90) AS text, ${prop("$pathname")} AS path, ${bucket(w.step)} AS b,

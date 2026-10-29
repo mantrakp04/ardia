@@ -3,22 +3,15 @@ set -euo pipefail
 
 version="${1:?usage: smoke.sh <version> <previous-version> [--rc]}"
 previous="${2:?usage: smoke.sh <version> <previous-version> [--rc]}"
-root="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 here="$(cd "$(dirname "$0")" && pwd)"
+. "$here/lib/harness.sh"
+root="$harness_root"
 if [ "${3:-}" = --rc ]; then dist="$root/dist/$version-rc"; else dist="$root/dist/$version"; fi
 app="${SMOKE_APP:-$dist/export/Ardia.app}"
 old="$(ls -d "$root/dist/$previous/export"/*.app 2>/dev/null | head -1)"
 old="${old:-$root/dist/$previous/export/Ardia.app}"
-port="${SMOKE_CDP_PORT:-9398}"
-pages_port="${SMOKE_PAGES_PORT:-8798}"
 [ -d "$app" ] || { echo "error: no $app (run scripts/release.sh $version first)" >&2; exit 1; }
 [ "$(cd "$app" && pwd -P)" != /Applications/Ardia.app ] || { echo "error: never the installed app (/Applications/Ardia.app)" >&2; exit 1; }
-for p in "$port" "$pages_port"; do
-  if nc -z -G 2 127.0.0.1 "$p" 2>/dev/null; then
-    echo "error: something already listens on port $p (SMOKE_CDP_PORT, SMOKE_PAGES_PORT)" >&2
-    exit 1
-  fi
-done
 
 work="$(mktemp -d "${TMPDIR:-/tmp}/ac-smoke.XXXXXX")"
 server=""
@@ -43,7 +36,7 @@ fw="$app/Contents/Frameworks"
 check "the engine is ArdiaCore (Chrome's framework, no CEF)" $ok \
   "$(plutil -extract CFBundleShortVersionString raw "$fw/Chromium Framework.framework/Resources/Info.plist" 2>/dev/null)"
 if [ -d "$old" ]; then
-  legacy_id="$(sed -n 's/^ *public static let bundleId = "\(.*\)"$/\1/p' "$root/packages/sync/ios/Core/LegacyMigration.swift")"
+  legacy_id="$("$root/scripts/lib/legacy-name.sh" bundleId)"
   old_id="$(info "$old" CFBundleIdentifier)" new_id="$(info "$app" CFBundleIdentifier)"
   renamed=0
   [ -n "$legacy_id" ] && [ "$old_id" = "$legacy_id" ] && [ "$new_id" != "$legacy_id" ] && renamed=1
@@ -85,9 +78,7 @@ if [ -z "${SMOKE_APP:-}" ]; then
   for f in "$zip" "$dmg" "$dist/appcast.xml"; do [ -f "$f" ] || check "the release has $(basename "$f")" 0; done
   if [ -f "$zip" ] && [ -f "$dist/appcast.xml" ]; then
     swiftc -O "$here/ed25519.swift" -o "$work/ed25519" 2>/dev/null
-    item="$(awk -v v="$version" '/<item>/ { buf = "" } { buf = buf $0 "\n" } /<\/item>/ && buf ~ ("shortVersionString>" v "<") { print buf; exit }' "$dist/appcast.xml")"
-    signature="$(printf '%s' "$item" | grep -o 'sparkle:edSignature="[^"]*"' | head -1 | sed 's/^sparkle:edSignature="//; s/"$//')"
-    length="$(printf '%s' "$item" | grep -o 'length="[0-9]*"' | head -1 | tr -dc 0-9)"
+    read -r signature length < <(python3 -I "$here/appcast.py" enclosure "$dist/appcast.xml" "$version" || true)
     ok=0
     [ -n "$signature" ] && "$work/ed25519" verify "$zip" "$signature" "$(info "$app" SUPublicEDKey)" && [ "$length" = "$(stat -f %z "$zip")" ] && ok=1
     check "the appcast's EdDSA signature of the zip verifies with the app's SUPublicEDKey" $ok "length ${length:-none}"
@@ -118,29 +109,24 @@ swiftc -O "$here/windows.swift" -o "$work/windows" 2>/dev/null
 swiftc -O "$here/quit.swift" -o "$work/quit" 2>/dev/null
 swiftc -O "$here/keys.swift" -o "$work/keys" 2>/dev/null
 swiftc -O "$here/gurl.swift" -o "$work/gurl" 2>/dev/null
-python3 -m http.server "$pages_port" --bind 127.0.0.1 --directory "$here/pages" >/dev/null 2>&1 &
-server=$!
+serve_dir "$here/pages"
 
 mkdir -p "$work/data"
 printf '{"version":1,"lastVersion":"%s","pending":null}' "$previous" > "$work/data/release-notes.json"
-pages="http://localhost:$pages_port"
-tab() {
-  local pinned="${4:-false}" home=null
-  [ "$pinned" = true ] && home="\"$3\""
-  printf '{"id":"%s","windowId":"w-smoke","profileId":"%s","url":"%s","title":"","favicon":null,"pinned":%s,"muted":false,"zoom":1,"customTitle":null,"customIcon":null,"pinnedUrl":%s,"openerId":null,"createdAt":1,"lastActiveAt":1}' "$1" "$2" "$3" "$pinned" "$home"
-}
-cat > "$work/data/session.json" <<JSON
-{"version":2,
- "profiles":{"default":{"id":"default","name":"Personal","color":"plum","icon":null,"createdAt":0},
-             "p-work":{"id":"p-work","name":"Work","color":"blue","icon":null,"createdAt":1}},
- "profileOrder":["default","p-work"],
- "windows":[{"id":"w-smoke","profileId":"p-work","incognito":false,"tabIds":["t-pin-a","t-home","t-work"],
-             "activeTabIds":{"default":"t-home","p-work":"t-pin-a"},"sidebarOpen":true,"frame":[80,80,1280,800],"createdAt":1}],
- "windowOrder":["w-smoke"],"focusedWindowId":"w-smoke",
- "tabs":[$(tab t-pin-a p-work "$pages/count.html?pin-a" true),$(tab t-home default "$pages/form.html?home"),
-         $(tab t-work p-work "$pages/form.html?work")],
- "groups":[],"splits":[],"closedTabs":[],"closedWindows":[],"closedGroups":[],"cleanedTabs":[]}
-JSON
+pages="http://localhost:$served_port"
+SMOKE_PAGES="$pages" node --input-type=module -e '
+const { session } = await import(process.argv[1]);
+const pages = process.env.SMOKE_PAGES;
+console.log(JSON.stringify(session({
+  profiles: [{ id: "default", name: "Personal", color: "plum" }, { id: "p-work", name: "Work", color: "blue" }],
+  windows: [{ id: "w-smoke", profileId: "p-work", activeTabIds: { default: "t-home", "p-work": "t-pin-a" } }],
+  tabs: [
+    { id: "t-pin-a", profileId: "p-work", url: `${pages}/count.html?pin-a`, pinned: true, pinnedUrl: `${pages}/count.html?pin-a` },
+    { id: "t-home", profileId: "default", url: `${pages}/form.html?home` },
+    { id: "t-work", profileId: "p-work", url: `${pages}/form.html?work` },
+  ],
+})));
+' "$root/scripts/lib/instance.mjs" > "$work/data/session.json"
 
 : > "$work/data/perf-probe"
 
@@ -148,7 +134,7 @@ mkdir -p "$work/data/Chromium"
 printf '{"profile":{"last_used":"Profile p-work"}}' > "$work/data/Chromium/Local State"
 
 codesign --verify --deep --strict "$app"
-launched="$("$root/scripts/agent/ac" launch "$app" --data "$work/data" --port "$port" --js none --no-wait \
+launched="$("$root/scripts/agent/ac" launch "$app" --data "$work/data" --js none --no-wait \
   --instance releaseNotes=1 --switch --disable-backgrounding-occluded-windows)" \
   || { echo "error: the app didn't start" >&2; exit 1; }
 pid="$(sed -n 's/^pid \([0-9]*\) .*/\1/p' <<<"$launched")"

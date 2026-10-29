@@ -1,12 +1,14 @@
 import { useBrowser, type BrowserState } from "../browser/store";
 import { activeTabId } from "../browser/model";
-import { appInfo, capture, isSharing, useTelemetry } from "./client";
+import { capture, isSharing, useTelemetry } from "./client";
+import { appInfo, percentile } from "./transport";
 import { jsStartedAt } from "./jsStart";
 import { fieldTiming } from "../../platform/fieldTiming";
+import { isAsleep } from "../tabs/pageSession";
 
 let on = false;
 
-const frame = (key: string, kind: string) => fieldTiming?.markFrame(key, kind);
+const frame = (key: string, kind: string) => fieldTiming.markFrame(key, kind);
 
 const MAX_SAMPLES = 500;
 const samples = new Map<string, number[]>();
@@ -28,7 +30,7 @@ export function emitJourneys(final = false) {
   const props: Record<string, number> = {};
   for (const [step, list] of samples) {
     list.sort((a, b) => a - b);
-    const at = (p: number) => list[Math.min(list.length - 1, Math.floor(p * list.length))]!;
+    const at = (p: number) => percentile(list, p);
     props[`${step}_p50`] = at(0.5);
     props[`${step}_p75`] = at(0.75);
     props[`${step}_p95`] = at(0.95);
@@ -42,7 +44,7 @@ export function emitJourneys(final = false) {
 }
 
 function lastInput(now = Date.now()): number | null {
-  const [at = 0] = fieldTiming?.lastInput() ?? [];
+  const [at] = fieldTiming.lastInput();
   return at > 0 && at <= now + 5 && now - at <= 1000 ? at : null;
 }
 
@@ -50,7 +52,7 @@ type Mark = [kind: string, at: number];
 const marks = new Map<string, Mark[]>();
 
 function pullMarks(now: number) {
-  for (const [key, kind, at] of fieldTiming?.drain() ?? []) {
+  for (const [key, kind, at] of fieldTiming.drain()) {
     let list = marks.get(key);
     if (!list) marks.set(key, (list = []));
     list.push([kind, at]);
@@ -192,7 +194,7 @@ export function launchCommitted() {
   const keys: string[] = [];
   for (const id of s.windowOrder) {
     const tab = activeTabId(s, id);
-    if (tab && s.tabs[tab]?.url && !s.tabs[tab]!.unloaded) keys.push(tab);
+    if (tab && s.tabs[tab]?.url && !isAsleep(s.tabs[tab])) keys.push(tab);
   }
   launch = { journey: "j1", t0: start, commit: Date.now(), keys, tabs: Object.keys(s.tabs).length, windows: s.windowOrder.length };
   frame("launch", "content");
@@ -220,7 +222,7 @@ export function launchFirstWindow(at: number) {
 function settleLaunch(l: Launch, now: number) {
   const content = mark("launch", "content", l.t0);
   const paints = l.keys.map((k) => mark(k, "fcp", l.t0)).filter((at): at is number => at !== null);
-  const done = l.usable !== undefined && l.firstWindow !== undefined && (content !== null || !fieldTiming) && (paints.length || !l.keys.length);
+  const done = l.usable !== undefined && l.firstWindow !== undefined && content !== null && (paints.length || !l.keys.length);
   if (!done && now - (l.commit ?? l.t0) < 30_000) return false;
   sendLaunch(l, content, paints);
   return true;
@@ -233,7 +235,7 @@ function sendLaunch(l: Launch, content: number | null, paints: number[]) {
   const tab = paint === null ? l.keys[0] : l.keys.find((k) => mark(k, "fcp", l.t0) === paint);
   const s = useBrowser.getState();
   let history = 0;
-  for (const list of Object.values(s.history)) history += list.length;
+  for (const view of Object.values(s.history)) history += view.list.length;
   const { bootTime, appBuild, updatePrewarm } = appInfo();
   const { lastLaunchAt, lastQuitAt, firstOfVersion } = previousLaunch;
   const prewarm = firstOfVersion && updatePrewarm?.build === appBuild ? updatePrewarm : null;
@@ -321,7 +323,7 @@ let unwatchStore: (() => void) | undefined;
 function setOn(next: boolean, initial = false) {
   if (next === on && !initial) return;
   on = next;
-  fieldTiming?.setEnabled(next);
+  fieldTiming.setEnabled(next);
   if (next) {
     unwatchStore ??= useBrowser.subscribe(watchStore);
     return;
@@ -356,7 +358,7 @@ export function journeysEnding() {
 
 export const devJourneys = () => ({
   on,
-  native: !!fieldTiming,
+  native: true,
   pending: pending.map((p) => ({ ...p })),
   samples: Object.fromEntries(samples),
   counts: Object.fromEntries(counts),

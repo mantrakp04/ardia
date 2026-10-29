@@ -3,7 +3,7 @@
 #include <string>
 #include <string_view>
 
-#include "ardia/core/ac_hooks.h"  // nogncheck
+#include "ardia/core/ac_hooks.h"
 #include "chrome/browser/ardia/ac_cli_token_policy_internal.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"

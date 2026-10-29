@@ -1,12 +1,12 @@
 import { memo, useState } from "react";
 import { Animated, Pressable, Text, View, type LayoutChangeEvent } from "react-native";
-import { Button, FadeLabel, font, radius, Symbol, useHover } from "../ui";
+import { Button, ContextMenuArea, FadeLabel, font, radius, Symbol, useHover } from "../ui";
 import { layout, useTheme } from "../ui/theme";
 import { HoverSlot } from "../ui/HoverSlot";
 import { newTab } from "../../state/tabs/actions";
 import { useCleanedCount } from "../../state/sidebar/hooks";
 import { openNewTabInSplit } from "../../state/splits/actions";
-import { openOverflowMenu } from "../../state/sidebar/menus";
+import { openOverflowMenu, openSidebarMenu } from "../../state/sidebar/menus";
 import { toggleNewTabBar } from "../../state/omnibox/newTabBar";
 import { modifiersOf } from "../../lib/keys";
 import { useClipped, useShift, type ClipSource } from "./EntryMotion";
@@ -45,35 +45,37 @@ export const NewTabRow = memo(function NewTabRow({ windowId, shift = null, clip 
           </Text>
         ) : null}
       </View>
-      <Pressable
-        style={{ flex: 1 }}
-        onPress={(e) => {
-          if (modifiersOf(e).altKey) openNewTabInSplit(windowId);
-          else toggleNewTabBar(windowId) || newTab(windowId, { newTabCommand: true });
-        }}
-      >
-        {({ pressed }) => (
-          <View
-            {...moved}
-            ref={movedRef}
-            style={[
-              {
-                height: layout.rowHeight,
-                borderRadius: radius.card,
-                flexDirection: "row",
-                alignItems: "center",
-                paddingLeft: 9,
-                paddingRight: 34,
-                backgroundColor: pressed ? theme.tabPressed : hovered ? theme.tabHover : undefined,
-              },
-              moved.style as object,
-            ]}
-          >
-            <Symbol name="plus" size={13} weight="medium" color={tokens.newTabIcon} style={{ width: 16, height: 16 }} />
-            <FadeLabel text="New Tab" fontSize={font.body.fontSize} color={tokens.newTabLabel} style={{ flex: 1, height: 18, marginLeft: 5 }} />
-          </View>
-        )}
-      </Pressable>
+      <ContextMenuArea style={{ flex: 1 }} onContextMenu={() => void openSidebarMenu(windowId)}>
+        <Pressable
+          style={{ flex: 1 }}
+          onPress={(e) => {
+            if (modifiersOf(e).altKey) openNewTabInSplit(windowId);
+            else toggleNewTabBar(windowId) || newTab(windowId, { newTabCommand: true });
+          }}
+        >
+          {({ pressed }) => (
+            <View
+              {...moved}
+              ref={movedRef}
+              style={[
+                {
+                  height: layout.rowHeight,
+                  borderRadius: radius.card,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingLeft: 9,
+                  paddingRight: 34,
+                  backgroundColor: pressed ? theme.tabPressed : hovered ? theme.tabHover : undefined,
+                },
+                moved.style as object,
+              ]}
+            >
+              <Symbol name="plus" size={13} weight="medium" color={tokens.newTabIcon} style={{ width: 16, height: 16 }} />
+              <FadeLabel text="New Tab" fontSize={font.body.fontSize} color={tokens.newTabLabel} style={{ flex: 1, height: 18, marginLeft: 5 }} />
+            </View>
+          )}
+        </Pressable>
+      </ContextMenuArea>
       <View {...movedButtons} ref={movedButtonsRef} style={[{ position: "absolute", right: 6, flexDirection: "row", alignItems: "center" }, movedButtons.style as object]}>
         <HoverSlot hovered={hovered && cleaned > 0 && hintFits} width={0} hover={<Text style={{ ...font.caption, color: theme.textTertiary, marginRight: 2 }}>{hint}</Text>} />
         <Button variant="icon"

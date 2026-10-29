@@ -15,9 +15,4 @@ export function storeFavicon(profile: string, page: string, icon: string, png: s
   return call("favicons.set", { profile, page, icon, png });
 }
 
-export async function fetchFavicon(url: string, profile: string, page?: string): Promise<FaviconImage | null> {
-  const image = await call("favicons.fetch", { profile, url });
-  const png = image?.uri.startsWith("data:image/png;base64,") ? image.uri.slice(22) : null;
-  if (page && png) await storeFavicon(profile, page, url, png).catch(() => null);
-  return image;
-}
+export const fetchFavicon = (url: string, profile: string) => call("favicons.fetch", { profile, url });

@@ -3,13 +3,15 @@ import { Button, Checkbox, space, Text } from "../../ui";
 import { APP } from "../model";
 import { ErrorText, FileDrop, FullDiskAccessSteps, Spacer, TargetPicker, Title } from "../Parts";
 import { importLayout } from "../tokens";
-import type { ImportFlow } from "../useImportFlow";
+import { backTo, closeImport, recheckAccess, setImportTarget, setSafariCookies, type ImportFlow } from "../../../state/import/flow";
+import { chooseSafariExport, importSafariDirect, importSafariExport, openFullDiskAccessSettings } from "../../../state/import/fileImports";
 
 const EXPORT_STEPS = ["Open Safari", "File menu › Export Browsing Data to File", `Upload the .zip file to ${APP}`];
 
 export function SafariBody({ flow }: { flow: ImportFlow }) {
-  const { api, source, fullDiskAccess, safariCookies, error } = flow;
-  const drop = <FileDrop onFile={(path) => void flow.importSafari(path)} onChoose={flow.chooseSafariExport} />;
+  const { source, fullDiskAccess, safariCookies, step } = flow;
+  const error = step.name === "safari" ? step.error : null;
+  const drop = <FileDrop onFile={(path) => void importSafariExport(path)} onChoose={chooseSafariExport} />;
   if (fullDiskAccess)
     return (
       <>
@@ -22,10 +24,10 @@ export function SafariBody({ flow }: { flow: ImportFlow }) {
               Full Disk Access is granted.
             </Text>
             <View style={{ marginTop: space.m }}>
-              <Checkbox label="Cookies (stay signed in)" value={safariCookies} onChange={flow.setSafariCookies} />
+              <Checkbox label="Cookies (stay signed in)" value={safariCookies} onChange={setSafariCookies} />
             </View>
           </View>
-          <Button title="Import from Safari" kind="primary" onPress={() => void flow.importSafariDirect()} />
+          <Button title="Import from Safari" kind="primary" onPress={() => void importSafariDirect()} />
         </View>
         <Text size="small" weight="semibold" tone="textSecondary" style={{ marginBottom: space.m }}>
           Passwords and payment cards can't be read directly — import them from an export file:
@@ -37,7 +39,7 @@ export function SafariBody({ flow }: { flow: ImportFlow }) {
   return (
     <>
       <Title title="Give Ardia access to Safari" subtitle={`To import Safari's bookmarks, history and tabs directly, ${APP} needs Full Disk Access.`} />
-      <FullDiskAccessSteps onOpen={() => void api?.openFullDiskAccessSettings()} onRecheck={() => void flow.recheckAccess()} />
+      <FullDiskAccessSteps onOpen={openFullDiskAccessSettings} onRecheck={() => void recheckAccess()} />
       <Text size="small" weight="semibold" tone="textSecondary" style={{ marginBottom: space.m }}>
         Or import everything (including passwords) from an export file:
       </Text>
@@ -55,16 +57,16 @@ export function SafariBody({ flow }: { flow: ImportFlow }) {
 export function SafariFooter({ flow }: { flow: ImportFlow }) {
   return (
     <>
-      <Button title="Back" onPress={() => flow.setStep("choose")} />
+      <Button title="Back" onPress={() => backTo("choose")} />
       <Spacer />
-      <TargetPicker target={flow.target} onChange={flow.setTarget} />
-      <Button title="Cancel" onPress={flow.close} />
+      <TargetPicker target={flow.target} onChange={setImportTarget} />
+      <Button title="Cancel" onPress={closeImport} />
     </>
   );
 }
 
 export function AccessBody({ flow }: { flow: ImportFlow }) {
-  const { api, source, error } = flow;
+  const { source } = flow;
   if (!source) return null;
   return (
     <>
@@ -72,8 +74,7 @@ export function AccessBody({ flow }: { flow: ImportFlow }) {
         title={`Give ${APP} access to ${source.name}`}
         subtitle={`macOS protects ${source.name}'s data from other apps. To import your bookmarks, history, tabs, passwords and cookies, ${APP} needs Full Disk Access.`}
       />
-      <FullDiskAccessSteps onOpen={() => void api?.openFullDiskAccessSettings()} onRecheck={() => void flow.recheckAccess()} />
-      {error && <ErrorText text={error} />}
+      <FullDiskAccessSteps onOpen={openFullDiskAccessSettings} onRecheck={() => void recheckAccess()} />
     </>
   );
 }
@@ -82,9 +83,9 @@ export function AccessFooter({ flow }: { flow: ImportFlow }) {
   if (!flow.source) return null;
   return (
     <>
-      <Button title="Back" onPress={() => flow.setStep("choose")} />
+      <Button title="Back" onPress={() => backTo("choose")} />
       <Spacer />
-      <Button title="Cancel" onPress={flow.close} />
+      <Button title="Cancel" onPress={closeImport} />
     </>
   );
 }

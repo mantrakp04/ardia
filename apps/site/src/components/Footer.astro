@@ -1,6 +1,6 @@
 ---
+import { base, pagePath } from "../data/site";
 import { DISCORD, NIGHTLY, RELEASES, REPO } from "../data/release";
-const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 ---
 
 <footer class="foot paint edge edge-b dark" data-shot="footer">
@@ -15,10 +15,10 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, "");
         <a class="link" href={REPO} rel="noopener" data-track="github_clicked" data-track-link="source" data-track-location="footer"
           >Source on GitHub</a
         >
-        <a class="link" href={`${base}/release-notes/`}>Release notes</a>
-        <a class="link" href={`${base}/benchmarks/`}>Benchmarks</a>
-        <a class="link" href={`${base}/try/`}>Try the demo</a>
-        <a class="link" href={`${base}/arc/`}>Moving from Arc</a>
+        <a class="link" href={pagePath("notes")}>Release notes</a>
+        <a class="link" href={pagePath("benchmarks")}>Benchmarks</a>
+        <a class="link" href={pagePath("try")}>Try the demo</a>
+        <a class="link" href={pagePath("arc")}>Moving from Arc</a>
         <a
           class="link"
           href={RELEASES}

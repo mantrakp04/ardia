@@ -5,6 +5,7 @@ import { useOnboarding } from "../onboarding/onboarding";
 import { PINNABLE_SITES, pinSites } from "../onboarding/sites";
 import { choosePresetColor } from "../profiles/themeActions";
 import type { Settings } from "../settings/settings";
+import { chooseTabLayout } from "../settings/actions";
 import { decodeSetupCode, describeSetupChoices, encodeSetupCode, SETUP_SETTING_KEYS, type SetupChoices } from "./setupCode";
 
 export type SetupCodeApplied = { ok: true; lines: string[] } | { ok: false; error: string };
@@ -27,17 +28,9 @@ export function onboardingSetupCode(): { code: string; lines: string[] } {
 
 export const copySetupCode = (code: string) => copyText(code);
 
-function applyTabLayout(tabLayout: Settings["tabLayout"]) {
-  for (const w of Object.values(useBrowser.getState().windows)) {
-    const s = useBrowser.getState();
-    if ((w.tabLayout ?? s.settings.tabLayout) !== tabLayout) s.toggleTabLayout(w.id);
-  }
-  useBrowser.getState().updateSettings({ tabLayout });
-}
-
 function applyChoices(choices: SetupChoices, windowId: string | null) {
   const { tabLayout, ...rest } = choices.settings;
-  if (tabLayout) applyTabLayout(tabLayout);
+  if (tabLayout) chooseTabLayout(tabLayout);
   if (Object.keys(rest).length) useBrowser.getState().updateSettings(rest);
   const s = useBrowser.getState();
   const id = resolveWindowId(s, windowId);

@@ -1,13 +1,13 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Check, RotateCcw, SkipForward } from "lucide-react";
+import { Check, RefreshCw, RotateCcw, SkipForward } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import { Panel } from "@/components/blocks";
 import { ListSkeleton, Loaded } from "@/components/section";
 import { ActionLink, CopyButton, Pill, SearchBox, SyncedNote, Toolbar, matches, platformLabel, useTriage } from "@/components/triage/shared";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { formatAgo, formatExact } from "@/lib/format";
-import { updateReplyStatus } from "@/lib/triage-api";
+import { requestReplyRecheck, updateReplyStatus } from "@/lib/triage-api";
 import { xReplyIntent } from "@/lib/triage-links";
 import { cn } from "@/lib/utils";
 import type { TriageData } from "@/server/triage/load";
@@ -27,6 +27,20 @@ const FILTERS = [
   ["all", "All"],
 ] as const;
 
+function useRecheck() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: number[]) => requestReplyRecheck({ data: { ids } }),
+    onSuccess: (result) => {
+      const rechecked = new Set(result.ids);
+      queryClient.setQueryData<TriageData<"replies">>(["triage", "replies"], (old) =>
+        old ? { ...old, replies: old.replies.map((r) => (rechecked.has(r.id) ? { ...r, recheckQueued: true, recheckRequestedAt: result.at, recheckRequestedBy: null } : r)) } : old,
+      );
+      queryClient.invalidateQueries({ queryKey: ["triage"], refetchType: "none" });
+    },
+  });
+}
+
 function TriageReplies() {
   const query = useTriage("replies");
   const [filter, setFilter] = useState<(typeof FILTERS)[number][0]>("drafted");
@@ -40,6 +54,8 @@ function TriageReplies() {
     return [...byPlatform].sort((a, b) => rank(a[0]) - rank(b[0]));
   }, [replies, filter, search]);
   const counts = (status: Status) => replies.filter((r) => r.status === status).length;
+  const recheckAll = useRecheck();
+  const recheckable = groups.flatMap(([, rows]) => rows).filter((r) => r.status === "drafted" && !r.recheckQueued).map((r) => r.id);
   return (
     <>
       <Toolbar>
@@ -52,9 +68,17 @@ function TriageReplies() {
           ))}
         </ToggleGroup>
         <SearchBox value={search} onChange={setSearch} placeholder="Search replies, people, requests…" />
+        <StatusButton
+          label={`Recheck all${recheckable.length ? ` ${formatExact(recheckable.length)}` : ""}`}
+          icon={<RefreshCw className="size-3" aria-hidden />}
+          busy={recheckAll.isPending}
+          disabled={recheckAll.isPending || !recheckable.length}
+          onClick={() => recheckAll.mutate(recheckable)}
+        />
         <span className="text-xs text-muted-foreground">
-          <SyncedNote at={query.data?.syncedAt} /> Mark sent and Skip write a new row version to ClickHouse.
+          <SyncedNote at={query.data?.syncedAt} /> Mark sent and Skip write a new row version to ClickHouse. Recheck queues a draft for the next scheduled run, which re-verifies it against the latest builds.
         </span>
+        {recheckAll.isError ? <span className="text-xs text-bad">Couldn't queue rechecks: {recheckAll.error instanceof Error ? recheckAll.error.message : String(recheckAll.error)}</span> : null}
       </Toolbar>
       <Loaded
         query={query}
@@ -100,6 +124,7 @@ function ReplyCard({ reply }: { reply: Reply }) {
       queryClient.invalidateQueries({ queryKey: ["triage"], refetchType: "none" });
     },
   });
+  const recheck = useRecheck();
   const intent = reply.platform === "x" ? xReplyIntent(reply.targetUrl, reply.intentUrl, reply.text) : null;
   const pending = mutation.isPending ? mutation.variables : null;
   return (
@@ -109,8 +134,14 @@ function ReplyCard({ reply }: { reply: Reply }) {
         {reply.personName && reply.requester && reply.requester !== reply.personName ? <span className="text-muted-foreground">{reply.requester}</span> : null}
         <Pill value={reply.status} />
         {reply.requestStatus ? <Pill value={reply.requestStatus} /> : null}
+        {reply.recheckQueued ? (
+          <span title={reply.recheckRequestedAt ? `Recheck requested ${formatAgo(reply.recheckRequestedAt)}${reply.recheckRequestedBy ? ` by ${reply.recheckRequestedBy}` : ""}` : undefined}>
+            <Pill value="recheck queued" />
+          </span>
+        ) : null}
         <span className="ml-auto font-mono text-[10.5px] text-muted-foreground">
           {reply.extId ?? `#${reply.id}`}
+          {reply.lastCheckedAt ? ` · checked ${formatAgo(reply.lastCheckedAt)}` : " · never checked"}
           {reply.statusAt && reply.status !== "drafted" ? ` · ${reply.status} ${formatAgo(reply.statusAt)}${reply.actor ? ` by ${reply.actor}` : ""}` : ""}
         </span>
       </div>
@@ -126,6 +157,13 @@ function ReplyCard({ reply }: { reply: Reply }) {
         <span className="ml-auto flex gap-1.5">
           {reply.status === "drafted" ? (
             <>
+              <StatusButton
+                label={reply.recheckQueued ? "Recheck queued" : "Recheck"}
+                icon={<RefreshCw className="size-3" aria-hidden />}
+                busy={recheck.isPending}
+                disabled={recheck.isPending || reply.recheckQueued}
+                onClick={() => recheck.mutate([reply.id])}
+              />
               <StatusButton label="Skip" icon={<SkipForward className="size-3" aria-hidden />} busy={pending === "skipped"} disabled={mutation.isPending} onClick={() => mutation.mutate("skipped")} />
               <StatusButton label="Mark sent" icon={<Check className="size-3" aria-hidden />} busy={pending === "sent"} disabled={mutation.isPending} onClick={() => mutation.mutate("sent")} primary />
             </>
@@ -134,6 +172,7 @@ function ReplyCard({ reply }: { reply: Reply }) {
           )}
         </span>
       </div>
+      {recheck.isError ? <div className="text-bad">Couldn't queue recheck: {recheck.error instanceof Error ? recheck.error.message : String(recheck.error)}</div> : null}
       {mutation.isError ? <div className="text-bad">Couldn't save: {mutation.error instanceof Error ? mutation.error.message : String(mutation.error)}</div> : null}
     </li>
   );

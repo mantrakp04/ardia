@@ -1,3 +1,5 @@
+import type { PageEventName } from "@ardia/ardiacore";
+
 export type Bridge = {
   __callFunction(module: string, method: string, args: unknown[]): void;
   __invokeCallback(id: number, args: unknown[]): void;
@@ -14,7 +16,7 @@ type Options = {
 };
 export type Hold = ReturnType<typeof createHold>;
 
-export const HELD_PAGE_EVENTS: ReadonlySet<string> = new Set([
+export const HELD_PAGE_EVENTS: ReadonlySet<string> = new Set<PageEventName>([
   "navigation",
   "progress",
   "favicon",

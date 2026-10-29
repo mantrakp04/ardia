@@ -1,13 +1,14 @@
 import AppKit
+import ArdiaCore
 import ExpoModulesCore
-import UniformTypeIdentifiers
 import ServiceManagement
+import UniformTypeIdentifiers
 
 public class SystemModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ArdiaSystem")
 
-    Constant("backgroundInstance") { () -> Bool in FileDropView.background }
+    Constant("backgroundInstance") { () -> Bool in LaunchConfig.shared.background }
 
     AsyncFunction("isDefaultBrowser") { () -> Bool in
       guard let probe = URL(string: "https://example.com"),
@@ -16,7 +17,7 @@ public class SystemModule: Module {
     }.runOnQueue(.main)
 
     AsyncFunction("setAsDefaultBrowser") { (promise: Promise) in
-      if FileDropView.background {
+      if LaunchConfig.shared.background {
         NSLog("ArdiaSystem: background instance, not setting the default browser")
         return promise.resolve(false)
       }
@@ -42,7 +43,7 @@ public class SystemModule: Module {
     }.runOnQueue(.main)
 
     AsyncFunction("setLaunchAtLogin") { (enabled: Bool) in
-      if FileDropView.background {
+      if LaunchConfig.shared.background {
         NSLog("ArdiaSystem: background instance, not changing launch at login")
         return
       }
@@ -57,7 +58,7 @@ public class SystemModule: Module {
 
     AsyncFunction("openFile") { (path: String) -> Bool in
       guard FileManager.default.fileExists(atPath: path) else { return false }
-      if FileDropView.background {
+      if LaunchConfig.shared.background {
         NSLog("ArdiaSystem: background instance, not opening %@", path)
         return true
       }
@@ -66,7 +67,7 @@ public class SystemModule: Module {
 
     AsyncFunction("revealFile") { (path: String) -> Bool in
       guard FileManager.default.fileExists(atPath: path) else { return false }
-      if FileDropView.background {
+      if LaunchConfig.shared.background {
         NSLog("ArdiaSystem: background instance, not revealing %@", path)
         return true
       }
@@ -88,34 +89,11 @@ public class SystemModule: Module {
       let icon = FileManager.default.fileExists(atPath: path)
         ? NSWorkspace.shared.icon(forFile: path)
         : NSWorkspace.shared.icon(for: .init(filenameExtension: (path as NSString).pathExtension) ?? .data)
-      let points = CGFloat(size)
-      let rep = NSBitmapImageRep(
-        bitmapDataPlanes: nil, pixelsWide: Int(points * 2), pixelsHigh: Int(points * 2), bitsPerSample: 8,
-        samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)
-      guard let rep else { return nil }
-      rep.size = NSSize(width: points, height: points)
-      NSGraphicsContext.saveGraphicsState()
-      NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
-      icon.draw(in: NSRect(x: 0, y: 0, width: points, height: points))
-      NSGraphicsContext.restoreGraphicsState()
-      guard let png = rep.representation(using: .png, properties: [:]) else { return nil }
-      return "data:image/png;base64,\(png.base64EncodedString())"
+      return icon.pngDataURL(points: CGFloat(size), scale: 2)
     }.runOnQueue(.main)
 
-    AsyncFunction("appIcon") { (pid: Int, size: Double) -> String? in
-      guard let icon = NSRunningApplication(processIdentifier: pid_t(pid))?.icon else { return nil }
-      let points = CGFloat(size)
-      guard let rep = NSBitmapImageRep(
-        bitmapDataPlanes: nil, pixelsWide: Int(points * 2), pixelsHigh: Int(points * 2), bitsPerSample: 8,
-        samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)
-      else { return nil }
-      rep.size = NSSize(width: points, height: points)
-      NSGraphicsContext.saveGraphicsState()
-      NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
-      icon.draw(in: NSRect(x: 0, y: 0, width: points, height: points))
-      NSGraphicsContext.restoreGraphicsState()
-      guard let png = rep.representation(using: .png, properties: [:]) else { return nil }
-      return "data:image/png;base64,\(png.base64EncodedString())"
+    AsyncFunction("runningAppIcon") { (pid: Int, size: Double) -> String? in
+      NSRunningApplication(processIdentifier: pid_t(pid))?.icon?.pngDataURL(points: CGFloat(size), scale: 2)
     }.runOnQueue(.main)
 
     Function("hapticTick") {
@@ -124,11 +102,6 @@ public class SystemModule: Module {
         HapticLog.note("alignment")
       }
     }
-
-    AsyncFunction("menuShortcuts") { () -> [[String: Any]] in MainMenu.shortcutList() }.runOnQueue(.main)
-
-    AsyncFunction("recordShortcut") { (promise: Promise) in ShortcutRecorder.shared.record(promise) }.runOnQueue(.main)
-    AsyncFunction("cancelRecording") { ShortcutRecorder.shared.finish(nil) }.runOnQueue(.main)
 
     AsyncFunction("setThinScrollBars") { (thin: Bool) in ThinScrollBars.set(thin) }.runOnQueue(.main)
   }

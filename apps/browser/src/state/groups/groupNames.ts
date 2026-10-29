@@ -1,5 +1,5 @@
 import type { Tab } from "../browser/types";
-import { hostOf } from "../../lib/url";
+import { hostOf } from "@ardia/core";
 
 type Member = Pick<Tab, "url" | "title">;
 

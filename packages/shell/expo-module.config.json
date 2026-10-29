@@ -4,7 +4,12 @@
   ],
   "apple": {
     "modules": [
+      "AppWindowsModule",
+      "FocusModule",
+      "MenusModule",
       "ShellModule",
+      "DialogsModule",
+      "DocumentsModule",
       "SymbolModule",
       "FadeLabelModule",
       "ActivitySpinnerModule",
@@ -19,6 +24,10 @@
       "FileDragModule",
       "FileDropModule",
       "AppModule",
+      "UpdaterModule",
+      "NotificationsModule",
+      "ScriptingModule",
+      "DevModule",
       "CalendarModule",
       "KeychainModule",
       "DockSelectionModule",

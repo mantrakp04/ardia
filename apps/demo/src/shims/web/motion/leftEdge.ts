@@ -34,7 +34,7 @@ function check(pointer: PointerSample | null = currentPointer()) {
     const x = pointer?.clientX ?? -1;
     const y = pointer?.clientY ?? -1;
     const point: [number, number] = frame ? [x - frame.left, y - frame.top] : [x, y];
-    emitNativeEvent("ArdiaShell", "onWindowEvent", { type: "leftEdge", id, over: now, point });
+    emitNativeEvent("ArdiaAppWindows", "onWindowEvent", { type: "leftEdge", id, over: now, point });
   }
 }
 
@@ -73,4 +73,4 @@ export function watchLeftEdge(id: string, on: boolean, hold: number) {
   if (watched.size) check();
 }
 
-provideNativeModule("ArdiaShell", { watchLeftEdge: async (id: string, on: boolean, hold: number) => watchLeftEdge(id, on, hold) });
+provideNativeModule("ArdiaAppWindows", { watchLeftEdge: async (id: string, on: boolean, hold: number) => watchLeftEdge(id, on, hold) });

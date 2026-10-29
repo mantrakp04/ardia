@@ -1,23 +1,28 @@
-import { ContextMenuArea, Symbol, Box, Button, font, PopUp, TextField, useHover } from "../../ui";
-import { hapticTick, showMenu } from "../../../state/app/system";
+import { ContextMenuArea, Symbol, Box, Button, font, PopUp, TextField, Toggle, useHover } from "../../ui";
+import { hapticTick } from "../../../state/app/system";
+import { chooseFromMenu } from "../../../state/app/menuChoice";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
-import { createProfile, deleteProfile } from "../../../state/browser/actions";
+import { deleteProfile } from "../../../state/browser/actions";
+import { requestCreateProfile } from "../../../state/profiles/createProfileRequest";
 import { hex, profileAccent, useTheme } from "../../ui/theme";
 import { useProfileDataStats, useProfileOrder, useProfileRecords } from "../../../state/profiles/hooks";
 import { currentProfileOrder, currentProfiles } from "../../../state/browser/current";
 import { reorderProfiles, setDefaultProfile, updateProfile } from "../../../state/profiles/actions";
+import { updateSettings } from "../../../state/settings/actions";
 import { useProfile, useProfiles, useSettings } from "../../../state/browser/hooks";
 import { sharingProfiles } from "../../../state/profiles/profiles";
 import type { Profile } from "../../../state/browser/types";
 import { ClearDataDialog } from "../../pages/ClearDataDialog";
 import { Group, Row, SectionHeader } from "../Form";
 import { ColorStack } from "../../profiles/CreateProfile";
-import { iconMenuItems, PROFILE_SYMBOLS, ProfileBadge, profileSymbol } from "../../profiles/ProfileIcons";
+import { iconMenuItems, PROFILE_SYMBOLS, ProfileBadge } from "../../profiles/ProfileIcons";
+import { iconSymbol } from "../../../lib/customIcon";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { ThemeSection } from "../ThemeEditor";
-import { goToSettingsPane } from "../../../state/settings/settingsWindows";
+import { goToSettingsPane, SETTINGS_WINDOW_ID } from "../../../state/settings/settingsWindows";
+import { openProfileItemMenu } from "../../profiles/profileMenu";
 import { curve } from "../../ui/motion";
 import { settingsType, settingsMotion } from "../tokens";
 
@@ -36,6 +41,7 @@ export function ProfilesPane() {
   const theme = useTheme();
   const profiles = useProfiles();
   const defaultId = useSettings((s) => s.defaultProfileId);
+  const switcherIcons = useSettings((s) => s.profileSwitcherIcons);
 
   return (
     <View>
@@ -56,10 +62,16 @@ export function ProfilesPane() {
         </Row>
       </Group>
 
+      <SectionHeader title="Profile switcher" />
+      <Group>
+        <Row anchor="profiles.switcherIcons">
+          <Toggle value={switcherIcons} onChange={(profileSwitcherIcons) => updateSettings({ profileSwitcherIcons })} />
+        </Row>
+      </Group>
+
       <SectionHeader
         anchor="profiles.list"
-        description="Drag to reorder. ⌃1–⌃9 switch to the first nine."
-        action={<Button title="Create Profile" icon="plus" onPress={() => void createProfile()} />}
+        action={<Button title="Create Profile" icon="plus" onPress={() => void requestCreateProfile()} />}
       />
       <ProfileList />
     </View>
@@ -165,17 +177,7 @@ function ProfileRow({
   if (!profile) return null;
 
   const description = [isDefault ? "Default" : null, names.length ? `Shares data with ${listOf(names)}` : null].filter(Boolean).join(" · ");
-  const openMenu = async () => {
-    const choice = await showMenu([
-      { id: "details", title: "Show Profile Details" },
-      { id: "default", title: "Make Default Profile", enabled: !isDefault },
-      { separator: true },
-      { id: "delete", title: "Delete Profile…", enabled: currentProfileOrder().length > 1 },
-    ]);
-    if (choice === "details") goToSettingsPane("profiles", profileId);
-    else if (choice === "default") setDefaultProfile(profileId);
-    else if (choice === "delete") void deleteProfile(profileId);
-  };
+  const openMenu = () => openProfileItemMenu(profileId, "settings", SETTINGS_WINDOW_ID);
 
   return (
     <Animated.View
@@ -222,7 +224,7 @@ function ProfileRow({
 }
 
 function iconTitle(icon: string | null): string {
-  const symbol = profileSymbol(icon);
+  const symbol = iconSymbol(icon);
   if (symbol) return PROFILE_SYMBOLS.find((s) => s.name === symbol)?.title ?? "Symbol";
   return icon ?? "Initial";
 }
@@ -238,13 +240,13 @@ export function ProfileDetailsPane({ profileId }: { profileId: string }) {
   const stats = useProfileDataStats(profileId);
   const [name, setName] = useState(profile?.name ?? "");
   if (!profile) return null;
-  const update = (patch: Partial<Pick<Profile, "name" | "color" | "icon">>) => updateProfile(profileId, patch);
+  const update = (patch: Partial<Pick<Profile, "name" | "icon">>) => updateProfile(profileId, patch);
   const commitName = () => (name.trim() ? update({ name: name.trim() }) : setName(profile.name));
   const sharing = shared.length > 1;
 
   const pickIcon = async () => {
-    const choice = await showMenu(iconMenuItems(profile.icon));
-    if (choice?.startsWith("icon:")) update({ icon: choice.slice("icon:".length) || null });
+    const choice = await chooseFromMenu(iconMenuItems(profile.icon));
+    if (choice && typeof choice === "object") update({ icon: choice.icon });
   };
 
   return (

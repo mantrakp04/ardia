@@ -19,16 +19,9 @@ namespace autofill {
 class PersonalDataManager;
 }
 
-#define AC_AUTOFILL_CALL()                           \
-  Call call(profile_dir, args_json, reply, context); \
-  if (!call) {                                       \
-    return;                                          \
-  }
-
 namespace ardia {
 namespace autofill_internal {
 
-inline constexpr int kSettleChecks = 20;
 inline constexpr size_t kMaxImportBytes = 4 * 1024 * 1024;
 
 inline constexpr std::pair<const char*, autofill::FieldType> kAddressFields[] =

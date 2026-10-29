@@ -13,9 +13,9 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd -P)"
-repo="mantrakp04/ardia"
+. "$root/scripts/lib/releases.sh"
+. "$root/scripts/lib/paths.sh"
 table="$root/packages/ardiacore/prebuilt-engines.tsv"
-chromium_src="${CHROMIUM_SRC:-$HOME/chromium-build/chromium_git/chromium/src}"
 die() { echo "error: $*" >&2; exit 1; }
 dry=0 out="" framework=""
 while [ $# -gt 0 ]; do
@@ -28,7 +28,7 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
-framework="${framework:-$chromium_src/out/Release_GN_arm64/Chromium Framework.framework}"
+framework="${framework:-$chromium_src/$chromium_out/Chromium Framework.framework}"
 problem() { if [ "$dry" = 1 ]; then echo "warning: $*" >&2; else die "$*"; fi; }
 run() {
   printf '+'; printf ' %q' "$@"; echo
@@ -58,7 +58,7 @@ mkdir -p "$work/Ardia.app/Contents/Frameworks"
 echo "==> Copy the engine"
 copy=(cp -cR "$framework" "$work/Ardia.app/Contents/Frameworks/")
 case "$framework" in
-  "$HOME/chromium-build/"*) "$root/scripts/agent/locked" chromium --wait 500 -- "${copy[@]}" ;;
+  "$chromium_src/"*) "$root/scripts/agent/locked" chromium --wait 500 -- "${copy[@]}" ;;
   *) "${copy[@]}" ;;
 esac
 echo "==> Strip"
@@ -81,15 +81,15 @@ line="$(printf '%s\t%s\t%s' "$tree" "$tag" "$sha")"
 
 echo "==> Publish"
 notes="ArdiaCore's engine for engine/ tree $tree (commit $commit), for builds without a Chromium tree (packages/ardiacore/scripts/fetch-engine.sh). Not an app release."
-if [ "$dry" = 1 ] || ! gh release view "$tag" -R "$repo" >/dev/null 2>&1; then
-  run gh release create "$tag" -R "$repo" --prerelease --latest=false --target "$commit" --title "Engine $short" --notes "$notes"
+if [ "$dry" = 1 ] || ! gh release view "$tag" -R "$REPO" >/dev/null 2>&1; then
+  run gh release create "$tag" -R "$REPO" --prerelease --latest=false --target "$commit" --title "Engine $short" --notes "$notes"
 fi
-run gh release upload "$tag" -R "$repo" --clobber "${assets[@]}"
+run gh release upload "$tag" -R "$REPO" --clobber "${assets[@]}"
 if [ "$dry" = 1 ]; then
   echo "dry run: nothing published. The table line would be:"
   echo "$line"
 else
-  [ "$(gh release view "$tag" -R "$repo" --json isPrerelease -q .isPrerelease)" = true ] || die "$tag isn't a prerelease"
+  [ "$(gh release view "$tag" -R "$REPO" --json isPrerelease -q .isPrerelease)" = true ] || die "$tag isn't a prerelease"
   printf '%s\n' "$line" >>"$table"
   echo "Published $tag. Commit packages/ardiacore/prebuilt-engines.tsv (appended: $line)."
 fi

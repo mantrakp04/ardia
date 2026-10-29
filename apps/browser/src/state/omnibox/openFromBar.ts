@@ -20,7 +20,7 @@ export function openFromBar(url: string, tabId: string, disposition: Disposition
   if (disposition === "current") return s.navigate(tabId, url);
   s.closePanel(tab.windowId);
   if (disposition === "newTab") return void s.newTab(tab.windowId, { url, profileId: tab.profileId, openerId: tab.url ? tabId : undefined });
-  openWindow(w?.incognito ? { incognito: true, url, profileId: originalProfile(s, w) } : { profileId: tab.profileId, url });
+  openWindow(w?.kind === "private" ? { kind: "private", url, profileId: originalProfile(s, w) } : { profileId: tab.profileId, url });
 }
 
 export function switchFromBar(targetTabId: string, url: string, barTabId: string, disposition: Disposition) {

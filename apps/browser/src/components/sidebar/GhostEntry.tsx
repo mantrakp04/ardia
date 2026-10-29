@@ -1,20 +1,22 @@
+import { tabTitle } from "../../state/browser/model";
 import { Image, Text, View } from "react-native";
 import { knownFaviconTheme, resolveFavicon } from "../../state/favicons/favicons";
-import { FadeLabel, font, radius, Symbol, weight } from "../ui";
+import { FadeLabel, font, radius, Symbol, weight, withAlpha } from "../ui";
 import { layout, useTheme } from "../ui/theme";
 import type { BrowserState } from "../../state/browser/store";
 import type { GroupColor } from "../../state/browser/types";
-import { groupLabel } from "../../state/pins/organize";
+import { groupLabel } from "../../state/pins/tabGrouping";
 import { splitRowPanes } from "../../state/splits/splits";
-import { tabTitle } from "../../state/sidebar/actions";
+import { isSilenced } from "../../state/tabs/mute";
 import { groupEntries, keptEntry } from "../../state/sidebar/entries";
 import { GROUP_BORDER, GROUP_INDENT, GROUP_PAD, GROUP_RADIUS } from "./geometry";
 import { headGap } from "../../state/sidebar/geometry";
 import { pointerOnGroup, pointerOnRow } from "../../state/sidebar/hover";
 import { FaviconFallback, NewTabIcon } from "../favicon/Favicon";
 import { TabIcon } from "./TabIcon";
-import { SYMBOL_PREFIX } from "../../state/groups/groupIcons";
-import { groupSurface, TABULAR_NUMS, useSidebarTokens, withAlpha } from "./tokens";
+import { iconSymbol } from "../../lib/customIcon";
+import { groupSurface, TABULAR_NUMS, useSidebarTokens } from "./tokens";
+import { entryKey, parseEntry } from "../../state/sidebar/entryKey";
 
 type TabShot = { kind: "tab"; key: string; title: string; url: string; favicon?: string | null; icon?: string | null; profileId: string; uri: string | null; template: boolean; sound: "muted" | "playing" | null; hovered: boolean };
 type SplitShot = { kind: "split"; key: string; panes: TabShot[] };
@@ -39,26 +41,26 @@ function tabShot(s: BrowserState, tabId: string, hovered: boolean): TabShot | nu
     uri,
     template: shape?.kind === "template" && !!shape.stroke,
     kind: "tab",
-    key: `t:${tabId}`,
+    key: entryKey("tab", tabId),
     title: tabTitle(tab),
     url: tab.url,
     favicon: tab.favicon,
     icon: tab.customIcon,
     profileId: tab.profileId,
-    sound: tab.muted ? "muted" : s.live[tabId]?.playingAudio ? "playing" : null,
+    sound: isSilenced(s, tab) ? "muted" : s.live[tabId]?.playingAudio ? "playing" : null,
     hovered,
   };
 }
 
 function splitShot(s: BrowserState, splitId: string): SplitShot {
   const panes = splitRowPanes(s, s.splits[splitId]);
-  return { kind: "split", key: `s:${splitId}`, panes: panes.flatMap((id) => tabShot(s, id, false) ?? []) };
+  return { kind: "split", key: entryKey("split", splitId), panes: panes.flatMap((id) => tabShot(s, id, false) ?? []) };
 }
 
 export function snapshotEntry(s: BrowserState, windowId: string, profileId: string, entry: string): EntrySnapshot | null {
-  const id = entry.slice(2);
-  if (entry.startsWith("s:")) return splitShot(s, id);
-  if (!entry.startsWith("g:")) return tabShot(s, id, pointerOnRow(id));
+  const { kind, id } = parseEntry(entry);
+  if (kind === "split") return splitShot(s, id);
+  if (kind !== "group") return tabShot(s, id, pointerOnRow(id));
   const group = s.groups[id];
   if (!group) return null;
   const entries = groupEntries(s, id);
@@ -72,7 +74,7 @@ export function snapshotEntry(s: BrowserState, windowId: string, profileId: stri
     icon: group.icon || first ? { url: first?.url ?? "", favicon: first?.favicon, icon: group.icon ?? first?.customIcon, profileId: first?.profileId } : null,
     collapsed: !!group.collapsed,
     hovered: pointerOnGroup(id),
-    members: (group.collapsed ? (kept ? [kept] : []) : entries).flatMap((e) => (e.startsWith("t:") ? tabShot(s, e.slice(2), false) : snapshotEntry(s, windowId, profileId, e)) ?? []),
+    members: (group.collapsed ? (kept ? [kept] : []) : entries).flatMap((e) => (parseEntry(e).kind === "tab" ? tabShot(s, parseEntry(e).id, false) : snapshotEntry(s, windowId, profileId, e)) ?? []),
   };
 }
 
@@ -82,7 +84,8 @@ export function ghostEntry(snapshot: EntrySnapshot, theme: ReturnType<typeof use
 }
 
 function ghostIcon(shot: TabShot, theme: ReturnType<typeof useTheme>) {
-  if (shot.icon?.startsWith(SYMBOL_PREFIX)) return <Symbol name={shot.icon.slice(SYMBOL_PREFIX.length)} size={13} weight="medium" color={theme.icon} style={{ width: 16, height: 16 }} />;
+  const symbol = iconSymbol(shot.icon);
+  if (symbol) return <Symbol name={symbol} size={13} weight="medium" color={theme.icon} style={{ width: 16, height: 16 }} />;
   if (shot.icon) return <TabIcon url={shot.url} icon={shot.icon} profileId={shot.profileId} />;
   if (shot.uri) return <Image source={{ uri: shot.uri }} style={{ width: 16, height: 16, borderRadius: 3, tintColor: shot.template && !theme.dark ? theme.textPrimary : undefined }} />;
   return shot.url ? <FaviconFallback url={shot.url} /> : <NewTabIcon />;

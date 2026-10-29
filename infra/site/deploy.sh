@@ -4,7 +4,8 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 site="$here/../../apps/site"
 step="${1:-all}"
-hexclave=(${HEXCLAVE:-npx @hexclave/cli@1.0.133})
+. "$here/../lib.sh"
+package_limit_mb=48
 
 case "$step" in
   all | build | deploy) ;;
@@ -13,9 +14,16 @@ esac
 
 if [ "$step" != deploy ]; then
   SITE_URL=https://ardia.dev pnpm -C "$site" exec astro build
-  rsync -a --delete "$site/dist/" "$here/dist/"
+  rsync -a --delete --exclude 'release-videos/*.mp4' "$site/dist/" "$here/dist/"
+  package_mb=$(( $(du -sk "$here/dist" | cut -f1) / 1024 ))
+  if [ "$package_mb" -gt "$package_limit_mb" ]; then
+    echo "infra/site/dist is $package_mb MB, over the $package_limit_mb MB budget for Hexclave's 50 MB deploy cap. Largest files:" >&2
+    find "$here/dist" -type f -size +400k -exec du -k {} + | sort -rn | head -15 >&2
+    exit 1
+  fi
+  echo "deploy package: $package_mb MB of $package_limit_mb MB"
 fi
 if [ "$step" != build ]; then
   cd "$here"
-  "${hexclave[@]}" deploy --cloud-project-id 49be2e2e-87c4-433e-b42f-f255854bff56
+  hexclave_deploy
 fi

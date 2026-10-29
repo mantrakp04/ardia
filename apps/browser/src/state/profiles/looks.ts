@@ -1,4 +1,5 @@
-import type { LookSource, ProfileLookFields, ThemeBackdropProps } from "../../lib/profileLook";
+import type { ThemeBackdropProps } from "@ardia/core";
+import type { LookSource, ProfileLookFields } from "../../lib/profileLook";
 import type { BackdropTint } from "../../lib/windowTint";
 
 export type ProfileLookColors = { windowTint: [string, string]; backdrop: BackdropTint & ThemeBackdropProps; grain: number };

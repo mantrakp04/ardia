@@ -5,7 +5,6 @@ import CoreImage
 enum DockTile {
   private static let domain = "com.apple.dock" as CFString
   private static let key = "persistent-apps" as CFString
-  private static let background = LaunchConfig.shared.background
 
   private static var tiles: [[String: Any]] {
     CFPreferencesCopyAppValue(key, domain) as? [[String: Any]] ?? []
@@ -25,7 +24,7 @@ enum DockTile {
   @discardableResult
   static func add() -> Bool {
     guard !isInDock else { return true }
-    if background {
+    if LaunchConfig.shared.background {
       NSLog("ArdiaSystem: background instance, not adding to the Dock")
       return false
     }

@@ -1,7 +1,8 @@
 import { useBrowser, type BrowserState } from "../browser/store";
 import { isWindowClosing } from "../windows/closingWindows";
 import type { Frame } from "../browser/types";
-import type { TabPlacement } from "../pins/organize";
+import type { TabPlacement } from "../pins/placing";
+import { isRegularWindow } from "../windows/small";
 
 
 export function screenPoint(s: BrowserState, windowId: string, x: number, y: number, live?: Frame | null): [number, number] | null {
@@ -17,10 +18,10 @@ export function windowUnder(s: BrowserState, source: string, x: number, y: numbe
   const frame = live ?? from?.frame;
   const outside = !!frame && (x < 0 || y < 0 || x > frame[2] || y > frame[3]);
   const point = outside ? screenPoint(s, source, x, y, live) : null;
-  if (!point || !from || from.incognito) return { outside, overWindow: null };
+  if (!point || !from || from.kind === "private") return { outside, overWindow: null };
   const overWindow = s.ui.focusOrder.find((id) => {
     const w = s.windows[id];
-    return !!w && id !== source && !w.incognito && w.kind !== "small" && !isWindowClosing(id) && !!w.frame && contains(w.frame, point);
+    return isRegularWindow(w) && id !== source && !isWindowClosing(id) && !!w.frame && contains(w.frame, point);
   });
   return { outside, overWindow: overWindow ?? null };
 }
@@ -35,7 +36,7 @@ export function dropTabsOutside(
 ): string | null {
   const s = useBrowser.getState();
   const from = s.windows[source];
-  if (!from || from.incognito || !tabIds.length) return null;
+  if (!from || from.kind === "private" || !tabIds.length) return null;
   const { overWindow } = windowUnder(s, source, x, y, live);
   if (overWindow) {
     s.moveTabsToWindow(tabIds, overWindow);

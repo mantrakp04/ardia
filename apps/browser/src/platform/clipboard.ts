@@ -1,7 +1,6 @@
-import { NativeModules } from "react-native";
+import { nativeModule } from "@ardia/shell";
 
-export { copyText } from "@ardia/shell";
+const Shell = nativeModule("ArdiaShell");
 
-const NativeClipboard = NativeModules.Clipboard as { getString(): Promise<string> } | undefined;
-
-export const readClipboard = (): Promise<string> => NativeClipboard?.getString().catch(() => "") ?? Promise.resolve("");
+export const copyText = (text: string) => Shell.copyText(text);
+export const readText = () => Shell.readText();

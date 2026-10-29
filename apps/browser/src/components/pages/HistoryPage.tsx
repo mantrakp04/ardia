@@ -1,24 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View } from "react-native";
 import { useTab, useWindow } from "../../state/browser/hooks";
-import { useHistory } from "../../state/history/hooks";
+import { useProfileHistory } from "../../state/history/hooks";
 import { removeHistory } from "../../state/history/actions";
 import type { HistoryEntry } from "../../state/browser/types";
 import { requestClearData, useClearDataRequest } from "../../state/profiles/clearDataRequest";
 import { Button, Symbol, Text, useTheme } from "../ui";
 import { ClearDataDialog } from "./ClearDataDialog";
 import { layoutHistory } from "./historyLayout";
-import { confirmRemoveSelected } from "../../state/history/historyMenus";
+import { confirmRemoveSelected, shownSelection } from "../../state/history/historyMenus";
 import { HistoryList } from "./HistoryList";
 import { EmptyState, hostLabel, PageHeader } from "./PageLayout";
 import { EMPTY_ICON, emptyIcon } from "./tokens";
 
-const NO_HISTORY: HistoryEntry[] = [];
 
 export function HistoryPage({ tabId, profileId, initialQuery }: { tabId: string; profileId: string; initialQuery: string }) {
   const theme = useTheme();
   const windowId = useTab(tabId, (t) => t?.windowId ?? "");
-  const history = useHistory((h) => h[profileId] ?? NO_HISTORY);
+  const history = useProfileHistory(profileId);
   const [query, setQuery] = useState(initialQuery);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [clearOpen, setClearOpen] = useState(false);
@@ -38,6 +37,7 @@ export function HistoryPage({ tabId, profileId, initialQuery }: { tabId: string;
   const layout = useMemo(() => layoutHistory(history, query), [history, query]);
   const latest = useRef({ layout, profileId });
   latest.current = { layout, profileId };
+  useEffect(() => setSelected((prev) => shownSelection(prev, layout.rows)), [layout]);
 
   const toggle = useCallback((url: string, shift: boolean) => {
     const { rows } = latest.current.layout;
@@ -55,7 +55,17 @@ export function HistoryPage({ tabId, profileId, initialQuery }: { tabId: string;
     lastClicked.current = url;
   }, []);
   const moreFromSite = useCallback((url: string) => setQuery(hostLabel(url)), []);
-  const remove = useCallback((url: string) => removeHistory(latest.current.profileId, [url]), []);
+  const selection = useRef(selected);
+  selection.current = selected;
+  const remove = useCallback((urls: string[]) => {
+    removeHistory(latest.current.profileId, urls);
+    setSelected((prev) => (urls.some((u) => prev.has(u)) ? new Set([...prev].filter((u) => !urls.includes(u))) : prev));
+  }, []);
+  const menuTargets = useCallback((entry: HistoryEntry) => {
+    const chosen = selection.current;
+    if (chosen.size < 2 || !chosen.has(entry.url)) return [entry];
+    return latest.current.layout.rows.map((r) => r.entry).filter((e) => chosen.has(e.url));
+  }, []);
 
   const deleteSelected = async () => {
     const confirmed = await confirmRemoveSelected(windowId);
@@ -92,6 +102,7 @@ export function HistoryPage({ tabId, profileId, initialQuery }: { tabId: string;
           onToggle={toggle}
           onMoreFromSite={moreFromSite}
           onRemove={remove}
+          menuTargets={menuTargets}
         />
       )}
       {clearOpen && <ClearDataDialog profileId={profileId} onClose={() => setClearOpen(false)} />}

@@ -1,26 +1,15 @@
 #import "ArdiaSwipeInternal.h"
-#import "ArdiaChromeWindowHost.h"
 
-#import <dlfcn.h>
-#import <objc/message.h>
 #import <objc/runtime.h>
 
 using namespace ardia_swipe;
 
-@implementation ArdiaRendererScrollObserver
+@interface ArdiaRendererScroll ()
+- (void)acked:(ArdiaCorePageScrollAck)ack consumed:(BOOL)consumed;
+- (void)overscrolledAllowingHorizontal:(BOOL)allowed;
+@end
 
-- (instancetype)initWithOriginal:(NSObject *)original {
-  if ((self = [super init])) _original = original;
-  return self;
-}
-
-- (BOOL)respondsToSelector:(SEL)selector {
-  return [super respondsToSelector:selector] || [_original respondsToSelector:selector];
-}
-
-- (id)forwardingTargetForSelector:(SEL)selector {
-  return [_original respondsToSelector:selector] ? _original : [super forwardingTargetForSelector:selector];
-}
+@implementation ArdiaRendererScroll
 
 - (void)reset {
   _scroll = RendererScroll::AwaitingBegin;
@@ -28,50 +17,71 @@ using namespace ardia_swipe;
   _overscrollAllowed = NO;
 }
 
-- (void)rendererHandledGestureScrollEvent:(const void *)event consumed:(BOOL)consumed {
-  if ([_original respondsToSelector:_cmd])
-    ((void (*)(id, SEL, const void *, BOOL))objc_msgSend)(_original, _cmd, event, consumed);
-  int type = *reinterpret_cast<const int32_t *>(static_cast<const char *>(event) + kInputEventTypeOffset);
-  if (gTrace) [gTrace addObject:@{@"ack" : @"gesture", @"raw" : [self words:event count:12], @"consumed" : @(consumed)}];
-  if (type == kGestureScrollBegin) {
+- (void)acked:(ArdiaCorePageScrollAck)ack consumed:(BOOL)consumed {
+  if (ack == ArdiaCorePageScrollAckBegin) {
     if (_scroll == RendererScroll::AwaitingBegin) _scroll = RendererScroll::AwaitingFirstUpdate;
-  } else if (type == kGestureScrollUpdate) {
-    if (_scroll == RendererScroll::AwaitingFirstUpdate)
-      _scroll = consumed ? RendererScroll::FirstUpdateConsumed : RendererScroll::FirstUpdateUnconsumed;
+  } else if (_scroll == RendererScroll::AwaitingFirstUpdate) {
+    _scroll = consumed ? RendererScroll::FirstUpdateConsumed : RendererScroll::FirstUpdateUnconsumed;
   }
 }
 
-- (void)rendererHandledOverscrollEvent:(const void *)params {
-  if ([_original respondsToSelector:_cmd]) ((void (*)(id, SEL, const void *))objc_msgSend)(_original, _cmd, params);
-  const char *p = static_cast<const char *>(params);
-  int behaviorX = *reinterpret_cast<const int32_t *>(p + kOverscrollBehaviorOffset);
-  if (gTrace) [gTrace addObject:@{@"ack" : @"overscroll", @"raw" : [self words:params count:10]}];
+- (void)overscrolledAllowingHorizontal:(BOOL)allowed {
   _overscrolled = YES;
-  _overscrollAllowed = behaviorX == kOverscrollBehaviorAuto;
-}
-
-- (BOOL)handleEvent:(NSEvent *)event {
-  if (event.type == NSEventTypeScrollWheel || ![_original respondsToSelector:_cmd]) return NO;
-  return ((BOOL (*)(id, SEL, NSEvent *))objc_msgSend)(_original, _cmd, event);
-}
-
-- (void)touchesBeganWithEvent:(NSEvent *)event {
-  if ([_original respondsToSelector:_cmd]) [(id)_original touchesBeganWithEvent:event];
-}
-- (void)touchesMovedWithEvent:(NSEvent *)event {
-  if ([_original respondsToSelector:_cmd]) [(id)_original touchesMovedWithEvent:event];
-}
-- (void)touchesCancelledWithEvent:(NSEvent *)event {
-  if ([_original respondsToSelector:_cmd]) [(id)_original touchesCancelledWithEvent:event];
-}
-- (void)touchesEndedWithEvent:(NSEvent *)event {
-  if ([_original respondsToSelector:_cmd]) [(id)_original touchesEndedWithEvent:event];
-}
-
-- (NSArray *)words:(const void *)p count:(int)count {
-  NSMutableArray *out = [NSMutableArray array];
-  for (int i = 0; i < count; i++) [out addObject:@(reinterpret_cast<const int32_t *>(p)[i])];
-  return out;
+  _overscrollAllowed = allowed;
 }
 
 @end
+
+@interface ArdiaRendererScrollAcks : NSObject <ArdiaCorePageScrollObserver>
+@end
+
+namespace {
+
+const void *const kRendererScrollKey = &kRendererScrollKey;
+
+ArdiaRendererScroll *ExistingScroll(NSView *page) {
+  return objc_getAssociatedObject(page, kRendererScrollKey);
+}
+
+}
+
+@implementation ArdiaRendererScrollAcks
+
+- (void)pageView:(NSView *)view ackedScroll:(ArdiaCorePageScrollAck)ack consumed:(BOOL)consumed {
+  if (gTrace) [gTrace addObject:@{@"ack" : @"gesture", @"kind" : ack == ArdiaCorePageScrollAckBegin ? @"begin" : @"update", @"consumed" : @(consumed)}];
+  [ExistingScroll(view) acked:ack consumed:consumed];
+}
+
+- (void)pageView:(NSView *)view overscrolledAllowingHorizontal:(BOOL)allowed {
+  if (gTrace) [gTrace addObject:@{@"ack" : @"overscroll", @"allowsX" : @(allowed)}];
+  [ExistingScroll(view) overscrolledAllowingHorizontal:allowed];
+}
+
+@end
+
+namespace ardia_swipe {
+
+NSView *PageViewOf(NSView *hit) {
+  for (NSView *v = hit; v; v = v.superview)
+    if ([ArdiaCorePageView isPageView:v]) return v;
+  return nil;
+}
+
+ArdiaRendererScroll *RendererScrollFor(NSView *hit) {
+  static ArdiaRendererScrollAcks *acks;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    acks = [ArdiaRendererScrollAcks new];
+    [ArdiaCorePageView setScrollObserver:acks];
+  });
+  NSView *page = PageViewOf(hit);
+  if (!page || ![ArdiaCorePageView takeSwipes:page]) return nil;
+  ArdiaRendererScroll *scroll = ExistingScroll(page);
+  if (!scroll) {
+    scroll = [ArdiaRendererScroll new];
+    objc_setAssociatedObject(page, kRendererScrollKey, scroll, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  }
+  return scroll;
+}
+
+}

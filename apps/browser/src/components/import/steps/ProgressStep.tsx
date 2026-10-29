@@ -1,13 +1,15 @@
 import { useEffect, useRef } from "react";
 import { ActivityIndicator, Animated, StyleSheet, View } from "react-native";
 import { Button, curve, radius, space, Symbol, Text, useTheme } from "../../ui";
-import { KINDS, type Status } from "../model";
+import { cancelImport, type ImportFlow, type KindStatus } from "../../../state/import/flow";
+import { KINDS } from "../model";
 import { Spacer, Title } from "../Parts";
 import { accentAlpha, importColors, importLayout, importMotion } from "../tokens";
-import type { ImportFlow } from "../useImportFlow";
 
 export function ProgressBody({ flow }: { flow: ImportFlow }) {
-  const { status, source, preparing } = flow;
+  const { step, source } = flow;
+  if (step.name !== "progress") return null;
+  const { status, preparing } = step;
   return (
     <>
       <Title title={`Importing from ${source?.name ?? "file"}`} subtitle={preparing > 1 ? `Preparing ${preparing} profiles` : "Preparing your profile"} spinner />
@@ -23,22 +25,16 @@ export function ProgressBody({ flow }: { flow: ImportFlow }) {
   );
 }
 
-export function ProgressFooter({ flow }: { flow: ImportFlow }) {
+export function ProgressFooter() {
   return (
     <>
       <Spacer />
-      <Button
-        title="Cancel"
-        onPress={() => {
-          flow.abort.current?.abort();
-          flow.close();
-        }}
-      />
+      <Button title="Cancel" onPress={cancelImport} />
     </>
   );
 }
 
-function CategoryRow({ title, icon, status, index }: { title: string; icon: string; status: Status; index: number }) {
+function CategoryRow({ title, icon, status, index }: { title: string; icon: string; status: KindStatus; index: number }) {
   const theme = useTheme();
   const appear = useRef(new Animated.Value(0)).current;
   const check = useRef(new Animated.Value(0)).current;

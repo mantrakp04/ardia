@@ -26,8 +26,8 @@ void AnnounceStrayTab(ArdiaCoreTab *tab, int tries) {
   if (![ArdiaEvents listens:@"extensions"]) return;
   [ArdiaEvents emit:@"extensions.tabs"
                data:@{
-                 @"action" : @"open", @"url" : url ?: @"", @"profile" : ardia_host::ProfileName(tab.profile), @"active" : @YES,
-                 @"window" : NSNull.null, @"extensionId" : @"", @"adoptId" : [ArdiaTabRegistry offerTab:tab prefix:@"tab"]
+                 @"action" : @"adopt", @"url" : url ?: @"", @"profile" : ardia_host::ProfileName(tab.profile),
+                 @"adoptId" : [ArdiaTabRegistry offerTab:tab prefix:@"tab"]
                }];
 }
 
@@ -130,14 +130,18 @@ NSMutableDictionary<NSString *, ArdiaWindowController *> *ChromeMadeWindows() {
     return;
   }
   if (![ArdiaEvents listens:@"extensions"]) return;
-  NSMutableDictionary *request = [@{
-    @"action" : @"open", @"url" : url ?: @"", @"profile" : ardia_host::ProfileName(tab.profile),
-    @"active" : @(!_chromeActive || _chromeActive == tab), @"window" : NSNull.null, @"extensionId" : @"",
-    @"chromeWindow" : _chromeToken, @"focused" : @(!_showInactive)
-  } mutableCopy];
-  if (moving.length) request[@"tabId"] = moving;
-  else if ([ArdiaTabRegistry viewForTab:tab]) return;
-  else request[@"adoptId"] = [ArdiaTabRegistry offerTab:tab prefix:@"tab"];
+  NSDictionary *request;
+  if (moving.length) {
+    request = @{@"action" : @"moveInto", @"chromeWindow" : _chromeToken, @"tabId" : moving, @"focused" : @(!_showInactive)};
+  } else if ([ArdiaTabRegistry viewForTab:tab]) {
+    return;
+  } else {
+    request = @{
+      @"action" : @"adoptInto", @"chromeWindow" : _chromeToken, @"adoptId" : [ArdiaTabRegistry offerTab:tab prefix:@"tab"],
+      @"url" : url ?: @"", @"profile" : ardia_host::ProfileName(tab.profile), @"active" : @(!_chromeActive || _chromeActive == tab),
+      @"focused" : @(!_showInactive)
+    };
+  }
   _announced = YES;
   [ArdiaEvents emit:@"extensions.tabs" data:request];
 }

@@ -1,5 +1,6 @@
 import { FLAGS, type FlagKey } from "../../data/telemetry";
-import { capture, distinctId, enabled, register, write } from "./core";
+import { KEYS, readJSON, write } from "../storage";
+import { capture, distinctId, enabled, register } from "./core";
 
 const SCALE = 0xfffffffffffffffn;
 
@@ -30,15 +31,10 @@ async function flagVariant(key: FlagKey): Promise<string | null> {
   }
 }
 
-const REPORTED = "ac:flag_called";
-
 export async function getFeatureFlag(key: FlagKey): Promise<string | null> {
   const variant = await flagVariant(key);
   if (variant === null) return null;
-  let reported: Record<string, string> = {};
-  try {
-    reported = JSON.parse(localStorage.getItem(REPORTED) ?? "{}") ?? {};
-  } catch {}
+  const reported = readJSON<Record<string, string>>(KEYS.flagsReported) ?? {};
   if (reported[key] !== variant) {
     const flag = FLAGS[key];
     const props = {
@@ -55,9 +51,7 @@ export async function getFeatureFlag(key: FlagKey): Promise<string | null> {
     capture("$feature_flag_called", props);
     if (flag.experiment) capture("$experiment_exposure", props);
     reported[key] = variant;
-    try {
-      localStorage.setItem(REPORTED, JSON.stringify(reported));
-    } catch {}
+    write(KEYS.flagsReported, JSON.stringify(reported));
   }
   return variant;
 }
@@ -73,5 +67,5 @@ export async function registerFlags() {
   }
   const all = { ...props, $active_feature_flags: active };
   register(all);
-  write("ac:flags", JSON.stringify({ id: distinctId, props: all }));
+  write(KEYS.flags, JSON.stringify({ id: distinctId, props: all }));
 }

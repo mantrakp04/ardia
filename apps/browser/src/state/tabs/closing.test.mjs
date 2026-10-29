@@ -47,7 +47,7 @@ test("closing a pinned tab with regular tabs unloads it and closes only those", 
   S().activate(a);
   S().closeTabs([a, b]);
   assert.ok(S().tabs[a], "the pinned row stays");
-  assert.equal(!!S().tabs[a].navigation || !!S().tabs[a].adoptId, false, "unloaded");
+  assert.equal(!!S().tabs[a].page.nav || !!S().tabs[a].page.adopt, false, "unloaded");
   assert.equal(S().tabs[b], undefined);
   assert.ok(S().windows[w]);
   assert.equal(S().windows[w].activeTabIds[S().windows[w].profileId], c);

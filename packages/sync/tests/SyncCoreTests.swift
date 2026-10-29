@@ -83,6 +83,30 @@ final class SyncVaultTests: XCTestCase {
     try other.write(scope: "app", payload: Data("theirs".utf8))
     try vault.deleteChain()
     XCTAssertFalse(vault.chainExists())
-    XCTAssertEqual(other.read(scope: "app", skipping: []).files.count, 1)
+    XCTAssertEqual(try other.read(scope: "app", skipping: []).files.count, 1)
+  }
+
+  func testMissingScopeReadsEmptyButUnreadableScopeThrows() throws {
+    try vault.createChain()
+    XCTAssertTrue(try vault.read(scope: "app", skipping: []).present.isEmpty)
+    try vault.write(scope: "app", payload: Data("mine".utf8))
+    let scope = vault.scopeURL("app")
+    try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: scope.path)
+    defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scope.path) }
+    XCTAssertThrowsError(try vault.read(scope: "app", skipping: []))
+  }
+
+  func testRemoveSkipsFilesAlreadyGoneAndReportsFailures() throws {
+    try vault.createChain()
+    let id = try vault.write(scope: "app", payload: Data("mine".utf8))
+    XCTAssertNoThrow(try vault.remove(scope: "app", ids: ["AAAAAAAAAAAAAAAAAAAAAAAAAA", id]))
+    XCTAssertTrue(try vault.read(scope: "app", skipping: []).present.isEmpty)
+    let kept = try vault.write(scope: "app", payload: Data("kept".utf8))
+    let scope = vault.scopeURL("app")
+    try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: scope.path)
+    defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scope.path) }
+    XCTAssertThrowsError(try vault.remove(scope: "app", ids: [kept])) { error in
+      XCTAssertEqual((error as? SyncVault.RemoveFailed)?.ids, [kept])
+    }
   }
 }
