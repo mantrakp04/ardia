@@ -240,3 +240,48 @@ test("Arc's layout keeps the address bar in a hidden sidebar (no toolbar on the 
   stub.docs.clear();
   reloadSwitches();
 });
+
+test("the dock is fullscreen, docked, peeking, hiding or away, and only a still, undocked sidebar watches the left edge", () => {
+  const st = (o) => dm.dockState({ open: false, fullscreen: false, moving: false, peekLive: false, ...o });
+  assert.equal(st({ fullscreen: true, open: true, peekLive: true }), "fullscreen");
+  assert.equal(st({ open: true, moving: true }), "docked");
+  assert.equal(st({ peekLive: true }), "peeking");
+  assert.equal(st({ peekLive: true, moving: true }), "peeking");
+  assert.equal(st({ moving: true }), "hiding");
+  assert.equal(st({}), "away");
+  assert.deepEqual(["fullscreen", "docked", "peeking", "hiding", "away"].map(dm.shownAs), ["fullscreen", "docked", "peek", "away", "away"]);
+  assert.equal(dm.watchesLeftEdge("away", false), true);
+  assert.equal(dm.watchesLeftEdge("peeking", false), true);
+  assert.equal(dm.watchesLeftEdge("peeking", true), false);
+  assert.equal(dm.watchesLeftEdge("hiding", true), false);
+  assert.equal(dm.watchesLeftEdge("docked", false), false);
+  assert.equal(dm.watchesLeftEdge("fullscreen", false), false);
+});
+
+test("the peek stays out within 24 pt of its right edge, the window's full height", () => {
+  const hold = dm.peekHoldWidth(240);
+  assert.equal(hold, 5 + 240 + 24);
+  assert.equal(dm.inPeekHold(hold - 1, 10, hold, 700), true);
+  assert.equal(dm.inPeekHold(hold, 10, hold, 700), false);
+  assert.equal(dm.inPeekHold(10, 699, hold, 700), true);
+  assert.equal(dm.inPeekHold(10, 700, hold, 700), false);
+  assert.equal(dm.inPeekHold(-1, 10, hold, 700), false);
+  assert.equal(dm.inPeekHold(10, 10, hold, Infinity), true, "before the hold zone has laid out");
+});
+
+test("the native left-edge watch spans the hold while peeking, the edge strip during a tab drag, nothing otherwise", () => {
+  assert.equal(dm.leftEdgeWatchWidth(true, true, 269), 269);
+  assert.equal(dm.leftEdgeWatchWidth(false, true, 269), 8);
+  assert.equal(dm.leftEdgeWatchWidth(false, false, 269), 0);
+});
+
+test("the dock jumps when it can't animate or Arc docks from an open peek, Arc hides on its ease-out, and otherwise springs", () => {
+  const mv = (o) => dm.dockMove({ open: true, animated: true, arc: false, peekOut: false, ...o });
+  assert.equal(mv({ animated: false }), "jump");
+  assert.equal(mv({ animated: false, open: false, arc: true }), "jump");
+  assert.equal(mv({ arc: true, peekOut: true }), "jump");
+  assert.equal(mv({ arc: true }), "spring");
+  assert.equal(mv({ arc: true, open: false, peekOut: true }), "arcHide");
+  assert.equal(mv({ open: false }), "spring");
+  assert.equal(mv({ peekOut: true }), "spring");
+});

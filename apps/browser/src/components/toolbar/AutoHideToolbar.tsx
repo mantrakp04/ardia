@@ -1,19 +1,18 @@
-import { breadcrumb } from "@ardia/core";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
+import { Animated, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import { useTheme } from "../ui/theme";
+import { pageHostLabel } from "../../lib/url";
 import { useSettings, useTab, useTabLive } from "../../state/browser/hooks";
 import { useBrowserWhile, useStoreWhile } from "../../state/tabs/tabWatch";
 import type { ToolbarGeometry } from "../window/geometry";
 import { toolbarPalette, useEasedColor } from "../ui/toolbarColors";
-import { useHistoryMenu } from "../../state/tabs/navigation";
-import { usePages } from "../../state/tabs/pageState";
-import { useExtensions } from "../../state/extensions/store";
-import { needsBar, revealToolbar, setToolbarPeek, STRIP_HEIGHT, toolbarMode, useToolbarAutoHide, type ToolbarMode } from "../../state/windows/toolbarAutoHide";
+import { useToolbarHeld } from "../../state/app/transientUi";
+import { revealToolbar, setToolbarPeek, STRIP_HEIGHT, toolbarMode, useToolbarAutoHide, type ToolbarMode } from "../../state/windows/toolbarAutoHide";
 import { Toolbar } from "./Toolbar";
 import { curve } from "../ui/motion";
-import { font, weight } from "../ui";
+import { font, reduceMotion, weight } from "../ui";
 import { TOOLBAR_MOTION } from "./tokens";
+import { motionStep, tallPage, type MotionValue, type TallPage } from "./toolbarMotion";
 import { useToolbarRow } from "./useToolbarRow";
 
 const HIDE_MS = TOOLBAR_MOTION.hide;
@@ -24,23 +23,13 @@ const PEEK_DELAY = 150;
 const UNPEEK_DELAY = 250;
 const SHRINK = 0.94;
 
-let reduceMotion = false;
-AccessibilityInfo.isReduceMotionEnabled().then(
-  (on) => (reduceMotion = on),
-  () => {},
-);
-AccessibilityInfo.addEventListener("reduceMotionChanged", (on) => (reduceMotion = on));
-
 export function useToolbarMode(tabId: string, windowId: string, enabled: boolean): ToolbarMode {
   const scrolledDown = useStoreWhile(useToolbarAutoHide, enabled, (s) => !!s.scrolledDown[tabId]);
   const down = enabled && scrolledDown;
   const peek = useStoreWhile(useToolbarAutoHide, down, (s) => !!s.peek[tabId]);
   const hasPage = useBrowserWhile(down, (s) => !!s.tabs[tabId]?.url);
-  const appNeedsBar = useBrowserWhile(down, (s) => down && needsBar(s, tabId, windowId));
-  const popover = useStoreWhile(usePages, down, (s) => down && !!s.popover[tabId]);
-  const historyMenu = useStoreWhile(useHistoryMenu, down, (m) => down && m.menu?.tabId === tabId);
-  const extensionPopup = useStoreWhile(useExtensions, down, (e) => down && e.popup?.windowId === windowId);
-  return toolbarMode({ enabled, hasPage, scrolledDown, peek, needsBar: appNeedsBar || popover || historyMenu || extensionPopup });
+  const held = useToolbarHeld(windowId, tabId, down);
+  return toolbarMode({ enabled, hasPage, scrolledDown, peek, needsBar: held });
 }
 
 type ToolbarMotion = {
@@ -65,13 +54,10 @@ export function useToolbarMotion({
   doc: string;
 }): ToolbarMotion {
   const collapsed = mode !== "shown";
-  const hidden = mode === "collapsed";
   const shownTop = useToolbarRow().height + extra;
   const room = shownTop - STRIP_HEIGHT;
-  const [tallState, setTall] = useState({ on: collapsed, doc });
-  let tall = tallState;
-  if (tall.doc !== doc || (!enabled && tall.on)) tall = { on: false, doc };
-  if (enabled && collapsed && !tall.on) tall = { on: true, doc };
+  const [tallState, setTall] = useState<TallPage>({ on: collapsed, doc });
+  const tall = tallPage(tallState, { enabled, collapsed, doc });
   if (tall !== tallState) setTall(tall);
   const latest = useRef({ collapsed, doc });
   latest.current = { collapsed, doc };
@@ -79,8 +65,8 @@ export function useToolbarMotion({
     if (!latest.current.collapsed) setTall({ on: false, doc: latest.current.doc });
   };
 
-  const values = useRef<{ page: Animated.Value; laid: Animated.Value; bar: Animated.Value; fade: Animated.Value }>(null as never);
-  const initial = useRef({ page: collapsed ? 1 : 0, bar: hidden ? 1 : 0 }).current;
+  const values = useRef<Record<MotionValue, Animated.Value>>(null as never);
+  const initial = useRef({ page: collapsed ? 1 : 0, bar: mode === "collapsed" ? 1 : 0 }).current;
   if (!values.current) {
     values.current = {
       page: new Animated.Value(initial.page),
@@ -98,34 +84,18 @@ export function useToolbarMotion({
     const keep = (a: Animated.Value, value: number) => Animated.timing(a, { toValue: value, duration: TOOLBAR_MOTION.settle, useNativeDriver: true });
     Animated.parallel([keep(v.page, initial.page), keep(v.laid, initial.page), keep(v.bar, initial.bar), keep(v.fade, initial.bar)]).start();
   }, []);
-  const was = useRef({ collapsed, hidden });
+  const was = useRef(mode);
   useLayoutEffect(() => {
-    const before = was.current;
-    was.current = { collapsed, hidden };
-    if (before.collapsed === collapsed && before.hidden === hidden) return;
-    const glide = (a: Animated.Value, value: number, show: boolean) =>
-      Animated.timing(a, { toValue: value, duration: show ? SHOW_MS : HIDE_MS, easing: show ? SHOW_EASING : HIDE_EASING, useNativeDriver: true });
-    if (before.collapsed !== collapsed) {
-      const to = collapsed ? 1 : 0;
-      const barTo = hidden ? 1 : 0;
-      v.laid.setValue(to);
-      if (reduceMotion) {
-        v.page.setValue(to);
-        v.bar.setValue(barTo);
-        glide(v.fade, barTo, !collapsed).start();
-        if (!collapsed) fitShownPage();
-      } else
-        Animated.parallel([glide(v.page, to, !collapsed), glide(v.bar, barTo, !collapsed), glide(v.fade, barTo, !collapsed)]).start(
-          ({ finished }) => finished && !collapsed && fitShownPage(),
-        );
-    } else if (!hidden) {
-      v.bar.setValue(0);
-      v.fade.setValue(0);
-    } else if (reduceMotion) {
-      v.bar.setValue(1);
-      glide(v.fade, 1, false).start();
-    } else Animated.parallel([glide(v.bar, 1, false), glide(v.fade, 1, false)]).start();
-  }, [collapsed, hidden]);
+    const step = motionStep(was.current, mode, reduceMotion() === true);
+    was.current = mode;
+    if (!step) return;
+    for (const [name, value] of Object.entries(step.set)) v[name as MotionValue].setValue(value);
+    const glides = Object.entries(step.glide).map(([name, value]) =>
+      Animated.timing(v[name as MotionValue], { toValue: value, duration: step.show ? SHOW_MS : HIDE_MS, easing: step.show ? SHOW_EASING : HIDE_EASING, useNativeDriver: true }),
+    );
+    if (glides.length) Animated.parallel(glides).start(({ finished }) => finished && step.fit === "afterGlide" && fitShownPage());
+    if (step.fit === "now") fitShownPage();
+  }, [mode]);
 
   return {
     bar: v.bar,
@@ -142,6 +112,12 @@ export function useToolbarMotion({
   };
 }
 
+function useMovedOnce(mode: ToolbarMode) {
+  const [moved, setMoved] = useState(mode !== "shown");
+  if (!moved && mode !== "shown") setMoved(true);
+  return moved;
+}
+
 export function AutoHideBackdrop({ tabId, mode, motion }: { tabId: string; mode: ToolbarMode; motion: Pick<ToolbarMotion, "bar"> }) {
   const theme = useTheme();
   const url = useTab(tabId, (t) => t?.url ?? "");
@@ -151,8 +127,7 @@ export function AutoHideBackdrop({ tabId, mode, motion }: { tabId: string; mode:
   const band = useEasedColor(palette.background);
   const { bar } = motion;
   const H = useToolbarRow().height;
-  const [moved, setMoved] = useState(mode !== "shown");
-  if (!moved && mode !== "shown") setMoved(true);
+  const moved = useMovedOnce(mode);
   const anim = useMemo(
     () =>
       moved && {
@@ -213,8 +188,7 @@ export function AutoHideToolbar({
 
   const { bar, fade } = motion;
   const H = useToolbarRow().height;
-  const [moved, setMoved] = useState(mode !== "shown");
-  if (!moved && mode !== "shown") setMoved(true);
+  const moved = useMovedOnce(mode);
   const anim = useMemo(
     () =>
       moved && {
@@ -227,7 +201,7 @@ export function AutoHideToolbar({
       },
     [moved, bar, fade, H],
   );
-  const host = url.startsWith("file:") ? "File" : breadcrumb(url).host;
+  const host = pageHostLabel(url);
 
   return (
     <View pointerEvents="box-none" style={{ position: "absolute", left: 0, right: 0, top: 0, height: H }}>

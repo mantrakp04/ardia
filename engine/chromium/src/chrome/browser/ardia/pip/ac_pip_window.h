@@ -4,7 +4,9 @@
 #define CHROME_BROWSER_ARDIA_PIP_AC_PIP_WINDOW_H_
 
 #include <memory>
+#include <vector>
 
+#include "base/callback_list.h"
 #include "base/memory/raw_ptr.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
@@ -43,10 +45,12 @@ class ArdiaVideoOverlayWindow : public VideoOverlayWindowViews {
   void HideIdleControlsUnlessPointerOnControl();
   void MaybeSaveBounds();
   void FinishHide();
+  void PresentNativeControls();
 
   raw_ptr<ArdiaProgressBar> ac_progress_bar_ = nullptr;
   base::TimeDelta ac_hide_fade_;
   base::OneShotTimer ac_hide_timer_;
+  std::vector<base::CallbackListSubscription> ac_button_state_subscriptions_;
 };
 
 std::unique_ptr<VideoOverlayWindowViews> NewArdiaVideoOverlayWindow(

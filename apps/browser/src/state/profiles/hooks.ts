@@ -2,6 +2,8 @@ import { useShallow } from "zustand/react/shallow";
 import { useBrowser } from "../browser/store";
 import { plural, profileFor } from "../browser/model";
 import type { Profile } from "../browser/types";
+import { bookmarkRoots } from "../bookmarks/bookmarks";
+import { historyOf } from "../history/history";
 import type { Settings } from "../settings/settings";
 import { useLookValue } from "../tabs/tabWatch";
 
@@ -28,11 +30,11 @@ export const useProfileLooks = <T>(pages: readonly { id: string }[], look: (prof
   useBrowser(useShallow((s) => pages.map((p) => look(s.profiles[p.id], s.ui.appDark, s.settings))));
 
 export const useCreateProfileShareDefault = (windowId: string | null): string =>
-  useBrowser((s) => (windowId && !s.windows[windowId]?.incognito ? s.windows[windowId]!.profileId : s.settings.defaultProfileId));
+  useBrowser((s) => (windowId && s.windows[windowId]?.kind !== "private" ? s.windows[windowId]!.profileId : s.settings.defaultProfileId));
 
 export const useProfileDataStats = (profileId: string): string =>
   useBrowser((s) => {
-    const roots = s.bookmarks.roots[profileId];
+    const roots = bookmarkRoots(s, profileId);
     let bookmarks = 0;
     const walk = (id: string) => {
       const n = s.bookmarks.nodes[id];
@@ -40,5 +42,5 @@ export const useProfileDataStats = (profileId: string): string =>
       if (n?.kind === "folder") n.children.forEach(walk);
     };
     if (roots) [roots.bar, roots.other].forEach(walk);
-    return `${plural((s.history[profileId] ?? []).length, "page")} in history · ${plural(bookmarks, "bookmark")}`;
+    return `${plural(historyOf(s, profileId).length, "page")} in history · ${plural(bookmarks, "bookmark")}`;
   });

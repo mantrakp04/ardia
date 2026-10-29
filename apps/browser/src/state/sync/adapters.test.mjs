@@ -1,15 +1,20 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 const { useBrowser } = await import("../browser/store.ts");
+const { bookmarkRoots } = await import("../bookmarks/bookmarks.ts");
+const { historyOf } = await import("../history/history.ts");
 const model = await import("../browser/model.ts");
 const { Clock, emptyScope, syncScope } = await import("@ardia/sync");
 const adapters = await import("./adapters.ts");
+const { useEditClock } = await import("./editClock.ts");
 const { settingsAdapter, settingsToReapply } = await import("./settingsAdapter.ts");
 const pinnedArea = await import("./pinned.ts");
 const { pinnedOrderAdapter } = await import("./pinnedOrderAdapter.ts");
 const { pinnedRowsAdapter } = await import("./pinnedRowsAdapter.ts");
 const stub = await import("../../test-native/index.ts");
-const ardiacore = await import("@ardia/ardiacore");
+const { loadSession } = await import("../session/persist.ts");
+const passwords = await import("../../platform/passwords.ts");
+const history = await import("../../platform/history.ts");
 
 const S = () => useBrowser.getState();
 
@@ -23,8 +28,8 @@ const sealedLogins = (read = stub.readLogins) => ({
   save: async (profile, origin, username, sealed, replacing) => {
     const [o, u, password] = JSON.parse(Buffer.from(sealed, "base64").toString());
     if (o !== origin || u !== username) return false;
-    if (replacing && !(await ardiacore.deletePassword(profile, origin, username))) return false;
-    return ardiacore.savePassword(profile, origin, username, password);
+    if (replacing && !(await passwords.deletePassword(profile, origin, username))) return false;
+    return passwords.savePassword(profile, origin, username, password);
   },
 });
 
@@ -57,14 +62,18 @@ class Device {
     this.legacy = legacy;
     this.settings = settings;
     S().hydrate({});
-    useBrowser.setState({ historyReady: { default: true }, bookmarksReady: { default: true } });
+    useBrowser.setState({ history: { "": { list: [], floor: -Infinity, ready: true } }, bookmarksReady: { "": true } });
     this.browser = S();
     this.scopes = { app: emptyScope(), p: emptyScope() };
     this.clock = new Clock(id);
     stub.passwordStores.set(id, new Map());
-    this.passwords = adapters.passwordsAdapter("default", () => true, sealedLogins());
+    this.passwords = adapters.passwordsAdapter("default", sealedLogins())(true);
+  }
+  loadSaved() {
+    this.with(() => (this.scopes.app.unapplied = [...new Set([...this.scopes.app.unapplied, ...settingsToReapply(this.scopes.app.records)])]));
   }
   with(fn) {
+    useEditClock(this.clock);
     stub.current.device = this.id;
     useBrowser.setState(this.browser, true);
     try {
@@ -74,6 +83,7 @@ class Device {
     }
   }
   async sync(profileId = "default", options = {}) {
+    useEditClock(this.clock);
     stub.current.device = this.id;
     useBrowser.setState(this.browser, true);
     const run = (scope, list, options) =>
@@ -87,7 +97,6 @@ class Device {
         options,
       });
     try {
-      if (!this.settings) this.scopes.app.unapplied = [...new Set([...this.scopes.app.unapplied, ...settingsToReapply(this.scopes.app.records)])];
       const app = await run("app", [this.settings ?? settingsAdapter]);
       const p = await run(
         profileId === "default" ? "p" : `p:${profileId}`,
@@ -115,7 +124,7 @@ async function syncAll(devices, rounds = 2) {
 function tree(device, profileId = "default") {
   return device.with(() => {
     const b = S().bookmarks;
-    const roots = b.roots[profileId];
+    const roots = bookmarkRoots(S(), profileId);
     const walk = (id) => {
       const n = b.nodes[id];
       return n.kind === "url" ? `${n.title}=${n.url}` : { [n.title]: n.children.map(walk) };
@@ -140,8 +149,9 @@ const OLD_SESSION = (() => {
 })();
 const relaunch = (device, settings) =>
   device.with(() => {
-    S().hydrate({ settings });
-    useBrowser.setState({ historyReady: { default: true }, bookmarksReady: { default: true } });
+    stub.docs.set("session.json", JSON.stringify({ version: 7, profiles: S().profiles, profileOrder: S().profileOrder, settings, windows: [], windowOrder: [], tabs: [], groups: [], splits: [] }));
+    S().hydrate(loadSession());
+    useBrowser.setState({ history: { "": { list: [], floor: -Infinity, ready: true } }, bookmarksReady: { "": true } });
   });
 
 test("settings: what a Mac only has by default isn't sent; nulls from another Mac are no say; Never and an explicit off apply", async () => {
@@ -272,6 +282,16 @@ test("settings: a setting from a newer version survives an older Mac's syncs (no
   assert.deepEqual(tombstones, [], "and never deletes it");
 });
 
+test("settings: a choice only a newer version knows isn't overwritten by an older Mac's own earlier pick", () => {
+  const a = new Device("A", new Folder());
+  a.with(() => S().updateSettings({ selectedTabGlow: "soft" }));
+  a.with(() => settingsAdapter.apply(new Map([["set:selectedTabGlow", { v: "medium" }]]), ["set:selectedTabGlow"]));
+  assert.equal(a.with(() => S().settings.selectedTabGlow), "soft", "this version can't show it, so it keeps its own");
+  const base = (key) => (key === "set:selectedTabGlow" ? { v: "medium" } : undefined);
+  const { values, ignore } = a.with(() => settingsAdapter.extract(base));
+  assert.ok(!values.has("set:selectedTabGlow") && ignore("set:selectedTabGlow"), "and doesn't publish over the newer Mac's choice");
+});
+
 test("bookmarks: a folder deleted on one Mac while the other adds to it keeps the new bookmark", async () => {
   const folder = new Folder();
   const a = new Device("devA", folder);
@@ -321,7 +341,7 @@ test("pinned tabs sync once however many windows show them; a closed window or a
   });
   b.with(() => S().createWindow({ url: "https://b-home.example/" }));
   await syncAll([a, b]);
-  const pins = (d) => d.with(() => Object.values(S().tabs).filter((t) => t.pinned).map((t) => t.pinnedUrl).sort());
+  const pins = (d) => d.with(() => Object.values(S().tabs).filter((t) => !!t.pin).map((t) => t.pinnedUrl).sort());
   assert.deepEqual(pins(a), ["https://cal.example/", "https://cal.example/", "https://mail.example/", "https://mail.example/"], "a copy in each of A's windows");
   assert.deepEqual(pins(b), ["https://cal.example/", "https://mail.example/"], "one each on B");
 
@@ -336,13 +356,13 @@ test("pinned tabs sync once however many windows show them; a closed window or a
     S().pinTabs([cal], false);
   });
   await syncAll([b, a]);
-  const tiles = (d, w) => d.with(() => model.viewTabIds(S(), w).filter((id) => S().tabs[id].pinned).map((id) => `${S().tabs[id].pinnedUrl} ${S().tabs[id].customTitle}`));
+  const tiles = (d, w) => d.with(() => model.viewTabIds(S(), w).filter((id) => !!S().tabs[id].pin).map((id) => `${S().tabs[id].pinnedUrl} ${S().tabs[id].customTitle}`));
   assert.deepEqual(tiles(a, aWork), ["https://mail.example/ Inbox"]);
   assert.equal((await a.sync()).published, 0, "settled");
 
   a.with(() => S().closeWindow(aWork));
   assert.equal(a.with(() => S().parkedPins.default.tabs.length), 1);
-  b.with(() => S().updateTab(Object.values(S().tabs).find((t) => t.pinned).id, { customTitle: "Mail" }));
+  b.with(() => S().updateTab(Object.values(S().tabs).find((t) => !!t.pin).id, { customTitle: "Mail" }));
   await syncAll([b, a]);
   const n = a.with(() => S().createWindow());
   await syncAll([a]);
@@ -355,9 +375,9 @@ test("pinned tabs sync once however many windows show them; a closed window or a
 
 const rowsOf = (d) =>
   d.with(() => {
-    const w = S().windowOrder.find((id) => !S().windows[id].incognito);
-    const ids = model.viewTabIds(S(), w).filter((id) => S().tabs[id].pinned);
-    const at = (row) => ids.filter((id) => !!S().tabs[id].pinnedAsRow === row).map((id) => `${S().tabs[id].pinnedUrl}${S().tabs[id].customTitle ? ` ${S().tabs[id].customTitle}` : ""}`);
+    const w = S().windowOrder.find((id) => S().windows[id].kind !== "private");
+    const ids = model.viewTabIds(S(), w).filter((id) => !!S().tabs[id].pin);
+    const at = (row) => ids.filter((id) => !!(S().tabs[id].pin?.as === "row") === row).map((id) => `${S().tabs[id].pinnedUrl}${S().tabs[id].customTitle ? ` ${S().tabs[id].customTitle}` : ""}`);
     return { tiles: at(false), rows: at(true) };
   });
 
@@ -472,7 +492,7 @@ test("a tab kept open after an unpin and pinned again as a row elsewhere comes b
   await later();
   a.with(() => S().pinTabs([tabAt("https://docs.example/")], false));
   await syncAll([a, b]);
-  assert.equal(b.with(() => S().tabs[tabAt("https://docs.example/")].pinned), false, "B keeps its open copy as a regular tab");
+  assert.equal(b.with(() => !!S().tabs[tabAt("https://docs.example/")].pin), false, "B keeps its open copy as a regular tab");
   await later();
   a.with(() => S().pinTabs([tabAt("https://docs.example/")], true, true));
   await syncAll([a, b, a, b]);
@@ -498,7 +518,7 @@ test("a mirrored row kept open after a local unpin is the tab another Mac's re-p
     const copy = S().windows[b2].tabIds.find((id) => S().tabs[id].pinnedUrl === "https://docs.example/");
     assert.ok(copy && S().tabs[copy].pinKey, "B's second window has its own copy of the row");
     S().activate(copy);
-    useBrowser.setState((s) => ({ tabs: { ...s.tabs, [copy]: { ...s.tabs[copy], navigation: { url: "https://docs.example/", seq: 1 } } } }));
+    useBrowser.setState((s) => ({ tabs: { ...s.tabs, [copy]: { ...s.tabs[copy], page: { kind: "loaded", nav: { url: "https://docs.example/", seq: 1 } } } } }));
     S().closeWindow(b1);
     S().pinTabs([copy], false);
   });
@@ -509,8 +529,8 @@ test("a mirrored row kept open after a local unpin is the tab another Mac's re-p
   await syncAll([a, b, a, b]);
   const docs = b.with(() => Object.values(S().tabs).filter((t) => t.url === "https://docs.example/" || t.pinnedUrl === "https://docs.example/"));
   assert.equal(docs.length, 1, "one tab for the page on B, not an unloaded row beside it");
-  assert.equal(docs[0].pinned && docs[0].pinnedAsRow, true, "and it is the row again");
-  assert.ok(docs[0].navigation, "with its page");
+  assert.equal(docs[0].pin?.as, "row", "and it is the row again");
+  assert.ok(docs[0].page.nav, "with its page");
 });
 
 for (const row of [true, false]) {
@@ -532,7 +552,7 @@ for (const row of [true, false]) {
       const b2 = S().createWindow({ url: "https://b-two.example/" });
       copy = S().windows[b2].tabIds.find((id) => S().tabs[id].pinnedUrl === "https://docs.example/");
       S().activate(copy);
-      useBrowser.setState((s) => ({ tabs: { ...s.tabs, [copy]: { ...s.tabs[copy], navigation: { url: "https://docs.example/", seq: 1 } } } }));
+      useBrowser.setState((s) => ({ tabs: { ...s.tabs, [copy]: { ...s.tabs[copy], page: { kind: "loaded", nav: { url: "https://docs.example/", seq: 1 } } } } }));
       S().closeWindow(b1);
       S().pinTabs([copy], false);
       const other = S().newTab(b2, { url: "https://mate.example/" });
@@ -544,14 +564,14 @@ for (const row of [true, false]) {
     await syncAll([a, b, a, b]);
     b.with(() => {
       const t = S().tabs[copy];
-      assert.equal(t.pinned, true, "B pins its open page again");
-      assert.equal(!!t.pinnedAsRow, row);
+      assert.equal(!!t.pin, true, "B pins its open page again");
+      assert.equal(!!(t.pin?.as === "row"), row);
       assert.ok(!Object.values(S().groups).some((g) => g.tabIds.includes(copy)), "and takes it out of its regular group");
       assert.deepEqual(S().groups[mates]?.tabIds.map((id) => S().tabs[id].url), ["https://mate.example/"], "which keeps its other tab");
     });
     b.with(() => S().closeGroup(mates));
     await syncAll([b, a, b]);
-    assert.equal(a.with(() => S().tabs[tabAt("https://docs.example/")]?.pinned), true, "closing that group on B leaves A's pin alone");
+    assert.equal(a.with(() => !!S().tabs[tabAt("https://docs.example/")]?.pin), true, "closing that group on B leaves A's pin alone");
   });
 }
 
@@ -574,7 +594,7 @@ for (const fresh of [false, true]) {
       S().placeTabs([z], { pinned: false, groupId: group });
     });
     b.with(() => S().moveGroup(Object.values(S().groups).find((g) => g.name === "Team").id, { pinned: false }));
-    const zPinned = (d) => d.with(() => Object.values(S().tabs).filter((t) => (t.url === "https://z.example/" || t.pinnedUrl === "https://z.example/") && t.pinned).length);
+    const zPinned = (d) => d.with(() => Object.values(S().tabs).filter((t) => (t.url === "https://z.example/" || t.pinnedUrl === "https://z.example/") && !!t.pin).length);
     await a.sync();
     await b.sync();
     assert.equal(zPinned(b), 1, "B, whose group is no longer pinned, keeps the page as a standalone pin at once");
@@ -583,7 +603,7 @@ for (const fresh of [false, true]) {
     await syncAll([a, b]);
     assert.equal(zPinned(b), 1, "B has the page as a pin");
     assert.equal(zPinned(a), 1, "and A keeps its pin");
-    assert.ok(b.with(() => !Object.values(S().groups).some((g) => g.tabIds.some((id) => S().tabs[id].pinned))), "out of B's regular group");
+    assert.ok(b.with(() => !Object.values(S().groups).some((g) => g.tabIds.some((id) => !!S().tabs[id].pin))), "out of B's regular group");
     assert.equal((await b.sync()).published + (await a.sync()).published, 0, "settled");
   });
 }
@@ -751,6 +771,61 @@ test("a tile choice whose batch never reached the disk survives a crash and stil
   assert.deepEqual(rowsOf(a), { tiles: ["https://docs.example/"], rows: [] });
 });
 
+test("a row choice that went out while quitting isn't sent again after the relaunch over a later tile choice elsewhere", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder);
+  const b = new Device("devB", folder);
+  a.with(() => {
+    const w = S().createWindow({ url: "https://home.example/" });
+    S().pinTabs([S().newTab(w, { url: "https://docs.example/" })], true);
+  });
+  b.with(() => S().createWindow({ url: "https://b-home.example/" }));
+  await syncAll([a, b]);
+  await later();
+  a.with(() => S().placeTabs([tabAt("https://docs.example/")], { pinned: true, row: true }));
+  const frozenSession = a.browser;
+  await a.sync();
+  assert.deepEqual(a.with(() => S().pinChoices), {}, "the choice settles once it's out");
+  await later();
+  await b.sync();
+  assert.deepEqual(rowsOf(b), { tiles: [], rows: ["https://docs.example/"] });
+  b.with(() => S().placeTabs([tabAt("https://docs.example/")], { pinned: true, row: false }));
+  await b.sync();
+  await later();
+  a.browser = frozenSession;
+  await syncAll([a, b, a, b]);
+  assert.deepEqual(rowsOf(a), { tiles: ["https://docs.example/"], rows: [] }, "B's later tile stands");
+  assert.deepEqual(rowsOf(b), { tiles: ["https://docs.example/"], rows: [] });
+});
+
+test("a tile picked again after a cancelled quit goes out over a row from a Mac whose clock runs a minute ahead", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder);
+  const b = new Device("devB", folder);
+  a.with(() => {
+    const w = S().createWindow({ url: "https://home.example/" });
+    const docs = S().newTab(w, { url: "https://docs.example/" });
+    S().pinTabs([docs], true, true);
+    S().placeTabs([docs], { pinned: true, row: false });
+  });
+  b.with(() => S().createWindow({ url: "https://b-home.example/" }));
+  await syncAll([a, b]);
+  b.clock = new Clock("devB", b.clock.last, () => Date.now() + 60_000);
+  b.with(() => S().placeTabs([tabAt("https://docs.example/")], { pinned: true, row: true }));
+  await b.sync();
+  await a.sync("default", { holdApply: () => true });
+  assert.deepEqual(rowsOf(a), { tiles: ["https://docs.example/"], rows: [] }, "the row waits, unapplied, while quitting");
+  await later();
+  a.with(() => {
+    S().placeTabs([tabAt("https://docs.example/")], { pinned: true, row: true });
+    S().placeTabs([tabAt("https://docs.example/")], { pinned: true, row: false });
+  });
+  assert.ok(Object.keys(a.with(() => S().pinChoices.default ?? {})).length > 0, "the tile is chosen again, as the base already says");
+  await syncAll([a, b, a, b]);
+  assert.deepEqual(rowsOf(a), { tiles: ["https://docs.example/"], rows: [] }, "the newer tile choice stands");
+  assert.deepEqual(rowsOf(b), { tiles: ["https://docs.example/"], rows: [] });
+});
+
 test("a tile choice whose journal write failed is sent once when the write is retried", async () => {
   const { folder, a, b } = await tileWithMarkOnBoth();
   await assert.rejects(b.sync("default", { persist: async () => { throw new Error("disk full"); } }));
@@ -779,16 +854,16 @@ const withWork = (d) =>
     useBrowser.setState((s) => ({
       profiles: { ...s.profiles, work: { id: "work", name: "Work", color: "blue", icon: null, createdAt: 1 } },
       profileOrder: [...s.profileOrder, "work"],
-      historyReady: { ...s.historyReady, work: true },
+      history: { ...s.history, work: { list: [], floor: -Infinity, ready: true } },
       bookmarksReady: { ...s.bookmarksReady, work: true },
     })),
   );
 const pinsIn = (d, profileId) =>
   d.with(() =>
     [
-      ...Object.values(S().tabs).filter((t) => t.pinned && t.profileId === profileId),
+      ...Object.values(S().tabs).filter((t) => !!t.pin && t.profileId === profileId),
       ...(S().parkedPins[profileId]?.tabs ?? []).filter((t) => !t.groupId),
-    ].map((t) => `${t.pinnedUrl}${t.pinnedAsRow ? " row" : ""}`).sort(),
+    ].map((t) => `${t.pinnedUrl}${(t.pin?.as === "row") ? " row" : ""}`).sort(),
   );
 
 test("a pin moved to another profile keeps its key there without touching the other profile's pin of the same key", async () => {
@@ -929,7 +1004,7 @@ const windowsWhole = (d) =>
       for (const id of w.tabIds) assert.equal(s.tabs[id]?.windowId, w.id, `${id} belongs to ${w.id}`);
       for (const [p, id] of Object.entries(w.activeTabIds)) assert.equal(s.tabs[id]?.windowId, w.id, `${w.id}'s active ${p} tab is in it`);
     }
-    for (const v of Object.values(s.splits)) for (const id of v.tabIds) assert.equal(s.tabs[id]?.windowId, v.windowId, `split ${v.id} keeps ${id} in its window`);
+    for (const v of Object.values(s.splits)) for (const id of splitTabIdsOf(v)) assert.equal(s.tabs[id]?.windowId, v.windowId, `split ${v.id} keeps ${id} in its window`);
     for (const g of Object.values(s.groups)) for (const id of g.tabIds) assert.equal(s.tabs[id]?.windowId, g.windowId, `group ${g.name} keeps ${id} in its window`);
   });
 
@@ -950,13 +1025,13 @@ for (const split of [false, true]) {
     b.with(() => {
       const bx = tabAt("https://x.example/");
       S().activate(bx);
-      useBrowser.setState((s) => ({ tabs: { ...s.tabs, [bx]: { ...s.tabs[bx], navigation: { url: "https://x.example/", seq: 1 } } } }));
+      useBrowser.setState((s) => ({ tabs: { ...s.tabs, [bx]: { ...s.tabs[bx], page: { kind: "loaded", nav: { url: "https://x.example/", seq: 1 } } } } }));
     });
     a.with(() => S().pinTabs([x], false));
     await syncAll([a, b]);
     b.with(() => {
       const bx = tabAt("https://x.example/");
-      assert.equal(S().tabs[bx].pinned, false, "B keeps its open page as a regular tab");
+      assert.equal(!!S().tabs[bx].pin, false, "B keeps its open page as a regular tab");
       const other = S().windows[b1].tabIds.find((id) => id !== bx);
       if (split) S().createSplit([bx, other]);
       else S().closeTab(other);
@@ -989,14 +1064,14 @@ test("a pinned group whose members are open in two windows of a Mac keeps both p
   await syncAll([a, b]);
   const open = (url) => {
     const id = tabAt(url);
-    useBrowser.setState((s) => ({ tabs: { ...s.tabs, [id]: { ...s.tabs[id], navigation: { url, seq: 1 } } } }));
+    useBrowser.setState((s) => ({ tabs: { ...s.tabs, [id]: { ...s.tabs[id], page: { kind: "loaded", nav: { url, seq: 1 } } } } }));
     return id;
   };
   b.with(() => {
     open("https://x.example/");
     b2 = S().createWindow({ url: "https://b-two.example/" });
     const yb2 = S().windows[b2].tabIds.find((id) => S().tabs[id].pinnedUrl === "https://y.example/");
-    useBrowser.setState((s) => ({ tabs: { ...s.tabs, [yb2]: { ...s.tabs[yb2], navigation: { url: "https://y.example/", seq: 1 } } } }));
+    useBrowser.setState((s) => ({ tabs: { ...s.tabs, [yb2]: { ...s.tabs[yb2], page: { kind: "loaded", nav: { url: "https://y.example/", seq: 1 } } } } }));
   });
   a.with(() => S().pinTabs([x, y], false));
   await syncAll([a, b]);
@@ -1011,7 +1086,7 @@ test("a pinned group whose members are open in two windows of a Mac keeps both p
   await syncAll([a, b]);
   assert.deepEqual(pinnedGroupMembers(a, "default", true), [["Team", ["https://x.example/", "https://y.example/"]]], "A keeps its order");
   windowsWhole(b);
-  const pages = b.with(() => Object.values(S().tabs).filter((t) => t.navigation).map((t) => `${t.url}@${t.windowId === b1 ? "b1" : t.windowId === b2 ? "b2" : "?"}`).sort());
+  const pages = b.with(() => Object.values(S().tabs).filter((t) => t.page.nav).map((t) => `${t.url}@${t.windowId === b1 ? "b1" : t.windowId === b2 ? "b2" : "?"}`).sort());
   assert.ok(pages.includes("https://x.example/@b1") && pages.includes("https://y.example/@b2"), JSON.stringify(pages));
   assert.ok(pinnedGroupMembers(b, "default").every(([name, urls]) => name === "Team" && urls.join() === "https://x.example/,https://y.example/"));
   assert.equal((await b.sync()).published + (await a.sync()).published + (await b.sync()).published, 0, "settled");
@@ -1022,8 +1097,8 @@ test("passwords: saved on one Mac, changed or deleted on another; the newer edit
   const folder = new Folder();
   const a = new Device("devA", folder);
   const b = new Device("devB", folder);
-  const save = (d, origin, user, password) => d.with(() => ardiacore.savePassword("", origin, user, password));
-  const remove = (d, origin, user) => d.with(() => ardiacore.deletePassword("", origin, user));
+  const save = (d, origin, user, password) => d.with(() => passwords.savePassword("", origin, user, password));
+  const remove = (d, origin, user) => d.with(() => passwords.deletePassword("", origin, user));
   const list = (d) => [...stub.passwordStores.get(d.id).values()].map((l) => `${l.url} ${l.username}=${l.password}`).sort();
   await save(a, "https://bank.example", "alice", "hunter2");
   await save(a, "https://mail.example", "alice", "m41l");
@@ -1039,6 +1114,55 @@ test("passwords: saved on one Mac, changed or deleted on another; the newer edit
   for (const d of [a, b]) assert.ok(!JSON.stringify(d.scopes.p).includes("correct horse"), "the sync state holds only sealed passwords");
 });
 
+test("passwords: a login whose read is still out when quitting begins isn't saved, and waits to be applied", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder);
+  const b = new Device("devB", folder);
+  await a.with(() => passwords.savePassword("", "https://bank.example", "alice", "hunter2"));
+  await a.sync();
+  let quitting = false;
+  let armed = false;
+  const inner = adapters.passwordsAdapter(
+    "default",
+    sealedLogins(async () => {
+      if (armed) quitting = true;
+      return stub.readLogins();
+    }),
+  )(true);
+  b.passwords = { ...inner, apply: (...args) => ((armed = true), inner.apply(...args)) };
+  await b.sync("default", { holdApply: () => quitting });
+  assert.deepEqual([...stub.passwordStores.get("devB").values()], [], "nothing is saved once quitting has begun");
+  assert.ok(b.scopes.p.unapplied.some((k) => k.startsWith("pws:")), "and the login waits");
+  armed = false;
+  quitting = false;
+  await b.sync();
+  assert.equal(stub.passwordStores.get("devB").size, 1, "after a cancelled quit it's saved");
+});
+
+test("passwords: a remote change saved in Chrome as quitting begins isn't sent back as this Mac's edit after the relaunch", async () => {
+  const folder = new Folder();
+  const a = new Device("devA", folder);
+  const b = new Device("devB", folder);
+  const save = (d, password) => d.with(() => passwords.savePassword("", "https://bank.example", "alice", password));
+  const list = (d) => [...stub.passwordStores.get(d.id).values()].map((l) => `${l.username}=${l.password}`);
+  await save(a, "one");
+  await syncAll([a, b]);
+  await save(a, "two");
+  await a.sync();
+  let quitting = false;
+  const logins = sealedLogins();
+  b.passwords = adapters.passwordsAdapter("default", { ...logins, save: async (...args) => ((quitting = true), logins.save(...args)) })(true);
+  await b.sync("default", { holdApply: () => quitting });
+  assert.deepEqual(list(b), ["alice=two"], "Chrome has the change");
+  await later();
+  await save(a, "three");
+  await a.sync();
+  b.passwords = adapters.passwordsAdapter("default", sealedLogins())(true);
+  await syncAll([b, a, b, a]);
+  assert.deepEqual(list(a), ["alice=three"], "the newer edit from A stands");
+  assert.deepEqual(list(b), ["alice=three"]);
+});
+
 test("history: two Macs settle on the union of their visits in Chrome, publish nothing more, and deletions reach Chrome", async () => {
   const folder = new Folder();
   const a = new Device("devA", folder);
@@ -1046,11 +1170,10 @@ test("history: two Macs settle on the union of their visits in Chrome, publish n
   for (const d of [a, b]) stub.historyDbs.delete(d.id);
   const readChrome = async (d) => {
     stub.current.device = d.id;
-    const entries = await ardiacore.queryHistory("");
+    const entries = await history.queryHistory("");
     d.with(() =>
       useBrowser.setState({
-        history: { default: entries.map((e) => ({ ...e, favicon: null, lastVisit: e.visitTimes.at(-1) })) },
-        historyReady: { default: true },
+        history: { "": { list: entries.map((e) => ({ ...e, favicon: null, lastVisit: e.visitTimes.at(-1) })), floor: -Infinity, ready: true } },
       }),
     );
   };
@@ -1093,25 +1216,26 @@ test("bookmarks: a Mac on old ids and one on Chrome's UUIDs keep one tree", asyn
   const old = new Device("devOld", folder);
   const now = new Device("devNew", folder);
   old.with(() => {
-    const roots = { bar: "bm-bar", other: "bm-other" };
     const n = (id, parentId, x) => ({ id, parentId, addedAt: 5, ...x });
-    S().hydrate({
+    useBrowser.setState({
       bookmarks: {
-        roots: { default: roots },
         nodes: {
-          "bm-bar": n("bm-bar", null, { kind: "folder", title: "Bookmarks Bar", children: ["bm-f"] }),
-          "bm-other": n("bm-other", null, { kind: "folder", title: "Other Bookmarks", children: [] }),
-          "bm-f": n("bm-f", "bm-bar", { kind: "folder", title: "F", children: ["bm-a", "bm-b"] }),
+          "bar@default": n("bar@default", null, { kind: "folder", title: "Bookmarks Bar", children: ["bm-f"] }),
+          "other@default": n("other@default", null, { kind: "folder", title: "Other Bookmarks", children: [] }),
+          "bm-f": n("bm-f", "bar@default", { kind: "folder", title: "F", children: ["bm-a", "bm-b"] }),
           "bm-a": n("bm-a", "bm-f", { kind: "url", title: "A", url: "https://a.example/", favicon: null }),
           "bm-b": n("bm-b", "bm-f", { kind: "url", title: "B", url: "https://b.example/", favicon: null }),
         },
       },
     });
+    S().hydrate({});
+    useBrowser.setState({ bookmarksReady: { "": true } });
   });
   await old.sync();
   now.with(() => {
-    S().hydrate({ bookmarks: { nodes: {}, roots: {} } });
-    useBrowser.setState({ bookmarksReady: { default: true } });
+    useBrowser.setState({ bookmarks: { nodes: {} } });
+    S().hydrate({});
+    useBrowser.setState({ bookmarksReady: { "": true } });
     const f = S().addBookmarkFolder({ profileId: "default", title: "F" });
     const a = S().addBookmark({ profileId: "default", url: "https://a.example/", title: "A", parentId: f });
     const b = S().addBookmark({ profileId: "default", url: "https://b.example/", title: "B", parentId: f });
@@ -1127,7 +1251,7 @@ test("bookmarks: a Mac on old ids and one on Chrome's UUIDs keep one tree", asyn
     const uf = bookmarkUuidFor("bm-f");
     nodes[uf] = { ...nodes[uf], children: [bookmarkUuidFor("bm-a"), bookmarkUuidFor("bm-b")] };
     for (const id of [bookmarkUuidFor("bm-a"), bookmarkUuidFor("bm-b")]) nodes[id] = { ...nodes[id], parentId: uf };
-    const bar = S().bookmarks.roots.default.bar;
+    const bar = bookmarkRoots(S(), "default").bar;
     nodes[bar] = { ...nodes[bar], children: [uf] };
     useBrowser.setState({ bookmarks: { ...S().bookmarks, nodes } });
   });
@@ -1160,7 +1284,7 @@ const pinnedAreaOf = (d, w) =>
     const win = w ?? Object.values(s.windows).find((x) => x.profileId === "default").id;
     return model.viewTabIds(s, win).filter((id) => model.inPinnedContainer(s, id)).map((id) => {
       const t = s.tabs[id];
-      if (t.pinned) return `${t.pinnedAsRow ? "row" : "tile"}:${pinHost(id)}`;
+      if (!!t.pin) return `${(t.pin?.as === "row") ? "row" : "tile"}:${pinHost(id)}`;
       const g = Object.values(s.groups).filter((x) => x.tabIds.includes(id)).sort((a, z) => depth(z) - depth(a))[0];
       return `${path(g)}:${pinHost(id)}`;
     });
@@ -1468,7 +1592,7 @@ const moveGroupAbove = (d, rowUrl) =>
   d.with(() => {
     const s = S();
     const g = Object.values(s.groups).find((x) => x.name === "Group" && x.pinned);
-    const row = Object.values(s.tabs).find((t) => t.pinned && t.pinnedUrl === rowUrl);
+    const row = Object.values(s.tabs).find((t) => !!t.pin && t.pinnedUrl === rowUrl);
     s.moveGroup(g.id, { pinned: true, beforeId: row.id });
   });
 const moveGroupToEnd = (d) =>
@@ -1592,7 +1716,7 @@ async function freshDelayed({ bFirst = false } = {}) {
   const known = new Set(folder.files.keys());
   a.with(() => {
     const fresh = S().newTab(w, { url: "https://fresh.example/", background: true });
-    const row = Object.values(S().tabs).find((t) => t.pinnedAsRow && t.pinnedUrl === "https://row.example/");
+    const row = Object.values(S().tabs).find((t) => (t.pin?.as === "row") && t.pinnedUrl === "https://row.example/");
     S().placeTabs([fresh], { pinned: true, row: true, beforeId: row.id });
   });
   await a.sync();
@@ -1894,12 +2018,11 @@ test("a bookmark made while another adapter is still reading survives that sync"
   let reads = 0;
   b.passwords = adapters.passwordsAdapter(
     "default",
-    () => true,
     sealedLogins(async () => {
       if (++reads === 2) S().addBookmark({ profileId: "default", url: "https://second.example/", title: "Made during the sync" });
       return stub.readLogins();
     }),
-  );
+  )(true);
   await b.sync();
   assert.equal(reads >= 2, true, "the password read ran after the bookmarks' catch-up");
   const has = (d) => d.with(() => Object.values(S().bookmarks.nodes).some((n) => n.kind === "url" && n.url === "https://second.example/"));
@@ -1922,11 +2045,11 @@ test("a pin unpinned and pinned again while its deletion is being pulled stays p
   await syncAll([a, b], 3);
   a.with(() => S().pinTabs([Object.values(S().tabs).find((t) => t.pinnedUrl === "https://x.example/").id], false));
   await a.sync();
-  assert.ok(a.with(() => !Object.values(S().tabs).some((t) => t.pinned && t.pinnedUrl === "https://x.example/")));
+  assert.ok(a.with(() => !Object.values(S().tabs).some((t) => !!t.pin && t.pinnedUrl === "https://x.example/")));
   folder.onRead = () => {
     if (stub.current.device !== "devB") return;
     folder.onRead = undefined;
-    const x = Object.values(S().tabs).find((t) => t.pinned && t.pinnedUrl === "https://x.example/").id;
+    const x = Object.values(S().tabs).find((t) => !!t.pin && t.pinnedUrl === "https://x.example/").id;
     S().placeTabs([x], { pinned: false, beforeId: null });
     S().placeTabs([x], { pinned: true, row: true, beforeId: null });
   };
@@ -1971,10 +2094,113 @@ test("settings received while this Mac ran a version that didn't sync them take 
   assert.ok("set:selectedTabGlow" in b.scopes.app.base && !b.scopes.app.unapplied.includes("set:selectedTabGlow"), "and counts it as applied");
 
   b.settings = undefined;
+  b.loadSaved();
   await syncAll([b, a]);
   assert.equal(b.with(() => S().settings.selectedTabGlow), "off", "the synced value takes effect after the upgrade");
-  assert.ok(!b.with(() => S().settings.chosen?.includes("selectedTabGlow")), "as a synced value, not a choice made here");
+  assert.ok(!b.with(() => S().settingsMeta.chosen.includes("selectedTabGlow")), "as a synced value, not a choice made here");
   assert.equal(b.with(() => S().settings.pageScrollBars), "system", "a value chosen here stays");
   assert.equal(a.with(() => S().settings.pageScrollBars), "system", "and goes out as the newer edit");
   assert.equal((await b.sync()).published, 0, "settled");
+});
+
+const nightlyFour = await import("./fixtures/profileData-v0.2.43-nightly.4.ts");
+const { splitTabIdsOf } = await import("../splits/splits.ts");
+
+class NightlyFourMac extends Device {
+  constructor(id, folder) {
+    super(id, folder);
+    const root = (rootId, title) => ({ kind: "folder", id: rootId, parentId: null, title, children: [], addedAt: 0 });
+    this.browser = {
+      ...this.browser,
+      bookmarks: { nodes: { "bar@default": root("bar@default", "Bookmarks Bar"), "other@default": root("other@default", "Other Bookmarks") }, roots: { default: { bar: "bar@default", other: "other@default" } } },
+      bookmarksReady: { default: true },
+      history: { default: [] },
+      historyReady: { default: true },
+      historyFloor: {},
+    };
+  }
+  async sync() {
+    stub.current.device = this.id;
+    useBrowser.setState(this.browser, true);
+    try {
+      return await syncScope({
+        scope: "p",
+        state: this.scopes.p,
+        transport: this.folder.transport(),
+        adapters: [nightlyFour.bookmarksAdapter("default"), nightlyFour.historyAdapter("default")],
+        clock: this.clock,
+        device: this.id,
+        options: { expired: nightlyFour.historyExpired },
+      });
+    } finally {
+      this.browser = S();
+    }
+  }
+}
+
+const nightlyFourHistory = (d) => d.with(() => S().history.default.map((h) => h.url).sort());
+const todaysHistory = (d) => d.with(() => historyOf(S(), "default").map((h) => h.url).sort());
+
+test("bookmarks and history: a Mac on v0.2.43-nightly.4 and one on today's build trade adds, edits and deletes both ways", async () => {
+  const folder = new Folder();
+  const today = new Device("devToday", folder);
+  const old = new NightlyFourMac("devFour", folder);
+  for (const d of [today, old]) stub.historyDbs.delete(d.id);
+  today.with(() => useBrowser.setState({ bookmarks: { nodes: {} } }));
+  const t = Date.now() - 3_600_000;
+  const x = today.with(() => S().addBookmark({ profileId: "default", url: "https://x.example/", title: "X" }));
+  today.with(() => S().importHistory("default", [{ url: "https://h1.example/", title: "H1", visits: 1, lastVisit: t }]));
+  await syncAll([today, old]);
+  assert.deepEqual(tree(old), { bar: { "Bookmarks Bar": ["X=https://x.example/"] }, other: { "Other Bookmarks": [] } });
+  assert.deepEqual(nightlyFourHistory(old), ["https://h1.example/"]);
+
+  old.with(() =>
+    useBrowser.setState((s) => ({
+      bookmarks: { ...s.bookmarks, nodes: { ...s.bookmarks.nodes, [x]: { ...s.bookmarks.nodes[x], title: "X2" } } },
+      history: { default: [{ url: "https://h2.example/", title: "H2", favicon: null, visits: 1, lastVisit: t + 1000, visitTimes: [t + 1000] }] },
+    })),
+  );
+  await syncAll([old, today]);
+  assert.deepEqual(tree(today), { bar: { "Bookmarks Bar": ["X2=https://x.example/"] }, other: { "Other Bookmarks": [] } }, "the old Mac's rename arrives");
+  assert.deepEqual(todaysHistory(today), ["https://h2.example/"], "the old Mac's delete and new visit arrive");
+
+  today.with(() => {
+    S().removeBookmark(x);
+    S().addBookmark({ profileId: "default", url: "https://y.example/", title: "Y", parentId: bookmarkRoots(S(), "default").other });
+    S().removeHistory("default", ["https://h2.example/"]);
+  });
+  await syncAll([today, old]);
+  assert.deepEqual(tree(old), { bar: { "Bookmarks Bar": [] }, other: { "Other Bookmarks": ["Y=https://y.example/"] } }, "today's delete and add arrive");
+  assert.deepEqual(nightlyFourHistory(old), [], "today's history delete arrives");
+  assert.equal((await today.sync()).published + (await old.sync()).published, 0, "settled");
+});
+
+test("profiles that share data: records applied through the owner land once in the shared engine, and edits through the sharer go out through the owner", async () => {
+  useBrowser.setState({ bookmarks: { nodes: {} } });
+  S().hydrate({});
+  stub.historyDbs.clear();
+  const a = S().createProfile({ name: "A" });
+  const b = S().createProfile({ name: "B", shareWith: a });
+  useBrowser.setState((s) => ({ history: { ...s.history, [a]: { list: [], floor: -Infinity, ready: true } }, bookmarksReady: { ...s.bookmarksReady, [a]: true } }));
+  const t = Date.now() - 3_600_000;
+  const known = { known: () => true, now: Date.now(), horizon: 0, joined: true };
+  const visits = new Map([["h:https://in.example/", { t: "In", n: 1, vt: [t] }]]);
+  await adapters.historyAdapter(a).apply(visits, new Set(visits.keys()), () => undefined, known);
+  const marks = new Map([["bm:in-key", { k: "u", p: "bar", t: "In", u: "https://in.example/", a: t, pos: "a" }]]);
+  adapters.bookmarksAdapter(a).apply(marks, new Set(marks.keys()), () => undefined, known);
+
+  assert.deepEqual(historyOf(S(), b).map((h) => h.url), ["https://in.example/"], "B sees what came in for A");
+  assert.equal(historyOf(S(), a), historyOf(S(), b));
+  assert.deepEqual(stub.chromeHistory(a).get("https://in.example/")?.visits, [t], "one visit, in A's engine");
+  assert.equal(stub.chromeHistory(b).size, 0, "nothing in an engine of B's own");
+  const inBar = (url) => Object.values(S().bookmarks.nodes).filter((n) => n.kind === "url" && n.url === url);
+  assert.equal(inBar("https://in.example/").length, 1, "one bookmark node");
+  assert.equal(inBar("https://in.example/")[0].parentId, bookmarkRoots(S(), b).bar, "under the shared bar");
+
+  S().importHistory(b, [{ url: "https://out.example/", title: "Out", visits: 1, lastVisit: t + 1000 }]);
+  S().addBookmark({ profileId: b, url: "https://out.example/", title: "Out" });
+  const history = adapters.historyAdapter(a).extract(() => undefined, [], Date.now(), () => false);
+  const bookmarks = adapters.bookmarksAdapter(a).extract(() => undefined, [], Date.now(), () => false);
+  assert.deepEqual([...history.values.keys()].sort(), ["h:https://in.example/", "h:https://out.example/"]);
+  assert.deepEqual([...bookmarks.values.values()].map((v) => v.u).sort(), ["https://in.example/", "https://out.example/"]);
 });

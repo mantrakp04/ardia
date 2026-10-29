@@ -40,10 +40,10 @@ class ProfilePager {
       const w = s.windows[windowId];
       if (!w) return this.dispose();
       const was = prev.windows[windowId];
-      if (w.profileId !== was?.profileId || w.incognito !== was?.incognito || s.profileOrder !== prev.profileOrder) {
+      if (w.profileId !== was?.profileId || (w.kind === "private") !== (was?.kind === "private") || s.profileOrder !== prev.profileOrder) {
         this.state.setState({ pages: this.warmPages() });
       }
-      if (!this.switching && !w.incognito && w.profileId !== was?.profileId) this.selectExternal(w.profileId, s.profileOrder);
+      if (!this.switching && w.kind !== "private" && w.profileId !== was?.profileId) this.selectExternal(w.profileId, s.profileOrder);
     });
   }
 
@@ -67,7 +67,7 @@ class ProfilePager {
       this.external = 0;
       if (ok) this.commitNative(pagerState(this.windowId));
     };
-    selectPager(this.windowId, profileId, order.join("\n")).then(done, () => done(false));
+    selectPager(this.windowId, profileId, order).then(done, () => done(false));
   }
 
   private commitNative(snapshot: Pick<PagerStateEvent, "sequence" | "selected" | "profileId"> | null, event?: PagerStateEvent) {
@@ -77,7 +77,7 @@ class ProfilePager {
     const w = s.windows[this.windowId];
     const id = snapshot.profileId !== undefined ? snapshot.profileId : s.profileOrder[snapshot.selected];
     unstable_batchedUpdates(() => {
-      if (w && !w.incognito && id && s.profiles[id] && id !== w.profileId) {
+      if (w && w.kind !== "private" && id && s.profiles[id] && id !== w.profileId) {
         this.switching = true;
         try {
           s.switchProfile(this.windowId, id);
@@ -125,7 +125,7 @@ class ProfilePager {
 
   step(delta: -1 | 1) {
     if (!this.current()) return;
-    void stepPager(this.windowId, delta, false, useBrowser.getState().profileOrder.join("\n")).then((ok) => {
+    void stepPager(this.windowId, delta, false, useBrowser.getState().profileOrder).then((ok) => {
       if (ok) return;
       const next = useBrowser.getState().profileOrder[this.index() + delta];
       if (this.index() >= 0 && next) useBrowser.getState().switchProfile(this.windowId, next);
@@ -137,14 +137,14 @@ class ProfilePager {
     const index = s.profileOrder.indexOf(profileId);
     if (!s.profiles[profileId] || !this.current() || index < 0) return;
     if (!this.active) return s.switchProfile(this.windowId, profileId);
-    void switchPager(this.windowId, index, s.profileOrder.join("\n")).then((ok) => {
+    void switchPager(this.windowId, index, s.profileOrder).then((ok) => {
       if (!ok) useBrowser.getState().switchProfile(this.windowId, profileId);
     });
   }
 
   private current() {
     const w = useBrowser.getState().windows[this.windowId];
-    return w && !w.incognito ? w.profileId : null;
+    return w && w.kind !== "private" ? w.profileId : null;
   }
 
   private dispose() {
@@ -178,7 +178,7 @@ export function usePagerSurface(windowId: string) {
 export function usePagerPages(windowId: string): { pages: PagerPage[]; paging: boolean; pager: ProfilePager } {
   const pager = pagerFor(windowId);
   const current = useBrowser((s) => s.windows[windowId]?.profileId ?? null);
-  const incognito = useBrowser((s) => !!s.windows[windowId]?.incognito);
+  const incognito = useBrowser((s) => s.windows[windowId]?.kind === "private");
   const order = useBrowser((s) => s.profileOrder);
   const all = !incognito && !!current && order.includes(current);
   const everyPage = useMemo(() => order.map((id, slot) => ({ id, slot })), [order]);
@@ -192,8 +192,8 @@ export function usePagerNativeConfig(windowId: string, width?: number): NativePa
   const [selected, count, order] = useBrowser(
     useShallow((s) => {
       const w = s.windows[windowId];
-      const i = w && !w.incognito ? s.profileOrder.indexOf(w.profileId) : -1;
-      return [i, s.profileOrder.length, s.profileOrder.join("\n")] as const;
+      const i = w && w.kind !== "private" ? s.profileOrder.indexOf(w.profileId) : -1;
+      return [i, s.profileOrder.length, s.profileOrder] as const;
     }),
   );
   return useMemo(

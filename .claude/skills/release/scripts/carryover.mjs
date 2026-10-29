@@ -2,7 +2,7 @@ import { execFileSync, execSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { launch, listenerPids, sleep } from "../../../../scripts/lib/instance.mjs";
+import { UBO_ID, launch, listenerPids, sleep } from "../../../../scripts/lib/instance.mjs";
 
 const [phase, app, home, port, origin, extra, out] = process.argv.slice(2);
 const here = path.dirname(new URL(import.meta.url).pathname);
@@ -64,16 +64,15 @@ async function inPage(urlPart, expression) {
   }
   return `(no page ${urlPart})`;
 }
-const UBO = "fajbdaomknpkicfjcpipdmcpoamdmilh";
 const window = `Object.keys(ac.store.getState().windows)[0]`;
 async function inUbo(body) {
   const expression = `(async () => { const send = (m) => vAPI.messaging.send("dashboard", m); ${body} })()`;
-  const url = `chrome-extension://${UBO}/1p-filters.html`;
+  const url = `chrome-extension://${UBO_ID}/1p-filters.html`;
   const tab = await inApp(`const s = ac.store.getState(), w = ${window}; ac.actions.switchProfile(w, "default"); const id = s.newTab(w, { url: ${JSON.stringify(url)}, profileId: "default" }); ac.actions.switchToTab(id); return id;`);
   try {
     for (let i = 0; i < 20; i++) {
       await sleep(1500);
-      const page = await instance.page(`${UBO}/1p-filters.html`, { timeout: 0 }).catch(() => null);
+      const page = await instance.page(`${UBO_ID}/1p-filters.html`, { timeout: 0 }).catch(() => null);
       const v = page ? await page.send("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true }, { timeout: 20_000 }).then((r) => r?.result?.value, () => undefined) : undefined;
       page?.close();
       if (v !== undefined) return v;

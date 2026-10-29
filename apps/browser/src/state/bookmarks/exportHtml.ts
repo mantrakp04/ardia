@@ -3,14 +3,14 @@ import { revealFile } from "../../platform/files";
 import { engineProfile, resolveWindowId } from "../browser/model";
 import { useBrowser } from "../browser/store";
 import { profileOfWindow } from "./bookmarkGroups";
+import { showToast } from "../app/toasts";
 
 const fileName = (path: string) => path.split("/").pop() ?? path;
 
-export const exportBookmarks = (profileId: string): Promise<string | null> => exportBookmarksHtml(engineProfile(profileId));
+export const exportBookmarks = (profileId: string): Promise<string | null> => exportBookmarksHtml(engineProfile(useBrowser.getState(), profileId));
 
 export async function exportBookmarksFromWindow(windowId: string | null | undefined) {
   const target = resolveWindowId(useBrowser.getState(), windowId) ?? null;
-  const { showToast } = require("../splits/actions") as typeof import("../splits/actions");
   try {
     const path = await exportBookmarks(profileOfWindow(target));
     if (path && target) showToast(target, "Bookmarks exported", fileName(path), { icon: "book", action: { title: "Show in Finder", run: () => void revealFile(path) } });

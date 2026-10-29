@@ -3,17 +3,10 @@ import { forwardRef, type Ref } from "react";
 import type { View, ViewProps } from "react-native";
 import { nativeModule } from "./nativeModules";
 
-export type MenuShortcut = {
-  id: string;
-  title: string;
-  path: string[];
-  key: string;
-  modifiers: ShortcutModifier[];
-  defaultKey: string;
-  defaultModifiers: ShortcutModifier[];
-  remappable: boolean;
-  aliases?: string[][];
-};
+export type MenuShortcut = { id: string; title: string; path: string[] } & (
+  | { remappable: true }
+  | { remappable: false; key: string; modifiers: ShortcutModifier[] }
+);
 
 export type ShortcutModifier = "control" | "option" | "shift" | "command" | "function";
 
@@ -30,11 +23,8 @@ export type SystemNative = {
   revealFile(path: string): Promise<boolean>;
   moveToTrash(path: string): Promise<boolean>;
   fileIcon(path: string, size: number): Promise<string | null>;
-  appIcon(pid: number, size: number): Promise<string | null>;
+  runningAppIcon(pid: number, size: number): Promise<string | null>;
   hapticTick(): void;
-  menuShortcuts(): Promise<MenuShortcut[]>;
-  recordShortcut(): Promise<{ key: string; modifiers: ShortcutModifier[] } | null>;
-  cancelRecording(): Promise<void>;
   setThinScrollBars(thin: boolean): Promise<void>;
 };
 
@@ -51,11 +41,8 @@ export const openFile = (path: string) => System.openFile(path);
 export const revealFile = (path: string) => System.revealFile(path);
 export const moveToTrash = (path: string) => System.moveToTrash(path);
 export const fileIcon = (path: string, size = 32) => System.fileIcon(path, size);
-export const runningAppIcon = (pid: number, size = 32) => System.appIcon(pid, size);
+export const runningAppIcon = (pid: number, size = 32) => System.runningAppIcon(pid, size);
 export const hapticTick = () => System.hapticTick();
-export const menuShortcuts = () => System.menuShortcuts();
-export const recordShortcut = () => System.recordShortcut();
-export const cancelShortcutRecording = () => System.cancelRecording();
 export const setThinScrollBars = (thin: boolean) => System.setThinScrollBars(thin);
 
 export type MiddleClickEvent = { shiftKey: boolean; altKey: boolean; metaKey: boolean };

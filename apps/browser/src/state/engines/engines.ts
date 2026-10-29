@@ -1,6 +1,9 @@
 import type { PageEngine } from "../../platform/tabs";
 import type { BrowserState } from "../browser/store";
 import type { Tab } from "../browser/types";
+import { isWebPageUrl } from "../../lib/url";
+import { adoptKind } from "../tabs/adoptIds";
+import { adoptOf, navigationOf } from "../tabs/pageSession";
 
 export type { PageEngine } from "../../platform/tabs";
 
@@ -21,7 +24,7 @@ export function siteOf(url: string | undefined | null): string | null {
   }
 }
 
-export const canSwitchEngine = (url: string | undefined | null) => !!url && /^(https?|file):/i.test(url);
+export const canSwitchEngine = (url: string | undefined | null) => !!url && isWebPageUrl(url);
 export const chromiumOnly = (url: string | undefined | null) => !!url && /^(ardia|chrome|chrome-extension|chrome-untrusted|devtools|view-source):/i.test(url);
 
 export const defaultEngine = (s: Pick<BrowserState, "settings">): PageEngine => (s.settings.pageEngine === "webkit" ? "webkit" : "chromium");
@@ -66,25 +69,22 @@ export const recommendedEngineFor = (s: Pick<BrowserState, "settings">, url: str
 export const engineForUrl = (s: Pick<BrowserState, "settings">, url: string | undefined | null): PageEngine => chosenEngine(s, url) ?? defaultEngine(s);
 
 const fromAdoption = (s: EngineState, t: Tab, depth: number): PageEngine | undefined => {
-  const id = t.adoptId;
-  if (!id) return undefined;
-  if (id.startsWith("webkit:")) return "webkit";
-  if (id.startsWith("ardiacore:") || id.startsWith("tab:")) return "chromium";
-  if (id.startsWith("clone:")) {
-    const source = s.tabs[id.slice("clone:".length)];
-    return source && depth < 8 ? engineOf(s, source, depth + 1) : undefined;
-  }
-  return undefined;
+  const id = adoptKind(adoptOf(t));
+  if (id?.kind === "webkit") return "webkit";
+  if (id?.kind === "ardiacore" || id?.kind === "tab") return "chromium";
+  if (id?.kind !== "clone") return undefined;
+  const source = s.tabs[id.key];
+  return source && depth < 8 ? engineOf(s, source, depth + 1) : undefined;
 };
 
 function engineOf(s: EngineState, t: Tab, depth: number): PageEngine {
-  if (chromiumOnly(t.navigation?.url ?? t.url)) return "chromium";
+  if (chromiumOnly(navigationOf(t)?.url ?? t.url)) return "chromium";
   if (t.engine) return t.engine;
   const adopted = fromAdoption(s, t, depth);
   if (adopted) return adopted;
   const opener = t.openerId ? s.tabs[t.openerId] : undefined;
-  if (opener?.engine && (opener.url || opener.navigation)) return opener.engine;
-  return engineForUrl(s, t.navigation?.url ?? t.url);
+  if (opener?.engine && (opener.url || navigationOf(opener))) return opener.engine;
+  return engineForUrl(s, navigationOf(t)?.url ?? t.url);
 }
 
 export function tabEngine(s: EngineState, tabId: string): PageEngine {
@@ -96,12 +96,12 @@ export function typedNavigationEngine(s: EngineState, tab: Tab, url: string): Pa
   if (chromiumOnly(url)) return "chromium";
   const chosen = chosenEngine(s, url);
   if (chosen) return chosen;
-  return tab.url || tab.navigation ? tabEngine(s, tab.id) : defaultEngine(s);
+  return tab.url || navigationOf(tab) ? tabEngine(s, tab.id) : defaultEngine(s);
 }
 
 export function engineMark(s: EngineState, tabId: string): PageEngine | null {
   const t = s.tabs[tabId];
-  if (!t || !canSwitchEngine(t.url || t.navigation?.url)) return null;
+  if (!t || !canSwitchEngine(t.url || navigationOf(t)?.url)) return null;
   const engine = tabEngine(s, tabId);
   return engine === defaultEngine(s) ? null : engine;
 }

@@ -2,9 +2,12 @@ import { SIDEBAR_GROUP, SIDEBAR_ROW } from "../../lib/sidebarMetrics";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { live } from "../live/store";
 import { ancestorIds } from "../groups/groups";
-import { groupOf } from "../pins/organize";
+import { groupOf } from "../pins/tabGrouping";
 import { splitOf } from "../splits/splits";
 import { groupEntries, holdsTab, keptEntry, sidebarEntries } from "./entries";
+import { shownPinnedEntries } from "./pinnedFold";
+import { entryId, entryKey } from "./entryKey";
+import { pinSection } from "../browser/model";
 
 const GROUP_PAD = SIDEBAR_GROUP.pad;
 const GROUP_BORDER = SIDEBAR_GROUP.border;
@@ -13,7 +16,7 @@ const GAP = SIDEBAR_ROW.gap;
 
 export type Section = "pinnedGroups" | "list";
 
-export const headGap = (first: string | null | undefined): number => (first?.startsWith("g:") ? GAP : 0);
+export const headGap = (first: string | null | undefined): number => (first && entryId(first, "group") !== null ? GAP : 0);
 
 function membersHeight(s: BrowserState, windowId: string, profileId: string, groupId: string): number {
   const entries = groupEntries(s, groupId);
@@ -23,8 +26,9 @@ function membersHeight(s: BrowserState, windowId: string, profileId: string, gro
 }
 
 export function entryHeight(s: BrowserState, windowId: string, profileId: string, entry: string): number {
-  if (!entry.startsWith("g:")) return ROW;
-  return GROUP_BORDER * 2 + ROW + membersHeight(s, windowId, profileId, entry.slice(2));
+  const groupId = entryId(entry, "group");
+  if (groupId === null) return ROW;
+  return GROUP_BORDER * 2 + ROW + membersHeight(s, windowId, profileId, groupId);
 }
 
 export function entriesHeight(s: BrowserState, windowId: string, profileId: string, entries: string[]): number {
@@ -57,14 +61,14 @@ export function rowSpan(
 ): { section: Section; top: number; height: number } | null {
   const { pinned, list } = sidebarEntries(s, windowId, profileId);
   const sections: [Section, string[], number][] = [
-    ["pinnedGroups", pinned, 0],
+    ["pinnedGroups", shownPinnedEntries(s, windowId, profileId, pinned), 0],
     ["list", list, newTabAtTop ? ROW + GAP : 0],
   ];
   const within = (entries: string[], top: number): number | null => {
     for (const entry of entries) {
       if (holdsTab(s, entry, tabId)) {
-        if (!entry.startsWith("g:")) return top;
-        const id = entry.slice(2);
+        const id = entryId(entry, "group");
+        if (id === null) return top;
         const members = groupEntries(s, id);
         const header = top + GROUP_BORDER;
         if (!s.groups[id]!.collapsed) return within(members, header + ROW + headGap(members[0]));
@@ -103,11 +107,11 @@ export function revealSpot(windowId: string, tabId: string, tilesFixed: boolean,
   const profileId = s.windows[windowId]?.profileId;
   if (!profileId) return null;
   const pinned = s.tabs[tabId];
-  if (tilesFixed && pinned?.pinned && !pinned.pinnedAsRow) return null;
+  if (tilesFixed && pinSection(pinned) === "tile") return null;
   const span = rowSpan(s, windowId, profileId, tabId, newTabAtTop);
   const pinnedHasLive = span?.section === "pinnedGroups" && live().folderOrder.some((id) => live().folders[id]?.profileId === profileId);
   if (span && !pinnedHasLive) return { span };
   const split = splitOf(s, tabId);
   const inner = groupOf(s, tabId);
-  return { keys: [tabId, ...(split ? [`s:${split.id}`] : []), ...(inner ? [inner.id, ...ancestorIds(s.groups, inner.id)] : [])] };
+  return { keys: [tabId, ...(split ? [entryKey("split", split.id)] : []), ...(inner ? [inner.id, ...ancestorIds(s.groups, inner.id)] : [])] };
 }

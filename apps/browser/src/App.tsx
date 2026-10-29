@@ -5,6 +5,7 @@ import { CommandPanel } from "./components/omnibox/CommandPanel";
 import { ContentCard } from "./components/window/ContentCard";
 import { BookmarkDialog } from "./components/bookmarks/BookmarkDialog";
 import { EditBookmarkDialog } from "./components/bookmarks/EditBookmarkDialog";
+import { FolderMenus } from "./components/bookmarks/FolderMenus";
 import { ExtensionOverlays } from "./components/extensions/ExtensionOverlays";
 import { ExtensionSidePanel } from "./components/extensions/SidePanel";
 import { DownloadMagnet, DownloadsPopover } from "./components/downloads/Downloads";
@@ -26,6 +27,7 @@ import { ThemeScope } from "./components/window/ThemeScope";
 import { useBrowser } from "./state/browser/store";
 import { useShowPageFrame, useWindowId, WindowContext } from "./state/browser/hooks";
 import { provideProfileLooks } from "./state/profiles/looks";
+import { focusedWindowOf } from "./state/windows/ui";
 
 provideProfileLooks({ accent: profileAccent, theme: profileTheme });
 
@@ -40,7 +42,7 @@ export function WindowRoot({ windowId }: { windowId?: string }) {
 }
 
 function BrowserWindowRoot({ windowId }: { windowId?: string }) {
-  const id = useBrowser((s) => windowId ?? s.ui.focusedWindowId ?? s.windowOrder[0] ?? null);
+  const id = useBrowser((s) => windowId ?? focusedWindowOf(s) ?? s.windowOrder[0] ?? null);
   const exists = useBrowser((s) => !!id && !!s.windows[id]);
   const small = useBrowser((s) => !!id && s.windows[id]?.kind === "small");
   if (!id || !exists) return null;
@@ -83,6 +85,7 @@ function BrowserWindow() {
         {card}
       </DockedLayout>
       <CommandPanel windowWidth={width} />
+      <FolderMenus />
       <DownloadsPopover />
       <ExtensionOverlays />
       <DownloadMagnet />

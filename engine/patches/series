@@ -32,6 +32,7 @@ chromium chromium-extension-sync-installer-hook.patch
 chromium chromium-unpacked-load-path-hook.patch
 chromium chromium-extension-window-hidden.patch
 chromium chromium-component-extension-restricted-urls.patch
+chromium chromium-component-extension-disk-messages.patch
 chromium chromium-helium-ublock-off.patch
 chromium chromium-helium-onboarding-off.patch
 chromium chromium-helium-services-page-off.patch
@@ -49,6 +50,8 @@ chromium chromium-safe-storage-name.patch
 chromium chromium-safe-storage-no-silent-reset.patch
 chromium chromium-password-bubble-hook.patch
 chromium chromium-password-generation-local.patch
+chromium chromium-password-string-erase.patch
+chromium chromium-os-crypt-decrypt-erase.patch
 chromium chromium-window-docked-devtools.patch
 chromium chromium-window-hosted.patch
 chromium chromium-extension-installed-bubble.patch

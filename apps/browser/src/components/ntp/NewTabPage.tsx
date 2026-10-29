@@ -1,7 +1,7 @@
-import { PowerUp, hex, ink, spring as springOf, Surface, useTheme } from "../ui";
+import { PowerUp, hex, ink, reduceMotion, spring as springOf, Surface, useTheme } from "../ui";
 import { TOOLBAR_ROWS } from "../../lib/toolbarRow";
 import { useEffect, useState } from "react";
-import { AccessibilityInfo, Animated, StyleSheet, View } from "react-native";
+import { Animated, StyleSheet, View } from "react-native";
 import { useWindow, useWindowId } from "../../state/browser/hooks";
 import { useCardAnchors } from "../../state/windows/layout";
 import { NewTabExtras } from "./NewTabExtras";
@@ -37,9 +37,6 @@ type Size = { width: number; height: number };
 let lastSize: { card: Size; size: Size } | null = null;
 const introPlayed = new Set<string>();
 
-let reduceMotion = false;
-AccessibilityInfo.isReduceMotionEnabled().then((on) => (reduceMotion = on), () => {});
-AccessibilityInfo.addEventListener("reduceMotionChanged", (on) => (reduceMotion = on));
 
 function sameSize(a: Size, b: Size) {
   return a.width === b.width && a.height === b.height;
@@ -53,7 +50,7 @@ export function barWidth(viewWidth: number) {
 export function NewTabPage({ tabId, toolbar = true }: { tabId: string; toolbar?: boolean }) {
   const theme = useTheme();
   const windowId = useWindowId();
-  const incognito = useWindow(windowId, (w) => !!w?.incognito);
+  const incognito = useWindow(windowId, (w) => w?.kind === "private");
   const onboarding = useOnboarding((s) => s.windowId === windowId);
   const card = useCardAnchors((s) => s[windowId]);
   const [size, setSizeState] = useState<Size | null>(() => (lastSize && (!card || sameSize(lastSize.card, card)) ? lastSize.size : null));
@@ -66,7 +63,7 @@ export function NewTabPage({ tabId, toolbar = true }: { tabId: string; toolbar?:
   const heading = !onboarding && incognito;
   const [playIntro] = useState(() => !introPlayed.has(tabId));
   const [rise] = useState(() => {
-    const intro = playIntro && !reduceMotion;
+    const intro = playIntro && !reduceMotion();
     const layers = MARK_LAYERS.map((l) => ({ ...l, y: new Animated.Value(intro ? l.hidden : 0) }));
     return { layers, drift: new Animated.Value(intro ? SUN_DRIFT : 0) };
   });
@@ -74,7 +71,7 @@ export function NewTabPage({ tabId, toolbar = true }: { tabId: string; toolbar?:
     introPlayed.add(tabId);
   }, [tabId]);
   useEffect(() => {
-    if (!playIntro || reduceMotion) return;
+    if (!playIntro || reduceMotion()) return;
     const spring = (value: Animated.Value, delay: number, params: ReturnType<typeof springOf>) =>
       Animated.spring(value, { toValue: 0, delay, ...params, useNativeDriver: true });
     const intro = Animated.parallel([

@@ -1,3 +1,4 @@
+import { tabTitle } from "../browser/model";
 import type { Suggestion } from "@ardia/core";
 import { prompt } from "../../platform/dialogs";
 import { showMenu, type MenuItem } from "../../platform/menus";
@@ -10,8 +11,8 @@ import { openExtensionFromMenu } from "../extensions/bridge";
 import { openOptions, shownIn } from "../extensions/actions";
 import { openSplitPane } from "../splits/actions";
 import { openSettings } from "../settings/settingsWindows";
-import { tabTitle } from "../sidebar/actions";
 import { isOrganizeId, shownOrganizeContext, sideBySide, splitCandidates, type OrganizeContext, type OrganizeId } from "./organizeActions";
+import { renameProfile } from "../profiles/profileMenu";
 
 const store = () => useBrowser.getState();
 
@@ -39,12 +40,9 @@ async function pickProfileForTab({ s, tab }: OrganizeContext) {
   if (choice) await moveTabToProfile(tab.id, choice);
 }
 
-async function renameProfile({ windowId }: OrganizeContext) {
+async function renameWindowProfile({ windowId }: OrganizeContext) {
   const profileId = store().windows[windowId]?.profileId;
-  const profile = profileId ? store().profiles[profileId] : undefined;
-  if (!profileId || !profile) return;
-  const name = await prompt({ title: "Rename Profile", value: profile.name, placeholder: "Profile name", confirmTitle: "Rename", windowId });
-  if (name?.trim() && store().profiles[profileId]) store().updateProfile(profileId, { name: name.trim() });
+  if (profileId) await renameProfile(profileId, windowId);
 }
 
 const RUN_ORGANIZE: Record<OrganizeId, (c: OrganizeContext) => void | Promise<void>> = {
@@ -58,7 +56,7 @@ const RUN_ORGANIZE: Record<OrganizeId, (c: OrganizeContext) => void | Promise<vo
   "split:remove": ({ tab }) => store().removeTabFromSplit(tab.id),
   "split:exit": ({ split }) => (split ? store().separateSplit(split.id) : undefined),
   "profile:moveTab": pickProfileForTab,
-  "profile:rename": renameProfile,
+  "profile:rename": renameWindowProfile,
   "profile:edit": ({ s, windowId }) => openSettings("profiles", s.windows[windowId]?.profileId),
 };
 

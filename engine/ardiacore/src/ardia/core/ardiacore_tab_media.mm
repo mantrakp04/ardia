@@ -9,16 +9,13 @@
 #include "base/strings/sys_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
-#include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
 #include "chrome/browser/media/webrtc/media_stream_capture_indicator.h"
-#include "chrome/browser/picture_in_picture/auto_picture_in_picture_tab_helper.h"
 #include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
 #include "chrome/browser/ui/tab_sharing/tab_sharing_infobar_delegate.h"
-#include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/infobars/content/content_infobar_manager.h"
 #include "components/infobars/core/infobar.h"
 #include "components/viz/common/frame_sinks/copy_output_result.h"
@@ -36,7 +33,6 @@
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/size.h"
 #include "url/gurl.h"
-#include "url/url_constants.h"
 #include "ardia/core/ac_cast_dialog.h"
 #include "ardia/core/ac_content_hooks.h"
 #include "ardia/core/ac_device_chooser.h"
@@ -201,29 +197,6 @@ TabSharingInfoBarDelegate* TabSharingDelegateFor(content::WebContents* contents,
   } else {
     ardiacore::TracePictureInPicture(base::SysNSStringToUTF8(line));
   }
-}
-
-- (BOOL)autoPictureInPictureIsChromes {
-  if (!_contents) {
-    return NO;
-  }
-  auto* helper = AutoPictureInPictureTabHelper::FromWebContents(_contents);
-  if (!helper) {
-    return NO;
-  }
-  if (helper->IsInAutoPictureInPicture() || helper->AreAutoPictureInPicturePreconditionsMet()) {
-    return YES;
-  }
-  const GURL& url = _contents->GetLastCommittedURL();
-  Profile* profile = Profile::FromBrowserContext(_contents->GetBrowserContext());
-  return !g_ardia_auto_picture_in_picture_off &&
-         helper->HasAutoPictureInPictureBeenRegistered() &&
-         (url.SchemeIs(url::kHttpsScheme) || url.SchemeIsFile()) &&
-         MediaCaptureDevicesDispatcher::GetInstance()
-             ->GetMediaStreamCaptureIndicator()
-             ->IsCapturingUserMedia(_contents) &&
-         HostContentSettingsMapFactory::GetForProfile(profile)->GetContentSetting(
-             url, url, ContentSettingsType::AUTO_PICTURE_IN_PICTURE) == CONTENT_SETTING_ALLOW;
 }
 
 - (BOOL)showCastDialog {

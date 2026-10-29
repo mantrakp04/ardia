@@ -1,6 +1,7 @@
 import AppKit
 import Carbon.HIToolbox
 import ExpoModulesCore
+import SwiftUI
 
 final class PopoverBubble: ExpoView {
   enum Edge: String { case top, bottom, none }
@@ -13,6 +14,8 @@ final class PopoverBubble: ExpoView {
   private let edgeLayer = CAShapeLayer()
   private let edgeMask = CAShapeLayer()
   private var maskKey = ""
+  private var glassHost: NSView?
+  private var glassKey = ""
 
   var cornerRadius: Double = 12 { didSet { apply() } }
   var arrowEdge: Edge = .none { didSet { apply() } }
@@ -25,6 +28,7 @@ final class PopoverBubble: ExpoView {
   var bubbleShadowOpacity: Double = 0 { didSet { apply() } }
   var bubbleShadowRadius: Double = 0 { didSet { apply() } }
   var bubbleShadowOffsetY: Double = 0 { didSet { apply() } }
+  var glass = false { didSet { apply() } }
 
   required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
@@ -90,6 +94,34 @@ final class PopoverBubble: ExpoView {
     return path.copy(using: &flip) ?? path
   }
 
+  private var drawsGlass: Bool {
+    if #available(macOS 26.0, *) { return glass }
+    return false
+  }
+
+  private func applyGlass(path: CGPath, key: String) {
+    guard #available(macOS 26.0, *), glass else {
+      glassHost?.removeFromSuperview()
+      glassHost = nil
+      glassKey = ""
+      effect.isHidden = false
+      return
+    }
+    effect.isHidden = true
+    let next = "\(key) \(tint?.description ?? "")"
+    let view = PopoverBubbleGlass(outline: PopoverBubbleOutline(outline: Path(path)), tint: tint.map { Color(nsColor: $0) })
+    if let host = glassHost as? NSHostingView<PopoverBubbleGlass> {
+      if next != glassKey { host.rootView = view }
+    } else {
+      let host = NSHostingView(rootView: view)
+      host.sizingOptions = []
+      addSubview(host, positioned: .below, relativeTo: overlay)
+      glassHost = host
+    }
+    glassKey = next
+    glassHost?.frame = bounds
+  }
+
   private func apply() {
     let size = bounds.size
     effect.frame = bounds
@@ -99,6 +131,8 @@ final class PopoverBubble: ExpoView {
       size: size, radius: cornerRadius, edge: arrowEdge, arrowX: arrowX, arrowWidth: arrowWidth, arrowHeight: arrowHeight)
 
     let key = "\(size.width)x\(size.height) \(cornerRadius) \(arrowEdge.rawValue) \(arrowX) \(arrowWidth) \(arrowHeight)"
+    applyGlass(path: path, key: key)
+    let glassy = drawsGlass
     if key != maskKey {
       maskKey = key
       effect.maskImage = NSImage(size: size, flipped: true) { _ in
@@ -115,7 +149,7 @@ final class PopoverBubble: ExpoView {
     let local = overlay.bounds
     tintLayer.frame = local
     tintLayer.path = path
-    tintLayer.fillColor = tint?.cgColor
+    tintLayer.fillColor = glassy ? nil : tint?.cgColor
 
     edgeLayer.frame = local
     edgeMask.frame = local
@@ -126,7 +160,7 @@ final class PopoverBubble: ExpoView {
     edgeLayer.isHidden = edgeColor == nil || edgeWidth <= 0
 
     shadowLayer.frame = local
-    if bubbleShadowOpacity > 0 {
+    if bubbleShadowOpacity > 0, !glassy {
       shadowLayer.isHidden = false
       shadowLayer.shadowOpacity = Float(bubbleShadowOpacity)
       shadowLayer.shadowRadius = bubbleShadowRadius
@@ -144,4 +178,22 @@ final class PopoverBubble: ExpoView {
     }
     CATransaction.commit()
   }
+}
+
+@available(macOS 26.0, *)
+private struct PopoverBubbleGlass: View {
+  let outline: PopoverBubbleOutline
+  let tint: Color?
+
+  var body: some View {
+    Color.clear
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .glassEffect(.regular.tint(tint), in: outline)
+  }
+}
+
+private struct PopoverBubbleOutline: Shape {
+  let outline: Path
+
+  func path(in rect: CGRect) -> Path { outline }
 }

@@ -1,7 +1,9 @@
 #import "ArdiaWebViewInternal.h"
+#import "ArdiaRuntime.h"
 #import "ArdiaLaunchConfig.h"
 
 using namespace ardia_web_view;
+using namespace ardia_runtime;
 
 namespace {
 
@@ -126,7 +128,7 @@ NSDictionary *FindMenuItem(NSArray *items, NSString *label) {
     @"link" : Field<NSString>(menu, @"link") ?: @"",
     @"items" : DescribeMenu(items),
   };
-  [JSONString(dump) writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:nil];
+  [JSONText(dump) writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:nil];
   NSString *pick = [NSString stringWithContentsOfFile:pickPath encoding:NSUTF8StringEncoding error:nil];
   [NSFileManager.defaultManager removeItemAtPath:pickPath error:nil];
   pick = [pick stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];

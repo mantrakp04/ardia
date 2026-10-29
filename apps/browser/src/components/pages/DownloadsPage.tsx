@@ -1,12 +1,15 @@
 import { cancelDownload, keepDownload, pauseDownload, resumeDownload, type Download } from "../../state/downloads/actions";
-import { fileExists, openFile, revealFile } from "../../state/app/system";
+import { openFile, revealFile } from "../../state/app/system";
 import { useState } from "react";
 import { FlatList, Pressable, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { useDownloads, useTab } from "../../state/browser/hooks";
 import { clearDownloads, removeDownload } from "../../state/windows/actions";
 import { openUrl } from "../../state/bookmarks/actions";
-import { awaitsKeep, downloadMenu, downloadStatus, FileIcon } from "../downloads/Downloads";
+import { FileIcon } from "../downloads/Downloads";
+import { useDownloadView } from "../downloads/useDownloadView";
+import { downloadMenu } from "../../state/downloads/downloadMenu";
+import { downloadStatus } from "../../state/downloads/status";
 import { Box, Button, MouseArea, opacity, radius, space, Symbol, Text, useHover, useTheme } from "../ui";
 import { EmptyState, hostLabel, matchesQuery, PAGE_WIDTH, PageHeader } from "./PageLayout";
 import { downloadCard, EMPTY_ICON, emptyIcon, pageList, pageType } from "./tokens";
@@ -53,10 +56,7 @@ const ROW_BUTTONS = { flexDirection: "row", gap: space.m } as const;
 function DownloadCard({ d, windowId }: { d: Download; windowId: string }) {
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
-  const exists = d.state !== "finished" || fileExists(d.path);
-  const done = d.state === "finished" && exists;
-  const progress = d.total > 0 ? d.received / d.total : 0;
-  const blocked = awaitsKeep(d);
+  const { exists, done, progress, blocked } = useDownloadView(d);
   return (
     <View {...hoverProps} style={CARD_WIDTH}>
       <MouseArea path={done ? d.path : null}>

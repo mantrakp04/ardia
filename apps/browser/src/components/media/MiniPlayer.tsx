@@ -6,6 +6,7 @@ import { hex } from "../ui/theme";
 import { duration as motionDuration } from "../ui/motion";
 import { font, ink, radius, weight } from "../ui/tokens";
 import { useTab } from "../../state/browser/hooks";
+import { useMuteState } from "../../state/tabs/hooks";
 import { Favicon } from "../favicon/Favicon";
 import { useArtwork } from "../../state/media/artwork";
 import { useMarqueeGroup, Marquee } from "./Marquee";
@@ -21,7 +22,7 @@ import {
   useTicker,
   type Session,
 } from "../../state/media/media";
-import { hostOf } from "../../lib/url";
+import { hostOf } from "@ardia/core";
 import { ART_HOVER_SCRIM, mediaType, useMediaTokens, type MediaTokens } from "./tokens";
 
 export const MINI_PLAYER_WIDTH = 320;
@@ -35,6 +36,7 @@ export function MiniPlayer({ tabId, onBackToTab }: { tabId: string; onBackToTab:
   const tokens = useMediaTokens();
   const session = useSession(tabId);
   const tab = useTab(tabId);
+  const mute = useMuteState(tabId);
   const playing = isPlaying(session);
   useTicker(playing);
   const group = useMarqueeGroup(`${session?.title}|${session?.artist}`);
@@ -48,7 +50,7 @@ export function MiniPlayer({ tabId, onBackToTab }: { tabId: string; onBackToTab:
 
   return (
     <View style={{ width, height: MINI_PLAYER_HEIGHT }}>
-      <AlbumArt tabId={tabId} profileId={tab.profileId} session={session} url={tab.url} favicon={tab.favicon} tokens={tokens} muted={tab.muted} onPress={onBackToTab} onUnmute={() => toggleMute(tabId)} />
+      <AlbumArt tabId={tabId} profileId={tab.profileId} session={session} url={tab.url} favicon={tab.favicon} tokens={tokens} muted={!!mute} onPress={onBackToTab} onUnmute={() => toggleMute(tabId)} />
       <View style={{ position: "absolute", left: TEXT_X, top: 10, width: textWidth }}>
         <Marquee id="title" text={title} group={group} height={18} background={tokens.backgroundRgb} style={{ ...font.body, fontWeight: weight.semibold, color: tokens.label }} />
       </View>

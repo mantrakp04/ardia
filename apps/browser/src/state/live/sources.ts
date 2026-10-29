@@ -3,6 +3,7 @@ import { DETAILS_PAGE, detailIds, detailNodes, GITHUB_DETAILS_QUERY, GITHUB_QUER
 import { basic, deleteSecret, endpoints, form, getSecret, request, setSecret } from "./net";
 import { live, setAccount, updateConfig } from "./store";
 import { LiveError, type CompletionState, type LiveAccount, type LiveFolder, type LiveItem, type LiveSourceId } from "./types";
+import { symbolIcon } from "../../lib/customIcon";
 
 export type LiveSource = {
   id: LiveSourceId;
@@ -255,5 +256,5 @@ export async function disconnect(source: LiveSourceId) {
 }
 
 export function liveFolderIcon(folder: LiveFolder): { site: string; icon: string | null } {
-  return { site: SOURCES[folder.sources[0] ?? "github"].site, icon: folder.icon ?? (folder.sources.length > 1 && folder.kind === "documents" ? "symbol:doc.text" : null) };
+  return { site: SOURCES[folder.sources[0] ?? "github"].site, icon: folder.icon ?? (folder.sources.length > 1 && folder.kind === "documents" ? symbolIcon("doc.text") : null) };
 }

@@ -15,7 +15,7 @@ export function GlassBacking({ fill, radius, border = 0, raised, highlight }: { 
   if (!liquidGlass) return null;
   return (
     <>
-      <GlassFill radius={radius} border={border} fill={fill} raised={raised} />
+      <GlassFill radius={radius} border={border} fill={fill} state={raised ? "active" : "rest"} />
       {highlight ? <View pointerEvents="none" style={{ position: "absolute", top: -border, left: -border, right: -border, bottom: -border, borderRadius: radius, borderCurve: "continuous", backgroundColor: highlight }} /> : null}
     </>
   );

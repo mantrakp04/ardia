@@ -1,4 +1,5 @@
 #import "ArdiaChromeWindowInternal.h"
+#import "ArdiaWindowController.h"
 
 #import <objc/message.h>
 
@@ -6,28 +7,65 @@ using namespace ardia_window;
 
 namespace {
 
+NSString *const kQuitIdentifier = @"ardia.shortcut.std:quit:";
+NSString *const kFullScreenIdentifier = @"ardia.shortcut.std:toggleFullScreen:";
+
 NSSet<NSString *> *ReservedIdentifiers() {
   static NSSet<NSString *> *reserved = [NSSet setWithArray:@[
-    @"ardia.command.newTab", @"ardia.command.reopenClosedTab", @"ardia.command.closeTab", @"ardia.command.newWindow",
-    @"ardia.command.newIncognitoWindow", @"ardia.command.tabSwitcher", @"ardia.command.nextTab", @"ardia.command.previousTab",
-    @"ardia.shortcut.std:closeWindow:", @"ardia.shortcut.std:quit:"
+    @"ardia.command.closeTab", @"ardia.shortcut.std:closeWindow:", @"ardia.command.newIncognitoWindow", @"ardia.command.newTab",
+    @"ardia.command.newWindow", @"ardia.command.reopenClosedTab", @"ardia.command.nextTab", @"ardia.command.previousTab",
+    @"ardia.command.tabSwitcher", kQuitIdentifier, @"ardia.command.copyUrl", @"ardia.command.devTools", @"ardia.command.toggleDevTools",
+    @"ardia.command.searchTabs"
   ]];
   return reserved;
 }
 
-NSMenuItem *MenuItemWithIdentifier(NSMenu *menu, NSString *key, NSEventModifierFlags mods, NSSet<NSString *> *reserved) {
-  const NSEventModifierFlags relevant = NSEventModifierFlagCommand | NSEventModifierFlagShift | NSEventModifierFlagOption | NSEventModifierFlagControl;
+NSSet<NSString *> *ReservedIdentifiersInFullScreenShowingBrowser() {
+  static NSSet<NSString *> *reserved = [ReservedIdentifiers() setByAddingObject:kFullScreenIdentifier];
+  return reserved;
+}
+
+NSSet<NSString *> *ReservedIdentifiersInFullScreenShowingPage() {
+  static NSSet<NSString *> *reserved = [NSSet setWithArray:@[ kQuitIdentifier, kFullScreenIdentifier ]];
+  return reserved;
+}
+
+bool ShowsBrowserInFullScreen(NSWindow *window) {
+  ArdiaCoreWindow *coreWindow = [ArdiaWindowController forNSWindow:window].coreWindow;
+  return coreWindow && ![ArdiaWindowFullScreen ofWindow:coreWindow create:NO].pageFullScreen;
+}
+
+NSSet<NSString *> *ReservedIdentifiersIn(NSWindow *window) {
+  if (!IsWindowFullScreen(window)) return ReservedIdentifiers();
+  return ShowsBrowserInFullScreen(window) ? ReservedIdentifiersInFullScreenShowingBrowser() : ReservedIdentifiersInFullScreenShowingPage();
+}
+
+constexpr NSEventModifierFlags kKeyModifiers =
+    NSEventModifierFlagCommand | NSEventModifierFlagShift | NSEventModifierFlagOption | NSEventModifierFlagControl | NSEventModifierFlagFunction;
+
+bool IsFunctionKey(NSString *key) {
+  const unichar first = key.length ? [key characterAtIndex:0] : 0;
+  return first >= 0xF700 && first <= 0xF8FF;
+}
+
+NSEventModifierFlags ModifiersOfKey(NSString *key, NSEventModifierFlags mods) {
+  mods &= kKeyModifiers;
+  return IsFunctionKey(key) ? mods & ~NSEventModifierFlagFunction : mods;
+}
+
+NSMenuItem *MenuItemWithIdentifier(NSMenu *menu, NSString *key, NSEventModifierFlags mods, NSSet<NSString *> *identifiers) {
+  const NSEventModifierFlags wanted = ModifiersOfKey(key, mods);
   for (NSMenuItem *item in menu.itemArray) {
     if (item.submenu) {
       if (item.submenu == NSApp.servicesMenu) continue;
-      if (NSMenuItem *found = MenuItemWithIdentifier(item.submenu, key, mods, reserved)) return found;
+      if (NSMenuItem *found = MenuItemWithIdentifier(item.submenu, key, mods, identifiers)) return found;
       continue;
     }
-    if (!item.identifier || ![reserved containsObject:item.identifier] || !item.keyEquivalent.length) continue;
+    if (!item.identifier || ![identifiers containsObject:item.identifier] || !item.keyEquivalent.length || item.isAlternate) continue;
     if (item.isHidden && !item.allowsKeyEquivalentWhenHidden) continue;
-    NSEventModifierFlags itemMods = item.keyEquivalentModifierMask & relevant;
+    NSEventModifierFlags itemMods = ModifiersOfKey(item.keyEquivalent, item.keyEquivalentModifierMask);
     if (![item.keyEquivalent isEqualToString:item.keyEquivalent.lowercaseString]) itemMods |= NSEventModifierFlagShift;
-    if (itemMods == (mods & relevant) && [item.keyEquivalent.lowercaseString isEqualToString:key]) return item;
+    if (itemMods == wanted && [item.keyEquivalent.lowercaseString isEqualToString:key]) return item;
   }
   return nil;
 }
@@ -40,8 +78,9 @@ NSMenuItem *MenuItemForEvent(NSEvent *event, NSSet<NSString *> *identifiers) {
   const NSEventModifierFlags mods = event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
   NSString *key = event.charactersIgnoringModifiers.lowercaseString;
   const unichar first = key.length ? [key characterAtIndex:0] : 0;
-  const bool functionKey = first >= NSF1FunctionKey && first <= NSF35FunctionKey;
-  if (!functionKey && !(mods & (NSEventModifierFlagCommand | NSEventModifierFlagControl))) return nil;
+  const bool fKey = first >= NSF1FunctionKey && first <= NSF35FunctionKey;
+  const bool globeKey = (mods & NSEventModifierFlagFunction) && !IsFunctionKey(key);
+  if (!fKey && !globeKey && !(mods & (NSEventModifierFlagCommand | NSEventModifierFlagControl))) return nil;
   if ([key isEqualToString:@"\x19"]) key = @"\t";
   if (NSMenuItem *item = MenuItemWithIdentifier(NSApp.mainMenu, key, mods, identifiers)) return item;
   NSString *unshifted = [event charactersByApplyingModifiers:0].lowercaseString;
@@ -66,7 +105,7 @@ bool IsSidebarKey(NSEvent *event) {
 namespace ardia_window {
 
 NSMenuItem *ReservedMenuItemForEvent(NSEvent *event) {
-  return MenuItemForEvent(event, ReservedIdentifiers());
+  return MenuItemForEvent(event, ReservedIdentifiersIn(event.window));
 }
 
 bool IsReservedKey(NSEvent *event) {
@@ -84,9 +123,7 @@ bool IsSecondSidebarKeyPress(NSEvent *event) {
 bool KeepsUnhandledSidebarKeyInPage(NSWindow *window, NSEvent *event) {
   if (!IsSidebarKey(event)) return false;
   NSResponder *focused = window.firstResponder;
-  const SEL textInputType = NSSelectorFromString(@"textInputType");
-  const bool typing = [NSStringFromClass(focused.class) isEqualToString:@"RenderWidgetHostViewCocoa"] && [focused respondsToSelector:textInputType] &&
-                      ((int (*)(id, SEL))objc_msgSend)(focused, textInputType) != 0;
+  const bool typing = [focused isKindOfClass:NSView.class] && [ArdiaCorePageView isEditingText:(NSView *)focused];
   if (!typing) gSidebarKeyPressForPage = SidebarKeyPress{};
   return typing;
 }

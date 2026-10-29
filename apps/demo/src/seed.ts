@@ -1,4 +1,5 @@
-import type { HydrateData } from "../../browser/src/state/browser/store";
+import type { BrowserState, HydrateData } from "../../browser/src/state/browser/store";
+import { engineProfile } from "../../browser/src/state/browser/model";
 import type { BrowserWindow, HistoryEntry, Profile, Tab } from "../../browser/src/state/browser/types";
 import { faviconFor, PAGES } from "./pages";
 
@@ -21,13 +22,13 @@ function tab(favicon: FaviconOf, now: number, id: string, profileId: string, pag
     url: page.url,
     title: page.title,
     favicon: favicon(page.url),
-    pinned,
+    pin: pinned ? { as: "tile" } : null,
     muted: false,
     zoom: 1,
     customTitle: null,
     customIcon: null,
     pinnedUrl: pinned ? page.url : null,
-    navigation: null,
+    page: { kind: "idle" },
     openerId: null,
     createdAt: at,
     lastActiveAt: at,
@@ -56,7 +57,7 @@ export function seedWindow(tabs: Tab[], frame: BrowserWindow["frame"] = null, no
   return {
     id: WINDOW_ID,
     profileId: PERSONAL.id,
-    incognito: false,
+    kind: "main",
     tabIds: tabs.map((t) => t.id),
     activeTabIds: ACTIVE_TABS,
     sidebarOpen: true,
@@ -96,6 +97,10 @@ export function demoSession(): HydrateData {
     windowOrder: [WINDOW_ID],
     focusedWindowId: WINDOW_ID,
     tabs: Object.fromEntries(tabs.map((t) => [t.id, t])),
-    history: { [PERSONAL.id]: seedHistory(HISTORY_PAGES), [WORK.id]: seedHistory(HISTORY_PAGES.slice(8)) },
   };
+}
+
+export function demoHistory(s: Pick<BrowserState, "profiles">): BrowserState["history"] {
+  const view = (list: HistoryEntry[]) => ({ list, floor: -Infinity, ready: true });
+  return { [engineProfile(s, PERSONAL.id)]: view(seedHistory(HISTORY_PAGES)), [engineProfile(s, WORK.id)]: view(seedHistory(HISTORY_PAGES.slice(8))) };
 }

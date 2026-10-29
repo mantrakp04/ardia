@@ -1,4 +1,5 @@
 import AppKit
+import ArdiaCore
 import CoreImage
 import ExpoModulesCore
 
@@ -17,8 +18,8 @@ public class DockSelectionModule: Module {
       Prop("image") { (view: DockSelection, v: String?) in view.source = IconSource(uri: v, emoji: view.source?.emoji) }
       Prop("emoji") { (view: DockSelection, v: String?) in view.source = IconSource(uri: view.source?.uri, emoji: v) }
       Prop("theme") { (view: DockSelection, v: String?) in view.kind = v ?? "" }
-      Prop("fill") { (view: DockSelection, hex: String?) in view.fill = hex.flatMap(NSColor.init(hex:)) }
-      Prop("stroke") { (view: DockSelection, hex: String?) in view.stroke = hex.flatMap(NSColor.init(hex:)) }
+      Prop("fill") { (view: DockSelection, hex: String?) in view.fill = hex.flatMap { RGBA(hex: $0)?.srgb } }
+      Prop("stroke") { (view: DockSelection, hex: String?) in view.stroke = hex.flatMap { RGBA(hex: $0)?.srgb } }
       Prop("cornerRadius") { (view: DockSelection, v: Double) in view.cornerRadius = v }
       Prop("strokeWidth") { (view: DockSelection, v: Double) in view.strokeWidth = v }
       Prop("dark") { (view: DockSelection, v: Bool) in view.dark = v }

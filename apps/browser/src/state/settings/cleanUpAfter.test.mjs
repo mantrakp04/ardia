@@ -40,7 +40,7 @@ test("a session saved with the hours setting relaunches with the same clean-up t
   stub.docs.set("session.json", session({ cleanUpInactiveTabsAfterHours: 24, chosen: ["cleanUpInactiveTabsAfterHours"] }));
   S().hydrate(loadSession());
   assert.equal(S().settings.cleanUpInactiveTabsAfterMinutes, 1440);
-  assert.ok(S().settings.chosen.includes("cleanUpInactiveTabsAfterMinutes"));
+  assert.ok(S().settingsMeta.chosen.includes("cleanUpInactiveTabsAfterMinutes"));
   assert.ok(!("cleanUpInactiveTabsAfterHours" in S().settings));
   stub.docs.set("session.json", session({ cleanUpInactiveTabsAfterHours: null, chosen: ["cleanUpInactiveTabsAfterHours"] }));
   S().hydrate(loadSession());

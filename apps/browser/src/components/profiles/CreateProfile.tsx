@@ -3,7 +3,7 @@ import { Pressable, View } from "react-native";
 import { useWindowId } from "../../state/browser/hooks";
 import { currentProfiles } from "../../state/browser/current";
 import { useProfileOrder, useProfileRecords, useCreateProfileShareDefault } from "../../state/profiles/hooks";
-import { addProfile } from "../../state/profiles/actions";
+import { createProfile } from "../../state/profiles/actions";
 import { endCreateProfileRequest, profileNames, takeCreateProfileSheet, useCreateProfileRequest, type CreateProfilePreset } from "../../state/profiles/createProfileRequest";
 import { dataGroups, unusedProfileColor } from "../../state/profiles/profiles";
 import type { ProfileColor } from "../../state/browser/types";
@@ -43,7 +43,7 @@ function CreateProfileSheet({ windowId, preset, onDone }: { windowId: string | n
   const selectedGroup = groups.find((g) => g.profileIds.includes(shareWith)) ?? groups[0];
 
   const submit = () => {
-    const id = addProfile({ name, color, shareWith: share ? (selectedGroup?.profileIds[0] ?? null) : null });
+    const id = createProfile({ name, color, shareWith: share ? (selectedGroup?.profileIds[0] ?? null) : null });
     onDone(id);
   };
   const single = groups.length === 1;

@@ -96,7 +96,7 @@ For the architecture and the test tooling, read `docs/agent-brief.md`.
 - **Two channels: nightly and stable.** One app; Settings › General picks the channel, and nightly users get
   stable releases too.
   - **Nightly** is for fast iteration. Each fix is reproduced, fixed and verified, its adjacent tests run, then it
-    is built and released as a nightly (`scripts/release.sh <version> --channel nightly`). Run only the focused
+    is built and released as a nightly (`scripts/release.sh <version>` with a `-nightly.<n>` version). Run only the focused
     checks for what changed: no full suite, no perf gate, no landing-page refresh. A nightly is a GitHub
     prerelease and never reaches stable users.
   - **Stable** gets the full run (about 1.5 h): smoke, update test, perf ratchet and perf gate. Its perf is
@@ -107,7 +107,7 @@ For the architecture and the test tooling, read `docs/agent-brief.md`.
   - run `scripts/release.sh`, which signs and notarizes;
   - run the smoke test;
   - publish the GitHub release and the appcast;
-  - bump `VERSION` in `apps/site/src/data/release.ts`;
+  - point the site at it (`.claude/skills/release/scripts/site-version.mjs <version>`);
   - deploy the site with `pnpm -C apps/site run deploy`.
 
   The owner has authorized releases to go all the way through. After an update, the app opens the

@@ -1,13 +1,11 @@
 import { useState } from "react";
 import { exportBookmarks } from "../../../state/bookmarks/exportHtml";
 import { profileOfWindow } from "../../../state/bookmarks/bookmarkGroups";
-import { useProfiles } from "../../../state/browser/hooks";
 import { settingsBrowserWindow } from "../../../state/settings/settingsWindows";
-import { Button, PopUp } from "../../ui";
-import { Row } from "../Form";
+import { Button } from "../../ui";
+import { ProfilePicker, Row } from "../Form";
 
 export function ExportBookmarksRow() {
-  const profiles = useProfiles();
   const [profileId, setProfileId] = useState(() => profileOfWindow(settingsBrowserWindow()));
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
@@ -25,9 +23,7 @@ export function ExportBookmarksRow() {
   };
   return (
     <Row anchor="general.exportBookmarks" description={status || undefined}>
-      {profiles.length > 1 ? (
-        <PopUp value={profileId} options={profiles.map((p) => ({ value: p.id, title: p.name }))} onChange={setProfileId} />
-      ) : null}
+      <ProfilePicker value={profileId} onChange={setProfileId} />
       <Button title="Export…" disabled={busy} onPress={() => void run()} />
     </Row>
   );

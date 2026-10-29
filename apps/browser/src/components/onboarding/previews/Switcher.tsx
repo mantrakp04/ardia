@@ -4,8 +4,9 @@ import { profileSwitcher } from "../../profiles/tokens";
 import { at, SIDEBAR_W, type Geo } from "./geometry";
 import type { Styles } from "./Kit";
 import type { Look } from "./look";
+import { symbolIcon } from "../../../lib/customIcon";
 
-export const MOCK_SPACES: readonly (string | null)[] = ["symbol:globe.americas.fill", "🔥", null];
+export const MOCK_SPACES: readonly (string | null)[] = [symbolIcon("globe.americas.fill"), "🔥", null];
 
 export type SwitcherLevel = number | Animated.AnimatedInterpolation<number>;
 

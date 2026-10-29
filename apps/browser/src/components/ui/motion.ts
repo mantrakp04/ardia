@@ -1,4 +1,5 @@
-import { Easing } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Animated, Easing, type EasingFunction } from "react-native";
 
 export const curve = {
   linear: Easing.linear,
@@ -27,12 +28,30 @@ export const duration = {
   toggle: 160,
   colorEase: 180,
   fade: 200,
+  dialogAppear: 170,
   slide: 220,
   resize: 260,
   slow: 300,
   spinnerTurn: 900,
   pulse: 1100,
 } as const;
+
+export type Fade = { duration: number; easing: EasingFunction; delay?: number };
+
+export function usePresence<T>(value: T | null, motion: { show: Fade; hide: Fade }) {
+  const showing = value !== null;
+  const last = useRef(value);
+  if (showing) last.current = value;
+  const [mounted, setMounted] = useState(showing);
+  if (showing && !mounted) setMounted(true);
+  const appear = useRef(new Animated.Value(showing ? 1 : 0)).current;
+  useEffect(() => {
+    const run = Animated.timing(appear, { toValue: showing ? 1 : 0, ...(showing ? motion.show : motion.hide), useNativeDriver: true });
+    run.start(({ finished }) => finished && !showing && setMounted(false));
+    return () => run.stop();
+  }, [showing]);
+  return { shown: showing || mounted ? last.current : null, appear };
+}
 
 export type SpringSpec = { response: number; damping: number };
 

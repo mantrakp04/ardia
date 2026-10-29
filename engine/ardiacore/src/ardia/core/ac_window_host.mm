@@ -74,6 +74,12 @@ WindowHost* WindowHost::ForBrowser(const BrowserWindowInterface* browser) {
   return ACBrowserWindow::HostOf(browser);
 }
 
+WindowHost* WindowHost::ForContents(content::WebContents* contents) {
+  return contents ? ForBrowser(GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+                        contents))
+                  : nullptr;
+}
+
 WindowHost::WindowHost(ArdiaCoreWindow* owner, const gfx::Rect& bounds)
     : owner_(owner), owner_ref_(owner) {
   Hosts().push_back(this);

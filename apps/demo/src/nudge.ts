@@ -1,5 +1,6 @@
 import { clickTab } from "../../browser/src/state/sidebar/actions";
 import { useBrowser } from "../../browser/src/state/browser/store";
+import { focusedWindowOf } from "../../browser/src/state/windows/ui";
 
 const TARGET_TAB = "t_react";
 const CURSOR_SIZE = 26;
@@ -35,7 +36,7 @@ function glide(el: HTMLElement, x: number, y: number, ms: number) {
 export async function playNudge(signal: AbortSignal) {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   const s = useBrowser.getState();
-  const windowId = s.ui.focusedWindowId;
+  const windowId = focusedWindowOf(s);
   const tab = s.tabs[TARGET_TAB];
   const win = windowId ? s.windows[windowId] : undefined;
   if (!windowId || !tab || !win || win.profileId !== tab.profileId || win.activeTabIds[win.profileId] === TARGET_TAB) return;

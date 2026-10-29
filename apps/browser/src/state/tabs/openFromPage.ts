@@ -5,10 +5,13 @@ import { engineProfile } from "../browser/model";
 import { peekSourceOf } from "../peek/peek";
 import { isSmall, originalProfile, privateWindowProfile } from "../windows/small";
 import { openLinkInSplit, openSplitPane } from "../splits/actions";
+import { asAdoptId, isAdoptKind } from "./adoptIds";
 
 export type { OpenWindowRequest } from "../../platform/tabs";
 
-export function openFromPage({ url, adoptId, disposition, profile, point }: OpenWindowRequest, page: { windowId: string; profileId: string; tabId?: string }) {
+export function openFromPage(request: OpenWindowRequest, page: { windowId: string; profileId: string; tabId?: string }) {
+  const { url, disposition, profile, point } = request;
+  const adoptId = asAdoptId(request.adoptId);
   const s = useBrowser.getState();
   const w = s.windows[page.windowId];
   if (!w) return;
@@ -32,11 +35,11 @@ export function openFromPage({ url, adoptId, disposition, profile, point }: Open
   }
   if (disposition === "incognito") {
     const profileId = privateWindowProfile(s, w, profile);
-    if (adoptId?.startsWith("tab:")) return void openWindow({ incognito: true, url, adoptId, profileId });
-    return void openWindow({ incognito: true, url, profileId });
+    if (isAdoptKind(adoptId, "tab")) return void openWindow({ kind: "private", url, adoptId, profileId });
+    return void openWindow({ kind: "private", url, profileId });
   }
   if (disposition === "window") {
-    return void openWindow(w.incognito ? { incognito: true, url, profileId: originalProfile(s, w) } : { profileId: from.profileId, url, adoptId });
+    return void openWindow(w.kind === "private" ? { kind: "private", url, profileId: originalProfile(s, w) } : { profileId: from.profileId, url, adoptId });
   }
   const background = disposition === "background" || from.profileId !== w.profileId;
   s.newTab(w.id, { url, adoptId, openerId: from.tabId, profileId: from.profileId, background });
@@ -45,6 +48,6 @@ export function openFromPage({ url, adoptId, disposition, profile, point }: Open
 export function pageProfileId(windowId: string, pageProfile: string): string {
   const s = useBrowser.getState();
   const w = s.windows[windowId];
-  if (w && engineProfile(w.profileId) === pageProfile) return w.profileId;
-  return s.profileOrder.find((p) => engineProfile(p) === pageProfile) ?? w?.profileId ?? s.settings.defaultProfileId;
+  if (w && engineProfile(s, w.profileId) === pageProfile) return w.profileId;
+  return s.profileOrder.find((p) => engineProfile(s, p) === pageProfile) ?? w?.profileId ?? s.settings.defaultProfileId;
 }

@@ -1,5 +1,5 @@
 import type { ViewProps } from "react-native";
-import type { ExternalAppRequest } from "./externalApps";
+import type { ExternalAppRequest } from "./permissions";
 import type { FaviconImage } from "./favicons";
 import type { PageCookie, PageEngine } from "./webkit";
 
@@ -110,7 +110,7 @@ export type DisplayMediaSource = {
 export type DisplayMediaAudio = { tab: boolean; screen: boolean; window: "application" | "system" | null };
 export type DisplayMediaRequest = { id: string; origin: string; frameOrigin?: string; audio: DisplayMediaAudio | null; sources: DisplayMediaSource[] };
 
-export type ZoomState = { zoom: number; host: string; isDefault: boolean; pinchScale: number };
+export type ZoomState = { zoom: number; host: string; isDefault: boolean; pinchScale: number; user: boolean };
 export type ContentBlockedState = { count: number; url: string };
 
 export type PasswordPrompt = {
@@ -138,6 +138,10 @@ export type AutofillPrompt = {
 };
 export type AutofillPromptAnswer = "accept" | "decline" | "dismiss";
 export type ExtensionActionResult = "none" | "popup" | "sidePanel";
+
+export type PageSelection = { text: string; rect: { x: number; y: number; width: number; height: number } };
+export type ScrollState = "down" | "up" | "top";
+export type ProtectedMediaRequest = { keySystem: string; main: boolean };
 
 export type WebViewProps = ViewProps & {
   engine?: PageEngine;
@@ -185,7 +189,9 @@ export type WebViewProps = ViewProps & {
   onCommand?: (command: PageCommand) => void;
   onPageFocus?: () => void;
   onPagePress?: () => void;
-  onPageMessage?: (kind: string, data: unknown) => void;
+  onSelection?: (selection: PageSelection | null) => void;
+  onScroll?: (state: ScrollState) => void;
+  onProtectedMedia?: (request: ProtectedMediaRequest) => void;
   onReady?: () => void;
   onDiscarded?: (url: string) => void;
   onPasswordPrompt?: (prompt: PasswordPrompt) => void;

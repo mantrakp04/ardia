@@ -1,4 +1,4 @@
-import { Symbol, VisualEffect, WindowDragRegion, Button, font, Toggle, useHover, weight } from "../ui";
+import { Symbol, VisualEffect, WindowDragRegion, Button, font, Toggle, useHover } from "../ui";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useTheme } from "../ui/theme";
@@ -6,9 +6,10 @@ import { useProfile, useSettings } from "../../state/browser/hooks";
 import { updateSettings } from "../../state/settings/actions";
 import { trackSettingsSection } from "../../state/telemetry/track";
 import { preparePane, usePaneLoaded } from "../../state/settings/paneData";
-import { anchorView, clearSettingsReveal, flashSetting, settingsSectionKey, useSettingsSearch } from "../../state/settings/searchState";
-import { ADVANCED_PANES, PANES, setting } from "./settingsIndex";
-import { SettingsPaneContext } from "./Form";
+import { clearSettingsReveal, flashSetting, settingsSectionKey, useSettingsSearch } from "../../state/settings/searchState";
+import { anchorView } from "./anchors";
+import { ADVANCED_PANES, findSetting, PANES } from "./settingsIndex";
+import { SettingsPaneContext, SheetTitle } from "./Form";
 import { SettingsSearchField, SettingsSearchResults } from "./SettingsSearch";
 import { AdvancedPane } from "./panes/Advanced";
 import { AppearancePane } from "./panes/Appearance";
@@ -26,7 +27,7 @@ import { ShortcutsPane } from "./panes/Shortcuts";
 import { SyncPane } from "./panes/Sync";
 import { TabsPane } from "./panes/Tabs";
 import { useSettingsSheet } from "../../state/settings/sheet";
-import { goToSettingsPane, settingsBack, settingsForward, useSettingsNav, type SettingsPlace } from "../../state/settings/settingsWindows";
+import { goToSettingsPane, settingsBack, settingsForward, useSettingsNav, type SettingsPane, type SettingsPlace } from "../../state/settings/settingsWindows";
 import { settingsProfileFor } from "../../state/extensions/store";
 import { useSettingsColors } from "./useSettingsColors";
 
@@ -66,7 +67,6 @@ function usePrefetchAllPanes(enabled: boolean) {
 }
 
 export function SettingsWindow() {
-  const theme = useTheme();
   const look = useSettingsColors();
   const nav = useSettingsNav();
   const shown = useShownPane();
@@ -83,7 +83,7 @@ export function SettingsWindow() {
   const viewport = useRef(0);
   const query = useSettingsSearch((s) => s.query);
   const reveal = useSettingsSearch((s) => s.reveal);
-  const revealPane = reveal ? setting(reveal.id).pane : null;
+  const revealPane = reveal ? (findSetting(reveal.id)?.pane ?? null) : null;
   const showAdvanced = useSettings((s) => s.showAdvancedSettings);
   const revealedSections = useSettingsSearch((s) => s.revealedSections);
   const panes = PANES.filter(
@@ -139,7 +139,7 @@ export function SettingsWindow() {
           <WindowDragRegion style={StyleSheet.absoluteFill} />
           <Button variant="icon" toolbar icon="chevron.left" size={13} box={28} radius={6} disabled={!nav.back.length} onPress={() => settingsBack()} tooltip="Back" />
           <Button variant="icon" toolbar icon="chevron.right" size={13} box={28} radius={6} disabled={!nav.forward.length} onPress={() => settingsForward()} tooltip="Forward" />
-          <Text style={{ marginLeft: 8, ...font.heading, fontWeight: weight.semibold, color: theme.textPrimary }}>{title}</Text>
+          <SheetTitle style={{ marginLeft: 8 }}>{title}</SheetTitle>
         </View>
         <ScrollView
           ref={scroller}
@@ -161,39 +161,26 @@ export function SettingsWindow() {
   );
 }
 
-function Pane({ pane, profileId, detail }: SettingsPlace): ReactNode {
-  switch (pane) {
-    case "general":
-      return <GeneralPane />;
-    case "profiles":
-      return profileId ? <ProfileDetailsPane profileId={profileId} /> : <ProfilesPane />;
-    case "sync":
-      return <SyncPane />;
-    case "tabs":
-      return <TabsPane />;
-    case "appearance":
-      return <AppearancePane />;
-    case "privacy":
-      return <PrivacyPane />;
-    case "passwords":
-      return <PasswordsPane profileId={profileId} />;
-    case "autofill":
-      return <AutofillPane profileId={profileId} />;
-    case "extensions":
-      return <ExtensionsPane profileId={profileId} detail={detail} />;
-    case "search":
-      return <SearchPane />;
-    case "engines":
-      return <EnginesPane />;
-    case "shortcuts":
-      return <ShortcutsPane />;
-    case "liveFolders":
-      return <LiveFoldersPane />;
-    case "calendar":
-      return <CalendarPane />;
-    case "advanced":
-      return <AdvancedPane />;
-  }
+const PANE_VIEWS: Record<SettingsPane, (place: SettingsPlace) => ReactNode> = {
+  general: () => <GeneralPane />,
+  profiles: ({ profileId }) => (profileId ? <ProfileDetailsPane profileId={profileId} /> : <ProfilesPane />),
+  sync: () => <SyncPane />,
+  tabs: () => <TabsPane />,
+  appearance: () => <AppearancePane />,
+  privacy: () => <PrivacyPane />,
+  passwords: ({ profileId }) => <PasswordsPane profileId={profileId} />,
+  autofill: ({ profileId }) => <AutofillPane profileId={profileId} />,
+  extensions: ({ profileId, detail }) => <ExtensionsPane profileId={profileId} detail={detail} />,
+  search: () => <SearchPane />,
+  engines: () => <EnginesPane />,
+  shortcuts: () => <ShortcutsPane />,
+  liveFolders: () => <LiveFoldersPane />,
+  calendar: () => <CalendarPane />,
+  advanced: () => <AdvancedPane />,
+};
+
+function Pane(place: SettingsPlace): ReactNode {
+  return PANE_VIEWS[place.pane](place);
 }
 
 function SidebarItem({ title, icon, selected, onPress }: { title: string; icon: string; selected: boolean; onPress: () => void }) {

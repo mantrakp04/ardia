@@ -1,5 +1,5 @@
 import { showMenu } from "../../../state/app/system";
-import { Symbol, Button, Checkbox, font, ink, Sheet, weight } from "../../ui";
+import { Symbol, Button, Checkbox, font, ink, Sheet } from "../../ui";
 import {
   copyRecoveryKit,
   copyRecoveryPhrase,
@@ -13,17 +13,15 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 import { Image, StyleSheet, Text, TextInput, View } from "react-native";
 import { useTheme } from "../../ui/theme";
-import { enterRecoveryPhrase, stopSync } from "../../../state/sync/engine";
+import { addRemoteProfile, enterRecoveryPhrase, stopSync, useSync } from "../../../state/sync/engine";
+import type { RemoteProfile } from "../../../state/sync/syncDoc";
+import { ProfileBadge } from "../../profiles/ProfileIcons";
+import { Group, Row, SheetTitle } from "../Form";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { settingsType } from "../tokens";
 import { useSettingsColors } from "../useSettingsColors";
 
 const WORDS = 24;
-
-function Title({ children }: { children: string }) {
-  const theme = useTheme();
-  return <Text style={{ ...font.heading, fontWeight: weight.semibold, color: theme.textPrimary }}>{children}</Text>;
-}
 
 function Body({ children, style }: { children: ReactNode; style?: object }) {
   const theme = useTheme();
@@ -69,7 +67,7 @@ function RecoveryKitSheet() {
     <Sheet width={460} onClose={closeSettingsSheet}>
       <View style={{ flexDirection: "row", gap: 18 }}>
         <View style={{ flex: 1 }}>
-          <Title>Save Your Recovery Kit</Title>
+          <SheetTitle>Save Your Recovery Kit</SheetTitle>
           <Body>Your Recovery Kit contains all you need to recover your data should you lose access to this device.</Body>
           <View
             style={{
@@ -133,20 +131,25 @@ function PhraseSheet({ folder, onChooseFolder }: { folder: FolderInfo | null; on
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [joined, setJoined] = useState(false);
+  const syncing = useSync((s) => s.enabled);
   const count = text.toLowerCase().split(/[^a-z]+/).filter(Boolean).length;
   const submit = async () => {
     if (!folder || busy) return;
     setBusy(true);
     setError(null);
+    const joining = !syncing;
     const result = await enterRecoveryPhrase(folder.path, text);
     setBusy(false);
     const message = phraseError(result);
     if (message) setError(message);
+    else if (joining) setJoined(true);
     else closeSettingsSheet();
   };
+  if (joined) return <JoinedSheet />;
   return (
     <Sheet width={440} onClose={closeSettingsSheet}>
-      <Title>Connect with Recovery Phrase</Title>
+      <SheetTitle>Connect with Recovery Phrase</SheetTitle>
       <Body>Enter your 24-word recovery phrase to sync with another device.</Body>
       <View
         style={{
@@ -199,6 +202,66 @@ function PhraseSheet({ folder, onChooseFolder }: { folder: FolderInfo | null; on
   );
 }
 
+export function remoteProfileDescription(p: Pick<RemoteProfile, "sharesWith" | "waiting">): string {
+  if (p.waiting) return "On your other devices. Waiting for the profile it shares data with to sync.";
+  if (!p.sharesWith) return "On your other devices";
+  const { name, added } = p.sharesWith;
+  return added ? `On your other devices. Shares data with ${name}, which is added too.` : `On your other devices. Shares data with ${name}.`;
+}
+
+export function addAllRemoteProfiles(profiles: RemoteProfile[]) {
+  for (const p of profiles) if (!p.waiting) addRemoteProfile(p.syncId);
+}
+
+export function RemoteProfileRow({ profile }: { profile: RemoteProfile }) {
+  return (
+    <Row
+      icon={<ProfileBadge profile={{ name: profile.name, color: profile.color, icon: profile.icon }} size={24} />}
+      title={profile.name}
+      description={remoteProfileDescription(profile)}
+    >
+      <Button title="Add to This Mac" disabled={!!profile.waiting} onPress={() => addRemoteProfile(profile.syncId)} />
+    </Row>
+  );
+}
+
+export function lookingForProfiles(pending: number): string {
+  const looking = "Looking for the profiles on your other devices…";
+  return pending ? `${looking} Waiting for ${pending === 1 ? "1 file" : `${pending} files`} to download.` : looking;
+}
+
+function joinedMessage(found: number, joining: boolean, pending: number, error: string | null): string {
+  if (found) return "These profiles are on your other devices. Add them to this Mac to sync their pinned tabs, bookmarks, history and passwords here too.";
+  if (error) return error;
+  if (joining) return lookingForProfiles(pending);
+  return "Every profile on your other devices is on this Mac too.";
+}
+
+function JoinedSheet() {
+  const remote = useSync((s) => s.remoteProfiles);
+  const joining = useSync((s) => s.joining);
+  const pending = useSync((s) => s.pending);
+  const error = useSync((s) => (s.status === "stalled" ? s.error : null));
+  const addable = remote.filter((p) => !p.waiting).length;
+  return (
+    <Sheet width={460} onClose={closeSettingsSheet}>
+      <SheetTitle>This Mac Is Syncing</SheetTitle>
+      <Body>{joinedMessage(remote.length, joining, pending, error)}</Body>
+      {remote.length ? (
+        <Group style={{ marginTop: 14 }}>
+          {remote.map((p) => (
+            <RemoteProfileRow key={p.syncId} profile={p} />
+          ))}
+        </Group>
+      ) : null}
+      <Buttons>
+        <Button title="Done" kind={addable > 1 ? "default" : "primary"} onPress={closeSettingsSheet} />
+        {addable > 1 ? <Button title="Add All" kind="primary" onPress={() => addAllRemoteProfiles(remote)} /> : null}
+      </Buttons>
+    </Sheet>
+  );
+}
+
 export function showConnectDevice() {
   showSettingsSheet(<ConnectDeviceSheet />);
 }
@@ -209,7 +272,7 @@ function ConnectDeviceSheet() {
   const [words, setWords] = useState<string[] | null>(null);
   return (
     <Sheet width={480} onClose={closeSettingsSheet}>
-      <Title>Connect Another Device</Title>
+      <SheetTitle>Connect Another Device</SheetTitle>
       <Body>
         On your other Mac, open Ardia › Settings › Sync and choose the same sync folder. Then click Enter Recovery Phrase and enter the 24 words
         of your recovery phrase.
@@ -253,7 +316,7 @@ export function showStopSync() {
 function StopSheet() {
   return (
     <Sheet width={420} onClose={closeSettingsSheet}>
-      <Title>Stop Syncing This Device?</Title>
+      <SheetTitle>Stop Syncing This Device?</SheetTitle>
       <Body>
         Syncing will stop on this device. To re-enable sync, you’ll need another device that is currently syncing, or the recovery phrase from your
         Recovery Kit. Everything on this Mac stays as it is.
@@ -276,7 +339,7 @@ function DeleteDataSheet() {
   };
   return (
     <Sheet width={420} onClose={() => void finish(false)}>
-      <Title>Delete Sync Data?</Title>
+      <SheetTitle>Delete Sync Data?</SheetTitle>
       <Body>
         Would you also like to permanently delete your synced data from the sync folder? This will stop syncing on all your other devices too. To sync
         again, you’ll need to set up each device from scratch. Your data on each Mac stays.

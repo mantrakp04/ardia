@@ -6,19 +6,19 @@
 #include <optional>
 #include <string>
 
-#include "base/base64.h"
 #include "base/memory/weak_ptr.h"
 #include "base/functional/bind.h"
 #include "base/no_destructor.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/strings/sys_string_conversions.h"
+#include "chrome/browser/ardia/ac_external_apps.h"
 #include "chrome/browser/external_protocol/external_protocol_handler.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/pref_names.h"
 #include "components/prefs/pref_service.h"
-#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "content/public/browser/weak_document_ptr.h"
 #include "content/public/browser/web_contents.h"
+#include "extensions/common/constants.h"
 #include "ardia/core/ac_hooks.h"
 #include "ardia/core/ac_browser.h"
 #include "ardia/core/ac_launch_switches.h"
@@ -45,31 +45,12 @@ std::map<std::string, Pending>& PendingRequests() {
   return *pending;
 }
 
-NSString* IconDataURI(NSURL* app, CGFloat size) {
-  NSImage* icon = [NSWorkspace.sharedWorkspace iconForFile:app.path];
-  if (!icon) {
+NSURL* StandInAppForTests() {
+  const std::optional<std::string> path = TestValue("externalProtocolApp");
+  if (!path || !TestFlag("externalProtocolNoLaunch")) {
     return nil;
   }
-  NSBitmapImageRep* rep = [[NSBitmapImageRep alloc]
-      initWithBitmapDataPlanes:nullptr
-                    pixelsWide:size * 2
-                    pixelsHigh:size * 2
-                 bitsPerSample:8
-               samplesPerPixel:4
-                      hasAlpha:YES
-                      isPlanar:NO
-                colorSpaceName:NSDeviceRGBColorSpace
-                   bytesPerRow:0
-                  bitsPerPixel:0];
-  [NSGraphicsContext saveGraphicsState];
-  NSGraphicsContext.currentContext =
-      [NSGraphicsContext graphicsContextWithBitmapImageRep:rep];
-  [icon drawInRect:NSMakeRect(0, 0, size * 2, size * 2)];
-  [NSGraphicsContext restoreGraphicsState];
-  NSData* png = [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
-  return png ? [@"data:image/png;base64," stringByAppendingString:
-                   [png base64EncodedStringWithOptions:0]]
-             : nil;
+  return [NSURL fileURLWithPath:base::SysUTF8ToNSString(*path)];
 }
 
 bool AskHost(const GURL& url,
@@ -77,9 +58,7 @@ bool AskHost(const GURL& url,
              const std::optional<url::Origin>& initiating_origin,
              content::WeakDocumentPtr initiator_document,
              const std::u16string& program_name) {
-  BrowserWindowInterface* browser =
-      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(contents);
-  if (!browser || !WindowHost::ForBrowser(browser)) {
+  if (!WindowHost::ForContents(contents)) {
     return false;
   }
   ArdiaCoreTab* tab = TabBridge::GetOrCreate(contents)->tab();
@@ -90,10 +69,13 @@ bool AskHost(const GURL& url,
   NSURL* ns_url = [NSURL URLWithString:base::SysUTF8ToNSString(url.spec())];
   NSURL* app = ns_url ? [NSWorkspace.sharedWorkspace URLForApplicationToOpenURL:ns_url]
                       : nil;
-  NSString* name =
-      app ? [NSFileManager.defaultManager displayNameAtPath:app.path]
-                .stringByDeletingPathExtension
-          : nil;
+  if (!app) {
+    app = StandInAppForTests();
+  }
+  const std::optional<ardia::ExternalApp> described =
+      app ? std::optional<ardia::ExternalApp>(ardia::DescribeExternalApp(app))
+          : std::nullopt;
+  NSString* name = described ? described->name : nil;
   if (!name.length && !program_name.empty()) {
     name = base::SysUTF16ToNSString(program_name);
   }
@@ -131,7 +113,7 @@ bool AskHost(const GURL& url,
         @"origin" : origin ?: NSNull.null,
         @"app" : app ? name : NSNull.null,
         @"appPath" : app.path ?: NSNull.null,
-        @"icon" : (app ? IconDataURI(app, 64) : nil) ?: NSNull.null,
+        @"icon" : (described ? described->icon : nil) ?: NSNull.null,
         @"title" : title,
         @"message" : message ?: NSNull.null,
         @"remember" : remember ?: NSNull.null,
@@ -176,7 +158,11 @@ void ResolveExternalApp(const std::string& request_id, bool open, bool remember)
   Pending pending = std::move(it->second);
   PendingRequests().erase(it);
   content::WebContents* contents = pending.contents.get();
-  if (!open || !contents || !pending.initiator.AsRenderFrameHostIfValid()) {
+  const bool asked_by_browser_or_extension =
+      !pending.origin || pending.origin->scheme() == extensions::kExtensionScheme;
+  const bool asking_page_gone =
+      !asked_by_browser_or_extension && !pending.initiator.AsRenderFrameHostIfValid();
+  if (!open || !contents || asking_page_gone) {
     return;
   }
   Profile* profile = Profile::FromBrowserContext(contents->GetBrowserContext());

@@ -5,6 +5,7 @@ usage="usage: scripts/engine-source.sh <version or engine-<tree:12>> <out.tar.xz
 version="${1:?$usage}"
 out="${2:?$usage}"
 root="$(cd "$(dirname "$0")/.." && pwd -P)"
+. "$root/scripts/lib/releases.sh"
 die() { echo "error: $*" >&2; exit 1; }
 case "$version" in
   engine-*) ref="$version" shipped="the ArdiaCore engine ${version#engine-}" ;;
@@ -42,7 +43,7 @@ cat >"$src/README.txt" <<EOF
 The source of $shipped, besides Ardia's own repository.
 
 Ardia, with the engine's patches and build scripts:
-  https://github.com/mantrakp04/ardia/tree/$ref
+  $REPO_URL/tree/$ref
   How to build it: docs/engine-build.md there.
 
 Chromium $chromium (BSD-3-Clause and others):

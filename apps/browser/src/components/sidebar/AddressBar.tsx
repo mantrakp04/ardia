@@ -5,7 +5,6 @@ import { layout, useTheme } from "../ui/theme";
 import { useActiveTabId, useSettings, useTabLive, useWindowId } from "../../state/browser/hooks";
 import { openPanel, toggleSidebar } from "../../state/windows/actions";
 import { isAddressBarInSidebar } from "../../state/sidebar/current";
-import { useIsInSplit } from "../../state/sidebar/hooks";
 import { usePageProgress } from "../../state/tabs/pageProgress";
 import { extensionsFitting, ToolbarExtensions, useToolbarExtensionsWidth } from "../extensions/ToolbarExtensions";
 import { useHistoryAvailability } from "../../state/tabs/navigation";
@@ -14,7 +13,7 @@ import { Button, type ButtonHit, FadeLabel, font, useHover } from "../ui";
 import { setUrlAnchor } from "../../state/windows/layout";
 import { SIDEBAR_FIELD } from "./geometry";
 import { SidebarFieldFill } from "./SidebarField";
-import { UrlField, useToolbarTab } from "../toolbar/Toolbar";
+import { SidebarUrlField, useToolbarTab } from "../toolbar/Toolbar";
 import { HistoryButton, ReloadButton } from "../toolbar/NavButtons";
 import { GLYPH } from "../toolbar/tokens";
 import { HEADER_TOOLS, navButtonsFitting, type HeaderButton } from "../window/dockMotion";
@@ -123,25 +122,23 @@ function PageField({ tab, windowId, width }: { tab: NonNullable<ReturnType<typeo
   const loading = useTabLive(tab.id, (l) => l.isLoading);
   const loaded = usePageProgress(tab.id);
   const progress = loading ? loaded : null;
-  const inSplit = useIsInSplit(tab.id);
   const limit = extensionsFitting(width - 10 - 3 - HOST_ROOM);
   const extensionsWidth = useToolbarExtensionsWidth(windowId, limit);
   return (
-    <UrlField
+    <SidebarUrlField
       tab={tab}
       palette={palette}
       windowId={windowId}
-      inSplit={inSplit}
       onFocus={alreadyFocused}
-      sidebar={{
-        height: SIDEBAR_FIELD.height,
-        progress,
-        accessory: extensionsWidth ? (
+      height={SIDEBAR_FIELD.height}
+      progress={progress}
+      accessory={
+        extensionsWidth ? (
           <View style={{ width: extensionsWidth - 6, height: 28 }}>
             <ToolbarExtensions tabId={tab.id} windowId={windowId} palette={palette} top={0} right={0} limit={limit} />
           </View>
-        ) : null,
-      }}
+        ) : null
+      }
     />
   );
 }

@@ -2,6 +2,8 @@
 !Dockerfile
 !app/
 !app/**
+!site/
+!site/**
 app/node_modules
 app/dist
 app/.output

@@ -4,7 +4,6 @@ final class LeftEdgeWatcher {
   static let shared = LeftEdgeWatcher()
   static let reach: CGFloat = 24
 
-  var emit: ((String, [String: Any]) -> Void)?
   var pointerOverride: NSPoint?
   private var watched: [String: CGFloat] = [:]
   private var over: Set<String> = []
@@ -41,7 +40,7 @@ final class LeftEdgeWatcher {
   private func check(_ point: NSPoint, live: Bool) {
     lazy var onDock = live && NSApp.isActive && isOnDock(point)
     for (id, hold) in watched {
-      guard let window = WindowManager.shared.windows[id] else {
+      guard let window = WindowManager.shared.window(id) else {
         watched[id] = nil
         over.remove(id)
         unreported.remove(id)
@@ -55,7 +54,7 @@ final class LeftEdgeWatcher {
       guard fresh || now != over.contains(id) else { continue }
       if now { over.insert(id) } else { over.remove(id) }
       let frame = window.frame
-      emit?("onWindowEvent", ["type": "leftEdge", "id": id, "over": now, "point": [point.x - frame.minX, frame.maxY - point.y]])
+      ShellEvents.send(.window, ["type": "leftEdge", "id": id, "over": now, "point": [point.x - frame.minX, frame.maxY - point.y]])
     }
     if watched.isEmpty { return stop() }
     updateGlobalMonitor()
@@ -133,7 +132,7 @@ final class LeftEdgeWatcher {
   private var needsGlobalMonitor: Bool {
     if NSApp.isActive || !over.isEmpty { return true }
     return watched.contains { id, hold in
-      guard let window = WindowManager.shared.windows[id] else { return false }
+      guard let window = WindowManager.shared.window(id) else { return false }
       if hold > 0 { return true }
       guard let screen = window.screen else { return false }
       return Self.besideScreenEdge(window, screen)
@@ -157,7 +156,7 @@ final class LeftEdgeWatcher {
   }
 
   private func isWatched(_ window: NSWindow) -> Bool {
-    watched.keys.contains { WindowManager.shared.windows[$0] === window }
+    watched.keys.contains { WindowManager.shared.window($0) === window }
   }
 
   private func start() {

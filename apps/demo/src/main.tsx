@@ -12,7 +12,7 @@ import { startEmbed } from "./embed";
 import { isFrameable } from "./frameable";
 import { pageTitle } from "./pages";
 import { installLocalSuggestions } from "./localSuggest";
-import { demoSession } from "./seed";
+import { demoHistory, demoSession } from "./seed";
 import { warmFrame } from "./shims/web/framePool";
 import { MenuHost } from "./shims/web/menus";
 import "./shims/web/motion/shortcuts";
@@ -21,6 +21,7 @@ import { TrafficLights } from "./shims/web/windowChrome";
 installLocalSuggestions();
 setStoreBatching(unstable_batchedUpdates);
 useBrowser.getState().hydrate({ ...demoSession(), settings: demoSettings() });
+useBrowser.setState((s) => ({ history: demoHistory(s) }));
 startTabPages();
 startNativeSync();
 

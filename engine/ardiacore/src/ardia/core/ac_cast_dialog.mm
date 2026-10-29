@@ -12,7 +12,6 @@
 #include "base/strings/sys_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/media/router/media_router_feature.h"
-#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/media_router/cast_dialog_controller.h"
 #include "chrome/browser/ui/media_router/cast_dialog_model.h"
 #include "chrome/browser/ui/media_router/media_router_ui.h"
@@ -57,13 +56,6 @@ class CastDialog;
 std::map<int, std::unique_ptr<CastDialog>>& Live() {
   static base::NoDestructor<std::map<int, std::unique_ptr<CastDialog>>> live;
   return *live;
-}
-
-bool IsHostTab(content::WebContents* contents) {
-  BrowserWindowInterface* browser =
-      contents ? GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(contents)
-               : nullptr;
-  return browser && WindowHost::ForBrowser(browser);
 }
 
 class CastDialog : public media_router::CastDialogController::Observer {
@@ -271,7 +263,7 @@ void TerminateCastRoute(const std::string& route_id) {
 }
 
 bool WantsCastDialog(content::WebContents* initiator) {
-  return HostWantsCastDialogs() && IsHostTab(initiator);
+  return WindowHost::ForContents(initiator);
 }
 
 bool HandleCastDialog(content::WebContents* initiator,

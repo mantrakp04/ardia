@@ -6,9 +6,9 @@ globalThis.__DEV__ = false;
 const toasts = new Map();
 globalThis.engineTestToasts = toasts;
 const stubs = {
-  "../splits/actions": `export const showToast = (windowId, title, message, options) => globalThis.engineTestToasts.set(windowId, { title, ...options });
+  "../app/toasts": `export const showToast = (windowId, title, message, options) => globalThis.engineTestToasts.set(windowId, { title, ...options });
     export const hideKeyedToast = (windowId, key) => globalThis.engineTestToasts.get(windowId)?.key === key && globalThis.engineTestToasts.delete(windowId);`,
-  "../tabs/tabPages": "export const wantsPage = (t) => !!t && !!(t.navigation || t.adoptId);",
+  "../tabs/tabPages": "export const wantsPage = (t) => !!t && !!(t.page.nav || t.page.adopt);",
 };
 registerHooks({
   resolve(specifier, context, next) {
@@ -49,7 +49,7 @@ test("Back across engines without unsaved input reopens the page before in its e
   webviews.set(tabId, { evaluate: () => Promise.resolve(false) });
   assert.equal(await goBackAcrossEngines(tabId), true);
   assert.equal(S().tabs[tabId].engine, "chromium");
-  assert.equal(S().tabs[tabId].navigation.url, "https://search.example/?q=film");
+  assert.equal(S().tabs[tabId].page.nav.url, "https://search.example/?q=film");
   assert.equal(pageOf(tabId).engineBack, null);
   webviews.clear();
 });
@@ -61,7 +61,7 @@ test("Move Back goes away once the tab leaves the moved site, and never saves a 
   const tabId = model.activeTabId(S(), w);
   S().updateTab(tabId, { engine: "chromium", url: "https://www.netflix.com/watch/1" });
   webviews.set(tabId, { evaluate: () => Promise.resolve(false) });
-  offerWebKit(tabId, { keySystem: "com.widevine.alpha" });
+  offerWebKit(tabId, { keySystem: "com.widevine.alpha", main: true });
   await settle();
   const toast = toasts.get(w);
   assert.equal(toast?.action?.title, "Move Back");

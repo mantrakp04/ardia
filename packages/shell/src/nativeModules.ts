@@ -1,17 +1,35 @@
-import { requireNativeModule, requireOptionalNativeModule } from "expo-modules-core";
-import type { AppModule } from "./app";
+import { requireNativeModule } from "expo-modules-core";
+import type { AppNative } from "./app";
 import type { CliNative } from "./cli";
+import type { DevNative } from "./dev";
+import type { DialogsNative } from "./dialogs";
+import type { DocumentsNative } from "./documents";
+import type { FocusNative } from "./focus";
 import type { InlineCompletionNative } from "./inlineCompletion";
+import type { ShellNative } from "./lifecycle";
 import type { CalendarNative, KeychainNative } from "./live";
-import type { ShellNative } from "./shellNative";
+import type { MenusNative } from "./menus";
+import type { NotificationsNative } from "./notifications";
+import type { ScriptingNative } from "./scripting";
 import type { FileDropNative, MagnifyAreaNative, SystemNative } from "./system";
 import type { TranslationModule } from "./translation";
+import type { UpdaterNative } from "./updater";
 import type { UserScriptsNative } from "./userScripts";
+import type { WindowsNative } from "./windows";
 import type { DockSelectionNative, GlassEffectNative } from "./views";
 
 export type ShellNativeModules = {
   ArdiaShell: ShellNative;
-  ArdiaApp: AppModule;
+  ArdiaAppWindows: WindowsNative;
+  ArdiaFocus: FocusNative;
+  ArdiaMenus: MenusNative;
+  ArdiaDialogs: DialogsNative;
+  ArdiaDocuments: DocumentsNative;
+  ArdiaApp: AppNative;
+  ArdiaUpdater: UpdaterNative;
+  ArdiaNotifications: NotificationsNative;
+  ArdiaScripting: ScriptingNative;
+  ArdiaDev: DevNative;
   ArdiaSystem: SystemNative;
   ArdiaCalendar: CalendarNative;
   ArdiaKeychain: KeychainNative;
@@ -21,14 +39,8 @@ export type ShellNativeModules = {
   ArdiaTranslate: TranslationModule;
   ArdiaMagnifyArea: MagnifyAreaNative;
   ArdiaFileDrop: FileDropNative;
-};
-
-export type ShellOptionalNativeModules = {
   ArdiaCli: CliNative;
   ArdiaUserScripts: UserScriptsNative;
 };
 
 export const nativeModule = <Name extends keyof ShellNativeModules>(name: Name) => requireNativeModule<ShellNativeModules[Name]>(name);
-
-export const optionalNativeModule = <Name extends keyof ShellOptionalNativeModules>(name: Name) =>
-  requireOptionalNativeModule<ShellOptionalNativeModules[Name]>(name);

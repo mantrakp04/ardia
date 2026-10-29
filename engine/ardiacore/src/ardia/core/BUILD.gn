@@ -21,8 +21,15 @@ source_set("launch_switches") {
   frameworks = [ "Security.framework" ]
 }
 
+source_set("hooks") {
+  sources = [
+  ]
+}
+
 source_set("core") {
   sources = [
+    "ac_app_urls.h",
+    "ac_app_urls.mm",
     "ac_autofill_bubble_handler.mm",
     "ac_autofill_prompt.h",
     "ac_autofill_prompt.mm",
@@ -86,6 +93,10 @@ source_set("core") {
     "ac_page_limits.h",
     "ac_page_channel.mm",
     "ac_page_channel_held.mm",
+    "ac_page_script.cc",
+    "ac_page_script.h",
+    "ac_page_view.h",
+    "ac_page_view.mm",
     "ac_password_prompt.h",
     "ac_password_prompt.mm",
     "ac_permissions.h",
@@ -134,13 +145,16 @@ source_set("core") {
   all_dependent_configs = [ ":exports" ]
 
   deps = [
+    ":hooks",
     ":launch_switches",
     "//base",
+    "//cc",
     "//chrome/app:branded_strings",
     "//chrome/app:command_ids",
     "//chrome/app:generated_resources",
     "//chrome/browser",
     "//chrome/browser/apps/platform_apps",
+    "//chrome/browser/ardia",
     "//chrome/browser/devtools",
     "//chrome/browser/extensions",
     "//chrome/browser/permissions/system",
@@ -158,6 +172,7 @@ source_set("core") {
     "//components/favicon/content",
     "//components/find_in_page",
     "//components/password_manager/core/browser",
+    "//components/password_manager/core/common",
     "//components/prefs",
     "//components/input",
     "//components/remote_cocoa/app_shim",
@@ -166,6 +181,7 @@ source_set("core") {
     "//components/zoom",
     "//components/autofill/content/browser",
     "//components/autofill/core/browser",
+    "//components/autofill/core/common",
     "//components/media_router/browser",
     "//components/blocked_content",
     "//components/content_settings/core/browser",
@@ -196,6 +212,7 @@ source_set("core") {
     "//ui/color",
     "//ui/content_accelerators",
     "//ui/events:events_base",
+    "//ui/events/blink",
     "//ui/gfx",
     "//ui/views",
   ]

@@ -36,6 +36,8 @@ NS_ASSUME_NONNULL_BEGIN
 + (NSArray<NSDictionary<NSString *, id> *> *)devEventsForBrowser:(int)browserId NS_SWIFT_NAME(devEvents(browserId:));
 + (NSInteger)devWindowNumberForBrowser:(int)browserId NS_SWIFT_NAME(devWindowNumber(browserId:));
 + (BOOL)devFocusPageOfBrowser:(int)browserId NS_SWIFT_NAME(devFocusPage(browserId:));
++ (nullable NSString *)devPagePhaseOf:(NSString *)transferKey NS_SWIFT_NAME(devPagePhase(of:));
++ (BOOL)devClosePageOf:(NSString *)transferKey NS_SWIFT_NAME(devClosePage(of:));
 + (int)browserIdOfTab:(nullable NSString *)tabId NS_SWIFT_NAME(browserId(ofTab:));
 
 @end
@@ -62,8 +64,16 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 @interface ArdiaWebView (Focus)
-+ (void)installOutgoingFocusSnapshots;
++ (void)keepOutgoingFocusFrom:(NSResponder *)responder NS_SWIFT_NAME(keepOutgoingFocus(from:));
++ (void)endOutgoingFocusFrom:(NSResponder *)responder NS_SWIFT_NAME(endOutgoingFocus(from:));
 - (void)focusPage;
+@end
+
+@interface ArdiaWebView (NeighbourPages)
++ (void)wakeNeighbourPagesIn:(NSWindow *)window NS_SWIFT_NAME(wakeNeighbourPages(in:));
++ (void)wakeNeighbourPagesIn:(NSWindow *)window seconds:(CFTimeInterval)seconds committed:(BOOL)committed
+    NS_SWIFT_NAME(wakeNeighbourPages(in:seconds:committed:));
++ (void)releaseNeighbourPagesIn:(NSWindow *)window NS_SWIFT_NAME(releaseNeighbourPages(in:));
 @end
 
 @interface ArdiaWebView (InputMonitors)
@@ -84,6 +94,7 @@ NS_ASSUME_NONNULL_BEGIN
 @interface ArdiaWebView (Peek)
 + (void)setPeekModifier:(NSString *)modifier;
 + (void)setSplitLinkModifier:(NSString *)modifier;
++ (void)setPeekOtherSiteTabs:(NSArray<NSString *> *)tabIds;
 + (BOOL)devPostPeekMouseUp:(NSString *)keys over:(NSString *)transferKey;
 @end
 

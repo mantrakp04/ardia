@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, StyleSheet, View, type ViewStyle } from "react-native";
-import { Box, Button, curve, duration, radius, spring, Surface, Text, useHover } from "../ui";
+import { Box, Button, curve, duration, GlassFill, liquidGlass, radius, spring, Surface, Text, useHover } from "../ui";
 import { NTP_CARD, useNtpColors } from "./tokens";
 
 const LEAVE_SCALE = 0.98;
@@ -82,6 +82,7 @@ export function NtpCard({
 
 export function NtpCardSurface() {
   const colors = useNtpColors();
+  if (liquidGlass) return <GlassFill kind="panel" fill={colors.cardFill} radius={radius.card} />;
   return (
     <Surface
       style={StyleSheet.absoluteFill}

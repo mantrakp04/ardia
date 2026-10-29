@@ -156,7 +156,7 @@ function interactions(c) {
     { name: "command bar open (⌘L)", window: 600, verify: `return !!${ui};`, before: reset, go: () => key("cmd+l"), after: async () => { await sleep(900); } },
     { name: "command bar close (Esc, from ⌘L)", window: 600, verify: `return !${ui};`, before: async () => { await reset(); await key.open("cmd+l"); }, go: () => key("esc"), after: reset },
     { name: "tab switch", window: 500, verify: `const s = ac.store.getState(); return s.windows[${W}].activeTabIds[s.windows[${W}].profileId] === globalThis.__frameTarget;`, before: reset, go: () => run(`globalThis.acPerf?.reset(); const t = ac.now(); const s = ac.store.getState(); const w = ${W};
-        const ids = s.windows[w].tabIds.filter((id) => !s.tabs[id].pinned); const id = ids[(${k++} * 7 + 3) % ids.length];
+        const ids = s.windows[w].tabIds.filter((id) => !s.tabs[id].pin); const id = ids[(${k++} * 7 + 3) % ids.length];
         globalThis.__frameTarget = id; ac.actions.switchToTab(id); return t;`) },
     { name: "sidebar collapse", window: 800, verify: `return !${win}.sidebarOpen;`, before: async () => { await reset(); await want(true); }, go: () => store(`ac.store.getState().toggleSidebar(${W})`) },
     { name: "sidebar expand", window: 800, verify: `return ${win}.sidebarOpen;`, before: async () => { await reset(); await want(false); }, go: () => store(`ac.store.getState().toggleSidebar(${W})`), after: () => sleep(300) },

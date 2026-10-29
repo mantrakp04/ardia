@@ -5,7 +5,5 @@ export const SMALL_WINDOW_FRAME = {
   light: { outerRim: "rgba(0,0,0,0.15)", innerRim: "rgba(255,255,255,0)", shadowOpacity: 0.38, shadowRadius: 23, shadowOffset: [0, 21] as [number, number] },
 };
 
-export const PAGE_PROGRESS_GROW = 200;
-
 export const TRAFFIC_LIGHT_PITCH = 23;
 export const NAV_CENTER_PAST_ZOOM = 27;

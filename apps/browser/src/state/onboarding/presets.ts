@@ -38,6 +38,7 @@ const CLASSIC_TABS: Partial<Settings> = {
   commandBarPreference: "search",
   openLinksInLittleArdia: false,
   profileSwitcherIcons: false,
+  peekLinksToOtherSites: false,
 };
 
 export const PRESETS: Record<Preset, Partial<Settings>> = {
@@ -63,6 +64,7 @@ export const PRESETS: Record<Preset, Partial<Settings>> = {
     commandBarPreference: "website",
     openLinksInLittleArdia: true,
     profileSwitcherIcons: false,
+    peekLinksToOtherSites: false,
   },
   arc: {
     tabLayout: "sidebar",
@@ -86,6 +88,7 @@ export const PRESETS: Record<Preset, Partial<Settings>> = {
     commandBarPreference: "website",
     openLinksInLittleArdia: true,
     profileSwitcherIcons: true,
+    peekLinksToOtherSites: true,
   },
   zen: {
     tabLayout: "sidebar",
@@ -109,13 +112,14 @@ export const PRESETS: Record<Preset, Partial<Settings>> = {
     commandBarPreference: "search",
     openLinksInLittleArdia: false,
     profileSwitcherIcons: true,
+    peekLinksToOtherSites: true,
   },
   chrome: CLASSIC_TABS,
   firefox: CLASSIC_TABS,
   safari: { ...CLASSIC_TABS, extendWebsiteColor: true, bookmarksBar: "never" },
   brave: { ...CLASSIC_TABS, searchEngine: "brave" },
   edge: { ...CLASSIC_TABS, searchEngine: "bing" },
-  fresh: { addressBar: "sidebar", commandBarPlacement: "centred", newTabPosition: "nextToCurrent", newTabButtonPosition: "bottom", profileSwitcherIcons: false },
+  fresh: { addressBar: "sidebar", commandBarPlacement: "centred", newTabPosition: "nextToCurrent", newTabButtonPosition: "bottom", profileSwitcherIcons: false, peekLinksToOtherSites: false },
 };
 
 export const setsUpLikeBrowser = (source: BrowserSourceId | null): source is Exclude<BrowserSourceId, "fresh"> => !!source && source !== "fresh";

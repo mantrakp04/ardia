@@ -21,6 +21,7 @@ import { geo } from "./geometry";
 import { lookFor } from "./look";
 import { MockWindow } from "./MockWindow";
 import { mockInk } from "./tokens";
+import { devRegister } from "../../dev/devRegister";
 
 const FRAME_POINTS = [0.2, 0.4, 0.65, 1] as const;
 const FRAMES_PER_PAGE = 4;
@@ -128,11 +129,11 @@ function show(page: Parameters<typeof showGalleryPage>[0]) {
   openSettings();
 }
 
-(globalThis as { acOnboardingPreviews?: unknown }).acOnboardingPreviews = {
+devRegister("acOnboardingPreviews", null, {
   store: useGallery,
   pages: { frames: Math.ceil(PREVIEW_IDS.length / FRAMES_PER_PAGE), mock: MOCK_PAGES.length },
   show,
   hide: closeSettingsSheet,
   setMock: setGalleryMock,
   snapshot: (path: string) => devSnapshotWindow(SETTINGS_WINDOW_ID, path),
-};
+});

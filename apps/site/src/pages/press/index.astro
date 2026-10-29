@@ -1,4 +1,5 @@
 ---
+import { base } from "../../data/site";
 import type { ImageMetadata } from "astro";
 import { Image, Picture } from "astro:assets";
 import Base from "../../layouts/Base.astro";
@@ -6,25 +7,23 @@ import Header from "../../components/Header.astro";
 import Footer from "../../components/Footer.astro";
 import appIcon from "../../assets/app-icon.png";
 import paintedMark from "../../assets/ardia-mark.png";
-import { DISCORD, REPO } from "../../data/release";
+import { DISCORD, MIN_MACOS_MAJOR, REPO } from "../../data/release";
 import {
   COLOURS,
   FACTS,
   FONTS,
   LOGOS,
   LONG,
-  MARK_SVGS,
   SHORT,
   SHOTS,
   ZIP_NAME,
   logoFile,
   megabytes,
-  oklch,
-  pressZip,
   shotFile,
 } from "../../data/press";
+import { MARK_SVGS, pressZip } from "../../lib/pressAssets";
+import { oklch } from "../../lib/oklch";
 
-const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 const press = `${base}/press`;
 const zipSize = megabytes((await pressZip()).length);
 const shotImages = import.meta.glob<{ default: ImageMetadata }>("../../assets/shots/*.webp", { eager: true });
@@ -235,7 +234,7 @@ const rules = [
           FONTS.map((f, i) => (
             <li class="font">
               <p class:list={["specimen", i === 0 ? "poster" : "label"]} style={`font-family: ${f.family}`} aria-hidden="true">
-                {i === 0 ? "Sidebar first." : "Apple Silicon · macOS 14+"}
+                {i === 0 ? "Sidebar first." : `Apple Silicon · macOS ${MIN_MACOS_MAJOR}+`}
               </p>
               <div class="font-text">
                 <h3>

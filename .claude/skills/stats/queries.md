@@ -24,8 +24,9 @@ SITE  = (source IN ('ardia-site', 'netnyahoo-site', 'posthog-cloud') AND propert
 DAILY = (event = 'daily_active' AND source = 'ardia-app' AND properties['$lib'] = 'ardia-daily' AND properties['$environment'] = 'production')
 -- the Mac app's opted-in telemetry
 APP   = (source IN ('ardia-app', 'netnyahoo-app', 'posthog-cloud') AND properties['$lib'] IN ('ardia-telemetry', 'netnyahoo-telemetry'))
-MAC   = (properties['$os'] = 'Mac OS X' AND properties['$device_type'] = 'Desktop')
-PHONE = (properties['$device_type'] IN ('Mobile', 'Tablet'))
+-- the device the page acted on (Device.astro), with the user-agent rule for events from before 2026-10-29
+MAC   = if(properties['ardia_device'] = '', properties['$os'] = 'Mac OS X' AND properties['$device_type'] = 'Desktop', properties['ardia_device'] = 'mac')
+PHONE = if(properties['ardia_device'] = '', properties['$device_type'] IN ('Mobile', 'Tablet'), properties['ardia_device'] = 'phone')
 ```
 
 ## Site
@@ -75,10 +76,10 @@ WHERE SITE AND event = '$dead_click' AND timestamp > now() - INTERVAL 24 HOUR GR
 ## Phones: Send to my Mac
 
 ```sql
--- Panel funnel: taps, then how the link got out (outcome: shared|copied|blocked|failed; fallback: copied|selected|email)
-SELECT event, properties['outcome'] AS outcome, properties['action'] AS action, uniqExact(distinct_id)
-FROM telemetry.events WHERE SITE AND event IN ('send_to_mac_clicked', 'send_to_mac_fallback')
-  AND timestamp > now() - INTERVAL 24 HOUR GROUP BY event, outcome, action ORDER BY event, 4 DESC;
+-- Panel funnel: taps, then how the link got out (outcome: shared|copied|blocked|cancelled|error)
+SELECT properties['method'] AS method, properties['outcome'] AS outcome, uniqExact(distinct_id)
+FROM telemetry.events WHERE SITE AND event = 'send_to_mac_clicked'
+  AND timestamp > now() - INTERVAL 24 HOUR GROUP BY method, outcome ORDER BY 3 DESC;
 
 -- Macs that opened a sent link
 SELECT uniqExact(distinct_id) FROM telemetry.events WHERE SITE AND event = 'mac_link_visit';

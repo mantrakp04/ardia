@@ -1,8 +1,9 @@
 import { useBrowser, type BrowserState } from "../browser/store";
 import { isIncognitoProfile } from "../browser/model";
-import { nextPinChoice, orderChoiceKey } from "./organize";
+import { nextPinChoice, orderChoiceKey } from "./pinChoices";
 import { anchorsOf, pinnedAreaKeys } from "./pinnedArea";
 import type { TabGroup } from "../browser/types";
+import { isRegularWindow } from "../windows/small";
 
 let remote = 0;
 
@@ -19,7 +20,7 @@ function homes(s: BrowserState): Map<string, string> {
   const out = new Map<string, string>();
   for (const profileId of new Set(Object.values(s.groups).filter((g) => g.pinned && !g.parentId).map((g) => g.profileId))) {
     if (isIncognitoProfile(profileId)) continue;
-    const home = [...s.ui.focusOrder, ...s.windowOrder].map((id) => s.windows[id]).find((w) => !!w && !w.incognito && w.kind !== "small" && w.tabIds.some((id) => s.tabs[id]?.profileId === profileId));
+    const home = [...s.ui.focusOrder, ...s.windowOrder].map((id) => s.windows[id]).find((w) => isRegularWindow(w) && w.tabIds.some((id) => s.tabs[id]?.profileId === profileId));
     if (home) out.set(profileId, home.id);
   }
   return out;

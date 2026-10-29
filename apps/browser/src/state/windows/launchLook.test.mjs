@@ -13,7 +13,7 @@ const image = (i) => `data:image/png;base64,${String(i).padStart(4, "0")}${"A".r
 
 test("the launch favicons stay under 1 MiB serialized, each image stored once", () => {
   useBrowser.getState().hydrate({});
-  const key = engineProfile("default");
+  const key = engineProfile(useBrowser.getState(), "default");
   const pages = {};
   const srcs = {};
   const themes = {};

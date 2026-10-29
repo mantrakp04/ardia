@@ -9,6 +9,7 @@ let installWindowMoveFallback: Void = {
   typealias PerformDrag = @convention(c) (NSWindow, Selector, NSEvent) -> Void
   let original = unsafeBitCast(method_getImplementation(method), to: PerformDrag.self)
   let block: @convention(block) (NSWindow, NSEvent) -> Void = { window, event in
+    if WindowMove.windowServerMoves(window, from: event) { return }
     if !WindowMove.follow(window, from: event) { original(window, selector, event) }
   }
   method_setImplementation(method, imp_implementationWithBlock(block))
@@ -18,6 +19,11 @@ enum WindowMove {
   static let replacesNativeDrag = ProcessInfo.processInfo.isOperatingSystemAtLeast(OperatingSystemVersion(majorVersion: 27, minorVersion: 0, patchVersion: 0))
   private static var following = false
   private static let staleAfter: TimeInterval = 0.012
+
+  static func windowServerMoves(_ window: NSWindow, from event: NSEvent) -> Bool {
+    event.type == .leftMouseDown && event.clickCount < 2 && event.window === window && window.isMovable
+      && !window.styleMask.contains(.fullScreen) && ServerWindowDrag.serverOwnsPress(window, at: event.locationInWindow)
+  }
 
   static func follow(_ window: NSWindow, from event: NSEvent) -> Bool {
     guard !following, event.type == .leftMouseDown, event.clickCount < 2,

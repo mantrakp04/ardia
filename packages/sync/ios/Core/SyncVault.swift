@@ -42,13 +42,34 @@ public final class SyncVault {
     return id
   }
 
-  public func remove(scope: String, ids: [String]) {
+  public struct RemoveFailed: Error {
+    public let ids: [String]
+    public let first: Error
+  }
+
+  public func remove(scope: String, ids: [String]) throws {
     let directory = scopeURL(scope)
+    var failed: [String] = []
+    var firstError: Error?
     for id in ids {
       let url = directory.appendingPathComponent("\(id).\(Self.fileExtension)")
-      try? coordinate(writing: url, options: .forDeleting) { url in try self.fileManager.removeItem(at: url) }
+      do {
+        try coordinate(writing: url, options: .forDeleting) { url in try self.fileManager.removeItem(at: url) }
+      } catch where !Self.isMissing(error) {
+        failed.append(id)
+        firstError = firstError ?? error
+      } catch {}
       try? fileManager.removeItem(at: directory.appendingPathComponent(".\(id).\(Self.fileExtension).icloud"))
     }
+    if let firstError { throw RemoveFailed(ids: failed, first: firstError) }
+  }
+
+  static func isMissing(_ error: Error) -> Bool {
+    let error = error as NSError
+    if error.domain == NSCocoaErrorDomain, [NSFileNoSuchFileError, NSFileReadNoSuchFileError].contains(error.code) { return true }
+    if error.domain == NSPOSIXErrorDomain, error.code == Int(ENOENT) { return true }
+    if let underlying = error.userInfo[NSUnderlyingErrorKey] as? Error { return isMissing(underlying) }
+    return false
   }
 
   public func deleteChain() throws {
@@ -68,11 +89,16 @@ public final class SyncVault {
     public var present: [String] = []
   }
 
-  public func read(scope: String, skipping known: Set<String>) -> Listing {
+  public func read(scope: String, skipping known: Set<String>) throws -> Listing {
     var listing = Listing()
     let directory = scopeURL(scope)
     let keysToRead: [URLResourceKey] = [.isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey, .contentModificationDateKey]
-    guard let names = try? fileManager.contentsOfDirectory(atPath: directory.path) else { return listing }
+    let names: [String]
+    do {
+      names = try fileManager.contentsOfDirectory(atPath: directory.path)
+    } catch where Self.isMissing(error) {
+      return listing
+    }
     let suffix = ".\(Self.fileExtension)"
     let scopeTag = keys.scopeTag(scope)
     for name in names.sorted() {

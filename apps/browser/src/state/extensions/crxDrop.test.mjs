@@ -26,7 +26,7 @@ test("a .crx dropped on a window installs into its profile and opens no tab; the
 
 test("a private window leaves a dropped .crx alone, as Chrome does", () => {
   S().hydrate({});
-  const w = S().createWindow({ url: "a.com", incognito: true });
+  const w = S().createWindow({ url: "a.com", kind: "private" });
   native.installedCrx.length = 0;
   const urls = ["file:///tmp/one.crx"];
   assert.deepEqual(installDroppedCrx(w, urls), urls);

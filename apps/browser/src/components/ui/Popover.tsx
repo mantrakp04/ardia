@@ -1,11 +1,13 @@
-import { Surface, Symbol, VisualEffect, type SurfaceProps } from "@ardia/shell";
+import { Symbol, VisualEffect } from "@ardia/shell";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Button, PANEL_CLOSE_GLYPH, PANEL_CLOSE_SIZE } from "./Button";
 import { curve, duration } from "./motion";
-import { hex, useTheme } from "./theme";
-import { hairline, radius, shadow, space, font as typeScale, weight } from "./tokens";
+import { useTheme } from "./theme";
+import { radius, shadow, space, font as typeScale, weight } from "./tokens";
 import { useHover } from "./useHover";
+import { Panel, type PanelProps } from "./Panel";
+import { liquidGlass } from "./Glass";
 
 export const POPOVER_MARGIN = 8;
 
@@ -117,25 +119,18 @@ export function Popover({
   );
 }
 
-export function PopoverSurface({ children, ...props }: SurfaceProps) {
+export function PopoverSurface({ children, ...props }: Omit<PanelProps, "fill" | "radius" | "border" | "borderWidth" | "shadow">) {
   const theme = useTheme();
-  const level = shadow.popover;
   return (
-    <Surface
-      {...props}
-      fill={hex(theme.popoverFill)}
-      cornerRadius={PANEL.radius}
-      borderColor={hex(theme.popoverBorder)}
-      borderWidth={hairline.panel}
-      shadowColor={level.color}
-      shadowOpacity={theme.dark ? level.opacity.dark : level.opacity.light}
-      shadowRadius={level.radius}
-      shadowOffset={level.offset}
-    >
-      <VisualEffect material="menu" cornerRadius={PANEL.radius} style={StyleSheet.absoluteFill} />
-      <View style={{ ...StyleSheet.absoluteFillObject, borderRadius: PANEL.radius, backgroundColor: theme.popoverTint }} />
+    <Panel {...props} glass="panel" fill={theme.popoverFill} radius={PANEL.radius} border={theme.popoverBorder} shadow={shadow.popover}>
+      {liquidGlass ? null : (
+        <>
+          <VisualEffect material="menu" cornerRadius={PANEL.radius} style={StyleSheet.absoluteFill} />
+          <View style={{ ...StyleSheet.absoluteFillObject, borderRadius: PANEL.radius, backgroundColor: theme.popoverTint }} />
+        </>
+      )}
       {children}
-    </Surface>
+    </Panel>
   );
 }
 

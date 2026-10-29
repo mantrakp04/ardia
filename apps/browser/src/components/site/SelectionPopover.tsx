@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
-import { hex, useTheme } from "../ui/theme";
+import { useTheme } from "../ui/theme";
 import { useSettings } from "../../state/browser/hooks";
 import { defaultSearchEngine } from "../../state/settings/settings";
-import { hairline, menuRowFill, POPOVER_MOTION, shadow, Surface, Symbol, Text, useHover, VisualEffect } from "../ui";
+import { menuRowFill, Panel, POPOVER_MOTION, Symbol, Text, useHover, VisualEffect } from "../ui";
 import { searchSelection, setPageSelection, usePageSelection, type ClickModifiers, type PageSelection } from "../../state/site/selection";
 import { selectionBar } from "./tokens";
 
@@ -61,21 +61,11 @@ function Bar({ tabId, selection, zoom, area }: { tabId: string; selection: PageS
         ],
       }}
     >
-      <Surface
-        fill={hex(theme.popoverFill)}
-        cornerRadius={selectionBar.radius}
-        borderColor={hex(theme.popoverBorder)}
-        borderWidth={hairline.panel}
-        shadowColor={shadow.popover.color}
-        shadowOpacity={theme.dark ? shadow.popover.opacity.dark : shadow.popover.opacity.light}
-        shadowRadius={selectionBar.shadowRadius}
-        shadowOffset={selectionBar.shadowOffset}
-        style={{ height: HEIGHT, padding: 3, flexDirection: "row", alignItems: "center" }}
-      >
+      <Panel fill={theme.popoverFill} radius={selectionBar.radius} border={theme.popoverBorder} shadow={selectionBar.shadow} style={{ height: HEIGHT, padding: 3, flexDirection: "row", alignItems: "center" }}>
         <VisualEffect material="menu" cornerRadius={selectionBar.radius} style={StyleSheet.absoluteFill} />
         <View style={{ ...StyleSheet.absoluteFillObject, borderRadius: selectionBar.radius, backgroundColor: theme.popoverTint }} />
         <SearchButton tabId={tabId} text={selection.text} />
-      </Surface>
+      </Panel>
     </Animated.View>
   );
 }

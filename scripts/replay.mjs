@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
+import { REPLAY_OBJECT, REPLAY_SESSION } from "../apps/site/src/data/telemetry.ts";
 import { clickhouse, telemetryEnv } from "./telemetry-env.mjs";
 
 const PLAYER_VERSION = "2.1.6";
@@ -22,7 +23,7 @@ if (args[0] === "--list") {
 }
 
 const session = (args.find((a) => !a.startsWith("--")) ?? "").toLowerCase();
-if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(session)) {
+if (!REPLAY_SESSION.test(session)) {
   console.error("usage: node scripts/replay.mjs <session-id> [--open]   |   node scripts/replay.mjs --list [days]");
   process.exit(2);
 }
@@ -47,7 +48,7 @@ for (const day of days) {
   if (!res.ok) throw new Error(`replays: ${res.status} ${await res.text()}`);
   for (const entry of (await res.json()).Entries ?? []) {
     const name = entry.FullPath.split("/").pop();
-    const match = /^(\d+)\.json(\.gz)?$/.exec(name);
+    const match = REPLAY_OBJECT.exec(name);
     if (!match) continue;
     const file = await fetch(`${env.REPLAYS_URL}${day}/${session}/${name}`, { headers: auth });
     if (!file.ok) throw new Error(`replays: ${file.status} for ${name}`);

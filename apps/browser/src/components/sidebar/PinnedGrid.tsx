@@ -1,25 +1,25 @@
 import { memo } from "react";
-import { Animated, Pressable, View } from "react-native";
-import { closeTab } from "../../state/browser/actions";
-import { ContextMenuArea, MouseArea, Symbol } from "../ui";
+import { Animated, View } from "react-native";
+import { Symbol } from "../ui";
 import { layout, useTheme } from "../ui/theme";
 import { useAddressBarInSidebar } from "../../state/windows/layout";
 import { listTopGap } from "./geometry";
 import { useIsActiveTab, useSettings, useTab, useTabLive, useWindowId } from "../../state/browser/hooks";
 import { useIsSelected } from "../../state/pins/hooks";
+import { useMuteState } from "../../state/tabs/hooks";
 import { NextMeetingBadge } from "../live/NextMeetingBadge";
-import { clickTab, returnShownTabToPinnedUrl } from "../../state/sidebar/actions";
-import { cellKey, PIN_SLOT } from "./dragModel";
+import { returnShownTabToPinnedUrl } from "../../state/sidebar/actions";
+import { cellKey, PIN_SLOT, tailKey } from "./dragModel";
 import { useDragController, useDragging, useDragItem, useDropPins, useFolderTarget, usePinnedCount, usePinSlots } from "./DragProvider";
 import { FolderTile } from "./FolderTile";
-import { dismissHover, useRowHover } from "../../state/sidebar/hover";
-import { openTabMenu } from "../../state/sidebar/menus";
+import { useRowHover } from "./hoverController";
 import { pinGrid, pinGridHeight, TILE_GAP } from "./pinZone";
 import { registerRow } from "../../state/sidebar/sidebarUi";
-import { modifiersOf } from "../../lib/keys";
 import { FolderDropRing, TileFace, useSlotPosition } from "./TileFace";
 import { folderIdOfCell } from "../../state/pins/tileFolders";
 import { useSidebarTokens } from "./tokens";
+import { TabPressArea } from "./TabPressArea";
+import { entryKey } from "../../state/sidebar/entryKey";
 
 export const PinnedGrid = memo(function PinnedGrid({ tabs, innerWidth, flush = false }: { tabs: string[]; innerWidth: number; flush?: boolean }) {
   const controller = useDragController();
@@ -27,7 +27,7 @@ export const PinnedGrid = memo(function PinnedGrid({ tabs, innerWidth, flush = f
   const balanced = useSettings((st) => st.balancedTopApps);
   const { columns, width } = pinGrid(count, innerWidth, balanced);
   const slots = usePinSlots(tabs);
-  const tail = useDragItem("tail:tiles", { kind: "tail", tabIds: [], section: "tiles" });
+  const tail = useDragItem(tailKey("tiles"), { kind: "tail", tabIds: [], section: "tiles" });
   const dragging = useDragging();
   const addressBar = useAddressBarInSidebar();
   const topGap = listTopGap(addressBar);
@@ -92,7 +92,7 @@ export function PinSlotZone() {
   const theme = useTheme();
   const controller = useDragController();
   const active = useDropPins();
-  const gap = controller?.items.get("tail:tiles")?.gap;
+  const gap = controller?.items.get(tailKey("tiles"))?.gap;
   const opacity = gap ? gap.interpolate({ inputRange: [0, PIN_SLOT], outputRange: [0, 1], extrapolate: "clamp" }) : active ? 1 : 0;
   return (
     <>
@@ -145,9 +145,10 @@ const PinnedTile = memo(function PinnedTile({ tabId, width, sliding, x, y }: { t
   const active = useIsActiveTab(tabId);
   const selected = useIsSelected(windowId, tabId);
   const playing = useTabLive(tabId, (l) => l.playingAudio);
+  const mute = useMuteState(tabId);
   const { hovered, hoverProps } = useRowHover(windowId, { kind: "tab", id: tabId });
-  const { wrapper, handle, dragging } = useDragItem(`t:${tabId}`, { kind: "tile", tabIds: [tabId], section: "tiles" });
-  const target = useFolderTarget(`t:${tabId}`);
+  const { wrapper, handle, dragging } = useDragItem(entryKey("tab", tabId), { kind: "tile", tabIds: [tabId], section: "tiles" });
+  const target = useFolderTarget(entryKey("tab", tabId));
   const position = useSlotPosition(x, y, width, sliding, dragging);
   if (!tab) return null;
 
@@ -159,27 +160,13 @@ const PinnedTile = memo(function PinnedTile({ tabId, width, sliding, x, y }: { t
         {...hoverProps}
         onDoubleClick={() => returnShownTabToPinnedUrl(windowId, tabId)}
       >
-        <MouseArea onMiddleClick={() => void closeTab(tabId)}>
-          <ContextMenuArea
-            onContextMenu={() => {
-              dismissHover();
-              void openTabMenu(windowId, tab);
-            }}
-          >
-            <Pressable
-              onPress={(e) => {
-                dismissHover();
-                clickTab(windowId, tabId, modifiersOf(e));
-              }}
-            >
-              {({ pressed }) => <TileFace tabId={tabId} width={width} active={active} selected={selected} hovered={hovered} pressed={pressed} />}
-            </Pressable>
-          </ContextMenuArea>
-        </MouseArea>
+        <TabPressArea windowId={windowId} tab={tab}>
+          {({ pressed }) => <TileFace tabId={tabId} width={width} active={active} selected={selected} hovered={hovered} pressed={pressed} />}
+        </TabPressArea>
         <NextMeetingBadge tabId={tabId} />
-        {playing || tab.muted ? (
+        {playing || mute ? (
           <View pointerEvents="none" style={{ position: "absolute", bottom: 3, right: 4 }}>
-            <Symbol name={tab.muted ? "speaker.slash.fill" : "speaker.wave.2.fill"} size={8} color={theme.textSecondary} style={{ width: 12, height: 10 }} />
+            <Symbol name={mute ? "speaker.slash.fill" : "speaker.wave.2.fill"} size={8} color={theme.textSecondary} style={{ width: 12, height: 10 }} />
           </View>
         ) : null}
       </View>

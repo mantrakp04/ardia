@@ -1,10 +1,16 @@
+import type { StateCreator } from "zustand";
 import type { BrowserState } from "../browser/store";
-import { activeTabId, inPinnedContainer, pinSection, viewTabIds } from "../browser/model";
+import { activeTabId, inPinnedContainer, isIncognitoProfile, pinSection, viewTabIds, without } from "../browser/model";
 import { hasPage } from "../tabs/pageSession";
 import { holderOf } from "./pinShare";
-import { splitOf } from "../splits/splits";
+import { splitOf, splitTabIds, splitTabIdsOf } from "../splits/splits";
 import { lastUsedOf, sharedLastUsed } from "../tabs/tabShare";
 import type { ClosedTab, Tab, TabGroup } from "../browser/types";
+import { withoutFragment } from "../../lib/url";
+import { tileFolderOf } from "./tileFolders";
+import { syncGroupOrder, withParent } from "../groups/groups";
+import { closedEntries, closeQuietly, keptCleanedTabs, regroupRestored, restoreSnapshots, restoreTarget } from "./closedTabs";
+import { activated, apply, removeTabs } from "../tabs/tabs";
 
 export type ClearedTabs = {
   windowId: string;
@@ -37,7 +43,7 @@ export function clearedTabIds(s: BrowserState, windowId: string): string[] {
   const ids = unpinnedTabIds(s, windowId);
   const active = activeTabId(s, windowId);
   const kept = new Set(ids.filter((id) => id === active || s.live[id]?.playingAudio));
-  for (const id of [...kept]) splitOf(s, id)?.tabIds.forEach((pane) => kept.add(pane));
+  for (const id of [...kept]) splitTabIdsOf(splitOf(s, id))?.forEach((pane) => kept.add(pane));
   return ids.filter((id) => !kept.has(id));
 }
 
@@ -50,15 +56,15 @@ function windowFingerprint(s: BrowserState, windowId: string): string {
   const inWindow = (id: string) => s.tabs[id]?.windowId === windowId;
   const tabs = w.tabIds.map((id) => {
     const t = s.tabs[id];
-    return t ? [id, t.profileId, pinSection(t), t.tileFolder?.id ?? ""].join(" ") : id;
+    return t ? [id, t.profileId, pinSection(t), tileFolderOf(t)?.id ?? ""].join(" ") : id;
   });
   const groups = Object.values(s.groups)
     .filter((g) => g.windowId === windowId)
     .map((g) => [g.id, g.parentId ?? "", g.pinned, g.tabIds.join(",")].join(" "))
     .sort();
   const splits = Object.values(s.splits)
-    .filter((v) => v.tabIds.some(inWindow))
-    .map((v) => v.tabIds.join(","))
+    .filter((v) => splitTabIds(v).some(inWindow))
+    .map((v) => splitTabIds(v).join(","))
     .sort();
   return [...tabs, "", ...groups, "", ...splits].join("\n");
 }
@@ -99,7 +105,7 @@ export function noteDeselectedTabs(s: BrowserState, ids: readonly string[], at =
 function inactivity(s: BrowserState, windowId: string) {
   const active = activeTabId(s, windowId);
   const grouped = new Set(Object.values(s.groups).flatMap((g) => g.tabIds));
-  const inSplit = new Set(Object.values(s.splits).flatMap((v) => v.tabIds));
+  const inSplit = new Set(Object.values(s.splits).flatMap((v) => splitTabIds(v)));
   const keep = (t: Tab) => t.id === active || inPinnedContainer(s, t.id) || s.live[t.id]?.playingAudio;
   const used = sharedLastUsed(s);
   return {
@@ -120,12 +126,12 @@ export function cleanUpCandidates(s: BrowserState, windowId: string, inactiveFor
   for (const id of view) {
     const t = s.tabs[id]!;
     if (!t.url) continue;
-    const key = t.url.replace(/#.*$/, "");
+    const key = withoutFragment(t.url);
     byPage.set(key, [...(byPage.get(key) ?? []), t]);
   }
   for (const same of byPage.values()) {
     if (same.length < 2) continue;
-    const keeper = same.find((t) => t.pinned) ?? same.find((t) => t.id === active) ?? [...same].sort((a, b) => lastUsedOf(used, b) - lastUsedOf(used, a))[0]!;
+    const keeper = same.find((t) => t.pin) ?? same.find((t) => t.id === active) ?? [...same].sort((a, b) => lastUsedOf(used, b) - lastUsedOf(used, a))[0]!;
     for (const t of same) if (t !== keeper && !keep(t) && !inSplit.has(t.id)) out.add(t.id);
   }
   for (const id of view) {
@@ -152,7 +158,7 @@ export function abandonedNewTabs(s: BrowserState, windowId: string): string[] {
   const shown = w.activeTabIds[w.profileId];
   const out = w.tabIds.filter((id) => {
     const t = s.tabs[id];
-    return !!t && t.windowId === w.id && !t.url && !t.navigation && !t.adoptId && !t.pinned && id !== shown && !selected.has(id);
+    return !!t && t.windowId === w.id && !t.url && !hasPage(t) && !t.pin && id !== shown && !selected.has(id);
   });
   return out.length >= w.tabIds.length ? out.slice(0, w.tabIds.length - 1) : out;
 }
@@ -162,3 +168,118 @@ export function recentTabIds(s: BrowserState, windowId: string, now = Date.now()
   const sorted = view.sort((a, b) => b.lastActiveAt - a.lastActiveAt);
   return sorted.filter((t, i) => i < 2 || now - t.lastActiveAt < staleAfterMs).map((t) => t.id);
 }
+
+
+export type CleanUpSlice = {
+  cleanedTabs: ClosedTab[];
+  privateCleanedTabs: Record<string, ClosedTab[]>;
+
+  cleanUpTabs(windowId: string, options?: { inactiveForMs?: number }): number;
+  restoreCleaned(entryId?: string, windowId?: string): void;
+  clearUnpinnedTabs(windowId: string): ClearedTabs | null;
+  undoClearTabs(cleared: ClearedTabs): void;
+  removeClosedPin(id: string): ClearedTabs | null;
+  closeAbandonedNewTabs(): void;
+};
+
+export function forgetClosedWindowCleanUps(s: BrowserState, prev: BrowserState): Pick<BrowserState, "privateCleanedTabs"> | null {
+  if (s.windows === prev.windows) return null;
+  const gone = Object.keys(s.privateCleanedTabs).filter((id) => !s.windows[id]);
+  return gone.length ? { privateCleanedTabs: without(s.privateCleanedTabs, gone) } : null;
+}
+
+export const createCleanUpSlice: StateCreator<BrowserState, [], [], CleanUpSlice> = (set, get) => ({
+  cleanedTabs: [],
+  privateCleanedTabs: {},
+
+  cleanUpTabs(windowId, options = {}) {
+    const s = get();
+    const minutes = s.settings.cleanUpInactiveTabsAfterMinutes;
+    const ids = cleanUpCandidates(s, windowId, options.inactiveForMs ?? (minutes ? minutes * 60_000 : CLEAN_UP_AFTER_MS));
+    if (!ids.length) return 0;
+    const entries = closedEntries(s, ids);
+    const next = closeQuietly(s, ids);
+    if (s.windows[windowId]?.kind === "private") {
+      const own = [...keptCleanedTabs(next.privateCleanedTabs[windowId] ?? []), ...entries].slice(-MAX_CLEANED);
+      set({ ...next, privateCleanedTabs: { ...next.privateCleanedTabs, [windowId]: own } });
+    } else {
+      set({ ...next, cleanedTabs: [...keptCleanedTabs(next.cleanedTabs), ...entries].slice(-MAX_CLEANED) });
+    }
+    return ids.length;
+  },
+
+  restoreCleaned(entryId, fromWindowId) {
+    const s = get();
+    const privateId = fromWindowId && s.windows[fromWindowId]?.kind === "private"
+      ? fromWindowId
+      : Object.keys(s.privateCleanedTabs).find((id) => !!entryId && s.privateCleanedTabs[id]!.some((c) => c.id === entryId));
+    const list = keptCleanedTabs(privateId ? (s.privateCleanedTabs[privateId] ?? []) : s.cleanedTabs);
+    const entries = list.filter((c) => !entryId || c.id === entryId);
+    if (!entries.length) return;
+    const left = list.filter((c) => !entries.includes(c));
+    let next: BrowserState = privateId
+      ? { ...s, privateCleanedTabs: { ...s.privateCleanedTabs, [privateId]: left } }
+      : { ...s, cleanedTabs: left };
+    for (const e of entries) {
+      const windowId = privateId ? (next.windows[privateId]?.kind === "private" ? privateId : undefined) : restoreTarget(next, e.windowId);
+      if (!windowId || (isIncognitoProfile(e.tab.profileId) && e.windowId !== windowId)) continue;
+      const [restored, [id]] = restoreSnapshots(next, windowId, [{ tab: e.tab, tabId: e.restoreFrom ?? e.tabId, index: windowId === e.windowId ? e.index : undefined }]);
+      next = restored;
+      if (id && e.group) next = regroupRestored(next, windowId, [e], [id]);
+      if (id && entryId) next = apply(next, activated(next, id));
+    }
+    set(next);
+  },
+
+  clearUnpinnedTabs(windowId) {
+    const s = get();
+    const ids = clearedTabIds(s, windowId);
+    if (!ids.length) return null;
+    const entries = closedEntries(s, ids);
+    get().closeTabs(ids);
+    return undoable(s, get(), windowId, s.windows[windowId]!.profileId, entries);
+  },
+
+  undoClearTabs(cleared) {
+    const s = get();
+    if (!canUndoClear(s, cleared)) return;
+    const { windowId, entries } = cleared;
+    const undone = new Set(cleared.closedEntryIds);
+    const [restored, ids] = restoreSnapshots(
+      { ...s, closedTabs: s.closedTabs.filter((c) => !undone.has(c.id)) },
+      windowId,
+      entries.map((e) => ({ tab: e.tab, tabId: e.restoreFrom ?? e.tabId })),
+    );
+    const renamed = new Map(entries.map((e, i) => [e.tabId, ids[i]]));
+    const now = (id: string) => renamed.get(id) ?? id;
+    const back = cleared.tabIds.map(now).filter((id) => restored.tabs[id]?.windowId === windowId);
+    const w = restored.windows[windowId]!;
+    const window = { ...w, tabIds: [...back, ...w.tabIds.filter((id) => !back.includes(id))] };
+    const groups = Object.fromEntries(Object.entries(restored.groups).filter(([, g]) => g.windowId !== windowId));
+    for (const g of cleared.groups) {
+      const tabIds = g.tabIds.map(now).filter((id) => restored.tabs[id]);
+      const current = restored.groups[g.id];
+      groups[g.id] = current ? withParent({ ...current, pinned: g.pinned, tabIds }, g.parentId) : { ...g, tabIds };
+    }
+    const closedTabs = restored.closedTabs.map((c) => {
+      const moved = c.tabId ? renamed.get(c.tabId) : undefined;
+      return moved ? { ...c, tabId: moved, restoreFrom: c.restoreFrom ?? c.tabId } : c;
+    });
+    set({ ...restored, closedTabs, groups: syncGroupOrder(groups, window), windows: { ...restored.windows, [windowId]: window } });
+  },
+
+  removeClosedPin(id) {
+    const s = get();
+    if (!isClosedPin(s, id)) return null;
+    const windowId = s.tabs[id]!.windowId;
+    set(removeTabs(s, [id], true));
+    const after = get();
+    return undoable(s, after, windowId, s.tabs[id]!.profileId, after.closedTabs.filter((c) => !s.closedTabs.includes(c)));
+  },
+
+  closeAbandonedNewTabs() {
+    const s = get();
+    const abandoned = Object.values(s.windows).flatMap((w) => abandonedNewTabs(s, w.id));
+    if (abandoned.length) set(removeTabs(s, abandoned, false));
+  },
+});

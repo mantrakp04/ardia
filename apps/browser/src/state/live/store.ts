@@ -105,7 +105,9 @@ export const useLive = create<LiveState>()(() => ({
 }));
 
 export const live = () => useLive.getState();
-export const setLive = (patch: Partial<LiveState> | ((s: LiveState) => Partial<LiveState>)) => useLive.setState(patch);
+const setLive = (patch: Partial<LiveState> | ((s: LiveState) => Partial<LiveState>)) => useLive.setState(patch);
+
+export const showAllKey = (folderId: string, section: string) => `${folderId}:${section}`;
 
 let timer: ReturnType<typeof setTimeout> | undefined;
 useLive.subscribe((s, prev) => {
@@ -160,18 +162,38 @@ const without = <T>(record: Record<string, T>, key: string) => {
   return rest;
 };
 
+const stackIds = (items: LiveItem[] | undefined) => (items ?? []).flatMap((it) => (it.pr?.stack ? [it.pr.stack.id] : []));
+
+function stacksOnlyIn(s: LiveState, id: string): Set<string> {
+  const elsewhere = new Set(s.folderOrder.filter((f) => f !== id).flatMap((f) => [...stackIds(s.items[f]), ...stackIds(s.hidden[f])]));
+  return new Set([...stackIds(s.items[id]), ...stackIds(s.hidden[id])].filter((stack) => !elsewhere.has(stack)));
+}
+
 export function removeFolder(id: string) {
-  setLive((s) => ({
-    folders: without(s.folders, id),
-    folderOrder: s.folderOrder.filter((f) => f !== id),
-    items: without(s.items, id),
-    known: without(s.known, id),
-    unread: without(s.unread, id),
-    hidden: without(s.hidden, id),
-    completed: without(s.completed, id),
-    completing: without(s.completing, id),
-    status: without(s.status, id),
-  }));
+  setLive((s) => {
+    const stacks = stacksOnlyIn(s, id);
+    return {
+      folders: without(s.folders, id),
+      folderOrder: s.folderOrder.filter((f) => f !== id),
+      items: without(s.items, id),
+      known: without(s.known, id),
+      unread: without(s.unread, id),
+      hidden: without(s.hidden, id),
+      completed: without(s.completed, id),
+      completing: without(s.completing, id),
+      status: without(s.status, id),
+      showAll: Object.fromEntries(Object.entries(s.showAll).filter(([key]) => !key.startsWith(showAllKey(id, "")))),
+      expandedStacks: Object.fromEntries(Object.entries(s.expandedStacks).filter(([stack]) => !stacks.has(stack))),
+    };
+  });
+}
+
+export const showAllIn = (folderId: string, section: string) => setLive((s) => ({ showAll: { ...s.showAll, [showAllKey(folderId, section)]: true } }));
+
+export const toggleStack = (stackId: string) => setLive((s) => ({ expandedStacks: { ...s.expandedStacks, [stackId]: s.expandedStacks[stackId] === false } }));
+
+export function markUnread(folderId: string, itemId: string) {
+  setLive((s) => ((s.unread[folderId] ?? []).includes(itemId) ? {} : { unread: { ...s.unread, [folderId]: [...(s.unread[folderId] ?? []), itemId] } }));
 }
 
 export function arrangeFolders(placed: { id: string; after: string | null }[]) {

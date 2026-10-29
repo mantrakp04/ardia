@@ -6,7 +6,8 @@ import type { ToolbarPalette } from "../../ui/toolbarColors";
 import { trafficLights } from "../tokens";
 import { NEW_TAB, tab, type Tab } from "./content";
 import { at, atRect, CRUMB_X, FIELD, fill, hairline, LIGHTS_Y, ROW, rowY, TOOLBAR_H, TOOLBAR_ICONS, type Geo, type Rect } from "./geometry";
-import { mixColors, type Look } from "./look";
+import type { Look } from "./look";
+import { mix } from "../../../lib/color";
 import { mockInk, tabTints } from "./tokens";
 
 export type Styles = StyleProp<ViewStyle> | object;
@@ -29,7 +30,7 @@ export function Backdrop({ g, look }: { g: Geo; look: Look }) {
   return (
     <View style={[fill, { backgroundColor: look.tint[0] }]} pointerEvents="none">
       {Array.from({ length: bands - 1 }, (_, i) => (
-        <View key={i} style={{ position: "absolute", left: 0, right: 0, top: `${((i + 1) / bands) * 100}%`, bottom: 0, backgroundColor: mixColors(look.tint[0], look.tint[1], (i + 1) / (bands - 1)), opacity: 1 }} />
+        <View key={i} style={{ position: "absolute", left: 0, right: 0, top: `${((i + 1) / bands) * 100}%`, bottom: 0, backgroundColor: mix(look.tint[0], look.tint[1], (i + 1) / (bands - 1)), opacity: 1 }} />
       ))}
     </View>
   );

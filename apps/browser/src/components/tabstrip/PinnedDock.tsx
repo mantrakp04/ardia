@@ -1,25 +1,23 @@
 import { useContext, useMemo, useRef } from "react";
 import { Animated, Pressable, View } from "react-native";
-import { modifiersOf } from "../../lib/keys";
-import { closeTab } from "../../state/browser/actions";
 import { useIsActiveTab, useTab, useWindowId } from "../../state/browser/hooks";
 import { folderIdOfCell } from "../../state/pins/tileFolders";
-import { clickTab } from "../../state/sidebar/actions";
-import { openTabMenu } from "../../state/sidebar/menus";
 import { openTileFolderMenu } from "../../state/sidebar/tileFolderUi";
 import { currentMovingTabIds, openTileFolderStripMenu, useTileFolderLabel } from "../../state/tabs/topStrip";
 import { FolderMosaic } from "../sidebar/FolderTile";
-import { ContextMenuArea, MouseArea, useHover } from "../ui";
+import { ContextMenuArea, useHover } from "../ui";
 import { useTheme } from "../ui/theme";
 import { DockContext } from "./context";
 import { pinOut } from "./dockCross";
 import { FadeIn } from "./FadeIn";
-import { dockWidth, reorder } from "./model";
+import { reorder } from "./model";
 import { PinnedFace } from "./PinnedFace";
-import { dropIndex, type DragGeometry } from "./stripGroups";
+import { dockWidth, dropIndex, type DragGeometry } from "./stripGroups";
 import { TabChip } from "./TabChip";
 import { CHIP_HAIRLINE, DOCK_GAP, GAP, ITEM_HEIGHT, ITEM_TOP, MAX_CHIP, PINNED_CELL, PINNED_FACE_INSET, PINNED_FACE_RADIUS, PINNED_SPACING, TAB_RADIUS, TOP_STRIP_HEIGHT } from "./tokens";
 import { useStripDrag } from "./useStripDrag";
+import { TabPressArea } from "../sidebar/TabPressArea";
+import { tabTooltip } from "../../state/browser/model";
 
 export function PinnedDock({ tabIds }: { tabIds: string[] }) {
   const theme = useTheme();
@@ -86,14 +84,10 @@ function PinnedCell({ tabId, geometry, from }: { tabId: string; geometry: DragGe
   if (!tab) return null;
   return (
     <Animated.View ref={drag.ref} {...drag.panHandlers} mouseDownCanMoveWindow={false} style={drag.style}>
-      <View {...hoverProps} style={{ opacity: drag.crossed ? 0 : 1 }} tooltip={`${tab.customTitle || tab.title || tab.url}${tab.url ? `\n${tab.url}` : ""}`}>
-        <MouseArea onMiddleClick={() => void closeTab(tabId)}>
-          <ContextMenuArea onContextMenu={() => void openTabMenu(windowId, tab)}>
-            <Pressable onPress={(e) => clickTab(windowId, tab.id, modifiersOf(e))}>
-              {({ pressed }) => <PinnedFace tabId={tabId} active={active} hovered={hovered} pressed={pressed} />}
-            </Pressable>
-          </ContextMenuArea>
-        </MouseArea>
+      <View {...hoverProps} style={{ opacity: drag.crossed ? 0 : 1 }} tooltip={tabTooltip(tab)}>
+        <TabPressArea windowId={windowId} tab={tab}>
+          {({ pressed }) => <PinnedFace tabId={tabId} active={active} hovered={hovered} pressed={pressed} />}
+        </TabPressArea>
       </View>
       {drag.crossed && strip && (
         <FadeIn style={{ left: 0, top: -(ITEM_TOP + 0.5), width: strip.chip, height: TOP_STRIP_HEIGHT }}>

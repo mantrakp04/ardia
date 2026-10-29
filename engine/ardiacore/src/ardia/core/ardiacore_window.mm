@@ -23,6 +23,8 @@
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#import "components/remote_cocoa/app_shim/bridged_content_view.h"
+#import "components/remote_cocoa/app_shim/native_widget_mac_frameless_nswindow.h"
 #include "components/sessions/core/serialized_navigation_entry.h"
 #include "components/sessions/core/serialized_user_agent_override.h"
 #include "content/public/browser/web_contents.h"
@@ -34,8 +36,27 @@
 #include "ardia/core/ac_extension_view.h"
 #import "ardia/core/ardiacore_internal.h"
 
+@interface BridgedContentView (ArdiaEmbedded)
+- (NSView*)ardiaEmbeddedSubview;
+@end
+
 @implementation ArdiaCoreWindow {
   std::unique_ptr<ardiacore::WindowHost> _host;
+}
+
++ (NSView*)embeddedRootOfWindow:(NSWindow*)window {
+  NSView* content = window.contentView;
+  return [content isKindOfClass:[BridgedContentView class]]
+             ? [static_cast<BridgedContentView*>(content) ardiaEmbeddedSubview]
+             : nil;
+}
+
++ (Class)contentViewClass {
+  return [BridgedContentView class];
+}
+
++ (BOOL)isChromeFramelessWindow:(NSWindow*)window {
+  return [window isKindOfClass:[NativeWidgetMacFramelessNSWindow class]];
 }
 
 @synthesize delegate = _delegate;
@@ -73,8 +94,7 @@
   params.disposition = foreground ? WindowOpenDisposition::NEW_FOREGROUND_TAB
                                   : WindowOpenDisposition::NEW_BACKGROUND_TAB;
   params.window_action = NavigateParams::WindowAction::kNoAction;
-  base::AutoReset<ardiacore::WindowHost::PendingOpen> pending(
-      &_host->pending_open(), ardiacore::WindowHost::PendingOpen{params.disposition, nullptr});
+  auto pending = _host->ScopedPendingOpen({params.disposition, nullptr});
   Navigate(&params);
   content::WebContents* contents = params.navigated_or_inserted_contents;
   if (!contents) {
@@ -111,10 +131,9 @@
 }
 
 - (void)activateTab:(ArdiaCoreTab*)tab {
-  if (ardiacore::IsNotifyingTabStrip()) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-      [self activateTab:tab];
-    });
+  if (ardiacore::DeferWhileTabStripNotifies(^{
+        [self activateTab:tab];
+      })) {
     return;
   }
   content::WebContents* contents = tab.contents;
@@ -180,10 +199,9 @@
 }
 
 - (void)adoptTab:(ArdiaCoreTab*)tab {
-  if (ardiacore::IsNotifyingTabStrip()) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-      [self adoptTab:tab];
-    });
+  if (ardiacore::DeferWhileTabStripNotifies(^{
+        [self adoptTab:tab];
+      })) {
     return;
   }
   content::WebContents* contents = tab.contents;
@@ -212,10 +230,9 @@
 }
 
 - (void)placeTab:(ArdiaCoreTab*)tab index:(int)index pinned:(BOOL)pinned {
-  if (ardiacore::IsNotifyingTabStrip()) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-      [self placeTab:tab index:index pinned:pinned];
-    });
+  if (ardiacore::DeferWhileTabStripNotifies(^{
+        [self placeTab:tab index:index pinned:pinned];
+      })) {
     return;
   }
   content::WebContents* contents = tab.contents;
@@ -271,12 +288,10 @@
     navigations.push_back(std::move(entry));
   }
   selected = std::clamp(selected, 0, count - 1);
-  base::AutoReset<ardiacore::WindowHost::PendingOpen> pending(
-      &_host->pending_open(),
-      ardiacore::WindowHost::PendingOpen{
-          foreground ? WindowOpenDisposition::NEW_FOREGROUND_TAB
-                     : WindowOpenDisposition::NEW_BACKGROUND_TAB,
-          nullptr});
+  auto pending = _host->ScopedPendingOpen(
+      {foreground ? WindowOpenDisposition::NEW_FOREGROUND_TAB
+                  : WindowOpenDisposition::NEW_BACKGROUND_TAB,
+       nullptr});
   content::WebContents* contents = chrome::AddRestoredTab(
       browser, navigations, browser->GetTabStripModel()->count(), selected,
       std::string(), std::nullopt, foreground,
@@ -305,12 +320,10 @@
   }
   std::unique_ptr<content::WebContents> copy = contents->Clone();
   content::WebContents* raw = copy.get();
-  base::AutoReset<ardiacore::WindowHost::PendingOpen> pending(
-      &_host->pending_open(),
-      ardiacore::WindowHost::PendingOpen{
-          foreground ? WindowOpenDisposition::NEW_FOREGROUND_TAB
-                     : WindowOpenDisposition::NEW_BACKGROUND_TAB,
-          contents->GetWeakPtr()});
+  auto pending = _host->ScopedPendingOpen(
+      {foreground ? WindowOpenDisposition::NEW_FOREGROUND_TAB
+                  : WindowOpenDisposition::NEW_BACKGROUND_TAB,
+       contents->GetWeakPtr()});
   TabStripModel* model = browser->GetTabStripModel();
   model->InsertWebContentsAt(model->count(), std::move(copy),
                              foreground ? AddTabTypes::ADD_ACTIVE : AddTabTypes::ADD_NONE);

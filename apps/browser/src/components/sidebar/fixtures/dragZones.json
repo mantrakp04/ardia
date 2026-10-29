@@ -1,0 +1,9993 @@
+{
+ "away bounds": [
+  {
+   "step": "begin t:c 26,614",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:list",
+   "pitch": 37,
+   "into": null,
+   "external": 0,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": null,
+   "landing": null,
+   "sources": [
+    "t:c"
+   ],
+   "gaps": {
+    "tail:list": 37
+   }
+  },
+  {
+   "step": "move 240,330",
+   "drop": {
+    "type": "onto",
+    "targetId": "a"
+   },
+   "onto": "t:a"
+  },
+  {
+   "step": "move 240.5,330",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "onto": null,
+   "gaps": {}
+  },
+  {
+   "step": "move 60,330",
+   "drop": {
+    "type": "onto",
+    "targetId": "a"
+   },
+   "onto": "t:a"
+  },
+  {
+   "step": "move 241,220",
+   "drop": {
+    "type": "none"
+   },
+   "onto": null
+  },
+  {
+   "step": "move 60,220",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "pg1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "t:c",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(PG)",
+   "gaps": {
+    "g:G(PG)": 37
+   }
+  },
+  {
+   "step": "end true",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "sources": [],
+   "gaps": {}
+  },
+  {
+   "step": "committed",
+   "committed": {
+    "tabIds": [
+     "p1",
+     "p2",
+     "c",
+     "pg1",
+     "a",
+     "b",
+     "g1",
+     "h1",
+     "g2",
+     "s1",
+     "s2"
+    ],
+    "tabs": {
+     "p1": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "p2": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "c": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "pg1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "a": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "b": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "h1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     }
+    },
+    "groups": {
+     "G(PG)": {
+      "tabIds": [
+       "pg1"
+      ],
+      "parent": null,
+      "pinned": true,
+      "collapsed": false
+     },
+     "G(G)": {
+      "tabIds": [
+       "g1",
+       "h1",
+       "g2"
+      ],
+      "parent": null,
+      "pinned": false,
+      "collapsed": false
+     },
+     "G(H)": {
+      "tabIds": [
+       "h1"
+      ],
+      "parent": "G(G)",
+      "pinned": false,
+      "collapsed": false
+     }
+    },
+    "pinnedArea": [
+     "t:p1",
+     "t:p2",
+     "t:c",
+     "g:G(PG)"
+    ],
+    "anchors": [
+     [
+      "G(PG)",
+      "c"
+     ]
+    ],
+    "orderChoices": [
+     "place:c",
+     "place:p1",
+     "place:p2",
+     "c",
+     "p1",
+     "p2"
+    ],
+    "liveOrder": []
+   }
+  }
+ ],
+ "away left bound": [
+  {
+   "step": "begin t:c 26,614",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:list",
+   "pitch": 37,
+   "into": null,
+   "external": 0,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": null,
+   "landing": null,
+   "sources": [
+    "t:c"
+   ],
+   "gaps": {
+    "tail:list": 37
+   }
+  },
+  {
+   "step": "move 60,330",
+   "drop": {
+    "type": "onto",
+    "targetId": "a"
+   },
+   "onto": "t:a"
+  },
+  {
+   "step": "move 10,330"
+  },
+  {
+   "step": "move 9.5,330",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "onto": null,
+   "gaps": {}
+  },
+  {
+   "step": "move 60,330",
+   "drop": {
+    "type": "onto",
+    "targetId": "a"
+   },
+   "onto": "t:a"
+  },
+  {
+   "step": "end true",
+   "drop": {
+    "type": "none"
+   },
+   "pitch": 0,
+   "onto": null,
+   "sources": []
+  },
+  {
+   "step": "committed",
+   "committed": {
+    "tabIds": [
+     "p1",
+     "p2",
+     "pg1",
+     "a",
+     "c",
+     "b",
+     "g1",
+     "h1",
+     "g2",
+     "s1",
+     "s2"
+    ],
+    "tabs": {
+     "p1": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "p2": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "pg1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "a": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "c": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "b": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "h1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     }
+    },
+    "groups": {
+     "G(PG)": {
+      "tabIds": [
+       "pg1"
+      ],
+      "parent": null,
+      "pinned": true,
+      "collapsed": false
+     },
+     "G(G)": {
+      "tabIds": [
+       "g1",
+       "h1",
+       "g2"
+      ],
+      "parent": null,
+      "pinned": false,
+      "collapsed": false
+     },
+     "G(H)": {
+      "tabIds": [
+       "h1"
+      ],
+      "parent": "G(G)",
+      "pinned": false,
+      "collapsed": false
+     },
+     "G()": {
+      "tabIds": [
+       "a",
+       "c"
+      ],
+      "parent": null,
+      "pinned": false,
+      "collapsed": false
+     }
+    },
+    "pinnedArea": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ],
+    "anchors": [
+     [
+      "G(PG)",
+      "p2"
+     ]
+    ],
+    "orderChoices": [
+     "place:p1",
+     "place:p2",
+     "p1",
+     "p2"
+    ],
+    "liveOrder": []
+   }
+  }
+ ],
+ "away outside window": [
+  {
+   "step": "begin t:c 26,614",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:list",
+   "pitch": 37,
+   "into": null,
+   "external": 0,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": null,
+   "landing": null,
+   "sources": [
+    "t:c"
+   ],
+   "gaps": {
+    "tail:list": 37
+   }
+  },
+  {
+   "step": "move 60,330",
+   "drop": {
+    "type": "onto",
+    "targetId": "a"
+   },
+   "onto": "t:a"
+  },
+  {
+   "step": "move 60,-3000",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "onto": null,
+   "gaps": {}
+  },
+  {
+   "step": "move 60,330",
+   "drop": {
+    "type": "onto",
+    "targetId": "a"
+   },
+   "onto": "t:a"
+  },
+  {
+   "step": "end true",
+   "drop": {
+    "type": "none"
+   },
+   "pitch": 0,
+   "onto": null,
+   "sources": []
+  },
+  {
+   "step": "committed",
+   "committed": {
+    "tabIds": [
+     "p1",
+     "p2",
+     "pg1",
+     "a",
+     "c",
+     "b",
+     "g1",
+     "h1",
+     "g2",
+     "s1",
+     "s2"
+    ],
+    "tabs": {
+     "p1": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "p2": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "pg1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "a": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "c": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "b": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "h1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     }
+    },
+    "groups": {
+     "G(PG)": {
+      "tabIds": [
+       "pg1"
+      ],
+      "parent": null,
+      "pinned": true,
+      "collapsed": false
+     },
+     "G(G)": {
+      "tabIds": [
+       "g1",
+       "h1",
+       "g2"
+      ],
+      "parent": null,
+      "pinned": false,
+      "collapsed": false
+     },
+     "G(H)": {
+      "tabIds": [
+       "h1"
+      ],
+      "parent": "G(G)",
+      "pinned": false,
+      "collapsed": false
+     },
+     "G()": {
+      "tabIds": [
+       "a",
+       "c"
+      ],
+      "parent": null,
+      "pinned": false,
+      "collapsed": false
+     }
+    },
+    "pinnedArea": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ],
+    "anchors": [
+     [
+      "G(PG)",
+      "p2"
+     ]
+    ],
+    "orderChoices": [
+     "place:p1",
+     "place:p2",
+     "p1",
+     "p2"
+    ],
+    "liveOrder": []
+   }
+  }
+ ],
+ "collapsed header": [
+  {
+   "step": "begin t:c 26,577",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:list",
+   "pitch": 37,
+   "into": null,
+   "external": 0,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": null,
+   "landing": null,
+   "sources": [
+    "t:c"
+   ],
+   "gaps": {
+    "tail:list": 37
+   }
+  },
+  {
+   "step": "move 60,650"
+  },
+  {
+   "step": "move 60,620"
+  },
+  {
+   "step": "move 60,590"
+  },
+  {
+   "step": "move 60,560"
+  },
+  {
+   "step": "move 60,530",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "s1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "s:S(s1+s2)",
+   "gaps": {
+    "s:S(s1+s2)": 37
+   }
+  },
+  {
+   "step": "move 60,500",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "b"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:b",
+   "gaps": {
+    "t:b": 37
+   }
+  },
+  {
+   "step": "move 60,480",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:group:G(G)",
+   "gaps": {
+    "tail:group:G(G)": 37
+   }
+  },
+  {
+   "step": "move 60,460",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": "g2"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:g2",
+   "gaps": {
+    "t:g2": 37
+   }
+  },
+  {
+   "step": "move 60,440",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(H)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": null,
+   "into": "G(H)",
+   "dropInto": "G(H)",
+   "gaps": {}
+  },
+  {
+   "step": "move 60,420",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": "h1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(H)",
+   "into": null,
+   "dropInto": null,
+   "gaps": {
+    "g:G(H)": 37
+   }
+  },
+  {
+   "step": "move 60,405"
+  },
+  {
+   "step": "move 60,390",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": "g1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:g1",
+   "gaps": {
+    "t:g1": 37
+   }
+  },
+  {
+   "step": "move 60,375"
+  },
+  {
+   "step": "move 60,360",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "g1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(G)",
+   "gaps": {
+    "g:G(G)": 37
+   }
+  },
+  {
+   "step": "move 60,345"
+  },
+  {
+   "step": "move 60,330",
+   "drop": {
+    "type": "onto",
+    "targetId": "a"
+   },
+   "onto": "t:a"
+  },
+  {
+   "step": "move 60,315",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "a"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:a",
+   "onto": null,
+   "gaps": {
+    "t:a": 37
+   }
+  },
+  {
+   "step": "move 60,300",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": null,
+     "last": true
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)",
+     "t:c"
+    ]
+   },
+   "gapKey": "tail:pinnedGroups",
+   "gaps": {
+    "tail:pinnedGroups": 37
+   }
+  },
+  {
+   "step": "move 60,285",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(PG)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:group:G(PG)",
+   "gaps": {
+    "tail:group:G(PG)": 37
+   }
+  },
+  {
+   "step": "move 60,270",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(PG)",
+     "beforeId": "pg1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:pg1",
+   "gaps": {
+    "t:pg1": 37
+   }
+  },
+  {
+   "step": "move 60,255"
+  },
+  {
+   "step": "move 60,240",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "pg1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "t:c",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(PG)",
+   "gaps": {
+    "g:G(PG)": 37
+   }
+  },
+  {
+   "step": "move 60,215"
+  },
+  {
+   "step": "move 60,200",
+   "drop": {
+    "type": "onto",
+    "targetId": "p2"
+   },
+   "onto": "t:p2"
+  },
+  {
+   "step": "move 60,185",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "p2"
+    },
+    "sequence": [
+     "t:p1",
+     "t:c",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p2",
+   "onto": null,
+   "gaps": {
+    "t:p2": 37
+   }
+  },
+  {
+   "step": "move 60,160",
+   "drop": {
+    "type": "onto",
+    "targetId": "p1"
+   },
+   "onto": "t:p1"
+  },
+  {
+   "step": "move 60,140",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "p1"
+    },
+    "sequence": [
+     "t:c",
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p1",
+   "onto": null,
+   "gaps": {
+    "t:p1": 37
+   }
+  },
+  {
+   "step": "end true",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "sources": [],
+   "gaps": {}
+  },
+  {
+   "step": "committed",
+   "committed": {
+    "tabIds": [
+     "c",
+     "p1",
+     "p2",
+     "pg1",
+     "a",
+     "b",
+     "g1",
+     "h1",
+     "g2",
+     "s1",
+     "s2"
+    ],
+    "tabs": {
+     "c": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "p1": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "p2": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "pg1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "a": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "b": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "h1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     }
+    },
+    "groups": {
+     "G(PG)": {
+      "tabIds": [
+       "pg1"
+      ],
+      "parent": null,
+      "pinned": true,
+      "collapsed": false
+     },
+     "G(G)": {
+      "tabIds": [
+       "g1",
+       "h1",
+       "g2"
+      ],
+      "parent": null,
+      "pinned": false,
+      "collapsed": false
+     },
+     "G(H)": {
+      "tabIds": [
+       "h1"
+      ],
+      "parent": "G(G)",
+      "pinned": false,
+      "collapsed": false
+     }
+    },
+    "pinnedArea": [
+     "t:c",
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ],
+    "anchors": [
+     [
+      "G(PG)",
+      "p2"
+     ]
+    ],
+    "orderChoices": [
+     "place:c",
+     "place:p1",
+     "place:p2",
+     "c",
+     "p1",
+     "p2"
+    ],
+    "liveOrder": []
+   }
+  }
+ ],
+ "collapsed pinned header": [
+  {
+   "step": "begin g:G(G) 26,318",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "b"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:b",
+   "pitch": 37,
+   "into": null,
+   "external": 0,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": "g:G(G)",
+   "landing": null,
+   "sources": [
+    "g:G(G)"
+   ],
+   "gaps": {
+    "t:b": 37
+   }
+  },
+  {
+   "step": "move 60,650",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:list",
+   "gaps": {
+    "tail:list": 37
+   }
+  },
+  {
+   "step": "move 60,620"
+  },
+  {
+   "step": "move 60,590"
+  },
+  {
+   "step": "move 60,560"
+  },
+  {
+   "step": "move 60,530"
+  },
+  {
+   "step": "move 60,500"
+  },
+  {
+   "step": "move 60,480"
+  },
+  {
+   "step": "move 60,460"
+  },
+  {
+   "step": "move 60,440"
+  },
+  {
+   "step": "move 60,420"
+  },
+  {
+   "step": "move 60,405"
+  },
+  {
+   "step": "move 60,390",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "c"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:c",
+   "gaps": {
+    "t:c": 37
+   }
+  },
+  {
+   "step": "move 60,375"
+  },
+  {
+   "step": "move 60,360",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "s1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "s:S(s1+s2)",
+   "gaps": {
+    "s:S(s1+s2)": 37
+   }
+  },
+  {
+   "step": "move 60,345"
+  },
+  {
+   "step": "move 60,330"
+  },
+  {
+   "step": "move 60,315",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "b"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:b",
+   "gaps": {
+    "t:b": 37
+   }
+  },
+  {
+   "step": "move 60,300"
+  },
+  {
+   "step": "move 60,285",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "a"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:a",
+   "gaps": {
+    "t:a": 37
+   }
+  },
+  {
+   "step": "move 60,270",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": true,
+     "parentId": null,
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)",
+     "g:G(G)"
+    ]
+   },
+   "gapKey": "tail:pinnedGroups",
+   "gaps": {
+    "tail:pinnedGroups": 37
+   }
+  },
+  {
+   "step": "move 60,255"
+  },
+  {
+   "step": "move 60,240",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": "G(PG)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": null,
+   "into": "G(PG)",
+   "dropInto": "G(PG)",
+   "gaps": {}
+  },
+  {
+   "step": "move 60,215",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": true,
+     "parentId": null,
+     "beforeId": "pg1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(G)",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(PG)",
+   "into": null,
+   "dropInto": null,
+   "gaps": {
+    "g:G(PG)": 37
+   }
+  },
+  {
+   "step": "move 60,200",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": true,
+     "parentId": null,
+     "beforeId": "p2"
+    },
+    "sequence": [
+     "t:p1",
+     "g:G(G)",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p2",
+   "gaps": {
+    "t:p2": 37
+   }
+  },
+  {
+   "step": "move 60,185"
+  },
+  {
+   "step": "move 60,160",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": true,
+     "parentId": null,
+     "beforeId": "p1"
+    },
+    "sequence": [
+     "g:G(G)",
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p1",
+   "gaps": {
+    "t:p1": 37
+   }
+  },
+  {
+   "step": "move 60,140"
+  },
+  {
+   "step": "move 60,140"
+  },
+  {
+   "step": "move 60,160"
+  },
+  {
+   "step": "move 60,185"
+  },
+  {
+   "step": "move 60,200"
+  },
+  {
+   "step": "move 60,215",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": true,
+     "parentId": null,
+     "beforeId": "p2"
+    },
+    "sequence": [
+     "t:p1",
+     "g:G(G)",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p2",
+   "gaps": {
+    "t:p2": 37
+   }
+  },
+  {
+   "step": "move 60,240"
+  },
+  {
+   "step": "move 60,255",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": true,
+     "parentId": null,
+     "beforeId": "pg1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(G)",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(PG)",
+   "gaps": {
+    "g:G(PG)": 37
+   }
+  },
+  {
+   "step": "move 60,270",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": "G(PG)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": null,
+   "into": "G(PG)",
+   "dropInto": "G(PG)",
+   "gaps": {}
+  },
+  {
+   "step": "move 60,285",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "a"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:a",
+   "into": null,
+   "dropInto": null,
+   "gaps": {
+    "t:a": 37
+   }
+  },
+  {
+   "step": "move 60,300"
+  },
+  {
+   "step": "move 60,315"
+  },
+  {
+   "step": "move 60,330",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "b"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:b",
+   "gaps": {
+    "t:b": 37
+   }
+  },
+  {
+   "step": "move 60,345"
+  },
+  {
+   "step": "move 60,360"
+  },
+  {
+   "step": "move 60,375",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "s1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "s:S(s1+s2)",
+   "gaps": {
+    "s:S(s1+s2)": 37
+   }
+  },
+  {
+   "step": "move 60,390"
+  },
+  {
+   "step": "move 60,405",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "c"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:c",
+   "gaps": {
+    "t:c": 37
+   }
+  },
+  {
+   "step": "move 60,420"
+  },
+  {
+   "step": "move 60,440",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:list",
+   "gaps": {
+    "tail:list": 37
+   }
+  },
+  {
+   "step": "move 60,460"
+  },
+  {
+   "step": "move 60,480"
+  },
+  {
+   "step": "move 60,500"
+  },
+  {
+   "step": "move 60,530"
+  },
+  {
+   "step": "move 60,560"
+  },
+  {
+   "step": "move 60,590"
+  },
+  {
+   "step": "move 60,620"
+  },
+  {
+   "step": "move 60,650"
+  },
+  {
+   "step": "end true",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "folded": null,
+   "sources": [],
+   "gaps": {}
+  },
+  {
+   "step": "committed",
+   "committed": {
+    "tabIds": [
+     "p1",
+     "p2",
+     "pg1",
+     "a",
+     "b",
+     "c",
+     "s1",
+     "s2",
+     "g1",
+     "h1",
+     "g2"
+    ],
+    "tabs": {
+     "p1": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "p2": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "pg1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "a": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "b": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "c": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "h1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     }
+    },
+    "groups": {
+     "G(PG)": {
+      "tabIds": [
+       "pg1"
+      ],
+      "parent": null,
+      "pinned": true,
+      "collapsed": false
+     },
+     "G(G)": {
+      "tabIds": [
+       "g1",
+       "h1",
+       "g2"
+      ],
+      "parent": null,
+      "pinned": false,
+      "collapsed": false
+     },
+     "G(H)": {
+      "tabIds": [
+       "h1"
+      ],
+      "parent": "G(G)",
+      "pinned": false,
+      "collapsed": false
+     }
+    },
+    "pinnedArea": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ],
+    "anchors": [
+     [
+      "G(PG)",
+      "p2"
+     ]
+    ],
+    "orderChoices": [
+     "place:p1",
+     "place:p2",
+     "p1",
+     "p2"
+    ],
+    "liveOrder": []
+   }
+  }
+ ],
+ "emptied ancestor": [
+  {
+   "step": "begin g:G(Inner) 42,284",
+   "drop": {
+    "type": "group",
+    "groupId": "G(Inner)",
+    "placement": {
+     "pinned": false,
+     "parentId": "G(Outer)",
+     "beforeId": null
+    },
+    "sequence": []
+   },
+   "gapKey": "tail:group:G(Outer)",
+   "pitch": 37,
+   "into": null,
+   "external": 0,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": "g:G(Inner)",
+   "landing": null,
+   "sources": [
+    "g:G(Inner)"
+   ],
+   "gaps": {
+    "tail:group:G(Outer)": 37
+   }
+  },
+  {
+   "step": "move 60,650",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "gaps": {}
+  },
+  {
+   "step": "move 60,620"
+  },
+  {
+   "step": "move 60,590"
+  },
+  {
+   "step": "move 60,560"
+  },
+  {
+   "step": "move 60,530"
+  },
+  {
+   "step": "move 60,500"
+  },
+  {
+   "step": "move 60,480"
+  },
+  {
+   "step": "move 60,460"
+  },
+  {
+   "step": "move 60,440"
+  },
+  {
+   "step": "move 60,420"
+  },
+  {
+   "step": "move 60,405"
+  },
+  {
+   "step": "move 60,390"
+  },
+  {
+   "step": "move 60,375"
+  },
+  {
+   "step": "move 60,360"
+  },
+  {
+   "step": "move 60,345"
+  },
+  {
+   "step": "move 60,330"
+  },
+  {
+   "step": "move 60,315"
+  },
+  {
+   "step": "move 60,300"
+  },
+  {
+   "step": "move 60,285"
+  },
+  {
+   "step": "move 60,270",
+   "drop": {
+    "type": "group",
+    "groupId": "G(Inner)",
+    "placement": {
+     "pinned": false,
+     "parentId": "G(Outer)",
+     "beforeId": null
+    },
+    "sequence": []
+   },
+   "gapKey": "tail:group:G(Outer)",
+   "gaps": {
+    "tail:group:G(Outer)": 37
+   }
+  },
+  {
+   "step": "move 60,255",
+   "gapKey": null,
+   "into": "G(Outer)",
+   "dropInto": "G(Outer)",
+   "gaps": {}
+  },
+  {
+   "step": "move 60,240",
+   "drop": {
+    "type": "none"
+   },
+   "into": null,
+   "dropInto": null
+  },
+  {
+   "step": "move 60,215"
+  },
+  {
+   "step": "move 60,200"
+  },
+  {
+   "step": "move 60,185"
+  },
+  {
+   "step": "move 60,160"
+  },
+  {
+   "step": "move 60,140"
+  },
+  {
+   "step": "move 60,140"
+  },
+  {
+   "step": "move 60,160"
+  },
+  {
+   "step": "move 60,185"
+  },
+  {
+   "step": "move 60,200"
+  },
+  {
+   "step": "move 60,215"
+  },
+  {
+   "step": "move 60,240"
+  },
+  {
+   "step": "move 60,255",
+   "drop": {
+    "type": "group",
+    "groupId": "G(Inner)",
+    "placement": {
+     "pinned": false,
+     "parentId": "G(Outer)",
+     "beforeId": null
+    },
+    "sequence": []
+   },
+   "into": "G(Outer)",
+   "dropInto": "G(Outer)"
+  },
+  {
+   "step": "move 60,270",
+   "gapKey": "tail:group:G(Outer)",
+   "into": null,
+   "dropInto": null,
+   "gaps": {
+    "tail:group:G(Outer)": 37
+   }
+  },
+  {
+   "step": "move 60,285",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "gaps": {}
+  },
+  {
+   "step": "move 60,300"
+  },
+  {
+   "step": "move 60,315"
+  },
+  {
+   "step": "move 60,330"
+  },
+  {
+   "step": "move 60,345"
+  },
+  {
+   "step": "move 60,360"
+  },
+  {
+   "step": "move 60,375"
+  },
+  {
+   "step": "move 60,390"
+  },
+  {
+   "step": "move 60,405"
+  },
+  {
+   "step": "move 60,420"
+  },
+  {
+   "step": "move 60,440"
+  },
+  {
+   "step": "move 60,460"
+  },
+  {
+   "step": "move 60,480"
+  },
+  {
+   "step": "move 60,500"
+  },
+  {
+   "step": "move 60,530"
+  },
+  {
+   "step": "move 60,560"
+  },
+  {
+   "step": "move 60,590"
+  },
+  {
+   "step": "move 60,620"
+  },
+  {
+   "step": "move 60,650"
+  },
+  {
+   "step": "end true",
+   "pitch": 0,
+   "folded": null,
+   "sources": []
+  },
+  {
+   "step": "committed",
+   "committed": {
+    "tabIds": [
+     "a",
+     "x"
+    ],
+    "tabs": {
+     "a": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "x": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     }
+    },
+    "groups": {
+     "G(Outer)": {
+      "tabIds": [
+       "x"
+      ],
+      "parent": null,
+      "pinned": false,
+      "collapsed": false
+     },
+     "G(Inner)": {
+      "tabIds": [
+       "x"
+      ],
+      "parent": "G(Outer)",
+      "pinned": false,
+      "collapsed": false
+     }
+    },
+    "pinnedArea": [],
+    "anchors": [],
+    "orderChoices": [],
+    "liveOrder": []
+   }
+  }
+ ],
+ "equal heights": [
+  {
+   "step": "begin t:z 26,395",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": null
+    },
+    "sequence": []
+   },
+   "gapKey": "tail:list",
+   "pitch": 37,
+   "into": null,
+   "external": 0,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": null,
+   "landing": null,
+   "sources": [
+    "t:z"
+   ],
+   "gaps": {
+    "tail:list": 37
+   }
+  },
+  {
+   "step": "move 60,650"
+  },
+  {
+   "step": "move 60,620"
+  },
+  {
+   "step": "move 60,590"
+  },
+  {
+   "step": "move 60,560"
+  },
+  {
+   "step": "move 60,530"
+  },
+  {
+   "step": "move 60,500"
+  },
+  {
+   "step": "move 60,480"
+  },
+  {
+   "step": "move 60,460"
+  },
+  {
+   "step": "move 60,440"
+  },
+  {
+   "step": "move 60,420"
+  },
+  {
+   "step": "move 60,405"
+  },
+  {
+   "step": "move 60,390"
+  },
+  {
+   "step": "move 60,375",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(Inner)",
+     "beforeId": null
+    },
+    "sequence": []
+   },
+   "gapKey": "tail:group:G(Inner)",
+   "gaps": {
+    "tail:group:G(Inner)": 37
+   }
+  },
+  {
+   "step": "move 60,360",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(Inner)",
+     "beforeId": "y"
+    },
+    "sequence": []
+   },
+   "gapKey": "t:y",
+   "gaps": {
+    "t:y": 37
+   }
+  },
+  {
+   "step": "move 60,345"
+  },
+  {
+   "step": "move 60,330"
+  },
+  {
+   "step": "move 60,315",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(Inner)",
+     "beforeId": "x"
+    },
+    "sequence": []
+   },
+   "gapKey": "t:x",
+   "gaps": {
+    "t:x": 37
+   }
+  },
+  {
+   "step": "move 60,300"
+  },
+  {
+   "step": "move 60,285",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(Outer)",
+     "beforeId": null
+    },
+    "sequence": []
+   },
+   "gapKey": "tail:group:G(Outer)",
+   "gaps": {
+    "tail:group:G(Outer)": 37
+   }
+  },
+  {
+   "step": "move 60,270"
+  },
+  {
+   "step": "move 60,255"
+  },
+  {
+   "step": "move 60,240",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "x"
+    },
+    "sequence": []
+   },
+   "gapKey": "g:G(Outer)",
+   "gaps": {
+    "g:G(Outer)": 37
+   }
+  },
+  {
+   "step": "move 60,215",
+   "drop": {
+    "type": "onto",
+    "targetId": "a"
+   },
+   "onto": "t:a"
+  },
+  {
+   "step": "move 60,200",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "a"
+    },
+    "sequence": []
+   },
+   "gapKey": "t:a",
+   "onto": null,
+   "gaps": {
+    "t:a": 37
+   }
+  },
+  {
+   "step": "move 60,185",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": null,
+     "last": true
+    },
+    "sequence": [
+     "t:z"
+    ]
+   },
+   "gapKey": "tail:pinnedGroups",
+   "gaps": {}
+  },
+  {
+   "step": "move 60,160"
+  },
+  {
+   "step": "move 60,140"
+  },
+  {
+   "step": "end true",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "sources": []
+  },
+  {
+   "step": "committed",
+   "committed": {
+    "tabIds": [
+     "z",
+     "a",
+     "x",
+     "y"
+    ],
+    "tabs": {
+     "z": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "a": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "x": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "y": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     }
+    },
+    "groups": {
+     "G(Outer)": {
+      "tabIds": [
+       "x",
+       "y"
+      ],
+      "parent": null,
+      "pinned": false,
+      "collapsed": false
+     },
+     "G(Inner)": {
+      "tabIds": [
+       "x",
+       "y"
+      ],
+      "parent": "G(Outer)",
+      "pinned": false,
+      "collapsed": false
+     }
+    },
+    "pinnedArea": [
+     "t:z"
+    ],
+    "anchors": [],
+    "orderChoices": [
+     "place:z",
+     "z"
+    ],
+    "liveOrder": []
+   }
+  }
+ ],
+ "group edge": [
+  {
+   "step": "begin g:G(G) 26,355",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "b"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:b",
+   "pitch": 37,
+   "into": null,
+   "external": 0,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": "g:G(G)",
+   "landing": null,
+   "sources": [
+    "g:G(G)"
+   ],
+   "gaps": {
+    "t:b": 37
+   }
+  },
+  {
+   "step": "move 60,316",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "a"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:a",
+   "gaps": {
+    "t:a": 37
+   }
+  },
+  {
+   "step": "move 60,313"
+  },
+  {
+   "step": "move 60,309"
+  },
+  {
+   "step": "move 60,307",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": true,
+     "parentId": null,
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)",
+     "g:G(G)"
+    ]
+   },
+   "gapKey": "tail:pinnedGroups",
+   "gaps": {
+    "tail:pinnedGroups": 37
+   }
+  },
+  {
+   "step": "move 60,303"
+  },
+  {
+   "step": "move 60,301"
+  },
+  {
+   "step": "move 60,303"
+  },
+  {
+   "step": "move 60,309",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "a"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:a",
+   "gaps": {
+    "t:a": 37
+   }
+  },
+  {
+   "step": "move 60,313"
+  },
+  {
+   "step": "move 60,315"
+  },
+  {
+   "step": "end true",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "folded": null,
+   "sources": [],
+   "gaps": {}
+  },
+  {
+   "step": "committed",
+   "committed": {
+    "tabIds": [
+     "p1",
+     "p2",
+     "pg1",
+     "g1",
+     "h1",
+     "g2",
+     "a",
+     "b",
+     "c",
+     "s1",
+     "s2"
+    ],
+    "tabs": {
+     "p1": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "p2": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "pg1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "h1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "a": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "b": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "c": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     }
+    },
+    "groups": {
+     "G(PG)": {
+      "tabIds": [
+       "pg1"
+      ],
+      "parent": null,
+      "pinned": true,
+      "collapsed": false
+     },
+     "G(G)": {
+      "tabIds": [
+       "g1",
+       "h1",
+       "g2"
+      ],
+      "parent": null,
+      "pinned": false,
+      "collapsed": false
+     },
+     "G(H)": {
+      "tabIds": [
+       "h1"
+      ],
+      "parent": "G(G)",
+      "pinned": false,
+      "collapsed": false
+     }
+    },
+    "pinnedArea": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ],
+    "anchors": [
+     [
+      "G(PG)",
+      "p2"
+     ]
+    ],
+    "orderChoices": [
+     "place:p1",
+     "place:p2",
+     "p1",
+     "p2"
+    ],
+    "liveOrder": []
+   }
+  }
+ ],
+ "group sweep": [
+  {
+   "step": "begin g:G(G) 26,355",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "b"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:b",
+   "pitch": 37,
+   "into": null,
+   "external": 0,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": "g:G(G)",
+   "landing": null,
+   "sources": [
+    "g:G(G)"
+   ],
+   "gaps": {
+    "t:b": 37
+   }
+  },
+  {
+   "step": "move 60,140",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": true,
+     "parentId": null,
+     "beforeId": "p1"
+    },
+    "sequence": [
+     "g:G(G)",
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p1",
+   "gaps": {
+    "t:p1": 37
+   }
+  },
+  {
+   "step": "move 60,160"
+  },
+  {
+   "step": "move 60,185"
+  },
+  {
+   "step": "move 60,200"
+  },
+  {
+   "step": "move 60,215",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": true,
+     "parentId": null,
+     "beforeId": "p2"
+    },
+    "sequence": [
+     "t:p1",
+     "g:G(G)",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p2",
+   "gaps": {
+    "t:p2": 37
+   }
+  },
+  {
+   "step": "move 60,240"
+  },
+  {
+   "step": "move 60,255",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": true,
+     "parentId": null,
+     "beforeId": "pg1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(G)",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(PG)",
+   "gaps": {
+    "g:G(PG)": 37
+   }
+  },
+  {
+   "step": "move 60,270",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": "G(PG)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": null,
+   "into": "G(PG)",
+   "dropInto": "G(PG)",
+   "gaps": {}
+  },
+  {
+   "step": "move 60,285",
+   "gapKey": "tail:group:G(PG)",
+   "into": null,
+   "dropInto": null,
+   "gaps": {
+    "tail:group:G(PG)": 37
+   }
+  },
+  {
+   "step": "move 60,300",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": true,
+     "parentId": null,
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)",
+     "g:G(G)"
+    ]
+   },
+   "gapKey": "tail:pinnedGroups",
+   "gaps": {
+    "tail:pinnedGroups": 37
+   }
+  },
+  {
+   "step": "move 60,315",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "a"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:a",
+   "gaps": {
+    "t:a": 37
+   }
+  },
+  {
+   "step": "move 60,330"
+  },
+  {
+   "step": "move 60,345"
+  },
+  {
+   "step": "move 60,360"
+  },
+  {
+   "step": "move 60,375",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "b"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:b",
+   "gaps": {
+    "t:b": 37
+   }
+  },
+  {
+   "step": "move 60,390"
+  },
+  {
+   "step": "move 60,405",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "s1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "s:S(s1+s2)",
+   "gaps": {
+    "s:S(s1+s2)": 37
+   }
+  },
+  {
+   "step": "move 60,420"
+  },
+  {
+   "step": "move 60,440",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "c"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:c",
+   "gaps": {
+    "t:c": 37
+   }
+  },
+  {
+   "step": "move 60,460"
+  },
+  {
+   "step": "move 60,480",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:list",
+   "gaps": {
+    "tail:list": 37
+   }
+  },
+  {
+   "step": "move 60,500"
+  },
+  {
+   "step": "move 60,530"
+  },
+  {
+   "step": "move 60,560"
+  },
+  {
+   "step": "move 60,590"
+  },
+  {
+   "step": "move 60,620"
+  },
+  {
+   "step": "move 60,650"
+  },
+  {
+   "step": "move 60,650"
+  },
+  {
+   "step": "move 60,620"
+  },
+  {
+   "step": "move 60,590"
+  },
+  {
+   "step": "move 60,560"
+  },
+  {
+   "step": "move 60,530"
+  },
+  {
+   "step": "move 60,500"
+  },
+  {
+   "step": "move 60,480"
+  },
+  {
+   "step": "move 60,460"
+  },
+  {
+   "step": "move 60,440"
+  },
+  {
+   "step": "move 60,420",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "c"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:c",
+   "gaps": {
+    "t:c": 37
+   }
+  },
+  {
+   "step": "move 60,405"
+  },
+  {
+   "step": "move 60,390",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "s1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "s:S(s1+s2)",
+   "gaps": {
+    "s:S(s1+s2)": 37
+   }
+  },
+  {
+   "step": "move 60,375"
+  },
+  {
+   "step": "move 60,360",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "b"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:b",
+   "gaps": {
+    "t:b": 37
+   }
+  },
+  {
+   "step": "move 60,345"
+  },
+  {
+   "step": "move 60,330"
+  },
+  {
+   "step": "move 60,315",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "a"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:a",
+   "gaps": {
+    "t:a": 37
+   }
+  },
+  {
+   "step": "move 60,300",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": true,
+     "parentId": null,
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)",
+     "g:G(G)"
+    ]
+   },
+   "gapKey": "tail:pinnedGroups",
+   "gaps": {
+    "tail:pinnedGroups": 37
+   }
+  },
+  {
+   "step": "move 60,285",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": "G(PG)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:group:G(PG)",
+   "gaps": {
+    "tail:group:G(PG)": 37
+   }
+  },
+  {
+   "step": "move 60,270",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": "G(PG)",
+     "beforeId": "pg1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:pg1",
+   "gaps": {
+    "t:pg1": 37
+   }
+  },
+  {
+   "step": "move 60,255"
+  },
+  {
+   "step": "move 60,240",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": false,
+     "parentId": "G(PG)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": null,
+   "into": "G(PG)",
+   "dropInto": "G(PG)",
+   "gaps": {}
+  },
+  {
+   "step": "move 60,215",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": true,
+     "parentId": null,
+     "beforeId": "pg1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(G)",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(PG)",
+   "into": null,
+   "dropInto": null,
+   "gaps": {
+    "g:G(PG)": 37
+   }
+  },
+  {
+   "step": "move 60,200",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": true,
+     "parentId": null,
+     "beforeId": "p2"
+    },
+    "sequence": [
+     "t:p1",
+     "g:G(G)",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p2",
+   "gaps": {
+    "t:p2": 37
+   }
+  },
+  {
+   "step": "move 60,185"
+  },
+  {
+   "step": "move 60,160",
+   "drop": {
+    "type": "group",
+    "groupId": "G(G)",
+    "placement": {
+     "pinned": true,
+     "parentId": null,
+     "beforeId": "p1"
+    },
+    "sequence": [
+     "g:G(G)",
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p1",
+   "gaps": {
+    "t:p1": 37
+   }
+  },
+  {
+   "step": "move 60,140"
+  },
+  {
+   "step": "end true",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "folded": null,
+   "sources": [],
+   "gaps": {}
+  },
+  {
+   "step": "committed",
+   "committed": {
+    "tabIds": [
+     "g1",
+     "h1",
+     "g2",
+     "p1",
+     "p2",
+     "pg1",
+     "a",
+     "b",
+     "c",
+     "s1",
+     "s2"
+    ],
+    "tabs": {
+     "g1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "h1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "p1": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "p2": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "pg1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "a": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "b": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "c": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     }
+    },
+    "groups": {
+     "G(PG)": {
+      "tabIds": [
+       "pg1"
+      ],
+      "parent": null,
+      "pinned": true,
+      "collapsed": false
+     },
+     "G(G)": {
+      "tabIds": [
+       "g1",
+       "h1",
+       "g2"
+      ],
+      "parent": null,
+      "pinned": true,
+      "collapsed": false
+     },
+     "G(H)": {
+      "tabIds": [
+       "h1"
+      ],
+      "parent": "G(G)",
+      "pinned": true,
+      "collapsed": false
+     }
+    },
+    "pinnedArea": [
+     "g:G(G)",
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ],
+    "anchors": [
+     [
+      "G(G)",
+      null
+     ],
+     [
+      "G(PG)",
+      "p2"
+     ]
+    ],
+    "orderChoices": [
+     "group:G(G)",
+     "place:g1",
+     "place:h1",
+     "place:g2",
+     "place:p1",
+     "place:p2",
+     "p1",
+     "p2"
+    ],
+    "liveOrder": []
+   }
+  }
+ ],
+ "list row cancelled": [
+  {
+   "step": "begin t:c 26,614",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:list",
+   "pitch": 37,
+   "into": null,
+   "external": 0,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": null,
+   "landing": null,
+   "sources": [
+    "t:c"
+   ],
+   "gaps": {
+    "tail:list": 37
+   }
+  },
+  {
+   "step": "move 60,650"
+  },
+  {
+   "step": "move 60,620"
+  },
+  {
+   "step": "move 60,590"
+  },
+  {
+   "step": "move 60,560",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "s1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "s:S(s1+s2)",
+   "gaps": {
+    "s:S(s1+s2)": 37
+   }
+  },
+  {
+   "step": "move 60,530",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "b"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:b",
+   "gaps": {
+    "t:b": 37
+   }
+  },
+  {
+   "step": "move 60,500",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": "g2"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:g2",
+   "gaps": {
+    "t:g2": 37
+   }
+  },
+  {
+   "step": "move 60,480",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(H)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:group:G(H)",
+   "gaps": {
+    "tail:group:G(H)": 37
+   }
+  },
+  {
+   "step": "move 60,460",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(H)",
+     "beforeId": "h1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:h1",
+   "gaps": {
+    "t:h1": 37
+   }
+  },
+  {
+   "step": "move 60,440"
+  },
+  {
+   "step": "move 60,420",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": "h1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(H)",
+   "gaps": {
+    "g:G(H)": 37
+   }
+  },
+  {
+   "step": "move 60,405"
+  },
+  {
+   "step": "move 60,390",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": "g1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:g1",
+   "gaps": {
+    "t:g1": 37
+   }
+  },
+  {
+   "step": "move 60,375"
+  },
+  {
+   "step": "move 60,360",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "g1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(G)",
+   "gaps": {
+    "g:G(G)": 37
+   }
+  },
+  {
+   "step": "move 60,345"
+  },
+  {
+   "step": "end false",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "sources": [],
+   "gaps": {}
+  },
+  {
+   "step": "committed",
+   "committed": {
+    "tabIds": [
+     "p1",
+     "p2",
+     "pg1",
+     "a",
+     "b",
+     "c",
+     "g1",
+     "h1",
+     "g2",
+     "s1",
+     "s2"
+    ],
+    "tabs": {
+     "p1": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "p2": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "pg1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "a": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "b": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "c": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "h1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     }
+    },
+    "groups": {
+     "G(PG)": {
+      "tabIds": [
+       "pg1"
+      ],
+      "parent": null,
+      "pinned": true,
+      "collapsed": false
+     },
+     "G(G)": {
+      "tabIds": [
+       "g1",
+       "h1",
+       "g2"
+      ],
+      "parent": null,
+      "pinned": false,
+      "collapsed": false
+     },
+     "G(H)": {
+      "tabIds": [
+       "h1"
+      ],
+      "parent": "G(G)",
+      "pinned": false,
+      "collapsed": false
+     }
+    },
+    "pinnedArea": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ],
+    "anchors": [
+     [
+      "G(PG)",
+      "p2"
+     ]
+    ],
+    "orderChoices": [
+     "place:p1",
+     "place:p2",
+     "p1",
+     "p2"
+    ],
+    "liveOrder": []
+   }
+  }
+ ],
+ "list row sweep": [
+  {
+   "step": "begin t:c 26,614",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:list",
+   "pitch": 37,
+   "into": null,
+   "external": 0,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": null,
+   "landing": null,
+   "sources": [
+    "t:c"
+   ],
+   "gaps": {
+    "tail:list": 37
+   }
+  },
+  {
+   "step": "move 60,650"
+  },
+  {
+   "step": "move 60,620"
+  },
+  {
+   "step": "move 60,590"
+  },
+  {
+   "step": "move 60,560",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "s1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "s:S(s1+s2)",
+   "gaps": {
+    "s:S(s1+s2)": 37
+   }
+  },
+  {
+   "step": "move 60,530",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "b"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:b",
+   "gaps": {
+    "t:b": 37
+   }
+  },
+  {
+   "step": "move 60,500",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": "g2"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:g2",
+   "gaps": {
+    "t:g2": 37
+   }
+  },
+  {
+   "step": "move 60,480",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(H)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:group:G(H)",
+   "gaps": {
+    "tail:group:G(H)": 37
+   }
+  },
+  {
+   "step": "move 60,460",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(H)",
+     "beforeId": "h1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:h1",
+   "gaps": {
+    "t:h1": 37
+   }
+  },
+  {
+   "step": "move 60,440"
+  },
+  {
+   "step": "move 60,420",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": "h1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(H)",
+   "gaps": {
+    "g:G(H)": 37
+   }
+  },
+  {
+   "step": "move 60,405"
+  },
+  {
+   "step": "move 60,390",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": "g1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:g1",
+   "gaps": {
+    "t:g1": 37
+   }
+  },
+  {
+   "step": "move 60,375"
+  },
+  {
+   "step": "move 60,360",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "g1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(G)",
+   "gaps": {
+    "g:G(G)": 37
+   }
+  },
+  {
+   "step": "move 60,345"
+  },
+  {
+   "step": "move 60,330",
+   "drop": {
+    "type": "onto",
+    "targetId": "a"
+   },
+   "onto": "t:a"
+  },
+  {
+   "step": "move 60,315",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "a"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:a",
+   "onto": null,
+   "gaps": {
+    "t:a": 37
+   }
+  },
+  {
+   "step": "move 60,300",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": null,
+     "last": true
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)",
+     "t:c"
+    ]
+   },
+   "gapKey": "tail:pinnedGroups",
+   "gaps": {
+    "tail:pinnedGroups": 37
+   }
+  },
+  {
+   "step": "move 60,285",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(PG)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:group:G(PG)",
+   "gaps": {
+    "tail:group:G(PG)": 37
+   }
+  },
+  {
+   "step": "move 60,270",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(PG)",
+     "beforeId": "pg1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:pg1",
+   "gaps": {
+    "t:pg1": 37
+   }
+  },
+  {
+   "step": "move 60,255"
+  },
+  {
+   "step": "move 60,240",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "pg1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "t:c",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(PG)",
+   "gaps": {
+    "g:G(PG)": 37
+   }
+  },
+  {
+   "step": "move 60,215"
+  },
+  {
+   "step": "move 60,200",
+   "drop": {
+    "type": "onto",
+    "targetId": "p2"
+   },
+   "onto": "t:p2"
+  },
+  {
+   "step": "move 60,185",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "p2"
+    },
+    "sequence": [
+     "t:p1",
+     "t:c",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p2",
+   "onto": null,
+   "gaps": {
+    "t:p2": 37
+   }
+  },
+  {
+   "step": "move 60,160",
+   "drop": {
+    "type": "onto",
+    "targetId": "p1"
+   },
+   "onto": "t:p1"
+  },
+  {
+   "step": "move 60,140",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "p1"
+    },
+    "sequence": [
+     "t:c",
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p1",
+   "onto": null,
+   "gaps": {
+    "t:p1": 37
+   }
+  },
+  {
+   "step": "move 60,140"
+  },
+  {
+   "step": "move 60,160"
+  },
+  {
+   "step": "move 60,185"
+  },
+  {
+   "step": "move 60,200",
+   "drop": {
+    "type": "onto",
+    "targetId": "p1"
+   },
+   "onto": "t:p1"
+  },
+  {
+   "step": "move 60,215",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "p2"
+    },
+    "sequence": [
+     "t:p1",
+     "t:c",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p2",
+   "onto": null,
+   "gaps": {
+    "t:p2": 37
+   }
+  },
+  {
+   "step": "move 60,240",
+   "drop": {
+    "type": "onto",
+    "targetId": "p2"
+   },
+   "onto": "t:p2"
+  },
+  {
+   "step": "move 60,255",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "pg1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "t:c",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(PG)",
+   "onto": null,
+   "gaps": {
+    "g:G(PG)": 37
+   }
+  },
+  {
+   "step": "move 60,270"
+  },
+  {
+   "step": "move 60,285",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(PG)",
+     "beforeId": "pg1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:pg1",
+   "gaps": {
+    "t:pg1": 37
+   }
+  },
+  {
+   "step": "move 60,300"
+  },
+  {
+   "step": "move 60,315",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(PG)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:group:G(PG)",
+   "gaps": {
+    "tail:group:G(PG)": 37
+   }
+  },
+  {
+   "step": "move 60,330",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "a"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:a",
+   "gaps": {
+    "t:a": 37
+   }
+  },
+  {
+   "step": "end true",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "sources": [],
+   "gaps": {}
+  },
+  {
+   "step": "committed",
+   "committed": {
+    "tabIds": [
+     "p1",
+     "p2",
+     "pg1",
+     "c",
+     "a",
+     "b",
+     "g1",
+     "h1",
+     "g2",
+     "s1",
+     "s2"
+    ],
+    "tabs": {
+     "p1": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "p2": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "pg1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "c": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "a": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "b": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "h1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     }
+    },
+    "groups": {
+     "G(PG)": {
+      "tabIds": [
+       "pg1"
+      ],
+      "parent": null,
+      "pinned": true,
+      "collapsed": false
+     },
+     "G(G)": {
+      "tabIds": [
+       "g1",
+       "h1",
+       "g2"
+      ],
+      "parent": null,
+      "pinned": false,
+      "collapsed": false
+     },
+     "G(H)": {
+      "tabIds": [
+       "h1"
+      ],
+      "parent": "G(G)",
+      "pinned": false,
+      "collapsed": false
+     }
+    },
+    "pinnedArea": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ],
+    "anchors": [
+     [
+      "G(PG)",
+      "p2"
+     ]
+    ],
+    "orderChoices": [
+     "place:p1",
+     "place:p2",
+     "p1",
+     "p2"
+    ],
+    "liveOrder": []
+   }
+  }
+ ],
+ "live sweep": [
+  {
+   "step": "begin lf:LF(Pull Requests) 26,197",
+   "drop": {
+    "type": "live",
+    "sequence": [
+     "t:p1",
+     "lf:LF(Pull Requests)",
+     "t:p2",
+     "lf:LF(Documents)"
+    ]
+   },
+   "gapKey": "t:p2",
+   "pitch": 37,
+   "into": null,
+   "external": 0,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": null,
+   "landing": null,
+   "sources": [
+    "lf:LF(Pull Requests)"
+   ],
+   "gaps": {
+    "t:p2": 37
+   }
+  },
+  {
+   "step": "move 60,140",
+   "drop": {
+    "type": "live",
+    "sequence": [
+     "lf:LF(Pull Requests)",
+     "t:p1",
+     "t:p2",
+     "lf:LF(Documents)"
+    ]
+   },
+   "gapKey": "t:p1",
+   "gaps": {
+    "t:p1": 37
+   }
+  },
+  {
+   "step": "move 60,160"
+  },
+  {
+   "step": "move 60,185"
+  },
+  {
+   "step": "move 60,200"
+  },
+  {
+   "step": "move 60,215",
+   "drop": {
+    "type": "live",
+    "sequence": [
+     "t:p1",
+     "lf:LF(Pull Requests)",
+     "t:p2",
+     "lf:LF(Documents)"
+    ]
+   },
+   "gapKey": "t:p2",
+   "gaps": {
+    "t:p2": 37
+   }
+  },
+  {
+   "step": "move 60,240"
+  },
+  {
+   "step": "move 60,255",
+   "drop": {
+    "type": "live",
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "lf:LF(Pull Requests)",
+     "lf:LF(Documents)"
+    ]
+   },
+   "gapKey": "lf:LF(Documents)",
+   "gaps": {
+    "lf:LF(Documents)": 37
+   }
+  },
+  {
+   "step": "move 60,270"
+  },
+  {
+   "step": "move 60,285",
+   "drop": {
+    "type": "live",
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "lf:LF(Documents)",
+     "lf:LF(Pull Requests)"
+    ]
+   },
+   "gapKey": "tail:pinnedGroups",
+   "gaps": {
+    "tail:pinnedGroups": 37
+   }
+  },
+  {
+   "step": "move 60,300"
+  },
+  {
+   "step": "move 60,315",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "gaps": {}
+  },
+  {
+   "step": "move 60,330"
+  },
+  {
+   "step": "move 60,345"
+  },
+  {
+   "step": "move 60,360"
+  },
+  {
+   "step": "move 60,375"
+  },
+  {
+   "step": "move 60,390"
+  },
+  {
+   "step": "move 60,405"
+  },
+  {
+   "step": "move 60,420"
+  },
+  {
+   "step": "move 60,440"
+  },
+  {
+   "step": "move 60,460"
+  },
+  {
+   "step": "move 60,480"
+  },
+  {
+   "step": "move 60,500"
+  },
+  {
+   "step": "move 60,530"
+  },
+  {
+   "step": "move 60,560"
+  },
+  {
+   "step": "move 60,590"
+  },
+  {
+   "step": "move 60,620"
+  },
+  {
+   "step": "move 60,650"
+  },
+  {
+   "step": "move 60,650"
+  },
+  {
+   "step": "move 60,620"
+  },
+  {
+   "step": "move 60,590"
+  },
+  {
+   "step": "move 60,560"
+  },
+  {
+   "step": "move 60,530"
+  },
+  {
+   "step": "move 60,500"
+  },
+  {
+   "step": "move 60,480"
+  },
+  {
+   "step": "move 60,460"
+  },
+  {
+   "step": "move 60,440"
+  },
+  {
+   "step": "move 60,420"
+  },
+  {
+   "step": "move 60,405"
+  },
+  {
+   "step": "move 60,390"
+  },
+  {
+   "step": "move 60,375"
+  },
+  {
+   "step": "move 60,360"
+  },
+  {
+   "step": "move 60,345"
+  },
+  {
+   "step": "move 60,330"
+  },
+  {
+   "step": "move 60,315"
+  },
+  {
+   "step": "move 60,300",
+   "drop": {
+    "type": "live",
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "lf:LF(Documents)",
+     "lf:LF(Pull Requests)"
+    ]
+   },
+   "gapKey": "tail:pinnedGroups",
+   "gaps": {
+    "tail:pinnedGroups": 37
+   }
+  },
+  {
+   "step": "move 60,285"
+  },
+  {
+   "step": "move 60,270"
+  },
+  {
+   "step": "move 60,255"
+  },
+  {
+   "step": "move 60,240",
+   "drop": {
+    "type": "live",
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "lf:LF(Pull Requests)",
+     "lf:LF(Documents)"
+    ]
+   },
+   "gapKey": "lf:LF(Documents)",
+   "gaps": {
+    "lf:LF(Documents)": 37
+   }
+  },
+  {
+   "step": "move 60,215"
+  },
+  {
+   "step": "move 60,200",
+   "drop": {
+    "type": "live",
+    "sequence": [
+     "t:p1",
+     "lf:LF(Pull Requests)",
+     "t:p2",
+     "lf:LF(Documents)"
+    ]
+   },
+   "gapKey": "t:p2",
+   "gaps": {
+    "t:p2": 37
+   }
+  },
+  {
+   "step": "move 60,185"
+  },
+  {
+   "step": "move 60,160",
+   "drop": {
+    "type": "live",
+    "sequence": [
+     "lf:LF(Pull Requests)",
+     "t:p1",
+     "t:p2",
+     "lf:LF(Documents)"
+    ]
+   },
+   "gapKey": "t:p1",
+   "gaps": {
+    "t:p1": 37
+   }
+  },
+  {
+   "step": "move 60,140"
+  },
+  {
+   "step": "end true",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "sources": [],
+   "gaps": {}
+  },
+  {
+   "step": "committed",
+   "committed": {
+    "tabIds": [
+     "p1",
+     "p2",
+     "a",
+     "b"
+    ],
+    "tabs": {
+     "p1": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "p2": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "a": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "b": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     }
+    },
+    "groups": {},
+    "pinnedArea": [
+     "t:p1",
+     "t:p2"
+    ],
+    "anchors": [],
+    "orderChoices": [
+     "place:p1",
+     "place:p2",
+     "p1",
+     "p2"
+    ],
+    "liveOrder": [
+     [
+      "LF(Pull Requests)",
+      null
+     ],
+     [
+      "LF(Documents)",
+      "t:p2"
+     ]
+    ]
+   }
+  }
+ ],
+ "member sweep": [
+  {
+   "step": "begin t:h1 58,466",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(H)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:group:G(H)",
+   "pitch": 37,
+   "into": null,
+   "external": 0,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": null,
+   "landing": null,
+   "sources": [
+    "t:h1"
+   ],
+   "gaps": {
+    "tail:group:G(H)": 37
+   }
+  },
+  {
+   "step": "move 60,650",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:list",
+   "gaps": {
+    "tail:list": 37
+   }
+  },
+  {
+   "step": "move 60,620"
+  },
+  {
+   "step": "move 60,590",
+   "drop": {
+    "type": "onto",
+    "targetId": "c"
+   },
+   "onto": "t:c"
+  },
+  {
+   "step": "move 60,560",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "c"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:c",
+   "onto": null,
+   "gaps": {
+    "t:c": 37
+   }
+  },
+  {
+   "step": "move 60,530",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "s1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "s:S(s1+s2)",
+   "gaps": {
+    "s:S(s1+s2)": 37
+   }
+  },
+  {
+   "step": "move 60,500",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "b"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:b",
+   "gaps": {
+    "t:b": 37
+   }
+  },
+  {
+   "step": "move 60,480",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:group:G(G)",
+   "gaps": {
+    "tail:group:G(G)": 37
+   }
+  },
+  {
+   "step": "move 60,460",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": "g2"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:g2",
+   "gaps": {
+    "t:g2": 37
+   }
+  },
+  {
+   "step": "move 60,440",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(H)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:group:G(H)",
+   "gaps": {
+    "tail:group:G(H)": 37
+   }
+  },
+  {
+   "step": "move 60,420",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(H)",
+   "gaps": {
+    "g:G(H)": 37
+   }
+  },
+  {
+   "step": "move 60,405"
+  },
+  {
+   "step": "move 60,390",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": "g1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:g1",
+   "gaps": {
+    "t:g1": 37
+   }
+  },
+  {
+   "step": "move 60,375"
+  },
+  {
+   "step": "move 60,360",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "g1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(G)",
+   "gaps": {
+    "g:G(G)": 37
+   }
+  },
+  {
+   "step": "move 60,345"
+  },
+  {
+   "step": "move 60,330",
+   "drop": {
+    "type": "onto",
+    "targetId": "a"
+   },
+   "onto": "t:a"
+  },
+  {
+   "step": "move 60,315",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "a"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:a",
+   "onto": null,
+   "gaps": {
+    "t:a": 37
+   }
+  },
+  {
+   "step": "move 60,300",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": null,
+     "last": true
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)",
+     "t:h1"
+    ]
+   },
+   "gapKey": "tail:pinnedGroups",
+   "gaps": {
+    "tail:pinnedGroups": 37
+   }
+  },
+  {
+   "step": "move 60,285",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(PG)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:group:G(PG)",
+   "gaps": {
+    "tail:group:G(PG)": 37
+   }
+  },
+  {
+   "step": "move 60,270",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(PG)",
+     "beforeId": "pg1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:pg1",
+   "gaps": {
+    "t:pg1": 37
+   }
+  },
+  {
+   "step": "move 60,255"
+  },
+  {
+   "step": "move 60,240",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "pg1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "t:h1",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(PG)",
+   "gaps": {
+    "g:G(PG)": 37
+   }
+  },
+  {
+   "step": "move 60,215"
+  },
+  {
+   "step": "move 60,200",
+   "drop": {
+    "type": "onto",
+    "targetId": "p2"
+   },
+   "onto": "t:p2"
+  },
+  {
+   "step": "move 60,185",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "p2"
+    },
+    "sequence": [
+     "t:p1",
+     "t:h1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p2",
+   "onto": null,
+   "gaps": {
+    "t:p2": 37
+   }
+  },
+  {
+   "step": "move 60,160",
+   "drop": {
+    "type": "onto",
+    "targetId": "p1"
+   },
+   "onto": "t:p1"
+  },
+  {
+   "step": "move 60,140",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "p1"
+    },
+    "sequence": [
+     "t:h1",
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p1",
+   "onto": null,
+   "gaps": {
+    "t:p1": 37
+   }
+  },
+  {
+   "step": "move 60,140"
+  },
+  {
+   "step": "move 60,160"
+  },
+  {
+   "step": "move 60,185"
+  },
+  {
+   "step": "move 60,200",
+   "drop": {
+    "type": "onto",
+    "targetId": "p1"
+   },
+   "onto": "t:p1"
+  },
+  {
+   "step": "move 60,215",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "p2"
+    },
+    "sequence": [
+     "t:p1",
+     "t:h1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p2",
+   "onto": null,
+   "gaps": {
+    "t:p2": 37
+   }
+  },
+  {
+   "step": "move 60,240",
+   "drop": {
+    "type": "onto",
+    "targetId": "p2"
+   },
+   "onto": "t:p2"
+  },
+  {
+   "step": "move 60,255",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "pg1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "t:h1",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(PG)",
+   "onto": null,
+   "gaps": {
+    "g:G(PG)": 37
+   }
+  },
+  {
+   "step": "move 60,270"
+  },
+  {
+   "step": "move 60,285",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(PG)",
+     "beforeId": "pg1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:pg1",
+   "gaps": {
+    "t:pg1": 37
+   }
+  },
+  {
+   "step": "move 60,300"
+  },
+  {
+   "step": "move 60,315",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(PG)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:group:G(PG)",
+   "gaps": {
+    "tail:group:G(PG)": 37
+   }
+  },
+  {
+   "step": "move 60,330",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "a"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:a",
+   "gaps": {
+    "t:a": 37
+   }
+  },
+  {
+   "step": "move 60,345"
+  },
+  {
+   "step": "move 60,360",
+   "drop": {
+    "type": "onto",
+    "targetId": "a"
+   },
+   "onto": "t:a"
+  },
+  {
+   "step": "move 60,375",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "g1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(G)",
+   "onto": null,
+   "gaps": {
+    "g:G(G)": 37
+   }
+  },
+  {
+   "step": "move 60,390"
+  },
+  {
+   "step": "move 60,405",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": "g1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:g1",
+   "gaps": {
+    "t:g1": 37
+   }
+  },
+  {
+   "step": "move 60,420"
+  },
+  {
+   "step": "move 60,440",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(H)",
+   "gaps": {
+    "g:G(H)": 37
+   }
+  },
+  {
+   "step": "move 60,460"
+  },
+  {
+   "step": "move 60,480",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(H)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:group:G(H)",
+   "gaps": {
+    "tail:group:G(H)": 37
+   }
+  },
+  {
+   "step": "move 60,500",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": "g2"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:g2",
+   "gaps": {
+    "t:g2": 37
+   }
+  },
+  {
+   "step": "move 60,530",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:group:G(G)",
+   "gaps": {
+    "tail:group:G(G)": 37
+   }
+  },
+  {
+   "step": "move 60,560",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "s1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "s:S(s1+s2)",
+   "gaps": {
+    "s:S(s1+s2)": 37
+   }
+  },
+  {
+   "step": "move 60,590",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "c"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:c",
+   "gaps": {
+    "t:c": 37
+   }
+  },
+  {
+   "step": "move 60,620",
+   "drop": {
+    "type": "onto",
+    "targetId": "c"
+   },
+   "onto": "t:c"
+  },
+  {
+   "step": "move 60,650",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:list",
+   "onto": null,
+   "gaps": {
+    "tail:list": 37
+   }
+  },
+  {
+   "step": "end true",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "sources": [],
+   "gaps": {}
+  },
+  {
+   "step": "committed",
+   "committed": {
+    "tabIds": [
+     "p1",
+     "p2",
+     "pg1",
+     "a",
+     "b",
+     "c",
+     "g1",
+     "g2",
+     "s1",
+     "s2",
+     "h1"
+    ],
+    "tabs": {
+     "p1": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "p2": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "pg1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "a": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "b": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "c": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "h1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     }
+    },
+    "groups": {
+     "G(PG)": {
+      "tabIds": [
+       "pg1"
+      ],
+      "parent": null,
+      "pinned": true,
+      "collapsed": false
+     },
+     "G(G)": {
+      "tabIds": [
+       "g1",
+       "g2"
+      ],
+      "parent": null,
+      "pinned": false,
+      "collapsed": false
+     }
+    },
+    "pinnedArea": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ],
+    "anchors": [
+     [
+      "G(PG)",
+      "p2"
+     ]
+    ],
+    "orderChoices": [
+     "place:p1",
+     "place:p2",
+     "p1",
+     "p2"
+    ],
+    "liveOrder": []
+   }
+  }
+ ],
+ "nested group sweep": [
+  {
+   "step": "begin g:G(H) 42,429",
+   "drop": {
+    "type": "group",
+    "groupId": "G(H)",
+    "placement": {
+     "pinned": false,
+     "parentId": "G(G)",
+     "beforeId": "g2"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:g2",
+   "pitch": 37,
+   "into": null,
+   "external": 0,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": "g:G(H)",
+   "landing": null,
+   "sources": [
+    "g:G(H)"
+   ],
+   "gaps": {
+    "t:g2": 37
+   }
+  },
+  {
+   "step": "move 60,140",
+   "drop": {
+    "type": "group",
+    "groupId": "G(H)",
+    "placement": {
+     "pinned": true,
+     "parentId": null,
+     "beforeId": "p1"
+    },
+    "sequence": [
+     "g:G(H)",
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p1",
+   "gaps": {
+    "t:p1": 37
+   }
+  },
+  {
+   "step": "move 60,160"
+  },
+  {
+   "step": "move 60,185"
+  },
+  {
+   "step": "move 60,200"
+  },
+  {
+   "step": "move 60,215",
+   "drop": {
+    "type": "group",
+    "groupId": "G(H)",
+    "placement": {
+     "pinned": true,
+     "parentId": null,
+     "beforeId": "p2"
+    },
+    "sequence": [
+     "t:p1",
+     "g:G(H)",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p2",
+   "gaps": {
+    "t:p2": 37
+   }
+  },
+  {
+   "step": "move 60,240"
+  },
+  {
+   "step": "move 60,255",
+   "drop": {
+    "type": "group",
+    "groupId": "G(H)",
+    "placement": {
+     "pinned": true,
+     "parentId": null,
+     "beforeId": "pg1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(H)",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(PG)",
+   "gaps": {
+    "g:G(PG)": 37
+   }
+  },
+  {
+   "step": "move 60,270",
+   "drop": {
+    "type": "group",
+    "groupId": "G(H)",
+    "placement": {
+     "pinned": false,
+     "parentId": "G(PG)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": null,
+   "into": "G(PG)",
+   "dropInto": "G(PG)",
+   "gaps": {}
+  },
+  {
+   "step": "move 60,285",
+   "gapKey": "tail:group:G(PG)",
+   "into": null,
+   "dropInto": null,
+   "gaps": {
+    "tail:group:G(PG)": 37
+   }
+  },
+  {
+   "step": "move 60,300",
+   "drop": {
+    "type": "group",
+    "groupId": "G(H)",
+    "placement": {
+     "pinned": true,
+     "parentId": null,
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)",
+     "g:G(H)"
+    ]
+   },
+   "gapKey": "tail:pinnedGroups",
+   "gaps": {
+    "tail:pinnedGroups": 37
+   }
+  },
+  {
+   "step": "move 60,315",
+   "drop": {
+    "type": "group",
+    "groupId": "G(H)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "a"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:a",
+   "gaps": {
+    "t:a": 37
+   }
+  },
+  {
+   "step": "move 60,330"
+  },
+  {
+   "step": "move 60,345"
+  },
+  {
+   "step": "move 60,360"
+  },
+  {
+   "step": "move 60,375",
+   "drop": {
+    "type": "group",
+    "groupId": "G(H)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "g1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(G)",
+   "gaps": {
+    "g:G(G)": 37
+   }
+  },
+  {
+   "step": "move 60,390",
+   "drop": {
+    "type": "group",
+    "groupId": "G(H)",
+    "placement": {
+     "pinned": false,
+     "parentId": "G(G)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": null,
+   "into": "G(G)",
+   "dropInto": "G(G)",
+   "gaps": {}
+  },
+  {
+   "step": "move 60,405",
+   "drop": {
+    "type": "group",
+    "groupId": "G(H)",
+    "placement": {
+     "pinned": false,
+     "parentId": "G(G)",
+     "beforeId": "g2"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:g2",
+   "into": null,
+   "dropInto": null,
+   "gaps": {
+    "t:g2": 37
+   }
+  },
+  {
+   "step": "move 60,420"
+  },
+  {
+   "step": "move 60,440"
+  },
+  {
+   "step": "move 60,460"
+  },
+  {
+   "step": "move 60,480",
+   "drop": {
+    "type": "group",
+    "groupId": "G(H)",
+    "placement": {
+     "pinned": false,
+     "parentId": "G(G)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:group:G(G)",
+   "gaps": {
+    "tail:group:G(G)": 37
+   }
+  },
+  {
+   "step": "move 60,500",
+   "drop": {
+    "type": "group",
+    "groupId": "G(H)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "b"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:b",
+   "gaps": {
+    "t:b": 37
+   }
+  },
+  {
+   "step": "move 60,530",
+   "drop": {
+    "type": "group",
+    "groupId": "G(H)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "s1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "s:S(s1+s2)",
+   "gaps": {
+    "s:S(s1+s2)": 37
+   }
+  },
+  {
+   "step": "move 60,560",
+   "drop": {
+    "type": "group",
+    "groupId": "G(H)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "c"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:c",
+   "gaps": {
+    "t:c": 37
+   }
+  },
+  {
+   "step": "move 60,590",
+   "drop": {
+    "type": "group",
+    "groupId": "G(H)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:list",
+   "gaps": {
+    "tail:list": 37
+   }
+  },
+  {
+   "step": "move 60,620"
+  },
+  {
+   "step": "move 60,650"
+  },
+  {
+   "step": "move 60,650"
+  },
+  {
+   "step": "move 60,620"
+  },
+  {
+   "step": "move 60,590"
+  },
+  {
+   "step": "move 60,560"
+  },
+  {
+   "step": "move 60,530",
+   "drop": {
+    "type": "group",
+    "groupId": "G(H)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "c"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:c",
+   "gaps": {
+    "t:c": 37
+   }
+  },
+  {
+   "step": "move 60,500",
+   "drop": {
+    "type": "group",
+    "groupId": "G(H)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "s1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "s:S(s1+s2)",
+   "gaps": {
+    "s:S(s1+s2)": 37
+   }
+  },
+  {
+   "step": "move 60,480"
+  },
+  {
+   "step": "move 60,460",
+   "drop": {
+    "type": "group",
+    "groupId": "G(H)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "b"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:b",
+   "gaps": {
+    "t:b": 37
+   }
+  },
+  {
+   "step": "move 60,440",
+   "drop": {
+    "type": "group",
+    "groupId": "G(H)",
+    "placement": {
+     "pinned": false,
+     "parentId": "G(G)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:group:G(G)",
+   "gaps": {
+    "tail:group:G(G)": 37
+   }
+  },
+  {
+   "step": "move 60,420",
+   "drop": {
+    "type": "group",
+    "groupId": "G(H)",
+    "placement": {
+     "pinned": false,
+     "parentId": "G(G)",
+     "beforeId": "g2"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:g2",
+   "gaps": {
+    "t:g2": 37
+   }
+  },
+  {
+   "step": "move 60,405"
+  },
+  {
+   "step": "move 60,390",
+   "drop": {
+    "type": "group",
+    "groupId": "G(H)",
+    "placement": {
+     "pinned": false,
+     "parentId": "G(G)",
+     "beforeId": "g1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:g1",
+   "gaps": {
+    "t:g1": 37
+   }
+  },
+  {
+   "step": "move 60,375"
+  },
+  {
+   "step": "move 60,360",
+   "drop": {
+    "type": "group",
+    "groupId": "G(H)",
+    "placement": {
+     "pinned": false,
+     "parentId": "G(G)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": null,
+   "into": "G(G)",
+   "dropInto": "G(G)",
+   "gaps": {}
+  },
+  {
+   "step": "move 60,345",
+   "drop": {
+    "type": "group",
+    "groupId": "G(H)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "g1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(G)",
+   "into": null,
+   "dropInto": null,
+   "gaps": {
+    "g:G(G)": 37
+   }
+  },
+  {
+   "step": "move 60,330"
+  },
+  {
+   "step": "move 60,315",
+   "drop": {
+    "type": "group",
+    "groupId": "G(H)",
+    "placement": {
+     "pinned": false,
+     "parentId": null,
+     "beforeId": "a"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:a",
+   "gaps": {
+    "t:a": 37
+   }
+  },
+  {
+   "step": "move 60,300",
+   "drop": {
+    "type": "group",
+    "groupId": "G(H)",
+    "placement": {
+     "pinned": true,
+     "parentId": null,
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)",
+     "g:G(H)"
+    ]
+   },
+   "gapKey": "tail:pinnedGroups",
+   "gaps": {
+    "tail:pinnedGroups": 37
+   }
+  },
+  {
+   "step": "end true",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "folded": null,
+   "sources": [],
+   "gaps": {}
+  },
+  {
+   "step": "committed",
+   "committed": {
+    "tabIds": [
+     "p1",
+     "p2",
+     "pg1",
+     "h1",
+     "a",
+     "b",
+     "c",
+     "g1",
+     "g2",
+     "s1",
+     "s2"
+    ],
+    "tabs": {
+     "p1": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "p2": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "pg1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "h1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "a": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "b": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "c": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     }
+    },
+    "groups": {
+     "G(PG)": {
+      "tabIds": [
+       "pg1"
+      ],
+      "parent": null,
+      "pinned": true,
+      "collapsed": false
+     },
+     "G(G)": {
+      "tabIds": [
+       "g1",
+       "g2"
+      ],
+      "parent": null,
+      "pinned": false,
+      "collapsed": false
+     },
+     "G(H)": {
+      "tabIds": [
+       "h1"
+      ],
+      "parent": null,
+      "pinned": true,
+      "collapsed": false
+     }
+    },
+    "pinnedArea": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)",
+     "g:G(H)"
+    ],
+    "anchors": [
+     [
+      "G(PG)",
+      "p2"
+     ],
+     [
+      "G(H)",
+      "p2"
+     ]
+    ],
+    "orderChoices": [
+     "group:G(H)",
+     "place:h1",
+     "place:p1",
+     "place:p2",
+     "p1",
+     "p2"
+    ],
+    "liveOrder": []
+   }
+  }
+ ],
+ "nested smallest": [
+  {
+   "step": "begin t:z 26,395",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": null
+    },
+    "sequence": []
+   },
+   "gapKey": "tail:list",
+   "pitch": 37,
+   "into": null,
+   "external": 0,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": null,
+   "landing": null,
+   "sources": [
+    "t:z"
+   ],
+   "gaps": {
+    "tail:list": 37
+   }
+  },
+  {
+   "step": "move 60,650"
+  },
+  {
+   "step": "move 60,620"
+  },
+  {
+   "step": "move 60,590"
+  },
+  {
+   "step": "move 60,560"
+  },
+  {
+   "step": "move 60,530"
+  },
+  {
+   "step": "move 60,500"
+  },
+  {
+   "step": "move 60,480"
+  },
+  {
+   "step": "move 60,460"
+  },
+  {
+   "step": "move 60,440"
+  },
+  {
+   "step": "move 60,420"
+  },
+  {
+   "step": "move 60,405"
+  },
+  {
+   "step": "move 60,390"
+  },
+  {
+   "step": "move 60,375",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(Inner)",
+     "beforeId": null
+    },
+    "sequence": []
+   },
+   "gapKey": "tail:group:G(Inner)",
+   "gaps": {
+    "tail:group:G(Inner)": 37
+   }
+  },
+  {
+   "step": "move 60,360",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(Inner)",
+     "beforeId": "y"
+    },
+    "sequence": []
+   },
+   "gapKey": "t:y",
+   "gaps": {
+    "t:y": 37
+   }
+  },
+  {
+   "step": "move 60,345"
+  },
+  {
+   "step": "move 60,330"
+  },
+  {
+   "step": "move 60,315",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(Inner)",
+     "beforeId": "x"
+    },
+    "sequence": []
+   },
+   "gapKey": "t:x",
+   "gaps": {
+    "t:x": 37
+   }
+  },
+  {
+   "step": "move 60,300"
+  },
+  {
+   "step": "move 60,285",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(Outer)",
+     "beforeId": "x"
+    },
+    "sequence": []
+   },
+   "gapKey": "g:G(Inner)",
+   "gaps": {
+    "g:G(Inner)": 37
+   }
+  },
+  {
+   "step": "move 60,270"
+  },
+  {
+   "step": "move 60,255"
+  },
+  {
+   "step": "move 60,240",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "x"
+    },
+    "sequence": []
+   },
+   "gapKey": "g:G(Outer)",
+   "gaps": {
+    "g:G(Outer)": 37
+   }
+  },
+  {
+   "step": "move 60,215",
+   "drop": {
+    "type": "onto",
+    "targetId": "a"
+   },
+   "onto": "t:a"
+  },
+  {
+   "step": "move 60,200",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "a"
+    },
+    "sequence": []
+   },
+   "gapKey": "t:a",
+   "onto": null,
+   "gaps": {
+    "t:a": 37
+   }
+  },
+  {
+   "step": "move 60,185",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": null,
+     "last": true
+    },
+    "sequence": [
+     "t:z"
+    ]
+   },
+   "gapKey": "tail:pinnedGroups",
+   "gaps": {}
+  },
+  {
+   "step": "move 60,160"
+  },
+  {
+   "step": "move 60,140"
+  },
+  {
+   "step": "end true",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "sources": []
+  },
+  {
+   "step": "committed",
+   "committed": {
+    "tabIds": [
+     "z",
+     "a",
+     "x",
+     "y"
+    ],
+    "tabs": {
+     "z": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "a": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "x": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "y": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     }
+    },
+    "groups": {
+     "G(Outer)": {
+      "tabIds": [
+       "x",
+       "y"
+      ],
+      "parent": null,
+      "pinned": false,
+      "collapsed": false
+     },
+     "G(Inner)": {
+      "tabIds": [
+       "x",
+       "y"
+      ],
+      "parent": "G(Outer)",
+      "pinned": false,
+      "collapsed": false
+     }
+    },
+    "pinnedArea": [
+     "t:z"
+    ],
+    "anchors": [],
+    "orderChoices": [
+     "place:z",
+     "z"
+    ],
+    "liveOrder": []
+   }
+  }
+ ],
+ "onto bounds": [
+  {
+   "step": "begin t:c 26,614",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:list",
+   "pitch": 37,
+   "into": null,
+   "external": 0,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": null,
+   "landing": null,
+   "sources": [
+    "t:c"
+   ],
+   "gaps": {
+    "tail:list": 37
+   }
+  },
+  {
+   "step": "move 60,325",
+   "drop": {
+    "type": "onto",
+    "targetId": "a"
+   },
+   "onto": "t:a"
+  },
+  {
+   "step": "move 5,325"
+  },
+  {
+   "step": "move 239,325"
+  },
+  {
+   "step": "move 60,316.6"
+  },
+  {
+   "step": "move 60,333.4"
+  },
+  {
+   "step": "move 60,333.5",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "g1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(G)",
+   "onto": null,
+   "gaps": {
+    "g:G(G)": 37
+   }
+  },
+  {
+   "step": "move 60,325",
+   "drop": {
+    "type": "onto",
+    "targetId": "a"
+   },
+   "onto": "t:a"
+  },
+  {
+   "step": "move 60,316.5",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "a"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:a",
+   "onto": null,
+   "gaps": {
+    "t:a": 37
+   }
+  },
+  {
+   "step": "end true",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "sources": [],
+   "gaps": {}
+  },
+  {
+   "step": "committed",
+   "committed": {
+    "tabIds": [
+     "p1",
+     "p2",
+     "pg1",
+     "c",
+     "a",
+     "b",
+     "g1",
+     "h1",
+     "g2",
+     "s1",
+     "s2"
+    ],
+    "tabs": {
+     "p1": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "p2": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "pg1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "c": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "a": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "b": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "h1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     }
+    },
+    "groups": {
+     "G(PG)": {
+      "tabIds": [
+       "pg1"
+      ],
+      "parent": null,
+      "pinned": true,
+      "collapsed": false
+     },
+     "G(G)": {
+      "tabIds": [
+       "g1",
+       "h1",
+       "g2"
+      ],
+      "parent": null,
+      "pinned": false,
+      "collapsed": false
+     },
+     "G(H)": {
+      "tabIds": [
+       "h1"
+      ],
+      "parent": "G(G)",
+      "pinned": false,
+      "collapsed": false
+     }
+    },
+    "pinnedArea": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ],
+    "anchors": [
+     [
+      "G(PG)",
+      "p2"
+     ]
+    ],
+    "orderChoices": [
+     "place:p1",
+     "place:p2",
+     "p1",
+     "p2"
+    ],
+    "liveOrder": []
+   }
+  }
+ ],
+ "onto overlap": [
+  {
+   "step": "begin t:c 26,284",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": null
+    },
+    "sequence": []
+   },
+   "gapKey": "tail:list",
+   "pitch": 37,
+   "into": null,
+   "external": 0,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": null,
+   "landing": null,
+   "sources": [
+    "t:c"
+   ],
+   "gaps": {
+    "tail:list": 37
+   }
+  },
+  {
+   "step": "move 60,218",
+   "drop": {
+    "type": "onto",
+    "targetId": "a"
+   },
+   "onto": "t:a"
+  },
+  {
+   "step": "move 60,222"
+  },
+  {
+   "step": "move 60,226",
+   "drop": {
+    "type": "onto",
+    "targetId": "b"
+   },
+   "onto": "t:b"
+  },
+  {
+   "step": "end true",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "onto": null,
+   "sources": [],
+   "gaps": {}
+  },
+  {
+   "step": "committed",
+   "committed": {
+    "tabIds": [
+     "a",
+     "b",
+     "c"
+    ],
+    "tabs": {
+     "a": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "b": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "c": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     }
+    },
+    "groups": {
+     "G()": {
+      "tabIds": [
+       "b",
+       "c"
+      ],
+      "parent": null,
+      "pinned": false,
+      "collapsed": false
+     }
+    },
+    "pinnedArea": [],
+    "anchors": [],
+    "orderChoices": [],
+    "liveOrder": []
+   }
+  }
+ ],
+ "pinned row sweep": [
+  {
+   "step": "begin t:p1 26,160",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "p2"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p2",
+   "pitch": 37,
+   "into": null,
+   "external": 0,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": null,
+   "landing": null,
+   "sources": [
+    "t:p1"
+   ],
+   "gaps": {
+    "t:p2": 37
+   }
+  },
+  {
+   "step": "move 60,140"
+  },
+  {
+   "step": "move 60,160"
+  },
+  {
+   "step": "move 60,185"
+  },
+  {
+   "step": "move 60,200",
+   "drop": {
+    "type": "onto",
+    "targetId": "p2"
+   },
+   "onto": "t:p2"
+  },
+  {
+   "step": "move 60,215",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "pg1"
+    },
+    "sequence": [
+     "t:p2",
+     "t:p1",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(PG)",
+   "onto": null,
+   "gaps": {
+    "g:G(PG)": 37
+   }
+  },
+  {
+   "step": "move 60,240"
+  },
+  {
+   "step": "move 60,255",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(PG)",
+     "beforeId": "pg1"
+    },
+    "sequence": [
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:pg1",
+   "gaps": {
+    "t:pg1": 37
+   }
+  },
+  {
+   "step": "move 60,270"
+  },
+  {
+   "step": "move 60,285",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(PG)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:group:G(PG)",
+   "gaps": {
+    "tail:group:G(PG)": 37
+   }
+  },
+  {
+   "step": "move 60,300",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": null,
+     "last": true
+    },
+    "sequence": [
+     "t:p2",
+     "g:G(PG)",
+     "t:p1"
+    ]
+   },
+   "gapKey": "tail:pinnedGroups",
+   "gaps": {
+    "tail:pinnedGroups": 37
+   }
+  },
+  {
+   "step": "move 60,315",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "a"
+    },
+    "sequence": [
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:a",
+   "gaps": {
+    "t:a": 37
+   }
+  },
+  {
+   "step": "move 60,330",
+   "drop": {
+    "type": "onto",
+    "targetId": "a"
+   },
+   "onto": "t:a"
+  },
+  {
+   "step": "move 60,345",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "g1"
+    },
+    "sequence": [
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(G)",
+   "onto": null,
+   "gaps": {
+    "g:G(G)": 37
+   }
+  },
+  {
+   "step": "move 60,360"
+  },
+  {
+   "step": "move 60,375",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": "g1"
+    },
+    "sequence": [
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:g1",
+   "gaps": {
+    "t:g1": 37
+   }
+  },
+  {
+   "step": "move 60,390"
+  },
+  {
+   "step": "move 60,405",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": "h1"
+    },
+    "sequence": [
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(H)",
+   "gaps": {
+    "g:G(H)": 37
+   }
+  },
+  {
+   "step": "move 60,420"
+  },
+  {
+   "step": "move 60,440",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(H)",
+     "beforeId": "h1"
+    },
+    "sequence": [
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:h1",
+   "gaps": {
+    "t:h1": 37
+   }
+  },
+  {
+   "step": "move 60,460"
+  },
+  {
+   "step": "move 60,480",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(H)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:group:G(H)",
+   "gaps": {
+    "tail:group:G(H)": 37
+   }
+  },
+  {
+   "step": "move 60,500",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": "g2"
+    },
+    "sequence": [
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:g2",
+   "gaps": {
+    "t:g2": 37
+   }
+  },
+  {
+   "step": "move 60,530",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "b"
+    },
+    "sequence": [
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:b",
+   "gaps": {
+    "t:b": 37
+   }
+  },
+  {
+   "step": "move 60,560",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "s1"
+    },
+    "sequence": [
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "s:S(s1+s2)",
+   "gaps": {
+    "s:S(s1+s2)": 37
+   }
+  },
+  {
+   "step": "move 60,590",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "c"
+    },
+    "sequence": [
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:c",
+   "gaps": {
+    "t:c": 37
+   }
+  },
+  {
+   "step": "move 60,620",
+   "drop": {
+    "type": "onto",
+    "targetId": "c"
+   },
+   "onto": "t:c"
+  },
+  {
+   "step": "move 60,650",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:list",
+   "onto": null,
+   "gaps": {
+    "tail:list": 37
+   }
+  },
+  {
+   "step": "move 60,650"
+  },
+  {
+   "step": "move 60,620"
+  },
+  {
+   "step": "move 60,590",
+   "drop": {
+    "type": "onto",
+    "targetId": "c"
+   },
+   "onto": "t:c"
+  },
+  {
+   "step": "move 60,560",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "c"
+    },
+    "sequence": [
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:c",
+   "onto": null,
+   "gaps": {
+    "t:c": 37
+   }
+  },
+  {
+   "step": "move 60,530",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "s1"
+    },
+    "sequence": [
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "s:S(s1+s2)",
+   "gaps": {
+    "s:S(s1+s2)": 37
+   }
+  },
+  {
+   "step": "move 60,500",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "b"
+    },
+    "sequence": [
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:b",
+   "gaps": {
+    "t:b": 37
+   }
+  },
+  {
+   "step": "move 60,480",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:group:G(G)",
+   "gaps": {
+    "tail:group:G(G)": 37
+   }
+  },
+  {
+   "step": "move 60,460",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": "g2"
+    },
+    "sequence": [
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:g2",
+   "gaps": {
+    "t:g2": 37
+   }
+  },
+  {
+   "step": "move 60,440",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(H)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:group:G(H)",
+   "gaps": {
+    "tail:group:G(H)": 37
+   }
+  },
+  {
+   "step": "move 60,420",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(H)",
+     "beforeId": "h1"
+    },
+    "sequence": [
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:h1",
+   "gaps": {
+    "t:h1": 37
+   }
+  },
+  {
+   "step": "move 60,405"
+  },
+  {
+   "step": "move 60,390",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": "h1"
+    },
+    "sequence": [
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(H)",
+   "gaps": {
+    "g:G(H)": 37
+   }
+  },
+  {
+   "step": "move 60,375"
+  },
+  {
+   "step": "move 60,360",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": "g1"
+    },
+    "sequence": [
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:g1",
+   "gaps": {
+    "t:g1": 37
+   }
+  },
+  {
+   "step": "move 60,345"
+  },
+  {
+   "step": "move 60,330"
+  },
+  {
+   "step": "move 60,315",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "g1"
+    },
+    "sequence": [
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(G)",
+   "gaps": {
+    "g:G(G)": 37
+   }
+  },
+  {
+   "step": "move 60,300",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": null,
+     "last": true
+    },
+    "sequence": [
+     "t:p2",
+     "g:G(PG)",
+     "t:p1"
+    ]
+   },
+   "gapKey": "tail:pinnedGroups",
+   "gaps": {
+    "tail:pinnedGroups": 37
+   }
+  },
+  {
+   "step": "move 60,285"
+  },
+  {
+   "step": "move 60,270"
+  },
+  {
+   "step": "move 60,255",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(PG)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:group:G(PG)",
+   "gaps": {
+    "tail:group:G(PG)": 37
+   }
+  },
+  {
+   "step": "move 60,240",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(PG)",
+     "beforeId": "pg1"
+    },
+    "sequence": [
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:pg1",
+   "gaps": {
+    "t:pg1": 37
+   }
+  },
+  {
+   "step": "move 60,215"
+  },
+  {
+   "step": "move 60,200",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "pg1"
+    },
+    "sequence": [
+     "t:p2",
+     "t:p1",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(PG)",
+   "gaps": {
+    "g:G(PG)": 37
+   }
+  },
+  {
+   "step": "move 60,185"
+  },
+  {
+   "step": "move 60,160",
+   "drop": {
+    "type": "onto",
+    "targetId": "p2"
+   },
+   "onto": "t:p2"
+  },
+  {
+   "step": "move 60,140",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "p2"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p2",
+   "onto": null,
+   "gaps": {
+    "t:p2": 37
+   }
+  },
+  {
+   "step": "end true",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "sources": [],
+   "gaps": {}
+  },
+  {
+   "step": "committed",
+   "committed": {
+    "tabIds": [
+     "p1",
+     "p2",
+     "pg1",
+     "a",
+     "b",
+     "c",
+     "g1",
+     "h1",
+     "g2",
+     "s1",
+     "s2"
+    ],
+    "tabs": {
+     "p1": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "p2": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "pg1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "a": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "b": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "c": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "h1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     }
+    },
+    "groups": {
+     "G(PG)": {
+      "tabIds": [
+       "pg1"
+      ],
+      "parent": null,
+      "pinned": true,
+      "collapsed": false
+     },
+     "G(G)": {
+      "tabIds": [
+       "g1",
+       "h1",
+       "g2"
+      ],
+      "parent": null,
+      "pinned": false,
+      "collapsed": false
+     },
+     "G(H)": {
+      "tabIds": [
+       "h1"
+      ],
+      "parent": "G(G)",
+      "pinned": false,
+      "collapsed": false
+     }
+    },
+    "pinnedArea": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ],
+    "anchors": [
+     [
+      "G(PG)",
+      "p2"
+     ]
+    ],
+    "orderChoices": [
+     "place:p1",
+     "place:p2",
+     "p1",
+     "p2"
+    ],
+    "liveOrder": []
+   }
+  }
+ ],
+ "row hysteresis": [
+  {
+   "step": "begin t:c 26,614",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:list",
+   "pitch": 37,
+   "into": null,
+   "external": 0,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": null,
+   "landing": null,
+   "sources": [
+    "t:c"
+   ],
+   "gaps": {
+    "tail:list": 37
+   }
+  },
+  {
+   "step": "move 60,316",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "a"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:a",
+   "gaps": {
+    "t:a": 37
+   }
+  },
+  {
+   "step": "move 60,313"
+  },
+  {
+   "step": "move 60,309"
+  },
+  {
+   "step": "move 60,307"
+  },
+  {
+   "step": "move 60,303"
+  },
+  {
+   "step": "move 60,301",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": null,
+     "last": true
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)",
+     "t:c"
+    ]
+   },
+   "gapKey": "tail:pinnedGroups",
+   "gaps": {
+    "tail:pinnedGroups": 37
+   }
+  },
+  {
+   "step": "move 60,303"
+  },
+  {
+   "step": "move 60,309"
+  },
+  {
+   "step": "move 60,313"
+  },
+  {
+   "step": "move 60,315",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "a"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:a",
+   "gaps": {
+    "t:a": 37
+   }
+  },
+  {
+   "step": "end true",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "sources": [],
+   "gaps": {}
+  },
+  {
+   "step": "committed",
+   "committed": {
+    "tabIds": [
+     "p1",
+     "p2",
+     "pg1",
+     "c",
+     "a",
+     "b",
+     "g1",
+     "h1",
+     "g2",
+     "s1",
+     "s2"
+    ],
+    "tabs": {
+     "p1": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "p2": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "pg1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "c": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "a": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "b": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "h1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     }
+    },
+    "groups": {
+     "G(PG)": {
+      "tabIds": [
+       "pg1"
+      ],
+      "parent": null,
+      "pinned": true,
+      "collapsed": false
+     },
+     "G(G)": {
+      "tabIds": [
+       "g1",
+       "h1",
+       "g2"
+      ],
+      "parent": null,
+      "pinned": false,
+      "collapsed": false
+     },
+     "G(H)": {
+      "tabIds": [
+       "h1"
+      ],
+      "parent": "G(G)",
+      "pinned": false,
+      "collapsed": false
+     }
+    },
+    "pinnedArea": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ],
+    "anchors": [
+     [
+      "G(PG)",
+      "p2"
+     ]
+    ],
+    "orderChoices": [
+     "place:p1",
+     "place:p2",
+     "p1",
+     "p2"
+    ],
+    "liveOrder": []
+   }
+  }
+ ],
+ "row past live": [
+  {
+   "step": "begin t:a 26,318",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "b"
+    },
+    "sequence": [
+     "t:p1",
+     "lf:LF(Pull Requests)",
+     "t:p2",
+     "lf:LF(Documents)"
+    ]
+   },
+   "gapKey": "t:b",
+   "pitch": 37,
+   "into": null,
+   "external": 0,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": null,
+   "landing": null,
+   "sources": [
+    "t:a"
+   ],
+   "gaps": {
+    "t:b": 37
+   }
+  },
+  {
+   "step": "move 60,650",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "lf:LF(Pull Requests)",
+     "t:p2",
+     "lf:LF(Documents)"
+    ]
+   },
+   "gapKey": "tail:list",
+   "gaps": {
+    "tail:list": 37
+   }
+  },
+  {
+   "step": "move 60,620"
+  },
+  {
+   "step": "move 60,590"
+  },
+  {
+   "step": "move 60,560"
+  },
+  {
+   "step": "move 60,530"
+  },
+  {
+   "step": "move 60,500"
+  },
+  {
+   "step": "move 60,480"
+  },
+  {
+   "step": "move 60,460"
+  },
+  {
+   "step": "move 60,440"
+  },
+  {
+   "step": "move 60,420"
+  },
+  {
+   "step": "move 60,405"
+  },
+  {
+   "step": "move 60,390"
+  },
+  {
+   "step": "move 60,375"
+  },
+  {
+   "step": "move 60,360"
+  },
+  {
+   "step": "move 60,345"
+  },
+  {
+   "step": "move 60,330",
+   "drop": {
+    "type": "onto",
+    "targetId": "b"
+   },
+   "onto": "t:b"
+  },
+  {
+   "step": "move 60,315",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "b"
+    },
+    "sequence": [
+     "t:p1",
+     "lf:LF(Pull Requests)",
+     "t:p2",
+     "lf:LF(Documents)"
+    ]
+   },
+   "gapKey": "t:b",
+   "onto": null,
+   "gaps": {
+    "t:b": 37
+   }
+  },
+  {
+   "step": "move 60,300",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": null,
+     "last": true
+    },
+    "sequence": [
+     "t:p1",
+     "lf:LF(Pull Requests)",
+     "t:p2",
+     "lf:LF(Documents)",
+     "t:a"
+    ]
+   },
+   "gapKey": "tail:pinnedGroups",
+   "gaps": {
+    "tail:pinnedGroups": 37
+   }
+  },
+  {
+   "step": "move 60,285"
+  },
+  {
+   "step": "move 60,270",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": null,
+     "last": true
+    },
+    "sequence": [
+     "t:p1",
+     "lf:LF(Pull Requests)",
+     "t:p2",
+     "t:a",
+     "lf:LF(Documents)"
+    ]
+   },
+   "gapKey": "lf:LF(Documents)",
+   "gaps": {
+    "lf:LF(Documents)": 37
+   }
+  },
+  {
+   "step": "move 60,255"
+  },
+  {
+   "step": "move 60,240",
+   "drop": {
+    "type": "onto",
+    "targetId": "p2"
+   },
+   "onto": "t:p2"
+  },
+  {
+   "step": "move 60,215",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "p2"
+    },
+    "sequence": [
+     "t:p1",
+     "lf:LF(Pull Requests)",
+     "t:a",
+     "t:p2",
+     "lf:LF(Documents)"
+    ]
+   },
+   "gapKey": "t:p2",
+   "onto": null,
+   "gaps": {
+    "t:p2": 37
+   }
+  },
+  {
+   "step": "move 60,200",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "p2"
+    },
+    "sequence": [
+     "t:p1",
+     "t:a",
+     "lf:LF(Pull Requests)",
+     "t:p2",
+     "lf:LF(Documents)"
+    ]
+   },
+   "gapKey": "lf:LF(Pull Requests)",
+   "gaps": {
+    "lf:LF(Pull Requests)": 37
+   }
+  },
+  {
+   "step": "move 60,185"
+  },
+  {
+   "step": "move 60,160",
+   "drop": {
+    "type": "onto",
+    "targetId": "p1"
+   },
+   "onto": "t:p1"
+  },
+  {
+   "step": "move 60,140",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "p1"
+    },
+    "sequence": [
+     "t:a",
+     "t:p1",
+     "lf:LF(Pull Requests)",
+     "t:p2",
+     "lf:LF(Documents)"
+    ]
+   },
+   "gapKey": "t:p1",
+   "onto": null,
+   "gaps": {
+    "t:p1": 37
+   }
+  },
+  {
+   "step": "end true",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "sources": [],
+   "gaps": {}
+  },
+  {
+   "step": "committed",
+   "committed": {
+    "tabIds": [
+     "a",
+     "p1",
+     "p2",
+     "b"
+    ],
+    "tabs": {
+     "a": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "p1": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "p2": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "b": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     }
+    },
+    "groups": {},
+    "pinnedArea": [
+     "t:a",
+     "t:p1",
+     "t:p2"
+    ],
+    "anchors": [],
+    "orderChoices": [
+     "place:a",
+     "place:p1",
+     "place:p2",
+     "a",
+     "p1",
+     "p2"
+    ],
+    "liveOrder": [
+     [
+      "LF(Pull Requests)",
+      "t:p1"
+     ],
+     [
+      "LF(Documents)",
+      "t:p2"
+     ]
+    ]
+   }
+  }
+ ],
+ "selection sweep": [
+  {
+   "step": "begin t:c 26,614",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:list",
+   "pitch": 105,
+   "into": null,
+   "external": 0,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": null,
+   "landing": null,
+   "sources": [
+    "t:a",
+    "t:b",
+    "t:c"
+   ],
+   "gaps": {
+    "tail:list": 105
+   }
+  },
+  {
+   "step": "move 60,650"
+  },
+  {
+   "step": "move 60,620"
+  },
+  {
+   "step": "move 60,590"
+  },
+  {
+   "step": "move 60,560"
+  },
+  {
+   "step": "move 60,530"
+  },
+  {
+   "step": "move 60,500",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "s1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "s:S(s1+s2)",
+   "gaps": {
+    "s:S(s1+s2)": 105
+   }
+  },
+  {
+   "step": "move 60,480",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:group:G(G)",
+   "gaps": {
+    "tail:group:G(G)": 105
+   }
+  },
+  {
+   "step": "move 60,460",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": "g2"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:g2",
+   "gaps": {
+    "t:g2": 105
+   }
+  },
+  {
+   "step": "move 60,440",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(H)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:group:G(H)",
+   "gaps": {
+    "tail:group:G(H)": 105
+   }
+  },
+  {
+   "step": "move 60,420",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(H)",
+     "beforeId": "h1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:h1",
+   "gaps": {
+    "t:h1": 105
+   }
+  },
+  {
+   "step": "move 60,405"
+  },
+  {
+   "step": "move 60,390",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": "h1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(H)",
+   "gaps": {
+    "g:G(H)": 105
+   }
+  },
+  {
+   "step": "move 60,375"
+  },
+  {
+   "step": "move 60,360",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": "g1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:g1",
+   "gaps": {
+    "t:g1": 105
+   }
+  },
+  {
+   "step": "move 60,345"
+  },
+  {
+   "step": "move 60,330"
+  },
+  {
+   "step": "move 60,315",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "g1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(G)",
+   "gaps": {
+    "g:G(G)": 105
+   }
+  },
+  {
+   "step": "move 60,300",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": null,
+     "last": true
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)",
+     "t:a",
+     "t:b",
+     "t:c"
+    ]
+   },
+   "gapKey": "tail:pinnedGroups",
+   "gaps": {
+    "tail:pinnedGroups": 105
+   }
+  },
+  {
+   "step": "move 60,285",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(PG)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:group:G(PG)",
+   "gaps": {
+    "tail:group:G(PG)": 105
+   }
+  },
+  {
+   "step": "move 60,270",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(PG)",
+     "beforeId": "pg1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:pg1",
+   "gaps": {
+    "t:pg1": 105
+   }
+  },
+  {
+   "step": "move 60,255"
+  },
+  {
+   "step": "move 60,240",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "pg1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "t:a",
+     "t:b",
+     "t:c",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(PG)",
+   "gaps": {
+    "g:G(PG)": 105
+   }
+  },
+  {
+   "step": "move 60,215"
+  },
+  {
+   "step": "move 60,200",
+   "drop": {
+    "type": "onto",
+    "targetId": "p2"
+   },
+   "onto": "t:p2"
+  },
+  {
+   "step": "move 60,185",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "p2"
+    },
+    "sequence": [
+     "t:p1",
+     "t:a",
+     "t:b",
+     "t:c",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p2",
+   "onto": null,
+   "gaps": {
+    "t:p2": 105
+   }
+  },
+  {
+   "step": "move 60,160",
+   "drop": {
+    "type": "onto",
+    "targetId": "p1"
+   },
+   "onto": "t:p1"
+  },
+  {
+   "step": "move 60,140",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "p1"
+    },
+    "sequence": [
+     "t:a",
+     "t:b",
+     "t:c",
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p1",
+   "onto": null,
+   "gaps": {
+    "t:p1": 105
+   }
+  },
+  {
+   "step": "end true",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "sources": [],
+   "gaps": {}
+  },
+  {
+   "step": "committed",
+   "committed": {
+    "tabIds": [
+     "a",
+     "b",
+     "c",
+     "p1",
+     "p2",
+     "pg1",
+     "g1",
+     "h1",
+     "g2",
+     "s1",
+     "s2"
+    ],
+    "tabs": {
+     "a": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "b": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "c": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "p1": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "p2": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "pg1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "h1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     }
+    },
+    "groups": {
+     "G(PG)": {
+      "tabIds": [
+       "pg1"
+      ],
+      "parent": null,
+      "pinned": true,
+      "collapsed": false
+     },
+     "G(G)": {
+      "tabIds": [
+       "g1",
+       "h1",
+       "g2"
+      ],
+      "parent": null,
+      "pinned": false,
+      "collapsed": false
+     },
+     "G(H)": {
+      "tabIds": [
+       "h1"
+      ],
+      "parent": "G(G)",
+      "pinned": false,
+      "collapsed": false
+     }
+    },
+    "pinnedArea": [
+     "t:a",
+     "t:b",
+     "t:c",
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ],
+    "anchors": [
+     [
+      "G(PG)",
+      "p2"
+     ]
+    ],
+    "orderChoices": [
+     "place:a",
+     "place:b",
+     "place:c",
+     "place:p1",
+     "place:p2",
+     "a",
+     "b",
+     "c",
+     "p1",
+     "p2"
+    ],
+    "liveOrder": []
+   }
+  }
+ ],
+ "split sweep": [
+  {
+   "step": "begin s:S(s1+s2) 26,577",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "c"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:c",
+   "pitch": 37,
+   "into": null,
+   "external": 0,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": null,
+   "landing": null,
+   "sources": [
+    "s:S(s1+s2)"
+   ],
+   "gaps": {
+    "t:c": 37
+   }
+  },
+  {
+   "step": "move 60,650",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:list",
+   "gaps": {
+    "tail:list": 37
+   }
+  },
+  {
+   "step": "move 60,620"
+  },
+  {
+   "step": "move 60,590"
+  },
+  {
+   "step": "move 60,560",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "c"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:c",
+   "gaps": {
+    "t:c": 37
+   }
+  },
+  {
+   "step": "move 60,530",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "b"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:b",
+   "gaps": {
+    "t:b": 37
+   }
+  },
+  {
+   "step": "move 60,500",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": "g2"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:g2",
+   "gaps": {
+    "t:g2": 37
+   }
+  },
+  {
+   "step": "move 60,480",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(H)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:group:G(H)",
+   "gaps": {
+    "tail:group:G(H)": 37
+   }
+  },
+  {
+   "step": "move 60,460",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(H)",
+     "beforeId": "h1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:h1",
+   "gaps": {
+    "t:h1": 37
+   }
+  },
+  {
+   "step": "move 60,440"
+  },
+  {
+   "step": "move 60,420",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": "h1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(H)",
+   "gaps": {
+    "g:G(H)": 37
+   }
+  },
+  {
+   "step": "move 60,405"
+  },
+  {
+   "step": "move 60,390",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(G)",
+     "beforeId": "g1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:g1",
+   "gaps": {
+    "t:g1": 37
+   }
+  },
+  {
+   "step": "move 60,375"
+  },
+  {
+   "step": "move 60,360",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "g1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(G)",
+   "gaps": {
+    "g:G(G)": 37
+   }
+  },
+  {
+   "step": "move 60,345"
+  },
+  {
+   "step": "move 60,330"
+  },
+  {
+   "step": "move 60,315",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "a"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:a",
+   "gaps": {
+    "t:a": 37
+   }
+  },
+  {
+   "step": "move 60,300",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": null,
+     "last": true
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)",
+     "s:S(s1+s2)"
+    ]
+   },
+   "gapKey": "tail:pinnedGroups",
+   "gaps": {
+    "tail:pinnedGroups": 37
+   }
+  },
+  {
+   "step": "move 60,285",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(PG)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:group:G(PG)",
+   "gaps": {
+    "tail:group:G(PG)": 37
+   }
+  },
+  {
+   "step": "move 60,270",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(PG)",
+     "beforeId": "pg1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:pg1",
+   "gaps": {
+    "t:pg1": 37
+   }
+  },
+  {
+   "step": "move 60,255"
+  },
+  {
+   "step": "move 60,240",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "pg1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "s:S(s1+s2)",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(PG)",
+   "gaps": {
+    "g:G(PG)": 37
+   }
+  },
+  {
+   "step": "move 60,215"
+  },
+  {
+   "step": "move 60,200",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "p2"
+    },
+    "sequence": [
+     "t:p1",
+     "s:S(s1+s2)",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p2",
+   "gaps": {
+    "t:p2": 37
+   }
+  },
+  {
+   "step": "move 60,185"
+  },
+  {
+   "step": "move 60,160",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "p1"
+    },
+    "sequence": [
+     "s:S(s1+s2)",
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p1",
+   "gaps": {
+    "t:p1": 37
+   }
+  },
+  {
+   "step": "move 60,140"
+  },
+  {
+   "step": "move 60,140"
+  },
+  {
+   "step": "move 60,160"
+  },
+  {
+   "step": "move 60,185"
+  },
+  {
+   "step": "move 60,200"
+  },
+  {
+   "step": "move 60,215",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "p2"
+    },
+    "sequence": [
+     "t:p1",
+     "s:S(s1+s2)",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:p2",
+   "gaps": {
+    "t:p2": 37
+   }
+  },
+  {
+   "step": "move 60,240"
+  },
+  {
+   "step": "move 60,255",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": true,
+     "row": true,
+     "beforeId": "pg1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "s:S(s1+s2)",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(PG)",
+   "gaps": {
+    "g:G(PG)": 37
+   }
+  },
+  {
+   "step": "move 60,270"
+  },
+  {
+   "step": "move 60,285",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(PG)",
+     "beforeId": "pg1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:pg1",
+   "gaps": {
+    "t:pg1": 37
+   }
+  },
+  {
+   "step": "move 60,300"
+  },
+  {
+   "step": "move 60,315",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "groupId": "G(PG)",
+     "beforeId": null
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "tail:group:G(PG)",
+   "gaps": {
+    "tail:group:G(PG)": 37
+   }
+  },
+  {
+   "step": "move 60,330",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "a"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "t:a",
+   "gaps": {
+    "t:a": 37
+   }
+  },
+  {
+   "step": "move 60,345"
+  },
+  {
+   "step": "move 60,360"
+  },
+  {
+   "step": "move 60,375",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "g1"
+    },
+    "sequence": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ]
+   },
+   "gapKey": "g:G(G)",
+   "gaps": {
+    "g:G(G)": 37
+   }
+  },
+  {
+   "step": "move 60,390"
+  },
+  {
+   "step": "end true",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "sources": [],
+   "gaps": {}
+  },
+  {
+   "step": "committed",
+   "committed": {
+    "tabIds": [
+     "p1",
+     "p2",
+     "pg1",
+     "a",
+     "b",
+     "c",
+     "s1",
+     "s2",
+     "g1",
+     "h1",
+     "g2"
+    ],
+    "tabs": {
+     "p1": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "p2": {
+      "pinned": true,
+      "row": true,
+      "group": null,
+      "folder": null
+     },
+     "pg1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "a": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "b": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "c": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "s2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "h1": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "g2": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     }
+    },
+    "groups": {
+     "G(PG)": {
+      "tabIds": [
+       "pg1"
+      ],
+      "parent": null,
+      "pinned": true,
+      "collapsed": false
+     },
+     "G(G)": {
+      "tabIds": [
+       "g1",
+       "h1",
+       "g2"
+      ],
+      "parent": null,
+      "pinned": false,
+      "collapsed": false
+     },
+     "G(H)": {
+      "tabIds": [
+       "h1"
+      ],
+      "parent": "G(G)",
+      "pinned": false,
+      "collapsed": false
+     }
+    },
+    "pinnedArea": [
+     "t:p1",
+     "t:p2",
+     "g:G(PG)"
+    ],
+    "anchors": [
+     [
+      "G(PG)",
+      "p2"
+     ]
+    ],
+    "orderChoices": [
+     "place:p1",
+     "place:p2",
+     "p1",
+     "p2"
+    ],
+    "liveOrder": []
+   }
+  }
+ ],
+ "tie order": [
+  {
+   "step": "begin t:a 26,210",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": "b"
+    },
+    "sequence": []
+   },
+   "gapKey": "t:b",
+   "pitch": 37,
+   "into": null,
+   "external": 0,
+   "gridGrowth": 0,
+   "hold": null,
+   "dropInto": null,
+   "onto": null,
+   "pins": false,
+   "pinCount": 0,
+   "pinBefore": null,
+   "folderTarget": null,
+   "folderAway": false,
+   "folded": null,
+   "landing": null,
+   "sources": [
+    "t:a"
+   ],
+   "gaps": {
+    "t:b": 37
+   }
+  },
+  {
+   "step": "move 60,291",
+   "drop": {
+    "type": "onto",
+    "targetId": "c"
+   },
+   "onto": "t:c"
+  },
+  {
+   "step": "move 60,291.01"
+  },
+  {
+   "step": "move 60,300",
+   "drop": {
+    "type": "tabs",
+    "placement": {
+     "pinned": false,
+     "beforeId": null
+    },
+    "sequence": []
+   },
+   "gapKey": "tail:list",
+   "onto": null,
+   "gaps": {
+    "tail:list": 37
+   }
+  },
+  {
+   "step": "move 60,320"
+  },
+  {
+   "step": "end true",
+   "drop": {
+    "type": "none"
+   },
+   "gapKey": null,
+   "pitch": 0,
+   "sources": [],
+   "gaps": {}
+  },
+  {
+   "step": "committed",
+   "committed": {
+    "tabIds": [
+     "b",
+     "c",
+     "d",
+     "a"
+    ],
+    "tabs": {
+     "b": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "c": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "d": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     },
+     "a": {
+      "pinned": false,
+      "row": false,
+      "group": null,
+      "folder": null
+     }
+    },
+    "groups": {},
+    "pinnedArea": [],
+    "anchors": [],
+    "orderChoices": [],
+    "liveOrder": []
+   }
+  }
+ ]
+}

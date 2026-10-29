@@ -5,7 +5,7 @@ import { useWindowId } from "../../state/browser/hooks";
 import { Box, Button, Dialog, layout, Text, TextField } from "../ui";
 import { addBookmarkFolder, addBookmarkTree, closeBookmarkDialog, moveBookmark, profileOfBookmark, removeBookmark, updateBookmark, useBookmarkDialog, type BookmarkDialogState } from "../../state/bookmarks/actions";
 import { useBookmarks } from "../../state/bookmarks/hooks";
-import { currentBookmarks } from "../../state/browser/current";
+import { currentBookmarkRoots, currentBookmarks } from "../../state/browser/current";
 import { FieldLabel, FolderPicker } from "./DialogParts";
 import { bookmarkDialog, folderPicker } from "./tokens";
 import { useAddressBarInSidebar } from "../../state/windows/layout";
@@ -26,7 +26,7 @@ function DialogPanel({ state }: { state: BookmarkDialogState }) {
   const profileId = state.kind === "page" ? profileOfBookmark(state.bookmarkId) : state.profileId;
   const [name, setName] = useState(() => (state.kind === "page" ? (bookmark?.title ?? "") : ""));
   const [folderId, setFolderId] = useState<string | null>(() =>
-    state.kind === "page" ? (bookmark?.parentId ?? null) : (currentBookmarks().roots[state.profileId]?.bar ?? null),
+    state.kind === "page" ? (bookmark?.parentId ?? null) : (currentBookmarkRoots(state.profileId)?.bar ?? null),
   );
   const close = closeBookmarkDialog;
 

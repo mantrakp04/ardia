@@ -5,7 +5,8 @@ import { onboardingColors } from "./tokens";
 import { GlassBacking, IconRing, solidFill } from "./GlassBacking";
 import type { TileTheme } from "../../state/favicons/tileTheme";
 import { Radio, Symbol, useHover } from "../ui";
-import { activeSteps, questionsFor, useOnboarding, type OnboardingStep } from "../../state/onboarding/onboarding";
+import { activeSteps, useOnboarding, type OnboardingStep } from "../../state/onboarding/onboarding";
+import { useQuestions } from "../../state/onboarding/questions";
 import { curve } from "../ui/motion";
 import { font, weight } from "../ui/tokens";
 import { onboardingMotion, onboardingType } from "./tokens";
@@ -28,11 +29,9 @@ export function StepProgress() {
   const colors = useOnboardingColors();
   const step = useOnboarding((s) => s.step);
   const sub = useOnboarding((s) => s.sub);
-  useOnboarding((s) => s.draft);
-  useOnboarding((s) => s.source);
+  const count = useQuestions(step).length;
   const steps: OnboardingStep[] = activeSteps().filter((s) => s !== "intro");
   const index = steps.indexOf(step);
-  const count = questionsFor(step).length;
   return (
     <View style={{ gap: 8 }}>
       <View style={{ flexDirection: "row", gap: 4 }}>

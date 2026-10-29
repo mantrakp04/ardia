@@ -7,7 +7,8 @@ import { shallowEqual, useBrowserWhile, useStoreWhile, useTabValue } from "../..
 import { useSettings, useShowPageFrame } from "../../state/browser/hooks";
 import { splitOf } from "../../state/splits/splits";
 import type { Tab } from "../../state/browser/types";
-import { BOOKMARKS_BAR_HEIGHT, BookmarksBar, bookmarksBarShown, type BookmarksBarMode } from "../bookmarks/BookmarksBar";
+import { BookmarksBar, bookmarksBarShown, type BookmarksBarMode } from "../bookmarks/BookmarksBar";
+import { useBookmarksBarHeight } from "../bookmarks/barSize";
 import type { Rect, ToolbarGeometry } from "./geometry";
 import { patchPage, usePages } from "../../state/tabs/pageState";
 import { SplitEmptyState } from "../split/SplitEmptyState";
@@ -20,7 +21,9 @@ import { AutoHideBackdrop, AutoHideToolbar, useToolbarMode, useToolbarMotion } f
 import { publishPaneChrome } from "../toolbar/WindowToolbar";
 import { revealToolbar } from "../../state/windows/toolbarAutoHide";
 import { useToolbarRow } from "../toolbar/useToolbarRow";
-import { pageKey, TabWebView } from "./TabWebView";
+import { TabWebView } from "./TabWebView";
+import { withoutFragment } from "../../lib/url";
+import { paneBar, type CardChrome } from "./paneChrome";
 import { PageOverlays } from "./PageOverlays";
 import { pageFrameRadius } from "./pageFrame";
 import { useProfileTheme } from "./ThemeScope";
@@ -39,13 +42,11 @@ export const TabPane = memo(function TabPane({
   fullscreen,
   covered,
   geometry,
-  toolbar,
-  autoHide,
+  chrome,
   small,
   mounted,
   warm,
   barMode,
-  windowToolbar,
   popovers,
   peekShown,
   lingering,
@@ -62,13 +63,11 @@ export const TabPane = memo(function TabPane({
   fullscreen: boolean;
   covered: boolean;
   geometry: ToolbarGeometry;
-  toolbar: boolean;
-  autoHide: boolean;
+  chrome: CardChrome;
   small: boolean;
   mounted: boolean;
   warm: Rect | undefined;
   barMode: BookmarksBarMode;
-  windowToolbar: boolean;
   popovers: boolean;
   peekShown: boolean;
   lingering: boolean;
@@ -90,18 +89,20 @@ export const TabPane = memo(function TabPane({
     if (visible && isNewTab && !mounted) patchPage(tabId, { wasNewTab: true });
   }, [visible, isNewTab, mounted]);
   const prewarmed = usePrewarm(visible && isNewTab && !emptyCard && !mounted && !small && !inSplit);
-  const hideBar = autoHide && visible && !fullscreen;
+  const toolbar = chrome.kind !== "none";
+  const bar = paneBar(chrome, { visible, fullscreen, lingering });
+  const autoLayout = bar.kind === "autoHide";
+  const hideBar = autoLayout && bar.bar !== null;
   const mode = useToolbarMode(tabId, windowId, hideBar);
   const bookmarksBar = bookmarksBarShown(barMode, own.exists ? own : undefined) && !fullscreen && !inSplit && !small;
-  const doc = pageKey(own.url);
-  const autoLayout = autoHide && toolbar && !fullscreen;
-  const motion = useToolbarMotion({ enabled: autoLayout, mode, height: frame.height, extra: bookmarksBar ? BOOKMARKS_BAR_HEIGHT : 0, doc });
+  const barHeight = useBookmarksBarHeight();
+  const doc = withoutFragment(own.url);
+  const motion = useToolbarMotion({ enabled: autoLayout, mode, height: frame.height, extra: bookmarksBar ? barHeight : 0, doc });
   useEffect(() => {
     if (visible) revealToolbar(tabId);
   }, [visible]);
-  const chromeInWindow = hideBar && windowToolbar && !lingering;
   useLayoutEffect(() => {
-    if (chromeInWindow) publishPaneChrome(windowId, { tabId, mode, bar: motion.bar, fade: motion.fade });
+    if (autoLayout && bar.bar === "window") publishPaneChrome(windowId, { tabId, mode, bar: motion.bar, fade: motion.fade });
   });
 
   return (
@@ -120,13 +121,9 @@ export const TabPane = memo(function TabPane({
         backgroundColor: visible && !fullscreen && !seeThrough ? theme.card : undefined,
       }}
     >
-      {!toolbar || fullscreen || autoLayout ? null : visible && !windowToolbar ? (
-        <Toolbar tabId={tabId} geometry={geometry} windowId={windowId} inSplit={inSplit} focused={focused || !inSplit} />
-      ) : visible ? (
-        <ToolbarBackdrop tabId={tabId} />
-      ) : (
-        <View style={{ height: toolbarHeight }} />
-      )}
+      {bar.kind === "toolbar" && <Toolbar tabId={tabId} geometry={geometry} windowId={windowId} inSplit={inSplit} focused={focused || !inSplit} />}
+      {bar.kind === "backdrop" && <ToolbarBackdrop tabId={tabId} />}
+      {bar.kind === "spacer" && <View style={{ height: toolbarHeight }} />}
       {!autoLayout && bookmarksBar && <BookmarksBar tabId={tabId} placeholder={!visible} />}
       <Animated.View style={autoLayout ? motion.groupStyle : { flex: 1 }}>
         {autoLayout && bookmarksBar && <BookmarksBar tabId={tabId} placeholder={!visible} />}
@@ -154,7 +151,7 @@ export const TabPane = memo(function TabPane({
         </View>
       </Animated.View>
       {hideBar && <AutoHideBackdrop tabId={tabId} mode={mode} motion={motion} />}
-      {hideBar && !windowToolbar && <AutoHideToolbar tabId={tabId} geometry={geometry} windowId={windowId} inSplit={inSplit} focused={focused || !inSplit} mode={mode} motion={motion} />}
+      {autoLayout && bar.bar === "pane" && <AutoHideToolbar tabId={tabId} geometry={geometry} windowId={windowId} inSplit={inSplit} focused={focused || !inSplit} mode={mode} motion={motion} />}
     </View>
   );
 });

@@ -166,12 +166,6 @@ bool IsReservedGlobalAccelerator(const ui::Accelerator& accelerator) {
   return !GlobalShortcuts().host_ready || HotKeyIsReserved(accelerator);
 }
 
-bool IsReservedGlobalShortcut(NSString* shortcut) {
-  ui::Accelerator accelerator =
-      extensions::Command::StringToAccelerator(base::SysNSStringToUTF8(shortcut), "ardia");
-  return accelerator.key_code() != ui::VKEY_UNKNOWN && IsReservedGlobalAccelerator(accelerator);
-}
-
 void ReservedShortcutsChanged() {
   GlobalShortcuts().host_ready = true;
   ReregisterGlobalShortcuts();

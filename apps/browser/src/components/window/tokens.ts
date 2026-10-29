@@ -47,7 +47,7 @@ export const SHADOWS = {
 
 export const STATUS_MOTION = {
   show: { duration: 90, easing: curve.outQuad },
-  hide: { duration: 220, easing: curve.inQuad },
+  hide: { duration: 220, easing: curve.inQuad, delay: 180 },
 } as const;
 
 export const CLI_PILL_MOTION = {

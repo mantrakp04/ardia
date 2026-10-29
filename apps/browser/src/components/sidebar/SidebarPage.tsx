@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Animated, ScrollView, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { switchOn } from "../../state/app/switches";
 import { ContextMenuArea, WindowDragRegion } from "../ui";
@@ -18,11 +18,12 @@ import { SCROLL_EDGE, ScrollEdgeLine, useScrollEdge } from "./ScrollEdge";
 import { listTopGap } from "./geometry";
 import { startsOffScreen } from "../../state/sidebar/geometry";
 import { toggleNewTabBar } from "../../state/omnibox/newTabBar";
-import { DOCK_SHARE, DOCKED_BOTTOM, GLOW_ROOM, type SidebarGeometry } from "./pageLayout";
+import { DOCK_SHARE, DOCKED_BOTTOM, GLOW_ROOM, pageLayout, tilesFitDock, type SidebarGeometry } from "./pageLayout";
 import { PageRows } from "./PageRows";
 import { NewTabRow } from "./NewTabRow";
 
 const NONE: string[] = [];
+const LIST_PAD = GLOW_ROOM + SCROLL_EDGE.inset;
 
 type PageProps = {
   profileId: string;
@@ -59,18 +60,28 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, width, c
   const dockRoom = height ? (height - playerHeight) * DOCK_SHARE - topGap - SCROLL_EDGE.gap - SCROLL_EDGE.line : Infinity;
   const balanced = useSettings((st) => st.balancedTopApps);
   const gridHeight = (count: number) => pinGridHeight(count, innerWidth, layout.pinnedHeight, balanced);
-  const placedFixed = useRef(true);
-  if (!dragging) placedFixed.current = !tiles.length || gridHeight(tiles.length) <= dockRoom;
-  const dockFixed = placedFixed.current;
-  const capped = dockFixed && dragging && gridHeight(previewed) > dockRoom;
+  const fits = tilesFitDock({ tiles: tiles.length, gridHeight, dockRoom });
+  const fixedBeforeDrag = useRef(true);
+  useLayoutEffect(() => {
+    if (!dragging) fixedBeforeDrag.current = fits;
+  });
+  const measured = useRef<{ fixed: number; list: number | null; total: number }>({ fixed: 0, list: null, total: 0 });
+  const [, setDockFlips] = useState(0);
+  const { dockFixed, capped, docked } = pageLayout({
+    tiles: tiles.length,
+    previewed,
+    dockRoom,
+    gridHeight,
+    dragging,
+    fixedBeforeDrag: fixedBeforeDrag.current,
+    listHeight: measured.current.total,
+    dockAbove,
+  });
   const fixedTiles = dockFixed ? tiles : NONE;
   const scrolledTiles = dockFixed ? NONE : tiles;
-  const pad = GLOW_ROOM + SCROLL_EDGE.inset;
-  if (geometry) {
-    geometry.current.room = GLOW_ROOM;
-    geometry.current.pad = pad;
-    geometry.current.tilesFixed = dockFixed;
-  }
+  useLayoutEffect(() => {
+    if (geometry) geometry.current.tilesFixed = dockFixed;
+  }, [geometry, dockFixed]);
   const scrollEdge = useScrollEdge();
   const scrollY = useRef(new Animated.Value(0)).current;
   const isCurrent = useRef(current);
@@ -86,22 +97,19 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, width, c
   );
   const edge = useMemo(() => scrollY.interpolate({ inputRange: [0, 1], outputRange: [0, GLOW_ROOM], extrapolate: "clamp" }), [scrollY]);
   const unedge = useMemo(() => Animated.multiply(edge, -1), [edge]);
-  const fixed = useRef<{ height: number; list: number | null }>({ height: 0, list: null });
-  const listHeight = useRef(0);
-  const [, setDockChanges] = useState(0);
-  const docked = listHeight.current > dockAbove;
   const report = () => {
-    if (resting || fixed.current.list === null) return;
-    const before = listHeight.current > dockAbove;
-    listHeight.current = fixed.current.height + fixed.current.list + playerHeight;
-    if (listHeight.current > dockAbove !== before) setDockChanges((n) => n + 1);
+    const m = measured.current;
+    if (resting || m.list === null) return;
+    const before = m.total > dockAbove;
+    m.total = m.fixed + m.list + playerHeight;
+    if (m.total > dockAbove !== before) setDockFlips((n) => n + 1);
   };
   const reportList = (list: number) => {
-    fixed.current.list = list;
+    measured.current.list = list;
     report();
   };
   const onFixedLayout = (e: LayoutChangeEvent) => {
-    fixed.current.height = e.nativeEvent.layout.height;
+    measured.current.fixed = e.nativeEvent.layout.height;
     report();
   };
   useEffect(report, [playerHeight, resting]);
@@ -115,9 +123,9 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, width, c
       <PageProfileContext.Provider value={profileId}>
         <ThemeScope>
           <DragScope enabled={current}>
-            <PageContent>
+            <PageContent tilesFixed={dockFixed} tilesRoom={dockRoom}>
               {(controller) => (
-                <TilesPlacement controller={controller} fixed={dockFixed} room={dockRoom}>
+                <>
                   <View onLayout={onFixedLayout} style={{ paddingTop: GLOW_ROOM, zIndex: fixedTiles.length ? 1 : 0 }}>
                     <View style={[{ paddingHorizontal: layout.sidebarInset }, capped ? { maxHeight: topGap + dockRoom, overflow: "hidden" } : null]}>
                       {dockFixed ? <PinnedGrid tabs={fixedTiles} innerWidth={innerWidth} /> : null}
@@ -141,7 +149,7 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, width, c
                         showsVerticalScrollIndicator={false}
                         scrollEventThrottle={16}
                         onScroll={onScroll}
-                        contentContainerStyle={{ flexGrow: 1, width, paddingHorizontal: layout.sidebarInset, paddingTop: pad }}
+                        contentContainerStyle={{ flexGrow: 1, width, paddingHorizontal: layout.sidebarInset, paddingTop: LIST_PAD }}
                       >
                         <PageRows
                           windowId={windowId}
@@ -173,7 +181,7 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, width, c
                       <NewTabRow windowId={windowId} />
                     </View>
                   ) : null}
-                </TilesPlacement>
+                </>
               )}
             </PageContent>
           </DragScope>
@@ -183,14 +191,14 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, width, c
   );
 });
 
-function TilesPlacement({ controller, fixed, room, children }: { controller: ReturnType<typeof useDragController>; fixed: boolean; room: number; children: ReactNode }) {
-  if (controller) {
-    controller.tilesFixed = fixed;
-    controller.tilesRoom = room;
-  }
-  return <>{children}</>;
-}
+type PageContentProps = { tilesFixed: boolean; tilesRoom: number; children: (controller: ReturnType<typeof useDragController>) => ReactNode };
 
-function PageContent({ children }: { children: (controller: ReturnType<typeof useDragController>) => ReactNode }) {
-  return <>{children(useDragController())}</>;
+function PageContent({ tilesFixed, tilesRoom, children }: PageContentProps) {
+  const controller = useDragController();
+  useLayoutEffect(() => {
+    if (!controller) return;
+    controller.tilesFixed = tilesFixed;
+    controller.tilesRoom = tilesRoom;
+  }, [controller, tilesFixed, tilesRoom]);
+  return <>{children(controller)}</>;
 }

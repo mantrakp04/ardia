@@ -1,3 +1,4 @@
+import ArdiaCore
 import ExpoModulesCore
 
 public class AreaLightModule: Module {
@@ -32,7 +33,7 @@ public class WindowBackdropModule: Module {
       Prop("colors") { (view: WindowBackdropView, colors: [String]) in view.setColors(colors) }
       Prop("vibrancy") { (view: WindowBackdropView, on: Bool) in view.setVibrancy(on) }
       Prop("tintColor") { (view: WindowBackdropView, hex: String) in
-        if let c = SIMD4<Float>(hex: hex) {
+        if let c = RGBA(hex: hex)?.simd {
           view.setTint { $0.color = NSColor(displayP3Red: CGFloat(c.x), green: CGFloat(c.y), blue: CGFloat(c.z), alpha: 1) }
         }
       }

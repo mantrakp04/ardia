@@ -74,7 +74,7 @@ before this launch that run ended, in `since_quit`'s ranges), `since_quit` (<1m,
 ### A session's payload
 
 A Debug build with Metro (so slower than a release), in a hidden instance, with every journey driven by posted key
-events (`expo.modules.ArdiaApp.devPostKey`): ⌘1–4 between four restored tabs, ⌘T and an address typed into the
+events (`expo.modules.ArdiaDev.devPostKey`): ⌘1–4 between four restored tabs, ⌘T and an address typed into the
 new tab's bar, Enter, and ⌘L, an address, Enter. The `$`-context properties are left out.
 
 ```json

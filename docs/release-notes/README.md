@@ -29,7 +29,8 @@ headline: Chrome makes no further unscheduled appearances.
   still zooms.
 ```
 
-Frontmatter, both required:
+Frontmatter, one `key: value` per line (`scripts/lib/release-note.mjs` reads it for `release.sh` and refuses anything
+else; quote a headline that holds `: `):
 
 - `date`: the day the release is published, `YYYY-MM-DD`.
 - `headline`: one line, the deadpan part (below).
@@ -62,9 +63,8 @@ Body:
 
 ## Nightlies
 
-A nightly's file is `docs/release-notes/<next stable>-nightly.<n>.md` (`0.2.37-nightly.1.md`) and carries a third
-frontmatter key, `channel: nightly`; `release.sh --channel nightly` refuses notes without it, and a stable release
-refuses notes with it. Keep it short: the headline and the one to three bullets for what the nightly fixed, in
+A nightly's file is `docs/release-notes/<next stable>-nightly.<n>.md` (`0.2.37-nightly.1.md`); the version says it's a
+nightly, so the frontmatter is the same as a stable's. Keep it short: the headline and the one to three bullets for what the nightly fixed, in
 `## Fixed` or `## New`, written exactly like a stable item. No `## Faster` (nightlies aren't perf-gated). The site
 lists nightlies only in its "Nightlies too" view, tagged Nightly; `#<version>` links open that view. When the next
 stable ships, its notes cover everything since the previous stable, nightlies included, written fresh for people who
@@ -74,7 +74,6 @@ never ran a nightly.
 ---
 date: 2026-10-16
 headline: Sites can share a tab without a second click.
-channel: nightly
 ---
 
 ## Fixed

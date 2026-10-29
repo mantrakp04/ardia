@@ -1,4 +1,6 @@
 ---
+import { breadcrumbs } from "../../data/jsonLd";
+import { base, homeUrl } from "../../data/site";
 import type { GetStaticPaths } from "astro";
 import { Picture } from "astro:assets";
 import Base from "../../layouts/Base.astro";
@@ -27,8 +29,7 @@ interface Props {
   older?: Release;
 }
 const { release: r, newer, older } = Astro.props;
-const base = import.meta.env.BASE_URL.replace(/\/$/, "");
-const home = new URL(import.meta.env.BASE_URL, Astro.site).href;
+const home = homeUrl(Astro.site);
 const index = new URL("release-notes/", home).href;
 const url = new URL(releasePath(r.version), home).href;
 const name = `Ardia ${r.version}`;
@@ -62,15 +63,7 @@ const jsonLd = [
       url: home,
     },
   },
-  {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: [
-      { "@type": "ListItem", position: 1, name: "Ardia", item: home },
-      { "@type": "ListItem", position: 2, name: "Release notes", item: index },
-      { "@type": "ListItem", position: 3, name, item: url },
-    ],
-  },
+  breadcrumbs(home, ["Release notes", index], [name, url]),
 ];
 ---
 

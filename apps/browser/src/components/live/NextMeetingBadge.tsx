@@ -9,7 +9,7 @@ import { useSidebarTokens } from "../sidebar/tokens";
 import { LIVE_NOW_TEXT, liveMotion, liveType, useLiveColors } from "./tokens";
 
 export const NextMeetingBadge = memo(function NextMeetingBadge({ tabId }: { tabId: string }) {
-  const pinnedUrl = useTab(tabId, (t) => (t?.pinned ? (t.pinnedUrl ?? t.url) : null));
+  const pinnedUrl = useTab(tabId, (t) => (t?.pin ? (t.pinnedUrl ?? t.url) : null));
   const calendar = pinnedUrl !== null && isCalendarUrl(pinnedUrl);
   const on = useLive((s) => s.calendar.showTimeToNext);
   const lead = useLive((s) => s.calendar.countdownLead);

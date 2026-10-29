@@ -28,7 +28,7 @@ test("the page frame choice is global, saved both ways, and never changes a tab'
     S().updateSettings({ showPageFrame: false });
     assert.equal(S().settings.showPageFrame, false);
     assert.equal(S().tabs, before);
-    assert.ok(S().settings.chosen.includes("showPageFrame"));
+    assert.ok(S().settingsMeta.chosen.includes("showPageFrame"));
     flushPersistence();
     assert.equal(JSON.parse(stub.docs.get("session.json")).settings.showPageFrame, false);
     S().hydrate(loadSession());

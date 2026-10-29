@@ -28,7 +28,7 @@ extension WebKitHub {
 
   func importCookies(_ cookies: [[String: Any]], profile: String, storeKey: String, completion: @escaping (Int) -> Void) {
     let made = cookies.compactMap(Self.httpCookie(fromEngine:))
-    guard !made.isEmpty, let store = liveDataStore(for: profile, storeKey: storeKey)?.httpCookieStore else { return completion(0) }
+    guard !made.isEmpty, let store = stores.liveDataStore(for: profile, wireKey: storeKey)?.httpCookieStore else { return completion(0) }
     let group = DispatchGroup()
     for cookie in made {
       group.enter()

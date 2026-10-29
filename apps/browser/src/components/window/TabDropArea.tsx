@@ -4,7 +4,7 @@ import type { StyleProp, View, ViewStyle } from "react-native";
 import { currentWindow } from "../../state/browser/current";
 import { openDroppedUrls } from "../../state/drag/windowDrop";
 import { installDroppedCrx } from "../../state/extensions/crxDrop";
-import type { TabPlacement } from "../../state/pins/organize";
+import type { TabPlacement } from "../../state/pins/placing";
 import { FileDropArea, type DroppedItem, type DropUpdate } from "../ui";
 
 export type DropPoint = [number, number];

@@ -6,7 +6,7 @@ import { beginExternalDrag, endExternalDrag, moveExternalDrag } from "../../stat
 import { lightsCenter, TOP_STRIP_LIGHTS_CENTER } from "../../state/windows/dockMotion";
 import { useWindowUiOf } from "../../state/windows/hooks";
 import { usePagerPages } from "../../state/windows/profilePager";
-import { DownloadsButton } from "../downloads/Downloads";
+import { DownloadsButton } from "../downloads/DownloadsButton";
 import { ProfileIndicator, useProfileIndicatorWidth } from "../profiles/ProfileIndicator";
 import { Panel, WindowDragRegion } from "../ui";
 import { layout, useTheme } from "../ui/theme";

@@ -1,11 +1,11 @@
 import { useBrowser } from "../browser/store";
 import { endpoints, form } from "./net";
 import { connectGoogle } from "./sources";
+import { secureRandomHex } from "../../platform/secureRandom";
+import { base64Url, sha256 } from "../../lib/sha256";
 
 const REDIRECT = "http://127.0.0.1:53682/ardia-oauth";
 const SCOPE = "https://www.googleapis.com/auth/drive.metadata.readonly";
-const CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
-const random = (n: number) => Array.from({ length: n }, () => CHARS[Math.floor(Math.random() * CHARS.length)]).join("");
 
 let pending: { cancel(): void } | null = null;
 
@@ -21,15 +21,15 @@ function query(url: string): Map<string, string> {
 
 export function connectGoogleDrive(windowId: string, clientId: string, clientSecret: string): Promise<void> {
   pending?.cancel();
-  const verifier = random(64);
-  const state = random(24);
+  const verifier = secureRandomHex(64);
+  const state = secureRandomHex(32);
   const url = `${endpoints.googleAuth}?${form({
     client_id: clientId.trim(),
     redirect_uri: REDIRECT,
     response_type: "code",
     scope: SCOPE,
-    code_challenge: verifier,
-    code_challenge_method: "plain",
+    code_challenge: base64Url(sha256(verifier)),
+    code_challenge_method: "S256",
     state,
     access_type: "offline",
     prompt: "consent",

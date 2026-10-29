@@ -44,7 +44,7 @@ store but through `storeAction` wrappers in each domain's `actions.ts` (`newTab`
   `placeTabs({ tileFolder })` sets it, `null` takes a tab out, and leaving it out keeps it. A tab that stops being a tile
   loses it, and a folder that drops to one tab dissolves (`settleTileFolders`, run with the pin mirror). It never reaches
   Chrome: members are plain pinned tabs there. Mirrored, parked and synced with the pins (`tilefold:` records).
-- UI: `ui.focusedWindowId`, `ui.focusOrder`, `ui.lastProfileId` (the regular profile of the window used last, a private
+- UI: `ui.focusOrder` (most recently focused first; `focusedWindowOf(s)` in state/windows/ui.ts reads the focused one), `ui.lastProfileId` (the regular profile of the window used last, a private
   window counting as its `originalProfileId`; saved with the session; read it through `lastActiveProfile(s)`, state/windows/small.ts),
   `ui.appDark`, `windowUi[windowId]` (command panel, downloads popover), `find[tabId]`.
 
@@ -82,8 +82,8 @@ store but through `storeAction` wrappers in each domain's `actions.ts` (`newTab`
   `tab.pinnedAsRow`; windows order tiles, then pinned rows and pinned groups in one interleaved order, then the rest; `row` omitted keeps a pinned
   tab's kind and pins a new one as a tile). A live folder sits in that pinned order by `LiveFolder.after`, the anchor key
   (`t:` or `g:` plus the pin key) of the row or group just above it, or `null` for the top (components/sidebar/pinnedOrder.ts);
-  when its anchor goes it moves under the item that was above the anchor. Also pinned base URLs (`tab.pinnedUrl`, `returnToPinnedUrl` ⌘↩, `setPinnedUrl`; set on tiles, pinned rows and tabs in pinned groups alike, and cleared when a tab leaves every pinned place, by the `settlePinHomes` listener in state/pins/pinHomes.ts), `setSiteMuted` (Mute Site,
-  `settings.mutedSites`; a private window's mutes stay in `privateSiteMutes[windowId]`, in memory), `groupTabs` (pinned by default, like Dia), `moveGroup`, `duplicateGroup`, `newTabInGroup`,
+  when its anchor goes it moves under the item that was above the anchor. Also pinned base URLs (`tab.pinnedUrl`, `returnToPinnedUrl` ⌘↩, `setPinnedUrl`; set on tiles, pinned rows and tabs in pinned groups alike, and cleared when a tab leaves every pinned place, by the `settlePinHomes` listener in state/pins/pinHomes.ts), `setMuted` (a tab's own mute, `tab.muted`, saved with the tab) and `setSiteMuted` (Mute Site,
+  `settings.mutedSites`; a private window's mutes stay in `privateSiteMutes[windowId]`, in memory; a tab is silent if either is on, `isSilenced` in state/tabs/mute.ts), `groupTabs` (pinned by default, like Dia), `moveGroup`, `duplicateGroup`, `newTabInGroup`,
   `closeGroup` → `closedGroups` (History › Recently Closed Groups; `restoreClosed` takes their ids), `moveGroupToBookmarksBar`,
   `cleanUpTabs` → `cleanedTabs` / `restoreCleaned(entryId?, windowId?)` (a private window's go to `privateCleanedTabs[windowId]`,
   in memory, and only back into that window; read either with `cleanedTabsFor(s, windowId)`), `closeAbandonedNewTabs`. `newTab` with `openerId` + `background` (⌘-click)
@@ -137,13 +137,13 @@ find, zoom, a new page's ready report), a timer, a callback, and every native mo
 a tab strip transaction or a download), which also runs as one commit with them. Nothing is reordered or dropped, and
 nothing a user action waits on is held. Work JSI delivers without a listener (an Expo promise settling) can run before
 held reports, as it already could before a view event's own dispatch hop: code that decides from a page's live state
-after awaiting the engine calls `applyHeldReports()` first (tabLifecycle's sleep and freeze, closeTab). A flush
+after awaiting the engine calls `applyHeldReports()` first (closeTab). A flush
 also runs as one store transaction (`storeTransaction`, state/browser/transaction.ts): its writes apply at once, and the store's
 listeners and subscriptions hear them together at the end, except a write that changes a tab's address or starts or
 ends its load, which is heard as it lands (a value that flips back within the flush stays visible to the listeners
 that act on it: translate's detection, the web store's script, a screen-share request going with its page).
 
-## Live tabs: Chrome's tab strips (state/tabs/chromeTabs.ts, state/tabs/liveTabs.ts, packages/ardiacore/src/tabStrip.ts)
+## Live tabs: Chrome's tab strips (state/tabs/chromeTabs.ts, state/tabs/liveTabs.ts, packages/ardiacore/src/tabs.ts)
 
 One writer per fact. The store owns the **workspace**: sidebar order, pins, groups, splits, Little Ardia, unloaded
 and parked tiles, and which tab each window shows per profile (`activeTabIds`). Chrome's `TabStripModel` owns

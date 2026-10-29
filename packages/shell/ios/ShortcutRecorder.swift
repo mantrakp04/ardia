@@ -7,10 +7,14 @@ final class ShortcutRecorder {
   static let shared = ShortcutRecorder()
   private var monitor: Any?
   private var promise: Promise?
+  private var owner: ObjectIdentifier?
 
-  func record(_ promise: Promise) {
+  var isRecording: Bool { monitor != nil }
+
+  func record(_ promise: Promise, for module: AnyObject) {
     finish(nil)
     self.promise = promise
+    owner = ObjectIdentifier(module)
     monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .leftMouseDown, .rightMouseDown]) { [weak self] event in
       guard let self else { return event }
       guard event.type == .keyDown else {
@@ -41,10 +45,21 @@ final class ShortcutRecorder {
   }
 
   func finish(_ result: [String: Any]?) {
+    let pending = stop()
+    pending?.resolve(result)
+  }
+
+  func abandon(by module: AnyObject) {
+    guard owner == ObjectIdentifier(module) else { return }
+    _ = stop()
+  }
+
+  private func stop() -> Promise? {
     if let monitor { NSEvent.removeMonitor(monitor) }
     monitor = nil
+    owner = nil
     let pending = promise
     promise = nil
-    pending?.resolve(result)
+    return pending
   }
 }

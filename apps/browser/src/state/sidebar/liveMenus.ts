@@ -3,25 +3,24 @@ import { copyText } from "../../platform/clipboard";
 import { prompt } from "../../platform/dialogs";
 import { showMenu, type MenuItem } from "../../platform/menus";
 import { closeTab } from "../browser/actions";
-import { menuShortcut } from "../commands/commandShortcuts";
 import { calendarConnected, connectCalendar, setCalendarHidden, useCalendar } from "../live/calendar";
 import { deleteLiveFolder, manualRefresh, newLiveFolder, openLiveItem, refreshFolder, statusText } from "../live/engine";
 import { ALERT_LEADS, nowBadgeEvent } from "../live/meetings";
 import { SOURCES } from "../live/sources";
-import { dismissNowBadge, hideItems, live, markRead, setLive, updateCalendarSettings, updateFolder } from "../live/store";
+import { dismissNowBadge, hideItems, live, markRead, markUnread, updateCalendarSettings, updateFolder } from "../live/store";
 import type { LiveItem, LiveSourceId } from "../live/types";
 import { useBrowser } from "../browser/store";
 import { openSettings } from "../settings/settingsWindows";
 import { openIconPicker } from "../sidebar/actions";
-import { LIVE, moveLiveFolder, pinnedSequence } from "./pinnedOrder";
-
-const sep = { separator: true } as const;
+import { moveLiveFolder, pinnedSequence } from "./pinnedOrder";
+import { entryKey } from "./entryKey";
+import { activeTabId } from "../browser/model";
+import { hintWhen, sections, sep, withAlternate } from "./menuParts";
 
 export function newLiveFolderMenuItem(): MenuItem {
   return {
     id: "live",
     title: "New Live Folder",
-    symbol: "dot.radiowaves.left.and.right",
     children: [
       { id: "live:pullRequests", title: "Pull Requests", symbol: "arrow.triangle.pull" },
       { id: "live:documents", title: "Documents", symbol: "doc.text" },
@@ -43,50 +42,67 @@ const SOURCE_GROUPS: Record<"pullRequests" | "documents", LiveSourceId[]> = {
   documents: ["notion", "confluence", "gdrive"],
 };
 
-export async function openLiveFolderMenu(windowId: string, folderId: string) {
+function folderPlace(windowId: string, folderId: string) {
+  const s = live();
+  const folder = s.folders[folderId]!;
+  const sequence = pinnedSequence(useBrowser.getState(), s.folders, s.folderOrder, windowId, folder.profileId);
+  const index = sequence.indexOf(entryKey("live", folderId));
+  return { canMoveUp: index > 0, canMoveDown: index >= 0 && index < sequence.length - 1 };
+}
+
+export function liveFolderMenuItems(windowId: string, folderId: string): MenuItem[] {
   const s = live();
   const folder = s.folders[folderId];
-  if (!folder) return;
-  const b = useBrowser.getState();
-  const sequence = pinnedSequence(b, s.folders, s.folderOrder, windowId, folder.profileId);
-  const index = sequence.indexOf(`${LIVE}${folderId}`);
+  if (!folder) return [];
+  const { canMoveUp, canMoveDown } = folderPlace(windowId, folderId);
   const pr = folder.kind === "pullRequests";
-  const status = s.status[folderId];
-  const choice = await showMenu([
-    { id: "status", title: statusText(folderId), enabled: false },
-    { id: "refresh", title: "Refresh", symbol: "arrow.clockwise", enabled: status?.state !== "updating" },
-    sep,
-    ...(pr
+  return sections(
+    [
+      { id: "status", title: statusText(folderId), enabled: false },
+      { id: "refresh", title: "Refresh", symbol: "arrow.clockwise", enabled: s.status[folderId]?.state !== "updating" },
+      { id: "read", title: "Mark All as Read", enabled: (s.unread[folderId]?.length ?? 0) > 0 },
+    ],
+    pr
       ? [
           { id: "filter:authored", title: "Created by Me", checked: folder.filters.authored },
           { id: "filter:reviewRequests", title: "Awaiting My Review", checked: folder.filters.reviewRequests },
-          sep,
+        ]
+      : [],
+    pr
+      ? [
           { id: "option:groupStacks", title: "Group Stacked Pull Requests", checked: folder.groupStacks },
           { id: "option:showCompleted", title: "Show Completed", checked: folder.showCompleted },
-          sep,
         ]
-      : []),
-    {
-      id: "sources",
-      title: pr ? "Pull Requests" : "Documents",
-      symbol: pr ? "arrow.triangle.pull" : "doc.text",
-      children: SOURCE_GROUPS[folder.kind].map((id) => ({
-        id: `source:${id}`,
-        title: s.accounts[id] ? SOURCES[id].name : `${SOURCES[id].name} (Not Connected)`,
-        checked: folder.sources.includes(id),
-      })),
-    },
-    sep,
-    { id: "rename", title: "Rename…", symbol: "character.cursor.ibeam" },
-    { id: "icon", title: folder.icon ? "Change Icon…" : "Add Icon…", symbol: "face.smiling" },
-    { id: "read", title: "Mark All as Read", symbol: "circle", enabled: (s.unread[folderId]?.length ?? 0) > 0 },
-    { id: "collapse", title: folder.collapsed ? "Expand" : "Collapse", symbol: folder.collapsed ? "chevron.down" : "chevron.up" },
-    { id: "up", title: "Move Up", enabled: index > 0 },
-    { id: "down", title: "Move Down", enabled: index >= 0 && index < sequence.length - 1 },
-    sep,
-    { id: "settings", title: "Live Folder Settings…", symbol: "gearshape" },
-    { id: "delete", title: "Delete Live Folder", symbol: "trash" },
-  ]);
+      : [],
+    [
+      {
+        id: "sources",
+        title: pr ? "Pull Requests" : "Documents",
+        symbol: pr ? "arrow.triangle.pull" : "doc.text",
+        children: SOURCE_GROUPS[folder.kind].map((id) => ({
+          id: `source:${id}`,
+          title: s.accounts[id] ? SOURCES[id].name : `${SOURCES[id].name} (Not Connected)`,
+          checked: folder.sources.includes(id),
+        })),
+      },
+      { id: "settings", title: "Live Folder Settings…", symbol: "gearshape" },
+    ],
+    [
+      { id: "up", title: "Move Up", symbol: "arrow.up", enabled: canMoveUp },
+      { id: "down", title: "Move Down", enabled: canMoveDown },
+    ],
+    [
+      { id: "rename", title: "Rename…", symbol: "pencil" },
+      { id: "icon", title: folder.icon ? "Change Icon…" : "Add Icon…", symbol: "photo" },
+    ],
+    [{ id: "delete", title: "Delete Live Folder", symbol: "trash" }],
+  );
+}
+
+export async function openLiveFolderMenu(windowId: string, folderId: string) {
+  const folder = live().folders[folderId];
+  if (!folder) return;
+  const choice = await showMenu(liveFolderMenuItems(windowId, folderId));
   if (!choice) return;
   const option = FOLDER_OPTIONS.find((key) => choice === `option:${key}`);
   if (choice === "refresh") void manualRefresh(folderId);
@@ -97,7 +113,7 @@ export async function openLiveFolderMenu(windowId: string, folderId: string) {
     void refreshFolder(folderId);
   } else if (choice.startsWith("source:")) {
     const id = choice.slice(7) as LiveSourceId;
-    if (!s.accounts[id]) return openSettings("liveFolders");
+    if (!live().accounts[id]) return openSettings("liveFolders");
     const sources = folder.sources.includes(id) ? folder.sources.filter((x) => x !== id) : [...folder.sources, id];
     updateFolder(folderId, { sources: sources.length ? sources : folder.sources });
     void refreshFolder(folderId);
@@ -106,32 +122,39 @@ export async function openLiveFolderMenu(windowId: string, folderId: string) {
     if (name?.trim()) updateFolder(folderId, { name: name.trim() });
   } else if (choice === "icon") void openIconPicker(windowId, { kind: "live", id: `livefolder|${folderId}` });
   else if (choice === "read") markRead(folderId);
-  else if (choice === "collapse") updateFolder(folderId, { collapsed: !folder.collapsed });
   else if (choice === "up") moveLiveFolder(windowId, folderId, -1);
   else if (choice === "down") moveLiveFolder(windowId, folderId, 1);
   else if (choice === "settings") openSettings("liveFolders");
   else if (choice === "delete") deleteLiveFolder(folderId);
 }
 
+export function liveItemMenuItems(windowId: string, folderId: string, item: LiveItem, tabId: string | null): MenuItem[] {
+  const unread = !!live().unread[folderId]?.includes(item.id);
+  const shown = !!tabId && activeTabId(useBrowser.getState(), windowId) === tabId;
+  return sections(
+    [
+      { id: "open", title: tabId ? "Show Tab" : "Open", symbol: "arrow.up.forward.square" },
+      { id: "background", title: "Open in Background", enabled: !tabId },
+    ],
+    withAlternate({ id: "copy", title: "Copy Link", symbol: "link" }, { id: "copyMd", title: "Copy Link as Markdown", symbol: "link" }, null),
+    [
+      { id: "unread", title: unread ? "Mark as Read" : "Mark as Unread", symbol: unread ? "circle" : "circle.fill" },
+      ...(item.pr ? [{ id: "hide", title: "Hide Until Refresh", symbol: "eye.slash" }] : []),
+    ],
+    tabId ? [{ id: "close", title: "Close", symbol: "xmark", ...hintWhen(shown, "closeTab") }] : [],
+  );
+}
+
 export async function openLiveItemMenu(windowId: string, folderId: string, item: LiveItem, tabId: string | null) {
   const unread = !!live().unread[folderId]?.includes(item.id);
-  const choice = await showMenu([
-    { id: "open", title: tabId ? "Show Tab" : "Open", symbol: "arrow.up.forward.square" },
-    { id: "background", title: "Open in Background", enabled: !tabId },
-    sep,
-    { id: "copy", title: "Copy Link", symbol: "link", ...menuShortcut("copyUrl") },
-    { id: "copyMd", title: "Copy Link as Markdown", symbol: "text.badge.checkmark" },
-    { id: "unread", title: unread ? "Mark as Read" : "Mark as Unread", symbol: unread ? "circle" : "circle.fill" },
-    ...(item.pr ? [{ id: "hide", title: "Hide Until Refresh", symbol: "eye.slash" }] : []),
-    ...(tabId ? [sep, { id: "close", title: "Close Tab", symbol: "xmark", ...menuShortcut("closeTab") }] : []),
-  ]);
+  const choice = await showMenu(liveItemMenuItems(windowId, folderId, item, tabId));
   if (choice === "open") openLiveItem(windowId, folderId, item);
   else if (choice === "background") openLiveItem(windowId, folderId, item, { background: true });
   else if (choice === "copy") copyText(cleanUrl(item.url));
   else if (choice === "copyMd") copyText(markdownLink(item.title, item.url));
   else if (choice === "unread") {
     if (unread) markRead(folderId, [item.id]);
-    else setLive((s) => ({ unread: { ...s.unread, [folderId]: [...(s.unread[folderId] ?? []), item.id] } }));
+    else markUnread(folderId, item.id);
   } else if (choice === "hide") hideItems(folderId, [item]);
   else if (choice === "close" && tabId) void closeTab(tabId);
 }

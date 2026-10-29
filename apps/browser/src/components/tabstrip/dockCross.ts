@@ -1,6 +1,6 @@
 import { Animated } from "react-native";
-import { CELL_STEP, dropAt, type Cross, type Dock, type Strip } from "./model";
-import type { DragGeometry } from "./stripGroups";
+import { dropAt, type Cross, type Dock, type Strip } from "./model";
+import { CELL_STEP, type DragGeometry } from "./stripGroups";
 import { settleRoom, shiftRoom, SLIDE } from "./stripReorder";
 import { DOCK_GAP, GAP, PINNED_CELL } from "./tokens";
 

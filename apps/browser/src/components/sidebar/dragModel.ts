@@ -4,21 +4,21 @@ import type { Drop as StoreDrop } from "../../state/drag/drops";
 import { SLIDE } from "../tabstrip/stripReorder";
 import { TILE_GAP } from "./pinZone";
 import { folderIdOfCell } from "../../state/pins/tileFolders";
+import { entryKey } from "../../state/sidebar/entryKey";
 
 export type Frame = { x: number; y: number; w: number; h: number };
 export type Section = "tiles" | "pinnedRows" | "pinnedGroups" | "list" | "folder";
 
-export type ItemSpec = {
-  kind: "tile" | "row" | "group" | "split" | "tail" | "live";
-  tabIds: string[];
-  section: Section;
-  groupId?: string;
-  parentGroup?: string;
-  collapsed?: boolean;
-  foldedHeight?: () => number;
-  liveFolderId?: string;
-  folderId?: string;
-};
+export type RowSection = Exclude<Section, "tiles" | "folder">;
+
+type Folding = { collapsed: boolean; foldedHeight: () => number };
+
+export type ItemSpec = { tabIds: string[]; section: Section; parentGroup?: string } & (
+  | { kind: "row" | "split" | "tail" }
+  | { kind: "tile"; folderId?: string }
+  | ({ kind: "group"; groupId: string } & Folding)
+  | ({ kind: "live"; liveFolderId: string } & Folding)
+);
 
 export type Item = ItemSpec & {
   key: string;
@@ -34,11 +34,15 @@ export type Drop = StoreDrop & { sequence?: string[] };
 
 export const blockKind = (i: Item) => i.kind === "row" || i.kind === "group" || i.kind === "live" || i.kind === "split";
 export const pinnedBlock = (i: Item) => (i.section === "pinnedRows" || i.section === "pinnedGroups") && !i.parentGroup && blockKind(i);
-export const boxed = (i: Item) => i.kind === "group" || i.kind === "live";
+export const boxed = (i: Item): i is Extract<Item, { kind: "group" | "live" }> => i.kind === "group" || i.kind === "live";
+export const isGroupItem = (i: Item): i is Extract<Item, { kind: "group" }> => i.kind === "group";
+export const folderOf = (i: Item): string | undefined => (i.kind === "tile" ? i.folderId : undefined);
+export const tabCell = (i: Item) => (i.kind === "row" || i.kind === "tile") && !folderOf(i);
+export const tailKey = (place: Exclude<Section, "pinnedRows"> | { group: string }) => (typeof place === "string" ? `tail:${place}` : `tail:group:${place.group}`);
 export const apart = (a: Item, b: Item) => a.section !== b.section && (a.section === "folder" || b.section === "folder");
 export const cellKey = (cell: string) => {
   const folderId = folderIdOfCell(cell);
-  return folderId ? `tf:${folderId}` : `t:${cell}`;
+  return folderId ? entryKey("tileFolder", folderId) : entryKey("tab", cell);
 };
 
 export type Ghost = { item: Item; count: number; width: number; height: number; position: Animated.ValueXY; landing?: boolean };

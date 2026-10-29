@@ -14,7 +14,6 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/strings/sys_string_conversions.h"
 #include "chrome/browser/file_system_access/file_system_access_permission_request_manager.h"
-#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/permissions/system/system_permission_settings.h"
 #include "components/permissions/embedded_permission_prompt_flow_model.h"
 #include "components/permissions/permission_prompt.h"
@@ -307,9 +306,7 @@ std::unique_ptr<permissions::PermissionPrompt> CreatePrompt(
     content::WebContents* contents,
     permissions::PermissionPrompt::Delegate* delegate,
     bool* default_handling) {
-  BrowserWindowInterface* browser =
-      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(contents);
-  if (!browser || !WindowHost::ForBrowser(browser)) {
+  if (!WindowHost::ForContents(contents)) {
     *default_handling = true;
     return nullptr;
   }
@@ -411,10 +408,7 @@ bool AskHostToRestoreFiles(
     const FileSystemAccessPermissionRequestManager::RequestData& request,
     RestoreCallback& callback,
     content::WebContents* contents) {
-  BrowserWindowInterface* browser =
-      contents ? GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(contents)
-               : nullptr;
-  if (!browser || !WindowHost::ForBrowser(browser)) {
+  if (!WindowHost::ForContents(contents)) {
     return false;
   }
   ACFileRestorePrompt::Start(contents, request.origin, std::move(callback));

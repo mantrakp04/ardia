@@ -1,5 +1,6 @@
-import { Shell } from "./shellNative";
-import type { Rect4 } from "./shellNative";
+import type { EventSubscription } from "expo-modules-core";
+
+export type Rect4 = [number, number, number, number];
 
 export type WindowEvent =
   | { type: "focus"; id: string }
@@ -19,34 +20,31 @@ export type OpenWindowOptions = {
   size?: [number, number];
   behind?: string;
   chromeWindow?: string;
+  claim?: string;
   pointer?: [number, number];
   animated?: boolean;
 };
 
-export const openWindow = (id: string, options: OpenWindowOptions = {}) => Shell.openWindow(id, options);
-
-export const closeWindow = (id: string) => Shell.closeWindow(id);
-export const animateWindowClose = (id: string, after: string | null = null) => Shell.animateWindowClose(id, after);
-export const restoreFullScreen = (ids: string[], focus: string | null) => Shell.restoreFullScreen(ids, focus);
-export const focusWindow = (id: string) => Shell.focusWindow(id);
-export const setWindowTitle = (id: string, title: string) => Shell.setWindowTitle(id, title);
-export const setTrafficLightsCenter = (id: string, center: [number, number] | null) =>
-  Shell.setTrafficLightsCenter(id, center);
-export const watchLeftEdge = (id: string, on: boolean, hold = 0) => void Shell.watchLeftEdge(id, on, hold);
-
 export type DragPreviewShape = "hidden" | "pill" | "card";
-export const dragPreview = {
-  begin: (windowId: string, chip: Rect4, grab: [number, number]) => void Shell.dragPreviewBegin(windowId, chip, grab),
-  page: (base64: string, frame: Rect4) => void Shell.dragPreviewPage(base64, frame),
-  update: (shape: DragPreviewShape, point: [number, number]) => void Shell.dragPreviewUpdate(shape, point),
-  end: (windowId: string | null = null, frame: Rect4 | null = null) => void Shell.dragPreviewEnd(windowId, frame),
-  cancel: () => void Shell.dragPreviewCancel(),
-  placeholder: (title: string, favicon: string | null) => void Shell.dragPreviewPlaceholder(title, favicon),
-};
-export const raiseView = (tag: number | null, levels: number, raised: boolean) => {
-  if (tag != null) void Shell.raiseView(tag, levels, raised);
-};
-export const windowFrame = (id: string): Promise<Rect4 | null> => Shell.windowFrame(id);
-export const windowIds = () => Shell.windowIds();
 
-export const onWindowEvent = (listener: (e: WindowEvent) => void) => Shell.addListener("onWindowEvent", listener);
+export type WindowsNative = {
+  addListener(name: "onWindowEvent", listener: (e: WindowEvent) => void): EventSubscription;
+  openWindow(id: string, options: OpenWindowOptions): Promise<void>;
+  closeWindow(id: string): Promise<void>;
+  animateWindowClose(id: string, after: string | null): Promise<void>;
+  focusWindow(id: string): Promise<void>;
+  restoreFullScreen(ids: string[], focus: string | null): Promise<void>;
+  setTrafficLightsCenter(id: string, center: [number, number] | null): Promise<void>;
+  watchLeftEdge(id: string, on: boolean, hold: number): Promise<void>;
+  dragPreviewBegin(windowId: string, chip: Rect4, grab: [number, number]): Promise<void>;
+  dragPreviewPage(base64: string, frame: Rect4): Promise<void>;
+  dragPreviewUpdate(shape: DragPreviewShape, point: [number, number]): Promise<void>;
+  dragPreviewCancel(): Promise<void>;
+  dragPreviewPlaceholder(title: string, favicon: string | null): Promise<void>;
+  dragPreviewEnd(windowId: string | null, frame: Rect4 | null): Promise<void>;
+  raiseView(tag: number, levels: number, raised: boolean): Promise<void>;
+  windowFrame(id: string): Promise<Rect4 | null>;
+  setWindowTitle(id: string, title: string): Promise<void>;
+  windowIds(): Promise<string[]>;
+  replyToTerminate(ok: boolean): Promise<void>;
+};

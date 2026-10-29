@@ -16,7 +16,7 @@ final class ShareMenu: NSObject, NSMenuDelegate, NSMenuItemValidation {
   }
 
   @objc func share(_ sender: NSMenuItem) {
-    MenuTarget.shared.handler?("share", sender.representedObject as? String, WindowManager.shared.keyWindowId)
+    MenuTarget.shared.dispatch("share", sender.representedObject as? String, windowId: WindowManager.shared.keyWindowId)
   }
 
   @objc func openSharingSettings(_ sender: Any?) {

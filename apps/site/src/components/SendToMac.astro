@@ -1,22 +1,24 @@
 ---
+import { sentLink } from "../data/release";
+
 interface Props {
   location: "hero" | "closing" | "release_notes";
   main?: boolean;
 }
 const { location, main = false } = Astro.props;
 const email = `mailto:?subject=${encodeURIComponent("Ardia, for my Mac")}&body=${encodeURIComponent(
-  "Open this on your Mac: https://ardia.dev/?ref=email",
+  `Open this on your Mac: ${sentLink("email")}`,
 )}`;
 ---
 
-<div class="send phone-only" id={main ? "send" : undefined} data-send-panel={main ? "main" : ""} data-location={location}>
+<div class="send phone-only" id={main ? "send" : undefined} data-send-panel={main ? "main" : ""} data-location={location} data-meadow-keep-out="copy">
   <a class="btn send-main" href={email} data-send="main">
     <svg width="18" height="14" viewBox="0 0 18 14" fill="none" aria-hidden="true">
       <path d="M1.5 1.5h15v9h-15zM0 12.5h18" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path>
     </svg>
     Send to my Mac
   </a>
-  <div class="send-more">
+  <div class="send-more" data-meadow-keep-out="copy">
     <button type="button" class="send-link" data-send="share" hidden>Share</button>
     <button type="button" class="send-link" data-send="copy"><span data-copy-label aria-live="polite">Copy link</span></button>
     <a class="send-link" href={email} data-send="email">Email it to me</a>

@@ -123,7 +123,7 @@ export function errorText(kind: LiveError["kind"], source: LiveSourceId): string
 
 export function newLiveFolder(windowId: string, kind: LiveFolderKind): string | null {
   const w = useBrowser.getState().windows[windowId];
-  if (!w || w.incognito) return null;
+  if (!w || w.kind === "private") return null;
   return newProfileLiveFolder(w.profileId, kind);
 }
 
@@ -196,14 +196,6 @@ export function startLiveEngine() {
   });
   onWindowEvent((e) => {
     if (e.type === "focus") for (const id of live().folderOrder) if (due(id, STALE_ON_FOCUS_MS)) void refreshFolder(id);
-  });
-
-  useBrowser.subscribe((s, prev) => {
-    if (s.tabs === prev.tabs) return;
-    for (const id in s.tabs) {
-      const t = s.tabs[id]!;
-      if (t.pinned && t.liveItem && !prev.tabs[id]?.pinned) useBrowser.getState().updateTab(id, { liveItem: undefined });
-    }
   });
 
   useBrowser.subscribe((s, prev) => {

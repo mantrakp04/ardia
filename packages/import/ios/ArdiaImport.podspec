@@ -12,6 +12,6 @@ Pod::Spec.new do |s|
   s.dependency 'ArdiaCore'
   s.frameworks     = 'AppKit', 'Security'
   s.libraries      = 'sqlite3'
-  s.source_files   = 'ImportModule.swift', 'ImportWriter.swift', 'Core/**/*.swift'
+  s.source_files   = '*.swift', 'Core/**/*.swift'
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES' }
 end

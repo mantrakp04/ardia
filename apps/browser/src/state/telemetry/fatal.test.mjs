@@ -39,7 +39,7 @@ console.error = () => {};
 installErrorReporting();
 assert.equal(holdFatalReports(ExceptionsManager), true);
 
-const shell = stub.shellNativeModules.ArdiaShell;
+const shell = stub.shellNativeModules.ArdiaDocuments;
 const realSave = shell.saveDocument;
 let saves = 0;
 shell.saveDocument = (...args) => (saves++, realSave(...args));

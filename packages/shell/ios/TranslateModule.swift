@@ -16,7 +16,7 @@ public class TranslateModule: Module {
     Function("userLanguages") { () -> [String] in Locale.preferredLanguages }
 
     Function("languageName") { (identifier: String) -> String in
-      Locale.current.localizedString(forIdentifier: identifier) ?? identifier
+      Locale(identifier: "en").localizedString(forIdentifier: identifier) ?? identifier
     }
 
     AsyncFunction("detect") { (text: String) -> String? in

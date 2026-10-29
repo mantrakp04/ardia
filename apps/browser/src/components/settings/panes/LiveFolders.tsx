@@ -14,26 +14,10 @@ import { useProfileRecords } from "../../../state/profiles/hooks";
 import { openUrlFromSettings, settingsBrowserWindow } from "../../../state/settings/settingsWindows";
 import { Button, font, Sheet, TextField, Toggle, weight } from "../../ui";
 import { Favicon } from "../../favicon/Favicon";
-import { Group, Row, SectionHeader } from "../Form";
-import { setting } from "../settingsIndex";
+import { Group, Row, SectionHeader, SheetTitle } from "../Form";
+import { setting, type SettingId } from "../settingsIndex";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { settingsType } from "../tokens";
-
-const DESCRIPTIONS: Record<LiveSourceId, string> = {
-  github: "Your open pull requests and the ones waiting for your review, with checks and conflicts.",
-  bitbucket: "Your open pull requests on Bitbucket Cloud, with build status.",
-  notion: "Pages recently edited in your workspace.",
-  confluence: "Pages you created, edited or watch.",
-  gdrive: "Documents recently changed in your Drive.",
-};
-
-const ANCHORS: Record<LiveSourceId, string> = {
-  github: "liveFolders.github",
-  bitbucket: "liveFolders.bitbucket",
-  notion: "liveFolders.notion",
-  confluence: "liveFolders.confluence",
-  gdrive: "liveFolders.gdrive",
-};
 
 export function LiveFoldersPane() {
   const theme = useTheme();
@@ -44,10 +28,7 @@ export function LiveFoldersPane() {
   const firstPullRequests = folders.find((f) => f.kind === "pullRequests")?.id;
   return (
     <View>
-      <SectionHeader
-        anchor="liveFolders.folders"
-        description="Right-click empty space in the sidebar and choose New Live Folder to add one. Live folders refresh every few minutes; items open as tabs that stay in the folder."
-      />
+      <SectionHeader anchor="liveFolders.folders" />
       <View style={{ gap: 14 }}>
         {folders.map((f) => (
           <FolderGroup key={f.id} folder={f} profileName={profiles[f.profileId]?.name ?? "Profile"} searchable={f.id === firstPullRequests} />
@@ -90,7 +71,7 @@ function FolderGroup({ folder, profileName, searchable }: { folder: LiveFolder; 
   );
 }
 
-function FolderOption({ id, searchable, value, onChange }: { id: string; searchable: boolean; value: boolean; onChange(value: boolean): void }) {
+function FolderOption({ id, searchable, value, onChange }: { id: SettingId; searchable: boolean; value: boolean; onChange(value: boolean): void }) {
   const { title, description } = setting(id);
   return (
     <Row anchor={searchable ? id : undefined} title={title} description={description}>
@@ -109,10 +90,10 @@ function SourceRow({ id }: { id: LiveSourceId }) {
   const source = SOURCES[id];
   return (
     <Row
-      anchor={ANCHORS[id]}
+      anchor={`liveFolders.${id}`}
       icon={<Favicon url={source.site} size={18} />}
       title={source.name}
-      description={account ? `Connected as ${connectedAs(id, account)}` : DESCRIPTIONS[id]}
+      description={account ? `Connected as ${connectedAs(id, account)}` : undefined}
     >
       {account ? (
         <Button title="Disconnect" onPress={() => void disconnect(id)} />
@@ -163,7 +144,7 @@ function ConnectSheet({ id }: { id: LiveSourceId }) {
     <Sheet width={460} onClose={closeSettingsSheet}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 }}>
         <Favicon url={source.site} size={22} />
-        <Text style={{ flex: 1, ...font.heading, fontWeight: weight.semibold, color: theme.textPrimary }}>Connect {source.name}</Text>
+        <SheetTitle style={{ flex: 1 }}>Connect {source.name}</SheetTitle>
       </View>
       {body}
       {error ? <Text style={{ marginTop: 10, ...font.small, color: theme.destructive }}>{error}</Text> : null}

@@ -1,7 +1,7 @@
 import { terminateCastRoute, type CastRoute, toggleCastPicker, useCastRoutes } from "../../state/media/cast";
 import type { ActionState, InstalledExtension } from "../../state/extensions/store";
 import { ContextMenuArea, Symbol, Button, Text, useHover } from "../ui";
-import { showMenu } from "../../state/app/system";
+import { chooseFromMenu } from "../../state/app/menuChoice";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Image, Pressable, View } from "react-native";
 import { useTheme } from "../ui/theme";
@@ -9,12 +9,13 @@ import type { ToolbarPalette } from "../ui/toolbarColors";
 import { usePages } from "../../state/tabs/pageState";
 import { ink, opacity, radius, weight } from "../ui/tokens";
 import { BADGE_FALLBACK_FILL, BADGE_TEXT } from "./tokens";
-import { dropToolbarAnchor, setToolbarAnchor } from "../../state/extensions/bridge";
+import { isLight } from "../../lib/color";
+import { dropToolbarAnchor, setToolbarAnchor } from "../../state/extensions/toolbarAnchors";
 import {
   activateExtension,
-  openManageExtensions,
-  openPinDialog,
-  openWebStore,
+  EXTENSION_LIST_ITEMS,
+  type ExtensionListChoice,
+  runExtensionListChoice,
   showExtensionMenu,
   useExtensions,
   useWindowExtensions,
@@ -188,23 +189,19 @@ function Badge({ text, color, textColor }: { text: string; color?: string | null
   );
 }
 
-function contrastText(hex: string) {
-  const n = parseInt(hex.slice(1, 7), 16);
-  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-  return 0.299 * r + 0.587 * g + 0.114 * b > 160 ? ink.black : ink.white;
-}
+const contrastText = (fill: string) => (isLight(fill) ? ink.black : ink.white);
 
 function CastButton({ windowId, tabId, routes, palette, button }: { windowId: string; tabId: string; routes: CastRoute[]; palette: ToolbarPalette; button: number }) {
   const theme = useTheme();
   const tooltip = routes.map((r) => (r.description ? `${r.description} on ${r.sink}` : `Casting to ${r.sink}`)).join("\n");
   const menu = async () => {
-    const choice = await showMenu([
-      ...routes.map((r) => ({ id: `stop:${r.id}`, title: `Stop Casting to ${r.sink}`, symbol: "stop.circle" })),
+    const choice = await chooseFromMenu<CastRoute, "open">([
+      ...routes.map((r) => ({ value: r, title: `Stop Casting to ${r.sink}`, symbol: "stop.circle" })),
       { separator: true as const },
       { id: "open", title: "Cast…", symbol: "tv.and.mediabox" },
     ]);
     if (choice === "open") void toggleCastPicker(windowId);
-    else if (choice?.startsWith("stop:")) void terminateCastRoute(choice.slice(5));
+    else if (choice) void terminateCastRoute(choice.id);
   };
   return (
     <ContextMenuArea onContextMenu={() => void menu()}>
@@ -218,18 +215,13 @@ function OverflowButton({ windowId, tabId, palette, button }: { windowId: string
   const onPress = async () => {
     const anchor = await measure();
     const enabled = currentWindowExtensions(windowId);
-    const choice = await showMenu([
-      ...enabled.map((x) => ({ id: `open:${x.id}`, title: x.name, symbol: x.pinned ? "pin.fill" : undefined })),
+    const choice = await chooseFromMenu<InstalledExtension, ExtensionListChoice>([
+      ...enabled.map((x) => ({ value: x, title: x.name, symbol: x.pinned ? "pin.fill" : undefined })),
       ...(enabled.length ? [{ separator: true as const }] : []),
-      { id: "pin", title: "Pin Extensions…", symbol: "pin" },
-      { id: "manage", title: "Manage Extensions…", symbol: "puzzlepiece.extension" },
-      { id: "add", title: "Add Extension…", symbol: "plus" },
+      ...EXTENSION_LIST_ITEMS,
     ]);
-    if (choice === "pin") return openPinDialog(windowId);
-    if (choice === "manage") return openManageExtensions(windowId);
-    if (choice === "add") return openWebStore(windowId);
-    const ext = choice?.startsWith("open:") ? enabled.find((x) => x.id === choice.slice(5)) : undefined;
-    if (ext) void activateExtension(windowId, ext, anchor, undefined, tabId);
+    if (choice && typeof choice === "object") void activateExtension(windowId, choice, anchor, undefined, tabId);
+    else runExtensionListChoice(choice, windowId);
   };
   return (
     <View ref={ref} onLayout={() => void measure()}>

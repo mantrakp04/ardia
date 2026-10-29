@@ -4,14 +4,11 @@ import UniformTypeIdentifiers
 
 public class BookmarksModule: Module {
   public func definition() -> ModuleDefinition {
-    Name("ArdiaBookmarks")
-    Events("bookmarks")
+    Name(Self.calls.moduleName)
+    Events(Self.calls.domain)
+    Self.calls.forwardEvents(to: self)
 
-    OnCreate { EngineCall.listen("bookmarks", self) }
-
-    AsyncFunction("call") { (name: String, profile: String, args: String, promise: Promise) in
-      BookmarksModule.calls.run(name, profile, args, promise)
-    }.runOnQueue(.main)
+    Self.calls.function
   }
 
   static func exportHtml(_ args: CallArgs, _ reply: CallReply) {

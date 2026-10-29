@@ -4,6 +4,8 @@
 #import "ArdiaEngineBridge.h"
 #import "ArdiaInternal.h"
 #import "ArdiaExtensionPackage.h"
+#import "ArdiaWebViewInternal.h"
+#import "ArdiaRuntime.h"
 
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
@@ -11,23 +13,15 @@
 
 #include <cmath>
 
+using namespace ardia_runtime;
+
 namespace {
 
 NSDictionary *Parse(NSString *json) {
-  NSData *data = [json dataUsingEncoding:NSUTF8StringEncoding];
-  id value = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+  id value = JSONObject(json);
   return [value isKindOfClass:NSDictionary.class] ? value : @{@"error" : @"bad reply from the engine"};
 }
 
-NSString *JSON(NSDictionary *value) {
-  NSData *data = value ? [NSJSONSerialization dataWithJSONObject:value options:0 error:nil] : nil;
-  return data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : nil;
-}
-
-void Wipe(NSMutableData *data) {
-  volatile unsigned char *bytes = (volatile unsigned char *)data.mutableBytes;
-  for (NSUInteger i = 0; i < data.length; i++) bytes[i] = 0;
-}
 
 char *AppendHex(char *out, NSString *text) {
   const NSUInteger capacity = [text maximumLengthOfBytesUsingEncoding:NSUTF8StringEncoding];
@@ -41,7 +35,7 @@ char *AppendHex(char *out, NSString *text) {
     *out++ = hex[bytes[i] >> 4];
     *out++ = hex[bytes[i] & 15];
   }
-  Wipe(raw);
+  WipeSecret(raw);
   return out;
 }
 
@@ -72,14 +66,10 @@ NSMutableData *WithSecrets(NSDictionary *plain, NSDictionary<NSString *, NSStrin
   return data;
 }
 
-NSString *OriginOf(NSString *url) {
-  NSURLComponents *c = [NSURLComponents componentsWithString:url ?: @""];
-  if (!c.scheme.length || !c.host.length) return url ?: @"";
-  return c.port ? [NSString stringWithFormat:@"%@://%@:%@", c.scheme, c.host, c.port] : [NSString stringWithFormat:@"%@://%@", c.scheme, c.host];
-}
+NSString *LoginOrigin(NSString *url) { return ardia_web_view::OriginOf(url) ?: url ?: @""; }
 
 NSDictionary *Login(NSString *origin, NSString *username) {
-  return @{@"origin" : OriginOf(origin), @"username" : username ?: @""};
+  return @{@"origin" : LoginOrigin(origin), @"username" : username ?: @""};
 }
 
 void Answer(NSDictionary *result, ArdiaServiceReply reply) {
@@ -135,7 +125,7 @@ NSString *StoreFolder(NSString *profile, NSString *extensionId, id version) {
 @implementation ArdiaServices
 
 + (void)call:(NSString *)name profile:(NSString *)profile args:(NSDictionary *)args completion:(ArdiaCoreResult)completion {
-  [ArdiaEngineBridge call:name profile:profile args:JSON(args) completion:^(NSString *json) { completion(Parse(json)); }];
+  [ArdiaEngineBridge call:name profile:profile args:args ? JSONText(args) : nil completion:^(NSString *json) { completion(Parse(json)); }];
 }
 
 + (void)callBase:(NSString *)name profile:(NSString *)profile args:(NSDictionary *)args completion:(ArdiaCoreResult)completion {
@@ -192,7 +182,7 @@ NSString *StoreFolder(NSString *profile, NSString *extensionId, id version) {
 }
 
 + (void)allowSaving:(NSString *)profile origin:(NSString *)origin reply:(ArdiaServiceReply)reply {
-  [self callBase:@"ac_passwords_allow" profile:profile args:@{@"origin" : OriginOf(origin)} completion:^(NSDictionary *result) { Answer(result, reply); }];
+  [self callBase:@"ac_passwords_allow" profile:profile args:@{@"origin" : LoginOrigin(origin)} completion:^(NSDictionary *result) { Answer(result, reply); }];
 }
 
 + (void)exportPasswords:(NSString *)profile path:(NSString *)path reply:(ArdiaServiceReply)reply {
@@ -213,15 +203,23 @@ NSString *StoreFolder(NSString *profile, NSString *extensionId, id version) {
   [panel beginWithCompletionHandler:^(NSModalResponse response) { run(response == NSModalResponseOK ? panel.URL.path : nil); }];
 }
 
-+ (BOOL)boolPreference:(NSString *)name profile:(NSString *)profile {
++ (BOOL)profileToggle:(ArdiaProfileToggle)toggle profile:(NSString *)profile {
   ArdiaCoreProfile *p = ardia_host::LoadedProfile(ardia_host::OriginalProfileName(profile));
-  NSNumber *value = [p boolPreference:name];
-  return value ? value.boolValue : YES;
+  if (!p) return YES;
+  switch (toggle) {
+    case ArdiaProfileTogglePasswordsOffered: return p.passwordsOffered;
+    case ArdiaProfileToggleAddressesAutofilled: return p.addressesAutofilled;
+    case ArdiaProfileToggleCardsAutofilled: return p.cardsAutofilled;
+  }
 }
 
-+ (void)setBoolPreference:(NSString *)name value:(BOOL)value profile:(NSString *)profile {
++ (void)setProfileToggle:(ArdiaProfileToggle)toggle value:(BOOL)value profile:(NSString *)profile {
   ArdiaCoreProfile *p = ardia_host::LoadedProfile(ardia_host::OriginalProfileName(profile));
-  [p setBoolPreference:name value:value];
+  switch (toggle) {
+    case ArdiaProfileTogglePasswordsOffered: p.passwordsOffered = value; break;
+    case ArdiaProfileToggleAddressesAutofilled: p.addressesAutofilled = value; break;
+    case ArdiaProfileToggleCardsAutofilled: p.cardsAutofilled = value; break;
+  }
 }
 
 + (void)addresses:(NSString *)profile reply:(ArdiaServiceReply)reply {
@@ -387,7 +385,7 @@ NSMutableDictionary<NSString *, NSString *> *DownloadProfiles() {
 
 + (void)downloadCommand:(NSString *)command id:(NSString *)downloadId {
   NSString *profile = DownloadProfiles()[downloadId ?: @""] ?: @"";
-  [self callBase:[@"ac_downloads_" stringByAppendingString:command] profile:profile args:@{@"id" : downloadId ?: @""}
+  [self callBase:@"ac_downloads_command" profile:profile args:@{@"id" : downloadId ?: @"", @"command" : command ?: @""}
       completion:^(NSDictionary *) {}];
 }
 

@@ -9,5 +9,3 @@ export const closeTabs = storeAction("closeTabs");
 export const duplicateTab = storeAction("duplicateTab");
 export const togglePin = storeAction("togglePin");
 export const closeTabNow = storeAction("closeTab");
-export const navigated = storeAction("navigated");
-export const faviconChanged = storeAction("faviconChanged");

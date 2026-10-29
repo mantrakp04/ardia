@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { tabLayoutOf } from "../browser/model";
 import { switchOn } from "../../platform/killSwitches";
 import { ARC_LIGHTS_CENTER, lightsCenter, toolbarLightsCenter, TOP_STRIP_LIGHTS_CENTER } from "./dockMotion";
 import { DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
@@ -7,7 +8,7 @@ import { useWindowId } from "../browser/hooks";
 
 export function useTabLayout(): "sidebar" | "top" {
   const windowId = useWindowId();
-  return useBrowser((s) => s.windows[windowId]?.tabLayout ?? s.settings.tabLayout);
+  return useBrowser((s) => tabLayoutOf(s, windowId));
 }
 
 export function addressBarInSidebar(s: BrowserState, windowId: string): boolean {
@@ -16,7 +17,7 @@ export function addressBarInSidebar(s: BrowserState, windowId: string): boolean 
     !!w &&
     s.settings.addressBar === "sidebar" &&
     (w.sidebarOpen || switchOn("sidebarSlide")) &&
-    (w.tabLayout ?? s.settings.tabLayout) === "sidebar"
+    tabLayoutOf(s, w.id) === "sidebar"
   );
 }
 
@@ -33,8 +34,8 @@ export function openingLightsCenter(s: BrowserState, windowId: string): [number,
   const w = s.windows[windowId];
   if (!w) return null;
   const open = w.sidebarOpen ?? true;
-  if ((w.tabLayout ?? s.settings.tabLayout) === "top") return open ? [...TOP_STRIP_LIGHTS_CENTER] : lightsCenter(DEFAULT_SIDEBAR_WIDTH);
-  return lightsCenter(open ? 0 : (s.settings.sidebarWidth ?? DEFAULT_SIDEBAR_WIDTH), 0, s.settings.addressBar === "sidebar" ? ARC_LIGHTS_CENTER : toolbarLightsCenter(s.settings.compactToolbar));
+  if (tabLayoutOf(s, w.id) === "top") return open ? [...TOP_STRIP_LIGHTS_CENTER] : lightsCenter(DEFAULT_SIDEBAR_WIDTH);
+  return lightsCenter(open ? 0 : s.settings.sidebarWidth, 0, s.settings.addressBar === "sidebar" ? ARC_LIGHTS_CENTER : toolbarLightsCenter(s.settings.compactToolbar));
 }
 
 export const useToolbarLightsCenter = (): readonly [number, number] => toolbarLightsCenter(useBrowser((s) => s.settings.compactToolbar));

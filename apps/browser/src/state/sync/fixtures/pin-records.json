@@ -1,0 +1,50 @@
+[
+ {
+  "device": "devA",
+  "ops": [
+   "[\"tilefold:id0\",{\"f\":\"id1\"}]",
+   "[\"tilefold:id2\",{\"f\":\"id1\"}]",
+   "[\"tilefold:n:id1\",{\"n\":\"Work\"}]",
+   "[\"pinrow:id3\",0]",
+   "[\"pinrow:id0\",0]",
+   "[\"pinrow:id2\",0]",
+   "[\"pinrow:id4\",0]",
+   "[\"pinrow:id5\",1]",
+   "[\"pinrow:id6\",1]",
+   "[\"pord:g:id7\",{\"a\":\"id6\"}]",
+   "[\"pin:t:id3\",{\"g\":null,\"u\":\"https://mail.example/\",\"t\":null,\"i\":null,\"ti\":\"\",\"pos\":\"V\"}]",
+   "[\"pin:t:id0\",{\"g\":null,\"u\":\"https://cal.example/\",\"t\":null,\"i\":null,\"ti\":\"\",\"pos\":\"l\"}]",
+   "[\"pin:t:id2\",{\"g\":null,\"u\":\"https://docs.example/\",\"t\":null,\"i\":null,\"ti\":\"\",\"pos\":\"t\"}]",
+   "[\"pin:t:id4\",{\"g\":null,\"u\":\"https://news.example/\",\"t\":null,\"i\":null,\"ti\":\"\",\"pos\":\"x\"}]",
+   "[\"pin:t:id5\",{\"g\":null,\"u\":\"https://row.example/\",\"t\":null,\"i\":null,\"ti\":\"\",\"pos\":\"z\"}]",
+   "[\"pin:t:id6\",{\"g\":null,\"u\":\"https://row2.example/\",\"t\":null,\"i\":null,\"ti\":\"\",\"pos\":\"zV\"}]",
+   "[\"pin:g:id7\",{\"n\":\"Group\",\"i\":null,\"c\":null,\"pos\":\"zl\"}]",
+   "[\"pin:t:id8\",{\"g\":\"id7\",\"u\":\"https://g1.example/\",\"t\":null,\"i\":null,\"ti\":\"\",\"pos\":\"V\"}]",
+   "[\"pin:t:id9\",{\"g\":\"id7\",\"u\":\"https://g2.example/\",\"t\":null,\"i\":null,\"ti\":\"\",\"pos\":\"l\"}]"
+  ]
+ },
+ {
+  "device": "devA",
+  "ops": [
+   "[\"pgh:id8\",\"https://g1.example/\"]",
+   "[\"pgh:id9\",\"https://g2.example/\"]"
+  ]
+ },
+ {
+  "device": "devA",
+  "ops": [
+   "[\"tilefold:n:id1\",{\"n\":\"Daily\"}]",
+   "[\"pinrow:id4\",1]",
+   "[\"pinrow:id5\",null]",
+   "[\"pord:g:id7\",{\"a\":\"id4\"}]",
+   "[\"pin:t:id6\",{\"g\":null,\"u\":\"https://row2.example/\",\"t\":null,\"i\":null,\"ti\":\"\",\"pos\":\"v\"}]",
+   "[\"pin:t:id5\",null]"
+  ]
+ },
+ {
+  "device": "devB",
+  "ops": [
+   "[\"pin:t:id3\",{\"g\":null,\"u\":\"https://mail.example/\",\"t\":\"Inbox\",\"i\":null,\"ti\":\"\",\"pos\":\"V\"}]"
+  ]
+ }
+]

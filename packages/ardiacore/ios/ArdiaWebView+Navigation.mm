@@ -43,12 +43,12 @@ NSString *PNGDataURL(NSImage *image) {
 @implementation ArdiaWebView (Navigation)
 
 - (void)emitNavigation {
-  _navigationQueued = NO;
+  _sent.navigationQueued = NO;
   if (!_tab) return;
-  NSString *theme = _pageTheme ?: _tab.themeColor;
-  NSString *themeSource = _pageTheme ? _pageThemeSource : (theme ? @"meta" : nil);
+  NSString *theme = _reports.theme ?: _tab.themeColor;
+  NSString *themeSource = _reports.theme ? _reports.themeSource : (theme ? @"meta" : nil);
   NSString *url = _tab.url ?: @"";
-  if (IsRendererDebugURL(url)) url = _sentNavigation[@"url"] ?: @"";
+  if (IsRendererDebugURL(url)) url = _sent.navigation[@"url"] ?: @"";
   [ArdiaEarlyWindow page:_tab emitted:url];
   NSDictionary *navigation = @{
         @"url" : url,
@@ -65,25 +65,25 @@ NSString *PNGDataURL(NSImage *image) {
     withInitial[@"committedInitial"] = @(_tab.committedInitial);
     navigation = withInitial;
   }
-  if (_crashed && _tab.loading) {
-    _crashed = NO;
+  if (_reports.crashed && _tab.loading) {
+    _reports.crashed = NO;
     NSMutableDictionary *gone = [navigation mutableCopy];
     gone[@"url"] = @"";
-    _sentNavigation = gone;
+    _sent.navigation = gone;
     [self emit:@"navigation" payload:gone];
   }
-  if ([navigation isEqualToDictionary:_sentNavigation]) return;
-  _sentNavigation = navigation;
+  if ([navigation isEqualToDictionary:_sent.navigation]) return;
+  _sent.navigation = navigation;
   [self emit:@"navigation" payload:navigation];
 }
 
 - (void)queueNavigation {
-  if (_navigationQueued) return;
-  _navigationQueued = YES;
+  if (_sent.navigationQueued) return;
+  _sent.navigationQueued = YES;
   __weak ArdiaWebView *weakSelf = self;
   dispatch_async(dispatch_get_main_queue(), ^{
     ArdiaWebView *view = weakSelf;
-    if (view && view->_navigationQueued) [view emitNavigation];
+    if (view && view->_sent.navigationQueued) [view emitNavigation];
   });
 }
 
@@ -104,11 +104,11 @@ NSString *PNGDataURL(NSImage *image) {
 }
 
 - (void)resetBlocked:(BOOL)report {
-  _blockedGeneration++;
-  _blockedEmitQueued = NO;
-  const BOOL had = _blockedCount || _lastBlocked;
-  _blockedCount = 0;
-  _lastBlocked = nil;
+  _sent.blockedGeneration++;
+  _sent.blockedEmitQueued = NO;
+  const BOOL had = _reports.blockedCount || _reports.lastBlocked;
+  _reports.blockedCount = 0;
+  _reports.lastBlocked = nil;
   if (report && had) [self emit:@"contentBlocked" payload:@{@"count" : @0, @"url" : @""}];
 }
 
@@ -123,31 +123,31 @@ NSString *PNGDataURL(NSImage *image) {
 - (void)tabDidCommitDocument:(ArdiaCoreTab *)tab {
   ArdiaFieldMarkNow(_transferKey, @"commit");
   [ArdiaEarlyWindow pageCommitted:tab shownURL:_shownURL];
-  _pageTheme = nil;
-  _pageThemeSource = nil;
-  _lastFavicon = nil;
+  _reports.theme = nil;
+  _reports.themeSource = nil;
+  _sent.favicon = nil;
   [self queueNavigation];
 }
 
 - (void)tabDidChangeProgress:(ArdiaCoreTab *)tab {
   const double progress = tab.progress;
-  const CFTimeInterval wait = _sentProgressAt + 0.1 - CACurrentMediaTime();
+  const CFTimeInterval wait = _sent.progressAt + 0.1 - CACurrentMediaTime();
   if (progress <= 0.1 || progress >= 1 || wait <= 0) return [self sendProgress];
-  if (_progressQueued) return;
-  _progressQueued = YES;
+  if (_sent.progressQueued) return;
+  _sent.progressQueued = YES;
   __weak ArdiaWebView *weakSelf = self;
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
     ArdiaWebView *view = weakSelf;
-    if (view && view->_progressQueued) [view sendProgress];
+    if (view && view->_sent.progressQueued) [view sendProgress];
   });
 }
 
 - (void)sendProgress {
-  _progressQueued = NO;
-  if (!_tab || _tab.progress == _sentProgress) return;
-  _sentProgress = _tab.progress;
-  _sentProgressAt = CACurrentMediaTime();
-  [self emit:@"progress" payload:@{@"progress" : @(_sentProgress)}];
+  _sent.progressQueued = NO;
+  if (!_tab || _tab.progress == _sent.progress) return;
+  _sent.progress = _tab.progress;
+  _sent.progressAt = CACurrentMediaTime();
+  [self emit:@"progress" payload:@{@"progress" : @(_sent.progress)}];
 }
 
 - (void)tab:(ArdiaCoreTab *)tab didRequestAppURL:(NSString *)url userGesture:(BOOL)userGesture {
@@ -160,22 +160,22 @@ NSString *PNGDataURL(NSImage *image) {
   NSString *url = tab.faviconURL;
   if (url.length) [ArdiaFavicons noteImage:image forURL:url profile:_profile];
   else url = PNGDataURL(image);
-  if (!url.length || [url isEqualToString:_lastFavicon]) return;
-  _lastFavicon = url;
+  if (!url.length || [url isEqualToString:_sent.favicon]) return;
+  _sent.favicon = url;
   [self emit:@"favicon" payload:@{@"url" : url, @"urls" : @[ url ]}];
 }
 
 - (void)loadURL:(NSString *)url userInitiated:(BOOL)userInitiated {
   if (!url.length) return;
-  NSString *transferred = _transferredURL;
-  _transferredURL = nil;
-  NSString *creating = _creatingURL;
-  _creatingURL = nil;
+  NSString *transferred = _life.transferredURL;
+  _life.transferredURL = nil;
+  NSString *creating = _life.creatingURL;
+  _life.creatingURL = nil;
   if (_tab && SamePage(url, transferred)) return;
-  if ((_tab || _creating) && [url isEqualToString:creating] && CACurrentMediaTime() - _creatingAt < 2) return;
+  if ((_tab || _life.phase == ArdiaTabPhase::Creating) && [url isEqualToString:creating] && CACurrentMediaTime() - _life.creatingAt < 2) return;
   if (_tab) return [self loadNow:url userInitiated:userInitiated];
-  _pendingURL = url;
-  _pendingUserInitiated = userInitiated;
+  _life.pendingURL = url;
+  _life.pendingUserInitiated = userInitiated;
   if (self.window) [self ensureTab];
 }
 
@@ -188,16 +188,16 @@ NSString *PNGDataURL(NSImage *image) {
 }
 
 - (BOOL)skipsNavigationDownload:(NSString *)url userInitiated:(BOOL)userInitiated {
-  const BOOL first = !_loadedOnce;
-  _loadedOnce = YES;
-  _pendingUserInitiated = NO;
+  const BOOL first = !_requests.loadedOnce;
+  _requests.loadedOnce = YES;
+  _life.pendingUserInitiated = NO;
   if (first && !userInitiated && ardia_host::WasNavigationDownload(url, _profile)) {
     __weak ArdiaWebView *weakSelf = self;
     NSDictionary *payload = @{@"url" : url ?: @"", @"committedUrl" : @"", @"skipped" : @YES};
     dispatch_async(dispatch_get_main_queue(), ^{ [weakSelf emit:@"downloadNavigation" payload:payload]; });
     return YES;
   }
-  _requestedURL = url;
+  _requests.requestedURL = url;
   return NO;
 }
 
@@ -227,8 +227,8 @@ NSString *PNGDataURL(NSImage *image) {
 
 - (void)tab:(ArdiaCoreTab *)tab navigationBecameDownload:(NSString *)url {
   ardia_host::NoteNavigationDownload(url, _profile);
-  if (_requestedURL && ![_requestedURL isEqualToString:url]) ardia_host::NoteNavigationDownload(_requestedURL, _profile);
-  _requestedURL = nil;
+  if (_requests.requestedURL && ![_requests.requestedURL isEqualToString:url]) ardia_host::NoteNavigationDownload(_requests.requestedURL, _profile);
+  _requests.requestedURL = nil;
   [self emit:@"downloadNavigation" payload:@{@"url" : url ?: @"", @"committedUrl" : tab.url ?: @"", @"skipped" : @NO}];
 }
 
@@ -246,17 +246,17 @@ NSString *PNGDataURL(NSImage *image) {
 
 - (void)tab:(ArdiaCoreTab *)tab didBlockRequests:(int)count lastURL:(NSString *)url {
   if (tab != _tab) return;
-  _blockedCount += count;
-  _lastBlocked = url;
-  if (_blockedEmitQueued) return;
-  _blockedEmitQueued = YES;
+  _reports.blockedCount += count;
+  _reports.lastBlocked = url;
+  if (_sent.blockedEmitQueued) return;
+  _sent.blockedEmitQueued = YES;
   __weak ArdiaWebView *weakSelf = self;
-  const NSUInteger generation = _blockedGeneration;
+  const NSUInteger generation = _sent.blockedGeneration;
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 150 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
     ArdiaWebView *view = weakSelf;
-    if (!view || view->_blockedGeneration != generation || !view->_tab) return;
-    view->_blockedEmitQueued = NO;
-    [view emit:@"contentBlocked" payload:@{@"count" : @(view->_blockedCount), @"url" : view->_lastBlocked ?: @""}];
+    if (!view || view->_sent.blockedGeneration != generation || !view->_tab) return;
+    view->_sent.blockedEmitQueued = NO;
+    [view emit:@"contentBlocked" payload:@{@"count" : @(view->_reports.blockedCount), @"url" : view->_reports.lastBlocked ?: @""}];
   });
 }
 

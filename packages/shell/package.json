@@ -6,7 +6,8 @@
   "main": "src/index.tsx",
   "types": "src/index.tsx",
   "scripts": {
-    "typecheck": "tsc -p ."
+    "typecheck": "tsc -p .",
+    "test": "swift test --scratch-path \"${TMPDIR:-/tmp}/ardia-shell-swiftpm\""
   },
   "peerDependencies": {
     "expo": "*",

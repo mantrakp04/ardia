@@ -40,15 +40,15 @@ For each fix:
    ```
    - Version: `<next stable>-nightly.<n>`, where the next stable is `$stable` with the patch bumped and `<n>` counts up
      from 1 since `$stable` (`git tag -l "v<next stable>-nightly.*"`). The build number goes up by one, as always.
-   - Notes: `docs/release-notes/<version>.md` with `channel: nightly` in the frontmatter, the headline and one to three
+   - Notes: `docs/release-notes/<version>.md` with the usual frontmatter, the headline and one to three
      bullets (`docs/release-notes/README.md` › Nightlies). Source: `git log $prev..HEAD -- apps/browser packages engine`.
-   - Bump and build: step 3 below, with `scripts/release.sh <version> --channel nightly`.
+   - Bump and build: step 3 below, with `scripts/release.sh <version>` (the `-nightly.<n>` version makes it a nightly).
    - Smoke test: `.claude/skills/release/scripts/smoke.sh <version> ${prev#v}`. Its update test runs the nightly's own
      appcast item twice: a copy of the previous build on Stable must not be offered it, one on Nightly must install it.
      All of it must pass, as for stable. To test CI's own build instead of a local one, see "Smoke-testing CI's build"
      in step 5.
    - Publish: commit and push the bump and notes, then
-     `gh workflow run release.yml -R mantrakp04/ardia -f version=<version> -f channel=nightly -f dry_run=false` and
+     `gh workflow run release.yml -R mantrakp04/ardia -f version=<version> -f dry_run=false` and
      watch it (`gh run watch <id> --exit-status`, in pieces under 10 minutes). It builds, tags, and runs
      `.claude/skills/release/scripts/publish.sh <version>` (a prerelease with the DMG, zip, appcast and CLI
      tarball; the merged feed onto the latest stable release; `Ardia-Nightly.dmg` behind https://ardia.dev/nightly;
@@ -144,7 +144,12 @@ scripts/release.sh <version>     # ~15–25 min with notarization; run it in the
 ```
 
 For a nightly, set `MARKETING_VERSION` to `<version>` (`0.2.37-nightly.1`) the same way, commit as "Nightly <version>",
-and run `scripts/release.sh <version> --channel nightly`.
+and run `scripts/release.sh <version>`: the version alone makes it a nightly.
+
+`release.sh` checks everything first, then runs the stages in `scripts/release/` in order: `archive.sh`,
+`export-sign.sh`, `verify.sh`, `launch-check.sh`, `notarize.sh`, `package.sh`, `notes.sh`, `appcast.sh`. When one
+fails, read its log in `dist/<version>/` and rerun that stage alone (each prints its usage); `notes.sh` prints the
+GitHub notes without touching anything.
 
 To release from CI instead, push the commit and dispatch the Release workflow (step 5): it runs this same `release.sh`
 on GitHub's runner, so everything below about what it checks holds there too.
@@ -266,7 +271,7 @@ Both channels publish with `publish.sh` (`docs/releasing.md` › Cutting a relea
 and, for a stable, the perf gate passed:
 
 ```bash
-gh workflow run release.yml -R mantrakp04/ardia -f version=<version> -f channel=stable -f dry_run=false
+gh workflow run release.yml -R mantrakp04/ardia -f version=<version> -f dry_run=false
 gh run list -R mantrakp04/ardia -w release.yml -L 1        # its id; then gh run watch <id> --exit-status, in pieces
 .claude/skills/release/scripts/feed.sh <version>           # with a local dist/<version>/export, or curl ardia.dev/appcast.xml
 ```
@@ -293,20 +298,13 @@ mkdir -p dist/<version>-rc/export && ditto "$mnt/Ardia.app" dist/<version>-rc/ex
 
 The release itself is then a second run with `dry_run=false` on the same commit.
 
-When engine/ changed since the last prebuilt engine, release.sh also packed `ArdiaCore-<tree>.tar.xz` (the command
-above uploads it, with `ArdiaCore-<tree>-source.tar.xz` for a Helium engine) and wrote its table line. Every release's
-notes end with a Source section linking its tag, so never delete or move a published tag
-(`docs/releasing.md` › Source and licenses). Once the release is up, commit that line, so builds without a Chromium tree
-find it (`packages/ardiacore/scripts/fetch-engine.sh`):
+The engine is never packed by a release: when engine/ changed since the last prebuilt engine, release.sh stops and
+asks for `scripts/publish-engine.sh` first, which publishes `engine-<tree:12>` (with the Helium source) and appends
+its line to `packages/ardiacore/prebuilt-engines.tsv`; commit that line before the release. Every release's notes end
+with a Source section linking its tag, so never delete or move a published tag (`docs/releasing.md` › Source and
+licenses).
 
-```bash
-if [ -f dist/<version>/prebuilt-engine.tsv ]; then
-  cat dist/<version>/prebuilt-engine.tsv >> packages/ardiacore/prebuilt-engines.tsv
-  git add packages/ardiacore/prebuilt-engines.tsv && git commit -m "Prebuilt engine: <version>'s" && git push origin main
-fi
-```
-
-`appcast-merge.sh` puts this release's item onto the feed as it's published right now, so nightlies that shipped while
+`appcast.py merge` puts this release's item onto the feed as it's published right now, so nightlies that shipped while
 this release was being tested stay listed (it rewrites `dist/<version>/appcast.xml`, keeping `appcast.built.xml`).
 Both must show the new version. Copies from 0.2.13 and earlier poll GitHub's URL directly; 0.2.14 to 0.2.32 poll
 netnyahoo.com/appcast.xml and later ones ardia.dev/appcast.xml, both served by the site, which counts the check
@@ -356,17 +354,17 @@ writes `/Applications/Ardia.app`): `brew audit --cask --online mantrakp04/tap/ar
 
 ## 6. Deploy the site
 
-The download button builds its URL from `VERSION` (`releases/latest/download/Ardia-<VERSION>.dmg`),
-so it 404s the moment a newer release is published until this is bumped:
+The download buttons and the root `README.md` (the landing page on GitHub) link the DMG of one tag
+(`releases/download/v<VERSION>/Ardia-<VERSION>.dmg`), so they keep working after a publish and only point at the
+older version until this step. After a stable publish, point both at it:
 
 ```bash
-size=$(gh release view v<version> -R mantrakp04/ardia --json assets -q '.assets[] | select(.name|endswith(".dmg")) | .size' | awk '{printf "%.0f MB", $1/1000000}')
-# set VERSION = "<version>" and DMG_SIZE = "$size" in apps/site/src/data/release.ts
+.claude/skills/release/scripts/site-version.mjs <version>
 ```
 
-The root `README.md` is the landing page on GitHub and carries the same link: replace the old version and size there
-too (both download links, the "Download Ardia <version>" labels and the "<size> DMG" line), and commit it with
-`release.ts`. If a release changes a claim on the landing page (below), change the README's matching line.
+It reads the published DMG's size from GitHub, writes `apps/site/src/data/release.json` (`VERSION` and `DMG_SIZE`
+in `release.ts` come from it) and rewrites the README's links, labels and sizes. Commit both. If a release changes a
+claim on the landing page (below), change the README's matching line too.
 
 **Bring the landing page's claims up to date.** The home page makes specific promises; a release can make
 one of them stale or earn a new one. Read the new notes against:
@@ -414,10 +412,10 @@ pnpm -C apps/site run deploy   # the upload can drop on a weak connection: rerun
 ```
 
 Then verify live: `https://ardia.dev/release-notes/` contains the new headline, the home page links
-`Ardia-<version>.dmg`, that URL returns 200, and any claim you changed shows. Commit `release.ts`
+`Ardia-<version>.dmg`, that URL returns 200, and any claim you changed shows. Commit `release.json`, the README
 and the claim changes ("Site: download <version>", plus what changed) and push.
 
-The SEO data follows `release.ts` and the notes by itself, with no extra step; check that it did:
+The SEO data follows `release.json` and the notes by itself, with no extra step; check that it did:
 - The home page's JSON-LD `softwareVersion` is the new version.
 - `https://ardia.dev/release-notes/<version>/` exists (every notes file gets its own page, built from the
   `releaseNotes` collection), and its description reads well: it comes from the intro paragraph, or else the

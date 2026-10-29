@@ -2,16 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import { Animated, Pressable, Text, View } from "react-native";
 import { layout, useTheme } from "../ui/theme";
 import { useIsActiveTab, useTab } from "../../state/browser/hooks";
-import { plural } from "../../state/browser/model";
+import { plural, tabTitle } from "../../state/browser/model";
 import { useTileFolderLabel, useTileFolderMembers } from "../../state/pins/hooks";
 import { SLIDE } from "../tabstrip/stripReorder";
 import { ContextMenuArea, FadeLabel, font, OutsidePressArea, Panel, radius, useHover, weight } from "../ui";
 import { SIDEBAR_SHADOW } from "./tokens";
-import { clickTab, tabTitle } from "../../state/sidebar/actions";
+import { clickTab } from "../../state/sidebar/actions";
 import { useDragController, useDragItem, useFolderAway } from "./DragProvider";
 import { openTabMenu } from "../../state/sidebar/menus";
 import { TabIcon } from "./TabIcon";
 import { closeFolderPanel, closeFolderPanelOnPress, closeFolderPanelWhenWindowMoves, openTileFolderMenu, useFolderPanel } from "../../state/sidebar/tileFolderUi";
+import { tailKey } from "./dragModel";
 
 const PANEL_GAP = 6;
 const PANEL_PAD = 6;
@@ -32,7 +33,7 @@ function PanelBody({ windowId, folderId, anchor }: { windowId: string; folderId:
   const away = useFolderAway();
   const [root, setRoot] = useState<Frame | null>(null);
   const shown = useMemo(() => new Animated.Value(0), []);
-  const tail = useDragItem("tail:folder", { kind: "tail", tabIds: [], section: "folder" });
+  const tail = useDragItem(tailKey("folder"), { kind: "tail", tabIds: [], section: "folder" });
 
   useEffect(() => {
     controller?.root?.measureInWindow((x, y, w, h) => setRoot({ x, y, w, h }));
@@ -71,7 +72,7 @@ function PanelBody({ windowId, folderId, anchor }: { windowId: string; folderId:
       }}
     >
       <OutsidePressArea onOutsidePress={closeFolderPanelOnPress}>
-        <Panel fill={theme.panel} radius={radius.panel} border={theme.panelBorder} shadow={SIDEBAR_SHADOW.card} style={{ padding: PANEL_PAD }}
+        <Panel glass="panel" fill={theme.panel} radius={radius.panel} border={theme.panelBorder} shadow={SIDEBAR_SHADOW.card} style={{ padding: PANEL_PAD }}
         >
           <ContextMenuArea onContextMenu={() => void openTileFolderMenu(windowId, folderId)}>
             <Text numberOfLines={1} style={{ ...font.small, fontWeight: weight.semibold, color: theme.textSecondary, marginTop: 2, marginBottom: 6, marginHorizontal: 6 }}>

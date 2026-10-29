@@ -16,13 +16,11 @@ import type { InstalledExtension } from "../../../state/extensions/store";
 import { useEffect, useState } from "react";
 import { Image, Text, View } from "react-native";
 import { useTheme } from "../../ui/theme";
-import { resolvedWindowId } from "../../../state/browser/current";
+import { currentEngineProfile, resolvedWindowId } from "../../../state/browser/current";
 import { newTab } from "../../../state/tabs/actions";
-import { useProfiles } from "../../../state/browser/hooks";
-import { engineProfile } from "../../../state/browser/model";
 import { InstallDialogHost } from "../../extensions/ExtensionOverlays";
 import { Button, font, PopUp, TextField, Toggle, weight } from "../../ui";
-import { Group, Row, SectionHeader } from "../Form";
+import { Group, ProfilePicker, Row, SectionHeader } from "../Form";
 import { extensionList } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
@@ -40,9 +38,8 @@ const siteAccessOf = (ext: InstalledExtension): SiteAccess =>
 
 export function ExtensionsPane({ profileId: chosen, detail }: { profileId: string | null; detail: string | null }) {
   const theme = useTheme();
-  const profiles = useProfiles();
   const [profileId] = useState(() => extensionsProfileId(chosen));
-  const profile = engineProfile(profileId);
+  const profile = currentEngineProfile(profileId);
   const list = useExtensionList(profile);
   const [link, setLink] = useState("");
   const [loaded] = useResource(extensionList, profile);
@@ -67,12 +64,7 @@ export function ExtensionsPane({ profileId: chosen, detail }: { profileId: strin
     <View>
       <SectionHeader
         anchor="extensions.installed"
-        description="Add features to Ardia with extensions from the Chrome Web Store. Each profile has its own."
-        action={
-          profiles.length > 1 ? (
-            <PopUp value={profileId} options={profiles.map((p) => ({ value: p.id, title: p.name }))} onChange={(id) => replaceSettingsPlace(id)} />
-          ) : undefined
-        }
+        action={<ProfilePicker value={profileId} onChange={(id) => replaceSettingsPlace(id)} />}
       />
       {list.length ? (
         <Group>

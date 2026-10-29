@@ -1,4 +1,5 @@
-import { appInfo, capture, isSharing } from "./client";
+import { capture, isSharing } from "./client";
+import { appInfo } from "./transport";
 import { launchFirstWindow } from "./journeys";
 
 export type SuggestionType = "history" | "bookmark" | "tab" | "url" | "search" | "calc" | "action" | "create" | "extension" | "typed";

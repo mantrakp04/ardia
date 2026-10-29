@@ -1,10 +1,11 @@
 import { confirm } from "../../platform/dialogs";
 import { create } from "zustand";
 import { focus, openWindow } from "../browser/actions";
-import { folderLinks } from "./bookmarks";
+import { bookmarkRoots, folderLinks, isWithin, ownerOfBookmark } from "./bookmarks";
 import { storeAction, useBrowser } from "../browser/store";
-import { activeTabId, bookmarkProfileId, resolveWindowId, viewTabIds } from "../browser/model";
+import { activeTabId, bookmarkProfileId, resolveWindowId, tabTitle, viewTabIds } from "../browser/model";
 import { originalProfile } from "../windows/small";
+import { isWebPageUrl } from "../../lib/url";
 
 type OpenMode = "current" | "background" | "foreground" | "window" | "incognito" | "split";
 
@@ -19,9 +20,9 @@ export function openUrl(url: string, windowId: string | null | undefined, mode: 
   const s = useBrowser.getState();
   const id = resolveWindowId(s, windowId);
   const w = id ? s.windows[id] : undefined;
-  if (mode === "incognito") return void openWindow({ incognito: true, url, profileId: originalProfile(s, w) });
+  if (mode === "incognito") return void openWindow({ kind: "private", url, profileId: originalProfile(s, w) });
   if (!id || mode === "window") {
-    const created = openWindow(w?.incognito ? { incognito: true, url, profileId: originalProfile(s, w) } : { url, profileId: w?.profileId });
+    const created = openWindow(w?.kind === "private" ? { kind: "private", url, profileId: originalProfile(s, w) } : { url, profileId: w?.profileId });
     return focus(created);
   }
   const tabId = activeTabId(s, id);
@@ -34,14 +35,21 @@ export function openUrl(url: string, windowId: string | null | undefined, mode: 
   s.newTab(id, { url, background: mode === "background", openerId: mode === "background" ? tabId : undefined });
 }
 
-export async function openFolder(folderId: string, windowId: string | null | undefined, mode: "tabs" | "window" | "incognito" = "tabs") {
+export type OpenAllMode = "tabs" | "window" | "incognito";
+
+export const FOLDER_MANY = "This folder has a lot of bookmarks.";
+
+export function openFolder(folderId: string, windowId: string | null | undefined, mode: OpenAllMode = "tabs") {
+  return openLinks(folderLinks(useBrowser.getState().bookmarks, folderId), windowId, mode, FOLDER_MANY);
+}
+
+export async function openLinks(links: { url: string }[], windowId: string | null | undefined, mode: OpenAllMode = "tabs", manyMessage = "That's a lot of pages.") {
   const s = useBrowser.getState();
-  const links = folderLinks(s.bookmarks, folderId);
   if (!links.length) return;
   if (links.length > 15) {
     const { confirmed } = await confirm({
       title: `Open ${links.length} tabs?`,
-      message: "This folder has a lot of bookmarks.",
+      message: manyMessage,
       confirmTitle: "Open All",
       windowId: resolveWindowId(s, windowId),
     });
@@ -50,8 +58,8 @@ export async function openFolder(folderId: string, windowId: string | null | und
   const id = resolveWindowId(s, windowId);
   const source = id ? s.windows[id] : undefined;
   if (mode !== "tabs" || !id) {
-    const incognito = mode === "incognito" || !!source?.incognito;
-    const created = openWindow({ url: links[0]!.url, incognito, profileId: incognito ? undefined : source?.profileId });
+    const incognito = mode === "incognito" || source?.kind === "private";
+    const created = openWindow({ url: links[0]!.url, kind: incognito ? "private" : "main", profileId: incognito ? undefined : source?.profileId });
     openInOrder(created, links.slice(1), activeTabId(useBrowser.getState(), created));
     return focus(created);
   }
@@ -75,13 +83,7 @@ export const useBookmarkDialog = create<{ open: BookmarkDialogState | null }>()(
 
 export const closeBookmarkDialog = () => useBookmarkDialog.setState({ open: null });
 
-export function profileOfBookmark(id: string): string | null {
-  const b = useBrowser.getState().bookmarks;
-  let node = b.nodes[id];
-  for (let i = 0; node?.parentId && i < 64; i++) node = b.nodes[node.parentId];
-  if (!node) return null;
-  return Object.entries(b.roots).find(([, r]) => r.bar === node!.id || r.other === node!.id)?.[0] ?? null;
-}
+export const profileOfBookmark = (id: string) => ownerOfBookmark(useBrowser.getState(), id);
 
 export function bookmarkTab(windowId: string, tabId: string) {
   const s = useBrowser.getState();
@@ -89,12 +91,12 @@ export function bookmarkTab(windowId: string, tabId: string) {
   const tab = s.tabs[tabId];
   if (!s.windows[id] || !tab?.url) return;
   const profileId = bookmarkProfileId(s, s.windows[id]);
-  const roots = s.bookmarks.roots[profileId];
+  const roots = bookmarkRoots(s, profileId);
   const existing = Object.values(s.bookmarks.nodes).find(
-    (n) => n.kind === "url" && n.url === tab.url && roots && isUnder(n.id, [roots.bar, roots.other]),
+    (n) => n.kind === "url" && n.url === tab.url && roots && isWithin(useBrowser.getState().bookmarks, n.id, [roots.bar, roots.other]),
   );
   const bookmarkId =
-    existing?.id ?? s.addBookmark({ profileId, url: tab.url, title: tab.customTitle || tab.title || tab.url, favicon: tab.favicon });
+    existing?.id ?? s.addBookmark({ profileId, url: tab.url, title: tabTitle(tab), favicon: tab.favicon });
   useBookmarkDialog.setState({ open: { kind: "page", windowId: id, bookmarkId } });
 }
 
@@ -104,21 +106,12 @@ export function bookmarkAllTabs(windowId: string | null | undefined) {
   if (!id) return;
   const tabs = viewTabIds(s, id)
     .map((t) => s.tabs[t]!)
-    .filter((t) => /^(https?|file):/.test(t.url))
-    .map((t) => ({ url: t.url, title: t.customTitle || t.title || t.url }));
+    .filter((t) => isWebPageUrl(t.url))
+    .map((t) => ({ url: t.url, title: tabTitle(t) }));
   if (!tabs.length) return;
   useBookmarkDialog.setState({ open: { kind: "allTabs", windowId: id, profileId: bookmarkProfileId(s, s.windows[id]), tabs } });
 }
 
-function isUnder(id: string, roots: string[]): boolean {
-  const { nodes } = useBrowser.getState().bookmarks;
-  let node = nodes[id];
-  for (let i = 0; node && i < 64; i++) {
-    if (roots.includes(node.id)) return true;
-    node = node.parentId ? nodes[node.parentId] : undefined;
-  }
-  return false;
-}
 
 export const addBookmark = storeAction("addBookmark");
 export const addBookmarkFolder = storeAction("addBookmarkFolder");

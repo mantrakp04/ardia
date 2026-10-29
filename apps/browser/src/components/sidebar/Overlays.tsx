@@ -7,7 +7,7 @@ import { HoverCard } from "./HoverCard";
 import { IconPicker } from "./IconPicker";
 import { SearchTabs } from "./SearchTabs";
 import { TabSwitcher } from "./TabSwitcher";
-import { useSidebarWidth } from "./tokens";
+import { useSidebarWidth } from "../../state/sidebar/hooks";
 
 export function SidebarOverlays({ windowWidth }: { windowWidth: number }) {
   const windowId = useWindowId();

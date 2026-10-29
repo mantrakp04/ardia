@@ -34,7 +34,7 @@ export function PinnedFace({ tabId, active, hovered, pressed }: { tabId: string;
         />
       ) : glassRing ? (
         <View style={face}>
-          <GlassFill radius={PINNED_FACE_RADIUS} fill={theme.pinnedSelectedFill} raised={!pressed} />
+          <GlassFill radius={PINNED_FACE_RADIUS} fill={theme.pinnedSelectedFill} state={pressed ? "rest" : "active"} />
           <DockSelection
             image={tileTheme?.image}
             emoji={tileTheme?.emoji}

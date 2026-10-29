@@ -530,7 +530,7 @@ class Instance {
 const base = () => `http://127.0.0.1:${server.address().port}`;
 let server;
 
-const WINDOW = `(() => { const s = ac.store.getState(); return s.ui.focusedWindowId && s.windows[s.ui.focusedWindowId] ? s.ui.focusedWindowId : s.windowOrder.find((id) => s.windows[id] && !s.windows[id].kind); })()`;
+const WINDOW = `(() => { const s = ac.store.getState(); return s.ui.focusOrder[0] && s.windows[s.ui.focusOrder[0]] ? s.ui.focusOrder[0] : s.windowOrder.find((id) => s.windows[id] && !s.windows[id].kind); })()`;
 
 function writeBigSeed(side) {
   const dir = side.template;
@@ -740,7 +740,7 @@ async function postSeen(app, spec) {
 
 const journeyState = (app) => app.run(`const j = ac.journeys(); const s = ac.store.getState();
   return { on: j.on, native: j.native, pending: j.pending, samples: j.samples, counts: j.counts, marks: j.marks,
-    tabs: Object.keys(s.tabs).length, focused: s.ui.focusedWindowId };`);
+    tabs: Object.keys(s.tabs).length, focused: s.ui.focusOrder[0] };`);
 
 async function waitFor(app, accept, timeout, every = 60) {
   for (const end = Date.now() + timeout; Date.now() < end; ) {

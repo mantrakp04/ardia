@@ -1,7 +1,7 @@
 import { type SettingSection } from "./types";
 import type { SettingsPane } from "../../../state/settings/settingsWindows";
 
-export const privacyRows: Pick<Record<SettingsPane, SettingSection[]>, "privacy" | "passwords" | "autofill" | "extensions" | "search"> = {
+export const privacyRows = {
   privacy: [
     {
       section: "Content blocking",
@@ -10,6 +10,7 @@ export const privacyRows: Pick<Record<SettingsPane, SettingSection[]>, "privacy"
         blockTrackers: { title: "Block trackers", keywords: ["tracking", "easyprivacy", "fingerprinting"] },
         blockCookieBanners: { title: "Block cookie banners", keywords: ["cookies", "consent", "gdpr", "popups"] },
         filterLists: {
+          advanced: true,
           title: "Advanced Settings",
           description: "Block common components found across the web by using additional rules and filters.",
           keywords: ["filter lists", "annoyances", "malware", "regional", "ad block settings"],
@@ -26,7 +27,7 @@ export const privacyRows: Pick<Record<SettingsPane, SettingSection[]>, "privacy"
         },
       },
     },
-    { section: "Apps allowed to open links", rows: { appLinks: { title: "Apps allowed to open links", description: "Sites that open another app without asking first.", keywords: ["external apps", "protocol handlers", "zoom links"] } } },
+    { section: "Apps allowed to open links", rows: { appLinks: { advanced: true, title: "Apps allowed to open links", description: "Sites that open another app without asking first.", keywords: ["external apps", "protocol handlers", "zoom links"] } } },
     {
       section: "Zoom",
       rows: {
@@ -55,8 +56,8 @@ export const privacyRows: Pick<Record<SettingsPane, SettingSection[]>, "privacy"
           keywords: ["password manager", "logins", "credentials", "keychain"],
         },
         importPasswords: { title: "Import passwords", description: "From a CSV exported by Chrome, Safari, Firefox, 1Password, Bitwarden…", keywords: ["csv", "logins"] },
-        exportPasswords: { title: "Export passwords", description: "To a CSV file. Anyone who can open the file can read your passwords.", keywords: ["csv", "backup", "logins"] },
-        managerApps: { title: "Password manager apps", keywords: ["1password", "bitwarden", "keepassxc", "proton pass"] },
+        exportPasswords: { advanced: true, title: "Export passwords", description: "To a CSV file. Anyone who can open the file can read your passwords.", keywords: ["csv", "backup", "logins"] },
+        managerApps: { advanced: true, title: "Password manager apps", keywords: ["1password", "bitwarden", "keepassxc", "proton pass"] },
       },
     },
   ],
@@ -77,8 +78,8 @@ export const privacyRows: Pick<Record<SettingsPane, SettingSection[]>, "privacy"
       section: "Add extensions",
       rows: {
         webStore: { title: "Chrome Web Store", description: "Browse the store; its Add to Ardia button installs here.", keywords: ["install extension"] },
-        addLink: { title: "Add from a link", description: "Paste a Chrome Web Store link or extension ID.", keywords: ["install extension", "url"] },
-        unpacked: { title: "Load unpacked extension", description: "For developers: load an extension folder with a manifest.json.", keywords: ["developer mode"] },
+        addLink: { advanced: true, title: "Add from a link", description: "Paste a Chrome Web Store link or extension ID.", keywords: ["install extension", "url"] },
+        unpacked: { advanced: true, title: "Load unpacked extension", description: "For developers: load an extension folder with a manifest.json.", keywords: ["developer mode"] },
       },
     },
   ],
@@ -86,13 +87,14 @@ export const privacyRows: Pick<Record<SettingsPane, SettingSection[]>, "privacy"
     { section: "Default search engine", rows: { defaultEngine: { title: "Default search engine", description: "Used by the command bar and the New Tab page.", keywords: ["google", "duckduckgo", "bing", "kagi", "ecosia"] } } },
     {
       section: "Other search engines",
-      rows: { otherEngines: { title: "Other search engines", description: "Type a shortcut and press Tab in the command bar to search a site directly.", keywords: ["custom search", "site search", "keyword"] } },
+      rows: { otherEngines: { advanced: true, title: "Other search engines", description: "Type a shortcut and press Tab in the command bar to search a site directly.", keywords: ["custom search", "site search", "keyword"] } },
     },
     { section: "Suggestions", rows: { suggestions: { title: "Show search suggestions", description: "Sends what you type to your search engine to suggest searches.", keywords: ["autocomplete"] } } },
     {
       section: "Text selection",
       rows: {
         showSelectionSearch: {
+          advanced: true,
           title: "Show search button when selecting text",
           description: "Shows a Search button above text you select on a page.",
           keywords: ["selection", "selected text", "popover", "popup", "highlight"],
@@ -100,4 +102,4 @@ export const privacyRows: Pick<Record<SettingsPane, SettingSection[]>, "privacy"
       },
     },
   ],
-};
+} satisfies Pick<Record<SettingsPane, SettingSection[]>, "privacy" | "passwords" | "autofill" | "extensions" | "search">;

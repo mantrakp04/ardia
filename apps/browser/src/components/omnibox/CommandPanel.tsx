@@ -1,6 +1,6 @@
-import { OutsidePressArea, Surface } from "../ui";
+import { OutsidePressArea, reduceMotion, Surface } from "../ui";
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
-import { AccessibilityInfo, Animated, View, type LayoutChangeEvent } from "react-native";
+import { Animated, View, type LayoutChangeEvent } from "react-native";
 import { hex, useTheme } from "../ui/theme";
 import { useWindowId, useWindowUi } from "../../state/browser/hooks";
 import { closePanel } from "../../state/windows/actions";
@@ -29,13 +29,6 @@ const DROPDOWN_PAST_FIELD = 137;
 const DROPDOWN_RADIUS = 12;
 const PANEL_OPEN_HEIGHT = 107;
 const CENTRED_TOP_SHARE = 0.22;
-
-let reduceMotion = false;
-AccessibilityInfo.isReduceMotionEnabled().then(
-  (on) => (reduceMotion = on),
-  () => {},
-);
-AccessibilityInfo.addEventListener("reduceMotionChanged", (on) => (reduceMotion = on));
 
 type Box = { left: number; top: number; width: number; height: number };
 
@@ -158,7 +151,7 @@ function Grow({
   surface: Omit<ComponentProps<typeof Surface>, "style">;
   children: ReactNode;
 }) {
-  const fade = !!from && reduceMotion;
+  const fade = !!from && !!reduceMotion();
   const [progress] = useState(() => new Animated.Value(from ? 0 : 1));
   const start = useRef(fade ? null : from);
   const [height, setHeight] = useState<number | null>(null);

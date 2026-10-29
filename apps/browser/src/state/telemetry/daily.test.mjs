@@ -5,7 +5,7 @@ globalThis.__DEV__ = false;
 const stub = await import("../../test-native/index.ts");
 Object.assign(stub.appInfo, { appVersion: "0.3.0", osVersion: "26.1", arch: "arm64", isolatedInstance: false });
 const daily = await import("./daily.ts");
-const { appInfo } = await import("./client.ts");
+const { appInfo } = await import("./transport.ts");
 
 const at = (iso) => Date.parse(`${iso}T12:00:00Z`);
 const store = (lastDay) => (lastDay ? stub.docs.set(daily.DAILY_DOC, JSON.stringify({ version: 1, lastDay })) : stub.docs.delete(daily.DAILY_DOC));

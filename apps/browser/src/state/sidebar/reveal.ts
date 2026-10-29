@@ -1,8 +1,9 @@
 import { useBrowser, type BrowserState } from "../browser/store";
 import { activeTabId } from "../browser/model";
+import { isAsleep } from "../tabs/pageSession";
 
 const closedAway = (s: BrowserState, prev: BrowserState, tabId: string | undefined) =>
-  !!tabId && (!s.tabs[tabId] || (!!s.tabs[tabId]!.unloaded && !prev.tabs[tabId]?.unloaded));
+  !!tabId && (!s.tabs[tabId] || (isAsleep(s.tabs[tabId]) && !isAsleep(prev.tabs[tabId])));
 
 export const watchRevealTargets = (windowId: string, found: (switched: string | null, opened: string | null) => void) =>
   useBrowser.subscribe((s, prev) => {

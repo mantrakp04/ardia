@@ -1,8 +1,10 @@
+import { REPO_SLUG } from "./release";
+
 const MIN_SHOWN = 100;
 
 async function fetchStars(): Promise<number | null> {
   try {
-    const res = await fetch("https://api.github.com/repos/mantrakp04/ardia", {
+    const res = await fetch(`https://api.github.com/repos/${REPO_SLUG}`, {
       headers: { Accept: "application/vnd.github+json", "User-Agent": "ardia-site-build" },
       signal: AbortSignal.timeout(5000),
     });

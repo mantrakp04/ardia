@@ -218,11 +218,8 @@ enum ServerWindowDrag {
     regions.allObjects.contains { $0 === view || $0.isDescendant(of: view) }
   }
 
-  private static let embeddedSelector = NSSelectorFromString("ardiaEmbeddedSubview")
-
   static func embeddedRoot(_ window: NSWindow?) -> NSView? {
-    guard let content = window?.contentView, content.responds(to: embeddedSelector) else { return nil }
-    return content.perform(embeddedSelector)?.takeUnretainedValue() as? NSView
+    window.flatMap { ArdiaChromeWindowHost.embeddedRoot(of: $0) }
   }
 
   static func hostsRoot(_ view: NSView) -> Bool {
@@ -234,24 +231,45 @@ enum ServerWindowDrag {
     return view === root || view.isDescendant(of: root)
   }
 
+  private typealias BlockingRegion = @convention(c) (AnyObject, Selector, NSRect) -> OpaquePointer?
+  private typealias EnumerateRegion = @convention(c) (OpaquePointer) -> OpaquePointer?
+  private typealias NextRect = @convention(c) (OpaquePointer) -> UnsafePointer<CGRect>?
+  private typealias ReleaseRegion = @convention(c) (OpaquePointer) -> Int32
+  private static let blockingRegionSelector = NSSelectorFromString("_regionForOpaqueViewsBlockingDraggableFrame:")
+
+  private static let skyLight: (enumerate: EnumerateRegion, next: NextRect, release: ReleaseRegion)? = {
+    guard let sky = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_NOW),
+          let enumerate = dlsym(sky, "CGSRegionEnumerator"), let next = dlsym(sky, "CGSNextRect"),
+          let release = dlsym(sky, "CGSReleaseRegionEnumerator")
+    else { return nil }
+    return (unsafeBitCast(enumerate, to: EnumerateRegion.self), unsafeBitCast(next, to: NextRect.self), unsafeBitCast(release, to: ReleaseRegion.self))
+  }()
+
+  private static func blockingRects(_ window: NSWindow, in rect: NSRect) -> [NSRect]? {
+    guard let sky = skyLight, let method = class_getInstanceMethod(type(of: window), blockingRegionSelector),
+          method_getNumberOfArguments(method) == 3, let types = method_getTypeEncoding(method), String(cString: types).hasPrefix("^")
+    else { return nil }
+    guard let region = unsafeBitCast(method_getImplementation(method), to: BlockingRegion.self)(window, blockingRegionSelector, rect),
+          let rects = sky.enumerate(region)
+    else { return nil }
+    defer { _ = sky.release(rects) }
+    var out: [NSRect] = []
+    while let r = sky.next(rects) { out.append(r.pointee) }
+    return out
+  }
+
+  static func serverOwnsPress(_ window: NSWindow, at point: NSPoint) -> Bool {
+    guard let frame = window.contentView?.superview else { return false }
+    let titlebar = NSRect(x: 0, y: frame.bounds.height - band(window), width: frame.bounds.width, height: band(window))
+    guard titlebar.contains(point), let blocking = blockingRects(window, in: frame.bounds) else { return false }
+    return !blocking.contains { $0.contains(point) }
+  }
+
   #if DEBUG
   static func blockedRects(_ window: NSWindow) -> [[Double]] {
-    typealias Region = @convention(c) (AnyObject, Selector, NSRect) -> OpaquePointer?
-    typealias Enumerate = @convention(c) (OpaquePointer) -> OpaquePointer?
-    typealias Next = @convention(c) (OpaquePointer) -> UnsafePointer<CGRect>?
-    let sel = NSSelectorFromString("_regionForOpaqueViewsBlockingDraggableFrame:")
     targets[ObjectIdentifier(window)] = nil
-    guard window.responds(to: sel), let frame = window.contentView?.superview,
-          let sky = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_NOW),
-          let enumerate = dlsym(sky, "CGSRegionEnumerator"), let next = dlsym(sky, "CGSNextRect"),
-          let region = unsafeBitCast(window.method(for: sel), to: Region.self)(window, sel, frame.bounds),
-          let rects = unsafeBitCast(enumerate, to: Enumerate.self)(region)
-    else { return [] }
-    var out: [[Double]] = []
-    while let r = unsafeBitCast(next, to: Next.self)(rects) {
-      out.append([r.pointee.minX, frame.bounds.height - r.pointee.maxY, r.pointee.width, r.pointee.height])
-    }
-    return out
+    guard let frame = window.contentView?.superview, let rects = blockingRects(window, in: frame.bounds) else { return [] }
+    return rects.map { [$0.minX, frame.bounds.height - $0.maxY, $0.width, $0.height] }
   }
   #endif
 
@@ -267,8 +285,8 @@ enum ServerWindowDrag {
 
   private static let capable: Bool = {
     let noArguments = { (types: String) in types.hasSuffix("@0:8") }
-    guard let host = NSClassFromString("BridgedContentView"), NSClassFromString("RCTView") != nil,
-          host.instancesRespond(to: embeddedSelector),
+    let host: AnyClass = ArdiaChromeWindowHost.contentViewClass
+    guard NSClassFromString("RCTView") != nil,
           matches(NSView.self, opaqueRectSelector, { $0.hasPrefix("{CGRect=") && noArguments($0) }),
           matches(host, opaqueRectSelector, { $0.hasPrefix("{CGRect=") && noArguments($0) }),
           matches(NSView.self, refreshSelector, { $0.hasPrefix("v") && noArguments($0) }),

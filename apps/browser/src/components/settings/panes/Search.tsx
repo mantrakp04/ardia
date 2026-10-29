@@ -1,38 +1,37 @@
 import { engineHost, type SearchEngine } from "@ardia/core";
-import { Symbol, Button, font, Sheet, TextField, Toggle, weight } from "../../ui";
+import { Symbol, Button, font, Sheet, TextField, Toggle } from "../../ui";
 import { useState } from "react";
 import { Text, View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { useSettings } from "../../../state/browser/hooks";
-import { currentProfileOrder } from "../../../state/browser/current";
+import { currentEngineProfile, currentProfileOrder } from "../../../state/browser/current";
 import { addCustomEngine, removeCustomEngine, setSearchEngine, updateCustomEngine, updateSettings } from "../../../state/settings/actions";
-import { engineProfile } from "../../../state/browser/model";
 import { controllingSearchExtension, defaultSearchEngine, searchEngines } from "../../../state/settings/settings";
 import { extensionsProfileId, setEnabled } from "../../../state/extensions/actions";
 import { Favicon } from "../../favicon/Favicon";
-import { Group, Row, SectionHeader } from "../Form";
+import { Group, Row, SectionHeader, SettingToggle, SheetActions, SheetTitle } from "../Form";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { openSettings } from "../../../state/settings/settingsWindows";
 
 function manageExtensionsOf(profile: string) {
-  const profileId = currentProfileOrder().find((id) => engineProfile(id) === profile);
+  const profileId = currentProfileOrder().find((id) => currentEngineProfile(id) === profile);
   openSettings("extensions", extensionsProfileId(profileId));
 }
 
 export function SearchPane() {
-  const settings = useSettings((s) => s);
+  const engines = useSettings(searchEngines);
+  const selectedId = useSettings((s) => defaultSearchEngine(s).id);
+  const controlling = useSettings(controllingSearchExtension);
+  const suggestions = useSettings((s) => s.searchSuggestions);
   const theme = useTheme();
-  const engines = searchEngines(settings);
   const builtIn = engines.filter((e) => !e.custom && !e.extension);
   const custom = engines.filter((e) => e.custom);
   const fromExtensions = engines.filter((e) => e.extension);
-  const selectedId = defaultSearchEngine(settings).id;
-  const controlling = controllingSearchExtension(settings);
   const locked = !!controlling;
 
   return (
     <View>
-      <SectionHeader anchor="search.defaultEngine" description="Used by the command bar and the New Tab page." />
+      <SectionHeader anchor="search.defaultEngine" />
       <Group>
         {controlling && (
           <Row
@@ -51,7 +50,6 @@ export function SearchPane() {
 
       <SectionHeader
         anchor="search.otherEngines"
-        description="Type a shortcut and press Tab in the command bar to search a site directly."
         action={<Button title="Add…" icon="plus" onPress={() => showSettingsSheet(<EngineSheet />)} />}
       />
       <Group of="search.otherEngines">
@@ -76,15 +74,13 @@ export function SearchPane() {
       <SectionHeader title="Suggestions" />
       <Group>
         <Row anchor="search.suggestions">
-          <Toggle value={settings.searchSuggestions} onChange={(v) => updateSettings({ searchSuggestions: v })} />
+          <Toggle value={suggestions} onChange={(v) => updateSettings({ searchSuggestions: v })} />
         </Row>
       </Group>
 
       <SectionHeader title="Text selection" />
       <Group>
-        <Row anchor="search.showSelectionSearch">
-          <Toggle value={settings.showSelectionSearch} onChange={(v) => updateSettings({ showSelectionSearch: v })} />
-        </Row>
+        <SettingToggle anchor="search.showSelectionSearch" />
       </Group>
     </View>
   );
@@ -139,26 +135,28 @@ function EngineSheet({ engine }: { engine?: SearchEngine }) {
   );
   return (
     <Sheet width={440} onClose={closeSettingsSheet}>
-      <Text style={{ ...font.heading, fontWeight: weight.semibold, color: theme.textPrimary }}>{engine ? "Edit Search Engine" : "Add Search Engine"}</Text>
+      <SheetTitle>{engine ? "Edit Search Engine" : "Add Search Engine"}</SheetTitle>
       {field("Name", name, setName, "Wikipedia")}
       {field("Shortcut", keyword, setKeyword, "w")}
       {field("URL with %s in place of the query", url, setUrl, "https://en.wikipedia.org/w/index.php?search=%s")}
       {error && <Text style={{ ...font.small, marginTop: 10, color: theme.destructive }}>{error}</Text>}
-      <View style={{ flexDirection: "row", gap: 8, marginTop: 18 }}>
-        {engine && (
-          <Button
-            title="Delete"
-            kind="destructive"
-            onPress={() => {
-              removeCustomEngine(engine.id);
-              closeSettingsSheet();
-            }}
-          />
-        )}
-        <View style={{ flex: 1 }} />
+      <SheetActions
+        destructive={
+          engine ? (
+            <Button
+              title="Delete"
+              kind="destructive"
+              onPress={() => {
+                removeCustomEngine(engine.id);
+                closeSettingsSheet();
+              }}
+            />
+          ) : null
+        }
+      >
         <Button title="Cancel" onPress={closeSettingsSheet} />
         <Button title={engine ? "Save" : "Add"} kind="primary" onPress={save} />
-      </View>
+      </SheetActions>
     </Sheet>
   );
 }

@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Animated, StyleSheet, View } from "react-native";
 import { PROFILE_COLORS } from "../ui/theme";
 import { themeAccent } from "../../lib/profileLook";
-import { curve } from "../ui/motion";
+import { curve, usePresence } from "../ui/motion";
 import { onboardingMotion } from "./tokens";
-import { useSettings, useTabLayout } from "../../state/browser/hooks";
+import { useChosenSettings, useSettings, useTabLayout } from "../../state/browser/hooks";
 import { useWindowProfileValue } from "../../state/profiles/hooks";
 import type { Settings } from "../../state/settings/settings";
 import { MockWindow, type PreviewId } from "./previews";
@@ -17,7 +17,8 @@ export function useScreen<K extends keyof Settings>(keys: readonly K[]) {
   const settings = useSettings((st) => st);
   const tabLayout = useTabLayout(windowId);
   const base = { ...settings, tabLayout };
-  const values = resolveDraft(keys, draft, preset, base);
+  const chosen = useChosenSettings();
+  const values = resolveDraft(keys, draft, preset, base, chosen);
   return { values, base, mock: { ...base, ...values } as Settings };
 }
 
@@ -27,23 +28,18 @@ export function useAccent() {
 }
 
 const MOCK_SIZE = { width: 420, height: 300 } as const;
+const MOCK_OVERLAY_FADE = { duration: onboardingMotion.mockOverlay, easing: curve.outCubic };
+const MOCK_OVERLAY_PRESENCE = { show: MOCK_OVERLAY_FADE, hide: MOCK_OVERLAY_FADE };
 
 export function MockPanel({ settings, focus, overlay, switcher }: { settings: Partial<Settings>; focus: PreviewId | null; overlay?: ReactNode; switcher?: boolean }) {
   const accent = useAccent();
-  const t = useRef(new Animated.Value(overlay ? 1 : 0)).current;
-  const [shown, setShown] = useState(overlay);
-  useEffect(() => {
-    if (overlay) setShown(overlay);
-    Animated.timing(t, { toValue: overlay ? 1 : 0, duration: onboardingMotion.mockOverlay, easing: curve.outCubic, useNativeDriver: true }).start(({ finished }) => {
-      if (finished && !overlay) setShown(null);
-    });
-  }, [!!overlay]);
+  const { shown, appear: t } = usePresence(overlay || null, MOCK_OVERLAY_PRESENCE);
   return (
     <View style={{ alignItems: "center", justifyContent: "center" }}>
       <Animated.View style={{ width: MOCK_SIZE.width, height: MOCK_SIZE.height, opacity: t.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }}>
         <MockWindow settings={settings} accent={accent} focus={focus} switcher={switcher} />
       </Animated.View>
-      {overlay || shown ? (
+      {shown ? (
         <Animated.View
           pointerEvents="none"
           style={[
@@ -51,7 +47,7 @@ export function MockPanel({ settings, focus, overlay, switcher }: { settings: Pa
             { alignItems: "center", justifyContent: "center", opacity: t, transform: [{ scale: t.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) }] },
           ]}
         >
-          {overlay ?? shown}
+          {shown}
         </Animated.View>
       ) : null}
     </View>

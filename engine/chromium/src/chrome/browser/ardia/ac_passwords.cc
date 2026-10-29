@@ -1,6 +1,6 @@
 // Copyright 2026 Ardia. Apache-2.0.
 
-#include "chrome/browser/ardia/ac_passwords.h"
+#include "chrome/browser/ardia/ac_engine.h"
 
 #include <algorithm>
 #include <memory>
@@ -39,9 +39,7 @@ using extensions::PasswordsPrivateDelegate;
 namespace pp = extensions::api::passwords_private;
 using Entries = PasswordsPrivateDelegate::UiEntries;
 
-constexpr int kSettleChecks = 20;
 constexpr size_t kMaxSecretArgsBytes = 64 * 1024;
-constexpr base::TimeDelta kSettleStep = base::Milliseconds(50);
 constexpr base::TimeDelta kIdle = base::Seconds(60);
 
 std::string WithoutSlash(std::string realm) {
@@ -188,11 +186,12 @@ struct Session {
   Profile* profile() const { return state->profile(); }
 };
 
-std::optional<Session> Open(const Call& call) {
+std::optional<Session> Open(Call& call) {
   PasswordsState& state = StateFor<PasswordsState>(call.profile());
   Session session{state.GetWeakPtr(), nullptr, {}};
   PasswordsPrivateDelegate* delegate = state.Use(&session.busy);
   if (!delegate) {
+    call.TakeReply().Error("no password manager");
     return std::nullopt;
   }
   session.delegate = delegate->AsWeakPtr();
@@ -306,31 +305,11 @@ using ardia::Entries;
 using ardia::Reply;
 using ardia::Session;
 
-#define AC_PASSWORDS_OPEN_WITH(json)                         \
-  Call call(profile_dir, json, reply, context);              \
-  if (!call) {                                               \
-    return;                                                  \
-  }                                                          \
-  std::optional<Session> session = ardia::Open(call);        \
-  if (!session) {                                            \
-    return call.TakeReply().Error("no password manager");    \
+AC_PROFILE_CALL(ac_passwords_list) {
+  std::optional<Session> session = ardia::Open(call);
+  if (!session) {
+    return;
   }
-
-#define AC_PASSWORDS_OPEN() AC_PASSWORDS_OPEN_WITH(args_json)
-
-#define AC_PASSWORDS_SENSITIVE_ARGS(args)                                   \
-  ardia::SensitiveArgs args(args_json, ardia::kMaxSecretArgsBytes);         \
-  if (!args.dict()) {                                                       \
-    return call.TakeReply().Error(args.too_large()                          \
-                                      ? "arguments too large"               \
-                                      : "arguments are not a JSON object"); \
-  }                                                                         \
-  if (args.dict()->FindBool("offTheRecord").value_or(false)) {              \
-    return call.TakeReply().Error("not for a private session");             \
-  }
-
-AC_ENGINE_CALL(ac_passwords_list) {
-  AC_PASSWORDS_OPEN();
   ardia::WithList(
       std::move(*session), call.TakeReply(),
       base::BindOnce([](Session, Reply reply, const Entries& entries) {
@@ -347,8 +326,11 @@ AC_ENGINE_CALL(ac_passwords_list) {
       }));
 }
 
-AC_ENGINE_CALL(ac_passwords_unlock) {
-  AC_PASSWORDS_OPEN();
+AC_PROFILE_CALL(ac_passwords_unlock) {
+  std::optional<Session> session = ardia::Open(call);
+  if (!session) {
+    return;
+  }
   ardia::WithList(
       std::move(*session), call.TakeReply(),
       base::BindOnce([](Session session, Reply reply, const Entries& entries) {
@@ -367,8 +349,11 @@ AC_ENGINE_CALL(ac_passwords_unlock) {
       }));
 }
 
-AC_ENGINE_CALL(ac_passwords_reveal) {
-  AC_PASSWORDS_OPEN();
+AC_PROFILE_CALL(ac_passwords_reveal) {
+  std::optional<Session> session = ardia::Open(call);
+  if (!session) {
+    return;
+  }
   ardia::WithList(
       std::move(*session), call.TakeReply(),
       base::BindOnce(
@@ -403,11 +388,14 @@ AC_ENGINE_CALL(ac_passwords_reveal) {
           call.String("origin"), call.String("username")));
 }
 
-AC_ENGINE_CALL(ac_passwords_add) {
-  AC_PASSWORDS_OPEN_WITH(nullptr);
-  AC_PASSWORDS_SENSITIVE_ARGS(args);
-  const std::string origin = args.String("origin");
-  std::optional<ardia::Secret> secret = args.SecretAt("password");
+AC_PROFILE_CALL(ac_passwords_add,
+                ardia::Sensitive{ardia::kMaxSecretArgsBytes}) {
+  std::optional<Session> session = ardia::Open(call);
+  if (!session) {
+    return;
+  }
+  const std::string origin = call.String("origin");
+  std::optional<ardia::Secret> secret = call.SecretAt("password");
   if (!secret) {
     return call.TakeReply().Error("bad arguments");
   }
@@ -432,13 +420,16 @@ AC_ENGINE_CALL(ac_passwords_add) {
                           ardia::Saved(origin, username, std::move(password)),
                           ardia::kSettleChecks);
           },
-          origin, args.String("username"), std::move(password)));
+          origin, call.String("username"), std::move(password)));
 }
 
-AC_ENGINE_CALL(ac_passwords_update) {
-  AC_PASSWORDS_OPEN_WITH(nullptr);
-  AC_PASSWORDS_SENSITIVE_ARGS(args);
-  std::optional<ardia::Secret> new_password = args.SecretAt("newPassword");
+AC_PROFILE_CALL(ac_passwords_update,
+                ardia::Sensitive{ardia::kMaxSecretArgsBytes}) {
+  std::optional<Session> session = ardia::Open(call);
+  if (!session) {
+    return;
+  }
+  std::optional<ardia::Secret> new_password = call.SecretAt("newPassword");
   if (!new_password) {
     return call.TakeReply().Error("bad arguments");
   }
@@ -487,15 +478,18 @@ AC_ENGINE_CALL(ac_passwords_update) {
                     entry->id, origin, new_username.value_or(username),
                     std::move(new_password)));
           },
-          args.String("origin"), args.String("username"),
-          args.dict()->FindString("newUsername")
-              ? std::optional<std::string>(args.String("newUsername"))
+          call.String("origin"), call.String("username"),
+          call.args().FindString("newUsername")
+              ? std::optional<std::string>(call.String("newUsername"))
               : std::nullopt,
           std::move(*new_password)));
 }
 
-AC_ENGINE_CALL(ac_passwords_remove) {
-  AC_PASSWORDS_OPEN();
+AC_PROFILE_CALL(ac_passwords_remove) {
+  std::optional<Session> session = ardia::Open(call);
+  if (!session) {
+    return;
+  }
   ardia::WithList(
       std::move(*session), call.TakeReply(),
       base::BindOnce(
@@ -513,8 +507,11 @@ AC_ENGINE_CALL(ac_passwords_remove) {
           call.String("origin"), call.String("username")));
 }
 
-AC_ENGINE_CALL(ac_passwords_exceptions) {
-  AC_PASSWORDS_OPEN();
+AC_PROFILE_CALL(ac_passwords_exceptions) {
+  std::optional<Session> session = ardia::Open(call);
+  if (!session) {
+    return;
+  }
   base::WeakPtr<extensions::PasswordsPrivateDelegate> delegate =
       session->delegate;
   delegate->GetPasswordExceptionsList(base::BindOnce(
@@ -533,8 +530,11 @@ AC_ENGINE_CALL(ac_passwords_exceptions) {
       std::move(*session), call.TakeReply()));
 }
 
-AC_ENGINE_CALL(ac_passwords_allow) {
-  AC_PASSWORDS_OPEN();
+AC_PROFILE_CALL(ac_passwords_allow) {
+  std::optional<Session> session = ardia::Open(call);
+  if (!session) {
+    return;
+  }
   base::WeakPtr<extensions::PasswordsPrivateDelegate> delegate =
       session->delegate;
   delegate->GetPasswordExceptionsList(base::BindOnce(
@@ -557,8 +557,11 @@ AC_ENGINE_CALL(ac_passwords_allow) {
       call.String("origin"), std::move(*session), call.TakeReply()));
 }
 
-AC_ENGINE_CALL(ac_passwords_export) {
-  AC_PASSWORDS_OPEN();
+AC_PROFILE_CALL(ac_passwords_export) {
+  std::optional<Session> session = ardia::Open(call);
+  if (!session) {
+    return;
+  }
   const std::string path = call.String("path");
   if (path.empty() || path[0] != '/') {
     return call.TakeReply().Error("an absolute path required");

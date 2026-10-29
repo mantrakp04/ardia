@@ -1,6 +1,6 @@
 // Copyright 2026 Ardia. Apache-2.0.
 
-#include "chrome/browser/ardia/ac_extensions.h"
+#include "chrome/browser/ardia/ac_engine.h"
 
 #include <map>
 #include <set>
@@ -309,20 +309,12 @@ void LiftPolicyBlockIfAllowed(Profile* profile, const std::string& id) {
 using ardia::Call;
 using ardia::Reply;
 
-#define AC_EXTENSIONS_CALL()                         \
-  Call call(profile_dir, args_json, reply, context); \
-  if (!call) {                                       \
-    return;                                          \
-  }
-
-AC_ENGINE_CALL(ac_extensions_list) {
-  AC_EXTENSIONS_CALL();
+AC_PROFILE_CALL(ac_extensions_list) {
   ardia::StateFor<ardia::ExtensionsState>(call.profile())
       .List(call.TakeReply());
 }
 
-AC_ENGINE_CALL(ac_extensions_install) {
-  AC_EXTENSIONS_CALL();
+AC_PROFILE_CALL(ac_extensions_install) {
   const std::string path = call.String("path");
   if (path.empty() || path[0] != '/') {
     return call.TakeReply().Error("an absolute path required");
@@ -381,8 +373,7 @@ AC_ENGINE_CALL(ac_extensions_install) {
   installer->Load(load_path);
 }
 
-AC_ENGINE_CALL(ac_extensions_install_crx) {
-  AC_EXTENSIONS_CALL();
+AC_PROFILE_CALL(ac_extensions_install_crx) {
   const std::string path = call.String("path");
   if (path.empty() || path[0] != '/') {
     return call.TakeReply().Error("an absolute path required");
@@ -415,8 +406,7 @@ AC_ENGINE_CALL(ac_extensions_install_crx) {
   installer->InstallCrx(base::FilePath(path));
 }
 
-AC_ENGINE_CALL(ac_extensions_set_enabled) {
-  AC_EXTENSIONS_CALL();
+AC_PROFILE_CALL(ac_extensions_set_enabled) {
   Profile* profile = call.profile();
   const std::string id = call.String("id");
   const bool enable = call.Bool("enabled");
@@ -449,8 +439,7 @@ AC_ENGINE_CALL(ac_extensions_set_enabled) {
       extension, call.TakeReply());
 }
 
-AC_ENGINE_CALL(ac_extensions_uninstall) {
-  AC_EXTENSIONS_CALL();
+AC_PROFILE_CALL(ac_extensions_uninstall) {
   Profile* profile = call.profile();
   const std::string id = call.String("id");
   const extensions::Extension* extension = ardia::Find(profile, id);
@@ -472,8 +461,7 @@ AC_ENGINE_CALL(ac_extensions_uninstall) {
   call.TakeReply().Ok();
 }
 
-AC_ENGINE_CALL(ac_extensions_reload) {
-  AC_EXTENSIONS_CALL();
+AC_PROFILE_CALL(ac_extensions_reload) {
   const std::string id = call.String("id");
   if (!ardia::Find(call.profile(), id)) {
     return call.TakeReply().Error("No such extension");
@@ -483,8 +471,7 @@ AC_ENGINE_CALL(ac_extensions_reload) {
   call.TakeReply().Ok();
 }
 
-AC_ENGINE_CALL(ac_extensions_configure) {
-  AC_EXTENSIONS_CALL();
+AC_PROFILE_CALL(ac_extensions_configure) {
   Profile* profile = call.profile();
   const std::string id = call.String("id");
   if (!ardia::Find(profile, id)) {

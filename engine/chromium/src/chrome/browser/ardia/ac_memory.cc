@@ -8,7 +8,6 @@
 #include "base/time/time.h"
 #include "base/timer/elapsed_timer.h"
 #include "chrome/browser/ardia/ac_engine.h"
-#include "content/public/browser/browser_thread.h"
 #include "partition_alloc/buildflags.h"
 
 #if PA_BUILDFLAG(USE_PARTITION_ALLOC)
@@ -32,9 +31,8 @@ double ReclaimAllocatorMemory() {
 }
 }
 
-AC_ENGINE_CALL(ac_memory_trim) {
-  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  ardia::Reply out(reply, context);
+AC_ARGS_CALL(ac_memory_trim) {
+  ardia::Reply out = call.TakeReply();
   if (ardia::g_trim_pending.exchange(true)) {
     out.Send(base::DictValue().Set("ok", true).Set("coalesced", true));
     return;

@@ -73,7 +73,7 @@ try {
         const toolbars = wt.fibers("Toolbar").map((f) => ({ tabId: f.memoizedProps.tabId, bare: !!f.memoizedProps.bare, pane: wt.inPane(f) }));
         const auto = wt.fibers("AutoHideToolbar").map((f) => ({ tabId: f.memoizedProps.tabId, mode: f.memoizedProps.mode, pane: wt.inPane(f) }));
         const backdrops = [...wt.fibers("AutoHideBackdrop"), ...wt.fibers("ToolbarBackdrop")].map((f) => ({ tabId: f.memoizedProps.tabId, pane: wt.inPane(f) }));
-        const hosts = wt.fibers("UrlField").map((f) => f.memoizedProps.tab?.url);
+        const hosts = wt.fibers("ToolbarUrlField").map((f) => f.memoizedProps.tab?.url);
         const w = ac.store.getState().windows.w1;
         return { active: w.activeTabIds[w.profileId], toolbars, auto, backdrops, hosts };
       },
@@ -81,11 +81,12 @@ try {
     };
     return true;`);
   const S = "const S = () => ac.store.getState();";
-  const switchTo = (id) => ac(`${S} acPerf.reset(); S().activate(${JSON.stringify(id)}); return wt.frames(4).then(() => ({ ...wt.state(), mounted: acPerf.read().mounts.Toolbar ?? 0 }));`);
+  const switchTo = (id) => ac(`${S} acPerf.reset(); S().activate(${JSON.stringify(id)}); return wt.frames(4).then(() => ({ ...wt.state(), mounted: acPerf.read().mounts.Toolbar ?? 0, commits: acPerf.read().commits }));`);
 
   for (const mode of ["auto-hide", "always shown"]) {
     if (mode === "always shown") await ac(`${S} S().updateSettings({ hideToolbarWhileScrolling: false }); return wt.frames(4).then(() => true);`);
-    await switchTo("a");
+    const first = await switchTo("a");
+    check(`${mode}: the perf probe sees React commits, so the mount counts below mean something`, first.commits > 0 && first.toolbars.length > 0, `commits ${first.commits}, toolbars ${first.toolbars.length}`);
     for (const id of ["b", "c", "d", "a"]) {
       const st = await switchTo(id);
       const windowBars = st.toolbars.filter((t) => !t.pane);
@@ -99,7 +100,7 @@ try {
   await ac(`${S} S().updateSettings({ hideToolbarWhileScrolling: true }); return wt.frames(4).then(() => true);`);
 
   await switchTo("c");
-  const collapsed = await ac(`${S} ac.toolbarAutoHide.noteScroll("c", { state: "down" }); return wt.frames(4).then(() => wt.state());`);
+  const collapsed = await ac(`${S} ac.toolbarAutoHide.noteScroll("c", "down"); return wt.frames(4).then(() => wt.state());`);
   check("auto-hide: scrolling down collapses the window's bar for the shown tab", collapsed.auto.length === 1 && collapsed.auto[0].tabId === "c" && collapsed.auto[0].mode === "collapsed", JSON.stringify(collapsed.auto));
   const other = await switchTo("d");
   check("auto-hide: the next tab's bar is shown", other.auto[0]?.tabId === "d" && other.auto[0]?.mode === "shown", JSON.stringify(other.auto));

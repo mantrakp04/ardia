@@ -1,6 +1,8 @@
 #import "ArdiaWebViewInternal.h"
+#import "ArdiaRuntime.h"
 
 using namespace ardia_web_view;
+using namespace ardia_runtime;
 
 @implementation ArdiaWebView (PageCommands)
 
@@ -11,13 +13,18 @@ using namespace ardia_web_view;
 }
 
 - (void)emitZoom {
+  [self emitZoomByUser:NO];
+}
+
+- (void)emitZoomByUser:(BOOL)user {
   const double zoom = _tab ? _tab.zoomFactor : 1;
   [self emit:@"zoom"
       payload:@{
         @"zoom" : @(round(zoom * 100) / 100),
         @"host" : [NSURL URLWithString:_tab.url ?: @""].host.lowercaseString ?: @"",
         @"isDefault" : @(fabs(zoom - 1) < 0.001),
-        @"pinchScale" : @(_pinchScale ?: 1),
+        @"pinchScale" : @(_reports.pinchScale ?: 1),
+        @"user" : @(user),
       }];
 }
 
@@ -26,6 +33,7 @@ using namespace ardia_web_view;
 }
 
 - (void)tabDidChangeAudio:(ArdiaCoreTab *)tab {
+  if (_muted && !tab.muted) tab.muted = YES;
   [self emitMedia];
 }
 
@@ -43,7 +51,10 @@ using namespace ardia_web_view;
 }
 
 - (void)zoomStep:(NSInteger)direction {
+  if (!_tab) return;
+  const double before = _tab.zoomFactor;
   [_tab zoomStep:(int)direction];
+  if (fabs(_tab.zoomFactor - before) > 1e-6) [self emitZoomByUser:YES];
 }
 
 - (void)find:(NSString *)text forward:(BOOL)forward findNext:(BOOL)findNext {
@@ -132,8 +143,8 @@ using namespace ardia_web_view;
 
 - (void)mediaCommand:(NSString *)action seconds:(double)seconds {
   [self thawHiddenPage];
-  if ([action isEqualToString:@"play"] || [action isEqualToString:@"toggle"]) [_tab grantUserActivationToFrame:_nowPlayingFrame ?: @""];
-  [self callFrame:_nowPlayingFrame ?: @"" kind:@"media" json:JSONString(@{@"action" : action ?: @"", @"seconds" : @(seconds)})];
+  if ([action isEqualToString:@"play"] || [action isEqualToString:@"toggle"]) [_tab grantUserActivationToFrame:_reports.nowPlaying.frame ?: @""];
+  [self callFrame:_reports.nowPlaying.frame ?: @"" kind:@"media" json:JSONText(@{@"action" : action ?: @"", @"seconds" : @(seconds)})];
 }
 
 @end

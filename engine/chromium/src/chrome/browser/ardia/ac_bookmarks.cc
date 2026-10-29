@@ -2,18 +2,20 @@
 
 #include <algorithm>
 #include <cmath>
-#include <map>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <set>
 #include <string>
+#include <string_view>
 #include <utility>
+#include <vector>
 
 #include "base/files/file_path.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
-#include "base/no_destructor.h"
 #include "base/scoped_observation.h"
+#include "base/strings/strcat.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
@@ -104,26 +106,20 @@ bool IsAncestor(const BookmarkNode* node, const BookmarkNode* of) {
   return false;
 }
 
-class Watcher;
-std::map<Profile*, std::unique_ptr<Watcher>>& Watchers() {
-  static base::NoDestructor<std::map<Profile*, std::unique_ptr<Watcher>>>
-      watchers;
-  return *watchers;
-}
-
-class Watcher : public bookmarks::BookmarkModelObserver {
+class Watcher : public ProfileState, public bookmarks::BookmarkModelObserver {
  public:
-  Watcher(Profile* profile, BookmarkModel* model) : profile_(profile) {
-    observation_.Observe(model);
+  explicit Watcher(Profile* profile) : ProfileState(profile) {}
+
+  void Start(BookmarkModel* model) {
+    if (!observation_.IsObserving()) {
+      observation_.Observe(model);
+    }
   }
 
   void set_applying(bool applying) { applying_ = applying; }
 
   void BookmarkModelLoaded(bool) override { Changed(); }
-  void BookmarkModelBeingDeleted() override {
-    observation_.Reset();
-    Watchers().erase(profile_);
-  }
+  void BookmarkModelBeingDeleted() override { observation_.Reset(); }
   void BookmarkNodeMoved(const BookmarkNode*,
                          size_t,
                          const BookmarkNode*,
@@ -160,12 +156,13 @@ class Watcher : public bookmarks::BookmarkModelObserver {
         FROM_HERE, base::BindOnce(&Watcher::Send, weak_factory_.GetWeakPtr()));
   }
 
+  void Release() override { observation_.Reset(); }
+
   void Send() {
     pending_ = false;
-    Emit("bookmarks.changed", profile_, base::DictValue());
+    Emit("bookmarks.changed", profile(), base::DictValue());
   }
 
-  raw_ptr<Profile> profile_;
   bool applying_ = false;
   bool pending_ = false;
   base::ScopedObservation<BookmarkModel, bookmarks::BookmarkModelObserver>
@@ -245,20 +242,73 @@ void MoveTo(BookmarkModel* model,
 
 enum class Result { kApplied, kFailed, kInvalid };
 
-Result Apply(BookmarkModel* model, const base::DictValue& op);
+struct BookmarkOp {
+  enum class Kind { kAdd, kUpdate, kMove, kRemove };
 
-bool Applied(BookmarkModel* model, const base::DictValue& op) {
-  return Apply(model, op) == Result::kApplied;
+  Kind kind;
+  std::string id;
+  std::optional<std::string> title;
+  std::optional<std::string> url;
+  std::optional<std::string> parent;
+  std::optional<double> index;
+  bool folder = false;
+  bool if_absent = false;
+  double added = 0;
+  std::string key;
+};
+
+std::optional<BookmarkOp> ParseOp(const base::Value& value) {
+  using KindName = std::pair<std::string_view, BookmarkOp::Kind>;
+  static constexpr KindName kKinds[] = {
+      {"add", BookmarkOp::Kind::kAdd},
+      {"update", BookmarkOp::Kind::kUpdate},
+      {"move", BookmarkOp::Kind::kMove},
+      {"remove", BookmarkOp::Kind::kRemove},
+  };
+  const base::DictValue* dict = value.GetIfDict();
+  const std::string* kind = dict ? dict->FindString("op") : nullptr;
+  const std::string* id = dict ? dict->FindString("id") : nullptr;
+  if (!kind || !id) {
+    return std::nullopt;
+  }
+  const auto* known = std::ranges::find(kKinds, *kind, &KindName::first);
+  if (known == std::end(kKinds)) {
+    return std::nullopt;
+  }
+  auto string_at = [&](std::string_view key) -> std::optional<std::string> {
+    const std::string* found = dict->FindString(key);
+    return found ? std::optional<std::string>(*found) : std::nullopt;
+  };
+  BookmarkOp op{.kind = known->second, .id = *id};
+  op.title = string_at("t");
+  op.url = string_at("u");
+  op.parent = string_at("parent");
+  op.index = dict->FindDouble("index");
+  op.folder = string_at("k") == "f";
+  op.if_absent = dict->FindBool("ifAbsent").value_or(false);
+  op.added = dict->FindDouble("a").value_or(0);
+  op.key = string_at("key").value_or("");
+  return op;
 }
 
-Result Apply(BookmarkModel* model, const base::DictValue& op) {
-  const std::string* kind = op.FindString("op");
-  const std::string* id = op.FindString("id");
-  if (!kind || !id) {
-    return Result::kFailed;
+void Update(BookmarkModel* model,
+            const BookmarkNode* node,
+            const std::optional<std::string>& title,
+            const std::optional<std::string>& url) {
+  if (title) {
+    model->SetTitle(node, base::UTF8ToUTF16(*title),
+                    bookmarks::metrics::BookmarkEditSource::kOther);
   }
-  const BookmarkNode* node = Find(model, *id);
-  if (*kind == "remove") {
+  if (url && node->is_url() && GURL(*url).is_valid()) {
+    model->SetURL(node, GURL(*url),
+                  bookmarks::metrics::BookmarkEditSource::kOther);
+  }
+}
+
+Result Apply(BookmarkModel* model, const BookmarkOp& op) {
+  using Kind = BookmarkOp::Kind;
+  const BookmarkNode* node = Find(model, op.id);
+  if (op.kind == Kind::kRemove) {
     if (!node || model->is_permanent_node(node)) {
       return Result::kFailed;
     }
@@ -266,42 +316,27 @@ Result Apply(BookmarkModel* model, const base::DictValue& op) {
                   FROM_HERE);
     return Result::kApplied;
   }
-  if (*kind == "update") {
+  if (op.kind == Kind::kUpdate) {
     if (!node || model->is_permanent_node(node)) {
       return Result::kFailed;
     }
-    if (const std::string* title = op.FindString("t")) {
-      model->SetTitle(node, base::UTF8ToUTF16(*title),
-                      bookmarks::metrics::BookmarkEditSource::kOther);
-    }
-    const std::string* url = op.FindString("u");
-    if (url && node->is_url() && GURL(*url).is_valid()) {
-      model->SetURL(node, GURL(*url),
-                    bookmarks::metrics::BookmarkEditSource::kOther);
-    }
+    Update(model, node, op.title, op.url);
     return Result::kApplied;
   }
-  const std::string* parent_id = op.FindString("parent");
-  const BookmarkNode* parent = parent_id ? Find(model, *parent_id) : nullptr;
+  const BookmarkNode* parent = op.parent ? Find(model, *op.parent) : nullptr;
   if (!parent || !parent->is_folder()) {
     return Result::kFailed;
   }
-  const double index = op.FindDouble("index").value_or(
-      static_cast<double>(parent->children().size()));
-  if (*kind == "move") {
+  const double index =
+      op.index.value_or(static_cast<double>(parent->children().size()));
+  if (op.kind == Kind::kMove) {
     if (!node || model->is_permanent_node(node) || IsAncestor(node, parent)) {
       return Result::kFailed;
     }
     MoveTo(model, node, parent, index);
     return Result::kApplied;
   }
-  if (*kind != "add") {
-    return Result::kFailed;
-  }
-  const std::string* title = op.FindString("t");
-  const std::u16string title16 = title ? base::UTF8ToUTF16(*title) : u"";
-  const bool folder = op.FindString("k") && *op.FindString("k") == "f";
-  if (node && op.FindBool("ifAbsent").value_or(false)) {
+  if (node && op.if_absent) {
     return Result::kApplied;
   }
   if (node) {
@@ -309,34 +344,29 @@ Result Apply(BookmarkModel* model, const base::DictValue& op) {
       return Result::kFailed;
     }
     MoveTo(model, node, parent, index);
-    Applied(model, base::DictValue()
-                     .Set("op", "update")
-                     .Set("id", *id)
-                     .Set("t", title ? *title : "")
-                     .Set("u", op.FindString("u") ? *op.FindString("u") : ""));
+    Update(model, node, op.title.value_or(""), op.url.value_or(""));
     return Result::kApplied;
   }
-  base::Uuid uuid = base::Uuid::ParseLowercase(*id);
+  base::Uuid uuid = base::Uuid::ParseLowercase(op.id);
   if (!uuid.is_valid()) {
     return Result::kFailed;
   }
-  const double added = op.FindDouble("a").value_or(0);
   std::optional<base::Time> created;
-  if (added > 0) {
-    created = base::Time::FromMillisecondsSinceUnixEpoch(added);
+  if (op.added > 0) {
+    created = base::Time::FromMillisecondsSinceUnixEpoch(op.added);
   }
   const size_t at = Clamp(index, parent);
   BookmarkNode::MetaInfoMap meta;
-  if (const std::string* key = op.FindString("key"); key && !key->empty()) {
-    meta[kSyncKey] = *key;
+  if (!op.key.empty()) {
+    meta[kSyncKey] = op.key;
   }
-  if (folder) {
+  const std::u16string title16 = base::UTF8ToUTF16(op.title.value_or(""));
+  if (op.folder) {
     model->AddFolder(parent, at, title16, meta.empty() ? nullptr : &meta,
                      created, uuid);
     return Result::kApplied;
   }
-  const std::string* url = op.FindString("u");
-  GURL gurl(url ? *url : std::string());
+  GURL gurl(op.url.value_or(""));
   if (!gurl.is_valid()) {
     return Result::kInvalid;
   }
@@ -352,11 +382,7 @@ Result Apply(BookmarkModel* model, const base::DictValue& op) {
 using ardia::Call;
 using ardia::Reply;
 
-AC_ENGINE_CALL(ac_bookmarks_tree) {
-  Call call(profile_dir, args_json, reply, context);
-  if (!call) {
-    return;
-  }
+AC_PROFILE_CALL(ac_bookmarks_tree) {
   bookmarks::BookmarkModel* model = ardia::ModelFor(call.profile());
   if (!model) {
     return call.TakeReply().Error("no bookmarks");
@@ -381,44 +407,44 @@ AC_ENGINE_CALL(ac_bookmarks_tree) {
           call.profile()->GetWeakPtr(), call.TakeReply()));
 }
 
-AC_ENGINE_CALL(ac_bookmarks_apply) {
-  Call call(profile_dir, args_json, reply, context);
-  if (!call) {
-    return;
-  }
+AC_PROFILE_CALL(ac_bookmarks_apply) {
   bookmarks::BookmarkModel* model = ardia::ModelFor(call.profile());
   if (!model) {
     return call.TakeReply().Error("no bookmarks");
   }
-  const base::ListValue* ops = call.args().FindList("ops");
-  base::ListValue list = ops ? ops->Clone() : base::ListValue();
+  std::vector<ardia::BookmarkOp> ops;
+  if (const base::ListValue* list = call.args().FindList("ops")) {
+    for (const base::Value& value : *list) {
+      std::optional<ardia::BookmarkOp> op = ardia::ParseOp(value);
+      if (!op) {
+        return call.TakeReply().Error(
+            base::StrCat({"bad op at ", base::NumberToString(ops.size())}));
+      }
+      ops.push_back(std::move(*op));
+    }
+  }
   ardia::WhenLoaded::Run(
       model,
       base::BindOnce(
-          [](base::WeakPtr<Profile> profile, base::ListValue ops, Reply reply) {
+          [](base::WeakPtr<Profile> profile,
+             std::vector<ardia::BookmarkOp> ops, Reply reply) {
             auto* model = profile ? ardia::ModelFor(profile.get()) : nullptr;
             if (!model) {
               return reply.Error("profile went away");
             }
-            auto& watchers = ardia::Watchers();
-            auto it = watchers.find(profile.get());
-            ardia::Watcher* watcher =
-                it == watchers.end() ? nullptr : it->second.get();
-            if (watcher) {
-              watcher->set_applying(true);
-            }
+            ardia::Watcher& watcher =
+                ardia::StateFor<ardia::Watcher>(profile.get());
+            watcher.set_applying(true);
             int applied = 0, skipped = 0;
             base::ListValue invalid;
             {
               bookmarks::ScopedGroupBookmarkActions group(model);
-              for (const base::Value& op : ops) {
-                const auto result =
-                    op.is_dict() ? ardia::Apply(model, op.GetDict())
-                                 : ardia::Result::kFailed;
+              for (const ardia::BookmarkOp& op : ops) {
+                const ardia::Result result = ardia::Apply(model, op);
                 if (result == ardia::Result::kApplied) {
                   applied++;
                 } else if (result == ardia::Result::kInvalid) {
-                  invalid.Append(*op.GetDict().FindString("id"));
+                  invalid.Append(op.id);
                 } else {
                   break;
                 }
@@ -426,39 +452,25 @@ AC_ENGINE_CALL(ac_bookmarks_apply) {
               skipped = static_cast<int>(ops.size()) - applied -
                         static_cast<int>(invalid.size());
             }
-            if (watcher) {
-              watcher->set_applying(false);
-            }
+            watcher.set_applying(false);
             reply.Send(base::DictValue()
                            .Set("applied", applied)
                            .Set("skipped", skipped)
                            .Set("invalid", std::move(invalid)));
           },
-          call.profile()->GetWeakPtr(), std::move(list), call.TakeReply()));
+          call.profile()->GetWeakPtr(), std::move(ops), call.TakeReply()));
 }
 
-AC_ENGINE_CALL(ac_bookmarks_watch) {
-  Call call(profile_dir, args_json, reply, context);
-  if (!call) {
-    return;
-  }
+AC_PROFILE_CALL(ac_bookmarks_watch) {
   bookmarks::BookmarkModel* model = ardia::ModelFor(call.profile());
   if (!model) {
     return call.TakeReply().Error("no bookmarks");
   }
-  auto& watchers = ardia::Watchers();
-  if (!watchers.contains(call.profile())) {
-    watchers[call.profile()] =
-        std::make_unique<ardia::Watcher>(call.profile(), model);
-  }
+  ardia::StateFor<ardia::Watcher>(call.profile()).Start(model);
   call.TakeReply().Ok();
 }
 
-AC_ENGINE_CALL(ac_bookmarks_export_html) {
-  Call call(profile_dir, args_json, reply, context);
-  if (!call) {
-    return;
-  }
+AC_PROFILE_CALL(ac_bookmarks_export_html) {
   bookmarks::BookmarkModel* model = ardia::ModelFor(call.profile());
   if (!model) {
     return call.TakeReply().Error("no bookmarks");

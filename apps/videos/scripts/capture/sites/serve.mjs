@@ -4,7 +4,7 @@ import { dirname, extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = dirname(fileURLToPath(import.meta.url));
-const types = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".wav": "audio/wav", ".mp4": "video/mp4" };
+const types = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".wav": "audio/wav", ".mp4": "video/mp4", ".ico": "image/x-icon" };
 createServer((req, res) => {
   const host = (req.headers.host || "").split(":")[0];
   let path = normalize(decodeURIComponent(new URL(req.url, "http://x").pathname)).replace(/^(\.\.[/\\])+/, "");

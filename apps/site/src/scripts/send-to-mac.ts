@@ -1,13 +1,15 @@
-import { track } from "./track";
+import { capture } from "./telemetry";
+import { sentLink } from "../data/release";
+import { pagePath } from "../data/site";
 
-const LINK = "https://ardia.dev/?ref=share";
+const LINK = sentLink("share");
 const DATA: ShareData = { url: LINK, title: "Ardia", text: "Ardia: real Chromium for the Mac. Open this on your Mac." };
 
 const root = document.documentElement;
 const inapp = root.dataset.inapp ?? null;
 
 function report(location: string | null, method: "email" | "share" | "copy" | "panel", outcome?: string, via?: string) {
-  track("send_to_mac_clicked", {
+  capture("send_to_mac_clicked", {
     location,
     method,
     ...(outcome ? { outcome } : {}),
@@ -71,12 +73,11 @@ if (root.dataset.device === "phone") {
   const main = document.querySelector<HTMLElement>('[data-send-panel="main"]') ?? panels[0];
 
   for (const link of document.querySelectorAll<HTMLAnchorElement>("[data-download]")) {
-    delete link.dataset.track;
     link.addEventListener("click", (e) => {
       e.preventDefault();
       report(link.dataset.trackLocation ?? null, "panel");
       if (!main) {
-        location.href = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/#send`;
+        location.href = `${pagePath("home")}#send`;
         return;
       }
       main.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center" });

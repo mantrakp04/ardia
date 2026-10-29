@@ -9,12 +9,13 @@ import { SiteLogo } from "./SiteLogo";
 import { CONTENT_WIDTH, ChoiceList, useMockFocus, type ChoiceOption } from "./ChoiceList";
 import { Page } from "./LayoutSteps";
 import { MockPanel, useScreen } from "./Screen";
-import { questionsFor, setOnboardingDraft, setOnboardingExtras, useOnboarding } from "../../state/onboarding/onboarding";
+import { setOnboardingDraft, setOnboardingExtras, useOnboarding } from "../../state/onboarding/onboarding";
+import { keysOf, useQuestions } from "../../state/onboarding/questions";
 import { CheckRow, SelectTile, useOnboardingColors } from "./Parts";
 import { useSiteRing } from "./GlassBacking";
 import { MONO, onboardingType, receiptStamp } from "./tokens";
 
-const KEYS = ["searchEngine", "commandBarPreference"] as const;
+const KEYS = keysOf("searchPrivacy");
 const ENGINES = ["google", "duckduckgo", "bing", "kagi", "ecosia", "brave", "startpage"];
 
 const TYPED_CHOICES: ChoiceOption<Settings["commandBarPreference"]>[] = [
@@ -24,7 +25,7 @@ const TYPED_CHOICES: ChoiceOption<Settings["commandBarPreference"]>[] = [
 
 export function SearchPrivacyStep() {
   const sub = useOnboarding((s) => s.sub);
-  const id = questionsFor("searchPrivacy")[sub]?.id;
+  const id = useQuestions("searchPrivacy")[sub]?.id;
   const focus = useMockFocus(id);
   const { values, mock } = useScreen(KEYS);
   const setDraft = setOnboardingDraft;

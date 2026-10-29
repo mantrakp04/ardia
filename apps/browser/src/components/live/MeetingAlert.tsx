@@ -7,7 +7,7 @@ import { useWindow } from "../../state/browser/hooks";
 import { useCalendarTabIn } from "../../state/live/hooks";
 import { activate } from "../../state/tabs/actions";
 import { useIsFocusedWindow } from "../../state/windows/hooks";
-import { Box, Button, hairline, hex, radius, space, Surface, Text, useTheme, weight } from "../ui";
+import { Box, Button, Panel, radius, space, Text, useTheme, weight } from "../ui";
 import { measureRow, type Anchor } from "../../state/sidebar/sidebarUi";
 import { OverlappingAvatars } from "./CalendarPreview";
 import { liveMotion, liveShadow, useLiveColors } from "./tokens";
@@ -64,17 +64,7 @@ function AlertCard({ event, windowId, windowWidth }: { event: CalendarEvent; win
         transform: [{ translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [-10, 0] }) }, { scale: appear.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) }],
       }}
     >
-      <Surface
-        fill={hex(theme.panel)}
-        cornerRadius={radius.sheet}
-        borderColor={hex(theme.panelBorder)}
-        borderWidth={hairline.panel}
-        shadowColor={liveShadow.alert.color}
-        shadowOpacity={theme.panelShadowOpacity}
-        shadowRadius={liveShadow.alert.radius}
-        shadowOffset={liveShadow.alert.offset}
-        style={CARD}
-      >
+      <Panel glass="panel" fill={theme.panel} radius={radius.sheet} border={theme.panelBorder} shadow={liveShadow.alert} style={CARD}>
         <Box row gap="s" style={CENTER}>
           <View style={[DOT, { backgroundColor: event.color }]} />
           <Text lines={1} size="footnote" weight="medium" style={{ flex: 1, color: running ? colors.now : theme.textSecondary }}>
@@ -121,7 +111,7 @@ function AlertCard({ event, windowId, windowWidth }: { event: CalendarEvent; win
             </View>
           ) : null}
         </Box>
-      </Surface>
+      </Panel>
     </Animated.View>
   );
 }

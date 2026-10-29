@@ -12,11 +12,11 @@ const stub = await import("../../test-native/index.ts");
 const S = () => useBrowser.getState();
 startTabReveal();
 const tab = (id, windowId, url, profileId = "default") => ({
-  id, windowId, profileId, url, title: "", favicon: null, pinned: false, muted: false, zoom: 1, customTitle: null, customIcon: null,
-  pinnedUrl: null, navigation: url ? { url, seq: 1 } : null, openerId: null, createdAt: 0, lastActiveAt: 0,
+  id, windowId, profileId, url, title: "", favicon: null, pin: null, muted: false, zoom: 1, customTitle: null, customIcon: null,
+  pinnedUrl: null, page: url ? { kind: "loaded", nav: { url, seq: 1 } } : { kind: "idle" }, openerId: null, createdAt: 0, lastActiveAt: 0,
 });
 const win = (id, tabIds, active, extra = {}) => ({
-  id, profileId: "default", incognito: false, tabIds, activeTabIds: { default: active }, sidebarOpen: true, frame: null, createdAt: 0, ...extra,
+  id, profileId: "default", kind: "main", tabIds, activeTabIds: { default: active }, sidebarOpen: true, frame: null, createdAt: 0, ...extra,
 });
 const PROFILES = {
   default: { id: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 },
@@ -26,7 +26,7 @@ const setup = (tabs = ["a", "b", "c"], active = "a", more = {}) => {
   const windows = { w1: win("w1", tabs, active), ...(more.windows ?? {}) };
   const all = [...tabs.map((id) => tab(id, "w1", `https://${id}.com/`)), ...(more.tabs ?? [])];
   S().hydrate({ profiles: PROFILES, windows, tabs: Object.fromEntries(all.map((t) => [t.id, t])), focusedWindowId: "w1" });
-  for (const t of all) S().updateTab(t.id, { navigation: { url: t.url, seq: 1 } });
+  for (const t of all) S().updateTab(t.id, { page: { kind: "loaded", nav: { url: t.url, seq: 1 } } });
   stub.revealedTabs.length = 0;
 };
 const revealed = () => {
@@ -65,12 +65,12 @@ test("a switch Chrome made (DevTools, an extension) is shown once the store foll
 
 test("a switch the native view can't show by itself ends any reveal in that window instead", () => {
   setup(["a", "b", "c", "d", "e", "f"], "a");
-  S().updateTab("b", { navigation: null, unloaded: true });
+  S().updateTab("b", { page: { kind: "asleep" } });
   S().activate("b");
   assert.deepEqual(revealed(), ["drop over a"], "a sleeping tab wakes through React");
   S().activate("a");
   assert.deepEqual(revealed(), ["a"]);
-  S().updateTab("c", { url: "", navigation: null });
+  S().updateTab("c", { url: "", page: { kind: "idle" } });
   S().activate("c");
   assert.deepEqual(revealed(), ["drop over a"], "a New Tab page");
   S().activate("a");

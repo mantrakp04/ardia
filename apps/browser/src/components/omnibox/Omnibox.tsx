@@ -1,6 +1,7 @@
 import { displayUrl, asksForBackspace, keywordBySpace, resolveInput, searchUrl, scopedSearchUrl, type Suggestion } from "@ardia/core";
 import { Symbol, useTheme } from "../ui";
-import { copyText, pickFiles, showMenu } from "../../state/app/system";
+import { copyText, pickFiles } from "../../state/app/system";
+import { chooseFromMenu } from "../../state/app/menuChoice";
 import { startDictation } from "../../state/omnibox/textInput";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { findNodeHandle, type TextInput, type View } from "react-native";
@@ -57,7 +58,7 @@ export function Omnibox({
 }) {
   const theme = useTheme();
   const windowId = useWindowId();
-  const incognito = useWindow(windowId, (w) => !!w?.incognito);
+  const incognito = useWindow(windowId, (w) => w?.kind === "private");
   const profileId = useWindowProfileId();
   const engine = useSettings((st) => defaultSearchEngine(st));
   const currentUrl = useTab(tabId, (t) => (opensTab ? "" : (t?.url ?? "")));
@@ -66,8 +67,7 @@ export function Omnibox({
 
   const noneSelected = opensTab ? -1 : 0;
   const bar = useBarText(hero, tabId, initialText, noneSelected);
-  const { typed, setTyped, edited, setEdited, suppressCompletion, setSuppressCompletion, selected, setSelected, scope, setScope, scopeFrom } = bar;
-  const { pendingSelection, setPendingSelection, selection, selectionBefore, selectionAt, noteSelection, enterScope } = bar;
+  const { typed, edited, suppressCompletion, selected, scope, scopeFrom, pendingSelection, dispatch, selection } = bar;
   const input = useRef<TextInput>(null);
   const [bangEnter] = useState(createBangSubmitter);
   useEffect(() => () => bangEnter.cancel(), [bangEnter]);
@@ -90,7 +90,7 @@ export function Omnibox({
   });
 
   const snapshot = useRef<BarSnapshot | null>(null);
-  snapshot.current = { typed, edited, selection: selection.current, selected, scope, scopeFrom: scopeFrom.current };
+  snapshot.current = { typed, edited, selection: selection.current, selected, scope, scopeFrom };
   const fieldText = useRef(value);
   fieldText.current = value;
   const editing = useRef(false);
@@ -106,7 +106,7 @@ export function Omnibox({
     if (!hero) return;
     const focus = () => {
       focusField();
-      setPendingSelection({ start: 0, end: fieldText.current.length });
+      dispatch({ kind: "select", selection: { start: 0, end: fieldText.current.length } });
     };
     const unregister = registerHeroBar(windowId, tabId, focus);
     return () => {
@@ -118,19 +118,15 @@ export function Omnibox({
   useLayoutEffect(() => {
     if (!pendingSelection) return;
     input.current?.setSelection(pendingSelection.start, pendingSelection.end);
-    noteSelection(pendingSelection);
-    setPendingSelection(null);
+    selection.note(pendingSelection);
+    dispatch({ kind: "selectionApplied" });
     if (editing.current) claimFocusTag(windowId, hero ? heroBarFocus(tabId) : commandBarFocus, () => findNodeHandle(input.current));
   }, [pendingSelection]);
 
   const reset = () => {
     bangEnter.cancel();
-    setTyped("");
-    setEdited(false);
-    setScope(null);
-    setSelected(noneSelected);
-    setSuppressCompletion(true);
-    selection.current = { start: 0, end: 0 };
+    dispatch({ kind: "reset", selected: noneSelected });
+    selection.collapse();
   };
 
   const dismiss = () => {
@@ -178,9 +174,7 @@ export function Omnibox({
       case "calc":
         if (disposition !== "current") return go(s.url, disposition);
         copyText(s.value);
-        setTyped(s.value);
-        setSuppressCompletion(true);
-        setPendingSelection({ start: 0, end: s.value.length });
+        dispatch({ kind: "calculated", text: s.value });
         return;
       case "action":
         dismiss();
@@ -203,14 +197,8 @@ export function Omnibox({
   const onContextMenu = async () => {
     const pick = await showFieldMenu(value, selection);
     if (pick?.kind === "go") return go(pick.url);
-    if (pick?.kind === "edit") {
-      setTyped(pick.text);
-      setEdited(true);
-      setSuppressCompletion(true);
-      setSelected(0);
-      setPendingSelection({ start: pick.caret, end: pick.caret });
-    }
-    if (pick?.kind === "selectAll") setPendingSelection({ start: 0, end: value.length });
+    if (pick?.kind === "edit") dispatch({ kind: "edited", text: pick.text, caret: pick.caret });
+    if (pick?.kind === "selectAll") dispatch({ kind: "select", selection: { start: 0, end: value.length } });
     focusField();
   };
 
@@ -231,10 +219,9 @@ export function Omnibox({
 
   const onChangeText = (next: string) => {
     if (__DEV__) heardAt.current = Date.now();
-    const fresh = Date.now() - selectionAt.current < 100;
-    const change = inline.read(next, { before: fresh ? selectionBefore.current : selection.current, after: selection.current });
+    const change = inline.read(next, { before: selection.beforeEdit(), after: selection.current });
     if (change.echo) {
-      if (!change.stale) noteSelection({ start: change.inline.typed.length, end: next.length });
+      if (!change.stale) selection.note({ start: change.inline.typed.length, end: next.length });
       return;
     }
     bangEnter.cancel();
@@ -243,24 +230,21 @@ export function Omnibox({
     journeyKeystroke(tabId);
     const bySpace = scope ? null : keywordBySpace(typed, next);
     const keyword = bySpace ? keywordScope(bySpace.keyword, windowId) : null;
-    if (bySpace && keyword) return enterScope(keyword, bySpace.from);
-    setEdited(true);
-    setTyped(change.typed);
-    setSuppressCompletion(change.suppress);
-    setSelected(opensTab && !change.typed.trim() ? -1 : 0);
+    if (bySpace && keyword) return dispatch({ kind: "enteredScope", scope: keyword, from: bySpace.from });
+    dispatch({ kind: "typed", text: change.typed, suppress: change.suppress, selected: opensTab && !change.typed.trim() ? -1 : 0 });
   };
 
   useOmniboxDriver(`${windowId}:${variant}`, {
     type: (text) => {
-      noteSelection({ start: text.length, end: text.length });
+      selection.note({ start: text.length, end: text.length });
       onChangeText(text);
     },
     clear: reset,
     key: (key, mods) => onKeyDown({ nativeEvent: { key, ...mods } }),
-    select: (start, end) => noteSelection({ start, end }),
+    select: (start, end) => selection.note({ start, end }),
     submit: () => choose(current, "current", true),
     measure: () => new Promise((resolve) => root.current?.measureInWindow((x, y, width, height) => resolve({ x, y, width, height }))),
-    state: () => ({ typed, value, selection: selection.current, completion: shownCompletion, suggested: completion, preventInline: suppressCompletion, selectionBefore: selectionBefore.current, selected: selectedIndex, scope, scopeFrom: scopeFrom.current, tabScope, items }),
+    state: () => ({ typed, value, selection: selection.current, completion: shownCompletion, suggested: completion, preventInline: suppressCompletion, selectionBefore: selection.before, selected: selectedIndex, scope, scopeFrom, tabScope, items }),
   });
 
   const leadingIcon =
@@ -292,12 +276,8 @@ export function Omnibox({
       value={value}
       focusEcho={focusEcho}
       onSelection={(next) => {
-        noteSelection(next);
-        if (inline.accepts(next)) {
-          setTyped(value);
-          setSuppressCompletion(true);
-          setSelected(0);
-        }
+        selection.note(next);
+        if (inline.accepts(next)) dispatch({ kind: "caretAccepted", text: value });
       }}
       onChangeText={onChangeText}
       onSubmitEditing={() => choose(current, "current", true)}
@@ -383,12 +363,12 @@ export function Omnibox({
 
 async function openTabOrFile(windowId: string, tabId: string, onGo: (url: string) => void) {
   const others = otherOpenTabs(windowId, ADD_CHIP.otherTabs);
-  const choice = await showMenu([
-    ...others.map((t) => ({ id: `tab:${t.id}`, title: t.title || displayUrl(t.url) })),
+  const choice = await chooseFromMenu<{ tab: string }, "files">([
+    ...others.map((t) => ({ value: { tab: t.id }, title: t.title || displayUrl(t.url) })),
     ...(others.length ? [{ separator: true as const }] : []),
     { id: "files", title: "Open File…", symbol: "doc" },
   ]);
-  if (choice?.startsWith("tab:")) switchFromBar(choice.slice(4), "", tabId, "current");
+  if (choice && typeof choice === "object") switchFromBar(choice.tab, "", tabId, "current");
   if (choice === "files") {
     const [file] = await pickFiles();
     if (file) onGo(file);

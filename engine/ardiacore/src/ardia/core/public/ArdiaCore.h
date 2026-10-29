@@ -11,7 +11,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 @protocol ArdiaCoreEngineDelegate <NSObject>
 - (void)engineDidStart;
-@optional
 - (void)engineWillShutDown;
 - (void)engineQuitCancelled;
 - (nullable ArdiaCoreWindow*)engineWindowForNewBrowserOfProfile:(ArdiaCoreProfile*)profile
@@ -35,6 +34,7 @@ NS_ASSUME_NONNULL_BEGIN
                   modifiers:(NSEventModifierFlags)modifiers;
 - (void)engine:(ArdiaCoreEngine*)engine
     extensionInstallPrompt:(NSDictionary<NSString*, id>*)prompt
+                   profile:(ArdiaCoreProfile*)profile
                        tab:(nullable ArdiaCoreTab*)tab;
 - (void)engine:(ArdiaCoreEngine*)engine
     extensionInstallFailed:(NSString*)message
@@ -75,7 +75,6 @@ ARDIACORE_EXPORT
 + (void)setVideoUpscalingTestConditions:(NSDictionary<NSString*, NSNumber*>*)conditions;
 @property(class, readonly) NSDictionary<NSString*, id>* videoUpscalingState;
 + (void)reservedShortcutsChanged;
-+ (BOOL)isReservedGlobalShortcut:(NSString*)shortcut;
 + (void)selectDevice:(int)chooserId index:(int)index;
 + (void)cancelDeviceChooser:(int)chooserId;
 + (void)refreshDeviceChooser:(int)chooserId;
@@ -118,9 +117,9 @@ ARDIACORE_EXPORT
 - (void)releaseNavigationHold:(NSString*)reason;
 - (void)releaseNavigationHoldReady;
 - (void)watchCastRoutes;
-@property(readonly) NSArray<NSDictionary<NSString*, id>*>* extensions;
-- (nullable NSNumber*)boolPreference:(NSString*)name;
-- (void)setBoolPreference:(NSString*)name value:(BOOL)value;
+@property BOOL passwordsOffered;
+@property BOOL addressesAutofilled;
+@property BOOL cardsAutofilled;
 - (void)clearBrowsingData:(NSArray<NSString*>*)types
                     since:(nullable NSDate*)since
                completion:(nullable void (^)(void))completion;
@@ -168,6 +167,9 @@ ARDIACORE_EXPORT
 
 ARDIACORE_EXPORT
 @interface ArdiaCoreWindow : NSObject
++ (nullable NSView*)embeddedRootOfWindow:(NSWindow*)window;
++ (Class)contentViewClass;
++ (BOOL)isChromeFramelessWindow:(NSWindow*)window;
 - (instancetype)initWithContentRect:(NSRect)rect;
 @property(readonly) NSWindow* window;
 @property(readonly) NSView* hostView;
@@ -346,7 +348,6 @@ ARDIACORE_EXPORT
 @property(readonly, nullable) NSString* mediaCaptureSourceId;
 - (void)copyPicture:(NSTimeInterval)timeout completion:(void (^)(CGImageRef _Nullable picture))completion;
 - (BOOL)stopCapture;
-@property(readonly) BOOL autoPictureInPictureIsChromes;
 - (void)noteShownByHost:(BOOL)shown;
 - (void)exitFullscreen;
 - (void)exitExclusiveAccess;
@@ -364,6 +365,27 @@ ARDIACORE_EXPORT
 - (NSString*)executeExtensionAction:(NSString*)extensionId;
 - (NSDictionary<NSString*, NSDictionary*>*)actionStatesForExtensions:(NSArray<NSString*>*)extensionIds;
 - (nullable NSString*)sidePanelURLForExtension:(NSString*)extensionId;
+@end
+
+typedef NS_ENUM(NSInteger, ArdiaCorePageScrollAck) {
+  ArdiaCorePageScrollAckBegin,
+  ArdiaCorePageScrollAckUpdate,
+};
+
+@protocol ArdiaCorePageScrollObserver <NSObject>
+- (void)pageView:(NSView*)view
+     ackedScroll:(ArdiaCorePageScrollAck)ack
+        consumed:(BOOL)consumed;
+- (void)pageView:(NSView*)view overscrolledAllowingHorizontal:(BOOL)allowed;
+@end
+
+ARDIACORE_EXPORT
+@interface ArdiaCorePageView : NSObject
++ (BOOL)isPageView:(NSView*)view;
++ (void)setScrollObserver:(nullable id<ArdiaCorePageScrollObserver>)observer;
++ (BOOL)takeSwipes:(NSView*)view;
++ (BOOL)takesSwipes:(NSView*)view;
++ (BOOL)isEditingText:(NSView*)view;
 @end
 
 NS_ASSUME_NONNULL_END

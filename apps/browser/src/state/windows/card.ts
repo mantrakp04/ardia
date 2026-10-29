@@ -1,17 +1,18 @@
 import { useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useBrowser } from "../browser/store";
-import { activeTabId, wake } from "../browser/model";
+import { activeTabId } from "../browser/model";
 import type { SplitView, Tab } from "../browser/types";
 import { tabEngine } from "../engines/engines";
 import { holderOf } from "../pins/pinShare";
 import { splitOf } from "../splits/splits";
-import { needsPage } from "../tabs/pageSession";
+import { adoptOf, frozenOn, needsPage, wokenPage } from "../tabs/pageSession";
 import { pageOf, patchPage } from "../tabs/pageState";
 import { wantsPage } from "../tabs/tabPages";
 import { removeTabs } from "../tabs/tabs";
 import { isSmallWindow } from "./small";
 import type { PagerPage } from "./profilePager";
+import { isWebPageUrl } from "../../lib/url";
 
 export const useSplitOf = (tabId: string | undefined) => useBrowser((s) => splitOf(s, tabId));
 
@@ -60,7 +61,7 @@ export function wakePanes(ids: string[]) {
     const t = s.tabs[id];
     if (!t || !needsPage(t)) continue;
     const holder = holderOf(s, id);
-    s.updateTab(id, holder ? { pageIn: holder.id, unloaded: undefined } : wake(t));
+    s.updateTab(id, { page: holder ? frozenOn(t, holder.id) : wokenPage(t) });
   }
 }
 
@@ -127,20 +128,19 @@ export function downloadNavigated(tabId: string, committedUrl: string | null | u
     return;
   }
   const others = s.windows[t.windowId]?.tabIds.some((id) => id !== tabId && s.tabs[id]?.profileId === t.profileId);
-  const opened = !!(t.openerId || t.adoptId) && !pageOf(tabId).wasNewTab;
+  const opened = !!(t.openerId || adoptOf(t)) && !pageOf(tabId).wasNewTab;
   if (!skipped && opened && !s.live[tabId]?.canGoBack && others) return useBrowser.getState().closeTab(tabId);
   patchPage(tabId, { backToNewTab: false, newTabShown: null });
   useBrowser.getState().updateTab(tabId, { url: "", title: "", favicon: null });
 }
 
-const WEB_PAGE = /^(https?|file):/i;
 
 export function newTabLingeringOver(windowId: string, from: string | undefined, to: string | undefined, mounted: string[]): string | undefined {
   if (!from || !to || from === to || !mounted.includes(to)) return undefined;
   const s = useBrowser.getState();
   const was = s.tabs[from];
   const next = s.tabs[to];
-  if (!was || !next || was.url || was.windowId !== windowId || next.windowId !== windowId || !WEB_PAGE.test(next.url)) return undefined;
+  if (!was || !next || was.url || was.windowId !== windowId || next.windowId !== windowId || !isWebPageUrl(next.url)) return undefined;
   if (isSmallWindow(s.windows[windowId]) || splitOf(s, from) || splitOf(s, to)) return undefined;
   return from;
 }

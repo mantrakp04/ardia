@@ -1,4 +1,5 @@
 import AppKit
+import ArdiaCore
 import CoreImage
 import ExpoModulesCore
 
@@ -33,8 +34,7 @@ struct IconSource: Equatable {
     guard let uri else { return nil }
     let image: NSImage?
     if uri.hasPrefix("data:") {
-      let base64 = uri.split(separator: ",", maxSplits: 1).last.map(String.init) ?? ""
-      image = Data(base64Encoded: base64).flatMap(NSImage.init(data:))
+      image = NSImage(dataURL: uri)
     } else if let url = URL(string: uri), url.isFileURL {
       image = NSImage(contentsOfFile: url.path)
     } else {

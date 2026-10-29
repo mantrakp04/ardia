@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { defineCollection } from "astro:content";
 import { glob } from "astro/loaders";
 import { z } from "astro/zod";
@@ -11,8 +12,11 @@ const releaseNotes = defineCollection({
   schema: z.object({
     date: z.coerce.date(),
     headline: z.string().min(1),
-    channel: z.enum(["stable", "nightly"]).default("stable"),
-    video: z.string().regex(/^[a-z0-9-]+$/).optional(),
+    video: z
+      .string()
+      .regex(/^[a-z0-9-]+$/)
+      .refine((film) => existsSync(`public/release-videos/${film}.mp4`), "names a film that isn't in apps/site/public/release-videos")
+      .optional(),
   }),
 });
 

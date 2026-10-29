@@ -1,20 +1,16 @@
 #import "ArdiaWebViewInternal.h"
+#import "ArdiaRuntime.h"
 
 #import <QuartzCore/QuartzCore.h>
 
 using namespace ardia_web_view;
+using namespace ardia_runtime;
 
 namespace {
 
 constexpr CFTimeInterval kStandInTeardownDelay = 0.1;
 constexpr CFTimeInterval kTakeOverLendSeconds = 1;
 
-void WithoutActions(void (^block)(void)) {
-  [CATransaction begin];
-  [CATransaction setDisableActions:YES];
-  block();
-  [CATransaction commit];
-}
 }
 
 @implementation ArdiaWebView (StandIn)
@@ -27,21 +23,21 @@ void WithoutActions(void (^block)(void)) {
   ArdiaWebView *holder = nil;
   const CFTimeInterval now = CACurrentMediaTime();
   for (ArdiaWebView *other in LiveViews().allObjects)
-    if (other->_tookOverFrom == self && now - other->_tookOverAt < kTakeOverLendSeconds && (other->_visible || other->_revealed))
+    if (other->_frameHold.tookOverFrom == self && now - other->_frameHold.tookOverAt < kTakeOverLendSeconds && (other->_visible || other->_reveal.active))
       holder = other;
   if (!holder) return;
   NSView *holderPage = holder->_tab.view;
-  if (holder->_standInPage || !holder.window || holder.window != self.window || holderPage.superview != holder) return;
-  const BOOL covers = holder->_awaitingFrame;
+  if (holder->_standIn.page || !holder.window || holder.window != self.window || holderPage.superview != holder) return;
+  const BOOL covers = holder->_frameHold.awaiting;
   if (TraceVisibility()) NSLog(@"[ardiacore-vis] %@ lends its page to %@ until it draws", _transferKey, holder->_transferKey);
   NSWindow *window = self.window;
   NSResponder *responder = window.firstResponder;
   if ([responder isKindOfClass:NSView.class] && [(NSView *)responder isDescendantOf:page]) [window makeFirstResponder:nil];
-  _lentTo = holder;
-  holder->_standInPage = page;
-  holder->_standInTab = _tab;
-  holder->_standInLender = self;
-  holder->_standInCloses = NO;
+  _standIn.lentTo = holder;
+  holder->_standIn.page = page;
+  holder->_standIn.tab = _tab;
+  holder->_standIn.lender = self;
+  holder->_standIn.closes = NO;
   WithoutActions(^{
     page.frame = holder.bounds;
     if (covers) [holder addSubview:page positioned:NSWindowAbove relativeTo:nil];
@@ -52,16 +48,16 @@ void WithoutActions(void (^block)(void)) {
   __weak ArdiaWebView *weakHolder = holder;
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kStandInTeardownDelay * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
     ArdiaWebView *view = weakHolder;
-    if (view && view->_standInPage == page && !view->_awaitingFrame) [view dropStandIn];
+    if (view && view->_standIn.page == page && !view->_frameHold.awaiting) [view dropStandIn];
   });
 }
 
 - (void)reclaimLentPage {
   NSView *page = _tab.view;
-  ArdiaWebView *holder = _lentTo;
+  ArdiaWebView *holder = _standIn.lentTo;
   if (!page || !self.window || (!holder && page.superview)) return;
-  _lentTo = nil;
-  if (holder && holder->_standInPage == page) [holder cancelStandIn];
+  _standIn.lentTo = nil;
+  if (holder && holder->_standIn.page == page) [holder cancelStandIn];
   if (page.superview == self) return;
   if (page.window != self.window) [page removeFromSuperview];
   WithoutActions(^{
@@ -72,20 +68,20 @@ void WithoutActions(void (^block)(void)) {
 }
 
 - (void)clearStandIn {
-  ArdiaWebView *lender = _standInLender;
-  if (lender && lender->_lentTo == self) lender->_lentTo = nil;
-  _standInPage = nil;
-  _standInTab = nil;
-  _standInLender = nil;
-  _standInCloses = NO;
-  _standInLeaving = NO;
-  _standInGeneration++;
+  ArdiaWebView *lender = _standIn.lender;
+  if (lender && lender->_standIn.lentTo == self) lender->_standIn.lentTo = nil;
+  _standIn.page = nil;
+  _standIn.tab = nil;
+  _standIn.lender = nil;
+  _standIn.closes = NO;
+  _standIn.leaving = NO;
+  _standIn.generation++;
 }
 
 - (void)cancelStandIn {
-  NSView *page = _standInPage;
-  const BOOL leaving = _standInLeaving;
-  const float opacity = _standInOpacity;
+  NSView *page = _standIn.page;
+  const BOOL leaving = _standIn.leaving;
+  const float opacity = _standIn.opacity;
   [self clearStandIn];
   WithoutActions(^{
     if (leaving && page.layer.opacity == 0) page.layer.opacity = opacity;
@@ -94,35 +90,35 @@ void WithoutActions(void (^block)(void)) {
 }
 
 - (BOOL)closesLentTab:(ArdiaCoreTab *)tab {
-  if (!tab || _standInTab != tab || _standInPage.superview != self) return NO;
-  _standInCloses = YES;
+  if (!tab || _standIn.tab != tab || _standIn.page.superview != self) return NO;
+  _standIn.closes = YES;
   return YES;
 }
 
 - (void)dropStandIn {
-  if ((!_standInTab && !_standInPage) || _standInLeaving) return;
-  NSView *page = _standInPage;
+  if ((!_standIn.tab && !_standIn.page) || _standIn.leaving) return;
+  NSView *page = _standIn.page;
   if (page.superview != self) return [self finishStandIn];
-  _standInLeaving = YES;
-  _standInOpacity = page.layer.opacity;
+  _standIn.leaving = YES;
+  _standIn.opacity = page.layer.opacity;
   WithoutActions(^{
     page.layer.opacity = 0;
   });
-  const NSUInteger generation = ++_standInGeneration;
+  const NSUInteger generation = ++_standIn.generation;
   const void *holder = (__bridge const void *)self;
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kStandInTeardownDelay * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
     for (ArdiaWebView *view in LiveViews().allObjects)
-      if ((__bridge const void *)view == holder && view->_standInLeaving && view->_standInGeneration == generation) return [view finishStandIn];
+      if ((__bridge const void *)view == holder && view->_standIn.leaving && view->_standIn.generation == generation) return [view finishStandIn];
   });
 }
 
 - (void)finishStandIn {
-  if (!_standInTab && !_standInPage) return;
-  NSView *page = _standInPage;
-  ArdiaCoreTab *tab = _standInTab;
-  const BOOL closes = _standInCloses, leaving = _standInLeaving;
-  const float opacity = _standInOpacity;
-  ArdiaWebView *lender = _standInLender;
+  if (!_standIn.tab && !_standIn.page) return;
+  NSView *page = _standIn.page;
+  ArdiaCoreTab *tab = _standIn.tab;
+  const BOOL closes = _standIn.closes, leaving = _standIn.leaving;
+  const float opacity = _standIn.opacity;
+  ArdiaWebView *lender = _standIn.lender;
   [self clearStandIn];
   WithoutActions(^{
     if (page.superview == self) [page removeFromSuperview];
@@ -138,7 +134,7 @@ void WithoutActions(void (^block)(void)) {
 
 - (NSView *)hitTest:(NSPoint)point {
   NSView *hit = [super hitTest:point];
-  NSView *standIn = _standInPage;
+  NSView *standIn = _standIn.page;
   if (!hit || !standIn || standIn.superview != self || !(hit == standIn || [hit isDescendantOf:standIn])) return hit;
   const NSPoint local = [self convertPoint:point fromView:self.superview];
   for (NSView *sub in self.subviews.reverseObjectEnumerator) {

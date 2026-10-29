@@ -1,4 +1,4 @@
-import { setAppearance, setAppIcon, type AppIcon } from "../../../state/app/appSettings";
+import type { AppIcon } from "../../../state/app/appSettings";
 import { Symbol, font, PopUp, Toggle, useHover } from "../../ui";
 import { Image, Pressable, Text, View } from "react-native";
 import { useTheme } from "../../ui/theme";
@@ -7,10 +7,11 @@ import { updateSettings } from "../../../state/settings/actions";
 import type { Settings } from "../../../state/settings/settings";
 import { Group, Row, SectionHeader } from "../Form";
 import { PictureChoice } from "../PictureChoice";
+import { BookmarksBarSection } from "./BookmarksBarSection";
 import { modePreview } from "../tokens";
 import { useSettingsColors } from "../useSettingsColors";
-import { APP_ICON_SIZE, appIconChoices } from "../../../state/settings/paneData";
-import { store, useResource } from "../../../state/settings/resources";
+import { APP_ICON_SIZE, appIconChoices, chooseAppIcon } from "../../../state/settings/paneData";
+import { useResource } from "../../../state/settings/resources";
 
 const MODES: { value: Settings["appearance"]; title: string; description: string }[] = [
   { value: "auto", title: "Automatic", description: "Follow the system appearance setting" },
@@ -21,13 +22,10 @@ const MODES: { value: Settings["appearance"]; title: string; description: string
 export function AppearancePane() {
   const appearance = useSettings((s) => s.appearance);
   const spacesFollow = useSettings((s) => s.spacesFollowAppearance);
-  const choose = (mode: Settings["appearance"]) => {
-    updateSettings({ appearance: mode });
-    void setAppearance(mode);
-  };
+  const choose = (mode: Settings["appearance"]) => updateSettings({ appearance: mode });
   return (
     <View>
-      <SectionHeader anchor="appearance.theme" description="Also in View › Appearance. Incognito windows are always dark." />
+      <SectionHeader anchor="appearance.theme" />
       <View style={{ flexDirection: "row", gap: 14 }}>
         {MODES.map((m) => (
           <ModeChoice key={m.value} mode={m.value} title={m.title} description={m.description} selected={appearance === m.value} onPress={() => choose(m.value)} />
@@ -40,6 +38,7 @@ export function AppearancePane() {
       </Group>
       <AddressBarPicker />
       <PageFramePicker />
+      <BookmarksBarSection />
       <SelectedTabGlowPicker />
       <ScrollBarsPicker />
       <AppIconPicker />
@@ -175,16 +174,12 @@ function AppIconPicker() {
   const icons = choices?.icons ?? [];
   const current = choices?.current ?? null;
   if (icons.length < 2) return null;
-  const choose = (id: string) => {
-    store(appIconChoices, [], { icons, current: id });
-    void setAppIcon(id);
-  };
   return (
     <>
-      <SectionHeader anchor="appearance.appIcon" description="Shown in the Dock and the app switcher. The Dock keeps it after you quit." />
+      <SectionHeader anchor="appearance.appIcon" />
       <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 6, rowGap: 10 }}>
         {icons.map((icon) => (
-          <IconChoice key={icon.id} icon={icon} selected={icon.id === current} onPress={() => choose(icon.id)} />
+          <IconChoice key={icon.id} icon={icon} selected={icon.id === current} onPress={() => chooseAppIcon(icon.id)} />
         ))}
       </View>
     </>

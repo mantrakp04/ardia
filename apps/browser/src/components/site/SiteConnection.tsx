@@ -3,6 +3,7 @@ import { useTheme, type Theme } from "../ui/theme";
 import { Box, MenuRow, PANEL, Text } from "../ui";
 import { FooterChip } from "./SiteControlsParts";
 import { connectionColor, useSiteTokens } from "./tokens";
+import { UI_LOCALE } from "../../lib/uiLocale";
 
 type Security = PageState["security"];
 
@@ -44,7 +45,7 @@ const CERTIFICATE_KEY_WIDTH = 82;
 export function CertificateDetails({ security }: { security: NonNullable<Security> }) {
   const site = useSiteTokens();
   const cert = security.certificate!;
-  const date = (ms: number) => new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  const date = (ms: number) => new Date(ms).toLocaleDateString(UI_LOCALE, { year: "numeric", month: "short", day: "numeric" });
   const rows: [string, string][] = [
     ["Issued to", cert.subject.commonName || cert.subject.displayName],
     ["Organization", cert.subject.organizations.join(", ") || "—"],

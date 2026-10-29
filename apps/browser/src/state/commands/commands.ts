@@ -1,15 +1,15 @@
 import { closeWindow as closeNativeWindow } from "../../platform/windows";
 import { copyText } from "../../platform/clipboard";
-import { openExternalURL, setAppearance } from "../../platform/app";
+import { openExternalURL } from "../../platform/app";
 import { pickFiles, prompt } from "../../platform/dialogs";
 import type { CommandEvent } from "../../platform/commands";
 import { markdownLink } from "@ardia/core";
 import { useBrowser } from "../browser/store";
+import { requestCreateProfile } from "../profiles/createProfileRequest";
 import { activeTabId, bookmarkProfileId, isPinnedRow, resolveWindowId } from "../browser/model";
 import {
   closeGroup,
   closeTab,
-  createProfile,
   cycleProfile,
   focus,
   moveTabToProfile,
@@ -18,6 +18,7 @@ import {
   openWindow,
   switchProfile,
   toggleMute,
+  toggleSiteMute,
 } from "../browser/actions";
 import { bookmarkAllTabs, bookmarkTab } from "../bookmarks/actions";
 import { exportBookmarksFromWindow } from "../bookmarks/exportHtml";
@@ -35,7 +36,8 @@ import { webviews } from "../../platform/webviews";
 import { togglePageEngine } from "../engines/actions";
 import { goBack, goForward } from "../tabs/navigation";
 import { openSplitPane } from "../splits/actions";
-import { LITTLE_ARDIA_PAGE_COMMANDS } from "./commandCatalog";
+import { isAppCommand, LITTLE_ARDIA_PAGE_COMMANDS, settingChange, variantArg } from "./commandCatalog";
+import { APP_COMMAND_HANDLERS } from "./appCommands";
 import { runSidebarCommand } from "../sidebar/commands";
 import { numberedTabs } from "../sidebar/entries";
 import { openExtensionFromMenu } from "../extensions/bridge";
@@ -44,7 +46,7 @@ import { openManageExtensions, openPinDialog, openWebStore } from "../extensions
 import { requestAutofill } from "../site/autofill";
 import { copyPageUrl, jumpToSelection } from "../site/selection";
 import { shareTab } from "../site/share";
-import { groupOf } from "../pins/organize";
+import { groupOf } from "../pins/tabGrouping";
 import { isSmall, mainWindowFor, originalProfile } from "../windows/small";
 import {
   closeLittleArdia,
@@ -57,8 +59,13 @@ import {
 import { runPeekCommand } from "../peek/actions";
 import { peekTabId } from "../peek/peek";
 import { expectFocus, findFocus } from "../focus/focusClaims";
+import { isWebPageUrl } from "../../lib/url";
+import { findStep, openFind } from "../find/actions";
+
+const newOrId = (arg: string) => (arg === "new" ? null : arg);
 
 export function runCommand({ command, arg, windowId: requested }: CommandEvent) {
+  if (isAppCommand(command)) return APP_COMMAND_HANDLERS[command](requested);
   const s = useBrowser.getState();
 
   if (isUtilityWindowId(requested)) {
@@ -68,28 +75,20 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
   }
   if (isSmall(s, requested) && runLittleArdiaCommand(command, arg, requested!)) return;
   if (runPeekCommand(command, resolveWindowId(s, requested) ?? "")) return;
+  const settings = settingChange(command, arg, s.settings);
+  if (settings) return s.updateSettings(settings);
 
   switch (command) {
     case "newWindow":
       return void openWindow({ profileId: arg ?? undefined });
     case "newIncognitoWindow":
-      return void openWindow({ incognito: true, profileId: originalProfile(s, s.windows[requested ?? ""]) });
+      return void openWindow({ kind: "private", profileId: originalProfile(s, s.windows[requested ?? ""]) });
     case "newLittleArdia":
       return void openLittleArdia(undefined, arg ?? undefined);
     case "toggleOpenLinksInLittleArdia":
       return s.updateSettings({ openLinksInLittleArdia: !s.settings.openLinksInLittleArdia });
     case "reopenClosedWindow":
       return s.reopenClosedWindow();
-    case "setAppearance":
-      if (arg === "auto" || arg === "light" || arg === "dark") {
-        s.updateSettings({ appearance: arg });
-        void setAppearance(arg);
-      }
-      return;
-    case "toggleFullUrl":
-      return s.updateSettings({ showFullUrl: !s.settings.showFullUrl });
-    case "toggleJavaScriptFromAppleEvents":
-      return s.updateSettings({ allowJavaScriptFromAppleEvents: !s.settings.allowJavaScriptFromAppleEvents });
     case "toggleAddressBar":
       return s.updateSettings({ addressBar: s.settings.addressBar === "sidebar" ? "toolbar" : "sidebar" });
     case "openSettings":
@@ -102,9 +101,6 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
       return void openFiles(requested);
     case "manageExtensions":
       return openManageExtensions(requested);
-    case "setBookmarksBar":
-      if (arg === "always" || arg === "newTab" || arg === "never") s.updateSettings({ bookmarksBar: arg });
-      return;
     case "toggleBookmarksBar": {
       const mode = s.settings.bookmarksBar;
       const target = resolveWindowId(s, requested);
@@ -141,7 +137,6 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
   const page = tab?.url ? tab : undefined;
   const web = tabId ? webviews.get(tabId) : undefined;
   const ui = s.windowUi[windowId];
-  const find = tabId ? s.find[tabId] : undefined;
   if (runSidebarCommand(command, arg, windowId)) return;
 
   switch (command) {
@@ -189,21 +184,19 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
       return page ? copyText(markdownLink(page.customTitle || page.title, page.url)) : undefined;
     case "findInPage":
       if (page) expectFocus(windowId, findFocus(page.id));
-      return page ? s.setFind(page.id, { open: true, replace: false, focusRequest: Date.now() }) : undefined;
+      return page ? openFind(page.id, { replace: false }) : undefined;
     case "findAndReplace":
-      return page ? s.setFind(page.id, { open: true, replace: true, focusRequest: Date.now() }) : undefined;
+      return page ? openFind(page.id, { replace: true }) : undefined;
     case "jumpToSelection":
       return page ? void jumpToSelection(page.id) : undefined;
     case "useSelectionForFind":
       if (!page || !web) return;
       return void web.evaluate<string>("post('result', JSON.stringify(String(getSelection() || '').trim().slice(0, 500)))").then((query) => {
-        if (query) useBrowser.getState().setFind(page.id, { open: true, query, focusRequest: Date.now() });
+        if (query) openFind(page.id, { query });
       });
     case "findNext":
     case "findPrevious":
-      if (!page) return;
-      if (!find?.query) return s.setFind(page.id, { open: true });
-      return void web?.find(find.query, command === "findNext", true);
+      return page ? findStep(page.id, command === "findPrevious") : undefined;
     case "reload":
       return void (tabId && withLivePage(tabId, (page) => page.reload()));
     case "forceReload":
@@ -233,7 +226,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     case "javaScriptConsole":
       return void web?.showDevTools("console");
     case "viewSource":
-      if (!page || !web || !/^(https?|file):/.test(page.url)) return;
+      if (!page || !web || !isWebPageUrl(page.url)) return;
       return void s.newTab(windowId, { url: `view-source:${page.url}`, openerId: page.id, profileId: page.profileId });
     case "back":
       return tabId ? goBack(tabId) : undefined;
@@ -249,11 +242,13 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
       const id = command === "selectLastTab" ? rows.at(-1) : rows[Number(arg) - 1];
       return id ? s.activate(id) : undefined;
     }
-    case "togglePin":
+    case "togglePin": {
       if (!tab) return;
-      if (arg === "row") return s.pinTabs([tab.id], true, !isPinnedRow(tab));
-      if (arg === "tile") return isPinnedRow(tab) ? s.pinTabs([tab.id], true, false) : undefined;
+      const place = variantArg("togglePin", arg);
+      if (place === "row") return s.pinTabs([tab.id], true, !isPinnedRow(tab));
+      if (place === "tile") return isPinnedRow(tab) ? s.pinTabs([tab.id], true, false) : undefined;
       return s.togglePin(tab.id);
+    }
     case "moveTabDown":
     case "moveTabUp":
       return tab ? s.moveTabBy(tab.id, command === "moveTabDown" ? 1 : -1) : undefined;
@@ -262,13 +257,13 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
       return group ? void closeGroup(group.id) : undefined;
     }
     case "openProfileMenu":
-      return s.windows[windowId]?.incognito ? undefined : void openProfileMenu(windowId);
+      return s.windows[windowId]?.kind === "private" ? undefined : void openProfileMenu(windowId);
     case "duplicateTab":
       return tab ? void s.duplicateTab(tab.id) : undefined;
     case "moveTabToProfile":
-      return tab && arg ? void moveTabToProfile(tab.id, arg) : undefined;
+      return tab && arg ? void moveTabToProfile(tab.id, newOrId(arg)) : undefined;
     case "moveTabToWindow":
-      return tab && arg ? moveTabToWindow(tab.id, arg) : undefined;
+      return tab && arg ? moveTabToWindow(tab.id, newOrId(arg)) : undefined;
     case "bookmarkPage":
       return page ? bookmarkTab(windowId, page.id) : undefined;
     case "addBookmarkToFolder":
@@ -280,7 +275,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     case "togglePageEngine":
       return void (tabId && togglePageEngine(tabId));
     case "toggleMute":
-      return page ? toggleMute(page.id) : undefined;
+      return page ? (arg === "site" ? toggleSiteMute(page.id) : toggleMute(page.id)) : undefined;
     case "downloads":
       return s.setDownloadsOpen(windowId, !ui?.downloadsOpen);
     case "cast":
@@ -313,7 +308,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     case "autofill":
       return void requestAutofill(windowId, arg, tabId);
     case "newProfile":
-      return void createProfile(windowId).then((id) => id && switchProfile(windowId, id));
+      return void requestCreateProfile(windowId).then((id) => id && switchProfile(windowId, id));
   }
 }
 

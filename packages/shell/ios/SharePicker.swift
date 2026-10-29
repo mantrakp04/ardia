@@ -4,10 +4,9 @@ import ArdiaCore
 enum SharePicker {
   private static var current: NSSharingServicePicker?
   private static let delegate = ShareDelegate()
-  private static let background = LaunchConfig.shared.background
 
   static func show(url: String, title: String?, windowId: String?, anchor: [Double]?, done: @escaping () -> Void) {
-    let window = windowId.flatMap { WindowManager.shared.windows[$0] } ?? NSApp.keyWindow
+    let window = windowId.flatMap { WindowManager.shared.window($0) } ?? NSApp.keyWindow
     guard let link = URL(string: url), let window, let view = window.contentView else { return done() }
     var rect = NSRect(x: view.bounds.midX - 1, y: view.isFlipped ? 40 : view.bounds.maxY - 42, width: 2, height: 2)
     var edge = NSRectEdge.minY
@@ -15,7 +14,7 @@ enum SharePicker {
       rect = view.convert(NSRect(x: a[0], y: view.frame.height - a[1] - a[3], width: a[2], height: a[3]), from: nil)
       edge = rect.midX < view.bounds.midX ? .maxX : .minX
     }
-    if background {
+    if LaunchConfig.shared.background {
       log("share sheet (not shown): \(describe(url, title)) window=#\(window.windowNumber) anchor=\(NSStringFromRect(rect))"
         + " services=\(services().map(\.title).joined(separator: "|"))")
       return done()
@@ -33,11 +32,11 @@ enum SharePicker {
 
   static func perform(service: String, url: String, title: String?, windowId: String?) {
     guard let link = URL(string: url), let match = services().first(where: { $0.title == service }) else { return }
-    if background {
+    if LaunchConfig.shared.background {
       return log("share via \(service) (not performed): \(describe(url, title))")
     }
     delegate.finish()
-    delegate.window = windowId.flatMap { WindowManager.shared.windows[$0] } ?? NSApp.keyWindow
+    delegate.window = windowId.flatMap { WindowManager.shared.window($0) } ?? NSApp.keyWindow
     match.delegate = delegate
     match.subject = title
     match.perform(withItems: [link])

@@ -2,19 +2,15 @@ import { useState } from "react";
 import { Animated, Pressable, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { switchProfile } from "../../state/browser/actions";
-import { showMenu } from "../../state/app/system";
 import { layout, useTheme } from "../ui/theme";
 import { useIsIncognito, useProfile, useSettings } from "../../state/browser/hooks";
 import { useProfileOrder, useProfileRecords } from "../../state/profiles/hooks";
-import { setSwitcherIcon } from "../../state/profiles/actions";
-import { currentProfile, currentSettings } from "../../state/browser/current";
-import { updateSettings } from "../../state/settings/actions";
-import { openSettings } from "../../state/settings/settingsWindows";
 import { useNativePagerPosition, usePagerPages, type PagerPage } from "../../state/windows/profilePager";
 import { ContextMenuArea, useHover } from "../ui";
 import { TooltipAbove } from "../ui/TooltipAbove";
 import { SIDEBAR_FOOTER_DOWNLOADS } from "../sidebar/geometry";
-import { iconMenuItems, switcherCellWidth, switcherIcons, SwitcherMark } from "./ProfileIcons";
+import { switcherCellWidth, switcherIcons, SwitcherMark } from "./ProfileIcons";
+import { openProfileItemMenu } from "./profileMenu";
 import { profileSwitcher } from "./tokens";
 
 export const PROFILE_DOTS_HEIGHT = profileSwitcher.height;
@@ -61,7 +57,7 @@ function Dot({ id, windowId, icon, page, pos }: { id: string; windowId: string; 
   return (
     <View {...hoverProps}>
       <TooltipAbove text={name} active={hovered && !pressed} centerX={cell / 2} bottom={BAND / 2 + dotTooltipLift} />
-      <ContextMenuArea onContextMenu={() => void openSwitcherMenu(id)}>
+      <ContextMenuArea onContextMenu={() => void openProfileItemMenu(id, "sidebar", windowId)}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={name}
@@ -79,18 +75,4 @@ function Dot({ id, windowId, icon, page, pos }: { id: string; windowId: string; 
       </ContextMenuArea>
     </View>
   );
-}
-
-async function openSwitcherMenu(profileId: string) {
-  const icon = currentProfile(profileId)?.icon ?? null;
-  const shown = currentSettings().profileSwitcherIcons;
-  const choice = await showMenu([
-    { id: "icon", title: "Icon", symbol: "face.smiling", children: iconMenuItems(icon, "None") },
-    { id: "showIcons", title: "Show Profile Icons", checked: shown },
-    { separator: true },
-    { id: "settings", title: "Profile Settings…", symbol: "gearshape" },
-  ]);
-  if (choice?.startsWith("icon:")) setSwitcherIcon(profileId, choice.slice("icon:".length) || null);
-  else if (choice === "showIcons") updateSettings({ profileSwitcherIcons: !shown });
-  else if (choice === "settings") openSettings("profiles", profileId);
 }

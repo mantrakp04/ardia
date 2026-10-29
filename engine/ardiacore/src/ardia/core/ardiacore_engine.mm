@@ -14,7 +14,7 @@
 #include "base/task/thread_pool.h"
 #include "base/time/time.h"
 #include "chrome/browser/apps/platform_apps/shortcut_manager.h"
-#include "chrome/browser/ardia/ac_tab_restore.h"  // nogncheck
+#include "chrome/browser/ardia/ac_tab_restore.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/lifetime/browser_shutdown.h"
@@ -48,7 +48,7 @@
 #include "ardia/core/ac_installed_bubble.h"
 #include "ardia/core/ac_lifetime.h"
 #include "ardia/core/ac_main_delegate.h"
-#include "ardia/core/ac_page_channel.h"
+#include "ardia/core/ac_page_script.h"
 #include "ardia/core/ac_permissions.h"
 #include "ardia/core/ac_picture_in_picture.h"
 #include "ardia/core/ac_video_upscaling.h"
@@ -78,13 +78,10 @@ using ardiacore::NS;
 
 namespace {
 
-bool g_auto_picture_in_picture = true;
-
 void ApplyAutoPictureInPicture(Profile* profile) {
-  g_ardia_auto_picture_in_picture_off = !g_auto_picture_in_picture;
   HostContentSettingsMapFactory::GetForProfile(profile)->SetDefaultContentSetting(
       ContentSettingsType::AUTO_PICTURE_IN_PICTURE,
-      g_auto_picture_in_picture ? CONTENT_SETTING_ALLOW : CONTENT_SETTING_BLOCK);
+      g_ardia_auto_picture_in_picture_off ? CONTENT_SETTING_BLOCK : CONTENT_SETTING_ALLOW);
 }
 
 void PrepareProfilePrefs(Profile* profile) {
@@ -121,34 +118,26 @@ void StartApplyingProfilePrefs() {
   static base::NoDestructor<ProfilePrefsApplier> applier(manager);
 }
 
-const char* BrowserTypeName(BrowserWindowInterface::Type type) {
-  switch (type) {
-    case BrowserWindowInterface::TYPE_NORMAL:
-      return "normal";
-    case BrowserWindowInterface::TYPE_POPUP:
-      return "popup";
-    case BrowserWindowInterface::TYPE_DEVTOOLS:
-      return "devtools";
-    case BrowserWindowInterface::TYPE_PICTURE_IN_PICTURE:
-      return "picture_in_picture";
-    default:
-      return "app";
-  }
+
 }
 
-BrowserWindow* WindowForChromeBrowser(Browser* browser) {
-  if (ardiacore::ACBrowserWindow::IsOurs(browser) ||
-      browser->GetType() == BrowserWindowInterface::TYPE_PICTURE_IN_PICTURE ||
-      ![g_delegate respondsToSelector:@selector
-                   (engineWindowForNewBrowserOfProfile:type:)]) {
-    return nullptr;
-  }
-  ArdiaCoreWindow* window = [g_delegate
-      engineWindowForNewBrowserOfProfile:[ArdiaCoreProfile
-                                             wrapperFor:browser->GetProfile()]
-                                    type:@(BrowserTypeName(browser->GetType()))];
-  ardiacore::WindowHost* host = window.host;
-  return host ? host->HostChromeBrowser(browser) : nullptr;
+namespace ardiacore {
+
+void OnEngineStarted() {
+  StartApplyingProfilePrefs();
+  ardia::StartTabHistoryCleaner();
+  InstallPermissionPrompts();
+  StartMediaCaptureObserver();
+  InstallExternalAppPrompts();
+  StartPictureInPictureObserver();
+  StartHostVisibility();
+  StartVideoUpscaling();
+  [g_delegate engineDidStart];
+}
+
+void OnEngineShuttingDown() {
+  CloseAllExtensionViews();
+  [g_delegate engineWillShutDown];
 }
 
 }
@@ -176,67 +165,9 @@ extern "C" __attribute__((visibility("default"))) int ArdiaCoreMain(
 
   g_delegate = delegate;
   g_engine = [[ArdiaCoreEngine alloc] init];
-  g_ardia_browser_window_factory = &WindowForChromeBrowser;
-  ardiacore::InstallRuleMatchedHook();
-  ardiacore::InstallExtensionInstalledHook();
-  ardiacore::InstallActionPopupHook();
-  g_ardia_reserved_accelerator = [](const ui::Accelerator& accelerator) {
-    NSEvent* event = NSApp.currentEvent;
-    return event.type == NSEventTypeKeyDown &&
-           ardiacore::ExtensionShortcuts::AcceleratorFor(event) == accelerator &&
-           [g_delegate respondsToSelector:@selector(engineIsReservedKeyEvent:)] &&
-           [g_delegate engineIsReservedKeyEvent:event];
-  };
-  g_ardia_reserved_global_accelerator = &ardiacore::IsReservedGlobalAccelerator;
-  g_ardia_global_shortcuts_resumed = &ardiacore::GlobalShortcutsResumed;
-  g_ardia_history_eligible = [](content::WebContents* contents) {
-    BrowserWindowInterface* browser =
-        GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(contents);
-    ardiacore::WindowHost* host = browser ? ardiacore::WindowHost::ForBrowser(browser) : nullptr;
-    return !host || !host->internal();
-  };
   AppShortcutManager::SuppressShortcutsForTesting();
-  ardiacore::SetLifetimeCallbacks({
-      .quit_cancelled = base::BindRepeating([] {
-        if ([g_delegate respondsToSelector:@selector(engineQuitCancelled)]) {
-          [g_delegate engineQuitCancelled];
-        }
-      }),
-  });
-  ardiacore::SetEngineCallbacks({
-      .started = base::BindOnce([] {
-        StartApplyingProfilePrefs();
-        ardia::StartTabHistoryCleaner();
-        ardiacore::InstallPermissionPrompts();
-        ardiacore::StartMediaCaptureObserver();
-        ardiacore::InstallExternalAppPrompts();
-        ardiacore::StartPictureInPictureObserver();
-        ardiacore::StartHostVisibility();
-        ardiacore::StartVideoUpscaling();
-        [g_delegate engineDidStart];
-      }),
-      .shutting_down = base::BindOnce([] {
-        ardiacore::CloseAllExtensionViews();
-        if ([g_delegate respondsToSelector:@selector(engineWillShutDown)]) {
-          [g_delegate engineWillShutDown];
-        }
-      }),
-  });
 
-  std::vector<const char*> args(argv, argv + argc);
-  static std::string features = "--enable-features=WebContentsDiscard";
-  bool merged = false;
-  for (const char*& arg : args) {
-    if (strncmp(arg, "--enable-features=", 18) == 0 && !merged) {
-      features = std::string(arg) + ",WebContentsDiscard";
-      arg = features.c_str();
-      merged = true;
-    }
-  }
-  if (!merged) {
-    args.push_back(features.c_str());
-  }
-  int rv = ChromeMain(static_cast<int>(args.size()), args.data());
+  int rv = ChromeMain(argc, argv);
   g_delegate = nil;
   return rv;
 }
@@ -304,10 +235,6 @@ extern "C" __attribute__((visibility("default"))) int ArdiaCoreMain(
   ardiacore::ReservedShortcutsChanged();
 }
 
-+ (BOOL)isReservedGlobalShortcut:(NSString*)shortcut {
-  return ardiacore::IsReservedGlobalShortcut(shortcut);
-}
-
 + (void)setVideoUpscaling:(BOOL)enabled {
   ardiacore::SetVideoUpscalingEnabled(enabled);
 }
@@ -325,7 +252,6 @@ extern "C" __attribute__((visibility("default"))) int ArdiaCoreMain(
 }
 
 + (void)setAutoPictureInPicture:(BOOL)enabled {
-  g_auto_picture_in_picture = enabled;
   g_ardia_auto_picture_in_picture_off = !enabled;
   for (Profile* profile : g_browser_process->profile_manager()->GetLoadedProfiles()) {
     if (!profile->IsOffTheRecord()) {

@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Pressable, View } from "react-native";
 import { bookmarkAncestors, folderChildren } from "../../state/bookmarks/bookmarks";
-import { useBookmarks } from "../../state/bookmarks/hooks";
-import { currentBookmarks } from "../../state/browser/current";
+import { useBookmarkRoots, useBookmarks } from "../../state/bookmarks/hooks";
+import { currentBookmarkRoots, currentBookmarks } from "../../state/browser/current";
 import { radius, space, Symbol, Text, useHover, useTheme } from "../ui";
 import { folderTree, folderTreeInk } from "./tokens";
 
 type FolderRow = { id: string; title: string; depth: number; hasChildren: boolean };
 
 function useFolderRows(profileId: string, expanded: Set<string>): FolderRow[] {
+  const roots = useBookmarkRoots(profileId);
   const key = useBookmarks((b) => {
-    const roots = b.roots[profileId];
     if (!roots) return "";
     const lines: string[] = [];
     const walk = (id: string, depth: number) => {
@@ -51,7 +51,7 @@ export function FolderTree({
 }) {
   const [expanded, setExpanded] = useState(() => {
     const b = currentBookmarks();
-    const roots = b.roots[profileId];
+    const roots = currentBookmarkRoots(profileId);
     const open = new Set<string>(roots ? [roots.bar, roots.other] : []);
     if (selectedId) for (const a of bookmarkAncestors(b, selectedId)) open.add(a.id);
     return open;

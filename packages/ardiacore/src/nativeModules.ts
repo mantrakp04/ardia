@@ -6,12 +6,12 @@ type Secret = Promise<string>;
 
 export type ArdiaCoreNativeModules = {
   ArdiaTabs: {
-    prepareTransfer(key: string): void;
-    releaseTransfer(key: string): void;
-    claimLaunchTab(key: string, url: string, profile: string): void;
-    revealTab(key: string): void;
-    dropTabReveals(key: string): void;
-    revealOffered(adoptId: string, key: string): void;
+    prepareTransfer(tabId: string): void;
+    releaseTransfer(tabId: string): void;
+    claimLaunchTab(tabId: string, url: string, profile: string): void;
+    revealTab(tabId: string): void;
+    dropTabReveals(tabId: string): void;
+    revealOffered(adoptId: string, overTabId: string): void;
   };
   ArdiaEngine: { inputIdleSeconds(): number };
   ArdiaPasswords: {

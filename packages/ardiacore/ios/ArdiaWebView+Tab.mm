@@ -10,6 +10,16 @@ namespace {
 const char kPageReportsKey = 0;
 }
 
+@interface ArdiaStashedPageReports : NSObject {
+ @public
+  NSString *url;
+  ArdiaPageReports reports;
+}
+@end
+
+@implementation ArdiaStashedPageReports
+@end
+
 @implementation ArdiaWebView (Tab)
 
 - (void)adoptIntoWindow {
@@ -18,22 +28,25 @@ const char kPageReportsKey = 0;
   if (!controller.coreWindow) return;
   if ([[controller.coreWindow tabsForProfile:_tab.profile] containsObject:_tab]) return;
   ArdiaWindowController *source = [ArdiaWindowController holding:_tab];
-  _moving = YES;
+  _life.moving = YES;
   controller.hostChanges++;
   source.hostChanges++;
   [controller.coreWindow adoptTab:_tab];
   source.hostChanges--;
   controller.hostChanges--;
-  _moving = NO;
+  _life.moving = NO;
   if (_tabIndex >= 0) [self placeTab];
 }
 
 - (void)attach:(ArdiaCoreTab *)tab {
+  NSAssert(_life.canAttach(_tab != nil), @"a closed view, or one that has a tab, was given another tab");
+  if (!_life.canAttach(_tab != nil)) return;
   if (TraceVisibility()) NSLog(@"[ardiacore-vis] %@ attach tab=%d visible=%d", _transferKey, (int)tab.tabId, _visible);
   const BOOL shownEarly = [ArdiaEarlyWindow holdsPage:tab];
   [LiveViews() addObject:self];
   InstallControlPressMonitor();
   _tab = tab;
+  _life.attached();
   tab.delegate = self;
   [ArdiaTabRegistry setView:self forTab:tab];
   [self markTemporary];
@@ -53,14 +66,14 @@ const char kPageReportsKey = 0;
   if (NSView *devtools = tab.devToolsView) [self devToolsChanged:devtools];
   [self layoutPage];
   [self applyPainting];
-  if (!shownEarly && (_creatingURL.length || tab.loading)) [self holdLittlePage];
+  if (!shownEarly && (_life.creatingURL.length || tab.loading)) [self holdLittlePage];
   if (_muted) tab.muted = YES;
   if (_pageBackgroundColor) tab.pageBackgroundColor = _pageBackgroundColor;
   if (_contentsBackgroundColor) tab.contentsBackgroundColor = _contentsBackgroundColor;
   if (_pageColor) tab.pageColor = _pageColor;
-  if (_pendingURL) {
-    [self loadNow:_pendingURL userInitiated:_pendingUserInitiated];
-    _pendingURL = nil;
+  if (_life.pendingURL) {
+    [self loadNow:_life.pendingURL userInitiated:_life.pendingUserInitiated];
+    _life.pendingURL = nil;
   }
   [self emit:@"ready" payload:@{}];
   ardia_host::ReleaseHeldEvents(tab);
@@ -91,58 +104,35 @@ const char kPageReportsKey = 0;
   [self finishFrameHold];
   [self finishStandIn];
   [self stopHolding];
-  _lentTo = nil;
+  _standIn.lentTo = nil;
   _tab = nil;
-  _focusOnActivate = NO;
-  _pageFocus = ArdiaPageFocus::Unknown;
-  _focusedDevTools = nil;
-  _handingOff = NO;
-  _leaving = NO;
-  _leaveGeneration++;
+  _life.detached();
+  _focus.onActivate = NO;
+  _focus.page = ArdiaPageFocus::Unknown;
+  _focus.devTools = nil;
+  _life.handingOff = NO;
+  _leave.active = NO;
+  _leave.generation++;
 }
 
 - (void)stashPageReports {
-  NSMutableDictionary *reports = [NSMutableDictionary dictionary];
-  reports[@"url"] = _tab.url ?: @"";
-  reports[@"theme"] = _pageTheme;
-  reports[@"themeSource"] = _pageThemeSource;
-  reports[@"blocked"] = @(_blockedCount);
-  reports[@"lastBlocked"] = _lastBlocked;
-  reports[@"nowPlaying"] = _nowPlaying;
-  reports[@"nowPlayingFrame"] = _nowPlayingFrame;
-  reports[@"notifications"] = _notificationFrames;
-  reports[@"displayRequests"] = _displayRequests;
-  reports[@"pinch"] = @(_pinchScale);
-  reports[@"capturing"] = @(_capturing);
-  reports[@"crashed"] = @(_crashed);
-  reports[@"seen"] = @(_seenByUser);
-  reports[@"pip"] = @(_inPictureInPicture);
-  reports[@"autoPip"] = @(_autoPictureInPictureActive);
-  if (!_tab.closed) objc_setAssociatedObject(_tab, &kPageReportsKey, reports, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  ArdiaStashedPageReports *stash = [ArdiaStashedPageReports new];
+  stash->url = _tab.url ?: @"";
+  stash->reports = _reports;
+  if (!_tab.closed) objc_setAssociatedObject(_tab, &kPageReportsKey, stash, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
   [self takeReports:nil];
 }
 
 - (void)takePageReports {
-  NSDictionary *reports = objc_getAssociatedObject(_tab, &kPageReportsKey);
+  ArdiaStashedPageReports *stash = objc_getAssociatedObject(_tab, &kPageReportsKey);
   objc_setAssociatedObject(_tab, &kPageReportsKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-  [self takeReports:[reports[@"url"] isEqual:_tab.url ?: @""] ? reports : nil];
+  [self takeReports:stash && [stash->url isEqual:_tab.url ?: @""] ? stash : nil];
 }
 
-- (void)takeReports:(NSDictionary *)reports {
-  _pageTheme = reports[@"theme"];
-  _pageThemeSource = reports[@"themeSource"];
-  _blockedCount = [reports[@"blocked"] integerValue];
-  _lastBlocked = reports[@"lastBlocked"];
-  _nowPlaying = reports[@"nowPlaying"];
-  _nowPlayingFrame = reports[@"nowPlayingFrame"];
-  _notificationFrames = reports[@"notifications"];
-  _displayRequests = reports[@"displayRequests"];
-  _pinchScale = [reports[@"pinch"] doubleValue];
-  _capturing = [reports[@"capturing"] boolValue];
-  _crashed = [reports[@"crashed"] boolValue];
-  if (reports[@"seen"]) _seenByUser = [reports[@"seen"] boolValue];
-  _inPictureInPicture = [reports[@"pip"] boolValue];
-  _autoPictureInPictureActive = [reports[@"autoPip"] boolValue];
+- (void)takeReports:(ArdiaStashedPageReports *)stash {
+  const BOOL seen = _reports.seenByUser;
+  _reports = stash ? stash->reports : ArdiaPageReports{};
+  if (!stash) _reports.seenByUser = seen;
 }
 
 - (void)placeTab {
@@ -179,7 +169,7 @@ const char kPageReportsKey = 0;
 }
 
 - (void)tabRemovedFromWindow:(ArdiaCoreWindow *)window {
-  if (_moving || _closing || !_tab) return;
+  if (_life.moving || _life.closed() || !_tab) return;
   {
     ArdiaCoreTab *removed = _tab;
     __weak ArdiaWebView *weakSelf = self;
@@ -194,7 +184,7 @@ const char kPageReportsKey = 0;
   if (TraceVisibility()) NSLog(@"[ardiacore-vis] %@ chrome-activated tab=%d byChrome=%d", _transferKey, _tab ? (int)_tab.tabId : -1, chromes);
   if (_standalone) return;
   [self requestFocusRestore];
-  if (_navigationQueued) [self emitNavigation];
+  if (_sent.navigationQueued) [self emitNavigation];
 }
 
 - (void)devToolsChanged:(NSView *)devToolsView {
@@ -221,13 +211,13 @@ const char kPageReportsKey = 0;
 
 - (void)tabWillClose:(ArdiaCoreTab *)tab {
   [ArdiaEarlyWindow dropPage:tab];
-  if (_closing || tab != _tab) return;
+  if (_life.closed() || tab != _tab) return;
   [self detach];
   [self emit:@"windowClose" payload:@{}];
 }
 
 - (void)tab:(ArdiaCoreTab *)tab rendererGone:(NSString *)status code:(int)code {
-  _crashed = YES;
+  _reports.crashed = YES;
   [self resetPageMedia];
   [self emit:@"crashed" payload:@{@"status" : @(code), @"reason" : status ?: @"unknown", @"code" : @(code)}];
 }

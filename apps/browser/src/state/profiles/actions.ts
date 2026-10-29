@@ -5,7 +5,7 @@ import { updateSettings } from "../settings/actions";
 export const updateProfile = storeAction("updateProfile");
 export const setDefaultProfile = storeAction("setDefaultProfile");
 export const reorderProfiles = storeAction("reorderProfiles");
-export const addProfile = storeAction("createProfile");
+export const createProfile = storeAction("createProfile");
 
 export function setSwitcherIcon(profileId: string, icon: string | null) {
   updateProfile(profileId, { icon });

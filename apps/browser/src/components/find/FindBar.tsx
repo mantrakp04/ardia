@@ -7,6 +7,7 @@ import { webviews } from "../../state/tabs/webviewHandles";
 import { useFind, useTab } from "../../state/browser/hooks";
 import { currentTab } from "../../state/browser/current";
 import { setFind as setTabFind } from "../../state/windows/actions";
+import { closeFind, findStep, takeFindFocusRequest } from "../../state/find/actions";
 import type { FindState } from "../../state/browser/types";
 import { Button, font, Panel, radius, space, Symbol } from "../ui";
 import { replaceInField } from "../../state/site/selection";
@@ -19,7 +20,6 @@ export function FindBar({ tabId }: { tabId: string }) {
   return <FindBarPanel key={tabId} tabId={tabId} find={find} />;
 }
 
-const handledFocus = new Map<string, number>();
 const FIND_KEYS = [
   { key: "Escape" },
   { key: "Enter" },
@@ -38,9 +38,8 @@ function FindBarPanel({ tabId, find }: { tabId: string; find: FindState }) {
     Animated.timing(appear, { toValue: 1, ...FIND_APPEAR, useNativeDriver: true }).start();
   }, []);
   useEffect(() => {
-    const request = find.focusRequest;
-    if (!request || handledFocus.get(tabId) === request) return;
-    handledFocus.set(tabId, request);
+    if (!find.focusRequest) return;
+    takeFindFocusRequest(tabId);
     input.current?.focus();
     input.current?.setSelection(0, find.query.length);
     const windowId = currentTab(tabId)?.windowId;
@@ -53,11 +52,7 @@ function FindBarPanel({ tabId, find }: { tabId: string; find: FindState }) {
     if (!query) setFind({ count: null, active: 0 });
     void webviews.get(tabId)?.find(query, !backwards, findNext);
   };
-  const close = () => {
-    setFind({ open: false, count: null, active: 0 });
-    void webviews.get(tabId)?.stopFinding(false);
-    void webviews.get(tabId)?.focus();
-  };
+  const close = () => closeFind(tabId);
   const [replacement, setReplacement] = useState("");
   const [note, setNote] = useState<{ text: string; error: boolean } | null>(null);
   useEffect(() => {
@@ -85,7 +80,7 @@ function FindBarPanel({ tabId, find }: { tabId: string; find: FindState }) {
         transform: [{ translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [-6, 0] }) }],
       }}
     >
-      <Panel fill={theme.panel} radius={radius.panel} border={theme.panelBorder} shadow={FIND_SHADOW} style={{ width: 340 }}>
+      <Panel glass="panel" fill={theme.panel} radius={radius.panel} border={theme.panelBorder} shadow={FIND_SHADOW} style={{ width: 340 }}>
         <View style={{ height: 40, flexDirection: "row", alignItems: "center", paddingLeft: 11, paddingRight: space.xs, gap: space.xxs }}>
           <Symbol name="magnifyingglass" size={13} color={theme.textSecondary} style={{ width: 16, height: 16, marginRight: 5 }} />
           <TextInput
@@ -118,8 +113,8 @@ function FindBarPanel({ tabId, find }: { tabId: string; find: FindState }) {
               <Text style={{ ...font.small, color: theme.textSecondary, fontVariant: ["tabular-nums"] }}>{find.count}</Text>
             </View>
           ) : null}
-          <Button variant="icon" icon="chevron.up" size={12} box={26} radius={radius.m} disabled={!find.count} onPress={() => run(true)} tooltip={withShortcut("Previous", previousHint)} />
-          <Button variant="icon" icon="chevron.down" size={12} box={26} radius={radius.m} disabled={!find.count} onPress={() => run(false)} tooltip={withShortcut("Next", nextHint)} />
+          <Button variant="icon" icon="chevron.up" size={12} box={26} radius={radius.m} disabled={!find.count} onPress={() => findStep(tabId, true)} tooltip={withShortcut("Previous", previousHint)} />
+          <Button variant="icon" icon="chevron.down" size={12} box={26} radius={radius.m} disabled={!find.count} onPress={() => findStep(tabId, false)} tooltip={withShortcut("Next", nextHint)} />
           <View style={{ width: 1, height: 18, marginHorizontal: 3, backgroundColor: separator }} />
           <Button variant="icon" icon="xmark" size={11} box={26} radius={radius.m} onPress={close} tooltip="Done (Esc)" />
         </View>

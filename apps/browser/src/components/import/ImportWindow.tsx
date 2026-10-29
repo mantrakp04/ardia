@@ -1,15 +1,15 @@
-import type { ComponentType } from "react";
+import { useEffect, type ComponentType } from "react";
 import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
 import { space, useTheme, VisualEffect, WindowDragRegion } from "../ui";
-import type { Step } from "./model";
 import { ChooseBody, ChooseFooter } from "./steps/ChooseStep";
 import { DoneBody, DoneFooter } from "./steps/DoneStep";
 import { ProfilesBody, ProfilesFooter } from "./steps/ProfilesStep";
 import { ProgressBody, ProgressFooter } from "./steps/ProgressStep";
 import { AccessBody, AccessFooter, SafariBody, SafariFooter } from "./steps/SafariStep";
 import { UnlockBody, UnlockFooter } from "./steps/UnlockStep";
-import { importColors, importLayout } from "./tokens";
-import { useImportFlow, type ImportFlow } from "./useImportFlow";
+import { startImport, useImportFlow, type ImportFlow, type ImportStepName } from "../../state/import/flow";
+import { useImportDevHandle } from "./importDevHandle";
+import { importColors, importLayout, importMotion } from "./tokens";
 
 type StepView = ComponentType<{ flow: ImportFlow }>;
 
@@ -17,7 +17,7 @@ function Loading() {
   return <ActivityIndicator style={{ marginTop: importLayout.loadingTop }} />;
 }
 
-const STEPS: Record<Step, { Body: StepView; Footer: StepView | null }> = {
+const STEPS: Record<ImportStepName, { Body: StepView; Footer: StepView | null }> = {
   loading: { Body: Loading, Footer: null },
   choose: { Body: ChooseBody, Footer: ChooseFooter },
   profiles: { Body: ProfilesBody, Footer: ProfilesFooter },
@@ -31,7 +31,9 @@ const STEPS: Record<Step, { Body: StepView; Footer: StepView | null }> = {
 export function ImportWindow() {
   const theme = useTheme();
   const flow = useImportFlow();
-  const { Body, Footer } = STEPS[flow.step];
+  useEffect(() => startImport(importMotion.doneDelay), []);
+  useImportDevHandle(flow);
+  const { Body, Footer } = STEPS[flow.step.name];
   return (
     <View style={{ flex: 1, backgroundColor: theme.dark ? importColors.windowFill.dark : importColors.windowFill.light }}>
       <VisualEffect material="windowBackground" blendingMode="behindWindow" style={StyleSheet.absoluteFill} />

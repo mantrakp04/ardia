@@ -10,26 +10,19 @@
 
 #include "base/functional/bind.h"
 #include "base/task/bind_post_task.h"
-#include "base/no_destructor.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
-#include "content/public/browser/navigation_controller.h"
-#include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/navigation_handle.h"
-#include "content/public/browser/navigation_throttle.h"
-#include "content/public/browser/navigation_throttle_registry.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/media_session.h"
 #include "content/public/browser/page.h"
 #include "content/public/browser/permission_controller.h"
 #include "content/public/browser/permission_descriptor_util.h"
 #include "content/public/browser/render_frame_host.h"
-#include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents.h"
-#include "ipc/ipc_channel_proxy.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
 #include "mojo/public/cpp/bindings/callback_helpers.h"
 #include "third_party/blink/public/mojom/frame/user_activation_notification_type.mojom.h"
@@ -48,11 +41,6 @@
 namespace ardiacore {
 
 namespace {
-
-std::string& Script() {
-  static base::NoDestructor<std::string> script;
-  return *script;
-}
 
 bool MayShowNotification(content::RenderFrameHost& frame) {
   return frame.GetBrowserContext()
@@ -78,91 +66,6 @@ mojo::AssociatedRemote<mojom::ACPage> PageOf(content::RenderFrameHost* frame) {
   return page;
 }
 
-class AppSchemeThrottle : public content::NavigationThrottle {
- public:
-  explicit AppSchemeThrottle(content::NavigationThrottleRegistry& registry)
-      : content::NavigationThrottle(registry) {}
-
-  ThrottleCheckResult WillStartRequest() override { return Check(); }
-  ThrottleCheckResult WillRedirectRequest() override { return Check(); }
-  const char* GetNameForLogging() override { return "ACAppSchemeThrottle"; }
-
- private:
-  ThrottleCheckResult Check() {
-    content::NavigationHandle* navigation = navigation_handle();
-    if (!IsAppURL(navigation->GetURL())) {
-      return PROCEED;
-    }
-    content::WebContents* contents = navigation->GetWebContents();
-    const std::optional<url::Origin>& initiator =
-        navigation->GetInitiatorOrigin();
-    content::NavigationEntry* committed =
-        contents->GetController().GetLastCommittedEntry();
-    const bool popup_start = !committed || committed->IsInitialEntry();
-    if (navigation->IsInPrimaryMainFrame() && !popup_start &&
-        !navigation->WasServerRedirect() && initiator &&
-        IsWebUIURL(initiator->GetURL()) &&
-        IsWebUIURL(contents->GetPrimaryMainFrame()->GetLastCommittedURL())) {
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-          FROM_HERE, base::BindOnce(
-                         [](base::WeakPtr<content::WebContents> contents, GURL url,
-                            bool user_gesture) {
-                           if (contents) {
-                             ReportAppURLRequest(contents.get(), url, user_gesture);
-                           }
-                         },
-                         contents->GetWeakPtr(), navigation->GetURL(),
-                         navigation->HasUserGesture()));
-    }
-    return CANCEL_AND_IGNORE;
-  }
-};
-
-}
-
-bool IsAppURL(const GURL& url) {
-  return url.SchemeIs("ardia");
-}
-
-bool IsWebUIURL(const GURL& url) {
-  return url.SchemeIs("chrome") || url.SchemeIs("devtools");
-}
-
-void ReportAppURLRequest(content::WebContents* contents,
-                         const GURL& url,
-                         bool user_gesture) {
-  ArdiaCoreTab* tab = TabBridge::GetOrCreate(contents)->tab();
-  id<ArdiaCoreTabDelegate> delegate = tab.delegate;
-  if ([delegate respondsToSelector:@selector(tab:didRequestAppURL:userGesture:)]) {
-    [delegate tab:tab
-        didRequestAppURL:base::SysUTF8ToNSString(url.spec())
-             userGesture:user_gesture];
-  }
-}
-
-void SetPageScript(const std::string& script) {
-  Script() = script;
-  for (auto it = content::RenderProcessHost::AllHostsIterator(); !it.IsAtEnd();
-       it.Advance()) {
-    content::RenderProcessHost* host = it.GetCurrentValue();
-    if (host->IsInitializedAndNotDead()) {
-      SendPageScript(host);
-    }
-  }
-}
-
-const std::string& GetPageScript() {
-  return Script();
-}
-
-void SendPageScript(content::RenderProcessHost* host) {
-  IPC::ChannelProxy* channel = host->GetChannel();
-  if (!channel) {
-    return;
-  }
-  mojo::AssociatedRemote<mojom::ACRendererConfig> config;
-  channel->GetRemoteAssociatedInterface(&config);
-  config->SetPageScript(Script());
 }
 
 void RegisterPageChannelBinders(content::RenderFrameHost& render_frame_host,
@@ -177,10 +80,6 @@ void RegisterPageChannelBinders(content::RenderFrameHost& render_frame_host,
         }
       },
       &render_frame_host));
-}
-
-void AddAppSchemeThrottle(content::NavigationThrottleRegistry& registry) {
-  registry.AddThrottle(std::make_unique<AppSchemeThrottle>(registry));
 }
 
 PageChannel::PageChannel(content::WebContents* contents)

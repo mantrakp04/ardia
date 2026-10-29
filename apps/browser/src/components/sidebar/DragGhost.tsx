@@ -10,19 +10,22 @@ import type { Ghost } from "./dragModel";
 import { FolderMosaic } from "./FolderTile";
 import { TabIcon } from "./TabIcon";
 import { SIDEBAR_SHADOW, useSidebarTokens } from "./tokens";
+import { folderOf } from "./dragModel";
 
 export function DragGhost({ ghost }: { ghost: Ghost }) {
   const theme = useTheme();
   const tokens = useSidebarTokens();
   const { item, count, width, height, position } = ghost;
   const tab = useTab(item.tabIds[0] ?? "");
-  const folder = useLive((s) => (item.liveFolderId ? s.folders[item.liveFolderId] : undefined));
+  const liveFolderId = item.kind === "live" ? item.liveFolderId : undefined;
+  const groupId = item.kind === "group" ? item.groupId : undefined;
+  const folder = useLive((s) => (liveFolderId ? s.folders[liveFolderId] : undefined));
   const liveIcon = folder ? liveFolderIcon(folder) : null;
-  const groupIcon = useGroup(item.kind === "group" && item.groupId ? item.groupId : null, (g) => g?.icon ?? null);
-  const label = useDragGhostLabel(folder?.name, item.groupId, tab);
+  const groupIcon = useGroup(groupId ?? null, (g) => g?.icon ?? null);
+  const label = useDragGhostLabel(folder?.name, groupId, tab);
   const tile = item.kind === "tile";
-  const folderTile = tile && !!item.folderId;
-  const onPage = useTabDrag((d) => d.onPage);
+  const folderTile = !!folderOf(item);
+  const onPage = useTabDrag((d) => d.phase === "tab" && d.onPage);
   return (
     <Animated.View pointerEvents="none" style={{ position: "absolute", left: 0, top: 0, width, height, opacity: onPage ? 0 : 1, transform: position.getTranslateTransform() }}>
       <Panel

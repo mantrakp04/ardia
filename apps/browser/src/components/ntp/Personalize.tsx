@@ -1,7 +1,8 @@
+import { devRegister } from "../dev/devRegister";
 import { useEffect, useRef } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { PERSONALIZE_COPY, TabLayoutPicker, ThemeColorPicker } from "../onboarding/Personalize";
-import { Box, hairline, hex, shadow, space, Surface, Symbol, Text, useHover, useTheme } from "../ui";
+import { Box, Panel, shadow, space, Symbol, Text, useHover, useTheme } from "../ui";
 import { ntpType, PERSONALIZE_PANEL } from "./tokens";
 import { closePersonalizePanelOf, setPersonalizePanel as setOpen, usePersonalizePanel } from "../../state/pages/personalizePanel";
 
@@ -60,16 +61,7 @@ function PersonalizePanel({ windowId, onClose }: { windowId: string; onClose: ()
           transform: [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }, { scale: t.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) }],
         }}
       >
-        <Surface
-          fill={hex(theme.panel)}
-          cornerRadius={PERSONALIZE_PANEL.radius}
-          borderColor={hex(theme.panelBorder)}
-          borderWidth={hairline.panel}
-          shadowColor={shadow.dialog.color}
-          shadowOpacity={theme.panelShadowOpacity}
-          shadowRadius={shadow.dialog.radius}
-          shadowOffset={shadow.dialog.offset}
-        >
+        <Panel fill={theme.panel} radius={PERSONALIZE_PANEL.radius} border={theme.panelBorder} shadow={shadow.dialog}>
           <Box pad="xlx" gap="xl">
             <Box gap="xs">
               <Text style={ntpType.personalizeTitle}>{PERSONALIZE_COPY.title}</Text>
@@ -85,7 +77,7 @@ function PersonalizePanel({ windowId, onClose }: { windowId: string; onClose: ()
               <TabLayoutPicker windowId={windowId} />
             </Box>
           </Box>
-        </Surface>
+        </Panel>
       </Animated.View>
     </>
   );
@@ -93,4 +85,4 @@ function PersonalizePanel({ windowId, onClose }: { windowId: string; onClose: ()
 
 const SUBTITLE = { lineHeight: SUBTITLE_LINE } as const;
 
-if (__DEV__) (globalThis as { acPersonalize?: unknown }).acPersonalize = { open: setOpen };
+devRegister("acPersonalize", "open", setOpen);

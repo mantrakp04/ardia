@@ -6,14 +6,14 @@ import { updateGroup } from "../../state/groups/actions";
 import { pressGroupClose, useGroupCloseControl } from "../../state/sidebar/closeControl";
 import { openGroupMenu } from "../../state/sidebar/menus";
 import { moveInGroup, tuckGroup, useHasTuckTarget } from "../../state/tabs/topStrip";
-import { groupColorMenu } from "../sidebar/groupColorMenu";
-import { groupTint, useSidebarTokens, withAlpha } from "../sidebar/tokens";
+import { groupTint, useSidebarTokens } from "../sidebar/tokens";
 import { Button, ContextMenuArea, useHover } from "../ui";
 import { useTheme } from "../ui/theme";
-import { font, weight } from "../ui/tokens";
+import { font, weight, withAlpha } from "../ui/tokens";
 import { GroupMember, StripGroupIcon } from "./GroupMember";
-import { holds, tabsOf, useOnto, type GroupEntry, type Member } from "./model";
-import { dragGeometry, dropIndex, GROUP_MARGIN_LEFT, GROUP_MARGIN_RIGHT, GROUP_SPRING, groupLayout, MEMBERS_INSET, memberInteractive, TAIL_EXPANDED, type DragGeometry } from "./stripGroups";
+import { useOnto } from "./model";
+import type { StripGroupEntry, StripMember } from "../../state/tabs/topStrip";
+import { dragGeometry, dropIndex, GROUP_MARGIN_LEFT, GROUP_MARGIN_RIGHT, GROUP_SPRING, groupLayout, holds, MEMBERS_INSET, memberInteractive, TAIL_EXPANDED, tabsOf, type DragGeometry } from "./stripGroups";
 import { OntoRing } from "./TabChip";
 import { CHIP_HAIRLINE, GAP, GROUP_CHIP_PAD, GROUP_TITLE_GAP, GROUP_TITLE_MAX, ITEM_HEIGHT, ITEM_TOP, MID, STRIP_COLORS, TAB_RADIUS, TOP_STRIP_HEIGHT } from "./tokens";
 import { useStripDrag } from "./useStripDrag";
@@ -29,14 +29,14 @@ export function StripGroup({
   memberWidth,
   folderMeasured,
 }: {
-  entry: GroupEntry;
+  entry: StripGroupEntry;
   geometry: DragGeometry;
   from: number;
   chip: number;
   activeId: string;
   chipWidth: number | undefined;
   onChipWidth: (width: number) => void;
-  memberWidth: (m: Member) => number;
+  memberWidth: (m: StripMember) => number;
   folderMeasured: (groupId: string) => boolean;
 }) {
   const theme = useTheme();
@@ -152,7 +152,7 @@ export function StripGroup({
         onLayout={(e) => onChipWidth(Math.ceil(e.nativeEvent.layout.width * 2) / 2)}
         style={{ position: "absolute", left: 0, top: ITEM_TOP, height: ITEM_HEIGHT }}
       >
-        <ContextMenuArea onContextMenu={() => void openGroupMenu(windowId, entry.id, groupColorMenu)}>
+        <ContextMenuArea onContextMenu={() => void openGroupMenu(windowId, entry.id)}>
           <Pressable
             onPress={() => updateGroup(entry.id, { collapsed: expanded })}
             style={{ height: ITEM_HEIGHT, flexDirection: "row", alignItems: "center", paddingLeft: GROUP_CHIP_PAD.left, paddingRight: GROUP_CHIP_PAD.right }}

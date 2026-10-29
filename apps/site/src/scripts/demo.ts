@@ -1,4 +1,4 @@
-import { track } from "./track";
+import { capture } from "./telemetry";
 
 type CustomizeState = { active: boolean; code: string | null };
 type Outbound = { type: "ardia-demo:ready" } | { type: "ardia-demo:engaged" } | ({ type: "ardia-demo:customize-state" } & CustomizeState);
@@ -90,7 +90,7 @@ function wireCustomize(frame: HTMLIFrameElement, panel: HTMLElement) {
     if (value) value.textContent = code;
     if (box) box.hidden = false;
     if (copy) copy.textContent = "Copy";
-    track("demo_setup_code_shown", { again: !first });
+    capture("demo_setup_code_shown", { again: !first });
   };
 }
 

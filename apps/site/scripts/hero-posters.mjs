@@ -13,6 +13,7 @@ import { mkdirSync, mkdtempSync, readdirSync, rmSync, unlinkSync, writeFileSync 
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
+import { HERO_FRAMES, HERO_STATES } from "../src/data/heroFrames.mjs";
 
 const site = fileURLToPath(new URL("..", import.meta.url));
 const out = join(site, "src/assets/hero");
@@ -35,19 +36,11 @@ const MAC_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.
 const PHONE_UA =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
 
-const FRAMES = [
-  { frame: "wider", width: 2400, height: 1000, dpr: 1, ua: MAC_UA, widths: [1600, 2400], budget: 90 * 1024 },
-  { frame: "wide", width: 1920, height: 1080, dpr: 1, ua: MAC_UA, widths: [1280, 1920], budget: 80 * 1024 },
-  { frame: "laptop", width: 1440, height: 900, dpr: 2, ua: MAC_UA, widths: [1280, 1920], budget: 80 * 1024 },
-  { frame: "mid", width: 1196, height: 920, dpr: 2, ua: MAC_UA, widths: [1100, 1600], budget: 70 * 1024 },
-  { frame: "tall", width: 390, height: 844, dpr: 3, ua: PHONE_UA, mobile: true, widths: [440, 0], budget: 38 * 1024 },
-];
+const USER_AGENTS = { mac: MAC_UA, phone: PHONE_UA };
+const FRAMES = HERO_FRAMES.map(({ name, capture }) => ({ frame: name, ...capture, ua: USER_AGENTS[capture.device], mobile: capture.device === "phone" }));
 const QUALITY_CEILING = 70;
 const QUALITY_FLOOR = 40;
-const STATES = [
-  { state: "dawn", reducedMotion: false },
-  { state: "morning", reducedMotion: true },
-];
+const STATES = HERO_STATES.map(({ name, reducedMotion }) => ({ state: name, reducedMotion }));
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 

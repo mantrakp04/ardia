@@ -40,9 +40,25 @@ const OLD_TEST_SWITCH = {
 };
 const OLD_TRACE = { visibility: "ARDIA_TRACE_VISIBILITY", pip: "ARDIA_TRACE_PIP", pipZoom: "ARDIA_PIP_ZOOM_TRACE" };
 
-const knownKeys = { instance: Object.keys(OLD_INSTANCE), test: [...Object.keys(OLD_TEST), ...Object.keys(OLD_TEST_SWITCH), "contextMenu"] };
-const commaKeys = new Set(["chromiumSwitches", "downloadsDir", "updateFeed", "cliHome", "cliBinDir", "cliUrl", "syncFolder",
-  "importSourceDir", "importSafariHome", "importSecret", "cliInstallScript", "legacySource", "bangsUrl", "liveMock"]);
+export const INSTANCE_KEYS = [
+  "jsLocation", "chromiumSwitches", "downloadsDir", "updateFeed", "allowAudio", "allowOcclusion", "releaseNotes",
+  "cliHome", "cliBinDir", "cliUrl", "syncFolder", "importSourceDir", "importSafariHome",
+];
+export const TEST_KEYS = [
+  "keychain", "keychainHiddenReads", "keychainFail", "safeStorageAnswer", "reauth", "bluetoothChooser",
+  "externalProtocolNoLaunch", "externalProtocolApp", "mediaRouteProvider", "systemMediaPermission", "applyProfileGate", "contextMenu",
+  "loginsDelay", "loginsReleaseAfter",
+  "pipSelfTest", "pipHover", "fakeFullScreenMs", "shadersKeyWindow", "peekStrict", "importSecret", "importDiaBundleId", "importDiaWindows",
+  "cliInstallScript", "legacySource", "legacyCrashAfter", "bangsUrl", "onboarding", "whatsNew", "telemetry",
+  "liveMock", "calendarFixture", "appMenu", "appDialog", "loginsTimeout",
+];
+export const COMMA_KEYS = [
+  "chromiumSwitches", "downloadsDir", "updateFeed", "cliHome", "cliBinDir", "cliUrl", "syncFolder", "importSourceDir",
+  "importSafariHome", "importSecret", "cliInstallScript", "legacySource", "bangsUrl", "liveMock",
+];
+
+const knownKeys = { instance: INSTANCE_KEYS, test: TEST_KEYS };
+const commaKeys = new Set(COMMA_KEYS);
 
 export const instanceEntries = (text) => entriesOf(text, knownKeys.instance);
 

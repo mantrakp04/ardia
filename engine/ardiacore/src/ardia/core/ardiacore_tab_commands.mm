@@ -139,10 +139,9 @@ std::optional<bool> RunPageCommand(content::WebContents* contents, int command) 
 @implementation ArdiaCoreTab (Commands)
 
 - (void)openBlockedPopup:(NSString*)popupId always:(BOOL)always {
-  if (ardiacore::IsNotifyingTabStrip()) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-      [self openBlockedPopup:popupId always:always];
-    });
+  if (ardiacore::DeferWhileTabStripNotifies(^{
+        [self openBlockedPopup:popupId always:always];
+      })) {
     return;
   }
   if (!_contents) {
@@ -160,24 +159,19 @@ std::optional<bool> RunPageCommand(content::WebContents* contents, int command) 
                                         ContentSettingsType::POPUPS,
                                         CONTENT_SETTING_ALLOW);
   }
-  BrowserWindowInterface* browser =
-      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(_contents);
-  ardiacore::WindowHost* host = ardiacore::WindowHost::ForBrowser(browser);
-  std::optional<base::AutoReset<ardiacore::WindowHost::PendingOpen>> pending;
+  ardiacore::WindowHost* host = ardiacore::WindowHost::ForContents(_contents);
+  std::optional<base::AutoReset<ardiacore::OpenOrigin>> pending;
   if (host) {
-    pending.emplace(&host->pending_open(),
-                    ardiacore::WindowHost::PendingOpen{
-                        WindowOpenDisposition::NEW_FOREGROUND_TAB,
-                        _contents->GetWeakPtr()});
+    pending.emplace(host->ScopedPendingOpen(
+        {WindowOpenDisposition::NEW_FOREGROUND_TAB, _contents->GetWeakPtr()}));
   }
   popups->ShowBlockedPopup(id_number, WindowOpenDisposition::NEW_FOREGROUND_TAB);
 }
 
 - (BOOL)executeChromeCommand:(int)command {
-  if (ardiacore::IsNotifyingTabStrip()) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-      [self executeChromeCommand:command];
-    });
+  if (ardiacore::DeferWhileTabStripNotifies(^{
+        [self executeChromeCommand:command];
+      })) {
     return YES;
   }
   if (!_contents) {

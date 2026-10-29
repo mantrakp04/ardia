@@ -1,35 +1,28 @@
-import { setDownloadSettings, type DownloadSettings } from "../../../state/downloads/actions";
-import {
-  checkForUpdates,
-  setAsDefaultBrowser,
-  setAutomaticUpdateChecks,
-  setAutomaticUpdateDownloads,
-  setLaunchAtLogin,
-  setUpdateChannel,
-  type UpdateChannel,
-} from "../../../state/app/appSettings";
+import type { DownloadSettings } from "../../../state/downloads/actions";
+import { checkForUpdates, setLaunchAtLogin } from "../../../state/app/appSettings";
 import { pickFolder } from "../../../state/app/system";
 import { Symbol, Button, font, PopUp, Toggle } from "../../ui";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { AppState, Text, View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { updateSettings } from "../../../state/settings/actions";
-import { currentSettings } from "../../../state/browser/current";
+import { currentEngineProfile } from "../../../state/browser/current";
 import { useProfiles, useSettings } from "../../../state/browser/hooks";
-import { engineProfile } from "../../../state/browser/model";
 import { SHARING_COPY } from "../../../state/telemetry/copy";
-import { Anchor, Group, Row, SectionHeader } from "../Form";
-import { defaultBrowser, downloadSettings, loginItem, updater } from "../../../state/settings/paneData";
-import { store, useResource } from "../../../state/settings/resources";
+import { Anchor, Group, ProfilePicker, Row, SectionHeader, SettingToggle, useSettingsProfile } from "../Form";
+import { defaultBrowser, downloadSettings, loginItem, makeDefaultBrowser, setDownloadsFor, setUpdaterPrefs, updater } from "../../../state/settings/paneData";
+import { useResource } from "../../../state/settings/resources";
 import { openImport } from "../../../state/settings/settingsWindows";
 import { ExportBookmarksRow } from "./ExportBookmarksRow";
 import { SetupCodeRow } from "./SetupCodeRow";
+import { UI_LOCALE } from "../../../lib/uiLocale";
 
 const APP = "Ardia";
 
 export function GeneralPane() {
-  const settings = useSettings((s) => s);
-  const update = updateSettings;
+  const openLinksInLittleArdia = useSettings((s) => s.openLinksInLittleArdia);
+  const restoreSession = useSettings((s) => s.restoreSession);
+  const commandBarPreference = useSettings((s) => s.commandBarPreference);
   const [loginStatus = "notRegistered", refreshLogin] = useResource(loginItem);
 
   return (
@@ -47,27 +40,23 @@ export function GeneralPane() {
             onChange={(on) => void setLaunchAtLogin(on).catch(() => {}).finally(refreshLogin)}
           />
         </Row>
-        <Row anchor="general.warnBeforeQuitting">
-          <Toggle value={settings.warnBeforeQuitting} onChange={(v) => update({ warnBeforeQuitting: v })} />
-        </Row>
-        <Row anchor="general.warnBeforeClosingWindow">
-          <Toggle value={settings.warnBeforeClosingWindow} onChange={(v) => update({ warnBeforeClosingWindow: v })} />
-        </Row>
+        <SettingToggle anchor="general.warnBeforeQuitting" />
+        <SettingToggle anchor="general.warnBeforeClosingWindow" />
         <Row
           anchor="general.openLinksFrom"
           description={
-            settings.openLinksInLittleArdia
+            openLinksInLittleArdia
               ? `A link from Discord, Slack or Mail opens in Little Ardia, a small window of its own. ⌘O moves it into ${APP}; closing it throws it away.`
               : `A link from Discord, Slack or Mail opens as a new tab in the ${APP} window you used last.`
           }
         >
           <PopUp
-            value={settings.openLinksInLittleArdia ? "small" : "tab"}
+            value={openLinksInLittleArdia ? "small" : "tab"}
             options={[
               { value: "small", title: "Little Ardia" },
               { value: "tab", title: "A new tab" },
             ]}
-            onChange={(v) => update({ openLinksInLittleArdia: v === "small" })}
+            onChange={(v) => updateSettings({ openLinksInLittleArdia: v === "small" })}
             minWidth={190}
           />
         </Row>
@@ -77,12 +66,12 @@ export function GeneralPane() {
       <Group>
         <Row anchor="general.windowsAndTabs">
           <PopUp
-            value={settings.restoreSession ? "keep" : "close"}
+            value={restoreSession ? "keep" : "close"}
             options={[
               { value: "keep", title: "Preserve tabs and windows" },
               { value: "close", title: "Start fresh" },
             ]}
-            onChange={(v) => update({ restoreSession: v === "keep" })}
+            onChange={(v) => updateSettings({ restoreSession: v === "keep" })}
             minWidth={190}
           />
         </Row>
@@ -92,12 +81,12 @@ export function GeneralPane() {
       <Group>
         <Row anchor="general.commandBarPreference">
           <PopUp
-            value={settings.commandBarPreference}
+            value={commandBarPreference}
             options={[
               { value: "website", title: "Use Website First" },
               { value: "search", title: "Prefer Search Engine" },
             ]}
-            onChange={(v) => update({ commandBarPreference: v })}
+            onChange={(v) => updateSettings({ commandBarPreference: v })}
             minWidth={190}
           />
         </Row>
@@ -123,12 +112,11 @@ const homeRelative = (path: string) => path.replace(/^\/Users\/[^/]+(?=\/|$)/, "
 
 function DownloadsSection() {
   const profiles = useProfiles();
-  const [profileId, setProfileId] = useState(() => currentSettings().defaultProfileId);
-  const profile = engineProfile(profileId);
+  const [profileId, setProfileId] = useSettingsProfile();
+  const profile = currentEngineProfile(profileId);
   const [current] = useResource(downloadSettings, profile);
-  const others = [...new Set(profiles.map((p) => engineProfile(p.id)))].filter((p) => p !== profile);
-  const apply = (patch: Partial<Pick<DownloadSettings, "folder" | "askWhereToSave">>, targets = [profile]) =>
-    void Promise.all(targets.map((p) => setDownloadSettings(patch, p).then((next) => store(downloadSettings, [p], next), () => {})));
+  const others = [...new Set(profiles.map((p) => currentEngineProfile(p.id)))].filter((p) => p !== profile);
+  const apply = (patch: Partial<Pick<DownloadSettings, "folder" | "askWhereToSave">>, targets = [profile]) => void setDownloadsFor(patch, targets);
   const change = async () => {
     if (!current) return;
     const folder = await pickFolder(current.folder, "Use Folder");
@@ -140,11 +128,7 @@ function DownloadsSection() {
       <SectionHeader
         title="Downloads"
         description={profiles.length > 1 ? "Each profile saves to its own folder." : undefined}
-        action={
-          profiles.length > 1 ? (
-            <PopUp value={profileId} options={profiles.map((p) => ({ value: p.id, title: p.name }))} onChange={setProfileId} />
-          ) : undefined
-        }
+        action={<ProfilePicker value={profileId} onChange={setProfileId} />}
       />
       <Group>
         <Row
@@ -179,27 +163,21 @@ function UpdatesSection() {
   }, []);
   if (!state?.available) return null;
   const ready = state.configured;
-  const set = (patch: { automaticChecks?: boolean; automaticDownloads?: boolean; channel?: UpdateChannel }) => {
-    store(updater, [], { ...state, ...patch });
-    if (patch.automaticChecks !== undefined) void setAutomaticUpdateChecks(patch.automaticChecks).finally(refresh);
-    if (patch.automaticDownloads !== undefined) void setAutomaticUpdateDownloads(patch.automaticDownloads).finally(refresh);
-    if (patch.channel !== undefined) void setUpdateChannel(patch.channel).finally(refresh);
-  };
   const lastCheck = state.lastCheck
-    ? `Last checked ${new Date(state.lastCheck).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}.`
+    ? `Last checked ${new Date(state.lastCheck).toLocaleString(UI_LOCALE, { dateStyle: "medium", timeStyle: "short" })}.`
     : "Not checked yet.";
   return (
     <>
       <SectionHeader title="Updates" description={ready ? undefined : "Updates aren't set up for this build."} />
       <Group>
         <Row anchor="general.updateChecks" description={`${SHARING_COPY.updateChecks} ${SHARING_COPY.switchFile}`}>
-          <Toggle value={ready && state.automaticChecks} disabled={!ready} onChange={(v) => set({ automaticChecks: v })} />
+          <Toggle value={ready && state.automaticChecks} disabled={!ready} onChange={(v) => setUpdaterPrefs({ automaticChecks: v })} />
         </Row>
         <Row anchor="general.autoUpdate">
           <Toggle
             value={ready && state.automaticChecks && state.automaticDownloads}
             disabled={!ready || !state.automaticChecks}
-            onChange={(v) => set({ automaticDownloads: v })}
+            onChange={(v) => setUpdaterPrefs({ automaticDownloads: v })}
           />
         </Row>
         {state.channel && (
@@ -211,7 +189,7 @@ function UpdatesSection() {
                 { value: "nightly", title: "Nightly" },
               ]}
               disabled={!ready}
-              onChange={(channel) => set({ channel })}
+              onChange={(channel) => setUpdaterPrefs({ channel })}
               minWidth={190}
             />
           </Row>
@@ -256,7 +234,7 @@ function DefaultBrowserBanner() {
       <Text style={{ flex: 1, ...font.body, color: theme.textPrimary }}>
         {isDefault ? `${APP} is your default browser` : `${APP} works best as your default browser`}
       </Text>
-      {!isDefault && <Button title={`Set ${APP} as Default`} kind="primary" onPress={() => void setAsDefaultBrowser().then((v) => store(defaultBrowser, [], v))} />}
+      {!isDefault && <Button title={`Set ${APP} as Default`} kind="primary" onPress={() => void makeDefaultBrowser()} />}
     </Anchor>
   );
 }

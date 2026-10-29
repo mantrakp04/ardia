@@ -14,13 +14,13 @@ const stubs = {
     export const systemState = async () => null;`,
   "../../platform/profiles": `export * from ${JSON.stringify(profiles)};
     export const releaseProfile = async () => {};`,
-  "../splits/actions": "export const showToast = () => {};",
+  "../app/toasts": "export const showToast = () => {};",
   "../settings/settingsWindows": "export const openSettings = () => {};",
   "../pages/urls": "export const isInternalTab = (t) => !/^https?:/.test(t.url ?? '');",
 };
 registerHooks({
   resolve(specifier, context, next) {
-    if (!/\/state\/tabs\/(?:tabLifecycle|tabKeepAlive)\.ts$/.test(context.parentURL ?? "") || !(specifier in stubs)) return next(specifier, context);
+    if (!/\/state\/tabs\/(?:tabLifecycle|memorySaver|shownTabs)\.ts$/.test(context.parentURL ?? "") || !(specifier in stubs)) return next(specifier, context);
     return { url: `data:text/javascript,${encodeURIComponent(stubs[specifier])}`, shortCircuit: true };
   },
 });
@@ -33,7 +33,8 @@ const { useSidebarUi, setSidebarUi } = await import("../sidebar/sidebarUi.ts");
 const { useIsSleeping, noteDiscarded, noteReady } = await import("./tabLifecycle.ts");
 const { useMedia, setPictureInPictureState } = await import("../media/media.ts");
 const { usePage, usePages, patchPage } = await import("./pageState.ts");
-const { useFavicons, useFavicon, useFaviconTheme, useAppearanceDark, pageKey } = await import("../favicons/favicons.ts");
+const { useFavicons, useFavicon, useFaviconTheme, useAppearanceDark } = await import("../favicons/favicons.ts");
+const { withoutFragment } = await import("../../lib/url.ts");
 const { engineProfile } = await import("../browser/model.ts");
 const { flushPersistence, loadSession, startPersistence } = await import("../session/persist.ts");
 const stub = await import("../../test-native/index.ts");
@@ -53,7 +54,7 @@ const row = (tabId, windowId) =>
       return {
         title: tab?.customTitle ?? tab?.title,
         url: tab?.url,
-        pinned: tab?.pinned,
+        pinned: !!tab?.pin,
         favicon: tab?.favicon,
         gone: !tab,
         active: !!(flags & ACTIVE),
@@ -139,7 +140,7 @@ test("a row's tab and flags survive a relaunch: a row mounted on the restored se
   const stop = startPersistence();
   const w = S().createWindow({ url: "https://a.com/" });
   const b = S().newTab(w, { url: "https://b.com/", background: true });
-  S().updateTab(b, { title: "Before quit", pinned: true });
+  S().updateTab(b, { title: "Before quit", pin: { as: "tile" } });
   S().activate(b);
   flushPersistence();
   stop();
@@ -222,7 +223,7 @@ test("page progress: a bar mounted mid-load starts at the current value, follows
   other.unmount();
 });
 
-const key = engineProfile("default");
+const key = engineProfile(S(), "default");
 const setIcons = (fn) =>
   useFavicons.setState((f) => {
     const icons = f.profiles[key] ?? { pages: {}, srcs: {}, appearances: {} };
@@ -241,16 +242,16 @@ test("an icon: arrives, changes, follows its page and its icon URL, its light/da
   const page = "https://icons.example/a";
   const i = icon(page, null);
   assert.equal(i.value.resolved, null, "none yet");
-  setIcons((x) => ({ ...x, pages: { ...x.pages, [pageKey(page)]: "file:///one.png" } }));
+  setIcons((x) => ({ ...x, pages: { ...x.pages, [withoutFragment(page)]: "file:///one.png" } }));
   assert.equal(i.value.resolved?.uri, "file:///one.png", "arrives");
-  setIcons((x) => ({ ...x, pages: { ...x.pages, [pageKey(page)]: "file:///two.png" } }));
+  setIcons((x) => ({ ...x, pages: { ...x.pages, [withoutFragment(page)]: "file:///two.png" } }));
   assert.equal(i.value.resolved?.uri, "file:///two.png", "changes");
   useFavicons.setState((f) => ({ ...f, themes: { ...f.themes, "file:///two.png": { kind: "template", stroke: true } } }));
   assert.equal(i.value.theme?.kind, "template", "its shape theme");
   i.rerender({ url: page, src: "https://icons.example/b.ico" });
   setIcons((x) => ({ ...x, srcs: { ...x.srcs, "https://icons.example/b.ico": "file:///b.png" } }));
   assert.equal(i.value.resolved?.uri, "file:///b.png", "a new icon URL's image");
-  setIcons((x) => ({ ...x, appearances: { ...x.appearances, [pageKey(page)]: ["file:///light.png", "file:///dark.png"] } }));
+  setIcons((x) => ({ ...x, appearances: { ...x.appearances, [withoutFragment(page)]: ["file:///light.png", "file:///dark.png"] } }));
   assert.equal(i.value.resolved?.uri, "file:///light.png");
   useBrowser.setState((s) => ({ ui: { ...s.ui, appDark: true } }));
   assert.equal(i.value.resolved?.uri, "file:///dark.png", "dark appearance");

@@ -1,6 +1,8 @@
 import { createContext, useContext } from "react";
-import { opaqueThemeTint, PRESET_BACKDROP, resolveTheme, requestedDarkFor, rgbToHsl, shownLook, themeAccent, themeBackdrop, themePalette, type LookSource, type ProfileColor, type ProfileLookFields, type ProfileTheme, type ThemeBackdropProps } from "../../lib/profileLook";
+import { opaqueThemeTint, PRESET_BACKDROP, resolveTheme, requestedDarkFor, shownLook, themeAccent, themeBackdrop, themePalette, type LookSource, type ProfileColor, type ProfileLookFields, type ProfileTheme } from "../../lib/profileLook";
+import type { ThemeBackdropProps } from "@ardia/core";
 import { backdropTint, opaqueTint, tintForHue, type BackdropTint } from "../../lib/windowTint";
+import { isRgbFunction, mix, parseColor, rgbToHsl, toHex } from "../../lib/color";
 import { CARD_INSET, DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
 import { SIDEBAR_ROW } from "../../lib/sidebarMetrics";
 import { colorRoles, ink, INCOGNITO_TINT, PROFILE_COLORS, type ColorRoles, type ProfileColorSpec } from "./tokens";
@@ -17,23 +19,15 @@ export type Theme = ColorRoles & {
 };
 
 export function hex(color: string): string {
-  const m = color.match(/rgba?\(([^)]+)\)/);
-  if (!m) return color;
-  const [r, g, b, a = "1"] = m[1]!.split(",").map((v) => v.trim());
-  const h = (n: number) => Math.round(Math.min(255, Math.max(0, n))).toString(16).padStart(2, "0").toUpperCase();
-  return `#${h(+r!)}${h(+g!)}${h(+b!)}${h(+a * 255)}`;
+  if (!isRgbFunction(color)) return color;
+  const [r, g, b, a] = parseColor(color);
+  return toHex([r, g, b, a * 255]);
 }
 
 export function profileNameColor(profile: ProfileLookFields, dark: boolean): string {
   const spec = PROFILE_COLORS[profile.color] ?? PROFILE_COLORS.plum;
   const base = profile.theme ? themeAccent(resolveTheme(profile.theme, dark)) : (spec.action ?? spec.swatch);
   return dark ? mix(base, ink.white, 0.6) : mix(base, ink.black, 0.4);
-}
-
-function mix(a: string, b: string, t: number): string {
-  const ch = (h: string, i: number) => parseInt(h.slice(1 + 2 * i, 3 + 2 * i), 16);
-  const out = [0, 1, 2].map((i) => Math.round(ch(a, i) + (ch(b, i) - ch(a, i)) * t));
-  return `#${out.map((v) => v.toString(16).padStart(2, "0")).join("").toUpperCase()}`;
 }
 
 const cache = new Map<string, Theme>();
@@ -61,8 +55,10 @@ export function themeFor(key: string): Theme {
 }
 
 export function nearestPreset(hexColor: string): ProfileColor {
-  const ch = (h: string, i: number) => parseInt(h.slice(1 + 2 * i, 3 + 2 * i), 16) / 255;
-  const hsl = (h: string) => rgbToHsl(ch(h, 0), ch(h, 1), ch(h, 2));
+  const hsl = (color: string) => {
+    const [r, g, b] = parseColor(color);
+    return rgbToHsl(r / 255, g / 255, b / 255);
+  };
   const [h, s] = hsl(hexColor);
   if (s < 0.12) return "neutral";
   let best: ProfileColor = "plum";

@@ -12,17 +12,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { bookmarksByUrl } from "../../state/bookmarks/bookmarks";
 import { useMenuBarRevision } from "../../state/commands/commandShortcuts";
 import { useSettings } from "../../state/browser/hooks";
-import { useBookmarkProfileId, useBookmarks } from "../../state/bookmarks/hooks";
-import { useHistory } from "../../state/history/hooks";
+import { useBookmarkEngine, useBookmarks } from "../../state/bookmarks/hooks";
+import { useProfileHistory } from "../../state/history/hooks";
 import { useTabs } from "../../state/tabs/hooks";
 import { defaultSearchEngine, searchEngines } from "../../state/settings/settings";
-import type { Bookmarks, HistoryEntry } from "../../state/browser/types";
+import type { Bookmarks } from "../../state/browser/types";
 import { currentBarActions } from "../../state/omnibox/barActions";
 import { useBangs } from "../../state/omnibox/bangs";
 import { useBarExtensions } from "./extensions";
 import { historyHosts } from "../../state/omnibox/knownHosts";
 
-const NO_HISTORY: HistoryEntry[] = [];
 const NO_REMOTE: string[] = [];
 const EMPTY: SuggestionResult = { items: [], completion: "" };
 const WARM_SLICE_MS = 4;
@@ -30,17 +29,17 @@ const WARM_SLICE_MS = 4;
 type BookmarkRow = { url: string; title: string; favicon: string | null };
 const bookmarkCache = new WeakMap<Bookmarks, Map<string, BookmarkRow[]>>();
 
-function profileBookmarks(b: Bookmarks, profileId: string): BookmarkRow[] {
-  let perProfile = bookmarkCache.get(b);
-  if (!perProfile) bookmarkCache.set(b, (perProfile = new Map()));
-  let rows = perProfile.get(profileId);
+function engineBookmarks(b: Bookmarks, engine: string): BookmarkRow[] {
+  let perEngine = bookmarkCache.get(b);
+  if (!perEngine) bookmarkCache.set(b, (perEngine = new Map()));
+  let rows = perEngine.get(engine);
   if (!rows) {
     rows = [];
-    for (const [url, ids] of bookmarksByUrl(b, profileId)) {
+    for (const [url, ids] of bookmarksByUrl(b, engine)) {
       const node = b.nodes[ids[0]!];
       if (node?.kind === "url") rows.push({ url, title: node.title, favicon: node.favicon });
     }
-    perProfile.set(profileId, rows);
+    perEngine.set(engine, rows);
   }
   return rows;
 }
@@ -69,9 +68,9 @@ export function useSuggestions({
   preventInline?: boolean;
 }): SuggestionResult {
   const allTabs = useTabs((tabs) => tabs);
-  const history = useHistory((h) => h[profileId] ?? NO_HISTORY);
+  const history = useProfileHistory(profileId);
   const bookmarks = useBookmarks((b) => b);
-  const bookmarkProfile = useBookmarkProfileId(windowId);
+  const bookmarkEngine = useBookmarkEngine(windowId);
   const engines = useSettings((st) => searchEngines(st));
   const engine = useSettings((st) => defaultSearchEngine(st));
   const preference = useSettings((st) => st.commandBarPreference);
@@ -81,7 +80,7 @@ export function useSuggestions({
   const menuBar = useMenuBarRevision();
 
   const tabs = useMemo(() => Object.values(allTabs).filter((t) => t.profileId === profileId), [allTabs, profileId]);
-  const bookmarkRows = useMemo(() => profileBookmarks(bookmarks, bookmarkProfile), [bookmarks, bookmarkProfile]);
+  const bookmarkRows = useMemo(() => engineBookmarks(bookmarks, bookmarkEngine), [bookmarks, bookmarkEngine]);
   const source = useMemo(() => ({ tabs, history, bookmarks: bookmarkRows }), [tabs, history, bookmarkRows]);
 
   useEffect(() => {

@@ -1,10 +1,9 @@
-import { displayUrl, fuzzyScore } from "@ardia/core";
+import { displayUrl, fuzzyScore, hostOf } from "@ardia/core";
 import { useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { switchToTab } from "../../state/browser/actions";
 import { FadeLabel, font, Panel, radius, Symbol, weight } from "../ui";
 import { useTheme } from "../ui/theme";
-import { hostOf } from "../../lib/url";
 import { useTabs } from "../../state/tabs/hooks";
 import { restoreClosed } from "../../state/windows/actions";
 import { useClosedGroups, useClosedTabs } from "../../state/sidebar/hooks";
@@ -69,6 +68,7 @@ function SearchPanel({ windowId, windowWidth }: { windowId: string; windowWidth:
     <>
       <Pressable onPress={close} style={{ position: "absolute", left: 0, top: 0, right: 0, bottom: 0 }} />
       <Panel
+        glass="panel"
         fill={theme.panel}
         radius={SEARCH_RADIUS}
         border={theme.panelBorder}

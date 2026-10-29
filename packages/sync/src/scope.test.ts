@@ -485,3 +485,24 @@ test("an item chosen again with the same value while its deletion is pulled is k
   assert.equal(b.store.get("x:pin"), "same", "B keeps what it chose");
   assert.equal(a.store.get("x:pin"), "same", "and A takes it back");
 });
+
+test("an apply held while quitting leaves what it pulled unapplied, and a joining scope still joining", async () => {
+  const folder = new Folder();
+  const a = new Device("a", folder);
+  a.settings.set("set:theme", "dark");
+  a.store.set("x:1", "one");
+  await syncAll([a]);
+  let quitting = true;
+  const b = new Device("b", folder, { holdApply: () => quitting });
+  b.state.awaitRemote = true;
+  b.settings.set("set:theme", "light");
+  await b.sync();
+  assert.equal(b.store.size, 0, "nothing is applied");
+  assert.deepEqual([...b.state.unapplied].sort(), ["set:theme", "x:1"]);
+  assert.equal(b.state.joined, false, "and the scope hasn't joined, so its defaults still wait");
+  quitting = false;
+  await b.sync();
+  assert.equal(b.store.get("x:1"), "one");
+  assert.equal(b.settings.get("set:theme"), "dark", "joining takes the synced setting");
+  assert.equal(b.state.joined, true);
+});

@@ -93,7 +93,7 @@ async function shoot(scene, name, side) {
   const options = {
     data, js, probe, port, onboarded: true, files: { "telemetry.json": { sharing: false, decidedAt: 1, askDoneAt: 1 } }, session: JSON.parse(readFileSync(sessionFile, "utf8")),
     switches: [`--host-resolver-rules=MAP *.example 127.0.0.1:${sitesPort}`, ...(scene.switches ?? [])],
-    instance: { importSourceDir: empty, importSafariHome: empty, downloadsDir: downloads },
+    instance: { importSourceDir: empty, importSafariHome: empty, downloadsDir: downloads, ...(scene.instance ?? {}) },
     env: { ...(hoverLib ? { DYLD_INSERT_LIBRARIES: hoverLib } : {}), ...(scene.env ?? {}) },
   };
   const start = scene.withoutDevTools ? launchWithoutDevTools : launch;

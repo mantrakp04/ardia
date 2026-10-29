@@ -34,14 +34,13 @@ final class DragPreview {
   private var lastPoint = NSPoint.zero
   private var shownAt = 0.0
   private var generation = 0
-  private let background = LaunchConfig.shared.background
   private var animation: Timer?
   private var desired = NSRect.zero
 
   func begin(windowId: String, chip: NSRect, grab: NSPoint) {
     cancel()
     shapes = []
-    guard let window = WindowManager.shared.windows[windowId] else { return }
+    guard let window = WindowManager.shared.window(windowId) else { return }
     source = window
     sourceClosing = NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) {
       [weak self] _ in self?.cancel()
@@ -114,7 +113,7 @@ final class DragPreview {
       animation = nil
       panel.alphaValue = 1
       place(panel, shape: "pill", at: point, animated: false)
-      if background { panel.order(.above, relativeTo: source.windowNumber) } else { panel.orderFrontRegardless() }
+      if LaunchConfig.shared.background { panel.order(.above, relativeTo: source.windowNumber) } else { panel.orderFrontRegardless() }
       guard next == "card" else { return }
       let gen = generation
       DispatchQueue.main.asyncAfter(deadline: .now() + Self.pillMs) { [weak self] in
@@ -149,12 +148,12 @@ final class DragPreview {
     var tries = 0
     func grow() {
       guard generation == gen else { return }
-      guard let window = WindowManager.shared.windows[windowId] else {
+      guard let window = WindowManager.shared.window(windowId) else {
         tries += 1
         if tries > 20 { return animate(panel, to: fallback, alpha: 1, duration: Self.grow, then: fade) }
         return DispatchQueue.main.asyncAfter(deadline: .now() + 0.016) { grow() }
       }
-      if background { panel.order(.above, relativeTo: window.windowNumber) }
+      if LaunchConfig.shared.background { panel.order(.above, relativeTo: window.windowNumber) }
       animate(panel, to: window.frame, alpha: 1, duration: Self.grow) {
         WindowManager.shared.whenRevealed(windowId, fade)
       }
@@ -227,8 +226,8 @@ final class DragPreview {
 
   private func makePanel() -> Panel {
     let panel = Panel(contentRect: NSRect(origin: .zero, size: Self.card), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
-    panel.isFloatingPanel = !background
-    panel.level = background ? .normal : .floating
+    panel.isFloatingPanel = !LaunchConfig.shared.background
+    panel.level = LaunchConfig.shared.background ? .normal : .floating
     panel.ignoresMouseEvents = true
     panel.hidesOnDeactivate = false
     panel.isOpaque = false

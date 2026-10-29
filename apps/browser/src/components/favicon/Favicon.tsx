@@ -1,4 +1,4 @@
-import { displayHost } from "@ardia/core";
+import { displayHost, hostOf } from "@ardia/core";
 import { memo, useState } from "react";
 import { Image, Text, View } from "react-native";
 import { faviconFailed, useAppearanceDark, useFavicon, useFaviconTheme } from "../../state/favicons/favicons";
@@ -67,10 +67,9 @@ export const FaviconFallback = memo(function FaviconFallback({ url, size = 16 }:
 });
 
 function hostInitial(url: string): string {
-  const host = /^(?:https?|ftp):\/\/(?:[^@/?#]*@)?([^/?#:]+)/i.exec(url)?.[1];
+  const host = /^(?:https?|ftp):/i.test(url) ? hostOf(url) : "";
   if (!host || /^[\d.]+$|^\[/.test(host)) return "";
-  const shown = displayHost(host.toLowerCase()).replace(/^www\./, "");
-  return Array.from(shown)[0]?.toLocaleUpperCase() ?? "";
+  return Array.from(displayHost(host))[0]?.toLocaleUpperCase() ?? "";
 }
 
 const NEW_TAB_MARK = require("../../../assets/new-tab-mark.png");

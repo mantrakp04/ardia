@@ -1,4 +1,5 @@
 import type { CalendarParticipant, SystemCalendarEvent } from "../../platform/calendar";
+import { UI_LOCALE } from "../../lib/uiLocale";
 
 export type CalendarEvent = SystemCalendarEvent;
 export type MeetingProvider = "meet" | "zoom" | "teams" | "webex" | "other";
@@ -183,7 +184,7 @@ export function guestsLabel(event: Pick<CalendarEvent, "attendees">): string {
 }
 
 export function timeRange(event: Pick<CalendarEvent, "start" | "end">): string {
-  const fmt = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const fmt = (ms: number) => new Date(ms).toLocaleTimeString(UI_LOCALE, { hour: "numeric", minute: "2-digit" });
   return `${fmt(event.start)} – ${fmt(event.end)}`;
 }
 

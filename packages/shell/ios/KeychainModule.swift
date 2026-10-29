@@ -1,3 +1,4 @@
+import ArdiaCore
 import ExpoModulesCore
 import Foundation
 import Security
@@ -53,7 +54,7 @@ public class KeychainModule: Module {
 }
 
 private final class IsolatedSecrets {
-  static let shared = ArdiaIsolatedDataDirectory().map {
+  static let shared = LaunchConfig.shared.dataDirectory.map {
     IsolatedSecrets(URL(fileURLWithPath: $0, isDirectory: true).appendingPathComponent("Connected Accounts.json"))
   }
 

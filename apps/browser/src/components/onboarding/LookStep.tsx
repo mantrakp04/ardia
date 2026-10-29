@@ -8,10 +8,11 @@ import { ChoiceList, type ChoiceOption } from "./ChoiceList";
 import { ThemeColorPicker } from "./Personalize";
 import { MockPanel, useScreen } from "./Screen";
 import { previewColor, previewLive, previewTheme, setOnboardingExtras, useOnboarding } from "../../state/onboarding/onboarding";
+import { keysOf } from "../../state/onboarding/questions";
 import { change, Page, useQuestion } from "./LayoutSteps";
 import { CheckRow, OptionRow } from "./Parts";
 
-const LOOK_KEYS = ["appearance", "extendWebsiteColor", "hideToolbarWhileScrolling", "bookmarksBar", "profileSwitcherIcons"] as const;
+const LOOK_KEYS = keysOf("look");
 
 const APPEARANCE_CHOICES: ChoiceOption<Settings["appearance"]>[] = [
   { value: "auto", preview: "appearance-auto", title: "Automatic", subtitle: "Light by day, dark by night, like your Mac" },

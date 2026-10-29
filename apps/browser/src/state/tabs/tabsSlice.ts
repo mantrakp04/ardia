@@ -1,29 +1,24 @@
-import { resolveInput } from "@ardia/core";
 import type { StateCreator } from "zustand";
-import { fromLegacyUrl } from "../../lib/legacy";
-import { startNavigation } from "../../platform/earlyNavigate";
+import { startNavigation } from "./earlyNavigate";
+import { cloneId } from "./adoptIds";
 import type { BrowserState } from "../browser/store";
 import { syncGroupOrder } from "../groups/groups";
 import { activeTabId, inPinnedContainer, merge, navigationTo, pinSection, snapshotTab, viewTabIds } from "../browser/model";
 import { forgetOpeners, nextToActive, switchKeepsOpeners } from "./openers";
-import { groupWithOpener, onUrlChange } from "../pins/organize";
+import { onUrlChange } from "../pins/organize";
+import { groupWithOpener } from "../pins/tabGrouping";
 import { stepDrop } from "../drag/drops";
-import { searchUrlPrefix } from "../settings/settings";
+import { resolveTyped } from "../settings/settings";
+import { openSettings } from "../settings/settingsWindows";
+import { appUrlAction } from "../pages/appUrls";
+import { handOffPinPage } from "../pins/pinHandoff";
 import { mainWindowFor } from "../windows/small";
 import { holderOf, swapPinPage } from "../pins/pinShare";
 import { engineForUrl, tabEngine, typedNavigationEngine } from "../engines/engines";
 import type { ClosedTab, Tab, TabLive } from "../browser/types";
 import { activated, apply, closingTabs, withNewTab, type CloseOptions, type NewTabOptions } from "./tabs";
+import { hasPage, loadedPage, navigationOf, renavigated, wakeOf, withWake } from "./pageSession";
 
-let pinHandoff: (tabId: string, commit: () => void) => void = (_, commit) => commit();
-export const setPinHandoff = (handoff: typeof pinHandoff) => {
-  pinHandoff = handoff;
-};
-
-let openOutsideTab: (url: string, windowId: string) => boolean = () => false;
-export const setAppUrlOpener = (open: typeof openOutsideTab) => {
-  openOutsideTab = open;
-};
 
 export type TabsSlice = {
   tabs: Record<string, Tab>;
@@ -40,8 +35,6 @@ export type TabsSlice = {
   navigate(id: string, input: string, options?: { userInitiated?: boolean }): void;
   updateTab(id: string, patch: Partial<Tab>, live?: Partial<TabLive>): void;
   updateLive(id: string, patch: Partial<TabLive>): void;
-  navigated(id: string, page: { url: string; title: string }, live: Partial<TabLive>): void;
-  faviconChanged(id: string, favicon: string): void;
   duplicateTab(id: string): string | undefined;
   togglePin(id: string): void;
   moveTab(id: string, toIndex: number): void;
@@ -53,6 +46,14 @@ function tabSection(s: BrowserState, id: string): string[] {
   const w = tab && s.windows[tab.windowId];
   if (!w) return [];
   return w.tabIds.filter((t) => s.tabs[t]?.profileId === tab.profileId && pinSection(s.tabs[t]) === pinSection(tab));
+}
+
+function openOutsideTab(s: BrowserState, url: string, windowId: string): boolean {
+  const action = appUrlAction(url);
+  if (!action) return false;
+  if (action.kind === "newTab") s.newTab(windowId);
+  else openSettings(action.pane);
+  return true;
 }
 
 export const createTabsSlice: StateCreator<BrowserState, [], [], TabsSlice> = (set, get) => ({
@@ -71,10 +72,10 @@ export const createTabsSlice: StateCreator<BrowserState, [], [], TabsSlice> = (s
       }
       return get().newTab(main, { ...options, profileId, index: undefined });
     }
-    if (options?.url && !options.adoptId && openOutsideTab(resolveInput(fromLegacyUrl(options.url.trim()), searchUrlPrefix(get().settings)), windowId)) return "";
+    if (options?.url && !options.adoptId && openOutsideTab(get(), resolveTyped(get().settings, options.url), windowId)) return "";
     const beside = options?.newTabCommand && !options.openerId ? nextToActive(get(), windowId, options.profileId) : undefined;
     let [next, id] = withNewTab(get(), windowId, beside ? { ...options, ...beside } : options);
-    const typed = beside && next.tabs[id]?.navigation;
+    const typed = beside && navigationOf(next.tabs[id]);
     if (typed) next = { ...next, tabs: { ...next.tabs, [id]: { ...next.tabs[id]!, engine: engineForUrl(next, typed.url) } } };
     if (id && options?.openerId) next = groupWithOpener(next, id, options.openerId, !!options.background);
     else if (id && beside && !inPinnedContainer(next, beside.openerId)) next = groupWithOpener(next, id, beside.openerId, false);
@@ -96,7 +97,7 @@ export const createTabsSlice: StateCreator<BrowserState, [], [], TabsSlice> = (s
     const s = get();
     const tab = s.tabs[id];
     if (!tab) return;
-    if (!tab.navigation && !tab.adoptId && holderOf(s, id)) return pinHandoff(id, () => get().handOffPin(id));
+    if (!hasPage(tab) && holderOf(s, id)) return handOffPinPage(id, () => get().handOffPin(id));
     const shown = activeTabId(s, tab.windowId);
     let next = apply(s, activated(s, id));
     if (shown && shown !== id && !switchKeepsOpeners(s, shown, id)) next = forgetOpeners(next, tab.windowId);
@@ -131,30 +132,29 @@ export const createTabsSlice: StateCreator<BrowserState, [], [], TabsSlice> = (s
 
   navigate(id, input, { userInitiated = true } = {}) {
     const copy = get().tabs[id];
-    const holder = copy && !copy.navigation && !copy.adoptId ? holderOf(get(), id) : undefined;
+    const holder = copy && !hasPage(copy) ? holderOf(get(), id) : undefined;
     if (copy && holder) {
       if (activeTabId(get(), copy.windowId) !== id) return get().navigate(holder.id, input, { userInitiated });
       get().handOffPin(id);
       const held = get().tabs[holder.id];
-      if (held?.windowId === copy.windowId && !held.pageIn) return get().navigate(held.id, input, { userInitiated });
+      if (held?.windowId === copy.windowId && held.page.kind !== "frozen") return get().navigate(held.id, input, { userInitiated });
       return;
     }
     const s = get();
-    const url = resolveInput(fromLegacyUrl(input.trim()), searchUrlPrefix(s.settings));
+    const url = resolveTyped(s.settings, input);
     const tab = s.tabs[id];
     if (!url || !tab) return;
-    if (openOutsideTab(url, tab.windowId)) {
+    if (openOutsideTab(s, url, tab.windowId)) {
       if (get().windowUi[tab.windowId]?.panel.open) get().closePanel(tab.windowId);
       return;
     }
-    const { unloaded: _, wakeAdoptId: _kept, ...rest } = tab;
     const base = userInitiated && tab.url ? forgetOpeners(s, tab.windowId) : s;
     const navigation = navigationTo(url, userInitiated);
     const engine = userInitiated ? typedNavigationEngine(s, tab, url) : undefined;
     const switching = !!engine && engine !== tabEngine(s, id);
     if (!switching) startNavigation(id, navigation);
-    const page = { ...(engine ? { engine } : {}), ...(switching ? { adoptId: undefined } : {}) };
-    set(apply(base, { tabs: { ...base.tabs, [id]: { ...rest, openerId: base.tabs[id]!.openerId, navigation, url: tab.url || url, ...page } } }));
+    const page = switching ? loadedPage(navigation) : renavigated(tab, navigation);
+    set(apply(base, { tabs: { ...base.tabs, [id]: { ...tab, openerId: base.tabs[id]!.openerId, page, url: tab.url || url, ...(engine ? { engine } : {}) } } }));
     const ui = get().windowUi[tab.windowId];
     if (ui?.panel.open) get().closePanel(tab.windowId);
   },
@@ -164,8 +164,8 @@ export const createTabsSlice: StateCreator<BrowserState, [], [], TabsSlice> = (s
     const tab = s.tabs[id];
     if (!tab) return;
     const url = patch.url;
-    const supersedes = !!tab.wakeAdoptId && !("wakeAdoptId" in patch) && (!!patch.navigation || !!patch.adoptId || (url !== undefined && url !== tab.url));
-    const change = supersedes ? { ...patch, wakeAdoptId: undefined } : patch;
+    const supersedes = !!wakeOf(tab) && !("page" in patch) && url !== undefined && url !== tab.url;
+    const change = supersedes ? { ...patch, page: withWake(tab.page, undefined) } : patch;
     const next = merge(tab, url !== undefined && url !== tab.url ? { ...onUrlChange(s, tab, url), ...change } : change);
     const live = livePatch ? s.live[id] : undefined;
     const nextLive = live && livePatch ? merge(live, livePatch) : live;
@@ -183,14 +183,6 @@ export const createTabsSlice: StateCreator<BrowserState, [], [], TabsSlice> = (s
     if (next !== live) set((s) => ({ live: { ...s.live, [id]: next } }));
   },
 
-  navigated(id, page, live) {
-    get().updateTab(id, page, live);
-  },
-
-  faviconChanged(id, favicon) {
-    get().updateTab(id, { favicon });
-  },
-
   duplicateTab(id) {
     const s = get();
     const source = s.tabs[id];
@@ -199,9 +191,9 @@ export const createTabsSlice: StateCreator<BrowserState, [], [], TabsSlice> = (s
     const [next, copy] = withNewTab(s, w.id, {
       url: source.url || undefined,
       profileId: source.profileId,
-      snapshot: { ...snapshotTab(source), pinned: false },
+      snapshot: { ...snapshotTab(source), pin: null },
       index: w.tabIds.indexOf(id) + 1,
-      adoptId: source.url ? `clone:${id}` : undefined,
+      adoptId: source.url ? cloneId(id) : undefined,
     });
     set(next);
     return copy;
@@ -209,7 +201,7 @@ export const createTabsSlice: StateCreator<BrowserState, [], [], TabsSlice> = (s
 
   togglePin(id) {
     const tab = get().tabs[id];
-    if (tab) get().pinTabs([id], !tab.pinned);
+    if (tab) get().pinTabs([id], !tab.pin);
   },
 
   moveTab(id, toIndex) {

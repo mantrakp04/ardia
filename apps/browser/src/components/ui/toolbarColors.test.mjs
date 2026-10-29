@@ -5,17 +5,10 @@ globalThis.__DEV__ = false;
 
 const { profileTheme } = await import("./theme.ts");
 const { colorRoles, siteToolbarRoles } = await import("./tokens.ts");
-const { isLightBackground, siteScopedTheme, toolbarPalette } = await import("./toolbarColors.ts");
+const { siteScopedTheme, toolbarPalette } = await import("./toolbarColors.ts");
 
 const dark = profileTheme(undefined, true);
 const light = profileTheme(undefined, false);
-
-test("light and dark backgrounds split where the toolbar's ink flips", () => {
-  assert.equal(isLightBackground("#F3EEE4"), true);
-  assert.equal(isLightBackground("#F6F8FC"), true);
-  assert.equal(isLightBackground("#1F1F1F"), false);
-  assert.equal(isLightBackground("#000000"), false);
-});
 
 test("with no website colour the bar keeps the window's own theme", () => {
   const palette = toolbarPalette(dark, null);

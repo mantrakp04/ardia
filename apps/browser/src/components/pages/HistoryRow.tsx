@@ -40,6 +40,7 @@ export const HistoryRow = memo(function HistoryRow({
   onToggle,
   onMoreFromSite,
   onRemove,
+  menuTargets,
 }: {
   entry: HistoryEntry;
   profileId: string;
@@ -50,7 +51,8 @@ export const HistoryRow = memo(function HistoryRow({
   windowId: string;
   onToggle: (url: string, shift: boolean) => void;
   onMoreFromSite: (url: string) => void;
-  onRemove: (url: string) => void;
+  onRemove: (urls: string[]) => void;
+  menuTargets: (entry: HistoryEntry) => HistoryEntry[];
 }) {
   const theme = useTheme();
   const url = useRef(entry.url);
@@ -93,7 +95,7 @@ export const HistoryRow = memo(function HistoryRow({
     };
   });
   const showControls = restingUrl === entry.url || focusedUrl === entry.url;
-  const menu = () => openHistoryRowMenu(entry.url, windowId, onMoreFromSite, onRemove);
+  const menu = () => openHistoryRowMenu(menuTargets(entry), windowId, onMoreFromSite, onRemove);
   const r = radius.card;
   return (
     <View {...hoverProps} {...focusProps} style={ROW_FRAME}>

@@ -13,7 +13,7 @@ if (!(globalThis as { expo?: unknown }).expo) {
   } catch {}
 }
 const modules = (globalThis as { expo?: { modules?: Record<string, Record<string, (...a: unknown[]) => unknown>> } }).expo?.modules;
-const shell = modules?.ArdiaShell;
+const shell = modules?.ArdiaDocuments;
 
 const probeOptions = (() => {
   try {
@@ -43,9 +43,52 @@ let firstCommit = 0;
 let firstCommitMounts: Counter | null = null;
 let task: string | null = null;
 
+type FiberRoot = { current: Fiber };
+type DevToolsHook = { onCommitFiberRoot: (id: number, root: FiberRoot, ...rest: unknown[]) => unknown };
+
+function countCommit(root: FiberRoot) {
+  const t = now();
+  firstCommit ||= Date.now();
+  roots.add(root);
+  stats.commits++;
+  bump(stats.commitTasks, task ?? "other");
+  if (stats.commitTimes.length < 5000) {
+    stats.commitTimes.push(t);
+    stats.commitTaskLog.push(task ?? "other");
+  }
+  const mountsBefore = firstCommitMounts ? null : { ...stats.mounts };
+  try {
+    walk(root.current, stats, rendersProbe);
+  } catch {}
+  if (mountsBefore) {
+    firstCommitMounts = {};
+    for (const key in stats.mounts) if (stats.mounts[key]! > (mountsBefore[key] ?? 0)) firstCommitMounts[key] = stats.mounts[key]! - (mountsBefore[key] ?? 0);
+  }
+  stats.commitMs += root.current.actualDuration ?? 0;
+  stats.walkMs += now() - t;
+  if (layoutProbe) {
+    try {
+      (require("../sidebar/layoutWatch") as typeof import("../sidebar/layoutWatch")).layoutCommitted(layoutEditAt);
+    } catch {}
+  }
+}
+
 function installReactHook() {
+  const global = globalThis as { __REACT_DEVTOOLS_GLOBAL_HOOK__?: DevToolsHook };
+  const devTools = global.__REACT_DEVTOOLS_GLOBAL_HOOK__;
+  if (devTools) {
+    const onCommit = devTools.onCommitFiberRoot;
+    devTools.onCommitFiberRoot = function (this: unknown, id, root, ...rest) {
+      try {
+        return onCommit.call(this, id, root, ...rest);
+      } finally {
+        countCommit(root);
+      }
+    };
+    return;
+  }
   let ids = 0;
-  (globalThis as { __REACT_DEVTOOLS_GLOBAL_HOOK__?: unknown }).__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
+  global.__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
     supportsFiber: true,
     isDisabled: false,
     renderers: new Map(),
@@ -54,33 +97,10 @@ function installReactHook() {
     onScheduleFiberRoot() {},
     onCommitFiberUnmount() {},
     onPostCommitFiberRoot() {},
-    onCommitFiberRoot(_id: number, root: { current: Fiber }) {
-      const t = now();
-      firstCommit ||= Date.now();
-      roots.add(root);
-      stats.commits++;
-      bump(stats.commitTasks, task ?? "other");
-      if (stats.commitTimes.length < 5000) {
-        stats.commitTimes.push(t);
-        stats.commitTaskLog.push(task ?? "other");
-      }
-      const mountsBefore = firstCommitMounts ? null : { ...stats.mounts };
-      try {
-        walk(root.current, stats, rendersProbe);
-      } catch {}
-      if (mountsBefore) {
-        firstCommitMounts = {};
-        for (const key in stats.mounts) if (stats.mounts[key]! > (mountsBefore[key] ?? 0)) firstCommitMounts[key] = stats.mounts[key]! - (mountsBefore[key] ?? 0);
-      }
-      stats.commitMs += root.current.actualDuration ?? 0;
-      stats.walkMs += now() - t;
-      if (layoutProbe) {
-        try {
-          (require("../sidebar/layoutWatch") as typeof import("../sidebar/layoutWatch")).layoutCommitted(layoutEditAt);
-        } catch {}
-      }
+    onCommitFiberRoot(_id: number, root: FiberRoot) {
+      countCommit(root);
     },
-  };
+  } as DevToolsHook;
 }
 
 let traceTimers = false;

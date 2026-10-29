@@ -4,7 +4,7 @@ const { useBrowser } = await import("../browser/store.ts");
 const { pinSites, preselectedSites, pinnedHosts } = await import("./sites.ts");
 
 const S = () => useBrowser.getState();
-const pinnedCount = () => Object.values(S().tabs).filter((t) => t.pinned).length;
+const pinnedCount = () => Object.values(S().tabs).filter((t) => !!t.pin).length;
 
 test("onboarding never pins a site the import already pinned at a deeper page or in a pinned folder", () => {
   S().hydrate({});
@@ -17,7 +17,7 @@ test("onboarding never pins a site the import already pinned at a deeper page or
   const before = pinnedCount();
   pinSites(w, ["gmail", "youtube", "github"]);
   assert.equal(pinnedCount(), before + 1, "only GitHub is new");
-  assert.ok(Object.values(S().tabs).some((t) => t.pinned && t.url === "https://github.com/"));
+  assert.ok(Object.values(S().tabs).some((t) => !!t.pin && t.url === "https://github.com/"));
   assert.deepEqual([...pinnedHosts(w)].sort(), ["github.com", "mail.google.com", "youtube.com"]);
 });
 

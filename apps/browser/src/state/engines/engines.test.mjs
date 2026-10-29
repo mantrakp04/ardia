@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { chosenEngine, engineForUrl, engineMark, protectedVideoSite, recommendedEngineFor, ruleFor, siteOf, tabEngine, typedNavigationEngine, visitRecorder } from "./engines.ts";
 import { makeTab, snapshotTab } from "../browser/model.ts";
 
-const tab = (id, patch = {}) => ({ id, url: "", navigation: null, openerId: null, ...patch });
+const tab = (id, patch = {}) => ({ id, url: "", page: { kind: "idle" }, openerId: null, ...patch });
 const state = (tabs, settings = {}) => ({
   tabs: Object.fromEntries(tabs.map((t) => [t.id, t])),
   settings: { pageEngine: "chromium", websiteEngines: {}, ...settings },
@@ -31,12 +31,12 @@ test("a tab keeps its engine, else follows its adoption, its opener, then rules"
   const s = state(
     [
       tab("fixed", { engine: "chromium", url: "https://www.netflix.com/" }),
-      tab("popup", { adoptId: "webkit:3" }),
-      tab("chrome", { adoptId: "ardiacore:9", url: "https://www.netflix.com/" }),
+      tab("popup", { page: { kind: "adopted", adopt: "webkit:3", nav: null } }),
+      tab("chrome", { page: { kind: "adopted", adopt: "ardiacore:9", nav: null }, url: "https://www.netflix.com/" }),
       tab("opener", { engine: "webkit", url: "https://www.netflix.com/" }),
       tab("link", { openerId: "opener", url: "https://example.com/" }),
       tab("typed", { url: "https://www.netflix.com/" }),
-      tab("copy", { adoptId: "clone:opener" }),
+      tab("copy", { page: { kind: "adopted", adopt: "clone:opener", nav: null } }),
     ],
     rules,
   );
@@ -101,7 +101,7 @@ test("the mark shows only on web pages away from the default engine", () => {
 test("a closed WebKit tab reopens in WebKit, whatever restore id it carries", () => {
   const closed = snapshotTab({ ...makeTab("w1", "default", "https://www.netflix.com/"), engine: "webkit" });
   assert.equal(closed.engine, "webkit");
-  const reopened = { ...makeTab("w1", "default", closed.url, closed), adoptId: "restore:old", navigation: null };
+  const reopened = { ...makeTab("w1", "default", closed.url, closed), page: { kind: "adopted", adopt: "restore:old", nav: null } };
   const s = state([reopened]);
   assert.equal(tabEngine(s, reopened.id), "webkit");
   assert.equal(snapshotTab(makeTab("w1", "default", "https://a.com/")).engine, undefined);

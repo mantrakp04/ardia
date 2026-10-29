@@ -49,7 +49,7 @@ async function ev(name, body, timeout = 90_000) {
 async function inHistory(name, url) {
   const end = Date.now() + 30_000;
   while (Date.now() < end) {
-    if (await ev(name, `return (ac.store.getState().history.default || []).some((h) => h.url === ${JSON.stringify(url)})`)) return;
+    if (await ev(name, `return ac.history.historyOf(ac.store.getState(), "default").some((h) => h.url === ${JSON.stringify(url)})`)) return;
     await sleep(300);
   }
   throw new Error(`${name}: ${url} never reached Chrome's history`);
@@ -84,7 +84,7 @@ async function state(name) {
     name,
     `
     const s = ac.store.getState();
-    const b = s.bookmarks; const roots = b.roots.default;
+    const b = s.bookmarks; const roots = ac.bookmarks.bookmarkRoots(s, "default");
     const walk = (id) => { const n = b.nodes[id]; return n.kind === "url" ? n.title + " " + n.url : { [n.title]: n.children.map(walk) }; };
     const u = acSync.useSync.getState();
     const reveal = (p) => ac.engine.call("passwords.reveal", { profile: "", origin: p.origin, username: p.username }).then((r) => r.password, (e) => "(" + e.message + ")");
@@ -93,12 +93,12 @@ async function state(name) {
       .then(([pw, list]) => ({
       status: u.status, error: u.error, enabled: u.enabled, pending: u.pending,
       bookmarks: [walk(roots.bar), walk(roots.other)],
-      history: (s.history.default || []).map((h) => h.url).sort(),
+      history: ac.history.historyOf(s, "default").map((h) => h.url).sort(),
       settings: { appearance: s.settings.appearance, searchEngine: s.settings.searchEngine, showFullUrl: s.settings.showFullUrl, cleanUp: s.settings.cleanUpInactiveTabsAfterMinutes },
-      pinned: Object.values(s.tabs).filter((t) => t.pinned).map((t) => t.pinnedUrl || t.url).sort(),
-      rows: Object.values(s.tabs).filter((t) => t.pinned && t.pinnedAsRow).map((t) => t.pinnedUrl || t.url).sort(),
+      pinned: Object.values(s.tabs).filter((t) => t.pin).map((t) => t.pinnedUrl || t.url).sort(),
+      rows: Object.values(s.tabs).filter((t) => t.pin?.as === "row").map((t) => t.pinnedUrl || t.url).sort(),
       groups: Object.values(s.groups).filter((g) => g.pinned).map((g) => g.name + ": " + g.tabIds.map((id) => s.tabs[id].url).join(", ")).sort(),
-      unloadedPins: Object.values(s.tabs).filter((t) => t.pinned && t.unloaded).length,
+      unloadedPins: Object.values(s.tabs).filter((t) => t.pin && t.page.kind === "asleep").length,
       passwords: (pw || []).map((p) => p.origin + " " + p.username + "=" + p.password).sort(),
       chromePasswords: ((list && list.passwords) || []).map((p) => p.origin + " " + p.username).sort(),
       devices: u.devices.map((d) => d.id),
@@ -227,9 +227,9 @@ try {
     `
     const s = ac.store.getState();
     const nodes = Object.values(s.bookmarks.nodes);
-    s.moveBookmark(nodes.find((n) => n.title === "ACE2E Bookmark Alpha").id, s.bookmarks.roots.default.bar, 0);
+    s.moveBookmark(nodes.find((n) => n.title === "ACE2E Bookmark Alpha").id, ac.bookmarks.bookmarkRoots(s, "default").bar, 0);
     s.removeBookmark(nodes.find((n) => n.title === "ACE2E Folder").id);
-    s.addBookmark({ profileId: "default", url: "${W}/alpha.html?nne2e=bmA2", title: "ACE2E Second from A", parentId: s.bookmarks.roots.default.other });
+    s.addBookmark({ profileId: "default", url: "${W}/alpha.html?nne2e=bmA2", title: "ACE2E Second from A", parentId: ac.bookmarks.bookmarkRoots(s, "default").other });
     s.updateSettings({ appearance: "light", cleanUpInactiveTabsAfterMinutes: null });
     const w = ac.store.getState().windowOrder[0];
     ac.store.getState().pinTabs([s.newTab(w, { url: "${W}/beta.html?nne2e=pin2" })], true);
@@ -246,7 +246,7 @@ try {
   check("A's new row arrives as a row and its tiles stay tiles", text(b.rows) === text([`${W}/row.html?nne2e=row1`]) && b.pinned.filter((u) => !b.rows.includes(u)).some((u) => u.includes("pin2")), text({ pinned: b.pinned, rows: b.rows }));
   check("A's pinned group arrives with its member", text(b.groups) === text([`ACE2E Pinned Group: ${W}/member.html?nne2e=grp1`]), text(b.groups));
 
-  await ev("A", `const s = ac.store.getState(); s.pinTabs(Object.values(s.tabs).filter((t) => t.pinned && (t.pinnedUrl || t.url).includes("pin2")).map((t) => t.id), false); return true;`);
+  await ev("A", `const s = ac.store.getState(); s.pinTabs(Object.values(s.tabs).filter((t) => t.pin && (t.pinnedUrl || t.url).includes("pin2")).map((t) => t.id), false); return true;`);
   await sync("A", "B", "A", "B");
   b = await state("B");
   check("A's unpinned tab leaves B's pinned tabs", !b.pinned.some((u) => u.includes("pin2")) && b.rows.length === 1 && b.groups.length === 1, text({ pinned: b.pinned, rows: b.rows, groups: b.groups }));
@@ -343,7 +343,7 @@ try {
     const s = ac.store.getState();
     s.addBookmark({ profileId: "default", url: "${W}/alpha.html?nne2e=whileQuit", title: "ACE2E Made While B Was Quit" });
     s.removeBookmark(Object.values(s.bookmarks.nodes).find((n) => n.title === "ACE2E Second from A").id);
-    s.placeTabs(Object.values(s.tabs).filter((t) => t.pinned && t.pinnedAsRow).map((t) => t.id), { pinned: true, row: false });
+    s.placeTabs(Object.values(s.tabs).filter((t) => t.pin?.as === "row").map((t) => t.id), { pinned: true, row: false });
     const g = Object.values(s.groups).find((x) => x.pinned && x.name === "ACE2E Pinned Group");
     s.updateGroup(g.id, { name: "ACE2E Group Renamed", color: "green" });
     return true;`,

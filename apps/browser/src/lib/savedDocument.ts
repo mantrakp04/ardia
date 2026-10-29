@@ -1,13 +1,14 @@
-export type SavedObject = Record<string, unknown>;
+import { isFields, type Fields } from "./decode";
+
+export type SavedObject = Fields;
 export type Migrations = Readonly<Record<number, (doc: SavedObject) => unknown>>;
 
 export const unchanged = (doc: SavedObject): SavedObject => doc;
 
-const isSavedObject = (value: unknown): value is SavedObject => typeof value === "object" && value !== null && !Array.isArray(value);
 const owns = (object: object, key: PropertyKey) => Object.prototype.hasOwnProperty.call(object, key);
 
 export function upgraded(doc: unknown, version: number, migrations: Migrations = {}, field = "version"): SavedObject | null {
-  if (!isSavedObject(doc)) return null;
+  if (!isFields(doc)) return null;
   let at = 0;
   if (owns(doc, field)) {
     const saved = doc[field];
@@ -19,7 +20,7 @@ export function upgraded(doc: unknown, version: number, migrations: Migrations =
   while (at < version) {
     if (!owns(migrations, at)) return null;
     const next = migrations[at]!(current);
-    if (!isSavedObject(next)) return null;
+    if (!isFields(next)) return null;
     at += 1;
     current = { ...next, [field]: at };
   }

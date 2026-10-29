@@ -1,4 +1,4 @@
-import { updaterState } from "@ardia/shell";
+import { updaterState } from "./app";
 import { afterFirstWindow } from "../lib/afterFirstWindow";
 import { refreshSwitches } from "./killSwitches";
 

@@ -1,3 +1,4 @@
+import { devRegister } from "../dev/devRegister";
 import { SwipeArea, type SwipeAreaHandle, type SwipeEvent, WindowBackdrop } from "../ui";
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { Animated, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
@@ -89,12 +90,6 @@ export function ProfileTint() {
 
 const devAreas = new Map<string, React.RefObject<SwipeAreaHandle | null>>();
 const received: object[] = [];
-if (__DEV__) {
-  const g = globalThis as { acSwipe?: Record<string, unknown> };
-  g.acSwipe = {
-    ...g.acSwipe,
-    received: () => received.splice(0),
-    sidebar: (windowId: string) => devAreas.get(`sidebar:${windowId}`)?.current ?? null,
-    strip: (windowId: string) => devAreas.get(`strip:${windowId}`)?.current ?? null,
-  };
-}
+devRegister("acSwipe", "received", () => received.splice(0));
+devRegister("acSwipe", "sidebar", (windowId: string) => devAreas.get(`sidebar:${windowId}`)?.current ?? null);
+devRegister("acSwipe", "strip", (windowId: string) => devAreas.get(`strip:${windowId}`)?.current ?? null);

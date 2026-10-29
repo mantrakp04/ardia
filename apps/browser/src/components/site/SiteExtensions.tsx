@@ -1,8 +1,8 @@
 import type { InstalledExtension } from "../../state/extensions/store";
-import { showMenu } from "../../state/app/system";
+import { chooseFromMenu } from "../../state/app/menuChoice";
 import { useRef } from "react";
 import type { View } from "react-native";
-import { activateExtension, openManageExtensions, openPinDialog, openWebStore, showExtensionMenu, useWindowExtensions, type Anchor } from "../../state/extensions/actions";
+import { activateExtension, EXTENSION_LIST_ITEMS, openWebStore, runExtensionListChoice, showExtensionMenu, useWindowExtensions, type Anchor } from "../../state/extensions/actions";
 import { ExtensionTile, SectionTitle, TileGrid } from "./SiteControlsParts";
 
 export function SiteExtensions({ windowId, tabId, columns, onClose }: { windowId: string; tabId: string; columns: number; onClose: () => void }) {
@@ -52,14 +52,8 @@ function ExtensionGridTile({ ext, windowId, tabId, onClose }: { ext: InstalledEx
 }
 
 async function addMenu(windowId: string, onClose: () => void) {
-  const choice = await showMenu([
-    { id: "add", title: "Add Extension…", symbol: "plus" },
-    { id: "pin", title: "Pin Extensions…", symbol: "pin" },
-    { id: "manage", title: "Manage Extensions…", symbol: "puzzlepiece.extension" },
-  ]);
+  const choice = await chooseFromMenu(EXTENSION_LIST_ITEMS);
   if (!choice) return;
   onClose();
-  if (choice === "add") openWebStore(windowId);
-  if (choice === "pin") openPinDialog(windowId);
-  if (choice === "manage") openManageExtensions(windowId);
+  runExtensionListChoice(choice, windowId);
 }

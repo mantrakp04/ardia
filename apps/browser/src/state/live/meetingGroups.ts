@@ -2,7 +2,7 @@ import { confirm } from "../../platform/dialogs";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { changedIds } from "../browser/changes";
 import { activeTabId } from "../browser/model";
-import { groupOf } from "../pins/organize";
+import { groupOf } from "../pins/tabGrouping";
 import { everySlowly } from "../../platform/slowTimers";
 import { connectCalendar, useCalendar } from "./calendar";
 import { eventForCall, isCalendarUrl, meetingOf, relatedLinks, type CalendarEvent } from "./meetings";
@@ -17,7 +17,7 @@ export function groupCall(tabId: string, event?: CalendarEvent | null): string {
   const s = store();
   const tab = s.tabs[tabId];
   const call = tab && meetingOf(tab.url);
-  if (!tab || !call || tab.pinned) return "";
+  if (!tab || !call || tab.pin) return "";
   const current = groupOf(s, tabId);
   if (current) return live().meetingGroups[current.id] ? current.id : "";
   const match = event ?? eventForCall(useCalendar.getState().events, tab.url, Date.now());
@@ -62,13 +62,13 @@ export function startMeetingGroups() {
       const tab = s.tabs[id];
       if (!tab) continue;
       const before = prev.tabs[id];
-      if (before && before.url === tab.url && before.pinned === tab.pinned) continue;
-      if (s.settings.autoGroupMeetingTabs && !tab.pinned && meetingOf(tab.url) && (!before || !meetingOf(before.url))) groupCall(id);
+      if (before && before.url === tab.url && !!before.pin === !!tab.pin) continue;
+      if (s.settings.autoGroupMeetingTabs && !tab.pin && meetingOf(tab.url) && (!before || !meetingOf(before.url))) groupCall(id);
       if (!before && tab.openerId && !groupOf(s, id)) {
         const opener = groupOf(s, tab.openerId);
         if (opener && live().meetingGroups[opener.id] && !live().meetingGroups[opener.id]!.endedAt) store().addTabsToGroup(opener.id, [id]);
       }
-      if (tab.pinned && isCalendarUrl(tab.url) && (!before || !before.pinned) && !live().calendar.prompted) void offerAlerts(tab.windowId);
+      if (tab.pin && isCalendarUrl(tab.url) && (!before || !before.pin) && !live().calendar.prompted) void offerAlerts(tab.windowId);
     }
   });
 

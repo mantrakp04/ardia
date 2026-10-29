@@ -2,7 +2,15 @@ import AppKit
 
 final class MenuTarget: NSObject, NSMenuItemValidation {
   static let shared = MenuTarget()
-  var handler: ((String, String?, String?) -> Void)?
+  var swallowsCommands = false
+
+  func dispatch(_ command: String, _ arg: String?, windowId: String?) {
+    guard !swallowsCommands else { return }
+    if command == "closeTab", WindowManager.shared.closeForeignKeyWindow() { return }
+    ShellEvents.send(.command, [
+      "command": command, "arg": arg as Any, "windowId": windowId as Any, "focusGeneration": FocusHandoff.shared.takeBegun() as Any,
+    ])
+  }
 
   private static let focusMovingCommands: Set<String> = ["newTab", "focusCommandBar", "findInPage"]
 
@@ -12,7 +20,7 @@ final class MenuTarget: NSObject, NSMenuItemValidation {
     if Self.focusMovingCommands.contains(item.command) || FocusHandoff.shared.gatesKeyWindow, let window = NSApp.keyWindow {
       FocusHandoff.shared.begin(in: window)
     }
-    handler?(item.command, item.arg, item.windowless ? nil : WindowManager.shared.keyWindowId)
+    dispatch(item.command, item.arg, windowId: item.windowless ? nil : WindowManager.shared.keyWindowId)
     if item.command == "tabSwitcher" { SwitcherHold.opened(by: item) }
   }
 
@@ -25,7 +33,7 @@ final class MenuTarget: NSObject, NSMenuItemValidation {
 
   @objc(undo:) func undoOrReopenClosedTab(_ sender: Any?) {
     if Self.undoReopensClosedTab {
-      handler?("reopenClosedTab", nil, WindowManager.shared.keyWindowId)
+      dispatch("reopenClosedTab", nil, windowId: WindowManager.shared.keyWindowId)
     } else {
       NSApp.sendAction(Self.undoAction, to: nil, from: sender)
     }
@@ -34,7 +42,7 @@ final class MenuTarget: NSObject, NSMenuItemValidation {
   private static var undoReopensClosedTab: Bool {
     let state = MenuState.current
     guard state.undoReopensClosedTab, !state.disabled.contains("reopenClosedTab"),
-      WindowManager.shared.keyWindowId != "settings", let window = WindowManager.shared.keyBrowserWindow
+      WindowManager.shared.keyWindowKind != .settings, let window = WindowManager.shared.keyBrowserWindow
     else { return false }
     return !MainMenu.editsText(window.firstResponder)
   }
@@ -82,13 +90,13 @@ final class MenuTarget: NSObject, NSMenuItemValidation {
     if item.title != title { item.title = title }
     if item.keyEquivalent == "\r", NSApp.keyWindow?.firstResponder is NSText { return false }
     if MainMenu.movesCaret(item), NSApp.currentEvent?.type == .keyDown, MainMenu.editsText(NSApp.keyWindow?.firstResponder) { return false }
-    if item.command == "findInPage", WindowManager.shared.keyWindowId == "settings" { return true }
+    if item.command == "findInPage", WindowManager.shared.keyWindowKind == .settings { return true }
     let enabled = !state.disabled.contains(item.stateKey) && !state.disabled.contains(item.command)
     if item.hidesWhenDisabled, item.isHidden == enabled { item.isHidden = !enabled }
     return enabled
   }
 
-  @objc func quit(_ sender: Any?) { WindowManager.shared.confirmQuit() }
+  @objc func quit(_ sender: Any?) { QuitFlow.shared.confirm() }
   @objc func arrangeWindowsInFront(_ sender: Any?) { NSApp.arrangeInFront(sender) }
   @objc func toggleKeepOnTop(_ sender: Any?) { WindowManager.shared.toggleKeepOnTop() }
   @objc func closeWindow(_ sender: Any?) { WindowManager.shared.closableWindow?.performClose(sender) }

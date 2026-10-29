@@ -51,6 +51,8 @@ function OptionRow({ name, detail, signal, selected, onSelect, onChoose }: { nam
   );
 }
 
+export const DEVICE_CHOOSER_WIDTH = 340;
+
 export function DeviceChooser({ tabId, left, top }: { tabId: string; left: number; top: number }) {
   const chooser = useDeviceChooser(tabId);
   const [selected, setSelected] = useState<number | null>(null);
@@ -120,7 +122,7 @@ export function DeviceChooser({ tabId, left, top }: { tabId: string; left: numbe
   }
 
   return (
-    <Popover key={chooser.id} width={340} top={top} left={left} modal={false}>
+    <Popover key={chooser.id} width={DEVICE_CHOOSER_WIDTH} top={top} left={left} modal={false}>
       <View
         focusable
         enableFocusRing={false}

@@ -55,7 +55,7 @@ final class ImportTests: XCTestCase {
     XCTAssertEqual(locked.historyCount, 4)
     XCTAssertEqual(locked.tabs.count, 3)
     XCTAssertEqual(locked.cookieCount, 6)
-    XCTAssertTrue(locked.warnings.contains { $0.kind == .cookies && $0.code == "skipped" })
+    XCTAssertTrue(locked.warnings.contains { $0.kind == .cookies && $0.code == .skipped })
 
     try importer.unlock(browserId: "firefox")
     let open = try importer.importData(browserId: "firefox", profileId: id, kinds: [.passwords])
@@ -64,7 +64,7 @@ final class ImportTests: XCTestCase {
 
     let work = try importer.importData(browserId: "firefox", profileId: "Profiles/zzzz9999.work", kinds: [.passwords])
     XCTAssertEqual(work.failed, [.passwords])
-    XCTAssertEqual(work.warnings.first?.code, "locked")
+    XCTAssertEqual(work.warnings.first?.code, .locked)
     try importer.unlock(browserId: "firefox", primaryPassword: "hunter2")
     XCTAssertEqual(try importer.importData(browserId: "firefox", profileId: "Profiles/zzzz9999.work", kinds: [.passwords])
       .credentials.map(\.password), ["aes-protected"])

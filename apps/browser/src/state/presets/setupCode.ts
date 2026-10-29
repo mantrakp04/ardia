@@ -42,7 +42,7 @@ type Field<T> = { key: string; values: readonly T[] };
 
 const BOOL = [false, true] as const;
 
-const SETTING_FIELDS: { [K in SetupSettingKey]: Field<Settings[K]> } = {
+export const SETTING_FIELDS: { [K in SetupSettingKey]: Field<Settings[K]> } = {
   tabLayout: { key: "t", values: ["sidebar", "top"] },
   addressBar: { key: "a", values: ["toolbar", "sidebar"] },
   commandBarPlacement: { key: "c", values: ["field", "centred"] },

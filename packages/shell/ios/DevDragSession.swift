@@ -38,7 +38,7 @@ enum DevDragSession {
   private static var sequence = 0
 
   static func act(windowId: String, action: String, x: Double, y: Double, payload: [String: Any]) -> String {
-    guard let window = WindowManager.shared.windows[windowId], let content = window.contentView, let frameView = content.superview else { return "no window" }
+    guard let window = WindowManager.shared.window(windowId), let content = window.contentView, let frameView = content.superview else { return "no window" }
     if pasteboard == nil || !payload.isEmpty {
       let board = NSPasteboard.withUniqueName()
       board.clearContents()
@@ -58,7 +58,7 @@ enum DevDragSession {
       sequence += 1
     }
     guard let board = pasteboard else { return "no drag" }
-    let local = NSPoint(x: x, y: content.isFlipped ? y : content.bounds.height - y)
+    let local = SyntheticInput.contentPoint(x: x, top: y, in: content)
     let location = content.convert(local, to: nil)
     let info = DevDraggingInfo(window: window, location: location, pasteboard: board, sequence: sequence)
     let types = Set(board.types ?? [])

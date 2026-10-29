@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { Image, StyleSheet, Text, View, type ImageSourcePropType } from "react-native";
 import { Symbol } from "../ui";
 import { font, weight } from "../ui/tokens";
-import { importModule } from "../../state/import/importApi";
 import { isWebDemo } from "../../state/onboarding/demoSteps";
 import { openImport } from "../../state/settings/settingsWindows";
 import { CONTENT_WIDTH } from "./ChoiceList";
@@ -70,7 +69,7 @@ export function SourceStep() {
   const found = tiles.filter((t) => t.app);
   const others = tiles.filter((t) => !t.app);
   const chosen = tiles.find((t) => t.id === source);
-  const canImport = !isWebDemo && !!chosen?.app && !!importModule();
+  const canImport = !isWebDemo && !!chosen?.app;
   const choose = (id: BrowserSourceId) => chooseSource(id);
 
   const startImport = () => {

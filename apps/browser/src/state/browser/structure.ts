@@ -1,7 +1,19 @@
 import type { SplitView, TabGroup } from "./types";
+import { splitTabIds } from "../splits/splits";
 
 const groupIndexes = new WeakMap<Record<string, TabGroup>, Map<string, TabGroup>>();
 const splitIndexes = new WeakMap<Record<string, SplitView>, Map<string, SplitView[]>>();
+const pinnedMemberSets = new WeakMap<Record<string, TabGroup>, ReadonlySet<string>>();
+
+export function pinnedGroupMembers(groups: Record<string, TabGroup>): ReadonlySet<string> {
+  let members = pinnedMemberSets.get(groups);
+  if (!members) {
+    const ids = new Set<string>();
+    for (const g of Object.values(groups)) if (g.pinned) for (const id of g.tabIds) ids.add(id);
+    pinnedMemberSets.set(groups, (members = ids));
+  }
+  return members;
+}
 
 export function groupIndex(groups: Record<string, TabGroup>): Map<string, TabGroup> {
   let index = groupIndexes.get(groups);
@@ -18,7 +30,7 @@ export function splitIndex(splits: Record<string, SplitView>): Map<string, Split
   if (!index) {
     index = new Map();
     for (const v of Object.values(splits)) {
-      for (const id of v.tabIds) {
+      for (const id of splitTabIds(v)) {
         const list = index.get(id);
         if (!list) index.set(id, [v]);
         else if (!list.includes(v)) list.push(v);

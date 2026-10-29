@@ -1,27 +1,29 @@
 import type { BrowserState } from "../browser/store";
 import { changedIds } from "../browser/changes";
 import { orderSections, syncGroupOrder, withParent } from "../groups/groups";
-import { IDLE_LIVE, inPinnedContainer, newId, pinnedFirst } from "../browser/model";
-import { hasOwnOrSharedPage, hasPage } from "./pageSession";
-import { chainOf, copyOf, hasDuplicates, keyField, mirrored, pinKeyOf, profilesOf, sectionOf, signature, treeOrder, union } from "../pins/pinMirror";
+import { familyKeyOf, IDLE_LIVE, inPinnedContainer, newId, pinKeyOf } from "../browser/model";
+import { frozenOn, hasOwnOrSharedPage, hasPage, holderOfPage, IDLE, isAsleep, wakeOf, withNavigationAt, withWake } from "./pageSession";
+import { chainOf, copyOf, hasDuplicates, keyField, profilesOf, sectionOf, signature, treeOrder, union } from "../pins/pinMirror";
 import { removeTabs, withNewTab } from "./tabs";
 import type { Tab, TabGroup } from "../browser/types";
+import { pinnedGroupMembers } from "../browser/structure";
+import { isRegularWindow } from "../windows/small";
+import { splitTabIds, withPaneIds } from "../splits/splits";
 
 type Section = ReturnType<typeof sectionOf>;
 
-const familyKey = (t: Pick<Tab, "profileId" | "id" | "pinKey">) => `${t.profileId}\u0001${pinKeyOf(t)}`;
 
 export const sharesTabs = (s: Pick<BrowserState, "settings">) => !!s.settings?.shareTabsAcrossWindows;
 
-const listable = (t: Tab) => !t.pinned && !!t.url && !t.liveItem;
+const listable = (t: Tab) => !t.pin && !!t.url && !t.liveItem;
 
 export function sharedListTab(s: BrowserState, t: Tab): boolean {
-  return sharesTabs(s) && listable(t) && mirrored(s.windows[t.windowId]) && !inPinnedContainer(s, t.id) && s.peeks[t.windowId]?.tabId !== t.id;
+  return sharesTabs(s) && listable(t) && isRegularWindow(s.windows[t.windowId]) && !inPinnedContainer(s, t.id) && s.peeks[t.windowId]?.tabId !== t.id;
 }
 
 function listMember(s: BrowserState): (t: Tab) => boolean {
-  const pinnedMembers = new Set(Object.values(s.groups).filter((g) => g.pinned).flatMap((g) => g.tabIds));
-  const inSplit = new Set(Object.values(s.splits).flatMap((v) => v.tabIds));
+  const pinnedMembers = pinnedGroupMembers(s.groups);
+  const inSplit = new Set(Object.values(s.splits).flatMap((v) => splitTabIds(v)));
   return (t) => listable(t) && !pinnedMembers.has(t.id) && !inSplit.has(t.id) && s.peeks[t.windowId]?.tabId !== t.id;
 }
 
@@ -31,7 +33,7 @@ function listSection(s: BrowserState, windowId: string, profileId: string, membe
   return sectionOf(s, s.windows[windowId]!, profileId, groups, member);
 }
 
-const LIST_FIELDS = ["pinned", "profileId", "windowId", "pinKey", "customTitle", "customIcon", "liveItem", "pageIn"] as const;
+const LIST_FIELDS = ["pin", "profileId", "windowId", "pinKey", "customTitle", "customIcon", "liveItem"] as const;
 function listMayDiffer(s: BrowserState, prev: BrowserState): boolean {
   if (s.windows !== prev.windows || s.groups !== prev.groups || s.splits !== prev.splits || s.peeks !== prev.peeks) return true;
   if (s.tabs === prev.tabs) return false;
@@ -39,7 +41,7 @@ function listMayDiffer(s: BrowserState, prev: BrowserState): boolean {
     const a = s.tabs[id];
     const b = prev.tabs[id];
     if (!a || !b) return true;
-    if (LIST_FIELDS.some((f) => a[f] !== b[f]) || hasPage(a) !== hasPage(b) || !a.url !== !b.url) return true;
+    if (LIST_FIELDS.some((f) => a[f] !== b[f]) || holderOfPage(a) !== holderOfPage(b) || hasPage(a) !== hasPage(b) || !a.url !== !b.url) return true;
   }
   return false;
 }
@@ -67,24 +69,30 @@ function swapPlaces(s: BrowserState, a: string, b: string): BrowserState {
     }
     return out;
   };
-  const slotOf = (t: Tab): Partial<Tab> => ({ windowId: t.windowId, pinned: t.pinned, pinnedUrl: t.pinnedUrl, pinnedAsRow: t.pinnedAsRow, tileFolder: t.tileFolder });
+  const slotOf = (t: Tab): Partial<Tab> => ({ windowId: t.windowId, pin: t.pin, pinnedUrl: t.pinnedUrl });
   const tabs = { ...s.tabs };
-  tabs[a] = { ...ta, ...slotOf(tb), ...keyField(a, key), ...(moved && ta.navigation ? { navigation: { ...ta.navigation, url: ta.url || ta.navigation.url } } : {}) };
+  tabs[a] = { ...ta, ...slotOf(tb), ...keyField(a, key), ...(moved ? { page: withNavigationAt(ta) } : {}) };
   tabs[b] = { ...tb, ...slotOf(ta), ...keyField(b, key) };
-  return { ...s, tabs, windows, groups: swapAll(s.groups), splits: swapAll(s.splits) };
+  let splits = s.splits;
+  for (const [id, v] of Object.entries(s.splits)) {
+    const ids = swapIn(splitTabIds(v), a, b);
+    if (ids !== splitTabIds(v)) (splits === s.splits ? (splits = { ...s.splits }) : splits)[id] = withPaneIds(v, ids);
+  }
+  return { ...s, tabs, windows, groups: swapAll(s.groups), splits };
 }
 
 export function pagesIntoSplits(s: BrowserState, prev: BrowserState): BrowserState | null {
   if (!sharesTabs(s) || s.splits === prev.splits) return null;
-  const inSplit = (st: BrowserState, id: string) => Object.values(st.splits).some((v) => v.tabIds.includes(id));
+  const inSplit = (st: BrowserState, id: string) => Object.values(st.splits).some((v) => splitTabIds(v).includes(id));
   let next = s;
   for (const v of Object.values(s.splits)) {
-    for (const id of v.tabIds) {
+    for (const id of splitTabIds(v)) {
       const t = next.tabs[id];
       const was = prev.tabs[id];
-      if (!t?.pageIn || hasPage(t) || !(sharedListTab(next, t) || (was && sharedListTab(prev, was)))) continue;
-      const holder = next.tabs[t.pageIn];
-      if (!holder || holder.pinned || !hasPage(holder) || holder.pageIn || holder.windowId === t.windowId || holder.profileId !== t.profileId || pinKeyOf(holder) !== pinKeyOf(t) || inSplit(next, holder.id)) continue;
+      const holderId = holderOfPage(t);
+      if (!t || !holderId || !(sharedListTab(next, t) || (was && sharedListTab(prev, was)))) continue;
+      const holder = next.tabs[holderId];
+      if (!holder || holder.pin || !hasPage(holder) || holder.windowId === t.windowId || holder.profileId !== t.profileId || pinKeyOf(holder) !== pinKeyOf(t) || inSplit(next, holder.id)) continue;
       next = swapPlaces(next, holder.id, t.id);
       next = removeTabs(keepShownProfile(next, holder.windowId, [t.id]), [t.id], false);
     }
@@ -98,7 +106,7 @@ function keepLeavingPages(s: BrowserState, windowId: string, profileId: string, 
   const inList = new Set(section.items.map((i) => i.tab.id));
   let next = s;
   for (const { tab: t } of section.items) {
-    if (!hasPage(t) || t.pageIn || wanted.has(pinKeyOf(t))) continue;
+    if (!hasPage(t) || wanted.has(pinKeyOf(t))) continue;
     const key = pinKeyOf(t);
     const pageless = (id: string | undefined) =>
       id ? next.windows[id]?.tabIds.map((x) => next.tabs[x]).find((u) => !!u && u.id !== t.id && !inList.has(u.id) && u.profileId === t.profileId && pinKeyOf(u) === key && !hasPage(u)) : undefined;
@@ -124,8 +132,7 @@ function conformList(input: BrowserState, windowId: string, profileId: string, s
     const same = (byKey.get(key) ?? []).filter((m) => !used.has(m.id));
     const t = same.find(hasPage) ?? same[0];
     if (!t) {
-      const { unloaded: _, ...made } = copyOf(src, windowId, false);
-      const copy = { ...made, lastActiveAt: src.lastActiveAt };
+      const copy = { ...copyOf(src, windowId, false), page: IDLE, lastActiveAt: src.lastActiveAt };
       tabs[copy.id] = copy;
       live[copy.id] = IDLE_LIVE;
       used.add(copy.id);
@@ -192,7 +199,7 @@ function conformList(input: BrowserState, windowId: string, profileId: string, s
   }
   for (const g of cur.own) if (groups[g.id]?.parentId && !groups[groups[g.id]!.parentId!]) groups[g.id] = withParent(groups[g.id]!, undefined);
 
-  const window = { ...w, tabIds: orderSections(pinnedFirst(ids, tabs, groups), tabs, groups) };
+  const window = { ...w, tabIds: orderSections(ids, tabs, groups) };
   groups = syncGroupOrder(groups, window);
   let next: BrowserState = { ...s, tabs, live, groups, windows: { ...s.windows, [windowId]: window } };
   if (!gone.length) return next;
@@ -203,7 +210,7 @@ function keepShownProfile(s: BrowserState, windowId: string, gone: readonly stri
   const w = s.windows[windowId];
   if (!w || !w.tabIds.some((id) => gone.includes(id))) return s;
   const shownHere = w.tabIds.filter((id) => s.tabs[id]?.profileId === w.profileId && !gone.includes(id));
-  if (w.tabIds.some((id) => !gone.includes(id)) && shownHere.some((id) => !s.tabs[id]!.unloaded)) return s;
+  if (w.tabIds.some((id) => !gone.includes(id)) && shownHere.some((id) => !isAsleep(s.tabs[id]))) return s;
   return withNewTab(s, windowId, { profileId: w.profileId, background: true })[0];
 }
 
@@ -217,11 +224,11 @@ function linkCopies(s: BrowserState, byProfile: Map<string, string[]>): BrowserS
     for (const id of ids) {
       if (!s.windows[id]) continue;
       for (const { tab } of listSection(s, id, profileId, member, groups).items) {
-        if (tab.unloaded) asleep.push(tab);
+        if (isAsleep(tab)) asleep.push(tab);
         if (ids.length < 2) continue;
-        if (hasPage(tab) && !tab.pageIn) {
-          const was = holders.get(familyKey(tab));
-          if (!was || tab.lastActiveAt > was.lastActiveAt) holders.set(familyKey(tab), tab);
+        if (hasPage(tab)) {
+          const was = holders.get(familyKeyOf(tab));
+          if (!was || tab.lastActiveAt > was.lastActiveAt) holders.set(familyKeyOf(tab), tab);
         } else if (!hasOwnOrSharedPage(tab)) copies.push(tab);
       }
     }
@@ -229,14 +236,13 @@ function linkCopies(s: BrowserState, byProfile: Map<string, string[]>): BrowserS
   let tabs = s.tabs;
   for (const t of asleep) {
     if (tabs === s.tabs) tabs = { ...s.tabs };
-    const { unloaded: _, ...rest } = t;
-    tabs[t.id] = rest;
+    tabs[t.id] = { ...t, page: withWake(IDLE, wakeOf(t)) };
   }
   for (const c of copies) {
-    const holder = holders.get(familyKey(c));
+    const holder = holders.get(familyKeyOf(c));
     if (!holder || holder.windowId === c.windowId) continue;
     if (tabs === s.tabs) tabs = { ...s.tabs };
-    tabs[c.id] = { ...tabs[c.id]!, url: holder.url, title: holder.title, favicon: holder.favicon, muted: holder.muted, pageIn: holder.id };
+    tabs[c.id] = { ...tabs[c.id]!, url: holder.url, title: holder.title, favicon: holder.favicon, muted: holder.muted, page: frozenOn(tabs[c.id]!, holder.id) };
   }
   return tabs === s.tabs ? s : { ...s, tabs };
 }
@@ -245,7 +251,7 @@ export function mirrorTabs(s: BrowserState, prev: BrowserState): BrowserState | 
   if (!sharesTabs(s)) return null;
   const turnedOn = !sharesTabs(prev);
   if (!turnedOn && !listMayDiffer(s, prev)) return null;
-  const order = [...new Set([...s.ui.focusOrder, ...s.windowOrder])].filter((id) => mirrored(s.windows[id]));
+  const order = [...new Set([...s.ui.focusOrder, ...s.windowOrder])].filter((id) => isRegularWindow(s.windows[id]));
   const byProfile = new Map<string, string[]>();
   for (const id of order) for (const p of profilesOf(s, s.windows[id]!)) byProfile.set(p, [...(byProfile.get(p) ?? []), id]);
   let next = s;
@@ -262,7 +268,7 @@ export function mirrorTabs(s: BrowserState, prev: BrowserState): BrowserState | 
     const sections = new Map(ids.map((id) => [id, listSection(next, id, profileId, member, groups)]));
     const sigs = new Map(ids.map((id) => [id, signature(sections.get(id)!)]));
     if (new Set(sigs.values()).size === 1) continue;
-    const before = turnedOn ? [] : ids.filter((id) => mirrored(prev.windows[id]) && profilesOf(prev, prev.windows[id]!).has(profileId));
+    const before = turnedOn ? [] : ids.filter((id) => isRegularWindow(prev.windows[id]) && profilesOf(prev, prev.windows[id]!).has(profileId));
     const prevMember = listMember(prev);
     const prevGroups = listGroupsOf(prev);
     const source = before.find((id) => signature(listSection(prev, id, profileId, prevMember, prevGroups)) !== sigs.get(id));
@@ -284,19 +290,18 @@ export function unshareTabs(s: BrowserState, prev: BrowserState): BrowserState |
   const rank = new Map([...new Set([...s.ui.focusOrder, ...s.windowOrder])].map((id, i) => [id, i]));
   const families = new Map<string, Tab[]>();
   for (const t of Object.values(s.tabs)) {
-    if (!mirrored(s.windows[t.windowId]) || !member(t)) continue;
-    families.get(familyKey(t))?.push(t) ?? families.set(familyKey(t), [t]);
+    if (!isRegularWindow(s.windows[t.windowId]) || !member(t)) continue;
+    families.get(familyKeyOf(t))?.push(t) ?? families.set(familyKeyOf(t), [t]);
   }
   const gone: string[] = [];
   const tabs = { ...s.tabs };
   for (const family of families.values()) {
     const at = (t: Tab) => rank.get(t.windowId) ?? Number.MAX_SAFE_INTEGER;
-    const keeper = family.find((t) => hasPage(t) && !t.pageIn) ?? family.reduce((x, y) => (at(y) < at(x) ? y : x));
+    const keeper = family.find(hasPage) ?? family.reduce((x, y) => (at(y) < at(x) ? y : x));
     for (const t of family) {
       if (t.id !== keeper.id) gone.push(t.id);
-      else if (t.pinKey || t.pageIn) {
-        const { pageIn: _p, ...rest } = t;
-        tabs[t.id] = { ...rest, pinKey: undefined };
+      else if (t.pinKey || t.page.kind === "frozen") {
+        tabs[t.id] = { ...t, pinKey: undefined, page: t.page.kind === "frozen" ? withWake(IDLE, wakeOf(t)) : t.page };
       }
     }
   }
@@ -310,7 +315,7 @@ export function unshareTabs(s: BrowserState, prev: BrowserState): BrowserState |
 export function sharedElsewhere(s: BrowserState, t: Tab): boolean {
   if (!sharedListTab(s, t)) return false;
   const key = pinKeyOf(t);
-  return Object.values(s.tabs).some((x) => x.id !== t.id && x.windowId !== t.windowId && x.profileId === t.profileId && pinKeyOf(x) === key && mirrored(s.windows[x.windowId]));
+  return Object.values(s.tabs).some((x) => x.id !== t.id && x.windowId !== t.windowId && x.profileId === t.profileId && pinKeyOf(x) === key && isRegularWindow(s.windows[x.windowId]));
 }
 
 export function sharedLastUsed(s: BrowserState): Map<string, number> | null {
@@ -318,27 +323,27 @@ export function sharedLastUsed(s: BrowserState): Map<string, number> | null {
   const member = listMember(s);
   const out = new Map<string, number>();
   for (const t of Object.values(s.tabs)) {
-    if (!mirrored(s.windows[t.windowId]) || !member(t)) continue;
-    const key = familyKey(t);
+    if (!isRegularWindow(s.windows[t.windowId]) || !member(t)) continue;
+    const key = familyKeyOf(t);
     out.set(key, Math.max(out.get(key) ?? 0, t.lastActiveAt));
   }
   return out;
 }
 
-export const lastUsedOf = (used: Map<string, number> | null, t: Tab) => used?.get(familyKey(t)) ?? t.lastActiveAt;
+export const lastUsedOf = (used: Map<string, number> | null, t: Tab) => used?.get(familyKeyOf(t)) ?? t.lastActiveAt;
 
 export function sharedTabsIn(tabs: Record<string, Tab>, windowId: string): { elsewhere(t: Tab): boolean; lastUsed(t: Tab): number } {
   const here = new Set<string>();
   const used = new Map<string, number>();
   for (const t of Object.values(tabs)) {
-    if (t.pinned) continue;
-    const key = familyKey(t);
+    if (t.pin) continue;
+    const key = familyKeyOf(t);
     if (t.windowId === windowId) here.add(key);
     used.set(key, Math.max(used.get(key) ?? 0, t.lastActiveAt));
   }
   return {
-    elsewhere: (t) => !t.pinned && t.windowId !== windowId && here.has(familyKey(t)),
-    lastUsed: (t) => (t.pinned ? t.lastActiveAt : (used.get(familyKey(t)) ?? t.lastActiveAt)),
+    elsewhere: (t) => !t.pin && t.windowId !== windowId && here.has(familyKeyOf(t)),
+    lastUsed: (t) => (t.pin ? t.lastActiveAt : (used.get(familyKeyOf(t)) ?? t.lastActiveAt)),
   };
 }
 

@@ -7,7 +7,7 @@ const { settlePinHomes } = await import("./pinHomes.ts");
 
 const S = () => useBrowser.getState();
 const reset = () => S().hydrate({});
-const go = (id, url) => S().navigated(id, { url, title: "" }, { isLoading: false, canGoBack: true, canGoForward: false });
+const go = (id, url) => S().updateTab(id, { url, title: "" }, { isLoading: false, canGoBack: true, canGoForward: false });
 
 function windowWith(...hosts) {
   const w = S().createWindow({ url: `https://${hosts[0]}.com/` });
@@ -17,7 +17,7 @@ function windowWith(...hosts) {
 }
 
 const groupIn = (w, name) => Object.values(S().groups).find((g) => g.windowId === w && g.name === name);
-const memberIn = (w, home) => model.viewTabIds(S(), w).find((id) => !S().tabs[id].pinned && S().tabs[id].pinnedUrl === home);
+const memberIn = (w, home) => model.viewTabIds(S(), w).find((id) => !S().tabs[id].pin && S().tabs[id].pinnedUrl === home);
 
 test("a tab in a pinned group keeps the page it was pinned at and goes back there when closed", () => {
   reset();
@@ -29,7 +29,7 @@ test("a tab in a pinned group keeps the page it was pinned at and goes back ther
   assert.equal(awayFromPin(S().tabs[a]), true);
   S().closeTab(a);
   assert.equal(S().tabs[a].url, "https://a.com/", "⌘W unloads it at its home");
-  assert.equal(S().tabs[a].unloaded, true);
+  assert.equal(S().tabs[a].page.kind, "asleep");
   assert.equal(awayFromPin(S().tabs[a]), false);
 });
 
@@ -42,7 +42,7 @@ test("Back to Pinned URL and Replace Pin work on a pinned group's tab", () => {
   assert.equal(S().tabs[a].pinnedUrl, "https://a.com/login");
   go(a, "https://a.com/elsewhere");
   S().returnToPinnedUrl(a);
-  assert.equal(S().tabs[a].navigation?.url ?? S().tabs[a].url, "https://a.com/login");
+  assert.equal(S().tabs[a].page.nav?.url ?? S().tabs[a].url, "https://a.com/login");
 });
 
 test("a home follows the tab between pinned places and goes when it leaves them", () => {
@@ -52,7 +52,7 @@ test("a home follows the tab between pinned places and goes when it leaves them"
   go(a, "https://a.com/away");
   const g = S().groupTabs([b], { pinned: true, name: "Uni" });
   S().placeTabs([a], { pinned: false, groupId: g });
-  assert.equal(S().tabs[a].pinned, false);
+  assert.equal(!!S().tabs[a].pin, false);
   assert.equal(S().tabs[a].pinnedUrl, "https://a.com/", "a tile moved into a pinned group keeps its home");
   S().placeTabs([a], { pinned: true, row: true });
   assert.equal(S().tabs[a].pinnedUrl, "https://a.com/", "and keeps it as a pinned row");

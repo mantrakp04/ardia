@@ -12,6 +12,7 @@
 #include "third_party/skia/include/core/SkPathBuilder.h"
 #include "ui/base/cursor/cursor.h"
 #include "ui/base/cursor/mojom/cursor_type.mojom-shared.h"
+#include "ui/base/class_property.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
 #include "ui/events/event.h"
@@ -23,8 +24,17 @@
 
 namespace {
 
+DEFINE_UI_CLASS_PROPERTY_KEY(bool, kDrawnNatively, false)
+
+bool DrawnNatively(const views::View& button) {
+  return button.GetProperty(kDrawnNatively);
+}
+
 void PaintCornerButtonBackground(const views::Button& button,
                                  gfx::Canvas* canvas) {
+  if (DrawnNatively(button)) {
+    return;
+  }
   const bool active = button.GetState() == views::Button::STATE_HOVERED ||
                       button.GetState() == views::Button::STATE_PRESSED;
   cc::PaintFlags flags;
@@ -48,6 +58,14 @@ void TurnOffInkDrop(views::Button* button) {
 
 }
 
+void SetArdiaPipButtonDrawnNatively(views::View* button, bool natively) {
+  if (DrawnNatively(*button) == natively) {
+    return;
+  }
+  button->SetProperty(kDrawnNatively, natively);
+  button->SchedulePaint();
+}
+
 ArdiaBackToTabButton::ArdiaBackToTabButton(PressedCallback callback)
     : OverlayWindowBackToTabButton(std::move(callback)) {
   SetSize(gfx::Size(kArdiaPipButtonSize, kArdiaPipButtonSize));
@@ -66,6 +84,9 @@ void ArdiaBackToTabButton::OnPaintBackground(gfx::Canvas* canvas) {
 }
 
 void ArdiaBackToTabButton::PaintButtonContents(gfx::Canvas* canvas) {
+  if (DrawnNatively(*this)) {
+    return;
+  }
   const cc::PaintFlags flags = GlyphFlags();
   const gfx::PointF corner(11, 11);
   canvas->DrawLine(gfx::PointF(10.5f, 11), gfx::PointF(18.3f, 11), flags);
@@ -95,6 +116,9 @@ void ArdiaCloseButton::OnPaintBackground(gfx::Canvas* canvas) {
 }
 
 void ArdiaCloseButton::PaintButtonContents(gfx::Canvas* canvas) {
+  if (DrawnNatively(*this)) {
+    return;
+  }
   const cc::PaintFlags flags = GlyphFlags();
   canvas->DrawLine(gfx::PointF(9.85f, 9.85f), gfx::PointF(18.65f, 18.65f),
                    flags);
@@ -253,8 +277,10 @@ END_METADATA
 
 ArdiaControlsFadeAnimation::ArdiaControlsFadeAnimation(
     const std::vector<raw_ptr<views::View>>& controls,
-    Type type)
-    : OverlayControlsFadeAnimation(controls, type) {
+    Type type,
+    base::RepeatingClosure on_step)
+    : OverlayControlsFadeAnimation(controls, type),
+      on_step_(std::move(on_step)) {
   SetDuration(base::Milliseconds(200));
 }
 
@@ -263,4 +289,5 @@ ArdiaControlsFadeAnimation::~ArdiaControlsFadeAnimation() = default;
 void ArdiaControlsFadeAnimation::AnimateToState(double state) {
   OverlayControlsFadeAnimation::AnimateToState(
       gfx::Tween::CalculateValue(gfx::Tween::EASE_IN_OUT, state));
+  on_step_.Run();
 }

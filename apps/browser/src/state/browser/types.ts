@@ -1,7 +1,9 @@
+import type { TabGroupColor } from "@ardia/core";
 import type { PageEngine } from "../../platform/tabs";
 import type { ProfileColor, ProfileTheme } from "../../lib/profileLook";
 
-export type { ProfileColor, ProfileTheme, ThemeColor, ThemeLook, ThemeMode, ThemeStop, ThemeTexture } from "../../lib/profileLook";
+export type { ProfileColor, ProfileTheme, ThemeColor, ThemeLook, ThemeStop } from "../../lib/profileLook";
+export type { ThemeMode, ThemeTexture } from "@ardia/core";
 
 export type Frame = [number, number, number, number];
 
@@ -13,12 +15,12 @@ export type Profile = {
   createdAt: number;
   dataId?: string;
   theme?: ProfileTheme | null;
+  pinnedCollapsed?: boolean;
 };
 
-export type BrowserWindow = {
+type WindowBase = {
   id: string;
   profileId: string;
-  incognito: boolean;
   tabIds: string[];
   activeTabIds: Record<string, string>;
   sidebarOpen: boolean;
@@ -26,11 +28,15 @@ export type BrowserWindow = {
   frame: Frame | null;
   fullScreen?: number;
   createdAt: number;
-  kind?: "small";
-  linkPointer?: [number, number];
-  originalProfileId?: string;
-  chromeWindow?: string;
 };
+
+export type BrowserWindow =
+  | (WindowBase & { kind: "main"; chromeWindow?: string })
+  | (WindowBase & { kind: "private"; chromeWindow?: string })
+  | (WindowBase & { kind: "small"; linkPointer?: [number, number] });
+
+export type WindowKind = BrowserWindow["kind"];
+export type MainWindow = Extract<BrowserWindow, { kind: "main" }>;
 
 export type Tab = {
   id: string;
@@ -39,26 +45,34 @@ export type Tab = {
   url: string;
   title: string;
   favicon: string | null;
-  pinned: boolean;
+  pin: TabPin | null;
   muted: boolean;
   zoom: number;
   customTitle: string | null;
   customIcon: string | null;
   pinnedUrl: string | null;
-  pinnedAsRow?: true;
-  tileFolder?: TileFolder;
-  navigation: { url: string; seq: number; userInitiated?: boolean } | null;
-  adoptId?: string;
+  page: TabPage;
   openerId: string | null;
-  wakeAdoptId?: string;
   liveItem?: { folderId: string; itemId: string };
-  unloaded?: boolean;
   pinKey?: string;
-  pageIn?: string;
   engine?: PageEngine;
   createdAt: number;
   lastActiveAt: number;
 };
+
+export type AdoptKind = "restore" | "clone" | "tab" | "ardiacore" | "webkit" | "link";
+export type AdoptId = `${AdoptKind}:${string}`;
+
+export type Navigation = { url: string; seq: number; userInitiated?: boolean };
+
+export type TabPage =
+  | { kind: "idle"; wake?: AdoptId }
+  | { kind: "asleep"; wake?: AdoptId }
+  | { kind: "frozen"; holderId: string; wake?: AdoptId }
+  | { kind: "adopted"; adopt: AdoptId; nav: Navigation | null }
+  | { kind: "loaded"; nav: Navigation };
+
+export type TabPin = { as: "tile"; folder?: TileFolder } | { as: "row" };
 
 export type TileFolder = { id: string; name: string; renamedAt?: number };
 
@@ -70,7 +84,7 @@ export type TabLive = {
   themeColor: string | null;
 };
 
-export type GroupColor = "grey" | "blue" | "red" | "yellow" | "green" | "pink" | "purple" | "cyan" | "orange" | "none";
+export type GroupColor = TabGroupColor | "none";
 
 export type ClosedGroupInfo = Pick<TabGroup, "id" | "name" | "icon" | "color"> & { pinned?: boolean };
 
@@ -91,13 +105,13 @@ export type TabGroup = {
   parentId?: string;
 };
 
+export type SplitSlot = { size: number; tabId: string } | { size: number; stack: [string, string]; stackSizes: [number, number] };
+
 export type SplitView = {
   id: string;
   windowId: string;
-  tabIds: string[];
   orientation: "horizontal" | "vertical";
-  sizes: number[];
-  stack?: { index: number; sizes: [number, number] };
+  slots: SplitSlot[];
 };
 
 export type HistoryEntry = {
@@ -117,14 +131,13 @@ export type BookmarkFolder = Extract<BookmarkNode, { kind: "folder" }>;
 
 export type Bookmarks = {
   nodes: Record<string, BookmarkNode>;
-  roots: Record<string, { bar: string; other: string }>;
 };
 
 export type TabSnapshot = Pick<
   Tab,
-  "url" | "title" | "favicon" | "pinned" | "muted" | "zoom" | "customTitle" | "customIcon" | "profileId"
+  "url" | "title" | "favicon" | "pin" | "muted" | "zoom" | "customTitle" | "customIcon" | "profileId"
 > &
-  Partial<Pick<Tab, "pinnedUrl" | "pinnedAsRow" | "tileFolder" | "engine">>;
+  Partial<Pick<Tab, "pinnedUrl" | "engine">>;
 
 export type ClosedTab = {
   kind: "tab";
@@ -153,7 +166,7 @@ export type ClosedWindow = {
 export type ParkedPins = {
   tabs: (TabSnapshot & { id: string; groupId: string | null; restoreFrom?: string })[];
   groups: (Pick<TabGroup, "id" | "name" | "icon" | "color" | "collapsed"> & { parentId?: string })[];
-  splits?: (Pick<SplitView, "orientation" | "sizes" | "stack"> & { ids: string[] })[];
+  splits?: Pick<SplitView, "orientation" | "slots">[];
 };
 
 export type NestedGroupSnapshot = Pick<TabGroup, "id" | "name" | "icon" | "color" | "collapsed"> & { parentId: string; tabIndexes: number[] };

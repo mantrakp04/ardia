@@ -1,5 +1,6 @@
 import type { SavedObject } from "../../lib/savedDocument";
 import { durationTitle } from "../../lib/time";
+import { isFields } from "../../lib/decode";
 
 export const CLEAN_UP_KEY = "cleanUpInactiveTabsAfterMinutes";
 export const LEGACY_CLEAN_UP_KEY = "cleanUpInactiveTabsAfterHours";
@@ -31,12 +32,10 @@ export function minutesFromHours(hours: unknown): number | null | undefined {
 
 export const hoursFromMinutes = (minutes: number | null): number | null => (minutes === null ? null : minutes / 60);
 
-const isObject = (value: unknown): value is SavedObject => typeof value === "object" && value !== null && !Array.isArray(value);
-
 const renamed = (keys: unknown) => (Array.isArray(keys) ? keys.map((k) => (k === LEGACY_CLEAN_UP_KEY ? CLEAN_UP_KEY : k)) : keys);
 
 export function settingsWithCleanUpMinutes(settings: unknown): unknown {
-  if (!isObject(settings) || !(LEGACY_CLEAN_UP_KEY in settings)) return settings;
+  if (!isFields(settings) || !(LEGACY_CLEAN_UP_KEY in settings)) return settings;
   const { [LEGACY_CLEAN_UP_KEY]: hours, ...rest } = settings;
   const minutes = minutesFromHours(hours);
   return {

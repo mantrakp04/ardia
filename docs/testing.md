@@ -40,6 +40,7 @@ holds the rest.
 | Window toolbar | `node apps/browser/scripts/window-toolbar-test.mjs <Release app>` (31 of 39 checks fail on a Debug app) | The toolbar's buttons and layout in each window kind |
 | Hover layout | `node apps/browser/scripts/hover-shift-test.mjs <Debug app>` | Hovering moves nothing: every hover-tracked view in the sidebar, the tab strip and the downloads popover (below) |
 | Sidebar clicks | `node apps/browser/scripts/sidebar-click-test.mjs <Debug app>` | One click opens a tab or pinned tile: in the frame its hover card appears, under another tile's appearing card, after a New Tab and after closing a pinned tab (0.2.39-nightly.5: tabs needed two clicks) |
+| Menus | `node apps/browser/scripts/menus-test.mjs <Debug app> [--only=<regex>]` | Right-clicks on the sidebar's rows, tiles, split panes, groups, header, footer and background open their menu, and each item does what it says (tab, several-tab, group, sidebar, Top Apps, reload button, profile, bookmark, history, download and extension menus; moves between profiles and windows, private windows refused); the page menu's Copy Link Address, Save Link As… cancelled, Back and Forward. Menus come from `ac.menus` in the dev harness where nothing can be right-clicked |
 | Onboarding | `node apps/browser/scripts/onboarding-test.mjs <Debug app>` | No text field sits behind the onboarding card, a click on the first row's checkbox toggles it, another window keeps its New Tab field meanwhile, and the New Tab field is back and focused once it ends, in a bar of the same height (the hidden New Tab field took the first row's cursor and its checkbox clicks) |
 | Sidebar scroll | `node apps/browser/scripts/sidebar-scroll-test.mjs <Debug app>` | The pinned tiles hold still while the tabs scroll (Dia's dock), with the address field in the sidebar and without: a row dragged onto a tile after a scroll pins it there, selecting a tile while scrolled leaves the list put, and a dock too tall for the window scrolls with the tabs |
 | Sync | `node packages/sync/scripts/e2e.mjs <Debug app>` | Two and three hidden instances through one folder (`docs/sync.md`) |
@@ -72,6 +73,14 @@ Launch with `scripts/agent/ac launch <app> --data <dir> [--instance K=V] [--test
 - **`contextMenu`**: context menus go to the host instead of the screen; the menu is written to
   `<data dir>/context-menu.json`, the pick read from `context-menu.json.pick` runs on the model that owns it, logged as
   `[ardiacore-menu]` in the system log.
+- **`appMenu`**: the app's own menus (packages/shell `showMenu`: the sidebar's, the reload button's, the profile, bookmark,
+  history, download and extension menus) are written to `<data dir>/menu.json` as the items JS built, and resolve with
+  the id in `menu.json.pick` (read and deleted; an id that isn't an enabled item, or no file, resolves `null`, as a
+  dismissed menu). Write the pick before the right-click (`windows.dev` `click:<x>,<y>,right`).
+- **`appDialog`**: `confirm` and `prompt` write their options (and `kind`) to `<data dir>/dialog.json` and answer from
+  `dialog.json.pick` (deleted): `confirm` (with `,suppress` to tick the suppression box) or anything else to cancel; a
+  prompt's answer is the text, empty to cancel. With no pick file they run as usual (background mode cancels).
+  `apps/browser/scripts/menus-test.mjs` drives both.
 - **`fakeFullScreenMs`**: length of the acted-out full-screen transition (the window takes the screen's frame as it
   starts and its old frame back on the way out, as AppKit does). Dev actions (`devWindow`): `fakeFullScreen:<1|0>[:<ms>]`,
   `fakeFullScreenMs:<ms>`, `fakeOcclusion:<visible|occluded|off>` (macOS's occlusion state; a test window otherwise
@@ -83,6 +92,9 @@ Launch with `scripts/agent/ac launch <app> --data <dir> [--instance K=V] [--test
 - **`pipSelfTest`**: on the first PiP window, `close` / `backToTab` click Chrome's buttons (`pip-button-selftest.json`:
   closed, the prevents-activation tag, app activations), `hover` holds the controls up (`pip-hover.json`, `pipHover`),
   `style` runs the style self-test (`pip-selftest.json`), all in the data dir.
+  `tabs.devPictureInPictureAction` also takes `alpha:<0–1>` (WindowServer alpha, so a hidden run's PiP window can be
+  captured with `screencapture -l`), `mouse:<moved|down|up>:<x>,<y>` (top-left points), `stash` and `handle` (toggles
+  the stash handle's hover); `tabs.devPictureInPicture` lists the glass plates under `controls`.
 - **`allowOcclusion`**: macOS posts no occlusion change for a window a band below normal, so minimizing and
   deminiaturizing post one for it (the page goes hidden as in a user's minimized window).
 - **The `ardia` command** (`cliHome`, `cliBinDir`, `cliUrl` (`file://` works), test `cliInstallScript`): a test
@@ -129,7 +141,7 @@ A Release or RC build starts the dev harness (`dev-eval.js`) only when `$ARDIA_D
 test instance (`src/state/app/perfProbe.ts`): `: > "$ARDIA_DATA_DIR/perf-probe"` before launch, as
 `.claude/skills/release/scripts/smoke.sh` does.
 
-Input and capture hooks on `ac.shell` (Debug builds only; a Release build answers nothing or `null`), for driving
+Input and capture hooks on `ac.shell`, from the `ArdiaDev` module (Debug builds only: in a Release build the module has no functions), for driving
 the app as a person would rather than writing a new helper:
 
 | Hook | What it does |
@@ -137,8 +149,8 @@ the app as a person would rather than writing a new helper:
 | `devKeyEquivalent(windowId, { key, keyCode, modifiers, focus, asKey })` | Presses one shortcut through the window's real key path |
 | `devTypeKeys(windowId, text, interval)` | Types text into the focused field, a key every `interval` ms; resolves with per-key timings |
 | `devMenuCommand(command, arg)` | Fires a menu command as if picked from the menu bar |
-| `ArdiaApp.devMenuItems(title, path?)` | A menu bar menu's items as AppKit has them, its own included (Window › Fill, Move & Resize…); `"tiling:<windowId>"` is the window's green-button menu and whether AppKit tiles it; `path` picks an item |
-| `ArdiaApp.devPostKey(windowId, key, keyCode, modifiers)` | Posts one key press to the app's event queue (`"menu:<key>"`: straight to the menu bar's key equivalents). System hot keys (fn-⌃ tiling) can't be posted |
+| `ArdiaDev.devMenuItems(title, path?)` | A menu bar menu's items as AppKit has them, its own included (Window › Fill, Move & Resize…); `"tiling:<windowId>"` is the window's green-button menu and whether AppKit tiles it; `path` picks an item |
+| `ArdiaDev.devPostKey(windowId, key, keyCode, modifiers)` | Posts one key press to the app's event queue (`"menu:<key>"`: straight to the menu bar's key equivalents). System hot keys (fn-⌃ tiling) can't be posted |
 | `devSnapshotWindow(windowId, path, transparent?)` | Writes the window's layers to a PNG in-process (works with the screen locked; `false` = failed) |
 | `devRenderIntroMusic(cues, path)` | Renders the onboarding intro music to an audio file, for a video's soundtrack |
 

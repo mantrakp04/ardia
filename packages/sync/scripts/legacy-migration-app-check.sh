@@ -77,7 +77,7 @@ state="$("$ac" eval "$migrated" '
   const bookmarks = Object.values(s.bookmarks?.default?.nodes ?? s.bookmarks?.nodes ?? {});
   return JSON.stringify({
     urls: tabs.map((t) => t.url),
-    pinned: tabs.filter((t) => t.pinned).map((t) => t.url),
+    pinned: tabs.filter((t) => t.pin).map((t) => t.url),
     little: s.settings.openLinksInLittleArdia,
     size: s.settings.littleArdiaSize,
     shortcut: s.settings.shortcuts?.newLittleArdia ?? null,

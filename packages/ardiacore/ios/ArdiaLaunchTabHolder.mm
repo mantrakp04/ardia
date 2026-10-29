@@ -1,11 +1,13 @@
 #import "ArdiaLaunchTabHolder.h"
 #import "ArdiaWebViewInternal.h"
+#import "ArdiaRuntime.h"
 #import "ArdiaEarlyWindow.h"
 #import "ArdiaNavigationDownloads.h"
 
 #import <objc/runtime.h>
 
 using namespace ardia_web_view;
+using namespace ardia_runtime;
 
 @implementation ArdiaLaunchTabHolder {
   NSMutableArray<NSInvocation *> *_calls;
@@ -37,7 +39,7 @@ static const NSUInteger kHeldPageStateTotalBytes = 256 * 1024;
   if (bytes > kHeldPageStateBytes) return;
   NSString *key = [NSString stringWithFormat:@"%@|%@", frame ?: @"", kind];
   if ([kind isEqualToString:@"media"]) {
-    id value = JSONValue(json);
+    id value = JSONObject(json);
     NSString *mediaFrame = [value isKindOfClass:NSDictionary.class] ? Text(value, @"frame", 64) : nil;
     if (!mediaFrame) return;
     key = [key stringByAppendingFormat:@"|%@", mediaFrame];

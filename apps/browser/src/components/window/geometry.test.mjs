@@ -5,7 +5,7 @@ globalThis.__DEV__ = false;
 const { splitGeometry } = await import("./geometry.ts");
 const { layout } = await import("../ui/theme.ts");
 
-const split = (ids, sizes, orientation = "horizontal") => ({ id: "s", tabIds: ids, orientation, sizes });
+const split = (ids, sizes, orientation = "horizontal") => ({ id: "s", orientation, slots: ids.map((tabId, i) => ({ size: sizes[i], tabId })) });
 
 test("split panes sit the card's 9 pt apart and fill it to the last point, whatever the width's parity", () => {
   for (const width of [1158, 1159, 1160.5, 801]) {

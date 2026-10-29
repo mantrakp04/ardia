@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
-import { hex, useTheme } from "../../ui/theme";
+import { useTheme } from "../../ui/theme";
 import { useWindowId } from "../../../state/browser/hooks";
 import type { Rect } from "../../window/geometry";
-import { Button, Surface, useHover } from "../../ui";
+import { Button, Panel, Surface, useHover, usePresence } from "../../ui";
 import { useOnboardingColors } from "../Parts";
 import { locateAnchor } from "./anchors";
 import { endToolTour, openVideoTour, stepToolTour, useTour, videoTourUrl, type TourStop } from "../../../state/onboarding/tour";
 import { curve } from "../../ui/motion";
-import { font, hairline, radius, shadow, weight } from "../../ui/tokens";
+import { font, radius, shadow, weight } from "../../ui/tokens";
 import { onboardingMotion, onboardingType, tourRing } from "../tokens";
 
 const CARD_WIDTH = 296;
@@ -16,23 +16,16 @@ const GAP = 14;
 const MARGIN = 12;
 const SCRIM_REACH = 6000;
 
+const TOUR_PRESENCE = {
+  show: { duration: onboardingMotion.tourIn, easing: curve.outQuad },
+  hide: { duration: onboardingMotion.tourOut, easing: curve.inQuad },
+};
+
 export function ToolTour() {
   const windowId = useWindowId();
   const active = useTour((s) => s.windowId === windowId && s.stops.length > 0);
   const session = useTour((s) => s.session);
-  const [shown, setShown] = useState<number | null>(null);
-  const presence = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (active) {
-      setShown(session);
-      Animated.timing(presence, { toValue: 1, duration: onboardingMotion.tourIn, easing: curve.outQuad, useNativeDriver: true }).start();
-    } else if (shown !== null) {
-      Animated.timing(presence, { toValue: 0, duration: onboardingMotion.tourOut, easing: curve.inQuad, useNativeDriver: true }).start(({ finished }) => {
-        if (finished) setShown(null);
-      });
-    }
-  }, [active, session]);
+  const { shown, appear: presence } = usePresence(active ? session : null, TOUR_PRESENCE);
 
   if (shown === null) return null;
   return (
@@ -172,16 +165,7 @@ function CoachMark({ stop, index, count, windowId }: { stop: TourStop; index: nu
   const last = index === count - 1;
   const video = last ? videoTourUrl() : null;
   return (
-    <Surface
-      fill={hex(theme.panel)}
-      cornerRadius={radius.sheet}
-      borderColor={hex(theme.panelBorder)}
-      borderWidth={hairline.panel}
-      shadowColor={shadow.dialog.color}
-      shadowOpacity={theme.panelShadowOpacity}
-      shadowRadius={shadow.dialog.radius}
-      shadowOffset={shadow.dialog.offset}
-    >
+    <Panel fill={theme.panel} radius={radius.sheet} border={theme.panelBorder} shadow={shadow.dialog}>
       <View style={{ paddingHorizontal: 18, paddingTop: 15, paddingBottom: 14, gap: 7 }} accessibilityRole="none">
         <Text style={{ ...onboardingType.coachCount, color: theme.textTertiary }}>
           {`${index + 1} OF ${count}`}
@@ -196,7 +180,7 @@ function CoachMark({ stop, index, count, windowId }: { stop: TourStop; index: nu
           <PillButton title={last ? "Done" : "Next"} primary onPress={() => stepToolTour(1)} />
         </View>
       </View>
-    </Surface>
+    </Panel>
   );
 }
 

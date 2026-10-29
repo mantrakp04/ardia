@@ -1,9 +1,10 @@
-import type { MenuItem } from "../../state/app/system";
+import type { IconMenuItem } from "../../state/profiles/profileMenu";
 import { Text, View } from "react-native";
 import { ink, Symbol, weight } from "../ui";
 import { profileAccent } from "../ui/theme";
 import type { Profile } from "../../state/browser/types";
 import { profileColors, profileSwitcher } from "./tokens";
+import { iconSymbol, symbolIcon } from "../../lib/customIcon";
 
 export const PROFILE_SYMBOLS: { name: string; title: string }[] = [
   { name: "house.fill", title: "Home" },
@@ -30,20 +31,17 @@ export const PROFILE_SYMBOLS: { name: string; title: string }[] = [
 
 const EMOJI = ["😀", "😎", "🤓", "🧑‍💻", "💼", "🏠", "🎓", "🎨", "🎮", "🎵", "📚", "✈️", "🌱", "🔥", "⭐️", "🚀", "🐶", "🐱", "🦊", "🍀"];
 
-const SYMBOL_PREFIX = "symbol:";
-export const profileSymbol = (icon: string | null) => (icon?.startsWith(SYMBOL_PREFIX) ? icon.slice(SYMBOL_PREFIX.length) : null);
-
-export function iconMenuItems(current: string | null, noneTitle = "Initial"): MenuItem[] {
+export function iconMenuItems(current: string | null, noneTitle = "Initial"): IconMenuItem[] {
   return [
-    { id: "icon:", title: noneTitle, checked: !current },
+    { value: { icon: null }, title: noneTitle, checked: !current },
     { separator: true },
-    ...PROFILE_SYMBOLS.map((s) => ({ id: `icon:${SYMBOL_PREFIX}${s.name}`, title: s.title, symbol: s.name, checked: current === SYMBOL_PREFIX + s.name })),
+    ...PROFILE_SYMBOLS.map((s) => ({ value: { icon: symbolIcon(s.name) }, title: s.title, symbol: s.name, checked: current === symbolIcon(s.name) })),
     { separator: true },
     {
       id: "emoji",
       title: "Emoji",
-      checked: !!current && !profileSymbol(current),
-      children: EMOJI.map((e) => ({ id: `icon:${e}`, title: e, checked: current === e })),
+      checked: !!current && !iconSymbol(current),
+      children: EMOJI.map((e) => ({ value: { icon: e }, title: e, checked: current === e })),
     },
   ];
 }
@@ -57,7 +55,7 @@ export function switcherIcons(icons: (string | null)[], shown: boolean, room: nu
 
 export function SwitcherMark({ icon, color, scale = 1 }: { icon: string | null; color: string; scale?: number }) {
   const { iconCell, icon: size, dot } = profileSwitcher;
-  const symbol = profileSymbol(icon);
+  const symbol = iconSymbol(icon);
   if (symbol) return <Symbol name={symbol} size={size * scale} weight="semibold" color={color} style={{ width: iconCell * scale, height: iconCell * scale }} />;
   if (icon)
     return (
@@ -70,7 +68,7 @@ export function SwitcherMark({ icon, color, scale = 1 }: { icon: string | null; 
 
 export function ProfileBadge({ profile, size = 26 }: { profile: Pick<Profile, "name" | "color" | "icon"> & Partial<Pick<Profile, "theme">>; size?: number }) {
   const swatch = profileAccent(profile);
-  const symbol = profileSymbol(profile.icon);
+  const symbol = iconSymbol(profile.icon);
   return (
     <View
       style={{

@@ -1,26 +1,37 @@
 import { useShallow } from "zustand/react/shallow";
 import { useBrowser } from "../browser/store";
-import { activeTabId, viewTabIds } from "../browser/model";
+import { activeTabId, tabTitle, viewTabIds } from "../browser/model";
 import { liveTabPlace } from "../live/rows";
 import type { Tab } from "../browser/types";
-import { cleanedTabsFor, groupLabel } from "../pins/organize";
+import { cleanedTabsFor } from "../pins/closedTabs";
+import { groupLabel } from "../pins/tabGrouping";
 import { canTidyPins } from "../pins/tidyPins";
 import { folderIn } from "../pins/tileFolders";
 import { useStoreWhile } from "../tabs/tabWatch";
 import { splitOf, splitRowPanes } from "../splits/splits";
-import { downloadsIn } from "../windows/ui";
-import { tabTitle } from "./actions";
+import { downloadsIn } from "../downloads/downloadsSlice";
 import { groupEntries, keptEntry, sidebarEntries } from "./entries";
 import { groupTabIds } from "./groupPanelRows";
 import { capture, type Capture } from "./listCapture";
-import type { Hover } from "./sidebarUi";
+import { pinnedCollapsed, pinnedKept } from "./pinnedFold";
+import { useSidebarUi, type Hover } from "./sidebarUi";
+
+export function useSidebarWidth(windowId: string): number {
+  const saved = useBrowser((s) => s.settings.sidebarWidth);
+  const dragging = useSidebarUi((u) => u.dragWidth[windowId]);
+  return dragging ?? saved;
+}
 
 export const useIsInSplit = (tabId: string) => useBrowser((s) => !!splitOf(s, tabId));
 
 export const useDragGhostLabel = (folderName: string | undefined, groupId: string | undefined, tab: Tab | undefined) =>
   useBrowser((s) => folderName ?? (groupId && s.groups[groupId] ? groupLabel(s, s.groups[groupId]!) : tab ? tabTitle(tab) : ""));
 
-export const useSplitRowKey = (splitId: string) => useBrowser((s) => splitRowPanes(s, s.splits[splitId]).join(","));
+const NO_TABS: string[] = [];
+
+export const useSplitRowPanes = (splitId: string) => useBrowser(useShallow((s) => splitRowPanes(s, s.splits[splitId])));
+
+export const useGroupTabIds = (groupId: string) => useBrowser(useShallow((s) => s.groups[groupId]?.tabIds ?? NO_TABS));
 
 export const useIconPickerCurrent = (kind: "tab" | "group" | "live" | "folder", id: string, liveIcon: string | null | undefined) =>
   useBrowser((s) => (kind === "tab" ? s.tabs[id]?.customIcon : kind === "live" ? liveIcon : s.groups[id]?.icon) ?? null);
@@ -40,6 +51,10 @@ export const useCapturedSidebarEntries = (windowId: string, profileId: string, c
   });
 
 export const useKeptEntry = (windowId: string, profileId: string, entries: string[]) => useBrowser((s) => keptEntry(s, windowId, profileId, entries));
+
+export const usePinnedCollapsed = (profileId: string) => useBrowser((s) => pinnedCollapsed(s, profileId));
+
+export const usePinnedKept = (windowId: string, profileId: string, entries: string[]) => useBrowser((s) => pinnedKept(s, windowId, profileId, entries));
 
 export const useGroupFirstTabIcon = (groupId: string) =>
   useBrowser(

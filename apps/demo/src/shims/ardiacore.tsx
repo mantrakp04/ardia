@@ -11,14 +11,14 @@ const ENGINE_ONLY: Record<string, string[]> = {
   ArdiaBookmarks: ["tree", "apply", "watch"],
   ArdiaFavicons: ["get", "set"],
   ArdiaTabs: ["lastTabPolicy"],
-  ArdiaEngine: ["batterySaver", "trimMemory", "openTaskManager", "cliControl"],
+  ArdiaEngine: ["batterySaver", "trimMemory", "openTaskManager", "cliControlStatus", "setCliControl", "setCliActiveTab"],
   ArdiaExtensions: ["watchActions", "syncState", "syncApply"],
   ArdiaDownloads: ["settings", "setSettings"],
 };
 const ANSWERS: Record<string, Record<string, unknown>> = {
   ArdiaTabs: { strips: { rev: 0, cmd: null, strips: [] } },
   ArdiaExtensions: { list: { extensions: [] } },
-  ArdiaSearch: { engines: { list: null } },
+  ArdiaSearch: { engines: { list: { engines: [] } } },
 };
 for (const module of new Set([...Object.keys(ENGINE_ONLY), ...Object.keys(ANSWERS)]))
   provideNativeModule(module, {

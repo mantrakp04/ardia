@@ -4,8 +4,9 @@ import { useBrowser, type BrowserState } from "../browser/store";
 import { isIncognitoProfile } from "../browser/model";
 import { isPeekTab } from "../peek/peek";
 import type { Tab } from "../browser/types";
-import { pageKey } from "../favicons/favicons";
+import { withoutFragment } from "../../lib/url";
 import { launchFavicons, seedFavicons, type LaunchFavicons } from "../favicons/launchFavicons";
+import { isRegularWindow } from "./small";
 
 const DOCUMENT = "launch-look.json";
 const VERSION = 2;
@@ -25,7 +26,7 @@ function savedTabs(s: BrowserState): Tab[] {
   const windowIds = [...new Set([...s.ui.focusOrder, ...s.windowOrder])];
   return windowIds.flatMap((id) => {
     const w = s.windows[id];
-    if (!w || w.incognito || w.kind === "small") return [];
+    if (!isRegularWindow(w)) return [];
     return w.tabIds.map((tabId) => s.tabs[tabId]).filter((t): t is Tab => !!t && !!t.url && !isIncognitoProfile(t.profileId) && !isPeekTab(s, t.id));
   });
 }
@@ -35,7 +36,7 @@ export function saveLaunchLook(s: BrowserState) {
   const themes = tabs
     .flatMap((t) => {
       const color = s.live[t.id]?.themeColor;
-      return color ? [{ tab: t.id, page: pageKey(t.url), color }] : [];
+      return color ? [{ tab: t.id, page: withoutFragment(t.url), color }] : [];
     })
     .slice(0, THEME_LIMIT);
   const look: LaunchLook = { themes, favicons: launchFavicons(tabs) };
@@ -73,7 +74,7 @@ export function restoreLaunchLook() {
   for (const theme of look.themes.filter(isRestoredTheme)) {
     const tab = s.tabs[theme.tab];
     const now = s.live[theme.tab];
-    if (!tab || !now || now.themeColor || pageKey(tab.url) !== theme.page) continue;
+    if (!tab || !now || now.themeColor || withoutFragment(tab.url) !== theme.page) continue;
     restored.set(theme.tab, { page: theme.page, color: theme.color });
     live[theme.tab] = { ...now, themeColor: theme.color };
   }
@@ -103,7 +104,7 @@ function settleRestoredTheme(tabId: string) {
 export function restoredThemeColor(tabId: string, url: string, reported: string | null | undefined, isLoading: boolean): string | null {
   const held = restored.get(tabId);
   if (!held) return reported ?? null;
-  if (reported || (!onBlank(url) && pageKey(url) !== held.page)) {
+  if (reported || (!onBlank(url) && withoutFragment(url) !== held.page)) {
     releaseRestoredTheme(tabId);
     return reported ?? null;
   }

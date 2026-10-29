@@ -129,7 +129,7 @@ function GlassTile({ width, active, selected, hovered, pressed, tileTheme, child
   const fill = active ? theme.pinnedSelectedFill : pressed ? theme.tabPressed : hovered || selected ? theme.tabHover : theme.pinnedResting;
   return (
     <View style={{ width, height: layout.pinnedHeight, alignItems: "center", justifyContent: "center" }}>
-      <GlassFill radius={TILE_RADIUS} fill={fill} raised={active && !pressed} />
+      <GlassFill radius={TILE_RADIUS} fill={fill} state={pressed ? "rest" : active ? "active" : hovered || selected ? "lit" : "rest"} />
       {active ? (
         <DockSelection
           image={tileTheme?.image}

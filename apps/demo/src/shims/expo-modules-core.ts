@@ -15,8 +15,10 @@ export function emitNativeEvent(module: string, event: string, payload: unknown)
 const moduleValues: Record<string, Record<string, unknown>> = {
   ArdiaTranslate: { available: false, userLanguages: () => ["en"], languageName: (id: string) => id },
   ArdiaGlassEffect: { isLiquidGlass: () => true },
-  ArdiaShell: { readDocument: () => null, writeDocument: () => {}, removeDocument: () => {}, copyText: () => {} },
-  ArdiaSystem: { fileExists: () => false, hapticTick: () => {}, menuShortcuts: async () => [] },
+  ArdiaShell: { copyText: () => {} },
+  ArdiaDocuments: { readDocument: () => null, writeDocument: () => {}, removeDocument: () => {} },
+  ArdiaSystem: { fileExists: () => false, hapticTick: () => {} },
+  ArdiaMenus: { menuShortcuts: async () => [] },
 };
 
 export function provideNativeModule(name: string, values: Record<string, unknown>) {
@@ -82,3 +84,5 @@ export function requireNativeViewManager<P = object>(name: string): ComponentTyp
 export class EventEmitter {}
 export class NativeModule {}
 export const Platform = { OS: "web" };
+
+export const uuid = { v4: () => crypto.randomUUID() };

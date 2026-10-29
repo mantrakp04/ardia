@@ -4,7 +4,8 @@ import { durationTitle } from "../../lib/time";
 import { DEFAULT_SETTINGS, type PeekModifier, type Settings } from "../../state/settings/settings";
 import { ChoiceList, useMockFocus, type ChoiceOption } from "./ChoiceList";
 import { MockPanel, useScreen } from "./Screen";
-import { confirmAnswer, previewLive, PRESET_NAMES, PRESETS, questionsFor, setOnboardingDraft, skipStep, useOnboarding, type Preset, type QuestionId } from "../../state/onboarding/onboarding";
+import { confirmAnswer, previewLive, PRESET_NAMES, PRESETS, setOnboardingDraft, skipStep, useOnboarding, type Preset, type QuestionId } from "../../state/onboarding/onboarding";
+import { keysOf, questionKeys, useQuestions } from "../../state/onboarding/questions";
 import { StepActions, StepLayout } from "./StepLayout";
 import { CheckRow, OptionRow, Tag } from "./Parts";
 
@@ -48,8 +49,7 @@ export function Page({
 
 export function useQuestion(step: "layout" | "tabs" | "look") {
   const sub = useOnboarding((s) => s.sub);
-  useOnboarding((s) => s.draft);
-  const id = questionsFor(step)[sub]?.id;
+  const id = useQuestions(step)[sub]?.id;
   return { id, focus: useMockFocus(id) };
 }
 
@@ -58,7 +58,7 @@ export function change(patch: Partial<Settings>, live = false) {
   if (live) previewLive(patch);
 }
 
-const LAYOUT_KEYS = ["tabLayout", "addressBar", "commandBarPlacement"] as const;
+const LAYOUT_KEYS = keysOf("layout");
 
 const TAB_CHOICES: ChoiceOption<Settings["tabLayout"]>[] = [
   { value: "sidebar", preview: "tabs-sidebar", title: "In the sidebar", subtitle: "A tall list down the side, as in Arc" },
@@ -137,8 +137,7 @@ export function LayoutStep() {
   );
 }
 
-const TABS_KEYS = ["newTabOpens", "newTabPosition", "newTabButtonPosition", "cleanUpInactiveTabsAfterMinutes", "restoreSession", "shareTabsAcrossWindows"] as const;
-const TABS_MORE = ["balancedTopApps", "peekModifier", "undoReopensClosedTab", "cmdClickCreatesTabGroup"] as const;
+const TABS_MORE = questionKeys("tabsMore");
 
 const NEW_TAB_CHOICES: ChoiceOption<Settings["newTabOpens"]>[] = [
   { value: "page", preview: "newtab-page", title: "The New Tab page", subtitle: "Your apps and a search box, as in Dia" },
@@ -171,7 +170,7 @@ const tidyLabel = (minutes: number) => (minutes !== TIDY_AFTER[0]!.value && TIDY
 
 export function TabsStep() {
   const { id, focus } = useQuestion("tabs");
-  const { values, mock } = useScreen([...TABS_KEYS, ...TABS_MORE]);
+  const { values, mock } = useScreen(keysOf("tabs"));
   const top = mock.tabLayout === "top";
   const tidy = values.cleanUpInactiveTabsAfterMinutes;
   const preview = <MockPanel settings={mock} focus={focus.focus} />;

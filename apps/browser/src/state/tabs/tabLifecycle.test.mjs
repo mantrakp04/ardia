@@ -6,107 +6,85 @@ globalThis.__DEV__ = false;
 
 const performance = import.meta.resolve("../../platform/performance.ts");
 const profiles = import.meta.resolve("../../platform/profiles.ts");
+globalThis.engineCalls = [];
 const stubs = {
   "../../platform/performance": `export * from ${JSON.stringify(performance)};
-    export const listTasks = async () => [];
     export const onSystemState = () => ({ remove() {} });
     export const systemState = async () => null;
-    export const setBatterySaver = (mode) => globalThis.batterySaverReply(mode);`,
+    export const setBatterySaver = async (mode) => (globalThis.engineCalls.push(["batterySaver", mode]), { state: 0, active: false });
+    export const setMemorySaver = async (request) => (globalThis.engineCalls.push(["memorySaver", request]), { ...request, active: request.state === "on", invalid: [] });`,
   "../../platform/profiles": `export * from ${JSON.stringify(profiles)};
     export const releaseProfile = async () => {};`,
-  "../splits/actions": "export const showToast = () => {};",
+  "../app/toasts": "export const showToast = () => {};",
   "../settings/settingsWindows": "export const openSettings = () => {};",
   "../pages/urls": "export const isInternalTab = (t) => !/^https?:/.test(t.url ?? '');",
 };
 registerHooks({
   resolve(specifier, context, next) {
-    if (!/\/state\/tabs\/(?:tabLifecycle|tabKeepAlive|recentTabWarmup)\.ts$/.test(context.parentURL ?? "") || !(specifier in stubs)) return next(specifier, context);
+    if (!/\/state\/tabs\/(?:tabLifecycle|memorySaver|shownTabs|recentTabWarmup)\.ts$/.test(context.parentURL ?? "") || !(specifier in stubs)) return next(specifier, context);
     return { url: `data:text/javascript,${encodeURIComponent(stubs[specifier])}`, shortCircuit: true };
   },
 });
 
 const { useBrowser } = await import("../browser/store.ts");
-const { webviews } = await import("../../platform/webviews.ts");
 const lifecycle = await import("./tabLifecycle.ts");
+const { keepActiveSiteOf, memorySaverRequest } = await import("./memorySaver.ts");
 const { reloadRecentTabs } = await import("./recentTabWarmup.ts");
+const { loadSession: loadSavedSession } = await import("../session/persist.ts");
+const { docs: savedDocs } = await import("../../test-native/index.ts");
 
 const S = () => useBrowser.getState();
+const memorySaverCalls = () => globalThis.engineCalls.filter(([name]) => name === "memorySaver").map(([, request]) => request);
 
-function fakePage() {
-  const page = { dirty: false, evaluated: 0, discarded: 0, release: () => {} };
-  page.handle = {
-    evaluate: async () => (page.evaluated++, page.dirty),
-    setFrozen: () => new Promise((resolve) => (page.release = resolve)),
-    discard: async () => (page.discarded++, "discarded"),
-  };
-  return page;
-}
-
-test("a tab shown and typed in while it was being frozen doesn't sleep", async () => {
+test("Memory Saver is on and Balanced by default, as in Helium, with no sites kept active", () => {
   S().hydrate({});
-  const w = S().createWindow({ url: "https://a.com" });
-  const a = S().windows[w].tabIds[0];
-  const b = S().newTab(w, { url: "https://b.com", background: true });
-  const page = fakePage();
-  webviews.set(b, page.handle);
-  lifecycle.useLifecycle.setState({ batterySaver: true });
-
-  const freezing = lifecycle.freezeTab(b);
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  S().activate(b);
-  page.dirty = true;
-  page.release();
-  await freezing;
-  S().activate(a);
-
-  assert.equal(await lifecycle.sleepTab(b), false);
-  assert.equal(page.evaluated, 1, "asks the page now");
-  assert.equal(page.discarded, 0);
-  webviews.delete(b);
+  assert.deepEqual(memorySaverRequest(S().settings), { state: "on", aggressiveness: "balanced", sites: [] });
 });
 
-test("a tab without unsaved input sleeps", async () => {
+test("the app's Memory Saver settings reach the engine at launch and on every change", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  S().hydrate({ settings: { memorySaver: false, memorySaverMode: "maximum", keepActiveSites: ["music.youtube.com"] } });
+  globalThis.engineCalls.length = 0;
+  lifecycle.startTabLifecycle();
+  assert.deepEqual(memorySaverCalls(), [{ state: "off", aggressiveness: "maximum", sites: ["music.youtube.com"] }]);
+  S().updateSettings({ memorySaver: true });
+  S().updateSettings({ memorySaverMode: "moderate" });
+  S().updateSettings({ keepActiveSites: ["music.youtube.com", "figma.com"] });
+  S().updateSettings({ showFullUrl: !S().settings.showFullUrl });
+  assert.deepEqual(memorySaverCalls().slice(1), [
+    { state: "on", aggressiveness: "maximum", sites: ["music.youtube.com"] },
+    { state: "on", aggressiveness: "moderate", sites: ["music.youtube.com"] },
+    { state: "on", aggressiveness: "moderate", sites: ["music.youtube.com", "figma.com"] },
+  ]);
+  for (let i = 0; i < 5; i++) await Promise.resolve();
+  assert.deepEqual(globalThis.engineCalls.filter(([name]) => name === "batterySaver").map(([, mode]) => mode), ["off"], "Battery Saver is always Chrome's: on or off, never left to Chrome's default");
+});
+
+test("a saved Memory Saver mode or site list the engine wouldn't take falls back instead of reaching it", () => {
+  assert.deepEqual(memorySaverRequest({ memorySaver: true, memorySaverMode: "turbo", keepActiveSites: ["a.com", 3] }), { state: "on", aggressiveness: "balanced", sites: ["a.com"] });
+  assert.deepEqual(memorySaverRequest({ memorySaver: undefined, memorySaverMode: undefined, keepActiveSites: undefined }), { state: "on", aggressiveness: "balanced", sites: [] });
+});
+
+test("a kept-active site lowercases only its scheme and host, since Chrome matches the path and query as typed", () => {
+  assert.equal(keepActiveSiteOf("  HTTPS://Example.COM/Editor?Doc=AbC "), "https://example.com/Editor?Doc=AbC");
+  assert.equal(keepActiveSiteOf("Docs.Google.com/Document/D/XyZ"), "docs.google.com/Document/D/XyZ");
+  assert.equal(keepActiveSiteOf("[*.]YouTube.com"), "[*.]youtube.com");
+  assert.equal(keepActiveSiteOf("https://Figma.com/"), "https://figma.com", "a bare trailing slash goes, as before");
+  assert.equal(keepActiveSiteOf("music.youtube.com"), "music.youtube.com");
+});
+
+test("a synced list saved with lowercased entries reaches the engine unchanged", () => {
+  assert.deepEqual(memorySaverRequest({ memorySaver: true, memorySaverMode: "balanced", keepActiveSites: ["https://example.com/editor"] }).sites, ["https://example.com/editor"]);
+});
+
+test("a tab Chrome discarded shows as sleeping until it's ready again or gone", () => {
   S().hydrate({});
-  const w = S().createWindow({ url: "https://a.com" });
-  const b = S().newTab(w, { url: "https://b.com", background: true });
-  const page = fakePage();
-  webviews.set(b, page.handle);
-  assert.equal(await lifecycle.sleepTab(b), true);
-  assert.equal(page.discarded, 1);
-  webviews.delete(b);
-});
-
-const STATE = { off: 0, belowThreshold: 1, on: 3 };
-
-async function syncWith(on, reply) {
-  lifecycle.useLifecycle.setState({ batterySaver: on });
-  globalThis.batterySaverReply = reply;
-  return lifecycle.syncChromeBatterySaver();
-}
-
-test("Chrome owns Battery Saver when its effective state is the one asked for", async () => {
-  assert.equal(await syncWith(true, async (mode) => ({ state: STATE[mode], active: mode === "on" })), true);
-  assert.equal(await syncWith(false, async (mode) => ({ state: STATE[mode], active: false })), true);
-});
-
-test("a policy that pins Chrome's battery saver keeps our sampler running", async () => {
-  assert.equal(await syncWith(true, async () => ({ state: STATE.off, active: false })), false);
-  assert.equal(await syncWith(false, async () => ({ state: STATE.belowThreshold, active: false })), false);
-});
-
-test("an engine without the call keeps our sampler running", async () => {
-  assert.equal(await syncWith(true, async () => { throw new Error("not an engine call"); }), false);
-});
-
-test("an older reply landing last doesn't override the newer one", async () => {
-  let releaseFirst;
-  lifecycle.useLifecycle.setState({ batterySaver: true });
-  globalThis.batterySaverReply = () => new Promise((resolve) => (releaseFirst = () => resolve({ state: STATE.on, active: true })));
-  const first = lifecycle.syncChromeBatterySaver();
-  const second = syncWith(true, async () => ({ state: STATE.off, active: false }));
-  assert.equal(await second, false);
-  releaseFirst();
-  assert.equal(await first, false);
+  lifecycle.noteDiscarded("t1");
+  lifecycle.noteDiscarded("t2");
+  assert.deepEqual(lifecycle.useLifecycle.getState().discarded, { t1: true, t2: true });
+  lifecycle.noteReady("t1");
+  lifecycle.noteGone("t2");
+  assert.deepEqual(lifecycle.useLifecycle.getState().discarded, {});
 });
 
 test("Battery Saver turns on at 20% battery or lower, in Low Power Mode, or whenever unplugged when asked to", () => {
@@ -142,7 +120,11 @@ test("Battery Saver turned on by low battery stays on through 20%/21% readings u
 });
 
 test("Battery Saver's old switch: a choice and any off are kept, the old default moves to When battery is low", () => {
-  const hydrated = (settings) => (S().hydrate({ settings }), S().settings);
+  const hydrated = (settings) => {
+    savedDocs.set("session.json", JSON.stringify({ version: 7, profiles: S().profiles, profileOrder: S().profileOrder, settings, windows: [], windowOrder: [], tabs: [], groups: [], splits: [] }));
+    S().hydrate(loadSavedSession());
+    return { ...S().settings, chosen: S().settingsMeta.chosen };
+  };
   const untouched = hydrated({ batterySaver: true, showFullUrl: true, chosen: ["showFullUrl"], inferred: [] });
   assert.equal(untouched.batterySaverWhen, "lowBattery");
   assert.equal("batterySaver" in untouched, false);
@@ -164,7 +146,7 @@ test("a recent pin queued for warming at launch stays closed when the user close
   const w = S().createWindow({ url: "https://a.com" });
   const pin = S().newTab(w, { url: "https://p.com", background: true, pinned: true });
   const warm = S().newTab(w, { url: "https://q.com", background: true, pinned: true });
-  const cold = (id) => ({ ...S().tabs[id], navigation: null, lastActiveAt: Date.now() });
+  const cold = (id) => ({ ...S().tabs[id], page: { kind: "idle" }, lastActiveAt: Date.now() });
   useBrowser.setState({ tabs: { ...S().tabs, [pin]: cold(pin), [warm]: cold(warm) } });
   const sys = { physicalMemory: 32 * 2 ** 30, onBattery: false, lowPowerMode: false, memoryPressure: "normal" };
 
@@ -172,82 +154,11 @@ test("a recent pin queued for warming at launch stays closed when the user close
   assert.ok(queued.includes(pin) && queued.includes(warm));
   S().activate(pin);
   S().closeTab(pin);
-  assert.equal(S().tabs[pin].unloaded, true);
+  assert.equal(S().tabs[pin].page.kind, "asleep");
   t.mock.timers.tick(2000 * queued.length);
 
-  assert.equal(S().tabs[pin].unloaded, true, "the closed pin stays closed");
-  assert.equal(S().tabs[pin].navigation, null);
-  assert.ok(S().tabs[warm].navigation, "a pin left alone still warms up");
-  assert.equal(!!S().tabs[warm].unloaded, false);
-});
-
-const media = await import("../media/media.ts");
-const nowPlaying = (overrides = {}) => ({
-  title: "Episode", artist: "", album: "", artwork: null, playbackState: "playing", position: 10, duration: 3600,
-  playbackRate: 1, timestamp: Date.now(), hasVideo: false, actions: ["play", "pause"], controllable: true, ...overrides,
-});
-
-test("a background tab sleeps after 4 h awake, and a night asleep doesn't count toward it", async (t) => {
-  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: Date.now() });
-  globalThis.batterySaverReply = async () => ({ state: STATE.off, active: false });
-  S().hydrate({});
-  const w = S().createWindow({ url: "https://a.com" });
-  const b = S().newTab(w, { url: "https://b.com", background: true });
-  const page = fakePage();
-  webviews.set(b, page.handle);
-  const notRecent = { protectedRecent: 0 };
-  lifecycle.startTabLifecycle();
-  await lifecycle.sweep(notRecent);
-
-  t.mock.timers.setTime(Date.now() + 10 * 60 * 60_000);
-  assert.deepEqual(await lifecycle.sweep(notRecent), [], "ten hours with the lid shut");
-
-  let sleptAfterMinutes = null;
-  for (let awake = 1; awake <= 5 * 60 && sleptAfterMinutes === null; awake++) {
-    t.mock.timers.setTime(Date.now() + 60_000);
-    if ((await lifecycle.sweep(notRecent)).includes(b)) sleptAfterMinutes = awake;
-  }
-  assert.equal(sleptAfterMinutes, 4 * 60 - 5, "4 h awake in all, the 5 min the clock credits the night included");
-  webviews.delete(b);
-});
-
-test("a paused tab with a sidebar player stays awake; closing the player lets it sleep", async () => {
-  S().hydrate({});
-  const w = S().createWindow({ url: "https://a.com" });
-  const b = S().newTab(w, { url: "https://b.com", background: true });
-  const page = fakePage();
-  webviews.set(b, page.handle);
-  media.setNowPlaying(b, nowPlaying());
-  media.setNowPlaying(b, nowPlaying({ playbackState: "paused" }));
-
-  assert.deepEqual(await lifecycle.sweep({ sleepAfterMs: 0, recentSleepAfterMs: 0 }), []);
-  assert.equal(await lifecycle.sleepTab(b), false);
-  media.dismissPlayer(b);
-  assert.deepEqual(await lifecycle.sweep({ sleepAfterMs: 0, recentSleepAfterMs: 0 }), [b]);
-  media.setNowPlaying(b, null);
-  webviews.delete(b);
-});
-
-test("a paused tab sleeps when no sidebar player would show it: media controls off, or left paused", async () => {
-  S().hydrate({});
-  const w = S().createWindow({ url: "https://a.com" });
-  const b = S().newTab(w, { url: "https://b.com", background: true });
-  const page = fakePage();
-  webviews.set(b, page.handle);
-  const asleep = async () => (await lifecycle.sweep({ sleepAfterMs: 0, recentSleepAfterMs: 0 })).includes(b);
-
-  media.setNowPlaying(b, nowPlaying());
-  media.setNowPlaying(b, nowPlaying({ playbackState: "paused" }));
-  S().updateSettings({ sidebarMediaControls: false });
-  assert.equal(await asleep(), true, "media controls are off");
-  S().updateSettings({ sidebarMediaControls: true });
-
-  S().activate(b);
-  S().activate(S().windows[w].tabIds[0]);
-  assert.equal(await asleep(), true, "left paused: the card skips it");
-  media.setNowPlaying(b, nowPlaying());
-  media.setNowPlaying(b, nowPlaying({ playbackState: "paused" }));
-  assert.equal(await asleep(), false, "played again from the background: its card is back");
-  media.setNowPlaying(b, null);
-  webviews.delete(b);
+  assert.equal(S().tabs[pin].page.kind, "asleep", "the closed pin stays closed");
+  assert.equal(S().tabs[pin].page.nav, undefined);
+  assert.ok(S().tabs[warm].page.nav, "a pin left alone still warms up");
+  assert.notEqual(S().tabs[warm].page.kind, "asleep");
 });

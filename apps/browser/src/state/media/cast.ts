@@ -1,11 +1,16 @@
-import { closeCastDialog, onCastDialog, onCastRoutes, showCastDialog, watchCastRoutes, type CastDialog, type CastRoute } from "../../platform/media";
+import { CastMode, closeCastDialog, onCastDialog, onCastRoutes, showCastDialog, watchCastRoutes, type CastDialog, type CastRoute } from "../../platform/media";
 import { create } from "zustand";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { engineProfile } from "../browser/model";
 import { shownPageId } from "../peek/peek";
 import { isTabReady } from "../tabs/pageState";
 
-export { CastMode, preferredCastMode, startCasting, stopCasting, terminateCastRoute, type CastRoute, type CastSink } from "../../platform/media";
+export { CastMode, startCasting, stopCasting, terminateCastRoute, type CastRoute, type CastSink } from "../../platform/media";
+
+export function preferredCastMode(modes: number): number {
+  for (const mode of [CastMode.presentation, CastMode.tab, CastMode.screen, CastMode.remotePlayback]) if (modes & mode) return mode;
+  return 0;
+}
 
 type CastStore = {
   dialogs: Record<string, CastDialog>;
@@ -17,7 +22,7 @@ if (__DEV__) (globalThis as { acCast?: unknown }).acCast = { useCast };
 
 function castProfile(s: BrowserState, windowId: string): string {
   const w = s.windows[windowId];
-  return !w ? "" : engineProfile(w.profileId);
+  return !w ? "" : engineProfile(s, w.profileId);
 }
 
 let started = false;

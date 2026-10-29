@@ -6,27 +6,30 @@ import { updateGroup } from "../../state/groups/actions";
 import { useGroupLabel } from "../../state/groups/hooks";
 import { useSelectionInGroup } from "../../state/pins/hooks";
 import { newCapture } from "../../state/sidebar/listCapture";
-import { useCapturedGroupEntries, useGroupFirstTabIcon, useKeptEntry } from "../../state/sidebar/hooks";
+import { useCapturedGroupEntries, useGroupFirstTabIcon, useGroupTabIds, useKeptEntry } from "../../state/sidebar/hooks";
 import { MeetingTimeLabel, useMeetingCountdown } from "../live/MeetingCountdown";
 import { HoverSlot } from "../ui/HoverSlot";
-import { Button, ContextMenuArea, FadeLabel, font, ink, radius, Surface, Symbol, weight } from "../ui";
+import { Button, ContextMenuArea, FadeLabel, font, ink, radius, Surface, Symbol, weight, withAlpha } from "../ui";
 import { commitRename, endRename, startRename } from "../../state/sidebar/actions";
 import { useDragFolded, useDragItem, useDropInto } from "./DragProvider";
 import { useShift, type EntryMotion } from "./EntryMotion";
 import { Fold, useFold } from "./Fold";
 import { GROUP_BORDER, GROUP_HEADER_RADIUS, GROUP_INDENT, GROUP_PAD, GROUP_RADIUS } from "./geometry";
 import { entryHeightNow, foldedGroupHeight, headGap } from "../../state/sidebar/geometry";
-import { dismissHover, useGroupHover, useRowHover } from "../../state/sidebar/hover";
+import { dismissHover } from "../../state/sidebar/hover";
+import { useGroupHover, useRowHover } from "./hoverController";
 import { HOVER_CARD_FADE_MS } from "./hoverMotion";
 import { GhostSlot, ListMotionContext, useGroupMotion } from "./ListMotion";
 import { pressGroupClose, useGroupCloseControlWhile } from "../../state/sidebar/closeControl";
 import { openGroupMenu } from "../../state/sidebar/menus";
-import { groupColorMenu } from "./groupColorMenu";
 import { registerRow, useSidebarUi } from "../../state/sidebar/sidebarUi";
 import { TabIcon } from "./TabIcon";
 import { RenameField, SplitRowItem, TabRowItem } from "./TabRow";
-import { groupSurface, TABULAR_NUMS, useSidebarTokens, withAlpha } from "./tokens";
+import { groupSurface, TABULAR_NUMS, useSidebarTokens } from "./tokens";
 import { curve } from "../ui/motion";
+import { entryKey, parseEntry } from "../../state/sidebar/entryKey";
+import { LiveFolderBlock } from "./LiveFolderBlock";
+import { tailKey, type RowSection } from "./dragModel";
 
 const PAD = GROUP_PAD;
 const BOX_FADE = curve.fade;
@@ -79,17 +82,17 @@ export const GroupBlock = memo(function GroupBlock({
   const windowId = useWindowId();
   const tokens = useSidebarTokens();
   const stored = useGroup(groupId, (g) => !!g?.collapsed);
-  const collapsed = useDragFolded(`g:${groupId}`) || stored;
+  const collapsed = useDragFolded(entryKey("group", groupId)) || stored;
   const color = useGroup(groupId, (g) => g?.color ?? null);
-  const tabIds = useGroup(groupId, (g) => g?.tabIds.join(",") ?? "");
+  const tabIds = useGroupTabIds(groupId);
   const [captured] = useState(newCapture);
   const entries = useCapturedGroupEntries(groupId, captured);
   const selectedInside = useSelectionInGroup(windowId, groupId);
   const profileId = usePageProfileId();
   const activeEntry = useKeptEntry(windowId, profileId, entries);
   const foldedHeight = () => foldedGroupHeight(windowId, profileId, groupId);
-  const { wrapper, handle, headerRef } = useDragItem(`g:${groupId}`, { kind: "group", tabIds: tabIds.split(",").filter(Boolean), section, groupId, collapsed: stored, foldedHeight, parentGroup }, own?.clip);
-  const tail = useDragItem(`tail:group:${groupId}`, { kind: "tail", tabIds: [], section, parentGroup: groupId });
+  const { wrapper, handle, headerRef } = useDragItem(entryKey("group", groupId), { kind: "group", tabIds, section, groupId, collapsed: stored, foldedHeight, parentGroup }, own?.clip);
+  const tail = useDragItem(tailKey({ group: groupId }), { kind: "tail", tabIds: [], section, parentGroup: groupId });
 
   const fold = useFold(collapsed);
   const scope = useContext(ListMotionContext);
@@ -122,7 +125,7 @@ export const GroupBlock = memo(function GroupBlock({
                 : {
                     key: slot.entry,
                     node: (
-                      <Entry entry={slot.entry} section={section} groupId={groupId} motion={motion.motion(slot.entry)} />
+                      <SidebarEntry entry={slot.entry} section={section} parentGroup={groupId} motion={motion.motion(slot.entry)} />
                     ),
                   },
             )}
@@ -142,13 +145,25 @@ export const GroupBlock = memo(function GroupBlock({
   );
 });
 
-const Entry = memo(function Entry({ entry, section, groupId, motion }: { entry: string; section: "list" | "pinnedGroups"; groupId: string; motion: EntryMotion | null }) {
-  if (entry.startsWith("g:")) return <GroupBlock groupId={entry.slice(2)} section={section} parentGroup={groupId} motion={motion} />;
-  return entry.startsWith("s:") ? (
-    <SplitRowItem splitId={entry.slice(2)} section={section} parentGroup={groupId} motion={motion} />
-  ) : (
-    <TabRowItem tabId={entry.slice(2)} section={section} parentGroup={groupId} motion={motion} />
-  );
+export const SidebarEntry = memo(function SidebarEntry({
+  entry,
+  section,
+  rowSection = section,
+  parentGroup,
+  motion = null,
+}: {
+  entry: string;
+  section: "list" | "pinnedGroups";
+  rowSection?: RowSection;
+  parentGroup?: string;
+  motion?: EntryMotion | null;
+}) {
+  const windowId = useWindowId();
+  const { kind, id } = parseEntry(entry);
+  if (kind === "live") return <LiveFolderBlock folderId={id} windowId={windowId} />;
+  if (kind === "group") return <GroupBlock groupId={id} section={section} parentGroup={parentGroup} motion={motion} />;
+  if (kind === "split") return <SplitRowItem splitId={id} section={rowSection} parentGroup={parentGroup} motion={motion} />;
+  return <TabRowItem tabId={id} section={rowSection} parentGroup={parentGroup} motion={motion} />;
 });
 
 function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; windowId: string; collapsed: boolean; open: Animated.Value }) {
@@ -170,7 +185,7 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
       <ContextMenuArea
         onContextMenu={() => {
           dismissHover();
-          void openGroupMenu(windowId, groupId, groupColorMenu);
+          void openGroupMenu(windowId, groupId);
         }}
       >
         <Pressable

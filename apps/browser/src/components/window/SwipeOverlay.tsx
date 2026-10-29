@@ -1,3 +1,4 @@
+import { devRegister } from "../dev/devRegister";
 import { SwipeArea, type SwipeAreaHandle, type SwipeEvent, font, radius, space, Surface, Symbol, VisualEffect } from "../ui";
 import { swipeHaptic } from "../../state/app/system";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -306,7 +307,5 @@ function useSwipeDevHandle(tabId: string, area: React.RefObject<SwipeAreaHandle 
     return () => void (devPanes.get(tabId) === area && devPanes.delete(tabId));
   }, [tabId]);
 }
-if (__DEV__) {
-  const g = globalThis as { acSwipe?: Record<string, unknown> };
-  g.acSwipe = { ...g.acSwipe, pane: (tabId: string) => devPanes.get(tabId)?.current ?? null, history: { items: historyItems, open: openHistoryMenu, menu: useHistoryMenu, go: goToHistoryItem } };
-}
+devRegister("acSwipe", "pane", (tabId: string) => devPanes.get(tabId)?.current ?? null);
+devRegister("acSwipe", "history", { items: historyItems, open: openHistoryMenu, menu: useHistoryMenu, go: goToHistoryItem });

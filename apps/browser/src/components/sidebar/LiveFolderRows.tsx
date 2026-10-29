@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Animated, Pressable, Text, View } from "react-native";
-import { setLive, useLive } from "../../state/live/store";
+import { showAllIn, toggleStack, useLive } from "../../state/live/store";
 import type { FolderRow } from "../../state/live/rows";
 import { ContextMenuArea, font, radius, Symbol, useHover, weight } from "../ui";
 import { curve, duration } from "../ui/motion";
@@ -62,7 +62,7 @@ export function MoreRow({ folderId, section, count }: { folderId: string; sectio
   const { hovered, hoverProps } = useHover();
   return (
     <View {...hoverProps}>
-      <Pressable onPress={() => setLive((s) => ({ showAll: { ...s.showAll, [`${folderId}:${section}`]: true } }))}>
+      <Pressable onPress={() => showAllIn(folderId, section)}>
         <View style={{ height: 26, borderRadius: radius.l, flexDirection: "row", alignItems: "center", paddingLeft: 9, backgroundColor: hovered ? theme.rowHover : undefined }}>
           <Symbol name="ellipsis" size={11} color={theme.textSecondary} style={{ width: 16, height: 16 }} />
           <Text style={{ marginLeft: 5, ...font.small, color: theme.textSecondary }}>Show {count} More</Text>
@@ -89,7 +89,7 @@ export function StackRow({ folderId, windowId, stack }: { folderId: string; wind
           }}
         >
           <Pressable
-            onPress={() => setLive((s) => ({ expandedStacks: { ...s.expandedStacks, [stack.id]: collapsed } }))}
+            onPress={() => toggleStack(stack.id)}
             accessibilityLabel={collapsed ? "Expand pull request stack" : "Collapse pull request stack"}
           >
             <View style={{ height: 26, borderRadius: radius.l, flexDirection: "row", alignItems: "center", paddingLeft: 9, paddingRight: 8, backgroundColor: hovered ? theme.rowHover : undefined }}>

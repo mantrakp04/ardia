@@ -1,10 +1,10 @@
 ---
+import { base } from "../data/site";
 interface Props {
   html: string;
   video?: string;
 }
 const { html, video } = Astro.props;
-const base = import.meta.env.BASE_URL.replace(/\/$/, "");
 ---
 
 <div class="notes">
