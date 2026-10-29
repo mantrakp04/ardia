@@ -441,6 +441,20 @@ int TabId(content::WebContents* contents) {
   return sessions::SessionTabHelper::IdForTab(contents).id();
 }
 
+bool RestoredTab(content::WebContents* contents) {
+  auto& controller = contents->GetController();
+  if (controller.GetEntryCount() > 1) return true;
+  for (int index = 0; index < controller.GetEntryCount(); ++index) {
+    if (controller.GetEntryAtIndex(index)->IsRestored()) return true;
+  }
+  return false;
+}
+
+bool BlankTabUrl(const GURL& url) {
+  return url.is_empty() || url == GURL("about:blank") ||
+      (url.SchemeIs("chrome") && (url.host() == "newtab" || url.host() == "new-tab-page"));
+}
+
 void CloseDevToolsTab(content::WebContents* contents) {
   if (!contents) return;
   GlobalBrowserCollection::GetInstance()->ForEach([contents](BrowserWindowInterface* browser) {
@@ -919,7 +933,9 @@ class ShellHostView : public views::View,
     }
     opener_host_ = request.opener_host;
     opener_generation_ = request.opener_generation;
+    requested_ = true;
   }
+  bool ChromeMade() const { return !startup_ && !requested_ && !is_utility() && private_window_.empty(); }
   void NavigateUtility(base::DictValue utility) {
     utility_ = std::move(utility);
     if (utility_ready_) {
@@ -960,6 +976,7 @@ class ShellHostView : public views::View,
   void DocumentCall(std::string verb, base::DictValue request,
                     base::OnceCallback<void(LinuxDocumentResult)> done);
   base::DictValue Bootstrap() const;
+  void HandUnclaimedTabsToShell();
   base::DictValue Strip() const;
   base::DictValue Transaction(std::optional<int> command, bool advance);
   uint64_t SetHandler(HostMessageHandler* handler, content::WebUI* ui) {
@@ -1170,7 +1187,22 @@ class ShellHostView : public views::View,
 
  private:
   std::map<int, base::WeakPtr<content::WebContents>> offered_;
+  struct UnclaimedTab {
+    base::WeakPtr<content::WebContents> contents;
+    bool active = false;
+  };
+  std::map<int, UnclaimedTab> unclaimed_;
+  std::map<int, base::WeakPtr<content::WebContents>> announced_;
+  std::optional<uint64_t> unclaimed_listener_;
   friend class HostMessageHandler;
+  static bool TabClaimed(content::WebContents* contents);
+  void NoteUnclaimedTab(content::WebContents* contents, bool active);
+  void AnnounceUnclaimedTab(int id, int tries);
+  bool UnclaimedListening() const;
+  base::DictValue ClaimUnclaimedTab(content::WebContents* contents, bool active);
+  void ListenForUnclaimedTabs(base::OnceCallback<void(bool, base::Value)> done);
+  base::ListValue UnclaimedTabsForShell() const;
+  bool HandsTabsToShell() const;
   TabBinding* Binding(int id);
   TabBinding* ClaimedBinding(const base::DictValue& args);
   struct PageCommandAuthority {
@@ -1371,6 +1403,7 @@ class ShellHostView : public views::View,
   bool utility_close_pending_ = false;
   std::map<int, std::unique_ptr<TabBinding>> bindings_;
   bool app_operation_ = false;
+  bool requested_ = false;
   linux_window::GeometryLedger geometry_{GlobalScreenCoordinates()};
   base::OneShotTimer frame_timer_;
   std::unique_ptr<linux_window::TypeaheadInput> typeahead_;
@@ -1859,6 +1892,7 @@ class ShellDataSource : public content::URLDataSource {
         url.host() != "ardia") {
       return std::move(callback).Run(nullptr);
     }
+    if (AssetPath(url) == "host-bootstrap.js") host->HandUnclaimedTabsToShell();
     FileRunner()->PostTaskAndReplyWithResult(
         FROM_HERE,
         base::BindOnce(&ReadAsset, AssetDirectory(), AssetPath(url),
@@ -1976,8 +2010,141 @@ void ShellHostView::Initialize() {
   if (!title_.empty()) {
     browser_->GetWindow()->GetNativeWindow()->SetTitle(base::UTF8ToUTF16(title_));
   }
+  if (!is_utility()) {
+    TabStripModel* model = browser_->GetTabStripModel();
+    for (int index = 0; index < model->count(); ++index) {
+      content::WebContents* contents = model->GetWebContentsAt(index);
+      const GURL& url = contents->GetVisibleURL();
+      if ((!BlankTabUrl(url) || (ChromeMade() && url.IsAboutBlank())) && !RestoredTab(contents)) {
+        NoteUnclaimedTab(contents, contents == model->GetActiveWebContents());
+      }
+    }
+  }
   shell_->LoadInitialURL(GURL("chrome://ardia/"));
   ardiacore::WatchLinuxShellInput(shell());
+}
+
+bool ShellHostView::TabClaimed(content::WebContents* contents) {
+  const int id = TabId(contents);
+  for (const auto& [window, host] : Hosts()) {
+    if (host->BindsTab(contents)) return true;
+    const auto offer = host->offered_.find(id);
+    if (offer != host->offered_.end() && offer->second.get() == contents) return true;
+  }
+  return false;
+}
+
+void ShellHostView::NoteUnclaimedTab(content::WebContents* contents, bool active) {
+  if (!contents || TabId(contents) <= 0 || TabClaimed(contents)) return;
+  const int id = TabId(contents);
+  unclaimed_[id] = {contents->GetWeakPtr(), active};
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(&ShellHostView::AnnounceUnclaimedTab, GetWeakPtr(), id, 0));
+}
+
+bool ShellHostView::UnclaimedListening() const {
+  return handler_ && unclaimed_listener_ == renderer_generation_;
+}
+
+base::DictValue ShellHostView::ClaimUnclaimedTab(content::WebContents* contents, bool active) {
+  OfferTab(contents);
+  announced_[TabId(contents)] = contents->GetWeakPtr();
+  return base::DictValue()
+      .Set("adoptId", "tab:" + base::NumberToString(TabId(contents)))
+      .Set("url", contents->GetVisibleURL().spec())
+      .Set("active", active && browser_->GetTabStripModel()->GetActiveWebContents() == contents);
+}
+
+void ShellHostView::AnnounceUnclaimedTab(int id, int tries) {
+  const auto found = unclaimed_.find(id);
+  if (found == unclaimed_.end()) return;
+  content::WebContents* contents = found->second.contents.get();
+  const bool in_window = contents && browser_ &&
+      browser_->GetTabStripModel()->GetIndexOfWebContents(contents) != TabStripModel::kNoTab;
+  const GURL url = contents ? contents->GetVisibleURL() : GURL();
+  using ardiacore::linux_contract::UnclaimedTabStep;
+  switch (ardiacore::linux_contract::NextUnclaimedTabStep(
+      in_window, in_window && TabClaimed(contents), UnclaimedListening(), url.is_empty() || url.IsAboutBlank(), tries)) {
+    case UnclaimedTabStep::kWait:
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+          FROM_HERE, base::BindOnce(&ShellHostView::AnnounceUnclaimedTab, GetWeakPtr(), id, tries + 1),
+          base::Milliseconds(25));
+      return;
+    case UnclaimedTabStep::kPark:
+      return;
+    case UnclaimedTabStep::kDrop:
+      unclaimed_.erase(found);
+      return;
+    case UnclaimedTabStep::kReport: {
+      const bool active = found->second.active;
+      unclaimed_.erase(found);
+      Event("ArdiaTabs", "unclaimed", base::Value(ClaimUnclaimedTab(contents, active)));
+      return;
+    }
+  }
+}
+
+void ShellHostView::ListenForUnclaimedTabs(base::OnceCallback<void(bool, base::Value)> done) {
+  if (!browser_ || is_utility()) return std::move(done).Run(false, base::Value("This window has no tab strip"));
+  unclaimed_listener_ = renderer_generation_;
+  base::ListValue tabs;
+  TabStripModel* model = browser_->GetTabStripModel();
+  for (auto it = announced_.begin(); it != announced_.end();) {
+    content::WebContents* contents = it->second.get();
+    bool bound = false;
+    for (const auto& [window, host] : Hosts()) bound |= contents && host->BindsTab(contents);
+    if (!contents || bound || model->GetIndexOfWebContents(contents) == TabStripModel::kNoTab) {
+      it = announced_.erase(it);
+      continue;
+    }
+    ++it;
+    tabs.Append(ClaimUnclaimedTab(contents, false));
+  }
+  for (int index = 0; index < model->count(); ++index) {
+    content::WebContents* contents = model->GetWebContentsAt(index);
+    const auto found = unclaimed_.find(TabId(contents));
+    if (found == unclaimed_.end() || found->second.contents.get() != contents) continue;
+    const bool active = found->second.active;
+    unclaimed_.erase(found);
+    if (!TabClaimed(contents)) tabs.Append(ClaimUnclaimedTab(contents, active));
+  }
+  std::move(done).Run(true, base::Value(std::move(tabs)));
+}
+
+bool ShellHostView::HandsTabsToShell() const {
+  return browser_ && ChromeMade() && bindings_.empty();
+}
+
+void ShellHostView::HandUnclaimedTabsToShell() {
+  if (!HandsTabsToShell()) return;
+  TabStripModel* model = browser_->GetTabStripModel();
+  for (int index = 0; index < model->count(); ++index) {
+    content::WebContents* contents = model->GetWebContentsAt(index);
+    const auto pending = unclaimed_.find(TabId(contents));
+    if (pending == unclaimed_.end() || pending->second.contents.get() != contents) continue;
+    unclaimed_.erase(pending);
+    if (!TabClaimed(contents) && contents->GetBrowserContext() == page_profile()) OfferTab(contents);
+  }
+}
+
+base::ListValue ShellHostView::UnclaimedTabsForShell() const {
+  base::ListValue tabs;
+  if (!HandsTabsToShell()) return tabs;
+  TabStripModel* model = browser_->GetTabStripModel();
+  for (int index = 0; index < model->count(); ++index) {
+    content::WebContents* contents = model->GetWebContentsAt(index);
+    const int id = TabId(contents);
+    const auto offer = offered_.find(id);
+    if (offer == offered_.end() || offer->second.get() != contents) continue;
+    bool bound = false;
+    for (const auto& [window, host] : Hosts()) bound |= host->BindsTab(contents);
+    if (bound) continue;
+    tabs.Append(base::DictValue()
+        .Set("adoptId", "tab:" + base::NumberToString(id))
+        .Set("url", contents->GetVisibleURL().spec())
+        .Set("active", contents == model->GetActiveWebContents()));
+  }
+  return tabs;
 }
 
 void ShellHostView::DetachViewports() {
@@ -2080,6 +2247,8 @@ base::DictValue ShellHostView::Bootstrap() const {
   if (is_utility()) bootstrap.Set("utility", utility_.Clone());
   bootstrap.Set("pageProfile", page_profile_);
   if (!private_window_.empty()) bootstrap.Set("privateWindow", private_window_.Clone());
+  if (ChromeMade()) bootstrap.Set("chromeMade", true);
+  if (base::ListValue adopt = UnclaimedTabsForShell(); !adopt.empty()) bootstrap.Set("adoptTabs", std::move(adopt));
   if (typeahead_ && typeahead_->capturing() && typeahead_timer_.IsRunning()) {
     bootstrap.Set("typeaheadMs", static_cast<int>(std::max<int64_t>(
         0, (typeahead_timer_.desired_run_time() - base::TimeTicks::Now()).InMilliseconds())));
@@ -3867,6 +4036,11 @@ void ShellHostView::OnTabStripModelChanged(
     TabStripModel*, const TabStripModelChange& change,
     const TabStripSelectionChange& selection) {
   if (!browser_) return;
+  if (change.type() == TabStripModelChange::kInserted && !app_operation_ && !is_utility()) {
+    for (const auto& inserted : change.GetInsert()->contents) {
+      NoteUnclaimedTab(inserted.contents, inserted.contents == selection.new_contents);
+    }
+  }
   if (selection.active_tab_changed()) KeepPaneFocus(nullptr);
   if (change.type() == TabStripModelChange::kReplaced) {
     const auto* replace = change.GetReplace();
@@ -4028,8 +4202,7 @@ void ShellHostView::CreateTab(
         content::WebContents* candidate = model->GetWebContentsAt(index);
         if (Binding(TabId(candidate)) && Binding(TabId(candidate))->contents()) continue;
         const GURL& initial = candidate->GetVisibleURL();
-        const bool blank = initial.is_empty() || initial == GURL("about:blank") ||
-            (initial.SchemeIs("chrome") && (initial.host() == "newtab" || initial.host() == "new-tab-page"));
+        const bool blank = BlankTabUrl(initial);
         if (initial == url || (bindings_.empty() && blank)) {
           contents = candidate;
           navigate_initial = initial != url;
@@ -4067,7 +4240,11 @@ void ShellHostView::CreateTab(
     }
     const int id = TabId(contents);
     bindings_[id] = std::make_unique<TabBinding>(this, contents, key);
-    for (auto& [window, source] : Hosts()) source->offered_.erase(id);
+    for (auto& [window, source] : Hosts()) {
+      source->offered_.erase(id);
+      source->unclaimed_.erase(id);
+      source->announced_.erase(id);
+    }
     binding = bindings_[id].get();
     app_operation_ = false;
   }
@@ -4833,6 +5010,7 @@ void ShellHostView::Invoke(
     return std::move(done).Run(true, base::Value());
   }
   if (method == "ArdiaTabs.claimLaunchTab") return ClaimLaunchTab(values, std::move(done));
+  if (method == "ArdiaTabs.unclaimedTabs") return ListenForUnclaimedTabs(std::move(done));
   if (method == "ArdiaTabs.prepareTransfer" || method == "ArdiaTabs.releaseTransfer") {
     auto* binding = BindingForKey(ArgumentString(values, 0));
     if (!binding) return std::move(done).Run(false, base::Value("No owned tab to transfer"));

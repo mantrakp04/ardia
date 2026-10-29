@@ -188,6 +188,38 @@ export default {
       return report;
     });
 
+    await t.check("tabs and windows an extension opens show in Ardia, and an inactive tab keeps the selection", async () => {
+      const opened = (hash) => `chrome-extension://${ext.id}/opened.html#${hash}`;
+      const tabsAt = (url) => shell.state(`return Object.values(s.tabs).filter((t) => t.windowId === windowId && t.url === ${js(url)}).map((t) => t.id);`);
+      const shownOnce = async (url, label) => {
+        const [id] = await until(async () => { const ids = await tabsAt(url); return ids.length ? ids : false; }, { timeout: 10000, label });
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        const ids = await tabsAt(url);
+        const pages = (await app.targets()).filter((x) => x.type === "page" && x.url === url);
+        if (ids.length !== 1 || pages.length !== 1) throw new Error(`${label}: ${ids.length} sidebar tabs, ${pages.length} pages`);
+        return id;
+      };
+      await shell.state(`s.activate(${js(tabA)}); return true;`);
+      await evaluate(sw, "chrome.action.setPopup({ popup: '' }).then(() => true)");
+      await shell.eval(`(ardiaLinux.openExtension(${js(shell.windowId)}, ${js(ext.id)}, ${js(tabA)}), true)`);
+      const clicked = await shownOnce(opened("clicked"), "the action click's tab");
+      await shell.waitState(`return s.windows[windowId]?.activeTabIds?.[s.windows[windowId].profileId] === ${js(clicked)};`, { timeout: 5000, label: "the clicked tab selected" });
+      await evaluate(sw, "chrome.action.setPopup({ popup: 'popup.html' }).then(() => true)");
+      await evaluate(sw, `chrome.tabs.create({ url: ${js(opened("background"))}, active: false }).then(() => true)`);
+      const background = await shownOnce(opened("background"), "the inactive tab");
+      if ((await shell.activeTabId()) !== clicked) throw new Error("an inactive extension tab took the selection");
+      const known = (await app.shells()).map((s) => s.windowId);
+      const created = await evaluate(sw, `chrome.windows.create({ url: ${js(opened("window"))} }).then((w) => w.id)`);
+      const id = await until(async () => (await app.shells()).find((s) => s.ready && !s.utility && !known.includes(s.windowId))?.windowId ?? false,
+        { timeout: 20000, label: "the extension's window renderer" });
+      const other = await app.shell(id);
+      const urls = await other.waitState(`const w = s.windows[windowId]; const urls = (w?.tabIds ?? []).map((t) => s.tabs[t]?.url); return urls.includes(${js(opened("window"))}) && urls;`,
+        { timeout: 15000, label: "the extension's tab in its window" });
+      if (urls.length !== 1) throw new Error(`the extension's window holds ${JSON.stringify(urls)}`);
+      await evaluate(sw, `chrome.windows.remove(${js(created)}).then(() => true)`);
+      return { clicked, background, window: urls };
+    });
+
     let installed;
     await t.check("Load unpacked inspects and installs a folder and announces it", async () => {
       const pkg = await reply(shell, "extensions.inspectUnpacked", { path: second });
