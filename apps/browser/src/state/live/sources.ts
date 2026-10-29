@@ -189,7 +189,6 @@ const account = (login: string, name: string | null, avatar: string | null): Liv
 const profileExists = (profileId: string) => !!useBrowser.getState().profiles[profileId];
 
 let adoption: Promise<void> = Promise.resolve();
-export const legacyAdoption = () => adoption;
 
 const connectionQueues = new Map<string, Promise<unknown>>();
 
@@ -208,6 +207,7 @@ function saveConnection(profileId: string, source: LiveSourceId, value: string, 
     if (!(await setSecret(source, profileId, value))) throw new LiveError("other", "Couldn't save to the keychain");
     if (!profileExists(profileId)) return void (await deleteSecret(source, profileId));
     setAccount(profileId, source, connected);
+    await saveLiveDurably();
   });
 }
 
@@ -285,6 +285,8 @@ export function disconnect(profileId: string, source: LiveSourceId) {
   return locked(source, profileId, async () => {
     await deleteSecret(source, profileId);
     setAccount(profileId, source, null);
+    const legacy = live().legacyAccounts[source];
+    if (legacy) setLegacyAccount(source, { ...legacy, owedTo: (legacy.owedTo ?? Object.keys(useBrowser.getState().profiles)).filter((id) => id !== profileId) });
   });
 }
 
@@ -302,6 +304,15 @@ export function forgetMissingProfiles(previous: string[] = []) {
 export function adoptLegacyAccounts(profileIds: string[]): Promise<void> {
   adoption = adoption.then(() => adopt(profileIds)).catch((error) => console.warn("Couldn't move live folder accounts to profiles", error));
   return adoption;
+}
+
+let retryingAdoption = false;
+
+export function retryOwedLegacyAccounts(): Promise<void> {
+  const owed = Object.values(live().legacyAccounts).some((legacy) => !!legacy?.owedTo?.length);
+  if (!owed || retryingAdoption) return adoption;
+  retryingAdoption = true;
+  return adoptLegacyAccounts(Object.keys(useBrowser.getState().profiles)).finally(() => (retryingAdoption = false));
 }
 
 function withClientId(tokens: string, clientId: string | undefined): string {
@@ -333,19 +344,24 @@ function copyLegacy(source: LiveSourceId, profileId: string, value: string, lega
 
 async function adopt(profileIds: string[]) {
   for (const source of Object.keys(live().legacyAccounts) as LiveSourceId[]) {
+    const record = live().legacyAccounts[source]!;
     const saved = await getSecret(source, null);
-    if (!saved) continue;
-    const { owedTo = profileIds, ...legacy } = live().legacyAccounts[source]!;
+    if (!saved) {
+      if (record.owedTo?.length === 0) setLegacyAccount(source, null);
+      continue;
+    }
+    const { owedTo = profileIds, ...legacy } = record;
     const value = source === "gdrive" ? withClientId(saved, legacy.clientId) : saved;
     const stillOwed: string[] = [];
     for (const profileId of owedTo) if (!(await copyLegacy(source, profileId, value, legacy))) stillOwed.push(profileId);
-    setLegacyAccount(source, stillOwed.length ? { ...legacy, owedTo: stillOwed } : null);
+    setLegacyAccount(source, { ...legacy, owedTo: stillOwed });
     try {
       await saveLiveDurably();
     } catch {
+      setLegacyAccount(source, record);
       continue;
     }
-    if (!stillOwed.length) await deleteSecret(source, null);
+    if (!stillOwed.length && (await deleteSecret(source, null))) setLegacyAccount(source, null);
   }
 }
 

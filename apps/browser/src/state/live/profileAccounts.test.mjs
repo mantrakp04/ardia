@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { docs, heldKeychainReads, heldKeychainWrites, heldSaves, keychainItems, keychainRefusals } from "../../test-native/index.ts";
+import { docs, failedSaves, heldKeychainReads, heldKeychainWrites, heldSaves, keychainItems, keychainRefusals } from "../../test-native/index.ts";
 
 const legacyAccount = (login) => ({ login, name: null, avatar: null, connectedAt: 1 });
 docs.set(
@@ -23,7 +23,7 @@ keychainItems.set("confluence", "home-confluence-token");
 keychainItems.set("gdrive", JSON.stringify({ access_token: "a", refresh_token: "r", expires_at: 0, client_secret: "secret-A" }));
 
 const { useBrowser } = await import("../browser/store.ts");
-const { adoptLegacyAccounts, connectConfluence, connectGithub, connectGoogle, disconnect, forgetMissingProfiles, forgetProfileAccounts, SOURCES } = await import("./sources.ts");
+const { adoptLegacyAccounts, connectConfluence, connectGithub, connectGoogle, disconnect, forgetMissingProfiles, forgetProfileAccounts, retryOwedLegacyAccounts, SOURCES } = await import("./sources.ts");
 const { live, setAccount, setLegacyAccount, updateConfig } = await import("./store.ts");
 const { settingsBrowserWindow } = await import("../settings/settingsWindows.ts");
 
@@ -294,4 +294,81 @@ test("deleting a profile whose account was never saved still removes its keychai
   await until(() => !keychainItems.has(`github:${doomed}`));
 
   assert.equal(keychainItems.has(`github:${doomed}`), false);
+});
+
+const pendingNotion = (owedTo) => {
+  keychainItems.set("notion", "legacy-notion-token");
+  setLegacyAccount("notion", { ...legacyAccount("Acme"), owedTo });
+};
+
+test("disconnecting a profile still owed the old account takes it off the list, so the next try doesn't copy it back", async () => {
+  const owed = useBrowser.getState().createProfile({ name: "Owed" });
+  pendingNotion([owed]);
+  keychainItems.set(`notion:${owed}`, "own-token");
+  setAccount(owed, "notion", legacyAccount("Own"));
+
+  await disconnect(owed, "notion");
+  await adoptLegacyAccounts([owed]);
+
+  assert.equal(keychainItems.has(`notion:${owed}`), false);
+  assert.equal(live().accounts[owed]?.notion, undefined);
+});
+
+test("the old account's record survives a save that fails, so the next try still deletes its keychain item", async () => {
+  const profile = useBrowser.getState().createProfile({ name: "Saving" });
+  pendingNotion([profile]);
+  failedSaves.on = true;
+
+  await adoptLegacyAccounts([profile]);
+  const kept = live().legacyAccounts.notion?.owedTo;
+  failedSaves.on = false;
+  await adoptLegacyAccounts([profile]);
+
+  assert.deepEqual(kept, [profile]);
+  assert.equal(live().legacyAccounts.notion, undefined);
+  assert.equal(keychainItems.has("notion"), false);
+});
+
+test("the old account's record stays until its keychain item is really deleted", async () => {
+  const profile = useBrowser.getState().createProfile({ name: "Deleting" });
+  pendingNotion([profile]);
+  keychainRefusals.add("notion");
+
+  await adoptLegacyAccounts([profile]);
+  const kept = live().legacyAccounts.notion?.owedTo;
+  keychainRefusals.clear();
+  await adoptLegacyAccounts([profile]);
+
+  assert.deepEqual(kept, []);
+  assert.equal(live().legacyAccounts.notion, undefined);
+  assert.equal(keychainItems.has("notion"), false);
+});
+
+test("a refused copy is retried in the same session once the keychain takes it", async () => {
+  const profile = useBrowser.getState().createProfile({ name: "Retry" });
+  pendingNotion([profile]);
+  keychainRefusals.add(`notion:${profile}`);
+  await adoptLegacyAccounts([profile]);
+  keychainRefusals.clear();
+
+  await retryOwedLegacyAccounts();
+
+  assert.equal(keychainItems.get(`notion:${profile}`), "legacy-notion-token");
+  assert.equal(live().accounts[profile].notion.login, "Acme");
+});
+
+test("a connection finishes only once its account has landed on disk", async () => {
+  const profile = useBrowser.getState().createProfile({ name: "Durable" });
+  heldSaves.on = true;
+  let finished = false;
+
+  const connecting = connectGithub(profile, "work-token").then(() => (finished = true));
+  await until(() => heldSaves.queue.length > 0);
+  const finishedBeforeSave = finished;
+  heldSaves.on = false;
+  release(heldSaves);
+  await connecting;
+
+  assert.equal(finishedBeforeSave, false);
+  assert.equal(JSON.parse(docs.get("live.json")).accounts[profile].github.login, "luis-urrutia-flute");
 });
