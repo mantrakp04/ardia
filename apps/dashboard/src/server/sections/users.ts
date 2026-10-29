@@ -291,6 +291,7 @@ const NAMES: Record<string, string> = {
   perf_memory: "Memory sample",
   settings_section_opened: "Settings section opened",
   command_bar_opened: "Command bar opened",
+  downloads_opened: "Downloads opened",
   usage_counts: "Usage counts",
   perf_journeys: "Journey timings",
   perf_omnibox: "Omnibox timings",

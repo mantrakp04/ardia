@@ -128,6 +128,38 @@ test("a private session's downloads show in its windows only, never on disk, and
   stop();
 });
 
+test("with downloads from all profiles on, every regular window lists every profile's downloads; private ones stay apart", () => {
+  const { work, a, b } = twoProfiles();
+  const p2 = S().createWindow({ kind: "private" });
+  S().upsertDownload(download("personal", "", false));
+  S().upsertDownload({ ...download("work", work, false), state: "finished" });
+  S().upsertDownload(download("workPrivate", work, true));
+  const ids = (w) => downloadsIn(S(), w).map((d) => d.id).sort();
+  assert.deepEqual(ids(a), ["personal"]);
+  assert.deepEqual(ids(b), ["work"]);
+
+  S().updateSettings({ downloadsFromAllProfiles: true });
+  assert.deepEqual(ids(a), ["personal", "work"]);
+  assert.deepEqual(ids(b), ["personal", "work"]);
+  assert.deepEqual(ids(p2), ["workPrivate"], "a private window still lists only its session's");
+
+  S().setFocusedWindow(a);
+  S().setDownloadsOpen(a, false);
+  S().upsertDownload(download("fromWork", work, false));
+  assert.ok(!S().windowUi[a]?.downloadsOpen, "another profile's new download doesn't open this window's popover");
+  assert.deepEqual(ids(a), ["fromWork", "personal", "work"]);
+  S().upsertDownload(download("fromPersonal", "", false));
+  assert.ok(S().windowUi[a]?.downloadsOpen, "its own profile's new download still opens it");
+
+  S().upsertDownload({ ...download("fromWork", work, false), state: "finished" });
+  S().clearDownloads(a);
+  assert.deepEqual(ids(a), ["fromPersonal", "personal"], "Clear All removes the finished downloads it listed, from every profile");
+  assert.deepEqual(ids(p2), ["workPrivate"], "and leaves the private session's");
+
+  S().updateSettings({ downloadsFromAllProfiles: false });
+  assert.deepEqual(ids(b), []);
+});
+
 test("a private window lists its own profile's extensions (incognito-allowed ones), off the record", () => {
   const { work } = twoProfiles();
   const p2 = S().createWindow({ kind: "private" });

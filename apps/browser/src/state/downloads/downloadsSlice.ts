@@ -21,18 +21,27 @@ export function downloadSession(s: Pick<BrowserState, "profiles">, d: Pick<Downl
   return d.profile && isIncognitoProfile(d.profile) ? privateSession(s, d.profile) : null;
 }
 
-export function downloadVisibleIn(s: Pick<BrowserState, "profiles">, d: Pick<Download, "profile" | "offTheRecord">, window: Pick<BrowserWindow, "kind" | "profileId"> | undefined): boolean {
+export function downloadOwnedBy(s: Pick<BrowserState, "profiles">, d: Pick<Download, "profile" | "offTheRecord">, window: Pick<BrowserWindow, "kind" | "profileId"> | undefined): boolean {
   if (!window) return false;
   const session = downloadSession(s, d);
   if (window.kind === "private") return session !== null && session === privateSession(s, window.profileId);
   return session === null && (d.profile ?? "") === engineProfile(s, window.profileId);
 }
 
+export function downloadVisibleIn(
+  s: Pick<BrowserState, "profiles" | "settings">,
+  d: Pick<Download, "profile" | "offTheRecord">,
+  window: Pick<BrowserWindow, "kind" | "profileId"> | undefined,
+): boolean {
+  if (window && window.kind !== "private" && s.settings.downloadsFromAllProfiles && downloadSession(s, d) === null) return true;
+  return downloadOwnedBy(s, d, window);
+}
+
 const sessionOpen = (s: Pick<BrowserState, "windows" | "profiles">, session: string) =>
   Object.values(s.windows).some((w) => w.kind === "private" && privateSession(s, w.profileId) === session);
 const endedPrivateDownloads = new Set<string>();
 
-export const downloadsIn = (s: Pick<BrowserState, "downloads" | "windows" | "profiles">, windowId: string) =>
+export const downloadsIn = (s: Pick<BrowserState, "downloads" | "windows" | "profiles" | "settings">, windowId: string) =>
   s.downloads.filter((d) => downloadVisibleIn(s, d, s.windows[windowId]));
 
 export const createDownloadsSlice: StateCreator<BrowserState, [], [], DownloadsSlice> = (set, get) => ({
@@ -51,7 +60,7 @@ export const createDownloadsSlice: StateCreator<BrowserState, [], [], DownloadsS
       }
       const downloads = exists ? s.downloads.map((x) => (x.id === d.id ? d : x)) : [d, ...s.downloads].slice(0, MAX_DOWNLOADS);
       const focused = focusedWindowOf(s);
-      const open = !exists && focused && downloadVisibleIn(s, d, s.windows[focused]);
+      const open = !exists && focused && downloadOwnedBy(s, d, s.windows[focused]);
       return { downloads, ...(open ? patchWindowUi(s, focused, { downloadsOpen: true }) : {}) };
     });
   },

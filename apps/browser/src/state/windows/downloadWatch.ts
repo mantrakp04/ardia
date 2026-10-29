@@ -1,6 +1,6 @@
 import { openFile } from "../../platform/files";
 import { useBrowser, type BrowserState } from "../browser/store";
-import { downloadVisibleIn } from "../downloads/downloadsSlice";
+import { downloadOwnedBy } from "../downloads/downloadsSlice";
 import { focusedWindowOf } from "./ui";
 
 const openWhenDone = new Set<string>();
@@ -36,7 +36,7 @@ export function watchNewDownloads(windowId: string, onFresh: (download: BrowserS
     if (s.downloads === prev.downloads) return;
     const fresh = s.downloads.find((d) => !seen.has(d.id));
     s.downloads.forEach((d) => seen.add(d.id));
-    if (!fresh || focusedWindowOf(s) !== windowId || !downloadVisibleIn(s, fresh, s.windows[windowId])) return;
+    if (!fresh || focusedWindowOf(s) !== windowId || !downloadOwnedBy(s, fresh, s.windows[windowId])) return;
     onFresh(fresh);
   });
 }
