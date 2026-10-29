@@ -20,7 +20,9 @@ Environment: CHROMIUM_SRC (default ~/chromium-build/chromium_git/chromium/src), 
 
 import argparse
 import filecmp
+import json
 import os
+import pathlib
 import re
 import shutil
 import subprocess
@@ -29,11 +31,14 @@ import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "build"))
 import pathguard  # noqa: E402
+from target_config import configuration  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
 SRC = os.environ.get("CHROMIUM_SRC", os.path.expanduser("~/chromium-build/chromium_git/chromium/src"))
-BASE = os.environ.get("AC_SERIES_BASE", os.path.expanduser("~/chromium-build/series-base"))
+BASE = None
+TARGET_OS = None
+TARGET_CPU = None
 
 
 class Step:
@@ -51,7 +56,7 @@ class Step:
         if self.kind != "chromium":
             return set()
         out, new = set(), False
-        for line in open(self.patch, encoding="utf-8", errors="surrogateescape"):
+        for line in pathlib.Path(self.patch).read_text(encoding="utf-8", errors="surrogateescape").splitlines():
             if line.startswith("--- "):
                 new = line.strip() == "--- /dev/null"
             m = re.match(r"^\+\+\+ (?:b/)?(\S+)", line)
@@ -62,7 +67,7 @@ class Step:
     def paths(self):
         if self.kind == "chromium":
             out = []
-            for line in open(self.patch, encoding="utf-8", errors="surrogateescape"):
+            for line in pathlib.Path(self.patch).read_text(encoding="utf-8", errors="surrogateescape").splitlines():
                 m = re.match(r"^\+\+\+ (?:b/)?(\S+)", line)
                 if m and m.group(1) != "/dev/null":
                     out.append((m.group(1), False))
@@ -80,16 +85,28 @@ def dedupe(items):
 
 
 def layer_paths(layer):
-    script = open(os.path.join(layer, "apply.sh")).read()
+    script = pathlib.Path(layer, "apply.sh").read_text()
     out = []
     m = re.search(r"^owned=\(([^)]*)\)", script, re.M)
     dirs = m.group(1).split() if m else []
-    for path in re.findall(r'"\$src/([A-Za-z0-9_./-]+)"', script):
-        path = path.rstrip("/")
-        if os.path.isdir(os.path.join(layer, "src", path)):
-            dirs.append(path)
-        else:
-            out.append((path, False))
+    if re.search(r"--paths\s*\)", script):
+        result = subprocess.run([os.path.join(layer, "apply.sh"), "--paths"], capture_output=True, text=True)
+        if result.returncode:
+            sys.exit(f"{layer}/apply.sh --paths: {result.stderr or result.stdout}")
+        for entry in result.stdout.splitlines():
+            if not entry or os.path.isabs(entry) or ".." in entry.split("/"):
+                sys.exit(f"{layer}/apply.sh --paths: invalid path {entry!r}")
+            if entry.endswith("/"):
+                dirs.append(entry.rstrip("/"))
+            else:
+                out.append((entry, False))
+    else:
+        for path in re.findall(r'"\$src/([A-Za-z0-9_./-]+)"', script):
+            path = path.rstrip("/")
+            if os.path.isdir(os.path.join(layer, "src", path)):
+                dirs.append(path)
+            else:
+                out.append((path, False))
     root = os.path.join(layer, "src")
     for top, subdirs, files in os.walk(root):
         rel = os.path.relpath(top, root)
@@ -98,24 +115,35 @@ def layer_paths(layer):
     return dedupe([(d, True) for d in dirs] + out)
 
 
-def read_series():
-    steps = []
-    for n, raw in enumerate(open(os.path.join(HERE, "series")), 1):
+def read_series(platform=None):
+    platform = platform or TARGET_OS or configuration()['AC_TARGET_OS']
+    steps, listed = [], []
+    for n, raw in enumerate(pathlib.Path(HERE, "series").read_text().splitlines(), 1):
         line = raw.split("#", 1)[0].strip()
         if not line:
             continue
-        kind, _, name = line.partition(" ")
-        name = name.strip()
-        if kind not in ("chromium", "layer") or not name:
-            sys.exit(f"series:{n}: expected `chromium|layer <name>`: {raw.rstrip()}")
+        fields = line.split()
+        if len(fields) not in (2, 3) or fields[0] not in ("chromium", "layer"):
+            sys.exit(f"series:{n}: expected `chromium|layer <name> [all|mac|linux]`: {raw.rstrip()}")
+        kind, name = fields[:2]
+        selector = fields[2] if len(fields) == 3 else "all"
+        if selector not in ("all", "mac", "linux"):
+            sys.exit(f"series:{n}: unknown platform {selector}")
+        if os.path.isabs(name) or ".." in name.split("/"):
+            sys.exit(f"series:{n}: name must stay inside the repository: {name}")
+        if kind == "chromium":
+            listed.append(name)
         step = Step(kind, name, n)
         if kind != "layer" and not os.path.isfile(step.patch):
             sys.exit(f"series:{n}: no such patch {name}")
+        if selector not in ("all", platform):
+            continue
         if kind == "layer" and not os.path.isfile(os.path.join(REPO, name, "apply.sh")):
             sys.exit(f"series:{n}: no {name}/apply.sh")
         steps.append(step)
-    names = [s.name for s in steps if s.kind != "layer"]
-    unlisted = sorted(set(f for f in os.listdir(HERE) if f.endswith(".patch")) - set(names))
+    if len(listed) != len(set(listed)):
+        sys.exit("series: duplicate patch entries")
+    unlisted = sorted(set(f for f in os.listdir(HERE) if f.endswith(".patch")) - set(listed))
     if unlisted:
         sys.exit("patches missing from series: " + ", ".join(unlisted))
     return steps
@@ -203,10 +231,29 @@ def cmd_files(args):
 
 
 def cmd_apply(args):
-    for step in read_series():
-        if args.phase and phase_of(step) != args.phase:
-            continue
-        if step.kind != "layer" and is_applied(step, SRC):
+    steps = [s for s in read_series() if not args.phase or phase_of(s) == args.phase]
+    final_applied = set()
+    if TARGET_OS == "linux" and os.path.isfile(os.path.join(BASE, '.ardia-series-target')):
+        with tempfile.TemporaryDirectory(prefix="ac-linux-applied-") as scratch:
+            errors = materialize(steps, scratch)
+            if errors:
+                sys.exit("\n".join(errors))
+            for step in steps:
+                if step.kind != "chromium":
+                    continue
+                text = pathlib.Path(step.patch).read_text(encoding="utf-8", errors="surrogateescape")
+                if re.search(r"^(?:\+\+\+ /dev/null(?:\s|$)|(?:rename|copy) (?:from|to) )", text, re.M):
+                    continue
+                paths = step.paths()
+                if paths and all(
+                    os.path.isfile(os.path.join(scratch, path)) and
+                    os.path.isfile(os.path.join(SRC, path)) and
+                    filecmp.cmp(os.path.join(scratch, path), os.path.join(SRC, path), shallow=False)
+                    for path, is_dir in paths if not is_dir
+                ):
+                    final_applied.add(step.name)
+    for step in steps:
+        if step.kind != "layer" and (step.name in final_applied or is_applied(step, SRC)):
             print(f"already applied {step.name}")
             continue
         error = apply_step(step, SRC, strict=False)
@@ -219,6 +266,8 @@ def cmd_apply(args):
 def cmd_capture_base(args):
     steps = [s for s in read_series() if not args.phase or phase_of(s) == args.phase]
     created = set().union(*(s.created() for s in steps))
+    os.makedirs(BASE, exist_ok=True)
+    pathlib.Path(BASE, '.ardia-series-target').write_text(json.dumps({'platform': TARGET_OS, 'cpu': TARGET_CPU}, sort_keys=True) + '\n')
     count = 0
     for path, is_dir in touched(steps):
         if is_dir or path in created:
@@ -259,6 +308,7 @@ def cmd_materialize(args):
     os.makedirs(args.dir, exist_ok=True)
     errors = materialize(steps, args.dir, until=args.until)
     print("\n".join(errors) or f"{args.dir}: the touched files after {args.until}")
+    return 1 if errors else 0
 
 
 def cmd_check(args):
@@ -325,7 +375,7 @@ def guard_writes(args):
     if args.command == "apply":
         pathguard.require_tree_writable(SRC, written_rels(), "series.py apply")
     elif args.command == "capture-base":
-        pathguard.require_tree_writable(BASE, written_rels(), "series.py capture-base")
+        pathguard.require_tree_writable(BASE, written_rels() + [".ardia-series-target"], "series.py capture-base")
     elif args.command == "check" and args.keep:
         if os.path.lexists(args.keep) and os.listdir(args.keep):
             sys.exit(f"series.py: --keep {args.keep} isn't empty: give it a new directory")
@@ -343,7 +393,7 @@ def guard_writes(args):
 
 
 def refuse_live_base_for_scratch_tree():
-    if os.path.realpath(SRC) != live_tree() and "AC_SERIES_BASE" not in os.environ:
+    if os.path.realpath(SRC) != live_tree() and "AC_SERIES_BASE" not in os.environ and "AC_CHROMIUM_BUILD" not in os.environ:
         sys.exit(f"CHROMIUM_SRC is {SRC}, not the live tree: set AC_SERIES_BASE too, so its base isn't "
                  f"~/chromium-build/series-base")
 
@@ -363,10 +413,35 @@ def main():
     p.add_argument("--until", required=True)
     p.add_argument("dir")
     sub.add_parser("files")
+    for command_parser in sub.choices.values():
+        command_parser.add_argument("--platform", choices=("mac", "linux"))
+        command_parser.add_argument("--cpu", choices=("arm64", "x64"))
     args = parser.parse_args()
+    global BASE, TARGET_OS, TARGET_CPU, SRC
+    try:
+        target = configuration(args.platform, args.cpu)
+    except ValueError as error:
+        parser.error(str(error))
+    TARGET_OS = target['AC_TARGET_OS']
+    TARGET_CPU = target['AC_TARGET_CPU']
+    os.environ.update(target)
+    cb = os.environ.get("AC_CHROMIUM_BUILD", os.path.expanduser("~/chromium-build"))
+    if TARGET_OS == "linux" and "CHROMIUM_SRC" not in os.environ:
+        SRC = os.path.join(cb, "chromium_git/chromium/src")
+    base_name = "series-base" if (TARGET_OS, target['AC_TARGET_CPU']) == ("mac", "arm64") else f"series-base-{TARGET_OS}-{target['AC_TARGET_CPU']}"
+    BASE = os.environ.get("AC_SERIES_BASE", os.path.join(cb, base_name))
     if args.command in ("check", "capture-base", "materialize"):
         refuse_live_base_for_scratch_tree()
     guard_writes(args)
+    if args.command in ("check", "capture-base", "materialize") or (args.command == "apply" and TARGET_OS == "linux"):
+        marker = pathlib.Path(BASE, '.ardia-series-target')
+        if marker.exists():
+            try:
+                recorded = json.loads(marker.read_text())
+            except (ValueError, OSError) as error:
+                parser.error(f'{marker}: invalid base identity: {error}')
+            if recorded != {'platform': TARGET_OS, 'cpu': TARGET_CPU}:
+                parser.error(f'{BASE} belongs to {recorded}; use a separate base for {TARGET_OS}/{TARGET_CPU}')
     handler = {"apply": cmd_apply, "check": cmd_check, "capture-base": cmd_capture_base,
                "materialize": cmd_materialize, "files": cmd_files}[args.command]
     sys.exit(handler(args) or 0)

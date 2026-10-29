@@ -18,8 +18,10 @@
 # The old pattern (`until mkdir /tmp/ac-<name>.lock; …; rmdir`)
 # left the lock behind whenever the shell was killed before its rmdir (a tool timeout, ⌃C), and every
 # other agent then waited forever. Here:
-#   - everything runs under a kernel lock (lockf) that dies with its holder, and a command's pid is
+#   - everything runs under a kernel lock (lockf on macOS, flock on Linux) that dies with its holder, and a command's pid is
 #     recorded, so a holder that died is noticed and its lock removed;
+#     On Linux ^C also ends the flock process, so the kernel lock can be free before an interrupted command exits;
+#     the holder file and the old lock directory still keep every other caller waiting until it does;
 #   - --take records WHO and an expiry (default 60 min); --as WHO runs the taker's own commands (one
 #     at a time) and pushes the expiry back. An expired take counts as abandoned. Taking again what
 #     WHO already holds just renews it;
@@ -44,6 +46,22 @@ usage() {
   sed -n '4,7p' "$0" | sed 's/^# *//' >&2
   exit 64
 }
+
+if [[ "$(uname -s)" == Linux ]]; then
+  locker=flock
+  digest() { sha1sum; }
+  edit_in_place() { sed -i "$@"; }
+  clock_of() { date -d "@$1" '+%H:%M:%S'; }
+  modified_at() { stat -c %y "$1" | cut -d. -f1; }
+  hold_kernel() { local secs=$1 path=$2; shift 2; flock -o -w "$secs" -E 75 "$path" "$@"; }
+else
+  locker=lockf
+  digest() { shasum; }
+  edit_in_place() { sed -i '' "$@"; }
+  clock_of() { date -r "$1" '+%H:%M:%S'; }
+  modified_at() { stat -f %Sm "$1"; }
+  hold_kernel() { local secs=$1 path=$2; shift 2; lockf -s -k -t "$secs" "$path" "$@"; }
+fi
 
 name="${1:-}"
 case "$name" in -h | --help) help ;; xcodebuild | pod | chromium | perflab) ;; *) usage ;; esac
@@ -82,7 +100,7 @@ if [[ $name == xcodebuild && $# -gt 0 && -z "$take$release" ]]; then
     elif [[ -d "${dd%/*}" ]]; then
       dd="$(cd "${dd%/*}" && pwd -P)/${dd##*/}"
     fi
-    lock="xcodebuild-$(printf %s "${dd##*/}" | tr -c 'A-Za-z0-9_.-' _ | cut -c1-40)-$(printf %s "$dd" | shasum | cut -c1-8)"
+    lock="xcodebuild-$(printf %s "${dd##*/}" | tr -c 'A-Za-z0-9_.-' _ | cut -c1-40)-$(printf %s "$dd" | digest | cut -c1-8)"
   fi
 fi
 
@@ -94,15 +112,15 @@ now() { date +%s; }
 
 field() { awk -v n="$1" '{print $n; exit}' "$holder" 2>/dev/null; }
 taken_by() { [[ "$(field 1)" == take && "$(field 3)" == "$1" ]]; }
-renew() { sed -i '' "1s/^take [0-9]*/take $(($(now) + ttl * 60))/" "$holder"; }
+renew() { edit_in_place "1s/^take [0-9]*/take $(($(now) + ttl * 60))/" "$holder"; }
 
 describe() {
   if [[ "$(field 1)" == take ]]; then
-    echo "taken by $(cut -d' ' -f3- "$holder"), until $(date -r "$(field 2)" '+%H:%M:%S') (if that take is yours, pass --as $(field 3), or export AC_LOCKED_AS=$(field 3) so nested calls use it)"
+    echo "taken by $(cut -d' ' -f3- "$holder"), until $(clock_of "$(field 2)") (if that take is yours, pass --as $(field 3), or export AC_LOCKED_AS=$(field 3) so nested calls use it)"
   elif [[ -s "$holder" ]]; then
     echo "held by pid $(cut -d' ' -f2- "$holder")"
   elif [[ -d "$legacy" ]]; then
-    echo "held since $(stat -f %Sm "$legacy") by an agent using the old mkdir lock; if nothing is building, the owner can rmdir $legacy"
+    echo "held since $(modified_at "$legacy") by an agent using the old mkdir lock; if nothing is building, the owner can rmdir $legacy"
   fi
 }
 
@@ -150,7 +168,7 @@ run() {
   wait "$child"
 }
 
-if [[ -n "${AC_LOCKED_INNER:-}" && "$(ps -o comm= -p "$PPID" 2>/dev/null)" != *lockf ]]; then
+if [[ -n "${AC_LOCKED_INNER:-}" && "$(ps -o comm= -p "$PPID" 2>/dev/null)" != *"$locker" ]]; then
   unset AC_LOCKED_INNER AC_LOCKED_DEADLINE
 fi
 
@@ -178,7 +196,7 @@ if [[ -z "${AC_LOCKED_INNER:-}" ]]; then
   while :; do
     left=$((deadline - $(now)))
     ((left < 1)) && left=1
-    AC_LOCKED_INNER=1 AC_LOCKED_DEADLINE=$deadline lockf -s -k -t "$left" "$kernel" "$0" "$name" "${opts[@]}" -- "$@"
+    AC_LOCKED_INNER=1 AC_LOCKED_DEADLINE=$deadline hold_kernel "$left" "$kernel" "$0" "$name" "${opts[@]}" -- "$@"
     status=$?
     if [[ $status -eq 77 && $(now) -lt $deadline ]]; then
       sleep 3

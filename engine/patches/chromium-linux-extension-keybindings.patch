@@ -1,0 +1,50 @@
+--- a/chrome/browser/ui/views/extensions/extension_keybinding_registry_views.cc
++++ b/chrome/browser/ui/views/extensions/extension_keybinding_registry_views.cc
+@@ -10,6 +10,7 @@
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/tab_list/tab_list_interface.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
++#include "build/build_config.h"
+ #include "chrome/browser/ui/extensions/accelerator_priority.h"
+ #include "extensions/common/extension.h"
+ #include "ui/base/accelerators/command.h"
+@@ -74,9 +75,13 @@
+     const ui::Accelerator& accelerator,
+     const extensions::ExtensionId& extension_id,
+     const std::string& command_name) {
++#if BUILDFLAG(IS_LINUX)
++  return false;
++#else
+   focus_manager_->RegisterAccelerator(accelerator,
+                                       kExtensionAcceleratorPriority, this);
+   return true;
++#endif
+ }
+ 
+ void ExtensionKeybindingRegistryViews::UnregisterAccelerator(
+--- a/chrome/browser/ui/views/extensions/extension_action_delegate_desktop.cc
++++ b/chrome/browser/ui/views/extensions/extension_action_delegate_desktop.cc
+@@ -8,6 +8,7 @@
+ 
+ #include "base/check.h"
+ #include "base/check_deref.h"
++#include "build/build_config.h"
+ #include "chrome/browser/extensions/extension_view_host.h"
+ #include "chrome/browser/extensions/extension_view_host_factory.h"
+ #include "chrome/browser/ui/extensions/accelerator_priority.h"
+@@ -122,6 +123,7 @@
+ }
+ 
+ void ExtensionActionDelegateDesktop::RegisterCommand() {
++#if !BUILDFLAG(IS_LINUX)
+   // If we've already registered, do nothing.
+   if (action_keybinding_) {
+     return;
+@@ -136,6 +138,7 @@
+     focus_manager->RegisterAccelerator(*action_keybinding_,
+                                        kExtensionAcceleratorPriority, this);
+   }
++#endif
+ }
+ 
+ void ExtensionActionDelegateDesktop::UnregisterCommand() {

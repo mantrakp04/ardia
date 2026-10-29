@@ -1,0 +1,29 @@
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -848,6 +848,11 @@
+ using web_app::ChromeContentBrowserClientIsolatedWebAppsPart;
+ #endif
+ 
++#if BUILDFLAG(IS_LINUX)
++extern bool (*g_ardia_linux_autoplay_blocked)(content::WebContents* contents);
++bool (*g_ardia_linux_autoplay_blocked)(content::WebContents* contents) = nullptr;
++#endif
++
+ namespace {
+ 
+ const char kAIManagerUserDataKey[] = "ai_manager";
+@@ -1118,6 +1123,14 @@
+     NOTREACHED();
+   }
+ 
++#if BUILDFLAG(IS_LINUX)
++  if (result != blink::mojom::AutoplayPolicy::kUserGestureRequired &&
++      g_ardia_linux_autoplay_blocked &&
++      g_ardia_linux_autoplay_blocked(web_contents)) {
++    return blink::mojom::AutoplayPolicy::kDocumentUserActivationRequired;
++  }
++#endif
++
+   return DetermineWebContentsAutoplayPolicy(web_contents, result);
+ }
+ 

@@ -1,0 +1,20 @@
+--- a/ui/ozone/platform/wayland/host/wayland_screen.cc
++++ b/ui/ozone/platform/wayland/host/wayland_screen.cc
+@@ -385,10 +385,13 @@
+   }
+ 
+   // Otherwise, make sure the returned point does not overlap any known window.
+-  auto* window = connection_->window_manager()->GetWindowWithLargestBounds();
+-  DCHECK(window);
+-  const gfx::Rect bounds = window->GetBoundsInDIP();
+-  return gfx::Point(bounds.width() + 10, bounds.height() + 10);
++  const auto windows = connection_->window_manager()->GetAllWindows();
++  DCHECK(!windows.empty());
++  gfx::Rect known;
++  for (const auto* window : windows) {
++    known.Union(window->GetBoundsInDIP());
++  }
++  return gfx::Point(known.right() + 10, known.bottom() + 10);
+ }
+ 
+ gfx::AcceleratedWidget WaylandScreen::GetAcceleratedWidgetAtScreenPoint(
