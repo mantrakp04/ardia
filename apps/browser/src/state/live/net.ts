@@ -60,6 +60,7 @@ export function base64(text: string): string {
 }
 
 export const basic = (user: string, secret: string) => `Basic ${base64(`${user}:${secret}`)}`;
+export const bearer = (token: string) => `Bearer ${token}`;
 
 const account = (source: LiveAccountId) => (mock ? `mock:${source}` : source);
 export const getSecret = (source: LiveAccountId) => keychainGet(account(source));

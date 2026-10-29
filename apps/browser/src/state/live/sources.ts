@@ -1,6 +1,6 @@
 import { CONFLUENCE_CQL, DRIVE_QUERY, mapBitbucket, mapConfluence, mapDrive, mapNotion, NOTION_SEARCH_BODY, type BitbucketPR, type BitbucketStatuses, type ConfluenceSearch, type DriveFiles, type NotionSearch, type NotionUsers } from "./documents";
 import { DETAILS_PAGE, detailIds, detailNodes, GITHUB_DETAILS_QUERY, GITHUB_QUERY, GITHUB_STATE_QUERY, GITHUB_VARIABLES, mapGithub, VIEWER_QUERY, withDetails, type DetailsResponse, type GithubResponse } from "./github";
-import { basic, deleteSecret, endpoints, form, getSecret, request, setSecret } from "./net";
+import { basic, bearer, deleteSecret, endpoints, form, getSecret, request, setSecret } from "./net";
 import { live, setAccount, updateConfig } from "./store";
 import { LiveError, type CompletionState, type GoogleProduct, type LiveAccount, type LiveAccountId, type LiveFolder, type LiveItem, type LiveSourceId } from "./types";
 import { symbolIcon } from "../../lib/customIcon";
@@ -236,13 +236,13 @@ export async function connectConfluence(site: string, email: string, token: stri
 
 async function googleDriveAccount(token: string): Promise<LiveAccount> {
   const about = await request<{ user?: { displayName: string; emailAddress: string; photoLink?: string } }>(`${endpoints.drive}/about?fields=user`, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: bearer(token) },
   }).catch(() => null);
   return account(about?.user?.emailAddress ?? "Google Drive", about?.user?.displayName ?? null, about?.user?.photoLink ?? null);
 }
 
 async function googleCalendarAccount(token: string): Promise<LiveAccount> {
-  const primary = await request<{ id: string }>(`${endpoints.googleCalendar}/calendars/primary`, { headers: { Authorization: `Bearer ${token}` } });
+  const primary = await request<{ id: string }>(`${endpoints.googleCalendar}/calendars/primary`, { headers: { Authorization: bearer(token) } });
   return account(primary.id, null, null);
 }
 

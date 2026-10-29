@@ -1,4 +1,5 @@
-import { type SystemCalendar, connectCalendar, setCalendarHidden, useCalendar, useCalendarConnected } from "../../../state/live/calendar";
+import { type SystemCalendar, connectCalendar, isSystemConnected, setCalendarHidden, useCalendar } from "../../../state/live/calendar";
+import { plural } from "../../../state/browser/model";
 import { signInWithGoogle } from "../../../state/live/googleAuth";
 import { disconnect } from "../../../state/live/sources";
 import { Linking, Text, View } from "react-native";
@@ -19,8 +20,8 @@ export function CalendarPane() {
   const { access, calendars, googleError } = useCalendar();
   const google = useLive((s) => s.accounts.gcal);
   const autoGroup = useSettings((s) => s.autoGroupMeetingTabs);
-  const connected = useCalendarConnected();
-  const systemConnected = access === "fullAccess" || access === "fixture";
+  const systemConnected = isSystemConnected(access);
+  const connected = systemConnected || !!google;
   const systemCount = calendars.filter((c) => !isGoogleCalendarId(c.id)).length;
   const googleCount = calendars.length - systemCount;
   const denied = access === "denied" || access === "restricted";
@@ -40,7 +41,7 @@ export function CalendarPane() {
             access === "fixture"
               ? "Development build: using calendar-fixture.json"
               : systemConnected
-                ? `Connected · ${calendarCount(systemCount)}`
+                ? `Connected · ${plural(systemCount, "calendar")}`
                 : denied
                   ? "Ardia isn't allowed to read your calendars. Allow it in System Settings › Privacy & Security › Calendars."
                   : "Not connected"
@@ -52,7 +53,7 @@ export function CalendarPane() {
             <Button title="Connect Calendar…" kind={connected ? undefined : "primary"} onPress={() => void connectCalendar()} />
           ) : null}
         </Row>
-        <Row anchor="calendar.google" description={google ? `Connected as ${google.login} · ${calendarCount(googleCount)}${googleError ? ` · ${googleError}` : ""}` : "Not connected"}>
+        <Row anchor="calendar.google" description={google ? `Connected as ${google.login} · ${plural(googleCount, "calendar")}${googleError ? ` · ${googleError}` : ""}` : "Not connected"}>
           {google ? <Button title="Disconnect" onPress={() => void disconnect("gcal")} /> : <Button title="Connect Google Calendar…" onPress={() => showSettingsSheet(<GoogleCalendarSheet />)} />}
         </Row>
       </Group>
@@ -116,8 +117,6 @@ export function CalendarPane() {
     </View>
   );
 }
-
-const calendarCount = (n: number) => (n === 1 ? "1 calendar" : `${n} calendars`);
 
 function GoogleCalendarSheet() {
   return (

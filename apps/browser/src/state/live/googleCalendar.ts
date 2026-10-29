@@ -1,17 +1,16 @@
 import type { CalendarParticipant, SystemCalendar } from "../../platform/calendar";
 import type { CalendarEvent } from "./meetings";
-import { endpoints, form, request } from "./net";
-import { googleAccessToken } from "./sources";
+import { bearer, endpoints, form, request } from "./net";
 import { live } from "./store";
 
 const PREFIX = "gcal:";
 
-export type GoogleCalendarEntry = { id: string; summary?: string; summaryOverride?: string; backgroundColor: string; accessRole?: string };
+type GoogleCalendarEntry = { id: string; summary?: string; summaryOverride?: string; backgroundColor: string; accessRole?: string };
 
 type GooglePerson = { email?: string; displayName?: string; responseStatus?: string; self?: boolean; resource?: boolean };
 type GoogleTime = { date?: string; dateTime?: string };
 
-export type GoogleEvent = {
+type GoogleEvent = {
   id: string;
   recurringEventId?: string;
   status?: string;
@@ -79,22 +78,18 @@ export function mapGoogleEvent(event: GoogleEvent, calendar: SystemCalendar): Ca
   };
 }
 
-const authorized = (token: string) => ({ headers: { Authorization: `Bearer ${token}` } });
-
-export async function googleCalendars(): Promise<SystemCalendar[]> {
-  const token = await googleAccessToken("gcal");
-  const list = await request<{ items?: GoogleCalendarEntry[] }>(`${endpoints.googleCalendar}/users/me/calendarList?maxResults=250`, authorized(token));
+export async function googleCalendars(token: string): Promise<SystemCalendar[]> {
+  const list = await request<{ items?: GoogleCalendarEntry[] }>(`${endpoints.googleCalendar}/users/me/calendarList?maxResults=250`, { headers: { Authorization: bearer(token) } });
   const account = live().accounts.gcal?.login ?? "Google Calendar";
   return (list.items ?? []).map((entry) => mapGoogleCalendar(entry, account));
 }
 
-export async function googleCalendarEvents(start: number, end: number, calendars: SystemCalendar[]): Promise<CalendarEvent[]> {
+export async function googleCalendarEvents(token: string, start: number, end: number, calendars: SystemCalendar[]): Promise<CalendarEvent[]> {
   if (!calendars.length) return [];
-  const token = await googleAccessToken("gcal");
   const query = form({ timeMin: new Date(start).toISOString(), timeMax: new Date(end).toISOString(), singleEvents: "true", orderBy: "startTime", maxResults: "250" });
   const pages = await Promise.allSettled(
     calendars.map(async (calendar) => {
-      const page = await request<{ items?: GoogleEvent[] }>(`${endpoints.googleCalendar}/calendars/${encodeURIComponent(calendar.id.slice(PREFIX.length))}/events?${query}`, authorized(token));
+      const page = await request<{ items?: GoogleEvent[] }>(`${endpoints.googleCalendar}/calendars/${encodeURIComponent(calendar.id.slice(PREFIX.length))}/events?${query}`, { headers: { Authorization: bearer(token) } });
       return (page.items ?? []).flatMap((e) => mapGoogleEvent(e, calendar) ?? []);
     }),
   );

@@ -12,9 +12,11 @@ import { useEffect, useState } from "react";
 import { create } from "zustand";
 import { devTestValue } from "../../platform/launchConfig";
 import { everySlowly } from "../../platform/slowTimers";
+import { errorText } from "../../lib/errors";
 import { trackCalendarConnected } from "../telemetry/track";
 import { googleCalendarEvents, googleCalendars, isGoogleCalendarId } from "./googleCalendar";
 import type { CalendarEvent } from "./meetings";
+import { googleAccessToken } from "./sources";
 import { live, updateCalendarSettings, useLive } from "./store";
 
 export type { SystemCalendar } from "../../platform/calendar";
@@ -81,17 +83,29 @@ async function systemSnapshot(start: number, end: number): Promise<CalendarSnaps
 }
 
 async function googleSnapshot(start: number, end: number): Promise<CalendarSnapshot> {
-  const calendars = await googleCalendars();
+  const token = await googleAccessToken("gcal");
+  const calendars = await googleCalendars(token);
   const ids = new Set(visible(calendars));
-  return { calendars, events: await googleCalendarEvents(start, end, calendars.filter((c) => ids.has(c.id))) };
+  return { calendars, events: await googleCalendarEvents(token, start, end, calendars.filter((c) => ids.has(c.id))) };
 }
 
-const fromGoogle = (google: boolean, { calendars, events }: CalendarSnapshot): CalendarSnapshot => ({
+const keepPrevious = (google: boolean, { calendars, events }: CalendarSnapshot): CalendarSnapshot => ({
   calendars: calendars.filter((c) => isGoogleCalendarId(c.id) === google),
   events: events.filter((e) => isGoogleCalendarId(e.calendarId) === google),
 });
 
-const isSystemConnected = (access: CalendarData["access"]) => access === "fullAccess" || access === "fixture";
+type SourceResult = { on: boolean; data: CalendarSnapshot; error: string | null };
+
+async function load(on: boolean, google: boolean, snapshot: () => Promise<CalendarSnapshot>): Promise<SourceResult> {
+  if (!on) return { on, data: NOTHING, error: null };
+  try {
+    return { on, data: await snapshot(), error: null };
+  } catch (error) {
+    return { on, data: keepPrevious(google, useCalendar.getState()), error: errorText(error) };
+  }
+}
+
+export const isSystemConnected = (access: CalendarData["access"]) => access === "fullAccess" || access === "fixture";
 const isGoogleConnected = () => !!live().accounts.gcal;
 
 let inflight: Promise<void> | null = null;
@@ -108,24 +122,23 @@ export function refreshCalendar(): Promise<void> {
         return;
       }
       const access = calendarAuthorization();
-      const wanted = [access === "fullAccess", isGoogleConnected()];
       const start = new Date().setHours(0, 0, 0, 0);
       const end = Date.now() + HORIZON_MS;
-      const results = await Promise.allSettled([wanted[0] ? systemSnapshot(start, end) : NOTHING, wanted[1] ? googleSnapshot(start, end) : NOTHING]);
-      const previous = useCalendar.getState();
-      const parts = results.map((r, i) => (r.status === "fulfilled" ? r.value : fromGoogle(i === 1, previous)));
-      const message = (r: PromiseSettledResult<CalendarSnapshot> | undefined) => (r?.status === "rejected" ? String((r.reason as Error)?.message ?? r.reason) : null);
-      const fetched = results.some((r, i) => wanted[i] && r.status === "fulfilled");
+      const [system, google] = await Promise.all([
+        load(access === "fullAccess", false, () => systemSnapshot(start, end)),
+        load(isGoogleConnected(), true, () => googleSnapshot(start, end)),
+      ]);
+      const fetched = [system, google].some((s) => s.on && !s.error);
       useCalendar.setState({
         access,
-        calendars: parts.flatMap((p) => p.calendars),
-        events: parts.flatMap((p) => p.events).sort((a, b) => a.start - b.start),
-        error: message(results.find((r) => r.status === "rejected")),
-        googleError: message(results[1]),
-        lastFetch: fetched ? Date.now() : previous.lastFetch,
+        calendars: [...system.data.calendars, ...google.data.calendars],
+        events: [...system.data.events, ...google.data.events].sort((a, b) => a.start - b.start),
+        error: system.error ?? google.error,
+        googleError: google.error,
+        lastFetch: fetched ? Date.now() : useCalendar.getState().lastFetch,
       });
     } catch (error) {
-      useCalendar.setState({ error: String((error as Error)?.message ?? error) });
+      useCalendar.setState({ error: errorText(error) });
     } finally {
       useCalendar.setState({ loading: false });
     }
