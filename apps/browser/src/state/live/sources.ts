@@ -310,7 +310,14 @@ function withClientId(tokens: string, clientId: string | undefined): string {
 
 function copyLegacy(source: LiveSourceId, profileId: string, value: string, legacy: LiveAccount): Promise<boolean> {
   return locked(source, profileId, async () => {
-    if (!profileExists(profileId) || (await getSecret(source, profileId))) return true;
+    if (!profileExists(profileId)) return true;
+    const existing = await getSecret(source, profileId);
+    if (existing) {
+      if (accountOf(profileId, source)) return true;
+      if (existing !== value) return false;
+      setAccount(profileId, source, legacy);
+      return true;
+    }
     if (!(await setSecret(source, profileId, value))) return false;
     if (profileExists(profileId)) setAccount(profileId, source, legacy);
     else await deleteSecret(source, profileId);

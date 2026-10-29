@@ -228,18 +228,23 @@ test("sign-in pages open in a window of the profile being connected, falling bac
   assert.equal(settingsBrowserWindow("no-windows"), workWindow);
 });
 
-test("a pending copy fills a profile whose account lost its keychain item, and keeps a keychain item saved before its account", async () => {
+test("a pending copy fills a profile whose account lost its keychain item or wasn't saved, and keeps one holding another connection owed", async () => {
   const stale = useBrowser.getState().createProfile({ name: "Stale" });
+  const copied = useBrowser.getState().createProfile({ name: "Copied" });
   const fresh = useBrowser.getState().createProfile({ name: "Fresh" });
   setAccount(stale, "notion", legacyAccount("Lost"));
+  keychainItems.set(`notion:${copied}`, "legacy-notion-token");
   keychainItems.set(`notion:${fresh}`, "fresh-token");
   keychainItems.set("notion", "legacy-notion-token");
   setLegacyAccount("notion", legacyAccount("Acme"));
 
-  await adoptLegacyAccounts([stale, fresh]);
+  await adoptLegacyAccounts([stale, copied, fresh]);
 
   assert.equal(keychainItems.get(`notion:${stale}`), "legacy-notion-token");
   assert.equal(live().accounts[stale].notion.login, "Acme");
+  assert.equal(live().accounts[copied].notion.login, "Acme");
   assert.equal(keychainItems.get(`notion:${fresh}`), "fresh-token");
-  assert.equal(keychainItems.has("notion"), false);
+  assert.equal(live().accounts[fresh]?.notion, undefined);
+  assert.deepEqual(live().legacyAccounts.notion.owedTo, [fresh]);
+  assert.equal(keychainItems.get("notion"), "legacy-notion-token");
 });
