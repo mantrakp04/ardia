@@ -183,10 +183,10 @@ index 386405335b411e70a82909033febc7dd5b4adabe..2b8d3d5576b83c20e6387c189943e172
 +
  @end
 diff --git a/Libraries/Text/TextInput/Singleline/RCTUITextField.mm b/Libraries/Text/TextInput/Singleline/RCTUITextField.mm
-index 137d0ee9f51616ea27c397a8bf595fe2c0ff5e91..e1aa90fad6778d47dc55dc39aa4c6e36360745c1 100644
+index 137d0ee9f51616ea27c397a8bf595fe2c0ff5e91..98fc0b9a8382acdb8d40562da4f571dd1565d3ba 100644
 --- a/Libraries/Text/TextInput/Singleline/RCTUITextField.mm
 +++ b/Libraries/Text/TextInput/Singleline/RCTUITextField.mm
-@@ -17,8 +17,115 @@
+@@ -17,8 +17,125 @@
  
  #if TARGET_OS_OSX // [macOS
  
@@ -264,19 +264,29 @@ index 137d0ee9f51616ea27c397a8bf595fe2c0ff5e91..e1aa90fad6778d47dc55dc39aa4c6e36
 +  [self pasteFrom:NSPasteboard.generalPasteboard];
 +}
 +
-+- (void)pasteFrom:(NSPasteboard *)pasteboard
++- (NSString *)textFrom:(NSPasteboard *)pasteboard
 +{
-+  NSMutableArray<NSPasteboardType> *types = [self.pasteTypes mutableCopy];
-+  if ([types containsObject:NSPasteboardTypeString]) {
-+    [types addObject:NSPasteboardTypeURL];
-+  }
-+  NSString *text = nil;
++  BOOL readsText = [self.pasteTypes containsObject:NSPasteboardTypeString];
++  NSArray<NSPasteboardType> *types = readsText ? [self.pasteTypes arrayByAddingObject:NSPasteboardTypeURL] : self.pasteTypes;
 +  for (NSPasteboardType type in types) {
-+    text = [pasteboard stringForType:type];
++    NSString *text = [pasteboard stringForType:type];
 +    if (text) {
-+      break;
++      return text;
 +    }
 +  }
++  if (!readsText) {
++    return nil;
++  }
++  id object = [pasteboard readObjectsForClasses:@[ NSURL.class, NSAttributedString.class ] options:nil].firstObject;
++  if ([object isKindOfClass:NSURL.class]) {
++    return ((NSURL *)object).absoluteString;
++  }
++  return [((NSAttributedString *)object).string stringByReplacingOccurrencesOfString:@"\uFFFC" withString:@""];
++}
++
++- (void)pasteFrom:(NSPasteboard *)pasteboard
++{
++  NSString *text = [self textFrom:pasteboard];
 +  if (!text) {
 +    NSBeep();
 +    return;
@@ -302,7 +312,7 @@ index 137d0ee9f51616ea27c397a8bf595fe2c0ff5e91..e1aa90fad6778d47dc55dc39aa4c6e36
  @property (nonatomic, assign) UIEdgeInsets textContainerInset;
  @property (nonatomic, getter=isAutomaticTextReplacementEnabled) BOOL automaticTextReplacementEnabled;
  @property (nonatomic, getter=isAutomaticSpellingCorrectionEnabled) BOOL automaticSpellingCorrectionEnabled;
-@@ -29,7 +136,28 @@ @interface RCTUITextFieldCell : NSTextFieldCell
+@@ -29,7 +146,28 @@ @interface RCTUITextFieldCell : NSTextFieldCell
  
  @end
  
@@ -332,7 +342,7 @@ index 137d0ee9f51616ea27c397a8bf595fe2c0ff5e91..e1aa90fad6778d47dc55dc39aa4c6e36
  
  - (NSRect)titleRectForBounds:(NSRect)rect
  {
-@@ -155,6 +283,11 @@ - (BOOL)hasMarkedText
+@@ -155,6 +293,11 @@ - (BOOL)hasMarkedText
  	return ((NSTextView *)self.currentEditor).validAttributesForMarkedText ?: @[];
  }
  
@@ -344,7 +354,7 @@ index 137d0ee9f51616ea27c397a8bf595fe2c0ff5e91..e1aa90fad6778d47dc55dc39aa4c6e36
  #endif // macOS]
  
  #pragma mark - Accessibility
-@@ -330,7 +463,9 @@ - (void)setPlaceholder:(NSString *)placeholder
+@@ -330,7 +473,9 @@ - (void)setPlaceholder:(NSString *)placeholder
  #if !TARGET_OS_OSX // [macOS]
    [super setPlaceholder:placeholder];
  #else // [macOS
@@ -354,7 +364,7 @@ index 137d0ee9f51616ea27c397a8bf595fe2c0ff5e91..e1aa90fad6778d47dc55dc39aa4c6e36
  #endif // macOS]
    [self _updatePlaceholder];
  }
-@@ -385,6 +520,20 @@ - (void)_updatePlaceholder
+@@ -385,6 +530,20 @@ - (void)_updatePlaceholder
    _isUpdatingPlaceholderText = YES;
    self.placeholderAttributedString = [[NSAttributedString alloc] initWithString:self.placeholder ?: @""
  																	 attributes:[self _placeholderTextAttributes]];
@@ -375,7 +385,7 @@ index 137d0ee9f51616ea27c397a8bf595fe2c0ff5e91..e1aa90fad6778d47dc55dc39aa4c6e36
    _isUpdatingPlaceholderText = NO;
  #endif // macOS]
  }
-@@ -710,6 +859,9 @@ - (void)keyUp:(NSEvent *)event {
+@@ -710,6 +869,9 @@ - (void)keyUp:(NSEvent *)event {
  - (void)setReadablePasteBoardTypes:(NSArray<NSPasteboardType> *)readablePasteboardTypes
  {
    _readablePasteboardTypes = readablePasteboardTypes;
