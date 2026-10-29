@@ -67,7 +67,7 @@ function SplitPart({ tabId, first, ink }: { tabId: string; first: boolean; ink: 
         leading={first ? null : <View style={{ width: StyleSheet.hairlineWidth, height: 16, marginHorizontal: 6, backgroundColor: ink?.divider ?? theme.textTertiary }} />}
       >
         <View pointerEvents="none">
-          <TabIcon url={tab.url} favicon={tab.favicon} icon={tab.customIcon} size={14} profileId={tab.profileId} />
+          <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} size={14} profileId={tab.profileId} />
         </View>
         <FadeLabel text={tabTitle(tab)} fontSize={font.small.fontSize} color={ink ? (focused ? ink.text : ink.secondary) : focused ? theme.tabSelectedText : theme.textTab} style={{ flex: 1, height: 16, marginLeft: CHIP_LABEL_GAP, opacity: fadeTitle ? FADED_TAB_OPACITY : 1 }} />
       </TabPressArea>
