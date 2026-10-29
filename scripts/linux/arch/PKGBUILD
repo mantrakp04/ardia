@@ -1,0 +1,22 @@
+pkgname=ardia-bin
+pkgver=0.0.0
+pkgrel=1
+pkgdesc="Ardia, a Chromium-based browser with Arc's sidebar and Dia's polish"
+arch=('x86_64')
+url="https://ardia.dev"
+license=('Apache-2.0')
+depends=('alsa-lib' 'dbus' 'gtk3' 'hicolor-icon-theme' 'libcups' 'libxss' 'libxtst' 'nss' 'polkit' 'ttf-liberation' 'xdg-utils')
+optdepends=(
+  'libsecret: encrypt saved passwords with the Secret Service keyring'
+  'kwallet: encrypt saved passwords with KWallet'
+  'polkit-gnome: a polkit agent to confirm it is you before secrets are shown'
+)
+provides=('ardia')
+conflicts=('ardia')
+options=('!strip' '!debug')
+source=("ardia-linux-x64.tar.xz")
+sha256sums=('SKIP')
+
+package() {
+  "$srcdir/ardia/install.sh" --prefix /usr --destdir "$pkgdir"
+}
