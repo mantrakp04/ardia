@@ -150,6 +150,9 @@ function DownloadsSection() {
           </Row>
         )}
       </Group>
+      <Group>
+        <SettingToggle anchor="general.downloadsFromAllProfiles" />
+      </Group>
     </>
   );
 }

@@ -45,6 +45,11 @@ export const generalRows = {
           description: "Gives every profile this folder and choice.",
           keywords: ["all profiles", "global", "download location"],
         },
+        downloadsFromAllProfiles: {
+          title: "Show downloads from all profiles",
+          description: "Every window lists the downloads of every profile. Private windows still list only their own.",
+          keywords: ["downloads list", "share downloads", "every profile", "spaces", "arc"],
+        },
       },
     },
     {

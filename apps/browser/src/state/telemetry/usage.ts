@@ -49,7 +49,12 @@ function watchStore() {
       for (const id in s.splits) if (!prev.splits[id]) capture("split_view_opened", { panes: splitTabIds(s.splits[id]!).length });
     }
     if (s.windowUi !== prev.windowUi) {
-      for (const id in s.windowUi) if (s.windowUi[id]?.panel.open && !prev.windowUi[id]?.panel.open) capture("command_bar_opened");
+      for (const id in s.windowUi) {
+        const ui = s.windowUi[id];
+        const before = prev.windowUi[id];
+        if (ui?.panel.open && !before?.panel.open) capture("command_bar_opened");
+        if (ui?.downloadsOpen && !before?.downloadsOpen) capture("downloads_opened", { all_profiles: s.settings.downloadsFromAllProfiles });
+      }
     }
   });
 }

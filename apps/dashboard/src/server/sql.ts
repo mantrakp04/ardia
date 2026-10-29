@@ -38,6 +38,7 @@ export const APP_EVENTS = [
   "app_session_ended",
   "app_updated",
   "command_bar_opened",
+  "downloads_opened",
   "extension_installed",
   "perf_journeys",
   "perf_launch",
