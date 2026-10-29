@@ -67,7 +67,8 @@ export function makeTab(windowId: string, profileId: string, url = "", snapshot?
     ...snapshot,
     navigation: url ? navigationTo(url) : null,
     createdAt: now,
-    lastActiveAt: now,
+    lastActiveAt: snapshot?.lastActiveAt ?? now,
+    ...(snapshot?.lastActiveAt ? { restoredAt: now } : {}),
   };
 }
 
@@ -89,6 +90,7 @@ export const snapshotTab = (t: Tab): TabSnapshot => ({
   ...(t.tileFolder && pinSection(t) === "tile" ? { tileFolder: t.tileFolder } : {}),
   ...(t.engine ? { engine: t.engine } : {}),
   profileId: t.profileId,
+  lastActiveAt: t.lastActiveAt,
 });
 
 export const isPinnedRow = (t: Pick<Tab, "pinned" | "pinnedAsRow"> | undefined): boolean => !!t?.pinned && !!t.pinnedAsRow;

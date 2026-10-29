@@ -59,6 +59,7 @@ export type Tab = {
   engine?: PageEngine;
   createdAt: number;
   lastActiveAt: number;
+  restoredAt?: number;
 };
 
 export type TileFolder = { id: string; name: string; renamedAt?: number };
@@ -125,7 +126,7 @@ export type TabSnapshot = Pick<
   Tab,
   "url" | "title" | "favicon" | "pinned" | "muted" | "zoom" | "customTitle" | "customIcon" | "profileId"
 > &
-  Partial<Pick<Tab, "pinnedUrl" | "pinnedAsRow" | "tileFolder" | "engine">>;
+  Partial<Pick<Tab, "pinnedUrl" | "pinnedAsRow" | "tileFolder" | "engine" | "lastActiveAt">>;
 
 export type ClosedTab = {
   kind: "tab";

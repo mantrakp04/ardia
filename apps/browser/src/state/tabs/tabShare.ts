@@ -125,7 +125,7 @@ function conformList(input: BrowserState, windowId: string, profileId: string, s
     const t = same.find(hasPage) ?? same[0];
     if (!t) {
       const { unloaded: _, ...made } = copyOf(src, windowId, false);
-      const copy = { ...made, lastActiveAt: src.lastActiveAt };
+      const copy = { ...made, lastActiveAt: src.lastActiveAt, ...(src.restoredAt ? { restoredAt: src.restoredAt } : {}) };
       tabs[copy.id] = copy;
       live[copy.id] = IDLE_LIVE;
       used.add(copy.id);
@@ -313,19 +313,25 @@ export function sharedElsewhere(s: BrowserState, t: Tab): boolean {
   return Object.values(s.tabs).some((x) => x.id !== t.id && x.windowId !== t.windowId && x.profileId === t.profileId && pinKeyOf(x) === key && mirrored(s.windows[x.windowId]));
 }
 
-export function sharedLastUsed(s: BrowserState): Map<string, number> | null {
+function sharedLatest(s: BrowserState, at: (t: Tab) => number): Map<string, number> | null {
   if (!sharesTabs(s)) return null;
   const member = listMember(s);
   const out = new Map<string, number>();
   for (const t of Object.values(s.tabs)) {
     if (!mirrored(s.windows[t.windowId]) || !member(t)) continue;
     const key = familyKey(t);
-    out.set(key, Math.max(out.get(key) ?? 0, t.lastActiveAt));
+    out.set(key, Math.max(out.get(key) ?? 0, at(t)));
   }
   return out;
 }
 
+export const sharedLastUsed = (s: BrowserState) => sharedLatest(s, (t) => t.lastActiveAt);
+
+export const sharedRestoredAt = (s: BrowserState) => sharedLatest(s, (t) => t.restoredAt ?? 0);
+
 export const lastUsedOf = (used: Map<string, number> | null, t: Tab) => used?.get(familyKey(t)) ?? t.lastActiveAt;
+
+export const restoredAtOf = (restored: Map<string, number> | null, t: Tab) => restored?.get(familyKey(t)) ?? t.restoredAt ?? 0;
 
 export function sharedTabsIn(tabs: Record<string, Tab>, windowId: string): { elsewhere(t: Tab): boolean; lastUsed(t: Tab): number } {
   const here = new Set<string>();

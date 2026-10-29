@@ -3,7 +3,7 @@ import { activeTabId, inPinnedContainer, pinSection, viewTabIds } from "../brows
 import { hasPage } from "../tabs/pageSession";
 import { holderOf } from "./pinShare";
 import { splitOf } from "../splits/splits";
-import { lastUsedOf, sharedLastUsed } from "../tabs/tabShare";
+import { lastUsedOf, restoredAtOf, sharedLastUsed, sharedRestoredAt } from "../tabs/tabShare";
 import type { ClosedTab, Tab, TabGroup } from "../browser/types";
 
 export type ClearedTabs = {
@@ -102,19 +102,22 @@ function inactivity(s: BrowserState, windowId: string) {
   const inSplit = new Set(Object.values(s.splits).flatMap((v) => v.tabIds));
   const keep = (t: Tab) => t.id === active || inPinnedContainer(s, t.id) || s.live[t.id]?.playingAudio;
   const used = sharedLastUsed(s);
+  const restored = sharedRestoredAt(s);
   return {
     active,
     inSplit,
     used,
+    restored,
     keep,
     expires: (t: Tab) => !keep(t) && !grouped.has(t.id) && !inSplit.has(t.id),
-    lastUsed: (t: Tab) => Math.max(lastUsedOf(used, t), deselectedAt.get(t.id) ?? 0),
+    lastUsed: (t: Tab) => Math.max(lastUsedOf(used, t), deselectedAt.get(t.id) ?? 0, restoredAtOf(restored, t)),
   };
 }
 
 export function cleanUpCandidates(s: BrowserState, windowId: string, inactiveForMs = CLEAN_UP_AFTER_MS, now = Date.now()): string[] {
   const view = viewTabIds(s, windowId);
-  const { active, inSplit, used, keep, expires, lastUsed } = inactivity(s, windowId);
+  const { active, inSplit, used, restored, keep, expires, lastUsed } = inactivity(s, windowId);
+  const recency = (t: Tab) => Math.max(lastUsedOf(used, t), restoredAtOf(restored, t));
   const out = new Set<string>();
   const byPage = new Map<string, Tab[]>();
   for (const id of view) {
@@ -125,7 +128,7 @@ export function cleanUpCandidates(s: BrowserState, windowId: string, inactiveFor
   }
   for (const same of byPage.values()) {
     if (same.length < 2) continue;
-    const keeper = same.find((t) => t.pinned) ?? same.find((t) => t.id === active) ?? [...same].sort((a, b) => lastUsedOf(used, b) - lastUsedOf(used, a))[0]!;
+    const keeper = same.find((t) => t.pinned) ?? same.find((t) => t.id === active) ?? [...same].sort((a, b) => recency(b) - recency(a))[0]!;
     for (const t of same) if (t !== keeper && !keep(t) && !inSplit.has(t.id)) out.add(t.id);
   }
   for (const id of view) {

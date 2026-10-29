@@ -269,3 +269,57 @@ test("quit and relaunch after the window closed: the next window has the pinned 
   const n = S().createWindow();
   assert.deepEqual(sidebar(n), PINS);
 });
+
+test("reopening a closed window: its tabs keep when they were last used, the shown one is used now", () => {
+  reset();
+  const { w } = windowWith("a", "b", "c", "d");
+  const [a, b, c, d] = model.viewTabIds(S(), w);
+  S().groupTabs([a, b, c], { pinned: false, name: "Work" });
+  for (const id of [b, a, c, d]) select(id);
+  const before = Object.fromEntries([a, b, c].map((id) => [S().tabs[id].url, S().tabs[id].lastActiveAt]));
+  S().createWindow();
+  S().closeWindow(w);
+  at(() => S().reopenClosedWindow());
+  const n = S().ui.focusedWindowId;
+  const g = Object.values(S().groups).find((x) => x.windowId === n && x.name === "Work");
+  assert.deepEqual(Object.fromEntries(g.tabIds.map((id) => [S().tabs[id].url, S().tabs[id].lastActiveAt])), before);
+  assert.ok(S().tabs[active(n)].lastActiveAt > Math.max(...Object.values(before)), "the shown tab is used now");
+});
+
+test("quit and relaunch right after Restore All: the restored tab still counts as used when it came back", async () => {
+  const { cleanUpCandidates } = await import("../pins/tabCleanup.ts");
+  stub.docs.clear();
+  reset();
+  const stop = startPersistence();
+  const { w, ids: [, b] } = windowWith("a", "b", "c", "d");
+  const usedAt = Date.now() - 2 * 60 * 60_000;
+  S().updateTab(b, { lastActiveAt: usedAt });
+  S().cleanUpTabs(w, { inactiveForMs: 30 * 60_000 });
+  assert.ok(!S().tabs[b], "cleaned up");
+  S().restoreCleaned();
+  flushPersistence();
+  stop();
+  S().hydrate(loadSession());
+  const n = S().windowOrder[0];
+  const back = model.viewTabIds(S(), n).find((id) => S().tabs[id].url === "https://b.com");
+  assert.equal(S().tabs[back].lastActiveAt, usedAt);
+  assert.deepEqual(cleanUpCandidates(S(), n, 30 * 60_000), []);
+});
+
+test("quit and relaunch after the window closed: a pinned group's tabs keep when they were last used", () => {
+  stub.docs.clear();
+  reset();
+  const stop = startPersistence();
+  const { w } = windowWith("a", "b", "c", "d");
+  const [a, b, c, d] = model.viewTabIds(S(), w);
+  const g = S().groupTabs([a, b, c], { name: "Work" });
+  for (const id of [b, a, c, d]) select(id);
+  const used = (groupId) => S().groups[groupId].tabIds.map((id) => [S().tabs[id].url, S().tabs[id].lastActiveAt]);
+  const before = used(g);
+  S().closeWindow(w);
+  flushPersistence();
+  stop();
+  S().hydrate(loadSession());
+  const n = at(() => S().createWindow());
+  assert.deepEqual(used(Object.values(S().groups).find((x) => x.windowId === n && x.name === "Work").id), before);
+});
