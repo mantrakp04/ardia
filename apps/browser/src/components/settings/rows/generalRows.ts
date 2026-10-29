@@ -143,7 +143,7 @@ export const generalRows = {
           advanced: true,
           title: "Fade titles of unloaded tabs",
           description: "Fade titles of sleeping tabs, closed pinned tabs, and tabs waiting to load after a restart.",
-          keywords: ["asleep", "discarded", "dim", "grey", "gray", "inactive", "pinned", "closed", "zen"],
+          keywords: ["asleep", "discarded", "dim", "grey", "gray", "inactive", "pinned", "closed"],
         },
       },
     },
