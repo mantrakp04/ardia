@@ -24,7 +24,7 @@ keychainItems.set("gdrive", JSON.stringify({ access_token: "a", refresh_token: "
 
 const { useBrowser } = await import("../browser/store.ts");
 const { adoptLegacyAccounts, connectConfluence, connectGithub, connectGoogle, disconnect, forgetProfileAccounts, SOURCES } = await import("./sources.ts");
-const { live, setAccount, updateConfig } = await import("./store.ts");
+const { live, setAccount, setLegacyAccount, updateConfig } = await import("./store.ts");
 const { settingsBrowserWindow } = await import("../settings/settingsWindows.ts");
 
 const personal = useBrowser.getState().createProfile({ name: "Personal" });
@@ -226,4 +226,20 @@ test("sign-in pages open in a window of the profile being connected, falling bac
   assert.equal(settingsBrowserWindow(personal), personalWindow);
   assert.equal(settingsBrowserWindow(work), workWindow);
   assert.equal(settingsBrowserWindow("no-windows"), workWindow);
+});
+
+test("a pending copy fills a profile whose account lost its keychain item, and keeps a keychain item saved before its account", async () => {
+  const stale = useBrowser.getState().createProfile({ name: "Stale" });
+  const fresh = useBrowser.getState().createProfile({ name: "Fresh" });
+  setAccount(stale, "notion", legacyAccount("Lost"));
+  keychainItems.set(`notion:${fresh}`, "fresh-token");
+  keychainItems.set("notion", "legacy-notion-token");
+  setLegacyAccount("notion", legacyAccount("Acme"));
+
+  await adoptLegacyAccounts([stale, fresh]);
+
+  assert.equal(keychainItems.get(`notion:${stale}`), "legacy-notion-token");
+  assert.equal(live().accounts[stale].notion.login, "Acme");
+  assert.equal(keychainItems.get(`notion:${fresh}`), "fresh-token");
+  assert.equal(keychainItems.has("notion"), false);
 });

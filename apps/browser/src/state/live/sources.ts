@@ -251,7 +251,6 @@ export async function connectBitbucket(profileId: string, user: string, token: s
     headers: { Authorization: basic(user.trim(), token.trim()) },
   });
   await saveConnection(profileId, "bitbucket", token.trim(), { ...account(me.account_id, me.display_name, me.links?.avatar?.href ?? null), user: user.trim() });
-  updateConfig({ bitbucketUser: user.trim() });
 }
 
 export async function connectNotion(profileId: string, token: string) {
@@ -265,7 +264,6 @@ export async function connectConfluence(profileId: string, site: string, email: 
     headers: { Authorization: basic(email.trim(), token.trim()) },
   });
   await saveConnection(profileId, "confluence", token.trim(), { ...account(me.accountId, me.displayName, null), user: email.trim(), site: base });
-  updateConfig({ confluenceSite: base, confluenceEmail: email.trim() });
 }
 
 export async function connectGoogle(profileId: string, clientId: string, clientSecret: string, code: string, verifier: string, redirectUri: string) {
@@ -312,7 +310,7 @@ function withClientId(tokens: string, clientId: string | undefined): string {
 
 function copyLegacy(source: LiveSourceId, profileId: string, value: string, legacy: LiveAccount): Promise<boolean> {
   return locked(source, profileId, async () => {
-    if (!profileExists(profileId) || accountOf(profileId, source)) return true;
+    if (!profileExists(profileId) || (await getSecret(source, profileId))) return true;
     if (!(await setSecret(source, profileId, value))) return false;
     if (profileExists(profileId)) setAccount(profileId, source, legacy);
     else await deleteSecret(source, profileId);
