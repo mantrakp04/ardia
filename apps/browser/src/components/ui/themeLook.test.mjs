@@ -5,7 +5,7 @@ globalThis.__DEV__ = false;
 
 const P = await import("../../lib/profileLook.ts");
 const { profileTheme, PROFILE_COLORS } = await import("./theme.ts");
-const { themeArea, themeBackdrop, sanitizeTheme, opaqueThemeTint, mixOklab, resolveTheme, readableDark, padColor, startingTheme } = P;
+const { themeArea, themeBackdrop, sanitizeTheme, opaqueThemeTint, opaqueThemeTintTopRight, mixOklab, resolveTheme, readableDark, padColor, startingTheme } = P;
 
 const color = (r, g, b) => ({ r, g, b, a: 1 });
 const THEME = {
@@ -70,6 +70,15 @@ test("an angle turns the whole gradient, the third colour with it", () => {
   const across = { ...THEME, stops: THEME.stops.slice(0, 2), angle: 90 };
   near(themeArea(across, 0, 0, 1200, 800), themeArea(across, 0, 800, 1200, 800), "90° is the same down the left edge");
   assert.deepEqual(opaqueThemeTint(turned, false), opaqueThemeTint(THEME, false).reverse(), "the tint's corners swap with the turned gradient");
+});
+
+test("a right-hand sidebar's peek takes the window's top-right colour, which a sideways gradient makes differ from the top left", () => {
+  const across = { ...THEME, stops: THEME.stops.slice(0, 2), angle: 90 };
+  const [topLeft] = opaqueThemeTint(across, false);
+  assert.notEqual(opaqueThemeTintTopRight(across, false), topLeft);
+  assert.equal(opaqueThemeTintTopRight({ ...across, angle: 270 }, false), topLeft, "turned around, the top right is the old top left");
+  const down = { ...across, angle: 180 };
+  assert.equal(opaqueThemeTintTopRight(down, false), opaqueThemeTint(down, false)[0], "a gradient running down is the same across the top");
 });
 
 test("the angle survives sanitizing, in both looks, and reaches the backdrop", () => {

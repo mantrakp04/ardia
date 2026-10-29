@@ -37,7 +37,7 @@ const SURFACES: Record<Surface, { open: (at: Where) => boolean; watch: Watch[] }
 };
 
 export const HOLDS: Record<Held, Partial<Record<Surface, Reach>>> = {
-  peek: { menu: "anyWindow", rename: "thisWindow", iconPicker: "thisWindow", hoverCard: "thisWindow", downloads: "thisWindow", popover: "thisWindow" },
+  peek: { menu: "anyWindow", rename: "thisWindow", iconPicker: "thisWindow", hoverCard: "thisWindow", downloads: "thisWindow", popover: "thisWindow", historyMenu: "thisWindow" },
   toolbar: { panel: "thisWindow", find: "thisWindow", popover: "thisWindow", historyMenu: "thisWindow", extensionPopup: "thisWindow" },
   hoverCard: { panel: "thisWindow", rename: "anyWindow", iconPicker: "anyWindow" },
   hoverStart: { panel: "thisWindow" },

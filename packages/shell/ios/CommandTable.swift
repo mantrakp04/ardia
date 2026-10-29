@@ -23,6 +23,7 @@ enum CommandTable {
     case reload
     case forceReload
     case toggleTabLayout
+    case toggleSidebarSide
     case toggleSidebar
     case openSplitPane
     case useSelectionForFind
@@ -134,6 +135,7 @@ enum CommandTable {
     "reload": "Refresh",
     "forceReload": "Force Refresh the Page",
     "toggleTabLayout": "Show Tabs in Sidebar",
+    "toggleSidebarSide": "Sidebar on the Right",
     "toggleSidebar": "Auto-Hide Tabs",
     "openSplitPane": "Open Split Pane",
     "useSelectionForFind": "Use Selection for Find",

@@ -50,6 +50,7 @@ export const SETTING_SPECS = {
   showSelectionSearch: flag(true, SYNCED),
   commandBarPreference: oneOf(["website", "search"], "website", SYNCED),
   tabLayout: oneOf(["sidebar", "top"], "sidebar", SYNCED),
+  sidebarSide: oneOf(["left", "right"], "left", SYNCED),
   hideToolbarWhileScrolling: flag(true, SYNCED),
   newTabPosition: oneOf(["top", "bottom", "nextToCurrent"], "bottom", SYNCED),
   newTabButtonPosition: oneOf(["top", "bottom"], "bottom", SYNCED),

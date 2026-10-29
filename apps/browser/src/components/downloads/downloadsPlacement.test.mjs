@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { DOWNLOADS_PANEL, downloadsPlacement } from "./downloadsPlacement.ts";
 
 const WINDOW = { width: 1200, height: 800 };
-const FALLBACK = { topStrip: false, footer: false, footerBottom: 30 };
+const FALLBACK = { topStrip: false, right: false, footer: false, footerBottom: 30 };
 const { width, margin, arrowGap, arrowHeight } = DOWNLOADS_PANEL;
 
 test("sidebar header button: the panel hangs below it, its arrow on the button's centre", () => {
@@ -42,6 +42,9 @@ test("no visible button (sidebar hidden, Little Ardia): the old fixed spot, no a
   const footer = downloadsPlacement(WINDOW, null, { ...FALLBACK, footer: true });
   assert.equal(footer.bottom, 30);
   assert.equal(footer.arrow, "none");
+  const right = downloadsPlacement(WINDOW, null, { ...FALLBACK, right: true });
+  assert.equal(right.left + right.width, WINDOW.width - 10);
+  assert.equal(right.arrow, "none");
 });
 
 test("a button parked off screen counts as hidden", () => {

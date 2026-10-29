@@ -47,7 +47,7 @@ export type ShellNative = {
   focusWindow(id: string): Promise<void>;
   restoreFullScreen(ids: string[], focus: string | null): Promise<void>;
   setTrafficLightsCenter(id: string, center: [number, number] | null): Promise<void>;
-  watchLeftEdge(id: string, on: boolean, hold: number): Promise<void>;
+  watchSidebarEdge(id: string, on: boolean, hold: number, side: "left" | "right"): Promise<void>;
   dragPreviewBegin(windowId: string, chip: Rect4, grab: [number, number]): Promise<void>;
   dragPreviewPage(base64: string, frame: Rect4): Promise<void>;
   dragPreviewUpdate(shape: DragPreviewShape, point: [number, number]): Promise<void>;

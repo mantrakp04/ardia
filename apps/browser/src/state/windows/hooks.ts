@@ -2,6 +2,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { engineProfile } from "../browser/model";
 import { focusedWindowOf } from "./ui";
+import { addressBarInSidebar, sidebarSideOf } from "./layout";
 
 export const useWindowUiOf = <T>(windowId: string, select: (ui: BrowserState["windowUi"][string] | undefined) => T): T =>
   useBrowser((s) => select(s.windowUi[windowId]));
@@ -26,6 +27,7 @@ export const useSidebarDockState = (windowId: string) =>
           s.windows[windowId]?.sidebarOpen ?? true,
           s.settings.sidebarWidth,
           s.settings.addressBar === "sidebar",
+          sidebarSideOf(s, windowId),
         ] as const,
     ),
   );
@@ -42,3 +44,8 @@ export const useProfileNeighbours = (windowId: string) =>
 export const useIsFocusedWindow = (windowId: string): boolean => useBrowser((s) => focusedWindowOf(s) === windowId);
 
 export const useDownload = (id: string) => useBrowser((s) => s.downloads.find((x) => x.id === id));
+
+export const useAddressSidebarOnRight = (windowId: string) =>
+  useBrowser((s) => addressBarInSidebar(s, windowId) && sidebarSideOf(s, windowId) === "right");
+
+export const useSidebarOnRight = (windowId: string) => useBrowser((s) => sidebarSideOf(s, windowId) === "right");

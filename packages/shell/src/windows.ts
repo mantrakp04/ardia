@@ -6,7 +6,7 @@ export type WindowEvent =
   | { type: "close"; id: string }
   | { type: "frame"; id: string; frame: [number, number, number, number] }
   | { type: "fullScreen"; id: string; on: boolean }
-  | { type: "leftEdge"; id: string; over: boolean; point: [number, number] }
+  | { type: "sidebarEdge"; id: string; over: boolean; point: [number, number] }
   | { type: "closeRequest"; id: string };
 
 export type OpenWindowOptions = {
@@ -33,7 +33,7 @@ export const focusWindow = (id: string) => Shell.focusWindow(id);
 export const setWindowTitle = (id: string, title: string) => Shell.setWindowTitle(id, title);
 export const setTrafficLightsCenter = (id: string, center: [number, number] | null) =>
   Shell.setTrafficLightsCenter(id, center);
-export const watchLeftEdge = (id: string, on: boolean, hold = 0) => void Shell.watchLeftEdge(id, on, hold);
+export const watchSidebarEdge = (id: string, on: boolean, hold = 0, side: "left" | "right" = "left") => void Shell.watchSidebarEdge(id, on, hold, side);
 
 export type DragPreviewShape = "hidden" | "pill" | "card";
 export const dragPreview = {

@@ -10,6 +10,7 @@
       "ActivitySpinnerModule",
       "ContextMenuAreaModule",
       "OutsidePressAreaModule",
+      "LightsBarClipModule",
       "MagnifyAreaModule",
       "SurfaceModule",
       "VisualEffectModule",

@@ -9,6 +9,8 @@ import { activate } from "../../state/tabs/actions";
 import { useIsFocusedWindow } from "../../state/windows/hooks";
 import { Box, Button, Panel, radius, space, Text, useTheme, weight } from "../ui";
 import { measureRow, type Anchor } from "../../state/sidebar/sidebarUi";
+import { useSidebarSide } from "../../state/windows/layout";
+import { useSidebarWidth } from "../../state/sidebar/hooks";
 import { OverlappingAvatars } from "./CalendarPreview";
 import { liveMotion, liveShadow, useLiveColors } from "./tokens";
 
@@ -32,17 +34,20 @@ function AlertCard({ event, windowId, windowWidth }: { event: CalendarEvent; win
   const calendarTab = useCalendarTabIn(windowId);
   const sidebarShown = useWindow(windowId, (w) => !!w?.sidebarOpen);
   const calendarName = useCalendar((s) => s.calendars.find((c) => c.id === event.calendarId)?.title);
-  const [anchor, setAnchor] = useState<Anchor | null>(null);
+  const right = useSidebarSide() === "right";
+  const sidebarWidth = useSidebarWidth(windowId);
+  const [measured, setMeasured] = useState<{ anchor: Anchor; right: boolean } | null>(null);
+  const anchor = measured && measured.right === right ? measured.anchor : null;
   const appear = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     let cancelled = false;
-    if (calendarTab && sidebarShown) void measureRow(windowId, calendarTab).then((a) => !cancelled && setAnchor(a));
-    else setAnchor(null);
+    if (calendarTab && sidebarShown) void measureRow(windowId, calendarTab).then((a) => !cancelled && setMeasured(a && { anchor: a, right }));
+    else setMeasured(null);
     return () => {
       cancelled = true;
     };
-  }, [calendarTab, sidebarShown, windowWidth]);
+  }, [calendarTab, sidebarShown, windowWidth, right]);
   useEffect(() => {
     Animated.spring(appear, { toValue: 1, ...liveMotion.alertSpring, useNativeDriver: true }).start();
   }, []);
@@ -52,7 +57,10 @@ function AlertCard({ event, windowId, windowWidth }: { event: CalendarEvent; win
   const running = event.start <= now;
   const people = event.attendees.filter((a) => !a.me);
   const who = attendeesLabel(event);
-  const position = anchor ? { left: anchor.x + anchor.width + EDGE, top: Math.max(EDGE, anchor.y - 4) } : { left: Math.max(EDGE, windowWidth - WIDTH - 14), top: 52 };
+  const fallbackRight = right && sidebarShown ? sidebarWidth : 0;
+  const position = anchor
+    ? { left: right ? anchor.x - EDGE - WIDTH : anchor.x + anchor.width + EDGE, top: Math.max(EDGE, anchor.y - 4) }
+    : { left: Math.max(EDGE, windowWidth - fallbackRight - WIDTH - 14), top: 52 };
 
   return (
     <Animated.View

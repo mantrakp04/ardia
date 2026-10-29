@@ -11,6 +11,7 @@ import { Box, Button, curve, font, hairline, Panel, radius, space, Symbol, Text,
 import { dismissHover } from "../../state/sidebar/hover";
 import { cardHoverProps } from "../sidebar/hoverController";
 import { hoverCardOrigin } from "../sidebar/hoverMotion";
+import { useSidebarSide } from "../../state/windows/layout";
 import type { Anchor } from "../../state/sidebar/sidebarUi";
 import { TabIcon } from "../sidebar/TabIcon";
 import { liveMotion, liveShadow, liveType, useLiveColors, type LiveColors } from "./tokens";
@@ -23,8 +24,9 @@ const CHIP_HEIGHT = 17;
 
 export function HoverSurface({ anchor, width, children }: { anchor: Anchor; width: number; children: ReactNode }) {
   const theme = useTheme();
+  const side = useSidebarSide();
   return (
-    <View onLayout={cardHoverProps.onLayout} style={{ position: "absolute", ...hoverCardOrigin(anchor), width }}>
+    <View onLayout={cardHoverProps.onLayout} style={{ position: "absolute", ...hoverCardOrigin(anchor, width, side), width }}>
       <Panel
         onMouseEnter={cardHoverProps.onMouseEnter}
         onMouseLeave={cardHoverProps.onMouseLeave}

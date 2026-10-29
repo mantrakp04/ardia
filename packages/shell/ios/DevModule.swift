@@ -122,21 +122,21 @@ public class DevModule: Module {
       return true
     }.runOnQueue(.main)
 
-    AsyncFunction("devLeftEdgePointer") { (windowId: String, x: Double, y: Double, on: Bool) -> Bool in
+    AsyncFunction("devSidebarEdgePointer") { (windowId: String, x: Double, y: Double, on: Bool) -> Bool in
       guard on else {
-        LeftEdgeWatcher.shared.pointerOverride = nil
-        LeftEdgeWatcher.shared.checkPointer()
+        SidebarEdgeWatcher.shared.pointerOverride = nil
+        SidebarEdgeWatcher.shared.checkPointer()
         return true
       }
       guard let window = WindowManager.shared.windows[windowId] else { return false }
-      LeftEdgeWatcher.shared.pointerOverride = NSPoint(x: window.frame.minX + x, y: window.frame.maxY - y)
-      LeftEdgeWatcher.shared.checkPointer()
+      SidebarEdgeWatcher.shared.pointerOverride = NSPoint(x: window.frame.minX + x, y: window.frame.maxY - y)
+      SidebarEdgeWatcher.shared.checkPointer()
       return true
     }.runOnQueue(.main)
 
-    AsyncFunction("devLeftEdgeStats") { (reset: Bool) -> [String: Any] in
-      let stats = LeftEdgeWatcher.shared.stats
-      if reset { LeftEdgeWatcher.shared.resetStats() }
+    AsyncFunction("devSidebarEdgeStats") { (reset: Bool) -> [String: Any] in
+      let stats = SidebarEdgeWatcher.shared.stats
+      if reset { SidebarEdgeWatcher.shared.resetStats() }
       return stats
     }.runOnQueue(.main)
 

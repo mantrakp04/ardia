@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Pressable, View, type ViewStyle } from "react-native";
 import { useShortcutHint, withShortcut } from "../../state/commands/commandShortcuts";
 import { layout, useTheme } from "../ui/theme";
@@ -10,7 +10,7 @@ import { extensionsFitting, ToolbarExtensions, useToolbarExtensionsWidth } from 
 import { useHistoryAvailability } from "../../state/tabs/navigation";
 import { toolbarPalette, type ToolbarPalette } from "../ui/toolbarColors";
 import { Button, type ButtonHit, FadeLabel, font, useHover } from "../ui";
-import { setUrlAnchor } from "../../state/windows/layout";
+import { setUrlAnchor, useCardAnchors, useSidebarSide } from "../../state/windows/layout";
 import { SIDEBAR_FIELD } from "./geometry";
 import { SidebarFieldFill } from "./SidebarField";
 import { SidebarUrlField, useToolbarTab } from "../toolbar/Toolbar";
@@ -31,11 +31,13 @@ export function SidebarHeaderTools({ width }: { width: number }) {
   const palette = toolbarPalette(useTheme(), null);
   const toggle = useSettings((st) => st.showSidebarButton !== false);
   const sidebarHint = useShortcutHint("toggleSidebar");
-  const { buttons, step } = navButtonsFitting(width, BUTTON, toggle);
+  const right = useSidebarSide() === "right";
+  const toggleX = right ? EDGE + PLATE / 2 : TOGGLE_X;
+  const { buttons, step } = navButtonsFitting(width, BUTTON, toggle, toggleX);
   const shown = tab ? buttons : [];
   const last = width - EDGE - BUTTON / 2;
   const centres = shown.map((_, i) => last - (shown.length - 1 - i) * step);
-  const at = toggle ? [TOGGLE_X, ...centres] : centres;
+  const at = toggle ? [toggleX, ...centres] : centres;
   const plate = Math.min(PLATE, step);
   const place = (center: number) => ({
     style: { position: "absolute" as const, top: LIGHTS_Y - plate / 2, left: center - plate / 2 },
@@ -47,7 +49,7 @@ export function SidebarHeaderTools({ width }: { width: number }) {
         <Button variant="icon" toolbar
           {...place(at[0]!)}
           palette={palette}
-          icon="sidebar.left"
+          icon={right ? "sidebar.right" : "sidebar.left"}
           size={GLYPH}
           onPress={() => toggleSidebar(windowId)}
           tooltip={withShortcut("Auto-Hide Tabs", sidebarHint)}
@@ -103,6 +105,9 @@ export function SidebarAddressRow({ width }: { width: number }) {
     field.current?.measureInWindow((x, y, width, height) => {
       if (width && isAddressBarInSidebar(windowId)) setUrlAnchor(windowId, { left: x, top: y, width, sidebar: { height } });
     });
+  const side = useSidebarSide();
+  const cardEnd = useCardAnchors((s) => (s[windowId] ? s[windowId]!.left + s[windowId]!.width : 0));
+  useEffect(() => void anchor(), [side, cardEnd]);
 
   return (
     <View

@@ -8,7 +8,7 @@ import { spring as springOf } from "../ui/motion";
 import { SHADOWS, SWIPE_CONFIRMED_WASH, SWIPE_MOTION, windowColors } from "./tokens";
 import { useTab } from "../../state/browser/hooks";
 import { Favicon, NewTabIcon } from "../favicon/Favicon";
-import { HistoryPopover } from "./HistoryPopover";
+import { HistoryPopover, type HistoryAt } from "./HistoryPopover";
 import { goBack, goForward, goToHistoryItem, historyFavicons, historyItems, openHistoryMenu, useHistoryAvailability, useHistoryMenu, type HistoryItem } from "../../state/tabs/navigation";
 import type { ToolbarGeometry } from "./geometry";
 import {
@@ -35,11 +35,11 @@ export function spring(value: Animated.Value, toValue: number, response: number,
   return Animated.spring(value, { toValue, ...springOf({ response, damping: dampingRatio }), useNativeDriver: native });
 }
 
-export function NavigationOverlays({ tabId, windowId, geometry }: { tabId: string; windowId: string; geometry: ToolbarGeometry }) {
+export function NavigationOverlays({ tabId, windowId, geometry, history }: { tabId: string; windowId: string; geometry: ToolbarGeometry; history?: HistoryAt | null }) {
   return (
     <>
       <SwipeOverlay tabId={tabId} />
-      <HistoryPopover tabId={tabId} windowId={windowId} anchors={{ back: geometry.back, forward: geometry.forward }} />
+      {history !== null && <HistoryPopover tabId={tabId} windowId={windowId} anchors={{ back: geometry.back, forward: geometry.forward }} at={history} />}
     </>
   );
 }

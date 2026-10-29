@@ -5,6 +5,7 @@ export {
   FadeLabel,
   FileDropArea,
   GlassEffect,
+  LightsBarClip,
   MagnifyArea,
   MouseArea,
   OutsidePressArea,

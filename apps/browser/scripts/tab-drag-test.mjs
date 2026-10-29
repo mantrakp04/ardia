@@ -436,7 +436,7 @@ try {
   });
 
   await check("sidebar auto-hidden: a row dragged within the peeking sidebar reorders instead of splitting, and Esc cancels a drag", async () => {
-    const edge = (p) => run(`return ac.shell.devLeftEdgePointer("w1", ${JSON.stringify(p)}).then(() => settle(500)).then(() => !!globalThis.acLayout.peek.w1?.live);`);
+    const edge = (p) => run(`return ac.shell.devSidebarEdgePointer("w1", ${JSON.stringify(p)}).then(() => settle(500)).then(() => !!globalThis.acLayout.peek.w1?.live);`);
     await run(`for (const v of Object.values(st().splits)) st().separateSplit(v.id); if (st().windows.w1.sidebarOpen) st().toggleSidebar("w1"); return settle(900);`);
     try {
       await edge({ x: -4, y: 300 });
@@ -463,7 +463,36 @@ try {
       assert.ok(cancelled.ended !== null && cancelled.ended < 150 + 16 * 12 * 7, `Esc ended the drag before the release: ${cancelled.ended}`);
       assert.equal(await edge({ x: 800, y: 400 }), false, "it hides once the pointer leaves");
     } finally {
-      await run(`return ac.shell.devLeftEdgePointer("w1", null).then(() => { if (!st().windows.w1.sidebarOpen) st().toggleSidebar("w1"); return settle(900); });`);
+      await run(`return ac.shell.devSidebarEdgePointer("w1", null).then(() => { if (!st().windows.w1.sidebarOpen) st().toggleSidebar("w1"); return settle(900); });`);
+    }
+  });
+
+  await check("sidebar auto-hidden on the right: just past the right edge peeks and the left edge doesn't, a row dragged within the peek reorders, and the watch ends once docked", async () => {
+    const edge = (p) => run(`return ac.shell.devSidebarEdgePointer("w1", ${JSON.stringify(p)}).then(() => settle(500)).then(() => !!globalThis.acLayout.peek.w1?.live);`);
+    const width = await run(`return st().windows.w1.frame[2];`);
+    await run(`for (const v of Object.values(st().splits)) st().separateSplit(v.id); st().updateSettings({ sidebarSide: "right" }); if (st().windows.w1.sidebarOpen) st().toggleSidebar("w1"); return settle(900);`);
+    try {
+      assert.equal(await edge({ x: -4, y: 300 }), false, "the left edge doesn't peek");
+      assert.equal(await edge({ x: width / 2, y: 300 }), false, "the middle doesn't");
+      await edge({ x: width + 4, y: 300 });
+      assert.equal(await edge({ x: width - 120, y: 300 }), true, "the sidebar peeks from the right and holds");
+      const rows = (await run(`return Promise.all([...globalThis.sidebarDrag.items.values()].filter((i) => i.kind === "row" && !i.parentGroup && i.section === "list" && i.view).map((i) => new Promise((r) => i.view.measureInWindow((x, y, w, h) => r({ id: i.tabIds[0], x, y, w, h })))));`))
+        .filter((r) => r.x > width / 2 && r.x + r.w <= width).sort((a, b) => a.y - b.y);
+      assert.ok(rows.length >= 3, JSON.stringify(rows));
+      const [a, , c] = rows;
+      const sx = Math.round(a.x + a.w / 2), sy = Math.round(a.y + a.h / 2), to = Math.round(c.y + c.h * 0.85);
+      const before = await order("w1");
+      const seen = await run(`const seen = []; const iv = setInterval(() => { const d = globalThis.acTabDrag.getState(); if (d.tabIds.length) seen.push([d.onPage, d.target]); }, 40);
+        return act("w1", "drag:${sx},${sy};${sx},${sy + 10};${sx},${to};${sx},${to}").then(() => settle(1600)).then(() => { clearInterval(iv); return seen; });`);
+      assert.deepEqual(await run(`return Object.values(st().splits).map((v) => v.tabIds);`), [], "no split");
+      assert.ok(seen.every(([onPage, target]) => !onPage && !target), `no page target under the sidebar: ${JSON.stringify(seen.slice(-3))}`);
+      const after = await order("w1");
+      assert.ok(after.indexOf(a.id) > after.indexOf(c.id), `${a.id} moved below ${c.id}: ${before} -> ${after}`);
+      assert.equal(await edge({ x: width / 2, y: 400 }), false, "it hides once the pointer leaves");
+      const stats = await run(`return ac.shell.devSidebarEdgePointer("w1", null).then(() => { st().toggleSidebar("w1"); return settle(900); }).then(() => ac.shell.devSidebarEdgeStats());`);
+      assert.equal(stats.watched, 0, `docked: nothing watched (${JSON.stringify(stats)})`);
+    } finally {
+      await run(`st().updateSettings({ sidebarSide: "left" }); return ac.shell.devSidebarEdgePointer("w1", null).then(() => { if (!st().windows.w1.sidebarOpen) st().toggleSidebar("w1"); return settle(900); });`);
     }
   });
 

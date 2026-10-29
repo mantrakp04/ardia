@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import { opaqueThemeTint, PRESET_BACKDROP, resolveTheme, requestedDarkFor, shownLook, themeAccent, themeBackdrop, themePalette, type LookSource, type ProfileColor, type ProfileLookFields, type ProfileTheme } from "../../lib/profileLook";
+import { opaqueThemeTint, opaqueThemeTintTopRight, PRESET_BACKDROP, resolveTheme, requestedDarkFor, shownLook, themeAccent, themeBackdrop, themePalette, type LookSource, type ProfileColor, type ProfileLookFields, type ProfileTheme } from "../../lib/profileLook";
 import type { ThemeBackdropProps } from "@ardia/core";
 import { backdropTint, opaqueTint, tintForHue, type BackdropTint } from "../../lib/windowTint";
 import { isRgbFunction, mix, parseColor, rgbToHsl, toHex } from "../../lib/color";
@@ -13,6 +13,7 @@ export type Theme = ColorRoles & {
   profileColor: ProfileColor | "incognito";
   backdrop: BackdropTint & ThemeBackdropProps;
   windowTint: [string, string];
+  windowTintTopRight: string;
   powerUpColor: string | null;
   powerUpPalette: string[] | null;
   custom: ProfileTheme | null;
@@ -40,11 +41,13 @@ export function themeFor(key: string): Theme {
     const spec = color === "incognito" ? null : (PROFILE_COLORS[color] ?? PROFILE_COLORS.plum);
     const powerUpColor = !spec ? null : spec.palette ? (spec.powerUp ?? spec.swatch) : ink.neutralGrey;
     const backdrop = backdropTint(spec ? (spec.tint ?? tintForHue(spec.swatch, !spec.palette)) : INCOGNITO_TINT, !spec?.palette);
+    const windowTint = opaqueTint(backdrop, base.dark);
     theme = {
       ...base,
       profileColor: color,
       backdrop: { ...backdrop, ...PRESET_BACKDROP },
-      windowTint: opaqueTint(backdrop, base.dark),
+      windowTint,
+      windowTintTopRight: windowTint[0],
       powerUpColor,
       powerUpPalette: powerUpColor ? [powerUpColor] : null,
       custom: null,
@@ -93,6 +96,7 @@ function customTheme(custom: ProfileTheme, color: ProfileColor, appDark: boolean
         ...(dark !== requestedDark ? { themeAppearance: dark ? ("dark" as const) : ("light" as const) } : source === "own" ? {} : { themeAppearance: "auto" as const }),
       },
       windowTint: opaqueThemeTint(look, dark),
+      windowTintTopRight: opaqueThemeTintTopRight(look, dark),
       powerUpColor: accent,
       powerUpPalette: palette.length > 1 ? palette : [palette[0] ?? accent],
       custom,

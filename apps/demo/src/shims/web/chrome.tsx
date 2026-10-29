@@ -243,6 +243,22 @@ export function OutsidePressArea({ onOutsidePress, ...props }: ViewProps & { onO
   return <View {...props} ref={(view) => void (node.current = view as unknown as HTMLElement | null)} />;
 }
 
+export function LightsBarClip({ holeLeft = 0, holeRadius = 0, style, children, ...props }: ViewProps & { holeLeft?: number; holeRadius?: number }) {
+  const r = holeRadius;
+  const corner = (at: string) => `radial-gradient(circle at ${at}, transparent ${r - 0.5}px, #000 ${r}px)`;
+  const mask = {
+    maskImage: [`linear-gradient(#000 0 0)`, `linear-gradient(#000 0 0)`, corner("100% 100%"), corner("0% 100%")].join(", "),
+    maskSize: `100% calc(100% - ${r}px), ${holeLeft}px ${r}px, ${r}px ${r}px, ${r}px ${r}px`,
+    maskPosition: `0 0, 0 100%, ${holeLeft}px 100%, 100% 100%`,
+    maskRepeat: "no-repeat",
+  };
+  return (
+    <View {...props} style={[{ overflow: "hidden" }, style]}>
+      <div style={{ position: "absolute", inset: 0, ...mask, WebkitMaskImage: mask.maskImage, WebkitMaskSize: mask.maskSize, WebkitMaskPosition: mask.maskPosition, WebkitMaskRepeat: mask.maskRepeat }}>{children}</div>
+    </View>
+  );
+}
+
 export function WindowDragRegion({
   titleBarDoubleClick: _double,
   clickable: _clickable,

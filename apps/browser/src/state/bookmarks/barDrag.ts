@@ -10,6 +10,10 @@ import { onAppEvent, setDragEscapeCapture } from "../drag/dragNative";
 import { isWebPageUrl } from "../../lib/url";
 import { isWithin } from "./bookmarks";
 
+export type SidebarSpan = { from: number; to: number };
+export const NO_SIDEBAR: SidebarSpan = { from: 0, to: 0 };
+export const overSidebar = (span: SidebarSpan, x: number) => x >= span.from && x < span.to;
+
 export type BarDragSource = { kind: "bookmark"; id: string; panel: string | null } | { kind: "tabs"; tabIds: string[] } | { kind: "links" };
 
 export type ZoneHit = { spot: DropSpot | null; springOpen?: () => void };
@@ -27,10 +31,10 @@ type BarDrag = {
   x: number;
   y: number;
   grab: { x: number; y: number; width: number; height: number };
-  sidebarEdge: number;
+  sidebar: SidebarSpan;
 };
 
-const IDLE: BarDrag = { windowId: null, source: null, spot: null, x: 0, y: 0, grab: { x: 0, y: 0, width: 0, height: 0 }, sidebarEdge: 0 };
+const IDLE: BarDrag = { windowId: null, source: null, spot: null, x: 0, y: 0, grab: { x: 0, y: 0, width: 0, height: 0 }, sidebar: NO_SIDEBAR };
 
 export const useBarDrag = create<BarDrag>()(() => IDLE);
 
@@ -93,10 +97,10 @@ export function beginBookmarkDrag(options: {
   x: number;
   y: number;
   grab: BarDrag["grab"];
-  sidebarEdge: number;
+  sidebar: SidebarSpan;
 }) {
-  const { windowId, id, panel, x, y, grab, sidebarEdge } = options;
-  useBarDrag.setState({ ...IDLE, windowId, source: { kind: "bookmark", id, panel }, x, y, grab, sidebarEdge });
+  const { windowId, id, panel, x, y, grab, sidebar } = options;
+  useBarDrag.setState({ ...IDLE, windowId, source: { kind: "bookmark", id, panel }, x, y, grab, sidebar });
   holdMenuPanel(panel);
   track(windowId, x, y, id);
 }
@@ -108,14 +112,14 @@ export function moveBookmarkDrag(x: number, y: number) {
 }
 
 export function endBookmarkDrag(commit: boolean) {
-  const { windowId, source, x, y, sidebarEdge } = useBarDrag.getState();
+  const { windowId, source, x, y, sidebar } = useBarDrag.getState();
   if (!windowId || source?.kind !== "bookmark") return;
   const spot = commit ? track(windowId, x, y, source.id) : null;
   const b = useBrowser.getState().bookmarks;
   const node = b.nodes[source.id];
   const target = spot ? moveTarget(b, source.id, spot) : null;
   if (target) moveBookmark(source.id, target.parentId, target.index);
-  const toSidebar = commit && !spot && node?.kind === "folder" && x < sidebarEdge;
+  const toSidebar = commit && !spot && node?.kind === "folder" && overSidebar(sidebar, x);
   finish();
   holdMenuPanel(null);
   if (toSidebar) addFolderToSidebar(source.id, windowId);

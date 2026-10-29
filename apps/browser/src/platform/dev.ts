@@ -9,9 +9,9 @@ export const devSnapshotWindow = (windowId: string, path: string, transparent = 
 export const devSetPointer = (windowId: string, point: { x: number; y: number } | null) => Dev.devSetPointer(windowId, point?.x ?? 0, point?.y ?? 0, !!point);
 export const devSetMouseButtons = (pressed: boolean | null) => Dev.devSetMouseButtons(pressed === null ? -1 : pressed ? 1 : 0);
 export const devHoverStats = (reset = true) => Dev.devHoverStats(reset);
-export const devLeftEdgePointer = (windowId: string, point: { x: number; y: number } | null) =>
-  Dev.devLeftEdgePointer(windowId, point?.x ?? 0, point?.y ?? 0, !!point);
-export const devLeftEdgeStats = (reset = false) => Dev.devLeftEdgeStats(reset);
+export const devSidebarEdgePointer = (windowId: string, point: { x: number; y: number } | null) =>
+  Dev.devSidebarEdgePointer(windowId, point?.x ?? 0, point?.y ?? 0, !!point);
+export const devSidebarEdgeStats = (reset = false) => Dev.devSidebarEdgeStats(reset);
 export const devTypeKeys = (windowId: string, text: string, interval: number) => Dev.devTypeKeys(windowId, text, interval);
 export const devKeyEquivalent = (windowId: string, press: KeyPress): Promise<KeyPressResult> => Dev.devKeyEquivalent(windowId, press);
 export const devClick = (windowId: string, click: Click): Promise<ClickResult> => Dev.devClick(windowId, click);

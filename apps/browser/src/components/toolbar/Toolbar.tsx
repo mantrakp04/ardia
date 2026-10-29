@@ -17,6 +17,7 @@ import { closePane, openSplitPane, showSplitMenu } from "../../state/splits/acti
 import { useEasedColor, type ToolbarPalette } from "../ui/toolbarColors";
 import { useSitePalette } from "./useSitePalette";
 import { setToolbarExtensionsWidth } from "../../state/windows/layout";
+import { useSidebarOnRight } from "../../state/windows/hooks";
 import { SIDEBAR_FIELD } from "../sidebar/geometry";
 import { FieldSiteButton, SidebarFieldFill } from "../sidebar/SidebarField";
 import { showUrlBarMenu } from "../../state/omnibox/paste";
@@ -66,6 +67,7 @@ export function Toolbar({
   const palette = useSitePalette(tabId);
   const band = useEasedColor(bare ? null : palette.background);
   const history = useHistoryAvailability(tabId);
+  const sidebarRight = useSidebarOnRight(windowId);
   const row = useToolbarRow();
   const extensionsWidth = useToolbarExtensionsWidth(windowId, Infinity, row.extensionButton);
   useEffect(() => setToolbarExtensionsWidth(windowId, extensionsWidth), [windowId, extensionsWidth]);
@@ -98,7 +100,7 @@ export function Toolbar({
           <Button variant="icon" toolbar
             style={at.sidebarButton}
             palette={palette}
-            icon="sidebar.left"
+            icon={sidebarRight ? "sidebar.right" : "sidebar.left"}
             size={GLYPH}
             box={row.button}
             radius={row.buttonRadius}

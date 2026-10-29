@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
-import { useBookmarkProfileId, useBookmarks, useSidebarEdge } from "../../state/bookmarks/hooks";
+import { useBookmarkProfileId, useBookmarks, useSidebarSpan } from "../../state/bookmarks/hooks";
 import { openFolder, openModeFor, openUrl } from "../../state/bookmarks/actions";
 import { addFolderToSidebar, makesGroup } from "../../state/bookmarks/bookmarkGroups";
 import { folderLinks } from "../../state/bookmarks/bookmarks";
@@ -269,11 +269,11 @@ function FolderRow({
   const dragging = useBarDrag((s) => s.source?.kind === "bookmark" && s.source.id === id);
   const anyDrag = useBarDrag((s) => !!s.source);
   const dropInto = useBarDrag((s) => !!s.spot && "into" in s.spot && s.spot.into === id);
-  const sidebarEdge = useSidebarEdge(windowId, useSidebarWidth(windowId));
-  const edge = useRef(sidebarEdge);
-  edge.current = sidebarEdge;
+  const sidebarSpan = useSidebarSpan(windowId, useSidebarWidth(windowId));
+  const edge = useRef(sidebarSpan);
+  edge.current = sidebarSpan;
   const shift = useSlide(offset);
-  const responder = useBookmarkDragResponder(view, () => ({ windowId, id, panel: panel.key, sidebarEdge: edge.current }), [windowId, id, panel.key]);
+  const responder = useBookmarkDragResponder(view, () => ({ windowId, id, panel: panel.key, sidebar: edge.current }), [windowId, id, panel.key]);
   useEffect(() => () => clearTimeout(hoverTimer.current), []);
   if (!node) return null;
   const folder = node.kind === "folder";

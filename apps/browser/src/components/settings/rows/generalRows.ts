@@ -139,6 +139,12 @@ export const generalRows = {
           description: "A tab whose page isn't loaded, like a closed pinned tab or one restored after a relaunch, shows its icon faded, as sleeping tabs do. Clicking it loads the page.",
           keywords: ["unloaded", "asleep", "sleeping", "discarded", "dim", "grey", "gray", "inactive", "pinned", "closed"],
         },
+        sidebarSide: {
+          title: "Sidebar on the right",
+          description: "The traffic lights hide with it; point at the top edge of the window to bring them back.",
+          keywords: ["right sidebar", "left sidebar", "sidebar position", "move sidebar", "side"],
+          shown: inSidebar,
+        },
       },
     },
     {

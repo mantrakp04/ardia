@@ -173,6 +173,7 @@ enum MainMenu {
       cmd(.forceReload).alternate(),
       .separator(),
       cmd(.toggleTabLayout),
+      cmd(.toggleSidebarSide),
       cmd(.toggleSidebar),
       .separator(),
       cmd(.openSplitPane),

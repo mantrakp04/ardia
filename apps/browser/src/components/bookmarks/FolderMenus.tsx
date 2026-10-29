@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Animated, StyleSheet, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { useBookmarks } from "../../state/bookmarks/hooks";
-import { useBarDrag, watchBookmarkEscape } from "../../state/bookmarks/barDrag";
+import { overSidebar, useBarDrag, watchBookmarkEscape } from "../../state/bookmarks/barDrag";
 import { closeFolderMenus, useFolderMenus, type FolderMenuPanel, type MenuRect } from "../../state/bookmarks/folderMenus";
 import { useActiveTabId, useWindowId } from "../../state/browser/hooks";
 import { OutsidePressArea, Panel, shadow, Text, useTheme } from "../ui";
@@ -70,11 +70,11 @@ const keyOf = (p: FolderMenuPanel) => `${p.level}:${p.key}`;
 function DragGhost({ windowId, layer }: { windowId: string; layer: MenuRect }) {
   const theme = useTheme();
   const size = useBarSize();
-  const drag = useBarDrag(useShallow((s) => (s.windowId === windowId && s.source?.kind === "bookmark" ? { id: s.source.id, x: s.x, y: s.y, grab: s.grab, edge: s.sidebarEdge } : null)));
+  const drag = useBarDrag(useShallow((s) => (s.windowId === windowId && s.source?.kind === "bookmark" ? { id: s.source.id, x: s.x, y: s.y, grab: s.grab, edge: s.sidebar } : null)));
   const node = useBookmarks((b) => (drag ? b.nodes[drag.id] : undefined));
   const shown = useEased(!!drag);
   if (!drag || !node) return null;
-  const toSidebar = node.kind === "folder" && drag.x < drag.edge;
+  const toSidebar = node.kind === "folder" && overSidebar(drag.edge, drag.x);
   return (
     <Animated.View
       pointerEvents="none"

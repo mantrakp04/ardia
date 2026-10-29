@@ -9,6 +9,7 @@ import { durationMinutes, durationParts, type DurationUnit } from "../../../lib/
 import { cleanUpChoices, CUSTOM_CLEAN_UP, DAILY_CLEAN_UP_MINUTES } from "../../../state/settings/cleanUpAfter";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { Group, Row, SectionHeader, SettingToggle } from "../Form";
+import { Toggle } from "../../ui/Switch";
 import { PictureChoice } from "../PictureChoice";
 import { setting, type SettingId } from "../settingsIndex";
 import { useSettingsColors } from "../useSettingsColors";
@@ -73,6 +74,7 @@ export function TabsPane() {
   const newTabButtonPosition = useSettings((s) => s.newTabButtonPosition);
   const cleanUpMinutes = useSettings((s) => s.cleanUpInactiveTabsAfterMinutes);
   const top = useTabLayout() === "top";
+  const sidebarSide = useSettings((s) => s.sidebarSide);
 
   return (
     <View>
@@ -88,6 +90,9 @@ export function TabsPane() {
         <SettingToggle anchor="tabs.balancedTopApps" />
         <SettingToggle anchor="tabs.pinnedTabIconRing" />
         <SettingToggle anchor="tabs.fadeUnloadedTabs" />
+        <Row anchor="tabs.sidebarSide">
+          <Toggle value={sidebarSide === "right"} onChange={(v) => updateSettings({ sidebarSide: v ? "right" : "left" })} />
+        </Row>
       </Group>
 
       <SectionHeader title="General" />

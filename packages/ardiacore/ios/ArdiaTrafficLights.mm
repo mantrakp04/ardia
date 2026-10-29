@@ -282,6 +282,9 @@ void RetileTrafficLights(NSWindow *window) {
     const SEL sel = NSSelectorFromString(name);
     if ([frameView respondsToSelector:sel]) ((void (*)(id, SEL))objc_msgSend)(frameView, sel);
   }
+  NSButton *close = [window standardWindowButton:NSWindowCloseButton];
+  for (NSView *view = close.superview; view; view = view == frameView ? nil : view.superview) [view updateTrackingAreas];
+  for (NSWindowButton kind : {NSWindowCloseButton, NSWindowMiniaturizeButton, NSWindowZoomButton}) [[window standardWindowButton:kind] updateTrackingAreas];
   SyncSharingWindows(window);
 }
 

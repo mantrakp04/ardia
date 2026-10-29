@@ -121,7 +121,7 @@ test("a drag session: the zone under the pointer decides, a menu zone wins over 
     resolve: (x, y) => (y >= 20 && y < 100 ? { spot: { parentId: n.f, slot: Math.floor((y - 20) / 28), zone: "menu" } } : undefined),
   });
   openFolderMenu("w", { parentId: n.f, fromIndex: 0, anchor: { x: 0, y: 0, width: 10, height: 10 }, level: 0 });
-  beginBookmarkDrag({ windowId: "w", id: n.x, panel: n.f, x: 10, y: 30, grab: { x: 0, y: 0, width: 10, height: 10 }, sidebarEdge: 0 });
+  beginBookmarkDrag({ windowId: "w", id: n.x, panel: n.f, x: 10, y: 30, grab: { x: 0, y: 0, width: 10, height: 10 }, sidebar: { from: 0, to: 0 } });
   assert.deepEqual(useBarDrag.getState().spot, { parentId: n.f, slot: 0, zone: "menu" });
   moveBookmarkDrag(10, 10);
   assert.deepEqual(useBarDrag.getState().spot, { parentId: n.bar, slot: 0, zone: "bar" });
@@ -133,7 +133,7 @@ test("a drag session: the zone under the pointer decides, a menu zone wins over 
   assert.equal(useBarDrag.getState().source, null);
   assert.equal(useFolderMenus.getState().panels.length, 0, "a drag out of a menu closes it");
 
-  beginBookmarkDrag({ windowId: "w", id: n.f, panel: null, x: 60, y: 10, grab: { x: 0, y: 0, width: 10, height: 10 }, sidebarEdge: 0 });
+  beginBookmarkDrag({ windowId: "w", id: n.f, panel: null, x: 60, y: 10, grab: { x: 0, y: 0, width: 10, height: 10 }, sidebar: { from: 0, to: 0 } });
   moveBookmarkDrag(60, 10);
   assert.equal(useBarDrag.getState().spot, null, "a folder can't be dropped on itself");
   endBookmarkDrag(true);
@@ -164,9 +164,9 @@ test("a drop reaches Chrome's bookmarks as a move, so sync and the bookmark mana
   await settle();
   const bar = bookmarkRoots(S(), "default").bar;
   const zone = registerDropZone("sync", { windowId: "w", depth: 0, resolve: (px) => ({ spot: px < 10 ? { parentId: bar, slot: 0 } : { into: f } }) });
-  beginBookmarkDrag({ windowId: "w", id: x, panel: f, x: 0, y: 0, grab: { x: 0, y: 0, width: 1, height: 1 }, sidebarEdge: 0 });
+  beginBookmarkDrag({ windowId: "w", id: x, panel: f, x: 0, y: 0, grab: { x: 0, y: 0, width: 1, height: 1 }, sidebar: { from: 0, to: 0 } });
   endBookmarkDrag(true);
-  beginBookmarkDrag({ windowId: "w", id: a, panel: null, x: 20, y: 0, grab: { x: 0, y: 0, width: 1, height: 1 }, sidebarEdge: 0 });
+  beginBookmarkDrag({ windowId: "w", id: a, panel: null, x: 20, y: 0, grab: { x: 0, y: 0, width: 1, height: 1 }, sidebar: { from: 0, to: 0 } });
   endBookmarkDrag(true);
   await settle();
   const db = stub.chromeBookmarks("");

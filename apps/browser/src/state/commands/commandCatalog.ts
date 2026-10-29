@@ -53,6 +53,7 @@ export const COMMANDS = {
   reload: { title: "Refresh", barTitle: "Reload Page", symbol: "arrow.clockwise", keys: ["⌘R"], ...pageInLittleArdia },
   forceReload: { title: "Force Refresh the Page", barTitle: "Force Reload Page", symbol: "arrow.clockwise", keys: ["⇧⌘R"], ...pageInLittleArdia },
   toggleTabLayout: { title: "Show Tabs in Sidebar", keys: ["⇧⌘S"], ...windowOffInLittleArdia },
+  toggleSidebarSide: { title: "Sidebar on the Right", ...windowOffInLittleArdia },
   toggleSidebar: { title: "Auto-Hide Tabs", symbol: "sidebar.left", keys: ["⌘S", "⇧⌘L", "⇧⌘F"], ...windowOffInLittleArdia },
   openSplitPane: { title: "Open Split Pane", keys: ["⌃⇧=", "⌃+"], ...windowOffInLittleArdia },
   useSelectionForFind: { title: "Use Selection for Find", keys: ["⌘E"], ...pageInLittleArdia },

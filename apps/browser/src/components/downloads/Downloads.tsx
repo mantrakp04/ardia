@@ -26,7 +26,7 @@ import { useDownloads, useSidebarOpen, useWindowId, useWindowUi } from "../../st
 import { clearDownloads, setDownloadsOpen } from "../../state/windows/actions";
 import { watchNewDownloads } from "../../state/windows/downloadWatch";
 import { useDownload } from "../../state/windows/hooks";
-import { useAddressBarInSidebar, useTabLayout, useToolbarLightsCenter } from "../../state/windows/layout";
+import { useAddressBarInSidebar, useSidebarSide, useTabLayout, useToolbarLightsCenter } from "../../state/windows/layout";
 import { SIDEBAR_FOOTER_DOWNLOADS } from "../sidebar/geometry";
 import { PROFILE_DOTS_HEIGHT } from "../profiles/ProfileDots";
 import { openInternalPage } from "../../state/pages/urls";
@@ -76,8 +76,9 @@ function DownloadsPanel({ windowId, closing, onClosed }: { windowId: string; clo
   const { ids, clearable } = shownList.current;
   const topStrip = useTabLayout() === "top";
   const addressBar = useAddressBarInSidebar();
+  const right = useSidebarSide() === "right";
   const setOpen = (value: boolean) => setDownloadsOpen(windowId, value);
-  const { root, placement: p, onLayout } = useDownloadsPlacement(windowId, closing, { topStrip, footer: addressBar, footerBottom: PROFILE_DOTS_HEIGHT + 2 });
+  const { root, placement: p, onLayout } = useDownloadsPlacement(windowId, closing, { topStrip, right, footer: addressBar, footerBottom: PROFILE_DOTS_HEIGHT + 2 });
   const placed = p !== null;
   const appear = usePopoverMotion(closing, onClosed, placed);
 
@@ -265,6 +266,7 @@ export function DownloadMagnet() {
   const sidebarWidth = useSidebarWidth(windowId);
   const topStrip = useTabLayout() === "top";
   const addressBar = useAddressBarInSidebar();
+  const right = useSidebarSide() === "right";
   const lightsY = useToolbarLightsCenter()[1];
   const [flight, setFlight] = useState<{ id: string; path: string } | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -279,15 +281,17 @@ export function DownloadMagnet() {
   }, [windowId]);
 
   const sidebar = !topStrip && sidebarOpen ? sidebarWidth : 0;
-  const footer = { x: layout.sidebarInset + SIDEBAR_FOOTER_DOWNLOADS.size / 2, y: size.height - SIDEBAR_FOOTER_DOWNLOADS.bottom - SIDEBAR_FOOTER_DOWNLOADS.size / 2 };
+  const footer = { x: (right ? size.width - sidebarWidth : 0) + layout.sidebarInset + SIDEBAR_FOOTER_DOWNLOADS.size / 2, y: size.height - SIDEBAR_FOOTER_DOWNLOADS.bottom - SIDEBAR_FOOTER_DOWNLOADS.size / 2 };
   const target = topStrip
     ? { x: size.width - MAGNET.topStripTarget.right, y: MAGNET.topStripTarget.y }
     : addressBar
       ? footer
       : sidebarOpen
-        ? { x: sidebarWidth - MAGNET.sidebarTarget.right, y: lightsY }
-        : MAGNET.closedTarget;
-  const start = { x: sidebar + (size.width - sidebar) / 2, y: size.height * MAGNET.startShare };
+        ? { x: right ? size.width - MAGNET.sidebarTarget.right : sidebarWidth - MAGNET.sidebarTarget.right, y: lightsY }
+        : right
+          ? { x: size.width - MAGNET.closedTarget.x, y: MAGNET.closedTarget.y }
+          : MAGNET.closedTarget;
+  const start = { x: (right ? 0 : sidebar) + (size.width - sidebar) / 2, y: size.height * MAGNET.startShare };
   const icon = MAGNET.icon;
   const steps = [0, 0.25, 0.5, 0.75, 1];
   const x = t.interpolate({ inputRange: steps, outputRange: steps.map((p) => start.x + (target.x - start.x) * p - icon / 2) });

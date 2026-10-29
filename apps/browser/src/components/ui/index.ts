@@ -30,6 +30,7 @@ export {
   Meadow,
   meadowTextStyle,
   MouseArea,
+  LightsBarClip,
   OutsidePressArea,
   PopoverBubble,
   PowerUp,

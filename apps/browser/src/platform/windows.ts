@@ -6,7 +6,7 @@ export {
   restoreFullScreen,
   setWindowTitle,
   setTrafficLightsCenter,
-  watchLeftEdge,
+  watchSidebarEdge,
   raiseView,
   windowFrame,
   windowIds,

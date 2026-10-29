@@ -50,6 +50,8 @@ export const STATUS_MOTION = {
   hide: { duration: 220, easing: curve.inQuad, delay: 180 },
 } as const;
 
+export const LIGHTS_BAR_MOTION = { slide: { duration: 150, easing: curve.inOutSine }, hideDelay: 120 } as const;
+
 export const CLI_PILL_MOTION = {
   show: { duration: 160, easing: curve.outCubic },
   hide: { duration: 200, easing: curve.inQuad },

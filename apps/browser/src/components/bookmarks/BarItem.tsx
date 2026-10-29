@@ -1,8 +1,8 @@
 import { forwardRef, useMemo, useRef, type ReactNode } from "react";
 import { Animated, PanResponder, Pressable, StyleSheet, View, type LayoutRectangle } from "react-native";
-import { useBookmarkProfileId, useBookmarks, useSidebarEdge } from "../../state/bookmarks/hooks";
+import { useBookmarkProfileId, useBookmarks, useSidebarSpan } from "../../state/bookmarks/hooks";
 import { openModeFor, openUrl } from "../../state/bookmarks/actions";
-import { barDragging, beginBookmarkDrag, endBookmarkDrag, moveBookmarkDrag, useBarDrag } from "../../state/bookmarks/barDrag";
+import { barDragging, beginBookmarkDrag, endBookmarkDrag, moveBookmarkDrag, useBarDrag, type SidebarSpan } from "../../state/bookmarks/barDrag";
 import { folderMenuOpen, openFolderMenu, toggleFolderMenu, useFolderMenus } from "../../state/bookmarks/folderMenus";
 import { useWindowId } from "../../state/browser/hooks";
 import { openImport } from "../../state/settings/settingsWindows";
@@ -16,7 +16,7 @@ import { useBarSize } from "./barSize";
 
 export function useBookmarkDragResponder(
   view: { current: View | null },
-  source: () => { windowId: string; id: string; panel: string | null; sidebarEdge: number },
+  source: () => { windowId: string; id: string; panel: string | null; sidebar: SidebarSpan },
   deps: unknown[],
 ) {
   const latest = useRef(source);
@@ -70,15 +70,15 @@ export function BarItem({
   const node = useBookmarks((b) => b.nodes[id]);
   const size = useBarSize();
   const width = useSidebarWidth(windowId);
-  const sidebarEdge = useSidebarEdge(windowId, width);
-  const edge = useRef(sidebarEdge);
-  edge.current = sidebarEdge;
+  const sidebarSpan = useSidebarSpan(windowId, width);
+  const edge = useRef(sidebarSpan);
+  edge.current = sidebarSpan;
   const view = useRef<View | null>(null);
   const dragging = useBarDrag((s) => s.source?.kind === "bookmark" && s.source.id === id);
   const dropInto = useBarDrag((s) => !!s.spot && "into" in s.spot && s.spot.into === id);
   const menuOpen = useFolderMenus((s) => s.windowId === windowId && s.panels.some((p) => p.level === 0 && !p.retained && p.key === id));
   const shift = useSlide(offset);
-  const responder = useBookmarkDragResponder(view, () => ({ windowId, id, panel: null, sidebarEdge: edge.current }), [windowId, id]);
+  const responder = useBookmarkDragResponder(view, () => ({ windowId, id, panel: null, sidebar: edge.current }), [windowId, id]);
   if (!node) return null;
   const folder = node.kind === "folder";
   const openMenu = (toggle: boolean) =>

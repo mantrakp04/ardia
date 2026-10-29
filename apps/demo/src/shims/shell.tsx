@@ -10,6 +10,7 @@ export {
   ContextMenuArea,
   DockSelection,
   GlassEffect,
+  LightsBarClip,
   OutsidePressArea,
   Surface,
   VisualEffect,

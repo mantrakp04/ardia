@@ -23,7 +23,7 @@ export function useDownloadsPlacement(windowId: string, closing: boolean, fallba
   };
   useEffect(() => {
     if (!closing) locate();
-  }, [closing, fallback.topStrip, fallback.footer]);
+  }, [closing, fallback.topStrip, fallback.right, fallback.footer]);
   useEffect(() => {
     if (placement || !viewport) return;
     const timer = setTimeout(() => setPlacement((placed) => placed ?? downloadsPlacement(viewport, null, latest.current.fallback)), DOWNLOADS_LIST.placeDeadlineMs);

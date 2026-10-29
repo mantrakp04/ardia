@@ -7,7 +7,7 @@ import { closePanel } from "../../state/windows/actions";
 import { useActiveTabIdWhile, useCommandBarCentred, useTabHasUrlWhile } from "../../state/omnibox/hooks";
 import { usePage } from "../../state/tabs/pageState";
 import { dismissHover, setRowsCovered } from "../../state/sidebar/hover";
-import { useCardAnchors, useUrlAnchors } from "../../state/windows/layout";
+import { useCardAnchors, useSidebarSide, useUrlAnchors } from "../../state/windows/layout";
 import { barWidth } from "../ntp/NewTabPage";
 import { closeNewTabBar } from "../../state/omnibox/newTabBar";
 import type { NewTabTarget } from "../../state/browser/types";
@@ -42,6 +42,7 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
   const anchor = useUrlAnchors((s) => (panel.open ? s[windowId] : undefined));
   const centred = useCommandBarCentred(windowId, panel.open && !panel.newTab);
   const card = useCardAnchors((s) => (panel.newTab || centred ? s[windowId] : undefined));
+  const right = useSidebarSide() === "right";
   const toolbarRow = useToolbarRow();
   const overRows = panel.open && !panel.newTab && !centred && !!anchor?.sidebar;
   useEffect(() => {
@@ -68,10 +69,15 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
   if (!anchor) return null;
 
   if (anchor.sidebar) {
-    const shown = anchor.left >= 0;
-    const left = shown ? anchor.left : WINDOW_MARGIN;
-    const width = Math.min(Math.max(DROPDOWN_MIN_WIDTH, anchor.width + DROPDOWN_PAST_FIELD), room(left, DROPDOWN_MIN_WIDTH));
-    const from = shown ? { left, top: anchor.top, width: anchor.width, height: anchor.sidebar.height } : null;
+    const shown = anchor.left >= 0 && (windowWidth <= 0 || anchor.left + anchor.width <= windowWidth);
+    const wanted = Math.max(DROPDOWN_MIN_WIDTH, anchor.width + DROPDOWN_PAST_FIELD);
+    const width = right && windowWidth > 0 ? Math.min(wanted, windowWidth - WINDOW_MARGIN * 2) : Math.min(wanted, room(shown ? anchor.left : WINDOW_MARGIN, DROPDOWN_MIN_WIDTH));
+    const left = right && windowWidth > 0
+      ? Math.max(WINDOW_MARGIN, (shown ? anchor.left + anchor.width : windowWidth - WINDOW_MARGIN) - width)
+      : shown
+        ? anchor.left
+        : WINDOW_MARGIN;
+    const from = shown ? { left: anchor.left, top: anchor.top, width: anchor.width, height: anchor.sidebar.height } : null;
     return (
       <Grow from={from} frame={{ left, top: anchor.top, width }} openHeight={anchor.sidebar.height} radius={DROPDOWN_RADIUS} surface={surface(DROPDOWN_RADIUS)}>
         <OutsidePressArea onOutsidePress={onCancel}>
