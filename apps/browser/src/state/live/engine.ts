@@ -4,7 +4,7 @@ import { useBrowser, type BrowserState } from "../browser/store";
 import { activeTabId, inPinnedContainer, viewTabIds } from "../browser/model";
 import { awayFromPin } from "../pins/organize";
 import { pinnedGroupMembers } from "../browser/structure";
-import { splitOf, splitTabIdsOf } from "../splits/splits";
+import { shownTabIds } from "../tabs/shownTabs";
 import { repoKey } from "./rows";
 import { SOURCES } from "./sources";
 import { applyFetch, createFolder, releaseShownRepos, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
@@ -208,16 +208,12 @@ function markCompletedTabs(folderId: string, gone: Record<string, CompletionStat
   closeCompletedTabs();
 }
 
-function onScreen(s: BrowserState, tabId: string) {
-  const shown = activeTabId(s, s.tabs[tabId]!.windowId);
-  return shown === tabId || !!splitTabIdsOf(splitOf(s, shown))?.includes(tabId);
-}
-
 function closeCompletedTabs() {
   const s = useBrowser.getState();
   const { folders, items } = live();
+  const shown = shownTabIds(s);
   const tabs = Object.values(s.tabs)
-    .filter(({ id, liveItem: ref }) => ref?.completed && folders[ref.folderId]?.showCompleted === false && !onScreen(s, id) && !items[ref.folderId]?.some((it) => it.id === ref.itemId))
+    .filter(({ id, liveItem: ref }) => ref?.completed && folders[ref.folderId]?.showCompleted === false && !shown.has(id) && !items[ref.folderId]?.some((it) => it.id === ref.itemId))
     .map((t) => t.id);
   if (tabs.length) s.closeTabs(tabs);
 }
@@ -268,7 +264,7 @@ export function startLiveEngine() {
   });
 
   useBrowser.subscribe((s, prev) => {
-    if (s.windows !== prev.windows || s.splits !== prev.splits) closeCompletedTabs();
+    if (s.windows !== prev.windows || s.splits !== prev.splits || s.peeks !== prev.peeks) closeCompletedTabs();
   });
 
   useBrowser.subscribe((s, prev) => {
