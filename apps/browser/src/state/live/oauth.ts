@@ -21,8 +21,10 @@ function query(url: string): Map<string, string> {
   );
 }
 
+export const cancelSignIn = () => pending?.cancel();
+
 export function authorizeInTab(windowId: string, url: string, state: string): Promise<Map<string, string>> {
-  pending?.cancel();
+  cancelSignIn();
   const tabId = useBrowser.getState().newTab(windowId, { url });
   return new Promise<Map<string, string>>((resolve, reject) => {
     const stop = useBrowser.subscribe((s, prev) => {
@@ -41,7 +43,12 @@ export function authorizeInTab(windowId: string, url: string, state: string): Pr
       if (params) resolve(params);
       else reject(error);
     };
-    pending = { cancel: () => finish(new Error("Cancelled")) };
+    pending = {
+      cancel: () => {
+        finish(new Error("Cancelled"));
+        useBrowser.getState().closeTab(tabId);
+      },
+    };
   });
 }
 
