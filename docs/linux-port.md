@@ -476,6 +476,24 @@ Linux reads calendars from Evolution Data Server, which GNOME Online Accounts, G
     or side panel. Named commands fire `chrome.commands.onCommand`, and global commands keep Chromium's listener.
   - In private windows only incognito-allowed extensions are registered.
   - Chromium 156 has no `_execute_side_panel`; it is an ordinary named command.
+- **Tabs and windows extensions open.** A tab Chrome inserts by itself (`chrome.tabs.create`, an action's
+  `onClicked`, a URL handed to the running instance) has no opener page to report it, so the host does.
+  - Each window notes tabs inserted outside Ardia's own operations (`unclaimed_` in `ac_linux_host.cc`). It also notes
+    tabs already in the window when it attaches, unless they're blank or look restored by Chromium (more than one
+    history entry, or an entry marked restored). In a window Chrome made, an `about:blank` tab counts too, so a
+    later `chrome.tabs.update` lands in a tab the sidebar shows; Chrome's New Tab page is left to Ardia's own first
+    tab, which adopts it.
+  - A tab a page already reported, or one bound in any window, is left alone. A blank URL gets 20 tries, 25 ms apart,
+    to resolve.
+  - The shell asks for its window's waiting tabs once it listens (`ArdiaTabs.unclaimedTabs`) and gets later ones as
+    `ArdiaTabs`/`unclaimed` events. A new renderer has to ask again, and gets again any tab an earlier renderer was
+    told about but never bound. After a shell crash that can add a second sidebar entry for a background tab the
+    crashed shell had saved, which is preferred over a tab nobody can see.
+  - `apps/linux/src/unclaimedTabs.ts` opens each one in its own window, selected only if the extension asked for
+    `active` and the tab is still Chrome's active tab.
+  - A window Chrome makes (`chrome.windows.create`) is marked `chromeMade` in its bootstrap and lists its tabs in
+    `adoptTabs`. `initialHostSession` seeds the window with them instead of a blank tab, and the window is saved like
+    any other instead of waiting for an opener to save it.
 - **Install prompts.** These are never auto-accepted. They show in the window of the tab that asked and end with that
   tab. Nothing installs without Add Extension. Popups size between 25×25 and 800×600.
 - **Native messaging hosts.** Ardia looks for `<name>.json` in this order:
