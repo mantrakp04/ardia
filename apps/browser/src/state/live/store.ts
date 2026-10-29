@@ -337,6 +337,10 @@ export function releaseShownRepos(folderId: string, fetchedSources: Set<LiveSour
   });
 }
 
+export function hideStack(folderId: string, stackId: string) {
+  hideItems(folderId, (live().items[folderId] ?? []).filter((it) => it.pr?.stack?.id === stackId));
+}
+
 export function unhide(folderId: string) {
   setLive((s) => {
     const hidden = s.hidden[folderId] ?? [];
