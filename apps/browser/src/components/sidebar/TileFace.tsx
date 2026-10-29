@@ -3,7 +3,7 @@ import { Animated, StyleSheet, View } from "react-native";
 import { DockSelection, radius, Surface } from "../ui";
 import { hex, layout, useTheme } from "../ui/theme";
 import { useTileTheme, type TileTheme } from "../../state/favicons/tileTheme";
-import { useTab } from "../../state/browser/hooks";
+import { useSettings, useTab } from "../../state/browser/hooks";
 import { useBrowserWhile } from "../../state/tabs/tabWatch";
 import { GlassFill, liquidGlass } from "../ui/Glass";
 import { SLIDE } from "../tabstrip/stripReorder";
@@ -15,6 +15,8 @@ const SELECTION_STROKE = 3;
 const GLASS_RING = 2;
 export const TILE_RADIUS = radius.card;
 
+export const usePinnedGlass = () => useSettings((s) => liquidGlass && s.pinnedTabsGlass);
+
 type FaceState = { width: number; active: boolean; selected: boolean; hovered: boolean; pressed: boolean };
 
 export function TileFace({ tabId, badge, ...state }: FaceState & { tabId: string; badge?: ReactNode }) {
@@ -22,6 +24,7 @@ export function TileFace({ tabId, badge, ...state }: FaceState & { tabId: string
   const tab = useTab(tabId);
   const tileTheme = useTileTheme(tab?.url ?? "", tab?.favicon, tab?.customIcon, tab?.profileId ?? "");
   const iconRing = useBrowserWhile(state.active, (s) => state.active && s.settings.pinnedTabIconRing);
+  const glass = usePinnedGlass();
   if (!tab) return null;
   const { width, active } = state;
   const icon = (
@@ -30,7 +33,7 @@ export function TileFace({ tabId, badge, ...state }: FaceState & { tabId: string
       <TabBadges tabId={tabId} />
     </View>
   );
-  if (liquidGlass && !(iconRing && active && tileTheme))
+  if (glass && !(iconRing && active && tileTheme))
     return (
       <GlassTile {...state} tileTheme={tileTheme}>
         {icon}
@@ -99,7 +102,8 @@ export function TileFace({ tabId, badge, ...state }: FaceState & { tabId: string
 export function RestingTile({ width, selected, hovered, pressed, children }: Omit<FaceState, "active"> & { children: ReactNode }) {
   const theme = useTheme();
   const tokens = useSidebarTokens();
-  if (liquidGlass)
+  const glass = usePinnedGlass();
+  if (glass)
     return (
       <GlassTile width={width} active={false} selected={selected} hovered={hovered} pressed={pressed} tileTheme={null}>
         {children}

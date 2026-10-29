@@ -4,7 +4,8 @@ import { useTileTheme } from "../../state/favicons/tileTheme";
 import { TabBadges } from "../media/TabBadges";
 import { TabIcon } from "../sidebar/TabIcon";
 import { DockSelection } from "../ui";
-import { GlassFill, liquidGlass } from "../ui/Glass";
+import { GlassFill } from "../ui/Glass";
+import { usePinnedGlass } from "../sidebar/TileFace";
 import { useTheme } from "../ui/theme";
 import { ITEM_HEIGHT, PINNED_CELL, PINNED_FACE_INSET, PINNED_FACE_RADIUS, PINNED_RING_STROKE } from "./tokens";
 
@@ -13,9 +14,10 @@ export function PinnedFace({ tabId, active, hovered, pressed }: { tabId: string;
   const tab = useTab(tabId);
   const tileTheme = useTileTheme(tab?.url ?? "", tab?.favicon, tab?.customIcon, tab?.profileId ?? "");
   const iconRing = useSettings((s) => s.pinnedTabIconRing);
+  const glass = usePinnedGlass();
   if (!tab) return null;
-  const ring = active && liquidGlass && iconRing && tileTheme ? tileTheme : null;
-  const glassRing = active && liquidGlass && !iconRing;
+  const ring = active && glass && iconRing && tileTheme ? tileTheme : null;
+  const glassRing = active && glass && !iconRing;
   const template = ring?.theme.kind === "template" ? ring.theme : null;
   const face = { position: "absolute", left: PINNED_FACE_INSET, right: PINNED_FACE_INSET, top: PINNED_FACE_INSET, bottom: PINNED_FACE_INSET } as const;
   return (

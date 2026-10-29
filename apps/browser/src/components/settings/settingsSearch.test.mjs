@@ -110,6 +110,8 @@ test("a row its pane doesn't draw is left out of search, by the same rule the pa
   const across = unshown({}, { top: true, liquidGlass: false });
   for (const id of ["tabs.showSidebarButton", "tabs.showClearButton", "tabs.balancedTopApps", "tabs.newTabButtonPosition", "tabs.pinnedTabIconRing"]) assert.ok(across.has(id), id);
   assert.deepEqual([...unshown({}, { top: false, liquidGlass: true })], []);
+  assert.ok(unshown({ pinnedTabsGlass: false }, { top: false, liquidGlass: true }).has("tabs.pinnedTabIconRing"));
+  assert.ok(across.has("tabs.pinnedTabsGlass"));
   assert.ok(unshown({ memorySaver: false }, { top: false, liquidGlass: true }).has("advanced.memorySaverMode"));
   assert.ok(unshown({ pageEngine: "webkit" }, { top: false, liquidGlass: true }).has("engines.protectedVideo"));
 });

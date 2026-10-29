@@ -126,12 +126,19 @@ export const generalRows = {
           keywords: ["pinned tiles", "favorites", "grid", "columns", "rows", "arc"],
           shown: inSidebar,
         },
+        pinnedTabsGlass: {
+          advanced: true,
+          title: "Show pinned tabs as Liquid Glass",
+          description: "Off, pinned tabs use Dia's flat fills and ring, as they do before macOS 26.",
+          keywords: ["liquid glass", "glass", "top apps", "pinned tiles", "flat", "transparent", "macos 26", "tahoe"],
+          shown: (_, env) => env.liquidGlass,
+        },
         pinnedTabIconRing: {
           advanced: true,
           title: "Highlight pinned tabs in their icon's colors",
           description: "As in Dia: the Top App you're on gets a ring and tint from its icon instead of the raised glass.",
           keywords: ["dia", "liquid glass", "top apps", "favicon", "colour", "ring", "tint", "selected tile"],
-          shown: (_, env) => env.liquidGlass,
+          shown: (settings, env) => env.liquidGlass && settings.pinnedTabsGlass,
         },
         fadeUnloadedTabs: {
           advanced: true,
