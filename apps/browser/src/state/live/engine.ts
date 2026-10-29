@@ -3,7 +3,7 @@ import { everySlowly } from "../../platform/slowTimers";
 import { useBrowser } from "../browser/store";
 import { activeTabId, viewTabIds } from "../browser/model";
 import { repoKey } from "./rows";
-import { adoptLegacyAccounts, forgetMissingProfiles, retryOwedLegacyAccounts, SOURCES } from "./sources";
+import { adoptLegacyAccounts, forgetMissingProfiles, legacyAccountsFor, SOURCES } from "./sources";
 import { applyFetch, createFolder, releaseShownRepos, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
 import { LiveError, type CompletionState, type LiveFolderKind, type LiveItem, type LiveSourceId, type PullRequestSection } from "./types";
 
@@ -36,7 +36,9 @@ export function manualRefresh(folderId: string): Promise<void> {
 }
 
 async function run(folderId: string) {
-  await retryOwedLegacyAccounts();
+  const queued = live().folders[folderId];
+  if (!queued) return;
+  await legacyAccountsFor(queued);
   const folder = live().folders[folderId];
   if (!folder) return;
   const before = live();
