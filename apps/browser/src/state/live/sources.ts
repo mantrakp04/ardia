@@ -74,6 +74,11 @@ type GiteaLogin = GiteaCredentials & { site: string };
 let giteaSession = 0;
 let giteaAccess: Promise<{ site: string; token: string }> | null = null;
 
+function newGiteaSession() {
+  giteaSession++;
+  giteaAccess = null;
+}
+
 async function readGiteaLogin(): Promise<{ site: string; token: string }> {
   const session = giteaSession;
   const stored = JSON.parse(await secret("gitea")) as GiteaLogin;
@@ -85,7 +90,12 @@ async function readGiteaLogin(): Promise<{ site: string; token: string }> {
 }
 
 function giteaLogin(): Promise<{ site: string; token: string }> {
-  giteaAccess ??= readGiteaLogin().finally(() => (giteaAccess = null));
+  if (!giteaAccess) {
+    const access = readGiteaLogin().finally(() => {
+      if (giteaAccess === access) giteaAccess = null;
+    });
+    giteaAccess = access;
+  }
   return giteaAccess;
 }
 
@@ -278,7 +288,7 @@ export async function connectGitea(site: string, credentials: GiteaCredentials) 
     if (error instanceof LiveError && !(error.kind === "other" && error.message.startsWith("404"))) throw error;
     throw new LiveError("notConfigured", `There's no Gitea or Forgejo at ${base}`);
   });
-  giteaSession++;
+  newGiteaSession();
   await setSecret("gitea", JSON.stringify({ ...credentials, site: base } satisfies GiteaLogin));
   updateConfig({ giteaSite: base, ...("clientId" in credentials ? { giteaClientId: credentials.clientId } : {}) });
   setAccount("gitea", account(me.login, me.full_name || null, me.avatar_url || null));
@@ -326,7 +336,7 @@ export async function connectGoogle(clientId: string, clientSecret: string, code
 }
 
 export async function disconnect(source: LiveSourceId) {
-  if (source === "gitea") giteaSession++;
+  if (source === "gitea") newGiteaSession();
   await deleteSecret(source);
   setAccount(source, null);
 }
