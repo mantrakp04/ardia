@@ -283,6 +283,11 @@ export const generalRows = {
           description: "Large makes the bar, its icons and its text bigger, and its folder menus roomier.",
           keywords: ["bookmarks bar", "bigger", "larger", "large", "small", "text size", "icon size", "readability", "favorites bar"],
         },
+        showUntitledBookmarkUrls: {
+          title: "Show URL for untitled bookmarks",
+          description: "A bookmark with no name shows its URL on the bar. Turn this off to show only its icon, as Chrome does.",
+          keywords: ["bookmarks bar", "untitled", "no title", "no name", "empty title", "url", "address", "favicon only", "icon only", "compact", "chrome"],
+        },
       },
     },
     {

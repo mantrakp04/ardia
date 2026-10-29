@@ -16,6 +16,8 @@ test("synonyms find the setting they stand for", () => {
   assert.equal(first("mouse wheel"), "privacy.commandScrollZoom");
   assert.equal(first("vertical tabs"), "tabs.layout");
   assert.equal(first("1password"), "passwords.managerApps");
+  assert.equal(first("untitled bookmarks"), "appearance.showUntitledBookmarkUrls");
+  assert.equal(first("favicon only"), "appearance.showUntitledBookmarkUrls");
 });
 
 test("a pane's name finds that pane's rows first", () => {
