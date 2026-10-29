@@ -35,6 +35,7 @@ export const keychainRefusals = new Set<string>();
 export const heldKeychainWrites = { on: false, queue: [] as (() => void)[] };
 export const heldKeychainReads = { on: false, queue: [] as (() => void)[] };
 export const heldSaves = { on: false, queue: [] as (() => void)[] };
+export const failedSaves = { on: false };
 export const bangListServer: { reply: ((etag: string | null) => Promise<BangListReply>) | null } = { reply: null };
 export const appInfo: Partial<SystemInfo> = { appVersion: "1.0" };
 export const diagnostics: { crashReports: CrashReport[]; hardware: HardwareInfo; sample: DiagnosticsSample } = {
@@ -158,7 +159,8 @@ const documents: Modules["ArdiaDocuments"] = {
   readDocument: (name) => docs.get(name) ?? null,
   writeDocument: (name, contents) => void docs.set(name, contents),
   saveDocument: (name, contents) =>
-    new Promise((resolve) => {
+    new Promise((resolve, reject) => {
+      if (failedSaves.on) return reject(new Error("disk full"));
       const land = () => (docs.set(name, contents), resolve());
       if (heldSaves.on) heldSaves.queue.push(land);
       else land();
