@@ -23,7 +23,7 @@ keychainItems.set("confluence", "home-confluence-token");
 keychainItems.set("gdrive", JSON.stringify({ access_token: "a", refresh_token: "r", expires_at: 0, client_secret: "secret-A" }));
 
 const { useBrowser } = await import("../browser/store.ts");
-const { adoptLegacyAccounts, connectConfluence, connectGithub, connectGoogle, disconnect, forgetProfileAccounts, SOURCES } = await import("./sources.ts");
+const { adoptLegacyAccounts, connectConfluence, connectGithub, connectGoogle, disconnect, forgetMissingProfiles, forgetProfileAccounts, SOURCES } = await import("./sources.ts");
 const { live, setAccount, setLegacyAccount, updateConfig } = await import("./store.ts");
 const { settingsBrowserWindow } = await import("../settings/settingsWindows.ts");
 
@@ -266,4 +266,32 @@ test("a profile deleted while the move reads its keychain item gets no account a
 
   assert.equal(live().accounts[doomed]?.notion, undefined);
   assert.equal(keychainItems.has(`notion:${doomed}`), false);
+});
+
+test("a deleted profile keeps its accounts until every keychain item is gone, so a later pass can retry", async () => {
+  const doomed = useBrowser.getState().createProfile({ name: "Temp" });
+  setAccount(doomed, "github", legacyAccount("someone"));
+  keychainItems.set(`github:${doomed}`, "doomed-token");
+  keychainRefusals.add(`github:${doomed}`);
+  useBrowser.getState().deleteProfile(doomed);
+
+  await forgetProfileAccounts(doomed);
+  const keptAfterRefusal = live().accounts[doomed]?.github?.login;
+  keychainRefusals.clear();
+  await forgetProfileAccounts(doomed);
+
+  assert.equal(keptAfterRefusal, "someone");
+  assert.equal(keychainItems.has(`github:${doomed}`), false);
+  assert.equal(live().accounts[doomed], undefined);
+});
+
+test("deleting a profile whose account was never saved still removes its keychain item", async () => {
+  const doomed = useBrowser.getState().createProfile({ name: "Temp" });
+  keychainItems.set(`github:${doomed}`, "unsaved-token");
+
+  useBrowser.getState().deleteProfile(doomed);
+  forgetMissingProfiles([doomed]);
+  await until(() => !keychainItems.has(`github:${doomed}`));
+
+  assert.equal(keychainItems.has(`github:${doomed}`), false);
 });
