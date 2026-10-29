@@ -1,0 +1,530 @@
+--- a/chrome/browser/devtools/BUILD.gn
++++ b/chrome/browser/devtools/BUILD.gn
+@@ -517,6 +517,11 @@
+   if (!is_android) {
+     deps += [ "//chrome/browser/ui:browser_tab_strip_tracker" ]
+   }
++
++  if (is_linux) {
++    public_deps += [ "//ardia/linux:devtools_authority" ]
++    deps += [ "//ui/aura" ]
++  }
+ }
+
+ static_library("test_support") {
+--- a/chrome/browser/devtools/devtools_window.h
++++ b/chrome/browser/devtools/devtools_window.h
+@@ -14,6 +14,9 @@
+ #include "base/scoped_observation.h"
+ #include "base/time/time.h"
+ #include "build/build_config.h"
++#if BUILDFLAG(IS_LINUX)
++#include "ardia/linux/ac_linux_devtools_authority.h"
++#endif
+ #include "chrome/browser/devtools/devtools_contents_resizing_strategy.h"
+ #include "chrome/browser/devtools/devtools_toggle_action.h"
+ #include "chrome/browser/devtools/devtools_ui_bindings.h"
+@@ -102,6 +105,9 @@
+                        public policy::PolicyService::Observer {
+  public:
+   static const char kDevToolsApp[];
++#if BUILDFLAG(IS_LINUX)
++  static void RegisterLinuxDevToolsLifecycle();
++#endif
+
+   DevToolsWindow(const DevToolsWindow&) = delete;
+   DevToolsWindow& operator=(const DevToolsWindow&) = delete;
+@@ -323,6 +329,14 @@
+   void AttachToBrowser(BrowserWindowInterface* browser);
+
+  private:
++#if BUILDFLAG(IS_LINUX)
++  void BindLinuxDevToolsLease(std::shared_ptr<ardiacore::LinuxDevToolsLease> lease,
++                             bool created);
++  void RevokeLinuxDevToolsLease(uint64_t epoch);
++  void SettleRevokedLinuxLoad();
++  ardiacore::LinuxDevToolsState linux_devtools_state_;
++  base::OnceClosure linux_load_completed_callback_;
++#endif
+   friend class DevToolsWindowTesting;
+   friend class DevToolsWindowCreationObserver;
+   friend class HatsNextWebDialogBrowserTest;
+@@ -512,6 +526,9 @@
+   void Show(const DevToolsToggleAction& action);
+   void DoAction(const DevToolsToggleAction& action);
+   void LoadCompleted();
++#if BUILDFLAG(IS_LINUX)
++  LifeStage linux_close_stage_ = kNotLoaded;
++#endif
+   void UpdateBrowserToolbar();
+   void UpdateBrowserWindow();
+
+--- a/chrome/browser/devtools/devtools_window.cc
++++ b/chrome/browser/devtools/devtools_window.cc
+@@ -3,6 +3,9 @@
+ // found in the LICENSE file.
+
+ #include "chrome/browser/devtools/devtools_window.h"
++#if BUILDFLAG(IS_LINUX)
++#include "ui/aura/window.h"
++#endif
+
+ #include <algorithm>
+ #include <memory>
+@@ -612,6 +615,11 @@
+     return nullptr;
+   }
+
++#if BUILDFLAG(IS_LINUX)
++  if (!window->linux_devtools_state_.IsCurrent() &&
++      window->linux_devtools_state_.OwnsFrontend(window->linux_devtools_state_.Capture().epoch)) return nullptr;
++#endif
++
+   // Not yet loaded window is treated as docked, but we should not present it
+   // until we decided on docking.
+   bool is_docked_set = window->life_stage_ == kLoadCompleted ||
+@@ -874,9 +882,16 @@
+     const std::string& settings,
+     DevToolsOpenedByAction toggled_by,
+     const content::DevToolsManagerDelegate::DevToolsOptions& devtools_options) {
++#if BUILDFLAG(IS_LINUX)
++  auto linux_lease = ardiacore::ScopedLinuxDevToolsOperation::Capture(inspected_web_contents);
++  if (linux_lease && !linux_lease->Matches(inspected_web_contents)) return;
++#endif
+   scoped_refptr<DevToolsAgentHost> agent(
+       DevToolsAgentHost::GetOrCreateForTab(inspected_web_contents));
+   DevToolsWindow* window = FindDevToolsWindow(agent.get());
++#if BUILDFLAG(IS_LINUX)
++  const bool linux_created = !window;
++#endif
+   bool do_open = force_open;
+   if (!window) {
+     if (!profile) {
+@@ -905,6 +920,9 @@
+       case DevToolsToggleAction::kNoOp:
+         break;
+     }
++#if BUILDFLAG(IS_LINUX)
++    ardiacore::ScopedLinuxDevToolsOperation creation(inspected_web_contents, linux_lease);
++#endif
+     window = Create(profile, inspected_web_contents, kFrontendDefault,
+                     std::string(), true, settings, panel, agent->IsAttached(),
+                     /* browser_connection */ false, toggled_by);
+@@ -922,11 +940,21 @@
+     }
+   }
+
++#if BUILDFLAG(IS_LINUX)
++  if (linux_created && window->linux_devtools_state_.Capture().lease != linux_lease) return;
++  window->BindLinuxDevToolsLease(linux_lease, false);
++  auto linux_ticket = window->linux_devtools_state_.Capture();
++  auto linux_window = window->weak_factory_.GetWeakPtr();
++#endif
++
+   // Update toolbar to reflect DevTools changes.
+   window->UpdateBrowserToolbar();
+
+   // If window is docked and visible, we hide it on toggle. If window is
+   // undocked, we show (activate) it.
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_window || !linux_window->linux_devtools_state_.IsCurrent(linux_ticket)) return;
++#endif
+   if (!window->is_docked_ || do_open) {
+     window->ScheduleShow(action);
+   } else {
+@@ -1015,7 +1043,96 @@
+   registry.AddThrottle(std::make_unique<Throttle>(registry, window));
+ }
+
++#if BUILDFLAG(IS_LINUX)
++void DevToolsWindow::RegisterLinuxDevToolsLifecycle() {
++  ardiacore::InstallLinuxDevToolsDispatcher(
++      [](content::WebContents* contents, ardiacore::LinuxDevToolsAction action,
++         std::shared_ptr<ardiacore::LinuxDevToolsLease> lease,
++         base::OnceClosure ready) {
++        if (!lease || !lease->Matches(contents)) return false;
++        auto* tools = GetInstanceForInspectedWebContents(contents);
++        if (action == ardiacore::LinuxDevToolsAction::kAdopt) {
++          if (!tools || !tools->linux_devtools_state_.Quarantined()) return false;
++          auto adopted = tools->weak_factory_.GetWeakPtr();
++          tools->BindLinuxDevToolsLease(lease, false);
++          if (!adopted || adopted->linux_devtools_state_.Capture().lease != lease) return false;
++          if (!adopted->is_docked_ && adopted->browser_)
++            adopted->browser_->GetWindow()->ShowInactive();
++          else
++            adopted->UpdateBrowserWindow();
++          return adopted && adopted->linux_devtools_state_.Capture().lease == lease;
++        }
++        if (action == ardiacore::LinuxDevToolsAction::kToggle && tools &&
++            tools->IsDocked() && !tools->linux_devtools_state_.Quarantined()) {
++          tools->BindLinuxDevToolsLease(lease, false);
++          tools->CloseWindow();
++          return true;
++        }
++        const auto toggle = action == ardiacore::LinuxDevToolsAction::kInspect
++            ? DevToolsToggleAction::Inspect()
++            : action == ardiacore::LinuxDevToolsAction::kConsole
++                ? DevToolsToggleAction::ShowConsolePanel()
++                : DevToolsToggleAction::Show();
++        ardiacore::ScopedLinuxDevToolsOperation operation(contents, lease);
++        OpenDevToolsWindow(contents, toggle,
++                          DevToolsOpenedByAction::kMainMenuOrMainShortcut);
++        if (!lease->Matches(contents)) return false;
++        tools = GetInstanceForInspectedWebContents(contents);
++        if (!tools || tools->linux_devtools_state_.Capture().lease != lease) return false;
++        base::OnceClosure linux_ready = base::BindOnce(
++            [](base::WeakPtr<DevToolsWindow> window,
++               ardiacore::LinuxDevToolsTicket ticket, base::OnceClosure callback) {
++              if (window && window->linux_devtools_state_.IsCurrent(ticket) && callback)
++                std::move(callback).Run();
++            }, tools->weak_factory_.GetWeakPtr(),
++            tools->linux_devtools_state_.Capture(), std::move(ready));
++        if (tools->life_stage_ == kLoadCompleted || tools->life_stage_ == kClosing)
++          std::move(linux_ready).Run();
++        else
++          tools->linux_load_completed_callback_ = std::move(linux_ready);
++        return true;
++      });
++}
++
++void DevToolsWindow::BindLinuxDevToolsLease(
++    std::shared_ptr<ardiacore::LinuxDevToolsLease> lease, bool created) {
++  if (linux_devtools_state_.has_pending_close() && life_stage_ == kClosing)
++    life_stage_ = linux_close_stage_;
++  const bool quarantined = linux_devtools_state_.Quarantined();
++  linux_devtools_state_.Begin(lease, created);
++  if (lease) {
++    lease->OnRevoke(base::BindOnce(&DevToolsWindow::RevokeLinuxDevToolsLease,
++        weak_factory_.GetWeakPtr(), linux_devtools_state_.Capture().epoch));
++  }
++  if (quarantined && linux_devtools_state_.IsCurrent()) {
++    if (auto* view = main_web_contents_->GetNativeView()) view->Show();
++  }
++}
++
++void DevToolsWindow::SettleRevokedLinuxLoad() {
++  action_on_load_ = DevToolsToggleAction::NoOp();
++  linux_load_completed_callback_.Reset();
++  if (!load_completed_callback_.is_null()) {
++    std::move(load_completed_callback_).Run();
++  }
++}
++
++void DevToolsWindow::RevokeLinuxDevToolsLease(uint64_t epoch) {
++  if (linux_devtools_state_.Capture().epoch != epoch) return;
++  action_on_load_ = DevToolsToggleAction::NoOp();
++  linux_load_completed_callback_.Reset();
++  if (!linux_devtools_state_.OwnsFrontend(epoch)) return;
++  auto weak = weak_factory_.GetWeakPtr();
++  if (auto* view = main_web_contents_->GetNativeView()) view->Hide();
++  if (!weak || !weak->linux_devtools_state_.OwnsFrontend(epoch)) return;
++  if (!weak->is_docked_ && weak->browser_) weak->browser_->GetWindow()->Hide();
++}
++#endif
++
+ void DevToolsWindow::ScheduleShow(const DevToolsToggleAction& action) {
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_devtools_state_.IsCurrent()) return;
++#endif
+   if (life_stage_ == kLoadCompleted) {
+     Show(action);
+     return;
+@@ -1032,6 +1149,13 @@
+ }
+
+ void DevToolsWindow::Show(const DevToolsToggleAction& action) {
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_devtools_state_.IsCurrent()) return;
++#endif
++#if BUILDFLAG(IS_LINUX)
++  auto linux_weak = weak_factory_.GetWeakPtr();
++  auto linux_ticket = linux_devtools_state_.Capture();
++#endif
+   if (life_stage_ == kClosing) {
+     return;
+   }
+@@ -1062,6 +1186,9 @@
+     DCHECK(inspected_browser);
+
+     RegisterModalDialogManager(inspected_browser);
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_weak || !linux_weak->linux_devtools_state_.IsCurrent(linux_ticket)) return;
++#endif
+
+     // Tell inspected browser to update splitter and switch to inspected panel.
+     ui::BaseWindow* inspected_window = inspected_browser->GetWindow();
+@@ -1071,25 +1198,56 @@
+     // Inspected tab needs to be activated, however, this cannot be done from
+     // here because TabStripModel does not allow reentrancy for its public
+     // methods, see http://crbug.com/452538043.
++#if BUILDFLAG(IS_LINUX)
++    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++        FROM_HERE, base::BindOnce(
++            [](base::WeakPtr<DevToolsWindow> window,
++               ardiacore::LinuxDevToolsTicket ticket) {
++              if (window && window->linux_devtools_state_.IsCurrent(ticket))
++                window->ActivateInspectedTab();
++            }, weak_factory_.GetWeakPtr(), linux_devtools_state_.Capture()));
++#else
+     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+         FROM_HERE, base::BindOnce(&DevToolsWindow::ActivateInspectedTab,
+                                   weak_factory_.GetWeakPtr()));
++#endif
+
+     if (auto* devtools_ui_controller =
+             DevtoolsUIController::From(inspected_browser)) {
+       devtools_ui_controller->UpdateDevtools(inspected_web_contents);
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_weak || !linux_weak->linux_devtools_state_.IsCurrent(linux_ticket)) return;
++#endif
+     }
+     main_web_contents_->SetInitialFocus();
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_weak || !linux_weak->linux_devtools_state_.IsCurrent(linux_ticket)) return;
++#endif
+     inspected_window->Show();
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_weak || !linux_weak->linux_devtools_state_.IsCurrent(linux_ticket)) return;
++#endif
+     // On Aura, focusing once is not enough. Do it again.
+     // Note that focusing only here but not before isn't enough either. We just
+     // need to focus twice.
+     main_web_contents_->SetInitialFocus();
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_weak || !linux_weak->linux_devtools_state_.IsCurrent(linux_ticket)) return;
++#endif
+
+     PrefsTabHelper::CreateForWebContents(main_web_contents_);
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_weak || !linux_weak->linux_devtools_state_.IsCurrent(linux_ticket)) return;
++#endif
+     OverrideAndSyncDevToolsRendererPrefs();
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_weak || !linux_weak->linux_devtools_state_.IsCurrent(linux_ticket)) return;
++#endif
+
+     MaybeShowSharedProcessInfobar();
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_weak || !linux_weak->linux_devtools_state_.IsCurrent(linux_ticket)) return;
++#endif
+
+     DoAction(action);
+     return;
+@@ -1102,6 +1260,9 @@
+
+   if (!browser_) {
+     CreateDevToolsBrowser();
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_weak || !linux_weak->linux_devtools_state_.IsCurrent(linux_ticket)) return;
++#endif
+   }
+
+   // Ignore action if browser does not exist and could not be created.
+@@ -1110,14 +1271,29 @@
+   }
+
+   RegisterModalDialogManager(browser_);
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_weak || !linux_weak->linux_devtools_state_.IsCurrent(linux_ticket)) return;
++#endif
+   MaybeShowSharedProcessInfobar();
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_weak || !linux_weak->linux_devtools_state_.IsCurrent(linux_ticket)) return;
++#endif
+
+   if (should_show_window) {
+     browser_->GetWindow()->Show();
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_weak || !linux_weak->linux_devtools_state_.IsCurrent(linux_ticket)) return;
++#endif
+     main_web_contents_->SetInitialFocus();
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_weak || !linux_weak->linux_devtools_state_.IsCurrent(linux_ticket)) return;
++#endif
+   }
+   if (toolbox_web_contents_) {
+     UpdateBrowserWindow();
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_weak || !linux_weak->linux_devtools_state_.IsCurrent(linux_ticket)) return;
++#endif
+   }
+ #endif
+   DoAction(action);
+@@ -1125,6 +1301,9 @@
+
+ #if !BUILDFLAG(IS_ANDROID)
+ void DevToolsWindow::ActivateInspectedTab() {
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_devtools_state_.IsCurrent()) return;
++#endif
+   content::WebContents* inspected_web_contents = GetInspectedWebContents();
+   if (!inspected_web_contents) {
+     return;
+@@ -1243,6 +1422,10 @@
+ #if BUILDFLAG(IS_MAC)
+   inspected_browser_session_id_ = inspected_browser_session_id;
+ #endif  // BUILDFLAG(IS_MAC)
++#if BUILDFLAG(IS_LINUX)
++  BindLinuxDevToolsLease(
++      ardiacore::ScopedLinuxDevToolsOperation::Capture(inspected_web_contents), true);
++#endif
+   // Set up delegate, so we get fully-functional window immediately.
+   // It will not appear in UI though until |life_stage_ == kLoadCompleted|.
+   main_web_contents_->SetDelegate(this);
+@@ -1560,6 +1743,9 @@
+ }
+
+ void DevToolsWindow::ActivateContents(WebContents* contents) {
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_devtools_state_.IsCurrent()) return;
++#endif
+   if (is_docked_) {
+     WebContents* inspected_tab = GetInspectedWebContents();
+     if (inspected_tab) {
+@@ -1671,6 +1857,23 @@
+ void DevToolsWindow::BeforeUnloadFired(WebContents* tab,
+                                        bool proceed,
+                                        bool* proceed_to_fire_unload) {
++#if BUILDFLAG(IS_LINUX)
++  auto decision = linux_devtools_state_.FinishClose(proceed);
++  if (decision.handled && !decision.proceed) {
++    *proceed_to_fire_unload = false;
++    if (life_stage_ == kClosing) life_stage_ = linux_close_stage_;
++    if (decision.retry) {
++      base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++          FROM_HERE, base::BindOnce(
++              [](base::WeakPtr<DevToolsWindow> window,
++                 ardiacore::LinuxDevToolsTicket ticket) {
++                if (window && window->linux_devtools_state_.IsCurrent(ticket))
++                  window->CloseWindow();
++              }, weak_factory_.GetWeakPtr(), std::move(*decision.retry)));
++    }
++    if (!intercepted_page_beforeunload_) return;
++  }
++#endif
+   if (!intercepted_page_beforeunload_) {
+     // Docked devtools window closed directly.
+     if (proceed) {
+@@ -1706,6 +1909,9 @@
+ }
+
+ void DevToolsWindow::ActivateWindow() {
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_devtools_state_.IsCurrent()) return;
++#endif
+   if (life_stage_ != kLoadCompleted) {
+     return;
+   }
+@@ -1735,6 +1941,10 @@
+ }
+
+ void DevToolsWindow::Close(DevToolsClosedByAction closed_by) {
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_devtools_state_.BeginClose()) return;
++  linux_close_stage_ = life_stage_;
++#endif
+   DCHECK(is_docked_);
+   life_stage_ = kClosing;
+   main_web_contents_->DispatchBeforeUnload(false /* auto_cancel */);
+@@ -1775,6 +1985,16 @@
+ }
+
+ void DevToolsWindow::SetIsDocked(bool dock_requested) {
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_devtools_state_.IsCurrent() &&
++      !linux_devtools_state_.OwnsFrontend(linux_devtools_state_.Capture().epoch))
++    BindLinuxDevToolsLease(nullptr, false);
++  if (life_stage_ == kLoadCompleted && !linux_devtools_state_.IsCurrent()) return;
++#endif
++#if BUILDFLAG(IS_LINUX)
++  auto linux_weak = weak_factory_.GetWeakPtr();
++  auto linux_ticket = linux_devtools_state_.Capture();
++#endif
+   if (life_stage_ == kClosing) {
+     return;
+   }
+@@ -1820,6 +2040,9 @@
+     std::unique_ptr<WebContents> web_contents =
+         tab_strip_model->DetachWebContentsAtForInsertion(
+             tab_strip_model->GetIndexOfWebContents(main_web_contents_));
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_weak) return;
++#endif
+     owned_main_web_contents_ =
+         std::make_unique<OwnedMainWebContents>(std::move(web_contents));
+   } else if (!dock_requested && was_docked) {
+@@ -1827,6 +2050,9 @@
+   }
+ #endif
+
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_weak || !linux_weak->linux_devtools_state_.IsCurrent(linux_ticket)) return;
++#endif
+   Show(DevToolsToggleAction::Show());
+ }
+
+@@ -2052,6 +2278,9 @@
+ }
+
+ void DevToolsWindow::CreateDevToolsBrowser() {
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_devtools_state_.IsCurrent()) return;
++#endif
+   PrefService* prefs = profile_->GetPrefs();
+   bool resetPrefs = false;
+   if (!prefs->GetDict(prefs::kAppWindowPlacement).Find(kDevToolsApp)) {
+@@ -2134,11 +2363,32 @@
+ }
+
+ void DevToolsWindow::LoadCompleted() {
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_devtools_state_.IsCurrent()) {
++    SettleRevokedLinuxLoad();
++    return;
++  }
++#endif
++#if BUILDFLAG(IS_LINUX)
++  auto linux_weak = weak_factory_.GetWeakPtr();
++  auto linux_ticket = linux_devtools_state_.Capture();
++#endif
+   Show(action_on_load_);
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_weak) return;
++  if (!linux_weak->linux_devtools_state_.IsCurrent(linux_ticket)) {
++    linux_weak->SettleRevokedLinuxLoad();
++    return;
++  }
++#endif
+   action_on_load_ = DevToolsToggleAction::NoOp();
+   if (!load_completed_callback_.is_null()) {
+     std::move(load_completed_callback_).Run();
+   }
++#if BUILDFLAG(IS_LINUX)
++  if (linux_weak && linux_weak->linux_load_completed_callback_)
++    std::move(linux_weak->linux_load_completed_callback_).Run();
++#endif
+ }
+
+ void DevToolsWindow::SetLoadCompletedCallback(base::OnceClosure closure) {
+--- a/chrome/browser/devtools/devtools_window_views.cc
++++ b/chrome/browser/devtools/devtools_window_views.cc
+@@ -107,6 +107,9 @@
+ }
+
+ BrowserWindow* DevToolsWindow::GetInspectedBrowserWindow() {
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_devtools_state_.IsCurrent()) return nullptr;
++#endif
+   content::WebContents* inspected_web_contents = GetInspectedWebContents();
+   if (!inspected_web_contents) {
+     return nullptr;
+@@ -125,6 +128,9 @@
+ }
+
+ void DevToolsWindow::UpdateBrowserWindow() {
++#if BUILDFLAG(IS_LINUX)
++  if (!linux_devtools_state_.IsCurrent()) return;
++#endif
+   content::WebContents* inspected_web_contents = GetInspectedWebContents();
+   if (!inspected_web_contents) {
+     return;

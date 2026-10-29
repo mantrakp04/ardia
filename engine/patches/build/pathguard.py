@@ -12,6 +12,7 @@ share a file with anything through a hard link.
                                      10: CB is (or reaches) the real build root; 2: a path under CB escapes CB
   pathguard.py lock-held             exit 0 when the caller holds the chromium lock (AC_LOCK_ROOT's)
 """
+import fcntl
 import os
 import pwd
 import stat
@@ -99,6 +100,16 @@ def chromium_lock_held():
         if not ppid.isdigit():
             return False
         argv = command.split()
+        if argv and os.path.basename(argv[0]) == 'flock' and kernel in [os.path.realpath(a) for a in argv[1:] if not a.startswith('-')]:
+            try:
+                with open(kernel, 'a') as lock_file:
+                    fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    fcntl.flock(lock_file, fcntl.LOCK_UN)
+                return False
+            except BlockingIOError:
+                return True
+            except OSError:
+                return False
         if argv and os.path.basename(argv[0]) == 'lockf':
             args = iter(argv[1:])
             held = None
@@ -206,6 +217,17 @@ def main():
             if not (resolved == cb_real or resolved.startswith(cb_real + os.sep)):
                 print(f'{path} escapes {cb_real} (to {resolved})')
                 return 2
+        return 0
+    if command == 'output':
+        src, config = args
+        if not config or os.path.basename(config) != config or config in ('.', '..'):
+            sys.exit('output config must be one directory name')
+        root = os.path.abspath(src)
+        paths = [os.path.join(root, 'out'), os.path.join(root, 'out', config)]
+        for path in paths:
+            if os.path.islink(path):
+                sys.exit(f'output path is a symlink: {path}')
+        require_tree_writable(root, [f'out/{config}/args.gn'], 'build output')
         return 0
     if command == 'lock-held':
         return 0 if chromium_lock_held() else 1
