@@ -372,3 +372,73 @@ test("a connection finishes only once its account has landed on disk", async () 
   assert.equal(finishedBeforeSave, false);
   assert.equal(JSON.parse(docs.get("live.json")).accounts[profile].github.login, "luis-urrutia-flute");
 });
+
+test("a disconnect the keychain refuses leaves the account connected, since its token is still there", async () => {
+  const profile = useBrowser.getState().createProfile({ name: "Stuck" });
+  await connectGithub(profile, "work-token");
+  keychainRefusals.add(`github:${profile}`);
+
+  await disconnect(profile, "github");
+  keychainRefusals.clear();
+
+  assert.equal(live().accounts[profile].github.login, "luis-urrutia-flute");
+  assert.equal(keychainItems.get(`github:${profile}`), "work-token");
+});
+
+test("a disconnect that lands while the move is queued keeps the profile disconnected", async () => {
+  const profile = useBrowser.getState().createProfile({ name: "Queued" });
+  pendingNotion([profile]);
+  heldKeychainReads.on = true;
+
+  const adopting = adoptLegacyAccounts([profile]);
+  await until(() => heldKeychainReads.queue.length > 0);
+  await disconnect(profile, "notion");
+  heldKeychainReads.on = false;
+  release(heldKeychainReads);
+  await adopting;
+
+  assert.equal(keychainItems.has(`notion:${profile}`), false);
+  assert.equal(live().accounts[profile]?.notion, undefined);
+});
+
+test("a refused delete of the old keychain item is retried in the same session", async () => {
+  const profile = useBrowser.getState().createProfile({ name: "Leftover" });
+  pendingNotion([profile]);
+  keychainRefusals.add("notion");
+  await adoptLegacyAccounts([profile]);
+  keychainRefusals.clear();
+
+  await retryOwedLegacyAccounts();
+
+  assert.equal(live().legacyAccounts.notion, undefined);
+  assert.equal(keychainItems.has("notion"), false);
+});
+
+test("the old keychain item stays when a profile deleted mid-copy can't have its item removed", async () => {
+  const profile = useBrowser.getState().createProfile({ name: "Vanishing" });
+  pendingNotion([profile]);
+  heldKeychainWrites.on = true;
+
+  const adopting = adoptLegacyAccounts([profile]);
+  await until(() => heldKeychainWrites.queue.length > 0);
+  useBrowser.getState().deleteProfile(profile);
+  heldKeychainWrites.on = false;
+  release(heldKeychainWrites);
+  keychainRefusals.add(`notion:${profile}`);
+  await adopting;
+  keychainRefusals.clear();
+
+  assert.equal(keychainItems.get("notion"), "legacy-notion-token");
+  assert.deepEqual(live().legacyAccounts.notion.owedTo, [profile]);
+});
+
+test("a connection whose save to disk fails still connects, and the account stays for the next save", async () => {
+  const profile = useBrowser.getState().createProfile({ name: "Unsaved" });
+  failedSaves.on = true;
+
+  await connectGithub(profile, "work-token");
+  failedSaves.on = false;
+
+  assert.equal(live().accounts[profile].github.login, "luis-urrutia-flute");
+  assert.equal(keychainItems.get(`github:${profile}`), "work-token");
+});
