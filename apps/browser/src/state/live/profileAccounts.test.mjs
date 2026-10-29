@@ -23,7 +23,7 @@ keychainItems.set("confluence", "home-confluence-token");
 keychainItems.set("gdrive", JSON.stringify({ access_token: "a", refresh_token: "r", expires_at: 0, client_secret: "secret-A" }));
 
 const { useBrowser } = await import("../browser/store.ts");
-const { adoptLegacyAccounts, connectConfluence, connectGithub, connectGoogle, disconnect, forgetMissingProfiles, forgetProfileAccounts, retryOwedLegacyAccounts, SOURCES } = await import("./sources.ts");
+const { adoptLegacyAccounts, connectConfluence, connectGithub, connectGoogle, disconnect, forgetMissingProfiles, forgetProfileAccounts, legacyAccountsFor, retryOwedLegacyAccounts, SOURCES } = await import("./sources.ts");
 const { live, setAccount, setLegacyAccount, updateConfig } = await import("./store.ts");
 const { settingsBrowserWindow } = await import("../settings/settingsWindows.ts");
 
@@ -441,4 +441,26 @@ test("a connection whose save to disk fails still connects, and the account stay
 
   assert.equal(live().accounts[profile].github.login, "luis-urrutia-flute");
   assert.equal(keychainItems.get(`github:${profile}`), "work-token");
+});
+
+test("a stalled move holds up only the folders still owed one of their accounts", async () => {
+  const owed = useBrowser.getState().createProfile({ name: "Waiting" });
+  pendingNotion([owed]);
+  heldKeychainReads.on = true;
+  const adopting = adoptLegacyAccounts([owed]);
+  await until(() => heldKeychainReads.queue.length > 0);
+
+  let otherReady = false;
+  let owedReady = false;
+  void legacyAccountsFor(folderIn(work)).then(() => (otherReady = true));
+  void legacyAccountsFor(folderIn(owed, "documents", ["notion"])).then(() => (owedReady = true));
+  await until(() => otherReady);
+  const owedReadyWhileStalled = owedReady;
+  heldKeychainReads.on = false;
+  release(heldKeychainReads);
+  await adopting;
+  await until(() => owedReady);
+
+  assert.equal(owedReadyWhileStalled, false);
+  assert.equal(keychainItems.get(`notion:${owed}`), "legacy-notion-token");
 });

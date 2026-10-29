@@ -315,6 +315,15 @@ export function retryOwedLegacyAccounts(): Promise<void> {
   return adoptLegacyAccounts(Object.keys(useBrowser.getState().profiles)).finally(() => (retryingAdoption = false));
 }
 
+export function legacyAccountsFor(folder: LiveFolder): Promise<void> {
+  const retry = retryOwedLegacyAccounts();
+  const owed = folder.sources.some((source) => {
+    const legacy = live().legacyAccounts[source];
+    return !!legacy && (legacy.owedTo === undefined || legacy.owedTo.includes(folder.profileId));
+  });
+  return owed ? retry : Promise.resolve();
+}
+
 function withClientId(tokens: string, clientId: string | undefined): string {
   try {
     const parsed = JSON.parse(tokens) as GoogleTokens;
