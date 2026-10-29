@@ -88,6 +88,7 @@ export function TabsPane() {
         <SettingToggle anchor="tabs.balancedTopApps" />
         <SettingToggle anchor="tabs.pinnedTabIconRing" />
         <SettingToggle anchor="tabs.fadeUnloadedTabs" />
+        <SettingToggle anchor="tabs.fadeUnloadedTabTitles" />
       </Group>
 
       <SectionHeader title="General" />

@@ -139,6 +139,12 @@ export const generalRows = {
           description: "A tab whose page isn't loaded, like a closed pinned tab or one restored after a relaunch, shows its icon faded, as sleeping tabs do. Clicking it loads the page.",
           keywords: ["unloaded", "asleep", "sleeping", "discarded", "dim", "grey", "gray", "inactive", "pinned", "closed"],
         },
+        fadeUnloadedTabTitles: {
+          advanced: true,
+          title: "Fade titles of sleeping and unloaded tabs",
+          description: "Dim tab titles when their pages are sleeping or unloaded. Clicking a tab loads its page.",
+          keywords: ["asleep", "discarded", "dim", "grey", "gray", "inactive", "pinned", "closed", "zen"],
+        },
       },
     },
     {

@@ -1,3 +1,5 @@
+import { FADED_TAB_OPACITY } from "../sidebar/tokens";
+import { useFadeTabTitle } from "../../state/sidebar/rowState";
 import { useContext, useRef } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { toggleMute } from "../../state/browser/actions";
@@ -108,6 +110,7 @@ export function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width:
   const theme = useTheme();
   const windowId = useWindowId();
   const tab = useTab(tabId);
+  const fadeTitle = useFadeTabTitle(tabId);
   const onto = useOnto({ kind: "tab", id: tabId });
   const active = useIsActiveTab(tabId);
   const floating = useContext(FloatingStrip);
@@ -142,7 +145,7 @@ export function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width:
               text={title}
               fontSize={font.small.fontSize}
               color={onBand ? palette.text : active ? theme.tabSelectedText : theme.textTab}
-              style={{ flex: 1, height: 16, marginLeft: CHIP_LABEL_GAP }}
+              style={{ flex: 1, height: 16, marginLeft: CHIP_LABEL_GAP, opacity: fadeTitle ? FADED_TAB_OPACITY : 1 }}
             />
             <HoverSlot
               hovered={hovered}

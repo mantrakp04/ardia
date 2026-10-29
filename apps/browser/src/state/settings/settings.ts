@@ -83,6 +83,7 @@ export const SETTING_SPECS = {
   selectedTabGlow: oneOf(["full", "soft", "off"], "full", SYNCED),
   pageScrollBars: oneOf(["system", "thin"], "system", SYNCED),
   fadeUnloadedTabs: flag(false, SYNCED),
+  fadeUnloadedTabTitles: flag(false, SYNCED),
   warnBeforeClosingTabGroup: flag(true, SYNCED),
   batterySaverWhen: oneOf(["lowBattery", "unplugged", "never"], "lowBattery"),
   memorySaver: flag(true),

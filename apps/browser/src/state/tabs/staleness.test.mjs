@@ -28,7 +28,7 @@ const { useBrowser } = await import("../browser/store.ts");
 const { useIsActiveTab, useTab, useTabLive, WindowContext } = await import("../browser/hooks.ts");
 const { useTabValue, useStoreWhile, shallowEqual } = await import("./tabWatch.ts");
 const { usePageProgress, setPageProgress } = await import("./pageProgress.ts");
-const { useRowState, ACTIVE, SELECTED, PLAYING, LOADING } = await import("../sidebar/rowState.ts");
+const { useRowState, useFadeTabTitle, useIconMarks, FADED, ACTIVE, SELECTED, PLAYING, LOADING } = await import("../sidebar/rowState.ts");
 const { useSidebarUi, setSidebarUi } = await import("../sidebar/sidebarUi.ts");
 const { useIsSleeping, noteDiscarded, noteReady } = await import("./tabLifecycle.ts");
 const { useMedia, setPictureInPictureState } = await import("../media/media.ts");
@@ -260,4 +260,38 @@ test("an icon: arrives, changes, follows its page and its icon URL, its light/da
   useFavicons.setState((f) => ({ ...f, profiles: { ...f.profiles, [key]: { pages: {}, srcs: {}, appearances: {} } } }));
   assert.equal(i.value.resolved, null, "gone");
   i.unmount();
+});
+
+
+test("title fading follows sleep, wake and unloaded pages independently of icon fading", () => {
+  const { w, a } = setup();
+  const b = S().newTab(w, { url: "https://b.com/", background: true });
+  const title = mount(() => useFadeTabTitle(b));
+  const loadedTitle = mount(() => useFadeTabTitle(a));
+  const icon = mount(() => !!(useIconMarks(b) & FADED));
+  assert.equal(title.value, false);
+  S().updateSettings({ fadeUnloadedTabTitles: true });
+  assert.equal(title.value, false, "loaded background tabs keep full title opacity");
+  noteDiscarded(b);
+  assert.equal(title.value, true, "a sleeping tab fades without a browser store change");
+  assert.equal(loadedTitle.value, false, "another tab stays opaque");
+  S().updateSettings({ fadeUnloadedTabTitles: false });
+  assert.equal(title.value, false, "turning the preference off takes effect while asleep");
+  S().updateSettings({ fadeUnloadedTabTitles: true });
+  assert.equal(title.value, true);
+  noteReady(b);
+  assert.equal(title.value, false, "a woken tab immediately restores its title");
+  const loadedPage = S().tabs[b].page;
+  S().updateTab(b, { page: { kind: "idle" } });
+  assert.equal(title.value, true, "an unloaded tab fades without a sleeping marker");
+  assert.equal(icon.value, false, "the title setting leaves the icon setting alone");
+  S().updateSettings({ fadeUnloadedTabs: true, fadeUnloadedTabTitles: false });
+  assert.equal(icon.value, true);
+  assert.equal(title.value, false, "the icon setting leaves the title setting alone");
+  S().updateSettings({ fadeUnloadedTabTitles: true });
+  S().updateTab(b, { page: loadedPage });
+  assert.equal(title.value, false, "loading an unloaded page restores the title");
+  title.unmount();
+  loadedTitle.unmount();
+  icon.unmount();
 });
