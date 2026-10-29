@@ -34,6 +34,7 @@ import { startHostDownloads } from "./hostDownloads";
 import { startHostTabLifecycle } from "./hostTabLifecycle";
 import { startLinuxTabPolicies, TAB_POLICY_CHANNEL, watchHostInputActivity } from "./hostPolicies";
 import { watchInstallPromptCancellations } from "./extensionPrompts";
+import { watchUnclaimedTabs } from "./unclaimedTabs";
 import { followExtensionChanges } from "./utilityExtensions";
 import { refreshExtensionsAfterChange } from "../../browser/src/state/extensions/actions";
 import { provideNativeModuleProvider, requireNativeModule } from "./shims/expo-modules-core";
@@ -112,6 +113,7 @@ async function start() {
     startTabPages();
     startNativeSync();
     startHostDownloads(ardiaHost, useBrowser);
+    watchUnclaimedTabs(ardiaHost, useBrowser);
     startLinuxTabPolicies({
       target: window, provide: provideNativeModuleProvider, startLifecycle: startTabLifecycle, startTrim: startMemoryTrim,
       windowId, locks: navigator.locks, channel: new BroadcastChannel(TAB_POLICY_CHANNEL), privateWindow: !!ardiaHost.bootstrap.privateWindow,

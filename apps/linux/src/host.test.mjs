@@ -119,6 +119,35 @@ test("new host sessions use native IDs and contain no demo URLs", () => {
   assert.throws(() => initialHostSession({ bootstrap: { windowId: "w", profileId: "/tmp/profile" } }, null), /Invalid/);
 });
 
+test("a window Chrome made seeds its tabs from the native adoption offers and keeps a saved window", () => {
+  const { host } = fixture();
+  const offered = { ...host, bootstrap: { ...host.bootstrap, startup: false, adoptTabs: [
+    { adoptId: "tab:41", url: "chrome-extension://fixture/opened.html#window", active: false },
+    { adoptId: "tab:42", url: "https://second.example/", active: true },
+    { adoptId: "link:9", url: "https://refused.example/", active: true },
+    { adoptId: "tab:43", url: "", active: true },
+    { adoptId: "tab:x", url: "https://malformed.example/", active: true },
+    null,
+  ] } };
+  const session = initialHostSession(offered, null, 100);
+  const w = session.windows.w_linux;
+  const tabs = w.tabIds.map((id) => session.tabs[id]);
+  assert.deepEqual(tabs.map((t) => [t.url, t.page]), [
+    ["chrome-extension://fixture/opened.html#window", { kind: "adopted", adopt: "tab:41", nav: null }],
+    ["https://second.example/", { kind: "adopted", adopt: "tab:42", nav: null }],
+  ]);
+  assert.deepEqual(w.activeTabIds, { default: tabs[1].id });
+  assert.ok(tabs.every((t) => t.windowId === "w_linux" && t.profileId === "default"));
+  useBrowser.getState().hydrate(session);
+  assert.deepEqual(w.tabIds.map((id) => useBrowser.getState().tabs[id]?.page.kind), ["adopted", "adopted"]);
+  const lone = initialHostSession({ ...host, bootstrap: { ...host.bootstrap, adoptTabs: [{ adoptId: "tab:44", url: "https://lone.example/", active: false }] } }, null, 100);
+  assert.deepEqual(Object.values(lone.windows.w_linux.activeTabIds), lone.windows.w_linux.tabIds);
+  const saved = initialHostSession(host, null, 100);
+  const kept = initialHostSession(offered, saved, 200);
+  assert.deepEqual(kept.windows.w_linux.tabIds, saved.windows.w_linux.tabIds);
+  assert.deepEqual(Object.values(initialHostSession(host, null, 100).tabs).map((t) => [t.url, t.page.kind]), [["", "idle"]]);
+});
+
 test("restore-disabled sessions park pinned tabs and groups and retain ordinary tabs only as recently closed", () => {
   const { host } = fixture();
   const saved = initialHostSession(host, null, 100);

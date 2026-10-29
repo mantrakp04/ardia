@@ -35,6 +35,16 @@ class LaunchDecision {
   std::optional<LaunchOffer> offer_;
 };
 
+enum class UnclaimedTabStep { kDrop, kWait, kPark, kReport };
+
+inline constexpr int kUnclaimedTabBlankTries = 20;
+
+inline UnclaimedTabStep NextUnclaimedTabStep(bool in_window, bool claimed, bool listening, bool blank, int tries) {
+  if (!in_window || claimed) return UnclaimedTabStep::kDrop;
+  if (blank && tries < kUnclaimedTabBlankTries) return UnclaimedTabStep::kWait;
+  return listening ? UnclaimedTabStep::kReport : UnclaimedTabStep::kPark;
+}
+
 struct Route {
   std::string_view name;
   std::string_view service;

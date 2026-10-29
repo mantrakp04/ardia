@@ -13,6 +13,8 @@ import { sessionWithSplitSlots, sessionWithTabPages, sessionWithTabPins } from "
 import { splitTabIds } from "../../browser/src/state/splits/splits";
 import { sessionWithPinChoiceStamps } from "../../browser/src/state/pins/pinChoices";
 import type { SavedObject } from "../../browser/src/lib/savedDocument";
+import { unclaimedAdoptId } from "./unclaimedTabs.ts";
+import { adoptedPage } from "../../browser/src/state/tabs/pageSession";
 
 type StoredWindow = Partial<BrowserWindow> & { incognito?: unknown; originalProfileId?: unknown };
 
@@ -80,6 +82,16 @@ function withoutRestoredWindows(saved: HydrateData, now: number): HydrateData {
 const seedProfile = ({ profileId, pageProfile }: ArdiaHost["bootstrap"]) =>
   pageProfile && !isIncognitoProfile(pageProfile) ? pageProfile : profileId;
 
+type SeedTab = { url: string; page: Tab["page"]; active: boolean };
+
+function seedTabs({ adoptTabs }: ArdiaHost["bootstrap"]): SeedTab[] {
+  const seeds = (Array.isArray(adoptTabs) ? adoptTabs : []).flatMap((offer): SeedTab[] => {
+    const adoptId = unclaimedAdoptId(offer);
+    return adoptId && offer.url ? [{ url: offer.url, page: adoptedPage(adoptId), active: offer.active === true }] : [];
+  });
+  return seeds.length ? seeds : [{ url: "", page: { kind: "idle" }, active: true }];
+}
+
 export function initialHostSession(host: ArdiaHost, saved: HydrateData | null | undefined, now = Date.now()): HydrateData {
   const { windowId } = host.bootstrap;
   const profileId = seedProfile(host.bootstrap);
@@ -93,19 +105,20 @@ export function initialHostSession(host: ArdiaHost, saved: HydrateData | null | 
   const profiles = { ...saved?.profiles };
   profiles[profileId] ??= profile;
   if (saved?.windows?.[windowId]?.tabIds.some((id) => saved.tabs?.[id])) return { ...saved, profiles, focusedWindowId: windowId };
-  const tabId = `t_${crypto.randomUUID()}`;
-  const tab: Tab = {
-    id: tabId, windowId, profileId, url: "", title: "", favicon: null, pin: null, muted: false, zoom: 1,
-    customTitle: null, customIcon: null, pinnedUrl: null, page: { kind: "idle" }, openerId: null, createdAt: now, lastActiveAt: now,
-  };
+  const seeds = seedTabs(host.bootstrap);
+  const tabs: Tab[] = seeds.map(({ url, page }) => ({
+    id: `t_${crypto.randomUUID()}`, windowId, profileId, url, title: "", favicon: null, pin: null, muted: false, zoom: 1,
+    customTitle: null, customIcon: null, pinnedUrl: null, page, openerId: null, createdAt: now, lastActiveAt: now,
+  }));
+  const activeTab = tabs[Math.max(0, seeds.findIndex((seed) => seed.active))]!;
   const browserWindow: BrowserWindow = {
-    id: windowId, profileId, kind: "main", tabIds: [tabId], activeTabIds: { [profileId]: tabId }, sidebarOpen: true, frame: null, createdAt: now,
+    id: windowId, profileId, kind: "main", tabIds: tabs.map((tab) => tab.id), activeTabIds: { [profileId]: activeTab.id }, sidebarOpen: true, frame: null, createdAt: now,
   };
   return {
     ...saved, profiles, profileOrder: [...new Set([...(saved?.profileOrder ?? []), profileId])],
     windows: { ...saved?.windows, [windowId]: browserWindow },
     windowOrder: [...new Set([...(saved?.windowOrder ?? []), windowId])],
-    tabs: { ...saved?.tabs, [tabId]: tab }, focusedWindowId: windowId,
+    tabs: { ...saved?.tabs, ...Object.fromEntries(tabs.map((tab) => [tab.id, tab])) }, focusedWindowId: windowId,
   };
 }
 
@@ -240,9 +253,9 @@ const sessionSources = (s: BrowserState) => [s.profiles, s.profileOrder, s.orpha
 type StandIn = { windowId: string; profileId?: string };
 
 function windowStandIn(host: ArdiaHost, state: BrowserState, initial: HydrateData): StandIn | undefined {
-  const { windowId, startup } = host.bootstrap;
+  const { windowId, startup, chromeMade } = host.bootstrap;
   const w = state.windows[windowId];
-  if (startup !== false || !w || w.kind === "private" || initial.windows?.[windowId]) return undefined;
+  if (startup !== false || chromeMade || !w || w.kind === "private" || initial.windows?.[windowId]) return undefined;
   return initial.profiles?.[w.profileId] ? { windowId } : { windowId, profileId: w.profileId };
 }
 
