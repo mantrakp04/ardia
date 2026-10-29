@@ -14,6 +14,7 @@ let detailsError;
 let bitbucketState;
 let gitea;
 let giteaExpiresIn;
+let giteaMaxItems;
 const log = [];
 function reset() {
   github = load("github.json");
@@ -24,12 +25,19 @@ function reset() {
   bitbucketState = "OPEN";
   gitea = load("gitea.json");
   giteaExpiresIn = 3600;
+  giteaMaxItems = 50;
 }
 reset();
 
 const send = (res, status, body, type = "application/json") => {
   res.writeHead(status, { "Content-Type": type });
   res.end(typeof body === "string" ? body : JSON.stringify(body));
+};
+const sendPage = (res, url, items, wrap = (page) => page) => {
+  const limit = Math.min(Number(url.searchParams.get("limit")) || giteaMaxItems, giteaMaxItems);
+  const page = Math.max(Number(url.searchParams.get("page")) || 1, 1);
+  res.writeHead(200, { "Content-Type": "application/json", "X-Total-Count": String(items.length) });
+  res.end(JSON.stringify(wrap(items.slice((page - 1) * limit, page * limit))));
 };
 const bodyOf = (req) => new Promise((resolve) => {
   let data = "";
@@ -66,6 +74,7 @@ createServer(async (req, res) => {
     if (to === "closed") Object.assign(gitea.pulls[key], { state: "closed" });
     return send(res, 200, { ok: true });
   }
+  if (p === "/mock/gitea-page-size") return (giteaMaxItems = Number(url.searchParams.get("size") ?? 50)), send(res, 200, { ok: true });
   if (p === "/mock/gitea-expires") return (giteaExpiresIn = Number(url.searchParams.get("seconds") ?? 3600)), send(res, 200, { ok: true });
   if (p === "/mock/bitbucket-merge") return (bitbucketState = "MERGED"), send(res, 200, { ok: true });
   if (p === "/mock/review") {
@@ -160,17 +169,17 @@ createServer(async (req, res) => {
     if (api === "/user") return send(res, 200, gitea.user);
     if (api === "/repos/search") return send(res, 200, { ok: true, data: [] });
     if (api === "/repos/issues/search") {
-      if (url.searchParams.get("created") === "true") return send(res, 200, gitea.authored);
-      if (url.searchParams.get("review_requested") === "true") return send(res, 200, gitea.review);
+      if (url.searchParams.get("created") === "true") return sendPage(res, url, gitea.authored);
+      if (url.searchParams.get("review_requested") === "true") return sendPage(res, url, gitea.review);
       return send(res, 200, []);
     }
     const branch = api.match(/^\/repos\/([^/]+\/[^/]+)\/branches\/(.+)$/);
     if (branch) return send(res, 200, gitea.branches[`${branch[1]}:${decodeURIComponent(branch[2])}`] ?? { name: decodeURIComponent(branch[2]), protected: false, required_approvals: 0 });
     const status = api.match(/^\/repos\/[^/]+\/[^/]+\/commits\/([^/]+)\/status$/);
-    if (status) return send(res, 200, gitea.statuses[status[1]] ?? { statuses: [] });
+    if (status) return sendPage(res, url, gitea.statuses[status[1]]?.statuses ?? [], (statuses) => ({ statuses }));
     const pull = api.match(/^\/repos\/([^/]+\/[^/]+)\/pulls\/(\d+)(\/reviews)?$/);
     const key = pull && `${pull[1]}#${pull[2]}`;
-    if (key && gitea.pulls[key]) return send(res, 200, pull[3] ? gitea.reviews[key] ?? [] : gitea.pulls[key]);
+    if (key && gitea.pulls[key]) return pull[3] ? sendPage(res, url, gitea.reviews[key] ?? []) : send(res, 200, gitea.pulls[key]);
   }
 
   if (p === "/google/auth") {

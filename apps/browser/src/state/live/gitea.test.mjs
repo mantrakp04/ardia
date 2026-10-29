@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { giteaCompletion, giteaLink, giteaRefs, giteaReview, mapGitea } from "./gitea.ts";
+import { giteaCompletion, giteaLink, giteaPages, giteaRefs, giteaReview, mapGitea } from "./gitea.ts";
 import { httpsSiteUrl } from "./net.ts";
 
 const fixture = JSON.parse(readFileSync(new URL("./fixtures/gitea.json", import.meta.url), "utf8"));
@@ -118,4 +118,36 @@ test("a Gitea server gets tokens only over HTTPS, or over plain HTTP on this Mac
   for (const site of ["http://git.example.com", "HTTP://git.example.com", "http://192.168.1.10:3000", "http://localhost.example.com", "http://127.0.0.1.example.com", "http://localhost@example.com"]) {
     assert.throws(() => httpsSiteUrl(site), { kind: "notConfigured" }, site);
   }
+});
+
+const server = (count, maxItems, { withTotal = true } = {}) => {
+  const all = Array.from({ length: count }, (_, i) => i + 1);
+  const pages = [];
+  const load = async (page) => {
+    pages.push(page);
+    return { body: all.slice((page - 1) * maxItems, page * maxItems), total: withTotal ? count : null };
+  };
+  return { all, pages, load };
+};
+
+test("every page of a Gitea list is read, even when the server caps pages below what was asked", async () => {
+  const capped = server(120, 30);
+  assert.deepEqual(await giteaPages(capped.load, (page) => page), capped.all);
+  assert.deepEqual(capped.pages, [1, 2, 3, 4]);
+  const single = server(12, 50);
+  assert.deepEqual(await giteaPages(single.load, (page) => page), single.all);
+  assert.deepEqual(single.pages, [1]);
+});
+
+test("without a total count, a Gitea list is read until a page comes back empty", async () => {
+  const short = server(45, 30, { withTotal: false });
+  assert.deepEqual(await giteaPages(short.load, (page) => page), short.all);
+  assert.deepEqual(short.pages, [1, 2, 3]);
+});
+
+test("a Gitea list stops after twenty pages", async () => {
+  const pages = [];
+  const items = await giteaPages(async (page) => (pages.push(page), { body: [page], total: null }), (page) => page);
+  assert.equal(items.length, 20);
+  assert.equal(pages.at(-1), 20);
 });

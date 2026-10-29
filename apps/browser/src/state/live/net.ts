@@ -24,7 +24,7 @@ export const endpoints = {
   drive: mock ? `${mock}/google/drive/v3` : "https://www.googleapis.com/drive/v3",
 };
 
-export async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
+async function respond(url: string, init: RequestInit): Promise<Response> {
   let res: Response;
   try {
     res = await fetch(url, { ...init, headers: { Accept: "application/json", ...init.headers } });
@@ -38,7 +38,17 @@ export async function request<T>(url: string, init: RequestInit = {}): Promise<T
     const text = await res.text().catch(() => "");
     throw new LiveError(res.status === 403 ? "signedOut" : "other", `${res.status} ${text.slice(0, 200)}`.trim());
   }
-  return (await res.json()) as T;
+  return res;
+}
+
+export async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
+  return (await (await respond(url, init)).json()) as T;
+}
+
+export async function requestPage<T>(url: string, init: RequestInit = {}): Promise<{ body: T; total: number | null }> {
+  const res = await respond(url, init);
+  const total = res.headers.get("x-total-count");
+  return { body: (await res.json()) as T, total: total === null ? null : Number(total) };
 }
 
 export const siteUrl = (site: string) => site.trim().replace(/\/+$/, "").replace(/^(?!https?:\/\/)/i, "https://");

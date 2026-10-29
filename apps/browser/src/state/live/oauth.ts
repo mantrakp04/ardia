@@ -3,7 +3,8 @@ import { secureRandomHex } from "../../platform/secureRandom";
 import { useBrowser } from "../browser/store";
 import { GITEA_SCOPES } from "./gitea";
 import { endpoints, form, httpsSiteUrl } from "./net";
-import { connectGitea, connectGoogle, giteaTokens } from "./sources";
+import { giteaTokens } from "./giteaApi";
+import { connectGitea, connectGoogle } from "./sources";
 
 export const OAUTH_REDIRECT = "http://127.0.0.1:53682/ardia-oauth";
 const GOOGLE_SCOPE = "https://www.googleapis.com/auth/drive.metadata.readonly";

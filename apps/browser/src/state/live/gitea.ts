@@ -2,8 +2,10 @@ import { withStacks } from "./github";
 import type { CheckState, CompletionState, LiveItem, PullRequestCheck, PullRequestInfo, PullRequestSection } from "./types";
 
 export const GITEA_SCOPES = "read:issue read:repository read:user";
-export const GITEA_SEARCH = "/repos/issues/search?type=pulls&state=open&limit=50";
+export const GITEA_SEARCH = "/repos/issues/search?type=pulls&state=open";
 export const GITEA_DEFAULT_SITE = "https://gitea.com";
+export const GITEA_PAGE = 50;
+const GITEA_MAX_PAGES = 20;
 
 type GiteaUser = { id: number; login: string; full_name?: string; avatar_url?: string };
 
@@ -40,6 +42,17 @@ export type GiteaDetails = GiteaPullRef & { pull: GiteaPull; reviews: GiteaRevie
 const WORK_IN_PROGRESS = /^\s*(wip:|\[wip\])/i;
 
 const CHECK_STATES: Record<string, CheckState> = { success: "success", failure: "failure", error: "failure", pending: "pending", warning: "neutral", skipped: "neutral" };
+
+export async function giteaPages<B, T>(load: (page: number) => Promise<{ body: B; total: number | null }>, items: (body: B) => T[]): Promise<T[]> {
+  const out: T[] = [];
+  for (let page = 1; page <= GITEA_MAX_PAGES; page++) {
+    const { body, total } = await load(page);
+    const found = items(body);
+    out.push(...found);
+    if (!found.length || out.length >= (total ?? Infinity)) break;
+  }
+  return out;
+}
 
 export function giteaRefs(authored: GiteaIssue[], review: GiteaIssue[]): GiteaPullRef[] {
   const seen = new Set<string>();
