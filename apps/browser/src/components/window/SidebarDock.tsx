@@ -160,7 +160,7 @@ export function DockedLayout({
             {topStrip.strip}
           </Animated.View>
         )}
-      {topStrip && topTabs && !stripShown && topStrip.peek}
+      {topStrip && topTabs && (fullscreen || !stripShown) && topStrip.peek}
       {!topTabs && <SidebarDock dock={dock} open={open} width={width} fullscreen={fullscreen} arc={arc} lights={lights} />}
     </>
   );
@@ -185,7 +185,8 @@ function SidebarDock({
   const windowId = useWindowId();
   const moving = useDockMotion((m) => !!m.moving[windowId]);
   const edgeOver = useRef(false);
-  const peek = usePeek(!open && !moving && !fullscreen, arc, () => edgeOver.current || peekHeld(windowId), () => dismissHoverIn(windowId));
+  const undocked = !open || fullscreen;
+  const peek = usePeek(undocked && !moving, arc, () => edgeOver.current || peekHeld(windowId), () => dismissHoverIn(windowId));
   const latestPeek = useRef(peek);
   latestPeek.current = peek;
   useEffect(() => (peek.live ? watchHolds("peek", () => latestPeek.current.recheck()) : undefined), [peek.live]);
@@ -220,7 +221,7 @@ function SidebarDock({
   const panel = useRef(false);
   if (peeking) panel.current = true;
   const away = state === "fullscreen" || state === "away";
-  const slideOut = useMemo(() => dock.interpolate({ inputRange: [0, 1], outputRange: [-width, 0] }), [dock, width]);
+  const slideOut = useMemo(() => (fullscreen ? -width : dock.interpolate({ inputRange: [0, 1], outputRange: [-width, 0] })), [dock, width, fullscreen]);
   const peekIn = useMemo(
     () => peek.slide.interpolate({ inputRange: [0, 1], outputRange: [-12, width] }),
     [peek.slide, width],
@@ -240,7 +241,7 @@ function SidebarDock({
   };
 
   const strip = useRef(false);
-  if (!open) strip.current = true;
+  if (undocked) strip.current = true;
   const fade = peeking && !arc;
   const panelOn = useRef(new Animated.Value(0)).current;
   useLayoutEffect(() => panelOn.setValue(peeking ? 1 : 0), [panelOn, peeking]);
@@ -266,7 +267,7 @@ function SidebarDock({
       )}
       {strip.current && (
         <View
-          pointerEvents={!open && !fullscreen ? "auto" : "none"}
+          pointerEvents={undocked ? "auto" : "none"}
           onMouseEnter={peek.show}
           onMouseLeave={leaveStrip}
           style={{
@@ -274,12 +275,12 @@ function SidebarDock({
             left: 0,
             top: 0,
             bottom: layout.cardInset,
-            width: !open && !fullscreen ? PEEK_EDGE_STRIP : 0,
+            width: undocked ? PEEK_EDGE_STRIP : 0,
           }}
         />
       )}
       <Animated.View
-        pointerEvents={fullscreen || moving || (!open && !peeking) ? "none" : "auto"}
+        pointerEvents={moving || (undocked && !peeking) ? "none" : "auto"}
         style={{
           position: "absolute",
           left: away ? -10_000 : peeking ? PEEK_ORIGIN[0] : 0,
