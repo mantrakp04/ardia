@@ -7,7 +7,7 @@ import { pinKeyOf, pinSection } from "../browser/model";
 
 const localFolders = new Map<string, Set<string>>();
 
-export function tileFoldersAdapter(profileId: string): Adapter {
+export function tileFoldersAdapter(spaceId: string): Adapter {
   const keyOf = (k: string) => k.slice(TILE_FOLDER.length);
   return {
     prefix: TILE_FOLDER,
@@ -24,21 +24,21 @@ export function tileFoldersAdapter(profileId: string): Adapter {
         if (!was || (folder.renamedAt ?? -1) > (was.renamedAt ?? -1)) local.set(folder.id, folder);
       };
       const unpinned = unpinnedRemotely(recorded, remote);
-      const home = homeWindow(s, profileId);
+      const home = homeWindow(s, spaceId);
       for (const w of windowsHomeFirst(s, home)) {
         for (const id of w.tabIds) {
           const t = s.tabs[id];
-          if (t?.pin && t.profileId === profileId && !known.has(pinKeyOf(t))) mark(pinKeyOf(t), tileFolderOf(t));
+          if (t?.pin && t.spaceId === spaceId && !known.has(pinKeyOf(t))) mark(pinKeyOf(t), tileFolderOf(t));
         }
       }
-      for (const p of s.parkedPins[profileId]?.tabs ?? []) if (!p.groupId && !known.has(p.id)) mark(p.id, tileFolderOf(p));
+      for (const p of s.parkedPins[spaceId]?.tabs ?? []) if (!p.groupId && !known.has(p.id)) mark(p.id, tileFolderOf(p));
       for (const [folderId, folder] of local) {
         const synced = base(`${FOLDER_NAME}${folderId}`);
         if (folder.renamedAt !== undefined && syncedName(synced) !== folder.name) values.set(`${FOLDER_NAME}${folderId}`, { n: folder.name } satisfies FolderNameValue);
         else if (synced !== undefined) values.set(`${FOLDER_NAME}${folderId}`, synced);
       }
-      const had = localFolders.get(profileId) ?? new Set();
-      localFolders.set(profileId, new Set(local.keys()));
+      const had = localFolders.get(spaceId) ?? new Set();
+      localFolders.set(spaceId, new Set(local.keys()));
       const ignore = (k: string) => {
         if (k.startsWith(FOLDER_NAME)) return !had.has(k.slice(FOLDER_NAME.length));
         return !known.has(keyOf(k)) && base(`${PIN_TAB}${keyOf(k)}`) === undefined && !unpinned(keyOf(k));
@@ -64,12 +64,12 @@ export function tileFoldersAdapter(profileId: string): Adapter {
       for (const w of openWindows(s)) {
         for (const id of w.tabIds) {
           const t = s.tabs[id];
-          if (pinSection(t) !== "tile" || t!.profileId !== profileId) continue;
+          if (pinSection(t) !== "tile" || t!.spaceId !== spaceId) continue;
           const folder = wanted(pinKeyOf(t!), tileFolderOf(t));
           if (folder !== tileFolderOf(t)) (tabs ??= { ...s.tabs })[id] = withTileFolder(t!, folder);
         }
       }
-      const park = s.parkedPins[profileId];
+      const park = s.parkedPins[spaceId];
       const parked = park?.tabs.map((p) => {
         if (p.groupId || pinSection(p) !== "tile") return p;
         const folder = wanted(p.id, tileFolderOf(p));
@@ -77,7 +77,7 @@ export function tileFoldersAdapter(profileId: string): Adapter {
       });
       const parkEdited = !!park && parked!.some((p, i) => p !== park.tabs[i]);
       if (!tabs && !parkEdited) return true;
-      commitPinnedEdit(s, profileId, tabs ? { tabs } : {}, parkEdited ? { tabs: parked! } : null);
+      commitPinnedEdit(s, spaceId, tabs ? { tabs } : {}, parkEdited ? { tabs: parked! } : null);
       return true;
     },
   };

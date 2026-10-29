@@ -29,10 +29,10 @@ export type TidiedPins = {
 
 const homeOf = (t: Pick<Tab, "url" | "pinnedUrl">) => t.pinnedUrl || t.url;
 
-function foldersOf(s: Pick<BrowserState, "groups">, order: string[], windowId: string, profileId: string): TabGroup[] {
+function foldersOf(s: Pick<BrowserState, "groups">, order: string[], windowId: string, spaceId: string): TabGroup[] {
   const at = new Map(order.map((id, i) => [id, i]));
   return Object.values(s.groups)
-    .filter((g) => g.pinned && g.windowId === windowId && g.profileId === profileId && g.tabIds.length)
+    .filter((g) => g.pinned && g.windowId === windowId && g.spaceId === spaceId && g.tabIds.length)
     .map((g) => ({ g, top: Math.min(...g.tabIds.map((id) => at.get(id) ?? Infinity)), depth: depthOf(s.groups, g.id) }))
     .sort((a, z) => a.top - z.top || a.depth - z.depth)
     .map(({ g }) => g);
@@ -50,14 +50,14 @@ function folderSites(s: Pick<BrowserState, "tabs" | "groups">, g: TabGroup): str
   return [...counts].filter(([, n]) => n === most).map(([site]) => site);
 }
 
-export function tidyPlan(s: Pick<BrowserState, "tabs" | "groups" | "windows" | "splits">, windowId: string, profileId?: string): TidyPlan | null {
+export function tidyPlan(s: Pick<BrowserState, "tabs" | "groups" | "windows" | "splits">, windowId: string, spaceId?: string): TidyPlan | null {
   const w = s.windows[windowId];
   if (!isRegularWindow(w)) return null;
-  const profile = profileId ?? w.profileId;
-  const order = w.tabIds.filter((id) => s.tabs[id]?.profileId === profile);
+  const space = spaceId ?? w.spaceId;
+  const order = w.tabIds.filter((id) => s.tabs[id]?.spaceId === space);
   const rows = order.filter((id) => isPinnedRow(s.tabs[id]));
   if (!rows.length) return null;
-  const folders = foldersOf(s, order, w.id, profile);
+  const folders = foldersOf(s, order, w.id, space);
   const filed = [...new Set(folders.flatMap((g) => g.tabIds))].flatMap((id) => (s.tabs[id] ? [s.tabs[id]!] : []));
 
   const closes: TidyPlan["closes"] = [];
@@ -92,19 +92,19 @@ export function tidyPlan(s: Pick<BrowserState, "tabs" | "groups" | "windows" | "
 
 const plans = new Map<string, { tabs: object; groups: object; splits: object; window: object | undefined; can: boolean }>();
 
-export function canTidyPins(s: Pick<BrowserState, "tabs" | "groups" | "windows" | "splits">, windowId: string, profileId?: string): boolean {
-  const key = `${windowId}\n${profileId ?? ""}`;
+export function canTidyPins(s: Pick<BrowserState, "tabs" | "groups" | "windows" | "splits">, windowId: string, spaceId?: string): boolean {
+  const key = `${windowId}\n${spaceId ?? ""}`;
   const window = s.windows[windowId];
   const known = plans.get(key);
   if (known && known.tabs === s.tabs && known.groups === s.groups && known.splits === s.splits && known.window === window) return known.can;
-  const can = !!tidyPlan(s, windowId, profileId);
+  const can = !!tidyPlan(s, windowId, spaceId);
   plans.set(key, { tabs: s.tabs, groups: s.groups, splits: s.splits, window, can });
   if (plans.size > 64) plans.delete(plans.keys().next().value!);
   return can;
 }
 
-export function tidyingPins(s: BrowserState, windowId: string, profileId?: string): [BrowserState, TidiedPins | null] {
-  const plan = tidyPlan(s, windowId, profileId);
+export function tidyingPins(s: BrowserState, windowId: string, spaceId?: string): [BrowserState, TidiedPins | null] {
+  const plan = tidyPlan(s, windowId, spaceId);
   const w = s.windows[windowId];
   if (!plan || !w) return [s, null];
   const homes: Record<string, string | null> = {};

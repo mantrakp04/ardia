@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { useBrowser } from "../browser/store";
-import { bookmarkProfileId } from "../browser/model";
+import { bookmarkSpaceId } from "../browser/model";
 import type { TabDrag } from "../drag/tabDrag";
 import { addBookmark, moveBookmark } from "./actions";
 import { addFolderToSidebar } from "./bookmarkGroups";
@@ -127,8 +127,8 @@ function bookmarkLinks(windowId: string, spot: DropSpot, links: { url: string; t
   const s = useBrowser.getState();
   const target = insertTarget(s.bookmarks, spot);
   if (!target || !links.length) return false;
-  const profileId = bookmarkProfileId(s, s.windows[windowId]);
-  links.forEach((link, i) => addBookmark({ profileId, ...link, parentId: target.parentId, index: target.index + i }));
+  const spaceId = bookmarkSpaceId(s, s.windows[windowId]);
+  links.forEach((link, i) => addBookmark({ spaceId, ...link, parentId: target.parentId, index: target.index + i }));
   return true;
 }
 

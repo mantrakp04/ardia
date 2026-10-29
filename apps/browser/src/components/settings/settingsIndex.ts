@@ -9,6 +9,7 @@ import type { SettingSection, SettingsEnv } from "./rows/types";
 const PANE_LOOKS: Record<SettingsPane, { title: string; icon: string }> = {
   general: { title: "General", icon: "gearshape" },
   profiles: { title: "Profiles", icon: "person.2" },
+  spaces: { title: "Spaces", icon: "square.stack" },
   sync: { title: "Sync", icon: "arrow.triangle.2.circlepath" },
   tabs: { title: "Tabs", icon: "square.on.square" },
   appearance: { title: "Appearance", icon: "circle.lefthalf.filled" },

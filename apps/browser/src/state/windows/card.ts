@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useBrowser } from "../browser/store";
-import { activeTabId } from "../browser/model";
+import { activeTabId, engineProfileIn } from "../browser/model";
 import type { SplitView, Tab } from "../browser/types";
 import { tabEngine } from "../engines/engines";
 import { holderOf } from "../pins/pinShare";
@@ -11,7 +11,7 @@ import { pageOf, patchPage } from "../tabs/pageState";
 import { wantsPage } from "../tabs/tabPages";
 import { removeTabs } from "../tabs/tabs";
 import { isSmallWindow } from "./small";
-import type { PagerPage } from "./profilePager";
+import type { PagerPage } from "./spacePager";
 import { isWebPageUrl } from "../../lib/url";
 
 export const useSplitOf = (tabId: string | undefined) => useBrowser((s) => splitOf(s, tabId));
@@ -19,6 +19,8 @@ export const useSplitOf = (tabId: string | undefined) => useBrowser((s) => split
 export const useIsSmallWindow = (windowId: string) => useBrowser((s) => isSmallWindow(s.windows[windowId]));
 
 export const useTabEngine = (tabId: string) => useBrowser((s) => tabEngine(s, tabId));
+
+export const useTabProfile = (tabId: string) => useBrowser((s) => s.tabs[tabId] ? engineProfileIn(s, s.tabs[tabId]!.spaceId) : "");
 
 export const currentTabEngine = (tabId: string) => tabEngine(useBrowser.getState(), tabId);
 
@@ -75,7 +77,7 @@ export const useWarmTabIds = (windowId: string, pagerPages: PagerPage[] | null, 
   useBrowser(
     useShallow((s) => {
       const w = s.windows[windowId];
-      const ids = !w || !pagerPages ? [] : pagerPages.map((p) => (p.id === w.profileId ? undefined : w.activeTabIds[p.id])).filter((id): id is string => !!id);
+      const ids = !w || !pagerPages ? [] : pagerPages.map((p) => (p.id === w.spaceId ? undefined : w.activeTabIds[p.id])).filter((id): id is string => !!id);
       return successor && s.tabs[successor]?.windowId === windowId && !ids.includes(successor) ? [...ids, successor] : ids;
     }),
   );
@@ -95,7 +97,7 @@ export function useShownPaneKeys(mounted: string[], panes: object): string[] {
           const t = s.tabs[memo.ids[i]!];
           const was = found[i];
           if (t === was) continue;
-          if (!t || !was || t.createdAt !== was.createdAt || t.profileId !== was.profileId) same = false;
+          if (!t || !was || t.createdAt !== was.createdAt || t.spaceId !== was.spaceId) same = false;
           else {
             if (found === memo.found) found = found.slice();
             found[i] = t;
@@ -111,7 +113,7 @@ export function useShownPaneKeys(mounted: string[], panes: object): string[] {
       const keys = found
         .filter((t): t is Tab => !!t)
         .sort((a, b) => a.createdAt - b.createdAt)
-        .map((t) => `${t.id}|${t.profileId}`);
+        .map((t) => `${t.id}|${t.spaceId}`);
       shownMemo.current = { mounted, panes, tabs: s.tabs, keys, ids, found };
       return keys;
     }),
@@ -127,7 +129,7 @@ export function downloadNavigated(tabId: string, committedUrl: string | null | u
     if (t.url !== committedUrl) useBrowser.getState().updateTab(tabId, { url: committedUrl });
     return;
   }
-  const others = s.windows[t.windowId]?.tabIds.some((id) => id !== tabId && s.tabs[id]?.profileId === t.profileId);
+  const others = s.windows[t.windowId]?.tabIds.some((id) => id !== tabId && s.tabs[id]?.spaceId === t.spaceId);
   const opened = !!(t.openerId || adoptOf(t)) && !pageOf(tabId).wasNewTab;
   if (!skipped && opened && !s.live[tabId]?.canGoBack && others) return useBrowser.getState().closeTab(tabId);
   patchPage(tabId, { backToNewTab: false, newTabShown: null });
@@ -148,5 +150,5 @@ export function newTabLingeringOver(windowId: string, from: string | undefined, 
 export function activateFocusedPane(tabId: string) {
   const s = useBrowser.getState();
   const t = s.tabs[tabId];
-  if (t && splitOf(s, tabId) && s.windows[t.windowId]?.activeTabIds[t.profileId] !== tabId) s.activate(tabId);
+  if (t && splitOf(s, tabId) && s.windows[t.windowId]?.activeTabIds[t.spaceId] !== tabId) s.activate(tabId);
 }

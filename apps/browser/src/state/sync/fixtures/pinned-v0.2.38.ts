@@ -16,13 +16,13 @@ type Window = BrowserState["windows"][string];
 
 const openWindows = (s: BrowserState) => s.windowOrder.map((id) => s.windows[id]).filter((w): w is Window => !!w && w.kind !== "private" && w.kind !== "small");
 
-function homeWindow(s: BrowserState, profileId: string): Window | undefined {
+function homeWindow(s: BrowserState, spaceId: string): Window | undefined {
   const order = [...s.ui.focusOrder, ...s.windowOrder].map((id) => s.windows[id]).filter((w): w is Window => !!w && w.kind !== "private" && w.kind !== "small");
-  const shows = (w: Window) => w.tabIds.some((id) => s.tabs[id]?.profileId === profileId);
-  return order.find((w) => w.profileId === profileId && shows(w)) ?? order.find(shows) ?? order.find((w) => w.profileId === profileId) ?? order[0];
+  const shows = (w: Window) => w.tabIds.some((id) => s.tabs[id]?.spaceId === spaceId);
+  return order.find((w) => w.spaceId === spaceId && shows(w)) ?? order.find(shows) ?? order.find((w) => w.spaceId === spaceId) ?? order[0];
 }
 
-export function pinnedAdapter(profileId: string): Adapter {
+export function pinnedAdapter(spaceId: string): Adapter {
   return {
     prefix: "pin:",
     extract: (base) => {
@@ -32,13 +32,13 @@ export function pinnedAdapter(profileId: string): Adapter {
       const groups: Pick<TabGroup, "id" | "name" | "icon" | "color">[] = [];
       const members = new Map<string, Pin[]>();
       const pinnedGroupOf = new Map<string, TabGroup>();
-      for (const g of Object.values(s.groups)) if (g.pinned && g.profileId === profileId) g.tabIds.forEach((id) => pinnedGroupOf.set(id, g));
+      for (const g of Object.values(s.groups)) if (g.pinned && g.spaceId === spaceId) g.tabIds.forEach((id) => pinnedGroupOf.set(id, g));
       const seen = new Set<string>();
-      const home = homeWindow(s, profileId);
+      const home = homeWindow(s, spaceId);
       for (const w of home ? [home, ...openWindows(s).filter((w) => w.id !== home.id)] : openWindows(s)) {
         for (const id of w.tabIds) {
           const t = s.tabs[id];
-          if (!t || t.profileId !== profileId || seen.has(pinKeyOf(t))) continue;
+          if (!t || t.spaceId !== spaceId || seen.has(pinKeyOf(t))) continue;
           const g = pinnedGroupOf.get(id);
           if (t.pin) tiles.push({ ...t, id: pinKeyOf(t) });
           else if (g) {
@@ -52,7 +52,7 @@ export function pinnedAdapter(profileId: string): Adapter {
           seen.add(pinKeyOf(t));
         }
       }
-      const park = s.parkedPins[profileId];
+      const park = s.parkedPins[spaceId];
       for (const g of park?.groups ?? []) if (!members.has(g.id)) (members.set(g.id, []), groups.push(g));
       for (const p of park?.tabs ?? []) (p.groupId ? members.get(p.groupId) : tiles)?.push(p);
       const values = new Map<string, unknown>();
@@ -72,18 +72,18 @@ export function pinnedAdapter(profileId: string): Adapter {
     },
     apply: (visible, changed) => {
       let s = store();
-      const home = homeWindow(s, profileId);
+      const home = homeWindow(s, spaceId);
       if (!home) return false;
-      const PARK = `park:${profileId}`;
-      if (s.parkedPins[profileId]) {
-        const stand: Window = { id: PARK, profileId, kind: "main", tabIds: [], activeTabIds: {}, sidebarOpen: true, frame: null, createdAt: 0 };
-        s = adoptParkedPins({ ...s, windows: { ...s.windows, [PARK]: stand } }, PARK, profileId);
+      const PARK = `park:${spaceId}`;
+      if (s.parkedPins[spaceId]) {
+        const stand: Window = { id: PARK, spaceId, kind: "main", tabIds: [], activeTabIds: {}, sidebarOpen: true, frame: null, createdAt: 0 };
+        s = adoptParkedPins({ ...s, windows: { ...s.windows, [PARK]: stand } }, PARK, spaceId);
       }
       const scope = new Set([home.id, PARK]);
       const tabOfKey = new Map<string, string>();
       const groupOfKey = new Map<string, string>();
-      for (const wid of scope) for (const id of s.windows[wid]?.tabIds ?? []) if (s.tabs[id]?.profileId === profileId && !tabOfKey.has(pinKeyOf(s.tabs[id]!))) tabOfKey.set(pinKeyOf(s.tabs[id]!), id);
-      for (const g of Object.values(s.groups)) if (g.profileId === profileId && scope.has(g.windowId) && !groupOfKey.has(pinKeyOf(g))) groupOfKey.set(pinKeyOf(g), g.id);
+      for (const wid of scope) for (const id of s.windows[wid]?.tabIds ?? []) if (s.tabs[id]?.spaceId === spaceId && !tabOfKey.has(pinKeyOf(s.tabs[id]!))) tabOfKey.set(pinKeyOf(s.tabs[id]!), id);
+      for (const g of Object.values(s.groups)) if (g.spaceId === spaceId && scope.has(g.windowId) && !groupOfKey.has(pinKeyOf(g))) groupOfKey.set(pinKeyOf(g), g.id);
       const tid = (key: string) => tabOfKey.get(key) ?? key;
       const gid = (key: string) => groupOfKey.get(key) ?? key;
       const pins = new Map<string, PinValue>();
@@ -117,7 +117,7 @@ export function pinnedAdapter(profileId: string): Adapter {
         const old = groups[id];
         groups[id] = old
           ? { ...old, name: v.n, icon: v.i, color: v.c, pinned: true }
-          : { id, windowId: home.id, profileId, name: v.n, icon: v.i, color: v.c, collapsed: false, pinned: true, tabIds: [], createdAt: Date.now() };
+          : { id, windowId: home.id, spaceId, name: v.n, icon: v.i, color: v.c, collapsed: false, pinned: true, tabIds: [], createdAt: Date.now() };
       }
       for (const [id, v] of pins) {
         const group = v.g && groups[v.g] ? groups[v.g]! : null;
@@ -137,7 +137,7 @@ export function pinnedAdapter(profileId: string): Adapter {
         const w = windows[windowId];
         if (!w) continue;
         const tab: Tab = {
-          ...makeTab(windowId, profileId, v.u, { title: v.ti, pin: group ? null : TILE_PIN, customTitle: v.t, customIcon: v.i }),
+          ...makeTab(windowId, spaceId, v.u, { title: v.ti, pin: group ? null : TILE_PIN, customTitle: v.t, customIcon: v.i }),
           id,
           pinnedUrl: group ? null : v.u,
           page: { kind: "asleep" },
@@ -147,11 +147,11 @@ export function pinnedAdapter(profileId: string): Adapter {
       }
       const inGroup = new Set([...memberOrder.values()].flat().filter((id) => tabs[id]));
       for (const g of Object.values(groups)) {
-        if (g.profileId !== profileId) continue;
+        if (g.spaceId !== spaceId) continue;
         const wanted = g.pinned && memberOrder.has(g.id) ? memberOrder.get(g.id)!.filter((id) => tabs[id]) : g.tabIds.filter((id) => !inGroup.has(id));
         groups[g.id] = { ...g, tabIds: wanted };
       }
-      for (const g of Object.values(groups)) if (g.profileId === profileId && !g.tabIds.length) delete groups[g.id];
+      for (const g of Object.values(groups)) if (g.spaceId === spaceId && !g.tabIds.length) delete groups[g.id];
 
       const sequence = [...tileOrder, ...groupOrder.flatMap((g) => memberOrder.get(g) ?? [])];
       const rank = new Map(sequence.map((id, i) => [id, i]));
@@ -168,7 +168,7 @@ export function pinnedAdapter(profileId: string): Adapter {
       let { live, parkedPins } = s;
       const parkWindow = windows[PARK];
       if (parkWindow) {
-        parkedPins = parkWindowPins(parkedPins, parkWindow, { tabs, groups, history: s.history, profiles: s.profiles });
+        parkedPins = parkWindowPins(parkedPins, parkWindow, { tabs, groups, history: s.history, spaces: s.spaces, profiles: s.profiles });
         for (const id of parkWindow.tabIds) delete tabs[id];
         live = without(live, parkWindow.tabIds);
         groups = Object.fromEntries(Object.entries(groups).filter(([, g]) => g.windowId !== PARK));

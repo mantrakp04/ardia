@@ -28,7 +28,7 @@ function twoWindows() {
 }
 const PINS = ["https://mail.com", "https://docs.com"];
 
-test("⌘N while a window is open: the new window shows the profile's pinned tabs, unloaded, in order", () => {
+test("⌘N while a window is open: the new window shows the space's pinned tabs, unloaded, in order", () => {
   reset();
   const { a, b, mail } = twoWindows();
   assert.deepEqual(pinned(b), PINS);
@@ -111,8 +111,8 @@ test("relaunch: every restored window shows the pins; a 0.2.27 session whose win
   assert.deepEqual(pinned(a), PINS);
   assert.deepEqual(pinned(b), PINS);
 
-  const tab = (id, windowId, url, pinned) => ({ id, windowId, profileId: "default", url, title: "", favicon: null, pin: pinned ? { as: "tile" } : null, muted: false, zoom: 1, customTitle: null, customIcon: null, pinnedUrl: pinned ? url : null, page: { kind: "idle" }, openerId: null, createdAt: 0, lastActiveAt: 0 });
-  const win = (id, tabIds) => ({ id, profileId: "default", kind: "main", tabIds, activeTabIds: { default: tabIds.at(-1) }, sidebarOpen: true, frame: null, createdAt: 0 });
+  const tab = (id, windowId, url, pinned) => ({ id, windowId, spaceId: "default", url, title: "", favicon: null, pin: pinned ? { as: "tile" } : null, muted: false, zoom: 1, customTitle: null, customIcon: null, pinnedUrl: pinned ? url : null, page: { kind: "idle" }, openerId: null, createdAt: 0, lastActiveAt: 0 });
+  const win = (id, tabIds) => ({ id, spaceId: "default", kind: "main", tabIds, activeTabIds: { default: tabIds.at(-1) }, sidebarOpen: true, frame: null, createdAt: 0 });
   S().hydrate({
     windows: { w1: win("w1", ["x1", "m1", "r1"]), w2: win("w2", ["y2", "x2", "r2"]) },
     windowOrder: ["w1", "w2"],
@@ -122,8 +122,8 @@ test("relaunch: every restored window shows the pins; a 0.2.27 session whose win
        tab("y2", "w2", "https://y.com/", true), tab("x2", "w2", "https://x.com/", true), tab("r2", "w2", "https://r2.com/", false)].map((t) => [t.id, t]),
     ),
   });
-  const union = ["https://x.com/", "https://mail.com/", "https://y.com/"];
-  assert.deepEqual(pinned("w1"), union, "nothing lost: the windows' pins together, x.com once");
+  const union = ["https://x.com/", "https://mail.com/", "https://y.com/", "https://x.com/"];
+  assert.deepEqual(pinned("w1"), union, "distinct legacy tiles survive even when their URLs match");
   assert.deepEqual(pinned("w2"), union);
   assert.equal(!!S().tabs.x2.pin, true, "w2 keeps its own x.com tile as the copy");
 });
@@ -172,7 +172,7 @@ test("a tile torn off into its own window keeps its place in the first window", 
   assert.equal(tileOf(n, "https://docs.com"), docs);
 });
 
-test("private windows and Little Ardia show no pinned tabs; paging a window to another profile shows that profile's", () => {
+test("private windows and Little Ardia show no pinned tabs; paging a window to another space shows that space's", () => {
   reset();
   const { a } = twoWindows();
   const p = S().createWindow({ kind: "private", url: "https://secret.com" });
@@ -181,13 +181,13 @@ test("private windows and Little Ardia show no pinned tabs; paging a window to a
   assert.deepEqual(pinned(small), []);
   assert.deepEqual(pinned(a), PINS);
 
-  const work = S().createProfile({ name: "Work" });
-  const w = S().createWindow({ profileId: work, url: "https://work.com" });
+  const work = S().createSpace({ name: "Work", profileId: S().createProfile({ name: "Work" }) });
+  const w = S().createWindow({ spaceId: work, url: "https://work.com" });
   const t = S().newTab(w, { url: "https://jira.com" });
   S().pinTabs([t], true);
-  S().switchProfile(a, work);
+  S().switchSpace(a, work);
   assert.deepEqual(pinned(a), ["https://jira.com"], "A paged to Work shows Work's pins");
-  S().switchProfile(a, "default");
+  S().switchSpace(a, "default");
   assert.deepEqual(pinned(a), PINS, "and its own again");
 });
 

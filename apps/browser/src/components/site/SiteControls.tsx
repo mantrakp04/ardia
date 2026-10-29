@@ -17,7 +17,7 @@ import { openFind } from "../../state/find/actions";
 import { updateSettings } from "../../state/settings/actions";
 import { useEngineRule, usePageEngine, useRecommendedEngine, useStreamingSite } from "../../state/engines/hooks";
 import { useSettings, useTab } from "../../state/browser/hooks";
-import { isIncognitoProfile, tabLabel } from "../../state/browser/model";
+import { isIncognitoSpace, tabLabel } from "../../state/browser/model";
 import { ENGINE_NAMES, ENGINE_SYMBOLS, otherEngine } from "../../state/engines/engines";
 import { openPageIn, togglePageEngine } from "../../state/engines/actions";
 import { Box, MenuRow, MenuSeparator, PANEL, PanelHeader, Popover, PopoverValue, space, Toggle, usePopoverPresence } from "../ui";
@@ -75,7 +75,7 @@ function SiteControlsPanel({
   const url = tab?.url ?? "";
   const origin = siteOrigin(url);
   const host = origin ? new URL(origin).hostname : "";
-  const profile = currentEngineProfile(tab?.profileId ?? "");
+  const engineContext = currentEngineProfile(tab?.spaceId ?? "");
   const close = () => setPopover(tabId, null);
   const video = useMedia((m) => !!m.sessions[tabId]?.hasVideo || !!m.pipOpen[tabId]);
   const [pip, togglePip] = usePictureInPicture(tabId);
@@ -91,7 +91,7 @@ function SiteControlsPanel({
   useEffect(() => {
     if (!origin) return;
     let live = true;
-    void readSiteSettings(profile, origin, pageEngine).then((s) => {
+    void readSiteSettings(engineContext, origin, pageEngine).then((s) => {
       if (!live) return;
       setSettings(s);
       setFeatured((f) => f ?? featuredPermissions(tabId, s, permissionList));
@@ -101,7 +101,7 @@ function SiteControlsPanel({
     return () => {
       live = false;
     };
-  }, [origin, profile, webkitPage]);
+  }, [origin, engineContext, webkitPage]);
 
   if (!tab) return null;
 
@@ -109,7 +109,7 @@ function SiteControlsPanel({
     const current = permissionValue(type, settings, sound);
     const choice = await showMenu(choices.map((v) => ({ id: v, title: choiceTitle(type, v), checked: v === current })));
     if (!choice || !origin) return;
-    const next = await setSitePermission({ tabId, profile, origin, engine: pageEngine }, type, choice as SiteSettingValue, sound);
+    const next = await setSitePermission({ tabId, profile: engineContext, origin, engine: pageEngine }, type, choice as SiteSettingValue, sound);
     if (next) setSettings(next);
   };
   const toggleBlocker = async (on: boolean) => {
@@ -131,7 +131,7 @@ function SiteControlsPanel({
     close();
     void toggleCastPicker(tab.windowId);
   };
-  const privatePage = isIncognitoProfile(tab.profileId);
+  const privatePage = isIncognitoSpace(tab.spaceId);
   const opensIn = privatePage ? ENGINE_NAMES[pageEngine] : engineRule ? ENGINE_NAMES[engineRule] : recommendedTitle;
   const pickEngine = async () => {
     const checked = (engine: "chromium" | "webkit") => (privatePage ? pageEngine === engine : engineRule === engine);
@@ -239,7 +239,7 @@ function SiteControlsPanel({
           <>
             <MenuSeparator />
             <PanelHeader
-              icon={<Favicon url={url} favicon={tab.favicon} size={PANEL.iconSlot} profileId={tab.profileId} />}
+              icon={<Favicon url={url} favicon={tab.favicon} size={PANEL.iconSlot} spaceId={tab.spaceId} />}
               title={host ? displayHost(host) : tabLabel(tab)}
               subtitle={tab.title}
             />

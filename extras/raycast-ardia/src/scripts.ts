@@ -12,14 +12,14 @@ export type Tab = {
   isFocused: boolean;
 };
 
-export type Profile = {
+export type Space = {
   id: string;
   name: string;
   tabCount: number;
   isCurrent: boolean;
 };
 
-export type NewWindowOptions = { profileId?: string; incognito?: boolean };
+export type NewWindowOptions = { spaceId?: string; incognito?: boolean };
 
 const FIELD = "\u001f";
 const RECORD = "\u001e";
@@ -80,26 +80,26 @@ export function activateScript(target = APP_TARGET) {
   return `tell ${target} to activate`;
 }
 
-export function listProfilesScript(target = APP_TARGET) {
+export function listSpacesScript(target = APP_TARGET) {
   return `set fs to character id 31
 set rs to character id 30
 set out to ""
 tell ${target}
   set currentId to ""
   try
-    set currentId to id of active profile of window 1
+    set currentId to id of active space of window 1
   end try
-  set pIds to id of every profile
-  set pNames to name of every profile
+  set pIds to id of every space
+  set pNames to name of every space
   repeat with i from 1 to count of pIds
     set pId to item i of pIds
-    set out to out & pId & fs & (item i of pNames) & fs & (count of tabs of profile id pId) & fs & (pId is currentId) & rs
+    set out to out & pId & fs & (item i of pNames) & fs & (count of tabs of space id pId) & fs & (pId is currentId) & rs
   end repeat
 end tell
 return out`;
 }
 
-export function parseProfiles(output: string): Profile[] {
+export function parseSpaces(output: string): Space[] {
   return records(output).map(([id = "", name = "", tabCount = "0", current = ""]) => ({
     id: id.trim(),
     name,
@@ -108,34 +108,34 @@ export function parseProfiles(output: string): Profile[] {
   }));
 }
 
-export function profileNamed(profiles: Profile[], name: string): Profile {
+export function spaceNamed(spaces: Space[], name: string): Space {
   const wanted = name.trim();
   const lower = wanted.toLowerCase();
-  const exact = profiles.filter((profile) => profile.name.toLowerCase() === lower);
-  const matches = exact.length ? exact : profiles.filter((profile) => profile.name.toLowerCase().startsWith(lower));
+  const exact = spaces.filter((space) => space.name.toLowerCase() === lower);
+  const matches = exact.length ? exact : spaces.filter((space) => space.name.toLowerCase().startsWith(lower));
   if (matches.length === 1) return matches[0];
-  const names = (matches.length ? matches : profiles).map((profile) => profile.name).join(", ");
+  const names = (matches.length ? matches : spaces).map((space) => space.name).join(", ");
   throw new Error(
-    matches.length ? `“${wanted}” matches ${names}.` : `No profile is named “${wanted}”. Ardia has ${names}.`,
+    matches.length ? `“${wanted}” matches ${names}.` : `No space is named “${wanted}”. Ardia has ${names}.`,
   );
 }
 
-export function showProfileScript(profile: Pick<Profile, "id">, target = APP_TARGET) {
-  const specifier = `(profile id ${quote(profile.id)})`;
+export function showSpaceScript(space: Pick<Space, "id">, target = APP_TARGET) {
+  const specifier = `(space id ${quote(space.id)})`;
   return `tell ${target}
   try
     focus ${specifier}
   on error
-    make new window with properties {active profile:${specifier}}
+    make new window with properties {active space:${specifier}}
   end try
 end tell`;
 }
 
-export function newWindowScript({ profileId, incognito }: NewWindowOptions = {}, target = APP_TARGET) {
+export function newWindowScript({ spaceId, incognito }: NewWindowOptions = {}, target = APP_TARGET) {
   const properties = incognito
     ? "{incognito:true}"
-    : profileId
-      ? `{active profile:(profile id ${quote(profileId)})}`
+    : spaceId
+      ? `{active space:(space id ${quote(spaceId)})}`
       : "";
   return `tell ${target} to make new window${properties ? ` with properties ${properties}` : ""}`;
 }

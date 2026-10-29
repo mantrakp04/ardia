@@ -1,8 +1,8 @@
 import { useMemo, type ReactNode } from "react";
 import { spaceLookSource } from "../../lib/profileLook";
 import { useGlassSettings, useScopedLook } from "../../state/app/theme";
-import { isIncognitoProfile } from "../../state/browser/model";
-import { useProfileLook } from "../../state/profiles/hooks";
+import { isIncognitoSpace } from "../../state/browser/model";
+import { useProfileLook } from "../../state/spaces/hooks";
 import { GlassLookContext, liquidGlass } from "../ui/Glass";
 import { scopedTheme, ThemeContext, type Theme } from "../ui/theme";
 
@@ -17,6 +17,6 @@ export function ThemeScope({ children }: { children: ReactNode }) {
   );
 }
 
-export function useProfileTheme(profileId: string): Theme {
-  return useProfileLook(profileId, (profile, appDark, settings) => scopedTheme(isIncognitoProfile(profileId), profile, appDark, spaceLookSource(settings)));
+export function useProfileTheme(spaceId: string): Theme {
+  return useProfileLook(spaceId, (space, appDark, settings) => scopedTheme(isIncognitoSpace(spaceId), space, appDark, spaceLookSource(settings)));
 }

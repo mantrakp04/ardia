@@ -1,11 +1,11 @@
 import type { BrowserState, HydrateData } from "../../browser/src/state/browser/store";
-import { engineProfile } from "../../browser/src/state/browser/model";
-import type { BrowserWindow, HistoryEntry, Profile, Tab } from "../../browser/src/state/browser/types";
+import { engineProfileForSpace } from "../../browser/src/state/browser/model";
+import type { BrowserWindow, HistoryEntry, Space, Tab } from "../../browser/src/state/browser/types";
 import { faviconFor, PAGES } from "./pages";
 
 export const WINDOW_ID = "w_demo";
-export const PERSONAL: Profile = { id: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 };
-export const WORK: Profile = { id: "p_work", name: "Work", color: "blue", icon: null, createdAt: 0 };
+export const PERSONAL: Space = { id: "default", profileId: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 };
+export const WORK: Space = { id: "p_work", profileId: "p_work", name: "Work", color: "blue", icon: null, createdAt: 0 };
 export const ACTIVE_TABS = { [PERSONAL.id]: "t_browser", [WORK.id]: "t_vite" };
 
 type Page = { url: string; title: string };
@@ -13,12 +13,12 @@ type FaviconOf = (url: string) => string | null;
 
 const DAY = 86_400_000;
 
-function tab(favicon: FaviconOf, now: number, id: string, profileId: string, page: Page, pinned = false, ageMinutes = 0): Tab {
+function tab(favicon: FaviconOf, now: number, id: string, spaceId: string, page: Page, pinned = false, ageMinutes = 0): Tab {
   const at = now - ageMinutes * 60_000;
   return {
     id,
     windowId: WINDOW_ID,
-    profileId,
+    spaceId,
     url: page.url,
     title: page.title,
     favicon: favicon(page.url),
@@ -56,7 +56,7 @@ export function seedTabs(favicon: FaviconOf = faviconFor, now = Date.now()): Tab
 export function seedWindow(tabs: Tab[], frame: BrowserWindow["frame"] = null, now = Date.now()): BrowserWindow {
   return {
     id: WINDOW_ID,
-    profileId: PERSONAL.id,
+    spaceId: PERSONAL.id,
     kind: "main",
     tabIds: tabs.map((t) => t.id),
     activeTabIds: ACTIVE_TABS,
@@ -91,8 +91,9 @@ export function demoSession(): HydrateData {
   const tabs = seedTabs();
   const window = seedWindow(tabs);
   return {
-    profiles: { [PERSONAL.id]: PERSONAL, [WORK.id]: WORK },
-    profileOrder: [PERSONAL.id, WORK.id],
+    profiles: { default: { id: "default", name: "Personal", icon: null, engineId: "", createdAt: 0 }, p_work: { id: "p_work", name: "Work", icon: null, engineId: "p_work", createdAt: 0 } },
+    spaces: { [PERSONAL.id]: PERSONAL, [WORK.id]: WORK },
+    spaceOrder: [PERSONAL.id, WORK.id],
     windows: { [WINDOW_ID]: window },
     windowOrder: [WINDOW_ID],
     focusedWindowId: WINDOW_ID,
@@ -100,7 +101,7 @@ export function demoSession(): HydrateData {
   };
 }
 
-export function demoHistory(s: Pick<BrowserState, "profiles">): BrowserState["history"] {
+export function demoHistory(s: Pick<BrowserState, "spaces" | "profiles">): BrowserState["history"] {
   const view = (list: HistoryEntry[]) => ({ list, floor: -Infinity, ready: true });
-  return { [engineProfile(s, PERSONAL.id)]: view(seedHistory(HISTORY_PAGES)), [engineProfile(s, WORK.id)]: view(seedHistory(HISTORY_PAGES.slice(8))) };
+  return { [engineProfileForSpace(s, PERSONAL.id)]: view(seedHistory(HISTORY_PAGES)), [engineProfileForSpace(s, WORK.id)]: view(seedHistory(HISTORY_PAGES.slice(8))) };
 }

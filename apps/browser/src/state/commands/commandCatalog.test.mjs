@@ -34,12 +34,12 @@ test("no two shortcut ids share a default key", () => {
   assert.deepEqual([...holders].filter(([, ids]) => ids.length > 1), []);
 });
 
-test("profiles get ⌃1 to ⌃9 in order", () => {
+test("spaces get ⌃1 to ⌃9 in order", () => {
   const ids = Array.from({ length: 10 }, (_, i) => `p${i}`);
   const keys = new Map(shortcutSources(ids, []).map((s) => [s.id, s.keys.map(formatShortcut)]));
-  assert.deepEqual(keys.get("switchProfile:p0"), ["⌃1"]);
-  assert.deepEqual(keys.get("switchProfile:p8"), ["⌃9"]);
-  assert.deepEqual(keys.get("switchProfile:p9"), []);
+  assert.deepEqual(keys.get("switchSpace:p0"), ["⌃1"]);
+  assert.deepEqual(keys.get("switchSpace:p8"), ["⌃9"]);
+  assert.deepEqual(keys.get("switchSpace:p9"), []);
 });
 
 test("a command that chooses a setting offers exactly the setting's values", () => {

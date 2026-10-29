@@ -1,7 +1,7 @@
 import { CastMode, closeCastDialog, onCastDialog, onCastRoutes, showCastDialog, watchCastRoutes, type CastDialog, type CastRoute } from "../../platform/media";
 import { create } from "zustand";
 import { useBrowser, type BrowserState } from "../browser/store";
-import { engineProfile } from "../browser/model";
+import { engineProfile, engineProfileForSpace } from "../browser/model";
 import { shownPageId } from "../peek/peek";
 import { isTabReady } from "../tabs/pageState";
 
@@ -20,9 +20,9 @@ type CastStore = {
 export const useCast = create<CastStore>()(() => ({ dialogs: {}, routes: {} }));
 if (__DEV__) (globalThis as { acCast?: unknown }).acCast = { useCast };
 
-function castProfile(s: BrowserState, windowId: string): string {
+function castSpace(s: BrowserState, windowId: string): string {
   const w = s.windows[windowId];
-  return !w ? "" : engineProfile(s, w.profileId);
+  return !w ? "" : engineProfile(s, w.spaceId);
 }
 
 let started = false;
@@ -42,14 +42,14 @@ export function startCast() {
       return { dialogs };
     });
   });
-  onCastRoutes(({ profile, routes }) => useCast.setState((c) => ({ routes: { ...c.routes, [profile]: routes } })));
+  onCastRoutes(({ profile: space, routes }) => useCast.setState((c) => ({ routes: { ...c.routes, [space]: routes } })));
   const watched = new Set<string>();
   const watch = (s: BrowserState) => {
     for (const id of s.windowOrder) {
-      const profile = castProfile(s, id);
-      if (watched.has(profile)) continue;
-      watched.add(profile);
-      void watchCastRoutes(profile);
+      const space = castSpace(s, id);
+      if (watched.has(space)) continue;
+      watched.add(space);
+      void watchCastRoutes(space);
     }
   };
   watch(useBrowser.getState());
@@ -72,6 +72,6 @@ export function closeCastPicker(tabId: string) {
 
 const NONE: CastRoute[] = [];
 export function useCastRoutes(windowId: string): CastRoute[] {
-  const profile = useBrowser((s) => castProfile(s, windowId));
-  return useCast((c) => c.routes[profile] ?? NONE);
+  const space = useBrowser((s) => castSpace(s, windowId));
+  return useCast((c) => c.routes[space] ?? NONE);
 }

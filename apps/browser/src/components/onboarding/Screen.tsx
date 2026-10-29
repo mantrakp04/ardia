@@ -5,7 +5,7 @@ import { themeAccent } from "../../lib/profileLook";
 import { curve, usePresence } from "../ui/motion";
 import { onboardingMotion } from "./tokens";
 import { useChosenSettings, useSettings, useTabLayout } from "../../state/browser/hooks";
-import { useWindowProfileValue } from "../../state/profiles/hooks";
+import { useWindowSpaceValue } from "../../state/spaces/hooks";
 import type { Settings } from "../../state/settings/settings";
 import { MockWindow, type PreviewId } from "./previews";
 import { resolveDraft, useOnboarding } from "../../state/onboarding/onboarding";
@@ -24,7 +24,7 @@ export function useScreen<K extends keyof Settings>(keys: readonly K[]) {
 
 export function useAccent() {
   const windowId = useOnboarding((s) => s.windowId);
-  return useWindowProfileValue(windowId ?? "", (p) => (p?.theme ? themeAccent(p.theme) : (PROFILE_COLORS[p?.color ?? "plum"] ?? PROFILE_COLORS.plum).swatch));
+  return useWindowSpaceValue(windowId ?? "", (p) => (p?.theme ? themeAccent(p.theme) : (PROFILE_COLORS[p?.color ?? "plum"] ?? PROFILE_COLORS.plum).swatch));
 }
 
 const MOCK_SIZE = { width: 420, height: 300 } as const;

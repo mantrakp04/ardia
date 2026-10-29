@@ -11,7 +11,7 @@ test("every sync type is listed once, on by default, in the Sync pane's order", 
   assert.ok(Object.values(defaultTypes()).every((on) => on));
 });
 
-test("a profile that shares another's data syncs only the types that aren't its data", () => {
+test("a space that shares another's data syncs only the types that aren't its data", () => {
   const types = defaultTypes();
   const shared = DATA_TYPES.filter((t) => typeSyncedFor(types, t.id, false)).map((t) => t.id);
   assert.deepEqual(shared, ["tabs", "pinned", "settings"]);

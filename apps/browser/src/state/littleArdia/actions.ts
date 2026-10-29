@@ -5,10 +5,11 @@ import { menuShortcut } from "../commands/commandShortcuts";
 import { closeWindowAnimated, isWindowClosing } from "../windows/closeAnimated";
 import { routedLinks, type RoutedLinks } from "./linkRoutes";
 import { runsJavaScript } from "../settings/scriptUrls";
-import { profileAccentOf } from "../profiles/looks";
+import { profileAccentOf } from "../spaces/looks";
 import { useBrowser } from "../browser/store";
-import { activeTabId } from "../browser/model";
-import { isSmall, lastActiveProfile, mainWindowFor } from "../windows/small";
+import { confirm } from "../app/system";
+import { engineProfileForSpace, activeTabId } from "../browser/model";
+import { isSmall, lastActiveSpace, mainWindowFor } from "../windows/small";
 import { isWebPageUrl } from "../../lib/url";
 import { navigationOf } from "../tabs/pageSession";
 import { asAdoptId } from "../tabs/adoptIds";
@@ -16,8 +17,8 @@ import type { AdoptId } from "../browser/types";
 
 const store = () => useBrowser.getState();
 
-export function openLittleArdia(url?: string, profileId?: string, adoptId?: AdoptId, linkPointer?: [number, number]): string {
-  const id = store().createWindow({ kind: "small", url, profileId, adoptId, linkPointer });
+export function openLittleArdia(url?: string, spaceId?: string, adoptId?: AdoptId, linkPointer?: [number, number]): string {
+  const id = store().createWindow({ kind: "small", url, spaceId, adoptId, linkPointer });
   if (!url) store().openPanel(id, "");
   return id;
 }
@@ -47,23 +48,23 @@ function openRoutedUrls(urls: string[], route: LinkRoute, pointer?: [number, num
 
 function openUrlsFromApps(urls: string[], routed: RoutedLinks, pointer?: [number, number]) {
   const [url] = urls;
-  const profileId = routed.profileId ?? lastActiveProfile(store());
-  if (store().settings.openLinksInLittleArdia && urls.length === 1 && url && isWebPageUrl(url)) return void openLittleArdia(url, profileId, asAdoptId(routed.adoptIds[0]), pointer);
-  openLinksInMainWindow(urls, profileId, routed.adoptIds);
+  const spaceId = routed.spaceId ?? store().settings.defaultSpaceId;
+  if (store().settings.openLinksInLittleArdia && urls.length === 1 && url && isWebPageUrl(url)) return void openLittleArdia(url, spaceId, asAdoptId(routed.adoptIds[0]), pointer);
+  openLinksInMainWindow(urls, spaceId, routed.adoptIds);
 }
 
-function openLinksInMainWindow(urls: string[], profileId: string, adoptIds: (string | undefined)[]) {
-  let target = mainWindowFor(store(), profileId);
+function openLinksInMainWindow(urls: string[], spaceId: string, adoptIds: (string | undefined)[]) {
+  let target = mainWindowFor(store(), spaceId);
   urls.forEach((url, i) => {
     const s = store();
     const adoptId = asAdoptId(adoptIds[i]);
     const w = target ? s.windows[target] : undefined;
     const blank = w && w.tabIds.length === 1 ? s.tabs[w.tabIds[0]!] : undefined;
-    const intoBlank = blank && !blank.url && !navigationOf(blank) && blank.profileId === profileId && !s.windowUi[w!.id]?.panel.open;
-    if (!w) target = openWindow({ url, profileId, adoptId });
+    const intoBlank = blank && !blank.url && !navigationOf(blank) && blank.spaceId === spaceId && !s.windowUi[w!.id]?.panel.open;
+    if (!w) target = openWindow({ url, spaceId, adoptId });
     else if (intoBlank && !adoptId) s.navigate(blank.id, url);
     else {
-      s.newTab(w.id, { url, profileId, adoptId });
+      s.newTab(w.id, { url, spaceId, adoptId });
       if (intoBlank) store().closeTab(blank.id);
     }
   });
@@ -75,51 +76,51 @@ export function openInMainWindow(windowId: string) {
   if (!isSmall(s, windowId)) return;
   const tabId = activeTabId(s, windowId);
   const tab = tabId ? s.tabs[tabId] : undefined;
-  const target = mainWindowFor(s, tab?.profileId ?? s.windows[windowId]!.profileId);
+  const target = mainWindowFor(s, tab?.spaceId ?? s.windows[windowId]!.spaceId);
   if (!tab?.url) {
     s.closeWindow(windowId);
     if (target) focus(target);
-    else openWindow({ profileId: tab?.profileId });
+    else openWindow({ spaceId: tab?.spaceId });
     return;
   }
   const moved = s.moveTabsToWindow([tab.id], target ?? null);
   if (moved) focus(moved);
 }
 
-export function moveLittleArdiaToProfile(windowId: string, profileId: string) {
+export async function moveLittleArdiaToSpace(windowId: string, spaceId: string) {
   const s = store();
   const w = s.windows[windowId];
-  if (!w || !isSmall(s, windowId) || isWindowClosing(windowId) || !s.profiles[profileId] || w.profileId === profileId) return;
+  if (!w || !isSmall(s, windowId) || isWindowClosing(windowId) || !s.spaces[spaceId] || w.spaceId === spaceId) return;
   const tabId = activeTabId(s, windowId);
   const url = (tabId ? s.tabs[tabId]?.url : undefined) || undefined;
-  const id = store().createWindow({ kind: "small", url, profileId, frame: w.frame });
+  const id = store().createWindow({ kind: "small", url, spaceId, frame: w.frame });
   if (!url) store().openPanel(id, "");
   closeWindowAnimated(windowId, id, () => {
     if (tabId) useBrowser.setState((now) => ({ closedTabs: now.closedTabs.filter((c) => c.tabId !== tabId) }));
   });
 }
 
-export function cycleLittleArdiaProfile(windowId: string, delta: 1 | -1) {
+export function cycleLittleArdiaSpace(windowId: string, delta: 1 | -1) {
   const s = store();
   const w = s.windows[windowId];
-  if (!w || s.profileOrder.length < 2) return;
-  const i = s.profileOrder.indexOf(w.profileId);
-  moveLittleArdiaToProfile(windowId, s.profileOrder[(i + delta + s.profileOrder.length) % s.profileOrder.length]!);
+  if (!w || s.spaceOrder.length < 2) return;
+  const i = s.spaceOrder.indexOf(w.spaceId);
+  moveLittleArdiaToSpace(windowId, s.spaceOrder[(i + delta + s.spaceOrder.length) % s.spaceOrder.length]!);
 }
 
-export async function openLittleArdiaProfileMenu(windowId: string) {
+export async function openLittleArdiaSpaceMenu(windowId: string) {
   const s = store();
-  const current = s.windows[windowId]?.profileId;
+  const current = s.windows[windowId]?.spaceId;
   const choice = await showMenu(
-    s.profileOrder.map((id) => ({
+    s.spaceOrder.map((id) => ({
       id,
-      title: s.profiles[id]!.name,
+      title: s.spaces[id]!.name,
       checked: id === current,
-      swatch: profileAccentOf(s.profiles[id]),
-      ...menuShortcut(`switchProfile:${id}`, s),
+      swatch: profileAccentOf(s.spaces[id]),
+      ...menuShortcut(`switchSpace:${id}`, s),
     })),
   );
-  if (choice) moveLittleArdiaToProfile(windowId, choice);
+  if (choice) moveLittleArdiaToSpace(windowId, choice);
 }
 
 export function closeLittleArdia(windowId: string) {

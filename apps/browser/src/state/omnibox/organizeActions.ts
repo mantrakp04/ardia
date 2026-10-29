@@ -1,6 +1,6 @@
 import type { CommandAction } from "@ardia/core";
 import { useBrowser, type BrowserState } from "../browser/store";
-import { activeTab, isIncognitoProfile, viewTabIds } from "../browser/model";
+import { activeTab, isIncognitoSpace, viewTabIds } from "../browser/model";
 import { hiddenEmptyCard } from "../omnibox/newTabBarPolicy";
 import { isStacked, MAX_SPLIT_PANES, splitOf, splitTabIds, splitTabIdsOf } from "../splits/splits";
 import type { SplitView, Tab } from "../browser/types";
@@ -18,7 +18,7 @@ type OrganizeDef<Id extends string = string> = {
 export const sideBySide = (split: SplitView | undefined) => split?.orientation === "horizontal";
 const hasRoom = (split: SplitView | undefined) => !split || splitTabIds(split).length < MAX_SPLIT_PANES;
 const stacked = ({ split, tab }: OrganizeContext) => !!split && isStacked(split, tab.id);
-const inProfiles = ({ s, windowId, tab }: OrganizeContext) => s.windows[windowId]?.kind !== "private" && !isIncognitoProfile(tab.profileId);
+const inSpaces = ({ s, windowId, tab }: OrganizeContext) => s.windows[windowId]?.kind !== "private" && !isIncognitoSpace(tab.spaceId);
 
 export function splitCandidates({ s, windowId, tab, split }: OrganizeContext): Tab[] {
   return viewTabIds(s, windowId)
@@ -93,25 +93,25 @@ const DEFS = organizeDefs([
     shows: (c) => !!c.split,
   },
   {
-    id: "profile:moveTab",
-    title: "Move Tab to Profile…",
+    id: "space:moveTab",
+    title: "Move Tab to Space…",
     icon: "person.crop.circle",
-    keywords: ["move tab", "move to profile", "move to space", "send tab to profile"],
-    shows: inProfiles,
+    keywords: ["move tab", "move to space", "move to space", "send tab to space"],
+    shows: inSpaces,
   },
   {
-    id: "profile:rename",
-    title: "Rename Profile…",
+    id: "space:rename",
+    title: "Rename Space…",
     icon: "pencil",
-    keywords: ["rename profile", "rename space", "profile name"],
-    shows: inProfiles,
+    keywords: ["rename space", "rename space", "space name"],
+    shows: inSpaces,
   },
   {
-    id: "profile:edit",
-    title: "Edit Profiles…",
+    id: "space:edit",
+    title: "Edit Spaces…",
     icon: "person.2",
-    keywords: ["manage profiles", "reorder profiles", "delete profile", "spaces", "profile settings"],
-    shows: inProfiles,
+    keywords: ["manage spaces", "reorder spaces", "delete space", "spaces", "space settings"],
+    shows: inSpaces,
   },
 ]);
 
@@ -137,13 +137,13 @@ export function organizeActions(s: BrowserState, windowId: string): CommandActio
     icon: d.icon,
     keywords: d.keywords,
   }));
-  if (inProfiles(c)) {
-    for (const id of s.profileOrder) {
-      if (id === c.tab.profileId) continue;
-      const name = s.profiles[id]?.name ?? "";
-      out.push({ id: `moveTabToProfile:${id}`, title: `Move Tab to ${name}`, icon: "arrow.right.circle", keywords: [name, "move tab", "move to profile", "move to space"] });
+  if (inSpaces(c)) {
+    for (const id of s.spaceOrder) {
+      if (id === c.tab.spaceId) continue;
+      const name = s.spaces[id]?.name ?? "";
+      out.push({ id: `moveTabToSpace:${id}`, title: `Move Tab to ${name}`, icon: "arrow.right.circle", keywords: [name, "move tab", "move to space", "move to space"] });
     }
-    out.push({ id: "moveTabToProfile:new", title: "Move Tab to New Profile", icon: "person.crop.circle.badge.plus", keywords: ["move tab", "new profile", "new space"] });
+    out.push({ id: "moveTabToSpace:new", title: "Move Tab to New Space", icon: "person.crop.circle.badge.plus", keywords: ["move tab", "new space", "new space"] });
   }
   return out;
 }

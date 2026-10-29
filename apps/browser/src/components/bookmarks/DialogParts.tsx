@@ -12,13 +12,13 @@ export function FieldLabel({ text }: { text: string }) {
 }
 
 export function FolderPicker({
-  profileId,
+  spaceId,
   selectedId,
   onSelect,
   height,
   clip,
 }: {
-  profileId: string | null;
+  spaceId: string | null;
   selectedId: string | null;
   onSelect: (id: string) => void;
   height: number;
@@ -27,7 +27,7 @@ export function FolderPicker({
   return (
     <Box radius="button" fill="field" border="fieldBorder" style={{ height, overflow: clip ? "hidden" : undefined }}>
       <ScrollView contentContainerStyle={CONTENT}>
-        {profileId && <FolderTree profileId={profileId} selectedId={selectedId} onSelect={onSelect} rowHeight={folderPicker.row} />}
+        {spaceId && <FolderTree spaceId={spaceId} selectedId={selectedId} onSelect={onSelect} rowHeight={folderPicker.row} />}
       </ScrollView>
     </Box>
   );

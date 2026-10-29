@@ -1,20 +1,20 @@
 import type { StateCreator } from "zustand";
 import { LEGACY_BOOKMARK_SEED } from "../../lib/legacy";
 import type { BrowserState } from "../browser/store";
-import { engineProfile, without } from "../browser/model";
+import { engineProfileForSpace, without } from "../browser/model";
 import type { BookmarkFolder, BookmarkNode, Bookmarks } from "../browser/types";
 
 export type BookmarksSlice = {
   bookmarks: Bookmarks;
   bookmarksReady: Record<string, true>;
 
-  addBookmark(options: { profileId: string; url: string; title: string; favicon?: string | null; parentId?: string; index?: number }): string;
-  addBookmarkFolder(options: { profileId: string; title: string; parentId?: string; index?: number }): string;
+  addBookmark(options: { spaceId: string; url: string; title: string; favicon?: string | null; parentId?: string; index?: number }): string;
+  addBookmarkFolder(options: { spaceId: string; title: string; parentId?: string; index?: number }): string;
   updateBookmark(id: string, patch: { title?: string; url?: string; favicon?: string | null }): void;
   moveBookmark(id: string, parentId: string, index?: number): void;
   removeBookmark(id: string): void;
-  toggleBookmark(profileId: string, page: { url: string; title: string; favicon: string | null }): boolean;
-  addBookmarkTree(profileId: string, drafts: BookmarkDraft[], parentId?: string, index?: number): string[];
+  toggleBookmark(spaceId: string, page: { url: string; title: string; favicon: string | null }): boolean;
+  addBookmarkTree(spaceId: string, drafts: BookmarkDraft[], parentId?: string, index?: number): string[];
   removeBookmarks(ids: string[]): RemovedBookmarks;
   restoreBookmarks(removed: RemovedBookmarks): void;
 };
@@ -75,22 +75,22 @@ export function isWithin(b: Bookmarks, id: string, ancestors: readonly string[])
 
 export type BookmarkRootIds = { bar: string; other: string };
 
-export type BookmarkOwners = Pick<BrowserState, "bookmarks" | "profiles" | "profileOrder">;
+export type BookmarkOwners = Pick<BrowserState, "bookmarks" | "spaces" | "profiles" | "spaceOrder">;
 
 export function engineBookmarkRoots(b: Bookmarks, engine: string): BookmarkRootIds | null {
   const roots = rootIdsFor(engine);
   return b.nodes[roots.bar] && b.nodes[roots.other] ? roots : null;
 }
 
-export const bookmarkRoots = (s: Pick<BrowserState, "bookmarks" | "profiles">, profileId: string) =>
-  engineBookmarkRoots(s.bookmarks, engineProfile(s, profileId));
+export const bookmarkRoots = (s: Pick<BrowserState, "bookmarks" | "spaces" | "profiles">, spaceId: string) =>
+  engineBookmarkRoots(s.bookmarks, engineProfileForSpace(s, spaceId));
 
 export function ownerOfBookmark(s: BookmarkOwners, id: string): string | null {
   let node = s.bookmarks.nodes[id];
   for (let i = 0; node?.parentId && i < MAX_DEPTH; i++) node = s.bookmarks.nodes[node.parentId];
   const root = node;
   if (!root) return null;
-  return s.profileOrder.find((p) => {
+  return s.spaceOrder.find((p) => {
     const roots = bookmarkRoots(s, p);
     return roots?.bar === root.id || roots?.other === root.id;
   }) ?? null;
@@ -145,8 +145,8 @@ export function bookmarksByUrl(b: Bookmarks, engine: string): Map<string, string
   return index;
 }
 
-export const isBookmarked = (s: Pick<BrowserState, "bookmarks" | "profiles">, profileId: string, url: string) =>
-  !!url && bookmarksByUrl(s.bookmarks, engineProfile(s, profileId)).has(url);
+export const isBookmarked = (s: Pick<BrowserState, "bookmarks" | "spaces" | "profiles">, spaceId: string, url: string) =>
+  !!url && bookmarksByUrl(s.bookmarks, engineProfileForSpace(s, spaceId)).has(url);
 
 export function folderChildren(b: Bookmarks, folderId: string): BookmarkNode[] {
   const folder = b.nodes[folderId];
@@ -181,15 +181,15 @@ export const createBookmarksSlice: StateCreator<BrowserState, [], [], BookmarksS
   bookmarks: EMPTY_BOOKMARKS,
   bookmarksReady: {},
 
-  addBookmark({ profileId, url, title, favicon = null, parentId, index }) {
-    const [b, roots] = ensureRoots(get().bookmarks, engineProfile(get(), profileId));
+  addBookmark({ spaceId, url, title, favicon = null, parentId, index }) {
+    const [b, roots] = ensureRoots(get().bookmarks, engineProfileForSpace(get(), spaceId));
     const node: BookmarkNode = { kind: "url", id: newBookmarkId(), parentId: parentId ?? roots.bar, title, url, favicon, addedAt: Date.now() };
     set({ bookmarks: insertChild(b, node, node.parentId, index) });
     return node.id;
   },
 
-  addBookmarkFolder({ profileId, title, parentId, index }) {
-    const [b, roots] = ensureRoots(get().bookmarks, engineProfile(get(), profileId));
+  addBookmarkFolder({ spaceId, title, parentId, index }) {
+    const [b, roots] = ensureRoots(get().bookmarks, engineProfileForSpace(get(), spaceId));
     const node: BookmarkNode = { kind: "folder", id: newBookmarkId(), parentId: parentId ?? roots.bar, title, children: [], addedAt: Date.now() };
     set({ bookmarks: insertChild(b, node, node.parentId!, index) });
     return node.id;
@@ -225,8 +225,8 @@ export const createBookmarksSlice: StateCreator<BrowserState, [], [], BookmarksS
     });
   },
 
-  addBookmarkTree(profileId, drafts, parentId, index) {
-    const [b, roots] = ensureRoots(get().bookmarks, engineProfile(get(), profileId));
+  addBookmarkTree(spaceId, drafts, parentId, index) {
+    const [b, roots] = ensureRoots(get().bookmarks, engineProfileForSpace(get(), spaceId));
     const nodes = { ...b.nodes };
     const build = (d: BookmarkDraft, parent: string): string => {
       const id = newBookmarkId();
@@ -281,15 +281,15 @@ export const createBookmarksSlice: StateCreator<BrowserState, [], [], BookmarksS
     });
   },
 
-  toggleBookmark(profileId, page) {
+  toggleBookmark(spaceId, page) {
     const s = get();
     if (!page.url) return false;
-    const existing = bookmarksByUrl(s.bookmarks, engineProfile(s, profileId)).get(page.url);
+    const existing = bookmarksByUrl(s.bookmarks, engineProfileForSpace(s, spaceId)).get(page.url);
     if (existing?.length) {
       set({ bookmarks: removeBookmarkTree(s.bookmarks, existing) });
       return false;
     }
-    get().addBookmark({ profileId, url: page.url, title: page.title, favicon: page.favicon });
+    get().addBookmark({ spaceId, url: page.url, title: page.title, favicon: page.favicon });
     return true;
   },
 });

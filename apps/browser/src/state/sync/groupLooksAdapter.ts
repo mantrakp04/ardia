@@ -4,7 +4,7 @@ import { PIN_GROUP, GROUP_LOOK, legacyColor, lookedColor, NO_BOX, PIN_NEST } fro
 import { commitPinnedEdit, store } from "./pinnedSyncState";
 import { pinKeyOf } from "../browser/model";
 
-export function groupLooksAdapter(profileId: string): Adapter {
+export function groupLooksAdapter(spaceId: string): Adapter {
   const keyOf = (k: string) => k.slice(GROUP_LOOK.length);
   const groupRecords = (key: string) => [`${PIN_GROUP}${key}`, `${PIN_NEST}g:${key}`];
   return {
@@ -18,8 +18,8 @@ export function groupLooksAdapter(profileId: string): Adapter {
         known.add(key);
         if (color === "none") values.set(`${GROUP_LOOK}${key}`, NO_BOX);
       };
-      for (const g of Object.values(s.groups)) if (g.pinned && g.profileId === profileId) offer(pinKeyOf(g), g.color);
-      for (const g of s.parkedPins[profileId]?.groups ?? []) offer(g.id, g.color);
+      for (const g of Object.values(s.groups)) if (g.pinned && g.spaceId === spaceId) offer(pinKeyOf(g), g.color);
+      for (const g of s.parkedPins[spaceId]?.groups ?? []) offer(g.id, g.color);
       const gone = (key: string) => groupRecords(key).some(recorded) && groupRecords(key).every((k) => (remote(k) ?? null) === null);
       return { values, ignore: (k) => !known.has(keyOf(k)) && !gone(keyOf(k)) } satisfies Extraction;
     },
@@ -34,18 +34,18 @@ export function groupLooksAdapter(profileId: string): Adapter {
       const s = store();
       let groups: Record<string, TabGroup> | null = null;
       for (const g of Object.values(s.groups)) {
-        if (!g.pinned || g.profileId !== profileId) continue;
+        if (!g.pinned || g.spaceId !== spaceId) continue;
         const color = wanted(pinKeyOf(g), g.color);
         if (color !== undefined) (groups ??= { ...s.groups })[g.id] = { ...g, color };
       }
-      const park = s.parkedPins[profileId];
+      const park = s.parkedPins[spaceId];
       const parkedGroups = park?.groups.map((g) => {
         const color = wanted(g.id, g.color);
         return color === undefined ? g : { ...g, color };
       });
       const parkEdited = !!park && parkedGroups!.some((g, i) => g !== park.groups[i]);
       if (!groups && !parkEdited) return true;
-      commitPinnedEdit(s, profileId, groups ? { groups } : {}, parkEdited ? { groups: parkedGroups! } : null);
+      commitPinnedEdit(s, spaceId, groups ? { groups } : {}, parkEdited ? { groups: parkedGroups! } : null);
       return true;
     },
   };

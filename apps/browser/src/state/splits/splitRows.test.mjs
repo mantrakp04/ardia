@@ -97,7 +97,7 @@ test("a tab dropped before a split's second pane in window order lands before th
   assert.equal(order.includes(a), true);
 });
 
-test("a pinned split shows as a split in the profile's other windows, and unsplitting there follows", () => {
+test("a pinned split shows as a split in the space's other windows, and unsplitting there follows", () => {
   reset();
   const { w, b, splitId } = splitWindow();
   S().pinTabs([b], true);
@@ -139,7 +139,7 @@ test("a pinned split survives a relaunch", () => {
   reset();
   const { w, b, c, splitId } = splitWindow();
   S().pinTabs([b], true);
-  const saved = JSON.parse(JSON.stringify({ windows: S().windows, tabs: S().tabs, groups: S().groups, splits: S().splits, profiles: S().profiles, windowOrder: S().windowOrder }));
+  const saved = JSON.parse(JSON.stringify({ windows: S().windows, tabs: S().tabs, groups: S().groups, splits: S().splits, spaces: S().spaces, windowOrder: S().windowOrder }));
   S().hydrate(saved);
   assert.deepEqual(splitTabIdsOf(S().splits[splitId]), [b, c]);
   assert.deepEqual(sidebarEntries(S(), w).pinned, [`s:${splitId}`]);
@@ -198,14 +198,14 @@ test("parking keeps both panes of a pinned split even at the same page, or at a 
 
 test("merging two windows' pins never folds a pinned split's panes into another window's pin at the same page", () => {
   reset();
-  const profiles = S().profiles;
+  const spaces = S().spaces;
   const tab = (id, windowId, url, pinned) => ({ ...model.makeTab(windowId, "default", url, pinned ? { pin: { as: "row" }, pinnedUrl: url } : {}), id });
-  const win = (id, tabIds, active) => ({ id, profileId: "default", kind: "main", tabIds, activeTabIds: { default: active }, sidebarOpen: true, frame: null, createdAt: 0 });
+  const win = (id, tabIds, active) => ({ id, spaceId: "default", kind: "main", tabIds, activeTabIds: { default: active }, sidebarOpen: true, frame: null, createdAt: 0 });
   const tabs = Object.fromEntries(
     [tab("a1", "wA", "https://x.com/", true), tab("a2", "wA", "https://y.com/"), tab("b1", "wB", "https://x.com/", true), tab("b2", "wB", "https://x.com/", true), tab("b3", "wB", "https://z.com/")].map((t) => [t.id, t]),
   );
   S().hydrate({
-    profiles,
+    spaces,
     windows: { wA: win("wA", ["a1", "a2"], "a2"), wB: win("wB", ["b1", "b2", "b3"], "b3") },
     windowOrder: ["wB", "wA"],
     tabs,
@@ -218,7 +218,7 @@ test("merging two windows' pins never folds a pinned split's panes into another 
 });
 
 const loaded = (id) => !!(S().tabs[id].page.nav || S().tabs[id].page.adopt || S().tabs[id].page.holderId);
-const shown = (w) => S().windows[w].activeTabIds[S().windows[w].profileId];
+const shown = (w) => S().windows[w].activeTabIds[S().windows[w].spaceId];
 
 test("closing a pane of a pinned split closes the split as one pinned row and keeps it a split", () => {
   reset();

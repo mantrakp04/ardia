@@ -2,7 +2,7 @@ import { tabTitle } from "../../state/browser/model";
 import { recentTabSuggestions, type Suggestion } from "@ardia/core";
 import { useMemo } from "react";
 import { useSettings, useTab, useWindow } from "../../state/browser/hooks";
-import { useProfileHistory } from "../../state/history/hooks";
+import { useSpaceHistory } from "../../state/history/hooks";
 import { usePeeks } from "../../state/peek/hooks";
 import { useTabs } from "../../state/tabs/hooks";
 import { openTabsByUse } from "../../state/tabs/tabShare";
@@ -10,11 +10,11 @@ import { withoutFragment } from "../../lib/url";
 
 const RECENT = 4;
 
-export function useDropdownStart(enabled: boolean, tabId: string, profileId: string): Suggestion[] {
+export function useDropdownStart(enabled: boolean, tabId: string, spaceId: string): Suggestion[] {
   const url = useTab(tabId, (t) => (enabled ? (t?.url ?? "") : ""));
   const title = useTab(tabId, (t) => (enabled ? (t?.title ?? "") : ""));
   const favicon = useTab(tabId, (t) => (enabled ? (t?.favicon ?? null) : null));
-  const history = useProfileHistory(enabled ? profileId : null);
+  const history = useSpaceHistory(enabled ? spaceId : null);
   const recent = useMemo(() => {
     const seen = new Set(url ? [withoutFragment(url)] : []);
     const out: Suggestion[] = [];
@@ -32,14 +32,14 @@ export function useDropdownStart(enabled: boolean, tabId: string, profileId: str
 
 const NO_TABS: Suggestion[] = [];
 
-export function useOpenTabsStart(enabled: boolean, windowId: string, profileId: string): Suggestion[] {
+export function useOpenTabsStart(enabled: boolean, windowId: string, spaceId: string): Suggestion[] {
   const tabs = useTabs((all) => (enabled ? all : null));
   const peeks = usePeeks((all) => (enabled ? all : null));
   const shared = useSettings((st) => !!st.shareTabsAcrossWindows);
-  const active = useWindow(windowId, (w) => (enabled ? w?.activeTabIds[profileId] : undefined));
+  const active = useWindow(windowId, (w) => (enabled ? w?.activeTabIds[spaceId] : undefined));
   return useMemo(() => {
     if (!tabs || !peeks) return NO_TABS;
-    const rows = openTabsByUse(tabs, peeks, { profileId, windowId, shared }).map(({ tab: t, lastActiveAt }) => ({ id: t.id, url: t.url, title: tabTitle(t), favicon: t.favicon, lastActiveAt }));
+    const rows = openTabsByUse(tabs, peeks, { spaceId, windowId, shared }).map(({ tab: t, lastActiveAt }) => ({ id: t.id, url: t.url, title: tabTitle(t), favicon: t.favicon, lastActiveAt }));
     return recentTabSuggestions(rows, { exclude: active });
-  }, [tabs, peeks, active, profileId, shared, windowId]);
+  }, [tabs, peeks, active, spaceId, shared, windowId]);
 }

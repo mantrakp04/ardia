@@ -3,10 +3,10 @@ import { plural } from "../browser/model";
 import { tidyingPins, untidyingPins, type TidiedPins } from "../pins/tidyPins";
 import { showToast } from "../app/toasts";
 
-export function tidyPins(windowId: string, profileId?: string) {
+export function tidyPins(windowId: string, spaceId?: string) {
   let tidied: TidiedPins | null = null;
   useBrowser.setState((s) => {
-    const [next, done] = tidyingPins(s, windowId, profileId);
+    const [next, done] = tidyingPins(s, windowId, spaceId);
     tidied = done;
     return next;
   });

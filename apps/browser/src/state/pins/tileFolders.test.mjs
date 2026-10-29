@@ -11,8 +11,8 @@ const S = () => useBrowser.getState();
 const reset = () => S().hydrate({});
 const act = (fn) => useBrowser.setState(fn(S()), true);
 const host = (id) => new URL(S().tabs[id].pinnedUrl || S().tabs[id].url).hostname.replace(".com", "");
-const cells = (w, profileId) =>
-  sidebarEntries(S(), w, profileId).cells.map((c) => {
+const cells = (w, spaceId) =>
+  sidebarEntries(S(), w, spaceId).cells.map((c) => {
     const f = folders.folderIdOfCell(c);
     return f ? `[${folders.folderMembers(S(), w, f).map(host).join(",")}]` : host(c);
   });
@@ -111,7 +111,7 @@ test("rename and remove a folder; dragging the folder moves its members together
   assert.ok([a, b, c, d].every((t) => !S().tabs[t].pin?.folder));
 });
 
-test("folders are the profile's: a second window mirrors them, a change in either shows in the other", () => {
+test("folders are the space's: a second window mirrors them, a change in either shows in the other", () => {
   reset();
   const { w, ids: [a, b] } = pinnedWindow();
   act((s) => folders.addToTileFolder(s, [b], a));
@@ -183,30 +183,30 @@ test("the top strip's pinned dock shows a folder as one cell, the active member 
   assert.equal(items.at(-1).id, "rename");
 });
 
-test("a member moved to another profile leaves the folder; a folder left with one tab there is that tile again", () => {
+test("a member moved to another space leaves the folder; a folder left with one tab there is that tile again", () => {
   reset();
   const { w, ids: [a, b, c] } = pinnedWindow();
   act((s) => folders.addToTileFolder(s, [b], a));
-  const work = S().createProfile({ name: "Work" });
-  S().moveTabToProfile(b, work);
-  assert.equal(S().tabs[b].profileId, work);
-  assert.equal(folderOf(b), undefined, "no folder in the other profile");
+  const work = S().createSpace({ name: "Work", profileId: S().createProfile({ name: "Work" }) });
+  S().moveTabToSpace(b, work);
+  assert.equal(S().tabs[b].spaceId, work);
+  assert.equal(folderOf(b), undefined, "no folder in the other space");
   assert.equal(folderOf(a), undefined, "the one left is a tile again");
   assert.deepEqual(cells(w, "default"), ["a", "c", "d"]);
   act((s) => folders.addToTileFolder(s, [c], a));
   const id = folderOf(a).id;
   useBrowser.setState({ tabs: { ...S().tabs, [b]: { ...S().tabs[b], tileFolder: { id, name: "" } } } });
-  assert.deepEqual(folders.folderMembers(S(), w, id).map(host), ["a", "c"], "another profile's tab with the same folder id isn't a member");
+  assert.deepEqual(folders.folderMembers(S(), w, id).map(host), ["a", "c"], "another space's tab with the same folder id isn't a member");
 });
 
 test("a parked folder that drops to one tab is that tile when it comes back", () => {
   reset();
   const { w, ids: [a, b] } = pinnedWindow();
   act((s) => folders.addToTileFolder(s, [b], a));
+  const fid = folderOf(a).id;
   S().closeWindow(w);
-  const park = S().parkedPins.default;
   const key = S().tabs[b]?.pinKey ?? b;
-  useBrowser.setState({ parkedPins: { ...S().parkedPins, default: { ...park, tabs: park.tabs.filter((p) => p.id !== key) } } });
+  useBrowser.setState({ parkedPins: { ...S().parkedPins, default: { ...S().parkedPins.default, tabs: S().parkedPins.default.tabs.filter((p) => p.id !== key) } } });
   assert.ok(S().parkedPins.default.tabs.every((p) => !p.pin?.folder), JSON.stringify(S().parkedPins.default.tabs.map((p) => p.pin?.folder ?? null)));
   const n = S().createWindow();
   assert.deepEqual(cells(n), ["a", "c", "d"]);

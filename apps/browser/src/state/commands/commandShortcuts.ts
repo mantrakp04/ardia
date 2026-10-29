@@ -9,11 +9,11 @@ export { cancelShortcutRecording, recordShortcut, type MenuShortcut } from "../.
 
 type MenuModifier = NonNullable<Extract<MenuItem, { id: string }>["modifiers"]>[number];
 type MenuKey = { key?: string; modifiers?: MenuModifier[] };
-type ShortcutState = { settings: { shortcuts: ShortcutOverrides }; profileOrder: readonly string[] };
+type ShortcutState = { settings: { shortcuts: ShortcutOverrides }; spaceOrder: readonly string[] };
 type MenuBar = { listed: ReadonlySet<string>; fixed: readonly ShortcutSource[] };
 
 const useMenuBar = create<{ bar: MenuBar | undefined; revision: number }>()(() => ({ bar: undefined, revision: 0 }));
-let resolvedFor: { overrides: ShortcutOverrides; profiles: readonly string[]; menuBar: MenuBar | undefined; resolved: ResolvedShortcuts } | undefined;
+let resolvedFor: { overrides: ShortcutOverrides; spaces: readonly string[]; menuBar: MenuBar | undefined; resolved: ResolvedShortcuts } | undefined;
 
 export function setMenuBarShortcuts(items: readonly MenuShortcut[]) {
   const fixed = items.flatMap((item): ShortcutSource[] =>
@@ -26,13 +26,13 @@ export function setMenuBarShortcuts(items: readonly MenuShortcut[]) {
 export const menuBarRevision = () => useMenuBar.getState().revision;
 export const useMenuBarRevision = () => useMenuBar((m) => m.revision);
 
-export function resolvedShortcuts({ settings, profileOrder }: ShortcutState): ResolvedShortcuts {
+export function resolvedShortcuts({ settings, spaceOrder }: ShortcutState): ResolvedShortcuts {
   const overrides = settings.shortcuts;
   const bar = useMenuBar.getState().bar;
-  if (resolvedFor?.overrides !== overrides || resolvedFor.profiles !== profileOrder || resolvedFor.menuBar !== bar) {
-    const catalog = shortcutSources(profileOrder, Object.keys(overrides));
+  if (resolvedFor?.overrides !== overrides || resolvedFor.spaces !== spaceOrder || resolvedFor.menuBar !== bar) {
+    const catalog = shortcutSources(spaceOrder, Object.keys(overrides));
     const sources = bar ? [...catalog.filter((source) => bar.listed.has(source.id)), ...bar.fixed] : catalog;
-    resolvedFor = { overrides, profiles: profileOrder, menuBar: bar, resolved: resolveShortcuts(sources, overrides) };
+    resolvedFor = { overrides, spaces: spaceOrder, menuBar: bar, resolved: resolveShortcuts(sources, overrides) };
   }
   return resolvedFor.resolved;
 }
@@ -76,8 +76,8 @@ export function menuBarBindings(s: ShortcutState): Record<string, string[][]> {
   const fixed = new Set(useMenuBar.getState().bar?.fixed.map((source) => source.id));
   const bindings: Record<string, string[][]> = {};
   for (const [id, keys] of resolved.bindings) if (!fixed.has(id)) bindings[id] = keys.map(stored);
-  for (const id of s.profileOrder) {
-    const alternate = commandAlternateOf(`switchProfile:${id}`, s);
+  for (const id of s.spaceOrder) {
+    const alternate = commandAlternateOf(`switchSpace:${id}`, s);
     bindings[`newWindow:${id}`] = alternate ? [stored(alternate)] : [];
   }
   menuBarBindingsOf.set(resolved, bindings);

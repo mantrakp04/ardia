@@ -6,18 +6,18 @@ import { isPinnedRow, pinKeyOf } from "../browser/model";
 
 type Block = { key: string; row: boolean; ids: string[] };
 
-function pinnedBlocks(s: Pick<BrowserState, "tabs" | "groups">, w: BrowserWindow, profileId: string): Block[] {
+function pinnedBlocks(s: Pick<BrowserState, "tabs" | "groups">, w: BrowserWindow, spaceId: string): Block[] {
   const blocks: Block[] = [];
   const byRoot = new Map<string, Block>();
   const pinnedRoot = new Map<string, TabGroup>();
   for (const g of Object.values(s.groups)) {
-    if (!g.pinned || g.windowId !== w.id || g.profileId !== profileId) continue;
+    if (!g.pinned || g.windowId !== w.id || g.spaceId !== spaceId) continue;
     const root = rootOf(s.groups, g.id) ?? g;
     for (const id of g.tabIds) pinnedRoot.set(id, root);
   }
   for (const id of w.tabIds) {
     const t = s.tabs[id];
-    if (!t || t.profileId !== profileId) continue;
+    if (!t || t.spaceId !== spaceId) continue;
     if (t.pin) {
       if (isPinnedRow(t)) blocks.push({ key: entryKey("tab", pinKeyOf(t)), row: true, ids: [id] });
       continue;
@@ -75,12 +75,12 @@ function parkedBlocks(park: ParkedPins): Block[] {
   return blocks;
 }
 
-export function parkedAreaKeys(s: Pick<BrowserState, "parkedPins">, profileId: string): string[] {
-  const park = s.parkedPins[profileId];
+export function parkedAreaKeys(s: Pick<BrowserState, "parkedPins">, spaceId: string): string[] {
+  const park = s.parkedPins[spaceId];
   return park ? parkedBlocks(park).map((b) => b.key) : [];
 }
 
-export const parkedAnchors = (s: Pick<BrowserState, "parkedPins">, profileId: string): Anchors => anchorsOf(parkedAreaKeys(s, profileId));
+export const parkedAnchors = (s: Pick<BrowserState, "parkedPins">, spaceId: string): Anchors => anchorsOf(parkedAreaKeys(s, spaceId));
 
 export function arrangeParked(park: ParkedPins, anchorOf: (groupKey: string) => string | null | undefined): ParkedPins {
   const order = orderBlocks(parkedBlocks(park), anchorOf);
@@ -90,10 +90,10 @@ export function arrangeParked(park: ParkedPins, anchorOf: (groupKey: string) => 
   return ids === null ? park : { ...park, tabs: ids.map((id) => byId.get(id)!) };
 }
 
-export const pinnedAreaKeys = (s: Pick<BrowserState, "tabs" | "groups">, w: BrowserWindow, profileId: string): string[] =>
-  pinnedBlocks(s, w, profileId).map((b) => b.key);
+export const pinnedAreaKeys = (s: Pick<BrowserState, "tabs" | "groups">, w: BrowserWindow, spaceId: string): string[] =>
+  pinnedBlocks(s, w, spaceId).map((b) => b.key);
 
-export const pinnedAnchors = (s: Pick<BrowserState, "tabs" | "groups">, w: BrowserWindow, profileId: string): Anchors => anchorsOf(pinnedAreaKeys(s, w, profileId));
+export const pinnedAnchors = (s: Pick<BrowserState, "tabs" | "groups">, w: BrowserWindow, spaceId: string): Anchors => anchorsOf(pinnedAreaKeys(s, w, spaceId));
 
 function orderBlocks(blocks: Block[], anchorOf: (groupKey: string) => string | null | undefined): string[] | null {
   const rows = blocks.filter((b) => b.row);
@@ -118,7 +118,7 @@ function rearranged(ids: string[], order: string[]): string[] | null {
   return next.every((id, i) => id === ids[i]) ? null : next;
 }
 
-export function arrangePinnedArea(s: Pick<BrowserState, "tabs" | "groups">, w: BrowserWindow, profileId: string, anchorOf: (groupKey: string) => string | null | undefined): string[] {
-  const order = orderBlocks(pinnedBlocks(s, w, profileId), anchorOf);
+export function arrangePinnedArea(s: Pick<BrowserState, "tabs" | "groups">, w: BrowserWindow, spaceId: string, anchorOf: (groupKey: string) => string | null | undefined): string[] {
+  const order = orderBlocks(pinnedBlocks(s, w, spaceId), anchorOf);
   return (order && rearranged(w.tabIds, order)) ?? w.tabIds;
 }

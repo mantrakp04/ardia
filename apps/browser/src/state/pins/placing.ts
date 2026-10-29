@@ -1,6 +1,6 @@
 import type { BrowserState } from "../browser/store";
 import { ancestorIds, innermostGroupOf, insertAll, leaveGroups, nestGroups, orderSections, placeGroups, reparent, syncGroupOrder } from "../groups/groups";
-import { isIncognitoProfile, isPinnedRow, pinKeyOf, ROW_PIN, samePin, TILE_PIN } from "../browser/model";
+import { isIncognitoSpace, isPinnedRow, pinKeyOf, ROW_PIN, samePin, TILE_PIN } from "../browser/model";
 import { splitOf, splitRowHead, splitRowPanes, withSplitRows } from "../splits/splits";
 import { markPinned } from "./pinChoices";
 import { groupOf, withRowsGrouped } from "./tabGrouping";
@@ -24,12 +24,12 @@ export function placing(s: BrowserState, ids: string[], p: TabPlacement): Browse
   if (!first || !w) return s;
   const order = new Map(w.tabIds.map((id, i) => [id, i]));
   const moving = [...new Set(withSplitRows(s, ids))]
-    .filter((id) => s.tabs[id]?.windowId === w.id && s.tabs[id]?.profileId === first.profileId)
+    .filter((id) => s.tabs[id]?.windowId === w.id && s.tabs[id]?.spaceId === first.spaceId)
     .sort((a, b) => order.get(a)! - order.get(b)!);
   if (!moving.length) return s;
   const paired = new Set(moving.filter((id) => splitRowPanes(s, splitOf(s, id)).includes(id)));
   const target = !p.pinned && p.groupId ? s.groups[p.groupId] : undefined;
-  if (target && (target.windowId !== w.id || target.profileId !== first.profileId)) return s;
+  if (target && (target.windowId !== w.id || target.spaceId !== first.spaceId)) return s;
   const movingSet = new Set(moving);
 
   const tabs = { ...s.tabs };
@@ -49,13 +49,13 @@ export function placing(s: BrowserState, ids: string[], p: TabPlacement): Browse
     if (flips || !samePin(t.pin, pin)) tabs[id] = { ...t, pin, ...(flips ? { pinnedUrl: pinHome(t, p.pinned || !!intoPinnedGroup) } : {}) };
     const placed = flips || (!p.pinned && pinnedGroupOf(id) !== intoPinnedGroup);
     if (placed || isPinnedRow(t) !== row) {
-      const entry = placed ? pinSync[t.profileId]?.[pinKeyOf(t)] : undefined;
+      const entry = placed ? pinSync[t.spaceId]?.[pinKeyOf(t)] : undefined;
       if (entry?.g) {
         const { g: __, w: ___, ...kept } = entry;
-        pinSync = { ...pinSync, [t.profileId]: { ...pinSync[t.profileId], [pinKeyOf(t)]: kept } };
+        pinSync = { ...pinSync, [t.spaceId]: { ...pinSync[t.spaceId], [pinKeyOf(t)]: kept } };
       }
-      if ((p.pinned || intoPinnedGroup) && !isIncognitoProfile(t.profileId)) {
-        pinChoices = markPinned(pinChoices, t.profileId, { tabs: p.pinned ? [pinKeyOf(t)] : [], placed: placed ? [pinKeyOf(t)] : [] });
+      if ((p.pinned || intoPinnedGroup) && !isIncognitoSpace(t.spaceId)) {
+        pinChoices = markPinned(pinChoices, t.spaceId, { tabs: p.pinned ? [pinKeyOf(t)] : [], placed: placed ? [pinKeyOf(t)] : [] });
       }
     }
   }
@@ -99,7 +99,7 @@ export function groupingOnto(s: BrowserState, ids: string[], targetId: string): 
   const target = s.tabs[targetId];
   const w = target && s.windows[target.windowId];
   if (!w || (target.pin && !isPinnedRow(target)) || groupOf(s, targetId)) return [s, ""];
-  const moving = ids.filter((id) => id !== targetId && s.tabs[id]?.windowId === w.id && s.tabs[id]?.profileId === target.profileId);
+  const moving = ids.filter((id) => id !== targetId && s.tabs[id]?.windowId === w.id && s.tabs[id]?.spaceId === target.spaceId);
   if (!moving.length) return [s, ""];
   const after = w.tabIds.slice(w.tabIds.indexOf(targetId) + 1).find((id) => !moving.includes(id)) ?? null;
   const placed = placing(s, moving, { pinned: false, beforeId: after });

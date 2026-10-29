@@ -1,3 +1,4 @@
+import { currentProfileId, profileEngine as currentEngineProfile } from "../../../state/profiles/current";
 import {
   reloadExtension,
   addFromWebStore,
@@ -16,7 +17,7 @@ import type { InstalledExtension } from "../../../state/extensions/store";
 import { useEffect, useState } from "react";
 import { Image, Text, View } from "react-native";
 import { useTheme } from "../../ui/theme";
-import { currentEngineProfile, resolvedWindowId } from "../../../state/browser/current";
+import { resolvedWindowId } from "../../../state/browser/current";
 import { newTab } from "../../../state/tabs/actions";
 import { InstallDialogHost } from "../../extensions/ExtensionOverlays";
 import { Button, font, PopUp, TextField, Toggle, weight } from "../../ui";
@@ -38,7 +39,7 @@ const siteAccessOf = (ext: InstalledExtension): SiteAccess =>
 
 export function ExtensionsPane({ profileId: chosen, detail }: { profileId: string | null; detail: string | null }) {
   const theme = useTheme();
-  const [profileId] = useState(() => extensionsProfileId(chosen));
+  const [profileId] = useState(() => currentProfileId(chosen));
   const profile = currentEngineProfile(profileId);
   const list = useExtensionList(profile);
   const [link, setLink] = useState("");

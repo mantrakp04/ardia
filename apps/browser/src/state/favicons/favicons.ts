@@ -5,8 +5,8 @@ import { readDocument, removeDocument } from "../../platform/documents";
 import { useEffect } from "react";
 import { create } from "zustand";
 import { batchStoreUpdates, useBrowser, type BrowserState } from "../browser/store";
-import { engineProfile, isIncognitoProfile } from "../browser/model";
-import { DEFAULT_PROFILE_ID } from "../settings/settings";
+import { engineProfile, engineProfileForSpace, isIncognitoSpace } from "../browser/model";
+import { DEFAULT_SPACE_ID } from "../settings/settings";
 import { webviews } from "../../platform/webviews";
 
 type Icons = {
@@ -23,15 +23,15 @@ const LOOKUP_BATCH = 200;
 let appearanceChangedAt = -Infinity;
 
 export type Favicons = {
-  profiles: Record<string, Icons>;
+  spaces: Record<string, Icons>;
   themes: Record<string, IconTheme | null>;
 };
 
-export const useFavicons = create<Favicons>()(() => ({ profiles: {}, themes: {} }));
+export const useFavicons = create<Favicons>()(() => ({ spaces: {}, themes: {} }));
 
 export const knownFaviconTheme = (uri: string) => useFavicons.getState().themes[uri];
 
-export const cacheKey = (profileId: string) => (isIncognitoProfile(profileId) ? profileId : engineProfile(useBrowser.getState(), profileId));
+export const cacheKey = (spaceId: string) => (isIncognitoSpace(spaceId) ? spaceId : engineProfile(useBrowser.getState(), spaceId));
 const siteOf = (url: string) => /^[a-z][\w+.-]*:\/\/[^/?#]*/i.exec(url)?.[0].toLowerCase() ?? "";
 export const faviconOutlived = (iconPage: string | null, url: string) => !!iconPage && !!url && siteOf(iconPage) !== siteOf(url);
 
@@ -55,9 +55,9 @@ function flush() {
 
 function update(key: string, change: (icons: Icons) => Icons, now = false) {
   queue((f) => {
-    const before = f.profiles[key] ?? EMPTY_ICONS;
+    const before = f.spaces[key] ?? EMPTY_ICONS;
     const after = change(before);
-    return after === before ? f : { ...f, profiles: { ...f.profiles, [key]: after } };
+    return after === before ? f : { ...f, spaces: { ...f.spaces, [key]: after } };
   }, now);
 }
 
@@ -77,7 +77,7 @@ const asked = new Set<string>();
 let lookupTimer: ReturnType<typeof setTimeout> | undefined;
 
 function ask(key: string, page: string) {
-  if (isIncognitoProfile(key) || asked.has(`${key}|${page}`)) return;
+  if (isIncognitoSpace(key) || asked.has(`${key}|${page}`)) return;
   asked.add(`${key}|${page}`);
   if (!queued.has(key)) queued.set(key, new Set());
   queued.get(key)!.add(page);
@@ -130,9 +130,9 @@ const inflight = new Map<string, Promise<string | null>>();
 export function noteFavicon(tabId: string, src: string) {
   const tab = useBrowser.getState().tabs[tabId];
   if (!tab?.url || !src) return;
-  const key = cacheKey(tab.profileId);
+  const key = cacheKey(tab.spaceId);
   const page = withoutFragment(tab.url);
-  const known = useFavicons.getState().profiles[key]?.srcs[src];
+  const known = useFavicons.getState().spaces[key]?.srcs[src];
   if (known) return remember(key, page, src, known);
   const handle = webviews.get(tabId);
   if (!handle) return;
@@ -150,7 +150,7 @@ export function noteFavicon(tabId: string, src: string) {
 }
 
 function remember(key: string, page: string, src: string, uri: string) {
-  const icons = changes.length ? undefined : useFavicons.getState().profiles[key];
+  const icons = changes.length ? undefined : useFavicons.getState().spaces[key];
   if (icons && icons.pages[page] === uri && icons.srcs[src] === uri) return;
   const dark = useBrowser.getState().ui.appDark;
   const swapped = Date.now() - appearanceChangedAt < APPEARANCE_SWAP_MS;
@@ -170,9 +170,9 @@ export type KnownFavicon = { page: string; icon: string; png: string };
 
 const PNG_DATA_URI = "data:image/png;base64,";
 
-export function adoptFavicons(profileId: string, known: KnownFavicon[]) {
-  if (isIncognitoProfile(profileId) || !known.length) return;
-  const key = cacheKey(profileId);
+export function adoptFavicons(spaceId: string, known: KnownFavicon[]) {
+  if (isIncognitoSpace(spaceId) || !known.length) return;
+  const key = cacheKey(spaceId);
   const found = new Map(known.map((f) => [withoutFragment(f.page), f]));
   for (const page of found.keys()) wrote(key, page);
   update(key, (icons) => {
@@ -190,9 +190,9 @@ export function adoptFavicons(profileId: string, known: KnownFavicon[]) {
 
 const failedFetches = new Set<string>();
 
-function fetchMissing(profileId: string, url: string, src: string) {
-  const key = cacheKey(profileId);
-  if (isIncognitoProfile(profileId) || !/^https?:/i.test(src)) return;
+function fetchMissing(spaceId: string, url: string, src: string) {
+  const key = cacheKey(spaceId);
+  if (isIncognitoSpace(spaceId) || !/^https?:/i.test(src)) return;
   const id = `${key}|${src}`;
   if (inflight.has(id) || failedFetches.has(id)) return;
   const pending = fetchFavicon(src, key)
@@ -209,8 +209,8 @@ function fetchMissing(profileId: string, url: string, src: string) {
   });
 }
 
-export function faviconFailed(profileId: string, uri: string) {
-  update(cacheKey(profileId), (icons) => {
+export function faviconFailed(spaceId: string, uri: string) {
+  update(cacheKey(spaceId), (icons) => {
     if (!Object.values(icons.pages).includes(uri) && !Object.values(icons.srcs).includes(uri)) return icons;
     return {
       pages: Object.fromEntries(Object.entries(icons.pages).map(([page, u]) => [page, u === uri ? null : u])),
@@ -220,10 +220,10 @@ export function faviconFailed(profileId: string, uri: string) {
   });
 }
 
-export type ResolvedFavicon = { uri: string; profileId: string };
+export type ResolvedFavicon = { uri: string; spaceId: string };
 
 function lookupIn(key: string, url: string, src: string | null | undefined): string | undefined {
-  const icons = useFavicons.getState().profiles[key];
+  const icons = useFavicons.getState().spaces[key];
   if (!icons) return undefined;
   const page = withoutFragment(url);
   const pair = icons.appearances[page];
@@ -231,45 +231,45 @@ function lookupIn(key: string, url: string, src: string | null | undefined): str
   return (src ? icons.srcs[src] : undefined) ?? icons.pages[page] ?? undefined;
 }
 
-function lookupOrder(profileId?: string): string[] {
-  if (profileId && !isIncognitoProfile(profileId)) return [profileId];
-  return [...new Set([...(profileId ? [profileId] : []), DEFAULT_PROFILE_ID, ...useBrowser.getState().profileOrder])];
+function lookupOrder(spaceId?: string): string[] {
+  if (spaceId && !isIncognitoSpace(spaceId)) return [spaceId];
+  return [...new Set([...(spaceId ? [spaceId] : []), DEFAULT_SPACE_ID, ...useBrowser.getState().spaceOrder])];
 }
 
-export function resolveFavicon(url: string, src?: string | null, profileId?: string): ResolvedFavicon | null {
+export function resolveFavicon(url: string, src?: string | null, spaceId?: string): ResolvedFavicon | null {
   if (!url) return null;
-  for (const id of lookupOrder(profileId)) {
+  for (const id of lookupOrder(spaceId)) {
     const uri = lookupIn(cacheKey(id), url, src);
-    if (uri) return { uri, profileId: id };
+    if (uri) return { uri, spaceId: id };
   }
   return null;
 }
 
 export const useAppearanceDark = () => useBrowser((s) => s.ui.appDark);
 
-function answered(url: string, profileId?: string): boolean {
-  const { profiles } = useFavicons.getState();
+function answered(url: string, spaceId?: string): boolean {
+  const { spaces } = useFavicons.getState();
   const page = withoutFragment(url);
-  return lookupOrder(profileId).every((id) => isIncognitoProfile(id) || profiles[cacheKey(id)]?.pages[page] !== undefined);
+  return lookupOrder(spaceId).every((id) => isIncognitoSpace(id) || spaces[cacheKey(id)]?.pages[page] !== undefined);
 }
 
-type Watcher = { url: string; src?: string | null; profileId?: string; known?: boolean };
+type Watcher = { url: string; src?: string | null; spaceId?: string; known?: boolean };
 const watchers = new Map<string, Set<Watcher>>();
 
 function check(w: Watcher) {
-  const known = answered(w.url, w.profileId);
+  const known = answered(w.url, w.spaceId);
   if (known === w.known) return;
   w.known = known;
-  if (!known) for (const id of lookupOrder(w.profileId)) ask(cacheKey(id), withoutFragment(w.url));
-  else if (w.src && w.profileId && !resolveFavicon(w.url, w.src, w.profileId)) fetchMissing(w.profileId, w.url, w.src);
+  if (!known) for (const id of lookupOrder(w.spaceId)) ask(cacheKey(id), withoutFragment(w.url));
+  else if (w.src && w.spaceId && !resolveFavicon(w.url, w.src, w.spaceId)) fetchMissing(w.spaceId, w.url, w.src);
 }
 
 function onFavicons(f: Favicons, prev: Favicons) {
-  if (f.profiles === prev.profiles) return;
-  const keys = [...new Set([...Object.keys(f.profiles), ...Object.keys(prev.profiles)])].filter((key) => f.profiles[key]?.pages !== prev.profiles[key]?.pages);
+  if (f.spaces === prev.spaces) return;
+  const keys = [...new Set([...Object.keys(f.spaces), ...Object.keys(prev.spaces)])].filter((key) => f.spaces[key]?.pages !== prev.spaces[key]?.pages);
   if (!keys.length) return;
   for (const [page, set] of [...watchers])
-    if (keys.some((key) => f.profiles[key]?.pages[page] !== prev.profiles[key]?.pages[page])) for (const w of [...set]) check(w);
+    if (keys.some((key) => f.spaces[key]?.pages[page] !== prev.spaces[key]?.pages[page])) for (const w of [...set]) check(w);
 }
 
 function watch(w: Watcher) {
@@ -288,22 +288,22 @@ function watch(w: Watcher) {
   };
 }
 
-export function useFavicon(url: string, src?: string | null, profileId?: string): ResolvedFavicon | null {
+export function useFavicon(url: string, src?: string | null, spaceId?: string): ResolvedFavicon | null {
   const key = useFavicons(() => {
-    const found = resolveFavicon(url, src, profileId);
-    return found ? `${found.profileId} ${found.uri}` : null;
+    const found = resolveFavicon(url, src, spaceId);
+    return found ? `${found.spaceId} ${found.uri}` : null;
   });
   const missing = !!url && !key;
-  const order = missing ? lookupOrder(profileId).join(" ") : "";
-  useEffect(() => (missing ? watch({ url, src, profileId }) : undefined), [missing, order, profileId, url, src]);
+  const order = missing ? lookupOrder(spaceId).join(" ") : "";
+  useEffect(() => (missing ? watch({ url, src, spaceId }) : undefined), [missing, order, spaceId, url, src]);
   const split = key?.indexOf(" ") ?? -1;
-  return key ? { profileId: key.slice(0, split), uri: key.slice(split + 1) } : null;
+  return key ? { spaceId: key.slice(0, split), uri: key.slice(split + 1) } : null;
 }
 
 const theming = new Set<string>();
 
-export function useFaviconTheme(url: string, src?: string | null, profileId?: string): IconTheme | null | undefined {
-  const uri = useFavicons(() => resolveFavicon(url, src, profileId)?.uri ?? null);
+export function useFaviconTheme(url: string, src?: string | null, spaceId?: string): IconTheme | null | undefined {
+  const uri = useFavicons(() => resolveFavicon(url, src, spaceId)?.uri ?? null);
   const theme = useFavicons((f) => (uri ? f.themes[uri] : undefined));
   const pending = !!uri && theme === undefined;
   useEffect(() => {
@@ -323,10 +323,10 @@ function forget(key: string) {
   update(key, () => EMPTY_ICONS, true);
 }
 
-export const pruneProfileFavicons = (profileId: string) => forget(cacheKey(profileId));
+export const pruneSpaceFavicons = (spaceId: string) => forget(cacheKey(spaceId));
 
-function removeLegacyFiles(s: Pick<BrowserState, "profiles">) {
-  for (const id of Object.keys(s.profiles)) {
+function removeLegacyFiles(s: Pick<BrowserState, "spaces">) {
+  for (const id of Object.keys(s.spaces)) {
     const doc = `favicons-${id}.json`;
     try {
       if (readDocument(doc) === null) continue;
@@ -352,12 +352,12 @@ export function startFavicons() {
   });
   const stop = useBrowser.subscribe((s, prev) => {
     if (s.ui.appDark !== prev.ui.appDark) appearanceChangedAt = Date.now();
-    if (s.windows !== prev.windows && (changes.length || Object.keys(useFavicons.getState().profiles).some(isIncognitoProfile))) {
-      const open = new Set(Object.values(s.windows).map((w) => w.profileId));
-      for (const t of Object.values(s.tabs)) open.add(t.profileId);
+    if (s.windows !== prev.windows && (changes.length || Object.keys(useFavicons.getState().spaces).some(isIncognitoSpace))) {
+      const open = new Set(Object.values(s.windows).map((w) => w.spaceId));
+      for (const t of Object.values(s.tabs)) open.add(t.spaceId);
       queue((f) => {
-        const gone = Object.keys(f.profiles).filter((id) => isIncognitoProfile(id) && !open.has(id));
-        return gone.length ? { ...f, profiles: Object.fromEntries(Object.entries(f.profiles).filter(([id]) => !gone.includes(id))) } : f;
+        const gone = Object.keys(f.spaces).filter((id) => isIncognitoSpace(id) && !open.has(id));
+        return gone.length ? { ...f, spaces: Object.fromEntries(Object.entries(f.spaces).filter(([id]) => !gone.includes(id))) } : f;
       }, true);
     }
   });

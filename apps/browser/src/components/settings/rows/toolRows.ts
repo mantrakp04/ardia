@@ -122,7 +122,7 @@ export const toolRows = {
         separateData: {
           advanced: true,
           title: "Separate sign-ins",
-          description: "Each engine keeps its own cookies and site data in every profile. Spaces, tabs, history and settings are shared.",
+          description: "Each engine keeps its own cookies and site data in every space. Spaces, tabs, history and settings are shared.",
           keywords: ["cookies", "site data", "sign in", "logged out"],
         },
         chromiumOnly: {
@@ -145,7 +145,7 @@ export const toolRows = {
       section: "Browsing",
       rows: {
         showFullUrl: { advanced: true, title: "Show full URL in the address bar", description: "Instead of the site alone.", keywords: ["address", "url", "https"] },
-        warnMovingTabs: { advanced: true, title: "Warn before moving tabs between profiles", description: "Some site data doesn't come along.", keywords: ["confirm"] },
+        warnMovingTabs: { advanced: true, title: "Warn before moving tabs between spaces", description: "Some site data doesn't come along.", keywords: ["confirm"] },
         bookmarksImport: { advanced: true, title: "Show the Import bookmarks button", description: "On an empty bookmarks bar.", keywords: ["bookmarks bar"] },
       },
     },

@@ -23,11 +23,13 @@ public enum ShellScripting {
   }
 
   public static func handles(_ key: String) -> Bool {
-    ["appleScriptWindows", "appleScriptProfiles", "version"].contains(key)
+    ["appleScriptWindows", "appleScriptProfiles", "appleScriptSpaces", "automationVersion", "version"].contains(key)
   }
 
   public static var windows: [NSObject] { orderedWindows.map { ScriptWindow(id: $0.id) } }
   public static var profiles: [NSObject] { state.profiles.map { ScriptProfile(id: $0.id) } }
+  public static var spaces: [NSObject] { state.profiles.map { ScriptSpace(id: $0.id) } }
+  public static var automationVersion: Int { 2 }
   public static var version: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "" }
 
   static func reply(_ id: String, result: Any?, error: String?) {

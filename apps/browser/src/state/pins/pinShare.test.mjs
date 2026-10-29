@@ -154,7 +154,7 @@ test("reopening a closed pinned tile while another window holds the page brings 
   assert.equal(pages("https://mail.com").length, 1);
 });
 
-test("a pin in a split keeps its own page; private windows have no pins; another profile's pin shares only with itself", () => {
+test("a pin in a split keeps its own page; private windows have no pins; another space's pin shares only with itself", () => {
   reset();
   const { a, b, mail } = twoWindows();
   const regular = model.viewTabIds(S(), a).find((id) => !S().tabs[id].pin);
@@ -170,12 +170,12 @@ test("a pin in a split keeps its own page; private windows have no pins; another
 
   reset();
   const two = twoWindows();
-  const work = S().createProfile({ name: "Work" });
-  const w1 = S().createWindow({ profileId: work, url: "https://work.com" });
+  const work = S().createSpace({ name: "Work", profileId: S().createProfile({ name: "Work" }) });
+  const w1 = S().createWindow({ spaceId: work, url: "https://work.com" });
   const [wt] = S().windows[w1].tabIds;
   S().pinTabs([wt], true);
   S().activate(wt);
-  S().switchProfile(two.a, work);
+  S().switchSpace(two.a, work);
   const workCopy = tileOf(two.a, "https://work.com");
   assert.ok(workCopy, "A paged to Work shows Work's pins");
   S().activate(workCopy);

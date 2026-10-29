@@ -75,7 +75,7 @@ export const TabPane = memo(function TabPane({
   const visible = !!rect;
   const live = visible || !!warm;
   const own = useTabValue(tabId, paneTab, shallowEqual);
-  const theme = useProfileTheme(own.profileId);
+  const theme = useProfileTheme(own.spaceId);
   const toolbarHeight = useToolbarRow().height;
   const isNewTab = !own.url;
   const emptyCard = useSettings((st) => isNewTab && st.newTabOpens === "commandBar");
@@ -154,4 +154,4 @@ export const TabPane = memo(function TabPane({
   );
 });
 
-const paneTab = (t: Tab | undefined) => ({ exists: !!t, url: t?.url ?? "", profileId: t?.profileId ?? "" });
+const paneTab = (t: Tab | undefined) => ({ exists: !!t, url: t?.url ?? "", spaceId: t?.spaceId ?? "" });

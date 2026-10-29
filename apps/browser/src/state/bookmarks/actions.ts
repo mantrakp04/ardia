@@ -3,8 +3,8 @@ import { create } from "zustand";
 import { focus, openWindow } from "../browser/actions";
 import { bookmarkRoots, folderLinks, isWithin, ownerOfBookmark } from "./bookmarks";
 import { storeAction, useBrowser } from "../browser/store";
-import { activeTabId, bookmarkProfileId, resolveWindowId, tabTitle, viewTabIds } from "../browser/model";
-import { originalProfile } from "../windows/small";
+import { activeTabId, bookmarkSpaceId, resolveWindowId, tabTitle, viewTabIds } from "../browser/model";
+import { originalSpace } from "../windows/small";
 import { isWebPageUrl } from "../../lib/url";
 
 type OpenMode = "current" | "background" | "foreground" | "window" | "incognito" | "split";
@@ -20,9 +20,9 @@ export function openUrl(url: string, windowId: string | null | undefined, mode: 
   const s = useBrowser.getState();
   const id = resolveWindowId(s, windowId);
   const w = id ? s.windows[id] : undefined;
-  if (mode === "incognito") return void openWindow({ kind: "private", url, profileId: originalProfile(s, w) });
+  if (mode === "incognito") return void openWindow({ kind: "private", url, spaceId: originalSpace(s, w) });
   if (!id || mode === "window") {
-    const created = openWindow(w?.kind === "private" ? { kind: "private", url, profileId: originalProfile(s, w) } : { url, profileId: w?.profileId });
+    const created = openWindow(w?.kind === "private" ? { kind: "private", url, spaceId: originalSpace(s, w) } : { url, spaceId: w?.spaceId });
     return focus(created);
   }
   const tabId = activeTabId(s, id);
@@ -59,7 +59,7 @@ export async function openLinks(links: { url: string }[], windowId: string | nul
   const source = id ? s.windows[id] : undefined;
   if (mode !== "tabs" || !id) {
     const incognito = mode === "incognito" || source?.kind === "private";
-    const created = openWindow({ url: links[0]!.url, kind: incognito ? "private" : "main", profileId: incognito ? undefined : source?.profileId });
+    const created = openWindow({ url: links[0]!.url, kind: incognito ? "private" : "main", spaceId: incognito ? undefined : source?.spaceId });
     openInOrder(created, links.slice(1), activeTabId(useBrowser.getState(), created));
     return focus(created);
   }
@@ -77,26 +77,26 @@ function openInOrder(windowId: string, links: { url: string }[], after: string |
 
 export type BookmarkDialogState =
   | { kind: "page"; windowId: string; bookmarkId: string }
-  | { kind: "allTabs"; windowId: string; profileId: string; tabs: { url: string; title: string }[] };
+  | { kind: "allTabs"; windowId: string; spaceId: string; tabs: { url: string; title: string }[] };
 
 export const useBookmarkDialog = create<{ open: BookmarkDialogState | null }>()(() => ({ open: null }));
 
 export const closeBookmarkDialog = () => useBookmarkDialog.setState({ open: null });
 
-export const profileOfBookmark = (id: string) => ownerOfBookmark(useBrowser.getState(), id);
+export const spaceOfBookmark = (id: string) => ownerOfBookmark(useBrowser.getState(), id);
 
 export function bookmarkTab(windowId: string, tabId: string) {
   const s = useBrowser.getState();
   const id = windowId;
   const tab = s.tabs[tabId];
   if (!s.windows[id] || !tab?.url) return;
-  const profileId = bookmarkProfileId(s, s.windows[id]);
-  const roots = bookmarkRoots(s, profileId);
+  const spaceId = bookmarkSpaceId(s, s.windows[id]);
+  const roots = bookmarkRoots(s, spaceId);
   const existing = Object.values(s.bookmarks.nodes).find(
     (n) => n.kind === "url" && n.url === tab.url && roots && isWithin(useBrowser.getState().bookmarks, n.id, [roots.bar, roots.other]),
   );
   const bookmarkId =
-    existing?.id ?? s.addBookmark({ profileId, url: tab.url, title: tabTitle(tab), favicon: tab.favicon });
+    existing?.id ?? s.addBookmark({ spaceId, url: tab.url, title: tabTitle(tab), favicon: tab.favicon });
   useBookmarkDialog.setState({ open: { kind: "page", windowId: id, bookmarkId } });
 }
 
@@ -109,7 +109,7 @@ export function bookmarkAllTabs(windowId: string | null | undefined) {
     .filter((t) => isWebPageUrl(t.url))
     .map((t) => ({ url: t.url, title: tabTitle(t) }));
   if (!tabs.length) return;
-  useBookmarkDialog.setState({ open: { kind: "allTabs", windowId: id, profileId: bookmarkProfileId(s, s.windows[id]), tabs } });
+  useBookmarkDialog.setState({ open: { kind: "allTabs", windowId: id, spaceId: bookmarkSpaceId(s, s.windows[id]), tabs } });
 }
 
 
@@ -126,5 +126,5 @@ export const restoreBookmarks = storeAction("restoreBookmarks");
 export function toggleBookmarkOfTab(windowId: string, tabId: string) {
   const s = useBrowser.getState();
   const page = s.tabs[tabId];
-  if (page) s.toggleBookmark(bookmarkProfileId(s, s.windows[windowId]), page);
+  if (page) s.toggleBookmark(bookmarkSpaceId(s, s.windows[windowId]), page);
 }

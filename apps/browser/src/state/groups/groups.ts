@@ -1,7 +1,7 @@
 import type { GroupPlacement } from "../pins/tabGrouping";
 import type { StateCreator } from "zustand";
 import type { BrowserState } from "../browser/store";
-import { bookmarkProfileId, isPinnedRow, newId, snapshotTab, tabTitle } from "../browser/model";
+import { bookmarkSpaceId, isPinnedRow, newId, snapshotTab, tabTitle } from "../browser/model";
 import { closingGroup, nestedSnapshot, rebuildNested, restoreSnapshots } from "../pins/closedTabs";
 import { groupLabel, movingGroup, withGroup, withRowsGrouped } from "../pins/tabGrouping";
 import { withSplitRows } from "../splits/splits";
@@ -106,12 +106,12 @@ export function rejoinGroups(
   chain: GroupInfo[],
   tabIds: string[],
   windowId: string,
-  profileId: string,
+  spaceId: string,
   made: Map<string, string> = new Map(),
 ): Record<string, TabGroup> {
   const here = (info: GroupInfo) => {
     const g = groups[made.get(info.id) ?? info.id];
-    return g && g.windowId === windowId && g.profileId === profileId ? g : undefined;
+    return g && g.windowId === windowId && g.spaceId === spaceId ? g : undefined;
   };
   const at = chain.findIndex(here);
   const next = { ...groups };
@@ -124,7 +124,7 @@ export function rejoinGroups(
   for (const info of chain.slice(0, at < 0 ? chain.length : at).reverse()) {
     const id = next[info.id] ? newId("g") : info.id;
     const { id: _, name, icon, color } = info;
-    next[id] = { id, name, icon, color, windowId, profileId, collapsed: false, pinned: !!info.pinned, tabIds, createdAt: Date.now(), ...(parentId ? { parentId } : {}) };
+    next[id] = { id, name, icon, color, windowId, spaceId, collapsed: false, pinned: !!info.pinned, tabIds, createdAt: Date.now(), ...(parentId ? { parentId } : {}) };
     made.set(info.id, id);
     parentId = id;
   }
@@ -177,7 +177,7 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
       if (!group) return {};
       const adding = withSplitRows(s, tabIds).filter((id) => {
         const t = s.tabs[id];
-        return t && !t.pin && t.windowId === group.windowId && t.profileId === group.profileId && !group.tabIds.includes(id);
+        return t && !t.pin && t.windowId === group.windowId && t.spaceId === group.spaceId && !group.tabIds.includes(id);
       });
       if (!adding.length) return {};
       const w = s.windows[group.windowId]!;
@@ -232,11 +232,11 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
     const p = s.groups[parentId];
     const w = p && s.windows[p.windowId];
     if (!p || !w) return "";
-    const [next, tabId] = withNewTab(s, w.id, { profileId: p.profileId, index: w.tabIds.indexOf(p.tabIds.at(-1)!) + 1 });
+    const [next, tabId] = withNewTab(s, w.id, { spaceId: p.spaceId, index: w.tabIds.indexOf(p.tabIds.at(-1)!) + 1 });
     const group: TabGroup = {
       id: newId("g"),
       windowId: w.id,
-      profileId: p.profileId,
+      spaceId: p.spaceId,
       name: "",
       icon: null,
       color: null,
@@ -301,7 +301,7 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
     const g = s.groups[groupId];
     const w = g && s.windows[g.windowId];
     if (!g || !w) return "";
-    const [next, id] = withNewTab(s, w.id, { profileId: g.profileId, index: w.tabIds.indexOf(g.tabIds.at(-1)!) + 1 });
+    const [next, id] = withNewTab(s, w.id, { spaceId: g.spaceId, index: w.tabIds.indexOf(g.tabIds.at(-1)!) + 1 });
     const groups = nestGroups({ ...next.groups, [groupId]: { ...g, collapsed: false, tabIds: [...g.tabIds, id] } });
     set(withGroupsPlaced(next, w.id, groups));
     return id;
@@ -311,9 +311,9 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
     const s = get();
     const g = s.groups[groupId];
     if (!g) return;
-    const profileId = bookmarkProfileId(s, s.windows[g.windowId]);
+    const spaceId = bookmarkSpaceId(s, s.windows[g.windowId]);
     const file = (group: TabGroup, parentId?: string) => {
-      const folder = get().addBookmarkFolder({ profileId, title: groupLabel(s, group), ...(parentId ? { parentId } : {}) });
+      const folder = get().addBookmarkFolder({ spaceId, title: groupLabel(s, group), ...(parentId ? { parentId } : {}) });
       const children = Object.values(s.groups).filter((c) => c.parentId === group.id);
       const filed = new Set<string>();
       for (const id of group.tabIds) {
@@ -325,7 +325,7 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
           continue;
         }
         const t = s.tabs[id];
-        if (t?.url) get().addBookmark({ profileId, url: t.url, title: tabTitle(t), favicon: t.favicon, parentId: folder });
+        if (t?.url) get().addBookmark({ spaceId, url: t.url, title: tabTitle(t), favicon: t.favicon, parentId: folder });
       }
     };
     file(g);

@@ -10,7 +10,7 @@ import { isMocked } from "../../../state/live/net";
 import { connectBitbucket, connectConfluence, connectGithub, connectNotion, disconnect, SOURCES, startGithubDeviceFlow, type DeviceFlow } from "../../../state/live/sources";
 import { live, updateConfig, updateFolder, useLive } from "../../../state/live/store";
 import type { LiveAccount, LiveFolder, LiveSourceId } from "../../../state/live/types";
-import { useProfileRecords } from "../../../state/profiles/hooks";
+import { useSpaceRecords } from "../../../state/spaces/hooks";
 import { openUrlFromSettings, settingsBrowserWindow } from "../../../state/settings/settingsWindows";
 import { Button, font, Sheet, TextField, Toggle, weight } from "../../ui";
 import { Favicon } from "../../favicon/Favicon";
@@ -22,7 +22,7 @@ import { settingsType } from "../tokens";
 export function LiveFoldersPane() {
   const theme = useTheme();
   const folders = useLive(useShallow((s) => s.folderOrder.map((id) => s.folders[id]!).filter(Boolean)));
-  const profiles = useProfileRecords();
+  const spaces = useSpaceRecords();
   useLive((s) => s.status);
   useLive((s) => s.hidden);
   const firstPullRequests = folders.find((f) => f.kind === "pullRequests")?.id;
@@ -31,7 +31,7 @@ export function LiveFoldersPane() {
       <SectionHeader anchor="liveFolders.folders" />
       <View style={{ gap: 14 }}>
         {folders.map((f) => (
-          <FolderGroup key={f.id} folder={f} profileName={profiles[f.profileId]?.name ?? "Profile"} searchable={f.id === firstPullRequests} />
+          <FolderGroup key={f.id} folder={f} spaceName={spaces[f.spaceId]?.name ?? "Space"} searchable={f.id === firstPullRequests} />
         ))}
       </View>
 
@@ -52,10 +52,10 @@ export function LiveFoldersPane() {
   );
 }
 
-function FolderGroup({ folder, profileName, searchable }: { folder: LiveFolder; profileName: string; searchable: boolean }) {
+function FolderGroup({ folder, spaceName, searchable }: { folder: LiveFolder; spaceName: string; searchable: boolean }) {
   return (
     <Group>
-      <Row title={folder.name} description={`${profileName} · ${folder.sources.map((s) => SOURCES[s].name).join(", ")} · ${statusText(folder.id)}`}>
+      <Row title={folder.name} description={`${spaceName} · ${folder.sources.map((s) => SOURCES[s].name).join(", ")} · ${statusText(folder.id)}`}>
         <View style={{ flexDirection: "row", gap: 6 }}>
           <Button title="Refresh" onPress={() => void manualRefresh(folder.id)} />
           <Button title="Delete" kind="destructive" onPress={() => deleteLiveFolder(folder.id)} />

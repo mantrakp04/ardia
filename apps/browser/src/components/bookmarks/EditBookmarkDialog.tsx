@@ -21,7 +21,7 @@ function Sheet({ state }: { state: EditorState }) {
   const [title, setTitle] = useState(node?.title ?? "");
   const [url, setUrl] = useState(node?.kind === "url" ? node.url : "");
   const [parentId, setParentId] = useState<string | null>(
-    node?.parentId ?? state.parentId ?? currentBookmarkRoots(state.profileId)?.bar ?? null,
+    node?.parentId ?? state.parentId ?? currentBookmarkRoots(state.spaceId)?.bar ?? null,
   );
   const close = closeBookmarkEditor;
   const resolvedUrl = url.trim() ? resolveInput(url, searchUrlPrefix(currentSettings())) : "";
@@ -33,9 +33,9 @@ function Sheet({ state }: { state: EditorState }) {
       updateBookmark(node.id, state.folder ? { title: title.trim() } : { title: title.trim(), url: resolvedUrl });
       if (parentId && parentId !== node.parentId) moveBookmark(node.id, parentId);
     } else if (state.folder) {
-      addBookmarkFolder({ profileId: state.profileId, title: title.trim(), parentId: parentId ?? undefined, index: state.index });
+      addBookmarkFolder({ spaceId: state.spaceId, title: title.trim(), parentId: parentId ?? undefined, index: state.index });
     } else {
-      addBookmark({ profileId: state.profileId, url: resolvedUrl, title: title.trim() || resolvedUrl, parentId: parentId ?? undefined, index: state.index });
+      addBookmark({ spaceId: state.spaceId, url: resolvedUrl, title: title.trim() || resolvedUrl, parentId: parentId ?? undefined, index: state.index });
     }
     close();
   };
@@ -58,7 +58,7 @@ function Sheet({ state }: { state: EditorState }) {
       {(!state.folder || !node) && (
         <>
           <FieldLabel text="Folder" />
-          <FolderPicker profileId={state.profileId} selectedId={parentId} onSelect={setParentId} height={folderPicker.editHeight} />
+          <FolderPicker spaceId={state.spaceId} selectedId={parentId} onSelect={setParentId} height={folderPicker.editHeight} />
         </>
       )}
       <Box row gap="m" style={BUTTONS}>

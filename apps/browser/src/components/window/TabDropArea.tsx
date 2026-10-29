@@ -91,13 +91,13 @@ export const TabDropArea = forwardRef<View, Props>(function TabDropArea({ target
       const token = generation.current;
       inside.current = false;
       const windowId = latest.current.windowId;
-      const profileId = currentWindow(windowId)?.profileId;
+      const spaceId = currentWindow(windowId)?.spaceId;
       const urls = installDroppedCrx(windowId, droppedUrls(e.items));
       void run(() => {
         const current = token === generation.current;
         const placement = current ? latest.current.drop(at(e), token) : null;
         if (current) generation.current = ++tokens;
-        if (profileId) openDroppedUrls(windowId, profileId, placement, urls);
+        if (spaceId) openDroppedUrls(windowId, spaceId, placement, urls);
       });
     }
   };

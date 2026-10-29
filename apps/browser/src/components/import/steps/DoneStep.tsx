@@ -3,7 +3,8 @@ import { Animated, View } from "react-native";
 import { allArcHolders, restoreArcFolders } from "../../../state/bookmarks/bookmarkGroups";
 import { useBookmarks } from "../../../state/bookmarks/hooks";
 import { plural } from "../../../state/browser/model";
-import { useProfileOrder, useProfileRecords } from "../../../state/profiles/hooks";
+import { useProfileRecords } from "../../../state/profiles/hooks";
+import { useSpaceOrder, useSpaceRecords } from "../../../state/spaces/hooks";
 import type { ImportCounts } from "../../../state/import/apply";
 import { backTo, closeImport, openFoundExtensions, type ImportFlow } from "../../../state/import/flow";
 import { useOnboarding } from "../../../state/onboarding/onboarding";
@@ -65,9 +66,10 @@ function LeftBehind({ notes, failed }: { notes: string[]; failed: boolean }) {
 
 function RestoreArcFolders() {
   const bookmarks = useBookmarks((b) => b);
+  const spaces = useSpaceRecords();
+  const spaceOrder = useSpaceOrder();
   const profiles = useProfileRecords();
-  const profileOrder = useProfileOrder();
-  const arcHolders = useMemo(() => allArcHolders({ bookmarks, profiles, profileOrder }), [bookmarks, profiles, profileOrder]);
+  const arcHolders = useMemo(() => allArcHolders({ bookmarks, spaces, profiles, spaceOrder }), [bookmarks, spaces, profiles, spaceOrder]);
   if (!arcHolders.length) return null;
   return (
     <Button
@@ -93,7 +95,7 @@ export function DoneBody({ flow }: { flow: ImportFlow }) {
         </Text>
         {failures.map((f) => (
           <Text key={f.kind} tone="textSecondary" style={{ marginBottom: 3 }}>
-            {f.profiles.length ? `${kindTitle(f.kind)} import failed for profiles ${f.profiles.join(", ")}` : `${kindTitle(f.kind)} import failed`}
+            {f.profiles.length ? `${kindTitle(f.kind)} import failed for spaces ${f.profiles.join(", ")}` : `${kindTitle(f.kind)} import failed`}
           </Text>
         ))}
         {summary.length > 0 && <Text size="small" tone="textSecondary" style={{ marginTop: space.l }}>{`Imported ${summary.join(", ")}.`}</Text>}

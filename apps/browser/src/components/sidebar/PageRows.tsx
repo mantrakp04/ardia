@@ -3,7 +3,7 @@ import { Animated, Text, View } from "react-native";
 import { radius, Symbol, weight } from "../ui";
 import { layout, useTheme } from "../ui/theme";
 import { useSettings } from "../../state/browser/hooks";
-import { isIncognitoProfile } from "../../state/browser/model";
+import { isIncognitoSpace } from "../../state/browser/model";
 import { newCapture } from "../../state/sidebar/listCapture";
 import { useCanTidyPins, useCapturedSidebarEntries, usePinnedCollapsed, usePinnedKept } from "../../state/sidebar/hooks";
 import { useAddressBarInSidebar } from "../../state/windows/layout";
@@ -25,7 +25,7 @@ import { tailKey } from "./dragModel";
 
 type PageRowsProps = {
   windowId: string;
-  profileId: string;
+  spaceId: string;
   current: boolean;
   rows: number | undefined;
   lazy: boolean;
@@ -41,10 +41,10 @@ type PageRowsProps = {
 
 const DOCKED_TILES_GAP = SCROLL_EDGE.gap + SCROLL_EDGE.line + SCROLL_EDGE.inset;
 
-export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, tiles, underDockedTiles, innerWidth, inlineNewTab, controller, geometry, onListHeight }: PageRowsProps) {
+export function PageRows({ windowId, spaceId, current, rows, lazy, offScreen, tiles, underDockedTiles, innerWidth, inlineNewTab, controller, geometry, onListHeight }: PageRowsProps) {
   const [captured] = useState(newCapture);
-  const { list: all } = useCapturedSidebarEntries(windowId, profileId, captured);
-  const [mountedRows, setMountedRows] = useState(() => firstPaintEntriesNow(windowId, profileId, all, lazy));
+  const { list: all } = useCapturedSidebarEntries(windowId, spaceId, captured);
+  const [mountedRows, setMountedRows] = useState(() => firstPaintEntriesNow(windowId, spaceId, all, lazy));
   const [visited, setVisited] = useState(current);
   if (current && !visited) setVisited(true);
   const cap = offScreen ? 0 : visited ? undefined : rows;
@@ -56,20 +56,20 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
   }, [growing, mountedRows, all.length]);
   const limit = cap ?? (growing ? mountedRows : undefined);
   const list = limit === undefined ? all : all.slice(0, limit);
-  const pending = usePendingEntriesHeight(windowId, profileId, all, mountedRows, growing);
+  const pending = usePendingEntriesHeight(windowId, spaceId, all, mountedRows, growing);
   const showClear = useSettings((s) => s.showClearButton);
   const clearable = showClear && !offScreen && all.length > 0;
-  const tidy = useCanTidyPins(windowId, profileId, offScreen);
-  const pinned = usePinnedSequence(windowId, profileId, offScreen);
+  const tidy = useCanTidyPins(windowId, spaceId, offScreen);
+  const pinned = usePinnedSequence(windowId, spaceId, offScreen);
   const pinnedSection = pinned.length > 0;
   const divided = clearable || tidy || pinnedSection;
-  const collapsed = usePinnedCollapsed(profileId);
+  const collapsed = usePinnedCollapsed(spaceId);
   const pinnedFold = useFold(collapsed);
-  const kept = usePinnedKept(windowId, profileId, pinned);
+  const kept = usePinnedKept(windowId, spaceId, pinned);
   const pinnedGap = collapsed && !kept && !pinnedFold.moving ? 0 : layout.rowGap;
   const newTabButtonAtTop = useSettings((s) => s.newTabButtonPosition === "top");
   const animated = current && !offScreen;
-  const motion = useListMotion(windowId, profileId, all, captured, animated);
+  const motion = useListMotion(windowId, spaceId, all, captured, animated);
   const scope = useMemo(() => ({ enabled: animated, slideBelow: motion.slideBelow }), [animated, motion.slideBelow]);
   if (geometry) geometry.current.newTabAtTop = newTabButtonAtTop && inlineNewTab;
   return (
@@ -77,7 +77,7 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
       <View
         onLayout={(e) => onListHeight(e.nativeEvent.layout.height + SCROLL_EDGE.inset - (inlineNewTab ? ROW_PITCH : 0))}
       >
-        {isIncognitoProfile(profileId) ? <IncognitoBadge /> : null}
+        {isIncognitoSpace(spaceId) ? <IncognitoBadge /> : null}
         {tiles.length ? <PinnedGrid tabs={tiles} innerWidth={innerWidth} flush /> : null}
         <View
           ref={(v) => {
@@ -93,7 +93,7 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
               entries={pinned.map((entry) => ({ key: entry, node: <SidebarEntry entry={entry} section="pinnedGroups" rowSection="pinnedRows" /> }))}
               keep={kept}
               gap={layout.rowGap}
-              estimate={(key) => entryHeightNow(windowId, profileId, key)}
+              estimate={(key) => entryHeightNow(windowId, spaceId, key)}
             />
           ) : null}
           <Tail section="pinnedGroups" />
@@ -101,9 +101,9 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
         {divided ? (
           <ClearDivider
             windowId={windowId}
-            profileId={profileId}
+            spaceId={spaceId}
             spaced={pinnedSection}
-            lift={underDockedTiles && !pinnedSection && !isIncognitoProfile(profileId) ? DOCKED_TILES_GAP : 0}
+            lift={underDockedTiles && !pinnedSection && !isIncognitoSpace(spaceId) ? DOCKED_TILES_GAP : 0}
             clear={clearable}
             tidy={tidy}
             pinned={pinnedSection ? { collapsed, open: pinnedFold.open } : null}

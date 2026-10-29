@@ -11,12 +11,12 @@ export type Row =
 function candidates(s: BrowserState, windowId: string): { open: Row[]; closed: Row[] } {
   const w = s.windows[windowId];
   if (!w) return { open: [], closed: [] };
-  const profileId = w.profileId;
+  const spaceId = w.spaceId;
   const shared = sharesTabs(s) ? sharedTabsIn(s.tabs, windowId) : null;
   const lastUsed = (t: Tab) => shared?.lastUsed(t) ?? t.lastActiveAt;
   const windowNumber = (id: string) => s.windowOrder.filter((x) => s.windows[x]?.kind !== "private" || x === windowId).indexOf(id) + 1;
   const open: Row[] = Object.values(s.tabs)
-    .filter((t) => t.profileId === profileId && !isPeekTab(s, t.id) && !shared?.elsewhere(t))
+    .filter((t) => t.spaceId === spaceId && !isPeekTab(s, t.id) && !shared?.elsewhere(t))
     .sort((a, b) => lastUsed(b) - lastUsed(a))
     .map((t) => ({
       kind: "tab",
@@ -26,11 +26,11 @@ function candidates(s: BrowserState, windowId: string): { open: Row[]; closed: R
       favicon: t.favicon,
       icon: t.customIcon,
       where: t.windowId === windowId ? null : `Window ${windowNumber(t.windowId)}`,
-      current: s.windows[t.windowId]?.activeTabIds[profileId] === t.id,
+      current: s.windows[t.windowId]?.activeTabIds[spaceId] === t.id,
     }));
   const closed: Row[] = [
     ...s.closedTabs
-      .filter((c) => c.tab.profileId === profileId)
+      .filter((c) => c.tab.spaceId === spaceId)
       .map((c) => ({ kind: "closed" as const, id: c.id, title: tabTitle(c.tab), url: c.tab.url, favicon: c.tab.favicon, icon: c.tab.customIcon, detail: "", at: c.closedAt })),
     ...s.closedGroups.map((c) => ({
       kind: "closed" as const,

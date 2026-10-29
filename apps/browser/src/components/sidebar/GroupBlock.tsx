@@ -1,7 +1,7 @@
 import { createContext, memo, useContext, useEffect, useState } from "react";
 import { Animated, Pressable, Text, View } from "react-native";
 import { hex, layout, useTheme } from "../ui/theme";
-import { useGroup, usePageProfileId, useWindowId } from "../../state/browser/hooks";
+import { useGroup, usePageSpaceId, useWindowId } from "../../state/browser/hooks";
 import { updateGroup } from "../../state/groups/actions";
 import { useGroupLabel } from "../../state/groups/hooks";
 import { useSelectionInGroup } from "../../state/pins/hooks";
@@ -88,15 +88,15 @@ export const GroupBlock = memo(function GroupBlock({
   const [captured] = useState(newCapture);
   const entries = useCapturedGroupEntries(groupId, captured);
   const selectedInside = useSelectionInGroup(windowId, groupId);
-  const profileId = usePageProfileId();
-  const activeEntry = useKeptEntry(windowId, profileId, entries);
-  const foldedHeight = () => foldedGroupHeight(windowId, profileId, groupId);
+  const spaceId = usePageSpaceId();
+  const activeEntry = useKeptEntry(windowId, spaceId, entries);
+  const foldedHeight = () => foldedGroupHeight(windowId, spaceId, groupId);
   const { wrapper, handle, headerRef } = useDragItem(entryKey("group", groupId), { kind: "group", tabIds, section, groupId, collapsed: stored, foldedHeight, parentGroup }, own?.clip);
   const tail = useDragItem(tailKey({ group: groupId }), { kind: "tail", tabIds: [], section, parentGroup: groupId });
 
   const fold = useFold(collapsed);
   const scope = useContext(ListMotionContext);
-  const motion = useGroupMotion(windowId, profileId, groupId, entries, captured, section === "list" && !parentGroup ? scope : { enabled: scope.enabled, slideBelow: null }, scope.enabled && !collapsed);
+  const motion = useGroupMotion(windowId, spaceId, groupId, entries, captured, section === "list" && !parentGroup ? scope : { enabled: scope.enabled, slideBelow: null }, scope.enabled && !collapsed);
   const [moved, movedRef] = useShift(own?.shift ?? null);
   const box = useGroupHover(windowId, groupId);
   const dropInto = useDropInto() === groupId;
@@ -131,7 +131,7 @@ export const GroupBlock = memo(function GroupBlock({
             )}
             keep={activeEntry}
             gap={layout.rowGap}
-            rowHeight={(key) => entryHeightNow(windowId, profileId, key)}
+            rowHeight={(key) => entryHeightNow(windowId, spaceId, key)}
             padTop={headGap(collapsed && activeEntry ? activeEntry : entries[0])}
             padBottom={PAD}
             indent={GROUP_INDENT}
@@ -201,7 +201,7 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
               style={{ height: layout.rowHeight, flexDirection: "row", alignItems: "center", paddingLeft: 9, paddingRight: 6 }}
             >
               {group.icon || firstTab ? (
-                <TabIcon url={firstTab?.url ?? ""} favicon={firstTab?.favicon} icon={group.icon ?? firstTab?.customIcon} profileId={firstTab?.profileId} />
+                <TabIcon url={firstTab?.url ?? ""} favicon={firstTab?.favicon} icon={group.icon ?? firstTab?.customIcon} spaceId={firstTab?.spaceId} />
               ) : (
                 <View style={{ width: 16 }} />
               )}

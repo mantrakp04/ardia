@@ -1,4 +1,4 @@
-import { holdThemedWindowsKeyLook, choosePresetColor, setProfileTheme } from "../../state/profiles/themeActions";
+import { holdThemedWindowsKeyLook, choosePresetColor, setProfileTheme } from "../../state/spaces/themeActions";
 import { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import {
@@ -19,15 +19,15 @@ import {
 } from "../../lib/profileLook";
 import { THEME_TEXTURES } from "@ardia/core";
 import { PROFILE_COLORS, useTheme } from "../ui/theme";
-import { useAppDark, useProfile, useSettings } from "../../state/browser/hooks";
+import { useAppDark, useSpace, useSettings } from "../../state/browser/hooks";
 import type { ProfileColor, ProfileTheme, ThemeMode, ThemeTexture } from "../../state/browser/types";
 import { Button, font, Group, PopUp, Swatch, swatch, Symbol, ThemeSwatch } from "../ui";
-import { importArcTheme } from "../../state/profiles/arcThemes";
+import { importArcTheme } from "../../state/spaces/arcThemes";
 import { Row, SectionHeader } from "./Form";
 import { ColorPad, DirectionDial, LABEL, Labelled, LightnessBar, Preview, Slider } from "./ThemeControls";
 import { settingsInk } from "./tokens";
 
-export { arcThemeChoices, importArcTheme } from "../../state/profiles/arcThemes";
+export { arcThemeChoices, importArcTheme } from "../../state/spaces/arcThemes";
 
 const MODES: { value: ThemeMode; symbol: string; title: string }[] = [
   { value: "light", symbol: "sun.max", title: "Light" },
@@ -59,37 +59,37 @@ function useLiveTheme(theme: ProfileTheme | null | undefined, apply: (theme: Pro
   return { theme: draft ?? theme ?? null, change };
 }
 
-export function useThemeDraft(profileId: string, apply: (theme: ProfileTheme) => void) {
-  const profile = useProfile(profileId, (p) => p);
-  const live = useLiveTheme(profile?.theme, apply);
+export function useThemeDraft(spaceId: string, apply: (theme: ProfileTheme) => void) {
+  const space = useSpace(spaceId, (p) => p);
+  const live = useLiveTheme(space?.theme, apply);
   const appDark = useAppDark();
   const source = useSettings((s) => spaceLookSource(s));
   const stored = live.theme;
   const editsDark = !!stored && requestedDarkFor(stored, appDark, source);
   const custom = stored?.dark ? resolveTheme(stored, editsDark) : stored;
   const startCustom = () => {
-    if (profile && !custom) live.change(startingTheme(PROFILE_COLORS[profile.color]?.swatch ?? PROFILE_COLORS.plum.swatch), true);
+    if (space && !custom) live.change(startingTheme(PROFILE_COLORS[space.color]?.swatch ?? PROFILE_COLORS.plum.swatch), true);
   };
   const shown = stored ? shownLook(stored, appDark, source) : null;
-  return { profile, stored, custom, editsDark, shown, followsApp: source === "app", change: live.change, startCustom };
+  return { space, stored, custom, editsDark, shown, followsApp: source === "app", change: live.change, startCustom };
 }
 
-export function ThemeSection({ profileId }: { profileId: string }) {
-  const { profile, stored, custom, editsDark, shown, followsApp, change, startCustom } = useThemeDraft(profileId, (theme) => setProfileTheme(profileId, theme));
-  const editing = !!profile && !!stored;
+export function ThemeSection({ spaceId }: { spaceId: string }) {
+  const { space, stored, custom, editsDark, shown, followsApp, change, startCustom } = useThemeDraft(spaceId, (theme) => setProfileTheme(spaceId, theme));
+  const editing = !!space && !!stored;
   useEffect(() => {
     if (!editing) return;
     holdThemedWindowsKeyLook(true);
     return () => holdThemedWindowsKeyLook(false);
   }, [editing]);
-  if (!profile) return null;
-  const choosePreset = (color: ProfileColor) => choosePresetColor(profileId, color);
+  if (!space) return null;
+  const choosePreset = (color: ProfileColor) => choosePresetColor(spaceId, color);
   return (
     <>
       <SectionHeader
         title="Theme"
-        description="Tints this profile's windows, New Tab page and highlights."
-        action={<Button title="Import from Arc…" onPress={() => void importArcTheme(profileId)} />}
+        description="Tints this space's windows, New Tab page and highlights."
+        action={<Button title="Import from Arc…" onPress={() => void importArcTheme(spaceId)} />}
       />
       <Group>
         <Row
@@ -99,13 +99,13 @@ export function ThemeSection({ profileId }: { profileId: string }) {
               ? `Separate light and dark looks. Editing keeps the ${editsDark ? "dark" : "light"} one.`
               : custom
                 ? "Custom gradient"
-                : PROFILE_COLORS[profile.color]?.name
+                : PROFILE_COLORS[space.color]?.name
           }
         >
           <View style={{ flexDirection: "row", gap: swatch.gap }}>
             {(Object.keys(PROFILE_COLORS) as ProfileColor[]).map((c) => (
               <Pressable key={c} onPress={() => choosePreset(c)} tooltip={PROFILE_COLORS[c].name}>
-                <Swatch selected={!custom && profile.color === c} ring={PROFILE_COLORS[c].swatch} fill={PROFILE_COLORS[c].swatch} />
+                <Swatch selected={!custom && space.color === c} ring={PROFILE_COLORS[c].swatch} fill={PROFILE_COLORS[c].swatch} />
               </Pressable>
             ))}
             <Pressable onPress={startCustom} tooltip="Custom">

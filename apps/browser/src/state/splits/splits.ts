@@ -132,7 +132,7 @@ export function sanitizeSplits(splits: Record<string, SplitView>, tabs: Record<s
   const used = new Set<string>();
   for (const v of Object.values(splits)) {
     const first = tabs[splitTabIds(v)[0] ?? ""];
-    const ok = (id: string) => tabs[id]?.windowId === v.windowId && tabs[id]?.profileId === first?.profileId && !used.has(id);
+    const ok = (id: string) => tabs[id]?.windowId === v.windowId && tabs[id]?.spaceId === first?.spaceId && !used.has(id);
     const gone = new Set(splitTabIds(v).filter((id) => !ok(id)));
     const fixed = gone.size ? removeFromSplits({ [v.id]: v }, gone)[v.id] : v;
     if (!fixed || splitTabIds(fixed).length > MAX_SPLIT_PANES) continue;
@@ -207,7 +207,7 @@ export const createSplitsSlice: StateCreator<BrowserState, [], [], SplitsSlice> 
     const tabs = [...new Set(tabIds)].map((id) => s.tabs[id]).filter((t): t is Tab => !!t);
     const first = tabs[0];
     if (tabs.length < 2 || tabs.length > MAX_SPLIT_PANES || !first) return "";
-    if (tabs.some((t) => t.windowId !== first.windowId || t.profileId !== first.profileId)) return "";
+    if (tabs.some((t) => t.windowId !== first.windowId || t.spaceId !== first.spaceId)) return "";
     const ids = tabs.map((t) => t.id);
     const splits = removeFromSplits(s.splits, new Set(ids));
     const split: SplitView = { id: newId("split"), windowId: first.windowId, orientation, slots: evenSlots(ids) };
@@ -218,7 +218,7 @@ export const createSplitsSlice: StateCreator<BrowserState, [], [], SplitsSlice> 
   openSplitPane(windowId, o = {}) {
     let s = get();
     const w = s.windows[windowId];
-    const anchorId = o.anchorTabId ?? (w ? w.activeTabIds[w.profileId] : undefined);
+    const anchorId = o.anchorTabId ?? (w ? w.activeTabIds[w.spaceId] : undefined);
     const anchor = anchorId ? s.tabs[anchorId] : undefined;
     if (!w || !anchor || anchor.windowId !== windowId) return { ok: false, reason: "invalid" };
     const existing = splitOf(s, anchor.id);
@@ -228,10 +228,10 @@ export const createSplitsSlice: StateCreator<BrowserState, [], [], SplitsSlice> 
     let tabId = o.tabId;
     if (tabId) {
       const t = s.tabs[tabId];
-      if (!t || tabId === anchor.id || t.windowId !== windowId || t.profileId !== anchor.profileId) return { ok: false, reason: "invalid" };
+      if (!t || tabId === anchor.id || t.windowId !== windowId || t.spaceId !== anchor.spaceId) return { ok: false, reason: "invalid" };
       s = { ...s, splits: removeFromSplits(s.splits, new Set([tabId])) };
     } else {
-      [s, tabId] = withNewTab(s, windowId, { url: o.url, adoptId: o.url ? o.adoptId : undefined, profileId: anchor.profileId, openerId: o.url ? anchor.id : undefined, background: true });
+      [s, tabId] = withNewTab(s, windowId, { url: o.url, adoptId: o.url ? o.adoptId : undefined, spaceId: anchor.spaceId, openerId: o.url ? anchor.id : undefined, background: true });
     }
     const current = existing && s.splits[existing.id];
     if (replaced && current) {
@@ -255,7 +255,7 @@ export const createSplitsSlice: StateCreator<BrowserState, [], [], SplitsSlice> 
     const split = splitOf(s, paneTabId);
     const pane = s.tabs[paneTabId];
     const tab = s.tabs[tabId];
-    if (!split || !pane || !tab || splitTabIds(split).includes(tabId) || tab.windowId !== pane.windowId || tab.profileId !== pane.profileId) return;
+    if (!split || !pane || !tab || splitTabIds(split).includes(tabId) || tab.windowId !== pane.windowId || tab.spaceId !== pane.spaceId) return;
     s = { ...s, splits: removeFromSplits(s.splits, new Set([tabId])) };
     s = gather(s, paneTabId, [paneTabId, tabId]);
     const current = s.splits[split.id]!;
@@ -332,7 +332,7 @@ export const createSplitsSlice: StateCreator<BrowserState, [], [], SplitsSlice> 
   focusPane(windowId, delta) {
     const s = get();
     const w = s.windows[windowId];
-    const active = w?.activeTabIds[w.profileId];
+    const active = w?.activeTabIds[w.spaceId];
     const split = splitOf(s, active);
     if (!split || !active) return;
     const panes = splitTabIds(split);

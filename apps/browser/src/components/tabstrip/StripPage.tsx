@@ -1,10 +1,10 @@
 import { memo, useContext, useEffect, useMemo, useRef } from "react";
 import { Animated, ScrollView } from "react-native";
-import { PageProfileContext, useWindowId } from "../../state/browser/hooks";
+import { PageSpaceContext, useWindowId } from "../../state/browser/hooks";
 import { tabDragging } from "../../state/drag/tabDrag";
 import { useShownTabIdFor, useStripEntries } from "../../state/tabs/topStrip";
 import { setMeasuredWidth, useMeasuredWidths } from "../../state/windows/measuredWidths";
-import { usePageStyle } from "../../state/windows/profilePager";
+import { usePageStyle } from "../../state/windows/spacePager";
 import { ThemeScope } from "../window/ThemeScope";
 import { DockContext, FloatingStrip } from "./context";
 import { IncomingGap, useIncomingTab } from "./IncomingTab";
@@ -17,12 +17,12 @@ import { StripGroup } from "./StripGroup";
 import { DraggableChip } from "./TabChip";
 import { FLARE, GAP } from "./tokens";
 
-export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, current, resting }: { profileId: string; slot: number; pageWidth: number; current: boolean; resting: boolean }) {
+export const StripPage = memo(function StripPage({ spaceId, slot, pageWidth, current, resting }: { spaceId: string; slot: number; pageWidth: number; current: boolean; resting: boolean }) {
   const windowId = useWindowId();
   const flare = useContext(FloatingStrip) ? 0 : FLARE;
   const pageStyle = usePageStyle(windowId, slot, pageWidth + flare * 2);
-  const parsed = useStripEntries(windowId, profileId);
-  const activeId = useShownTabIdFor(windowId, profileId);
+  const parsed = useStripEntries(windowId, spaceId);
+  const activeId = useShownTabIdFor(windowId, spaceId);
   const groupIds = parsed.flatMap((e) => (e.kind === "group" ? [e.id] : []));
   const chipWidths = useMeasuredWidths(groupIds.map(chipKey));
   const folderIds = parsed.flatMap((e) => (e.kind === "group" ? e.members.flatMap((m) => (m.kind === "folder" ? [m.id] : [])) : []));
@@ -64,7 +64,7 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
       pointerEvents={current ? "auto" : "none"}
       style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: pageWidth + flare * 2, display: resting ? "none" : "flex", ...pageStyle }}
     >
-      <PageProfileContext.Provider value={profileId}>
+      <PageSpaceContext.Provider value={spaceId}>
         <ThemeScope>
           <DockContext.Provider value={strip}>
             <ScrollView
@@ -104,7 +104,7 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
             </ScrollView>
           </DockContext.Provider>
         </ThemeScope>
-      </PageProfileContext.Provider>
+      </PageSpaceContext.Provider>
     </Animated.View>
   );
 });

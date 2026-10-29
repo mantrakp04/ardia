@@ -249,7 +249,7 @@ test("a pinned group's reopened tab not shown yet keeps its back/forward list th
   S().closeTab(c2);
   assert.equal(S().tabs[c2].page.wake, `restore:${c}`);
   S().closeWindow(w);
-  assert.ok(S().parkedPins.default, "the profile's pins are parked");
+  assert.ok(S().parkedPins.default, "the space's pins are parked");
   const n = S().createWindow();
   const back = S().windows[n].tabIds.find((id) => S().tabs[id].url.includes("c.com"));
   S().activate(back);
@@ -268,22 +268,22 @@ test("Settings shows the tab layout of the window in front, not a default it no 
   assert.equal(model.tabLayoutOf(S()), "top");
 });
 
-test("⇧⌘T reopens only what the window's shown profile closed", () => {
+test("⇧⌘T reopens only what the window's shown space closed", () => {
   reset();
   const [w, , b] = setup("a", "b");
   S().closeTab(b);
-  const p = S().createProfile({ name: "Work" });
-  S().switchProfile(w, p);
+  const p = S().createSpace({ name: "Work", profileId: S().createProfile({ name: "Work" }) });
+  S().switchSpace(w, p);
   const work = S().newTab(w, { url: "w.com" });
   S().reopenClosed(w);
-  assert.equal(S().windows[w].profileId, p, "it stays on Work");
-  assert.ok(!Object.values(S().tabs).some((t) => short(t.url) === "b"), "the default profile's tab stays closed");
+  assert.equal(S().windows[w].spaceId, p, "it stays on Work");
+  assert.ok(!Object.values(S().tabs).some((t) => short(t.url) === "b"), "the default space's tab stays closed");
   S().closeTab(work);
   S().reopenClosed(w);
-  assert.ok(Object.values(S().tabs).some((t) => short(t.url) === "w" && t.profileId === p), "Work's own tab comes back");
-  S().switchProfile(w, "default");
+  assert.ok(Object.values(S().tabs).some((t) => short(t.url) === "w" && t.spaceId === p), "Work's own tab comes back");
+  S().switchSpace(w, "default");
   S().reopenClosedTab(w);
-  assert.ok(Object.values(S().tabs).some((t) => short(t.url) === "b" && t.profileId === "default"));
+  assert.ok(Object.values(S().tabs).some((t) => short(t.url) === "b" && t.spaceId === "default"));
 });
 
 test("abandoned New Tab cleanup never closes a window or the tab it shows", () => {
@@ -293,10 +293,10 @@ test("abandoned New Tab cleanup never closes a window or the tab it shows", () =
   const front = S().newTab(w);
   S().closeAbandonedNewTabs();
   assert.deepEqual(S().windows[w].tabIds, [front]);
-  const p = S().createProfile({ name: "Work" });
-  S().switchProfile(w, p);
+  const p = S().createSpace({ name: "Work", profileId: S().createProfile({ name: "Work" }) });
+  S().switchSpace(w, p);
   const work = model.activeTabId(S(), w);
-  S().switchProfile(w, "default");
+  S().switchSpace(w, "default");
   S().closeAbandonedNewTabs();
   assert.ok(S().tabs[work] && S().tabs[front]);
   const w2 = S().createWindow();

@@ -200,9 +200,9 @@ export function committed(windowId) {
     tabIds: w.tabIds,
     tabs: Object.fromEntries(tabs),
     groups: Object.fromEntries(groups),
-    pinnedArea: pinnedAreaKeys(s, w, w.profileId),
-    anchors: [...pinnedAnchors(s, w, w.profileId)],
-    orderChoices: Object.keys(s.pinChoices[w.profileId] ?? {}).sort(),
+    pinnedArea: pinnedAreaKeys(s, w, w.spaceId),
+    anchors: [...pinnedAnchors(s, w, w.spaceId)],
+    orderChoices: Object.keys(s.pinChoices[w.spaceId] ?? {}).sort(),
     liveOrder: live().folderOrder.map((id) => [id, live().folders[id]?.after ?? null]),
   };
 }

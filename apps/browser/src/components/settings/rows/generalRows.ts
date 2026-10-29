@@ -78,19 +78,20 @@ export const generalRows = {
       },
     },
   ],
-  profiles: [
-    { section: "New windows open with", rows: { defaultProfile: { title: "Default profile", description: "Used for new windows. Links from other apps open in the profile you used last.", keywords: ["new window"] } } },
+  profiles: [{ section: "Profiles", rows: { list: { title: "Profiles", description: "Browsing data, logins and extensions. Assign a profile to each space in Settings.", keywords: ["profile", "account", "create profile", "delete profile"] } } }],
+  spaces: [
+    { section: "Default space", rows: { defaultSpace: { title: "Default space", description: "Links from other apps and new windows open in this space.", keywords: ["new window"] } } },
     {
-      section: "Profile switcher",
+      section: "Space switcher",
       rows: {
         switcherIcons: {
-          title: "Show profile icons instead of dots",
-          description: "As in Arc: the switcher at the bottom of the sidebar shows each profile's symbol or emoji, and a profile without one keeps its dot. Right-click the switcher to pick an icon.",
-          keywords: ["spaces", "space icons", "profile dots", "switcher", "emoji", "symbol", "sidebar footer", "arc"],
+          title: "Show space icons instead of dots",
+          description: "As in Arc: the switcher at the bottom of the sidebar shows each space's symbol or emoji, and a space without one keeps its dot. Right-click the switcher to pick an icon.",
+          keywords: ["spaces", "space icons", "space dots", "switcher", "emoji", "symbol", "sidebar footer", "arc"],
         },
       },
     },
-    { section: "Profiles", rows: { list: { title: "Profiles", description: "Drag to reorder. ⌃1–⌃9 switch to the first nine.", keywords: ["create profile", "new profile", "delete profile", "reorder", "work", "personal"] } } },
+    { section: "Spaces", rows: { list: { title: "Spaces", description: "Drag to reorder. ⌃1–⌃9 switch to the first nine.", keywords: ["create space", "new space", "delete space", "reorder", "work", "personal"] } } },
   ],
   sync: [
     {
@@ -156,10 +157,10 @@ export const generalRows = {
         },
         shareTabsAcrossWindows: {
           title: "Share tabs across windows",
-          description: "Every window of a profile lists the same tabs, as in Arc. A tab is live in one window at a time: selecting it in another brings it there, and the first window shows it greyed until you click it. Each window keeps its own selected tab.",
+          description: "Every window of a space lists the same tabs, as in Arc. A tab is live in one window at a time: selecting it in another brings it there, and the first window shows it greyed until you click it. Each window keeps its own selected tab.",
           keywords: ["arc", "multiple windows", "same tabs", "sync windows", "shared sidebar", "unpinned"],
         },
-        warnBeforeClosingLastTab: { advanced: true, title: "Warn before closing last tab in a Profile", keywords: ["confirm", "close tab"] },
+        warnBeforeClosingLastTab: { advanced: true, title: "Warn before closing last tab in a Space", keywords: ["confirm", "close tab"] },
         tabReorderHaptics: { advanced: true, title: "Haptic feedback when reordering tabs", keywords: ["trackpad", "vibration", "drag"] },
         extendWebsiteColor: { title: "Extend website color into tab bar", keywords: ["theme color", "tint", "colour"] },
         sidebarMediaControls: {
@@ -241,9 +242,9 @@ export const generalRows = {
         theme: { title: "Appearance Theme", description: "Also in View › Appearance. Incognito windows are always dark.", keywords: ["dark mode", "light mode", "automatic", "night", "system"] },
         spacesFollowAppearance: {
           advanced: true,
-          title: "Profile themes follow this appearance",
-          description: "Every profile goes light or dark with this choice, even when its theme (like one imported from an Arc space) says Light. In dark mode a light theme's colours are darkened so white text reads.",
-          keywords: ["space", "profile theme", "arc theme", "follow system"],
+          title: "Space themes follow this appearance",
+          description: "Every space goes light or dark with this choice, even when its theme (like one imported from an Arc space) says Light. In dark mode a light theme's colours are darkened so white text reads.",
+          keywords: ["profile", "space theme", "arc theme", "follow system"],
         },
       },
     },
@@ -331,4 +332,4 @@ export const generalRows = {
     },
     { section: "App Icon", rows: { appIcon: { title: "App Icon", description: "Shown in the Dock and the app switcher. The Dock keeps it after you quit.", keywords: ["dock icon", "logo"] } } },
   ],
-} satisfies Pick<Record<SettingsPane, SettingSection[]>, "general" | "profiles" | "sync" | "tabs" | "appearance">;
+} satisfies Pick<Record<SettingsPane, SettingSection[]>, "general" | "profiles" | "spaces" | "sync" | "tabs" | "appearance">;

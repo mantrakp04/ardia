@@ -11,6 +11,7 @@ export const isUtilityWindowId = (id: string | null | undefined) =>
 export const SETTINGS_PANES = [
   "general",
   "profiles",
+  "spaces",
   "sync",
   "tabs",
   "appearance",
@@ -28,25 +29,25 @@ export const SETTINGS_PANES = [
 
 export type SettingsPane = (typeof SETTINGS_PANES)[number];
 
-export type SettingsPlace = { pane: SettingsPane; profileId: string | null; detail: string | null };
+export type SettingsPlace = { pane: SettingsPane; spaceId: string | null; detail: string | null };
 
 type Nav = SettingsPlace & { back: SettingsPlace[]; forward: SettingsPlace[] };
 
-const placeOf = ({ pane, profileId, detail }: SettingsPlace): SettingsPlace => ({ pane, profileId, detail });
+const placeOf = ({ pane, spaceId, detail }: SettingsPlace): SettingsPlace => ({ pane, spaceId, detail });
 
-export const useSettingsNav = create<Nav>()(() => ({ pane: "general", profileId: null, detail: null, back: [], forward: [] }));
+export const useSettingsNav = create<Nav>()(() => ({ pane: "general", spaceId: null, detail: null, back: [], forward: [] }));
 
-export function goToSettingsPane(pane: SettingsPane, profileId: string | null = null, detail: string | null = null) {
+export function goToSettingsPane(pane: SettingsPane, spaceId: string | null = null, detail: string | null = null) {
   const current = useSettingsNav.getState();
-  if (current.pane === pane && current.profileId === profileId && current.detail === detail) return;
-  useSettingsNav.setState({ pane, profileId, detail, back: [...current.back, placeOf(current)].slice(-30), forward: [] });
+  if (current.pane === pane && current.spaceId === spaceId && current.detail === detail) return;
+  useSettingsNav.setState({ pane, spaceId, detail, back: [...current.back, placeOf(current)].slice(-30), forward: [] });
 }
 
-export function replaceSettingsPlace(profileId: string | null, detail: string | null = null) {
+export function replaceSettingsPlace(spaceId: string | null, detail: string | null = null) {
   const { pane, back } = useSettingsNav.getState();
   const prev = back.at(-1);
-  const same = prev?.pane === pane && prev.profileId === profileId && prev.detail === detail;
-  useSettingsNav.setState({ profileId, detail, back: same ? back.slice(0, -1) : back, forward: [] });
+  const same = prev?.pane === pane && prev.spaceId === spaceId && prev.detail === detail;
+  useSettingsNav.setState({ spaceId, detail, back: same ? back.slice(0, -1) : back, forward: [] });
 }
 
 export function settingsBack() {
@@ -61,8 +62,18 @@ export function settingsForward() {
   if (next) useSettingsNav.setState({ ...next, forward: current.forward.slice(1), back: [...current.back, placeOf(current)] });
 }
 
-export function openSettings(pane?: SettingsPane, profileId?: string | null) {
-  if (pane) goToSettingsPane(pane, profileId ?? null);
+export function openSettings(pane?: SettingsPane, spaceId?: string | null) {
+  if (pane) {
+    const s = useBrowser.getState();
+    const dataPane = ["profiles", "passwords", "autofill", "extensions"].includes(pane);
+    const target = dataPane && spaceId ? (s.spaces[spaceId]?.profileId ?? spaceId) : spaceId;
+    goToSettingsPane(pane, target ?? null);
+  }
+  void openWindow(SETTINGS_WINDOW_ID, { kind: "settings", title: "Settings" });
+}
+
+export function openProfileSettings(pane: "profiles" | "passwords" | "autofill" | "extensions", profileId: string) {
+  goToSettingsPane(pane, profileId);
   void openWindow(SETTINGS_WINDOW_ID, { kind: "settings", title: "Settings" });
 }
 

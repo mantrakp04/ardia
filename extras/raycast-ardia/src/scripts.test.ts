@@ -3,15 +3,15 @@ import { test } from "node:test";
 import {
   closeTabScript,
   focusTabScript,
-  listProfilesScript,
+  listSpacesScript,
   listTabsScript,
   newTabScript,
   newWindowScript,
-  parseProfiles,
+  parseSpaces,
   parseTabs,
-  profileNamed,
+  spaceNamed,
   quote,
-  showProfileScript,
+  showSpaceScript,
 } from "./scripts.ts";
 
 const fs = "\u001f";
@@ -28,57 +28,57 @@ test("quotes ids and targets the app by bundle id", () => {
     'tell current application to close (tab id "tab-2" of window id "w-1")',
   );
   assert.match(listTabsScript(), /tell application id "com\.ardia\.browser"/);
-  assert.match(listProfilesScript(), /tell application id "com\.ardia\.browser"/);
+  assert.match(listSpacesScript(), /tell application id "com\.ardia\.browser"/);
 });
 
-test("reads tabs and profiles from the separated answer", () => {
+test("reads tabs and spaces from the separated answer", () => {
   assert.deepEqual(parseTabs(`w-1${fs}1${fs}tab-2${fs}Example${fs}missing value${fs}true${fs}false${rs}`), [
     { windowId: "w-1", windowIndex: 1, tabId: "tab-2", title: "Example", url: "", isPinned: true, isFocused: false },
   ]);
-  assert.deepEqual(parseProfiles(`p-1${fs}Personal${fs}3${fs}true${rs}p-2${fs}Work${fs}1${fs}false${rs}`), [
+  assert.deepEqual(parseSpaces(`p-1${fs}Personal${fs}3${fs}true${rs}p-2${fs}Work${fs}1${fs}false${rs}`), [
     { id: "p-1", name: "Personal", tabCount: 3, isCurrent: true },
     { id: "p-2", name: "Work", tabCount: 1, isCurrent: false },
   ]);
-  assert.deepEqual(parseProfiles(""), []);
+  assert.deepEqual(parseSpaces(""), []);
 });
 
-test("finds a profile by its name, or by a start no other profile shares", () => {
-  const profiles = parseProfiles(
+test("finds a space by its name, or by a start no other space shares", () => {
+  const spaces = parseSpaces(
     `p-1${fs}Work Archive${fs}0${fs}false${rs}p-2${fs}Work${fs}0${fs}false${rs}p-3${fs}Personal${fs}0${fs}false${rs}`,
   );
-  assert.equal(profileNamed(profiles, " work ").id, "p-2");
-  assert.equal(profileNamed(profiles, "pers").id, "p-3");
-  assert.equal(profileNamed(profiles, "work a").id, "p-1");
-  assert.throws(() => profileNamed(profiles, " wo "), { message: "“wo” matches Work Archive, Work." });
-  assert.throws(() => profileNamed(profiles, "School"), {
-    message: "No profile is named “School”. Ardia has Work Archive, Work, Personal.",
+  assert.equal(spaceNamed(spaces, " work ").id, "p-2");
+  assert.equal(spaceNamed(spaces, "pers").id, "p-3");
+  assert.equal(spaceNamed(spaces, "work a").id, "p-1");
+  assert.throws(() => spaceNamed(spaces, " wo "), { message: "“wo” matches Work Archive, Work." });
+  assert.throws(() => spaceNamed(spaces, "School"), {
+    message: "No space is named “School”. Ardia has Work Archive, Work, Personal.",
   });
-  const twins = parseProfiles(`p-1${fs}Work${fs}0${fs}false${rs}p-2${fs}work${fs}0${fs}false${rs}`);
-  assert.throws(() => profileNamed(twins, "Work"), { message: "“Work” matches Work, work." });
+  const twins = parseSpaces(`p-1${fs}Work${fs}0${fs}false${rs}p-2${fs}work${fs}0${fs}false${rs}`);
+  assert.throws(() => spaceNamed(twins, "Work"), { message: "“Work” matches Work, work." });
 });
 
-test("shows a profile in the front window, or in a new one when the front can't show it", () => {
+test("shows a space in the front window, or in a new one when the front can't show it", () => {
   assert.equal(
-    showProfileScript({ id: 'p"1' }, "current application"),
+    showSpaceScript({ id: 'p"1' }, "current application"),
     `tell current application
   try
-    focus (profile id "p\\"1")
+    focus (space id "p\\"1")
   on error
-    make new window with properties {active profile:(profile id "p\\"1")}
+    make new window with properties {active space:(space id "p\\"1")}
   end try
 end tell`,
   );
 });
 
-test("makes windows in a profile or incognito", () => {
+test("makes windows in a space or incognito", () => {
   assert.equal(newWindowScript(), 'tell application id "com.ardia.browser" to make new window');
   assert.equal(
     newWindowScript({ incognito: true }, "current application"),
     "tell current application to make new window with properties {incognito:true}",
   );
   assert.equal(
-    newWindowScript({ profileId: 'p"1' }, "current application"),
-    'tell current application to make new window with properties {active profile:(profile id "p\\"1")}',
+    newWindowScript({ spaceId: 'p"1' }, "current application"),
+    'tell current application to make new window with properties {active space:(space id "p\\"1")}',
   );
 });
 

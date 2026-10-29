@@ -1,8 +1,10 @@
+import { useProfiles } from "../../state/profiles/hooks";
+import { currentProfileId } from "../../state/profiles/current";
 import { Children, createContext, isValidElement, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Animated, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import { settingsSectionKey, useSettingsSearch } from "../../state/settings/searchState";
 import { registerAnchor } from "./anchors";
-import { useProfiles, useSettings, useTabLayout } from "../../state/browser/hooks";
+import { useSettings, useTabLayout } from "../../state/browser/hooks";
 import { currentSettings } from "../../state/browser/current";
 import type { SettingsPane } from "../../state/settings/settingsWindows";
 import { curve } from "../ui/motion";
@@ -141,9 +143,9 @@ export function SettingToggle({ anchor, description }: { anchor: SettingId & `${
   );
 }
 
-export const useSettingsProfile = (initial?: string | null) => useState(() => initial ?? currentSettings().defaultProfileId);
+export const useSettingsProfile = (initial?: string | null) => useState(() => currentProfileId(initial));
 
-export function ProfilePicker({ value, onChange }: { value: string; onChange: (profileId: string) => void }) {
+export function ProfilePicker({ value, onChange }: { value: string; onChange: (spaceId: string) => void }) {
   const profiles = useProfiles();
   if (profiles.length < 2) return null;
   return <PopUp value={value} options={profiles.map((p) => ({ value: p.id, title: p.name }))} onChange={onChange} />;

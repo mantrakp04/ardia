@@ -22,7 +22,7 @@ export function UnlockBody({ flow }: { flow: ImportFlow }) {
         maxWidth={importLayout.textMax}
         lead={
           many
-            ? `Some data is encrypted, so macOS will ask for your computer password once for each selected profile.`
+            ? `Some data is encrypted, so macOS will ask for your computer password once for each selected space.`
             : `Some data is encrypted, so macOS will ask for your computer password to bring it securely into ${APP}.`
         }
         detail={`macOS may ask whether ${APP} can use “${source.keychainService ?? `${source.name} Safe Storage`}” from your keychain: it's the key ${source.name} encrypts passwords, cookies, cards and open tabs with. Click Allow. Your data stays on this Mac.`}

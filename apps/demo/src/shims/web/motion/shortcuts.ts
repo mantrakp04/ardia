@@ -62,7 +62,7 @@ const SHORTCUTS: Shortcut[] = [
   s("F7", [], "caretBrowsing"),
   ...digits.slice(0, 8).map((n) => s(`Digit${n}`, ["cmd"], "selectTab", { arg: `${n}` })),
   s("Digit9", ["cmd"], "selectLastTab"),
-  ...digits.map((n) => s(`Digit${n}`, ["ctrl"], "switchProfile", { arg: () => useBrowser.getState().profileOrder[n - 1] ?? null })),
+  ...digits.map((n) => s(`Digit${n}`, ["ctrl"], "switchSpace", { arg: () => useBrowser.getState().spaceOrder[n - 1] ?? null })),
   s("BracketLeft", ["cmd"], "back"),
   s("BracketRight", ["cmd"], "forward"),
   s("ArrowLeft", ["cmd"], "back", { notInText: true }),
@@ -88,7 +88,7 @@ const SHORTCUTS: Shortcut[] = [
   s("Backspace", ["cmd", "shift"], "clearBrowsingData"),
   s("KeyJ", ["cmd", "shift"], "downloads"),
   s("KeyL", ["cmd", "alt"], "downloads"),
-  s("KeyM", ["cmd", "shift"], "openProfileMenu"),
+  s("KeyM", ["cmd", "shift"], "openSpaceMenu"),
 ];
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
@@ -141,7 +141,7 @@ function onKeyDown(e: KeyboardEvent) {
   if (!shortcut) return;
   if (shortcut.notInText && inText()) return;
   const arg = typeof shortcut.arg === "function" ? shortcut.arg(e) : (shortcut.arg ?? null);
-  if (shortcut.command === "switchProfile" && !arg) return;
+  if (shortcut.command === "switchSpace" && !arg) return;
   e.preventDefault();
   e.stopPropagation();
   if (shortcut.command === "tabSwitcher") switcher.holding = shortcut.mods.find((m) => m !== "shift") ?? null;

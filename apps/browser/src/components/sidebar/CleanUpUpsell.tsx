@@ -22,7 +22,7 @@ export const CleanUpUpsell = memo(function CleanUpUpsell({ windowId, shift }: { 
   const [hidden, setHidden] = useState(upsellDeclined);
   const daily = useSettings((st) => st.cleanUpInactiveTabsAfterMinutes !== null);
   const tabIds = useWindow(windowId, (w) => w?.tabIds);
-  const profileId = useWindow(windowId, (w) => w?.profileId);
+  const spaceId = useWindow(windowId, (w) => w?.spaceId);
   const activeId = useShownTabId(windowId);
   const off = hidden || daily;
   useEffect(() => {
@@ -30,7 +30,7 @@ export const CleanUpUpsell = memo(function CleanUpUpsell({ windowId, shift }: { 
     const check = () => setCount(cleanUpCandidateCount(windowId));
     check();
     return everySlowly({ every: 60_000, run: check });
-  }, [windowId, off, tabIds, profileId, activeId]);
+  }, [windowId, off, tabIds, spaceId, activeId]);
   const [moved, movedRef] = useShift(shift);
   if (off || count < UPSELL_MIN) return null;
   const button = (title: string, onPress: () => void, primary = false) => (

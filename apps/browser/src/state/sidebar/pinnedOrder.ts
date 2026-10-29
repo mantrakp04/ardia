@@ -21,8 +21,8 @@ export function anchorKey(s: Pick<BrowserState, "tabs" | "groups" | "splits" | "
   return entryKey(kind, x ? pinKeyOf(x) : id);
 }
 
-const foldersOf = (folders: Record<string, LiveFolder>, order: string[], profileId: string): LiveFolder[] =>
-  order.map((id) => folders[id]).filter((f): f is LiveFolder => f?.profileId === profileId);
+const foldersOf = (folders: Record<string, LiveFolder>, order: string[], spaceId: string): LiveFolder[] =>
+  order.map((id) => folders[id]).filter((f): f is LiveFolder => f?.spaceId === spaceId);
 
 export function withLiveFolders(entries: string[], keys: string[], folders: Pick<LiveFolder, "id" | "after">[]): string[] {
   if (!folders.length) return entries;
@@ -45,30 +45,30 @@ export function liveAnchors(sequence: string[], keyOf: (entry: string) => string
   return out;
 }
 
-export function pinnedSequence(s: BrowserState, folders: Record<string, LiveFolder>, order: string[], windowId: string, profileId: string): string[] {
-  const { pinned } = sidebarEntries(s, windowId, profileId);
+export function pinnedSequence(s: BrowserState, folders: Record<string, LiveFolder>, order: string[], windowId: string, spaceId: string): string[] {
+  const { pinned } = sidebarEntries(s, windowId, spaceId);
   if (s.windows[windowId]?.kind === "private") return pinned;
-  return withLiveFolders(pinned, pinned.map((e) => anchorKey(s, e)), foldersOf(folders, order, profileId));
+  return withLiveFolders(pinned, pinned.map((e) => anchorKey(s, e)), foldersOf(folders, order, spaceId));
 }
 
-const stillPinned = (s: Pick<BrowserState, "tabs" | "groups" | "splits">, entry: string, profileId: string | undefined): boolean => {
+const stillPinned = (s: Pick<BrowserState, "tabs" | "groups" | "splits">, entry: string, spaceId: string | undefined): boolean => {
   const { kind, id } = parseEntry(entry);
-  if (kind === "split") return splitRowPanes(s, s.splits[id]).some((t) => s.tabs[t]!.pin && s.tabs[t]!.profileId === profileId);
-  if (kind === "tab") return isPinnedRow(s.tabs[id]) && s.tabs[id]!.profileId === profileId;
-  if (kind === "group") return !!s.groups[id]?.pinned && !s.groups[id]!.parentId && s.groups[id]!.profileId === profileId;
+  if (kind === "split") return splitRowPanes(s, s.splits[id]).some((t) => s.tabs[t]!.pin && s.tabs[t]!.spaceId === spaceId);
+  if (kind === "tab") return isPinnedRow(s.tabs[id]) && s.tabs[id]!.spaceId === spaceId;
+  if (kind === "group") return !!s.groups[id]?.pinned && !s.groups[id]!.parentId && s.groups[id]!.spaceId === spaceId;
   return true;
 };
 
 export function arrangeLive(sequence: string[]) {
   const s = useBrowser.getState();
-  const profileId = sequence.flatMap((e) => live().folders[entryId(e, "live") ?? ""]?.profileId ?? [])[0];
-  arrangeFolders(liveAnchors(sequence.filter((e) => stillPinned(s, e, profileId)), (e) => anchorKey(s, e)));
+  const spaceId = sequence.flatMap((e) => live().folders[entryId(e, "live") ?? ""]?.spaceId ?? [])[0];
+  arrangeFolders(liveAnchors(sequence.filter((e) => stillPinned(s, e, spaceId)), (e) => anchorKey(s, e)));
 }
 
 export function moveLiveFolder(windowId: string, folderId: string, delta: -1 | 1) {
   const folder = live().folders[folderId];
   if (!folder) return;
-  const sequence = pinnedSequence(useBrowser.getState(), live().folders, live().folderOrder, windowId, folder.profileId);
+  const sequence = pinnedSequence(useBrowser.getState(), live().folders, live().folderOrder, windowId, folder.spaceId);
   const i = sequence.indexOf(entryKey("live", folderId));
   const j = i + delta;
   if (i < 0 || j < 0 || j >= sequence.length) return;
@@ -79,13 +79,13 @@ export function moveLiveFolder(windowId: string, folderId: string, delta: -1 | 1
 export function keepLiveAnchors(s: BrowserState, prev: BrowserState) {
   if (s.tabs === prev.tabs && s.groups === prev.groups && s.windows === prev.windows) return;
   const { folders, folderOrder } = live();
-  for (const profileId of new Set(folderOrder.map((id) => folders[id]?.profileId))) {
-    const windowId = profileId && mainWindowFor(s, profileId);
+  for (const spaceId of new Set(folderOrder.map((id) => folders[id]?.spaceId))) {
+    const windowId = spaceId && mainWindowFor(s, spaceId);
     const before = windowId ? prev.windows[windowId] : undefined;
-    if (!profileId || !windowId || !before) continue;
-    const now = new Set(pinnedAreaKeys(s, s.windows[windowId]!, profileId));
-    const was = pinnedAreaKeys(prev, before, profileId);
-    const mine = foldersOf(folders, folderOrder, profileId);
+    if (!spaceId || !windowId || !before) continue;
+    const now = new Set(pinnedAreaKeys(s, s.windows[windowId]!, spaceId));
+    const was = pinnedAreaKeys(prev, before, spaceId);
+    const mine = foldersOf(folders, folderOrder, spaceId);
     if (!mine.some((f) => f.after && !now.has(f.after) && was.includes(f.after))) continue;
     const shown = withLiveFolders(was, was, mine).filter((e) => entryId(e, "live") !== null || now.has(e));
     arrangeFolders(liveAnchors(shown, (e) => e));
@@ -94,11 +94,11 @@ export function keepLiveAnchors(s: BrowserState, prev: BrowserState) {
 
 useBrowser.subscribe(keepLiveAnchors);
 
-export function usePinnedSequence(windowId: string, profileId: string, off: boolean): string[] {
-  const pinned = useBrowser((s) => (off ? NO_ENTRIES : sidebarEntries(s, windowId, profileId).pinned));
+export function usePinnedSequence(windowId: string, spaceId: string, off: boolean): string[] {
+  const pinned = useBrowser((s) => (off ? NO_ENTRIES : sidebarEntries(s, windowId, spaceId).pinned));
   const keys = useBrowser(useShallow((s) => pinned.map((e) => anchorKey(s, e))));
   const incognito = useBrowser((s) => s.windows[windowId]?.kind === "private");
-  const folders = useLive(useShallow((s) => (off || incognito ? NO_FOLDERS : foldersOf(s.folders, s.folderOrder, profileId))));
+  const folders = useLive(useShallow((s) => (off || incognito ? NO_FOLDERS : foldersOf(s.folders, s.folderOrder, spaceId))));
   return useMemo(() => withLiveFolders(pinned, keys, folders), [pinned, keys, folders]);
 }
 

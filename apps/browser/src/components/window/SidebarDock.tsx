@@ -13,7 +13,7 @@ import { Sidebar } from "../sidebar/Sidebar";
 import { dismissHoverIn } from "../../state/sidebar/hover";
 import { useSidebarUi } from "../../state/sidebar/sidebarUi";
 import { peekHeld, watchHolds } from "../../state/app/transientUi";
-import { ProfileSwipe } from "./ProfileSwipe";
+import { SpaceSwipe } from "./SpaceSwipe";
 import {
   ARC_HIDE_MS,
   DOCK_SPRING,
@@ -228,9 +228,9 @@ function SidebarDock({
   useTrafficLights(windowId, dock, peek.slide, { width, peeking, fullscreen, lights });
   const sidebar = useMemo(
     () => (
-      <ProfileSwipe>
+      <SpaceSwipe>
         <Sidebar width={width} />
-      </ProfileSwipe>
+      </SpaceSwipe>
     ),
     [width],
   );

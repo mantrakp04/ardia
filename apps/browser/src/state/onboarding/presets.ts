@@ -37,7 +37,7 @@ const CLASSIC_TABS: Partial<Settings> = {
   searchEngine: "google",
   commandBarPreference: "search",
   openLinksInLittleArdia: false,
-  profileSwitcherIcons: false,
+  spaceSwitcherIcons: false,
   peekLinksToOtherSites: false,
 };
 
@@ -63,7 +63,7 @@ export const PRESETS: Record<Preset, Partial<Settings>> = {
     searchEngine: "google",
     commandBarPreference: "website",
     openLinksInLittleArdia: true,
-    profileSwitcherIcons: false,
+    spaceSwitcherIcons: false,
     peekLinksToOtherSites: false,
   },
   arc: {
@@ -87,7 +87,7 @@ export const PRESETS: Record<Preset, Partial<Settings>> = {
     searchEngine: "google",
     commandBarPreference: "website",
     openLinksInLittleArdia: true,
-    profileSwitcherIcons: true,
+    spaceSwitcherIcons: true,
     peekLinksToOtherSites: true,
   },
   zen: {
@@ -111,7 +111,7 @@ export const PRESETS: Record<Preset, Partial<Settings>> = {
     searchEngine: "google",
     commandBarPreference: "search",
     openLinksInLittleArdia: false,
-    profileSwitcherIcons: true,
+    spaceSwitcherIcons: true,
     peekLinksToOtherSites: true,
   },
   chrome: CLASSIC_TABS,
@@ -119,7 +119,7 @@ export const PRESETS: Record<Preset, Partial<Settings>> = {
   safari: { ...CLASSIC_TABS, extendWebsiteColor: true, bookmarksBar: "never" },
   brave: { ...CLASSIC_TABS, searchEngine: "brave" },
   edge: { ...CLASSIC_TABS, searchEngine: "bing" },
-  fresh: { addressBar: "sidebar", commandBarPlacement: "centred", newTabPosition: "nextToCurrent", newTabButtonPosition: "bottom", profileSwitcherIcons: false, peekLinksToOtherSites: false },
+  fresh: { addressBar: "sidebar", commandBarPlacement: "centred", newTabPosition: "nextToCurrent", newTabButtonPosition: "bottom", spaceSwitcherIcons: false, peekLinksToOtherSites: false },
 };
 
 export const setsUpLikeBrowser = (source: BrowserSourceId | null): source is Exclude<BrowserSourceId, "fresh"> => !!source && source !== "fresh";

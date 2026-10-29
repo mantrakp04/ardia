@@ -14,11 +14,11 @@ const FAVICON_X = PANEL.inset + (PANEL.iconSlot - 16) / 2;
 
 export function HistoryPopover({ tabId, windowId, anchors }: { tabId: string; windowId: string; anchors: { back: number; forward: number } }) {
   const menu = useHistoryMenu((s) => (s.menu?.tabId === tabId ? s.menu : null));
-  const profileId = useTab(tabId, (t) => t?.profileId ?? "");
+  const spaceId = useTab(tabId, (t) => t?.spaceId ?? "");
   const favicons = useMemo(() => {
     if (!menu) return new Map<string, string | null>();
-    return historyFavicons(profileId, menu.items);
-  }, [menu, profileId]);
+    return historyFavicons(spaceId, menu.items);
+  }, [menu, spaceId]);
   useEffect(() => () => closeHistoryMenuOf(tabId), [tabId]);
   if (!menu) return null;
 

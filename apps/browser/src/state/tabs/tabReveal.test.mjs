@@ -11,12 +11,12 @@ const stub = await import("../../test-native/index.ts");
 
 const S = () => useBrowser.getState();
 startTabReveal();
-const tab = (id, windowId, url, profileId = "default") => ({
-  id, windowId, profileId, url, title: "", favicon: null, pin: null, muted: false, zoom: 1, customTitle: null, customIcon: null,
+const tab = (id, windowId, url, spaceId = "default") => ({
+  id, windowId, spaceId, url, title: "", favicon: null, pin: null, muted: false, zoom: 1, customTitle: null, customIcon: null,
   pinnedUrl: null, page: url ? { kind: "loaded", nav: { url, seq: 1 } } : { kind: "idle" }, openerId: null, createdAt: 0, lastActiveAt: 0,
 });
 const win = (id, tabIds, active, extra = {}) => ({
-  id, profileId: "default", kind: "main", tabIds, activeTabIds: { default: active }, sidebarOpen: true, frame: null, createdAt: 0, ...extra,
+  id, spaceId: "default", kind: "main", tabIds, activeTabIds: { default: active }, sidebarOpen: true, frame: null, createdAt: 0, ...extra,
 });
 const PROFILES = {
   default: { id: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 },
@@ -25,7 +25,7 @@ const PROFILES = {
 const setup = (tabs = ["a", "b", "c"], active = "a", more = {}) => {
   const windows = { w1: win("w1", tabs, active), ...(more.windows ?? {}) };
   const all = [...tabs.map((id) => tab(id, "w1", `https://${id}.com/`)), ...(more.tabs ?? [])];
-  S().hydrate({ profiles: PROFILES, windows, tabs: Object.fromEntries(all.map((t) => [t.id, t])), focusedWindowId: "w1" });
+  S().hydrate({ spaces: PROFILES, windows, tabs: Object.fromEntries(all.map((t) => [t.id, t])), focusedWindowId: "w1" });
   for (const t of all) S().updateTab(t.id, { page: { kind: "loaded", nav: { url: t.url, seq: 1 } } });
   stub.revealedTabs.length = 0;
 };
@@ -99,7 +99,7 @@ test("a switch the native view can't show by itself ends any reveal in that wind
   patchPage("a", { fullscreen: false });
 });
 
-test("splits and profile switches are left to React", () => {
+test("splits and space switches are left to React", () => {
   setup(["a", "b", "c"], "a");
   S().createSplit(["b", "c"]);
   revealed();
@@ -109,10 +109,10 @@ test("splits and profile switches are left to React", () => {
   assert.deepEqual(revealed(), ["drop over b"], "out of a split");
   setup(["a", "b"], "a");
   useBrowser.setState((s) => ({
-    tabs: { ...s.tabs, b: { ...s.tabs.b, profileId: "work" } },
-    windows: { ...s.windows, w1: { ...s.windows.w1, profileId: "work", activeTabIds: { default: "a", work: "b" } } },
+    tabs: { ...s.tabs, b: { ...s.tabs.b, spaceId: "work" } },
+    windows: { ...s.windows, w1: { ...s.windows.w1, spaceId: "work", activeTabIds: { default: "a", work: "b" } } },
   }));
-  assert.deepEqual(revealed(), ["drop over a"], "another profile's page");
+  assert.deepEqual(revealed(), ["drop over a"], "another space's page");
 });
 
 test("a tab moved in from another window and shown there is left to React", () => {

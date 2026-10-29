@@ -41,7 +41,7 @@ export function closedTabEntry(s: Pick<BrowserState, "groups">, t: Tab, at: { wi
 export const closedWindowEntry = (w: BrowserWindow, tabs: ClosedWindow["tabs"], groups: ClosedWindow["groups"], closedAt: number): ClosedWindow => ({
   kind: "window",
   id: newId("cw"),
-  window: { profileId: w.profileId, sidebarOpen: w.sidebarOpen, frame: w.frame },
+  window: { spaceId: w.spaceId, sidebarOpen: w.sidebarOpen, frame: w.frame },
   tabs,
   groups,
   closedAt,
@@ -65,15 +65,15 @@ export function closeQuietly(s: BrowserState, ids: string[]): BrowserState {
 
 function showAboveGroup(before: BrowserState, s: BrowserState, g: TabGroup): BrowserState {
   const w = s.windows[g.windowId];
-  const was = before.windows[g.windowId]?.activeTabIds[g.profileId];
+  const was = before.windows[g.windowId]?.activeTabIds[g.spaceId];
   if (!w || !was || !g.tabIds.includes(was)) return s;
-  const order = viewTabIds(before, g.windowId, g.profileId).filter((id) => !inPinnedContainer(before, id));
+  const order = viewTabIds(before, g.windowId, g.spaceId).filter((id) => !inPinnedContainer(before, id));
   const at = order.indexOf(g.tabIds[0]!);
   const stays = (id: string) => !!s.tabs[id] && !g.tabIds.includes(id) && !isAsleep(s.tabs[id]);
   const pick = order.slice(0, at).reverse().find(stays) ?? order.slice(at).find(stays);
   if (!pick) return s;
-  if (w.profileId === g.profileId) return apply(s, activated(s, pick));
-  return { ...s, windows: { ...s.windows, [w.id]: { ...w, activeTabIds: { ...w.activeTabIds, [g.profileId]: pick } } } };
+  if (w.spaceId === g.spaceId) return apply(s, activated(s, pick));
+  return { ...s, windows: { ...s.windows, [w.id]: { ...w, activeTabIds: { ...w.activeTabIds, [g.spaceId]: pick } } } };
 }
 
 export function closingGroup(s: BrowserState, groupId: string, deleted = false): BrowserState {
@@ -126,7 +126,7 @@ export function rebuildNested(s: BrowserState, rootId: string, rootKey: string, 
     if (!parentId || !tabIds.length) continue;
     const id = groups[n.id] ? newId("g") : n.id;
     made.set(n.id, id);
-    groups[id] = { id, windowId: root.windowId, profileId: root.profileId, name: n.name, icon: n.icon, color: n.color, collapsed: n.collapsed, pinned: root.pinned, tabIds, createdAt: Date.now(), parentId };
+    groups[id] = { id, windowId: root.windowId, spaceId: root.spaceId, name: n.name, icon: n.icon, color: n.color, collapsed: n.collapsed, pinned: root.pinned, tabIds, createdAt: Date.now(), parentId };
   }
   const settled = nestGroups(groups);
   const w = s.windows[root.windowId]!;
@@ -142,10 +142,10 @@ export function restoreSnapshots(
   const ids: string[] = [];
   const w = s.windows[windowId]!;
   for (const e of entries) {
-    const profileId = s.profiles[e.tab.profileId] || w.kind === "private" ? e.tab.profileId : w.profileId;
+    const spaceId = s.spaces[e.tab.spaceId] || w.kind === "private" ? e.tab.spaceId : w.spaceId;
     const [next, id] = withNewTab(s, windowId, {
       url: e.tab.url || undefined,
-      profileId,
+      spaceId,
       snapshot: e.tab,
       index: e.index,
       background: true,
@@ -170,8 +170,8 @@ export function regroupRestored(s: BrowserState, windowId: string, entries: Clos
   for (const e of entries) if (e.group && e.parents?.length && !parentsOf.has(e.group.id)) parentsOf.set(e.group.id, e.parents);
   const made = new Map<string, string>();
   for (const { info, members } of byGroup.values()) {
-    const profileId = s.tabs[members[0]!]!.profileId;
-    s = { ...s, groups: rejoinGroups(s.groups, [info, ...(parentsOf.get(info.id) ?? [])], members, windowId, profileId, made) };
+    const spaceId = s.tabs[members[0]!]!.spaceId;
+    s = { ...s, groups: rejoinGroups(s.groups, [info, ...(parentsOf.get(info.id) ?? [])], members, windowId, spaceId, made) };
   }
   const groups = nestGroups(s.groups);
   const w = s.windows[windowId]!;

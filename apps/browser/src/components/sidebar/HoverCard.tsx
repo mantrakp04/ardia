@@ -214,7 +214,7 @@ function PeekRow({ tabId, windowId }: { tabId: string; windowId: string }) {
         onMouseLeave={() => setHovered(false)}
         style={{ height: 28, borderRadius: radius.button, flexDirection: "row", alignItems: "center", paddingHorizontal: 5, backgroundColor: hovered ? theme.rowHover : undefined }}
       >
-        <TabIcon url={tab.url} favicon={tab.favicon} icon={tab.customIcon} size={14} profileId={tab.profileId} />
+        <TabIcon url={tab.url} favicon={tab.favicon} icon={tab.customIcon} size={14} spaceId={tab.spaceId} />
         <FadeLabel text={tabTitle(tab)} fontSize={SIDEBAR_TYPE.compact} color={theme.textTab} style={{ flex: 1, height: 17, marginLeft: 7 }} />
       </View>
     </Pressable>

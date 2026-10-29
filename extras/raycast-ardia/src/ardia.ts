@@ -3,20 +3,20 @@ import {
   activateScript,
   closeTabScript,
   focusTabScript,
-  listProfilesScript,
+  listSpacesScript,
   listTabsScript,
   newTabScript,
   newWindowScript,
-  parseProfiles,
+  parseSpaces,
   parseTabs,
-  profileNamed,
-  showProfileScript,
+  spaceNamed,
+  showSpaceScript,
   type NewWindowOptions,
-  type Profile,
+  type Space,
   type Tab,
 } from "./scripts";
 
-export type { Profile, Tab } from "./scripts";
+export type { Space, Tab } from "./scripts";
 
 export async function getTabs(): Promise<Tab[]> {
   return parseTabs(await runAppleScript(listTabsScript(), { timeout: 10_000 }));
@@ -35,20 +35,20 @@ export async function closeTab(tab: Tab) {
   await runAppleScript(closeTabScript(tab));
 }
 
-export async function getProfiles(): Promise<Profile[]> {
-  return parseProfiles(await runAppleScript(listProfilesScript(), { timeout: 10_000 }));
+export async function getSpaces(): Promise<Space[]> {
+  return parseSpaces(await runAppleScript(listSpacesScript(), { timeout: 10_000 }));
 }
 
-export function useProfiles() {
-  return useCachedPromise(getProfiles, [], { keepPreviousData: true });
+export function useSpaces() {
+  return useCachedPromise(getSpaces, [], { keepPreviousData: true });
 }
 
-export async function profileIdNamed(name: string) {
-  return profileNamed(await getProfiles(), name).id;
+export async function spaceIdNamed(name: string) {
+  return spaceNamed(await getSpaces(), name).id;
 }
 
-export async function showProfile(profile: Profile) {
-  await runAppleScript(showProfileScript(profile));
+export async function showSpace(space: Space) {
+  await runAppleScript(showSpaceScript(space));
   await runAppleScript(activateScript());
 }
 

@@ -2,13 +2,13 @@ import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { ContextMenuArea, WindowDragRegion } from "../ui";
 import { layout } from "../ui/theme";
-import { useSettings, useWindowId, useWindowProfileId } from "../../state/browser/hooks";
+import { useSettings, useWindowId, useWindowSpaceId } from "../../state/browser/hooks";
 import { useHasDownloads, useNoTiles } from "../../state/sidebar/hooks";
 import { useAddressBarInSidebar, useToolbarLightsCenter } from "../../state/windows/layout";
 import { DownloadsButton } from "../downloads/DownloadsButton";
-import { PROFILE_INDICATOR_X, ProfileIndicator } from "../profiles/ProfileIndicator";
-import { usePagerPages } from "../../state/windows/profilePager";
-import { PROFILE_DOTS_HEIGHT, ProfileDots, useProfileDotsShown } from "../profiles/ProfileDots";
+import { PROFILE_INDICATOR_X, SpaceIndicator } from "../spaces/SpaceIndicator";
+import { usePagerPages } from "../../state/windows/spacePager";
+import { PROFILE_DOTS_HEIGHT, SpaceDots, useSpaceDotsShown } from "../spaces/SpaceDots";
 import { SidebarAddressRow, SidebarHeaderTools } from "./AddressBar";
 import { DragGhost } from "./DragGhost";
 import { DragProvider } from "./DragProvider";
@@ -29,7 +29,7 @@ import { useRevealTabs } from "./useRevealTabs";
 
 export function Sidebar({ width }: { width: number }) {
   const windowId = useWindowId();
-  const current = useWindowProfileId();
+  const current = useWindowSpaceId();
   const { pages, paging } = usePagerPages(windowId);
   const [available, setAvailable] = useState(0);
   const newTabAtTop = useSettings((s) => s.newTabButtonPosition === "top");
@@ -41,7 +41,7 @@ export function Sidebar({ width }: { width: number }) {
   const lightsY = useToolbarLightsCenter()[1];
   const header = addressBar ? SIDEBAR_HEADER_WITH_FIELD : layout.sidebarHeader;
   const hasDownloads = useHasDownloads(windowId);
-  const dots = useProfileDotsShown();
+  const dots = useSpaceDotsShown();
   const footerDownloads = addressBar && hasDownloads;
   const footer = dots || footerDownloads ? PROFILE_DOTS_HEIGHT : 0;
   const nothingPinned = useNoTiles(windowId, current);
@@ -88,7 +88,7 @@ export function Sidebar({ width }: { width: number }) {
                 {pages.map((page) => (
                   <SidebarPage
                     key={page.id}
-                    profileId={page.id}
+                    spaceId={page.id}
                     slot={page.slot}
                     width={width}
                     current={page.id === current}
@@ -107,7 +107,7 @@ export function Sidebar({ width }: { width: number }) {
             {footer ? (
               <View style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: footer }}>
                 <ContextMenuArea style={StyleSheet.absoluteFill} onContextMenu={() => void openSidebarMenu(windowId)} />
-                {dots ? <ProfileDots windowId={windowId} width={width} besideDownloads={footerDownloads} /> : null}
+                {dots ? <SpaceDots windowId={windowId} width={width} besideDownloads={footerDownloads} /> : null}
                 {footerDownloads ? (
                   <View style={{ position: "absolute", left: layout.sidebarInset, bottom: SIDEBAR_FOOTER_DOWNLOADS.bottom }}>
                     <DownloadsButton windowId={windowId} />
@@ -127,7 +127,7 @@ export function Sidebar({ width }: { width: number }) {
                 </>
               ) : (
                 <View pointerEvents="box-none" style={{ height: layout.sidebarHeader, flexDirection: "row", alignItems: "flex-start", paddingLeft: PROFILE_INDICATOR_X, paddingRight: 7, paddingTop: lightsY - 17 }}>
-                  <ProfileIndicator room={width - PROFILE_INDICATOR_X - 7 - (hasDownloads ? 34 + 2 : 0)} />
+                  <SpaceIndicator room={width - PROFILE_INDICATOR_X - 7 - (hasDownloads ? 34 + 2 : 0)} />
                   <View pointerEvents="none" style={{ flex: 1 }} />
                   {hasDownloads ? <DownloadsButton windowId={windowId} /> : null}
                 </View>

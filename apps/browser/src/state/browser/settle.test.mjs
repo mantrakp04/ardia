@@ -15,8 +15,8 @@ const groupPath = (s, id) => {
     names.unshift(g.name);
   return names.join("/");
 };
-const pinnedArea = (s, w, profileId) =>
-  model.viewTabIds(s, w, profileId).filter((id) => model.inPinnedContainer(s, id)).map((id) => {
+const pinnedArea = (s, w, spaceId) =>
+  model.viewTabIds(s, w, spaceId).filter((id) => model.inPinnedContainer(s, id)).map((id) => {
     const t = s.tabs[id];
     const place = !!t.pin ? ((t.pin?.as === "row") ? "row" : t.pin?.folder ? `tile[${t.pin?.folder.id}]` : "tile") : groupPath(s, id);
     return `${place}:${model.pinKeyOf(t)}:${t.customTitle ?? ""}:${t.pinnedUrl}`;
@@ -30,17 +30,17 @@ const tileOf = (w, h) => model.viewTabIds(S(), w).find((id) => model.inPinnedCon
 function settledProblems(s) {
   const problems = [];
   const windows = Object.values(s.windows).filter(isRegularWindow);
-  const profiles = new Set(windows.flatMap((w) => model.viewTabIds(s, w.id).map((id) => s.tabs[id].profileId).concat(w.profileId)));
-  for (const p of profiles) {
-    const shown = windows.filter((w) => w.tabIds.some((id) => s.tabs[id]?.profileId === p));
+  const spaces = new Set(windows.flatMap((w) => model.viewTabIds(s, w.id).map((id) => s.tabs[id].spaceId).concat(w.spaceId)));
+  for (const p of spaces) {
+    const shown = windows.filter((w) => w.tabIds.some((id) => s.tabs[id]?.spaceId === p));
     const areas = new Set(shown.map((w) => pinnedArea(s, w.id, p).join(" | ")));
-    if (areas.size > 1) problems.push(`profile ${p}'s pinned areas differ: ${[...areas].join(" ≠ ")}`);
+    if (areas.size > 1) problems.push(`space ${p}'s pinned areas differ: ${[...areas].join(" ≠ ")}`);
   }
   for (const t of Object.values(s.tabs)) {
     if (!s.windows[t.windowId]?.tabIds.includes(t.id) && s.peeks[t.windowId]?.tabId !== t.id) problems.push(`${t.id} isn't in its window`);
     if (t.page.holderId) {
       const h = s.tabs[t.page.holderId];
-      if (!h || !hasPage(h) || h.page.holderId || h.profileId !== t.profileId || model.pinKeyOf(h) !== model.pinKeyOf(t)) problems.push(`${t.id} is frozen on a holder that can't hold it`);
+      if (!h || !hasPage(h) || h.page.holderId || h.spaceId !== t.spaceId || model.pinKeyOf(h) !== model.pinKeyOf(t)) problems.push(`${t.id} is frozen on a holder that can't hold it`);
     }
     if (t.pin?.folder && (!t.pin || (t.pin?.as === "row"))) problems.push(`${t.id} has a folder but isn't a tile`);
     if (!!t.pin && t.liveItem) problems.push(`${t.id} is pinned and still a live item`);

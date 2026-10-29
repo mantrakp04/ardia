@@ -86,9 +86,9 @@ test("a saved session's site-wide mutes stop being tab mutes, other tab mutes st
   const doc = {
     settings: { mutedSites: ["video.example"] },
     tabs: [
-      { id: "a", url: "https://video.example/a", profileId: "default", muted: true },
-      { id: "b", url: "https://music.example/", profileId: "default", muted: true },
-      { id: "c", url: "https://video.example/c", profileId: "default", muted: false },
+      { id: "a", url: "https://video.example/a", spaceId: "default", muted: true },
+      { id: "b", url: "https://music.example/", spaceId: "default", muted: true },
+      { id: "c", url: "https://video.example/c", spaceId: "default", muted: false },
     ],
   };
   const migrated = sessionWithOwnTabMutes({

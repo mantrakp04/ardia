@@ -15,9 +15,9 @@ const SPACED_TOP = 7;
 
 type PinnedFold = { collapsed: boolean; open: Animated.Value };
 
-type DividerProps = { windowId: string; profileId: string; spaced: boolean; lift: number; clear: boolean; tidy: boolean; pinned: PinnedFold | null };
+type DividerProps = { windowId: string; spaceId: string; spaced: boolean; lift: number; clear: boolean; tidy: boolean; pinned: PinnedFold | null };
 
-export const ClearDivider = memo(function ClearDivider({ windowId, profileId, spaced, lift, clear, tidy, pinned }: DividerProps) {
+export const ClearDivider = memo(function ClearDivider({ windowId, spaceId, spaced, lift, clear, tidy, pinned }: DividerProps) {
   const theme = useTheme();
   const { hovered: shown, hoverProps } = useHover();
   const [lineWidth, setLineWidth] = useState(0);
@@ -38,7 +38,7 @@ export const ClearDivider = memo(function ClearDivider({ windowId, profileId, sp
           paddingRight: PADDING,
         }}
       >
-        {pinned ? <HoverSlot hovered={foldShown} width="content" reserve="hover" align="start" hover={<FoldButton pinned={pinned} onPress={() => togglePinnedFold(profileId)} />} /> : null}
+        {pinned ? <HoverSlot hovered={foldShown} width="content" reserve="hover" align="start" hover={<FoldButton pinned={pinned} onPress={() => togglePinnedFold(spaceId)} />} /> : null}
         <View style={{ flex: 1, height: 1, overflow: "hidden" }}>
           {lineWidth ? (
             <View style={{ position: "absolute", left: 0, top: -1, width: lineWidth, height: 2, borderBottomWidth: 1, borderStyle: "dashed", borderColor: theme.divider }} />
@@ -51,7 +51,7 @@ export const ClearDivider = memo(function ClearDivider({ windowId, profileId, sp
             reserve="hover"
             hover={
               <>
-                {tidy ? <DividerButton title="Tidy" symbol="sparkles" iconWidth={10} label="Tidy pinned tabs" onPress={() => tidyPins(windowId, profileId)} /> : null}
+                {tidy ? <DividerButton title="Tidy" symbol="sparkles" iconWidth={10} label="Tidy pinned tabs" onPress={() => tidyPins(windowId, spaceId)} /> : null}
                 {tidy && clear ? <View style={{ width: 1, height: 9, marginLeft: 8, backgroundColor: theme.divider }} /> : null}
                 {clear ? <DividerButton title="Clear" symbol="arrow.down" iconWidth={8} label="Clear unpinned tabs" onPress={() => closeAllTabs(windowId)} /> : null}
               </>

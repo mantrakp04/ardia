@@ -38,7 +38,7 @@ export function AdvancedPane() {
   const memorySaverMode = useSettings((s) => s.memorySaverMode);
   const batterySaverWhen = useSettings((s) => s.batterySaverWhen);
   const keepActiveSites = useSettings((s) => s.keepActiveSites);
-  const warnBeforeMovingTabs = useSettings((s) => s.warnBeforeMovingTabsToProfile);
+  const warnBeforeMovingTabs = useSettings((s) => s.warnBeforeMovingTabsToSpace);
   const [info] = useResource(engineVersion);
   const [widevine] = useResource(widevineComponent);
   const widevineVersion = widevine && widevine.version !== "0.0.0.0" ? widevine.version : null;
@@ -49,7 +49,7 @@ export function AdvancedPane() {
       <Group>
         <SettingToggle anchor="advanced.showFullUrl" />
         <Row anchor="advanced.warnMovingTabs">
-          <Toggle value={warnBeforeMovingTabs} onChange={(v) => updateSettings({ warnBeforeMovingTabsToProfile: v })} />
+          <Toggle value={warnBeforeMovingTabs} onChange={(v) => updateSettings({ warnBeforeMovingTabsToSpace: v })} />
         </Row>
         <Row anchor="advanced.bookmarksImport">
           <Toggle value={!hideBookmarksBarImport} onChange={(v) => updateSettings({ hideBookmarksBarImport: !v })} />

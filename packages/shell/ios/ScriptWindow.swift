@@ -26,6 +26,11 @@ final class ScriptWindow: NSObject {
     return ScriptProfile(id: info.profileId)
   }
 
+  @objc var activeSpace: ScriptSpace? {
+    guard let info, !info.incognito else { return nil }
+    return ScriptSpace(id: info.profileId)
+  }
+
   @objc func valueInAppleScriptTabsWithUniqueID(_ id: String) -> ScriptTab? {
     info?.tabs.contains { $0.id == id } == true ? ScriptTab(id: id) : nil
   }

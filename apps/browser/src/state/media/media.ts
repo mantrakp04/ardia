@@ -172,10 +172,10 @@ export const transportIcons = (session: Session) =>
     ? { back: "backward.end.fill", ahead: "forward.end.fill", backTip: "Play Previous Track", aheadTip: "Play Next Track" }
     : { back: `gobackward.${SKIP_SECONDS}`, ahead: `goforward.${SKIP_SECONDS}`, backTip: `Skip back ${SKIP_SECONDS} seconds`, aheadTip: `Skip ahead ${SKIP_SECONDS} seconds` };
 
-export function isTabShown(s: BrowserState, tabId: string, profileId?: string): boolean {
+export function isTabShown(s: BrowserState, tabId: string, spaceId?: string): boolean {
   const windowId = s.tabs[tabId]?.windowId;
   if (!windowId) return false;
-  const active = activeTabId(s, windowId, profileId);
+  const active = activeTabId(s, windowId, spaceId);
   if (!active) return false;
   return active === tabId || peekTabId(s, windowId) === tabId || !!splitTabIdsOf(splitOf(s, active))?.includes(tabId);
 }
@@ -187,7 +187,7 @@ export function hasPlayer(m: Pick<Store, "sessions" | "dismissed">, tabId: strin
 
 function isHiddenPlayerTab(s: BrowserState, tabId: string): boolean {
   const tab = s.tabs[tabId];
-  return !!tab && !!s.windows[tab.windowId] && s.settings.sidebarMediaControls && !isTabShown(s, tabId, tab.profileId);
+  return !!tab && !!s.windows[tab.windowId] && s.settings.sidebarMediaControls && !isTabShown(s, tabId, tab.spaceId);
 }
 
 let hiddenBefore = new Set<string>();
@@ -292,12 +292,12 @@ export const dismissPlayer = (tabId: string) => useMedia.setState((m) => ({ dism
 
 const NO_HIDDEN: string[] = [];
 
-export const useHiddenPlayerTabs = (windowId: string, profileId: string, sessions: string[]) =>
+export const useHiddenPlayerTabs = (windowId: string, spaceId: string, sessions: string[]) =>
   useBrowser(
     useShallow((s) => {
       const w = s.windows[windowId];
       if (!sessions.length || !w) return NO_HIDDEN;
-      const ids = sessions.filter((id) => s.tabs[id]?.windowId === windowId && s.tabs[id]!.profileId === profileId && isHiddenPlayerTab(s, id));
+      const ids = sessions.filter((id) => s.tabs[id]?.windowId === windowId && s.tabs[id]!.spaceId === spaceId && isHiddenPlayerTab(s, id));
       return ids.length > 1 ? ids.sort((a, b) => w.tabIds.indexOf(a) - w.tabIds.indexOf(b)) : ids;
     }),
   );

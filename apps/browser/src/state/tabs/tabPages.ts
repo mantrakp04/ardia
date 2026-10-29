@@ -1,9 +1,10 @@
+import { parkedTopAppOwners } from "../pins/topApps";
 import { claimLaunchTab, prepareTabTransfer, releaseTabTransfer, type PageEngine } from "../../platform/tabs";
 import { isInternalTab } from "../pages/urls";
 import { useBrowser } from "../browser/store";
 import { changedIds } from "../browser/changes";
 import { earlyLaunchTabOn, launchTab } from "./launchTab";
-import { engineProfile } from "../browser/model";
+import { engineProfileForSpace, engineProfileIn } from "../browser/model";
 import { hasPage, navigationOf } from "./pageSession";
 import { tabEngine } from "../engines/engines";
 import type { Tab } from "../browser/types";
@@ -39,14 +40,22 @@ export function handOff(tabId: string, profile: string, engine: PageEngine) {
 export function startTabPages() {
   claimLaunch();
   useBrowser.subscribe((s, prev) => {
-    if (s.tabs === prev.tabs) return;
-    for (const id of changedIds(s.tabs, prev.tabs)) {
+    if (s.tabs === prev.tabs && s.parkedTopApps === prev.parkedTopApps) return;
+    const parked = parkedTopAppOwners(s);
+    const wasParked = parkedTopAppOwners(prev);
+    const ids = new Set([...changedIds(s.tabs, prev.tabs), ...parked.keys(), ...wasParked.keys()]);
+    for (const id of ids) {
       const tab = s.tabs[id];
       const before = prev.tabs[id];
-      const profile = tab && engineProfile(s, tab.profileId);
-      if (tab && before && tab.windowId !== before.windowId && webviews.has(id) && profile === engineProfile(s, before.profileId)) handOff(id, profile!, tabEngine(s, id));
+      const space = tab && engineProfileForSpace(tab.spaceId);
+      const held = parked.get(id);
+      if (held) {
+        if (before && webviews.has(id)) handOff(id, s.profiles[held.profileId]!.engineId, tabEngine(prev, id));
+        continue;
+      }
+      if (tab && before && (tab.windowId !== before.windowId || tab.spaceId !== before.spaceId) && webviews.has(id) && space === engineProfileIn(prev, before.spaceId)) handOff(id, space!, tabEngine(s, id));
       const kept = handedOff.get(id);
-      if (kept !== undefined && !(wantsPage(tab) && profile === kept)) {
+      if (kept !== undefined && !(wantsPage(tab) && space === kept)) {
         handedOff.delete(id);
         handoffs.delete(id);
         releaseTabTransfer(id);

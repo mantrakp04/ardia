@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { useSettings } from "../../../state/browser/hooks";
-import { useProfileOrder } from "../../../state/profiles/hooks";
+import { useSpaceOrder } from "../../../state/spaces/hooks";
 import { setShortcutOverride, updateSettings } from "../../../state/settings/actions";
 import { openUrls } from "../../../state/browser/actions";
 import { Anchor, Group, Row, SectionHeader } from "../Form";
@@ -27,7 +27,7 @@ const NO_SHORTCUT: Shortcut = { key: "", modifiers: [] };
 export function ShortcutsPane() {
   const theme = useTheme();
   const overrides = useSettings((s) => s.shortcuts);
-  const profileOrder = useProfileOrder();
+  const spaceOrder = useSpaceOrder();
   const menuBar = useMenuBarRevision();
   const undoReopensClosedTab = useSettings((s) => s.undoReopensClosedTab);
   const [loaded] = useResource(shortcutItems);
@@ -38,7 +38,7 @@ export function ShortcutsPane() {
 
   useEffect(() => () => void cancelShortcutRecording(), []);
 
-  const resolved = useMemo(() => resolvedShortcuts({ settings: { shortcuts: overrides }, profileOrder }), [items, overrides, profileOrder, menuBar]);
+  const resolved = useMemo(() => resolvedShortcuts({ settings: { shortcuts: overrides }, spaceOrder }), [items, overrides, spaceOrder, menuBar]);
   const byId = useMemo(() => new Map((items ?? []).map((item) => [item.id, item])), [items]);
   const effective = (item: MenuShortcut): Shortcut => resolved.bindings.get(item.id)?.[0] ?? NO_SHORTCUT;
   const conflictsOf = (item: MenuShortcut) => resolved.conflictsOf(item.id).flatMap((id) => byId.get(id) ?? []);

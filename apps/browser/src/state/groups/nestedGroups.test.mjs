@@ -179,7 +179,7 @@ test("pinned rows and pinned groups keep one interleaved order", () => {
 test("saved groups without parentId load as before; a dangling parentId is dropped", () => {
   reset();
   const { w, outer, inner } = nested();
-  const data = { windows: S().windows, windowOrder: S().windowOrder, tabs: S().tabs, profiles: S().profiles, groups: { ...S().groups, [inner]: { ...S().groups[inner], parentId: "gone" } } };
+  const data = { windows: S().windows, windowOrder: S().windowOrder, tabs: S().tabs, spaces: S().spaces, groups: { ...S().groups, [inner]: { ...S().groups[inner], parentId: "gone" } } };
   delete data.groups[outer];
   S().hydrate(JSON.parse(JSON.stringify(data)));
   assert.equal(S().groups[inner].parentId, undefined);
@@ -327,7 +327,7 @@ test("a saved or synced nested group pinned unlike its root settles to the root'
   reset();
   const { w, outer, inner } = nested();
   S().pinTabs([S().windows[w].tabIds.at(-1)], true, true);
-  const data = { windows: S().windows, windowOrder: S().windowOrder, tabs: S().tabs, profiles: S().profiles, groups: { ...S().groups, [inner]: { ...S().groups[inner], pinned: true } } };
+  const data = { windows: S().windows, windowOrder: S().windowOrder, tabs: S().tabs, spaces: S().spaces, groups: { ...S().groups, [inner]: { ...S().groups[inner], pinned: true } } };
   S().hydrate(JSON.parse(JSON.stringify(data)));
   assert.equal(S().groups[inner].pinned, false);
   assert.ok(sectionsInOrder(w));
@@ -339,15 +339,15 @@ test("a saved or synced nested group pinned unlike its root settles to the root'
 
 test("settling a nested group pinned unlike its root keeps pinned groups ahead of the list", async () => {
   const { settleNesting } = await import("./groups.ts");
-  const tab = (id, extra = {}) => ({ id, windowId: "w", profileId: "default", url: `https://${id}.example/`, pin: null, ...extra });
+  const tab = (id, extra = {}) => ({ id, windowId: "w", spaceId: "default", url: `https://${id}.example/`, pin: null, ...extra });
   const tabs = { e: tab("e", { pin: { as: "row" } }), b: tab("b"), c: tab("c"), p: tab("p"), a: tab("a"), d: tab("d") };
-  const group = (id, tabIds, extra = {}) => ({ id, windowId: "w", profileId: "default", name: id, icon: null, color: null, collapsed: false, pinned: false, tabIds, createdAt: 0, ...extra });
+  const group = (id, tabIds, extra = {}) => ({ id, windowId: "w", spaceId: "default", name: id, icon: null, color: null, collapsed: false, pinned: false, tabIds, createdAt: 0, ...extra });
   const groups = {
     O: group("O", ["b", "c", "a", "d"]),
     I: group("I", ["b", "c"], { parentId: "O", pinned: true }),
     P: group("P", ["p"], { pinned: true }),
   };
-  const windows = { w: { id: "w", profileId: "default", tabIds: ["e", "b", "c", "p", "a", "d"], activeTabIds: {} } };
+  const windows = { w: { id: "w", spaceId: "default", tabIds: ["e", "b", "c", "p", "a", "d"], activeTabIds: {} } };
   const settled = settleNesting({ tabs, groups, windows });
   assert.equal(settled.groups.I.pinned, false);
   assert.deepEqual(settled.windows.w.tabIds, ["e", "p", "b", "c", "a", "d"]);

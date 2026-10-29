@@ -12,7 +12,7 @@ export function ProgressBody({ flow }: { flow: ImportFlow }) {
   const { status, preparing } = step;
   return (
     <>
-      <Title title={`Importing from ${source?.name ?? "file"}`} subtitle={preparing > 1 ? `Preparing ${preparing} profiles` : "Preparing your profile"} spinner />
+      <Title title={`Importing from ${source?.name ?? "file"}`} subtitle={preparing > 1 ? `Preparing ${preparing} spaces` : "Preparing your space"} spinner />
       <Text size="small" tone="textSecondary" style={{ marginBottom: space.l }}>
         Hold on while we fetch your data...
       </Text>

@@ -58,7 +58,7 @@ test("a shown tab's menu follows Dia's sections, and its hints are the keys that
     "Open in WebKit",
     "---",
     "New Group with Tab [folder.badge.plus] ⌃⌘N",
-    "Move to Profile [person] ›",
+    "Move to Space [person] ›",
     "Move to Window [macwindow] ›",
     "---",
     "Add to Bookmarks… [bookmark] ⌘D",
@@ -88,12 +88,12 @@ test("a tab that isn't shown gets no hints, since the keys act on the shown tab"
   assert.ok(lines.includes("Close Tabs Above ⌥ (alt) (off)"));
 });
 
-test("destinations sit in submenus: profiles checked, other windows, bookmark folders", () => {
+test("destinations sit in submenus: spaces checked, other windows, bookmark folders", () => {
   const { w, ids } = windowWith("a", "b");
-  S().createProfile({ name: "Work" });
+  S().createSpace({ name: "Work" });
   const other = S().createWindow({ url: "https://x.com/" });
   const items = tabMenuItems(S(), w, S().tabs[ids[1]]);
-  assert.deepEqual(sub(items, "moveToProfile"), ["Personal ✓ (off)", "Work", "---", "New Profile…"]);
+  assert.deepEqual(sub(items, "moveToSpace"), ["Personal ✓ (off)", "Work", "---", "New Space…"]);
   assert.equal(sub(items, "moveToWindow").at(-1), "New Window");
   assert.equal(sub(items, "moveToWindow").length, 3, `one other window: ${other}`);
   assert.deepEqual(sub(items, "bookmarkTo"), ["Bookmarks Bar", "Other Bookmarks", "---", "New Folder…"]);
@@ -125,7 +125,7 @@ test("a Top Apps tile: unpin first, folders instead of groups, Open in New Windo
     "Open in WebKit",
     "---",
     "New Folder… [folder.badge.plus]",
-    "Move to Profile [person] ›",
+    "Move to Space [person] ›",
     "Move to Window [macwindow] ›",
     "---",
     "Add to Bookmarks… [bookmark]",
@@ -166,7 +166,7 @@ test("a split pane offers Remove from Split View in place of Open as Split", () 
   assert.ok(!lines.some((l) => l.startsWith("Open as Split")));
 });
 
-test("several tabs: counts in the titles, Move N Tabs to Profile, and Close N Tabs without ⌘W", () => {
+test("several tabs: counts in the titles, Move N Tabs to Space, and Close N Tabs without ⌘W", () => {
   const { w, ids } = windowWith("a", "b", "c");
   S().groupTabs([ids[0]], { name: "G", pinned: false });
   assert.deepEqual(top(multiTabMenuItems(S(), w, [ids[0], ids[1]])), [
@@ -178,7 +178,7 @@ test("several tabs: counts in the titles, Move N Tabs to Profile, and Close N Ta
     "New Group with 2 Tabs [folder.badge.plus] ⌃⌘N",
     "Remove from Group [folder.badge.minus]",
     "Move to Group [folder] ›",
-    "Move 2 Tabs to Profile [person] ›",
+    "Move 2 Tabs to Space [person] ›",
     "Move to Window [macwindow] ›",
     "---",
     "Add 2 Tabs to Bookmarks Bar [bookmark]",
@@ -202,7 +202,7 @@ test("a group header: pin, open, move, customise, copy, then the ways to end it"
     "New Nested Group",
     "Duplicate Group [plus.square.on.square]",
     "---",
-    "Move to Profile [person] ›",
+    "Move to Space [person] ›",
     "Move to Window [macwindow] ›",
     "---",
     "Rename… [pencil]",
@@ -264,7 +264,7 @@ test("the sidebar background menu: new things, then the sidebar toggles, Close A
     "New Group [folder.badge.plus]",
     "New Live Folder ›",
     "---",
-    "New Profile… [plus]",
+    "New Space… [plus]",
     "---",
     "Bookmark All Tabs… [bookmark] ⇧⌘D",
     "---",
@@ -342,10 +342,10 @@ test("a group menu whose group moved to another window meanwhile does nothing", 
   assert.deepEqual(trip.tabIds, [ids[1], ids[2]]);
 });
 
-test("the sidebar menu's Reopen Closed Tab is on only when there is something of the shown profile to reopen", () => {
+test("the sidebar menu's Reopen Closed Tab is on only when there is something of the shown space to reopen", () => {
   const { w, ids } = windowWith("a", "b");
-  const work = S().createProfile({ name: "Work" });
-  const other = S().createWindow({ url: "https://w1.com/", profileId: work });
+  const work = S().createSpace({ name: "Work" });
+  const other = S().createWindow({ url: "https://w1.com/", spaceId: work });
   S().newTab(other, { url: "https://w2.com/" });
   S().closeTabs([S().windows[other].tabIds[1]]);
   const reopen = () => top(sidebarMenuItems(S(), w)).find((l) => l.startsWith("Reopen Closed Tab"));

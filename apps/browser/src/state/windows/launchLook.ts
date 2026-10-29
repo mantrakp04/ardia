@@ -1,7 +1,7 @@
 import { readDocument, writeDocument } from "../../platform/documents";
 import { versionedJson, upgraded, type Migrations } from "../../lib/savedDocument";
 import { useBrowser, type BrowserState } from "../browser/store";
-import { isIncognitoProfile } from "../browser/model";
+import { isIncognitoSpace } from "../browser/model";
 import { isPeekTab } from "../peek/peek";
 import type { Tab } from "../browser/types";
 import { withoutFragment } from "../../lib/url";
@@ -27,7 +27,7 @@ function savedTabs(s: BrowserState): Tab[] {
   return windowIds.flatMap((id) => {
     const w = s.windows[id];
     if (!isRegularWindow(w)) return [];
-    return w.tabIds.map((tabId) => s.tabs[tabId]).filter((t): t is Tab => !!t && !!t.url && !isIncognitoProfile(t.profileId) && !isPeekTab(s, t.id));
+    return w.tabIds.map((tabId) => s.tabs[tabId]).filter((t): t is Tab => !!t && !!t.url && !isIncognitoSpace(t.spaceId) && !isPeekTab(s, t.id));
   });
 }
 
@@ -42,7 +42,7 @@ export function saveLaunchLook(s: BrowserState) {
   const look: LaunchLook = { themes, favicons: launchFavicons(tabs) };
   const json = versionedJson(look, VERSION);
   try {
-    writeDocument(DOCUMENT, json.length <= DOCUMENT_LIMIT ? json : versionedJson({ ...look, favicons: { images: [], profiles: {}, themes: {} } }, VERSION));
+    writeDocument(DOCUMENT, json.length <= DOCUMENT_LIMIT ? json : versionedJson({ ...look, favicons: { images: [], spaces: {}, themes: {} } }, VERSION));
   } catch (error) {
     console.warn(`Couldn't save ${DOCUMENT}`, error);
   }

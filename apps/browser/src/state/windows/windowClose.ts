@@ -1,7 +1,7 @@
 import { confirm } from "../../platform/dialogs";
 import { onWindowEvent } from "../../platform/windows";
 import { useBrowser } from "../browser/store";
-import { inPinnedContainer, plural, profileFor } from "../browser/model";
+import { inPinnedContainer, plural, spaceFor } from "../browser/model";
 import { isSmall } from "./small";
 import { closeLittleArdia } from "../littleArdia/actions";
 import { closeWindowAnimated } from "./closeAnimated";
@@ -40,17 +40,17 @@ export function closeWindowDialog(windowId: string) {
   const s = useBrowser.getState();
   const w = s.windows[windowId]!;
   const tabs = (n: number) => plural(n, "tab");
-  const byProfile = new Map<string, number>();
+  const bySpace = new Map<string, number>();
   const closing = closingTabs(windowId);
   for (const id of closing) {
-    const profileId = s.tabs[id]?.profileId ?? w.profileId;
-    byProfile.set(profileId, (byProfile.get(profileId) ?? 0) + 1);
+    const spaceId = s.tabs[id]?.spaceId ?? w.spaceId;
+    bySpace.set(spaceId, (bySpace.get(spaceId) ?? 0) + 1);
   }
   const count = closing.length;
   const message =
-    byProfile.size > 1
-      ? ["Closing this window closes all tabs open across profiles:", ...[...byProfile].map(([id, n]) => `  • ${tabs(n)} in ${profileFor(s, id).name}`)].join("\n")
-      : `This window has ${tabs(count)} open in your ${profileFor(s, w.profileId).name} profile.`;
+    bySpace.size > 1
+      ? ["Closing this window closes all tabs open across spaces:", ...[...bySpace].map(([id, n]) => `  • ${tabs(n)} in ${spaceFor(s, id).name}`)].join("\n")
+      : `This window has ${tabs(count)} open in your ${spaceFor(s, w.spaceId).name} space.`;
   return {
     title: count === 1 ? "Close 1 tab?" : `Close ${count} tabs?`,
     message,

@@ -165,7 +165,7 @@ def read_session(root: Path, deadline: float) -> dict:
         session = json.loads(raw)
     except ValueError:
         raise BrowsingDataError(f"{path} isn't valid JSON (Ardia may be writing it; try again)") from None
-    return session if isinstance(session, dict) and session.get("version") == 2 else {}
+    return session if isinstance(session, dict) and session.get("version") in (2, 3, 4, 5) else {}
 
 
 def is_private(profile_id: str) -> bool:
@@ -181,13 +181,15 @@ def pinned(root: Path | None, deadline: float | None = None) -> list[dict]:
     deadline = deadline if deadline is not None else time.monotonic() + HISTORY_BUDGET
     root = checked_root(root, "pinned")
     session = read_session(root, deadline)
-    names = profile_names(session)
-    order = [pid for pid in session.get("profileOrder") or [] if pid in names] + [pid for pid in names if pid not in (session.get("profileOrder") or [])]
+    names = profile_names({"profiles": session.get("spaces", session.get("profiles"))})
+    order = [pid for pid in session.get("spaceOrder", session.get("profileOrder")) or [] if pid in names] + [pid for pid in names if pid not in (session.get("spaceOrder", session.get("profileOrder")) or [])]
     tabs = {t["id"]: t for t in session.get("tabs") or [] if isinstance(t, dict) and "id" in t}
     groups = [g for g in session.get("groups") or [] if isinstance(g, dict)]
     pinned_groups = {tab_id: g for g in groups if g.get("pinned") for tab_id in g.get("tabIds") or []}
     seen: set[tuple[str, str]] = set()
     rows: list[tuple[int, dict]] = []
+    modern = session.get("version") in (4, 5)
+    identities = profile_names(session)
 
     def add(profile_id: str, key: str, tab: dict, kind: str, folder: str | None, parked: bool):
         if is_private(profile_id) or profile_id not in names or (profile_id, key) in seen:
@@ -203,7 +205,8 @@ def pinned(root: Path | None, deadline: float | None = None) -> list[dict]:
                     "pinned_url": tab.get("pinnedUrl"),
                     "kind": kind,
                     "folder": folder,
-                    "profile": names[profile_id],
+                    "profile": identities.get((session.get("spaces", {}).get(profile_id) or {}).get("profileId"), names[profile_id]) if modern else names[profile_id],
+                    **({"space": names[profile_id]} if session.get("version") in (4, 5) else {}),
                     "parked": parked,
                 },
             )
@@ -217,10 +220,12 @@ def pinned(root: Path | None, deadline: float | None = None) -> list[dict]:
                 continue
             key = tab.get("pinKey") or tab_id
             group = pinned_groups.get(tab_id)
+            if modern and tab.get("pinned") and not tab.get("pinnedAsRow") and not group:
+                continue
             if tab.get("pinned"):
-                add(tab.get("profileId", ""), key, tab, "favorite", None, False)
+                add(tab.get("spaceId", tab.get("profileId", "")), key, tab, "pinned" if modern and tab.get("pinnedAsRow") else "favorite", None, False)
             elif group:
-                add(tab.get("profileId", ""), key, tab, "pinned", group.get("name") or None, False)
+                add(tab.get("spaceId", tab.get("profileId", "")), key, tab, "pinned", group.get("name") or None, False)
     for profile_id, parked in (session.get("parkedPins") or {}).items():
         if not isinstance(parked, dict):
             continue
@@ -229,8 +234,26 @@ def pinned(root: Path | None, deadline: float | None = None) -> list[dict]:
             if not isinstance(tab, dict):
                 continue
             group_id = tab.get("groupId")
-            kind = "pinned" if group_id else "favorite"
-            add(tab.get("profileId") or profile_id, tab.get("id", ""), tab, kind, folders.get(group_id) or None if group_id else None, True)
+            kind = "pinned" if group_id or modern and tab.get("pinnedAsRow") else "favorite"
+            add(tab.get("spaceId", tab.get("profileId")) or profile_id, tab.get("id", ""), tab, kind, folders.get(group_id) or None if group_id else None, True)
+    if modern:
+        for profile_id, apps in (session.get("topApps") or {}).items():
+            if profile_id not in identities or not isinstance(apps, list):
+                continue
+            loaded = {tab.get("pinKey") or tab.get("id") for tab in tabs.values() if not tab.get("unloaded")}
+            for app in apps:
+                if not isinstance(app, dict):
+                    continue
+                rows.append((-1, {
+                    "title": app.get("customTitle") or app.get("title") or app.get("url", ""),
+                    "url": app.get("url", ""),
+                    "pinned_url": app.get("url"),
+                    "kind": "favorite",
+                    "folder": (app.get("tileFolder") or {}).get("name"),
+                    "profile": identities[profile_id],
+                    "space": None,
+                    "parked": app.get("key") not in loaded,
+                }))
     return [row for _, row in sorted(rows, key=lambda item: item[0])]
 
 
@@ -240,8 +263,8 @@ def profile_dirs(root: Path, session: dict) -> list[tuple[str, Path]]:
     profiles = session.get("profiles") or {}
     by_dir: dict[str, str] = {}
     for pid, name in names.items():
-        data_id = (profiles.get(pid) or {}).get("dataId") or pid
-        by_dir["Default" if data_id == DEFAULT_PROFILE_ID else f"Profile {data_id}"] = name
+        data_id = (profiles.get(pid) or {}).get("engineId", (profiles.get(pid) or {}).get("dataId") or pid)
+        by_dir["Default" if data_id in ("", DEFAULT_PROFILE_ID) else f"Profile {data_id}"] = name
     found = []
     try:
         entries = sorted(chromium.iterdir())

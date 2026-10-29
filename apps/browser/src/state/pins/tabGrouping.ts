@@ -1,7 +1,7 @@
 import type { BrowserState } from "../browser/store";
 import { autoGroupName } from "../groups/groupNames";
 import { ancestorIds, canNest, commonGroup, innermostGroupOf, insertAll, leaveGroups, nestGroups, orderSections, placeBlock, placeGroups, reparent, syncGroupOrder, withParent } from "../groups/groups";
-import { inPinnedContainer, isIncognitoProfile, isPinnedRow, newId, pinKeyOf } from "../browser/model";
+import { inPinnedContainer, isIncognitoSpace, isPinnedRow, newId, pinKeyOf } from "../browser/model";
 import { splitOf, splitTabIdsOf, withSplitRows } from "../splits/splits";
 import { markPinned } from "./pinChoices";
 import type { BrowserWindow, Tab, TabGroup } from "../browser/types";
@@ -30,10 +30,10 @@ export function groupWithOpener(s: BrowserState, tabId: string, openerId: string
   const tab = s.tabs[tabId];
   const opener = s.tabs[openerId];
   if (!tab || !opener) return s;
-  if (opener.windowId !== tab.windowId || opener.profileId !== tab.profileId) return s;
+  if (opener.windowId !== tab.windowId || opener.spaceId !== tab.spaceId) return s;
   const w = s.windows[tab.windowId]!;
   if (inPinnedContainer(s, openerId)) {
-    const gathered = pinnedChildGroup(s, openerId, tab.profileId);
+    const gathered = pinnedChildGroup(s, openerId, tab.spaceId);
     if (gathered) return joinGroup(s, w, gathered, tabId);
     if (!background || !s.settings.cmdClickCreatesTabGroup) return s;
     return withGroup(s, [tabId], { autoUngroup: true, pinnedOpenerId: openerId })[0];
@@ -45,8 +45,8 @@ export function groupWithOpener(s: BrowserState, tabId: string, openerId: string
   return withGroup(s, [...panes, tabId], { autoUngroup: true })[0];
 }
 
-export const pinnedChildGroup = (s: Pick<BrowserState, "groups">, openerId: string, profileId: string): TabGroup | undefined =>
-  Object.values(s.groups).find((g) => g.pinnedOpenerId === openerId && g.profileId === profileId && g.tabIds.length);
+export const pinnedChildGroup = (s: Pick<BrowserState, "groups">, openerId: string, spaceId: string): TabGroup | undefined =>
+  Object.values(s.groups).find((g) => g.pinnedOpenerId === openerId && g.spaceId === spaceId && g.tabIds.length);
 
 function joinGroup(s: BrowserState, w: BrowserWindow, group: TabGroup, tabId: string): BrowserState {
   const members = [...group.tabIds, tabId];
@@ -62,14 +62,14 @@ export function withGroup(
 ): [BrowserState, string] {
   const tabs = withSplitRows(s, ids).map((id) => s.tabs[id]).filter((t): t is Tab => !!t && !t.pin);
   const first = tabs[0];
-  if (!first || tabs.some((t) => t.windowId !== first.windowId || t.profileId !== first.profileId)) return [s, ""];
+  if (!first || tabs.some((t) => t.windowId !== first.windowId || t.spaceId !== first.spaceId)) return [s, ""];
   const w = s.windows[first.windowId]!;
   const members = new Set(tabs.map((t) => t.id));
   const asked = o.parentId ? s.groups[o.parentId] : undefined;
   const container =
     o.parentId === undefined
       ? commonGroup(s.groups, [...members])
-      : asked && asked.windowId === w.id && asked.profileId === first.profileId
+      : asked && asked.windowId === w.id && asked.spaceId === first.spaceId
         ? asked
         : undefined;
   const keep = new Set(container ? [container.id, ...ancestorIds(s.groups, container.id)] : []);
@@ -77,7 +77,7 @@ export function withGroup(
   const group: TabGroup = {
     id: newId("g"),
     windowId: w.id,
-    profileId: first.profileId,
+    spaceId: first.spaceId,
     name: o.name ?? "",
     icon: null,
     color: null,
@@ -106,9 +106,9 @@ export function withRowsGrouped(s: BrowserState, asked: string[], o: { name?: st
   const [next, id] = withGroup({ ...s, tabs }, ids, { ...o, pinned: true });
   const g = next.groups[id];
   if (!g) return [s, ""];
-  if (isIncognitoProfile(g.profileId)) return [next, id];
+  if (isIncognitoSpace(g.spaceId)) return [next, id];
   const placed = g.tabIds.map((tabId) => (next.tabs[tabId] ? pinKeyOf(next.tabs[tabId]!) : tabId));
-  return [{ ...next, pinChoices: markPinned(next.pinChoices, g.profileId, { groups: [pinKeyOf(g)], placed }) }, id];
+  return [{ ...next, pinChoices: markPinned(next.pinChoices, g.spaceId, { groups: [pinKeyOf(g)], placed }) }, id];
 }
 
 export function canMoveGroup(groups: Record<string, TabGroup>, groupId: string, p: Pick<GroupPlacement, "parentId" | "beforeId">): boolean {
@@ -136,9 +136,9 @@ export function movingGroup(s: BrowserState, groupId: string, p: GroupPlacement)
   groups[groupId] = withParent({ ...g, pinned }, parent?.id);
   groups = nestGroups(reparent(groups, s.groups));
   let pinChoices = s.pinChoices;
-  if (pinned && !g.pinned && !isIncognitoProfile(g.profileId)) {
+  if (pinned && !g.pinned && !isIncognitoSpace(g.spaceId)) {
     const placed = g.tabIds.flatMap((id) => (s.tabs[id] ? [pinKeyOf(s.tabs[id]!)] : []));
-    pinChoices = markPinned(pinChoices, g.profileId, { groups: [pinKeyOf(g)], placed });
+    pinChoices = markPinned(pinChoices, g.spaceId, { groups: [pinKeyOf(g)], placed });
   }
   const rest = w.tabIds.filter((id) => !moving.has(id));
   let at: number;

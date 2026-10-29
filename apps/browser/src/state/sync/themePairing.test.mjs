@@ -39,7 +39,7 @@ globalThis.acTestNativeModules = {
 
 const shell = await import("../../test-native/index.ts");
 const { useBrowser } = await import("../browser/store.ts");
-const { sharingProfiles } = await import("../profiles/profiles.ts");
+const { sharingSpaces } = await import("../spaces/spaces.ts");
 const S = () => useBrowser.getState();
 
 class Mac {
@@ -89,31 +89,31 @@ async function pairAgainstExistingTheme(local, tag) {
   const engineA = await import(`./engine.ts?pairA${tag}`);
   const engineC = await import(`./engine.ts?pairC${tag}`);
   await a.with(async () => {
-    S().updateProfile("default", { theme: THEME_B });
+    S().updateSpace("default", { theme: THEME_B });
     engineA.startSync();
     assert.ok("ok" in (await engineA.turnOnSync("/sync")));
     await engineA.syncNow();
     await engineA.syncNow();
   });
   await c.with(async () => {
-    if (local) S().updateProfile("default", { theme: local });
+    if (local) S().updateSpace("default", { theme: local });
     engineC.startSync();
     assert.ok("ok" in (await engineC.enterRecoveryPhrase("/sync", "words")));
     await engineC.syncNow();
     await engineC.syncNow();
-    assert.deepEqual(S().profiles.default.theme, THEME_B, "the paired profile takes the synced theme");
+    assert.deepEqual(S().spaces.default.theme, THEME_B, "the paired space takes the synced theme");
   });
   for (let i = 0; i < 2; i++) {
     await a.with(() => engineA.syncNow());
     await c.with(() => engineC.syncNow());
   }
-  await a.with(() => assert.deepEqual(S().profiles.default.theme, THEME_B, "the first Mac keeps its theme"));
-  await c.with(() => assert.deepEqual(S().profiles.default.theme, THEME_B));
+  await a.with(() => assert.deepEqual(S().spaces.default.theme, THEME_B, "the first Mac keeps its theme"));
+  await c.with(() => assert.deepEqual(S().spaces.default.theme, THEME_B));
   const themes = published("pth:").map((op) => op.v);
   assert.ok(themes.every((v) => JSON.stringify(v) === JSON.stringify({ t: THEME_B })), `only the synced theme is ever published: ${JSON.stringify(themes)}`);
 }
 
-test("a Mac joining sync pairs its profile and takes the synced theme", () => pairAgainstExistingTheme(null, "1"));
+test("a Mac joining sync pairs its space and takes the synced theme", () => pairAgainstExistingTheme(null, "1"));
 
 test("a Mac joining sync with its own theme takes the synced one instead of publishing over it", () => pairAgainstExistingTheme(THEME_A, "2"));
 
@@ -130,7 +130,7 @@ async function joinWhileThemeDownloads(tag, hold = downloading) {
   const engineA = await import(`./engine.ts?dlA${tag}`);
   const engineC = await import(`./engine.ts?dlC${tag}`);
   await a.with(async () => {
-    S().updateProfile("default", { theme: THEME_B });
+    S().updateSpace("default", { theme: THEME_B });
     engineA.startSync();
     assert.ok("ok" in (await engineA.turnOnSync("/sync")));
     await engineA.syncNow();
@@ -138,17 +138,17 @@ async function joinWhileThemeDownloads(tag, hold = downloading) {
     const themeFile = [...folder].find(([, f]) => f.payload.includes('"pth:'))?.[0];
     assert.ok(themeFile);
     hold.add(themeFile);
-    S().updateProfile("default", { name: "Home" });
+    S().updateSpace("default", { name: "Home" });
     await engineA.syncNow();
   });
   await c.with(async () => {
-    S().updateProfile("default", { theme: THEME_A });
+    S().updateSpace("default", { theme: THEME_A });
     engineC.startSync();
     assert.ok("ok" in (await engineC.enterRecoveryPhrase("/sync", "words")));
     await engineC.syncNow();
     await engineC.syncNow();
-    assert.ok(engineC.useSync.getState().remoteProfiles.every((p) => p.name !== "Personal"), "Personal paired");
-    assert.deepEqual(S().profiles.default.theme, THEME_A);
+    assert.ok(engineC.useSync.getState().remoteSpaces.every((p) => p.name !== "Personal"), "Personal paired");
+    assert.deepEqual(S().spaces.default.theme, THEME_A);
   });
   return { a, c, engineA, engineC };
 }
@@ -159,13 +159,13 @@ test("a joining Mac never publishes its theme while the synced one is still down
     Date.now = () => realNow() + 2 * 86_400_000;
     await c.with(async () => {
       for (let i = 0; i < 3; i++) await engineC.syncNow();
-      assert.deepEqual(S().profiles.default.theme, THEME_A, "still its own until the synced one arrives");
+      assert.deepEqual(S().spaces.default.theme, THEME_A, "still its own until the synced one arrives");
     });
     assert.ok(!themesFrom().includes(JSON.stringify({ t: THEME_A })), "its own theme was never published while adopting");
     const edited = { ...THEME_A, intensity: 0.66 };
     await c.with(async () => {
       engineC.adoptProfileTheme("default");
-      S().updateProfile("default", { theme: edited });
+      S().updateSpace("default", { theme: edited });
       await engineC.syncNow();
     });
     assert.ok(themesFrom().includes(JSON.stringify({ t: edited })), "an explicit edit adopts and publishes");
@@ -186,20 +186,20 @@ test("a joining Mac keeps adopting across a restart and takes the theme when its
   downloading.clear();
   await c.with(async () => {
     await restarted.syncNow();
-    assert.deepEqual(S().profiles.default.theme, THEME_B, "the synced theme applies once its file arrives");
+    assert.deepEqual(S().spaces.default.theme, THEME_B, "the synced theme applies once its file arrives");
   });
   const edited = { ...THEME_B, intensity: 0.55 };
   await c.with(async () => {
-    S().updateProfile("default", { theme: edited });
+    S().updateSpace("default", { theme: edited });
     await restarted.syncNow();
   });
   await a.with(async () => {
     await engineA.syncNow();
-    assert.deepEqual(S().profiles.default.theme, edited, "once adopted, its edits publish and reach the other Mac");
+    assert.deepEqual(S().spaces.default.theme, edited, "once adopted, its edits publish and reach the other Mac");
   });
 });
 
-test("an established profile's theme edit publishes while unrelated files are still downloading", async () => {
+test("an established space's theme edit publishes while unrelated files are still downloading", async () => {
   folder.clear();
   downloading.clear();
   const a = new Mac("A");
@@ -207,7 +207,7 @@ test("an established profile's theme edit publishes while unrelated files are st
   const engineA = await import("./engine.ts?estA");
   const engineC = await import("./engine.ts?estC");
   await a.with(async () => {
-    S().updateProfile("default", { theme: THEME_B });
+    S().updateSpace("default", { theme: THEME_B });
     engineA.startSync();
     assert.ok("ok" in (await engineA.turnOnSync("/sync")));
     await engineA.syncNow();
@@ -218,17 +218,17 @@ test("an established profile's theme edit publishes while unrelated files are st
     assert.ok("ok" in (await engineC.enterRecoveryPhrase("/sync", "words")));
     await engineC.syncNow();
     await engineC.syncNow();
-    assert.deepEqual(S().profiles.default.theme, THEME_B);
+    assert.deepEqual(S().spaces.default.theme, THEME_B);
   });
   await a.with(async () => {
-    S().updateProfile("default", { name: "Elsewhere" });
+    S().updateSpace("default", { name: "Elsewhere" });
     await engineA.syncNow();
   });
   downloading.add(lastFile());
   await c.with(() => engineC.syncNow());
   const edited = { ...THEME_B, intensity: 0.42 };
   await c.with(async () => {
-    S().updateProfile("default", { theme: edited });
+    S().updateSpace("default", { theme: edited });
     await engineC.syncNow();
   });
   assert.ok(themesFrom().includes(JSON.stringify({ t: edited })), "published despite the pending file");
@@ -236,12 +236,12 @@ test("an established profile's theme edit publishes while unrelated files are st
 
 const neverPublished = (theme) => !themesFrom().includes(JSON.stringify({ t: theme }));
 
-test("turning a profile's sync off and on again keeps it adopting", async () => {
+test("turning a space's sync off and on again keeps it adopting", async () => {
   const { c, engineC } = await joinWhileThemeDownloads("3");
   await c.with(async () => {
-    engineC.setProfileSynced("default", false);
+    engineC.setSpaceSynced("default", false);
     await engineC.syncNow();
-    engineC.setProfileSynced("default", true);
+    engineC.setSpaceSynced("default", true);
     await engineC.syncNow();
     await engineC.syncNow();
   });
@@ -259,7 +259,7 @@ test("a theme file given up as damaged after a day doesn't end adoption", async 
     const edited = { ...THEME_A, intensity: 0.71 };
     await c.with(async () => {
       engineC.adoptProfileTheme("default");
-      S().updateProfile("default", { theme: edited });
+      S().updateSpace("default", { theme: edited });
       await engineC.syncNow();
     });
     assert.ok(!neverPublished(edited), "an explicit edit still does");
@@ -270,9 +270,9 @@ test("a theme file given up as damaged after a day doesn't end adoption", async 
 
 test("picking a preset while adopting keeps the preset when the late theme arrives", async () => {
   const { a, c, engineA, engineC } = await joinWhileThemeDownloads("5");
-  const { choosePresetColor } = await import("../profiles/themeActions.ts");
+  const { choosePresetColor } = await import("../spaces/themeActions.ts");
   await c.with(async () => {
-    S().updateProfile("default", { theme: undefined });
+    S().updateSpace("default", { theme: undefined });
     choosePresetColor("default", "blue", engineC.adoptProfileTheme);
     await engineC.syncNow();
   });
@@ -280,12 +280,12 @@ test("picking a preset while adopting keeps the preset when the late theme arriv
   await c.with(async () => {
     await engineC.syncNow();
     await engineC.syncNow();
-    assert.equal(S().profiles.default.theme, null, "the user's preset stays");
-    assert.equal(S().profiles.default.color, "blue");
+    assert.equal(S().spaces.default.theme, null, "the user's preset stays");
+    assert.equal(S().spaces.default.color, "blue");
   });
   await a.with(async () => {
     await engineA.syncNow();
-    assert.equal(S().profiles.default.theme, null, "and reaches the other Mac");
+    assert.equal(S().spaces.default.theme, null, "and reaches the other Mac");
   });
 });
 
@@ -294,14 +294,14 @@ test("a leftover adoption flag on a theme that's already applied is cleared at s
   downloading.clear();
   await c.with(async () => {
     await engineC.syncNow();
-    assert.deepEqual(S().profiles.default.theme, THEME_B);
+    assert.deepEqual(S().spaces.default.theme, THEME_B);
   });
   const edited = { ...THEME_B, intensity: 0.33 };
   await c.with(async () => {
     const saved = JSON.parse(shell.docs.get("sync.json"));
-    saved.profiles.default.themeAdopting = true;
+    saved.spaces.default.themeAdopting = true;
     shell.docs.set("sync.json", JSON.stringify(saved));
-    S().updateProfile("default", { theme: edited });
+    S().updateSpace("default", { theme: edited });
   });
   const restarted = await import("./engine.ts?leftover6");
   await c.with(async () => {
@@ -312,6 +312,6 @@ test("a leftover adoption flag on a theme that's already applied is cleared at s
   assert.ok(!neverPublished(edited), "the edit made where the flag was left behind publishes");
   await a.with(async () => {
     await engineA.syncNow();
-    assert.deepEqual(S().profiles.default.theme, edited);
+    assert.deepEqual(S().spaces.default.theme, edited);
   });
 });

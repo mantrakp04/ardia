@@ -35,7 +35,7 @@ test("off by default: each window keeps its own unpinned tabs, as before", () =>
   assert.equal(Object.values(S().tabs).some((t) => t.page.holderId || t.pinKey), false);
 });
 
-test("turning it on gives every window of the profile the same list; each keeps its selection", () => {
+test("turning it on gives every window of the space the same list; each keeps its selection", () => {
   reset();
   const { a, b, a1, b1 } = twoWindows();
   share(true);
@@ -183,7 +183,7 @@ test("the ⌘T bar's open tabs rank a shared tab by its last use in any window, 
   const y = rowOf(b, "https://a2.com");
   const at = { [x]: 1000, [y]: 2000, [a2]: 2000, [a1]: 3000 };
   useBrowser.setState((s) => ({ tabs: Object.fromEntries(Object.entries(s.tabs).map(([id, t]) => [id, at[id] ? { ...t, lastActiveAt: at[id] } : t])) }));
-  const rows = openTabsByUse(S().tabs, S().peeks, { profileId: "default", windowId: b, shared: true }).map(({ tab, lastActiveAt }) => ({ id: tab.id, url: tab.url, title: "", favicon: null, lastActiveAt }));
+  const rows = openTabsByUse(S().tabs, S().peeks, { spaceId: "default", windowId: b, shared: true }).map(({ tab, lastActiveAt }) => ({ id: tab.id, url: tab.url, title: "", favicon: null, lastActiveAt }));
   const order = recentTabSuggestions(rows).map((r) => r.tabId);
   assert.ok(order.includes(x) && order.indexOf(x) < order.indexOf(y), "A used X last, so X ranks above Y");
   assert.equal(order.includes(a1), false, "listed once, as B's own row");
@@ -270,33 +270,33 @@ for (const where of ["pinned split", "split in a pinned group"]) {
 }
 
 function personalAndWork() {
-  const work = S().createProfile({ name: "Work" });
+  const work = S().createSpace({ name: "Work", profileId: S().createProfile({ name: "Work" }) });
   const a = S().createWindow({ url: "https://x.com" });
   const [x] = S().windows[a].tabIds;
-  const w1 = S().newTab(a, { url: "https://work.com", profileId: work, background: true });
+  const w1 = S().newTab(a, { url: "https://work.com", spaceId: work, background: true });
   S().activate(x);
   const b = S().createWindow({});
   share(true);
   return { work, a, b, x, w1 };
 }
 
-const showsOwnTab = (w, profileId) => {
+const showsOwnTab = (w, spaceId) => {
   const id = shown(w);
-  return !!id && S().tabs[id]?.windowId === w && S().tabs[id].profileId === profileId;
+  return !!id && S().tabs[id]?.windowId === w && S().tabs[id].spaceId === spaceId;
 };
 
-test("closing a window's last tab of the profile it shows elsewhere leaves it a New Tab of that profile", () => {
+test("closing a window's last tab of the space it shows elsewhere leaves it a New Tab of that space", () => {
   reset();
   const { work, a, b, x, w1 } = personalAndWork();
   S().closeTab(rowOf(b, "https://x.com"));
   assert.equal(S().tabs[x], undefined);
-  assert.equal(S().windows[a].profileId, "default");
+  assert.equal(S().windows[a].spaceId, "default");
   assert.ok(showsOwnTab(a, "default"), "A shows a Personal tab");
   assert.equal(S().tabs[shown(a)].url, "", "a New Tab");
   assert.equal(S().windows[a].activeTabIds[work], w1, "Work keeps its own selection");
 });
 
-test("turning sharing off leaves a window that only had a copy of the profile it shows a New Tab of it", () => {
+test("turning sharing off leaves a window that only had a copy of the space it shows a New Tab of it", () => {
   reset();
   const { work, a, b, x, w1 } = personalAndWork();
   S().activate(rowOf(b, "https://x.com"));

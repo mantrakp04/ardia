@@ -37,7 +37,7 @@ globalThis.acTestNativeModules = {
 
 const shell = await import("../../test-native/index.ts");
 const { useBrowser } = await import("../browser/store.ts");
-const { sharingProfiles } = await import("../profiles/profiles.ts");
+const { sharingSpaces } = await import("../spaces/spaces.ts");
 const S = () => useBrowser.getState();
 
 class Mac {
@@ -67,433 +67,141 @@ const published = (prefix) =>
     .flatMap((f) => f.ops ?? Object.entries(f.records ?? {}).map(([k, r]) => ({ k, v: r.v })))
     .filter((op) => op.k.startsWith(prefix));
 
-test("a profile that shares data on one Mac shares the same profile's data on the Mac that adds it from sync", async () => {
+async function settle(macs, rounds = 4) {
+  for (let i = 0; i < rounds; i++) for (const [mac, engine] of macs) await mac.with(() => engine.syncNow());
+}
+
+async function paired(tag) {
+  folder.clear();
   const a = new Mac("A");
   const b = new Mac("B");
-  const engineA = await import("./engine.ts?macA");
-  const engineB = await import("./engine.ts?macB");
-
-  const onA = await a.with(async () => {
-    const work = S().createProfile({ name: "Work", shareWith: "default" });
-    const home = S().createProfile({ name: "Home" });
-    const kids = S().createProfile({ name: "Kids", shareWith: home });
-    assert.deepEqual(sharingProfiles(S(), "default"), [work], "Personal and Work share on the first Mac");
-    engineA.startSync();
-    assert.ok("ok" in (await engineA.turnOnSync("/sync")));
-    await engineA.syncNow();
-    await engineA.syncNow();
-    return { work, home, kids, links: { ...engineA.useSync.getState().profiles } };
-  });
-
-  for (const op of published("prof:")) assert.deepEqual(Object.keys(op.v).filter((k) => !["n", "c", "i", "d", "th"].includes(k)), [], "prof: records keep the shape older Macs publish");
-
-  await b.with(async () => {
-    S().createProfile({ name: "Home" });
-    engineB.startSync();
-    assert.ok("ok" in (await engineB.enterRecoveryPhrase("/sync", "words")));
-    await engineB.syncNow();
-    await engineB.syncNow();
-
-    const remote = engineB.useSync.getState().remoteProfiles;
-    const work = remote.find((p) => p.name === "Work");
-    const kids = remote.find((p) => p.name === "Kids");
-    assert.deepEqual(work?.sharesWith, { name: "Personal", added: false });
-    assert.deepEqual(kids?.sharesWith, { name: "Home", added: false }, "Home paired by name, so Kids shares this Mac's Home");
-
-    const workHere = engineB.addRemoteProfile(work.syncId);
-    assert.ok(workHere);
-    assert.equal(S().profiles[workHere].dataId, "default");
-    assert.deepEqual(sharingProfiles(S(), "default"), [workHere], "Settings › Profiles › Personal shows Shared data on the second Mac");
-
-    const homeHere = S().profileOrder.find((id) => S().profiles[id].name === "Home");
-    assert.notEqual(homeHere, onA.home, "the owner's profile id differs per Mac");
-    const kidsHere = engineB.addRemoteProfile(kids.syncId);
-    assert.equal(S().profiles[kidsHere].dataId, homeHere, "the link resolves to this Mac's own profile for that owner");
-  });
-});
-
-test("adding a profile whose owner isn't on this Mac adds the owner too, sharing its data", async () => {
-  const a = new Mac("A");
-  const c = new Mac("C");
-  folder.clear();
-  const engineA = await import("./engine.ts?macA2");
-  const engineC = await import("./engine.ts?macC");
-
+  const ea = await import(`./engine.ts?spacesA${tag}`);
+  const eb = await import(`./engine.ts?spacesB${tag}`);
+  let ids;
   await a.with(async () => {
-    const school = S().createProfile({ name: "School" });
-    S().createProfile({ name: "Homework", shareWith: school });
-    engineA.startSync();
-    assert.ok("ok" in (await engineA.turnOnSync("/sync")));
-    await engineA.syncNow();
-    await engineA.syncNow();
+    const profile = S().createProfile({ name: "Work" });
+    const school = S().createSpace({ name: "School", profileId: profile });
+    const research = S().createSpace({ name: "Research", profileId: profile });
+    ids = { profile, school, research };
+    ea.startSync();
+    await ea.turnOnSync("/sync");
   });
+  await settle([[a, ea]]);
+  await b.with(async () => { eb.startSync(); await eb.enterRecoveryPhrase("/sync", "words"); });
+  await settle([[b, eb]]);
+  const remote = eb.useSync.getState().remoteSpaces;
+  const added = {};
+  await b.with(() => { for (const item of remote) added[item.name] = eb.addRemoteSpace(item.syncId); });
+  await settle([[a, ea], [b, eb]]);
+  return { a, b, ea, eb, ids, added };
+}
 
-  await c.with(async () => {
-    engineC.startSync();
-    assert.ok("ok" in (await engineC.enterRecoveryPhrase("/sync", "words")));
-    await engineC.syncNow();
-    await engineC.syncNow();
-    const homework = engineC.useSync.getState().remoteProfiles.find((p) => p.name === "Homework");
-    assert.deepEqual(homework?.sharesWith, { name: "School", added: true });
-    const id = engineC.addRemoteProfile(homework.syncId);
-    const school = S().profileOrder.find((p) => S().profiles[p].name === "School");
-    assert.ok(school, "School was added with it");
-    assert.equal(S().profiles[id].dataId, school);
-    assert.deepEqual(sharingProfiles(S(), school), [id]);
-    assert.equal(engineC.useSync.getState().remoteProfiles.length, 0, "both are on this Mac now");
-    await engineC.syncNow();
+test("two added Spaces on another Mac use one canonical Profile", async () => {
+  const { a, b, ea, eb, ids, added } = await paired("identity");
+  assert.equal(Object.keys(added).length, 2);
+  await b.with(() => {
+    const one = S().spaces[added.School];
+    const two = S().spaces[added.Research];
+    assert.equal(one.profileId, two.profileId);
+    assert.equal(S().profiles[one.profileId].name, "Work");
+    assert.equal(eb.useSync.getState().profiles[one.profileId].syncId, ea.useSync.getState().profiles[ids.profile].syncId);
+    assert.notEqual(one.profileId, "default");
   });
-
-  const before = published("share:").length;
-  await a.with(() => engineA.syncNow());
-  await c.with(() => engineC.syncNow());
-  await a.with(() => engineA.syncNow());
-  assert.equal(published("share:").length, before, "the share: records settle: neither Mac republishes them");
+  const before = folder.size;
+  await settle([[a, ea], [b, eb]], 3);
+  assert.equal(folder.size, before, "the replicas stop publishing once they agree");
 });
 
-const shareRecords = (engine) =>
-  Object.fromEntries(
-    Object.entries(engine.appScopeRecords())
-      .filter(([k]) => k.startsWith("share:"))
-      .map(([k, r]) => [k.slice(6), r.v?.o ?? null]),
-  );
+test("shared Top Apps sync with the Profile while saved rows stay in their Space", async () => {
+  const { a, b, ea, eb, ids, added } = await paired("pins");
+  await a.with(() => {
+    const w = S().createWindow({ spaceId: ids.school });
+    const app = S().newTab(w, { url: "https://app.example/", spaceId: ids.school });
+    const row = S().newTab(w, { url: "https://row.example/", spaceId: ids.school });
+    S().pinTabs([app], true);
+    S().pinTabs([row], true, true);
+  });
+  await b.with(() => { S().createWindow({ spaceId: added.School }); S().createWindow({ spaceId: added.Research }); });
+  await settle([[a, ea], [b, eb]]);
+  await b.with(() => {
+    const profile = S().spaces[added.School].profileId;
+    assert.equal(S().topApps[profile].filter((app) => app.url === "https://app.example/").length, 1);
+    const rows = Object.values(S().tabs).filter((tab) => tab.pin?.as === "row" && tab.url === "https://row.example/");
+    assert.ok(rows.length);
+    assert.ok(rows.every((tab) => tab.spaceId === added.School));
+  });
+  const workspaceFiles = [...folder.values()].filter((file) => file.scope.startsWith("space:"));
+  assert.ok(workspaceFiles.every((file) => !file.payload.includes("app.example")), "Space consent never publishes Profile-owned tiles");
+});
+
+test("Profile data, Top Apps, and Space consent remain independent", async () => {
+  const { a, ea, ids } = await paired("consent");
+  await a.with(async () => {
+    ea.setProfileSynced(ids.profile, false);
+    ea.setTopAppsSynced(ids.profile, false);
+    ea.setSpaceSynced(ids.school, false);
+    const w = S().createWindow({ spaceId: ids.research });
+    const tile = S().newTab(w, { spaceId: ids.research, url: "https://local-only.example/" });
+    S().pinTabs([tile], true);
+    await ea.syncNow();
+    assert.equal(ea.useSync.getState().spaces[ids.research].enabled, true);
+    assert.equal(ea.useSync.getState().spaces[ids.school].enabled, false);
+    assert.equal(ea.useSync.getState().profiles[ids.profile].enabled, false);
+    assert.equal(ea.useSync.getState().profiles[ids.profile].topAppsEnabled, false);
+  });
+  assert.ok([...folder.values()].every((file) => !file.payload.includes("local-only.example")));
+});
+
+test("a remote Space reassignment uses the new Profile and does not reinterpret an overlapping Space ID", async () => {
+  const { a, b, ea, eb, ids, added } = await paired("assignment");
+  await a.with(() => S().assignSpaceProfile(ids.school, "default"));
+  await settle([[a, ea], [b, eb]], 5);
+  await b.with(() => {
+    assert.equal(S().spaces[added.School].profileId, "default");
+    assert.notEqual(S().spaces[added.Research].profileId, "default");
+  });
+});
+
+test("concurrent Space rename and reorder settle on both Macs", async () => {
+  const { a, b, ea, eb, ids, added } = await paired("order");
+  await a.with(() => { S().updateSpace(ids.school, { name: "Study" }); S().reorderSpaces([ids.research, "default", ids.school]); });
+  await b.with(() => S().updateSpace(added.Research, { name: "Reading" }));
+  await settle([[a, ea], [b, eb]], 5);
+  const names = (mac) => mac.with(() => S().spaceOrder.map((id) => S().spaces[id].name));
+  assert.deepEqual(await names(a), await names(b));
+  const before = folder.size;
+  await settle([[a, ea], [b, eb]], 3);
+  assert.equal(folder.size, before);
+});
 
 async function turnOn(mac, engine) {
-  await mac.with(async () => {
-    engine.startSync();
-    assert.ok("ok" in (await engine.turnOnSync("/sync")));
-    await engine.syncNow();
-    await engine.syncNow();
-  });
+  await mac.with(async () => { engine.startSync(); await engine.turnOnSync("/sync"); });
+  await settle([[mac, engine]]);
 }
 
-async function join(mac, engine, before = () => {}) {
-  await mac.with(async () => {
-    before();
-    engine.startSync();
-    assert.ok("ok" in (await engine.enterRecoveryPhrase("/sync", "words")));
-    await engine.syncNow();
-    await engine.syncNow();
-  });
+async function join(mac, engine) {
+  await mac.with(async () => { engine.startSync(); await engine.enterRecoveryPhrase("/sync", "words"); });
+  await settle([[mac, engine]]);
 }
 
-const named = (name) => S().profileOrder.find((id) => S().profiles[id].name === name);
-
-test("two Macs whose same-named profile shares different data settle instead of republishing forever", async () => {
+test("joining without a remote theme releases Space adoption and publishes a later local theme", async () => {
   folder.clear();
   const a = new Mac("A");
   const b = new Mac("B");
-  const engineA = await import("./engine.ts?loopA");
-  const engineB = await import("./engine.ts?loopB");
-  await a.with(() => S().createProfile({ name: "Work", shareWith: "default" }));
+  const engineA = await import("./engine.ts?themeAdoptionA");
+  const engineB = await import("./engine.ts?themeAdoptionB");
   await turnOn(a, engineA);
-  await join(b, engineB, () => {
-    const home = S().createProfile({ name: "Home" });
-    S().createProfile({ name: "Work", shareWith: home });
+  await join(b, engineB);
+  const theme = { stops: [{ x: 0.5, y: 0.5, color: { r: 0.2, g: 0.5, b: 0.8, a: 1 } }], mode: "auto", intensity: 0.8, grain: 0.4, texture: "grain", translucency: 1 };
+  await b.with(() => {
+    assert.equal(engineB.useSync.getState().spaces.default.themeAdopting, undefined);
+    S().updateSpace("default", { theme });
   });
-  for (let i = 0; i < 3; i++) {
-    await a.with(() => engineA.syncNow());
-    await b.with(() => engineB.syncNow());
-  }
-  const before = published("share:").length;
-  for (let i = 0; i < 4; i++) {
-    await a.with(() => engineA.syncNow());
-    await b.with(() => engineB.syncNow());
-  }
-  assert.equal(published("share:").length, before, "no Mac republishes share: once both have seen the other's record");
-  await a.with(() => assert.equal(S().profiles[named("Work")].dataId, "default", "each Mac keeps its own data"));
+  await settle([[b, engineB], [a, engineA]]);
+  await a.with(() => assert.deepEqual(S().spaces.default.theme, theme));
 });
 
-test("share: records that form a cycle resolve the same way whichever profile a new Mac adds first", async () => {
-  folder.clear();
-  const a = new Mac("A");
-  const b = new Mac("B");
-  const c = new Mac("C");
-  const d = new Mac("D");
-  const engineA = await import("./engine.ts?cycleA");
-  const engineB = await import("./engine.ts?cycleB");
-  const engineC = await import("./engine.ts?cycleC");
-  const engineD = await import("./engine.ts?cycleD");
-  await a.with(() => S().createProfile({ name: "Beta", shareWith: S().createProfile({ name: "Alpha" }) }));
-  await turnOn(a, engineA);
-  await join(b, engineB, () => S().createProfile({ name: "Alpha", shareWith: S().createProfile({ name: "Beta" }) }));
-  await a.with(() => engineA.syncNow());
-  await b.with(() => engineB.syncNow());
-
-  const owners = await b.with(() => shareRecords(engineB));
-  const links = await b.with(() => engineB.useSync.getState().profiles);
-  const alpha = await b.with(() => links[named("Alpha")].syncId);
-  const beta = await b.with(() => links[named("Beta")].syncId);
-  assert.deepEqual([owners[alpha], owners[beta]], [beta, alpha], "the records form a cycle");
-  const lowest = [alpha, beta].sort()[0];
-  const ownerName = lowest === alpha ? "Alpha" : "Beta";
-  const sharerName = lowest === alpha ? "Beta" : "Alpha";
-
-  const outcome = async (mac, engine, first) => {
-    await join(mac, engine);
-    return mac.with(() => {
-      for (const name of [first, first === "Alpha" ? "Beta" : "Alpha"]) {
-        const remote = engine.useSync.getState().remoteProfiles.find((p) => p.name === name);
-        if (remote) engine.addRemoteProfile(remote.syncId);
-      }
-      const owner = named(ownerName);
-      const sharer = named(sharerName);
-      assert.ok(owner && sharer, "both profiles are on the Mac");
-      return { ownerData: S().profiles[owner].dataId ?? null, sharerData: S().profiles[sharer].dataId === owner };
-    });
-  };
-  assert.deepEqual(await outcome(c, engineC, "Alpha"), { ownerData: null, sharerData: true });
-  assert.deepEqual(await outcome(d, engineD, "Beta"), { ownerData: null, sharerData: true });
-});
-
-test("a profile that shares a deleted owner's data doesn't advertise sharing; one that shared before keeps its record", async () => {
-  folder.clear();
-  const a = new Mac("A");
-  const c = new Mac("C");
-  const engineA = await import("./engine.ts?goneA");
-  const engineC = await import("./engine.ts?goneC");
-  const ids = await a.with(() => {
-    const owner = S().createProfile({ name: "Owner" });
-    return { owner, child: S().createProfile({ name: "Child", shareWith: owner }) };
-  });
-  await turnOn(a, engineA);
-  await a.with(async () => {
-    S().deleteProfile(ids.owner);
-    S().createProfile({ name: "Another", shareWith: ids.child });
-    await engineA.syncNow();
-    await engineA.syncNow();
-  });
-  await join(c, engineC);
-  await c.with(() => {
-    const remote = engineC.useSync.getState().remoteProfiles;
-    const another = remote.find((p) => p.name === "Another");
-    assert.ok(another);
-    assert.equal(another.sharesWith, undefined, "no Mac would sync that data group's data, so Another gets its own");
-    assert.deepEqual(remote.find((p) => p.name === "Child")?.sharesWith, { name: "Owner", added: true }, "Child's record stays as it was written");
-    const id = engineC.addRemoteProfile(another.syncId);
-    assert.equal(S().profiles[id].dataId, undefined);
-  });
-});
-
-test("a profile deleted and added back from sync shares its owner's data again", async () => {
-  folder.clear();
-  const a = new Mac("A");
-  const engineA = await import("./engine.ts?readdA");
-  const work = await a.with(() => S().createProfile({ name: "Work", shareWith: "default" }));
-  await turnOn(a, engineA);
-  await a.with(async () => {
-    S().deleteProfile(work);
-    await engineA.syncNow();
-    await engineA.syncNow();
-    const offered = engineA.useSync.getState().remoteProfiles.find((p) => p.name === "Work");
-    assert.deepEqual(offered?.sharesWith, { name: "Personal", added: false }, "its share: record wasn't deleted with it");
-    const again = engineA.addRemoteProfile(offered.syncId);
-    assert.equal(S().profiles[again].dataId, "default");
-  });
-});
-
-test("a profile whose owner hasn't synced here yet waits instead of getting data of its own", async () => {
-  folder.clear();
-  const a = new Mac("A");
-  const c = new Mac("C");
-  const engineA = await import("./engine.ts?waitA");
-  const engineC = await import("./engine.ts?waitC");
-  await a.with(() => S().createProfile({ name: "Child", shareWith: S().createProfile({ name: "Owner" }) }));
-  await turnOn(a, engineA);
-  await join(c, engineC);
-  await c.with(async () => {
-    const records = engineC.appScopeRecords();
-    const child = engineC.useSync.getState().remoteProfiles.find((p) => p.name === "Child");
-    const ownerKey = `prof:${records[`share:${child.syncId}`].v.o}`;
-    const ownerRecord = records[ownerKey];
-    delete records[ownerKey];
-    await engineC.syncNow();
-    const waiting = engineC.useSync.getState().remoteProfiles.find((p) => p.name === "Child");
-    assert.equal(waiting.waiting, true);
-    const before = S().profileOrder.length;
-    assert.equal(engineC.addRemoteProfile(child.syncId), null);
-    assert.equal(S().profileOrder.length, before, "nothing is created while the chain is unresolved");
-    records[ownerKey] = ownerRecord;
-    await engineC.syncNow();
-    const id = engineC.addRemoteProfile(child.syncId);
-    assert.equal(S().profiles[id].dataId, named("Owner"));
-  });
-});
-
-const scopeLevel = async () => {
-  const { Clock, emptyScope, syncScope } = await import("@ardia/sync");
-  const shipped = await import("../../../../../packages/sync/src/fixtures/scope-v0.2.38.ts");
-  const { sharedDataAdapter } = await import("./adapters.ts");
-  const { profilesAdapter } = await import("./profileAdapters.ts");
-  const files = new Map();
-  const damaged = new Set();
-  const pending = new Set();
-  let wall = 1_900_000_000_000;
-  const transport = {
-    write: async (scope, payload) => {
-      const id = `s${files.size + 1}`;
-      files.set(id, { scope, payload });
-      return id;
-    },
-    read: async (scope, known) => {
-      const here = [...files].filter(([, f]) => f.scope === scope);
-      const readable = here.filter(([id]) => !known.includes(id) && !damaged.has(id) && !pending.has(id));
-      return {
-        files: readable.map(([id, f]) => ({ id, payload: f.payload })),
-        pending: [...pending],
-        damaged: [...damaged].map((id) => ({ id, age: 0 })),
-        present: [...here.map(([id]) => id), ...pending],
-      };
-    },
-    remove: async (_scope, ids) => ids.forEach((id) => files.delete(id)),
-  };
-  const mac = (device, ownerName) => {
-    S().hydrate({});
-    const owner = ownerName ? S().createProfile({ name: ownerName }) : "default";
-    const work = S().createProfile({ name: "Work", shareWith: owner });
-    return { device, browser: S(), clock: new Clock(device, null, () => ++wall), links: { [owner]: { syncId: ownerName ? "sHome" : "sPersonal", enabled: true }, [work]: { syncId: "sWork", enabled: true } } };
-  };
-  const run = async (m, state, legacy = false) => {
-    useBrowser.setState(m.browser, true);
-    const sync = legacy ? shipped.syncScope : syncScope;
-    const adapters = legacy ? [] : [sharedDataAdapter(() => m.links), profilesAdapter(() => m.links)];
-    await sync({ scope: "app", state, transport, adapters, clock: m.clock, device: m.device, now: () => wall });
-  };
-  const batchesBy = (device) => [...files].filter(([id]) => !damaged.has(id)).map(([, f]) => JSON.parse(f.payload)).filter((f) => f.device === device);
-  const sentBy = (device, prefix = "share:") => batchesBy(device).flatMap((f) => f.ops ?? []).filter((op) => op.k.startsWith(prefix));
-  const lastFile = () => [...files.keys()].at(-1);
-  const advance = (ms) => (wall += ms);
-  return { emptyScope, run, mac, sentBy, batchesBy, damaged, pending, lastFile, advance };
-};
-
-test("share: a Mac back on an already-joined state from before the record existed doesn't write over it", async () => {
-  const { emptyScope, run, mac, sentBy } = await scopeLevel();
-  const a = mac("A");
-  const stateA = emptyScope();
-  await run(a, stateA);
-  await run(a, stateA);
-  assert.deepEqual(stateA.records["share:sWork"]?.v, { o: "sPersonal" });
-
-  const b = mac("B", "Home");
-  const restored = { ...emptyScope(), joined: true };
-  await run(b, restored);
-  await run(b, restored);
-  assert.deepEqual(sentBy("B"), [], "B publishes nothing over the record it pulled");
-  assert.deepEqual(restored.records["share:sWork"]?.v, { o: "sPersonal" });
-  await run(a, stateA);
-  assert.deepEqual(stateA.records["share:sWork"]?.v, { o: "sPersonal" });
-});
-
-test("share: a Mac that held the record unapplied on 0.2.38 doesn't write over it once it upgrades", async () => {
-  const { emptyScope, run, mac, sentBy } = await scopeLevel();
-  const a = mac("A");
-  const stateA = emptyScope();
-  await run(a, stateA);
-  await run(a, stateA);
-
-  const b = mac("B", "Home");
-  const old = emptyScope();
-  await run(b, old, true);
-  await run(b, old, true);
-  assert.ok("share:sWork" in old.records && old.base["share:sWork"] === undefined, "0.2.38 keeps the record without a base");
-  const upgraded = structuredClone(old);
-  await run(b, upgraded);
-  await run(b, upgraded);
-  assert.deepEqual(sentBy("B"), []);
-  assert.deepEqual(upgraded.records["share:sWork"]?.v, { o: "sPersonal" });
-});
-
-test("share: a Mac back on an older state waits while the file with the record is damaged, until it's read or given up", async () => {
-  const { emptyScope, run, mac, sentBy, damaged, lastFile, advance } = await scopeLevel();
-  const a = mac("A");
-  const stateA = emptyScope();
-  await run(a, stateA);
-  await run(a, stateA);
-  const withRecord = lastFile();
-  damaged.add(withRecord);
-
-  const b = mac("B", "Home");
-  const restored = { ...emptyScope(), joined: true };
-  await run(b, restored);
-  await run(b, restored);
-  assert.deepEqual(sentBy("B"), [], "nothing over a record that may be in the damaged file");
-  damaged.delete(withRecord);
-  await run(b, restored);
-  assert.deepEqual(sentBy("B"), []);
-  assert.deepEqual(restored.records["share:sWork"]?.v, { o: "sPersonal" }, "the record arrives once the file is readable");
-
-  const c = mac("C", "Home");
-  const lost = { ...emptyScope(), joined: true };
-  damaged.add(withRecord);
-  await run(c, lost);
-  advance(86_400_001);
-  await run(c, lost);
-  await run(c, lost);
-  assert.equal(sentBy("C").length, 1, "once the damaged file is given up, as the scope's policy says, it publishes its own");
-});
-
-test("a profile that shares data publishes prof: and share: together, so no Mac sees it without its sharing", async () => {
-  const { emptyScope, run, mac, sentBy, batchesBy, pending } = await scopeLevel();
-  const a = mac("A");
-  const state = emptyScope();
-  pending.add("stuck-download");
-  await run(a, state);
-  await run(a, state);
-  await run(a, state);
-  assert.deepEqual(sentBy("A", "prof:").map((op) => op.k), ["prof:sPersonal"], "Work waits with its share:");
-  assert.deepEqual(sentBy("A"), []);
-  pending.delete("stuck-download");
-  await run(a, state);
-  const batch = batchesBy("A").find((f) => f.ops?.some((op) => op.k === "prof:sWork"));
-  assert.ok(batch?.ops.some((op) => op.k === "share:sWork" && op.v?.o === "sPersonal"), "prof:Work and share:Work go out in one batch");
-});
-
-test("a download that never finishes holds a sharing profile back for a day, then no longer", async () => {
-  const { emptyScope, run, mac, sentBy, batchesBy, pending, advance } = await scopeLevel();
-  const a = mac("A");
-  const state = emptyScope();
-  pending.add("never-current");
-  await run(a, state);
-  await run(a, state);
-  advance(86_400_000 - 1_000);
-  await run(a, state);
-  assert.deepEqual(sentBy("A"), [], "within the day it waits for the download");
-  assert.ok(!sentBy("A", "prof:").some((op) => op.k === "prof:sWork"));
-  advance(2_000);
-  await run(a, state);
-  assert.ok(state.pendingSince?.["never-current"], "the download is still pending");
-  const batch = batchesBy("A").find((f) => f.ops?.some((op) => op.k === "prof:sWork"));
-  assert.ok(batch?.ops.some((op) => op.k === "share:sWork" && op.v?.o === "sPersonal"), "after the day both go out, in one batch");
-  pending.delete("never-current");
-});
-
-test("a pending or damaged file first seen while the clock ran ahead still stops counting a day after now", async () => {
-  const { emptyScope, run, mac, sentBy, pending, damaged, advance, lastFile } = await scopeLevel();
-  const MONTH = 30 * 86_400_000;
-  const a = mac("A");
-  const state = emptyScope();
-  await run(a, state);
-  pending.add("never-current");
-  state.pendingSince = { "never-current": advance(0) + MONTH };
-  await run(a, state);
-  assert.ok(state.pendingSince["never-current"] <= advance(0), "a first-seen time in the future is brought back to now");
-  advance(86_400_001);
-  await run(a, state);
-  await run(a, state);
-  assert.ok(sentBy("A").some((op) => op.k === "share:sWork"), "a day after now, not a month and a day");
-  pending.delete("never-current");
-
-  const b = mac("B", "Home");
-  const restored = { ...emptyScope(), joined: true };
-  const file = lastFile();
-  damaged.add(file);
-  restored.damaged = { [file]: advance(0) + MONTH };
-  await run(b, restored);
-  advance(86_400_001);
-  await run(b, restored);
-  assert.equal(restored.damaged[file], undefined, "the damaged file is given up a day after now");
-  damaged.delete(file);
-});
+const named = (name) => S().spaceOrder.find((id) => S().spaces[id].name === name);
 
 test("a Mac that joins is offered every profile it lacks, and Add All brings them over with their look", async () => {
   folder.clear();
@@ -502,61 +210,61 @@ test("a Mac that joins is offered every profile it lacks, and Add All brings the
   const engineA = await import("./engine.ts?offerA");
   const engineB = await import("./engine.ts?offerB");
   await a.with(() => {
-    S().createProfile({ name: "Work", color: "blue", icon: "briefcase" });
-    S().createProfile({ name: "Side Project", color: "orange", icon: "hammer" });
+    S().createSpace({ name: "Work", color: "blue", icon: "briefcase" });
+    S().createSpace({ name: "Side Project", color: "orange", icon: "hammer" });
   });
   await turnOn(a, engineA);
   await join(b, engineB);
   await b.with(async () => {
-    assert.equal(engineB.useSync.getState().profiles.default?.enabled, true, "Personal pairs with the synced default profile");
+    assert.equal(engineB.useSync.getState().spaces.default?.enabled, true, "Personal pairs with the synced default profile");
     assert.deepEqual(
-      engineB.useSync.getState().remoteProfiles.map((p) => [p.name, p.color, p.icon]),
+      engineB.useSync.getState().remoteSpaces.map((p) => [p.name, p.color, p.icon]),
       [
         ["Work", "blue", "briefcase"],
         ["Side Project", "orange", "hammer"],
       ],
     );
-    for (const p of engineB.useSync.getState().remoteProfiles) assert.ok(engineB.addRemoteProfile(p.syncId));
-    assert.deepEqual(engineB.useSync.getState().remoteProfiles, []);
+    for (const p of engineB.useSync.getState().remoteSpaces) assert.ok(engineB.addRemoteSpace(p.syncId));
+    assert.deepEqual(engineB.useSync.getState().remoteSpaces, []);
     assert.deepEqual(
-      S().profileOrder.map((id) => [S().profiles[id].name, S().profiles[id].color, S().profiles[id].icon]),
+      S().spaceOrder.map((id) => [S().spaces[id].name, S().spaces[id].color, S().spaces[id].icon]),
       [
-        ["Personal", S().profiles.default.color, S().profiles.default.icon],
+        ["Personal", S().spaces.default.color, S().spaces.default.icon],
         ["Work", "blue", "briefcase"],
         ["Side Project", "orange", "hammer"],
       ],
     );
     await engineB.syncNow();
-    assert.deepEqual(engineB.useSync.getState().remoteProfiles, [], "the added profiles pair with the synced ones instead of being offered again");
+    assert.deepEqual(engineB.useSync.getState().remoteSpaces, [], "the added spaces pair with the synced ones instead of being offered again");
   });
   await a.with(async () => {
     await engineA.syncNow();
-    assert.deepEqual(engineA.useSync.getState().remoteProfiles, [], "the first Mac isn't offered B's copies as new profiles");
+    assert.deepEqual(engineA.useSync.getState().remoteSpaces, [], "the first Mac isn't offered B's copies as new spaces");
   });
 });
 
-const syncIdOf = (engine, name) => engine.useSync.getState().profiles[named(name)]?.syncId;
+const syncIdOf = (engine, name) => engine.useSync.getState().spaces[named(name)]?.syncId;
 
-test("a Mac that joins before the other Mac's profiles reach the folder waits for them, then pairs Personal", async () => {
+test("a Mac that joins before the other Mac's spaces reach the folder waits for them, then pairs Personal", async () => {
   folder.clear();
   const a = new Mac("A");
   const b = new Mac("B");
   const engineA = await import("./engine.ts?earlyA");
   const engineB = await import("./engine.ts?earlyB");
   await a.with(async () => {
-    S().createProfile({ name: "Work" });
+    S().createSpace({ name: "Work" });
     engineA.startSync();
     assert.ok("ok" in (await engineA.turnOnSync("/sync")));
     await engineA.syncNow();
   });
-  assert.equal(published("prof:").length, 0, "the first Mac's first batch has its device but no profiles yet");
+  assert.equal(published("prof:").length, 0, "the first Mac's first batch has its device but no spaces yet");
 
   await join(b, engineB);
   await b.with(() => {
     const ui = engineB.useSync.getState();
-    assert.deepEqual(ui.profiles, {}, "no profile is paired from a folder with no profiles in it");
+    assert.deepEqual(ui.spaces, {}, "no profile is paired from a folder with no spaces in it");
     assert.equal(ui.joining, true);
-    assert.deepEqual(ui.remoteProfiles, []);
+    assert.deepEqual(ui.remoteSpaces, []);
   });
 
   await a.with(() => engineA.syncNow());
@@ -566,29 +274,29 @@ test("a Mac that joins before the other Mac's profiles reach the folder waits fo
     const ui = engineB.useSync.getState();
     assert.equal(syncIdOf(engineB, "Personal"), personalOnA, "Personal pairs with the synced default profile");
     assert.equal(ui.joining, false);
-    assert.deepEqual(ui.remoteProfiles.map((p) => p.name), ["Work"]);
+    assert.deepEqual(ui.remoteSpaces.map((p) => p.name), ["Work"]);
   });
   await a.with(async () => {
     await engineA.syncNow();
-    assert.deepEqual(engineA.useSync.getState().remoteProfiles, [], "the first Mac isn't offered a second Personal");
+    assert.deepEqual(engineA.useSync.getState().remoteSpaces, [], "the first Mac isn't offered a second Personal");
   });
 });
 
-test("a Mac that joins while the file with the profiles is still downloading pairs once it arrives", async () => {
+test("a Mac that joins while the file with the spaces is still downloading pairs once it arrives", async () => {
   folder.clear();
   const a = new Mac("A");
   const b = new Mac("B");
   const engineA = await import("./engine.ts?downloadA");
   const engineB = await import("./engine.ts?downloadB");
-  await a.with(() => S().createProfile({ name: "Work" }));
+  await a.with(() => S().createSpace({ name: "Work" }));
   await turnOn(a, engineA);
-  const withProfiles = [...folder].find(([, f]) => f.scope === "app" && f.payload.includes('"prof:'))?.[0];
+  const withProfiles = [...folder].find(([, f]) => f.scope === "workspace-v2" && f.payload.includes('"prof:'))?.[0];
   assert.ok(withProfiles);
   downloading.add(withProfiles);
   try {
     await join(b, engineB);
     await b.with(() => {
-      assert.deepEqual(engineB.useSync.getState().profiles, {}, "B has read A's device but not its profiles, so it doesn't pair yet");
+      assert.deepEqual(engineB.useSync.getState().spaces, {}, "B has read A's device but not its spaces, so it doesn't pair yet");
       assert.equal(engineB.useSync.getState().pending, 1);
     });
   } finally {
@@ -598,7 +306,7 @@ test("a Mac that joins while the file with the profiles is still downloading pai
   const personalOnA = await a.with(() => syncIdOf(engineA, "Personal"));
   await b.with(() => {
     assert.equal(syncIdOf(engineB, "Personal"), personalOnA);
-    assert.deepEqual(engineB.useSync.getState().remoteProfiles.map((p) => p.name), ["Work"]);
+    assert.deepEqual(engineB.useSync.getState().remoteSpaces.map((p) => p.name), ["Work"]);
   });
 });
 
@@ -629,7 +337,7 @@ test("a Mac that joins while every file from the other devices is still download
   }
 });
 
-test("a Mac that joins a folder whose other devices sync no profiles pairs on its own after a day", async () => {
+test("a Mac that joins a folder whose other devices sync no spaces pairs on its own after a day", async () => {
   folder.clear();
   const a = new Mac("A");
   const b = new Mac("B");
@@ -639,7 +347,7 @@ test("a Mac that joins a folder whose other devices sync no profiles pairs on it
     engineA.startSync();
     assert.ok("ok" in (await engineA.turnOnSync("/sync")));
     await engineA.syncNow();
-    engineA.setProfileSynced("default", false);
+    engineA.setSpaceSynced("default", false);
     await engineA.syncNow();
   });
   await join(b, engineB);
