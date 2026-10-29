@@ -11,14 +11,18 @@ const GOOGLE_SCOPE = "https://www.googleapis.com/auth/drive.metadata.readonly";
 
 let pending: { cancel(): void } | null = null;
 
-function query(url: string): Map<string, string> {
+function query(url: string): Map<string, string> | null {
   const search = url.split("#")[0]!.split("?")[1] ?? "";
-  return new Map(
-    search
-      .split("&")
-      .filter(Boolean)
-      .map((pair) => pair.split("=").map((v) => decodeURIComponent(v.replace(/\+/g, " "))) as [string, string]),
-  );
+  try {
+    return new Map(
+      search
+        .split("&")
+        .filter(Boolean)
+        .map((pair) => pair.split("=").map((v) => decodeURIComponent(v.replace(/\+/g, " "))) as [string, string]),
+    );
+  } catch {
+    return null;
+  }
 }
 
 export const cancelSignIn = () => pending?.cancel();
@@ -33,7 +37,7 @@ export function authorizeInTab(windowId: string, url: string, state: string): Pr
       if (!tab) return finish(new Error("Sign-in was cancelled"));
       if (!tab.url.startsWith(OAUTH_REDIRECT)) return;
       const params = query(tab.url);
-      if (params.get("state") !== state) return finish(new Error("Sign-in didn't match this request"));
+      if (params?.get("state") !== state) return finish(new Error("Sign-in didn't match this request"));
       finish(null, params);
       useBrowser.getState().closeTab(tabId);
     });
