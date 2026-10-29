@@ -6,7 +6,7 @@ const savedBeforeOptions = { id: "old", profileId: "p", kind: "pullRequests", na
 docs.set("live.json", JSON.stringify({ folders: { old: savedBeforeOptions }, folderOrder: ["old"] }));
 const { manualRefresh, refreshFolder } = await import("./engine.ts");
 const { SOURCES } = await import("./sources.ts");
-const { folderRows, liveTabPlace } = await import("./rows.ts");
+const { folderRows, liveTabOpen, liveTabPlace } = await import("./rows.ts");
 const { applyFetch, createFolder, finishCompleting, hideItems, live, markUnread, removeFolder, showAllIn, toggleStack, updateFolder } = await import("./store.ts");
 
 const pr = (id, number, headRef, baseRef) => ({
@@ -166,6 +166,18 @@ test("a refresh doesn't ask about hidden pull requests from a source the folder 
   }
   assert.deepEqual(asked, []);
   assert.deepEqual(live().hidden[id].map((it) => it.id), ["x"]);
+});
+
+test("a pull request counts as open while any window has its tab, so another window never offers to hide it", () => {
+  const tabs = {
+    a: { id: "a", windowId: "w1", liveItem: { folderId: "f", itemId: "pr1" } },
+    b: { id: "b", windowId: "w2", liveItem: { folderId: "other", itemId: "pr2" } },
+    c: { id: "c", windowId: "w2" },
+  };
+  assert.equal(liveTabOpen(tabs, "f", ["pr1"]), true);
+  assert.equal(liveTabOpen(tabs, "f", ["pr2"]), false, "the same item id in another folder is a different pull request");
+  assert.equal(liveTabOpen(tabs, "f", ["pr3", "pr1"]), true, "a stack is open when any of its pull requests is");
+  assert.equal(liveTabOpen(tabs, "f", ["pr3"]), false);
 });
 
 test("an open tab of a hidden pull request stays out of the folder instead of coming back as a stray row", () => {
