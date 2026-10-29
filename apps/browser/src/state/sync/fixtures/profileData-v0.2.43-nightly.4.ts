@@ -3,7 +3,7 @@ import { addHistoryVisits, deleteHistoryUrls } from "../../../platform/history";
 import { bookmarkUuidFor, isBookmarkUuid, rootIdsFor } from "../../bookmarks/bookmarks";
 import { MAX_HISTORY, MAX_VISIT_TIMES } from "../../history/history";
 import { useBrowser, type BrowserState } from "../../browser/store";
-import { engineProfile } from "../../browser/model";
+import { engineProfileForSpace } from "../../browser/model";
 import type { BookmarkNode, HistoryEntry } from "../../browser/types";
 
 type Bookmarks = { nodes: Record<string, BookmarkNode>; roots: Record<string, { bar: string; other: string }> };
@@ -22,26 +22,26 @@ function setStore(patch: Partial<ProfileDataState> | ((s: ProfileDataState) => P
   useBrowser.setState((s) => (typeof patch === "function" ? patch(s as unknown as ProfileDataState) : patch) as unknown as Partial<BrowserState>);
 }
 
-function ensureRoots(b: Bookmarks, profileId: string): [Bookmarks, { bar: string; other: string }] {
-  const existing = b.roots[profileId];
+function ensureRoots(b: Bookmarks, spaceId: string): [Bookmarks, { bar: string; other: string }] {
+  const existing = b.roots[spaceId];
   if (existing) return [b, existing];
-  const roots = rootIdsFor(engineProfile(useBrowser.getState(), profileId));
+  const roots = rootIdsFor(engineProfileForSpace(useBrowser.getState(), spaceId));
   const nodes = { ...b.nodes };
   nodes[roots.bar] ??= { kind: "folder", id: roots.bar, parentId: null, title: "Bookmarks Bar", children: [], addedAt: 0 };
   nodes[roots.other] ??= { kind: "folder", id: roots.other, parentId: null, title: "Other Bookmarks", children: [], addedAt: 0 };
-  return [{ nodes, roots: { ...b.roots, [profileId]: roots } }, roots];
+  return [{ nodes, roots: { ...b.roots, [spaceId]: roots } }, roots];
 }
 
 type BookmarkValue = { k: "u" | "f"; p: string; t: string; u?: string; a: number; pos: string };
 
-export function bookmarksAdapter(profileId: string): Adapter {
-  const ready = () => !!store().bookmarksReady[profileId];
+export function bookmarksAdapter(spaceId: string): Adapter {
+  const ready = () => !!store().bookmarksReady[spaceId];
   return {
     prefix: "bm:",
     extract: (base) => {
       if (!ready()) return null;
       const b = store().bookmarks;
-      const roots = b.roots[profileId];
+      const roots = b.roots[spaceId];
       const values = new Map<string, unknown>();
       if (!roots) return { values };
       const keyOf = (id: string) => {
@@ -83,7 +83,7 @@ export function bookmarksAdapter(profileId: string): Adapter {
     apply: (visible) => {
       if (!ready()) return false;
       const s = store();
-      const [b, roots] = ensureRoots(s.bookmarks, profileId);
+      const [b, roots] = ensureRoots(s.bookmarks, spaceId);
       const values = new Map([...visible].map(([k, v]) => [bookmarkUuidFor(k.slice(3)), v as BookmarkValue]));
       const keys = new Map([...visible.keys()].map((k) => [bookmarkUuidFor(k.slice(3)), k.slice(3)]));
       const rootOf = (key: string) => (key === "bar" ? roots.bar : key === "other" ? roots.other : null);
@@ -148,8 +148,8 @@ const SAME_VISIT_MS = 1;
 export const historyExpired = (key: string, value: unknown, now: number) =>
   key.startsWith("h:") && lastVisitOf(value as HistoryValue) < now - HISTORY_WINDOW_MS;
 
-export function historyAdapter(profileId: string): Adapter {
-  const ready = () => !!store().historyReady[profileId];
+export function historyAdapter(spaceId: string): Adapter {
+  const ready = () => !!store().historyReady[spaceId];
   return {
     prefix: "h:",
     extract: (base) => {
@@ -157,8 +157,8 @@ export function historyAdapter(profileId: string): Adapter {
       const since = Date.now() - HISTORY_WINDOW_MS;
       const values = new Map<string, unknown>();
       const older = new Set<string>();
-      const view = store().history[profileId] ?? [];
-      const floor = store().historyFloor[profileId] ?? -Infinity;
+      const view = store().history[spaceId] ?? [];
+      const floor = store().historyFloor[spaceId] ?? -Infinity;
       for (const e of view) {
         if (!keptInHistory(e.url)) continue;
         const key = `h:${e.url}`;
@@ -182,7 +182,7 @@ export function historyAdapter(profileId: string): Adapter {
     apply: async (visible, changed) => {
       if (!ready()) return false;
       const since = Date.now() - HISTORY_WINDOW_MS;
-      const byUrl = new Map((store().history[profileId] ?? []).map((e) => [e.url, e]));
+      const byUrl = new Map((store().history[spaceId] ?? []).map((e) => [e.url, e]));
       const add: { url: string; title: string; visitTimes: number[] }[] = [];
       const remove: string[] = [];
       const updates = new Map<string, HistoryEntry | null>();
@@ -211,10 +211,10 @@ export function historyAdapter(profileId: string): Adapter {
         }
       }
       if (!updates.size) return;
-      const engine = engineProfile(useBrowser.getState(), profileId);
+      const engine = engineProfileForSpace(useBrowser.getState(), spaceId);
       await Promise.all([addHistoryVisits(engine, add, SAME_VISIT_MS), deleteHistoryUrls(engine, remove)]);
       setStore((s) => {
-        const current = new Map((s.history[profileId] ?? []).map((e) => [e.url, e]));
+        const current = new Map((s.history[spaceId] ?? []).map((e) => [e.url, e]));
         for (const [url, update] of updates) {
           const now = current.get(url);
           if (!update) current.delete(url);
@@ -225,7 +225,7 @@ export function historyAdapter(profileId: string): Adapter {
           }
         }
         const list = [...current.values()].sort((a, z) => z.lastVisit - a.lastVisit).slice(0, MAX_HISTORY);
-        return { history: { ...s.history, [profileId]: list } };
+        return { history: { ...s.history, [spaceId]: list } };
       });
     },
   };

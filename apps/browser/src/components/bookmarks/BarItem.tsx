@@ -1,6 +1,6 @@
 import { forwardRef, useMemo, useRef, type ReactNode } from "react";
 import { Animated, PanResponder, Pressable, StyleSheet, View, type LayoutRectangle } from "react-native";
-import { useBookmarkProfileId, useBookmarks, useSidebarEdge } from "../../state/bookmarks/hooks";
+import { useBookmarkSpaceId, useBookmarks, useSidebarEdge } from "../../state/bookmarks/hooks";
 import { openModeFor, openUrl } from "../../state/bookmarks/actions";
 import { barDragging, beginBookmarkDrag, endBookmarkDrag, moveBookmarkDrag, useBarDrag } from "../../state/bookmarks/barDrag";
 import { folderMenuOpen, openFolderMenu, toggleFolderMenu, useFolderMenus } from "../../state/bookmarks/folderMenus";
@@ -55,14 +55,14 @@ export function useBookmarkDragResponder(
 export function BarItem({
   id,
   windowId,
-  profileId,
+  spaceId,
   hidden,
   offset,
   onLayout,
 }: {
   id: string;
   windowId: string;
-  profileId: string;
+  spaceId: string;
   hidden: boolean;
   offset: number;
   onLayout: (r: LayoutRectangle) => void;
@@ -99,7 +99,7 @@ export function BarItem({
       pointerEvents={hidden ? "none" : "auto"}
       style={{ opacity: hidden || dragging ? 0 : 1, marginRight: size.itemGap, transform: [{ translateX: shift }] }}
     >
-      <ContextMenuArea onContextMenu={() => void openBarMenu(windowId, profileId, node)}>
+      <ContextMenuArea onContextMenu={() => void openBarMenu(windowId, spaceId, node)}>
         <MouseArea onMiddleClick={(e) => open({ ...e, middle: true })}>
           <BarButton
             favicon={node.kind === "url" ? node : undefined}
@@ -191,8 +191,8 @@ export type IconMetrics = Pick<BarSize, "favicon" | "icon" | "iconBox">;
 
 export function ChipIcon({ size, favicon, icon }: { size: IconMetrics; favicon?: { url: string; favicon: string | null }; icon?: string }) {
   const theme = useTheme();
-  const profileId = useBookmarkProfileId(useWindowId());
-  if (favicon) return <Favicon url={favicon.url} favicon={favicon.favicon} size={size.favicon} profileId={profileId} />;
+  const spaceId = useBookmarkSpaceId(useWindowId());
+  if (favicon) return <Favicon url={favicon.url} favicon={favicon.favicon} size={size.favicon} spaceId={spaceId} />;
   if (icon) return <Symbol name={icon} size={size.icon} color={theme.icon} style={{ width: size.iconBox, height: size.iconBox }} />;
   return null;
 }

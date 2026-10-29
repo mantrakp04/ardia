@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { newTabLingeringOver, successorWhenLeaving, useMountedTabIds, useShownPaneKeys, useSplitsOf, useWarmTabIds, wakePanes } from "../../state/windows/card";
-import { pagerFor } from "../../state/windows/profilePager";
+import { pagerFor } from "../../state/windows/spacePager";
 import { useTabDrag } from "../../state/drag/tabDrag";
 import type { SplitView } from "../../state/browser/types";
 import { splitGeometry, type Rect } from "./geometry";

@@ -51,7 +51,7 @@ test("closing a pinned tab with regular tabs unloads it and closes only those", 
   assert.equal(!!S().tabs[a].page.nav || !!S().tabs[a].page.adopt, false, "unloaded");
   assert.equal(S().tabs[b], undefined);
   assert.ok(S().windows[w]);
-  assert.equal(S().windows[w].activeTabIds[S().windows[w].profileId], c);
+  assert.equal(S().windows[w].activeTabIds[S().windows[w].spaceId], c);
 });
 
 test("what ✕ does: close a tab, unload an open pin, remove a closed pinned row", () => {

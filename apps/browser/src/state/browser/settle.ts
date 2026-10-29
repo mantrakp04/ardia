@@ -1,3 +1,4 @@
+import { mirrorTopApps } from "../pins/topApps";
 import type { BrowserState } from "./store";
 import { settleNesting } from "../groups/groups";
 import { forgetClosedWindowMutes } from "../tabs/mute";
@@ -30,6 +31,7 @@ export const SETTLE_STEPS: readonly (readonly [string, SettleStep])[] = [
   ["pagesIntoSplits", pagesIntoSplits],
   ["settleSharedPins", settleSharedPins],
   ["settleTileFolders", settleTileFolders],
+  ["mirrorTopApps", mirrorTopApps],
   ["mirrorPins", mirrorPins],
   ["mirrorTabs", mirrorTabs],
   ["pinnedTabsLeaveLive", patched(pinnedTabsLeaveLive)],

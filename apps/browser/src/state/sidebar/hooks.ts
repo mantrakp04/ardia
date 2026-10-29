@@ -44,13 +44,13 @@ export const useCapturedGroupEntries = (groupId: string, captured: Capture) =>
     }),
   );
 
-export const useCapturedSidebarEntries = (windowId: string, profileId: string, captured: Capture) =>
+export const useCapturedSidebarEntries = (windowId: string, spaceId: string, captured: Capture) =>
   useBrowser((s) => {
-    const entries = sidebarEntries(s, windowId, profileId);
+    const entries = sidebarEntries(s, windowId, spaceId);
     return capture(captured, s, entries.list, entries);
   });
 
-export const useKeptEntry = (windowId: string, profileId: string, entries: string[]) => useBrowser((s) => keptEntry(s, windowId, profileId, entries));
+export const useKeptEntry = (windowId: string, spaceId: string, entries: string[]) => useBrowser((s) => keptEntry(s, windowId, spaceId, entries));
 
 export const usePinnedCollapsed = (profileId: string) => useBrowser((s) => pinnedCollapsed(s, profileId));
 
@@ -60,20 +60,20 @@ export const useGroupFirstTabIcon = (groupId: string) =>
   useBrowser(
     useShallow((s) => {
       const t = s.tabs[s.groups[groupId]?.tabIds[0] ?? ""];
-      return t && { url: t.url, favicon: t.favicon, customIcon: t.customIcon, profileId: t.profileId };
+      return t && { url: t.url, favicon: t.favicon, customIcon: t.customIcon, spaceId: t.spaceId };
     }),
   );
 
 export const useHasDownloads = (windowId: string) => useBrowser((s) => downloadsIn(s, windowId).length > 0);
 
-export const useNoTiles = (windowId: string, profileId: string) => useBrowser((s) => sidebarEntries(s, windowId, profileId).tiles.length === 0);
+export const useNoTiles = (windowId: string, spaceId: string) => useBrowser((s) => sidebarEntries(s, windowId, spaceId).tiles.length === 0);
 
 const NO_CELLS: string[] = [];
 
-export const useSidebarCells = (windowId: string, profileId: string, offScreen: boolean) =>
-  useBrowser((s) => (offScreen ? NO_CELLS : sidebarEntries(s, windowId, profileId).cells));
+export const useSidebarCells = (windowId: string, spaceId: string, offScreen: boolean) =>
+  useBrowser((s) => (offScreen ? NO_CELLS : sidebarEntries(s, windowId, spaceId).cells));
 
-export const useCanTidyPins = (windowId: string, profileId: string, offScreen: boolean) => useBrowser((s) => !offScreen && canTidyPins(s, windowId, profileId));
+export const useCanTidyPins = (windowId: string, spaceId: string, offScreen: boolean) => useBrowser((s) => !offScreen && canTidyPins(s, windowId, spaceId));
 
 export const useCleanedCount = (windowId: string) => useBrowser((s) => cleanedTabsFor(s, windowId).length);
 
@@ -96,22 +96,22 @@ export const useClosedTabs = () => useBrowser((s) => s.closedTabs);
 
 export const useClosedGroups = () => useBrowser((s) => s.closedGroups);
 
-export const useLiveStrays = (windowId: string, profileId: string, folderId: string, itemIds: Set<string>, hiddenIds: Set<string>) =>
+export const useLiveStrays = (windowId: string, spaceId: string, folderId: string, itemIds: Set<string>, hiddenIds: Set<string>) =>
   useBrowser(
     useShallow((s) =>
-      viewTabIds(s, windowId, profileId).filter((id) => s.tabs[id]?.liveItem?.folderId === folderId && liveTabPlace(s.tabs[id]!.liveItem!.itemId, itemIds, hiddenIds) === "stray"),
+      viewTabIds(s, windowId, spaceId).filter((id) => s.tabs[id]?.liveItem?.folderId === folderId && liveTabPlace(s.tabs[id]!.liveItem!.itemId, itemIds, hiddenIds) === "stray"),
     ),
   );
 
-export const useLiveActiveTab = (windowId: string, profileId: string, folderId: string, itemIds: Set<string>, hiddenIds: Set<string>) =>
+export const useLiveActiveTab = (windowId: string, spaceId: string, folderId: string, itemIds: Set<string>, hiddenIds: Set<string>) =>
   useBrowser((s) => {
-    const id = activeTabId(s, windowId, profileId) ?? "";
+    const id = activeTabId(s, windowId, spaceId) ?? "";
     const liveItem = s.tabs[id]?.liveItem;
     return liveItem?.folderId === folderId && liveTabPlace(liveItem.itemId, itemIds, hiddenIds) !== "hidden" ? id : null;
   });
 
-export const useLiveItemTab = (windowId: string, profileId: string, folderId: string, itemId: string) =>
-  useBrowser((s) => viewTabIds(s, windowId, profileId).find((id) => s.tabs[id]?.liveItem?.itemId === itemId && s.tabs[id]?.liveItem?.folderId === folderId) ?? null);
+export const useLiveItemTab = (windowId: string, spaceId: string, folderId: string, itemId: string) =>
+  useBrowser((s) => viewTabIds(s, windowId, spaceId).find((id) => s.tabs[id]?.liveItem?.itemId === itemId && s.tabs[id]?.liveItem?.folderId === folderId) ?? null);
 
-export const useIsActiveIn = (windowId: string, profileId: string, tabId: string | null) => useBrowser((s) => !!tabId && activeTabId(s, windowId, profileId) === tabId);
+export const useIsActiveIn = (windowId: string, spaceId: string, tabId: string | null) => useBrowser((s) => !!tabId && activeTabId(s, windowId, spaceId) === tabId);
 

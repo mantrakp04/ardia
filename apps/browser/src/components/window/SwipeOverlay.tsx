@@ -259,8 +259,8 @@ export function SwipeOverlay({ tabId }: { tabId: string }) {
 
 function DestinationList({ tabId, items, selected, appear, pill }: { tabId: string; items: HistoryItem[]; selected: number; appear: Animated.Value; pill: Animated.Value }) {
   const theme = useTheme();
-  const profileId = useTab(tabId, (t) => t?.profileId ?? "");
-  const favicons = useMemo(() => historyFavicons(profileId, items), [items, profileId]);
+  const spaceId = useTab(tabId, (t) => t?.spaceId ?? "");
+  const favicons = useMemo(() => historyFavicons(spaceId, items), [items, spaceId]);
   return (
     <Animated.View
       style={{

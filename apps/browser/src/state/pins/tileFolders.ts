@@ -32,12 +32,12 @@ export function tileCells(tabs: Record<string, Tab>, tiles: string[]): string[] 
 }
 
 export function folderMembers(s: Pick<BrowserState, "tabs" | "windows">, windowId: string, folderId: string): string[] {
-  let profileId: string | undefined;
+  let spaceId: string | undefined;
   return (s.windows[windowId]?.tabIds ?? []).filter((id) => {
     const t = s.tabs[id];
     if (tileFolderOf(t)?.id !== folderId) return false;
-    profileId ??= t!.profileId;
-    return t!.profileId === profileId;
+    spaceId ??= t!.spaceId;
+    return t!.spaceId === spaceId;
   });
 }
 
@@ -56,7 +56,7 @@ const after = (s: BrowserState, windowId: string, anchor: string | undefined, sk
 
 function sameWindow(s: BrowserState, ids: string[], anchor: Tab): string[] {
   const order = s.windows[anchor.windowId]?.tabIds ?? [];
-  return [...new Set(ids)].filter((id) => s.tabs[id]?.windowId === anchor.windowId && s.tabs[id]!.profileId === anchor.profileId).sort((a, z) => order.indexOf(a) - order.indexOf(z));
+  return [...new Set(ids)].filter((id) => s.tabs[id]?.windowId === anchor.windowId && s.tabs[id]!.spaceId === anchor.spaceId).sort((a, z) => order.indexOf(a) - order.indexOf(z));
 }
 
 export function addToTileFolder(s: BrowserState, ids: string[], ontoId: string, beforeId?: string | null): BrowserState {
@@ -114,7 +114,7 @@ function membersByWindow(tabs: Record<string, Tab>, windows: BrowserState["windo
     for (const id of w.tabIds) {
       const folder = tileFolderOf(tabs[id]);
       if (!folder || !folders.has(folder.id)) continue;
-      const key = `${w.id}\u0001${tabs[id]!.profileId}\u0001${folder.id}`;
+      const key = `${w.id}\u0001${tabs[id]!.spaceId}\u0001${folder.id}`;
       out.get(key)?.push(id) ?? out.set(key, [id]);
     }
   }
@@ -133,14 +133,14 @@ const parkedFolders = (park: ParkedPins | undefined) => {
 function settleParked(s: BrowserState, prev: BrowserState): BrowserState["parkedPins"] | null {
   if (s.parkedPins === prev.parkedPins) return null;
   let out: BrowserState["parkedPins"] | null = null;
-  for (const [profileId, park] of Object.entries(s.parkedPins)) {
-    if (park === prev.parkedPins[profileId]) continue;
+  for (const [spaceId, park] of Object.entries(s.parkedPins)) {
+    if (park === prev.parkedPins[spaceId]) continue;
     const now = parkedFolders(park);
-    const before = parkedFolders(prev.parkedPins[profileId]);
+    const before = parkedFolders(prev.parkedPins[spaceId]);
     const alone = new Set([...now].filter(([id, n]) => n === 1 && (before.get(id) ?? 0) >= 2).map(([id]) => id));
     if (!alone.size) continue;
     const tabs = park.tabs.map((p) => (alone.has(tileFolderOf(p)?.id ?? "") ? withTileFolder(p, undefined) : p));
-    (out ??= { ...s.parkedPins })[profileId] = { ...park, tabs };
+    (out ??= { ...s.parkedPins })[spaceId] = { ...park, tabs };
   }
   return out;
 }
@@ -154,7 +154,7 @@ export function settleTileFolders(s: BrowserState, prev: BrowserState): BrowserS
     const now = s.tabs[id];
     const was = prev.tabs[id];
     const wasIn = tileFolderOf(was)?.id;
-    const otherProfile = !!now && !!was && now.profileId !== was.profileId;
+    const otherProfile = !!now && !!was && now.spaceId !== was.spaceId;
     const moved = otherProfile || (!!now && !!was && now.windowId !== was.windowId);
     if (tileFolderOf(now) && otherProfile) (tabs ??= { ...s.tabs })[id] = withTileFolder(now!, undefined);
     const isIn = tileFolderOf((tabs ?? s.tabs)[id])?.id;

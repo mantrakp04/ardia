@@ -12,23 +12,23 @@ import { DownloadMagnet, DownloadsPopover } from "./components/downloads/Downloa
 import { UtilityWindow } from "./components/settings/UtilityWindow";
 import { isUtilityWindowId } from "./state/settings/settingsWindows";
 import { OnboardingOverlay } from "./components/onboarding";
-import { CreateProfileHost } from "./components/profiles/CreateProfile";
+import { CreateSpaceHost } from "./components/spaces/CreateSpace";
 import { useFullscreenTab } from "./state/tabs/pageState";
-import { ProfileTint } from "./components/window/ProfileSwipe";
+import { SpaceTint } from "./components/window/SpaceSwipe";
 import { TOP_STRIP_HEIGHT, TopStripPeek, TopTabStrip } from "./components/tabstrip/TopTabStrip";
 import { useTabLayout } from "./state/windows/layout";
-import { WindowProfile } from "./components/window/WindowProfile";
+import { WindowSpace } from "./components/window/WindowSpace";
 import { DockedLayout } from "./components/window/SidebarDock";
 import { LittleArdiaWindow } from "./components/littleArdia/LittleArdiaWindow";
 import { SidebarOverlays } from "./components/sidebar/Overlays";
-import { layout, profileAccent, profileTheme, useTheme } from "./components/ui/theme";
+import { layout, spaceAccent, profileTheme, useTheme } from "./components/ui/theme";
 import { ThemeScope } from "./components/window/ThemeScope";
 import { useBrowser } from "./state/browser/store";
 import { useWindowId, WindowContext } from "./state/browser/hooks";
-import { provideProfileLooks } from "./state/profiles/looks";
+import { provideProfileLooks } from "./state/spaces/looks";
 import { focusedWindowOf } from "./state/windows/ui";
 
-provideProfileLooks({ accent: profileAccent, theme: profileTheme });
+provideProfileLooks({ accent: spaceAccent, theme: profileTheme });
 
 export function WindowRoot({ windowId }: { windowId?: string }) {
   if (isUtilityWindowId(windowId))
@@ -68,8 +68,8 @@ function BrowserWindow() {
   return (
     <View style={{ flex: 1, flexDirection: "row" }} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
       <WindowBackdrop vibrancy {...theme.backdrop} colors={theme.windowTint} grainOpacity={theme.grain} style={StyleSheet.absoluteFill} />
-      <WindowProfile />
-      <ProfileTint />
+      <WindowSpace />
+      <SpaceTint />
       <DockedLayout
         fullscreen={fullscreen}
         topTabs={topTabs}
@@ -89,7 +89,7 @@ function BrowserWindow() {
       <DownloadMagnet />
       <BookmarkDialog />
       <EditBookmarkDialog />
-      <CreateProfileHost />
+      <CreateSpaceHost />
       <SidebarOverlays windowWidth={width} />
       <OnboardingOverlay />
     </View>

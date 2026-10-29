@@ -26,7 +26,7 @@ function dockWith() {
 }
 
 const dockSlots = (w) =>
-  stripEntries(S(), w, S().windows[w].profileId).flatMap((e) => (e.kind === "dock" ? e.ids.filter((cell) => !e.members.has(cell)).map((cell) => ({ tabIds: [cell] })) : []));
+  stripEntries(S(), w, S().windows[w].spaceId).flatMap((e) => (e.kind === "dock" ? e.ids.filter((cell) => !e.members.has(cell)).map((cell) => ({ tabIds: [cell] })) : []));
 
 const dock = (w) => {
   const pinned = S().windows[w].tabIds.filter((id) => !!S().tabs[id].pin);
@@ -113,7 +113,7 @@ test("clicks: ⌘ adds to the selection from the shown tab, ⇧ selects the rang
   reset();
   const { w, ids: [a, b, c, d] } = windowWith("a", "b", "c", "d");
   S().clickTab(w, b);
-  assert.equal(S().windows[w].activeTabIds[S().windows[w].profileId], b);
+  assert.equal(S().windows[w].activeTabIds[S().windows[w].spaceId], b);
   S().clickTab(w, d, { metaKey: true });
   assert.deepEqual(S().selection[w], [b, d]);
   S().clickTab(w, a, { shiftKey: true });
@@ -122,7 +122,7 @@ test("clicks: ⌘ adds to the selection from the shown tab, ⇧ selects the rang
   assert.deepEqual(S().selection[w], [a, c, d]);
   S().clickTab(w, c);
   assert.deepEqual(S().selection[w], []);
-  assert.equal(S().windows[w].activeTabIds[S().windows[w].profileId], c);
+  assert.equal(S().windows[w].activeTabIds[S().windows[w].spaceId], c);
   S().clickTab(w, c, { metaKey: true });
   assert.deepEqual(S().selection[w], [], "⌘-clicking the shown tab alone selects nothing");
 });

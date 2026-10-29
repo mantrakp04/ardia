@@ -10,17 +10,37 @@ export type Frame = [number, number, number, number];
 export type Profile = {
   id: string;
   name: string;
+  icon: string | null;
+  engineId: string;
+  createdAt: number;
+};
+
+export type TopApp = {
+  key: string;
+  url: string;
+  title: string;
+  favicon: string | null;
+  customTitle: string | null;
+  customIcon: string | null;
+  tileFolder?: TileFolder;
+};
+
+export type Space = {
+  id: string;
+  name: string;
   color: ProfileColor;
   icon: string | null;
   createdAt: number;
-  dataId?: string;
+  profileId: string;
   theme?: ProfileTheme | null;
   pinnedCollapsed?: boolean;
 };
 
 type WindowBase = {
+  originalSpaceId?: string;
+  incognitoEngineId?: string;
   id: string;
-  profileId: string;
+  spaceId: string;
   tabIds: string[];
   activeTabIds: Record<string, string>;
   sidebarOpen: boolean;
@@ -41,7 +61,7 @@ export type MainWindow = Extract<BrowserWindow, { kind: "main" }>;
 export type Tab = {
   id: string;
   windowId: string;
-  profileId: string;
+  spaceId: string;
   url: string;
   title: string;
   favicon: string | null;
@@ -91,7 +111,7 @@ export type ClosedGroupInfo = Pick<TabGroup, "id" | "name" | "icon" | "color"> &
 export type TabGroup = {
   id: string;
   windowId: string;
-  profileId: string;
+  spaceId: string;
   name: string;
   icon: string | null;
   color: GroupColor | null;
@@ -135,7 +155,7 @@ export type Bookmarks = {
 
 export type TabSnapshot = Pick<
   Tab,
-  "url" | "title" | "favicon" | "pin" | "muted" | "zoom" | "customTitle" | "customIcon" | "profileId"
+  "url" | "title" | "favicon" | "pin" | "muted" | "zoom" | "customTitle" | "customIcon" | "spaceId"
 > &
   Partial<Pick<Tab, "pinnedUrl" | "engine">>;
 
@@ -157,7 +177,7 @@ export type ClosedTab = {
 export type ClosedWindow = {
   kind: "window";
   id: string;
-  window: Pick<BrowserWindow, "profileId" | "sidebarOpen" | "frame">;
+  window: Pick<BrowserWindow, "spaceId" | "sidebarOpen" | "frame">;
   tabs: (TabSnapshot & { active: boolean; tabId?: string })[];
   groups: (Omit<TabGroup, "tabIds" | "windowId"> & { tabIndexes: number[] })[];
   closedAt: number;

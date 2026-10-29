@@ -3,7 +3,7 @@ import type { StripGroup, StripState, StripTab } from "../../platform/tabs";
 import type { BrowserState } from "../browser/store";
 import type { TabGroup } from "../browser/types";
 import { rootOf } from "../groups/groups";
-import { engineProfile } from "../browser/model";
+import { engineProfileForSpace } from "../browser/model";
 import { forgetOpeners, switchKeepsOpeners } from "./openers";
 import { groupOf, withGroup } from "../pins/tabGrouping";
 import { placing } from "../pins/placing";
@@ -40,12 +40,12 @@ export function chromeChanged(
 ): BrowserState {
   const { seen, siblings = [], pending = NOTHING_PENDING, groups = new Map() } = context;
   const was = new Map((before?.tabs ?? []).map((t) => [t.browser, t]));
-  const now = after.tabs.filter((t): t is Keyed => known(s, t));
+  const now = after.tabs.filter((t): t is Keyed => known(s, t) && engineProfileForSpace(s.tabs[t.key]!.spaceId) === after.profile);
   const stayed = (t: Keyed) => was.get(t.browser)?.key === t.key;
   const firstFromChrome = (t: Keyed) => !stayed(t) && !seen.has(t.key) && madeByChrome(s, t.key);
   const home = homeWindow(s, after, siblings, stayed);
   const movedIn = (t: Keyed) =>
-    !was.has(t.browser) && !!home && s.tabs[t.key]!.windowId !== home && engineProfile(s, s.tabs[t.key]!.profileId) === after.profile;
+    !was.has(t.browser) && !!home && s.tabs[t.key]!.windowId !== home && engineProfileForSpace(s.tabs[t.key]!.spaceId) === after.profile;
   const taken = new Set(now.filter((t) => firstFromChrome(t) || movedIn(t)).map((t) => t.key));
 
   for (const t of now) if (movedIn(t)) s = intoWindow(s, t.key, home!);
@@ -122,11 +122,27 @@ function groupsChanged(
       continue;
     }
     const id = bound.get(token);
+    const members = now.filter((x) => x.group === token && s.tabs[x.key] && !s.tabs[x.key]!.pin).map((x) => x.key);
+    const window = s.windows[s.tabs[t.key]!.windowId];
+    const existingSpace = id && s.groups[id]?.spaceId;
+    const memberSpaces = new Set(members.map((key) => s.tabs[key]!.spaceId));
+    const destination = existingSpace || (window && memberSpaces.has(window.spaceId) ? window.spaceId : s.spaceOrder.find((key) => memberSpaces.has(key)));
+    if (destination && window && members.some((key) => s.tabs[key]!.spaceId !== destination)) {
+      const tabs = { ...s.tabs };
+      for (const key of members) tabs[key] = { ...tabs[key]!, spaceId: destination };
+      const activeTabIds = { ...window.activeTabIds };
+      for (const source of memberSpaces) {
+        if (source === destination || !members.includes(activeTabIds[source] ?? "")) continue;
+        const next = window.tabIds.find((key) => tabs[key]?.spaceId === source);
+        if (next) activeTabIds[source] = next;
+        else delete activeTabIds[source];
+      }
+      s = { ...s, tabs, windows: { ...s.windows, [window.id]: { ...window, activeTabIds } } };
+    }
     if (id && s.groups[id]) {
       if (current?.id !== id) s = regroupInPlace(s, t.key, id);
       continue;
     }
-    const members = now.filter((x) => x.group === token && s.tabs[x.key] && !s.tabs[x.key]!.pin).map((x) => x.key);
     const [next, made] = withGroup(s, members, { pinned: false, name: looks.get(token)?.title ?? "", parentId: null });
     if (!made) continue;
     bound.set(token, made);
@@ -197,7 +213,7 @@ function homeWindow(s: BrowserState, strip: StripState, siblings: StripState[], 
 
 const shownIn = (s: BrowserState, key: string) => {
   const tab = s.tabs[key]!;
-  return s.windows[tab.windowId]?.activeTabIds[tab.profileId] === key;
+  return s.windows[tab.windowId]?.activeTabIds[tab.spaceId] === key;
 };
 
 function keptOrder<T>(items: T[], oldIndex: (t: T) => number, weight: (t: T) => number): T[] {
@@ -277,9 +293,9 @@ function intoWindow(s: BrowserState, key: string, to: string): BrowserState {
 function show(s: BrowserState, key: string): BrowserState {
   const tab = s.tabs[key]!;
   const w = s.windows[tab.windowId];
-  if (!w || w.profileId !== tab.profileId) return s;
-  const shown = w.activeTabIds[tab.profileId];
-  if (shown === key || (shown && splitTabIdsOf(splitOf(s, shown))?.includes(key))) return s.peeks[w.id] ? withoutPeek(s, w.id) : s;
+  if (!w) return s;
+  const shown = w.activeTabIds[tab.spaceId];
+  if (w.spaceId === tab.spaceId && (shown === key || (shown && splitTabIdsOf(splitOf(s, shown))?.includes(key)))) return s.peeks[w.id] ? withoutPeek(s, w.id) : s;
   let next = apply(s, activated(s, key));
   if (shown && !switchKeepsOpeners(s, shown, key)) next = forgetOpeners(next, w.id);
   return next;
@@ -296,9 +312,9 @@ export function stripPlan(s: BrowserState, strip: StripState): StripPlan | null 
   const inStrip = new Set(mine.map((t) => t.key));
   const keys = w.tabIds.filter((id) => inStrip.has(id));
   const pinned = keys.filter((id) => s.tabs[id]!.pin);
-  const profiles = [w.profileId, ...new Set(keys.map((id) => s.tabs[id]!.profileId))];
+  const spaces = [w.spaceId, ...new Set(keys.map((id) => s.tabs[id]!.spaceId))];
   const peek = s.peeks[windowId]?.tabId;
-  const active = peek && strip.tabs.some((t) => t.key === peek) ? peek : (profiles.map((p) => w.activeTabIds[p]).find((id) => !!id && inStrip.has(id)) ?? null);
+  const active = peek && strip.tabs.some((t) => t.key === peek) ? peek : (spaces.map((p) => w.activeTabIds[p]).find((id) => !!id && inStrip.has(id)) ?? null);
   return { keys: [...pinned, ...keys.filter((id) => !s.tabs[id]!.pin)], pinned: pinned.length, active };
 }
 

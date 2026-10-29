@@ -19,7 +19,7 @@ export const TabIcon = memo(function TabIcon({
   size: givenSize = 16,
   compact = false,
   color,
-  profileId: profile,
+  spaceId: space,
   direct,
   marks: givenMarks,
 }: {
@@ -30,7 +30,7 @@ export const TabIcon = memo(function TabIcon({
   size?: number;
   compact?: boolean;
   color?: string;
-  profileId?: string;
+  spaceId?: string;
   direct?: boolean;
   marks?: number;
 }) {
@@ -41,7 +41,7 @@ export const TabIcon = memo(function TabIcon({
   const props = { url, favicon, icon, size, color, direct };
   return (
     <View style={{ opacity: sleeping || marks & FADED ? SLEEPING_OPACITY : 1 }}>
-      {profile || !tabId ? <Icon {...props} profileId={profile} /> : <TabProfileIcon {...props} tabId={tabId} />}
+      {space || !tabId ? <Icon {...props} spaceId={space} /> : <TabSpaceIcon {...props} tabId={tabId} />}
       {engine ? <EngineMark mark={engine} size={size} /> : null}
     </View>
   );
@@ -71,9 +71,9 @@ function EngineMark({ mark, size }: { mark: PageEngine; size: number }) {
   );
 }
 
-function TabProfileIcon({ tabId, ...props }: Omit<Parameters<typeof Icon>[0], "profileId"> & { tabId: string }) {
-  const profileId = useTab(tabId, (t) => t?.profileId);
-  return <Icon {...props} profileId={profileId} />;
+function TabSpaceIcon({ tabId, ...props }: Omit<Parameters<typeof Icon>[0], "spaceId"> & { tabId: string }) {
+  const spaceId = useTab(tabId, (t) => t?.spaceId);
+  return <Icon {...props} spaceId={spaceId} />;
 }
 
 const SLEEPING_OPACITY = 0.45;
@@ -85,7 +85,7 @@ function Icon({
   icon,
   size = 16,
   color,
-  profileId,
+  spaceId,
   direct,
 }: {
   url: string;
@@ -93,7 +93,7 @@ function Icon({
   icon?: string | null;
   size?: number;
   color?: string;
-  profileId?: string;
+  spaceId?: string;
   direct?: boolean;
 }) {
   const theme = useTheme();
@@ -109,5 +109,5 @@ function Icon({
       </View>
     );
   }
-  return <Favicon url={url} favicon={favicon} size={size} profileId={profileId} direct={direct} />;
+  return <Favicon url={url} favicon={favicon} size={size} spaceId={spaceId} direct={direct} />;
 }

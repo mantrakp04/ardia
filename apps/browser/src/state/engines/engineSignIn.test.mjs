@@ -31,7 +31,7 @@ function pageWithCookies() {
   return { handle: { pageCookies: () => pending }, answer: () => answer([cookie]) };
 }
 
-test("the default profile's cookies go to its WebKit store, whose key is the empty string", async () => {
+test("the default space's cookies go to its WebKit store, whose key is the empty string", async () => {
   S().hydrate({});
   imports.length = 0;
   const w = S().createWindow({ url: "https://video.example/title/1" });
@@ -61,7 +61,7 @@ test("closing the private window while the cookies are read imports nothing", as
   webviews.clear();
 });
 
-test("a tab that moved to another profile while the cookies were read imports nothing", async () => {
+test("a tab that moved to another space while the cookies were read imports nothing", async () => {
   S().hydrate({});
   imports.length = 0;
   const w = S().createWindow({ url: "https://music.example/" });
@@ -70,7 +70,7 @@ test("a tab that moved to another profile while the cookies were read imports no
   webviews.set(tabId, page.handle);
   const carried = carrySignInToWebKit(tabId, "https://music.example/");
   await Promise.resolve();
-  S().updateTab(tabId, { profileId: "work" });
+  S().updateTab(tabId, { spaceId: "work" });
   page.answer();
   assert.equal(await carried, 0);
   assert.deepEqual(imports, []);

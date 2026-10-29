@@ -11,12 +11,12 @@ const regular = (s: BrowserState, id: string) => !inPinnedContainer(s, id);
 export function insertionIndex(s: BrowserState, w: BrowserWindow, tab: Tab, background: boolean): number {
   const opener = tab.openerId ? s.tabs[tab.openerId] : undefined;
   let index: number;
-  if (opener && opener.windowId === w.id && opener.profileId === tab.profileId && regular(s, opener.id)) {
+  if (opener && opener.windowId === w.id && opener.spaceId === tab.spaceId && regular(s, opener.id)) {
     const panes = splitTabIdsOf(splitOf(s, opener.id)) ?? [opener.id];
     const at = Math.max(...panes.map((id) => w.tabIds.indexOf(id))) + 1;
     index = background ? afterFamily(s, w, tab, at, opener.id) : at;
-  } else if (opener && opener.windowId === w.id && opener.profileId === tab.profileId) {
-    const gathered = pinnedChildGroup(s, opener.id, tab.profileId);
+  } else if (opener && opener.windowId === w.id && opener.spaceId === tab.spaceId) {
+    const gathered = pinnedChildGroup(s, opener.id, tab.spaceId);
     index = gathered
       ? Math.max(...gathered.tabIds.map((id) => w.tabIds.indexOf(id))) + 1
       : afterFamily(s, w, tab, firstRegular(s, w, tab), opener.id);
@@ -28,16 +28,16 @@ export function insertionIndex(s: BrowserState, w: BrowserWindow, tab: Tab, back
 }
 
 function firstRegular(s: BrowserState, w: BrowserWindow, tab: Tab): number {
-  const first = w.tabIds.findIndex((id) => s.tabs[id]?.profileId === tab.profileId && regular(s, id));
+  const first = w.tabIds.findIndex((id) => s.tabs[id]?.spaceId === tab.spaceId && regular(s, id));
   return first >= 0 ? first : w.tabIds.length;
 }
 
-export function nextToActive(s: BrowserState, windowId: string, profileId: string | undefined): { openerId: string; index: number } | undefined {
+export function nextToActive(s: BrowserState, windowId: string, spaceId: string | undefined): { openerId: string; index: number } | undefined {
   if (s.settings.newTabPosition !== "nextToCurrent") return undefined;
   const w = s.windows[windowId];
   if (!w) return undefined;
-  const profile = w.kind !== "private" && profileId && s.profiles[profileId] ? profileId : w.profileId;
-  const activeId = w.activeTabIds[profile];
+  const space = w.kind !== "private" && spaceId && s.spaces[spaceId] ? spaceId : w.spaceId;
+  const activeId = w.activeTabIds[space];
   const active = activeId ? s.tabs[activeId] : undefined;
   if (!active || active.windowId !== w.id) return undefined;
   if (!regular(s, active.id)) return { openerId: active.id, index: firstRegular(s, w, active) };
@@ -54,7 +54,7 @@ function afterFamily(s: BrowserState, w: BrowserWindow, tab: Tab, from: number, 
   let index = from;
   for (let i = from; i < w.tabIds.length; i++) {
     const t = s.tabs[w.tabIds[i]!];
-    if (!t || t.profileId !== tab.profileId) continue;
+    if (!t || t.spaceId !== tab.spaceId) continue;
     if (!t.openerId || !family.has(t.openerId) || groupOf(s, t.id)?.id !== group) break;
     family.add(t.id);
     index = i + 1;

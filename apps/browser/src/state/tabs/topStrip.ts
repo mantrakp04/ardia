@@ -13,10 +13,10 @@ import { chooseFromMenu, type ChoiceItem } from "../app/menuChoice";
 import { entryKey, parseEntry } from "../sidebar/entryKey";
 import { splitTabIds, splitTabIdsOf } from "../splits/splits";
 
-export function tuckTarget(s: BrowserState, windowId: string, profileId: string, groupId: string): string | undefined {
+export function tuckTarget(s: BrowserState, windowId: string, spaceId: string, groupId: string): string | undefined {
   const members = new Set(s.groups[groupId]?.tabIds ?? []);
   let best: string | undefined;
-  for (const id of viewTabIds(s, windowId, profileId)) {
+  for (const id of viewTabIds(s, windowId, spaceId)) {
     const t = s.tabs[id];
     if (!t || members.has(id)) continue;
     if (!best || t.lastActiveAt > s.tabs[best]!.lastActiveAt) best = id;
@@ -76,8 +76,8 @@ function foldersUnderRoots(groups: BrowserState["groups"]): Map<string, string> 
   return folderOf;
 }
 
-export function stripEntries(s: BrowserState, windowId: string, profileId: string): StripEntry[] {
-  const key = `${windowId}|${profileId}`;
+export function stripEntries(s: BrowserState, windowId: string, spaceId: string): StripEntry[] {
+  const key = `${windowId}|${spaceId}`;
   const inputs = [s.tabs, s.windows, s.groups, s.splits, s.settings.newTabOpens];
   const cached = stripMemo.get(key);
   if (cached && cached.inputs.every((v, i) => v === inputs[i])) return cached.entries;
@@ -87,8 +87,8 @@ export function stripEntries(s: BrowserState, windowId: string, profileId: strin
   const seen = new Set<string>();
   const dock: string[] = [];
   const out: string[] = [];
-  const activeId = s.windows[windowId]?.activeTabIds[profileId];
-  for (const id of viewTabIds(s, windowId, profileId)) {
+  const activeId = s.windows[windowId]?.activeTabIds[spaceId];
+  for (const id of viewTabIds(s, windowId, spaceId)) {
     const t = s.tabs[id]!;
     if (hiddenEmptyCard(s, t)) continue;
     const tileFolder = tileFolderOf(t);
@@ -151,18 +151,18 @@ export function folderMenuItems(s: BrowserState, groupId: string, activeId: stri
   });
 }
 
-export const useStripEntries = (windowId: string, profileId: string) => useBrowser((s) => stripEntries(s, windowId, profileId));
+export const useStripEntries = (windowId: string, spaceId: string) => useBrowser((s) => stripEntries(s, windowId, spaceId));
 
-export const useShownTabIdFor = (windowId: string, profileId: string) => useBrowser((s) => s.windows[windowId]?.activeTabIds[profileId] ?? "");
+export const useShownTabIdFor = (windowId: string, spaceId: string) => useBrowser((s) => s.windows[windowId]?.activeTabIds[spaceId] ?? "");
 
-export const useHasTuckTarget = (enabled: boolean, windowId: string, profileId: string, groupId: string) =>
-  useBrowser((s) => enabled && !!tuckTarget(s, windowId, profileId, groupId));
+export const useHasTuckTarget = (enabled: boolean, windowId: string, spaceId: string, groupId: string) =>
+  useBrowser((s) => enabled && !!tuckTarget(s, windowId, spaceId, groupId));
 
 export const useTileFolderLabel = (windowId: string, folderId: string) => useBrowser((s) => folderLabel(folderIn(s, windowId, folderId)));
 
-export function tuckGroup(windowId: string, profileId: string, groupId: string) {
+export function tuckGroup(windowId: string, spaceId: string, groupId: string) {
   const s = useBrowser.getState();
-  const target = tuckTarget(s, windowId, profileId, groupId);
+  const target = tuckTarget(s, windowId, spaceId, groupId);
   if (target) s.activate(target);
 }
 

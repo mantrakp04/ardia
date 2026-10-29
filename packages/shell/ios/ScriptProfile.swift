@@ -1,7 +1,7 @@
 import AppKit
 
 @objc(ArdiaScriptProfile)
-final class ScriptProfile: NSObject {
+class ScriptProfile: NSObject {
   @objc let uniqueID: String
 
   init(id: String) {

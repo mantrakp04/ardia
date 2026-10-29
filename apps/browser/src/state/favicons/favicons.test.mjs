@@ -7,9 +7,9 @@ globalThis.__DEV__ = false;
 
 const native = import.meta.resolve("../../platform/favicons.ts");
 const stub = `export * from ${JSON.stringify(native)};
-export const faviconsFor = (profile, pages) => globalThis.faviconsForTest(profile, pages);
+export const faviconsFor = (space, pages) => globalThis.faviconsForTest(space, pages);
 export const storeFavicon = (...args) => (globalThis.storedFavicons.push(args), Promise.resolve({ stored: true }));
-export const fetchFavicon = (src, profile) => (globalThis.fetchFaviconForTest ? globalThis.fetchFaviconForTest(src, profile) : Promise.resolve(null));`;
+export const fetchFavicon = (src, space) => (globalThis.fetchFaviconForTest ? globalThis.fetchFaviconForTest(src, space) : Promise.resolve(null));`;
 registerHooks({
   resolve(specifier, context, next) {
     if (specifier === "../../platform/favicons" && context.parentURL?.endsWith("/state/favicons/favicons.ts"))
@@ -17,11 +17,11 @@ registerHooks({
     return next(specifier, context);
   },
 });
-const { adoptFavicons, faviconOutlived, noteFavicon, pruneProfileFavicons, resolveFavicon, startFavicons, useFavicon, useFavicons } = await import("./favicons.ts");
+const { adoptFavicons, faviconOutlived, noteFavicon, pruneSpaceFavicons, resolveFavicon, startFavicons, useFavicon, useFavicons } = await import("./favicons.ts");
 const { seedFavicons } = await import("./launchFavicons.ts");
 const { adoptIconPage, dropOutlivedFavicon, noteIconPage } = await import("./iconPage.ts");
 const { useBrowser } = await import("../browser/store.ts");
-const { engineProfile } = await import("../browser/model.ts");
+const { engineProfile, engineProfileForSpace } = await import("../browser/model.ts");
 
 const waitFor = async (check) => {
   for (let i = 0; i < 200 && !check(); i++) await new Promise((resolve) => setTimeout(resolve, 5));
@@ -33,7 +33,7 @@ test("an empty lookup that started before an import doesn't wipe the imported ic
   const page = "https://imported.test/";
   const lookups = [];
   globalThis.storedFavicons = [];
-  globalThis.faviconsForTest = (profile, pages) => new Promise((resolve) => lookups.push({ pages, answer: () => resolve({ pages: new Map(), icons: new Map() }) }));
+  globalThis.faviconsForTest = (space, pages) => new Promise((resolve) => lookups.push({ pages, answer: () => resolve({ pages: new Map(), icons: new Map() }) }));
   const row = mount(() => useFavicon(page, null, "default"));
   try {
     await waitFor(() => lookups.some((l) => l.pages.includes(page)));
@@ -96,15 +96,15 @@ test("an icon stays when the tab finishes loading another page on the icon's sit
 });
 
 const empty = () => Promise.resolve({ pages: new Map(), icons: new Map() });
-const answering = (icons) => (profile, pages) => Promise.resolve({ pages: new Map(pages.flatMap((p) => (icons[p] ? [[p, { uri: icons[p] }]] : []))), icons: new Map() });
+const answering = (icons) => (space, pages) => Promise.resolve({ pages: new Map(pages.flatMap((p) => (icons[p] ? [[p, { uri: icons[p] }]] : []))), icons: new Map() });
 const settle = () => new Promise((resolve) => setTimeout(resolve, 40));
-const cached = (page) => useFavicons.getState().profiles[engineProfile(useBrowser.getState(), "default")]?.pages[page];
+const cached = (page) => useFavicons.getState().spaces[engineProfileForSpace(useBrowser.getState(), "default")]?.pages[page];
 
 test("a lookup that failed is asked again the next time the page is shown", async () => {
   useBrowser.getState().hydrate({});
   const page = "https://retry.test/";
   const asked = [];
-  globalThis.faviconsForTest = (profile, pages) => (asked.push(...pages), asked.length === 1 ? Promise.reject(new Error("engine busy")) : answering({ [page]: "data:image/png;base64,RETRY" })(profile, pages));
+  globalThis.faviconsForTest = (space, pages) => (asked.push(...pages), asked.length === 1 ? Promise.reject(new Error("engine busy")) : answering({ [page]: "data:image/png;base64,RETRY" })(space, pages));
   const warn = console.warn;
   console.warn = () => {};
   try {
@@ -127,7 +127,7 @@ test("a page Chrome has no icon for is answered once, and its own icon is fetche
   const page = "https://no-icon.test/";
   const asked = [];
   const fetched = [];
-  globalThis.faviconsForTest = (profile, pages) => (asked.push(...pages), empty());
+  globalThis.faviconsForTest = (space, pages) => (asked.push(...pages), empty());
   globalThis.fetchFaviconForTest = (src) => (fetched.push(src), Promise.resolve({ uri: "data:image/png;base64,LINKED" }));
   globalThis.storedFavicons = [];
   try {
@@ -150,15 +150,15 @@ test("a page Chrome has no icon for is answered once, and its own icon is fetche
   }
 });
 
-test("pruning a profile's icons looks the pages still waiting on screen up again", async () => {
+test("pruning a space's icons looks the pages still waiting on screen up again", async () => {
   useBrowser.getState().hydrate({});
   const page = "https://pruned.test/";
   const asked = [];
-  globalThis.faviconsForTest = (profile, pages) => (asked.push(...pages), empty());
+  globalThis.faviconsForTest = (space, pages) => (asked.push(...pages), empty());
   try {
     const row = mount(() => useFavicon(page, null, "default"));
     await waitFor(() => cached(page) === null);
-    pruneProfileFavicons("default");
+    pruneSpaceFavicons("default");
     await waitFor(() => asked.filter((p) => p === page).length === 2);
     row.unmount();
   } finally {
@@ -196,8 +196,8 @@ test("a page that changes its icon right after the appearance flips keeps both, 
   const windowId = S().createWindow({ url: page });
   const tabId = S().windows[windowId].tabIds[0];
   S().updateTab(tabId, { url: page });
-  const key = engineProfile(S(), "default");
-  seedFavicons({ images: ["data:light", "data:dark", "data:other"], profiles: { [key]: { pages: { [page]: 0 }, srcs: { "https://github.test/dark.svg": 1, "https://github.test/other.svg": 2 } } }, themes: {} });
+  const key = engineProfileForSpace(S(), "default");
+  seedFavicons({ images: ["data:light", "data:dark", "data:other"], spaces: { [key]: { pages: { [page]: 0 }, srcs: { "https://github.test/dark.svg": 1, "https://github.test/other.svg": 2 } } }, themes: {} });
   try {
     setDark(true);
     noteFavicon(tabId, "https://github.test/dark.svg");
@@ -210,7 +210,7 @@ test("a page that changes its icon right after the appearance flips keeps both, 
     try {
       const other = "https://other-site.test/";
       S().updateTab(tabId, { url: other });
-      seedFavicons({ images: ["data:before"], profiles: { [key]: { pages: { [other]: 0 }, srcs: {} } }, themes: {} });
+      seedFavicons({ images: ["data:before"], spaces: { [key]: { pages: { [other]: 0 }, srcs: {} } }, themes: {} });
       noteFavicon(tabId, "https://github.test/other.svg");
       await settle();
       assert.equal(resolveFavicon(other, null, "default")?.uri, "data:other");
@@ -227,7 +227,7 @@ test("a page that changes its icon right after the appearance flips keeps both, 
 
 const heldLookups = () => {
   const held = [];
-  globalThis.faviconsForTest = (profile, pages) => new Promise((resolve) => held.push({ pages, answer: (icons = {}) => resolve({ pages: new Map(pages.flatMap((p) => (icons[p] ? [[p, { uri: icons[p] }]] : []))), icons: new Map() }) }));
+  globalThis.faviconsForTest = (space, pages) => new Promise((resolve) => held.push({ pages, answer: (icons = {}) => resolve({ pages: new Map(pages.flatMap((p) => (icons[p] ? [[p, { uri: icons[p] }]] : []))), icons: new Map() }) }));
   return held;
 };
 
@@ -245,7 +245,7 @@ for (const [n, [order, answersFor]] of Object.entries(pruneRaces).entries())
     try {
       const first = mount(() => useFavicon(page, null, "default"));
       await waitFor(() => held.length === 1);
-      pruneProfileFavicons("default");
+      pruneSpaceFavicons("default");
       first.unmount();
       const second = mount(() => useFavicon(page, null, "default"));
       await waitFor(() => held.length === 2);
@@ -268,8 +268,8 @@ test("an icon the page reported during a lookup still wins after the cache start
   const windowId = S().createWindow({ url: page });
   const tabId = S().windows[windowId].tabIds[0];
   S().updateTab(tabId, { url: page });
-  const key = engineProfile(S(), "default");
-  seedFavicons({ images: ["data:image/png;base64,NEW"], profiles: { [key]: { pages: {}, srcs: { "https://evicted-race.test/new.png": 0 } } }, themes: {} });
+  const key = engineProfileForSpace(S(), "default");
+  seedFavicons({ images: ["data:image/png;base64,NEW"], spaces: { [key]: { pages: {}, srcs: { "https://evicted-race.test/new.png": 0 } } }, themes: {} });
   const held = heldLookups();
   globalThis.storedFavicons = [];
   try {

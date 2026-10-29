@@ -9,17 +9,17 @@ const stub = await import("../../test-native/index.ts");
 const S = () => useBrowser.getState();
 const settle = () => new Promise((r) => setTimeout(r, 0));
 
-function chromeTree(profile = "") {
-  const db = stub.chromeBookmarks(profile);
+function chromeTree(space = "") {
+  const db = stub.chromeBookmarks(space);
   const walk = (id) => {
     const n = db.get(id);
     return n.k === "u" ? `${n.t}=${n.u}` : { [n.t]: n.children.map(walk) };
   };
   return { bar: walk("bar"), other: walk("other") };
 }
-function storeTree(profileId = "default") {
+function storeTree(spaceId = "default") {
   const b = S().bookmarks;
-  const roots = bookmarkRoots(S(), profileId);
+  const roots = bookmarkRoots(S(), spaceId);
   const walk = (id) => {
     const n = b.nodes[id];
     return n.kind === "url" ? `${n.title}=${n.url}` : { [n.title]: n.children.map(walk) };
@@ -75,10 +75,10 @@ test("the store's tree and Chrome's stay alike: the app's edits go as ops, an ex
   assert.ok(S().bookmarksReady[""]);
   const same = () => assert.deepEqual(chromeTree(), storeTree());
 
-  const a = S().addBookmark({ profileId: "default", url: "https://a.example/", title: "A" });
-  const f = S().addBookmarkFolder({ profileId: "default", title: "F" });
-  const g = S().addBookmarkFolder({ profileId: "default", title: "G", parentId: f });
-  const b = S().addBookmark({ profileId: "default", url: "https://b.example/", title: "B", parentId: g });
+  const a = S().addBookmark({ spaceId: "default", url: "https://a.example/", title: "A" });
+  const f = S().addBookmarkFolder({ spaceId: "default", title: "F" });
+  const g = S().addBookmarkFolder({ spaceId: "default", title: "G", parentId: f });
+  const b = S().addBookmark({ spaceId: "default", url: "https://b.example/", title: "B", parentId: g });
   await settle();
   same();
   S().moveBookmark(a, f, 0);
@@ -113,7 +113,7 @@ test("an edit made at launch, before Chrome's tree is read, reaches Chrome and s
   stub.docs.clear();
   stub.bookmarkDbs.clear();
   stub.chromeBookmarkEdit("", [{ op: "add", id: "0f0f0f0f-0000-4000-8000-0000000000a1", k: "u", t: "In Chrome", u: "https://chrome.example/", a: 1, parent: "bar" }]);
-  S().addBookmark({ profileId: "default", url: "https://early.example/", title: "Early" });
+  S().addBookmark({ spaceId: "default", url: "https://early.example/", title: "Early" });
   const stop = startBookmarks();
   await reloadBookmarks();
   assert.deepEqual(chromeTree().bar, { "Bookmarks Bar": ["Early=https://early.example/", "In Chrome=https://chrome.example/"] });
@@ -128,9 +128,9 @@ test("ops Chrome can't apply (an extension moved things meanwhile) stop there: n
   stub.bookmarkDbs.clear();
   const stop = startBookmarks();
   await reloadBookmarks();
-  const b = S().addBookmarkFolder({ profileId: "default", title: "B" });
-  const f = S().addBookmarkFolder({ profileId: "default", title: "F" });
-  const a = S().addBookmarkFolder({ profileId: "default", title: "A", parentId: f });
+  const b = S().addBookmarkFolder({ spaceId: "default", title: "B" });
+  const f = S().addBookmarkFolder({ spaceId: "default", title: "F" });
+  const a = S().addBookmarkFolder({ spaceId: "default", title: "A", parentId: f });
   await reloadBookmarks();
   const db = stub.chromeBookmarks("");
   db.get("bar").children = db.get("bar").children.filter((c) => c !== b);
@@ -181,40 +181,44 @@ test("a launch with bookmarks.json shows its tree at once, then moves it into Ch
   stop();
 });
 
-test("profiles that share data share one tree, owned by whichever comes first in the profile order, Arc holders included", () => {
+test("spaces that share data share one tree, owned by whichever comes first in the profile order, Arc holders included", () => {
   S().hydrate({});
-  const a = S().createProfile({ name: "A" });
-  const b = S().createProfile({ name: "B", shareWith: a });
+  const owner = S().createProfile({ name: "A" });
+  const a = S().createSpace({ name: "A", profileId: owner });
+  const b = S().createSpace({ name: "B", profileId: owner });
   assert.deepEqual(bookmarkRoots(S(), b), bookmarkRoots(S(), a), "one tree for both");
-  const x = S().addBookmark({ profileId: b, url: "https://x.example/", title: "X" });
+  const x = S().addBookmark({ spaceId: b, url: "https://x.example/", title: "X" });
   assert.ok(isBookmarked(S(), a, "https://x.example/"), "added through B, bookmarked in A");
   assert.equal(ownerOfBookmark(S(), x), a, "A comes first");
-  S().reorderProfiles(["default", b, a]);
+  S().reorderSpaces(["default", b, a]);
   assert.equal(ownerOfBookmark(S(), x), b, "after a reorder, B does");
 
-  const holder = S().addBookmarkFolder({ profileId: a, title: "Home (Arc)" });
-  const reading = S().addBookmarkFolder({ profileId: a, title: "Reading", parentId: holder });
-  S().addBookmark({ profileId: a, url: "https://r.example/", title: "R", parentId: reading });
-  const second = S().addBookmarkFolder({ profileId: a, title: "Work (Arc)" });
-  const dev = S().addBookmarkFolder({ profileId: a, title: "Dev", parentId: second });
-  S().addBookmark({ profileId: a, url: "https://d.example/", title: "D", parentId: dev });
+  const holder = S().addBookmarkFolder({ spaceId: a, title: "Home (Arc)" });
+  const reading = S().addBookmarkFolder({ spaceId: a, title: "Reading", parentId: holder });
+  S().addBookmark({ spaceId: a, url: "https://r.example/", title: "R", parentId: reading });
+  const second = S().addBookmarkFolder({ spaceId: a, title: "Work (Arc)" });
+  const dev = S().addBookmarkFolder({ spaceId: a, title: "Dev", parentId: second });
+  S().addBookmark({ spaceId: a, url: "https://d.example/", title: "D", parentId: dev });
   assert.deepEqual(allArcHolders(S()), [holder, second]);
-  const inA = S().createWindow({ profileId: a });
-  assert.deepEqual(restoreArcFolders(holder, null).map((g) => S().groups[g].profileId), [b], "with no window, the first profile in the order");
-  assert.deepEqual(restoreArcFolders(second, inA).map((g) => S().groups[g].profileId), [a], "from A's window, A");
+  const inA = S().createWindow({ spaceId: a });
+  assert.deepEqual(restoreArcFolders(holder, null).map((g) => S().groups[g].spaceId), [b], "with no window, the first profile in the order");
+  assert.deepEqual(restoreArcFolders(second, inA).map((g) => S().groups[g].spaceId), [a], "from A's window, A");
 });
 
-test("deleting one of two sharing profiles keeps the tree; deleting the last drops it and its ready mark", () => {
+test("deleting one of two sharing spaces keeps the tree; deleting the last drops it and its ready mark", () => {
   S().hydrate({});
-  const a = S().createProfile({ name: "A" });
-  const b = S().createProfile({ name: "B", shareWith: a });
-  useBrowser.setState({ bookmarksReady: { [a]: true } });
-  const x = S().addBookmark({ profileId: b, url: "https://x.example/", title: "X" });
-  S().deleteProfile(a);
+  const owner = S().createProfile({ name: "A" });
+  const a = S().createSpace({ name: "A", profileId: owner });
+  const b = S().createSpace({ name: "B", profileId: owner });
+  useBrowser.setState({ bookmarksReady: { [owner]: true } });
+  const x = S().addBookmark({ spaceId: b, url: "https://x.example/", title: "X" });
+  S().deleteSpace(a);
   assert.ok(S().bookmarks.nodes[x], "B still has it");
-  assert.ok(S().bookmarksReady[a], "and the engine stays ready");
-  S().deleteProfile(b);
+  assert.ok(S().bookmarksReady[owner], "and the engine stays ready");
+  S().deleteSpace(b);
+  assert.ok(S().bookmarks.nodes[x], "the Profile retains its data without Spaces");
+  S().deleteProfile(owner);
   assert.equal(S().bookmarks.nodes[x], undefined);
-  assert.equal(S().bookmarks.nodes[`bar@${a}`], undefined);
-  assert.equal(S().bookmarksReady[a], undefined);
+  assert.equal(S().bookmarks.nodes[`bar@${owner}`], undefined);
+  assert.equal(S().bookmarksReady[owner], undefined);
 });

@@ -266,7 +266,7 @@ function watchStore(s: BrowserState, prev: BrowserState) {
   for (const id in s.windows) {
     const now = activeTabId(s, id);
     const before = activeTabId(prev, id);
-    if (!now || now === before || s.windows[id]!.profileId !== prev.windows[id]?.profileId) continue;
+    if (!now || now === before || s.windows[id]!.spaceId !== prev.windows[id]?.spaceId) continue;
     const t0 = lastInput();
     if (t0 === null) continue;
     const heard = Date.now();

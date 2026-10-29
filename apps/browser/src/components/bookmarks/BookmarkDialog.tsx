@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useWindowId } from "../../state/browser/hooks";
 import { Button, Dialog, DialogActions, layout, Text, TextField } from "../ui";
 import { FormField } from "../settings/Form";
-import { addBookmarkFolder, addBookmarkTree, closeBookmarkDialog, moveBookmark, profileOfBookmark, removeBookmark, updateBookmark, useBookmarkDialog, type BookmarkDialogState } from "../../state/bookmarks/actions";
+import { addBookmarkFolder, addBookmarkTree, closeBookmarkDialog, moveBookmark, spaceOfBookmark, removeBookmark, updateBookmark, useBookmarkDialog, type BookmarkDialogState } from "../../state/bookmarks/actions";
 import { useBookmarks } from "../../state/bookmarks/hooks";
 import { currentBookmarkRoots, currentBookmarks } from "../../state/browser/current";
 import { FolderPicker } from "./DialogParts";
@@ -23,10 +23,10 @@ function DialogPanel({ state }: { state: BookmarkDialogState }) {
   const addressBar = useAddressBarInSidebar();
   const toolbarHeight = useToolbarRow().height;
   const bookmark = useBookmarks((b) => (state.kind === "page" ? b.nodes[state.bookmarkId] : undefined));
-  const profileId = state.kind === "page" ? profileOfBookmark(state.bookmarkId) : state.profileId;
+  const spaceId = state.kind === "page" ? spaceOfBookmark(state.bookmarkId) : state.spaceId;
   const [name, setName] = useState(() => (state.kind === "page" ? (bookmark?.title ?? "") : ""));
   const [folderId, setFolderId] = useState<string | null>(() =>
-    state.kind === "page" ? (bookmark?.parentId ?? null) : (currentBookmarkRoots(state.profileId)?.bar ?? null),
+    state.kind === "page" ? (bookmark?.parentId ?? null) : (currentBookmarkRoots(state.spaceId)?.bar ?? null),
   );
   const close = closeBookmarkDialog;
 
@@ -41,7 +41,7 @@ function DialogPanel({ state }: { state: BookmarkDialogState }) {
       if (folderId && folderId !== bookmark?.parentId) moveBookmark(state.bookmarkId, folderId);
     } else {
       const title = name.trim() || "Tabs";
-      addBookmarkTree(state.profileId, [{ title, children: state.tabs.map((t) => ({ title: t.title, url: t.url })) }], folderId ?? undefined);
+      addBookmarkTree(state.spaceId, [{ title, children: state.tabs.map((t) => ({ title: t.title, url: t.url })) }], folderId ?? undefined);
     }
     close();
   };
@@ -53,8 +53,8 @@ function DialogPanel({ state }: { state: BookmarkDialogState }) {
 
   const newFolder = async () => {
     const title = await prompt({ title: "New Folder", placeholder: "Folder name", confirmTitle: "Create", windowId: state.windowId });
-    if (!title || !profileId) return;
-    const id = addBookmarkFolder({ profileId, title, parentId: folderId ?? undefined });
+    if (!title || !spaceId) return;
+    const id = addBookmarkFolder({ spaceId, title, parentId: folderId ?? undefined });
     setFolderId(id);
   };
 
@@ -76,7 +76,7 @@ function DialogPanel({ state }: { state: BookmarkDialogState }) {
         <TextField value={name} onChangeText={setName} autoFocus selectOnFocus placeholder={state.kind === "allTabs" ? "Tabs" : "Name"} onSubmit={done} onEscape={done} />
       </FormField>
       <FormField label="Folder">
-        <FolderPicker profileId={profileId} selectedId={folderId} onSelect={setFolderId} />
+        <FolderPicker spaceId={spaceId} selectedId={folderId} onSelect={setFolderId} />
       </FormField>
       <DialogActions leading={<Button title="New Folder" onPress={newFolder} />}>
         {state.kind === "page" ? <Button title="Remove" onPress={remove} /> : <Button title="Cancel" onPress={close} />}

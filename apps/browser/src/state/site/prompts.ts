@@ -16,7 +16,7 @@ export function popupBlocked(tabId: string, popup: BlockedPopup) {
   const first = !pageOf(tabId).popups.length;
   patchPage(tabId, { popups: [...pageOf(tabId).popups, popup] });
   const tab = currentTab(tabId);
-  if (first && tab) void shouldPromptForPopups(currentEngineProfile(tab.profileId), popup.origin).then((ask) => ask && setPopover(tabId, "popups"));
+  if (first && tab) void shouldPromptForPopups(currentEngineProfile(tab.spaceId), popup.origin).then((ask) => ask && setPopover(tabId, "popups"));
 }
 
 export function showPasswordPrompt(tabId: string, prompt: PasswordPrompt) {

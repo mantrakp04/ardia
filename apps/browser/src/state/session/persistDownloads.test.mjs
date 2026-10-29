@@ -20,7 +20,7 @@ const paused = {
 const finished = { ...paused, id: "wk-download-2", path: "/d/y", state: "finished", paused: false, staging: null };
 
 function load(downloads, version = 3) {
-  docs.set("session.json", JSON.stringify({ version: 2, windows: [], tabs: [] }));
+  docs.set("session.json", JSON.stringify({ version: 5, profiles: { default: { id: "default", engineId: "", name: "Personal" } }, spaces: { default: { id: "default", profileId: "default", name: "Home" } }, settings: { defaultSpaceId: "default" }, windows: [], tabs: [] }));
   docs.set("downloads.json", JSON.stringify({ version, downloads }));
   return loadSession();
 }

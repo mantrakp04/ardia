@@ -6,7 +6,7 @@ import { PIN_TAB, PIN_GROUP, legacyColor, PIN_NEST, PIN_ROW, type NestGroupValue
 import { choiceStillOut, homeWindow, settleChoices, store, windowsHomeFirst } from "./pinnedSyncState";
 import { isPinnedRow, pinKeyOf } from "../browser/model";
 
-export function extractPinned(profileId: string, base: (key: string) => unknown, queued: (key: string) => boolean, now: number, stamp: (key: string) => HLC | undefined): Extraction {
+export function extractPinned(spaceId: string, base: (key: string) => unknown, queued: (key: string) => boolean, now: number, stamp: (key: string) => HLC | undefined, workspaceOnly = false): Extraction {
   const s = store();
   type Pin = Pick<Tab, "id" | "url" | "title" | "customTitle" | "customIcon"> & Pick<Tab, "pin"> & Partial<Pick<Tab, "pinnedUrl">>;
   type Node = { pin: Pin } | { group: string };
@@ -21,16 +21,17 @@ export function extractPinned(profileId: string, base: (key: string) => unknown,
       inside.set(g.key, []);
       (parent ? inside.get(parent)! : area).push({ group: g.key });
     });
-  const pinned = Object.values(s.groups).filter((g) => g.pinned && g.profileId === profileId);
+  const pinned = Object.values(s.groups).filter((g) => g.pinned && g.spaceId === spaceId);
   const pinnedGroupOf = new Map<string, TabGroup>();
   for (const g of pinned.map((g) => [g, depthOf(s.groups, g.id)] as const).sort((a, z) => a[1] - z[1]).map(([g]) => g)) g.tabIds.forEach((id) => pinnedGroupOf.set(id, g));
   const seen = new Set<string>();
-  const home = homeWindow(s, profileId);
+  const home = homeWindow(s, spaceId);
   for (const w of windowsHomeFirst(s, home)) {
     for (const id of w.tabIds) {
       const t = s.tabs[id];
-      if (!t || t.profileId !== profileId || seen.has(pinKeyOf(t))) continue;
+      if (!t || t.spaceId !== spaceId || seen.has(pinKeyOf(t))) continue;
       const g = pinnedGroupOf.get(id);
+      if (workspaceOnly && t.pin?.as === "tile") continue;
       if (t.pin) area.push({ pin: { ...t, id: pinKeyOf(t) } });
       else if (g) {
         const chain = [...ancestorIds(s.groups, g.id).reverse().map((x) => s.groups[x]!).filter((x) => x.pinned), g];
@@ -40,7 +41,7 @@ export function extractPinned(profileId: string, base: (key: string) => unknown,
       seen.add(pinKeyOf(t));
     }
   }
-  const park = s.parkedPins[profileId];
+  const park = s.parkedPins[spaceId];
   const parkGroups = new Map((park?.groups ?? []).map((g) => [g.id, g]));
   const parkChain = (key: string) => {
     const chain: (Pick<TabGroup, "name" | "icon" | "color"> & { key: string })[] = [];
@@ -48,13 +49,14 @@ export function extractPinned(profileId: string, base: (key: string) => unknown,
     return chain;
   };
   for (const p of park?.tabs ?? []) {
+    if (workspaceOnly && !p.groupId && p.pin?.as !== "row") continue;
     if (!p.groupId) area.push({ pin: p });
     else if (parkGroups.has(p.groupId)) (enter(parkChain(p.groupId)), inside.get(p.groupId)!.push({ pin: p }));
   }
   for (const g of park?.groups ?? []) enter(parkChain(g.id));
   const values = new Map<string, unknown>();
-  const chosen = s.pinChoices[profileId] ?? {};
-  const sync = s.pinSync[profileId] ?? {};
+  const chosen = s.pinChoices[spaceId] ?? {};
+  const sync = s.pinSync[spaceId] ?? {};
   const baseTab = (key: string) => base(`${PIN_TAB}${key}`) as PinValue | undefined;
   const baseGroup = (key: string) => base(`${PIN_GROUP}${key}`) as PinGroupValue | undefined;
   const pinValue = (t: Pin, group: string | null, pos: string): PinValue => {
@@ -103,6 +105,6 @@ export function extractPinned(profileId: string, base: (key: string) => unknown,
     ignore: (k) => k.startsWith(PIN_ROW),
     republish: (k) => k.startsWith("pin:") && choiceStillOut(chosen, choiceOf(k), stamp(k)) && !queued(k),
     published: (keys) =>
-      settleChoices(profileId, Object.fromEntries([...keys].filter((k) => k.startsWith("pin:")).map(choiceOf).filter((c) => c in chosen).map((c) => [c, chosen[c]!]))),
+      settleChoices(spaceId, Object.fromEntries([...keys].filter((k) => k.startsWith("pin:")).map(choiceOf).filter((c) => c in chosen).map((c) => [c, chosen[c]!]))),
   } satisfies Extraction;
 }

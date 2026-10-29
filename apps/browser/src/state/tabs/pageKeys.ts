@@ -14,20 +14,20 @@ export function pageKey(url: string): string {
 const pageKeys = (tabs: { url: string; pinnedUrl?: string | null }[]): Set<string> =>
   new Set(tabs.flatMap((t) => [t.url, t.pinnedUrl].filter((u): u is string => !!u).map(pageKey)));
 
-export function pinnedPages(s: Pick<BrowserState, "tabs" | "groups" | "parkedPins">, profileId: string): Set<string> {
+export function pinnedPages(s: Pick<BrowserState, "tabs" | "groups" | "parkedPins">, spaceId: string): Set<string> {
   const inPinnedGroup = pinnedGroupMembers(s.groups);
-  const pinned = Object.values(s.tabs).filter((t) => t.profileId === profileId && (t.pin || inPinnedGroup.has(t.id)));
-  return pageKeys([...pinned, ...(s.parkedPins[profileId]?.tabs ?? [])]);
+  const pinned = Object.values(s.tabs).filter((t) => t.spaceId === spaceId && (t.pin || inPinnedGroup.has(t.id)));
+  return pageKeys([...pinned, ...(s.parkedPins[spaceId]?.tabs ?? [])]);
 }
 
-export function tilePages(s: Pick<BrowserState, "tabs" | "groups" | "parkedPins">, profileId: string): Set<string> {
+export function tilePages(s: Pick<BrowserState, "tabs" | "groups" | "parkedPins">, spaceId: string): Set<string> {
   const inGroup = new Set(Object.values(s.groups).flatMap((g) => g.tabIds));
-  const tiles = Object.values(s.tabs).filter((t) => t.profileId === profileId && pinSection(t) === "tile" && !inGroup.has(t.id));
-  const parkedTiles = (s.parkedPins[profileId]?.tabs ?? []).filter((t) => pinSection(t) === "tile" && !t.groupId);
+  const tiles = Object.values(s.tabs).filter((t) => t.spaceId === spaceId && pinSection(t) === "tile" && !inGroup.has(t.id));
+  const parkedTiles = (s.parkedPins[spaceId]?.tabs ?? []).filter((t) => pinSection(t) === "tile" && !t.groupId);
   return pageKeys([...tiles, ...parkedTiles]);
 }
 
-export function openPages(s: Pick<BrowserState, "tabs" | "parkedPins">, profileId: string): Set<string> {
-  const open = Object.values(s.tabs).filter((t) => t.profileId === profileId);
-  return pageKeys([...open, ...(s.parkedPins[profileId]?.tabs ?? [])]);
+export function openPages(s: Pick<BrowserState, "tabs" | "parkedPins">, spaceId: string): Set<string> {
+  const open = Object.values(s.tabs).filter((t) => t.spaceId === spaceId);
+  return pageKeys([...open, ...(s.parkedPins[spaceId]?.tabs ?? [])]);
 }

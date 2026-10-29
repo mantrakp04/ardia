@@ -27,7 +27,7 @@ const NOW_TICK_MS = 30_000;
 const SEARCH_FIELD_ROW = { height: SEARCH_ROW, justifyContent: "center", paddingHorizontal: PANEL.inset } as const;
 const EMPTY_LINE = { paddingHorizontal: PANEL.inset, lineHeight: ROW } as const;
 
-type Row = GroupPanelTab & { favicon: string | null; icon: string | null; profileId: string };
+type Row = GroupPanelTab & { favicon: string | null; icon: string | null; spaceId: string };
 
 function useGroupRows(groupId: string, windowId: string): Row[] {
   const ids = useGroupPanelTabIds(groupId);
@@ -36,7 +36,7 @@ function useGroupRows(groupId: string, windowId: string): Row[] {
     const shared = sharedTabsForPanel(windowId);
     const rows = tabs
       .filter((t): t is Tab => !!t)
-      .map((t) => ({ id: t.id, title: tabTitle(t), url: t.url, usedAt: shared?.lastUsed(t) ?? t.lastActiveAt, favicon: t.favicon, icon: t.customIcon, profileId: t.profileId }));
+      .map((t) => ({ id: t.id, title: tabTitle(t), url: t.url, usedAt: shared?.lastUsed(t) ?? t.lastActiveAt, favicon: t.favicon, icon: t.customIcon, spaceId: t.spaceId }));
     return byRecentUse(rows);
   }, [tabs, windowId]);
 }
@@ -182,7 +182,7 @@ function PanelRow({ row, now, selected, onHover, onPress }: { row: Row; now: num
   return (
     <View onMouseEnter={onHover}>
       <MenuRow
-        leading={<TabIcon tabId={row.id} url={row.url} favicon={row.favicon} icon={row.icon} profileId={row.profileId} />}
+        leading={<TabIcon tabId={row.id} url={row.url} favicon={row.favicon} icon={row.icon} spaceId={row.spaceId} />}
         title={row.title}
         detail={ago(row.usedAt, now)}
         minHeight={ROW}

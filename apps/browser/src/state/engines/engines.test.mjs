@@ -150,7 +150,7 @@ test("a navigation that became a download, or an error page, is never recorded",
   assert.deepEqual(written, []);
 });
 
-test("a visit keeps the profile it was made in, even if the tab moves before it settles", () => {
+test("a visit keeps the space it was made in, even if the tab moves before it settles", () => {
   const { visits, written, advance, page } = recorder();
   visits.note("t", "work", page("https://a.com/", "A", false));
   visits.note("t", "home", page("https://a.com/", "A", false));

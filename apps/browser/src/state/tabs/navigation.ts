@@ -143,9 +143,9 @@ export const closeHistoryMenuOf = (tabId: string) => {
   if (useHistoryMenu.getState().menu?.tabId === tabId) closeHistoryMenu();
 };
 
-export function historyFavicons(profileId: string, items: readonly { url: string }[]): Map<string, string | null> {
+export function historyFavicons(spaceId: string, items: readonly { url: string }[]): Map<string, string | null> {
   const urls = new Set(items.map((i) => i.url));
-  return new Map(historyOf(useBrowser.getState(), profileId).filter((h) => urls.has(h.url)).map((h) => [h.url, h.favicon]));
+  return new Map(historyOf(useBrowser.getState(), spaceId).filter((h) => urls.has(h.url)).map((h) => [h.url, h.favicon]));
 }
 
 export function toggleHistoryMenu(tabId: string, direction: -1 | 1) {

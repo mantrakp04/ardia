@@ -1,8 +1,9 @@
 import { readDocument, removeDocument, saveDocument, writeDocument } from "../../platform/documents";
 import { Clock, emptyScope, restoreJournal, SyncNative, writtenSeq, type LogFile, type ScopeState, type SyncRecord } from "../../platform/sync";
+import { useBrowser } from "../browser/store";
+import { syncWithSpaces } from "../../lib/workspaceUpgrade";
 import { parseSaved, unchanged, versionedJson, type Migrations, type SavedObject } from "../../lib/savedDocument";
-import { profileScope } from "./records";
-import { APP_SCOPE, DOC, DOC_MIGRATIONS, DOC_VERSION, JOURNAL, STATE, defaultTypes, emptyDoc, type SyncDoc } from "./syncDoc";
+import { APP_SCOPE, profileScope, spaceScope, DOC, DOC_MIGRATIONS, DOC_VERSION, JOURNAL, STATE, defaultTypes, emptyDoc, type SyncDoc } from "./syncDoc";
 import { isFields, numberOr, stringOr } from "../../lib/decode";
 
 type Journal = Record<string, LogFile[]>;
@@ -45,7 +46,7 @@ const JOURNAL_BYTES_LIMIT = 1_000_000;
 const JOURNAL_PARTS_LIMIT = 400;
 const DOC_IDLE_MS = 5 * 60_000;
 
-const journalPart = (n: number) => `sync-journal-${n}.nns`;
+const journalPart = (n: number) => `sync-spaces-journal-${n}.nns`;
 
 const openSealed = async (sealed: string | null | undefined) => (sealed ? ((await SyncNative?.openLocal(sealed)) ?? null) : null);
 
@@ -105,7 +106,9 @@ export function syncFiles(current: () => SyncDoc) {
   function read(): SyncDoc | null {
     try {
       const json = readDocument(DOC);
-      const saved = parseSaved(json, DOC_VERSION, DOC_MIGRATIONS, "v") as SyncDoc | null;
+      const value = json ? JSON.parse(json) : null;
+      const migrated = value?.v === 1 ? JSON.stringify(syncWithSpaces(value, { profiles: useBrowser.getState().profiles, spaces: useBrowser.getState().spaces })) : json;
+      const saved = parseSaved(migrated, DOC_VERSION, DOC_MIGRATIONS, "v") as SyncDoc | null;
       const loaded = saved ? { ...emptyDoc(), ...saved, types: { ...defaultTypes(), ...saved.types }, scopes: {} } : null;
       docFile.json = json ?? "";
       return loaded;
@@ -139,7 +142,7 @@ export function syncFiles(current: () => SyncDoc) {
       const { scopes, covers, clock: savedClock } = readCheckpoint(parseSaved(await openSealed(sealedState), CHECKPOINT_VERSION, CHECKPOINT_MIGRATIONS));
       const parts = await readJournal();
       const doc = current();
-      const live = new Set([APP_SCOPE, ...Object.values(doc.profiles).map((link) => profileScope(link.syncId))]);
+      const live = new Set([APP_SCOPE, ...Object.values(doc.spaces).map((link) => spaceScope(link.syncId)), ...Object.values(doc.profiles).map((link) => profileScope(link.syncId))]);
       const clock = new Clock(doc.deviceId ?? "", doc.clock);
       if (savedClock) clock.observe(savedClock);
       const batches: Journal = {};

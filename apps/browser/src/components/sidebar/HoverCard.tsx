@@ -179,7 +179,7 @@ function PeekRow({ tabId, windowId }: { tabId: string; windowId: string }) {
     >
       <View onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
         <SidebarListRow height={28} padRight={space.xs} fill={hovered ? theme.rowHover : undefined}>
-          <TabIcon url={tab.url} favicon={tab.favicon} icon={tab.customIcon} compact profileId={tab.profileId} />
+          <TabIcon url={tab.url} favicon={tab.favicon} icon={tab.customIcon} compact spaceId={tab.spaceId} />
           <SidebarRowLabel text={tabTitle(tab)} color={theme.textTab} compact />
         </SidebarListRow>
       </View>

@@ -2,9 +2,9 @@ import { createContext, useContext } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { isBookmarked } from "../bookmarks/bookmarks";
 import { useBrowser, type BrowserState } from "./store";
-import { activeTabId, bookmarkProfileId, IDLE_LIVE, profileFor, tabLayoutOf } from "./model";
+import { activeTabId, bookmarkSpaceId, IDLE_LIVE, spaceFor, tabLayoutOf } from "./model";
 import type { Settings } from "../settings/settings";
-import type { BrowserWindow, FindState, Profile, Tab, TabGroup, TabLive } from "./types";
+import type { BrowserWindow, FindState, Space, Tab, TabGroup, TabLive } from "./types";
 import { CLOSED_FIND, DEFAULT_WINDOW_UI } from "../windows/ui";
 import { downloadsIn } from "../downloads/downloadsSlice";
 import { focusedWindowOf } from "../windows/ui";
@@ -23,24 +23,24 @@ function useWindowField<T>(select: (w: BrowserWindow) => T, fallback: T): T {
   });
 }
 
-export const PageProfileContext = createContext<string | null>(null);
+export const PageSpaceContext = createContext<string | null>(null);
 
-export function usePageProfileId(): string {
-  const page = useContext(PageProfileContext);
-  const own = useWindowProfileId();
+export function usePageSpaceId(): string {
+  const page = useContext(PageSpaceContext);
+  const own = useWindowSpaceId();
   return page ?? own;
 }
 
 export const useIsIncognito = () => useWindowField((w) => w.kind === "private", false);
 export const useSidebarOpen = () => useWindowField((w) => w.sidebarOpen, true);
-export const useWindowProfileId = () => useWindowField((w) => w.profileId, "");
+export const useWindowSpaceId = () => useWindowField((w) => w.spaceId, "");
 
-export function useWindowProfile(): Profile {
-  const profileId = useWindowProfileId();
-  return useBrowser((s) => profileFor(s, profileId));
+export function useWindowSpace(): Space {
+  const spaceId = useWindowSpaceId();
+  return useBrowser((s) => spaceFor(s, spaceId));
 }
 
-export const useProfiles = (): Profile[] => useBrowser(useShallow((s) => s.profileOrder.map((id) => s.profiles[id]!)));
+export const useSpaces = (): Space[] => useBrowser(useShallow((s) => s.spaceOrder.map((id) => s.spaces[id]!)));
 
 export function useActiveTabId(): string | undefined {
   const id = useWindowId();
@@ -58,7 +58,7 @@ export function useActiveTab(): Tab | undefined {
 export const useIsActiveTab = (tabId: string) =>
   useBrowser((s) => {
     const tab = s.tabs[tabId];
-    return !!tab && activeTabId(s, tab.windowId, tab.profileId) === tabId;
+    return !!tab && activeTabId(s, tab.windowId, tab.spaceId) === tabId;
   });
 
 export function useTab(tabId: string | undefined): Tab | undefined;
@@ -73,8 +73,8 @@ export function useTab<T>(tabId: string | undefined, select?: (tab: Tab | undefi
 export const useWindow = <T>(windowId: string | null | undefined, select: (w: BrowserWindow | undefined) => T): T =>
   useBrowser((s) => select(windowId ? s.windows[windowId] : undefined));
 
-export const useProfile = <T>(profileId: string | null | undefined, select: (p: Profile | undefined) => T): T =>
-  useBrowser((s) => select(profileId ? s.profiles[profileId] : undefined));
+export const useSpace = <T>(spaceId: string | null | undefined, select: (p: Space | undefined) => T): T =>
+  useBrowser((s) => select(spaceId ? s.spaces[spaceId] : undefined));
 
 export const useGroup = <T>(groupId: string | null | undefined, select: (g: TabGroup | undefined) => T): T =>
   useBrowser((s) => select(groupId ? s.groups[groupId] : undefined));
@@ -101,7 +101,7 @@ export const useChosenSettings = (): readonly string[] => useBrowser((s) => s.se
 
 export function useIsBookmarked(url: string): boolean {
   const id = useWindowId();
-  return useBrowser((s) => isBookmarked(s, bookmarkProfileId(s, s.windows[id]), url));
+  return useBrowser((s) => isBookmarked(s, bookmarkSpaceId(s, s.windows[id]), url));
 }
 
 export const useAppDark = (): boolean => useBrowser((s) => s.ui.appDark);

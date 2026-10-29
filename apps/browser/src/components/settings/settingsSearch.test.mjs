@@ -92,7 +92,7 @@ test("every indexed setting is anchored in its pane, and every anchor is indexed
 test("every settings row with a fixed title is searchable", () => {
   const dir = new URL("./panes/", import.meta.url);
   const notSettings = /Sheet$|Connect$|Details|List$/;
-  const statusRows = new Set(["iCloud Drive is off on this Mac"]);
+  const statusRows = new Set(["iCloud Drive is off on this Mac", "Profile change waiting"]);
   for (const file of readdirSync(dir).filter((f) => f.endsWith(".tsx"))) {
     const source = readFileSync(new URL(file, dir), "utf8");
     for (const m of source.matchAll(/<Row\b([^>]*?)title="([^"]+)"/gs)) {

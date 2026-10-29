@@ -4,13 +4,15 @@ import { confirm } from "../app/system";
 import { plural } from "../browser/model";
 import { MAX_DRAFT_LINKS } from "../groups/draftGroups";
 import { createProfile } from "../profiles/actions";
+import { addSpace } from "../spaces/actions";
+import { currentSpaces } from "../browser/current";
 import {
   applyResult,
   emptyCounts,
   importArcSpace,
-  importDiaProfile,
-  profileColorFor,
-  profileNamed,
+  importDiaSpace,
+  spaceColorFor,
+  spaceNamed,
   type BrowserProfile,
   type DiaTabsResult,
   type ImportCounts,
@@ -18,7 +20,7 @@ import {
   type ImportKind,
   type ImportResult,
 } from "./apply";
-import { diaProfilesFor } from "./diaTabs";
+import { diaSpacesFor } from "./diaTabs";
 import {
   APP_TAB_KINDS,
   ENCRYPTED_KINDS,
@@ -71,20 +73,9 @@ export function skipEncryptedData() {
   void runImport(kinds, true);
 }
 
-async function destination(target: string, index: number, name: string, color?: string, emoji?: string, shareWith?: string | null): Promise<string> {
+async function destination(target: string, index: number, name: string, color?: string, emoji?: string, profileId?: string): Promise<string> {
   if (index === 0) return target;
-  const clash = profileNamed(name);
-  if (clash) {
-    const { confirmed } = await confirm({
-      title: "Import as new profile?",
-      message:
-        "Import this data as a new profile to avoid data loss. If you replace a profile, your passwords, cookies, and payment info will be replaced, while your bookmarks and history will be combined.",
-      confirmTitle: "Import as new profile",
-      cancelTitle: "Replace this profile",
-    });
-    if (!confirmed) return clash;
-  }
-  return createProfile({ name, color: profileColorFor(color), icon: emoji ?? null, shareWith });
+  return addSpace({ name, color: spaceColorFor(color), icon: emoji ?? null, profileId });
 }
 
 type AppTabs = { result: DiaTabsResult } | { note: string };
@@ -107,9 +98,9 @@ function readAppTabs(): Promise<AppTabs> {
 
 function importAppTabs(dest: string, tabs: AppTabs, profiles: BrowserProfile[], profileId: string, wanted: ReadonlySet<ImportKind>): number {
   if (!("result" in tabs)) return 0;
-  const dia = diaProfilesFor(tabs.result, profiles).get(profileId);
+  const dia = diaSpacesFor(tabs.result, profiles).get(profileId);
   if (!dia) return 0;
-  return importDiaProfile(dest, dia, { pinned: wanted.has("pinnedTabs"), open: wanted.has("tabs") }, tabs.result.favicons);
+  return importDiaSpace(dest, dia, { pinned: wanted.has("pinnedTabs"), open: wanted.has("tabs") }, tabs.result.favicons);
 }
 
 export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = false) {
@@ -130,8 +121,7 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
   const failed = new Map<ImportKind, string[]>();
   const add = (c: ImportCounts) => (Object.keys(total) as (keyof ImportCounts)[]).forEach((k) => (total[k] += c[k]));
   let destinationIndex = 0;
-  const nextDestination = (name: string, color?: string, emoji?: string, shareWith?: string | null) =>
-    destination(target, destinationIndex++, name, color, emoji, shareWith);
+
   const found = new Map<string, ImportedExtension>();
   const left: string[] = [];
   let extensionsProfile = "";
@@ -140,7 +130,10 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
     await api.unlockBrowser(source.id).catch(orWarn(undefined));
   }
 
-  for (const profile of selected) {
+  for (const [sourceIndex, profile] of selected.entries()) {
+    let assigned = sourceIndex === 0 ? currentSpaces()[target]!.profileId : "";
+    const profileForImport = () => assigned ||= createProfile({ name: profile.name });
+    const nextDestination = (name: string, color?: string, emoji?: string) => destination(target, destinationIndex++, name, color, emoji, profileForImport());
     let result: ImportResult;
     const profileKinds = tabsLocked(profile) ? fromFiles.filter((k) => k !== "tabs") : fromFiles;
     try {
@@ -175,7 +168,7 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
       let first: string | null = null;
       for (const space of result.spaces) {
         const name = space.name || "Space";
-        const dest = await nextDestination(name, space.color, space.emoji, first);
+        const dest = await nextDestination(name, space.color, space.emoji);
         first ??= dest;
         const r = importArcSpace(dest, space, result.favicons);
         add({ ...emptyCounts(), tabs: r.tabs, bookmarks: r.bookmarks });

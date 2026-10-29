@@ -39,8 +39,8 @@ function missingRows(): string[] {
   for (const windowId of s.windowOrder) {
     const w = s.windows[windowId];
     if (!w || !w.sidebarOpen) continue;
-    const { tiles, pinned: all, list } = sidebarEntries(s, windowId, w.profileId);
-    const pinned = shownPinnedEntries(s, windowId, w.profileId, all);
+    const { tiles, pinned: all, list } = sidebarEntries(s, windowId, w.spaceId);
+    const pinned = shownPinnedEntries(s, windowId, w.spaceId, all);
     const ids = [...tiles, ...[...pinned, ...list].map((e) => (parseEntry(e).kind === "split" ? e : parseEntry(e).id))];
     for (const id of ids) if (!rowView(windowId, id)) missing.push(`${windowId}|${id}`);
   }
@@ -53,7 +53,7 @@ function edit() {
   const windowId = focusedWindowOf(s) ?? s.windowOrder[0];
   const w = windowId ? s.windows[windowId] : undefined;
   if (!w) return;
-  const mine = w.tabIds.filter((id) => s.tabs[id]?.profileId === w.profileId && !s.tabs[id]?.pin);
+  const mine = w.tabIds.filter((id) => s.tabs[id]?.spaceId === w.spaceId && !s.tabs[id]?.pin);
   const added = s.newTab(w.id, { url: "about:blank#layout-edit", background: true });
   s.moveTab(added, 0);
   const closed = mine[3];

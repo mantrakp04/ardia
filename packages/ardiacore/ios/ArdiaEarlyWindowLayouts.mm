@@ -35,7 +35,7 @@ NSString *StateOf(ArdiaSavedSession *session, NSString *windowId) {
   for (NSString *key in @[ @"tabLayout", @"addressBar", @"sidebarWidth", @"bookmarksBar", @"appearance", @"hideToolbarWhileScrolling", @"showFullUrl" ])
     if (settings[key]) state[[@"s." stringByAppendingString:key]] = settings[key];
   if ([settings[@"compactToolbar"] isEqual:@YES]) state[@"s.compactToolbar"] = @YES;
-  for (NSString *key in @[ @"sidebarOpen", @"tabLayout", @"profileId", @"incognito" ])
+  for (NSString *key in @[ @"sidebarOpen", @"tabLayout", @"spaceId", @"incognito" ])
     if (window[key]) state[[@"w." stringByAppendingString:key]] = window[key];
   NSData *data = [NSJSONSerialization dataWithJSONObject:state options:NSJSONWritingSortedKeys error:nil];
   return data ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : nil;
@@ -188,7 +188,7 @@ void Write(NSData *data) {
 NSString *ActiveTabOf(ArdiaSavedSession *session, NSString *windowId) {
   NSDictionary *w = [session windowWithId:windowId];
   NSDictionary *active = [w[@"activeTabIds"] isKindOfClass:NSDictionary.class] ? w[@"activeTabIds"] : nil;
-  id tab = [w[@"profileId"] isKindOfClass:NSString.class] ? active[w[@"profileId"]] : nil;
+  id tab = [(w[@"spaceId"] ?: w[@"profileId"]) isKindOfClass:NSString.class] ? active[w[@"spaceId"] ?: w[@"profileId"]] : nil;
   return [tab isKindOfClass:NSString.class] ? tab : nil;
 }
 

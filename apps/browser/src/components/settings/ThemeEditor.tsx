@@ -1,4 +1,4 @@
-import { holdThemedWindowsKeyLook, choosePresetColor, setProfileTheme } from "../../state/profiles/themeActions";
+import { holdThemedWindowsKeyLook, choosePresetColor, setProfileTheme } from "../../state/spaces/themeActions";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Pressable, View } from "react-native";
 import {
@@ -19,15 +19,15 @@ import {
 } from "../../lib/profileLook";
 import { THEME_TEXTURES } from "@ardia/core";
 import { PROFILE_COLORS } from "../ui/theme";
-import { useAppDark, useProfile, useSettings, useWindow } from "../../state/browser/hooks";
+import { useAppDark, useSpace, useSettings, useWindow } from "../../state/browser/hooks";
 import type { ProfileColor, ProfileTheme, ThemeMode, ThemeTexture } from "../../state/browser/types";
 import { Box, Button, curve, duration, Group, PopUp, Segmented, space, Swatch, swatch, Text, ThemeSwatch } from "../ui";
-import { importArcTheme } from "../../state/profiles/arcThemes";
+import { importArcTheme } from "../../state/spaces/arcThemes";
 import { Row, SectionHeader } from "./Form";
 import { ColorPad, DirectionDial, LABEL, Labelled, LightnessBar, Preview, Slider } from "./ThemeControls";
 import { settingsInk } from "./tokens";
 
-export { arcThemeChoices, importArcTheme } from "../../state/profiles/arcThemes";
+export { arcThemeChoices, importArcTheme } from "../../state/spaces/arcThemes";
 
 const MODES: { value: ThemeMode; symbol: string; title: string }[] = [
   { value: "light", symbol: "sun.max", title: "Light" },
@@ -59,36 +59,36 @@ function useLiveTheme(theme: ProfileTheme | null | undefined, apply: (theme: Pro
   return { theme: draft ?? theme ?? null, change };
 }
 
-export function useThemeDraft(profileId: string, apply: (theme: ProfileTheme) => void) {
-  const profile = useProfile(profileId, (p) => p);
-  const live = useLiveTheme(profile?.theme, apply);
+export function useThemeDraft(spaceId: string, apply: (theme: ProfileTheme) => void) {
+  const space = useSpace(spaceId, (p) => p);
+  const live = useLiveTheme(space?.theme, apply);
   const appDark = useAppDark();
   const source = useSettings((s) => spaceLookSource(s));
   const stored = live.theme;
   const editsDark = !!stored && requestedDarkFor(stored, appDark, source);
   const custom = stored?.dark ? resolveTheme(stored, editsDark) : stored;
   const startCustom = () => {
-    if (profile && !custom) live.change(startingTheme(PROFILE_COLORS[profile.color]?.swatch ?? PROFILE_COLORS.plum.swatch), true);
+    if (space && !custom) live.change(startingTheme(PROFILE_COLORS[space.color]?.swatch ?? PROFILE_COLORS.plum.swatch), true);
   };
   const shown = stored ? shownLook(stored, appDark, source) : null;
-  return { profile, stored, custom, editsDark, shown, followsApp: source === "app", change: live.change, startCustom };
+  return { space, stored, custom, editsDark, shown, followsApp: source === "app", change: live.change, startCustom };
 }
 
-export function ThemeSection({ profileId }: { profileId: string }) {
-  const { profile, stored, custom, editsDark, shown, followsApp, change, startCustom } = useThemeDraft(profileId, (theme) => setProfileTheme(profileId, theme));
-  const editing = !!profile && !!stored;
+export function ThemeSection({ spaceId }: { spaceId: string }) {
+  const { space, stored, custom, editsDark, shown, followsApp, change, startCustom } = useThemeDraft(spaceId, (theme) => setProfileTheme(spaceId, theme));
+  const editing = !!space && !!stored;
   useEffect(() => {
     if (!editing) return;
     holdThemedWindowsKeyLook(true);
     return () => holdThemedWindowsKeyLook(false);
   }, [editing]);
-  if (!profile) return null;
+  if (!space) return null;
   return (
     <>
       <SectionHeader
         title="Theme"
-        description="Tints this profile's windows, New Tab page and highlights."
-        action={<Button title="Import from Arc…" onPress={() => void importArcTheme(profileId)} />}
+        description="Tints this space's windows, New Tab page and highlights."
+        action={<Button title="Import from Arc…" onPress={() => void importArcTheme(spaceId)} />}
       />
       <Group>
         <Row
@@ -98,10 +98,10 @@ export function ThemeSection({ profileId }: { profileId: string }) {
               ? `Separate light and dark looks. Editing keeps the ${editsDark ? "dark" : "light"} one.`
               : custom
                 ? "Custom gradient"
-                : PROFILE_COLORS[profile.color]?.name
+                : PROFILE_COLORS[space.color]?.name
           }
         >
-          <ThemeSwatches color={custom ? null : profile.color} onPreset={(c) => choosePresetColor(profileId, c)} custom={custom} onCustom={startCustom} />
+          <ThemeSwatches color={custom ? null : space.color} onPreset={(c) => choosePresetColor(spaceId, c)} custom={custom} onCustom={startCustom} />
         </Row>
         {custom && shown ? (
           <Box pad="l">
@@ -126,18 +126,18 @@ export function ThemePicker({
   onPreset?: (color: ProfileColor) => void;
   onTheme?: (theme: ProfileTheme) => void;
 }) {
-  const profileId = useWindow(windowId, (w) => w?.profileId) ?? "";
+  const spaceId = useWindow(windowId, (w) => w?.spaceId) ?? "";
   const incognito = useWindow(windowId, (w) => w?.kind === "private");
-  const look = useThemeDraft(profileId, (theme) => (onTheme ? onTheme(theme) : setProfileTheme(profileId, theme)));
-  if (!profileId || incognito || !look.profile) return null;
+  const look = useThemeDraft(spaceId, (theme) => (onTheme ? onTheme(theme) : setProfileTheme(spaceId, theme)));
+  if (!spaceId || incognito || !look.space) return null;
   const { custom } = look;
   return (
     <View style={{ gap: space.xxxl }}>
       <ThemeSwatches
         size={size}
         gap={gap}
-        color={custom ? null : look.profile.color}
-        onPreset={(c) => (onPreset ? onPreset(c) : choosePresetColor(profileId, c))}
+        color={custom ? null : look.space.color}
+        onPreset={(c) => (onPreset ? onPreset(c) : choosePresetColor(spaceId, c))}
         custom={custom}
         onCustom={look.startCustom}
       />

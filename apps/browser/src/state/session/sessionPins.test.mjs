@@ -52,7 +52,8 @@ function assertPins() {
   assert.deepEqual(s.closedWindows.at(-1).tabs[0].pin, FOLDED);
   assert.equal(s.closedGroups[0].tabs[0].pin, null);
   assert.deepEqual(s.deletedGroups[0].tabs[0].pin, TILE);
-  assert.deepEqual(s.parkedPins.default.tabs.map((p) => p.pin), [FOLDED, ROW]);
+  assert.deepEqual(s.parkedPins.default.tabs.map((p) => p.pin), [ROW]);
+  assert.deepEqual(s.topApps.default.find((app) => app.url === "https://parked.com/").tileFolder, FOLDER);
   for (const t of [...Object.values(s.tabs), ...s.closedTabs.map((c) => c.tab), ...s.parkedPins.default.tabs])
     for (const k of ["pinned", "pinnedAsRow", "tileFolder"]) assert.equal(k in t, false, `${t.id ?? t.url} has ${k}`);
 }

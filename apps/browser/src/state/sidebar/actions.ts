@@ -6,7 +6,7 @@ import { useBrowser } from "../browser/store";
 import { webviews } from "../../platform/webviews";
 import { focusHeroBar } from "../omnibox/barState";
 import { ancestorIds } from "../groups/groups";
-import { activeTabId, bookmarkProfileId, inPinnedContainer, pinSection, tabLayoutOf, tabTitle, viewTabIds } from "../browser/model";
+import { activeTabId, bookmarkSpaceId, inPinnedContainer, pinSection, tabLayoutOf, tabTitle, viewTabIds } from "../browser/model";
 import type { ClickMods } from "../drag/drops";
 import { selectedTabIds } from "../pins/organize";
 import { groupLabel, groupOf } from "../pins/tabGrouping";
@@ -33,7 +33,7 @@ export function returnFocusToPage(windowId: string) {
 
 export function toggleBookmarkInWindow(windowId: string, page: { url: string; title: string; favicon: string | null }) {
   const s = store();
-  s.toggleBookmark(bookmarkProfileId(s, s.windows[windowId]), page);
+  s.toggleBookmark(bookmarkSpaceId(s, s.windows[windowId]), page);
 }
 
 export function returnShownTabToPinnedUrl(windowId: string, tabId: string) {
@@ -121,16 +121,16 @@ export function copyUrls(ids: string[], markdown: boolean) {
 
 export async function bookmarkTabs(windowId: string, ids: string[], folder: BookmarkFolderChoice) {
   const s = store();
-  const profileId = bookmarkProfileId(s, s.windows[windowId]);
+  const spaceId = bookmarkSpaceId(s, s.windows[windowId]);
   let parentId = folder.kind === "folder" ? folder.parentId : undefined;
   if (folder.kind === "newFolder") {
     const title = await prompt({ title: "New Folder", placeholder: "Folder name", confirmTitle: "Create", windowId });
     if (!title) return;
-    parentId = store().addBookmarkFolder({ profileId, title });
+    parentId = store().addBookmarkFolder({ spaceId, title });
   }
   for (const id of ids) {
     const t = store().tabs[id];
-    if (t?.url) store().addBookmark({ profileId, url: t.url, title: tabTitle(t), favicon: t.favicon, parentId });
+    if (t?.url) store().addBookmark({ spaceId, url: t.url, title: tabTitle(t), favicon: t.favicon, parentId });
   }
 }
 

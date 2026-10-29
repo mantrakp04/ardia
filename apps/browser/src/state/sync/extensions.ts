@@ -2,7 +2,7 @@ import { useBrowser } from "../browser/store";
 import { applyExtensionsSync, extensionsSyncState, onExtensionsSync, type ExtensionsSyncApply } from "../../platform/extensions";
 import { readDocument, writeDocument } from "../../platform/documents";
 import { extensionsAdapter, type ExtensionChange, type ExtensionIntent, type ExtensionsAdapter, type LocalExtensions } from "../../platform/sync";
-import { engineProfile } from "../browser/model";
+import { engineProfileForSpace } from "../browser/model";
 import { parseSaved, unchanged, versionedJson, type Migrations } from "../../lib/savedDocument";
 
 const DOC = "sync-extensions.json";
@@ -17,7 +17,7 @@ function stored(): Intents {
   if (intents) return intents;
   try {
     const saved = (parseSaved(readDocument(DOC), DOC_VERSION, DOC_MIGRATIONS) ?? {}) as Partial<Intents>;
-    intents = { generation: Number(saved.generation) || 0, profiles: saved.profiles ?? {} };
+    intents = { generation: Number(saved.generation) || 0, profiles: saved.profiles ?? (saved as Partial<Intents> & { spaces?: Intents["profiles"] }).spaces ?? {} };
   } catch {
     intents = { generation: 0, profiles: {} };
   }
@@ -64,14 +64,14 @@ async function change(profile: string, c: ExtensionChange): Promise<boolean> {
   }
 }
 
-export function extensionsAdapterFor(profileId: string): ExtensionsAdapter {
-  const profile = () => engineProfile(useBrowser.getState(), profileId);
+export function extensionsAdapterFor(spaceId: string, context?: () => string): ExtensionsAdapter {
+  const space = context ?? (() => engineProfileForSpace(spaceId));
   return extensionsAdapter({
-    read: () => readLocal(profile()),
-    change: (c) => change(profile(), c),
-    intents: () => ({ ...stored().profiles[profile()] }),
+    read: () => readLocal(space()),
+    change: (c) => change(space(), c),
+    intents: () => ({ ...stored().profiles[space()] }),
     settleIntents: (published) => {
-      const byId = stored().profiles[profile()];
+      const byId = stored().profiles[space()];
       if (!byId) return;
       let changed = false;
       for (const [id, g] of Object.entries(published)) {
@@ -81,7 +81,7 @@ export function extensionsAdapterFor(profileId: string): ExtensionsAdapter {
       }
       if (changed) save();
     },
-    keepInstalled: (id) => note(profile(), id, "installed"),
+    keepInstalled: (id) => note(space(), id, "installed"),
   });
 }
 
@@ -90,7 +90,7 @@ let watching = false;
 export function watchExtensionIntents(profiles: string[]) {
   if (!watching) {
     watching = true;
-    onExtensionsSync(({ profile }) => void readLocal(profile));
+    onExtensionsSync(({ profile: space }) => void readLocal(space));
   }
-  for (const profile of profiles) void readLocal(profile);
+  for (const space of profiles) void readLocal(space);
 }

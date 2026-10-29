@@ -9,29 +9,29 @@ const stub = await import("../../test-native/index.ts");
 
 const S = () => useBrowser.getState();
 startPersistence();
-const tab = (id, windowId, url, profileId = "default") => ({
-  id, windowId, profileId, url, title: "", favicon: null, pin: null, muted: false, zoom: 1, customTitle: null, customIcon: null,
+const tab = (id, windowId, url, spaceId = "default") => ({
+  id, windowId, spaceId, url, title: "", favicon: null, pin: null, muted: false, zoom: 1, customTitle: null, customIcon: null,
   pinnedUrl: null, page: { kind: "idle" }, openerId: null, createdAt: 0, lastActiveAt: 0,
 });
 const win = (id, tabIds, active, extra = {}) => ({
-  id, profileId: "default", kind: "main", tabIds, activeTabIds: { default: active }, sidebarOpen: true, frame: null, createdAt: 0, ...extra,
+  id, spaceId: "default", kind: "main", tabIds, activeTabIds: { default: active }, sidebarOpen: true, frame: null, createdAt: 0, ...extra,
 });
 const PROFILES = {
   default: { id: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 },
   work: { id: "work", name: "Work", color: "blue", icon: null, createdAt: 0 },
 };
 const hydrate = (windows, tabs, extra = {}) =>
-  S().hydrate({ profiles: PROFILES, windows: Object.fromEntries(windows.map((w) => [w.id, w])), tabs: Object.fromEntries(tabs.map((t) => [t.id, t])), ...extra });
+  S().hydrate({ spaces: PROFILES, windows: Object.fromEntries(windows.map((w) => [w.id, w])), tabs: Object.fromEntries(tabs.map((t) => [t.id, t])), ...extra });
 
-test("the focused window's active web page, under its engine profile", () => {
+test("the focused window's active web page, under its engine space", () => {
   hydrate([win("w1", ["a", "b"], "b"), win("w2", ["c"], "c")], [tab("a", "w1", "https://a.com/"), tab("b", "w1", "https://b.com/x"), tab("c", "w2", "http://c.com/")], { focusedWindowId: "w1" });
   assert.deepEqual(launchTab(S(), (S().ui.focusOrder[0] ?? null)), { id: "b", url: "https://b.com/x", profile: "" });
   assert.deepEqual(launchTab(S(), "w2"), { id: "c", url: "http://c.com/", profile: "" });
   assert.equal(S().tabs.b.page.nav?.url, "https://b.com/x");
 });
 
-test("another profile's tab names that profile's engine profile", () => {
-  hydrate([win("w1", ["a"], null, { profileId: "work", activeTabIds: { work: "a" } })], [tab("a", "w1", "https://a.com/", "work")], { focusedWindowId: "w1" });
+test("another space's tab names that space's engine space", () => {
+  hydrate([win("w1", ["a"], null, { spaceId: "work", activeTabIds: { work: "a" } })], [tab("a", "w1", "https://a.com/", "work")], { focusedWindowId: "w1" });
   assert.deepEqual(launchTab(S(), "w1"), { id: "a", url: "https://a.com/", profile: "work" });
 });
 
@@ -60,7 +60,7 @@ test("session.json's hint is what the next launch claims", () => {
 });
 
 test("a reopened tab not shown yet keeps its back/forward list across a relaunch; nothing else pending does", () => {
-  const waking = (id, wake, profileId) => ({ ...tab(id, "w1", `https://${id}.com/`, profileId), page: { kind: "idle", wake } });
+  const waking = (id, wake, spaceId) => ({ ...tab(id, "w1", `https://${id}.com/`, spaceId), page: { kind: "idle", wake } });
   hydrate(
     [win("w1", ["a", "b", "c", "p"], "a")],
     [tab("a", "w1", "https://a.com/"), waking("b", "restore:old-b"), waking("c", "tab:42"), waking("p", "restore:old-p", "incognito:w9@default")],
@@ -140,8 +140,8 @@ test("switched off (launchTab): no hint is saved, so the engine starts nothing",
   assert.equal(savedHint().url, "https://a.com/on");
 });
 
-test("session.json names the profile the next launch opens links from other apps in", () => {
-  hydrate([win("w1", ["a"], "a")], [tab("a", "w1", "https://a.com/")], { focusedWindowId: "w1", lastProfileId: "work" });
+test("session.json names the space the next launch opens links from other apps in", () => {
+  hydrate([win("w1", ["a"], "a")], [tab("a", "w1", "https://a.com/")], { focusedWindowId: "w1", lastSpaceId: "work", settings: { defaultSpaceId: "work" } });
   flushPersistence();
   assert.equal(JSON.parse(stub.docs.get("session.json")).linkProfile, "work");
   hydrate([win("w1", ["a"], "a")], [tab("a", "w1", "https://a.com/")], { focusedWindowId: "w1" });

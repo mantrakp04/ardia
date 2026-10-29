@@ -1,7 +1,7 @@
 import { onScriptCommand, replyToScript, setScriptState, type ScriptCommand, type ScriptState } from "../../platform/scripting";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { activeTabId, resolveWindowId, viewTabIds, windowTitle } from "../browser/model";
-import { openWindow, switchProfile, switchToTab } from "../browser/actions";
+import { openWindow, switchSpace, switchToTab } from "../browser/actions";
 import { JAVASCRIPT_FROM_APPLE_EVENTS_REFUSED, runsJavaScript } from "../settings/scriptUrls";
 import { webviews } from "../../platform/webviews";
 import { errorText } from "../../lib/errors";
@@ -13,7 +13,7 @@ function scriptState(s: BrowserState): ScriptState {
       return {
         id,
         title: windowTitle(s, id),
-        profileId: w.profileId,
+        profileId: w.spaceId,
         incognito: w.kind === "private",
         activeTabId: activeTabId(s, id) ?? null,
         tabs: viewTabIds(s, id).map((tabId) => {
@@ -26,7 +26,7 @@ function scriptState(s: BrowserState): ScriptState {
             pinned: !!t.pin };
         }) };
     }),
-    profiles: s.profileOrder.map((id) => ({ id, name: s.profiles[id]!.name })) };
+    profiles: s.spaceOrder.map((id) => ({ id, name: s.spaces[id]!.name })) };
 }
 
 export function startScripting() {
@@ -40,7 +40,7 @@ export function startScripting() {
   };
   let timer: ReturnType<typeof setTimeout> | undefined;
   useBrowser.subscribe((s, prev) => {
-    if (s.tabs === prev.tabs && s.windows === prev.windows && s.live === prev.live && s.profiles === prev.profiles) return;
+    if (s.tabs === prev.tabs && s.windows === prev.windows && s.live === prev.live && s.spaces === prev.spaces) return;
     timer ??= setTimeout(() => {
       timer = undefined;
       void push();
@@ -78,7 +78,7 @@ async function runScriptCommand(request: ScriptCommand): Promise<Record<string, 
   switch (request.command) {
     case "newWindow": {
       if (refusesUrl(request.url)) return JAVASCRIPT_FROM_APPLE_EVENTS_REFUSED;
-      const windowId = openWindow({ url: request.url, kind: request.incognito ? "private" : "main", profileId: request.profileId });
+      const windowId = openWindow({ url: request.url, kind: request.incognito ? "private" : "main", spaceId: request.spaceId ?? request.profileId });
       return { windowId };
     }
     case "newTab": {
@@ -130,11 +130,13 @@ async function runScriptCommand(request: ScriptCommand): Promise<Record<string, 
       if (request.index < 1 || request.index > viewTabIds(s, request.windowId).length) throw new Error("There's no tab at that index.");
       return s.activateIndex(request.windowId, request.index - 1);
     }
-    case "focusProfile": {
+    case "focusProfile":
+    case "focusSpace": {
+      const spaceId = request.command === "focusSpace" ? request.spaceId : request.profileId;
       const windowId = resolveWindowId(s, null);
-      if (!s.profiles[request.profileId]) throw new Error("That profile no longer exists.");
+      if (!s.spaces[spaceId]) throw new Error("That profile no longer exists.");
       if (!windowId || s.windows[windowId]!.kind === "private") throw new Error("There's no window to show the profile in.");
-      return switchProfile(windowId, request.profileId);
+      return switchSpace(windowId, spaceId);
     }
     case "execute": {
       tabOf(request.tabId);

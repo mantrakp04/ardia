@@ -59,7 +59,7 @@ export const settingsMotion = {
   searchFlashIn: duration.fast,
   searchFlashHold: 900,
   searchFlashOut: duration.long,
-  profileRowSettle: duration.base,
+  spaceRowSettle: duration.base,
 } as const;
 
 export type MiniWindowGeometry = {

@@ -69,7 +69,7 @@ export function groupPath(groups: Record<string, TabGroup>, id: string): string[
 export function canNest(groups: Record<string, TabGroup>, groupId: string, parentId: string): boolean {
   const g = groups[groupId];
   const p = groups[parentId];
-  if (!g || !p || groupId === parentId || g.windowId !== p.windowId || g.profileId !== p.profileId) return false;
+  if (!g || !p || groupId === parentId || g.windowId !== p.windowId || g.spaceId !== p.spaceId) return false;
   return !ancestorIds(groups, parentId).includes(groupId);
 }
 
@@ -114,7 +114,7 @@ function nestOnce(groups: Record<string, TabGroup>): Record<string, TabGroup> {
   for (const g of all) {
     if (!g.parentId) continue;
     const p = groups[g.parentId];
-    const broken = !p || p.windowId !== g.windowId || p.profileId !== g.profileId || ancestorsBefore(g.parentId).has(g.id);
+    const broken = !p || p.windowId !== g.windowId || p.spaceId !== g.spaceId || ancestorsBefore(g.parentId).has(g.id);
     if (broken) edit(withParent(cur(g.id), undefined));
   }
   const ancestors = lineage(next ?? groups);

@@ -19,32 +19,37 @@ export function openRequestedTab(request: TabsRequest) {
   }
 }
 
+function spaceForProfile(profile: string): string | undefined {
+  const s = useBrowser.getState();
+  const existing = s.spaceOrder.find((id) => engineProfile(s, id) === profile);
+  if (existing) return existing;
+  const owner = Object.values(s.profiles).find((owner) => owner.engineId === profile);
+  return owner ? s.createSpace({ name: owner.name, profileId: owner.id }) : undefined;
+}
+
 function adoptStrayTab(request: Request<"adopt">) {
   const { url, profile } = request;
   const adoptId = asAdoptId(request.adoptId);
   if (!url) return;
+  const spaceId = spaceForProfile(profile);
+  if (!spaceId) return;
   const s = useBrowser.getState();
-  const ofProfile = (id: string) => !!s.windows[id] && s.windows[id]!.kind !== "private" && engineProfile(s, s.windows[id]!.profileId) === profile;
-  const windowId = s.ui.focusOrder.find(ofProfile) ?? s.ui.focusOrder.find((id) => s.windows[id]);
-  const profileId = windowId && ofProfile(windowId) ? s.windows[windowId]!.profileId : s.profileOrder.find((p) => engineProfile(s, p) === profile);
-  if (profileId) {
-    if (windowId && ofProfile(windowId)) s.newTab(windowId, { url, adoptId, profileId, background: false });
-    else openWindow({ url, adoptId, profileId });
-    return;
-  }
-  if (windowId) s.newTab(windowId, { url, background: false });
-  else openWindow({ url });
+  const ofSpace = (id: string) => !!s.windows[id] && !(s.windows[id]!.kind === "private") && engineProfile(s, s.windows[id]!.spaceId) === profile;
+  const windowId = s.ui.focusOrder.find(ofSpace);
+  if (windowId) s.newTab(windowId, { url, adoptId, spaceId: s.windows[windowId]!.spaceId, background: false });
+  else openWindow({ url, adoptId, spaceId });
 }
 
 function openChromeMadeTab(request: Request<"adoptInto">) {
   const { chromeWindow, url, profile, active, focused } = request;
   const adoptId = asAdoptId(request.adoptId);
+  const spaceId = spaceForProfile(profile);
+  if (!spaceId) return;
   const s = useBrowser.getState();
   const made = Object.values(s.windows).find((w) => w.kind !== "small" && w.chromeWindow === chromeWindow);
-  if (made) return void s.newTab(made.id, { url, adoptId, profileId: made.profileId, background: !active });
-  const profileId = s.profileOrder.find((p) => engineProfile(s, p) === profile);
-  if (!profileId) return void openWindow({ url, adoptId });
-  openWindow({ url, adoptId, profileId, chromeWindow, background: !focused });
+  const destination = made && engineProfile(s, made.spaceId) === profile ? made.spaceId : spaceId;
+  if (made) return void s.newTab(made.id, { url, adoptId, spaceId: destination, background: !active });
+  openWindow({ url, adoptId, spaceId, chromeWindow, background: !focused });
 }
 
 function closeChromeMadeWindow({ chromeWindow }: Request<"closeWindow">) {
@@ -59,5 +64,5 @@ function moveIntoChromeMadeWindow({ chromeWindow, tabId, focused }: Request<"mov
   if (!tab) return;
   const made = Object.values(s.windows).find((w) => w.kind !== "small" && w.chromeWindow === chromeWindow);
   if (made) return void s.moveTabsToWindow([tabId], made.id);
-  s.createWindow({ profileId: tab.profileId, tabIds: [tabId], chromeWindow, background: !focused });
+  s.createWindow({ spaceId: tab.spaceId, tabIds: [tabId], chromeWindow, background: !focused });
 }

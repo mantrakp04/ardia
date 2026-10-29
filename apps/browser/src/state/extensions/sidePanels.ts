@@ -1,6 +1,6 @@
 import { extensionSidePanelUrl } from "../../platform/extensions";
 import { useBrowser } from "../browser/store";
-import { shownReadyTab, extensionPageUrl, extensionProfile, isPrivate, pageProfile, shownIn, useExtensions } from "./store";
+import { shownReadyTab, extensionPageUrl, extensionSpace, isPrivate, pageSpace, shownIn, useExtensions } from "./store";
 
 const wanted = new Map<string, string>();
 const fetches = new Map<string, number>();
@@ -59,8 +59,8 @@ export async function syncSidePanel(windowId: string): Promise<void> {
   if (fetches.get(windowId) !== ticket) return;
   if (!url || !shownIn(windowId, extensionId)) return closeSidePanel(windowId);
   const s = useBrowser.getState();
-  const panel = { extensionId, profile: extensionProfile(s, windowId), pageProfile: pageProfile(s, windowId), url };
+  const panel = { extensionId, profile: extensionSpace(s, windowId), pageSpace: pageSpace(s, windowId), url };
   const now = useExtensions.getState().sidePanels[windowId];
-  if (now && now.extensionId === panel.extensionId && now.url === url && now.profile === panel.profile && now.pageProfile === panel.pageProfile) return;
+  if (now && now.extensionId === panel.extensionId && now.url === url && now.profile === panel.profile && now.pageSpace === panel.pageSpace) return;
   useExtensions.setState((e) => ({ sidePanels: { ...e.sidePanels, [windowId]: panel } }));
 }

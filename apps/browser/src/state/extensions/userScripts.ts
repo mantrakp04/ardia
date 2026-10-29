@@ -8,23 +8,23 @@ import {
   type UserScriptsFolder,
 } from "../../platform/userScripts";
 import { useBrowser, type BrowserState } from "../browser/store";
-import { engineProfile, isIncognitoProfile } from "../browser/model";
+import { engineProfile, engineProfileForSpace, isIncognitoSpace } from "../browser/model";
 import { parseSaved, unchanged, versionedJson, type Migrations } from "../../lib/savedDocument";
 import { errorText } from "../../lib/errors";
 import { singleFlight, type Flight } from "../../lib/singleFlight";
 
 export type ScriptsOutcome = { ok: true } | { disabled: true } | { removed: true } | { error: string };
-type Status = { generation: number; profiles: Record<string, ScriptsOutcome> };
+type Status = { generation: number; spaces: Record<string, ScriptsOutcome> };
 
 const enabled = () => useBrowser.getState().settings.cliControl;
 
-export function scriptsTargets(s: Pick<BrowserState, "profileOrder" | "profiles">): Map<string, string[]> {
+export function scriptsTargets(s: Pick<BrowserState, "spaceOrder" | "spaces" | "profiles">): Map<string, string[]> {
   const targets = new Map<string, string[]>();
   const taken = new Map<string, number>();
-  for (const id of s.profileOrder) {
-    const profile = s.profiles[id];
-    if (!profile || isIncognitoProfile(id)) continue;
-    const base = profile.name.trim() || id;
+  for (const id of s.spaceOrder) {
+    const space = s.spaces[id];
+    if (!space || isIncognitoSpace(id)) continue;
+    const base = space.name.trim() || id;
     const seen = (taken.get(base) ?? 0) + 1;
     taken.set(base, seen);
     const name = seen === 1 ? base : `${base} (${seen})`;
@@ -86,9 +86,9 @@ async function seed() {
   try {
     lastStatus = await readUserScriptsStatus();
     const status = parseSaved(lastStatus, STATUS_VERSION, STATUS_MIGRATIONS) as Status | null;
-    if (!status || typeof status.generation !== "number" || !status.profiles) return;
+    if (!status || typeof status.generation !== "number" || !status.spaces) return;
     for (const [engine, names] of scriptsTargets(useBrowser.getState())) {
-      const outcomes = names.map((n) => status.profiles[n]);
+      const outcomes = names.map((n) => status.spaces[n]);
       const outcome = outcomes[0];
       if (!outcome || "error" in outcome || outcomes.some((o) => JSON.stringify(o) !== JSON.stringify(outcome))) continue;
       applied.set(engine, { generation: status.generation, wanted: wantedBy(outcome), outcome });
@@ -130,8 +130,8 @@ async function reconcile(flight: Flight) {
     if (!enabled()) return;
   }
   if (flight.again || !enabled()) return;
-  const status: Status = { generation, profiles: {} };
-  for (const [engine, names] of targets) for (const name of names) status.profiles[name] = outcomes.get(engine)!;
+  const status: Status = { generation, spaces: {} };
+  for (const [engine, names] of targets) for (const name of names) status.spaces[name] = outcomes.get(engine)!;
   const json = versionedJson(status, STATUS_VERSION, "version", 2);
   if (json === lastStatus) return;
   await writeUserScriptsStatus(json);
@@ -165,7 +165,7 @@ export function startUserScripts() {
   };
   sync(useBrowser.getState());
   useBrowser.subscribe((s, prev) => {
-    if (s.settings.cliControl !== prev.settings.cliControl || s.profileOrder !== prev.profileOrder || s.profiles !== prev.profiles) sync(s);
+    if (s.settings.cliControl !== prev.settings.cliControl || s.spaceOrder !== prev.spaceOrder || s.spaces !== prev.spaces) sync(s);
   });
 }
 

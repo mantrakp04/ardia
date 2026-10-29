@@ -205,7 +205,7 @@ test("Undo puts every pin back in its old place and order, removes Tidy's folder
   assert.equal(S().closedTabs.length, closedBefore, "the duplicate isn't left in Recently Closed");
 });
 
-test("a second window of the profile shows the tidied pins", () => {
+test("a second window of the space shows the tidied pins", () => {
   reset();
   const { w: a, ids: [l1, l2] } = windowWith("https://linkedin.com/1", "https://linkedin.com/2");
   S().pinTabs([l1, l2], true, true);

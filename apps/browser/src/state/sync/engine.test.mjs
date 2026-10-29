@@ -49,14 +49,14 @@ test("a crash after a batch lands: after the restart it's sent again as it was, 
   const first = await import("./engine.ts?first");
   first.startSync();
   assert.ok("ok" in (await first.turnOnSync("/sync")));
-  S().addBookmark({ profileId: "default", url: "https://one.example/", title: "One" });
+  S().addBookmark({ spaceId: "default", url: "https://one.example/", title: "One" });
   await first.syncNow();
 
   let disk = null;
   onWrite = (file) => {
     if (!disk && file.ops?.some((op) => op.v?.t === "Two")) disk = new Map(shell.docs);
   };
-  S().addBookmark({ profileId: "default", url: "https://two.example/", title: "Two" });
+  S().addBookmark({ spaceId: "default", url: "https://two.example/", title: "Two" });
   await first.syncNow();
   onWrite = null;
   assert.ok(disk);
@@ -66,7 +66,7 @@ test("a crash after a batch lands: after the restart it's sent again as it was, 
   const second = await import("./engine.ts?second");
   second.startSync();
   for (let i = 0; i < 5; i++) await new Promise((resolve) => setImmediate(resolve));
-  S().addBookmark({ profileId: "default", url: "https://three.example/", title: "Three" });
+  S().addBookmark({ spaceId: "default", url: "https://three.example/", title: "Three" });
   await second.syncNow();
 
   const batches = new Map();
@@ -79,7 +79,7 @@ test("a crash after a batch lands: after the restart it's sent again as it was, 
   }
   const three = [...folder.values()].map((f) => JSON.parse(f.payload)).find((f) => f.ops?.some((op) => op.v?.t === "Three"));
   assert.deepEqual(three.ops.map((op) => op.v?.t), ["Three"], "only what's new");
-  assert.ok(shell.docs.has("sync-journal-1.nns"), "the journal keeps the batches the saved state doesn't have yet");
+  assert.ok(shell.docs.has("sync-spaces-journal-1.nns"), "the journal keeps the batches the saved state doesn't have yet");
 });
 
 test("a cycle writes its batch as a small journal file and leaves the saved state alone", async () => {
@@ -94,14 +94,14 @@ test("a cycle writes its batch as a small journal file and leaves the saved stat
   shell.docs.set = (name, contents) => (written.push(name), set(name, contents));
   try {
     for (const n of [1, 2, 3]) {
-      S().addBookmark({ profileId: "default", url: `https://part${n}.example/`, title: `Part ${n}` });
+      S().addBookmark({ spaceId: "default", url: `https://part${n}.example/`, title: `Part ${n}` });
       await engine.syncNow();
     }
   } finally {
     delete shell.docs.set;
   }
-  assert.equal(written.filter((name) => name === "sync-state.nns").length, 0, "the whole state isn't rewritten every cycle");
-  assert.ok(written.filter((name) => /^sync-journal-\d+\.nns$/.test(name)).length >= 3, "each batch lands in its own journal file");
+  assert.equal(written.filter((name) => name === "sync-spaces-state.nns").length, 0, "the whole state isn't rewritten every cycle");
+  assert.ok(written.filter((name) => /^sync-spaces-journal-\d+\.nns$/.test(name)).length >= 3, "each batch lands in its own journal file");
 });
 
 test("a batch is published only once the journal holding it is on disk", async () => {
@@ -113,7 +113,7 @@ test("a batch is published only once the journal holding it is on disk", async (
   const published = () => [...folder.values()].map((f) => JSON.parse(f.payload)).filter((f) => f.ops?.some((op) => op.v?.t === "Held"));
 
   shell.heldSaves.on = true;
-  S().addBookmark({ profileId: "default", url: "https://held.example/", title: "Held" });
+  S().addBookmark({ spaceId: "default", url: "https://held.example/", title: "Held" });
   const syncing = engine.syncNow();
   for (let i = 0; i < 20; i++) await new Promise((resolve) => setImmediate(resolve));
   assert.equal(published().length, 0, "nothing goes out while the journal save is still pending");
@@ -130,7 +130,7 @@ test("a sync folder that can't be read reads as offline and keeps every file it 
   const engine = await import("./engine.ts?unreadable");
   engine.startSync();
   assert.ok("ok" in (await engine.turnOnSync("/sync")));
-  S().addBookmark({ profileId: "default", url: "https://kept.example/", title: "Kept" });
+  S().addBookmark({ spaceId: "default", url: "https://kept.example/", title: "Kept" });
   await engine.syncNow();
   readFails = true;
   try {

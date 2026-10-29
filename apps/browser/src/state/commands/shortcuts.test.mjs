@@ -29,9 +29,9 @@ test("two shortcuts you set to the same keys conflict", () => {
 });
 
 test("an override whose menu item is gone takes nothing", () => {
-  const resolved = resolveShortcuts(menu, { "switchProfile:deleted": ["t", "command"] });
+  const resolved = resolveShortcuts(menu, { "switchSpace:deleted": ["t", "command"] });
   assert.deepEqual(hints(resolved, "newTab"), ["⌘T"]);
-  assert.equal(resolved.bindings.has("switchProfile:deleted"), false);
+  assert.equal(resolved.bindings.has("switchSpace:deleted"), false);
 });
 
 test("a cleared shortcut has no keys and takes none", () => {

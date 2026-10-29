@@ -131,6 +131,7 @@ const dialogs: Modules["ArdiaDialogs"] = {
 };
 
 const documents: Modules["ArdiaDocuments"] = {
+  writeDocumentImmediately: (name, contents) => void docs.set(name, contents),
   readDocument: (name) => docs.get(name) ?? null,
   writeDocument: (name, contents) => void docs.set(name, contents),
   saveDocument: (name, contents) =>

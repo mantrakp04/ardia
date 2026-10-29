@@ -16,7 +16,7 @@ export function reloadRecentTabs(sys: SystemState) {
   const since = Date.now() - 24 * 60 * 60_000;
   const ids = Object.values(s.tabs)
     .filter((t) => restoredLazily(t) && !shown.has(t.id) && !isInternalTab(t) && t.lastActiveAt >= since)
-    .filter((t) => s.windows[t.windowId]?.profileId === t.profileId)
+    .filter((t) => s.windows[t.windowId]?.spaceId === t.spaceId)
     .sort((a, b) => b.lastActiveAt - a.lastActiveAt)
     .slice(0, count)
     .map((t) => t.id);

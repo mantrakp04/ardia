@@ -1,14 +1,14 @@
 import type { BrowserState } from "../browser/store";
-import { linkProfileOf } from "./small";
+import { linkSpaceOf } from "./small";
 import type { BrowserWindow, Frame } from "../browser/types";
 
-export function emptyWindow(id: string, profileId: string, kind: "main" | "private", frame: Frame | null = null): BrowserWindow {
-  return { id, profileId, kind, tabIds: [], activeTabIds: {}, sidebarOpen: true, frame, createdAt: Date.now() };
+export function emptyWindow(id: string, spaceId: string, kind: "main" | "private", frame: Frame | null = null): BrowserWindow {
+  return { id, spaceId, kind, tabIds: [], activeTabIds: {}, sidebarOpen: true, frame, createdAt: Date.now() };
 }
 
-export const smallWindow = (id: string, profileId: string, frame: Frame | null = null): BrowserWindow => ({
+export const smallWindow = (id: string, spaceId: string, frame: Frame | null = null): BrowserWindow => ({
   id,
-  profileId,
+  spaceId,
   kind: "small",
   tabIds: [],
   activeTabIds: {},
@@ -22,6 +22,6 @@ export function withWindow(s: BrowserState, w: BrowserWindow): BrowserState {
     ...s,
     windows: { ...s.windows, [w.id]: w },
     windowOrder: [...s.windowOrder, w.id],
-    ui: { ...s.ui, focusOrder: [w.id, ...s.ui.focusOrder], lastProfileId: linkProfileOf(s, w) ?? s.ui.lastProfileId },
+    ui: { ...s.ui, focusOrder: [w.id, ...s.ui.focusOrder], lastSpaceId: linkSpaceOf(s, w) ?? s.ui.lastSpaceId },
   };
 }

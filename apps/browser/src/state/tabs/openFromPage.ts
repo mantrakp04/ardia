@@ -1,16 +1,16 @@
 import type { OpenWindowRequest } from "../../platform/tabs";
 import { openWindow } from "../browser/actions";
 import { useBrowser } from "../browser/store";
-import { engineProfile } from "../browser/model";
+import { engineProfile, engineProfileForSpace } from "../browser/model";
 import { peekSourceOf } from "../peek/peek";
-import { isSmall, originalProfile, privateWindowProfile } from "../windows/small";
+import { isSmall, originalSpace, privateWindowSpace } from "../windows/small";
 import { openLinkInSplit, openSplitPane } from "../splits/actions";
 import { asAdoptId, isAdoptKind } from "./adoptIds";
 
 export type { OpenWindowRequest } from "../../platform/tabs";
 
-export function openFromPage(request: OpenWindowRequest, page: { windowId: string; profileId: string; tabId?: string }) {
-  const { url, disposition, profile, point } = request;
+export function openFromPage(request: OpenWindowRequest, page: { windowId: string; spaceId: string; tabId?: string }) {
+  const { url, disposition, profile: space, point } = request;
   const adoptId = asAdoptId(request.adoptId);
   const s = useBrowser.getState();
   const w = s.windows[page.windowId];
@@ -26,7 +26,7 @@ export function openFromPage(request: OpenWindowRequest, page: { windowId: strin
   }
   const from = peekSource ? { ...page, tabId: peekSource } : page;
   if (isSmall(s, w.id) && disposition !== "window" && disposition !== "incognito") {
-    return void s.newTab(w.id, { url, adoptId, openerId: from.tabId, profileId: from.profileId, background: true });
+    return void s.newTab(w.id, { url, adoptId, openerId: from.tabId, spaceId: from.spaceId, background: true });
   }
   if (disposition === "split") {
     if (from.tabId) return openLinkInSplit(from.tabId, url, adoptId);
@@ -34,20 +34,21 @@ export function openFromPage(request: OpenWindowRequest, page: { windowId: strin
     return;
   }
   if (disposition === "incognito") {
-    const profileId = privateWindowProfile(s, w, profile);
-    if (isAdoptKind(adoptId, "tab")) return void openWindow({ kind: "private", url, adoptId, profileId });
-    return void openWindow({ kind: "private", url, profileId });
+    const spaceId = privateWindowSpace(s, w, space);
+    const incognitoEngineId = (w.kind === "private") ? w.incognitoEngineId : undefined;
+    if (isAdoptKind(adoptId, "tab")) return void openWindow({ kind: "private", url, adoptId, spaceId, incognitoEngineId });
+    return void openWindow({ kind: "private", url, spaceId, incognitoEngineId });
   }
   if (disposition === "window") {
-    return void openWindow(w.kind === "private" ? { kind: "private", url, profileId: originalProfile(s, w) } : { profileId: from.profileId, url, adoptId });
+    return void openWindow((w.kind === "private") ? { kind: "private", url, spaceId: originalSpace(s, w), incognitoEngineId: w.incognitoEngineId } : { spaceId: from.spaceId, url, adoptId });
   }
-  const background = disposition === "background" || from.profileId !== w.profileId;
-  s.newTab(w.id, { url, adoptId, openerId: from.tabId, profileId: from.profileId, background });
+  const background = disposition === "background" || from.spaceId !== w.spaceId;
+  s.newTab(w.id, { url, adoptId, openerId: from.tabId, spaceId: from.spaceId, background });
 }
 
-export function pageProfileId(windowId: string, pageProfile: string): string {
+export function pageSpaceId(windowId: string, pageSpace: string): string {
   const s = useBrowser.getState();
   const w = s.windows[windowId];
-  if (w && engineProfile(s, w.profileId) === pageProfile) return w.profileId;
-  return s.profileOrder.find((p) => engineProfile(s, p) === pageProfile) ?? w?.profileId ?? s.settings.defaultProfileId;
+  if (w && engineProfile(s, w.spaceId) === pageSpace) return w.spaceId;
+  return s.spaceOrder.find((p) => engineProfile(s, p) === pageSpace) ?? w?.spaceId ?? s.settings.defaultSpaceId;
 }

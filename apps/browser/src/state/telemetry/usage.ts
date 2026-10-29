@@ -45,7 +45,7 @@ function watchStore() {
       for (const id in s.windows) {
         const w = s.windows[id]!;
         const before = prev.windows[id];
-        if (before && before.profileId !== w.profileId && w.kind !== "private") profileSwitched(size(s.profiles));
+        if (before && before.spaceId !== w.spaceId && w.kind !== "private") spaceSwitched(size(s.spaces));
       }
     }
     if (s.splits !== prev.splits) {
@@ -57,9 +57,9 @@ function watchStore() {
   });
 }
 
-function profileSwitched(profiles: number) {
+function spaceSwitched(spaces: number) {
   const start = Date.now();
-  requestAnimationFrame(() => requestAnimationFrame(() => capture("profile_switched", { switch_ms: Date.now() - start, profiles })));
+  requestAnimationFrame(() => requestAnimationFrame(() => capture("space_switched", { switch_ms: Date.now() - start, spaces })));
 }
 
 function watchSync() {

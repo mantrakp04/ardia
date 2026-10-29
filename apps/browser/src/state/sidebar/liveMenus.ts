@@ -45,7 +45,7 @@ const SOURCE_GROUPS: Record<"pullRequests" | "documents", LiveSourceId[]> = {
 function folderPlace(windowId: string, folderId: string) {
   const s = live();
   const folder = s.folders[folderId]!;
-  const sequence = pinnedSequence(useBrowser.getState(), s.folders, s.folderOrder, windowId, folder.profileId);
+  const sequence = pinnedSequence(useBrowser.getState(), s.folders, s.folderOrder, windowId, folder.spaceId);
   const index = sequence.indexOf(entryKey("live", folderId));
   return { canMoveUp: index > 0, canMoveDown: index >= 0 && index < sequence.length - 1 };
 }

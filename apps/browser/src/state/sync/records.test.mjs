@@ -27,13 +27,13 @@ test("a malformed history record leaves the local entry alone instead of deletin
 });
 
 test("devices, their tabs and other Macs' profiles with malformed records drop out of the summary", () => {
-  const doc = { ...emptyDoc(), enabled: true, deviceId: "devA", profiles: { default: { syncId: "s1", enabled: true } } };
-  doc.scopes.app = { ...emptyScope(), records: { "dev:devB": record({ n: "B" }), "dev:devC": record({ n: 3 }), "prof:x": record({ n: "Work", c: "blue" }), "prof:y": record({ n: 5 }) } };
-  doc.scopes["p:s1"] = { ...emptyScope(), records: { "tabs:devB": record({ n: "B", tabs: "none" }), "tabs:devC": record({ n: "C", tabs: [{ u: "https://c.example/", t: "C" }] }) } };
+  const doc = { ...emptyDoc(), enabled: true, deviceId: "devA", spaces: { default: { syncId: "s1", enabled: true } } };
+  doc.scopes["workspace-v2"] = { ...emptyScope(), records: { "dev:devB": record({ n: "B" }), "dev:devC": record({ n: 3 }), "prof:x": record({ n: "Work", c: "blue" }), "prof:y": record({ n: 5 }) } };
+  doc.scopes["space:s1"] = { ...emptyScope(), records: { "tabs:devB": record({ n: "B", tabs: "none" }), "tabs:devC": record({ n: "C", tabs: [{ u: "https://c.example/", t: "C" }] }) } };
   const summary = summarize(doc);
   assert.deepEqual(summary.devices.map((d) => d.id), ["devB"]);
   assert.deepEqual(summary.remoteTabs.default, []);
-  assert.deepEqual(summary.remoteProfiles.map((p) => p.syncId), ["x"]);
+  assert.deepEqual(summary.remoteSpaces.map((p) => p.syncId), ["x"]);
 });
 
 test("decoders keep records written by older and newer Macs that carry the fields we read", () => {

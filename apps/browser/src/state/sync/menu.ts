@@ -3,8 +3,8 @@ import { useBrowser } from "../browser/store";
 import { useSync } from "./engine";
 import type { RemoteTabs } from "./syncDoc";
 
-export function syncedDevicesMenuItem(profileId: string): MenuItem | null {
-  const devices = useSync.getState().remoteTabs[profileId] ?? [];
+export function syncedDevicesMenuItem(spaceId: string): MenuItem | null {
+  const devices = useSync.getState().remoteTabs[spaceId] ?? [];
   if (!devices.length) return null;
   const tabs = (d: RemoteTabs): MenuItem[] => [
     { id: "synced-header", title: "Recent Tabs", enabled: false },
@@ -24,10 +24,10 @@ export function syncedDevicesMenuItem(profileId: string): MenuItem | null {
 
 const deviceKind = (name: string) => name.split(/[’']s /).slice(1).join("'s ").trim() || name;
 
-export function openSyncedTab(choice: string, windowId: string, profileId: string): boolean {
+export function openSyncedTab(choice: string, windowId: string, spaceId: string): boolean {
   const match = /^synced:(.+):(\d+)$/.exec(choice);
   if (!match) return false;
-  const device = useSync.getState().remoteTabs[profileId]?.find((d) => d.deviceId === match[1]);
+  const device = useSync.getState().remoteTabs[spaceId]?.find((d) => d.deviceId === match[1]);
   const tab = device?.tabs[Number(match[2])];
   if (tab) useBrowser.getState().newTab(windowId, { url: tab.url });
   return true;

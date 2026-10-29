@@ -1,6 +1,6 @@
 import { useContext } from "react";
 import { Animated, View } from "react-native";
-import { useIsActiveTab, usePageProfileId, useTab, useWindowId } from "../../state/browser/hooks";
+import { useIsActiveTab, usePageSpaceId, useTab, useWindowId } from "../../state/browser/hooks";
 import { useShownTabIdFor } from "../../state/tabs/topStrip";
 import { TabIcon } from "../sidebar/TabIcon";
 import { Divider, FadeLabel, Symbol, useHover } from "../ui";
@@ -19,8 +19,8 @@ import { tabTitle, tabTooltip } from "../../state/browser/model";
 export function SplitChip({ tabIds, width, geometry, from, group }: { tabIds: string[]; width: number; geometry: DragGeometry; from: number; group: string | null }) {
   const theme = useTheme();
   const windowId = useWindowId();
-  const profileId = usePageProfileId();
-  const focusedId = useShownTabIdFor(windowId, profileId);
+  const spaceId = usePageSpaceId();
+  const focusedId = useShownTabIdFor(windowId, spaceId);
   const active = tabIds.includes(focusedId);
   const { band, palette } = useWebsiteBand(active ? focusedId : tabIds[0]!);
   const floating = useContext(FloatingStrip);
@@ -64,7 +64,7 @@ function SplitPart({ tabId, first, ink }: { tabId: string; first: boolean; ink: 
         leading={first ? null : <Divider vertical length={SPLIT_DIVIDER_LENGTH} color={ink?.divider ?? theme.textTertiary} style={SPLIT_DIVIDER_GAP} />}
       >
         <View pointerEvents="none">
-          <TabIcon url={tab.url} favicon={tab.favicon} icon={tab.customIcon} compact profileId={tab.profileId} />
+          <TabIcon url={tab.url} favicon={tab.favicon} icon={tab.customIcon} compact spaceId={tab.spaceId} />
         </View>
         <FadeLabel text={tabTitle(tab)} fontSize={font.small.fontSize} color={ink ? (focused ? ink.text : ink.secondary) : focused ? theme.tabSelectedText : theme.textTab} style={{ flex: 1, height: 16, marginLeft: CHIP_LABEL_GAP }} />
       </TabPressArea>

@@ -19,7 +19,7 @@ type FaceState = { width: number; active: boolean; selected: boolean; hovered: b
 export function TileFace({ tabId, badge, ...state }: FaceState & { tabId: string; badge?: ReactNode }) {
   const theme = useTheme();
   const tab = useTab(tabId);
-  const tileTheme = useTileTheme(tab?.url ?? "", tab?.favicon, tab?.customIcon, tab?.profileId ?? "");
+  const tileTheme = useTileTheme(tab?.url ?? "", tab?.favicon, tab?.customIcon, tab?.spaceId ?? "");
   const glass = useGlass();
   if (!tab) return null;
   const { width, active } = state;

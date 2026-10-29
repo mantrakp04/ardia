@@ -12,6 +12,10 @@
       <element type="window" access="r">
         <cocoa key="appleScriptWindows"/>
       </element>
+      <property name="automation version" code="asVn" type="integer" access="r" description="The automation contract version. Version 2 provides Spaces; legacy profiles remain workspace aliases.">
+        <cocoa key="automationVersion"/>
+      </property>
+      <element type="space" access="r"><cocoa key="appleScriptSpaces"/></element>
       <element type="profile" access="r">
         <cocoa key="appleScriptProfiles"/>
       </element>
@@ -37,6 +41,7 @@
       <property name="active tab index" code="acTI" type="integer" access="rw" description="The index of the selected tab (setting it selects that tab).">
         <cocoa key="activeTabIndex"/>
       </property>
+      <property name="active space" code="acSp" type="space" access="r" description="The space shown in this window."><cocoa key="activeSpace"/></property>
       <property name="active profile" code="acPr" type="profile" access="r" description="The profile the window shows (missing value for incognito windows).">
         <cocoa key="activeProfile"/>
       </property>
@@ -136,7 +141,7 @@
       </responds-to>
     </class>
 
-    <class name="profile" code="DiaP" plural="profiles" description="A profile: its own tabs, history, bookmarks and cookies.">
+    <class name="profile" code="DiaP" plural="profiles" description="A legacy workspace alias. It refers to the same Space as before upgrading, never a browsing Profile. Use spaces in new scripts.">
       <cocoa class="ArdiaScriptProfile"/>
       <property name="id" code="ID  " type="text" access="r" description="The unique identifier of the profile.">
         <cocoa key="uniqueID"/>
@@ -148,6 +153,25 @@
         <cocoa key="orderedIndex"/>
       </property>
       <element type="tab" access="r" description="The profile's open tabs, window by window.">
+        <cocoa key="appleScriptTabs"/>
+      </element>
+      <responds-to command="focus">
+        <cocoa method="handleFocusScriptCommand:"/>
+      </responds-to>
+    </class>
+
+    <class name="space" code="ArSp" plural="spaces" description="A space: its theme, tabs and pinned rows. Spaces can share a browsing profile.">
+      <cocoa class="ArdiaScriptSpace"/>
+      <property name="id" code="ID  " type="text" access="r" description="The unique identifier of the space.">
+        <cocoa key="uniqueID"/>
+      </property>
+      <property name="name" code="pnam" type="text" access="r" description="The space name.">
+        <cocoa key="name"/>
+      </property>
+      <property name="index" code="pidx" type="integer" access="r" description="The one-based space index.">
+        <cocoa key="orderedIndex"/>
+      </property>
+      <element type="tab" access="r" description="The space's open tabs, window by window.">
         <cocoa key="appleScriptTabs"/>
       </element>
       <responds-to command="focus">
