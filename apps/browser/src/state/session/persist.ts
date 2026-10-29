@@ -67,7 +67,7 @@ const savedFocus = (s: Pick<BrowserState, "windows" | "ui">) => {
 const SESSION_FIELDS = {
   profiles: field(["profiles"], (s) => s.profiles),
   topApps: field(["topApps"], (s) => s.topApps),
-  parkedTopApps: field(["parkedTopApps"], (s) => Object.fromEntries(Object.entries(s.parkedTopApps).map(([id, tabs]) => [id, tabs.map((tab) => ({ ...persistedTab(tab), page: { kind: "asleep", wake: `restore:${tab.id}` } }))]))),
+  parkedTopApps: field(["parkedTopApps"], (s) => Object.fromEntries(Object.entries(s.parkedTopApps).map(([id, tabs]) => [id, tabs.map((tab) => ({ ...persistedTab(tab), page: { kind: "asleep", wake: savedPage(tab).wake ?? `restore:${tab.id}` } }))]))),
   spaces: field(["spaces"], (s) => s.spaces),
   spaceOrder: field(["spaceOrder"], (s) => s.spaceOrder),
   orphanedProfileData: field(["orphanedProfileData"], (s) => s.orphanedProfileData),
