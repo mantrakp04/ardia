@@ -56,9 +56,9 @@ import { f15Desktop, f17Desktop, privateAutoPipDesktop, w78Desktop } from "./d-m
 import { f01Desktop, f03Desktop, w76Desktop } from "./d-pages.mjs";
 import { f16Desktop, f24Desktop, f25Desktop, w75Desktop } from "./d-gestures.mjs";
 import { f06Desktop } from "./d-site.mjs";
-import { f25Peek } from "./d-sidebar.mjs";
+import { f25Edge, f25Peek } from "./d-sidebar.mjs";
 
-export const SCENARIOS = [f01, f02, f03, f06, f23, f07, f08, f09, f20, f10, f11, f12, f13, f14, f26, f27, f17, w78, f24, f15, f18, f16, f25, s102, s104, s105, s106, s107, s108, ...privateServices, ...privateFollowups, w92, w77, w79, w70, w114, w74, w75, w156, w76, w137, i109, i110, i111, e97, e98, e100, q221, f22Sway, f22X11, f22Hyprland, w79Sway, w79X11, w79Hyprland, q221Desktop, w77Desktop, f07Desktop, f07Keyring, s102Keyring, f18Desktop, w74Desktop, f08Desktop, f09Desktop, f12Desktop, f13Desktop, f07Credentials, f12Window, i111Window, i109Keyring, f11Keyring, f13Keyring, f27Desktop, s105Package, s104Desktop, w156Drive, e100Desktop, f20Desktop, f20X11, ...privateDesktop, ...extensionsDesktop, ...extensionSurfacesDesktop, ...profilesDesktop, f15Desktop, privateAutoPipDesktop, f01Desktop, f03Desktop, w76Desktop, f16Desktop, f25Desktop, f24Desktop, w75Desktop, f17Desktop, w78Desktop, f06Desktop, f25Peek];
+export const SCENARIOS = [f01, f02, f03, f06, f23, f07, f08, f09, f20, f10, f11, f12, f13, f14, f26, f27, f17, w78, f24, f15, f18, f16, f25, s102, s104, s105, s106, s107, s108, ...privateServices, ...privateFollowups, w92, w77, w79, w70, w114, w74, w75, w156, w76, w137, i109, i110, i111, e97, e98, e100, q221, f22Sway, f22X11, f22Hyprland, w79Sway, w79X11, w79Hyprland, q221Desktop, w77Desktop, f07Desktop, f07Keyring, s102Keyring, f18Desktop, w74Desktop, f08Desktop, f09Desktop, f12Desktop, f13Desktop, f07Credentials, f12Window, i111Window, i109Keyring, f11Keyring, f13Keyring, f27Desktop, s105Package, s104Desktop, w156Drive, e100Desktop, f20Desktop, f20X11, ...privateDesktop, ...extensionsDesktop, ...extensionSurfacesDesktop, ...profilesDesktop, f15Desktop, privateAutoPipDesktop, f01Desktop, f03Desktop, w76Desktop, f16Desktop, f25Desktop, f24Desktop, w75Desktop, f17Desktop, w78Desktop, f06Desktop, f25Peek, f25Edge];
 
 export function selectScenarios(only, scenarios = SCENARIOS) {
   if (!only?.length) return scenarios;

@@ -145,7 +145,7 @@ afterwards, and none touches the desktop you are using.
 | Page commands: Find, Print, Save Page, DevTools per pane | F01, F02-101, W76 | F01D, F02-101D, W76D |
 | Profiles and private windows | F02, F02-71, F02-72, F02-73, F02-88, F02-89, F02-99, F02-148, F02-149, F02-150, F02-172, F02-173, W70, W114 | F02D, F02-71D, F02-72D, F02-99D, F02-148D, F02-149D, F02-150D, F02-173D, F07P, W70D |
 | Site security, permissions, data clearing, content blocker | F03, F06, S106, S107, S108 | F03D, F06D, S108D |
-| History, zoom, favicons, tint, toolbar hiding | F23, F24, F25 | F24D, F25D, F25P |
+| History, zoom, favicons, tint, toolbar hiding | F23, F24, F25 | F24D, F25D, F25P, F25EX |
 | Passwords, cards, polkit, keyring | F07, S102, S104, S105 | F07D, F07K, F07A, S102D, S104D, S105P |
 | Downloads, folders, reveal, trash | F08, W74, W75, W156 | F08D, W74D, W75D, W156R |
 | Extensions, store, shortcuts, search providers, native messaging | F09, E97, E98, E100, W137 | F09D, F09P, F09C, F09S, E97D, E98D, E100D |

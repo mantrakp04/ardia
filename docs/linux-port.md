@@ -335,6 +335,22 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
 - **Wayland focus.** Activation uses `xdg_activation_v1` and the compositor may refuse it (Hyprland may mark the
   window urgent instead). A Wayland client can't refuse focus when it maps, so `ARDIA_BACKGROUND=1` keeps focus only on
   X11.
+- **Left-edge sidebar peek** (#368). With the sidebar hidden, the native host watches the left edge itself
+  (`ArdiaShell.watchLeftEdge`, `ac_linux_left_edge.h`), the way macOS's `LeftEdgeWatcher` does. Before this the shell
+  watched its own DOM. The native page covers everything from the card's 9 px inset, and the frame's resize border
+  never reaches the shell, so only window x 4–10 revealed the sidebar on X11. No fast move ever revealed it (0 of
+  15), and moving into the sliding panel re-hid it in 2 of 3 runs, because the pointer reached the page before the
+  panel's cut-out did. A handler at the window's Aura root now sees every pointer event, over the page and the frame
+  too.
+  - The zone is 8 px from the client's left edge, plus anything of the window left of it (the resize border), up to
+    24 px.
+  - While the peek is out, the pointer counts as over anywhere in its column, 5 + sidebar width + 24 px wide, over the
+    page too. Dismissal keeps the shared 120 ms delay.
+  - Wayland has no global pointer, so the 24 pt reach macOS gives outside the window becomes this: when the pointer
+    leaves through the left edge of the active window, the peek opens after 90 ms. If focus moves first (Hyprland's
+    `follow_mouse` focusing the window on the left), it doesn't open. A peek that is already out stays out while the
+    pointer is just past the edge, and closes when the window loses focus.
+  - Engines without the capability keep the shell-side watcher (`shims/web/motion/leftEdge.ts`).
 - **Fullscreen restore.** A window saved fullscreen comes back fullscreen. On Wayland the saved output's name is kept
   in the profile pref `browser.app_window_placement.ArdiaLinuxWindowOutputs`. When exactly one display carries that
   name, the window goes fullscreen there.

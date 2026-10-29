@@ -311,6 +311,7 @@ PRELUDE = r'''#include <algorithm>
 #include "ardia/linux/ac_linux_profiles.h"
 #include "ardia/linux/ac_linux_fullscreen_restore.h"
 #include "ardia/linux/ac_linux_window_lifecycle.h"
+#include "ardia/linux/ac_linux_left_edge.h"
 
 #define FROM_HERE 0
 
@@ -708,6 +709,8 @@ struct ShellHostView {
   }
   struct { void Reset() {} } presentation_observation_;
   bool presented_ = true;
+  ardia::linux_window::LeftEdgeWatch left_edge_;
+  void ReportLeftEdge(std::optional<ardia::linux_window::LeftEdgeReport>) {}
   void OnDidPresentCompositorFrame(ui::Compositor*, uint32_t, const gfx::PresentationFeedback&);
   void Event(std::string_view module, std::string_view event, base::Value payload) {
     if (module == "ArdiaShell" && event == "onWindowEvent") events.push_back(payload.GetDict().Clone());

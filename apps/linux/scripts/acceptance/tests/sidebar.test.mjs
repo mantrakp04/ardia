@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { peekRegions, peekVerdict } from "../scenarios/d-sidebar.mjs";
+import { peekRegions, peekTimeline, peekVerdict } from "../scenarios/d-sidebar.mjs";
 
 function image(width, height, paint) {
   const data = Buffer.alloc(width * height * 3);
@@ -20,4 +20,15 @@ test("the peek verdict needs the sidebar over the left edge and the page painted
   assert.equal(peekVerdict(blanked, regions).pageShown, false);
   const closed = image(800, 800, () => PAGE);
   assert.equal(peekVerdict(closed, regions).peekShown, false);
+});
+
+test("the edge timeline tells a peek that slid back out from one that stayed, and how long dismissal took", () => {
+  const steady = [[0, -1], [1000, -1], [1017, 36], [1050, 150], [1100, 195]];
+  assert.deepEqual(peekTimeline(steady, 1000), { opened: true, rehid: false, closedAfter: 0 });
+  const flicker = [[1000, -1], [1017, 37], [1100, 186], [1240, 76], [1330, 186], [1440, 59], [1550, -1]];
+  assert.equal(peekTimeline(flicker, 1010).rehid, true);
+  const never = [[1000, -1]];
+  assert.deepEqual(peekTimeline(never, 1001), { opened: false, rehid: false, closedAfter: null });
+  const dismissed = [[0, 195], [2000, 195], [2131, 120], [2290, -1]];
+  assert.equal(peekTimeline(dismissed, 2000).closedAfter, 290);
 });
