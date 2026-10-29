@@ -1,4 +1,5 @@
 import { animateWindowClose, focusWindow } from "../../platform/windows";
+import { managesWindowClose } from "../../platform/windowClose";
 import { useBrowser } from "../browser/store";
 import { isWindowClosing, startClosingWindow, stopClosingWindow } from "./closingWindows";
 
@@ -9,6 +10,7 @@ const pending = new Map<string, () => void>();
 export function closeWindowAnimated(windowId: string, replacedBy: string | null = null, then?: () => void) {
   const w = useBrowser.getState().windows[windowId];
   if (isWindowClosing(windowId) || !w) return;
+  if (!replacedBy && !then && managesWindowClose(windowId, "window")) return;
   const leaving = new Set(w.tabIds);
   const close = () => {
     if (!pending.delete(windowId)) return;

@@ -1,7 +1,6 @@
-import { readDocument, writeDocument } from "../../platform/documents";
+import { createLivePersistence, type LivePersistenceIntent, type LiveProjection } from "../../platform/livePersistence";
 import { create } from "zustand";
 import type { CompletedItem, CompletionState, FolderStatus, LiveAccount, LiveFolder, LiveFolderKind, LiveItem, LiveSourceId } from "./types";
-import { parseSaved, unchanged, versionedJson, type Migrations } from "../../lib/savedDocument";
 import { DEFAULT_COUNTDOWN_LEAD, keepDismissedNow, type DismissedNow } from "./meetings";
 
 export type LiveConfig = {
@@ -64,20 +63,9 @@ export const DEFAULT_CALENDAR: CalendarSettings = {
   prompted: false,
 };
 
-const DOC = "live.json";
-const DOC_VERSION = 1;
-const DOC_MIGRATIONS: Migrations = { 0: unchanged };
 const PERSISTED = ["folders", "folderOrder", "items", "known", "unread", "hidden", "completed", "expandedStacks", "accounts", "config", "calendar", "meetingGroups", "dismissedAlerts", "dismissedNow"] as const;
-
-function load(): Partial<LiveState> {
-  try {
-    return (parseSaved(readDocument(DOC), DOC_VERSION, DOC_MIGRATIONS) as Partial<LiveState> | null) ?? {};
-  } catch {
-    return {};
-  }
-}
-
-const saved = load();
+const persistence = createLivePersistence();
+const saved = persistence.load() as Partial<LiveState>;
 
 const FOLDER_OPTION_DEFAULTS = { groupStacks: true, showCompleted: true } satisfies Partial<LiveFolder>;
 
@@ -105,26 +93,43 @@ export const useLive = create<LiveState>()(() => ({
 }));
 
 export const live = () => useLive.getState();
-const setLive = (patch: Partial<LiveState> | ((s: LiveState) => Partial<LiveState>)) => useLive.setState(patch);
+let applyingCanonical = false;
+let localIntent: LivePersistenceIntent | undefined;
+export const setLive = (patch: Partial<LiveState> | ((s: LiveState) => Partial<LiveState>), intent?: LivePersistenceIntent) => {
+  localIntent = intent;
+  try { useLive.setState(patch); }
+  finally { localIntent = undefined; }
+};
 
 export const showAllKey = (folderId: string, section: string) => `${folderId}:${section}`;
 
-let timer: ReturnType<typeof setTimeout> | undefined;
-useLive.subscribe((s, prev) => {
-  if (PERSISTED.every((k) => s[k] === prev[k])) return;
-  clearTimeout(timer);
-  timer = setTimeout(() => {
-    const s = live();
-    try {
-      writeDocument(DOC, versionedJson(Object.fromEntries(PERSISTED.map((k) => [k, s[k]])), DOC_VERSION));
-    } catch (error) {
-      console.warn("Couldn't save live folders", error);
-    }
-  }, 800);
+const completionOrigins = new Map<string, Map<string, unknown>>();
+const projection = (state: LiveState): LiveProjection => Object.fromEntries(PERSISTED.map((key) => [key, state[key]]));
+useLive.subscribe((state, previous) => {
+  if (applyingCanonical || PERSISTED.every((key) => state[key] === previous[key])) return;
+  persistence.changed(projection(previous), projection(state), localIntent);
 });
-
-let counter = 0;
-const newId = () => `lf-${Date.now().toString(36)}-${(++counter).toString(36)}`;
+persistence.start((payload, invalidated = []) => {
+  const completing = { ...live().completing };
+  for (const invalidation of invalidated) {
+    const origins = completionOrigins.get(invalidation.folderId);
+    const ids = new Set([...(origins ?? [])].filter(([, fence]) => fence === invalidation.fence).map(([id]) => id));
+    completing[invalidation.folderId] = (completing[invalidation.folderId] ?? []).filter((id) => !ids.has(id));
+    for (const id of ids) origins?.delete(id);
+  }
+  const saved = payload as Partial<LiveState>;
+  applyingCanonical = true;
+  try {
+    useLive.setState({
+      ...(invalidated.length ? { completing } : {}),
+      ...Object.fromEntries(PERSISTED.filter((key) => key in saved).map((key) => [key, saved[key]])),
+      folders: withOptionDefaults(saved.folders),
+      config: { ...DEFAULT_CONFIG, ...saved.config },
+      calendar: { ...DEFAULT_CALENDAR, ...saved.calendar },
+    });
+  } finally { applyingCanonical = false; }
+});
+export const beginLiveRefresh = (folderId: string) => persistence.beginRefresh(folderId);
 
 export const FOLDER_DEFAULTS: Record<LiveFolderKind, { name: string; sources: LiveSourceId[] }> = {
   pullRequests: { name: "Pull Requests", sources: ["github"] },
@@ -132,7 +137,7 @@ export const FOLDER_DEFAULTS: Record<LiveFolderKind, { name: string; sources: Li
 };
 
 export function createFolder(profileId: string, kind: LiveFolderKind, sources?: LiveSourceId[]): string {
-  const id = newId();
+  const id = persistence.newFolderId();
   const folder: LiveFolder = {
     id,
     profileId,
@@ -211,13 +216,14 @@ export function arrangeFolders(placed: { id: string; after: string | null }[]) {
     const reordered = folderOrder.some((id, i) => id !== s.folderOrder[i]);
     if (!moved.length && !reordered) return {};
     return { folders, folderOrder: reordered ? folderOrder : s.folderOrder };
-  });
+  }, { kind: "placement", placed });
 }
 
 const MAX_KNOWN = 600;
 const MAX_COMPLETED = 20;
 
-export function applyFetch(folderId: string, fetched: LiveItem[], gone: Record<string, CompletionState>, now = Date.now(), quiet: Set<string> = new Set()) {
+export function applyFetch(folderId: string, fetched: LiveItem[], gone: Record<string, CompletionState>, now = Date.now(), quiet: Set<string> = new Set(), fence?: unknown) {
+  const intent: LivePersistenceIntent = { kind: "refresh", folderId, fence, completionIds: [] };
   setLive((s) => {
     if (!s.folders[folderId]) return {};
     const closed = (id: string) => gone[id] === "merged" || gone[id] === "closed";
@@ -232,6 +238,10 @@ export function applyFetch(folderId: string, fetched: LiveItem[], gone: Record<s
     const prev = s.items[folderId] ?? [];
     const animating = new Set(s.completing[folderId] ?? []);
     const leaving = prev.filter((it) => !ids.has(it.id) && gone[it.id] && !animating.has(it.id));
+    intent.completionIds = leaving.map((item) => item.id);
+    const origins = completionOrigins.get(folderId) ?? new Map<string, unknown>();
+    for (const item of leaving) origins.set(item.id, fence);
+    completionOrigins.set(folderId, origins);
     const merged = [...next];
     for (const it of prev) if (!ids.has(it.id) && (animating.has(it.id) || leaving.includes(it))) merged.splice(Math.min(prev.indexOf(it), merged.length), 0, it);
     const completed = [
@@ -248,15 +258,24 @@ export function applyFetch(folderId: string, fetched: LiveItem[], gone: Record<s
       completing: leaving.length ? { ...s.completing, [folderId]: [...(s.completing[folderId] ?? []), ...leaving.map((l) => l.id)] } : s.completing,
       status: { ...s.status, [folderId]: { state: "idle", lastFetch: now, error: null } },
     };
-  });
+  }, intent);
 }
 
-export function finishCompleting(folderId: string, ids: string[]) {
+export function finishCompleting(folderId: string, requestedIds: string[], fence?: unknown) {
+  const origins = completionOrigins.get(folderId);
+  const ids = requestedIds.filter((id) => fence === undefined ? !origins?.has(id) || origins.get(id) === undefined : origins?.get(id) === fence);
+  if (!ids.length) return;
+  const acceptedFence = persistence.completionFence(folderId, ids, fence);
+  for (const id of ids) origins?.delete(id);
+  if (acceptedFence === null) {
+    setLive((s) => ({ completing: { ...s.completing, [folderId]: (s.completing[folderId] ?? []).filter((id) => !ids.includes(id)) } }));
+    return;
+  }
   setLive((s) => ({
     items: { ...s.items, [folderId]: (s.items[folderId] ?? []).filter((it) => !ids.includes(it.id)) },
     completing: { ...s.completing, [folderId]: (s.completing[folderId] ?? []).filter((id) => !ids.includes(id)) },
     unread: { ...s.unread, [folderId]: (s.unread[folderId] ?? []).filter((id) => !ids.includes(id)) },
-  }));
+  }), { kind: "completion", folderId, fence: acceptedFence });
 }
 
 export function setStatus(folderId: string, status: Partial<FolderStatus>) {
