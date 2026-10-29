@@ -144,7 +144,6 @@ test("with downloads from all profiles on, every regular window lists every prof
   assert.deepEqual(ids(p2), ["workPrivate"], "a private window still lists only its session's");
 
   S().setFocusedWindow(a);
-  S().setDownloadsOpen(a, false);
   S().upsertDownload(download("fromWork", work, false));
   assert.ok(!S().windowUi[a]?.downloadsOpen, "another profile's new download doesn't open this window's popover");
   assert.deepEqual(ids(a), ["fromWork", "personal", "work"]);
