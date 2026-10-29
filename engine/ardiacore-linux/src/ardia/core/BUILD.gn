@@ -1,0 +1,20 @@
+assert(is_linux)
+
+source_set("hooks") {
+  sources = [
+  ]
+}
+
+source_set("launch_switches") {
+  sources = [
+    "../linux/ac_linux_launch_config.h",
+    "ac_launch_switches.h",
+    "ac_launch_switches_linux.cc",
+  ]
+
+  deps = [
+    "//base",
+    "//chrome/common:non_code_constants",
+    "//content/public/common",
+  ]
+}

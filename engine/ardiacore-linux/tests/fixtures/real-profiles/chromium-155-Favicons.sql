@@ -1,0 +1,11 @@
+CREATE TABLE favicon_bitmaps(id INTEGER PRIMARY KEY,icon_id INTEGER NOT NULL,last_updated INTEGER DEFAULT 0,image_data BLOB,width INTEGER DEFAULT 0,height INTEGER DEFAULT 0,last_requested INTEGER DEFAULT 0);
+CREATE TABLE favicons(id INTEGER PRIMARY KEY,url LONGVARCHAR NOT NULL,icon_type INTEGER DEFAULT 1);
+CREATE TABLE icon_mapping(id INTEGER PRIMARY KEY,page_url LONGVARCHAR NOT NULL,icon_id INTEGER,page_url_type INTEGER DEFAULT 0);
+CREATE TABLE meta(key LONGVARCHAR NOT NULL UNIQUE PRIMARY KEY, value LONGVARCHAR);
+CREATE INDEX favicon_bitmaps_icon_id ON favicon_bitmaps(icon_id);
+CREATE INDEX favicons_url ON favicons(url);
+CREATE INDEX icon_mapping_icon_id_idx ON icon_mapping(icon_id);
+CREATE INDEX icon_mapping_page_url_idx ON icon_mapping(page_url);
+INSERT INTO meta VALUES('mmap_status','-1');
+INSERT INTO meta VALUES('version','9');
+INSERT INTO meta VALUES('last_compatible_version','9');
