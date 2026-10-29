@@ -1,0 +1,154 @@
+Third-party notices for the Ardia Linux symbol artwork (apps/linux/src/shims/web/symbols/data.ts)
+
+The Linux app draws its icons from the open icon sets below, rescaled and repositioned, and from original geometry drawn for Ardia. It contains no SF Symbols artwork.
+
+==============================================================================
+Lucide (lucide-static 1.56.0, ISC) https://lucide.dev
+Icons used: a-large-small, arrow-left-right, arrow-up-down, ban, banknote, car-front, check, chevron-down, chevron-left, chevron-right, chevron-up, chevrons-up-down, circle, circle-equal, circle-question-mark, circle-stop, clock-9, coffee, command, corner-down-left, film, flag, git-merge, hammer, hard-drive, key-round, leaf, lightbulb, message-square, moon, navigation, newspaper, orbit, package, paintbrush, pin, pin-off, plug, plus, shopping-cart, square-terminal, sun, target, test-tubes, text-cursor, trophy, undo-2, user, video
+------------------------------------------------------------------------------
+ISC License
+
+Copyright (c) 2026 Lucide Icons and Contributors
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+---
+
+The following Lucide icons are derived from the Feather project:
+
+airplay, alert-circle, alert-octagon, alert-triangle, aperture, arrow-down-circle, arrow-down-left, arrow-down-right, arrow-down, arrow-left-circle, arrow-left, arrow-right-circle, arrow-right, arrow-up-circle, arrow-up-left, arrow-up-right, arrow-up, at-sign, calendar, cast, check, chevron-down, chevron-left, chevron-right, chevron-up, chevrons-down, chevrons-left, chevrons-right, chevrons-up, circle, clipboard, clock, code, columns, command, compass, corner-down-left, corner-down-right, corner-left-down, corner-left-up, corner-right-down, corner-right-up, corner-up-left, corner-up-right, crosshair, database, divide-circle, divide-square, dollar-sign, download, external-link, feather, frown, hash, headphones, help-circle, info, italic, key, layout, life-buoy, link-2, link, loader, lock, log-in, log-out, maximize, meh, minimize, minimize-2, minus-circle, minus-square, minus, monitor, moon, more-horizontal, more-vertical, move, music, navigation-2, navigation, octagon, pause-circle, percent, plus-circle, plus-square, plus, power, radio, rss, search, server, share, shopping-bag, sidebar, smartphone, smile, square, table-2, tablet, target, terminal, trash-2, trash, triangle, tv, type, upload, x-circle, x-octagon, x-square, x, zoom-in, zoom-out
+
+The MIT License (MIT) (for the icons listed above)
+
+Copyright (c) 2013-present Cole Bemis
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+==============================================================================
+Tabler Icons (@tabler/icons 3.49.0, MIT) https://tabler.io/icons
+Icons used: alarm, alert-triangle, archive, bolt, book, chevrons-right, circle-arrow-down, circle-arrow-right, clock-hour-9, cloud-exclamation, code, contrast, device-gamepad-2, device-vision-pro, hand-stop, letter-a, letter-z, lock, logout, mail, map, message, microphone, mood-smile, number-1, palette, paw, plane, player-track-next, player-track-prev, power, puzzle, question-mark, search, settings, sun, zoom-in, zoom-out
+------------------------------------------------------------------------------
+MIT License
+
+Copyright (c) 2020-2026 Paweł Kuna
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+==============================================================================
+Iconoir (iconoir 7.12.1, MIT) https://iconoir.com
+Icons used: bell, book, bookmark, cloud, compass, dollar-circle, expand, half-moon, label, lock, magic-wand, microphone, minus, more-horiz-circle, palette, phone, puzzle, snow-flake, sparks, tools, undo-circle, warning-triangle
+------------------------------------------------------------------------------
+MIT License
+
+Copyright (c) 2021 Luca Burgio
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+==============================================================================
+Phosphor Icons (@phosphor-icons/core 2.1.1, MIT) https://phosphoricons.com
+Icons used: arrow-down, arrow-right, arrow-square-up-right, arrow-up, arrow-up-left, arrow-up-right, arrows-down-up, bag, briefcase, camera, chart-line-up, check-circle, check-circle-fill, circle-fill, clock-fill, copy-fill, dots-three, envelope, eye, eye-slash, file-arrow-down, flame, gift, graduation-cap, heart, heart-fill, house, info, key-fill, keyboard, leaf-fill, lightning-fill, lock-simple-open-fill, magnifying-glass, map-pin-simple-area, map-trifold-fill, minus-circle-fill, moon-fill, moon-stars-fill, pause-fill, paw-print-fill, play-circle-fill, play-fill, plus-circle-fill, printer, seal-check-fill, shopping-cart-fill, stack, star-fill, stethoscope, terminal-window-fill, tree, user-fill, video-camera-fill, warning-circle-fill, warning-fill, x, x-circle
+------------------------------------------------------------------------------
+MIT License
+
+Copyright (c) 2023 Phosphor Icons
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+==============================================================================
+Material Design Icons (Pictogrammers) (@mdi/svg 7.4.47, Apache-2.0) https://pictogrammers.com/library/mdi
+Icons used: account, account-multiple-outline, brain, briefcase, bug-outline, camera, close-circle, coffee-outline, cursor-default, file-document, folder, hammer, headphones, home, link-variant, music-note, pause-circle, pencil-outline, piano, pin, run, school, shield-check, shield-half-full, shield-lock-outline, silverware-fork-knife, skip-next, skip-previous, soccer-field, star, star-outline, web, zip-box-outline
+------------------------------------------------------------------------------
+Pictogrammers Free License
+--------------------------
+
+This icon collection is released as free, open source, and GPL friendly by
+the [Pictogrammers](http://pictogrammers.com/) icon group. You may use it
+for commercial projects, open source projects, or anything really.
+
+# Icons: Apache 2.0 (https://www.apache.org/licenses/LICENSE-2.0)
+Some of the icons are redistributed under the Apache 2.0 license. All other
+icons are either redistributed under their respective licenses or are
+distributed under the Apache 2.0 license.
+
+# Fonts: Apache 2.0 (https://www.apache.org/licenses/LICENSE-2.0)
+All web and desktop fonts are distributed under the Apache 2.0 license. Web
+and desktop fonts contain some icons that are redistributed under the Apache
+2.0 license. All other icons are either redistributed under their respective
+licenses or are distributed under the Apache 2.0 license.
+
+# Code: MIT (https://opensource.org/licenses/MIT)
+The MIT license applies to all non-font and non-icon files.
