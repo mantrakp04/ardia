@@ -166,6 +166,11 @@ export const generalRows = {
           description: "Every window of a profile lists the same tabs, as in Arc. A tab is live in one window at a time: selecting it in another brings it there, and the first window shows it greyed until you click it. Each window keeps its own selected tab.",
           keywords: ["arc", "multiple windows", "same tabs", "sync windows", "shared sidebar", "unpinned"],
         },
+        sleepingTabsInSwitcher: {
+          title: "Show sleeping tabs in the tab switcher",
+          description: "Off, ⌃Tab skips tabs whose page is asleep or not loaded, such as a closed pinned tab, so the tabs you use stay close. The tab you're on always shows.",
+          keywords: ["ctrl tab", "control tab", "last used tabs", "mru", "cycle", "asleep", "sleeping", "discarded", "unloaded", "memory saver"],
+        },
         warnBeforeClosingLastTab: { advanced: true, title: "Warn before closing last tab in a Profile", keywords: ["confirm", "close tab"] },
         tabReorderHaptics: { advanced: true, title: "Haptic feedback when reordering tabs", keywords: ["trackpad", "vibration", "drag"] },
         extendWebsiteColor: { title: "Extend website color into tab bar", keywords: ["theme color", "tint", "colour"] },
