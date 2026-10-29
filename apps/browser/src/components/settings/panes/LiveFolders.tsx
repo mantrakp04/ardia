@@ -255,7 +255,7 @@ function GiteaConnect({ busy, run }: ConnectProps) {
         Create an access token on your server (Settings › Applications) with read access to issue, repository and user. Works with Gitea and Forgejo, Codeberg included.
       </Help>
       <Field label="Access token">
-        <TextField value={token} onChangeText={setToken} secure onSubmit={() => hasSite && token.trim() && connect()} />
+        <TextField value={token} onChangeText={setToken} secure onSubmit={() => !busy && hasSite && token.trim() && connect()} />
       </Field>
       <Actions>
         <Button title="Create Token…" disabled={!hasSite} onPress={() => openUrlFromSettings(`${siteUrl(site)}/user/settings/applications`)} />
