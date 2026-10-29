@@ -6,7 +6,7 @@ import { awayFromPin } from "../pins/organize";
 import { pinnedGroupMembers } from "../browser/structure";
 import { shownTabIds } from "../tabs/shownTabs";
 import { repoKey } from "./rows";
-import { adoptLegacyAccounts, forgetProfileAccounts, legacyAdoption, SOURCES } from "./sources";
+import { adoptLegacyAccounts, forgetMissingProfiles, legacyAdoption, SOURCES } from "./sources";
 import { applyFetch, createFolder, releaseShownRepos, finishCompleting, live, markRead, removeFolder, setStatus, unhide, useLive } from "./store";
 import { LiveError, type CompletionState, type LiveFolderKind, type LiveItem, type LiveSourceId, type PullRequestSection } from "./types";
 import { noteLiveCompletedTabsClosed } from "../telemetry/liveCompletedTabs";
@@ -261,8 +261,9 @@ export function startLiveEngine() {
     if (s.groups !== prev.groups) syncLiveHomes();
     if (s.profiles === prev.profiles) return;
     for (const f of Object.values(live().folders)) if (!s.profiles[f.profileId]) removeFolder(f.id);
-    for (const profileId of Object.keys(live().accounts)) if (!s.profiles[profileId]) void forgetProfileAccounts(profileId);
+    forgetMissingProfiles(Object.keys(prev.profiles));
   });
+  forgetMissingProfiles();
 
   if (Object.keys(live().legacyAccounts).length) void adoptLegacyAccounts(Object.keys(useBrowser.getState().profiles));
 

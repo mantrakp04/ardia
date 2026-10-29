@@ -290,8 +290,13 @@ export function disconnect(profileId: string, source: LiveSourceId) {
 
 export async function forgetProfileAccounts(profileId: string) {
   const sources = Object.keys(SOURCES) as LiveSourceId[];
-  await Promise.all(sources.map((source) => locked(source, profileId, () => deleteSecret(source, profileId))));
-  removeProfileAccounts(profileId);
+  const deleted = await Promise.all(sources.map((source) => locked(source, profileId, () => deleteSecret(source, profileId))));
+  if (deleted.every(Boolean)) removeProfileAccounts(profileId);
+}
+
+export function forgetMissingProfiles(previous: string[] = []) {
+  const profiles = useBrowser.getState().profiles;
+  for (const profileId of new Set([...previous, ...Object.keys(live().accounts)])) if (!profiles[profileId]) void forgetProfileAccounts(profileId);
 }
 
 export function adoptLegacyAccounts(profileIds: string[]): Promise<void> {

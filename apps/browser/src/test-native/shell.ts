@@ -277,7 +277,11 @@ const keychain: Modules["ArdiaKeychain"] = {
       if (heldKeychainWrites.on) heldKeychainWrites.queue.push(land);
       else land();
     }),
-  delete: (account) => Promise.resolve(keychainItems.delete(account)),
+  delete: (account) => {
+    if (keychainRefusals.has(account)) return Promise.resolve(false);
+    keychainItems.delete(account);
+    return Promise.resolve(true);
+  },
 };
 
 const translate: Modules["ArdiaTranslate"] = {
