@@ -221,6 +221,8 @@ void Reauthenticate(Session session,
                     int prompt,
                     base::TimeDelta validity,
                     Authenticated then) {
+  if (!ReauthAvailable())
+    return reply.Error("OS authentication is unavailable on this platform");
   Profile* profile = session.profile();
   Reauth(profile, device_reauth::DeviceAuthSource::kPasswordManager,
          l10n_util::GetStringUTF16(prompt), validity,
@@ -380,6 +382,11 @@ AC_PROFILE_CALL(ac_passwords_reveal) {
                       if (authenticated) {
                         credential = session.delegate->GetCredentialFromId(id);
                       }
+#if BUILDFLAG(IS_LINUX)
+                      reply.SendSecret(
+                          "password",
+                          credential ? &credential->password : nullptr);
+#else
                       base::DictValue result;
                       if (credential) {
                         std::u16string plain = credential->password.value();
@@ -390,6 +397,7 @@ AC_PROFILE_CALL(ac_passwords_reveal) {
                         result.Set("password", base::Value());
                       }
                       reply.Send(std::move(result));
+#endif
                     },
                     entry->id));
           },
