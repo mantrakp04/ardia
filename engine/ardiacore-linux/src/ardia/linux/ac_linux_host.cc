@@ -18,6 +18,7 @@
 
 #include "ardia/linux/ac_linux_policy.h"
 #include "ardia/linux/ac_linux_contract.h"
+#include "ardia/linux/ac_linux_left_edge.h"
 #include "ardia/linux/ac_linux_auto_pip_service.h"
 #include "ardia/linux/ac_linux_autoplay.h"
 #include "ardia/linux/ac_linux_web_store.h"
@@ -872,6 +873,16 @@ class WindowKeyboardHandler : public ui::EventHandler {
   base::RepeatingCallback<void(ui::KeyEvent*)> handle_;
 };
 
+class WindowMouseHandler : public ui::EventHandler {
+ public:
+  explicit WindowMouseHandler(base::RepeatingCallback<void(const ui::MouseEvent&)> handle)
+      : handle_(std::move(handle)) {}
+  void OnMouseEvent(ui::MouseEvent* event) override { handle_.Run(*event); }
+
+ private:
+  base::RepeatingCallback<void(const ui::MouseEvent&)> handle_;
+};
+
 class ShellHostView : public views::View,
                       public views::ViewObserver,
                       public views::WidgetObserver,
@@ -1205,6 +1216,8 @@ class ShellHostView : public views::View,
   void OnKeyEvent(ui::KeyEvent* event) override;
   bool ForwardDragEscape(const ui::KeyEvent& event);
   void ReleaseDragEscape();
+  void OnLeftEdgeMouse(const ui::MouseEvent& event);
+  void ReportLeftEdge(std::optional<ardia::linux_window::LeftEdgeReport> report);
   void ReplayTypeahead(bool field);
   bool RunHeldShortcut(const ui::KeyEvent& event);
   bool SwitcherReleasedInHold(const std::vector<ui::KeyEvent>& held, size_t index) const;
@@ -1338,6 +1351,10 @@ class ShellHostView : public views::View,
   raw_ptr<views::FocusManager> focus_manager_ = nullptr;
   std::unique_ptr<WindowKeyboardHandler> input_handler_;
   WindowPointerHandler pointer_handler_;
+  std::unique_ptr<WindowMouseHandler> left_edge_handler_;
+  ardia::linux_window::LeftEdgeWatch left_edge_;
+  std::string left_edge_id_;
+  base::OneShotTimer left_edge_settle_;
   std::map<ui::Accelerator, base::DictValue> shortcuts_;
   bool shortcut_recording_ = false;
   bool switcher_capture_ = false;
@@ -1939,6 +1956,9 @@ void ShellHostView::Initialize() {
   input_window->AddPreTargetHandler(input_handler_.get(), ui::EventTarget::Priority::kSystem);
   input_window->AddPreTargetHandler(&pointer_handler_, ui::EventTarget::Priority::kSystem);
   if (!is_utility()) {
+    left_edge_handler_ = std::make_unique<WindowMouseHandler>(
+        base::BindRepeating(&ShellHostView::OnLeftEdgeMouse, base::Unretained(this)));
+    input_window->AddPreTargetHandler(left_edge_handler_.get(), ui::EventTarget::Priority::kSystem);
     typeahead_ = std::make_unique<linux_window::TypeaheadInput>(
         input_window->GetHost(), GetWidget()->GetInputMethod(),
         base::BindRepeating(&ShellHostView::OwnsKeyboardTarget, base::Unretained(this)));
@@ -2026,6 +2046,7 @@ base::DictValue ShellHostView::Bootstrap() const {
       .Append("ArdiaShell.restoreFullScreen")
       .Append("ArdiaShell.downloadsInProgress")
       .Append("ArdiaShell.setDragEscapeCapture")
+      .Append("ArdiaShell.watchLeftEdge")
       .Append("ArdiaShell.quit")
       .Append("ArdiaShell.startWindowMove")
       .Append("ArdiaShell.captionDoubleClick");
@@ -2094,13 +2115,47 @@ void ShellHostView::OnViewIsDeleting(views::View*) {
   browser_view_ = nullptr;
 }
 
+void ShellHostView::OnLeftEdgeMouse(const ui::MouseEvent& event) {
+  if (!input_observation_.IsObserving() || !GetWidget()) return;
+  const auto type = event.type();
+  if (event.flags() & ui::EF_IS_SYNTHESIZED) return;
+  const bool exited = type == ui::EventType::kMouseExited;
+  if (!exited && type != ui::EventType::kMouseEntered && type != ui::EventType::kMouseMoved &&
+      type != ui::EventType::kMouseDragged && type != ui::EventType::kMousePressed &&
+      type != ui::EventType::kMouseReleased) return;
+  gfx::Point origin;
+  views::View::ConvertPointToWidget(this, &origin);
+  const double x = event.root_location_f().x() - origin.x();
+  const double y = event.root_location_f().y() - origin.y();
+  const double height = this->height();
+  if (!exited) return ReportLeftEdge(left_edge_.Moved(x, y, height));
+  ReportLeftEdge(left_edge_.Exited(x, y, height, GetWidget()->IsActive()));
+  if (!left_edge_.settling()) return;
+  left_edge_settle_.Start(FROM_HERE, base::Milliseconds(ardia::linux_window::LeftEdgeWatch::kSettleMs),
+                          base::BindOnce([](base::WeakPtr<ShellHostView> host) {
+                            if (host) host->ReportLeftEdge(host->left_edge_.Settled(host->GetWidget() && host->GetWidget()->IsActive()));
+                          }, GetWeakPtr()));
+}
+
+void ShellHostView::ReportLeftEdge(std::optional<ardia::linux_window::LeftEdgeReport> report) {
+  if (!left_edge_.settling()) left_edge_settle_.Stop();
+  if (!report || left_edge_id_.empty()) return;
+  Event("ArdiaShell", "onWindowEvent", base::Value(base::DictValue()
+      .Set("type", "leftEdge").Set("id", left_edge_id_).Set("over", report->over)
+      .Set("point", base::ListValue().Append(report->x).Append(report->y))));
+}
+
 void ShellHostView::UnregisterAccelerators() {
   if (input_observation_.IsObserving()) {
     input_observation_.GetSource()->RemovePreTargetHandler(input_handler_.get());
     input_observation_.GetSource()->RemovePreTargetHandler(&pointer_handler_);
+    if (left_edge_handler_) input_observation_.GetSource()->RemovePreTargetHandler(left_edge_handler_.get());
     input_observation_.Reset();
   }
   input_handler_.reset();
+  left_edge_handler_.reset();
+  left_edge_settle_.Stop();
+  left_edge_.Stop();
   typeahead_timer_.Stop();
   typeahead_.reset();
   extension_keybindings_.reset();
@@ -3027,6 +3082,7 @@ void ShellHostView::OnDidPresentCompositorFrame(ui::Compositor*, uint32_t, const
 }
 
 void ShellHostView::OnWidgetActivationChanged(views::Widget*, bool active) {
+  ReportLeftEdge(left_edge_.ActivationChanged(active));
   if (active) activation_ = ++ActivationClock();
   if (active) FocusShellOnActivation();
   const bool changed = WindowFocus().Observe(id_, active);
@@ -4732,6 +4788,22 @@ void ShellHostView::Invoke(
       shortcuts.emplace(ui::Accelerator(static_cast<ui::KeyboardCode>(key), flags), binding.Clone());
     }
     shortcuts_ = std::move(shortcuts);
+    return std::move(done).Run(true, base::Value());
+  }
+  if (method == "ArdiaShell.watchLeftEdge") {
+    if (values.size() < 2 || !values[0].is_string() || values[0].GetString().empty() || !values[1].is_bool() ||
+        (values.size() > 2 && !values[2].is_int() && !values[2].is_double())) {
+      return std::move(done).Run(false, base::Value("A window id and a watch flag are required"));
+    }
+    if (is_utility()) return std::move(done).Run(true, base::Value());
+    left_edge_settle_.Stop();
+    if (!values[1].GetBool()) {
+      left_edge_.Stop();
+      return std::move(done).Run(true, base::Value());
+    }
+    left_edge_id_ = values[0].GetString();
+    const double hold = values.size() > 2 ? values[2].GetDouble() : 0;
+    ReportLeftEdge(left_edge_.Watch(std::isfinite(hold) ? hold : 0, GetWidget() && GetWidget()->IsActive()));
     return std::move(done).Run(true, base::Value());
   }
   if (method == "ArdiaShell.setDragEscapeCapture") {

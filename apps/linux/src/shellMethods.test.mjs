@@ -273,10 +273,23 @@ function shellEvents(event) {
   return { seen, remove: () => subscription.remove() };
 }
 
-test("hiding the sidebar watches the left edge without a native watcher, and a peek's hold keeps it over while the pointer is in the hold", async () => {
+test("the native host watches the left edge itself, so the page view and the frame's resize border can't hide the pointer from it (#368)", async () => {
+  assert.ok(advertised.includes("ArdiaShell.watchLeftEdge"));
+  assert.ok(nativeHost.includes('method == "ArdiaShell.watchLeftEdge"'));
+  const host = linuxHost();
+  const calls = [];
+  host.invoke = async (method, args) => { calls.push([method, args]); return null; };
+  const watch = resolveHostModule(host, "ArdiaShell", "watchLeftEdge");
+  assert.notEqual(watch, linuxShellMethod("watchLeftEdge"));
+  await watch("main", true, 256.5);
+  await watch("main", false);
+  assert.deepEqual(calls, [["ArdiaShell.watchLeftEdge", { args: ["main", true, 256.5] }], ["ArdiaShell.watchLeftEdge", { args: ["main", false] }]]);
+});
+
+test("an engine without the native watcher still watches the left edge from the shell, and a peek's hold keeps it over while the pointer is in the hold", async () => {
   const dom = installDom();
   const events = shellEvents("onWindowEvent");
-  const watch = resolveHostModule(linuxHost(), "ArdiaShell", "watchLeftEdge");
+  const watch = resolveHostModule(olderEngine("ArdiaShell.watchLeftEdge"), "ArdiaShell", "watchLeftEdge");
   const move = (clientX) => dom.fire("pointermove", { clientX, clientY: 300, shiftKey: false, ctrlKey: false, altKey: false, metaKey: false });
   await watch("main", true, 0);
   assert.deepEqual(events.seen.at(-1), { type: "leftEdge", id: "main", over: false, point: [-1, -1] });
