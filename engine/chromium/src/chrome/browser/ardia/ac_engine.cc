@@ -12,6 +12,7 @@
 #include "base/json/json_writer.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_util.h"
+#include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
@@ -77,6 +78,33 @@ void Reply::SendSecretJSON(std::string& json) {
   }
   Cleanse(json);
 }
+
+#if BUILDFLAG(IS_LINUX)
+void Reply::SendSecret(base::DictValue result) {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  if (!reply_) {
+    base::Value dropped(std::move(result));
+    Cleanse(dropped);
+    return;
+  }
+  ac_engine_reply_t reply = std::exchange(reply_, nullptr);
+  void* context = std::exchange(context_, nullptr);
+  SendSecretJson(std::move(result), reply, context);
+}
+
+void Reply::SendSecret(std::string_view key, std::u16string* secret) {
+  base::DictValue result;
+  if (secret) {
+    std::string utf8 = SecretUTF8(*secret);
+    result.Set(key, utf8);
+    Cleanse(utf8);
+    Cleanse(*secret);
+  } else {
+    result.Set(key, base::Value());
+  }
+  SendSecret(std::move(result));
+}
+#endif
 
 void Reply::Ok() {
   Send(base::DictValue().Set("ok", true));
@@ -276,6 +304,9 @@ extern "C" AC_ENGINE_EXPORT int ac_engine_abi_version() {
 extern "C" AC_ENGINE_EXPORT void ac_engine_set_event_sink(
     ac_engine_event_t sink,
     void* context) {
+#if BUILDFLAG(IS_LINUX)
+  CHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
+#endif
   ardia::g_sink = sink;
   ardia::g_sink_context = context;
 }

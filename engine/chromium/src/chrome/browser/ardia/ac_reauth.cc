@@ -80,6 +80,10 @@ class ReauthState : public ProfileState {
 
 }
 
+bool ReauthAvailable() {
+  return true;
+}
+
 void Reauth(Profile* profile,
             device_reauth::DeviceAuthSource source,
             const std::u16string& purpose,
