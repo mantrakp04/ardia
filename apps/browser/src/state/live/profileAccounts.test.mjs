@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { docs, heldKeychainWrites, heldSaves, keychainItems, keychainRefusals } from "../../test-native/index.ts";
+import { docs, heldKeychainReads, heldKeychainWrites, heldSaves, keychainItems, keychainRefusals } from "../../test-native/index.ts";
 
 const legacyAccount = (login) => ({ login, name: null, avatar: null, connectedAt: 1 });
 docs.set(
@@ -247,4 +247,23 @@ test("a pending copy fills a profile whose account lost its keychain item or was
   assert.equal(live().accounts[fresh]?.notion, undefined);
   assert.deepEqual(live().legacyAccounts.notion.owedTo, [fresh]);
   assert.equal(keychainItems.get("notion"), "legacy-notion-token");
+});
+
+test("a profile deleted while the move reads its keychain item gets no account and keeps no item", async () => {
+  const doomed = useBrowser.getState().createProfile({ name: "Temp" });
+  keychainItems.set(`notion:${doomed}`, "legacy-notion-token");
+  setLegacyAccount("notion", { ...legacyAccount("Acme"), owedTo: [doomed] });
+  heldKeychainReads.on = true;
+
+  const adopting = adoptLegacyAccounts([doomed]);
+  await until(() => heldKeychainReads.queue.length > 0);
+  release(heldKeychainReads);
+  await until(() => heldKeychainReads.queue.length > 0);
+  useBrowser.getState().deleteProfile(doomed);
+  heldKeychainReads.on = false;
+  release(heldKeychainReads);
+  await adopting;
+
+  assert.equal(live().accounts[doomed]?.notion, undefined);
+  assert.equal(keychainItems.has(`notion:${doomed}`), false);
 });

@@ -315,7 +315,8 @@ function copyLegacy(source: LiveSourceId, profileId: string, value: string, lega
     if (existing) {
       if (accountOf(profileId, source)) return true;
       if (existing !== value) return false;
-      setAccount(profileId, source, legacy);
+      if (profileExists(profileId)) setAccount(profileId, source, legacy);
+      else await deleteSecret(source, profileId);
       return true;
     }
     if (!(await setSecret(source, profileId, value))) return false;

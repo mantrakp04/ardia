@@ -28,6 +28,7 @@ export const docs = new Map<string, string>();
 export const keychainItems = new Map<string, string>();
 export const keychainRefusals = new Set<string>();
 export const heldKeychainWrites = { on: false, queue: [] as (() => void)[] };
+export const heldKeychainReads = { on: false, queue: [] as (() => void)[] };
 export const heldSaves = { on: false, queue: [] as (() => void)[] };
 export const bangListServer: { reply: ((etag: string | null) => Promise<BangListReply>) | null } = { reply: null };
 export const appInfo: Partial<SystemInfo> = { appVersion: "1.0" };
@@ -238,7 +239,12 @@ const calendar: Modules["ArdiaCalendar"] = {
 };
 
 const keychain: Modules["ArdiaKeychain"] = {
-  get: (account) => Promise.resolve(keychainItems.get(account) ?? null),
+  get: (account) =>
+    new Promise((resolve) => {
+      const land = () => resolve(keychainItems.get(account) ?? null);
+      if (heldKeychainReads.on) heldKeychainReads.queue.push(land);
+      else land();
+    }),
   set: (account, secret) =>
     new Promise((resolve) => {
       const land = () => resolve(!keychainRefusals.has(account) && !!keychainItems.set(account, secret));
