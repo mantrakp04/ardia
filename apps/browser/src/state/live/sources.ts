@@ -207,7 +207,7 @@ function saveConnection(profileId: string, source: LiveSourceId, value: string, 
     if (!(await setSecret(source, profileId, value))) throw new LiveError("other", "Couldn't save to the keychain");
     if (!profileExists(profileId)) return void (await deleteSecret(source, profileId));
     setAccount(profileId, source, connected);
-    await saveLiveDurably();
+    await saveLiveDurably().catch(() => {});
   });
 }
 
@@ -283,7 +283,7 @@ export async function connectGoogle(profileId: string, clientId: string, clientS
 
 export function disconnect(profileId: string, source: LiveSourceId) {
   return locked(source, profileId, async () => {
-    await deleteSecret(source, profileId);
+    if (!(await deleteSecret(source, profileId))) return;
     setAccount(profileId, source, null);
     const legacy = live().legacyAccounts[source];
     if (legacy) setLegacyAccount(source, { ...legacy, owedTo: (legacy.owedTo ?? Object.keys(useBrowser.getState().profiles)).filter((id) => id !== profileId) });
@@ -309,7 +309,7 @@ export function adoptLegacyAccounts(profileIds: string[]): Promise<void> {
 let retryingAdoption = false;
 
 export function retryOwedLegacyAccounts(): Promise<void> {
-  const owed = Object.values(live().legacyAccounts).some((legacy) => !!legacy?.owedTo?.length);
+  const owed = Object.values(live().legacyAccounts).some((legacy) => legacy?.owedTo !== undefined);
   if (!owed || retryingAdoption) return adoption;
   retryingAdoption = true;
   return adoptLegacyAccounts(Object.keys(useBrowser.getState().profiles)).finally(() => (retryingAdoption = false));
@@ -326,18 +326,16 @@ function withClientId(tokens: string, clientId: string | undefined): string {
 
 function copyLegacy(source: LiveSourceId, profileId: string, value: string, legacy: LiveAccount): Promise<boolean> {
   return locked(source, profileId, async () => {
-    if (!profileExists(profileId)) return true;
+    const owed = live().legacyAccounts[source]?.owedTo;
+    if (owed && !owed.includes(profileId)) return true;
+    if (!profileExists(profileId)) return deleteSecret(source, profileId);
     const existing = await getSecret(source, profileId);
     if (existing) {
       if (accountOf(profileId, source)) return true;
       if (existing !== value) return false;
-      if (profileExists(profileId)) setAccount(profileId, source, legacy);
-      else await deleteSecret(source, profileId);
-      return true;
-    }
-    if (!(await setSecret(source, profileId, value))) return false;
-    if (profileExists(profileId)) setAccount(profileId, source, legacy);
-    else await deleteSecret(source, profileId);
+    } else if (!(await setSecret(source, profileId, value))) return false;
+    if (!profileExists(profileId)) return deleteSecret(source, profileId);
+    setAccount(profileId, source, legacy);
     return true;
   });
 }
