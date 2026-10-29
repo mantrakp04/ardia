@@ -11,6 +11,7 @@ import { inPinnedContainer, isIncognitoProfile, newId, snapshotTab } from "../..
 import { withPrivateWindow } from "./hostWindowProfiles.ts";
 import { sessionWithSplitSlots, sessionWithTabPages, sessionWithTabPins } from "../../browser/src/state/session/savedShapes";
 import { splitTabIds } from "../../browser/src/state/splits/splits";
+import { sessionWithPinChoiceStamps } from "../../browser/src/state/pins/pinChoices";
 import type { SavedObject } from "../../browser/src/lib/savedDocument";
 
 type StoredWindow = Partial<BrowserWindow> & { incognito?: unknown; originalProfileId?: unknown };
@@ -46,7 +47,12 @@ const legacySession = (session: HydrateData) =>
   Object.values(session.tabs ?? {}).some(legacyTab) || Object.values(session.windows ?? {}).some(legacyWindow) ||
   Object.values(session.splits ?? {}).some(legacySplit) || legacyEntries(session);
 
-export const linuxSessionShape = (saved: HydrateData): HydrateData => legacySession(saved) ? withoutAbsent(currentSessionShape(saved)) : saved;
+const legacyPinChoices = (session: HydrateData) =>
+  Object.values(session.pinChoices ?? {}).some((mine) => Object.values(mine ?? {}).some((choice) => typeof choice !== "string"));
+const withPinChoiceStamps = (session: HydrateData) =>
+  legacyPinChoices(session) ? sessionWithPinChoiceStamps(session as unknown as SavedObject) as unknown as HydrateData : session;
+
+export const linuxSessionShape = (saved: HydrateData): HydrateData => withPinChoiceStamps(legacySession(saved) ? withoutAbsent(currentSessionShape(saved)) : saved);
 
 const CLOSED_WINDOW_LIMIT = 10;
 const inClosingOrder = <T extends { closedAt: number }>(entries: T[]) => [...entries].sort((a, b) => a.closedAt - b.closedAt).slice(-CLOSED_WINDOW_LIMIT);
