@@ -31,6 +31,18 @@ test("utility startup retains browser windows and active page without inventing 
   assert.deepEqual(initialLinuxSession(host("settings"), null), {});
 });
 
+test("sessions saved with numeric pin choices start with clock stamps", () => {
+  const saved = browserSession();
+  const key = Object.keys(saved.tabs)[0];
+  saved.pinChoices = { default: { [key]: 1792984216515, [`place:${key}`]: 1792984216516 } };
+  const initial = initialLinuxSession(host(), saved);
+  useBrowser.getState().hydrate(initial);
+  const choices = initial.pinChoices.default;
+  assert.ok(Object.values(choices).every((choice) => typeof choice === "string"));
+  assert.ok(choices[`place:${key}`] > choices[key]);
+  assert.deepEqual(initialLinuxSession(host("settings"), saved).pinChoices, initial.pinChoices);
+});
+
 test("utility snapshots preserve canonical browser geometry, pages, groups and focus while saving live profile names and settings", () => {
   const saved = browserSession();
   useBrowser.getState().hydrate(saved);
