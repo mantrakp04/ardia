@@ -1,0 +1,38 @@
+name: Linux setup
+description: Installs the Ubuntu packages, Node and pnpm the Linux checks and package jobs need, then the workspace
+inputs:
+  packages:
+    description: Extra apt packages
+    required: false
+    default: ""
+runs:
+  using: composite
+  steps:
+    - name: Ubuntu packages
+      shell: bash
+      env:
+        EXTRA_PACKAGES: ${{ inputs.packages }}
+      run: |
+        set -euo pipefail
+        sudo apt-get update -qq
+        read -ra extra <<<"$EXTRA_PACKAGES"
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
+          clang pkg-config patch fakeroot xz-utils unzip curl util-linux openssl \
+          dbus dbus-x11 libnss3-tools gnome-keyring \
+          python3-gi gir1.2-glib-2.0 libglib2.0-dev \
+          "${extra[@]}"
+    - name: Sandbox
+      shell: bash
+      run: |
+        if [ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null || echo 0)" != 0 ]; then
+          echo "::notice::Ubuntu restricts unprivileged user namespaces; allowing them on this throwaway runner so Chromium's sandbox and the private polkitd fixtures can start"
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+        fi
+    - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+      with:
+        node-version: 24
+        cache: pnpm
+    - name: Workspace
+      shell: bash
+      run: pnpm install --frozen-lockfile
