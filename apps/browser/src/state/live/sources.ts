@@ -144,8 +144,8 @@ async function giteaDetails(get: <T>(path: string) => Promise<T>, requiredApprov
   const pull = await get<GiteaPull>(path).catch(missing);
   if (!pull) return null;
   const [reviews, status, required] = await Promise.all([
-    get<GiteaReview[]>(`${path}/reviews?limit=50`).catch(() => null),
-    get<GiteaCombinedStatus>(`/repos/${ref.repo}/commits/${pull.head.sha}/status?limit=50`).catch(() => null),
+    get<GiteaReview[]>(`${path}/reviews?limit=50`).catch(missing),
+    get<GiteaCombinedStatus>(`/repos/${ref.repo}/commits/${pull.head.sha}/status?limit=50`).catch(missing),
     requiredApprovals(ref.repo, pull.base.ref),
   ]);
   return { ...ref, pull, reviews, status, requiredApprovals: required };
