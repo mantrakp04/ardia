@@ -20,5 +20,7 @@ export const isDarkAppearance = () => Shell.isDarkAppearance();
 export const replyToTerminate = (ok: boolean) => Shell.replyToTerminate(ok);
 
 export const onAppEvent = (listener: (e: AppEvent) => void) => Shell.addListener("onAppEvent", listener);
-export const onOpenURLs = (listener: (urls: string[], pointer?: [number, number]) => void) =>
-  Shell.addListener("onOpenURLs", ({ urls, pointer }) => listener(urls, pointer));
+export type OpenURLsChoice = { profileId?: string; littleArdia?: boolean };
+
+export const onOpenURLs = (listener: (urls: string[], pointer: [number, number] | undefined, choice: OpenURLsChoice) => void) =>
+  Shell.addListener("onOpenURLs", ({ urls, pointer, profileId, littleArdia }) => listener(urls, pointer, { profileId, littleArdia }));

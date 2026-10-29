@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 globalThis.__DEV__ = false;
 const { useBrowser } = await import("../browser/store.ts");
-const { routedLinks } = await import("./linkRoutes.ts");
+const { chosenLinks, routedLinks } = await import("./linkRoutes.ts");
 
 const S = () => useBrowser.getState();
 const PROFILES = {
@@ -31,4 +31,18 @@ test("profiles sharing one engine profile: the last active one gets the links", 
     lastProfileId: "side",
   });
   assert.deepEqual(routedLinks({ profile: "work", adoptIds: ["link:0"] }, 1), { profileId: "side", adoptIds: ["link:0"] });
+});
+
+test("a profile picked in Shortcuts wins over the route, and drops marks parked for another profile", () => {
+  S().hydrate({ profiles: PROFILES, profileOrder: ["default", "work"], windows: {}, tabs: {} });
+  const parked = { profileId: "default", adoptIds: ["link:0", "link:1"] };
+  assert.deepEqual(chosenLinks(parked, { profileId: "work" }), { profileId: "work", adoptIds: [undefined, undefined] });
+  assert.deepEqual(chosenLinks({ profileId: null, adoptIds: [undefined] }, { profileId: "work" }), { profileId: "work", adoptIds: [undefined] });
+});
+
+test("the route's own profile picked, no profile picked, or a deleted one: the route stands", () => {
+  const parked = { profileId: "work", adoptIds: ["link:0"] };
+  assert.equal(chosenLinks(parked, { profileId: "work" }), parked);
+  assert.equal(chosenLinks(parked, {}), parked);
+  assert.equal(chosenLinks(parked, { profileId: "deleted" }), parked);
 });

@@ -9,7 +9,7 @@ import type { DragPreviewShape, OpenWindowOptions, WindowEvent } from "./windows
 
 type ShellEvents = {
   onCommand: (e: CommandEvent) => void;
-  onOpenURLs: (e: { urls: string[]; pointer?: [number, number] }) => void;
+  onOpenURLs: (e: { urls: string[]; pointer?: [number, number]; profileId?: string; littleArdia?: boolean }) => void;
   onWindowEvent: (e: WindowEvent) => void;
   onAppEvent: (e: AppEvent) => void;
 };

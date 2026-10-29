@@ -3,7 +3,7 @@ import { showMenu } from "../../platform/menus";
 import { focus, openWindow } from "../browser/actions";
 import { menuShortcut } from "../commands/commandShortcuts";
 import { closeWindowAnimated, isWindowClosing } from "../windows/closeAnimated";
-import { routedLinks, type RoutedLinks } from "./linkRoutes";
+import { chosenLinks, routedLinks, type LinkChoice, type RoutedLinks } from "./linkRoutes";
 import { runsJavaScript } from "../settings/scriptUrls";
 import { profileAccentOf } from "../profiles/looks";
 import { useBrowser } from "../browser/store";
@@ -20,17 +20,17 @@ export function openLittleArdia(url?: string, profileId?: string, adoptId?: stri
 }
 
 
-export function openExternalUrls(given: string[], pointer?: [number, number]) {
+export function openExternalUrls(given: string[], pointer?: [number, number], choice: LinkChoice = {}) {
   const settings = store().settings;
   const urls = settings.allowJavaScriptFromAppleEvents ? given : given.filter((url) => !runsJavaScript(url, settings));
   if (!urls.length) return;
   void routeLinkTabs(urls).then(
-    (route) => openRoutedUrls(urls, route, pointer),
-    () => openUrlsFromApps(urls, routedLinks({}, urls.length), pointer),
+    (route) => openRoutedUrls(urls, route, choice, pointer),
+    () => openUrlsFromApps(urls, routedLinks({}, urls.length), choice, pointer),
   );
 }
 
-function openRoutedUrls(urls: string[], route: LinkRoute, pointer?: [number, number]) {
+function openRoutedUrls(urls: string[], route: LinkRoute, choice: LinkChoice, pointer?: [number, number]) {
   const dismissed = new Set(route.dismissed ?? []);
   const kept = urls.map((_, i) => i).filter((i) => !dismissed.has(i));
   if (!kept.length) return;
@@ -38,14 +38,17 @@ function openRoutedUrls(urls: string[], route: LinkRoute, pointer?: [number, num
   openUrlsFromApps(
     kept.map((i) => urls[i]!),
     routedLinks({ ...route, adoptIds: kept.map((i) => marks[i] ?? null) }, kept.length),
+    choice,
     pointer,
   );
 }
 
-function openUrlsFromApps(urls: string[], routed: RoutedLinks, pointer?: [number, number]) {
+function openUrlsFromApps(urls: string[], given: RoutedLinks, choice: LinkChoice, pointer?: [number, number]) {
   const [url] = urls;
+  const routed = chosenLinks(given, choice);
   const profileId = routed.profileId ?? lastActiveProfile(store());
-  if (store().settings.openLinksInLittleArdia && urls.length === 1 && url && isWebPageUrl(url)) return void openLittleArdia(url, profileId, routed.adoptIds[0], pointer);
+  const littleArdia = choice.littleArdia ?? store().settings.openLinksInLittleArdia;
+  if (littleArdia && urls.length === 1 && url && isWebPageUrl(url)) return void openLittleArdia(url, profileId, routed.adoptIds[0], pointer);
   openLinksInMainWindow(urls, profileId, routed.adoptIds);
 }
 

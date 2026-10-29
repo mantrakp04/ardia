@@ -30,6 +30,7 @@ export type DevNative = {
   devCrash(kind?: "exception"): Promise<void>;
   devRenderIntroMusic(cues: IntroMusicCues, path: string): Promise<number | null>;
   devRunAppleScript(source: string): Promise<{ ok: boolean; result?: unknown; error?: string; number?: number }>;
+  devRunIntent(name: string, args: Record<string, unknown>): Promise<{ ok: boolean; value?: unknown; error?: string; unresolved?: boolean }>;
   devSnapshotWindow(windowId: string, path: string, transparent?: boolean): Promise<boolean>;
   devSetPointer(windowId: string, x: number, y: number, on: boolean): Promise<boolean>;
   devSetMouseButtons(pressed: number): Promise<boolean>;

@@ -1,9 +1,11 @@
 import type { LinkRoute } from "../../platform/tabs";
 import { useBrowser } from "../browser/store";
 import { engineProfile } from "../browser/model";
-import { lastActiveProfile } from "../windows/small";
+import { lastActiveProfile, mainWindowFor } from "../windows/small";
 
 export type RoutedLinks = { profileId: string | null; adoptIds: (string | undefined)[] };
+
+export type LinkChoice = { profileId?: string; littleArdia?: boolean };
 
 export function routedLinks(route: LinkRoute, count: number): RoutedLinks {
   const s = useBrowser.getState();
@@ -16,3 +18,11 @@ export function routedLinks(route: LinkRoute, count: number): RoutedLinks {
     adoptIds: Array.from({ length: count }, (_, i) => (profileId !== null && typeof marks[i] === "string" ? marks[i]! : undefined)),
   };
 }
+
+export function chosenLinks(routed: RoutedLinks, choice: LinkChoice): RoutedLinks {
+  const chosen = choice.profileId && useBrowser.getState().profiles[choice.profileId] ? choice.profileId : null;
+  if (!chosen || chosen === routed.profileId) return routed;
+  return { profileId: chosen, adoptIds: routed.adoptIds.map(() => undefined) };
+}
+
+export const windowForProfile = (profileId: string) => mainWindowFor(useBrowser.getState(), profileId);

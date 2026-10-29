@@ -5,6 +5,7 @@ const Dev = nativeModule("ArdiaDev");
 export const devCrash = (kind?: "exception") => Dev.devCrash(kind);
 export const devRenderIntroMusic = (cues: IntroMusicCues, path: string) => Dev.devRenderIntroMusic(cues, path);
 export const devRunAppleScript = (source: string) => Dev.devRunAppleScript(source);
+export const devRunIntent = (name: string, args: Record<string, unknown> = {}) => Dev.devRunIntent(name, args);
 export const devSnapshotWindow = (windowId: string, path: string, transparent = false) => Dev.devSnapshotWindow(windowId, path, transparent);
 export const devSetPointer = (windowId: string, point: { x: number; y: number } | null) => Dev.devSetPointer(windowId, point?.x ?? 0, point?.y ?? 0, !!point);
 export const devSetMouseButtons = (pressed: boolean | null) => Dev.devSetMouseButtons(pressed === null ? -1 : pressed ? 1 : 0);

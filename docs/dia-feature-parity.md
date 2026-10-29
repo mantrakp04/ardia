@@ -19,13 +19,13 @@ Legend: **✅** done · **🧪** built, but the deciding test needs the user pre
 
 ## Summary
 
-**307 feature rows** (§1–§25, recounted from the tables on 2026-09-26):
+**308 feature rows** (§1–§25, recounted from the tables on 2026-09-26, plus Shortcuts on 2026-10-26):
 
 | ✅ done | 🧪 needs the user | 🟡 partial | ❌ missing | ⛔ blocked | ⏸ deferred (AI) | — n/a |
 |---|---|---|---|---|---|---|
-| 230 | 1 | 2 | 0 | 1 | 59 | 14 |
+| 230 | 2 | 2 | 0 | 1 | 59 | 14 |
 
-Of the 234 rows that count (not ⏸ or —), 230 are done (98 %), 231 with the one 🧪 row (Cast). The two 🟡 rows are
+Of the 235 rows that count (not ⏸ or —), 230 are done (98 %), 232 with the two 🧪 rows (Cast, Shortcuts). The two 🟡 rows are
 passkeys (iCloud Keychain waits on Apple) and the Dia sidebar import (profiles, open and pinned tabs come through
 Dia's AppleScript; custom names, colours, spaces and folders don't). Keyboard shortcuts: every Dia and Chrome
 shortcut is bound (Dia's where they clash) except Chat (⏸) and a few for Chrome's own hidden UI. Menus: all ten exist and match.
@@ -206,6 +206,19 @@ string doesn't matter. Afterwards: `kill %1` for the server, quit the app, `rm -
     again. Pass: nothing new is added and Dia stays open. Then turn Dia off under Ardia in System Settings › Privacy &
     Security › Automation and repeat. Pass: everything else imports, and the done screen says Dia's tabs couldn't be
     brought over and where to allow it.
+17. **Shortcuts** (§23, needs a signed build in /Applications, so Shortcuts finds its actions). Set up Work and
+    Personal profiles with a few tabs each, one of Personal's pinned, and a private window (⇧⌘N) with a tab open. In
+    Shortcuts, search the action library for Ardia. Pass: Open URL, New Tab in Profile, Get Open Tabs, Switch to Tab,
+    Close Tabs and Copy Clean Link. Build Get Open Tabs (Work) → Show Result. Pass: Work's tabs with titles and URLs,
+    nothing from the private window. Run Get Open Tabs with no profile. Pass: both profiles' tabs, and Pinned is on
+    for the pinned one only. Run New Tab in Profile (Work). Pass: a new Work tab in the window showing Work, or the
+    window used last switched to Work, and Ardia comes forward. Run Switch to Tab on a Personal tab picked from the
+    list. Pass: that tab shows, its window comes forward and shows Personal. Run Get Open Tabs (Work) → Close Tabs.
+    Pass: Work's tabs close and Personal's stay. Run Open URL with `https://ardia.dev/?utm_source=x` in Work, In
+    Little Ardia: it opens there; then Copy Clean Link: the clipboard holds `https://ardia.dev/`. With the private
+    window in front, Copy Clean Link says it's private. Save a shortcut with Switch to Tab on a picked tab, close that
+    tab in Ardia and run it. Pass: Shortcuts says it can't find the tab, and Ardia changes nothing. Quit Ardia and run
+    Open URL. Pass: Ardia launches and opens the link.
 
 ## 1. Windows & app shell
 | Feature | Dia | Ardia | Gap |
@@ -638,6 +651,7 @@ Chrome's password manager and autofill fill pages themselves; our Settings panes
 | Task Manager | ✓ | ✅ | Chrome's own Task Manager window, as Dia's (its Window menu item opens "the chrome task manager"): Window › Task Manager → `ac_task_manager_open` → `chrome::OpenTaskManager` with the last active Browser, so its tab is selected; tabs & extensions / browser / all tasks, search, End Task. A top-level window: it outlives the window that opened it and opens with none |
 | AppleScript dictionary (windows, tabs, profiles, execute JS) | ✓ | ✅ | Ardia.sdef; execute runs through the renderer's `ac-eval`, which works on Chrome tabs. Like Chrome and Dia, `execute` is off until View › Developer › Allow JavaScript from Apple Events is checked (`settings.allowJavaScriptFromAppleEvents`, default off; one switch for every profile, where Chrome's and Dia's pref is per profile); until then it fails with Chrome's error 12, "Executing JavaScript through AppleScript is turned off…" |
 | Raycast extension support (via AppleScript) | ✓ | ✅ | `extras/raycast-ardia`: Search Tabs lists every window's tabs and switches to one (also Copy URL, Close Tab), through the AppleScript dictionary. Like Dia's extension it also has Search Profiles (shows a profile in the front window, or ⌘↵ in a new one), New Tab (a URL or a search, resolved by the command bar's `resolveInput`), New Window (the default profile, or the one named) and New Incognito Window (2026-10-24; `npm test` checks their scripts, not yet run against an instance). Verified (2026-09-26) with `osascript` from another process against a hidden instance, as Raycast's `runAppleScript` sends them (20 checks): the extension's list, focus, activate and close scripts, and the dictionary (count, make new tab and window, URL get and set, go back / forward, execute with a promise, reload, tab properties, active tab index, profiles, close). Found and fixed: `make new window with properties {URL:…}` failed (-1700). Its `npm test` passes. Left for a person: installing it in Raycast and its first-run consent prompt (checklist step 14) |
+| Shortcuts actions (App Intents) | — | 🧪 | Ours (Dia ships no App Intents). Open URL (a profile, and A Tab or Little Ardia; with neither it goes where links from other apps go, through the same `openExternalUrls`, and a profile picked wins over a link route), New Tab in Profile (the window links from other apps would use, through the store's `mainWindowFor`, as ⌘T opens it; a new window when there's none), Get Open Tabs (every regular window's tabs in every profile, front window first, never a private window's), Switch to Tab (its window forward, its profile shown), Close Tabs (if one of them has closed, it closes none and says "That tab is closed."), Copy Clean Link (the front tab's link through `cleanUrl`, copied and returned; refused when the front window is private). Tab and Profile entities have queries, so Shortcuts offers them in pickers; a tab a saved shortcut kept that has since closed doesn't resolve, and one closed between resolving and running fails with "That tab is closed." The intents are in `packages/shell/ios` and read the scripting state AppleScript uses (`ShellScripting`, which also carries the tabs of profiles a window isn't showing); commands go through its reply channel, so there's no third bridge to the store. Verified (2026-10-26): `node apps/browser/scripts/intents-test.mjs <Debug app>` (15 checks; `devRunIntent` resolves entities through their queries, as Shortcuts does, then runs each intent's own `perform()`), and the built app's `Metadata.appintents` lists all six actions. Left for a person: the actions in Shortcuts itself (checklist step 17) |
 | Record Performance Issue, Copy Diagnostics | ✓ | ✅ | engine trace saved to Downloads |
 
 ## 24. System integration

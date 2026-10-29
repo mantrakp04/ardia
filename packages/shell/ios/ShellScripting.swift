@@ -42,12 +42,10 @@ public enum ShellScripting {
       NSScriptCommand.current()?.setError("Ardia isn't ready yet.")
       return nil
     }
-    seq += 1
-    let id = "as-\(seq)"
     let command = NSScriptCommand.current()
     command?.suspendExecution()
     var finished = false
-    pending[id] = { result, error in
+    dispatch(body) { result, error in
       guard !finished else { return }
       finished = true
       let answer = result as? [String: Any] ?? [:]
@@ -59,12 +57,21 @@ public enum ShellScripting {
         NSLog("Ardia: AppleScript reply failed: \(failure)")
       }
     }
+    return nil
+  }
+
+  @discardableResult
+  static func dispatch(_ body: [String: Any], answer: @escaping (Any?, String?) -> Void) -> Bool {
+    guard ShellEvents.isAttached(.scriptCommand) else { return false }
+    seq += 1
+    let id = "as-\(seq)"
+    pending[id] = answer
     var request = body
     request["id"] = id
     ShellEvents.send(.scriptCommand, request)
     DispatchQueue.main.asyncAfter(deadline: .now() + 20) {
       reply(id, result: nil, error: "Ardia didn't respond in time.")
     }
-    return nil
+    return true
   }
 }

@@ -17,6 +17,13 @@ public enum OpenURLInbox {
     pending = []
   }
 
+  static func open(_ url: URL, profileId: String?, littleArdia: Bool?) {
+    var body: [String: Any] = ["urls": [url.absoluteString], "pointer": [NSEvent.mouseLocation.x, NSEvent.mouseLocation.y]]
+    body["profileId"] = profileId
+    body["littleArdia"] = littleArdia
+    ShellEvents.send(.openURLs, body)
+  }
+
   private static func deliver(_ urls: [String], _ pointer: NSPoint) -> Bool {
     ShellEvents.send(.openURLs, ["urls": urls, "pointer": [pointer.x, pointer.y]])
   }

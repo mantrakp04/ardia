@@ -7,4 +7,5 @@ struct ScriptWindowState: Record {
   @Field var incognito: Bool = false
   @Field var activeTabId: String?
   @Field var tabs: [ScriptTabState] = []
+  @Field var otherProfilesTabs: [ScriptTabState] = []
 }

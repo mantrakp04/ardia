@@ -169,6 +169,7 @@ const dev: Modules["ArdiaDev"] = {
   devCrash: () => Promise.resolve(),
   devRenderIntroMusic: () => Promise.resolve(null),
   devRunAppleScript: () => Promise.resolve({ ok: false, error: "no AppleScript in tests" }),
+  devRunIntent: () => Promise.resolve({ ok: false, error: "no App Intents in tests" }),
   devSnapshotWindow: () => Promise.resolve(false),
   devSetPointer: () => Promise.resolve(false),
   devSetMouseButtons: () => Promise.resolve(false),
