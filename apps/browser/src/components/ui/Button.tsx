@@ -1,6 +1,6 @@
 import { ContextMenuArea, Surface, Symbol, VisualEffect, type SymbolProps } from "@ardia/shell";
 import { memo } from "react";
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { Pressable, StyleSheet, Text, View, type GestureResponderEvent, type StyleProp, type ViewStyle } from "react-native";
 import { modifiersOf, type ClickModifiers } from "../../lib/keys";
 import { useHover } from "./useHover";
 import { GlassFill, liquidGlass } from "./Glass";
@@ -29,7 +29,7 @@ type IconBase = {
 };
 
 type IconProps = IconBase &
-  ({ toolbar?: false; onPress?: () => void } | { toolbar: true; onPress?: (modifiers: ClickModifiers) => void; onLongPress?: () => void; onContextMenu?: () => void });
+  ({ toolbar?: false; onPress?: (press: GestureResponderEvent) => void } | { toolbar: true; onPress?: (modifiers: ClickModifiers) => void; onLongPress?: () => void; onContextMenu?: () => void });
 
 type TextProps = {
   variant: "text";

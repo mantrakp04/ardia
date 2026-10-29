@@ -11,7 +11,7 @@ import { muteTitle } from "../../state/tabs/mute";
 import { Favicon } from "../favicon/Favicon";
 import { useSidebarTokens } from "../sidebar/tokens";
 import { useArtwork } from "../../state/media/artwork";
-import { dismissPlayer, isPlaying, mediaCommand, playerTabFor, useHiddenPlayerTabs, useMedia, useSession, type Session } from "../../state/media/media";
+import { dismissPlayer, isPlaying, mediaCommand, playerTabFor, useHiddenPlayerTabs, useMedia, usePictureInPicture, useSession, type Session } from "../../state/media/media";
 import { Marquee, useMarqueeGroup } from "./Marquee";
 import { useMediaTokens } from "./tokens";
 
@@ -23,7 +23,6 @@ const LIVE_DOT = 6;
 const BUTTON = 24;
 const BUTTON_GAP = 2;
 const TITLE_HEIGHT = 16;
-const HOVER_BUTTONS_WIDTH = BUTTON * 2 + BUTTON_GAP * 2;
 const MARQUEE_PASSES_AT_REST = 1;
 
 export const SIDEBAR_PLAYER_HEIGHT = ROW_HEIGHT + 8;
@@ -47,6 +46,9 @@ export function SidebarPlayer({ tabId }: { tabId: string }) {
   const tab = useTab(tabId);
   const mute = useMuteState(tabId);
   const playing = isPlaying(session);
+  const video = useMedia((m) => !!m.sessions[tabId]?.hasVideo || !!m.pipOpen[tabId]);
+  const [pip, togglePip] = usePictureInPicture(tabId);
+  const hoverButtonsWidth = (BUTTON + BUTTON_GAP) * (video ? 3 : 2);
   const { hovered, hoverProps } = useHover();
   const artwork = useArtwork(tabId, session?.artwork);
   const title = session?.title || tab?.title || "";
@@ -69,13 +71,14 @@ export function SidebarPlayer({ tabId }: { tabId: string }) {
           </View>
           {isLive(session) ? <View accessibilityLabel="Live" style={{ width: LIVE_DOT, height: LIVE_DOT, borderRadius: LIVE_DOT / 2, marginLeft: 7, backgroundColor: theme.destructive }} /> : null}
           {mute ? <Symbol name="speaker.slash.fill" size={9} color={theme.textSecondary} style={{ width: 13, height: 12, marginLeft: 6 }} /> : null}
-          <View style={{ flex: 1, minWidth: 0, marginLeft: 6, marginRight: hovered ? HOVER_BUTTONS_WIDTH : 0 }}>
+          <View style={{ flex: 1, minWidth: 0, marginLeft: 6, marginRight: hovered ? hoverButtonsWidth : 0 }}>
             <Marquee id="title" text={title} group={marquee} height={TITLE_HEIGHT} style={{ ...font.small, fontWeight: weight.semibold, color: theme.textPrimary }} />
           </View>
         </Pressable>
         {hovered ? (
           <View style={{ position: "absolute", top: 0, bottom: 0, right: TRAILING_INSET + BUTTON + BUTTON_GAP, flexDirection: "row", alignItems: "center", gap: BUTTON_GAP }}>
             <Button variant="icon" icon="xmark" size={11} box={BUTTON} radius={radius.m} tooltip="Close Player" onPress={() => dismissPlayer(tabId)} />
+            {video ? <Button variant="icon" icon={pip ? "pip.exit" : "pip.enter"} size={12} box={BUTTON} radius={radius.m} tooltip={pip ? "Exit PiP" : "PiP"} onPress={togglePip} /> : null}
             <Button variant="icon"
               icon={mute ? "speaker.slash.fill" : "speaker.wave.2.fill"}
               size={12}
