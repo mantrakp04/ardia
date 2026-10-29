@@ -23,21 +23,44 @@ async function requestClose(windowId: string) {
   const w = s.windows[windowId];
   if (!w) return;
   if (isSmall(s, windowId)) return closeLittleArdia(windowId);
+  const { decision, suppressWarning, keepsLastWindow } = await decideWindowClose(windowId);
+  if (suppressWarning) useBrowser.getState().updateSettings({ warnBeforeClosingWindow: false });
+  if (decision === "cancel") return;
+  closeWindowAnimated(windowId, { keepsLastWindow });
+}
+
+export type CloseAsk = typeof confirm;
+export type WindowCloseDecision = { decision: "allow" | "cancel"; suppressWarning: boolean; keepsLastWindow?: boolean };
+
+const allow = (suppressWarning = false): WindowCloseDecision => ({ decision: "allow", suppressWarning });
+
+async function askToClose(windowId: string, ask: CloseAsk, closing?: string[]): Promise<WindowCloseDecision> {
+  const { confirmed, suppressed } = await ask({ ...closeWindowDialog(windowId, closing), suppression: "Don’t ask me again", windowId });
+  return { decision: confirmed ? "allow" : "cancel", suppressWarning: suppressed };
+}
+
+export async function decideWindowClose(windowId: string, ask: CloseAsk = confirm): Promise<WindowCloseDecision> {
   const asked = new Set<string>();
-  let last = false;
+  let suppressWarning = false;
   for (;;) {
     const now = useBrowser.getState();
-    if (!now.windows[windowId]) return;
-    last = isLastRegularWindow(now, windowId);
-    if (last) break;
+    if (!now.windows[windowId]) return { decision: "cancel", suppressWarning };
+    if (isLastRegularWindow(now, windowId)) return { ...allow(suppressWarning), keepsLastWindow: true };
     const closing = tabsLostWithWindow(now, windowId, isOpenRegularWindow).map((t) => t.id);
-    if (!now.settings.warnBeforeClosingWindow || closing.length < MIN_TABS || closing.every((id) => asked.has(id))) break;
-    const { confirmed, suppressed } = await confirm({ ...closeWindowDialog(windowId, closing), suppression: "Don’t ask me again", windowId });
-    if (suppressed) useBrowser.getState().updateSettings({ warnBeforeClosingWindow: false });
-    if (!confirmed) return;
+    const warns = now.settings.warnBeforeClosingWindow && !suppressWarning;
+    if (!warns || closing.length < MIN_TABS || closing.every((id) => asked.has(id))) return allow(suppressWarning);
+    const answer = await askToClose(windowId, ask, closing);
+    suppressWarning ||= answer.suppressWarning;
+    if (answer.decision === "cancel") return { decision: "cancel", suppressWarning };
     for (const id of closing) asked.add(id);
   }
-  closeWindowAnimated(windowId, { keepsLastWindow: last });
+}
+
+export async function decideLastTabClose(windowId: string, ask: CloseAsk = confirm): Promise<WindowCloseDecision> {
+  const s = useBrowser.getState();
+  const w = s.windows[windowId];
+  if (!w || !s.settings.warnBeforeClosingLastTab || w.kind === "private") return allow();
+  return askToClose(windowId, ask);
 }
 
 const unpinnedTabIds = (windowId: string) => {

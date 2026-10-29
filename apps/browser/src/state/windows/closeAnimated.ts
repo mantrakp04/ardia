@@ -1,4 +1,5 @@
 import { animateWindowClose, focusWindow } from "../../platform/windows";
+import { managesWindowClose } from "../../platform/windowClose";
 import { useBrowser, type BrowserState } from "../browser/store";
 import type { CloseWindowOptions } from "./windows";
 import { familyKeyOf } from "../browser/model";
@@ -26,6 +27,7 @@ export function closeWindowAnimated(windowId: string, { replacedBy = null, then,
   const s = useBrowser.getState();
   const w = s.windows[windowId];
   if (isWindowClosing(windowId) || !w) return;
+  if (!replacedBy && !then && managesWindowClose(windowId, "window")) return;
   const leaving = familyCounts(s, w.tabIds);
   const close = () => {
     if (!pending.delete(windowId)) return;
