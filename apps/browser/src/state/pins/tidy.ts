@@ -17,22 +17,25 @@ export type TidyPlan = {
   newGroups: { tabIds: string[]; name: string }[];
 };
 
-export type TidiedPins = {
+export type TidyScope = "pins" | "tabs";
+
+export type Tidied = {
+  scope: TidyScope;
   windowId: string;
   order: string[];
   homes: Record<string, string | null>;
   closed: ClosedTab[];
-  pins: number;
-  folders: number;
+  moved: number;
+  groups: number;
   duplicates: number;
 };
 
 const homeOf = (t: Pick<Tab, "url" | "pinnedUrl">) => t.pinnedUrl || t.url;
 
-function foldersOf(s: Pick<BrowserState, "groups">, order: string[], windowId: string, profileId: string): TabGroup[] {
+function foldersOf(s: Pick<BrowserState, "groups">, order: string[], windowId: string, profileId: string, scope: TidyScope): TabGroup[] {
   const at = new Map(order.map((id, i) => [id, i]));
   return Object.values(s.groups)
-    .filter((g) => g.pinned && g.windowId === windowId && g.profileId === profileId && g.tabIds.length)
+    .filter((g) => g.pinned === (scope === "pins") && g.windowId === windowId && g.profileId === profileId && g.tabIds.length)
     .map((g) => ({ g, top: Math.min(...g.tabIds.map((id) => at.get(id) ?? Infinity)), depth: depthOf(s.groups, g.id) }))
     .sort((a, z) => a.top - z.top || a.depth - z.depth)
     .map(({ g }) => g);
@@ -50,14 +53,17 @@ function folderSites(s: Pick<BrowserState, "tabs" | "groups">, g: TabGroup): str
   return [...counts].filter(([, n]) => n === most).map(([site]) => site);
 }
 
-export function tidyPlan(s: Pick<BrowserState, "tabs" | "groups" | "windows" | "splits">, windowId: string, profileId?: string): TidyPlan | null {
+const isLoose = (s: Pick<BrowserState, "tabs" | "groups">, id: string, scope: TidyScope) =>
+  scope === "pins" ? isPinnedRow(s.tabs[id]) : !s.tabs[id]?.pin && !innermostGroupOf(s.groups, id);
+
+export function tidyPlan(s: Pick<BrowserState, "tabs" | "groups" | "windows" | "splits">, windowId: string, profileId?: string, scope: TidyScope = "pins"): TidyPlan | null {
   const w = s.windows[windowId];
   if (!isRegularWindow(w)) return null;
   const profile = profileId ?? w.profileId;
   const order = w.tabIds.filter((id) => s.tabs[id]?.profileId === profile);
-  const rows = order.filter((id) => isPinnedRow(s.tabs[id]));
+  const rows = order.filter((id) => isLoose(s, id, scope));
   if (!rows.length) return null;
-  const folders = foldersOf(s, order, w.id, profile);
+  const folders = foldersOf(s, order, w.id, profile, scope);
   const filed = [...new Set(folders.flatMap((g) => g.tabIds))].flatMap((id) => (s.tabs[id] ? [s.tabs[id]!] : []));
 
   const closes: TidyPlan["closes"] = [];
@@ -66,7 +72,7 @@ export function tidyPlan(s: Pick<BrowserState, "tabs" | "groups" | "windows" | "
     const t = s.tabs[id]!;
     const home = homeOf(t);
     const inSplitRow = splitRowPanes(s, splitOf(s, id)).includes(id);
-    const twin = home && !inSplitRow ? (filed.find((f) => homeOf(f) && samePage(homeOf(f), home)) ?? kept.find((k) => samePage(homeOf(k), home))) : undefined;
+    const twin = scope === "pins" && home && !inSplitRow ? (filed.find((f) => homeOf(f) && samePage(homeOf(f), home)) ?? kept.find((k) => samePage(homeOf(k), home))) : undefined;
     if (twin) closes.push({ tabId: id, keeperId: twin.id });
     else kept.push(t);
   }
@@ -75,7 +81,10 @@ export function tidyPlan(s: Pick<BrowserState, "tabs" | "groups" | "windows" | "
   for (const g of folders) for (const site of folderSites(s, g)) if (!folderFor.has(site)) folderFor.set(site, g.id);
   const files: TidyPlan["files"] = [];
   const loose = new Map<string, Tab[]>();
+  const keptIds = new Set(kept.map((t) => t.id));
   for (const t of kept) {
+    const panes = splitRowPanes(s, splitOf(s, t.id));
+    if (panes.includes(t.id) && panes.find((id) => keptIds.has(id)) !== t.id) continue;
     const site = siteKey(homeOf(t));
     if (!site) continue;
     const groupId = folderFor.get(site);
@@ -92,19 +101,32 @@ export function tidyPlan(s: Pick<BrowserState, "tabs" | "groups" | "windows" | "
 
 const plans = new Map<string, { tabs: object; groups: object; splits: object; window: object | undefined; can: boolean }>();
 
-export function canTidyPins(s: Pick<BrowserState, "tabs" | "groups" | "windows" | "splits">, windowId: string, profileId?: string): boolean {
-  const key = `${windowId}\n${profileId ?? ""}`;
+export function canTidy(s: Pick<BrowserState, "tabs" | "groups" | "windows" | "splits">, windowId: string, profileId?: string, scope: TidyScope = "pins"): boolean {
+  const key = `${windowId}\n${profileId ?? ""}\n${scope}`;
   const window = s.windows[windowId];
   const known = plans.get(key);
   if (known && known.tabs === s.tabs && known.groups === s.groups && known.splits === s.splits && known.window === window) return known.can;
-  const can = !!tidyPlan(s, windowId, profileId);
+  const can = !!tidyPlan(s, windowId, profileId, scope);
   plans.set(key, { tabs: s.tabs, groups: s.groups, splits: s.splits, window, can });
   if (plans.size > 64) plans.delete(plans.keys().next().value!);
   return can;
 }
 
-export function tidyingPins(s: BrowserState, windowId: string, profileId?: string): [BrowserState, TidiedPins | null] {
-  const plan = tidyPlan(s, windowId, profileId);
+export const TIDY_TABS_AFTER = 6;
+
+function unpinnedTabCount(s: Pick<BrowserState, "tabs" | "groups">, tabIds: string[], profileId: string): number {
+  const inPinnedGroup = new Set(Object.values(s.groups).flatMap((g) => (g.pinned ? g.tabIds : [])));
+  return tabIds.filter((id) => s.tabs[id]?.profileId === profileId && !s.tabs[id]!.pin && !inPinnedGroup.has(id)).length;
+}
+
+export function offersTidyTabs(s: Pick<BrowserState, "tabs" | "groups" | "windows" | "splits">, windowId: string, profileId?: string): boolean {
+  const w = s.windows[windowId];
+  if (!w || unpinnedTabCount(s, w.tabIds, profileId ?? w.profileId) <= TIDY_TABS_AFTER) return false;
+  return canTidy(s, windowId, profileId, "tabs");
+}
+
+export function tidying(s: BrowserState, windowId: string, profileId?: string, scope: TidyScope = "pins"): [BrowserState, Tidied | null] {
+  const plan = tidyPlan(s, windowId, profileId, scope);
   const w = s.windows[windowId];
   if (!plan || !w) return [s, null];
   const homes: Record<string, string | null> = {};
@@ -120,13 +142,13 @@ export function tidyingPins(s: BrowserState, windowId: string, profileId?: strin
     if (keeper && next.tabs[keeper]) next = apply(next, activated(next, keeper));
   }
   for (const f of plan.files) next = placing(next, [f.tabId], { pinned: false, groupId: f.groupId });
-  for (const g of plan.newGroups) next = withRowsGrouped(next, g.tabIds, { pinned: true, name: g.name })[0];
-  const pins = Object.keys(homes).length;
-  const folders = new Set(plan.files.map((f) => f.groupId)).size + plan.newGroups.length;
-  return [next, { windowId, order: [...w.tabIds], homes, closed, pins, folders, duplicates: plan.closes.length }];
+  for (const g of plan.newGroups) next = withRowsGrouped(next, g.tabIds, { pinned: scope === "pins", name: g.name })[0];
+  const moved = Object.keys(homes).length;
+  const groups = new Set(plan.files.map((f) => f.groupId)).size + plan.newGroups.length;
+  return [next, { scope, windowId, order: [...w.tabIds], homes, closed, moved, groups, duplicates: plan.closes.length }];
 }
 
-export function untidyingPins(s: BrowserState, tidied: TidiedPins): BrowserState {
+export function untidying(s: BrowserState, tidied: Tidied): BrowserState {
   const w = s.windows[tidied.windowId];
   if (!w) return s;
   const gone = new Set(tidied.closed.map((c) => c.id));
@@ -146,7 +168,7 @@ export function untidyingPins(s: BrowserState, tidied: TidiedPins): BrowserState
     const block = new Set(withSplitRows(next, [tabId]));
     const later = tidied.order.slice(tidied.order.indexOf(id) + 1).map((o) => now.get(o) ?? o);
     const beforeId = later.find((o) => inWindow(o) && !block.has(o)) ?? null;
-    next = placing(next, [tabId], { pinned: true, row: true, beforeId, last: !beforeId });
+    next = placing(next, [tabId], tidied.scope === "pins" ? { pinned: true, row: true, beforeId, last: !beforeId } : { pinned: false, beforeId });
     block.forEach((pane) => placed.add(pane));
   }
   for (const [id, tabId] of now) {
