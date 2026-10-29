@@ -4,7 +4,7 @@ import { changedIds } from "../browser/changes";
 import { activeTabId } from "../browser/model";
 import { groupOf } from "../pins/tabGrouping";
 import { everySlowly } from "../../platform/slowTimers";
-import { connectCalendar, useCalendar } from "./calendar";
+import { calendarConnected, connectCalendar, useCalendar } from "./calendar";
 import { eventForCall, isCalendarUrl, meetingOf, relatedLinks, type CalendarEvent } from "./meetings";
 import { live, setMeetingGroup, updateCalendarSettings, useLive } from "./store";
 
@@ -89,8 +89,8 @@ async function offerAlerts(windowId: string) {
     cancelTitle: "Don't Show These Alerts",
     windowId,
   });
-  if (confirmed) await connectCalendar();
-  else updateCalendarSettings({ alertLead: "never" });
+  if (!confirmed) updateCalendarSettings({ alertLead: "never" });
+  else if (!calendarConnected()) await connectCalendar();
 }
 
 export function tick(s: BrowserState, now: number) {

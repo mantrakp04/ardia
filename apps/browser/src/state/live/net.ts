@@ -1,6 +1,6 @@
 import { keychainDelete, keychainGet, keychainSet } from "../../platform/keychain";
 import { devTestValue } from "../../platform/launchConfig";
-import { LiveError, type LiveSourceId } from "./types";
+import { LiveError, type LiveAccountId } from "./types";
 
 const mock = (() => {
   try {
@@ -21,6 +21,7 @@ export const endpoints = {
   googleAuth: mock ? `${mock}/google/auth` : "https://accounts.google.com/o/oauth2/v2/auth",
   googleToken: mock ? `${mock}/google/token` : "https://oauth2.googleapis.com/token",
   drive: mock ? `${mock}/google/drive/v3` : "https://www.googleapis.com/drive/v3",
+  googleCalendar: mock ? `${mock}/google/calendar/v3` : "https://www.googleapis.com/calendar/v3",
 };
 
 export async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
@@ -60,7 +61,7 @@ export function base64(text: string): string {
 
 export const basic = (user: string, secret: string) => `Basic ${base64(`${user}:${secret}`)}`;
 
-const account = (source: LiveSourceId) => (mock ? `mock:${source}` : source);
-export const getSecret = (source: LiveSourceId) => keychainGet(account(source));
-export const setSecret = (source: LiveSourceId, secret: string) => keychainSet(account(source), secret);
-export const deleteSecret = (source: LiveSourceId) => keychainDelete(account(source));
+const account = (source: LiveAccountId) => (mock ? `mock:${source}` : source);
+export const getSecret = (source: LiveAccountId) => keychainGet(account(source));
+export const setSecret = (source: LiveAccountId, secret: string) => keychainSet(account(source), secret);
+export const deleteSecret = (source: LiveAccountId) => keychainDelete(account(source));

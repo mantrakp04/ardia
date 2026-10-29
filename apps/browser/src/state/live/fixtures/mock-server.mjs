@@ -131,6 +131,16 @@ createServer(async (req, res) => {
   if (p === "/google/token") return send(res, 200, { access_token: "mock-google-access", refresh_token: "mock-google-refresh", expires_in: 3600 });
   if (p === "/google/drive/v3/about") return send(res, 200, { user: { displayName: "Octo Dev", emailAddress: "octo@acme.com" } });
   if (p === "/google/drive/v3/files") return auth === "Bearer mock-google-access" ? send(res, 200, load("drive-files.json")) : send(res, 401, {});
+  if (p.startsWith("/google/calendar/v3/") && auth !== "Bearer mock-google-access") return send(res, 401, {});
+  if (p === "/google/calendar/v3/calendars/primary") return send(res, 200, { id: "octo@acme.com", summary: "octo@acme.com" });
+  if (p === "/google/calendar/v3/users/me/calendarList") return send(res, 200, { items: [{ id: "octo@acme.com", summary: "octo@acme.com", backgroundColor: "#16a765", accessRole: "owner" }] });
+  if (p === "/google/calendar/v3/calendars/octo%40acme.com/events") {
+    const start = Math.ceil(Date.now() / 60_000) * 60_000 + 10 * 60_000;
+    const at = (ms) => ({ dateTime: new Date(ms).toISOString() });
+    return send(res, 200, {
+      items: [{ id: "mock-standup", summary: "Standup", start: at(start), end: at(start + 15 * 60_000), hangoutLink: "https://meet.google.com/abc-defg-hij", attendees: [{ email: "octo@acme.com", self: true, responseStatus: "accepted" }] }],
+    });
+  }
 
   send(res, 404, { message: `No fixture for ${req.method} ${p}` });
 }).listen(port, "127.0.0.1", () => console.log(`live mock on http://127.0.0.1:${port}`));

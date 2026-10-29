@@ -12,6 +12,8 @@ import { useEffect, useState } from "react";
 import { create } from "zustand";
 import { devTestValue } from "../../platform/launchConfig";
 import { everySlowly } from "../../platform/slowTimers";
+import { trackCalendarConnected } from "../telemetry/track";
+import { googleCalendarEvents, googleCalendars, isGoogleCalendarId } from "./googleCalendar";
 import type { CalendarEvent } from "./meetings";
 import { live, updateCalendarSettings, useLive } from "./store";
 
@@ -23,6 +25,7 @@ type CalendarData = {
   events: CalendarEvent[];
   loading: boolean;
   error: string | null;
+  googleError: string | null;
   lastFetch: number | null;
 };
 
@@ -32,6 +35,7 @@ export const useCalendar = create<CalendarData>()(() => ({
   events: [],
   loading: false,
   error: null,
+  googleError: null,
   lastFetch: null,
 }));
 
@@ -66,6 +70,30 @@ const visible = (calendars: SystemCalendar[]) => {
   return calendars.filter((c) => !hidden.has(c.id)).map((c) => c.id);
 };
 
+type CalendarSnapshot = { calendars: SystemCalendar[]; events: CalendarEvent[] };
+
+const NOTHING: CalendarSnapshot = { calendars: [], events: [] };
+
+async function systemSnapshot(start: number, end: number): Promise<CalendarSnapshot> {
+  const calendars = await systemCalendars();
+  const ids = visible(calendars);
+  return { calendars, events: ids.length ? await systemCalendarEvents(start, end, ids) : [] };
+}
+
+async function googleSnapshot(start: number, end: number): Promise<CalendarSnapshot> {
+  const calendars = await googleCalendars();
+  const ids = new Set(visible(calendars));
+  return { calendars, events: await googleCalendarEvents(start, end, calendars.filter((c) => ids.has(c.id))) };
+}
+
+const fromGoogle = (google: boolean, { calendars, events }: CalendarSnapshot): CalendarSnapshot => ({
+  calendars: calendars.filter((c) => isGoogleCalendarId(c.id) === google),
+  events: events.filter((e) => isGoogleCalendarId(e.calendarId) === google),
+});
+
+const isSystemConnected = (access: CalendarData["access"]) => access === "fullAccess" || access === "fixture";
+const isGoogleConnected = () => !!live().accounts.gcal;
+
 let inflight: Promise<void> | null = null;
 
 export function refreshCalendar(): Promise<void> {
@@ -80,16 +108,22 @@ export function refreshCalendar(): Promise<void> {
         return;
       }
       const access = calendarAuthorization();
-      if (access !== "fullAccess") {
-        useCalendar.setState({ access, calendars: [], events: [], error: null });
-        return;
-      }
-      const calendars = await systemCalendars();
-      const ids = visible(calendars);
-      const start = new Date();
-      start.setHours(0, 0, 0, 0);
-      const events = ids.length ? await systemCalendarEvents(start.getTime(), Date.now() + HORIZON_MS, ids) : [];
-      useCalendar.setState({ access, calendars, events: events.sort((a, b) => a.start - b.start), error: null, lastFetch: Date.now() });
+      const wanted = [access === "fullAccess", isGoogleConnected()];
+      const start = new Date().setHours(0, 0, 0, 0);
+      const end = Date.now() + HORIZON_MS;
+      const results = await Promise.allSettled([wanted[0] ? systemSnapshot(start, end) : NOTHING, wanted[1] ? googleSnapshot(start, end) : NOTHING]);
+      const previous = useCalendar.getState();
+      const parts = results.map((r, i) => (r.status === "fulfilled" ? r.value : fromGoogle(i === 1, previous)));
+      const message = (r: PromiseSettledResult<CalendarSnapshot> | undefined) => (r?.status === "rejected" ? String((r.reason as Error)?.message ?? r.reason) : null);
+      const fetched = results.some((r, i) => wanted[i] && r.status === "fulfilled");
+      useCalendar.setState({
+        access,
+        calendars: parts.flatMap((p) => p.calendars),
+        events: parts.flatMap((p) => p.events).sort((a, b) => a.start - b.start),
+        error: message(results.find((r) => r.status === "rejected")),
+        googleError: message(results[1]),
+        lastFetch: fetched ? Date.now() : previous.lastFetch,
+      });
     } catch (error) {
       useCalendar.setState({ error: String((error as Error)?.message ?? error) });
     } finally {
@@ -107,13 +141,17 @@ export async function connectCalendar(): Promise<boolean> {
   }
   const granted = await requestCalendarAccess();
   await refreshCalendar();
+  if (granted) trackCalendarConnected("macos");
   return granted;
 }
 
-export const calendarConnected = () => {
-  const access = useCalendar.getState().access;
-  return access === "fullAccess" || access === "fixture";
-};
+export const calendarConnected = () => isSystemConnected(useCalendar.getState().access) || isGoogleConnected();
+
+export function useCalendarConnected(): boolean {
+  const system = useCalendar((s) => isSystemConnected(s.access));
+  const google = useLive((s) => !!s.accounts.gcal);
+  return system || google;
+}
 
 let started = false;
 
@@ -126,10 +164,18 @@ export function startCalendar() {
     every: 5 * 60_000,
     run: () => void refreshCalendar(),
     needed: calendarConnected,
-    watch: (changed) => useCalendar.subscribe((s, prev) => s.access !== prev.access && changed()),
+    watch: (changed) => {
+      const system = useCalendar.subscribe((s, prev) => s.access !== prev.access && changed());
+      const google = useLive.subscribe((s, prev) => s.accounts.gcal !== prev.accounts.gcal && changed());
+      return () => {
+        system();
+        google();
+      };
+    },
   });
   useLive.subscribe((s, prev) => {
-    if (s.calendar.hiddenCalendarIds !== prev.calendar.hiddenCalendarIds) void refreshCalendar();
+    if (s.calendar.hiddenCalendarIds !== prev.calendar.hiddenCalendarIds || s.accounts.gcal !== prev.accounts.gcal) void refreshCalendar();
+    if (s.accounts.gcal && !prev.accounts.gcal) trackCalendarConnected("google");
   });
 }
 

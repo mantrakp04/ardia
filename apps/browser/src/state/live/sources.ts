@@ -2,7 +2,7 @@ import { CONFLUENCE_CQL, DRIVE_QUERY, mapBitbucket, mapConfluence, mapDrive, map
 import { DETAILS_PAGE, detailIds, detailNodes, GITHUB_DETAILS_QUERY, GITHUB_QUERY, GITHUB_STATE_QUERY, GITHUB_VARIABLES, mapGithub, VIEWER_QUERY, withDetails, type DetailsResponse, type GithubResponse } from "./github";
 import { basic, deleteSecret, endpoints, form, getSecret, request, setSecret } from "./net";
 import { live, setAccount, updateConfig } from "./store";
-import { LiveError, type CompletionState, type LiveAccount, type LiveFolder, type LiveItem, type LiveSourceId } from "./types";
+import { LiveError, type CompletionState, type GoogleProduct, type LiveAccount, type LiveAccountId, type LiveFolder, type LiveItem, type LiveSourceId } from "./types";
 import { symbolIcon } from "../../lib/customIcon";
 
 export type LiveSource = {
@@ -14,7 +14,7 @@ export type LiveSource = {
   resolveGone?(items: LiveItem[]): Promise<Record<string, CompletionState>>;
 };
 
-async function secret(source: LiveSourceId): Promise<string> {
+async function secret(source: LiveAccountId): Promise<string> {
   const value = await getSecret(source);
   if (!value) throw new LiveError(live().accounts[source] ? "signedOut" : "notConfigured", "Not signed in");
   return value;
@@ -141,17 +141,17 @@ const confluence: LiveSource = {
   },
 };
 
-type GoogleTokens = { access_token: string; refresh_token: string; expires_at: number; client_secret: string };
+type GoogleTokens = { access_token: string; refresh_token: string; expires_at: number; client_secret: string; client_id?: string };
 
-async function googleAccessToken(): Promise<string> {
-  const stored = JSON.parse(await secret("gdrive")) as GoogleTokens;
+export async function googleAccessToken(product: GoogleProduct): Promise<string> {
+  const stored = JSON.parse(await secret(product)) as GoogleTokens;
   if (stored.expires_at > Date.now() + 60_000) return stored.access_token;
   const json = await request<{ access_token: string; expires_in: number }>(endpoints.googleToken, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: form({ client_id: live().config.googleClientId, client_secret: stored.client_secret, refresh_token: stored.refresh_token, grant_type: "refresh_token" }),
+    body: form({ client_id: stored.client_id ?? live().config.googleClientId, client_secret: stored.client_secret, refresh_token: stored.refresh_token, grant_type: "refresh_token" }),
   });
-  await setSecret("gdrive", JSON.stringify({ ...stored, access_token: json.access_token, expires_at: Date.now() + json.expires_in * 1000 }));
+  await setSecret(product, JSON.stringify({ ...stored, access_token: json.access_token, expires_at: Date.now() + json.expires_in * 1000 }));
   return json.access_token;
 }
 
@@ -161,7 +161,7 @@ const gdrive: LiveSource = {
   kind: "documents",
   site: "https://drive.google.com",
   async fetch() {
-    const token = await googleAccessToken();
+    const token = await googleAccessToken("gdrive");
     const query = Object.entries(DRIVE_QUERY)
       .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
       .join("&");
@@ -234,23 +234,33 @@ export async function connectConfluence(site: string, email: string, token: stri
   setAccount("confluence", account(me.accountId, me.displayName, null));
 }
 
-export async function connectGoogle(clientId: string, clientSecret: string, code: string, verifier: string, redirectUri: string) {
+async function googleDriveAccount(token: string): Promise<LiveAccount> {
+  const about = await request<{ user?: { displayName: string; emailAddress: string; photoLink?: string } }>(`${endpoints.drive}/about?fields=user`, {
+    headers: { Authorization: `Bearer ${token}` },
+  }).catch(() => null);
+  return account(about?.user?.emailAddress ?? "Google Drive", about?.user?.displayName ?? null, about?.user?.photoLink ?? null);
+}
+
+async function googleCalendarAccount(token: string): Promise<LiveAccount> {
+  const primary = await request<{ id: string }>(`${endpoints.googleCalendar}/calendars/primary`, { headers: { Authorization: `Bearer ${token}` } });
+  return account(primary.id, null, null);
+}
+
+export async function connectGoogle(product: GoogleProduct, clientId: string, clientSecret: string, code: string, verifier: string, redirectUri: string) {
   const json = await request<{ access_token: string; refresh_token?: string; expires_in: number }>(endpoints.googleToken, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: form({ client_id: clientId, client_secret: clientSecret, code, code_verifier: verifier, grant_type: "authorization_code", redirect_uri: redirectUri }),
   });
   if (!json.refresh_token) throw new LiveError("signedOut", "Google didn't return a refresh token");
-  const tokens: GoogleTokens = { access_token: json.access_token, refresh_token: json.refresh_token, expires_at: Date.now() + json.expires_in * 1000, client_secret: clientSecret };
-  await setSecret("gdrive", JSON.stringify(tokens));
-  const about = await request<{ user?: { displayName: string; emailAddress: string; photoLink?: string } }>(`${endpoints.drive}/about?fields=user`, {
-    headers: { Authorization: `Bearer ${json.access_token}` },
-  }).catch(() => null);
+  const me = product === "gcal" ? await googleCalendarAccount(json.access_token) : await googleDriveAccount(json.access_token);
+  const tokens: GoogleTokens = { access_token: json.access_token, refresh_token: json.refresh_token, expires_at: Date.now() + json.expires_in * 1000, client_secret: clientSecret, client_id: clientId };
+  await setSecret(product, JSON.stringify(tokens));
   updateConfig({ googleClientId: clientId });
-  setAccount("gdrive", account(about?.user?.emailAddress ?? "Google Drive", about?.user?.displayName ?? null, about?.user?.photoLink ?? null));
+  setAccount(product, me);
 }
 
-export async function disconnect(source: LiveSourceId) {
+export async function disconnect(source: LiveAccountId) {
   await deleteSecret(source);
   setAccount(source, null);
 }
