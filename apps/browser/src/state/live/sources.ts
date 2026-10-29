@@ -2,7 +2,7 @@ import { CONFLUENCE_CQL, DRIVE_QUERY, mapBitbucket, mapConfluence, mapDrive, map
 import { GITEA_DEFAULT_SITE, GITEA_SEARCH, giteaCompletion, giteaRefs, mapGitea, type GiteaDetails, type GiteaIssue, type GiteaPull } from "./gitea";
 import { GITEA_BATCH, giteaApi, giteaDetails, giteaRequiredApprovals, giteaTokens, inBatches, type GiteaTokens } from "./giteaApi";
 import { DETAILS_PAGE, detailIds, detailNodes, GITHUB_DETAILS_QUERY, GITHUB_QUERY, GITHUB_STATE_QUERY, GITHUB_VARIABLES, mapGithub, VIEWER_QUERY, withDetails, type DetailsResponse, type GithubResponse } from "./github";
-import { basic, deleteSecret, endpoints, form, getSecret, httpsSiteUrl, request, setSecret, siteUrl } from "./net";
+import { basic, deleteSecret, endpoints, form, getSecret, httpsSiteUrl, request, setSecret } from "./net";
 import { live, setAccount, updateConfig } from "./store";
 import { LiveError, type CompletionState, type LiveAccount, type LiveFolder, type LiveItem, type LiveSourceId } from "./types";
 import { symbolIcon } from "../../lib/customIcon";
@@ -310,7 +310,7 @@ export async function connectNotion(token: string) {
 }
 
 export async function connectConfluence(site: string, email: string, token: string) {
-  const base = siteUrl(site);
+  const base = httpsSiteUrl(site);
   const me = await request<{ accountId: string; displayName: string }>(`${endpoints.confluence(base)}/wiki/rest/api/user/current`, {
     headers: { Authorization: basic(email.trim(), token.trim()) },
   });
