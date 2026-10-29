@@ -1,14 +1,14 @@
 import { useEffect, useRef } from "react";
 import { Animated, Pressable, Text, View } from "react-native";
-import { showAllIn, toggleStack, useLive } from "../../state/live/store";
+import { hideStack, showAllIn, toggleStack, useLive } from "../../state/live/store";
 import type { FolderRow } from "../../state/live/rows";
-import { ContextMenuArea, font, radius, Symbol, useHover, weight } from "../ui";
+import { Button, font, radius, Symbol, useHover, weight } from "../ui";
+import { HoverSlot } from "../ui/HoverSlot";
 import { curve, duration } from "../ui/motion";
 import { layout, useTheme } from "../ui/theme";
 import { useLiveColors } from "../live/tokens";
 import { Fold, useFold } from "./Fold";
-import { dismissHover } from "../../state/sidebar/hover";
-import { openLiveStackMenu } from "../../state/sidebar/liveMenus";
+import { useLiveTabOpen } from "../../state/sidebar/hooks";
 import { LiveItemRow } from "./LiveItemRow";
 import { SIDEBAR_TYPE, TABULAR_NUMS, useSidebarTokens } from "./tokens";
 
@@ -78,32 +78,33 @@ export function StackRow({ folderId, windowId, stack }: { folderId: string; wind
   const collapsed = useLive((s) => s.expandedStacks[stack.id] === false);
   const fold = useFold(collapsed);
   const { hovered, hoverProps } = useHover();
+  const tabOpen = useLiveTabOpen(folderId, stack.items.map((it) => it.id));
   const repo = stack.repo.split("/")[1] ?? stack.repo;
   return (
     <View>
       <View {...hoverProps}>
-        <ContextMenuArea
-          onContextMenu={() => {
-            dismissHover();
-            void openLiveStackMenu(folderId, stack.id);
-          }}
+        <Pressable
+          onPress={() => toggleStack(stack.id)}
+          accessibilityLabel={collapsed ? "Expand pull request stack" : "Collapse pull request stack"}
         >
-          <Pressable
-            onPress={() => toggleStack(stack.id)}
-            accessibilityLabel={collapsed ? "Expand pull request stack" : "Collapse pull request stack"}
-          >
-            <View style={{ height: 26, borderRadius: radius.l, flexDirection: "row", alignItems: "center", paddingLeft: 9, paddingRight: 8, backgroundColor: hovered ? theme.rowHover : undefined }}>
-              <Symbol name="square.stack.3d.up" size={11} color={theme.textSecondary} style={{ width: 16, height: 16 }} />
-              <Text numberOfLines={1} style={{ flex: 1, marginLeft: 5, ...font.small, fontWeight: weight.medium, color: theme.textSecondary }}>
-                {repo} stack
-              </Text>
-              <View style={{ minWidth: 18, height: 16, borderRadius: 8, paddingHorizontal: 5, backgroundColor: tokens.countPill, alignItems: "center", justifyContent: "center", marginRight: 4 }}>
+          <View style={{ height: 26, borderRadius: radius.l, flexDirection: "row", alignItems: "center", paddingLeft: 9, paddingRight: 8, backgroundColor: hovered ? theme.rowHover : undefined }}>
+            <Symbol name="square.stack.3d.up" size={11} color={theme.textSecondary} style={{ width: 16, height: 16 }} />
+            <Text numberOfLines={1} style={{ flex: 1, marginLeft: 5, ...font.small, fontWeight: weight.medium, color: theme.textSecondary }}>
+              {repo} stack
+            </Text>
+            <HoverSlot
+              hovered={hovered && !tabOpen}
+              width={22}
+              hover={<Button variant="icon" icon="xmark" size={10} weight="semibold" box={22} radius={radius.m} onPress={() => hideStack(folderId, stack.id)} tooltip="Hide Stack Until Refresh" />}
+              style={{ marginRight: 4 }}
+            >
+              <View style={{ minWidth: 18, height: 16, borderRadius: 8, paddingHorizontal: 5, backgroundColor: tokens.countPill, alignItems: "center", justifyContent: "center" }}>
                 <Text style={{ fontSize: SIDEBAR_TYPE.count, fontWeight: weight.semibold, color: theme.textTab, fontVariant: TABULAR_NUMS }}>{stack.items.length}</Text>
               </View>
-              <Symbol name={collapsed ? "chevron.right" : "chevron.down"} size={9} weight="semibold" color={theme.textSecondary} style={{ width: 12, height: 12 }} />
-            </View>
-          </Pressable>
-        </ContextMenuArea>
+            </HoverSlot>
+            <Symbol name={collapsed ? "chevron.right" : "chevron.down"} size={9} weight="semibold" color={theme.textSecondary} style={{ width: 12, height: 12 }} />
+          </View>
+        </Pressable>
       </View>
       <Fold
         fold={fold}

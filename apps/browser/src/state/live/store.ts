@@ -286,6 +286,10 @@ export function hideItems(folderId: string, hiding: LiveItem[]) {
   }));
 }
 
+export function hideStack(folderId: string, stackId: string) {
+  hideItems(folderId, (live().items[folderId] ?? []).filter((it) => it.pr?.stack?.id === stackId));
+}
+
 export function unhide(folderId: string) {
   setLive((s) => {
     const hidden = s.hidden[folderId] ?? [];

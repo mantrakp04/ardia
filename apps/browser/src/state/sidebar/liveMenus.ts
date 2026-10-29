@@ -7,7 +7,7 @@ import { calendarConnected, connectCalendar, setCalendarHidden, useCalendar } fr
 import { deleteLiveFolder, manualRefresh, newLiveFolder, openLiveItem, refreshFolder, statusText } from "../live/engine";
 import { ALERT_LEADS, nowBadgeEvent } from "../live/meetings";
 import { SOURCES } from "../live/sources";
-import { dismissNowBadge, hideItems, live, markRead, markUnread, updateCalendarSettings, updateFolder } from "../live/store";
+import { dismissNowBadge, live, markRead, markUnread, updateCalendarSettings, updateFolder } from "../live/store";
 import type { LiveItem, LiveSourceId } from "../live/types";
 import { useBrowser } from "../browser/store";
 import { openSettings } from "../settings/settingsWindows";
@@ -137,10 +137,7 @@ export function liveItemMenuItems(windowId: string, folderId: string, item: Live
       { id: "background", title: "Open in Background", enabled: !tabId },
     ],
     withAlternate({ id: "copy", title: "Copy Link", symbol: "link" }, { id: "copyMd", title: "Copy Link as Markdown", symbol: "link" }, null),
-    [
-      { id: "unread", title: unread ? "Mark as Read" : "Mark as Unread", symbol: unread ? "circle" : "circle.fill" },
-      ...(item.pr ? [{ id: "hide", title: "Hide Until Refresh", symbol: "eye.slash" }] : []),
-    ],
+    [{ id: "unread", title: unread ? "Mark as Read" : "Mark as Unread", symbol: unread ? "circle" : "circle.fill" }],
     tabId ? [{ id: "close", title: "Close", symbol: "xmark", ...hintWhen(shown, "closeTab") }] : [],
   );
 }
@@ -155,13 +152,7 @@ export async function openLiveItemMenu(windowId: string, folderId: string, item:
   else if (choice === "unread") {
     if (unread) markRead(folderId, [item.id]);
     else markUnread(folderId, item.id);
-  } else if (choice === "hide") hideItems(folderId, [item]);
-  else if (choice === "close" && tabId) void closeTab(tabId);
-}
-
-export async function openLiveStackMenu(folderId: string, stackId: string) {
-  const choice = await showMenu([{ id: "hide", title: "Hide Stack Until Refresh", symbol: "eye.slash" }]);
-  if (choice === "hide") hideItems(folderId, (live().items[folderId] ?? []).filter((it) => it.pr?.stack?.id === stackId));
+  } else if (choice === "close" && tabId) void closeTab(tabId);
 }
 
 const DISMISS_NOW = "cal:dismissNow:";
