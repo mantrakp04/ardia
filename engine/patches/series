@@ -10,7 +10,10 @@
 
 # CEF's patches to Chrome whose behaviour ArdiaCore relies on (each hunk's origin is in the patch's header).
 chromium chromium-helium-branding.patch
+chromium chromium-helium-branding-mac.patch mac
+chromium chromium-helium-branding-linux.patch linux
 chromium chromium-cef-carryover.patch
+chromium chromium-cef-carryover-mac.patch mac
 chromium chromium-autofill-address-bubble-window.patch
 chromium chromium-device-chooser-hook.patch
 chromium chromium-cast-dialog-hook.patch
@@ -18,11 +21,15 @@ chromium chromium-side-panel-hook.patch
 chromium chromium-ntp-promo-without-side-panel.patch
 chromium chromium-initial-document-access.patch
 chromium chromium-hidden-window-current-window.patch
-chromium chromium-devtools-redock-display.patch
+chromium chromium-devtools-redock-display.patch mac
 chromium chromium-devtools-window-title.patch
 chromium chromium-devtools-control-token.patch
 chromium chromium-devtools-find-detach-keeps-selection.patch
 chromium chromium-extension-install-prompt-hook.patch
+chromium chromium-linux-action-popup-hook.patch linux
+chromium chromium-linux-settings-overrides.patch linux
+chromium chromium-linux-native-messaging-hosts.patch linux
+chromium chromium-linux-extension-keybindings.patch linux
 chromium chromium-webstore-direct.patch
 chromium chromium-extension-updates.patch
 chromium chromium-component-updater-security-only.patch
@@ -46,35 +53,53 @@ chromium chromium-neterror-game.patch
 chromium chromium-branding.patch
 # Load-bearing for every user's data: the Safe Storage item ("Ardia Safe Storage" / "Ardia") holds the key to
 # their saved passwords and cookies. It must survive any re-sync (plain Chromium for ArdiaCore, a version bump), unchanged.
-chromium chromium-safe-storage-name.patch
-chromium chromium-safe-storage-no-silent-reset.patch
+chromium chromium-safe-storage-name.patch mac
+chromium chromium-safe-storage-no-silent-reset.patch mac
 chromium chromium-password-bubble-hook.patch
 chromium chromium-password-generation-local.patch
 chromium chromium-password-string-erase.patch
 chromium chromium-os-crypt-decrypt-erase.patch
 chromium chromium-window-docked-devtools.patch
 chromium chromium-window-hosted.patch
+chromium chromium-window-hosted-mac.patch mac
+chromium chromium-linux-document-close.patch linux
+chromium chromium-linux-devtools-authority.patch linux
 chromium chromium-extension-installed-bubble.patch
 chromium chromium-pip-overlay-window.patch
 chromium chromium-tab-sharing-capturer.patch
 chromium chromium-desktop-capture-window-audio.patch
-chromium chromium-video-super-resolution.patch
-chromium chromium-begin-frame-warm-up.patch
+chromium chromium-video-super-resolution.patch mac
+chromium chromium-begin-frame-warm-up.patch mac
 chromium chromium-main-frame-throttle-after-show.patch
 chromium chromium-main-frame-full-rate-on-input.patch
 chromium chromium-thaw-live-connections.patch
 chromium chromium-temporary-tab-restore-hook.patch
 chromium chromium-hosted-browsers-no-session-service.patch
 chromium chromium-auto-pip-global-switch.patch
+chromium chromium-linux-auto-pip.patch linux
+chromium chromium-linux-pip-placement.patch linux
+chromium chromium-linux-page-status.patch linux
+chromium chromium-linux-private-links.patch linux
+chromium chromium-linux-devtools-open-tab.patch linux
 chromium chromium-media-session-main-frame-handler.patch
 chromium chromium-battery-saver-full-rate-on-input.patch
-chromium chromium-angle-metal-shader-cache.patch
+chromium chromium-angle-metal-shader-cache.patch mac
 chromium chromium-ungoogled-disable-default-extensions.patch
 chromium chromium-ungoogled-disable-missing-key-warning.patch
 chromium chromium-ungoogled-mime-util-ymp.patch
-chromium chromium-background-instance-no-default-handlers.patch
-chromium chromium-apple-passwords-host-skipped.patch
-chromium chromium-ardia-layer.patch
+chromium chromium-background-instance-no-default-handlers.patch mac
+chromium chromium-apple-passwords-host-skipped.patch mac
+chromium chromium-ardia-layer.patch mac
+chromium chromium-ardia-linux-layer.patch linux
+chromium chromium-linux-background-windows.patch linux
+chromium chromium-linux-page-agent.patch linux
+chromium chromium-linux-navigation-hold-hook.patch linux
+chromium chromium-linux-autoplay-policy.patch linux
+chromium chromium-linux-web-store-uninstall.patch linux
+chromium chromium-linux-media-player-pip.patch linux
+chromium chromium-linux-branding.patch linux
+chromium chromium-linux-wayland-cursor-fallback.patch linux
 
 layer engine/chromium
-layer engine/ardiacore
+layer engine/ardiacore mac
+layer engine/ardiacore-linux linux

@@ -1,0 +1,25 @@
+--- a/chrome/browser/ui/views/overlay/video_overlay_window_views.cc
++++ b/chrome/browser/ui/views/overlay/video_overlay_window_views.cc
+@@ -326,6 +326,11 @@
+ std::unique_ptr<VideoOverlayWindowViews> NewArdiaVideoOverlayWindow(
+     content::VideoPictureInPictureWindowController* controller);
+
++#if BUILDFLAG(IS_LINUX)
++void PrepareArdiaPictureInPicture(views::Widget* widget,
++                                  views::Widget::InitParams* params);
++#endif
++
+ // static
+ std::unique_ptr<VideoOverlayWindowViews> VideoOverlayWindowViews::Create(
+     content::VideoPictureInPictureWindowController* controller) {
+@@ -373,6 +378,10 @@
+                                                chromeos::AppType::BROWSER);
+   params.rounded_corners =
+       gfx::RoundedCornersF(chromeos::kPipRoundedCornerRadius);
+ #endif
+
++#if BUILDFLAG(IS_LINUX)
++  PrepareArdiaPictureInPicture(overlay_window.get(), &params);
++#endif
++
+   overlay_window->Init(std::move(params));

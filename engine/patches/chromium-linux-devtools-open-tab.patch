@@ -1,0 +1,42 @@
+--- a/chrome/browser/devtools/devtools_window.cc
++++ b/chrome/browser/devtools/devtools_window.cc
+@@ -140,6 +140,13 @@
+ using content::GlobalRenderFrameHostId;
+ using content::WebContents;
+ 
++#if BUILDFLAG(IS_LINUX)
++void (*g_ardia_linux_devtools_opened_tab)(WebContents* inspected,
++                                          WebContents* opened,
++                                          const GURL& url) = nullptr;
++void (*g_ardia_linux_devtools_open_url)(Profile* profile, const GURL& url) = nullptr;
++#endif
++
+ namespace {
+ 
+ typedef std::vector<DevToolsWindow*> DevToolsWindows;
+@@ -2106,9 +2113,25 @@
+       content::OpenURLParams::CreateBrowserInitiated(
+           fixed_url, WindowOpenDisposition::NEW_FOREGROUND_TAB,
+           ui::PAGE_TRANSITION_LINK);
++#if BUILDFLAG(IS_LINUX)
++  WebContents* const linux_opened =
++      inspected_web_contents ? inspected_web_contents->OpenURL(params, {})
++                             : nullptr;
++  if (linux_opened && linux_opened != inspected_web_contents &&
++      g_ardia_linux_devtools_opened_tab) {
++    g_ardia_linux_devtools_opened_tab(inspected_web_contents, linux_opened,
++                                      fixed_url);
++  }
++  if (!linux_opened && g_ardia_linux_devtools_open_url) {
++    g_ardia_linux_devtools_open_url(profile_, fixed_url);
++    return;
++  }
++  if (!linux_opened) {
++#else
+   if (!inspected_web_contents ||
+       !inspected_web_contents->OpenURL(params,
+                                        /*navigation_handle_callback=*/{})) {
++#endif
+ #if BUILDFLAG(IS_ANDROID)
+     NOTIMPLEMENTED();
+ #else

@@ -1,0 +1,104 @@
+--- a/chrome/app/chrome_main_delegate.cc
++++ b/chrome/app/chrome_main_delegate.cc
+@@ -11,6 +11,7 @@
+
+ #include "base/base_paths.h"
+ #include "base/check.h"
++#include "base/base_switches.h"
+ #include "base/command_line.h"
+ #include "base/compiler_specific.h"
+ #include "base/cpu.h"
+@@ -1120,6 +1121,14 @@
+ }
+
+ std::optional<int> ChromeMainDelegate::BasicStartupComplete() {
++#if BUILDFLAG(IS_LINUX)
++  auto* ardia_command = base::CommandLine::ForCurrentProcess();
++  std::string ardia_features =
++      ardia_command->GetSwitchValueASCII(switches::kEnableFeatures);
++  if (!ardia_features.empty()) ardia_features += ",";
++  ardia_features += "BrowserInitiatedAutomaticPictureInPicture,WebContentsDiscard";
++  ardia_command->AppendSwitchASCII(switches::kEnableFeatures, ardia_features);
++#endif
+ #if BUILDFLAG(IS_CHROMEOS)
+   ash::BootTimesRecorder::Get()->SaveChromeMainStats();
+ #endif
+--- a/chrome/browser/picture_in_picture/auto_picture_in_picture_tab_strip_observer_helper.cc
++++ b/chrome/browser/picture_in_picture/auto_picture_in_picture_tab_strip_observer_helper.cc
+@@ -10,6 +10,8 @@
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "components/tabs/public/split_tab_data.h"
+ #include "components/tabs/public/tab_interface.h"
++
++int (*g_ardia_linux_tab_shown)(content::WebContents*) = nullptr;
+
+ // static
+ std::unique_ptr<AutoPictureInPictureTabObserverHelperBase>
+@@ -73,6 +75,9 @@
+     ObserveTabStripModel(current_tab_strip_model);
+   }
+
++  if (g_ardia_linux_tab_shown &&
++      g_ardia_linux_tab_shown(GetObservedWebContents()) >= 0) return;
++
+   // We should not try to update our state on an insertion that does not also
+   // change the selection, since the selection change will follow immediately
+   // and we should not trigger based on this intermediate state. Note that there
+@@ -105,6 +110,13 @@
+   // until it's been placed back into a tabstrip to prevent triggering the
+   // callback unnecessarily.
+   if (tab_strip_model) {
++    const int shown = g_ardia_linux_tab_shown
++                          ? g_ardia_linux_tab_shown(GetObservedWebContents())
++                          : -1;
++    if (shown >= 0) {
++      is_tab_activated_ = shown == 1;
++      return;
++    }
+     // If there is not currently a selected tab, then the tabstrip is still
+     // starting up and we should not change our state.
+     if (tab_strip_model->active_index() == TabStripModel::kNoTab) {
+@@ -168,6 +180,11 @@
+ }
+
+ bool AutoPictureInPictureTabStripObserverHelper::IsTabActivated() {
++  const int shown = g_ardia_linux_tab_shown
++                          ? g_ardia_linux_tab_shown(GetObservedWebContents())
++                          : -1;
++  if (shown >= 0) return shown == 1;
++
+   // If we're currently observing the tab strip, then `is_tab_activated_` is
+   // current so we can just return it.
+   if (is_observing_) {
+--- a/chrome/browser/picture_in_picture/auto_picture_in_picture_tab_helper.cc
++++ b/chrome/browser/picture_in_picture/auto_picture_in_picture_tab_helper.cc
+@@ -48,6 +48,8 @@
+ #include "ardia/core/ac_content_hooks.h"  // nogncheck
+
+ bool g_ardia_auto_picture_in_picture_off = false;
++extern int (*g_ardia_linux_tab_shown)(content::WebContents*);
++void (*g_ardia_linux_auto_pip_requested)(content::WebContents*) = nullptr;
+
+ using OcclusionState =
+     AutoPictureInPictureWindowOcclusionHelperBase::OcclusionState;
+@@ -408,7 +410,10 @@
+         (!window_occlusion_helper_ ||
+          window_occlusion_helper_->GetOcclusionState() ==
+              OcclusionState::kVisible)) {
+-      MaybeExitAutoPictureInPicture();
++      if (!g_ardia_linux_tab_shown ||
++          g_ardia_linux_tab_shown(web_contents()) < 0) {
++        MaybeExitAutoPictureInPicture();
++      }
+     } else if (is_playing_) {
+       // Media is playing, start the watch time timer.
+       playing_start_time_ = clock_->NowTicks();
+@@ -588,5 +593,8 @@
+   auto_picture_in_picture_activation_time_ =
+       clock_->NowTicks() + blink::kActivationLifespan;
+   auto_pip_trigger_reason_ = GetAutoPipReason();
++  if (g_ardia_linux_auto_pip_requested) {
++    g_ardia_linux_auto_pip_requested(web_contents());
++  }
+   content::MediaSession::Get(web_contents())->EnterAutoPictureInPicture();
+ }

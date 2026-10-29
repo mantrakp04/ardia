@@ -17,6 +17,7 @@ OUT_DIR defaults to ~/chromium-build/chromium_git/chromium/src/out/Release_GN_ar
 """
 import argparse
 import gzip
+import os
 import pathlib
 import shutil
 import struct
@@ -24,7 +25,10 @@ import subprocess
 import sys
 import tempfile
 
-OUT = pathlib.Path.home() / 'chromium-build/chromium_git/chromium/src/out/Release_GN_arm64'
+from target_config import configuration
+
+TARGET = configuration()
+OUT = pathlib.Path(os.environ.get('AC_CHROMIUM_BUILD', pathlib.Path.home() / 'chromium-build')) / 'chromium_git/chromium/src/out' / TARGET['GN_OUT_CONFIGS']
 OMITTED_GEN = ['gen/third_party/ublock', 'gen/components/helium_onboarding',
                'gen/third_party/search_engines_data/resources_internal']
 OMITTED_CODE = {
@@ -82,6 +86,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--out', type=pathlib.Path, default=OUT)
     parser.add_argument('--framework', type=pathlib.Path)
+    parser.add_argument('--binary', type=pathlib.Path)
+    parser.add_argument('--platform', choices=('mac', 'linux'), default=TARGET['AC_TARGET_OS'])
     parser.add_argument('--pak', type=pathlib.Path, action='append', default=[])
     args = parser.parse_args()
     framework = args.framework or args.out / 'Chromium Framework.framework'
@@ -96,8 +102,8 @@ def main():
             if 'ublock' in pak.name or 'helium_onboarding' in pak.name:
                 problems.append(f'{pak} exists')
 
-    resources = framework / 'Versions/Current/Resources'
-    paks = sorted(resources.glob('*.pak')) + sorted(resources.glob('*.lproj/*.pak')) + args.pak
+    resources = framework / 'Versions/Current/Resources' if args.platform == 'mac' else args.out
+    paks = sorted(resources.glob('*.pak')) + sorted(resources.glob('*.lproj/*.pak' if args.platform == 'mac' else 'locales/*.pak')) + args.pak
     if not paks:
         problems.append(f'no paks under {resources}')
     brand_hits, scanned = 0, 0
@@ -115,7 +121,7 @@ def main():
             if any(m in body for m in BRAND):
                 brand_hits += 1
 
-    binary = framework / 'Versions/Current/Chromium Framework'
+    binary = args.binary or (framework / 'Versions/Current/Chromium Framework' if args.platform == 'mac' else args.out / 'chrome')
     if binary.exists():
         data = binary.read_bytes()
         for host in HOSTS:

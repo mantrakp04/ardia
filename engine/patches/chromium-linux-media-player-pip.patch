@@ -1,0 +1,186 @@
+--- a/content/browser/media/media_web_contents_observer.cc
++++ b/content/browser/media/media_web_contents_observer.cc
+@@ -32,6 +32,11 @@
+ #include "third_party/blink/public/platform/web_fullscreen_video_status.h"
+ #include "ui/gfx/geometry/size.h"
+ 
++#if BUILDFLAG(IS_LINUX)
++#include "ardia/linux/ac_linux_content_hooks.h"  // nogncheck
++#include "content/public/browser/page.h"
++#endif
++
+ namespace content {
+ 
+ namespace {
+@@ -80,6 +85,9 @@
+   void set_has_video(bool has_video) { has_video_ = has_video; }
+ 
+   void set_muted(bool muted) { muted_ = muted; }
++#if BUILDFLAG(IS_LINUX)
++  bool muted() const { return muted_; }
++#endif
+ 
+   bool is_playing() const { return is_playing_; }
+ 
+@@ -910,4 +918,65 @@
+ 
+ DOCUMENT_USER_DATA_KEY_IMPL(AudibilityBypassTracker);
+ 
++#if BUILDFLAG(IS_LINUX)
++bool MediaWebContentsObserver::ArdiaLinuxInPrimaryPage(
++    const MediaPlayerId& id) {
++  RenderFrameHost* frame = RenderFrameHost::FromID(id.frame_routing_id);
++  return frame && frame->GetPage().IsPrimary() &&
++         WebContents::FromRenderFrameHost(frame) == web_contents_impl();
++}
++
++bool MediaWebContentsObserver::ArdiaLinuxPictureInPictureEligible(
++    const MediaPlayerId& id) {
++  const auto info = player_info_map_.find(id);
++  return info != player_info_map_.end() && info->second->has_video() &&
++         media_player_remotes_.contains(id) &&
++         session_controllers_manager()->ArdiaLinuxPictureInPictureAvailable(
++             id) &&
++         ArdiaLinuxInPrimaryPage(id);
++}
++
++std::vector<ArdiaLinuxPictureInPictureCandidate>
++MediaWebContentsObserver::ArdiaLinuxPictureInPictureCandidates() {
++  std::vector<ArdiaLinuxPictureInPictureCandidate> candidates;
++  for (const auto& [id, info] : player_info_map_) {
++    if (!ArdiaLinuxPictureInPictureEligible(id)) {
++      continue;
++    }
++    candidates.push_back({id, info->is_playing(), info->muted()});
++  }
++  return candidates;
++}
++
++bool MediaWebContentsObserver::ArdiaLinuxRequestPictureInPicture(
++    const MediaPlayerId& id) {
++  const auto it = media_player_remotes_.find(id);
++  if (it == media_player_remotes_.end() || !it->second.is_bound() ||
++      !ArdiaLinuxPictureInPictureEligible(id)) {
++    return false;
++  }
++  it->second->RequestEnterPictureInPicture(std::nullopt);
++  return true;
++}
++
++std::vector<ArdiaLinuxPictureInPictureCandidate>
++ArdiaLinuxPictureInPictureCandidates(WebContents* contents) {
++  auto* impl = static_cast<WebContentsImpl*>(contents);
++  MediaWebContentsObserver* observer =
++      impl ? impl->media_web_contents_observer() : nullptr;
++  if (!observer) {
++    return {};
++  }
++  return observer->ArdiaLinuxPictureInPictureCandidates();
++}
++
++bool ArdiaLinuxRequestPictureInPicture(WebContents* contents,
++                                       const MediaPlayerId& id) {
++  auto* impl = static_cast<WebContentsImpl*>(contents);
++  MediaWebContentsObserver* observer =
++      impl ? impl->media_web_contents_observer() : nullptr;
++  return observer && observer->ArdiaLinuxRequestPictureInPicture(id);
++}
++#endif
++
+ }  // namespace content
+--- a/content/browser/media/media_web_contents_observer.h
++++ b/content/browser/media/media_web_contents_observer.h
+@@ -10,6 +10,8 @@
+ #include <map>
+ #include <memory>
+ #include <optional>
++#include <utility>
++#include <vector>
+ 
+ #include "base/containers/flat_map.h"
+ #include "base/containers/flat_set.h"
+@@ -58,6 +60,10 @@
+ class Size;
+ }  // namespace gfx
+ 
++#if BUILDFLAG(IS_LINUX)
++#include "ardia/linux/ac_linux_content_hooks.h"  // nogncheck
++#endif
++
+ namespace content {
+ 
+ class AudibleMetrics;
+@@ -155,6 +161,14 @@
+   // Returns whether or not the given player id is active.
+   bool IsPlayerActive(const MediaPlayerId& player_id) const;
+ 
++#if BUILDFLAG(IS_LINUX)
++  bool ArdiaLinuxInPrimaryPage(const MediaPlayerId& id);
++  bool ArdiaLinuxPictureInPictureEligible(const MediaPlayerId& id);
++  std::vector<ArdiaLinuxPictureInPictureCandidate>
++  ArdiaLinuxPictureInPictureCandidates();
++  bool ArdiaLinuxRequestPictureInPicture(const MediaPlayerId& id);
++#endif
++
+   bool has_audio_wake_lock_for_testing() const {
+     return has_audio_wake_lock_for_testing_;
+   }
+--- a/content/browser/media/session/media_session_controller.h
++++ b/content/browser/media/session/media_session_controller.h
+@@ -10,6 +10,7 @@
+ #include "base/memory/raw_ptr.h"
+ #include "base/memory/weak_ptr.h"
+ #include "base/time/time.h"
++#include "build/build_config.h"
+ #include "content/browser/media/media_devices_util.h"
+ #include "content/common/content_export.h"
+ #include "content/public/browser/media_player_id.h"
+@@ -80,6 +81,11 @@
+   std::optional<media_session::MediaPosition> GetPosition(
+       int player_id) const override;
+   bool IsPictureInPictureAvailable(int player_id) const override;
++#if BUILDFLAG(IS_LINUX)
++  bool ArdiaLinuxPictureInPictureAvailable() const {
++    return is_picture_in_picture_available_;
++  }
++#endif
+   bool IsVideoFrameAvailable(int player_id) const override;
+   bool HasSufficientlyVisibleVideo(int player_id) const override;
+   bool HasAudio(int player_id) const override;
+--- a/content/browser/media/session/media_session_controllers_manager.cc
++++ b/content/browser/media/session/media_session_controllers_manager.cc
+@@ -186,4 +186,13 @@
+   return it->second.get();
+ }
+ 
++#if BUILDFLAG(IS_LINUX)
++bool MediaSessionControllersManager::ArdiaLinuxPictureInPictureAvailable(
++    const MediaPlayerId& id) const {
++  const auto it = controllers_map_.find(id);
++  return it != controllers_map_.end() &&
++         it->second->ArdiaLinuxPictureInPictureAvailable();
++}
++#endif
++
+ }  // namespace content
+--- a/content/browser/media/session/media_session_controllers_manager.h
++++ b/content/browser/media/session/media_session_controllers_manager.h
+@@ -10,6 +10,7 @@
+ #include <utility>
+ 
+ #include "base/memory/raw_ptr.h"
++#include "build/build_config.h"
+ #include "content/common/content_export.h"
+ #include "content/public/browser/web_contents_observer.h"  // For MediaPlayerId.
+ #include "services/media_session/public/mojom/media_session.mojom.h"
+@@ -102,6 +103,10 @@
+   // Called when video frame availability for the player |id| has changed.
+   void OnVideoFrameAvailabilityChanged(const MediaPlayerId& id, bool available);
+ 
++#if BUILDFLAG(IS_LINUX)
++  bool ArdiaLinuxPictureInPictureAvailable(const MediaPlayerId& id) const;
++#endif
++
+  private:
+   using ControllersMap =
+       std::map<MediaPlayerId, std::unique_ptr<MediaSessionController>>;
