@@ -164,6 +164,7 @@ source_set("linux") {
     "ac_linux_import_storage.cc",
     "ac_linux_import_storage.h",
     "ac_linux_launch_steps.h",
+    "ac_linux_left_edge.h",
     "ac_linux_live.cc",
     "ac_linux_live.h",
     "ac_linux_live_service.cc",
