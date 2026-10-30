@@ -13,7 +13,7 @@ test("a damaged Top Apps bucket cannot stop session hydration", () => {
 });
 
 test("saved Top Apps keep valid tiles and reject malformed fields and folders", () => {
-  const bad = [null, { key: "missing" }, { ...app, url: 7 }, { ...app, title: null }, { ...app, favicon: 3 }, { ...app, customTitle: [] }, { ...app, customIcon: false }, { ...app, tileFolder: { id: "f" } }, { ...app, tileFolder: { id: "f", name: "Folder", renamedAt: "soon" } }];
+  const bad = [null, { key: "missing" }, { ...app, url: 7 }, { ...app, title: null }, { ...app, favicon: 3 }, { ...app, customTitle: [] }, { ...app, customIcon: false }, { ...app, tileFolder: { id: "f" } }, { ...app, tileFolder: { id: "", name: "Folder" } }, { ...app, tileFolder: { id: "f", name: "Folder", renamedAt: "soon" } }];
   const folder = { ...app, key: "folder", tileFolder: { id: "f", name: "Folder", renamedAt: 12 } };
   const session = parseSession(saved({ default: [app, ...bad, folder] }));
   assert.deepEqual(session.topApps.default, [app, folder]);

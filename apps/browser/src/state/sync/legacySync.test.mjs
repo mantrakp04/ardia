@@ -80,8 +80,8 @@ test("legacy tile conversion keeps unrelated sidebar rows and groups with matchi
   docs.set("sync-state.nns", `sealed:${JSON.stringify(stored)}`);
   await importLegacySync(doc);
   const next = doc.scopes["space:owner"];
-  assert.ok(next.records["pin:t:another-remote-tile"]);
-  assert.ok(next.records["pinrow:another-remote-tile"]);
-  assert.ok(next.records["pgh:group-remote-tile"]);
+  assert.equal(next.records["pin:t:another-remote-tile"]?.v?.u, "https://kept-row.test");
+  assert.equal(next.records["pinrow:another-remote-tile"]?.v, 1);
+  assert.deepEqual(next.records["pgh:group-remote-tile"]?.v, { n: "Group" });
   assert.equal(next.records["pin:t:remote-tile"], undefined);
 });

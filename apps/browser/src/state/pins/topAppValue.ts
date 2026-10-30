@@ -7,7 +7,7 @@ export function topAppValue(value: unknown): TopApp | null {
   if (!isFields(value) || !isString(value.key) || !value.key || !isString(value.url) || !isString(value.title)
     || !nullableString(value.favicon) || !nullableString(value.customTitle) || !nullableString(value.customIcon)) return null;
   const folder = value.tileFolder;
-  if (folder !== undefined && (!isFields(folder) || !isString(folder.id) || !isString(folder.name)
+  if (folder !== undefined && (!isFields(folder) || !isString(folder.id) || !folder.id || !isString(folder.name)
     || folder.renamedAt !== undefined && !isNumber(folder.renamedAt))) return null;
   return value as TopApp;
 }
