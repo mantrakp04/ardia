@@ -12,7 +12,8 @@ window: the focused pane of a split, the full screen page, or the Peek while one
 it has a page socket open to wears the pill's terminal icon on the top left of its favicon, in the sidebar, pinned tiles
 and the tab strip, held and cleared with the pill (`CliBadge` in `components/media/TabBadges.tsx`). The engine lists
 those tabs in the `cliControl` event's `tabs` (`TokenClientTabs` in `ac_cli_token_policy.cc`), and the bridge turns
-Chrome's tab ids into the app's (`ArdiaEngineBridge.mm`).
+Chrome's tab ids into the app's (`ArdiaEngineBridge.mm`). A tab `new_tab` opened may not have its view yet when that
+event arrives, so it has no app id; the bridge sends the event again once the tab gets its view (`ResendCliControlFor`).
 
 Code: `apps/cli` (`ardia_cli`, `install.sh`, `scripts/build.sh`). Dependencies are pinned with hashes in
 `apps/cli/requirements.lock` (regenerate with `uv pip compile requirements.in --python-version 3.13

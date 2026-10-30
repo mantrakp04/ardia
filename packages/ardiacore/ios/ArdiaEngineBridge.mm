@@ -36,6 +36,7 @@ namespace {
 
 bool gForwarding = false;
 NSMutableArray<NSArray *> *gPendingForwards;
+NSDictionary *gCliControl;
 
 NSSet<NSString *> *ForwardedTopics() {
   static NSSet *topics = [NSSet setWithArray:@[ @"history.changed", @"bookmarks.changed", @"extensions.action", @"extensions.sync", @"cliControl" ]];
@@ -124,7 +125,10 @@ void Dispatch(void *, const char *topic, const char *json) {
   NSData *data = [@(json ?: "{}") dataUsingEncoding:NSUTF8StringEncoding];
   NSMutableDictionary *payload = [[NSJSONSerialization JSONObjectWithData:data options:0 error:nil] mutableCopy] ?: [NSMutableDictionary dictionary];
   if ([payload[@"profile"] isKindOfClass:NSString.class]) payload[@"profile"] = ProfileNamed(payload[@"profile"]);
-  if ([name isEqualToString:@"cliControl"] && payload[@"tabs"]) payload[@"tabs"] = AppTabIds(payload[@"tabs"]);
+  if ([name isEqualToString:@"cliControl"]) {
+    gCliControl = [payload copy];
+    if (payload[@"tabs"]) payload[@"tabs"] = AppTabIds(payload[@"tabs"]);
+  }
   for (void (^observer)(NSDictionary *) in observers) observer(payload);
   if (forwarded) Forward(name, payload);
 }
@@ -136,6 +140,17 @@ void InstallSink() {
   if (!sink) return;
   installed = true;
   sink(Dispatch, nullptr);
+}
+
+}
+
+namespace ardia_host {
+
+void ResendCliControlFor(ArdiaCoreTab *tab) {
+  if (![gCliControl[@"tabs"] containsObject:@(tab.tabId)]) return;
+  NSMutableDictionary *payload = [gCliControl mutableCopy];
+  payload[@"tabs"] = AppTabIds(payload[@"tabs"]);
+  Forward(@"cliControl", payload);
 }
 
 }
