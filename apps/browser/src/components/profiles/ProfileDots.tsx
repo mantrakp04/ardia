@@ -23,10 +23,6 @@ export function useProfileDotsShown() {
   return !incognito && count > 1;
 }
 
-export function useProfileFooterShown() {
-  return !useIsIncognito();
-}
-
 export function ProfileDots({ windowId, width }: { windowId: string; width: number }) {
   const ids = useProfileOrder(useShallow((o) => o));
   const saved = useProfileRecords(useShallow((profiles) => ids.map((id) => profiles[id]?.icon ?? null)));
