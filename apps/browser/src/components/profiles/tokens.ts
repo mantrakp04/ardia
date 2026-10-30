@@ -16,4 +16,6 @@ export const profileSwitcher = {
   dotTooltipLift: 18.25,
   dots: { selected: 0.85, hovered: 0.4, idle: 0.2 },
   icons: { selected: 1, hovered: 0.7, idle: 0.42 },
+  newProfileIcon: 14,
+  newProfileRadius: 10,
 } as const;

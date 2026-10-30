@@ -15,8 +15,7 @@ import { profileSwitcher } from "./tokens";
 
 export const PROFILE_DOTS_HEIGHT = profileSwitcher.height;
 const { band: BAND, dotTooltipLift } = profileSwitcher;
-const SIDE_ROOM = layout.sidebarInset;
-const SIDE_ROOM_BESIDE_DOWNLOADS = layout.sidebarInset + SIDEBAR_FOOTER_DOWNLOADS.size + 4;
+const SIDE_ROOM = layout.sidebarInset + SIDEBAR_FOOTER_DOWNLOADS.size + 4;
 
 export function useProfileDotsShown() {
   const incognito = useIsIncognito();
@@ -24,11 +23,15 @@ export function useProfileDotsShown() {
   return !incognito && count > 1;
 }
 
-export function ProfileDots({ windowId, width, besideDownloads }: { windowId: string; width: number; besideDownloads: boolean }) {
+export function useProfileFooterShown() {
+  return !useIsIncognito();
+}
+
+export function ProfileDots({ windowId, width }: { windowId: string; width: number }) {
   const ids = useProfileOrder(useShallow((o) => o));
   const saved = useProfileRecords(useShallow((profiles) => ids.map((id) => profiles[id]?.icon ?? null)));
   const shown = useSettings((s) => s.profileSwitcherIcons);
-  const icons = switcherIcons(saved, shown, width - 2 * (besideDownloads ? SIDE_ROOM_BESIDE_DOWNLOADS : SIDE_ROOM));
+  const icons = switcherIcons(saved, shown, width - 2 * SIDE_ROOM);
   const { pages, pager } = usePagerPages(windowId);
   return (
     <View style={{ height: PROFILE_DOTS_HEIGHT, alignItems: "center" }}>
