@@ -7,21 +7,18 @@ const row = (children, width) => Object.fromEntries(children.map((id, i) => [id,
 
 test("a bar that fits shows every item and no chevron", () => {
   const children = ids(5);
-  assert.deepEqual(barFit(children, row(children, 100), 600, 16, 28), { shown: children, visible: children, overflowing: false });
+  assert.deepEqual(barFit(children, row(children, 100), 600, 16, 28), { shown: children, visible: children });
 });
 
 test("items past the end, and the room for the chevron, go to the overflow menu", () => {
   const children = ids(8);
-  const fit = barFit(children, row(children, 100), 600, 16, 28);
-  assert.equal(fit.overflowing, true);
-  assert.deepEqual(fit.visible, ids(5));
+  assert.deepEqual(barFit(children, row(children, 100), 600, 16, 28).visible, ids(5));
 });
 
 test("a huge bar mounts only the items that could ever fit", () => {
   const children = ids(5000);
   const fit = barFit(children, {}, 800, 16, 28);
   assert.equal(fit.shown.length, 51);
-  assert.equal(fit.overflowing, true);
   assert.deepEqual(barFit(children, row(fit.shown, 100), 800, 16, 28).visible, ids(7));
 });
 

@@ -1,5 +1,5 @@
 import { memo, useEffect, useId, useRef, useState } from "react";
-import { Animated, StyleSheet, View, useWindowDimensions, type LayoutRectangle } from "react-native";
+import { Animated, Dimensions, StyleSheet, View, type LayoutRectangle } from "react-native";
 import { currentBookmarks } from "../../state/browser/current";
 import { useBookmarkProfileId, useBookmarkRoots, useBookmarks } from "../../state/bookmarks/hooks";
 import { useSettings, useWindowId } from "../../state/browser/hooks";
@@ -72,15 +72,14 @@ function Bar({ windowId }: { windowId: string }) {
   const origin = useRef({ x: 0, y: 0 });
   const otherButton = useRef<View | null>(null);
   const overflowButton = useRef<View | null>(null);
-  const windowWidth = useWindowDimensions().width;
   const [width, setWidth] = useState(0);
   const [itemsFrame, setItemsFrame] = useState<LayoutRectangle>({ x: 0, y: 0, width: 0, height: 0 });
   const [frames, setFrames] = useState<Frames>({});
   const [otherX, setOtherX] = useState<number | null>(null);
 
   const reserved = hasOther ? bookmarksBar.otherReserve : 0;
-  const available = (width || windowWidth) - reserved;
-  const { shown, visible } = barFit(children, frames, available, size.iconBox, bookmarksBar.overflowWidth);
+  const available = (width || Dimensions.get("window").width) - reserved;
+  const { shown, visible } = barFit(children, frames, available, size.iconBox + size.itemGap, bookmarksBar.overflowWidth);
   const hiddenFrom = visible.length;
 
   const draggedHere = source?.kind === "bookmark" && visible.includes(source.id) ? source.id : null;
