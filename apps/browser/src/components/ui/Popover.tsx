@@ -111,7 +111,7 @@ export function Popover({
       {modal && onDismiss && !closing && <Pressable style={StyleSheet.absoluteFill} onPress={onDismiss} />}
       <Animated.View pointerEvents={closing ? "none" : "auto"} style={{ position: "absolute", top, right, left, width, ...motion }}>
         <PopoverSurface>
-          {fitHeight ? <ScrollView showsVerticalScrollIndicator={false} style={room === null ? undefined : { maxHeight: Math.max(0, room - top - POPOVER_MARGIN) }}>{children}</ScrollView> : children}
+          {fitHeight ? <ScrollView showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false} alwaysBounceHorizontal={false} style={room === null ? undefined : { maxHeight: Math.max(0, room - top - POPOVER_MARGIN) }}>{children}</ScrollView> : children}
         </PopoverSurface>
       </Animated.View>
     </>

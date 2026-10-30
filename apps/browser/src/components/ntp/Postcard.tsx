@@ -232,7 +232,7 @@ export function ReleaseNotesPage({ notes, size, onClose }: { notes: ReleaseNotes
               <Text size="body" style={SUMMARY_TEXT}>
                 {notes.summary}
               </Text>
-              <ScrollView style={ITEMS} contentContainerStyle={ITEMS_CONTENT} showsVerticalScrollIndicator={false}>
+              <ScrollView style={ITEMS} contentContainerStyle={ITEMS_CONTENT} showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false} alwaysBounceHorizontal={false}>
                 {notes.items.map((item) => (
                   <Box key={item.title} gap="xxs" style={ITEM}>
                     <Text size="body" weight="semibold" style={INK_TEXT}>

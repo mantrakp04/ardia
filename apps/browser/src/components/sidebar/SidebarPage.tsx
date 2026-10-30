@@ -147,6 +147,8 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, width, c
                         }
                         style={{ flex: 1 }}
                         showsVerticalScrollIndicator={false}
+                        showsHorizontalScrollIndicator={false}
+                        alwaysBounceHorizontal={false}
                         scrollEventThrottle={16}
                         onScroll={onScroll}
                         contentContainerStyle={{ flexGrow: 1, width, paddingHorizontal: layout.sidebarInset, paddingTop: LIST_PAD }}
