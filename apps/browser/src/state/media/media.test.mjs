@@ -58,6 +58,25 @@ test("a late playing report doesn't move the sidebar player", async () => {
   for (const id of [b, c]) webviews.delete(id);
 });
 
+test("a tab paused before another one started playing gives the sidebar player up", async () => {
+  S().hydrate({});
+  const w = S().createWindow({ url: "a.com" });
+  const old = S().newTab(w, { url: "old.com", background: true });
+  const next = S().newTab(w, { url: "next.com", background: true });
+  media.setNowPlaying(old, report());
+  let shown = media.playerTabFor(M(), [old, next]);
+  const player = (candidates, inWindow = [old, next]) => (shown = media.playerTabFor(M(), candidates, shown, inWindow));
+  assert.equal(player([old, next]), old);
+  media.setNowPlaying(old, report({ playbackState: "paused" }));
+  assert.equal(player([old, next]), old, "paused, and nothing else has started");
+  await tick();
+  media.setNowPlaying(next, report({ title: "Next song" }));
+  assert.equal(player([old, next]), next, "a newer play elsewhere takes the player");
+  assert.equal(player([old]), undefined, "the newer play is the tab on screen: the paused one isn't shown either");
+  media.setNowPlaying(next, report({ title: "Next song", playbackState: "paused" }));
+  assert.equal(player([old, next]), next, "both paused: the one played last");
+});
+
 test("closing the sidebar player hands it to the next tab", async () => {
   const { b, c, player } = await twoPlaying();
   assert.equal(player(), c);

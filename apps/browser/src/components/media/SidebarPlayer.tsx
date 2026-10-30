@@ -11,7 +11,7 @@ import { muteTitle } from "../../state/tabs/mute";
 import { Favicon } from "../favicon/Favicon";
 import { useSidebarTokens } from "../sidebar/tokens";
 import { useArtwork } from "../../state/media/artwork";
-import { dismissPlayer, isPlaying, mediaCommand, playerTabFor, useHiddenPlayerTabs, useMedia, useSession, type Session } from "../../state/media/media";
+import { dismissPlayer, isPlaying, mediaCommand, playerTabFor, useHiddenPlayerTabs, useMedia, useSession, useWindowPlayerTabs, type Session } from "../../state/media/media";
 import { Marquee, useMarqueeGroup } from "./Marquee";
 import { useMediaTokens } from "./tokens";
 
@@ -31,9 +31,10 @@ export const SIDEBAR_PLAYER_HEIGHT = ROW_HEIGHT + 8;
 export function useSidebarPlayerTab(windowId: string, profileId: string): string | undefined {
   const sessions = useMedia(useShallow((m) => Object.keys(m.sessions)));
   const hidden = useHiddenPlayerTabs(windowId, profileId, sessions);
+  const inWindow = useWindowPlayerTabs(windowId, profileId, sessions);
   const candidates = useMedia(useShallow((m) => hidden.filter((id) => !m.leftPaused[id])));
   const shown = useRef<string | undefined>(undefined);
-  shown.current = useMedia((m) => playerTabFor(m, candidates, shown.current));
+  shown.current = useMedia((m) => playerTabFor(m, candidates, shown.current, inWindow));
   return shown.current;
 }
 

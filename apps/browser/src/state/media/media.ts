@@ -186,8 +186,9 @@ useMedia.subscribe((m, prev) => {
   if (m.sessions !== prev.sessions) noteLeftPaused();
 });
 
-export function playerTabFor(m: Pick<Store, "sessions" | "dismissed">, tabIds: string[], current?: string): string | undefined {
-  const eligible = (id: string) => hasPlayer(m, id);
+export function playerTabFor(m: Pick<Store, "sessions" | "dismissed">, tabIds: string[], current?: string, inWindow: string[] = tabIds): string | undefined {
+  const lastStart = Math.max(0, ...inWindow.flatMap((id) => (hasPlayer(m, id) && isPlaying(m.sessions[id]) ? [m.sessions[id]!.playedAt] : [])));
+  const eligible = (id: string) => hasPlayer(m, id) && (isPlaying(m.sessions[id]) || m.sessions[id]!.playedAt >= lastStart);
   if (current && tabIds.includes(current) && eligible(current)) return current;
   let best: Session | undefined;
   let bestId: string | undefined;
@@ -269,6 +270,9 @@ if (typeof __DEV__ !== "undefined" && __DEV__) {
 export const dismissPlayer = (tabId: string) => useMedia.setState((m) => ({ dismissed: { ...m.dismissed, [tabId]: true } }));
 
 const NO_HIDDEN: string[] = [];
+
+export const useWindowPlayerTabs = (windowId: string, profileId: string, sessions: string[]) =>
+  useBrowser(useShallow((s) => sessions.filter((id) => s.tabs[id]?.windowId === windowId && s.tabs[id]!.profileId === profileId)));
 
 export const useHiddenPlayerTabs = (windowId: string, profileId: string, sessions: string[]) =>
   useBrowser(
