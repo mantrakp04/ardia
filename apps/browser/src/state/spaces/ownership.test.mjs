@@ -53,3 +53,17 @@ test("Top Apps share within a profile while saved rows stay in their space", () 
   S().pinTabs([row], true, true);
   assert.ok(!viewTabIds(S(), window, "default").some((id) => S().tabs[id].url === "https://saved.test"));
 });
+
+test("a new mirrored Top App uses the live page title and favicon", () => {
+  reset();
+  const window = S().createWindow({ url: "https://mail.test" });
+  const tile = viewTabIds(S(), window)[0];
+  S().updateTab(tile, { title: "Original", favicon: "old-icon" });
+  S().pinTabs([tile], true);
+  S().updateTab(tile, { title: "Current", favicon: "current-icon" });
+  const other = S().createSpace({ name: "Other", profileId: "default" });
+  const second = S().createWindow({ spaceId: other });
+  const mirrored = viewTabIds(S(), second).map((id) => S().tabs[id]).find((tab) => tab.pin?.as === "tile");
+  assert.equal(mirrored.title, "Current");
+  assert.equal(mirrored.favicon, "current-icon");
+});

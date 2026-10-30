@@ -106,7 +106,9 @@ export function mirrorTopApps(s: BrowserState, prev: BrowserState): BrowserState
           parkedTopApps = { ...parkedTopApps, [profileId]: parkedTopApps[profileId]!.filter((candidate) => candidate.id !== parked.id) };
         }
         if (!tab) {
-          tab = { ...makeTab(w.id, spaceId, spec.url), pin: spec.tileFolder ? { as: "tile", folder: spec.tileFolder } : { as: "tile" }, pinnedUrl: spec.url, pinKey: spec.key, page: ASLEEP, title: spec.title, favicon: spec.favicon, customTitle: spec.customTitle, customIcon: spec.customIcon };
+          const sources = Object.values(tabs).filter((candidate) => tile(candidate) && profileOf(s, candidate) === profileId && pinKeyOf(candidate) === spec.key);
+          const source = sources.find(hasPage) ?? sources[0] ?? spec;
+          tab = { ...makeTab(w.id, spaceId, spec.url), pin: spec.tileFolder ? { as: "tile", folder: spec.tileFolder } : { as: "tile" }, pinnedUrl: spec.url, pinKey: spec.key, page: ASLEEP, title: source.title, favicon: source.favicon, customTitle: spec.customTitle, customIcon: spec.customIcon };
           if (tabs === s.tabs) tabs = { ...tabs };
           tabs[tab.id] = tab;
         } else if (signature([specOf(tab)]) !== signature([spec])) {

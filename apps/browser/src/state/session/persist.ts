@@ -8,6 +8,7 @@ import { earlyLaunchTabOn, launchTab, linkSpace } from "../tabs/launchTab";
 import { launchBackdrop } from "../windows/launchBackdrop";
 import { restoreLaunchLook, saveLaunchLook } from "../windows/launchLook";
 import { parkWindowPins } from "../pins/parkedPins";
+import { topAppValue } from "../pins/topAppValue";
 import { closedWindowEntry, MAX_CLOSED_WINDOWS } from "../pins/closedTabs";
 import { isPeekTab } from "../peek/peek";
 import type { BrowserWindow, ParkedPins, SplitView, Tab } from "../browser/types";
@@ -132,7 +133,7 @@ export function parseSession(json: string | null | undefined): SavedSession | nu
   if (!raw) return null;
   return {
     profiles: byProfile(raw.profiles, (p) => profileOk(p) && isString(p.engineId)),
-    topApps: (isFields(raw.topApps) ? raw.topApps : {}) as BrowserState["topApps"],
+    topApps: Object.fromEntries(Object.entries(isFields(raw.topApps) ? raw.topApps : {}).map(([id, items]) => [id, Array.isArray(items) ? items.flatMap((item) => topAppValue(item) ?? []) : []])),
     parkedTopApps: (isFields(raw.parkedTopApps) ? Object.fromEntries(Object.entries(raw.parkedTopApps).map(([id, tabs]) => [id, rows<Tab>(tabs, tabOk).map((tab) => ({ ...tab, page: pageFromDisk(tab.page), pin: pinFromDisk(tab.pin) }))])) : {}) as BrowserState["parkedTopApps"],
     spaces: byProfile(raw.spaces, profileOk),
     spaceOrder: strings(raw.spaceOrder),
