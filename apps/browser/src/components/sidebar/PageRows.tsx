@@ -8,7 +8,7 @@ import { newCapture } from "../../state/sidebar/listCapture";
 import { useCanTidyPins, useCapturedSidebarEntries, usePinnedCollapsed, usePinnedKept } from "../../state/sidebar/hooks";
 import { useAddressBarInSidebar } from "../../state/windows/layout";
 import { ClearDivider } from "./ClearDivider";
-import { useDragController, useDragItem } from "./DragProvider";
+import { DragScope, useDragController, useDragItem } from "./DragProvider";
 import { Fold, useFold } from "./Fold";
 import { SidebarEntry } from "./GroupBlock";
 import { GhostSlot, ListMotionContext, useListMotion } from "./ListMotion";
@@ -67,7 +67,7 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
   const newTabButtonAtTop = useSettings((s) => s.newTabButtonPosition === "top");
   const animated = current && !offScreen;
   const motion = useListMotion(windowId, profileId, all, captured, animated);
-  const scope = useMemo(() => ({ enabled: animated, slideBelow: motion.slideBelow }), [animated, motion.slideBelow]);
+  const scope = useMemo(() => ({ slideBelow: motion.slideBelow }), [motion.slideBelow]);
   if (geometry) geometry.current.newTabAtTop = newTabButtonAtTop && inlineNewTab;
   return (
     <ListMotionContext.Provider value={scope}>
@@ -75,7 +75,11 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
         onLayout={(e) => onListHeight(e.nativeEvent.layout.height + SCROLL_EDGE.inset - (inlineNewTab ? ROW_PITCH : 0))}
       >
         {isIncognitoProfile(profileId) ? <IncognitoBadge /> : null}
-        {tiles.length ? <PinnedGrid tabs={tiles} innerWidth={innerWidth} flush /> : null}
+        {tiles.length ? (
+          <DragScope enabled={current}>
+            <PinnedGrid tabs={tiles} innerWidth={innerWidth} flush />
+          </DragScope>
+        ) : null}
         <View
           ref={(v) => {
             controller?.regions.set("pinnedGroups", v);

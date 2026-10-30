@@ -32,9 +32,9 @@ type Offsets = { at: Map<string, number>; end: number };
 type Height = (s: BrowserState, entry: string) => number;
 type Planner = (before: Snapshot, after: Snapshot, slides: Map<string, Slide>, ghosts: Ghost[], t: number) => Plan | null;
 export type ListSlot = { entry: string } | { ghost: Ghost; top: number };
-export type ListMotionScope = { enabled: boolean; slideBelow: ((entry: string, delta: number) => void) | null };
+export type ListMotionScope = { slideBelow: ((entry: string, delta: number) => void) | null };
 
-export const ListMotionContext = createContext<ListMotionScope>({ enabled: false, slideBelow: null });
+export const ListMotionContext = createContext<ListMotionScope>({ slideBelow: null });
 let ghostIds = 0;
 
 const tabsOf = (s: BrowserState, entry: string): string[] => {

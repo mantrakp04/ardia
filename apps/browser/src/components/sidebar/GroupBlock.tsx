@@ -1,7 +1,7 @@
 import { createContext, memo, useContext, useEffect, useState } from "react";
 import { Animated, Pressable, Text, View } from "react-native";
 import { hex, layout, useTheme } from "../ui/theme";
-import { useGroup, usePageProfileId, useWindowId } from "../../state/browser/hooks";
+import { useGroup, usePageProfileId, useWindowId, useWindowProfileId } from "../../state/browser/hooks";
 import { updateGroup } from "../../state/groups/actions";
 import { useGroupLabel } from "../../state/groups/hooks";
 import { useSelectionInGroup } from "../../state/pins/hooks";
@@ -37,6 +37,7 @@ const NO_GROUPS: ReadonlySet<string> = new Set();
 
 type ReportInnerHover = (groupId: string, hovered: boolean) => void;
 const InnerGroupHover = createContext<ReportInnerHover | null>(null);
+const NO_SLIDE_BELOW = { slideBelow: null };
 
 function useInnermostHover(groupId: string, hovered: boolean) {
   const reportToParent = useContext(InnerGroupHover);
@@ -96,10 +97,11 @@ export const GroupBlock = memo(function GroupBlock({
 
   const fold = useFold(collapsed);
   const scope = useContext(ListMotionContext);
-  const motion = useGroupMotion(windowId, profileId, groupId, entries, captured, section === "list" && !parentGroup ? scope : { enabled: scope.enabled, slideBelow: null }, scope.enabled && !collapsed);
+  const onShownPage = useWindowProfileId() === profileId;
+  const motion = useGroupMotion(windowId, profileId, groupId, entries, captured, section === "list" && !parentGroup ? scope : NO_SLIDE_BELOW, onShownPage && !collapsed);
   const [moved, movedRef] = useShift(own?.shift ?? null);
   const box = useGroupHover(windowId, groupId);
-  const dropInto = useDropInto() === groupId;
+  const dropInto = useDropInto(groupId);
   const nested = useInnermostHover(groupId, box.hovered);
   const boxOpacity = useBoxOpacity(nested.innermost || dropInto);
 
@@ -173,7 +175,7 @@ function GroupHeader({ groupId, windowId, collapsed, open }: { groupId: string; 
   const label = useGroupLabel(groupId);
   const firstTab = useGroupFirstTabIcon(groupId);
   const renaming = useSidebarUi((u) => u.renaming?.kind === "group" && u.renaming.id === groupId);
-  const dropInto = useDropInto() === groupId;
+  const dropInto = useDropInto(groupId);
   const { hovered, hoverProps } = useRowHover(windowId, collapsed && !renaming ? { kind: "group", id: groupId } : null);
   const countdown = useMeetingCountdown(groupId);
   const closeControl = useGroupCloseControlWhile(groupId, hovered && !renaming);

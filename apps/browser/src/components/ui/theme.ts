@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, use } from "react";
 import { opaqueThemeTint, PRESET_BACKDROP, resolveTheme, requestedDarkFor, shownLook, themeAccent, themeBackdrop, themePalette, type LookSource, type ProfileColor, type ProfileLookFields, type ProfileTheme } from "../../lib/profileLook";
 import type { ThemeBackdropProps } from "@ardia/core";
 import { backdropTint, opaqueTint, tintForHue, type BackdropTint } from "../../lib/windowTint";
@@ -118,9 +118,10 @@ export function scopedTheme(incognito: boolean, profile: ProfileLookFields | und
 }
 
 export const ThemeContext = createContext<Theme | null>(null);
+export const PageThemeContext = createContext<Theme | null>(null);
 
 export function useTheme(): Theme {
-  const scoped = useContext(ThemeContext);
+  const scoped = use(PageThemeContext) ?? use(ThemeContext);
   if (scoped) return scoped;
   if (__DEV__) console.warn("useTheme outside a ThemeScope");
   return themeFor("plum:dark");

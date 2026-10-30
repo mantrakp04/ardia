@@ -5,7 +5,7 @@ import { tabDragging } from "../../state/drag/tabDrag";
 import { useShownTabIdFor, useStripEntries } from "../../state/tabs/topStrip";
 import { setMeasuredWidth, useMeasuredWidths } from "../../state/windows/measuredWidths";
 import { usePageStyle } from "../../state/windows/profilePager";
-import { ThemeScope } from "../window/ThemeScope";
+import { PageThemeScope } from "../window/ThemeScope";
 import { DockContext, FloatingStrip } from "./context";
 import { IncomingGap, useIncomingTab } from "./IncomingTab";
 import { chipKey, folderKey, type Strip } from "./model";
@@ -65,7 +65,7 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
       style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: pageWidth + flare * 2, display: resting ? "none" : "flex", ...pageStyle }}
     >
       <PageProfileContext.Provider value={profileId}>
-        <ThemeScope>
+        <PageThemeScope>
           <DockContext.Provider value={strip}>
             <ScrollView
               ref={scroll}
@@ -103,7 +103,7 @@ export const StripPage = memo(function StripPage({ profileId, slot, pageWidth, c
               <NewTabButton windowId={windowId} geometry={top} />
             </ScrollView>
           </DockContext.Provider>
-        </ThemeScope>
+        </PageThemeScope>
       </PageProfileContext.Provider>
     </Animated.View>
   );
