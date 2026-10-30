@@ -86,6 +86,25 @@ test("empty Space keys cannot make pairing ready or hide a valid default Space",
   }
 });
 
+test("blank identity seed keys cannot override a valid seed or the default Space hint", () => {
+  for (const key of ["identity:", "identity: ", "identity:\t"]) for (const seeded of [false, true]) {
+    useBrowser.getState().hydrate({});
+    const doc = { ...emptyDoc(), joining: true, setupAt: Date.now() };
+    const app = { ...emptyScope(), records: {
+      [key]: record({ n: "Invalid", i: null, seed: true }),
+      ...(seeded ? { "identity:personal": record({ n: "Personal", i: null, seed: true }) } : {}),
+      "identity:work": record({ n: "Work", i: null }),
+      "prof:home": record({ ...remoteSpace, d: true, p: "work" }),
+    } };
+    doc.scopes[APP_SCOPE] = app;
+    linkSpaces(doc, app);
+    const expected = seeded ? "personal" : "work";
+    assert.equal(doc.profiles.default.syncId, expected);
+    assert.equal(doc.scopes[`data:${expected}`].awaitRemote, true);
+    assert.equal(doc.spaces.default.syncId, "home");
+  }
+});
+
 test("a newly paired default Space waits for its assigned Profile without publishing the old assignment", () => {
   useBrowser.getState().hydrate({});
   const doc = { ...emptyDoc(), joining: true, setupAt: Date.now() };

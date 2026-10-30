@@ -32,7 +32,7 @@ export function linkSpaces(doc: SyncDoc, app: ScopeState) {
   for (const p of Object.values(s.profiles)) {
     if (doc.profiles[p.id]) continue;
     const hint = defaultSpace?.[1].p;
-    const remote = doc.joining && p.id === "default" ? [...visible(app, "identity:")].find(([, value]) => identityRecord(value)?.seed)?.[0].slice(9) ?? hint : undefined;
+    const remote = doc.joining && p.id === "default" ? [...visible(app, "identity:")].find(([key, value]) => key.slice(9).trim() && identityRecord(value)?.seed)?.[0].slice(9) || hint : undefined;
     if (doc.joining && !pairingOverdue(doc, Date.now()) && p.id === "default" && !remote && (app.pending || Object.keys(app.damaged).length)) continue;
     const syncId = remote ?? SyncNative!.newDeviceId();
     doc.profiles[p.id] = { syncId, enabled: true, topAppsEnabled: true, ...(remote && !app.records[profileKey(remote)]?.v ? { adopting: true as const } : {}) };
