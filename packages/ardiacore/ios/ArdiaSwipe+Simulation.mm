@@ -81,7 +81,6 @@ NSEvent *SyntheticScroll(NSWindow *window, NSPoint point, NSDictionary *step, ui
 NSEvent *SyntheticButton(NSWindow *window, NSPoint point, BOOL down, NSInteger button) {
   CGEventRef cg = CGEventCreateMouseEvent(NULL, down ? kCGEventOtherMouseDown : kCGEventOtherMouseUp, CGPointZero, (CGMouseButton)button);
   if (!cg) return nil;
-  CGEventSetIntegerValueField(cg, kCGMouseEventButtonNumber, button);
   PlaceInWindow(cg, window, point);
   NSEvent *event = [NSEvent eventWithCGEvent:cg];
   CFRelease(cg);

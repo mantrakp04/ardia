@@ -4,7 +4,7 @@ import { Animated, type NativeSyntheticEvent, type ViewProps } from "react-nativ
 import { nativeModule } from "./nativeModules";
 
 export type SwipeEvent = {
-  phase: "began" | "changed" | "ended" | "cancelled" | "swipe" | "wheel" | "buttonDown" | "buttonUp";
+  phase: "began" | "changed" | "ended" | "cancelled" | "swipe" | "wheel";
   direction: "back" | "forward";
   distance: number;
   dy: number;
