@@ -521,28 +521,33 @@ try {
     assert.equal(routing(result)?.fallback, false, "an ordinary sidebar hit should match directly");
     return result;
   });
-  await test("mouse side buttons over the sidebar page between profiles", async () => {
+  const click = (button) => [{ phase: "buttonDown", button }, { phase: "buttonUp", button }];
+  await test("mouse side buttons over the sidebar page between profiles on release", async () => {
     await reset();
-    const forward = await simulate([{ phase: "button", button: 4 }]);
+    const pressed = await simulate([{ phase: "buttonDown", button: 4, delayMs: 300 }]);
+    assert.equal(await profile(), "default", "pressing alone does not switch");
+    const released = await simulate([{ phase: "buttonUp", button: 4 }]);
     await waitProfile("work");
-    const back = await simulate([{ phase: "button", button: 3 }]);
+    const back = await simulate(click(3));
     await waitProfile("default");
-    const edge = await simulate([{ phase: "button", button: 3 }]);
+    const edge = await simulate(click(3));
     await sleep(350);
     assert.equal(await profile(), "default", "back on the first profile stays put");
-    const middle = await simulate([{ phase: "button", button: 2 }]);
-    for (const result of [forward, back, edge]) assert.equal(result.events[0].swallowed, true, "a side button over the sidebar is the pager's");
-    assert.equal(middle.events[0].swallowed, false, "other buttons pass through");
-    return { forward, back, edge, middle };
+    const middle = await simulate(click(2));
+    for (const result of [pressed, released, back, edge]) assert.ok(result.events.every((e) => e.swallowed), "side buttons over the sidebar are the pager's");
+    assert.ok(middle.events.every((e) => !e.swallowed), "other buttons pass through");
+    return { pressed, released, back, edge, middle };
   });
-  await test("mouse side buttons over a web page leave page navigation to Chrome", async () => {
+  await test("the press decides: sidebar press with a page release switches, page press with a sidebar release doesn't", async () => {
     await reset();
     const source = (await nativeWindow()).window;
-    const result = await ac(`return globalThis.expo.modules.ArdiaSwipe.devSimulate(700, 400, ${source}, ${JSON.stringify([{ phase: "button", button: 4 }])}, true);`);
+    const fromSidebar = await simulate([{ phase: "buttonDown", button: 4 }, { phase: "buttonUp", button: 4, x: 700, y: 400 }]);
+    await waitProfile("work");
+    const fromPage = await ac(`return globalThis.expo.modules.ArdiaSwipe.devSimulate(700, 400, ${source}, ${JSON.stringify([{ phase: "buttonDown", button: 3 }, { phase: "buttonUp", button: 3, x: 120, y: 400 }])}, true);`);
     await sleep(350);
-    assert.equal(result.events[0].swallowed, false, "a side button over the page must reach Chrome");
-    assert.equal(await profile(), "default", "a side button over the page must not switch profiles");
-    return result;
+    assert.equal(await profile(), "work", "a press over the page belongs to the page");
+    assert.ok(fromPage.events.every((e) => !e.swallowed), "the page's press and release reach Chrome");
+    return { fromSidebar, fromPage };
   });
   await test("a tracked swipe right after a discrete swipe goes back too", async () => {
     await reset();

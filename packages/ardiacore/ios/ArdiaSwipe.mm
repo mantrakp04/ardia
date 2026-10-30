@@ -72,7 +72,12 @@ constexpr NSInteger kBackButton = 3;
 
 constexpr NSInteger kForwardButton = 4;
 
-NSInteger gSwallowedButton = -1;
+struct SideButtonPress {
+  NSInteger button = -1;
+  __weak NSView<ArdiaSwipeTarget> *target;
+};
+
+SideButtonPress gSideButton;
 
 }
 
@@ -381,36 +386,37 @@ BOOL HandleDiscreteSwipe(NSWindow *window, NSPoint location, CGFloat deltaX) {
   return YES;
 }
 
-BOOL HandleSideButton(NSWindow *window, NSPoint location, NSInteger button) {
-  if (button != kBackButton && button != kForwardButton) return NO;
+NSView<ArdiaSwipeTarget> *SideButtonPager(NSWindow *window, NSPoint location, NSInteger button) {
+  if (button != kBackButton && button != kForwardButton) return nil;
   NSView<ArdiaSwipeTarget> *target = nil;
   BOOL fallback = NO;
   ResolveHit(window, location, &target, &fallback);
   if (!target || !IsPager(target)) {
     Diag(@{@"diag" : @"sideButton", @"button" : @(button), @"reject" : target ? @"notPager" : @"noTarget"});
-    return NO;
+    return nil;
   }
-  BOOL back = button == kBackButton;
-  BOOL available = back ? target.canSwipeBack : target.canSwipeForward;
-  Diag(@{@"diag" : @"sideButton", @"button" : @(button), @"available" : @(available)});
-  if (available) SendDiscreteSwipe(target, back);
-  return YES;
+  return target;
+}
+
+NSEvent *HandleOtherMouse(NSEvent *event) {
+  if (event.type == NSEventTypeOtherMouseDown) {
+    NSView<ArdiaSwipeTarget> *pager = SideButtonPager(event.window, event.locationInWindow, event.buttonNumber);
+    gSideButton = pager ? SideButtonPress{event.buttonNumber, pager} : SideButtonPress();
+    return pager ? nil : event;
+  }
+  if (event.buttonNumber != gSideButton.button) return event;
+  NSView<ArdiaSwipeTarget> *pager = gSideButton.target;
+  gSideButton = SideButtonPress();
+  BOOL back = event.buttonNumber == kBackButton;
+  BOOL available = back ? pager.canSwipeBack : pager.canSwipeForward;
+  Diag(@{@"diag" : @"sideButton", @"button" : @(event.buttonNumber), @"available" : @(available)});
+  if (available) SendDiscreteSwipe(pager, back);
+  return nil;
 }
 
 }
 
 namespace {
-
-NSEvent *HandleOtherMouse(NSEvent *event) {
-  if (event.type == NSEventTypeOtherMouseDown) {
-    if (!HandleSideButton(event.window, event.locationInWindow, event.buttonNumber)) return event;
-    gSwallowedButton = event.buttonNumber;
-    return nil;
-  }
-  if (event.buttonNumber != gSwallowedButton) return event;
-  gSwallowedButton = -1;
-  return nil;
-}
 
 void InstallMonitor() {
   if (gMonitor) return;
