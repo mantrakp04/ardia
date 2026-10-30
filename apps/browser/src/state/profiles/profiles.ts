@@ -2,6 +2,7 @@ import type { StateCreator } from "zustand";
 import type { BrowserState } from "../browser/store";
 import { engineBookmarkRoots, ensureRoots, removeBookmarkTree } from "../bookmarks/bookmarks";
 import { engineProfile, incognitoOriginal, newId, viewTabIds, without } from "../browser/model";
+import { handPagesOutOfProfile } from "../pins/pinShare";
 import { DEFAULT_PROFILE_ID } from "../settings/settings";
 import { activated, apply, removeTabs, withNewTab } from "../tabs/tabs";
 import type { Profile, ProfileColor } from "../browser/types";
@@ -27,7 +28,7 @@ const COLORS: ProfileColor[] = ["blue", "green", "orange", "purple", "red", "yel
 export const unusedProfileColor = (profiles: Record<string, Profile>): ProfileColor =>
   COLORS.find((c) => !Object.values(profiles).some((p) => p.color === c)) ?? "blue";
 
-const dataIdOf = (profile: Profile) => profile.dataId ?? profile.id;
+export const dataIdOf = (profile: Pick<Profile, "id" | "dataId">) => profile.dataId ?? profile.id;
 
 export function dataGroups(s: Pick<BrowserState, "profiles" | "profileOrder">): { dataId: string; profileIds: string[] }[] {
   const groups = new Map<string, string[]>();
@@ -80,7 +81,7 @@ export const createProfilesSlice: StateCreator<BrowserState, [], [], ProfilesSli
     deleteProfile(id) {
       if (!get().profiles[id] || get().profileOrder.length <= 1) return;
       for (const w of Object.values(get().windows)) if (w.kind === "private" && incognitoOriginal(w.profileId) === id) get().closeWindow(w.id);
-      let s = get();
+      let s = handPagesOutOfProfile(get(), id);
       const profileOrder = s.profileOrder.filter((p) => p !== id);
       const fallback = s.settings.defaultProfileId === id ? profileOrder[0]! : s.settings.defaultProfileId;
       const settings = {
