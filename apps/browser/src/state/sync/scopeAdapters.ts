@@ -10,6 +10,8 @@ export const deviceName = () => SyncNative?.deviceName() ?? "This Mac";
 export function appAdapters(doc: SyncDoc, retiring: boolean): Adapter[] {
   const id = doc.deviceId!;
   if (retiring) return [deviceAdapter(id, deviceName, true)];
+  const app = doc.scopes[APP_SCOPE];
+  if (app) app.unapplied = [...new Set([...app.unapplied, ...Object.values(doc.spaces).filter((link) => link.enabled && link.adopting).map((link) => `prof:${link.syncId}`)])];
   const enabledLinks = () => Object.fromEntries(Object.entries(doc.spaces).filter(([, l]) => l.enabled));
   return [
     ...(doc.types.settings ? [inTodaysNames(settingsAdapter)] : []),

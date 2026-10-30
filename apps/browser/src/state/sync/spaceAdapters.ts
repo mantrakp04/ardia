@@ -44,7 +44,7 @@ export function legacyThemeOf(record: SpaceRecord): Pick<Space, "theme"> | null 
   return theme ? { theme } : null;
 }
 
-export function spacesAdapter(links: () => Record<string, { syncId: string; pendingProfileId?: string; publishAssignment?: true }>, profiles: () => Record<string, ProfileLink> = () => ({})): Adapter {
+export function spacesAdapter(links: () => Record<string, { syncId: string; adopting?: true; pendingProfileId?: string; publishAssignment?: true }>, profiles: () => Record<string, ProfileLink> = () => ({})): Adapter {
   const linked = () => Object.entries(links()).filter(([id]) => store().spaces[id]);
   return {
     prefix: PROFILE,
@@ -55,7 +55,7 @@ export function spacesAdapter(links: () => Record<string, { syncId: string; pend
       for (const [id, { syncId }] of linked()) {
         const p = store().spaces[id]!;
         const assignment = profiles()[p.profileId];
-        if (!assignment || all[id]?.pendingProfileId || !known(profileKey(assignment.syncId))) continue;
+        if (!assignment || all[id]?.adopting || all[id]?.pendingProfileId || !known(profileKey(assignment.syncId))) continue;
         values.set(`prof:${syncId}`, {
           n: p.name,
           c: p.color,
@@ -82,6 +82,7 @@ export function spacesAdapter(links: () => Record<string, { syncId: string; pend
           else { store().assignSpaceProfile(id, profileId); delete link.pendingProfileId; }
         } else delete link.pendingProfileId;
         store().updateSpace(id, { name: record.n, color: record.c, icon: record.i, ...legacy });
+        delete link.adopting;
       }
       const order = store().spaceOrder;
       const slots = order.map((id, i) => links()[id] && visible.has(`prof:${links()[id]!.syncId}`) ? i : -1).filter((i) => i >= 0);

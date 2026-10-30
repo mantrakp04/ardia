@@ -221,6 +221,44 @@ async function join(mac, engine) {
   await settle([[mac, engine]]);
 }
 
+for (const live of [false, true]) test(`a default Space on another Profile pairs while preserving ${live ? "live content" : "the seeded identity"}`, async () => {
+  folder.clear();
+  const a = new Mac("A");
+  const b = new Mac("B");
+  const engineA = await import(`./engine.ts?defaultOtherA${live}`);
+  const engineB = await import(`./engine.ts?defaultOtherB${live}`);
+  let work;
+  await a.with(() => {
+    work = S().createProfile({ name: "Work" });
+    S().assignSpaceProfile("default", work);
+    S().updateSpace("default", { name: "Study", color: "blue" });
+  });
+  let tab;
+  if (live) await b.with(() => {
+    const window = S().createWindow({ spaceId: "default" });
+    tab = S().newTab(window, { url: "https://unsaved.test/", spaceId: "default" });
+  });
+  await turnOn(a, engineA);
+  await join(b, engineB);
+  await settle([[a, engineA], [b, engineB]]);
+  await b.with(() => {
+    const ui = engineB.useSync.getState();
+    assert.equal(ui.spaces.default.syncId, engineA.useSync.getState().spaces.default.syncId);
+    assert.equal(ui.profiles.default.syncId, engineA.useSync.getState().profiles.default.syncId);
+    const target = Object.keys(ui.profiles).find((id) => ui.profiles[id].syncId === engineA.useSync.getState().profiles[work].syncId);
+    assert.ok(target);
+    assert.equal(ui.profiles[target].enabled, false);
+    assert.equal(ui.profiles[target].topAppsEnabled, false);
+    assert.equal(S().spaces.default.name, "Study");
+    assert.equal(S().spaces.default.color, "blue");
+    assert.equal(S().spaces.default.profileId, live ? "default" : target);
+    assert.equal(ui.spaces.default.pendingProfileId, live ? target : undefined);
+    if (live) assert.ok(S().tabs[tab]);
+    assert.deepEqual(ui.remoteSpaces, []);
+  });
+  await a.with(() => assert.equal(S().spaces.default.profileId, work));
+});
+
 test("joining without a remote theme releases Space adoption and publishes a later local theme", async () => {
   folder.clear();
   const a = new Mac("A");
