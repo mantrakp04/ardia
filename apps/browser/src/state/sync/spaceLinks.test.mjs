@@ -35,6 +35,21 @@ test("a joining Mac can create its own default Space link after the pairing dead
   assert.notEqual(doc.spaces.default.syncId, "school");
 });
 
+test("default Profile pairing uses only string remote Profile IDs", () => {
+  for (const p of [7, true, {}, [], "personal"]) {
+    useBrowser.getState().hydrate({});
+    const doc = { ...emptyDoc(), joining: true, setupAt: Date.now() };
+    const app = { ...emptyScope(), records: { "prof:home": record({ ...remoteSpace, d: true, p }) } };
+    doc.scopes[APP_SCOPE] = app;
+    linkSpaces(doc, app);
+    assert.equal(typeof doc.profiles.default.syncId, "string");
+    if (typeof p === "string") {
+      assert.equal(doc.profiles.default.syncId, p);
+      assert.equal(doc.spaces.default.syncId, "home");
+    } else assert.equal(doc.spaces.default, undefined);
+  }
+});
+
 test("adding a remote Space leaves new Profile data and Top Apps consent off", () => {
   useBrowser.getState().hydrate({});
   const doc = emptyDoc();

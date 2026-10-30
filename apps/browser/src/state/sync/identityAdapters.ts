@@ -9,7 +9,7 @@ export type ProfileRecord = { n: string; i: string | null; seed?: true };
 export const profileKey = (syncId: string) => `identity:${syncId}`;
 
 export const identityRecord = (value: unknown): ProfileRecord | null =>
-  isFields(value) && isString(value.n) && (value.i === null || isString(value.i)) && (value.seed === undefined || value.seed === true) ? value as ProfileRecord : null;
+  isFields(value) && isString(value.n) && value.n.trim() !== "" && (value.i === null || isString(value.i)) && (value.seed === undefined || value.seed === true) ? value as ProfileRecord : null;
 
 export function profilesAdapter(links: () => Record<string, ProfileLink>): Adapter {
   return {

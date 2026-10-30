@@ -22,7 +22,8 @@ export function linkSpaces(doc: SyncDoc, app: ScopeState) {
   const s = useBrowser.getState();
   for (const p of Object.values(s.profiles)) {
     if (doc.profiles[p.id]) continue;
-    const hint = [...visible(app, "prof:")].map(([, value]) => value as SpaceRecord).find((record) => record.d)?.p;
+    const defaultRecord = [...visible(app, "prof:")].map(([, value]) => value as SpaceRecord).find((record) => record.d);
+    const hint = typeof defaultRecord?.p === "string" ? defaultRecord.p : undefined;
     const remote = doc.joining && p.id === "default" ? [...visible(app, "identity:")].find(([, value]) => identityRecord(value)?.seed)?.[0].slice(9) ?? hint : undefined;
     if (doc.joining && !pairingOverdue(doc, Date.now()) && p.id === "default" && !remote && (app.pending || Object.keys(app.damaged).length)) continue;
     const syncId = remote ?? SyncNative!.newDeviceId();
