@@ -66,7 +66,7 @@ function find(tree, type) {
   return [...(tree.type === type ? [tree] : []), ...find(tree.children, type)];
 }
 
-for (const [title, showUrls, label] of [["", false, null], ["", true, "https://example.com/"], ["Example", false, "Example"]]) {
+for (const [title, showUrls, label, iconOnlyWidth] of [["", false, null, 30], ["", true, "https://example.com/", undefined], ["Example", false, "Example", undefined]]) {
   test(`bookmark label ${JSON.stringify(title)} with untitled URLs ${showUrls ? "on" : "off"}`, () => {
     const state = () => useBrowser.getState();
     state().hydrate({});
@@ -76,6 +76,9 @@ for (const [title, showUrls, label] of [["", false, null], ["", true, "https://e
     const tree = render({ type: BarItem, props: { id, windowId, profileId: "default", hidden: false, offset: 0, onLayout: () => {} } });
     assert.deepEqual(find(tree, "Text").map((text) => text.children), label === null ? [] : [label]);
     assert.equal(find(tree, "View").find((view) => view.props.tooltip)?.props.tooltip, title ? `${title}\nhttps://example.com/` : "https://example.com/");
+    assert.equal(find(tree, "Pressable")[0]?.props.accessibilityLabel, title || "https://example.com/");
     assert.equal(find(tree, "Favicon").length, 1);
+    const chip = find(tree, "View").find((view) => view.props.style && "maxWidth" in view.props.style);
+    assert.equal(chip.props.style.width, iconOnlyWidth);
   });
 }
