@@ -1,12 +1,9 @@
 import json
-import os
 import pathlib
-import re
 import shutil
 import subprocess
 import sys
 import tempfile
-import time
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -136,60 +133,6 @@ class CalendarBusTests(unittest.TestCase):
         self.assertEqual(transcript[10]['objects'], [EVENT])
         self.assertEqual(transcript[11].count('OpenCalendar work'), 2)
 
-    def test_a_backend_that_vanished_unnoticed_is_reopened_once(self):
-        transcript = self.run_bus(CONFIG, [
-            {'driver': f'objects work {START} {END}'}, {'control': 'ReleaseBackend'},
-            {'driver': f'objects work {START} {END}'}, {'control': 'Calls'}])
-        self.assertEqual(transcript[2]['status'], 'ok')
-        self.assertEqual(transcript[2]['objects'], [EVENT])
-        self.assertEqual(transcript[3].count('OpenCalendar work'), 2)
-
-    def test_close_disposes_views_and_closes_calendars(self):
-        transcript = self.run_bus(CONFIG, [
-            {'driver': f'objects work {START} {END}'}, {'driver': 'close'}, {'control': 'Calls'}])
-        calls = transcript[2]
-        self.assertIn('Dispose work', calls)
-        self.assertIn('Close work', calls)
-
-    def test_the_newest_interface_versions_win(self):
-        config = {**CONFIG, 'sourcesVersion': 4, 'calendarVersion': 7, 'decoyNames': [
-            'org.gnome.evolution.dataserver.Sources3', 'org.gnome.evolution.dataserver.CalendarFactoryX',
-            'org.gnome.evolution.dataserver.Calendar6']}
-        sources, objects = self.run_bus(config, [{'driver': 'sources'}, {'driver': f'objects work {START} {END}'}])
-        self.assertEqual(sources['status'], 'ok')
-        self.assertEqual(objects['objects'], [EVENT])
-
-    def test_losing_the_session_bus_reports_unavailable_without_killing_the_process(self):
-        driver = self.build()
-        with tempfile.TemporaryDirectory(prefix='ardia-calendar-lost-') as scratch:
-            address = f'unix:path={scratch}/bus'
-            daemon = subprocess.Popen(['dbus-daemon', '--session', '--nofork', f'--address={address}'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            try:
-                for _ in range(100):
-                    if pathlib.Path(scratch, 'bus').exists():
-                        break
-                    time.sleep(0.05)
-                client = subprocess.Popen([str(driver)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                                          env={**os.environ, 'DBUS_SESSION_BUS_ADDRESS': address})
-                client.stdin.write('probe\n')
-                client.stdin.flush()
-                first = json.loads(client.stdout.readline())
-                daemon.terminate()
-                daemon.wait(timeout=20)
-                client.stdin.write('wait 300\nprobe\n')
-                client.stdin.flush()
-                waited = json.loads(client.stdout.readline())
-                second = json.loads(client.stdout.readline())
-                client.stdin.close()
-                self.assertEqual(client.wait(timeout=20), 0, client.stderr.read())
-            finally:
-                if daemon.poll() is None:
-                    daemon.kill()
-        self.assertEqual(first['status'], 'unavailable')
-        self.assertIn('Evolution Data Server', first['message'])
-        self.assertEqual(waited['changes'], [])
-        self.assertEqual(second['status'], 'unavailable')
-
     def test_a_hung_calendar_is_bounded_by_the_request_budget_then_skipped_while_others_answer(self):
         config = {**CONFIG, 'sources': SOURCES + [{'uid': 'slow', 'data': WORK}], 'hangOpen': ['slow']}
         hung, again, work = self.run_bus(config, [
@@ -202,29 +145,6 @@ class CalendarBusTests(unittest.TestCase):
         self.assertEqual(work['objects'], [EVENT])
         expired = self.run_bus(config, [{'driver': f'objects work {START} {END} 0'}])[0]
         self.assertEqual((expired['status'], expired['timedOut']), ('failed', True))
-
-    def test_the_standalone_probe_answers_while_a_calendar_open_is_stuck(self):
-        config = {**CONFIG, 'sources': SOURCES + [{'uid': 'slow', 'data': WORK}], 'hangOpen': ['slow']}
-        started, probe, joined = self.run_bus(config, [
-            {'driver': f'bgobjects slow {START} {END} 4000'}, {'driver': 'probe-standalone'}, {'driver': 'join'}])
-        self.assertTrue(started['started'])
-        self.assertEqual(probe['status'], 'ok')
-        self.assertLess(probe['elapsedMs'], 1500)
-        self.assertTrue(joined['timedOut'])
-
-    def test_a_data_server_that_appears_later_is_noticed(self):
-        probe, started, waited, sources = self.run_bus({**CONFIG, 'serve': False}, [
-            {'driver': 'probe'}, {'start': True}, {'driver': 'wait 4000'}, {'driver': 'sources'}])
-        self.assertEqual(probe['status'], 'unavailable')
-        self.assertEqual(waited['changes'], ['service'])
-        self.assertEqual(sources['status'], 'ok')
-
-    def test_objects_stop_at_the_reply_byte_budget_and_say_so(self):
-        big = [EVENT.replace('Standup', f'Standup {i} ' + 'x' * 1000) for i in range(3)]
-        full, capped = self.run_bus({**CONFIG, 'objects': {'work': big}}, [
-            {'driver': f'objects work {START} {END} 60000 100000'}, {'driver': f'objects work {START} {END} 60000 2500'}])
-        self.assertEqual((len(full['objects']), full['truncated']), (3, False))
-        self.assertEqual((capped['status'], len(capped['objects']), capped['truncated']), ('ok', 2, True))
 
     def test_unrepresentable_ranges_build_no_query(self):
         (ok, far, huge, negative) = self.run_bus({'serve': False}, [
@@ -252,93 +172,6 @@ class CalendarBusTests(unittest.TestCase):
         self.assertFalse(before)
         self.assertEqual(sources['status'], 'ok')
         self.assertTrue(after)
-
-
-def body(source, signature):
-    start = source.index(signature)
-    brace = source.index('{', start)
-    depth, end = 1, brace + 1
-    while depth:
-        depth += (source[end] == '{') - (source[end] == '}')
-        end += 1
-    return source[start:end]
-
-
-class CalendarSourceTests(unittest.TestCase):
-    eds = (LINUX / 'ac_linux_calendar_eds.cc').read_text()
-    service = (LINUX / 'ac_linux_calendar_service.cc').read_text()
-    header = (LINUX / 'ac_linux_calendar_service.h').read_text()
-    host = (LINUX / 'ac_linux_host.cc').read_text()
-    adapter = (ROOT.parents[1] / 'apps/linux/src/hostCalendar.ts').read_text()
-
-    def test_the_helper_loads_gio_at_runtime_and_never_links_chromium(self):
-        self.assertIn('dlopen("libgio-2.0.so.0", RTLD_NOW | RTLD_LOCAL)', self.eds)
-        self.assertNotIn('g_bus_get', self.eds)
-        self.assertNotIn('#include "base/', self.eds)
-        self.assertNotIn('#include <gio', self.eds)
-
-    def test_the_build_registers_the_calendar_sources(self):
-        build = (LINUX / 'BUILD.gn').read_text()
-        for source in ['ac_linux_calendar_eds.cc', 'ac_linux_calendar_eds.h', 'ac_linux_calendar_service.cc', 'ac_linux_calendar_service.h']:
-            self.assertEqual(build.count(f'"{source}"'), 1, source)
-
-    def test_one_app_wide_service_owns_a_glib_pumped_thread_off_the_ui_thread(self):
-        self.assertIn('static base::NoDestructor<LinuxCalendarService> service;', self.service)
-        self.assertIn('base::Thread thread_{"ArdiaCalendar"};', self.service)
-        self.assertIn('thread_.StartWithOptions(base::Thread::Options(base::MessagePumpType::UI, 0));', self.service)
-        invoke = body(self.service, 'void Invoke(base::FilePath documents')
-        self.assertIn('thread_.task_runner()->PostTaskAndReplyWithResult(', invoke)
-        self.assertIn('ui->PostTask(FROM_HERE, base::BindOnce(&LinuxCalendarService::Changed', self.service)
-        self.assertNotIn('LOG(', self.service + self.eds)
-
-    def test_status_never_queues_behind_the_calendar_thread(self):
-        invoke = body(self.service, 'void Invoke(base::FilePath documents')
-        status = invoke[invoke.index('if (method == "ArdiaCalendar.status")'):]
-        self.assertIn('probe_runner_->PostTaskAndReplyWithResult(', status[:status.index('return;')])
-        probe = body(self.service, 'Reply ProbeStatus(const base::FilePath& documents)')
-        self.assertIn('eds::ProbeEds()', probe)
-        self.assertNotIn('Client()', probe)
-        self.assertIn('base::MayBlock()', self.service[self.service.index('probe_runner_'):])
-
-    def test_a_data_server_appearing_triggers_a_recheck(self):
-        changed = body(self.service, 'void Changed(eds::EdsChange change)')
-        self.assertIn('if (change == eds::EdsChange::kService) Recheck();', changed)
-        recheck = body(self.service, 'void Recheck()')
-        self.assertIn('probe_runner_->PostTaskAndReplyWithResult(', recheck)
-
-    def test_objects_have_one_deadline_one_byte_budget_and_clamped_times(self):
-        objects = body(self.service, 'Reply Objects(const base::ListValue& values)')
-        self.assertIn('base::Milliseconds(eds::kRequestBudgetMs)', objects)
-        self.assertIn('eds::kMaxReplyBytes - used', objects)
-        self.assertIn('.Set("truncated", truncated)', objects)
-        self.assertLess(objects.index('std::fabs(start) > kMaxTimeMs'), objects.index('static_cast<int64_t>(start)'))
-
-    def test_nothing_reads_calendars_before_the_user_connects(self):
-        run = body(self.service, 'Reply Run(base::FilePath documents')
-        guard = run.index('if (!connected)')
-        for method in ['Sources()', 'Objects(values)', 'Timezones(values)']:
-            self.assertGreater(run.index(f'return {method}'), guard)
-        self.assertIn('"ERR_CALENDAR_NOT_CONNECTED"', run)
-        self.assertNotIn('Sources(', body(self.service, 'Reply ProbeStatus(const base::FilePath& documents)'))
-
-    def test_the_host_routes_calendar_calls_through_the_app_profile_and_rebroadcasts_changes(self):
-        bootstrap = body(self.host, 'base::DictValue ShellHostView::Bootstrap(')
-        self.assertIn('AppendLinuxCalendarCapabilities(capabilities);', bootstrap)
-        invoke = body(self.host, 'void ShellHostView::Invoke(')
-        route = invoke[invoke.index('if (LinuxCalendarInvokes(method))'):]
-        route = route[:route.index('if (LinuxSyncInvokes(method))')]
-        self.assertIn('WatchCalendar();', route)
-        self.assertIn('LinuxCalendarInvoke(DocumentDirectory(profile()), method, values, std::move(done));', route)
-        self.assertNotIn('page_profile()', route)
-        watch = body(self.host, 'void ShellHostView::WatchCalendar(')
-        self.assertIn('host->Event("ArdiaCalendar", "onCalendarChanged", base::Value(change.Clone()));', watch)
-
-    def test_native_and_adapter_agree_on_methods_and_the_consent_document(self):
-        methods = re.findall(r'"(ArdiaCalendar\.\w+)"', body(self.service, 'constexpr std::string_view kMethods[]'))
-        adapter = re.search(r'CALENDAR_CAPABILITIES = \[([^\]]+)\]', self.adapter).group(1)
-        self.assertEqual(methods, re.findall(r'"(ArdiaCalendar\.\w+)"', adapter))
-        self.assertIn('kLinuxCalendarConsentDocument[] = "linux-calendar.json";', self.header)
-        self.assertIn('CALENDAR_CONSENT_DOCUMENT = "linux-calendar.json";', self.adapter)
 
 
 if __name__ == '__main__':

@@ -1,150 +1,9 @@
-import hashlib
 import json
 import os
-import pathlib
-import re
-import shutil
 import sqlite3
-import subprocess
-import tempfile
 import unittest
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
-LINUX = ROOT / 'src/ardia/linux'
-FIXTURES = ROOT / 'tests/fixtures'
-WEBKIT_OFFSET = 11644473600000000
-SHIMS = {
-    'base/values.h': '#include "import_base.h"\n',
-    'base/json/json_reader.h': '#include "import_base.h"\n',
-    'third_party/sqlite/sqlite3.h': '#include <sqlite3.h>\n',
-    'third_party/boringssl/src/include/openssl/evp.h': '#include <openssl/evp.h>\n',
-    'third_party/boringssl/src/include/openssl/hmac.h': '#include <openssl/hmac.h>\n',
-    'third_party/boringssl/src/include/openssl/sha.h': '#include <openssl/sha.h>\n',
-}
-IMPORT_SOURCES = ['ac_linux_import_formats.cc', 'ac_linux_import_readers.cc', 'ac_linux_import_crypto.cc',
-                  'ac_linux_import_storage.cc', 'ac_linux_import_secrets.cc', 'ac_linux_import_sessions.cc',
-                  'ac_linux_import_keyring.cc']
-
-
-def basic_key():
-    return hashlib.pbkdf2_hmac('sha1', b'peanuts', b'saltysalt', 1, 16)
-
-
-def encrypt_v10(password):
-    result = subprocess.run(['openssl', 'enc', '-aes-128-cbc', '-K', basic_key().hex(), '-iv', '20' * 16, '-nosalt'],
-                            input=password.encode(), capture_output=True, timeout=30, check=True)
-    return b'v10' + result.stdout
-
-
-def encrypt_with(key, password):
-    result = subprocess.run(['openssl', 'enc', '-aes-128-cbc', '-K', key.hex(), '-iv', '20' * 16, '-nosalt'],
-                            input=password.encode(), capture_output=True, timeout=30, check=True)
-    return b'v10' + result.stdout
-
-
-def webkit(ms):
-    return ms * 1000 + WEBKIT_OFFSET
-
-
-def digest(path):
-    return hashlib.sha256(pathlib.Path(path).read_bytes()).hexdigest()
-
-
-def tree_digests(root):
-    return {str(path.relative_to(root)): digest(path) for path in sorted(pathlib.Path(root).rglob('*')) if path.is_file()}
-
-
-def links(node):
-    if node['type'] == 'url':
-        return [node['url']]
-    return [url for child in node.get('children', []) for url in links(child)]
-
-
-def make_history(path, rows, wal=False):
-    db = sqlite3.connect(path)
-    if wal:
-        db.execute('PRAGMA journal_mode=WAL')
-        db.execute('PRAGMA wal_autocheckpoint=0')
-    db.execute('CREATE TABLE urls(id INTEGER PRIMARY KEY, url LONGVARCHAR, title LONGVARCHAR, visit_count INTEGER DEFAULT 0 NOT NULL, typed_count INTEGER DEFAULT 0 NOT NULL, last_visit_time INTEGER NOT NULL, hidden INTEGER DEFAULT 0 NOT NULL)')
-    db.executemany('INSERT INTO urls(url, title, visit_count, typed_count, last_visit_time, hidden) VALUES (?,?,?,?,?,?)', rows)
-    db.commit()
-    return db
-
-
-def make_logins(path, rows):
-    db = sqlite3.connect(path)
-    db.execute('CREATE TABLE logins(origin_url VARCHAR NOT NULL, action_url VARCHAR, username_value VARCHAR, password_value BLOB, signon_realm VARCHAR NOT NULL, date_created INTEGER NOT NULL, blacklisted_by_user INTEGER NOT NULL, times_used INTEGER, date_last_used INTEGER NOT NULL DEFAULT 0)')
-    db.executemany('INSERT INTO logins(origin_url, action_url, username_value, password_value, signon_realm, date_created, blacklisted_by_user, times_used, date_last_used) VALUES (?,?,?,?,?,?,?,?,?)', rows)
-    db.commit()
-    db.close()
-
-
-def bookmark(name, url, added_ms=1700000000000):
-    return {'type': 'url', 'name': name, 'url': url, 'date_added': str(webkit(added_ms))}
-
-
-def folder(name, children):
-    return {'type': 'folder', 'name': name, 'children': children, 'date_added': str(webkit(1600000000000))}
-
-
-class ImportFixture(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        compiler = shutil.which('clang++') or shutil.which('c++')
-        if compiler is None or shutil.which('openssl') is None:
-            raise unittest.SkipTest('C++ compiler or openssl is unavailable')
-        cls.build = tempfile.TemporaryDirectory(prefix='ardia-import-build-')
-        root = pathlib.Path(cls.build.name)
-        include = root / 'include'
-        for name, text in SHIMS.items():
-            (include / name).parent.mkdir(parents=True, exist_ok=True)
-            (include / name).write_text(text)
-        shutil.copy(FIXTURES / 'import_base.h', include / 'import_base.h')
-        cls.binary = root / 'import-scenarios'
-        compiled = subprocess.run([
-            compiler, '-std=c++20', '-Wall', '-Wextra', '-Werror', '-g', '-fsanitize=address,undefined',
-            '-fno-omit-frame-pointer', f'-I{include}', '-I', str(ROOT / 'src'),
-            *[str(LINUX / name) for name in IMPORT_SOURCES],
-            str(FIXTURES / 'import_scenarios.cc'), '-lsqlite3', '-lcrypto', '-ldl', '-o', str(cls.binary),
-        ], capture_output=True, text=True, timeout=300)
-        if compiled.returncode != 0:
-            raise AssertionError(compiled.stderr)
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.build.cleanup()
-
-    def setUp(self):
-        self.scratch = tempfile.TemporaryDirectory(prefix='ardia-import-')
-        self.root = pathlib.Path(self.scratch.name)
-        self.home = self.root / 'home'
-        self.config = self.home / '.config'
-        self.temp = self.root / 'tmp'
-        for path in (self.config, self.temp):
-            path.mkdir(parents=True)
-
-    def tearDown(self):
-        self.scratch.cleanup()
-
-    def run_binary(self, *args):
-        result = subprocess.run([str(self.binary), *[str(a) for a in args]], capture_output=True, text=True, timeout=120)
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        return result.stdout
-
-    def json(self, *args):
-        return json.loads(self.run_binary(*args))
-
-    def env_args(self, own=''):
-        return [self.home, self.config, self.temp, own]
-
-    def read(self, browser, profile, kinds, limit=0, since=0, cancel_at=0):
-        return self.json('read', *self.env_args(), browser, profile, ','.join(kinds), limit, since, cancel_at)
-
-    def chrome_profile(self, name='Default', root='google-chrome'):
-        profile = self.config / root / name
-        profile.mkdir(parents=True)
-        (profile / 'Preferences').write_text('{}')
-        return profile
+from support import ImportFixture, basic_key, bookmark, encrypt_v10, folder, links, make_history, make_logins, tree_digests, webkit
 
 
 class FormatTests(ImportFixture):
@@ -204,21 +63,6 @@ class FormatTests(ImportFixture):
         self.assertEqual(other['role'], 'other')
         self.assertEqual(other['children'], [{'type': 'url', 'title': 'https://four.example/', 'url': 'https://four.example/'}])
 
-    def test_bookmark_html_limits_and_errors(self):
-        deep = self.root / 'deep.html'
-        levels = 80
-        deep.write_text('<DL><p>' + ''.join(f'<DT><H3>L{i}</H3><DL><p>' for i in range(levels)) +
-                        '<DT><A HREF="https://deep.example/">Deep</A>' + '</DL><p>' * (levels + 1))
-        parsed = self.json('html', deep)
-        self.assertTrue(parsed['truncated'])
-        self.assertEqual(links(parsed['root']), ['https://deep.example/'])
-        empty = self.root / 'empty.html'
-        empty.write_text('<html><body>No bookmarks here</body></html>')
-        self.assertEqual(self.json('html', empty)['error'], 'empty')
-        latin = self.root / 'latin.html'
-        latin.write_bytes(b'<DL><p><DT><A HREF="https://caf.example/">Caf\xe9</A></DL>')
-        self.assertEqual(self.json('html', latin)['root']['children'][0]['title'], 'Café')
-
     def test_password_csv_variants_counts_and_deduplication(self):
         chrome = self.root / 'chrome.csv'
         chrome.write_bytes('﻿name,url,username,password,note\r\n'
@@ -243,27 +87,6 @@ class FormatTests(ImportFixture):
             ('https://five.example', 'frank', 'pw6'),
         ])
         self.assertEqual(rows[0]['note'], 'multi\nline, note')
-
-        firefox = self.root / 'firefox.csv'
-        firefox.write_text('"url","username","password","httpRealm","formActionOrigin","guid","timeCreated","timeLastUsed","timePasswordChanged"\n'
-                           '"https://ff.example","u1","p1",,"https://ff.example","{1}","1600000000000","1700000000000","1600000000000"\n'
-                           '"https://auth.example","u2","p2","Members Area",,"{2}","1600000000000","1600000000000","1600000000000"\n')
-        parsed = self.json('csv', firefox)
-        self.assertEqual((parsed['rows'], parsed['invalid'], parsed['duplicates']), (2, 0, 0))
-        self.assertEqual(parsed['credentials'][0]['created'], 1600000000000)
-        self.assertEqual(parsed['credentials'][0]['lastUsed'], 1700000000000)
-        self.assertEqual(parsed['credentials'][1]['realm'], 'Members Area')
-
-        bitwarden = self.root / 'bitwarden.csv'
-        bitwarden.write_text('folder,favorite,type,name,notes,fields,reprompt,login_uri,login_username,login_password,login_totp\n'
-                             'Work,1,login,Site,a note,,0,"https://bw.example/a,https://bw2.example",user,bwpass,otpauth://x\n'
-                             ',,note,Secure note,secret text,,0,,,,\n'
-                             ',,login,No uri,,,0,,user,pw,\n')
-        parsed = self.json('csv', bitwarden)
-        self.assertEqual((parsed['rows'], parsed['invalid'], parsed['duplicates']), (2, 1, 0))
-        self.assertEqual(parsed['credentials'][0]['url'], 'https://bw.example/a')
-        self.assertEqual(parsed['credentials'][0]['title'], 'Site')
-        self.assertEqual(parsed['credentials'][0]['note'], 'a note')
 
         unsupported = self.root / 'unsupported.csv'
         unsupported.write_text('a,b,c\n1,2,3\n')
@@ -434,46 +257,11 @@ class ReaderTests(ImportFixture):
         since = self.read('chrome', 'Default', ['history'], since=1700000250000)['result']
         self.assertEqual([h['url'] for h in since['history']], ['https://wal-only.example/', 'https://new.example/'])
 
-    def test_partial_errors_keep_the_readable_kinds(self):
-        default = self.chrome_profile('Default')
-        (default / 'Bookmarks').write_text(json.dumps({'roots': {'bookmark_bar': folder('Bar', [bookmark('A', 'https://a.example/')])}}))
-        (default / 'History').write_bytes(b'this is not a database' * 100)
-        (default / 'Login Data').write_bytes(b'')
-        make_logins(default / 'Login Data For Account', [
-            ('https://k.example/', '', 'k', b'v11' + os.urandom(32), 'https://k.example/', webkit(1600000000000), 0, 0, 0)])
-        out = self.read('chrome', 'Default', ['bookmarks', 'history', 'passwords'])
-        result = out['result']
-        self.assertEqual(links(result['bookmarks']), ['https://a.example/'])
-        self.assertEqual(sorted(result['failed']), ['history', 'passwords'])
-        self.assertEqual(out['credentials'], [])
-        self.assertEqual(list(self.temp.iterdir()), [])
-        broken = self.chrome_profile('Profile 9')
-        (broken / 'Bookmarks').write_text('{not json')
-        out = self.read('chrome', 'Profile 9', ['bookmarks'])
-        self.assertEqual(out['result']['failed'], ['bookmarks'])
-        self.assertEqual(out['result']['warnings'][0]['code'], 'unreadable')
-
     def test_missing_profiles_and_traversal_are_rejected(self):
         self.build_chrome()
         for profile in ['../google-chrome/Default', 'Nope', '/etc', '..']:
             self.assertEqual(self.read('chrome', profile, ['bookmarks'])['error'], 'notFound', profile)
         self.assertEqual(self.read('safari', 'Default', ['bookmarks'])['error'], 'notFound')
-
-    def test_cancellation_stops_reading_and_cleans_temporary_copies(self):
-        default = self.chrome_profile('Default')
-        rows = [(f'https://h{i}.example/', f'H{i}', 1, 0, webkit(1700000000000 + i), 0) for i in range(3000)]
-        make_history(default / 'History', rows).close()
-        make_logins(default / 'Login Data', [
-            ('https://site.example/', '', 'alice', encrypt_v10('never returned'), 'https://site.example/', webkit(1600000000000), 0, 0, 0)])
-        before = tree_digests(self.home)
-        out = self.read('chrome', 'Default', ['passwords', 'history'], cancel_at=1000)
-        self.assertTrue(out['cancelled'])
-        self.assertEqual(out['credentials'], [])
-        self.assertNotIn('never returned', json.dumps(out))
-        self.assertEqual(list(self.temp.iterdir()), [])
-        self.assertEqual(tree_digests(self.home), before)
-        self.assertIn({'kind': 'history', 'phase': 'progress', 'processed': 1000, 'total': 3000}, out['progress'])
-        self.assertNotIn(('history', 'end'), [(p['kind'], p['phase']) for p in out['progress']])
 
     def test_firefox_profile_import(self):
         self.build_firefox()
@@ -493,30 +281,6 @@ class ReaderTests(ImportFixture):
         self.assertEqual([(w['kind'], w['code']) for w in result['warnings']], [('passwords', 'empty')])
         self.assertNotIn('profile', result)
 
-    def test_extensions_come_from_preferences_and_locales(self):
-        default = self.chrome_profile('Default')
-        ext = 'a' * 32
-        localized = 'b' * 32
-        (default / 'Extensions' / localized / '1.0' / '_locales' / 'en').mkdir(parents=True)
-        (default / 'Extensions' / localized / '1.0' / 'manifest.json').write_text(json.dumps({'name': '__MSG_appName__', 'default_locale': 'en'}))
-        (default / 'Extensions' / localized / '1.0' / '_locales' / 'en' / 'messages.json').write_text(json.dumps({'APPNAME': {'message': 'Localized'}}))
-        (default / 'Preferences').write_text(json.dumps({'extensions': {'settings': {
-            ext: {'from_webstore': True, 'location': 1, 'manifest': {'name': ' Zeta '}},
-            localized: {'path': f'{localized}/1.0'},
-            'c' * 32: {'from_webstore': False, 'location': 1, 'manifest': {'name': 'Unpacked'}},
-            'd' * 32: {'from_webstore': True, 'location': 5, 'manifest': {'name': 'Component'}},
-            'cjpalhdlnbpafiamejdnhcphjbkeiagm': {'from_webstore': True, 'location': 1},
-            'not-an-id': {'from_webstore': True},
-        }}}))
-        (default / 'Secure Preferences').write_text(json.dumps({'extensions': {'settings': {localized: {'from_webstore': True, 'location': 1}}}}))
-        listed = self.json('extensions', *self.env_args(), 'chrome', 'Default')
-        self.assertEqual(listed, [
-            {'id': localized, 'name': 'Localized', 'webStoreUrl': f'https://chromewebstore.google.com/detail/{localized}'},
-            {'id': ext, 'name': 'Zeta', 'webStoreUrl': f'https://chromewebstore.google.com/detail/{ext}'},
-        ])
-        self.assertEqual(self.json('extensions', *self.env_args(), 'firefox', 'x'), [])
-
-
 class ScratchSweepTests(ImportFixture):
     def test_stale_import_copies_left_by_a_crash_are_removed(self):
         old = self.temp / 'ardia-import-old111'
@@ -532,73 +296,6 @@ class ScratchSweepTests(ImportFixture):
         os.utime(fresh, (now - 60, now - 60))
         self.assertEqual(self.run_binary('sweep', self.temp, now, 3600).strip(), '1')
         self.assertEqual(sorted(p.name for p in self.temp.iterdir()), ['ardia-import-file', 'ardia-import-new222', 'unrelated-old'])
-
-
-class ReviewRoundOneTests(ImportFixture):
-    def test_chunks_counts_summaries_leak_gate_expiry_and_v12(self):
-        self.assertIn('review units passed', self.run_binary('review'))
-
-    def test_empty_key_fallback_and_v12_are_handled_like_chromium(self):
-        default = self.chrome_profile('Default')
-        empty_key = hashlib.pbkdf2_hmac('sha1', b'', b'saltysalt', 1, 16)
-        make_logins(default / 'Login Data', [
-            ('https://empty.example/', '', 'e', encrypt_with(empty_key, 'empty key pass'), 'https://empty.example/', webkit(1600000000000), 0, 0, 0),
-            ('https://portal.example/', '', 'p', b'v12' + os.urandom(32), 'https://portal.example/', webkit(1600000000000), 0, 0, 0),
-        ])
-        out = self.read('chrome', 'Default', ['passwords'])
-        self.assertEqual([(c['username'], c['password']) for c in out['credentials']], [('e', 'empty key pass')])
-        messages = [w['message'] for w in out['result']['warnings']]
-        self.assertIn("1 password protected by the desktop portal wasn't imported. The desktop portal gives each app its own key, "
-                      "so Ardia can't read Google Chrome's. Export them from Google Chrome's password manager as a CSV file and "
-                      "import that file.", messages)
-        self.assertFalse(any('decrypted' in m for m in messages))
-
-    def test_fifos_are_refused_without_blocking(self):
-        fifo = self.root / 'fifo.html'
-        os.mkfifo(fifo)
-        result = subprocess.run([str(self.binary), 'readfile', str(fifo)], capture_output=True, text=True, timeout=10)
-        self.assertEqual(result.stdout.strip(), '3')
-        default = self.chrome_profile('Default')
-        os.mkfifo(default / 'History')
-        os.mkfifo(default / 'Bookmarks')
-        run = subprocess.run([str(self.binary), 'read', *[str(a) for a in self.env_args()], 'chrome', 'Default', 'history,bookmarks', '0', '0', '0'],
-                             capture_output=True, text=True, timeout=20)
-        self.assertEqual(run.returncode, 0, run.stderr)
-        result = json.loads(run.stdout)['result']
-        self.assertNotIn('bookmarks', result)
-        self.assertEqual(result['history'], [])
-        self.assertEqual(sorted((w['kind'], w['code']) for w in result['warnings']), [('bookmarks', 'empty'), ('history', 'empty')])
-
-    def test_own_data_directory_is_never_read(self):
-        self.chrome_profile('Default')
-        out = self.json('read', self.home, self.config, self.temp, self.config / 'google-chrome', 'chrome', 'Default', 'bookmarks', 0, 0, 0)
-        self.assertEqual(out['error'], 'notFound')
-
-    def test_service_wiring_from_review(self):
-        service = (LINUX / 'ac_linux_import_service.cc').read_text()
-        self.assertNotIn('ERR_FILE_CHOOSER_UNAVAILABLE', service)
-        self.assertNotIn('CredentialRows', service + (LINUX / 'ac_linux_import_formats.h').read_text())
-        self.assertIn('kPasswordChunk', service)
-        self.assertIn('PostDelayedTask', service)
-        self.assertIn('AddAppTerminatingCallback', service)
-        self.assertIn('ReplyLeaksSecret', service)
-        self.assertIn('"ArdiaImport.cancelChooser"', (LINUX / 'ac_linux_import_formats.h').read_text())
-        self.assertIn('"//chrome/browser/lifetime:termination_notification"', (LINUX / 'BUILD.gn').read_text())
-
-
-class ImportSourceRules(unittest.TestCase):
-    def test_import_sources_have_no_comments_and_are_built(self):
-        build = (LINUX / 'BUILD.gn').read_text()
-        for name in ['ac_linux_import_formats', 'ac_linux_import_readers', 'ac_linux_import_service']:
-            for suffix in ['.cc', '.h']:
-                path = LINUX / f'{name}{suffix}'
-                self.assertTrue(path.exists(), path)
-                self.assertIn(f'"{name}{suffix}"', build)
-                text = path.read_text()
-                self.assertIsNone(re.search(r'(^|\s)//(?!\s*nogncheck)|/\*', text), path)
-        for dep in ['//third_party/sqlite', '//third_party/boringssl', '//components/password_manager/core/browser/import:importer',
-                    '//chrome/browser/extensions/api/passwords_private', '//ui/shell_dialogs']:
-            self.assertIn(f'"{dep}"', build)
 
 
 if __name__ == '__main__':

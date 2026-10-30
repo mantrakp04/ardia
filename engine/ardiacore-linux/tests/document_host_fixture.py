@@ -1,7 +1,6 @@
 from pathlib import Path
 
-from test_session_merge import VALUES, WRITER
-from test_renderer_contract import method
+from support import VALUES, WRITER, method
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ['ac_linux_documents.cc', 'ac_linux_document_schema.cc', 'ac_linux_document_reducer.cc', 'ac_linux_document_service.cc', 'ac_linux_profiles.cc']
@@ -37,16 +36,12 @@ template<class F, class... Args> auto BindRepeating(F function, Args... args) {
   return [function, args...](auto&&... rest) { return std::invoke(function, args..., std::forward<decltype(rest)>(rest)...); };
 }
 '''
-COMPANIONS_ACCEPT = 'void ShellHostView::ConfirmCompanions(base::OnceCallback<void(bool)> done) { std::move(done).Run(true); }\n'
 
 
-def host_methods(real_companions=True):
+def host_methods():
     source = (ROOT / 'src/ardia/linux/ac_linux_host.cc').read_text()
     signatures = ['LinuxDocumentClient ShellHostView::DocumentClient', 'bool ShellHostView::EnsureDocumentClient', 'bool ShellHostView::RetireDocuments', 'void ShellHostView::DocumentCall', 'std::optional<ShellHostView::StorageTicket> ShellHostView::BeginStorageIntent', 'void ShellHostView::CompleteStorageIntent', 'bool ShellHostView::TrackStorageWrite', 'void ShellHostView::CloseNativeWindow', 'void ShellHostView::ArmWindowClose', 'base::DictValue ShellHostView::RequestWindowClose', 'void ShellHostView::BeginWindowCloseDrain', 'bool ShellHostView::AwaitingChromeHandoff', 'bool ShellHostView::ClosingEndsSession', 'std::string ShellHostView::DialogProfile', 'std::optional<LinuxDialogClient> ShellHostView::DialogClient', 'void ShellHostView::DialogInvoke', 'void ShellHostView::SuspendDialogsForClose', 'void ShellHostView::CommitWindowDeparture', 'void ShellHostView::ResumeDialogsForClose', 'void ShellHostView::RequestUtilityClose', 'bool ShellHostView::ReadyForChromeClose', 'LinuxCloseAdmission ShellHostView::AdmitChromeTeardown', 'void ShellHostView::ReplyChromeClose', 'void ShellHostView::FinishChromePreparations', 'bool ShellHostView::DeferChromeClose', 'void ShellHostView::ChromeCloseCancelled', 'void ShellHostView::CancelWindowClose', 'void ShellHostView::CancelDocumentSeal', 'void ShellHostView::AcknowledgeWindowClose', 'void ShellHostView::ConfirmCompanions', 'void ShellHostView::OnWidgetClosing', 'void ShellHostView::OnWidgetDestroying']
-    if not real_companions:
-        signatures.remove('void ShellHostView::ConfirmCompanions')
-    methods = '\n'.join(method(source, signature) for signature in signatures)
-    return methods if real_companions else methods + '\n' + COMPANIONS_ACCEPT
+    return '\n'.join(method(source, signature) for signature in signatures)
 
 
 PROFILE = r'''struct Profile { bool regular = true; bool IsRegularProfile() const { return regular; } };'''
@@ -413,7 +408,6 @@ struct ShellHostView {
   bool Reaches(const ShellHostView* target) const {
     return target && ardiacore::linux_profiles::WindowReachableBy(target->access(), {reach_id_, renderer_generation_});
   }
-  void GenericInvoke(std::string, const base::DictValue&, base::OnceCallback<void(bool, base::Value)>);
   void CloseInvoke(std::string, const base::DictValue&, base::OnceCallback<void(bool, base::Value)>);
   Browser* browser() { return browser_; }
   views::Widget* GetWidget() const { return const_cast<views::Widget*>(&native.widget); }
@@ -506,7 +500,6 @@ void Watch(ShellHostView& host) {
 }
 '''
 PRELUDE = TEMPLATE.replace('ARDIA_PROFILE', PROFILE).replace('ARDIA_HANDLER', HANDLER).replace('ARDIA_DIALOGS', DIALOGS).replace('ARDIA_REPEATING', REPEATING)
-PRELUDE_WITHOUT_REPEATING = PRELUDE.replace(REPEATING, '')
 
 
 def close_invoke():
@@ -519,46 +512,6 @@ def close_invoke():
     return r'''
 void ShellHostView::CloseInvoke(std::string method, const base::DictValue& args,
                                 base::OnceCallback<void(bool, base::Value)> done) {
-  const base::ListValue empty;
-  const auto* supplied = args.Find("args");
-  const auto& values = supplied && supplied->is_list() ? supplied->GetList() : empty;
-''' + branches + r'''
-  std::move(done).Run(false, base::Value());
-}
-'''
-
-
-def generic_invoke():
-    source = (ROOT / 'src/ardia/linux/ac_linux_host.cc').read_text()
-    branches = '\n'.join(method(source, signature) for signature in [
-        '  if (method == "ArdiaShell.readDocument")',
-        '  if (method == "ArdiaShell.writeDocument" || method == "ArdiaShell.saveDocument"'])
-    return r'''
-#include "ardia/linux/ac_linux_policy.h"
-int generic_reads = 0;
-int generic_writes = 0;
-std::string DocumentDirectory(Profile*) { return "/native/Ardia"; }
-std::optional<std::string> ReadDocument(const std::string&, const std::string&) { ++generic_reads; return "ok"; }
-struct StoredDocument { ardia::linux_policy::StoredRead outcome; std::string contents; };
-StoredDocument ReadStoredDocument(const std::string& directory, const std::string& name) { auto contents = ReadDocument(directory, name); return {contents ? ardia::linux_policy::StoredRead::kFound : ardia::linux_policy::StoredRead::kFailed, contents.value_or(std::string())}; }
-bool WriteDocument(const std::string&, const std::string&, const std::optional<std::string>&) { ++generic_writes; return true; }
-std::string ArgumentString(const base::ListValue& values, size_t index) { return values[index].GetString(); }
-constexpr char kSessionName[] = "linux-session.json";
-constexpr size_t kDocumentLimit = 8 * 1024 * 1024;
-int storage_digests = 0;
-std::string StorageDigest(std::string_view text) { ++storage_digests; return std::to_string(std::hash<std::string_view>{}(text)) + ":" + std::to_string(text.size()); }
-struct FileRunnerApi {
-  template<class Work, class Reply> void PostTaskAndReplyWithResult(int, Work work, Reply reply) {
-    files.PostTask(0, [work = std::move(work), reply = std::move(reply)]() mutable {
-      auto result = work();
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(0,
-          [reply = std::move(reply), result = std::move(result)]() mutable { reply(std::move(result)); });
-    });
-  }
-};
-FileRunnerApi* FileRunner() { static FileRunnerApi runner; return &runner; }
-void ShellHostView::GenericInvoke(std::string method, const base::DictValue& args,
-                                  base::OnceCallback<void(bool, base::Value)> done) {
   const base::ListValue empty;
   const auto* supplied = args.Find("args");
   const auto& values = supplied && supplied->is_list() ? supplied->GetList() : empty;

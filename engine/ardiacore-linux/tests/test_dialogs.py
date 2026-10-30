@@ -4,7 +4,7 @@ import subprocess
 import tempfile
 import unittest
 
-from test_session_merge import VALUES
+from support import VALUES
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 

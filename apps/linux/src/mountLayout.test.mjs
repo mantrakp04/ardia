@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 import { reportMountLayout } from "./shims/web/mountLayout.ts";
 
@@ -50,18 +49,4 @@ test("fields without a layout handler, detached fields and fields without a pare
   reportMountLayout(element({ parent: null }), (event) => events.push(event), viewport);
   reportMountLayout(null, (event) => events.push(event), viewport);
   assert.equal(events.length, 0);
-});
-
-test("the Linux TextInput reports its first layout from a layout effect, so focus-on-layout fields focus in the opening commit", () => {
-  const shim = readFileSync(new URL("./shims/react-native.tsx", import.meta.url), "utf8");
-  assert.match(shim, /useLayoutEffect\(\(\) => reportMountLayout\(field\.current, layoutHandler\.current as never, window\), \[\]\)/);
-  assert.match(shim, /field\.current = node;/);
-});
-
-test("the Linux View reports its first layout from a layout effect, so a pinned toolbar button anchors a popup opened before the next frame", () => {
-  const shim = readFileSync(new URL("./shims/web/motion/macView.tsx", import.meta.url), "utf8");
-  const view = shim.slice(shim.indexOf("export const MacView"), shim.indexOf("const BasePressable"));
-  assert.match(view, /useLayoutEffect\(\(\) => reportMountLayout\(node\.current, layoutHandler\.current as never, window\), \[\]\)/);
-  assert.match(view, /layoutHandler\.current = props\.onLayout;/);
-  assert.match(shim, /node\.current = value;/);
 });

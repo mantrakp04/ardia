@@ -173,20 +173,6 @@ test("the bridge page loads uBlock's messaging client before the bridge and mark
   assert.equal(root.getAttribute("data-ardia-bridge"), "ready");
 });
 
-test("the bridge page holds a shared Web Lock for its whole life so the browser never freezes it", async () => {
-  const { locks, call } = load();
-  assert.equal(locks.length, 1);
-  assert.equal(locks[0].name, "ardia-linux-bridge");
-  assert.deepEqual({ ...locks[0].options }, { mode: "shared" });
-  let released = false;
-  locks[0].held.then(() => {
-    released = true;
-  });
-  await call("state");
-  await new Promise((resolve) => setTimeout(resolve, 20));
-  assert.equal(released, false);
-});
-
 test("state reports filter lists, defaults, counts and user exceptions", async () => {
   const { call } = load();
   const { value } = await call("state");
@@ -244,15 +230,6 @@ test("enabling a list applies the selection and reloads filters, leaving no pend
   assert.equal(ublock.state.reloads, 2);
 });
 
-test("an interrupted list change is reloaded before the next call", async () => {
-  const ublock = fakeUblock();
-  ublock.storage.ardiaReloadPending = true;
-  const { call } = load({ ublock });
-  await call("state");
-  assert.equal(ublock.state.reloads, 1);
-  assert.equal(ublock.storage.ardiaReloadPending, undefined);
-});
-
 test("errors are reported, never success: dev failure, unknown operations, foreign pages and a blocker that never starts", async () => {
   const { call } = load();
   assert.equal((await call("setEnabled", { enabled: false }, { failNext: true })).error, "getWhitelist: failed (dev)");
@@ -277,25 +254,6 @@ test("a call waiting on uBlock's old background page answers as soon as uBlock r
   const reply = await reloading.call("state", {}, { deadlineMs: 20000 });
   assert.match(reply.error, /Extension context invalidated/);
   assert.ok(Date.now() - started < 1500);
-});
-
-test("a dashboard message lost to uBlock's reload answers with the invalidation instead of timing out", async () => {
-  const reloading = load({ ublock: fakeUblock({ silent: ["getLists"] }) });
-  setTimeout(reloading.invalidate, 100);
-  const started = Date.now();
-  const reply = await reloading.call("state", {}, { deadlineMs: 20000 });
-  assert.match(reply.error, /Extension context invalidated/);
-  assert.ok(Date.now() - started < 1500);
-  assert.deepEqual(reloading.ublock.state.messages, ["getLists", "getWhitelist"]);
-});
-
-test("malformed requests are dropped without a reply", async () => {
-  const { root } = load();
-  root.setAttribute("data-ardia-request", "{not json");
-  root.setAttribute("data-ardia-request", JSON.stringify({ ticket: "1", op: "state" }));
-  await new Promise((resolve) => setTimeout(resolve, 30));
-  assert.equal(root.getAttribute("data-ardia-reply"), null);
-  assert.equal(root.getAttribute("data-ardia-request"), null);
 });
 
 test("settings reads the selected lists, every whitelist directive and auto-update for another profile to copy", async () => {

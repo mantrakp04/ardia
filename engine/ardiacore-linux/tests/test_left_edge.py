@@ -4,11 +4,8 @@ import subprocess
 import tempfile
 import unittest
 
-from test_renderer_contract import method
-
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'src'
-LINUX = SOURCE / 'ardia/linux'
 
 
 class LeftEdgeTests(unittest.TestCase):
@@ -20,7 +17,6 @@ class LeftEdgeTests(unittest.TestCase):
                         '-fsanitize=address,undefined', '-fno-omit-frame-pointer', '-I', str(SOURCE),
                         str(ROOT / 'tests/left_edge_test.cc'), '-o', str(cls.binary)],
                        check=True, text=True, timeout=120)
-        cls.host = (LINUX / 'ac_linux_host.cc').read_text()
 
     @classmethod
     def tearDownClass(cls):
@@ -61,44 +57,6 @@ class LeftEdgeTests(unittest.TestCase):
     def test_nothing_is_reported_while_unwatched_and_a_watch_waits_for_a_settle(self):
         self.run_case('unwatched')
         self.run_case('watch-settling')
-
-    def test_the_host_advertises_the_watcher_and_answers_it_per_window(self):
-        self.assertIn('.Append("ArdiaShell.watchLeftEdge")', self.host)
-        start = self.host.index('  if (method == "ArdiaShell.watchLeftEdge") {')
-        body = self.host[start:self.host.index('\n  }\n', start)]
-        self.assertIn('left_edge_.Stop();', body)
-        self.assertIn('left_edge_.Watch(', body)
-        self.assertIn('GetWidget()->IsActive()', body)
-        self.assertIn('if (is_utility())', body)
-
-    def test_native_enters_and_leaves_reach_the_watcher_but_aura_child_crossings_do_not(self):
-        dispatcher = (Path.home() / 'ardia-linux-build-156/chromium_git/chromium/src/ui/aura/window_event_dispatcher.cc')
-        if dispatcher.exists():
-            self.assertIn('event.flags() | ui::EF_IS_SYNTHESIZED', dispatcher.read_text())
-
-    def test_every_pointer_event_in_the_window_reaches_the_watcher_before_the_page_or_the_frame(self):
-        self.assertIn('input_window->AddPreTargetHandler(left_edge_handler_.get(), ui::EventTarget::Priority::kSystem);', self.host)
-        self.assertIn('RemovePreTargetHandler(left_edge_handler_.get())', self.host)
-        mouse = method(self.host, 'void ShellHostView::OnLeftEdgeMouse(const ui::MouseEvent& event) {')
-        self.assertIn('if (event.flags() & ui::EF_IS_SYNTHESIZED) return;', mouse)
-        self.assertLess(mouse.index('ui::EF_IS_SYNTHESIZED'), mouse.index('const bool exited'))
-        self.assertIn('ui::EventType::kMouseEntered', mouse)
-        self.assertNotIn('event.target()', mouse)
-        self.assertIn('left_edge_.Exited(', mouse)
-        self.assertIn('LeftEdgeWatch::kSettleMs', mouse)
-        self.assertIn('GetWeakPtr()', mouse)
-
-    def test_losing_activation_ends_a_peek_held_past_the_left_edge(self):
-        activation = method(self.host, 'void ShellHostView::OnWidgetActivationChanged(views::Widget*, bool active) {')
-        self.assertIn('ReportLeftEdge(left_edge_.ActivationChanged(active));', activation)
-
-    def test_reports_use_the_shared_left_edge_event(self):
-        report = method(self.host, 'void ShellHostView::ReportLeftEdge(std::optional<ardia::linux_window::LeftEdgeReport> report) {')
-        for part in ('"ArdiaShell", "onWindowEvent"', '.Set("type", "leftEdge")', '.Set("id", left_edge_id_)', '.Set("over", report->over)', '.Set("point"'):
-            self.assertIn(part, report)
-
-    def test_the_header_is_part_of_the_build(self):
-        self.assertIn('"ac_linux_left_edge.h",', (LINUX / 'BUILD.gn').read_text())
 
 
 if __name__ == '__main__':

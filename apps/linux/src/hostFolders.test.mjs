@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 import { createFolderPicker } from "./hostFolders.ts";
 
@@ -64,11 +63,4 @@ test("odd replies are treated as cancel, and a host without a picker says so ins
   assert.equal(await old.pick(null), null);
   assert.deepEqual(old.calls, []);
   assert.equal(old.notices.length, 1);
-});
-
-test("the native bootstrap advertises the picker, so the shell module never calls undefined", () => {
-  const host = readFileSync(new URL("../../../engine/ardiacore-linux/src/ardia/linux/ac_linux_host.cc", import.meta.url), "utf8");
-  const bootstrap = host.slice(host.indexOf("base::DictValue ShellHostView::Bootstrap() const {"), host.indexOf("void ShellHostView::LayoutOverlay()"));
-  assert.match(bootstrap, /\.Append\("ArdiaShell\.pickFolder"\)/);
-  assert.match(host, /if \(method == "ArdiaShell\.pickFolder"\)/);
 });

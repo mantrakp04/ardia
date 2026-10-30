@@ -1,8 +1,0 @@
-{
-  "manifest_version": 3,
-  "name": "Ardia Fixture Vault",
-  "version": "1.0",
-  "description": "Talks to its desktop app over native messaging and fills the login it returns.",
-  "action": { "default_title": "Ardia Fixture Vault", "default_popup": "popup.html" },
-  "permissions": ["nativeMessaging", "activeTab", "scripting"]
-}

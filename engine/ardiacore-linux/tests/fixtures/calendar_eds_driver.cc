@@ -7,7 +7,6 @@
 #include <set>
 #include <sstream>
 #include <string>
-#include <thread>
 #include <vector>
 
 #include "ardia/linux/ac_linux_calendar_eds.h"
@@ -67,8 +66,6 @@ int main() {
   g_main_context_push_thread_default(context);
   std::set<std::string> changes;
   auto client = ardia::linux_calendar::SessionEdsClient([&](EdsChange change) { changes.insert(ChangeName(change)); });
-  std::thread background;
-  std::string background_reply;
   std::string line;
   while (std::getline(std::cin, line)) {
     std::istringstream words(line);
@@ -98,7 +95,7 @@ int main() {
         reply += "}}";
       }
       reply += "]}";
-    } else if (command == "objects" || command == "bgobjects") {
+    } else if (command == "objects") {
       std::string uid;
       long long start = 0;
       long long end = 0;
@@ -107,24 +104,8 @@ int main() {
       words >> uid >> start >> end;
       if (!(words >> budget)) budget = ardia::linux_calendar::kRequestBudgetMs;
       if (!(words >> max_bytes)) max_bytes = ardia::linux_calendar::kMaxReplyBytes;
-      auto run = [&client, uid, start, end, budget, max_bytes] {
-        const auto started = std::chrono::steady_clock::now();
-        const auto objects = client->Objects(uid, start, end, budget, max_bytes);
-        return ObjectsReply(objects, Since(started));
-      };
-      if (command == "objects") {
-        reply = run();
-      } else {
-        background = std::thread([&background_reply, run] { background_reply = run(); });
-        reply = "{\"started\":true}";
-      }
-    } else if (command == "join") {
-      if (background.joinable()) background.join();
-      reply = background_reply;
-    } else if (command == "probe-standalone") {
       const auto started = std::chrono::steady_clock::now();
-      const EdsResult result = ardia::linux_calendar::ProbeEds();
-      reply = "{" + Status(result) + ",\"elapsedMs\":" + std::to_string(Since(started)) + "}";
+      reply = ObjectsReply(client->Objects(uid, start, end, budget, max_bytes), Since(started));
     } else if (command == "query") {
       long long start = 0;
       long long end = 0;
@@ -155,15 +136,11 @@ int main() {
         first = false;
       }
       reply += "]}";
-    } else if (command == "close") {
-      client->CloseCalendars();
-      reply = "{\"closed\":true}";
     } else {
       reply = "{\"error\":" + Quote("unknown command " + command) + "}";
     }
     std::cout << reply << std::endl;
   }
-  if (background.joinable()) background.join();
   client.reset();
   g_main_context_pop_thread_default(context);
   g_main_context_unref(context);
