@@ -80,9 +80,9 @@ function Bar({ windowId }: { windowId: string }) {
     if (!pendingFrames.current) {
       pendingFrames.current = {};
       requestAnimationFrame(() => {
-        const batch = pendingFrames.current;
+        const batch = pendingFrames.current!;
         pendingFrames.current = null;
-        if (batch) setFrames((prev) => mergeFrames(prev, batch));
+        setFrames((prev) => mergeFrames(prev, batch));
       });
     }
     pendingFrames.current[id] = r;
@@ -98,7 +98,6 @@ function Bar({ windowId }: { windowId: string }) {
     return !f || f.x + f.width <= available - (overflowing ? bookmarksBar.overflowWidth : 0);
   };
   const visible = mounted.filter(fits);
-  const visibleSlot = new Map(visible.map((id, i) => [id, i]));
   const hiddenFrom = visible.length;
 
   const draggedHere = source?.kind === "bookmark" && visible.includes(source.id) ? source.id : null;
@@ -106,6 +105,7 @@ function Bar({ windowId }: { windowId: string }) {
   const roomWidth = draggedHere ? (frames[draggedHere]?.width ?? 0) + size.itemGap : size.item * 2;
   const offsets = source ? roomOffsets(visible, draggedHere, slotHere, roomWidth) : visible.map(() => 0);
   const lineX = slotHere === null ? null : dropLineX(visible, frames, offsets, draggedHere, slotHere, roomWidth);
+  const visibleOffset = new Map(visible.map((id, i) => [id, offsets[i] ?? 0]));
 
   const measureOrigin = () => root.current?.measureInWindow((x, y) => (origin.current = { x, y }));
   useEffect(() => {
@@ -176,20 +176,17 @@ function Bar({ windowId }: { windowId: string }) {
             For quick access, place your bookmarks here on the bookmarks bar.
           </Text>
         ) : (
-          mounted.map((id) => {
-            const slot = visibleSlot.get(id);
-            return (
-              <BarItem
-                key={id}
-                id={id}
-                windowId={windowId}
-                profileId={profileId}
-                hidden={slot === undefined}
-                offset={slot === undefined ? 0 : (offsets[slot] ?? 0)}
-                onLayout={onItemLayout}
-              />
-            );
-          })
+          mounted.map((id) => (
+            <BarItem
+              key={id}
+              id={id}
+              windowId={windowId}
+              profileId={profileId}
+              hidden={!visibleOffset.has(id)}
+              offset={visibleOffset.get(id) ?? 0}
+              onLayout={onItemLayout}
+            />
+          ))
         )}
         <DropLine x={lineX} size={size} color={theme.accent} />
       </View>
