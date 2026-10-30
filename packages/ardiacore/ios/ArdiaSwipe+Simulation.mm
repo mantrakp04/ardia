@@ -34,13 +34,12 @@ CGScrollPhase ScrollPhaseOf(NSString *phase) {
 }
 
 void PlaceInWindow(CGEventRef cg, NSWindow *window, NSPoint point) {
-  NSPoint local = LocalPoint(window, point);
-  NSPoint screen = [window convertPointToScreen:[window.contentView convertPoint:local toView:nil]];
+  NSPoint inWindow = [window.contentView convertPoint:LocalPoint(window, point) toView:nil];
+  NSPoint screen = [window convertPointToScreen:inWindow];
   CGFloat mainHeight = NSHeight(NSScreen.screens.firstObject.frame);
   CGEventSetLocation(cg, CGPointMake(screen.x, mainHeight - screen.y));
   CGEventSetIntegerValueField(cg, (CGEventField)51, window.windowNumber);
   static auto setWindowLocation = (void (*)(CGEventRef, CGPoint))dlsym(RTLD_DEFAULT, "CGEventSetWindowLocation");
-  NSPoint inWindow = [window.contentView convertPoint:local toView:nil];
   if (setWindowLocation) setWindowLocation(cg, CGPointMake(inWindow.x, NSHeight(window.frame) - inWindow.y));
 }
 

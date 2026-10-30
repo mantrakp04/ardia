@@ -401,8 +401,12 @@ NSEvent *HandleOtherMouse(NSEvent *event) {
   if (event.buttonNumber != kBackButton && event.buttonNumber != kForwardButton) return event;
   if (event.type == NSEventTypeOtherMouseDown) {
     NSView<ArdiaSwipeTarget> *pager = SideButtonPager(event.window, event.locationInWindow);
-    gSideButton = pager ? SideButtonPress{event.buttonNumber, pager} : SideButtonPress();
-    return pager ? nil : event;
+    if (!pager) {
+      gSideButton = SideButtonPress();
+      return event;
+    }
+    gSideButton = {event.buttonNumber, pager};
+    return nil;
   }
   if (event.buttonNumber != gSideButton.button) return event;
   NSView<ArdiaSwipeTarget> *pager = gSideButton.target;
