@@ -67,3 +67,21 @@ test("an unreadable encrypted legacy checkpoint stops conversion and retains its
   assert.equal(docs.get("sync-state.nns"), "unreadable");
   assert.equal(writes.length, 0);
 });
+
+test("legacy tile conversion keeps unrelated sidebar rows and groups with matching ID suffixes", async () => {
+  const { doc } = fixture();
+  const stored = JSON.parse(docs.get("sync-state.nns").slice(7));
+  const owner = stored.scopes["p:owner"];
+  const source = owner.records["pin:t:remote-tile"];
+  for (const [key, value] of [["pin:t:another-remote-tile", { ...source.v, u: "https://kept-row.test" }], ["pinrow:another-remote-tile", 1], ["pgh:group-remote-tile", { n: "Group" }]]) {
+    owner.records[key] = { ...source, v: value };
+    owner.base[key] = canonical(value);
+  }
+  docs.set("sync-state.nns", `sealed:${JSON.stringify(stored)}`);
+  await importLegacySync(doc);
+  const next = doc.scopes["space:owner"];
+  assert.ok(next.records["pin:t:another-remote-tile"]);
+  assert.ok(next.records["pinrow:another-remote-tile"]);
+  assert.ok(next.records["pgh:group-remote-tile"]);
+  assert.equal(next.records["pin:t:remote-tile"], undefined);
+});

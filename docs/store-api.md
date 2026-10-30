@@ -33,6 +33,15 @@ to confirm every Mac supports the new protocol. A remote Profile reassignment st
 Space has live ordinary pages; Settings › Sync offers Apply or Keep Current and suppresses the stale
 assignment until resolved.
 
+The Space pin-concurrency matrix covers saved rows and groups.
+Top Apps belong to a different Profile scope; row-to-tile conversions and initial tiles are tested through
+the complete sync engine in `state/sync/sharedData.test.mjs`, and concurrent Top App edits in
+`state/sync/topApps.test.mjs`. Older sync clients use v1 scopes and do not participate in v2 pairing;
+`state/sync/legacySync.test.mjs` covers their one-way upgrade. Mixing their adapters into the Space-only
+matrix would test a protocol combination that the app does not enable.
+The matrix retains upstream's exclusion for logs delayed 44 days while a participant also collects old
+records. That pre-existing collection-horizon case remains outside this matrix's verified coverage.
+
 ## State
 - `profiles`: `{ id, name, icon, engineId, createdAt }`; `spaces` plus `spaceOrder`.
 - `windows`: `{ spaceId, kind, tabIds, activeTabIds[spaceId], sidebarOpen, frame }` plus `windowOrder`.

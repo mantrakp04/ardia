@@ -6,7 +6,7 @@ import { legacyThemeOf, type SpaceRecord } from "./spaceAdapters";
 import { APP_SCOPE, profileScope, spaceScope, type SyncDoc } from "./syncDoc";
 import { profileRecord } from "./records";
 import { pairTheme } from "./syncThemes";
-import { profileKey, type ProfileRecord } from "./identityAdapters";
+import { identityRecord, profileKey } from "./identityAdapters";
 
 export const remoteSpaceRecord = (doc: SyncDoc, syncId: string) => (doc.scopes[APP_SCOPE]?.records[`prof:${syncId}`]?.v ?? undefined) as SpaceRecord | undefined;
 export const linkedSpaceId = (doc: SyncDoc, syncId: string): string | null => Object.entries(doc.spaces).find(([id, link]) => link.syncId === syncId && !link.retire && useBrowser.getState().spaces[id])?.[0] ?? null;
@@ -14,7 +14,7 @@ export const linkedProfileId = (doc: SyncDoc, syncId: string): string | null => 
 
 export function sharedDataChain(doc: SyncDoc, syncId: string): { adds: string[]; sharesWith: string | null; waitingFor?: string } {
   const record = remoteSpaceRecord(doc, syncId);
-  if (!record?.p || !doc.scopes[APP_SCOPE]?.records[profileKey(record.p)]?.v) return { adds: [syncId], sharesWith: null, waitingFor: record?.p ?? syncId };
+  if (!record?.p || !identityRecord(doc.scopes[APP_SCOPE]?.records[profileKey(record.p)]?.v)) return { adds: [syncId], sharesWith: null, waitingFor: record?.p ?? syncId };
   return { adds: [syncId], sharesWith: linkedProfileId(doc, record.p) };
 }
 
@@ -23,7 +23,7 @@ export function linkSpaces(doc: SyncDoc, app: ScopeState) {
   for (const p of Object.values(s.profiles)) {
     if (doc.profiles[p.id]) continue;
     const hint = [...visible(app, "prof:")].map(([, value]) => value as SpaceRecord).find((record) => record.d)?.p;
-    const remote = doc.joining && p.id === "default" ? [...visible(app, "identity:")].find(([, value]) => (value as ProfileRecord).seed)?.[0].slice(9) ?? hint : undefined;
+    const remote = doc.joining && p.id === "default" ? [...visible(app, "identity:")].find(([, value]) => identityRecord(value)?.seed)?.[0].slice(9) ?? hint : undefined;
     if (doc.joining && !pairingOverdue(doc, Date.now()) && p.id === "default" && !remote && (app.pending || Object.keys(app.damaged).length)) continue;
     const syncId = remote ?? SyncNative!.newDeviceId();
     doc.profiles[p.id] = { syncId, enabled: true, topAppsEnabled: true, ...(remote && !app.records[profileKey(remote)]?.v ? { adopting: true as const } : {}) };
@@ -35,6 +35,7 @@ export function linkSpaces(doc: SyncDoc, app: ScopeState) {
     if (!space || isIncognitoSpace(id) || doc.spaces[id]) continue;
     if (!doc.profiles[space.profileId]) continue;
     const match = doc.joining && id === DEFAULT_SPACE_ID ? remote.find(([, record]) => record.d && record.p === doc.profiles[space.profileId]?.syncId)?.[0] : undefined;
+    if (doc.joining && id === DEFAULT_SPACE_ID && !match && !pairingOverdue(doc, Date.now())) continue;
     const syncId = match ?? SyncNative!.newDeviceId();
     doc.spaces[id] = { syncId, enabled: true };
     if (match) { doc.scopes[spaceScope(syncId)] = { ...emptyScope(), awaitRemote: true }; pairTheme(app, id, doc.spaces[id]!); }
@@ -46,10 +47,10 @@ export function linkSpaces(doc: SyncDoc, app: ScopeState) {
   for (const [id, link] of Object.entries(doc.spaces)) if (!s.spaces[id] && !link.retire) link.retire = true;
 }
 
-export function ensureLinkedProfile(doc: SyncDoc, syncId: string, consented = true): string | null {
+export function ensureLinkedProfile(doc: SyncDoc, syncId: string, consented = false): string | null {
   const known = linkedProfileId(doc, syncId);
   if (known) return known;
-  const record = doc.scopes[APP_SCOPE]?.records[profileKey(syncId)]?.v as ProfileRecord | null | undefined;
+  const record = identityRecord(doc.scopes[APP_SCOPE]?.records[profileKey(syncId)]?.v);
   if (!record) return null;
   const id = useBrowser.getState().createProfile({ name: record.n, icon: record.i });
   doc.profiles[id] = { syncId, enabled: consented, topAppsEnabled: consented };
@@ -82,7 +83,5 @@ export function appScopeOf(doc: SyncDoc, now = Date.now()): ScopeState {
 export function readyToPair(doc: SyncDoc, app: ScopeState, now = Date.now()): boolean {
   if (!doc.joining || pairingOverdue(doc, now)) return true;
   const synced = [...visible(app, "prof:").values()].flatMap((v) => profileRecord(v) ?? []);
-  if (synced.some((r) => r.d)) return true;
-  const downloading = Object.values(app.pendingSince ?? {}).some((at) => now - at <= PAIRING_WAIT_MS);
-  return synced.length > 0 && !downloading && !Object.keys(app.damaged).length;
+  return synced.some((r) => r.d);
 }

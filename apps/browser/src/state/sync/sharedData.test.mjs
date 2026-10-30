@@ -121,7 +121,11 @@ test("shared Top Apps sync with the Profile while saved rows stay in their Space
     S().pinTabs([app], true);
     S().pinTabs([row], true, true);
   });
-  await b.with(() => { S().createWindow({ spaceId: added.School }); S().createWindow({ spaceId: added.Research }); });
+  await b.with(() => {
+    eb.setTopAppsSynced(S().spaces[added.School].profileId, true);
+    S().createWindow({ spaceId: added.School });
+    S().createWindow({ spaceId: added.Research });
+  });
   await settle([[a, ea], [b, eb]]);
   await b.with(() => {
     const profile = S().spaces[added.School].profileId;
@@ -132,6 +136,39 @@ test("shared Top Apps sync with the Profile while saved rows stay in their Space
   });
   const workspaceFiles = [...folder.values()].filter((file) => file.scope.startsWith("space:"));
   assert.ok(workspaceFiles.every((file) => !file.payload.includes("app.example")), "Space consent never publishes Profile-owned tiles");
+});
+
+for (const startsAsTile of [false, true]) test(`row and Top App conversions sync through their separate scopes, starting with a ${startsAsTile ? "tile" : "row"}`, async () => {
+  const { a, b, ea, eb, ids, added } = await paired(`conversions-${startsAsTile}`);
+  await b.with(() => {
+    eb.setTopAppsSynced(S().spaces[added.School].profileId, true);
+    S().createWindow({ spaceId: "default" });
+    S().createWindow({ spaceId: added.School });
+  });
+  await a.with(() => {
+    for (const [spaceId, url, row] of [["default", "https://personal-conversion.test/", !startsAsTile], [ids.school, "https://work-conversion.test/", true]]) {
+      const w = S().createWindow({ spaceId });
+      const tab = S().newTab(w, { spaceId, url });
+      S().pinTabs([tab], true, row);
+    }
+  });
+  await settle([[a, ea], [b, eb]]);
+  await a.with(() => {
+    const tab = Object.values(S().tabs).find((t) => t.url === "https://personal-conversion.test/" && t.pin);
+    assert.ok(tab);
+    S().placeTabs([tab.id], { pinned: true, row: false });
+  });
+  await b.with(() => {
+    const tab = Object.values(S().tabs).find((t) => t.url === "https://work-conversion.test/" && t.pin);
+    assert.ok(tab);
+    S().placeTabs([tab.id], { pinned: true, row: false });
+  });
+  await settle([[a, ea], [b, eb]], 6);
+  for (const [mac, spaceId] of [[a, ids.school], [b, added.School]]) await mac.with(() => {
+    assert.deepEqual(S().topApps.default.map((app) => app.url), ["https://personal-conversion.test/"]);
+    assert.deepEqual(S().topApps[S().spaces[spaceId].profileId].map((app) => app.url), ["https://work-conversion.test/"]);
+    assert.equal(Object.values(S().tabs).filter((tab) => tab.pin?.as === "row" && tab.url.includes("conversion.test")).length, 0);
+  });
 });
 
 test("Profile data, Top Apps, and Space consent remain independent", async () => {

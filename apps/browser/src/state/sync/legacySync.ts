@@ -96,6 +96,7 @@ export async function importLegacySync(doc: SyncDoc): Promise<void> {
     const previous = await readScope(`p:${link.syncId}`);
     const next = doc.scopes[spaceScope(link.syncId)] ??= emptyScope();
     const tiles = new Set(Object.entries(previous.records).filter(([key, record]) => key.startsWith("pin:t:") && record.v && !(record.v as { g?: string }).g && previous.records[`${PIN_ROW}${key.slice(6)}`]?.v !== ROW).map(([key]) => key.slice(6)));
+    const tileKeys = new Set([...tiles].flatMap((tile) => [`pin:t:${tile}`, `${PIN_ROW}${tile}`]));
     const profileId = useBrowser.getState().spaces[spaceId]?.profileId;
     const profile = profileId ? doc.profiles[profileId] : undefined;
     if (doc.types.pinned && profile?.topAppsEnabled && profileId) {
@@ -117,7 +118,7 @@ export async function importLegacySync(doc: SyncDoc): Promise<void> {
       useBrowser.setState((s) => ({ topApps: { ...s.topApps, [profileId]: [...(s.topApps[profileId] ?? []).filter((item) => !known.has(item.key)), ...imported.map(({ pos: _pos, ...item }) => item)] } }));
     }
     for (const [key, record] of Object.entries(previous.records)) {
-      if (key.startsWith("tabs:") && doc.types.tabs || doc.types.pinned && /^(pin|pgh:|pord:|pgc:)/.test(key) && ![...tiles].some((tile) => key.endsWith(tile))) seed(next, key, record, previous.base[key] ?? null);
+      if (key.startsWith("tabs:") && doc.types.tabs || doc.types.pinned && /^(pin|pgh:|pord:|pgc:)/.test(key) && !tileKeys.has(key)) seed(next, key, record, previous.base[key] ?? null);
     }
   }
   doc.clock = clock.last;
