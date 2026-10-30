@@ -105,7 +105,7 @@ test("⌘W on the empty window left beside pinned items closes the window as bef
 
 test("an empty pinned group alone keeps the window on its last tab's close", () => {
   const { w, ids: [only] } = windowWith("only");
-  const group = { id: "pinned-empty", windowId: w, profileId: S().windows[w].profileId, name: "Empty", icon: null, color: null, collapsed: false, pinned: true, tabIds: [], createdAt: 0 };
+  const group = { id: "pinned-empty", windowId: w, spaceId: S().windows[w].spaceId, name: "Empty", icon: null, color: null, collapsed: false, pinned: true, tabIds: [], createdAt: 0 };
   useBrowser.setState({ groups: { ...S().groups, [group.id]: group } });
   S().closeTab(only);
   assert.ok(S().windows[w]);
@@ -120,13 +120,14 @@ test("without pinned items the last tab still asks before closing its window", a
   assert.equal(S().windows[w], undefined);
 });
 
-test("a pinned item in the profile the window doesn't show keeps nothing open", () => {
+test("a pinned item in a Space using another Profile keeps nothing open", () => {
   const { w, ids: [only] } = windowWith("only");
-  const other = S().createProfile({ name: "Other" });
-  const elsewhere = S().newTab(w, { url: "https://elsewhere.com/", profileId: other, background: true });
+  const profile = S().createProfile({ name: "Other" });
+  const other = S().createSpace({ name: "Other", profileId: profile });
+  const elsewhere = S().newTab(w, { url: "https://elsewhere.com/", spaceId: other, background: true });
   S().pinTabs([elsewhere], true);
-  assert.equal(S().tabs[elsewhere].profileId, other);
-  assert.notEqual(S().windows[w].profileId, other);
+  assert.equal(S().tabs[elsewhere].spaceId, other);
+  assert.notEqual(S().windows[w].spaceId, other);
   S().closeTab(only);
   assert.equal(S().windows[w], undefined);
 });

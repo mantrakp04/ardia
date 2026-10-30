@@ -135,7 +135,7 @@ export function pinnedItemsRemain(s: BrowserState, id: string): boolean {
   const w = s.windows[s.tabs[id]?.windowId ?? ""];
   if (!w) return false;
   if (viewTabIds(s, w.id).some((t) => t !== id && inPinnedContainer(s, t))) return true;
-  return Object.values(s.groups).some((g) => g.pinned && g.windowId === w.id && g.profileId === w.profileId);
+  return Object.values(s.groups).some((g) => g.pinned && g.windowId === w.id && g.spaceId === w.spaceId);
 }
 
 export function closesWindow(s: BrowserState, id: string): boolean {
