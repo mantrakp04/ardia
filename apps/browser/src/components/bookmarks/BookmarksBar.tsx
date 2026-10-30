@@ -1,5 +1,5 @@
-import { memo, useEffect, useId, useRef, useState } from "react";
-import { Animated, StyleSheet, View, type LayoutRectangle } from "react-native";
+import { memo, useCallback, useEffect, useId, useRef, useState } from "react";
+import { Animated, Dimensions, StyleSheet, View, type LayoutRectangle } from "react-native";
 import { currentBookmarks } from "../../state/browser/current";
 import { useBookmarkProfileId, useBookmarkRoots, useBookmarks } from "../../state/bookmarks/hooks";
 import { useSettings, useWindowId } from "../../state/browser/hooks";
@@ -75,16 +75,30 @@ function Bar({ windowId }: { windowId: string }) {
   const [itemsFrame, setItemsFrame] = useState<LayoutRectangle>({ x: 0, y: 0, width: 0, height: 0 });
   const [frames, setFrames] = useState<Frames>({});
   const [otherX, setOtherX] = useState<number | null>(null);
+  const pendingFrames = useRef<Frames | null>(null);
+  const onItemLayout = useCallback((id: string, r: LayoutRectangle) => {
+    if (!pendingFrames.current) {
+      pendingFrames.current = {};
+      requestAnimationFrame(() => {
+        const batch = pendingFrames.current;
+        pendingFrames.current = null;
+        if (batch) setFrames((prev) => mergeFrames(prev, batch));
+      });
+    }
+    pendingFrames.current[id] = r;
+  }, []);
 
+  const mounted = children.slice(0, mountableItems(width, size));
   const reserved = hasOther ? bookmarksBar.otherReserve : 0;
   const available = width - reserved;
-  const lastFrame = frames[children.at(-1) ?? ""];
-  const overflowing = !!lastFrame && lastFrame.x + lastFrame.width > available;
+  const lastFrame = frames[mounted.at(-1) ?? ""];
+  const overflowing = mounted.length < children.length || (!!lastFrame && lastFrame.x + lastFrame.width > available);
   const fits = (id: string) => {
     const f = frames[id];
     return !f || f.x + f.width <= available - (overflowing ? bookmarksBar.overflowWidth : 0);
   };
-  const visible = children.filter(fits);
+  const visible = mounted.filter(fits);
+  const visibleSlot = new Map(visible.map((id, i) => [id, i]));
   const hiddenFrom = visible.length;
 
   const draggedHere = source?.kind === "bookmark" && visible.includes(source.id) ? source.id : null;
@@ -162,17 +176,20 @@ function Bar({ windowId }: { windowId: string }) {
             For quick access, place your bookmarks here on the bookmarks bar.
           </Text>
         ) : (
-          children.map((id) => (
-            <BarItem
-              key={id}
-              id={id}
-              windowId={windowId}
-              profileId={profileId}
-              hidden={!fits(id)}
-              offset={offsets[visible.indexOf(id)] ?? 0}
-              onLayout={(r) => setFrames((prev) => (sameRect(prev[id], r) ? prev : { ...prev, [id]: r }))}
-            />
-          ))
+          mounted.map((id) => {
+            const slot = visibleSlot.get(id);
+            return (
+              <BarItem
+                key={id}
+                id={id}
+                windowId={windowId}
+                profileId={profileId}
+                hidden={slot === undefined}
+                offset={slot === undefined ? 0 : (offsets[slot] ?? 0)}
+                onLayout={onItemLayout}
+              />
+            );
+          })
         )}
         <DropLine x={lineX} size={size} color={theme.accent} />
       </View>
@@ -247,6 +264,16 @@ function DropLine({ x, size, color }: { x: number | null; size: BarSize; color: 
 const EMPTY: string[] = [];
 
 const sameRect = (a: LayoutRectangle | undefined, b: LayoutRectangle) => !!a && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+
+function mergeFrames(prev: Frames, batch: Frames): Frames {
+  const changed = Object.entries(batch).filter(([id, r]) => !sameRect(prev[id], r));
+  return changed.length ? { ...prev, ...Object.fromEntries(changed) } : prev;
+}
+
+function mountableItems(barWidth: number, size: BarSize): number {
+  const narrowestItem = Math.min(size.favicon, size.iconBox) + size.itemGap;
+  return Math.ceil(Math.max(barWidth, Dimensions.get("screen").width) / narrowestItem) + 1;
+}
 
 const HINT = { marginLeft: space.xs } as const;
 const OTHER = { flexDirection: "row", alignItems: "center" } as const;
