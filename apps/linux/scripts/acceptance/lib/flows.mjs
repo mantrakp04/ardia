@@ -1,7 +1,6 @@
 import { access, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { sessionPath, sessionSeed, writeChromePreferences, writeProfileSeed } from "./seed.mjs";
-import { evaluate } from "./cdp.mjs";
 import { js, until } from "./util.mjs";
 
 export async function startBrowser(t, { name = "profile", scratch, seed = true, session, onboardingComplete = true, preferences, background = true, extensions, extraArgs, env, ozone, label, coreDumps, settle = true } = {}) {
@@ -59,12 +58,4 @@ export async function waitSavedSession(scratch, test, { timeout = 15000, label =
     const session = await readSavedSession(scratch);
     return session && test(session) ? session : false;
   }, { timeout, label });
-}
-
-export async function waitPageViewport(app, target, { timeout = 15000 } = {}) {
-  const session = await app.connect(target);
-  return until(async () => {
-    const size = await evaluate(session, "({ width: innerWidth, height: innerHeight })", { timeout: 3000, userGesture: false }).catch(() => null);
-    return size?.width > 0 && size.height > 0 ? size : false;
-  }, { timeout, label: `page ${target.url} to get a viewport`, abort: () => app.exitReason() });
 }

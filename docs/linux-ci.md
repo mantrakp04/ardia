@@ -112,8 +112,8 @@ It refuses any sandbox-disabling switch. Every check must run and pass:
 
 It takes about 8 s and writes `results.json` and the launch logs.
 
-A headless smoke can't cover focus, GPU, keyring or desktop dialogs. Those stay in the acceptance suite's desktop
-sessions ([linux-acceptance.md](linux-acceptance.md)).
+A headless smoke can't cover focus, GPU, keyring or desktop dialogs, and no automated check here does. The headless
+acceptance suite ([linux-acceptance.md](linux-acceptance.md)) runs by hand.
 
 ## Sandbox on Ubuntu
 

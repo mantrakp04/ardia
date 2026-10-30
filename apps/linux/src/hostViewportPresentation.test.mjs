@@ -7,22 +7,24 @@ const source = readFileSync(new URL("./shims/web/HostWebView.tsx", import.meta.u
 const start = source.indexOf("    let revision = 0;");
 const end = source.indexOf("    return () => {", start);
 const code = stripTypeScriptTypes(source.slice(start, end));
-const run = new Function("node", "tab", "latest", "watchTabViewport", "reportHostError", "menuShown", "hostOverlayBlocked", "refreshTabViewports", "Image", "Date", code);
+const toHost = new Function(`${stripTypeScriptTypes(source.slice(source.indexOf("const toHost =")))}; return toHost;`)();
+const run = new Function("node", "tab", "latest", "watchTabViewport", "reportHostError", "hostOverlayBlocked", "refreshTabViewports", "Image", "Date", "toHost", "reportAppliedViewport", "useBrowser", code);
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 const viewport = { rect: { x: 190, y: 47, width: 1083, height: 846 }, visible: true, occlusions: [{ x: 192, y: 48, width: 264, height: 112, paintOutset: 32 }] };
 
-function fixture(capture, decode = async () => {}) {
+function fixture(capture, decode = async () => {}, themeColor = null) {
   let report;
+  const applied = [];
   let captures = 0;
   let clock = 0;
   const updates = [];
   const node = { style: {} };
   const current = { identity: { browserId: 1 }, command: () => capture(++captures), viewport: async (value) => updates.push(value), disposed: false };
-  run(node, { current }, { current: {} }, (_node, _visible, callback) => {
+  run(node, { current }, { current: { tabId: "tab_1" } }, (_node, _visible, callback) => {
     report = callback;
     return () => {};
-  }, () => {}, () => false, () => false, () => {}, class { decode = decode; }, { now: () => clock });
-  return { node, current, updates, report: (value = viewport) => report(value), advance: (ms) => { clock += ms; }, captures: () => captures };
+  }, () => {}, () => false, () => {}, class { decode = decode; }, { now: () => clock }, toHost, (owner, value) => applied.push([owner, value]), { getState: () => ({ live: { tab_1: { themeColor } } }) });
+  return { node, current, updates, applied, report: (value = viewport) => report(value), advance: (ms) => { clock += ms; }, captures: () => captures };
 }
 
 for (const failure of ["null", "reject", "decode"]) {
@@ -76,4 +78,28 @@ test("a late native snapshot cannot repaint a dismissed hover card", async () =>
   await settle();
   assert.deepEqual(f.updates, [clear]);
   assert.equal(f.node.style.backgroundImage, "");
+});
+
+test("a menu over the page gets an exact hole at once and its shadow outset once the snapshot is painted", async () => {
+  let resolve;
+  const f = fixture(() => new Promise((done) => { resolve = done; }), async () => {}, "#22aa66");
+  const menu = { x: 70, y: 87, width: 250, height: 428 };
+  const open = { rect: viewport.rect, visible: true, occlusions: [{ ...menu, paintOutset: 40, menu: true }] };
+  f.report(open);
+  await settle();
+  const exact = { rect: viewport.rect, visible: true, occlusions: [{ ...menu, paintOutset: 0 }] };
+  assert.deepEqual(f.updates, [exact]);
+  assert.equal(f.node.style.backgroundColor, "#22aa66");
+  assert.deepEqual(f.applied, [[f.node, { ...open, occlusions: [{ ...menu, paintOutset: 0, menu: true }] }]]);
+  resolve("data:image/png;base64,test");
+  await settle();
+  await settle();
+  assert.deepEqual(f.updates, [exact, { rect: viewport.rect, visible: true, occlusions: [{ ...menu, paintOutset: 40 }] }]);
+  assert.ok(f.node.style.backgroundImage);
+  assert.deepEqual(f.applied.at(-1), [f.node, open]);
+  const clear = { rect: viewport.rect, visible: true };
+  f.report(clear);
+  await settle();
+  assert.deepEqual(f.updates.at(-1), clear);
+  assert.equal(f.node.style.backgroundColor, "");
 });

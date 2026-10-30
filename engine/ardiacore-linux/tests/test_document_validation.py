@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 import unittest
 
-from test_session_merge import VALUES, WRITER, cpp_value
+from support import VALUES, WRITER, cpp_value
 
 FIXTURE_TOKEN = secrets.token_hex(16)
 

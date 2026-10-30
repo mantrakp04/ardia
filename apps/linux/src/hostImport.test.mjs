@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CHOOSER_DEADLINE_MS, IMPORT_IDLE_MS, createHostImport, pendingPasswords } from "./hostImport.ts";
+import { CHOOSER_DEADLINE_MS, IMPORT_IDLE_MS, UNLOCK_DEADLINE_MS, UNLOCK_LIFETIME_MS, createHostImport, pendingPasswords } from "./hostImport.ts";
 import { applyPendingPasswords, applyResult, setImportPasswordSink } from "./importApply.ts";
 import { claimImportHandle, isImportHandle, issueImportHandles } from "./importHandles.ts";
 import { savePassword } from "./importedPasswordSave.ts";
@@ -34,7 +34,9 @@ function fixture({ capabilities = [], replies = {} } = {}) {
       return () => listeners.delete(listener);
     },
   };
+  let now = 1_000_000;
   const clock = {
+    now: () => now,
     schedule: (run, ms) => {
       const timer = { run, ms, live: true };
       timers.push(timer);
@@ -53,12 +55,18 @@ function fixture({ capabilities = [], replies = {} } = {}) {
       timer.run();
     }
   };
+  const advance = (ms) => { now += ms; };
   const api = createHostImport(host, ImportError, clock);
-  return { api, calls, emit, fire, listeners, timers };
+  return { api, calls, emit, fire, listeners, advance };
 }
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 const native = (code, message = code) => Object.assign(new Error(message), { code });
+const SOURCES = [
+  { id: "chrome", name: "Google Chrome", family: "chromium", needsKeychain: true, keychainService: "Chrome Safe Storage", profiles: [] },
+  { id: "brave", name: "Brave", family: "chromium", needsKeychain: false, profiles: [] },
+  { id: "firefox", name: "Firefox", family: "firefox", needsKeychain: false, profiles: [] },
+];
 
 test("listBrowsers keeps well-formed Linux sources and remembers which can decrypt passwords", async () => {
   const sources = [
@@ -71,9 +79,6 @@ test("listBrowsers keeps well-formed Linux sources and remembers which can decry
   const { api, calls } = fixture({ replies: { "ArdiaImport.listBrowsers": sources } });
   assert.deepEqual((await api.listBrowsers()).map((s) => s.id), ["chrome", "firefox"]);
   assert.deepEqual(calls, [{ method: "ArdiaImport.listBrowsers", args: [] }]);
-  assert.equal(api.isBrowserUnlocked("chrome"), true);
-  assert.equal(api.isBrowserUnlocked("firefox"), false);
-  await api.unlockBrowser("chrome");
   await assert.rejects(api.unlockBrowser("safari"), { code: "unsupported" });
   const broken = fixture({ replies: { "ArdiaImport.listBrowsers": { not: "a list" } } });
   await assert.rejects(broken.api.listBrowsers(), { code: "unreadable" });
@@ -126,6 +131,115 @@ test("importData streams history in chunks when asked", async () => {
   assert.deepEqual(chunks, [["a", "b"], ["c"]]);
   assert.deepEqual(result.history, []);
   assert.equal(result.historyCount, 3);
+});
+
+test("a keyring-protected browser stays locked until the native unlock reports success, and expires with the native key", async () => {
+  const { api, calls, emit, listeners, advance } = fixture({ replies: { "ArdiaImport.listBrowsers": SOURCES } });
+  await api.listBrowsers();
+  assert.equal(api.isBrowserUnlocked("chrome"), false);
+  assert.equal(api.isBrowserUnlocked("brave"), true);
+  assert.equal(api.isBrowserUnlocked("firefox"), false);
+  await api.unlockBrowser("brave");
+  assert.deepEqual(calls.map((c) => c.method), ["ArdiaImport.listBrowsers"]);
+  const unlocking = api.unlockBrowser("chrome");
+  await settle();
+  const [requestId, browserId, password] = calls.at(-1).args;
+  assert.deepEqual([calls.at(-1).method, browserId, password], ["ArdiaImport.unlockBrowser", "chrome", null]);
+  emit({ jobId: "other", type: "unlocked" });
+  emit({ jobId: requestId, type: "unlocked" });
+  await unlocking;
+  assert.equal(api.isBrowserUnlocked("chrome"), true);
+  assert.equal(listeners.size, 0);
+  advance(UNLOCK_LIFETIME_MS - 1000);
+  assert.equal(api.isBrowserUnlocked("chrome"), true);
+  advance(1000);
+  assert.equal(api.isBrowserUnlocked("chrome"), false);
+  assert.equal(UNLOCK_LIFETIME_MS, 10 * 60_000);
+  api.forgetUnlockedKeys();
+  await settle();
+  assert.equal(calls.at(-1).method, "ArdiaImport.forgetUnlockedKeys");
+});
+
+test("a locked, stalled or refused keyring rejects with its code and leaves the browser locked", async () => {
+  const { api, calls, emit, fire } = fixture({ replies: { "ArdiaImport.listBrowsers": SOURCES } });
+  await api.listBrowsers();
+  const attempt = api.unlockBrowser("chrome");
+  await settle();
+  emit({ jobId: calls.at(-1).args[0], type: "failed", code: "locked", message: "keyring locked" });
+  await assert.rejects(attempt, { code: "locked" });
+  assert.equal(api.isBrowserUnlocked("chrome"), false);
+  const stalled = api.unlockBrowser("chrome");
+  await settle();
+  fire(UNLOCK_DEADLINE_MS);
+  await assert.rejects(stalled, { code: "timeout" });
+  const refused = fixture({ replies: { "ArdiaImport.listBrowsers": SOURCES, "ArdiaImport.unlockBrowser": native("busy") } });
+  await refused.api.listBrowsers();
+  await assert.rejects(refused.api.unlockBrowser("chrome"), { code: "busy" });
+});
+
+test("Firefox passes its primary password to the native unlock, and a refused card key leaves it locked so the next import asks again", async () => {
+  const { api, calls, emit } = fixture({ replies: { "ArdiaImport.listBrowsers": SOURCES } });
+  await api.listBrowsers();
+  const unlocking = api.unlockBrowser("firefox", { primaryPassword: "primary pw", profiles: ["a.default", 4], kinds: ["passwords", "autofill"] });
+  await settle();
+  assert.deepEqual(calls.at(-1).args.slice(1), ["firefox", "primary pw", ["a.default"], ["passwords", "autofill"]]);
+  emit({ jobId: calls.at(-1).args[0], type: "unlocked", cardsLocked: true });
+  await unlocking;
+  assert.equal(api.isBrowserUnlocked("firefox"), false);
+  const again = api.unlockBrowser("firefox", { primaryPassword: "primary pw", profiles: ["a.default"], kinds: ["autofill"] });
+  await settle();
+  emit({ jobId: calls.at(-1).args[0], type: "unlocked", cardsLocked: false });
+  await again;
+  assert.equal(api.isBrowserUnlocked("firefox"), true);
+});
+
+test("an import result keeps a well-formed vault token, the native counts and only well-formed PNG favicons for web pages", async () => {
+  const { api, calls, emit } = fixture();
+  const running = api.importData("chrome", "Default", ["cookies", "autofill", "tabs", "bookmarks"]);
+  await settle();
+  const png = "iVBORw0KGgoAAAANSUhEUg==";
+  emit({ jobId: calls[0].args[0], type: "done", result: {
+    browserId: "chrome", profileId: "Default", history: [], historyCount: 0, credentials: [],
+    tabs: [{ url: "https://a.example/", title: "A", pinned: false, windowIndex: 0, active: true }],
+    tabGroups: [{ id: "g", title: "G", color: "blue", collapsed: false }],
+    cookieCount: 12, addressCount: 2, cardCount: 1, vaultToken: TOKEN, failed: [], warnings: [],
+    favicons: [
+      { page: "https://a.example/", icon: "https://a.example/favicon.ico", png },
+      { page: "javascript:alert(1)", icon: "https://b.example/i.png", png },
+      { page: "https://c.example/", icon: "https://c.example/i.png", png: "R0lGODlh" },
+      "nope",
+    ],
+  } });
+  const result = await running;
+  assert.equal(result.vaultToken, TOKEN);
+  assert.deepEqual([result.cookieCount, result.addressCount, result.cardCount, result.tabs.length, result.tabGroups.length], [12, 2, 1, 1, 1]);
+  assert.deepEqual(result.favicons, [{ page: "https://a.example/", icon: "https://a.example/favicon.ico", png }]);
+  const second = api.importData("chrome", "Default", ["cookies"]);
+  await settle();
+  emit({ jobId: calls.at(-1).args[0], type: "done", result: { cookieCount: -4, vaultToken: TOKEN.toUpperCase() } });
+  const bad = await second;
+  assert.equal(bad.vaultToken, undefined);
+  assert.equal(bad.cookieCount, 0);
+});
+
+test("imported cookies, addresses and cards are written natively from a vault token and finish by event", async () => {
+  const { api, calls, emit, listeners } = fixture();
+  const writing = api.writeImported(TOKEN, "work", ["cookies", "autofill"]);
+  await settle();
+  const [requestId, token, profile, kinds] = calls.at(-1).args;
+  assert.deepEqual([calls.at(-1).method, token, profile, kinds], ["ArdiaImport.writeImported", TOKEN, "work", ["cookies", "autofill"]]);
+  emit({ jobId: requestId, type: "progress", kind: "cookies", phase: "progress", processed: 500, total: 900 });
+  emit({ jobId: requestId, type: "importedWritten", cookies: 880, cookiesRejected: 20, cookiesExisting: 3, addresses: 2, cards: 1, autofillFailed: 1 });
+  assert.deepEqual(await writing, { cookies: 880, cookiesRejected: 20, cookiesExisting: 3, addresses: 2, cards: 1, autofillFailed: 1 });
+  assert.equal(listeners.size, 0);
+  const failing = api.writeImported(TOKEN, "", ["cookies"]);
+  await settle();
+  emit({ jobId: calls.at(-1).args[0], type: "failed", code: "ERR_PROFILE_DELETED", message: "gone" });
+  await assert.rejects(failing, { code: "ERR_PROFILE_DELETED" });
+  await assert.rejects(api.writeImported("not-a-token", "", ["cookies"]), { code: "expired" });
+  api.discardImported(TOKEN);
+  await settle();
+  assert.deepEqual(calls.at(-1), { method: "ArdiaImport.discardImported", args: [TOKEN] });
 });
 
 test("native failures, start errors and stalls reject with their codes and stop listening", async () => {
@@ -263,11 +377,6 @@ test("password tokens are written in event-completed chunks with added and exist
 
   const expired = fixture({ replies: { "ArdiaImport.writePasswords": native("expired") } });
   await assert.rejects(expired.api.writePasswords(TOKEN, ""), { code: "expired" });
-  const refused = fixture();
-  const refusing = refused.api.writePasswords(TOKEN, "work");
-  await settle();
-  refused.emit({ jobId: refused.calls[0].args[0], type: "failed", code: "ERR_PROFILE_UNAVAILABLE", message: "no" });
-  await assert.rejects(refusing, { code: "ERR_PROFILE_UNAVAILABLE" });
   const stalled = fixture();
   const stalling = stalled.api.writePasswords(TOKEN, "");
   await settle();

@@ -58,7 +58,6 @@ function moduleMap(type) {
 }
 
 const REQUIRED = moduleMap("ShellNativeModules");
-const linuxExposes = (module) => advertised.some((capability) => capability === module || capability.startsWith(`${module}.`));
 
 const FORMERLY_TRACKED_IN_305 = [
   "ArdiaApp.updaterState", "ArdiaApp.checkForUpdates", "ArdiaApp.setAutomaticUpdateChecks", "ArdiaApp.setAutomaticUpdateDownloads",
@@ -109,18 +108,14 @@ function audit(modules = REQUIRED) {
   return { missing, unchecked };
 }
 
-test("the audited modules are read from packages/shell's native module map", () => {
-  assert.deepEqual(REQUIRED.map(({ module }) => module).filter((module) => ["ArdiaShell", "ArdiaApp", "ArdiaSystem", "ArdiaGlassEffect"].includes(module)), ["ArdiaShell", "ArdiaApp", "ArdiaSystem", "ArdiaGlassEffect"]);
-  for (const module of ["ArdiaCli", "ArdiaUserScripts"]) assert.ok(REQUIRED.some((found) => found.module === module), `${module} is a required module`);
-  assert.deepEqual(REQUIRED.find(({ module }) => module === "ArdiaGlassEffect").methods, ["isLiquidGlass"]);
-  const app = REQUIRED.filter(({ module }) => hostModuleName(module) === "ArdiaApp").flatMap(({ methods }) => methods);
-  for (const method of ["updaterState", "isInDock", "devCrash"]) assert.ok(app.includes(method), method);
-  const shell = REQUIRED.filter(({ module }) => hostModuleName(module) === "ArdiaShell").map(({ module }) => module);
-  assert.deepEqual(shell.sort(), ["ArdiaAppWindows", "ArdiaDialogs", "ArdiaFocus", "ArdiaMenus", "ArdiaShell"]);
+test("every shared native method resolves to a callable on Linux and reaches a Linux adapter, an advertised or routed native method, or the explicit allow-to-reject list", () => {
+  assert.deepEqual(REQUIRED.filter(({ module }) => hostModuleName(module) === "ArdiaShell").map(({ module }) => module).sort(), ["ArdiaAppWindows", "ArdiaDialogs", "ArdiaFocus", "ArdiaMenus", "ArdiaShell"]);
+  assert.deepEqual(audit(), { missing: [], unchecked: [] });
 });
 
-test("every shared native method resolves to a callable on Linux and reaches a Linux adapter, an advertised or routed native method, or the explicit allow-to-reject list", () => {
-  assert.deepEqual(audit(), { missing: [], unchecked: [] });
+test("a Linux fallback only stands in for a native shell method the host doesn't advertise", () => {
+  const shadowed = [...nativeHost.matchAll(/method == "ArdiaShell\.(\w+)"/g)].map((match) => match[1]).filter((method) => linuxShellMethod(method) && !advertised.includes(`ArdiaShell.${method}`));
+  assert.deepEqual(shadowed, []);
 });
 
 test("a method added to a shared module type without a Linux path fails the audit", () => {
@@ -160,23 +155,12 @@ test("the Mac-only methods of #305 answer on Linux with a truthful value or ERR_
 
 test("the ardia command and the user-scripts folder answer on Linux as the modules were absent before they became required", async () => {
   const host = linuxHost();
-  assert.equal(linuxExposes("ArdiaCli"), false);
-  assert.equal(linuxExposes("ArdiaUserScripts"), false);
   assert.equal(resolveHostModule(host, "ArdiaCli", "installedVersion")(), null);
   assert.equal((await resolveHostModule(host, "ArdiaCli", "install")().catch((error) => error)).code, "ERR_UNAVAILABLE");
   assert.equal(resolveHostModule(host, "ArdiaUserScripts", "watch")(true), undefined);
   assert.deepEqual(await resolveHostModule(host, "ArdiaUserScripts", "read")(), { state: "empty" });
   assert.equal(await resolveHostModule(host, "ArdiaUserScripts", "readStatus")(), null);
   assert.equal(await resolveHostModule(host, "ArdiaUserScripts", "writeStatus")("{}"), undefined);
-});
-
-test("an engine that advertises one of those methods is called instead of the Linux answer", async () => {
-  const host = linuxHost();
-  host.bootstrap.capabilities.push("ArdiaApp.postNotification");
-  const calls = [];
-  host.invoke = async (method) => { calls.push(method); return "n1"; };
-  assert.equal(await resolveHostModule(host, "ArdiaApp", "postNotification")({ title: "x" }), "n1");
-  assert.deepEqual(calls, ["ArdiaApp.postNotification"]);
 });
 
 test("every ArdiaShell method resolves to its Linux fallback while the native host doesn't advertise it", () => {
@@ -186,33 +170,39 @@ test("every ArdiaShell method resolves to its Linux fallback while the native ho
 });
 
 test("reading the clipboard answers empty text on Linux until the native host advertises ArdiaShell.readText", async () => {
-  assert.equal(advertised.includes("ArdiaShell.readText"), false);
-  assert.equal(await resolveHostModule(linuxHost(), "ArdiaShell", "readText")(), "");
+  assert.equal(await resolveHostModule(olderEngine("ArdiaShell.readText"), "ArdiaShell", "readText")(), "");
   const host = linuxHost();
   host.bootstrap.capabilities.push("ArdiaShell.readText");
   host.invoke = async (method) => (method === "ArdiaShell.readText" ? "copied" : null);
   assert.equal(await resolveHostModule(host, "ArdiaShell", "readText")(), "copied");
 });
 
-test("the native host captures a tab drag's Escape for every window, whatever has keyboard focus", async () => {
-  assert.ok(advertised.includes("ArdiaShell.setDragEscapeCapture"));
+test("a method the native host advertises wins over the Linux answer", async () => {
   const host = linuxHost();
   const calls = [];
-  host.invoke = async (method, args) => { calls.push([method, args]); return null; };
-  const capture = resolveHostModule(host, "ArdiaShell", "setDragEscapeCapture");
-  assert.notEqual(capture, linuxShellMethod("setDragEscapeCapture"));
-  await capture(true);
-  await capture(false);
-  assert.deepEqual(calls, [["ArdiaShell.setDragEscapeCapture", { args: [true] }], ["ArdiaShell.setDragEscapeCapture", { args: [false] }]]);
+  host.bootstrap.capabilities.push("ArdiaShell.watchLeftEdge", "ArdiaApp.postNotification");
+  host.invoke = async (method, args) => { calls.push([method, args]); return "n1"; };
+  await resolveHostModule(host, "ArdiaShell", "watchLeftEdge")("main", true, 256.5);
+  assert.equal(await resolveHostModule(host, "ArdiaApp", "postNotification")({ title: "x" }), "n1");
+  assert.deepEqual(calls, [["ArdiaShell.watchLeftEdge", { args: ["main", true, 256.5] }], ["ArdiaApp.postNotification", { args: [{ title: "x" }] }]]);
 });
 
-test("a method the native host advertises wins over the Linux fallback", async () => {
+test("Open File… reaches the native chooser, and an engine without it rejects explicitly instead of hanging", async () => {
   const host = linuxHost();
   const calls = [];
-  host.bootstrap.capabilities.push("ArdiaShell.watchLeftEdge");
-  host.invoke = async (method, args) => { calls.push([method, args]); return null; };
-  await resolveHostModule(host, "ArdiaShell", "watchLeftEdge")("main", true, 0);
-  assert.deepEqual(calls, [["ArdiaShell.watchLeftEdge", { args: ["main", true, 0] }]]);
+  host.invoke = async (method, args) => { calls.push([method, args]); return ["file:///home/user/a.pdf"]; };
+  assert.deepEqual(await resolveHostModule(host, "ArdiaShell", "pickFiles")(), ["file:///home/user/a.pdf"]);
+  assert.deepEqual(calls, [["ArdiaShell.pickFiles", { args: [] }]]);
+  await assert.rejects(resolveHostModule(olderEngine("ArdiaShell.pickFiles"), "ArdiaShell", "pickFiles")(), { code: "ERR_UNAVAILABLE" });
+});
+
+test("native shell methods reach the host whether or not they are advertised", async () => {
+  for (const host of [linuxHost(), olderEngine(...advertised)]) {
+    const calls = [];
+    host.invoke = async (method) => { calls.push(method); return null; };
+    for (const method of ["restoreFullScreen", "windowFrame"]) await resolveHostModule(host, "ArdiaShell", method)("main");
+    assert.deepEqual(calls, ["ArdiaShell.restoreFullScreen", "ArdiaShell.windowFrame"]);
+  }
 });
 
 function fakeDom() {
@@ -272,19 +262,6 @@ function shellEvents(event) {
   const subscription = requireNativeModule("ArdiaShell").addListener(event, (payload) => seen.push(payload));
   return { seen, remove: () => subscription.remove() };
 }
-
-test("the native host watches the left edge itself, so the page view and the frame's resize border can't hide the pointer from it (#368)", async () => {
-  assert.ok(advertised.includes("ArdiaShell.watchLeftEdge"));
-  assert.ok(nativeHost.includes('method == "ArdiaShell.watchLeftEdge"'));
-  const host = linuxHost();
-  const calls = [];
-  host.invoke = async (method, args) => { calls.push([method, args]); return null; };
-  const watch = resolveHostModule(host, "ArdiaShell", "watchLeftEdge");
-  assert.notEqual(watch, linuxShellMethod("watchLeftEdge"));
-  await watch("main", true, 256.5);
-  await watch("main", false);
-  assert.deepEqual(calls, [["ArdiaShell.watchLeftEdge", { args: ["main", true, 256.5] }], ["ArdiaShell.watchLeftEdge", { args: ["main", false] }]]);
-});
 
 test("an engine without the native watcher still watches the left edge from the shell, and a peek's hold keeps it over while the pointer is in the hold", async () => {
   const dom = installDom();
@@ -378,7 +355,7 @@ test("raiseView lifts a dragged chip and its parents above their siblings and pu
   await raise(null, 0, true);
 });
 
-test("window close animations, the drag preview and focus cancellation settle immediately, and unavailable features reject explicitly", async () => {
+test("window close animations, the drag preview, focus cancellation and haptics settle immediately, and unavailable features reject explicitly", async () => {
   const host = linuxHost();
   for (const name of ["animateWindowClose", "dragPreviewBegin", "dragPreviewPage", "dragPreviewUpdate", "dragPreviewPlaceholder", "dragPreviewEnd", "dragPreviewCancel", "cancelFocusMove", "replyToTerminate"]) {
     assert.equal(await resolveHostModule(host, "ArdiaShell", name)(), undefined, name);
@@ -387,12 +364,6 @@ test("window close animations, the drag preview and focus cancellation settle im
   for (const name of ["fetchBangList", "startDictation"]) {
     await assert.rejects(resolveHostModule(host, "ArdiaShell", name)(null), { code: "ERR_UNAVAILABLE" }, name);
   }
-});
-
-test("a tab drag's haptic tick settles quietly on Linux, which has no haptics", async () => {
-  const host = linuxHost();
-  let invoked = false;
-  host.invoke = async () => { invoked = true; throw new Error("Unsupported Linux host method: ArdiaSystem.hapticTick"); };
+  host.invoke = async () => assert.fail("haptics never reach the host");
   assert.equal(await resolveHostModule(host, "ArdiaSystem", "hapticTick")(), undefined);
-  assert.equal(invoked, false);
 });

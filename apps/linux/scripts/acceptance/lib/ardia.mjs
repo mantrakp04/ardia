@@ -140,12 +140,6 @@ export class ArdiaApp {
     return session;
   }
 
-  async disconnect(target) {
-    const session = this.connections.get(target.id);
-    this.connections.delete(target.id);
-    await session?.close().catch(() => {});
-  }
-
   async shells() {
     const targets = (await this.targets()).filter((t) => t.url.startsWith(SHELL_PREFIX) && t.type === "page");
     const shells = [];
@@ -195,10 +189,6 @@ export class ArdiaApp {
         await session.close().catch(() => {});
       }
     }, { timeout, label: `page ${url} to load`, abort: () => this.exitReason() });
-  }
-
-  async pageSession(predicate, options) {
-    return this.connect(await this.pageTarget(predicate, options));
   }
 
   async screenshot(session, file) {
@@ -280,18 +270,6 @@ export class Shell {
     return this.eval("__ardiaHost.invoke('ArdiaShell.windowIds', { args: [] })");
   }
 
-  async nativeWindowId({ timeout = 15000 } = {}) {
-    return until(async () => {
-      const urls = await this.state("const w = s.windows[windowId]; return (w?.tabIds ?? []).map((id) => s.tabs[id]?.url).filter(Boolean);");
-      for (const target of await this.app.targets()) {
-        if (target.type !== "page" || !urls.includes(target.url)) continue;
-        const reply = await this.app.browser.send("Browser.getWindowForTarget", { targetId: target.id }).catch(() => null);
-        if (reply?.windowId) return reply.windowId;
-      }
-      return false;
-    }, { timeout, label: `the native window of ${this.windowId}`, abort: () => this.app.exitReason() });
-  }
-
   activeTabId() {
     return this.state("const w = s.windows[windowId]; return w ? (w.activeTabIds?.[w.profileId] ?? null) : null;");
   }
@@ -317,10 +295,6 @@ export class Shell {
     }, { timeout, label: label ?? `tab ${tabId} URL`, abort: () => this.app.exitReason() });
   }
 
-  async rect(selector) {
-    return this.eval(`(() => { const nodes = [...document.querySelectorAll(${js(selector)})].filter(n => { const r = n.getBoundingClientRect(); return r.width > 0 && r.height > 0; }); const n = nodes[0]; if (!n) return null; const r = n.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, left: r.left, top: r.top, width: r.width, height: r.height }; })()`);
-  }
-
   async rectByText(text, { exact = true } = {}) {
     return this.eval(`(() => {
       const want = ${js(text)};
@@ -344,12 +318,6 @@ export class Shell {
     await this.session.send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button, clickCount, buttons: button === "right" ? 2 : 1 });
     if (hold) await delay(hold);
     await this.session.send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button, clickCount, buttons: 0 });
-  }
-
-  async click(selector, options) {
-    const r = await until(() => this.rect(selector), { timeout: options?.timeout ?? 8000, label: `visible ${selector}` });
-    await this.mouse(r.x, r.y, options);
-    return r;
   }
 
   async clickText(text, options) {
@@ -379,5 +347,3 @@ export class Shell {
     return this.app.screenshot(this.session, file);
   }
 }
-
-export const MODIFIER = { alt: 1, ctrl: 2, meta: 4, shift: 8 };

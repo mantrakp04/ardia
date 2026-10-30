@@ -5,7 +5,7 @@ import { resolveHostModule } from "./hostModules.ts";
 import { createHostDocuments } from "./hostDocuments.ts";
 import { createSessionWriter, initialHostSession, snapshotHostSession, startHostPersistence } from "./hostSession.ts";
 import { HostTab } from "./hostTab.ts";
-import { tabViewport, watchTabViewport } from "./hostViewport.ts";
+import { tabViewport } from "./hostViewport.ts";
 import { startHostTabLifecycle } from "./hostTabLifecycle.ts";
 import { startHostData } from "./hostData.ts";
 import { useBrowser } from "../../browser/src/state/browser/store.ts";
@@ -565,57 +565,4 @@ test("a presentation batch retains its final visibility and reports transport er
   assert.ok(results.every((result) => result.status === "rejected" && result.reason.message === "presentation failed"));
   assert.deepEqual(requests.filter(([method]) => method === "tab.presentations"), [["tab.presentations", { tabs: [{ claim: tab.claim, id: 31, visible: true }] }]]);
   tab.dispose();
-});
-
-test("viewport observation tracks transforms, scroll, visual zoom, overlays, and document visibility", async () => {
-  const previous = Object.fromEntries(["window", "document", "getComputedStyle", "ResizeObserver", "requestAnimationFrame", "cancelAnimationFrame", "MutationObserver"].map((key) => [key, globalThis[key]]));
-  const windowEvents = new EventTarget();
-  const visualViewport = new EventTarget();
-  const documentEvents = new EventTarget();
-  let rect = { x: 200, y: 50, width: 800, height: 600, left: 200, top: 50, right: 1000, bottom: 650 };
-  let frame;
-  let blocked = false;
-  let disconnected = false;
-  const element = { isConnected: true, parentElement: null, getBoundingClientRect: () => rect, contains: () => false };
-  const document = Object.assign(documentEvents, { documentElement: {}, hidden: false, querySelectorAll: () => [], querySelector: () => null, elementFromPoint: () => blocked ? {} : element });
-  globalThis.window = Object.assign(windowEvents, { innerWidth: 1280, innerHeight: 800, visualViewport });
-  globalThis.document = document;
-  globalThis.getComputedStyle = () => ({ display: "block", visibility: "visible", opacity: "1" });
-  globalThis.ResizeObserver = class { observe() {} disconnect() { disconnected = true; } };
-  globalThis.requestAnimationFrame = (callback) => { frame = callback; return 1; };
-  globalThis.cancelAnimationFrame = () => {};
-  let mutated = () => {};
-  globalThis.MutationObserver = class { constructor(callback) { mutated = callback; } observe() {} disconnect() {} };
-  const mutate = async () => { mutated([]); frame(); };
-  const updates = [];
-  try {
-    const stop = watchTabViewport(element, () => true, (update) => updates.push(update));
-    assert.equal(updates.at(-1).visible, true);
-    rect = { ...rect, x: 250, left: 250, right: 1050 };
-    windowEvents.dispatchEvent(new Event("scroll"));
-    assert.equal(updates.at(-1).rect.x, 250);
-    rect = { ...rect, width: 720, right: 970 };
-    visualViewport.dispatchEvent(new Event("resize"));
-    assert.equal(updates.at(-1).rect.width, 720);
-    blocked = true;
-    await mutate();
-    assert.equal(updates.at(-1).visible, false);
-    blocked = false;
-    document.hidden = true;
-    documentEvents.dispatchEvent(new Event("visibilitychange"));
-    assert.equal(updates.at(-1).visible, false);
-    document.hidden = false;
-    documentEvents.dispatchEvent(new Event("visibilitychange"));
-    assert.equal(updates.at(-1).visible, true);
-    stop();
-    assert.equal(disconnected, true);
-    const count = updates.length;
-    windowEvents.dispatchEvent(new Event("scroll"));
-    assert.equal(updates.length, count);
-  } finally {
-    for (const [key, value] of Object.entries(previous)) {
-      if (value === undefined) delete globalThis[key];
-      else globalThis[key] = value;
-    }
-  }
 });

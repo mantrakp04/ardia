@@ -4,20 +4,100 @@ import subprocess
 import tempfile
 import unittest
 
+from support import method
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'src/ardia/linux/ac_linux_host.cc'
 
 
-def method(source, signature):
-    start = source.index(signature)
-    brace = source.index('{', start)
-    depth = 1
-    end = brace + 1
-    while depth:
-        depth += (source[end] == '{') - (source[end] == '}')
-        end += 1
-    return source[start:end]
+COMMITTED = r'''
+int main(int argc, char** argv) {
+  assert(argc == 2);
+  ShellHostView host;
+  HostMessageHandler a(&host);
+  a.ui_ = {&host.frame_, host.shell()};
+  host.frame_.NewDocument(a.web_ui());
+  a.RegisterMessages();
+  assert(!a.generation_);
+  content::Page first_commit{&host.frame_};
+  a.PrimaryPageChanged(first_commit);
+  const auto generation = a.generation_;
+  assert(generation && host.OwnsHandler(&a, generation));
+  auto ordinary = std::make_unique<TabBinding>();
+  ordinary->claim = "a";
+  ordinary->renderer_generation = generation;
+  host.bindings_[7] = std::move(ordinary);
+  auto temporary = std::make_unique<TabBinding>();
+  temporary->claim = "temporary";
+  temporary->temporary = true;
+  temporary->renderer_generation = generation;
+  host.bindings_[8] = std::move(temporary);
+  base::DictValue args;
+  args.ints["id"] = 7;
+  args.strings["claim"] = "a";
+  content::RenderFrameHost pending_frame;
+  auto b = std::make_unique<HostMessageHandler>(&host);
+  b->ui_ = {&pending_frame, host.shell()};
+  pending_frame.NewDocument(b->web_ui());
+  b->RegisterMessages();
+  assert(!b->generation_);
+  assert(host.OwnsHandler(&a, generation));
+  assert(host.ClaimedBinding(args));
+  assert(host.Binding(8)->live);
+  if (std::string(argv[1]) == "cancel") {
+    a.OnJavascriptDisallowed();
+    b.reset();
+    assert(host.OwnsHandler(&a, generation));
+    assert(host.Trusted(a.web_ui()));
+    assert(host.ClaimedBinding(args));
+    assert(host.Binding(8)->live);
+    return 0;
+  }
+  host.contents_.primary = &pending_frame;
+  assert(!host.OwnsHandler(&a, generation));
+  content::Page committed{&pending_frame};
+  a.PrimaryPageChanged(committed);
+  assert(!b->generation_);
+  b->PrimaryPageChanged(committed);
+  assert(b->generation_ > generation);
+  assert(host.OwnsHandler(b.get(), b->generation_));
+  assert(!host.ClaimedBinding(args));
+  assert(!host.Binding(8)->live);
+  a.RegisterMessages();
+  a.ActivateCommittedRenderer();
+  assert(!host.OwnsHandler(&a, generation));
+  assert(host.OwnsHandler(b.get(), b->generation_));
+  if (std::string(argv[1]) == "commit") return 0;
+  content::RenderFrameHost child_frame;
+  HostMessageHandler child(&host);
+  child.ui_ = {&child_frame, host.shell()};
+  child_frame.NewDocument(child.web_ui());
+  child.RegisterMessages();
+  content::Page child_page{&child_frame};
+  child.PrimaryPageChanged(child_page);
+  assert(!child.generation_);
+  content::WebContents foreign_contents{&pending_frame};
+  HostMessageHandler foreign(&host);
+  foreign.ui_ = {&pending_frame, &foreign_contents};
+  foreign.RegisterMessages();
+  foreign.PrimaryPageChanged(committed);
+  assert(!foreign.generation_);
+  const auto b_generation = b->generation_;
+  host.Binding(7)->claim = "b";
+  host.Binding(7)->renderer_generation = b_generation;
+  pending_frame.NewDocument(b->web_ui());
+  assert(!host.OwnsHandler(b.get(), b_generation));
+  b->PrimaryPageChanged(committed);
+  assert(b->generation_ > b_generation);
+  assert(!host.OwnsHandler(b.get(), b_generation));
+  assert(host.Binding(7)->claim.empty());
+  assert(host.OwnsHandler(b.get(), b->generation_));
+  pending_frame.live = false;
+  b->PrimaryMainFrameRenderProcessGone(base::TERMINATION_STATUS_PROCESS_CRASHED);
+  assert(!host.handler_);
+}
+'''
 
 
 class RendererContractTests(unittest.TestCase):
@@ -139,6 +219,10 @@ int main(int argc, char** argv) {
 }
 '''
 
+    def run_committed(self, mode):
+        prefix = self.lifecycle_fixture().split('int main(int argc', 1)[0]
+        self.compile_and_run(prefix + COMMITTED, mode)
+
     def test_handler_replacement_retires_the_predecessor_atomically(self):
         self.compile_and_run(self.lifecycle_fixture(), 'replacement')
 
@@ -147,6 +231,15 @@ int main(int argc, char** argv) {
 
     def test_renderer_teardown_closes_temporary_and_retains_logical_tabs(self):
         self.compile_and_run(self.lifecycle_fixture(), 'teardown')
+
+    def test_canceled_speculative_registration_preserves_committed_authority(self):
+        self.run_committed('cancel')
+
+    def test_real_commit_retires_the_old_document_without_request_reactivation(self):
+        self.run_committed('commit')
+
+    def test_wrong_host_subframes_reused_documents_and_crashes(self):
+        self.run_committed('frames')
 
 
 if __name__ == '__main__':

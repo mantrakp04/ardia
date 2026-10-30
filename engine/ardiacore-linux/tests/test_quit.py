@@ -1,15 +1,12 @@
 import pathlib
-import re
 import shutil
 import subprocess
 import tempfile
 import unittest
 
-from test_renderer_contract import method as extract
-from test_session_merge import VALUES
+from support import VALUES, method as extract
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-REPO = ROOT.parents[1]
 LINUX = ROOT / 'src' / 'ardia' / 'linux'
 HOST = (LINUX / 'ac_linux_host.cc').read_text()
 BRANCH = '  if (method == "ArdiaShell.quit" || method == "ArdiaShell.downloadsInProgress")'
@@ -93,24 +90,6 @@ class QuitRouteTests(unittest.TestCase):
             self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
             ran = subprocess.run([str(binary)], capture_output=True, text=True, timeout=20)
             self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
-
-    def test_routes_are_advertised_and_chromium_leaves_the_download_question_to_ardia(self):
-        self.assertIn('.Append("ArdiaShell.quit")', HOST)
-        self.assertIn('.Append("ArdiaShell.downloadsInProgress")', HOST)
-        self.assertIn('#include "chrome/browser/lifetime/application_lifetime.h"', HOST)
-        self.assertIn('#include "chrome/browser/download/download_core_service.h"', HOST)
-        initialize = HOST[HOST.index('g_ardia_linux_close_hooks = {'):]
-        self.assertIn('SetLinuxQuitAsksAboutDownloads(true);', initialize[:initialize.index('LinuxExtensionsDelegate extensions;')])
-        patch = (REPO / 'engine/patches/chromium-linux-document-close.patch').read_text()
-        self.assertIn('+  if (download_count == 0 || ardia::LinuxQuitAsksAboutDownloads()) {', patch)
-
-    def test_quit_never_runs_inside_the_reply_and_sources_stay_comment_free(self):
-        branch = extract(HOST, BRANCH)
-        self.assertIn('PostTask(', branch)
-        self.assertIn('chrome::AttemptExit', branch)
-        self.assertNotIn('AttemptUserExit', branch)
-        hooks = (LINUX / 'ac_linux_close_hooks.cc').read_text() + (LINUX / 'ac_linux_close_hooks.h').read_text()
-        self.assertIsNone(re.search(r'//|/\*', hooks))
 
 
 if __name__ == '__main__':

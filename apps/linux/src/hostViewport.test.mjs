@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { backdropCovers, watchTabViewport } from "./hostViewport.ts";
+import { backdropCovers, menuCovers, nativeViewsClear, reportAppliedViewport, watchAppliedViewports, watchTabViewport } from "./hostViewport.ts";
 
 test("viewport observation tracks transforms, scroll, visual zoom, overlays, and document visibility", async () => {
   const previous = Object.fromEntries(["window", "document", "getComputedStyle", "ResizeObserver", "requestAnimationFrame", "cancelAnimationFrame", "MutationObserver"].map((key) => [key, globalThis[key]]));
@@ -15,7 +15,7 @@ test("viewport observation tracks transforms, scroll, visual zoom, overlays, and
   let disconnected = false;
   const element = { isConnected: true, parentElement: null, getBoundingClientRect: () => rect, contains: () => false };
   const selectors = [];
-  const document = Object.assign(documentEvents, { documentElement: {}, hidden: false, querySelectorAll: (selector) => { selectors.push(selector); return selector.includes("ardia-sidebar-peek") ? [] : cards; }, querySelector: () => null, elementFromPoint: () => blocked ? {} : cardAtSample ? cards[0] : element });
+  const document = Object.assign(documentEvents, { documentElement: {}, hidden: false, querySelectorAll: (selector) => { selectors.push(selector); return selector.includes("ardia-sidebar-peek") || selector === ".ardia-menu" ? [] : cards; }, querySelector: () => null, elementFromPoint: () => blocked ? {} : cardAtSample ? cards[0] : element });
   globalThis.window = Object.assign(windowEvents, { innerWidth: 1280, innerHeight: 800, visualViewport });
   globalThis.document = document;
   globalThis.getComputedStyle = () => ({ display: "block", visibility: "visible", opacity: "1" });
@@ -29,7 +29,7 @@ test("viewport observation tracks transforms, scroll, visual zoom, overlays, and
   try {
     const stop = watchTabViewport(element, () => true, (update) => updates.push(update));
     assert.equal(updates.at(-1).visible, true);
-    assert.deepEqual(selectors.at(-1).split(",").map((part) => part.trim()), ['[data-testid="ardia-sidebar-hover"] > div > div', '[data-testid="ardia-page-overlay"] > div > div']);
+    assert.deepEqual(selectors.find((selector) => selector.includes("ardia-sidebar-hover")).split(",").map((part) => part.trim()), ['[data-testid="ardia-sidebar-hover"] > div > div', '[data-testid="ardia-page-overlay"] > div > div']);
     rect = { ...rect, x: 250, left: 250, right: 1050 };
     windowEvents.dispatchEvent(new Event("scroll"));
     assert.equal(updates.at(-1).rect.x, 250);
@@ -283,5 +283,80 @@ test("an idle page is not measured again, and a running ancestor animation is fo
       if (value === undefined) delete globalThis[key];
       else globalThis[key] = value;
     }
+  }
+});
+
+test("an open context menu over the page is cut out of it instead of hiding the page", async () => {
+  const previous = Object.fromEntries(["window", "document", "getComputedStyle", "ResizeObserver", "requestAnimationFrame", "cancelAnimationFrame", "MutationObserver"].map((key) => [key, globalThis[key]]));
+  const box = (x, y, width, height) => ({ x, y, width, height, left: x, top: y, right: x + width, bottom: y + height });
+  const page = { isConnected: true, parentElement: null, getBoundingClientRect: () => box(190, 47, 763, 1026), contains: (node) => node === page };
+  const menu = { getBoundingClientRect: () => box(120, 300, 240, 180), contains: (node) => node === menu };
+  const sidebarMenu = { getBoundingClientRect: () => box(10, 300, 170, 180), contains: (node) => node === sidebarMenu };
+  let menus = [menu];
+  const inMenu = (x, y) => menus.some((open) => { const r = open.getBoundingClientRect(); return x >= r.left && x < r.right && y >= r.top && y < r.bottom; });
+  globalThis.window = Object.assign(new EventTarget(), { innerWidth: 953, innerHeight: 1080 });
+  globalThis.document = Object.assign(new EventTarget(), {
+    documentElement: {},
+    hidden: false,
+    querySelectorAll: (selector) => (selector === ".ardia-menu" ? menus : []),
+    querySelector: () => null,
+    elementFromPoint: (x, y) => (inMenu(x, y) ? menus[0] : page),
+  });
+  globalThis.getComputedStyle = () => ({ display: "block", visibility: "visible", opacity: "1" });
+  globalThis.ResizeObserver = class { observe() {} disconnect() {} };
+  let frame;
+  globalThis.requestAnimationFrame = (callback) => { frame = callback; return 1; };
+  globalThis.cancelAnimationFrame = () => {};
+  let mutated = () => {};
+  globalThis.MutationObserver = class { constructor(callback) { mutated = callback; } observe() {} disconnect() {} };
+  const mutate = async () => { mutated([]); frame(); };
+  try {
+    const updates = [];
+    const stop = watchTabViewport(page, () => true, (update) => updates.push(update));
+    assert.equal(updates.at(-1).visible, true);
+    assert.deepEqual(updates.at(-1).occlusions, [{ x: 120, y: 300, width: 240, height: 180, paintOutset: 40, menu: true }]);
+    assert.equal(menuCovers(page), true);
+    menus = [sidebarMenu];
+    await mutate();
+    assert.equal(updates.at(-1).visible, true);
+    assert.equal(updates.at(-1).occlusions, undefined);
+    assert.equal(menuCovers(page), false);
+    menus = [];
+    await mutate();
+    assert.equal(updates.at(-1).visible, true);
+    assert.equal(updates.at(-1).occlusions, undefined);
+    stop();
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete globalThis[key];
+      else globalThis[key] = value;
+    }
+  }
+});
+
+test("a menu counts as clear of native views only once every visible view it overlaps has applied a hole around it", () => {
+  const menu = { x: 70, y: 87, width: 250, height: 428 };
+  const page = {};
+  const side = {};
+  let notified = 0;
+  const stop = watchAppliedViewports(() => notified++);
+  try {
+    assert.equal(nativeViewsClear(menu), true);
+    reportAppliedViewport(page, { rect: { x: 190, y: 47, width: 1083, height: 846 }, visible: true });
+    assert.equal(nativeViewsClear(menu), false);
+    reportAppliedViewport(side, { rect: { x: 1300, y: 47, width: 400, height: 846 }, visible: true });
+    reportAppliedViewport(page, { rect: { x: 190, y: 47, width: 1083, height: 846 }, visible: true, occlusions: [{ x: 70, y: 200, width: 250, height: 100, paintOutset: 0 }] });
+    assert.equal(nativeViewsClear(menu), false);
+    reportAppliedViewport(page, { rect: { x: 190, y: 47, width: 1083, height: 846 }, visible: true, occlusions: [{ x: 70.4, y: 87.3, width: 249.5, height: 427.8, paintOutset: 0 }] });
+    assert.equal(nativeViewsClear(menu), true);
+    reportAppliedViewport(page, { rect: { x: 190, y: 47, width: 1083, height: 846 }, visible: false });
+    assert.equal(nativeViewsClear(menu), true);
+    reportAppliedViewport(page, { rect: { x: 190, y: 47, width: 1083, height: 846 }, visible: true });
+    reportAppliedViewport(page, null);
+    assert.equal(nativeViewsClear(menu), true);
+    assert.equal(notified, 7);
+  } finally {
+    stop();
+    reportAppliedViewport(side, null);
   }
 });

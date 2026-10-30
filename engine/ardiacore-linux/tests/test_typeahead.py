@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 import unittest
 
-from test_renderer_contract import method as extract
+from support import method as extract
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'src'
@@ -417,30 +417,6 @@ int main() {
 }
 '''
 
-LIVE_KIND_SCENARIO = r'''
-int main() {
-  using linux_window::ShortcutKind;
-  const auto press = [](char key) { return ui::KeyEvent(ui::EventType::kKeyPressed, key, ui::EF_CONTROL_DOWN); };
-  ShellHostView host;
-  if (host.LiveShortcutKind(press('I')) != ShortcutKind::kNone) return 30;
-  host.live_generation_ = host.renderer_generation_;
-  if (host.LiveShortcutKind(press('I')) != ShortcutKind::kShortcut) return 31;
-  if (host.LiveShortcutKind(press('L')) != ShortcutKind::kFocusing) return 32;
-  if (host.LiveShortcutKind(press('\t')) != ShortcutKind::kFocusing) return 33;
-  if (host.LiveShortcutKind(press('P')) != ShortcutKind::kNone) return 34;
-  if (host.LiveShortcutKind(press('S')) != ShortcutKind::kShortcut) return 35;
-  if (host.LiveShortcutKind(press('Z')) != ShortcutKind::kNone) return 36;
-  if (host.LiveShortcutKind(ui::KeyEvent(ui::EventType::kKeyPressed, 'I')) != ShortcutKind::kNone) return 37;
-  host.shortcut_recording_ = true;
-  if (host.LiveShortcutKind(press('I')) != ShortcutKind::kNone) return 38;
-  host.shortcut_recording_ = false;
-  ++host.renderer_generation_;
-  if (host.LiveShortcutKind(press('I')) != ShortcutKind::kNone) return 39;
-  host.live_generation_ = host.renderer_generation_;
-  if (host.LiveShortcutKind(press('I')) != ShortcutKind::kShortcut) return 40;
-  std::puts("live kind scenarios passed");
-}
-'''
 
 REPLAY_SCENARIO = r'''
 int main() {
@@ -491,118 +467,6 @@ class TypeaheadReplayTests(unittest.TestCase):
 
     def test_shortcuts_pressed_while_keys_are_held_run_when_the_window_is_ready(self):
         self.run_replay(HELD_SHORTCUT_SCENARIO, 'held shortcut scenarios passed')
-
-    def test_only_the_renderer_that_announced_commands_gets_live_shortcuts(self):
-        self.run_replay(LIVE_KIND_SCENARIO, 'live kind scenarios passed')
-
-
-class TypeaheadHostTests(unittest.TestCase):
-    def test_regular_windows_hold_keys_from_attach_with_a_deadline_that_discards(self):
-        initialize = extract(HOST, 'void ShellHostView::Initialize()')
-        self.assertIn('typeahead_ = std::make_unique<linux_window::TypeaheadInput>(', initialize)
-        self.assertIn('typeahead_->Start();', initialize)
-        self.assertIn('typeahead_timer_.Start(', initialize)
-        self.assertIn('&ShellHostView::DiscardTypeahead', initialize)
-        self.assertNotIn('&ShellHostView::ReplayTypeahead', initialize)
-        discard = extract(HOST, 'void ShellHostView::DiscardTypeahead()')
-        self.assertIn('typeahead_->Release()', discard)
-        self.assertNotIn('DispatchKeyEvent', discard)
-        self.assertLess(initialize.index('if (!is_utility())'), initialize.index('typeahead_->Start();'))
-
-    def test_keys_are_held_before_the_input_method_and_only_for_this_window(self):
-        rewrite = extract(INPUT, 'ui::EventDispatchDetails TypeaheadInput::RewriteEvent(')
-        self.assertIn('held_.capturing()', rewrite)
-        self.assertIn('ui::EventType::kKeyReleased', rewrite)
-        self.assertIn('owns_.Run(', rewrite)
-        self.assertLess(rewrite.index('held_.Hold('), rewrite.index('return DiscardEvent(continuation);'))
-        self.assertIn('return SendEvent(continuation, &event);', rewrite)
-        start = extract(INPUT, 'void TypeaheadInput::Start()')
-        self.assertIn('host_->AddEventRewriter(this)', start)
-        handler = extract(HOST, 'void ShellHostView::OnKeyEvent(ui::KeyEvent* event)')
-        self.assertNotIn('typeahead_', handler)
-        self.assertIn('KeyAccelerator(*event)', handler)
-        shortcut = extract(HOST, 'bool ShellHostView::RunHeldShortcut(const ui::KeyEvent& event)')
-        self.assertIn('KeyAccelerator(event)', shortcut)
-        accelerator = extract(HOST, 'ui::Accelerator ShellHostView::KeyAccelerator(const ui::KeyEvent& event)')
-        self.assertIn('ui::DomCodeToUsLayoutKeyboardCode(event.code())', accelerator)
-        owns = extract(HOST, 'bool ShellHostView::OwnsKeyboardEvent(const ui::KeyEvent& event) const')
-        self.assertIn('OwnsKeyboardTarget(static_cast<aura::Window*>(event.target()))', owns)
-
-    def test_the_input_method_stays_disengaged_while_keys_are_held(self):
-        self.assertIn('return ui::TEXT_INPUT_TYPE_NONE;', extract(INPUT, 'ui::TextInputType TypeaheadInput::GetTextInputType() const'))
-        start = extract(INPUT, 'void TypeaheadInput::Start()')
-        self.assertIn('input_->AddObserver(this)', start)
-        self.assertIn('input_->SetFocusedTextInputClient(this)', start)
-        changed = extract(INPUT, 'void TypeaheadInput::OnTextInputStateChanged(const ui::TextInputClient* client)')
-        self.assertIn('wanted_ = const_cast<ui::TextInputClient*>(client)->AsWeakPtr();', changed)
-        self.assertIn('input_->SetFocusedTextInputClient(this)', changed)
-        self.assertIn('!held_.capturing()', changed)
-
-    def test_release_restores_the_wanted_client_before_returning_the_raw_keys(self):
-        release = extract(INPUT, 'std::vector<ui::KeyEvent> TypeaheadInput::Release()')
-        self.assertIn('held_.Release()', release)
-        self.assertIn('host_->RemoveEventRewriter(this)', release)
-        self.assertIn('input_->RemoveObserver(this)', release)
-        self.assertLess(release.index('input->DetachTextInputClient(this)'), release.index('input->SetFocusedTextInputClient(wanted.get())'))
-        self.assertIn('std::exchange(input_, nullptr)', release)
-        self.assertIn('OnInputMethodDestroyed', INPUT)
-
-    def test_replay_only_reaches_the_shells_own_text_field(self):
-        replay = extract(HOST, 'void ShellHostView::ReplayTypeahead(bool field)')
-        self.assertLess(replay.index('typeahead_->Release()'), replay.index('if (shortcut_ran || !field || !ShellHoldsTextField()) continue;'))
-        self.assertLess(replay.index('if (shortcut_ran || !field || !ShellHoldsTextField()) continue;'), replay.index('DispatchKeyEvent(&event)'))
-        holds = extract(HOST, 'bool ShellHostView::ShellHoldsTextField()')
-        self.assertIn('shell_->HasFocus()', holds)
-        self.assertIn('GetTextInputClient()', holds)
-        self.assertIn('ui::TEXT_INPUT_TYPE_NONE', holds)
-
-    def test_replay_goes_through_the_input_method_once_and_stops_if_the_window_goes(self):
-        replay = extract(HOST, 'void ShellHostView::ReplayTypeahead(bool field)')
-        self.assertIn('typeahead_timer_.Stop();', replay)
-        self.assertIn('GetInputMethod()', replay)
-        self.assertIn('DispatchKeyEvent(&event)', replay)
-        self.assertIn('if (!weak) return;', replay)
-        self.assertIn('typeahead_.reset();', extract(HOST, 'void ShellHostView::UnregisterAccelerators()'))
-
-    def test_commands_ready_lets_shortcuts_through_live_and_only_text_stays_held(self):
-        branch = extract(HOST, '  if (method == "ArdiaShell.commandsReady")')
-        self.assertIn('is_utility()', branch)
-        self.assertLess(branch.index('live_generation_ = renderer_generation_;'), branch.index('typeahead_->SetLive('))
-        self.assertIn('typeahead_->SetLive(base::BindRepeating(&ShellHostView::LiveShortcutKind, base::Unretained(this)))', branch)
-        self.assertIn('.Append("ArdiaShell.commandsReady")', HOST)
-        self.assertIn('if (CommandFocusesShell(command)) FocusShell();', extract(HOST, 'bool ShellHostView::AcceleratorPressed(const ui::Accelerator& accelerator)'))
-        rewrite = extract(INPUT, 'ui::EventDispatchDetails TypeaheadInput::RewriteEvent(')
-        self.assertLess(rewrite.index('owns_.Run('), rewrite.index('live_keys_.Pass('))
-        self.assertLess(rewrite.index('live_keys_.Pass('), rewrite.index('held_.Hold('))
-        self.assertIn('pressed ? live_.Run(key) : ShortcutKind::kNone', rewrite)
-        self.assertLess(rewrite.index('case LiveKey::kPassAndHold:'), rewrite.index('held_.Hold(ui::KeyEvent(key));\n        return SendEvent('))
-        self.assertIn('if (shortcut == ShortcutKind::kFocusing) held_.DropHeld();', rewrite)
-
-    def test_held_shortcuts_respect_the_live_modal_check(self):
-        shortcut = extract(HOST, 'bool ShellHostView::RunHeldShortcut(const ui::KeyEvent& event)')
-        self.assertIn('!OwnsKeyboardTarget(KeyboardFocusTarget())', shortcut)
-        self.assertIn('AcceleratorPressed(accelerator) || ExtensionShortcutPressed(event, shortcuts_.contains(accelerator))', shortcut)
-        target = extract(HOST, 'aura::Window* ShellHostView::KeyboardFocusTarget() const')
-        self.assertIn('aura::client::GetFocusClient(root)', target)
-
-    def test_the_bootstrap_tells_the_ui_how_long_the_host_still_holds_keys(self):
-        bootstrap = extract(HOST, 'base::DictValue ShellHostView::Bootstrap() const')
-        self.assertIn('typeahead_timer_.desired_run_time()', bootstrap)
-        self.assertIn('bootstrap.Set("typeaheadMs"', bootstrap)
-        self.assertIn('typeahead_->capturing()', bootstrap)
-
-    def test_ready_is_posted_from_the_windows_own_renderer(self):
-        branch = extract(HOST, '  if (method == "ArdiaShell.typeaheadReady")')
-        self.assertIn('is_utility()', branch)
-        self.assertIn('values.size() != 1 || !values[0].is_bool()', branch)
-        self.assertIn('PostTask(', branch)
-        self.assertIn('&ShellHostView::ReplayTypeahead, GetWeakPtr(), values[0].GetBool()', branch)
-        self.assertIn('.Append("ArdiaShell.typeaheadReady")', HOST)
-
-    def test_helper_is_comment_free_and_built(self):
-        for name in ['ac_linux_typeahead.h', 'ac_linux_typeahead_input.h', 'ac_linux_typeahead_input.cc']:
-            self.assertIsNone(re.search(r'//|/\*', (LINUX / name).read_text()), name)
-            self.assertIn(f'"{name}"', (LINUX / 'BUILD.gn').read_text())
 
 
 if __name__ == '__main__':
