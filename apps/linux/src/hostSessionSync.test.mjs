@@ -446,3 +446,53 @@ test("a cold launch restores closed windows in closing order", () => {
   const session = initialHostSession({ bootstrap: { windowId: "b", profileId: "default", startup: true } }, { ...saved, closedWindows: [entry("cw-later", 200), entry("cw-earlier", 100)] });
   assert.deepEqual(session.closedWindows.map((c) => c.id), ["cw-earlier", "cw-later"]);
 });
+
+function savedWindows() {
+  const a = initialHostSession({ bootstrap: { windowId: "window-7", profileId: "default", startup: false } }, null);
+  const session = initialHostSession({ bootstrap: { windowId: "window-9", profileId: "default", startup: false } }, a);
+  const [aKey] = session.windows["window-7"].tabIds;
+  const [bKey] = session.windows["window-9"].tabIds;
+  session.tabs[aKey] = { ...session.tabs[aKey], url: "https://a.test/" };
+  session.tabs[bKey] = { ...session.tabs[bKey], url: "https://b.test/" };
+  session.groups = { g: { id: "g", windowId: "window-7", profileId: "default", name: "G", tabIds: [aKey] } };
+  session.closedTabs = [{ kind: "tab", id: "ct", tab: { url: "https://closed.test/", title: "", profileId: "default" }, windowId: "window-7", index: 0, group: null, closedAt: 1 }];
+  return { session: { ...session, focusedWindowId: "window-7" }, aKey, bKey };
+}
+
+test("the launch window takes over the last focused saved window instead of opening beside it", () => {
+  const { session, aKey, bKey } = savedWindows();
+  const launched = initialHostSession({ bootstrap: { windowId: "main", profileId: "default", startup: true } }, session);
+  assert.deepEqual(Object.keys(launched.windows).sort(), ["main", "window-9"]);
+  assert.deepEqual(launched.windowOrder, ["main", "window-9"]);
+  assert.equal(launched.focusedWindowId, "main");
+  assert.equal(launched.windows.main.id, "main");
+  assert.deepEqual(launched.windows.main.tabIds, [aKey]);
+  assert.equal(launched.tabs[aKey].windowId, "main");
+  assert.equal(launched.tabs[bKey].windowId, "window-9");
+  assert.equal(launched.groups.g.windowId, "main");
+  assert.equal(launched.closedTabs[0].windowId, "main");
+  assert.equal(Object.values(launched.tabs).filter((tab) => tab.windowId === "main").length, 1);
+});
+
+test("a window opened after launch never takes over a saved window", () => {
+  const { session } = savedWindows();
+  const opened = initialHostSession({ bootstrap: { windowId: "window-12", profileId: "default", startup: false } }, session);
+  assert.deepEqual(Object.keys(opened.windows).sort(), ["window-12", "window-7", "window-9"]);
+});
+
+test("another window already open at launch never takes over a saved window", () => {
+  const { session } = savedWindows();
+  const opened = initialHostSession({ bootstrap: { windowId: "window-12", profileId: "default", startup: true } }, session);
+  assert.deepEqual(Object.keys(opened.windows).sort(), ["window-12", "window-7", "window-9"]);
+});
+
+test("the launch window keeps its own saved tabs when it has them", () => {
+  const { session, aKey } = savedWindows();
+  const withMain = initialHostSession({ bootstrap: { windowId: "main", profileId: "default", startup: false } }, session);
+  const [mainKey] = withMain.windows.main.tabIds;
+  withMain.tabs[mainKey] = { ...withMain.tabs[mainKey], url: "https://main.test/" };
+  const launched = initialHostSession({ bootstrap: { windowId: "main", profileId: "default", startup: true } }, withMain);
+  assert.deepEqual(Object.keys(launched.windows).sort(), ["main", "window-7", "window-9"]);
+  assert.deepEqual(launched.windows.main.tabIds, [mainKey]);
+  assert.equal(launched.tabs[aKey].windowId, "window-7");
+});

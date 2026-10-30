@@ -83,6 +83,27 @@ export const w77 = {
   },
 };
 
+export const w371 = {
+  id: "W371",
+  issue: 371,
+  title: "A launch reopens a saved window that isn't named main as the only window, with no extra empty window",
+  deadline: 120000,
+  async run(t) {
+    const session = sessionSeed({ windows: [{ id: "window-777", urls: [t.fixtures.url.page(1), t.fixtures.url.page(2)] }], focused: "window-777" });
+    const { app, shell } = await startBrowser(t, { name: "adopt", session });
+    await t.check("the launch window holds the saved window's tabs and no other browser window opens", async () => {
+      await delay(4000);
+      const windows = (await app.shells()).filter((s) => !s.utility).map((s) => s.windowId);
+      const state = await shell.state("return { ids: Object.keys(s.windows), order: s.windowOrder, urls: s.windows[windowId].tabIds.map((id) => s.tabs[id].url) };");
+      if (windows.length !== 1) throw new Error(`${windows.length} browser windows opened: ${JSON.stringify(windows)}`);
+      if (state.ids.length !== 1 || state.order.length !== 1) throw new Error(`the store holds windows ${JSON.stringify(state.ids)}`);
+      const expected = [t.fixtures.url.page(1), t.fixtures.url.page(2)];
+      if (JSON.stringify(state.urls) !== JSON.stringify(expected)) throw new Error(`the launch window holds ${JSON.stringify(state.urls)}`);
+      return { windows, ...state };
+    }, { critical: true });
+  },
+};
+
 export const w79 = {
   id: "W79",
   issue: 79,

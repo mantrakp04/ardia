@@ -26,6 +26,7 @@ export {
 export { FadeLabel } from "./web/FadeLabel";
 export { MouseArea } from "./web/MouseArea";
 export { FileDropArea } from "./web/FileDropArea";
+export { PopoverBubble } from "./web/PopoverBubble";
 export { showMenu } from "../menus";
 import { setTrafficLightsCenter } from "./web/windowChrome";
 export { setTrafficLightsCenter };
