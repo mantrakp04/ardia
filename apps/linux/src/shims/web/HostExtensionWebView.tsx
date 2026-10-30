@@ -5,8 +5,7 @@ import type { NavigationState, WebViewHandle, WebViewProps } from "@ardia-real/a
 import { ardiaHost, reportHostError } from "../../host";
 import { HostExtensionView, type ExtensionViewEvent } from "../../hostExtensionView";
 import { PopupSizeWaiters, extensionViewEvaluate } from "../../hostExtensionScripts";
-import { refreshTabViewports, watchTabViewport } from "../../hostViewport";
-import { menuShown } from "../../menus";
+import { menuCovers, refreshTabViewports, reportAppliedViewport, watchTabViewport } from "../../hostViewport";
 
 export const HostExtensionWebView = forwardRef<WebViewHandle, WebViewProps>(function HostExtensionWebView(props, ref) {
   const latest = useRef(props);
@@ -68,9 +67,14 @@ export const HostExtensionWebView = forwardRef<WebViewHandle, WebViewProps>(func
   useEffect(() => {
     const node = element.current;
     if (!node) return;
-    return watchTabViewport(node, () => latest.current.visible !== false && !menuShown(), (viewport) => {
-      void view.current?.viewport({ rect: viewport.rect, visible: viewport.visible }).catch(reportHostError);
+    const stop = watchTabViewport(node, () => latest.current.visible !== false && !menuCovers(node), (viewport) => {
+      const applied = { rect: viewport.rect, visible: viewport.visible };
+      void view.current?.viewport(applied).then(() => reportAppliedViewport(node, applied), reportHostError);
     });
+    return () => {
+      stop();
+      reportAppliedViewport(node, null);
+    };
   }, []);
 
   return <View style={[props.style, { backgroundColor: "transparent" }]}><div ref={element} data-ardia-extension-view={props.extensionHost} style={{ position: "absolute", inset: 0 }} /></View>;

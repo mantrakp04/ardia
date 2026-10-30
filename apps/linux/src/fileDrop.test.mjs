@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFileSync } from "node:fs";
 import { acceptsDrag, createDropController, domDropItems, dragCount, parseUriList, validFileUrl } from "./fileDrop.ts";
 import { createFileDragGesture, FILE_DRAG_THRESHOLD } from "./fileDrag.ts";
 
@@ -85,17 +84,4 @@ test("outbound file drags start once past the threshold with the primary button 
   assert.equal(gesture.move({ x: 20, y: 0, pointerId: 1, buttons: 1 }), false);
   assert.equal(gesture.consumeClick(), false);
   assert.equal(begun.length, 1);
-});
-
-test("the Linux shell replaces the placeholder drop and drag views with DOM adapters", () => {
-  const shell = readFileSync(new URL("./shims/shellBase.tsx", import.meta.url), "utf8");
-  assert.match(shell, /export \{ FileDropArea \} from "\.\/web\/FileDropArea";/);
-  assert.match(shell, /export \{ MouseArea \} from "\.\/web\/MouseArea";/);
-  const mouse = readFileSync(new URL("./shims/web/MouseArea.tsx", import.meta.url), "utf8");
-  assert.match(mouse, /FILE_DRAG/);
-  assert.doesNotMatch(mouse, /path: _path/);
-  const area = readFileSync(new URL("./shims/web/FileDropArea.tsx", import.meta.url), "utf8");
-  assert.match(area, /FILE_DROP/);
-  const main = readFileSync(new URL("./main.tsx", import.meta.url), "utf8");
-  assert.match(main, /startNativeSync\(\);\n\s+startHostDownloads\(ardiaHost, useBrowser\);/);
 });

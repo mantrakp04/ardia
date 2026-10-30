@@ -3,6 +3,9 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { resolveHostModule } from "./hostModules.ts";
 import { linuxCapabilities, unavailablePanes, unavailableSettingIds } from "./hostCapabilities.ts";
+import { CAST_UNAVAILABLE_TITLE, linuxMediaCall } from "./hostCast.ts";
+import { useBrowser } from "../../browser/src/state/browser/store.ts";
+import { useToasts } from "../../browser/src/state/app/toasts.ts";
 
 function fakeHost(capabilities = []) {
   const invoked = [];
@@ -66,49 +69,32 @@ test("onboarding music and external links answer locally when the host has no ba
 });
 
 const nativeSource = (path) => readFileSync(new URL(`../../../engine/ardiacore-linux/src/ardia/linux/${path}`, import.meta.url), "utf8");
-const contractRoutes = () => {
-  const source = nativeSource("ac_linux_contract.h");
-  const table = source.slice(source.indexOf("kRoutes[] = {"), source.indexOf("};", source.indexOf("kRoutes[] = {")));
-  return [...table.matchAll(/\{"([^"]+)",/g)].map((match) => match[1]);
-};
-
-test("the native bootstrap advertises every contract route, so engine capabilities can turn on", () => {
-  const host = nativeSource("ac_linux_host.cc");
-  const bootstrap = host.slice(host.indexOf("base::DictValue ShellHostView::Bootstrap() const {"), host.indexOf("void ShellHostView::LayoutOverlay()"));
-  assert.match(bootstrap, /for \(const auto& route : ardiacore::linux_contract::kRoutes\)\s*capabilities\.Append\(route\.name\);/);
-  const routes = contractRoutes();
-  assert.ok(routes.includes("engine.openTaskManager"));
-  const advertised = linuxCapabilities(fakeHost(routes).host);
-  assert.equal(advertised.taskManager, true);
-  assert.equal(advertised.performanceRecording, ["engine.beginTracing", "engine.endTracing", "engine.isTracing"].every((name) => routes.includes(name)));
-});
-
-test("the native bootstrap advertises the intercepted site zoom routes from the same list the dispatcher uses", () => {
-  const host = nativeSource("ac_linux_host.cc");
-  const bootstrap = host.slice(host.indexOf("base::DictValue ShellHostView::Bootstrap() const {"), host.indexOf("void ShellHostView::LayoutOverlay()"));
-  assert.match(bootstrap, /for \(const char\* route : ardiacore::kLinuxZoomDomainRoutes\)\s*capabilities\.Append\(route\);/);
-  assert.match(host, /if \(ardiacore::IsLinuxZoomDomainRoute\(name\)\) \{/);
-  const zoom = nativeSource("ac_linux_history_zoom.h");
-  const routes = [...zoom.slice(zoom.indexOf("kLinuxZoomDomainRoutes[]"), zoom.indexOf("};", zoom.indexOf("kLinuxZoomDomainRoutes[]"))).matchAll(/"([^"]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(routes, ["sites.zoomLevels", "sites.setZoom"]);
-  for (const route of routes) assert.ok(!contractRoutes().includes(route));
-});
-
-const listedRoutes = (path, list) => {
+const listedRoutes = (path, list, route = /"([^"]+)"/g) => {
   const source = nativeSource(path);
   const start = source.indexOf(`${list}[]`);
-  return [...source.slice(start, source.indexOf(";", start)).matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+  return [...source.slice(start, source.indexOf(";", start)).matchAll(route)].map((match) => match[1]);
 };
 
-test("the native bootstrap advertises the Memory Saver routes from the list the dispatcher intercepts", () => {
+test("the native bootstrap advertises every route list, and every shared performance engine call is advertised or gated", () => {
   const host = nativeSource("ac_linux_host.cc");
   const bootstrap = host.slice(host.indexOf("base::DictValue ShellHostView::Bootstrap() const {"), host.indexOf("void ShellHostView::LayoutOverlay()"));
-  assert.match(bootstrap, /for \(const char\* route : ardiacore::kLinuxMemorySaverRoutes\)\s*capabilities\.Append\(route\);/);
-  assert.match(host, /if \(ardiacore::IsLinuxMemorySaverRoute\(name\)\) \{/);
-  assert.match(host, /if \(ardiacore::IsLinuxMemorySaverRoute\(reply->name\)\) \{/);
-  const routes = listedRoutes("ac_linux_memory_saver.h", "kLinuxMemorySaverRoutes");
-  assert.deepEqual(routes, ["engine.memorySaver", "engine.validateKeepActiveSite"]);
-  for (const route of routes) assert.ok(!contractRoutes().includes(route));
+  for (const list of ["linux_contract::kRoutes", "kLinuxZoomDomainRoutes", "kLinuxMemorySaverRoutes"]) assert.ok(bootstrap.includes(`: ardiacore::${list})`), list);
+  const advertised = new Set([
+    ...listedRoutes("ac_linux_contract.h", "kRoutes", /\{"([^"]+)",/g),
+    ...listedRoutes("ac_linux_history_zoom.h", "kLinuxZoomDomainRoutes"),
+    ...listedRoutes("ac_linux_memory_saver.h", "kLinuxMemorySaverRoutes"),
+    ...[...host.matchAll(/capabilities\.Append\("(engine\.\w+)"\)/g)].map((match) => match[1]),
+  ]);
+  assert.equal(linuxCapabilities(fakeHost([...advertised]).host).taskManager, true);
+  const used = [...readFileSync(new URL("../../browser/src/platform/performance.ts", import.meta.url), "utf8").matchAll(/^export const \w+ = [^\n]*?\b(?:call|on)\("(engine\.\w+)"/gm)].map((match) => match[1]);
+  for (const call of ["engine.memorySaver", "engine.validateKeepActiveSite", "engine.tasks"]) assert.ok(used.includes(call), call);
+  const gated = { "engine.beginTracing": "performanceRecording", "engine.endTracing": "performanceRecording", "engine.isTracing": "performanceRecording" };
+  const none = linuxCapabilities(fakeHost().host);
+  for (const call of used) {
+    if (advertised.has(call)) continue;
+    assert.ok(gated[call], `${call} is neither advertised by the Linux host nor gated`);
+    assert.equal(none[gated[call]], false);
+  }
 });
 
 test("Memory Saver settings and kept-active site checks reach the host as engine calls for the window's profile", async () => {
@@ -125,32 +111,6 @@ test("Memory Saver settings and kept-active site checks reach the host as engine
   assert.deepEqual(JSON.parse(await engineCall("memorySaver", "", JSON.stringify(request))), replies["engine.memorySaver"]);
   assert.deepEqual(JSON.parse(await engineCall("validateKeepActiveSite", "", JSON.stringify({ site: "youtube.com" }))), { valid: true });
   assert.deepEqual(calls, [["engine.memorySaver", "work", request], ["engine.validateKeepActiveSite", "work", { site: "youtube.com" }]]);
-});
-
-test("every engine call behind the shared performance module is advertised by the Linux host or gated by a Linux capability", () => {
-  const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
-  const used = [...read("../../browser/src/platform/performance.ts").matchAll(/^export const \w+ = [^\n]*?\b(?:call|on)\("(engine\.\w+)"/gm)].map((match) => match[1]);
-  for (const call of ["engine.memorySaver", "engine.validateKeepActiveSite", "engine.batterySaver", "engine.trimMemory", "engine.tasks", "engine.systemState"]) assert.ok(used.includes(call), call);
-  const host = nativeSource("ac_linux_host.cc");
-  const advertised = new Set([
-    ...contractRoutes(),
-    ...listedRoutes("ac_linux_history_zoom.h", "kLinuxZoomDomainRoutes"),
-    ...listedRoutes("ac_linux_memory_saver.h", "kLinuxMemorySaverRoutes"),
-    ...[...host.matchAll(/capabilities\.Append\("(engine\.\w+)"\)/g)].map((match) => match[1]),
-  ]);
-  const gated = { "engine.beginTracing": "performanceRecording", "engine.endTracing": "performanceRecording", "engine.isTracing": "performanceRecording" };
-  const none = linuxCapabilities(fakeHost().host);
-  for (const call of used) {
-    if (advertised.has(call)) continue;
-    assert.ok(gated[call], `${call} is neither advertised by the Linux host nor gated`);
-    assert.equal(none[gated[call]], false);
-  }
-});
-
-test("Task Manager and tracing follow the advertised contract rather than the mere presence of a host", () => {
-  assert.equal(linuxCapabilities(fakeHost().host).taskManager, false);
-  assert.equal(linuxCapabilities(fakeHost(["engine.openTaskManager"]).host).taskManager, true);
-  assert.equal(linuxCapabilities(fakeHost(["engine.beginTracing", "engine.endTracing", "engine.isTracing"]).host).performanceRecording, true);
 });
 
 test("accepting a site's notification prompt on Linux settles quietly when the desktop has no notification permission to ask", async () => {
@@ -170,5 +130,26 @@ test("accepting a site's notification prompt on Linux settles quietly when the d
     app.notificationPermission = original;
     process.off("unhandledRejection", record);
   }
-  assert.match(readFileSync(new URL("../vite.config.ts", import.meta.url), "utf8"), /here\("\.\.\/browser\/src\/state\/site\/webNotifications\.ts"\)\}\\0\$\{here\("\.\.\/browser\/src\/state\/site\/permissions\.ts"\)\}`, here\("\.\/src\/notificationPermission\.ts"\)/);
+});
+
+test("casting answers with an explicit unavailable state instead of a silent rejection", async () => {
+  useBrowser.getState().hydrate({});
+  const windowId = useBrowser.getState().createWindow({ url: "https://cast.ardia.test/" });
+  const tabId = useBrowser.getState().windows[windowId].tabIds[0];
+  useToasts.setState({ toasts: {} });
+  assert.equal(await linuxMediaCall("showCastDialog", JSON.stringify({ tabId })), "false");
+  assert.equal(useToasts.getState().toasts[windowId]?.title, CAST_UNAVAILABLE_TITLE);
+  assert.equal(await linuxMediaCall("watchCastRoutes", JSON.stringify({ profile: "" })), "null");
+  for (const verb of ["startCasting", "stopCasting", "closeCastDialog", "terminateCastRoute", "changeCaptureSource", "stopCapture"]) {
+    await assert.rejects(linuxMediaCall(verb, "{}"), (error) => error.code === "ERR_UNAVAILABLE", verb);
+  }
+});
+
+test("the media domain keeps reaching the host for everything but casting", async () => {
+  const calls = [];
+  const host = { bootstrap: { capabilities: [], nativeModules: {} }, call: async (name) => { calls.push(name); return "null"; }, invoke: async () => null, onEvent: () => {} };
+  const call = resolveHostModule(host, "ArdiaMedia", "call");
+  assert.equal(await call("selectDevice", "", JSON.stringify({ id: 1, index: 0 })), "null");
+  assert.equal(await call("showCastDialog", "", JSON.stringify({ tabId: "missing" })), "false");
+  assert.deepEqual(calls, ["media.selectDevice"]);
 });

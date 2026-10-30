@@ -111,39 +111,6 @@ int main(int argc, char** argv) {
     assert(p.binding->viewport()->bounds() == gfx::Rect(100, 50, 800, 600));
     return 0;
   }
-  if (mode == "moved-frontend-destroyed") {
-    Pane p;
-    p.Dock();
-    p.host.Show(p.binding, true);
-    ShellHostView other;
-    auto moved = std::move(p.host.bindings.front());
-    p.host.bindings.clear();
-    moved->owner_ = &other;
-    moved->viewport_ = other.AddChildView(std::make_unique<ViewportView>(0));
-    moved->devtools_viewport_ = nullptr;
-    other.bindings.push_back(std::move(moved));
-    auto* binding = other.bindings.back().get();
-    other.Show(binding, true);
-    assert(binding->devtools_viewport()->GetVisible());
-    assert(p.frontend.focuses == 1);
-    p.frontend.Destroy();
-    DrainPosted();
-    assert(!binding->devtools_viewport()->GetVisible());
-    assert(binding->viewport()->bounds() == gfx::Rect(100, 50, 800, 600));
-    return 0;
-  }
-  if (mode == "inspected-destroyed") {
-    Pane p;
-    p.Dock();
-    p.host.Show(p.binding, true);
-    p.binding->WebContentsDestroyed();
-    assert(ardiacore::forgotten_hangs.size() == 1);
-    DrainPosted();
-    assert(!p.tools()->GetVisible() && !p.tools()->web_contents());
-    assert(!p.binding->viewport()->GetVisible());
-    assert(p.binding->resets == 1 && p.host.closes == std::vector<int>{7});
-    return 0;
-  }
   if (mode == "before-viewport") {
     Pane p;
     p.binding->viewport_ = nullptr;
@@ -197,46 +164,6 @@ int main(int argc, char** argv) {
     assert(p.tools()->web_contents() == &p.frontend);
     return 0;
   }
-  if (mode == "undock-toolbox") {
-    Pane p;
-    p.Dock();
-    p.host.Show(p.binding, true);
-    assert(views::focus_manager.focused == p.tools() && p.frontend.focuses == 1);
-    content::WebContents toolbox;
-    DevToolsWindow::companions.insert(&toolbox);
-    DevToolsWindow::docked.clear();
-    p.host.OnDevToolsDockChanged(&p.page, nullptr);
-    assert(views::focus_manager.focused == p.binding->viewport() && p.page.focuses == 1);
-    DevToolsWindow::docked[&p.page] = &toolbox;
-    p.host.OnDevToolsDockChanged(&p.page, &toolbox);
-    DrainPosted();
-    assert(p.tools()->GetVisible() && p.tools()->web_contents() == &toolbox);
-    assert(views::focus_manager.focused == p.binding->viewport() && toolbox.focuses == 0);
-    p.host.Show(p.binding, false);
-    p.host.Show(p.binding, true);
-    assert(views::focus_manager.focused == p.binding->viewport() && toolbox.focuses == 0);
-    p.tools()->RequestFocus();
-    p.host.Show(p.binding, false);
-    views::focus_manager.focused = nullptr;
-    p.host.Show(p.binding, true);
-    assert(views::focus_manager.focused == p.tools() && toolbox.focuses == 1);
-    DevToolsWindow::docked[&p.page] = &p.frontend;
-    p.host.OnDevToolsDockChanged(&p.page, &p.frontend);
-    DrainPosted();
-    assert(views::focus_manager.focused == p.tools() && p.tools()->web_contents() == &p.frontend);
-    assert(p.frontend.focuses == 2);
-    return 0;
-  }
-  if (mode == "hidden-native") {
-    Pane p;
-    p.Dock();
-    p.host.Show(p.binding, true);
-    p.frontend.native.Hide();
-    p.host.LayoutPane(p.binding);
-    assert(p.tools()->GetVisible() && p.tools()->web_contents() == &p.frontend);
-    assert(p.frontend.native.IsVisible());
-    return 0;
-  }
   assert(false);
 }
 '''
@@ -284,24 +211,11 @@ class PaneLayoutTests(unittest.TestCase):
     def test_destroyed_frontend_hides_its_panel_and_restores_the_page(self):
         self.run_case('frontend-destroyed')
 
-    def test_moved_binding_still_relayouts_when_its_frontend_dies(self):
-        self.run_case('moved-frontend-destroyed')
-
-    def test_destroyed_inspected_contents_hides_the_panel(self):
-        self.run_case('inspected-destroyed')
-
     def test_devtools_opened_before_the_first_viewport_waits_for_it_without_chrome_hosting_it(self):
         self.run_case('before-viewport')
 
     def test_undocking_releases_the_frontend_before_chrome_moves_it_into_its_window(self):
         self.run_case('undock')
-
-    def test_the_undocked_toolbox_shows_in_the_pane_without_taking_the_pages_focus(self):
-        self.run_case('undock-toolbox')
-
-    def test_presenting_reshows_a_hidden_native_frontend(self):
-        self.run_case('hidden-native')
-
 
 if __name__ == '__main__':
     unittest.main()

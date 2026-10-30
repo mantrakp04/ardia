@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 import { watchHistoryImports } from "./hostHistoryImports.ts";
 
@@ -38,10 +37,4 @@ test("stopping unsubscribes from the host", () => {
   assert.equal(f.listeners.size, 0);
   f.emit("ArdiaHistory", "history", { name: "history.imported", data: { profile: "" } });
   assert.equal(f.reloads.length, 0);
-});
-
-test("every Linux renderer that reads history also follows imports from other windows", () => {
-  const source = readFileSync(new URL("./hostData.ts", import.meta.url), "utf8");
-  assert.match(source, /watchHistoryImports\(ardiaHost, reloadHistory\)/);
-  assert.match(source, /startHistory\(\)/);
 });

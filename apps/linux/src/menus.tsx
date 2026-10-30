@@ -5,6 +5,7 @@ import { useBrowser } from "../../browser/src/state/browser/store";
 import { Symbol } from "./shims/web/Symbol";
 import { formatShortcut } from "./shortcutFormat";
 import { primaryModifiers } from "./clickModifiers";
+import { nativeViewsClear, watchAppliedViewports } from "./hostViewport";
 
 type OpenMenu = { items: MenuItem[]; x: number; y: number; resolve: (id: string | null) => void };
 
@@ -46,11 +47,22 @@ const close = (id: string | null) => {
   menu?.resolve(id);
 };
 
+export const closingMenuOnPageFocus = <P extends { onPageFocus?: () => void }>(props: P): P => ({
+  ...props,
+  onPageFocus: () => {
+    if (open) close(null);
+    props.onPageFocus?.();
+  },
+});
+
+const MENU_REVEAL_DEADLINE_MS = 300;
+
 type MenuAnchor = { x: number; y: number } | { row: HTMLElement };
 
 function MenuList({ items, anchor }: { items: MenuItem[]; anchor: MenuAnchor }) {
   const menuRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState({ left: 0, top: 0 });
+  const [position, setPosition] = useState({ left: 0, top: 0, placed: false });
+  const [shown, setShown] = useState(false);
   const [sub, setSub] = useState<{ item: MenuItem; row: HTMLElement } | null>(null);
   const [command, setCommand] = useState(commandHeld);
   const dark = useBrowser((s) => s.ui.appDark);
@@ -73,7 +85,7 @@ function MenuList({ items, anchor }: { items: MenuItem[]; anchor: MenuAnchor }) 
       }
       left = Math.max(8, Math.min(left, window.innerWidth - width - 8));
       top = Math.max(8, Math.min(top, window.innerHeight - height - 8));
-      setPosition((previous) => previous.left === left && previous.top === top ? previous : { left, top });
+      setPosition((previous) => previous.placed && previous.left === left && previous.top === top ? previous : { left, top, placed: true });
     };
     place();
     window.addEventListener("resize", place);
@@ -84,6 +96,21 @@ function MenuList({ items, anchor }: { items: MenuItem[]; anchor: MenuAnchor }) 
     };
   }, [anchor, command, items]);
   useEffect(() => {
+    const menu = menuRef.current;
+    if (shown || !position.placed || !menu) return;
+    const reveal = () => {
+      const { x, y, width, height } = menu.getBoundingClientRect();
+      if (nativeViewsClear({ x, y, width, height })) setShown(true);
+    };
+    const stop = watchAppliedViewports(reveal);
+    const fallback = setTimeout(() => setShown(true), MENU_REVEAL_DEADLINE_MS);
+    reveal();
+    return () => {
+      stop();
+      clearTimeout(fallback);
+    };
+  }, [shown, position]);
+  useEffect(() => {
     const track = (e: KeyboardEvent | PointerEvent) => setCommand(primaryModifiers(e).metaKey);
     const events = ["keydown", "keyup", "pointermove"] as const;
     for (const type of events) document.addEventListener(type, track);
@@ -92,7 +119,7 @@ function MenuList({ items, anchor }: { items: MenuItem[]; anchor: MenuAnchor }) 
     };
   }, []);
   return createPortal(
-    <div ref={menuRef} className={`ardia-menu${dark ? " dark" : ""}`} style={{ ...position, width: 240, maxWidth: "calc(100vw - 26px)", maxHeight: "calc(100vh - 26px)", overflowY: "auto" }} onPointerDown={(e) => e.stopPropagation()}>
+    <div ref={menuRef} className={`ardia-menu${dark ? " dark" : ""}`} style={{ left: position.left, top: position.top, visibility: shown ? "visible" : "hidden", width: 240, maxWidth: "calc(100vw - 26px)", maxHeight: "calc(100vh - 26px)", overflowY: "auto" }} onPointerDown={(e) => e.stopPropagation()}>
       {items.map((item, i) => {
         if ("separator" in item) return <div key={i} className="ardia-menu-separator" />;
         const next = items[i + 1];

@@ -1,16 +1,11 @@
 import pathlib
-import re
 import shutil
 import subprocess
 import tempfile
 import unittest
 
-from test_renderer_contract import method as extract
-
-ROOT = pathlib.Path(__file__).resolve().parents[1]
-SOURCE = ROOT / 'src'
+SOURCE = pathlib.Path(__file__).resolve().parents[1] / 'src'
 LINUX = SOURCE / 'ardia' / 'linux'
-HOST = (LINUX / 'ac_linux_host.cc').read_text()
 
 LEDGER = r'''#include <cassert>
 #include <optional>
@@ -126,45 +121,6 @@ class FullScreenRestoreLedgerTests(unittest.TestCase):
             self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
             ran = subprocess.run([str(binary)], capture_output=True, text=True)
             self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
-
-
-class FullScreenRestoreHostTests(unittest.TestCase):
-    def test_restore_is_routed_and_limited_to_the_launch_renderer(self):
-        branch = extract(HOST, '  if (method == "ArdiaShell.restoreFullScreen")')
-        self.assertIn('startup_', branch)
-        self.assertIn('is_utility()', branch)
-        self.assertIn('FullScreenRestorer().Begin(', branch)
-        self.assertIn('RestoreFullScreenNow()', branch)
-
-    def test_windows_enter_browser_fullscreen_when_they_become_available(self):
-        enter = extract(HOST, 'void ShellHostView::RestoreFullScreenNow()')
-        self.assertIn('FullScreenRestorer().Enter(window_id_', enter)
-        self.assertIn('ToggleBrowserFullscreenMode(false)', enter)
-        self.assertIn('IsMinimized()', enter)
-        self.assertIn('RestoreFullScreenNow();', extract(HOST, 'void ShellHostView::RendererReady()'))
-        self.assertIn('RestoreFullScreenNow();', extract(HOST, 'void ShellHostView::Initialize()'))
-
-    def test_entered_fullscreen_settles_the_restore_and_refocuses(self):
-        changed = extract(HOST, 'void ShellHostView::OnWidgetShowStateChanged(')
-        self.assertIn('FullScreenRestorer().Entered(window_id_)', changed)
-        self.assertIn('FinishFullScreenRestore();', changed)
-        finish = extract(HOST, 'void FinishFullScreenRestore()')
-        self.assertIn('FullScreenRestorer().Finish()', finish)
-        self.assertIn('WindowFocus().HandBack(', finish)
-
-    def test_expired_windows_report_windowed_so_the_store_forgets_the_stamp(self):
-        expire = extract(HOST, 'void ExpireFullScreenRestore()')
-        self.assertIn('FullScreenRestorer().Expire()', expire)
-        self.assertIn('Set("type", "fullScreen")', expire)
-        self.assertIn('Set("on", false)', expire)
-        self.assertIn('FullScreenRestorer().Forget(', extract(HOST, 'void OnBrowserClosed('))
-
-    def test_helper_is_built_and_comment_free(self):
-        build = (LINUX / 'BUILD.gn').read_text()
-        for name in ('"ac_linux_fullscreen_restore.cc"', '"ac_linux_fullscreen_restore.h"'):
-            self.assertIn(name, build)
-        for path in (LINUX / 'ac_linux_fullscreen_restore.h', LINUX / 'ac_linux_fullscreen_restore.cc'):
-            self.assertIsNone(re.search(r'//|/\*', path.read_text()), path)
 
 
 if __name__ == '__main__':

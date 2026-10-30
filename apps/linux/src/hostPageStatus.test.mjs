@@ -225,14 +225,9 @@ test("a view that unmounts before the store moves its tab drops the tab's state 
   assert.equal(stays.page().status, "remounted");
 });
 
-test("a host tab view's unmount reaches forgetDepartedPage with this window's id", () => {
+test("forgetting a host page reaches the installed depart hook with its tab id", () => {
   const departed = [];
   setHostPageHooks({ reset() {}, applyTheme() {}, depart: (tabId) => departed.push(tabId) });
   forgetHostPageState("t1");
   assert.deepEqual(departed, ["t1"]);
-  const view = readFileSync(new URL("./shims/web/HostWebView.tsx", import.meta.url), "utf8");
-  const cleanup = view.slice(view.indexOf("return () => {"), view.indexOf("}, []);", view.indexOf("return () => {")));
-  assert.match(cleanup, /const tabId = latest\.current\.tabId;\n\s+if \(tabId\) forgetHostPageState\(tabId\);/);
-  const main = readFileSync(new URL("./main.tsx", import.meta.url), "utf8");
-  assert.match(main, /depart: \(tabId\) => ardiaHost && forgetDepartedPage\(tabId, ardiaHost\.bootstrap\.windowId\)/);
 });

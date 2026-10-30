@@ -216,13 +216,3 @@ test("a field that focuses after the host's deadline is announced at once, witho
   assert.equal(idled, 0);
   assert.deepEqual(host.calls, [["ArdiaShell.typeaheadReady", { args: [true] }]]);
 });
-
-test("commands are announced from the first window commit, after the window's tree and webviews mount, before typeahead readiness", async () => {
-  const { readFileSync } = await import("node:fs");
-  const main = readFileSync(new URL("./main.tsx", import.meta.url), "utf8");
-  const committed = main.slice(main.indexOf("function FirstWindowCommitted("), main.indexOf("async function start()"));
-  assert.match(committed, /useEffect\(\(\) => \{[\s\S]*if \(typeahead && ardiaHost\) \{\s*announceCommandsReady\(ardiaHost\);\s*announceTypeaheadReady\(/);
-  const start = main.slice(main.indexOf("async function start()"));
-  assert.ok(!start.includes("announceCommandsReady("));
-  assert.ok(start.indexOf("<WindowRoot") < start.indexOf("<FirstWindowCommitted"));
-});

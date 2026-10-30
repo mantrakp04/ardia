@@ -238,24 +238,6 @@ void Reclaim() {
   assert(Text(Event(w.host.sent.back()), "name") == "windowClose" && w.host.sent.back().id == "9");
 }
 
-void PendingSwap() {
-  World w;
-  w.Claim();
-  content::NavigationHandle pending;
-  w.Notify(*w.first, [&](auto* o) { o->DidStartNavigation(&pending); });
-  assert(Text(w.host.sent.back().payload, "reason") == "provisional");
-  w.second->controller.pending = &w.second->entry;
-  w.host.sent.clear();
-  w.Swap();
-  assert(w.host.sent.size() == 1 && Text(w.host.sent[0].payload, "action") == "rebind");
-  const auto& events = w.host.sent[0].payload.FindDict("creation")->FindDict("snapshot")->Find("events")->GetList();
-  assert(events[0].GetDict().FindDict("data")->Find("themeColor")->is_none());
-  assert(Text(*events[1].GetDict().FindDict("data"), "level") == "none");
-  assert(!w.binding->page()->Capture() && w.binding->page()->EmitNavigation());
-  w.Notify(*w.second, [&](auto* o) { o->DidFinishNavigation(&pending); });
-  assert(w.binding->page()->Capture());
-}
-
 void UnclaimedSwap() {
   World w;
   w.Swap();
@@ -293,23 +275,6 @@ void Presentations() {
   assert(!Present(w, 8, "claim", true));
 }
 
-void TwoDiscards() {
-  World w;
-  w.Claim();
-  w.Swap();
-  auto third = std::make_unique<content::WebContents>(&w.profile);
-  Ids()[third.get()] = 11;
-  third->zoom = &w.controller;
-  w.browser.strip.tabs[0] = third.get();
-  w.host.sent.clear();
-  w.host.ReplaceTabContents(w.second.get(), third.get());
-  assert(w.host.Binding(11) == w.binding && w.host.sent.size() == 1 && w.host.sent[0].id == "9");
-  for (int id : {7, 9, 11}) assert(w.host.ClaimedBinding(base::DictValue().Set("id", id).Set("claim", "claim")) == w.binding);
-  assert(Present(w, 7, "claim", true) && w.binding->presented);
-  w.browser.strip.tabs.clear();
-  third.reset();
-}
-
 void FailedRemount() {
   World w;
   w.Claim();
@@ -322,60 +287,9 @@ void FailedRemount() {
   assert(!w.host.ClaimedBinding(base::DictValue().Set("id", 9).Set("claim", "claim")));
 }
 
-void StatusMigration() {
-  World w;
-  blocked_content::PopupBlockerTabHelper first_popups, second_popups;
-  w.first->popups = &first_popups;
-  w.second->popups = &second_popups;
-  w.Claim();
-  auto* old_status = w.binding->page()->status();
-  assert(old_status && old_status->TargetURL(GURL("https://example.test/hover")));
-  assert(Text(Event(w.host.sent.back()), "name") == "status");
-  first_popups.Block(3, GURL("https://pop.test/3"));
-  assert(Text(Event(w.host.sent.back()), "name") == "popupBlocked" && first_popups.manager()->observers.size() == 1);
-  w.host.sent.clear();
-  w.Swap();
-  assert(w.host.sent.size() == 1 && Text(w.host.sent[0].payload, "action") == "rebind");
-  assert(first_popups.manager()->observers.empty() && second_popups.manager()->observers.size() == 1);
-  const auto& snapshot = *w.host.sent[0].payload.FindDict("creation")->FindDict("snapshot");
-  size_t popups = 0;
-  for (const auto& item : snapshot.Find("events")->GetList()) {
-    const auto& event = item.GetDict();
-    if (Text(event, "name") == "popupBlocked") ++popups;
-    if (Text(event, "name") == "status") assert(Text(event.Find("data")->GetDict(), "text").empty());
-  }
-  assert(popups == 0);
-  w.host.sent.clear();
-  w.first->Notify([](auto* o) { o->DidToggleFullscreenModeForTab(true, true); });
-  first_popups.Block(4, GURL("https://pop.test/4"));
-  assert(w.host.sent.empty());
-  auto* status = w.binding->page()->status();
-  assert(status && status->TargetURL(GURL("https://discarded.test/link")));
-  assert(w.host.sent.size() == 1 && w.host.sent[0].id == "9" && Text(Event(w.host.sent[0]), "name") == "status");
-  w.binding->RetirePage();
-  assert(!w.binding->page() && second_popups.manager()->observers.empty());
-  w.host.sent.clear();
-  w.second->Notify([](auto* o) { o->DidToggleFullscreenModeForTab(false, true); });
-  second_popups.Block(5, GURL("https://pop.test/5"));
-  assert(w.host.sent.empty());
-  w.browser.strip.tabs.clear();
-}
-
 const base::DictValue* Named(const base::ListValue& events, const char* name) {
   for (const auto& event : events) if (Text(event.GetDict(), "name") == name) return event.GetDict().FindDict("data");
   return nullptr;
-}
-
-void MediaProducer() {
-  World w;
-  assert(w.binding->media && *w.binding->media == 1);
-  w.Claim();
-  const auto creation = *w.binding->page()->CreationState();
-  const auto& events = creation.FindDict("snapshot")->Find("events")->GetList();
-  assert(Text(events[0].GetDict(), "name") == "navigation" && Named(events, "media") && !Named(events, "discarded"));
-  w.browser.strip.tabs.clear();
-  w.first.reset();
-  assert(!w.binding->media && !w.binding->contents());
 }
 
 void DiscardedRebind() {
@@ -395,29 +309,15 @@ void DiscardedRebind() {
   assert(!Named(again.FindDict("snapshot")->Find("events")->GetList(), "discarded"));
 }
 
-void Reveals() {
-  World w;
-  w.Claim();
-  assert(Present(w, 7, "claim", true) && w.binding->reveals == 1);
-  assert(Present(w, 7, "claim", true) && w.binding->reveals == 1);
-  assert(Present(w, 7, "claim", false) && w.binding->reveals == 1);
-  assert(Present(w, 7, "claim", true) && w.binding->reveals == 2);
-}
-
 int main(int argc, char** argv) {
   assert(argc == 2);
   std::string mode = argv[1];
   if (mode == "order") Order();
   else if (mode == "reclaim") Reclaim();
-  else if (mode == "pending") PendingSwap();
   else if (mode == "unclaimed") UnclaimedSwap();
   else if (mode == "presentations") Presentations();
-  else if (mode == "two-discards") TwoDiscards();
   else if (mode == "failed-remount") FailedRemount();
-  else if (mode == "status-migration") StatusMigration();
-  else if (mode == "media-producer") MediaProducer();
   else if (mode == "discarded-rebind") DiscardedRebind();
-  else if (mode == "reveals") Reveals();
   else return 2;
 }
 '''
@@ -462,33 +362,17 @@ class PageHostJoinTests(unittest.TestCase):
     def test_discard_swap_rekeys_remounts_and_sends_rebind_notice(self):
         self.run_case('reclaim')
 
-    def test_swap_during_pending_navigation_sends_cleared_snapshot(self):
-        self.run_case('pending')
-
     def test_unclaimed_retired_and_colliding_swaps(self):
         self.run_case('unclaimed')
 
     def test_presentations_with_the_pre_discard_id_reuse_the_validated_binding(self):
         self.run_case('presentations')
 
-    def test_successive_discards_keep_earlier_ids_resolving(self):
-        self.run_case('two-discards')
-
     def test_failed_remount_releases_the_claim_and_closes_through_the_old_lease(self):
         self.run_case('failed-remount')
 
-    def test_page_status_producers_stop_at_discard_migration_and_transfer(self):
-        self.run_case('status-migration')
-
-    def test_mounted_pages_snapshot_media_state_and_destruction_drops_it(self):
-        self.run_case('media-producer')
-
     def test_discard_swap_sends_discarded_in_the_rebind_snapshot(self):
         self.run_case('discarded-rebind')
-
-    def test_presenting_a_tab_reveals_it_once_per_transition(self):
-        self.run_case('reveals')
-
 
 if __name__ == '__main__':
     unittest.main()

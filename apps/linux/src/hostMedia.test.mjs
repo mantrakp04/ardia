@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { HostPageEvents } from "./hostPageEvents.ts";
 import { resetHostPage } from "./hostPageLifecycle.ts";
@@ -8,10 +7,10 @@ import { startLinuxTabPolicies, watchInputIdle } from "./hostPolicies.ts";
 import { useBrowser } from "../../browser/src/state/browser/store.ts";
 import { pageOf, patchPage } from "../../browser/src/state/tabs/pageState.ts";
 import { updateLive } from "../../browser/src/state/tabs/actions.ts";
-import { playerTabFor, setNowPlaying, setPictureInPictureState, useMedia } from "../../browser/src/state/media/media.ts";
+import { exitPictureInPicture, playerTabFor, setNowPlaying, setPictureInPictureState, useMedia } from "../../browser/src/state/media/media.ts";
+import { webviews } from "../../browser/src/platform/webviews.ts";
 import { noteDiscarded, noteReady, useLifecycle } from "../../browser/src/state/tabs/tabLifecycle.ts";
 
-const source = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 const lease = { claim: "claim", rendererGeneration: "2", bindingGeneration: "3", documentEpoch: "1" };
 const event = (name, data) => ({ name, data });
 const message = (sequence, name, data) => ({ ...lease, type: "pageEvent", sequence, event: event(name, data) });
@@ -109,9 +108,12 @@ test("known shared page scripts map to native commands and unknown scripts stay 
   assert.equal(hostPageScript("executeJavaScript", [PICTURE_IN_PICTURE_STATE]), null);
   assert.equal(hostPageScript("evaluate", ["document.title"]), null);
   assert.equal(hostPageScript("evaluate", [PICTURE_IN_PICTURE_STATE, 1]), null);
-  const media = source("../../browser/src/state/media/media.ts");
-  assert.ok(media.includes(`const PIP_STATE = '${PICTURE_IN_PICTURE_STATE}';`), "the shared PiP probe changed; update hostPageScripts.ts");
-  assert.ok(media.includes(`view.executeJavaScript("${CLOSE_DOCUMENT_PICTURE_IN_PICTURE}")`), "the shared document PiP close changed; update hostPageScripts.ts");
+  const sent = [];
+  webviews.set("pip-close", { executeJavaScript: (code) => sent.push(code) });
+  useMedia.setState({ pipOpen: { ...useMedia.getState().pipOpen, "pip-close": "document" } });
+  exitPictureInPicture("pip-close");
+  webviews.delete("pip-close");
+  assert.deepEqual(sent, [CLOSE_DOCUMENT_PICTURE_IN_PICTURE], "the shared document PiP close changed; update hostPageScripts.ts");
   const edited = hostPageScript("evaluate", [UNSAVED_WORK]);
   assert.equal(edited.command, "editedInput");
   assert.deepEqual(edited.args, []);
@@ -119,11 +121,6 @@ test("known shared page scripts map to native commands and unknown scripts stay 
   assert.equal(edited.map(true), true);
   assert.equal(edited.map(null), true, "unknown asks before moving the page");
   assert.equal(hostPageScript("executeJavaScript", [UNSAVED_WORK]), null);
-  const engines = source("../../browser/src/state/engines/actions.ts");
-  assert.ok(engines.includes(`const UNSAVED_WORK = \`${UNSAVED_WORK}\`;`), "the shared unsaved-work probe changed; update hostPageScripts.ts");
-  const webView = source("./shims/web/HostWebView.tsx");
-  assert.ok(webView.indexOf("hostPageScript(property, args)") < webView.indexOf("current.command(property, args)"));
-  assert.ok(webView.includes("script.map ? current.command(script.command, script.args).then(script.map, () => (script.failed ? script.failed() : script.map!(null)))"), "a mapped page script treats a refused command as unknown unless it has its own failure handler");
 });
 
 test("input idle tracks shell input and the policies start once with one inputIdleSeconds provider", () => {
@@ -160,7 +157,4 @@ test("input idle tracks shell input and the policies start once with one inputId
   assert.equal(read(), 3);
   assert.equal(providers[0]("ArdiaEngine", "trimMemory"), undefined);
   assert.equal(providers[0]("ArdiaShell", "inputIdleSeconds"), undefined);
-  const main = source("./main.tsx");
-  const policies = main.indexOf("startLinuxTabPolicies(");
-  assert.ok(policies > main.indexOf("} else {") && policies < main.indexOf("startLinuxAppServices({"), "tab policies start only in browser windows");
 });

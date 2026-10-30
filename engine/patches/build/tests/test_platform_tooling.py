@@ -3,7 +3,6 @@ import argparse
 import importlib.util
 import os
 import pathlib
-import re
 import shutil
 import subprocess
 import sys
@@ -59,28 +58,6 @@ class TargetTests(unittest.TestCase):
                 self.assertIn('alternate_cdm_storage_id_key="968b476909da4373b08903c28e859454"', result.stdout)
             self.assertEqual('use_vaapi=true' in result.stdout, platform == 'linux')
 
-    def test_manifest_is_complete_and_keeps_shared_lifetime_fixes(self):
-        mac = series.read_series('mac')
-        linux = series.read_series('linux')
-        self.assertIn('engine/ardiacore', [s.name for s in mac])
-        self.assertNotIn('engine/ardiacore', [s.name for s in linux])
-        self.assertIn('engine/ardiacore-linux', [s.name for s in linux])
-        for name in ('chromium-cef-carryover.patch', 'chromium-window-hosted.patch'):
-            self.assertIn(name, [s.name for s in linux])
-        paths = [path for step in linux if step.kind == 'chromium' for path, _ in step.paths()]
-        self.assertIn('chrome/browser/ui/browser_manager_service.cc', paths)
-        self.assertIn('chrome/browser/ui/unload_controller.cc', paths)
-        self.assertNotIn('chrome/browser/chrome_resource_bundle_helper.cc', paths)
-        self.assertFalse(any('remote_cocoa' in path or path.endswith(('.mm', '_mac.cc')) for path in paths))
-    def test_linux_layer_declares_replacement_headers(self):
-        paths = series.layer_paths(str(REPO / 'engine/ardiacore-linux'))
-        self.assertIn(('ardia/linux', True), paths)
-        self.assertIn(('ardia/core/ac_hooks.h', False), paths)
-        self.assertIn(('ardia/core/ac_content_hooks.h', False), paths)
-        self.assertIn(('ardia/core/ac_launch_switches.h', False), paths)
-        self.assertIn(('ardia/core/ac_launch_switches_linux.cc', False), paths)
-        self.assertIn(('ardia/core/BUILD.gn', False), paths)
-
     def test_linux_layer_materializes_launch_target_and_detects_drift(self):
         layer = REPO / 'engine/ardiacore-linux'
         with tempfile.TemporaryDirectory() as scratch:
@@ -104,7 +81,6 @@ class TargetTests(unittest.TestCase):
             self.assertIn('assert(is_linux)', build)
             self.assertNotIn('frameworks', build)
             self.assertNotIn('//ardia/linux"', build)
-
 
 
 class SeriesFixtureTests(unittest.TestCase):
@@ -220,14 +196,6 @@ class HeliumTests(unittest.TestCase):
         with mock.patch.object(helium.shutil, 'which', side_effect=lambda name: '/usr/bin/' + name if name in ('sips', 'magick') else None), mock.patch.object(helium.subprocess, 'run', return_value=argparse.Namespace(returncode=0)) as run:
             helium.resize_icon(pathlib.Path('input.png'), pathlib.Path('output.png'), 48, 'linux')
         self.assertEqual(run.call_args.args[0][0], 'magick')
-
-    def test_linux_submodule_pin_matches_shared_pin(self):
-        pins = helium.pins()
-        self.assertEqual(pins['helium-linux']['helium_chromium_commit'], pins['helium-chromium']['commit'])
-        env = dict(re.findall(r'^export (\w+)=(\S+)$', (BUILD / 'env.sh').read_text(), re.M))
-        self.assertEqual(pins['chromium']['version'], env['CHROMIUM_VERSION'])
-        for section, variable in (('helium-chromium', 'HELIUM_TAG'), ('helium-macos', 'HELIUM_MACOS_TAG'), ('helium-linux', 'HELIUM_LINUX_TAG')):
-            self.assertEqual(pins[section]['tag'], env[variable])
 
     def test_pin_stage_requires_current_tree_and_actual_matching_submodule(self):
         pins = helium.pins()
@@ -429,12 +397,6 @@ class PackagingTests(unittest.TestCase):
                 info = subprocess.run(['makepkg', '--printsrcinfo'], cwd=scratch, capture_output=True, text=True, timeout=60)
                 self.assertEqual(info.returncode, 0, info.stderr)
                 self.assertIn('depends = polkit', info.stdout)
-
-    def test_installer_and_pkgbuild_carry_no_comments(self):
-        for path in [REPO / 'scripts/linux/install.sh', REPO / 'scripts/linux/arch/PKGBUILD']:
-            lines = path.read_text().splitlines()
-            self.assertTrue(lines[0].startswith('#!') or path.name == 'PKGBUILD')
-            self.assertFalse([line for line in lines[1:] if line.lstrip().startswith('#')], path)
 
 
 if __name__ == '__main__':

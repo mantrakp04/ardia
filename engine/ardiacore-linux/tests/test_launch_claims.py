@@ -4,7 +4,7 @@ import subprocess
 import tempfile
 import unittest
 
-from test_renderer_contract import method
+from support import method
 
 
 ROOT = Path(__file__).resolve().parents[1]

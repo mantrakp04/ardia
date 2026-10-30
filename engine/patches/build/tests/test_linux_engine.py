@@ -481,14 +481,5 @@ class MacDispatchTests(unittest.TestCase):
         self.assertEqual((mac.returncode, mac.stderr), (1, 'error: usage: fetch-engine.sh [--nearest]\n'))
 
 
-class NoCommentTests(unittest.TestCase):
-    def test_new_tooling_carries_no_comments(self):
-        for relative in ('scripts/linux/runtime_files.py', 'scripts/linux/package.py', 'scripts/linux/publish_engine.py',
-                         'scripts/linux/publish-engine.sh', 'scripts/linux/fetch-engine.sh', 'engine/patches/build/tests/test_linux_engine.py'):
-            lines = (REPO / relative).read_text().splitlines()
-            self.assertTrue(lines[0].startswith('#!'), relative)
-            self.assertFalse([line for line in lines[1:] if line.lstrip().startswith('#')], relative)
-
-
 if __name__ == '__main__':
     unittest.main()

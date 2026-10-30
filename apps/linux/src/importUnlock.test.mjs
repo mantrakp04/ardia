@@ -1,6 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { createHostImport } from "./hostImport.ts";
 import { asksPrimaryPassword, createSecretSlot, unlockCopy, unlockFailure, unlockSource, withoutEncrypted } from "./importUnlock.ts";
@@ -110,17 +108,4 @@ test("skipping encrypted data keeps what the source stores unencrypted", () => {
   const kinds = new Set(["bookmarks", "passwords", "cookies", "autofill"]);
   assert.deepEqual([...withoutEncrypted(CHROME, kinds)].sort(), ["autofill", "bookmarks"]);
   assert.deepEqual([...withoutEncrypted(FIREFOX, kinds)].sort(), ["autofill", "bookmarks", "cookies"]);
-});
-
-test("the Linux build swaps in the Linux unlock step, which never logs the typed password", () => {
-  const config = readFileSync(fileURLToPath(new URL("../vite.config.ts", import.meta.url)), "utf8");
-  assert.match(config, /\[here\("\.\.\/browser\/src\/components\/import\/steps\/UnlockStep\.tsx"\), here\("\.\/src\/LinuxUnlockStep\.tsx"\)\]/);
-  for (const file of ["LinuxUnlockStep.tsx", "importUnlock.ts"]) {
-    const source = readFileSync(fileURLToPath(new URL(`./${file}`, import.meta.url)), "utf8");
-    assert.doesNotMatch(source, /console\.|reportHostError|telemetry|localStorage|sessionStorage/, file);
-  }
-  const step = readFileSync(fileURLToPath(new URL("./LinuxUnlockStep.tsx", import.meta.url)), "utf8");
-  assert.match(step, /secure\b/);
-  assert.match(step, /useEffect\(\(\) => \(\) => primaryPassword\.clear\(\), \[\]\)/);
-  assert.doesNotMatch(step, MACOS);
 });

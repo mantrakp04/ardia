@@ -6,8 +6,6 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'src'
-HOST = SOURCE / 'ardia/linux/ac_linux_host.cc'
-FAVICONS = SOURCE / 'ardia/linux/ac_linux_favicons.cc'
 
 CASES = r'''
 #include "ardia/linux/ac_linux_favicon_policy.h"
@@ -52,38 +50,6 @@ class FaviconPolicyTests(unittest.TestCase):
             binary = Path(directory) / 'cases'
             subprocess.run([os.environ.get('CXX', 'c++'), '-std=c++20', '-Wall', '-Wextra', '-Werror', '-fsanitize=address,undefined', '-I', str(SOURCE), str(source), '-o', str(binary)], check=True, timeout=60)
             subprocess.run([str(binary)], check=True, timeout=10)
-
-    def test_cache_miss_paths_use_the_page_profile_and_stay_off_the_local_network(self):
-        host = HOST.read_text()
-        favicons = FAVICONS.read_text()
-        self.assertIn('ardiacore::DownloadLinuxFavicon(\n        contents, GURL(values[0].GetString())', host)
-        self.assertIn('ardiacore::FetchLinuxFavicon(profile, url, std::move(reply));', host)
-        fetch = host[host.index('if (name == "favicons.fetch") {'):]
-        fetch = fetch[:fetch.index('if (ardiacore::IsLinuxZoomDomainRoute(name)) {')]
-        self.assertIn('Profile* page = host_->page_profile();', fetch)
-        self.assertIn('page->IsOffTheRecord()', fetch)
-        self.assertIn('kWindowMismatch', fetch)
-        self.assertIn('Profile* served = host_->ServedProfile(profile);', fetch)
-        self.assertIn('host_->FetchFavicon(served ? served : page, GURL(*url)', fetch)
-        network = favicons[favicons.index('void FetchLinuxFavicon('):]
-        self.assertIn('!LinuxFaviconPublicURL(url)', network)
-        self.assertIn('GetDefaultStoragePartition()->GetURLLoaderFactoryForBrowserProcess()', network)
-        self.assertIn('network::mojom::LocalNetworkAccessRequestPolicy::kBlock', favicons)
-        self.assertIn('network::mojom::IPAddressSpace::kPublic', favicons)
-        self.assertIn('network::mojom::CredentialsMode::kOmit', favicons)
-        self.assertIn('if (LinuxFaviconPublicURL(redirect.new_url)) return;', favicons)
-        self.assertIn('policy::kMaxBytes);', favicons)
-        self.assertIn('if (!current || !current.Run()) return PageDownloads().Finish(key, base::Value());', favicons)
-        self.assertNotIn('SystemNetworkContextManager', favicons)
-
-    def test_resizing_and_encoding_run_on_the_thread_pool(self):
-        favicons = FAVICONS.read_text()
-        finish = favicons[favicons.index('void FinishWithImage('):favicons.index('class NetworkFavicon')]
-        self.assertIn('base::ThreadPool::PostTaskAndReplyWithResult(', finish)
-        self.assertIn('base::BindOnce(&LinuxFaviconImage, std::move(bitmap))', finish)
-        callers = favicons.replace(finish, '')
-        self.assertNotIn('LinuxFaviconImage(bitmaps', callers)
-        self.assertNotIn('LinuxFaviconImage(image', callers)
 
 
 if __name__ == '__main__':

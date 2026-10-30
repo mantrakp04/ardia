@@ -1,5 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { launchArdia } from "./ardia.mjs";
 import { summarizeScenario } from "./report.mjs";
@@ -35,7 +34,6 @@ export function createContext({ scenario, options, fixtures, resultsDir, scratch
     get aborted() {
       return aborted;
     },
-    refuseAfterAbort,
     defer(stop) {
       if (aborted) return void Promise.resolve().then(stop).catch(() => {});
       deferred.push(stop);
@@ -44,11 +42,6 @@ export function createContext({ scenario, options, fixtures, resultsDir, scratch
       const dir = join(scratchRoot, `${scenario.id}-${name}-${scratches.length}`);
       await rm(dir, { recursive: true, force: true });
       await mkdir(dir, { recursive: true });
-      scratches.push(dir);
-      return dir;
-    },
-    async tempDir(name = "tmp") {
-      const dir = await mkdtemp(join(tmpdir(), `ardia-${scenario.id}-${name}-`));
       scratches.push(dir);
       return dir;
     },

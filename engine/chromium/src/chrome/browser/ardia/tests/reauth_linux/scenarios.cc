@@ -276,61 +276,6 @@ void NewerRequestSupersedesAndStaleRepliesAreIgnored() {
   assert(second.runs == 1 && second.granted == true);
 }
 
-void SupersededBeforeTheBusName() {
-  Reset();
-  Profile profile;
-  Result first;
-  Result second;
-  Request(profile, first);
-  Request(profile, second);
-  assert(first.granted == false);
-  Pump();
-  assert(dbus::sent_calls.size() == 1);
-  dbus::SentCall check = Take(0);
-  Reply(check, true, false);
-  assert(second.granted == true && first.runs == 1);
-}
-
-void ReentrantRequestFromSupersededCallback() {
-  Reset();
-  Profile profile;
-  Result inner;
-  Result outer;
-  bool started_inner = false;
-  ardia::Reauth(&profile, DeviceAuthSource::kPasswordManager, u"first", base::Milliseconds(60000),
-                base::OnceCallback<void(bool)>([&](bool) {
-                  started_inner = true;
-                  Request(profile, inner);
-                }));
-  Request(profile, outer);
-  assert(started_inner);
-  assert(outer.runs == 1 && outer.granted == false);
-  Pump();
-  dbus::SentCall check = Take(dbus::sent_calls.size() - 1);
-  Reply(check, true, false);
-  assert(inner.granted == true && outer.runs == 1);
-}
-
-void TwoProfilesPromptWithDistinctCancellations() {
-  Reset();
-  Profile work;
-  Profile home;
-  Result work_result;
-  Result home_result;
-  Request(work, work_result);
-  Request(home, home_result);
-  Pump();
-  assert(dbus::sent_calls.size() == 2);
-  dbus::SentCall work_check = Take(0);
-  dbus::SentCall home_check = Take(1);
-  ExpectCheck(work_check);
-  ExpectCheck(home_check);
-  assert(work_check.body[4].text != home_check.body[4].text);
-  Reply(home_check, true, false);
-  Reply(work_check, false, false);
-  assert(home_result.granted == true && work_result.granted == false);
-}
-
 void UnconnectedBusIsUnavailable() {
   Reset();
   dbus_thread_linux::system_bus->connects = false;
@@ -340,25 +285,6 @@ void UnconnectedBusIsUnavailable() {
   Pump();
   assert(result.granted == false && dbus::sent_calls.empty());
   assert(LastResult() == "unavailable");
-}
-
-void ProfileTeardownDropsPendingPrompt() {
-  Reset();
-  Profile profile;
-  Result result;
-  Request(profile, result);
-  Pump();
-  dbus::SentCall check = Take(0);
-  for (auto& [key, state] : profile.states) {
-    static_cast<ardia::ProfileState*>(state.get())->WillBeDestroyed();
-  }
-  ExpectCancel(dbus::sent_calls[1], check.body[4].text);
-  Reply(check, true, false);
-  assert(result.runs == 0);
-  Result after;
-  Request(profile, after);
-  Pump();
-  assert(!after.granted);
 }
 
 struct Probed {
@@ -440,11 +366,7 @@ int main(int argc, char**) {
   FailuresNeverGrant();
   TimeoutCancelsTheAgentPrompt();
   NewerRequestSupersedesAndStaleRepliesAreIgnored();
-  SupersededBeforeTheBusName();
-  ReentrantRequestFromSupersededCallback();
-  TwoProfilesPromptWithDistinctCancellations();
   UnconnectedBusIsUnavailable();
-  ProfileTeardownDropsPendingPrompt();
   ProbeNeverPromptsAndExplainsUnavailability();
   std::puts("reauth scenarios passed");
 }

@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 import { closeWindowPopovers, dismissesPopover, startPopoverEscape } from "./popoverEscape.ts";
 import { useBrowser } from "../../browser/src/state/browser/store.ts";
@@ -66,12 +65,4 @@ test("only an unmodified, unhandled Escape dismisses", () => {
   assert.equal(closeWindowPopovers("elsewhere"), false);
   assert.equal(closeWindowPopovers("other"), true);
   assert.equal(usePages.getState().popover.there, null);
-});
-
-test("browser windows start the popover Escape handler after hydrating, utility windows keep their own", () => {
-  const main = readFileSync(new URL("./main.tsx", import.meta.url), "utf8");
-  const browser = main.slice(main.indexOf("  } else {"), main.indexOf("  createRoot("));
-  assert.match(browser, /startPopoverEscape\(\{ target: window, windowId, menuShown, activeElement: \(\) => document\.activeElement \}\);/);
-  const utility = main.slice(main.indexOf("  if (utility) {"), main.indexOf("  } else {"));
-  assert.doesNotMatch(utility, /startPopoverEscape/);
 });

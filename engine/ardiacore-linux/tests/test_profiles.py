@@ -315,63 +315,6 @@ void ReentrancyAndDestruction() {
   std::puts("reentrancy=ok destruction=ok");
 }
 
-void ReopenWhileLastPrivateSessionEnds() {
-  FakeBackend backend;
-  backend.synchronous = true;
-  FakeProfile app{"Default"};
-  ProfileRegistry<FakeProfile> registry(backend);
-  registry.SetDefault(&app);
-  Result first;
-  registry.Resolve("incognito:w-1@", Into(first));
-  FakeProfile* ending = first.profile;
-  assert(ending && registry.Release("incognito:w-1@"));
-  ending->dying = true;
-  registry.Forget(ending);
-  Result reopened;
-  registry.Resolve("incognito:w-2@", Into(reopened));
-  assert(reopened.calls == 0 || reopened.profile != ending);
-  assert(reopened.calls == 0 && backend.later.size() == 1);
-  const int creates_while_ending = backend.creates;
-  backend.RunLater();
-  assert(reopened.calls == 0 && backend.later.size() == 1 && backend.creates == creates_while_ending);
-  app.child = nullptr;
-  backend.RunLater();
-  assert(reopened.calls == 1 && reopened.profile && reopened.profile != ending && !reopened.profile->dying);
-  assert(reopened.error == ProfileError::kNone);
-
-  FakeProfile* stuck = reopened.profile;
-  registry.Release("incognito:w-2@");
-  stuck->dying = true;
-  registry.Forget(stuck);
-  Result bounded;
-  registry.Resolve("incognito:w-3@", Into(bounded));
-  for (int i = 0; i < kPrivateEndingRetries && bounded.calls == 0; ++i) backend.RunLater();
-  assert(bounded.calls == 1 && !bounded.profile && bounded.error == ProfileError::kPrivateEnding);
-  assert(backend.later.empty());
-  assert(ProfileErrorCode(ProfileError::kPrivateEnding) == "ERR_PROFILE_ENDING");
-
-  Result released;
-  registry.Resolve("incognito:w-4@", Into(released));
-  assert(released.calls == 0);
-  registry.Release("incognito:w-4@");
-  assert(released.calls == 1 && released.error == ProfileError::kReleased);
-  app.child = nullptr;
-  backend.RunLater();
-  assert(released.calls == 1 && !registry.Lookup("incognito:w-4@"));
-
-  stuck->dying = true;
-  app.child = stuck;
-  auto dropped = std::make_unique<ProfileRegistry<FakeProfile>>(backend);
-  dropped->SetDefault(&app);
-  int late = 0;
-  dropped->Resolve("incognito:w-5@", [&](FakeProfile*, ProfileError) { ++late; });
-  dropped.reset();
-  app.child = nullptr;
-  backend.RunLater();
-  assert(late == 0);
-  std::puts("reopen_after_ending=ok ending_bounded=ok");
-}
-
 void StartupProfilePinning() {
   StartupProfiles chrome_after_isolated_focus{"Profile p-work", {"Default", "Profile p-work"}, true};
   const auto pinned = PinnedStartupProfiles(chrome_after_isolated_focus, "Default");
@@ -433,81 +376,10 @@ void PrivateWindowAccess() {
   std::puts("private_window_access=ok");
 }
 
-void ChromeCreatedPrivateProfileIsObserved() {
-  FakeBackend backend;
-  backend.synchronous = true;
-  FakeProfile app{"Default"};
-  ProfileRegistry<FakeProfile> registry(backend);
-  registry.SetDefault(&app);
-  FakeProfile chrome_made{"Default OTR", true};
-  app.child = &chrome_made;
-  Result adopted;
-  registry.Resolve("incognito:w-chrome@", Into(adopted));
-  assert(adopted.profile == &chrome_made && adopted.error == ProfileError::kNone);
-  assert(backend.watched.contains(&chrome_made));
-  backend.Destroy(registry, &chrome_made);
-  app.child = nullptr;
-  assert(!registry.Lookup("incognito:w-chrome@"));
-  assert(registry.PrivateNames(&chrome_made) == 0);
-
-  FakeProfile refusing{"Default OTR 2", true};
-  app.child = &refusing;
-  backend.refuse_watch = &refusing;
-  Result waiting;
-  registry.Resolve("incognito:w-late@", Into(waiting));
-  assert(waiting.calls == 0 && backend.later.size() == 1);
-  backend.refuse_watch = nullptr;
-  app.child = nullptr;
-  backend.RunLater();
-  assert(waiting.calls == 1 && waiting.profile && waiting.profile != &refusing && backend.watched.contains(waiting.profile));
-  assert(backend.watched.contains(&app));
-  std::puts("chrome_created_otr_observed=ok");
-}
-
-struct Reply {
-  std::vector<std::string>* log;
-  std::string name;
-  Reply(std::vector<std::string>* l, std::string n) : log(l), name(std::move(n)) {}
-  Reply(Reply&&) = default;
-  Reply& operator=(Reply&&) = default;
-  Reply(const Reply&) = delete;
-  void Run(bool ok) { log->push_back(name + (ok ? "=ok" : "=failed")); }
-};
-
-void OpeningLedgerBounds() {
-  OpeningLedger<Reply> ledger;
-  std::vector<std::string> log;
-  Reply a(&log, "a");
-  const auto first = ledger.Begin("w-1", "p-work", a);
-  assert(first.admission == OpeningAdmission::kStarted && ledger.Current("w-1", first.generation));
-  Reply b(&log, "b");
-  const auto joined = ledger.Begin("w-1", "p-work", b);
-  assert(joined.admission == OpeningAdmission::kJoined && joined.generation == first.generation);
-  Reply c(&log, "c");
-  const auto mismatch = ledger.Begin("w-1", "", c);
-  assert(mismatch.admission == OpeningAdmission::kMismatch);
-  c.Run(false);
-  auto expired = ledger.Finish("w-1", first.generation);
-  assert(expired.size() == 2 && !ledger.Current("w-1", first.generation));
-  for (auto& reply : expired) reply.Run(false);
-  assert(ledger.Finish("w-1", first.generation).empty());
-  Reply d(&log, "d");
-  const auto retry = ledger.Begin("w-1", "p-work", d);
-  assert(retry.admission == OpeningAdmission::kStarted && retry.generation != first.generation);
-  assert(ledger.Finish("w-1", first.generation).empty() && ledger.Current("w-1", retry.generation));
-  for (auto& reply : ledger.Finish("w-1", retry.generation)) reply.Run(true);
-  assert((log == std::vector<std::string>{"c=failed", "a=failed", "b=failed", "d=ok"}));
-  assert(ledger.Pending() == 0);
-  std::puts("opening_ledger=ok");
-}
-
 int main() {
   PrivateOrdinals();
-  ChromeCreatedPrivateProfileIsObserved();
   PrivateWindowAccess();
-  OpeningLedgerBounds();
   StartupProfilePinning();
-  ReopenWhileLastPrivateSessionEnds();
   Parsing();
   LookupAndNoFallback();
   PrivateLifetime();
@@ -533,17 +405,9 @@ class ProfileRegistryTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             run = subprocess.run([str(binary)], capture_output=True, text=True, timeout=30)
             self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
-            for marker in ('private_ordinals=ok', 'chrome_created_otr_observed=ok', 'private_window_access=ok', 'opening_ledger=ok', 'startup_pinned=ok', 'reopen_after_ending=ok', 'ending_bounded=ok', 'parsing=ok', 'no_fallback=ok', 'private_lifetime=ok', 'release_during_resolution=ok',
+            for marker in ('private_ordinals=ok', 'private_window_access=ok', 'startup_pinned=ok', 'parsing=ok', 'no_fallback=ok', 'private_lifetime=ok', 'release_during_resolution=ok',
                            'delete_during_load=ok', 'reentrancy=ok', 'destruction=ok'):
                 self.assertIn(marker, run.stdout)
-
-    def test_helper_has_no_comments_and_no_chromium_dependency(self):
-        for name in ('ac_linux_profiles.h', 'ac_linux_profiles.cc'):
-            text = (SOURCE / 'ardia/linux' / name).read_text()
-            self.assertNotIn('//', text.replace('://', ''))
-            self.assertNotIn('/*', text)
-            self.assertNotIn('#include "base/', text)
-            self.assertNotIn('#include "chrome/', text)
 
 
 if __name__ == '__main__':

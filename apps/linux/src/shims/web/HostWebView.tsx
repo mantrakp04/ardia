@@ -9,9 +9,10 @@ import { hostPageScript } from "../../hostPageScripts";
 import { HostTab, type HostPageFactory, type HostTabEvent } from "../../hostTab";
 import { extensionViewsSupported } from "../../hostExtensionView";
 import { HostExtensionWebView } from "./HostExtensionWebView";
-import { backdropCovers, hostOverlayBlocked, refreshTabViewports, watchTabViewport, type TabViewport } from "../../hostViewport";
-import { menuShown } from "../../menus";
+import { backdropCovers, hostOverlayBlocked, refreshTabViewports, reportAppliedViewport, watchTabViewport, type TabViewport } from "../../hostViewport";
+import { closingMenuOnPageFocus } from "../../menus";
 import { withPopupDismissal } from "../../popupDismissal";
+import { useBrowser } from "../../../../browser/src/state/browser/store";
 
 export const HostWebView = forwardRef<WebViewHandle, WebViewProps>(function HostWebView(props, ref) {
   return props.extensionHost && extensionViewsSupported(ardiaHost) ? <HostExtensionWebView ref={ref} {...props} /> : <HostTabWebView ref={ref} {...props} />;
@@ -32,7 +33,7 @@ const HostTabWebView = forwardRef<WebViewHandle, WebViewProps>(function HostTabW
     if (!ready.current) latest.current.onReady?.();
     ready.current = true;
   };
-  const page: HostPageFactory = (claim, nativeId, rebound) => new HostPageEvents(claim, nativeId, () => withPopupDismissal(latest.current),
+  const page: HostPageFactory = (claim, nativeId, rebound) => new HostPageEvents(claim, nativeId, () => closingMenuOnPageFocus(withPopupDismissal(latest.current)),
     (reason, replaced) => { const tabId = latest.current.tabId; if (tabId) resetHostPageState(tabId, reason, replaced); },
     (state) => { const tabId = latest.current.tabId; if (tabId) applyHostPageThemeState(tabId, state); }, rebound);
 
@@ -95,12 +96,13 @@ const HostTabWebView = forwardRef<WebViewHandle, WebViewProps>(function HostTabW
     let revision = 0;
     let last = "";
     let backdrop: Promise<boolean> | null = null;
+    let painted: Promise<boolean> | null = null;
     let captured: NonNullable<TabViewport["occlusions"]> = [];
     let retryAfter = 0;
     let retry: ReturnType<typeof setTimeout> | undefined;
     const stop = watchTabViewport(node, () => {
       const p = latest.current;
-      return p.visible !== false && !menuShown() && !hostOverlayBlocked(p.tabId);
+      return p.visible !== false && !hostOverlayBlocked(p.tabId);
     }, (viewport) => {
       const current = tab.current;
       if (!current?.identity) return;
@@ -121,12 +123,20 @@ const HostTabWebView = forwardRef<WebViewHandle, WebViewProps>(function HostTabW
               await image.decode();
               if (current.disposed || backdrop !== capture) return false;
               node.style.backgroundImage = `url("${data}")`;
+              painted = capture;
               return true;
             }).catch((error) => {
               reportHostError(error);
               return false;
             });
             backdrop = capture;
+          }
+          if (painted !== backdrop && viewport.occlusions.some((occlusion) => occlusion.menu)) {
+            const unbacked = { ...viewport, occlusions: viewport.occlusions.map((occlusion) => ({ ...occlusion, paintOutset: 0 })) };
+            const tabId = latest.current.tabId;
+            node.style.backgroundColor = (tabId && useBrowser.getState().live[tabId]?.themeColor) || "";
+            await current.viewport(toHost(unbacked));
+            if (mine === revision) reportAppliedViewport(node, unbacked);
           }
           if (!await backdrop) {
             if (mine === revision) {
@@ -139,10 +149,12 @@ const HostTabWebView = forwardRef<WebViewHandle, WebViewProps>(function HostTabW
           }
         }
         if (mine !== revision || current.disposed) return;
-        await current.viewport(viewport);
+        await current.viewport(toHost(viewport));
+        if (mine === revision) reportAppliedViewport(node, viewport);
         if (mine === revision && !viewport.occlusions?.length) {
           backdrop = null;
           node.style.backgroundImage = "";
+          node.style.backgroundColor = "";
         }
       })().catch((error) => {
         if (mine === revision) {
@@ -158,8 +170,12 @@ const HostTabWebView = forwardRef<WebViewHandle, WebViewProps>(function HostTabW
       backdrop = null;
       clearTimeout(retry);
       stop();
+      reportAppliedViewport(node, null);
     };
   }, []);
 
   return <View style={[props.style, { backgroundColor: "transparent" }]}><div ref={element} data-ardia-native-tab={key.current} style={{ position: "absolute", inset: 0, backgroundSize: "100% 100%" }} /></View>;
 });
+
+const toHost = ({ occlusions, ...viewport }: TabViewport): TabViewport =>
+  occlusions ? { ...viewport, occlusions: occlusions.map(({ menu: _menu, ...occlusion }) => occlusion) } : viewport;

@@ -5,52 +5,9 @@ import { createSecureContext } from "node:tls";
 import { TRUSTED_HOSTS, UNTRUSTED_HOSTS } from "./tls.mjs";
 import { createLiveServices, LIVE_HOSTS } from "./liveServices.mjs";
 
-export const PIXEL_PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+const PIXEL_PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
 export const SUGGEST_HOST = "suggestqueries.google.com";
 export const FIND_WORD = "needle";
-export const MEDIA_TITLE = "Acceptance tone";
-
-export function toneWav({ seconds = 8, rate = 8000, frequency = 440 } = {}) {
-  const samples = Math.round(seconds * rate);
-  const wav = Buffer.alloc(44 + samples * 2);
-  wav.write("RIFF", 0, "ascii");
-  wav.writeUInt32LE(36 + samples * 2, 4);
-  wav.write("WAVEfmt ", 8, "ascii");
-  wav.writeUInt32LE(16, 16);
-  wav.writeUInt16LE(1, 20);
-  wav.writeUInt16LE(1, 22);
-  wav.writeUInt32LE(rate, 24);
-  wav.writeUInt32LE(rate * 2, 28);
-  wav.writeUInt16LE(2, 32);
-  wav.writeUInt16LE(16, 34);
-  wav.write("data", 36, "ascii");
-  wav.writeUInt32LE(samples * 2, 40);
-  for (let i = 0; i < samples; i++) wav.writeInt16LE(Math.round(Math.sin((2 * Math.PI * frequency * i) / rate) * 12000), 44 + i * 2);
-  return wav;
-}
-
-const MEDIA_SCRIPT = `
-const audio = document.getElementById("tone");
-window.mediaLog = [];
-navigator.mediaSession.metadata = new MediaMetadata({ title: ${JSON.stringify(MEDIA_TITLE)}, artist: "Ardia", album: "Fixture", artwork: [{ src: "/pixel.png", sizes: "1x1", type: "image/png" }] });
-for (const action of ["play", "pause", "nexttrack", "previoustrack", "seekto"]) {
-  navigator.mediaSession.setActionHandler(action, (details) => {
-    window.mediaLog.push(action);
-    if (action === "play") audio.play();
-    if (action === "pause") audio.pause();
-    if (action === "seekto") audio.currentTime = details.seekTime;
-  });
-}
-window.startTone = () => audio.play().then(() => true, (error) => String(error));
-`;
-
-const SILENT_VIDEO_SCRIPT = `
-const canvas = document.getElementById("canvas");
-const context = canvas.getContext("2d");
-let frame = 0;
-setInterval(() => { context.fillStyle = frame++ % 2 ? "#204060" : "#406020"; context.fillRect(0, 0, 320, 180); }, 50);
-for (const id of ["big", "small"]) document.getElementById(id).srcObject = canvas.captureStream(20);
-`;
 
 const escapeHtml = (text) => String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
@@ -58,8 +15,8 @@ export function suggestionsFor(query) {
   return [`${query} ardia suggestion one`, `${query} ardia suggestion two`, `${query} ardia suggestion three`];
 }
 
-function page(title, body, head = "") {
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title>${head}</head><body>${body}</body></html>`;
+function page(title, body) {
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head><body>${body}</body></html>`;
 }
 
 export async function startFixtures({ tls, slowChunk = 16384, slowInterval = 100 } = {}) {
@@ -69,7 +26,6 @@ export async function startFixtures({ tls, slowChunk = 16384, slowInterval = 100
   const streams = new Set();
   const live = createLiveServices();
   const ports = {};
-  let links;
   const hostOf = (request) => String(request.headers.host ?? "").replace(/:\d+$/, "").toLowerCase();
   const gate = (name) => {
     if (!gates.has(name)) {
@@ -87,7 +43,7 @@ export async function startFixtures({ tls, slowChunk = 16384, slowInterval = 100
       response.writeHead(status, { "content-type": type, "cache-control": "no-store", ...extra });
       response.end(body);
     };
-    const html = (title, body, head) => send(200, "text/html; charset=utf-8", page(title, body, head));
+    const html = (title, body) => send(200, "text/html; charset=utf-8", page(title, body));
     const custom = routes.get(url.pathname);
     if (custom) return custom({ request, response, url, secure, send, html });
     if (secure && LIVE_HOSTS.includes(host)) {
@@ -119,43 +75,7 @@ export async function startFixtures({ tls, slowChunk = 16384, slowInterval = 100
     }
     if (url.pathname === "/print") return html("Print fixture", "<h1>Ardia print fixture</h1><p>Printable text.</p>");
     if (url.pathname === "/zoom") return html("Zoom fixture", "<h1>Zoom fixture</h1>");
-    if (url.pathname === "/media") return html("Media fixture", `<h1>Media fixture</h1><audio id="tone" src="/tone.wav" loop></audio><form><input id="field" name="field" autocomplete="off"></form><script>${MEDIA_SCRIPT}</script>`);
-    if (url.pathname === "/silent-video") return html("Silent video fixture", `<h1>Silent video fixture</h1><canvas id="canvas" width="320" height="180"></canvas><video id="big" muted autoplay playsinline width="320" height="180"></video><video id="small" muted autoplay playsinline width="80" height="45"></video><script>${SILENT_VIDEO_SCRIPT}</script>`);
-    if (url.pathname === "/tone.wav") return send(200, "audio/wav", toneWav());
     if (url.pathname === "/pixel.png") return send(200, "image/png", PIXEL_PNG);
-    if (url.pathname.startsWith("/ads/banners/")) return send(200, "image/png", PIXEL_PNG);
-    if (url.pathname === "/storage") {
-      const name = url.searchParams.get("set");
-      const set = name && /^[A-Za-z0-9_-]{1,40}$/.test(name)
-        ? `<script>document.cookie = ${JSON.stringify(`${name}=1; max-age=86400; path=/`)}; localStorage.setItem(${JSON.stringify(name)}, "1");</script>`
-        : "";
-      return html("Storage fixture", `<h1>Storage fixture</h1>${set}`);
-    }
-    if (url.pathname === "/permissions") return html("Permissions fixture", "<h1>Permissions fixture</h1>");
-    if (url.pathname === "/blocker") {
-      const run = String(url.searchParams.get("run") ?? "").replace(/[^A-Za-z0-9_-]/g, "");
-      return html("Blocker fixture", `<h1>Blocker fixture</h1><img id="ad" src="/ads/banners/${run}.png" width="1" height="1"><img id="control" src="/pixel.png?blocker=${run}" width="1" height="1">`);
-    }
-    if (url.pathname === "/fullscreen") return html("Fullscreen fixture", `<h1>Fullscreen fixture</h1><video id="video" width="160" height="90"></video>`);
-    if (url.pathname === "/hover") return html("Hover fixture", `<a id="link" href="/page/5?hover=${escapeHtml(url.searchParams.get("run") ?? "")}" style="position:absolute;left:20px;top:20px;width:300px;height:120px;display:block;font-size:48px">Hover link</a>`);
-    if (url.pathname === "/popup") return html("Popup fixture", `<h1>Popup fixture</h1><script>window.open(${JSON.stringify(`http://plain.ardia.test:${ports.http}/page/8?popup=${encodeURIComponent(url.searchParams.get("run") ?? "")}`)})</script>`);
-    if (url.pathname === "/busy") return html("Busy fixture", `<h1>Busy fixture</h1><script>addEventListener("load", () => setTimeout(() => { for (;;) {} }, 200))</script>`);
-    if (url.pathname === "/gestures") {
-      const run = url.searchParams.get("run") ?? "";
-      return html("Gestures fixture", `<a id="link" href="${escapeHtml(links.page(6, run))}" style="display:block;width:320px;height:60px;font-size:32px">Peek link</a><iframe id="frame" src="${escapeHtml(links.gestureFrame(run))}" width="400" height="120" style="border:0"></iframe><p id="words">Ardia selects quoted words</p><textarea id="field">alpha beta alpha</textarea><div id="tall" style="height:4000px"></div>`);
-    }
-    if (url.pathname === "/gesture-frame") return html("Gesture frame", `<a id="link" href="${escapeHtml(links.page(7, url.searchParams.get("run") ?? ""))}" style="display:block;width:320px;height:60px;font-size:32px">Framed link</a>`);
-    const tint = /^\/tint\/(meta|header|background|plain)$/.exec(url.pathname);
-    if (tint) {
-      if (tint[1] === "meta") return html("Tint meta", "<h1>Tint meta</h1>", '<meta name="theme-color" content="#336699">');
-      if (tint[1] === "header") return html("Tint header", '<style>body{margin:0}</style><header style="position:sticky;top:0;height:120px;background:#aa2244"></header><h1>Tint header</h1>');
-      if (tint[1] === "background") return send(200, "text/html; charset=utf-8", '<!doctype html><html><head><title>Tint background</title></head><body style="background:#22aa66"><h1>Tint background</h1></body></html>');
-      return html("Tint plain", "<h1>Tint plain</h1>");
-    }
-    const favicon = /^\/favicon\/([A-Za-z0-9_-]+)$/.exec(url.pathname);
-    if (favicon) return html(`Favicon ${favicon[1]}`, `<h1>Favicon ${escapeHtml(favicon[1])}</h1>`, `<link rel="icon" href="/icon/${favicon[1]}.png">`);
-    const icon = /^\/icon\/([A-Za-z0-9_-]+)\.png$/.exec(url.pathname);
-    if (icon) return icon[1].startsWith("bad") ? send(200, "image/png", "not an image") : send(200, "image/png", PIXEL_PNG);
     const download = /^\/download\/([A-Za-z0-9._-]+)$/.exec(url.pathname);
     if (download) {
       const size = Math.max(1, Math.min(8 << 20, Number(url.searchParams.get("size") ?? 4096) | 0));
@@ -220,24 +140,7 @@ export async function startFixtures({ tls, slowChunk = 16384, slowInterval = 100
     slow: (name, size = 4 << 20) => `https://secure.ardia.test:${ports.https}/slow/${name}?size=${size}`,
     print: () => `http://plain.ardia.test:${ports.http}/print`,
     zoom: (host = "zoom.ardia.test") => `http://${host}:${ports.http}/zoom`,
-    storage: (host, set) => `http://${host}:${ports.http}/storage${set ? `?set=${encodeURIComponent(set)}` : ""}`,
-    permissions: () => `https://secure.ardia.test:${ports.https}/permissions`,
-    permissionsOrigin: () => `https://secure.ardia.test:${ports.https}`,
-    blocker: (host, run) => `http://${host}:${ports.http}/blocker?run=${encodeURIComponent(run)}`,
-    silentVideo: (run = "") => `http://media.ardia.test:${ports.http}/silent-video?run=${encodeURIComponent(run)}`,
-    fullscreen: (run = "") => `http://plain.ardia.test:${ports.http}/fullscreen?run=${encodeURIComponent(run)}`,
-    hover: (run = "") => `http://plain.ardia.test:${ports.http}/hover?run=${encodeURIComponent(run)}`,
-    popup: (run = "") => `http://plain.ardia.test:${ports.http}/popup?run=${encodeURIComponent(run)}`,
-    popupTarget: (run = "") => `http://plain.ardia.test:${ports.http}/page/8?popup=${encodeURIComponent(run)}`,
-    busy: (run = "") => `http://plain.ardia.test:${ports.http}/busy?run=${encodeURIComponent(run)}`,
-    favicon: (label, host = "icons.ardia.test") => `http://${host}:${ports.http}/favicon/${label}`,
-    icon: (name, host = "icons.ardia.test") => `http://${host}:${ports.http}/icon/${name}.png`,
-    gestures: (run = "") => `http://plain.ardia.test:${ports.http}/gestures?run=${encodeURIComponent(run)}`,
-    gestureFrame: (run = "") => `http://frame.ardia.test:${ports.http}/gesture-frame?run=${encodeURIComponent(run)}`,
-    tint: (kind) => `http://tint.ardia.test:${ports.http}/tint/${kind}`,
-    media: (run = "") => `http://media.ardia.test:${ports.http}/media${run ? `?run=${encodeURIComponent(run)}` : ""}`,
   };
-  links = url;
   const chromiumArgs = [
     `--host-resolver-rules=MAP *.ardia.test 127.0.0.1, MAP *.ardia-keep.test 127.0.0.1, MAP ${SUGGEST_HOST} 127.0.0.1:${ports.https}, ${LIVE_HOSTS.map((host) => `MAP ${host} 127.0.0.1:${ports.https}`).join(", ")}, MAP * ~NOTFOUND, EXCLUDE localhost, EXCLUDE 127.0.0.1`,
     ...tls.chromiumArgs,

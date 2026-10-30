@@ -47,24 +47,5 @@ class MemoryPressureTests(unittest.TestCase):
         self.run_case('kernel')
 
 
-class PowerMonitorTests(unittest.TestCase):
-    power = (LINUX / 'ac_linux_power.cc').read_text()
-    policy = (LINUX / 'ac_linux_tab_policy.cc').read_text()
-
-    def test_power_monitor_follows_pressure_stall_triggers(self):
-        self.assertIn('LinuxMemoryPressureWatch::Open(', self.power)
-        self.assertIn('LinuxMemoryPressureFiles(', self.power)
-        self.assertIn('watch->Wait(', self.power)
-        self.assertNotIn('kMemoryInterval', self.power)
-
-    def test_the_build_lists_the_pressure_module(self):
-        gn = (LINUX / 'BUILD.gn').read_text()
-        self.assertIn('"ac_linux_memory_pressure.cc"', gn)
-        self.assertIn('"ac_linux_memory_pressure.h"', gn)
-
-    def test_system_state_names_its_memory_signal(self):
-        self.assertIn('"memorySignal"', self.policy)
-
-
 if __name__ == '__main__':
     unittest.main()

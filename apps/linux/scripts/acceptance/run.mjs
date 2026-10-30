@@ -4,11 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { closeAllApps, killAllAppsNow } from "./lib/ardia.mjs";
 import { parseArgs, USAGE, UsageError } from "./lib/cli.mjs";
-import { findCompositor } from "./lib/compositor.mjs";
 import { startFixtures } from "./lib/fixtures.mjs";
 import { buildReport, exitCode, formatLine } from "./lib/report.mjs";
 import { cleanupActiveScenarios, runScenario } from "./lib/scenario.mjs";
-import { killDesktopNow } from "./lib/desktop.mjs";
 import { withDeadline } from "./lib/util.mjs";
 import { generateTls } from "./lib/tls.mjs";
 import { SCENARIOS, selectScenarios } from "./scenarios/index.mjs";
@@ -66,16 +64,14 @@ async function main() {
   const stop = (signal) => {
     if (interrupted) {
       killAllAppsNow();
-      killDesktopNow();
       process.exit(130);
     }
     interrupted = true;
-    log(`${signal}: stopping test browsers and desktop sessions`);
+    log(`${signal}: stopping test browsers`);
     void withDeadline(cleanupActiveScenarios().then(() => closeAllApps({ graceful: false })), 30000, "stopping the scenarios")
       .catch(() => {})
       .finally(() => {
         killAllAppsNow();
-        killDesktopNow();
         fixtures.close().finally(() => process.exit(130));
       });
   };
@@ -93,14 +89,13 @@ async function main() {
     await closeAllApps({ graceful: false });
     await fixtures.close();
   }
-  const compositor = await findCompositor();
   const report = buildReport({
     executable: options.executable,
     uiDir: options.uiDir,
     startedAt,
     finishedAt: new Date().toISOString(),
     results,
-    environment: { node: process.version, platform: process.platform, compositor: compositor?.name ?? null, resultsDir },
+    environment: { node: process.version, platform: process.platform, resultsDir },
   });
   await writeFile(join(resultsDir, "results.json"), JSON.stringify(report, null, 2));
   if (!(await readdir(scratchRoot)).length) await rm(scratchRoot, { recursive: true, force: true });
@@ -109,15 +104,11 @@ async function main() {
   return exitCode(report);
 }
 
-process.on("exit", () => {
-  killAllAppsNow();
-  killDesktopNow();
-});
+process.on("exit", killAllAppsNow);
 
 process.exitCode = await main().catch(async (error) => {
   process.stderr.write(`${error.stack ?? error}\n`);
   killAllAppsNow();
   await withDeadline(cleanupActiveScenarios(), 30000, "stopping the scenarios").catch(() => {});
-  killDesktopNow();
   return 1;
 });

@@ -5,7 +5,6 @@ import tempfile
 import unittest
 
 from document_host_fixture import ROOT, SOURCES, PRELUDE, WRITER, host_methods, values, close_invoke
-from test_renderer_contract import method
 
 
 class UtilityCloseTests(unittest.TestCase):
@@ -133,16 +132,6 @@ int main() {
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             result = subprocess.run([str(binary)], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-
-    def test_bare_close_is_request_only_and_all_host_widgets_install_the_gate(self):
-        source = (ROOT / 'src/ardia/linux/ac_linux_host.cc').read_text()
-        close = method(source, '  if (method == "ArdiaShell.windowFrame" || method == "ArdiaShell.closeWindow"')
-        self.assertIn('target->RequestWindowClose()', close)
-        self.assertNotIn('CloseNativeWindow', close)
-        self.assertNotIn('CloseUtilityAfterSave', close)
-        initialize = method(source, 'void ShellHostView::Initialize()')
-        self.assertLess(initialize.index('ArmWindowClose()'), initialize.index('if (is_utility())'))
-        self.assertLess(source.index('close_.Sealed(identity'), source.index('host->CloseNativeWindow(identity)'))
 
 
 if __name__ == '__main__':

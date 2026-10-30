@@ -8,7 +8,6 @@ import { HostPageEvents } from "./hostPageEvents.ts";
 import { WEB_STORE_REQUEST, hostPageScript } from "./hostPageScripts.ts";
 
 const bootstrap = readFileSync(new URL("../../../engine/ardiacore-linux/src/ardia/linux/bootstrap.js", import.meta.url), "utf8");
-const webView = readFileSync(new URL("./shims/web/HostWebView.tsx", import.meta.url), "utf8");
 const lease = (mount) => ({ claim: mount.claim, rendererGeneration: "1", bindingGeneration: String(mount.binding), documentEpoch: "1" });
 
 function pageReceiver(props) {
@@ -129,8 +128,6 @@ test("structured refusals reject with stable codes without changing target or re
 });
 
 test("native Find results reach the shared FindBar callback of only the exact pane", async () => {
-  assert.match(webView, /new HostPageEvents\(/);
-  assert.doesNotMatch(webView, /EVENT_CALLBACKS|findResult/);
   const f = fixture();
   const left = [], right = [];
   const a = new HostTab(f.host, { key: "left" }, () => {}, pageReceiver({ onFindResult: (value) => left.push(value) }));

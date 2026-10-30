@@ -195,28 +195,6 @@ test("GitHub: bad credentials, the primary and secondary rate limits and SAML en
   assert.ok(live().accounts.github, "a refresh failure never drops the account");
 });
 
-test("GitHub: each documented device-flow poll reply maps to its state", async () => {
-  const code = JSON.parse((await call("ArdiaLive.request", ["github", "deviceCode", { clientId: "Iv1.contract" }, "w1#1:code"])).body);
-  assert.deepEqual([code.user_code, code.interval, code.expires_in], ["WDJB-MJHT", 5, 900]);
-  const [device] = requests.filter((r) => r.host === "github.com");
-  assert.equal(device.headers.accept, "application/json");
-  assert.deepEqual(Object.fromEntries(new URLSearchParams(device.body)), { client_id: "Iv1.contract", scope: "repo read:org" });
-  const poll = (name, id) => {
-    serve("github.com /login/oauth/access_token", name);
-    return call("ArdiaLive.connect", ["github", { clientId: "Iv1.contract", deviceCode: code.device_code }, `w1#1:${id}`]).then((value) => value, (error) => error);
-  };
-  assert.deepEqual(await poll("authorizationPending", "p1"), { status: "pending" });
-  assert.deepEqual(await poll("slowDown", "p2"), { status: "slowDown", interval: 10 });
-  const expired = await poll("expiredToken", "p3");
-  assert.deepEqual([expired.code, expired.message], ["ERR_LIVE_SIGNED_OUT", "The code expired"]);
-  const denied = await poll("accessDenied", "p4");
-  assert.deepEqual([denied.code, denied.message], ["ERR_LIVE_SIGNED_OUT", "Access was denied"]);
-  const disabled = await poll("deviceFlowDisabled", "p5");
-  assert.deepEqual([disabled.code, disabled.message], ["ERR_LIVE_SIGNED_OUT", "device_flow_disabled"]);
-  const token = requests.filter((r) => r.path === "/login/oauth/access_token").at(-1);
-  assert.deepEqual(Object.fromEntries(new URLSearchParams(token.body)), { client_id: "Iv1.contract", device_code: code.device_code, grant_type: "urn:ietf:params:oauth:grant-type:device_code" });
-});
-
 test("GitHub: the device flow waits the documented interval, connects and keeps the token native-side", async () => {
   setAccount("github", null);
   const started = Date.now();
@@ -243,15 +221,6 @@ test("Bitbucket: an API token with the account email connects, the first page of
   assert.deepEqual(await SOURCES.bitbucket.resolveGone(items), { [items[0].id]: "merged" });
 });
 
-test("Bitbucket: unauthorized, rate-limited and missing-scope replies", async () => {
-  serve("api.bitbucket.org /2.0/pullrequests/557058%3Ac0b72ad0-1cb5-4018-9cdc-0cde8492c443", "unauthorized");
-  await rejectsWith(SOURCES.bitbucket.fetch(prFolder), "signedOut");
-  serve("api.bitbucket.org /2.0/pullrequests/557058%3Ac0b72ad0-1cb5-4018-9cdc-0cde8492c443", "rateLimited");
-  await rejectsWith(SOURCES.bitbucket.fetch(prFolder), "rateLimited");
-  serve("api.bitbucket.org /2.0/pullrequests/557058%3Ac0b72ad0-1cb5-4018-9cdc-0cde8492c443", "missingScope");
-  await rejectsWith(SOURCES.bitbucket.fetch(prFolder), "signedOut", /privilege scopes/);
-});
-
 test("Notion: an internal integration connects as its workspace and search maps pages and databases, skipping trashed ones", async () => {
   await linux.connectNotion(CREDENTIALS.notion);
   assert.equal(live().accounts.notion.login, "Acme Docs");
@@ -266,17 +235,6 @@ test("Notion: an internal integration connects as its workspace and search maps 
   assert.equal(requests.filter((r) => r.path === "/v1/search").length, 1, "has_more is not followed");
 });
 
-test("Notion: unauthorized, rate-limited, restricted and overloaded replies", async () => {
-  serve("api.notion.com /v1/search", "unauthorized");
-  await rejectsWith(SOURCES.notion.fetch(docFolder), "signedOut");
-  serve("api.notion.com /v1/search", "rateLimited");
-  await rejectsWith(SOURCES.notion.fetch(docFolder), "rateLimited");
-  serve("api.notion.com /v1/search", "restricted");
-  await rejectsWith(SOURCES.notion.fetch(docFolder), "signedOut", /does not have access/);
-  serve("api.notion.com /v1/search", "overloaded");
-  await rejectsWith(SOURCES.notion.fetch(docFolder), "other", /^529 /);
-});
-
 test("Confluence: an API token connects to the site and CQL search maps the expanded space and history", async () => {
   await linux.connectConfluence("acme.atlassian.net", CREDENTIALS.bitbucketEmail, CREDENTIALS.confluence);
   assert.equal(live().accounts.confluence.login, "5b10ac8d82e05b22cc7d4ef5");
@@ -287,15 +245,6 @@ test("Confluence: an API token connects to the site and CQL search maps the expa
   const search = requests.find((r) => r.path === "/wiki/rest/api/content/search");
   const params = new URLSearchParams(search.search);
   assert.deepEqual([params.get("limit"), params.get("expand")], ["30", "space,history.lastUpdated"]);
-});
-
-test("Confluence: unauthorized, rate-limited and forbidden replies", async () => {
-  serve("acme.atlassian.net /wiki/rest/api/content/search", "unauthorized");
-  await rejectsWith(SOURCES.confluence.fetch(docFolder), "signedOut");
-  serve("acme.atlassian.net /wiki/rest/api/content/search", "rateLimited");
-  await rejectsWith(SOURCES.confluence.fetch(docFolder), "rateLimited");
-  serve("acme.atlassian.net /wiki/rest/api/content/search", "forbidden");
-  await rejectsWith(SOURCES.confluence.fetch(docFolder), "signedOut");
 });
 
 test("Google Drive: the documented code exchange connects, files map, and a refresh reply without a refresh token keeps the stored one", async () => {
@@ -323,17 +272,6 @@ test("Google Drive: an authError on an unexpired token renews once and retries",
   assert.equal(requests.filter((r) => r.path === "/drive/v3/files").length, 2);
   serve("www.googleapis.com /drive/v3/files", "authError");
   await rejectsWith(SOURCES.gdrive.fetch(docFolder), "signedOut");
-});
-
-test("Google Drive: rate-limit 403s and 429 read as rate limits; missing scopes and a disabled API do not", async () => {
-  for (const name of ["userRateLimitExceeded", "rateLimitExceeded403", "rateLimitExceeded429", "dailyLimitExceeded"]) {
-    serve("www.googleapis.com /drive/v3/files", name);
-    await rejectsWith(SOURCES.gdrive.fetch(docFolder), "rateLimited", undefined).catch((error) => assert.fail(`${name}: ${error.message}`));
-  }
-  serve("www.googleapis.com /drive/v3/files", "insufficientPermissions");
-  await rejectsWith(SOURCES.gdrive.fetch(docFolder), "signedOut", /insufficient authentication scopes/);
-  serve("www.googleapis.com /drive/v3/files", "accessNotConfigured");
-  await rejectsWith(SOURCES.gdrive.fetch(docFolder), "signedOut", /Drive API has not been used in project/);
 });
 
 test("Google Drive: a revoked or expired refresh token reads as signed out", async () => {

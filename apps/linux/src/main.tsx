@@ -100,7 +100,7 @@ async function start() {
       const ui = owner ? state.windowUi[owner.windowId] : undefined;
       const pages = usePages.getState();
       const page = key ? pages.pages[key] : undefined;
-      return !!(ui?.panel.open || ui?.downloadsOpen || menuShown() || page?.permission || page?.passwordPrompt || page?.autofillPrompt || page?.externalApp || key && pages.popover[key]);
+      return !!(ui?.panel.open || ui?.downloadsOpen || page?.permission || page?.passwordPrompt || page?.autofillPrompt || page?.externalApp || key && pages.popover[key]);
     });
     useBrowser.subscribe(refreshTabViewports);
     usePages.subscribe(refreshTabViewports);

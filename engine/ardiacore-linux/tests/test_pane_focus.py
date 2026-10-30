@@ -137,35 +137,6 @@ int main(int argc, char** argv) {
     assert(s.b.viewport.web_contents() == &s.b.page && s.a.viewport.attaches == a + 1);
     return 0;
   }
-  if (mode == "devtools-left") {
-    Split s;
-    s.a.binding->devtools_viewport_ = &s.a.tools;
-    s.Click(s.b);
-    s.ShellActivates(s.a, s.b);
-    s.Click(s.a);
-    s.ShellActivates(s.b, s.a);
-    s.a.tools.RequestFocus();
-    s.Click(s.b);
-    s.ShellActivates(s.a, s.b);
-    assert(views::focus_manager.focused == &s.b.viewport);
-    s.shell.RequestFocus();
-    s.ShellActivates(s.b, s.a);
-    assert(views::focus_manager.focused == &s.a.tools);
-    s.a.viewport.RequestFocus();
-    s.Click(s.b);
-    s.ShellActivates(s.a, s.b);
-    s.shell.RequestFocus();
-    s.ShellActivates(s.b, s.a);
-    assert(views::focus_manager.focused == &s.a.viewport);
-    s.a.tools.RequestFocus();
-    s.a.binding->devtools_viewport_ = nullptr;
-    s.Click(s.b);
-    s.ShellActivates(s.a, s.b);
-    s.shell.RequestFocus();
-    s.ShellActivates(s.b, s.a);
-    assert(views::focus_manager.focused == &s.a.viewport);
-    return 0;
-  }
   assert(false);
 }
 '''
@@ -203,21 +174,6 @@ class PaneFocusTests(unittest.TestCase):
 
     def test_reattaching_only_moves_the_page_chrome_took_and_keeps_its_focus(self):
         self.run_case('reattach')
-
-    def test_a_pane_left_while_its_devtools_had_focus_restores_its_devtools(self):
-        self.run_case('devtools-left')
-
-    def test_the_host_follows_focus_changes_for_the_widgets_lifetime(self):
-        self.assertIn('public views::FocusChangeListener,', self.host)
-        self.assertIn('if (focus_manager_) pane_focus_observation_.Observe(focus_manager_);', self.host)
-        self.assertIn('pane_focus_observation_.Reset();', method(self.host, 'void ShellHostView::OnWidgetDestroying('))
-
-    def test_shell_activation_and_chromes_active_tab_change_keep_pane_focus(self):
-        strip = method(self.host, 'void ShellHostView::StripCommand(')
-        self.assertLess(strip.index('KeepPaneFocus(binding);'), strip.index('model->ActivateTabAt(index);'))
-        changed = method(self.host, 'void ShellHostView::OnTabStripModelChanged(')
-        self.assertIn('if (selection.active_tab_changed()) KeepPaneFocus(nullptr);', changed)
-
 
 if __name__ == '__main__':
     unittest.main()

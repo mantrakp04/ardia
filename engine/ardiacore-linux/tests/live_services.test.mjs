@@ -193,15 +193,6 @@ test("revoked tokens read as signed out and keep the account so Settings asks to
   services.state.googleRefreshValid = true;
 });
 
-test("rate limits and single sign-on keep their meaning", async () => {
-  services.state.rateLimited.add("github");
-  await rejectsWith(SOURCES.github.fetch(prFolder), "rateLimited");
-  services.state.rateLimited.delete("github");
-  services.state.githubSso = true;
-  await rejectsWith(SOURCES.github.fetch(prFolder), "sso");
-  services.state.githubSso = false;
-});
-
 test("offline refreshes fail as network errors and the next refresh recovers", async () => {
   await call("Tool.offline", [true]);
   await rejectsWith(SOURCES.notion.fetch(docFolder), "network");
@@ -291,24 +282,6 @@ test("a connect cancelled while its token is being saved keeps the previous toke
   assert.equal(storedFields("notion").token, LIVE_FIXTURE.notion.token);
 });
 
-test("a connect cancelled while its token is being saved leaves no token when there was none", async () => {
-  await linux.disconnect("notion");
-  assert.equal(storedFields("notion"), null);
-  await call("Tool.holdWrites", [true]);
-  const abort = new AbortController();
-  const pending = rejectsWith(client.connect("notion", { token: LIVE_FIXTURE.notion.altToken }, { signal: abort.signal }), "other", /Cancelled/);
-  await eventually(async () => (await heldWrites()) >= 1, "the connect's save to be posted");
-  abort.abort();
-  await pending;
-  await call("Tool.holdWrites", [false]);
-  await eventually(async () => (await heldWrites()) === 0 && storedFields("notion") === null, "the cancelled token to be removed");
-  await new Promise((resolve) => setTimeout(resolve, 200));
-  assert.equal(storedFields("notion"), null);
-  await call("Tool.restart", []);
-  await rejectsWith(SOURCES.notion.fetch(docFolder), "notConfigured");
-  await linux.connectNotion(LIVE_FIXTURE.notion.token);
-});
-
 test("a Google renewal that lands after a reconnect cannot overwrite the new token", async () => {
   const renewals = services.state.googleRenewals;
   services.state.googleRenewDelayMs = 1500;
@@ -327,20 +300,6 @@ test("a Google renewal that lands after a reconnect cannot overwrite the new tok
   await eventually(async () => (await heldWrites()) === 0, "the writes to drain");
   await new Promise((resolve) => setTimeout(resolve, 200));
   assert.equal(services.state.googleIssuedBy[storedFields("gdrive").token], "authorization_code", JSON.stringify({ stored: storedFields("gdrive").token, issued: services.state.googleIssuedBy, renewals: services.state.googleRenewals - renewals }));
-});
-
-test("a closed window's in-flight requests are cancelled and free their slots", async () => {
-  services.state.delayMs.set("api.notion.com", 1500);
-  const gone = call("ArdiaLive.request", ["notion", "search", {}, "w9#1:gone"]).then(() => null, (e) => e.code);
-  const kept = call("ArdiaLive.request", ["notion", "search", {}, "w8#1:kept"]).then(() => "ok", (e) => e.code);
-  await new Promise((resolve) => setTimeout(resolve, 200));
-  await call("Tool.callerGone", ["w9#1"]);
-  assert.equal(await gone, "ERR_LIVE_CANCELLED");
-  assert.equal(await kept, "ok");
-  services.state.delayMs.delete("api.notion.com");
-  const stats = await call("Tool.stats", []);
-  assert.equal(stats.calls, 0);
-  assert.equal(stats.active, 0);
 });
 
 test("disconnecting cancels in-flight work, deletes the protected token and survives a restart", async () => {

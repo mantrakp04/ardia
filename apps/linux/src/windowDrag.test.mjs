@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFileSync } from "node:fs";
-import { WINDOW_DRAG_ROUTES, watchWindowDrag } from "./windowDrag.ts";
+import { watchWindowDrag } from "./windowDrag.ts";
 
 function harness(options = {}, withHost = true) {
   const previous = globalThis.window;
@@ -118,13 +117,4 @@ test("without the window-move routes (no host, or an older engine) region clicks
   await settle();
   assert.deepEqual(plain.calls, ["regionDoubleClick"]);
   plain.stop();
-});
-
-test("drag regions use the window-move routes only when the engine advertises them", () => {
-  const chrome = readFileSync(new URL("./shims/web/chrome.tsx", import.meta.url), "utf8");
-  assert.match(chrome, /WINDOW_DRAG_ROUTES\.every\(\(route\) => hostSupports\(route\)\)/);
-  assert.doesNotMatch(chrome, /if \(!element \|\| !ardiaHost\) return;/);
-  const host = readFileSync(new URL("../../../engine/ardiacore-linux/src/ardia/linux/ac_linux_host.cc", import.meta.url), "utf8");
-  const bootstrap = host.slice(host.indexOf("base::DictValue ShellHostView::Bootstrap() const {"), host.indexOf("void ShellHostView::LayoutOverlay()"));
-  for (const route of WINDOW_DRAG_ROUTES) assert.ok(bootstrap.includes(`.Append("${route}")`), route);
 });

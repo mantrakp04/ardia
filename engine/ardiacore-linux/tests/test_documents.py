@@ -4,7 +4,7 @@ import subprocess
 import tempfile
 import unittest
 
-from test_session_merge import VALUES, WRITER, cpp_value
+from support import VALUES, WRITER, cpp_value
 
 SOURCE = pathlib.Path(__file__).resolve().parents[1] / 'src'
 

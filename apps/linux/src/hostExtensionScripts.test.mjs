@@ -1,15 +1,11 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { mock, test } from "node:test";
 import { POPUP_MEASURE, PopupSizeWaiters, extensionViewEvaluate } from "./hostExtensionScripts.ts";
 import { WEB_STORE_REQUEST, WEB_STORE_RETRY_MS, hostPageScript } from "./hostPageScripts.ts";
-
-const literal = (path, name) => {
-  const source = readFileSync(new URL(path, import.meta.url), "utf8");
-  const match = source.match(new RegExp(`const ${name} = \`([\\s\\S]*?)\`;\\n`));
-  assert.ok(match, `${name} is no longer a template literal in ${path}`);
-  return match[1];
-};
+import { MEASURE_POPUP_SCRIPT } from "../../browser/src/state/extensions/popupSize.ts";
+import { useBrowser } from "../../browser/src/state/browser/store.ts";
+import { webviews } from "../../browser/src/platform/webviews.ts";
+import { startWebStoreIntegration } from "../../browser/src/state/extensions/webStore.ts";
 
 const settled = async (promise) => {
   let state = "pending";
@@ -21,7 +17,12 @@ const settled = async (promise) => {
 const run = (script, reply) => reply.then(script.map, () => script.failed());
 
 test("the shared Web Store bridge script maps to the native store request and never reaches the page", () => {
-  assert.equal(WEB_STORE_REQUEST, literal("../../browser/src/state/extensions/webStore.ts", "STORE_SCRIPT"), "the shared Web Store script changed; update hostPageScripts.ts");
+  useBrowser.getState().hydrate({});
+  const windowId = useBrowser.getState().createWindow({ url: "https://chromewebstore.google.com/detail/x" });
+  const sent = [];
+  webviews.set(useBrowser.getState().windows[windowId].tabIds[0], { evaluate: (code) => (sent.push(code), new Promise(() => {})) });
+  startWebStoreIntegration();
+  assert.deepEqual(sent, [WEB_STORE_REQUEST], "the shared Web Store script changed; update hostPageScripts.ts");
   const script = hostPageScript("evaluate", [WEB_STORE_REQUEST]);
   assert.equal(script.command, "webStoreRequest");
   assert.deepEqual(script.args, []);
@@ -52,13 +53,8 @@ test("a failed store request answers null only after a delay, so a dead tab cann
   }
 });
 
-test("HostWebView runs a mapped script's failure handler instead of mapping null", () => {
-  const shim = readFileSync(new URL("./shims/web/HostWebView.tsx", import.meta.url), "utf8");
-  assert.ok(shim.includes("script.failed ? script.failed() : script.map!(null)"));
-});
-
 test("the popup size probe answers from the native preferred size", async () => {
-  assert.equal(POPUP_MEASURE, literal("../../browser/src/state/extensions/popupSize.ts", "MEASURE_POPUP_SCRIPT"), "the shared popup size probe changed; update hostExtensionScripts.ts");
+  assert.equal(POPUP_MEASURE, MEASURE_POPUP_SCRIPT, "the shared popup size probe changed; update hostExtensionScripts.ts");
   const sizes = new PopupSizeWaiters();
   let answered = null;
   const first = extensionViewEvaluate(POPUP_MEASURE, sizes).then((size) => (answered = size));
@@ -77,11 +73,4 @@ test("other popup scripts and a closed popup resolve to nothing", async () => {
   const pending = extensionViewEvaluate(POPUP_MEASURE, sizes);
   sizes.close();
   assert.equal(await pending, null);
-});
-
-test("the extension view shim sends no evaluate to the host", () => {
-  const shim = readFileSync(new URL("./shims/web/HostExtensionWebView.tsx", import.meta.url), "utf8");
-  assert.ok(shim.includes('if (property === "evaluate") return extensionViewEvaluate(args[0], sizes.current);'));
-  assert.ok(shim.includes("sizes.current.note(size);"));
-  assert.ok(shim.includes("sizes.current.close();"));
 });

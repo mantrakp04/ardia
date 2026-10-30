@@ -136,8 +136,8 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
     its `Show`, `ShowInactive` and `Activate` to the host, which focuses the visible window instead, drops its
     `Restore`, `Maximize`, `Minimize`, `SetBounds`, `Deactivate`, `FlashFrame` and fullscreen, synchronous or
     asynchronous (`RequestFullscreen`; Aura's `Restore`, and `Maximize` from minimized, show the window themselves), and hosts its tab-modal dialogs and permission prompts in
-    the visible window's `BrowserView`. W70X checks on Xvfb and openbox, and W70D in sway, that no extension call
-    (`chrome.windows.update` with any state, focus or bounds, `chrome.tabs.create`) ever maps a second toplevel. A
+    the visible window's `BrowserView`, so no extension call (`chrome.windows.update` with any state, focus or bounds,
+    `chrome.tabs.create`) maps a second toplevel. A
     widgetless `BrowserWindow` (as
     macOS's `ACBrowserWindow`) was the alternative; on Linux it would need the `BrowserWindowCreateParams::window`
     `CHECK_IS_TEST` lifted and the viewless accommodations `engine/ardiacore/apply.sh` makes for the Mac in about ten
@@ -177,8 +177,7 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
   closed with `force_skip_warning_user_on_close`, which would also skip the unload handlers. On quit Chromium's `BrowserCloseManager` drains every Browser,
   companions included. Companions are looked up by id at every use, so a closed one leaves no pointer behind.
   - Chromium's last-window count skips companions, and its `--close-confirmation` multi-tab warning counts the tabs of
-    every member, so closing the only visible window asks once, in that window, for the whole family. W70X shows both
-    warnings on X11 and cancels them.
+    every member, so closing the only visible window asks once, in that window, for the whole family.
   - A companion never reaches `TabRestoreService`: neither its window nor the tabs it closes while closing, on a
     window close or on quit, so the profile's recently closed list never holds a hidden window that would reopen as a
     separate one. Ardia's own closed windows keep every profile's tabs.
@@ -363,17 +362,13 @@ Against a built package:
 
 ```bash
 node scripts/linux/smoke.mjs --package <ardia-linux-x64.tar.xz> --results <dir>
-pnpm --filter @ardia/linux test:keyboard-native <extracted>/ardia/lib/ardia/chrome
 pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
 ```
 
 - **Smoke gate.** Eight checks: libraries resolve; the shell renders the packaged UI; the bootstrap reports
   `linux-host`; a native tab paints and can't see the bridge; renderers run under seccomp; the blocker loads; a restart restores the tab; `install.sh --destdir`
   stages correctly.
-- **Keyboard regression.** `test:keyboard-native` covers native window ownership after a saved-session restore and a
-  tab-creation save that races a close.
-- **Acceptance suite.** It runs every feature scenario headless or in private desktop sessions; see
-  [linux-acceptance.md](linux-acceptance.md).
+- **Acceptance suite.** Nine headless scenarios for core features; see [linux-acceptance.md](linux-acceptance.md).
 - **Shared changes.** A change to shared code also needs the Mac checks.
 
 ## Platform notes
@@ -714,8 +709,7 @@ These were open at the time of the PR.
     is still a plain Chrome window, as before;
   - a shell renderer may send a strip command for another window's strip, which that window's host refuses
     (`The strip is not owned by this window`); the owning window's renderer keeps its own strips in order;
-  - Wayland mapping is checked in sway (W70D), which this build machine's desktop kills at start, so only the X11
-    check (W70X) has run here.
+  - that a companion never maps a second toplevel has been confirmed on X11 only, not on Wayland.
 - **Tab drags across windows.** There is no floating drag preview; in-window drags show the ghost row. On Wayland,
   where windows have no global coordinates, tearing a tab off or dropping it on another window does nothing. On X11 a
   tab dropped on another window is appended rather than placed at the pointer's row.
@@ -750,7 +744,7 @@ These were open at the time of the PR.
   URL that lands in tab state. This is shared with macOS and unchanged here.
 - **Widevine.** It comes from the component updater as software L3. The first DRM playback after the CDM downloads
   needs a restart.
-- **Desktop checks that need a person.** These are listed in [linux-acceptance.md](linux-acceptance.md):
+- **Checks that need a person.** No automated suite covers these:
   - real provider accounts;
   - a real GNOME Online Accounts calendar;
   - desktop password managers;
