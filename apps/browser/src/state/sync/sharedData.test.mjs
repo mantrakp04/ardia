@@ -259,6 +259,53 @@ for (const live of [false, true]) test(`a default Space on another Profile pairs
   await a.with(() => assert.equal(S().spaces.default.profileId, work));
 });
 
+test("a paired default Space adopts a Profile identity that arrives in a later sync cycle", async () => {
+  folder.clear();
+  const a = new Mac("A");
+  const b = new Mac("B");
+  const engineA = await import("./engine.ts?lateIdentityA");
+  const engineB = await import("./engine.ts?lateIdentityB");
+  let work;
+  await a.with(() => {
+    work = S().createProfile({ name: "Work" });
+    S().assignSpaceProfile("default", work);
+  });
+  await turnOn(a, engineA);
+  const profileSyncId = engineA.useSync.getState().profiles[work].syncId;
+  const spaceSyncId = engineA.useSync.getState().spaces.default.syncId;
+  const identityKey = `identity:${profileSyncId}`;
+  assert.ok(published("identity:").some((op) => op.k === identityKey));
+  for (const file of folder.values()) {
+    if (file.scope !== "workspace-v2") continue;
+    const payload = JSON.parse(file.payload);
+    if (payload.ops) payload.ops = payload.ops.filter((op) => op.k !== identityKey);
+    if (payload.records) delete payload.records[identityKey];
+    file.payload = JSON.stringify(payload);
+  }
+  assert.ok(published("prof:").some((op) => op.v?.p === profileSyncId));
+  await join(b, engineB);
+  await b.with(() => {
+    const ui = engineB.useSync.getState();
+    assert.equal(ui.spaces.default.syncId, spaceSyncId);
+    assert.equal(ui.spaces.default.adopting, true);
+    assert.equal(S().spaces.default.profileId, "default");
+    assert.equal(Object.values(ui.profiles).some((link) => link.syncId === profileSyncId), false);
+  });
+  await a.with(() => S().updateProfile(work, { name: "Work Arrived" }));
+  await settle([[a, engineA], [b, engineB]]);
+  await b.with(() => {
+    const ui = engineB.useSync.getState();
+    const assigned = S().spaces.default.profileId;
+    assert.equal(ui.profiles[assigned].syncId, profileSyncId);
+    assert.equal(S().profiles[assigned].name, "Work Arrived");
+    assert.equal(ui.profiles[assigned].enabled, false);
+    assert.equal(ui.profiles[assigned].topAppsEnabled, false);
+    assert.equal(ui.spaces.default.adopting, undefined);
+    assert.deepEqual(ui.remoteSpaces, []);
+  });
+  await a.with(() => assert.equal(S().spaces.default.profileId, work));
+});
+
 test("joining without a remote theme releases Space adoption and publishes a later local theme", async () => {
   folder.clear();
   const a = new Mac("A");

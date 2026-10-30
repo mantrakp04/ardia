@@ -70,6 +70,22 @@ test("a malformed default record cannot hide a later valid pairing hint", () => 
   }
 });
 
+test("empty Space keys cannot make pairing ready or hide a valid default Space", () => {
+  for (const key of ["prof:", "prof: ", "prof:\t"]) {
+    useBrowser.getState().hydrate({});
+    const doc = { ...emptyDoc(), joining: true, setupAt: Date.now() };
+    const app = { ...emptyScope(), records: { [key]: record({ ...remoteSpace, d: true }) } };
+    doc.scopes[APP_SCOPE] = app;
+    assert.equal(readyToPair(doc, app), false);
+    linkSpaces(doc, app);
+    assert.equal(doc.spaces.default, undefined);
+    app.records["prof:home"] = record({ ...remoteSpace, d: true });
+    assert.equal(readyToPair(doc, app), true);
+    linkSpaces(doc, app);
+    assert.equal(doc.spaces.default.syncId, "home");
+  }
+});
+
 test("a newly paired default Space waits for its assigned Profile without publishing the old assignment", () => {
   useBrowser.getState().hydrate({});
   const doc = { ...emptyDoc(), joining: true, setupAt: Date.now() };
