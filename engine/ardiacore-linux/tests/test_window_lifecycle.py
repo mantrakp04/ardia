@@ -551,6 +551,12 @@ struct BrowserWindowInterface {
   ui::BaseWindow* GetWindow() { return &window; }
   SessionID GetSessionID() const { return {session}; }
   base::WeakPtr<BrowserWindowInterface> GetWeakPtr() { return base::WeakPtr<BrowserWindowInterface>(this); }
+  bool IsDeleteScheduled() const { return false; }
+};
+struct BrowserActiveStateManager {
+  static BrowserActiveStateManager* From(BrowserWindowInterface*) { static BrowserActiveStateManager manager; return &manager; }
+  void DidBecomeActive() {}
+  void DidBecomeInactive() {}
 };
 struct BrowserWindowCreateParams {
   BrowserWindowCreateParams(Profile*, bool) {}
@@ -648,6 +654,9 @@ struct ShellHostView {
   std::string window_id_;
   std::string kind_;
   BrowserWindowInterface* browser_;
+  BrowserWindowInterface* ActiveMember() const { return browser_; }
+  void ActivateMember(BrowserWindowInterface*) {}
+  bool member_active_ = false;
   Profile profile_;
   views::Widget widget;
   base::DictValue utility_;

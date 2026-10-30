@@ -28,6 +28,8 @@ export class HostTab {
   disposed = false;
   unsubscribe: () => void;
   lastViewport = "";
+  nextViewport: TabViewport | undefined;
+  viewportSend: Promise<void> | undefined;
   releaseScheduled = false;
   page: HostPageReceiver | undefined;
 
@@ -112,13 +114,17 @@ export class HostTab {
     return queueTabPresentation(this, visible, () => claims.get(this.host)?.get(this.key) === this);
   }
 
-  viewport(viewport: TabViewport) {
-    return enqueueTab(this.host, this.key, async () => {
-      if (this.disposed || !this.identity || claims.get(this.host)?.get(this.key) !== this) return;
-      const json = JSON.stringify(viewport);
+  viewport(viewport: TabViewport): Promise<void> {
+    this.nextViewport = viewport;
+    return this.viewportSend ??= enqueueTab(this.host, this.key, async () => {
+      this.viewportSend = undefined;
+      const latest = this.nextViewport;
+      this.nextViewport = undefined;
+      if (!latest || this.disposed || !this.identity || claims.get(this.host)?.get(this.key) !== this) return;
+      const json = JSON.stringify(latest);
       if (json === this.lastViewport) return;
       this.lastViewport = json;
-      return invokeHost<void>("tab.viewport", { id: this.identity.browserId, claim: this.claim, ...viewport }, this.host).catch((error) => {
+      return invokeHost<void>("tab.viewport", { id: this.identity.browserId, claim: this.claim, ...latest }, this.host).catch((error) => {
         if (this.lastViewport === json) this.lastViewport = "";
         throw error;
       });

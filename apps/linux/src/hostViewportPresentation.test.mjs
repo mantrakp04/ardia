@@ -7,7 +7,7 @@ const source = readFileSync(new URL("./shims/web/HostWebView.tsx", import.meta.u
 const start = source.indexOf("    let revision = 0;");
 const end = source.indexOf("    return () => {", start);
 const code = stripTypeScriptTypes(source.slice(start, end));
-const run = new Function("node", "tab", "latest", "watchTabViewport", "reportHostError", "menuShown", "hostOverlayBlocked", "Image", "Date", code);
+const run = new Function("node", "tab", "latest", "watchTabViewport", "reportHostError", "menuShown", "hostOverlayBlocked", "refreshTabViewports", "Image", "Date", code);
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 const viewport = { rect: { x: 190, y: 47, width: 1083, height: 846 }, visible: true, occlusions: [{ x: 192, y: 48, width: 264, height: 112, paintOutset: 32 }] };
 
@@ -21,7 +21,7 @@ function fixture(capture, decode = async () => {}) {
   run(node, { current }, { current: {} }, (_node, _visible, callback) => {
     report = callback;
     return () => {};
-  }, () => {}, () => false, () => false, class { decode = decode; }, { now: () => clock });
+  }, () => {}, () => false, () => false, () => {}, class { decode = decode; }, { now: () => clock });
   return { node, current, updates, report: (value = viewport) => report(value), advance: (ms) => { clock += ms; }, captures: () => captures };
 }
 

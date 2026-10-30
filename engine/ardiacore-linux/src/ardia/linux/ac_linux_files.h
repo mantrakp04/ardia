@@ -2,6 +2,7 @@
 #define ARDIA_LINUX_AC_LINUX_FILES_H_
 
 #include <string>
+#include <vector>
 #include <string_view>
 
 #include "ardia/linux/ac_linux_file_drop.h"
@@ -49,7 +50,7 @@ void LinuxPickFiles(gfx::NativeWindow window, const base::ListValue& values,
                     base::OnceCallback<void(bool, base::Value)> done);
 
 bool LinuxFilesHandles(std::string_view method);
-void LinuxFilesInvoke(Profile* profile, LinuxShellWebView* shell, const std::string& method,
+void LinuxFilesInvoke(const std::vector<Profile*>& profiles, LinuxShellWebView* shell, const std::string& method,
                       const base::ListValue& values,
                       base::OnceCallback<void(bool, base::Value)> done);
 

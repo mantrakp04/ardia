@@ -4,6 +4,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -109,7 +110,10 @@ class TabBinding {
   int host_focuses = 0;
 };
 
+struct BrowserView;
+struct BrowserWindowInterface { BrowserView* view = nullptr; };
 struct BrowserView {
+  static BrowserView* GetBrowserViewForBrowser(BrowserWindowInterface* browser) { return browser ? browser->view : nullptr; }
   views::WebView* GetActiveContentsWebView() { return &active; }
   views::WebView active;
 };
@@ -123,6 +127,8 @@ class ShellHostView {
   void OnDidChangeFocus(views::View* before, views::View* now);
   BrowserView* browser_view_ = &browser_view;
   BrowserView browser_view;
+  BrowserWindowInterface member{&browser_view};
+  std::vector<BrowserWindowInterface*> Members() { return {&member}; }
   std::map<int, std::unique_ptr<TabBinding>> bindings_;
   std::map<int, bool> devtools_had_focus_;
   int layouts = 0;

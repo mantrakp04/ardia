@@ -57,12 +57,14 @@ class FaviconPolicyTests(unittest.TestCase):
         host = HOST.read_text()
         favicons = FAVICONS.read_text()
         self.assertIn('ardiacore::DownloadLinuxFavicon(\n        contents, GURL(values[0].GetString())', host)
-        self.assertIn('ardiacore::FetchLinuxFavicon(page_profile(), url, std::move(reply));', host)
+        self.assertIn('ardiacore::FetchLinuxFavicon(profile, url, std::move(reply));', host)
         fetch = host[host.index('if (name == "favicons.fetch") {'):]
         fetch = fetch[:fetch.index('if (ardiacore::IsLinuxZoomDomainRoute(name)) {')]
         self.assertIn('Profile* page = host_->page_profile();', fetch)
         self.assertIn('page->IsOffTheRecord()', fetch)
         self.assertIn('kWindowMismatch', fetch)
+        self.assertIn('Profile* served = host_->ServedProfile(profile);', fetch)
+        self.assertIn('host_->FetchFavicon(served ? served : page, GURL(*url)', fetch)
         network = favicons[favicons.index('void FetchLinuxFavicon('):]
         self.assertIn('!LinuxFaviconPublicURL(url)', network)
         self.assertIn('GetDefaultStoragePartition()->GetURLLoaderFactoryForBrowserProcess()', network)

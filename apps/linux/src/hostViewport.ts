@@ -7,6 +7,13 @@ type Bounds = { x: number; y: number; width: number; height: number };
 const EXTENSION_POPUP = '[data-testid="ardia-extension-popup"]';
 const EXTENSION_POPUP_DISMISS = '[data-testid="ardia-extension-popup-dismiss"]';
 const SIDEBAR_PEEK = '[data-testid="ardia-sidebar-peek"]';
+const COVERING = `${SIDEBAR_PEEK}, [data-testid="ardia-sidebar-hover"], [data-testid="ardia-page-overlay"], ${EXTENSION_POPUP}`;
+const MOTION_EVENTS = ["transitionrun", "transitionend", "transitioncancel", "animationstart", "animationend", "animationcancel"] as const;
+
+const viewportWatchers = new Set<() => void>();
+export const refreshTabViewports = () => {
+  for (const watcher of viewportWatchers) watcher();
+};
 
 let overlayBlocked = (_key: string | undefined) => false;
 export const hostOverlayBlocked = (key: string | undefined) => overlayBlocked(key);
@@ -62,26 +69,41 @@ export function watchTabViewport(element: HTMLElement, visible: () => boolean, r
       });
     }
     report(viewport);
+    if (animating()) measureNextFrame();
   };
-  const tick = () => {
-    measure();
-    if (!stopped) frame = requestAnimationFrame(tick);
+  const animating = () => !!document.getAnimations?.().some((animation) => {
+    const target = (animation.effect as KeyframeEffect | null)?.target;
+    return animation.playState === "running" && !!target && (target.contains(element) || !!target.closest(COVERING));
+  });
+  const measureNextFrame = () => {
+    if (frame || stopped) return;
+    frame = requestAnimationFrame(() => {
+      frame = 0;
+      measure();
+    });
   };
-  const observer = new ResizeObserver(measure);
-  observer.observe(element);
+  const mutations = new MutationObserver(measureNextFrame);
+  mutations.observe(document.documentElement, { subtree: true, childList: true, attributes: true, characterData: true });
+  const resizes = new ResizeObserver(measure);
+  resizes.observe(element);
+  viewportWatchers.add(measureNextFrame);
   window.addEventListener("resize", measure);
   window.addEventListener("scroll", measure, true);
   document.addEventListener("visibilitychange", measure);
+  for (const type of MOTION_EVENTS) document.addEventListener(type, measureNextFrame, true);
   window.visualViewport?.addEventListener("resize", measure);
   window.visualViewport?.addEventListener("scroll", measure);
-  tick();
+  measure();
   return () => {
     stopped = true;
     cancelAnimationFrame(frame);
-    observer.disconnect();
+    mutations.disconnect();
+    resizes.disconnect();
+    viewportWatchers.delete(measureNextFrame);
     window.removeEventListener("resize", measure);
     window.removeEventListener("scroll", measure, true);
     document.removeEventListener("visibilitychange", measure);
+    for (const type of MOTION_EVENTS) document.removeEventListener(type, measureNextFrame, true);
     window.visualViewport?.removeEventListener("resize", measure);
     window.visualViewport?.removeEventListener("scroll", measure);
   };
