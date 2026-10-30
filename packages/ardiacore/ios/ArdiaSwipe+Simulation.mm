@@ -111,6 +111,9 @@ NSEvent *SyntheticScroll(NSWindow *window, NSPoint point, NSDictionary *step, ui
     if ([phase isEqualToString:@"swipe"]) {
       BOOL handled = HandleDiscreteSwipe(window, inWindow, [s[@"dx"] doubleValue]);
       [log addObject:@{@"phase" : phase, @"swallowed" : @(handled)}];
+    } else if ([phase isEqualToString:@"button"]) {
+      BOOL handled = HandleSideButton(window, inWindow, [s[@"button"] integerValue]);
+      [log addObject:@{@"phase" : phase, @"button" : s[@"button"] ?: @0, @"swallowed" : @(handled)}];
     } else {
       NSEvent *event = SyntheticScroll(window, point, s, startNs);
       if (event.window != window || fabs(event.locationInWindow.x - inWindow.x) > 1 || fabs(event.locationInWindow.y - inWindow.y) > 1) {

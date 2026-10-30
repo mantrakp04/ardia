@@ -521,6 +521,29 @@ try {
     assert.equal(routing(result)?.fallback, false, "an ordinary sidebar hit should match directly");
     return result;
   });
+  await test("mouse side buttons over the sidebar page between profiles", async () => {
+    await reset();
+    const forward = await simulate([{ phase: "button", button: 4 }]);
+    await waitProfile("work");
+    const back = await simulate([{ phase: "button", button: 3 }]);
+    await waitProfile("default");
+    const edge = await simulate([{ phase: "button", button: 3 }]);
+    await sleep(350);
+    assert.equal(await profile(), "default", "back on the first profile stays put");
+    const middle = await simulate([{ phase: "button", button: 2 }]);
+    for (const result of [forward, back, edge]) assert.equal(result.events[0].swallowed, true, "a side button over the sidebar is the pager's");
+    assert.equal(middle.events[0].swallowed, false, "other buttons pass through");
+    return { forward, back, edge, middle };
+  });
+  await test("mouse side buttons over a web page leave page navigation to Chrome", async () => {
+    await reset();
+    const source = (await nativeWindow()).window;
+    const result = await ac(`return globalThis.expo.modules.ArdiaSwipe.devSimulate(700, 400, ${source}, ${JSON.stringify([{ phase: "button", button: 4 }])}, true);`);
+    await sleep(350);
+    assert.equal(result.events[0].swallowed, false, "a side button over the page must reach Chrome");
+    assert.equal(await profile(), "default", "a side button over the page must not switch profiles");
+    return result;
+  });
   await test("a tracked swipe right after a discrete swipe goes back too", async () => {
     await reset();
     const base = `http://127.0.0.1:${server.address().port}/history`;

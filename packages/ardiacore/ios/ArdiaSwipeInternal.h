@@ -46,6 +46,7 @@ extern BOOL gLegacyHitRouting;
 extern Gesture gGesture;
 NSEvent *HandleScroll(NSEvent *event, NSWindow *window, NSPoint location, BOOL ignoreSystemPreference);
 BOOL HandleDiscreteSwipe(NSWindow *window, NSPoint location, CGFloat deltaX);
+BOOL HandleSideButton(NSWindow *window, NSPoint location, NSInteger button);
 
 NSArray *RectValue(NSRect r);
 NSHashTable<NSView<ArdiaSwipeTarget> *> *Targets();

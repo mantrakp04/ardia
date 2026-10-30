@@ -68,6 +68,12 @@ OwnedMomentum gMomentum;
 
 constexpr NSTimeInterval kMomentumStartWait = 0.1;
 
+constexpr NSInteger kBackButton = 3;
+
+constexpr NSInteger kForwardButton = 4;
+
+NSInteger gSwallowedButton = -1;
+
 }
 
 namespace {
@@ -284,6 +290,18 @@ BOOL SwallowOwnedMomentum(NSEvent *event, NSWindow *window) {
   return YES;
 }
 
+void SendDiscreteSwipe(NSView<ArdiaSwipeTarget> *target, BOOL back) {
+  [target swipeEvent:@{
+    @"phase" : @"swipe",
+    @"direction" : back ? @"back" : @"forward",
+    @"distance" : @0,
+    @"dy" : @0,
+    @"velocity" : @0,
+    @"available" : @YES,
+    @"width" : @(NSWidth(target.bounds)),
+  }];
+}
+
 }
 
 namespace ardia_swipe {
@@ -359,15 +377,23 @@ BOOL HandleDiscreteSwipe(NSWindow *window, NSPoint location, CGFloat deltaX) {
   if (!target) return NO;
   BOOL back = deltaX > 0;
   if (!(back ? target.canSwipeBack : target.canSwipeForward)) return NO;
-  [target swipeEvent:@{
-    @"phase" : @"swipe",
-    @"direction" : back ? @"back" : @"forward",
-    @"distance" : @0,
-    @"dy" : @0,
-    @"velocity" : @0,
-    @"available" : @YES,
-    @"width" : @(NSWidth(target.bounds)),
-  }];
+  SendDiscreteSwipe(target, back);
+  return YES;
+}
+
+BOOL HandleSideButton(NSWindow *window, NSPoint location, NSInteger button) {
+  if (button != kBackButton && button != kForwardButton) return NO;
+  NSView<ArdiaSwipeTarget> *target = nil;
+  BOOL fallback = NO;
+  ResolveHit(window, location, &target, &fallback);
+  if (!target || !IsPager(target)) {
+    Diag(@{@"diag" : @"sideButton", @"button" : @(button), @"reject" : target ? @"notPager" : @"noTarget"});
+    return NO;
+  }
+  BOOL back = button == kBackButton;
+  BOOL available = back ? target.canSwipeBack : target.canSwipeForward;
+  Diag(@{@"diag" : @"sideButton", @"button" : @(button), @"available" : @(available)});
+  if (available) SendDiscreteSwipe(target, back);
   return YES;
 }
 
@@ -375,10 +401,22 @@ BOOL HandleDiscreteSwipe(NSWindow *window, NSPoint location, CGFloat deltaX) {
 
 namespace {
 
+NSEvent *HandleOtherMouse(NSEvent *event) {
+  if (event.type == NSEventTypeOtherMouseDown) {
+    if (!HandleSideButton(event.window, event.locationInWindow, event.buttonNumber)) return event;
+    gSwallowedButton = event.buttonNumber;
+    return nil;
+  }
+  if (event.buttonNumber != gSwallowedButton) return event;
+  gSwallowedButton = -1;
+  return nil;
+}
+
 void InstallMonitor() {
   if (gMonitor) return;
-  gMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskScrollWheel | NSEventMaskSwipe
+  gMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskScrollWheel | NSEventMaskSwipe | NSEventMaskOtherMouseDown | NSEventMaskOtherMouseUp
                                                    handler:^NSEvent *(NSEvent *event) {
+                                                     if (event.type == NSEventTypeOtherMouseDown || event.type == NSEventTypeOtherMouseUp) return HandleOtherMouse(event);
                                                      Diag(@{
                                                        @"diag" : @"monitorEntry",
                                                        @"type" : @(event.type),
