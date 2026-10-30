@@ -69,7 +69,7 @@ export const useCli = create<CliState>()(() => ({
   error: saved.error ?? null,
 }));
 
-export const useCliIndicator = create<{ shown: boolean }>()(() => ({ shown: false }));
+export const useCliIndicator = create<{ shown: boolean; tabs: string[] }>()(() => ({ shown: false, tabs: [] }));
 
 let indicatorHide: ReturnType<typeof setTimeout> | null = null;
 
@@ -79,13 +79,13 @@ function updateIndicator({ server }: CliState) {
   if (connected || !on) {
     if (indicatorHide) clearTimeout(indicatorHide);
     indicatorHide = null;
-    if (useCliIndicator.getState().shown !== connected) useCliIndicator.setState({ shown: connected });
+    if (connected || useCliIndicator.getState().shown) useCliIndicator.setState({ shown: connected, tabs: connected ? (server.tabs ?? []) : [] });
     return;
   }
   if (!useCliIndicator.getState().shown || indicatorHide) return;
   indicatorHide = setTimeout(() => {
     indicatorHide = null;
-    useCliIndicator.setState({ shown: false });
+    useCliIndicator.setState({ shown: false, tabs: [] });
   }, INDICATOR_HOLD_MS);
 }
 

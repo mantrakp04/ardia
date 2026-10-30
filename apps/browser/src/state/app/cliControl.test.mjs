@@ -109,3 +109,15 @@ test("a page parked behind New Tab or an Ardia page is not what the user is look
   emit({ state: "off", generation: 4 });
   await settle();
 });
+
+test("a controlled tab keeps its badge through the pill's hold, and turning control off clears it", async () => {
+  emit({ state: "on", generation: 5, connections: 2, tabs: ["t1"] });
+  await settle();
+  assert.deepEqual(cli.useCliIndicator.getState(), { shown: true, tabs: ["t1"] });
+  emit({ state: "on", generation: 5, connections: 0, tabs: [] });
+  await settle();
+  assert.deepEqual(cli.useCliIndicator.getState().tabs, ["t1"], "a burst of commands keeps one steady badge");
+  emit({ state: "off", generation: 5 });
+  await settle();
+  assert.deepEqual(cli.useCliIndicator.getState(), { shown: false, tabs: [] });
+});
