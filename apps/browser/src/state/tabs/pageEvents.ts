@@ -1,4 +1,8 @@
 import { hostOf } from "@ardia/core";
+import { currentTab } from "../browser/current";
+import { showImportBoost } from "../boosts/importSheet";
+import { boostCodeFromLink } from "../boosts/share";
+import { openSettings } from "../settings/settingsWindows";
 import type { PageEngine } from "../../platform/tabs";
 import { dismissPermissions } from "../site/permissions";
 import { answerExternalApp } from "../site/prompts";
@@ -16,4 +20,11 @@ export function leftPage(tabId: string, url: string, previousPage: string, engin
   patchPage(tabId, { popups: [], passwordPrompt: null, crashed: null, status: "" });
   revealToolbar(tabId);
   if (!inPeek) followSiteChoice(tabId, engine, url, previousPage);
+}
+
+export function openBoostLink(tabId: string, url: string) {
+  const shareCode = boostCodeFromLink(url);
+  if (!shareCode) return;
+  showImportBoost(shareCode);
+  openSettings("boosts", currentTab(tabId)?.profileId);
 }

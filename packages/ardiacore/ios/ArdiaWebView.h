@@ -166,6 +166,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)resolveAutofillPrompt:(NSInteger)promptId action:(NSString *)action NS_SWIFT_NAME(resolveAutofillPrompt(_:action:));
 - (nullable NSString *)executeExtensionAction:(NSString *)extensionId NS_SWIFT_NAME(executeExtensionAction(_:));
 - (void)notificationAction:(NSString *)notificationId action:(NSString *)action NS_SWIFT_NAME(notificationAction(_:action:));
+- (void)zap:(NSString *)action level:(NSInteger)level NS_SWIFT_NAME(zap(_:level:));
 @end
 
 NS_ASSUME_NONNULL_END

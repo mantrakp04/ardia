@@ -10,6 +10,7 @@
       "PermissionsModule",
       "ProfilesModule",
       "SitesModule",
+      "BoostsModule",
       "PasswordsModule",
       "AutofillModule",
       "ExtensionsModule",

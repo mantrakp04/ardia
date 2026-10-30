@@ -15,4 +15,5 @@ interface ACPage {
   PictureInPictureDocument() => (string? document);
   EnterPictureInPictureForUser(string document) => (bool opened);
   SetPageColor(string color);
+  SetBoost(string css, array<string> scripts, bool next_document);
 };

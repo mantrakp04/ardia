@@ -403,6 +403,18 @@ Plain Chromium code over Chrome's services (`engine/chromium/src/chrome/browser/
 | `ac_tab_restore_tag`, `_take`, `_load` | native: the WebView's attach (and close) and `restore:` |
 | `ac_tabs_watch`, `ac_tabs_group` | tab groups in strip transactions |
 
+**Boosts** (`ArdiaCoreProfile.boosts`, `ArdiaCoreTab previewBoost:`/`clearBoostPreview`; no `ac_*` export): `setProfileBoosts`,
+`previewBoost`, `clearBoostPreview` (`ArdiaBoosts`, `BoostsModule.swift`; `ArdiaHost`). The app sends a profile's enabled boosts as one
+JSON list (`id`, `domain`, `subdomains`, `css`, `js`, `zoom` 90|100|110|125|150, `color` null or 20 floats, `scheme` null|0|1); the engine
+refuses a malformed list whole (the call rejects, the old list stays). The engine matches each frame by its own URL (host == domain,
+`www.`domain, or any subdomain with `subdomains`), puts the matches' `css` in one user stylesheet at document start (a navigation's
+stylesheet goes with the commit, the old document keeps its own), runs each `js` once at document end in the chrome-internal isolated
+world, and sets the tab's page zoom in isolated mode so it isn't the saved site zoom (the zoom stepper works on top; zoom 100 means
+none). For several matches the last one that sets a zoom, colour or scheme wins. Colour goes to the compositor as a per-tab HSLA
+filter (`chromium-page-color-matrix.patch`). `scheme` is parsed but not applied yet: the engine has no per-tab
+`prefers-color-scheme` override. Boosts are keyed on the profile's original profile, so an incognito window applies its parent's.
+`previewBoost(json)` takes one boost and replaces the boost with that `id` (or adds it) for that tab only, until `clearBoostPreview`.
+
 ## Status
 
 Full hidden runs on 50f1b719 (2026-10-02, the release candidate's ArdiaCore, shared Metro with a clean tree): 126/126

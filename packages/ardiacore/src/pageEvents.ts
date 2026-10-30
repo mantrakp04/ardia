@@ -25,6 +25,7 @@ import type {
   SecurityInfo,
   WebNotification,
   WebViewProps,
+  ZapPick,
   ZoomState,
 } from "./pageTypes";
 
@@ -66,6 +67,7 @@ type NativeEvents = {
   onAutofillPrompt: AutofillPrompt | { id: number; closed: true };
   onExternalApp: ExternalAppRequest;
   onPreferredSize: { width: number; height: number };
+  onZapPicked: ZapPick;
 };
 export type Handlers = keyof NativeEvents;
 export type PageEvent = { name: string; data: unknown };
@@ -109,6 +111,7 @@ const PAGE_EVENTS = {
   onAutofillPrompt: "autofillPrompt",
   onExternalApp: "externalApp",
   onPreferredSize: "preferredSize",
+  onZapPicked: "zapPicked",
 } as const satisfies Record<Handlers, string>;
 export type PageEventName = (typeof PAGE_EVENTS)[Handlers];
 export const pageEventOf = (handler: Handlers): PageEventName => PAGE_EVENTS[handler];
@@ -152,6 +155,7 @@ const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<
   onAutofillPrompt: (e) => ("closed" in e ? [null, e.id] : [e, e.id]),
   onExternalApp: (e) => [e],
   onPreferredSize: (e) => [e],
+  onZapPicked: (e) => [e],
 };
 
 export const isPageEventProp = (key: string): key is Handlers => key in unwrap;

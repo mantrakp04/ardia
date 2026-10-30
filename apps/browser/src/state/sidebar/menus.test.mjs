@@ -71,6 +71,7 @@ test("a shown tab's menu follows Dia's sections, and its hints are the keys that
     "Change Icon… [photo]",
     "Mute Tab [speaker.slash]",
     "Mute Site [speaker.slash] ⌥ (alt)",
+    "Boost This Site [paintbrush]",
     "---",
     "Close [xmark] ⌘W",
     "Close Other Tabs",
@@ -138,6 +139,7 @@ test("a Top Apps tile: unpin first, folders instead of groups, Open in New Windo
     "Change Icon… [photo]",
     "Mute Tab [speaker.slash]",
     "Mute Site [speaker.slash] ⌥ (alt)",
+    "Boost This Site [paintbrush]",
   ]);
   assert.deepEqual(sub(tabMenuItems(S(), w, S().tabs[ids[0]]), "pinnedPage"), [
     "Back to Pinned URL [arrow.uturn.backward] (off)",

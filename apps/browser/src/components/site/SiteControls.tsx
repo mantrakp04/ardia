@@ -32,6 +32,8 @@ import { canShare, shareTab } from "../../state/site/share";
 import { ActionTile, gridColumns, MoreButton, SectionTitle, SettingRow, SITE_PANEL, TileRow } from "./SiteControlsParts";
 import { CertificateDetails, ConnectionChip, ConnectionRow } from "./SiteConnection";
 import { SiteExtensions } from "./SiteExtensions";
+import { SiteBoosts } from "./SiteBoosts";
+import { canBoostTab, newBoostForTab } from "../../state/boostUi/actions";
 import { TranslateRows } from "./TranslateControls";
 import { ZoomStepper } from "./ZoomControls";
 import { blockerLabel, choiceTitle, featuredPermissions, permissionValue, readSiteSettings, setSitePermission, sitePermissionsFor, type SitePermission } from "../../state/site/siteControls";
@@ -174,6 +176,17 @@ function SiteControlsPanel({
         }}
       />
     ) : null,
+    canBoostTab(tabId) ? (
+      <ActionTile
+        key="boost"
+        icon="paintbrush"
+        label="New Boost"
+        onPress={() => {
+          close();
+          newBoostForTab(tab.windowId, tabId);
+        }}
+      />
+    ) : null,
     video ? (
       <ActionTile
         key="pip"
@@ -201,6 +214,8 @@ function SiteControlsPanel({
         <TileRow>{tiles}</TileRow>
 
         <SiteExtensions windowId={tab.windowId} tabId={tab.id} columns={gridColumns(tiles.length)} onClose={close} />
+
+        {canBoostTab(tabId) ? <SiteBoosts windowId={tab.windowId} tabId={tabId} profileId={tab.profileId} host={host} onClose={close} /> : null}
 
         {origin ? (
           <>

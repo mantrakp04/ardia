@@ -1,0 +1,168 @@
+---
+import Base from "../layouts/Base.astro";
+import Header from "../components/Header.astro";
+import DownloadButton from "../components/DownloadButton.astro";
+import Closing from "../components/Closing.astro";
+import Footer from "../components/Footer.astro";
+import { MIN_MACOS } from "../data/release";
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+const title = "A Boost link · Ardia";
+const description = "That long string after the # is a Boost: someone’s colours, font and tweaks for a website, packed into a link. Open it in Ardia to add it.";
+
+const inside = [
+  { what: "Colours", note: "Hue, saturation, contrast, brightness, light or dark." },
+  { what: "Font, size and case", note: "One of twenty fonts, text from 90% to 150%, and lower, upper or title case." },
+  { what: "Hidden bits", note: "The elements zapped off the page: banners, popups, the chat bubble." },
+  { what: "CSS", note: "Whatever styling the author wrote by hand." },
+];
+
+const steps = [
+  "Open the link in Ardia. It asks if you want to add the Boost.",
+  "No link? Settings › Boosts › Import Boost…, then paste the code. It starts with ardia-boost:",
+  "Visit the site. Switch the Boost off from Site Controls any time.",
+];
+---
+
+<Base title={title} description={description} noindex>
+  <Header home={`${base}/`} />
+  <main>
+    <section class="intro" aria-labelledby="boost-title">
+      <div class="wrap">
+        <p class="label kicker">Boost link</p>
+        <h1 class="poster" id="boost-title"><span class="visually-hidden">What a Boost link is: </span>That’s a Boost.</h1>
+        <p class="lede">
+          Someone restyled a website and sent you the result. The long string after the # in the address is the whole thing: colours,
+          font, a few hidden elements. It’s a recipe, and it needs Ardia to cook it.
+        </p>
+        <div class="cta">
+          <DownloadButton location="boost" />
+        </div>
+        <p class="label fine not-phone">{MIN_MACOS} or later · Apple Silicon · Notarized by Apple</p>
+      </div>
+    </section>
+
+    <section class="block" aria-labelledby="inside-title">
+      <div class="wrap">
+        <h2 class="poster" id="inside-title">What’s in it</h2>
+        <dl class="rows">
+          {
+            inside.map((row) => (
+              <div class="row">
+                <dt>{row.what}</dt>
+                <dd>{row.note}</dd>
+              </div>
+            ))
+          }
+        </dl>
+        <p class="note">
+          Never JavaScript. A Boost that runs code can’t be shared, so the worst a link can do is make a site look different.
+        </p>
+      </div>
+    </section>
+
+    <section class="block" aria-labelledby="open-title">
+      <div class="wrap">
+        <h2 class="poster" id="open-title">Adding it</h2>
+        <ol class="steps">
+          {steps.map((step) => <li>{step}</li>)}
+        </ol>
+        <p class="note">
+          Everything after the # stays in your browser. Browsers don’t send it to a server, so this site never sees the code.
+        </p>
+      </div>
+    </section>
+
+    <section class="block last" aria-labelledby="arc-title">
+      <div class="wrap">
+        <h2 class="poster" id="arc-title">From Arc?</h2>
+        <p class="note">
+          Ardia can’t read arc.net Boost links. <a class="link" href={`${base}/arc/`}>Moving from Arc</a> says what does come over.
+        </p>
+      </div>
+    </section>
+
+    <Closing />
+  </main>
+  <Footer />
+</Base>
+
+<style>
+  .intro {
+    padding: clamp(36px, 5vw, 80px) 0 clamp(8px, 1.5vw, 24px);
+  }
+  .intro h1 {
+    font-size: var(--t-mega);
+    line-height: 0.82;
+    margin-left: -0.04em;
+  }
+  .lede {
+    margin-top: clamp(20px, 2.4vw, 32px);
+    max-width: 32em;
+    font-size: var(--t-lede);
+    color: var(--ink-2);
+  }
+  .cta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px 28px;
+    margin-top: 32px;
+  }
+  .fine {
+    margin-top: 18px;
+    color: var(--ink-3);
+  }
+  .block {
+    margin-top: clamp(56px, 7vw, 112px);
+  }
+  .block h2 {
+    font-size: var(--t-h3);
+  }
+  .rows {
+    margin: clamp(20px, 2.4vw, 32px) 0 0;
+    border-top: 2px solid var(--ink);
+    max-width: 60rem;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    gap: 8px var(--gutter);
+    padding: 16px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .row dt {
+    font-weight: 620;
+  }
+  .row dd {
+    margin: 0;
+    color: var(--ink-2);
+  }
+  .steps {
+    margin: clamp(20px, 2.4vw, 32px) 0 0;
+    max-width: 40rem;
+    border-top: 2px solid var(--ink);
+    padding: 16px 0 0 1.4em;
+  }
+  .steps li {
+    padding: 8px 0;
+    color: var(--ink-2);
+  }
+  .note {
+    margin-top: 20px;
+    max-width: 40rem;
+    color: var(--ink-2);
+  }
+  .block.last {
+    margin-bottom: var(--section);
+  }
+  @media (max-width: 820px) {
+    .row {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<script>
+  import "../scripts/motion";
+</script>

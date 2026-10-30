@@ -11,3 +11,5 @@ export const requireOptionalNativeModule: typeof Expo.requireOptionalNativeModul
   (testModules()?.[name] ?? nativeModules[name] ?? null) as Module | null;
 
 export const requireNativeViewManager: typeof Expo.requireNativeViewManager = () => () => null;
+
+export const uuid = { v4: () => globalThis.crypto.randomUUID() } as typeof Expo.uuid;

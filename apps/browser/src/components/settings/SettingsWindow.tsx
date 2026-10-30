@@ -17,6 +17,7 @@ import { CalendarPane } from "./panes/Calendar";
 import { GeneralPane } from "./panes/General";
 import { LiveFoldersPane } from "./panes/LiveFolders";
 import { ExtensionsPane } from "./panes/Extensions";
+import { BoostsPane } from "./panes/Boosts";
 import { PasswordsPane } from "./panes/Passwords";
 import { AutofillPane } from "./panes/Autofill";
 import { PrivacyPane } from "./panes/Privacy";
@@ -171,6 +172,7 @@ const PANE_VIEWS: Record<SettingsPane, (place: SettingsPlace) => ReactNode> = {
   passwords: ({ profileId }) => <PasswordsPane profileId={profileId} />,
   autofill: ({ profileId }) => <AutofillPane profileId={profileId} />,
   extensions: ({ profileId, detail }) => <ExtensionsPane profileId={profileId} detail={detail} />,
+  boosts: ({ profileId }) => <BoostsPane profileId={profileId} />,
   search: () => <SearchPane />,
   engines: () => <EnginesPane />,
   shortcuts: () => <ShortcutsPane />,

@@ -1,4 +1,5 @@
 import { appUrlRoute } from "@ardia/core";
+import { boostCodeFromLink } from "../boosts/share";
 import { SETTINGS_PANES, type SettingsPane } from "../settings/settingsWindows";
 
 const PANE_ALIASES: Record<string, SettingsPane> = {
@@ -10,9 +11,11 @@ const PANE_ALIASES: Record<string, SettingsPane> = {
   searchengines: "search",
 };
 
-export type AppUrlAction = { kind: "newTab" } | { kind: "settings"; pane: SettingsPane | undefined };
+export type AppUrlAction = { kind: "newTab" } | { kind: "settings"; pane: SettingsPane | undefined } | { kind: "boost"; code: string };
 
 export function appUrlAction(url: string): AppUrlAction | null {
+  const code = boostCodeFromLink(url);
+  if (code) return { kind: "boost", code };
   const route = appUrlRoute(url);
   if (route?.kind === "newTab") return { kind: "newTab" };
   if (route?.kind !== "settings") return null;

@@ -29,6 +29,7 @@
 #include "extensions/browser/extension_registry.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/mojom/manifest.mojom-shared.h"
+#include "ardia/core/ac_boost_tab.h"
 #include "ardia/core/ac_cast_dialog.h"
 #include "ardia/core/ac_navigation_hold.h"
 #import "ardia/core/ardiacore_api_internal.h"
@@ -219,6 +220,16 @@ bool IsProfileDeleting(const Profile* profile) {
 
 - (NSString*)path {
   return _path;
+}
+
+- (NSString*)boosts {
+  return _profile ? NS(ardiacore::ProfileBoostsJson(_profile.get())) : @"[]";
+}
+
+- (void)setBoosts:(NSString*)boosts {
+  if (_profile) {
+    ardiacore::SetProfileBoosts(_profile.get(), base::SysNSStringToUTF8(boosts));
+  }
 }
 
 - (BOOL)passwordsOffered {

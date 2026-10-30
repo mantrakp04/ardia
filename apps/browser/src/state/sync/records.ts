@@ -15,6 +15,7 @@ export const PROFILE = "prof:";
 export const PROFILE_THEME = "pth:";
 export const BOOKMARK = "bm:";
 export const HISTORY = "h:";
+export const BOOST = "boost:";
 
 export const recordId = (prefix: string, key: string) => key.slice(prefix.length);
 export const profileScope = (syncId: string) => `p:${syncId}`;

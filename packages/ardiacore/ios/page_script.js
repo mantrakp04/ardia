@@ -1271,5 +1271,314 @@
   );
   addEventListener("resize", () => direction.resized(innerHeight, performance.now()));
 
+  const ZAP_MAX_MATCHES = 100;
+  const ZAP_MAX_CANDIDATES = 15;
+  const ZAP_STAGES = [
+    { steps: 1, keep: 90, up: 8, down: 0 },
+    { steps: 3, keep: 12, up: 3, down: 2 },
+  ];
+  const ZAP_WORDS = [
+    "data", "inline", "grid", "meta", "avatar", "card", "col", "item", "info", "line", "text", "title", "header", "footer",
+    "button", "link", "icon", "image", "logo", "menu", "nav", "search", "social", "tag", "time", "video", "audio", "widget",
+    "wrapper", "content", "container", "main", "section", "article", "aside", "page", "post", "sidebar", "site", "author",
+    "category", "date", "entry", "excerpt", "featured", "gallery", "navigation", "next", "pagination", "permalink", "previous",
+  ];
+  const ZAP_BAD_PAIRS = [
+    "jz", "jx", "jq", "jv", "jw", "zj", "zx", "zq", "zk", "zv", "zw", "xj", "xz", "xq", "xk", "xv", "xw", "qj", "qz", "qx", "qk",
+    "qv", "qw", "kz", "kx", "kq", "kv", "kw", "vj", "vz", "vx", "vq", "vk", "vw", "wj", "wx", "wq",
+  ];
+  const ZAP_SEMANTIC_TAGS = new Set([
+    "a", "article", "aside", "blockquote", "button", "details", "dialog", "dl", "fieldset", "figcaption", "figure", "footer", "form",
+    "h1", "h2", "h3", "h4", "h5", "h6", "header", "hgroup", "hr", "main", "nav", "pre", "section", "p", "svg", "picture", "video",
+    "iframe", "object",
+  ]);
+  const ZAP_ATTRIBUTE_SCORES = new Map([["aria-label", 0.8], ["tabindex", 0.5], ["role", 0.5], ["data-testid", 1], ["href", 0.6]]);
+  const zapQuery = (selector, root) => {
+    try {
+      return root.querySelectorAll(selector);
+    } catch (e) {
+      return [];
+    }
+  };
+  const zapKnown = (s) => ZAP_WORDS.some((word) => s.includes(word));
+  const zapGibberish = (s) => {
+    if (!s) return false;
+    if ([...s].filter((c) => c >= "0" && c <= "9").length > 2) return true;
+    const last = s[s.length - 1];
+    if (last >= "A" && last <= "Z" && s.toUpperCase() !== s) return true;
+    const chunks = [];
+    let chunk = s[0];
+    for (let i = 1; i < s.length; i++) {
+      if ("aeiouAEIOU-_ ".includes(s[i])) {
+        chunks.push(chunk);
+        chunk = s[i];
+      } else chunk += s[i];
+    }
+    chunks.push(chunk);
+    if (chunks.some((c) => c.length > 4)) return true;
+    const lower = s.toLowerCase();
+    return ZAP_BAD_PAIRS.some((pair) => lower.includes(pair));
+  };
+  const zapNameScore = (name) => (zapKnown(name) ? 1 : zapGibberish(name) ? -1 : -0.5);
+  const zapValueScore = (name, value) =>
+    !zapKnown(value) && zapGibberish(value) ? -1 : ZAP_ATTRIBUTE_SCORES.get(name) ?? 0.3;
+  const zapWordSplit = /[\s\-/]/;
+  const zapFirstWord = (value) => {
+    const rest = value.slice(1).split(zapWordSplit);
+    if (value && rest.length !== 1) return value[0] + rest[0];
+  };
+  const zapLastWord = (value) => {
+    const words = value.split(zapWordSplit);
+    if (value && words.length !== 1) return words[words.length - 1];
+  };
+  const zapTermsOf = (el, ctx) => {
+    let terms = ctx.terms.get(el);
+    if (terms) return terms;
+    terms = [];
+    const id = el.getAttribute("id");
+    if (id) terms.push({ term: "#" + CSS.escape(id), score: zapNameScore(id) });
+    for (const name of el.classList) terms.push({ term: "." + CSS.escape(name), score: zapNameScore(name) });
+    for (const { name, value } of el.attributes) {
+      if (name === "id" || name === "class") continue;
+      const score = zapValueScore(name, value);
+      terms.push({ term: `[${name}]`, score: -0.1 });
+      terms.push({ term: `[${name}="${CSS.escape(value)}"]`, score });
+      const first = zapFirstWord(value);
+      if (first) terms.push({ term: `[${name}^="${CSS.escape(first)} "]`, score });
+      const last = zapLastWord(value);
+      if (last) terms.push({ term: `[${name}$=" ${CSS.escape(last)}"]`, score });
+    }
+    const siblings = el.parentElement && el.parentElement.children;
+    if (siblings) {
+      const first = siblings[0] === el, final = siblings[siblings.length - 1] === el;
+      if (first) terms.push({ term: ":first-child", score: -0.1 });
+      if (final) terms.push({ term: ":last-child", score: -0.1 });
+      if (!first && !final) terms.push({ term: `:nth-child(${[...siblings].indexOf(el) + 1})`, score: -0.1 });
+    }
+    const tag = el.localName;
+    terms.push({ term: tag, score: ZAP_SEMANTIC_TAGS.has(tag) ? 0.5 : tag.includes("-") ? 1 : -0.1 });
+    ctx.terms.set(el, terms);
+    return terms;
+  };
+  const zapCount = (ctx, selector) => {
+    let count = ctx.counts.get(selector);
+    if (count === undefined) ctx.counts.set(selector, (count = zapQuery(selector, document).length));
+    return count;
+  };
+  const zapSelectorOf = ({ ancestors, own, descendants }) => {
+    const base = [...ancestors, own].join(" ");
+    return descendants.length ? `${base}:has(${descendants.join(" ")})` : base;
+  };
+  const zapNarrowed = (c, ctx, change, score) => {
+    const next = { ...c, ...change };
+    next.selector = zapSelectorOf(next);
+    next.matches = zapCount(ctx, next.selector);
+    next.score = c.score + score;
+    return next;
+  };
+  const zapAncestors = (c, depth, ctx) => {
+    const out = [];
+    for (let level = 1; level <= depth; level++) {
+      let up = c.top;
+      for (let i = 0; i < level && up; i++) up = up.parentElement;
+      if (!up) break;
+      for (const direct of level === 1 ? [false, true] : [false])
+        for (const { term, score } of zapTermsOf(up, ctx)) {
+          const ancestors = [term, ...c.ancestors];
+          if (direct) ancestors.splice(1, 0, ">");
+          const next = zapNarrowed(c, ctx, { ancestors, top: up }, score + (direct ? -0.1 : 0));
+          if (next.matches) out.push(next);
+        }
+    }
+    return out;
+  };
+  const zapAtDepth = (el, depth) => (depth === 0 ? [el] : [...el.children].flatMap((child) => zapAtDepth(child, depth - 1)));
+  const zapDescendants = (c, depth, ctx) => {
+    const out = [];
+    for (let level = 1; level <= depth; level++) {
+      const seen = new Set();
+      for (const el of zapAtDepth(c.low, level))
+        for (const direct of level === 1 ? [false, true] : [false])
+          for (const { term, score } of zapTermsOf(el, ctx)) {
+            if (score < 0.5) continue;
+            const descendants = direct ? [...c.descendants, ">", term] : [...c.descendants, term];
+            const next = zapNarrowed(c, ctx, { descendants, low: el }, score + (direct ? -0.1 : 0));
+            if (seen.has(next.selector)) continue;
+            seen.add(next.selector);
+            if (next.matches) out.push(next);
+          }
+    }
+    return out;
+  };
+  const zapSpread = (items, limit, score) => {
+    const live = items.filter((c) => c.matches > 0).sort((a, b) => score(b) - score(a));
+    if (live.length <= limit) return live;
+    const buckets = Math.min(limit, 20);
+    const logs = live.map((c) => Math.log10(c.matches));
+    const low = Math.min(...logs);
+    const width = (Math.max(...logs) - low) / buckets;
+    const perBucket = Math.ceil(limit / buckets);
+    const groups = [];
+    live.forEach((c, i) => {
+      const group = (groups[width ? Math.min(buckets - 1, Math.floor((logs[i] - low) / width)) : 0] ??= []);
+      if (group.length < perBucket) group.push(c);
+    });
+    return groups.flat();
+  };
+  const zapSearch = (seeds, stage, ctx) => {
+    let found = seeds;
+    const expanded = new Set();
+    for (let step = 0; step < stage.steps; step++) {
+      const fresh = found.filter((c) => !expanded.has(c.selector));
+      const wider = fresh.flatMap((c) => [...zapAncestors(c, stage.up, ctx), ...zapDescendants(c, stage.down, ctx)]);
+      found = zapSpread([...found, ...wider].sort((a, b) => a.matches - b.matches), stage.keep, (c) => c.score);
+      for (const c of fresh) expanded.add(c.selector);
+    }
+    return found;
+  };
+  const zapLook = (el) => {
+    const s = getComputedStyle(el);
+    return [s.fontFamily, s.fontSize, s.color, s.backgroundColor, s.textDecoration, s.fontWeight].join("/");
+  };
+  const zapUniform = (selector) => {
+    const all = zapQuery(selector, document);
+    const first = all.length > 1 && zapLook(all[0]);
+    for (let i = 1; i < all.length; i++) if (zapLook(all[i]) !== first) return false;
+    return true;
+  };
+  const zapCandidates = (el) => {
+    const ctx = { counts: new Map(), terms: new Map() };
+    const seeds = zapTermsOf(el, ctx).map(({ term, score }) => ({
+      selector: term,
+      matches: zapCount(ctx, term),
+      score,
+      own: term,
+      ancestors: [],
+      descendants: [],
+      top: el,
+      low: el,
+    }));
+    const unique = new Map();
+    for (const stage of ZAP_STAGES)
+      for (const c of zapSearch(seeds, stage, ctx)) if (!unique.has(c.selector)) unique.set(c.selector, c);
+    const usable = [...unique.values()]
+      .filter((c) => !zapQuery(c.selector, el).length && c.matches <= ZAP_MAX_MATCHES)
+      .map((c) => ({ ...c, score: c.score + (zapUniform(c.selector) ? 20 : 0) }));
+    const best = new Map();
+    for (const c of zapSpread(usable, ZAP_MAX_CANDIDATES, (c) => c.score)) {
+      const kept = best.get(c.matches);
+      if (!kept || c.score > kept.score) best.set(c.matches, c);
+    }
+    return [...best.values()].sort((a, b) => a.matches - b.matches).map(({ selector, matches }) => ({ selector, matches }));
+  };
+
+  const ZAP_SWALLOWED = ["pointerdown", "pointerup", "mousedown", "mouseup", "dblclick", "auxclick"];
+  const ZAP_LOOK = `
+    div { position: fixed; box-sizing: border-box; border: 2px solid #0a84ff; border-radius: 3px; background: rgba(10, 132, 255, 0.14); }
+    .picked div { border-color: #ff453a; background: rgba(255, 69, 58, 0.24); }`;
+  let zap = null;
+  const zapDraw = (layer, elements) => {
+    layer.replaceChildren(
+      ...elements.slice(0, ZAP_MAX_MATCHES).flatMap((el) => {
+        const r = el.getBoundingClientRect();
+        if (!r.width || !r.height) return [];
+        const box = document.createElement("div");
+        box.style.cssText = `left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px`;
+        return [box];
+      }),
+    );
+  };
+  const zapRedraw = () => {
+    zapDraw(zap.hoverLayer, zap.hovered ? [zap.hovered] : []);
+    zapDraw(zap.pickedLayer, zap.picked);
+  };
+  const zapSchedule = () => {
+    if (zap.queued) return;
+    zap.queued = true;
+    apply(raf, window, [
+      guard(() => {
+        if (!zap) return;
+        zap.queued = false;
+        if (zap.point) zap.hovered = document.elementFromPoint(zap.point[0], zap.point[1]);
+        zap.point = null;
+        zapRedraw();
+      }),
+    ]);
+  };
+  const zapReport = () => {
+    const { levels, level } = zap.pick;
+    const { selector, matches } = levels[level];
+    zap.picked = [...zapQuery(selector, document)];
+    zapRedraw();
+    send("zapPicked", { selector, matches, levels: levels.length });
+  };
+  const zapPick = (x, y) => {
+    const el = document.elementFromPoint(x, y);
+    if (!el) return;
+    zap.host.remove();
+    let levels;
+    try {
+      levels = zapCandidates(el);
+    } finally {
+      document.documentElement.append(zap.host);
+    }
+    if (!levels.length) return;
+    zap.pick = { levels, level: 0 };
+    zapReport();
+  };
+  const zapSwallow = (e) => {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+  };
+  const zapListeners = [
+    ...ZAP_SWALLOWED.map((type) => [type, zapSwallow]),
+    [
+      "click",
+      (e) => {
+        zapSwallow(e);
+        if (e.isTrusted && e.button === 0) zapPick(e.clientX, e.clientY);
+      },
+    ],
+    [
+      "mousemove",
+      (e) => {
+        zap.point = [e.clientX, e.clientY];
+        zapSchedule();
+      },
+    ],
+    ["scroll", zapSchedule],
+    ["resize", zapSchedule],
+  ];
+  for (const [type, listener] of zapListeners) {
+    const gated = guard((e) => zap && listener(e));
+    addEventListener(type, gated, true);
+  }
+  handlers.zapStart = () => {
+    if (zap) return;
+    const host = document.createElement("ardia-zap");
+    host.style.cssText = "all:initial!important;position:fixed!important;inset:0!important;pointer-events:none!important;z-index:2147483647!important";
+    const frames = document.createElement("style");
+    frames.textContent = "iframe,embed,object{pointer-events:none!important}";
+    const look = document.createElement("style");
+    look.textContent = ZAP_LOOK;
+    const hoverLayer = document.createElement("div");
+    const pickedLayer = document.createElement("div");
+    pickedLayer.className = "picked";
+    host.attachShadow({ mode: "closed" }).append(look, hoverLayer, pickedLayer);
+    host.append(frames);
+    zap = { host, hoverLayer, pickedLayer, hovered: null, picked: [], pick: null, point: null, queued: false };
+    document.documentElement.append(host);
+  };
+  handlers.zapStop = () => {
+    if (!zap) return;
+    zap.host.remove();
+    zap = null;
+  };
+  handlers.zapRelated = ({ level }) => {
+    if (!zap || !zap.pick || !isFinite(level)) return;
+    zap.pick.level = Math.max(0, Math.min(Math.floor(level), zap.pick.levels.length - 1));
+    zapReport();
+  };
+
   return receive;
 })

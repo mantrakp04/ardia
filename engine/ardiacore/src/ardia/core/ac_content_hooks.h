@@ -18,11 +18,14 @@ class DevToolsAgentHost;
 class DevToolsAgentHostClient;
 class DevToolsSocketFactory;
 class RenderFrameHost;
+class RenderWidgetHostView;
 class WebContents;
 
 extern bool g_ardia_opacity_from_default_color;
 
 bool ArdiaHasAccessedInitialMainDocument(WebContents* contents);
+
+void ArdiaSetPageColorFilter(RenderWidgetHostView* view, const float* matrix);
 
 bool ArdiaMainFrameHandlesEnterPictureInPicture(WebContents* contents);
 }

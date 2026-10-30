@@ -16,6 +16,7 @@ const PANE_LOOKS: Record<SettingsPane, { title: string; icon: string }> = {
   passwords: { title: "Passwords", icon: "key" },
   autofill: { title: "Autofill", icon: "creditcard" },
   extensions: { title: "Extensions", icon: "puzzlepiece.extension" },
+  boosts: { title: "Boosts", icon: "paintbrush" },
   search: { title: "Search Engine", icon: "magnifyingglass" },
   engines: { title: "Engines", icon: "safari" },
   shortcuts: { title: "Keyboard Shortcuts", icon: "keyboard" },

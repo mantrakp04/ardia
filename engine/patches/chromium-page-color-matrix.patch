@@ -1,0 +1,188 @@
+diff --git a/components/viz/service/display/overlay_processor_mac.cc b/components/viz/service/display/overlay_processor_mac.cc
+index ef06b5f..0d322be 100644
+--- a/components/viz/service/display/overlay_processor_mac.cc
++++ b/components/viz/service/display/overlay_processor_mac.cc
+@@ -56,9 +56,10 @@ void OverlayProcessorMac::ProcessForOverlays(
+ 
+   // First, try to use ProcessForCALayerOverlays to replace all DrawQuads in
+   // |render_pass->quad_list| with CALayerOverlays in |candidates|.
+-  bool success = ca_layer_overlay_processor_->ProcessForCALayerOverlays(
+-      render_pass, resource_provider, gfx::RectF(render_pass->output_rect),
+-      candidates);
++  bool success = output_color_matrix == SkM44() &&
++                 ca_layer_overlay_processor_->ProcessForCALayerOverlays(
++                     render_pass, resource_provider,
++                     gfx::RectF(render_pass->output_rect), candidates);
+   if (success) {
+     // Set |ca_overlay_damage_rect_| to be everything, so that the next
+     // composite that we draw to the output surface will do a full re-draw.
+diff --git a/components/viz/service/display/skia_renderer.cc b/components/viz/service/display/skia_renderer.cc
+index 273748f..5a4fed0 100644
+--- a/components/viz/service/display/skia_renderer.cc
++++ b/components/viz/service/display/skia_renderer.cc
+@@ -3096,6 +3096,26 @@ SkColorMatrix ToColorMatrix(const SkM44& mat) {
+   mat_out.setRowMajor(values.data());
+   return mat_out;
+ }
++
++bool IsPageColorMatrix(const SkM44& mat) {
++  return mat.rc(3, 3) == 0.0f;
++}
++
++SkColorMatrix ToPageColorMatrix(const SkM44& mat) {
++  std::array<float, 20> values;
++  values.fill(0.0f);
++  for (uint32_t r = 0; r < 3; r++) {
++    values[r * 5 + 0] = mat.rc(r, 0);
++    values[r * 5 + 1] = mat.rc(r, 1);
++    values[r * 5 + 2] = mat.rc(r, 2);
++    values[r * 5 + 3] = mat.rc(3, r);
++    values[r * 5 + 4] = mat.rc(r, 3);
++  }
++  values[18] = 1.0f;
++  SkColorMatrix mat_out;
++  mat_out.setRowMajor(values.data());
++  return mat_out;
++}
+ }  // namespace
+ 
+ sk_sp<SkColorFilter> SkiaRenderer::GetContentColorFilter() {
+@@ -3104,8 +3124,11 @@ sk_sp<SkColorFilter> SkiaRenderer::GetContentColorFilter() {
+       current_frame()->current_render_pass == current_frame()->root_render_pass;
+ 
+   if (is_root && output_surface_->color_matrix() != SkM44()) {
++    const SkM44& color_matrix = output_surface_->color_matrix();
+     color_transform =
+-        SkColorFilters::Matrix(ToColorMatrix(output_surface_->color_matrix()));
++        IsPageColorMatrix(color_matrix)
++            ? SkColorFilters::HSLAMatrix(ToPageColorMatrix(color_matrix))
++            : SkColorFilters::Matrix(ToColorMatrix(color_matrix));
+   }
+ 
+   sk_sp<SkColorFilter> tint_transform = nullptr;
+diff --git a/content/browser/renderer_host/browser_compositor_view_mac.h b/content/browser/renderer_host/browser_compositor_view_mac.h
+index 16044ff..2ce8e75 100644
+--- a/content/browser/renderer_host/browser_compositor_view_mac.h
++++ b/content/browser/renderer_host/browser_compositor_view_mac.h
+@@ -16,6 +16,7 @@
+ #include "components/viz/common/surfaces/scoped_surface_id_allocator.h"
+ #include "content/browser/renderer_host/delegated_frame_host.h"
+ #include "content/common/content_export.h"
++#include "third_party/skia/include/core/SkM44.h"
+ #include "ui/compositor/compositor.h"
+ #include "ui/compositor/compositor_observer.h"
+ #include "ui/compositor/layer_observer.h"
+@@ -154,6 +155,8 @@ class CONTENT_EXPORT BrowserCompositorMac : public DelegatedFrameHostClient,
+ 
+   void SetVideoSuperResolutionAllowed(bool allowed);
+ 
++  void SetPageColorMatrix(const SkM44& matrix);
++
+  private:
+   // ui::LayerObserver implementation:
+   void LayerDestroyed(ui::Layer* layer) override;
+@@ -195,6 +198,7 @@ class CONTENT_EXPORT BrowserCompositorMac : public DelegatedFrameHostClient,
+ 
+   SkColor background_color_ = SK_ColorWHITE;
+   bool video_super_resolution_allowed_ = false;
++  SkM44 page_color_matrix_;
+ 
+   // The viz::ParentLocalSurfaceIdAllocator for the delegated frame host
+   // dispenses viz::LocalSurfaceIds that are renderered into by the renderer
+diff --git a/content/browser/renderer_host/browser_compositor_view_mac.mm b/content/browser/renderer_host/browser_compositor_view_mac.mm
+index 41f8ea4..c9c8d8f 100644
+--- a/content/browser/renderer_host/browser_compositor_view_mac.mm
++++ b/content/browser/renderer_host/browser_compositor_view_mac.mm
+@@ -249,6 +249,9 @@ void BrowserCompositorMac::TransitionToState(State new_state) {
+     root_layer_->parent()->Remove(root_layer_.get());
+   }
+   if (state_ == HasOwnCompositor) {
++    if (page_color_matrix_ != SkM44()) {
++      recyclable_compositor_->compositor()->SetDisplayColorMatrix(SkM44());
++    }
+     recyclable_compositor_->widget()->ResetNSView();
+     recyclable_compositor_->compositor()->SetRootLayer(nullptr);
+     recyclable_compositor_.reset();
+@@ -283,6 +286,10 @@ void BrowserCompositorMac::TransitionToState(State new_state) {
+     recyclable_compositor_->compositor()->SetBackgroundColor(background_color_);
+     recyclable_compositor_->compositor()->SetVideoSuperResolutionAllowed(
+         video_super_resolution_allowed_);
++    if (page_color_matrix_ != SkM44()) {
++      recyclable_compositor_->compositor()->SetDisplayColorMatrix(
++          page_color_matrix_);
++    }
+     recyclable_compositor_->widget()->SetNSView(
+         accelerated_widget_mac_ns_view_);
+     recyclable_compositor_->Unsuspend();
+@@ -474,4 +481,11 @@ void BrowserCompositorMac::SetVideoSuperResolutionAllowed(bool allowed) {
+   }
+ }
+ 
++void BrowserCompositorMac::SetPageColorMatrix(const SkM44& matrix) {
++  page_color_matrix_ = matrix;
++  if (recyclable_compositor_) {
++    recyclable_compositor_->compositor()->SetDisplayColorMatrix(matrix);
++  }
++}
++
+ }  // namespace content
+diff --git a/content/browser/renderer_host/render_widget_host_view_mac.h b/content/browser/renderer_host/render_widget_host_view_mac.h
+index afcf2be..be3610c 100644
+--- a/content/browser/renderer_host/render_widget_host_view_mac.h
++++ b/content/browser/renderer_host/render_widget_host_view_mac.h
+@@ -197,6 +197,7 @@ class CONTENT_EXPORT RenderWidgetHostViewMac
+   bool HasSavedCompositorFrame() const override;
+   void SetEvictOnHide(bool evict_on_hide) override;
+   void SetVideoSuperResolutionAllowed(bool allowed) override;
++  void SetPageColorMatrix(const SkM44& matrix);
+ 
+   void TransformPointToRootSurface(gfx::PointF* point) override;
+   gfx::Rect GetBoundsInScreen() override;
+diff --git a/content/browser/renderer_host/render_widget_host_view_mac.mm b/content/browser/renderer_host/render_widget_host_view_mac.mm
+index f0a208a..1d49fcc 100644
+--- a/content/browser/renderer_host/render_widget_host_view_mac.mm
++++ b/content/browser/renderer_host/render_widget_host_view_mac.mm
+@@ -13,6 +13,7 @@
+ #include <tuple>
+ #include <utility>
+ 
++#include "ardia/core/ac_content_hooks.h"  // nogncheck
+ #include "base/apple/foundation_util.h"
+ #include "base/apple/owned_objc.h"
+ #include "base/apple/scoped_cftyperef.h"
+@@ -1558,6 +1559,12 @@ void RenderWidgetHostViewMac::SetVideoSuperResolutionAllowed(bool allowed) {
+   }
+ }
+ 
++void RenderWidgetHostViewMac::SetPageColorMatrix(const SkM44& matrix) {
++  if (browser_compositor_) {
++    browser_compositor_->SetPageColorMatrix(matrix);
++  }
++}
++
+ void RenderWidgetHostViewMac::TransformPointToRootSurface(gfx::PointF* point) {
+   browser_compositor_->TransformPointToRootSurface(point);
+ }
+@@ -2794,4 +2801,22 @@ Class GetRenderWidgetHostViewCocoaClassForTesting() {
+   return [RenderWidgetHostViewCocoa class];
+ }
+ 
++void ArdiaSetPageColorFilter(RenderWidgetHostView* view, const float* hsla) {
++  if (!view) {
++    return;
++  }
++  SkM44 matrix;
++  if (hsla) {
++    for (int r = 0; r < 3; r++) {
++      matrix.setRC(r, 0, hsla[r * 5 + 0]);
++      matrix.setRC(r, 1, hsla[r * 5 + 1]);
++      matrix.setRC(r, 2, hsla[r * 5 + 2]);
++      matrix.setRC(r, 3, hsla[r * 5 + 4]);
++      matrix.setRC(3, r, hsla[r * 5 + 3]);
++    }
++    matrix.setRC(3, 3, 0.0f);
++  }
++  static_cast<RenderWidgetHostViewMac*>(view)->SetPageColorMatrix(matrix);
++}
++
+ }  // namespace content

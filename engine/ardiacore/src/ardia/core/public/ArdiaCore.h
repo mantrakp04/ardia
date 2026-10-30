@@ -110,6 +110,7 @@ ARDIACORE_EXPORT
 @property(readonly) NSString* path;
 @property(readonly) BOOL offTheRecord;
 @property(readonly) BOOL destroyed;
+@property(nonatomic, copy) NSString* boosts;
 - (nullable NSString*)loadComponentExtension:(NSString*)path;
 - (void)unloadComponentExtension:(NSString*)extensionId;
 - (void)warmSpareRenderer;
@@ -325,6 +326,8 @@ ARDIACORE_EXPORT
 @property(nonatomic, nullable) NSColor* contentsBackgroundColor;
 @property(nonatomic) double zoomFactor;
 - (void)zoomStep:(int)direction;
+- (BOOL)previewBoost:(NSString*)json;
+- (void)clearBoostPreview;
 @property(readonly) double pinchScale;
 @end
 

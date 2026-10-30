@@ -33,6 +33,8 @@ namespace ardiacore {
 void RegisterPageChannelBinders(content::RenderFrameHost& render_frame_host,
                                 blink::AssociatedInterfaceRegistry& registry);
 
+mojo::AssociatedRemote<mojom::ACPage> PageOf(content::RenderFrameHost* frame);
+
 enum class PictureInPictureRoute { kNone, kMediaSession, kElement };
 
 class PageChannel : public content::WebContentsObserver,

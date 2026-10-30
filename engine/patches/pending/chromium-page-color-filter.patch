@@ -1,0 +1,456 @@
+diff --git a/components/viz/service/display/direct_renderer.cc b/components/viz/service/display/direct_renderer.cc
+index a663cf7..955cb80 100644
+--- a/components/viz/service/display/direct_renderer.cc
++++ b/components/viz/service/display/direct_renderer.cc
+@@ -308,6 +308,8 @@ void DirectRenderer::DrawFrame(
+     overlay_processor_->SetDisplayTransformHint(
+         output_surface_->GetDisplayTransform());
+     overlay_processor_->SetViewportSize(device_viewport_size);
++    overlay_processor_->SetPageColorFilterActive(
++        output_surface_->page_color_filter().has_value());
+ 
+     // Attempt to replace some or all of the quads of the root render pass with
+     // overlays.
+diff --git a/components/viz/service/display/display.cc b/components/viz/service/display/display.cc
+index 5a28dce..08c9e50 100644
+--- a/components/viz/service/display/display.cc
++++ b/components/viz/service/display/display.cc
+@@ -492,6 +492,19 @@ void Display::SetDisplayColorSpaces(
+     aggregator_->SetDisplayColorSpaces(display_color_spaces_);
+ }
+ 
++void Display::SetPageColorFilter(
++    const std::optional<std::array<float, 20>>& hsla) {
++  if (output_surface_) {
++    output_surface_->set_page_color_filter(hsla);
++  }
++  if (aggregator_ && current_surface_id_.is_valid()) {
++    aggregator_->SetFullDamageForSurface(current_surface_id_);
++  }
++  if (damage_tracker_) {
++    damage_tracker_->SetRootSurfaceDamaged();
++  }
++}
++
+ #if BUILDFLAG(IS_MAC)
+ void Display::SetVideoSuperResolutionAllowed(bool allowed) {
+   if (allowed == video_super_resolution_allowed_) {
+diff --git a/components/viz/service/display/display.h b/components/viz/service/display/display.h
+index 9381503..54eaacd 100644
+--- a/components/viz/service/display/display.h
++++ b/components/viz/service/display/display.h
+@@ -5,8 +5,10 @@
+ #ifndef COMPONENTS_VIZ_SERVICE_DISPLAY_DISPLAY_H_
+ #define COMPONENTS_VIZ_SERVICE_DISPLAY_DISPLAY_H_
+ 
++#include <array>
+ #include <deque>
+ #include <memory>
++#include <optional>
+ #include <utility>
+ #include <vector>
+ 
+@@ -144,6 +146,8 @@ class VIZ_SERVICE_EXPORT Display : public DisplaySchedulerClient,
+   // display. This is only supported for GPU compositing.
+   void SetColorMatrix(const SkM44& matrix);
+ 
++  void SetPageColorFilter(const std::optional<std::array<float, 20>>& hsla);
++
+   void SetDisplayColorSpaces(
+       const gfx::DisplayColorSpaces& display_color_spaces);
+   void SetOutputIsSecure(bool secure);
+diff --git a/components/viz/service/display/output_surface.h b/components/viz/service/display/output_surface.h
+index 53b4128..4791479 100644
+--- a/components/viz/service/display/output_surface.h
++++ b/components/viz/service/display/output_surface.h
+@@ -5,7 +5,9 @@
+ #ifndef COMPONENTS_VIZ_SERVICE_DISPLAY_OUTPUT_SURFACE_H_
+ #define COMPONENTS_VIZ_SERVICE_DISPLAY_OUTPUT_SURFACE_H_
+ 
++#include <array>
+ #include <memory>
++#include <optional>
+ #include <vector>
+ 
+ #include "base/functional/callback_helpers.h"
+@@ -197,6 +199,14 @@ class VIZ_SERVICE_EXPORT OutputSurface {
+   }
+   const SkM44& color_matrix() const { return color_matrix_; }
+ 
++  void set_page_color_filter(
++      const std::optional<std::array<float, 20>>& page_color_filter) {
++    page_color_filter_ = page_color_filter;
++  }
++  const std::optional<std::array<float, 20>>& page_color_filter() const {
++    return page_color_filter_;
++  }
++
+   // Only useful for GPU backend.
+   virtual gpu::SurfaceHandle GetSurfaceHandle() const;
+ 
+@@ -302,6 +312,7 @@ class VIZ_SERVICE_EXPORT OutputSurface {
+   const Type type_;
+   std::unique_ptr<SoftwareOutputDevice> software_device_;
+   SkM44 color_matrix_;
++  std::optional<std::array<float, 20>> page_color_filter_;
+ };
+ 
+ #if BUILDFLAG(IS_WIN)
+diff --git a/components/viz/service/display/overlay_processor_interface.h b/components/viz/service/display/overlay_processor_interface.h
+index 4cbf798..f428394 100644
+--- a/components/viz/service/display/overlay_processor_interface.h
++++ b/components/viz/service/display/overlay_processor_interface.h
+@@ -142,6 +142,7 @@ class VIZ_SERVICE_EXPORT OverlayProcessorInterface {
+   // These two functions are used by Android SurfaceControl.
+   virtual void SetDisplayTransformHint(gfx::OverlayTransform transform) {}
+   virtual void SetViewportSize(const gfx::Size& size) {}
++  virtual void SetPageColorFilterActive(bool active) {}
+ 
+   // Overlay processor uses a frame counter to determine the potential power
+   // benefits of individual overlay candidates.
+diff --git a/components/viz/service/display/overlay_processor_mac.cc b/components/viz/service/display/overlay_processor_mac.cc
+index 0d322be..9b848ac 100644
+--- a/components/viz/service/display/overlay_processor_mac.cc
++++ b/components/viz/service/display/overlay_processor_mac.cc
+@@ -56,7 +56,7 @@ void OverlayProcessorMac::ProcessForOverlays(
+ 
+   // First, try to use ProcessForCALayerOverlays to replace all DrawQuads in
+   // |render_pass->quad_list| with CALayerOverlays in |candidates|.
+-  bool success = output_color_matrix == SkM44() &&
++  bool success = !page_color_filter_active_ &&
+                  ca_layer_overlay_processor_->ProcessForCALayerOverlays(
+                      render_pass, resource_provider,
+                      gfx::RectF(render_pass->output_rect), candidates);
+@@ -89,4 +89,8 @@ gfx::CALayerResult OverlayProcessorMac::GetCALayerErrorCode() const {
+   return ca_layer_overlay_processor_->ca_layer_result();
+ }
+ 
++void OverlayProcessorMac::SetPageColorFilterActive(bool active) {
++  page_color_filter_active_ = active;
++}
++
+ }  // namespace viz
+diff --git a/components/viz/service/display/overlay_processor_mac.h b/components/viz/service/display/overlay_processor_mac.h
+index e628428..56ddd6e 100644
+--- a/components/viz/service/display/overlay_processor_mac.h
++++ b/components/viz/service/display/overlay_processor_mac.h
+@@ -58,10 +58,13 @@ class VIZ_SERVICE_EXPORT OverlayProcessorMac
+ 
+   gfx::CALayerResult GetCALayerErrorCode() const override;
+ 
++  void SetPageColorFilterActive(bool active) override;
++
+  private:
+   // The damage that should be added the next frame for drawing to the output
+   // surface.
+   gfx::Rect ca_overlay_damage_rect_;
++  bool page_color_filter_active_ = false;
+ 
+  protected:
+   // Protected for testing.
+diff --git a/components/viz/service/display/skia_renderer.cc b/components/viz/service/display/skia_renderer.cc
+index 5a4fed0..c79d5b6 100644
+--- a/components/viz/service/display/skia_renderer.cc
++++ b/components/viz/service/display/skia_renderer.cc
+@@ -3096,26 +3096,6 @@ SkColorMatrix ToColorMatrix(const SkM44& mat) {
+   mat_out.setRowMajor(values.data());
+   return mat_out;
+ }
+-
+-bool IsPageColorMatrix(const SkM44& mat) {
+-  return mat.rc(3, 3) == 0.0f;
+-}
+-
+-SkColorMatrix ToPageColorMatrix(const SkM44& mat) {
+-  std::array<float, 20> values;
+-  values.fill(0.0f);
+-  for (uint32_t r = 0; r < 3; r++) {
+-    values[r * 5 + 0] = mat.rc(r, 0);
+-    values[r * 5 + 1] = mat.rc(r, 1);
+-    values[r * 5 + 2] = mat.rc(r, 2);
+-    values[r * 5 + 3] = mat.rc(3, r);
+-    values[r * 5 + 4] = mat.rc(r, 3);
+-  }
+-  values[18] = 1.0f;
+-  SkColorMatrix mat_out;
+-  mat_out.setRowMajor(values.data());
+-  return mat_out;
+-}
+ }  // namespace
+ 
+ sk_sp<SkColorFilter> SkiaRenderer::GetContentColorFilter() {
+@@ -3124,11 +3104,16 @@ sk_sp<SkColorFilter> SkiaRenderer::GetContentColorFilter() {
+       current_frame()->current_render_pass == current_frame()->root_render_pass;
+ 
+   if (is_root && output_surface_->color_matrix() != SkM44()) {
+-    const SkM44& color_matrix = output_surface_->color_matrix();
+     color_transform =
+-        IsPageColorMatrix(color_matrix)
+-            ? SkColorFilters::HSLAMatrix(ToPageColorMatrix(color_matrix))
+-            : SkColorFilters::Matrix(ToColorMatrix(color_matrix));
++        SkColorFilters::Matrix(ToColorMatrix(output_surface_->color_matrix()));
++  }
++  if (is_root && output_surface_->page_color_filter()) {
++    const std::array<float, 20>& hsla = *output_surface_->page_color_filter();
++    sk_sp<SkColorFilter> page_color_filter =
++        SkColorFilters::HSLAMatrix(hsla.data());
++    color_transform = color_transform
++                          ? page_color_filter->makeComposed(color_transform)
++                          : page_color_filter;
+   }
+ 
+   sk_sp<SkColorFilter> tint_transform = nullptr;
+diff --git a/components/viz/service/frame_sinks/root_compositor_frame_sink_impl.cc b/components/viz/service/frame_sinks/root_compositor_frame_sink_impl.cc
+index fe0fd64..44fcef7 100644
+--- a/components/viz/service/frame_sinks/root_compositor_frame_sink_impl.cc
++++ b/components/viz/service/frame_sinks/root_compositor_frame_sink_impl.cc
+@@ -5,6 +5,7 @@
+ #include "components/viz/service/frame_sinks/root_compositor_frame_sink_impl.h"
+ 
+ #include <algorithm>
++#include <array>
+ #include <utility>
+ #include <variant>
+ #include <vector>
+@@ -368,6 +369,16 @@ void RootCompositorFrameSinkImpl::SetDisplayColorMatrix(
+   display_->SetColorMatrix(gfx::TransformToSkM44(color_matrix));
+ }
+ 
++void RootCompositorFrameSinkImpl::SetPageColorFilter(
++    const std::optional<std::vector<float>>& hsla_matrix) {
++  std::optional<std::array<float, 20>> hsla;
++  if (hsla_matrix && hsla_matrix->size() == 20) {
++    hsla.emplace();
++    std::copy(hsla_matrix->begin(), hsla_matrix->end(), hsla->begin());
++  }
++  display_->SetPageColorFilter(hsla);
++}
++
+ void RootCompositorFrameSinkImpl::SetDisplayColorSpaces(
+     const gfx::DisplayColorSpaces& display_color_spaces) {
+   display_->SetDisplayColorSpaces(display_color_spaces);
+diff --git a/components/viz/service/frame_sinks/root_compositor_frame_sink_impl.h b/components/viz/service/frame_sinks/root_compositor_frame_sink_impl.h
+index 8d9f8aa..66f80e5 100644
+--- a/components/viz/service/frame_sinks/root_compositor_frame_sink_impl.h
++++ b/components/viz/service/frame_sinks/root_compositor_frame_sink_impl.h
+@@ -5,6 +5,7 @@
+ #ifndef COMPONENTS_VIZ_SERVICE_FRAME_SINKS_ROOT_COMPOSITOR_FRAME_SINK_IMPL_H_
+ #define COMPONENTS_VIZ_SERVICE_FRAME_SINKS_ROOT_COMPOSITOR_FRAME_SINK_IMPL_H_
+ 
++#include <array>
+ #include <memory>
+ #include <optional>
+ #include <vector>
+@@ -77,6 +78,8 @@ class VIZ_SERVICE_EXPORT RootCompositorFrameSinkImpl
+   void SetDisplayVisible(bool visible) override;
+   void Resize(const gfx::Size& size) override;
+   void SetDisplayColorMatrix(const gfx::Transform& color_matrix) override;
++  void SetPageColorFilter(
++      const std::optional<std::vector<float>>& hsla_matrix) override;
+   void SetDisplayColorSpaces(
+       const gfx::DisplayColorSpaces& display_color_spaces) override;
+ #if BUILDFLAG(IS_MAC)
+diff --git a/content/browser/renderer_host/browser_compositor_view_mac.h b/content/browser/renderer_host/browser_compositor_view_mac.h
+index 2ce8e75..77f2f97 100644
+--- a/content/browser/renderer_host/browser_compositor_view_mac.h
++++ b/content/browser/renderer_host/browser_compositor_view_mac.h
+@@ -6,6 +6,8 @@
+ #define CONTENT_BROWSER_RENDERER_HOST_BROWSER_COMPOSITOR_VIEW_MAC_H_
+ 
+ #include <memory>
++#include <optional>
++#include <vector>
+ 
+ #include "base/memory/raw_ptr.h"
+ #include "base/time/time.h"
+@@ -16,7 +18,6 @@
+ #include "components/viz/common/surfaces/scoped_surface_id_allocator.h"
+ #include "content/browser/renderer_host/delegated_frame_host.h"
+ #include "content/common/content_export.h"
+-#include "third_party/skia/include/core/SkM44.h"
+ #include "ui/compositor/compositor.h"
+ #include "ui/compositor/compositor_observer.h"
+ #include "ui/compositor/layer_observer.h"
+@@ -155,7 +156,7 @@ class CONTENT_EXPORT BrowserCompositorMac : public DelegatedFrameHostClient,
+ 
+   void SetVideoSuperResolutionAllowed(bool allowed);
+ 
+-  void SetPageColorMatrix(const SkM44& matrix);
++  void SetPageColorFilter(const std::optional<std::vector<float>>& hsla);
+ 
+  private:
+   // ui::LayerObserver implementation:
+@@ -198,7 +199,7 @@ class CONTENT_EXPORT BrowserCompositorMac : public DelegatedFrameHostClient,
+ 
+   SkColor background_color_ = SK_ColorWHITE;
+   bool video_super_resolution_allowed_ = false;
+-  SkM44 page_color_matrix_;
++  std::optional<std::vector<float>> page_color_filter_;
+ 
+   // The viz::ParentLocalSurfaceIdAllocator for the delegated frame host
+   // dispenses viz::LocalSurfaceIds that are renderered into by the renderer
+diff --git a/content/browser/renderer_host/browser_compositor_view_mac.mm b/content/browser/renderer_host/browser_compositor_view_mac.mm
+index c9c8d8f..95de906 100644
+--- a/content/browser/renderer_host/browser_compositor_view_mac.mm
++++ b/content/browser/renderer_host/browser_compositor_view_mac.mm
+@@ -249,8 +249,8 @@ void BrowserCompositorMac::TransitionToState(State new_state) {
+     root_layer_->parent()->Remove(root_layer_.get());
+   }
+   if (state_ == HasOwnCompositor) {
+-    if (page_color_matrix_ != SkM44()) {
+-      recyclable_compositor_->compositor()->SetDisplayColorMatrix(SkM44());
++    if (page_color_filter_) {
++      recyclable_compositor_->compositor()->SetPageColorFilter(std::nullopt);
+     }
+     recyclable_compositor_->widget()->ResetNSView();
+     recyclable_compositor_->compositor()->SetRootLayer(nullptr);
+@@ -286,9 +286,9 @@ void BrowserCompositorMac::TransitionToState(State new_state) {
+     recyclable_compositor_->compositor()->SetBackgroundColor(background_color_);
+     recyclable_compositor_->compositor()->SetVideoSuperResolutionAllowed(
+         video_super_resolution_allowed_);
+-    if (page_color_matrix_ != SkM44()) {
+-      recyclable_compositor_->compositor()->SetDisplayColorMatrix(
+-          page_color_matrix_);
++    if (page_color_filter_) {
++      recyclable_compositor_->compositor()->SetPageColorFilter(
++          page_color_filter_);
+     }
+     recyclable_compositor_->widget()->SetNSView(
+         accelerated_widget_mac_ns_view_);
+@@ -481,10 +481,11 @@ void BrowserCompositorMac::SetVideoSuperResolutionAllowed(bool allowed) {
+   }
+ }
+ 
+-void BrowserCompositorMac::SetPageColorMatrix(const SkM44& matrix) {
+-  page_color_matrix_ = matrix;
++void BrowserCompositorMac::SetPageColorFilter(
++    const std::optional<std::vector<float>>& hsla) {
++  page_color_filter_ = hsla;
+   if (recyclable_compositor_) {
+-    recyclable_compositor_->compositor()->SetDisplayColorMatrix(matrix);
++    recyclable_compositor_->compositor()->SetPageColorFilter(hsla);
+   }
+ }
+ 
+diff --git a/content/browser/renderer_host/render_widget_host_view_mac.h b/content/browser/renderer_host/render_widget_host_view_mac.h
+index be3610c..f9cfdc5 100644
+--- a/content/browser/renderer_host/render_widget_host_view_mac.h
++++ b/content/browser/renderer_host/render_widget_host_view_mac.h
+@@ -197,7 +197,7 @@ class CONTENT_EXPORT RenderWidgetHostViewMac
+   bool HasSavedCompositorFrame() const override;
+   void SetEvictOnHide(bool evict_on_hide) override;
+   void SetVideoSuperResolutionAllowed(bool allowed) override;
+-  void SetPageColorMatrix(const SkM44& matrix);
++  void SetPageColorFilter(const std::optional<std::vector<float>>& hsla);
+ 
+   void TransformPointToRootSurface(gfx::PointF* point) override;
+   gfx::Rect GetBoundsInScreen() override;
+diff --git a/content/browser/renderer_host/render_widget_host_view_mac.mm b/content/browser/renderer_host/render_widget_host_view_mac.mm
+index 1d49fcc..60aa1a4 100644
+--- a/content/browser/renderer_host/render_widget_host_view_mac.mm
++++ b/content/browser/renderer_host/render_widget_host_view_mac.mm
+@@ -1559,9 +1559,10 @@ void RenderWidgetHostViewMac::SetVideoSuperResolutionAllowed(bool allowed) {
+   }
+ }
+ 
+-void RenderWidgetHostViewMac::SetPageColorMatrix(const SkM44& matrix) {
++void RenderWidgetHostViewMac::SetPageColorFilter(
++    const std::optional<std::vector<float>>& hsla) {
+   if (browser_compositor_) {
+-    browser_compositor_->SetPageColorMatrix(matrix);
++    browser_compositor_->SetPageColorFilter(hsla);
+   }
+ }
+ 
+@@ -2805,18 +2806,11 @@ void ArdiaSetPageColorFilter(RenderWidgetHostView* view, const float* hsla) {
+   if (!view) {
+     return;
+   }
+-  SkM44 matrix;
++  std::optional<std::vector<float>> filter;
+   if (hsla) {
+-    for (int r = 0; r < 3; r++) {
+-      matrix.setRC(r, 0, hsla[r * 5 + 0]);
+-      matrix.setRC(r, 1, hsla[r * 5 + 1]);
+-      matrix.setRC(r, 2, hsla[r * 5 + 2]);
+-      matrix.setRC(r, 3, hsla[r * 5 + 4]);
+-      matrix.setRC(3, r, hsla[r * 5 + 3]);
+-    }
+-    matrix.setRC(3, 3, 0.0f);
++    filter.emplace(hsla, hsla + 20);
+   }
+-  static_cast<RenderWidgetHostViewMac*>(view)->SetPageColorMatrix(matrix);
++  static_cast<RenderWidgetHostViewMac*>(view)->SetPageColorFilter(filter);
+ }
+ 
+ }  // namespace content
+diff --git a/services/viz/privileged/mojom/compositing/display_private.mojom b/services/viz/privileged/mojom/compositing/display_private.mojom
+index 1e390b7..459149a 100644
+--- a/services/viz/privileged/mojom/compositing/display_private.mojom
++++ b/services/viz/privileged/mojom/compositing/display_private.mojom
+@@ -50,6 +50,8 @@ interface DisplayPrivate {
+   [EnableIf=is_mac]
+   SetVideoSuperResolutionAllowed(bool allowed);
+ 
++  SetPageColorFilter(array<float, 20>? hsla_matrix);
++
+   // Sets CGDirectDisplayID for GPU begin frame source.
+   [EnableIf=is_mac]
+   SetVSyncDisplayID(int64 display_id);
+diff --git a/ui/compositor/compositor.cc b/ui/compositor/compositor.cc
+index 5bb72d8..8b677ad 100644
+--- a/ui/compositor/compositor.cc
++++ b/ui/compositor/compositor.cc
+@@ -372,6 +372,9 @@ void Compositor::SetLayerTreeFrameSink(
+     display_private_->SetDisplayColorMatrix(
+         gfx::SkM44ToTransform(display_color_matrix_));
+     display_private_->SetOutputIsSecure(output_is_secure_);
++    if (page_color_filter_) {
++      display_private_->SetPageColorFilter(page_color_filter_);
++    }
+ #if BUILDFLAG(IS_MAC)
+     display_private_->SetVSyncDisplayID(display_id_);
+     display_private_->SetVideoSuperResolutionAllowed(
+@@ -1008,6 +1011,14 @@ void Compositor::SetVideoSuperResolutionAllowed(bool allowed) {
+ }
+ #endif
+ 
++void Compositor::SetPageColorFilter(
++    const std::optional<std::vector<float>>& hsla) {
++  page_color_filter_ = hsla;
++  if (display_private_) {
++    display_private_->SetPageColorFilter(hsla);
++  }
++}
++
+ const cc::LayerTreeDebugState& Compositor::GetLayerTreeDebugState() const {
+   return host_->GetDebugState();
+ }
+diff --git a/ui/compositor/compositor.h b/ui/compositor/compositor.h
+index b24bb36..60d3dac 100644
+--- a/ui/compositor/compositor.h
++++ b/ui/compositor/compositor.h
+@@ -9,6 +9,7 @@
+ 
+ #include <memory>
+ #include <optional>
++#include <vector>
+ #include <unordered_set>
+ 
+ #include "base/containers/flat_map.h"
+@@ -464,6 +465,7 @@ class COMPOSITOR_EXPORT Compositor
+ #if BUILDFLAG(IS_MAC)
+   void SetVideoSuperResolutionAllowed(bool allowed);
+ #endif
++  void SetPageColorFilter(const std::optional<std::vector<float>>& hsla);
+ 
+   const cc::LayerTreeDebugState& GetLayerTreeDebugState() const;
+   void SetLayerTreeDebugState(const cc::LayerTreeDebugState& debug_state);
+@@ -690,6 +692,7 @@ class COMPOSITOR_EXPORT Compositor
+   gfx::DisplayColorSpaces display_color_spaces_;
+ 
+   bool output_is_secure_ = false;
++  std::optional<std::vector<float>> page_color_filter_;
+ #if BUILDFLAG(IS_MAC)
+   bool video_super_resolution_allowed_ = false;
+ #endif

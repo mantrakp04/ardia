@@ -21,3 +21,14 @@ test("ardia://settings and ardia://newtab open what they name instead of loading
   assert.equal(tabCount(), before + 1, "a blank new tab");
   assert.equal(S().newTab(w, { url: "ardia://history" }) !== "", true, "an app page is a tab");
 });
+
+test("an ardia.dev/boost link offers the import sheet instead of loading in a tab", async () => {
+  const { useImportBoostSheet } = await import("../boosts/importSheet.ts");
+  S().hydrate({});
+  const w = S().createWindow({ url: "https://a.example/" });
+  const before = tabCount();
+  assert.equal(S().newTab(w, { url: "https://ardia.dev/boost#ardia-boost:1:abcd" }), "");
+  assert.equal(useImportBoostSheet.getState().code, "ardia-boost:1:abcd");
+  assert.equal(tabCount(), before, "no tab for a boost link");
+  assert.notEqual(S().newTab(w, { url: "https://ardia.dev/boost" }), "", "the bare page is a normal tab");
+});

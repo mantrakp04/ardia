@@ -17,6 +17,7 @@ class ACContentRendererClient : public ChromeContentRendererClient {
   void RenderThreadStarted() override;
   void RenderFrameCreated(content::RenderFrame* render_frame) override;
   void RunScriptsAtDocumentStart(content::RenderFrame* render_frame) override;
+  void RunScriptsAtDocumentEnd(content::RenderFrame* render_frame) override;
 
  private:
   std::unique_ptr<ACRenderThreadObserver> observer_;

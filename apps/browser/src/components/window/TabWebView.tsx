@@ -27,8 +27,9 @@ import type { Tab } from "../../state/browser/types";
 import { zoomChangedByUser } from "../../state/site/zoomBubble";
 import { markTabReady, patchPage, pageOf, popoverOf, setPopover } from "../../state/tabs/pageState";
 import { closeFolderPanelIn } from "../../state/sidebar/tileFolderUi";
+import { deliverZapPicked } from "../../state/boostUi/zap";
 import { popupBlocked, showAutofillPrompt, showPasswordPrompt } from "../../state/site/prompts";
-import { leftPage } from "../../state/tabs/pageEvents";
+import { leftPage, openBoostLink } from "../../state/tabs/pageEvents";
 import { copyLinkToSelection, searchSelection, setPageSelection } from "../../state/site/selection";
 import { useAutoPictureInPicture } from "../../state/media/pip";
 import { requestDisplayMedia } from "../../state/media/screenShare";
@@ -62,6 +63,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
   const backdrop = useMemo(() => opaqueCard(theme), [theme.card, theme.windowTint[0], theme.windowTint[1]]);
 
   const lastPage = useRef<string | null>(null);
+  const lastUrl = useRef<string | null>(null);
   const pending = useRef<string | null>(navigation?.url ?? (adoptId ? (tab()?.url ?? null) : null));
 
   const seq = navigation?.seq;
@@ -130,6 +132,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       pageColor={pageColor}
       contentsBackgroundColor={backdrop}
       shownUrl={shownUrl}
+      onZapPicked={(pick) => deliverZapPicked(tabId, pick)}
       onReady={() => {
         markTabReady(tabId);
         noteTabReady(tabId);
@@ -166,6 +169,8 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
         dropOutlivedFavicon(tabId, url, isLoading);
         if (engine === "webkit") noteWebKitPage(tabId, { url, title, isLoading, committedUrl: committedUrl ?? "" });
         if (lastPage.current !== null && withoutFragment(url) !== lastPage.current) leftPage(tabId, url, lastPage.current, engine, peekOf !== undefined);
+        if (lastUrl.current !== null && url !== lastUrl.current) openBoostLink(tabId, url);
+        lastUrl.current = url;
         lastPage.current = withoutFragment(url);
         patchPage(tabId, { themeColorSource: themeColorSource ?? null });
       }}

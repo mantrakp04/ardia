@@ -39,6 +39,7 @@ import { openSplitPane } from "../splits/actions";
 import { isAppCommand, LITTLE_ARDIA_PAGE_COMMANDS, settingChange, variantArg } from "./commandCatalog";
 import { APP_COMMAND_HANDLERS } from "./appCommands";
 import { runSidebarCommand } from "../sidebar/commands";
+import { runBoostCommand } from "../boostUi/commands";
 import { numberedTabs } from "../sidebar/entries";
 import { openExtensionFromMenu } from "../extensions/bridge";
 import { toggleCastPicker } from "../media/cast";
@@ -138,6 +139,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
   const web = tabId ? webviews.get(tabId) : undefined;
   const ui = s.windowUi[windowId];
   if (runSidebarCommand(command, arg, windowId)) return;
+  if (runBoostCommand(command, windowId, tabId)) return;
 
   switch (command) {
     case "newTab":

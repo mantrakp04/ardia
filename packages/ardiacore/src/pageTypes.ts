@@ -142,6 +142,8 @@ export type ExtensionActionResult = "none" | "popup" | "sidePanel";
 export type PageSelection = { text: string; rect: { x: number; y: number; width: number; height: number } };
 export type ScrollState = "down" | "up" | "top";
 export type ProtectedMediaRequest = { keySystem: string; main: boolean };
+export type ZapPick = { selector: string; matches: number; levels: number };
+export type ZapAction = "start" | "stop" | "related";
 
 export type WebViewProps = ViewProps & {
   engine?: PageEngine;
@@ -198,6 +200,7 @@ export type WebViewProps = ViewProps & {
   onAutofillPrompt?: (prompt: AutofillPrompt | null, id: number) => void;
   onExternalApp?: (request: ExternalAppRequest) => void;
   onPreferredSize?: (size: { width: number; height: number }) => void;
+  onZapPicked?: (pick: ZapPick) => void;
 };
 
 export type WebViewHandle = {
@@ -245,6 +248,7 @@ export type WebViewHandle = {
   resolveUnresponsive(terminate: boolean): Promise<void>;
   discard(options?: { unload?: boolean }): Promise<DiscardOutcome>;
   setFrozen(frozen: boolean): Promise<void>;
+  zap(action: ZapAction, level?: number): Promise<void>;
 };
 
 export type DiscardOutcome = "discarded" | "already" | "refused" | "unsupported";

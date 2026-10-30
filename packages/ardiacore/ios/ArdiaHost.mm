@@ -196,6 +196,23 @@ static void (^gQuitCancelledHandler)(void);
   return capturer && [tab shareThisTabInsteadFor:capturer];
 }
 
++ (void)setProfileBoosts:(NSString *)profile json:(NSString *)json completion:(void (^)(BOOL))completion {
+  ardia_host::WithProfile(profile, ^(ArdiaCoreProfile *p) {
+    p.boosts = json;
+    completion(p && [p.boosts isEqualToString:json]);
+  });
+}
+
++ (BOOL)previewBoost:(NSString *)tabId json:(NSString *)json {
+  return [ardia_host::TabWithAppTabId(tabId) previewBoost:json];
+}
+
++ (BOOL)clearBoostPreview:(NSString *)tabId {
+  ArdiaCoreTab *tab = ardia_host::TabWithAppTabId(tabId);
+  [tab clearBoostPreview];
+  return tab != nil;
+}
+
 + (BOOL)showCastDialog:(NSString *)tabId {
   ArdiaCoreTab *tab = ardia_host::TabWithAppTabId(tabId);
   return [tab showCastDialog];

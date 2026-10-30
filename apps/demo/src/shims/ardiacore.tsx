@@ -18,6 +18,7 @@ const ENGINE_ONLY: Record<string, string[]> = {
 const ANSWERS: Record<string, Record<string, unknown>> = {
   ArdiaTabs: { strips: { rev: 0, cmd: null, strips: [] } },
   ArdiaExtensions: { list: { extensions: [] } },
+  ArdiaBoosts: {},
   ArdiaSearch: { engines: { list: { engines: [] } } },
 };
 for (const module of new Set([...Object.keys(ENGINE_ONLY), ...Object.keys(ANSWERS)]))

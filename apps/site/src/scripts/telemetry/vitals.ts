@@ -1,5 +1,5 @@
 import type { MetricWithAttribution } from "web-vitals/attribution";
-import { capture, onHide, sessionId, windowId, type Props } from "./core";
+import { capture, onHide, pageUrl, sessionId, windowId, type Props } from "./core";
 
 const METRICS = ["LCP", "CLS", "FCP", "INP"] as const;
 const FLUSH_MS = 5000;
@@ -65,7 +65,7 @@ function describe(m: MetricWithAttribution): Props {
     navigationType: m.navigationType,
     attribution,
     timestamp: Date.now(),
-    $current_url: location.href,
+    $current_url: pageUrl(),
     $session_id: sessionId(),
     $window_id: windowId,
   };

@@ -64,6 +64,13 @@ using namespace ardia_runtime;
   [self callFrame:frame kind:@"notification" json:JSONText(@{@"id" : notificationId, @"action" : action ?: @""})];
 }
 
+- (void)zap:(NSString *)action level:(NSInteger)level {
+  NSString *json = JSONString(@{@"level" : @(level)});
+  if ([action isEqualToString:@"start"]) [self callFrame:@"" kind:@"zapStart" json:json];
+  else if ([action isEqualToString:@"stop"]) [self callFrame:@"" kind:@"zapStop" json:json];
+  else if ([action isEqualToString:@"related"]) [self callFrame:@"" kind:@"zapRelated" json:json];
+}
+
 - (void)tab:(ArdiaCoreTab *)tab didChangeMediaAccess:(NSDictionary<NSString *, NSNumber *> *)access {
   _reports.capturing = [access[@"camera"] boolValue] || [access[@"microphone"] boolValue] || [access[@"screen"] boolValue];
   [self emit:@"mediaAccess" payload:access ?: @{}];

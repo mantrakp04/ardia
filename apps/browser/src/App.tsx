@@ -19,6 +19,7 @@ import { TOP_STRIP_HEIGHT, TopStripPeek, TopTabStrip } from "./components/tabstr
 import { useTabLayout } from "./state/windows/layout";
 import { WindowProfile } from "./components/window/WindowProfile";
 import { DockedLayout } from "./components/window/SidebarDock";
+import { BoostEditorDock } from "./components/boosts/BoostEditor";
 import { LittleArdiaWindow } from "./components/littleArdia/LittleArdiaWindow";
 import { SidebarOverlays } from "./components/sidebar/Overlays";
 import { layout, profileAccent, profileTheme, useTheme } from "./components/ui/theme";
@@ -62,6 +63,7 @@ function BrowserWindow() {
     <>
       <ContentCard />
       {!fullscreen && <ExtensionSidePanel />}
+      {!fullscreen && <BoostEditorDock />}
     </>
   );
 
