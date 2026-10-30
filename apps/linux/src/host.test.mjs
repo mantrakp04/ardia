@@ -481,6 +481,26 @@ test("a stale view cannot release the same tab after another view claims its tra
   assert.equal(requests.filter(([method]) => method === "tab.release").length, 1);
 });
 
+test("viewports reported while one is in flight coalesce to the latest", async () => {
+  const pending = [];
+  const { host, requests } = fixture((method) => method === "tab.create" ? Promise.resolve({ browserId: 14, chromeTabId: 22 }) : method === "tab.viewport" ? new Promise((resolve) => pending.push(resolve)) : Promise.resolve(null));
+  const tab = new HostTab(host, { key: "coalesce" }, () => {});
+  await tab.ready;
+  const at = (x) => ({ rect: { x, y: 0, width: 800, height: 600 }, visible: true });
+  const first = tab.viewport(at(1));
+  await new Promise(setImmediate);
+  const later = [tab.viewport(at(2)), tab.viewport(at(3)), tab.viewport(at(4))];
+  await new Promise(setImmediate);
+  assert.deepEqual(requests.filter(([method]) => method === "tab.viewport").map(([, args]) => args.rect.x), [1]);
+  pending.shift()();
+  await first;
+  await new Promise(setImmediate);
+  pending.shift()();
+  await Promise.all(later);
+  assert.deepEqual(requests.filter(([method]) => method === "tab.viewport").map(([, args]) => args.rect.x), [1, 4]);
+  tab.dispose();
+});
+
 test("viewports deduplicate geometry and send explicit visibility changes", async () => {
   const { host, requests } = fixture(async () => ({ browserId: 13, chromeTabId: 21 }));
   const tab = new HostTab(host, { key: "visible" }, () => {});
@@ -547,8 +567,8 @@ test("a presentation batch retains its final visibility and reports transport er
   tab.dispose();
 });
 
-test("viewport observation tracks transforms, scroll, visual zoom, overlays, and document visibility", () => {
-  const previous = Object.fromEntries(["window", "document", "getComputedStyle", "ResizeObserver", "requestAnimationFrame", "cancelAnimationFrame"].map((key) => [key, globalThis[key]]));
+test("viewport observation tracks transforms, scroll, visual zoom, overlays, and document visibility", async () => {
+  const previous = Object.fromEntries(["window", "document", "getComputedStyle", "ResizeObserver", "requestAnimationFrame", "cancelAnimationFrame", "MutationObserver"].map((key) => [key, globalThis[key]]));
   const windowEvents = new EventTarget();
   const visualViewport = new EventTarget();
   const documentEvents = new EventTarget();
@@ -557,13 +577,16 @@ test("viewport observation tracks transforms, scroll, visual zoom, overlays, and
   let blocked = false;
   let disconnected = false;
   const element = { isConnected: true, parentElement: null, getBoundingClientRect: () => rect, contains: () => false };
-  const document = Object.assign(documentEvents, { hidden: false, querySelectorAll: () => [], querySelector: () => null, elementFromPoint: () => blocked ? {} : element });
+  const document = Object.assign(documentEvents, { documentElement: {}, hidden: false, querySelectorAll: () => [], querySelector: () => null, elementFromPoint: () => blocked ? {} : element });
   globalThis.window = Object.assign(windowEvents, { innerWidth: 1280, innerHeight: 800, visualViewport });
   globalThis.document = document;
   globalThis.getComputedStyle = () => ({ display: "block", visibility: "visible", opacity: "1" });
   globalThis.ResizeObserver = class { observe() {} disconnect() { disconnected = true; } };
   globalThis.requestAnimationFrame = (callback) => { frame = callback; return 1; };
   globalThis.cancelAnimationFrame = () => {};
+  let mutated = () => {};
+  globalThis.MutationObserver = class { constructor(callback) { mutated = callback; } observe() {} disconnect() {} };
+  const mutate = async () => { mutated([]); frame(); };
   const updates = [];
   try {
     const stop = watchTabViewport(element, () => true, (update) => updates.push(update));
@@ -575,7 +598,7 @@ test("viewport observation tracks transforms, scroll, visual zoom, overlays, and
     visualViewport.dispatchEvent(new Event("resize"));
     assert.equal(updates.at(-1).rect.width, 720);
     blocked = true;
-    frame();
+    await mutate();
     assert.equal(updates.at(-1).visible, false);
     blocked = false;
     document.hidden = true;

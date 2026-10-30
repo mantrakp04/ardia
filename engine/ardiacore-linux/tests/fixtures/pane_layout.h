@@ -115,6 +115,7 @@ class WebContentsObserver {
 class WebContents {
  public:
   ~WebContents() { Destroy(); }
+  int GetBrowserContext() const { return 0; }
   void Destroy() {
     if (destroyed) return;
     destroyed = true;
@@ -222,7 +223,11 @@ struct ContentsContainerView {
   views::WebView* devtools_web_view() { return &devtools; }
   views::WebView devtools;
 };
+struct BrowserView;
+struct BrowserWindowInterface { BrowserView* view = nullptr; };
+inline int ProfileOf(int context) { return context; }
 struct BrowserView {
+  static BrowserView* GetBrowserViewForBrowser(BrowserWindowInterface* browser) { return browser ? browser->view : nullptr; }
   views::WebView* GetActiveContentsWebView() { return &contents; }
   ContentsContainerView* GetContentsContainerViewFor(content::WebContents* inspected) {
     return containers.contains(inspected) ? &containers[inspected] : nullptr;
@@ -357,6 +362,8 @@ class ShellHostView : public views::View {
   std::vector<std::pair<int, std::string>> events;
   BrowserView browser_view_storage;
   BrowserView* browser_view_ = &browser_view_storage;
+  BrowserWindowInterface member_storage{&browser_view_storage};
+  BrowserWindowInterface* OwnerOf(content::WebContents* contents) { return contents ? &member_storage : nullptr; }
   int handler_storage = 0;
   int* handler_ = &handler_storage;
   uint64_t renderer_generation_ = 1;

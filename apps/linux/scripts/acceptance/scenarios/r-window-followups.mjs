@@ -123,46 +123,6 @@ export const w79 = {
   },
 };
 
-export const w70 = {
-  id: "W70",
-  issue: 70,
-  title: "Isolated profiles live in their own window and never page into another window",
-  deadline: 180000,
-  manual: [
-    { name: "Swiping toward an isolated profile", steps: ["Create an isolated profile (its own data) and a shared-data profile.", "In the default profile's window, swipe with two fingers toward the shared profile: the sidebar pages in place.", "Swipe toward the isolated profile: the sidebar stops at the edge with a rubber band, never shows that profile's tabs, and on release that profile's window comes to the front (or opens)."], reason: "needs trackpad gestures" },
-  ],
-  async run(t) {
-    const { app, shell } = await startBrowser(t, { name: "profiles" });
-    let profiles;
-    await t.check("switching to a shared-data profile pages in place", async () => {
-      profiles = await shell.state("return { work: s.createProfile({ name: 'Work' }), side: s.createProfile({ name: 'Side', shareWith: 'default' }) };");
-      await shell.state(`s.switchProfile(windowId, ${js(profiles.side)}); return true;`);
-      const current = await shell.waitState(`return s.windows[windowId]?.profileId === ${js(profiles.side)} || null;`, { label: "the shared profile in place" });
-      await shell.state("s.switchProfile(windowId, 'default'); return true;");
-      return { current, ...profiles };
-    }, { critical: true });
-    await t.check("switching to an isolated profile opens its own window and leaves this one alone", async () => {
-      const before = await shell.windowIds();
-      await shell.state(`s.switchProfile(windowId, ${js(profiles.work)}); return true;`);
-      const opened = await until(async () => (await shell.windowIds()).find((id) => !before.includes(id)) ?? false, { timeout: 20000, label: "the isolated profile's window" });
-      const other = await app.shell(opened, { timeout: 25000 });
-      const own = await shell.state("return s.windows[windowId]?.profileId;");
-      if (own !== "default") throw new Error(`the source window switched to ${own}`);
-      const page = await other.eval("__ardiaHost.bootstrap.pageProfile");
-      if (page !== profiles.work) throw new Error(`the new window hosts ${page}`);
-      return { opened, own, page };
-    });
-    await t.check("switching again focuses the existing isolated window instead of opening another", async () => {
-      const before = await shell.windowIds();
-      await shell.state(`s.switchProfile(windowId, ${js(profiles.work)}); return true;`);
-      await delay(2000);
-      const after = await shell.windowIds();
-      if (after.length !== before.length) throw new Error(`windows went from ${before.length} to ${after.length}`);
-      return { windows: after.length };
-    });
-  },
-};
-
 export const w114 = {
   id: "W114",
   issue: 114,

@@ -21,8 +21,6 @@ export type PagerArea = {
   onState: (event: PagerStateEvent) => void;
 };
 
-export type PagerReach = { hosts(key: string, profileId: string): boolean; route(key: string, profileId: string): void };
-
 type Drag = { start: number; raw: number; lo: number; hi: number; home: number; detent: number; area: PagerArea | null };
 type Spring = { from: number; target: number; velocity: number; start: number };
 
@@ -33,9 +31,6 @@ let counter = 0;
 const next = () => ++counter;
 
 const pagers = new Map<string, Pager>();
-let reach: PagerReach | null = null;
-
-export const setPagerReach = (next: PagerReach | null) => void (reach = next);
 
 const sameOrder = (a: readonly string[], b: readonly string[] | null) => !!b && a.length === b.length && a.every((id, i) => id === b[i]);
 
@@ -71,15 +66,6 @@ export class Pager {
 
   private constructor(key: string) {
     this.key = key;
-  }
-
-  private profileAt(index: number) {
-    return this.order && index >= 0 && index < this.order.length ? this.order[index]! : null;
-  }
-
-  private hosts(index: number) {
-    const id = this.profileAt(index);
-    return !reach || id === null || reach.hosts(this.key, id);
   }
 
   attach(area: PagerArea) {
@@ -176,10 +162,8 @@ export class Pager {
     this.stopSpring();
     const home = this.selected;
     const x = this.position;
-    let lo = Math.max(0, Math.min(home - 1, Math.floor(x)));
-    let hi = Math.min(this.count - 1, Math.max(home + 1, Math.ceil(x)));
-    while (lo < home && !this.hosts(lo)) lo++;
-    while (hi > home && !this.hosts(hi)) hi--;
+    const lo = Math.max(0, Math.min(home - 1, Math.floor(x)));
+    const hi = Math.min(this.count - 1, Math.max(home + 1, Math.ceil(x)));
     this.drag = { start: x, raw: x, lo, hi, home, detent: clamp(Math.round(x), lo, hi), area };
     this.history = [];
     this.velocity = 0;
@@ -216,21 +200,17 @@ export class Pager {
   }
 
   private release(v: number, cancelled: boolean) {
-    const { home, lo, hi, raw } = this.drag;
+    const { home, lo, hi } = this.drag;
     const width = this.drag.area?.pageWidth() ?? 0;
     this.drag.area = null;
     let target = home;
-    let blocked: string | null = null;
     if (!cancelled) {
       const flick = Math.abs(v * width) >= FLICK_VELOCITY;
       const aim = (position: number) => Math.max(0, home - 1, Math.min(this.count - 1, home + 1,
         !flick ? Math.round(position) : v > 0 ? Math.floor(position) + 1 : Math.ceil(position) - 1));
-      const intended = aim(raw);
-      if (intended !== home && !this.hosts(intended)) blocked = this.profileAt(intended);
       target = clamp(aim(this.position), lo, hi);
     }
     this.settle(target, this.towards(target, v));
-    if (blocked !== null) reach?.route(this.key, blocked);
   }
 
   private towards(target: number, v: number) {
@@ -242,7 +222,6 @@ export class Pager {
     if (!this.configured) return false;
     this.sync(order);
     const target = clamp(index, 0, this.count - 1);
-    if (target !== this.selected && !this.hosts(target)) return false;
     this.drag.area = null;
     const v = this.phase === "settling" ? this.velocity : 0;
     this.settle(target, this.towards(target, v));

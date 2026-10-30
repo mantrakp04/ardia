@@ -174,7 +174,9 @@ struct FakeHost {
   Profile* page = nullptr;
   bool utility = false;
   std::vector<std::string> seen;
+  Profile* companion = nullptr;
   Profile* page_profile() const { return page; }
+  bool ServesProfile(const Profile* profile) const { return profile && (profile == page || profile == companion); }
   bool is_utility() const { return utility; }
   bool ExtensionEvent(std::string_view name, base::DictValue data) {
     seen.push_back(std::string(name) + ":" + *data.FindString("id"));
@@ -213,9 +215,13 @@ ARDIA_LAMBDA
   extensions.broadcast.Run(&regular_private, "extensions.changed", base::DictValue().Set("id", "z"));
   assert(a.seen.size() == 1 && d.seen.size() == 1 && closed.seen.empty());
   assert(settings.seen.size() == 2 && settings.seen[0] == "extensions.changed:x" && settings.seen[1] == "extensions.changed:y");
+  a.companion = &isolated;
+  extensions.broadcast.Run(&isolated, "extensions.changed", base::DictValue().Set("id", "v"));
+  assert(a.seen.size() == 2 && a.seen[1] == "extensions.changed:v" && c.seen.size() == 1 && b.seen.size() == 2);
+  a.companion = nullptr;
   regular.shutdown_started = true;
   extensions.broadcast.Run(&isolated, "extensions.changed", base::DictValue().Set("id", "w"));
-  assert(settings.seen.size() == 2 && b.seen.size() == 2);
+  assert(settings.seen.size() == 3 && b.seen.size() == 3);
   std::printf("broadcast scenarios passed\n");
 }
 '''

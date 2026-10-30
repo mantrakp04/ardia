@@ -50,7 +50,8 @@ class PrivateDownloadHostTests(unittest.TestCase):
         self.assertIn('if (private_removal) translated.Remove("offTheRecord");', event)
         self.assertIn('if (!ReceivesRemoval(private_removal, String(translated, "profile"))) return;', event)
         receives = method(self.host, 'bool ShellHostView::ReceivesRemoval(')
-        self.assertIn('linux_downloads::DeliversRemoval(private_removal, page && page->IsOffTheRecord(),', receives)
+        self.assertIn('for (BrowserWindowInterface* member : Members()) {', receives)
+        self.assertIn('linux_downloads::DeliversRemoval(private_removal, page->IsOffTheRecord(),', receives)
         self.assertIn('page->GetOriginalProfile()->GetPath().value()', receives)
 
     def test_the_engine_tags_private_removals_on_linux_only(self):
@@ -70,7 +71,8 @@ class PrivateDownloadHostTests(unittest.TestCase):
         files = files[:files.index('\n  }\n') + 4]
         self.assertIn('page_profile()->ShutdownStarted()', files)
         self.assertNotIn('IsOffTheRecord', files)
-        self.assertIn('LinuxFilesInvoke(page_profile(), shell_, method, values, std::move(done))', files)
+        self.assertIn('for (BrowserWindowInterface* member : Members()) {', files)
+        self.assertIn('LinuxFilesInvoke(profiles, shell_, method, values, std::move(done))', files)
 
     def test_the_service_lists_only_the_private_session_own_downloads(self):
         self.assertNotIn('RegularDownloads', self.files)

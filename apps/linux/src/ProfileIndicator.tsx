@@ -1,6 +1,5 @@
-import { Symbol } from "@ardia/shell";
 import { openProfileMenu } from "../../browser/src/state/browser/actions";
-import { openSettings } from "./settingsWindows";
+import { AppMenuButton } from "./AppMenuButton";
 import { profileNameColor, useTheme } from "../../browser/src/components/ui/theme";
 import { useIsIncognito, useWindowId, useWindowProfile } from "../../browser/src/state/browser/hooks";
 
@@ -20,9 +19,7 @@ export function ProfileIndicator({ room }: { room: number }) {
       <button className="ardia-header-button ardia-current-space" data-ardia-current-space={profile?.id} aria-label={`Current space: ${name}`} title={name} onClick={() => void openProfileMenu(windowId)} disabled={incognito}>
         <span>{name}</span>
       </button>
-      <button className="ardia-header-button ardia-settings-button" data-ardia-open-settings aria-label="Settings" title="Settings (Ctrl+,)" aria-keyshortcuts="Control+," onClick={() => openSettings()}>
-        <Symbol name="gearshape" size={15} color={theme.icon} style={{ width: 18, height: 18 }} />
-      </button>
+      <AppMenuButton windowId={windowId} />
     </div>
   );
 }

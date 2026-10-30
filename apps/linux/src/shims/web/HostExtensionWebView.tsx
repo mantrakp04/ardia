@@ -5,7 +5,7 @@ import type { NavigationState, WebViewHandle, WebViewProps } from "@ardia-real/a
 import { ardiaHost, reportHostError } from "../../host";
 import { HostExtensionView, type ExtensionViewEvent } from "../../hostExtensionView";
 import { PopupSizeWaiters, extensionViewEvaluate } from "../../hostExtensionScripts";
-import { watchTabViewport } from "../../hostViewport";
+import { refreshTabViewports, watchTabViewport } from "../../hostViewport";
 import { menuShown } from "../../menus";
 
 export const HostExtensionWebView = forwardRef<WebViewHandle, WebViewProps>(function HostExtensionWebView(props, ref) {
@@ -62,6 +62,8 @@ export const HostExtensionWebView = forwardRef<WebViewHandle, WebViewProps>(func
       };
     },
   }), []);
+
+  useEffect(refreshTabViewports, [props.visible]);
 
   useEffect(() => {
     const node = element.current;

@@ -9,7 +9,7 @@ import { hostPageScript } from "../../hostPageScripts";
 import { HostTab, type HostPageFactory, type HostTabEvent } from "../../hostTab";
 import { extensionViewsSupported } from "../../hostExtensionView";
 import { HostExtensionWebView } from "./HostExtensionWebView";
-import { backdropCovers, hostOverlayBlocked, watchTabViewport, type TabViewport } from "../../hostViewport";
+import { backdropCovers, hostOverlayBlocked, refreshTabViewports, watchTabViewport, type TabViewport } from "../../hostViewport";
 import { menuShown } from "../../menus";
 import { withPopupDismissal } from "../../popupDismissal";
 
@@ -28,6 +28,7 @@ const HostTabWebView = forwardRef<WebViewHandle, WebViewProps>(function HostTabW
 
   const receive = (event: HostTabEvent) => {
     if (event.type !== "ready") return;
+    refreshTabViewports();
     if (!ready.current) latest.current.onReady?.();
     ready.current = true;
   };
@@ -59,6 +60,7 @@ const HostTabWebView = forwardRef<WebViewHandle, WebViewProps>(function HostTabW
 
   useEffect(() => {
     void tab.current?.presentation(props.visible !== false).catch(reportHostError);
+    refreshTabViewports();
   }, [props.visible]);
 
   useImperativeHandle(ref, () => new Proxy({} as WebViewHandle, {
@@ -95,6 +97,7 @@ const HostTabWebView = forwardRef<WebViewHandle, WebViewProps>(function HostTabW
     let backdrop: Promise<boolean> | null = null;
     let captured: NonNullable<TabViewport["occlusions"]> = [];
     let retryAfter = 0;
+    let retry: ReturnType<typeof setTimeout> | undefined;
     const stop = watchTabViewport(node, () => {
       const p = latest.current;
       return p.visible !== false && !menuShown() && !hostOverlayBlocked(p.tabId);
@@ -130,6 +133,7 @@ const HostTabWebView = forwardRef<WebViewHandle, WebViewProps>(function HostTabW
               backdrop = null;
               last = "";
               retryAfter = Date.now() + 250;
+              retry = setTimeout(refreshTabViewports, 250);
             }
             return;
           }
@@ -141,13 +145,18 @@ const HostTabWebView = forwardRef<WebViewHandle, WebViewProps>(function HostTabW
           node.style.backgroundImage = "";
         }
       })().catch((error) => {
-        if (mine === revision) last = "";
+        if (mine === revision) {
+          last = "";
+          clearTimeout(retry);
+          retry = setTimeout(refreshTabViewports, 250);
+        }
         reportHostError(error);
       });
     });
     return () => {
       revision++;
       backdrop = null;
+      clearTimeout(retry);
       stop();
     };
   }, []);

@@ -125,6 +125,7 @@ class ShellHostView {
   std::map<int, bool> devtools_had_focus_;
   std::vector<Sent> sent;
   content::WebContents* shell() const { return shell_contents; }
+  BrowserWindowInterface* OwnerOf(content::WebContents* contents) const { return contents ? browser_ : nullptr; }
   views::Widget* GetWidget() const { return widget; }
   bool OwnsHandler(HostMessageHandler* owner, uint64_t generation) const { return owner && owner == handler_.get() && generation == renderer_generation_; }
   void Event(std::string_view module, std::string_view id, base::Value payload) { sent.push_back({std::string(module), std::string(id), payload.GetDict().Clone()}); }

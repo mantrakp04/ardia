@@ -3,7 +3,7 @@ import test from "node:test";
 import { useBrowser } from "../../browser/src/state/browser/store.ts";
 import { engineProfile } from "../../browser/src/state/browser/model.ts";
 import { initialHostSession, snapshotHostSession, startHostPersistence } from "./hostSession.ts";
-import { createHostWindowOpener, dropRefusedWindow, installProfileWindows, pendingOpenings, privateWindowSeed, profileWindowFor, windowOpened, withPrivateWindow } from "./hostWindowProfiles.ts";
+import { createHostWindowOpener, dropRefusedWindow, pendingOpenings, privateWindowSeed, windowOpened, withPrivateWindow } from "./hostWindowProfiles.ts";
 
 const S = () => useBrowser.getState();
 const tick = () => new Promise(setImmediate);
@@ -148,93 +148,44 @@ test("private windows, their tabs and their closed entries never reach session p
   assert.ok(S().windows[id], "the private window stays in this renderer's memory");
 });
 
-test("an isolated profile opens in its own native window while shared-data profiles switch in place", () => {
+test("every regular profile switches and moves in place, isolated or sharing data", () => {
   const { work, shared } = regularSession();
   assert.equal(S().profiles[shared].dataId, "default", "the side profile shares the default profile's data");
-  const focused = [];
-  installProfileWindows(useBrowser, (id) => focused.push(id));
   const before = S().windowOrder.length;
   S().switchProfile("main", shared);
-  assert.equal(S().windows.main.profileId, shared, "a profile sharing the window's data switches in place");
-  assert.equal(S().windowOrder.length, before);
+  assert.equal(S().windows.main.profileId, shared);
+  S().switchProfile("main", work);
+  assert.equal(S().windows.main.profileId, work, "an isolated profile pages in place");
+  assert.equal(S().windowOrder.length, before, "no window opens for the isolated profile");
   S().switchProfile("main", "default");
-
-  S().switchProfile("main", work);
-  assert.equal(S().windows.main.profileId, "default", "the default-profile window never hosts the isolated profile");
-  assert.equal(S().windowOrder.length, before + 1);
-  const workWindow = S().windowOrder.find((id) => S().windows[id].profileId === work);
-  assert.ok(workWindow);
-  assert.ok(S().windows[workWindow].tabIds.every((t) => S().tabs[t].profileId === work));
-  assert.equal(profileWindowFor(S(), work), workWindow);
-
-  S().switchProfile("main", work);
-  assert.equal(S().windowOrder.length, before + 1, "an existing window for that profile is reused");
-  assert.deepEqual(focused, [workWindow]);
-
   const tab = S().windows.main.tabIds[0];
   useBrowser.setState((s) => ({ tabs: { ...s.tabs, [tab]: { ...s.tabs[tab], url: "https://move.test/" } } }));
   S().moveTabToProfile(tab, work);
-  assert.equal(S().tabs[tab], undefined, "the source tab leaves the default-profile window");
-  const moved = Object.values(S().tabs).find((t) => t.url === "https://move.test/");
-  assert.ok(moved && moved.profileId === work && moved.windowId !== "main");
-  assert.ok(Object.values(S().windows).every((w) => w.kind === "private" || w.tabIds.every((t) => engineProfile(S(), S().tabs[t].profileId) === engineProfile(S(), w.profileId))),
-    "every regular window keeps one engine profile");
+  assert.equal(S().tabs[tab].windowId, "main", "the moved tab stays in its window");
+  assert.equal(S().tabs[tab].profileId, work);
+  assert.equal(S().windowOrder.length, before);
 });
 
-test("moving a tab to an isolated profile keeps the tab when that profile's window cannot open", quiet(async () => {
-  const { work } = regularSession();
-  installProfileWindows(useBrowser, () => {});
-  const tab = S().windows.main.tabIds[0];
-  useBrowser.setState((s) => ({ tabs: { ...s.tabs, [tab]: { ...s.tabs[tab], url: "https://keep.test/" } } }));
-  const host = fakeHost({ reject: "Chrome could not open this profile" });
-  const events = [];
-  const open = createHostWindowOpener(host, () => S(), (event) => {
-    events.push(event);
-    if (event.type === "close") S().closeWindow(event.id);
-  });
-  const before = new Set(S().windowOrder);
-  S().moveTabToProfile(tab, work);
-  const created = S().windowOrder.find((id) => !before.has(id));
-  assert.ok(created, "a window for the isolated profile is requested");
-  await open(created, { profile: work });
+test("the native host follows the window's engine profile, once per engine change and in order", async () => {
+  const { work, shared } = regularSession();
+  const { watchActiveProfile } = await import("./hostWindowProfiles.ts");
+  const host = fakeHost();
+  const stop = watchActiveProfile(host, useBrowser);
+  S().switchProfile("main", shared);
+  S().switchProfile("main", work);
+  S().switchProfile("main", "default");
   await tick();
-  assert.deepEqual(events, [{ type: "close", id: created }]);
-  assert.equal(S().windows[created], undefined);
-  assert.ok(S().tabs[tab], "the source tab survives a failed move");
-  assert.equal(S().tabs[tab].profileId, "default");
-  assert.equal(S().tabs[tab].url, "https://keep.test/");
-}));
+  stop();
+  assert.deepEqual(host.calls.filter(([method]) => method === "ArdiaShell.setActiveProfile").map(([, { args }]) => args),
+    [["", 1], [work, 2], ["", 3]], "sharing profiles keep the engine profile, so only engine changes reach the host");
+});
 
-test("moving a tab to an isolated profile closes the source only after its window opens", quiet(async () => {
-  const { work } = regularSession();
-  installProfileWindows(useBrowser, () => {});
-  const tab = S().windows.main.tabIds[0];
-  useBrowser.setState((s) => ({ tabs: { ...s.tabs, [tab]: { ...s.tabs[tab], url: "https://move.test/" } } }));
-  const open = createHostWindowOpener(fakeHost(), () => S(), () => {});
-  const before = new Set(S().windowOrder);
-  S().moveTabToProfile(tab, work);
-  const created = S().windowOrder.find((id) => !before.has(id));
-  assert.ok(S().tabs[tab], "the source waits for the target window");
-  await open(created, { profile: work });
-  await tick();
-  assert.equal(S().tabs[tab], undefined);
-  assert.ok(Object.values(S().tabs).some((t) => t.windowId === created && t.profileId === work && t.url === "https://move.test/"));
-}));
-
-test("moving a tab to an isolated profile reuses that profile's open window", () => {
-  const { work } = regularSession();
-  const focused = [];
-  installProfileWindows(useBrowser, (id) => focused.push(id));
-  const workWindow = S().createWindow({ profileId: work, background: true });
-  const tab = S().windows.main.tabIds[0];
-  useBrowser.setState((s) => ({ tabs: { ...s.tabs, [tab]: { ...s.tabs[tab], url: "https://reuse.test/" } } }));
-  const windows = S().windowOrder.length;
-  S().moveTabToProfile(tab, work);
-  assert.equal(S().windowOrder.length, windows, "no new window");
-  assert.equal(S().tabs[tab], undefined);
-  const moved = S().windows[workWindow].tabIds.map((id) => S().tabs[id]).find((t) => t.url === "https://reuse.test/");
-  assert.ok(moved && moved.profileId === work);
-  assert.deepEqual(focused, [workWindow]);
+test("a private window never reports an active engine profile", async () => {
+  regularSession();
+  const { activeEngineProfile } = await import("./hostWindowProfiles.ts");
+  const id = S().createWindow({ kind: "private", background: true });
+  assert.equal(activeEngineProfile(S(), id), undefined);
+  assert.equal(activeEngineProfile(S(), "main"), "");
 });
 
 test("an isolated-profile window lists its own profile's downloads", async () => {
@@ -260,48 +211,36 @@ test("an isolated-profile window lists its own profile's downloads", async () =>
   assert.ok(downloadVisibleIn({ profiles: {} }, regular[0], { kind: "main", profileId: "default" }));
 });
 
-test("a refused window leaves the store without closed-window history and its move keeps the source", quiet(async () => {
+test("a refused window leaves the store without closed-window history", quiet(async () => {
   const { work } = regularSession();
-  installProfileWindows(useBrowser, () => {});
-  const tab = S().windows.main.tabIds[0];
-  useBrowser.setState((s) => ({ tabs: { ...s.tabs, [tab]: { ...s.tabs[tab], url: "https://refused.test/" } } }));
   const host = fakeHost({ pending: true });
   const open = createHostWindowOpener(host, () => S(), () => {}, (id) => dropRefusedWindow(useBrowser, id));
   const closedWindows = S().closedWindows;
   const closedTabs = S().closedTabs;
-  const before = new Set(S().windowOrder);
-  S().moveTabToProfile(tab, work);
-  const created = S().windowOrder.find((id) => !before.has(id));
+  const created = S().createWindow({ profileId: work, background: true });
   await open(created, { profile: work });
   await tick();
-  assert.ok(S().tabs[tab], "a pending window does not yet confirm the move");
   assert.ok(S().windows[created]);
   host.native({ type: "refused", id: created });
   await tick();
   assert.equal(S().windows[created], undefined, "the refused window leaves the store");
   assert.equal(S().closedWindows, closedWindows, "no Reopen Closed Window entry for a window that never opened");
   assert.equal(S().closedTabs, closedTabs);
-  assert.ok(S().tabs[tab], "the source tab survives the refusal");
   assert.equal(pendingOpenings(), 0);
 }));
 
-test("a cross-profile move closes its source only once the target window attaches", quiet(async () => {
+test("an opening settles only once its own window attaches", quiet(async () => {
   const { work } = regularSession();
-  installProfileWindows(useBrowser, () => {});
-  const tab = S().windows.main.tabIds[0];
-  useBrowser.setState((s) => ({ tabs: { ...s.tabs, [tab]: { ...s.tabs[tab], url: "https://attached.test/" } } }));
   const host = fakeHost({ pending: true });
   const open = createHostWindowOpener(host, () => S(), () => {}, (id) => dropRefusedWindow(useBrowser, id));
-  const before = new Set(S().windowOrder);
-  S().moveTabToProfile(tab, work);
-  const created = S().windowOrder.find((id) => !before.has(id));
+  const created = S().createWindow({ profileId: work, background: true });
+  const opened = windowOpened(created);
   await open(created, { profile: work });
   host.native({ type: "attached", id: "someone-else" });
   await tick();
-  assert.ok(S().tabs[tab]);
+  assert.equal(pendingOpenings(), 1);
   host.native({ type: "attached", id: created });
-  await tick();
-  assert.equal(S().tabs[tab], undefined);
+  assert.equal(await opened, true);
   assert.equal(pendingOpenings(), 0, "settled openings are removed");
 }));
 

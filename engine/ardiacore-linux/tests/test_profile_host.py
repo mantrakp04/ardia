@@ -141,7 +141,8 @@ int main() {
         invoke = method(self.source, 'void ShellHostView::Invoke(')
         files = invoke[invoke.index('if (LinuxFilesHandles(method)) {'):]
         files = files[:files.index('\n  }\n') + 4]
-        self.assertIn('LinuxFilesInvoke(page_profile(), shell_, method, values, std::move(done))', files)
+        self.assertIn('for (BrowserWindowInterface* member : Members()) {', files)
+        self.assertIn('LinuxFilesInvoke(profiles, shell_, method, values, std::move(done))', files)
 
     def test_site_zoom_resolves_named_profiles_and_routes_private_sessions_off_the_record(self):
         request = method(self.source, '  void Request(const base::ListValue& arguments) {')
@@ -200,9 +201,11 @@ class ProfilePageCommandTests(unittest.TestCase):
     def test_page_commands_and_devtools_use_the_window_page_profile(self):
         host = HOST.read_text()
         page = method(host, 'ardiacore::LinuxPageCommands* ShellHostView::EnsurePageCommands(')
-        self.assertIn('binding->contents(), page_profile(),', page)
+        self.assertIn('binding->contents(), ProfileOf(binding->contents()->GetBrowserContext()),', page)
+        self.assertIn('authority.host->OwnerOf(authority.contents.get())', page)
         self.assertNotIn('binding->contents(), profile(),', page)
-        self.assertIn('tools = AddChildView(std::make_unique<ViewportView>(page_profile()));', host)
+        self.assertIn('tools = AddChildView(std::make_unique<ViewportView>(ProfileOf(contents->GetBrowserContext())));', host)
+        self.assertIn('binding->SetViewport(AddChildView(std::make_unique<ViewportView>(ProfileOf(binding->contents()->GetBrowserContext()))));', host)
         self.assertNotIn('ViewportView>(profile())', host)
 
 

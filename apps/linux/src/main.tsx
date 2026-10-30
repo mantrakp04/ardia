@@ -40,16 +40,15 @@ import { refreshExtensionsAfterChange } from "../../browser/src/state/extensions
 import { provideNativeModuleProvider, requireNativeModule } from "./shims/expo-modules-core";
 import { setHostPageHooks } from "./hostPageHooks";
 import { applyHostPageTheme, forgetDepartedPage, resetHostPage } from "./hostPageLifecycle";
-import { setHostOverlayCheck } from "./hostViewport";
+import { refreshTabViewports, setHostOverlayCheck } from "./hostViewport";
 import { setPopupDismissal } from "./popupDismissal";
-import { MenuHost } from "./menus";
+import { MenuHost, watchMenus } from "./menus";
 import { startPopoverEscape } from "./popoverEscape";
 import { startLinuxShortcuts } from "./shortcutsRuntime";
 import { linuxWindowMenu, TrafficLights } from "./TrafficLights";
 import { createUtilitySessionSnapshot, initialLinuxSession, isLinuxUtility, setSessionDeparture, setSessionFlush } from "./session";
 import { startUtility } from "./utility";
-import { installProfileWindows } from "./hostWindowProfiles";
-import { focus } from "../../browser/src/state/browser/actions";
+import { watchActiveProfile } from "./hostWindowProfiles";
 import { announceCommandsReady, announceTypeaheadReady, windowExpectsField } from "./typeahead";
 import { linuxSyncHooks, startLinuxSync } from "./syncEngine";
 import { linuxLiveHooks } from "./liveHooks";
@@ -92,7 +91,7 @@ async function start() {
     await startUtility(ardiaHost);
   } else {
     if (!ardiaHost.bootstrap.privateWindow) useBrowser.setState(adoptParkedPins(useBrowser.getState(), windowId, profileId));
-    installProfileWindows(useBrowser, focus);
+    watchActiveProfile(ardiaHost, useBrowser);
     startHostData();
     startHostTabLifecycle(ardiaHost, useBrowser);
     setHostOverlayCheck((key) => {
@@ -103,6 +102,9 @@ async function start() {
       const page = key ? pages.pages[key] : undefined;
       return !!(ui?.panel.open || ui?.downloadsOpen || menuShown() || page?.permission || page?.passwordPrompt || page?.autofillPrompt || page?.externalApp || key && pages.popover[key]);
     });
+    useBrowser.subscribe(refreshTabViewports);
+    usePages.subscribe(refreshTabViewports);
+    watchMenus(refreshTabViewports);
     setPopupDismissal({ popup: () => useExtensions.getState().popup, windowOf: (tabId) => useBrowser.getState().tabs[tabId]?.windowId, close: () => useExtensions.setState({ popup: null }) });
     startPopoverEscape({ target: window, windowId, menuShown, activeElement: () => document.activeElement });
     const persistence = startHostPersistence(ardiaHost, useBrowser, saved ?? {});

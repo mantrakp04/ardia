@@ -35,9 +35,9 @@ if (typeof window !== "undefined") {
   for (const type of ["keydown", "keyup"] as const) window.addEventListener(type, (e) => (commandHeld = primaryModifiers(e).metaKey), true);
 }
 
-export function showMenu(items: MenuItem[]): Promise<string | null> {
+export function showMenu(items: MenuItem[], at: { x: number; y: number } = pointer): Promise<string | null> {
   open?.resolve(null);
-  return new Promise((resolve) => publish({ items, x: pointer.x, y: pointer.y, resolve }));
+  return new Promise((resolve) => publish({ items, x: at.x, y: at.y, resolve }));
 }
 
 const close = (id: string | null) => {

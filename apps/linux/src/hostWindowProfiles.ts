@@ -1,18 +1,12 @@
 import type { WindowEvent } from "@ardia-real/shell";
 import type { BrowserState, HydrateData } from "../../browser/src/state/browser/store";
 import type { BrowserWindow, Tab } from "../../browser/src/state/browser/types";
-import type { CreateWindowOptions } from "../../browser/src/state/windows/windows";
 import type { ArdiaHost } from "./host";
 import { invokeHost, reportHostError } from "./host.ts";
 import { engineProfile, isIncognitoProfile } from "../../browser/src/state/browser/model";
-import { setPagerReach } from "./shims/web/motion/pager";
 
 export type PrivateWindowSeed = { window: BrowserWindow; tabs: Record<string, Tab> };
 type OpenOptions = Record<string, unknown> & { incognito?: boolean; profile?: string };
-type ProfileStore = {
-  getState(): Pick<BrowserState, "windows" | "tabs" | "profiles" | "windowOrder" | "ui" | "switchProfile" | "moveTabToProfile" | "createWindow" | "closeTabs" | "newTab">;
-  setState(patch: Partial<Pick<BrowserState, "switchProfile" | "moveTabToProfile">>): void;
-};
 
 const PRIVATE_SEED_LIMIT = 1024 * 1024;
 type Opening = { promise: Promise<boolean>; resolve: (opened: boolean) => void };
@@ -119,54 +113,29 @@ export function withPrivateWindow(host: ArdiaHost, session: HydrateData): Hydrat
   };
 }
 
-const hostsOtherWindows = (w: BrowserWindow | undefined) => w?.kind === "main";
-const crossesEngine = (s: Pick<BrowserState, "profiles">, windowProfile: string, profileId: string) => engineProfile(s, windowProfile) !== engineProfile(s, profileId);
+export type ActiveProfileStore = {
+  getState(): Pick<BrowserState, "windows" | "profiles">;
+  subscribe(listener: (state: Pick<BrowserState, "windows" | "profiles">) => void): () => void;
+};
 
-export function pagesInPlace(s: Pick<BrowserState, "windows" | "profiles">, windowId: string, profileId: string) {
+export function activeEngineProfile(s: Pick<BrowserState, "windows" | "profiles">, windowId: string): string | undefined {
   const w = s.windows[windowId];
-  return !hostsOtherWindows(w) || !s.profiles[profileId] || !crossesEngine(s, w!.profileId, profileId);
+  if (!w || w.kind === "private" || isIncognitoProfile(w.profileId)) return undefined;
+  return engineProfile(s, w.profileId);
 }
 
-export function profileWindowFor(s: Pick<BrowserState, "windows" | "windowOrder" | "ui" | "profiles">, profileId: string): string | undefined {
-  const engine = engineProfile(s, profileId);
-  return [...s.ui.focusOrder, ...s.windowOrder].find((id) => hostsOtherWindows(s.windows[id]) && engineProfile(s, s.windows[id]!.profileId) === engine);
-}
-
-export function installProfileWindows(store: ProfileStore, focus: (windowId: string) => void, opened: (windowId: string) => Promise<boolean> = windowOpened) {
-  const { switchProfile, moveTabToProfile } = store.getState();
-  setPagerReach({
-    hosts: (windowId, profileId) => pagesInPlace(store.getState(), windowId, profileId),
-    route: (windowId, profileId) => store.getState().switchProfile(windowId, profileId),
-  });
-  store.setState({
-    switchProfile(windowId, profileId) {
-      const s = store.getState();
-      if (pagesInPlace(s, windowId, profileId)) return switchProfile(windowId, profileId);
-      const target = profileWindowFor(s, profileId);
-      if (target) {
-        switchProfile(target, profileId);
-        focus(target);
-      } else {
-        s.createWindow({ profileId } satisfies CreateWindowOptions);
-      }
-    },
-    moveTabToProfile(tabId, profileId) {
-      const s = store.getState();
-      const tab = s.tabs[tabId];
-      const w = tab && s.windows[tab.windowId];
-      if (!tab || !hostsOtherWindows(w) || !s.profiles[profileId] || !crossesEngine(s, w!.profileId, profileId)) return moveTabToProfile(tabId, profileId);
-      const url = tab.url ? { url: tab.url } : {};
-      const target = profileWindowFor(s, profileId);
-      if (target) {
-        s.newTab(target, { profileId, ...url });
-        store.getState().closeTabs([tabId]);
-        focus(target);
-        return;
-      }
-      const created = s.createWindow({ profileId, ...url });
-      void opened(created).then((ok) => {
-        if (ok && store.getState().tabs[tabId]) store.getState().closeTabs([tabId]);
-      });
-    },
-  });
+export function watchActiveProfile(host: ArdiaHost, store: ActiveProfileStore, windowId = host.bootstrap.windowId) {
+  let sent: string | undefined;
+  let sequence = 0;
+  const select = (s: Pick<BrowserState, "windows" | "profiles">) => {
+    const engine = activeEngineProfile(s, windowId);
+    if (engine === undefined || engine === sent) return;
+    sent = engine;
+    void invokeHost("ArdiaShell.setActiveProfile", { args: [engine, ++sequence] }, host).catch((error) => {
+      if (sent === engine) sent = undefined;
+      reportHostError(error);
+    });
+  };
+  select(store.getState());
+  return store.subscribe(select);
 }

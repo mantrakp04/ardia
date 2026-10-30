@@ -125,6 +125,15 @@ std::vector<std::string> DownloadTargets(Profile* profile, bool complete_only) {
   return downloads::DownloadTargets(PageDownloads(profile), &ListedDownload, complete_only);
 }
 
+std::vector<std::string> DownloadTargets(const std::vector<Profile*>& profiles, bool complete_only) {
+  std::vector<std::string> targets;
+  for (Profile* profile : profiles) {
+    auto listed = DownloadTargets(profile, complete_only);
+    targets.insert(targets.end(), std::make_move_iterator(listed.begin()), std::make_move_iterator(listed.end()));
+  }
+  return targets;
+}
+
 struct ListReply {
   Done done;
   bool off_the_record = false;
@@ -706,10 +715,13 @@ bool LinuxFilesHandles(std::string_view method) {
   return false;
 }
 
-void LinuxFilesInvoke(Profile* profile, LinuxShellWebView* shell, const std::string& method,
+void LinuxFilesInvoke(const std::vector<Profile*>& profiles, LinuxShellWebView* shell, const std::string& method,
                       const base::ListValue& values, Done done) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  if (!profile || profile->ShutdownStarted() || !shell)
+  const bool usable = !profiles.empty() && std::ranges::all_of(profiles, [](Profile* profile) {
+    return profile && !profile->ShutdownStarted();
+  });
+  if (!usable || !shell)
     return Fail(std::move(done), "ERR_PROFILE_UNAVAILABLE", "This window's files are unavailable");
   auto weak = shell->GetLinuxWeakPtr();
   if (method == "ArdiaSystem.fileStatus") {
@@ -721,7 +733,7 @@ void LinuxFilesInvoke(Profile* profile, LinuxShellWebView* shell, const std::str
         return Fail(std::move(done), "ERR_FILE_PATH", "Paths must be strings");
       paths.push_back(path.GetString());
     }
-    std::vector<bool> listed = downloads::ListedPaths(paths, DownloadTargets(profile, false));
+    std::vector<bool> listed = downloads::ListedPaths(paths, DownloadTargets(profiles, false));
     base::ThreadPool::PostTaskAndReplyWithResult(FROM_HERE, kFileReads,
         base::BindOnce(&FileStatus, std::move(paths), std::move(listed)),
         base::BindOnce([](Done done, base::ListValue result) {
@@ -734,7 +746,7 @@ void LinuxFilesInvoke(Profile* profile, LinuxShellWebView* shell, const std::str
         values[0].GetString().size() > downloads::kMaxPathBytes ||
         values[0].GetString().find('\0') != std::string::npos || !(values[1].is_int() || values[1].is_double()))
       return Fail(std::move(done), "ERR_FILE_PATH", "A file name and icon size are required");
-    if (!downloads::IconPathAllowed(values[0].GetString(), DownloadTargets(profile, false)))
+    if (!downloads::IconPathAllowed(values[0].GetString(), DownloadTargets(profiles, false)))
       return Fail(std::move(done), "ERR_FILE_NOT_ALLOWED", "Icons are only available for downloads and file names");
     IconManager* icons = g_browser_process ? g_browser_process->icon_manager() : nullptr;
     if (!icons) return std::move(done).Run(true, base::Value());
@@ -764,7 +776,7 @@ void LinuxFilesInvoke(Profile* profile, LinuxShellWebView* shell, const std::str
   const bool reveal = method == "ArdiaSystem.revealFile";
   const auto path = PathArgument(values, 1);
   if (!path) return Fail(std::move(done), "ERR_FILE_PATH", "An absolute file path is required");
-  if (!downloads::PathListed(*path, DownloadTargets(profile, !reveal)))
+  if (!downloads::PathListed(*path, DownloadTargets(profiles, !reveal)))
     return Fail(std::move(done), "ERR_FILE_NOT_ALLOWED", reveal ? "Only downloaded files can be shown"
                                                                 : "Only finished downloads can be used");
   if (method == "ArdiaSystem.openFile") {

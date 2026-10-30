@@ -122,6 +122,8 @@ class TabBinding {
 
 ARDIA_RESET_PAGE_COMMANDS
 
+inline Profile* ProfileOf(Profile* context) { return context; }
+
 class ShellHostView {
  public:
   ShellHostView(Profile* profile, BrowserWindowInterface* browser) : profile_(profile), browser_(browser) {}
@@ -136,6 +138,9 @@ ARDIA_AUTHORITY
   void PresentDevTools(content::WebContents* inspected) { presentations.push_back(inspected); }
   bool is_utility() const { return utility; }
   BrowserWindowInterface* browser() const { return browser_; }
+  BrowserWindowInterface* OwnerOf(content::WebContents* contents) const {
+    return browser_ && contents && browser_->GetTabStripModel()->GetIndexOfWebContents(contents) >= 0 ? browser_ : nullptr;
+  }
   Profile* profile() const { return profile_; }
   Profile* page_profile() const { return profile_; }
   content::WebContents* shell() { return &shell_contents; }

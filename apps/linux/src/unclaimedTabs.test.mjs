@@ -102,3 +102,19 @@ test("a window Chrome made is saved with its adopted tabs instead of waiting for
   assert.equal(kept.tabIds.length, 1);
   assert.equal(await save({ windowId: "window-9", profileId: "default", startup: false, adoptTabs }), undefined);
 });
+
+test("a tab Chrome inserts for another engine profile joins the window in that profile, in the background", () => {
+  freshWindow();
+  const work = S().createProfile({ name: "Work" });
+  const side = S().createProfile({ name: "Side", shareWith: "default" });
+  const before = active();
+  const isolated = adoptUnclaimedTab(useBrowser, "main", { adoptId: "tab:41", url: "https://work.test/", active: true, profile: work });
+  assert.equal(S().tabs[isolated].profileId, work);
+  assert.equal(S().tabs[isolated].windowId, "main");
+  assert.equal(active(), before, "the visible profile keeps its selection");
+  S().switchProfile("main", side);
+  const shared = adoptUnclaimedTab(useBrowser, "main", { adoptId: "tab:42", url: "https://side.test/", active: false, profile: "" });
+  assert.equal(S().tabs[shared].profileId, side, "a profile sharing the default engine profile keeps the tab in the current profile");
+  assert.equal(adoptUnclaimedTab(useBrowser, "main", { adoptId: "tab:43", url: "https://gone.test/", active: false, profile: "p-missing" }), undefined,
+    "an offer for an engine profile no UI profile uses is left alone");
+});

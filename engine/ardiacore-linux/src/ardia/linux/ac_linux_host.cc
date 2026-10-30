@@ -76,6 +76,7 @@
 #include "base/files/file_util.h"
 #include "base/files/important_file_writer.h"
 #include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/logging.h"
@@ -113,6 +114,7 @@
 #include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
 #include "chrome/browser/tab_list/tab_removed_reason.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
+#include "chrome/browser/ui/browser_active_state_manager/browser_active_state_manager.h"
 #include "chrome/browser/ui/browser_window/public/browser_collection_observer.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/create_browser_window.h"
@@ -125,6 +127,7 @@
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
+#include "chrome/browser/ui/unload_controller.h"
 #include "chrome/browser/ui/view_ids.h"
 #include "chrome/browser/ui/views/frame/browser_frame_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
@@ -232,6 +235,11 @@ extern void (*g_ardia_devtools_dock_changed)(BrowserWindowInterface* browser,
                                              content::WebContents* inspected,
                                              content::WebContents* devtools);
 extern base::FilePath (*g_ardia_native_messaging_manifest)(const std::string& host_name);
+
+extern BrowserWindowInterface* (*g_ardia_linux_companion_owner)(const BrowserWindowInterface*);
+extern bool (*g_ardia_linux_present_companion)(BrowserWindowInterface*, bool activate);
+extern bool (*g_ardia_linux_is_companion)(const BrowserWindowInterface*);
+extern int (*g_ardia_linux_window_tab_count)(const BrowserWindowInterface*);
 
 namespace ardia {
 namespace {
@@ -415,6 +423,19 @@ class WindowPointerHandler : public ui::EventHandler {
 std::map<int, ShellHostView*>& Hosts() {
   static base::NoDestructor<std::map<int, ShellHostView*>> hosts;
   return *hosts;
+}
+
+std::map<int, int>& CompanionOwners() {
+  static base::NoDestructor<std::map<int, int>> owners;
+  return *owners;
+}
+
+bool IsCompanion(const BrowserWindowInterface* browser) {
+  return browser && CompanionOwners().contains(browser->GetSessionID().id());
+}
+
+Profile* ProfileOf(content::BrowserContext* context) {
+  return context ? Profile::FromBrowserContext(context) : nullptr;
 }
 
 uint64_t& ActivationClock() {
@@ -969,6 +990,63 @@ class ShellHostView : public views::View,
     opener_generation_ = 0;
   }
   bool HostsProfile(std::string_view id) const { return ardiacore::LinuxProfileHosts(id, page_profile()); }
+  std::vector<BrowserWindowInterface*> Members() const {
+    std::vector<BrowserWindowInterface*> members;
+    if (!browser_) return members;
+    members.push_back(browser_);
+    for (const auto& companion : companions_) {
+      if (companion) members.push_back(companion.get());
+    }
+    return members;
+  }
+  BrowserWindowInterface* MemberFor(const content::BrowserContext* profile) const {
+    for (BrowserWindowInterface* member : Members()) {
+      if (profile && member->GetProfile() == profile) return member;
+    }
+    return nullptr;
+  }
+  BrowserWindowInterface* MemberWithStrip(const TabStripModel* model) const {
+    for (BrowserWindowInterface* member : Members()) {
+      if (model && member->GetTabStripModel() == model) return member;
+    }
+    return nullptr;
+  }
+  BrowserWindowInterface* MemberWithSession(int session) const {
+    for (BrowserWindowInterface* member : Members()) {
+      if (member->GetSessionID().id() == session) return member;
+    }
+    return nullptr;
+  }
+  BrowserWindowInterface* OwnerOf(const content::WebContents* contents) const {
+    if (!contents) return nullptr;
+    for (BrowserWindowInterface* member : Members()) {
+      if (member->GetTabStripModel()->GetIndexOfWebContents(contents) != TabStripModel::kNoTab) return member;
+    }
+    return nullptr;
+  }
+  bool ServesProfile(const content::BrowserContext* profile) const { return MemberFor(profile); }
+  Profile* ActiveProfile() const {
+    Profile* active = active_profile_.get();
+    return active && MemberFor(active) ? active : page_profile();
+  }
+  BrowserWindowInterface* ActiveMember() const {
+    BrowserWindowInterface* member = MemberFor(ActiveProfile());
+    return member ? member : browser_.get();
+  }
+  Profile* ServedProfile(std::string_view id) const {
+    Profile* profile = ardiacore::LinuxProfile(id);
+    return profile && ServesProfile(profile) ? profile : nullptr;
+  }
+  BrowserWindowInterface* EnsureMember(Profile* profile);
+  void SelectProfile(Profile* profile);
+  void ActivateMember(BrowserWindowInterface* member);
+  void CompanionClosed(BrowserWindowInterface* companion);
+  void CloseCompanions();
+  void ConfirmCompanions(base::OnceCallback<void(bool)> done);
+  base::ListValue Strips() const;
+  bool closing() const {
+    return close_.phase() != LinuxClose::Phase::kIdle && close_.phase() != LinuxClose::Phase::kCancelled;
+  }
   bool Trusted(content::WebUI* ui) const;
   bool DeferChromeClose(const base::UnguessableToken& token, LinuxCloseStage stage,
                          base::OnceCallback<void(bool)> continuation);
@@ -1059,7 +1137,7 @@ class ShellHostView : public views::View,
   void Invoke(std::string method, const base::DictValue& args,
               base::OnceCallback<void(bool, base::Value)> done);
   void ReportPictureInPicture(content::WebContents* contents, base::DictValue state);
-  LinuxExtensionWindow ExtensionWindow();
+  LinuxExtensionWindow ExtensionWindow(std::string_view requested = {});
   LinuxExtensionSurfaces* ExtensionSurfaces();
   bool ExtensionEvent(std::string_view name, base::DictValue data);
   std::string ExtensionTabKey(content::WebContents* contents) const;
@@ -1072,7 +1150,7 @@ class ShellHostView : public views::View,
   void WatchCalendar();
   void NoteInputActivity();
   void OfferTab(content::WebContents* contents) {
-    if (contents && contents->GetBrowserContext() == page_profile()) offered_[TabId(contents)] = contents->GetWeakPtr();
+    if (contents && ServesProfile(contents->GetBrowserContext())) offered_[TabId(contents)] = contents->GetWeakPtr();
   }
   int TabShown(content::WebContents* contents) const {
     for (const auto& [id, binding] : bindings_) {
@@ -1094,11 +1172,10 @@ class ShellHostView : public views::View,
     for (const auto& [id, binding] : bindings_) {
       if (contents && binding->contents() == contents) return true;
     }
-    return contents && browser_ &&
-           browser_->GetTabStripModel()->GetIndexOfWebContents(contents) != TabStripModel::kNoTab;
+    return OwnerOf(contents);
   }
-  void FetchFavicon(const GURL& url, ardiacore::LinuxFaviconReply reply) {
-    ardiacore::FetchLinuxFavicon(page_profile(), url, std::move(reply));
+  void FetchFavicon(Profile* profile, const GURL& url, ardiacore::LinuxFaviconReply reply) {
+    ardiacore::FetchLinuxFavicon(profile, url, std::move(reply));
   }
   bool WindowFullScreen() const;
   PrefService* WindowOutputPrefs() const;
@@ -1116,7 +1193,7 @@ class ShellHostView : public views::View,
   bool OpenPrivateLink(content::WebContents* contents, const GURL& url) {
     for (const auto& [id, binding] : bindings_) {
       if (binding->contents() != contents || !binding->page()) continue;
-      Profile* page = page_profile();
+      Profile* page = ProfileOf(contents->GetBrowserContext());
       const auto original = page ? ardiacore::LinuxProfileName(page->GetOriginalProfile()) : std::nullopt;
       if (!original) return false;
       binding->ReportPresentation("openWindow", base::DictValue()
@@ -1134,14 +1211,14 @@ class ShellHostView : public views::View,
     return false;
   }
   bool ShowsDevToolsLinks(content::BrowserContext* profile) {
-    return profile && profile == page_profile() && PrivateLinkBinding();
+    return profile && ServesProfile(profile) && PrivateLinkBinding(profile);
   }
   void AdoptDevToolsTab(content::WebContents* opened, const GURL& url) {
-    PrivateLinkBinding()->ReportOpened(opened, url, "foreground");
+    PrivateLinkBinding(opened->GetBrowserContext())->ReportOpened(opened, url, "foreground");
     FocusWindow();
   }
-  void OpenDevToolsLink(const GURL& url) {
-    PrivateLinkBinding()->ReportPresentation("openWindow", base::DictValue()
+  void OpenDevToolsLink(content::BrowserContext* profile, const GURL& url) {
+    PrivateLinkBinding(profile)->ReportPresentation("openWindow", base::DictValue()
         .Set("url", url.spec()).Set("disposition", "foreground").Set("userGesture", true));
     FocusWindow();
   }
@@ -1154,12 +1231,12 @@ class ShellHostView : public views::View,
   uint64_t activation() const { return activation_; }
   void FocusWindow() { ActivateNativeWindow(browser_, WindowFocus().Focus(id_)); }
   bool StripHolds(content::WebContents* contents) const {
-    return browser_ && contents && browser_->GetTabStripModel()->GetIndexOfWebContents(contents) != TabStripModel::kNoTab;
+    return OwnerOf(contents);
   }
-  TabBinding* PrivateLinkBinding() {
+  TabBinding* PrivateLinkBinding(content::BrowserContext* profile) {
     TabBinding* fallback = nullptr;
     for (const auto& [id, binding] : bindings_) {
-      if (!binding->contents() || !binding->page()) continue;
+      if (!binding->contents() || !binding->page() || binding->contents()->GetBrowserContext() != profile) continue;
       if (binding->presented) return binding.get();
       if (!fallback) fallback = binding.get();
     }
@@ -1232,6 +1309,8 @@ class ShellHostView : public views::View,
   void ReplaceTabContents(content::WebContents* old_contents, content::WebContents* contents);
   void CreateTab(const base::DictValue& args,
                  base::OnceCallback<void(bool, base::Value)> done);
+  void CreateTabIn(Profile* profile, const base::DictValue& args,
+                   base::OnceCallback<void(bool, base::Value)> done);
   void TabCommand(const base::DictValue& args,
                   base::OnceCallback<void(bool, base::Value)> done);
   void SetViewport(const base::DictValue& args,
@@ -1333,6 +1412,12 @@ class ShellHostView : public views::View,
 
   raw_ptr<BrowserWindowInterface> browser_;
   raw_ptr<BrowserView> browser_view_;
+  std::vector<base::WeakPtr<BrowserWindowInterface>> companions_;
+  base::WeakPtr<Profile> active_profile_;
+  uint64_t active_profile_sequence_ = 0;
+  uint64_t active_profile_generation_ = 0;
+  bool member_active_ = false;
+  std::vector<std::shared_ptr<base::RepeatingCallback<void()>>> confirmation_steps_;
   base::WeakPtr<Profile> app_profile_;
   std::string page_profile_;
   base::DictValue private_window_;
@@ -1449,6 +1534,18 @@ void ShellHostView::PersistWindowDeparture(Profile* profile, std::string source_
                   .Set("sourceWindowId", departed_window)));
             }
           }, profile_path, std::move(source_window)));
+}
+
+ShellHostView* MemberHost(const BrowserWindowInterface* browser) {
+  if (!browser) return nullptr;
+  const int session = browser->GetSessionID().id();
+  if (const auto found = Hosts().find(session); found != Hosts().end() && found->second->browser() == browser)
+    return found->second;
+  if (const auto owner = CompanionOwners().find(session); owner != CompanionOwners().end()) {
+    const auto found = Hosts().find(owner->second);
+    if (found != Hosts().end() && found->second->MemberWithSession(session) == browser) return found->second;
+  }
+  return nullptr;
 }
 
 ShellHostView* HostFor(content::WebContents* contents) {
@@ -1606,7 +1703,7 @@ class HostMessageHandler : public content::WebUIMessageHandler,
         return Resolve(id, base::Value());
       }
       if (LinuxExtensionsHandles(name)) {
-        return LinuxExtensionsCall(host_->ExtensionWindow(), profile, name, args.Find("args"),
+        return LinuxExtensionsCall(host_->ExtensionWindow(profile), profile, name, args.Find("args"),
             base::BindOnce([](base::WeakPtr<HostMessageHandler> handler, std::string id, bool ok, base::Value result) {
               if (!handler) return;
               if (ok) return handler->Resolve(id, std::move(result));
@@ -1708,8 +1805,18 @@ class HostMessageHandler : public content::WebUIMessageHandler,
         if (!page) return ProfileFail(id, ardiacore::linux_profiles::ProfileError::kUnavailable);
         const bool page_private = page->IsOffTheRecord();
         const auto access = linux_downloads::RouteDownloads(profile_name->kind, page_private,
-            page_private && page->ShutdownStarted(), host_->HostsProfile(profile));
+            page_private && page->ShutdownStarted(),
+            host_->HostsProfile(profile) || (!page_private && host_->ServedProfile(profile)));
         if (access.error != ardiacore::linux_profiles::ProfileError::kNone) return ProfileFail(id, access.error);
+        if (!page_private) {
+          if (Profile* served = host_->ServedProfile(profile)) page = served;
+        }
+        const std::string* owned_id = input.FindString("id");
+        if (!page_private && owned_id && !LinuxDownloadOwned(page, *owned_id)) {
+          for (BrowserWindowInterface* member : host_->Members()) {
+            if (LinuxDownloadOwned(member->GetProfile(), *owned_id)) page = member->GetProfile();
+          }
+        }
         if (linux_downloads::IsDownloadControl(name)) {
           const std::string* download = input.FindString("id");
           if (!download) return Fail(id, "ERR_DOWNLOAD_REQUEST", "A valid download id is required");
@@ -1735,12 +1842,13 @@ class HostMessageHandler : public content::WebUIMessageHandler,
       if (name == "favicons.fetch") {
         Profile* page = host_->page_profile();
         if (!page || page->IsOffTheRecord()) return ProfileFail(id, ardiacore::linux_profiles::ProfileError::kPrivateService);
-        if (profile_name->kind != ardiacore::linux_profiles::ProfileKind::kDefault && !host_->HostsProfile(profile)) {
+        Profile* served = host_->ServedProfile(profile);
+        if (profile_name->kind != ardiacore::linux_profiles::ProfileKind::kDefault && !served) {
           return ProfileFail(id, ardiacore::linux_profiles::ProfileError::kWindowMismatch);
         }
         const std::string* url = input.FindString("url");
         if (!url || input.size() != 1) return Fail(id, "ERR_ENGINE", "favicons.fetch requires one icon URL");
-        return host_->FetchFavicon(GURL(*url), base::BindOnce(
+        return host_->FetchFavicon(served ? served : page, GURL(*url), base::BindOnce(
             [](base::WeakPtr<HostMessageHandler> handler, std::string id, base::Value image) {
               if (handler) handler->Resolve(id, std::move(image));
             }, weak_factory_.GetWeakPtr(), id));
@@ -1964,6 +2072,7 @@ ShellHostView::~ShellHostView() {
   Hosts().erase(id_);
   LinuxExtensionsWindowClosing(id_);
   bindings_.clear();
+  CloseCompanions();
   TabStripModelObserver::StopObservingAll(this);
   view_observation_.Reset();
 }
@@ -2049,18 +2158,20 @@ bool ShellHostView::UnclaimedListening() const {
 base::DictValue ShellHostView::ClaimUnclaimedTab(content::WebContents* contents, bool active) {
   OfferTab(contents);
   announced_[TabId(contents)] = contents->GetWeakPtr();
+  BrowserWindowInterface* owner = OwnerOf(contents);
   return base::DictValue()
       .Set("adoptId", "tab:" + base::NumberToString(TabId(contents)))
       .Set("url", contents->GetVisibleURL().spec())
-      .Set("active", active && browser_->GetTabStripModel()->GetActiveWebContents() == contents);
+      .Set("profile", ardiacore::LinuxProfileName(ProfileOf(contents->GetBrowserContext())).value_or(std::string()))
+      .Set("active", active && owner && owner->GetTabStripModel()->GetActiveWebContents() == contents &&
+                     owner == ActiveMember());
 }
 
 void ShellHostView::AnnounceUnclaimedTab(int id, int tries) {
   const auto found = unclaimed_.find(id);
   if (found == unclaimed_.end()) return;
   content::WebContents* contents = found->second.contents.get();
-  const bool in_window = contents && browser_ &&
-      browser_->GetTabStripModel()->GetIndexOfWebContents(contents) != TabStripModel::kNoTab;
+  const bool in_window = contents && OwnerOf(contents);
   const GURL url = contents ? contents->GetVisibleURL() : GURL();
   using ardiacore::linux_contract::UnclaimedTabStep;
   switch (ardiacore::linux_contract::NextUnclaimedTabStep(
@@ -2088,25 +2199,27 @@ void ShellHostView::ListenForUnclaimedTabs(base::OnceCallback<void(bool, base::V
   if (!browser_ || is_utility()) return std::move(done).Run(false, base::Value("This window has no tab strip"));
   unclaimed_listener_ = renderer_generation_;
   base::ListValue tabs;
-  TabStripModel* model = browser_->GetTabStripModel();
   for (auto it = announced_.begin(); it != announced_.end();) {
     content::WebContents* contents = it->second.get();
     bool bound = false;
     for (const auto& [window, host] : Hosts()) bound |= contents && host->BindsTab(contents);
-    if (!contents || bound || model->GetIndexOfWebContents(contents) == TabStripModel::kNoTab) {
+    if (!contents || bound || !OwnerOf(contents)) {
       it = announced_.erase(it);
       continue;
     }
     ++it;
     tabs.Append(ClaimUnclaimedTab(contents, false));
   }
-  for (int index = 0; index < model->count(); ++index) {
-    content::WebContents* contents = model->GetWebContentsAt(index);
-    const auto found = unclaimed_.find(TabId(contents));
-    if (found == unclaimed_.end() || found->second.contents.get() != contents) continue;
-    const bool active = found->second.active;
-    unclaimed_.erase(found);
-    if (!TabClaimed(contents)) tabs.Append(ClaimUnclaimedTab(contents, active));
+  for (BrowserWindowInterface* member : Members()) {
+    TabStripModel* model = member->GetTabStripModel();
+    for (int index = 0; index < model->count(); ++index) {
+      content::WebContents* contents = model->GetWebContentsAt(index);
+      const auto found = unclaimed_.find(TabId(contents));
+      if (found == unclaimed_.end() || found->second.contents.get() != contents) continue;
+      const bool active = found->second.active;
+      unclaimed_.erase(found);
+      if (!TabClaimed(contents)) tabs.Append(ClaimUnclaimedTab(contents, active));
+    }
   }
   std::move(done).Run(true, base::Value(std::move(tabs)));
 }
@@ -2160,9 +2273,171 @@ void ShellHostView::DetachViewports() {
   }
 }
 
+BrowserWindowInterface* ShellHostView::EnsureMember(Profile* profile) {
+  if (!browser_ || !profile) return nullptr;
+  if (BrowserWindowInterface* member = MemberFor(profile)) return member;
+  if (is_utility() || private_window() || profile->IsOffTheRecord() || profile->ShutdownStarted() ||
+      page_profile()->IsOffTheRecord() || closing() || chrome_close_token_ ||
+      browser_shutdown::IsTryingToQuit() || !GetWidget() || GetWidget()->IsClosed() ||
+      GetBrowserWindowCreationStatusForProfile(*profile) != BrowserWindowInterface::CreationStatus::kOk) {
+    return nullptr;
+  }
+  BrowserWindowCreateParams params(profile, false);
+  params.omit_from_session_restore = true;
+  params.should_trigger_session_restore = false;
+  params.initial_bounds = browser_->GetWindow()->GetBounds();
+  params.initial_show_state = ui::mojom::WindowShowState::kNormal;
+  BrowserWindowInterface* created = CreateBrowserWindow(std::move(params));
+  if (!created) return nullptr;
+  CompanionOwners()[created->GetSessionID().id()] = id_;
+  companions_.push_back(created->GetWeakPtr());
+  created->GetTabStripModel()->AddObserver(this);
+  StartLinuxContentBlocker(this->profile(), profile);
+  LinuxDownloadsCall(profile, "downloads.list", base::DictValue(), base::DoNothing());
+  return created;
+}
+
+void ShellHostView::SelectProfile(Profile* profile) {
+  if (!profile || !ServesProfile(profile)) return;
+  BrowserWindowInterface* before = ActiveMember();
+  active_profile_ = profile->GetWeakPtr();
+  BrowserWindowInterface* after = ActiveMember();
+  if (before == after) return;
+  extension_surfaces_.reset();
+  extension_keybindings_.reset();
+  if (GetWidget() && GetWidget()->IsActive()) return ActivateMember(after);
+  if (before && before != after) BrowserActiveStateManager::From(before)->DidBecomeInactive();
+  member_active_ = false;
+}
+
+void ShellHostView::ActivateMember(BrowserWindowInterface* member) {
+  if (!member || member->IsDeleteScheduled()) return;
+  for (BrowserWindowInterface* other : Members()) {
+    if (other != member) BrowserActiveStateManager::From(other)->DidBecomeInactive();
+  }
+  BrowserActiveStateManager::From(member)->DidBecomeActive();
+  member_active_ = member != browser_;
+}
+
+void ShellHostView::CompanionClosed(BrowserWindowInterface* companion) {
+  companion->GetTabStripModel()->RemoveObserver(this);
+  if (ActiveMember() == companion) {
+    extension_surfaces_.reset();
+    extension_keybindings_.reset();
+  }
+  std::erase_if(companions_, [companion](const auto& weak) { return !weak || weak.get() == companion; });
+  if (member_active_ && ActiveMember() == companion) member_active_ = false;
+  for (auto& [id, binding] : bindings_) {
+    if (binding->page_commands && !OwnerOf(binding->contents())) binding->ResetPageCommands();
+  }
+  QueueTransaction(std::nullopt);
+}
+
+void ShellHostView::CloseCompanions() {
+  std::vector<base::WeakPtr<BrowserWindowInterface>> companions = std::move(companions_);
+  companions_.clear();
+  member_active_ = false;
+  for (const auto& companion : companions) {
+    if (companion) companion->GetTabStripModel()->RemoveObserver(this);
+  }
+  if (companions.empty() || browser_shutdown::IsTryingToQuit()) return;
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce([](std::vector<base::WeakPtr<BrowserWindowInterface>> companions) {
+        for (const auto& companion : companions) {
+          if (!companion || companion->IsDeleteScheduled() || browser_shutdown::IsTryingToQuit()) continue;
+          UnloadController* unload = UnloadController::From(companion.get());
+          if (!unload->is_attempting_to_close_browser()) {
+            unload->RunBeforeUnloadForShutdown(true, base::DoNothing());
+          }
+          if (companion && !companion->IsDeleteScheduled()) companion->GetWindow()->Close();
+        }
+      }, std::move(companions)));
+}
+
+void ShellHostView::ConfirmCompanions(base::OnceCallback<void(bool)> done) {
+  std::vector<base::WeakPtr<BrowserWindowInterface>> waiting;
+  for (const auto& companion : companions_) {
+    if (companion && companion->GetTabStripModel()->count() > 0) waiting.push_back(companion);
+  }
+  confirmation_steps_.clear();
+  if (waiting.empty() || browser_shutdown::IsTryingToQuit()) return std::move(done).Run(true);
+  struct Confirmation {
+    std::vector<base::WeakPtr<BrowserWindowInterface>> browsers;
+    size_t next = 0;
+    base::OnceCallback<void(bool)> done;
+  };
+  auto confirmation = std::make_shared<Confirmation>();
+  confirmation->browsers = std::move(waiting);
+  confirmation->done = std::move(done);
+  auto finish = [](std::shared_ptr<Confirmation> confirmation, bool proceed) {
+    base::OnceCallback<void(bool)> done = std::move(confirmation->done);
+    if (!done) return;
+    if (!proceed) {
+      for (const auto& browser : confirmation->browsers) {
+        if (browser) UnloadController::From(browser.get())->ResetBeforeUnloadForShutdown();
+      }
+    }
+    std::move(done).Run(proceed);
+  };
+  auto step = std::make_shared<base::RepeatingCallback<void()>>();
+  *step = base::BindRepeating(
+      [](std::shared_ptr<Confirmation> confirmation, decltype(finish) finish,
+         std::weak_ptr<base::RepeatingCallback<void()>> self) {
+        while (confirmation->done && confirmation->next < confirmation->browsers.size()) {
+          const auto browser = confirmation->browsers[confirmation->next++];
+          if (!browser) continue;
+          const bool waits = UnloadController::From(browser.get())->RunBeforeUnloadForShutdown(
+              false, base::BindRepeating(
+                  [](std::shared_ptr<Confirmation> confirmation, decltype(finish) finish,
+                     std::weak_ptr<base::RepeatingCallback<void()>> self, bool proceed) {
+                    if (!confirmation->done) return;
+                    if (!proceed) return finish(confirmation, false);
+                    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+                        FROM_HERE, base::BindOnce([](std::weak_ptr<base::RepeatingCallback<void()>> self) {
+                          if (auto step = self.lock()) step->Run();
+                        }, self));
+                  }, confirmation, finish, self));
+          if (waits) return;
+        }
+        if (confirmation->done) finish(confirmation, true);
+      }, confirmation, finish, std::weak_ptr<base::RepeatingCallback<void()>>(step));
+  confirmation_steps_.push_back(step);
+  step->Run();
+}
+
+base::ListValue ShellHostView::Strips() const {
+  base::ListValue strips;
+  for (BrowserWindowInterface* member : Members()) {
+    base::ListValue tabs;
+    TabStripModel* model = member->GetTabStripModel();
+    for (int index = 0; index < model->count(); ++index) {
+      content::WebContents* contents = model->GetWebContentsAt(index);
+      const int id = TabId(contents);
+      const auto found = bindings_.find(id);
+      tabs.Append(base::DictValue().Set("key", found != bindings_.end()
+                         ? base::Value(found->second->key()) : base::Value())
+          .Set("browser", id)
+          .Set("index", index)
+          .Set("active", contents == model->GetActiveWebContents())
+          .Set("pinned", model->IsTabPinned(index)));
+    }
+    const std::string profile = member == browser_
+        ? page_profile_
+        : ardiacore::LinuxProfileName(member->GetProfile()).value_or(std::string());
+    strips.Append(base::DictValue()
+        .Set("strip", member == browser_ ? id_ : member->GetSessionID().id())
+        .Set("window", id_)
+        .Set("appWindow", window_id_)
+        .Set("profile", profile)
+        .Set("tabs", std::move(tabs)));
+  }
+  return strips;
+}
+
 void ShellHostView::DetachBrowser() {
   RememberWindowOutput();
   if (!RetireDocuments()) return;
+  CloseCompanions();
   weak_factory_.InvalidateWeakPtrs();
   handler_ = nullptr;
   renderer_document_ = content::WeakDocumentPtr();
@@ -2490,7 +2765,7 @@ bool ShellHostView::ExtensionShortcutPressed(const ui::KeyEvent& event, bool res
   if (!ExtensionsListening() || !page_profile()) return false;
   if (!extension_keybindings_) {
     extension_keybindings_ = std::make_unique<LinuxExtensionKeybindings>(
-        browser_.get(), base::BindRepeating(
+        ActiveMember(), base::BindRepeating(
             [](base::WeakPtr<ShellHostView> host, content::WebContents* contents, const extensions::ExtensionId& id) {
               if (!host) return false;
               const std::string key = host->ExtensionTabKey(contents);
@@ -3106,6 +3381,9 @@ void ShellHostView::CancelDocumentSeal(LinuxClose::Identity identity, bool chrom
               return;
             }
             if (!host->close_.Cancelled(identity)) return;
+            for (const auto& companion : host->companions_) {
+              if (companion) UnloadController::From(companion.get())->ResetBeforeUnloadForShutdown();
+            }
             host->close_departure_.reset();
             host->ResumeDialogsForClose(identity.close);
             host->chrome_close_token_.reset();
@@ -3193,8 +3471,17 @@ void ShellHostView::AcknowledgeWindowClose(
                 host->GetWidget()->IsClosed() || !host->handler_ || !host->handler_->Authorized() ||
                 !host->profile() || !host->profile()->IsRegularProfile()) return;
             if (!host->close_.Sealed(identity, host->renderer_generation_)) return;
-            host->FinishChromePreparations(true);
-            if (!host->chrome_close_token_) host->CloseNativeWindow(identity);
+            host->ConfirmCompanions(base::BindOnce(
+                [](base::WeakPtr<ShellHostView> host, LinuxClose::Identity identity, bool proceed) {
+                  if (!host || !host->close_.Matches(identity, host->renderer_generation_)) return;
+                  if (!proceed) {
+                    if (host->chrome_close_token_) host->FinishChromePreparations(false);
+                    else host->CancelWindowClose(identity, base::BindOnce([](bool, base::Value) {}));
+                    return;
+                  }
+                  host->FinishChromePreparations(true);
+                  if (host && !host->chrome_close_token_) host->CloseNativeWindow(identity);
+                }, host, identity));
           }, GetWeakPtr(), identity));
 }
 
@@ -3252,6 +3539,17 @@ void ShellHostView::OnDidPresentCompositorFrame(ui::Compositor*, uint32_t, const
 
 void ShellHostView::OnWidgetActivationChanged(views::Widget*, bool active) {
   ReportLeftEdge(left_edge_.ActivationChanged(active));
+  if (BrowserWindowInterface* member = ActiveMember(); member && member != browser_) {
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(
+            [](base::WeakPtr<ShellHostView> host, base::WeakPtr<BrowserWindowInterface> member, bool active) {
+              if (!host || !member || host->ActiveMember() != member.get() || !host->GetWidget() ||
+                  host->GetWidget()->IsActive() != active || member->IsDeleteScheduled()) return;
+              if (active) return host->ActivateMember(member.get());
+              if (host->member_active_) BrowserActiveStateManager::From(member.get())->DidBecomeInactive();
+              host->member_active_ = false;
+            }, GetWeakPtr(), member->GetWeakPtr(), active));
+  }
   if (active) activation_ = ++ActivationClock();
   if (active) FocusShellOnActivation();
   const bool changed = WindowFocus().Observe(id_, active);
@@ -3503,11 +3801,12 @@ TabBinding* ShellHostView::ClaimedBinding(const base::DictValue& args) {
 }
 
 bool ShellHostView::CloseTab(TabBinding* binding) {
-  if (!browser_ || !binding || !binding->contents()) return false;
-  const int index = browser_->GetTabStripModel()->GetIndexOfWebContents(binding->contents());
+  BrowserWindowInterface* owner = binding ? OwnerOf(binding->contents()) : nullptr;
+  if (!browser_ || !owner) return false;
+  const int index = owner->GetTabStripModel()->GetIndexOfWebContents(binding->contents());
   if (index < 0) return false;
   app_operation_ = true;
-  browser_->GetTabStripModel()->CloseWebContentsAt(
+  owner->GetTabStripModel()->CloseWebContentsAt(
       index, TabCloseTypes::CLOSE_USER_GESTURE | TabCloseTypes::CLOSE_CREATE_HISTORICAL_TAB);
   app_operation_ = false;
   QueueTransaction(-1);
@@ -3515,8 +3814,9 @@ bool ShellHostView::CloseTab(TabBinding* binding) {
 }
 
 bool ShellHostView::DisposeTemporary(TabBinding* binding) {
-  if (!binding || !binding->temporary || !binding->contents() || !browser_) return false;
-  auto* model = browser_->GetTabStripModel();
+  BrowserWindowInterface* owner = binding ? OwnerOf(binding->contents()) : nullptr;
+  if (!binding || !binding->temporary || !binding->contents() || !browser_ || !owner) return false;
+  auto* model = owner->GetTabStripModel();
   const int index = model->GetIndexOfWebContents(binding->contents());
   if (index < 0) return false;
   auto weak = GetWeakPtr();
@@ -3581,7 +3881,8 @@ void ShellHostView::WatchCalendar() {
 
 std::unique_ptr<ardiacore::LinuxPageState> ShellHostView::MountPage(TabBinding* binding) {
   auto* contents = binding ? binding->contents() : nullptr;
-  if (!browser_ || !handler_ || !contents || !GetWidget() || binding->claim.empty() ||
+  BrowserWindowInterface* owner = OwnerOf(contents);
+  if (!browser_ || !owner || !handler_ || !contents || !GetWidget() || binding->claim.empty() ||
       !renderer_generation_ || binding->renderer_generation != renderer_generation_) return nullptr;
   ardiacore::LinuxPageIdentity identity{TabId(contents), binding->key(), binding->claim,
       renderer_generation_, NextPageBindingGeneration(), binding->contents_generation(),
@@ -3598,7 +3899,7 @@ std::unique_ptr<ardiacore::LinuxPageState> ShellHostView::MountPage(TabBinding* 
     return binding ? binding->Navigation() : base::DictValue();
   }, binding->GetWeakPtr());
   auto page = std::make_unique<ardiacore::LinuxPageState>(
-      browser_, GetWidget()->GetWeakPtr(), contents, shell(), std::move(identity),
+      owner, GetWidget()->GetWeakPtr(), contents, shell(), std::move(identity),
       std::move(sink), std::move(navigation));
   page->SetSnapshotProducer(base::BindRepeating([](base::WeakPtr<TabBinding> binding) {
     return binding ? binding->SnapshotExtras() : std::vector<std::pair<std::string, base::Value>>();
@@ -3606,9 +3907,10 @@ std::unique_ptr<ardiacore::LinuxPageState> ShellHostView::MountPage(TabBinding* 
   return page;
 }
 
-LinuxExtensionWindow ShellHostView::ExtensionWindow() {
+LinuxExtensionWindow ShellHostView::ExtensionWindow(std::string_view requested) {
   LinuxExtensionWindow window;
-  window.profile = page_profile();
+  Profile* served = private_window() || requested.empty() ? nullptr : ServedProfile(requested);
+  window.profile = served ? served : ActiveProfile();
   window.window = id_;
   window.native_window = base::BindRepeating([](base::WeakPtr<ShellHostView> host) {
     return host && host->browser() && host->GetWidget() ? host->GetWidget()->GetNativeWindow() : gfx::NativeWindow();
@@ -3622,7 +3924,7 @@ LinuxExtensionWindow ShellHostView::ExtensionWindow() {
 
 LinuxExtensionSurfaces* ShellHostView::ExtensionSurfaces() {
   if (!extension_surfaces_ && browser_) {
-    extension_surfaces_ = std::make_unique<LinuxExtensionSurfaces>(browser_, this, base::BindRepeating(
+    extension_surfaces_ = std::make_unique<LinuxExtensionSurfaces>(ActiveMember(), this, base::BindRepeating(
         [](base::WeakPtr<ShellHostView> host, int id, base::DictValue event) {
           if (host) host->Event("ArdiaExtensionView", base::NumberToString(id), base::Value(std::move(event)));
         }, GetWeakPtr()));
@@ -3655,8 +3957,7 @@ TabBinding* ShellHostView::PageCommandBinding(const PageCommandAuthority& author
   TabBinding* binding = host->Binding(authority.id);
   if (!binding || binding->contents() != contents || binding->claim != authority.claim ||
       binding->renderer_generation != authority.generation) return nullptr;
-  if (host->browser_->GetTabStripModel()->GetIndexOfWebContents(contents) == TabStripModel::kNoTab)
-    return nullptr;
+  if (!host->OwnerOf(contents)) return nullptr;
   return binding;
 }
 
@@ -3678,9 +3979,9 @@ ardiacore::LinuxPageCommands* ShellHostView::EnsurePageCommands(TabBinding* bind
                                  binding->claim, binding->renderer_generation};
   if (PageCommandBinding(authority) != binding) return nullptr;
   binding->page_commands = std::make_unique<ardiacore::LinuxPageCommands>(
-      binding->contents(), page_profile(),
+      binding->contents(), ProfileOf(binding->contents()->GetBrowserContext()),
       base::BindRepeating([](const PageCommandAuthority& authority) -> BrowserWindowInterface* {
-        return PageCommandBinding(authority) ? authority.host->browser() : nullptr;
+        return PageCommandBinding(authority) ? authority.host->OwnerOf(authority.contents.get()) : nullptr;
       }, authority),
       base::BindRepeating(&ShellHostView::EmitPageCommandEvent, authority),
       !ardiacore::BackgroundInstance(),
@@ -3752,13 +4053,16 @@ void ShellHostView::LayoutPane(TabBinding* binding) {
   views::WebView* page = binding->viewport();
   if (!browser_view_) return;
   content::WebContents* contents = binding->contents();
+  BrowserWindowInterface* owner = OwnerOf(contents);
+  BrowserView* owner_view = owner ? BrowserView::GetBrowserViewForBrowser(owner) : nullptr;
+  if (!owner_view) owner_view = browser_view_;
   const bool claimed = contents && handler_ && !binding->claim.empty() &&
                        binding->renderer_generation == renderer_generation_;
   if (!page) {
     DevToolsContentsResizingStrategy waiting_strategy;
     content::WebContents* waiting =
         claimed ? DevToolsWindow::GetInTabWebContents(contents, &waiting_strategy) : nullptr;
-    auto* container = waiting ? browser_view_->GetContentsContainerViewFor(contents) : nullptr;
+    auto* container = waiting ? owner_view->GetContentsContainerViewFor(contents) : nullptr;
     if (container && container->devtools_web_view()->web_contents() == waiting) {
       container->devtools_web_view()->SetWebContents(nullptr);
       container->devtools_web_view()->SetVisible(false);
@@ -3788,7 +4092,7 @@ void ShellHostView::LayoutPane(TabBinding* binding) {
                                              clip(binding->pane_input_shape, page_bounds));
   page->SetVisible(visible);
   if (visible) {
-    browser_view_->GetActiveContentsWebView()->SetWebContents(nullptr);
+    owner_view->GetActiveContentsWebView()->SetWebContents(nullptr);
     page->SetWebContents(contents);
     page->holder()->SetNativeViewCornerRadii(gfx::RoundedCornersF(12.0f));
   } else {
@@ -3796,14 +4100,14 @@ void ShellHostView::LayoutPane(TabBinding* binding) {
   }
   views::WebView* tools = binding->devtools_viewport();
   if (!devtools) return HideDevToolsViewport(binding);
-  if (auto* container = browser_view_->GetContentsContainerViewFor(contents)) {
+  if (auto* container = owner_view->GetContentsContainerViewFor(contents)) {
     if (container->devtools_web_view()->web_contents() == devtools) {
       container->devtools_web_view()->SetWebContents(nullptr);
       container->devtools_web_view()->SetVisible(false);
     }
   }
   if (!tools) {
-    tools = AddChildView(std::make_unique<ViewportView>(page_profile()));
+    tools = AddChildView(std::make_unique<ViewportView>(ProfileOf(contents->GetBrowserContext())));
     binding->SetDevToolsViewport(tools);
   }
   const bool fresh = !binding->devtools_watch || binding->devtools_watch->web_contents() != devtools;
@@ -3867,36 +4171,12 @@ void ShellHostView::OnDidChangeFocus(views::View*, views::View* now) {
   }
 }
 
-base::DictValue ShellHostView::Strip() const {
-  base::ListValue tabs;
-  if (browser_) {
-    TabStripModel* model = browser_->GetTabStripModel();
-    for (int index = 0; index < model->count(); ++index) {
-      content::WebContents* contents = model->GetWebContentsAt(index);
-      const int id = TabId(contents);
-      const auto found = bindings_.find(id);
-      base::DictValue tab = base::DictValue().Set("key", found != bindings_.end()
-                         ? base::Value(found->second->key()) : base::Value())
-          .Set("browser", id)
-          .Set("index", index)
-          .Set("active", contents == model->GetActiveWebContents())
-          .Set("pinned", model->IsTabPinned(index));
-      tabs.Append(std::move(tab));
-    }
-  }
-  return base::DictValue()
-      .Set("strip", id_)
-      .Set("window", id_)
-      .Set("appWindow", window_id_)
-      .Set("profile", page_profile_)
-      .Set("tabs", std::move(tabs));
-}
-
 base::DictValue ShellHostView::Transaction(std::optional<int> command,
                                           bool advance) {
   base::ListValue strips;
   for (const auto& [id, host] : Hosts()) {
-    if (!host->is_utility()) strips.Append(host->Strip());
+    if (host->is_utility()) continue;
+    for (auto& strip : host->Strips()) strips.Append(std::move(strip));
   }
   if (advance) ++Revision();
   return base::DictValue()
@@ -3927,10 +4207,12 @@ bool ShellHostView::ReceivesPrivateDownload(const base::DictValue& download) {
 }
 
 bool ShellHostView::ReceivesRemoval(bool private_removal, const std::string& profile_path) {
-  Profile* page = page_profile();
-  return linux_downloads::DeliversRemoval(private_removal, page && page->IsOffTheRecord(),
-                                          page ? page->GetOriginalProfile()->GetPath().value() : std::string(),
-                                          profile_path);
+  for (BrowserWindowInterface* member : Members()) {
+    Profile* page = member->GetProfile();
+    if (linux_downloads::DeliversRemoval(private_removal, page->IsOffTheRecord(),
+                                         page->GetOriginalProfile()->GetPath().value(), profile_path)) return true;
+  }
+  return false;
 }
 
 void ShellHostView::EngineEvent(std::string_view topic,
@@ -3973,16 +4255,21 @@ void ShellHostView::EngineEvent(std::string_view topic,
 
 void ShellHostView::ReattachViewports() {
   if (!browser_view_) return;
-  views::WebView* chrome_view = browser_view_->GetActiveContentsWebView();
-  content::WebContents* taken = chrome_view->web_contents();
-  chrome_view->SetWebContents(nullptr);
-  chrome_view->SetVisible(false);
+  std::set<content::WebContents*> taken;
+  for (BrowserWindowInterface* member : Members()) {
+    BrowserView* view = BrowserView::GetBrowserViewForBrowser(member);
+    if (!view) continue;
+    views::WebView* chrome_view = view->GetActiveContentsWebView();
+    if (chrome_view->web_contents()) taken.insert(chrome_view->web_contents());
+    chrome_view->SetWebContents(nullptr);
+    chrome_view->SetVisible(false);
+  }
   views::FocusManager* focus = GetFocusManager();
   for (auto& [id, binding] : bindings_) {
     views::WebView* page = binding->viewport();
     content::WebContents* contents = binding->contents();
     if (!page || !page->GetVisible() || !contents) continue;
-    if (contents == taken || page->web_contents() != contents) {
+    if (taken.contains(contents) || page->web_contents() != contents) {
       const bool focused = focus && focus->GetFocusedView() == page;
       if (focused) focus->ClearFocus();
       page->SetWebContents(nullptr);
@@ -4033,9 +4320,9 @@ void ShellHostView::ReplaceTabContents(content::WebContents* old_contents,
 }
 
 void ShellHostView::OnTabStripModelChanged(
-    TabStripModel*, const TabStripModelChange& change,
+    TabStripModel* changed, const TabStripModelChange& change,
     const TabStripSelectionChange& selection) {
-  if (!browser_) return;
+  if (!browser_ || !MemberWithStrip(changed)) return;
   if (change.type() == TabStripModelChange::kInserted && !app_operation_ && !is_utility()) {
     for (const auto& inserted : change.GetInsert()->contents) {
       NoteUnclaimedTab(inserted.contents, inserted.contents == selection.new_contents);
@@ -4048,10 +4335,9 @@ void ShellHostView::OnTabStripModelChanged(
     ReplaceTabContents(replace->old_contents, replace->new_contents);
     if (!weak) return;
   }
-  TabStripModel* model = browser_->GetTabStripModel();
+  TabStripModel* model = changed;
   for (auto& [id, binding] : bindings_) {
-    if (binding->page_commands && (!binding->contents() ||
-        model->GetIndexOfWebContents(binding->contents()) == TabStripModel::kNoTab)) {
+    if (binding->page_commands && (!binding->contents() || !OwnerOf(binding->contents()))) {
       binding->ResetPageCommands();
       LayoutPane(binding.get());
     }
@@ -4109,15 +4395,41 @@ void ShellHostView::CreateTab(
   if (!browser_ || key.empty() || key.size() > 256 || !args.FindString("profile")) {
     return std::move(done).Run(false, base::Value("A key and a profile are required"));
   }
-  if (!HostsProfile(String(args, "profile"))) {
-    const auto name = ardiacore::linux_profiles::ParseProfileName(String(args, "profile"));
-    const auto error = !name ? ardiacore::linux_profiles::ProfileError::kInvalid
-                             : ardiacore::linux_profiles::ProfileError::kWindowMismatch;
-    return std::move(done).Run(false, base::Value(base::DictValue()
-        .Set("code", ardiacore::linux_profiles::ProfileErrorCode(error))
-        .Set("message", ardiacore::linux_profiles::ProfileErrorMessage(error))));
+  using ardiacore::linux_profiles::ProfileError;
+  const std::string requested = String(args, "profile");
+  const auto name = ardiacore::linux_profiles::ParseProfileName(requested);
+  if (!name) return std::move(done).Run(false, ProfileFailure(ProfileError::kInvalid));
+  if (private_window() || !page_profile() || page_profile()->IsOffTheRecord() ||
+      name->kind == ardiacore::linux_profiles::ProfileKind::kPrivate || is_utility()) {
+    if (!HostsProfile(requested)) return std::move(done).Run(false, ProfileFailure(ProfileError::kWindowMismatch));
+    return CreateTabIn(page_profile(), args, std::move(done));
   }
-  TabStripModel* model = browser_->GetTabStripModel();
+  if (Profile* loaded = ardiacore::LinuxProfile(requested); loaded && !loaded->IsOffTheRecord()) {
+    return CreateTabIn(loaded, args, std::move(done));
+  }
+  ardiacore::ResolveLinuxProfile(requested, base::BindOnce(
+      [](base::WeakPtr<ShellHostView> host, uint64_t generation, base::DictValue args,
+         base::OnceCallback<void(bool, base::Value)> done, Profile* resolved, ProfileError error) {
+        if (!host || !host->browser_ || !host->handler_ || host->renderer_generation_ != generation) {
+          return std::move(done).Run(false, base::Value("The window changed while the tab's profile loaded"));
+        }
+        if (!resolved || resolved->IsOffTheRecord()) {
+          return std::move(done).Run(false, ProfileFailure(error == ProfileError::kNone ? ProfileError::kUnavailable : error));
+        }
+        host->CreateTabIn(resolved, args, std::move(done));
+      }, GetWeakPtr(), renderer_generation_, args.Clone(), std::move(done)));
+}
+
+void ShellHostView::CreateTabIn(
+    Profile* profile, const base::DictValue& args,
+    base::OnceCallback<void(bool, base::Value)> done) {
+  const std::string key = String(args, "key");
+  const std::string claim = String(args, "claim");
+  BrowserWindowInterface* member = EnsureMember(profile);
+  if (!member) {
+    return std::move(done).Run(false, ProfileFailure(ardiacore::linux_profiles::ProfileError::kUnavailable));
+  }
+  TabStripModel* model = member->GetTabStripModel();
   std::string text = String(args, "url");
   if (text.starts_with("ardia://")) text.replace(0, 8, "chrome://");
   const GURL url(text.empty() ? "about:blank" : text);
@@ -4129,16 +4441,39 @@ void ShellHostView::CreateTab(
   if (binding && !ardiacore::linux_contract::CanReclaim(binding->claim, String(args, "previousClaim"))) {
     return std::move(done).Run(false, base::Value("This tab already has an active owner"));
   }
+  if (binding && binding->contents()->GetBrowserContext() != profile) {
+    content::WebContents* retired = binding->contents();
+    const int retired_id = TabId(retired);
+    BrowserWindowInterface* retired_owner = OwnerOf(retired);
+    auto owned = std::move(bindings_[retired_id]);
+    bindings_.erase(retired_id);
+    devtools_had_focus_.erase(retired_id);
+    owned.reset();
+    binding = nullptr;
+    if (retired_owner) {
+      const int index = retired_owner->GetTabStripModel()->GetIndexOfWebContents(retired);
+      auto weak = GetWeakPtr();
+      app_operation_ = true;
+      if (index >= 0) retired_owner->GetTabStripModel()->DetachAndDeleteWebContentsAt(index);
+      if (!weak) return;
+      app_operation_ = false;
+    }
+    if (!MemberFor(profile)) {
+      return std::move(done).Run(false, ProfileFailure(ardiacore::linux_profiles::ProfileError::kUnavailable));
+    }
+  }
   if (!binding) {
     for (const auto& [window, source] : Hosts()) {
       if (source == this) continue;
       TabBinding* existing = source->BindingForKey(key);
       if (!existing || !existing->contents()) continue;
-      if (!ardiacore::linux_contract::CanTransfer(existing->transferable, existing->temporary, source->page_profile() == page_profile())) return std::move(done).Run(false, base::Value("This tab has not been offered for transfer"));
+      const bool same_profile = existing->contents()->GetBrowserContext() == profile;
+      if (!ardiacore::linux_contract::CanTransfer(existing->transferable, existing->temporary, same_profile)) return std::move(done).Run(false, base::Value("This tab has not been offered for transfer"));
       const int id = TabId(existing->contents());
-      TabStripModel* source_model = source->browser()->GetTabStripModel();
-      const int index = source_model->GetIndexOfWebContents(existing->contents());
-      if (index < 0 || source->page_profile() != page_profile()) {
+      BrowserWindowInterface* source_owner = source->OwnerOf(existing->contents());
+      TabStripModel* source_model = source_owner ? source_owner->GetTabStripModel() : nullptr;
+      const int index = source_model ? source_model->GetIndexOfWebContents(existing->contents()) : -1;
+      if (index < 0 || !same_profile) {
         return std::move(done).Run(false, base::Value("The transfer source is unavailable"));
       }
       source->app_operation_ = true;
@@ -4158,7 +4493,7 @@ void ShellHostView::CreateTab(
   }
   if (!binding) {
     content::WebContents* contents = nullptr;
-    BrowserWindowInterface* source_browser = browser_;
+    BrowserWindowInterface* source_browser = member;
     const std::string adopt = String(args, "adoptId");
     bool navigate_initial = false;
     if (!adopt.empty()) {
@@ -4172,13 +4507,13 @@ void ShellHostView::CreateTab(
       bool offered = false;
       for (auto& [window, source] : Hosts()) {
         const auto offer = source->offered_.find(wanted);
-        if (source->page_profile() == page_profile() && offer != source->offered_.end() && offer->second &&
-            offer->second->GetBrowserContext() == page_profile()) offered = true;
+        if (offer != source->offered_.end() && offer->second &&
+            offer->second->GetBrowserContext() == profile) offered = true;
       }
       if (!offered) return std::move(done).Run(false, base::Value("This tab has not been offered for adoption"));
       GlobalBrowserCollection::GetInstance()->ForEach(
           [&](BrowserWindowInterface* candidate) {
-            if (candidate->GetProfile() != page_profile()) return true;
+            if (candidate->GetProfile() != profile) return true;
             TabStripModel* strip = candidate->GetTabStripModel();
             for (int index = 0; index < strip->count(); ++index) {
               if (TabId(strip->GetWebContentsAt(index)) == wanted) {
@@ -4211,20 +4546,16 @@ void ShellHostView::CreateTab(
       }
     }
     app_operation_ = true;
-    if (contents && source_browser != browser_) {
+    if (contents && source_browser != member) {
       TabStripModel* source = source_browser->GetTabStripModel();
-      ShellHostView* source_host = nullptr;
-      const auto found = Hosts().find(source_browser->GetSessionID().id());
-      if (found != Hosts().end()) {
-        source_host = found->second;
-        source_host->app_operation_ = true;
-      }
+      ShellHostView* source_host = MemberHost(source_browser);
+      if (source_host) source_host->app_operation_ = true;
       auto moving = source->DetachWebContentsAtForInsertion(source->GetIndexOfWebContents(contents));
       model->InsertWebContentsAt(model->count(), std::move(moving), AddTabTypes::ADD_NONE);
       if (source_host) source_host->app_operation_ = false;
     }
     if (!contents) {
-      NavigateParams navigation(browser_, url, ui::PAGE_TRANSITION_TYPED);
+      NavigateParams navigation(member, url, ui::PAGE_TRANSITION_TYPED);
       navigation.disposition = WindowOpenDisposition::NEW_BACKGROUND_TAB;
       navigation.window_action = NavigateParams::WindowAction::kNoAction;
       Navigate(&navigation);
@@ -4377,15 +4708,18 @@ void ShellHostView::TabCommand(
     auto* status = binding->page() ? binding->page()->status() : nullptr;
     if (!status) return std::move(done).Run(false, base::Value("No live page document"));
     std::set<content::WebContents*> before;
-    TabStripModel* model = browser_->GetTabStripModel();
+    BrowserWindowInterface* opener_member = OwnerOf(contents);
+    if (!opener_member) return std::move(done).Run(false, base::Value("Tab is no longer in this window"));
+    const int opener_session = opener_member->GetSessionID().id();
+    TabStripModel* model = opener_member->GetTabStripModel();
     for (int index = 0; index < model->count(); ++index) before.insert(model->GetWebContentsAt(index));
     const auto weak = GetWeakPtr();
     const auto opener = binding->GetWeakPtr();
     if (!status->OpenBlockedPopup(values)) {
       return std::move(done).Run(false, base::Value("The blocked pop-up is no longer available"));
     }
-    if (!weak || !browser_ || !opener) return std::move(done).Run(true, base::Value());
-    model = browser_->GetTabStripModel();
+    if (!weak || !browser_ || !opener || !MemberWithSession(opener_session)) return std::move(done).Run(true, base::Value());
+    model = MemberWithSession(opener_session)->GetTabStripModel();
     for (int index = 0; index < model->count(); ++index) {
       content::WebContents* opened = model->GetWebContentsAt(index);
       if (before.contains(opened) || Binding(TabId(opened))) continue;
@@ -4543,7 +4877,7 @@ void ShellHostView::SetViewport(
     }
   }
   if (!binding->viewport()) {
-    binding->SetViewport(AddChildView(std::make_unique<ViewportView>(page_profile())));
+    binding->SetViewport(AddChildView(std::make_unique<ViewportView>(ProfileOf(binding->contents()->GetBrowserContext()))));
   }
   binding->pane_bounds = bounds;
   binding->pane_shape = std::move(shape);
@@ -4603,10 +4937,12 @@ void ShellHostView::SetPresentations(
 void ShellHostView::StripCommand(
     int command, const base::DictValue& args,
     base::OnceCallback<void(bool, base::Value)> done) {
-  if (!browser_ || args.FindInt("strip").value_or(0) != id_) {
+  const int strip = args.FindInt("strip").value_or(0);
+  BrowserWindowInterface* member = strip == id_ ? browser_.get() : MemberWithSession(strip);
+  if (!browser_ || !member) {
     return std::move(done).Run(false, base::Value("No such tab strip in this window"));
   }
-  TabStripModel* model = browser_->GetTabStripModel();
+  TabStripModel* model = member->GetTabStripModel();
   const std::string op = String(args, "op");
   bool rejected = false;
   app_operation_ = true;
@@ -4829,7 +5165,11 @@ void ShellHostView::Invoke(
     if (!page_profile() || page_profile()->ShutdownStarted()) {
       return std::move(done).Run(false, ProfileFailure(ardiacore::linux_profiles::ProfileError::kUnavailable));
     }
-    return LinuxFilesInvoke(page_profile(), shell_, method, values, std::move(done));
+    std::vector<Profile*> profiles;
+    for (BrowserWindowInterface* member : Members()) {
+      if (!member->GetProfile()->ShutdownStarted()) profiles.push_back(member->GetProfile());
+    }
+    return LinuxFilesInvoke(profiles, shell_, method, values, std::move(done));
   }
   if (LinuxCredentialsInvokes(method)) {
     return LinuxCredentialsInvoke(!page_profile() || page_profile()->IsOffTheRecord(), shell_, method, values, std::move(done));
@@ -4851,7 +5191,7 @@ void ShellHostView::Invoke(
                            profile(), method, values, std::move(done));
   }
   if (LinuxExtensionSurfaces::Handles(method)) {
-    return ExtensionSurfaces()->Invoke(method, args, page_profile(), renderer_generation_,
+    return ExtensionSurfaces()->Invoke(method, args, ActiveProfile(), renderer_generation_,
         blink::ZoomLevelToZoomFactor(zoom::ZoomController::GetZoomLevelForWebContents(shell())), std::move(done));
   }
   if (LinuxImportHandles(method)) {
@@ -4938,7 +5278,8 @@ void ShellHostView::Invoke(
         .Set("code", "ERR_DOCUMENT_CLOSING").Set("message", "Window is closing")));
   }
   if (method == "ArdiaShell.restoreShortcutFocus") {
-    if (switcher_source_ && browser_->GetTabStripModel()->GetActiveWebContents() == switcher_source_.get()) {
+    BrowserWindowInterface* source_owner = switcher_source_ ? OwnerOf(switcher_source_.get()) : nullptr;
+    if (source_owner && source_owner->GetTabStripModel()->GetActiveWebContents() == switcher_source_.get()) {
       switcher_source_->Focus();
     }
     switcher_source_.reset();
@@ -5001,13 +5342,48 @@ void ShellHostView::Invoke(
     } else {
       switcher_capture_ = values[0].GetBool();
       if (!switcher_capture_) {
-        if (switcher_source_ && browser_->GetTabStripModel()->GetActiveWebContents() == switcher_source_.get()) {
+        BrowserWindowInterface* source_owner = switcher_source_ ? OwnerOf(switcher_source_.get()) : nullptr;
+        if (source_owner && source_owner->GetTabStripModel()->GetActiveWebContents() == switcher_source_.get()) {
           switcher_source_->Focus();
         }
         switcher_source_.reset();
       }
     }
     return std::move(done).Run(true, base::Value());
+  }
+  if (method == "ArdiaShell.setActiveProfile") {
+    if (values.size() != 2 || !values[0].is_string() || !values[1].is_int() || values[1].GetInt() < 0)
+      return std::move(done).Run(false, base::Value("A profile and a selection sequence are required"));
+    const uint64_t sequence = static_cast<uint64_t>(values[1].GetInt());
+    if (active_profile_generation_ != renderer_generation_) {
+      active_profile_generation_ = renderer_generation_;
+      active_profile_sequence_ = 0;
+    }
+    if (sequence < active_profile_sequence_) return std::move(done).Run(true, base::Value(false));
+    active_profile_sequence_ = sequence;
+    const std::string requested = values[0].GetString();
+    const auto name = ardiacore::linux_profiles::ParseProfileName(requested);
+    if (!name) return std::move(done).Run(false, ProfileFailure(ardiacore::linux_profiles::ProfileError::kInvalid));
+    if (is_utility() || private_window() || page_profile()->IsOffTheRecord() ||
+        name->kind == ardiacore::linux_profiles::ProfileKind::kPrivate) {
+      return std::move(done).Run(true, base::Value(HostsProfile(requested)));
+    }
+    ardiacore::ResolveLinuxProfile(requested, base::BindOnce(
+        [](base::WeakPtr<ShellHostView> host, uint64_t generation, uint64_t sequence,
+           base::OnceCallback<void(bool, base::Value)> done, Profile* resolved,
+           ardiacore::linux_profiles::ProfileError error) {
+          if (!host || host->renderer_generation_ != generation || host->active_profile_generation_ != generation ||
+              host->active_profile_sequence_ != sequence) return std::move(done).Run(true, base::Value(false));
+          if (!resolved || resolved->IsOffTheRecord()) {
+            return std::move(done).Run(false, ProfileFailure(
+                error == ardiacore::linux_profiles::ProfileError::kNone
+                    ? ardiacore::linux_profiles::ProfileError::kUnavailable : error));
+          }
+          if (!host->EnsureMember(resolved)) return std::move(done).Run(true, base::Value(false));
+          host->SelectProfile(resolved);
+          std::move(done).Run(true, base::Value(true));
+        }, GetWeakPtr(), renderer_generation_, sequence, std::move(done)));
+    return;
   }
   if (method == "ArdiaTabs.claimLaunchTab") return ClaimLaunchTab(values, std::move(done));
   if (method == "ArdiaTabs.unclaimedTabs") return ListenForUnclaimedTabs(std::move(done));
@@ -5237,8 +5613,7 @@ void ShellHostView::Invoke(
     }
     ShellHostView* target = this;
     const int strip = values[1].GetDict().FindInt("strip").value_or(0);
-    const auto found = Hosts().find(strip);
-    if (found == Hosts().end() || found->second != this) return std::move(done).Run(false, base::Value("The strip is not owned by this window"));
+    if (strip != id_ && !MemberWithSession(strip)) return std::move(done).Run(false, base::Value("The strip is not owned by this window"));
     return target->StripCommand(values[0].GetInt(), values[1].GetDict(), std::move(done));
   }
   if (method == "engine.info") {
@@ -5247,7 +5622,7 @@ void ShellHostView::Invoke(
     int popups = 0;
     GlobalBrowserCollection::GetInstance()->ForEach(
         [&](BrowserWindowInterface* browser) {
-          if (browser->GetProfile() != profile()) return true;
+          if (browser->GetProfile() != profile() || IsCompanion(browser)) return true;
           tabs += browser->GetTabStripModel()->count();
           ++windows;
           if (browser->GetType() != BrowserWindowInterface::TYPE_NORMAL) ++popups;
@@ -5906,7 +6281,7 @@ class HostRegistry : public BrowserCollectionObserver,
   }
 
   void Attach(base::WeakPtr<BrowserWindowInterface> browser, bool startup) {
-    if (!browser || Hosts().contains(browser->GetSessionID().id())) return;
+    if (!browser || Hosts().contains(browser->GetSessionID().id()) || IsCompanion(browser.get())) return;
     const auto requested = RequestedWindows().find(browser->GetSessionID().id());
     const bool utility = requested != RequestedWindows().end() &&
                          !requested->second.kind.empty();
@@ -5954,6 +6329,23 @@ class HostRegistry : public BrowserCollectionObserver,
                                   browser->GetWeakPtr(), false));
   }
   void OnBrowserClosed(BrowserWindowInterface* browser) override {
+    if (const auto owner = CompanionOwners().find(browser->GetSessionID().id()); owner != CompanionOwners().end()) {
+      const int session = browser->GetSessionID().id();
+      ShellHostView* host = MemberHost(browser);
+      CompanionOwners().erase(owner);
+      if (host) host->CompanionClosed(browser);
+      base::DictValue tx = base::DictValue()
+          .Set("rev", ++Revision()).Set("cmd", base::Value())
+          .Set("strips", base::ListValue().Append(base::DictValue()
+              .Set("strip", session).Set("window", host ? host->id() : 0)
+              .Set("appWindow", host ? host->window_id() : std::string())
+              .Set("profile", ardiacore::LinuxProfileName(browser->GetProfile()).value_or(std::string()))
+              .Set("closed", true).Set("tabs", base::ListValue())));
+      for (const auto& [id, target] : Hosts()) {
+        target->Event("ArdiaTabs", "tabs", base::Value(base::DictValue().Set("name", "tabs.strips").Set("data", tx.Clone())));
+      }
+      return;
+    }
     WindowFocus().Forget(browser->GetSessionID().id());
     RequestedWindows().erase(browser->GetSessionID().id());
     const auto found = Hosts().find(browser->GetSessionID().id());
@@ -5964,9 +6356,11 @@ class HostRegistry : public BrowserCollectionObserver,
       found->second->DetachBrowser();
       return;
     }
-    base::DictValue strip = found->second->Strip();
-    strip.Set("closed", true);
-    strip.Set("tabs", base::ListValue());
+    base::ListValue closed_strips = found->second->Strips();
+    for (auto& strip : closed_strips) {
+      strip.GetDict().Set("closed", true);
+      strip.GetDict().Set("tabs", base::ListValue());
+    }
     const std::string closed_window = found->second->window_id();
     const auto closed_profile = ardiacore::linux_profiles::ParseProfileName(found->second->page_profile_id());
     const bool private_window = closed_profile && closed_profile->kind == ardiacore::linux_profiles::ProfileKind::kPrivate;
@@ -5979,7 +6373,7 @@ class HostRegistry : public BrowserCollectionObserver,
     }
     base::DictValue tx = base::DictValue()
         .Set("rev", ++Revision()).Set("cmd", base::Value())
-        .Set("strips", base::ListValue().Append(std::move(strip)));
+        .Set("strips", std::move(closed_strips));
     for (const auto& [id, host] : Hosts()) {
       host->Event("ArdiaTabs", "tabs", base::Value(base::DictValue().Set("name", "tabs.strips").Set("data", tx.Clone())));
     }
@@ -6070,7 +6464,7 @@ void StartLinuxHost() {
     CloseDevToolsTab(opened);
   };
   g_ardia_linux_devtools_open_url = [](Profile* profile, const GURL& url) {
-    if (ShellHostView* host = DevToolsLinkWindow(profile, nullptr)) return host->OpenDevToolsLink(url);
+    if (ShellHostView* host = DevToolsLinkWindow(profile, nullptr)) return host->OpenDevToolsLink(profile, url);
     LOG(WARNING) << "[ardia] DevTools link refused: no Ardia window of its profile can show it";
   };
   ardiacore::InstallLinuxAutoplayPolicy();
@@ -6088,10 +6482,8 @@ void StartLinuxHost() {
         return false;
       }));
   g_ardia_linux_drag_ended = [](BrowserWindowInterface* browser) {
-    if (!browser) return;
-    const auto found = Hosts().find(browser->GetSessionID().id());
-    if (found == Hosts().end() || found->second->browser() != browser) return;
-    ShellHostView* host = found->second;
+    ShellHostView* host = MemberHost(browser);
+    if (!host) return;
     ardiacore::NoteLinuxDragEnded([host](content::WebContents* contents) { return host->HoldsTab(contents); });
   };
   ardiacore::SetLinuxInputActivityListener(base::BindRepeating([] {
@@ -6100,14 +6492,33 @@ void StartLinuxHost() {
   g_ardia_devtools_dock_changed = [](BrowserWindowInterface* browser, content::WebContents* inspected,
                                      content::WebContents* devtools) {
     if (!browser || !inspected) return;
-    const auto found = Hosts().find(browser->GetSessionID().id());
-    if (found == Hosts().end() || found->second->browser() != browser) return;
-    found->second->OnDevToolsDockChanged(inspected, devtools);
+    if (ShellHostView* host = MemberHost(browser)) host->OnDevToolsDockChanged(inspected, devtools);
   };
   DevToolsWindow::RegisterLinuxDevToolsLifecycle();
   content::WebUIConfigMap::GetInstance().AddWebUIConfig(std::make_unique<ShellConfig>());
   g_ardia_keeps_window_without_tabs = [](const BrowserWindowInterface* browser) {
-    return browser && Hosts().contains(browser->GetSessionID().id());
+    if (!browser) return false;
+    if (Hosts().contains(browser->GetSessionID().id())) return true;
+    ShellHostView* host = IsCompanion(browser) ? MemberHost(browser) : nullptr;
+    return host && !host->closing() && !browser_shutdown::IsTryingToQuit();
+  };
+  g_ardia_linux_companion_owner = [](const BrowserWindowInterface* browser) -> BrowserWindowInterface* {
+    ShellHostView* host = IsCompanion(browser) ? MemberHost(browser) : nullptr;
+    return host ? host->browser() : nullptr;
+  };
+  g_ardia_linux_is_companion = [](const BrowserWindowInterface* browser) { return IsCompanion(browser); };
+  g_ardia_linux_window_tab_count = [](const BrowserWindowInterface* browser) {
+    ShellHostView* host = MemberHost(browser);
+    if (!host || host->browser() != browser) return -1;
+    int count = 0;
+    for (BrowserWindowInterface* member : host->Members()) count += member->GetTabStripModel()->count();
+    return count;
+  };
+  g_ardia_linux_present_companion = [](BrowserWindowInterface* browser, bool activate) {
+    if (!IsCompanion(browser)) return false;
+    ShellHostView* host = MemberHost(browser);
+    if (host && activate) host->FocusWindow();
+    return true;
   };
   g_ardia_linux_close_hooks = {
       [](BrowserWindowInterface* browser, const base::UnguessableToken& token,
@@ -6132,7 +6543,7 @@ void StartLinuxHost() {
   extensions.window_for = base::BindRepeating([](Profile* profile, content::WebContents* contents, int excluded) {
     int chosen = 0;
     for (const auto& [id, host] : Hosts()) {
-      if (id == excluded || host->page_profile() != profile || !host->ExtensionsListening()) continue;
+      if (id == excluded || !host->ServesProfile(profile) || !host->ExtensionsListening()) continue;
       if (contents && !host->ExtensionTabKey(contents).empty()) return id;
       const bool active = host->GetWidget() && host->GetWidget()->IsActive();
       if (!chosen || active) chosen = id;
@@ -6140,9 +6551,8 @@ void StartLinuxHost() {
     return chosen;
   });
   extensions.window_of_browser = base::BindRepeating([](const BrowserWindowInterface* browser) {
-    if (!browser) return 0;
-    const auto found = Hosts().find(browser->GetSessionID().id());
-    return found != Hosts().end() && found->second->browser() == browser ? found->first : 0;
+    ShellHostView* host = MemberHost(browser);
+    return host ? host->id() : 0;
   });
   extensions.tab_key = base::BindRepeating([](int window, content::WebContents* contents) {
     const auto found = Hosts().find(window);
@@ -6156,7 +6566,8 @@ void StartLinuxHost() {
     for (const auto& [id, host] : Hosts()) {
       Profile* page = host->page_profile();
       if (!page || page->ShutdownStarted()) continue;
-      if (page->GetOriginalProfile() == profile || (host->is_utility() && !profile->IsOffTheRecord())) {
+      if (page->GetOriginalProfile() == profile || (!profile->IsOffTheRecord() && host->ServesProfile(profile)) ||
+          (host->is_utility() && !profile->IsOffTheRecord())) {
         host->ExtensionEvent(name, data.Clone());
       }
     }
