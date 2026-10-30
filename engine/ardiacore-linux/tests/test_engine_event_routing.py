@@ -129,7 +129,23 @@ struct Delivered {
   base::DictValue data;
 };
 
+struct BrowserWindowInterface {
+  Profile* profile = nullptr;
+  Profile* GetProfile() const { return profile; }
+};
+
 struct ShellHostView {
+  std::vector<Profile*> companions;
+  std::vector<BrowserWindowInterface> member_storage;
+  std::vector<BrowserWindowInterface*> Members() {
+    member_storage.clear();
+    member_storage.reserve(companions.size() + 1);
+    if (page) member_storage.push_back({page});
+    for (Profile* companion : companions) member_storage.push_back({companion});
+    std::vector<BrowserWindowInterface*> members;
+    for (auto& member : member_storage) members.push_back(&member);
+    return members;
+  }
   Profile* page = nullptr;
   Profile* regular = nullptr;
   std::map<int, TabBinding> bindings;

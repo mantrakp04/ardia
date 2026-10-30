@@ -61,7 +61,18 @@ HOOK_FAKES = r'''
 #include <vector>
 struct Sink { template <class T> Sink operator<<(const T&) const { return {}; } };
 #define LOG(level) Sink()
-namespace content { struct WebContents {}; }
+struct Profile {
+  std::string name;
+  Profile* original = this;
+  Profile* GetOriginalProfile() { return original; }
+};
+namespace content {
+struct WebContents {
+  Profile* profile = nullptr;
+  Profile* GetBrowserContext() const { return profile; }
+};
+}
+Profile* ProfileOf(Profile* context) { return context; }
 struct GURL {
   std::string value;
   bool is_valid() const { return !value.empty(); }
@@ -73,11 +84,6 @@ struct DictValue {
   DictValue Set(const std::string& key, const std::string& value) && { values[key] = value; return std::move(*this); }
 };
 }
-struct Profile {
-  std::string name;
-  Profile* original = this;
-  Profile* GetOriginalProfile() { return original; }
-};
 namespace ardiacore {
 inline std::optional<std::string> LinuxProfileName(Profile* profile) {
   if (!profile || profile->name.empty()) return std::nullopt;
@@ -113,9 +119,12 @@ int main() {
   Install();
   content::WebContents tab, other, unbound;
   Profile work{"work"};
+  Profile home{"home"};
   Profile otr{"work-otr", &work};
+  tab.profile = &work;
+  other.profile = &otr;
   ShellHostView first, second;
-  first.page = &work;
+  first.page = &home;
   second.page = &otr;
   auto a = std::make_unique<TabBinding>();
   a->contents_ = &tab;

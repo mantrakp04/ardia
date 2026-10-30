@@ -79,6 +79,7 @@ struct Model {
   }
 };
 struct Browser { Model model; Model* GetTabStripModel() { return &model; } };
+using BrowserWindowInterface = Browser;
 struct TabBinding {
   bool temporary = false;
   Contents* value;
@@ -105,6 +106,9 @@ struct ShellHostView {
   void QueueTransaction(int) { auto hook = std::move(during_queue); if (hook) hook(); }
   bool DisposeTemporary(TabBinding*);
   bool CloseTab(TabBinding*);
+  Browser* OwnerOf(Contents* contents) const {
+    return browser_ && contents && browser_->GetTabStripModel()->GetIndexOfWebContents(contents) >= 0 ? browser_ : nullptr;
+  }
 };
 ARDIA_NATIVE
 TabBinding* Add(ShellHostView& host, int id, const std::shared_ptr<State>& state, bool temporary = true) {

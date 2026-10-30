@@ -73,14 +73,17 @@ export default {
       if (leaked) throw new Error("the isolated visit appeared in the default profile's history");
       return { seen };
     });
-    await t.check("cross-profile tab creation is rejected by the host", async () => {
-      const reply = await isolated.shell.invoke("tab.create", { key: `cross-${run}`, claim: `cross-claim-${run}`, profile: "default", url: "about:blank" });
-      if (reply.ok) {
-        await isolated.shell.invoke("tab.release", { id: reply.value?.browserId, claim: `cross-claim-${run}` });
-        throw new Error("the isolated window accepted a default-profile tab");
-      }
-      if (!/ERR_PROFILE/.test(`${reply.code} ${reply.message}`)) throw new Error(`unexpected refusal ${JSON.stringify(reply)}`);
-      return reply;
+    await t.check("a regular window hosts a tab of another regular profile natively, in that profile's context", async () => {
+      const key = `cross-${run}`;
+      const claim = `cross-claim-${run}`;
+      const crossUrl = t.fixtures.url.isolation("isolation.ardia.test") + `?p=cross-${run}`;
+      const reply = await isolated.shell.invoke("tab.create", { key, claim, profile: "", url: crossUrl });
+      if (!reply.ok) throw new Error(`the isolated window refused a default-profile tab: ${reply.code} ${reply.message}`);
+      const target = await state.app.pageLoaded(crossUrl, { timeout: 20000 });
+      const info = (await state.app.browserTargets()).find((t) => t.targetId === target.id);
+      await isolated.shell.invoke("tab.close", { key });
+      if (info?.browserContextId !== defaultPage.browserContextId) throw new Error(`the default-profile tab runs in ${info?.browserContextId}`);
+      return { context: info.browserContextId };
     });
     await t.check("a shared-data profile shares the default profile's data", async () => {
       const profileId = await state.shell.state(`return s.createProfile({ name: ${js(`Shared ${run}`)}, shareWith: "default" });`);
@@ -104,6 +107,9 @@ export default {
       await writeMarks(page.session, `private-${run}`);
       const regular = await readMarks(defaultPage.session);
       if (regular.cookie !== `default-${run}`) throw new Error(`private write reached the regular profile ${JSON.stringify(regular)}`);
+      const cross = await opened.shell.invoke("tab.create", { key: `private-cross-${run}`, claim: `private-cross-claim-${run}`, profile: "", url: "about:blank" });
+      if (cross.ok) throw new Error("the private window accepted a regular-profile tab");
+      if (!/ERR_PROFILE/.test(`${cross.code} ${cross.message}`)) throw new Error(`unexpected refusal ${JSON.stringify(cross)}`);
       privateWindow = { ...opened, page };
       return { windowId: opened.windowId, pageProfile: opened.shell.pageProfile, privateBootstrap: opened.shell.privateWindow, context: page.browserContextId };
     });

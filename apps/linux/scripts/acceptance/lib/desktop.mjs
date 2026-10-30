@@ -65,7 +65,7 @@ export async function desktopTools(base = process.env) {
   const site = await pythonSitePackages(env);
   if (site) env.PYTHONPATH = [site, base.PYTHONPATH].filter(Boolean).join(delimiter);
   const found = {};
-  for (const [key, name] of Object.entries({ sway: "sway", swaymsg: "swaymsg", xvfb: "Xvfb", xdotool: "xdotool", grim: "grim", xkbcli: "xkbcli", openbox: "openbox", xgrab: "imlib2_grab", dbusDaemon: "dbus-daemon", keyring: "gnome-keyring-daemon", fcitx5: "fcitx5", python: "python3", portal: PORTAL_FRONTEND, xprop: "xprop" })) found[key] = await which(name, env.PATH);
+  for (const [key, name] of Object.entries({ sway: "sway", swaymsg: "swaymsg", xvfb: "Xvfb", xdotool: "xdotool", grim: "grim", xkbcli: "xkbcli", openbox: "openbox", xgrab: "imlib2_grab", magick: "magick", dbusDaemon: "dbus-daemon", keyring: "gnome-keyring-daemon", fcitx5: "fcitx5", python: "python3", portal: PORTAL_FRONTEND, xprop: "xprop" })) found[key] = await which(name, env.PATH);
   found.dbusmock = found.python ? await pythonHasDbusmock(env) : false;
   return { env, ...found };
 }
@@ -500,6 +500,16 @@ function x11Driver(desktop) {
       if (!desktop.tools.xgrab) return null;
       await desktop.run(desktop.tools.xgrab, [file], { timeout: 20000 });
       return file;
+    },
+    async capture() {
+      if (!desktop.tools.xgrab || !desktop.tools.magick) throw new Error("imlib2_grab and ImageMagick are needed for X11 captures");
+      const base = join(desktop.dir, `capture-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
+      await desktop.run(desktop.tools.xgrab, [`${base}.png`], { timeout: 20000 });
+      await desktop.run(desktop.tools.magick, [`${base}.png`, `ppm:${base}.ppm`], { timeout: 20000 });
+      const image = parsePpm(await readFile(`${base}.ppm`));
+      await rm(`${base}.png`, { force: true });
+      await rm(`${base}.ppm`, { force: true });
+      return image;
     },
     async keyDown(key) {
       await xdotool(["keydown", key]);

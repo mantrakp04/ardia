@@ -85,6 +85,9 @@ struct ShellHostView {
   bool UnclaimedListening() const { return listening; }
   bool TabClaimed(content::WebContents*) const { return claimed; }
   ShellHostView* GetWeakPtr() { return this; }
+  Browser* OwnerOf(content::WebContents* contents) const {
+    return browser_ && contents && browser_->GetTabStripModel()->GetIndexOfWebContents(contents) >= 0 ? browser_ : nullptr;
+  }
   struct Entry { std::string url; bool active; };
   Entry ClaimUnclaimedTab(content::WebContents* contents, bool active) {
     offered.push_back(contents);
@@ -254,7 +257,7 @@ class ExtensionOpenedTabsTests(unittest.TestCase):
         restored = method(self.source, 'bool RestoredTab(')
         self.assertIn('if (controller.GetEntryCount() > 1) return true;', restored)
         self.assertIn('controller.GetEntryAtIndex(index)->IsRestored()', restored)
-        create = method(self.source, 'void ShellHostView::CreateTab(')
+        create = method(self.source, 'void ShellHostView::CreateTabIn(')
         self.assertIn('const bool blank = BlankTabUrl(initial);', create)
         self.assertIn('source->unclaimed_.erase(id);', create)
         self.assertIn('source->announced_.erase(id);', create)
@@ -275,7 +278,9 @@ class ExtensionOpenedTabsTests(unittest.TestCase):
         claim = method(self.source, 'base::DictValue ShellHostView::ClaimUnclaimedTab(')
         self.assertIn('announced_[TabId(contents)] = contents->GetWeakPtr();', claim)
         self.assertLess(claim.index('OfferTab(contents);'), claim.index('return'))
-        self.assertIn('active && browser_->GetTabStripModel()->GetActiveWebContents() == contents', claim)
+        self.assertIn('active && owner && owner->GetTabStripModel()->GetActiveWebContents() == contents', claim)
+        self.assertIn('owner == ActiveMember()', claim)
+        self.assertIn('.Set("profile", ardiacore::LinuxProfileName(ProfileOf(contents->GetBrowserContext())).value_or(std::string()))', claim)
         self.assertIn('Event("ArdiaTabs", "unclaimed", base::Value(ClaimUnclaimedTab(contents, active)));', method(self.source, 'void ShellHostView::AnnounceUnclaimedTab('))
 
     def test_a_chrome_made_window_hands_its_tabs_to_its_shell_only_from_its_bootstrap(self):

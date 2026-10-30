@@ -18,10 +18,35 @@ def values():
   const DictValue* FindDict''')
 
 
-def host_methods():
+REPEATING = r'''template<class Signature> class RepeatingCallback;
+template<class R, class... Args> class RepeatingCallback<R(Args...)> {
+  std::function<R(Args...)> callback_;
+ public:
+  RepeatingCallback() = default;
+  RepeatingCallback(const RepeatingCallback&) = default;
+  RepeatingCallback(RepeatingCallback&&) = default;
+  RepeatingCallback& operator=(const RepeatingCallback&) = default;
+  RepeatingCallback& operator=(RepeatingCallback&&) = default;
+  template<class F> requires (!std::is_same_v<std::decay_t<F>, RepeatingCallback>)
+  RepeatingCallback(F&& callback) : callback_(std::forward<F>(callback)) {}
+  explicit operator bool() const { return bool(callback_); }
+  bool is_null() const { return !callback_; }
+  R Run(Args... args) const { return callback_(std::move(args)...); }
+};
+template<class F, class... Args> auto BindRepeating(F function, Args... args) {
+  return [function, args...](auto&&... rest) { return std::invoke(function, args..., std::forward<decltype(rest)>(rest)...); };
+}
+'''
+COMPANIONS_ACCEPT = 'void ShellHostView::ConfirmCompanions(base::OnceCallback<void(bool)> done) { std::move(done).Run(true); }\n'
+
+
+def host_methods(real_companions=True):
     source = (ROOT / 'src/ardia/linux/ac_linux_host.cc').read_text()
-    signatures = ['LinuxDocumentClient ShellHostView::DocumentClient', 'bool ShellHostView::EnsureDocumentClient', 'bool ShellHostView::RetireDocuments', 'void ShellHostView::DocumentCall', 'std::optional<ShellHostView::StorageTicket> ShellHostView::BeginStorageIntent', 'void ShellHostView::CompleteStorageIntent', 'bool ShellHostView::TrackStorageWrite', 'void ShellHostView::CloseNativeWindow', 'void ShellHostView::ArmWindowClose', 'base::DictValue ShellHostView::RequestWindowClose', 'void ShellHostView::BeginWindowCloseDrain', 'bool ShellHostView::AwaitingChromeHandoff', 'bool ShellHostView::ClosingEndsSession', 'std::string ShellHostView::DialogProfile', 'std::optional<LinuxDialogClient> ShellHostView::DialogClient', 'void ShellHostView::DialogInvoke', 'void ShellHostView::SuspendDialogsForClose', 'void ShellHostView::CommitWindowDeparture', 'void ShellHostView::ResumeDialogsForClose', 'void ShellHostView::RequestUtilityClose', 'bool ShellHostView::ReadyForChromeClose', 'LinuxCloseAdmission ShellHostView::AdmitChromeTeardown', 'void ShellHostView::ReplyChromeClose', 'void ShellHostView::FinishChromePreparations', 'bool ShellHostView::DeferChromeClose', 'void ShellHostView::ChromeCloseCancelled', 'void ShellHostView::CancelWindowClose', 'void ShellHostView::CancelDocumentSeal', 'void ShellHostView::AcknowledgeWindowClose', 'void ShellHostView::OnWidgetClosing', 'void ShellHostView::OnWidgetDestroying']
-    return '\n'.join(method(source, signature) for signature in signatures)
+    signatures = ['LinuxDocumentClient ShellHostView::DocumentClient', 'bool ShellHostView::EnsureDocumentClient', 'bool ShellHostView::RetireDocuments', 'void ShellHostView::DocumentCall', 'std::optional<ShellHostView::StorageTicket> ShellHostView::BeginStorageIntent', 'void ShellHostView::CompleteStorageIntent', 'bool ShellHostView::TrackStorageWrite', 'void ShellHostView::CloseNativeWindow', 'void ShellHostView::ArmWindowClose', 'base::DictValue ShellHostView::RequestWindowClose', 'void ShellHostView::BeginWindowCloseDrain', 'bool ShellHostView::AwaitingChromeHandoff', 'bool ShellHostView::ClosingEndsSession', 'std::string ShellHostView::DialogProfile', 'std::optional<LinuxDialogClient> ShellHostView::DialogClient', 'void ShellHostView::DialogInvoke', 'void ShellHostView::SuspendDialogsForClose', 'void ShellHostView::CommitWindowDeparture', 'void ShellHostView::ResumeDialogsForClose', 'void ShellHostView::RequestUtilityClose', 'bool ShellHostView::ReadyForChromeClose', 'LinuxCloseAdmission ShellHostView::AdmitChromeTeardown', 'void ShellHostView::ReplyChromeClose', 'void ShellHostView::FinishChromePreparations', 'bool ShellHostView::DeferChromeClose', 'void ShellHostView::ChromeCloseCancelled', 'void ShellHostView::CancelWindowClose', 'void ShellHostView::CancelDocumentSeal', 'void ShellHostView::AcknowledgeWindowClose', 'void ShellHostView::ConfirmCompanions', 'void ShellHostView::OnWidgetClosing', 'void ShellHostView::OnWidgetDestroying']
+    if not real_companions:
+        signatures.remove('void ShellHostView::ConfirmCompanions')
+    methods = '\n'.join(method(source, signature) for signature in signatures)
+    return methods if real_companions else methods + '\n' + COMPANIONS_ACCEPT
 
 
 PROFILE = r'''struct Profile { bool regular = true; bool IsRegularProfile() const { return regular; } };'''
@@ -106,7 +131,7 @@ template<class T> struct WeakPtr {
   void reset() { pointer = nullptr; alive.reset(); }
   T& operator*() const { return *operator->(); }
 };
-template<class F, class... Args> auto BindOnce(F function, Args... args) {
+ARDIA_REPEATINGtemplate<class F, class... Args> auto BindOnce(F function, Args... args) {
   return [function = std::move(function), ...args = std::move(args)](auto&&... rest) mutable {
     if constexpr (requires { std::move(function).Run(std::move(args)..., std::forward<decltype(rest)>(rest)...); })
       return std::move(function).Run(std::move(args)..., std::forward<decltype(rest)>(rest)...);
@@ -229,8 +254,51 @@ struct Browser {
   std::function<void(base::UnguessableToken)> on_cancel;
   views::Widget widget;
   views::Widget* GetWindow() { return &widget; }
+  struct Strip {
+    int tabs = 0;
+    int count() const { return tabs; }
+  } strip;
+  Strip* GetTabStripModel() { return &strip; }
+  struct Unload {
+    enum class State { kIdle, kRunning, kConfirmed };
+    int resets = 0;
+    int prompts = 0;
+    bool handlers = false;
+    State state = State::kIdle;
+    std::function<void(bool)> confirmed;
+    template<class Confirmed> bool RunBeforeUnloadForShutdown(bool, const Confirmed& on_close_confirmed) {
+      if (!handlers || state != State::kIdle) return false;
+      confirmed = on_close_confirmed;
+      state = State::kRunning;
+      ++prompts;
+      return true;
+    }
+    void Answer(bool proceed) {
+      assert(state == State::kRunning);
+      if (proceed) {
+        state = State::kConfirmed;
+        auto callback = confirmed;
+        callback(true);
+        return;
+      }
+      Cancel();
+    }
+    void Cancel() {
+      auto callback = std::move(confirmed);
+      confirmed = {};
+      state = State::kIdle;
+      callback(false);
+    }
+    void ResetBeforeUnloadForShutdown() {
+      ++resets;
+      if (state != State::kIdle) Cancel();
+    }
+  } unload;
 };
 using BrowserWindowInterface = Browser;
+struct UnloadController {
+  static Browser::Unload* From(Browser* browser) { return &browser->unload; }
+};
 namespace ardia {
 enum class LinuxCloseStage { kPrepare, kBeginTeardown, kDestroy };
 enum class LinuxCloseAdmission { kRejected, kRetryPreflight, kCommitted };
@@ -261,6 +329,9 @@ ARDIA_DIALOGS
 #include "ardia/linux/ac_linux_profiles.h"
 struct ShellHostView {
   Browser native;
+  std::vector<base::WeakPtr<BrowserWindowInterface>> companions_;
+  std::vector<std::shared_ptr<void>> confirmation_steps_;
+  void ConfirmCompanions(base::OnceCallback<void(bool)> done);
   std::string page_profile_;
   int reach_id_ = 0;
   int opener_host_ = 0;
@@ -434,7 +505,8 @@ void Watch(ShellHostView& host) {
   Drain(); assert(watched);
 }
 '''
-PRELUDE = TEMPLATE.replace('ARDIA_PROFILE', PROFILE).replace('ARDIA_HANDLER', HANDLER).replace('ARDIA_DIALOGS', DIALOGS)
+PRELUDE = TEMPLATE.replace('ARDIA_PROFILE', PROFILE).replace('ARDIA_HANDLER', HANDLER).replace('ARDIA_DIALOGS', DIALOGS).replace('ARDIA_REPEATING', REPEATING)
+PRELUDE_WITHOUT_REPEATING = PRELUDE.replace(REPEATING, '')
 
 
 def close_invoke():

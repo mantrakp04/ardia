@@ -106,7 +106,14 @@ class ShellHostView {
     return bindings_[id].get();
   }
   Profile* page_profile() const { return profile_; }
-  TabBinding* PrivateLinkBinding() { return bindings_.empty() ? nullptr : bindings_.begin()->second.get(); }
+  bool ServesProfile(const content::BrowserContext* profile) const { return profile == profile_ || served.contains(profile); }
+  TabBinding* PrivateLinkBinding(content::BrowserContext* profile) {
+    for (const auto& [id, binding] : bindings_) {
+      if (binding->contents()->GetBrowserContext() == profile) return binding.get();
+    }
+    return nullptr;
+  }
+  std::set<const content::BrowserContext*> served;
   bool StripHolds(content::WebContents* contents) const { return strip.contains(contents); }
   void FocusWindow() { ++focused; }
   std::set<content::WebContents*> strip;
@@ -197,6 +204,16 @@ int main() {
   profile_ = nullptr;
   OpenInNewTab(nullptr, {"https://example.test/refused"});
   assert(fallbacks == 0 && a->presented.size() == 1 && b->presented.size() == 1 && idle.focused == 0);
+
+  content::WebContents companion_page, companion_opened;
+  companion_page.profile = &other;
+  companion_opened.profile = &other;
+  TabBinding* c = first.Bind(13, &companion_page);
+  first.served.insert(&other);
+  first.activation_ = 60;
+  popup.result = &companion_opened;
+  OpenInNewTab(&popup, {"https://example.test/companion"});
+  assert(c->reports.size() == 1 && c->reports[0].opened == &companion_opened && closed.size() == 1);
 
   assert(!first.ReportDevToolsOpenedTab(nullptr, &opened, {"https://example.test"}));
   return 0;
