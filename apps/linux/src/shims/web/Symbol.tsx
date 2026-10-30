@@ -14,6 +14,7 @@ export type SymbolProps = ViewProps & {
 
 const NATIVE_DEFAULT_POINT_SIZE = 14;
 const CANVAS_IN_POINTS = 3;
+const GLYPH_ANCHOR = 1;
 type SymbolPolicy = { createHTML(markup: string): TrustedHTML };
 type SymbolTrustedTypes = { createPolicy(name: string, rules: { createHTML(markup: string): string }): SymbolPolicy };
 const trustedTypes = (globalThis as typeof globalThis & { trustedTypes?: SymbolTrustedTypes }).trustedTypes;
@@ -35,12 +36,16 @@ export function Symbol({ name, size = NATIVE_DEFAULT_POINT_SIZE, weight = "regul
   return (
     <View pointerEvents="none" {...props} style={style}>
       {layers ? (
-        <span aria-hidden data-symbol={name} style={{ position: "absolute", left: "50%", top: "50%", width: 0, height: 0, pointerEvents: "none" }}>
-          <span
-            style={{ position: "absolute", left: -canvas / 2, top: -canvas / 2, width: canvas, height: canvas, display: "block" }}
-            dangerouslySetInnerHTML={{ __html: markup }}
-          />
-        </span>
+        <svg
+          aria-hidden
+          data-symbol={name}
+          width={GLYPH_ANCHOR}
+          height={GLYPH_ANCHOR}
+          viewBox={`${canvas / 2} ${canvas / 2} ${GLYPH_ANCHOR} ${GLYPH_ANCHOR}`}
+          overflow="visible"
+          style={{ position: "absolute", left: "50%", top: "50%", display: "block", overflow: "visible", pointerEvents: "none" }}
+          dangerouslySetInnerHTML={{ __html: markup }}
+        />
       ) : null}
     </View>
   );

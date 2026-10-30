@@ -129,6 +129,37 @@ function seedTabs({ adoptTabs }: ArdiaHost["bootstrap"]): SeedTab[] {
   return seeds.length ? seeds : [{ url: "", page: { kind: "idle" }, active: true }];
 }
 
+const LAUNCH_WINDOW_ID = "main";
+
+const hasSavedTabs = (saved: HydrateData, id: string | null | undefined) =>
+  !!id && !!saved.windows?.[id]?.tabIds.some((tabId) => saved.tabs?.[tabId]);
+
+const movedTo = <T extends { windowId: string }>(from: string, to: string) => (entry: T): T => entry.windowId === from ? { ...entry, windowId: to } : entry;
+const movedTable = <T extends { windowId: string }>(table: Record<string, T> | undefined, from: string, to: string) =>
+  table && Object.fromEntries(Object.entries(table).map(([id, entry]) => [id, movedTo<T>(from, to)(entry)]));
+
+function withLaunchWindowAdopted(saved: HydrateData, windowId: string): HydrateData {
+  if (hasSavedTabs(saved, windowId)) return saved;
+  const adoptable = (id: string | null | undefined): id is string => id !== windowId && saved.windows?.[id ?? ""]?.kind === "main" && hasSavedTabs(saved, id);
+  const from = [saved.focusedWindowId, ...(saved.windowOrder ?? [])].find(adoptable);
+  if (!from) return saved;
+  const { [from]: adopted, [windowId]: _empty, ...others } = saved.windows!;
+  const renamed = (id: string) => id === from ? windowId : id;
+  return withoutAbsent({
+    ...saved,
+    windows: { ...others, [windowId]: { ...adopted!, id: windowId } },
+    windowOrder: [...new Set((saved.windowOrder ?? []).map(renamed))],
+    focusedWindowId: saved.focusedWindowId && renamed(saved.focusedWindowId),
+    tabs: movedTable(saved.tabs, from, windowId),
+    groups: movedTable(saved.groups, from, windowId),
+    splits: movedTable(saved.splits, from, windowId),
+    closedTabs: saved.closedTabs?.map(movedTo(from, windowId)),
+    cleanedTabs: saved.cleanedTabs?.map(movedTo(from, windowId)),
+    closedGroups: saved.closedGroups?.map(movedTo(from, windowId)),
+    deletedGroups: saved.deletedGroups?.map(movedTo(from, windowId)),
+  });
+}
+
 export function initialHostSession(host: ArdiaHost, saved: HydrateData | null | undefined, now = Date.now()): HydrateData {
   const { windowId } = host.bootstrap;
   const profileId = seedProfile(host.bootstrap);
@@ -138,6 +169,7 @@ export function initialHostSession(host: ArdiaHost, saved: HydrateData | null | 
   if (saved?.closedWindows) saved = { ...saved, closedWindows: inClosingOrder(saved.closedWindows) };
   const privateSession = withPrivateWindow(host, saved ?? {});
   if (privateSession) return privateSession;
+  if (saved && host.bootstrap.startup === true && windowId === LAUNCH_WINDOW_ID) saved = withLaunchWindowAdopted(saved, windowId);
   const profile = { id: profileId, name: "Personal", color: "plum" as const, icon: null, createdAt: now };
   const profiles = { ...saved?.profiles };
   profiles[profileId] ??= profile;
