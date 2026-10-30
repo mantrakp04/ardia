@@ -18,13 +18,17 @@ export function sharedDataChain(doc: SyncDoc, syncId: string): { adds: string[];
   return { adds: [syncId], sharesWith: linkedProfileId(doc, record.p) };
 }
 
+function defaultSpaceOf(app: ScopeState) {
+  for (const [key, value] of visible(app, "prof:")) {
+    const id = key.slice(5);
+    const record = id.trim() ? profileRecord(value) : null;
+    if (record?.d && typeof record.p === "string" && record.p.trim()) return [id, record] as const;
+  }
+}
+
 export function linkSpaces(doc: SyncDoc, app: ScopeState) {
   const s = useBrowser.getState();
-  const remoteSpaces = [...visible(app, "prof:")].flatMap(([key, value]) => {
-    const record = profileRecord(value);
-    return record ? [[key.slice(5), record] as const] : [];
-  });
-  const defaultSpace = remoteSpaces.find(([, record]) => record.d && typeof record.p === "string" && record.p.trim());
+  const defaultSpace = defaultSpaceOf(app);
   for (const p of Object.values(s.profiles)) {
     if (doc.profiles[p.id]) continue;
     const hint = defaultSpace?.[1].p;
@@ -86,6 +90,5 @@ export function appScopeOf(doc: SyncDoc, now = Date.now()): ScopeState {
 
 export function readyToPair(doc: SyncDoc, app: ScopeState, now = Date.now()): boolean {
   if (!doc.joining || pairingOverdue(doc, now)) return true;
-  const synced = [...visible(app, "prof:").values()].flatMap((v) => profileRecord(v) ?? []);
-  return synced.some((r) => r.d && typeof r.p === "string" && r.p.trim());
+  return !!defaultSpaceOf(app);
 }
