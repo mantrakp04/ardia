@@ -56,9 +56,9 @@ export type WindowsSlice = {
   setWindowFullScreen(id: string, on: boolean): void;
   toggleSidebar(windowId: string): void;
   switchProfile(windowId: string, profileId: string): void;
-  moveTabsToWindow(tabIds: string[], windowId: string | null): string | undefined;
+  moveTabsToWindow(tabIds: string[], windowId: string | null, frame?: Frame | null): string | undefined;
   moveTabToProfile(tabId: string, profileId: string): void;
-  moveGroupToWindow(groupId: string, windowId: string | null): string | undefined;
+  moveGroupToWindow(groupId: string, windowId: string | null, frame?: Frame | null): string | undefined;
   moveGroupToProfile(groupId: string, profileId: string): void;
   mergeAllWindows(windowId: string): void;
   reopenClosed(windowId?: string | null): void;
@@ -250,12 +250,12 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
     set(s);
   },
 
-  moveTabsToWindow(tabIds, windowId) {
+  moveTabsToWindow(tabIds, windowId, frame) {
     const s = get();
     if (windowId === null) {
       const first = s.tabs[tabIds[0] ?? ""];
       if (!first || isIncognitoProfile(first.profileId)) return undefined;
-      return get().createWindow({ profileId: first.profileId, tabIds });
+      return get().createWindow({ profileId: first.profileId, tabIds, frame });
     }
     let next = moveTabsInto(s, tabIds, windowId);
     const last = findLast(tabIds, (id) => next.tabs[id]?.windowId === windowId);
@@ -270,12 +270,12 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
     if (next !== s) set(apply(next, activated(next, tabId)));
   },
 
-  moveGroupToWindow(groupId, windowId) {
+  moveGroupToWindow(groupId, windowId, frame) {
     const g = get().groups[groupId];
     if (!g || g.pinned) return undefined;
     const tree = groupTree(get().groups, groupId);
     const kept = splitsWithin(get(), g.tabIds);
-    const target = get().moveTabsToWindow(g.tabIds, windowId);
+    const target = get().moveTabsToWindow(g.tabIds, windowId, frame);
     if (target) set(withSplitsBack(regrouped(get(), tree, target, g.profileId, false), kept, target));
     return target;
   },
