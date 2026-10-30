@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createUtilitySessionSnapshot, initialLinuxSession } from "./session.ts";
-import { startHostPersistence } from "./hostSession.ts";
+import { linuxSessionShape, startHostPersistence } from "./hostSession.ts";
 import { useBrowser } from "../../browser/src/state/browser/store.ts";
 import { mergeSession } from "./hostSessionMerge.ts";
 
@@ -41,6 +41,44 @@ test("sessions saved with numeric pin choices start with clock stamps", () => {
   assert.ok(Object.values(choices).every((choice) => typeof choice === "string"));
   assert.ok(choices[`place:${key}`] > choices[key]);
   assert.deepEqual(initialLinuxSession(host("settings"), saved).pinChoices, initial.pinChoices);
+});
+
+test("legacy tab fields left beside current ones never override them, so a saved session settles", async () => {
+  const savedWindow = globalThis.window;
+  const savedDocument = globalThis.document;
+  globalThis.window = { addEventListener() {}, removeEventListener() {} };
+  globalThis.document = { hidden: false, addEventListener() {}, removeEventListener() {} };
+  const saved = browserSession();
+  const key = Object.keys(saved.tabs)[0];
+  saved.tabs[key] = { ...saved.tabs[key], page: { kind: "idle" }, pin: { as: "tile" }, unloaded: true, pinned: true, pinnedAsRow: true, navigation: null };
+  const shaped = linuxSessionShape(saved).tabs[key];
+  assert.deepEqual(shaped.page, { kind: "idle" });
+  assert.deepEqual(shaped.pin, { as: "tile" });
+  assert.ok(!["unloaded", "pinned", "pinnedAsRow", "navigation"].some((field) => field in shaped));
+  let canonical = saved;
+  const writes = [];
+  const native = {
+    ...host(),
+    async invoke(method, pair) {
+      assert.equal(method, "session.write");
+      writes.push(pair);
+      canonical = mergeSession(pair.base, pair.session, canonical);
+      return canonical;
+    },
+    onEvent() { return () => {}; },
+    onBeforeClose() { return () => {}; },
+  };
+  useBrowser.getState().hydrate(initialLinuxSession(native, linuxSessionShape(saved)));
+  const stop = startHostPersistence(native, useBrowser, saved);
+  try {
+    await stop.flush();
+    assert.ok(writes.length <= 2, `${writes.length} writes`);
+    assert.deepEqual(useBrowser.getState().tabs[key].pin, { as: "tile" });
+  } finally {
+    stop();
+    globalThis.window = savedWindow;
+    globalThis.document = savedDocument;
+  }
 });
 
 test("utility snapshots preserve canonical browser geometry, pages, groups and focus while saving live profile names and settings", () => {

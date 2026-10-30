@@ -45,6 +45,40 @@ const legacyEntries = (session: HydrateData) => [
   ...[...(session.closedWindows ?? []), ...(session.closedGroups ?? []), ...(session.deletedGroups ?? [])].flatMap((entry) => (entry as { tabs?: unknown[] }).tabs ?? []),
   ...Object.values(session.parkedPins ?? {}).flatMap((park) => (park as { tabs?: unknown[] }).tabs ?? []),
 ].some((tab) => !!tab && typeof tab === "object" && ["pinned", "pinnedAsRow", "tileFolder"].some((key) => key in tab));
+const STALE_PAGE_FIELDS = ["navigation", "adoptId", "wakeAdoptId", "pageIn", "unloaded"];
+const STALE_PIN_FIELDS = ["pinned", "pinnedAsRow", "tileFolder"];
+const settledTab = (tab: unknown) => {
+  if (!tab || typeof tab !== "object") return tab;
+  const stale = [...("page" in tab ? STALE_PAGE_FIELDS : []), ...("pin" in tab ? STALE_PIN_FIELDS : [])].filter((key) => key in tab);
+  return stale.length ? Object.fromEntries(Object.entries(tab).filter(([key]) => !stale.includes(key))) : tab;
+};
+const settledSession = (session: HydrateData): HydrateData => {
+  let changed = false;
+  const settle = (tab: unknown) => {
+    const next = settledTab(tab);
+    if (next !== tab) changed = true;
+    return next;
+  };
+  const entries = <T,>(list: T[] | undefined, key: "tab" | "tabs") =>
+    list?.map((entry) => {
+      if (!entry || typeof entry !== "object" || !(key in entry)) return entry;
+      const value = (entry as Record<string, unknown>)[key];
+      return { ...entry, [key]: key === "tab" ? settle(value) : Array.isArray(value) ? value.map(settle) : value };
+    });
+  const next = {
+    ...session,
+    tabs: session.tabs && Object.fromEntries(Object.entries(session.tabs).map(([id, tab]) => [id, settle(tab)])),
+    closedTabs: entries(session.closedTabs, "tab"),
+    cleanedTabs: entries(session.cleanedTabs, "tab"),
+    closedWindows: entries(session.closedWindows, "tabs"),
+    closedGroups: entries(session.closedGroups, "tabs"),
+    deletedGroups: entries(session.deletedGroups, "tabs"),
+    parkedPins: session.parkedPins && Object.fromEntries(Object.entries(session.parkedPins).map(([id, park]) =>
+      [id, park && typeof park === "object" && Array.isArray((park as { tabs?: unknown }).tabs) ? { ...park, tabs: (park as { tabs: unknown[] }).tabs.map(settle) } : park])),
+  } as HydrateData;
+  return changed ? withoutAbsent(next) : session;
+};
+
 const legacySession = (session: HydrateData) =>
   Object.values(session.tabs ?? {}).some(legacyTab) || Object.values(session.windows ?? {}).some(legacyWindow) ||
   Object.values(session.splits ?? {}).some(legacySplit) || legacyEntries(session);
@@ -54,7 +88,10 @@ const legacyPinChoices = (session: HydrateData) =>
 const withPinChoiceStamps = (session: HydrateData) =>
   legacyPinChoices(session) ? sessionWithPinChoiceStamps(session as unknown as SavedObject) as unknown as HydrateData : session;
 
-export const linuxSessionShape = (saved: HydrateData): HydrateData => withPinChoiceStamps(legacySession(saved) ? withoutAbsent(currentSessionShape(saved)) : saved);
+export const linuxSessionShape = (saved: HydrateData): HydrateData => {
+  const settled = settledSession(saved);
+  return withPinChoiceStamps(legacySession(settled) ? withoutAbsent(currentSessionShape(settled)) : settled);
+};
 
 const CLOSED_WINDOW_LIMIT = 10;
 const inClosingOrder = <T extends { closedAt: number }>(entries: T[]) => [...entries].sort((a, b) => a.closedAt - b.closedAt).slice(-CLOSED_WINDOW_LIMIT);
