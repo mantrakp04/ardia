@@ -31,6 +31,7 @@ export const typeSyncedFor = (types: Record<DataType, boolean>, type: DataType, 
 export type SpaceLink = {
   syncId: string;
   enabled: boolean;
+  adopting?: true;
   retire?: boolean;
   themeAdopting?: true;
   pendingProfileId?: string;

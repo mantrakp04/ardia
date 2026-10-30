@@ -20,25 +20,28 @@ export function sharedDataChain(doc: SyncDoc, syncId: string): { adds: string[];
 
 export function linkSpaces(doc: SyncDoc, app: ScopeState) {
   const s = useBrowser.getState();
+  const remoteSpaces = [...visible(app, "prof:")].flatMap(([key, value]) => {
+    const record = profileRecord(value);
+    return record ? [[key.slice(5), record] as const] : [];
+  });
+  const defaultSpace = remoteSpaces.find(([, record]) => record.d && typeof record.p === "string" && record.p.trim());
   for (const p of Object.values(s.profiles)) {
     if (doc.profiles[p.id]) continue;
-    const defaultRecord = [...visible(app, "prof:")].map(([, value]) => value as SpaceRecord).find((record) => record.d);
-    const hint = typeof defaultRecord?.p === "string" && defaultRecord.p ? defaultRecord.p : undefined;
+    const hint = defaultSpace?.[1].p;
     const remote = doc.joining && p.id === "default" ? [...visible(app, "identity:")].find(([, value]) => identityRecord(value)?.seed)?.[0].slice(9) ?? hint : undefined;
     if (doc.joining && !pairingOverdue(doc, Date.now()) && p.id === "default" && !remote && (app.pending || Object.keys(app.damaged).length)) continue;
     const syncId = remote ?? SyncNative!.newDeviceId();
     doc.profiles[p.id] = { syncId, enabled: true, topAppsEnabled: true, ...(remote && !app.records[profileKey(remote)]?.v ? { adopting: true as const } : {}) };
     if (remote) doc.scopes[profileScope(syncId)] = { ...emptyScope(), awaitRemote: true };
   }
-  const remote = [...visible(app, "prof:")].map(([key, value]) => [key.slice(5), value as SpaceRecord] as const);
   for (const id of s.spaceOrder) {
     const space = s.spaces[id];
     if (!space || isIncognitoSpace(id) || doc.spaces[id]) continue;
     if (!doc.profiles[space.profileId]) continue;
-    const match = doc.joining && id === DEFAULT_SPACE_ID ? remote.find(([, record]) => record.d && record.p === doc.profiles[space.profileId]?.syncId)?.[0] : undefined;
+    const match = doc.joining && id === DEFAULT_SPACE_ID ? defaultSpace?.[0] : undefined;
     if (doc.joining && id === DEFAULT_SPACE_ID && !match && !pairingOverdue(doc, Date.now())) continue;
     const syncId = match ?? SyncNative!.newDeviceId();
-    doc.spaces[id] = { syncId, enabled: true };
+    doc.spaces[id] = { syncId, enabled: true, ...(match ? { adopting: true as const } : {}) };
     if (match) { doc.scopes[spaceScope(syncId)] = { ...emptyScope(), awaitRemote: true }; pairTheme(app, id, doc.spaces[id]!); }
   }
   for (const [id, link] of Object.entries(doc.spaces)) {
@@ -84,5 +87,5 @@ export function appScopeOf(doc: SyncDoc, now = Date.now()): ScopeState {
 export function readyToPair(doc: SyncDoc, app: ScopeState, now = Date.now()): boolean {
   if (!doc.joining || pairingOverdue(doc, now)) return true;
   const synced = [...visible(app, "prof:").values()].flatMap((v) => profileRecord(v) ?? []);
-  return synced.some((r) => r.d);
+  return synced.some((r) => r.d && typeof r.p === "string" && r.p.trim());
 }
