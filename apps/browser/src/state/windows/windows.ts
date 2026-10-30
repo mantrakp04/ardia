@@ -19,11 +19,12 @@ import { markPinned } from "../pins/pinChoices";
 import { hasLoadedPage, hasPage, IDLE, isAsleep, loadedPage, withWake } from "../tabs/pageSession";
 import { adoptParkedPins, parkWindowPins } from "../pins/parkedPins";
 import { settleMovedPins } from "../pins/pinMirror";
-import { returnSharedPages } from "../pins/pinShare";
+import { holderOf, returnSharedPages, swapPinPage } from "../pins/pinShare";
+import { isTopApp, topAppsShared } from "../pins/topApps";
 import { closedWindowEntry, MAX_CLOSED_WINDOWS } from "../pins/closedTabs";
 import { pendingRestore } from "../tabs/adoptIds";
 import { sharedElsewhere, sharesTabs } from "../tabs/tabShare";
-import { isSmall, isSmallWindow, lastActiveProfile, linkProfileOf, mainWindowFor } from "./small";
+import { isRegularWindow, isSmall, isSmallWindow, lastActiveProfile, linkProfileOf, mainWindowFor } from "./small";
 import { activated, apply, removeTabs, withNewTab } from "../tabs/tabs";
 import type { AdoptId, BrowserWindow, ClosedWindow, Frame, ParkedPins, Tab, WindowKind } from "../browser/types";
 import { emptyWindow, smallWindow, withWindow } from "./newWindow";
@@ -245,6 +246,8 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
     let target = remembered && s.tabs[remembered]?.windowId === windowId ? remembered : undefined;
     target ??= s.windows[windowId]!.tabIds.find((id) => s.tabs[id]?.profileId === profileId && !isAsleep(s.tabs[id]));
     if (!target) [s, target] = withNewTab(s, windowId, { profileId, background: true });
+    const swapped = !hasPage(s.tabs[target]!) && holderOf(s, target)?.windowId === windowId ? swapPinPage(s, target) : null;
+    if (swapped) [s, target] = [swapped.state, swapped.holderId];
     s = apply(s, activated(s, target));
     if (focusedWindowOf(s) === windowId) s = { ...s, ui: { ...s.ui, lastProfileId: profileId } };
     set(s);
@@ -266,6 +269,14 @@ export const createWindowsSlice: StateCreator<BrowserState, [], [], WindowsSlice
 
   moveTabToProfile(tabId, profileId) {
     const s = get();
+    const tab = s.tabs[tabId];
+    const w = tab && s.windows[tab.windowId];
+    if (tab && isRegularWindow(w) && isTopApp(tab) && topAppsShared(s, tab.profileId, profileId)) {
+      get().switchProfile(w.id, profileId);
+      const now = get();
+      const copy = now.windows[w.id]?.tabIds.find((id) => now.tabs[id]?.profileId === profileId && isTopApp(now.tabs[id]!) && pinKeyOf(now.tabs[id]!) === pinKeyOf(tab));
+      if (copy) return get().activate(copy);
+    }
     const next = intoProfile(s, tabId, profileId);
     if (next !== s) set(apply(next, activated(next, tabId)));
   },

@@ -81,6 +81,16 @@ export const generalRows = {
   profiles: [
     { section: "New windows open with", rows: { defaultProfile: { title: "Default profile", description: "Used for new windows. Links from other apps open in the profile you used last.", keywords: ["new window"] } } },
     {
+      section: "Shared data",
+      rows: {
+        shareTopApps: {
+          title: "Share Top Apps",
+          description: "Profiles that share data show the same Top Apps, and each one is a single page you pick up where you left it in any of them.",
+          keywords: ["pinned tabs", "favorites", "essentials", "spaces", "shared"],
+        },
+      },
+    },
+    {
       section: "Profile switcher",
       rows: {
         switcherIcons: {

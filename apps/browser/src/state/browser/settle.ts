@@ -8,6 +8,7 @@ import { pinnedTabsLeaveLive, settlePinHomes } from "../pins/pinHomes";
 import { mirrorPins } from "../pins/pinMirror";
 import { settleSharedPins } from "../pins/pinShare";
 import { settleTileFolders } from "../pins/tileFolders";
+import { mirrorTopApps } from "../pins/topApps";
 import { mirrorTabs, pagesIntoSplits, unshareTabs } from "../tabs/tabShare";
 
 export type SettleStep = (s: BrowserState, prev: BrowserState) => BrowserState | null;
@@ -31,6 +32,7 @@ export const SETTLE_STEPS: readonly (readonly [string, SettleStep])[] = [
   ["settleSharedPins", settleSharedPins],
   ["settleTileFolders", settleTileFolders],
   ["mirrorPins", mirrorPins],
+  ["mirrorTopApps", mirrorTopApps],
   ["mirrorTabs", mirrorTabs],
   ["pinnedTabsLeaveLive", patched(pinnedTabsLeaveLive)],
 ];
