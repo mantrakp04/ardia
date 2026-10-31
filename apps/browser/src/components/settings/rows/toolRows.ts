@@ -47,7 +47,13 @@ export const toolRows = {
     },
   ],
   calendar: [
-    { section: "Live Calendar", rows: { access: { title: "Calendar access", keywords: ["connect calendar", "google calendar", "outlook", "icloud"] } } },
+    {
+      section: "Live Calendar",
+      rows: {
+        access: { title: "Calendar access", keywords: ["connect calendar", "macos calendar", "outlook", "icloud"] },
+        google: { title: "Google Calendar", keywords: ["connect calendar", "google calendar", "gmail", "sign in"] },
+      },
+    },
     {
       section: "Meeting alerts",
       rows: {
