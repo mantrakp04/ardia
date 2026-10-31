@@ -11,6 +11,7 @@ export const editBookmarkDialog = { width: 420, buttonsTop: 18 } as const;
 export const fieldLabel = { gapBelow: 5 } as const;
 
 export const bookmarksBar = {
+  iconOnlyGap: 16,
   overflowWidth: 28,
   otherReserve: 150,
   dividerHeight: 14,

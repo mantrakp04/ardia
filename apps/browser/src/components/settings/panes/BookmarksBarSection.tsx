@@ -1,7 +1,7 @@
 import { useSettings } from "../../../state/browser/hooks";
 import { updateSettings } from "../../../state/settings/actions";
 import { PopUp } from "../../ui";
-import { Group, Row, SectionHeader } from "../Form";
+import { Group, Row, SectionHeader, SettingToggle } from "../Form";
 
 export function BookmarksBarSection() {
   const mode = useSettings((s) => s.bookmarksBar);
@@ -33,6 +33,7 @@ export function BookmarksBarSection() {
             minWidth={160}
           />
         </Row>
+        <SettingToggle anchor="appearance.showUntitledBookmarkUrls" />
       </Group>
     </>
   );

@@ -60,3 +60,14 @@ test("a setup code can carry every value its settings can take", () => {
     if (values) assert.deepEqual(values.filter((v) => !SETTING_FIELDS[key].values.includes(v)), [], key);
   }
 });
+
+test("unnamed bookmark URL labels default on and an explicit choice parses and syncs", () => {
+  assert.equal(parseSettings({}).showUntitledBookmarkUrls, true);
+  assert.equal(parseSettings({ showUntitledBookmarkUrls: "false" }).showUntitledBookmarkUrls, true);
+  assert.equal(parseSettings({ showUntitledBookmarkUrls: false }).showUntitledBookmarkUrls, false);
+  S().hydrate({ settings: {}, settingsMeta: { chosen: [], inferred: [] } });
+  S().updateSettings({ showUntitledBookmarkUrls: false });
+  assert.deepEqual(settingsAdapter.extract(() => undefined).values.get("set:showUntitledBookmarkUrls"), { v: false });
+  settingsAdapter.apply(new Map([["set:showUntitledBookmarkUrls", { v: true }]]), ["set:showUntitledBookmarkUrls"]);
+  assert.equal(S().settings.showUntitledBookmarkUrls, true);
+});

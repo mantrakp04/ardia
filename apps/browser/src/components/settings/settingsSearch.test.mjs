@@ -127,3 +127,9 @@ test("panes leave showing and hiding an anchored row to the row's own rule", () 
   );
   assert.deepEqual(wrapped, SHOWN_BY_LOADED_DATA);
 });
+
+test("unnamed bookmark labels are searchable by name and icon-only terms", () => {
+  for (const query of ["unnamed bookmarks", "untitled", "icon only", "untitled bookmarks", "favicon only", "no name", "no title", "unnamed bookmark address"])
+    assert.equal(first(query), "appearance.showUntitledBookmarkUrls", query);
+  assert.ok(ids("favicon").includes("appearance.showUntitledBookmarkUrls"));
+});

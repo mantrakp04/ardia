@@ -294,6 +294,11 @@ export const generalRows = {
           description: "Below the toolbar. Also in View › Show Bookmarks Bar, ⇧⌘B.",
           keywords: ["bookmarks bar", "favorites bar", "favourites bar", "toolbar", "hide bookmarks", "show bookmarks"],
         },
+        showUntitledBookmarkUrls: {
+          title: "Show URLs for unnamed bookmarks",
+          description: "When off, bookmarks without a name show only their icon on the bookmarks bar.",
+          keywords: ["bookmarks bar", "untitled", "favicon", "icon only", "favicon only", "empty title", "no name", "no title", "address", "hide URL"],
+        },
         bookmarksBarSize: {
           title: "Size",
           description: "Large makes the bar, its icons and its text bigger, and its folder menus roomier.",

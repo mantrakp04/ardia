@@ -4,7 +4,7 @@ import { useBookmarkProfileId, useBookmarks, useSidebarEdge } from "../../state/
 import { openModeFor, openUrl } from "../../state/bookmarks/actions";
 import { barDragging, beginBookmarkDrag, endBookmarkDrag, moveBookmarkDrag, useBarDrag } from "../../state/bookmarks/barDrag";
 import { folderMenuOpen, openFolderMenu, toggleFolderMenu, useFolderMenus } from "../../state/bookmarks/folderMenus";
-import { useWindowId } from "../../state/browser/hooks";
+import { useSettings, useWindowId } from "../../state/browser/hooks";
 import { openImport } from "../../state/settings/settingsWindows";
 import { Favicon } from "../favicon/Favicon";
 import { useSidebarWidth } from "../../state/sidebar/hooks";
@@ -68,6 +68,7 @@ export function BarItem({
   onLayout: (r: LayoutRectangle) => void;
 }) {
   const node = useBookmarks((b) => b.nodes[id]);
+  const showUntitledUrls = useSettings((s) => s.showUntitledBookmarkUrls);
   const size = useBarSize();
   const width = useSidebarWidth(windowId);
   const sidebarEdge = useSidebarEdge(windowId, width);
@@ -104,8 +105,8 @@ export function BarItem({
           <BarButton
             favicon={node.kind === "url" ? node : undefined}
             icon={folder ? "folder" : undefined}
-            title={node.title || (node.kind === "url" ? node.url : "")}
-            tooltip={node.kind === "url" ? `${node.title}\n${node.url}` : node.title}
+            title={node.title || (node.kind === "url" && showUntitledUrls ? node.url : "")}
+            tooltip={node.kind === "url" ? (node.title ? `${node.title}\n${node.url}` : node.url) : node.title}
             active={menuOpen}
             dropRing={dropInto}
             onPress={open}
@@ -130,9 +131,9 @@ export const BarButton = forwardRef<View, {
   const size = useBarSize();
   return (
     <View ref={ref} collapsable={false} {...hoverProps} tooltip={tooltip}>
-      <Pressable accessibilityRole="button" accessibilityLabel={title ?? tooltip} onPress={(e) => onPress(e.nativeEvent as unknown as ClickMods)}>
+      <Pressable accessibilityRole="button" accessibilityLabel={title || tooltip} onPress={(e) => onPress(e.nativeEvent as unknown as ClickMods)}>
         {({ pressed }) => (
-          <Chip size={size} width={width} padded={!!title} hovered={hovered || active || dropRing} pressed={pressed || !!active} dropRing={dropRing}>
+          <Chip size={size} width={width ?? (!title && favicon ? size.favicon + bookmarksBar.iconOnlyGap - size.itemGap : undefined)} padded={!!title} hovered={hovered || active || dropRing} pressed={pressed || !!active} dropRing={dropRing}>
             <ChipIcon size={size} favicon={favicon} icon={icon} />
             {title ? (
               <Text lines={1} size={size.text} tone="textTab" style={TITLE}>
