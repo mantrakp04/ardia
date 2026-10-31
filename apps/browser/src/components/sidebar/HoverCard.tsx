@@ -14,7 +14,7 @@ import { openInSplit } from "../../state/splits/actions";
 import { CalendarPreview, useIsCalendarTab } from "../live/CalendarPreview";
 import { LiveItemCard } from "../live/LiveItemCard";
 import { useIsSleeping } from "../../state/tabs/tabLifecycle";
-import { FadeLabel, font, GlassFill, liquidGlass, Panel, radius, Symbol, useHover, weight } from "../ui";
+import { FadeLabel, font, Panel, radius, Symbol, useHover, weight } from "../ui";
 import { SIDEBAR_SHADOW, SIDEBAR_TYPE } from "./tokens";
 import { clickTab, toggleBookmarkInWindow } from "../../state/sidebar/actions";
 import { GroupPanel } from "./GroupPanel";
@@ -63,7 +63,6 @@ function Card({ anchor, children }: { anchor: Anchor; children: React.ReactNode 
   return (
     <Panel
       {...cardHoverProps}
-      glass="panel"
       fill={theme.panel}
       radius={radius.panel}
       border={theme.panelBorder}
@@ -164,10 +163,9 @@ function Action({ icon, label, onPress }: { icon: string; label: string; onPress
               alignItems: "center",
               justifyContent: "center",
               gap: 3,
-              backgroundColor: liquidGlass ? undefined : pressed ? theme.toolbarPressed : hovered ? theme.toolbarHover : theme.urlPill,
+              backgroundColor: pressed ? theme.toolbarPressed : hovered ? theme.toolbarHover : theme.urlPill,
             }}
           >
-            {liquidGlass ? <GlassFill fill={pressed ? theme.toolbarPressed : hovered ? theme.toolbarHover : theme.urlPill} radius={radius.l} state={hovered && !pressed ? "lit" : "rest"} /> : null}
             <Symbol name={icon} size={13} color={theme.icon} style={{ width: 18, height: 16 }} />
             <Text style={{ fontSize: SIDEBAR_TYPE.cardAction, color: theme.textSecondary }}>{label}</Text>
           </View>

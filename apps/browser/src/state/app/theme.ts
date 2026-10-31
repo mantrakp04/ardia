@@ -15,6 +15,12 @@ export function useScopedLook<T>(resolve: (incognito: boolean, profile: Profile 
   });
 }
 
+export function useGlassSettings() {
+  const glass = useBrowser((s) => s.settings.interfaceStyle === "glass");
+  const tint = useBrowser((s) => (s.settings.glassTintWithTheme ? s.settings.glassTintAmount : 0));
+  return { glass, tint };
+}
+
 export function useSelectedTabGlowSetting() {
   return useBrowser((s) => s.settings.selectedTabGlow);
 }

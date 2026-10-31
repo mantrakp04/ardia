@@ -70,13 +70,13 @@ export const SCOPE_CHIP = {
 } as const;
 
 export const SUGGESTION = {
-  listX: 9,
+  listX: 8,
   dropdownListX: space.s,
   listBelow: space.xxs,
   dropdownListBelow: space.s,
-  height: 35,
-  gapY: 2.5,
-  radius: 11,
+  height: 36,
+  gapY: 2,
+  radius: 8,
   padX: 13,
   gap: 11,
   icon: 13,
@@ -84,6 +84,8 @@ export const SUGGESTION = {
   iconBox: 16,
   remove: { glyph: 10, box: 22, radius: radius.m },
 } as const;
+
+export const SELECTED_SUGGESTION_ALPHA = { dark: 0.56, light: 0.3 } as const;
 
 export const SUGGESTION_TEXT_SIZE = font.title.fontSize;
 

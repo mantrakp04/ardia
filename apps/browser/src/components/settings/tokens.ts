@@ -32,6 +32,11 @@ const themePreviewLight: typeof themePreviewDark = { line: "rgba(0,0,0,0.18)", c
 
 export const themePreview = { dark: themePreviewDark, light: themePreviewLight } as const;
 
+const stylePreviewDark = { backdrop: "#4A3A3E", tile: "rgba(255,255,255,0.1)", tileStroke: "rgba(255,255,255,0.14)" };
+const stylePreviewLight: typeof stylePreviewDark = { backdrop: "#E6CED2", tile: "rgba(0,0,0,0.05)", tileStroke: "rgba(0,0,0,0.2)" };
+
+export const stylePreview = { dark: stylePreviewDark, light: stylePreviewLight } as const;
+
 export const settingsInk = {
   onAccentSecondary: "rgba(255,255,255,0.8)",
   knobOutline: "rgba(0,0,0,0.25)",

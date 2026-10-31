@@ -208,9 +208,8 @@ void RecordLayouts(ArdiaSavedSession *session, BOOL wait) {
       NSString *active = ActiveTabOf(session, windowId);
       if (active && [layout[@"tab"] isEqual:active] && CapturePicture(controller, windowId, layout)) layout[@"pictureContent"] = layout[@"content"];
       else DropPictureFile(windowId);
-    } else if ([gLayouts[windowId][@"pictureContent"] isKindOfClass:NSString.class]) {
+    } else if ([gLayouts[windowId][@"pictureContent"] isKindOfClass:NSString.class] && !gLayouts[windowId][@"glass"]) {
       layout[@"pictureContent"] = gLayouts[windowId][@"pictureContent"];
-      if (id glass = gLayouts[windowId][@"glass"]) layout[@"glass"] = glass;
     }
     gLayouts[windowId] = layout;
   }

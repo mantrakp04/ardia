@@ -1,5 +1,5 @@
 import type { AppIcon } from "../../../state/app/appSettings";
-import { Symbol, font, PopUp, Toggle, useHover } from "../../ui";
+import { GlassFill, liquidGlass, Symbol, font, PopUp, Toggle, useHover } from "../../ui";
 import { Image, Pressable, Text, View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { useSettings, useShowPageFrame, useTabLayout } from "../../../state/browser/hooks";
@@ -7,8 +7,9 @@ import { updateSettings } from "../../../state/settings/actions";
 import type { Settings } from "../../../state/settings/settings";
 import { Group, Row, SectionHeader } from "../Form";
 import { PictureChoice } from "../PictureChoice";
+import { AmountSlider } from "../ThemeControls";
 import { BookmarksBarSection } from "./BookmarksBarSection";
-import { modePreview } from "../tokens";
+import { modePreview, stylePreview } from "../tokens";
 import { useSettingsColors } from "../useSettingsColors";
 import { APP_ICON_SIZE, appIconChoices, chooseAppIcon } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
@@ -36,6 +37,7 @@ export function AppearancePane() {
           <Toggle value={spacesFollow} onChange={(v) => updateSettings({ spacesFollowAppearance: v })} />
         </Row>
       </Group>
+      <InterfaceStylePicker />
       <AddressBarPicker />
       <PageFramePicker />
       <BookmarksBarSection />
@@ -43,6 +45,57 @@ export function AppearancePane() {
       <ScrollBarsPicker />
       <AppIconPicker />
     </View>
+  );
+}
+
+const TINT_SLIDER_WIDTH = 160;
+
+const STYLES: { value: Settings["interfaceStyle"]; title: string }[] = [
+  { value: "glass", title: "Glass" },
+  { value: "classic", title: "Classic" },
+];
+
+function InterfaceStylePicker() {
+  const style = useSettings((s) => s.interfaceStyle);
+  const tinted = useSettings((s) => s.glassTintWithTheme);
+  const tintAmount = useSettings((s) => s.glassTintAmount);
+  if (!liquidGlass) return null;
+  return (
+    <>
+      <SectionHeader anchor="appearance.interfaceStyle" />
+      <View style={{ flexDirection: "row", gap: 14 }}>
+        {STYLES.map((s) => (
+          <StyleChoice key={s.value} value={s.value} title={s.title} selected={style === s.value} onPress={() => updateSettings({ interfaceStyle: s.value })} />
+        ))}
+      </View>
+      <Group style={{ marginTop: 14 }}>
+        <Row anchor="appearance.glassTintWithTheme">
+          <Toggle value={tinted} onChange={(v) => updateSettings({ glassTintWithTheme: v })} />
+        </Row>
+        {tinted ? (
+          <Row anchor="appearance.glassTintAmount">
+            <View style={{ width: TINT_SLIDER_WIDTH }}>
+              <AmountSlider value={tintAmount} tooltip={`${Math.round(tintAmount * 100)} %`} onChange={(v) => updateSettings({ glassTintAmount: Math.round(v * 100) / 100 })} />
+            </View>
+          </Row>
+        ) : null}
+      </Group>
+    </>
+  );
+}
+
+function StyleChoice({ value, title, selected, onPress }: { value: Settings["interfaceStyle"]; title: string; selected: boolean; onPress: () => void }) {
+  const theme = useTheme();
+  const look = stylePreview[theme.dark ? "dark" : "light"];
+  const glass = value === "glass";
+  return (
+    <PictureChoice title={title} selected={selected} onPress={onPress} gap={7} frame={{ height: 84, borderRadius: 9, overflow: "hidden", padding: 10, flexDirection: "row", gap: 8, backgroundColor: look.backdrop }}>
+      {[0, 1, 2].map((i) => (
+        <View key={i} style={{ flex: 1, alignSelf: "flex-start", height: 30, borderRadius: 8, backgroundColor: glass ? undefined : look.tile, borderWidth: glass ? 0 : 1, borderColor: look.tileStroke }}>
+          {glass ? <GlassFill radius={8} state={i === 0 ? "active" : "rest"} /> : null}
+        </View>
+      ))}
+    </PictureChoice>
   );
 }
 

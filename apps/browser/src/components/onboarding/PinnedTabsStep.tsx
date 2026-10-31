@@ -4,7 +4,7 @@ import { useWindowHistory } from "../../state/history/hooks";
 import { confirmAnswer, setOnboardingExtras, skipStep, useOnboarding } from "../../state/onboarding/onboarding";
 import { PINNABLE_SITES, pinnedHosts, pinSites, preselectedSites } from "../../state/onboarding/sites";
 import { SiteLogo } from "./SiteLogo";
-import { GlassBacking, solidFill, useSiteRing } from "./GlassBacking";
+import { GlassBacking, useSolidFill, useSiteRing } from "./GlassBacking";
 import { SelectTile, useOnboardingColors } from "./Parts";
 import { StepActions, StepLayout } from "./StepLayout";
 import { trafficLights } from "./tokens";
@@ -61,6 +61,7 @@ function SiteTile({ title, url, selected, onPress }: { title: string; url: strin
 }
 
 function PinnedPreview({ selected }: { selected: string[] }) {
+  const solidFill = useSolidFill();
   const colors = useOnboardingColors();
   const sites = PINNABLE_SITES.filter((s) => selected.includes(s.id));
   const slots = Math.max(6, Math.ceil(sites.length / 3) * 3);
@@ -89,7 +90,7 @@ function PinnedPreview({ selected }: { selected: string[] }) {
                 borderColor: colors.rowBorder,
               }}
             >
-              {site ? <GlassBacking fill={colors.button} radius={9} /> : null}
+              {site ? <GlassBacking radius={9} /> : null}
               {site ? <SiteLogo url={site.url} size={18} /> : null}
             </View>
           );

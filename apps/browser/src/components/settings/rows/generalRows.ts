@@ -126,13 +126,6 @@ export const generalRows = {
           keywords: ["pinned tiles", "favorites", "grid", "columns", "rows", "arc"],
           shown: inSidebar,
         },
-        pinnedTabIconRing: {
-          advanced: true,
-          title: "Highlight pinned tabs in their icon's colors",
-          description: "As in Dia: the Top App you're on gets a ring and tint from its icon instead of the raised glass.",
-          keywords: ["dia", "liquid glass", "top apps", "favicon", "colour", "ring", "tint", "selected tile"],
-          shown: (_, env) => env.liquidGlass,
-        },
         fadeUnloadedTabs: {
           advanced: true,
           title: "Fade icons of unloaded tabs",
@@ -251,6 +244,29 @@ export const generalRows = {
           title: "Profile themes follow this appearance",
           description: "Every profile goes light or dark with this choice, even when its theme (like one imported from an Arc space) says Light. In dark mode a light theme's colours are darkened so white text reads.",
           keywords: ["space", "profile theme", "arc theme", "follow system"],
+        },
+      },
+    },
+    {
+      section: "Interface Style",
+      rows: {
+        interfaceStyle: {
+          title: "Interface style",
+          description: "Glass draws the pinned tiles, fields, buttons, Downloads and the site controls panel in macOS Liquid Glass. Classic keeps them flat, like Dia.",
+          keywords: ["liquid glass", "glass", "classic", "flat", "translucent", "transparency", "glow", "frosted"],
+          shown: (_, env) => !!env.glass,
+        },
+        glassTintWithTheme: {
+          title: "Tint glass with the profile colour",
+          description: "Off, the glass stays neutral grey whatever the profile's colour.",
+          keywords: ["liquid glass", "tint", "colour", "color", "profile colour", "theme"],
+          shown: (s, env) => !!env.glass && s.interfaceStyle === "glass",
+        },
+        glassTintAmount: {
+          title: "Tint amount",
+          description: "How much of the profile colour the glass takes, from a hint to fully coloured.",
+          keywords: ["liquid glass", "tint", "strength", "intensity", "colour", "color", "glossy"],
+          shown: (s, env) => !!env.glass && s.interfaceStyle === "glass" && s.glassTintWithTheme,
         },
       },
     },

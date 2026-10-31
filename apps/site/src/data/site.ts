@@ -8,5 +8,7 @@ export const PAGES = {
   benchmarks: "benchmarks/",
   notes: "release-notes/",
   press: "press/",
+  privacy: "privacy/",
+  terms: "terms/",
 } as const;
 export const pagePath = (page: keyof typeof PAGES) => `${base}/${PAGES[page]}`;

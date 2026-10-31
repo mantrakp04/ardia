@@ -187,6 +187,15 @@ export function CompactThemeEditor({ theme, onChange }: { theme: ProfileTheme; o
       <ThemeStops theme={theme} onChange={onChange} />
       <View style={{ flex: 1, gap: 14 }}>
         <Slider stacked label="Intensity" value={theme.intensity} onChange={(v, settle) => onChange({ ...theme, intensity: v }, settle)} />
+        <Slider stacked label="Pass-through blur" value={theme.translucency} onChange={(v, settle) => onChange({ ...theme, translucency: v }, settle)} />
+        <Slider stacked label="Noise" value={theme.grain} onChange={(v, settle) => onChange({ ...theme, grain: v }, settle)}>
+          <PopUp
+            value={theme.texture}
+            minWidth={78}
+            options={THEME_TEXTURES.map((t) => ({ value: t, title: TEXTURE_NAMES[t] }))}
+            onChange={(texture) => onChange({ ...theme, texture, grain: theme.grain || 0.5 }, true)}
+          />
+        </Slider>
         <Labelled label="Direction">
           <DirectionDial angle={lookAngle(theme)} onChange={(angle, settle) => onChange(withAngle(theme, angle), settle)} />
         </Labelled>

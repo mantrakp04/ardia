@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Image, StyleSheet, View, type ImageSourcePropType } from "react-native";
-import { DockSelection, GlassFill, liquidGlass, useTheme } from "../ui";
+import { DockSelection, GlassFill, useGlass, useTheme } from "../ui";
 import { bundledSiteIcon } from "../favicon/siteIcons";
 import { useFavicon } from "../../state/favicons/favicons";
 import { useIconRing, warmIconRing } from "../../state/favicons/iconRing";
@@ -9,13 +9,16 @@ import type { TileTheme } from "../../state/favicons/tileTheme";
 export const RING_WIDTH = 2;
 const RING_WARM_DELAY_MS = 500;
 
-export const solidFill = (fill: string) => (liquidGlass ? "transparent" : fill);
+export function useSolidFill() {
+  const glass = useGlass();
+  return (fill: string) => (glass ? "transparent" : fill);
+}
 
-export function GlassBacking({ fill, radius, border = 0, raised, highlight }: { fill: string; radius: number; border?: number; raised?: boolean; highlight?: string | null }) {
-  if (!liquidGlass) return null;
+export function GlassBacking({ radius, border = 0, raised, highlight }: { radius: number; border?: number; raised?: boolean; highlight?: string | null }) {
+  if (!useGlass()) return null;
   return (
     <>
-      <GlassFill radius={radius} border={border} fill={fill} state={raised ? "active" : "rest"} />
+      <GlassFill radius={radius} border={border} state={raised ? "active" : "rest"} />
       {highlight ? <View pointerEvents="none" style={{ position: "absolute", top: -border, left: -border, right: -border, bottom: -border, borderRadius: radius, borderCurve: "continuous", backgroundColor: highlight }} /> : null}
     </>
   );
@@ -48,7 +51,7 @@ const sourceUri = (source: ImageSourcePropType | null | undefined): string | nul
 };
 
 function useWarmRing(uri: string | null, shown: boolean) {
-  const usable = liquidGlass ? uri : null;
+  const usable = useGlass() ? uri : null;
   useEffect(() => {
     if (!usable) return;
     const timer = setTimeout(() => warmIconRing(usable), RING_WARM_DELAY_MS);

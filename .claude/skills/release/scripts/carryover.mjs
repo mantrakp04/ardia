@@ -10,7 +10,7 @@ const bundleId = execFileSync("/usr/libexec/PlistBuddy", ["-c", "Print :CFBundle
 const docs = path.join(home, "Library/Application Support", bundleId);
 let instance = null;
 const alive = () => !!instance && !instance.exited;
-setTimeout(() => { console.error("carryover: no result in 240 s"); try { instance?.kill(); } catch {} process.exit(3); }, 240_000).unref();
+setTimeout(() => { console.error("carryover: no result in 420 s"); try { instance?.kill(); } catch {} process.exit(3); }, 420_000).unref();
 
 if (listenerPids(port).length) { console.error(`carryover: port ${port} is taken`); process.exit(4); }
 fs.mkdirSync(docs, { recursive: true });
@@ -43,7 +43,31 @@ async function firstWindow() {
   if (!w) throw new Error("no window");
   return w;
 }
-const pid = await start(previousBuild, `${phase}.app.log`);
+const realLibrary = path.join(os.userInfo().homedir, "Library");
+const withoutPrivate = (p) => p.replace(/^\/private\//, "/");
+function openFilesOf(pid) {
+  const tree = [pid];
+  for (let i = 0; i < tree.length; i++) { try { tree.push(...execSync(`pgrep -P ${tree[i]}`).toString().trim().split("\n").filter(Boolean)); } catch {} }
+  const files = execSync(`lsof -p ${tree.join(",")} -Fn`).toString().split("\n").filter((l) => l.startsWith("n/")).map((l) => withoutPrivate(l.slice(1)));
+  return { files, processes: tree.length };
+}
+const inRealHome = (files) => files.filter((f) => f.startsWith(`${realLibrary}/Application Support/com.ardia`) || f.startsWith(`${realLibrary}/Caches/com.ardia`));
+async function openInstalledCopy() {
+  const installedPid = await start(false, `${phase}.installed.app.log`);
+  const profileFolder = `${withoutPrivate(path.join(docs, "Chromium"))}/`;
+  let seen = { files: [], processes: 0 };
+  for (let i = 0; i < 60 && alive() && !seen.files.some((f) => f.startsWith(profileFolder)); i++) { await sleep(1000); seen = openFilesOf(installedPid); }
+  await sleep(5000);
+  if (alive()) seen = openFilesOf(installedPid);
+  return {
+    dataDirectory: seen.files.some((f) => f.startsWith(profileFolder)) ? path.join(docs, "Chromium") : `nothing open under ${profileFolder}`,
+    realHomeFiles: inRealHome(seen.files),
+    processes: seen.processes,
+    quit: await quit(installedPid),
+  };
+}
+const installed = previousBuild ? null : await openInstalledCopy();
+const pid = await start(true, `${phase}.app.log`);
 
 const step = (what) => { if (process.env.CARRYOVER_VERBOSE) console.error(`carryover ${phase}: ${what}`); };
 const legacy = path.basename(execFileSync("/usr/libexec/PlistBuddy", ["-c", "Print :CFBundleExecutable", `${app}/Contents/Info.plist`]).toString().trim()) === "Netnyahoo";
@@ -97,7 +121,7 @@ const safe = (p, f) => Promise.resolve().then(() => p).then(f, (e) => "error: " 
 const orError = (p) => p.catch((e) => ({ error: e.message }));
 const flat = (n, acc) => { acc = acc || []; if (!n) return acc; if (n.u) acc.push(n.t + " " + n.u); (n.c || []).forEach((c) => flat(c, acc)); return acc; };
 const r = { profiles: s.profileOrder.map((id) => s.profiles[id].name), tabs: [] };
-for (const t of Object.values(s.tabs)) if (t.url) r.tabs.push(s.profiles[t.profileId].name + " " + t.url);
+for (const t of Object.values(s.tabs)) if (t.url && !t.url.startsWith("https://ardia.dev/release-notes")) r.tabs.push(s.profiles[t.profileId].name + " " + t.url);
 r.tabs.sort();
 return safe(E.call("engine.info"), (i) => { r.dataDirectory = i && i.dataDirectory; }).then(() => seq(s.profileOrder, (id) => {
   const p = id === "default" ? "" : id, name = s.profiles[id].name, put = (k, v) => { r[name + " " + k] = v; };
@@ -106,7 +130,7 @@ return safe(E.call("engine.info"), (i) => { r.dataDirectory = i && i.dataDirecto
     .then(() => safe(orError(E.call("bookmarks.tree", { profile: p })), (t) => { put("bookmarks", flat(t.bar).concat(flat(t.other))); }))
     .then(() => safe(orError(E.call("history.query", { profile: p, maxUrls: 100, maxVisits: 5 })), (h) => put("history", (h.entries || []).map((e) => e.u).sort())))
     .then(() => safe(orError(E.call("autofill.addresses", { profile: p })), (a) => put("addresses", ((a && a.addresses) || []).map((x) => x.name + ", " + x.city))))
-    .then(() => safe(E.call("sites.settings", { profile: p, origin: O }), (v) => put("notifications", v && v.notifications && v.notifications.value)))
+    .then(() => safe(E.call("sites.settings", { profile: p, origin: O, engine: "chromium" }), (v) => put("notifications", v && v.notifications && v.notifications.value)))
     .then(() => safe(E.call("sites.zoomLevels", { profile: p }), (z) => put("zoom", z)))
     .then(() => safe(orError(E.call("extensions.list", { profile: p })), (l) => put("extensions", ((l && l.extensions) || []).filter((e) => !/uBlock/.test(e.name)).map((e) => e.name + (e.enabled ? "" : " (off)")).sort())));
 })).then(() => r);`;
@@ -128,7 +152,7 @@ const seq = (items, f) => items.reduce((p, x) => p.then(() => f(x)), Promise.res
 const safe = (p, f) => Promise.resolve().then(() => p).then(f, (e) => "error: " + e);
 const flat = (n, acc) => { acc = acc || []; if (!n) return acc; if (n.u) acc.push(n.t + " " + n.u); (n.c || []).forEach((c) => flat(c, acc)); return acc; };
 const r = { profiles: s.profileOrder.map((id) => s.profiles[id].name), tabs: [] };
-for (const t of Object.values(s.tabs)) if (t.url) r.tabs.push(s.profiles[t.profileId].name + " " + t.url);
+for (const t of Object.values(s.tabs)) if (t.url && !t.url.startsWith("https://ardia.dev/release-notes")) r.tabs.push(s.profiles[t.profileId].name + " " + t.url);
 r.tabs.sort();
 return safe(C.engineInfo(), (i) => { r.dataDirectory = i && i.dataDirectory; }).then(() => seq(s.profileOrder, (id) => {
   const p = id === "default" ? "" : id, name = s.profiles[id].name, put = (k, v) => { r[name + " " + k] = v; };
@@ -163,7 +187,7 @@ try {
       return orError(P.save("", O, "alice", "pw-personal-123").then(JSON.parse))
         .then(() => orError(P.save(work, O, "bob", "pw-work-456").then(JSON.parse)))
         .then(() => orError(E.call("autofill.saveAddress", { profile: "", address: { name: "Ada Lovelace", city: "London", street: "12 St James's Square", postalCode: "SW1Y 4JH", country: "GB" } })))
-        .then(() => E.call("sites.setSetting", { profile: "", origin: O, type: "notifications", value: "allow" }))
+        .then(() => E.call("sites.setSetting", { profile: "", origin: O, type: "notifications", value: "allow", engine: "chromium" }))
         .then(() => E.call("sites.setZoom", { profile: "", host: "127.0.0.1", zoom: 1.5 }))
         .then(() => orError(E.call("extensions.install", { profile: "", path: ${JSON.stringify(extra)} })));` : `
       const s = ac.store.getState(), C = globalThis.expo.modules.ArdiaCEF, O = ${JSON.stringify(origin)}, work = ${JSON.stringify(work)};
@@ -206,16 +230,14 @@ try {
   report.read["Work page"] = await inPage("work.html", `document.cookie + "; localStorage " + localStorage.getItem("w_ls")`);
   await show("/page1/"); await sleep(2500);
   report.read["Personal page"] = await inPage("page1.html", `document.cookie + "; localStorage " + localStorage.getItem("p_ls")`);
-  const real = path.join(os.userInfo().homedir, "Library");
-  const tree = [pid];
-  for (let i = 0; i < tree.length; i++) { try { tree.push(...execSync(`pgrep -P ${tree[i]}`).toString().trim().split("\n").filter(Boolean)); } catch {} }
-  const open = execSync(`lsof -p ${tree.join(",")} -Fn`).toString();
-  report.realHomeFiles = open.split("\n").filter((l) => l.startsWith(`n${real}/Application Support/com.ardia`) || l.startsWith(`n${real}/Caches/com.ardia`));
-  report.processesChecked = tree.length;
+  const seen = openFilesOf(pid);
+  report.realHomeFiles = [...(installed?.realHomeFiles ?? []), ...inRealHome(seen.files)];
+  report.processesChecked = seen.processes + (installed?.processes ?? 0);
+  if (installed) report.read.dataDirectory = installed.dataDirectory;
 } catch (e) {
   report.error = String(e.stack || e);
 }
-report.quit = await quit(pid);
+report.quit = (await quit(pid)) && (installed?.quit ?? true);
 if (!previousBuild && !report.error) {
   try {
     const revealPid = await start(true, `${phase}.reveal.app.log`);

@@ -159,6 +159,7 @@ export const SidebarPage = memo(function SidebarPage({ profileId, slot, width, c
                           lazy={lazy}
                           offScreen={offScreen}
                           tiles={scrolledTiles}
+                          underDockedTiles={fixedTiles.length > 0}
                           innerWidth={innerWidth}
                           inlineNewTab={inlineNewTab}
                           controller={controller}

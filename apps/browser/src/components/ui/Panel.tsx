@@ -1,5 +1,5 @@
 import { Surface, type SurfaceProps } from "@ardia/shell";
-import { GlassFill, liquidGlass, type GlassKind } from "./Glass";
+import { GlassFill, useGlass } from "./Glass";
 import { hex, useTheme } from "./theme";
 import { hairline, type ShadowLevel } from "./tokens";
 
@@ -9,15 +9,16 @@ export type PanelProps = Omit<SurfaceProps, "fill" | "cornerRadius" | "borderCol
   border?: string;
   borderWidth?: number;
   shadow?: ShadowLevel;
-  glass?: GlassKind;
+  glass?: boolean;
 };
 
 export function Panel({ fill, radius, border, borderWidth = hairline.panel, borderColors, shadow, glass, children, ...rest }: PanelProps) {
   const dark = useTheme().dark;
-  if (glass && liquidGlass)
+  const paneGlass = useGlass("panes");
+  if (glass && paneGlass)
     return (
       <Surface {...rest} cornerRadius={radius}>
-        <GlassFill kind={glass} fill={fill} radius={radius} />
+        <GlassFill panelFill={fill} radius={radius} />
         {children}
       </Surface>
     );

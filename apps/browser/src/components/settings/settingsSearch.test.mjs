@@ -107,11 +107,15 @@ test("a row its pane doesn't draw is left out of search, by the same rule the pa
   const { unshownSettings } = await import("./settingsIndex.ts");
   const { DEFAULT_SETTINGS } = await import("../../state/settings/settings.ts");
   const unshown = (settings, env) => new Set(unshownSettings({ ...DEFAULT_SETTINGS, ...settings }, env).split("\n").filter(Boolean));
-  const across = unshown({}, { top: true, liquidGlass: false });
-  for (const id of ["tabs.showSidebarButton", "tabs.showClearButton", "tabs.balancedTopApps", "tabs.newTabButtonPosition", "tabs.pinnedTabIconRing"]) assert.ok(across.has(id), id);
-  assert.deepEqual([...unshown({}, { top: false, liquidGlass: true })], []);
-  assert.ok(unshown({ memorySaver: false }, { top: false, liquidGlass: true }).has("advanced.memorySaverMode"));
-  assert.ok(unshown({ pageEngine: "webkit" }, { top: false, liquidGlass: true }).has("engines.protectedVideo"));
+  const across = unshown({}, { top: true });
+  for (const id of ["tabs.showSidebarButton", "tabs.showClearButton", "tabs.balancedTopApps", "tabs.newTabButtonPosition"]) assert.ok(across.has(id), id);
+  assert.deepEqual([...unshown({ glassTintWithTheme: true }, { top: false, glass: true })], []);
+  assert.ok(unshown({}, { top: false, glass: true }).has("appearance.glassTintAmount"));
+  for (const id of ["appearance.interfaceStyle", "appearance.glassTintWithTheme", "appearance.glassTintAmount"]) assert.ok(unshown({}, { top: false }).has(id), id);
+  const classic = unshown({ interfaceStyle: "classic" }, { top: false, glass: true });
+  assert.deepEqual([...classic], ["appearance.glassTintWithTheme", "appearance.glassTintAmount"]);
+  assert.ok(unshown({ memorySaver: false }, { top: false }).has("advanced.memorySaverMode"));
+  assert.ok(unshown({ pageEngine: "webkit" }, { top: false }).has("engines.protectedVideo"));
 });
 
 const SHOWN_BY_LOADED_DATA = ["General.tsx: general.downloadsAllProfiles", "General.tsx: general.updateChannel"];

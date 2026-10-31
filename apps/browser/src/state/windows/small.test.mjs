@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 const model = await import("../browser/model.ts");
 const { useBrowser } = await import("../browser/store.ts");
-const { lastActiveProfile, mainWindowFor } = await import("./small.ts");
+const { lastActiveProfile, mainWindowFor, newWindowProfile } = await import("./small.ts");
 const { flushPersistence, loadSession, startPersistence } = await import("../session/persist.ts");
 const stub = await import("../../test-native/index.ts");
 
@@ -147,4 +147,22 @@ test("the last active profile survives a quit and relaunch", () => {
   assert.equal(S().ui.lastProfileId, null);
   assert.equal(lastActiveProfile(S()), "default");
   stub.docs.clear();
+});
+
+test("⌘N opens the new window on the profile of the window it was pressed in, not the default one", () => {
+  const { work, a, b } = twoProfilesTwoWindows();
+  assert.equal(newWindowProfile(S(), a), work);
+  assert.equal(newWindowProfile(S(), b), "default");
+});
+
+test("New Window with no window named follows the last active profile", () => {
+  const { work } = twoProfilesTwoWindows();
+  assert.equal(newWindowProfile(S(), null), work);
+});
+
+test("⌘N in a private window opens a normal window on the profile it came from", () => {
+  const { work, a } = twoProfilesTwoWindows();
+  const p = S().createWindow({ kind: "private", profileId: work });
+  assert.equal(newWindowProfile(S(), p), work);
+  assert.equal(S().windows[a].profileId, work);
 });

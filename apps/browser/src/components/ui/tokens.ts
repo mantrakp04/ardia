@@ -129,7 +129,7 @@ const lightRoles: ColorRoles = {
   tabSelectedShadow: "rgba(0,0,0,0.12)",
   tabSelectedShadowRadius: 12.5,
   pinnedResting: "rgba(0,0,0,0.05)",
-  pinnedRestingStroke: "rgba(0,0,0,0.18)",
+  pinnedRestingStroke: "rgba(0,0,0,0.2)",
   pinnedSelectedFill: "rgba(255,255,255,0.7)",
   pinnedSelectedRim: "rgba(0,0,0,0.12)",
   pinnedSelectedOutline: "rgba(255,255,255,0.98)",
@@ -204,8 +204,6 @@ const lightRoles: ColorRoles = {
 export const colorRoles = { dark: darkRoles, light: lightRoles } as const;
 
 export type ColorRole = { [K in keyof ColorRoles]: ColorRoles[K] extends string ? K : never }[keyof ColorRoles];
-
-export const glassRim = { rest: "rgba(255,255,255,0.2)", lit: "rgba(255,255,255,0.3)" } as const;
 
 export const closeOnArt = { rest: "rgba(255,255,255,0.1)", hover: "rgba(255,255,255,0.2)", pressed: "rgba(255,255,255,0.3)", glyph: "#FFFFFF8C" } as const;
 

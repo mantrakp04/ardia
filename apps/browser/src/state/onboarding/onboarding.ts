@@ -12,6 +12,7 @@ import { choosePresetColor, setProfileTheme } from "../profiles/themeActions";
 import { stepsForThisSurface } from "./demoSteps";
 import { parseSaved, unchanged, versionedJson, type Migrations } from "../../lib/savedDocument";
 import { hasSavedSession } from "../session/sessionDocument";
+import { isLiquidGlass } from "../../platform/app";
 
 export { playIntroMusic, setIntroMusicMuted, stopIntroMusic, type IntroMusicCues } from "../../platform/introMusic";
 export { PRESET_NAMES, PRESETS, presetFor, setsUpLikeBrowser, type BrowserSourceId, type Preset } from "./presets";
@@ -34,6 +35,7 @@ export type QuestionId =
   | "color"
   | "switcher"
   | "appearance"
+  | "style"
   | "siteColor"
   | "lookMore"
   | "engine"
@@ -65,6 +67,7 @@ export const QUESTIONS: Record<Exclude<OnboardingStep, "intro">, Question[]> = {
     { id: "color", keys: [] },
     { id: "switcher", keys: ["profileSwitcherIcons"], askedWithPreset: true },
     { id: "appearance", keys: ["appearance"] },
+    { id: "style", keys: ["interfaceStyle", "glassTintWithTheme", "glassTintAmount"], askedWithPreset: true },
     { id: "siteColor", keys: ["extendWebsiteColor"] },
     { id: "lookMore", keys: ["hideToolbarWhileScrolling", "bookmarksBar"] },
   ],
@@ -86,11 +89,13 @@ export const QUESTION_ORDER: QuestionId[] = Object.values(QUESTIONS).flatMap((li
 const answeredByPreset = (q: Question, preset: Preset) => !q.askedWithPreset && q.keys.length > 0 && q.keys.every((k) => k in PRESETS[preset]);
 
 const SIDEBAR_ONLY: readonly QuestionId[] = ["address", "switcher"];
+const liquidGlass = isLiquidGlass();
 
 export function questionsFor(step: OnboardingStep): Question[] {
   if (step === "intro") return [];
   const { windowId, draft, preset, source } = useOnboarding.getState();
-  const list = setsUpLikeBrowser(source) ? QUESTIONS[step].filter((q) => !answeredByPreset(q, preset)) : QUESTIONS[step];
+  const asked = setsUpLikeBrowser(source) ? QUESTIONS[step].filter((q) => !answeredByPreset(q, preset)) : QUESTIONS[step];
+  const list = liquidGlass ? asked : asked.filter((q) => q.id !== "style");
   if (!list.some((q) => SIDEBAR_ONLY.includes(q.id))) return list;
   const b = useBrowser.getState();
   const { tabLayout } = resolveDraft(["tabLayout"], draft, preset, { ...b.settings, tabLayout: tabLayoutOf(b, windowId) }, b.settingsMeta.chosen);

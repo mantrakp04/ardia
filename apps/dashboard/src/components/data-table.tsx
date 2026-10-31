@@ -21,6 +21,8 @@ export function DataTable<T>({
   expand,
   limit,
   dense,
+  onSelect,
+  selected,
 }: {
   rows: T[];
   columns: Column<T>[];
@@ -30,6 +32,8 @@ export function DataTable<T>({
   expand?: (row: T) => ReactNode;
   limit?: number;
   dense?: boolean;
+  onSelect?: (row: T) => void;
+  selected?: string | null;
 }) {
   const [sort, setSort] = useState(initialSort ?? null);
   const [open, setOpen] = useState<string | null>(null);
@@ -90,24 +94,26 @@ export function DataTable<T>({
             {visible.map((row) => {
               const key = rowKey(row);
               const isOpen = open === key;
+              const activate = expand ? () => setOpen(isOpen ? null : key) : onSelect ? () => onSelect(row) : null;
               return (
                 <Fragment key={key}>
                   <TableRow
-                    data-state={isOpen ? "selected" : undefined}
-                    className={cn(expand && "cursor-pointer")}
-                    onClick={expand ? () => setOpen(isOpen ? null : key) : undefined}
+                    data-state={isOpen || selected === key ? "selected" : undefined}
+                    className={cn(activate && "cursor-pointer")}
+                    onClick={activate ?? undefined}
                     onKeyDown={
-                      expand
+                      activate
                         ? (e) => {
                             if (e.key === "Enter" || e.key === " ") {
                               e.preventDefault();
-                              setOpen(isOpen ? null : key);
+                              activate();
                             }
                           }
                         : undefined
                     }
-                    tabIndex={expand ? 0 : undefined}
+                    tabIndex={activate ? 0 : undefined}
                     aria-expanded={expand ? isOpen : undefined}
+                    aria-selected={onSelect ? selected === key : undefined}
                   >
                     {columns.map((column) => (
                       <TableCell key={column.key} className={cn(dense ? "py-1.5" : "py-2", column.align === "right" && "text-right", column.className)}>

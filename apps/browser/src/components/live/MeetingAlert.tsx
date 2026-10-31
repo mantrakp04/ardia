@@ -64,7 +64,7 @@ function AlertCard({ event, windowId, windowWidth }: { event: CalendarEvent; win
         transform: [{ translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [-10, 0] }) }, { scale: appear.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) }],
       }}
     >
-      <Panel glass="panel" fill={theme.panel} radius={radius.sheet} border={theme.panelBorder} shadow={liveShadow.alert} style={CARD}>
+      <Panel fill={theme.panel} radius={radius.sheet} border={theme.panelBorder} shadow={liveShadow.alert} style={CARD}>
         <Box row gap="s" style={CENTER}>
           <View style={[DOT, { backgroundColor: event.color }]} />
           <Text lines={1} size="footnote" weight="medium" style={{ flex: 1, color: running ? colors.now : theme.textSecondary }}>

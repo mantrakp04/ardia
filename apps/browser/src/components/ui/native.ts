@@ -4,7 +4,6 @@ export {
   DockSelection,
   FadeLabel,
   FileDropArea,
-  GlassEffect,
   MagnifyArea,
   MouseArea,
   OutsidePressArea,

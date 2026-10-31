@@ -47,7 +47,7 @@ import { requestAutofill } from "../site/autofill";
 import { copyPageUrl, jumpToSelection } from "../site/selection";
 import { shareTab } from "../site/share";
 import { groupOf } from "../pins/tabGrouping";
-import { isSmall, mainWindowFor, originalProfile } from "../windows/small";
+import { isSmall, mainWindowFor, newWindowProfile, originalProfile } from "../windows/small";
 import {
   closeLittleArdia,
   cycleLittleArdiaProfile,
@@ -80,7 +80,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
 
   switch (command) {
     case "newWindow":
-      return void openWindow({ profileId: arg ?? undefined });
+      return void openWindow({ profileId: arg ?? newWindowProfile(s, requested) });
     case "newIncognitoWindow":
       return void openWindow({ kind: "private", profileId: originalProfile(s, s.windows[requested ?? ""]) });
     case "newLittleArdia":

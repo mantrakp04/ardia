@@ -1,9 +1,8 @@
 import { ContextMenuArea, Surface, Symbol, VisualEffect, type SymbolProps } from "@ardia/shell";
 import { memo } from "react";
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { Pressable, StyleSheet, Text, View, type GestureResponderEvent, type StyleProp, type ViewStyle } from "react-native";
 import { modifiersOf, type ClickModifiers } from "../../lib/keys";
 import { useHover } from "./useHover";
-import { GlassFill, liquidGlass } from "./Glass";
 import { hex, useTheme, type Theme } from "./theme";
 import { closeOnArt, opacity, radius as radii, space, font as typeScale, weight as weights, type ColorRole, type Space, type TypeSize, type Weight } from "./tokens";
 
@@ -29,7 +28,7 @@ type IconBase = {
 };
 
 type IconProps = IconBase &
-  ({ toolbar?: false; onPress?: () => void } | { toolbar: true; onPress?: (modifiers: ClickModifiers) => void; onLongPress?: () => void; onContextMenu?: () => void });
+  ({ toolbar?: false; onPress?: (press: GestureResponderEvent) => void } | { toolbar: true; onPress?: (modifiers: ClickModifiers) => void; onLongPress?: () => void; onContextMenu?: () => void });
 
 type TextProps = {
   variant: "text";
@@ -92,9 +91,7 @@ function IconButtonView(props: IconProps) {
   const hover = palette ? palette.hover : theme.toolbarHover;
   const pressedFill = palette ? palette.pressed : theme.toolbarPressed;
   const plateBox = hit?.box ?? box;
-  const plateRadius = hit?.radius ?? radius;
-  const plateFill = (pressed: boolean) => (disabled ? undefined : pressed || active ? pressedFill : hovered ? hover : undefined);
-  const plate = (pressed: boolean, fill = plateFill(pressed)) => (
+  const plate = (pressed: boolean) => (
     <View
       style={{
         position: hit ? "absolute" : "relative",
@@ -102,13 +99,12 @@ function IconButtonView(props: IconProps) {
         top: hit?.plateY,
         width: plateBox,
         height: plateBox,
-        borderRadius: plateRadius,
+        borderRadius: hit?.radius ?? radius,
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: liquidGlass ? undefined : fill,
+        backgroundColor: disabled ? undefined : pressed || active ? pressedFill : hovered ? hover : undefined,
       }}
     >
-      {liquidGlass && fill ? <GlassFill fill={fill} radius={plateRadius} state={pressed ? "rest" : "lit"} /> : null}
       <Symbol
         name={icon}
         size={size}

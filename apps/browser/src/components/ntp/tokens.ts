@@ -1,3 +1,4 @@
+import { StyleSheet } from "react-native";
 import { useTheme } from "../ui/theme";
 import { ink, shadow, weight } from "../ui/tokens";
 
@@ -45,9 +46,10 @@ export type NtpShadow = { color: string; opacity: number; radius: number; offset
 
 export const NTP_CARD = { border: 1, shadow: { color: shadow.dialog.color, radius: shadow.dialog.radius, offset: shadow.dialog.offset } } as const;
 
-export const NTP_BAR: { radius: number; border: number; shadows: NtpShadow[] } = {
+export const NTP_BAR: { radius: number; border: number; contentInset: number; shadows: NtpShadow[] } = {
   radius: 20,
-  border: 0.5,
+  border: StyleSheet.hairlineWidth,
+  contentInset: 0.5,
   shadows: [
     { color: ink.black, opacity: 0.08, radius: 2, offset: [0, 0.5] },
     { color: ink.black, opacity: 0.04, radius: 1, offset: [0, 2] },

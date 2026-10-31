@@ -10,6 +10,7 @@ export const sceneMs = {
   quit: 1500,
   windows: 1400,
   appearance: 1200,
+  style: 1300,
   siteColor: 1300,
   switcher: 1300,
   typed: 1300,

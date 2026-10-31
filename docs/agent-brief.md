@@ -264,6 +264,13 @@ Engine files are in `engine/ardiacore/src/ardia/core`, app files in `packages/ar
     render blank; text opacity is applied twice, so a label at α reads 1 − (1 − α)², don't match colours on it),
     `globalThis.expo.modules.ArdiaAreaLight.debugSnapshot(dir)` (every Metal view, offscreen, with its frame),
     the accessibility tree and store state, and list "needs visual check" items in your report.
+  - Hover and pressed states in a hidden instance (Debug builds): `ac.shell.devSetPointer(windowId, { x, y })` puts the
+    pointer at a window point (points from the window's top left) for every hover check, `null` gives the real pointer back.
+    The window id is the store's (`ac.store.getState().windowOrder[0]`); `"w1"` exists only in instances launched with a
+    session that names it, and an unknown id rejects. Hold a press with
+    `ac.engine.call("windows.dev", { window: <windows.list's hasRoot window>, action: "mouse:down:x,y" })`, capture, then
+    `mouse:up`. `ac.shell.devHoverStats(false).log` lists the enters and leaves the pointer caused. Controls that are
+    disabled (back, forward and reload on a New Tab) show no hover.
 - Code style: read the surrounding code first and match its naming and idioms. No comments (AGENTS.md).
   Keep files cohesive; new features go in new files where sensible.
 - Dia fidelity: when you build UI, match Dia, and check it with numbers against a Dia capture

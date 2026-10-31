@@ -196,7 +196,7 @@ function SiteControlsPanel({
   const value = (p: SitePermission) => (settings ? choiceTitle(p.type, permissionValue(p.type, settings, sound) ?? "ask") : "…");
 
   return (
-    <Popover width={SITE_PANEL.width} top={top} right={right} left={left} onDismiss={close} fitHeight closing={closing} onClosed={onClosed}>
+    <Popover width={SITE_PANEL.width} top={top} right={right} left={left} onDismiss={close} fitHeight glass closing={closing} onClosed={onClosed}>
       <View style={{ paddingTop: PANEL.inset }}>
         <TileRow>{tiles}</TileRow>
 

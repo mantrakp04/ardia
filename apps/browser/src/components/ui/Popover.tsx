@@ -7,7 +7,7 @@ import { useTheme } from "./theme";
 import { radius, shadow, space, font as typeScale, weight } from "./tokens";
 import { useHover } from "./useHover";
 import { Panel, type PanelProps } from "./Panel";
-import { liquidGlass } from "./Glass";
+import { useGlass } from "./Glass";
 
 export const POPOVER_MARGIN = 8;
 
@@ -91,6 +91,7 @@ export function Popover({
   fitHeight = false,
   closing = false,
   onClosed,
+  glass = false,
 }: {
   width: number;
   top: number;
@@ -102,6 +103,7 @@ export function Popover({
   fitHeight?: boolean;
   closing?: boolean;
   onClosed?: () => void;
+  glass?: boolean;
 }) {
   const appear = usePopoverMotion(closing, onClosed);
   const motion = usePopoverMotionStyle(appear, right !== undefined ? "top right" : "top left");
@@ -111,7 +113,7 @@ export function Popover({
       {fitHeight && <View pointerEvents="none" style={StyleSheet.absoluteFill} onLayout={(e) => setRoom(e.nativeEvent.layout.height)} />}
       {modal && onDismiss && !closing && <Pressable style={StyleSheet.absoluteFill} onPress={onDismiss} />}
       <Animated.View pointerEvents={closing ? "none" : "auto"} style={{ position: "absolute", top, right, left, width, ...motion }}>
-        <PopoverSurface>
+        <PopoverSurface glass={glass}>
           {fitHeight ? <ScrollView showsVerticalScrollIndicator={false} style={room === null ? undefined : { maxHeight: Math.max(0, room - top - POPOVER_MARGIN) }}>{children}</ScrollView> : children}
         </PopoverSurface>
       </Animated.View>
@@ -119,16 +121,19 @@ export function Popover({
   );
 }
 
-export function PopoverSurface({ children, ...props }: Omit<PanelProps, "fill" | "radius" | "border" | "borderWidth" | "shadow">) {
+export function PopoverSurface({ children, glass = false, ...props }: Omit<PanelProps, "fill" | "radius" | "border" | "borderWidth" | "shadow" | "glass"> & { glass?: boolean }) {
   const theme = useTheme();
+  const paneGlass = useGlass("panes");
+  if (glass && paneGlass)
+    return (
+      <Panel {...props} glass fill={theme.panel} radius={PANEL.radius}>
+        {children}
+      </Panel>
+    );
   return (
-    <Panel {...props} glass="panel" fill={theme.popoverFill} radius={PANEL.radius} border={theme.popoverBorder} shadow={shadow.popover}>
-      {liquidGlass ? null : (
-        <>
-          <VisualEffect material="menu" cornerRadius={PANEL.radius} style={StyleSheet.absoluteFill} />
-          <View style={{ ...StyleSheet.absoluteFillObject, borderRadius: PANEL.radius, backgroundColor: theme.popoverTint }} />
-        </>
-      )}
+    <Panel {...props} fill={theme.popoverFill} radius={PANEL.radius} border={theme.popoverBorder} shadow={shadow.popover}>
+      <VisualEffect material="menu" cornerRadius={PANEL.radius} style={StyleSheet.absoluteFill} />
+      <View style={{ ...StyleSheet.absoluteFillObject, borderRadius: PANEL.radius, backgroundColor: theme.popoverTint }} />
       {children}
     </Panel>
   );

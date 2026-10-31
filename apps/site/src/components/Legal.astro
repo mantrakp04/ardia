@@ -1,0 +1,108 @@
+---
+import { base } from "../data/site";
+import { LEGAL } from "../data/legal";
+import Base from "../layouts/Base.astro";
+import Header from "./Header.astro";
+import Footer from "./Footer.astro";
+
+interface Props {
+  title: string;
+  heading: string;
+  kicker: string;
+  description: string;
+  lede: string;
+}
+const { title, heading, kicker, description, lede } = Astro.props;
+---
+
+<Base title={title} description={description}>
+  <Header home={`${base}/`} />
+  <main>
+    <section class="intro" aria-labelledby="legal-title">
+      <div class="wrap">
+        <p class="label kicker">{kicker}</p>
+        <h1 class="poster" id="legal-title">{heading}</h1>
+        <p class="lede">{lede}</p>
+        <p class="label fine">Last updated {LEGAL.updated}</p>
+      </div>
+    </section>
+    <section class="block last">
+      <div class="wrap legal">
+        <slot />
+      </div>
+    </section>
+  </main>
+  <Footer />
+</Base>
+
+<style>
+  .intro {
+    padding: clamp(36px, 5vw, 80px) 0 clamp(8px, 1.5vw, 24px);
+  }
+  .intro h1 {
+    font-size: var(--t-mega);
+    line-height: 0.82;
+    margin-left: -0.04em;
+  }
+  .lede {
+    margin-top: clamp(20px, 2.4vw, 32px);
+    max-width: 32em;
+    font-size: var(--t-lede);
+    color: var(--ink-2);
+  }
+  .fine {
+    margin-top: 18px;
+    color: var(--ink-3);
+  }
+  .block {
+    margin-top: clamp(40px, 5vw, 80px);
+  }
+  .block.last {
+    margin-bottom: var(--section);
+  }
+  .legal {
+    max-width: calc(44rem + 2 * var(--gutter));
+    margin-left: 0;
+  }
+  .legal :global(h2) {
+    margin-top: clamp(40px, 4vw, 56px);
+    padding-top: 16px;
+    border-top: 2px solid var(--ink);
+    font-weight: 620;
+    font-stretch: 104%;
+    font-size: 1.375rem;
+    line-height: 1.25;
+    letter-spacing: -0.018em;
+  }
+  .legal :global(h2:first-child) {
+    margin-top: 0;
+  }
+  .legal :global(h3) {
+    margin-top: 24px;
+    font-weight: 620;
+    font-size: 1.0625rem;
+  }
+  .legal :global(p),
+  .legal :global(li) {
+    color: var(--ink-2);
+  }
+  .legal :global(p) {
+    margin-top: 12px;
+  }
+  .legal :global(ul) {
+    margin: 12px 0 0;
+    padding-left: 1.2em;
+  }
+  .legal :global(li) {
+    padding: 4px 0;
+  }
+  .legal :global(strong) {
+    color: var(--ink);
+    font-weight: 620;
+  }
+  .legal :global(.caps) {
+    text-transform: uppercase;
+    font-size: 0.9375em;
+    letter-spacing: 0.01em;
+  }
+</style>

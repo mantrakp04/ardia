@@ -80,7 +80,7 @@ function FindBarPanel({ tabId, find }: { tabId: string; find: FindState }) {
         transform: [{ translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [-6, 0] }) }],
       }}
     >
-      <Panel glass="panel" fill={theme.panel} radius={radius.panel} border={theme.panelBorder} shadow={FIND_SHADOW} style={{ width: 340 }}>
+      <Panel fill={theme.panel} radius={radius.panel} border={theme.panelBorder} shadow={FIND_SHADOW} style={{ width: 340 }}>
         <View style={{ height: 40, flexDirection: "row", alignItems: "center", paddingLeft: 11, paddingRight: space.xs, gap: space.xxs }}>
           <Symbol name="magnifyingglass" size={13} color={theme.textSecondary} style={{ width: 16, height: 16, marginRight: 5 }} />
           <TextInput

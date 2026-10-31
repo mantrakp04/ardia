@@ -18,10 +18,6 @@ using namespace ardia_early_window;
 
 namespace {
 
-constexpr CGFloat kGlassVeilDark = 0.128;
-
-constexpr CGFloat kGlassVeilLight = 0.3;
-
 NSString *PictureName(NSString *windowId) {
   NSMutableString *safe = [NSMutableString string];
   for (NSUInteger i = 0; i < windowId.length && i < 80; i++) {
@@ -67,111 +63,6 @@ NSView *DrawnContent(NSView *root) {
   }
   return root;
 }
-
-Class GlassClass() {
-  static Class glass = NSClassFromString(@"NSGlassEffectView");
-  return glass;
-}
-
-id GlassValue(NSView *glass, NSString *key) {
-  return [glass respondsToSelector:NSSelectorFromString(key)] ? [glass valueForKey:key] : nil;
-}
-
-NSColor *GlassStandInColor(NSView *glass) {
-  NSString *appearance = [glass.effectiveAppearance bestMatchFromAppearancesWithNames:@[ NSAppearanceNameDarkAqua, NSAppearanceNameAqua ]];
-  const BOOL clear = [GlassValue(glass, @"style") integerValue] != 0;
-  const CGFloat veil = clear ? 0 : [appearance isEqualToString:NSAppearanceNameDarkAqua] ? kGlassVeilDark : kGlassVeilLight;
-  id tintValue = GlassValue(glass, @"tintColor");
-  NSColor *tint = [tintValue isKindOfClass:NSColor.class] ? [tintValue colorUsingColorSpace:NSColorSpace.sRGBColorSpace] : nil;
-  const CGFloat tintAlpha = tint ? tint.alphaComponent : 0;
-  const CGFloat alpha = 1 - (1 - veil) * (1 - tintAlpha);
-  if (alpha <= 0) return NSColor.clearColor;
-  auto channel = [&](CGFloat c) { return (veil * (1 - tintAlpha) + c * tintAlpha) / alpha; };
-  return [NSColor colorWithSRGBRed:channel(tint.redComponent) green:channel(tint.greenComponent) blue:channel(tint.blueComponent) alpha:alpha];
-}
-
-CALayer *GlassStandIn(NSView *glass) {
-  CALayer *glassLayer = glass.layer;
-  if (!glassLayer.superlayer) return nil;
-  CALayer *standIn = [CALayer layer];
-  standIn.frame = glassLayer.frame;
-  const CGFloat radius = [GlassValue(glass, @"cornerRadius") doubleValue];
-  standIn.cornerRadius = std::isfinite(radius) && radius > 0 ? MIN(radius, MIN(NSWidth(standIn.bounds), NSHeight(standIn.bounds)) / 2) : 0;
-  standIn.cornerCurve = kCACornerCurveContinuous;
-  standIn.backgroundColor = GlassStandInColor(glass).CGColor;
-  [glassLayer.superlayer insertSublayer:standIn above:glassLayer];
-  return standIn;
-}
-
-CGFloat ShownAlpha(NSView *view, NSView *root) {
-  CGFloat alpha = 1;
-  for (NSView *v = view; v && v != root.superview; v = v.superview) alpha *= v.alphaValue;
-  return alpha;
-}
-
-NSDictionary *GlassRecord(NSView *glass, NSView *root, NSView *host) {
-  const CGFloat alpha = ShownAlpha(glass, root);
-  if (glass.isHiddenOrHasHiddenAncestor || alpha < 0.01 || !NSEqualRects(glass.visibleRect, glass.bounds)) return nil;
-  const NSRect rect = [glass convertRect:glass.bounds toView:host];
-  if (!NSContainsRect(host.bounds, rect)) return nil;
-  NSString *appearance = [glass.effectiveAppearance bestMatchFromAppearancesWithNames:@[ NSAppearanceNameDarkAqua, NSAppearanceNameAqua ]];
-  NSMutableDictionary *record = [@{
-    @"frame" : @[ @(NSMinX(rect)), @(NSMinY(rect)), @(NSWidth(rect)), @(NSHeight(rect)) ],
-    @"radius" : @([GlassValue(glass, @"cornerRadius") doubleValue]),
-    @"style" : @([GlassValue(glass, @"style") integerValue]),
-    @"alpha" : @(alpha),
-    @"appearance" : appearance ?: NSAppearanceNameAqua,
-  } mutableCopy];
-  id tintValue = GlassValue(glass, @"tintColor");
-  if (NSColor *tint = [tintValue isKindOfClass:NSColor.class] ? [tintValue colorUsingColorSpace:NSColorSpace.sRGBColorSpace] : nil)
-    record[@"tint"] = @[ @(tint.redComponent), @(tint.greenComponent), @(tint.blueComponent), @(tint.alphaComponent) ];
-  return record;
-}
-
-BOOL ReadNumbers(id list, NSUInteger count, CGFloat *out) {
-  if (![list isKindOfClass:NSArray.class] || [list count] != count) return NO;
-  for (NSUInteger i = 0; i < count; i++) {
-    if (![list[i] isKindOfClass:NSNumber.class] || !std::isfinite([list[i] doubleValue])) return NO;
-    out[i] = [list[i] doubleValue];
-  }
-  return YES;
-}
-
-void SetGlassValue(NSView *glass, NSString *key, id value) {
-  NSString *setter = [NSString stringWithFormat:@"set%@%@:", [key substringToIndex:1].uppercaseString, [key substringFromIndex:1]];
-  if (value && [glass respondsToSelector:NSSelectorFromString(setter)]) [glass setValue:value forKey:key];
-}
-
-}
-
-namespace ardia_early_window {
-
-BOOL AddLiveGlass(NSArray *records, NSView *host, NSView *parent) {
-  Class glassClass = GlassClass();
-  if (!glassClass || ![records isKindOfClass:NSArray.class] || !records.count || !parent) return NO;
-  NSView *layer = [[NSView alloc] initWithFrame:parent.bounds];
-  layer.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-  [parent addSubview:layer];
-  for (NSDictionary *record in records) {
-    CGFloat frame[4], tint[4];
-    if (![record isKindOfClass:NSDictionary.class] || !ReadNumbers(record[@"frame"], 4, frame)) {
-      [layer removeFromSuperview];
-      return NO;
-    }
-    NSView *glass = [[glassClass alloc] initWithFrame:[layer convertRect:NSMakeRect(frame[0], frame[1], frame[2], frame[3]) fromView:host]];
-    SetGlassValue(glass, @"cornerRadius", [record[@"radius"] isKindOfClass:NSNumber.class] ? record[@"radius"] : nil);
-    SetGlassValue(glass, @"style", [record[@"style"] isKindOfClass:NSNumber.class] ? record[@"style"] : nil);
-    if (ReadNumbers(record[@"tint"], 4, tint)) SetGlassValue(glass, @"tintColor", [NSColor colorWithSRGBRed:tint[0] green:tint[1] blue:tint[2] alpha:tint[3]]);
-    if ([record[@"appearance"] isKindOfClass:NSString.class]) glass.appearance = [NSAppearance appearanceNamed:record[@"appearance"]];
-    if ([record[@"alpha"] isKindOfClass:NSNumber.class]) glass.alphaValue = MIN(MAX([record[@"alpha"] doubleValue], 0), 1);
-    [layer addSubview:glass];
-  }
-  return YES;
-}
-
-}
-
-namespace {
 
 CGContextRef MakeBitmap(size_t w, size_t h) {
   CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
@@ -281,7 +172,6 @@ namespace ardia_early_window {
 
 BOOL CapturePicture(ArdiaWindowController *controller, NSString *windowId, NSMutableDictionary *layout) {
   NSWindow *window = controller.coreWindow.window;
-  NSView *host = controller.coreWindow.hostView;
   NSView *root = controller.root;
   CALayer *layer = root.layer;
   NSArray<NSNumber *> *page = layout[@"page"];
@@ -304,7 +194,6 @@ BOOL CapturePicture(ArdiaWindowController *controller, NSString *windowId, NSMut
   }
   NSMutableArray<NSView *> *pending = [NSMutableArray arrayWithObject:source];
   NSMutableArray<CALayer *> *backdrops = [NSMutableArray array];
-  NSMutableArray<NSView *> *glasses = [NSMutableArray array];
   NSMutableArray<CALayer *> *fills = [NSMutableArray array];
   NSMutableArray *fillColors = [NSMutableArray array];
   const NSRect whole = root.bounds;
@@ -312,10 +201,6 @@ BOOL CapturePicture(ArdiaWindowController *controller, NSString *windowId, NSMut
     NSView *view = pending[i];
     if ([NSStringFromClass(view.class) hasSuffix:@"WindowBackdropView"] || [view isKindOfClass:NSVisualEffectView.class]) {
       if (view.layer && !view.layer.hidden) [backdrops addObject:view.layer];
-      continue;
-    }
-    if (GlassClass() && [view isKindOfClass:GlassClass()]) {
-      if (view.layer && !view.layer.hidden) [glasses addObject:view];
       continue;
     }
     if (NSEqualSizes([view convertRect:view.bounds toView:root].size, whole.size)) {
@@ -326,14 +211,12 @@ BOOL CapturePicture(ArdiaWindowController *controller, NSString *windowId, NSMut
     }
     [pending addObjectsFromArray:view.subviews];
   }
-  NSMutableSet<CALayer *> *glassLayers = [NSMutableSet set];
-  for (NSView *glass in glasses) [glassLayers addObject:glass.layer];
   NSMutableArray<CALayer *> *layers = [NSMutableArray arrayWithObject:drawnLayer];
   NSMutableArray<CALayer *> *effected = [NSMutableArray array];
   NSMutableArray<NSArray *> *effects = [NSMutableArray array];
   for (NSUInteger i = 0; i < layers.count && i < 20000; i++) {
     CALayer *each = layers[i];
-    if ([backdrops containsObject:each] || [glassLayers containsObject:each]) continue;
+    if ([backdrops containsObject:each]) continue;
     if (each.mask || each.filters.count || each.compositingFilter || each.backgroundFilters.count || CastsPathShadowOnly(each)) {
       [effected addObject:each];
       [effects addObject:@[ each.mask ?: NSNull.null, each.filters ?: @[], each.compositingFilter ?: NSNull.null, each.backgroundFilters ?: @[] ]];
@@ -344,12 +227,6 @@ BOOL CapturePicture(ArdiaWindowController *controller, NSString *windowId, NSMut
   [CATransaction setDisableActions:YES];
   for (CALayer *backdrop in backdrops) backdrop.hidden = YES;
   NSMutableArray<CALayer *> *standIns = [NSMutableArray array];
-  NSMutableArray<NSDictionary *> *liveGlass = [NSMutableArray array];
-  for (NSView *glass in glasses) {
-    if (NSDictionary *record = host ? GlassRecord(glass, root, host) : nil) [liveGlass addObject:record];
-    else if (CALayer *standIn = GlassStandIn(glass)) [standIns addObject:standIn];
-  }
-  for (CALayer *glass in glassLayers) glass.hidden = YES;
   for (CALayer *fill in fills) fill.backgroundColor = nil;
   for (CALayer *each in effected) {
     each.filters = nil;
@@ -377,7 +254,6 @@ BOOL CapturePicture(ArdiaWindowController *controller, NSString *windowId, NSMut
   }
   for (CALayer *backdrop in backdrops) backdrop.hidden = NO;
   for (CALayer *standIn in standIns) [standIn removeFromSuperlayer];
-  for (CALayer *glass in glassLayers) glass.hidden = NO;
   for (NSUInteger i = 0; i < fills.count; i++) fills[i].backgroundColor = (__bridge CGColorRef)fillColors[i];
   [CATransaction commit];
   CGContextRestoreGState(context);
@@ -394,7 +270,6 @@ BOOL CapturePicture(ArdiaWindowController *controller, NSString *windowId, NSMut
     written = png && [png writeToFile:path atomically:YES];
     CGImageRelease(image);
   });
-  if (written && liveGlass.count) layout[@"glass"] = liveGlass;
   return written;
 }
 

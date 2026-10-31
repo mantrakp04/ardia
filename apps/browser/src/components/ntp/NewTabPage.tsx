@@ -141,8 +141,9 @@ export function NewTabPage({ tabId, toolbar = true }: { tabId: string; toolbar?:
             shadowOffset={level.offset}
           />
         ))}
-        <Surface fill={hex(theme.ntpBarSolid)} cornerRadius={NTP_BAR.radius} borderColor={hex(theme.ntpBarBorder)} borderWidth={NTP_BAR.border}>
-          {onboarding ? <View style={{ height: BAR_HEIGHT - 2 * NTP_BAR.border }} /> : <Omnibox variant="hero" tabId={tabId} />}
+        <Surface fill={hex(theme.ntpBarSolid)} cornerRadius={NTP_BAR.radius} style={{ padding: NTP_BAR.contentInset }}>
+          {onboarding ? <View style={{ height: BAR_HEIGHT - 2 * NTP_BAR.contentInset }} /> : <Omnibox variant="hero" tabId={tabId} />}
+          <View pointerEvents="none" style={{ ...StyleSheet.absoluteFillObject, borderRadius: NTP_BAR.radius, borderWidth: NTP_BAR.border, borderColor: theme.ntpBarBorder }} />
         </Surface>
       </View>
       <NewTabExtras size={size} bar={bar} />

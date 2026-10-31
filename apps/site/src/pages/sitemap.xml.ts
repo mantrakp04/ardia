@@ -17,6 +17,8 @@ export const GET: APIRoute = async ({ site }) => {
     [PAGES.notes, newestNote],
     ...stable.map((r): [string, string] => [releasePath(r.version), isoDate(r.date)]),
     [PAGES.press, undefined],
+    [PAGES.privacy, undefined],
+    [PAGES.terms, undefined],
   ];
   const urls = pages.map(
     ([path, modified]) => `  <url><loc>${new URL(path, home)}</loc>${modified ? `<lastmod>${modified}</lastmod>` : ""}</url>`,

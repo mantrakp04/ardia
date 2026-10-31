@@ -72,7 +72,7 @@ function PanelBody({ windowId, folderId, anchor }: { windowId: string; folderId:
       }}
     >
       <OutsidePressArea onOutsidePress={closeFolderPanelOnPress}>
-        <Panel glass="panel" fill={theme.panel} radius={radius.panel} border={theme.panelBorder} shadow={SIDEBAR_SHADOW.card} style={{ padding: PANEL_PAD }}
+        <Panel fill={theme.panel} radius={radius.panel} border={theme.panelBorder} shadow={SIDEBAR_SHADOW.card} style={{ padding: PANEL_PAD }}
         >
           <ContextMenuArea onContextMenu={() => void openTileFolderMenu(windowId, folderId)}>
             <Text numberOfLines={1} style={{ ...font.small, fontWeight: weight.semibold, color: theme.textSecondary, marginTop: 2, marginBottom: 6, marginHorizontal: 6 }}>

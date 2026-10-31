@@ -1,0 +1,47 @@
+{
+  "id": "fixes-0243n9",
+  "segments": [
+    {
+      "scene": "halfglass",
+      "title": "Clear glass, at half strength",
+      "body": "With the address bar in the sidebar, in dark mode, point at a pinned tile, then at the URL field. 0.2.43-nightly.9 goes back to the clear glass from before the darker tint, at half strength: the tiles and the field rest lighter, with a softer rim, and pointing at them lifts them only a little. 0.2.43-nightly.8 tinted them darker, with a sharper rim and a bright flash on hover.",
+      "layout": "side",
+      "cam": [
+        0,
+        34,
+        270,
+        150
+      ],
+      "lead": 1.0,
+      "tail": 7.0
+    },
+    {
+      "scene": "panelglass",
+      "title": "Site controls, more solid",
+      "body": "Click the site controls button and point at the tiles. 0.2.43-nightly.9 makes the panel half as see-through, like Downloads, and drops the grey tint from the address field above it. 0.2.43-nightly.8 let more of the page show through.",
+      "layout": "side",
+      "cam": [
+        1010,
+        0,
+        350,
+        400
+      ],
+      "lead": 1.2,
+      "tail": 7.2
+    },
+    {
+      "scene": "stylerows",
+      "title": "Glass covers the panels now",
+      "body": "Open Settings › Appearance and point down Interface Style. 0.2.43-nightly.9 drops the “Use glass for panels” switch: Glass puts Downloads and the site controls panel in glass too, and Classic keeps everything flat. 0.2.43-nightly.8 had that third row under the tint switch.",
+      "layout": "side",
+      "cam": [
+        263,
+        49,
+        824,
+        640
+      ],
+      "lead": 1.0,
+      "tail": 8.4
+    }
+  ]
+}

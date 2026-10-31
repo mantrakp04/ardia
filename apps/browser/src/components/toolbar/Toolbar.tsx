@@ -21,7 +21,7 @@ import { SIDEBAR_FIELD } from "../sidebar/geometry";
 import { FieldSiteButton, SidebarFieldFill } from "../sidebar/SidebarField";
 import { showUrlBarMenu } from "../../state/omnibox/paste";
 import { ToolbarExtensions, useToolbarExtensionsWidth } from "../extensions/ToolbarExtensions";
-import { GlassFill, liquidGlass } from "../ui/Glass";
+import { GlassFill, useGlass } from "../ui/Glass";
 import { TranslateButton } from "../site/TranslateControls";
 import { ZoomIndicator } from "../site/ZoomControls";
 import { useShortcutHint, withShortcut } from "../../state/commands/commandShortcuts";
@@ -165,11 +165,12 @@ export const ToolbarUrlField = memo(function ToolbarUrlField({ tab, palette, win
   const splitHint = useShortcutHint("openSplitPane");
   const field = useUrlField(tab, windowId, onFocus);
   const { insecure, hovered, popover, toggleSiteControls } = field;
+  const glass = useGlass();
 
   return (
-    <View {...field.hoverProps} style={[style, { flexDirection: "row", alignItems: "center", height: row.field, borderRadius: row.fieldRadius, backgroundColor: hovered && !liquidGlass ? palette.pill : undefined }]}>
-      {liquidGlass ? (
-        <GlassFill state={hovered ? "lit" : "rest"} radius={row.fieldRadius} fill={palette.pill} dark={palette.background ? palette.text.startsWith(ink.white) : undefined} />
+    <View {...field.hoverProps} style={[style, { flexDirection: "row", alignItems: "center", height: row.field, borderRadius: row.fieldRadius, backgroundColor: hovered && !glass ? palette.pill : undefined }]}>
+      {glass ? (
+        <GlassFill state={hovered ? "lit" : "rest"} radius={row.fieldRadius} dark={palette.background ? palette.text.startsWith(ink.white) : undefined} />
       ) : null}
       {insecure && (
         <Pressable onPress={toggleSiteControls} style={{ paddingLeft: LOCK.left }} tooltip="Connection is not secure">
@@ -221,7 +222,7 @@ export const SidebarUrlField = memo(function SidebarUrlField({ tab, palette, win
   const { insecure, hovered, popover, toggleSiteControls } = field;
 
   return (
-    <View {...field.hoverProps} style={{ flexDirection: "row", alignItems: "center", height, borderRadius: SIDEBAR_FIELD.radius, overflow: "hidden" }}>
+    <View {...field.hoverProps} style={{ flexDirection: "row", alignItems: "center", height, borderRadius: SIDEBAR_FIELD.radius }}>
       <SidebarFieldFill hovered={hovered} />
       <FieldSiteButton
         icon={insecure ? "lock.open.trianglebadge.exclamationmark.fill" : "slider.horizontal.3"}
@@ -244,7 +245,11 @@ export const SidebarUrlField = memo(function SidebarUrlField({ tab, palette, win
       <FieldButtons tab={tab} palette={palette} row={row} onFocus={onFocus} popover={popover} toggleSiteControls={toggleSiteControls} accessory={accessory}>
         {hovered && <BookmarkButton tab={tab} palette={palette} row={row} windowId={windowId} />}
       </FieldButtons>
-      {progress !== null ? <ProgressBar progress={progress} color={theme.accent} /> : null}
+      {progress !== null ? (
+        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: SIDEBAR_FIELD.radius, overflow: "hidden" }]}>
+          <ProgressBar progress={progress} color={theme.accent} />
+        </View>
+      ) : null}
     </View>
   );
 });

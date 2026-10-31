@@ -170,8 +170,6 @@ NSString *CornerName(int corner) {
     _overlay.handle.onClick = ^{ [weakSelf unstash]; };
     [root addSubview:_overlay];
     objc_setAssociatedObject(window, kControllerKey, self, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-    if (@available(macOS 26.0, *))
-      objc_setAssociatedObject(window, @selector(presentArdiaPictureInPictureControls:), _overlay, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 
     NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
     _observers = [NSMutableArray array];
@@ -204,7 +202,6 @@ NSString *CornerName(int corner) {
   [NSObject cancelPreviousPerformRequestsWithTarget:self];
   [_slide invalidate];
   [_overlay removeFromSuperview];
-  objc_setAssociatedObject(_window, @selector(presentArdiaPictureInPictureControls:), nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
   objc_setAssociatedObject(_window, kControllerKey, nil, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 

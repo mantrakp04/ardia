@@ -9,6 +9,8 @@ export const SECTION_NAMES = [
   "funnels.retention",
   "health",
   "performance",
+  "settings",
+  "settings.tint",
   "site.traffic",
   "site.breakdowns",
   "site.clicks",

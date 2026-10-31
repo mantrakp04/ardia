@@ -9,9 +9,9 @@ import { curve } from "../ui/motion";
 import { Group as PlainGroup, Row as PlainRow } from "../ui/Row";
 import { useTheme } from "../ui/theme";
 import { font, space, weight } from "../ui/tokens";
-import { liquidGlass } from "../ui/Glass";
 import { findSetting, sectionEntries, setting, unshownSettings, type SettingEntry, type SettingId } from "./settingsIndex";
 import { Toggle } from "../ui/Switch";
+import { liquidGlass } from "../ui/Glass";
 import { PopUp } from "../ui/Field";
 import { Text as UiText } from "../ui/Text";
 import { updateSettings } from "../../state/settings/actions";
@@ -22,7 +22,7 @@ export const SettingsPaneContext = createContext<SettingsPane | null>(null);
 
 export function useUnshownSettings(): ReadonlySet<string> {
   const top = useTabLayout() === "top";
-  const ids = useSettings((s) => unshownSettings(s, { top, liquidGlass }));
+  const ids = useSettings((s) => unshownSettings(s, { top, glass: liquidGlass }));
   return useMemo(() => new Set(ids ? ids.split("\n") : []), [ids]);
 }
 

@@ -4,7 +4,9 @@ import { onAppEvent } from "../../platform/app";
 import { useTranslate } from "../site/translate";
 import { useBrowser } from "../browser/store";
 import { useSync } from "../sync/engine";
-import { capture, endSession, flush, isSharing, startClient } from "./client";
+import { capture, endSession, flush, isSharing, markSettingsSnapshot, settingsSnapshotDay, startClient } from "./client";
+import { SETTINGS_SNAPSHOT_EVENT, settingsSnapshot } from "./settingsSnapshot";
+import { utcDay } from "./daily";
 import { percentile } from "./transport";
 import { reportNativeCrashes } from "./errors";
 import { emitJourneys, journeysEnding, startJourneys } from "./journeys";
@@ -13,6 +15,7 @@ import { splitTabIds } from "../splits/splits";
 
 const HOUR_MS = 60 * 60_000;
 const FIRST_MEMORY_SAMPLE_MS = 10 * 60_000;
+const FIRST_SETTINGS_SNAPSHOT_MS = 2 * 60_000;
 const EXTENSION_SETTLE_MS = 20_000;
 
 const startedAt = Date.now();
@@ -121,7 +124,15 @@ function emitOmniboxLatency() {
   capture("perf_omnibox", { samples: samples.length, p50_ms: at(0.5), p95_ms: at(0.95), max_ms: samples.at(-1)! });
 }
 
+function snapshotSettings() {
+  const today = utcDay(Date.now());
+  if (!isSharing() || settingsSnapshotDay() === today) return;
+  capture(SETTINGS_SNAPSHOT_EVENT, settingsSnapshot(useBrowser.getState().settings));
+  markSettingsSnapshot(today);
+}
+
 function hourly() {
+  snapshotSettings();
   emitCounts();
   emitOmniboxLatency();
   emitJourneys();
@@ -141,6 +152,7 @@ export function startUsage() {
   watchTranslate();
   watchExtensions();
   setTimeout(() => void sampleMemory(), FIRST_MEMORY_SAMPLE_MS);
+  setTimeout(snapshotSettings, FIRST_SETTINGS_SNAPSHOT_MS);
   setInterval(hourly, HOUR_MS);
   onAppEvent((e) => e.type === "willQuit" && sessionEnding());
 }

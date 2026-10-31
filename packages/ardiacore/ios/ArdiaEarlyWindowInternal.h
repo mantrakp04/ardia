@@ -66,7 +66,6 @@ bool ReadInsets(id value, CGFloat out[4]);
 bool Fits(const CGFloat insets[4], NSView *host);
 NSRect RectFromInsets(const CGFloat insets[4], NSView *host);
 NSString *PicturePath(NSString *windowId);
-BOOL AddLiveGlass(NSArray *records, NSView *host, NSView *parent);
 BOOL CapturePicture(ArdiaWindowController *controller, NSString *windowId, NSMutableDictionary *layout);
 void DropPictureFile(NSString *windowId);
 void LoadLayouts();

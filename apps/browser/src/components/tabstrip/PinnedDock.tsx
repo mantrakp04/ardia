@@ -6,6 +6,7 @@ import { openTileFolderMenu } from "../../state/sidebar/tileFolderUi";
 import { currentMovingTabIds, openTileFolderStripMenu, useTileFolderLabel } from "../../state/tabs/topStrip";
 import { FolderMosaic } from "../sidebar/FolderTile";
 import { ContextMenuArea, useHover } from "../ui";
+import { GlassFill, useGlass } from "../ui/Glass";
 import { useTheme } from "../ui/theme";
 import { DockContext } from "./context";
 import { pinOut } from "./dockCross";
@@ -25,6 +26,7 @@ export function PinnedDock({ tabIds }: { tabIds: string[] }) {
   const geometry = strip.dock!.geometry;
   const width = dockWidth(tabIds.length);
   const box = useMemo(() => Animated.add(strip.grow, width), [strip.grow, width]);
+  const glass = useGlass();
   return (
     <View style={{ marginTop: ITEM_TOP, marginRight: DOCK_GAP - GAP, zIndex: 2, width, height: ITEM_HEIGHT, flexDirection: "row", alignItems: "center" }}>
       <Animated.View
@@ -37,11 +39,13 @@ export function PinnedDock({ tabIds }: { tabIds: string[] }) {
           width: box.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolateLeft: "clamp" }),
           opacity: box.interpolate({ inputRange: [0, PINNED_CELL / 2], outputRange: [0, 1], extrapolate: "clamp" }),
           borderRadius: TAB_RADIUS,
-          borderWidth: CHIP_HAIRLINE,
+          borderWidth: glass ? 0 : CHIP_HAIRLINE,
           borderColor: theme.pinnedRestingStroke,
-          backgroundColor: theme.pinnedResting,
+          backgroundColor: glass ? undefined : theme.pinnedResting,
         }}
-      />
+      >
+        {glass ? <GlassFill radius={TAB_RADIUS} /> : null}
+      </Animated.View>
       <View style={{ flexDirection: "row", gap: PINNED_SPACING }}>
         {tabIds.map((id, i) => {
           const folderId = folderIdOfCell(id);
@@ -100,6 +104,7 @@ function PinnedCell({ tabId, geometry, from }: { tabId: string; geometry: DragGe
 
 function FolderCell({ folderId, tabIds, geometry, from }: { folderId: string; tabIds: string[]; geometry: DragGeometry; from: number }) {
   const theme = useTheme();
+  const glass = useGlass();
   const windowId = useWindowId();
   const label = useTileFolderLabel(windowId, folderId);
   const { hovered, hoverProps } = useHover();
@@ -124,7 +129,9 @@ function FolderCell({ folderId, tabIds, geometry, from }: { folderId: string; ta
             {({ pressed }) => (
               <View style={{ width: PINNED_CELL, height: ITEM_HEIGHT - 1, alignItems: "center", justifyContent: "center" }}>
                 {(hovered || pressed) && (
-                  <View style={{ position: "absolute", left: PINNED_FACE_INSET, right: PINNED_FACE_INSET, top: PINNED_FACE_INSET, bottom: PINNED_FACE_INSET, borderRadius: PINNED_FACE_RADIUS, backgroundColor: pressed ? theme.tabPressed : theme.tabHover }} />
+                  <View style={{ position: "absolute", left: PINNED_FACE_INSET, right: PINNED_FACE_INSET, top: PINNED_FACE_INSET, bottom: PINNED_FACE_INSET, borderRadius: PINNED_FACE_RADIUS, backgroundColor: glass ? undefined : pressed ? theme.tabPressed : theme.tabHover }}>
+                    {glass ? <GlassFill radius={PINNED_FACE_RADIUS} state={pressed ? "pressed" : "lit"} /> : null}
+                  </View>
                 )}
                 <View pointerEvents="none">
                   <FolderMosaic tabIds={tabIds} />

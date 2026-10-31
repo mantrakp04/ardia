@@ -259,7 +259,7 @@ ArdiaEarlyShown *ShownForWindow(NSWindow *window) {
   NSArray *size = layout[@"size"];
   const BOOL sameSize = [size isKindOfClass:NSArray.class] && size.count == 2 && fabs([size[0] doubleValue] - NSWidth(window.frame)) < 0.5 &&
                         fabs([size[1] doubleValue] - NSHeight(window.frame)) < 0.5;
-  if (picture && sameSize && gPictureCurrent && (!layout[@"glass"] || AddLiveGlass(layout[@"glass"], host, backdropView))) {
+  if (picture && sameSize && gPictureCurrent && !layout[@"glass"]) {
     NSView *view = [[NSView alloc] initWithFrame:host.bounds];
     view.wantsLayer = YES;
     view.layer.contents = (__bridge id)picture;

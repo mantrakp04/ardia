@@ -73,7 +73,7 @@ export function ActionPopup({ windowId, pageProfile, url, anchor }: { windowId: 
           transform: [{ translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] }) }],
         }}
       >
-        <Panel glass="panel" fill={theme.panel} radius={PANEL.radius} border={colors.popupBorder} shadow={POPUP_SHADOW} style={{ width, height }}>
+        <Panel fill={theme.panel} radius={PANEL.radius} border={colors.popupBorder} shadow={POPUP_SHADOW} style={{ width, height }}>
           <View style={{ flex: 1, borderRadius: PANEL.radius, overflow: "hidden" }}>
             <WebView
               ref={web}
