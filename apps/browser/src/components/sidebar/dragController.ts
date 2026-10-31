@@ -4,12 +4,12 @@ import { dropTabs } from "../../state/pins/actions";
 import { movingTabsFrom } from "../../state/sidebar/current";
 import type { TabPlacement } from "../../state/pins/placing";
 import { SLIDE } from "../tabstrip/stripReorder";
-import { beginTabDrag, cancelTabDrag, endTabDrag, setDragPicture, updateTabDrag } from "../../state/drag/tabDrag";
+import { beginGroupDrag, beginTabDrag, cancelTabDrag, endTabDrag, setDragPicture, updateTabDrag } from "../../state/drag/tabDrag";
 import { arrangeLive } from "../../state/sidebar/pinnedOrder";
 import { suppressHover } from "../../state/sidebar/hover";
 import { closeFolderPanel } from "../../state/sidebar/tileFolderUi";
 import { dragMarksOf, markDrag } from "../../state/sidebar/dragMarks";
-import { boxed, type Drop, EDGE, type Item, measure, ROW_GAP, spring, tabCell } from "./dragModel";
+import { boxed, type Drop, EDGE, isGroupItem, type Item, measure, ROW_GAP, spring, tabCell } from "./dragModel";
 import { DragTargeting } from "./dragTargeting";
 import { type DragSession, newDragSession } from "./dragGeometry";
 import { setDragEscapeCapture } from "../../state/drag/dragNative";
@@ -40,6 +40,8 @@ export class DragController extends DragTargeting {
     if (tabCell(item)) {
       const single = sources.length === 1 ? (item.tabIds[0] ?? null) : null;
       seq = beginTabDrag(single, [...new Set(sources.flatMap((i) => i.tabIds))]);
+    } else if (isGroupItem(item)) {
+      seq = beginGroupDrag(item.groupId);
     }
     await this.measureAll(session);
     if (this.session !== session) return;
