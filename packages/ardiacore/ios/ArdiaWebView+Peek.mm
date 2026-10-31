@@ -16,6 +16,7 @@ namespace {
 
 NSString *gSplitLinkModifier = @"altShift";
 NSSet<NSString *> *gPeekOtherSiteTabs = [NSSet set];
+NSArray<NSDictionary<NSString *, id> *> *gLinkRoutes = @[];
 }
 
 static const NSEventModifierFlags kPeekKeyMask = NSEventModifierFlagOption | NSEventModifierFlagShift | NSEventModifierFlagCommand | NSEventModifierFlagControl;
@@ -35,6 +36,11 @@ static ArdiaWebView *PageViewUnder(NSEvent *event) {
   for (NSView *view = hit; view; view = view.superview)
     if ([view isKindOfClass:ArdiaWebView.class]) return (ArdiaWebView *)view;
   return nil;
+}
+
+static BOOL PeekStrict() {
+  static const BOOL strict = [ArdiaLaunchConfig.shared testFlag:@"peekStrict"];
+  return strict;
 }
 
 static BOOL PeekTestHooks() {
@@ -94,12 +100,23 @@ NSString *SplitLinkModifier() {
   return [gSplitLinkModifier isEqualToString:@"alt"] && ![gPeekModifier isEqualToString:@"alt"] ? @"alt" : @"altShift";
 }
 
+NSArray<NSDictionary<NSString *, id> *> *LinkRoutes() {
+  return gLinkRoutes;
+}
+
 NSString *PeekConfigJSON(ArdiaWebView *view) {
   return JSONText(@{@"modifier" : gPeekModifier, @"split" : SplitLinkModifier(), @"trace" : @(PeekTracing()), @"otherSites" : @(view.peeksLinksToOtherSites)});
 }
 }
 
 static NSString *const kOtherSiteKey = @"site";
+static NSString *RouteDisposition(NSEventModifierFlags keys) {
+  if (keys == 0) return @"foreground";
+  if (keys == NSEventModifierFlagCommand) return @"background";
+  if (keys == NSEventModifierFlagShift) return @"window";
+  if (keys == (NSEventModifierFlagCommand | NSEventModifierFlagShift)) return @"foreground";
+  return nil;
+}
 
 static NSEventModifierFlags LinkKeyFlags(NSString *key) {
   static NSDictionary<NSString *, NSNumber *> *flags = @{
@@ -172,6 +189,21 @@ static NSString *LinkKeyAction(NSString *key) {
   return _transferKey.length && [gPeekOtherSiteTabs containsObject:_transferKey];
 }
 
++ (void)setLinkRoutes:(NSArray<NSDictionary<NSString *, id> *> *)routes {
+  NSMutableArray<NSDictionary<NSString *, id> *> *kept = [NSMutableArray array];
+  for (id route in [routes isKindOfClass:NSArray.class] ? routes : @[]) {
+    if (![route isKindOfClass:NSDictionary.class]) continue;
+    NSString *match = Text(route, @"match", 16);
+    NSString *pattern = Text(route, @"pattern", 8192);
+    id profile = route[@"profile"];
+    if (![@[ @"contains", @"equals" ] containsObject:match ?: @""] || !pattern.length || kept.count >= 512) continue;
+    [kept addObject:@{@"match" : match, @"pattern" : pattern, @"profile" : [profile isKindOfClass:NSString.class] ? profile : NSNull.null}];
+  }
+  if ([kept isEqualToArray:gLinkRoutes]) return;
+  gLinkRoutes = [kept copy];
+  for (ArdiaWebView *view in LiveViews().allObjects) [view pushLinkRoutes];
+}
+
 + (void)setSplitLinkModifier:(NSString *)modifier {
   InstallPeekMonitor();
   NSString *next = [modifier isEqualToString:@"alt"] ? @"alt" : @"altShift";
@@ -185,6 +217,31 @@ static NSString *LinkKeyAction(NSString *key) {
   NSString *json = PeekConfigJSON(self);
   [self callFrame:@"" kind:@"peekConfig" json:json];
   for (NSString *frameId in [ScriptFramesOf(_tab) copy]) [self callFrame:frameId kind:@"peekConfig" json:json];
+}
+
+- (void)pushLinkRoutes {
+  if (!_tab) return;
+  NSString *json = JSONText(@{@"routes" : gLinkRoutes, @"self" : _sidebarProfile ?: @""});
+  [self callFrame:@"" kind:@"routeConfig" json:json];
+  for (NSString *frameId in [ScriptFramesOf(_tab) copy]) [self callFrame:frameId kind:@"routeConfig" json:json];
+}
+
+- (void)routeLink:(NSDictionary *)dict {
+  NSString *url = Text(dict, @"url", 8192);
+  NSString *scheme = (url.length ? [NSURL URLWithString:url].scheme.lowercaseString : nil) ?: @"";
+  NSString *claimed = Text(dict, @"how", 16);
+  if (![@[ @"http", @"https" ] containsObject:scheme] || !_visible || !self.window) return;
+  if (![@[ @"foreground", @"background", @"window" ] containsObject:claimed ?: @""]) claimed = @"foreground";
+  NSString *opens = [Text(dict, @"opens", 8) isEqualToString:@"tab"] ? @"tab" : @"page";
+  const BOOL test = PeekTestHooks() && !PeekStrict();
+  const BOOL fresh = gPeekUpAt >= 0 && CACurrentMediaTime() - gPeekUpAt <= kPeekGestureLifetime && !gPeekPressedSinceUp;
+  const BOOL peekKeys = gPeekUpKeys && (gPeekUpKeys == LinkKeyFlags(gPeekModifier) || gPeekUpKeys == LinkKeyFlags(SplitLinkModifier()));
+  NSString *how = test ? claimed : RouteDisposition(gPeekUpKeys);
+  const BOOL clicked = test || (fresh && gPeekUpSeq != gPeekUsedSeq && gPeekUpView == self && how && !peekKeys);
+  PeekTrace(@{@"event" : @"route", @"url" : url ?: @"", @"how" : how ?: @"none", @"claimed" : claimed, @"clicked" : @(clicked), @"testInstance" : @(test)});
+  if (!clicked) return;
+  if (!test) gPeekUsedSeq = gPeekUpSeq;
+  [self emit:@"openWindow" payload:@{@"url" : url, @"disposition" : how, @"opens" : opens, @"userGesture" : @YES, @"routed" : @YES}];
 }
 
 - (void)fallBackFromPeek:(NSDictionary *)dict url:(NSString *)url frame:(NSString *)frameId reason:(NSString *)reason test:(BOOL)test {
@@ -220,8 +277,7 @@ static NSString *LinkKeyAction(NSString *key) {
   const BOOL otherSite = [key isEqualToString:kOtherSiteKey];
   NSString *action = otherSite ? (self.peeksLinksToOtherSites ? @"peek" : nil) : LinkKeyAction(key);
   const CFTimeInterval sinceUp = gPeekUpAt < 0 ? -1 : CACurrentMediaTime() - gPeekUpAt;
-  static const BOOL strict = [ArdiaLaunchConfig.shared testFlag:@"peekStrict"];
-  const BOOL test = PeekTestHooks() && !strict;
+  const BOOL test = PeekTestHooks() && !PeekStrict();
   NSString *refused = nil;
   if (!action) refused = @"that key opens nothing now";
   else if (otherSite && !main) refused = @"only the page itself peeks links to other sites";

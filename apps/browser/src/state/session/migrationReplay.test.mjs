@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 const { sessionWithTabPages, sessionWithTabPins } = await import("./savedShapes.ts");
-const { sessionWithSettingsMeta } = await import("../settings/settings.ts");
+const { sessionWithLinkRouting, sessionWithSettingsMeta } = await import("../settings/settings.ts");
 const { sessionWithPinChoiceStamps } = await import("../pins/pinChoices.ts");
 const { Clock } = await import("@ardia/sync");
 
@@ -42,4 +42,10 @@ test("8 → 9 run twice turns each pending pin choice's time into an HLC that or
   assert.deepEqual(once.pinChoices, { default: { a: new Clock("", null, () => 1_000).tick(), b: new Clock("", null, () => 2_000).tick() }, work: {} });
   assert.ok(once.pinChoices.default.a < once.pinChoices.default.b);
   assert.deepEqual(replays(sessionWithPinChoiceStamps, { tabs: [] }), { tabs: [] }, "a session without choices is left as it is");
+});
+
+test("9 → 10 run twice turns the old Little Ardia switch into a link routing and keeps it chosen", () => {
+  const once = replays(sessionWithLinkRouting, { settings: { openLinksInLittleArdia: false }, settingsMeta: { chosen: ["openLinksInLittleArdia"], inferred: [] } });
+  assert.equal(once.settings.linkRouting.defaultDestination.kind, "recent");
+  assert.deepEqual(once.settingsMeta, { chosen: ["linkRouting"], inferred: [] });
 });

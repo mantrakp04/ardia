@@ -59,13 +59,13 @@ export function fieldMenuItems({ paste, hasSelection, hasText }: { paste: PasteA
   );
 }
 
-export type FieldMenuPick = { kind: "go"; url: string } | { kind: "edit"; text: string; caret: number } | { kind: "selectAll" } | null;
+export type FieldMenuPick = { kind: "go"; url: string; search?: boolean } | { kind: "edit"; text: string; caret: number } | { kind: "selectAll" } | null;
 
 export async function showFieldMenu(value: string, selection: { current: { start: number; end: number } }): Promise<FieldMenuPick> {
   const paste = await clipboardPasteAction();
   const { start, end } = selection.current;
   const choice = await showMenu(fieldMenuItems({ paste, hasSelection: end > start, hasText: !!value }));
-  if (choice === "pasteAndGo" && paste) return { kind: "go", url: pasteTarget(paste) };
+  if (choice === "pasteAndGo" && paste) return { kind: "go", url: pasteTarget(paste), search: paste.kind === "search" };
   if (choice === "copy" || choice === "cut") copyText(value.slice(start, end));
   if (choice === "cut" || choice === "paste") {
     const insert = choice === "paste" ? sanitizePaste(await readText()) : "";

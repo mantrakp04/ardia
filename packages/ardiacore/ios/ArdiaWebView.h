@@ -12,6 +12,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, weak, nullable) id<ArdiaWebViewDelegate> delegate;
 @property (nonatomic, copy) NSString *profile;
+@property (nonatomic, copy) NSString *sidebarProfile;
 @property (nonatomic, copy, nullable) NSString *initialURL;
 @property (nonatomic, copy, nullable) NSString *adoptId;
 @property (nonatomic, copy, nullable) NSString *transferKey;
@@ -93,6 +94,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface ArdiaWebView (Peek)
 + (void)setPeekModifier:(NSString *)modifier;
++ (void)setLinkRoutes:(NSArray<NSDictionary<NSString *, id> *> *)routes;
 + (void)setSplitLinkModifier:(NSString *)modifier;
 + (void)setPeekOtherSiteTabs:(NSArray<NSString *> *)tabIds;
 + (BOOL)devPostPeekMouseUp:(NSString *)keys over:(NSString *)transferKey;

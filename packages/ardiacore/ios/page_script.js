@@ -575,6 +575,12 @@
   let splitKey = null;
   let peekTrace = false;
   let peekOtherSites = false;
+  let linkRoutes = [];
+  let ownProfile = "";
+  handlers.routeConfig = (config) => {
+    linkRoutes = config && isArray(config.routes) ? config.routes : [];
+    if (config && typeof config.self === "string") ownProfile = config.self;
+  };
   handlers.peekConfig = (config) => {
     peekKey = config && (config.modifier === "alt" || config.modifier === "shift") ? config.modifier : null;
     splitKey = config && (config.split === "alt" || config.split === "altShift") ? config.split : null;
@@ -593,6 +599,8 @@
     const localName = getter(Element.prototype, "localName");
     const anchorHref = getter(HTMLAnchorElement.prototype, "href");
     const areaHref = getter(HTMLAreaElement.prototype, "href");
+    const anchorTarget = getter(HTMLAnchorElement.prototype, "target");
+    const areaTarget = getter(HTMLAreaElement.prototype, "target");
     const baseURI = getter(Node.prototype, "baseURI");
     const ratio = getter(window, "devicePixelRatio");
     const composedPath = Event.prototype.composedPath;
@@ -687,6 +695,49 @@
       const selection = apply(selectionOf, document, []);
       return !!selection && !collapsed(selection);
     };
+    const replace = String.prototype.replace;
+    const toLower = String.prototype.toLowerCase;
+    const hasText = String.prototype.includes;
+    const lowered = (text) => apply(toLower, text, []);
+    const comparable = (url) => lowered(apply(replace, apply(replace, apply(replace, url, [/^https?:\/\//i, ""]), [/[?#][\s\S]*$/, ""]), [/\/+$/, ""]));
+    const routeFor = (url) => {
+      const lower = lowered(url);
+      for (let i = 0; i < linkRoutes.length; i++) {
+        const route = linkRoutes[i];
+        if (!route || typeof route.pattern !== "string" || !route.pattern) continue;
+        const hit = route.match === "equals" ? comparable(url) === route.pattern : apply(hasText, lower, [route.pattern]);
+        if (hit) return route;
+      }
+      return null;
+    };
+    const clickDetail = getter(UIEvent.prototype, "detail");
+    const linkTarget = (link) => {
+      const raw = namespace(link) === SVG ? apply(getAttribute, link, ["target"]) ?? "" : localName(link) === "a" ? anchorTarget(link) : areaTarget(link);
+      return lowered(raw);
+    };
+    const routedOpens = (link) => {
+      const target = linkTarget(link);
+      if (target === "_blank") return "tab";
+      if (target === "_top") return "page";
+      return !isTop || (target && target !== "_self" && target !== "_parent") ? null : "page";
+    };
+    const routed = (url) => {
+      const route = routeFor(url);
+      return !!route && !(typeof route.profile === "string" && route.profile === ownProfile);
+    };
+    const routedClick = (e, how) => {
+      if (!ownProfile || !linkRoutes.length || !e.isTrusted || e.defaultPrevented || clickDetail(e) === 0 || ctrlKey(e) || altKey(e)) return;
+      const hit = linkAt(e);
+      if (!peekable(hit) || chosen(e) || hit.url.length > 8192) return;
+      const opens = routedOpens(hit.link);
+      if (!opens || !routed(hit.url)) return;
+      apply(preventDefault, e, []);
+      send("route", { url: hit.url, how, opens, origin: pageOrigin });
+    };
+    addEventListener(
+      "click",
+      guard((e) => button(e) === 0 && routedClick(e, metaKey(e) ? (shiftKey(e) ? "foreground" : "background") : shiftKey(e) ? "window" : "foreground")),
+    );
     let press = null;
     let peeked = null;
     let sent = null;
@@ -737,6 +788,7 @@
         if (key === "site" && hit.url.length > MAX_SITE_PEEK_URL) return trace("the link is too long to hand over", { length: hit.url.length });
         if (key === "site" && !replacesPage(hit.link)) return trace("the link opens elsewhere", { url: hit.url });
         if (key === "site" && !otherSite(hit.url)) return trace("the link stays on this site", { url: hit.url });
+        if (key === "site" && routed(hit.url)) return trace("the link is routed", { url: hit.url });
         if (key === "site" && selecting()) return trace("the click belongs to a selection", { url: hit.url });
         peeked = { link: hit.link, stamp: timeStamp(e) };
         sent = { url: hit.url, at: now(), link: hit.link };
@@ -868,6 +920,8 @@
 
   handlers.config = (config) => {
     handlers.peekConfig({ modifier: config.peek, split: config.split, trace: config.peekTrace, otherSites: config.peekOtherSites });
+    handlers.peekConfig({ modifier: config.peek, split: config.split, trace: config.peekTrace });
+    handlers.routeConfig({ routes: config.routes, self: config.sidebarProfile });
     blockAutoplay = !!config.blockAutoplay;
     pipTrace = !!config.pipTrace;
     if (pipTrace && pipHandlerSet !== null)

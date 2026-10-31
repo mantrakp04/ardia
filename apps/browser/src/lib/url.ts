@@ -1,4 +1,4 @@
-import { appUrlOrigin, breadcrumb, displayHost, hostOf, urlForDisplay } from "@ardia/core";
+import { appUrlOrigin, breadcrumb, displayHost, fixupUrl, hostOf, urlForDisplay } from "@ardia/core";
 
 export const withoutFragment = (url: string) => url.replace(/#.*$/, "");
 
@@ -39,3 +39,10 @@ export function originForSecurityDisplay(origin: string): string {
     return origin;
   }
 }
+
+export type TypedSubmission = "site" | "search";
+
+export const typedSubmission = (text: string): TypedSubmission => {
+  const input = text.trim();
+  return input.startsWith("?") || fixupUrl(input) === null ? "search" : "site";
+};

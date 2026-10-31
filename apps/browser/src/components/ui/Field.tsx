@@ -92,9 +92,11 @@ export function TextField({
   onBlur,
   selectOnFocus,
   style,
+  accessibilityLabel,
 }: {
   value: string;
   onChangeText: (text: string) => void;
+  accessibilityLabel?: string;
   placeholder?: string;
   autoFocus?: boolean;
   secure?: boolean;
@@ -134,6 +136,7 @@ export function TextField({
         onBlur={onBlur}
         keyDownEvents={onEscape ? ESCAPE_KEY : undefined}
         onKeyDown={(e) => e.nativeEvent.key === "Escape" && onEscape?.()}
+        accessibilityLabel={accessibilityLabel}
         style={{ ...typeScale.body, color: theme.textPrimary, paddingVertical: 0 }}
       />
     </View>
@@ -148,12 +151,14 @@ export function PopUp<T extends string>({
   onChange,
   minWidth = 120,
   disabled,
+  accessibilityLabel,
 }: {
   value: T;
   options: Option<T>[];
   onChange: (value: T) => void;
   minWidth?: number;
   disabled?: boolean;
+  accessibilityLabel?: string;
 }) {
   const theme = useTheme();
   const { hovered, hoverProps } = useHover();
@@ -168,7 +173,7 @@ export function PopUp<T extends string>({
   };
   return (
     <View {...hoverProps} style={{ opacity: disabled ? opacity.disabled : 1 }}>
-      <Pressable disabled={disabled} onPress={open}>
+      <Pressable disabled={disabled} onPress={open} accessibilityRole="button" accessibilityLabel={accessibilityLabel} accessibilityValue={{ text: current?.title ?? "" }}>
         {({ pressed }) => (
           <View
             style={{

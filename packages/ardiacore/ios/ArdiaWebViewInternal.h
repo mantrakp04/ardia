@@ -106,6 +106,7 @@ struct ArdiaPageFocusState {
   ArdiaPageFocusState _focus;
   ArdiaPageReports _reports;
   NSString *_profile;
+  NSString *_sidebarProfile;
   NSString *_initialURL;
   NSString *_adoptId;
   NSString *_transferKey;
@@ -221,6 +222,8 @@ struct ArdiaPageFocusState {
 @interface ArdiaWebView (PeekInternal)
 - (void)pushPeekModifier;
 - (BOOL)peeksLinksToOtherSites;
+- (void)pushLinkRoutes;
+- (void)routeLink:(NSDictionary *)dict;
 - (void)fallBackFromPeek:(NSDictionary *)dict url:(NSString *)url frame:(NSString *)frameId reason:(NSString *)reason test:(BOOL)test;
 - (void)peekLink:(NSDictionary *)dict frame:(NSString *)frameId main:(BOOL)main;
 @end
@@ -278,7 +281,7 @@ NSString *Text(NSDictionary *d, NSString *key, NSUInteger max);
 bool Flag(NSDictionary *d, NSString *key);
 bool Finite(NSDictionary *d, NSString *key, double *out);
 
-void AnswerHello(ArdiaCoreTab *tab, NSString *profile, NSString *frameId, BOOL main, NSString *verifiedOrigin);
+void AnswerHello(ArdiaCoreTab *tab, NSString *profile, NSString *sidebar, NSString *frameId, BOOL main, NSString *verifiedOrigin);
 NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab);
 
 extern NSString *gPeekModifier;
@@ -287,6 +290,8 @@ BOOL PeekTracing();
 void PeekTrace(NSDictionary *entry);
 NSString *SplitLinkModifier();
 NSString *PeekConfigJSON(ArdiaWebView *view);
+NSString *PeekConfigJSON();
+NSArray<NSDictionary<NSString *, id> *> *LinkRoutes();
 
 void InstallControlPressMonitor();
 BOOL TracingPictureInPicture();

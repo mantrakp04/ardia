@@ -16,11 +16,13 @@ import { openImport } from "../../../state/settings/settingsWindows";
 import { ExportBookmarksRow } from "./ExportBookmarksRow";
 import { SetupCodeRow } from "./SetupCodeRow";
 import { UI_LOCALE } from "../../../lib/uiLocale";
+import { OtherAppsDestinationPopUp } from "./Links";
+import { useOtherAppsDestinationDescription } from "../../../state/linkRouting/hooks";
 
 const APP = "Ardia";
 
 export function GeneralPane() {
-  const openLinksInLittleArdia = useSettings((s) => s.openLinksInLittleArdia);
+  const otherAppsDescription = useOtherAppsDestinationDescription();
   const restoreSession = useSettings((s) => s.restoreSession);
   const commandBarPreference = useSettings((s) => s.commandBarPreference);
   const [loginStatus = "notRegistered", refreshLogin] = useResource(loginItem);
@@ -42,23 +44,8 @@ export function GeneralPane() {
         </Row>
         <SettingToggle anchor="general.warnBeforeQuitting" />
         <SettingToggle anchor="general.warnBeforeClosingWindow" />
-        <Row
-          anchor="general.openLinksFrom"
-          description={
-            openLinksInLittleArdia
-              ? `A link from Discord, Slack or Mail opens in Little Ardia, a small window of its own. ⌘O moves it into ${APP}; closing it throws it away.`
-              : `A link from Discord, Slack or Mail opens as a new tab in the ${APP} window you used last.`
-          }
-        >
-          <PopUp
-            value={openLinksInLittleArdia ? "small" : "tab"}
-            options={[
-              { value: "small", title: "Little Ardia" },
-              { value: "tab", title: "A new tab" },
-            ]}
-            onChange={(v) => updateSettings({ openLinksInLittleArdia: v === "small" })}
-            minWidth={190}
-          />
+        <Row anchor="general.openLinksFrom" description={otherAppsDescription}>
+          <OtherAppsDestinationPopUp />
         </Row>
       </Group>
 

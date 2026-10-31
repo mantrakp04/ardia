@@ -17,7 +17,7 @@ export const generalRows = {
           description: "Asks before ⇧⌘W or the close button closes its tabs.",
           keywords: ["close window", "confirm"],
         },
-        openLinksFrom: { title: "Open links from other apps in", keywords: ["little ardia", "external links", "mini window", "discord", "slack", "mail"] },
+        openLinksFrom: { title: "Open links from other apps in", keywords: ["little ardia", "external links", "mini window", "discord", "slack", "mail", "most recent", "air traffic control"] },
       },
     },
     {
@@ -74,6 +74,28 @@ export const generalRows = {
           title: "Apply a setup code",
           description: "Paste the code from the demo on ardia.dev to bring over the layout, look and pinned apps you picked there.",
           keywords: ["setup code", "demo", "ardia.dev", "preset", "arc", "layout"],
+        },
+      },
+    },
+  ],
+  links: [
+    {
+      section: "Air Traffic Control",
+      rows: {
+        routes: {
+          title: "Routes",
+          description: "Choose where specific sites open. The first route that matches wins.",
+          keywords: ["air traffic control", "atc", "route", "routes", "rules", "link routing", "open in", "contains", "is equal to", "new route", "spaces", "tab group"],
+        },
+      },
+    },
+    {
+      section: "Links from other apps",
+      rows: {
+        otherApps: {
+          title: "Open links from other apps in",
+          description: "Where a link from Discord, Slack or Mail opens when no route matches it.",
+          keywords: ["default", "little ardia", "external links", "most recent", "discord", "slack", "mail"],
         },
       },
     },
@@ -331,4 +353,4 @@ export const generalRows = {
     },
     { section: "App Icon", rows: { appIcon: { title: "App Icon", description: "Shown in the Dock and the app switcher. The Dock keeps it after you quit.", keywords: ["dock icon", "logo"] } } },
   ],
-} satisfies Pick<Record<SettingsPane, SettingSection[]>, "general" | "profiles" | "sync" | "tabs" | "appearance">;
+} satisfies Pick<Record<SettingsPane, SettingSection[]>, "general" | "links" | "profiles" | "sync" | "tabs" | "appearance">;

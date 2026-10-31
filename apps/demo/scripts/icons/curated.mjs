@@ -16,6 +16,8 @@ export const CURATED = {
   translate: "L:languages T:language",
   "1.magnifyingglass": "T:zoom-reset L:search P:magnifying-glass",
   airplane: "PF:airplane-fill M:airplane TF:plane L:plane P:airplane",
+  "arrow.turn.down.right": "L:corner-down-right T:corner-down-right P:arrow-elbow-down-right M:arrow-right-bottom I:arrow-down-right",
+  "minus.circle": "L:circle-minus T:circle-minus P:minus-circle I:minus-circle M:minus-circle-outline",
   alarm: "L:alarm-clock T:alarm P:alarm M:alarm",
   ant: "P:bug L:bug T:bug M:bug-outline P:bug-beetle",
   "antenna.radiowaves.left.and.right.slash": "L:radio-tower T:antenna-bars-off M:access-point-off T:access-point-off",

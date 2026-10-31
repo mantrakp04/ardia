@@ -1,4 +1,5 @@
 import type { Settings } from "../settings/settings";
+import { DEFAULT_LINK_ROUTING, RECENT } from "../../lib/linkRouting";
 
 export type BrowserSourceId = "arc" | "dia" | "chrome" | "safari" | "firefox" | "zen" | "brave" | "edge" | "fresh";
 
@@ -36,9 +37,9 @@ const CLASSIC_TABS: Partial<Settings> = {
   bookmarksBar: "newTab",
   searchEngine: "google",
   commandBarPreference: "search",
-  openLinksInLittleArdia: false,
   profileSwitcherIcons: false,
   peekLinksToOtherSites: false,
+  linkRouting: { ...DEFAULT_LINK_ROUTING, defaultDestination: RECENT },
 };
 
 export const PRESETS: Record<Preset, Partial<Settings>> = {
@@ -62,9 +63,9 @@ export const PRESETS: Record<Preset, Partial<Settings>> = {
     bookmarksBar: "never",
     searchEngine: "google",
     commandBarPreference: "website",
-    openLinksInLittleArdia: true,
     profileSwitcherIcons: false,
     peekLinksToOtherSites: false,
+    linkRouting: DEFAULT_LINK_ROUTING,
   },
   arc: {
     tabLayout: "sidebar",
@@ -86,9 +87,9 @@ export const PRESETS: Record<Preset, Partial<Settings>> = {
     bookmarksBar: "never",
     searchEngine: "google",
     commandBarPreference: "website",
-    openLinksInLittleArdia: true,
     profileSwitcherIcons: true,
     peekLinksToOtherSites: true,
+    linkRouting: DEFAULT_LINK_ROUTING,
   },
   zen: {
     tabLayout: "sidebar",
@@ -110,9 +111,9 @@ export const PRESETS: Record<Preset, Partial<Settings>> = {
     bookmarksBar: "never",
     searchEngine: "google",
     commandBarPreference: "search",
-    openLinksInLittleArdia: false,
     profileSwitcherIcons: true,
     peekLinksToOtherSites: true,
+    linkRouting: { ...DEFAULT_LINK_ROUTING, defaultDestination: RECENT },
   },
   chrome: CLASSIC_TABS,
   firefox: CLASSIC_TABS,

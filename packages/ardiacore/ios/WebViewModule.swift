@@ -20,6 +20,7 @@ public class WebViewModule: Module {
   static let calls = CallTable(domain: "webView", handlers: [
     "setDisplayMediaPicker": setting { ArdiaWebView.setDisplayMediaPicker(try $0.bool("enabled")) },
     "setPeekModifier": setting { ArdiaWebView.setPeekModifier(try $0.text("modifier")) },
+    "setLinkRoutes": setting { ArdiaWebView.setLinkRoutes(try $0.dicts("routes")) },
     "setSplitLinkModifier": setting { ArdiaWebView.setSplitLinkModifier(try $0.text("modifier")) },
     "setPeekOtherSiteTabs": setting { ArdiaWebView.setPeekOtherSiteTabs(try $0.strings("tabIds")) },
     "setSelectionPopover": setting { ArdiaWebView.setSelectionPopoverEnabled(try $0.bool("enabled")) },

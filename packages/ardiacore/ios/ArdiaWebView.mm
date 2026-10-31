@@ -171,6 +171,13 @@ void AcceptDrops(NSView *root, BOOL accept) {
   else [self ensureTab];
 }
 
+- (void)setSidebarProfile:(NSString *)sidebarProfile {
+  NSString *next = [sidebarProfile copy] ?: @"";
+  if ([next isEqualToString:_sidebarProfile ?: @""]) return;
+  _sidebarProfile = next;
+  [self pushLinkRoutes];
+}
+
 - (void)setExtensionHost:(NSString *)extensionHost {
   _extensionHost = [extensionHost copy];
   if (_extensionHost.length) _standalone = YES;

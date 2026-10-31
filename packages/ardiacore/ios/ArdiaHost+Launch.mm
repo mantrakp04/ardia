@@ -44,12 +44,61 @@ static NSString *AppDataDirectory() {
   return [support URLByAppendingPathComponent:NSBundle.mainBundle.bundleIdentifier ?: @"Ardia"].path;
 }
 
-static void ParkLaunchLinks(NSArray<NSURL *> *links, NSString *linkProfile) {
+static NSDictionary *SavedLinkRouting(NSDictionary *settings) {
+  return [settings[@"linkRouting"] isKindOfClass:NSDictionary.class] ? settings[@"linkRouting"] : nil;
+}
+
+static NSString *ComparableLinkText(NSString *text) {
+  NSString *lower = [text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet].lowercaseString;
+  if ([lower hasPrefix:@"https://"]) lower = [lower substringFromIndex:8];
+  else if ([lower hasPrefix:@"http://"]) lower = [lower substringFromIndex:7];
+  const NSRange cut = [lower rangeOfCharacterFromSet:[NSCharacterSet characterSetWithCharactersInString:@"?#"]];
+  if (cut.location != NSNotFound) lower = [lower substringToIndex:cut.location];
+  while ([lower hasSuffix:@"/"]) lower = [lower substringToIndex:lower.length - 1];
+  return lower;
+}
+
+static BOOL LinkMayRoute(NSDictionary *settings, NSString *url) {
+  NSArray *routes = [SavedLinkRouting(settings)[@"routes"] isKindOfClass:NSArray.class] ? SavedLinkRouting(settings)[@"routes"] : @[];
+  NSString *lower = url.lowercaseString;
+  NSString *comparableURL = ComparableLinkText(url);
+  for (id route in routes) {
+    if (![route isKindOfClass:NSDictionary.class] || ![route[@"pattern"] isKindOfClass:NSString.class]) continue;
+    NSString *pattern = route[@"pattern"];
+    if ([route[@"match"] isEqual:@"equals"]) {
+      NSString *comparable = ComparableLinkText(pattern);
+      if (comparable.length && [comparableURL isEqualToString:comparable]) return YES;
+      continue;
+    }
+    NSString *trimmed = [pattern stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet].lowercaseString;
+    if (trimmed.length && [lower containsString:trimmed]) return YES;
+  }
+  return NO;
+}
+
+static BOOL OtherAppsOpenInRecentProfile(NSDictionary *settings) {
+  NSDictionary *routing = SavedLinkRouting(settings);
+  if (!routing) return YES;
+  NSDictionary *destination = [routing[@"defaultDestination"] isKindOfClass:NSDictionary.class] ? routing[@"defaultDestination"] : nil;
+  return [destination[@"kind"] isEqual:@"little"] || [destination[@"kind"] isEqual:@"recent"];
+}
+
+static BOOL OtherAppsOpenInLittleWindow(NSDictionary *settings) {
+  NSDictionary *routing = SavedLinkRouting(settings);
+  if (!routing) return ![settings[@"openLinksInLittleArdia"] isEqual:@NO];
+  NSDictionary *destination = [routing[@"defaultDestination"] isKindOfClass:NSDictionary.class] ? routing[@"defaultDestination"] : nil;
+  return [destination[@"kind"] isEqual:@"little"];
+}
+
+static void ParkLaunchLinks(NSArray<NSURL *> *links, ArdiaSavedSession *session) {
+  NSString *linkProfile = session.linkProfile;
+  NSDictionary *settings = session.settings ?: @{};
   if (!links.count || !linkProfile || LaunchTabSwitchedOff()) return;
+  if (!OtherAppsOpenInRecentProfile(settings)) return;
   NSMutableArray<NSString *> *urls = [NSMutableArray array];
   for (NSURL *link in links)
-    if (!link.isFileURL && link.absoluteString.length) [urls addObject:link.absoluteString];
-  [ArdiaWebView startLinkTabs:urls profile:linkProfile];
+    if (!link.isFileURL && link.absoluteString.length && !LinkMayRoute(settings, link.absoluteString)) [urls addObject:link.absoluteString];
+  if (urls.count) [ArdiaWebView startLinkTabs:urls profile:linkProfile];
 }
 
 namespace ardia_host {
@@ -61,7 +110,7 @@ void LinksArrived(NSArray<NSURL *> *urls) {
   NSArray<NSURL *> *links = [urls copy];
   [ArdiaLaunchSequence.shared after:ArdiaLaunchJSStarted
                                  do:^{
-                                   ParkLaunchLinks(links, [ArdiaSavedSession readFrom:AppDataDirectory()].linkProfile);
+                                   ParkLaunchLinks(links, [ArdiaSavedSession readFrom:AppDataDirectory()]);
                                  }];
 }
 
@@ -204,7 +253,7 @@ static void TryEarlyLittleWindow() {
   if (launch.launchedHidden || NSApp.isHidden || LaunchTabSwitchedOff() || OnboardingPending(dir)) return;
   ArdiaSavedSession *session = [ArdiaSavedSession atLaunch:dir];
   NSDictionary *settings = session.settings ?: @{};
-  if ([settings[@"openLinksInLittleArdia"] isEqual:@NO]) return;
+  if (!OtherAppsOpenInLittleWindow(settings) || LinkMayRoute(settings, link.absoluteString)) return;
   NSString *profile = session.linkProfile;
   NSDictionary *backdrop = session.launchBackdrop;
   const bool dark = [[NSApp.effectiveAppearance bestMatchFromAppearancesWithNames:@[ NSAppearanceNameDarkAqua, NSAppearanceNameAqua ]]

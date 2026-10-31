@@ -18,6 +18,8 @@ import { claimFocusTag, commandBarFocus, heroBarFocus } from "../../state/focus/
 import { registerHeroBar, saveNtpQuery, type BarDismissal, type BarSnapshot } from "../../state/omnibox/barState";
 import { openFromBar, otherOpenTabs, switchFromBar, type Disposition } from "../../state/omnibox/openFromBar";
 import { openFromNewTabBar } from "../../state/omnibox/newTabBar";
+import { routeTypedUrl } from "../../state/linkRouting/actions";
+import { typedSubmission, type TypedSubmission } from "../../lib/url";
 import type { NewTabTarget } from "../../state/browser/types";
 import { showFieldMenu } from "../../state/omnibox/paste";
 import { SuggestionIcon, SuggestionList, isRemovable, type RowActions } from "./SuggestionRow";
@@ -134,9 +136,10 @@ export function Omnibox({
     return hero ? reset() : onDone?.();
   };
 
-  const go = (url: string, disposition: Disposition = "current") => {
+  const go = (url: string, disposition: Disposition = "current", submission: TypedSubmission = "site") => {
     bangEnter.cancel();
     if (!url) return;
+    if (submission === "site" && routeTypedUrl(url, { windowId, tabId: opensTab ? undefined : tabId, disposition })) return dismiss();
     if (opensTab && disposition !== "newWindow") return openFromNewTabBar(windowId, opensTab, url);
     if (disposition === "current") journeyNavigate(tabId);
     openFromBar(url, tabId, disposition);
@@ -151,14 +154,14 @@ export function Omnibox({
       const text = edited ? value : initialText || value;
       if (mayBeBang(text)) {
         const fallback = s?.kind === "search" ? s.url : resolveInput(text, engine.url);
-        bangEnter.submit(text, (url) => go(url ?? fallback, disposition));
+        bangEnter.submit(text, (url) => go(url ?? fallback, disposition, url || s?.kind === "search" ? "search" : typedSubmission(text)));
         return;
       }
     }
     if (!s) {
       if (scope) return;
       const text = edited ? value : initialText || value;
-      return go(resolveInput(text, engine.url), disposition);
+      return go(resolveInput(text, engine.url), disposition, typedSubmission(text));
     }
     switch (s.kind) {
       case "page":
@@ -169,10 +172,11 @@ export function Omnibox({
         }
         return go(s.url, disposition);
       case "search":
+        return go(s.url, disposition, "search");
       case "create":
         return go(s.url, disposition);
       case "calc":
-        if (disposition !== "current") return go(s.url, disposition);
+        if (disposition !== "current") return go(s.url, disposition, "search");
         copyText(s.value);
         dispatch({ kind: "calculated", text: s.value });
         return;
@@ -188,7 +192,7 @@ export function Omnibox({
   const forceSearch = () => {
     const text = typed.trim();
     if (!text) return;
-    go(scope ? scopedSearchUrl(scope, text, engine) : searchUrl(engine, text));
+    go(scope ? scopedSearchUrl(scope, text, engine) : searchUrl(engine, text), "current", "search");
   };
 
   const onKeyDown = (e: BarKeyEvent) =>
@@ -196,7 +200,7 @@ export function Omnibox({
 
   const onContextMenu = async () => {
     const pick = await showFieldMenu(value, selection);
-    if (pick?.kind === "go") return go(pick.url);
+    if (pick?.kind === "go") return go(pick.url, "current", pick.search ? "search" : "site");
     if (pick?.kind === "edit") dispatch({ kind: "edited", text: pick.text, caret: pick.caret });
     if (pick?.kind === "selectAll") dispatch({ kind: "select", selection: { start: 0, end: value.length } });
     focusField();

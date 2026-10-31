@@ -119,6 +119,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       style={StyleSheet.absoluteFill}
       url={navigation?.url ?? (adoptId ? tab()?.url : undefined)}
       profile={currentEngineProfile(profileId)}
+      sidebarProfile={isIncognitoProfile(profileId) ? "" : profileId}
       adoptId={adoptId}
       tabId={tabId}
       temporary={peekOf !== undefined}

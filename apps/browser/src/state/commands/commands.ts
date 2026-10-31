@@ -1,4 +1,5 @@
 import { closeWindow as closeNativeWindow } from "../../platform/windows";
+import { LITTLE_ARDIA, otherAppsOpenInLittleArdia, RECENT, withDefaultDestination } from "../../lib/linkRouting";
 import { copyText } from "../../platform/clipboard";
 import { openExternalURL } from "../../platform/app";
 import { pickFiles, prompt } from "../../platform/dialogs";
@@ -86,7 +87,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
     case "newLittleArdia":
       return void openLittleArdia(undefined, arg ?? undefined);
     case "toggleOpenLinksInLittleArdia":
-      return s.updateSettings({ openLinksInLittleArdia: !s.settings.openLinksInLittleArdia });
+      return s.updateSettings({ linkRouting: withDefaultDestination(s.settings.linkRouting, otherAppsOpenInLittleArdia(s.settings.linkRouting) ? RECENT : LITTLE_ARDIA) });
     case "reopenClosedWindow":
       return s.reopenClosedWindow();
     case "toggleAddressBar":

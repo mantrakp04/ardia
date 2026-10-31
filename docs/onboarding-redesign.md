@@ -57,7 +57,7 @@ Settings. "Starting fresh" or skipping the Source screen keeps the full question
 | Bookmarks bar (`bookmarksBar`) | never | never | never | New Tab | New Tab | never | New Tab | New Tab | never |
 | Search engine (`searchEngine`) | Google | Google | Google | Google | Google | Google | Brave Search | Bing | Google |
 | Typing a word (`commandBarPreference`) | website | website | search | search | search | search | search | search | website |
-| Links from other apps (`openLinksInLittleArdia`) | Little Ardia | Little Ardia | tab | tab | tab | tab | tab | tab | Little Ardia |
+| Links from other apps (`linkRouting.defaultDestination`) | Little Ardia | Little Ardia | Most Recent | Most Recent | Most Recent | Most Recent | Most Recent | Most Recent | Little Ardia |
 
 Deliberate departures from the source browser:
 

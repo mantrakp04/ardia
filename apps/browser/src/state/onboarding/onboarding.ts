@@ -1,4 +1,5 @@
 import { readDocument, writeDocument } from "../../platform/documents";
+import { DEFAULT_LINK_ROUTING } from "../../lib/linkRouting";
 import { stopIntroMusic } from "../../platform/introMusic";
 import { devTestValue } from "../../platform/launchConfig";
 import { create } from "zustand";
@@ -79,7 +80,7 @@ export const QUESTIONS: Record<Exclude<OnboardingStep, "intro">, Question[]> = {
   pins: [{ id: "pins", keys: [] }],
   home: [
     { id: "default", keys: [] },
-    { id: "links", keys: ["openLinksInLittleArdia"] },
+    { id: "links", keys: ["linkRouting"] },
   ],
   outro: [{ id: "outro", keys: [] }],
 };

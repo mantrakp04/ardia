@@ -3,12 +3,13 @@ import { showMenu } from "../../platform/menus";
 import { focus, openWindow } from "../browser/actions";
 import { menuShortcut } from "../commands/commandShortcuts";
 import { closeWindowAnimated, isWindowClosing } from "../windows/closeAnimated";
-import { routedLinks, type RoutedLinks } from "./linkRoutes";
 import { runsJavaScript } from "../settings/scriptUrls";
 import { profileAccentOf } from "../profiles/looks";
 import { useBrowser } from "../browser/store";
-import { activeTabId } from "../browser/model";
-import { isSmall, lastActiveProfile, mainWindowFor } from "../windows/small";
+import { activeTabId, engineProfile } from "../browser/model";
+import { openAtPlacement } from "../linkRouting/actions";
+import { placeLinkFromOtherApp } from "../linkRouting/placement";
+import { isSmall, mainWindowFor } from "../windows/small";
 import { isWebPageUrl } from "../../lib/url";
 import { navigationOf } from "../tabs/pageSession";
 import { asAdoptId } from "../tabs/adoptIds";
@@ -29,7 +30,7 @@ export function openExternalUrls(given: string[], pointer?: [number, number]) {
   if (!urls.length) return;
   void routeLinkTabs(urls).then(
     (route) => openRoutedUrls(urls, route, pointer),
-    () => openUrlsFromApps(urls, routedLinks({}, urls.length), pointer),
+    () => openUrlsFromApps(urls, {}, pointer),
   );
 }
 
@@ -38,36 +39,20 @@ function openRoutedUrls(urls: string[], route: LinkRoute, pointer?: [number, num
   const kept = urls.map((_, i) => i).filter((i) => !dismissed.has(i));
   if (!kept.length) return;
   const marks = route.adoptIds ?? [];
-  openUrlsFromApps(
-    kept.map((i) => urls[i]!),
-    routedLinks({ ...route, adoptIds: kept.map((i) => marks[i] ?? null) }, kept.length),
-    pointer,
-  );
+  openUrlsFromApps(kept.map((i) => urls[i]!), { ...route, adoptIds: kept.map((i) => marks[i] ?? null) }, pointer);
 }
 
-function openUrlsFromApps(urls: string[], routed: RoutedLinks, pointer?: [number, number]) {
-  const [url] = urls;
-  const profileId = routed.profileId ?? lastActiveProfile(store());
-  if (store().settings.openLinksInLittleArdia && urls.length === 1 && url && isWebPageUrl(url)) return void openLittleArdia(url, profileId, asAdoptId(routed.adoptIds[0]), pointer);
-  openLinksInMainWindow(urls, profileId, routed.adoptIds);
-}
-
-function openLinksInMainWindow(urls: string[], profileId: string, adoptIds: (string | undefined)[]) {
-  let target = mainWindowFor(store(), profileId);
+function openUrlsFromApps(urls: string[], route: LinkRoute, pointer?: [number, number]) {
+  const marks = route.adoptIds ?? [];
+  let main: string | undefined;
   urls.forEach((url, i) => {
     const s = store();
-    const adoptId = asAdoptId(adoptIds[i]);
-    const w = target ? s.windows[target] : undefined;
-    const blank = w && w.tabIds.length === 1 ? s.tabs[w.tabIds[0]!] : undefined;
-    const intoBlank = blank && !blank.url && !navigationOf(blank) && blank.profileId === profileId && !s.windowUi[w!.id]?.panel.open;
-    if (!w) target = openWindow({ url, profileId, adoptId });
-    else if (intoBlank && !adoptId) s.navigate(blank.id, url);
-    else {
-      s.newTab(w.id, { url, profileId, adoptId });
-      if (intoBlank) store().closeTab(blank.id);
-    }
+    const placement = placeLinkFromOtherApp(s, url);
+    const adoptId = route.profile !== undefined && engineProfile(s, placement.profileId) === route.profile ? asAdoptId(marks[i] ?? undefined) : undefined;
+    if (placement.kind === "little" && urls.length === 1 && isWebPageUrl(url)) return void openLittleArdia(url, placement.profileId, adoptId, pointer);
+    main = openAtPlacement(placement.kind === "little" ? { kind: "profile", profileId: placement.profileId } : placement, { url, how: "foreground", adoptId }) ?? main;
   });
-  if (target) focus(target);
+  if (main) focus(main);
 }
 
 export function openInMainWindow(windowId: string) {

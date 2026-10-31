@@ -40,6 +40,8 @@ export type OpenDisposition = "foreground" | "background" | "window" | "popup" |
 export type OpenWindowRequest = {
   url: string;
   disposition: OpenDisposition;
+  routed?: boolean;
+  opens?: "tab" | "page";
   adoptId?: string;
   userGesture?: boolean;
   postBody?: boolean;
@@ -147,6 +149,7 @@ export type WebViewProps = ViewProps & {
   engine?: PageEngine;
   url?: string;
   profile?: string;
+  sidebarProfile?: string;
   adoptId?: string;
   tabId?: string;
   temporary?: boolean;
@@ -248,3 +251,5 @@ export type WebViewHandle = {
 };
 
 export type DiscardOutcome = "discarded" | "already" | "refused" | "unsupported";
+
+export type PageLinkRoute = { match: "contains" | "equals"; pattern: string; profile: string | null };

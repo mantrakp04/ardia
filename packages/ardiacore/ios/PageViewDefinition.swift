@@ -10,6 +10,7 @@ enum PageViewDefinition {
 
       Prop("url") { (view: V, url: String?) in view.page.initialURL = url }
       Prop("profile") { (view: V, profile: String?) in view.page.profile = profile ?? "" }
+      Prop("sidebarProfile") { (view: V, profile: String?) in view.page.sidebarProfile = profile ?? "" }
       Prop("adoptId") { (view: V, id: String?) in view.page.adoptId = id }
       Prop("tabId") { (view: V, tabId: String?) in view.page.transferKey = tabId }
       Prop("standalone") { (view: V, standalone: Bool?) in view.page.standalone = standalone ?? false }

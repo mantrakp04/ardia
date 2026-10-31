@@ -64,10 +64,16 @@ function environment({ top = true, page = "https://page.example", selection = nu
     get href() {
       return new URL(this.attrs.href, BASE).href;
     }
+    get target() {
+      return this.attrs.target ?? "";
+    }
   }
   class HTMLAreaElement extends HTMLElement {
     get href() {
       return new URL(this.attrs.href, BASE).href;
+    }
+    get target() {
+      return this.attrs.target ?? "";
     }
   }
   class Event {
@@ -91,10 +97,15 @@ function environment({ top = true, page = "https://page.example", selection = nu
       this.stopped = true;
     }
   }
-  class MouseEvent extends Event {
+  class UIEvent extends Event {
+    get detail() {
+      return this.init.detail;
+    }
+  }
+  class MouseEvent extends UIEvent {
     constructor(type, init = {}) {
       super(type, init);
-      this.init = { x: 10, y: 10, button: 0, alt: false, shift: false, meta: false, ctrl: false, stamp: 0, ...init };
+      this.init = { x: 10, y: 10, button: 0, alt: false, shift: false, meta: false, ctrl: false, stamp: 0, detail: 1, ...init };
     }
     get clientX() {
       return this.init.x;
@@ -154,6 +165,8 @@ function environment({ top = true, page = "https://page.example", selection = nu
   const handlers = Object.create(null);
   const env = {
     apply: Reflect.apply,
+    isArray: Array.isArray,
+    isTop: top,
     dateNow: () => clock,
     send: (kind, data) => sent.push({ kind, ...data }),
     guard: (fn) =>
@@ -163,7 +176,8 @@ function environment({ top = true, page = "https://page.example", selection = nu
     handlers,
     window,
     document,
-    addEventListener: (type, fn) => (listeners[type] = fn),
+    addEventListener: (type, fn) => (listeners[type] = [...(listeners[type] ?? []), fn]),
+    UIEvent,
     MouseEvent,
     Node,
     Element,
@@ -179,9 +193,15 @@ function environment({ top = true, page = "https://page.example", selection = nu
     location: { origin: new URL(page).origin, hostname: new URL(page).hostname, protocol: new URL(page).protocol },
   };
   new Function(...Object.keys(env), source)(...Object.values(env));
+  const dispatch = (e) => {
+    for (const fn of listeners[e.type] ?? []) {
+      if (e.stopped) break;
+      fn(e);
+    }
+  };
   const fire = (type, path, init = {}) => {
     const e = new MouseEvent(type, { path: [...path, document, window], ...init });
-    listeners[type](e);
+    dispatch(e);
     return e;
   };
   const gesture = (path, keys, { move = 0, release = path, between } = {}) => {
@@ -190,7 +210,7 @@ function environment({ top = true, page = "https://page.example", selection = nu
     fire("mouseup", release, { ...keys, x: 10 + move });
     return fire("click", release, { ...keys, x: 10 + move });
   };
-  const transition = (type, init) => listeners[type](new PageTransitionEvent(type, init));
+  const transition = (type, init) => dispatch(new PageTransitionEvent(type, init));
   return {
     document,
     selected,
@@ -522,4 +542,65 @@ test("when native refuses an other-site peek, the page follows the link it swall
   env.handlers.peekRefused({ url: "https://other.example/svg", reason: "x", follow: true });
   assert.equal(env.clicked.length, 2);
   assert.deepEqual(env.clicked[1].attrs, { href: "https://other.example/svg", target: "_self" });
+});
+
+const routes = (env) => env.sent.filter((m) => m.kind === "route");
+
+test("a click on a link another profile's route matches is routed instead of navigating; keyboard, ⌃, ⌥ and same-profile clicks are left to Chrome", () => {
+  const env = environment();
+  env.handlers.routeConfig({ routes: [{ match: "contains", pattern: "work.example", profile: "work" }, { match: "equals", pattern: "page.example/here", profile: "personal" }], self: "personal" });
+  const a = env.link("https://Work.example/issues/1");
+  const click = env.gesture([a], {});
+  assert.deepEqual(routes(env), [{ kind: "route", url: "https://work.example/issues/1", how: "foreground", opens: "page", origin: "https://page.example" }]);
+  assert.ok(click.defaultPrevented);
+  env.gesture([a], { meta: true });
+  env.gesture([a], { shift: true });
+  env.gesture([a], { meta: true, shift: true });
+  assert.deepEqual(routes(env).slice(1).map((r) => r.how), ["background", "window", "foreground"]);
+  const before = routes(env).length;
+  assert.ok(!env.gesture([a], { detail: 0 }).defaultPrevented);
+  assert.ok(!env.gesture([a], { ctrl: true }).defaultPrevented);
+  assert.ok(!env.gesture([a], { alt: true }).defaultPrevented);
+  assert.ok(!env.gesture([env.link("https://page.example/here/?q=1")], {}).defaultPrevented);
+  assert.ok(!env.gesture([env.link("https://elsewhere.example/")], {}).defaultPrevented);
+  assert.equal(routes(env).length, before);
+});
+
+test("is equal to routes the exact page only, compared without scheme, case, query and a trailing slash", () => {
+  const env = environment();
+  env.handlers.routeConfig({ routes: [{ match: "equals", pattern: "docs.example/home", profile: "work" }], self: "personal" });
+  assert.ok(env.gesture([env.link("HTTP://Docs.example/home/?tab=1#top")], {}).defaultPrevented);
+  assert.ok(!env.gesture([env.link("https://docs.example/home/sub")], {}).defaultPrevented);
+  assert.ok(!env.gesture([env.link("https://docs.example/homepage")], {}).defaultPrevented);
+  assert.equal(routes(env).length, 1);
+});
+
+test("a routed click says whether the link opens a tab; overlong URLs, named targets and frame links stay Chrome's", () => {
+  const env = environment();
+  env.handlers.routeConfig({ routes: [{ match: "contains", pattern: "work.example", profile: "work" }], self: "personal" });
+  env.gesture([env.link("https://work.example/a", { target: "_blank" })], {});
+  env.gesture([env.link("https://work.example/b", { target: "_top" })], {});
+  env.gesture([env.link("https://work.example/c", { target: "_self" })], {});
+  assert.deepEqual(routes(env).map((r) => r.opens), ["tab", "page", "page"]);
+  assert.ok(!env.gesture([env.link("https://work.example/d", { target: "sidebar" })], {}).defaultPrevented);
+  assert.ok(!env.gesture([env.link(`https://work.example/${"x".repeat(9000)}`)], {}).defaultPrevented);
+  assert.equal(routes(env).length, 3);
+  const frame = environment({ top: false });
+  frame.handlers.routeConfig({ routes: [{ match: "contains", pattern: "work.example", profile: "work" }], self: "personal" });
+  assert.ok(frame.gesture([frame.link("https://work.example/e", { target: "_blank" })], {}).defaultPrevented);
+  assert.ok(frame.gesture([frame.link("https://work.example/f", { target: "_top" })], {}).defaultPrevented);
+  assert.ok(!frame.gesture([frame.link("https://work.example/g")], {}).defaultPrevented);
+  assert.deepEqual(routes(frame).map((r) => r.opens), ["tab", "page"]);
+});
+
+test("a route wins over links to other sites: the click is routed, not peeked", () => {
+  const env = environment();
+  env.handlers.peekConfig(siteConfig());
+  env.handlers.routeConfig({ routes: [{ match: "contains", pattern: "other.example", profile: "work" }], self: "personal" });
+  const click = env.gesture([env.link("https://other.example/story")], {});
+  assert.equal(peeks(env).length, 0);
+  assert.deepEqual(routes(env).map((r) => [r.url, r.how]), [["https://other.example/story", "foreground"]]);
+  assert.ok(click.defaultPrevented);
+  env.gesture([env.link("https://elsewhere.example/")], {});
+  assert.deepEqual(peeks(env).map((p) => p.url), ["https://elsewhere.example/"]);
 });
