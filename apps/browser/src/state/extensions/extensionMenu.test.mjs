@@ -37,3 +37,25 @@ test("an extension's menu: its name, Options and Pin, Turn Off and Manage Extens
 test("the puzzle menu and the Add Extension tile list the same three items in the menu bar's order", () => {
   assert.deepEqual(render(EXTENSION_LIST_ITEMS), ["Add Extension… [plus]", "Manage Extensions… [puzzlepiece.extension]", "Pin Extensions… [pin]"]);
 });
+
+for (const scenario of ["focused", "background", "private-reassigned"]) test(`Manage Extension keeps the menu window's Profile and detail: ${scenario}`, async (t) => {
+  const { useBrowser } = await import("../browser/store.ts");
+  const { useSettingsNav } = await import("../settings/settingsWindows.ts");
+  const { showExtensionMenu } = await import("./actions.ts");
+  const { shellNativeModules } = await import("../../test-native/index.ts");
+  const S = () => useBrowser.getState();
+  S().hydrate({});
+  useSettingsNav.setState({ pane: "general", spaceId: null, detail: null, back: [], forward: [] });
+  const profile = S().createProfile({ name: "Work" });
+  const space = S().createSpace({ name: "Projects", profileId: profile });
+  const source = S().createWindow({ spaceId: space, ...(scenario === "private-reassigned" ? { kind: "private" } : {}) });
+  if (scenario === "private-reassigned") S().assignSpaceProfile(space, "default");
+  const other = S().createWindow({ spaceId: "default" });
+  S().setFocusedWindow(scenario === "focused" ? source : other);
+  t.mock.method(shellNativeModules.ArdiaMenus, "showMenu", async () => "manage");
+  await showExtensionMenu(source, { ...ext, id: "reader" });
+  const nav = useSettingsNav.getState();
+  assert.equal(nav.pane, "extensions");
+  assert.equal(nav.spaceId, profile);
+  assert.equal(nav.detail, "reader");
+});

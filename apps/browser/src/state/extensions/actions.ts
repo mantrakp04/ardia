@@ -23,7 +23,7 @@ import { webviews } from "../../platform/webviews";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { engineProfileForSpace } from "../browser/model";
 import { shownPageId } from "../peek/peek";
-import { goToSettingsPane, openProfileSettings, replaceSettingsPlace, settingsBack, useSettingsNav } from "../settings/settingsWindows";
+import { goToSettingsPane, openProfileSettings, openSettings, replaceSettingsPlace, settingsBack, useSettingsNav } from "../settings/settingsWindows";
 import { closeSidePanelsOf, toggleSidePanel } from "./sidePanels";
 import { extensionPageUrl, extensionSpace, extensionsProfileId, pageSpace, shownIn, useExtensions, windowExtensions, readyTabOf, type Anchor } from "./store";
 
@@ -262,7 +262,7 @@ export async function showExtensionMenu(windowId: string, ext: InstalledExtensio
   if (choice === "sidePanel") void toggleSidePanel(windowId, ext.id);
   if (choice === "manage") {
     openExtensionDetails(extensionsProfileId(null, windowId), ext.id);
-    openProfileSettings("extensions", extensionsProfileId());
+    openSettings();
   }
 }
 
