@@ -108,6 +108,35 @@ BOOL PreventsActivation(NSWindow *window) {
   return [window respondsToSelector:@selector(_preventsActivation)] && [window _preventsActivation];
 }
 
+const void *const kOverFullScreenAppsKey = &kOverFullScreenAppsKey;
+
+BOOL AnswersAsNonactivatingPanel() {
+  static BOOL installed = ^{
+    SEL selector = @selector(_isNonactivatingPanel);
+    Method method = class_getInstanceMethod(NSWindow.class, selector);
+    if (!method) return NO;
+    BOOL (*original)(id, SEL) = (BOOL (*)(id, SEL))method_getImplementation(method);
+    method_setImplementation(method, imp_implementationWithBlock(^BOOL(NSWindow *window) {
+      return objc_getAssociatedObject(window, kOverFullScreenAppsKey) != nil || original(window, selector);
+    }));
+    return YES;
+  }();
+  return installed;
+}
+
+void ShowOverFullScreenApps(NSWindow *window) {
+  if (objc_getAssociatedObject(window, kOverFullScreenAppsKey)) return;
+  if (!AnswersAsNonactivatingPanel()) return;
+  objc_setAssociatedObject(window, kOverFullScreenAppsKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+  window.collectionBehavior |= NSWindowCollectionBehaviorCanJoinAllSpaces | NSWindowCollectionBehaviorFullScreenAuxiliary;
+}
+
+BOOL ShowsOverFullScreenApps(NSWindow *window) {
+  return objc_getAssociatedObject(window, kOverFullScreenAppsKey) != nil &&
+         (window.collectionBehavior & NSWindowCollectionBehaviorFullScreenAuxiliary) &&
+         [window respondsToSelector:@selector(_isNonactivatingPanel)] && [window _isNonactivatingPanel];
+}
+
 NSInteger gActivations = 0;
 
 void ActivateApp(NSString *why) {
