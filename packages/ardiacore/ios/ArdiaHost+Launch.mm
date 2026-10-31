@@ -255,6 +255,7 @@ void StartEarlyWindow() {
   }
   ardia_host::InstallTestCrashGuard(scratch && config.background ? scratch : nil);
   ardia_host::InstallActivationGuardsEarly();
+  ardia_host::InstallPageDragSessions();
   ardia_host::PrepareContentBlocker();
   Method finishLaunching = class_getInstanceMethod(NSApplication.class, @selector(finishLaunching));
   IMP appKitFinishLaunching = method_getImplementation(finishLaunching);

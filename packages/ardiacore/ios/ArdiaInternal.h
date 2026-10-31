@@ -40,6 +40,7 @@ void DropHeldEvent(NSString *event, NSString *eventId);
 NSString *AppDisposition(NSString *chromeDisposition);
 
 void InstallActivationGuardsEarly();
+void InstallPageDragSessions();
 void InstallActivationGuardsLate();
 bool Background();
 void LogActivation(NSString *what);
