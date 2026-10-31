@@ -163,7 +163,11 @@ static ArdiaCoreTab *StartParkedPage(NSString *url, NSString *profileName, NSStr
       if (!offered.closed) [offered closeNow];
       offered = nil;
     }
-    if (offered && !offered.closed) return [self attach:offered];
+    if (offered && !offered.closed) {
+      [self attach:offered];
+      [self requestFocusOnFirstShow];
+      return;
+    }
   }
   NSString *kind = nil, *key = nil;
   NSRange colon = _adoptId ? [_adoptId rangeOfString:@":"] : NSMakeRange(NSNotFound, 0);

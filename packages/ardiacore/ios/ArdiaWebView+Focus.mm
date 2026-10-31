@@ -69,9 +69,17 @@ static BOOL InTabPage(NSView *view) {
 }
 
 - (void)requestFocusRestoreIn:(NSWindow *)window {
+  [self armFocusRestoreIn:window until:CACurrentMediaTime() + kFocusRestoreWindow];
+}
+
+- (void)requestFocusOnFirstShow {
+  [self armFocusRestoreIn:self.window until:INFINITY];
+}
+
+- (void)armFocusRestoreIn:(NSWindow *)window until:(CFTimeInterval)expiresAt {
   if (_standalone || !_tab || !window) return;
   _focus.onActivate = YES;
-  _focus.activatedAt = CACurrentMediaTime();
+  _focus.expiresAt = expiresAt;
   _focus.activatedIn = window;
   [self restoreFocusIfDue];
   if (_focus.onActivate) [self schedulePainting];
@@ -82,7 +90,7 @@ static BOOL InTabPage(NSView *view) {
   NSWindow *window = self.window;
   NSView *page = _tab.view;
   if (!window || window != _focus.activatedIn || !page || _standalone || page.superview != self ||
-      CACurrentMediaTime() - _focus.activatedAt > kFocusRestoreWindow) {
+      CACurrentMediaTime() > _focus.expiresAt) {
     _focus.onActivate = NO;
     return;
   }
