@@ -42,8 +42,9 @@ function labels(s: Suggestion): [string, string | null] {
       return [s.bang ? `Search ${s.engine} for ${s.query}` : s.query, null];
     case "calc":
       return [s.value, s.expression];
-    case "action":
     case "create":
+      return [s.title, s.custom ? displayUrl(s.url) : null];
+    case "action":
       return [s.title, null];
     case "extension":
       return [s.title, s.open === "action" ? "Open Extension" : "Extension Options"];

@@ -2,19 +2,20 @@ import { capture, isSharing } from "./client";
 import { appInfo } from "./transport";
 import { launchFirstWindow } from "./journeys";
 
-export type SuggestionType = "history" | "bookmark" | "tab" | "url" | "search" | "calc" | "action" | "create" | "extension" | "typed";
+export type SuggestionType = "history" | "bookmark" | "tab" | "url" | "search" | "calc" | "action" | "create" | "quickAction" | "extension" | "typed";
 
-type SuggestionLike = { kind: string; tabId?: string; bookmarked?: boolean; visited?: boolean } | undefined;
+type SuggestionLike = { kind: string; tabId?: string; bookmarked?: boolean; visited?: boolean; custom?: boolean } | undefined;
 
 function suggestionType(s: SuggestionLike): SuggestionType {
   if (!s) return "typed";
   switch (s.kind) {
     case "page":
       return s.tabId ? "tab" : s.bookmarked ? "bookmark" : s.visited ? "history" : "url";
+    case "create":
+      return s.custom ? "quickAction" : "create";
     case "search":
     case "calc":
     case "action":
-    case "create":
     case "extension":
       return s.kind;
     default:

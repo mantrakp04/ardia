@@ -2,6 +2,7 @@ import type { BangTable } from "./bangs.ts";
 import type { ExtensionCandidate } from "./extensionRows.ts";
 import type { SearchEngine } from "./engines.ts";
 import type { ActionCandidate } from "./fuzzy.ts";
+import type { QuickAction } from "./quickActions.ts";
 import type { SearchScope } from "./siteSearch.ts";
 
 export type SuggestionSource = {
@@ -25,7 +26,7 @@ export type Suggestion =
   | { kind: "search"; query: string; url: string; engine: string; suggested?: boolean; bang?: true }
   | { kind: "calc"; expression: string; value: string; url: string }
   | { kind: "action"; id: string; title: string; icon?: string; hint?: string }
-  | { kind: "create"; id: string; title: string; url: string; site: string }
+  | { kind: "create"; id: string; title: string; url: string; site: string; custom?: true }
   | { kind: "extension"; id: string; title: string; icon: string | null; open: "action" | "options" };
 
 export type SuggestionResult = {
@@ -46,4 +47,5 @@ export type SuggestOptions = {
   scope?: SearchScope | null;
   preventInline?: boolean;
   bangs?: BangTable | null;
+  quickActions?: readonly QuickAction[];
 };

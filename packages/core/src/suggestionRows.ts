@@ -1,5 +1,7 @@
 import type { Candidate } from "./candidatePool.ts";
+import { hostOf } from "./omnibox.ts";
 import { pageKey } from "./pageText.ts";
+import type { QuickAction } from "./quickActions.ts";
 import type { CommandAction, Suggestion } from "./suggestion.ts";
 
 export const pageSuggestion = (c: Candidate, tabId: string | null | undefined = c.tabId): Suggestion => ({
@@ -47,6 +49,8 @@ export class Output {
 }
 
 export const createRow = (c: { id: string; title: string; url: string; site: string }): Suggestion => ({ kind: "create", id: c.id, title: c.title, url: c.url, site: c.site });
+
+export const quickActionRow = (a: QuickAction): Suggestion => ({ kind: "create", id: `quick:${a.id}`, title: a.keyword, url: a.url, site: hostOf(a.url), custom: true });
 
 export const actionRow = (a: CommandAction): Suggestion => ({
   kind: "action",

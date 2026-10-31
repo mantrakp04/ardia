@@ -4,11 +4,15 @@ import {
   engineById,
   extensionEngineId,
   makeCustomEngine,
+  makeQuickAction,
   resolveInput,
   validateEngine,
+  validateQuickAction,
   type CustomSearchEngine,
   type EngineInput,
   type ExtensionSearchEngine,
+  type QuickAction,
+  type QuickActionInput,
   type SearchEngine,
 } from "@ardia/core";
 import type { StateCreator } from "zustand";
@@ -48,6 +52,7 @@ export const SETTING_SPECS = {
   customSearchUrl: text("", SYNCED),
   customSearchEngines: shaped<CustomSearchEngine[]>([], (v) => Array.isArray(v) && v.every((e) => hasStrings(e, ["id", "name", "keyword", "url"])), SYNCED),
   extensionSearchEngines: shaped<ExtensionSearchEngine[]>([], (v) => Array.isArray(v) && v.every((e) => hasStrings(e, ["profile", "extensionId", "name", "keyword", "url"]))),
+  quickActions: shaped<QuickAction[]>([], (v) => Array.isArray(v) && v.every((a) => hasStrings(a, ["id", "keyword", "url"])), SYNCED),
   searchSuggestions: flag(true, SYNCED),
   showSelectionSearch: flag(true, SYNCED),
   commandBarPreference: oneOf(["website", "search"], "website", SYNCED),
@@ -238,10 +243,14 @@ export type SettingsSlice = {
   addCustomEngine(input: EngineInput): { id: string } | { error: string };
   updateCustomEngine(id: string, input: EngineInput): string | null;
   removeCustomEngine(id: string): void;
+  addQuickAction(input: QuickActionInput): { id: string } | { error: string };
+  updateQuickAction(id: string, input: QuickActionInput): string | null;
+  removeQuickAction(id: string): void;
 };
 
 let engineCounter = 0;
 const newEngineId = () => `engine-${Date.now().toString(36)}-${(++engineCounter).toString(36)}`;
+const newQuickActionId = () => `quick-${Date.now().toString(36)}-${(++engineCounter).toString(36)}`;
 
 export const createSettingsSlice: StateCreator<BrowserState, [], [], SettingsSlice> = (set, get) => ({
   settings: DEFAULT_SETTINGS,
@@ -278,5 +287,27 @@ export const createSettingsSlice: StateCreator<BrowserState, [], [], SettingsSli
       customSearchEngines: settings.customSearchEngines.filter((e) => e.id !== id),
       ...(settings.searchEngine === id ? { searchEngine: DEFAULT_SETTINGS.searchEngine } : {}),
     });
+  },
+
+  addQuickAction(input) {
+    const { settings } = get();
+    const error = validateQuickAction(input, settings.quickActions);
+    if (error) return { error };
+    const action = makeQuickAction(input, newQuickActionId());
+    get().updateSettings({ quickActions: [...settings.quickActions, action] });
+    return { id: action.id };
+  },
+
+  updateQuickAction(id, input) {
+    const { settings } = get();
+    if (!settings.quickActions.some((a) => a.id === id)) return "This quick action no longer exists.";
+    const error = validateQuickAction(input, settings.quickActions, id);
+    if (error) return error;
+    get().updateSettings({ quickActions: settings.quickActions.map((a) => (a.id === id ? makeQuickAction(input, id) : a)) });
+    return null;
+  },
+
+  removeQuickAction(id) {
+    get().updateSettings({ quickActions: get().settings.quickActions.filter((a) => a.id !== id) });
   },
 });

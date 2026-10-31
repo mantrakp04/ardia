@@ -7,6 +7,9 @@ export const setSearchEngine = storeAction("setSearchEngine");
 export const addCustomEngine = storeAction("addCustomEngine");
 export const updateCustomEngine = storeAction("updateCustomEngine");
 export const removeCustomEngine = storeAction("removeCustomEngine");
+export const addQuickAction = storeAction("addQuickAction");
+export const updateQuickAction = storeAction("updateQuickAction");
+export const removeQuickAction = storeAction("removeQuickAction");
 
 export function setShortcutOverride(id: string, combo: Shortcut | null) {
   const next = { ...useBrowser.getState().settings.shortcuts };

@@ -7,10 +7,11 @@ import { matchActions } from "./fuzzy.ts";
 import { fixupUrl, hostOf } from "./omnibox.ts";
 import { matchScore, matchScoreWord, narrowing, parseQuery, remember, TopList, type Ranked } from "./pageMatch.ts";
 import { hostLowerOfPage, hostOfPage, hostPart, originOfPage, pageKey, type PageText } from "./pageText.ts";
+import { matchQuickActions } from "./quickActions.ts";
 import { matchQuickCreate } from "./quickCreate.ts";
 import { scopedSearchUrl, type SearchScope } from "./siteSearch.ts";
 import type { SuggestionResult, SuggestionSource, SuggestOptions, Suggestion } from "./suggestion.ts";
-import { actionRow, createRow, dedupeSuggestions, Output, pageSuggestion } from "./suggestionRows.ts";
+import { actionRow, createRow, dedupeSuggestions, Output, pageSuggestion, quickActionRow } from "./suggestionRows.ts";
 
 export type { CommandAction, Suggestion, SuggestionResult, SuggestionSource, SuggestOptions } from "./suggestion.ts";
 export { displayUrl } from "./pageText.ts";
@@ -122,6 +123,7 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   const search: Suggestion = { kind: "search", query, url: searchUrl(engine, query), engine: engine.name };
   const typedUrl = fixupUrl(query);
   const calc = calculate(query);
+  const quick = matchQuickActions(query, options.quickActions ?? []);
   const creates = matchQuickCreate(raw.trimStart());
   const actionRows = query.length >= 4 ? 4 : 2;
   const actionMatches = matchActions(query, actions, actionRows).filter((m) => m.exact || m.score >= 50);
@@ -129,10 +131,11 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
 
   const best = ranked[0];
   const target = inline && inlineTarget(q, inline.c);
-  const completion = target ? target.text.slice(bare.length) : "";
+  const completion = target && !quick.exact ? target.text.slice(bare.length) : "";
 
   let first: Suggestion;
-  if (creates.length && /^\S+\s+\S/.test(query)) first = createRow(creates[0]!);
+  if (quick.exact) first = quickActionRow(quick.actions[0]!);
+  else if (creates.length && /^\S+\s+\S/.test(query)) first = createRow(creates[0]!);
   else if (actionMatches[0]?.exact) first = actionRow(actionMatches[0].action);
   else if (target && completion) first = known(target.url) ?? { kind: "page", url: target.url, title: "", favicon: target.favicon };
   else if (typedUrl) first = known(typedUrl) ?? { kind: "page", url: typedUrl, title: "", favicon: null };
@@ -145,6 +148,7 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   if (calc) out.push({ kind: "calc", expression: calc.expression, value: calc.display, url: searchUrl(engine, calc.expression) });
   out.push(...actionMatches.map((m) => actionRow(m.action)));
   out.push(...extensionMatches.rows);
+  out.push(...quick.actions.map(quickActionRow));
   out.push(...creates.map(createRow));
   const pageRows = ranked.map((x) => pageSuggestion(x.c, x.tabId));
   out.push(...pageRows.slice(0, 3));
