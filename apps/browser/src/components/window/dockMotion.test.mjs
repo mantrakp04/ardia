@@ -243,7 +243,10 @@ test("Arc's layout keeps the address bar in a hidden sidebar (no toolbar on the 
 
 test("the dock is fullscreen, docked, peeking, hiding or away, and only a still, undocked sidebar watches the left edge", () => {
   const st = (o) => dm.dockState({ open: false, fullscreen: false, moving: false, peekLive: false, ...o });
-  assert.equal(st({ fullscreen: true, open: true, peekLive: true }), "fullscreen");
+  assert.equal(st({ fullscreen: true, open: true }), "fullscreen");
+  assert.equal(st({ fullscreen: true }), "fullscreen");
+  assert.equal(st({ fullscreen: true, open: true, peekLive: true }), "peeking");
+  assert.equal(st({ fullscreen: true, peekLive: true }), "peeking");
   assert.equal(st({ open: true, moving: true }), "docked");
   assert.equal(st({ peekLive: true }), "peeking");
   assert.equal(st({ peekLive: true, moving: true }), "peeking");
