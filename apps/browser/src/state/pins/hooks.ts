@@ -1,11 +1,19 @@
+import { useContext } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useBrowser } from "../browser/store";
 import { activeTabId } from "../browser/model";
+import { PageSpaceContext } from "../browser/hooks";
 import { folderIn, folderLabel, folderMembers, tileFolderOf } from "./tileFolders";
 
-export const useTileFolderMembers = (windowId: string, folderId: string) => useBrowser(useShallow((s) => folderMembers(s, windowId, folderId)));
+export const useTileFolderMembers = (windowId: string, folderId: string) => {
+  const spaceId = useContext(PageSpaceContext);
+  return useBrowser(useShallow((s) => folderMembers(s, windowId, folderId, spaceId ?? s.windows[windowId]?.spaceId)));
+};
 
-export const useTileFolderLabel = (windowId: string, folderId: string) => useBrowser((s) => folderLabel(folderIn(s, windowId, folderId)));
+export const useTileFolderLabel = (windowId: string, folderId: string) => {
+  const spaceId = useContext(PageSpaceContext);
+  return useBrowser((s) => folderLabel(folderIn(s, windowId, folderId, spaceId ?? s.windows[windowId]?.spaceId)));
+};
 
 export const useShownFolderTab = (windowId: string, folderId: string) =>
   useBrowser((s) => {

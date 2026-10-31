@@ -94,7 +94,7 @@ export function stripEntries(s: BrowserState, windowId: string, spaceId: string)
     const tileFolder = tileFolderOf(t);
     if (tileFolder) {
       const folderKey = entryKey("tileFolder", tileFolder.id);
-      if (!seen.has(folderKey)) dock.push(`tilefolder:${tileFolder.id}:${folderMembers(s, windowId, tileFolder.id).join(",")}`);
+      if (!seen.has(folderKey)) dock.push(`tilefolder:${tileFolder.id}:${folderMembers(s, windowId, tileFolder.id, spaceId).join(",")}`);
       seen.add(folderKey);
       if (id === activeId) dock.push(`pinned:${id}`);
       continue;
@@ -131,9 +131,9 @@ export function stripEntries(s: BrowserState, windowId: string, spaceId: string)
 
 type FolderMenuItem = ChoiceItem<{ tabId: string }>;
 
-export function tileFolderMenuItems(s: BrowserState, windowId: string, folderId: string, activeId: string | undefined): FolderMenuItem[] {
+export function tileFolderMenuItems(s: BrowserState, windowId: string, folderId: string, activeId?: string, spaceId = s.windows[windowId]?.spaceId): FolderMenuItem[] {
   return [
-    ...folderMembers(s, windowId, folderId).map((id): FolderMenuItem => ({ value: { tabId: id }, title: tabLabel(s.tabs[id]!), checked: id === activeId })),
+    ...folderMembers(s, windowId, folderId, spaceId).map((id): FolderMenuItem => ({ value: { tabId: id }, title: tabLabel(s.tabs[id]!), checked: id === activeId })),
     { separator: true },
     { id: "rename", title: "Rename…", symbol: "pencil" },
   ];

@@ -8,7 +8,7 @@ import { profileRecord } from "./records";
 import { pairTheme } from "./syncThemes";
 import { identityRecord, profileKey } from "./identityAdapters";
 
-export const remoteSpaceRecord = (doc: SyncDoc, syncId: string) => (doc.scopes[APP_SCOPE]?.records[`prof:${syncId}`]?.v ?? undefined) as SpaceRecord | undefined;
+export const remoteSpaceRecord = (doc: SyncDoc, syncId: string) => profileRecord(doc.scopes[APP_SCOPE]?.records[`prof:${syncId}`]?.v) ?? undefined;
 export const linkedSpaceId = (doc: SyncDoc, syncId: string): string | null => Object.entries(doc.spaces).find(([id, link]) => link.syncId === syncId && !link.retire && useBrowser.getState().spaces[id])?.[0] ?? null;
 export const linkedProfileId = (doc: SyncDoc, syncId: string): string | null => Object.entries(doc.profiles).find(([id, link]) => link.syncId === syncId && useBrowser.getState().profiles[id])?.[0] ?? null;
 

@@ -61,3 +61,17 @@ test("a live parked Top App saves a restore key for its own native page", () => 
   }
   assert.deepEqual(JSON.parse(stub.docs.get("session.json")).parkedTopApps.default[0].page, { kind: "asleep", wake: `restore:${tabId}` });
 });
+
+test("a saved parked Top App restores a complete idle live state", () => {
+  S().hydrate({});
+  const window = S().createWindow({ url: "https://mail.test/" });
+  const tile = S().windows[window].tabIds[0];
+  S().pinTabs([tile], true);
+  const work = S().createProfile({ name: "Work" });
+  S().assignSpaceProfile("default", work);
+  const parked = S().parkedTopApps.default[0];
+  useBrowser.setState({ live: {} });
+  S().assignSpaceProfile("default", "default");
+  assert.equal(S().tabs[parked.id].spaceId, "default");
+  assert.equal(S().live[parked.id]?.isLoading, false);
+});

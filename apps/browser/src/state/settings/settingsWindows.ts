@@ -1,3 +1,4 @@
+import { profileIdForSpace } from "../profiles/current";
 import { focusWindow, openWindow } from "../../platform/windows";
 import { create } from "zustand";
 import { useBrowser } from "../browser/store";
@@ -64,9 +65,8 @@ export function settingsForward() {
 
 export function openSettings(pane?: SettingsPane, spaceId?: string | null) {
   if (pane) {
-    const s = useBrowser.getState();
-    const dataPane = ["profiles", "passwords", "autofill", "extensions"].includes(pane);
-    const target = dataPane && spaceId ? (s.spaces[spaceId]?.profileId ?? spaceId) : spaceId;
+    const dataPane = ["general", "profiles", "privacy", "passwords", "autofill", "extensions"].includes(pane);
+    const target = dataPane && spaceId ? profileIdForSpace(spaceId) : spaceId;
     goToSettingsPane(pane, target ?? null);
   }
   void openWindow(SETTINGS_WINDOW_ID, { kind: "settings", title: "Settings" });

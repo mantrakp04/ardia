@@ -25,3 +25,12 @@ for (const disposition of ["window", "incognito"]) {
     });
   }
 }
+
+test("opening a private window from a shared Profile preserves the originating Space", () => {
+  state().hydrate({});
+  const second = state().createSpace({ name: "Second", profileId: "default" });
+  const parent = state().createWindow({ spaceId: second, url: "https://parent.test/" });
+  openFromPage({ url: "https://private.test/", disposition: "incognito", profile: "" }, { windowId: parent, spaceId: second });
+  const child = Object.values(state().windows).find((w) => w.kind === "private");
+  assert.ok(child.spaceId.includes(second));
+});

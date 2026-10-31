@@ -486,3 +486,61 @@ test("a Mac that joins a folder whose other devices sync no spaces pairs on its 
     assert.ok(syncIdOf(engineB, "Personal"), "Personal syncs under its own id");
   });
 });
+
+for (const enabled of [false, true]) for (const parked of [false, true]) test(`tile to row sync preserves independent Top App consent: sync=${enabled}, parked=${parked}`, async () => {
+  const { a, b, ea, eb } = await paired(`tile-to-row-${enabled}-${parked}`);
+  let original;
+  const url = "https://conversion-row.test/";
+  await a.with(() => {
+    const w = S().createWindow({ url });
+    original = S().windows[w].tabIds[0];
+    S().pinTabs([original], true);
+  });
+  await b.with(() => S().createWindow());
+  await settle([[a, ea], [b, eb]]);
+  await b.with(() => {
+    assert.ok(Object.values(S().tabs).some((t) => t.pin?.as === "tile" && t.url === url));
+    eb.setTopAppsSynced("default", enabled);
+    if (parked) for (const w of Object.keys(S().windows)) S().closeWindow(w);
+  });
+  await a.with(() => S().placeTabs([original], { pinned: true, row: true }));
+  await settle([[a, ea], [b, eb]]);
+  await b.with(() => { if (parked) S().createWindow(); });
+  await settle([[a, ea], [b, eb]], 5);
+  await b.with(() => {
+    const rows = Object.values(S().tabs).filter((t) => t.pin?.as === "row" && t.url === url);
+    assert.equal(rows.length, 1);
+    assert.equal(S().topApps.default.some((item) => item.url === url), !enabled);
+    assert.equal(eb.useSync.getState().profiles.default.topAppsEnabled, enabled);
+  });
+  const size = folder.size;
+  await settle([[a, ea], [b, eb]], 3);
+  assert.equal(folder.size, size);
+});
+
+test("a row marker waits for its Space payload without changing the local Top App page", async () => {
+  S().hydrate({});
+  const window = S().createWindow({ url: "https://local-app.test/current" });
+  const original = S().windows[window].tabIds[0];
+  S().pinTabs([original], true);
+  const page = S().tabs[original].page;
+  const { pinnedAdapter } = await import("./pinned.ts");
+  const adapter = pinnedAdapter("default", true);
+  const marker = `pinrow:${original}`;
+  const key = `pin:t:${original}`;
+  const records = { known: () => true, now: Date.now(), horizon: 1000 };
+  const values = new Map([[marker, 1]]);
+  assert.equal(adapter.apply(values, new Set([marker]), () => undefined, records), false);
+  assert.equal(S().tabs[original].page, page);
+  values.set(key, { g: null, u: "https://remote-row.test/", t: null, i: null, ti: "Saved", pos: "V" });
+  adapter.apply(values, new Set([key]), (name) => values.get(name), records);
+  const rows = Object.values(S().tabs).filter((tab) => tab.pin?.as === "row");
+  assert.equal(rows.length, 1);
+  assert.notEqual(rows[0].id, original);
+  assert.equal(rows[0].pinKey, original);
+  assert.equal(rows[0].url, "https://remote-row.test/");
+  assert.equal(S().tabs[original].pin.as, "tile");
+  assert.equal(S().tabs[original].page, page);
+  adapter.apply(values, new Set([marker]), (name) => values.get(name), records);
+  assert.equal(Object.values(S().tabs).filter((tab) => tab.pin?.as === "row").length, 1);
+});

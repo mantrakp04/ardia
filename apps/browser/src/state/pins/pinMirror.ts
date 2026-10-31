@@ -50,7 +50,7 @@ export function sectionOf(s: Pick<BrowserState, "tabs" | "groups">, w: BrowserWi
     const t = s.tabs[id];
     if (!t || t.spaceId !== spaceId) continue;
     const g = t.pin ? undefined : inner.get(id);
-    if (member ? !member(t) : !t.pin && !g) continue;
+    if (member ? !member(t) : t.pin?.as !== "row" && !g) continue;
     if (g) {
       for (const c of pinnedChain(s, g, ownIds)) {
         if (owned.has(c.id)) continue;

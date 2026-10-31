@@ -40,5 +40,5 @@ export const historyValue = decoder<HistoryValue>((v) => isString(v.t) && isNumb
 export const passwordValue = decoder<PasswordValue>((v) => isString(v.o) && isString(v.u) && isString(v.s));
 
 export const profileRecord = decoder<SpaceRecord>(
-  (v) => isString(v.n) && isString(v.c) && (v.i === undefined || v.i === null || isString(v.i)) && (v.d === undefined || v.d === true) && (v.th === undefined || v.th === null || isFields(v.th)),
+  (v) => isString(v.n) && isString(v.c) && (v.p === undefined || isString(v.p) && !!v.p.trim()) && (v.pos === undefined || isString(v.pos)) && (v.i === undefined || v.i === null || isString(v.i)) && (v.d === undefined || v.d === true) && (v.th === undefined || v.th === null || isFields(v.th)),
 );

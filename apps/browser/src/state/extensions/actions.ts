@@ -186,15 +186,15 @@ export function openOptions(windowId: string, ext: InstalledExtension) {
 
 export const openManageExtensions = (windowId?: string | null) => openProfileSettings("extensions", extensionsProfileId(null, windowId));
 
-export function openExtensionDetails(spaceId: string, extensionId: string) {
-  if (useSettingsNav.getState().spaceId !== spaceId) replaceSettingsPlace(spaceId);
-  goToSettingsPane("extensions", spaceId, extensionId);
+export function openExtensionDetails(profileId: string, extensionId: string) {
+  if (useSettingsNav.getState().spaceId !== profileId) replaceSettingsPlace(profileId);
+  goToSettingsPane("extensions", profileId, extensionId);
 }
 
-export function showExtensionsList(spaceId: string) {
+export function showExtensionsList(profileId: string) {
   const prev = useSettingsNav.getState().back.at(-1);
-  if (prev?.pane === "extensions" && !prev.detail && prev.spaceId === spaceId) settingsBack();
-  else goToSettingsPane("extensions", spaceId);
+  if (prev?.pane === "extensions" && !prev.detail && prev.spaceId === profileId) settingsBack();
+  else goToSettingsPane("extensions", profileId);
 }
 export const openPinDialog = (windowId: string) => useExtensions.setState({ pinDialog: { windowId } });
 export const openWebStore = (windowId: string) =>

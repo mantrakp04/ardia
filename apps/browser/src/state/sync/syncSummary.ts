@@ -35,14 +35,14 @@ export function summarize(doc: SyncDoc): Pick<SyncUi, "devices" | "remoteTabs" |
     .map(([k, v]): RemoteSpace => {
       const syncId = recordId(PROFILE, k);
       const record = profileRecord(v)!;
-      const { adds, sharesWith, waitingFor } = sharedDataChain(doc, syncId);
+      const { sharesWith, waitingFor } = sharedDataChain(doc, syncId);
       const ownerName = sharesWith ? useBrowser.getState().profiles[sharesWith]?.name : record.p ? (app.records[`identity:${record.p}`]?.v as { n?: string } | undefined)?.n : undefined;
       return {
         syncId,
         name: record.n,
         color: record.c,
         icon: record.i,
-        ...(ownerName !== undefined ? { sharesWith: { name: ownerName, added: !!adds[1] } } : {}),
+        ...(ownerName !== undefined ? { sharesWith: { name: ownerName, added: !!sharesWith } } : {}),
         ...(waitingFor ? { waiting: true as const } : {}),
       };
     });

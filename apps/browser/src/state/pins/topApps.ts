@@ -1,7 +1,7 @@
 import { orderSections as pinnedFirst } from "../groups/groups";
 import type { BrowserState } from "../browser/store";
 import type { Tab, TopApp } from "../browser/types";
-import { makeTab, without } from "../browser/model";
+import { IDLE_LIVE, makeTab, without } from "../browser/model";
 import { isRegularWindow as mirrored } from "../windows/small";
 import { ASLEEP, hasPage, holderOfPage, isAsleep, wakeOf, wokenPage, withNavigationAt } from "../tabs/pageSession";
 import { pinKeyOf } from "../browser/model";
@@ -70,6 +70,7 @@ export function mirrorTopApps(s: BrowserState, prev: BrowserState): BrowserState
     }
   }
   let tabs = s.tabs;
+  let live = s.live;
   let windows = s.windows;
   let parkedTopApps = s.parkedTopApps;
   for (const w of Object.values(s.windows)) {
@@ -103,6 +104,7 @@ export function mirrorTopApps(s: BrowserState, prev: BrowserState): BrowserState
           }
           tab = { ...parked, windowId: w.id, spaceId, page: hasPage(parked) ? withNavigationAt(parked) : wokenPage(parked) };
           tabs[tab.id] = tab;
+          live = { ...live, [tab.id]: live[tab.id] ?? IDLE_LIVE };
           parkedTopApps = { ...parkedTopApps, [profileId]: parkedTopApps[profileId]!.filter((candidate) => candidate.id !== parked.id) };
         }
         if (!tab) {
@@ -111,6 +113,7 @@ export function mirrorTopApps(s: BrowserState, prev: BrowserState): BrowserState
           tab = { ...makeTab(w.id, spaceId, spec.url), pin: spec.tileFolder ? { as: "tile", folder: spec.tileFolder } : { as: "tile" }, pinnedUrl: spec.url, pinKey: spec.key, page: ASLEEP, title: source.title, favicon: source.favicon, customTitle: spec.customTitle, customIcon: spec.customIcon };
           if (tabs === s.tabs) tabs = { ...tabs };
           tabs[tab.id] = tab;
+          live = { ...live, [tab.id]: live[tab.id] ?? IDLE_LIVE };
         } else if (signature([specOf(tab)]) !== signature([spec])) {
           if (tabs === s.tabs) tabs = { ...tabs };
           tabs[tab.id] = { ...tab, ...(isAsleep(tab) ? { url: spec.url } : {}), pinnedUrl: spec.url, customTitle: spec.customTitle, customIcon: spec.customIcon, pin: spec.tileFolder ? { as: "tile", folder: spec.tileFolder } : { as: "tile" } };
@@ -139,7 +142,7 @@ export function mirrorTopApps(s: BrowserState, prev: BrowserState): BrowserState
     if (sorted.some((id, i) => id !== ids[i])) ids = sorted;
     if (ids !== w.tabIds || activeTabIds !== w.activeTabIds) { if (windows === s.windows) windows = { ...windows }; windows[w.id] = { ...w, tabIds: ids, activeTabIds }; }
   }
-  return topApps === s.topApps && tabs === s.tabs && windows === s.windows && parkedTopApps === s.parkedTopApps ? null : { ...s, topApps, tabs, windows, parkedTopApps };
+  return topApps === s.topApps && tabs === s.tabs && live === s.live && windows === s.windows && parkedTopApps === s.parkedTopApps ? null : { ...s, topApps, tabs, live, windows, parkedTopApps };
 }
 
 export function parkSpaceTopApps(s: BrowserState, spaceId: string): BrowserState {
@@ -152,7 +155,10 @@ export function parkSpaceTopApps(s: BrowserState, spaceId: string): BrowserState
   return {
     ...s, parkedTopApps: { ...s.parkedTopApps, [profileId]: parked },
     tabs: without(s.tabs, [...removed]),
-    windows: Object.fromEntries(Object.entries(s.windows).map(([id, w]) => [id, w.tabIds.some((key) => removed.has(key)) ? { ...w, tabIds: w.tabIds.filter((key) => !removed.has(key)), activeTabIds: Object.fromEntries(Object.entries(w.activeTabIds).filter(([, key]) => !removed.has(key))) } : w])),
+    windows: Object.fromEntries(Object.entries(s.windows).map(([id, w]) => [id, w.tabIds.some((key) => removed.has(key)) ? { ...w, tabIds: w.tabIds.filter((key) => !removed.has(key)), activeTabIds: Object.fromEntries(Object.entries(w.activeTabIds).flatMap(([space, key]) => {
+      const next = removed.has(key) ? w.tabIds.find((candidate) => !removed.has(candidate) && s.tabs[candidate]?.spaceId === space && !tile(s.tabs[candidate])) : key;
+      return next ? [[space, next]] : [];
+    })) } : w])),
   };
 }
 

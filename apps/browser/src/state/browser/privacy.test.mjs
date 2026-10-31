@@ -283,7 +283,8 @@ test("a Profile cannot be deleted while a Space uses it", () => {
   assert.deepEqual(S().orphanedProfileData, []);
 });
 
-test("queued space data is deleted once, and stays queued in session.json until that succeeds", async () => {
+test("queued space data is deleted once, and stays queued in session.json until that succeeds", async (t) => {
+  const dialogs = t.mock.method(stub.shellNativeModules.ArdiaDialogs, "confirm", async () => ({ confirmed: true }));
   stub.docs.clear();
   stub.deletedProfileData.length = 0;
   stub.profileDataLeft.set("", ["passwords"]);
@@ -296,6 +297,7 @@ test("queued space data is deleted once, and stays queued in session.json until 
   S().deleteProfile("default");
   await settle();
   assert.deepEqual(stub.deletedProfileData, [""]);
+  assert.match(dialogs.mock.calls[0].arguments[0].message, /some local browsing files remain/);
   assert.deepEqual(S().orphanedProfileData, [""], "a failed deletion stays queued");
   flushPersistence();
   stop();

@@ -29,7 +29,9 @@ export const linkSpaceOf = (s: Pick<BrowserState, "spaces">, w: BrowserWindow | 
   isSmallWindow(w) ? undefined : originalSpace(s, w);
 
 export function privateWindowSpace(s: Pick<BrowserState, "spaces" | "spaceOrder" | "profiles">, w: BrowserWindow | undefined, engineName?: string) {
-  const named = engineName !== undefined ? s.spaceOrder.find((p) => engineProfile(s, p) === engineName) : undefined;
+  const original = originalSpace(s, w);
+  if (engineName === undefined || original && engineProfile(s, original) === engineName) return original;
+  const named = s.spaceOrder.find((p) => engineProfile(s, p) === engineName);
   return named ?? originalSpace(s, w);
 }
 

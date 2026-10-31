@@ -85,3 +85,40 @@ test("legacy tile conversion keeps unrelated sidebar rows and groups with matchi
   assert.deepEqual(next.records["pgh:group-remote-tile"]?.v, { n: "Group" });
   assert.equal(next.records["pin:t:remote-tile"], undefined);
 });
+
+test("a legacy child sharing a tombstoned owner imports under the same identity", async () => {
+  const { doc } = fixture();
+  const saved = JSON.parse(docs.get("sync-state.nns").slice(7));
+  saved.scopes.app.records["prof:owner"].v = null;
+  docs.set("sync-state.nns", `sealed:${JSON.stringify(saved)}`);
+  await importLegacySync(doc);
+  assert.equal(doc.scopes[APP_SCOPE].records["identity:owner"].v.n, "School");
+  assert.equal(doc.scopes[APP_SCOPE].records["prof:owner"].v, null);
+  assert.equal(doc.legacyPending, undefined);
+});
+
+test("legacy settings remain unpublished through a restart until settings sync is enabled", async () => {
+  let { doc } = fixture({ settings: false });
+  await importLegacySync(doc);
+  const before = doc.scopes[APP_SCOPE];
+  assert.ok(!before.outbox.some((op) => op.k.startsWith("set:")));
+  doc = JSON.parse(JSON.stringify(doc));
+  doc.types.settings = true;
+  await importLegacySync(doc);
+  assert.deepEqual(doc.scopes[APP_SCOPE].records["set:warnBeforeQuitting"].v, { v: false });
+  const count = doc.scopes[APP_SCOPE].outbox.length;
+  await importLegacySync(doc);
+  assert.equal(doc.scopes[APP_SCOPE].outbox.length, count);
+});
+
+test("deferred legacy settings never replace newer Spaces settings", async () => {
+  const { doc } = fixture({ settings: false });
+  await importLegacySync(doc);
+  const app = doc.scopes[APP_SCOPE];
+  const clock = new Clock("new-device");
+  for (const scope of Object.values(doc.scopes)) for (const record of Object.values(scope.records)) clock.observe(record.h);
+  app.records["set:warnBeforeQuitting"] = { h: clock.tick(), v: { v: true }, o: ["new-device", 1] };
+  doc.types.settings = true;
+  await importLegacySync(doc);
+  assert.deepEqual(app.records["set:warnBeforeQuitting"].v, { v: true });
+});

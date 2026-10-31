@@ -20,3 +20,35 @@ test("Settings Back can revisit a deleted Space without resolving a browsing Pro
   const work = state().createProfile({ name: "Work" });
   assert.deepEqual(paneNeeds("passwords", work).map(([, args]) => args), [[state().profiles[work].engineId]]);
 });
+
+test("Space settings and explicit Profile settings resolve overlapping IDs separately", async () => {
+  const S = () => useBrowser.getState();
+  S().hydrate({});
+  const work = S().createProfile({ name: "Work" });
+  S().assignSpaceProfile("default", work);
+  const { openSettings, openProfileSettings } = await import("./settingsWindows.ts");
+  openSettings("passwords", "default");
+  assert.equal(useSettingsNav.getState().spaceId, work);
+  assert.deepEqual(paneNeeds("passwords", useSettingsNav.getState().spaceId).map(([, args]) => args), [[work]]);
+  openProfileSettings("passwords", "default");
+  assert.equal(useSettingsNav.getState().spaceId, "default");
+  assert.deepEqual(paneNeeds("passwords", "default").map(([, args]) => args), [[""]]);
+  openSettings("general", "default");
+  assert.deepEqual(paneNeeds("general", useSettingsNav.getState().spaceId).at(-1)[1], [work]);
+});
+
+test("explicit Profile and Space resolution preserves private identity and rejects unknown IDs", async () => {
+  const S = () => useBrowser.getState();
+  const { currentProfileId, profileIdForSpace } = await import("../profiles/current.ts");
+  S().hydrate({});
+  const work = S().createProfile({ name: "Work" });
+  const privateWindow = S().createWindow({ kind: "private", spaceId: "default" });
+  const privateSpace = S().windows[privateWindow].spaceId;
+  S().assignSpaceProfile("default", work);
+  assert.equal(currentProfileId("default"), "default");
+  assert.equal(currentProfileId(), work);
+  assert.equal(profileIdForSpace("default"), work);
+  assert.equal(profileIdForSpace(privateSpace), "default");
+  assert.throws(() => currentProfileId("unknown"), /unavailable/);
+  assert.throws(() => profileIdForSpace("unknown"), /unavailable/);
+});

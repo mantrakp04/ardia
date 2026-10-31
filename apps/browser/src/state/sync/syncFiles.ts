@@ -107,7 +107,7 @@ export function syncFiles(current: () => SyncDoc) {
     try {
       const json = readDocument(DOC);
       const value = json ? JSON.parse(json) : null;
-      const migrated = value?.v === 1 ? JSON.stringify(syncWithSpaces(value, { profiles: useBrowser.getState().profiles, spaces: useBrowser.getState().spaces })) : json;
+      const migrated = isFields(value) && (value.v === undefined || value.v === 0 || value.v === 1) ? JSON.stringify(syncWithSpaces(value, { profiles: useBrowser.getState().profiles, spaces: useBrowser.getState().spaces })) : json;
       const saved = parseSaved(migrated, DOC_VERSION, DOC_MIGRATIONS, "v") as SyncDoc | null;
       const loaded = saved ? { ...emptyDoc(), ...saved, types: { ...defaultTypes(), ...saved.types }, scopes: {} } : null;
       docFile.json = json ?? "";
@@ -262,7 +262,7 @@ export function syncFiles(current: () => SyncDoc) {
     return countedParts() >= JOURNAL_PARTS_LIMIT || journal.bytes >= JOURNAL_BYTES_LIMIT || Date.now() - state.savedAt >= STATE_EVERY_MS;
   }
 
-  async function saveState() {
+  async function saveState(required = false) {
     const doc = current();
     if (!doc.enabled) {
       if (state.onDisk || state.wanted) writeDocument(STATE, "");
@@ -280,10 +280,12 @@ export function syncFiles(current: () => SyncDoc) {
     if (json !== state.json) {
       try {
         const sealed = await SyncNative?.sealLocal(`{"covers":${covers},"clock":${JSON.stringify(seen.last)},"scopes":${json},"version":${CHECKPOINT_VERSION}}`);
-        if (!sealed) return;
+        if (!sealed) { if (required) throw new Error("The sync upgrade could not be saved securely. Try again."); return; }
         await saveDocument(STATE, sealed);
       } catch (error) {
         console.warn("[sync] couldn't save the sync state", error);
+        state.wanted = true;
+        if (required) throw error;
         return;
       }
       Object.assign(state, { json, onDisk: true });
@@ -294,7 +296,7 @@ export function syncFiles(current: () => SyncDoc) {
 
   function save() {
     saveDoc();
-    void serial(saveState);
+    void serial(() => saveState());
   }
 
   function startOver() {
@@ -306,11 +308,12 @@ export function syncFiles(current: () => SyncDoc) {
     });
   }
 
-  function checkpoint() {
-    saveDoc();
+  function checkpoint(required = false) {
+    if (!required) saveDoc();
     return serial(async () => {
       if (state.loaded && current().enabled) state.wanted = true;
-      await saveState();
+      await saveState(required);
+      if (required) saveDoc();
     });
   }
 

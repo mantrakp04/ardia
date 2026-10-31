@@ -14,7 +14,7 @@ const host = (id) => new URL(S().tabs[id].pinnedUrl || S().tabs[id].url).hostnam
 const cells = (w, spaceId) =>
   sidebarEntries(S(), w, spaceId).cells.map((c) => {
     const f = folders.folderIdOfCell(c);
-    return f ? `[${folders.folderMembers(S(), w, f).map(host).join(",")}]` : host(c);
+    return f ? `[${folders.folderMembers(S(), w, f, spaceId).map(host).join(",")}]` : host(c);
   });
 const folderOf = (id) => S().tabs[id].pin?.folder;
 const tileOf = (w, h) => model.viewTabIds(S(), w).find((id) => !!S().tabs[id].pin && host(id) === h);
@@ -195,8 +195,8 @@ test("a member moved to another space leaves the folder; a folder left with one 
   assert.deepEqual(cells(w, "default"), ["a", "c", "d"]);
   act((s) => folders.addToTileFolder(s, [c], a));
   const id = folderOf(a).id;
-  useBrowser.setState({ tabs: { ...S().tabs, [b]: { ...S().tabs[b], tileFolder: { id, name: "" } } } });
-  assert.deepEqual(folders.folderMembers(S(), w, id).map(host), ["a", "c"], "another space's tab with the same folder id isn't a member");
+  useBrowser.setState({ tabs: { ...S().tabs, [b]: { ...S().tabs[b], pin: { as: "tile", folder: { id, name: "" } } } } });
+  assert.deepEqual(folders.folderMembers(S(), w, id, "default").map(host), ["a", "c"], "another space's tab with the same folder id isn't a member");
 });
 
 test("a parked folder that drops to one tab is that tile when it comes back", () => {
@@ -210,4 +210,19 @@ test("a parked folder that drops to one tab is that tile when it comes back", ()
   assert.ok(S().parkedPins.default.tabs.every((p) => !p.pin?.folder), JSON.stringify(S().parkedPins.default.tabs.map((p) => p.pin?.folder ?? null)));
   const n = S().createWindow();
   assert.deepEqual(cells(n), ["a", "c", "d"]);
+});
+
+test("shared Top App folder menus and strip projections use the requested Space", async () => {
+  reset();
+  const { w, ids: [a, b] } = pinnedWindow();
+  act((s) => folders.addToTileFolder(s, [b], a));
+  const id = folderOf(a).id;
+  const second = S().createSpace({ name: "Second", profileId: "default" });
+  S().switchSpace(w, second);
+  const expected = model.viewTabIds(S(), w, second).filter((key) => folderOf(key)?.id === id);
+  const { tileFolderMenuItems, stripEntries } = await import("../tabs/topStrip.ts");
+  assert.deepEqual(folders.folderMembers(S(), w, id), expected);
+  assert.deepEqual(tileFolderMenuItems(S(), w, id).flatMap((item) => item.value ? [item.value.tabId] : []), expected);
+  const inactive = stripEntries(S(), w, "default").find((entry) => entry.kind === "dock");
+  assert.deepEqual(inactive.members.get(folders.folderCell(id)), [a, b]);
 });

@@ -108,6 +108,7 @@ async function cycleOnce(native: NonNullable<typeof SyncNative>, folder: string,
     const transport = folderTransport(native, folder);
     if (editClock().device !== device) startEditClock(device, doc.clock);
     const clock = editClock();
+    await importLegacySync(doc);
     const app = appScopeOf(doc);
     const appSettled = watchScope(APP_SCOPE, app, clock);
     try {
@@ -315,8 +316,9 @@ export async function upgradeSync() {
   const result = await confirm({ title: "Use Spaces sync on your Macs?", message: "Every Mac must use an Ardia build with separate Profiles and Spaces. Older builds keep their own sync data and cannot send new changes to this build. The existing encrypted files will be kept.", confirmTitle: "Use Spaces Sync" });
   if (!result.confirmed || !doc.deviceId) return;
   if (!await SyncNative?.unlock(doc.deviceId)) return publishUi({ status: "locked", error: "Enter your recovery phrase before upgrading sync." });
-  try { await loadState(); await importLegacySync(doc); }
-  catch (error) { publishUi({ status: "upgrade", error: errorText(error) }); return; }
+  const legacyPending = doc.legacyPending;
+  try { await loadState(); await importLegacySync(doc); await checkpoint(true); }
+  catch (error) { if (legacyPending) doc.legacyPending = true; publishUi({ status: "upgrade", error: errorText(error) }); return; }
   doc.protocolReady = true;
   save();
   publishUi({ status: "starting", error: null });
