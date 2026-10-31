@@ -59,7 +59,7 @@ export async function syncSidePanel(windowId: string): Promise<void> {
   if (fetches.get(windowId) !== ticket) return;
   if (!url || !shownIn(windowId, extensionId)) return closeSidePanel(windowId);
   const s = useBrowser.getState();
-  const panel = { extensionId, profile: extensionProfile(s, windowId), pageProfile: pageProfile(s, windowId), url };
+  const panel = { extensionId, profile: extensionProfile(s, windowId), pageProfile: pageProfile(s, windowId), url, tabId: readyTab };
   const now = useExtensions.getState().sidePanels[windowId];
   if (now && now.extensionId === panel.extensionId && now.url === url && now.profile === panel.profile && now.pageProfile === panel.pageProfile) return;
   useExtensions.setState((e) => ({ sidePanels: { ...e.sidePanels, [windowId]: panel } }));
