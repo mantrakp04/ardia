@@ -65,7 +65,7 @@ const usesPageA = [
   "external-app-from-extension",
   "notifications", "now-playing", "media-state", "auto-picture-in-picture", "pip-window", "page-focus",
   "fullscreen-tab-switch", "fullscreen-native", "fullscreen-menu-bar-reveal", "fullscreen-transition-picture", "fullscreen-hidden-page", "fullscreen-split-sibling",
-  "fullscreen-pip", "autofill-suggestions", "images", "extension-surfaces", "frozen", "discard",
+  "fullscreen-pip", "fullscreen-window-left", "autofill-suggestions", "images", "extension-surfaces", "frozen", "discard",
   "permission-prompt", "popup-blocked", "move-tab-slow-mount", "move-last-tab-slow-mount",
   "move-tab-closed-while-parked", "move-tab-to-window", "title-bar-close", "last-used-profile",
   "webkit-tab", "webkit-move-tab", "webkit-zoom", "webkit-now-playing", "webkit-scroll", "webkit-js-reload",
@@ -3974,6 +3974,91 @@ try {
       return out;
     } finally {
       for (const action of ["fakeFullScreenOcclusionMs:-1", "fakeFullScreenMs:0", "fakeOcclusion:off"]) await win(action).catch(() => null);
+      await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
+    }
+  });
+
+  await check("fullscreen-window-left", async () => {
+    const n = await engine("tabs.devWindowNumber", { tabId: first.id });
+    const win = (action) => engine("windows.dev", { window: n, action });
+    const pressF = async (t) => {
+      for (const type of ["keyDown", "keyUp"])
+        await cdp(t, "Input.dispatchKeyEvent", { type, key: "f", code: "KeyF", text: type === "keyDown" ? "f" : undefined, windowsVirtualKeyCode: 70, nativeVirtualKeyCode: 3 });
+    };
+    const mark = async (tabId) => (await eventsOf(tabId)).length;
+    const pipAfter = async (tabId, from, active) =>
+      (await eventsOf(tabId)).slice(from).findLast((x) => x.name === "pictureInPicture" && x.payload?.kind === "video" && x.payload?.active === active) ?? null;
+    const out = {};
+    const tab = await openTab(`${secureBase}/video?fkey&file`, "Video");
+    try {
+      await win("fakeOcclusion:visible");
+      const t = await startVideo(tab.id, true);
+      await until("live.playingAudio", async () => (await live(tab.id))?.playingAudio === true, 8000);
+      await until("onNowPlaying playing", async () => lastEvent(tab.id, "nowPlaying", (p) => p.state?.hasVideo && p.state?.playbackState === "playing"), 5000);
+      await sleep(300);
+      const settled = (what, test) => until(what, async () => {
+        const w = await fsWindow(tab.id);
+        return !w.pageFullScreen?.transitioning && test(w) ? w : null;
+      }, 6000);
+      await fsWindow(tab.id, "fakeFullScreen:1");
+      await settled("the window in full screen, the video inline", (w) => w.fullScreen && w.pageFullScreen?.page == null);
+      await sleep(400);
+      let from = await mark(tab.id);
+      await win("fakeOcclusion:occluded");
+      await until("auto PiP on swiping away from the full-screen window", async () => pipAfter(tab.id, from, true), 5000);
+      from = await mark(tab.id);
+      await win("fakeOcclusion:visible");
+      await until("auto PiP ended back on the full-screen window", async () => pipAfter(tab.id, from, false), 5000);
+      out.inline = "popped out and back";
+      out.stillFullScreen = !!(await settled("still in full screen", (w) => w.fullScreen)).fullScreen;
+
+      await pressF(t);
+      await settled("the video in page full screen", (w) => w.fullScreen && w.pageFullScreen?.page != null);
+      await sleep(400);
+      from = await mark(tab.id);
+      await win("fakeOcclusion:occluded");
+      await sleep(1500);
+      const left = await pipAfter(tab.id, from, true);
+      const inPage = (await cdp(t, "Runtime.evaluate", { expression: "({ pip: !!document.pictureInPictureElement, fs: !!document.fullscreenElement, paused: v.paused })", returnByValue: true })).result.value;
+      await win("fakeOcclusion:visible");
+      if (left || inPage.pip || !inPage.fs) throw new Error(`a video in page full screen left full screen when the window was swiped away: ${JSON.stringify({ pip: left?.payload, page: inPage })}`);
+      out.pageFullScreen = inPage;
+      await pressF(t);
+      await settled("the video back inline", (w) => w.fullScreen && w.pageFullScreen?.page == null);
+      await sleep(400);
+      from = await mark(tab.id);
+      await win("fakeOcclusion:occluded");
+      await until("auto PiP on swiping away after the page's own full screen ended", async () => pipAfter(tab.id, from, true), 5000);
+      from = await mark(tab.id);
+      await win("fakeOcclusion:visible");
+      await until("auto PiP ended again", async () => pipAfter(tab.id, from, false), 5000);
+      out.afterPageFullScreen = "popped out and back";
+
+      await fsWindow(tab.id, "fakeFullScreen:0");
+      await settled("the window out of full screen", (w) => !w.fullScreen);
+      await win("fakeFullScreenMs:700");
+      await pressF(t);
+      await settled("the page's full screen took the window into full screen", (w) => w.fullScreen && w.pageFullScreen?.page != null);
+      await sleep(400);
+      from = await mark(tab.id);
+      await win("fakeOcclusion:occluded");
+      await sleep(600);
+      await cdp(t, "Runtime.evaluate", { expression: "document.exitFullscreen().then(() => 'ok', (e) => e.name)", awaitPromise: true, returnByValue: true });
+      await settled("the window out of full screen while covered", (w) => !w.fullScreen && w.pageFullScreen?.page == null);
+      await sleep(1500);
+      const flips = (await eventsOf(tab.id)).slice(from).filter((x) => x.name === "pictureInPicture" && x.payload?.kind === "video").map((x) => x.payload.active);
+      const back = await mark(tab.id);
+      await win("fakeOcclusion:visible");
+      if (flips.includes(false) || flips.filter(Boolean).length > 1)
+        throw new Error(`leaving the page's full screen while covered flickered Picture in Picture: ${JSON.stringify(flips)}`);
+      if (flips.includes(true)) await until("the PiP closed with the window back", async () => pipAfter(tab.id, back, false), 5000);
+      out.exitWhileCovered = flips;
+      return out;
+    } finally {
+      await win("fakeFullScreenMs:0").catch(() => null);
+      await win("fakeOcclusion:off").catch(() => null);
+      await fsWindow(tab.id, "fakeFullScreen:0").catch(() => null);
+      await closeTab(tab.id);
       await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
     }
   });
