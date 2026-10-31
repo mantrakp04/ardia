@@ -110,6 +110,10 @@ export function errorText(kind: LiveError["kind"], source: LiveSourceId): string
       return `Connect ${name} in Settings`;
     case "signedOut":
       return `Sign back in to ${name}`;
+    case "forbidden":
+      return `Your ${name} token is missing a permission. Check its scopes in Settings.`;
+    case "notFound":
+      return `${name} doesn't recognize this request. Ardia may need an update.`;
     case "sso":
       return `${name} needs Single Sign-On for this organization`;
     case "rateLimited":

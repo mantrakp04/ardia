@@ -70,6 +70,16 @@ const BITBUCKET_STATE_BATCH = 10;
 
 const bitbucketAuth = async () => basic(live().config.bitbucketUser, await secret("bitbucket"));
 
+async function bitbucketPages<T>(url: string, auth: string): Promise<T[]> {
+  const values: T[] = [];
+  for (let next: string | undefined = url; next; ) {
+    const page: { values: T[]; next?: string } = await request(next, { headers: { Authorization: auth } });
+    values.push(...page.values);
+    next = page.next;
+  }
+  return values;
+}
+
 const bitbucket: LiveSource = {
   id: "bitbucket",
   name: "Bitbucket",
@@ -80,11 +90,14 @@ const bitbucket: LiveSource = {
     const auth = await bitbucketAuth();
     const me = live().accounts.bitbucket;
     if (!me) throw new LiveError("signedOut", "Not signed in");
-    const page = await request<{ values: BitbucketPR[] }>(`${endpoints.bitbucket}/pullrequests/${encodeURIComponent(me.login)}?state=OPEN&pagelen=50`, {
-      headers: { Authorization: auth },
-    });
+    const workspaces = await bitbucketPages<{ workspace: { slug: string } }>(`${endpoints.bitbucket}/user/workspaces?pagelen=100`, auth);
+    const prs = await Promise.all(
+      workspaces.map(({ workspace }) =>
+        bitbucketPages<BitbucketPR>(`${endpoints.bitbucket}/workspaces/${encodeURIComponent(workspace.slug)}/pullrequests/${encodeURIComponent(me.login)}?state=OPEN&pagelen=50`, auth),
+      ),
+    );
     return Promise.all(
-      page.values.map(async (pr) => {
+      prs.flat().map(async (pr) => {
         const repo = pr.destination.repository.full_name;
         const statuses = await request<BitbucketStatuses>(`${endpoints.bitbucket}/repositories/${repo}/pullrequests/${pr.id}/statuses?pagelen=50`, {
           headers: { Authorization: auth },

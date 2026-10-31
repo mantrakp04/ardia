@@ -117,7 +117,8 @@ createServer(async (req, res) => {
     if (!auth.startsWith("Basic ")) return send(res, 401, {});
     if (p === "/bitbucket/2.0/user") return send(res, 200, { account_id: "bb-1", display_name: "Octo Dev" });
     if (p === "/bitbucket/2.0/repositories/acme/pipelines/pullrequests/7") return send(res, 200, { id: 7, state: bitbucketState });
-    if (p.startsWith("/bitbucket/2.0/pullrequests/")) {
+    if (p === "/bitbucket/2.0/user/workspaces") return send(res, 200, { values: [{ workspace: { slug: "acme" } }] });
+    if (p === "/bitbucket/2.0/workspaces/acme/pullrequests/bb-1") {
       if (bitbucketState !== "OPEN") return send(res, 200, { values: [] });
       return send(res, 200, { values: [{ id: 7, title: "Bitbucket: tidy pipelines", updated_on: "2026-09-25T06:00:00Z", comment_count: 2, author: { display_name: "Octo Dev" }, source: { branch: { name: "tidy" } }, destination: { branch: { name: "main" }, repository: { full_name: "acme/pipelines" } }, links: { html: { href: "https://bitbucket.org/acme/pipelines/pull-requests/7" } }, participants: [{ role: "REVIEWER", state: "approved" }] }] });
     }

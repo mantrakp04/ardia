@@ -234,7 +234,7 @@ function BitbucketConnect({ busy, run }: ConnectProps) {
   const go = () => void run(() => connectBitbucket(user, token));
   return (
     <View>
-      <Help>Create an API token (bitbucket.org › Personal settings › API tokens, with read access to pull requests and repositories), then enter your Atlassian account email with it. Bitbucket can't search review requests across repositories, so the folder lists your own pull requests.</Help>
+      <Help>Create an API token (bitbucket.org › Personal settings › API tokens, with read access to workspaces, pull requests and repositories), then enter your Atlassian account email with it. Bitbucket can't search review requests across repositories, so the folder lists your own pull requests.</Help>
       <Field label="Email or username">
         <TextField value={user} onChangeText={setUser} placeholder="you@example.com" />
       </Field>
