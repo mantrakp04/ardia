@@ -4,7 +4,7 @@ import { prompt } from "../../platform/dialogs";
 import { showMenu, type MenuItem } from "../../platform/menus";
 import { closeTab } from "../browser/actions";
 import { calendarConnected, connectCalendar, setCalendarHidden, useCalendar } from "../live/calendar";
-import { deleteLiveFolder, manualRefresh, newLiveFolder, openLiveItem, refreshFolder, statusText } from "../live/engine";
+import { deleteLiveFolder, liveTabAway, manualRefresh, newLiveFolder, openLiveItem, refreshFolder, returnLiveTab, statusText } from "../live/engine";
 import { ALERT_LEADS, nowBadgeEvent } from "../live/meetings";
 import { SOURCES } from "../live/sources";
 import { dismissNowBadge, hideItems, live, markRead, markUnread, updateCalendarSettings, updateFolder } from "../live/store";
@@ -135,6 +135,7 @@ export function liveItemMenuItems(windowId: string, folderId: string, item: Live
     [
       { id: "open", title: tabId ? "Show Tab" : "Open", symbol: "arrow.up.forward.square" },
       { id: "background", title: "Open in Background", enabled: !tabId },
+      ...(tabId ? [{ id: "backToPin", title: "Back to Pinned URL", symbol: "arrow.uturn.backward", enabled: liveTabAway(tabId), ...hintWhen(shown, "returnToPinnedUrl") }] : []),
     ],
     withAlternate({ id: "copy", title: "Copy Link", symbol: "link" }, { id: "copyMd", title: "Copy Link as Markdown", symbol: "link" }, null),
     [
@@ -149,6 +150,7 @@ export async function openLiveItemMenu(windowId: string, folderId: string, item:
   const unread = !!live().unread[folderId]?.includes(item.id);
   const choice = await showMenu(liveItemMenuItems(windowId, folderId, item, tabId));
   if (choice === "open") openLiveItem(windowId, folderId, item);
+  else if (choice === "backToPin" && tabId) returnLiveTab(tabId);
   else if (choice === "background") openLiveItem(windowId, folderId, item, { background: true });
   else if (choice === "copy") copyText(cleanUrl(item.url));
   else if (choice === "copyMd") copyText(markdownLink(item.title, item.url));

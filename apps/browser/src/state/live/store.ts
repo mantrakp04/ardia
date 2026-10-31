@@ -221,7 +221,9 @@ export function applyFetch(folderId: string, fetched: LiveItem[], gone: Record<s
   setLive((s) => {
     if (!s.folders[folderId]) return {};
     const closed = (id: string) => gone[id] === "merged" || gone[id] === "closed";
-    const stillHidden = (s.hidden[folderId] ?? []).filter((it) => !closed(it.id));
+    const fetchedById = new Map(fetched.map((it) => [it.id, it]));
+    const wasHidden = s.hidden[folderId] ?? [];
+    const stillHidden = wasHidden.filter((it) => !closed(it.id)).map((it) => fetchedById.get(it.id) ?? it);
     const hiddenIds = new Set(stillHidden.map((it) => it.id));
     const next = fetched.filter((it) => !hiddenIds.has(it.id));
     const known = new Set(s.known[folderId] ?? []);
@@ -241,7 +243,7 @@ export function applyFetch(folderId: string, fetched: LiveItem[], gone: Record<s
     const stillThere = new Set(merged.map((it) => it.id));
     return {
       items: { ...s.items, [folderId]: merged },
-      hidden: stillHidden.length === (s.hidden[folderId] ?? []).length ? s.hidden : { ...s.hidden, [folderId]: stillHidden },
+      hidden: stillHidden.length === wasHidden.length && stillHidden.every((it, i) => it === wasHidden[i]) ? s.hidden : { ...s.hidden, [folderId]: stillHidden },
       known: { ...s.known, [folderId]: [...known, ...fresh].slice(-MAX_KNOWN) },
       unread: { ...s.unread, [folderId]: first ? [] : [...new Set([...(s.unread[folderId] ?? []), ...unreadFresh])].filter((id) => stillThere.has(id)) },
       completed: leaving.length || (s.completed[folderId] ?? []).length !== completed.length ? { ...s.completed, [folderId]: completed } : s.completed,

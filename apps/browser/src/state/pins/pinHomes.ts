@@ -15,7 +15,9 @@ export function settlePinHomes(s: HomeSource, prev: HomeSource): Pick<BrowserSta
   for (const id of ids) {
     const t = s.tabs[id];
     if (!t) continue;
-    const home = pinHome(t, !!t.pin || members.has(id));
+    const housed = !!t.pin || members.has(id);
+    if (!housed && t.liveItem) continue;
+    const home = pinHome(t, housed);
     if (home === t.pinnedUrl) continue;
     tabs ??= { ...s.tabs };
     tabs[id] = { ...t, pinnedUrl: home };

@@ -94,6 +94,19 @@ test("a hidden pull request that merges stops counting as hidden; one that only 
   assert.deepEqual(live().completed[id], [], "a pull request that merged while hidden doesn't show under Completed");
 });
 
+test("a hidden pull request whose link changes keeps the new link and stays hidden", () => {
+  const id = createFolder("p", "pullRequests", []);
+  applyFetch(id, stacked, {});
+  hideItems(id, [stacked[2]]);
+  const renamed = { ...stacked[2], url: "https://github.com/o/renamed/pull/3" };
+  applyFetch(id, [stacked[0], stacked[1], renamed], {});
+  assert.deepEqual(live().hidden[id].map((it) => it.url), ["https://github.com/o/renamed/pull/3"]);
+  assert.deepEqual(live().items[id].map((it) => it.id), ["a", "b"]);
+  const before = live().hidden;
+  applyFetch(id, [stacked[0], stacked[1]], {});
+  assert.equal(live().hidden, before, "a fetch that changes nothing hidden keeps the hidden list as it was");
+});
+
 const bitbucket = (id) => ({ ...pr(id, 1, `h-${id}`, "main"), source: "bitbucket" });
 
 test("a manual refresh whose fetch fails keeps the pull requests it unhid", async () => {
