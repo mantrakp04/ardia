@@ -153,3 +153,25 @@ test("a setting chosen on this Mac isn't replaced by the one an older build rece
   await engine.syncNow();
   assert.equal(S().settings.selectedTabGlow, "soft");
 });
+
+test("retrying a failed upgrade checkpoints the legacy records before opening sync", async (t) => {
+  reset();
+  shell.docs.set("sync.json", JSON.stringify({ v: 1, enabled: true, folder: "/sync", deviceId: "retry-device", types: { settings: false }, profiles: { default: { syncId: "owner", enabled: true } } }));
+  const record = (v) => ({ h: "000000001.0000.old", v, o: ["old", 1] });
+  shell.docs.set("sync-state.nns", `sealed:${JSON.stringify({ covers: 0, scopes: { app: { ...emptyScope(), records: { "prof:owner": record({ n: "Personal", c: "plum", i: null, d: true }), "set:warnBeforeQuitting": record({ v: false }) } } } })}`);
+  t.mock.method(shell.shellNativeModules.ArdiaDialogs, "confirm", async () => ({ confirmed: true }));
+  const native = globalThis.acTestNativeModules.ArdiaSync;
+  const sealing = native.sealLocal;
+  native.sealLocal = async () => { throw new Error("keychain unavailable"); };
+  const engine = await import("./engine.ts?failed-upgrade-retry");
+  engine.startSync();
+  try {
+    await engine.upgradeSync();
+    assert.equal(engine.useSync.getState().status, "upgrade");
+    native.sealLocal = sealing;
+    await engine.upgradeSync();
+    assert.equal(JSON.parse(shell.docs.get("sync.json")).protocolReady, true);
+    const checkpoint = JSON.parse(shell.docs.get("sync-spaces-state.nns").slice(7));
+    assert.deepEqual(checkpoint.scopes["legacy-settings"].records["set:warnBeforeQuitting"].v, { v: false });
+  } finally { native.sealLocal = sealing; }
+});

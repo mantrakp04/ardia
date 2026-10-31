@@ -254,3 +254,17 @@ test("a prepared earlier Spaces v9 transaction finishes before the v10 transacti
   assert.equal(JSON.parse(files.get("session.json")).version, 10);
   assert.equal(files.get("session.json.before-spaces-v10"), earlier);
 });
+
+for (const completed of [false, true]) test(`current sessions leave repairable references to hydration, completed journal: ${completed}`, () => {
+  const saved = sessionWithSpaces(legacy());
+  saved.settings.defaultSpaceId = "missing";
+  saved.spaces.school.profileId = "missing";
+  saved.tabs.push({ id: "orphan", spaceId: "missing" });
+  const files = new Map([["session.json", JSON.stringify(saved)]]);
+  if (completed) files.set("workspace-upgrade-v10.json", JSON.stringify({ state: "complete", documents: { "session.json": { before: "{}", after: "{}" } } }));
+  const before = new Map(files);
+  assert.doesNotThrow(() => upgradeWorkspaceDocuments({ read: (name) => files.get(name) ?? null, write: (name, value) => files.set(name, value) }));
+  assert.deepEqual(files, before);
+  files.set("session.json", JSON.stringify({ version: 99 }));
+  assert.throws(() => upgradeWorkspaceDocuments({ read: (name) => files.get(name) ?? null, write: () => assert.fail("unexpected write") }), /newer Ardia/);
+});

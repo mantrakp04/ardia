@@ -178,14 +178,14 @@ export function upgradeWorkspaceDocuments(io: DocumentAccess): void {
   if (upgrade && (upgrade.state !== "prepared" && upgrade.state !== "complete" || !upgrade.documents || typeof upgrade.documents !== "object" || !upgrade.documents["session.json"])) throw new Error("The workspace upgrade journal is damaged. Your saved data was kept.");
   if (upgrade?.state === "complete") {
     const current = io.read("session.json");
-    if (current) validateSession(object(JSON.parse(current)));
+    if (current && Number(object(JSON.parse(current)).version ?? 0) > 10) throw new Error("This workspace needs a newer Ardia build. Your saved data was kept.");
     return;
   }
   if (!upgrade) {
     const session = io.read("session.json");
     if (!session) return;
     const saved = object(JSON.parse(session));
-    if (saved.version === 10) { validateSession(saved); return; }
+    if (saved.version === 10) return;
     if (Number(saved.version ?? 0) > 10) throw new Error("This workspace needs a newer Ardia build. Your saved data was kept.");
     if (![2, 3, 4, 5, 6, 7, 8, 9].includes(saved.version as number)) throw new Error("This saved workspace version cannot be upgraded safely. Your saved data was kept.");
     const rawSync = io.read("sync.json");

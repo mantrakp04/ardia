@@ -24,6 +24,8 @@ test("used Profile deletion names two Spaces, confirms reassignment and preserve
     assert.equal(await requestDeleteProfile("default"), true);
     assert.equal(prompts[0].confirmTitle, "Delete Anyway");
     assert.equal(prompts[0].cancelTitle, "Cancel");
+    assert.match(prompts[0].message, /Encrypted sync copies cached on this Mac/);
+    assert.match(prompts[0].message, /in the background/);
     assert.ok(Object.values(S().spaces).every((space) => space.profileId === next));
     assert.equal(S().tabs[tab].url, "https://saved.test/current");
     assert.equal(S().tabs[tab].pin.as, "row");
@@ -61,5 +63,22 @@ test("last Profile, private sessions and the default or last Space explain why d
     assert.equal(await requestDeleteProfile("default"), false);
     assert.match(prompts.at(-1).message, /private windows/);
     assert.ok(S().profiles.default);
+  } finally { confirm.mock.restore(); }
+});
+
+test("Profile deletion reconfirms when a Space starts using it while the dialog is open", async () => {
+  S().hydrate({});
+  const profile = S().createProfile({ name: "Work" });
+  const prompts = [];
+  const confirm = mock.method(dialogs, "confirm", async (options) => {
+    prompts.push(options);
+    if (prompts.length === 1) { S().createSpace({ name: "New Space", profileId: profile }); return { confirmed: true }; }
+    return { confirmed: false };
+  });
+  try {
+    assert.equal(await requestDeleteProfile(profile), false);
+    assert.equal(prompts.length, 2);
+    assert.match(prompts[1].message, /New Space/);
+    assert.ok(S().profiles[profile]);
   } finally { confirm.mock.restore(); }
 });

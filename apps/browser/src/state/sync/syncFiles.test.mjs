@@ -463,3 +463,31 @@ test("a checkpoint queued behind a part still sealing covers that part, with the
   const { doc: after } = await restart(doc);
   assert.ok("bm:r" in after.scopes["workspace-v2"].records);
 });
+
+test("unversioned and version-zero sync documents retain the explicit upgrade gate", async () => {
+  const { useBrowser } = await import("../browser/store.ts");
+  useBrowser.getState().hydrate({});
+  for (const v of [undefined, 0, 1]) {
+    const legacy = { ...(v === undefined ? {} : { v }), enabled: true, folder: "/sync", deviceId: "old", profiles: { default: { syncId: "owner", enabled: true } } };
+    const { files } = await opening({ docs: { "sync.json": JSON.stringify(legacy) } });
+    const loaded = files.read();
+    assert.equal(loaded.protocolReady, false);
+    assert.equal(loaded.legacyPending, true);
+    assert.equal(loaded.profiles.default.enabled, true);
+    assert.equal(loaded.spaces.default.syncId, "owner");
+  }
+});
+
+test("a required upgrade checkpoint saves encrypted deferred settings before sync metadata", async () => {
+  const { doc, files } = await opening();
+  doc.scopes["legacy-settings"] = { ...emptyScope(), records: { "set:warnBeforeQuitting": record } };
+  const saved = new Map(shell.docs);
+  sealHook = async () => { throw new Error("keychain unavailable"); };
+  try {
+    await assert.rejects(files.checkpoint(true), /keychain unavailable/);
+    assert.deepEqual(shell.docs, saved);
+  } finally { sealHook = null; }
+  await files.checkpoint(true);
+  const { doc: reopened } = await restart(doc);
+  assert.deepEqual(reopened.scopes["legacy-settings"].records, doc.scopes["legacy-settings"].records);
+});

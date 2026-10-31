@@ -66,6 +66,7 @@ export const DOC_MIGRATIONS: Migrations = { 0: unchanged, 1: unchanged };
 export const STATE = "sync-spaces-state.nns";
 export const JOURNAL = "sync-spaces-journal.nns";
 export const APP_SCOPE = "workspace-v2";
+export const LEGACY_SETTINGS_SCOPE = "legacy-settings";
 
 export const defaultTypes = (): Record<DataType, boolean> => Object.fromEntries(TYPE_IDS.map((id) => [id, true])) as Record<DataType, boolean>;
 

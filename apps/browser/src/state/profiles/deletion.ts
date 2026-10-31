@@ -12,5 +12,5 @@ export function profileDeletion(s: BrowserState, id: string) {
   const next = profiles[(at + 1) % profiles.length]!;
   const names = spaces.slice(0, 2).map((space) => space.name).join(", ") + (spaces.length > 2 ? ", and others" : "");
   const reassignment = spaces.length ? `This profile is used in ${names}. Delete Anyway will reassign all its spaces to “${next.name}”. Their pages will reload with that profile’s logins. Unsaved form changes may be lost. ` : "";
-  return { blocked: false, replacementId: next.id, message: `${reassignment}This profile’s browsing data and Top Apps will be deleted from this Mac. Saved sidebar rows, folders and themes stay with their spaces.`, confirmTitle: spaces.length ? "Delete Anyway" : "Delete Profile" };
+  return { blocked: false, spaceIds: spaces.map((space) => space.id), replacementId: next.id, message: `${reassignment}This profile’s browsing data and Top Apps will be removed in the background. Ardia will report any cleanup failure and retry when it next opens. Encrypted sync copies cached on this Mac and stored in the sync folder or other devices are kept. Saved sidebar rows, folders and themes stay with their spaces.`, confirmTitle: spaces.length ? "Delete Anyway" : "Delete Profile" };
 }

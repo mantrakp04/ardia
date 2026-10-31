@@ -145,3 +145,28 @@ test("adding a remote Space leaves new Profile data and Top Apps consent off", (
   addLinkedSpace(doc, "research", { ...remoteSpace, n: "Research" }, null);
   assert.equal(doc.profiles[profileId].enabled, false);
 });
+
+test("invalid remote Spaces neither mutate local metadata nor enter the order sort", () => {
+  useBrowser.getState().hydrate({});
+  const doc = { ...emptyDoc(), spaces: { default: { syncId: "home", enabled: true } }, profiles: { default: { syncId: "personal", enabled: true, topAppsEnabled: true } } };
+  const adapter = spacesAdapter(() => doc.spaces, () => doc.profiles);
+  const before = useBrowser.getState().spaces.default;
+  for (const patch of [{ n: 5 }, { c: {} }, { p: " " }, { p: 5 }, { pos: {} }]) {
+    const value = { ...remoteSpace, ...patch };
+    assert.doesNotThrow(() => adapter.apply(new Map([["prof:home", value]]), new Set(["prof:home"]), () => undefined, { known: () => false }));
+    assert.deepEqual(useBrowser.getState().spaces.default, before);
+  }
+});
+
+test("remote Space additions validate metadata and report an already linked Profile", async () => {
+  useBrowser.getState().hydrate({});
+  const { remoteSpaceRecord } = await import("./spaceLinks.ts");
+  const { summarize } = await import("./syncSummary.ts");
+  const doc = { ...emptyDoc(), profiles: { default: { syncId: "personal", enabled: false, topAppsEnabled: false } } };
+  doc.scopes[APP_SCOPE] = { ...emptyScope(), records: { "identity:personal": record({ n: "Personal", i: null }), "prof:school": record(remoteSpace) } };
+  assert.equal(summarize(doc).remoteSpaces[0].sharesWith.added, true);
+  delete doc.profiles.default;
+  assert.equal(summarize(doc).remoteSpaces[0].sharesWith.added, false);
+  doc.scopes[APP_SCOPE].records["prof:school"] = record({ p: "personal" });
+  assert.equal(remoteSpaceRecord(doc, "school"), undefined);
+});

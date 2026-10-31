@@ -67,3 +67,28 @@ test("a new mirrored Top App uses the live page title and favicon", () => {
   assert.equal(mirrored.title, "Current");
   assert.equal(mirrored.favicon, "current-icon");
 });
+
+test("mirrored Top Apps start with a complete idle live state", () => {
+  reset();
+  const window = S().createWindow({ url: "https://mail.test/" });
+  S().pinTabs([viewTabIds(S(), window)[0]], true);
+  const second = S().createWindow();
+  const mirror = viewTabIds(S(), second).find((id) => S().tabs[id].pin?.as === "tile");
+  assert.deepEqual(S().live[mirror], S().live[viewTabIds(S(), window)[0]]);
+  assert.equal(S().live[mirror].isLoading, false);
+});
+
+test("reassigning a Space with an active Top App selects its remaining ordinary tab", () => {
+  reset();
+  const window = S().createWindow({ url: "https://mail.test/" });
+  const tile = viewTabIds(S(), window)[0];
+  S().pinTabs([tile], true);
+  const sleeping = S().newTab(window, { url: "https://sleeping-app.test/", background: true });
+  S().pinTabs([sleeping], true);
+  useBrowser.setState({ tabs: { ...S().tabs, [sleeping]: { ...S().tabs[sleeping], page: { kind: "asleep" } } } });
+  const ordinary = S().newTab(window, { url: "https://ordinary.test/", background: true });
+  S().activate(tile);
+  const profile = S().createProfile({ name: "Work" });
+  S().assignSpaceProfile("default", profile);
+  assert.equal(S().windows[window].activeTabIds.default, ordinary);
+});

@@ -70,9 +70,10 @@ export function spacesAdapter(links: () => Record<string, { syncId: string; adop
     },
     apply: (visible, changed, _base, records) => {
       let pending = false;
+      const valid = new Map([...visible].flatMap(([key, value]) => { const record = profileRecord(value); return record ? [[key, record] as const] : []; }));
       for (const [id, link] of linked()) {
         const { syncId } = link;
-        const record = visible.get(`prof:${syncId}`) as SpaceRecord | undefined;
+        const record = valid.get(`prof:${syncId}`);
         if (!record || !changed.has(`prof:${syncId}`)) continue;
         const legacy = store().spaces[id]!.theme === undefined && !records.known(`pth:${syncId}`) ? legacyThemeOf(record) : null;
         const profileId = record.p && Object.entries(profiles()).find(([local, link]) => link.syncId === record.p && store().profiles[local])?.[0];
@@ -85,10 +86,10 @@ export function spacesAdapter(links: () => Record<string, { syncId: string; adop
         delete link.adopting;
       }
       const order = store().spaceOrder;
-      const slots = order.map((id, i) => links()[id] && visible.has(`prof:${links()[id]!.syncId}`) ? i : -1).filter((i) => i >= 0);
+      const slots = order.map((id, i) => links()[id] && valid.has(`prof:${links()[id]!.syncId}`) ? i : -1).filter((i) => i >= 0);
       const sorted = slots.map((i) => order[i]!).sort((a, b) => {
-        const one = visible.get(`prof:${links()[a]!.syncId}`) as SpaceRecord;
-        const two = visible.get(`prof:${links()[b]!.syncId}`) as SpaceRecord;
+        const one = valid.get(`prof:${links()[a]!.syncId}`)!;
+        const two = valid.get(`prof:${links()[b]!.syncId}`)!;
         return (one.pos ?? "").localeCompare(two.pos ?? "") || links()[a]!.syncId.localeCompare(links()[b]!.syncId);
       });
       const next = [...order];

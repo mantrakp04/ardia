@@ -26,12 +26,21 @@ an assigned Space; an unknown Profile never falls back to the default browsing i
 Session v10 separates `profiles`, `spaces` and `spaceOrder`. The startup upgrade journals and backs up
 session, live-folder and sync documents before converting them. Old logical Profile IDs become Space
 IDs; data owner IDs become Profile IDs, keeping native data directories intact. Old AppleScript Profile
-operations remain Space aliases; automation v2 adds explicit Space operations.
+operations remain Space aliases; automation v2 adds explicit Space operations. This includes the old
+`profiles` collection, window `profileId` and focus command, even when several Spaces use one Profile.
+
+Settings resolves IDs explicitly: `openSettings` takes a Space ID and converts it to its owner for Profile
+data panes; `openProfileSettings` takes a Profile ID. Private Spaces resolve their frozen engine identity.
+Deleting a Profile removes it from Settings and queues native data cleanup. Failures are shown and retried
+on next launch. The confirmation discloses that encrypted local sync caches, sync-folder files and copies
+on other devices remain.
 
 Sync v2 uses separate consent for Profile data, shared Top Apps and Space content. It waits for the user
 to confirm every Mac supports the new protocol. A remote Profile reassignment stays pending while the
 Space has live ordinary pages; Settings › Sync offers Apply or Keep Current and suppresses the stale
-assignment until resolved.
+assignment until resolved. Legacy settings whose sync consent is off stay in an encrypted local scope
+without a publishable outbox. The upgrade saves that scope before enabling v2; later consent imports the
+settings once, keeping any newer v2 values.
 
 The Space pin-concurrency matrix covers saved rows and groups.
 Top Apps belong to a different Profile scope; row-to-tile conversions and initial tiles are tested through

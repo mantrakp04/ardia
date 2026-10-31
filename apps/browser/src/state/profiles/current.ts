@@ -1,11 +1,19 @@
+import { privateSession } from "../browser/model";
 import { useBrowser } from "../browser/store";
 
-export function currentProfileId(id?: string | null): string {
+export function currentProfileId(profileId?: string | null): string {
   const s = useBrowser.getState();
-  if (id && s.profiles[id]) return id;
-  const space = s.spaces[id ?? s.settings.defaultSpaceId];
-  if (!space || !s.profiles[space.profileId]) throw new Error("That browsing profile is unavailable.");
-  return space.profileId;
+  const selected = profileId ?? profileIdForSpace(s.settings.defaultSpaceId);
+  if (!s.profiles[selected]) throw new Error("That browsing profile is unavailable.");
+  return selected;
+}
+
+export function profileIdForSpace(spaceId: string): string {
+  const s = useBrowser.getState();
+  const engine = privateSession(s, spaceId);
+  const profileId = engine !== null ? profileIdForEngine(engine) : s.spaces[spaceId]?.profileId;
+  if (!profileId || !s.profiles[profileId]) throw new Error("That browsing profile is unavailable.");
+  return profileId;
 }
 
 export function profileEngine(id: string): string {

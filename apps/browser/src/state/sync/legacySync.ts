@@ -1,6 +1,7 @@
 import { readDocument } from "../../platform/documents";
 import { canonical, Clock, emptyScope, folderTransport, pull, restoreJournal, SyncNative, type ScopeState, type SyncRecord } from "../../platform/sync";
-import { APP_SCOPE, profileScope, spaceScope, type SyncDoc } from "./syncDoc";
+import { APP_SCOPE, LEGACY_SETTINGS_SCOPE, profileScope, spaceScope, type SyncDoc } from "./syncDoc";
+import { profileRecord } from "./records";
 import { profileKey } from "./identityAdapters";
 import type { SpaceRecord } from "./spaceAdapters";
 import { markedTile, PIN_ROW, ROW, type PinValue } from "./pinRecords";
@@ -19,11 +20,28 @@ async function opened<T>(name: string, fallback: T): Promise<T> {
 }
 
 export async function importLegacySync(doc: SyncDoc): Promise<void> {
-  if (!doc.legacyPending || !doc.folder || !doc.deviceId) return;
+  if (!doc.folder || !doc.deviceId) return;
+  const clock = new Clock(doc.deviceId, doc.clock);
+  const seed = (scope: ScopeState, key: string, record: SyncRecord, base: string | null = canonical(record.v)) => {
+    if (scope.records[key] && scope.records[key]!.h >= record.h) return;
+    clock.observe(record.h);
+    scope.records[key] = { ...record, o: [doc.deviceId!, scope.seq + 1] };
+    if (base === null) delete scope.base[key];
+    else scope.base[key] = base;
+    scope.outbox.push({ k: key, v: record.v, h: record.h });
+    scope.unapplied = [...new Set([...scope.unapplied, key])];
+  };
+  const deferred = doc.scopes[LEGACY_SETTINGS_SCOPE];
+  if (doc.types.settings && deferred) {
+    const app = doc.scopes[APP_SCOPE] ??= emptyScope();
+    for (const [key, record] of Object.entries(deferred.records)) seed(app, key, record);
+    delete doc.scopes[LEGACY_SETTINGS_SCOPE];
+    doc.clock = clock.last;
+  }
+  if (!doc.legacyPending) return;
   const saved = await opened<SavedState | Record<string, ScopeState>>("sync-state.nns", {});
   const checkpoint = "covers" in saved && typeof saved.covers === "number" ? saved as SavedState : { covers: -1, scopes: saved as Record<string, ScopeState> };
   const scopes = checkpoint.scopes;
-  const clock = new Clock(doc.deviceId, doc.clock);
   const parts = [await opened<Part>("sync-journal.nns", {})];
   for (let n = 1; n <= 10000; n++) {
     if (!readDocument(`sync-journal-${n}.nns`)) break;
@@ -49,15 +67,6 @@ export async function importLegacySync(doc: SyncDoc): Promise<void> {
   };
   const app = await readScope("app");
   const converted = doc.scopes[APP_SCOPE] ??= emptyScope();
-  const seed = (scope: ScopeState, key: string, record: SyncRecord, base: string | null = canonical(record.v)) => {
-    if (scope.records[key] && scope.records[key]!.h >= record.h) return;
-    clock.observe(record.h);
-    scope.records[key] = { ...record, o: [doc.deviceId!, scope.seq + 1] };
-    if (base === null) delete scope.base[key];
-    else scope.base[key] = base;
-    scope.outbox.push({ k: key, v: record.v, h: record.h });
-    scope.unapplied = [...new Set([...scope.unapplied, key])];
-  };
   const owner = (id: string): string => {
     const path: string[] = [];
     let at = id;
@@ -71,15 +80,21 @@ export async function importLegacySync(doc: SyncDoc): Promise<void> {
   };
   for (const [key, record] of Object.entries(app.records)) {
     if (key.startsWith("share:")) continue;
-    if (key.startsWith("set:") && !doc.types.settings) continue;
+    if (key.startsWith("set:") && !doc.types.settings) {
+      const deferred = doc.scopes[LEGACY_SETTINGS_SCOPE] ??= emptyScope();
+      if (!deferred.records[key] || deferred.records[key]!.h < record.h) deferred.records[key] = record;
+      continue;
+    }
     const workspace = key.startsWith("prof:") ? key.slice(5) : key.startsWith("pth:") ? key.slice(4).split(":")[0] : null;
     const consent = workspace && Object.values(doc.spaces).find((link) => link.syncId === workspace);
     if (consent && (!consent.enabled || consent.retire)) continue;
     if (key.startsWith("prof:") && record.v) {
       const syncId = key.slice(5);
       const assignment = owner(syncId);
-      const identity = app.records[`prof:${assignment}`] ?? record;
-      const meta = identity.v as SpaceRecord;
+      const ownerRecord = app.records[`prof:${assignment}`];
+      const identity = profileRecord(ownerRecord?.v) ? ownerRecord! : record;
+      const meta = profileRecord(identity.v);
+      if (!meta) continue;
       seed(converted, profileKey(assignment), { ...identity, v: { n: meta.n, i: meta.i } });
       seed(converted, key, { ...record, v: { ...(record.v as SpaceRecord), p: assignment } });
     } else seed(converted, key, record);

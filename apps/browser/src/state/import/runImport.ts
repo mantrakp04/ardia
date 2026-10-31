@@ -130,8 +130,8 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
     await api.unlockBrowser(source.id).catch(orWarn(undefined));
   }
 
-  for (const [sourceIndex, profile] of selected.entries()) {
-    let assigned = sourceIndex === 0 ? currentSpaces()[target]!.profileId : "";
+  for (const profile of selected) {
+    let assigned = destinationIndex === 0 ? currentSpaces()[target]!.profileId : "";
     const profileForImport = () => assigned ||= createProfile({ name: profile.name });
     const nextDestination = (name: string, color?: string, emoji?: string) => destination(target, destinationIndex++, name, color, emoji, profileForImport());
     let result: ImportResult;
