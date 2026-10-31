@@ -878,6 +878,15 @@
     if (config.fieldTiming) setFieldTiming(true);
     if (typeof config.selectionPopover === "boolean" && handlers.selectionPopover) handlers.selectionPopover(config.selectionPopover);
   };
+  if (isTop) {
+    const pageHasFocus = Document.prototype.hasFocus;
+    addEventListener(
+      "mousedown",
+      guard((e) => e.isTrusted && !apply(pageHasFocus, document, []) && send("pageFocusLost", {})),
+      { passive: true, capture: true },
+    );
+  }
+
   send("hello", { top: isTop, url: location.href });
 
   const receive = (kind, json) => {

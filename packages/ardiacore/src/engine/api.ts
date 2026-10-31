@@ -189,6 +189,7 @@ export type EngineEvents = {
   "engine.systemState": SystemState;
   "engine.cliControl": CliControlStatus;
   "tabs.strips": TabStripTransaction;
+  "tabs.pageFocusLost": { firstResponder: "page" | "none" | "other" };
   "downloads.changed": Download;
   "permissions.requested": PermissionRequest;
   "permissions.dismissed": { id: string };
