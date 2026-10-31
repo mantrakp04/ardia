@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { Animated, StyleSheet, View, type ViewStyle } from "react-native";
 import { downloadsOpenIn } from "../../state/browser/current";
-import { useWindowId, useWindowProfileId } from "../../state/browser/hooks";
+import { useShowPageFrame, useWindowId, useWindowProfileId } from "../../state/browser/hooks";
 import { beginExternalDrag, endExternalDrag, moveExternalDrag } from "../../state/drag/tabDrag";
 import { lightsCenter, TOP_STRIP_LIGHTS_CENTER } from "../../state/windows/dockMotion";
 import { useWindowUiOf } from "../../state/windows/hooks";
@@ -104,6 +104,7 @@ function StripDropHighlight({ left, right }: { left: number; right: number }) {
 export function TopStripPeek({ windowWidth, enabled }: { windowWidth: number; enabled: boolean }) {
   const theme = useTheme();
   const windowId = useWindowId();
+  const showPageFrame = useShowPageFrame();
   const downloadsOpen = useWindowUiOf(windowId, (u) => !!u?.downloadsOpen);
   const { slide, live, show, hide, recheck } = usePeek(enabled, false, () => downloadsOpenIn(windowId));
   useEffect(() => {
@@ -126,13 +127,14 @@ export function TopStripPeek({ windowWidth, enabled }: { windowWidth: number; en
     <>
       {enabled ? (
         <View
+          pointerEvents={showPageFrame ? "auto" : "none"}
           onMouseEnter={show}
           onMouseLeave={leaveStrip}
           style={{ position: "absolute", left: layout.trafficLightsWidth, right: PEEK_LEFT, top: 0, height: PEEK_HOVER_HEIGHT }}
         />
       ) : null}
       <Animated.View
-        pointerEvents={live ? "auto" : "none"}
+        pointerEvents={live ? "box-none" : "none"}
         onMouseEnter={live ? show : undefined}
         onMouseLeave={live ? leavePanel : undefined}
         style={{

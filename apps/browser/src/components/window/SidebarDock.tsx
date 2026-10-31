@@ -6,7 +6,7 @@ import { layout, useTheme } from "../ui/theme";
 import { spring, curve } from "../ui/motion";
 import { Panel, reduceMotion, WindowDragRegion } from "../ui";
 import { SHADOWS } from "./tokens";
-import { useWindowId } from "../../state/browser/hooks";
+import { useShowPageFrame, useWindowId } from "../../state/browser/hooks";
 import { useSidebarDockState } from "../../state/windows/hooks";
 import { useToolbarLightsCenter } from "../../state/windows/layout";
 import { Sidebar } from "../sidebar/Sidebar";
@@ -23,7 +23,6 @@ import {
   PEEK_RADIUS,
   dockMove,
   dockState,
-  dockedCardLeft,
   inPeekHold,
   leftEdgeWatchWidth,
   peekHoldWidth,
@@ -43,6 +42,7 @@ import {
 } from "../../state/windows/dockMotion";
 import { useTabDrag } from "../../state/drag/tabDrag";
 import { usePeek } from "./usePeek";
+import { pageFrameDockedLeft, pageFrameInsets } from "./pageFrame";
 
 const SPRING = spring(DOCK_SPRING);
 
@@ -114,6 +114,8 @@ export function DockedLayout({
 }) {
   const windowId = useWindowId();
   const [open, sidebarWidth, addressBar] = useSidebarDockState(windowId);
+  const showPageFrame = useShowPageFrame();
+  const awayTop = pageFrameInsets(showPageFrame).top;
   const width = useSidebarUi((u) => u.dragWidth[windowId]) ?? sidebarWidth;
   const arc = addressBar && !topTabs && switchOn("sidebarSlide");
   const toolbarLights = useToolbarLightsCenter();
@@ -123,11 +125,11 @@ export function DockedLayout({
     () =>
       dock.interpolate({
         inputRange: [0, 1],
-        outputRange: [inset.left, dockedCardLeft(width)],
+        outputRange: [inset.left, pageFrameDockedLeft(showPageFrame, width)],
       }),
-    [dock, width, inset.left],
+    [dock, width, inset.left, showPageFrame],
   );
-  const top = useMemo(() => dock.interpolate({ inputRange: [0, 1], outputRange: [layout.cardInset, inset.top] }), [dock, inset.top]);
+  const top = useMemo(() => dock.interpolate({ inputRange: [0, 1], outputRange: [awayTop, inset.top] }), [dock, awayTop, inset.top]);
   const stripY = useMemo(() => dock.interpolate({ inputRange: [0, 1], outputRange: [-inset.top, 0] }), [dock, inset.top]);
   const stripShown = topTabs && (open || !away);
   const moving = useDockMotion((m) => !!m.moving[windowId]);
@@ -148,7 +150,7 @@ export function DockedLayout({
               }
         }
       >
-        {!fullscreen && <WindowDragRegion style={StyleSheet.absoluteFill} />}
+        {!fullscreen && showPageFrame && <WindowDragRegion style={StyleSheet.absoluteFill} />}
         {children}
       </Animated.View>
       {topStrip &&
@@ -161,7 +163,7 @@ export function DockedLayout({
           </Animated.View>
         )}
       {topStrip && topTabs && !stripShown && topStrip.peek}
-      {!topTabs && <SidebarDock dock={dock} open={open} width={width} fullscreen={fullscreen} arc={arc} lights={lights} />}
+      {!topTabs && <SidebarDock dock={dock} open={open} width={width} fullscreen={fullscreen} arc={arc} lights={lights} showPageFrame={showPageFrame} />}
     </>
   );
 }
@@ -173,6 +175,7 @@ function SidebarDock({
   fullscreen,
   arc,
   lights,
+  showPageFrame,
 }: {
   dock: Animated.Value;
   open: boolean;
@@ -180,6 +183,7 @@ function SidebarDock({
   fullscreen: boolean;
   arc: boolean;
   lights: readonly [number, number];
+  showPageFrame: boolean;
 }) {
   const theme = useTheme();
   const windowId = useWindowId();
@@ -266,14 +270,14 @@ function SidebarDock({
       )}
       {strip.current && (
         <View
-          pointerEvents={!open && !fullscreen ? "auto" : "none"}
+          pointerEvents={showPageFrame && !open && !fullscreen ? "auto" : "none"}
           onMouseEnter={peek.show}
           onMouseLeave={leaveStrip}
           style={{
             position: "absolute",
             left: 0,
             top: 0,
-            bottom: layout.cardInset,
+            bottom: showPageFrame ? layout.cardInset : 0,
             width: !open && !fullscreen ? PEEK_EDGE_STRIP : 0,
           }}
         />

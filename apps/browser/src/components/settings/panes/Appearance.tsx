@@ -2,7 +2,7 @@ import type { AppIcon } from "../../../state/app/appSettings";
 import { GlassFill, liquidGlass, Symbol, font, PopUp, Toggle, useHover } from "../../ui";
 import { Image, Pressable, Text, View } from "react-native";
 import { useTheme } from "../../ui/theme";
-import { useSettings, useTabLayout } from "../../../state/browser/hooks";
+import { useSettings, useShowPageFrame, useTabLayout } from "../../../state/browser/hooks";
 import { updateSettings } from "../../../state/settings/actions";
 import type { Settings } from "../../../state/settings/settings";
 import { Group, Row, SectionHeader } from "../Form";
@@ -39,6 +39,7 @@ export function AppearancePane() {
       </Group>
       <InterfaceStylePicker />
       <AddressBarPicker />
+      <PageFramePicker />
       <BookmarksBarSection />
       <SelectedTabGlowPicker />
       <ScrollBarsPicker />
@@ -132,6 +133,20 @@ function AddressBarPicker() {
         </Row>
         <Row anchor="appearance.compactToolbar">
           <Toggle value={compactToolbar} onChange={(v) => updateSettings({ compactToolbar: v })} />
+        </Row>
+      </Group>
+    </>
+  );
+}
+
+function PageFramePicker() {
+  const showPageFrame = useShowPageFrame();
+  return (
+    <>
+      <SectionHeader title="Window" />
+      <Group>
+        <Row anchor="appearance.showPageFrame">
+          <Toggle value={showPageFrame} onChange={(v) => updateSettings({ showPageFrame: v })} />
         </Row>
       </Group>
     </>

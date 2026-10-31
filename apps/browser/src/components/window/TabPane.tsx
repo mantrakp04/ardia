@@ -4,7 +4,7 @@ import { layout } from "../ui/theme";
 import { usePrewarm } from "../../state/tabs/prewarm";
 import { activate } from "../../state/tabs/actions";
 import { shallowEqual, useBrowserWhile, useStoreWhile, useTabValue } from "../../state/tabs/tabWatch";
-import { useSettings } from "../../state/browser/hooks";
+import { useSettings, useShowPageFrame } from "../../state/browser/hooks";
 import { splitOf } from "../../state/splits/splits";
 import type { Tab } from "../../state/browser/types";
 import { BookmarksBar, bookmarksBarShown, type BookmarksBarMode } from "../bookmarks/BookmarksBar";
@@ -25,6 +25,7 @@ import { TabWebView } from "./TabWebView";
 import { withoutFragment } from "../../lib/url";
 import { paneBar, type CardChrome } from "./paneChrome";
 import { PageOverlays } from "./PageOverlays";
+import { pageFrameRadius } from "./pageFrame";
 import { useProfileTheme } from "./ThemeScope";
 
 const LINGERING_PANE = "ardia.lingeringPane";
@@ -73,6 +74,7 @@ export const TabPane = memo(function TabPane({
   seeThrough: boolean;
 }) {
   const visible = !!rect;
+  const showPageFrame = useShowPageFrame();
   const live = visible || !!warm;
   const own = useTabValue(tabId, paneTab, shallowEqual);
   const theme = useProfileTheme(own.profileId);
@@ -113,7 +115,7 @@ export const TabPane = memo(function TabPane({
       style={{
         position: "absolute",
         ...(fills ? { left: 0, top: 0, right: 0, bottom: 0 } : { left: frame.x, top: frame.y, width: frame.width, height: frame.height }),
-        borderRadius: fullscreen ? 0 : layout.cardRadius,
+        borderRadius: pageFrameRadius(showPageFrame, fullscreen, small),
         overflow: "hidden",
         opacity: covered ? 0 : 1,
         backgroundColor: visible && !fullscreen && !seeThrough ? theme.card : undefined,

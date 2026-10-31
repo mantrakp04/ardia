@@ -287,6 +287,16 @@ export const generalRows = {
       },
     },
     {
+      section: "Window",
+      rows: {
+        showPageFrame: {
+          title: "Show page frame",
+          description: "Keep the inset and rounded corners around pages. Turn off to give pages more room.",
+          keywords: ["borderless", "border", "margin", "rounded corners", "edge to edge"],
+        },
+      },
+    },
+    {
       section: "Bookmarks Bar",
       rows: {
         bookmarksBar: {
