@@ -236,7 +236,8 @@ function SidebarDock({
   );
 
   const leaveStrip = (e: { nativeEvent: { clientX: number; clientY: number } }) => {
-    if (peek.live && !inHold(e.nativeEvent.clientX, e.nativeEvent.clientY)) peek.hide();
+    if (!peek.live) peek.cancelPending(edgeOver.current);
+    else if (!inHold(e.nativeEvent.clientX, e.nativeEvent.clientY)) peek.hide();
   };
 
   const strip = useRef(false);
