@@ -1,0 +1,86 @@
+--- a/chrome/browser/chrome_content_browser_client_receiver_bindings.cc
++++ b/chrome/browser/chrome_content_browser_client_receiver_bindings.cc
+@@ -141,6 +141,12 @@
+ #include "chrome/browser/offline_pages/offline_page_tab_helper.h"
+ #endif
+ 
++#if BUILDFLAG(IS_LINUX)
++void (*g_ardia_linux_page_host_binder)(
++    content::RenderFrameHost& render_frame_host,
++    blink::AssociatedInterfaceRegistry& associated_registry) = nullptr;
++#endif
++
+ namespace {
+ 
+ #if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
+@@ -417,6 +423,11 @@
+     ep->ExposeInterfacesToRendererForRenderFrameHost(render_frame_host,
+                                                      associated_registry);
+   }
++#if BUILDFLAG(IS_LINUX)
++  if (g_ardia_linux_page_host_binder) {
++    g_ardia_linux_page_host_binder(render_frame_host, associated_registry);
++  }
++#endif
+ 
+   associated_registry.AddInterface<autofill::mojom::AutofillDriver>(
+       base::BindRepeating(
+--- a/chrome/common/chrome_isolated_world_ids.h
++++ b/chrome/common/chrome_isolated_world_ids.h
+@@ -19,6 +19,10 @@
+   // Isolated world ID for internal Chrome features.
+   ISOLATED_WORLD_ID_CHROME_INTERNAL,
+ 
++#if BUILDFLAG(IS_LINUX)
++  ISOLATED_WORLD_ID_ARDIA_PAGE,
++#endif
++
+ #if BUILDFLAG(IS_MAC)
+   // Isolated world ID for AppleScript.
+   ISOLATED_WORLD_ID_APPLESCRIPT,
+--- a/chrome/renderer/BUILD.gn
++++ b/chrome/renderer/BUILD.gn
+@@ -243,6 +243,10 @@
+     deps += [ "//components/webapps/isolated_web_apps:scheme" ]
+   }
+ 
++  if (is_linux) {
++    deps += [ "//ardia/linux:page_agent" ]
++  }
++
+   data_deps = [ "//tools/v8_context_snapshot" ]
+ 
+   configs += [ "//build/config/compiler:wexit_time_destructors" ]
+--- a/chrome/renderer/chrome_content_renderer_client.cc
++++ b/chrome/renderer/chrome_content_renderer_client.cc
+@@ -33,6 +33,10 @@
+ #include "base/values.h"
+ #include "build/branding_buildflags.h"
+ #include "build/build_config.h"
++
++#if BUILDFLAG(IS_LINUX)
++#include "ardia/linux/renderer/ac_linux_page_agent.h"  // nogncheck
++#endif
+ #include "chrome/common/buildflags.h"
+ #include "chrome/common/channel_info.h"
+ #include "chrome/common/chrome_content_client.h"
+@@ -655,6 +659,9 @@
+   service_manager::BinderRegistry* registry = render_frame_observer->registry();
+ 
+   new prerender::NoStatePrefetchRenderFrameObserver(render_frame);
++#if BUILDFLAG(IS_LINUX)
++  ardia::CreateLinuxPageAgent(render_frame);
++#endif
+ 
+   auto content_settings_delegate =
+       std::make_unique<ChromeContentSettingsAgentDelegate>(render_frame);
+@@ -1486,6 +1493,9 @@
+ 
+ void ChromeContentRendererClient::RunScriptsAtDocumentStart(
+     content::RenderFrame* render_frame) {
++#if BUILDFLAG(IS_LINUX)
++  ardia::RunLinuxPageAgentAtDocumentStart(render_frame);
++#endif
+ #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+   extensions::ExtensionsRendererClient::Get()->RunScriptsAtDocumentStart(
+       render_frame);

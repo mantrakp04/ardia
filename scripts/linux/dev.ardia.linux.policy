@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN" "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>Ardia</vendor>
+  <vendor_url>https://ardia.dev</vendor_url>
+  <action id="dev.ardia.linux.reauthenticate">
+    <description>Confirm it's you before Ardia shows, changes or exports saved passwords and card numbers</description>
+    <message>Ardia needs your password to show, change or export saved passwords and card numbers.</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_self</allow_active>
+    </defaults>
+  </action>
+</policyconfig>

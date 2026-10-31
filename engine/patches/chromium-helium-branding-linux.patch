@@ -1,0 +1,139 @@
+SPDX-License-Identifier: GPL-3.0-only
+
+--- a/chrome/browser/helium_flag_choices.h
++++ b/chrome/browser/helium_flag_choices.h
+@@ -32,23 +32,23 @@
+ constexpr const char kMiddleClickAutoscrollCommandLine[] =
+     "middle-click-autoscroll";
+ 
+-constexpr const char kHeliumNoiseCommandLine[] = "helium-noise";
+-constexpr const char kHeliumNoiseCanvasCommandLine[] = "helium-noise-canvas";
+-constexpr const char kHeliumNoiseAudioCommandLine[] = "helium-noise-audio";
++constexpr const char kHeliumNoiseCommandLine[] = "ardia-noise";
++constexpr const char kHeliumNoiseCanvasCommandLine[] = "ardia-noise-canvas";
++constexpr const char kHeliumNoiseAudioCommandLine[] = "ardia-noise-audio";
+ constexpr const char kHeliumNoiseCpuCoresCommandLine[] =
+-    "helium-noise-hw-concurrency";
++    "ardia-noise-hw-concurrency";
+ 
+ constexpr const char kDisableEchCommandLine[] = "disable-ech";
+ constexpr const char kHeliumSplitClientHelloCommandLine[] =
+-    "helium-split-clienthello";
++    "ardia-split-clienthello";
+ 
+ constexpr const char kHeliumNativeFrameMaterialsCommandLine[] =
+-    "helium-native-frame-materials";
++    "ardia-native-frame-materials";
+ constexpr const char kHeliumHidePageActionsCommandLine[] =
+-    "helium-hide-page-actions";
++    "ardia-hide-page-actions";
+ 
+ constexpr const char kMiddleClickPasteEnabledCommandLine[] =
+-    "helium-middle-click-paste-enabled";
++    "ardia-middle-click-paste-enabled";
+ }  // namespace helium
+ 
+ #endif /* CHROME_BROWSER_HELIUM_FLAG_CHOICES_H_ */
+--- a/chrome/browser/helium_flag_entries.h
++++ b/chrome/browser/helium_flag_entries.h
+@@ -10,55 +10,48 @@
+     {helium::kEnergySaverFrameRateCommandLine,
+      "Maximum frame rate for Energy Saver",
+      "Configures the frame rate the browser is throttled to when Energy Saver "
+-     "is enabled. Helium flag.",
++     "is enabled. Ardia flag.",
+      kOsDesktop, MULTI_VALUE_TYPE(helium::kEnergySaverFrameRateChoices)},
+     {"bookmark-open-all-confirmation", "Bookmark open-all confirmation",
+-     "Controls whether Helium asks for confirmation before opening 15 or more "
+-     "bookmarks at once. Helium flag.",
++     "Controls whether Ardia asks for confirmation before opening 15 or more "
++     "bookmarks at once. Ardia flag.",
+      kOsDesktop, FEATURE_VALUE_TYPE(features::kBookmarkOpenAllConfirmation)},
+-    {helium::kChannelCommandLine, "Update channel",
+-     "Selects which update channel to use for update checking. Helium flag.",
+-     kOsAll, MULTI_VALUE_TYPE(helium::kChannelChoices)},
+-    {helium::kUpdateServerUrlCommandLine, "Update server URL",
+-     "Overrides the default URL for fetching updates. Should be used only for "
+-     "testing. Helium flag.",
+-     kOsDesktop, STRING_VALUE_TYPE(helium::kUpdateServerUrlCommandLine, "")},
+     {helium::kMiddleClickAutoscrollCommandLine, "Middle Click Autoscroll",
+-     "Enables autoscroll on middle click. Helium flag, Chromium feature.",
++     "Enables autoscroll on middle click. Ardia flag, Chromium feature.",
+      kOsDesktop,
+      FEATURE_VALUE_TYPE(blink::features::kHeliumMiddleClickAutoscroll)},
+-    {helium::kHeliumNoiseCommandLine, "Helium Noise",
+-     "Helium's anti-fingerprinting functionality. Adds insignificant noise to "
++    {helium::kHeliumNoiseCommandLine, "Ardia Noise",
++     "Ardia's anti-fingerprinting functionality. Adds insignificant noise to "
+      "various features to deceive fingerprinting scripts. Enabled by default, "
+-     "must be enabled for other anti-fingerprinting features to work. Helium "
++     "must be enabled for other anti-fingerprinting features to work. Ardia "
+      "flag.",
+      kOsAll, FEATURE_VALUE_TYPE(blink::features::kHeliumNoise)},
+     {helium::kHeliumNoiseCanvasCommandLine,
+-     "[Helium Noise] Canvas pixel noising",
++     "[Ardia Noise] Canvas pixel noising",
+      "Adds insignificant noise to canvas pixels during readback to deceive "
+-     "canvas-based fingerprinting. Helium flag.",
++     "canvas-based fingerprinting. Ardia flag.",
+      kOsAll, FEATURE_VALUE_TYPE(blink::features::kHeliumNoiseCanvas)},
+     {helium::kHeliumNoiseAudioCommandLine,
+-     "[Helium Noise] Jitter audio context data",
++     "[Ardia Noise] Jitter audio context data",
+      "Adds insignificant jitter to audio data to deceive AudioContext-based "
+-     "fingerprinting. Helium flag.",
++     "fingerprinting. Ardia flag.",
+      kOsAll, FEATURE_VALUE_TYPE(blink::features::kHeliumNoiseAudio)},
+     {helium::kHeliumNoiseCpuCoresCommandLine,
+-     "[Helium Noise] Randomize number of CPU cores",
++     "[Ardia Noise] Randomize number of CPU cores",
+      "Randomizes the number of cores returned by "
+-     "`navigator.hardwareConcurrency` in a reasonable range. Helium flag.",
++     "`navigator.hardwareConcurrency` in a reasonable range. Ardia flag.",
+      kOsAll, FEATURE_VALUE_TYPE(blink::features::kHeliumNoiseCpuCores)},
+     // core/network
+     {helium::kDisableEchCommandLine, "Disable Encrypted Client Hello (ECH)",
+      "Disables TLS Encrypted Client Hello, reducing traffic privacy when "
+      "accessing websites that support ECH. Use this flag only if ECH is "
+-     "blocked on your network. Helium flag.",
++     "blocked on your network. Ardia flag.",
+      kOsAll, SINGLE_VALUE_TYPE(helium::kDisableEchCommandLine)},
+     {"quic-v2-only", "Use only QUIC v2 for HTTP/3",
+      "Restricts HTTP/3 connections to QUIC v2 instead of default QUIC v1. This "
+      "may help on networks that block QUIC v1 but do not recognize QUIC v2. It "
+      "does not force QUIC on unsupported sites. Connections may fall back to "
+-     "TCP when the server does not support QUIC v2. Helium flag.",
++     "TCP when the server does not support QUIC v2. Ardia flag.",
+      kOsAll, SINGLE_VALUE_TYPE_AND_VALUE(switches::kQuicVersion, "RFCv2")},
+     {helium::kHeliumSplitClientHelloCommandLine,
+      "Random TLS ClientHello splitting",
+@@ -68,24 +61,24 @@
+      "filtering, but it does not hide DNS queries or destination IP addresses "
+      "and makes TLS traffic unusual and potentially recognizable. Some "
+      "middleboxes and TLS endpoints mishandle this behavior and may become "
+-     "inaccessible. Helium flag.",
++     "inaccessible. Ardia flag.",
+      kOsAll, FEATURE_VALUE_TYPE(net::features::kHeliumSplitClientHello)},
+     {"no-proxy-server", "Ignore system proxy",
+      "Ignores system proxy settings and always connects directly. This may "
+-     "prevent access to networks that require a proxy. Helium flag.",
++     "prevent access to networks that require a proxy. Ardia flag.",
+      kOsAll, SINGLE_VALUE_TYPE(switches::kNoProxyServer)},
+     // ui
+     {helium::kHeliumNativeFrameMaterialsCommandLine, "Native frame materials",
+      "Enables an option to apply native materials to the browser frame "
+-     "surfaces. May cause UI clarity issues. Helium flag.",
++     "surfaces. May cause UI clarity issues. Ardia flag.",
+      kOsMac, FEATURE_VALUE_TYPE(features::kHeliumNativeFrameMaterials)},
+     {helium::kHeliumHidePageActionsCommandLine, "Hide all page actions",
+      "Hides all page actions at the end of address bar. This includes: "
+      "bookmark star, page zoom, PWA install/open, local file access, and more. "
+-     "Important actions and indicators will be missing. Helium flag.",
++     "Important actions and indicators will be missing. Ardia flag.",
+      kOsDesktop, FEATURE_VALUE_TYPE(features::kHeliumHidePageActions)},
+     // platform
+     {helium::kMiddleClickPasteEnabledCommandLine, "Middle Click Paste",
+-     "Controls middle click paste functionality. Helium flag.", kOsLinux,
++     "Controls middle click paste functionality. Ardia flag.", kOsLinux,
+      FEATURE_VALUE_TYPE(features::kMiddleClickPasteEnabled)},
+ #endif  // CHROME_BROWSER_HELIUM_FLAG_ENTRIES_H_

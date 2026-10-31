@@ -22,13 +22,33 @@ async function requestClose(windowId: string) {
   const w = s.windows[windowId];
   if (!w) return;
   if (isSmall(s, windowId)) return closeLittleArdia(windowId);
-  const count = closingTabs(windowId).length;
-  if (s.settings.warnBeforeClosingWindow && count >= MIN_TABS) {
-    const { confirmed, suppressed } = await confirm({ ...closeWindowDialog(windowId), suppression: "Don’t ask me again", windowId });
-    if (suppressed) useBrowser.getState().updateSettings({ warnBeforeClosingWindow: false });
-    if (!confirmed) return;
-  }
+  const { decision, suppressWarning } = await decideWindowClose(windowId);
+  if (suppressWarning) useBrowser.getState().updateSettings({ warnBeforeClosingWindow: false });
+  if (decision === "cancel") return;
   closeWindowAnimated(windowId);
+}
+
+export type CloseAsk = typeof confirm;
+export type WindowCloseDecision = { decision: "allow" | "cancel"; suppressWarning: boolean };
+
+const allow = (): WindowCloseDecision => ({ decision: "allow", suppressWarning: false });
+
+async function askToClose(windowId: string, ask: CloseAsk): Promise<WindowCloseDecision> {
+  const { confirmed, suppressed } = await ask({ ...closeWindowDialog(windowId), suppression: "Don’t ask me again", windowId });
+  return { decision: confirmed ? "allow" : "cancel", suppressWarning: suppressed };
+}
+
+export async function decideWindowClose(windowId: string, ask: CloseAsk = confirm): Promise<WindowCloseDecision> {
+  const s = useBrowser.getState();
+  if (!s.settings.warnBeforeClosingWindow || closingTabs(windowId).length < MIN_TABS) return allow();
+  return askToClose(windowId, ask);
+}
+
+export async function decideLastTabClose(windowId: string, ask: CloseAsk = confirm): Promise<WindowCloseDecision> {
+  const s = useBrowser.getState();
+  const w = s.windows[windowId];
+  if (!w || !s.settings.warnBeforeClosingLastTab || w.kind === "private") return allow();
+  return askToClose(windowId, ask);
 }
 
 const closingTabs = (windowId: string) => {

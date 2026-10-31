@@ -1,0 +1,46 @@
+--- a/chrome/common/extensions/api/_manifest_features.json
++++ b/chrome/common/extensions/api/_manifest_features.json
+@@ -18,7 +18,7 @@
+   "chrome_settings_overrides": {
+     "channel": "stable",
+     "extension_types": ["extension"],
+-    "platforms": ["win", "mac"]
++    "platforms": ["win", "mac", "linux"]
+   },
+   "file_browser_handlers": {
+     "channel": "stable",
+--- a/chrome/browser/extensions/api/settings_overrides/settings_overrides_api.cc
++++ b/chrome/browser/extensions/api/settings_overrides/settings_overrides_api.cc
+@@ -14,6 +14,7 @@
+ #include "base/logging.h"
+ #include "base/strings/string_util.h"
+ #include "base/strings/utf_string_conversions.h"
++#include "build/build_config.h"
+ #include "chrome/browser/prefs/session_startup_pref.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/search_engine_choice/search_engine_choice_service_factory.h"
+@@ -187,6 +188,7 @@
+   if (settings) {
+     std::string install_parameter =
+         GetInstallParam(ExtensionPrefs::Get(profile_), extension->id());
++#if !BUILDFLAG(IS_LINUX)
+     if (settings->homepage) {
+       SetPref(extension->id(), prefs::kHomePage,
+               base::Value(SubstituteInstallParam(settings->homepage->spec(),
+@@ -194,6 +196,8 @@
+       SetPref(extension->id(), prefs::kHomePageIsNewTabPage,
+               base::Value(false));
+     }
++#endif
++#if !BUILDFLAG(IS_LINUX)
+     if (!settings->startup_pages.empty()) {
+       SetPref(extension->id(), prefs::kRestoreOnStartup,
+               base::Value(SessionStartupPref::kPrefValueURLs));
+@@ -208,6 +212,7 @@
+       SetPref(extension->id(), prefs::kURLsToRestoreOnStartup,
+               base::Value(std::move(url_list)));
+     }
++#endif
+     if (settings->search_engine) {
+       // Bring the preference to the correct state. Before this code set it
+       // to "true" for all search engines. Thus, we should overwrite it for

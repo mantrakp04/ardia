@@ -1,0 +1,39 @@
+{
+  "name": "@ardia/linux",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p .",
+    "test:host": "node --experimental-strip-types --import ./scripts/host-test-loader.mjs --test src/host.test.mjs src/hostContract.test.mjs src/hostTabReplacement.test.mjs src/liveDocuments.test.mjs src/livePersistenceBinding.test.mjs src/liveCompletionPersistence.test.mjs src/hostDocumentTransport.test.mjs src/windowCloseLifecycle.test.mjs src/hostSessionMerge.test.mjs src/hostSessionSync.test.mjs src/session.test.mjs src/settingsWindows.test.mjs src/hostViewport.test.mjs src/hostViewportPresentation.test.mjs src/shortcuts.test.mjs src/hostDialogs.test.mjs src/hostDialogConsumers.test.mjs src/hostProfiles.test.mjs src/windowLifecycle.test.mjs src/hostDownloads.test.mjs src/hostPrivateWindows.test.mjs src/windowMenu.test.mjs src/hostFiles.test.mjs src/fileDrop.test.mjs src/hostPageCommands.test.mjs src/suggestionCsp.test.mjs src/hostSuggestions.test.mjs src/hostCapabilities.test.mjs src/settingsCapabilities.test.mjs src/appServices.test.mjs src/browserCommandRoute.test.mjs src/hostPageEvents.test.mjs src/hostTabPage.test.mjs src/hostCredentials.test.mjs src/hostExtensions.test.mjs src/extensionsStore.test.mjs src/hostSiteControls.test.mjs src/hostImport.test.mjs src/importUnlock.test.mjs src/hostPageStatus.test.mjs src/hostMedia.test.mjs src/linuxWording.test.mjs src/windowSweep.test.mjs src/typeahead.test.mjs src/mountLayout.test.mjs src/profilePaging.test.mjs src/shellMethods.test.mjs src/hostFolders.test.mjs src/extensionPrompts.test.mjs src/hostSync.test.mjs src/pageOperations.test.mjs src/hostPolicies.test.mjs src/quit.test.mjs src/hostLive.test.mjs src/hostCalendar.test.mjs src/calendarIcs.test.mjs src/hostExtensionScripts.test.mjs src/installRequestSheet.test.mjs src/utilityExtensions.test.mjs src/windowDrag.test.mjs src/hostHistoryImports.test.mjs src/popoverEscape.test.mjs src/entryOrder.test.mjs src/unclaimedTabs.test.mjs src/appMenu.test.mjs",
+    "test:symbols": "node --experimental-strip-types --test src/shims/web/symbols/render.test.mjs",
+    "test:graph": "node --test scripts/module-graph.test.mjs",
+    "fixture:csp": "node scripts/host-csp-fixture.mjs",
+    "fixture:csp:check": "node scripts/host-csp-check.mjs",
+    "acceptance": "node scripts/acceptance/run.mjs",
+    "acceptance:self-test": "node --test --test-concurrency=1 scripts/acceptance/tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@ardia/core": "workspace:*",
+    "@ardia/ardiacore": "workspace:*",
+    "@ardia/import": "workspace:*",
+    "@ardia/shaders": "workspace:*",
+    "@ardia/shell": "workspace:*",
+    "@ardia/sync": "workspace:*",
+    "react": "19.1.4",
+    "react-dom": "19.1.4",
+    "react-native-web": "^0.21.1",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.10",
+    "@types/react-dom": "~19.1.7",
+    "@vitejs/plugin-react": "^5.0.4",
+    "rollup-plugin-visualizer": "^6.0.4",
+    "typescript": "~5.9.2",
+    "vite": "^7.1.9"
+  }
+}

@@ -1,0 +1,24 @@
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -5672,9 +5672,21 @@
+   }
+ }
+ 
++#if BUILDFLAG(IS_LINUX)
++extern void (*g_ardia_linux_navigation_throttles)(
++    content::NavigationThrottleRegistry& registry);
++void (*g_ardia_linux_navigation_throttles)(
++    content::NavigationThrottleRegistry& registry) = nullptr;
++#endif
++
+ void ChromeContentBrowserClient::CreateThrottlesForNavigation(
+     content::NavigationThrottleRegistry& registry) {
+   CreateAndAddChromeThrottlesForNavigation(registry);
++#if BUILDFLAG(IS_LINUX)
++  if (g_ardia_linux_navigation_throttles) {
++    g_ardia_linux_navigation_throttles(registry);
++  }
++#endif
+ }
+ 
+ void ChromeContentBrowserClient::CreateThrottlesForCommitWithoutUrlLoader(

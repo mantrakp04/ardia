@@ -1,0 +1,32 @@
+--- a/chrome/browser/ui/navigator/browser_navigator.cc
++++ b/chrome/browser/ui/navigator/browser_navigator.cc
+@@ -112,6 +112,11 @@
+ using content::WebContents;
+ using WebExposedIsolationLevel = content::WebExposedIsolationLevel;
+ 
++#if BUILDFLAG(IS_LINUX)
++bool (*g_ardia_linux_off_the_record_navigation)(WebContents* source,
++                                                 const GURL& url) = nullptr;
++#endif
++
+ namespace {
+ 
+ struct AdditionalParams {
+@@ -781,6 +786,17 @@
+         params->browser->GetTabStripModel()->GetActiveWebContents();
+   }
+ 
++#if BUILDFLAG(IS_LINUX)
++  if (params->disposition == WindowOpenDisposition::OFF_THE_RECORD &&
++      !params->contents_to_insert && params->source_contents &&
++      !params->is_renderer_initiated && params->user_gesture &&
++      g_ardia_linux_off_the_record_navigation &&
++      g_ardia_linux_off_the_record_navigation(params->source_contents,
++                                              params->url)) {
++    return nullptr;
++  }
++#endif
++
+   WebContents* contents_to_navigate_or_insert =
+       params->contents_to_insert.get();
+   if (params->switch_to_singleton_tab) {

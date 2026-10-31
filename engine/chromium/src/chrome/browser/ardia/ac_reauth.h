@@ -13,6 +13,8 @@ class Profile;
 
 namespace ardia {
 
+bool ReauthAvailable();
+
 void Reauth(Profile* profile,
             device_reauth::DeviceAuthSource source,
             const std::u16string& purpose,
