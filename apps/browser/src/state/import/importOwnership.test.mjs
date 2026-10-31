@@ -30,7 +30,7 @@ globalThis.acTestNativeModules = {
 const api = await import("@ardia/import");
 globalThis.require = () => api;
 const { useBrowser } = await import("../browser/store.ts");
-const { importNow, patchImport } = await import("./flow.ts");
+const { importNow, patchImport, setImportTarget, backTo } = await import("./flow.ts");
 const { runImport, unlockAndImport } = await import("./runImport.ts");
 const { importSafariDirect, importSafariExport } = await import("./fileImports.ts");
 const S = () => useBrowser.getState();
@@ -183,4 +183,50 @@ for (const useDefault of [false, true]) test(`unlock still imports into an uncha
   assert.deepEqual(writes, [{ token: "vault", profile: engine }]);
   assert.deepEqual(passwords, [engine, engine]);
   assert.deepEqual(importNow().step.notes, []);
+});
+
+test("selecting another Space while unlocking stops the old import before reading data", async () => {
+  const { other } = setup();
+  const next = S().createSpace({ name: "New destination", profileId: other });
+  const started = deferred(), gate = deferred();
+  let reads = 0;
+  unlock = async () => { started.resolve(); await gate.promise; };
+  read = async () => { reads++; return { ...result(), credentials }; };
+  patchImport({ kinds: new Set(["cookies", "passwords"]), step: { name: "unlock", unlocking: false, error: null } });
+  const pending = unlockAndImport();
+  await started.promise; backTo("profiles"); setImportTarget(next); gate.resolve(); await pending;
+  assert.deepEqual(writes, []); assert.deepEqual(passwords, []); assert.equal(reads, 0);
+  await assertStopped();
+});
+
+for (const change of ["reassign", "select-space", "delete-profile"]) test(`a failed source read retains the destination warning after ${change}`, async () => {
+  const { owner, other, target } = setup();
+  const started = deferred(), gate = deferred();
+  read = async () => { started.resolve(); await gate.promise; throw new Error("Unreadable source"); };
+  const pending = runImport(new Set(["cookies"]));
+  await started.promise;
+  if (change === "reassign") S().assignSpaceProfile(target, other);
+  else if (change === "delete-profile") S().deleteProfile(owner, other);
+  else setImportTarget(S().createSpace({ name: "New destination", profileId: other }));
+  gate.resolve(); await pending;
+  assert.deepEqual(writes, []); assert.deepEqual(passwords, []);
+  await assertStopped();
+  assert.deepEqual(importNow().step.extensions, { profileId: "", list: [], opened: false });
+});
+
+for (const phase of ["native", "password", "listing"]) test(`a new target selection stops the captured operation during ${phase}`, async () => {
+  const { owner, other } = setup();
+  const next = S().createSpace({ name: "New destination", profileId: other });
+  const started = deferred(), gate = deferred();
+  read = async () => ({ ...result(), credentials });
+  const wait = async () => { started.resolve(); await gate.promise; };
+  if (phase === "native") write = wait;
+  if (phase === "password") save = wait;
+  if (phase === "listing") list = async () => { await wait(); return [{ id: "fixture-extension", name: "Fixture" }]; };
+  const pending = runImport(new Set(["cookies", "passwords"]));
+  await started.promise; setImportTarget(next); gate.resolve(); await pending;
+  assert.deepEqual(writes, [{ token: "vault", profile: owner }]);
+  assert.deepEqual(passwords, Array(phase === "native" ? 0 : phase === "password" ? 1 : 2).fill(owner));
+  await assertStopped();
+  assert.deepEqual(importNow().step.extensions, { profileId: "", list: [], opened: false });
 });

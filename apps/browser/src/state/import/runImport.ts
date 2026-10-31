@@ -110,6 +110,7 @@ function importAppTabs(dest: string, tabs: AppTabs, profiles: BrowserProfile[], 
 export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = false, targetOwner: ImportDestination | null = importDestination(importNow().target)) {
   const { source, sourceProfiles, spaces } = importNow();
   if (!source) return;
+  const targetIsCurrent = () => targetOwner !== null && targetOwner.current() && importNow().target === targetOwner.spaceId;
   const api = importModule();
   const signal = importSignal();
   const bySpaces = importsBySpaces(source);
@@ -139,19 +140,21 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
       extensions: NO_EXTENSIONS,
     });
   };
-  if (!targetOwner?.current()) return destinationChanged();
+  if (!targetIsCurrent()) return destinationChanged();
   const appTabs = fromApp.length ? readAppTabs() : null;
   if (source.family === "firefox" && requested.includes("passwords") && !api.isBrowserUnlocked(source.id)) {
     await api.unlockBrowser(source.id).catch(orWarn(undefined));
   }
 
   for (const profile of selected) {
+    if (!targetIsCurrent()) return destinationChanged();
     let owner = destinationIndex === 0 ? targetOwner : null;
     let assigned = owner?.profileId ?? "";
     const profileForImport = () => assigned ||= createProfile({ name: profile.name });
     const nextDestination = async (name: string, color?: string, emoji?: string) => {
-      if ((destinationIndex === 0 && !targetOwner?.current()) || (owner && !owner.current())) return null;
-      const dest = await destination(targetOwner, destinationIndex++, name, color, emoji, profileForImport());
+      if (!targetIsCurrent() || (owner && !owner.current())) return null;
+      const chosen = await destination(targetOwner, destinationIndex++, name, color, emoji, profileForImport());
+      const dest = chosen && { ...chosen, current: () => targetIsCurrent() && chosen.current() };
       owner ??= dest;
       return dest?.current() ? dest : null;
     };
@@ -223,7 +226,7 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
   }
   const appTabsResult = appTabs && (await appTabs);
   if (signal.aborted) return;
-  if (extensionsDestination && !extensionsDestination.current()) return destinationChanged();
+  if (!targetIsCurrent() || (extensionsDestination && !extensionsDestination.current())) return destinationChanged();
   if (appTabsResult) {
     const note = "note" in appTabsResult ? appTabsResult.note : null;
     if (note) left.push(note);
