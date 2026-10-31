@@ -77,6 +77,7 @@ export function useSuggestions({
   const suggestionsOn = useSettings((st) => st.searchSuggestions);
   const extensions = useBarExtensions(windowId);
   const shortcuts = useSettings((st) => st.shortcuts);
+  const quickActions = useSettings((st) => st.quickActions);
   const menuBar = useMenuBarRevision();
 
   const tabs = useMemo(() => Object.values(allTabs).filter((t) => t.profileId === profileId), [allTabs, profileId]);
@@ -129,6 +130,7 @@ export function useSuggestions({
       scope,
       preventInline,
       bangs,
+      quickActions,
     });
-  }, [active, text, query, source, engine, preference, remoteList, windowId, extensions, shortcuts, menuBar, currentTabId, currentUrl, scope, preventInline, bangs]);
+  }, [active, text, query, source, engine, preference, remoteList, windowId, extensions, shortcuts, menuBar, currentTabId, currentUrl, scope, preventInline, bangs, quickActions]);
 }

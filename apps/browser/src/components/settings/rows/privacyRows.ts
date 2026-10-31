@@ -89,6 +89,10 @@ export const privacyRows = {
       section: "Other search engines",
       rows: { otherEngines: { advanced: true, title: "Other search engines", description: "Type a shortcut and press Tab in the command bar to search a site directly.", keywords: ["custom search", "site search", "keyword"] } },
     },
+    {
+      section: "Quick actions",
+      rows: { quickActions: { title: "Quick actions", description: "Type a keyword in the command bar and press Return to open its URL.", keywords: ["keyword", "shortcut", "bookmark keyword", "custom command"] } },
+    },
     { section: "Suggestions", rows: { suggestions: { title: "Show search suggestions", description: "Sends what you type to your search engine to suggest searches.", keywords: ["autocomplete"] } } },
     {
       section: "Text selection",

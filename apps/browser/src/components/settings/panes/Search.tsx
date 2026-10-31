@@ -1,11 +1,20 @@
-import { engineHost, type SearchEngine } from "@ardia/core";
+import { displayUrl, engineHost, type QuickAction, type SearchEngine } from "@ardia/core";
 import { Symbol, Button, font, Sheet, TextField, Toggle } from "../../ui";
 import { useState } from "react";
 import { Text, View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { useSettings } from "../../../state/browser/hooks";
 import { currentEngineProfile, currentProfileOrder } from "../../../state/browser/current";
-import { addCustomEngine, removeCustomEngine, setSearchEngine, updateCustomEngine, updateSettings } from "../../../state/settings/actions";
+import {
+  addCustomEngine,
+  addQuickAction,
+  removeCustomEngine,
+  removeQuickAction,
+  setSearchEngine,
+  updateCustomEngine,
+  updateQuickAction,
+  updateSettings,
+} from "../../../state/settings/actions";
 import { controllingSearchExtension, defaultSearchEngine, searchEngines } from "../../../state/settings/settings";
 import { extensionsProfileId, setEnabled } from "../../../state/extensions/actions";
 import { Favicon } from "../../favicon/Favicon";
@@ -23,6 +32,7 @@ export function SearchPane() {
   const selectedId = useSettings((s) => defaultSearchEngine(s).id);
   const controlling = useSettings(controllingSearchExtension);
   const suggestions = useSettings((s) => s.searchSuggestions);
+  const quickActions = useSettings((s) => s.quickActions);
   const theme = useTheme();
   const builtIn = engines.filter((e) => !e.custom && !e.extension);
   const custom = engines.filter((e) => e.custom);
@@ -70,6 +80,15 @@ export function SearchPane() {
           </Group>
         </>
       )}
+
+      <SectionHeader anchor="search.quickActions" action={<Button title="Add…" icon="plus" onPress={() => showSettingsSheet(<QuickActionSheet />)} />} />
+      <Group of="search.quickActions">
+        {quickActions.length === 0 ? (
+          <Row title="No quick actions" description="Add a keyword, such as “open github”, and the URL it opens." />
+        ) : (
+          quickActions.map((a) => <QuickActionRow key={a.id} action={a} />)
+        )}
+      </Group>
 
       <SectionHeader title="Suggestions" />
       <Group>
@@ -156,6 +175,63 @@ function EngineSheet({ engine }: { engine?: SearchEngine }) {
       >
         <Button title="Cancel" onPress={closeSettingsSheet} />
         <Button title={engine ? "Save" : "Add"} kind="primary" onPress={save} />
+      </SheetActions>
+    </Sheet>
+  );
+}
+
+function QuickActionRow({ action }: { action: QuickAction }) {
+  return (
+    <Row icon={<Favicon url={action.url} />} title={action.keyword} description={displayUrl(action.url)}>
+      <Button variant="icon" icon="pencil" size={11} box={24} radius={6} onPress={() => showSettingsSheet(<QuickActionSheet action={action} />)} tooltip="Edit" />
+    </Row>
+  );
+}
+
+function QuickActionSheet({ action }: { action?: QuickAction }) {
+  const theme = useTheme();
+  const [keyword, setKeyword] = useState(action?.keyword ?? "");
+  const [url, setUrl] = useState(action?.url ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const save = () => {
+    const input = { keyword, url };
+    let result: string | null;
+    if (action) result = updateQuickAction(action.id, input);
+    else {
+      const added = addQuickAction(input);
+      result = "error" in added ? added.error : null;
+    }
+    if (result) return setError(result);
+    closeSettingsSheet();
+  };
+  const field = (label: string, value: string, set: (v: string) => void, placeholder: string) => (
+    <View style={{ marginTop: 12 }}>
+      <Text style={{ ...font.footnote, marginBottom: 5, color: theme.textSecondary }}>{label}</Text>
+      <TextField value={value} onChangeText={set} placeholder={placeholder} onSubmit={save} onEscape={closeSettingsSheet} />
+    </View>
+  );
+  return (
+    <Sheet width={440} onClose={closeSettingsSheet}>
+      <SheetTitle>{action ? "Edit Quick Action" : "Add Quick Action"}</SheetTitle>
+      {field("Keyword", keyword, setKeyword, "open github")}
+      {field("URL", url, setUrl, "https://github.com")}
+      {error && <Text style={{ ...font.small, marginTop: 10, color: theme.destructive }}>{error}</Text>}
+      <SheetActions
+        destructive={
+          action ? (
+            <Button
+              title="Delete"
+              kind="destructive"
+              onPress={() => {
+                removeQuickAction(action.id);
+                closeSettingsSheet();
+              }}
+            />
+          ) : null
+        }
+      >
+        <Button title="Cancel" onPress={closeSettingsSheet} />
+        <Button title={action ? "Save" : "Add"} kind="primary" onPress={save} />
       </SheetActions>
     </Sheet>
   );

@@ -9,6 +9,7 @@ export * from "./fuzzy.ts";
 export * from "./idn.ts";
 export * from "./omnibox.ts";
 export * from "./openTabs.ts";
+export * from "./quickActions.ts";
 export * from "./quickCreate.ts";
 export * from "./siteSearch.ts";
 export * from "./suggest.ts";
