@@ -14,13 +14,17 @@ test("CLI pins read production v10 sessions across loaded, sleeping and parked p
   const stop = startPersistence();
   const directory = mkdtempSync(join(tmpdir(), "ardia-cli-pins-"));
   const S = () => useBrowser.getState();
+  const python = process.env.ARDIA_CLI_TEST_PYTHON || "python3";
   const read = () => {
     flushPersistence();
     const json = docs.get("session.json");
     assert.equal(JSON.parse(json).version, 10);
     writeFileSync(join(directory, "session.json"), json);
-    return JSON.parse(execFileSync("python3", ["-c", `
+    let rows;
+    try { rows = execFileSync(python, ["-c", `
 import json, sys
+if sys.version_info < (3, 10):
+    raise SystemExit('Python 3.10 or newer is required for the CLI session test.')
 from pathlib import Path
 from unittest.mock import patch
 sys.path.insert(0, sys.argv[1])
@@ -28,7 +32,9 @@ from ardia_cli import browsing
 root = Path(sys.argv[2])
 with patch.object(browsing, 'checked_root', return_value=root):
     print(json.dumps(browsing.pinned(root)))
-`, fileURLToPath(new URL("../../../../cli/", import.meta.url)), directory], { encoding: "utf8", timeout: 10000 }));
+`, fileURLToPath(new URL("../../../../cli/", import.meta.url)), directory], { encoding: "utf8", timeout: 10000 }); }
+    catch (error) { throw new Error("CLI session test needs Python 3.10 or newer. Set ARDIA_CLI_TEST_PYTHON to that interpreter.", { cause: error }); }
+    return JSON.parse(rows);
   };
   try {
     const window = S().createWindow({ url: "https://mail.test/" });

@@ -3,9 +3,17 @@ import { test } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 
 const writes = [], passwords = [], discarded = [];
-let read, write, save, unlock;
+let read, write, save, unlock, list;
 const result = () => ({ failed: [], warnings: [], profile: { name: "Imported" }, tabs: [], favorites: [], spaces: [], favicons: [], history: [], credentials: [], vaultToken: "vault" });
 const credentials = [1, 2].map((n) => ({ url: `https://login${n}.test/`, username: "user", password: "fixture-secret" }));
+const profileData = {
+  bookmarks: { type: "folder", title: "root", children: [{ type: "folder", role: "toolbar", title: "Bookmarks", children: [{ type: "url", title: "Imported bookmark", url: "https://imported-bookmark.test/" }] }] },
+  history: [{ url: "https://imported-history.test/", title: "Imported history", visits: 1, lastVisit: 1 }],
+};
+const importedData = () => ({
+  bookmarks: Object.values(S().bookmarks.nodes).some((n) => n.url === "https://imported-bookmark.test/"),
+  history: Object.values(S().history).some((h) => h.list.some((entry) => entry.url === "https://imported-history.test/")),
+});
 globalThis.acTestNativeModules = {
   ArdiaImport: {
     addListener: () => ({ remove() {} }),
@@ -15,7 +23,7 @@ globalThis.acTestNativeModules = {
     unlockBrowser: async () => unlock(),
     writeImported: async (token, profile) => { writes.push({ token, profile }); await write(); return JSON.stringify({ cookies: 1 }); },
     discardImported: (token) => discarded.push(token),
-    listExtensions: async () => "[]", forgetUnlockedKeys() {},
+    listExtensions: async () => JSON.stringify(await list()), forgetUnlockedKeys() {},
   },
   ArdiaPasswords: { save: async (profile) => { passwords.push(profile); await save(); return JSON.stringify({ ok: true }); } },
 };
@@ -30,12 +38,14 @@ const deferred = () => { let resolve; const promise = new Promise((r) => { resol
 
 function setup() {
   S().hydrate({});
+  useBrowser.setState({ bookmarks: { nodes: {} }, bookmarksReady: {}, history: {} });
   writes.length = passwords.length = discarded.length = 0;
   read = async () => result(); write = save = unlock = async () => {};
+  list = async () => [];
   const owner = S().createProfile({ name: "Import destination" });
   const other = S().createProfile({ name: "Other identity" });
   const target = S().createSpace({ name: "Import here", profileId: owner });
-  const source = { id: "chrome", family: "chromium", name: "Chrome", profiles: [{ id: "source", name: "Source", isDefault: true, available: ["cookies", "passwords"] }] };
+  const source = { id: "chrome", family: "chromium", name: "Chrome", profiles: [{ id: "source", name: "Source", isDefault: true, available: ["cookies", "passwords", "bookmarks", "history"] }] };
   patchImport({ source, sourceProfiles: ["source"], spaces: [], target });
   return { owner, other, target };
 }
@@ -50,12 +60,14 @@ for (const useDefault of [false, true]) test(`an unchanged destination imports c
   const { owner } = setup();
   if (useDefault) patchImport({ target: "default" });
   const engine = useDefault ? "" : owner;
-  read = async () => ({ ...result(), credentials });
-  await runImport(new Set(["cookies", "passwords"]));
+  read = async () => ({ ...result(), ...profileData, credentials });
+  await runImport(new Set(["cookies", "passwords", "bookmarks", "history"]));
   await delay(1);
   assert.deepEqual(writes, [{ token: "vault", profile: engine }]);
   assert.deepEqual(passwords, [engine, engine]);
   assert.equal(importNow().step.counts.passwords, 2);
+  assert.equal(importNow().step.counts.bookmarks, 1);
+  assert.equal(importNow().step.counts.history, 1);
   assert.deepEqual(importNow().step.notes, []);
 });
 
@@ -74,16 +86,49 @@ for (const change of ["reassign", "delete-profile", "delete-space"]) test(`impor
   await assertStopped();
 });
 
-test("an in-flight native import cannot redirect later passwords into another Profile", async () => {
+for (const [name, entry] of [["browser", () => runImport(new Set(["cookies", "passwords", "bookmarks", "history"]))], ["Safari", importSafariDirect], ["Safari export", () => importSafariExport("fixture.zip")]])
+for (const change of ["reassign", "delete-profile"]) test(`an in-flight ${name} native import cannot redirect later passwords after ${change}`, async () => {
   const { owner, other, target } = setup();
   const started = deferred(), gate = deferred();
-  read = async () => ({ ...result(), credentials });
+  read = async () => ({ ...result(), ...profileData, credentials, profiles: [{ history: profileData.history }] });
   write = async () => { started.resolve(); await gate.promise; };
-  const pending = runImport(new Set(["cookies", "passwords"]));
-  await started.promise; S().assignSpaceProfile(target, other); gate.resolve(); await pending;
+  const pending = entry();
+  await started.promise;
+  const before = importedData();
+  if (change === "reassign") S().assignSpaceProfile(target, other);
+  else S().deleteProfile(owner, other);
+  gate.resolve(); await pending;
+  assert.deepEqual(before, { bookmarks: false, history: false });
+  assert.deepEqual(importedData(), { bookmarks: false, history: false });
   assert.deepEqual(writes, [{ token: "vault", profile: owner }]);
   assert.deepEqual(passwords, []);
   await assertStopped();
+});
+
+for (const change of ["reassign", "delete-profile"]) test(`extension listing cannot offer actions after ${change}`, async () => {
+  const { owner, other, target } = setup();
+  const started = deferred(), gate = deferred();
+  list = async () => { started.resolve(); await gate.promise; return [{ id: "fixture-extension", name: "Fixture" }]; };
+  const pending = runImport(new Set(["cookies"]));
+  await started.promise;
+  if (change === "reassign") S().assignSpaceProfile(target, other);
+  else S().deleteProfile(owner, other);
+  gate.resolve(); await pending;
+  await assertStopped();
+  assert.deepEqual(importNow().step.extensions, { profileId: "", list: [], opened: false });
+});
+
+test("later source imports cannot retain an extension action for a changed earlier destination", async () => {
+  const { other, target } = setup();
+  const profiles = ["one", "two"].map((id) => ({ id, name: id, isDefault: id === "one", available: ["cookies"] }));
+  patchImport({ source: { id: "chrome", family: "chromium", name: "Chrome", profiles }, sourceProfiles: profiles.map((p) => p.id) });
+  const started = deferred(), gate = deferred();
+  let calls = 0;
+  list = async () => { if (++calls === 2) { started.resolve(); await gate.promise; } return [{ id: "fixture-extension", name: "Fixture" }]; };
+  const pending = runImport(new Set(["cookies"]));
+  await started.promise; S().assignSpaceProfile(target, other); gate.resolve(); await pending;
+  await assertStopped();
+  assert.deepEqual(importNow().step.extensions, { profileId: "", list: [], opened: false });
 });
 
 for (const change of ["reassign", "delete-profile"]) test(`password writes stop between credentials after ${change}`, async () => {

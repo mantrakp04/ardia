@@ -246,11 +246,11 @@ export async function applyResult(
   }
   const toolbar = (result.bookmarks?.children ?? []).filter((c) => c.role === "toolbar");
   importFavicons(spaceId, result.favicons, [...result.favorites.map((t) => t.url), ...(result.spaces.length ? [] : result.tabs.map((t) => t.url)), ...linksOf(toolbar)]);
-  counts.bookmarks += importBookmarks(spaceId, result.bookmarks, browserName);
-  if (result.history.length) counts.history += importHistory(spaceId, result.history);
   const native = (["cookies", "autofill"] as const).filter((k) => requested.includes(k));
   Object.assign(counts, await importNative(spaceId, result.vaultToken, native, onFailed, destination));
   if (!destination.current()) { requested.forEach((k) => onFailed?.(k)); return counts; }
+  counts.bookmarks += importBookmarks(spaceId, result.bookmarks, browserName);
+  if (result.history.length) counts.history += importHistory(spaceId, result.history);
   if (result.tabs.length && !result.spaces.length) counts.tabs += importTabs(spaceId, result.tabs, "Imported");
   if (result.favorites.length) counts.tabs += importTabs(spaceId, result.favorites.map((t) => ({ ...t, pinned: true })), null, "tiles");
   if (result.credentials.length) counts.passwords += await importPasswords(destination, result.credentials, onFailed);
@@ -265,11 +265,11 @@ export async function applySafari(spaceId: string, data: SafariExport, cookies =
     requested.forEach((k) => onFailed?.(k));
     return counts;
   }
+  Object.assign(counts, await importNative(spaceId, data.vaultToken, cookies ? ["cookies", "autofill"] : ["autofill"], onFailed, destination));
+  if (!destination.current()) { requested.forEach((k) => onFailed?.(k)); return counts; }
   counts.bookmarks = importBookmarks(spaceId, data.bookmarks, "Safari");
   const history = data.profiles.find((p) => !p.name)?.history ?? data.profiles[0]?.history ?? [];
   counts.history = importHistory(spaceId, history);
-  Object.assign(counts, await importNative(spaceId, data.vaultToken, cookies ? ["cookies", "autofill"] : ["autofill"], onFailed, destination));
-  if (!destination.current()) { requested.forEach((k) => onFailed?.(k)); return counts; }
   if (data.tabs.length) counts.tabs += importTabs(spaceId, data.tabs, "Imported");
   counts.passwords = await importPasswords(destination, data.credentials, onFailed);
   return counts;
