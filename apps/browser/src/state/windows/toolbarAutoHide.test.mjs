@@ -29,6 +29,9 @@ function page({ range = 2000, height = 800 } = {}) {
     resize(viewport) {
       d.resized(viewport, now);
     },
+    wheel(deltaY) {
+      d.wheeled(deltaY, now);
+    },
   };
 }
 
@@ -101,6 +104,52 @@ test("a page that only scrolls a little once hidden still shows it going up", ()
   p.to(109, { viewport: 821, max: 109 });
   p.pause(400);
   for (let y = 105; y >= 80; y -= 5) p.to(y, { viewport: 821, max: 109 });
+  assert.deepEqual(p.sent, ["down", "up"]);
+});
+
+test("a bottom-pinned chat snapping back down after the bar shows doesn't hide it again (no loop)", () => {
+  const p = page({ range: 3000 });
+  for (let y = 20; y <= 3000; y += 20) {
+    p.wheel(20);
+    p.to(y);
+  }
+  assert.deepEqual(p.sent, ["down"]);
+  p.resize(821);
+  p.to(2979, { viewport: 821, max: 2979 });
+  p.pause();
+  for (let y = 2974; y >= 2950; y -= 3) {
+    p.wheel(-6);
+    p.to(y, { viewport: 821, max: 2979 });
+  }
+  assert.deepEqual(p.sent, ["down", "up"]);
+  p.resize(800);
+  p.wheel(-6);
+  p.to(3000);
+  for (let y = 2997; y >= 2985; y -= 3) {
+    p.wheel(-6);
+    p.to(y);
+  }
+  assert.deepEqual(p.sent, ["down", "up"]);
+});
+
+test("a chat re-pinning up after the bar hides doesn't show it while the wheel goes down (no loop)", () => {
+  const p = page({ range: 3000 });
+  for (let y = 20; y <= 2400; y += 20) {
+    p.wheel(20);
+    p.to(y);
+  }
+  assert.deepEqual(p.sent, ["down"]);
+  p.resize(821);
+  for (const y of [2420, 2440, 2425, 2429, 2433]) {
+    p.wheel(10);
+    p.to(y, { viewport: 821, max: 2979 });
+  }
+  assert.deepEqual(p.sent, ["down"]);
+  p.pause();
+  for (let y = 2428; y >= 2400; y -= 4) {
+    p.wheel(-8);
+    p.to(y, { viewport: 821, max: 2979 });
+  }
   assert.deepEqual(p.sent, ["down", "up"]);
 });
 

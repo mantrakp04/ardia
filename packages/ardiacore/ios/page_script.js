@@ -1197,6 +1197,7 @@
   const scrollDirection = () => {
     const DOWN = 24, UP = 12, MIN_RANGE = 120, SETTLE = 300, GESTURE = 300;
     let anchor = 0, last = 0, lastAt = -1e9, settleUntil = -1e9, budget = 0, height = 0, sent = null, gestureSent = false;
+    let wheelDir = 0, wheelAt = -1e9;
     const resized = (viewport, now) => {
       if (now >= settleUntil) budget = 0;
       if (height && viewport !== height) {
@@ -1209,6 +1210,11 @@
       resized,
       rebase(y) {
         anchor = last = y;
+      },
+      wheeled(deltaY, now) {
+        if (!deltaY) return;
+        wheelDir = Math.sign(deltaY);
+        wheelAt = now;
       },
       scrolled(y, range, viewport, now, user) {
         resized(viewport, now);
@@ -1224,9 +1230,10 @@
           budget -= absorbed;
           anchor += moved > 0 ? absorbed : -absorbed;
         }
+        const againstWheel = moved && now - wheelAt < GESTURE && Math.sign(moved) !== wheelDir;
         let state = null;
         if (y <= 2) state = "top";
-        else if (!user) anchor = y;
+        else if (!user || againstWheel) anchor = y;
         else if (y - anchor >= DOWN) {
           if (range >= MIN_RANGE) state = "down";
           else anchor = y;
@@ -1270,6 +1277,7 @@
     { passive: true, capture: true },
   );
   addEventListener("resize", () => direction.resized(innerHeight, performance.now()));
+  addEventListener("wheel", (e) => direction.wheeled(e.deltaY, performance.now()), { passive: true, capture: true });
 
   return receive;
 })
