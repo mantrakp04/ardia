@@ -1,10 +1,11 @@
 import { memo, useEffect, useId, useRef, useState } from "react";
-import { Animated, StyleSheet, View, type LayoutRectangle } from "react-native";
+import { Animated, Dimensions, StyleSheet, View, type LayoutRectangle } from "react-native";
 import { currentBookmarks } from "../../state/browser/current";
 import { useBookmarkProfileId, useBookmarkRoots, useBookmarks } from "../../state/bookmarks/hooks";
 import { useSettings, useWindowId } from "../../state/browser/hooks";
 import { dropLinksAt, linkDragAt, linkDragLeft, registerDropZone, useBarDrag } from "../../state/bookmarks/barDrag";
 import { roomOffsets, zoneHitAt } from "../../state/bookmarks/barDrop";
+import { barFit } from "../../state/bookmarks/barOverflow";
 import { openFolderMenu, toggleFolderMenu, useFolderMenus, type MenuRect } from "../../state/bookmarks/folderMenus";
 import type { Settings } from "../../state/settings/settings";
 import { ContextMenuArea, FileDropArea, space, Text, useTheme, type DropUpdate } from "../ui";
@@ -77,14 +78,8 @@ function Bar({ windowId }: { windowId: string }) {
   const [otherX, setOtherX] = useState<number | null>(null);
 
   const reserved = hasOther ? bookmarksBar.otherReserve : 0;
-  const available = width - reserved;
-  const lastFrame = frames[children.at(-1) ?? ""];
-  const overflowing = !!lastFrame && lastFrame.x + lastFrame.width > available;
-  const fits = (id: string) => {
-    const f = frames[id];
-    return !f || f.x + f.width <= available - (overflowing ? bookmarksBar.overflowWidth : 0);
-  };
-  const visible = children.filter(fits);
+  const available = (width || Dimensions.get("window").width) - reserved;
+  const { shown, visible } = barFit(children, frames, available, size.iconBox + size.itemGap, bookmarksBar.overflowWidth);
   const hiddenFrom = visible.length;
 
   const draggedHere = source?.kind === "bookmark" && visible.includes(source.id) ? source.id : null;
@@ -162,17 +157,19 @@ function Bar({ windowId }: { windowId: string }) {
             For quick access, place your bookmarks here on the bookmarks bar.
           </Text>
         ) : (
-          children.map((id) => (
-            <BarItem
-              key={id}
-              id={id}
-              windowId={windowId}
-              profileId={profileId}
-              hidden={!fits(id)}
-              offset={offsets[visible.indexOf(id)] ?? 0}
-              onLayout={(r) => setFrames((prev) => (sameRect(prev[id], r) ? prev : { ...prev, [id]: r }))}
-            />
-          ))
+          <View style={ITEMS}>
+            {shown.map((id, i) => (
+              <BarItem
+                key={id}
+                id={id}
+                windowId={windowId}
+                profileId={profileId}
+                hidden={i >= hiddenFrom}
+                offset={offsets[i] ?? 0}
+                onLayout={(r) => setFrames((prev) => (sameRect(prev[id], r) ? prev : { ...prev, [id]: r }))}
+              />
+            ))}
+          </View>
         )}
         <DropLine x={lineX} size={size} color={theme.accent} />
       </View>
@@ -249,5 +246,6 @@ const EMPTY: string[] = [];
 const sameRect = (a: LayoutRectangle | undefined, b: LayoutRectangle) => !!a && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
 
 const HINT = { marginLeft: space.xs } as const;
+const ITEMS = { position: "absolute", left: 0, top: 0, bottom: 0, flexDirection: "row", alignItems: "center" } as const;
 const OTHER = { flexDirection: "row", alignItems: "center" } as const;
 const DIVIDER = { width: StyleSheet.hairlineWidth * 2, height: bookmarksBar.dividerHeight, marginHorizontal: space.s } as const;
