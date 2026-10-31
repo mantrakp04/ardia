@@ -230,7 +230,7 @@ NSMapTable<ArdiaCoreTab *, NSNumber *> *FullScreenChanges() {
 
 - (void)updateSeen {
   if (![self occlusionActed] && [CFBridgingRelease(CGSessionCopyCurrentDictionary())[@"CGSSessionScreenIsLocked"] boolValue]) return;
-  const BOOL seen = _settling || [self windowVisible] || IsWindowFullScreen(_coreWindow.window);
+  const BOOL seen = _settling || [self windowVisible] || ((_tab || _entered) && IsWindowFullScreen(_coreWindow.window));
   if ([ArdiaLaunchConfig.shared traced:@"visibility"])
     NSLog(@"[ardiacore-vis] window %ld seen=%d (transitioning=%d settling=%d)", (long)_coreWindow.window.windowNumber, seen, _transitioning, _settling);
   if (seen == _seen) return;
@@ -262,6 +262,7 @@ NSMapTable<ArdiaCoreTab *, NSNumber *> *FullScreenChanges() {
     if (_tab) _leftTab = _tab;
     _tab = nil;
   }
+  [self updateSeen];
   ApplyFullScreenReveal(_coreWindow.window);
   _telling++;
   __weak ArdiaWindowFullScreen *weakSelf = self;
