@@ -270,7 +270,7 @@ string doesn't matter. Afterwards: `kill %1` for the server, quit the app, `rm -
 | Title fade at trailing edge | ✓ | ✅ | |
 | Favicons | ✓ | ✅ | per-profile cache on disk keyed by page URL and host, downloaded by the tab's own browser (no cookies); incognito icons in memory only; no third-party service; Dia's EmptyFavicon fallback (WP5) |
 | Tabs keep running in background | ✓ | ✅ | |
-| Move tab to profile | ✓ | ✅ | with Dia's one-time data-loss warning; the page reloads in the new profile and moves to its Chrome window (ledger 11) |
+| Move tab to profile | ✓ | ✅ | with Dia's one-time data-loss warning; the page reloads in the new profile and moves to its Chrome window (ledger 11). A shared Top App moved to a profile that shares its data doesn't reload: the window pages to that profile and its copy takes the same live page (see Share data between profiles) |
 | Workspace / companion tab | ✓ (agent tasks) | ⏸ | an AI surface: the companion panel belongs to a Chat task |
 | Copy URLs of selected tabs / all links as Markdown | ✓ | ✅ | |
 
