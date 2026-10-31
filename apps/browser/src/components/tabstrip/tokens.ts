@@ -20,6 +20,7 @@ export const PINNED_CELL = 34;
 export const PINNED_SPACING = 2;
 export const PINNED_FACE_INSET = 2;
 export const PINNED_FACE_RADIUS = 8;
+export const PINNED_RING_STROKE = 2;
 export const DOCK_GAP = 4.5;
 export const MIN_CHIP = 96;
 export const MAX_CHIP = 173;

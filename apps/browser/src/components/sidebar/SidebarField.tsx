@@ -2,6 +2,7 @@ import { memo } from "react";
 import { StyleSheet, View } from "react-native";
 import { Button, type IconPalette } from "../ui";
 import { useTheme } from "../ui/theme";
+import { GlassFill, useGlass } from "../ui/Glass";
 import { SIDEBAR_FIELD } from "./geometry";
 import { useSidebarTokens } from "./tokens";
 
@@ -18,6 +19,11 @@ export const SidebarFieldFill = memo(function SidebarFieldFill({
   hovered: boolean;
 }) {
   const theme = useTheme();
+  if (useGlass()) {
+    return (
+      <GlassFill state={hovered ? "lit" : "rest"} radius={SIDEBAR_FIELD.radius} />
+    );
+  }
   return (
     <View
       pointerEvents="none"

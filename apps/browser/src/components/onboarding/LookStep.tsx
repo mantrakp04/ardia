@@ -11,6 +11,7 @@ import { previewColor, previewLive, previewTheme, setOnboardingExtras, useOnboar
 import { keysOf } from "../../state/onboarding/questions";
 import { change, Page, useQuestion } from "./LayoutSteps";
 import { CheckRow, OptionRow } from "./Parts";
+import { Slider } from "../settings/ThemeControls";
 
 const LOOK_KEYS = keysOf("look");
 
@@ -22,6 +23,10 @@ const APPEARANCE_CHOICES: ChoiceOption<Settings["appearance"]>[] = [
 const SITE_COLOR_CHOICES: ChoiceOption<boolean>[] = [
   { value: true, preview: "sitecolor-on", title: "Take on the site's color", subtitle: "The tab bar blends into the page" },
   { value: false, preview: "sitecolor-off", title: "Keep my theme color", subtitle: "The same color on every site" },
+];
+const STYLE_CHOICES: ChoiceOption<Settings["interfaceStyle"]>[] = [
+  { value: "glass", preview: "style-glass", title: "Liquid Glass", subtitle: "Buttons and panels catch the light, as in macOS Tahoe" },
+  { value: "classic", preview: "style-classic", title: "Classic", subtitle: "Flat and quiet, as in Dia" },
 ];
 const SWITCHER_CHOICES: ChoiceOption<boolean>[] = [
   { value: false, preview: "switcher-dots", title: "Dots", subtitle: "A quiet row of dots, as in Dia" },
@@ -44,7 +49,7 @@ export function LookStep() {
   const [icons, setIcons] = useState<{ list: AppIcon[]; current: string | null }>({ list: [], current: null });
   const preview = <MockPanel settings={mock} focus={focus.focus} />;
   useEffect(() => {
-    previewLive({ appearance: values.appearance, extendWebsiteColor: values.extendWebsiteColor });
+    previewLive({ appearance: values.appearance, interfaceStyle: values.interfaceStyle, extendWebsiteColor: values.extendWebsiteColor });
     void Promise.all([appIcons(56), currentAppIcon()]).then(
       ([list, current]) => setIcons({ list, current }),
       () => {},
@@ -62,6 +67,32 @@ export function LookStep() {
         preview={preview}
       >
         <ChoiceList options={APPEARANCE_CHOICES} value={values.appearance} onChange={(appearance) => change({ appearance }, true)} mock={focus} />
+      </Page>
+    );
+  if (id === "style")
+    return (
+      <Page
+        id={id}
+        title="Glass or classic?"
+        subtitle="Change it any time in Settings › Appearance."
+        patch={{ interfaceStyle: values.interfaceStyle, glassTintWithTheme: values.glassTintWithTheme, glassTintAmount: values.glassTintAmount }}
+        picked={values.interfaceStyle === "classic" ? ["Classic style"] : values.glassTintWithTheme ? [`Glass tinted ${Math.round(values.glassTintAmount * 100)} %`] : []}
+        preview={preview}
+      >
+        <ChoiceList options={STYLE_CHOICES} value={values.interfaceStyle} onChange={(interfaceStyle) => change({ interfaceStyle }, true)} mock={focus} />
+        {values.interfaceStyle === "glass" ? (
+          <View style={{ gap: 10, marginTop: 18 }}>
+            <CheckRow
+              title="Tint the glass with your color"
+              subtitle="Buttons and fields take on your theme color"
+              value={values.glassTintWithTheme}
+              onChange={(glassTintWithTheme) => change({ glassTintWithTheme }, true)}
+            />
+            {values.glassTintWithTheme ? (
+              <Slider stacked label="Tint amount" value={values.glassTintAmount} onChange={(v) => change({ glassTintAmount: Math.round(v * 100) / 100 }, true)} />
+            ) : null}
+          </View>
+        ) : null}
       </Page>
     );
   if (id === "switcher")

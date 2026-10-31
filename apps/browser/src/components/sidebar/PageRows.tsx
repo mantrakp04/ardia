@@ -31,6 +31,7 @@ type PageRowsProps = {
   lazy: boolean;
   offScreen: boolean;
   tiles: string[];
+  underDockedTiles: boolean;
   innerWidth: number;
   inlineNewTab: boolean;
   controller: ReturnType<typeof useDragController>;
@@ -38,7 +39,9 @@ type PageRowsProps = {
   onListHeight: (height: number) => void;
 };
 
-export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, tiles, innerWidth, inlineNewTab, controller, geometry, onListHeight }: PageRowsProps) {
+const DOCKED_TILES_GAP = SCROLL_EDGE.gap + SCROLL_EDGE.line + SCROLL_EDGE.inset;
+
+export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, tiles, underDockedTiles, innerWidth, inlineNewTab, controller, geometry, onListHeight }: PageRowsProps) {
   const [captured] = useState(newCapture);
   const { list: all } = useCapturedSidebarEntries(windowId, profileId, captured);
   const [mountedRows, setMountedRows] = useState(() => firstPaintEntriesNow(windowId, profileId, all, lazy));
@@ -81,7 +84,7 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
             controller?.regions.set("pinnedGroups", v);
           }}
           onLayout={geometry ? (e) => void (geometry.current.regions.pinnedGroups = e.nativeEvent.layout.y) : undefined}
-          style={{ marginTop: tiles.length ? 6 : 0, gap: pinnedGap }}
+          style={{ marginTop: tiles.length && pinnedSection ? 6 : 0, gap: pinnedGap }}
         >
           {pinnedSection ? (
             <Fold
@@ -100,6 +103,7 @@ export function PageRows({ windowId, profileId, current, rows, lazy, offScreen, 
             windowId={windowId}
             profileId={profileId}
             spaced={pinnedSection}
+            lift={underDockedTiles && !pinnedSection && !isIncognitoProfile(profileId) ? DOCKED_TILES_GAP : 0}
             clear={clearable}
             tidy={tidy}
             pinned={pinnedSection ? { collapsed, open: pinnedFold.open } : null}

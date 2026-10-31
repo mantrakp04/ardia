@@ -206,7 +206,19 @@ export function Slider({
       }
     />
   );
-  if (stacked) return <Labelled label={label}>{track}</Labelled>;
+  if (stacked)
+    return (
+      <Labelled label={label}>
+        {children ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View style={{ flex: 1 }}>{track}</View>
+            {children}
+          </View>
+        ) : (
+          track
+        )}
+      </Labelled>
+    );
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
       <Text numberOfLines={1} style={{ width: LABEL, ...font.small, color: ui.textPrimary }}>{label}</Text>
@@ -215,6 +227,22 @@ export function Slider({
     </View>
   );
 }
+export function AmountSlider({ value, onChange, tooltip }: { value: number; onChange: (value: number, settle: boolean) => void; tooltip?: string }) {
+  const ui = useTheme();
+  return (
+    <Track
+      value={value}
+      onChange={onChange}
+      tooltip={tooltip}
+      bar={
+        <View style={{ height: 4, borderRadius: 2, backgroundColor: ui.switchOff, overflow: "hidden" }}>
+          <View style={{ width: `${value * 100}%`, height: 4, backgroundColor: ui.formAccent }} />
+        </View>
+      }
+    />
+  );
+}
+
 function Track({
   value,
   onChange,

@@ -12,6 +12,7 @@ import { MockPanel, useScreen } from "./Screen";
 import { setOnboardingDraft, setOnboardingExtras, useOnboarding } from "../../state/onboarding/onboarding";
 import { keysOf, useQuestions } from "../../state/onboarding/questions";
 import { CheckRow, SelectTile, useOnboardingColors } from "./Parts";
+import { useSiteRing } from "./GlassBacking";
 import { MONO, onboardingType, receiptStamp } from "./tokens";
 
 const KEYS = keysOf("searchPrivacy");
@@ -86,8 +87,9 @@ export function SearchPrivacyStep() {
 const TILE = (CONTENT_WIDTH - 8 * 3) / 4;
 
 function EngineTile({ title, url, selected, onPress }: { title: string; url: string; selected: boolean; onPress: () => void }) {
+  const ring = useSiteRing(url, selected);
   return (
-    <SelectTile title={title} width={TILE} height={64} gap={6} checkSize={12} selected={selected} role="radio" titleLines={1} onPress={onPress}>
+    <SelectTile title={title} width={TILE} height={64} gap={6} checkSize={12} selected={selected} role="radio" titleLines={1} ring={ring} onPress={onPress}>
       {() => <SiteLogo url={url} size={18} />}
     </SelectTile>
   );

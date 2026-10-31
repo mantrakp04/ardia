@@ -15,9 +15,9 @@ const SPACED_TOP = 7;
 
 type PinnedFold = { collapsed: boolean; open: Animated.Value };
 
-type DividerProps = { windowId: string; profileId: string; spaced: boolean; clear: boolean; tidy: boolean; pinned: PinnedFold | null };
+type DividerProps = { windowId: string; profileId: string; spaced: boolean; lift: number; clear: boolean; tidy: boolean; pinned: PinnedFold | null };
 
-export const ClearDivider = memo(function ClearDivider({ windowId, profileId, spaced, clear, tidy, pinned }: DividerProps) {
+export const ClearDivider = memo(function ClearDivider({ windowId, profileId, spaced, lift, clear, tidy, pinned }: DividerProps) {
   const theme = useTheme();
   const { hovered: shown, hoverProps } = useHover();
   const [lineWidth, setLineWidth] = useState(0);
@@ -30,7 +30,7 @@ export const ClearDivider = memo(function ClearDivider({ windowId, profileId, sp
         onLayout={(e) => setLineWidth(Math.max(0, e.nativeEvent.layout.width - 2 * PADDING))}
         style={{
           height: CLEAR_DIVIDER_HEIGHT,
-          marginTop: spaced ? SPACED_TOP : 0,
+          marginTop: spaced ? SPACED_TOP : -lift,
           marginBottom: spaced ? SPACED_TOP : 0,
           flexDirection: "row",
           alignItems: "center",

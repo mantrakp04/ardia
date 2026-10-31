@@ -1,9 +1,10 @@
 import { Pressable, View } from "react-native";
-import { PANEL, Symbol, Text, useHover, useTheme } from "../ui";
+import { GlassFill, PANEL, Symbol, Text, useGlass, useHover, useTheme } from "../ui";
 import { DOWNLOADS_LIST, downloadsRowFill } from "./tokens";
 
 export function FooterButton({ title, onPress }: { title: string; onPress: () => void }) {
   const theme = useTheme();
+  const glass = useGlass();
   const { hovered, hoverProps } = useHover();
   return (
     <View {...hoverProps} style={{ paddingHorizontal: PANEL.rowInset }}>
@@ -16,9 +17,10 @@ export function FooterButton({ title, onPress }: { title: string; onPress: () =>
               borderRadius: PANEL.rowRadius,
               flexDirection: "row",
               alignItems: "center",
-              backgroundColor: downloadsRowFill(theme, hovered, pressed),
+              backgroundColor: glass ? undefined : downloadsRowFill(theme, hovered, pressed),
             }}
           >
+            {glass && (hovered || pressed) ? <GlassFill radius={PANEL.rowRadius} state={pressed ? "pressed" : "lit"} /> : null}
             <Text tone={hovered ? "textPrimary" : "textSecondary"} style={{ flex: 1 }}>
               {title}
             </Text>

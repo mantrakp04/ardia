@@ -33,6 +33,9 @@ export function privateWindowProfile(s: Pick<BrowserState, "profiles" | "profile
   return named ?? originalProfile(s, w);
 }
 
+export const newWindowProfile = (s: BrowserState, windowId?: string | null): string =>
+  originalProfile(s, windowId ? s.windows[windowId] : undefined) ?? lastActiveProfile(s);
+
 export function lastActiveProfile(s: Pick<BrowserState, "profiles" | "windows" | "windowOrder" | "ui" | "settings">): string {
   const last = s.ui.lastProfileId;
   if (last && s.profiles[last]) return last;
