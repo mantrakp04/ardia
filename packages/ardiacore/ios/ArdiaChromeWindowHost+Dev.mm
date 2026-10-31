@@ -264,7 +264,7 @@ NSString *Click(NSWindow *window, NSString *argument) {
 
 NSString *MouseEvent(NSWindow *window, NSString *argument) {
   NSArray<NSString *> *parts = Fields(argument);
-  if (parts.count < 2) return @"mouse:<down|up|dragged|moved|otherdown|otherup>:<x>,<y>[,<clickCount>[,<flags>]]";
+  if (parts.count < 2) return @"mouse:<down|up|dragged|moved|otherdown|otherup>:<x>,<y>[,<clickCount>[,<flags>[,<button>]]]";
   NSDictionary<NSString *, NSNumber *> *types = @{
     @"down" : @(NSEventTypeLeftMouseDown), @"up" : @(NSEventTypeLeftMouseUp),
     @"dragged" : @(NSEventTypeLeftMouseDragged), @"moved" : @(NSEventTypeMouseMoved),
@@ -283,7 +283,7 @@ NSString *MouseEvent(NSWindow *window, NSString *argument) {
   if (other || n.count > 3) {
     CGEventRef cg = event.CGEvent;
     if (n.count > 3) CGEventSetFlags(cg, (CGEventFlags)n[3].longLongValue);
-    if (other) CGEventSetIntegerValueField(cg, kCGMouseEventButtonNumber, kCGMouseButtonCenter);
+    if (other) CGEventSetIntegerValueField(cg, kCGMouseEventButtonNumber, n.count > 4 ? n[4].longLongValue : kCGMouseButtonCenter);
     event = [NSEvent eventWithCGEvent:cg];
   }
   [NSApp postEvent:event atStart:NO];

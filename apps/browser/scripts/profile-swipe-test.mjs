@@ -177,6 +177,159 @@ try {
 
   await sleep(1000);
 
+  const mouseButton = async (window, button, x = 120, y = 400, upX = x, upY = y) => ({
+    down: await action(window, `mouse:otherdown:${x},${y},1,0,${button}`),
+    up: await action(window, `mouse:otherup:${upX},${upY},1,0,${button}`),
+  });
+  await test("mouse button forward and back switch the docked sidebar profile", async () => {
+    await reset();
+    const window = (await nativeWindow()).window;
+    const forward = await mouseButton(window, 4);
+    await waitProfile("work");
+    await sleep(350);
+    const back = await mouseButton(window, 3);
+    await waitProfile("default");
+    return { forward, back };
+  });
+  await test("mouse buttons stop at the first and last profile while Previous and Next Profile still wrap", async () => {
+    await reset();
+    const window = (await nativeWindow()).window;
+    const back = await mouseButton(window, 3);
+    await sleep(900);
+    assert.equal(await profile(), "default", "back on the first profile stays put");
+    await mouseButton(window, 4);
+    await waitProfile("work");
+    await sleep(350);
+    const forward = await mouseButton(window, 4);
+    await sleep(900);
+    assert.equal(await profile(), "work", "forward on the last profile stays put");
+    await mouseButton(window, 3);
+    await waitProfile("default");
+    await sleep(350);
+    await ac('ac.runCommand({command:"previousProfile",windowId:"w1"}); return true;');
+    await waitProfile("work");
+    await sleep(350);
+    await ac('ac.runCommand({command:"nextProfile",windowId:"w1"}); return true;');
+    await waitProfile("default");
+    return { back, forward };
+  });
+  await test("mouse button forward switches the auto-hidden sidebar peek", async () => {
+    await reset();
+    const window = (await nativeWindow()).window;
+    await ac('ac.store.getState().toggleSidebar("w1"); return true;');
+    try {
+      await sleep(350);
+      await ac('return ac.shell.devLeftEdgePointer("w1", {x:-4,y:300});');
+      await sleep(500);
+      await ac('return ac.shell.devLeftEdgePointer("w1", {x:120,y:300});');
+      await sleep(500);
+      assert.equal(await ac('return !!globalThis.acLayout.peek.w1?.live;'), true, "the sidebar peeks before the mouse button press");
+      const events = await mouseButton(window, 4);
+      await waitProfile("work");
+      return events;
+    } finally {
+      await ac('return ac.shell.devLeftEdgePointer("w1", null);');
+      await ac('globalThis.acLayout.peek.w1.hide(); if (!ac.store.getState().windows.w1.sidebarOpen) ac.store.getState().toggleSidebar("w1"); return true;');
+      await sleep(350);
+    }
+  });
+  await test("mouse button sidebar presses preserve page history and page presses preserve profiles", async () => {
+    await reset();
+    const window = (await nativeWindow()).window;
+    const base = `http://127.0.0.1:${server.address().port}/history`;
+    const url = () => ac('return ac.store.getState().tabs.t1.url;');
+    async function navigate(n) {
+      await ac(`ac.store.getState().activate("t1"); ac.store.getState().navigate("t1", ${JSON.stringify(base + n)}); return true;`);
+      for (let start = Date.now(); Date.now() - start < 5000 && await url() !== base + n;) await sleep(50);
+      assert.equal(await url(), base + n);
+      await sleep(200);
+    }
+    for (const n of [1, 2, 3]) await navigate(n);
+    const baseline = await mouseButton(window, 3, 700, 400);
+    await sleep(1000);
+    const pageBackUrl = await url();
+    assert.ok([base + 2, base + 3].includes(pageBackUrl), "page button should retain Chromium's history behavior");
+    assert.equal(await profile(), "default");
+    if (pageBackUrl === base + 2) await navigate(3);
+    await ac('ac.store.getState().switchProfile("w1","work"); return true;');
+    await waitProfile("work");
+    await sleep(350);
+    const sidebar = await mouseButton(window, 3, 120, 400, 700, 400);
+    await waitProfile("default");
+    await sleep(1000);
+    assert.equal(await url(), base + 3, "neither half of a sidebar button press may navigate the page");
+    await reset();
+    const page = await mouseButton(window, 3, 700, 400);
+    await sleep(1000);
+    assert.equal(await profile(), "default");
+    assert.equal(await url(), pageBackUrl, "page behavior must match the page-only baseline");
+    return { baseline, pageBackUrl, sidebar, page,
+      pageBackSupported: pageBackUrl === base + 2,
+      note: pageBackUrl === base + 3 ? "Chromium did not navigate for the page-only mouse button press" : "Chromium navigated back over the page" };
+  });
+  await test("mouse button a missed sidebar release does not swallow a later page release", async () => {
+    await reset();
+    const window = (await nativeWindow()).window;
+    const target = `http://127.0.0.1:${server.address().port}/history-missed-release`;
+    await ac(`ac.store.getState().activate("t1"); ac.store.getState().navigate("t1", ${JSON.stringify(target)}); return true;`);
+    for (let start = Date.now(); Date.now() - start < 5000 && await ac('return ac.store.getState().tabs.t1.url;') !== target;) await sleep(50);
+    await sleep(500);
+    const pageTab = () => owned.page("/history-missed-release", { timeout: 0 });
+    let page = await pageTab();
+    assert.ok(page, "history page should have a CDP target");
+    try {
+      await page.eval('window.__ups=[]; addEventListener("mouseup",(e)=>window.__ups.push(e.button),true); true', { timeout: 3000 });
+    } finally { page.close(); }
+    const control = await mouseButton(window, 4, 700, 400);
+    await sleep(300);
+    page = await pageTab();
+    try {
+      assert.ok((await page.eval("window.__ups", { timeout: 3000 })).length > 0, "the page listener must see an ordinary page release");
+      await page.eval("window.__ups.length=0; true", { timeout: 3000 });
+    } finally { page.close(); }
+    const missed = await action(window, "mouse:otherdown:120,400,1,0,4");
+    await waitProfile("work");
+    await sleep(350);
+    await reset();
+    const press = await mouseButton(window, 4, 700, 400);
+    await sleep(500);
+    page = await pageTab();
+    let ups;
+    try { ups = await page.eval("window.__ups", { timeout: 3000 }); } finally { page.close(); }
+    assert.ok(ups.length > 0, `the page must still see the release of a press that began over the page, got ${JSON.stringify(ups)}`);
+    return { control, missed, press, ups };
+  });
+  await test("mouse button presses leave a private sidebar unchanged with no pager target", async () => {
+    await reset();
+    const before = new Set((await windows()).map((w) => w.window));
+    const id = await ac('return ac.store.getState().createWindow({incognito:true,profileId:"default",frame:[80,80,1280,800]});');
+    try {
+      let window;
+      for (let start = Date.now(); Date.now() - start < 5000 && !window;) {
+        window = (await windows()).find((w) => w.hasRoot && !before.has(w.window));
+        if (!window) await sleep(50);
+      }
+      assert.ok(window, "private native window should open offline");
+      await sleep(350);
+      const initial = await ac(`return ac.store.getState().windows[${JSON.stringify(id)}].profileId;`);
+      const routing = await simulate([{ phase: "began" }, { phase: "cancelled" }], window.window);
+      const begin = routing.acks.find((a) => a.diag === "begin");
+      assert.ok(begin, "native hit test should report the private window targets");
+      const targets = begin.targets.filter((t) => t.window === window.window && !t.miss);
+      assert.ok(targets.every((t) => !t.pager), "the private sidebar must have no pager target, so buttons pass through");
+      await ac('globalThis.acSwipe.received(); return true;');
+      const back = await mouseButton(window.window, 3);
+      const forward = await mouseButton(window.window, 4);
+      await sleep(350);
+      assert.equal(await ac(`return ac.store.getState().windows[${JSON.stringify(id)}].profileId;`), initial);
+      const received = await ac('return globalThis.acSwipe.received();');
+      assert.ok(received.every((e) => e.phase !== "button"), "private buttons must not emit profile paging");
+      return { id, initial, targets, back, forward, received, note: "Native hit-test diagnostics confirm no private pager target; real-event swallowing is not exposed by the harness" };
+    } finally {
+      await ac(`ac.store.getState().closeWindow(${JSON.stringify(id)}); return true;`);
+    }
+  });
+
   await test("rapid forward/reverse profile swipes", async () => {
     await reset();
     const results = [];
