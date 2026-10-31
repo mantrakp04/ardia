@@ -61,7 +61,7 @@ final class LeftEdgeWatcher {
   }
 
   private func isOver(_ point: NSPoint, of window: NSWindow, hold: CGFloat, live: Bool) -> Bool {
-    guard window.isVisible, !window.isMiniaturized, !window.styleMask.contains(.fullScreen), let screen = window.screen else { return false }
+    guard window.isVisible, !window.isMiniaturized, let screen = window.screen else { return false }
     let frame = window.frame
     guard point.y >= frame.minY, point.y < frame.maxY else { return false }
     if point.x >= frame.minX, point.x < frame.minX + hold {

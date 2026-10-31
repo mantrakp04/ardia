@@ -46,7 +46,7 @@ export type DockState = "fullscreen" | "docked" | "peeking" | "hiding" | "away";
 export type DockInput = { open: boolean; fullscreen: boolean; moving: boolean; peekLive: boolean };
 
 export function dockState({ open, fullscreen, moving, peekLive }: DockInput): DockState {
-  if (fullscreen) return "fullscreen";
+  if (fullscreen) return peekLive ? "peeking" : "fullscreen";
   if (open) return "docked";
   if (peekLive) return "peeking";
   return moving ? "hiding" : "away";

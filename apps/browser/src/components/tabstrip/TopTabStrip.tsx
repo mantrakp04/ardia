@@ -101,19 +101,19 @@ function StripDropHighlight({ left, right }: { left: number; right: number }) {
   return <WindowDropGlow place={place} />;
 }
 
-export function TopStripPeek({ windowWidth, enabled }: { windowWidth: number; enabled: boolean }) {
+export function TopStripPeek({ windowWidth, fullscreen }: { windowWidth: number; fullscreen: boolean }) {
   const theme = useTheme();
   const windowId = useWindowId();
   const downloadsOpen = useWindowUiOf(windowId, (u) => !!u?.downloadsOpen);
-  const { slide, live, show, hide, recheck } = usePeek(enabled, false, () => downloadsOpenIn(windowId));
+  const { slide, live, show, hide, recheck } = usePeek(true, false, () => downloadsOpenIn(windowId));
   useEffect(() => {
     if (!downloadsOpen) recheck();
   }, [downloadsOpen]);
   useEffect(() => {
-    if (!enabled) return;
+    if (fullscreen) return;
     void setTrafficLightsCenter(windowId, lightsCenter(layout.sidebarWidth));
     return () => void setTrafficLightsCenter(windowId, null);
-  }, [enabled, windowId]);
+  }, [fullscreen, windowId]);
   const leaveStrip = (e: { nativeEvent: { clientY: number } }) => {
     if (live && e.nativeEvent.clientY < PEEK_HOVER_HEIGHT) hide();
   };
@@ -124,13 +124,11 @@ export function TopStripPeek({ windowWidth, enabled }: { windowWidth: number; en
   };
   return (
     <>
-      {enabled ? (
-        <View
-          onMouseEnter={show}
-          onMouseLeave={leaveStrip}
-          style={{ position: "absolute", left: layout.trafficLightsWidth, right: PEEK_LEFT, top: 0, height: PEEK_HOVER_HEIGHT }}
-        />
-      ) : null}
+      <View
+        onMouseEnter={show}
+        onMouseLeave={leaveStrip}
+        style={{ position: "absolute", left: layout.trafficLightsWidth, right: PEEK_LEFT, top: 0, height: PEEK_HOVER_HEIGHT }}
+      />
       <Animated.View
         pointerEvents={live ? "auto" : "none"}
         onMouseEnter={live ? show : undefined}
