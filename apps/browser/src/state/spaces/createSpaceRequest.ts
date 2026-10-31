@@ -20,8 +20,10 @@ export function requestCreateSpace(windowId?: string, preset: CreateSpacePreset 
   });
 }
 
+export const isCurrentCreateSpaceRequest = (request: CreateSpaceRequest) => useCreateSpaceRequest.getState().request === request;
+
 export function endCreateSpaceRequest(request: CreateSpaceRequest, id: string | null) {
-  if (useCreateSpaceRequest.getState().request !== request) return;
+  if (!isCurrentCreateSpaceRequest(request)) return;
   useCreateSpaceRequest.setState({ request: null });
   request.resolve(id);
 }

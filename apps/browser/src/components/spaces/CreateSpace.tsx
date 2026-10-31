@@ -4,7 +4,7 @@ import { currentSpaces } from "../../state/browser/current";
 import { useCreateSpaceShareDefault } from "../../state/spaces/hooks";
 import { useProfiles } from "../../state/profiles/hooks";
 import { addSpace } from "../../state/spaces/actions";
-import { endCreateSpaceRequest, takeCreateSpaceSheet, useCreateSpaceRequest, type CreateSpacePreset } from "../../state/spaces/createSpaceRequest";
+import { endCreateSpaceRequest, isCurrentCreateSpaceRequest, takeCreateSpaceSheet, useCreateSpaceRequest, type CreateSpacePreset } from "../../state/spaces/createSpaceRequest";
 import { unusedSpaceColor } from "../../state/spaces/spaces";
 import type { ProfileColor } from "../../state/browser/types";
 import { Box, Button, PROFILE_COLORS, PopUp, Sheet, space, Swatch, swatch, Text, TextField, useTheme } from "../ui";
@@ -16,7 +16,7 @@ useCreateSpaceRequest.subscribe((s, prev) => {
   const request = takeCreateSpaceSheet();
   if (!request) return;
   showSettingsSheet(<CreateSpaceSheet preset={request.preset} onDone={(id) => {
-    if (useCreateSpaceRequest.getState().request !== request) return;
+    if (!isCurrentCreateSpaceRequest(request)) return;
     closeSettingsSheet();
     endCreateSpaceRequest(request, id);
   }} />);

@@ -12,6 +12,16 @@ from ardia_cli import browsing
 
 
 class Spaces(unittest.TestCase):
+    def test_supported_session_versions_and_future_rejection(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            for version in range(2, 11):
+                with self.subTest(version=version):
+                    (root / 'session.json').write_text(json.dumps({'version': version}))
+                    self.assertEqual(browsing.read_session(root, time.monotonic() + 1)['version'], version)
+            (root / 'session.json').write_text(json.dumps({'version': 11}))
+            self.assertEqual(browsing.read_session(root, time.monotonic() + 1), {})
+
     def test_shared_top_apps_survive_without_windows_and_rows_keep_their_space(self):
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)

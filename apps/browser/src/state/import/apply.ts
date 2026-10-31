@@ -17,7 +17,7 @@ import { adoptFavicons } from "../favicons/favicons";
 import { bookmarkRoots, type BookmarkDraft } from "../bookmarks/bookmarks";
 import type { GroupDraft } from "../groups/draftGroups";
 import { useBrowser } from "../browser/store";
-import { engineProfile, engineProfileForSpace, isIncognitoSpace, ROW_PIN } from "../browser/model";
+import { isIncognitoSpace, ROW_PIN } from "../browser/model";
 import { openPages, pageKey, pinnedPages, tilePages } from "../tabs/pageKeys";
 import { withNewTab } from "../tabs/tabs";
 import type { ProfileColor } from "../browser/types";
@@ -35,6 +35,20 @@ export type { BrowserProfile, BrowserSource, DiaTabsResult, ImportedExtension, I
 export type ImportCounts = { bookmarks: number; history: number; tabs: number; passwords: number; cookies: number; addresses: number; cards: number };
 
 export const emptyCounts = (): ImportCounts => ({ bookmarks: 0, history: 0, tabs: 0, passwords: 0, cookies: 0, addresses: 0, cards: 0 });
+
+export const IMPORT_DESTINATION_CHANGED = "The destination Space or Profile changed during import. Choose a destination and import again.";
+export type ImportDestination = { spaceId: string; profileId: string; engineId: string; current: () => boolean };
+
+export function importDestination(spaceId: string): ImportDestination | null {
+  const s = useBrowser.getState();
+  const profile = s.profiles[s.spaces[spaceId]?.profileId ?? ""];
+  if (!profile || isIncognitoSpace(spaceId)) return null;
+  const { id: profileId, engineId } = profile;
+  return { spaceId, profileId, engineId, current: () => {
+    const now = useBrowser.getState();
+    return now.spaces[spaceId]?.profileId === profileId && now.profiles[profileId]?.engineId === engineId;
+  } };
+}
 
 const toDraft = (n: ImportedNode): BookmarkDraft =>
   n.type === "url"
@@ -97,12 +111,13 @@ export function importHistory(spaceId: string, entries: { url: string; title: st
   return useBrowser.getState().importHistory(spaceId, entries);
 }
 
-async function importPasswords(spaceId: string, credentials: Credential[]): Promise<number> {
+async function importPasswords(destination: ImportDestination, credentials: Credential[], onFailed?: (kind: ImportKind) => void): Promise<number> {
   let saved = 0;
   for (const c of credentials) {
+    if (!destination.current()) { onFailed?.("passwords"); break; }
     const origin = /^([a-z][a-z0-9+.-]*:\/\/[^/?#]+)/i.exec(c.realm?.startsWith("http") ? c.realm : c.url)?.[1];
     if (!origin || !c.password) continue;
-    if (await savePassword(engineProfile(useBrowser.getState(), spaceId), origin, c.username, c.password).catch(orWarn(false))) saved++;
+    if (await savePassword(destination.engineId, origin, c.username, c.password).catch(orWarn(false))) saved++;
   }
   return saved;
 }
@@ -112,17 +127,19 @@ export async function importNative(
   token: string | undefined,
   kinds: ("cookies" | "autofill")[],
   onFailed?: (kind: ImportKind) => void,
+  destination: ImportDestination | null = importDestination(spaceId),
 ): Promise<Pick<ImportCounts, "cookies" | "addresses" | "cards">> {
   const none = { cookies: 0, addresses: 0, cards: 0 };
   if (!token) return none;
   const api = importModule();
   if (!api || !token) return none;
-  if (!kinds.length || isIncognitoSpace(spaceId) || useBrowser.getState().spaces[spaceId] === undefined) {
+  if (!kinds.length || !destination?.current()) {
     api.discardImported(token);
+    if (!destination?.current()) kinds.forEach((k) => onFailed?.(k));
     return none;
   }
   try {
-    const w = await api.writeImported(token, engineProfile(useBrowser.getState(), spaceId), kinds);
+    const w = await api.writeImported(token, destination.engineId, kinds);
     if (w.cookiesFailed) onFailed?.("cookies");
     if (w.autofillFailed) onFailed?.("autofill");
     return { cookies: w.cookies, addresses: w.addresses, cards: w.cards };
@@ -219,28 +236,42 @@ export async function applyResult(
   browserName: string,
   requested: ImportKind[],
   onFailed?: (kind: ImportKind) => void,
+  destination: ImportDestination | null = importDestination(spaceId),
 ): Promise<ImportCounts> {
+  const counts = emptyCounts();
+  if (!destination?.current()) {
+    if (result.vaultToken) importModule().discardImported(result.vaultToken);
+    requested.forEach((k) => onFailed?.(k));
+    return counts;
+  }
   const toolbar = (result.bookmarks?.children ?? []).filter((c) => c.role === "toolbar");
   importFavicons(spaceId, result.favicons, [...result.favorites.map((t) => t.url), ...(result.spaces.length ? [] : result.tabs.map((t) => t.url)), ...linksOf(toolbar)]);
-  const counts = emptyCounts();
   counts.bookmarks += importBookmarks(spaceId, result.bookmarks, browserName);
   if (result.history.length) counts.history += importHistory(spaceId, result.history);
   const native = (["cookies", "autofill"] as const).filter((k) => requested.includes(k));
-  Object.assign(counts, await importNative(spaceId, result.vaultToken, native, onFailed));
+  Object.assign(counts, await importNative(spaceId, result.vaultToken, native, onFailed, destination));
+  if (!destination.current()) { requested.forEach((k) => onFailed?.(k)); return counts; }
   if (result.tabs.length && !result.spaces.length) counts.tabs += importTabs(spaceId, result.tabs, "Imported");
   if (result.favorites.length) counts.tabs += importTabs(spaceId, result.favorites.map((t) => ({ ...t, pinned: true })), null, "tiles");
-  if (result.credentials.length) counts.passwords += await importPasswords(spaceId, result.credentials);
+  if (result.credentials.length) counts.passwords += await importPasswords(destination, result.credentials, onFailed);
   return counts;
 }
 
-export async function applySafari(spaceId: string, data: SafariExport, cookies = true, onFailed?: (kind: ImportKind) => void): Promise<ImportCounts> {
+export async function applySafari(spaceId: string, data: SafariExport, cookies = true, onFailed?: (kind: ImportKind) => void, destination: ImportDestination | null = importDestination(spaceId)): Promise<ImportCounts> {
   const counts = emptyCounts();
+  const requested: ImportKind[] = ["bookmarks", "history", "tabs", "passwords", "autofill", ...(cookies ? ["cookies" as const] : [])];
+  if (!destination?.current()) {
+    if (data.vaultToken) importModule().discardImported(data.vaultToken);
+    requested.forEach((k) => onFailed?.(k));
+    return counts;
+  }
   counts.bookmarks = importBookmarks(spaceId, data.bookmarks, "Safari");
   const history = data.profiles.find((p) => !p.name)?.history ?? data.profiles[0]?.history ?? [];
   counts.history = importHistory(spaceId, history);
-  Object.assign(counts, await importNative(spaceId, data.vaultToken, cookies ? ["cookies", "autofill"] : ["autofill"], onFailed));
+  Object.assign(counts, await importNative(spaceId, data.vaultToken, cookies ? ["cookies", "autofill"] : ["autofill"], onFailed, destination));
+  if (!destination.current()) { requested.forEach((k) => onFailed?.(k)); return counts; }
   if (data.tabs.length) counts.tabs += importTabs(spaceId, data.tabs, "Imported");
-  counts.passwords = await importPasswords(spaceId, data.credentials);
+  counts.passwords = await importPasswords(destination, data.credentials, onFailed);
   return counts;
 }
 

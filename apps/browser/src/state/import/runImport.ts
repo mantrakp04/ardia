@@ -5,12 +5,13 @@ import { plural } from "../browser/model";
 import { MAX_DRAFT_LINKS } from "../groups/draftGroups";
 import { createProfile } from "../profiles/actions";
 import { addSpace } from "../spaces/actions";
-import { currentSpaces } from "../browser/current";
 import {
   applyResult,
   emptyCounts,
   importArcSpace,
   importDiaSpace,
+  importDestination,
+  IMPORT_DESTINATION_CHANGED,
   spaceColorFor,
   spaceNamed,
   type BrowserProfile,
@@ -19,6 +20,7 @@ import {
   type ImportedExtension,
   type ImportKind,
   type ImportResult,
+  type ImportDestination,
 } from "./apply";
 import { diaSpacesFor } from "./diaTabs";
 import {
@@ -73,9 +75,9 @@ export function skipEncryptedData() {
   void runImport(kinds, true);
 }
 
-async function destination(target: string, index: number, name: string, color?: string, emoji?: string, profileId?: string): Promise<string> {
+async function destination(target: ImportDestination | null, index: number, name: string, color?: string, emoji?: string, profileId?: string): Promise<ImportDestination | null> {
   if (index === 0) return target;
-  return addSpace({ name, color: spaceColorFor(color), icon: emoji ?? null, profileId });
+  return importDestination(addSpace({ name, color: spaceColorFor(color), icon: emoji ?? null, profileId }));
 }
 
 type AppTabs = { result: DiaTabsResult } | { note: string };
@@ -106,6 +108,7 @@ function importAppTabs(dest: string, tabs: AppTabs, profiles: BrowserProfile[], 
 export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = false) {
   const { source, sourceProfiles, spaces, target } = importNow();
   if (!source) return;
+  const targetOwner = importDestination(target);
   const api = importModule();
   const signal = importSignal();
   const bySpaces = importsBySpaces(source);
@@ -125,15 +128,31 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
   const found = new Map<string, ImportedExtension>();
   const left: string[] = [];
   let extensionsProfile = "";
+  const destinationChanged = (token?: string) => {
+    if (token) api.discardImported(token);
+    api.forgetUnlockedKeys();
+    updateStatus(signal, () => Object.fromEntries(order.map((k) => [k, "failed"])));
+    finishImport(signal, {
+      counts: total, failures: order.map((kind) => ({ kind, profiles: [] })),
+      notes: [...left, IMPORT_DESTINATION_CHANGED],
+      extensions: { profileId: extensionsProfile, list: [...found.values()], opened: false },
+    });
+  };
   const appTabs = fromApp.length ? readAppTabs() : null;
   if (source.family === "firefox" && requested.includes("passwords") && !api.isBrowserUnlocked(source.id)) {
     await api.unlockBrowser(source.id).catch(orWarn(undefined));
   }
 
   for (const profile of selected) {
-    let assigned = destinationIndex === 0 ? currentSpaces()[target]!.profileId : "";
+    let owner = destinationIndex === 0 ? targetOwner : null;
+    let assigned = owner?.profileId ?? "";
     const profileForImport = () => assigned ||= createProfile({ name: profile.name });
-    const nextDestination = (name: string, color?: string, emoji?: string) => destination(target, destinationIndex++, name, color, emoji, profileForImport());
+    const nextDestination = async (name: string, color?: string, emoji?: string) => {
+      if ((destinationIndex === 0 && !targetOwner?.current()) || (owner && !owner.current())) return null;
+      const dest = await destination(targetOwner, destinationIndex++, name, color, emoji, profileForImport());
+      owner ??= dest;
+      return dest?.current() ? dest : null;
+    };
     let result: ImportResult;
     const profileKinds = tabsLocked(profile) ? fromFiles.filter((k) => k !== "tabs") : fromFiles;
     try {
@@ -151,7 +170,9 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
       if (appTabs) {
         const tabs = await appTabs;
         if (signal.aborted) return;
-        total.tabs += importAppTabs(await nextDestination(profile.name, profile.color), tabs, source.profiles, profile.id, wanted);
+        const dest = await nextDestination(profile.name, profile.color);
+        if (!dest) return destinationChanged();
+        total.tabs += importAppTabs(dest.spaceId, tabs, source.profiles, profile.id, wanted);
       }
       continue;
     }
@@ -165,27 +186,33 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
     };
 
     if (bySpaces) {
-      let first: string | null = null;
+      let first: ImportDestination | null = null;
       for (const space of result.spaces) {
         const name = space.name || "Space";
         const dest = await nextDestination(name, space.color, space.emoji);
+        if (!dest) return destinationChanged(result.vaultToken);
         first ??= dest;
-        const r = importArcSpace(dest, space, result.favicons);
+        const r = importArcSpace(dest.spaceId, space, result.favicons);
         add({ ...emptyCounts(), tabs: r.tabs, bookmarks: r.bookmarks });
         if (r.skipped) left.push(`${plural(r.skipped, "link")} in ${name}'s folders weren't imported: each folder brings up to ${MAX_DRAFT_LINKS.toLocaleString("en-US")} links.`);
       }
       const dest = first ?? (await nextDestination(result.profile?.name ?? profile.name, result.profile?.color));
-      add(await applyResult(dest, result, source.name, profileKinds, refused));
-      extensionsProfile ||= dest;
+      if (!dest?.current()) return destinationChanged(result.vaultToken);
+      add(await applyResult(dest.spaceId, result, source.name, profileKinds, refused, dest));
+      if (!dest.current()) return destinationChanged();
+      extensionsProfile ||= dest.spaceId;
     } else {
       const dest = await nextDestination(result.profile?.name ?? profile.name, result.profile?.color ?? profile.color);
-      add(await applyResult(dest, result, source.name, profileKinds, refused));
+      if (!dest) return destinationChanged(result.vaultToken);
+      add(await applyResult(dest.spaceId, result, source.name, profileKinds, refused, dest));
+      if (!dest.current()) return destinationChanged();
       if (appTabs) {
         const tabs = await appTabs;
         if (signal.aborted) return;
-        total.tabs += importAppTabs(dest, tabs, source.profiles, profile.id, wanted);
+        if (!dest.current()) return destinationChanged();
+        total.tabs += importAppTabs(dest.spaceId, tabs, source.profiles, profile.id, wanted);
       }
-      extensionsProfile ||= dest;
+      extensionsProfile ||= dest.spaceId;
     }
     if (source.family === "chromium" || source.family === "arc") {
       for (const e of await api.listExtensions(source.id, profile.id).catch(orWarn([]))) found.set(e.id, e);
