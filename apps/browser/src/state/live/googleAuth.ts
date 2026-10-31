@@ -19,7 +19,7 @@ function query(url: string): Map<string, string> {
   );
 }
 
-export function connectGoogleDrive(windowId: string, clientId: string, clientSecret: string): Promise<void> {
+export function connectGoogleDrive(windowId: string, profileId: string, clientId: string, clientSecret: string): Promise<void> {
   pending?.cancel();
   const verifier = secureRandomHex(64);
   const state = secureRandomHex(32);
@@ -34,7 +34,7 @@ export function connectGoogleDrive(windowId: string, clientId: string, clientSec
     access_type: "offline",
     prompt: "consent",
   })}`;
-  const tabId = useBrowser.getState().newTab(windowId, { url });
+  const tabId = useBrowser.getState().newTab(windowId, { url, profileId });
   return new Promise<void>((resolve, reject) => {
     const stop = useBrowser.subscribe((s, prev) => {
       if (s.tabs === prev.tabs) return;
@@ -47,7 +47,7 @@ export function connectGoogleDrive(windowId: string, clientId: string, clientSec
       stop();
       useBrowser.getState().closeTab(tabId);
       if (!code) return finish(new Error(params.get("error") ?? "Google didn't grant access"));
-      connectGoogle(clientId.trim(), clientSecret.trim(), code, verifier, REDIRECT).then(() => finish(), finish);
+      connectGoogle(profileId, clientId.trim(), clientSecret.trim(), code, verifier, REDIRECT).then(() => finish(), finish);
     });
     const finish = (error?: unknown) => {
       stop();

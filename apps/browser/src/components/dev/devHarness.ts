@@ -125,8 +125,8 @@ export function startDevHarness() {
       const { WhatsSentSheet } = require("../settings/panes/ShareDiagnostics") as typeof import("../settings/panes/ShareDiagnostics");
       showSettingsSheet(createElement(WhatsSentSheet));
     },
-    get live(): { store: typeof import("../../state/live/store"); engine: typeof import("../../state/live/engine") } {
-      return { store: require("../../state/live/store"), engine: require("../../state/live/engine") };
+    get live(): { store: typeof import("../../state/live/store"); engine: typeof import("../../state/live/engine"); sources: typeof import("../../state/live/sources") } {
+      return { store: require("../../state/live/store"), engine: require("../../state/live/engine"), sources: require("../../state/live/sources") };
     },
   };
   (globalThis as { ac?: typeof ac }).ac = ac;

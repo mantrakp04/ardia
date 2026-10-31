@@ -92,8 +92,9 @@ function FolderNote({ folderId }: { folderId: string }) {
   const status = useLive((s) => s.status[folderId]);
   const kind = useLive((s) => s.folders[folderId]?.kind);
   const hidden = useLive((s) => s.hidden[folderId]?.length ?? 0);
+  const profileId = useLive((s) => s.folders[folderId]?.profileId);
   if (!status || status.state === "initializing" || (status.state === "updating" && !status.lastFetch)) return <NoteRow text="Loading…" spinner />;
-  if (status.error) return <NoteRow text={errorText(status.error.kind, status.error.source)} onPress={() => openSettings("liveFolders")} icon="exclamationmark.triangle.fill" />;
+  if (status.error) return <NoteRow text={errorText(status.error.kind, status.error.source)} onPress={() => openSettings("liveFolders", profileId)} icon="exclamationmark.triangle.fill" />;
   if (hidden) return <NoteRow text={`${hidden} hidden until you refresh`} onPress={() => void manualRefresh(folderId)} />;
   return <NoteRow text={kind === "pullRequests" ? "No open pull requests" : "No recent documents"} />;
 }
@@ -134,7 +135,7 @@ function FolderHeader({ folderId, windowId, collapsed }: { folderId: string; win
               <TabIcon url={sourceSite} icon={icon} />
               <FadeLabel text={folder.name} fontSize={font.body.fontSize} weight="medium" color={tokens.groupTitle} style={{ flex: 1, height: 18, marginLeft: 5 }} />
               {status?.error ? (
-                <Pressable onPress={() => openSettings("liveFolders")} tooltip={errorText(status.error.kind, status.error.source)} style={{ marginRight: 2 }}>
+                <Pressable onPress={() => openSettings("liveFolders", folder.profileId)} tooltip={errorText(status.error.kind, status.error.source)} style={{ marginRight: 2 }}>
                   <Symbol name="exclamationmark.triangle.fill" size={10} color={colors.pending} style={{ width: 18, height: 18 }} />
                 </Pressable>
               ) : null}

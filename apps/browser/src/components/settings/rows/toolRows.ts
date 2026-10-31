@@ -23,7 +23,7 @@ export const toolRows = {
       rows: {
         folders: {
           title: "Live folders",
-          description: "Right-click empty space in the sidebar and choose New Live Folder to add one. Live folders refresh every few minutes; items open as tabs that stay in the folder.",
+          description: "Right-click empty space in the sidebar and choose New Live Folder to add one. Live folders refresh every few minutes; items open as tabs that stay in the folder. Each profile has its own folders and accounts.",
           keywords: ["new live folder", "hidden", "refresh"],
         },
         groupStacks: { advanced: true, title: "Group stacked pull requests", description: "Pull requests based on each other's branches sit together under one row.", keywords: ["stack", "stacked pull requests"] },

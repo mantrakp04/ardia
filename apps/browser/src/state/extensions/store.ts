@@ -58,8 +58,10 @@ export function extensionsProfileId(profileId?: string | null, windowId?: string
   return settingsProfileOf(s, windowId) ?? settingsProfileOf(s, focused) ?? s.settings.defaultProfileId;
 }
 
+const PROFILE_PANES: SettingsPane[] = ["extensions", "liveFolders"];
+
 export const settingsProfileFor = (pane: SettingsPane, current: SettingsPlace): string | null =>
-  pane === "extensions" ? extensionsProfileId(current.pane === "extensions" ? current.profileId : null) : null;
+  PROFILE_PANES.includes(pane) ? extensionsProfileId(PROFILE_PANES.includes(current.pane) ? current.profileId : null) : null;
 
 export const isPrivate = (s: BrowserState, windowId: string) => s.windows[windowId]?.kind === "private";
 

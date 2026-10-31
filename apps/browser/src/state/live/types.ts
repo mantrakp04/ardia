@@ -80,4 +80,8 @@ export class LiveError extends Error {
   }
 }
 
-export type LiveAccount = { login: string; name: string | null; avatar: string | null; connectedAt: number };
+export type LiveAccount = { login: string; name: string | null; avatar: string | null; connectedAt: number; user?: string; site?: string; clientId?: string };
+
+export type ProfileAccounts = Partial<Record<LiveSourceId, LiveAccount>>;
+
+export type LegacyAccount = LiveAccount & { owedTo?: string[] };
