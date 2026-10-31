@@ -135,7 +135,7 @@ export function SettingToggle({ anchor, description }: { anchor: SettingId & `${
   const value = useSettings((s) => s[key]);
   return (
     <Row anchor={anchor} description={description}>
-      <Toggle value={value} onChange={(on) => updateSettings({ [key]: on })} />
+      <Toggle value={value} accessibilityLabel={setting(anchor).title} onChange={(on) => updateSettings({ [key]: on })} />
     </Row>
   );
 }
