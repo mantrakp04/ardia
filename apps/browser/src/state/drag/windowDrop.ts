@@ -42,12 +42,38 @@ export function dropTabsOutside(
     s.moveTabsToWindow(tabIds, overWindow);
     return overWindow;
   }
-  const point = screenPoint(s, source, x, y, live);
-  if (!point || from.tabIds.every((id) => tabIds.includes(id))) return null;
-  const [, , width, height] = from.frame ?? [0, 0, 1200, 800];
-  const frame: Frame = [Math.round(point[0] - 90), Math.round(point[1] - height + 70), width, height];
+  const frame = tornOffFrame(s, source, tabIds, x, y, live);
+  if (!frame) return null;
   onNewWindow?.(frame);
   return s.createWindow({ profileId: s.tabs[tabIds[0]!]?.profileId, tabIds, frame });
+}
+
+function tornOffFrame(s: BrowserState, source: string, tabIds: string[], x: number, y: number, live?: Frame | null): Frame | null {
+  const from = s.windows[source];
+  const point = screenPoint(s, source, x, y, live);
+  if (!from || !point || from.tabIds.every((id) => tabIds.includes(id))) return null;
+  const [, , width, height] = from.frame ?? [0, 0, 1200, 800];
+  return [Math.round(point[0] - 90), Math.round(point[1] - height + 70), width, height];
+}
+
+export function dropGroupOutside(
+  groupId: string,
+  source: string,
+  x: number,
+  y: number,
+  onNewWindow?: (frame: Frame) => void,
+  live?: Frame | null,
+): string | null {
+  const s = useBrowser.getState();
+  const from = s.windows[source];
+  const group = s.groups[groupId];
+  if (!from || from.kind === "private" || !group || group.pinned || group.windowId !== source || !group.tabIds.length) return null;
+  const { overWindow } = windowUnder(s, source, x, y, live);
+  if (overWindow) return s.moveGroupToWindow(groupId, overWindow) ?? null;
+  const frame = tornOffFrame(s, source, group.tabIds, x, y, live);
+  if (!frame) return null;
+  onNewWindow?.(frame);
+  return s.moveGroupToWindow(groupId, null, frame) ?? null;
 }
 
 export function openDroppedUrls(windowId: string, profileId: string, placement: TabPlacement | null, urls: string[]): string[] {

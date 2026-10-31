@@ -9,7 +9,7 @@ import type { Frame } from "../browser/types";
 import { tabTitle } from "../browser/model";
 import { splitOf, type SplitSide, splitTabIdsOf } from "../splits/splits";
 import { dropTabIntoSplit } from "../splits/actions";
-import { dropTabsOutside, screenPoint, windowUnder } from "./windowDrop";
+import { dropGroupOutside, dropTabsOutside, screenPoint, windowUnder } from "./windowDrop";
 import { dropTabsOnBar, followTabDragOnBar } from "../bookmarks/barDrag";
 
 export type DropTarget = { tabId: string; side: SplitSide };
@@ -21,6 +21,7 @@ export type TabDragging = {
   phase: "tab";
   tabId: string | null;
   tabIds: string[];
+  groupId: string | null;
   windowId: string;
   x: number;
   y: number;
@@ -66,7 +67,7 @@ export const tabDragging = () => useTabDrag.getState().phase !== "idle";
 
 export const tabDragOutside = () => !!tabDragState()?.outside;
 
-export function beginTabDrag(tabId: string | null, tabIds: string[] = tabId ? [tabId] : []): number {
+export function beginTabDrag(tabId: string | null, tabIds: string[] = tabId ? [tabId] : [], groupId: string | null = null): number {
   if (previewShown) dragPreview.cancel();
   previewShown = false;
   const seq = ++dragSeq;
@@ -77,7 +78,7 @@ export function beginTabDrag(tabId: string | null, tabIds: string[] = tabId ? [t
   }
   const session: TabDragSession = { seq, liveFrame: null, pointer: [-1, -1], picture: null, sentShape: "hidden" };
   useTabDrag.setState(
-    { phase: "tab", tabId, tabIds, windowId, x: -1, y: -1, lifted: null, onPage: false, target: null, outside: false, overWindow: null, overPoint: null, insert: null, session },
+    { phase: "tab", tabId, tabIds, groupId, windowId, x: -1, y: -1, lifted: null, onPage: false, target: null, outside: false, overWindow: null, overPoint: null, insert: null, session },
     true,
   );
   void windowFrame(windowId)
@@ -86,6 +87,12 @@ export function beginTabDrag(tabId: string | null, tabIds: string[] = tabId ? [t
     })
     .catch(() => {});
   return seq;
+}
+
+export function beginGroupDrag(groupId: string): number {
+  const group = useBrowser.getState().groups[groupId];
+  if (!group || group.pinned || !group.tabIds.length) return 0;
+  return beginTabDrag(null, group.tabIds, groupId);
 }
 
 export function updateTabDrag(x: number, y: number, lifted: boolean | null = null) {
@@ -113,7 +120,7 @@ export function setInsertResolver(windowId: string, resolver: ((point: [number, 
 
 export function setInsert(windowId: string, beforeId: string | null | undefined) {
   const d = useTabDrag.getState();
-  if (d.phase === "idle") return;
+  if (d.phase === "idle" || (d.phase === "tab" && d.groupId)) return;
   const { overWindow, insert } = d;
   const next = overWindow === windowId && beforeId !== undefined ? { windowId, beforeId } : null;
   if (insert?.windowId === next?.windowId && insert?.beforeId === next?.beforeId) return;
@@ -146,7 +153,7 @@ export function setDragPicture(drag: number, chip: [number, number, number, numb
   syncPreview();
 }
 
-function takePicture({ session, windowId, tabId }: TabDragging, { chip, grab }: Picture) {
+function takePicture({ session, windowId, tabId, tabIds, groupId }: TabDragging, { chip, grab }: Picture) {
   session.picture = null;
   previewShown = true;
   const rect = chip();
@@ -154,7 +161,7 @@ function takePicture({ session, windowId, tabId }: TabDragging, { chip, grab }: 
   const s = useBrowser.getState();
   const w = s.windows[windowId];
   const active = w?.activeTabIds[w.profileId];
-  const shown = tabId ?? active;
+  const shown = tabId ?? (groupId && !(active && tabIds.includes(active)) ? tabIds[0] : active);
   const onScreen = !!shown && (shown === active || !!splitTabIdsOf(splitOf(s, active))?.includes(shown));
   const live = (onScreen && webviews.get(shown)?.capturePicture(0.35).catch(() => null)) || Promise.resolve(null);
   void live.then((page) => {
@@ -193,8 +200,9 @@ export function endTabDrag(): boolean {
     if (previewShown) dragPreview.end();
     return false;
   }
-  const { tabId, tabIds, windowId, outside, overWindow, overPoint, session } = drag;
+  const { tabId, tabIds, groupId, windowId, outside, overWindow, overPoint, session } = drag;
   const [x, y] = session.pointer;
+  if (groupId) return endGroupDrag(groupId, windowId, outside, x, y, session);
   const resolveInsert = overWindow && overPoint ? insertResolvers.get(overWindow) : undefined;
   const insertBefore = resolveInsert && overPoint ? resolveInsert(overPoint) : drag.insert?.windowId === overWindow ? drag.insert?.beforeId : undefined;
   const target = resolveTarget ? resolveTarget(x, y, drag.target, outside) : drag.target;
@@ -218,6 +226,19 @@ export function endTabDrag(): boolean {
   const moved = dropTabsOutside(tabIds, windowId, x, y, (frame) => (asked.frame = frame), session.liveFrame);
   dragPreview.end(asked.frame ? moved : null, asked.frame);
   if (moved && moved === overWindow && insertBefore !== undefined) useBrowser.getState().placeTabs(tabIds, { pinned: false, beforeId: insertBefore });
+  if (moved) focus(moved);
+  return true;
+}
+
+function endGroupDrag(groupId: string, windowId: string, outside: boolean, x: number, y: number, session: TabDragSession): boolean {
+  useTabDrag.setState(IDLE, true);
+  if (!outside) {
+    if (previewShown) dragPreview.end();
+    return false;
+  }
+  const asked: { frame: Frame | null } = { frame: null };
+  const moved = dropGroupOutside(groupId, windowId, x, y, (frame) => (asked.frame = frame), session.liveFrame);
+  dragPreview.end(asked.frame ? moved : null, asked.frame);
   if (moved) focus(moved);
   return true;
 }
