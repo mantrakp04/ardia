@@ -86,6 +86,7 @@ export type BrowserCommand =
   | "keyboardShortcuts"
   | "copyDiagnostics"
   | "recordPerformanceIssue"
+  | "discardPerformanceRecording"
   | "toolTour"
   | "videoTour"
   | "releaseNotes"

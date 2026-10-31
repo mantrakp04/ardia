@@ -333,6 +333,7 @@ enum MainMenu {
       .separator(),
       CommandItem(.copyDiagnostics),
       CommandItem(.recordPerformanceIssue),
+      CommandItem(.discardPerformanceRecording).hiddenWhenDisabled(),
     ]
     #if DEBUG
     items += [.separator(), CommandItem(.showOnboarding)]

@@ -46,7 +46,7 @@ store but through `storeAction` wrappers in each domain's `actions.ts` (`newTab`
   Chrome: members are plain pinned tabs there. Mirrored, parked and synced with the pins (`tilefold:` records).
 - UI: `ui.focusOrder` (most recently focused first; `focusedWindowOf(s)` in state/windows/ui.ts reads the focused one), `ui.lastProfileId` (the regular profile of the window used last, a private
   window counting as its `originalProfileId`; saved with the session; read it through `lastActiveProfile(s)`, state/windows/small.ts),
-  `ui.appDark`, `windowUi[windowId]` (command panel, downloads popover), `find[tabId]`.
+  `ui.appDark`, `ui.performanceRecording` (an engine trace is running: the Help menu offers Stop and Discard), `windowUi[windowId]` (command panel, downloads popover), `find[tabId]`.
 
 ## Actions
 - Windows: `createWindow`, `closeWindow`, `switchProfile`, `moveTabsToWindow`, `moveTabToProfile`,

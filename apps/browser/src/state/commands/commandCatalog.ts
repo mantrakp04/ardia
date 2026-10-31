@@ -133,6 +133,7 @@ export const COMMANDS = {
   keyboardShortcuts: { title: "Keyboard Shortcuts", symbol: "keyboard" },
   copyDiagnostics: { title: "Copy Diagnostics", ...appWide },
   recordPerformanceIssue: { title: "Record Performance Issue…", ...appWide },
+  discardPerformanceRecording: { title: "Discard Performance Recording", ...appWide },
   toolTour: { title: "Tool Tour", ...appWide },
   videoTour: { title: "Video Tour", ...appWide },
   releaseNotes: { title: "Release Notes", ...appWide },

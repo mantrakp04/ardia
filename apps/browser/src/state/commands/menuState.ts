@@ -97,6 +97,9 @@ export function menuState(s: BrowserState): MenuState {
     titles.bookmarkPage = "Edit Bookmark…";
   }
 
+  if (s.ui.performanceRecording) titles.recordPerformanceIssue = "Stop Performance Recording";
+  else disabled.push("discardPerformanceRecording");
+
   if (!s.settings.openLinksInLittleArdia) titles.toggleOpenLinksInLittleArdia = "Open Links from Other Apps in Little Ardia";
 
   const sidebar = sidebarMenuState(s, windowId);
