@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
 
 const writes = [], passwords = [], discarded = [];
-let read, write, save;
+let read, write, save, unlock;
 const result = () => ({ failed: [], warnings: [], profile: { name: "Imported" }, tabs: [], favorites: [], spaces: [], favicons: [], history: [], credentials: [], vaultToken: "vault" });
 const credentials = [1, 2].map((n) => ({ url: `https://login${n}.test/`, username: "user", password: "fixture-secret" }));
 globalThis.acTestNativeModules = {
@@ -12,6 +12,7 @@ globalThis.acTestNativeModules = {
     importData: async () => JSON.stringify(await read()),
     importSafariExport: async () => JSON.stringify(await read()),
     importSafariDirect: async () => JSON.stringify(await read()),
+    unlockBrowser: async () => unlock(),
     writeImported: async (token, profile) => { writes.push({ token, profile }); await write(); return JSON.stringify({ cookies: 1 }); },
     discardImported: (token) => discarded.push(token),
     listExtensions: async () => "[]", forgetUnlockedKeys() {},
@@ -22,7 +23,7 @@ const api = await import("@ardia/import");
 globalThis.require = () => api;
 const { useBrowser } = await import("../browser/store.ts");
 const { importNow, patchImport } = await import("./flow.ts");
-const { runImport } = await import("./runImport.ts");
+const { runImport, unlockAndImport } = await import("./runImport.ts");
 const { importSafariDirect, importSafariExport } = await import("./fileImports.ts");
 const S = () => useBrowser.getState();
 const deferred = () => { let resolve; const promise = new Promise((r) => { resolve = r; }); return { promise, resolve }; };
@@ -30,7 +31,7 @@ const deferred = () => { let resolve; const promise = new Promise((r) => { resol
 function setup() {
   S().hydrate({});
   writes.length = passwords.length = discarded.length = 0;
-  read = async () => result(); write = save = async () => {};
+  read = async () => result(); write = save = unlock = async () => {};
   const owner = S().createProfile({ name: "Import destination" });
   const other = S().createProfile({ name: "Other identity" });
   const target = S().createSpace({ name: "Import here", profileId: owner });
@@ -108,4 +109,33 @@ for (const entry of [importSafariDirect, () => importSafariExport("fixture.zip")
   assert.deepEqual(writes, []); assert.deepEqual(passwords, []);
   assert.deepEqual(discarded, ["vault"]);
   await assertStopped();
+});
+
+for (const change of ["reassign", "delete-profile", "delete-space"]) test(`unlock keeps the original destination through ${change}`, async () => {
+  const { owner, other, target } = setup();
+  const started = deferred(), gate = deferred();
+  let reads = 0;
+  unlock = async () => { started.resolve(); await gate.promise; };
+  read = async () => { reads++; return { ...result(), credentials }; };
+  patchImport({ kinds: new Set(["cookies", "passwords"]), step: { name: "unlock", unlocking: false, error: null } });
+  const pending = unlockAndImport();
+  await started.promise;
+  if (change === "reassign") S().assignSpaceProfile(target, other);
+  if (change === "delete-profile") S().deleteProfile(owner, other);
+  if (change === "delete-space") S().deleteSpace(target);
+  gate.resolve(); await pending; await delay(1);
+  assert.deepEqual(writes, []); assert.deepEqual(passwords, []);
+  assert.equal(reads, 0);
+  await assertStopped();
+});
+
+for (const useDefault of [false, true]) test(`unlock still imports into an unchanged destination: default=${useDefault}`, async () => {
+  const { owner } = setup();
+  patchImport({ ...(useDefault ? { target: "default" } : {}), kinds: new Set(["cookies", "passwords"]), step: { name: "unlock", unlocking: false, error: null } });
+  read = async () => ({ ...result(), credentials });
+  await unlockAndImport(); await delay(1);
+  const engine = useDefault ? "" : owner;
+  assert.deepEqual(writes, [{ token: "vault", profile: engine }]);
+  assert.deepEqual(passwords, [engine, engine]);
+  assert.deepEqual(importNow().step.notes, []);
 });

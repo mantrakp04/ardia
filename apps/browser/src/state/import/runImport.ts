@@ -53,8 +53,9 @@ export function continueImport() {
 }
 
 export async function unlockAndImport() {
-  const { source, step } = importNow();
+  const { source, step, target } = importNow();
   if (!source) return;
+  const targetOwner = importDestination(target);
   const signal = importSignal();
   patchImport({ step: { name: "unlock", unlocking: true, error: step.name === "unlock" ? step.error : null } });
   try {
@@ -64,7 +65,7 @@ export async function unlockAndImport() {
       patchImport({ step: { name: "unlock", unlocking: false, error: `macOS didn't allow access to ${source.name}'s keychain item. Try again, or skip the encrypted data.` } });
     return;
   }
-  if (!signal.aborted) void runImport(importNow().kinds);
+  if (!signal.aborted) return runImport(importNow().kinds, false, targetOwner);
 }
 
 export function skipEncryptedData() {
@@ -105,10 +106,9 @@ function importAppTabs(dest: string, tabs: AppTabs, profiles: BrowserProfile[], 
   return importDiaSpace(dest, dia, { pinned: wanted.has("pinnedTabs"), open: wanted.has("tabs") }, tabs.result.favicons);
 }
 
-export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = false) {
-  const { source, sourceProfiles, spaces, target } = importNow();
+export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = false, targetOwner: ImportDestination | null = importDestination(importNow().target)) {
+  const { source, sourceProfiles, spaces } = importNow();
   if (!source) return;
-  const targetOwner = importDestination(target);
   const api = importModule();
   const signal = importSignal();
   const bySpaces = importsBySpaces(source);
@@ -138,6 +138,7 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
       extensions: { profileId: extensionsProfile, list: [...found.values()], opened: false },
     });
   };
+  if (!targetOwner?.current()) return destinationChanged();
   const appTabs = fromApp.length ? readAppTabs() : null;
   if (source.family === "firefox" && requested.includes("passwords") && !api.isBrowserUnlocked(source.id)) {
     await api.unlockBrowser(source.id).catch(orWarn(undefined));
