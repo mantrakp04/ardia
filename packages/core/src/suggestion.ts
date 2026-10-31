@@ -5,7 +5,7 @@ import type { ActionCandidate } from "./fuzzy.ts";
 import type { SearchScope } from "./siteSearch.ts";
 
 export type SuggestionSource = {
-  tabs: readonly { id: string; url: string; title: string; favicon: string | null }[];
+  tabs: readonly { id: string; url: string; title: string; customTitle?: string | null; favicon: string | null }[];
   history: readonly { url: string; title: string; favicon: string | null; visits: number; lastVisit: number }[];
   bookmarks?: readonly { url: string; title: string; favicon: string | null }[];
 };

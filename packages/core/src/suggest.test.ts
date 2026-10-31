@@ -138,6 +138,19 @@ test("open tabs are marked so the bar can switch to them, except the bar's own t
   assert.ok(!own.items.some((i) => i.kind === "page" && i.tabId));
 });
 
+test("a renamed tab is found by its custom title and shows it, with or without a history row", () => {
+  const tabs = [{ id: "t1", url: "https://github.com/pulls", title: "Pull requests", customTitle: "Review queue", favicon: null }];
+  const tabRow = (items: Suggestion[]) => items.find((i) => i.kind === "page" && i.tabId === "t1");
+  const hist = [...history, { url: "https://github.com/pulls", title: "Pull requests", favicon: null, visits: 4, lastVisit: now - 1000 }];
+  for (const h of [history, hist]) {
+    const row = tabRow(buildSuggestions("review", { tabs, history: h }, { now }).items);
+    assert.equal(row?.kind === "page" && row.title, "Review queue");
+    const byUrl = tabRow(buildSuggestions("github.com/pu", { tabs, history: h }, { now }).items);
+    assert.equal(byUrl?.kind === "page" && byUrl.title, "Review queue");
+  }
+  assert.equal(tabRow(buildSuggestions("review", { tabs: [{ ...tabs[0]!, customTitle: null }], history: hist }, { now }).items), undefined);
+});
+
 test("a typed or completed address opens, even when a tab has it open: the tab keeps a Switch to Tab row", () => {
   const tabs = [{ id: "t1", url: "https://ugc.hekuto.dev/#grid", title: "UGC Radar", favicon: null }];
   const hist = [{ url: "https://ugc.hekuto.dev/#grid", title: "UGC Radar", favicon: null, visits: 3, lastVisit: now - 1000 }];

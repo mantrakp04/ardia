@@ -118,7 +118,7 @@ export function prepareSuggestions(source: SuggestionSource, deadline: number): 
   return advance(b, bookmarks, deadline);
 }
 
-type TabsOver = { pool: Pool; currentTabId: string | undefined; rows: TabRow[]; tabIds: Map<string, string>; extra: Candidate[] };
+type TabsOver = { pool: Pool; currentTabId: string | undefined; rows: TabRow[]; tabIds: Map<string, string>; renamed: Set<string>; extra: Candidate[] };
 const tabsOverCache = new WeakMap<readonly TabRow[], TabsOver>();
 
 export function tabsOver(pool: Pool, tabs: readonly TabRow[], currentTabId?: string): TabsOver {
@@ -129,15 +129,22 @@ export function tabsOver(pool: Pool, tabs: readonly TabRow[], currentTabId?: str
     if (same) return cached;
   }
   const tabIds = new Map<string, string>();
+  const renamed = new Set<string>();
   const extra: Candidate[] = [];
   for (const t of tabs) {
     if (!t.url || t.id === currentTabId) continue;
-    const text = pageText(t);
+    const title = t.customTitle || t.title;
+    const text = t.customTitle ? pageText({ url: t.url, title }) : pageText(t);
     if (tabIds.has(text.key)) continue;
     tabIds.set(text.key, t.id);
-    if (!pool.byKey.has(text.key)) extra.push({ url: t.url, title: t.title, favicon: t.favicon, visits: 0, lastVisit: 0, logVisits: 0, fresh: true, bookmarked: false, tabId: t.id, text });
+    const known = pool.byKey.get(text.key);
+    if (!known) extra.push({ url: t.url, title, favicon: t.favicon, visits: 0, lastVisit: 0, logVisits: 0, fresh: true, bookmarked: false, tabId: t.id, text });
+    else if (t.customTitle) {
+      renamed.add(text.key);
+      extra.push({ ...known, title, tabId: t.id, text: pageText({ url: known.url, title }) });
+    }
   }
-  const result = { pool, currentTabId, rows: tabs.slice(), tabIds, extra };
+  const result = { pool, currentTabId, rows: tabs.slice(), tabIds, renamed, extra };
   tabsOverCache.set(tabs, result);
   return result;
 }

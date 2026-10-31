@@ -7,7 +7,7 @@ import { matchQuickCreate } from "./quickCreate.ts";
 import { scopedSearchUrl, type SearchScope } from "./siteSearch.ts";
 
 export type SuggestionSource = {
-  tabs: readonly { id: string; url: string; title: string; favicon: string | null }[];
+  tabs: readonly { id: string; url: string; title: string; customTitle?: string | null; favicon: string | null }[];
   history: readonly { url: string; title: string; favicon: string | null; visits: number; lastVisit: number }[];
   bookmarks?: readonly { url: string; title: string; favicon: string | null }[];
 };
@@ -197,15 +197,22 @@ export function prepareSuggestions(source: SuggestionSource, deadline: number): 
 
 function tabsOver(pool: Pool, tabs: readonly TabRow[], now: number, currentTabId?: string) {
   const tabIds = new Map<string, string>();
+  const renamed = new Set<string>();
   const extra: Candidate[] = [];
   for (const t of tabs) {
     if (!t.url || t.id === currentTabId) continue;
-    const text = pageText(t);
+    const title = t.customTitle || t.title;
+    const text = pageText({ url: t.url, title });
     if (tabIds.has(text.key)) continue;
     tabIds.set(text.key, t.id);
-    if (!pool.byKey.has(text.key)) extra.push({ url: t.url, title: t.title, favicon: t.favicon, visits: 0, lastVisit: now, bookmarked: false, tabId: t.id, text });
+    const known = pool.byKey.get(text.key);
+    if (!known) extra.push({ url: t.url, title, favicon: t.favicon, visits: 0, lastVisit: now, bookmarked: false, tabId: t.id, text });
+    else if (t.customTitle) {
+      renamed.add(text.key);
+      extra.push({ ...known, title, tabId: t.id, text: pageText({ url: known.url, title }) });
+    }
   }
-  return { tabIds, extra };
+  return { tabIds, renamed, extra };
 }
 
 const isWordChar = (code: number) => (code >= 48 && code <= 57) || (code >= 97 && code <= 122);
@@ -337,7 +344,7 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
   }
 
   const pool = poolFor(source.history, source.bookmarks ?? NO_BOOKMARKS);
-  const { tabIds, extra } = tabsOver(pool, source.tabs, now, options.currentTabId);
+  const { tabIds, renamed, extra } = tabsOver(pool, source.tabs, now, options.currentTabId);
   const currentKey = options.currentUrl ? pageKey(options.currentUrl) : null;
   const known = (url: string) => {
     const key = pageKey(url);
@@ -360,6 +367,7 @@ export function buildSuggestions(raw: string, source: SuggestionSource, options:
       const m = matchScore(c.text, parsed);
       if (m <= 0) continue;
       if (list === pages) matched.push(c);
+      if (list === pages && renamed.has(c.text.key)) continue;
       const tabId = c.tabId ?? tabIds.get(c.text.key);
       const derank = currentKey !== null && c.text.key === currentKey ? 80 : 0;
       const r: Ranked = { c, tabId, m, s: m + frecency(c, tabId, now) - derank };
