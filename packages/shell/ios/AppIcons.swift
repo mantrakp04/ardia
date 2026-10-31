@@ -88,7 +88,7 @@ enum AppIcons {
       path.lineWidth = max(1, rect.width / 512)
       path.stroke()
       path.addClip()
-      artwork.draw(in: body.insetBy(dx: body.width * 0.06, dy: body.width * 0.06))
+      artwork.draw(in: body)
       return true
     }
     cache[key] = image

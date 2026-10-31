@@ -69,8 +69,6 @@ def fit(im, size, width_frac, bottom=None):
 for scale in (1, 2, 3):
     fit(mark, 100 * scale, 0.94, bottom=0).save(OUT / f"ntp-mark{'' if scale == 1 else f'@{scale}x'}.png")
 
-fit(mark, 1024, 0.96).save(OUT / "plate-mark-1024.png")
-
 flat_mark = clean_alpha(Image.open(SRC / "mark-small.png"))
 rgb = np.array(flat_mark)[:, :, :3].astype(np.int32)
 alpha = np.array(flat_mark)[:, :, 3]
@@ -233,21 +231,6 @@ for scale in (1, 2, 3):
         print("layer tops (pt):", [round(np.nonzero((m > 0.02).any(1))[0].min() / 3, 1) for m in (back, front, sun)])
 print("tinted marks")
 
-import shutil  # noqa: E402
-
-XCASSETS = Path("apps/browser/macos/Ardia-macOS/Assets.xcassets")
-PLATE_MARK_PX = 512
-IMAGESET = '{\n  "images" : [\n    {\n      "filename" : "mark.png",\n      "idiom" : "universal"\n    }\n  ],\n  "info" : {\n    "author" : "xcode",\n    "version" : 1\n  }\n}\n'
-slots = {"AppIconMark": OUT / "plate-mark-1024.png"}
-for name, im in tinted_marks(Image.open(slots["AppIconMark"]), ("plum", "blue", "neutral")):
-    im.save(OUT / f"plate-mark-{name}-1024.png", optimize=True)
-    slots[f"AppIconMark-{name}"] = OUT / f"plate-mark-{name}-1024.png"
-for slot, path in slots.items():
-    folder = XCASSETS / f"{slot}.imageset"
-    folder.mkdir(exist_ok=True)
-    Image.open(path).resize((PLATE_MARK_PX, PLATE_MARK_PX), LZ).save(folder / "mark.png", optimize=True)
-    (folder / "Contents.json").write_text(IMAGESET)
-print("plate marks")
 
 import json  # noqa: E402
 
@@ -291,6 +274,26 @@ for part, name in ((SUN, "sun"), (FRONT, "front"), (BACK, "back")):
     "supported-platforms": {"squares": ["macOS"]},
 }, indent=2) + "\n")
 print("app icon (Icon Composer)")
+
+import shutil  # noqa: E402
+
+XCASSETS = Path("apps/browser/macos/Ardia-macOS/Assets.xcassets")
+PLATE_MARK_PX = 768
+IMAGESET = '{\n  "images" : [\n    {\n      "filename" : "mark.png",\n      "idiom" : "universal"\n    }\n  ],\n  "info" : {\n    "author" : "xcode",\n    "version" : 1\n  }\n}\n'
+plate_mark = Image.new("RGBA", (1024, 1024), (0, 0, 0, 0))
+for part in (BACK, FRONT, SUN):
+    plate_mark.alpha_composite(icon_parts[part])
+plate_mark.save(OUT / "plate-mark-1024.png", optimize=True)
+slots = {"AppIconMark": OUT / "plate-mark-1024.png"}
+for name, im in tinted_marks(Image.open(slots["AppIconMark"]), ("plum", "blue", "neutral")):
+    im.save(OUT / f"plate-mark-{name}-1024.png", optimize=True)
+    slots[f"AppIconMark-{name}"] = OUT / f"plate-mark-{name}-1024.png"
+for slot, path in slots.items():
+    folder = XCASSETS / f"{slot}.imageset"
+    folder.mkdir(exist_ok=True)
+    Image.open(path).resize((PLATE_MARK_PX, PLATE_MARK_PX), LZ).save(folder / "mark.png", optimize=True)
+    (folder / "Contents.json").write_text(IMAGESET)
+print("plate marks")
 
 import base64, io, subprocess, tempfile  # noqa: E401, E402
 
