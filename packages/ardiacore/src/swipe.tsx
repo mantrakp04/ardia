@@ -14,9 +14,12 @@ export type SwipeEvent = {
 };
 
 export type SwipeStep = {
-  phase: "began" | "changed" | "ended" | "cancelled" | "momentum" | "momentumBegan" | "momentumEnded" | "mayBegin" | "swipe" | "wheel";
+  phase: "began" | "changed" | "ended" | "cancelled" | "momentum" | "momentumBegan" | "momentumEnded" | "mayBegin" | "swipe" | "wheel" | "buttonDown" | "buttonUp";
   dx?: number;
   dy?: number;
+  button?: number;
+  x?: number;
+  y?: number;
   shift?: boolean;
   delayMs?: number;
 };
