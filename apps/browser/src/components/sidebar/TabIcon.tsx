@@ -3,7 +3,7 @@ import { Text, View } from "react-native";
 import { useIsSleeping } from "../../state/tabs/tabLifecycle";
 import { Symbol } from "../ui";
 import { useTheme } from "../ui/theme";
-import { sidebarTokens } from "./tokens";
+import { FADED_TAB_OPACITY, sidebarTokens } from "./tokens";
 import { useTab } from "../../state/browser/hooks";
 import { ENGINE_NAMES, ENGINE_SYMBOLS, type PageEngine } from "../../state/engines/engines";
 import { FADED, markedEngine, useIconMarks } from "../../state/sidebar/rowState";
@@ -37,7 +37,7 @@ export const TabIcon = memo(function TabIcon({
   const engine = tabId && size >= 14 ? markedEngine(marks) : null;
   const props = { url, favicon, icon, size, color, direct };
   return (
-    <View style={{ opacity: sleeping || marks & FADED ? SLEEPING_OPACITY : 1 }}>
+    <View style={{ opacity: sleeping || marks & FADED ? FADED_TAB_OPACITY : 1 }}>
       {profile || !tabId ? <Icon {...props} profileId={profile} /> : <TabProfileIcon {...props} tabId={tabId} />}
       {engine ? <EngineMark mark={engine} size={size} /> : null}
     </View>
@@ -72,8 +72,6 @@ function TabProfileIcon({ tabId, ...props }: Omit<Parameters<typeof Icon>[0], "p
   const profileId = useTab(tabId, (t) => t?.profileId);
   return <Icon {...props} profileId={profileId} />;
 }
-
-const SLEEPING_OPACITY = 0.45;
 
 function Icon({
   url,

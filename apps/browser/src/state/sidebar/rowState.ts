@@ -5,6 +5,7 @@ import type { Tab } from "../browser/types";
 import { engineMark, type PageEngine } from "../engines/engines";
 import { isPageUnloaded } from "../pins/pinShare";
 import { useBrowserWhile } from "../tabs/tabWatch";
+import { useIsSleeping } from "../tabs/sleepingTabs";
 
 export const ACTIVE = 1;
 export const SELECTED = 2;
@@ -25,6 +26,11 @@ export const markedEngine = (marks: number): PageEngine | null =>
 
 export const useIconMarks = (tabId: string | undefined, given: number | undefined): number =>
   useBrowserWhile(given === undefined && !!tabId, (s) => given ?? (tabId ? iconMarks(s, tabId) : 0));
+
+export function useFadeTabTitle(tabId: string): boolean {
+  const sleeping = useIsSleeping(tabId);
+  return useBrowser((s) => s.settings.fadeUnloadedTabTitles && (sleeping || isPageUnloaded(s, tabId)));
+}
 
 function rowFlags(s: BrowserState, windowId: string, tabId: string): number {
   const tab = s.tabs[tabId];

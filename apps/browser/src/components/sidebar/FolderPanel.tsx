@@ -1,3 +1,4 @@
+import { useFadeTabTitle } from "../../state/sidebar/rowState";
 import { useEffect, useMemo, useState } from "react";
 import { Animated, Pressable, Text, View } from "react-native";
 import { layout, useTheme } from "../ui/theme";
@@ -6,7 +7,7 @@ import { plural, tabTitle } from "../../state/browser/model";
 import { useTileFolderLabel, useTileFolderMembers } from "../../state/pins/hooks";
 import { SLIDE } from "../tabstrip/stripReorder";
 import { ContextMenuArea, FadeLabel, font, OutsidePressArea, Panel, radius, useHover, weight } from "../ui";
-import { SIDEBAR_SHADOW } from "./tokens";
+import { FADED_TAB_OPACITY, SIDEBAR_SHADOW } from "./tokens";
 import { clickTab } from "../../state/sidebar/actions";
 import { useDragController, useDragItem, useFolderAway } from "./DragProvider";
 import { openTabMenu } from "../../state/sidebar/menus";
@@ -94,6 +95,7 @@ function PanelBody({ windowId, folderId, anchor }: { windowId: string; folderId:
 function MemberRow({ tabId, windowId }: { tabId: string; windowId: string }) {
   const theme = useTheme();
   const tab = useTab(tabId);
+  const fadeTitle = useFadeTabTitle(tabId);
   const active = useIsActiveTab(tabId);
   const { hovered, hoverProps } = useHover();
   const { wrapper, handle } = useDragItem(`fm:${tabId}`, { kind: "row", tabIds: [tabId], section: "folder" });
@@ -120,7 +122,7 @@ function MemberRow({ tabId, windowId }: { tabId: string; windowId: string }) {
                 }}
               >
                 <TabIcon tabId={tabId} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} />
-                <FadeLabel text={tabTitle(tab)} fontSize={font.body.fontSize} color={active ? theme.textPrimary : theme.textTab} style={{ flex: 1, height: 18, marginLeft: 8 }} />
+                <FadeLabel text={tabTitle(tab)} fontSize={font.body.fontSize} color={active ? theme.textPrimary : theme.textTab} style={{ flex: 1, height: 18, marginLeft: 8, opacity: fadeTitle ? FADED_TAB_OPACITY : 1 }} />
               </View>
             )}
           </Pressable>

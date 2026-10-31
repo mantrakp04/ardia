@@ -1,3 +1,5 @@
+import { FADED_TAB_OPACITY } from "../sidebar/tokens";
+import { useFadeTabTitle } from "../../state/sidebar/rowState";
 import { useContext } from "react";
 import { Animated, StyleSheet, View } from "react-native";
 import { useIsActiveTab, usePageProfileId, useTab, useWindowId } from "../../state/browser/hooks";
@@ -50,6 +52,7 @@ function SplitPart({ tabId, first, ink }: { tabId: string; first: boolean; ink: 
   const theme = useTheme();
   const windowId = useWindowId();
   const tab = useTab(tabId);
+  const fadeTitle = useFadeTabTitle(tabId);
   const focused = useIsActiveTab(tabId);
   const drag = useStripDrag({ tabId, ids: () => [tabId], pinned: false, groupId: null, geometry: NO_SLOTS, from: -1, width: 0, gap: 0, axis: "y" });
   if (!tab) return null;
@@ -64,9 +67,9 @@ function SplitPart({ tabId, first, ink }: { tabId: string; first: boolean; ink: 
         leading={first ? null : <View style={{ width: StyleSheet.hairlineWidth, height: 16, marginHorizontal: 6, backgroundColor: ink?.divider ?? theme.textTertiary }} />}
       >
         <View pointerEvents="none">
-          <TabIcon url={tab.url} favicon={tab.favicon} icon={tab.customIcon} size={14} profileId={tab.profileId} />
+          <TabIcon tabId={tab.id} url={tab.url} favicon={tab.favicon} icon={tab.customIcon} size={14} profileId={tab.profileId} />
         </View>
-        <FadeLabel text={tabTitle(tab)} fontSize={font.small.fontSize} color={ink ? (focused ? ink.text : ink.secondary) : focused ? theme.tabSelectedText : theme.textTab} style={{ flex: 1, height: 16, marginLeft: CHIP_LABEL_GAP }} />
+        <FadeLabel text={tabTitle(tab)} fontSize={font.small.fontSize} color={ink ? (focused ? ink.text : ink.secondary) : focused ? theme.tabSelectedText : theme.textTab} style={{ flex: 1, height: 16, marginLeft: CHIP_LABEL_GAP, opacity: fadeTitle ? FADED_TAB_OPACITY : 1 }} />
       </TabPressArea>
     </Animated.View>
   );

@@ -18,8 +18,27 @@ const stubs = {
   "../settings/settingsWindows": "export const openSettings = () => {};",
   "../pages/urls": "export const isInternalTab = (t) => !/^https?:/.test(t.url ?? '');",
 };
+const splitStubs = {
+  "react-native": `export * from ${JSON.stringify(new URL("../../test-native/reactNative.ts", import.meta.url).href)}; export const StyleSheet = { hairlineWidth: 0.5 };`,
+  "../ui": 'export const FadeLabel = "FadeLabel"; export const Symbol = "Symbol"; export const useHover = () => ({ hovered: false, hoverProps: {} });',
+  "../sidebar/TabPressArea": 'export const TabPressArea = "TabPressArea";',
+  "./SelectedTab": 'export const SelectedTab = "SelectedTab";',
+  "./TabChip": 'export const ItemRow = "ItemRow"; export const useWebsiteBand = () => ({ band: null, palette: {} });',
+  "./useStripDrag": 'export const useStripDrag = () => ({ ref: null, panHandlers: {}, style: { opacity: 1 }, dragging: false });',
+};
+const iconStubs = {
+  "react-native": `export * from ${JSON.stringify(new URL("../../test-native/reactNative.ts", import.meta.url).href)}; export const Text = "Text";`,
+  "../ui": 'export const Symbol = "Symbol";',
+  "../favicon/Favicon": 'export const Favicon = "Favicon";',
+};
 registerHooks({
   resolve(specifier, context, next) {
+    if (context.parentURL?.endsWith("/components/sidebar/TabIcon.tsx") && specifier in iconStubs) {
+      return { url: `data:text/javascript,${encodeURIComponent(iconStubs[specifier])}`, shortCircuit: true };
+    }
+    if (context.parentURL?.endsWith("/components/tabstrip/SplitChip.tsx") && specifier in splitStubs) {
+      return { url: `data:text/javascript,${encodeURIComponent(splitStubs[specifier])}`, shortCircuit: true };
+    }
     if (!/\/state\/tabs\/(?:tabLifecycle|memorySaver|shownTabs)\.ts$/.test(context.parentURL ?? "") || !(specifier in stubs)) return next(specifier, context);
     return { url: `data:text/javascript,${encodeURIComponent(stubs[specifier])}`, shortCircuit: true };
   },
@@ -28,7 +47,7 @@ const { useBrowser } = await import("../browser/store.ts");
 const { useIsActiveTab, useTab, useTabLive, WindowContext } = await import("../browser/hooks.ts");
 const { useTabValue, useStoreWhile, shallowEqual } = await import("./tabWatch.ts");
 const { usePageProgress, setPageProgress } = await import("./pageProgress.ts");
-const { useRowState, ACTIVE, SELECTED, PLAYING, LOADING } = await import("../sidebar/rowState.ts");
+const { useRowState, useFadeTabTitle, useIconMarks, FADED, ACTIVE, SELECTED, PLAYING, LOADING } = await import("../sidebar/rowState.ts");
 const { useSidebarUi, setSidebarUi } = await import("../sidebar/sidebarUi.ts");
 const { useIsSleeping, noteDiscarded, noteReady } = await import("./tabLifecycle.ts");
 const { useMedia, setPictureInPictureState } = await import("../media/media.ts");
@@ -38,6 +57,17 @@ const { withoutFragment } = await import("../../lib/url.ts");
 const { engineProfile } = await import("../browser/model.ts");
 const { flushPersistence, loadSession, startPersistence } = await import("../session/persist.ts");
 const stub = await import("../../test-native/index.ts");
+const { SplitChip } = await import("../../components/tabstrip/SplitChip.tsx");
+const { TabIcon } = await import("../../components/sidebar/TabIcon.tsx");
+
+function* elements(tree) {
+  if (Array.isArray(tree)) {
+    for (const child of tree) yield* elements(child);
+  } else if (tree?.props) {
+    yield tree;
+    yield* elements(tree.props.children);
+  }
+}
 
 const S = () => useBrowser.getState();
 const setup = () => {
@@ -260,4 +290,64 @@ test("an icon: arrives, changes, follows its page and its icon URL, its light/da
   useFavicons.setState((f) => ({ ...f, profiles: { ...f.profiles, [key]: { pages: {}, srcs: {}, appearances: {} } } }));
   assert.equal(i.value.resolved, null, "gone");
   i.unmount();
+});
+
+
+test("title fading follows sleep, wake and unloaded pages independently of icon fading", () => {
+  const { w, a } = setup();
+  const b = S().newTab(w, { url: "https://b.com/", background: true });
+  const contexts = [[WindowContext, w]];
+  const split = mount(() => SplitChip({ tabIds: [a, b], width: 240, geometry: {}, from: -1, group: null }), { contexts });
+  const part = [...elements(split.value)].find((element) => element.props.tabId === b);
+  assert.ok(part, "the split renders its background tab");
+  const rendered = mount(() => part.type(part.props), { contexts });
+  const label = () => [...elements(rendered.value)].find((element) => element.type === "FadeLabel");
+  const renderedIcon = mount(() => {
+    const element = [...elements(rendered.value)].find((element) => element.type === TabIcon);
+    return element.type.type(element.props);
+  }, { contexts });
+  const title = mount(() => useFadeTabTitle(b));
+  const loadedTitle = mount(() => useFadeTabTitle(a));
+  const icon = mount(() => !!(useIconMarks(b) & FADED));
+  assert.equal(title.value, false);
+  assert.equal(label().props.style.opacity, 1);
+  assert.equal(renderedIcon.value.props.style.opacity, 1);
+  S().updateSettings({ fadeUnloadedTabTitles: true });
+  assert.equal(title.value, false, "loaded background tabs keep full title opacity");
+  noteDiscarded(b);
+  assert.equal(title.value, true, "a sleeping tab fades without a browser store change");
+  assert.equal(label().props.style.opacity, 0.45, "the rendered split title fades while asleep");
+  assert.equal(renderedIcon.value.props.style.opacity, 0.45, "the split icon's outer View fades while asleep");
+  assert.equal(loadedTitle.value, false, "another tab stays opaque");
+  S().updateSettings({ fadeUnloadedTabTitles: false });
+  assert.equal(title.value, false, "turning the preference off takes effect while asleep");
+  assert.equal(label().props.style.opacity, 1);
+  assert.equal(renderedIcon.value.props.style.opacity, 0.45, "sleeping icons fade independently of the title preference");
+  S().updateSettings({ fadeUnloadedTabTitles: true });
+  assert.equal(title.value, true);
+  noteReady(b);
+  assert.equal(title.value, false, "a woken tab immediately restores its title");
+  assert.equal(label().props.style.opacity, 1);
+  assert.equal(renderedIcon.value.props.style.opacity, 1);
+  const loadedPage = S().tabs[b].page;
+  S().updateTab(b, { page: { kind: "idle" } });
+  assert.equal(title.value, true, "an unloaded tab fades without a sleeping marker");
+  assert.equal(label().props.style.opacity, 0.45);
+  assert.equal(icon.value, false, "the title setting leaves the icon setting alone");
+  assert.equal(renderedIcon.value.props.style.opacity, 1, "unloaded icons stay opaque with icon fading off");
+  S().updateSettings({ fadeUnloadedTabs: true, fadeUnloadedTabTitles: false });
+  assert.equal(icon.value, true);
+  assert.equal(renderedIcon.value.props.style.opacity, 0.45, "the split icon's outer View follows the icon preference");
+  assert.equal(title.value, false, "the icon setting leaves the title setting alone");
+  S().updateSettings({ fadeUnloadedTabTitles: true });
+  S().updateTab(b, { page: loadedPage });
+  assert.equal(title.value, false, "loading an unloaded page restores the title");
+  assert.equal(label().props.style.opacity, 1);
+  assert.equal(renderedIcon.value.props.style.opacity, 1);
+  renderedIcon.unmount();
+  rendered.unmount();
+  split.unmount();
+  title.unmount();
+  loadedTitle.unmount();
+  icon.unmount();
 });
