@@ -2710,12 +2710,16 @@ try {
     await cdp(t, "Runtime.evaluate", { expression: `window.opener.postMessage("from-popup", "*")` });
     const message = await until("the opener's message", async () => (await cdp(opener, "Runtime.evaluate", { expression: "window.__msg", returnByValue: true })).result.value);
     const asTab = (await state()).tabs.some((x) => x.url?.includes("/popup-page"));
+    const mainNumber = await engine("tabs.devWindowNumber", { tabId: first.id });
+    const strips = JSON.parse(await engine("windows.dev", { window: mainNumber, action: "popupStrips" }) || "[]");
     await closeFromPage(t);
     await until("the popup window closed", async () => ((await popups()) === before && !(await pageTarget("/popup-page")) ? true : null), 10000);
     const { size, opener: hasOpener } = JSON.parse(page);
     if (asTab) throw new Error("the popup became a tab");
     if (size !== "480x360" || !hasOpener) throw new Error(`popup page ${page}`);
-    return { size, opener: hasOpener, message };
+    if (strips.length !== 1) throw new Error(`popup origin strips: ${JSON.stringify(strips)}`);
+    if (strips[0].covers.length) throw new Error(`the origin strip paints over the popup's page: ${JSON.stringify(strips[0])}`);
+    return { size, opener: hasOpener, message, strip: strips[0] };
   });
 
   await check("download", async () => {

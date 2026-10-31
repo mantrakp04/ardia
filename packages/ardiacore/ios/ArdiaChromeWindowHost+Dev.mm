@@ -447,6 +447,52 @@ NSString *TabViews(NSWindow *window, NSString *) {
   return JSONText(out, @"[]");
 }
 
+ArdiaPopupOriginStrip *PopupOriginStripIn(NSView *root) {
+  NSMutableArray<NSView *> *queue = [NSMutableArray arrayWithObject:root];
+  while (queue.count) {
+    NSView *v = queue.lastObject;
+    [queue removeLastObject];
+    if ([v isKindOfClass:ArdiaPopupOriginStrip.class]) return (ArdiaPopupOriginStrip *)v;
+    [queue addObjectsFromArray:v.subviews];
+  }
+  return nil;
+}
+
+NSString *PopupStrips(NSWindow *, NSString *) {
+  NSMutableArray *out = [NSMutableArray array];
+  for (NSWindow *window in NSApp.windows) {
+    ArdiaPopupOriginStrip *strip = window.contentView ? PopupOriginStripIn(window.contentView) : nil;
+    if (!strip || !strip.superview) continue;
+    [window displayIfNeeded];
+    CALayer *own = strip.layer;
+    NSRect drawn = strip.bounds;
+    NSMutableArray<CALayer *> *layers = [NSMutableArray arrayWithArray:own.sublayers ?: @[]];
+    while (layers.count) {
+      CALayer *layer = layers.lastObject;
+      [layers removeLastObject];
+      if (!layer.hidden) drawn = NSUnionRect(drawn, [own convertRect:layer.bounds fromLayer:layer]);
+      [layers addObjectsFromArray:layer.sublayers ?: @[]];
+    }
+    const BOOL masked = strip.clipsToBounds || own.masksToBounds;
+    const NSRect visible = masked ? strip.bounds : drawn;
+    NSView *host = strip.superview;
+    const NSRect stripFrame = strip.frame, visibleInHost = [strip convertRect:visible toView:host];
+    NSMutableArray *covered = [NSMutableArray array];
+    for (NSView *sibling in host.subviews) {
+      if (sibling == strip || sibling.hidden) continue;
+      const NSRect overlap = NSIntersectionRect(visibleInHost, sibling.frame);
+      if (NSIsEmptyRect(overlap)) continue;
+      [covered addObject:@{@"class" : NSStringFromClass(sibling.class), @"frame" : NSStringFromRect(sibling.frame),
+                           @"overlap" : NSStringFromRect(overlap)}];
+    }
+    [out addObject:@{@"window" : @(window.windowNumber), @"strip" : NSStringFromRect(stripFrame),
+                     @"clipsToBounds" : @(strip.clipsToBounds), @"masksToBounds" : @(own.masksToBounds),
+                     @"drawn" : NSStringFromRect([strip convertRect:drawn toView:host]),
+                     @"visible" : NSStringFromRect(visibleInHost), @"covers" : covered}];
+  }
+  return JSONText(out, @"[]");
+}
+
 NSString *Cover(NSWindow *window, bool covered) {
   static NSMapTable<NSWindow *, NSWindow *> *covers = [NSMapTable weakToStrongObjectsMapTable];
   NSWindow *cover = [covers objectForKey:window];
@@ -557,6 +603,7 @@ NSDictionary<NSString *, DevHandler> *DevHandlers() {
       NSRect r = [close convertRect:close.bounds toView:nil];
       return [NSString stringWithFormat:@"%.1f,%.1f,%.1f,%.1f", r.origin.x, r.origin.y, r.size.width, r.size.height];
     },
+    @"popupStrips" : ^NSString *(NSWindow *w, NSString *a) { return PopupStrips(w, a); },
     @"cover" : ^NSString *(NSWindow *w, NSString *) { return Cover(w, true); },
     @"uncover" : ^NSString *(NSWindow *w, NSString *) { return Cover(w, false); },
     @"close-button" : ^NSString *(NSWindow *w, NSString *) {

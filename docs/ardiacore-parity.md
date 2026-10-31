@@ -183,6 +183,7 @@ Test hygiene the run keeps (each was a real failure):
 | images | `downloadImage`, `downloadFavicon`, `fetchFavicon` as `data:` PNGs |
 | frozen | `setFrozen(true/false)` on a background page: the page sees freeze and resume |
 | discard | A background tab discarded in place → `onDiscarded` |
+| popup-window | A sized `window.open` gets a popup window of its own at the page size it asked for, keeps its opener and is no tab; its origin strip draws only inside its own bounds, never over the page (`windows.dev` `popupStrips`; issues #516, #647) |
 | permission-prompt, popup-blocked | A permission request → the app's prompt → Chrome; a popup without a gesture → `onPopupBlocked` → `openBlockedPopup` |
 | camera-mic-allow | 0.2.21's crash case, on the media copy (above): a camera + microphone getUserMedia is one prompt; Allow starts the stream with both tracks live |
 | permission-answer-once | A double Allow and two more answers straight to the engine decide nothing twice; a late answer to that prompt doesn't answer the tab's next one |
