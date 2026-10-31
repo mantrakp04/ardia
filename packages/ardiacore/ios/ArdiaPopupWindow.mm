@@ -231,12 +231,20 @@ NSImage *_Nullable PermissionIcon(NSDictionary *request) {
   _strip = [[ArdiaPopupOriginStrip alloc]
       initWithFrame:NSMakeRect(0, flipped ? 0 : pageHeight, NSWidth(bounds), kPopupOriginStripHeight)];
   _strip.autoresizingMask = NSViewWidthSizable | (flipped ? NSViewMaxYMargin : NSViewMinYMargin);
+  __weak ArdiaPopupWindow *weakSelf = self;
+  _strip.openAsTab = ^{ [weakSelf openAsTab]; };
   [host addSubview:_strip positioned:NSWindowAbove relativeTo:page];
   [self updateTitle];
   [self updateOrigin];
   if (ardia_host::Background()) [_coreWindow showInactive];
   else [_coreWindow.window makeKeyAndOrderFront:nil];
   [_tab focus];
+}
+
+- (void)openAsTab {
+  if (_tab.closed) return;
+  ArdiaWebView *view = _opener ?: [ArdiaWindowController hostingViewForProfile:_tab.profile];
+  if (view) [view openedTab:_tab adoptId:[ArdiaTabRegistry offerTab:_tab] disposition:@"foreground"];
 }
 
 - (void)updateTitle {
