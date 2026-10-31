@@ -173,6 +173,7 @@ export type NestedGroupSnapshot = Pick<TabGroup, "id" | "name" | "icon" | "color
 
 export type ClosedGroup = {
   kind: "group";
+  hiddenFromBar?: boolean;
   id: string;
   group: Pick<TabGroup, "id" | "name" | "icon" | "color" | "pinned"> & { parentId?: string };
   tabs: TabSnapshot[];

@@ -11,8 +11,10 @@ import { ContextMenuArea, FileDropArea, space, Text, useTheme, type DropUpdate }
 import { ThemeContext } from "../ui/theme";
 import { siteScopedTheme, useEasedColor } from "../ui/toolbarColors";
 import { useSitePalette } from "../toolbar/useSitePalette";
+import { barLayout } from "./barLayout";
 import { BarButton, BarItem, ImportButton } from "./BarItem";
-import { measureRect, useEased, useSlide } from "./barMotion";
+import { ClosedGroupsBar } from "./ClosedGroupsBar";
+import { measureRect, sameRect, useEased, useSlide } from "./barMotion";
 import { openBarMenu } from "../../state/bookmarks/barMenus";
 import { useBarSize, useBookmarksBarHeight } from "./barSize";
 import { bookmarksBar, type BarSize } from "./tokens";
@@ -72,20 +74,18 @@ function Bar({ windowId }: { windowId: string }) {
   const otherButton = useRef<View | null>(null);
   const overflowButton = useRef<View | null>(null);
   const [width, setWidth] = useState(0);
+  const [closedGroupsWidth, setClosedGroupsWidth] = useState(0);
   const [itemsFrame, setItemsFrame] = useState<LayoutRectangle>({ x: 0, y: 0, width: 0, height: 0 });
   const [frames, setFrames] = useState<Frames>({});
   const [otherX, setOtherX] = useState<number | null>(null);
 
   const reserved = hasOther ? bookmarksBar.otherReserve : 0;
-  const available = width - reserved;
-  const lastFrame = frames[children.at(-1) ?? ""];
-  const overflowing = !!lastFrame && lastFrame.x + lastFrame.width > available;
-  const fits = (id: string) => {
-    const f = frames[id];
-    return !f || f.x + f.width <= available - (overflowing ? bookmarksBar.overflowWidth : 0);
-  };
-  const visible = children.filter(fits);
-  const hiddenFrom = visible.length;
+  const available = Math.max(0, width - space.m * 2 - reserved - closedGroupsWidth);
+  const { visible } = barLayout(children, frames, available, bookmarksBar.overflowWidth, { unmeasuredVisible: true });
+  const visibleIds = new Set(visible);
+  const fits = (id: string) => visibleIds.has(id);
+  const firstHidden = children.findIndex((id) => !visibleIds.has(id));
+  const hiddenFrom = firstHidden < 0 ? children.length : firstHidden;
 
   const draggedHere = source?.kind === "bookmark" && visible.includes(source.id) ? source.id : null;
   const slotHere = spot && "slot" in spot && spot.zone === zone ? spot.slot : null;
@@ -110,6 +110,7 @@ function Bar({ windowId }: { windowId: string }) {
           const L = latest.current;
           if (!L.barId || x < ox || x > ox + L.width || y < oy || y > oy + L.size.height) return undefined;
           const local = x - ox;
+          if (local < L.itemsFrame.x) return undefined;
           if (L.otherId && L.otherX !== null && local >= L.otherX) {
             const otherId = L.otherId;
             return { spot: { into: otherId }, springOpen: () => void openFrom(windowId, otherButton.current, otherId, 0) };
@@ -154,6 +155,7 @@ function Bar({ windowId }: { windowId: string }) {
       style={{ height: size.height, flexDirection: "row", alignItems: "center", paddingHorizontal: space.m }}
     >
       <ContextMenuArea onContextMenu={() => void openBarMenu(windowId, profileId, null)} style={StyleSheet.absoluteFill} />
+      <ClosedGroupsBar windowId={windowId} maxWidth={Math.max(0, width - reserved - space.m * 2) * bookmarksBar.closedGroupsFraction} onWidth={setClosedGroupsWidth} />
       <View onLayout={(e) => setItemsFrame(e.nativeEvent.layout)} style={{ flex: 1, height: size.item, flexDirection: "row", alignItems: "center", overflow: "hidden" }}>
         {children.length === 0 && !hideImport ? (
           <ImportButton />
@@ -246,7 +248,6 @@ function DropLine({ x, size, color }: { x: number | null; size: BarSize; color: 
 
 const EMPTY: string[] = [];
 
-const sameRect = (a: LayoutRectangle | undefined, b: LayoutRectangle) => !!a && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
 
 const HINT = { marginLeft: space.xs } as const;
 const OTHER = { flexDirection: "row", alignItems: "center" } as const;

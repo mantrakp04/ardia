@@ -60,3 +60,17 @@ test("a setup code can carry every value its settings can take", () => {
     if (values) assert.deepEqual(values.filter((v) => !SETTING_FIELDS[key].values.includes(v)), [], key);
   }
 });
+
+
+test("closed groups on the bookmarks bar default on, parse both values and sync", () => {
+  assert.equal(DEFAULT_SETTINGS.showClosedGroupsInBookmarksBar, true);
+  assert.equal(parseSettings({}).showClosedGroupsInBookmarksBar, true);
+  assert.equal(parseSettings({ showClosedGroupsInBookmarksBar: "no" }).showClosedGroupsInBookmarksBar, true);
+  assert.ok(SYNCED_SETTINGS.includes("showClosedGroupsInBookmarksBar"));
+  for (const value of [false, true]) {
+    assert.equal(parseSettings({ showClosedGroupsInBookmarksBar: value }).showClosedGroupsInBookmarksBar, value);
+    S().hydrate({ settings: {} });
+    settingsAdapter.apply(new Map([["set:showClosedGroupsInBookmarksBar", { v: value }]]), ["set:showClosedGroupsInBookmarksBar"]);
+    assert.equal(S().settings.showClosedGroupsInBookmarksBar, value);
+  }
+});

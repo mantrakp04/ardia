@@ -127,3 +127,10 @@ test("panes leave showing and hiding an anchored row to the row's own rule", () 
   );
   assert.deepEqual(wrapped, SHOWN_BY_LOADED_DATA);
 });
+
+
+test("closed group display is searchable by its visible choice and synonyms", () => {
+  for (const query of ["closed groups", "saved groups", "hide groups", "reopen groups"]) {
+    assert.equal(first(query), "appearance.showClosedGroupsInBookmarksBar", query);
+  }
+});

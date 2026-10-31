@@ -9,6 +9,7 @@ export type MenuItem =
       id: string;
       title: string;
       symbol?: string;
+      favicon?: string | null;
       swatch?: string;
       swatchDark?: string;
       key?: string;

@@ -18,11 +18,11 @@ import { sessionWithOwnTabMutes } from "../tabs/mute";
 import { isRegularWindow } from "../windows/small";
 import { sessionWithPinChoiceStamps } from "../pins/pinChoices";
 import { isFields, isString, isStringList } from "../../lib/decode";
-import { pageFromDisk, parkedSplitsChecked, pinFromDisk, savedPage, sessionWithSplitSlots, sessionWithTabPages, sessionWithTabPins, slotsFromDisk } from "./savedShapes";
+import { pageFromDisk, parkedSplitsChecked, pinFromDisk, savedPage, sessionWithClosedGroupBarVisibility, sessionWithSplitSlots, sessionWithTabPages, sessionWithTabPins, slotsFromDisk } from "./savedShapes";
 
 const SAVE_DELAY_MS = 800;
-const SESSION_VERSION = 9;
-const SESSION_MIGRATIONS: Migrations = { 2: sessionWithCleanUpMinutes, 3: sessionWithOwnTabMutes, 4: sessionWithTabPages, 5: sessionWithTabPins, 6: sessionWithSplitSlots, 7: sessionWithSettingsMeta, 8: sessionWithPinChoiceStamps };
+const SESSION_VERSION = 10;
+const SESSION_MIGRATIONS: Migrations = { 2: sessionWithCleanUpMinutes, 3: sessionWithOwnTabMutes, 4: sessionWithTabPages, 5: sessionWithTabPins, 6: sessionWithSplitSlots, 7: sessionWithSettingsMeta, 8: sessionWithPinChoiceStamps, 9: sessionWithClosedGroupBarVisibility };
 const downloadsWithStagingPathOnly = (doc: SavedObject): SavedObject => ({
   ...doc,
   downloads: Array.isArray(doc.downloads)
@@ -115,6 +115,12 @@ const splitOk = (o: SavedObject) => has(o, ["id", "windowId"]) && (o.orientation
 const snapshotOk = (o: unknown) => isFields(o) && has(o, ["url", "profileId"]);
 const closedTabOk = (o: SavedObject) => isString(o.id) && snapshotOk(o.tab);
 const tabListOk = (o: SavedObject) => isString(o.id) && Array.isArray(o.tabs) && o.tabs.every(snapshotOk);
+const closedGroupOk = (o: SavedObject) => {
+  const group = o.group;
+  return tabListOk(o) && isFields(group) && has(group, ["id", "name"])
+    && ["icon", "color", "parentId"].every((key) => group[key] == null || isString(group[key]))
+    && (group.pinned === undefined || typeof group.pinned === "boolean");
+};
 const profileOk = (o: SavedObject) => has(o, ["id", "name"]);
 const parkedOk = (o: SavedObject) => Array.isArray(o.tabs) && o.tabs.every(snapshotOk) && Array.isArray(o.groups);
 
@@ -144,8 +150,8 @@ export function parseSession(json: string | null | undefined): SavedSession | nu
     parkedPins: Object.fromEntries(Object.entries(byProfile<ParkedPins>(raw.parkedPins, parkedOk)).map(([p, park]) => [p, parkedSplitsChecked(park)])),
     pinChoices: byProfile(raw.pinChoices),
     pinSync: byProfile(raw.pinSync),
-    closedGroups: rows(raw.closedGroups, tabListOk),
-    deletedGroups: rows(raw.deletedGroups, tabListOk),
+    closedGroups: rows(raw.closedGroups, closedGroupOk),
+    deletedGroups: rows(raw.deletedGroups, closedGroupOk),
     cleanedTabs: rows(raw.cleanedTabs, closedTabOk),
   };
 }

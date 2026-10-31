@@ -5,6 +5,7 @@ struct MenuItem: Record {
   @Field var id: String = ""
   @Field var title: String = ""
   @Field var symbol: String?
+  @Field var favicon: String?
   @Field var swatch: String?
   @Field var swatchDark: String?
   @Field var key: String = ""

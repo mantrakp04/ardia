@@ -294,6 +294,11 @@ export const generalRows = {
           description: "Below the toolbar. Also in View › Show Bookmarks Bar, ⇧⌘B.",
           keywords: ["bookmarks bar", "favorites bar", "favourites bar", "toolbar", "hide bookmarks", "show bookmarks"],
         },
+        showClosedGroupsInBookmarksBar: {
+          title: "Show closed groups in bookmarks bar",
+          description: "Keep closed tab groups below the toolbar. Click a group to reopen it; hiding them keeps them saved.",
+          keywords: ["closed groups", "saved groups", "reopen groups", "hide groups", "bookmarks bar", "chrome"],
+        },
         bookmarksBarSize: {
           title: "Size",
           description: "Large makes the bar, its icons and its text bigger, and its folder menus roomier.",

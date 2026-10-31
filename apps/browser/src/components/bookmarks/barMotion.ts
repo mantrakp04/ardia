@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Animated, type View } from "react-native";
+import { Animated, type LayoutRectangle, type View } from "react-native";
 import type { MenuRect } from "../../state/bookmarks/folderMenus";
 import { SLIDE } from "../tabstrip/stripReorder";
 import { curve } from "../ui";
@@ -23,3 +23,6 @@ export function useSlide(to: number) {
   }, [to]);
   return value;
 }
+
+export const sameRect = (a: LayoutRectangle | undefined, b: LayoutRectangle) =>
+  !!a && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;

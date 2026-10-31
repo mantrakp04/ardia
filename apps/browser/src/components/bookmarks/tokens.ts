@@ -12,6 +12,9 @@ export const fieldLabel = { gapBelow: 5 } as const;
 
 export const bookmarksBar = {
   overflowWidth: 28,
+  closedGroupsFraction: 0.4,
+  closedGroupGap: 4,
+  closedGroupTint: 0.18,
   otherReserve: 150,
   dividerHeight: 14,
   dropLine: 2,
