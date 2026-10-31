@@ -24,6 +24,15 @@ export type SymbolProps = ViewProps & {
 
 export const Symbol = requireNativeViewManager<SymbolProps>("ArdiaSymbol");
 
+export type BadgeGlyphProps = ViewProps & {
+  text: string;
+  initial?: boolean;
+  fontSize?: number;
+  color?: string;
+};
+
+export const BadgeGlyph = requireNativeViewManager<BadgeGlyphProps>("ArdiaBadgeGlyph");
+
 export type FadeLabelProps = ViewProps & {
   text: string;
   fontSize?: number;

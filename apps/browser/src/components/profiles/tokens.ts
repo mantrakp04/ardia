@@ -17,3 +17,12 @@ export const profileSwitcher = {
   dots: { selected: 0.85, hovered: 0.4, idle: 0.2 },
   icons: { selected: 1, hovered: 0.7, idle: 0.42 },
 } as const;
+
+export const profileBadge = {
+  size: 26,
+  borderThreshold: 22,
+  borderWidth: 0.5,
+  symbolScale: 0.5,
+  initialScale: 0.46,
+  emojiScale: 0.55,
+} as const;

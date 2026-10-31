@@ -1,9 +1,9 @@
 import type { IconMenuItem } from "../../state/profiles/profileMenu";
 import { Text, View } from "react-native";
-import { ink, Symbol, weight } from "../ui";
+import { BadgeGlyph, ink, Symbol } from "../ui";
 import { profileAccent } from "../ui/theme";
 import type { Profile } from "../../state/browser/types";
-import { profileColors, profileSwitcher } from "./tokens";
+import { profileBadge, profileColors, profileSwitcher } from "./tokens";
 import { iconSymbol, symbolIcon } from "../../lib/customIcon";
 
 export const PROFILE_SYMBOLS: { name: string; title: string }[] = [
@@ -66,7 +66,7 @@ export function SwitcherMark({ icon, color, scale = 1 }: { icon: string | null; 
   return <View style={{ width: dot * scale, height: dot * scale, borderRadius: (dot / 2) * scale, backgroundColor: color }} />;
 }
 
-export function ProfileBadge({ profile, size = 26 }: { profile: Pick<Profile, "name" | "color" | "icon"> & Partial<Pick<Profile, "theme">>; size?: number }) {
+export function ProfileBadge({ profile, size = profileBadge.size }: { profile: Pick<Profile, "name" | "color" | "icon"> & Partial<Pick<Profile, "theme">>; size?: number }) {
   const swatch = profileAccent(profile);
   const symbol = iconSymbol(profile.icon);
   return (
@@ -78,16 +78,20 @@ export function ProfileBadge({ profile, size = 26 }: { profile: Pick<Profile, "n
         backgroundColor: swatch,
         alignItems: "center",
         justifyContent: "center",
-        borderWidth: size >= 22 ? 0.5 : 0,
+        borderWidth: size >= profileBadge.borderThreshold ? profileBadge.borderWidth : 0,
         borderColor: profileColors.badgeEdge,
       }}
     >
       {symbol ? (
-        <Symbol name={symbol} size={size * 0.5} weight="semibold" color={ink.white} style={{ width: size, height: size }} />
+        <Symbol name={symbol} size={size * profileBadge.symbolScale} weight="semibold" color={ink.white} style={{ width: size, height: size }} />
       ) : (
-        <Text style={{ fontSize: profile.icon ? size * 0.55 : size * 0.46, fontWeight: weight.semibold, color: ink.white }}>
-          {profile.icon ?? (profile.name.trim()[0] ?? "?").toUpperCase()}
-        </Text>
+        <BadgeGlyph
+          text={profile.icon ?? profile.name}
+          initial={!profile.icon}
+          fontSize={size * (profile.icon ? profileBadge.emojiScale : profileBadge.initialScale)}
+          color={ink.white}
+          style={{ width: size, height: size }}
+        />
       )}
     </View>
   );
