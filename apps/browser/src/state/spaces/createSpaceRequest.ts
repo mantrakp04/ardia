@@ -12,19 +12,23 @@ export const useCreateSpaceRequest = create<{ request: CreateSpaceRequest | null
 
 export function requestCreateSpace(windowId?: string, preset: CreateSpacePreset = {}): Promise<string | null> {
   return new Promise((resolve) => {
+    const { sheet, request } = useCreateSpaceRequest.getState();
+    sheet?.resolve(null);
+    if (request && request !== sheet) request.resolve(null);
     openSettings("spaces");
-    useCreateSpaceRequest.setState({ sheet: { windowId: null, preset, resolve } });
+    useCreateSpaceRequest.setState({ request: null, sheet: { windowId: null, preset, resolve } });
   });
 }
 
 export function endCreateSpaceRequest(request: CreateSpaceRequest, id: string | null) {
+  if (useCreateSpaceRequest.getState().request !== request) return;
   useCreateSpaceRequest.setState({ request: null });
   request.resolve(id);
 }
 
 export function takeCreateSpaceSheet(): CreateSpaceRequest | null {
   const { sheet } = useCreateSpaceRequest.getState();
-  if (sheet) useCreateSpaceRequest.setState({ sheet: null });
+  if (sheet) useCreateSpaceRequest.setState({ sheet: null, request: sheet });
   return sheet;
 }
 

@@ -85,7 +85,7 @@ records. That pre-existing collection-horizon case remains outside this matrix's
   `placeTabs({ tileFolder })` sets it, `null` takes a tab out, and leaving it out keeps it. A tab that stops being a tile
   loses it, and a folder that drops to one tab dissolves (`settleTileFolders`, run with the pin mirror and Profile Top App projection). It never reaches
   Chrome: members are plain pinned tabs there. Mirrored, parked and synced with the pins (`tilefold:` records).
-- UI: `ui.focusOrder` (most recently focused first; `focusedWindowOf(s)` in state/windows/ui.ts reads the focused one), `ui.lastSpaceId` (the regular profile of the window used last, a private
+- UI: `ui.focusOrder` (most recently focused first; `focusedWindowOf(s)` in state/windows/ui.ts reads the focused one), `ui.lastSpaceId` (the regular Space of the window used last, a private
   window counting as its `originalSpaceId`; saved with the session; read it through `lastActiveSpace(s)`, state/windows/small.ts),
   `ui.appDark`, `windowUi[windowId]` (command panel, downloads popover), `find[tabId]`.
 
