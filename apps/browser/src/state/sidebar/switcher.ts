@@ -1,6 +1,6 @@
 import { setSwitcherCapture, switcherPointerMoved } from "../../platform/focus";
 import { useBrowser } from "../browser/store";
-import { recentTabIds } from "../pins/tabCleanup";
+import { recentTabIds, switcherTabAvailable } from "../pins/tabCleanup";
 import { setSidebarUi, sidebarUi } from "./sidebarUi";
 
 const SHOW_AFTER_MS = 140;
@@ -10,19 +10,40 @@ let pointerTimer: ReturnType<typeof setInterval> | undefined;
 let hoveredRow: number | null = null;
 let keyboardMoves = 0;
 let pointerStale = false;
+let stopWatchingTabs: (() => void) | undefined;
 
 export function switcherStep(windowId: string, backward: boolean) {
   const current = sidebarUi().switcher;
   if (current && current.windowId === windowId) return moveSwitcher(backward ? -1 : 1);
+  if (current) endSwitcher();
   const ids = recentTabIds(useBrowser.getState(), windowId);
   if (ids.length < 2) return;
   setSidebarUi({ switcher: { windowId, ids, index: backward ? ids.length - 1 : 1, visible: false } });
+  stopWatchingTabs = useBrowser.subscribe((state, previous) => {
+    if (state.settings.tabSwitcherScope !== "allProfiles" && state.windows[windowId]?.profileId !== previous.windows[windowId]?.profileId) return cancelSwitcher();
+    refreshSwitcher();
+  });
   void setSwitcherCapture(true);
   clearTimeout(showTimer);
   showTimer = setTimeout(() => {
     const s = sidebarUi().switcher;
     if (s) setSidebarUi({ switcher: { ...s, visible: true } });
   }, SHOW_AFTER_MS);
+}
+
+export function refreshSwitcher() {
+  const current = sidebarUi().switcher;
+  if (!current) return;
+  const state = useBrowser.getState();
+  const ids = current.ids.filter((id) => switcherTabAvailable(state, current.windowId, id));
+  if (!ids.length) return endSwitcher();
+  if (ids.length === current.ids.length) return;
+  const selected = current.ids[current.index];
+  const next = [...current.ids.slice(current.index), ...current.ids.slice(0, current.index)].find((id) => ids.includes(id));
+  const index = ids.indexOf(selected ?? "");
+  hoveredRow = null;
+  stopPointerWatch();
+  setSidebarUi({ switcher: { ...current, ids, index: index >= 0 ? index : ids.indexOf(next!) } });
 }
 
 export function moveSwitcher(step: 1 | -1) {
@@ -81,7 +102,8 @@ export function commitSwitcher(index?: number) {
   const pointed = s.visible && !pointerStale && hoveredRow !== null && hoveredRow < s.ids.length && switcherPointerMoved() ? hoveredRow : null;
   endSwitcher();
   const id = s.ids[index ?? pointed ?? s.index];
-  if (id && useBrowser.getState().tabs[id]) useBrowser.getState().activate(id);
+  const state = useBrowser.getState();
+  if (id && switcherTabAvailable(state, s.windowId, id)) state.activate(id);
 }
 
 export function cancelSwitcher() {
@@ -89,6 +111,8 @@ export function cancelSwitcher() {
 }
 
 function endSwitcher() {
+  stopWatchingTabs?.();
+  stopWatchingTabs = undefined;
   clearTimeout(showTimer);
   stopPointerWatch();
   hoveredRow = null;

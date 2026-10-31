@@ -305,3 +305,35 @@ test("a session.json with the right version but broken lists loads what is whole
   assert.deepEqual(S().closedWindows, []);
   stub.docs.delete("session.json");
 });
+
+
+test("a version 9 session defaults tab switching to the current profile", () => {
+  stub.docs.clear();
+  stub.docs.set("session.json", JSON.stringify({ version: 9, settings: {}, windows: [], tabs: [] }));
+  const data = loadSession();
+  assert.ok(data);
+  S().hydrate(data);
+  assert.equal(S().settings.tabSwitcherScope, "currentProfile");
+  stub.docs.clear();
+});
+
+test("all-profile tab switching survives a version 10 session roundtrip", () => {
+  stub.docs.clear();
+  reset();
+  const stop = startPersistence();
+  try {
+    S().updateSettings({ tabSwitcherScope: "allProfiles" });
+    flushPersistence();
+    const saved = JSON.parse(stub.docs.get("session.json"));
+    assert.equal(saved.version, 10);
+    assert.equal(saved.settings.tabSwitcherScope, "allProfiles");
+    const data = loadSession();
+    assert.ok(data);
+    S().hydrate(data);
+    assert.equal(S().settings.tabSwitcherScope, "allProfiles");
+  } finally {
+    flushPersistence();
+    stop();
+    stub.docs.clear();
+  }
+});

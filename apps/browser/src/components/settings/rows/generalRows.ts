@@ -154,6 +154,11 @@ export const generalRows = {
           keywords: ["new tab button", "plus", "+", "top", "bottom", "sticky", "docked", "position"],
           shown: inSidebar,
         },
+        tabSwitcherScope: {
+          title: "Ctrl+Tab switches through",
+          description: "Choose whether the recent tab switcher includes tabs from the current profile or all profiles. Private windows stay separate.",
+          keywords: ["ctrl tab", "control tab", "⌃Tab", "tab switcher", "recent tabs", "all profiles", "current profile", "cross profile"],
+        },
         shareTabsAcrossWindows: {
           title: "Share tabs across windows",
           description: "Every window of a profile lists the same tabs, as in Arc. A tab is live in one window at a time: selecting it in another brings it there, and the first window shows it greyed until you click it. Each window keeps its own selected tab.",

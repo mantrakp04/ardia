@@ -60,6 +60,7 @@ export const SETTING_SPECS = {
   undoReopensClosedTab: flag(false, SYNCED),
   warnBeforeMovingTabsToProfile: flag(true, SYNCED),
   shareTabsAcrossWindows: flag(false),
+  tabSwitcherScope: oneOf(["currentProfile", "allProfiles"], "currentProfile", SYNCED),
   tabReorderHaptics: flag(true, SYNCED),
   extendWebsiteColor: flag(true, SYNCED),
   cmdClickCreatesTabGroup: flag(true, SYNCED),
