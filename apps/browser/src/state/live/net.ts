@@ -17,13 +17,14 @@ export const endpoints = {
   githubWeb: mock ? `${mock}/github` : "https://github.com",
   bitbucket: mock ? `${mock}/bitbucket/2.0` : "https://api.bitbucket.org/2.0",
   notion: mock ? `${mock}/notion/v1` : "https://api.notion.com/v1",
+  gitea: (site: string) => (mock ? `${mock}/gitea` : site),
   confluence: (site: string) => (mock ? `${mock}/confluence` : site.replace(/\/$/, "")),
   googleAuth: mock ? `${mock}/google/auth` : "https://accounts.google.com/o/oauth2/v2/auth",
   googleToken: mock ? `${mock}/google/token` : "https://oauth2.googleapis.com/token",
   drive: mock ? `${mock}/google/drive/v3` : "https://www.googleapis.com/drive/v3",
 };
 
-export async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
+async function respond(url: string, init: RequestInit): Promise<Response> {
   let res: Response;
   try {
     res = await fetch(url, { ...init, headers: { Accept: "application/json", ...init.headers } });
@@ -37,7 +38,27 @@ export async function request<T>(url: string, init: RequestInit = {}): Promise<T
     const text = await res.text().catch(() => "");
     throw new LiveError(res.status === 403 ? "signedOut" : "other", `${res.status} ${text.slice(0, 200)}`.trim());
   }
-  return (await res.json()) as T;
+  return res;
+}
+
+export async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
+  return (await (await respond(url, init)).json()) as T;
+}
+
+export async function requestPage<T>(url: string, init: RequestInit = {}): Promise<{ body: T; total: number | null }> {
+  const res = await respond(url, init);
+  const total = res.headers.get("x-total-count");
+  return { body: (await res.json()) as T, total: total === null ? null : Number(total) };
+}
+
+export const siteUrl = (site: string) => site.trim().replace(/\/+$/, "").replace(/^(?!https?:\/\/)/i, "https://");
+
+const LOOPBACK = /^http:\/\/(localhost|127(\.\d{1,3}){3}|\[::1\])(:\d+)?(\/|$)/i;
+
+export function httpsSiteUrl(site: string): string {
+  const base = siteUrl(site);
+  if (/^http:\/\//i.test(base) && !LOOPBACK.test(base)) throw new LiveError("notConfigured", "Ardia sends tokens only over HTTPS. Use the server's https:// address");
+  return base;
 }
 
 export const form = (fields: Record<string, string>) =>

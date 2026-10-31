@@ -34,6 +34,7 @@ export const toolRows = {
       section: "Pull Requests",
       rows: {
         github: { title: "GitHub", description: "Your open pull requests and the ones waiting for your review, with checks and conflicts.", keywords: ["pull requests", "connect"] },
+        gitea: { title: "Gitea", description: "Your open pull requests and the ones waiting for your review on Gitea or Forgejo (Codeberg too), with checks and conflicts.", keywords: ["pull requests", "forgejo", "codeberg", "self-hosted", "connect"] },
         bitbucket: { title: "Bitbucket", description: "Your open pull requests on Bitbucket Cloud, with build status.", keywords: ["pull requests", "connect"] },
       },
     },

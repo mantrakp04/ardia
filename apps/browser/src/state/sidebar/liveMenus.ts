@@ -38,7 +38,7 @@ export function runNewLiveFolder(windowId: string, choice: string): boolean {
 const FOLDER_OPTIONS = ["groupStacks", "showCompleted"] as const;
 
 const SOURCE_GROUPS: Record<"pullRequests" | "documents", LiveSourceId[]> = {
-  pullRequests: ["github", "bitbucket"],
+  pullRequests: ["github", "gitea", "bitbucket"],
   documents: ["notion", "confluence", "gdrive"],
 };
 

@@ -6,6 +6,8 @@ import { DEFAULT_COUNTDOWN_LEAD, keepDismissedNow, type DismissedNow } from "./m
 
 export type LiveConfig = {
   githubClientId: string;
+  giteaSite: string;
+  giteaClientId: string;
   bitbucketUser: string;
   confluenceSite: string;
   confluenceEmail: string;
@@ -52,7 +54,7 @@ type LiveState = {
   dismissedNow: DismissedNow;
 };
 
-export const DEFAULT_CONFIG: LiveConfig = { githubClientId: "", bitbucketUser: "", confluenceSite: "", confluenceEmail: "", googleClientId: "" };
+export const DEFAULT_CONFIG: LiveConfig = { githubClientId: "", giteaSite: "", giteaClientId: "", bitbucketUser: "", confluenceSite: "", confluenceEmail: "", googleClientId: "" };
 
 export const DEFAULT_CALENDAR: CalendarSettings = {
   alertLead: "1",

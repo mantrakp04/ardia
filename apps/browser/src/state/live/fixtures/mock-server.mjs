@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 
@@ -11,6 +12,9 @@ let state;
 let approved;
 let detailsError;
 let bitbucketState;
+let gitea;
+let giteaExpiresIn;
+let giteaMaxItems;
 const log = [];
 function reset() {
   github = load("github.json");
@@ -19,12 +23,21 @@ function reset() {
   approved = false;
   detailsError = null;
   bitbucketState = "OPEN";
+  gitea = load("gitea.json");
+  giteaExpiresIn = 3600;
+  giteaMaxItems = 50;
 }
 reset();
 
 const send = (res, status, body, type = "application/json") => {
   res.writeHead(status, { "Content-Type": type });
   res.end(typeof body === "string" ? body : JSON.stringify(body));
+};
+const sendPage = (res, url, items, wrap = (page) => page) => {
+  const limit = Math.min(Number(url.searchParams.get("limit")) || giteaMaxItems, giteaMaxItems);
+  const page = Math.max(Number(url.searchParams.get("page")) || 1, 1);
+  res.writeHead(200, { "Content-Type": "application/json", "X-Total-Count": String(items.length) });
+  res.end(JSON.stringify(wrap(items.slice((page - 1) * limit, page * limit))));
 };
 const bodyOf = (req) => new Promise((resolve) => {
   let data = "";
@@ -51,6 +64,18 @@ createServer(async (req, res) => {
     state[id] = p === "/mock/merge" ? "MERGED" : "CLOSED";
     return send(res, 200, { ok: true });
   }
+  if (p === "/mock/gitea") {
+    const key = url.searchParams.get("key");
+    const to = url.searchParams.get("state");
+    const listed = (issue) => `${issue.repository.full_name}#${issue.number}` !== key;
+    gitea.authored = gitea.authored.filter(listed);
+    gitea.review = gitea.review.filter(listed);
+    if (to === "merged") Object.assign(gitea.pulls[key], { state: "closed", merged: true });
+    if (to === "closed") Object.assign(gitea.pulls[key], { state: "closed" });
+    return send(res, 200, { ok: true });
+  }
+  if (p === "/mock/gitea-page-size") return (giteaMaxItems = Number(url.searchParams.get("size") ?? 50)), send(res, 200, { ok: true });
+  if (p === "/mock/gitea-expires") return (giteaExpiresIn = Number(url.searchParams.get("seconds") ?? 3600)), send(res, 200, { ok: true });
   if (p === "/mock/bitbucket-merge") return (bitbucketState = "MERGED"), send(res, 200, { ok: true });
   if (p === "/mock/review") {
     const id = url.searchParams.get("id");
@@ -122,6 +147,39 @@ createServer(async (req, res) => {
       return send(res, 200, { values: [{ id: 7, title: "Bitbucket: tidy pipelines", updated_on: "2026-09-25T06:00:00Z", comment_count: 2, author: { display_name: "Octo Dev" }, source: { branch: { name: "tidy" } }, destination: { branch: { name: "main" }, repository: { full_name: "acme/pipelines" } }, links: { html: { href: "https://bitbucket.org/acme/pipelines/pull-requests/7" } }, participants: [{ role: "REVIEWER", state: "approved" }] }] });
     }
     if (p.endsWith("/statuses")) return send(res, 200, { values: [{ state: "SUCCESSFUL", name: "Pipeline #12", url: "https://bitbucket.org/acme/pipelines/pipelines/12" }] });
+  }
+
+  if (p === "/gitea/login/oauth/authorize") {
+    const challenge = url.searchParams.get("code_challenge");
+    if (url.searchParams.get("code_challenge_method") !== "S256") return send(res, 400, "Mock Gitea takes only S256 code challenges", "text/plain");
+    const redirect = `${url.searchParams.get("redirect_uri")}?code=${encodeURIComponent(`mock-gitea-code:${challenge}`)}&state=${encodeURIComponent(url.searchParams.get("state"))}`;
+    return send(res, 200, `<!doctype html><title>Authorize Application - Gitea</title><body style="font:15px -apple-system;padding:40px"><h2>Mock Gitea authorization</h2><p>Scopes: ${url.searchParams.get("scope")}</p><a id=allow href="${redirect}">Authorize Application</a></body>`, "text/html");
+  }
+  if (p === "/gitea/login/oauth/access_token") {
+    const fields = new URLSearchParams(body);
+    const grant = fields.get("grant_type");
+    const ok = grant === "refresh_token" ? fields.get("refresh_token")?.startsWith("mock-gitea-refresh") : fields.get("code") === `mock-gitea-code:${createHash("sha256").update(fields.get("code_verifier") ?? "").digest("base64url")}`;
+    if (!ok) return send(res, 400, { error: "invalid_grant", error_description: "Mock Gitea refused the grant" });
+    const n = log.filter((line) => line === "POST /gitea/login/oauth/access_token").length;
+    return send(res, 200, { access_token: `mock-gitea-access-${n}`, refresh_token: `mock-gitea-refresh-${n}`, token_type: "bearer", expires_in: giteaExpiresIn });
+  }
+  if (p.startsWith("/gitea/api/v1/")) {
+    if (auth !== "Bearer mock-gitea" && !auth.startsWith("Bearer mock-gitea-access-")) return send(res, 401, { message: "unauthorized" });
+    const api = p.slice("/gitea/api/v1".length);
+    if (api === "/user") return send(res, 200, gitea.user);
+    if (api === "/repos/search") return send(res, 200, { ok: true, data: [] });
+    if (api === "/repos/issues/search") {
+      if (url.searchParams.get("created") === "true") return sendPage(res, url, gitea.authored);
+      if (url.searchParams.get("review_requested") === "true") return sendPage(res, url, gitea.review);
+      return send(res, 200, []);
+    }
+    const branch = api.match(/^\/repos\/([^/]+\/[^/]+)\/branches\/(.+)$/);
+    if (branch) return send(res, 200, gitea.branches[`${branch[1]}:${decodeURIComponent(branch[2])}`] ?? { name: decodeURIComponent(branch[2]), protected: false, required_approvals: 0 });
+    const status = api.match(/^\/repos\/[^/]+\/[^/]+\/commits\/([^/]+)\/status$/);
+    if (status) return sendPage(res, url, gitea.statuses[status[1]]?.statuses ?? [], (statuses) => ({ statuses }));
+    const pull = api.match(/^\/repos\/([^/]+\/[^/]+)\/pulls\/(\d+)(\/reviews)?$/);
+    const key = pull && `${pull[1]}#${pull[2]}`;
+    if (key && gitea.pulls[key]) return pull[3] ? sendPage(res, url, gitea.reviews[key] ?? []) : send(res, 200, gitea.pulls[key]);
   }
 
   if (p === "/google/auth") {

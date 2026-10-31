@@ -1,0 +1,117 @@
+{
+  "user": { "id": 1, "login": "octo-dev", "full_name": "Octo Dev", "avatar_url": "https://gitea.example.com/avatars/octo-dev" },
+  "authored": [
+    { "number": 12, "repository": { "full_name": "acme/forge" } },
+    { "number": 13, "repository": { "full_name": "acme/forge" } }
+  ],
+  "review": [
+    { "number": 40, "repository": { "full_name": "acme/forge" } },
+    { "number": 7, "repository": { "full_name": "acme/infra" } }
+  ],
+  "pulls": {
+    "acme/forge#12": {
+      "number": 12,
+      "title": "Runner pool for Gitea Actions",
+      "html_url": "https://gitea.example.com/acme/forge/pulls/12",
+      "state": "open",
+      "merged": false,
+      "draft": false,
+      "mergeable": true,
+      "updated_at": "2026-10-27T09:00:00Z",
+      "user": { "id": 1, "login": "octo-dev", "avatar_url": "https://gitea.example.com/avatars/octo-dev" },
+      "head": { "ref": "runner-pool", "sha": "a1a1a1" },
+      "base": { "ref": "main" },
+      "comments": 3,
+      "additions": 412,
+      "deletions": 37,
+      "changed_files": 9,
+      "requested_reviewers": [],
+      "requested_reviewers_teams": []
+    },
+    "acme/forge#13": {
+      "number": 13,
+      "title": "WIP: Autoscale the runner pool",
+      "html_url": "https://gitea.example.com/acme/forge/pulls/13",
+      "state": "open",
+      "merged": false,
+      "draft": true,
+      "mergeable": false,
+      "updated_at": "2026-10-27T11:30:00Z",
+      "user": { "id": 1, "login": "octo-dev", "avatar_url": "https://gitea.example.com/avatars/octo-dev" },
+      "head": { "ref": "runner-autoscale", "sha": "b2b2b2" },
+      "base": { "ref": "runner-pool" },
+      "comments": 0,
+      "additions": 96,
+      "deletions": 4,
+      "changed_files": 3,
+      "requested_reviewers": [],
+      "requested_reviewers_teams": []
+    },
+    "acme/forge#40": {
+      "number": 40,
+      "title": "Move webhooks to the queue",
+      "html_url": "https://gitea.example.com/acme/forge/pulls/40",
+      "state": "open",
+      "merged": false,
+      "draft": false,
+      "mergeable": false,
+      "updated_at": "2026-10-26T15:00:00Z",
+      "user": { "id": 2, "login": "mona", "avatar_url": "https://gitea.example.com/avatars/mona" },
+      "head": { "ref": "webhook-queue", "sha": "c3c3c3" },
+      "base": { "ref": "main" },
+      "comments": 5,
+      "additions": 230,
+      "deletions": 180,
+      "changed_files": 14,
+      "requested_reviewers": [{ "id": 1, "login": "octo-dev" }],
+      "requested_reviewers_teams": []
+    },
+    "acme/infra#7": {
+      "number": 7,
+      "title": "Rotate the registry certificates",
+      "html_url": "https://gitea.example.com/acme/infra/pulls/7",
+      "state": "open",
+      "merged": false,
+      "draft": false,
+      "mergeable": true,
+      "updated_at": "2026-10-25T08:00:00Z",
+      "user": { "id": 3, "login": "hubot", "avatar_url": "https://gitea.example.com/avatars/hubot" },
+      "head": { "ref": "rotate-certs", "sha": "d4d4d4" },
+      "base": { "ref": "main" },
+      "comments": 1,
+      "additions": 12,
+      "deletions": 12,
+      "changed_files": 2,
+      "requested_reviewers": [{ "id": 4, "login": "lead" }],
+      "requested_reviewers_teams": [{ "id": 9, "name": "infra" }]
+    }
+  },
+  "reviews": {
+    "acme/forge#12": [
+      { "id": 100, "state": "REQUEST_CHANGES", "official": false, "dismissed": false, "user": { "id": 2, "login": "mona" } },
+      { "id": 101, "state": "COMMENT", "official": false, "dismissed": false, "user": { "id": 3, "login": "hubot" } },
+      { "id": 102, "state": "APPROVED", "official": true, "dismissed": false, "user": { "id": 2, "login": "mona" } }
+    ],
+    "acme/infra#7": [
+      { "id": 200, "state": "APPROVED", "official": true, "dismissed": false, "user": { "id": 5, "login": "ops" } },
+      { "id": 201, "state": "REQUEST_CHANGES", "official": true, "dismissed": false, "user": { "id": 6, "login": "sec" } }
+    ]
+  },
+  "branches": {
+    "acme/forge:main": { "name": "main", "protected": true, "required_approvals": 1 },
+    "acme/infra:main": { "name": "main", "protected": true, "required_approvals": 2 }
+  },
+  "statuses": {
+    "a1a1a1": { "statuses": [
+      { "context": "ci / build (push)", "status": "success", "target_url": "/acme/forge/actions/runs/31/jobs/0" },
+      { "context": "ci / lint (push)", "status": "success", "target_url": "/acme/forge/actions/runs/31/jobs/1" }
+    ] },
+    "b2b2b2": { "statuses": [
+      { "context": "ci / build (push)", "status": "pending", "target_url": "/acme/forge/actions/runs/33/jobs/0" }
+    ] },
+    "c3c3c3": { "statuses": [
+      { "context": "ci / build (pull_request)", "status": "failure", "target_url": "https://ci.example.com/build/88" },
+      { "context": "ci / lint (pull_request)", "status": "warning", "target_url": "" }
+    ] }
+  }
+}
