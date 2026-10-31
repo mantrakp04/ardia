@@ -1357,10 +1357,52 @@ index 0a4efc1fff0a6e32ea1634ab5f863c211f452409..44e326774b74f03c62489dd6b4782515
      objc_setAssociatedObject(event, &kRCTViewKeyboardEventEmittedKey, @(YES), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
    }
 diff --git a/React/Views/ScrollView/RCTScrollView.m b/React/Views/ScrollView/RCTScrollView.m
-index eb79ff32614392cb16e6eb3dbec6cc5b037fe27a..e0aee0c66030a8e29c279133399f1b0ddcc8ef78 100644
+index eb79ff32614392cb16e6eb3dbec6cc5b037fe27a..695e5347bca8aec02a669bb8f36992bbf4d5451b 100644
 --- a/React/Views/ScrollView/RCTScrollView.m
 +++ b/React/Views/ScrollView/RCTScrollView.m
-@@ -740,13 +740,23 @@ - (void)viewDidMoveToWindow
+@@ -122,8 +122,40 @@
+     [[self nextResponder] scrollWheel:theEvent];
+     return;
+   }
+-  [super scrollWheel:theEvent];
++  [super scrollWheel:[self ardia_wheelAlongScrollableAxis:theEvent]]; // [Ardia: a mouse wheel moves a sideways-only view too. Ardia]
+ }
++
++// [Ardia: a mouse wheel sends only vertical lines, which a scroll view that scrolls only sideways (the top tab strip)
++// ignored, so its tabs past the window's edge were out of reach. Those lines now move it sideways, as Shift does.
++// A trackpad's precise deltas are left alone.
++- (NSEvent *)ardia_wheelAlongScrollableAxis:(NSEvent *)event
++{
++  if (event.hasPreciseScrollingDeltas || event.scrollingDeltaX != 0 || event.scrollingDeltaY == 0) {
++    return event;
++  }
++  NSSize document = self.documentView.frame.size;
++  NSSize clip = self.contentView.bounds.size;
++  if (document.width <= clip.width || document.height > clip.height) {
++    return event;
++  }
++  CGEventRef sideways = CGEventCreateCopy(event.CGEvent);
++  if (sideways == NULL) {
++    return event;
++  }
++  int64_t lines = CGEventGetIntegerValueField(sideways, kCGScrollWheelEventDeltaAxis1);
++  double fixed = CGEventGetDoubleValueField(sideways, kCGScrollWheelEventFixedPtDeltaAxis1);
++  int64_t points = CGEventGetIntegerValueField(sideways, kCGScrollWheelEventPointDeltaAxis1);
++  CGEventSetIntegerValueField(sideways, kCGScrollWheelEventDeltaAxis1, 0);
++  CGEventSetDoubleValueField(sideways, kCGScrollWheelEventFixedPtDeltaAxis1, 0);
++  CGEventSetIntegerValueField(sideways, kCGScrollWheelEventPointDeltaAxis1, 0);
++  CGEventSetIntegerValueField(sideways, kCGScrollWheelEventDeltaAxis2, lines);
++  CGEventSetDoubleValueField(sideways, kCGScrollWheelEventFixedPtDeltaAxis2, fixed);
++  CGEventSetIntegerValueField(sideways, kCGScrollWheelEventPointDeltaAxis2, points);
++  NSEvent *converted = [NSEvent eventWithCGEvent:sideways];
++  CFRelease(sideways);
++  return converted ?: event;
++}
++// Ardia]
+ #endif // macOS]
+ 
+ - (void)handleCustomPan:(__unused UIGestureRecognizer *)sender // [macOS]
+@@ -740,13 +772,23 @@ static inline void RCTApplyTransformationAccordingLayoutDirection(
    NSNotificationCenter *defaultCenter = [NSNotificationCenter defaultCenter];
    if ([self window] == nil) {
      // Unregister for bounds change notifications
