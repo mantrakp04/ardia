@@ -65,6 +65,8 @@ class TokenClient : public ArdiaDevToolsTokenClient {
   bool MayAttachToURL(const GURL& url, bool is_webui) override;
   bool MayAttachToRenderFrameHost(content::RenderFrameHost* frame) override;
 
+  content::DevToolsAgentHost* root_host() const { return root_host_.get(); }
+
  private:
   struct Contexts {
     std::map<int, int> ids;

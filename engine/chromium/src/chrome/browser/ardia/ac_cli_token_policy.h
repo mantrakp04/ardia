@@ -4,6 +4,7 @@
 #define CHROME_BROWSER_ARDIA_AC_CLI_TOKEN_POLICY_H_
 
 #include <memory>
+#include <set>
 
 #include "ardia/core/ac_content_hooks.h"
 
@@ -24,6 +25,8 @@ bool TokenClientMayAttach(content::DevToolsAgentHostClient* root_client,
 
 bool TokenClientMayInput(content::DevToolsAgentHostClient* root_client,
                          content::RenderFrameHost* frame);
+
+std::set<int> TokenClientTabs();
 
 }
 

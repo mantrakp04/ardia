@@ -77,6 +77,7 @@ const char kPageReportsKey = 0;
   }
   [self emit:@"ready" payload:@{}];
   ardia_host::ReleaseHeldEvents(tab);
+  ardia_host::ResendCliControlFor(tab);
   [self emitNavigation];
   if (_extensionHost.length && tab && tab.preferredSize.width > 0)
     [self tab:tab preferredSizeDidChange:tab.preferredSize];
