@@ -71,5 +71,6 @@ NSMapTable<ArdiaCoreTab *, NSNumber *> *FullScreenChanges();
 extern BOOL gPageCoverOff;
 
 NSString *PopupOriginText(NSString *url);
+NSString *PopupStrips();
 
 }
