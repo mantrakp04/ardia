@@ -1,6 +1,7 @@
 import { listTasks, type EngineTask } from "../../platform/performance";
 import { onExtensionsChanged } from "../../platform/extensions";
 import { onAppEvent } from "../../platform/app";
+import { onPageFocusLost } from "../../platform/tabs";
 import { useTranslate } from "../site/translate";
 import { useBrowser } from "../browser/store";
 import { useSync } from "../sync/engine";
@@ -19,18 +20,19 @@ const FIRST_SETTINGS_SNAPSHOT_MS = 2 * 60_000;
 const EXTENSION_SETTLE_MS = 20_000;
 
 const startedAt = Date.now();
-let counts = { tabs: 0, windows: 0 };
+let counts = { tabs: 0, windows: 0, pageFocusLost: 0 };
 let countsSince = Date.now();
 
 function emitCounts() {
-  if (isSharing() && (counts.tabs || counts.windows)) {
+  if (isSharing() && (counts.tabs || counts.windows || counts.pageFocusLost)) {
     capture("usage_counts", {
       tabs_opened: counts.tabs,
       windows_opened: counts.windows,
+      page_focus_lost: counts.pageFocusLost,
       period_minutes: Math.round((Date.now() - countsSince) / 60_000),
     });
   }
-  counts = { tabs: 0, windows: 0 };
+  counts = { tabs: 0, windows: 0, pageFocusLost: 0 };
   countsSince = Date.now();
 }
 
@@ -77,6 +79,12 @@ function watchTranslate() {
   useTranslate.subscribe((s, prev) => {
     if (!isSharing()) return;
     for (const tabId in s) if (s[tabId]?.status === "translating" && prev[tabId]?.status !== "translating") capture("translate_used");
+  });
+}
+
+function watchPageFocus() {
+  onPageFocusLost(() => {
+    if (isSharing()) counts.pageFocusLost++;
   });
 }
 
@@ -151,6 +159,7 @@ export function startUsage() {
   watchSync();
   watchTranslate();
   watchExtensions();
+  watchPageFocus();
   setTimeout(() => void sampleMemory(), FIRST_MEMORY_SAMPLE_MS);
   setTimeout(snapshotSettings, FIRST_SETTINGS_SNAPSHOT_MS);
   setInterval(hourly, HOUR_MS);

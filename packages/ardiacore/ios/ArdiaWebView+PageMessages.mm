@@ -132,6 +132,8 @@ NSMutableOrderedSet<NSString *> *ScriptFramesOf(ArdiaCoreTab *tab) {
     [self callFrame:frameId kind:@"peekConfig" json:PeekConfigJSON(self)];
   } else if ([kind isEqualToString:@"peekGone"]) {
     [self forgetScriptFrame:frameId];
+  } else if ([kind isEqualToString:@"pageFocusLost"] && main) {
+    [self restorePageFocusAfterClick];
   } else if ([kind isEqualToString:@"commandWheel"] && dict) {
     [self commandWheelFromPage:dict];
   } else if ([kind isEqualToString:@"peekTrace"] && dict) {

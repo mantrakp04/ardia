@@ -101,6 +101,21 @@ static BOOL InTabPage(NSView *view) {
   }
 }
 
+- (void)restorePageFocusAfterClick {
+  NSWindow *window = self.window;
+  NSView *page = _tab.view;
+  if (!_visible || !NSApp.isActive || !window.isKeyWindow || !page || page.superview != self) return;
+  NSResponder *responder = window.firstResponder;
+  NSView *view = [responder isKindOfClass:NSView.class] ? (NSView *)responder : nil;
+  NSString *holder = view && [view isDescendantOf:page] ? @"page" : !responder || responder == window ? @"none" : @"other";
+  NSLog(@"[ardiacore-focus] %@ took a click without page focus; first responder is %@ (%@)", _transferKey, holder,
+        responder ? NSStringFromClass(responder.class) : @"nil");
+  [ArdiaEvents emit:@"tabs.pageFocusLost" data:@{@"firstResponder" : holder}];
+  if ([holder isEqualToString:@"other"]) return;
+  if ([holder isEqualToString:@"page"]) [window makeFirstResponder:nil];
+  [self focusPage];
+}
+
 - (void)focusAfterLoad {
   if (_visible && _tab) [self focusPage];
 }
