@@ -18,6 +18,11 @@ export const generalRows = {
           keywords: ["close window", "confirm"],
         },
         openLinksFrom: { title: "Open links from other apps in", keywords: ["little ardia", "external links", "mini window", "discord", "slack", "mail"] },
+        littleArdiaOpensNewTabLinks: {
+          title: "Open new-tab links inside Little Ardia",
+          description: "A link that would open a new tab loads in Little Ardia instead of behind it, in the main window. ⌘-click still opens it behind.",
+          keywords: ["little ardia", "target blank", "new tab", "links", "mini window"],
+        },
       },
     },
     {

@@ -455,6 +455,7 @@ const fakeModules = {
     setPeekOtherSiteTabs: () => null,
     setSelectionPopover: () => null,
     setCommandScrollZoom: () => null,
+    setLittleArdiaOpensNewTabLinks: () => null,
     setAutoPictureInPicture: () => null,
     setVideoUpscaling: () => null,
     setVideoUpscalingTestConditions: () => null,

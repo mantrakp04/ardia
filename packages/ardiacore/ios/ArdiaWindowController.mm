@@ -261,7 +261,7 @@ NSMapTable<ArdiaCoreProfile *, ArdiaWindowController *> *StandaloneWindows() {
     return ardia_host::OpenPopupWindow(tab, openerView);
   }
   if (openerView) {
-    [openerView openedTab:tab adoptId:[ArdiaTabRegistry offerTab:tab] disposition:ardia_host::AppDisposition(disposition)];
+    [openerView openedLinkTab:tab adoptId:[ArdiaTabRegistry offerTab:tab] disposition:ardia_host::AppDisposition(disposition)];
   } else if (ArdiaWebView *view = [self anyShownViewForProfile:tab.profile]) {
     [view openedTab:tab adoptId:[ArdiaTabRegistry offerTab:tab prefix:@"tab"] disposition:@"foreground"];
   } else {
