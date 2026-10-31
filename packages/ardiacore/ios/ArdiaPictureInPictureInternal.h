@@ -12,6 +12,7 @@ struct Screen;
 @interface NSWindow (ArdiaPreventsActivation)
 - (void)_setPreventsActivation:(BOOL)prevents;
 - (BOOL)_preventsActivation;
+- (BOOL)_isNonactivatingPanel;
 - (NSInteger)_resizeDirectionForMouseLocation:(NSPoint)location;
 @end
 
@@ -133,6 +134,8 @@ BOOL IsChromeDocumentPictureInPicture(NSWindow *window);
 NSScreen *ScreenFor(NSRect frame);
 void PreventActivation(NSWindow *window);
 BOOL PreventsActivation(NSWindow *window);
+void ShowOverFullScreenApps(NSWindow *window);
+BOOL ShowsOverFullScreenApps(NSWindow *window);
 extern NSInteger gActivations;
 void ActivateApp(NSString *why);
 BOOL ThrowEnabled();

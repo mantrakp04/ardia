@@ -119,6 +119,7 @@ bool Attach(ArdiaWebView *view, NSString *host) {
     controller.host = host;
     [controller roundCorners];
     PreventActivation(window);
+    ShowOverFullScreenApps(window);
     if (ardia_host::Background()) {
       window.alphaValue = 0;
       window.ignoresMouseEvents = YES;
@@ -198,6 +199,7 @@ void VideoEntered(ArdiaWebView *view, NSString *host) {
       @"alpha" : @(window.alphaValue),
       @"ignoresMouseEvents" : @(window.ignoresMouseEvents),
       @"level" : @(window.level),
+      @"overFullScreenApps" : @(ShowsOverFullScreenApps(window)),
       @"styled" : @(controller != nil),
       @"rounded" : @(content.cornerRadius == kCornerRadius && content.masksToBounds && !window.opaque),
       @"rim" : @(controller.overlay.layer.borderWidth),

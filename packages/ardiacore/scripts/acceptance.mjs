@@ -3334,6 +3334,11 @@ try {
         await sleep(300);
         await evalApp(`ac.actions.switchToTab("${first.id}"); return true`);
         const out = await until(`auto PiP (${kind})`, async () => lastEvent(tab.id, "pictureInPicture", (p) => p.kind === kind && p.active), 8000);
+        if (kind === "video") {
+          const pip = await until("the PiP window styled", async () => (await pipWindows())?.find((w) => w.video && w.styled) ?? null, 5000);
+          if (!pip.overFullScreenApps) throw new Error(`the PiP window can't float over other apps' full-screen Spaces: ${JSON.stringify(pip)}`);
+          results.overFullScreenApps = true;
+        }
         await evalApp(`ac.actions.switchToTab("${tab.id}"); return true`);
         const back = await until(`auto PiP ended (${kind})`, async () => {
           const e = await lastEvent(tab.id, "pictureInPicture");
