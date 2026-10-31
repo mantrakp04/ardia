@@ -1,3 +1,5 @@
+import { useProfiles } from "../../../state/profiles/hooks";
+import { profileEngine as currentEngineProfile } from "../../../state/profiles/current";
 import type { DownloadSettings } from "../../../state/downloads/actions";
 import { checkForUpdates, setLaunchAtLogin } from "../../../state/app/appSettings";
 import { pickFolder } from "../../../state/app/system";
@@ -6,8 +8,7 @@ import { useEffect } from "react";
 import { AppState, Text, View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { updateSettings } from "../../../state/settings/actions";
-import { currentEngineProfile } from "../../../state/browser/current";
-import { useProfiles, useSettings } from "../../../state/browser/hooks";
+import { useSettings } from "../../../state/browser/hooks";
 import { SHARING_COPY } from "../../../state/telemetry/copy";
 import { Anchor, Group, ProfilePicker, Row, SectionHeader, SettingToggle, useSettingsProfile } from "../Form";
 import { defaultBrowser, downloadSettings, loginItem, makeDefaultBrowser, setDownloadsFor, setUpdaterPrefs, updater } from "../../../state/settings/paneData";

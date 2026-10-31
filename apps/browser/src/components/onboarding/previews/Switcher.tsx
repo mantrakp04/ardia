@@ -1,6 +1,6 @@
 import { Animated, View, type ViewStyle } from "react-native";
-import { switcherCellWidth, SwitcherMark } from "../../profiles/ProfileIcons";
-import { profileSwitcher } from "../../profiles/tokens";
+import { switcherCellWidth, SwitcherMark } from "../../spaces/SpaceIcons";
+import { spaceSwitcher } from "../../spaces/tokens";
 import { at, SIDEBAR_W, type Geo } from "./geometry";
 import type { Styles } from "./Kit";
 import type { Look } from "./look";
@@ -10,7 +10,7 @@ export const MOCK_SPACES: readonly (string | null)[] = [symbolIcon("globe.americ
 
 export type SwitcherLevel = number | Animated.AnimatedInterpolation<number>;
 
-export const switcherLevels = (icon: string | null) => (icon ? profileSwitcher.icons : profileSwitcher.dots);
+export const switcherLevels = (icon: string | null) => (icon ? spaceSwitcher.icons : spaceSwitcher.dots);
 
 const restingLevel = (i: number, icon: string | null) => (i === 0 ? switcherLevels(icon).selected : switcherLevels(icon).idle);
 
@@ -27,7 +27,7 @@ export function MockSwitcher({
   level?: (i: number, icon: string | null) => SwitcherLevel;
   style?: Styles;
 }) {
-  const { height, band } = profileSwitcher;
+  const { height, band } = spaceSwitcher;
   const marks = MOCK_SPACES.map((icon) => (icons ? icon : null));
   const width = marks.reduce((sum, icon) => sum + switcherCellWidth(icon), 0);
   return (

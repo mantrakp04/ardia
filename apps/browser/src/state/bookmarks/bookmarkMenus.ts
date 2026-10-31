@@ -11,7 +11,7 @@ import type { BookmarkNode, Bookmarks } from "../browser/types";
 import { openImport } from "../settings/settingsWindows";
 import { exportBookmarksFromWindow } from "./exportHtml";
 
-export async function openOrganizeMenu(windowId: string, profileId: string, folderId: string | null) {
+export async function openOrganizeMenu(windowId: string, spaceId: string, folderId: string | null) {
   const choice = await showMenu([
     { id: "bookmark", title: "Add Page…", symbol: "bookmark" },
     { id: "folder", title: "New Folder…", symbol: "folder.badge.plus" },
@@ -20,8 +20,8 @@ export async function openOrganizeMenu(windowId: string, profileId: string, fold
     { id: "export", title: "Export Bookmarks…", symbol: "square.and.arrow.up" },
   ]);
   const parentId = folderId ?? undefined;
-  if (choice === "bookmark") editBookmark(null, windowId, { profileId, parentId });
-  if (choice === "folder") editBookmark(null, windowId, { profileId, parentId, folder: true });
+  if (choice === "bookmark") editBookmark(null, windowId, { spaceId, parentId });
+  if (choice === "folder") editBookmark(null, windowId, { spaceId, parentId, folder: true });
   if (choice === "import") openImport();
   if (choice === "export") void exportBookmarksFromWindow(windowId);
 }
@@ -73,12 +73,12 @@ export async function openBookmarkRowMenu(
   node: BookmarkNode,
   {
     windowId,
-    profileId,
+    spaceId,
     showPath,
     selection,
     onOpenFolder,
     onDelete,
-  }: { windowId: string; profileId: string; showPath: boolean; selection: string[]; onOpenFolder: (folder?: string) => void; onDelete: () => void },
+  }: { windowId: string; spaceId: string; showPath: boolean; selection: string[]; onOpenFolder: (folder?: string) => void; onDelete: () => void },
 ) {
   const s = useBrowser.getState();
   const nodes = selection.includes(node.id) && selection.length > 1 ? selection.map((id) => s.bookmarks.nodes[id]).filter((n): n is BookmarkNode => !!n) : [node];
@@ -87,11 +87,11 @@ export async function openBookmarkRowMenu(
   const choice = await showMenu(bookmarkRowMenuItems(target));
   if (!choice) return;
   if (runLinkChoice(choice, linksOf(currentBookmarks(), nodes), windowId, target.kind === "folder" ? FOLDER_MANY : undefined)) return;
-  if (choice === "edit") editBookmark(node.id, windowId, { profileId });
+  if (choice === "edit") editBookmark(node.id, windowId, { spaceId });
   if (choice === "newFolder") {
     const parentId = node.parentId ?? undefined;
     const index = parentId ? folderChildren(currentBookmarks(), parentId).findIndex((n) => n.id === node.id) + 1 : undefined;
-    editBookmark(null, windowId, { profileId, parentId, index, folder: true });
+    editBookmark(null, windowId, { spaceId, parentId, index, folder: true });
   }
   if (choice === "addGroup") addFolderToSidebar(node.id, windowId);
   if (choice === "restoreArc") restoreArcFolders(node.id, windowId);

@@ -17,7 +17,7 @@ const entries = (w) => {
   const e = sidebarEntries(S(), w);
   return { tiles: urls(e.tiles), rows: urls(e.pinned.filter((x) => x.startsWith("t:")).map((x) => x.slice(2))) };
 };
-const kindChoices = (profileId = "default") => Object.keys(S().pinChoices[profileId] ?? {}).filter((k) => !k.includes(":"));
+const kindChoices = (spaceId = "default") => Object.keys(S().pinChoices[spaceId] ?? {}).filter((k) => !k.includes(":"));
 const tileOf = (w, u) => model.viewTabIds(S(), w).find((id) => !!S().tabs[id].pin && S().tabs[id].pinnedUrl === u);
 
 function windowWith(...hosts) {
@@ -201,7 +201,7 @@ test("undoing a pin removal does nothing once the pinned groups were reordered",
   assert.equal(model.viewTabIds(S(), w).some((id) => url(id) === "https://a.com/"), false, "the removed pin stays removed");
 });
 
-test("rows are the profile's: a second window mirrors them, a change in one shows in the other", () => {
+test("rows are the space's: a second window mirrors them, a change in one shows in the other", () => {
   reset();
   const { w: a, ids: [mail, docs] } = windowWith("mail", "docs", "x");
   S().pinTabs([mail], true);
@@ -233,9 +233,9 @@ test("rows park with the last window and come back as rows, and survive a relaun
 });
 
 test("older data: 0.2.7's pinnedRow stays a tile, a stray row flag on an unpinned tab is dropped", () => {
-  const tab = (id, u, pinned, extra = {}) => ({ id, windowId: "w", profileId: "default", url: u, title: "", favicon: null, pin: pinned ? { as: "tile" } : null, muted: false, zoom: 1, customTitle: null, customIcon: null, pinnedUrl: pinned ? u : null, page: { kind: "idle" }, openerId: null, createdAt: 0, lastActiveAt: 0, ...extra });
+  const tab = (id, u, pinned, extra = {}) => ({ id, windowId: "w", spaceId: "default", url: u, title: "", favicon: null, pin: pinned ? { as: "tile" } : null, muted: false, zoom: 1, customTitle: null, customIcon: null, pinnedUrl: pinned ? u : null, page: { kind: "idle" }, openerId: null, createdAt: 0, lastActiveAt: 0, ...extra });
   S().hydrate({
-    windows: { w: { id: "w", profileId: "default", kind: "main", tabIds: ["r", "t", "u"], activeTabIds: { default: "u" }, sidebarOpen: true, frame: null, createdAt: 0 } },
+    windows: { w: { id: "w", spaceId: "default", kind: "main", tabIds: ["r", "t", "u"], activeTabIds: { default: "u" }, sidebarOpen: true, frame: null, createdAt: 0 } },
     windowOrder: ["w"],
     tabs: {
       r: tab("r", "https://r.com/", true, { pinnedRow: true }),
@@ -258,21 +258,21 @@ test("a closed row comes back as a row from its snapshot", () => {
   assert.notEqual(model.snapshotTab(S().tabs[a]).pin?.as, "row");
 });
 
-test("a pending tile or row choice moves with its pin to another profile, with a new generation", () => {
+test("a pending row choice moves with its pin to another space, with a new generation", () => {
   reset();
-  const work = S().createProfile({ name: "Work" });
+  const work = S().createSpace({ name: "Work", profileId: S().createProfile({ name: "Work" }) });
   const { ids: [a] } = windowWith("a", "b");
-  S().pinTabs([a], true);
+  S().pinTabs([a], true, true);
   const before = S().pinChoices.default[a];
   assert.ok(before);
-  S().moveTabToProfile(a, work);
-  assert.equal(S().pinChoices.default?.[a], undefined, "gone from the source profile");
+  S().moveTabToSpace(a, work);
+  assert.equal(S().pinChoices.default?.[a], undefined, "gone from the source space");
   assert.ok(S().pinChoices[work]?.[a] > before, "pending in the destination under the same pin key");
 });
 
-test("choices go with unpinned pins and deleted profiles, also after a relaunch, and parked pins keep theirs", () => {
+test("choices go with unpinned pins and deleted spaces, also after a relaunch, and parked pins keep theirs", () => {
   reset();
-  const work = S().createProfile({ name: "Work" });
+  const work = S().createSpace({ name: "Work", profileId: S().createProfile({ name: "Work" }) });
   const { w, ids: [a, b, c] } = windowWith("a", "b", "c");
   S().pinTabs([a, b], true);
   S().pinTabs([b], false);
@@ -280,11 +280,11 @@ test("choices go with unpinned pins and deleted profiles, also after a relaunch,
   assert.deepEqual(Object.keys(S().pinChoices.default).filter((k) => k.startsWith("place:")), [`place:${a}`], "and its placement choice");
   S().closeWindow(w);
   assert.deepEqual(kindChoices(), [a], "a parked pin keeps its choice");
-  const ww = S().createWindow({ profileId: work, url: "https://w.com/" });
+  const ww = S().createWindow({ spaceId: work, url: "https://w.com/" });
   const x = S().windows[ww].tabIds[0];
-  S().pinTabs([x], true);
-  S().deleteProfile(work);
-  assert.equal(S().pinChoices[work], undefined, "a deleted profile's choices go");
+  S().pinTabs([x], true, true);
+  S().deleteSpace(work);
+  assert.equal(S().pinChoices[work], undefined, "a deleted space's choices go");
   S().hydrate({ ...S(), pinChoices: { default: { [a]: stamp(5), ghost: stamp(6) }, gone: { y: stamp(7) } } });
   assert.deepEqual(S().pinChoices, { default: { [a]: stamp(5) } }, "stale choices from disk are dropped");
   const first = (S().pinTabs([c], true), S().pinChoices.default?.[c]);
@@ -314,22 +314,22 @@ test("a session's pending choices raise the generation counter, so a later choic
   assert.ok(w);
 });
 
-test("moving a pin to another profile keeps the source's choice while another window there still has the pin", () => {
+test("moving a pin to another space keeps the source's choice while another window there still has the pin", () => {
   reset();
-  const work = S().createProfile({ name: "Work" });
+  const work = S().createSpace({ name: "Work", profileId: S().createProfile({ name: "Work" }) });
   const w1 = S().createWindow({ url: "https://x.com/" });
   const [x] = S().windows[w1].tabIds;
-  S().pinTabs([x], true);
+  S().pinTabs([x], true, true);
   const w2 = S().createWindow({ url: "https://y.com/" });
   assert.ok(S().windows[w2].tabIds.some((id) => !!S().tabs[id].pin), "w2 mirrors the pin");
   const before = S().pinChoices.default[x];
-  S().moveTabToProfile(x, work);
+  S().moveTabToSpace(x, work);
   assert.ok(S().windows[w2].tabIds.some((id) => !!S().tabs[id].pin && (S().tabs[id].pinKey ?? id) === x), "w2 keeps its pin");
   assert.ok(S().pinChoices.default?.[x] >= before, "and Personal keeps the pending choice for it");
   assert.ok(S().pinChoices[work]?.[x] > S().pinChoices.default[x], "Work gets its own, newer one");
 });
 
-test("empty and deleted profiles' choice entries are dropped", () => {
+test("empty and deleted spaces' choice entries are dropped", () => {
   reset();
   windowWith("a");
   S().hydrate({ ...S(), pinChoices: { default: {}, gone: {} } });

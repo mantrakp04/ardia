@@ -8,12 +8,12 @@ export function startExtensionSearchEngines() {
   const read = new Set<string>();
   useExtensions.subscribe((e, prev) => {
     if (e.lists === prev.lists) return;
-    for (const [profile, list] of Object.entries(e.lists)) {
-      if (list === prev.lists[profile]) continue;
-      clearTimeout(timers[profile]);
-      timers[profile] = setTimeout(() => void refreshExtensionSearchEngines(profile), 400);
-      if (!read.has(profile)) setTimeout(() => void refreshExtensionSearchEngines(profile), 3000);
-      read.add(profile);
+    for (const [space, list] of Object.entries(e.lists)) {
+      if (list === prev.lists[space]) continue;
+      clearTimeout(timers[space]);
+      timers[space] = setTimeout(() => void refreshExtensionSearchEngines(space), 400);
+      if (!read.has(space)) setTimeout(() => void refreshExtensionSearchEngines(space), 3000);
+      read.add(space);
     }
   });
 }

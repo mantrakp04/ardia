@@ -3,7 +3,7 @@ import { GlassBacking, useSolidFill } from "./GlassBacking";
 import { Animated, Pressable, StyleSheet, Text, View } from "react-native";
 import { PROFILE_COLORS } from "../ui/theme";
 import { useTabLayout, useWindow } from "../../state/browser/hooks";
-import { choosePresetColor } from "../../state/profiles/themeActions";
+import { choosePresetColor } from "../../state/spaces/themeActions";
 import { themeAccent } from "../../lib/profileLook";
 import { CompactThemeEditor, CustomSwatch, useThemeDraft } from "../settings/ThemeEditor";
 import { settingsInk } from "../settings/tokens";
@@ -36,10 +36,10 @@ export function ThemeColorPicker({
   onPick?: (color: ProfileColor) => void;
   onTheme?: (theme: ProfileTheme) => void;
 }) {
-  const profileId = useWindow(windowId, (w) => w?.profileId);
+  const spaceId = useWindow(windowId, (w) => w?.spaceId);
   const incognito = useWindow(windowId, (w) => w?.kind === "private");
-  const look = useThemeDraft(profileId ?? "", (theme) => onTheme?.(theme));
-  if (!profileId || incognito || !look.profile) return null;
+  const look = useThemeDraft(spaceId ?? "", (theme) => onTheme?.(theme));
+  if (!spaceId || incognito || !look.space) return null;
   const { custom } = look;
   return (
     <View style={{ gap: 22 }}>
@@ -51,8 +51,8 @@ export function ThemeColorPicker({
             ring={PROFILE_COLORS[c].swatch}
             fill={PROFILE_COLORS[c].swatch}
             size={size}
-            selected={!custom && look.profile?.color === c}
-            onPress={() => (onPick ? onPick(c) : choosePresetColor(profileId, c))}
+            selected={!custom && look.space?.color === c}
+            onPress={() => (onPick ? onPick(c) : choosePresetColor(spaceId, c))}
           />
         ))}
         {onTheme ? (

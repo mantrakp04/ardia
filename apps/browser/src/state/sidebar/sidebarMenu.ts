@@ -1,7 +1,7 @@
 import { showMenu, type MenuItem } from "../../platform/menus";
 import { tabLayoutOf } from "../browser/model";
-import { switchProfile } from "../browser/actions";
-import { requestCreateProfile } from "../profiles/createProfileRequest";
+import { switchSpace } from "../browser/actions";
+import { requestCreateSpace } from "../spaces/createSpaceRequest";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { menuShortcut } from "../commands/commandShortcuts";
 import { bookmarkAllTabs } from "../bookmarks/actions";
@@ -23,7 +23,7 @@ export function sidebarMenuItems(s: BrowserState, windowId: string): MenuItem[] 
       { id: "reopen", title: "Reopen Closed Tab", enabled: !!lastClosedEntry(s, windowId), ...menuShortcut("reopenClosedTab", s) },
     ],
     [{ id: "newGroup", title: "New Group", symbol: "folder.badge.plus" }, newLiveFolderMenuItem()],
-    [{ id: "newProfile", title: "New Profile…", symbol: "plus" }],
+    [{ id: "newProfile", title: "New Space…", symbol: "plus" }],
     [{ id: "bookmarkAll", title: "Bookmark All Tabs…", symbol: "bookmark", ...menuShortcut("bookmarkAllTabs", s) }],
     [
       ...pinnedFoldMenuItem(s, windowId),
@@ -44,7 +44,7 @@ export async function openSidebarMenu(windowId: string) {
   else if (choice === "newGroup") {
     const id = s.newTab(windowId);
     if (id) newGroupWithSelection(windowId, [id]);
-  } else if (choice === "newProfile") void requestCreateProfile(windowId).then((id) => id && switchProfile(windowId, id));
+  } else if (choice === "newProfile") void requestCreateSpace(windowId).then((id) => id && switchSpace(windowId, id));
   else if (choice === "bookmarkAll") bookmarkAllTabs(windowId);
   else if (choice === "tabLayout") s.toggleTabLayout(windowId);
   else if (choice === "autoHide") s.toggleSidebar(windowId);

@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { ActivityIndicator, Image, View } from "react-native";
-import { useProfiles } from "../../state/browser/hooks";
+import { useSpaces } from "../../state/browser/hooks";
 import { Button, PopUp, radius, space, Symbol, Text, useTheme } from "../ui";
 import { APP } from "./model";
 import { accentAlpha, importColors, importLayout, importType } from "./tokens";
@@ -44,13 +44,13 @@ export function Spacer() {
 }
 
 export function TargetPicker({ target, onChange }: { target: string; onChange: (id: string) => void }) {
-  const profiles = useProfiles();
-  return profiles.length > 1 ? (
+  const spaces = useSpaces();
+  return spaces.length > 1 ? (
     <View style={{ flexDirection: "row", alignItems: "center", gap: space.m }}>
       <Text size="small" tone="textSecondary">
         Import into
       </Text>
-      <PopUp value={target} options={profiles.map((p) => ({ value: p.id, title: p.name }))} onChange={onChange} minWidth={130} />
+      <PopUp value={target} options={spaces.map((p) => ({ value: p.id, title: p.name }))} onChange={onChange} minWidth={130} />
     </View>
   ) : (
     <View />

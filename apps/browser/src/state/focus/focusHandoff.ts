@@ -8,7 +8,7 @@ import { webviews } from "../../platform/webviews";
 
 const activeTab = (windowId: string) => {
   const w = useBrowser.getState().windows[windowId];
-  return w ? w.activeTabIds[w.profileId] : undefined;
+  return w ? w.activeTabIds[w.spaceId] : undefined;
 };
 
 export function settlingCommandFocus(e: CommandEvent, run: (e: CommandEvent) => void) {

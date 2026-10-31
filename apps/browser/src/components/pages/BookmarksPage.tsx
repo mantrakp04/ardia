@@ -20,11 +20,11 @@ import { UndoToast } from "./UndoToast";
 type Target = { kind: "folder"; id: string } | { kind: "row"; id: string; index: number; folder: boolean };
 type Drop = { into: string } | { parentId: string; index: number };
 
-export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: string }) {
+export function BookmarksPage({ tabId, spaceId }: { tabId: string; spaceId: string }) {
   const theme = useTheme();
   const colors = theme.dark ? pagesColors.dark : pagesColors.light;
   const windowId = useTab(tabId, (t) => t?.windowId ?? "");
-  const roots = useBookmarkRoots(profileId);
+  const roots = useBookmarkRoots(spaceId);
   const [folderId, setFolderId] = useState<string | null>(roots?.bar ?? null);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
@@ -116,7 +116,7 @@ export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: 
         <Button title="Delete" kind="primary" onPress={() => remove(selected)} />
       </>
     ) : (
-      <Button variant="icon" icon="ellipsis.circle" onPress={() => void openOrganizeMenu(windowId, profileId, folderId)} tooltip="Organize" />
+      <Button variant="icon" icon="ellipsis.circle" onPress={() => void openOrganizeMenu(windowId, spaceId, folderId)} tooltip="Organize" />
     );
 
   const indicator = drop && "index" in drop ? drop.index : null;
@@ -127,7 +127,7 @@ export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: 
       <View style={BODY}>
         <ScrollView style={TREE} contentContainerStyle={TREE_CONTENT}>
           <FolderTree
-            profileId={profileId}
+            spaceId={spaceId}
             selectedId={searching ? null : folderId}
             onSelect={(id) => {
               setQuery("");
@@ -177,7 +177,7 @@ export function BookmarksPage({ tabId, profileId }: { tabId: string; profileId: 
                   <BookmarkRow
                     id={id}
                     windowId={windowId}
-                    profileId={profileId}
+                    spaceId={spaceId}
                     showPath={searching}
                     selected={selected.includes(id)}
                     highlighted={!!drop && "into" in drop && drop.into === id}

@@ -2,7 +2,7 @@ import { appIcons, currentAppIcon, setAppIcon, type AppIcon } from "../../state/
 import { useEffect, useState } from "react";
 import { View } from "react-native";
 import { PROFILE_COLORS } from "../ui/theme";
-import { useWindowProfileValue } from "../../state/profiles/hooks";
+import { useWindowSpaceValue } from "../../state/spaces/hooks";
 import type { Settings } from "../../state/settings/settings";
 import { ChoiceList, type ChoiceOption } from "./ChoiceList";
 import { ThemeColorPicker } from "./Personalize";
@@ -30,7 +30,7 @@ const STYLE_CHOICES: ChoiceOption<Settings["interfaceStyle"]>[] = [
 ];
 const SWITCHER_CHOICES: ChoiceOption<boolean>[] = [
   { value: false, preview: "switcher-dots", title: "Dots", subtitle: "A quiet row of dots, as in Dia" },
-  { value: true, preview: "switcher-icons", title: "Icons", subtitle: "Each profile's symbol or emoji, as in Arc" },
+  { value: true, preview: "switcher-icons", title: "Icons", subtitle: "Each space's symbol or emoji, as in Arc" },
 ];
 const BOOKMARKS_BAR: { value: Settings["bookmarksBar"]; title: string }[] = [
   { value: "always", title: "Always" },
@@ -44,8 +44,8 @@ export function LookStep() {
   const { values, mock } = useScreen(LOOK_KEYS);
   const windowId = useOnboarding((s) => s.windowId) ?? "";
   const appIcon = useOnboarding((s) => s.extras.appIcon);
-  const color = useWindowProfileValue(windowId, (p) => p?.color);
-  const customTheme = useWindowProfileValue(windowId, (p) => !!p?.theme);
+  const color = useWindowSpaceValue(windowId, (p) => p?.color);
+  const customTheme = useWindowSpaceValue(windowId, (p) => !!p?.theme);
   const [icons, setIcons] = useState<{ list: AppIcon[]; current: string | null }>({ list: [], current: null });
   const preview = <MockPanel settings={mock} focus={focus.focus} />;
   useEffect(() => {
@@ -100,15 +100,15 @@ export function LookStep() {
       <Page
         id={id}
         title="Dots or icons?"
-        subtitle="How the switcher at the bottom of the sidebar shows your profiles."
-        patch={{ profileSwitcherIcons: values.profileSwitcherIcons }}
-        picked={values.profileSwitcherIcons ? ["Profile icons in the sidebar"] : []}
+        subtitle="How the switcher at the bottom of the sidebar shows your spaces."
+        patch={{ spaceSwitcherIcons: values.spaceSwitcherIcons }}
+        picked={values.spaceSwitcherIcons ? ["Space icons in the sidebar"] : []}
         preview={<MockPanel settings={mock} focus={focus.focus} switcher />}
       >
         <ChoiceList
           options={SWITCHER_CHOICES}
-          value={values.profileSwitcherIcons}
-          onChange={(profileSwitcherIcons) => change({ profileSwitcherIcons })}
+          value={values.spaceSwitcherIcons}
+          onChange={(spaceSwitcherIcons) => change({ spaceSwitcherIcons })}
           mock={focus}
         />
       </Page>

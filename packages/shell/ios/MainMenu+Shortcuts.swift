@@ -135,7 +135,7 @@ extension MainMenu {
         }
       }
     }
-    for case let item as CommandItem in profiles.items where item.commandAlternateOf != nil {
+    for case let item as CommandItem in spaces.items where item.commandAlternateOf != nil {
       item.applyAlternate(bindings[item.shortcutId] ?? [])
     }
   }

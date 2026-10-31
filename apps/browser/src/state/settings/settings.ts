@@ -16,9 +16,8 @@ import { fromLegacyUrl } from "../../lib/legacy";
 import type { BrowserState } from "../browser/store";
 import { DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
 import { isFields, isString, isStringList } from "../../lib/decode";
-import type { SavedObject } from "../../lib/savedDocument";
 
-export const DEFAULT_PROFILE_ID = "default";
+export const DEFAULT_SPACE_ID = "default";
 
 export type SettingSpec<T> = { default: T; valid: (value: unknown) => boolean; synced: boolean; values?: readonly T[] };
 
@@ -58,7 +57,7 @@ export const SETTING_SPECS = {
   newTabOpens: oneOf(["page", "commandBar"], "page", SYNCED),
   warnBeforeClosingLastTab: flag(true, SYNCED),
   undoReopensClosedTab: flag(false, SYNCED),
-  warnBeforeMovingTabsToProfile: flag(true, SYNCED),
+  warnBeforeMovingTabsToSpace: flag(true, SYNCED),
   shareTabsAcrossWindows: flag(false),
   tabReorderHaptics: flag(true, SYNCED),
   extendWebsiteColor: flag(true, SYNCED),
@@ -104,8 +103,8 @@ export const SETTING_SPECS = {
   compactToolbar: flag(false, SYNCED),
   commandBarPlacement: oneOf(["field", "centred"], "field", SYNCED),
   spacesFollowAppearance: flag(true),
-  defaultProfileId: text(DEFAULT_PROFILE_ID),
-  profileSwitcherIcons: flag(false, SYNCED),
+  defaultSpaceId: text(DEFAULT_SPACE_ID),
+  spaceSwitcherIcons: flag(false, SYNCED),
   shortcuts: shaped<Record<string, string[]>>({}, (v) => isRecordOf(v, isStringList), SYNCED),
   openLinksInLittleArdia: flag(true),
   littleArdiaSize: shaped<[number, number]>([900, 640], (v) => Array.isArray(v) && v.length === 2 && v.every(isWidth)),
@@ -198,37 +197,7 @@ export function choose(s: Pick<BrowserState, "settings" | "settingsMeta">, patch
   return { settings: { ...s.settings, ...patch }, settingsMeta };
 }
 
-export function sessionWithSettingsMeta(doc: SavedObject): SavedObject {
-  if (!isFields(doc.settings) || (isFields(doc.settingsMeta) && !("chosen" in doc.settings) && !("inferred" in doc.settings))) return doc;
-  const raw = withNewTabButtonPosition(withoutBatterySaver(doc.settings as Partial<Settings & SettingsMeta> & { batterySaver?: unknown }))!;
-  const legacy = !raw.chosen ? Object.keys(raw) : null;
-  const { chosen, inferred, ...settings } = raw;
-  return { ...doc, settings, settingsMeta: { chosen: legacy ?? (isStringList(chosen) ? chosen : []), inferred: legacy ?? (isStringList(inferred) ? inferred : []) } };
-}
-
-function withNewTabButtonPosition(saved: Partial<Settings & SettingsMeta> | undefined): Partial<Settings & SettingsMeta> | undefined {
-  if (!saved || saved.newTabButtonPosition !== undefined || saved.newTabPosition !== "top") return saved;
-  const alongside = (keys: string[]) => (keys.includes("newTabPosition") ? [...new Set([...keys, "newTabButtonPosition"])] : keys);
-  return {
-    ...saved,
-    newTabButtonPosition: "top",
-    ...(saved.chosen ? { chosen: alongside(saved.chosen) } : {}),
-    ...(saved.inferred ? { inferred: alongside(saved.inferred) } : {}),
-  };
-}
-
-function withoutBatterySaver(saved: (Partial<Settings & SettingsMeta> & { batterySaver?: unknown }) | undefined): Partial<Settings & SettingsMeta> | undefined {
-  if (!saved || !("batterySaver" in saved)) return saved;
-  const { batterySaver, ...rest } = saved;
-  const explicit = batterySaver === false || (batterySaver === true && !!rest.chosen?.includes("batterySaver") && !rest.inferred?.includes("batterySaver"));
-  const without = (keys: string[]) => keys.filter((k) => k !== "batterySaver");
-  return {
-    ...rest,
-    ...(rest.chosen ? { chosen: explicit ? [...new Set([...without(rest.chosen), "batterySaverWhen"])] : without(rest.chosen) } : {}),
-    ...(rest.inferred ? { inferred: without(rest.inferred) } : {}),
-    ...(explicit && rest.batterySaverWhen === undefined ? { batterySaverWhen: batterySaver ? "unplugged" : "never" } : {}),
-  };
-}
+export { sessionWithSettingsMeta } from "../../lib/sessionSettingsUpgrade";
 
 export type SettingsSlice = {
   settings: Settings;

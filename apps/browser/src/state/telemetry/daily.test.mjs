@@ -73,7 +73,7 @@ test("one anonymous ping a day, marked only after a 2xx", async () => {
       os_major: "26",
       arch: "arm64",
       $environment: "production",
-      $process_person_profile: false,
+      $process_person_space: false,
       $geoip_disable: true,
       first: true,
       daily: true,

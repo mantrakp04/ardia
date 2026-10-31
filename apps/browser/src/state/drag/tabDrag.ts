@@ -153,7 +153,7 @@ function takePicture({ session, windowId, tabId }: TabDragging, { chip, grab }: 
   dragPreview.begin(windowId, rect, [rect[0] + grab[0], rect[1] + grab[1]]);
   const s = useBrowser.getState();
   const w = s.windows[windowId];
-  const active = w?.activeTabIds[w.profileId];
+  const active = w?.activeTabIds[w.spaceId];
   const shown = tabId ?? active;
   const onScreen = !!shown && (shown === active || !!splitTabIdsOf(splitOf(s, active))?.includes(shown));
   const live = (onScreen && webviews.get(shown)?.capturePicture(0.35).catch(() => null)) || Promise.resolve(null);

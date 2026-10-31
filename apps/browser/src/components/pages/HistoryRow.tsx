@@ -31,7 +31,7 @@ export const DayHeader = memo(function DayHeader({ label, top }: { label: string
 
 export const HistoryRow = memo(function HistoryRow({
   entry,
-  profileId,
+  spaceId,
   first,
   last,
   selected,
@@ -43,7 +43,7 @@ export const HistoryRow = memo(function HistoryRow({
   menuTargets,
 }: {
   entry: HistoryEntry;
-  profileId: string;
+  spaceId: string;
   first: boolean;
   last: boolean;
   selected: boolean;
@@ -135,7 +135,7 @@ export const HistoryRow = memo(function HistoryRow({
               }}
               style={LINK}
             >
-              <Favicon url={entry.url} favicon={entry.favicon} profileId={profileId} />
+              <Favicon url={entry.url} favicon={entry.favicon} spaceId={spaceId} />
               <Text lines={1} style={TITLE}>
                 {entry.title || entry.url}
               </Text>

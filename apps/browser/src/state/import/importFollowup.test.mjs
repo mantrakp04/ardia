@@ -14,21 +14,21 @@ function start() {
   useBrowser.setState({ bookmarks: { nodes: {} } });
   S().hydrate({});
   const w = S().createWindow({ url: "https://home.example/" });
-  S().addBookmark({ profileId: P, url: "https://seed.example/", title: "seed" });
+  S().addBookmark({ spaceId: P, url: "https://seed.example/", title: "seed" });
   return { w, bar: bookmarkRoots(S(), P).bar };
 }
 
 function nestedFolder(parentId, outer, inner, url) {
-  const f = S().addBookmarkFolder({ profileId: P, title: outer, parentId });
-  const sub = S().addBookmarkFolder({ profileId: P, title: inner, parentId: f });
-  S().addBookmark({ profileId: P, url, title: "A", parentId: sub });
+  const f = S().addBookmarkFolder({ spaceId: P, title: outer, parentId });
+  const sub = S().addBookmarkFolder({ spaceId: P, title: inner, parentId: f });
+  S().addBookmark({ spaceId: P, url, title: "A", parentId: sub });
   return f;
 }
 
 test("restoring an Arc folder that adds no group keeps the folder and its bookmarks", () => {
   const { w, bar } = start();
   addFolderToSidebar(nestedFolder(bar, "Work", "Alpha", "https://a.example/"), w);
-  const holder = S().addBookmarkFolder({ profileId: P, title: "Home (Arc)", parentId: bar });
+  const holder = S().addBookmarkFolder({ spaceId: P, title: "Home (Arc)", parentId: bar });
   const work = nestedFolder(holder, "Work", "Beta", "https://a.example/");
   assert.deepEqual(restoreArcFolders(holder, w), []);
   const kept = S().bookmarks.nodes[work];
@@ -40,7 +40,7 @@ test("restoring an Arc folder that adds no group keeps the folder and its bookma
 
 test("re-importing an Arc space after renaming its group adds no page that's already pinned", () => {
   start();
-  const space = { id: "s", name: "Home", profileId: P, tabs: [], pinned: [{ type: "folder", title: "Work", children: [{ type: "url", title: "A", url: "https://a.example/" }, { type: "url", title: "B", url: "https://b.example/" }] }] };
+  const space = { id: "s", name: "Home", spaceId: P, tabs: [], pinned: [{ type: "folder", title: "Work", children: [{ type: "url", title: "A", url: "https://a.example/" }, { type: "url", title: "B", url: "https://b.example/" }] }] };
   assert.equal(importArcSpace(P, space).tabs, 2);
   const g = pinnedGroups().find((x) => x.name === "Work");
   S().updateGroup(g.id, { name: "Renamed" });

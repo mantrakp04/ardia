@@ -8,33 +8,74 @@ store but through `storeAction` wrappers in each domain's `actions.ts` (`newTab`
 `updateSettings` in state/settings/actions.ts, …). Tests (`S().newTab(…)`) and CDP scripts
 (`ac.store.getState().newTab(…)`) call the methods directly.
 
+## Profiles and Spaces
+
+Profiles own the native browsing identity (`engineId`): cookies, logins, history, extensions, passwords,
+autofill and native bookmarks. Settings is the only place that manages Profiles. Profiles have no theme,
+order or default flag. Spaces own sidebar rows, folders, groups, ordinary tabs, order and themes; each
+Space assigns one Profile through `profileId`. `settings.defaultSpaceId` selects the destination for
+external links and ordinary new windows.
+
+Top Apps are canonical in `topApps[profileId]` and appear in every regular Space using that Profile.
+Their metadata is shared and a loaded tile has one live page, transferred or parked without reloading.
+`parkedTopApps[profileId]` retains the page even when its Profile has no Spaces. Other pinned rows,
+groups and live folders stay with their Space and mirror only between windows of that Space.
+Native tab requests retain their browsing Profile. If that Profile has no Spaces, the request creates
+an assigned Space; an unknown Profile never falls back to the default browsing identity.
+
+Session v10 separates `profiles`, `spaces` and `spaceOrder`. The startup upgrade journals and backs up
+session, live-folder and sync documents before converting them. Old logical Profile IDs become Space
+IDs; data owner IDs become Profile IDs, keeping native data directories intact. Old AppleScript Profile
+operations remain Space aliases; automation v2 adds explicit Space operations. This includes the old
+`profiles` collection, window `profileId` and focus command, even when several Spaces use one Profile.
+
+Settings resolves IDs explicitly: `openSettings` takes a Space ID and converts it to its owner for Profile
+data panes; `openProfileSettings` takes a Profile ID. Private Spaces resolve their frozen engine identity.
+Deleting a Profile removes it from Settings and queues native data cleanup. Failures are shown and retried
+on next launch. The confirmation discloses that encrypted local sync caches, sync-folder files and copies
+on other devices remain.
+
+Sync v2 uses separate consent for Profile data, shared Top Apps and Space content. It waits for the user
+to confirm every Mac supports the new protocol. A remote Profile reassignment stays pending while the
+Space has live ordinary pages; Settings › Sync offers Apply or Keep Current and suppresses the stale
+assignment until resolved. Legacy settings whose sync consent is off stay in an encrypted local scope
+without a publishable outbox. The upgrade saves that scope before enabling v2; later consent imports the
+settings once, keeping any newer v2 values.
+
+The Space pin-concurrency matrix covers saved rows and groups.
+Top Apps belong to a different Profile scope; row-to-tile conversions and initial tiles are tested through
+the complete sync engine in `state/sync/sharedData.test.mjs`, and concurrent Top App edits in
+`state/sync/topApps.test.mjs`. Older sync clients use v1 scopes and do not participate in v2 pairing;
+`state/sync/legacySync.test.mjs` covers their one-way upgrade. Mixing their adapters into the Space-only
+matrix would test a protocol combination that the app does not enable.
+The matrix retains upstream's exclusion for logs delayed 44 days while a participant also collects old
+records. That pre-existing collection-horizon case remains outside this matrix's verified coverage.
+
 ## State
-- `profiles` + `profileOrder`; default profile id is `"default"`.
-- `windows`: `{ profileId, incognito, tabIds (sidebar order, pinned first), activeTabIds[profileId], sidebarOpen, frame }` + `windowOrder`.
-  A private window's `profileId` is `incognito:<window id>@<originalProfileId>` (`incognitoProfileId`, state/browser/model.ts),
-  `originalProfileId` the regular profile it was opened from (`createWindow({ incognito: true, profileId })`, default
-  `lastActiveProfile`). Its engine profile (`engineProfile`) is that profile's off-the-record one: private windows of one
-  profile share a session (`privateSession(profileId)`, the regular engine name), another profile's never. Downloads
-  carry `offTheRecord` and their regular profile (`downloadSession`, state/windows/ui.ts); a session's go with its last window.
+- `profiles`: `{ id, name, icon, engineId, createdAt }`; `spaces` plus `spaceOrder`.
+- `windows`: `{ spaceId, kind, tabIds, activeTabIds[spaceId], sidebarOpen, frame }` plus `windowOrder`.
+  Private windows capture `originalSpaceId` and `incognitoEngineId` at creation. Reassigning the source
+  Space does not change an existing private session. Private windows of one native Profile share its
+  off-the-record session, and child private windows inherit the parent's frozen identity. A Profile
+  with private windows cannot be deleted.
 - `tabs` (persisted) vs `live` (loading/progress/back-forward/audio/theme colour; never persisted).
-- `groups`: `{ windowId, profileId, name, icon, color, collapsed, pinned, tabIds }` (members contiguous). `color` is
+- `groups`: `{ windowId, spaceId, name, icon, color, collapsed, pinned, tabIds }` (members contiguous). `color` is
   `null` for Neutral, `"none"` for a transparent group, or one of Chrome's nine group colours.
-- `splits` (state/splits/splits.ts): `{ windowId, tabIds (2–3, pane order), orientation, sizes, stack? }` — `stack` = two panes sharing a slot the other way (Add Bottom Split). Members are contiguous in `window.tabIds`; the window's active tab is the focused pane. A split is one sidebar row (`splitRowPanes`): its panes are all unpinned, or all pinned rows; `placing`, `withGroup`, `createGroup`, `addTabsToGroup` and `removeTabsFromGroup` take every pane of a row they're given one of (`withSplitRows`), pinned panes are always rows, and a pinned split is mirrored to the profile's windows (pinMirror) and parked with them (`ParkedPins.splits`). `window.tabLayout` ("sidebar" | "top", unset = Settings).
-- `history[profileId]`: a view of Chrome's history (HistoryService), one entry per URL, not saved; `historyReady[profileId]`
-  once it has been read (state/history/engineSync.ts). `bookmarks`: `{ nodes, roots[profileId]: { bar, other } }`.
+- `splits` (state/splits/splits.ts): `{ windowId, orientation, slots }`: each slot holds a tab or two stacked panes with their own sizes. Members are contiguous in `window.tabIds`; the window's active tab is the focused pane. A split is one sidebar row (`splitRowPanes`): its panes are all unpinned, or all pinned rows; `placing`, `withGroup`, `createGroup`, `addTabsToGroup` and `removeTabsFromGroup` take every pane of a row they're given one of (`withSplitRows`), pinned panes are always rows, and a pinned split is mirrored to the Space's windows (pinMirror) and parked with them (`ParkedPins.splits`). `window.tabLayout` ("sidebar" | "top", unset = Settings).
+- `history[engineId]`: `{ list, floor, ready }`, a view of Chrome's history (HistoryService), one entry per URL, not saved.
+  Bookmarks have one native tree per engine; `bookmarkRoots(s, spaceId)` derives its roots and `bookmarksReady[engineId]` marks it loaded.
 - `closedTabs` / `closedWindows` (full state; a closed window's entry leaves out its pinned tabs and pinned groups);
   `downloads`; `settings` (typed, state/settings/settings.ts).
-- `parkedPins[profileId]` (state/pins/parkedPins.ts): pinned tabs belong to the profile's sidebar, as in Dia. Closing a
-  window (⌘W on its last tab, the close button, ⇧⌘W, "Start fresh" on launch) parks its pinned tiles (at their pinned
-  URL) and pinned groups, with their order and tab/group ids; the next window that shows the profile takes them back,
+- `parkedPins[spaceId]` (state/pins/parkedPins.ts): saved rows and groups belong to the Space's sidebar, as in Dia. Closing a
+  window (⌘W on its last tab, the close button, ⇧⌘W, "Start fresh" on launch) parks its saved rows and pinned groups, with their order and tab/group ids; the next window that shows the Space takes them back,
   unloaded (`createWindow` — ⌘N, the Dock, a link from another app, the first window after a relaunch —,
-  `switchProfile`, Reopen Closed Window, ⇧⌘T of a tile's page), and the park empties, so nothing comes back twice.
-  Only the last window of a profile parks: while another window shows the profile, the pins are there.
-  Sync publishes parked pins as the profile's pins and applies changes to them in place (state/sync/adapters `pinnedAdapter`).
-- Pins are per profile in every window (state/pins/pinMirror.ts): each regular window showing a profile holds its own copy
-  (a Tab, a TabGroup) of every pinned tile and pinned group, linked by `pinKey` (unset on the first copy, whose id is
+  `switchSpace`, Reopen Closed Window, ⇧⌘T of a tile's page), and the park empties, so nothing comes back twice.
+  Only the last window of a Space parks: while another window shows the Space, the pins are there.
+  Sync publishes parked pins as the Space's pins and applies changes to them in place (state/sync/adapters `pinnedAdapter`).
+- Saved rows and groups are per Space in every window (state/pins/pinMirror.ts): each regular window showing a Space holds its own copy
+  (a Tab, a TabGroup) of every saved row and pinned group, linked by `pinKey` (unset on the first copy, whose id is
   the key; `pinKeyOf`). A store listener (`mirrorPins`) carries a change of one window's pinned section to the others
-  (the focused changed window wins) and gives a window that starts showing a profile its pins (the union, for windows
+  (the focused changed window wins) and gives a window that starts showing a Space its pins (the union, for windows
   that differ at launch). Copies it makes are unloaded; a copy it drops goes if it never loaded, else stays as a regular
   tab. Moving a pinned tab between windows (`moveTabsInto`, an extension's move) leaves a copy behind
   (`settleMovedPins`). Sync keys pins by `pinKey` and changes the home window's copy.
@@ -42,20 +83,20 @@ store but through `storeAction` wrappers in each domain's `actions.ts` (`newTab`
   folder is the tiles of a window that share an id, kept next to each other in the window's order. `addToTileFolder`,
   `newTileFolder`, `leaveTileFolder`, `renameTileFolder` and `dissolveTileFolder` are pure (state in, state out);
   `placeTabs({ tileFolder })` sets it, `null` takes a tab out, and leaving it out keeps it. A tab that stops being a tile
-  loses it, and a folder that drops to one tab dissolves (`settleTileFolders`, run with the pin mirror). It never reaches
+  loses it, and a folder that drops to one tab dissolves (`settleTileFolders`, run with the pin mirror and Profile Top App projection). It never reaches
   Chrome: members are plain pinned tabs there. Mirrored, parked and synced with the pins (`tilefold:` records).
-- UI: `ui.focusOrder` (most recently focused first; `focusedWindowOf(s)` in state/windows/ui.ts reads the focused one), `ui.lastProfileId` (the regular profile of the window used last, a private
-  window counting as its `originalProfileId`; saved with the session; read it through `lastActiveProfile(s)`, state/windows/small.ts),
+- UI: `ui.focusOrder` (most recently focused first; `focusedWindowOf(s)` in state/windows/ui.ts reads the focused one), `ui.lastSpaceId` (the regular profile of the window used last, a private
+  window counting as its `originalSpaceId`; saved with the session; read it through `lastActiveSpace(s)`, state/windows/small.ts),
   `ui.appDark`, `windowUi[windowId]` (command panel, downloads popover), `find[tabId]`.
 
 ## Actions
-- Windows: `createWindow`, `closeWindow`, `switchProfile`, `moveTabsToWindow`, `moveTabToProfile`,
+- Windows: `createWindow`, `closeWindow`, `switchSpace`, `moveTabsToWindow`, `moveTabToSpace`,
   `mergeAllWindows`, `reopenClosed` / `reopenClosedTab` / `reopenClosedWindow`, `restoreClosed`.
   Little Ardia (Little Arc): `createWindow({ small: true, url })` makes a `kind: "small"` window with one tab (state/windows/small.ts),
-  in `lastActiveProfile(s)` unless `profileId` says otherwise; never private.
-  `newTab` into it goes to `mainWindowFor(s, profileId)`; `resolveWindowId(s, null)` never picks it; closing it records a
+  in `lastActiveSpace(s)` unless `spaceId` says otherwise; never private.
+  `newTab` into it goes to `mainWindowFor(s, spaceId)`; `resolveWindowId(s, null)` never picks it; closing it records a
   `ClosedTab` with `small: true` that reopens in a new Little Ardia; it isn't saved with the session.
-- Tabs: `newTab(windowId, { url, background, adoptId, openerId, profileId, pinned, index })`, `closeTabs(ids, { lastClosesWindow })`
+- Tabs: `newTab(windowId, { url, background, adoptId, openerId, spaceId, pinned, index })`, `closeTabs(ids, { lastClosesWindow })`
   and `closeTab(id)` (the same path with `lastClosesWindow`, for ⌘W and ✕), `activate`, `navigate`, `updateTab(id, patch, live?)` (the live patch lands in the same store update), `updateLive`,
   `togglePin`, `moveTab`, `moveTabBy(id, ±1)` (both within the tab's pin section), `duplicateTab`. The engine's page reports go through `navigated(id, { url, title }, live)` and
   `faviconChanged(id, favicon)`. Chrome records the visit (HistoryService) and keeps the icon (FaviconService) itself.
@@ -88,18 +129,21 @@ store but through `storeAction` wrappers in each domain's `actions.ts` (`newTab`
   `cleanUpTabs` → `cleanedTabs` / `restoreCleaned(entryId?, windowId?)` (a private window's go to `privateCleanedTabs[windowId]`,
   in memory, and only back into that window; read either with `cleanedTabsFor(s, windowId)`), `closeAbandonedNewTabs`. `newTab` with `openerId` + `background` (⌘-click)
   joins the opener's group (`settings.cmdClickCreatesTabGroup`). Sidebar UI lives in components/sidebar/.
-- Profiles: `createProfile` (`shareWith`: share another profile's data), `updateProfile`, `deleteProfile`, `reorderProfiles`, `setDefaultProfile`.
-  `deleteProfile` queues engine data no profile uses any more in `orphanedProfileData` (saved); state/profiles/profileData.ts deletes it
-  (`deleteProfileData`, which erases the original profile's data through Chrome's own stores) and retries at launch until it's gone.
-  Shared data: `profile.dataId` names the data a profile uses; `engineProfile(id)` resolves it, bookmark roots are the same
-  folders, and state/profiles/profiles keeps history lists identical (`dataGroups`, `sharingProfiles`). The Create Profile dialog is
-  components/profiles/CreateProfile.tsx (`lib/actions.createProfile`).
+- Profiles: `createProfile`, `updateProfile`, `deleteProfile` (`state/profiles/profiles.ts`). Deletion requires
+  no private windows and leaves at least one Profile. An explicit replacement Profile reassigns all
+  associated Spaces before deletion; `requestDeleteProfile` confirms the alphabetical destination and
+  explains blocked actions. Unused engine data is queued
+  for native deletion; deleting a Space never deletes Profile data.
+- Spaces: `createSpace`, `updateSpace`, `deleteSpace`, `assignSpaceProfile`, `reorderSpaces`,
+  `setDefaultSpace` (`state/spaces/spaces.ts`). Reassignment parks Profile-owned Top Apps and recreates
+  ordinary pages at their current URL under the new Profile after confirmation. Same-Profile moves
+  preserve live pages. The default and last Space cannot be deleted.
 - Bookmarks: `addBookmark`, `addBookmarkFolder`, `moveBookmark`, `removeBookmark`, `toggleBookmark`,
   `addBookmarkTree` (imports, Bookmark All Tabs), `removeBookmarks` → `restoreBookmarks` (bulk delete + undo).
   They're Chrome's (BookmarkModel, so `chrome.bookmarks` sees them): state/bookmarks/engineSync.ts reads each engine profile's tree,
   sends each store change to Chrome as ops (`bookmarkOps`), takes back what extensions change, and moved the old
   `bookmarks.json` in once. Node ids are Chrome UUIDs (`newBookmarkId`); an engine profile's roots are
-  `bar@<engine>` / `other@<engine>` (`rootIdsFor`); `bookmarksReady[profileId]` once read; `syncKey` (state/sync/adapters.ts).
+  `bar@<engine>` / `other@<engine>` (`rootIdsFor`); `bookmarksReady[engineId]` once read; `syncKey` (state/sync/adapters.ts).
   Until Chrome's tree is read at launch the store shows the last one read (`bookmarks-cache.json`), which is display
   only: it's never sent to Chrome, and edits made meanwhile are replayed on Chrome's tree.
 - History (Chrome's; state/history/engineSync.ts reads it and follows its `history.changed` events, and moved the old `history.json`
@@ -110,20 +154,20 @@ store but through `storeAction` wrappers in each domain's `actions.ts` (`newTab`
 
 ## Hooks (state/browser/hooks.ts and state/<domain>/hooks.ts)
 `useWindowId`, `useActiveTab(Id)`, `useTab(id, select?)`, `useTabLive(id, select?)`, `useWindow(id, select)`,
-`useProfile(id, select)`, `useGroup(id, select)`, `useWindowProfile`, `useProfiles`, `useSettings(select)`,
+`useSpace(id, select)`, `useGroup(id, select)`, `useWindowSpace`, `useSpaces`, `useSettings(select)`,
 `useFind(tabId)`, `useWindowUi`, `useIsBookmarked(url)`, plus named hooks per domain (state/sidebar/hooks.ts,
 state/bookmarks/hooks.ts, state/windows/card.ts for ContentCard, …). Components never call `useBrowser(…)`.
 Subscribe rows by id with narrow selectors so progress events don't re-render every tab.
 
 ## Helpers and side effects
-- Pure: state/browser/model.ts — `viewTabIds`, `activeTabId`, `engineProfile` (the WebView `profile` prop), `windowTitle`.
-- Dialogs / native side effects go through state/browser/actions.ts (`closeTab`, `switchToTab`, `moveTabToProfile`,
-  `moveTabToWindow`, `createProfile`, `deleteProfile`, `openWindow`). `createProfile` puts a request in
-  state/profiles/createProfileRequest.ts that components/profiles/CreateProfile.tsx renders.
+- Pure: state/browser/model.ts — `viewTabIds`, `activeTabId`, `engineProfileForSpace` (the WebView `profile` prop), `windowTitle`.
+- Dialogs / native side effects go through state/browser/actions.ts (`closeTab`, `switchToTab`, `moveTabToSpace`,
+  `moveTabToWindow`, `createSpace`, `deleteSpace`, `openWindow`). `createSpace` opens the Space form
+  in Settings; Profile creation lives in the Profiles pane.
 - Event handlers read the current state through state/browser/current.ts (`currentSettings`, `currentTab(id)`, …) or
   a domain's reader, never `getState()` in a component.
-- Profile colours that state needs (menu swatches, the launch backdrop) come from a resolver App.tsx provides
-  (state/profiles/looks.ts), so state never imports components/ui.
+- Space colours that state needs (menu swatches, the launch backdrop) come from a resolver App.tsx provides
+  (state/spaces/looks.ts), so state never imports components/ui.
 - Menu commands: state/commands/commands.ts (JS) + packages/shell/ios/MainMenu.swift (native menu bar).
 - Tests: `pnpm --filter @ardia/browser test` (`docs/testing.md`).
 
@@ -146,7 +190,7 @@ that act on it: translate's detection, the web store's script, a screen-share re
 ## Live tabs: Chrome's tab strips (state/tabs/chromeTabs.ts, state/tabs/liveTabs.ts, packages/ardiacore/src/tabs.ts)
 
 One writer per fact. The store owns the **workspace**: sidebar order, pins, groups, splits, Little Ardia, unloaded
-and parked tiles, and which tab each window shows per profile (`activeTabIds`). Chrome's `TabStripModel` owns
+and parked tiles, and which tab each window shows per Space (`activeTabIds`). Chrome's `TabStripModel` owns
 the **live tabs**: which tabs each Chrome window ("strip": one per engine profile per app window) has, their order,
 the active one, pins (and groups, once the engine reports them). JS never writes a live fact and never guesses who
 caused a report: it sends commands with ids, the engine commits them in Chrome, and every change comes back as one

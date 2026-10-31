@@ -105,7 +105,7 @@ function context(): Record<string, unknown> {
     arch: info.arch,
     engine_version: engineVersion,
     $environment: environment(),
-    $process_person_profile: false,
+    $process_person_space: false,
     $geoip_disable: true,
   };
 }

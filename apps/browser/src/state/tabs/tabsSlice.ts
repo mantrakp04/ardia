@@ -45,7 +45,7 @@ function tabSection(s: BrowserState, id: string): string[] {
   const tab = s.tabs[id];
   const w = tab && s.windows[tab.windowId];
   if (!w) return [];
-  return w.tabIds.filter((t) => s.tabs[t]?.profileId === tab.profileId && pinSection(s.tabs[t]) === pinSection(tab));
+  return w.tabIds.filter((t) => s.tabs[t]?.spaceId === tab.spaceId && pinSection(s.tabs[t]) === pinSection(tab));
 }
 
 function openOutsideTab(s: BrowserState, url: string, windowId: string): boolean {
@@ -64,16 +64,16 @@ export const createTabsSlice: StateCreator<BrowserState, [], [], TabsSlice> = (s
   newTab(windowId, options) {
     const small = get().windows[windowId];
     if (small?.kind === "small" && small.tabIds.length) {
-      const profileId = options?.profileId ?? small.profileId;
-      const main = mainWindowFor(get(), profileId);
+      const spaceId = options?.spaceId ?? small.spaceId;
+      const main = mainWindowFor(get(), spaceId);
       if (!main) {
-        const created = get().createWindow({ profileId, url: options?.url, adoptId: options?.adoptId ?? options?.wakeAdoptId, background: options?.background });
+        const created = get().createWindow({ spaceId, url: options?.url, adoptId: options?.adoptId ?? options?.wakeAdoptId, background: options?.background });
         return activeTabId(get(), created) ?? "";
       }
-      return get().newTab(main, { ...options, profileId, index: undefined });
+      return get().newTab(main, { ...options, spaceId, index: undefined });
     }
     if (options?.url && !options.adoptId && openOutsideTab(get(), resolveTyped(get().settings, options.url), windowId)) return "";
-    const beside = options?.newTabCommand && !options.openerId ? nextToActive(get(), windowId, options.profileId) : undefined;
+    const beside = options?.newTabCommand && !options.openerId ? nextToActive(get(), windowId, options.spaceId) : undefined;
     let [next, id] = withNewTab(get(), windowId, beside ? { ...options, ...beside } : options);
     const typed = beside && navigationOf(next.tabs[id]);
     if (typed) next = { ...next, tabs: { ...next.tabs, [id]: { ...next.tabs[id]!, engine: engineForUrl(next, typed.url) } } };
@@ -126,7 +126,7 @@ export const createTabsSlice: StateCreator<BrowserState, [], [], TabsSlice> = (s
   cycle(windowId, delta) {
     const s = get();
     const view = viewTabIds(s, windowId);
-    const i = view.indexOf(s.windows[windowId]?.activeTabIds[s.windows[windowId]!.profileId] ?? "");
+    const i = view.indexOf(s.windows[windowId]?.activeTabIds[s.windows[windowId]!.spaceId] ?? "");
     if (view.length) get().activate(view[(i + delta + view.length) % view.length]!);
   },
 
@@ -190,7 +190,7 @@ export const createTabsSlice: StateCreator<BrowserState, [], [], TabsSlice> = (s
     const w = s.windows[source.windowId]!;
     const [next, copy] = withNewTab(s, w.id, {
       url: source.url || undefined,
-      profileId: source.profileId,
+      spaceId: source.spaceId,
       snapshot: { ...snapshotTab(source), pin: null },
       index: w.tabIds.indexOf(id) + 1,
       adoptId: source.url ? cloneId(id) : undefined,

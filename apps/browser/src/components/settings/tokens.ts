@@ -54,5 +54,5 @@ export const settingsMotion = {
   searchFlashIn: 120,
   searchFlashHold: 900,
   searchFlashOut: 700,
-  profileRowSettle: 160,
+  spaceRowSettle: 160,
 } as const;

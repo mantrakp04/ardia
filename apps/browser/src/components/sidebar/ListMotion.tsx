@@ -316,8 +316,8 @@ function useMotion({ devKey, entries, from, planner, height, enabled, nativeTail
   return { motion, slots, fading: ghosts.current.length > 0, slideBelow, tail: slides.get(TAIL)?.value ?? null, tailClip: source(TAIL) };
 }
 
-export function useListMotion(windowId: string, profileId: string, entries: string[], from: Capture, enabled: boolean) {
-  const height: Height = (s, e) => entryHeight(s, windowId, profileId, e);
+export function useListMotion(windowId: string, spaceId: string, entries: string[], from: Capture, enabled: boolean) {
+  const height: Height = (s, e) => entryHeight(s, windowId, spaceId, e);
   const planner: Planner = (before, after, slides, ghosts, t) => {
     const changes = new Map<string, GroupChange>();
     if (before.state.groups !== after.state.groups) {
@@ -343,14 +343,14 @@ export function useListMotion(windowId: string, profileId: string, entries: stri
     const base = prefixHeight(after.state, after.list, start, now);
     const old = offsets(before.state, before.list, height, start, base);
     const next = offsets(after.state, after.list, now, start, base);
-    const snapshot = (e: string) => snapshotEntry(before.state, windowId, profileId, e);
+    const snapshot = (e: string) => snapshotEntry(before.state, windowId, spaceId, e);
     return buildPlan({ before, after, old, next, removed, added, slides, ghosts, t, tail: true, snapshot, clipAfter: grown, start });
   };
   return useMotion({ devKey: windowId, entries, from, planner, height: (e) => height(workspaceSnapshot(), e), enabled, nativeTail: true });
 }
 
-export function useGroupMotion(windowId: string, profileId: string, groupId: string, entries: string[], from: Capture, scope: ListMotionScope, enabled: boolean) {
-  const height: Height = (s, e) => entryHeight(s, windowId, profileId, e);
+export function useGroupMotion(windowId: string, spaceId: string, groupId: string, entries: string[], from: Capture, scope: ListMotionScope, enabled: boolean) {
+  const height: Height = (s, e) => entryHeight(s, windowId, spaceId, e);
   const planner: Planner = (before, after, slides, ghosts, t) => {
     const was = before.state.groups[groupId];
     const now = after.state.groups[groupId];
@@ -363,7 +363,7 @@ export function useGroupMotion(windowId: string, profileId: string, groupId: str
     if (!removed.every(closedIn(before.state, after.state)) || !added.every(openedIn(before.state, after.state))) return null;
     const old = offsets(before.state, before.list, height);
     const next = offsets(after.state, after.list, height);
-    const snapshot = (e: string) => snapshotEntry(before.state, windowId, profileId, e);
+    const snapshot = (e: string) => snapshotEntry(before.state, windowId, spaceId, e);
     const atEnd = !removed.length && groupGrowsAtEnd(before.state, after.state, groupId);
     const plan = buildPlan({ before, after, old, next, removed, added, slides, ghosts, t, tail: !atEnd, snapshot, clipAfter: [], start: 0 });
     if (!atEnd) return plan;

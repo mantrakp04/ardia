@@ -223,7 +223,7 @@ const S = () => useBrowser.getState();
 const tick = () => new Promise((r) => setImmediate(r));
 const urlOf = (id) => S().tabs[id].url.replace(/^https:\/\/|\.com\/?$/g, "");
 const shown = (w) => urlOf(model.activeTabId(S(), w));
-const shownIn = (w) => urlOf(S().windows[w].activeTabIds[S().windows[w].profileId]);
+const shownIn = (w) => urlOf(S().windows[w].activeTabIds[S().windows[w].spaceId]);
 const order = (w) => S().windows[w].tabIds.map(urlOf);
 const chromeOrder = (strip) => chrome.strips.get(strip).tabs.map((t) => urlOf(t.key));
 const chromeGroupOf = (strip, url) => chrome.strips.get(strip).tabs.find((t) => urlOf(t.key) === url)?.group ?? null;
@@ -270,8 +270,8 @@ test("the app's own switches never come back as switches, however late Chrome re
   await settle(win);
   let switches = 0;
   const stop = useBrowser.subscribe((s, prev) => {
-    const a = s.windows[win.w]?.activeTabIds[s.windows[win.w].profileId];
-    const b = prev.windows[win.w]?.activeTabIds[prev.windows[win.w].profileId];
+    const a = s.windows[win.w]?.activeTabIds[s.windows[win.w].spaceId];
+    const b = prev.windows[win.w]?.activeTabIds[prev.windows[win.w].spaceId];
     if (a !== b) switches++;
   });
   for (let i = 0; i < 20; i++) {

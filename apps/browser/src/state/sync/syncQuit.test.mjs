@@ -74,13 +74,13 @@ test("a theme pulled while quitting isn't applied after the session froze, so th
   shell.docs.clear();
   S().hydrate({});
   useBrowser.setState({ bookmarksReady: { "": true } });
-  S().setProfileLook("default", { theme: THEME_A });
+  S().updateSpace("default", { theme: THEME_A });
   const engine = await import("./engine.ts?quitting");
   engine.startSync();
   assert.ok("ok" in (await engine.turnOnSync("/sync")));
   await engine.syncNow();
   await engine.syncNow();
-  const key = `pth:${engine.useSync.getState().profiles.default.syncId}`;
+  const key = `pth:${engine.useSync.getState().spaces.default.syncId}`;
   assert.deepEqual(opsFor(key).at(-1)?.v, { t: THEME_A });
 
   heldSeal = '{"covers"';
@@ -89,13 +89,13 @@ test("a theme pulled while quitting isn't applied after the session froze, so th
     await engine.syncNow();
     await until(() => releaseSeal);
 
-    folder.set("remote", { scope: "app", payload: JSON.stringify({ v: 1, kind: "log", device: "devZ", seq: 1, at: Date.now(), ops: [{ k: key, h: stampAt(Date.now() + 60_000), v: { t: THEME_B } }] }) });
-    heldScope = "app";
+    folder.set("remote", { scope: "workspace-v2", payload: JSON.stringify({ v: 1, kind: "log", device: "devZ", seq: 1, at: Date.now(), ops: [{ k: key, h: stampAt(Date.now() + 60_000), v: { t: THEME_B } }] }) });
+    heldScope = "workspace-v2";
     const cycle = engine.syncNow();
     await until(() => releaseRead);
 
     quit.setQuitting(true);
-    const frozen = S().profiles.default.theme;
+    const frozen = S().spaces.default.theme;
     const quitting = quit.finishQuitSaves(5_000);
     releaseRead();
     await settle();
@@ -104,8 +104,8 @@ test("a theme pulled while quitting isn't applied after the session froze, so th
     await quitting;
     await settle();
 
-    assert.deepEqual(S().profiles.default.theme, frozen, "nothing is applied after the session froze");
-    const saved = JSON.parse(shell.docs.get("sync-state.nns").slice(7)).scopes.app;
+    assert.deepEqual(S().spaces.default.theme, frozen, "nothing is applied after the session froze");
+    const saved = JSON.parse(shell.docs.get("sync-spaces-state.nns").slice(7)).scopes["workspace-v2"];
     assert.equal(saved.base[key], canonical({ t: THEME_A }), "the saved base still matches the frozen session");
     assert.ok(saved.unapplied.includes(key), "and the pulled theme waits to be applied");
   } finally {
@@ -113,12 +113,12 @@ test("a theme pulled while quitting isn't applied after the session froze, so th
     quit.setQuitting(false);
   }
 
-  S().setProfileLook("default", { theme: THEME_A });
+  S().updateSpace("default", { theme: THEME_A });
   const relaunched = await import("./engine.ts?relaunched");
   relaunched.startSync();
   await settle();
   await relaunched.syncNow();
   await relaunched.syncNow();
-  assert.deepEqual(S().profiles.default.theme, THEME_B, "after the relaunch the pulled theme applies");
+  assert.deepEqual(S().spaces.default.theme, THEME_B, "after the relaunch the pulled theme applies");
   assert.ok(!opsFor(key).some((op) => op.device === "devC" && op.v?.t?.intensity === THEME_A.intensity && op.h > stampAt(realNow())), "and the old theme is never published over it");
 });

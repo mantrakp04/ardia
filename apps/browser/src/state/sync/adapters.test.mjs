@@ -25,11 +25,11 @@ const sealedLogins = (read = stub.readLogins) => ({
       const origin = l.origin.replace(/\/$/, "");
       return /^https?:\/\/[^/\s]+$/.test(origin) ? [{ origin, username: l.username, created: l.created, sealed: fakeSeal(origin, l.username, l.password) }] : [];
     }),
-  save: async (profile, origin, username, sealed, replacing) => {
+  save: async (space, origin, username, sealed, replacing) => {
     const [o, u, password] = JSON.parse(Buffer.from(sealed, "base64").toString());
     if (o !== origin || u !== username) return false;
-    if (replacing && !(await passwords.deletePassword(profile, origin, username))) return false;
-    return passwords.savePassword(profile, origin, username, password);
+    if (replacing && !(await passwords.deletePassword(space, origin, username))) return false;
+    return passwords.savePassword(space, origin, username, password);
   },
 });
 
@@ -82,7 +82,7 @@ class Device {
       this.browser = S();
     }
   }
-  async sync(profileId = "default", options = {}) {
+  async sync(spaceId = "default", options = {}) {
     useEditClock(this.clock);
     stub.current.device = this.id;
     useBrowser.setState(this.browser, true);
@@ -99,13 +99,13 @@ class Device {
     try {
       const app = await run("app", [this.settings ?? settingsAdapter]);
       const p = await run(
-        profileId === "default" ? "p" : `p:${profileId}`,
+        spaceId === "default" ? "p" : `p:${spaceId}`,
         [
-          ...(this.legacy ? [] : [pinnedRowsAdapter(profileId), pinnedOrderAdapter(profileId)]),
-          pinnedArea.pinnedAdapter(profileId),
-          adapters.bookmarksAdapter(profileId),
-          adapters.historyAdapter(profileId),
-          adapters.deviceTabsAdapter(profileId, this.id, () => `${this.id}'s MacBook Pro`),
+          ...(this.legacy ? [] : [pinnedRowsAdapter(spaceId), pinnedOrderAdapter(spaceId)]),
+          pinnedArea.pinnedAdapter(spaceId),
+          adapters.bookmarksAdapter(spaceId),
+          adapters.historyAdapter(spaceId),
+          adapters.deviceTabsAdapter(spaceId, this.id, () => `${this.id}'s MacBook Pro`),
           this.passwords,
         ],
         { expired: adapters.historyExpired, ...options },
@@ -121,10 +121,10 @@ async function syncAll(devices, rounds = 2) {
   for (let i = 0; i < rounds; i++) for (const d of devices) await d.sync();
 }
 
-function tree(device, profileId = "default") {
+function tree(device, spaceId = "default") {
   return device.with(() => {
     const b = S().bookmarks;
-    const roots = bookmarkRoots(S(), profileId);
+    const roots = bookmarkRoots(S(), spaceId);
     const walk = (id) => {
       const n = b.nodes[id];
       return n.kind === "url" ? `${n.title}=${n.url}` : { [n.title]: n.children.map(walk) };
@@ -296,11 +296,11 @@ test("bookmarks: a folder deleted on one Mac while the other adds to it keeps th
   const folder = new Folder();
   const a = new Device("devA", folder);
   const b = new Device("devB", folder);
-  a.with(() => S().addBookmarkFolder({ profileId: "default", title: "Trip" }));
+  a.with(() => S().addBookmarkFolder({ spaceId: "default", title: "Trip" }));
   await syncAll([a, b]);
   const trip = (d) => d.with(() => Object.values(S().bookmarks.nodes).find((n) => n.title === "Trip")?.id);
   a.with(() => S().removeBookmark(trip(a)));
-  b.with(() => S().addBookmark({ profileId: "default", url: "https://hotel.example/", title: "Hotel", parentId: trip(b) }));
+  b.with(() => S().addBookmark({ spaceId: "default", url: "https://hotel.example/", title: "Hotel", parentId: trip(b) }));
   await syncAll([a, b, a]);
   assert.deepEqual(tree(a), tree(b));
   assert.deepEqual(tree(a).other, { "Other Bookmarks": ["Hotel=https://hotel.example/"] });
@@ -313,8 +313,8 @@ test("bookmarks: folders moved into each other on two Macs don't make a cycle", 
   const a = new Device("devA", folder);
   const b = new Device("devB", folder);
   a.with(() => {
-    S().addBookmarkFolder({ profileId: "default", title: "One" });
-    S().addBookmarkFolder({ profileId: "default", title: "Two" });
+    S().addBookmarkFolder({ spaceId: "default", title: "One" });
+    S().addBookmarkFolder({ spaceId: "default", title: "Two" });
   });
   await syncAll([a, b]);
   const id = (d, title) => d.with(() => Object.values(S().bookmarks.nodes).find((n) => n.title === title).id);
@@ -840,11 +840,11 @@ test("a tile choice whose journal write failed is sent once when the write is re
   assert.deepEqual(rowsOf(a), { tiles: ["https://docs.example/"], rows: [] });
 });
 
-const pinnedGroupMembers = (d, profileId, ordered = false) =>
+const pinnedGroupMembers = (d, spaceId, ordered = false) =>
   d.with(() => {
     const order = (urls) => (ordered ? urls : urls.sort());
-    const live = Object.values(S().groups).filter((g) => g.pinned && g.profileId === profileId).map((g) => [g.name, order(g.tabIds.map((id) => S().tabs[id].url))]);
-    const park = S().parkedPins[profileId];
+    const live = Object.values(S().groups).filter((g) => g.pinned && g.spaceId === spaceId).map((g) => [g.name, order(g.tabIds.map((id) => S().tabs[id].url))]);
+    const park = S().parkedPins[spaceId];
     const parked = (park?.groups ?? []).map((g) => [g.name, order(park.tabs.filter((t) => t.groupId === g.id).map((t) => t.url))]);
     return [...live, ...parked];
   });
@@ -852,21 +852,21 @@ const pinnedGroupMembers = (d, profileId, ordered = false) =>
 const withWork = (d) =>
   d.with(() =>
     useBrowser.setState((s) => ({
-      profiles: { ...s.profiles, work: { id: "work", name: "Work", color: "blue", icon: null, createdAt: 1 } },
-      profileOrder: [...s.profileOrder, "work"],
+      spaces: { ...s.spaces, work: { id: "work", name: "Work", color: "blue", icon: null, createdAt: 1, profileId: "default" } },
+      spaceOrder: [...s.spaceOrder, "work"],
       history: { ...s.history, work: { list: [], floor: -Infinity, ready: true } },
       bookmarksReady: { ...s.bookmarksReady, work: true },
     })),
   );
-const pinsIn = (d, profileId) =>
+const pinsIn = (d, spaceId) =>
   d.with(() =>
     [
-      ...Object.values(S().tabs).filter((t) => !!t.pin && t.profileId === profileId),
-      ...(S().parkedPins[profileId]?.tabs ?? []).filter((t) => !t.groupId),
+      ...Object.values(S().tabs).filter((t) => !!t.pin && t.spaceId === spaceId),
+      ...(S().parkedPins[spaceId]?.tabs ?? []).filter((t) => !t.groupId),
     ].map((t) => `${t.pinnedUrl}${(t.pin?.as === "row") ? " row" : ""}`).sort(),
   );
 
-test("a pin moved to another profile keeps its key there without touching the other profile's pin of the same key", async () => {
+test("a pin moved to another space keeps its key there without touching the other space's pin of the same key", async () => {
   const folder = new Folder();
   const a = new Device("devA", folder);
   const b = new Device("devB", folder);
@@ -882,7 +882,7 @@ test("a pin moved to another profile keeps its key there without touching the ot
   b.with(() => S().createWindow({ url: "https://b-home.example/" }));
   await syncAll([a, b]);
   assert.deepEqual(pinsIn(b, "default"), ["https://docs.example/ row"]);
-  a.with(() => S().moveTabToProfile(x, "work"));
+  a.with(() => S().moveTabToSpace(x, "work"));
   assert.deepEqual(pinsIn(a, "default"), ["https://docs.example/ row"], "A's other Personal window keeps its pin");
   assert.deepEqual(pinsIn(a, "work"), ["https://docs.example/ row"]);
   for (const d of [a, b, b, a]) await d.sync("work");
@@ -893,7 +893,7 @@ test("a pin moved to another profile keeps its key there without touching the ot
   assert.equal((await b.sync("work")).published + (await a.sync("work")).published, 0, "settled");
 });
 
-test("a pinned group whose key is another profile's group there lands as its own group", async () => {
+test("a pinned group whose key is another space's group there lands as its own group", async () => {
   const folder = new Folder();
   const a = new Device("devA", folder);
   const b = new Device("devB", folder);
@@ -907,11 +907,11 @@ test("a pinned group whose key is another profile's group there lands as its own
   });
   b.with(() => S().createWindow({ url: "https://b-home.example/" }));
   await syncAll([a, b]);
-  const groupsIn = (d, profileId) => pinnedGroupMembers(d, profileId).map(([name, urls]) => `${name}:${urls.join(",")}`);
+  const groupsIn = (d, spaceId) => pinnedGroupMembers(d, spaceId).map(([name, urls]) => `${name}:${urls.join(",")}`);
   assert.deepEqual(groupsIn(b, "default"), ["Docs:https://docs.example/"]);
   a.with(() => useBrowser.setState((s) => ({
-    groups: { ...s.groups, [g]: { ...s.groups[g], profileId: "work" } },
-    tabs: { ...s.tabs, [docs]: { ...s.tabs[docs], profileId: "work" } },
+    groups: { ...s.groups, [g]: { ...s.groups[g], spaceId: "work" } },
+    tabs: { ...s.tabs, [docs]: { ...s.tabs[docs], spaceId: "work" } },
   })));
   for (const d of [a, b, b, a]) await d.sync("work");
   assert.deepEqual({ a: groupsIn(a, "work"), b: groupsIn(b, "work") }, { a: ["Docs:https://docs.example/"], b: ["Docs:https://docs.example/"] });
@@ -928,14 +928,14 @@ for (const [parkedOn, row] of [["the receiving Mac", false], ["both Macs", false
     withWork(b);
     let group, aw;
     a.with(() => {
-      aw = S().createWindow({ profileId: "work", url: "https://work-home.example/" });
+      aw = S().createWindow({ spaceId: "work", url: "https://work-home.example/" });
       const m1 = S().newTab(aw, { url: "https://one.example/" });
       group = S().groupTabs([m1], { pinned: true, name: "Team" });
       S().createWindow({ url: "https://home.example/" });
     });
     let bw;
     b.with(() => {
-      bw = S().createWindow({ profileId: "work", url: "https://b-work.example/" });
+      bw = S().createWindow({ spaceId: "work", url: "https://b-work.example/" });
       S().createWindow({ url: "https://b-home.example/" });
     });
     for (const d of [a, b, a, b]) await d.sync("work");
@@ -945,13 +945,13 @@ for (const [parkedOn, row] of [["the receiving Mac", false], ["both Macs", false
     assert.ok(b.with(() => S().parkedPins.work?.groups.length), "B parked Work's group");
     let p2;
     a.with(() => {
-      const w = S().windowOrder.find((id) => S().windows[id].profileId === "work") ?? S().createWindow({ profileId: "work", url: "https://work-again.example/" });
+      const w = S().windowOrder.find((id) => S().windows[id].spaceId === "work") ?? S().createWindow({ spaceId: "work", url: "https://work-again.example/" });
       aw = w;
       p2 = S().newTab(w, { url: "https://two.example/" });
       S().pinTabs([p2], true, row);
     });
     for (const d of [a, b, b, a]) await d.sync("work");
-    a.with(() => S().placeTabs([p2], { pinned: false, groupId: Object.values(S().groups).find((g) => g.pinned && g.profileId === "work" && g.name === "Team").id }));
+    a.with(() => S().placeTabs([p2], { pinned: false, groupId: Object.values(S().groups).find((g) => g.pinned && g.spaceId === "work" && g.name === "Team").id }));
     for (const d of [a, b]) await d.sync("work");
     assert.equal((await b.sync("work")).published, 0, "B publishes no tombstone");
     await a.sync("work");
@@ -968,12 +968,12 @@ test("a parked pin moved into a pinned group that is live in a window joins it t
   withWork(b);
   let aw, p3;
   a.with(() => {
-    aw = S().createWindow({ profileId: "work", url: "https://work-home.example/" });
+    aw = S().createWindow({ spaceId: "work", url: "https://work-home.example/" });
     S().groupTabs([S().newTab(aw, { url: "https://one.example/" })], { pinned: true, name: "Team" });
     p3 = S().newTab(aw, { url: "https://three.example/" });
     S().pinTabs([p3], true);
   });
-  b.with(() => S().createWindow({ profileId: "work", url: "https://b-work.example/" }));
+  b.with(() => S().createWindow({ spaceId: "work", url: "https://b-work.example/" }));
   for (const d of [a, b, a, b]) await d.sync("work");
   b.with(() =>
     useBrowser.setState((s) => {
@@ -1236,9 +1236,9 @@ test("bookmarks: a Mac on old ids and one on Chrome's UUIDs keep one tree", asyn
     useBrowser.setState({ bookmarks: { nodes: {} } });
     S().hydrate({});
     useBrowser.setState({ bookmarksReady: { "": true } });
-    const f = S().addBookmarkFolder({ profileId: "default", title: "F" });
-    const a = S().addBookmark({ profileId: "default", url: "https://a.example/", title: "A", parentId: f });
-    const b = S().addBookmark({ profileId: "default", url: "https://b.example/", title: "B", parentId: f });
+    const f = S().addBookmarkFolder({ spaceId: "default", title: "F" });
+    const a = S().addBookmark({ spaceId: "default", url: "https://a.example/", title: "A", parentId: f });
+    const b = S().addBookmark({ spaceId: "default", url: "https://b.example/", title: "B", parentId: f });
     const nodes = { ...S().bookmarks.nodes };
     const rename = (id, legacy) => {
       const node = { ...nodes[id], id: bookmarkUuidFor(legacy), syncKey: legacy, addedAt: 5 };
@@ -1263,7 +1263,7 @@ test("bookmarks: a Mac on old ids and one on Chrome's UUIDs keep one tree", asyn
 
   const onOld = (key) => old.with(() => Object.values(S().bookmarks.nodes).find((n) => (n.syncKey ?? n.id) === key).id);
   old.with(() => S().updateBookmark(onOld("bm-a"), { title: "A, renamed" }));
-  now.with(() => S().addBookmark({ profileId: "default", url: "https://c.example/", title: "C", parentId: bookmarkUuidFor("bm-f") }));
+  now.with(() => S().addBookmark({ spaceId: "default", url: "https://c.example/", title: "C", parentId: bookmarkUuidFor("bm-f") }));
   await syncAll([old, now]);
   assert.deepEqual(tree(now), tree(old));
   assert.deepEqual(tree(now).bar, { "Bookmarks Bar": [{ F: ["A, renamed=https://a.example/", "B=https://b.example/", "C=https://c.example/"] }] });
@@ -1281,7 +1281,7 @@ const pinnedAreaOf = (d, w) =>
     const s = S();
     const depth = (g) => (g.parentId && s.groups[g.parentId] ? 1 + depth(s.groups[g.parentId]) : 0);
     const path = (g) => (g.parentId && s.groups[g.parentId] ? `${path(s.groups[g.parentId])}/${g.name}` : g.name);
-    const win = w ?? Object.values(s.windows).find((x) => x.profileId === "default").id;
+    const win = w ?? Object.values(s.windows).find((x) => x.spaceId === "default").id;
     return model.viewTabIds(s, win).filter((id) => model.inPinnedContainer(s, id)).map((id) => {
       const t = s.tabs[id];
       if (!!t.pin) return `${(t.pin?.as === "row") ? "row" : "tile"}:${pinHost(id)}`;
@@ -1614,7 +1614,7 @@ test("a Mac whose pins are parked takes a reorder into them and doesn't send its
   assert.deepEqual(pinnedAreaOf(b), ["Group:member", "row:row"]);
   b.with(() => {
     const home = S().windowOrder[0];
-    S().createWindow({ url: "https://b-other.example/", profileId: S().createProfile({ name: "Other" }) });
+    S().createWindow({ url: "https://b-other.example/", spaceId: S().createSpace({ name: "Other", profileId: S().createProfile({ name: "Other" }) }) });
     S().closeWindow(home);
   });
   assert.deepEqual(parkedOrder(b), ["Group", "row"]);
@@ -2007,7 +2007,7 @@ test("a bookmark made while another adapter is still reading survives that sync"
   const folder = new Folder();
   const a = new Device("devA", folder);
   const b = new Device("devB", folder);
-  a.with(() => S().addBookmark({ profileId: "default", url: "https://first.example/", title: "First" }));
+  a.with(() => S().addBookmark({ spaceId: "default", url: "https://first.example/", title: "First" }));
   for (const d of [a, b]) d.with(() => S().createWindow({ url: `https://${d.id}.example/` }));
   await syncAll([a, b]);
   a.with(() => {
@@ -2019,7 +2019,7 @@ test("a bookmark made while another adapter is still reading survives that sync"
   b.passwords = adapters.passwordsAdapter(
     "default",
     sealedLogins(async () => {
-      if (++reads === 2) S().addBookmark({ profileId: "default", url: "https://second.example/", title: "Made during the sync" });
+      if (++reads === 2) S().addBookmark({ spaceId: "default", url: "https://second.example/", title: "Made during the sync" });
       return stub.readLogins();
     }),
   )(true);
@@ -2148,7 +2148,7 @@ test("bookmarks and history: a Mac on v0.2.43-nightly.4 and one on today's build
   for (const d of [today, old]) stub.historyDbs.delete(d.id);
   today.with(() => useBrowser.setState({ bookmarks: { nodes: {} } }));
   const t = Date.now() - 3_600_000;
-  const x = today.with(() => S().addBookmark({ profileId: "default", url: "https://x.example/", title: "X" }));
+  const x = today.with(() => S().addBookmark({ spaceId: "default", url: "https://x.example/", title: "X" }));
   today.with(() => S().importHistory("default", [{ url: "https://h1.example/", title: "H1", visits: 1, lastVisit: t }]));
   await syncAll([today, old]);
   assert.deepEqual(tree(old), { bar: { "Bookmarks Bar": ["X=https://x.example/"] }, other: { "Other Bookmarks": [] } });
@@ -2166,7 +2166,7 @@ test("bookmarks and history: a Mac on v0.2.43-nightly.4 and one on today's build
 
   today.with(() => {
     S().removeBookmark(x);
-    S().addBookmark({ profileId: "default", url: "https://y.example/", title: "Y", parentId: bookmarkRoots(S(), "default").other });
+    S().addBookmark({ spaceId: "default", url: "https://y.example/", title: "Y", parentId: bookmarkRoots(S(), "default").other });
     S().removeHistory("default", ["https://h2.example/"]);
   });
   await syncAll([today, old]);
@@ -2175,13 +2175,14 @@ test("bookmarks and history: a Mac on v0.2.43-nightly.4 and one on today's build
   assert.equal((await today.sync()).published + (await old.sync()).published, 0, "settled");
 });
 
-test("profiles that share data: records applied through the owner land once in the shared engine, and edits through the sharer go out through the owner", async () => {
+test("spaces that share data: records applied through the owner land once in the shared engine, and edits through the sharer go out through the owner", async () => {
   useBrowser.setState({ bookmarks: { nodes: {} } });
   S().hydrate({});
   stub.historyDbs.clear();
-  const a = S().createProfile({ name: "A" });
-  const b = S().createProfile({ name: "B", shareWith: a });
-  useBrowser.setState((s) => ({ history: { ...s.history, [a]: { list: [], floor: -Infinity, ready: true } }, bookmarksReady: { ...s.bookmarksReady, [a]: true } }));
+  const owner = S().createProfile({ name: "A" });
+  const a = S().createSpace({ name: "A", profileId: owner });
+  const b = S().createSpace({ name: "B", profileId: owner });
+  useBrowser.setState((s) => ({ history: { ...s.history, [owner]: { list: [], floor: -Infinity, ready: true } }, bookmarksReady: { ...s.bookmarksReady, [owner]: true } }));
   const t = Date.now() - 3_600_000;
   const known = { known: () => true, now: Date.now(), horizon: 0, joined: true };
   const visits = new Map([["h:https://in.example/", { t: "In", n: 1, vt: [t] }]]);
@@ -2191,14 +2192,14 @@ test("profiles that share data: records applied through the owner land once in t
 
   assert.deepEqual(historyOf(S(), b).map((h) => h.url), ["https://in.example/"], "B sees what came in for A");
   assert.equal(historyOf(S(), a), historyOf(S(), b));
-  assert.deepEqual(stub.chromeHistory(a).get("https://in.example/")?.visits, [t], "one visit, in A's engine");
+  assert.deepEqual(stub.chromeHistory(owner).get("https://in.example/")?.visits, [t], "one visit, in A's engine");
   assert.equal(stub.chromeHistory(b).size, 0, "nothing in an engine of B's own");
   const inBar = (url) => Object.values(S().bookmarks.nodes).filter((n) => n.kind === "url" && n.url === url);
   assert.equal(inBar("https://in.example/").length, 1, "one bookmark node");
   assert.equal(inBar("https://in.example/")[0].parentId, bookmarkRoots(S(), b).bar, "under the shared bar");
 
   S().importHistory(b, [{ url: "https://out.example/", title: "Out", visits: 1, lastVisit: t + 1000 }]);
-  S().addBookmark({ profileId: b, url: "https://out.example/", title: "Out" });
+  S().addBookmark({ spaceId: b, url: "https://out.example/", title: "Out" });
   const history = adapters.historyAdapter(a).extract(() => undefined, [], Date.now(), () => false);
   const bookmarks = adapters.bookmarksAdapter(a).extract(() => undefined, [], Date.now(), () => false);
   assert.deepEqual([...history.values.keys()].sort(), ["h:https://in.example/", "h:https://out.example/"]);

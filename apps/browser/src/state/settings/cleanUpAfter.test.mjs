@@ -36,7 +36,7 @@ test("hours saved by older builds become exact minutes; Never stays Never, nonse
 test("a session saved with the hours setting relaunches with the same clean-up time in minutes", () => {
   stub.docs.clear();
   const session = (settings) =>
-    JSON.stringify({ version: 2, profiles: {}, profileOrder: [], settings, windows: [], windowOrder: [], focusedWindowId: null, tabs: [], groups: [], splits: [], closedTabs: [], closedWindows: [] });
+    JSON.stringify({ version: 2, profiles: { default: { id: "default", name: "Personal" } }, profileOrder: ["default"], settings, windows: [], windowOrder: [], focusedWindowId: null, tabs: [], groups: [], splits: [], closedTabs: [], closedWindows: [] });
   stub.docs.set("session.json", session({ cleanUpInactiveTabsAfterHours: 24, chosen: ["cleanUpInactiveTabsAfterHours"] }));
   S().hydrate(loadSession());
   assert.equal(S().settings.cleanUpInactiveTabsAfterMinutes, 1440);

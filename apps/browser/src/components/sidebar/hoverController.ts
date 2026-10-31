@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useReducer, useRef, useState } fr
 import type { LayoutChangeEvent } from "react-native";
 import { markHoverProps } from "../../lib/hoverMarks";
 import { currentWindow } from "../../state/browser/current";
-import { PageProfileContext, useWindow } from "../../state/browser/hooks";
+import { PageSpaceContext, useWindow } from "../../state/browser/hooks";
 import {
   cardEntered,
   cardLaidOut,
@@ -29,14 +29,14 @@ export const cardHoverProps = {
 export function useRowHover(windowId: string, target: Target | null) {
   const [hovered, setHovered] = useState(false);
   const [, refresh] = useReducer((n: number) => n + 1, 0);
-  const page = useContext(PageProfileContext);
+  const page = useContext(PageSpaceContext);
   const away = useContext(FoldedAway);
   const latest = useRef({ windowId, target, page, away });
   latest.current = { windowId, target, page, away };
   const inside = useRef<HoverPointerEvent | null>(null);
   const onCurrentPage = () => {
     const { windowId, page } = latest.current;
-    return !page || currentWindow(windowId)?.profileId === page;
+    return !page || currentWindow(windowId)?.spaceId === page;
   };
   const [enterRow] = useState(() => (event?: HoverPointerEvent) => {
     if (!onCurrentPage() || latest.current.away) return;
@@ -91,9 +91,9 @@ export function useRowHover(windowId: string, target: Target | null) {
 export function useGroupHover(windowId: string, groupId: string) {
   const [inside, setInside] = useState(false);
   const [, refresh] = useReducer((n: number) => n + 1, 0);
-  const page = useContext(PageProfileContext);
+  const page = useContext(PageSpaceContext);
   const away = useContext(FoldedAway);
-  const onPage = useWindow(windowId, (w) => !page || w?.profileId === page);
+  const onPage = useWindow(windowId, (w) => !page || w?.spaceId === page);
   const [hoverProps] = useState(() =>
     markHoverProps({
       onMouseEnter: () => setInside(true),

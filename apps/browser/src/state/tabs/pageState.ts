@@ -12,7 +12,7 @@ import type { ExternalAppRequest } from "../../platform/siteSettings";
 import type { PermissionRequest } from "../../platform/permissions";
 import { create } from "zustand";
 import { useBrowser } from "../browser/store";
-import { activeTabId } from "../browser/model";
+import { activeTabId, engineProfileIn } from "../browser/model";
 import { peekTabId } from "../peek/peek";
 import { splitOf, splitTabIdsOf } from "../splits/splits";
 
@@ -120,18 +120,22 @@ export function useFullscreenTab(windowId: string): string | undefined {
 }
 
 useBrowser.subscribe((s, prev) => {
-  if (s.tabs === prev.tabs) return;
-  for (const id of iconPages.keys()) if (!s.tabs[id]) iconPages.delete(id);
+  if (s.tabs === prev.tabs && s.spaces === prev.spaces && s.profiles === prev.profiles && s.windows === prev.windows) return;
+  const changed = new Set(Object.keys(s.tabs).filter((id) => {
+    const before = prev.tabs[id];
+    return before && prev.spaces[before.spaceId] && s.spaces[s.tabs[id]!.spaceId] && engineProfileIn(s, s.tabs[id]!.spaceId) !== engineProfileIn(prev, before.spaceId);
+  }));
+  for (const id of iconPages.keys()) if (!s.tabs[id] || changed.has(id)) iconPages.delete(id);
   const { pages, ready, popover } = usePages.getState();
   const stale = (ids: string[], tabOf: (id: string) => string) => {
-    for (let i = 0; i < ids.length; i++) if (!s.tabs[tabOf(ids[i]!)]) return true;
+    for (let i = 0; i < ids.length; i++) if (!s.tabs[tabOf(ids[i]!)] || changed.has(tabOf(ids[i]!))) return true;
     return false;
   };
   const pageIds = Object.keys(pages);
   const readyIds = Object.keys(ready);
   if (!stale(pageIds, (id) => id) && !stale(readyIds, (id) => id)) return;
-  const gone = pageIds.filter((id) => !s.tabs[id]);
-  const goneReady = readyIds.filter((id) => !s.tabs[id]);
+  const gone = pageIds.filter((id) => !s.tabs[id] || changed.has(id));
+  const goneReady = readyIds.filter((id) => !s.tabs[id] || changed.has(id));
   const nextPages = { ...pages };
   const nextPopover = { ...popover };
   for (const id of gone) {

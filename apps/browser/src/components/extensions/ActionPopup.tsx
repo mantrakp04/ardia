@@ -3,7 +3,7 @@ import { Animated, Pressable, StyleSheet, View, useWindowDimensions } from "reac
 import { closeExtensionPopup } from "../../state/extensions/actions";
 import { MEASURE_POPUP_SCRIPT } from "../../state/extensions/popupSize";
 import { useShownPageId } from "../../state/peek/hooks";
-import { openFromPage, pageProfileId } from "../../state/tabs/openFromPage";
+import { openFromPage, pageSpaceId } from "../../state/tabs/openFromPage";
 import { curve, duration, PANEL, Panel, WebView, type WebViewHandle } from "../ui";
 import { useTheme } from "../ui/theme";
 import { EXTENSION_PAGE_BACKGROUND, POPUP_SHADOW, useExtensionColors } from "./tokens";
@@ -11,7 +11,7 @@ import { EXTENSION_PAGE_BACKGROUND, POPUP_SHADOW, useExtensionColors } from "./t
 const MIN = { width: 25, height: 25 };
 const MAX = { width: 800, height: 600 };
 
-export function ActionPopup({ windowId, pageProfile, url, anchor }: { windowId: string; pageProfile: string; extensionId: string; url: string; anchor: { x: number; y: number; width: number; height: number } }) {
+export function ActionPopup({ windowId, pageSpace, url, anchor }: { windowId: string; pageSpace: string; extensionId: string; url: string; anchor: { x: number; y: number; width: number; height: number } }) {
   const theme = useTheme();
   const colors = useExtensionColors();
   const web = useRef<WebViewHandle>(null);
@@ -79,7 +79,7 @@ export function ActionPopup({ windowId, pageProfile, url, anchor }: { windowId: 
               ref={web}
               style={StyleSheet.absoluteFill}
               url={url}
-              profile={pageProfile}
+              profile={pageSpace}
               standalone
               extensionHost="popup"
               pageBackgroundColor={EXTENSION_PAGE_BACKGROUND}
@@ -94,7 +94,7 @@ export function ActionPopup({ windowId, pageProfile, url, anchor }: { windowId: 
               }}
               onWindowClose={closeExtensionPopup}
               onOpenWindow={(request) => {
-                openFromPage(request, { windowId, profileId: pageProfileId(windowId, pageProfile) });
+                openFromPage(request, { windowId, spaceId: pageSpaceId(windowId, pageSpace) });
                 if (request.disposition !== "background") closeExtensionPopup();
               }}
             />

@@ -24,7 +24,7 @@ function near(actual, expected, tolerance, label) {
   actual.forEach((v, i) => assert.ok(Math.abs(v - expected[i]) <= tolerance, `${label}: ${actual.map((n) => n.toFixed(3))} vs ${expected.map((n) => n.toFixed(3))}`));
 }
 
-test("green to pink space: two base colours kept exactly, light mode, grain", () => {
+test("green to pink profile: two base colours kept exactly, light mode, grain", () => {
   const raw = fixture("green-pink");
   const theme = parseArcTheme(raw);
   const g = gradientOf(raw);
@@ -39,7 +39,7 @@ test("green to pink space: two base colours kept exactly, light mode, grain", ()
   near(onLightDesktop(theme, 1200, 800), hex("#D45CA8"), 0.06, "bottom-right");
 });
 
-test("blue to teal space: the third colour comes from Arc's overlay, mode follows the system", () => {
+test("blue to teal profile: the third colour comes from Arc's overlay, mode follows the system", () => {
   const raw = fixture("blue-teal");
   const theme = parseArcTheme(JSON.stringify(raw));
   const g = gradientOf(raw);

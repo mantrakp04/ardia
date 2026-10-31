@@ -18,14 +18,14 @@ import { iconSymbol } from "../../lib/customIcon";
 import { groupSurface, TABULAR_NUMS, useSidebarTokens } from "./tokens";
 import { entryKey, parseEntry } from "../../state/sidebar/entryKey";
 
-type TabShot = { kind: "tab"; key: string; title: string; url: string; favicon?: string | null; icon?: string | null; profileId: string; uri: string | null; template: boolean; sound: "muted" | "playing" | null; hovered: boolean };
+type TabShot = { kind: "tab"; key: string; title: string; url: string; favicon?: string | null; icon?: string | null; spaceId: string; uri: string | null; template: boolean; sound: "muted" | "playing" | null; hovered: boolean };
 type SplitShot = { kind: "split"; key: string; panes: TabShot[] };
 type GroupShot = {
   kind: "group";
   key: string;
   label: string;
   color: GroupColor | null;
-  icon: { url: string; favicon?: string | null; icon?: string | null; profileId?: string } | null;
+  icon: { url: string; favicon?: string | null; icon?: string | null; spaceId?: string } | null;
   collapsed: boolean;
   hovered: boolean;
   members: (TabShot | SplitShot | GroupShot)[];
@@ -35,7 +35,7 @@ export type EntrySnapshot = TabShot | SplitShot | GroupShot;
 function tabShot(s: BrowserState, tabId: string, hovered: boolean): TabShot | null {
   const tab = s.tabs[tabId];
   if (!tab) return null;
-  const uri = tab.customIcon ? null : (resolveFavicon(tab.url, tab.favicon, tab.profileId)?.uri ?? null);
+  const uri = tab.customIcon ? null : (resolveFavicon(tab.url, tab.favicon, tab.spaceId)?.uri ?? null);
   const shape = uri ? knownFaviconTheme(uri) : null;
   return {
     uri,
@@ -46,7 +46,7 @@ function tabShot(s: BrowserState, tabId: string, hovered: boolean): TabShot | nu
     url: tab.url,
     favicon: tab.favicon,
     icon: tab.customIcon,
-    profileId: tab.profileId,
+    spaceId: tab.spaceId,
     sound: isSilenced(s, tab) ? "muted" : s.live[tabId]?.playingAudio ? "playing" : null,
     hovered,
   };
@@ -57,24 +57,24 @@ function splitShot(s: BrowserState, splitId: string): SplitShot {
   return { kind: "split", key: entryKey("split", splitId), panes: panes.flatMap((id) => tabShot(s, id, false) ?? []) };
 }
 
-export function snapshotEntry(s: BrowserState, windowId: string, profileId: string, entry: string): EntrySnapshot | null {
+export function snapshotEntry(s: BrowserState, windowId: string, spaceId: string, entry: string): EntrySnapshot | null {
   const { kind, id } = parseEntry(entry);
   if (kind === "split") return splitShot(s, id);
   if (kind !== "group") return tabShot(s, id, pointerOnRow(id));
   const group = s.groups[id];
   if (!group) return null;
   const entries = groupEntries(s, id);
-  const kept = group.collapsed ? keptEntry(s, windowId, profileId, entries) : null;
+  const kept = group.collapsed ? keptEntry(s, windowId, spaceId, entries) : null;
   const first = s.tabs[group.tabIds[0] ?? ""];
   return {
     kind: "group",
     key: entry,
     label: groupLabel(s, group),
     color: group.color ?? null,
-    icon: group.icon || first ? { url: first?.url ?? "", favicon: first?.favicon, icon: group.icon ?? first?.customIcon, profileId: first?.profileId } : null,
+    icon: group.icon || first ? { url: first?.url ?? "", favicon: first?.favicon, icon: group.icon ?? first?.customIcon, spaceId: first?.spaceId } : null,
     collapsed: !!group.collapsed,
     hovered: pointerOnGroup(id),
-    members: (group.collapsed ? (kept ? [kept] : []) : entries).flatMap((e) => (parseEntry(e).kind === "tab" ? tabShot(s, parseEntry(e).id, false) : snapshotEntry(s, windowId, profileId, e)) ?? []),
+    members: (group.collapsed ? (kept ? [kept] : []) : entries).flatMap((e) => (parseEntry(e).kind === "tab" ? tabShot(s, parseEntry(e).id, false) : snapshotEntry(s, windowId, spaceId, e)) ?? []),
   };
 }
 
@@ -86,7 +86,7 @@ export function ghostEntry(snapshot: EntrySnapshot, theme: ReturnType<typeof use
 function ghostIcon(shot: TabShot, theme: ReturnType<typeof useTheme>) {
   const symbol = iconSymbol(shot.icon);
   if (symbol) return <Symbol name={symbol} size={13} weight="medium" color={theme.icon} style={{ width: 16, height: 16 }} />;
-  if (shot.icon) return <TabIcon url={shot.url} icon={shot.icon} profileId={shot.profileId} />;
+  if (shot.icon) return <TabIcon url={shot.url} icon={shot.icon} spaceId={shot.spaceId} />;
   if (shot.uri) return <Image source={{ uri: shot.uri }} style={{ width: 16, height: 16, borderRadius: 3, tintColor: shot.template && !theme.dark ? theme.textPrimary : undefined }} />;
   return shot.url ? <FaviconFallback url={shot.url} /> : <NewTabIcon />;
 }
@@ -122,7 +122,7 @@ function SplitGhost({ shot }: { shot: SplitShot }) {
         <View key={pane.key} style={{ flex: 1, flexDirection: "row", alignItems: "center", minWidth: 0 }}>
           {i > 0 && <View style={{ width: 1, height: 16, backgroundColor: theme.divider, marginRight: 2 }} />}
           <View style={{ flex: 1, minWidth: 0, height: layout.rowHeight - 6, flexDirection: "row", alignItems: "center", paddingLeft: 6 }}>
-            <TabIcon url={pane.url} favicon={pane.favicon} icon={pane.icon} profileId={pane.profileId} size={14} />
+            <TabIcon url={pane.url} favicon={pane.favicon} icon={pane.icon} spaceId={pane.spaceId} size={14} />
             <FadeLabel text={pane.title} fontSize={font.small.fontSize} color={theme.textTab} style={{ flex: 1, height: 16, marginLeft: 5 }} />
           </View>
         </View>
@@ -140,7 +140,7 @@ function GroupGhost({ shot }: { shot: GroupShot }) {
     <View style={{ paddingVertical: GROUP_BORDER }}>
       {shot.hovered ? <View style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: GROUP_RADIUS, backgroundColor: fill, borderWidth: GROUP_BORDER, borderColor: stroke }} /> : null}
       <View style={{ height: layout.rowHeight, flexDirection: "row", alignItems: "center", paddingLeft: 9, paddingRight: 6 }}>
-        {shot.icon ? <TabIcon url={shot.icon.url} favicon={shot.icon.favicon} icon={shot.icon.icon} profileId={shot.icon.profileId} /> : <View style={{ width: 16 }} />}
+        {shot.icon ? <TabIcon url={shot.icon.url} favicon={shot.icon.favicon} icon={shot.icon.icon} spaceId={shot.icon.spaceId} /> : <View style={{ width: 16 }} />}
         <View style={{ flexShrink: 1, height: 18, marginLeft: 5, paddingRight: 8, justifyContent: "center" }}>
           <Text numberOfLines={1} style={{ opacity: 0, ...font.body, fontWeight: weight.medium, fontVariant: TABULAR_NUMS }}>
             {shot.label}

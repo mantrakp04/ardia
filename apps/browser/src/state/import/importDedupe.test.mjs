@@ -6,13 +6,13 @@ const { importArcSpace, importTabs } = await import("./apply.ts");
 const S = () => useBrowser.getState();
 const P = "default";
 
-test("re-importing an Arc space adds no pinned tab whose page is already pinned in the profile", () => {
+test("re-importing an Arc space adds no pinned tab whose page is already pinned in the space", () => {
   S().hydrate({});
   S().createWindow({ url: "https://home.example/" });
   const space = {
     id: "s2",
     name: "Home",
-    profileId: P,
+    spaceId: P,
     tabs: [{ url: "https://open.example/", title: "Open" }],
     pinned: [
       { type: "url", title: "Cal", url: "https://cal.example/" },
@@ -33,8 +33,8 @@ test("re-importing an Arc space adds no pinned tab whose page is already pinned 
 test("an import skips pages already pinned as a tile, in a pinned group or parked with a closed window", () => {
   S().hydrate({});
   const w = S().createWindow({ url: "https://home.example/" });
-  const tile = S().newTab(w, { url: "https://tile.example/", profileId: P });
-  const grouped = S().newTab(w, { url: "https://grouped.example/", profileId: P });
+  const tile = S().newTab(w, { url: "https://tile.example/", spaceId: P });
+  const grouped = S().newTab(w, { url: "https://grouped.example/", spaceId: P });
   S().pinTabs([tile], true);
   const g = S().createGroup([grouped]);
   S().updateGroup(g, { pinned: true });
@@ -45,7 +45,7 @@ test("an import skips pages already pinned as a tile, in a pinned group or parke
   assert.equal(importTabs(P, pins, null), 0, "tile and pinned group count as pinned");
   S().closeWindow(w);
   assert.ok(S().parkedPins[P]?.tabs.length, "the pins are parked");
-  const space = { id: "s3", name: "Home", profileId: P, tabs: [{ url: "https://tile.example/", title: "Tile" }], pinned: pins.map((p) => ({ type: "url", ...p })) };
+  const space = { id: "s3", name: "Home", spaceId: P, tabs: [{ url: "https://tile.example/", title: "Tile" }], pinned: pins.map((p) => ({ type: "url", ...p })) };
   assert.equal(importArcSpace(P, space).tabs, 0, "parked pins count, for pins and open tabs alike");
 });
 
@@ -57,7 +57,7 @@ test("a link whose scheme is in capitals imports, and counts as the same page", 
   assert.equal(importTabs(P, [{ url: "FILE:///tmp/a.html", title: "File", pinned: false }], null), 1);
 });
 
-test("an import skips open tabs whose page is already open in the profile, and repeats within it", () => {
+test("an import skips open tabs whose page is already open in the space, and repeats within it", () => {
   S().hydrate({});
   S().createWindow({ url: "https://home.example/" });
   const open = [
@@ -75,10 +75,10 @@ test("an import skips open tabs whose page is already open in the profile, and r
 test("an Arc favorite imports even when the same page sits in a pinned folder or a pinned row, but not twice as a tile", () => {
   S().hydrate({});
   const w = S().createWindow({ url: "https://home.example/" });
-  const grouped = S().newTab(w, { url: "https://www.youtube.com/", profileId: P });
+  const grouped = S().newTab(w, { url: "https://www.youtube.com/", spaceId: P });
   const g = S().createGroup([grouped]);
   S().updateGroup(g, { pinned: true });
-  const row = S().newTab(w, { url: "https://row.example/", profileId: P });
+  const row = S().newTab(w, { url: "https://row.example/", spaceId: P });
   S().pinTabs([row], true, true);
   const favorites = [
     { url: "https://www.youtube.com/", title: "YouTube", pinned: true },
@@ -100,7 +100,7 @@ test("Arc favorites land as tiles after the space's rows and folders came in", a
   const space = {
     id: "s4",
     name: "Home",
-    profileId: P,
+    spaceId: P,
     tabs: [],
     pinned: [
       { type: "url", title: "Row", url: "https://row.example/" },

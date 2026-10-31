@@ -51,9 +51,9 @@ const MARQUEE_PASSES_AT_REST = 1;
 
 export const SIDEBAR_PLAYER_HEIGHT = ROW_HEIGHT + 8;
 
-export function useSidebarPlayerTab(windowId: string, profileId: string): string | undefined {
+export function useSidebarPlayerTab(windowId: string, spaceId: string): string | undefined {
   const sessions = useMedia(useShallow((m) => Object.keys(m.sessions)));
-  const hidden = useHiddenPlayerTabs(windowId, profileId, sessions);
+  const hidden = useHiddenPlayerTabs(windowId, spaceId, sessions);
   const candidates = useMedia(useShallow((m) => hidden.filter((id) => !m.leftPaused[id])));
   const shown = useRef<string | undefined>(undefined);
   shown.current = useMedia((m) => playerTabFor(m, candidates, shown.current));
@@ -132,7 +132,7 @@ const PlayerRow = memo(function PlayerRow({ tabId, mounted, hovered, reveal }: {
   return (
     <Pressable onPress={() => switchToTab(tabId)} style={{ flex: 1, minWidth: 0, alignSelf: "stretch", flexDirection: "row", alignItems: "center", marginRight: TRAILING_INSET }}>
       <View tooltip="Back to Tab" style={{ width: ART, height: ART, borderRadius: radius.m, overflow: "hidden", backgroundColor: media.artPlaceholder, alignItems: "center", justifyContent: "center" }}>
-        {artwork ? <Image source={{ uri: artwork }} resizeMode="cover" style={{ width: ART, height: ART }} /> : <Favicon url={tab.url} favicon={tab.favicon} size={16} profileId={tab.profileId} />}
+        {artwork ? <Image source={{ uri: artwork }} resizeMode="cover" style={{ width: ART, height: ART }} /> : <Favicon url={tab.url} favicon={tab.favicon} size={16} spaceId={tab.spaceId} />}
       </View>
       {isLive(session) ? <View accessibilityLabel="Live" style={{ width: LIVE_DOT, height: LIVE_DOT, borderRadius: LIVE_DOT / 2, marginLeft: 7, backgroundColor: theme.destructive }} /> : null}
       {mute ? <Symbol name="speaker.slash.fill" size={9} color={theme.textSecondary} style={{ width: 13, height: 12, marginLeft: 6 }} /> : null}

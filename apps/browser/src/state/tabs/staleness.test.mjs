@@ -6,13 +6,13 @@ import { mount } from "../../test-hooks.mjs";
 globalThis.__DEV__ = false;
 
 const performance = import.meta.resolve("../../platform/performance.ts");
-const profiles = import.meta.resolve("../../platform/profiles.ts");
+const spaces = import.meta.resolve("../../platform/profiles.ts");
 const stubs = {
   "../../platform/performance": `export * from ${JSON.stringify(performance)};
     export const listTasks = async () => [];
     export const onSystemState = () => ({ remove() {} });
     export const systemState = async () => null;`,
-  "../../platform/profiles": `export * from ${JSON.stringify(profiles)};
+  "../../platform/profiles": `export * from ${JSON.stringify(spaces)};
     export const releaseProfile = async () => {};`,
   "../app/toasts": "export const showToast = () => {};",
   "../settings/settingsWindows": "export const openSettings = () => {};",
@@ -65,7 +65,7 @@ const row = (tabId, windowId) =>
         sleeping: useIsSleeping(tabId),
         pip: useMedia((m) => !!m.pipOpen[tabId]),
         capture: usePage(tabId, (p) => !!p.mediaAccess),
-        profile: useTabValue(tabId, (t) => t?.profileId),
+        profile: useTabValue(tabId, (t) => t?.spaceId),
       };
     },
     { contexts: [[WindowContext, windowId]] },
@@ -215,7 +215,7 @@ test("page progress: a bar mounted mid-load starts at the current value, follows
   setPageProgress("p", 0.8);
   assert.equal(bar.value, 0.8);
   setPageProgress("p", 0);
-  assert.equal(bar.value, 0, "page gone (closed, slept, another profile)");
+  assert.equal(bar.value, 0, "page gone (closed, slept, another space)");
   bar.unmount();
   const other = mount(({ id }) => usePageProgress(id), { props: { id: "p" } });
   setPageProgress("q", 0.5);
@@ -226,8 +226,8 @@ test("page progress: a bar mounted mid-load starts at the current value, follows
 const key = engineProfile(S(), "default");
 const setIcons = (fn) =>
   useFavicons.setState((f) => {
-    const icons = f.profiles[key] ?? { pages: {}, srcs: {}, appearances: {} };
-    return { ...f, profiles: { ...f.profiles, [key]: fn(icons) } };
+    const icons = f.spaces[key] ?? { pages: {}, srcs: {}, appearances: {} };
+    return { ...f, spaces: { ...f.spaces, [key]: fn(icons) } };
   });
 const icon = (url, src) =>
   mount(({ url, src }) => {
@@ -238,7 +238,7 @@ const icon = (url, src) =>
 test("an icon: arrives, changes, follows its page and its icon URL, its light/dark pair and theme, and goes", () => {
   S().hydrate({});
   useBrowser.setState((s) => ({ ui: { ...s.ui, appDark: false } }));
-  useFavicons.setState({ profiles: {}, themes: {} });
+  useFavicons.setState({ spaces: {}, themes: {} });
   const page = "https://icons.example/a";
   const i = icon(page, null);
   assert.equal(i.value.resolved, null, "none yet");
@@ -257,7 +257,7 @@ test("an icon: arrives, changes, follows its page and its icon URL, its light/da
   assert.equal(i.value.resolved?.uri, "file:///dark.png", "dark appearance");
   useBrowser.setState((s) => ({ ui: { ...s.ui, appDark: false } }));
   assert.equal(i.value.resolved?.uri, "file:///light.png", "and back");
-  useFavicons.setState((f) => ({ ...f, profiles: { ...f.profiles, [key]: { pages: {}, srcs: {}, appearances: {} } } }));
+  useFavicons.setState((f) => ({ ...f, spaces: { ...f.spaces, [key]: { pages: {}, srcs: {}, appearances: {} } } }));
   assert.equal(i.value.resolved, null, "gone");
   i.unmount();
 });

@@ -1,3 +1,4 @@
+import { profileEngine as currentEngineProfile } from "../../../state/profiles/current";
 import {
   deletePassword,
   exportPasswords,
@@ -14,7 +15,6 @@ import { Symbol, Button, font, SearchField, Sheet, TextField, Toggle, weight } f
 import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import { useTheme } from "../../ui/theme";
-import { currentEngineProfile } from "../../../state/browser/current";
 import { plural } from "../../../state/browser/model";
 import { importPasswordsCsv, revealPassword, unlockPasswordsFor, usePasswordsUnlocked } from "../../../state/site/savedPasswords";
 import { hostLabel, matchesQuery } from "../../pages/PageLayout";

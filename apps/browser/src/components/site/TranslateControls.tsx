@@ -19,7 +19,7 @@ import { memo } from "react";
 import { useTheme } from "../ui/theme";
 import { useSettings, useTab } from "../../state/browser/hooks";
 import { currentTab } from "../../state/browser/current";
-import { isIncognitoProfile } from "../../state/browser/model";
+import { isIncognitoSpace } from "../../state/browser/model";
 import { Button, MenuRow, MenuSeparator, Toggle } from "../ui";
 import type { ToolbarPalette } from "../ui/toolbarColors";
 
@@ -63,20 +63,20 @@ async function showTranslateMenu(tabId: string) {
       translated: isTranslated(tabId),
       target: languageName(defaultTarget()),
       languages: languages.map((l) => ({ id: l.id, name: l.name, current: l.id === target })),
-      neverTranslate: isIncognitoProfile(tab.profileId) ? null : isNeverTranslated(tab.profileId, tab.url),
+      neverTranslate: isIncognitoSpace(tab.spaceId) ? null : isNeverTranslated(tab.spaceId, tab.url),
     }),
   );
   if (choice === "original") void revertPage(tabId);
   else if (choice === "translate") void translatePage(tabId);
   else if (choice && typeof choice === "object") void translatePage(tabId, choice.language);
-  else if (choice === "never") setNeverTranslate(tabId, !isNeverTranslated(tab.profileId, tab.url));
+  else if (choice === "never") setNeverTranslate(tabId, !isNeverTranslated(tab.spaceId, tab.url));
 }
 
 export function TranslateRows({ tabId, onClose }: { tabId: string; onClose: () => void }) {
   const state = useTranslateState(tabId);
   const tab = useTab(tabId);
   useSettings((st) => st.neverTranslateSites);
-  const never = tab ? isNeverTranslated(tab.profileId, tab.url) : false;
+  const never = tab ? isNeverTranslated(tab.spaceId, tab.url) : false;
   if (!translation || !tab || (!state.source && state.status === "idle" && !never)) return null;
   const translated = state.status !== "idle";
   return (
@@ -101,7 +101,7 @@ export function TranslateRows({ tabId, onClose }: { tabId: string; onClose: () =
           }}
         />
       )}
-      {!isIncognitoProfile(tab.profileId) && (
+      {!isIncognitoSpace(tab.spaceId) && (
         <MenuRow icon="nosign" title="Never Translate This Site" accessory={<Toggle look="panel" value={never} onChange={(v) => setNeverTranslate(tabId, v)} />} />
       )}
       <MenuSeparator />

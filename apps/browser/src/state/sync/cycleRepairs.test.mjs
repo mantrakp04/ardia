@@ -40,13 +40,13 @@ globalThis.acTestNativeModules = {
     remove: async (_folder, _scope, list) => list.forEach((id) => folder.delete(id)),
     sealLocal: async (text) => `sealed:${text}`,
     openLocal: async (sealed) => (sealed.startsWith("sealed:") ? sealed.slice(7) : null),
-    readPasswords: async (profile) => (passwordReads.push(profile), []),
+    readPasswords: async (space) => (passwordReads.push(space), []),
   },
 };
 
 const shell = await import("../../test-native/index.ts");
 const { useBrowser } = await import("../browser/store.ts");
-const { engineProfile } = await import("../browser/model.ts");
+const { engineProfileForSpace } = await import("../browser/model.ts");
 const { emptyScope, canonical } = await import("@ardia/sync");
 const S = () => useBrowser.getState();
 const reset = () => {
@@ -80,28 +80,28 @@ test("a cycle within the read interval leaves passwords alone, and Sync Now read
   assert.ok(passwordReads.length > 0, "Sync Now reads them anyway");
 });
 
-test("Sync Now pressed while a cycle runs reads every profile's passwords in the cycle that follows", async () => {
+test("Sync Now pressed while a cycle runs reads every space's passwords in the cycle that follows", async () => {
   reset();
-  const work = S().createProfile({ name: "Work" });
+  const work = S().createSpace({ name: "Work", profileId: S().createProfile({ name: "Work" }) });
   const engine = await import("./engine.ts?queued");
   engine.startSync();
   assert.ok("ok" in (await engine.turnOnSync("/sync")));
   await engine.syncNow();
-  const links = engine.useSync.getState().profiles;
-  assert.ok(links.default && links[work], "both profiles sync");
+  const links = engine.useSync.getState().spaces;
+  assert.ok(links.default && links[work], "both spaces sync");
 
-  heldScope = `p:${links[work].syncId}`;
+  heldScope = `space:${links[work].syncId}`;
   const running = runScheduledCycle();
   await settle();
-  assert.ok(held, "the regular cycle is reading the second profile");
+  assert.ok(held, "the regular cycle is reading the second space");
   passwordReads.length = 0;
   void engine.syncNow();
   held();
   held = null;
   await running;
   await runScheduledCycle();
-  assert.ok(passwordReads.includes(engineProfile(S(), "default")), "the first profile's passwords are read after the click");
-  assert.ok(passwordReads.includes(engineProfile(S(), work)), "and the second's");
+  assert.ok(passwordReads.includes(engineProfileForSpace(S(), "default")), "the first space's passwords are read after the click");
+  assert.ok(passwordReads.includes(engineProfileForSpace(S(), work)), "and the second's");
 });
 
 const GLOW = "set:selectedTabGlow";
@@ -109,8 +109,8 @@ const GLOW = "set:selectedTabGlow";
 function savedFromOlderBuild({ settings, chosen = false }) {
   const record = { h: "0000000001000.0000.peer", v: { v: "off" }, o: ["peer", 1] };
   const app = { ...emptyScope(), records: { [GLOW]: record }, base: { [GLOW]: canonical(record.v) }, vv: { peer: 1 }, joined: true, seen: { peer: 1 } };
-  shell.docs.set("sync-state.nns", `sealed:${JSON.stringify({ covers: -1, scopes: { app }, version: 1 })}`);
-  const doc = { v: 1, enabled: true, folder: "/sync", deviceId: "me", clock: null, types: { bookmarks: true, history: true, tabs: true, pinned: true, passwords: true, extensions: true, settings }, profiles: {}, lastSyncedAt: null, setupAt: 1, joining: false };
+  shell.docs.set("sync-spaces-state.nns", `sealed:${JSON.stringify({ covers: -1, scopes: { "workspace-v2": app }, version: 1 })}`);
+  const doc = { v: 2, protocolReady: true, profiles: {}, enabled: true, folder: "/sync", deviceId: "me", clock: null, types: { bookmarks: true, history: true, tabs: true, pinned: true, passwords: true, extensions: true, settings }, spaces: {}, lastSyncedAt: null, setupAt: 1, joining: false };
   shell.docs.set("sync.json", JSON.stringify(doc));
   if (chosen) S().updateSettings({ selectedTabGlow: "soft" });
 }
@@ -152,4 +152,26 @@ test("a setting chosen on this Mac isn't replaced by the one an older build rece
   await engine.syncNow();
   await engine.syncNow();
   assert.equal(S().settings.selectedTabGlow, "soft");
+});
+
+test("retrying a failed upgrade checkpoints the legacy records before opening sync", async (t) => {
+  reset();
+  shell.docs.set("sync.json", JSON.stringify({ v: 1, enabled: true, folder: "/sync", deviceId: "retry-device", types: { settings: false }, profiles: { default: { syncId: "owner", enabled: true } } }));
+  const record = (v) => ({ h: "000000001.0000.old", v, o: ["old", 1] });
+  shell.docs.set("sync-state.nns", `sealed:${JSON.stringify({ covers: 0, scopes: { app: { ...emptyScope(), records: { "prof:owner": record({ n: "Personal", c: "plum", i: null, d: true }), "set:warnBeforeQuitting": record({ v: false }) } } } })}`);
+  t.mock.method(shell.shellNativeModules.ArdiaDialogs, "confirm", async () => ({ confirmed: true }));
+  const native = globalThis.acTestNativeModules.ArdiaSync;
+  const sealing = native.sealLocal;
+  native.sealLocal = async () => { throw new Error("keychain unavailable"); };
+  const engine = await import("./engine.ts?failed-upgrade-retry");
+  engine.startSync();
+  try {
+    await engine.upgradeSync();
+    assert.equal(engine.useSync.getState().status, "upgrade");
+    native.sealLocal = sealing;
+    await engine.upgradeSync();
+    assert.equal(JSON.parse(shell.docs.get("sync.json")).protocolReady, true);
+    const checkpoint = JSON.parse(shell.docs.get("sync-spaces-state.nns").slice(7));
+    assert.deepEqual(checkpoint.scopes["legacy-settings"].records["set:warnBeforeQuitting"].v, { v: false });
+  } finally { native.sealLocal = sealing; }
 });

@@ -81,7 +81,7 @@ export const createPeekSlice: StateCreator<BrowserState, [], [], PeekSlice> = (s
     if (!source || !w || isSmall(s, w.id) || !peekable(url) || !w.tabIds.includes(sourceTabId)) return "";
     s = withoutPeek(s, w.id);
     if (activeTabId(s, w.id) !== sourceTabId) s = apply(s, activated(s, sourceTabId));
-    const tab = { ...makeTab(w.id, source.profileId, url), openerId: sourceTabId, page: loadedPage(navigationTo(url, true)) };
+    const tab = { ...makeTab(w.id, source.spaceId, url), openerId: sourceTabId, page: loadedPage(navigationTo(url, true)) };
     set({
       ...s,
       tabs: { ...s.tabs, [tab.id]: tab },

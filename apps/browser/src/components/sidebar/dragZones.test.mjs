@@ -78,8 +78,8 @@ function liveScene({ open = false } = {}) {
   const W = world("a", "b", "p1", "p2");
   const { id } = W;
   S().pinTabs([id.p1, id.p2], true, true);
-  const L1 = liveStore.createFolder(S().windows[W.w].profileId, "pullRequests");
-  const L2 = liveStore.createFolder(S().windows[W.w].profileId, "documents");
+  const L1 = liveStore.createFolder(S().windows[W.w].spaceId, "pullRequests");
+  const L2 = liveStore.createFolder(S().windows[W.w].spaceId, "documents");
   const L = sceneLayout({ top: 150 });
   L.row(id.p1, { section: "pinnedRows" });
   L.live(L1, { collapsed: !open, rows: 2 });

@@ -4,7 +4,7 @@ import { showToast } from "../app/toasts";
 import { openSettings } from "../settings/settingsWindows";
 import { useBrowser, type BrowserState } from "../browser/store";
 import type { BatterySaverWhen } from "../settings/settings";
-import { engineProfile, isIncognitoProfile } from "../browser/model";
+import { engineProfile, engineProfileForSpace, isIncognitoSpace } from "../browser/model";
 import { reloadRecentTabs } from "./recentTabWarmup";
 import { everySlowly } from "../../platform/slowTimers";
 import { webviews } from "../../platform/webviews";
@@ -18,7 +18,7 @@ const RELEASE_PROFILES_MS = 60_000;
 
 const store = () => useBrowser.getState();
 
-const loadedProfiles = new Set<string>();
+const loadedSpaces = new Set<string>();
 
 let system: SystemState | null = null;
 let systemOverride: Partial<SystemState> | null = null;
@@ -26,7 +26,7 @@ const currentSystem = () => (system ? { ...system, ...systemOverride } : null);
 
 export function noteReady(tabId: string) {
   const tab = store().tabs[tabId];
-  if (tab) loadedProfiles.add(engineProfile(useBrowser.getState(), tab.profileId));
+  if (tab) loadedSpaces.add(engineProfile(useBrowser.getState(), tab.spaceId));
   forget(tabId);
 }
 
@@ -46,17 +46,17 @@ function forget(tabId: string) {
   useLifecycle.setState({ discarded });
 }
 
-function releaseUnusedProfiles() {
+function releaseUnusedSpaces() {
   const s = store();
-  const inUse = new Set(Object.values(s.windows).map((w) => engineProfile(s, w.profileId)));
+  const inUse = new Set(Object.values(s.windows).map((w) => engineProfile(s, w.spaceId)));
   for (const id of webviews.keys()) {
     const tab = s.tabs[id];
-    if (tab) inUse.add(engineProfile(s, tab.profileId));
+    if (tab) inUse.add(engineProfile(s, tab.spaceId));
   }
-  for (const profile of [...loadedProfiles]) {
-    if (!profile || isIncognitoProfile(profile) || inUse.has(profile)) continue;
-    loadedProfiles.delete(profile);
-    void releaseProfile(profile);
+  for (const space of [...loadedSpaces]) {
+    if (!space || isIncognitoSpace(space) || inUse.has(space)) continue;
+    loadedSpaces.delete(space);
+    void releaseProfile(space);
   }
 }
 
@@ -126,16 +126,16 @@ export function startTabLifecycle() {
       () => {},
     );
 
-  everySlowly({ every: RELEASE_PROFILES_MS, run: releaseUnusedProfiles });
+  everySlowly({ every: RELEASE_PROFILES_MS, run: releaseUnusedSpaces });
 
   if (__DEV__) {
     (globalThis as { acLifecycle?: unknown }).acLifecycle = {
       reloadRecentTabs,
-      releaseUnusedProfiles,
+      releaseUnusedSpaces,
       state: () => ({
         ...useLifecycle.getState(),
         system: currentSystem(),
-        loadedProfiles: [...loadedProfiles],
+        loadedSpaces: [...loadedSpaces],
         loaded: [...webviews.keys()].filter((id) => !useLifecycle.getState().discarded[id]),
       }),
       simulate: (patch: Partial<SystemState> | null) => {

@@ -1,8 +1,8 @@
 import { canonical, type ScopeState } from "@ardia/sync";
-import { themeFromRecord } from "../profileAdapters";
-import type { ProfileLink } from "../syncDoc";
+import { themeFromRecord } from "../spaceAdapters";
+import type { SpaceLink } from "../syncDoc";
 
-export function settleAppliedThemes(profiles: Record<string, ProfileLink>, app: ScopeState | undefined) {
+export function settleAppliedThemes(profiles: Record<string, SpaceLink>, app: ScopeState | undefined) {
   if (!app) return;
   for (const link of Object.values(profiles)) {
     if (!link.themeAdopting) continue;
@@ -12,7 +12,7 @@ export function settleAppliedThemes(profiles: Record<string, ProfileLink>, app: 
   }
 }
 
-export function confirmThemes(profiles: Record<string, ProfileLink>, app: ScopeState) {
+export function confirmThemes(profiles: Record<string, SpaceLink>, app: ScopeState) {
   settleAppliedThemes(profiles, app);
   if (app.pending > 0 || Object.keys(app.damaged).length > 0) return;
   if (Object.values(app.files).some((f) => f.k === "bad")) return;

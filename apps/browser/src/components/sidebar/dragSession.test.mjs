@@ -226,7 +226,7 @@ test("committed drops survive a relaunch: tab order, pins, groups, pinned anchor
     stub.docs.clear();
     const stop = startPersistence();
     const m = mixedScene();
-    m.L1 = live.createFolder(S().windows[m.w].profileId, "pullRequests");
+    m.L1 = live.createFolder(S().windows[m.w].spaceId, "pullRequests");
     const L = sceneLayout({ top: m.regions.pinnedGroups.y });
     L.live(m.L1);
     m.L.entries.push(...L.entries);

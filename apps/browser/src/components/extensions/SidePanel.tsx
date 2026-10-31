@@ -5,7 +5,7 @@ import { layout, useTheme } from "../ui/theme";
 import { useSettings, useWindowId } from "../../state/browser/hooks";
 import { currentSettings } from "../../state/browser/current";
 import { updateSettings } from "../../state/settings/actions";
-import { openFromPage, pageProfileId } from "../../state/tabs/openFromPage";
+import { openFromPage, pageSpaceId } from "../../state/tabs/openFromPage";
 import { space } from "../ui/tokens";
 import { EXTENSION_PAGE_BACKGROUND, SIDE_PANEL_HEADER_PAD_RIGHT } from "./tokens";
 import { closeSidePanel, findExtension, showExtensionMenu, useExtensions, type SidePanel } from "../../state/extensions/actions";
@@ -78,7 +78,7 @@ export function ExtensionSidePanel() {
   return (
     <Animated.View style={{ width: appear.interpolate({ inputRange: [0, 1], outputRange: [0, room] }), overflow: "hidden" }}>
       <Animated.View style={{ position: "absolute", top: 0, bottom: 0, right: 0, width: width, opacity: appear }}>
-        <PanelCard key={`${shown.extensionId}|${shown.pageProfile}|${shown.url}`} windowId={windowId} panel={shown} />
+        <PanelCard key={`${shown.extensionId}|${shown.pageSpace}|${shown.url}`} windowId={windowId} panel={shown} />
         <View
           {...responder.panHandlers}
           onDoubleClick={() => updateSettings({ extensionSidePanelWidth: 360 })}
@@ -90,9 +90,9 @@ export function ExtensionSidePanel() {
 }
 
 function PanelCard({ windowId, panel }: { windowId: string; panel: SidePanel }) {
-  const { extensionId, profile, pageProfile, url } = panel;
+  const { extensionId, profile: engineContext, pageSpace, url } = panel;
   const theme = useTheme();
-  const ext = useExtensions((e) => e.lists[profile]?.find((x) => x.id === extensionId));
+  const ext = useExtensions((e) => e.lists[engineContext]?.find((x) => x.id === extensionId));
   const title = ext?.actionTitle || ext?.name || "Extension";
   const icon = ext?.actionIcon || ext?.icon;
   return (
@@ -107,7 +107,7 @@ function PanelCard({ windowId, panel }: { windowId: string; panel: SidePanel }) 
           size={13}
           tooltip="More"
           onPress={() => {
-            const found = findExtension(profile, extensionId);
+            const found = findExtension(engineContext, extensionId);
             if (found) void showExtensionMenu(windowId, found);
           }}
         />
@@ -118,12 +118,12 @@ function PanelCard({ windowId, panel }: { windowId: string; panel: SidePanel }) 
         <WebView
           style={StyleSheet.absoluteFill}
           url={url}
-          profile={pageProfile}
+          profile={pageSpace}
           standalone
           extensionHost="sidePanel"
           pageBackgroundColor={EXTENSION_PAGE_BACKGROUND}
           onWindowClose={() => closeSidePanel(windowId, extensionId)}
-          onOpenWindow={(request) => openFromPage(request, { windowId, profileId: pageProfileId(windowId, pageProfile) })}
+          onOpenWindow={(request) => openFromPage(request, { windowId, spaceId: pageSpaceId(windowId, pageSpace) })}
         />
       </View>
     </View>

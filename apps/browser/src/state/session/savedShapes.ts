@@ -2,7 +2,7 @@ import { isFields, isString, isStringList } from "../../lib/decode";
 import type { SavedObject } from "../../lib/savedDocument";
 import { isAdoptKind } from "../tabs/adoptIds";
 import { wakeOf } from "../tabs/pageSession";
-import { isIncognitoProfile } from "../browser/model";
+import { isIncognitoSpace } from "../browser/model";
 import type { AdoptId, ParkedPins, SplitSlot, SplitView, Tab, TabPage, TabPin, TileFolder } from "../browser/types";
 
 type SavedPage = Extract<TabPage, { kind: "idle" | "asleep" }>;
@@ -81,7 +81,7 @@ export const slotsFromDisk = (v: unknown): SplitSlot[] | null => {
 export const savedPage = (t: Tab): SavedPage => {
   const wake = wakeOf(t);
   const kind = t.page.kind === "asleep" || t.page.kind === "frozen" ? "asleep" : "idle";
-  return isRestoreId(wake) && !isIncognitoProfile(t.profileId) ? { kind, wake } : { kind };
+  return isRestoreId(wake) && !isIncognitoSpace(t.spaceId) ? { kind, wake } : { kind };
 };
 export const pageFromDisk = (v: unknown): SavedPage => {
   const page = isFields(v) ? v : {};

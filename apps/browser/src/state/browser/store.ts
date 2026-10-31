@@ -4,7 +4,7 @@ import { createBookmarksSlice, ensureRoots, type BookmarksSlice } from "../bookm
 import { changedIds } from "./changes";
 import { createGroupsSlice, type GroupsSlice } from "../groups/groups";
 import { createHistorySlice, type HistorySlice } from "../history/history";
-import { engineProfile, IDLE_LIVE, isIncognitoProfile } from "./model";
+import { setSharedDataIds, IDLE_LIVE, isIncognitoSpace } from "./model";
 import { createOrganizeSlice, type OrganizeSlice } from "../pins/organize";
 import { createMuteSlice, type MuteSlice } from "../tabs/mute";
 import { createCleanUpSlice, type CleanUpSlice } from "../pins/tabCleanup";
@@ -12,8 +12,8 @@ import { keptCleanedTabs, keptDeletedGroups } from "../pins/closedTabs";
 import { notePinChoices } from "../pins/pinChoices";
 import { createPeekSlice, type PeekSlice } from "../peek/peek";
 import { pinHome } from "../pins/pinHomes";
-import { createProfilesSlice, DEFAULT_PROFILE, type ProfilesSlice } from "../profiles/profiles";
-import { engineProfiles } from "../profiles/engineProfiles";
+import { createSpacesSlice, rememberSpaceEngines, DEFAULT_SPACE, type SpacesSlice } from "../spaces/spaces";
+import { engineSpaces } from "../spaces/engineSpaces";
 import { createSettingsSlice, parseSettings, parseSettingsMeta, type SettingsSlice } from "../settings/settings";
 import { createSplitsSlice, sanitizeSplits, type SplitsSlice } from "../splits/splits";
 import { activated, apply } from "../tabs/tabs";
@@ -26,7 +26,9 @@ import { createDownloadsSlice, type DownloadsSlice } from "../downloads/download
 import { createWindowsSlice, type WindowsSlice } from "../windows/windows";
 import { orderSections } from "../groups/groups";
 
-export type BrowserState = ProfilesSlice &
+import { createProfilesSlice, DEFAULT_PROFILE, type ProfilesSlice } from "../profiles/profiles";
+
+export type BrowserState = ProfilesSlice & SpacesSlice &
   WindowsSlice &
   TabsSlice &
   GroupsSlice &
@@ -47,7 +49,10 @@ export type HydrateData = Partial<
   Pick<
     BrowserState,
     | "profiles"
-    | "profileOrder"
+    | "topApps"
+    | "parkedTopApps"
+    | "spaces"
+    | "spaceOrder"
     | "orphanedProfileData"
     | "windows"
     | "windowOrder"
@@ -66,7 +71,7 @@ export type HydrateData = Partial<
     | "settings"
     | "settingsMeta"
   >
-> & { focusedWindowId?: string | null; lastProfileId?: string | null };
+> & { focusedWindowId?: string | null; lastSpaceId?: string | null };
 
 let batch = (update: () => void) => update();
 export function setStoreBatching(batchedUpdates: (update: () => void) => void) {
@@ -90,6 +95,7 @@ const pageMoved = (s: BrowserState, prev: BrowserState) => {
 const reportsUnsettled = !__DEV__ && !(globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.NODE_TEST_CONTEXT;
 const settled = (s: BrowserState, prev: BrowserState) => {
   try {
+    rememberSpaceEngines(s, prev);
     return settle(s, prev);
   } catch (error) {
     if (!(error instanceof SettleDidNotConverge) || !reportsUnsettled) throw error;
@@ -103,6 +109,7 @@ setHeldReportsTransaction(storeTransaction);
 
 export const useBrowser = create<BrowserState>()(transactions.middleware(batched((...a) => ({
   ...createProfilesSlice(...a),
+  ...createSpacesSlice(...a),
   ...createWindowsSlice(...a),
   ...createTabsSlice(...a),
   ...createGroupsSlice(...a),
@@ -120,30 +127,37 @@ export const useBrowser = create<BrowserState>()(transactions.middleware(batched
   hydrate(data) {
     const [set, get] = a;
     const s = get();
-    const profiles = data.profiles && Object.keys(data.profiles).length ? data.profiles : { [DEFAULT_PROFILE.id]: DEFAULT_PROFILE };
-    const profileOrder = [
-      ...(data.profileOrder ?? []).filter((id) => profiles[id]),
-      ...Object.keys(profiles).filter((id) => !data.profileOrder?.includes(id)),
+    const rawSpaces = data.spaces && Object.keys(data.spaces).length ? data.spaces : { [DEFAULT_SPACE.id]: DEFAULT_SPACE };
+    const spaces = Object.fromEntries(Object.entries(rawSpaces).map(([id, space]) => [id, { ...space, profileId: space.profileId ?? id }]));
+    const profiles = { ...(data.profiles ?? {}) };
+    for (const space of Object.values(spaces)) if (!profiles[space.profileId]) profiles[space.profileId] = {
+      id: space.profileId, name: space.name, icon: space.icon, engineId: space.profileId === "default" ? "" : space.profileId, createdAt: space.createdAt,
+    };
+    if (!Object.keys(profiles).length) profiles[DEFAULT_PROFILE.id] = DEFAULT_PROFILE;
+    setSharedDataIds(Object.fromEntries(Object.values(spaces).map((space) => [space.id, profiles[space.profileId]!.engineId])));
+    const spaceOrder = [
+      ...(data.spaceOrder ?? []).filter((id) => spaces[id]),
+      ...Object.keys(spaces).filter((id) => !data.spaceOrder?.includes(id)),
     ];
     const settings = parseSettings(data.settings);
-    if (!profiles[settings.defaultProfileId]) settings.defaultProfileId = profileOrder[0]!;
+    if (!spaces[settings.defaultSpaceId]) settings.defaultSpaceId = spaceOrder[0]!;
 
     notePinChoices(data.pinChoices ?? {});
     const rawWindows = data.windows ?? {};
-    const profileOk = (p: string) => !!profiles[p] || isIncognitoProfile(p);
+    const spaceOk = (p: string) => !!spaces[p] || isIncognitoSpace(p);
     const tabs: Record<string, Tab> = {};
     for (const t of Object.values(data.tabs ?? {})) {
-      if (!rawWindows[t.windowId] || !profileOk(t.profileId)) continue;
+      if (!rawWindows[t.windowId] || !spaceOk(t.spaceId)) continue;
       tabs[t.id] = { ...t, pinnedUrl: t.pinnedUrl ?? pinHome(t, !!t.pin) };
     }
     const windows: Record<string, BrowserWindow> = {};
     for (const w of Object.values(rawWindows)) {
       const tabIds = orderSections(w.tabIds.filter((id) => tabs[id]?.windowId === w.id), tabs, data.groups ?? {});
       if (!tabIds.length) continue;
-      const activeTabIds = Object.fromEntries(Object.entries(w.activeTabIds).filter(([p, id]) => tabs[id]?.profileId === p));
-      const profileId = tabIds.some((id) => tabs[id]!.profileId === w.profileId) ? w.profileId : tabs[tabIds[0]!]!.profileId;
-      activeTabIds[profileId] ??= tabIds.find((id) => tabs[id]!.profileId === profileId)!;
-      windows[w.id] = { ...w, tabIds, profileId, activeTabIds };
+      const activeTabIds = Object.fromEntries(Object.entries(w.activeTabIds).filter(([p, id]) => tabs[id]?.spaceId === p));
+      const spaceId = tabIds.some((id) => tabs[id]!.spaceId === w.spaceId) ? w.spaceId : tabs[tabIds[0]!]!.spaceId;
+      activeTabIds[spaceId] ??= tabIds.find((id) => tabs[id]!.spaceId === spaceId)!;
+      windows[w.id] = { ...w, tabIds, spaceId, activeTabIds };
     }
     for (const t of Object.values(tabs)) if (!windows[t.windowId]) delete tabs[t.id];
     const windowOrder = [...(data.windowOrder ?? []).filter((id) => windows[id]), ...Object.keys(windows).filter((id) => !data.windowOrder?.includes(id))];
@@ -156,14 +170,17 @@ export const useBrowser = create<BrowserState>()(transactions.middleware(batched
     );
     const splits = sanitizeSplits(data.splits ?? {}, tabs);
     let bookmarks = s.bookmarks;
-    for (const engine of engineProfiles({ profiles })) bookmarks = ensureRoots(bookmarks, engine)[0];
+    for (const engine of engineSpaces({ profiles })) bookmarks = ensureRoots(bookmarks, engine)[0];
     const focused = data.focusedWindowId && windows[data.focusedWindowId] ? data.focusedWindowId : (windowOrder.at(-1) ?? null);
 
-    const engines = new Set(Object.keys(profiles).map((id) => engineProfile({ profiles }, id)));
+    const engines = new Set(Object.values(profiles).map((profile) => profile.engineId));
     let next: BrowserState = {
       ...s,
       profiles,
-      profileOrder,
+      topApps: data.topApps ?? {},
+      parkedTopApps: data.parkedTopApps ?? {},
+      spaces,
+      spaceOrder,
       orphanedProfileData: (data.orphanedProfileData ?? []).filter((e) => !engines.has(e)),
       settings,
       settingsMeta: parseSettingsMeta(data.settingsMeta),
@@ -175,12 +192,12 @@ export const useBrowser = create<BrowserState>()(transactions.middleware(batched
       splits,
       closedTabs: data.closedTabs ?? [],
       closedWindows: data.closedWindows ?? [],
-      parkedPins: Object.fromEntries(Object.entries(data.parkedPins ?? {}).filter(([p]) => profiles[p])),
-      pinChoices: Object.fromEntries(Object.entries(data.pinChoices ?? {}).filter(([p]) => profiles[p])),
-      pinSync: Object.fromEntries(Object.entries(data.pinSync ?? {}).filter(([p]) => profiles[p])),
+      parkedPins: Object.fromEntries(Object.entries(data.parkedPins ?? {}).filter(([p]) => spaces[p])),
+      pinChoices: Object.fromEntries(Object.entries(data.pinChoices ?? {}).filter(([p]) => spaces[p])),
+      pinSync: Object.fromEntries(Object.entries(data.pinSync ?? {}).filter(([p]) => spaces[p])),
       closedGroups: data.closedGroups ?? [],
       deletedGroups: keptDeletedGroups(data.deletedGroups ?? []),
-      cleanedTabs: keptCleanedTabs((data.cleanedTabs ?? []).filter((c) => !isIncognitoProfile(c.tab.profileId))),
+      cleanedTabs: keptCleanedTabs((data.cleanedTabs ?? []).filter((c) => !isIncognitoSpace(c.tab.spaceId))),
       privateCleanedTabs: {},
       privateSiteMutes: {},
       selection: {},
@@ -195,10 +212,10 @@ export const useBrowser = create<BrowserState>()(transactions.middleware(batched
       ui: {
         ...s.ui,
         focusOrder: focused ? [focused, ...windowOrder.filter((id) => id !== focused).reverse()] : [],
-        lastProfileId: data.lastProfileId && profiles[data.lastProfileId] ? data.lastProfileId : null,
+        lastSpaceId: data.lastSpaceId && spaces[data.lastSpaceId] ? data.lastSpaceId : null,
       },
     };
-    for (const id of next.ui.focusOrder) next = apply(next, activated(next, windows[id]!.activeTabIds[windows[id]!.profileId]!));
+    for (const id of next.ui.focusOrder) next = apply(next, activated(next, windows[id]!.activeTabIds[windows[id]!.spaceId]!));
     set(next);
   },
 }))));

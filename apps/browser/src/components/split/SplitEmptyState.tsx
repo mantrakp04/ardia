@@ -68,7 +68,7 @@ export function SplitEmptyState({ tabId, focused }: { tabId: string; focused: bo
 function Suggestion({ tabId, onPress }: { tabId: string; onPress: () => void }) {
   const tab = useTab(tabId);
   if (!tab) return null;
-  return <Row icon={<Favicon url={tab.url} favicon={tab.favicon} profileId={tab.profileId} />} label={tabLabel(tab)} detail={tab.title} onPress={onPress} />;
+  return <Row icon={<Favicon url={tab.url} favicon={tab.favicon} spaceId={tab.spaceId} />} label={tabLabel(tab)} detail={tab.title} onPress={onPress} />;
 }
 
 function Row({ icon, label, detail, secondary, onPress }: { icon: React.ReactNode; label: string; detail?: string; secondary?: boolean; onPress: () => void }) {

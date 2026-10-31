@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
-import { useBookmarkProfileId, useBookmarks, useSidebarEdge } from "../../state/bookmarks/hooks";
+import { useBookmarkSpaceId, useBookmarks, useSidebarEdge } from "../../state/bookmarks/hooks";
 import { openFolder, openModeFor, openUrl } from "../../state/bookmarks/actions";
 import { addFolderToSidebar, makesGroup } from "../../state/bookmarks/bookmarkGroups";
 import { folderLinks } from "../../state/bookmarks/bookmarks";
@@ -41,7 +41,7 @@ export function placeMenu(panel: FolderMenuPanel, layer: MenuRect, width: number
 
 export function FolderMenu({ windowId, panel, layer, closing, onClosed }: { windowId: string; panel: FolderMenuPanel; layer: MenuRect; closing: boolean; onClosed: () => void }) {
   const size = useBarSize();
-  const profileId = useBookmarkProfileId(windowId);
+  const spaceId = useBookmarkSpaceId(windowId);
   const { parentId, fromIndex, level } = panel;
   const ids = useBookmarks(
     useShallow((b) => {
@@ -115,7 +115,7 @@ export function FolderMenu({ windowId, panel, layer, closing, onClosed }: { wind
               key={id}
               id={id}
               windowId={windowId}
-              profileId={profileId}
+              spaceId={spaceId}
               panel={panel}
               size={size}
               offset={offsets[i] ?? 0}
@@ -241,7 +241,7 @@ function ActionRow({ size, symbol, title, onPress, disabled }: { size: BarSize; 
 function FolderRow({
   id,
   windowId,
-  profileId,
+  spaceId,
   panel,
   size,
   offset,
@@ -252,7 +252,7 @@ function FolderRow({
 }: {
   id: string;
   windowId: string;
-  profileId: string;
+  spaceId: string;
   panel: FolderMenuPanel;
   size: BarSize;
   offset: number;
@@ -305,7 +305,7 @@ function FolderRow({
       }}
       style={{ opacity: dragging ? 0 : 1, transform: [{ translateY: shift }] }}
     >
-      <ContextMenuArea onContextMenu={() => void openBarMenu(windowId, profileId, node)}>
+      <ContextMenuArea onContextMenu={() => void openBarMenu(windowId, spaceId, node)}>
         <MouseArea onMiddleClick={(e) => press({ ...e, middle: true })}>
           <View tooltip={node.kind === "url" ? node.url : undefined}>
             <Pressable accessibilityRole="menuitem" accessibilityLabel={node.title || (node.kind === "url" ? node.url : "")} onPress={(e) => press(modifiersOf(e))}>

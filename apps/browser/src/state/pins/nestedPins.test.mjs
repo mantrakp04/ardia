@@ -93,7 +93,7 @@ test("closing the last window parks the pinned tree; the next window takes it ba
 
 test("parked pins saved before nesting existed load as before", () => {
   reset();
-  const snap = (u) => ({ url: u, title: u, favicon: null, profileId: "default", pinned: false, muted: false });
+  const snap = (u) => ({ url: u, title: u, favicon: null, spaceId: "default", pinned: false, muted: false });
   useBrowser.setState({
     parkedPins: {
       default: {
@@ -132,7 +132,7 @@ test("a closed window restored while its groups' ids are taken maps the nesting 
   const entry = S().closedWindows.at(-1);
   const other = Object.keys(S().windows)[0];
   useBrowser.setState((s) => ({
-    groups: { ...s.groups, [outer]: { id: outer, windowId: other, profileId: "default", name: "Taken", icon: null, color: null, collapsed: false, pinned: false, tabIds: [], createdAt: 0 } },
+    groups: { ...s.groups, [outer]: { id: outer, windowId: other, spaceId: "default", name: "Taken", icon: null, color: null, collapsed: false, pinned: false, tabIds: [], createdAt: 0 } },
   }));
   S().restoreClosed(entry.id);
   const back = Object.values(S().windows).find((x) => x.tabIds.some((id) => host(id) === "a"));

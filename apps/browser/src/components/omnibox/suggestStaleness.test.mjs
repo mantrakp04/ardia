@@ -4,6 +4,7 @@ import { mount } from "../../test-hooks.mjs";
 
 globalThis.__DEV__ = false;
 const { useBrowser } = await import("../../state/browser/store.ts");
+const { engineProfile } = await import("../../state/browser/model.ts");
 const { useSuggestions } = await import("./useSuggestions.ts");
 const { scopeFor, keywordScope } = await import("../../state/omnibox/scopes.ts");
 const { currentBarActions } = await import("../../state/omnibox/barActions.ts");
@@ -15,21 +16,21 @@ const entry = (url, title, ago = DAY) => ({ url, title, favicon: null, visits: 3
 function setup() {
   S().hydrate({});
   const w = S().createWindow({ url: "https://start.example/" });
-  const work = S().createProfile({ name: "Work" });
+  const work = S().createSpace({ name: "Work", profileId: S().createProfile({ name: "Work" }) });
   useBrowser.setState((s) => ({
     history: {
       ...s.history,
       "": { list: [entry("https://zebra.example/one", "Zebra one"), entry("https://zebra.example/two", "Zebra two", 2 * DAY)], floor: -Infinity, ready: true },
-      [work]: { list: [entry("https://zebra.work/", "Zebra at work")], floor: -Infinity, ready: true },
+      [engineProfile(S(), work)]: { list: [entry("https://zebra.work/", "Zebra at work")], floor: -Infinity, ready: true },
     },
   }));
   return { w, work };
 }
 
-const bar = (w, profileId = "default") =>
-  mount(({ text, profileId }) => useSuggestions({ text, active: true, windowId: w, profileId, scope: null }), { props: { text: "z", profileId } });
+const bar = (w, spaceId = "default") =>
+  mount(({ text, spaceId }) => useSuggestions({ text, active: true, windowId: w, spaceId, scope: null }), { props: { text: "z", spaceId } });
 const pages = (result) => result.items.filter((x) => x.kind === "page" && x.title).map((x) => `${x.url}${x.tabId ? " [tab]" : ""}${x.bookmarked ? " [bm]" : ""} ${x.title}`);
-const type = (h, text, profileId = "default") => pages(h.rerender({ text, profileId }));
+const type = (h, text, spaceId = "default") => pages(h.rerender({ text, spaceId }));
 
 test("mid-typing: a history entry deleted and history cleared are gone on screen and on the next key", () => {
   const { w } = setup();
@@ -45,7 +46,7 @@ test("mid-typing: a history entry deleted and history cleared are gone on screen
   h.unmount();
 });
 
-test("mid-typing: a tab opened, retitled and closed; a bookmark added and removed; a profile switch", () => {
+test("mid-typing: a tab opened, retitled and closed; a bookmark added and removed; a space switch", () => {
   const { w, work } = setup();
   const h = bar(w);
   type(h, "z");
@@ -60,19 +61,19 @@ test("mid-typing: a tab opened, retitled and closed; a bookmark added and remove
   assert.deepEqual(type(h, "zoo ").filter((p) => p.includes("zoo")), [], "closed: next key");
 
   type(h, "zeb");
-  const id = S().addBookmark({ profileId: "default", url: "https://zebra.example/two", title: "Zebra two" });
+  const id = S().addBookmark({ spaceId: "default", url: "https://zebra.example/two", title: "Zebra two" });
   assert.ok(pages(h.value).includes("https://zebra.example/two [bm] Zebra two"), "bookmarked: on screen");
   assert.ok(type(h, "zebr").includes("https://zebra.example/two [bm] Zebra two"), "bookmarked: next key");
   S().removeBookmark(id);
   assert.ok(pages(h.value).includes("https://zebra.example/two Zebra two"), "unbookmarked: on screen");
   assert.ok(type(h, "zebra").includes("https://zebra.example/two Zebra two"), "unbookmarked: next key");
 
-  assert.deepEqual(type(h, "zebra", work), ["https://zebra.work/ Zebra at work"], "another profile");
+  assert.deepEqual(type(h, "zebra", work), ["https://zebra.work/ Zebra at work"], "another space");
   assert.ok(type(h, "zebra", "default").includes("https://zebra.example/two Zebra two"), "and back");
   h.unmount();
 });
 
-test("the bar's actions and known hosts follow the store: bookmark, mute, pin, profile name, a new host", () => {
+test("the bar's actions and known hosts follow the store: bookmark, mute, pin, space name, a new host", () => {
   const { w, work } = setup();
   const titles = () => currentBarActions(w).map((a) => a.title);
   const tab = S().windows[w].tabIds[0];
@@ -87,8 +88,8 @@ test("the bar's actions and known hosts follow the store: bookmark, mute, pin, p
   assert.ok(titles().includes("Unmute Site"), "site muted");
   S().togglePin(tab);
   assert.ok(titles().includes("Unpin from Top Apps"), "pinned");
-  S().updateProfile(work, { name: "Office" });
-  assert.ok(titles().includes("Switch to Office"), "a renamed profile");
+  S().updateSpace(work, { name: "Office" });
+  assert.ok(titles().includes("Switch to Office"), "a renamed space");
 
   assert.equal(scopeFor("newhost.example", w), null);
   const t = S().newTab(w, { url: "https://newhost.example/page", background: true });

@@ -20,7 +20,7 @@ NSArray<NSDictionary *> *Dictionaries(id value) {
 @implementation ArdiaSavedSession
 
 + (NSInteger)version {
-  return 9;
+  return 10;
 }
 
 + (instancetype)readFrom:(NSString *)directory {
@@ -51,7 +51,7 @@ NSArray<NSDictionary *> *Dictionaries(id value) {
     }
     _launchBackdrop = Typed<NSDictionary>(document[@"launchBackdrop"]);
     _settings = Typed<NSDictionary>(document[@"settings"]) ?: @{};
-    _profiles = document[@"profiles"];
+    _profiles = document[@"spaces"] ?: document[@"profiles"];
     _windows = Dictionaries(document[@"windows"]);
     _tabs = Dictionaries(document[@"tabs"]);
     _groups = Dictionaries(document[@"groups"]);

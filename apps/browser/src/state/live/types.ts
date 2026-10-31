@@ -3,7 +3,7 @@ export type LiveFolderKind = "pullRequests" | "documents";
 
 export type LiveFolder = {
   id: string;
-  profileId: string;
+  spaceId: string;
   kind: LiveFolderKind;
   name: string;
   icon: string | null;

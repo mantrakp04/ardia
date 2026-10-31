@@ -2,14 +2,14 @@ import AppKit
 import ArdiaCore
 
 enum MainMenu {
-  private static var moveToProfile = NSMenu(title: "Move to Profile")
+  private static var moveToSpace = NSMenu(title: "Move to Space")
   private static var moveToWindow = NSMenu(title: "Move to Window")
   private static var bookmarkToFolder = NSMenu(title: "Add Bookmark to Folder")
-  static var profiles = NSMenu(title: "Profiles")
-  private static var profilesItem = NSMenuItem(title: "Profiles", action: nil, keyEquivalent: "")
-  private static var profilesSeparator = NSMenuItem.separator()
-  private static var littleArdiaInProfile = NSMenu(title: "New Little Ardia Window in Profile")
-  private static var littleArdiaInProfileItem = NSMenuItem(title: "New Little Ardia Window in Profile", action: nil, keyEquivalent: "")
+  static var spaces = NSMenu(title: "Spaces")
+  private static var spacesItem = NSMenuItem(title: "Spaces", action: nil, keyEquivalent: "")
+  private static var spacesSeparator = NSMenuItem.separator()
+  private static var littleArdiaInSpace = NSMenu(title: "New Little Ardia Window in Space")
+  private static var littleArdiaInSpaceItem = NSMenuItem(title: "New Little Ardia Window in Space", action: nil, keyEquivalent: "")
   private static var bookmarks = NSMenu(title: "Bookmarks")
   private static var bookmarksFixedCount = 0
   private static var history = NSMenu(title: "History")
@@ -20,12 +20,12 @@ enum MainMenu {
   static func build() -> NSMenu {
     let appName = ProcessInfo.processInfo.processName
     let main = NSMenu()
-    moveToProfile = NSMenu(title: "Move to Profile")
+    moveToSpace = NSMenu(title: "Move to Space")
     moveToWindow = NSMenu(title: "Move to Window")
     bookmarkToFolder = NSMenu(title: "Add Bookmark to Folder")
-    profiles = NSMenu(title: "Profiles")
-    profilesSeparator = NSMenuItem.separator()
-    littleArdiaInProfile = NSMenu(title: "New Little Ardia Window in Profile")
+    spaces = NSMenu(title: "Spaces")
+    spacesSeparator = NSMenuItem.separator()
+    littleArdiaInSpace = NSMenu(title: "New Little Ardia Window in Space")
 
     func std(_ title: String, _ action: Selector) -> StandardItem { StandardItem(title, action) }
     func sub(_ title: String, _ items: [NSMenuItem], menu: NSMenu? = nil) -> NSMenuItem {
@@ -71,14 +71,14 @@ enum MainMenu {
       quit,
     ])
 
-    littleArdiaInProfileItem = sub("New Little Ardia Window in Profile", [], menu: littleArdiaInProfile)
+    littleArdiaInSpaceItem = sub("New Little Ardia Window in Space", [], menu: littleArdiaInSpace)
     _ = top("File", [
       cmd(.newTab),
       cmd(.newTabInGroup),
       cmd(.newWindow),
       cmd(.newIncognitoWindow),
       cmd(.newLittleArdia),
-      littleArdiaInProfileItem,
+      littleArdiaInSpaceItem,
       cmd(.toggleOpenLinksInLittleArdia),
       cmd(.reopenClosedTab),
       cmd(.reopenClosedWindow),
@@ -231,7 +231,7 @@ enum MainMenu {
       cmd(.newGroupWithTabs),
       hidden(.closeTabGroup),
       .separator(),
-      sub("Move to Profile", [], menu: moveToProfile),
+      sub("Move to Space", [], menu: moveToSpace),
       sub("Move to Window", [], menu: moveToWindow),
       .separator(),
       cmd(.bookmarkPage),
@@ -252,7 +252,7 @@ enum MainMenu {
     history = top("History", [])
     extensions = top("Extensions", [])
 
-    profilesItem = sub("Profiles", [], menu: profiles)
+    spacesItem = sub("Spaces", [], menu: spaces)
     let minimizeAll = std("Minimize All", #selector(NSApplication.miniaturizeAll(_:)))
     let arrange = std("Arrange in Front", #selector(MenuTarget.arrangeWindowsInFront(_:)))
     arrange.target = MenuTarget.shared
@@ -269,9 +269,9 @@ enum MainMenu {
       cmd(.downloads),
       cmd(.taskManager),
       cmd(.mergeAllWindows),
-      profilesSeparator,
-      profilesItem,
-      hidden(.openProfileMenu),
+      spacesSeparator,
+      spacesItem,
+      hidden(.openSpaceMenu),
     ])
     NSApp.windowsMenu = windowMenu
 
@@ -349,7 +349,7 @@ enum MainMenu {
     return image
   }
 
-  private static var built: (profiles: [MenuEntry], windows: [MenuEntry], bookmarks: Int?,
+  private static var built: (spaces: [MenuEntry], windows: [MenuEntry], bookmarks: Int?,
                              extensions: [String], history: [[MenuEntry]])?
 
   static func refresh() {
@@ -358,7 +358,7 @@ enum MainMenu {
     let extensionKeys = state.extensions.map { "\($0.id)|\($0.title)|\($0.icon ?? "")" }
     let history = [state.recentlyClosed, state.recentlyClosedGroups]
     built = (state.profiles, state.windows, state.bookmarksRevision, extensionKeys, history)
-    if last?.profiles != state.profiles { buildProfileMenus(state) }
+    if last?.spaces != state.profiles { buildSpaceMenus(state) }
     if last?.windows != state.windows { buildMoveToWindow(state) }
     if state.bookmarksRevision == nil || last?.bookmarks != state.bookmarksRevision { buildBookmarkMenus(state) }
     if last?.extensions != extensionKeys { buildExtensions(state) }
@@ -432,51 +432,51 @@ enum MainMenu {
     small.windowless = true
     menu.addItem(small)
     if state.profiles.count > 1 {
-      let inProfile = NSMenu(title: "New Little Ardia Window in Profile")
+      let inSpace = NSMenu(title: "New Little Ardia Window in Space")
       for p in state.profiles {
         let item = CommandItem(p.title, "newLittleArdia", arg: p.id)
         item.windowless = true
-        inProfile.addItem(item)
+        inSpace.addItem(item)
       }
-      let root = NSMenuItem(title: inProfile.title, action: nil, keyEquivalent: "")
-      root.submenu = inProfile
+      let root = NSMenuItem(title: inSpace.title, action: nil, keyEquivalent: "")
+      root.submenu = inSpace
       menu.addItem(root)
     }
     return menu
   }
 
-  private static func buildProfileMenus(_ state: MenuState) {
-    moveToProfile.removeAllItems()
+  private static func buildSpaceMenus(_ state: MenuState) {
+    moveToSpace.removeAllItems()
     for p in state.profiles {
-      let item = CommandItem(p.title, "moveTabToProfile", arg: p.id)
+      let item = CommandItem(p.title, "moveTabToSpace", arg: p.id)
       item.tracksChecked = false
       item.state = p.current ? .on : .off
-      moveToProfile.addItem(item)
+      moveToSpace.addItem(item)
     }
-    moveToProfile.addItem(.separator())
-    moveToProfile.addItem(CommandItem("New Profile…", "moveTabToProfile", arg: "new"))
+    moveToSpace.addItem(.separator())
+    moveToSpace.addItem(CommandItem("New Space…", "moveTabToSpace", arg: "new"))
 
-    profiles.removeAllItems()
-    profilesItem.isHidden = state.profiles.count < 2
-    profilesSeparator.isHidden = profilesItem.isHidden
+    spaces.removeAllItems()
+    spacesItem.isHidden = state.profiles.count < 2
+    spacesSeparator.isHidden = spacesItem.isHidden
     for p in state.profiles {
-      let item = CommandItem(p.title, "switchProfile", arg: p.id)
+      let item = CommandItem(p.title, "switchSpace", arg: p.id)
       item.tracksChecked = false
       item.state = p.current ? .on : .off
-      profiles.addItem(item)
+      spaces.addItem(item)
       let newWindow = CommandItem("\(p.title) ↗", "newWindow", arg: p.id, key: "", []).commandAlternate(of: item)
       newWindow.tracksChecked = false
-      profiles.addItem(newWindow)
+      spaces.addItem(newWindow)
     }
-    profiles.addItem(.separator())
-    profiles.addItem(CommandItem(.nextProfile))
-    profiles.addItem(CommandItem(.previousProfile))
-    profiles.addItem(.separator())
-    profiles.addItem(CommandItem(.newProfile))
+    spaces.addItem(.separator())
+    spaces.addItem(CommandItem(.nextSpace))
+    spaces.addItem(CommandItem(.previousSpace))
+    spaces.addItem(.separator())
+    spaces.addItem(CommandItem(.newSpace))
 
-    littleArdiaInProfile.removeAllItems()
-    littleArdiaInProfileItem.isHidden = state.profiles.count < 2
-    for p in state.profiles { littleArdiaInProfile.addItem(CommandItem(p.title, "newLittleArdia", arg: p.id)) }
+    littleArdiaInSpace.removeAllItems()
+    littleArdiaInSpaceItem.isHidden = state.profiles.count < 2
+    for p in state.profiles { littleArdiaInSpace.addItem(CommandItem(p.title, "newLittleArdia", arg: p.id)) }
   }
 
   private static func buildMoveToWindow(_ state: MenuState) {

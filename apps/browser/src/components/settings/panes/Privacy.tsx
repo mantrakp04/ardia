@@ -1,3 +1,4 @@
+import { profileEngine as currentEngineProfile } from "../../../state/profiles/current";
 import {
   clearSiteData,
   getSiteSettings,
@@ -18,7 +19,6 @@ import { confirm } from "../../../state/app/system";
 import { useEffect, useState } from "react";
 import { Image, ScrollView, Text, View } from "react-native";
 import { useTheme } from "../../ui/theme";
-import { currentEngineProfile } from "../../../state/browser/current";
 import { useSettings } from "../../../state/browser/hooks";
 import { Button, Checkbox, font, PopUp, Sheet, Toggle } from "../../ui";
 import { Favicon } from "../../favicon/Favicon";

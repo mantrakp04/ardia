@@ -1,4 +1,4 @@
-import { useBrowser } from "../browser/store";
+import { currentProfileId, profileEngine } from "../profiles/current";
 import {
   engineInfo,
   listComponents,
@@ -25,7 +25,6 @@ import { orWarn } from "../../lib/fallback";
 import { menuShortcuts } from "../../platform/commands";
 import { setMenuBarShortcuts } from "../commands/commandShortcuts";
 import { currentSettings } from "../browser/current";
-import { engineProfile } from "../browser/model";
 import { currentSyncFolder, folderInfo } from "../sync/engine";
 import { extensionsProfileId, refreshExtensions } from "../extensions/actions";
 import { cached, load, loadAll, need, resource, store, useAllLoaded, type Needed } from "./resources";
@@ -66,25 +65,23 @@ export const widevine = resource("widevine", () =>
   ),
 );
 
-const defaultProfile = () => engineProfile(useBrowser.getState(), currentSettings().defaultProfileId);
-
 export function paneNeeds(pane: SettingsPane, profileId: string | null): Needed[] {
-  const profile = profileId ? engineProfile(useBrowser.getState(), profileId) : defaultProfile();
+  const profile = () => profileEngine(currentProfileId(profileId));
   switch (pane) {
     case "general":
-      return [need(loginItem), need(defaultBrowser), need(updater), need(downloadSettings, profile)];
+      return [need(loginItem), need(defaultBrowser), need(updater), need(downloadSettings, profile())];
     case "sync":
       return [need(syncFolder, currentSyncFolder() ?? null)];
     case "appearance":
       return [need(appIconChoices)];
     case "privacy":
-      return [need(contentBlocker), need(siteOrigins, profile), need(appLinks, profile), need(zoomLevels, profile)];
+      return [need(contentBlocker), need(siteOrigins, profile()), need(appLinks, profile()), need(zoomLevels, profile())];
     case "passwords":
-      return [need(passwordAutofill, profile)];
+      return [need(passwordAutofill, profile())];
     case "autofill":
-      return [need(addresses, profile), need(cards, profile), need(autofillEnabled, profile)];
+      return [need(addresses, profile()), need(cards, profile()), need(autofillEnabled, profile())];
     case "extensions":
-      return [need(extensionList, engineProfile(useBrowser.getState(), extensionsProfileId(profileId)))];
+      return [need(extensionList, profile())];
     case "shortcuts":
       return [need(shortcutItems)];
     case "advanced":

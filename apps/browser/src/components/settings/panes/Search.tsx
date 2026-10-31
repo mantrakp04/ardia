@@ -4,18 +4,19 @@ import { useState } from "react";
 import { Text, View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { useSettings } from "../../../state/browser/hooks";
-import { currentEngineProfile, currentProfileOrder } from "../../../state/browser/current";
+import { currentEngineProfile, currentSpaceOrder } from "../../../state/browser/current";
 import { addCustomEngine, removeCustomEngine, setSearchEngine, updateCustomEngine, updateSettings } from "../../../state/settings/actions";
 import { controllingSearchExtension, defaultSearchEngine, searchEngines } from "../../../state/settings/settings";
-import { extensionsProfileId, setEnabled } from "../../../state/extensions/actions";
+import { extensionsSpaceId, setEnabled } from "../../../state/extensions/actions";
 import { Favicon } from "../../favicon/Favicon";
 import { Group, Row, SectionHeader, SettingToggle, SheetActions, SheetTitle } from "../Form";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
-import { openSettings } from "../../../state/settings/settingsWindows";
+import { profileIdForEngine } from "../../../state/profiles/current";
+import { openProfileSettings } from "../../../state/settings/settingsWindows";
 
 function manageExtensionsOf(profile: string) {
-  const profileId = currentProfileOrder().find((id) => currentEngineProfile(id) === profile);
-  openSettings("extensions", extensionsProfileId(profileId));
+  const id = profileIdForEngine(profile);
+  if (id) openProfileSettings("extensions", id);
 }
 
 export function SearchPane() {

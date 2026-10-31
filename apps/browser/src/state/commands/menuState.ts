@@ -1,7 +1,7 @@
 import type { MenuBookmark, MenuState } from "../../platform/commands";
 import { engineBookmarkRoots, folderChildren, isBookmarked, isWithin, ROOT_TITLES } from "../bookmarks/bookmarks";
 import type { BrowserState } from "../browser/store";
-import { activeTab, bookmarkProfileId, engineProfile, IDLE_LIVE, isPinnedRow, tabLabel, togglePinTitle, windowTitle, tabLayoutOf } from "../browser/model";
+import { activeTab, bookmarkSpaceId, engineProfileForSpace, IDLE_LIVE, isPinnedRow, tabLabel, togglePinTitle, windowTitle, tabLayoutOf } from "../browser/model";
 import { canSwitchEngine, tabEngine } from "../engines/engines";
 import { peekTabId } from "../peek/peek";
 import { splitOf } from "../splits/splits";
@@ -61,7 +61,7 @@ export function menuState(s: BrowserState): MenuState {
   const peek = windowId ? peekTabId(s, windowId) : undefined;
   const page = peek ? s.tabs[peek] : tab;
   const live = page ? s.live[page.id] : undefined;
-  const bookmarkProfile = bookmarkProfileId(s, w);
+  const bookmarkProfile = bookmarkSpaceId(s, w);
   const regularWindows = s.windowOrder.filter((id) => s.windows[id]!.kind !== "private" && s.windows[id]!.kind !== "small");
 
   const disabled: string[] = [];
@@ -74,8 +74,8 @@ export function menuState(s: BrowserState): MenuState {
     if (!page || !canGoBack(page.id, live ?? IDLE_LIVE)) disabled.push("back");
     if (!page || !canGoForward(page.id, live ?? IDLE_LIVE)) disabled.push("forward");
     if (!live?.isLoading) disabled.push("stop");
-    if (w.kind === "private") disabled.push("moveTabToProfile", "moveTabToWindow", "switchProfile", "nextProfile", "previousProfile");
-    else if (tab) disabled.push(`moveTabToProfile:${tab.profileId}`);
+    if (w.kind === "private") disabled.push("moveTabToSpace", "moveTabToWindow", "switchSpace", "nextSpace", "previousSpace");
+    else if (tab) disabled.push(`moveTabToSpace:${tab.spaceId}`);
     if (regularWindows.length < 2) disabled.push("mergeAllWindows");
   }
   if (!s.closedTabs.length && !s.closedWindows.length && !s.closedGroups.length) disabled.push("reopenClosedTab");
@@ -112,7 +112,7 @@ export function menuState(s: BrowserState): MenuState {
   }
 
   const closed = [
-    ...s.closedTabs.filter((c) => !c.tab.profileId.startsWith("incognito:")).map((c) => ({ id: c.id, title: c.tab.title || tabLabel(c.tab), at: c.closedAt })),
+    ...s.closedTabs.filter((c) => !c.tab.spaceId.startsWith("incognito:")).map((c) => ({ id: c.id, title: c.tab.title || tabLabel(c.tab), at: c.closedAt })),
     ...s.closedWindows.map((c) => ({ id: c.id, title: c.tabs.length === 1 ? "Window (1 Tab)" : `Window (${c.tabs.length} Tabs)`, at: c.closedAt })),
   ]
     .sort((a, b) => b.at - a.at)
@@ -123,9 +123,9 @@ export function menuState(s: BrowserState): MenuState {
     checked,
     disabled,
     titles,
-    profiles: s.profileOrder.map((id) => ({ id, title: s.profiles[id]!.name, current: w?.profileId === id })),
+    profiles: s.spaceOrder.map((id) => ({ id, title: s.spaces[id]!.name, current: w?.spaceId === id })),
     windows: w?.kind === "private" ? [] : regularWindows.filter((id) => id !== windowId).map((id) => ({ id, title: windowTitle(s, id) })),
-    ...bookmarkMenus(s.bookmarks, engineProfile(s, bookmarkProfile)),
+    ...bookmarkMenus(s.bookmarks, engineProfileForSpace(s, bookmarkProfile)),
     recentlyClosed: closed,
     recentlyClosedGroups: sidebar.recentlyClosedGroups,
     warnBeforeQuitting: s.settings.warnBeforeQuitting,

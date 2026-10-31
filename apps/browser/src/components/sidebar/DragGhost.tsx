@@ -46,7 +46,7 @@ export function DragGhost({ ghost }: { ghost: Ghost }) {
       >
         {liveIcon ? <TabIcon url={liveIcon.site} icon={liveIcon.icon} /> : null}
         {folderTile ? <FolderMosaic tabIds={item.tabIds} /> : null}
-        {!folderTile && (groupIcon || tab) ? <TabIcon url={tab?.url ?? ""} favicon={tab?.favicon} icon={groupIcon ?? tab?.customIcon} profileId={tab?.profileId} /> : null}
+        {!folderTile && (groupIcon || tab) ? <TabIcon url={tab?.url ?? ""} favicon={tab?.favicon} icon={groupIcon ?? tab?.customIcon} spaceId={tab?.spaceId} /> : null}
         {!tile ? <FadeLabel text={label} fontSize={font.body.fontSize} weight={item.kind === "group" || item.kind === "live" ? "medium" : "regular"} color={theme.textPrimary} style={{ flex: 1, height: 18, marginLeft: 7 }} /> : null}
       </Panel>
       {count > 1 && !folderTile ? (

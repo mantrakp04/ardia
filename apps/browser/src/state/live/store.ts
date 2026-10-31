@@ -1,3 +1,4 @@
+import { liveWithSpaces } from "../../lib/workspaceUpgrade";
 import { readDocument, writeDocument } from "../../platform/documents";
 import { create } from "zustand";
 import type { CompletedItem, CompletionState, FolderStatus, LiveAccount, LiveFolder, LiveFolderKind, LiveItem, LiveSourceId } from "./types";
@@ -65,8 +66,8 @@ export const DEFAULT_CALENDAR: CalendarSettings = {
 };
 
 const DOC = "live.json";
-const DOC_VERSION = 1;
-const DOC_MIGRATIONS: Migrations = { 0: unchanged };
+const DOC_VERSION = 2;
+const DOC_MIGRATIONS: Migrations = { 0: unchanged, 1: liveWithSpaces };
 const PERSISTED = ["folders", "folderOrder", "items", "known", "unread", "hidden", "completed", "expandedStacks", "accounts", "config", "calendar", "meetingGroups", "dismissedAlerts", "dismissedNow"] as const;
 
 function load(): Partial<LiveState> {
@@ -131,11 +132,11 @@ export const FOLDER_DEFAULTS: Record<LiveFolderKind, { name: string; sources: Li
   documents: { name: "Documents", sources: ["notion"] },
 };
 
-export function createFolder(profileId: string, kind: LiveFolderKind, sources?: LiveSourceId[]): string {
+export function createFolder(spaceId: string, kind: LiveFolderKind, sources?: LiveSourceId[]): string {
   const id = newId();
   const folder: LiveFolder = {
     id,
-    profileId,
+    spaceId,
     kind,
     name: FOLDER_DEFAULTS[kind].name,
     icon: null,
@@ -153,7 +154,7 @@ export function createFolder(profileId: string, kind: LiveFolderKind, sources?: 
   return id;
 }
 
-export function updateFolder(id: string, patch: Partial<Omit<LiveFolder, "id" | "profileId" | "kind">>) {
+export function updateFolder(id: string, patch: Partial<Omit<LiveFolder, "id" | "spaceId" | "kind">>) {
   setLive((s) => (s.folders[id] ? { folders: { ...s.folders, [id]: { ...s.folders[id]!, ...patch } } } : {}));
 }
 

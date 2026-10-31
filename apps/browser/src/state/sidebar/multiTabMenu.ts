@@ -1,7 +1,7 @@
 import { chooseFromMenu, type ChoiceItem } from "../app/menuChoice";
-import { moveTabsToProfile, switchToTab } from "../browser/actions";
+import { moveTabsToSpace, switchToTab } from "../browser/actions";
 import { useBrowser, type BrowserState } from "../browser/store";
-import { inPinnedContainer, isIncognitoProfile, isPinnedRow, pinnedSectionTitle, pinSection, viewTabIds } from "../browser/model";
+import { inPinnedContainer, isIncognitoSpace, isPinnedRow, pinnedSectionTitle, pinSection, viewTabIds } from "../browser/model";
 import { groupOf } from "../pins/tabGrouping";
 import { bookmarkTabs, copyUrls, newGroupWithSelection } from "./actions";
 import { bookmarkFolderItems, groupItems, hintWhen, profileItems, sections, windowItems, withAlternate, type Destination } from "./menuParts";
@@ -15,7 +15,7 @@ export function multiTabMenuFacts(s: BrowserState, windowId: string, ids: string
     tabs,
     allPinned: tabs.every((t) => t.pin),
     allTiles: tabs.every((t) => pinSection(t) === "tile"),
-    incognito: tabs.some((t) => isIncognitoProfile(t.profileId)),
+    incognito: tabs.some((t) => isIncognitoSpace(t.spaceId)),
     others: viewTabIds(s, windowId).filter((id) => !chosen.has(id) && !inPinnedContainer(s, id)),
   };
 }
@@ -36,11 +36,11 @@ export function multiTabMenuItems(s: BrowserState, windowId: string, ids: string
       ...(f.tabs.some((t) => groupOf(s, t.id)) ? [{ id: "ungroup", title: "Remove from Group", symbol: "folder.badge.minus" }] : []),
       ...(groups.length ? [{ id: "moveToGroup", title: "Move to Group", symbol: "folder", children: groups }] : []),
       {
-        id: "moveToProfile",
-        title: `Move ${n} Tabs to Profile`,
+        id: "moveToSpace",
+        title: `Move ${n} Tabs to Space`,
         symbol: "person",
         enabled: !f.incognito,
-        children: profileItems(s, (id) => f.tabs.every((t) => t.profileId === id)),
+        children: profileItems(s, (id) => f.tabs.every((t) => t.spaceId === id)),
       },
       { id: "moveToWindow", title: "Move to Window", symbol: "macwindow", enabled: !f.incognito, children: windowItems(s, windowId) },
     ],
@@ -56,12 +56,12 @@ export function multiTabMenuItems(s: BrowserState, windowId: string, ids: string
   );
 }
 
-function sendTabs(windowId: string, ids: string[], profileId: string, to: Destination) {
+function sendTabs(windowId: string, ids: string[], spaceId: string, to: Destination) {
   if (to.kind === "group") store().placeTabs(ids, { pinned: false, groupId: to.groupId });
-  else if (to.kind === "profile") void moveTabsToProfile(ids, to.profileId);
+  else if (to.kind === "profile") void moveTabsToSpace(ids, to.spaceId);
   else if (to.kind === "window") {
     const target = store().moveTabsToWindow(ids, to.windowId);
-    if (target) switchToTab(store().windows[target]?.activeTabIds[profileId] ?? ids[0]!);
+    if (target) switchToTab(store().windows[target]?.activeTabIds[spaceId] ?? ids[0]!);
   } else void bookmarkTabs(windowId, ids, to);
 }
 
@@ -72,7 +72,7 @@ export async function openMultiMenu(windowId: string, shown: string[]) {
   const here = (list: string[]) => list.filter((id) => s.tabs[id]?.windowId === windowId);
   const ids = here(shown);
   if (!choice || !ids.length) return;
-  if (typeof choice !== "string") sendTabs(windowId, ids, f.tabs[0]!.profileId, choice);
+  if (typeof choice !== "string") sendTabs(windowId, ids, f.tabs[0]!.spaceId, choice);
   else if (choice === "pin") s.pinTabs(ids, !f.allPinned);
   else if (choice === "pinRows") s.pinTabs(ids, true, true);
   else if (choice === "duplicate") ids.forEach((id) => store().duplicateTab(id));

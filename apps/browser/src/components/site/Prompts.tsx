@@ -12,7 +12,8 @@ import { useState } from "react";
 import { Image, Pressable, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import { webviews } from "../../state/tabs/webviewHandles";
-import { currentEngineProfile, currentTab } from "../../state/browser/current";
+import { currentTab } from "../../state/browser/current";
+import { engineProfileForSpace } from "../../state/browser/model";
 import { Button, MenuRow, MenuSeparator, PANEL, PanelCloseButton, Popover, Symbol, Text, useHover } from "../ui";
 import { answerPermission, describePermission } from "../../state/site/permissions";
 import { hostOrOrigin } from "../../lib/url";
@@ -90,7 +91,7 @@ export function BlockedPopupsPrompt({ tabId, right, left, top }: { tabId: string
     patchPage(tabId, { popups: [] });
     close();
   };
-  const profile = () => currentEngineProfile(currentTab(tabId)?.profileId ?? "");
+  const space = () => engineProfileForSpace(currentTab(tabId)?.spaceId ?? "");
   return (
     <Popover width={BLOCKED_POPUPS_WIDTH} top={top} right={right} left={left} onDismiss={close}>
       <View style={{ paddingBottom: PANEL.listPadding }}>
@@ -102,7 +103,7 @@ export function BlockedPopupsPrompt({ tabId, right, left, top }: { tabId: string
           <Button variant="pill"
             title="Always Deny"
             onPress={() => {
-              void setSiteSetting(profile(), origin, "popups", "block");
+              void setSiteSetting(space(), origin, "popups", "block");
               done();
             }}
           />

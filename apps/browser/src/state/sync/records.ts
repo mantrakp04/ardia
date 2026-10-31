@@ -1,4 +1,4 @@
-import type { ProfileRecord } from "./profileAdapters";
+import type { SpaceRecord } from "./spaceAdapters";
 import { isFields, isNumber, isString, type Fields } from "../../lib/decode";
 
 export type ShareRecord = { o: string };
@@ -17,7 +17,8 @@ export const BOOKMARK = "bm:";
 export const HISTORY = "h:";
 
 export const recordId = (prefix: string, key: string) => key.slice(prefix.length);
-export const profileScope = (syncId: string) => `p:${syncId}`;
+export const profileScope = (syncId: string) => `data:${syncId}`;
+export const spaceScope = (syncId: string) => `space:${syncId}`;
 
 const decoder =
   <T,>(valid: (v: Fields) => boolean) =>
@@ -38,6 +39,6 @@ export const historyValue = decoder<HistoryValue>((v) => isString(v.t) && isNumb
 
 export const passwordValue = decoder<PasswordValue>((v) => isString(v.o) && isString(v.u) && isString(v.s));
 
-export const profileRecord = decoder<ProfileRecord>(
-  (v) => isString(v.n) && isString(v.c) && (v.i === undefined || v.i === null || isString(v.i)) && (v.d === undefined || v.d === true) && (v.th === undefined || v.th === null || isFields(v.th)),
+export const profileRecord = decoder<SpaceRecord>(
+  (v) => isString(v.n) && isString(v.c) && (v.p === undefined || isString(v.p) && !!v.p.trim()) && (v.pos === undefined || isString(v.pos)) && (v.i === undefined || v.i === null || isString(v.i)) && (v.d === undefined || v.d === true) && (v.th === undefined || v.th === null || isFields(v.th)),
 );

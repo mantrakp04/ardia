@@ -8,8 +8,8 @@ import { folderTree, folderTreeInk } from "./tokens";
 
 type FolderRow = { id: string; title: string; depth: number; hasChildren: boolean };
 
-function useFolderRows(profileId: string, expanded: Set<string>): FolderRow[] {
-  const roots = useBookmarkRoots(profileId);
+function useFolderRows(spaceId: string, expanded: Set<string>): FolderRow[] {
+  const roots = useBookmarkRoots(spaceId);
   const key = useBookmarks((b) => {
     if (!roots) return "";
     const lines: string[] = [];
@@ -37,13 +37,13 @@ function useFolderRows(profileId: string, expanded: Set<string>): FolderRow[] {
 }
 
 export function FolderTree({
-  profileId,
+  spaceId,
   selectedId,
   onSelect,
   rowHeight = folderTree.row,
   wrapRow,
 }: {
-  profileId: string;
+  spaceId: string;
   selectedId: string | null;
   onSelect: (id: string) => void;
   rowHeight?: number;
@@ -51,7 +51,7 @@ export function FolderTree({
 }) {
   const [expanded, setExpanded] = useState(() => {
     const b = currentBookmarks();
-    const roots = currentBookmarkRoots(profileId);
+    const roots = currentBookmarkRoots(spaceId);
     const open = new Set<string>(roots ? [roots.bar, roots.other] : []);
     if (selectedId) for (const a of bookmarkAncestors(b, selectedId)) open.add(a.id);
     return open;
@@ -61,7 +61,7 @@ export function FolderTree({
     const hidden = bookmarkAncestors(currentBookmarks(), selectedId).filter((a) => !expanded.has(a.id));
     if (hidden.length) setExpanded((prev) => new Set([...prev, ...hidden.map((a) => a.id)]));
   }, [selectedId]);
-  const rows = useFolderRows(profileId, expanded);
+  const rows = useFolderRows(spaceId, expanded);
   const toggle = (id: string) =>
     setExpanded((prev) => {
       const next = new Set(prev);

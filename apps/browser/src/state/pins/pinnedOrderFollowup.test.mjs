@@ -89,14 +89,14 @@ test("unpinning the last row a live folder follows moves the folder to the top, 
   assert.deepEqual(sequence(w), ["LF", "fresh"]);
 });
 
-test("a drop doesn't bring back an anchor that moved to another profile while the folder was held", () => {
+test("a drop doesn't bring back an anchor that moved to another space while the folder was held", () => {
   const { w, ids } = rows("a", "b", "c");
   const lf = folder("LF", `t:${ids.b}`);
-  const other = S().createProfile({ name: "Work" });
+  const other = S().createSpace({ name: "Work", profileId: S().createProfile({ name: "Work" }) });
   const held = [`t:${ids.a}`, `t:${ids.b}`, `lf:${lf}`, `t:${ids.c}`];
-  S().moveTabToProfile(ids.b, other);
-  assert.equal(S().tabs[ids.b].profileId, other);
-  assert.ok(!!S().tabs[ids.b].pin && (S().tabs[ids.b].pin?.as === "row"), "still a pinned row, in the other profile");
+  S().moveTabToSpace(ids.b, other);
+  assert.equal(S().tabs[ids.b].spaceId, other);
+  assert.ok(!!S().tabs[ids.b].pin && (S().tabs[ids.b].pin?.as === "row"), "still a pinned row, in the other space");
   order.arrangeLive(held);
   assert.deepEqual(sequence(w), ["a", "LF", "c"]);
 });

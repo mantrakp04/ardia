@@ -3,9 +3,9 @@ import { setTrafficLightsCenter } from "../../state/windows/nativeWindow";
 import { useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useTheme } from "../ui/theme";
-import { useProfileOrder } from "../../state/profiles/hooks";
+import { useSpaceOrder } from "../../state/spaces/hooks";
 import { openPanel } from "../../state/windows/actions";
-import { useActiveTab, useWindowId, useWindowProfile, useWindowUi } from "../../state/browser/hooks";
+import { useActiveTab, useWindowId, useWindowSpace, useWindowUi } from "../../state/browser/hooks";
 import type { Tab } from "../../state/browser/types";
 import { CommandPanel } from "../omnibox/CommandPanel";
 import { ContentCard } from "../window/ContentCard";
@@ -15,8 +15,8 @@ import { ToolbarPopupAnchor } from "../extensions/ToolbarExtensions";
 import { setUrlAnchor } from "../../state/windows/layout";
 import { showUrlBarMenu } from "../../state/omnibox/paste";
 import { copyPageUrl } from "../../state/site/selection";
-import { ProfileBadge } from "../profiles/ProfileIcons";
-import { openInMainWindow, openLittleArdiaProfileMenu } from "../../state/littleArdia/actions";
+import { SpaceBadge } from "../spaces/SpaceIcons";
+import { openInMainWindow, openLittleArdiaSpaceMenu } from "../../state/littleArdia/actions";
 import { PageLabel, SMALL_BAR_BUTTON, SMALL_BAR_GAP, SMALL_FIELD_GAP, SMALL_INSET, SmallBar, SmallBarBadgeButton } from "./SmallChrome";
 import { SMALL_BAR_HEIGHT, SMALL_LIGHTS_CENTER } from "../../state/windows/small";
 import { HistoryButton } from "../toolbar/NavButtons";
@@ -58,7 +58,7 @@ function LittleArdiaBar() {
   const windowId = useWindowId();
   const tab = useActiveTab();
   const panelOpen = useWindowUi().panel.open;
-  const severalProfiles = useProfileOrder((order) => order.length > 1);
+  const severalSpaces = useSpaceOrder((order) => order.length > 1);
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => {
@@ -83,7 +83,7 @@ function LittleArdiaBar() {
         { icon: copied ? "checkmark" : "link", size: 14, disabled: !tab?.url, tooltip: "Copy Link (⇧⌘C)", onPress: copy },
         { icon: "arrow.up.left.and.arrow.down.right", size: 13, tooltip: "Open in Ardia (⌘O)", onPress: () => openInMainWindow(windowId) },
       ]}
-      trailing={severalProfiles ? <ProfileButton windowId={windowId} /> : undefined}
+      trailing={severalSpaces ? <SpaceButton windowId={windowId} /> : undefined}
     >
       <WindowDragRegion style={StyleSheet.absoluteFill} />
       {tab ? <HistoryButtons tabId={tab.id} windowId={windowId} /> : null}
@@ -103,11 +103,11 @@ function HistoryButtons({ tabId, windowId }: { tabId: string; windowId: string }
   );
 }
 
-function ProfileButton({ windowId }: { windowId: string }) {
-  const profile = useWindowProfile();
+function SpaceButton({ windowId }: { windowId: string }) {
+  const space = useWindowSpace();
   return (
-    <SmallBarBadgeButton tooltip={`Profile: ${profile.name}`} onPress={() => void openLittleArdiaProfileMenu(windowId)}>
-      <ProfileBadge profile={profile} size={16} />
+    <SmallBarBadgeButton tooltip={`Space: ${space.name}`} onPress={() => void openLittleArdiaSpaceMenu(windowId)}>
+      <SpaceBadge profile={space} size={16} />
     </SmallBarBadgeButton>
   );
 }

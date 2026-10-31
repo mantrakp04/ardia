@@ -89,7 +89,7 @@ export const COMMANDS = {
   },
   togglePinnedRow: { title: "Move to Pinned", keys: ["⌥⇧⌘D"], ...windowOffInLittleArdia },
   duplicateTab: { title: "Duplicate", barTitle: "Duplicate Tab", symbol: "plus.square.on.square", ...windowOffInLittleArdia },
-  moveTabToProfile: windowOffInLittleArdia,
+  moveTabToSpace: { ...windowOffInLittleArdia, variants: { new: { title: "New Space…" } } },
   moveTabToWindow: windowOffInLittleArdia,
   bookmarkPage: { title: "Add to Bookmarks…", symbol: "bookmark", keys: ["⌘D"], ...pageInLittleArdia, onInternalPages: true },
   addBookmarkToFolder: { ...pageInLittleArdia, onInternalPages: true },
@@ -100,10 +100,10 @@ export const COMMANDS = {
   togglePageEngine: { title: "Open Page in WebKit" },
   downloads: { title: "Downloads", symbol: "arrow.down.circle", keys: ["⇧⌘J", "⌥⌘L"], scope: "window", littleArdia: "page" },
   mergeAllWindows: { title: "Merge All Windows", symbol: "rectangle.stack", ...windowOffInLittleArdia },
-  switchProfile: inWindow,
-  nextProfile: { title: "Next Profile", ...inWindow },
-  previousProfile: { title: "Previous Profile", ...inWindow },
-  newProfile: { title: "New Profile…", symbol: "person.crop.circle.badge.plus" },
+  switchSpace: inWindow,
+  nextSpace: { title: "Next Space", ...inWindow },
+  previousSpace: { title: "Previous Space", ...inWindow },
+  newSpace: { title: "New Space…", symbol: "person.crop.circle.badge.plus" },
   openSettings: { title: "Settings…", symbol: "gearshape", keys: ["⌘,"] },
   importBrowserData: { title: "Import from Another Browser…", barTitle: "Import Browser Data", symbol: "square.and.arrow.down" },
   showHistory: { title: "Show History…", barTitle: "History", symbol: "clock", keys: ["⌘Y"] },
@@ -155,7 +155,7 @@ export const COMMANDS = {
   moveTabDown: { title: "Move Tab Down", keys: ["⌃⇧⇟"], ...windowOffInLittleArdia },
   moveTabUp: { title: "Move Tab Up", keys: ["⌃⇧⇞"], ...windowOffInLittleArdia },
   closeTabGroup: { title: "Close Group", keys: ["⌃⌘W"], ...windowOffInLittleArdia },
-  openProfileMenu: { title: "Show Profiles Menu", keys: ["⇧⌘M"], ...inWindow },
+  openSpaceMenu: { title: "Show Spaces Menu", keys: ["⇧⌘M"], ...inWindow },
 } as const satisfies Record<BrowserCommand, CommandSpec>;
 
 const SPECS: Readonly<Record<BrowserCommand, CommandSpec>> = COMMANDS;
@@ -265,12 +265,12 @@ export function staticShortcutSources(): ShortcutSource[] {
 
 const STATIC_SOURCES = staticShortcutSources();
 
-export function shortcutSources(profileIds: readonly string[], overriddenIds: readonly string[]): ShortcutSource[] {
+export function shortcutSources(spaceIds: readonly string[], overriddenIds: readonly string[]): ShortcutSource[] {
   const perItem = overriddenIds.filter((id) => OVERRIDABLE_PER_ITEM_COMMANDS.some((command) => id.startsWith(`${command}:`)));
   return [
     ...STATIC_SOURCES,
-    ...profileIds.flatMap((id, i) => [
-      source(`switchProfile:${id}`, i < PROFILE_SHORTCUT_COUNT ? [`⌃${i + 1}`] : []),
+    ...spaceIds.flatMap((id, i) => [
+      source(`switchSpace:${id}`, i < PROFILE_SHORTCUT_COUNT ? [`⌃${i + 1}`] : []),
       source(`newLittleArdia:${id}`),
     ]),
     ...perItem.map((id) => source(id)),

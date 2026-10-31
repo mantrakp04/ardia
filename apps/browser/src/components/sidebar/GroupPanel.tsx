@@ -26,7 +26,7 @@ const MAX_ROWS = 7;
 const EDGE = 8;
 const NOW_TICK_MS = 30_000;
 
-type Row = GroupPanelTab & { favicon: string | null; icon: string | null; profileId: string };
+type Row = GroupPanelTab & { favicon: string | null; icon: string | null; spaceId: string };
 
 function useGroupRows(groupId: string, windowId: string): Row[] {
   const ids = useGroupPanelTabIds(groupId);
@@ -35,7 +35,7 @@ function useGroupRows(groupId: string, windowId: string): Row[] {
     const shared = sharedTabsForPanel(windowId);
     const rows = tabs
       .filter((t): t is Tab => !!t)
-      .map((t) => ({ id: t.id, title: tabTitle(t), url: t.url, usedAt: shared?.lastUsed(t) ?? t.lastActiveAt, favicon: t.favicon, icon: t.customIcon, profileId: t.profileId }));
+      .map((t) => ({ id: t.id, title: tabTitle(t), url: t.url, usedAt: shared?.lastUsed(t) ?? t.lastActiveAt, favicon: t.favicon, icon: t.customIcon, spaceId: t.spaceId }));
     return byRecentUse(rows);
   }, [tabs, windowId]);
 }
@@ -206,7 +206,7 @@ function PanelRow({ row, now, selected, onHover, onPress }: { row: Row; now: num
           }}
         >
           <View style={{ width: PANEL.iconSlot, height: PANEL.iconSlot, alignItems: "center", justifyContent: "center" }}>
-            <TabIcon tabId={row.id} url={row.url} favicon={row.favicon} icon={row.icon} profileId={row.profileId} />
+            <TabIcon tabId={row.id} url={row.url} favicon={row.favicon} icon={row.icon} spaceId={row.spaceId} />
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
             <FadeLabel text={row.title} fontSize={PANEL.titleSize} color={theme.textPrimary} style={{ height: PANEL.titleLine }} />

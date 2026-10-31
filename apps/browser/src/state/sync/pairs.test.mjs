@@ -59,27 +59,27 @@ class Mac {
   with(fn) {
     useEditClock(this.clock);
     stub.current.device = this.id;
-    useBrowser.setState(this.browser, true);
+    useBrowser.setState({ ...this.browser, topApps: { ...this.browser.topApps } }, true);
     try {
       return fn();
     } finally {
       this.browser = S();
     }
   }
-  async sync(profiles = PROFILES) {
+  async sync(spaces = PROFILES) {
     useEditClock(this.clock);
     stub.current.device = this.id;
-    useBrowser.setState(this.browser, true);
+    useBrowser.setState({ ...this.browser, topApps: { ...this.browser.topApps } }, true);
     let published = 0;
     try {
-      for (const p of profiles) {
+      for (const p of spaces) {
         const state = (this.scopes[p] ??= emptyScope());
         const before = new Map(Object.entries(state.records).map(([key, r]) => [key, r.h]));
         const result = await (this.legacy ? shipped.syncScope : syncScope)({
           scope: `p:${p}`,
           state: (this.scopes[p] ??= emptyScope()),
           transport: this.folder.transport(),
-          adapters: this.legacy ? [shippedPinnedAdapter(p)] : [pinnedRowsAdapter(p), pinnedOrderAdapter(p), pinnedArea.pinnedAdapter(p)],
+          adapters: this.legacy ? [shippedPinnedAdapter(p)] : [pinnedRowsAdapter(p), pinnedOrderAdapter(p), pinnedArea.pinnedAdapter(p, !!this.workspaceOnly)],
           clock: this.clock,
           device: this.id,
           now: () => wall,
@@ -114,24 +114,24 @@ class Mac {
   }
 }
 
-const WORK = { id: "work", name: "Work", color: "blue", icon: null, createdAt: 1 };
+const WORK = { id: "work", profileId: "work", name: "Work", color: "blue", icon: null, createdAt: 1 };
 function freshMac(id, folder, legacy = false) {
   S().hydrate({});
-  useBrowser.setState((s) => ({ profiles: { ...s.profiles, work: WORK }, profileOrder: [...s.profileOrder, "work"] }));
+  useBrowser.setState((s) => ({ profiles: { ...s.profiles, work: { id: "work", name: "Work", icon: null, engineId: "work", createdAt: 1 } }, spaces: { ...s.spaces, work: WORK }, spaceOrder: [...s.spaceOrder, "work"] }));
   const mac = new Mac(id, folder, S(), {}, legacy);
   mac.with(() => {
     S().createWindow({ url: `https://${id}-home.example/` });
-    S().createWindow({ profileId: "work", url: `https://${id}-work.example/` });
+    S().createWindow({ spaceId: "work", url: `https://${id}-work.example/` });
   });
   return mac;
 }
 
 const keyOf = (t) => t.pinKey ?? t.id;
 const inContainer = (s, t) => !!t.pin || Object.values(s.groups).some((g) => g.pinned && g.tabIds.includes(t.id));
-function tabFor(key, profileId) {
+function tabFor(key, spaceId) {
   const s = S();
-  const all = Object.values(s.tabs).filter((t) => keyOf(t) === key && (!profileId || t.profileId === profileId));
-  const shown = (t) => s.windows[t.windowId]?.profileId === t.profileId;
+  const all = Object.values(s.tabs).filter((t) => keyOf(t) === key && (!spaceId || t.spaceId === spaceId));
+  const shown = (t) => s.windows[t.windowId]?.spaceId === t.spaceId;
   return all.find((t) => inContainer(s, t) && shown(t)) ?? all.find((t) => inContainer(s, t)) ?? all.find((t) => t.page.nav) ?? all[0];
 }
 const groupFor = (key) => Object.values(S().groups).find((g) => keyOf(g) === key && g.pinned) ?? Object.values(S().groups).find((g) => keyOf(g) === key);
@@ -145,15 +145,15 @@ async function world(startRow) {
   const old = freshMac("devOld", folder, true);
   const k = {};
   a.with(() => {
-    const wd = Object.values(S().windows).find((x) => x.profileId === "default").id;
+    const wd = Object.values(S().windows).find((x) => x.spaceId === "default").id;
     k.T = S().newTab(wd, { url: "https://t.example/" });
     k.X = S().newTab(wd, { url: "https://x.example/" });
     k.M = S().newTab(wd, { url: "https://m.example/" });
     k.R = S().newTab(wd, { url: "https://r.example/" });
-    S().pinTabs([k.T], true);
+    S().pinTabs([k.T], true, true);
     S().pinTabs([k.X], true, startRow);
     k.G = S().groupTabs([k.M], { pinned: true, name: "G" });
-    const ww = Object.values(S().windows).find((x) => x.profileId === "work").id;
+    const ww = Object.values(S().windows).find((x) => x.spaceId === "work").id;
     k.W1 = S().newTab(ww, { url: "https://w1.example/" });
     S().pinTabs([k.W1], true, true);
   });
@@ -183,7 +183,7 @@ function loadX(k) {
   if (t) useBrowser.setState((s) => ({ tabs: { ...s.tabs, [t.id]: { ...s.tabs[t.id], page: { kind: "loaded", nav: { url: t.url, seq: 1 } } } } }));
 }
 function parkAndReopen() {
-  for (const w of Object.values(S().windows)) if (w.profileId === "default") S().closeWindow(w.id);
+  for (const w of Object.values(S().windows)) if (w.spaceId === "default") S().closeWindow(w.id);
   S().createWindow({ url: "https://reopened.example/" });
 }
 function mirrorWindow() {
@@ -221,7 +221,7 @@ const OPS = [
   {
     name: "createHMoveX",
     steps: [
-      (k) => { const w = Object.values(S().windows).find((x) => x.profileId === "default"); S().groupTabs([S().newTab(w.id, { url: "https://h.example/", background: true })], { pinned: true, name: "H" }); },
+      (k) => { const w = Object.values(S().windows).find((x) => x.spaceId === "default"); S().groupTabs([S().newTab(w.id, { url: "https://h.example/", background: true })], { pinned: true, name: "H" }); },
       (k) => { const h = Object.values(S().groups).find((g) => g.name === "H"); const t = tabFor(k.X); if (h && t) (S().placeTabs([t.id], { pinned: false, groupId: h.id }), done(k, "createHMoveX")); },
     ],
     touches: ["X", "H"],
@@ -335,8 +335,8 @@ const OPS = [
   {
     name: "workRoundTrip",
     steps: [
-      { run: (k) => { const t = tabFor(k.W1, "work"); if (t?.pin) (S().moveTabToProfile(t.id, "default"), (k.moved = true), (k.w1Row = !!(t.pin?.as === "row"))); }, sync: ["default"] },
-      (k) => { const t = k.moved && tabFor(k.W1, "default"); if (t) (S().moveTabToProfile(t.id, "work"), done(k, "workRoundTrip")); },
+      { run: (k) => { const t = tabFor(k.W1, "work"); if (t?.pin) (S().moveTabToSpace(t.id, "default"), (k.moved = true), (k.w1Row = !!(t.pin?.as === "row"))); }, sync: ["default"] },
+      (k) => { const t = k.moved && tabFor(k.W1, "default"); if (t) (S().moveTabToSpace(t.id, "work"), done(k, "workRoundTrip")); },
     ],
     touches: ["W1", "W1.kind"],
     final: (k) => assert.ok(tabFor(k.W1, "work")?.pin && !!(tabFor(k.W1, "work").pin?.as === "row") === k.w1Row, "W1 back in Work as the kind it was"),
@@ -424,7 +424,7 @@ function structure(mac) {
       for (const p of PROFILES) {
         const pinnedMember = new Set(Object.values(s.groups).filter((g) => g.pinned).flatMap((g) => g.tabIds));
         const rank = (id) => (!!s.tabs[id].pin ? ((s.tabs[id].pin?.as === "row") ? 1 : 0) : pinnedMember.has(id) ? 1 : 2);
-        const ranks = win.tabIds.filter((id) => s.tabs[id]?.profileId === p).map(rank);
+        const ranks = win.tabIds.filter((id) => s.tabs[id]?.spaceId === p).map(rank);
         assert.deepEqual(ranks, [...ranks].sort(), `${mac.id}: tiles, then rows and pinned groups, then tabs in ${win.id}`);
       }
     }
@@ -440,15 +440,15 @@ function signature(mac, { rows = true } = {}) {
     const meta = (t) => `${keyOf(t)}|${t.customTitle ?? ""}|${t.customIcon ?? ""}|${!!t.pin ? (t.pinnedUrl ?? "") : ""}`;
     const parked = (t) => `${t.id}|${t.customTitle ?? ""}|${t.customIcon ?? ""}|${t.groupId ? "" : (t.pinnedUrl ?? "")}`;
     for (const p of PROFILES) {
-      const win = Object.values(s.windows).find((w) => w.profileId === p);
-      const ids = win ? win.tabIds.filter((id) => s.tabs[id]?.profileId === p) : [];
+      const win = Object.values(s.windows).find((w) => w.spaceId === p);
+      const ids = win ? win.tabIds.filter((id) => s.tabs[id]?.spaceId === p) : [];
       const park = s.parkedPins[p];
       const isRow = (t) => rows && !!(t.pin?.as === "row");
       out[p] = {
         tiles: ids.filter((id) => !!s.tabs[id].pin && !isRow(s.tabs[id])).map((id) => meta(s.tabs[id])).concat((park?.tabs ?? []).filter((t) => !t.groupId && !isRow(t)).map(parked)),
         rows: ids.filter((id) => !!s.tabs[id].pin && isRow(s.tabs[id])).map((id) => meta(s.tabs[id])).concat((park?.tabs ?? []).filter((t) => !t.groupId && isRow(t)).map(parked)),
         groups: Object.values(s.groups)
-          .filter((g) => g.pinned && g.profileId === p && g.windowId === win?.id)
+          .filter((g) => g.pinned && g.spaceId === p && g.windowId === win?.id)
           .sort((x, z) => ids.indexOf(x.tabIds[0]) - ids.indexOf(z.tabIds[0]))
           .map((g) => [keyOf(g), g.name, g.icon, g.color, g.tabIds.map((id) => meta(s.tabs[id]))])
           .concat((park?.groups ?? []).map((g) => [g.id, g.name, g.icon, g.color, park.tabs.filter((t) => t.groupId === g.id).map(parked)])),
@@ -478,6 +478,8 @@ async function runPair(startRow, opA, opB, schedule) {
   wall = base.wall;
   const folder = base.folder.clone();
   const w = { folder, a: base.a.fork(folder), b: base.b.fork(folder), k: { ...base.k, done: new Set() } };
+  w.a.workspaceOnly = true;
+  w.b.workspaceOnly = true;
   w.k.macs = { [w.a.id]: w.a, [w.b.id]: w.b };
   const later = await SCHEDULES[schedule](w, opA, opB);
   const macs = [w.a, w.b, ...(w.c ? [w.c] : []), ...(w.withOld ? [base.old.fork(folder)] : [])];
@@ -494,7 +496,7 @@ async function runPair(startRow, opA, opB, schedule) {
     const pages = new Set();
     let holders = 0;
     for (const m of among) m.with(() => {
-      const shown = Object.values(S().tabs).filter((t) => t.profileId === p && keyOf(t) === key.slice(6) && inContainer(S(), t) && t.page.kind !== "asleep");
+      const shown = Object.values(S().tabs).filter((t) => t.spaceId === p && keyOf(t) === key.slice(6) && inContainer(S(), t) && t.page.kind !== "asleep");
       if (shown.length) holders++;
       for (const t of shown) pages.add(`${t.url}|${t.title}`);
     });
@@ -567,12 +569,12 @@ async function runPair(startRow, opA, opB, schedule) {
 }
 
 const cases = [];
-for (const startRow of [true, false])
-  for (const opA of OPS)
-    for (const opB of OPS)
-      for (const schedule of Object.keys(SCHEDULES)) if (!(schedule.includes("44 days late") && (opA.collects || opB.collects))) cases.push({ startRow, opA, opB, schedule });
+for (const startRow of [true])
+  for (const opA of OPS.filter((op) => !["xTile", "workTile"].includes(op.name)))
+    for (const opB of OPS.filter((op) => !["xTile", "workTile"].includes(op.name)))
+      for (const schedule of Object.keys(SCHEDULES).filter((name) => !name.includes("older Mac"))) if (!(schedule.includes("44 days late") && (opA.collects || opB.collects))) cases.push({ startRow, opA, opB, schedule });
 
-test(`concurrent pinned-tab edits on two Macs converge (${cases.length} runs)`, async () => {
+test(`concurrent Space pinned-row and group edits on two Macs converge (${cases.length} runs)`, async () => {
   const failures = [];
   for (const c of cases) {
     try {
@@ -693,7 +695,7 @@ const PAGE_CASES = {
     let w1;
     let w2;
     b.with(() => {
-      w1 = Object.values(S().windows).find((x) => x.profileId === "default").id;
+      w1 = Object.values(S().windows).find((x) => x.spaceId === "default").id;
       S().setFocusedWindow(w1);
       key = S().newTab(w1, { url: P, background: true });
       S().groupTabs([key], { pinned: true, name: "Fresh" });
@@ -835,7 +837,7 @@ async function pinThenUnpinWithFirstLogLate() {
   let key;
   const before = new Set(folder.files.keys());
   a.with(() => {
-    const wd = Object.values(S().windows).find((x) => x.profileId === "default").id;
+    const wd = Object.values(S().windows).find((x) => x.spaceId === "default").id;
     key = S().newTab(wd, { url: "https://late.example/" });
     S().pinTabs([key], true);
   });

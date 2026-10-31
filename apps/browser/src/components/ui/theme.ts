@@ -5,12 +5,12 @@ import { backdropTint, opaqueTint, tintForHue, type BackdropTint } from "../../l
 import { isRgbFunction, mix, parseColor, rgbToHsl, toHex } from "../../lib/color";
 import { CARD_INSET, DEFAULT_SIDEBAR_WIDTH } from "../../lib/windowLayout";
 import { SIDEBAR_ROW } from "../../lib/sidebarMetrics";
-import { colorRoles, ink, INCOGNITO_TINT, PROFILE_COLORS, type ColorRoles, type ProfileColorSpec } from "./tokens";
+import { colorRoles, ink, INCOGNITO_TINT, PROFILE_COLORS, type ColorRoles, type SpaceColorSpec } from "./tokens";
 
 export { PROFILE_COLORS } from "./tokens";
 
 export type Theme = ColorRoles & {
-  profileColor: ProfileColor | "incognito";
+  spaceColor: ProfileColor | "incognito";
   backdrop: BackdropTint & ThemeBackdropProps;
   windowTint: [string, string];
   powerUpColor: string | null;
@@ -24,7 +24,7 @@ export function hex(color: string): string {
   return toHex([r, g, b, a * 255]);
 }
 
-export function profileNameColor(profile: ProfileLookFields, dark: boolean): string {
+export function spaceNameColor(profile: ProfileLookFields, dark: boolean): string {
   const spec = PROFILE_COLORS[profile.color] ?? PROFILE_COLORS.plum;
   const base = profile.theme ? themeAccent(resolveTheme(profile.theme, dark)) : (spec.action ?? spec.swatch);
   return dark ? mix(base, ink.white, 0.6) : mix(base, ink.black, 0.4);
@@ -42,7 +42,7 @@ export function themeFor(key: string): Theme {
     const backdrop = backdropTint(spec ? (spec.tint ?? tintForHue(spec.swatch, !spec.palette)) : INCOGNITO_TINT, !spec?.palette);
     theme = {
       ...base,
-      profileColor: color,
+      spaceColor: color,
       backdrop: { ...backdrop, ...PRESET_BACKDROP },
       windowTint: opaqueTint(backdrop, base.dark),
       powerUpColor,
@@ -63,7 +63,7 @@ export function nearestPreset(hexColor: string): ProfileColor {
   if (s < 0.12) return "neutral";
   let best: ProfileColor = "plum";
   let distance = Infinity;
-  for (const [name, spec] of Object.entries(PROFILE_COLORS) as [ProfileColor, ProfileColorSpec][]) {
+  for (const [name, spec] of Object.entries(PROFILE_COLORS) as [ProfileColor, SpaceColorSpec][]) {
     if (name === "neutral") continue;
     const [sh] = hsl(spec.swatch);
     const d = Math.min(Math.abs(sh - h), 1 - Math.abs(sh - h));
@@ -86,7 +86,7 @@ function customTheme(custom: ProfileTheme, color: ProfileColor, appDark: boolean
     const palette = themePalette(look);
     theme = {
       ...preset,
-      profileColor: nearestPreset(accent),
+      spaceColor: nearestPreset(accent),
       backdrop: {
         ...backdropTint(accent, false),
         ...themeBackdrop(look, dark),
@@ -108,7 +108,7 @@ export function profileTheme(profile: ProfileLookFields | undefined, appDark: bo
   return themeFor(`${color}:${appDark ? "dark" : "light"}`);
 }
 
-export function profileAccent(profile: ProfileLookFields | undefined): string {
+export function spaceAccent(profile: ProfileLookFields | undefined): string {
   if (profile?.theme) return themeAccent(profile.theme);
   return (PROFILE_COLORS[profile?.color ?? "plum"] ?? PROFILE_COLORS.plum).swatch;
 }

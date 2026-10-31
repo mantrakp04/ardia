@@ -73,7 +73,7 @@ export const privacyRows = {
     { section: "Credit Cards", rows: { cardList: { title: "Credit Cards", keywords: ["add card", "saved cards", "payment"] } } },
   ],
   extensions: [
-    { section: "Extensions", rows: { installed: { title: "Extensions", description: "Add features to Ardia with extensions from the Chrome Web Store. Each profile has its own.", keywords: ["add ons", "plugins", "installed"] } } },
+    { section: "Extensions", rows: { installed: { title: "Extensions", description: "Add features to Ardia with extensions from the Chrome Web Store. Each space has its own.", keywords: ["add ons", "plugins", "installed"] } } },
     {
       section: "Add extensions",
       rows: {

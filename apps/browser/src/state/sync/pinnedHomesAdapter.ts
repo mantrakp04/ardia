@@ -11,7 +11,7 @@ function parkedAt<T extends { url: string; pinnedUrl?: string | null; restoreFro
   return { ...rest, url: home, pinnedUrl: home } as T;
 }
 
-export function pinnedHomesAdapter(profileId: string): Adapter {
+export function pinnedHomesAdapter(spaceId: string): Adapter {
   const keyOf = (k: string) => k.slice(PIN_HOME.length);
   return {
     prefix: PIN_HOME,
@@ -30,14 +30,14 @@ export function pinnedHomesAdapter(profileId: string): Adapter {
         else if (base(k) !== undefined || (remote(k) ?? null) === null) values.set(k, home);
       };
       const members = pinnedGroupMembers(s.groups);
-      const home = homeWindow(s, profileId);
+      const home = homeWindow(s, spaceId);
       for (const w of windowsHomeFirst(s, home)) {
         for (const id of w.tabIds) {
           const t = s.tabs[id];
-          if (t?.profileId === profileId && (t.pin || members.has(id))) offer(pinKeyOf(t), !t.pin, t.pinnedUrl);
+          if (t?.spaceId === spaceId && (t.pin || members.has(id))) offer(pinKeyOf(t), !t.pin, t.pinnedUrl);
         }
       }
-      for (const p of s.parkedPins[profileId]?.tabs ?? []) offer(p.id, !!p.groupId, p.pinnedUrl || p.url);
+      for (const p of s.parkedPins[spaceId]?.tabs ?? []) offer(p.id, !!p.groupId, p.pinnedUrl || p.url);
       const unpinned = unpinnedRemotely(recorded, remote);
       return {
         values,
@@ -61,18 +61,18 @@ export function pinnedHomesAdapter(profileId: string): Adapter {
       let tabs: Record<string, Tab> | null = null;
       for (const id of pinnedGroupMembers(s.groups)) {
         const t = s.tabs[id];
-        if (!t || t.profileId !== profileId || t.pin) continue;
+        if (!t || t.spaceId !== spaceId || t.pin) continue;
         const home = wanted(pinKeyOf(t), t.pinnedUrl);
         if (home) (tabs ??= { ...s.tabs })[id] = { ...t, pinnedUrl: home };
       }
-      const park = s.parkedPins[profileId];
+      const park = s.parkedPins[spaceId];
       const parked = park?.tabs.map((p) => {
         const home = p.groupId ? wanted(p.id, p.pinnedUrl || p.url) : undefined;
         return home ? parkedAt(p, home) : p;
       });
       const parkEdited = !!park && parked!.some((p, i) => p !== park.tabs[i]);
       if (!tabs && !parkEdited) return true;
-      commitPinnedEdit(s, profileId, tabs ? { tabs } : {}, parkEdited ? { tabs: parked! } : null);
+      commitPinnedEdit(s, spaceId, tabs ? { tabs } : {}, parkEdited ? { tabs: parked! } : null);
       return true;
     },
   };

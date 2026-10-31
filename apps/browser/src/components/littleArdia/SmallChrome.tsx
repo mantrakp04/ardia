@@ -103,7 +103,7 @@ export function PageLabel({ tab, hovered = false, label }: { tab: Tab; hovered?:
       {insecure ? (
         <Symbol name="lock.open.trianglebadge.exclamationmark.fill" size={12} color={theme.textSecondary} style={{ width: 16, height: 16 }} />
       ) : tab.url ? (
-        <Favicon url={tab.url} favicon={tab.favicon} profileId={tab.profileId} />
+        <Favicon url={tab.url} favicon={tab.favicon} spaceId={tab.spaceId} />
       ) : (
         <Symbol name="magnifyingglass" size={12} color={theme.placeholder} style={{ width: 16, height: 16 }} />
       )}

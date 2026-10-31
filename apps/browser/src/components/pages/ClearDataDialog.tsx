@@ -1,13 +1,14 @@
-import { currentEngineProfile } from "../../state/browser/current";
-import { clearBrowsingData, type BrowsingDataType } from "../../state/profiles/profileData";
+import { clearBrowsingData, type BrowsingDataType } from "../../state/spaces/spaceData";
 import { useState } from "react";
 import { View } from "react-native";
-import { pruneProfileFavicons } from "../../state/favicons/favicons";
-import { isIncognitoProfile } from "../../state/browser/model";
-import { useProfileName, useProfileOrder } from "../../state/profiles/hooks";
+import { pruneSpaceFavicons } from "../../state/favicons/favicons";
+import { engineProfileForSpace, isIncognitoSpace } from "../../state/browser/model";
+import { useSpaceName, useSpaceOrder } from "../../state/spaces/hooks";
 import { clearHistory } from "../../state/history/actions";
 import { Box, Button, Checkbox, Dialog, PopUp, space, Text } from "../ui";
 import { clearDataDialog } from "./tokens";
+import { useProfile, useProfileSpaces } from "../../state/profiles/hooks";
+import { useSpace } from "../../state/browser/hooks";
 
 const RANGES = [
   { value: "hour", title: "Last hour", ms: 3_600_000 },
@@ -18,9 +19,10 @@ const RANGES = [
 ] as const;
 type Range = (typeof RANGES)[number]["value"];
 
-export function ClearDataDialog({ profileId, onClose }: { profileId: string; onClose: () => void }) {
-  const profileName = useProfileName(profileId);
-  const multipleProfiles = useProfileOrder((o) => o.length > 1);
+export function ClearDataDialog({ spaceId, profileId, onClose }: { spaceId?: string; profileId?: string; onClose: () => void }) {
+  const workspace = useSpace(spaceId, (value) => value);
+  const profile = useProfile(profileId ?? workspace?.profileId ?? "");
+  const affected = useProfileSpaces(profile?.id ?? "");
   const [range, setRange] = useState<Range>("hour");
   const [history, setHistory] = useState(true);
   const [siteData, setSiteData] = useState(true);
@@ -31,11 +33,13 @@ export function ClearDataDialog({ profileId, onClose }: { profileId: string; onC
     const ms = RANGES.find((r) => r.value === range)!.ms;
     const since = ms === Infinity ? undefined : Date.now() - ms;
     if (history) {
-      clearHistory(profileId, since);
-      pruneProfileFavicons(profileId);
+      for (const id of affected) {
+        clearHistory(id, since);
+        pruneSpaceFavicons(id);
+      }
     }
     const types: BrowsingDataType[] = [...(history ? ["history" as const] : []), ...(siteData ? ["siteData" as const, "cache" as const] : [])];
-    if (types.length && !isIncognitoProfile(profileId)) await clearBrowsingData(currentEngineProfile(profileId), types, since);
+    if (types.length && profile) await clearBrowsingData(profile.engineId, types, since);
     setBusy(false);
     onClose();
   };
@@ -45,9 +49,9 @@ export function ClearDataDialog({ profileId, onClose }: { profileId: string; onC
       <Text size="heading" weight="semibold">
         Clear Browsing Data
       </Text>
-      {multipleProfiles && (
+      {profile && (
         <Text size="small" tone="textSecondary" style={PROFILE_LINE}>
-          {`From your ${profileName} profile`}
+          {`From ${profile.name}, across all its spaces`}
         </Text>
       )}
       <Box row gap="ml" style={RANGE_ROW}>

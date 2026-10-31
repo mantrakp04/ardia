@@ -38,7 +38,7 @@ export const shellWindowPort: WindowPort = {
   windowIds,
   restoreFullScreen: (ids, focus) => void restoreFullScreen(ids, focus),
   onEvent: (listener) => void onWindowEvent(listener),
-  releaseProfile: (profile) => void releaseProfile(profile) };
+  releaseProfile: (space) => void releaseProfile(space) };
 
 export function startNativeSync() {
   const store = useBrowser;

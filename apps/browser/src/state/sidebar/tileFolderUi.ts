@@ -23,7 +23,7 @@ export const closeFolderPanelWhenWindowMoves = (windowId: string) =>
   useBrowser.subscribe((s, prev) => {
     if (s.windows === prev.windows) return;
     const w = s.windows[windowId];
-    if (!w || w.profileId !== prev.windows[windowId]?.profileId || activeTabId(s, windowId) !== activeTabId(prev, windowId)) closeFolderPanel();
+    if (!w || w.spaceId !== prev.windows[windowId]?.spaceId || activeTabId(s, windowId) !== activeTabId(prev, windowId)) closeFolderPanel();
   });
 
 export function closeFolderPanelIn(windowId: string | undefined): boolean {

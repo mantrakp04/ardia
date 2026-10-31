@@ -1,22 +1,21 @@
-import { listExtensions } from "../../platform/extensions";
 import { stepPager } from "../../platform/pager";
 import { confirm } from "../../platform/dialogs";
 import { focusWindow } from "../../platform/windows";
 import { chooseFromMenu, type ChoiceItem } from "../app/menuChoice";
-import { pageToProfile } from "../windows/profilePager";
-import { profileNames, requestCreateProfile } from "../profiles/createProfileRequest";
+import { pageToSpace } from "../windows/spacePager";
+import { spaceNames, requestCreateSpace } from "../spaces/createSpaceRequest";
 import { storeAction, useBrowser } from "./store";
 import { rootOf } from "../groups/groups";
-import { closesWindow, engineProfile, isIncognitoProfile, plural, resolveWindowId } from "./model";
+import { engineProfile, closesWindow, engineProfileForSpace, isIncognitoSpace, plural, resolveWindowId } from "./model";
 import { leavesEmptyWindow } from "../omnibox/newTabBarPolicy";
 import { groupLabel } from "../pins/tabGrouping";
-import { sharingProfiles } from "../profiles/profiles";
+import { sharingSpaces } from "../spaces/spaces";
 import { closeWindowAnimated } from "../windows/closeAnimated";
 import { applyHeldReports } from "../../platform/nativeEvents";
 import { closeWindowDialog } from "../windows/windowClose";
 import { menuCommandAlternate, menuShortcut } from "../commands/commandShortcuts";
 import { openSettings } from "../settings/settingsWindows";
-import { profileAccentOf } from "../profiles/looks";
+import { profileAccentOf } from "../spaces/looks";
 import { isSiteMuted } from "../tabs/mute";
 import { focusedWindowOf } from "../windows/ui";
 
@@ -92,77 +91,70 @@ export function toggleSiteMute(tabId: string) {
   if (tab) s.setSiteMuted(tabId, !isSiteMuted(s, tab));
 }
 
-export async function deleteProfile(profileId: string, windowId?: string) {
+export async function deleteSpace(spaceId: string, windowId?: string) {
   const s = store();
-  const profile = s.profiles[profileId];
-  if (!profile || s.profileOrder.length <= 1) return;
-  const sharing = sharingProfiles(s, profileId).map((id) => s.profiles[id]!.name);
+  const space = s.spaces[spaceId];
+  if (!space) return false;
+  if (s.spaceOrder.length <= 1 || s.settings.defaultSpaceId === spaceId) {
+    await confirm({ title: "Cannot Delete Space", message: s.spaceOrder.length <= 1 ? "Keep at least one space. Create another space before deleting this one." : "This is your default space. Choose another default space in Settings before deleting it.", confirmTitle: "OK", windowId });
+    return false;
+  }
   const { confirmed } = await confirm({
-    title: `Delete “${profile.name}”?`,
-    message: sharing.length
-      ? `Its tabs will be closed. Its cookies, passwords, extensions, bookmarks and history stay with ${profileNames(sharing)}, which share them.`
-      : `All data associated with this Profile will be removed. This action cannot be undone.${engineProfile(s, profileId) === "" ? await keptExtensionsNote() : ""}`,
-    confirmTitle: "Delete Profile",
+    title: `Delete “${space.name}”?`,
+    message: "Its tabs, saved rows and folders will be removed. Browsing data and shared Top Apps stay with its profile.",
+    confirmTitle: "Delete Space",
     destructive: true,
     windowId,
   });
-  if (!confirmed) return;
-  store().deleteProfile(profileId);
+  if (!confirmed) return false;
+  store().deleteSpace(spaceId);
+  return !store().spaces[spaceId];
 }
 
-async function keptExtensionsNote(): Promise<string> {
-  const names = await listExtensions("").then(
-    (list) => list.filter((e) => e.mayModify).map((e) => e.name),
-    () => null,
-  );
-  if (names && !names.length) return "";
-  return names ? ` Its extensions (${profileNames(names)}) stay installed on this Mac, turned off.` : " Its extensions stay installed on this Mac, turned off.";
-}
+type SpaceMove = { windowId: string; fromSpaceId: string; title: (spaceName: string) => string; confirmTitle: string };
 
-type ProfileMove = { windowId: string; fromProfileId: string; title: (profileName: string) => string; confirmTitle: string };
-
-async function profileMoveTarget(move: ProfileMove, target: string | null): Promise<string | null> {
-  if (isIncognitoProfile(move.fromProfileId)) return null;
-  const profileId = target ?? (await requestCreateProfile(move.windowId));
-  if (!profileId || profileId === move.fromProfileId) return null;
-  const shared = engineProfile(useBrowser.getState(), profileId) === engineProfile(useBrowser.getState(), move.fromProfileId);
-  if (!store().settings.warnBeforeMovingTabsToProfile || shared) return profileId;
+async function spaceMoveTarget(move: SpaceMove, target: string | null): Promise<string | null> {
+  if (isIncognitoSpace(move.fromSpaceId)) return null;
+  const spaceId = target ?? (await requestCreateSpace(move.windowId));
+  if (!spaceId || spaceId === move.fromSpaceId) return null;
+  const shared = engineProfile(useBrowser.getState(), spaceId) === engineProfile(useBrowser.getState(), move.fromSpaceId);
+  if (!store().settings.warnBeforeMovingTabsToSpace || shared) return spaceId;
   const { confirmed, suppressed } = await confirm({
-    title: move.title(store().profiles[profileId]?.name ?? "Profile"),
-    message: "Moving tabs between profiles could result in some data being lost.",
+    title: move.title(store().spaces[spaceId]?.name ?? "Space"),
+    message: "Moving tabs between spaces could result in some data being lost.",
     confirmTitle: move.confirmTitle,
     suppression: "Don't warn me again",
     windowId: move.windowId,
   });
-  if (suppressed) store().updateSettings({ warnBeforeMovingTabsToProfile: false });
-  return confirmed ? profileId : null;
+  if (suppressed) store().updateSettings({ warnBeforeMovingTabsToSpace: false });
+  return confirmed ? spaceId : null;
 }
 
-export async function moveTabsToProfile(tabIds: string[], target: string | null) {
+export async function moveTabsToSpace(tabIds: string[], target: string | null) {
   const tabs = tabIds.map((id) => store().tabs[id]).filter((t) => !!t);
   const first = tabs[0];
   if (!first) return;
   const many = tabs.length > 1;
-  const profileId = await profileMoveTarget(
+  const spaceId = await spaceMoveTarget(
     {
       windowId: first.windowId,
-      fromProfileId: first.profileId,
-      title: () => (many ? `Move ${tabs.length} Tabs to Profile?` : "Move Tab to Profile?"),
+      fromSpaceId: first.spaceId,
+      title: () => (many ? `Move ${tabs.length} Tabs to Space?` : "Move Tab to Space?"),
       confirmTitle: many ? "Move Tabs" : "Move Tab",
     },
     target,
   );
-  if (!profileId) return;
-  for (const tab of tabs) if (!isIncognitoProfile(tab.profileId)) store().moveTabToProfile(tab.id, profileId);
+  if (!spaceId) return;
+  for (const tab of tabs) if (!isIncognitoSpace(tab.spaceId)) store().moveTabToSpace(tab.id, spaceId);
 }
 
-export const moveTabToProfile = (tabId: string, target: string | null) => moveTabsToProfile([tabId], target);
+export const moveTabToSpace = (tabId: string, target: string | null) => moveTabsToSpace([tabId], target);
 
-export async function moveGroupToProfile(groupId: string, target: string | null) {
+export async function moveGroupToSpace(groupId: string, target: string | null) {
   const g = store().groups[groupId];
   if (!g) return;
-  const profileId = await profileMoveTarget({ windowId: g.windowId, fromProfileId: g.profileId, title: (name) => `Move Group to ${name}?`, confirmTitle: "Move Group" }, target);
-  if (profileId) store().moveGroupToProfile(groupId, profileId);
+  const spaceId = await spaceMoveTarget({ windowId: g.windowId, fromSpaceId: g.spaceId, title: (name) => `Move Group to ${name}?`, confirmTitle: "Move Group" }, target);
+  if (spaceId) store().moveGroupToSpace(groupId, spaceId);
 }
 
 export function moveGroupToWindow(groupId: string, target: string | null) {
@@ -175,27 +167,27 @@ export function moveTabToWindow(tabId: string, target: string | null) {
   if (windowId) focus(windowId);
 }
 
-export function switchProfile(windowId: string, profileId: string, animated = false) {
-  if (animated) pageToProfile(windowId, profileId);
-  else store().switchProfile(windowId, profileId);
+export function switchSpace(windowId: string, spaceId: string, animated = false) {
+  if (animated) pageToSpace(windowId, spaceId);
+  else store().switchSpace(windowId, spaceId);
 }
 
-export function cycleProfile(windowId: string, delta: 1 | -1) {
+export function cycleSpace(windowId: string, delta: 1 | -1) {
   if (!cycleTarget(windowId, delta)) return;
-  void stepPager(windowId, delta, true, store().profileOrder).then((ok) => ok || cycleFromStore(windowId, delta));
+  void stepPager(windowId, delta, true, store().spaceOrder).then((ok) => ok || cycleFromStore(windowId, delta));
 }
 
 function cycleFromStore(windowId: string, delta: 1 | -1) {
   const target = cycleTarget(windowId, delta);
-  if (target) switchProfile(windowId, target, true);
+  if (target) switchSpace(windowId, target, true);
 }
 
 function cycleTarget(windowId: string, delta: 1 | -1) {
   const s = store();
   const w = s.windows[windowId];
-  if (!w || w.kind === "private" || s.profileOrder.length < 2) return null;
-  const i = s.profileOrder.indexOf(w.profileId);
-  return s.profileOrder[(i + delta + s.profileOrder.length) % s.profileOrder.length]!;
+  if (!w || w.kind === "private" || s.spaceOrder.length < 2) return null;
+  const i = s.spaceOrder.indexOf(w.spaceId);
+  return s.spaceOrder[(i + delta + s.spaceOrder.length) % s.spaceOrder.length]!;
 }
 
 export function openUrls(urls: string[], windowId?: string | null) {
@@ -206,30 +198,30 @@ export function openUrls(urls: string[], windowId?: string | null) {
   }
 }
 
-export async function openProfileMenu(windowId: string) {
+export async function openSpaceMenu(windowId: string) {
   const s = useBrowser.getState();
-  const current = s.windows[windowId]?.profileId;
-  const items: ChoiceItem<{ open: "switch" | "window"; profileId: string }>[] = [
-    ...s.profileOrder.flatMap((id) => {
-      const profile = s.profiles[id]!;
+  const current = s.windows[windowId]?.spaceId;
+  const items: ChoiceItem<{ open: "switch" | "window"; spaceId: string }>[] = [
+    ...s.spaceOrder.flatMap((id) => {
+      const profile = s.spaces[id]!;
       const swatch = profileAccentOf(profile);
-      const shortcut = menuShortcut(`switchProfile:${id}`, s);
-      const alternate = menuCommandAlternate(`switchProfile:${id}`, s);
-      const switchItem = { value: { open: "switch" as const, profileId: id }, title: profile.name, checked: id === current, swatch, ...shortcut, modifiers: shortcut.modifiers ?? [] };
+      const shortcut = menuShortcut(`switchSpace:${id}`, s);
+      const alternate = menuCommandAlternate(`switchSpace:${id}`, s);
+      const switchItem = { value: { open: "switch" as const, spaceId: id }, title: profile.name, checked: id === current, swatch, ...shortcut, modifiers: shortcut.modifiers ?? [] };
       if (!alternate) return [switchItem];
-      return [switchItem, { value: { open: "window" as const, profileId: id }, title: `${profile.name} ↗`, alternate: true, swatch, ...alternate }];
+      return [switchItem, { value: { open: "window" as const, spaceId: id }, title: `${profile.name} ↗`, alternate: true, swatch, ...alternate }];
     }),
     { separator: true },
-    { id: "new", title: "New Profile", symbol: "plus" },
-    { id: "edit", title: "Edit Profiles…", symbol: "pencil" },
+    { id: "new", title: "New Space", symbol: "plus" },
+    { id: "edit", title: "Edit Spaces…", symbol: "pencil" },
   ];
   const choice = await chooseFromMenu(items);
   if (!choice) return;
   if (typeof choice !== "string") {
-    if (choice.open === "switch") switchProfile(windowId, choice.profileId, true);
-    else openWindow({ profileId: choice.profileId });
+    if (choice.open === "switch") switchSpace(windowId, choice.spaceId, true);
+    else openWindow({ spaceId: choice.spaceId });
   } else if (choice === "new") {
-    const id = await requestCreateProfile(windowId);
-    if (id) switchProfile(windowId, id);
-  } else if (choice === "edit") openSettings("profiles", current);
+    const id = await requestCreateSpace(windowId);
+    if (id) switchSpace(windowId, id);
+  } else if (choice === "edit") openSettings("spaces", current);
 }

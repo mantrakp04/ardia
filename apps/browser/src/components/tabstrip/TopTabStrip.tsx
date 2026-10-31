@@ -1,17 +1,17 @@
 import { useEffect, useMemo } from "react";
 import { Animated, StyleSheet, View, type ViewStyle } from "react-native";
 import { downloadsOpenIn } from "../../state/browser/current";
-import { useWindowId, useWindowProfileId } from "../../state/browser/hooks";
+import { useWindowId, useWindowSpaceId } from "../../state/browser/hooks";
 import { beginExternalDrag, endExternalDrag, moveExternalDrag } from "../../state/drag/tabDrag";
 import { lightsCenter, TOP_STRIP_LIGHTS_CENTER } from "../../state/windows/dockMotion";
 import { useWindowUiOf } from "../../state/windows/hooks";
-import { usePagerPages } from "../../state/windows/profilePager";
+import { usePagerPages } from "../../state/windows/spacePager";
 import { DownloadsButton } from "../downloads/DownloadsButton";
-import { ProfileIndicator, useProfileIndicatorWidth } from "../profiles/ProfileIndicator";
+import { SpaceIndicator, useSpaceIndicatorWidth } from "../spaces/SpaceIndicator";
 import { Panel, WindowDragRegion } from "../ui";
 import { layout, useTheme } from "../ui/theme";
 import { radius } from "../ui/tokens";
-import { ProfileSwipeArea } from "../window/ProfileSwipe";
+import { SpaceSwipeArea } from "../window/SpaceSwipe";
 import { TabDropArea, type TabDropTarget } from "../window/TabDropArea";
 import { usePeek } from "../window/usePeek";
 import { FloatingStrip } from "./context";
@@ -42,10 +42,10 @@ export { TOP_STRIP_HEIGHT } from "./tokens";
 
 export function TopTabStrip({ width, floating = false, hidden = false, swipe = true }: { width: number; floating?: boolean; hidden?: boolean; swipe?: boolean }) {
   const windowId = useWindowId();
-  const current = useWindowProfileId();
+  const current = useWindowSpaceId();
   const { pages } = usePagerPages(windowId);
-  const profileChip = useProfileIndicatorWidth(PROFILE_ROOM);
-  const controls = (profileChip ? profileChip + CONTROLS_GAP : 0) + DOWNLOADS_BOX;
+  const spaceChip = useSpaceIndicatorWidth(PROFILE_ROOM);
+  const controls = (spaceChip ? spaceChip + CONTROLS_GAP : 0) + DOWNLOADS_BOX;
   const left = floating ? 8 : layout.trafficLightsWidth + LIGHTS_GAP;
   const right = Math.max(84, controls + 8 + 6);
   const pageWidth = Math.max(0, width - left - right);
@@ -63,14 +63,14 @@ export function TopTabStrip({ width, floating = false, hidden = false, swipe = t
         <WindowDragRegion style={StyleSheet.absoluteFill} />
         <View style={{ position: "absolute", left: left - flare, right: Math.max(right - flare, controls + 8), top: 0, bottom: 0, overflow: "hidden" }}>
           {pages.map((page) => (
-            <StripPage key={page.id} profileId={page.id} slot={page.slot} pageWidth={pageWidth} current={page.id === current} resting={!!page.resting} />
+            <StripPage key={page.id} spaceId={page.id} slot={page.slot} pageWidth={pageWidth} current={page.id === current} resting={!!page.resting} />
           ))}
         </View>
         <View mouseDownCanMoveWindow={false} style={{ position: "absolute", right: 8, top: MID - 17, flexDirection: "row", alignItems: "center", gap: CONTROLS_GAP }}>
-          <ProfileIndicator room={PROFILE_ROOM} />
+          <SpaceIndicator room={PROFILE_ROOM} />
           <DownloadsButton windowId={windowId} />
         </View>
-        {swipe && <ProfileSwipeArea surface="strip" style={StyleSheet.absoluteFill} pageWidth={pageWidth + flare * 2} />}
+        {swipe && <SpaceSwipeArea surface="strip" style={StyleSheet.absoluteFill} pageWidth={pageWidth + flare * 2} />}
         {!floating && <StripDropHighlight left={left} right={right} />}
       </StripDropArea>
     </FloatingStrip.Provider>

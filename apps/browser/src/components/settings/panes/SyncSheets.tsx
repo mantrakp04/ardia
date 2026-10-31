@@ -13,9 +13,9 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 import { Image, StyleSheet, Text, TextInput, View } from "react-native";
 import { useTheme } from "../../ui/theme";
-import { addRemoteProfile, enterRecoveryPhrase, stopSync, useSync } from "../../../state/sync/engine";
-import type { RemoteProfile } from "../../../state/sync/syncDoc";
-import { ProfileBadge } from "../../profiles/ProfileIcons";
+import { addRemoteSpace, enterRecoveryPhrase, stopSync, useSync } from "../../../state/sync/engine";
+import type { RemoteSpace } from "../../../state/sync/syncDoc";
+import { SpaceBadge } from "../../spaces/SpaceIcons";
 import { Group, Row, SheetTitle } from "../Form";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { settingsType } from "../tokens";
@@ -202,25 +202,25 @@ function PhraseSheet({ folder, onChooseFolder }: { folder: FolderInfo | null; on
   );
 }
 
-export function remoteProfileDescription(p: Pick<RemoteProfile, "sharesWith" | "waiting">): string {
+export function remoteSpaceDescription(p: Pick<RemoteSpace, "sharesWith" | "waiting">): string {
   if (p.waiting) return "On your other devices. Waiting for the profile it shares data with to sync.";
   if (!p.sharesWith) return "On your other devices";
   const { name, added } = p.sharesWith;
   return added ? `On your other devices. Shares data with ${name}, which is added too.` : `On your other devices. Shares data with ${name}.`;
 }
 
-export function addAllRemoteProfiles(profiles: RemoteProfile[]) {
-  for (const p of profiles) if (!p.waiting) addRemoteProfile(p.syncId);
+export function addAllRemoteProfiles(profiles: RemoteSpace[]) {
+  for (const p of profiles) if (!p.waiting) addRemoteSpace(p.syncId);
 }
 
-export function RemoteProfileRow({ profile }: { profile: RemoteProfile }) {
+export function RemoteProfileRow({ profile }: { profile: RemoteSpace }) {
   return (
     <Row
-      icon={<ProfileBadge profile={{ name: profile.name, color: profile.color, icon: profile.icon }} size={24} />}
+      icon={<SpaceBadge profile={{ name: profile.name, color: profile.color, icon: profile.icon }} size={24} />}
       title={profile.name}
-      description={remoteProfileDescription(profile)}
+      description={remoteSpaceDescription(profile)}
     >
-      <Button title="Add to This Mac" disabled={!!profile.waiting} onPress={() => addRemoteProfile(profile.syncId)} />
+      <Button title="Add to This Mac" disabled={!!profile.waiting} onPress={() => addRemoteSpace(profile.syncId)} />
     </Row>
   );
 }
@@ -238,7 +238,7 @@ function joinedMessage(found: number, joining: boolean, pending: number, error: 
 }
 
 function JoinedSheet() {
-  const remote = useSync((s) => s.remoteProfiles);
+  const remote = useSync((s) => s.remoteSpaces);
   const joining = useSync((s) => s.joining);
   const pending = useSync((s) => s.pending);
   const error = useSync((s) => (s.status === "stalled" ? s.error : null));

@@ -1,7 +1,7 @@
 import { permissionWarnings } from "@ardia/core";
 import { Image, Pressable, ScrollView } from "react-native";
 import { cancelInstall, closePinDialog, confirmInstall, setPinned, useWindowExtensions, type InstallRequest } from "../../state/extensions/actions";
-import { useExtensionProfile } from "../../state/extensions/hooks";
+import { useExtensionSpace } from "../../state/extensions/hooks";
 import type { InstalledExtension } from "../../state/extensions/store";
 import { currentShownPageId } from "../../state/peek/actions";
 import { webviews } from "../../state/tabs/webviewHandles";
@@ -88,7 +88,7 @@ export function InstallDialog({ request }: { request: InstallRequest }) {
 }
 
 export function PinDialog({ windowId }: { windowId: string }) {
-  const profile = useExtensionProfile(windowId);
+  const profile = useExtensionSpace(windowId);
   const list = useWindowExtensions(windowId);
   const close = closePinDialog;
   return (

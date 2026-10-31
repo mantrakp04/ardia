@@ -1,4 +1,4 @@
 import { useBrowser } from "../browser/store";
-import { extensionProfile } from "./store";
+import { extensionSpace } from "./store";
 
-export const useExtensionProfile = (windowId: string): string => useBrowser((s) => extensionProfile(s, windowId));
+export const useExtensionSpace = (windowId: string): string => useBrowser((s) => extensionSpace(s, windowId));
