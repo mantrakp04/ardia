@@ -5,6 +5,7 @@ import type {
   MediaAccess,
   NavigationState,
   PageEngine,
+  PageLayout,
   PasswordPrompt,
   SecurityInfo,
 } from "../../platform/tabs";
@@ -16,13 +17,14 @@ import { activeTabId } from "../browser/model";
 import { peekTabId } from "../peek/peek";
 import { splitOf, splitTabIdsOf } from "../splits/splits";
 
-export type { AutofillPrompt, AutofillPromptAnswer, PasswordPrompt, PasswordPromptAnswer } from "../../platform/tabs";
+export type { AutofillPrompt, AutofillPromptAnswer, PageLayout, PasswordPrompt, PasswordPromptAnswer } from "../../platform/tabs";
 
 export type PageState = {
   status: string;
   crashed: CrashInfo | null;
   unresponsive: boolean;
   fullscreen: boolean;
+  pageLayout: PageLayout | null;
   security: SecurityInfo | null;
   blocked: number;
   themeColorSource: NavigationState["themeColorSource"];
@@ -43,6 +45,7 @@ const IDLE_PAGE: PageState = {
   crashed: null,
   unresponsive: false,
   fullscreen: false,
+  pageLayout: null,
   security: null,
   blocked: 0,
   themeColorSource: null,
@@ -76,6 +79,10 @@ export function patchPage(tabId: string, patch: Partial<PageState>) {
     }
     return s;
   });
+}
+
+export function setPageLayout(tabId: string, pageLayout: PageLayout | null) {
+  if (useBrowser.getState().tabs[tabId]) patchPage(tabId, { pageLayout });
 }
 
 export const pageOf = (tabId: string | undefined): PageState => (tabId && usePages.getState().pages[tabId]) || IDLE_PAGE;

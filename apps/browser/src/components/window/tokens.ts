@@ -7,6 +7,8 @@ const DARK = {
   statusFill: "rgba(40,38,39,0.96)",
   statusBorder: "rgba(255,255,255,0.12)",
   statusText: "#FFFFFFD9",
+  newTabToastFill: "rgba(44,42,43,0.96)",
+  newTabToastBorder: "rgba(255,255,255,0.14)",
   crashedBackground: "#1C1A1B",
   unresponsiveScrim: "rgba(0,0,0,0.35)",
   frozenWash: "rgba(0,0,0,0.25)",
@@ -19,6 +21,8 @@ const LIGHT: typeof DARK = {
   statusFill: "rgba(250,249,250,0.97)",
   statusBorder: "rgba(0,0,0,0.12)",
   statusText: "#000000C7",
+  newTabToastFill: "rgba(255,255,255,0.96)",
+  newTabToastBorder: "rgba(0,0,0,0.1)",
   crashedBackground: "#F6F5F6",
   unresponsiveScrim: "rgba(0,0,0,0.12)",
   frozenWash: "rgba(255,255,255,0.4)",
@@ -43,6 +47,7 @@ export const SHADOWS = {
   cliPill: { color: ink.black, opacity: PANEL_SHADOW_OPACITY, radius: 14, offset: [0, 4] },
   sidebarPeek: { color: ink.black, opacity: PANEL_SHADOW_OPACITY, radius: 20, offset: [0, 6] },
   swipe: { color: ink.black, opacity: { dark: 0.25, light: 0.2 }, radius: 8, offset: [0, 2] },
+  newTabToast: { color: ink.black, opacity: { dark: 0.35, light: 0.14 }, radius: 12, offset: [0, 4] },
 } satisfies Record<string, ShadowLevel>;
 
 export const STATUS_MOTION = {
@@ -60,3 +65,11 @@ export const SWIPE_MOTION = {
   list: { duration: 220, easing: curve.fade },
   dismiss: { duration: 200, easing: curve.inEase },
 } as const;
+
+export const NEW_TAB_TOAST_MOTION = {
+  enter: { speed: 22, bounciness: 5 },
+  reducedEnter: { duration: 160 },
+  leave: { easing: curve.inQuad },
+} as const;
+
+export const NEW_TAB_TOAST_INSET = { top: 10, right: 24 } as const;

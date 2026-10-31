@@ -47,6 +47,7 @@ const char kPageReportsKey = 0;
   InstallControlPressMonitor();
   _tab = tab;
   _life.attached();
+  _sent.pageLayout = nil;
   tab.delegate = self;
   [ArdiaTabRegistry setView:self forTab:tab];
   [self markTemporary];
@@ -106,6 +107,7 @@ const char kPageReportsKey = 0;
   [self stopHolding];
   _standIn.lentTo = nil;
   _tab = nil;
+  [self emitPageLayout];
   _life.detached();
   _focus.onActivate = NO;
   _focus.page = ArdiaPageFocus::Unknown;
@@ -236,6 +238,7 @@ const char kPageReportsKey = 0;
 - (void)tabDidChangeDiscarded:(ArdiaCoreTab *)tab {
   if (tab.discarded) [self emit:@"discarded" payload:@{@"url" : tab.url ?: @""}];
   else [self emit:@"ready" payload:@{}];
+  [self layoutPage];
 }
 
 - (void)tabBecameUnresponsive:(ArdiaCoreTab *)tab {

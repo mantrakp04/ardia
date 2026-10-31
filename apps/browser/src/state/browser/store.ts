@@ -25,6 +25,7 @@ import { createUiSlice, type UiSlice } from "../windows/ui";
 import { createDownloadsSlice, type DownloadsSlice } from "../downloads/downloadsSlice";
 import { createWindowsSlice, type WindowsSlice } from "../windows/windows";
 import { orderSections } from "../groups/groups";
+import { newTabToasts } from "../tabs/newTabToasts";
 
 export type BrowserState = ProfilesSlice &
   WindowsSlice &
@@ -118,6 +119,7 @@ export const useBrowser = create<BrowserState>()(transactions.middleware(batched
   ...createPeekSlice(...a),
 
   hydrate(data) {
+    newTabToasts.clear();
     const [set, get] = a;
     const s = get();
     const profiles = data.profiles && Object.keys(data.profiles).length ? data.profiles : { [DEFAULT_PROFILE.id]: DEFAULT_PROFILE };
@@ -210,3 +212,7 @@ type StoreActions = { [K in keyof BrowserState as BrowserState[K] extends (...ar
 export const storeAction =
   <K extends keyof StoreActions>(name: K): StoreActions[K] =>
   ((...args: unknown[]) => (useBrowser.getState()[name] as (...a: unknown[]) => unknown)(...args)) as StoreActions[K];
+
+useBrowser.subscribe((s, prev) => {
+  if (s.tabs !== prev.tabs || s.windows !== prev.windows) newTabToasts.prune(s);
+});

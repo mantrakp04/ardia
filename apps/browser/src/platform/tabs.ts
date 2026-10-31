@@ -11,6 +11,7 @@ export {
   type PageEngine,
   type WebViewHandle,
   type NavigationState,
+  type PageLayout,
   type BlockedPopup,
   type CrashInfo,
   type MediaAccess,

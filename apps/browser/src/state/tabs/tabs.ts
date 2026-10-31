@@ -28,6 +28,7 @@ export type NewTabOptions = {
   snapshot?: Partial<TabSnapshot>;
   index?: number;
   wakeAdoptId?: AdoptId;
+  notify?: boolean;
   newTabCommand?: boolean;
 };
 

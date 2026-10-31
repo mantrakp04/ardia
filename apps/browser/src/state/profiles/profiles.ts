@@ -132,7 +132,7 @@ export const createProfilesSlice: StateCreator<BrowserState, [], [], ProfilesSli
         parkedPins: without(s.parkedPins, [id]),
       });
       for (const w of Object.values(get().windows)) {
-        if (!viewTabIds(get(), w.id).length) get().newTab(w.id);
+        if (!viewTabIds(get(), w.id).length) get().newTab(w.id, { notify: false });
       }
     },
 

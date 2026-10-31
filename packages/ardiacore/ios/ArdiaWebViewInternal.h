@@ -15,6 +15,7 @@ struct ArdiaRequests {
 struct ArdiaSentReports {
   BOOL navigationQueued{};
   NSDictionary *navigation;
+  NSDictionary *pageLayout;
   NSString *favicon;
   NSUInteger blockedGeneration{};
   BOOL blockedEmitQueued{};
@@ -165,6 +166,7 @@ struct ArdiaPageFocusState {
 + (void)noteShown:(ArdiaCoreTab *)tab;
 + (void)drainPainting;
 - (void)layoutPage;
+- (void)emitPageLayout;
 - (BOOL)paints;
 - (BOOL)neighbourPageAsleep;
 - (void)holdLittlePage;

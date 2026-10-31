@@ -18,6 +18,7 @@ import { engineForUrl, tabEngine, typedNavigationEngine } from "../engines/engin
 import type { ClosedTab, Tab, TabLive } from "../browser/types";
 import { activated, apply, closingTabs, withNewTab, type CloseOptions, type NewTabOptions } from "./tabs";
 import { hasPage, loadedPage, navigationOf, renavigated, wakeOf, withWake } from "./pageSession";
+import { newTabToasts } from "./newTabToasts";
 
 
 export type TabsSlice = {
@@ -68,7 +69,9 @@ export const createTabsSlice: StateCreator<BrowserState, [], [], TabsSlice> = (s
       const main = mainWindowFor(get(), profileId);
       if (!main) {
         const created = get().createWindow({ profileId, url: options?.url, adoptId: options?.adoptId ?? options?.wakeAdoptId, background: options?.background });
-        return activeTabId(get(), created) ?? "";
+        const id = activeTabId(get(), created) ?? "";
+        if (options?.notify !== false) newTabToasts.add(get().tabs[id]);
+        return id;
       }
       return get().newTab(main, { ...options, profileId, index: undefined });
     }
@@ -80,6 +83,7 @@ export const createTabsSlice: StateCreator<BrowserState, [], [], TabsSlice> = (s
     if (id && options?.openerId) next = groupWithOpener(next, id, options.openerId, !!options.background);
     else if (id && beside && !inPinnedContainer(next, beside.openerId)) next = groupWithOpener(next, id, beside.openerId, false);
     set(next);
+    if (options?.notify !== false) newTabToasts.add(get().tabs[id]);
     return id;
   },
 
@@ -196,6 +200,7 @@ export const createTabsSlice: StateCreator<BrowserState, [], [], TabsSlice> = (s
       adoptId: source.url ? cloneId(id) : undefined,
     });
     set(next);
+    newTabToasts.add(get().tabs[copy]);
     return copy;
   },
 

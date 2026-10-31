@@ -5,6 +5,7 @@ import { inPinnedContainer, isPinnedRow, newId, tabLayoutOf } from "../browser/m
 import { placing } from "../pins/placing";
 import { choose } from "../settings/settings";
 import { activated, apply, removeTabs, withNewTab } from "../tabs/tabs";
+import { newTabToasts } from "../tabs/newTabToasts";
 import type { AdoptId, BrowserWindow, SplitSlot, SplitView, Tab } from "../browser/types";
 
 export type SplitsSlice = {
@@ -240,6 +241,7 @@ export const createSplitsSlice: StateCreator<BrowserState, [], [], SplitsSlice> 
       s = placedAfterSplit({ ...s, splits: { ...s.splits, [split.id]: split } }, split, replaced);
       if (!o.background) s = apply(s, activated(s, tabId));
       set(s);
+      if (!o.tabId) newTabToasts.add(get().tabs[tabId]);
       return { ok: true, tabId, splitId: split.id };
     }
     const split = withPane(current, anchor.id, tabId, o.side ?? "right", windowId);
@@ -247,6 +249,7 @@ export const createSplitsSlice: StateCreator<BrowserState, [], [], SplitsSlice> 
     s = gather({ ...s, splits: { ...s.splits, [split.id]: split } }, anchor.id, splitTabIds(split));
     if (!o.background) s = apply(s, activated(s, tabId));
     set(s);
+    if (!o.tabId) newTabToasts.add(get().tabs[tabId]);
     return { ok: true, tabId, splitId: split.id };
   },
 

@@ -25,7 +25,7 @@ import { shallowEqual, useBrowserWhile, useProfilesValue, useTabValue } from "..
 import { isIncognitoProfile, navigationTo } from "../../state/browser/model";
 import type { Tab } from "../../state/browser/types";
 import { zoomChangedByUser } from "../../state/site/zoomBubble";
-import { markTabReady, patchPage, pageOf, popoverOf, setPopover } from "../../state/tabs/pageState";
+import { markTabReady, patchPage, pageOf, popoverOf, setPageLayout, setPopover } from "../../state/tabs/pageState";
 import { closeFolderPanelIn } from "../../state/sidebar/tileFolderUi";
 import { popupBlocked, showAutofillPrompt, showPasswordPrompt } from "../../state/site/prompts";
 import { leftPage } from "../../state/tabs/pageEvents";
@@ -56,6 +56,15 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
   const neighbour = useBrowserWhile(warm, (s) => warm && s.windows[s.tabs[tabId]?.windowId ?? ""]?.profileId !== profileId);
   const tab = () => currentTab(tabId);
   const ref = useMemo(() => webviewRef(tabId), [tabId]);
+  const layoutLive = useRef(true);
+  useLayoutEffect(() => {
+    layoutLive.current = true;
+    setPageLayout(tabId, null);
+    return () => {
+      layoutLive.current = false;
+      setPageLayout(tabId, null);
+    };
+  }, [tabId]);
   const autoPictureInPicture = useAutoPictureInPicture(tabId, visible);
   const pageColor = useProfilesValue(profileId, (profiles) => (isIncognitoProfile(profileId) ? "incognito" : (profiles[profileId]?.color ?? "plum")));
   const theme = useProfileTheme(profileId);
@@ -130,6 +139,9 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine }: TabWebViewProps
       pageColor={pageColor}
       contentsBackgroundColor={backdrop}
       shownUrl={shownUrl}
+      onPageLayout={(pageLayout) => {
+        if (layoutLive.current) setPageLayout(tabId, pageLayout);
+      }}
       onReady={() => {
         markTabReady(tabId);
         noteTabReady(tabId);
