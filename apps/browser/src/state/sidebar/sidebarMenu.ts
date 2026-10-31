@@ -2,6 +2,8 @@ import { showMenu, type MenuItem } from "../../platform/menus";
 import { tabLayoutOf } from "../browser/model";
 import { switchProfile } from "../browser/actions";
 import { requestCreateProfile } from "../profiles/createProfileRequest";
+import { openSettings } from "../settings/settingsWindows";
+import { trackThemeEditorOpened } from "../telemetry/track";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { menuShortcut } from "../commands/commandShortcuts";
 import { bookmarkAllTabs } from "../bookmarks/actions";
@@ -23,7 +25,10 @@ export function sidebarMenuItems(s: BrowserState, windowId: string): MenuItem[] 
       { id: "reopen", title: "Reopen Closed Tab", enabled: !!lastClosedEntry(s, windowId), ...menuShortcut("reopenClosedTab", s) },
     ],
     [{ id: "newGroup", title: "New Group", symbol: "folder.badge.plus" }, newLiveFolderMenuItem()],
-    [{ id: "newProfile", title: "New Profile…", symbol: "plus" }],
+    [
+      { id: "newProfile", title: "New Profile…", symbol: "plus" },
+      { id: "editTheme", title: "Edit Theme…", symbol: "paintpalette", enabled: w?.kind !== "private" },
+    ],
     [{ id: "bookmarkAll", title: "Bookmark All Tabs…", symbol: "bookmark", ...menuShortcut("bookmarkAllTabs", s) }],
     [
       ...pinnedFoldMenuItem(s, windowId),
@@ -45,7 +50,10 @@ export async function openSidebarMenu(windowId: string) {
     const id = s.newTab(windowId);
     if (id) newGroupWithSelection(windowId, [id]);
   } else if (choice === "newProfile") void requestCreateProfile(windowId).then((id) => id && switchProfile(windowId, id));
-  else if (choice === "bookmarkAll") bookmarkAllTabs(windowId);
+  else if (choice === "editTheme") {
+    openSettings("profiles", s.windows[windowId]?.profileId);
+    trackThemeEditorOpened("sidebar_menu");
+  } else if (choice === "bookmarkAll") bookmarkAllTabs(windowId);
   else if (choice === "tabLayout") s.toggleTabLayout(windowId);
   else if (choice === "autoHide") s.toggleSidebar(windowId);
   else if (choice === "closeAll") closeAllTabs(windowId);

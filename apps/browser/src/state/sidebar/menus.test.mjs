@@ -265,6 +265,7 @@ test("the sidebar background menu: new things, then the sidebar toggles, Close A
     "New Live Folder ›",
     "---",
     "New Profile… [plus]",
+    "Edit Theme… [paintpalette]",
     "---",
     "Bookmark All Tabs… [bookmark] ⇧⌘D",
     "---",
