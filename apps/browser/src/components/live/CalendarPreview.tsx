@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { Animated, Pressable, Text as Span, View } from "react-native";
 import { FadeLabel } from "../ui/native";
 import { joinEvent } from "../../state/live/alerts";
-import { connectCalendar, refreshCalendar, useCalendar, useNow } from "../../state/live/calendar";
+import { connectCalendar, refreshCalendar, useCalendar, useCalendarConnected, useNow } from "../../state/live/calendar";
 import { isCalendarUrl, isMeeting, joinLink, joinTitle, relativeTime, timeRange, type CalendarEvent } from "../../state/live/meetings";
 import { useLive } from "../../state/live/store";
 import { useTab } from "../../state/browser/hooks";
@@ -25,7 +25,7 @@ const JOINABLE_BEFORE_MS = 10 * 60_000;
 export function CalendarPreview({ tabId, windowId, anchor }: { tabId: string; windowId: string; anchor: Anchor }) {
   const now = useNow(15_000);
   const { access, events, loading, error, lastFetch } = useCalendar();
-  const connected = access === "fullAccess" || access === "fixture";
+  const connected = useCalendarConnected();
   const endOfDay = new Date(now);
   endOfDay.setHours(23, 59, 59, 999);
   const today = events.filter((e) => !e.cancelled && !e.declined && e.start <= endOfDay.getTime() && e.end > new Date(now).setHours(0, 0, 0, 0));

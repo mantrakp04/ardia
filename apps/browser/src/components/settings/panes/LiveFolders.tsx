@@ -1,23 +1,23 @@
 import { copyText } from "../../../state/app/system";
-import { focusWindow } from "../../../state/windows/nativeWindow";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { useTheme } from "../../ui/theme";
 import { deleteLiveFolder, manualRefresh, statusText } from "../../../state/live/engine";
-import { connectGoogleDrive } from "../../../state/live/googleAuth";
+import { signInWithGoogle } from "../../../state/live/googleAuth";
 import { isMocked } from "../../../state/live/net";
 import { connectBitbucket, connectConfluence, connectGithub, connectNotion, disconnect, SOURCES, startGithubDeviceFlow, type DeviceFlow } from "../../../state/live/sources";
 import { live, updateConfig, updateFolder, useLive } from "../../../state/live/store";
 import type { LiveAccount, LiveFolder, LiveSourceId } from "../../../state/live/types";
 import { useProfileRecords } from "../../../state/profiles/hooks";
-import { openUrlFromSettings, settingsBrowserWindow } from "../../../state/settings/settingsWindows";
-import { Button, font, Sheet, TextField, Toggle, weight } from "../../ui";
+import { openUrlFromSettings } from "../../../state/settings/settingsWindows";
+import { Button, font, TextField, Toggle, weight } from "../../ui";
 import { Favicon } from "../../favicon/Favicon";
-import { Group, Row, SectionHeader, SheetTitle } from "../Form";
+import { Group, Row, SectionHeader } from "../Form";
 import { setting, type SettingId } from "../settingsIndex";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { settingsType } from "../tokens";
+import { Actions, ConnectSheet, Field, GoogleConnect, Help, type ConnectProps } from "./ConnectSheet";
 
 export function LiveFoldersPane() {
   const theme = useTheme();
@@ -98,79 +98,41 @@ function SourceRow({ id }: { id: LiveSourceId }) {
       {account ? (
         <Button title="Disconnect" onPress={() => void disconnect(id)} />
       ) : (
-        <Button title="Connect…" onPress={() => showSettingsSheet(<ConnectSheet id={id} />)} />
+        <Button title="Connect…" onPress={() => showSettingsSheet(<SourceConnectSheet id={id} />)} />
       )}
     </Row>
   );
 }
 
 
-function ConnectSheet({ id }: { id: LiveSourceId }) {
-  const theme = useTheme();
+function SourceConnectSheet({ id }: { id: LiveSourceId }) {
   const source = SOURCES[id];
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const run = async (task: () => Promise<void>) => {
-    setBusy(true);
-    setError(null);
-    try {
-      await task();
-      closeSettingsSheet();
-    } catch (e) {
-      setError(String((e as Error)?.message ?? e));
-    } finally {
-      setBusy(false);
-    }
-  };
-  let body: ReactNode;
-  switch (id) {
-    case "github":
-      body = <GithubConnect busy={busy} run={run} />;
-      break;
-    case "bitbucket":
-      body = <BitbucketConnect busy={busy} run={run} />;
-      break;
-    case "notion":
-      body = <NotionConnect busy={busy} run={run} />;
-      break;
-    case "confluence":
-      body = <ConfluenceConnect busy={busy} run={run} />;
-      break;
-    case "gdrive":
-      body = <GoogleConnect busy={busy} run={run} />;
-      break;
-  }
   return (
-    <Sheet width={460} onClose={closeSettingsSheet}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 }}>
-        <Favicon url={source.site} size={22} />
-        <SheetTitle style={{ flex: 1 }}>Connect {source.name}</SheetTitle>
-      </View>
-      {body}
-      {error ? <Text style={{ marginTop: 10, ...font.small, color: theme.destructive }}>{error}</Text> : null}
-    </Sheet>
+    <ConnectSheet name={source.name} site={source.site}>
+      {({ busy, run }) => {
+        switch (id) {
+          case "github":
+            return <GithubConnect busy={busy} run={run} />;
+          case "bitbucket":
+            return <BitbucketConnect busy={busy} run={run} />;
+          case "notion":
+            return <NotionConnect busy={busy} run={run} />;
+          case "confluence":
+            return <ConfluenceConnect busy={busy} run={run} />;
+          case "gdrive":
+            return (
+              <GoogleConnect
+                busy={busy}
+                run={run}
+                api="Drive"
+                reads="see your files' names and dates"
+                connect={(windowId, clientId, secret) => signInWithGoogle("gdrive", windowId, clientId, secret)}
+              />
+            );
+        }
+      }}
+    </ConnectSheet>
   );
-}
-
-type ConnectProps = { busy: boolean; run(task: () => Promise<void>): Promise<void> };
-
-function Help({ children }: { children: ReactNode }) {
-  const theme = useTheme();
-  return <Text style={{ ...font.small, lineHeight: 17, color: theme.textSecondary, marginBottom: 10 }}>{children}</Text>;
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  const theme = useTheme();
-  return (
-    <View style={{ gap: 4, marginBottom: 10 }}>
-      <Text style={{ ...font.small, fontWeight: weight.medium, color: theme.textPrimary }}>{label}</Text>
-      {children}
-    </View>
-  );
-}
-
-function Actions({ children }: { children: ReactNode }) {
-  return <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8, marginTop: 6 }}>{children}</View>;
 }
 
 function GithubConnect({ busy, run }: ConnectProps) {
@@ -287,35 +249,6 @@ function ConfluenceConnect({ busy, run }: ConnectProps) {
       <Actions>
         <Button title="Cancel" onPress={closeSettingsSheet} />
         <Button title={busy ? "Checking…" : "Connect"} kind="primary" disabled={!site.trim() || !email.trim() || !token.trim() || busy} onPress={go} />
-      </Actions>
-    </View>
-  );
-}
-
-function GoogleConnect({ busy, run }: ConnectProps) {
-  const [clientId, setClientId] = useState(live().config.googleClientId);
-  const [secret, setSecret] = useState("");
-  const go = () =>
-    void run(async () => {
-      const windowId = settingsBrowserWindow();
-      if (!windowId) throw new Error("Open a browser window first");
-      void focusWindow(windowId);
-      await connectGoogleDrive(windowId, clientId, secret);
-    });
-  return (
-    <View>
-      <Help>
-        In Google Cloud Console, enable the Drive API and create an OAuth client of type "Desktop app" (add yourself as a test user). Ardia opens Google's consent page in a tab and reads the result from its redirect; it asks only to see your files' names and dates.
-      </Help>
-      <Field label="Client ID">
-        <TextField value={clientId} onChangeText={setClientId} placeholder="…apps.googleusercontent.com" />
-      </Field>
-      <Field label="Client secret">
-        <TextField value={secret} onChangeText={setSecret} secure />
-      </Field>
-      <Actions>
-        <Button title="Cancel" onPress={closeSettingsSheet} />
-        <Button title={busy ? "Waiting for Google…" : "Sign In with Google…"} kind="primary" disabled={!clientId.trim() || !secret.trim() || busy} onPress={go} />
       </Actions>
     </View>
   );

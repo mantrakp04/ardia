@@ -1,6 +1,6 @@
 import { readDocument, writeDocument } from "../../platform/documents";
 import { create } from "zustand";
-import type { CompletedItem, CompletionState, FolderStatus, LiveAccount, LiveFolder, LiveFolderKind, LiveItem, LiveSourceId } from "./types";
+import type { CompletedItem, CompletionState, FolderStatus, LiveAccount, LiveAccountId, LiveFolder, LiveFolderKind, LiveItem, LiveSourceId } from "./types";
 import { parseSaved, unchanged, versionedJson, type Migrations } from "../../lib/savedDocument";
 import { DEFAULT_COUNTDOWN_LEAD, keepDismissedNow, type DismissedNow } from "./meetings";
 
@@ -44,7 +44,7 @@ type LiveState = {
   status: Record<string, FolderStatus>;
   expandedStacks: Record<string, boolean>;
   showAll: Record<string, boolean>;
-  accounts: Partial<Record<LiveSourceId, LiveAccount>>;
+  accounts: Partial<Record<LiveAccountId, LiveAccount>>;
   config: LiveConfig;
   calendar: CalendarSettings;
   meetingGroups: Record<string, MeetingGroup>;
@@ -293,7 +293,7 @@ export function unhide(folderId: string) {
   });
 }
 
-export function setAccount(source: LiveSourceId, account: LiveAccount | null) {
+export function setAccount(source: LiveAccountId, account: LiveAccount | null) {
   setLive((s) => {
     const accounts = { ...s.accounts };
     if (account) accounts[source] = account;

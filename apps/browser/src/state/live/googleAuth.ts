@@ -3,9 +3,13 @@ import { endpoints, form } from "./net";
 import { connectGoogle } from "./sources";
 import { secureRandomHex } from "../../platform/secureRandom";
 import { base64Url, sha256 } from "../../lib/sha256";
+import type { GoogleProduct } from "./types";
 
 const REDIRECT = "http://127.0.0.1:53682/ardia-oauth";
-const SCOPE = "https://www.googleapis.com/auth/drive.metadata.readonly";
+const SCOPES: Record<GoogleProduct, string> = {
+  gdrive: "https://www.googleapis.com/auth/drive.metadata.readonly",
+  gcal: "https://www.googleapis.com/auth/calendar.readonly",
+};
 
 let pending: { cancel(): void } | null = null;
 
@@ -19,7 +23,7 @@ function query(url: string): Map<string, string> {
   );
 }
 
-export function connectGoogleDrive(windowId: string, clientId: string, clientSecret: string): Promise<void> {
+export function signInWithGoogle(product: GoogleProduct, windowId: string, clientId: string, clientSecret: string): Promise<void> {
   pending?.cancel();
   const verifier = secureRandomHex(64);
   const state = secureRandomHex(32);
@@ -27,7 +31,7 @@ export function connectGoogleDrive(windowId: string, clientId: string, clientSec
     client_id: clientId.trim(),
     redirect_uri: REDIRECT,
     response_type: "code",
-    scope: SCOPE,
+    scope: SCOPES[product],
     code_challenge: base64Url(sha256(verifier)),
     code_challenge_method: "S256",
     state,
@@ -47,7 +51,7 @@ export function connectGoogleDrive(windowId: string, clientId: string, clientSec
       stop();
       useBrowser.getState().closeTab(tabId);
       if (!code) return finish(new Error(params.get("error") ?? "Google didn't grant access"));
-      connectGoogle(clientId.trim(), clientSecret.trim(), code, verifier, REDIRECT).then(() => finish(), finish);
+      connectGoogle(product, clientId.trim(), clientSecret.trim(), code, verifier, REDIRECT).then(() => finish(), finish);
     });
     const finish = (error?: unknown) => {
       stop();

@@ -1,4 +1,6 @@
 export type LiveSourceId = "github" | "bitbucket" | "notion" | "confluence" | "gdrive";
+export type GoogleProduct = "gdrive" | "gcal";
+export type LiveAccountId = LiveSourceId | GoogleProduct;
 export type LiveFolderKind = "pullRequests" | "documents";
 
 export type LiveFolder = {
