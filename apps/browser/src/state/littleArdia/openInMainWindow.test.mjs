@@ -67,14 +67,20 @@ test("a tab moved below a current tab that sits inside a group joins the group r
   assert.equal(S().tabs[moved].windowId, main);
 });
 
-test("a tab moved to the top or bottom never joins a group", () => {
-  const { main, small, a, b, moved } = mainWindowWithThreeTabs("top");
-  S().createGroup([a, b], { name: "G" });
-  S().activate(a);
-  openInMainWindow(small);
-  assert.deepEqual(urlsOf(main), ["https://little.example/", "https://a.example/", "https://b.example/", "https://c.example/"]);
-  assert.equal(Object.values(S().groups).some((g) => g.tabIds.includes(moved)), false);
-});
+for (const [position, expected] of [
+  ["top", ["https://little.example/", "https://a.example/", "https://b.example/", "https://c.example/"]],
+  ["bottom", ["https://a.example/", "https://b.example/", "https://c.example/", "https://little.example/"]],
+]) {
+  test(`a tab moved to the ${position} never joins the current tab's group`, () => {
+    const { main, small, a, b, c, moved } = mainWindowWithThreeTabs(position);
+    const g = S().createGroup(position === "top" ? [a, b] : [b, c], { name: "G" });
+    S().activate(position === "top" ? a : c);
+    openInMainWindow(small);
+    assert.deepEqual(urlsOf(main), expected);
+    assert.deepEqual(S().groups[g].tabIds, position === "top" ? [a, b] : [b, c]);
+    assert.equal(Object.values(S().groups).some((grp) => grp.tabIds.includes(moved)), false);
+  });
+}
 
 test("tabs of several profiles moved at once each land by their own profile's current tab", () => {
   const { main, b } = mainWindowWithThreeTabs("nextToCurrent");
