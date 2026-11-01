@@ -22,6 +22,7 @@ import { settleMovedPins } from "../pins/pinMirror";
 import { returnSharedPages } from "../pins/pinShare";
 import { closedWindowEntry, MAX_CLOSED_WINDOWS } from "../pins/closedTabs";
 import { pendingRestore } from "../tabs/adoptIds";
+import { newTabIndex } from "../tabs/openers";
 import { sharedElsewhere, sharesTabs } from "../tabs/tabShare";
 import { isSmall, isSmallWindow, lastActiveProfile, linkProfileOf, mainWindowFor } from "./small";
 import { activated, apply, removeTabs, withNewTab } from "../tabs/tabs";
@@ -88,6 +89,8 @@ export function moveTabsInto(s: BrowserState, ids: string[], targetId: string): 
   const tabs = { ...next.tabs };
   const live = { ...next.live };
   const activeTabIds = { ...w.activeTabIds };
+  const index = newTabIndex(next, w, moving[0]!);
+  const tabIds = [...w.tabIds.slice(0, index), ...moving.map((t) => t.id), ...w.tabIds.slice(index)];
   for (const tab of moving) {
     const t = tab;
     const loaded = hasLoadedPage(tab);
@@ -99,7 +102,7 @@ export function moveTabsInto(s: BrowserState, ids: string[], targetId: string): 
     ...next,
     tabs,
     live,
-    windows: { ...next.windows, [targetId]: { ...w, tabIds: orderSections([...w.tabIds, ...moving.map((t) => t.id)], tabs, next.groups), activeTabIds } },
+    windows: { ...next.windows, [targetId]: { ...w, tabIds: orderSections(tabIds, tabs, next.groups), activeTabIds } },
   };
   for (const id of sources) {
     const src = next.windows[id];
