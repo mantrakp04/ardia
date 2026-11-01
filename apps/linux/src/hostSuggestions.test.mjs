@@ -59,6 +59,82 @@ test("requests outside the built-in suggestion endpoints are refused before reac
   assert.deepEqual(calls, []);
 });
 
+test("engines added by extensions contribute only valid https suggestion endpoints", () => {
+  assert.deepEqual(suggestionEndpoints([
+    { suggestUrl: "https://ext.example/suggest?q=%s&client=" },
+    { suggestUrl: "https://ext.example/suggest?term=%s" },
+    { suggestUrl: "https://ext.example:8443/a/s?q=%s" },
+    { suggestUrl: "http://plain.example/s?q=%s" },
+    { suggestUrl: "https://user:pass@creds.example/s?q=%s" },
+    { suggestUrl: "complete/search?q=%s" },
+    { suggestUrl: "not a url %s" },
+    { suggestUrl: undefined },
+    {},
+  ]), ["https://ext.example/suggest", "https://ext.example:8443/a/s"]);
+});
+
+test("an extension engine's endpoint admits its own queries and nothing that only looks like it", async () => {
+  const extension = suggestionEndpoints([{ suggestUrl: "https://ext.example/suggest?q=%s" }]);
+  const engine = { id: "ext", name: "Ext", keyword: "ex", url: "https://ext.example/search?q=%s", suggestUrl: "https://ext.example/suggest?q=%s" };
+  const url = suggestRequestUrl(engine, "linux parity ä/?#&'\\");
+  assert.ok(!suggestionRequestAllowed(url));
+  assert.ok(suggestionRequestAllowed(url, extension));
+  assert.ok(suggestionRequestAllowed(suggestRequestUrl(google, "a"), extension));
+  for (const lookalike of [
+    "https://ext.example/suggest",
+    "https://ext.example/suggest?",
+    "http://ext.example/suggest?q=a",
+    "https://ext.example:444/suggest?q=a",
+    "https://ext.example/suggestions?q=a",
+    "https://ext.example/suggest/x?q=a",
+    "https://ext.example/suggest/../collect?q=a",
+    "https://ext.example/suggest%3F?q=a",
+    "https://ext.example.evil.example/suggest?q=a",
+    "https://ext.example%2eevil.example/suggest?q=a",
+    "https://user@ext.example/suggest?q=a",
+    "https://ext.example@evil.example/suggest?q=a",
+    "https://ext.example/suggest?q=a#x",
+    "https://ext.example/suggest?q=a b",
+    `https://ext.example/suggest?q=${"a".repeat(2048)}`,
+  ]) assert.ok(!suggestionRequestAllowed(lookalike, extension), lookalike);
+  for (const [endpoint, request] of [
+    ["http://ext.example/suggest", "http://ext.example/suggest?q=a"],
+    ["https://ext.example", "https://ext.example?q=a"],
+    ["https://user@ext.example/suggest", "https://user@ext.example/suggest?q=a"],
+    ["https://ext.example/s?x", "https://ext.example/s?x?q=a"],
+    ["https://{h}/s", "https://{h}/s?q=a"],
+  ]) assert.ok(!suggestionRequestAllowed(request, [endpoint]), endpoint);
+  const { host, calls } = fakeHost();
+  await assert.rejects(hostSuggestFetch(host)(url, { signal: new AbortController().signal }), { code: "ERR_SUGGEST_REFUSED", message: /engines added by extensions/ });
+  assert.deepEqual(calls, []);
+  let current = [];
+  const fetch = hostSuggestFetch(host, () => current);
+  await assert.rejects(fetch(url, { signal: new AbortController().signal }), { code: "ERR_SUGGEST_REFUSED" });
+  current = extension;
+  const response = await fetch(url, { signal: new AbortController().signal });
+  assert.equal(response.ok, true);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].args.args[0], url);
+  current = [];
+  await assert.rejects(fetch(url, { signal: new AbortController().signal }), { code: "ERR_SUGGEST_REFUSED" });
+  assert.equal(calls.length, 1);
+});
+
+test("an extension engine whose template isn't canonical still gets its suggestions, sent canonical", async () => {
+  for (const [template, sent] of [
+    ["https://Suggest.Example.com/api?q=%s", "https://suggest.example.com/api?q=a"],
+    ["https://suggest.example.com:443/api?q=%s", "https://suggest.example.com/api?q=a"],
+    ["https://suggest.example.com?q=%s", "https://suggest.example.com/?q=a"],
+    ["https://suggest.example.com/x/../api?q=%s", "https://suggest.example.com/api?q=a"],
+  ]) {
+    const { host, calls } = fakeHost();
+    const endpoints = suggestionEndpoints([{ suggestUrl: template }]);
+    const response = await hostSuggestFetch(host, () => endpoints)(template.replace("%s", "a"), { signal: new AbortController().signal });
+    assert.equal(response.ok, true, template);
+    assert.equal(calls[0].args.args[0], sent, template);
+  }
+});
+
 test("a host without the suggestion service reports it unavailable and sends nothing", async () => {
   const { host, calls } = fakeHost({ supports: false });
   await assert.rejects(hostSuggestFetch(host)(suggestRequestUrl(google, "a"), { signal: new AbortController().signal }), { code: "ERR_UNAVAILABLE" });

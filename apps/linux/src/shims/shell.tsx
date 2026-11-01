@@ -43,6 +43,11 @@ const closeBarrier = createWindowCloseBarrier({
     resumeLinuxDocuments(closeToken(request));
   },
 });
+const closeLinuxUtilities = async () => {
+  const live = await hostModuleMethod("ArdiaShell", "windowIds")() as string[];
+  const requests = await Promise.allSettled(live.filter(isLinuxUtility).map((id) => hostModuleMethod("ArdiaShell", "requestWindowClose")(id)));
+  for (const request of requests) if (request.status === "rejected") reportHostError(request.reason);
+};
 let provideDecider: (decide: DecideClose) => void = () => {};
 const decider = new Promise<DecideClose>((resolve) => { provideDecider = resolve; });
 export const setWindowCloseDecider = (decide: DecideClose) => provideDecider(decide);
@@ -62,6 +67,7 @@ const closeCoordinator = createWindowCloseCoordinator({
     ask: (options: ConfirmOptions, signal: AbortSignal) => linuxHostDialogs().abortableConfirm(options, signal),
     suspendDialogs: () => linuxHostDialogs().suspend(),
     resumeDialogs: (suspension: DialogSuspension) => linuxHostDialogs().resume(suspension),
+    closeUtilities: closeLinuxUtilities,
   } : {}),
   report: reportHostError,
 });

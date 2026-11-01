@@ -23,6 +23,7 @@ export type WindowCloseCoordinatorHooks = {
   cancelled(request: WindowCloseRequest): boolean;
   suspendDialogs?(request: WindowCloseRequest): DialogSuspension;
   resumeDialogs?(suspension: DialogSuspension): boolean;
+  closeUtilities?(): Promise<void>;
   report?(error: unknown): void;
 };
 
@@ -124,6 +125,9 @@ export function createWindowCloseCoordinator(hooks: WindowCloseCoordinatorHooks)
         throw error;
       }
     }
+    if (!current(attempt, key)) throw attempt.cancelled ? cancelledClose() : staleClose();
+    if (!hooks.utility && !attempt.quitting && drain?.endsSession === true)
+      await hooks.closeUtilities?.().catch((error) => hooks.report?.(error));
     if (!current(attempt, key)) throw attempt.cancelled ? cancelledClose() : staleClose();
     attempt.suspension = hooks.suspendDialogs?.(attempt.request);
     if (attempt.suspension) await attempt.suspension.settled;

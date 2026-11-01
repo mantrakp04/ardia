@@ -73,6 +73,7 @@ function harness(options = {}) {
     cancelled: barrier.cancelled,
     suspendDialogs: options.suspend,
     resumeDialogs: options.resume,
+    closeUtilities: options.closeUtilities && (() => { log.push(["utilities"]); return options.closeUtilities(); }),
     report: (error) => log.push(["report", error.message]),
   });
   return { log, asks, coordinator };
@@ -170,4 +171,38 @@ test("only a close that does not end the session reports a departure, until it i
   assert.equal(leaving.coordinator.departs(main), false);
   ack.reject(new Error("veto"));
   await assert.rejects(closing);
+});
+
+test("closing the last browser window closes the utility windows before its producers quiesce", async () => {
+  const { log, asks, coordinator } = harness({ closeUtilities: async () => {} });
+  const closing = coordinator.accept(main);
+  await tick();
+  asks[0].answer.resolve({ confirmed: true, suppressed: false });
+  await closing;
+  assert.deepEqual(steps(log), ["decide", "ask", "begin", "utilities", "quiesce", "drain", "acknowledge"]);
+});
+
+test("utility windows stay open when the close leaves another browser window, is cancelled, quits the app or is a utility's own", async () => {
+  const closeUtilities = async () => {};
+  const leaving = harness({ endsSession: false, closeUtilities });
+  const left = leaving.coordinator.accept(main);
+  await tick();
+  leaving.asks[0].answer.resolve({ confirmed: true, suppressed: false });
+  await left;
+  const cancelled = harness({ closeUtilities });
+  const cancelling = cancelled.coordinator.accept(main);
+  await tick();
+  cancelled.asks[0].answer.resolve({ confirmed: false, suppressed: false });
+  await assert.rejects(cancelling, { code: "ERR_WINDOW_CLOSE_CANCELLED" });
+  const quitting = harness({ closeUtilities });
+  await quitting.coordinator.accept(main, { quitting: true });
+  const utility = harness({ utility: true, closeUtilities });
+  await utility.coordinator.accept(main);
+  for (const { log } of [leaving, cancelled, quitting, utility]) assert.equal(steps(log).includes("utilities"), false);
+});
+
+test("a utility window that fails to close is reported and never holds the last window open", async () => {
+  const { log, coordinator } = harness({ decide: async () => ({ decision: "allow", suppressWarning: false }), closeUtilities: async () => { throw new Error("Target renderer unavailable"); } });
+  await coordinator.accept(main);
+  assert.deepEqual(log.map(([step, detail]) => step === "report" ? [step, detail] : [step]), [["begin"], ["utilities"], ["report", "Target renderer unavailable"], ["quiesce"], ["drain"], ["acknowledge"]]);
 });

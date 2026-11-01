@@ -29,6 +29,7 @@
 #include "ardia/linux/ac_linux_credential_service.h"
 #include "ardia/linux/ac_linux_credentials.h"
 #include "ardia/linux/ac_linux_live_service.h"
+#include "ardia/linux/ac_linux_search_engines.h"
 #include "ardia/linux/ac_linux_sync_service.h"
 #include "ardia/linux/ac_linux_dialog_views.h"
 #include "ardia/linux/ac_linux_document_service.h"
@@ -36,6 +37,7 @@
 #include "ardia/linux/ac_linux_extension_keybindings.h"
 #include "ardia/linux/ac_linux_extension_service.h"
 #include "ardia/linux/ac_linux_extension_views.h"
+#include "ardia/linux/ac_linux_glass.h"
 #include "ardia/linux/ac_linux_extensions.h"
 #include "ardia/linux/ac_linux_native_messaging.h"
 #include "ardia/linux/ac_linux_files.h"
@@ -47,10 +49,12 @@
 #include "ardia/linux/ac_linux_page_commands.h"
 #include "ardia/linux/ac_linux_memory_saver.h"
 #include "ardia/linux/ac_linux_page_media.h"
+#include "ardia/linux/ac_linux_page_prompts.h"
 #include "ardia/linux/ac_linux_power.h"
 #include "ardia/linux/ac_linux_tab_policy.h"
 #include "ardia/linux/ac_linux_launch_steps.h"
 #include "ardia/linux/ac_linux_page_state.h"
+#include "ardia/linux/ac_linux_pip_player.h"
 #include "ardia/linux/ac_linux_private_services.h"
 #include "ardia/linux/ac_linux_profile_service.h"
 #include "ardia/linux/ac_linux_profiles.h"
@@ -143,7 +147,6 @@
 #include "components/sessions/content/session_tab_helper.h"
 #include "components/sessions/core/session_id.h"
 #include "components/version_info/version_info.h"
-#include "components/viz/common/frame_sinks/copy_output_result.h"
 #include "components/zoom/zoom_controller.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/navigation_controller.h"
@@ -209,6 +212,7 @@
 #include "ui/views/view_observer.h"
 #include "ui/views/view_targeter.h"
 #include "ui/views/view_targeter_delegate.h"
+#include "ui/views/view_tracker.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/widget/widget_observer.h"
 #include "ui/wm/core/window_modality_controller.h"
@@ -220,6 +224,11 @@ extern bool (*g_ardia_keeps_window_without_tabs)(
 extern bool g_ardia_auto_picture_in_picture_off;
 extern int (*g_ardia_linux_tab_shown)(content::WebContents*);
 extern void (*g_ardia_linux_auto_pip_requested)(content::WebContents*);
+extern bool (*g_ardia_linux_auto_pip_allowed)(content::WebContents*);
+extern bool (*g_ardia_linux_keeps_picture_in_picture)(content::WebContents*);
+extern bool (*g_ardia_linux_refuses_document_picture_in_picture)(content::WebContents*, bool);
+extern std::unique_ptr<content::VideoOverlayWindow> (*g_ardia_linux_video_overlay)(
+    content::VideoPictureInPictureWindowController*);
 extern void (*g_ardia_linux_page_host_binder)(content::RenderFrameHost&, blink::AssociatedInterfaceRegistry&);
 extern bool (*g_ardia_linux_target_url)(content::WebContents*, const GURL&);
 extern bool (*g_ardia_linux_renderer_unresponsive)(content::WebContents*,
@@ -240,6 +249,7 @@ extern BrowserWindowInterface* (*g_ardia_linux_companion_owner)(const BrowserWin
 extern bool (*g_ardia_linux_present_companion)(BrowserWindowInterface*, bool activate);
 extern bool (*g_ardia_linux_is_companion)(const BrowserWindowInterface*);
 extern int (*g_ardia_linux_window_tab_count)(const BrowserWindowInterface*);
+extern bool (*g_ardia_linux_shell_passes_point)(gfx::NativeView child, const gfx::Point& location);
 
 namespace ardia {
 namespace {
@@ -276,53 +286,47 @@ class ViewportTargeter : public aura::WindowTargeter {
   const std::vector<gfx::Rect> shape_;
 };
 
-class ViewportView : public views::WebView,
-                     public views::ViewTargeterDelegate {
+void SubtractFromRegion(std::vector<gfx::Rect>& region, const gfx::Rect& cut) {
+  std::vector<gfx::Rect> remaining;
+  for (const auto& piece : region) {
+    gfx::Rect overlap = piece;
+    overlap.Intersect(cut);
+    if (overlap.IsEmpty()) {
+      remaining.push_back(piece);
+      continue;
+    }
+    for (const auto& part : {
+             gfx::Rect(piece.x(), piece.y(), piece.width(), overlap.y() - piece.y()),
+             gfx::Rect(piece.x(), overlap.bottom(), piece.width(), piece.bottom() - overlap.bottom()),
+             gfx::Rect(piece.x(), overlap.y(), overlap.x() - piece.x(), overlap.height()),
+             gfx::Rect(overlap.right(), overlap.y(), piece.right() - overlap.right(), overlap.height())}) {
+      if (!part.IsEmpty()) remaining.push_back(part);
+    }
+  }
+  region = std::move(remaining);
+}
+
+class ShellTransparency : public content::WebContentsObserver {
+ public:
+  explicit ShellTransparency(content::WebContents* shell) : content::WebContentsObserver(shell) { Apply(); }
+
+  void PrimaryPageChanged(content::Page& page) override { Apply(); }
+  void RenderViewReady() override { Apply(); }
+
+ private:
+  void Apply() {
+    web_contents()->SetPageBaseBackgroundColor(SK_ColorTRANSPARENT);
+    if (auto* view = web_contents()->GetRenderWidgetHostView()) view->SetBackgroundColor(SK_ColorTRANSPARENT);
+  }
+};
+
+class ViewportView : public views::WebView {
  public:
   METADATA_HEADER(ViewportView, views::WebView)
 
  public:
-  explicit ViewportView(Profile* profile) : views::WebView(profile) {
-    SetEventTargeter(std::make_unique<views::ViewTargeter>(this));
-  }
-
+  explicit ViewportView(Profile* profile) : views::WebView(profile) {}
   ~ViewportView() override { SetWebContents(nullptr); }
-
-  void SetShape(std::vector<gfx::Rect> paint_shape,
-                std::vector<gfx::Rect> shape) {
-    shape_ = std::move(shape);
-    paint_shape_ = std::move(paint_shape);
-    ApplyTargeter();
-  }
-
-  void SetWebContents(content::WebContents* contents) override {
-    if (auto* previous = web_contents(); previous && previous != contents) {
-      if (auto* native = previous->GetNativeView()) native->layer()->SetAlphaShape(nullptr);
-    }
-    views::WebView::SetWebContents(contents);
-    ApplyTargeter();
-  }
-
-  bool DoesIntersectRect(const views::View* target,
-                         const gfx::Rect& rect) const override {
-    return target == this && std::ranges::any_of(
-        shape_, [&](const gfx::Rect& part) { return part.Intersects(rect); });
-  }
-
- private:
-  void ApplyTargeter() {
-    if (auto* contents = web_contents()) {
-      aura::Window* native = contents->GetNativeView();
-      if (!native) return;
-      native->layer()->SetAlphaShape(
-          std::make_unique<ui::Layer::ShapeRects>(paint_shape_));
-      native->SetEventTargeter(
-          std::make_unique<ViewportTargeter>(shape_));
-    }
-  }
-
-  std::vector<gfx::Rect> shape_;
-  std::vector<gfx::Rect> paint_shape_;
 };
 
 BEGIN_METADATA(ViewportView)
@@ -844,8 +848,6 @@ class TabBinding : public content::WebContentsObserver {
   std::unique_ptr<DevToolsFrontendWatch> devtools_watch;
   bool devtools_had_focus = false;
   gfx::Rect pane_bounds;
-  std::vector<gfx::Rect> pane_shape;
-  std::vector<gfx::Rect> pane_input_shape;
   bool pane_visible = false;
   bool presented = false;
   void FocusFromHost();
@@ -919,12 +921,14 @@ class WindowMouseHandler : public ui::EventHandler {
 };
 
 class ShellHostView : public views::View,
+                      public views::ViewTargeterDelegate,
                       public views::ViewObserver,
                       public views::WidgetObserver,
                       public aura::WindowObserver,
                       public ui::CompositorObserver,
                       public views::FocusChangeListener,
-                      public TabStripModelObserver {
+                      public TabStripModelObserver,
+                      public ardia::linux_pip::Presenter {
  public:
   METADATA_HEADER(ShellHostView, views::View)
 
@@ -934,6 +938,15 @@ class ShellHostView : public views::View,
   void Initialize();
   void DetachBrowser();
   void DetachViewports();
+  bool PresentsPlayerFor(content::WebContents* source) const override;
+  void ShowPlayer(ardia::linux_pip::Player* player) override;
+  void PlayerChanged(ardia::linux_pip::Player* player) override;
+  void PlayerSurfaceChanged(ardia::linux_pip::Player* player) override;
+  void HidePlayer(ardia::linux_pip::Player* player, base::TimeDelta fade) override;
+  gfx::Rect DefaultPlayerScreenBounds(const gfx::Size& natural_size) const override;
+  base::WeakPtr<ardia::linux_pip::Presenter> PresenterWeakPtr() override;
+  void DropPlayer();
+  void CheckPlayerSource();
   int id() const { return id_; }
   const std::string& window_id() const { return window_id_; }
   bool is_utility() const { return !kind_.empty(); }
@@ -965,6 +978,11 @@ class ShellHostView : public views::View,
   }
   BrowserWindowInterface* browser() const { return browser_; }
   content::WebContents* shell() const { return shell_->GetWebContents(); }
+  bool PassesShellPoint(gfx::NativeView child, const gfx::Point& location) const;
+  enum class StackSlot { kPages, kUnderGlass };
+  void SetStackSlot(views::View* view, StackSlot slot);
+  void Restack();
+  bool DoesIntersectRect(const views::View* target, const gfx::Rect& rect) const override;
   std::optional<gfx::PointF> ShellPoint(const TabBinding& binding, gfx::PointF page_point);
   Profile* profile() const { return browser_ ? app_profile_.get() : nullptr; }
   Profile* page_profile() const { return browser_ ? browser_->GetProfile() : nullptr; }
@@ -1097,6 +1115,9 @@ class ShellHostView : public views::View,
     if (!alive || !RetireDocuments()) return;
     ++renderer_generation_;
     renderer_document_ = content::WeakDocumentPtr();
+    DropPlayer();
+    shell_pass_.clear();
+    ApplyShellInput();
     std::vector<int> temporary;
     for (auto& [id, binding] : bindings_) {
       binding->RetirePage();
@@ -1141,6 +1162,8 @@ class ShellHostView : public views::View,
   LinuxExtensionSurfaces* ExtensionSurfaces();
   bool ExtensionEvent(std::string_view name, base::DictValue data);
   std::string ExtensionTabKey(content::WebContents* contents) const;
+  bool PromptEvent(std::string_view name, base::DictValue data);
+  bool PromptPageEvent(content::WebContents* contents, std::string_view name, base::Value data);
   bool ExtensionsListening() const { return browser_ && handler_ && !is_utility(); }
   void ReleaseExtensions() {
     extension_surfaces_.reset();
@@ -1315,6 +1338,9 @@ class ShellHostView : public views::View,
                   base::OnceCallback<void(bool, base::Value)> done);
   void SetViewport(const base::DictValue& args,
                    base::OnceCallback<void(bool, base::Value)> done);
+  void SetInputRegions(const base::DictValue& args,
+                       base::OnceCallback<void(bool, base::Value)> done);
+  void ApplyShellInput();
   void SetPresentations(const base::DictValue& args,
                        base::OnceCallback<void(bool, base::Value)> done);
   void StripCommand(int command, const base::DictValue& args,
@@ -1425,6 +1451,10 @@ class ShellHostView : public views::View,
   int opener_host_ = 0;
   uint64_t opener_generation_ = 0;
   raw_ptr<LinuxShellWebView> shell_ = nullptr;
+  raw_ptr<ShellGlassView> glass_ = nullptr;
+  std::vector<std::unique_ptr<views::ViewTracker>> under_glass_;
+  std::vector<gfx::Rect> shell_pass_;
+  std::unique_ptr<ShellTransparency> shell_transparency_;
   raw_ptr<HostMessageHandler> handler_ = nullptr;
   uint64_t renderer_generation_ = 0;
   std::optional<uint64_t> live_generation_;
@@ -1487,6 +1517,16 @@ class ShellHostView : public views::View,
   bool utility_ready_ = false;
   bool utility_close_pending_ = false;
   std::map<int, std::unique_ptr<TabBinding>> bindings_;
+  void SendPlayerEvent(const ardia::linux_pip::Player& player);
+  void DropPlayerView(uint64_t owner);
+  void ReleasePlayer();
+  std::vector<gfx::Rect> ShellPass() const;
+  void PlayerCall(const std::string& method, const base::DictValue& args,
+                  base::OnceCallback<void(bool, base::Value)> done);
+  raw_ptr<ardia::linux_pip::PlayerView> player_view_ = nullptr;
+  base::WeakPtr<ardia::linux_pip::Player> player_;
+  uint64_t pip_attached_generation_ = 0;
+  uint64_t player_view_owner_ = 0;
   bool app_operation_ = false;
   bool requested_ = false;
   linux_window::GeometryLedger geometry_{GlobalScreenCoordinates()};
@@ -1712,6 +1752,16 @@ class HostMessageHandler : public content::WebUIMessageHandler,
               handler->Fail(id, code ? *code : "ERR_ENGINE", message ? *message : "Extension request failed");
             }, weak_factory_.GetWeakPtr(), id));
       }
+      if (ardiacore::LinuxPagePromptCallHandles(name)) {
+        const base::Value* value = args.Find("args");
+        if (args.size() != 3 || !value || !value->is_string() || value->GetString().size() > 4096)
+          return Fail(id, "ERR_ENGINE", "Prompt arguments must be JSON text");
+        auto parsed = base::JSONReader::Read(value->GetString(), base::JSON_PARSE_RFC, 4);
+        if (!parsed || !parsed->is_dict()) return Fail(id, "ERR_ENGINE", "Prompt arguments must be a JSON object");
+        const std::string error = ardiacore::LinuxPagePromptCall(host_->id(), name, parsed->GetDict());
+        if (!error.empty()) return Fail(id, "ERR_PROMPT", error);
+        return Resolve(id, base::Value());
+      }
       if (LinuxSiteControlsHandles(name)) {
         if (args.size() != 3) return Fail(id, "ERR_ENGINE", "Invalid engine transport request");
         return LinuxSiteControlsCall(host_->profile(), host_->page_profile(), name, profile, args.Find("args"),
@@ -1767,6 +1817,13 @@ class HostMessageHandler : public content::WebUIMessageHandler,
             base::Value(name == "tabs.devBrowserId" ? TabId(binding->contents()) : host_->id());
         return Resolve(id, std::move(value));
       }
+      if (name == "autofill.showSuggestions") {
+        auto* binding = host_->BindingForKey(String(input, "tabId"));
+        const std::optional<bool> passwords = input.FindBool("passwords");
+        if (!binding || !binding->contents() || !passwords || input.size() != 2)
+          return Fail(id, "ERR_ENGINE", "autofill.showSuggestions requires {tabId, passwords} for a tab of this window");
+        return Resolve(id, base::Value(ardiacore::ShowLinuxAutofillSuggestions(binding->contents(), *passwords)));
+      }
       if (std::find(std::begin(ardiacore::kLinuxPageMessageRoutes), std::end(ardiacore::kLinuxPageMessageRoutes), name) !=
           std::end(ardiacore::kLinuxPageMessageRoutes)) {
         std::string error;
@@ -1776,7 +1833,15 @@ class HostMessageHandler : public content::WebUIMessageHandler,
       if (name == "engine.info" || name == "tabs.strips" || name == "tabs.stripCommand" ||
           name == "windows.list" || name == "search.setEngineName" || name == "webView.setAutoPictureInPicture") {
         base::ListValue values;
-        if (name == "search.setEngineName") values.Append(String(input, "name"));
+        if (name == "search.setEngineName") {
+          for (const char* key : {"name", "keyword", "url"}) {
+            const base::Value* field = input.Find(key);
+            if (field && !field->is_string()) {
+              return Fail(id, "ERR_ENGINE", "search.setEngineName takes a string name, keyword and url");
+            }
+            values.Append(String(input, key));
+          }
+        }
         if (name == "tabs.stripCommand") {
           const auto* command = input.FindDict("command");
           const auto command_id = input.FindInt("id");
@@ -2042,7 +2107,12 @@ ShellHostView::ShellHostView(BrowserWindowInterface* browser, BrowserView* paren
       id_(browser->GetSessionID().id()), startup_(startup),
       window_id_(Hosts().empty() ? "main" : "window-" + base::NumberToString(id_)) {
   Hosts()[id_] = this;
+  glass_ = AddChildView(std::make_unique<ShellGlassView>(
+      base::BindRepeating([](base::WeakPtr<ShellHostView> host, std::string_view event, base::Value payload) {
+        if (host) host->Event("ArdiaGlass", event, std::move(payload));
+      }, GetWeakPtr())));
   shell_ = AddChildView(std::make_unique<LinuxShellWebView>(app_profile));
+  shell_->SetEventTargeter(std::make_unique<views::ViewTargeter>(this));
   view_observation_.Observe(parent);
   browser->GetTabStripModel()->AddObserver(this);
 }
@@ -2056,11 +2126,28 @@ void ForgetOpenerHost(int host) {
   }
 }
 
+void CloseUtilitiesWithoutBrowserWindows() {
+  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE, base::BindOnce([] {
+    if (browser_shutdown::IsTryingToQuit()) return;
+    std::vector<int> utilities;
+    for (const auto& [id, host] : Hosts()) {
+      if (!host->is_utility()) return;
+      utilities.push_back(id);
+    }
+    for (int id : utilities) {
+      auto found = Hosts().find(id);
+      if (found == Hosts().end() || !found->second->browser()) continue;
+      found->second->browser()->GetWindow()->Close();
+    }
+  }));
+}
+
 ShellHostView::~ShellHostView() {
   ReleaseDragEscape();
   ForgetOpenerHost(id_);
   LinuxImportWindowClosed(window_id_);
   WindowFocus().Forget(id_);
+  DropPlayer();
   weak_factory_.InvalidateWeakPtrs();
   LinuxLiveCallerGone(LiveCaller());
   handler_ = nullptr;
@@ -2070,6 +2157,7 @@ ShellHostView::~ShellHostView() {
   RetireDocuments();
   UnregisterAccelerators();
   Hosts().erase(id_);
+  if (!is_utility()) CloseUtilitiesWithoutBrowserWindows();
   LinuxExtensionsWindowClosing(id_);
   bindings_.clear();
   CloseCompanions();
@@ -2130,6 +2218,8 @@ void ShellHostView::Initialize() {
     }
   }
   shell_->LoadInitialURL(GURL("chrome://ardia/"));
+  shell_transparency_ = std::make_unique<ShellTransparency>(shell());
+  ApplyShellInput();
   ardiacore::WatchLinuxShellInput(shell());
 }
 
@@ -2261,6 +2351,7 @@ base::ListValue ShellHostView::UnclaimedTabsForShell() const {
 }
 
 void ShellHostView::DetachViewports() {
+  if (glass_) glass_->Clear();
   if (extension_surfaces_) extension_surfaces_->RetireOlderThan(renderer_generation_);
   LinuxExtensionsWindowRetired(id_);
   for (auto& [id, binding] : bindings_) {
@@ -2438,6 +2529,7 @@ void ShellHostView::DetachBrowser() {
   RememberWindowOutput();
   if (!RetireDocuments()) return;
   CloseCompanions();
+  DropPlayer();
   weak_factory_.InvalidateWeakPtrs();
   handler_ = nullptr;
   renderer_document_ = content::WeakDocumentPtr();
@@ -2504,6 +2596,11 @@ base::DictValue ShellHostView::Bootstrap() const {
   for (const char* route : ardiacore::kLinuxPageMessageRoutes)
     capabilities.Append(route);
   capabilities.Append("engine.systemState");
+  capabilities.Append("shell.inputRegions");
+  capabilities.Append("pip.attach");
+  capabilities.Append("pip.viewport");
+  capabilities.Append("pip.command");
+  capabilities.Append("shell.glassRegions");
   AppendLinuxSyncCapabilities(capabilities);
   AppendLinuxLiveCapabilities(capabilities);
   AppendLinuxCalendarCapabilities(capabilities);
@@ -2518,7 +2615,8 @@ base::DictValue ShellHostView::Bootstrap() const {
                                 "ArdiaApp", base::DictValue().Set(
                                                 "systemInfo", std::move(info))))
       .Set("launchConfig", ardiacore::LinuxLaunchConfig(DocumentDirectory(profile()), user_data_directory))
-      .Set("capabilities", std::move(capabilities));
+      .Set("capabilities", std::move(capabilities))
+      .Set("glassPanels", glass_ && glass_->available());
   if (is_utility()) bootstrap.Set("utility", utility_.Clone());
   bootstrap.Set("pageProfile", page_profile_);
   if (!private_window_.empty()) bootstrap.Set("privateWindow", private_window_.Clone());
@@ -2535,7 +2633,10 @@ void ShellHostView::LayoutOverlay() {
   if (!browser_view_) return;
   SetBoundsRect(browser_view_->GetLocalBounds());
   shell_->SetBoundsRect(GetLocalBounds());
+  if (glass_) glass_->SetBoundsRect(GetLocalBounds());
   browser_view_->GetActiveContentsWebView()->SetVisible(false);
+  if (extension_surfaces_) extension_surfaces_->Relayout();
+  Restack();
   HideCaptionButtons();
 }
 
@@ -3927,6 +4028,15 @@ LinuxExtensionSurfaces* ShellHostView::ExtensionSurfaces() {
     extension_surfaces_ = std::make_unique<LinuxExtensionSurfaces>(ActiveMember(), this, base::BindRepeating(
         [](base::WeakPtr<ShellHostView> host, int id, base::DictValue event) {
           if (host) host->Event("ArdiaExtensionView", base::NumberToString(id), base::Value(std::move(event)));
+        }, GetWeakPtr()), base::BindRepeating([](base::WeakPtr<ShellHostView> host) {
+          return host && host->shell() ? blink::ZoomLevelToZoomFactor(
+              zoom::ZoomController::GetZoomLevelForWebContents(host->shell())) : 1.0;
+        }, GetWeakPtr()), base::BindRepeating([](base::WeakPtr<ShellHostView> host) -> gfx::NativeView {
+          return host && host->shell() ? host->shell()->GetNativeView() : gfx::NativeView();
+        }, GetWeakPtr()));
+    extension_surfaces_->SetRestack(base::BindRepeating(
+        [](base::WeakPtr<ShellHostView> host) {
+          if (host) host->Restack();
         }, GetWeakPtr()));
   }
   return extension_surfaces_.get();
@@ -3936,6 +4046,20 @@ bool ShellHostView::ExtensionEvent(std::string_view name, base::DictValue data) 
   if (!browser_ || !handler_) return false;
   Event("ArdiaExtensions", "extensions", base::Value(base::DictValue().Set("name", name).Set("data", std::move(data))));
   return true;
+}
+
+bool ShellHostView::PromptEvent(std::string_view name, base::DictValue data) {
+  if (!browser_ || !handler_ || is_utility()) return false;
+  Event("ArdiaPermissions", "permissions", base::Value(base::DictValue().Set("name", name).Set("data", std::move(data))));
+  return true;
+}
+
+bool ShellHostView::PromptPageEvent(content::WebContents* contents, std::string_view name, base::Value data) {
+  for (const auto& [id, binding] : bindings_) {
+    if (!contents || binding->contents() != contents) continue;
+    return binding->page() && binding->page()->EmitDocument(std::string(name), std::move(data));
+  }
+  return false;
 }
 
 std::string ShellHostView::ExtensionTabKey(content::WebContents* contents) const {
@@ -4077,19 +4201,8 @@ void ShellHostView::LayoutPane(TabBinding* binding) {
   gfx::Rect tools_bounds;
   gfx::Rect page_bounds = pane;
   if (devtools) ApplyDevToolsContentsResizingStrategy(strategy, pane, &tools_bounds, &page_bounds);
-  const auto clip = [](const std::vector<gfx::Rect>& shape, const gfx::Rect& area) {
-    std::vector<gfx::Rect> clipped;
-    for (gfx::Rect part : shape) {
-      part.Intersect(area);
-      part.Offset(-area.x(), -area.y());
-      if (!part.IsEmpty()) clipped.push_back(part);
-    }
-    return clipped;
-  };
   const gfx::Vector2d origin = binding->pane_bounds.OffsetFromOrigin();
   page->SetBoundsRect(page_bounds + origin);
-  static_cast<ViewportView*>(page)->SetShape(clip(binding->pane_shape, page_bounds),
-                                             clip(binding->pane_input_shape, page_bounds));
   page->SetVisible(visible);
   if (visible) {
     owner_view->GetActiveContentsWebView()->SetWebContents(nullptr);
@@ -4109,6 +4222,7 @@ void ShellHostView::LayoutPane(TabBinding* binding) {
   if (!tools) {
     tools = AddChildView(std::make_unique<ViewportView>(ProfileOf(contents->GetBrowserContext())));
     binding->SetDevToolsViewport(tools);
+    Restack();
   }
   const bool fresh = !binding->devtools_watch || binding->devtools_watch->web_contents() != devtools;
   const bool restore_focus = !fresh && !tools->GetVisible() && binding->devtools_had_focus;
@@ -4121,8 +4235,6 @@ void ShellHostView::LayoutPane(TabBinding* binding) {
         }, contents->GetWeakPtr()));
   }
   tools->SetBoundsRect(tools_bounds + origin);
-  static_cast<ViewportView*>(tools)->SetShape(clip(binding->pane_shape, tools_bounds),
-                                              clip(binding->pane_input_shape, tools_bounds));
   tools->SetVisible(true);
   tools->SetWebContents(devtools);
   if (auto* native = devtools->GetNativeView(); native && !native->IsVisible()) native->Show();
@@ -4278,6 +4390,7 @@ void ShellHostView::ReattachViewports() {
     }
     if (binding->devtools_viewport()) LayoutPane(binding.get());
   }
+  Restack();
 }
 
 void ShellHostView::ReplaceTabContents(content::WebContents* old_contents,
@@ -4294,6 +4407,7 @@ void ShellHostView::ReplaceTabContents(content::WebContents* old_contents,
   if (!binding || id <= 0 || (id != old_id && bindings_.contains(id))) return;
   auto previous = binding->TakePage();
   binding->Rebind(contents);
+  CheckPlayerSource();
   if (id != old_id) {
     auto owned = std::move(bindings_[old_id]);
     bindings_.erase(old_id);
@@ -4317,6 +4431,7 @@ void ShellHostView::ReplaceTabContents(content::WebContents* old_contents,
   created->Set("state", binding->Navigation());
   previous->EmitRebind(std::move(*created));
   previous->Retire();
+  ardiacore::RedeliverLinuxPermissionPrompts(binding->contents());
 }
 
 void ShellHostView::OnTabStripModelChanged(
@@ -4450,6 +4565,7 @@ void ShellHostView::CreateTabIn(
     devtools_had_focus_.erase(retired_id);
     owned.reset();
     binding = nullptr;
+    CheckPlayerSource();
     if (retired_owner) {
       const int index = retired_owner->GetTabStripModel()->GetIndexOfWebContents(retired);
       auto weak = GetWeakPtr();
@@ -4481,6 +4597,7 @@ void ShellHostView::CreateTabIn(
       auto moved = std::move(source->bindings_[id]);
       source->bindings_.erase(id);
       source->devtools_had_focus_.erase(id);
+      source->CheckPlayerSource();
       moved->MoveTo(this);
       auto contents = source_model->DetachWebContentsAtForInsertion(index);
       model->InsertWebContentsAt(model->count(), std::move(contents), AddTabTypes::ADD_NONE);
@@ -4598,7 +4715,9 @@ void ShellHostView::CreateTabIn(
   base::DictValue result = base::DictValue()
       .Set("browserId", id).Set("chromeTabId", id).Set("state", binding->Navigation());
   result.Merge(std::move(*created));
+  content::WebContents* bound = binding->contents();
   std::move(done).Run(true, base::Value(std::move(result)));
+  ardiacore::RedeliverLinuxPermissionPrompts(bound);
   QueueTransaction(-1);
 }
 
@@ -4624,32 +4743,22 @@ void ShellHostView::TabCommand(
     if (!binding->media) return std::move(done).Run(false, base::Value("Media is unavailable for this tab"));
     content::RenderFrameHost* shell_frame = shell() ? shell()->GetPrimaryMainFrame() : nullptr;
     const bool press = command == "requestPictureInPicture" || command == "takeControlPress";
+    if (command == "requestPictureInPicture") {
+      ardia::linux_pip::NoteIntent(contents, ardia::linux_pip::Intent::kExplicit);
+    }
     const bool activation = shell_frame && (press ? shell_frame->ConsumeTransientUserActivation()
                                                   : shell_frame->HasTransientUserActivation());
     return binding->media->Dispatch(command, values, activation, std::move(done));
+  }
+  if (ardiacore::LinuxPagePromptCommandHandles(command)) {
+    const std::string error = ardiacore::LinuxPagePromptCommand(contents, command, values);
+    return std::move(done).Run(error.empty(), error.empty() ? base::Value() : base::Value(error));
   }
   if (command == "webStoreRequest") {
     if (!values.empty()) return std::move(done).Run(false, base::Value("webStoreRequest takes no arguments"));
     return ardiacore::LinuxWebStoreRequest(contents, std::move(done));
   }
-  if (command == "captureViewport") {
-    auto* view = contents->GetRenderWidgetHostView();
-    if (!view || !view->IsSurfaceAvailableForCopy()) {
-      return std::move(done).Run(true, base::Value());
-    }
-    view->CopyFromSurface(
-        gfx::Rect(), gfx::Size(), base::Milliseconds(250),
-        base::BindOnce([](base::OnceCallback<void(bool, base::Value)> reply,
-                          const content::CopyFromSurfaceResult& result) {
-          const auto png = result.has_value()
-              ? gfx::PNGCodec::EncodeBGRASkBitmap(result->bitmap, false)
-              : std::nullopt;
-          std::move(reply).Run(true, png
-              ? base::Value("data:image/png;base64," + base::Base64Encode(*png))
-              : base::Value());
-        }, std::move(done)));
-    return;
-  } else if (command == "loadUrl") {
+  if (command == "loadUrl") {
     std::string text = ArgumentString(values, 0);
     if (text.starts_with("ardia://")) text.replace(0, 8, "chrome://");
     const GURL url(text);
@@ -4826,65 +4935,311 @@ void ShellHostView::SetViewport(
   const double right = std::clamp((x + width) * scale, left, static_cast<double>(this->width()));
   const double bottom = std::clamp((y + height) * scale, top, static_cast<double>(this->height()));
   const gfx::Rect bounds = gfx::ToEnclosingRect(gfx::RectF(left, top, right - left, bottom - top));
-  std::vector<gfx::Rect> shape{gfx::Rect(bounds.size())};
-  std::vector<gfx::Rect> input_shape = shape;
-  const auto subtract = [](std::vector<gfx::Rect>& region, const gfx::Rect& cut) {
-    std::vector<gfx::Rect> remaining;
-    for (const auto& piece : region) {
-      gfx::Rect overlap = piece;
-      overlap.Intersect(cut);
-      if (overlap.IsEmpty()) {
-        remaining.push_back(piece);
-        continue;
-      }
-      for (const auto& part : {
-               gfx::Rect(piece.x(), piece.y(), piece.width(), overlap.y() - piece.y()),
-               gfx::Rect(piece.x(), overlap.bottom(), piece.width(), piece.bottom() - overlap.bottom()),
-               gfx::Rect(piece.x(), overlap.y(), overlap.x() - piece.x(), overlap.height()),
-               gfx::Rect(overlap.right(), overlap.y(), piece.right() - overlap.right(), overlap.height())}) {
-        if (!part.IsEmpty()) remaining.push_back(part);
-      }
-    }
-    region = std::move(remaining);
-  };
-  const base::ListValue* occlusions = args.FindList("occlusions");
-  if (occlusions && occlusions->size() > 16) {
-    return std::move(done).Run(false, base::Value("Too many viewport occlusions"));
-  }
-  if (occlusions) {
-    for (const auto& entry : *occlusions) {
-      const auto* occlusion = entry.GetIfDict();
-      if (!occlusion) return std::move(done).Run(false, base::Value("Invalid viewport occlusion"));
-      const double ox = occlusion->FindDouble("x").value_or(NAN);
-      const double oy = occlusion->FindDouble("y").value_or(NAN);
-      const double ow = occlusion->FindDouble("width").value_or(NAN);
-      const double oh = occlusion->FindDouble("height").value_or(NAN);
-      const double outset = occlusion->FindDouble("paintOutset").value_or(0);
-      if (!std::isfinite(ox) || !std::isfinite(oy) || !std::isfinite(ow) ||
-          !std::isfinite(oh) || !std::isfinite(outset) || ow < 0 || oh < 0 || outset < 0 || outset > 64) {
-        return std::move(done).Run(false, base::Value("Invalid viewport occlusion"));
-      }
-      const double ol = std::clamp(ox * scale, left, right);
-      const double ot = std::clamp(oy * scale, top, bottom);
-      const double oright = std::clamp((ox + ow) * scale, ol, right);
-      const double obottom = std::clamp((oy + oh) * scale, ot, bottom);
-      gfx::Rect cut = gfx::ToEnclosingRect(gfx::RectF(ol, ot, oright - ol, obottom - ot));
-      cut.Offset(-bounds.x(), -bounds.y());
-      if (cut.IsEmpty()) continue;
-      subtract(input_shape, cut);
-      cut.Outset(static_cast<int>(std::ceil(outset * scale)));
-      subtract(shape, cut);
-    }
-  }
   if (!binding->viewport()) {
     binding->SetViewport(AddChildView(std::make_unique<ViewportView>(ProfileOf(binding->contents()->GetBrowserContext()))));
   }
   binding->pane_bounds = bounds;
-  binding->pane_shape = std::move(shape);
-  binding->pane_input_shape = std::move(input_shape);
   binding->pane_visible = args.FindBool("visible").value_or(false) && !bounds.IsEmpty();
   LayoutPane(binding);
+  Restack();
   std::move(done).Run(true, base::Value());
+}
+
+void ShellHostView::SetInputRegions(
+    const base::DictValue& args,
+    base::OnceCallback<void(bool, base::Value)> done) {
+  const double scale = blink::ZoomLevelToZoomFactor(
+      zoom::ZoomController::GetZoomLevelForWebContents(shell()));
+  const auto read = [scale](const base::ListValue* list, bool enclosing, std::vector<gfx::Rect>& out) {
+    if (!list || list->size() > 64) return false;
+    for (const auto& entry : *list) {
+      const auto* rect = entry.GetIfDict();
+      if (!rect) return false;
+      const double x = rect->FindDouble("x").value_or(NAN);
+      const double y = rect->FindDouble("y").value_or(NAN);
+      const double width = rect->FindDouble("width").value_or(NAN);
+      const double height = rect->FindDouble("height").value_or(NAN);
+      if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(width) ||
+          !std::isfinite(height) || width < 0 || height < 0) {
+        return false;
+      }
+      const gfx::RectF scaled(x * scale, y * scale, width * scale, height * scale);
+      const gfx::Rect bounds = enclosing ? gfx::ToEnclosingRect(scaled) : gfx::ToEnclosedRect(scaled);
+      if (!bounds.IsEmpty()) out.push_back(bounds);
+    }
+    return true;
+  };
+  std::vector<gfx::Rect> pages;
+  std::vector<gfx::Rect> overlays;
+  if (!read(args.FindList("pages"), false, pages) || !read(args.FindList("overlays"), true, overlays)) {
+    return std::move(done).Run(false, base::Value("Input regions need pages and overlays as lists of rectangles"));
+  }
+  std::vector<gfx::Rect> pass;
+  for (const gfx::Rect& page : pages) {
+    std::vector<gfx::Rect> open{page};
+    for (const gfx::Rect& overlay : overlays) SubtractFromRegion(open, overlay);
+    pass.insert(pass.end(), open.begin(), open.end());
+  }
+  shell_pass_ = std::move(pass);
+  ApplyShellInput();
+  std::move(done).Run(true, base::Value());
+}
+
+std::vector<gfx::Rect> ShellHostView::ShellPass() const {
+  std::vector<gfx::Rect> pass = shell_pass_;
+  if (shell_ && player_view_ && player_view_->GetVisible()) {
+    SubtractFromRegion(pass, views::View::ConvertRectToTarget(this, shell_, player_view_->bounds()));
+  }
+  return pass;
+}
+
+void ShellHostView::ApplyShellInput() {
+  if (!shell_) return;
+  aura::Window* container = shell_->holder()->GetNativeViewContainer();
+  if (!container) return;
+  std::vector<gfx::Rect> shape{gfx::Rect(shell_->size())};
+  for (const gfx::Rect& pass : ShellPass()) SubtractFromRegion(shape, pass);
+  container->SetEventTargeter(std::make_unique<ViewportTargeter>(std::move(shape)));
+}
+
+void ShellHostView::SetStackSlot(views::View* view, StackSlot slot) {
+  std::erase_if(under_glass_, [&](const auto& tracker) { return !tracker->view() || tracker->view() == view; });
+  if (view && slot == StackSlot::kUnderGlass) under_glass_.push_back(std::make_unique<views::ViewTracker>(view));
+  Restack();
+}
+
+void ShellHostView::Restack() {
+  if (!shell_) return;
+  std::erase_if(under_glass_, [](const auto& tracker) { return !tracker->view(); });
+  for (const auto& tracker : under_glass_) {
+    if (tracker->view()->parent() == this) ReorderChildView(tracker->view(), children().size());
+  }
+  if (glass_) ReorderChildView(glass_, children().size());
+  ReorderChildView(shell_, children().size());
+  if (extension_surfaces_) extension_surfaces_->RaisePopups();
+  ApplyShellInput();
+}
+
+bool ShellHostView::PresentsPlayerFor(content::WebContents* source) const {
+  if (is_utility() || !handler_ || !source || !pip_attached_generation_ ||
+      pip_attached_generation_ != renderer_generation_ || !BindsTab(source) ||
+      TabShown(source) == 1) {
+    return false;
+  }
+  const views::Widget* widget = GetWidget();
+  return widget && widget->IsVisible() && !widget->IsMinimized();
+}
+
+void ShellHostView::ShowPlayer(ardia::linux_pip::Player* player) {
+  if (player_ && player_.get() != player) {
+    base::WeakPtr<ardia::linux_pip::Player> previous = player_;
+    player_.reset();
+    previous->PresenterGone(this);
+  }
+  player_ = player->GetWeakPtr();
+  if (!player_view_) {
+    player_view_ = AddChildView(std::make_unique<ardia::linux_pip::PlayerView>());
+    SetStackSlot(player_view_, StackSlot::kUnderGlass);
+  }
+  player_view_owner_ = player->presented_generation();
+  player_view_->SetVisible(false);
+  player_view_->Reveal();
+  player_view_->SetNaturalSize(player->natural_size());
+  player_view_->SetSurface(player->surface_id());
+  Restack();
+  SendPlayerEvent(*player);
+}
+
+void ShellHostView::PlayerChanged(ardia::linux_pip::Player* player) {
+  if (player_.get() != player) return;
+  if (player_view_) player_view_->SetNaturalSize(player->natural_size());
+  SendPlayerEvent(*player);
+}
+
+void ShellHostView::PlayerSurfaceChanged(ardia::linux_pip::Player* player) {
+  if (player_.get() == player && player_view_) player_view_->SetSurface(player->surface_id());
+}
+
+void ShellHostView::HidePlayer(ardia::linux_pip::Player* player, base::TimeDelta fade) {
+  if (player_.get() != player) return;
+  player_.reset();
+  const uint64_t owner = player->presented_generation();
+  Event("ArdiaPip", "player", base::Value(base::DictValue()
+      .Set("player", static_cast<double>(owner))
+      .Set("active", false)
+      .Set("fade", fade.InMillisecondsF())));
+  if (!player_view_ || player_view_owner_ != owner) return;
+  player_view_->FadeOut(fade, base::BindOnce(
+      [](base::WeakPtr<ShellHostView> host, uint64_t owner) {
+        if (!host) return;
+        base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+            FROM_HERE, base::BindOnce(&ShellHostView::DropPlayerView, host, owner));
+      },
+      GetWeakPtr(), owner));
+}
+
+void ShellHostView::DropPlayerView(uint64_t owner) {
+  if (!player_view_ || player_ || player_view_owner_ != owner) return;
+  RemoveChildViewT(std::exchange(player_view_, nullptr).get());
+  ApplyShellInput();
+}
+
+gfx::Rect ShellHostView::DefaultPlayerScreenBounds(const gfx::Size& natural_size) const {
+  const int player_width = std::clamp(static_cast<int>(width() * 0.28), 240, 480);
+  const double aspect = natural_size.IsEmpty()
+                            ? 16.0 / 9.0
+                            : static_cast<double>(natural_size.width()) / natural_size.height();
+  const int player_height = std::max(1, static_cast<int>(player_width / aspect));
+  gfx::Rect rect(std::max(0, width() - player_width - 10), std::max(0, height() - player_height - 10),
+                 player_width, player_height);
+  views::View::ConvertRectToScreen(this, &rect);
+  return rect;
+}
+
+base::WeakPtr<ardia::linux_pip::Presenter> ShellHostView::PresenterWeakPtr() {
+  return weak_factory_.GetWeakPtr();
+}
+
+void ShellHostView::ReleasePlayer() {
+  base::WeakPtr<ardia::linux_pip::Player> player = player_;
+  player_.reset();
+  if (player) {
+    Event("ArdiaPip", "player", base::Value(base::DictValue()
+        .Set("player", static_cast<double>(player->presented_generation()))
+        .Set("active", false)
+        .Set("fade", 0.0)));
+  }
+  player_view_owner_ = 0;
+  if (player_view_) {
+    RemoveChildViewT(std::exchange(player_view_, nullptr).get());
+    ApplyShellInput();
+  }
+  if (player) player->PresenterGone(this);
+}
+
+void ShellHostView::DropPlayer() {
+  pip_attached_generation_ = 0;
+  ReleasePlayer();
+}
+
+void ShellHostView::CheckPlayerSource() {
+  if (player_ && !BindsTab(player_->source())) ReleasePlayer();
+}
+
+void ShellHostView::SendPlayerEvent(const ardia::linux_pip::Player& player) {
+  base::DictValue state = base::DictValue()
+      .Set("player", static_cast<double>(player.presented_generation()))
+      .Set("active", true)
+      .Set("tab", player.source() ? TabId(player.source()) : 0)
+      .Set("playing", player.playback_state() == content::VideoOverlayWindow::kPlaying)
+      .Set("ended", player.playback_state() == content::VideoOverlayWindow::kEndOfVideo)
+      .Set("playPause", player.play_pause_visible())
+      .Set("origin", base::UTF16ToUTF8(player.source_title()))
+      .Set("naturalWidth", player.natural_size().width())
+      .Set("naturalHeight", player.natural_size().height());
+  if (const auto& position = player.position()) {
+    base::DictValue time;
+    time.Set("current", position->GetPosition().InSecondsF());
+    time.Set("rate", position->playback_rate());
+    if (!position->duration().is_max() && position->duration().is_positive()) {
+      time.Set("duration", position->duration().InSecondsF());
+    }
+    state.Set("position", std::move(time));
+  }
+  Event("ArdiaPip", "player", base::Value(std::move(state)));
+}
+
+void ShellHostView::PlayerCall(const std::string& method, const base::DictValue& args,
+                               base::OnceCallback<void(bool, base::Value)> done) {
+  if (is_utility()) return std::move(done).Run(false, base::Value("Picture in picture plays in browser windows"));
+  if (method == "pip.attach") {
+    pip_attached_generation_ = renderer_generation_;
+    if (player_) SendPlayerEvent(*player_);
+    return std::move(done).Run(true, base::Value());
+  }
+  const std::optional<double> id = args.FindDouble("player");
+  if (!id || !player_ || static_cast<double>(player_->presented_generation()) != *id) {
+    return std::move(done).Run(true, base::Value(false));
+  }
+  const double scale = blink::ZoomLevelToZoomFactor(
+      zoom::ZoomController::GetZoomLevelForWebContents(shell()));
+  if (method == "pip.viewport") {
+    const base::DictValue* rect = args.FindDict("rect");
+    const double x = rect ? rect->FindDouble("x").value_or(NAN) : NAN;
+    const double y = rect ? rect->FindDouble("y").value_or(NAN) : NAN;
+    const double w = rect ? rect->FindDouble("width").value_or(NAN) : NAN;
+    const double h = rect ? rect->FindDouble("height").value_or(NAN) : NAN;
+    if (!std::isfinite(x) || !std::isfinite(y) || !std::isfinite(w) || !std::isfinite(h) || w < 0 || h < 0) {
+      return std::move(done).Run(false, base::Value("A finite player rectangle is required"));
+    }
+    if (!player_view_) return std::move(done).Run(true, base::Value(false));
+    gfx::Rect bounds = gfx::ToEnclosingRect(gfx::RectF(x * scale, y * scale, w * scale, h * scale));
+    bounds.Intersect(GetLocalBounds());
+    const bool visible = args.FindBool("visible").value_or(true) && !bounds.IsEmpty();
+    player_view_->SetBoundsRect(bounds);
+    player_view_->SetVisible(visible);
+    Restack();
+    if (visible) {
+      gfx::Rect screen = bounds;
+      views::View::ConvertRectToScreen(this, &screen);
+      player_->SetInWindowScreenBounds(screen);
+    }
+    return std::move(done).Run(true, base::Value(true));
+  }
+  base::WeakPtr<ardia::linux_pip::Player> player = player_;
+  const std::string action = String(args, "action");
+  if (action == "togglePlayPause") {
+    player->TogglePlayPause();
+  } else if (action == "seekTo" || action == "seekBy") {
+    const double seconds = args.FindDouble("seconds").value_or(NAN);
+    if (!std::isfinite(seconds)) return std::move(done).Run(false, base::Value("A finite seek time is required"));
+    if (action == "seekTo") player->SeekTo(base::Seconds(seconds));
+    else player->SeekBy(base::Seconds(seconds));
+  } else if (action == "backToTab") {
+    player->BackToTab();
+  } else if (action == "close") {
+    player->CloseFromPlayer();
+  } else if (action == "popOut") {
+    std::optional<gfx::Rect> screen;
+    if (player_view_ && ui::OzonePlatform::GetInstance()->GetPlatformProperties().supports_global_screen_coordinates) {
+      gfx::Rect rect = player_view_->bounds();
+      views::View::ConvertRectToScreen(this, &rect);
+      const base::DictValue* at = args.FindDict("at");
+      const base::DictValue* grab = args.FindDict("grab");
+      const double at_x = at ? at->FindDouble("x").value_or(NAN) : NAN;
+      const double at_y = at ? at->FindDouble("y").value_or(NAN) : NAN;
+      const double grab_x = grab ? grab->FindDouble("x").value_or(NAN) : NAN;
+      const double grab_y = grab ? grab->FindDouble("y").value_or(NAN) : NAN;
+      if (std::isfinite(at_x) && std::isfinite(at_y) && std::isfinite(grab_x) && std::isfinite(grab_y)) {
+        rect.set_origin(gfx::Point(static_cast<int>(std::lround((at_x - grab_x) * scale)),
+                                   static_cast<int>(std::lround((at_y - grab_y) * scale))));
+      }
+      screen = rect;
+    }
+    player->PopOut(screen);
+  } else {
+    return std::move(done).Run(false, base::Value("Unknown picture in picture action"));
+  }
+  return std::move(done).Run(true, base::Value(true));
+}
+
+bool ShellHostView::PassesShellPoint(gfx::NativeView child, const gfx::Point& location) const {
+  if (!shell_ || shell_pass_.empty() || shell_->holder()->GetNativeViewContainer() != child) {
+    return false;
+  }
+  gfx::Point point = location;
+  views::View::ConvertPointFromWidget(shell_, &point);
+  return std::ranges::any_of(ShellPass(), [&](const gfx::Rect& pass) { return pass.Contains(point); });
+}
+
+bool ShellHostView::DoesIntersectRect(const views::View* target, const gfx::Rect& rect) const {
+  if (target != shell_) return views::ViewTargeterDelegate::DoesIntersectRect(target, rect);
+  gfx::Rect inside = rect;
+  inside.Intersect(target->GetLocalBounds());
+  if (inside.IsEmpty()) return false;
+  std::vector<gfx::Rect> remaining{inside};
+  for (const gfx::Rect& pass : ShellPass()) SubtractFromRegion(remaining, pass);
+  return !remaining.empty();
 }
 
 void ShellHostView::SetPresentations(
@@ -4924,6 +5279,7 @@ void ShellHostView::SetPresentations(
   }
   for (const auto& [contents, visible] : changes) {
     if (!contents) continue;
+    if (visible) ardia::linux_pip::ClearIntent(contents.get());
     if (auto* helper = AutoPictureInPictureTabHelper::FromWebContents(contents.get())) {
       helper->OnTabActivatedChanged(visible);
     }
@@ -5396,6 +5752,15 @@ void ShellHostView::Invoke(
   if (method == "tab.create") return CreateTab(args, std::move(done));
   if (method == "tab.command") return TabCommand(args, std::move(done));
   if (method == "tab.viewport") return SetViewport(args, std::move(done));
+  if (method == "shell.inputRegions") return SetInputRegions(args, std::move(done));
+  if (method == "pip.attach" || method == "pip.viewport" || method == "pip.command") {
+    return PlayerCall(method, args, std::move(done));
+  }
+  if (method == "shell.glassRegions") {
+    if (!glass_) return std::move(done).Run(false, base::Value("Glass regions are unavailable in this window"));
+    return glass_->Apply(args, blink::ZoomLevelToZoomFactor(zoom::ZoomController::GetZoomLevelForWebContents(shell())),
+                         std::move(done));
+  }
   if (method == "tab.presentations") return SetPresentations(args, std::move(done));
   if (method == "webView.setAutoPictureInPicture") {
     if (values.size() != 1 || !values[0].is_bool()) {
@@ -5890,20 +6255,10 @@ void ShellHostView::Invoke(
     return std::move(done).Run(true, base::Value());
   }
   if (method == "search.setEngineName") {
-    const std::string name = ArgumentString(values, 0);
-    if (name.empty()) return std::move(done).Run(true, base::Value());
-    TemplateURLService* service = TemplateURLServiceFactory::GetForProfile(profile());
-    if (!service) return std::move(done).Run(false, base::Value("No search engine service"));
-    service->Load();
-    if (!service->loaded()) return std::move(done).Run(false, base::Value("Search engines have not loaded yet"));
-    for (TemplateURL* engine : service->GetTemplateURLs()) {
-      if (engine->type() == TemplateURL::NORMAL &&
-          base::EqualsCaseInsensitiveASCII(base::UTF16ToUTF8(engine->short_name()), name)) {
-        service->SetUserSelectedDefaultSearchProvider(engine);
-        return std::move(done).Run(true, base::Value());
-      }
-    }
-    return std::move(done).Run(false, base::Value("No installed search engine named " + name));
+    const std::optional<std::string> error = ardiacore::SetLinuxDefaultSearchEngine(
+        ArgumentString(values, 0), ArgumentString(values, 1), ArgumentString(values, 2));
+    if (error) return std::move(done).Run(false, base::Value(*error));
+    return std::move(done).Run(true, base::Value());
   }
   std::move(done).Run(false, base::Value("Unsupported Linux host method: " + method));
 }
@@ -5913,6 +6268,7 @@ TabBinding::TabBinding(ShellHostView* owner, content::WebContents* contents,
     : WebContentsObserver(contents), owner_(owner), contents_(contents),
       key_(std::move(key)) {
   StartMedia();
+  ardiacore::TrackLinuxAutofillFocus(contents_);
 }
 
 TabBinding::~TabBinding() {
@@ -6053,6 +6409,7 @@ std::vector<std::pair<std::string, base::Value>> TabBinding::SnapshotExtras() {
     discard_reported = true;
     events.emplace_back("discarded", base::Value(base::DictValue().Set("url", DiscardedUrl(contents_))));
   }
+  for (auto& prompt : ardiacore::LinuxPagePromptSnapshot(contents_)) events.push_back(std::move(prompt));
   return events;
 }
 
@@ -6087,6 +6444,7 @@ void TabBinding::Rebind(content::WebContents* contents) {
   frozen = false;
   discard_reported = false;
   StartMedia();
+  ardiacore::TrackLinuxAutofillFocus(contents_);
   if (viewport_ && viewport_->GetVisible()) viewport_->SetWebContents(contents);
 }
 
@@ -6399,6 +6757,17 @@ void EngineEvent(void*, const char* topic, const char* json) {
 
 }
 
+namespace linux_pip {
+
+Presenter* FindPresenter(content::WebContents* source) {
+  for (const auto& [id, host] : Hosts()) {
+    if (host->PresentsPlayerFor(source)) return host;
+  }
+  return nullptr;
+}
+
+}
+
 void StartLinuxHost() {
   CHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
   static bool started = false;
@@ -6417,6 +6786,26 @@ void StartLinuxHost() {
   g_ardia_linux_page_host_binder = &ardiacore::RegisterLinuxPageHostBinder;
   g_ardia_linux_auto_pip_requested = [](content::WebContents* contents) {
     for (const auto& [id, host] : Hosts()) host->NoteAutoPictureInPictureRequested(contents);
+    ardia::linux_pip::NoteIntent(contents, ardia::linux_pip::Intent::kAutomatic);
+  };
+  g_ardia_linux_auto_pip_allowed = [](content::WebContents* contents) {
+    if (!contents) return false;
+    if (auto* settings = HostContentSettingsMapFactory::GetForProfile(contents->GetBrowserContext())) {
+      const GURL& url = contents->GetLastCommittedURL();
+      if (settings->GetContentSetting(url, url, ContentSettingsType::AUTO_PICTURE_IN_PICTURE) ==
+          CONTENT_SETTING_ASK) {
+        return false;
+      }
+    }
+    return ardia::linux_pip::FindPresenter(contents) != nullptr;
+  };
+  g_ardia_linux_keeps_picture_in_picture = &ardia::linux_pip::Player::KeepsAfterSourceReturn;
+  g_ardia_linux_refuses_document_picture_in_picture = [](content::WebContents* source, bool user_gesture) {
+    return source && !user_gesture && ardia::linux_pip::AutomaticIntentPending(source);
+  };
+  g_ardia_linux_video_overlay = [](content::VideoPictureInPictureWindowController* controller)
+      -> std::unique_ptr<content::VideoOverlayWindow> {
+    return std::make_unique<ardia::linux_pip::Player>(controller);
   };
   g_ardia_linux_target_url = [](content::WebContents* contents, const GURL& url) {
     for (const auto& [id, host] : Hosts()) {
@@ -6507,6 +6896,9 @@ void StartLinuxHost() {
     return host ? host->browser() : nullptr;
   };
   g_ardia_linux_is_companion = [](const BrowserWindowInterface* browser) { return IsCompanion(browser); };
+  g_ardia_linux_shell_passes_point = [](gfx::NativeView child, const gfx::Point& location) {
+    return std::ranges::any_of(Hosts(), [&](const auto& entry) { return entry.second->PassesShellPoint(child, location); });
+  };
   g_ardia_linux_window_tab_count = [](const BrowserWindowInterface* browser) {
     ShellHostView* host = MemberHost(browser);
     if (!host || host->browser() != browser) return -1;
@@ -6574,6 +6966,32 @@ void StartLinuxHost() {
   });
   g_ardia_native_messaging_manifest = &NativeMessagingManifest;
   StartLinuxExtensions(std::move(extensions));
+  ardiacore::LinuxPagePromptsDelegate prompts;
+  prompts.tab_for = base::BindRepeating([](content::WebContents* contents) {
+    ardiacore::LinuxPromptTab tab;
+    for (const auto& [id, host] : Hosts()) {
+      if (host->is_utility()) continue;
+      std::string key = host->ExtensionTabKey(contents);
+      if (key.empty()) continue;
+      tab.window = id;
+      tab.key = std::move(key);
+      const int shown = host->TabShown(contents);
+      tab.shown = shown == 1 ? 1 : shown == 0 ? 0 : -1;
+      break;
+    }
+    return tab;
+  });
+  prompts.deliver = base::BindRepeating([](int window, std::string_view name, base::DictValue data) {
+    const auto found = Hosts().find(window);
+    return found != Hosts().end() && found->second->PromptEvent(name, std::move(data));
+  });
+  prompts.page_event = base::BindRepeating([](content::WebContents* contents, std::string_view name, base::Value data) {
+    for (const auto& [id, host] : Hosts()) {
+      if (!host->ExtensionTabKey(contents).empty()) return host->PromptPageEvent(contents, name, std::move(data));
+    }
+    return false;
+  });
+  ardiacore::StartLinuxPagePrompts(std::move(prompts));
   ac_engine_set_event_sink(EngineEvent, nullptr);
   StartLinuxSiteControls(base::BindRepeating([](Profile* profile, base::Value stats) {
     for (const auto& [id, host] : Hosts()) {

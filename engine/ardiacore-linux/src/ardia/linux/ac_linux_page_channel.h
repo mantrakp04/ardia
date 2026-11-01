@@ -88,6 +88,9 @@ class LinuxPageChannel : public content::WebContentsObserver,
   void LinkDrop(const std::string& spec);
   void NoteVideo(content::RenderFrameHost& frame, const base::Value& data);
   friend void NoteLinuxDragEnded(base::FunctionRef<bool(content::WebContents*)> in_window);
+  friend void WatchLinuxShellInput(content::WebContents* shell);
+  void ReleaseShellPointer();
+  void LeaveShell(uint64_t generation);
   void Call(content::RenderFrameHost* frame, const std::string& kind, const std::string& json);
   void Greet(content::RenderFrameHost& frame);
   void Watch(content::RenderWidgetHost* widget);
@@ -107,6 +110,10 @@ class LinuxPageChannel : public content::WebContentsObserver,
   std::optional<LinuxPageChannelHooks> hooks_;
   const uintptr_t surface_;
   std::set<content::RenderWidgetHost*> widgets_;
+  bool shell_ = false;
+  bool holds_pointer_ = false;
+  bool pressing_ = false;
+  uint64_t pointer_generation_ = 0;
   std::optional<std::string> scroll_;
   base::Value selection_;
   content::WeakDocumentPtr message_document_;

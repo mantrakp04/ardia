@@ -28,6 +28,8 @@
 #include "third_party/blink/public/common/input/web_input_event.h"
 #include "third_party/blink/public/common/input/web_mouse_event.h"
 #include "ui/aura/client/drag_drop_client.h"
+#include "ui/aura/client/screen_position_client.h"
+#include "ui/aura/env.h"
 #include "ui/aura/client/drag_drop_delegate.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_observer.h"
@@ -437,6 +439,15 @@ void LinuxPageChannel::OnInputEvent(const content::RenderWidgetHost& widget, con
   const auto type = event.GetType();
   if (UserActivity(type) && Activity().Note(Now()) && ActivityListener())
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE, ActivityListener());
+  if (shell_ && blink::WebInputEvent::IsMouseEventType(type)) {
+    holds_pointer_ = type != blink::WebInputEvent::Type::kMouseLeave;
+    pressing_ = (event.GetModifiers() & (blink::WebInputEvent::kLeftButtonDown | blink::WebInputEvent::kMiddleButtonDown |
+                                         blink::WebInputEvent::kRightButtonDown)) != 0;
+    ++pointer_generation_;
+  } else if (!shell_ && (type == blink::WebInputEvent::Type::kMouseMove ||
+                         type == blink::WebInputEvent::Type::kMouseDown)) {
+    ReleaseShellPointer();
+  }
   if (type != blink::WebInputEvent::Type::kMouseDown && type != blink::WebInputEvent::Type::kMouseUp) return;
   const auto& mouse = static_cast<const blink::WebMouseEvent&>(event);
   if (mouse.button != blink::WebPointerProperties::Button::kLeft) return;
@@ -449,6 +460,42 @@ void LinuxPageChannel::OnInputEvent(const content::RenderWidgetHost& widget, con
   if (main && main->GetRenderWidgetHost() == &widget)
     point = LinuxLinkPoint{mouse.PositionInWidget().x(), mouse.PositionInWidget().y()};
   Gate().NoteRelease(surface_, LinkFlags(mouse.GetModifiers()), Now(), point, DragInProgress(GetWebContents()));
+}
+
+void LinuxPageChannel::ReleaseShellPointer() {
+  const gfx::NativeWindow window = GetWebContents().GetTopLevelNativeWindow();
+  for (LinuxPageChannel* channel : Channels()) {
+    if (!channel->shell_ || !channel->holds_pointer_ || channel->pressing_ ||
+        channel->GetWebContents().GetTopLevelNativeWindow() != window) {
+      continue;
+    }
+    channel->holds_pointer_ = false;
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(&LinuxPageChannel::LeaveShell, channel->weak_factory_.GetWeakPtr(),
+                                  channel->pointer_generation_));
+  }
+}
+
+void LinuxPageChannel::LeaveShell(uint64_t generation) {
+  if (generation != pointer_generation_ || holds_pointer_) return;
+  if (aura::Window* shell_window = GetWebContents().GetNativeView()) {
+    if (aura::Window* root = shell_window->GetRootWindow()) {
+      gfx::Point point = aura::Env::GetInstance()->last_mouse_location();
+      if (auto* screen = aura::client::GetScreenPositionClient(root)) screen->ConvertPointFromScreen(root, &point);
+      aura::Window* under = root->bounds().Contains(point) ? root->GetEventHandlerForPoint(point) : nullptr;
+      if (under && shell_window->Contains(under)) {
+        holds_pointer_ = true;
+        return;
+      }
+    }
+  }
+  content::RenderFrameHost* main = GetWebContents().GetPrimaryMainFrame();
+  if (!main || !main->GetRenderWidgetHost()) return;
+  blink::WebMouseEvent leave(blink::WebInputEvent::Type::kMouseLeave, blink::WebInputEvent::kNoModifiers,
+                             base::TimeTicks::Now());
+  leave.SetPositionInWidget(-1, -1);
+  leave.SetPositionInScreen(-1, -1);
+  main->GetRenderWidgetHost()->ForwardMouseEvent(leave);
 }
 
 void LinuxPageChannel::TrackDrops() {
@@ -480,7 +527,10 @@ void RegisterLinuxPageHostBinder(content::RenderFrameHost& frame, blink::Associa
 }
 
 void WatchLinuxShellInput(content::WebContents* shell) {
-  if (shell) LinuxPageChannel::GetOrCreate(shell);
+  if (!shell) return;
+  LinuxPageChannel* channel = LinuxPageChannel::GetOrCreate(shell);
+  channel->shell_ = true;
+  channel->holds_pointer_ = true;
 }
 
 void SetLinuxInputActivityListener(base::RepeatingClosure listener) {

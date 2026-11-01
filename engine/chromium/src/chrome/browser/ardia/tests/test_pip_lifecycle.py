@@ -12,7 +12,7 @@ class PipLifecycleTests(unittest.TestCase):
             self.skipTest('C++ compiler unavailable')
         source = (Path(__file__).resolve().parents[1] / 'pip/ac_pip_linux.cc').read_text()
         start = source.index('class HyprlandPlacement :')
-        end = source.index('\nconstexpr char kBoundsKey', start)
+        end = source.index('\n};\n', start) + len('\n};\n')
         observer = source[start:end]
         prelude = r'''
 #include <cassert>

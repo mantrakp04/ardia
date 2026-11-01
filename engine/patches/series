@@ -108,12 +108,16 @@ chromium chromium-ardia-linux-layer.patch linux
 chromium chromium-linux-background-windows.patch linux
 chromium chromium-linux-companion-browsers.patch linux
 chromium chromium-linux-page-agent.patch linux
+chromium chromium-linux-page-prompts.patch linux
 chromium chromium-linux-navigation-hold-hook.patch linux
 chromium chromium-linux-autoplay-policy.patch linux
 chromium chromium-linux-web-store-uninstall.patch linux
 chromium chromium-linux-media-player-pip.patch linux
+chromium chromium-linux-shell-above-input.patch linux
 chromium chromium-linux-branding.patch linux
 chromium chromium-linux-wayland-cursor-fallback.patch linux
+chromium chromium-linux-pip-in-window.patch linux
+chromium chromium-linux-glass-compositing.patch linux
 
 layer engine/chromium
 layer engine/ardiacore mac

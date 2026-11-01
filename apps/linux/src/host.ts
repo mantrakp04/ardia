@@ -20,6 +20,7 @@ export type ArdiaHost = {
     typeaheadMs?: number;
     adoptTabs?: UnclaimedTab[];
     chromeMade?: boolean;
+    glassPanels?: boolean;
   };
   call(name: string, profile: string, args: string | null): Promise<string>;
   invoke(method: string, args: Record<string, unknown>): Promise<unknown>;
@@ -47,6 +48,10 @@ export function invokeHost<T = unknown>(method: string, args: Record<string, unk
 export function hostSupports(method: string, host: ArdiaHost = ardiaHost!) {
   return !!host?.bootstrap.capabilities?.includes(method);
 }
+
+export type HostRect = { x: number; y: number; width: number; height: number };
+export type HostInputRegions = { pages: HostRect[]; overlays: HostRect[] };
+export const INPUT_REGIONS_METHOD = "shell.inputRegions";
 
 export function hostModuleMethod(module: string, method: string, host: ArdiaHost = ardiaHost!) {
   return (...args: unknown[]) => invokeHost(`${module}.${method}`, { args }, host);

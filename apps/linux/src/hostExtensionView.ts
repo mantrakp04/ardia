@@ -3,7 +3,18 @@ import { hostProfile, hostSupports, invokeHost } from "./host.ts";
 
 export type ExtensionViewKind = "popup" | "sidePanel";
 export type ExtensionViewEvent = { type: string; [key: string]: unknown };
-export type ExtensionViewport = { rect: { x: number; y: number; width: number; height: number }; visible: boolean };
+export type ExtensionViewport = { rect: { x: number; y: number; width: number; height: number }; visible: boolean; radii?: CornerRadii };
+export type CornerRadii = { upperLeft: number; upperRight: number; lowerRight: number; lowerLeft: number };
+export type PopupPlacement = {
+  anchor: { right: number; top: number };
+  room: { left: number; right: number; bottom: number };
+  radius: number;
+  fadeMs: number;
+  visible: boolean;
+  decorated?: number;
+  decoratedScale?: number;
+};
+export type NativeFrame = { x: number; y: number; width: number; height: number; radius: number; scale: number; reveal: boolean; serial: number };
 export type ExtensionViewOptions = { kind: ExtensionViewKind; url: string; profile?: string };
 
 export const EXTENSION_VIEW_MODULE = "ArdiaExtensionView";
@@ -26,7 +37,7 @@ export class HostExtensionView {
   id: number | undefined;
   disposed = false;
   private queue: Promise<unknown> = Promise.resolve();
-  private lastViewport = "";
+  private lastSent = "";
   private shown = false;
   private focusWanted: FocusRequest | null = null;
   private focus: FocusWitness;
@@ -37,6 +48,7 @@ export class HostExtensionView {
     this.focus = focus;
     const early: { id: string; event: ExtensionViewEvent }[] = [];
     const deliver = (event: ExtensionViewEvent) => {
+      if (event.type === "shown") this.nativeShown(event.value === true);
       try { onEvent(event); } catch (error) { console.error("[ardia host] extension view listener failed", error); }
     };
     this.unsubscribe = host.onEvent((module, id, payload) => {
@@ -88,23 +100,36 @@ export class HostExtensionView {
   }
 
   viewport(viewport: ExtensionViewport) {
+    const next = { rect: viewport.rect, visible: viewport.visible, ...(viewport.radii ? { radii: viewport.radii } : {}) };
+    return this.send("extensionView.viewport", next);
+  }
+
+  place(placement: PopupPlacement) {
+    return this.send("extensionView.place", placement);
+  }
+
+  private send(method: string, args: object) {
     return this.enqueue(async () => {
       if (this.disposed || this.id === undefined) return;
-      const shown = { rect: viewport.rect, visible: viewport.visible };
-      const json = JSON.stringify(shown);
-      if (json === this.lastViewport) return;
-      this.lastViewport = json;
-      await invokeHost<void>("extensionView.viewport", { id: this.id, ...shown }, this.host).catch((error) => {
-        if (this.lastViewport === json) this.lastViewport = "";
+      const json = `${method} ${JSON.stringify(args)}`;
+      if (json === this.lastSent) return;
+      this.lastSent = json;
+      await invokeHost<void>(method, { id: this.id, ...args }, this.host).catch((error) => {
+        if (this.lastSent === json) this.lastSent = "";
         throw error;
       });
-      this.shown = shown.visible;
-      const wanted = this.shown ? this.focusWanted : null;
-      if (!wanted) return;
-      this.focusWanted = null;
-      if (!this.focusStillWanted(wanted)) return;
-      await invokeHost<void>("extensionView.command", { id: this.id, command: "focus", args: [] }, this.host);
     });
+  }
+
+  private nativeShown(shown: boolean) {
+    this.shown = shown;
+    const wanted = shown ? this.focusWanted : null;
+    if (!wanted) return;
+    this.focusWanted = null;
+    void this.enqueue(async () => {
+      if (this.disposed || this.id === undefined || !this.shown || !this.focusStillWanted(wanted)) return;
+      await invokeHost<void>("extensionView.command", { id: this.id, command: "focus", args: [] }, this.host);
+    }).catch((error) => console.error("[ardia host] extension view focus failed", error));
   }
 
   private focusStillWanted({ owner, at }: FocusRequest) {

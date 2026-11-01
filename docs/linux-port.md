@@ -68,16 +68,66 @@ The acceptance suite is in [linux-acceptance.md](linux-acceptance.md) and CI in 
 - **Placement.** Rectangles arrive in CSS viewport coordinates and the host converts them. Native pages hide beneath
   browser overlays and clip themselves.
 - **Tracking.** `watchTabViewport` measures a page's rectangle, overlays and coverage only when something changes: a
-  DOM mutation, a resize, scroll or visibility change, a CSS transition or animation, or a change to the stores the
-  overlay check reads (`refreshTabViewports`). It measures at most once per animation frame. It keeps measuring each
+  DOM mutation, a resize, scroll or visibility change, a CSS transition or animation, or a page's own presentation
+  change (`refreshTabViewports`). It measures at most once per animation frame. It keeps measuring each
   frame only while a running animation targets the page's ancestors or an overlay. Idle windows run no measuring code;
   the earlier version polled every frame and used about 5% of a core. Mutation-triggered measures run in the next
   frame rather than in a later task, so a React commit and the animated transform that offsets it are never seen
   apart. Each tab keeps at most one `tab.viewport` request in flight; later rectangles replace the queued one, so a
   busy browser thread can't build up a backlog of stale positions.
-- **Hover cards.** These report their bounds separately from modal overlays. Native viewports cut those bounds out of
-  painting and input (Views and Aura hit testing) instead of detaching the page. Before a card shows, the host takes a
-  short-lived page snapshot for the card's fade, corners and shadow.
+- **Overlays.** The shell WebView sits above the page views and is transparent over them (`ShellHostView::Restack`,
+  `ShellTransparency`), so menus, hover cards, popovers, the command panel and the sidebar peek draw straight over the
+  live page, as on the Mac. Each overlay registers an input region (`useInputRegion`); the shell sends
+  `shell.inputRegions` (page rects minus overlay rects) and the host passes input at those points through to the page
+  below: Views and Aura targeting on the shell, plus `BrowserView::ShouldDescendIntoChildForEventHandling` for drag and
+  drop (`chromium-linux-shell-above-input.patch`). An overlay that newly covers a page stays hidden until its region is
+  acknowledged, so a press on its first frame can't reach the page.
+- **Glass panels.** Menus, hover cards, the command panel, popovers, the extension popup's panel and the sidebar peek
+  can be translucent over the live page. Every other panel, and every control, keeps the opaque fallback, and
+  `isLiquidGlass` stays off.
+  - **Native blur.** The shell sends the glass rects it wants (`shell.glassRegions`: id, rect, per-corner radii, blur
+    24, opacity, in shell CSS px, with a generation). The engine draws one transparent layer per region with a backdrop
+    blur and plain circular corners (`ShellGlassView`, `ac_linux_glass.cc`). It answers with the regions it applied and later reports `presented` for that generation. A shell
+    renderer that goes away takes its regions and its pending `presented` reports with it, and the shell ignores a
+    `presented` newer than anything it sent.
+  - **Translucency is earned.** A panel starts opaque. It turns translucent only once its region for its current
+    geometry has been stable for two frames, with no animation or transition running on it or an ancestor, and is
+    presented. It goes opaque again the moment it moves, resizes, fades or an animation starts on it or an ancestor (not inside
+    it), and the moment it falls past the region limit. A refused or
+    never-presented region keeps it opaque, and so does the absence of the capability. A region that leaves the set
+    the shell sends loses its acceptance, so coming back waits for a new answer and presentation. Panels mounted while
+    glass was off register when it comes back.
+  - **Who blurs what.** The native layers blur the pages, side panels and DevTools below the shell. Shell content
+    behind a panel is blurred by the panel's own CSS backdrop filter. Native extension popups sit above everything
+    and are never blurred.
+  - **When it's off.** Glass needs `kNativeViewHostManagesLayers` and GPU compositing, as content's own compositing
+    state says (`--disable-gpu-compositing`, a runtime fallback to software, or a software compositor all count).
+    Software compositing, SwiftShader and llvmpipe advertise `glassPanels: false`, and a runtime fallback turns glass
+    off at once.
+  - **Video.** Glass over playing video, in a page, a side panel or the in-window player, stays live. Viz never
+    promotes video to an overlay here: Wayland overlay delegation is off by default and needs a compositor without
+    `wp_fractional_scale_v1` (sway and Hyprland both have it), the X11 overlay processor is a stub, and even forced
+    overlays skip candidates covered by filtered quads, except ones that require an overlay (hardware-protected,
+    required-priority or video-hole candidates; Linux can't produce protected buffers today, so revisit a guard if
+    hardware-protected playback ever ships). Glass over video costs about 2 points of GPU-process CPU,
+    with the same p95 frame interval and no dropped frames.
+  - **Stacking.** `ShellHostView::Restack()` keeps one order: pages (page views, DevTools, side panels), then the views
+    put in the under-glass slot (`SetStackSlot(view, StackSlot::kUnderGlass)`, in the order they were added), then
+    the glass layers, then the shell, then native extension popups. The in-window picture-in-picture player is in
+    the under-glass slot, so glass panels over it blur it; the slot forgets a view when it is deleted.
+  - **Removal.** A translucent panel that disappears leaves a same-looking afterimage until the layer's removal is
+    presented (250 ms at most), so the blur never shows without its panel.
+- **Extension popups and side panels** are native views (`ac_linux_extension_views.cc`).
+  - **Popups** sit above the shell. The shell sends where a popup hangs (`extensionView.place`: the anchor and the
+    room, in shell CSS px). The engine sizes it from the extension's own auto-resize, capped by that room, places it on
+    whole device pixels and rounds its corners. It reports the frame it actually composited (a `frame` event, in shell
+    CSS px), and the shell draws the panel's border and shadow outside it, so the page never covers them.
+  - **Reveal.** The content shows once the page has loaded and stopped resizing (best effort, 600 ms at most) and the
+    shell has painted the decoration of its current frame. It then fades in and reports `shown`. A focus asked for
+    earlier is handed over only after that, and whatever had focus before a popup or side panel took it gets it back
+    when the surface hides or closes. With no room at all, the popup and its panel hide until there is room again.
+  - **Side panels** sit with the pages below the shell. The shell sizes them (`extensionView.viewport`), rounded
+    inward like the page input regions, with the corner radii of the card that clips them.
 - **Split panes.** Each pane keeps its own stored focus. A click in the inactive pane activates it.
 - **New Tab prewarming** is off on Linux (`newTabPrewarm` is forced false in `ac_launch_switches_linux.cc`). A
   prewarmed native tab took focus from the search field when it was activated. Linux creates the page when the user
@@ -393,12 +443,17 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
   - Settings starts at 820×640 with a 720×480 minimum.
   - Import starts at 640×600 and doesn't resize.
   - They never create browser tabs or windows. A utility close waits for its pending session writes.
+  - Closing the last browser window closes them too, so Ardia quits instead of living on behind a lone Settings
+    window.
 - **Shortcuts.**
   - Linux owns its shortcut catalog (`apps/linux/src/commandCatalog.ts`, `shortcuts.ts`). The same effective bindings
     fill Settings › Keyboard Shortcuts and drive the native key handler at the window's Aura root, so a focused page
     and the shell dispatch the same commands.
   - Bindings match physical key codes, with a logical fallback, so layouts such as German don't remap Ctrl+Z.
   - A modal dialog keeps its keys.
+  - A menu item's alternate swaps in while its own extra modifier is held, as in an AppKit menu: Alt for a ⌥
+    alternate (Copy Links → Copy Links as Markdown in the tab and multi-tab menus), Ctrl for a ⌘ one (a profile's
+    New Window entry).
   - Quit is Ctrl+Shift+Q. Ctrl+Tab commits on release of the physical Control key.
   - `--ardia-keyboard-diagnostics` with `--enable-logging=stderr` logs each key, its binding and the focused view.
 - **Typeahead.** Keys typed before a new window's UI is ready are held and replayed into the focused text field. The
@@ -432,10 +487,39 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
 
 - **Automatic PiP.** Linux forwards the Tabs setting to Chromium's browser-initiated automatic PiP.
   - Explicit site blocks win, and the global setting off disables it even for allowed sites.
-  - Returning to the source or turning the setting off closes the PiP window without pausing.
+  - Returning to the source or turning the setting off closes the player without pausing.
   - Dismissing it uses up the departure; another visit and departure are needed to open it again.
   - Private windows never enter it.
   - Chromium keeps audio focus, URL safety, permissions and the single PiP owner.
+- **Automatic PiP plays inside the window.** When a playing tab goes to the background (a tab switch, Ctrl+T, a new
+  tab), its video keeps playing in a floating player drawn inside Ardia's window, over the content card. It never
+  maps a toplevel: a Wayland compositor focuses every new toplevel and gives clients no portable way to refuse, so
+  Chromium's inactive PiP window used to take the keyboard from the new tab's field. X11 plays it the same way.
+  - Engine (`ac_linux_pip_player.{h,cc}`, hooks in `chromium-linux-pip-in-window.patch`): every video PiP window on
+    Linux is a `Player`, the controller's `VideoOverlayWindow`. Each session start decides where it plays: in the
+    window when the request is automatic (the auto-PiP hook records the intent), otherwise in Chromium's real,
+    Dia-styled window (a page's own PiP button, Ardia's PiP command, site controls). The video is a `PlayerView`
+    (`LAYER_SURFACE`, 6 pt corners) above the page views and below the shell; it takes no input, and the host keeps
+    its rectangle out of the shell's page pass-through.
+  - An automatic request with nowhere to play (the window hidden or minimized, its shell not attached, a site set to
+    Ask) is declined before the page is asked. Automatic document PiP (video calls) is refused, since it would map a
+    toplevel; explicit document PiP is unchanged.
+  - Shell (`InWindowPlayer.tsx`, `pipPlayer.ts`, `pipGeometry.ts`): Dia's PiP controls and timings (the hover scrim,
+    back to tab, close, play/pause, ±10 s, the progress bar), plus a pop-out button. Drags move it inside the
+    content card, a fling throws it to a corner with Dia's spring, the edges resize it at the video's aspect, and
+    its corner, offset and width are remembered in `pip-player.json`. Its messages carry the player's generation, so
+    a late reply can't move or close a newer player.
+  - Layering, bottom to top: the page, the player's video, the base shell UI clipped around the player, then the
+    shell's overlays. `playerHoles.ts` clips each base subtree under the player that holds no overlay; the
+    background of an element that does hold overlays is holed by `pageHoles` (`setFloating`, a floating hole merged
+    with the page holes so overlapping holes don't cancel). Menus, the command panel, hover cards, popovers,
+    prompts, the downloads bubble and the peek are never clipped and draw above the player.
+- **Pop-out.** The pop-out button, or dragging the player past the window's edge, turns it into Chromium's real PiP
+  window on the same surface, so playback continues without a reload, a pause or leaving picture in picture. The
+  in-window player stays until the real window has presented a frame. On X11 the window opens at the pointer (a
+  drag) or where the player was (the button); on Wayland the compositor places it, and it takes focus as any new
+  window does there, which the user asked for. A popped-out window is a deliberate PiP: it stays open when you go
+  back to the tab.
 - **Manual PiP.** It picks a candidate from the whole primary page, iframes included, ranked by unmuted, main frame,
   playing, then size. It never grants the page user activation.
 - **Corner throws.** The gesture (`packages/ardiacore/ios/ArdiaPiPController+Swipe.mm`) is Mac-only. Wayland's
@@ -451,6 +535,35 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
   - A visible window is left alone. Hiding, dragging, resizing or input cancels the attempt.
   - It writes no rules or config and changes no focus.
   - Without compatible IPC, the compositor keeps control. Other compositors, X11 and macOS are unchanged.
+
+### Page prompts
+
+- **What reaches Ardia's UI.** Permission requests, password save and update offers, save-address,
+  update-address and local save-card offers, and external-app ("open in app") requests from a tab the window
+  shows. A WebContents no window shows keeps Chromium's own UI. `chromium-linux-page-prompts.patch` adds the
+  hooks the Mac layer writes in with `engine/ardiacore/apply.sh` (the permission prompt factory, the File System
+  Access restore dialog, the external-protocol dialog, PermissionRequestManager's tab activation), forwards each
+  `AutofillBubbleHandlerImpl::Show*Bubble` for those tabs, and tells Ardia when Chromium hides its password
+  bubble. The engine side is `ac_linux_page_prompts*.cc`, a port of the Mac's `ac_permissions.mm`,
+  `ac_password_prompt.mm`, `ac_autofill_prompt.mm` and `ac_external_apps.mm`.
+- **Delivery.** Permission requests go to the window that shows the tab as `permissions.requested` and
+  `permissions.dismissed`, and an open one is delivered again when its tab is bound to a page (shell reload,
+  move to another window). The other prompts are page events on the tab's leased document channel
+  (`passwordPrompt`, `autofillPrompt`, `externalApp`). An open one is part of the page snapshot, a password
+  offer only on the document it was made on.
+- **Answers.** `permissions.resolve` and `permissions.resolveExternalApp` are accepted only from the window that
+  shows the prompt's tab. `resolvePasswordPrompt` and `resolveAutofillPrompt` are claim-checked tab commands. A
+  password offer is answered only while it is still the pending one; a password never travels on that route,
+  and the prompt carries only its length. Allow and Don't Allow are remembered and Dismiss isn't, as on the
+  Mac. A quiet request Chromium would drop (abusive notifications) is dropped.
+- **External apps.** The app name is Chromium's (the scheme handler's desktop entry). When Chromium can only
+  say `xdg-open`, the engine asks `xdg-mime` for the default handler; with none, the prompt says no app opens
+  the link and launches nothing. A request needs an active initiating document when shown and when launched.
+  "Always allow" follows Chromium's dialog (`ExternalProtocolDialogShowAlwaysOpenCheckbox`, trustworthy origin)
+  and is never offered in private windows. Settings lists and removes the remembered choices through
+  `permissions.externalAppAllowances` and `permissions.removeExternalAppAllowance`.
+- **Autofill suggestions** are Chromium's own dropdown, as on the Mac. The Autofill menu command asks
+  `autofill.showSuggestions` to open it on the field autofill last saw focused.
 
 ### Site controls and the content blocker
 
@@ -541,6 +654,25 @@ Linux reads calendars from Evolution Data Server, which GNOME Online Accounts, G
 - **Search providers.** Chromium allows `chrome_settings_overrides` only on Windows and macOS.
   `chromium-linux-settings-overrides.patch` adds Linux, so an extension's `search_provider` reaches `search.engines`
   and can become the default, as on macOS. The key's `homepage` and `startup_pages` stay off on Linux.
+- **The page menu's search item.** Chrome's own page menu searches with Chrome's default engine, so
+  `search.setEngineName` carries Ardia's default engine (`name`, `keyword`, `url`; macOS reads only `name`) and
+  `ac_linux_search_engines.cc` makes it Chrome's default in every regular profile, including ones loaded later.
+  "Search … for" then names and uses the same engine as the command bar, custom engines included.
+  - A Chrome search engine (one with a search-terms placeholder) with the same name and host is selected as is.
+    Otherwise one Ardia-owned engine is added or updated, with `%s` turned into `{searchTerms}`, and it's removed
+    once another engine is the default. It has a fixed sync GUID and a fixed keyword,
+    `ardia-default-search-engine`: Chrome resolves the default engine's searches by keyword, so Ardia's own shortcut
+    could otherwise send them to another engine that shares it, an extension's say.
+  - A default set by policy or by an extension is left alone. The request is checked first (name up to 256
+    characters, keyword up to 256, an http or https URL up to 2048 with `%s`, no control characters).
+- **Suggestions from extension engines.** A provider's `suggest_url` gets suggestions, as on macOS. Besides the
+  built-in engines' endpoints, `CanFetchSuggestions` (`ac_linux_suggest.cc`) accepts the suggestions endpoint (https
+  origin and path, then `?`) of an engine an extension controls in a loaded regular profile's TemplateURLService.
+  Omnibox-API keywords don't count, and an unloaded service allows nothing. The shell's `suggestionRequestAllowed`
+  mirrors this from `settings.extensionSearchEngines`, and sends each request with its origin and path canonical
+  (lowercase host, no default port, dot segments resolved) and its query as built, so a template written
+  differently from Chrome's canonical form still matches. The fetch is the same as for built-in engines: no cookies, no
+  redirects, the same reply checks and per-window slots.
 - **Keyboard shortcuts.**
   - Each browser window keeps a `LinuxExtensionKeybindings` registry (`ac_linux_extension_keybindings.cc`), and
     `chromium-linux-extension-keybindings.patch` stops Chromium's own registry from registering accelerators.
@@ -568,7 +700,7 @@ Linux reads calendars from Evolution Data Server, which GNOME Online Accounts, G
     `adoptTabs`. `initialHostSession` seeds the window with them instead of a blank tab, and the window is saved like
     any other instead of waiting for an opener to save it.
 - **Install prompts.** These are never auto-accepted. They show in the window of the tab that asked and end with that
-  tab. Nothing installs without Add Extension. Popups size between 25×25 and 800×600.
+  tab. Nothing installs without Add Extension. Popups size between 25×25 and 800×600, within the window.
 - **Native messaging hosts.** Ardia looks for `<name>.json` in this order:
   1. `<Ardia data dir>/NativeMessagingHosts` (by default `~/.config/ardia/NativeMessagingHosts`);
   2. `~/.config/google-chrome/NativeMessagingHosts` (Helium's base patch; honours `CHROME_CONFIG_HOME`);

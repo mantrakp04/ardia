@@ -1,0 +1,15 @@
+--- a/content/browser/gpu/gpu_data_manager_impl.cc
++++ b/content/browser/gpu/gpu_data_manager_impl.cc
+@@ -312,6 +312,12 @@
+   return private_->IsGpuCompositingDisabled();
+ }
+ 
++CONTENT_EXPORT bool ArdiaLinuxGpuCompositingDisabled();
++
++CONTENT_EXPORT bool ArdiaLinuxGpuCompositingDisabled() {
++  return GpuDataManagerImpl::GetInstance()->IsGpuCompositingDisabled();
++}
++
+ void GpuDataManagerImpl::SetGpuCompositingDisabled() {
+   base::AutoLock auto_lock(lock_);
+   private_->SetGpuCompositingDisabled();

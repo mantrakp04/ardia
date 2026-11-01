@@ -17,7 +17,7 @@ export type HostPageFactory = (claim: string, nativeId: () => number | undefined
 export type TabViewport = { rect: { x: number; y: number; width: number; height: number }; visible: boolean };
 
 const claims = new WeakMap<ArdiaHost, Map<string, HostTab>>();
-const UNORDERED_COMMANDS = new Set(["downloadFavicon", "webStoreRequest", "captureViewport"]);
+const UNORDERED_COMMANDS = new Set(["downloadFavicon", "webStoreRequest"]);
 
 export class HostTab {
   host: ArdiaHost;

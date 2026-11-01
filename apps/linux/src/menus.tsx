@@ -4,10 +4,19 @@ import type { MenuItem } from "@ardia-real/shell";
 import { useBrowser } from "../../browser/src/state/browser/store";
 import { Symbol } from "./shims/web/Symbol";
 import { formatShortcut } from "./shortcutFormat";
-import { primaryModifiers } from "./clickModifiers";
-import { nativeViewsClear, watchAppliedViewports } from "./hostViewport";
+import { heldModifiers, type MenuModifier } from "./clickModifiers";
+import { useInputRegion } from "./shellAbove";
+import { useGlassPanel } from "./shellGlass";
+import { watchPageFocus } from "./pageFocus";
 
 type OpenMenu = { items: MenuItem[]; x: number; y: number; resolve: (id: string | null) => void };
+
+export function alternateShown(primary: MenuItem | undefined, alternate: MenuItem, held: ReadonlySet<MenuModifier>): boolean {
+  const base = new Set(primary && "id" in primary ? primary.modifiers ?? [] : []);
+  const own = "id" in alternate ? alternate.modifiers ?? [] : [];
+  const extra = own.filter((modifier) => !base.has(modifier));
+  return (extra.length ? extra : ["command" as const]).every((modifier) => held.has(modifier));
+}
 
 let open: OpenMenu | null = null;
 export const menuShown = () => open !== null;
@@ -16,24 +25,30 @@ export const watchMenus = (watcher: () => void) => {
   watchers.add(watcher);
   return () => void watchers.delete(watcher);
 };
+let stopPageFocus: (() => void) | null = null;
 const publish = (next: OpenMenu | null) => {
   open = next;
+  if (next) stopPageFocus ??= watchPageFocus(() => close(null));
+  else {
+    stopPageFocus?.();
+    stopPageFocus = null;
+  }
   for (const watcher of watchers) watcher();
 };
 
 const pointer = { x: 0, y: 0 };
-let commandHeld = false;
+let held: ReadonlySet<MenuModifier> = new Set();
 if (typeof window !== "undefined") {
   window.addEventListener(
     "pointerdown",
     (e) => {
       pointer.x = e.clientX;
       pointer.y = e.clientY;
-      commandHeld = primaryModifiers(e).metaKey;
+      held = heldModifiers(e);
     },
     true,
   );
-  for (const type of ["keydown", "keyup"] as const) window.addEventListener(type, (e) => (commandHeld = primaryModifiers(e).metaKey), true);
+  for (const type of ["keydown", "keyup"] as const) window.addEventListener(type, (e) => (held = heldModifiers(e)), true);
 }
 
 export function showMenu(items: MenuItem[], at: { x: number; y: number } = pointer): Promise<string | null> {
@@ -47,24 +62,14 @@ const close = (id: string | null) => {
   menu?.resolve(id);
 };
 
-export const closingMenuOnPageFocus = <P extends { onPageFocus?: () => void }>(props: P): P => ({
-  ...props,
-  onPageFocus: () => {
-    if (open) close(null);
-    props.onPageFocus?.();
-  },
-});
-
-const MENU_REVEAL_DEADLINE_MS = 300;
-
 type MenuAnchor = { x: number; y: number } | { row: HTMLElement };
 
 function MenuList({ items, anchor }: { items: MenuItem[]; anchor: MenuAnchor }) {
   const menuRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState({ left: 0, top: 0, placed: false });
-  const [shown, setShown] = useState(false);
+  useGlassPanel(menuRef);
+  const [position, setPosition] = useState({ left: 0, top: 0 });
   const [sub, setSub] = useState<{ item: MenuItem; row: HTMLElement } | null>(null);
-  const [command, setCommand] = useState(commandHeld);
+  const [modifiers, setModifiers] = useState(held);
   const dark = useBrowser((s) => s.ui.appDark);
   useLayoutEffect(() => {
     const place = () => {
@@ -85,7 +90,7 @@ function MenuList({ items, anchor }: { items: MenuItem[]; anchor: MenuAnchor }) 
       }
       left = Math.max(8, Math.min(left, window.innerWidth - width - 8));
       top = Math.max(8, Math.min(top, window.innerHeight - height - 8));
-      setPosition((previous) => previous.placed && previous.left === left && previous.top === top ? previous : { left, top, placed: true });
+      setPosition((previous) => previous.left === left && previous.top === top ? previous : { left, top });
     };
     place();
     window.addEventListener("resize", place);
@@ -94,24 +99,13 @@ function MenuList({ items, anchor }: { items: MenuItem[]; anchor: MenuAnchor }) 
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     };
-  }, [anchor, command, items]);
+  }, [anchor, modifiers, items]);
+  useInputRegion(menuRef);
   useEffect(() => {
-    const menu = menuRef.current;
-    if (shown || !position.placed || !menu) return;
-    const reveal = () => {
-      const { x, y, width, height } = menu.getBoundingClientRect();
-      if (nativeViewsClear({ x, y, width, height })) setShown(true);
+    const track = (e: KeyboardEvent | PointerEvent) => {
+      const next = heldModifiers(e);
+      setModifiers((previous) => (previous.size === next.size && [...next].every((modifier) => previous.has(modifier)) ? previous : next));
     };
-    const stop = watchAppliedViewports(reveal);
-    const fallback = setTimeout(() => setShown(true), MENU_REVEAL_DEADLINE_MS);
-    reveal();
-    return () => {
-      stop();
-      clearTimeout(fallback);
-    };
-  }, [shown, position]);
-  useEffect(() => {
-    const track = (e: KeyboardEvent | PointerEvent) => setCommand(primaryModifiers(e).metaKey);
     const events = ["keydown", "keyup", "pointermove"] as const;
     for (const type of events) document.addEventListener(type, track);
     return () => {
@@ -119,11 +113,11 @@ function MenuList({ items, anchor }: { items: MenuItem[]; anchor: MenuAnchor }) 
     };
   }, []);
   return createPortal(
-    <div ref={menuRef} className={`ardia-menu${dark ? " dark" : ""}`} style={{ left: position.left, top: position.top, visibility: shown ? "visible" : "hidden", width: 240, maxWidth: "calc(100vw - 26px)", maxHeight: "calc(100vh - 26px)", overflowY: "auto" }} onPointerDown={(e) => e.stopPropagation()}>
+    <div ref={menuRef} className={`ardia-menu${dark ? " dark" : ""}`} style={{ ...position, width: 240, maxWidth: "calc(100vw - 26px)", maxHeight: "calc(100vh - 26px)", overflowY: "auto" }} onPointerDown={(e) => e.stopPropagation()}>
       {items.map((item, i) => {
         if ("separator" in item) return <div key={i} className="ardia-menu-separator" />;
         const next = items[i + 1];
-        if (item.alternate ? !command : command && next && "id" in next && next.alternate) return null;
+        if (item.alternate ? !alternateShown(items[i - 1], item, modifiers) : next && "id" in next && next.alternate && alternateShown(item, next, modifiers)) return null;
         const enabled = item.enabled !== false;
         return (
           <div

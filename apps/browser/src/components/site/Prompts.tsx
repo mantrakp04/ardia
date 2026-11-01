@@ -158,7 +158,8 @@ export function PasswordPrompt({ tabId, right, top }: { tabId: string; right: nu
   const update = prompt.state === "update";
   const username = chosen ?? prompt.username;
   const answer = guard((action: PasswordPromptAnswer) => {
-    void webviews.get(tabId)?.resolvePasswordPrompt(action, action === "save" || action === "update" ? { username } : undefined);
+    const offer = prompt.offer === undefined ? {} : { offer: prompt.offer };
+    void webviews.get(tabId)?.resolvePasswordPrompt(action, action === "save" || action === "update" ? { username, ...offer } : prompt.offer === undefined ? undefined : offer);
     setChosen(null);
     patchPage(tabId, { passwordPrompt: null });
   });

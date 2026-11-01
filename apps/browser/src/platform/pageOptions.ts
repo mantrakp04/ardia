@@ -4,5 +4,8 @@ export const setPeekModifier = (modifier: "alt" | "shift" | "off") => call("webV
 export const setSplitLinkModifier = (modifier: "alt" | "altShift") => call("webView.setSplitLinkModifier", { modifier });
 export const setPeekOtherSiteTabs = (tabIds: string[]) => call("webView.setPeekOtherSiteTabs", { tabIds });
 export const setSelectionPopover = (enabled: boolean) => call("webView.setSelectionPopover", { enabled });
-export const setSearchEngineName = (name: string) => call("search.setEngineName", { name });
+export type SearchEngineIdentity = { name: string; keyword: string; url: string };
+
+export const setSearchEngineName = ({ name, keyword, url }: SearchEngineIdentity) =>
+  call("search.setEngineName", { name, keyword, url });
 export const setLittleArdiaOpensNewTabLinks = (enabled: boolean) => call("webView.setLittleArdiaOpensNewTabLinks", { enabled });
