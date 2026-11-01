@@ -36,7 +36,7 @@ test("replacing a taken Create Space request settles it and ignores late complet
   assert.equal(useCreateSpaceRequest.getState().request, null);
 });
 
-test("a replaced Create Space sheet cannot close or complete its replacement", async () => {
+async function installCreateSpaceSheet() {
   const ui = "data:text/javascript,export const Box=null,Button=null,PROFILE_COLORS=null,PopUp=null,Sheet=null,space=null,Swatch=null,swatch=null,Text=null,TextField=null,useTheme=null;";
   const hooks = registerHooks({ resolve(specifier, context, next) {
     if (context.parentURL?.endsWith("/components/spaces/CreateSpace.tsx")) {
@@ -47,6 +47,10 @@ test("a replaced Create Space sheet cannot close or complete its replacement", a
   } });
   try { await import("../../components/spaces/CreateSpace.tsx"); }
   finally { hooks.deregister(); }
+}
+
+test("a replaced Create Space sheet cannot close or complete its replacement", async () => {
+  await installCreateSpaceSheet();
   useCreateSpaceRequest.setState({ request: null, sheet: null });
   useSettingsSheet.setState({ sheet: null });
   let earlier = "pending";
@@ -66,6 +70,9 @@ test("a replaced Create Space sheet cannot close or complete its replacement", a
 });
 
 test("the Create Space sheet retains its source window and Profile", async () => {
+  await installCreateSpaceSheet();
+  useCreateSpaceRequest.setState({ request: null, sheet: null });
+  useSettingsSheet.setState({ sheet: null });
   const { useBrowser } = await import("../browser/store.ts");
   const { useCreateSpaceShareDefault } = await import("./hooks.ts");
   const { mount } = await import("../../test-hooks.mjs");

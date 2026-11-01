@@ -60,8 +60,8 @@
     },
     {
       "scene": "switchericons",
-      "title": "Smaller profile icons",
-      "body": "With profile icons on, the switcher at the bottom of the sidebar draws them at 11 pt in an 18 pt cell. 0.2.43-nightly.3 drew them at 13 pt in a 22 pt cell.",
+      "title": "Smaller space icons",
+      "body": "With space icons on, the switcher at the bottom of the sidebar draws them at 11 pt in an 18 pt cell. 0.2.43-nightly.3 drew them at 13 pt in a 22 pt cell.",
       "layout": "side",
       "cam": [60, 782, 150, 76],
       "cursor": false,
