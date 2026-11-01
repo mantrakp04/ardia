@@ -48,6 +48,7 @@ function SearchPanel({ windowId, windowWidth }: { windowId: string; windowWidth:
   const profiles = useProfileRecords();
   const sections = useMemo(() => searchSections(windowId, query), [query, tabs, closedTabs, closedGroups, windowId, allProfiles, profiles]);
   const rows = sections.flatMap((s) => s.rows);
+  const active = Math.min(selected, rows.length - 1);
   const close = () => setSidebarUi({ searchTabs: null });
   const choose = (row: Row | undefined) => {
     if (!row) return;
@@ -56,7 +57,7 @@ function SearchPanel({ windowId, windowWidth }: { windowId: string; windowWidth:
     else restoreClosed(row.id, windowId);
   };
   const move = (delta: number) => {
-    const next = Math.max(0, Math.min(rows.length - 1, selected + delta));
+    const next = Math.max(0, Math.min(rows.length - 1, active + delta));
     setSelected(next);
     scroll.current?.scrollTo({ y: Math.max(0, (next - MAX_ROWS + 2) * ROW), animated: false });
   };
@@ -83,7 +84,7 @@ function SearchPanel({ windowId, windowWidth }: { windowId: string; windowWidth:
               scroll.current?.scrollTo({ y: 0, animated: false });
             }}
             placeholder="Search Tabs"
-            onSubmit={() => choose(rows[selected])}
+            onSubmit={() => choose(rows[active])}
             onEscape={close}
             onArrow={move}
             onBlur={close}
@@ -103,7 +104,7 @@ function SearchPanel({ windowId, windowWidth }: { windowId: string; windowWidth:
                 {section.rows.map((row) => {
                   index++;
                   const i = index;
-                  return <ResultRow key={`${row.kind}:${row.id}`} row={row} selected={i === selected} onHover={() => setSelected(i)} onPress={() => choose(row)} />;
+                  return <ResultRow key={`${row.kind}:${row.id}`} row={row} selected={i === active} onHover={() => setSelected(i)} onPress={() => choose(row)} />;
                 })}
               </View>
             ) : null,

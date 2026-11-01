@@ -94,7 +94,7 @@ test("a tab of another profile paged out in this same window is labelled with th
   assert.equal(row.where, "Work");
 });
 
-test("⌘↩ on another profile's tab opens its URL in a new tab of this profile and leaves the other profile alone", () => {
+test("a new-tab choice (⌘↩) on another profile's tab opens its URL in a new tab of this profile and leaves the other profile alone", () => {
   const { home, homeProfile, homeTab, elsewhere, work, workTab } = setup();
   S().updateSettings({ searchTabsInAllProfiles: true });
   const before = new Set(Object.keys(S().tabs));
