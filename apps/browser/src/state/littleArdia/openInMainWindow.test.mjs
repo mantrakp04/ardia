@@ -83,3 +83,12 @@ test("tabs of several profiles moved at once each land by their own profile's cu
   assert.equal(ids.indexOf(q), ids.indexOf(w1) + 1);
   assert.ok([p, q].every((id) => S().tabs[id].windowId === main));
 });
+
+test("a tab moved below a current tab that is one pane of a split lands after the whole split", () => {
+  const { main, small, a, b, moved } = mainWindowWithThreeTabs("nextToCurrent");
+  S().createSplit([a, b]);
+  S().activate(a);
+  openInMainWindow(small);
+  assert.deepEqual(urlsOf(main), ["https://a.example/", "https://b.example/", "https://little.example/", "https://c.example/"]);
+  assert.equal(S().tabs[moved].windowId, main);
+});
