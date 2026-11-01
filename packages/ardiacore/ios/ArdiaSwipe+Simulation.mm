@@ -33,6 +33,16 @@ CGScrollPhase ScrollPhaseOf(NSString *phase) {
   return (CGScrollPhase)0;
 }
 
+void PlaceInWindow(CGEventRef cg, NSWindow *window, NSPoint point) {
+  NSPoint inWindow = [window.contentView convertPoint:LocalPoint(window, point) toView:nil];
+  NSPoint screen = [window convertPointToScreen:inWindow];
+  CGFloat mainHeight = NSHeight(NSScreen.screens.firstObject.frame);
+  CGEventSetLocation(cg, CGPointMake(screen.x, mainHeight - screen.y));
+  CGEventSetIntegerValueField(cg, (CGEventField)51, window.windowNumber);
+  static auto setWindowLocation = (void (*)(CGEventRef, CGPoint))dlsym(RTLD_DEFAULT, "CGEventSetWindowLocation");
+  if (setWindowLocation) setWindowLocation(cg, CGPointMake(inWindow.x, NSHeight(window.frame) - inWindow.y));
+}
+
 NSEvent *SyntheticScroll(NSWindow *window, NSPoint point, NSDictionary *step, uint64_t startNs) {
   NSString *phase = step[@"phase"];
   double dx = [step[@"dx"] doubleValue], dy = [step[@"dy"] doubleValue];
@@ -61,14 +71,16 @@ NSEvent *SyntheticScroll(NSWindow *window, NSPoint point, NSDictionary *step, ui
   }
   if (step[@"rawPhase"]) CGEventSetIntegerValueField(cg, kCGScrollWheelEventScrollPhase, [step[@"rawPhase"] longLongValue]);
   if (step[@"rawMomentumPhase"]) CGEventSetIntegerValueField(cg, kCGScrollWheelEventMomentumPhase, [step[@"rawMomentumPhase"] longLongValue]);
-  NSPoint local = LocalPoint(window, point);
-  NSPoint screen = [window convertPointToScreen:[window.contentView convertPoint:local toView:nil]];
-  CGFloat mainHeight = NSHeight(NSScreen.screens.firstObject.frame);
-  CGEventSetLocation(cg, CGPointMake(screen.x, mainHeight - screen.y));
-  CGEventSetIntegerValueField(cg, (CGEventField)51, window.windowNumber);
-  static auto setWindowLocation = (void (*)(CGEventRef, CGPoint))dlsym(RTLD_DEFAULT, "CGEventSetWindowLocation");
-  NSPoint inWindow = [window.contentView convertPoint:local toView:nil];
-  if (setWindowLocation) setWindowLocation(cg, CGPointMake(inWindow.x, NSHeight(window.frame) - inWindow.y));
+  PlaceInWindow(cg, window, point);
+  NSEvent *event = [NSEvent eventWithCGEvent:cg];
+  CFRelease(cg);
+  return event;
+}
+
+NSEvent *SyntheticButton(NSWindow *window, NSPoint point, BOOL down, NSInteger button) {
+  CGEventRef cg = CGEventCreateMouseEvent(NULL, down ? kCGEventOtherMouseDown : kCGEventOtherMouseUp, CGPointZero, (CGMouseButton)button);
+  if (!cg) return nil;
+  PlaceInWindow(cg, window, point);
   NSEvent *event = [NSEvent eventWithCGEvent:cg];
   CFRelease(cg);
   return event;
@@ -111,6 +123,11 @@ NSEvent *SyntheticScroll(NSWindow *window, NSPoint point, NSDictionary *step, ui
     if ([phase isEqualToString:@"swipe"]) {
       BOOL handled = HandleDiscreteSwipe(window, inWindow, [s[@"dx"] doubleValue]);
       [log addObject:@{@"phase" : phase, @"swallowed" : @(handled)}];
+    } else if ([phase isEqualToString:@"buttonDown"] || [phase isEqualToString:@"buttonUp"]) {
+      NSPoint at = s[@"x"] ? NSMakePoint([s[@"x"] doubleValue], [s[@"y"] doubleValue]) : point;
+      NSEvent *event = SyntheticButton(window, at, [phase isEqualToString:@"buttonDown"], [s[@"button"] integerValue]);
+      NSEvent *out = HandleOtherMouse(event);
+      [log addObject:@{@"phase" : phase, @"button" : @(event.buttonNumber), @"swallowed" : @(out == nil)}];
     } else {
       NSEvent *event = SyntheticScroll(window, point, s, startNs);
       if (event.window != window || fabs(event.locationInWindow.x - inWindow.x) > 1 || fabs(event.locationInWindow.y - inWindow.y) > 1) {
