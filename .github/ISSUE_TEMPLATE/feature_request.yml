@@ -1,0 +1,31 @@
+name: Feature request
+description: Something Ardia doesn't do yet.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One request per issue, please. If something is broken, or behaves differently from Dia or Chrome, file a bug report instead. Feature requests get looked at less often.
+
+        Out of scope: AI features, accounts or sign-in of our own, telemetry that carries browsing data, and restyling to taste.
+  - type: textarea
+    id: what-youd-like
+    attributes:
+      label: What you'd like
+      description: What Ardia should do, from your side of the screen.
+    validations:
+      required: true
+  - type: textarea
+    id: why-its-useful
+    attributes:
+      label: Why
+      description: What you're trying to get done, and what you do today instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reference
+    attributes:
+      label: How Dia, Arc or Chrome do it
+      description: If another browser already does this, describe or record how it works there.
+    validations:
+      required: false

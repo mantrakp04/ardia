@@ -1,0 +1,93 @@
+name: PR labels from linked issues
+
+on:
+  pull_request_target:
+    types: [opened, edited, reopened]
+  issues:
+    types: [labeled, unlabeled]
+
+permissions:
+  issues: read
+  pull-requests: write
+
+concurrency:
+  group: pr-labels-from-issues
+  cancel-in-progress: false
+
+jobs:
+  sync-pr-labels:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request_target' || contains(fromJSON('["bug","enhancement","documentation"]'), github.event.label.name)
+    steps:
+      - name: Copy the type labels of the issues each PR closes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          type_label_names='["bug","enhancement","documentation"]'
+
+          open_pull_requests_closing_issue() {
+            gh api graphql -F owner="${REPO%/*}" -F name="${REPO#*/}" -F number="$1" -f query='
+              query($owner: String!, $name: String!, $number: Int!) {
+                repository(owner: $owner, name: $name) {
+                  issue(number: $number) {
+                    closedByPullRequestsReferences(first: 100, includeClosedPrs: false) {
+                      nodes { number repository { nameWithOwner } }
+                    }
+                  }
+                }
+              }' --jq ".data.repository.issue.closedByPullRequestsReferences.nodes[] | select(.repository.nameWithOwner == \"$REPO\") | .number"
+          }
+
+          remove_label() {
+            local output
+            if ! output=$(gh api -X DELETE "repos/$REPO/issues/$1/labels/$2" 2>&1); then
+              grep -q "HTTP 404" <<<"$output" || { echo "$output" >&2; return 1; }
+            fi
+          }
+
+          sync_pull_request() {
+            local pr=$1 snapshot wanted current label
+            snapshot=$(gh api graphql -F owner="${REPO%/*}" -F name="${REPO#*/}" -F number="$pr" -f query='
+              query($owner: String!, $name: String!, $number: Int!) {
+                repository(owner: $owner, name: $name) {
+                  pullRequest(number: $number) {
+                    labels(first: 100) { nodes { name } }
+                    closingIssuesReferences(first: 100) {
+                      nodes { repository { nameWithOwner } labels(first: 100) { nodes { name } } }
+                    }
+                  }
+                }
+              }')
+            wanted=$(jq -r --arg repo "$REPO" --argjson types "$type_label_names" '
+              .data.repository.pullRequest.closingIssuesReferences.nodes[]
+              | select(.repository.nameWithOwner == $repo)
+              | .labels.nodes[].name | select(IN($types[]))' <<<"$snapshot" | sort -u)
+            if [ -z "$wanted" ]; then
+              echo "#$pr: its issues have no type label, leaving it as is"
+              return
+            fi
+            current=$(jq -r --argjson types "$type_label_names" '
+              .data.repository.pullRequest.labels.nodes[].name | select(IN($types[]))' <<<"$snapshot" | sort -u)
+            for label in $(comm -13 <(echo "$current") <(echo "$wanted")); do
+              gh api -X POST "repos/$REPO/issues/$pr/labels" -f "labels[]=$label" --silent
+              echo "#$pr: added $label"
+            done
+            for label in $(comm -23 <(echo "$current") <(echo "$wanted")); do
+              remove_label "$pr" "$label"
+              echo "#$pr: removed $label"
+            done
+          }
+
+          if [ -n "$PR_NUMBER" ]; then
+            sync_pull_request "$PR_NUMBER"
+          else
+            pull_requests=$(open_pull_requests_closing_issue "$ISSUE_NUMBER")
+            for pr in $pull_requests; do
+              sync_pull_request "$pr"
+            done
+          fi

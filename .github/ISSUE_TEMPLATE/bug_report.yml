@@ -1,0 +1,104 @@
+name: Bug report
+description: Something in Ardia doesn't work, or works differently from Dia or Chrome.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting it. One bug per issue, please. If Ardia does something differently from Dia or Chrome, that's a bug too, not a feature request.
+
+        The fastest bug to fix is one with a screen recording.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did and what Ardia did. Drop a screen recording here, especially for anything that moves.
+    validations:
+      required: true
+  - type: textarea
+    id: expected-behaviour
+    attributes:
+      label: What you expected
+      description: What should have happened instead. If Dia behaves differently, a recording of the same steps in Dia helps.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a new window
+        2. Pin a tab
+        3. ...
+    validations:
+      required: false
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: How often does it happen
+      options:
+        - Every time
+        - Sometimes
+        - Only once
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Ardia version
+      description: Settings › General › Updates shows it, with the channel above it.
+      placeholder: 0.2.43-nightly.6
+    validations:
+      required: true
+  - type: dropdown
+    id: channel
+    attributes:
+      label: Update channel
+      options:
+        - Stable
+        - Nightly
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      description: Apple menu › About This Mac.
+      placeholder: macOS 26.1
+    validations:
+      required: true
+  - type: dropdown
+    id: tabs
+    attributes:
+      label: Tabs
+      description: Some bugs only show up in one layout.
+      options:
+        - In the sidebar
+        - Across the top
+        - Not sure
+    validations:
+      required: false
+  - type: dropdown
+    id: address-bar
+    attributes:
+      label: Address bar
+      options:
+        - On top
+        - In the sidebar
+        - Not sure
+    validations:
+      required: false
+  - type: input
+    id: profiles-and-windows
+    attributes:
+      label: Profiles and windows open
+      placeholder: 2 profiles, 3 windows
+    validations:
+      required: false
+  - type: textarea
+    id: anything-else
+    attributes:
+      label: Anything else
+      description: Sites, extensions, whether it happens in Chrome too, or the crash report from ~/Library/Logs/DiagnosticReports if it crashed.
+    validations:
+      required: false
