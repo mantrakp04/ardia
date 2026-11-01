@@ -15,7 +15,7 @@ useCreateSpaceRequest.subscribe((s, prev) => {
   if (!s.sheet || s.sheet === prev.sheet) return;
   const request = takeCreateSpaceSheet();
   if (!request) return;
-  showSettingsSheet(<CreateSpaceSheet preset={request.preset} onDone={(id) => {
+  showSettingsSheet(<CreateSpaceSheet windowId={request.windowId} preset={request.preset} onDone={(id) => {
     if (!isCurrentCreateSpaceRequest(request)) return;
     closeSettingsSheet();
     endCreateSpaceRequest(request, id);
@@ -24,9 +24,9 @@ useCreateSpaceRequest.subscribe((s, prev) => {
 
 export function CreateSpaceHost() { return null; }
 
-function CreateSpaceSheet({ preset, onDone }: { preset: CreateSpacePreset; onDone: (id: string | null) => void }) {
+function CreateSpaceSheet({ windowId, preset, onDone }: { windowId: string | null; preset: CreateSpacePreset; onDone: (id: string | null) => void }) {
   const profiles = useProfiles();
-  const current = useCreateSpaceShareDefault(null);
+  const current = useCreateSpaceShareDefault(windowId);
   const [name, setName] = useState(preset.name ?? "");
   const [color, setColor] = useState<ProfileColor>(() => unusedSpaceColor(currentSpaces()));
   const [profileId, setProfileId] = useState(preset.profileId ?? currentSpaces()[current]?.profileId ?? profiles[0]?.id ?? "default");

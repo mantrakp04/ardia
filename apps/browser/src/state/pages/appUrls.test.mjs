@@ -21,3 +21,10 @@ test("ardia://settings and ardia://newtab open what they name instead of loading
   assert.equal(tabCount(), before + 1, "a blank new tab");
   assert.equal(S().newTab(w, { url: "ardia://history" }) !== "", true, "an app page is a tab");
 });
+
+
+test("legacy Profile settings addresses and explicit Space settings addresses keep their panes", async () => {
+  const { appUrlAction } = await import("./appUrls.ts");
+  for (const alias of ["people", "manageprofile"]) assert.deepEqual(appUrlAction(`ardia://settings/${alias}`), { kind: "settings", pane: "profiles" });
+  assert.deepEqual(appUrlAction("ardia://settings/managespace"), { kind: "settings", pane: "spaces" });
+});

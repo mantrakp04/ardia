@@ -268,3 +268,12 @@ for (const completed of [false, true]) test(`current sessions leave repairable r
   files.set("session.json", JSON.stringify({ version: 99 }));
   assert.throws(() => upgradeWorkspaceDocuments({ read: (name) => files.get(name) ?? null, write: () => assert.fail("unexpected write") }), /newer Ardia/);
 });
+
+for (const value of [42, {}, "invalid", null]) test(`malformed settings metadata cannot stop migration: ${JSON.stringify(value)}`, () => {
+  const source = legacy();
+  source.settings = { batterySaver: true, newTabPosition: "top", chosen: value, inferred: value };
+  const result = sessionWithSpaces(source);
+  assert.equal(result.version, 10);
+  assert.equal(result.settings.newTabButtonPosition, "top");
+  assert.deepEqual(result.settingsMeta, { chosen: [], inferred: [] });
+});

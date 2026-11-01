@@ -43,7 +43,7 @@ export function SpacesBody({ flow }: { flow: ImportFlow }) {
                   onToggle={(v) => toggleSourceProfile(p.id, v)}
                   icon={<Monogram name={p.name} color={p.color} />}
                   title={p.name}
-                  subtitle={p.isDefault ? "Default space" : undefined}
+                  subtitle={p.isDefault ? "Default profile" : undefined}
                 />
               ))}
         </Group>
@@ -61,7 +61,7 @@ export function SpacesBody({ flow }: { flow: ImportFlow }) {
             onToggle={(v) => toggleSourceProfile(p.id, v)}
             icon={<SpaceAvatar path={p.avatarPath} name={p.name} color={p.color} />}
             title={p.name}
-            subtitle={p.email ?? (p.isDefault ? "Default space" : undefined)}
+            subtitle={p.email ?? (p.isDefault ? "Default profile" : undefined)}
           />
         ))}
       </Group>

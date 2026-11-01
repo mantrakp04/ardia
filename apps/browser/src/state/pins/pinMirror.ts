@@ -97,7 +97,9 @@ export function signature(x: Section): string {
 export function spacesOf(s: Pick<BrowserState, "tabs">, w: BrowserWindow): Set<string> {
   const out = new Set<string>();
   for (const id of w.tabIds) {
-    const p = s.tabs[id]?.spaceId;
+    const tab = s.tabs[id];
+    const p = tab?.spaceId;
+    if (tab?.pin?.as === "tile" && p !== w.spaceId) continue;
     if (p && !isIncognitoSpace(p)) out.add(p);
   }
   return out;

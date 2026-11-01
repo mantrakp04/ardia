@@ -121,7 +121,7 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
   const order = IMPORT_KINDS.filter((k) => requested.includes(k));
   const fromApp = source.asksAppForTabs ? order.filter((k) => APP_TAB_KINDS.includes(k)) : [];
   const fromFiles = order.filter((k) => !fromApp.includes(k));
-  startProgress(Object.fromEntries(order.map((k) => [k, fromApp.includes(k) ? "active" : "pending"])), bySpaces ? Math.max(1, spaces.length) : selected.length);
+  startProgress(Object.fromEntries(order.map((k) => [k, fromApp.includes(k) ? "active" : "pending"])), bySpaces ? Math.max(1, selected.reduce((n, p) => n + Math.max(1, p.spaces?.filter((space) => spaces.includes(space.id)).length ?? 0), 0)) : selected.length);
   const total = emptyCounts();
   const failed = new Map<ImportKind, string[]>();
   const add = (c: ImportCounts) => (Object.keys(total) as (keyof ImportCounts)[]).forEach((k) => (total[k] += c[k]));

@@ -9,7 +9,7 @@ import { adoptIconPage, dropOutlivedFavicon, noteIconPage } from "../../state/fa
 import { restoredThemeColor } from "../../state/windows/launchLook";
 import { noteTabReady } from "../../state/app/cliControl";
 import { isQuitting } from "../../state/app/quit";
-import { useProfileTheme } from "./ThemeScope";
+import { useSpaceTheme } from "./ThemeScope";
 import { opaqueCard } from "../ui/opaqueCard";
 import { handOff, takeHandOff, wantsPage } from "../../state/tabs/tabPages";
 import { noteDiscarded, noteGone, noteReady } from "../../state/tabs/tabLifecycle";
@@ -59,7 +59,7 @@ function EngineWebView({ tabId, visible, warm, peekOf, engine, profile }: TabWeb
   const ref = useMemo(() => webviewRef(tabId), [tabId]);
   const autoPictureInPicture = useAutoPictureInPicture(tabId, visible);
   const pageColor = useSpacesValue(spaceId, (spaces) => (isIncognitoSpace(spaceId) ? "incognito" : (spaces[spaceId]?.color ?? "plum")));
-  const theme = useProfileTheme(spaceId);
+  const theme = useSpaceTheme(spaceId);
   const backdrop = useMemo(() => opaqueCard(theme), [theme.card, theme.windowTint[0], theme.windowTint[1]]);
 
   const lastPage = useRef<string | null>(null);

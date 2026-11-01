@@ -134,8 +134,9 @@ async function runScriptCommand(request: ScriptCommand): Promise<Record<string, 
     case "focusSpace": {
       const spaceId = request.command === "focusSpace" ? request.spaceId : request.profileId;
       const windowId = resolveWindowId(s, null);
-      if (!s.spaces[spaceId]) throw new Error("That profile no longer exists.");
-      if (!windowId || s.windows[windowId]!.kind === "private") throw new Error("There's no window to show the profile in.");
+      const name = request.command === "focusSpace" ? "space" : "profile";
+      if (!s.spaces[spaceId]) throw new Error(`That ${name} no longer exists.`);
+      if (!windowId || s.windows[windowId]!.kind === "private") throw new Error(`There's no window to show the ${name} in.`);
       return switchSpace(windowId, spaceId);
     }
     case "execute": {

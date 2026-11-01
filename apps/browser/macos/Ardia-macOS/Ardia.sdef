@@ -191,8 +191,8 @@
       <direct-parameter type="specifier" description="The tab."/>
     </command>
 
-    <command name="focus" code="DiaTabFc" description="Select a tab (bringing its window forward), or show a profile in the front window.">
-      <direct-parameter type="specifier" description="The tab or profile."/>
+    <command name="focus" code="DiaTabFc" description="Select a tab (bringing its window forward), or show a space (including a legacy profile alias) in the front window.">
+      <direct-parameter type="specifier" description="The tab, space or legacy profile."/>
     </command>
 
     <command name="execute" code="CrSuExJa" description="Run JavaScript in a tab's page.">

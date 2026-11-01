@@ -64,3 +64,22 @@ test("a replaced Create Space sheet cannot close or complete its replacement", a
   assert.equal(useSettingsSheet.getState().sheet, null);
   assert.equal(useCreateSpaceRequest.getState().request, null);
 });
+
+test("the Create Space sheet retains its source window and Profile", async () => {
+  const { useBrowser } = await import("../browser/store.ts");
+  const { useCreateSpaceShareDefault } = await import("./hooks.ts");
+  const { mount } = await import("../../test-hooks.mjs");
+  const S = () => useBrowser.getState();
+  S().hydrate({});
+  const profile = S().createProfile({ name: "Work" });
+  const space = S().createSpace({ name: "Projects", profileId: profile });
+  const windowId = S().createWindow({ spaceId: space });
+  const pending = requestCreateSpace(windowId);
+  const sheet = useSettingsSheet.getState().sheet;
+  assert.equal(sheet.props.windowId, windowId);
+  const current = mount(() => useCreateSpaceShareDefault(sheet.props.windowId));
+  assert.equal(S().spaces[current.value].profileId, profile);
+  current.unmount();
+  sheet.props.onDone(null);
+  assert.equal(await pending, null);
+});

@@ -19,7 +19,7 @@ globalThis.acTestNativeModules = { ArdiaImport: {
 const api = await import("@ardia/import");
 globalThis.require = (name) => { assert.equal(name, "@ardia/import"); return api; };
 const { useBrowser } = await import("../browser/store.ts");
-const { patchImport } = await import("./flow.ts");
+const { patchImport, useImportFlow } = await import("./flow.ts");
 const { runImport } = await import("./runImport.ts");
 const S = () => useBrowser.getState();
 
@@ -61,4 +61,16 @@ for (const sourceCount of [1, 2]) test(`Arc import keeps two Spaces together for
   assert.equal(owners.size, sourceCount);
   assert.equal(writes.length, sourceCount);
   assert.equal(Object.keys(S().profiles).length, beforeProfiles + sourceCount - 1);
+});
+
+
+test("spaceless Zen Profiles each contribute a prepared destination", async () => {
+  S().hydrate({});
+  const profiles = ["one", "two"].map((id) => ({ id, name: id, isDefault: false, available: ["cookies"], spaces: [] }));
+  patchImport({ source: { id: "zen", family: "firefox", sidebar: "zen", name: "Zen", profiles }, sourceProfiles: profiles.map((p) => p.id), spaces: [], target: "default" });
+  const preparing = [];
+  const stop = useImportFlow.subscribe((s) => { if (s.step.name === "progress") preparing.push(s.step.preparing); });
+  try { await runImport(new Set(["cookies"])); } finally { stop(); }
+  assert.equal(preparing[0], 2);
+  assert.equal(Object.keys(S().spaces).length, 2);
 });

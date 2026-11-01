@@ -122,7 +122,7 @@ export function barActions(s: BrowserState, windowId: string): CommandAction[] {
       if (id === w.spaceId) return;
       const name = s.spaces[id]?.name ?? "";
       const action = `switchSpace:${id}`;
-      out.push({ id: action, title: `Switch to ${name}`, icon: "person.crop.circle", hint: shortcutHint(action, s), keywords: [name, "profile", "profile"] });
+      out.push({ id: action, title: `Switch to ${name}`, icon: "person.crop.circle", hint: shortcutHint(action, s), keywords: [name, "profile", "space"] });
     });
   }
   out.push(...organizeActions(s, windowId));

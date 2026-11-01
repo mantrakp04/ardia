@@ -33,10 +33,10 @@ import { launchCommitted } from "./state/telemetry/journeys";
 import { markFirstWindow } from "./state/telemetry/track";
 
 probeStore("browser", useBrowser);
-installErrorReporting();
 setStoreBatching(unstable_batchedUpdates);
 const upgradeError = workspaceUpgradeError();
 if (!upgradeError) {
+installErrorReporting();
 startPersistence();
 startFavicons();
 startHistory();

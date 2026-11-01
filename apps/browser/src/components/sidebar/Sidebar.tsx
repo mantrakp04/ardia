@@ -8,7 +8,7 @@ import { useAddressBarInSidebar, useToolbarLightsCenter } from "../../state/wind
 import { DownloadsButton } from "../downloads/DownloadsButton";
 import { PROFILE_INDICATOR_X, SpaceIndicator } from "../spaces/SpaceIndicator";
 import { usePagerPages } from "../../state/windows/spacePager";
-import { PROFILE_DOTS_HEIGHT, SpaceDots, useSpaceDotsShown } from "../spaces/SpaceDots";
+import { SPACE_DOTS_HEIGHT, SpaceDots, useSpaceDotsShown } from "../spaces/SpaceDots";
 import { SidebarAddressRow, SidebarHeaderTools } from "./AddressBar";
 import { DragGhost } from "./DragGhost";
 import { DragProvider } from "./DragProvider";
@@ -45,7 +45,7 @@ export function Sidebar({ width }: { width: number }) {
   const hasDownloads = useHasDownloads(windowId);
   const dots = useSpaceDotsShown();
   const footerDownloads = addressBar && hasDownloads;
-  const footer = dots || footerDownloads ? PROFILE_DOTS_HEIGHT : 0;
+  const footer = dots || footerDownloads ? SPACE_DOTS_HEIGHT : 0;
   const nothingPinned = useNoTiles(windowId, current);
   const rowLook = useSidebarRowLookSource();
 

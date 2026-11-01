@@ -3,7 +3,7 @@ import ArdiaCore
 
 extension MainMenu {
   private static let dynamicCommands: Set<String> = [
-    "openBookmark", "restoreClosed", "moveTabToProfile", "moveTabToWindow", "addBookmarkToFolder",
+    "openBookmark", "restoreClosed", "moveTabToSpace", "moveTabToWindow", "addBookmarkToFolder",
     "addFolderToSidebar", "restoreArcFolders",
   ]
 

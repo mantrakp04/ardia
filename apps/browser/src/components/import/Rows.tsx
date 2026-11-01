@@ -13,7 +13,7 @@ function browserDetail(browser: BrowserSource) {
     : browser.requiresExport
       ? "Direct or from an exported .zip"
       : browser.sidebar && spaces
-        ? plural(spaces, "profile")
+        ? plural(spaces, "space")
         : browser.profiles.length > 1
           ? plural(browser.profiles.length, "profile")
           : "";

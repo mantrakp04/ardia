@@ -30,7 +30,10 @@ export const useProfileLooks = <T>(pages: readonly { id: string }[], look: (prof
   useBrowser(useShallow((s) => pages.map((p) => look(s.spaces[p.id], s.ui.appDark, s.settings))));
 
 export const useCreateSpaceShareDefault = (windowId: string | null): string =>
-  useBrowser((s) => (windowId && !(s.windows[windowId]?.kind === "private") ? s.windows[windowId]!.spaceId : s.settings.defaultSpaceId));
+  useBrowser((s) => {
+    const window = windowId ? s.windows[windowId] : undefined;
+    return window && window.kind !== "private" ? window.spaceId : s.settings.defaultSpaceId;
+  });
 
 export const useSpaceDataStats = (spaceId: string): string =>
   useBrowser((s) => {

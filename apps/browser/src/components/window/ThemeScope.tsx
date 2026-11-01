@@ -22,6 +22,6 @@ export function ThemeScope({ children }: { children: ReactNode }) {
   );
 }
 
-export function useProfileTheme(spaceId: string): Theme {
+export function useSpaceTheme(spaceId: string): Theme {
   return useProfileLook(spaceId, (space, appDark, settings) => scopedTheme(isIncognitoSpace(spaceId), space, appDark, spaceLookSource(settings)));
 }

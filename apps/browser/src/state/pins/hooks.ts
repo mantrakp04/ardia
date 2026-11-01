@@ -15,11 +15,13 @@ export const useTileFolderLabel = (windowId: string, folderId: string) => {
   return useBrowser((s) => folderLabel(folderIn(s, windowId, folderId, spaceId ?? s.windows[windowId]?.spaceId)));
 };
 
-export const useShownFolderTab = (windowId: string, folderId: string) =>
-  useBrowser((s) => {
-    const id = activeTabId(s, windowId);
+export const useShownFolderTab = (windowId: string, folderId: string) => {
+  const spaceId = useContext(PageSpaceContext);
+  return useBrowser((s) => {
+    const id = activeTabId(s, windowId, spaceId ?? undefined);
     return id && tileFolderOf(s.tabs[id])?.id === folderId ? id : null;
   });
+};
 
 export const useIsSelected = (windowId: string, tabId: string) => useBrowser((s) => (s.selection[windowId] ?? []).includes(tabId));
 

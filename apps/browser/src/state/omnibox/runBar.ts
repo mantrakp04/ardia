@@ -37,7 +37,7 @@ async function pickSpaceForTab({ s, tab }: OrganizeContext) {
     { id: "new", title: "New Space…" },
   ];
   const choice = await showMenu(items);
-  if (choice) await moveTabToSpace(tab.id, choice);
+  if (choice) await moveTabToSpace(tab.id, choice === "new" ? null : choice);
 }
 
 async function renameWindowSpace({ windowId }: OrganizeContext) {

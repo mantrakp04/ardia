@@ -13,7 +13,7 @@ import { switcherCellWidth, switcherIcons, SwitcherMark } from "./SpaceIcons";
 import { openSpaceItemMenu } from "./spaceMenu";
 import { spaceSwitcher } from "./tokens";
 
-export const PROFILE_DOTS_HEIGHT = spaceSwitcher.height;
+export const SPACE_DOTS_HEIGHT = spaceSwitcher.height;
 const { band: BAND, dotTooltipLift } = spaceSwitcher;
 const SIDE_ROOM = layout.sidebarInset;
 const SIDE_ROOM_BESIDE_DOWNLOADS = layout.sidebarInset + SIDEBAR_FOOTER_DOWNLOADS.size + 4;
@@ -31,8 +31,8 @@ export function SpaceDots({ windowId, width, besideDownloads }: { windowId: stri
   const icons = switcherIcons(saved, shown, width - 2 * (besideDownloads ? SIDE_ROOM_BESIDE_DOWNLOADS : SIDE_ROOM));
   const { pages, pager } = usePagerPages(windowId);
   return (
-    <View style={{ height: PROFILE_DOTS_HEIGHT, alignItems: "center" }}>
-      <View style={{ marginTop: (PROFILE_DOTS_HEIGHT - 3 - BAND) / 2, height: BAND, flexDirection: "row" }}>
+    <View style={{ height: SPACE_DOTS_HEIGHT, alignItems: "center" }}>
+      <View style={{ marginTop: (SPACE_DOTS_HEIGHT - 3 - BAND) / 2, height: BAND, flexDirection: "row" }}>
         {ids.map((id, i) => (
           <Dot key={id} id={id} windowId={windowId} icon={icons[i] ?? null} page={pages.find((p) => p.id === id)} pos={pager.pos} />
         ))}

@@ -40,7 +40,7 @@ const settle = async () => {
   for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
 };
 const space = (id, name, profileId) => ({ id, name, color: "blue", icon: null, createdAt: 0, profileId: profileId ?? id });
-useBrowser.setState({ profiles: { default: { id: "default", name: "Personal", engineId: "" }, work: { id: "work", name: "Work", engineId: "work" } }, spaces: { default: space("default", "Personal") }, spaceOrder: ["default"] });
+useBrowser.setState({ profiles: { default: { id: "default", name: "Personal", engineId: "" } }, spaces: { default: space("default", "Personal") }, spaceOrder: ["default"] });
 const lastWrite = () => {
   const { version, ...status } = fake.writes.at(-1);
   assert.equal(version, 1);
@@ -136,6 +136,7 @@ test("a new space gets it, a space sharing data reports the same, duplicate name
   await settle();
   calls.length = 0;
   useBrowser.setState({
+    profiles: { ...useBrowser.getState().profiles, work: { id: "work", name: "Work", engineId: "work" } },
     spaces: { default: space("default", "Personal"), work: space("work", "Personal"), shared: space("shared", "Side", "work") },
     spaceOrder: ["default", "work", "shared"],
   });
@@ -233,4 +234,22 @@ test("turning the setting off stops watching and ignores changes", async () => {
   await settle();
   assert.equal(calls.length, 0);
   assert.equal(fake.writes.length, writes);
+});
+
+
+test("a Profile with no Spaces receives and removes the scripts extension", async () => {
+  calls.length = 0;
+  folder = { state: "ready", generation: 100, path: PATH };
+  useBrowser.getState().updateSettings({ cliControl: true });
+  const parked = useBrowser.getState().createProfile({ name: "Parked" });
+  await settle();
+  assert.ok(calls.some(([kind, engine]) => kind === "install" && engine === parked));
+  assert.deepEqual(lastWrite().spaces.Parked, { ok: true });
+  calls.length = 0;
+  folder = { state: "absent", generation: 101, path: PATH };
+  fake.change();
+  await settle();
+  assert.ok(calls.some(([kind, engine]) => kind === "uninstall" && engine === parked));
+  assert.deepEqual(lastWrite().spaces.Parked, { removed: true });
+  useBrowser.getState().updateSettings({ cliControl: false });
 });

@@ -25,7 +25,7 @@ import { TabWebView } from "./TabWebView";
 import { withoutFragment } from "../../lib/url";
 import { paneBar, type CardChrome } from "./paneChrome";
 import { PageOverlays } from "./PageOverlays";
-import { useProfileTheme } from "./ThemeScope";
+import { useSpaceTheme } from "./ThemeScope";
 
 const LINGERING_PANE = "ardia.lingeringPane";
 
@@ -75,7 +75,7 @@ export const TabPane = memo(function TabPane({
   const visible = !!rect;
   const live = visible || !!warm;
   const own = useTabValue(tabId, paneTab, shallowEqual);
-  const theme = useProfileTheme(own.spaceId);
+  const theme = useSpaceTheme(own.spaceId);
   const toolbarHeight = useToolbarRow().height;
   const isNewTab = !own.url;
   const emptyCard = useSettings((st) => isNewTab && st.newTabOpens === "commandBar");

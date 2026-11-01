@@ -12,11 +12,12 @@ import { Favicon } from "../../favicon/Favicon";
 import { FormField, Group, Row, SectionHeader, SettingToggle } from "../Form";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { profileIdForEngine } from "../../../state/profiles/current";
-import { openProfileSettings } from "../../../state/settings/settingsWindows";
+import { openProfileSettings, openSettings } from "../../../state/settings/settingsWindows";
 
 function manageExtensionsOf(profile: string) {
   const id = profileIdForEngine(profile);
   if (id) openProfileSettings("extensions", id);
+  else openSettings("extensions");
 }
 
 export function SearchPane() {

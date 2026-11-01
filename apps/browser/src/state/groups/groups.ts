@@ -311,7 +311,8 @@ export const createGroupsSlice: StateCreator<BrowserState, [], [], GroupsSlice> 
     const s = get();
     const g = s.groups[groupId];
     if (!g) return;
-    const spaceId = bookmarkSpaceId(s, s.windows[g.windowId]);
+    const window = s.windows[g.windowId];
+    const spaceId = window?.kind === "private" ? bookmarkSpaceId(s, window) : g.spaceId;
     const file = (group: TabGroup, parentId?: string) => {
       const folder = get().addBookmarkFolder({ spaceId, title: groupLabel(s, group), ...(parentId ? { parentId } : {}) });
       const children = Object.values(s.groups).filter((c) => c.parentId === group.id);

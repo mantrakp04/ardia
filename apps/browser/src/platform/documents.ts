@@ -22,7 +22,10 @@ function ensureWorkspace() {
   if (failure) throw new Error(failure);
 }
 
-export const workspaceUpgradeError = () => failure;
+export const workspaceUpgradeError = () => {
+  try { ensureWorkspace(); } catch {}
+  return failure;
+};
 export function readDocument(name: string) { ensureWorkspace(); return nativeRead(name); }
 export function writeDocument(name: string, contents: string) { ensureWorkspace(); nativeWrite(name, contents); }
 

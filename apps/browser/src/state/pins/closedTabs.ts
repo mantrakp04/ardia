@@ -146,7 +146,7 @@ export function restoreSnapshots(
     const [next, id] = withNewTab(s, windowId, {
       url: e.tab.url || undefined,
       spaceId,
-      snapshot: e.tab,
+      snapshot: { ...e.tab, spaceId },
       index: e.index,
       background: true,
       wakeAdoptId: e.tabId && e.tab.url ? restoreId(e.tabId) : undefined,

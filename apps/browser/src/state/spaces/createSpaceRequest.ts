@@ -16,7 +16,7 @@ export function requestCreateSpace(windowId?: string, preset: CreateSpacePreset 
     sheet?.resolve(null);
     if (request && request !== sheet) request.resolve(null);
     openSettings("spaces");
-    useCreateSpaceRequest.setState({ request: null, sheet: { windowId: null, preset, resolve } });
+    useCreateSpaceRequest.setState({ request: null, sheet: { windowId: windowId ?? null, preset, resolve } });
   });
 }
 

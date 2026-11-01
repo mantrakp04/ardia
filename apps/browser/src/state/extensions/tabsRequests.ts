@@ -47,6 +47,7 @@ function openChromeMadeTab(request: Request<"adoptInto">) {
   if (!spaceId) return;
   const s = useBrowser.getState();
   const made = Object.values(s.windows).find((w) => w.kind !== "small" && w.chromeWindow === chromeWindow);
+  if (made?.kind === "private" && engineProfile(s, made.spaceId) !== profile) return;
   const destination = made && engineProfile(s, made.spaceId) === profile ? made.spaceId : spaceId;
   if (made) return void s.newTab(made.id, { url, adoptId, spaceId: destination, background: !active });
   openWindow({ url, adoptId, spaceId, chromeWindow, background: !focused });

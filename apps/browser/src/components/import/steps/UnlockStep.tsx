@@ -5,10 +5,9 @@ import { backTo, importsBySpaces, type ImportFlow } from "../../../state/import/
 import { skipEncryptedData, unlockAndImport } from "../../../state/import/runImport";
 
 export function UnlockBody({ flow }: { flow: ImportFlow }) {
-  const { source, sourceProfiles, step } = flow;
+  const { source, step } = flow;
   if (!source || step.name !== "unlock") return null;
   const { error } = step;
-  const many = sourceProfiles.length > 1;
   return (
     <>
       <Title
@@ -18,11 +17,7 @@ export function UnlockBody({ flow }: { flow: ImportFlow }) {
       <Handoff
         iconPath={source.iconPath}
         symbol="lock.fill"
-        lead={
-          many
-            ? `Some data is encrypted, so macOS will ask for your computer password once for each selected space.`
-            : `Some data is encrypted, so macOS will ask for your computer password to bring it securely into ${APP}.`
-        }
+        lead={`Some data is encrypted, so macOS will ask for your computer password to unlock the selected data for ${APP}.`}
         detail={`macOS may ask whether ${APP} can use “${source.keychainService ?? `${source.name} Safe Storage`}” from your keychain: it's the key ${source.name} encrypts passwords, cookies, cards and open tabs with. Click Allow. Your data stays on this Mac.`}
       />
       {error && <ErrorText text={error} />}

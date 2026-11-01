@@ -44,3 +44,14 @@ test("an existing Chrome-created window adopts a tab under its owner after its c
   assert.equal(engineProfile(state(), tab.spaceId), profile);
   assert.equal(tab.page.adopt, "tab:work");
 });
+
+test("a mismatched native request cannot adopt into a private window", () => {
+  state().hydrate({});
+  const profileId = state().createProfile({ name: "Work" });
+  state().createSpace({ name: "Work", profileId });
+  const windowId = state().createWindow({ kind: "private", spaceId: "default", chromeWindow: "native-private", url: "https://private.test/" });
+  const before = state();
+  openRequestedTab({ action: "adoptInto", profile: state().profiles[profileId].engineId, chromeWindow: "native-private", adoptId: "tab:work", url: "https://work.test/", active: true, focused: false });
+  assert.deepEqual(state().tabs, before.tabs);
+  assert.deepEqual(state().windows[windowId], before.windows[windowId]);
+});

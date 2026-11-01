@@ -14,7 +14,7 @@ function ProfileForm({ onDone }: { onDone: (id: string | null) => void }) {
     <Box gap="l">
       <Text size="title" weight="semibold">Create Profile</Text>
       <Text tone="textSecondary">A profile keeps its own logins, history, bookmarks, extensions and Top Apps. Assign it to spaces in Settings.</Text>
-      <TextField value={name} onChangeText={setName} placeholder="Profile name" autoFocus onSubmit={submit} />
+      <TextField value={name} onChangeText={setName} placeholder="Profile name" autoFocus onSubmit={submit} onEscape={() => onDone(null)} />
       <Box row gap="m" style={{ justifyContent: "flex-end" }}>
         <Button title="Cancel" onPress={() => onDone(null)} />
         <Button title="Create Profile" kind="primary" disabled={!name.trim()} onPress={submit} />

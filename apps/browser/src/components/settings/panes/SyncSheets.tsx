@@ -195,11 +195,11 @@ export function remoteSpaceDescription(p: Pick<RemoteSpace, "sharesWith" | "wait
   return added ? `On your other devices. Shares data with ${name}, which is added too.` : `On your other devices. Shares data with ${name}.`;
 }
 
-export function addAllRemoteProfiles(profiles: RemoteSpace[]) {
+export function addAllRemoteSpaces(profiles: RemoteSpace[]) {
   for (const p of profiles) if (!p.waiting) addRemoteSpace(p.syncId);
 }
 
-export function RemoteProfileRow({ profile }: { profile: RemoteSpace }) {
+export function RemoteSpaceRow({ profile }: { profile: RemoteSpace }) {
   return (
     <Row
       icon={<SpaceBadge profile={{ name: profile.name, color: profile.color, icon: profile.icon }} size={24} />}
@@ -211,16 +211,16 @@ export function RemoteProfileRow({ profile }: { profile: RemoteSpace }) {
   );
 }
 
-export function lookingForProfiles(pending: number): string {
-  const looking = "Looking for the profiles on your other devices…";
+export function lookingForSpaces(pending: number): string {
+  const looking = "Looking for the spaces on your other devices…";
   return pending ? `${looking} Waiting for ${pending === 1 ? "1 file" : `${pending} files`} to download.` : looking;
 }
 
 function joinedMessage(found: number, joining: boolean, pending: number, error: string | null): string {
-  if (found) return "These profiles are on your other devices. Add them to this Mac to sync their pinned tabs, bookmarks, history and passwords here too.";
+  if (found) return "These spaces are on your other devices. Add them to sync their tabs, saved rows, folders and themes. Browsing data and shared Top Apps have separate Profile sync choices.";
   if (error) return error;
-  if (joining) return lookingForProfiles(pending);
-  return "Every profile on your other devices is on this Mac too.";
+  if (joining) return lookingForSpaces(pending);
+  return "Every space on your other devices is on this Mac too.";
 }
 
 function JoinedSheet() {
@@ -236,14 +236,14 @@ function JoinedSheet() {
         <View style={SECTION_TOP}>
           <Group>
             {remote.map((p) => (
-              <RemoteProfileRow key={p.syncId} profile={p} />
+              <RemoteSpaceRow key={p.syncId} profile={p} />
             ))}
           </Group>
         </View>
       ) : null}
       <DialogActions>
         <Button title="Done" kind={addable > 1 ? "default" : "primary"} onPress={closeSettingsSheet} />
-        {addable > 1 ? <Button title="Add All" kind="primary" onPress={() => addAllRemoteProfiles(remote)} /> : null}
+        {addable > 1 ? <Button title="Add All" kind="primary" onPress={() => addAllRemoteSpaces(remote)} /> : null}
       </DialogActions>
     </Sheet>
   );

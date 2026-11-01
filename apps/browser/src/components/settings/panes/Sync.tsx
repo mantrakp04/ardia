@@ -26,7 +26,7 @@ import {
 import { DATA_TYPES, type SyncStatus } from "../../../state/sync/syncDoc";
 import { SpaceBadge } from "../../spaces/SpaceIcons";
 import { Group, PaneIntro, Row, SectionHeader } from "../Form";
-import { addAllRemoteProfiles, folderLabel, lookingForProfiles, RemoteProfileRow, showConnectDevice, showPhraseEntry, showRecoveryKit, showStopSync } from "./SyncSheets";
+import { addAllRemoteSpaces, folderLabel, lookingForSpaces, RemoteSpaceRow, showConnectDevice, showPhraseEntry, showRecoveryKit, showStopSync } from "./SyncSheets";
 import { ago } from "../../../lib/time";
 
 export function SyncPane() {
@@ -264,7 +264,7 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
           );
         })}
         {remoteSpaces.map((p) => (
-          <RemoteProfileRow key={p.syncId} profile={p} />
+          <RemoteSpaceRow key={p.syncId} profile={p} />
         ))}
       </Group>
 

@@ -12,7 +12,7 @@ if (!appArg) {
 
 Right-clicks the sidebar's rows, tiles, groups and background through AppKit's event path, picks items through the
 appMenu and appDialog test hooks (docs/testing.md) and checks what each pick did to the store: the tab, several-tab,
-group, sidebar, Top Apps, reload button and profile menus, moves between profiles and windows, and the page menu's
+group, sidebar, Top Apps, reload button and space menus, moves between spaces and windows, and the page menu's
 Back, Forward and Copy Link Address through the contextMenu hook.`);
   process.exit(2);
 }
@@ -74,11 +74,11 @@ const groupOfTab = (id) => Object.values(st().groups).find((g) => g.tabIds.inclu
 const clip = () => settle(150).then(() => ac.menus.readClipboard());
 const resetUi = () => ac.sidebarRows.setSidebarUi({ renaming: null, iconPicker: null });
 const housed = (id) => { const t = st().tabs[id]; let g = groupOfTab(id); while (g?.parentId) g = st().groups[g.parentId]; return !!t.pin || !!g?.pinned; };
-const regular = (w = "w1") => st().windows[w].tabIds.filter((id) => !housed(id) && st().tabs[id].profileId === st().windows[w].profileId);
+const regular = (w = "w1") => st().windows[w].tabIds.filter((id) => !housed(id) && st().tabs[id].spaceId === st().windows[w].spaceId);
 const open = (names) => names.map((n) => st().newTab("w1", { url: "${url("")}" + n, background: true }));
 const mkGroup = (name, names) => st().groupTabs(open(names), { pinned: false, name });
 const groupNamed = (name) => Object.values(st().groups).find((g) => g.name === name);
-const home = () => { if (st().windows.w1.profileId !== "default") st().switchProfile("w1", "default"); st().setSelection("w1", []); resetUi(); return settle(500); };
+const home = () => { if (st().windows.w1.spaceId !== "default") st().switchSpace("w1", "default"); st().setSelection("w1", []); resetUi(); return settle(500); };
 const select = (ids) => { st().setSelection("w1", ids); return settle(200); };
 `;
 const run = (body) => app.eval(`${HELPERS}\n${body}`, { timeout: 20000 });
@@ -249,15 +249,15 @@ try {
     assert.equal(await run(`return groupOfTab("b");`), null);
   });
 
-  await check("tab: Move to Profile › Work (warning confirmed), cancelled at the warning moves nothing", async () => {
-    const menu = await choose("t:h", "profile:work", { answer: "confirm" });
-    assert.equal(itemsOf(menu, "profile:default").checked, true);
-    assert.equal(itemsOf(menu, "profile:default").enabled, false);
-    assert.equal(dialog().title, "Move Tab to Profile?");
-    assert.deepEqual(await run(`return byUrl("h").map((t) => [t.profileId, t.windowId]);`), [["work", "w1"]]);
+  await check("tab: Move to Space › Work (warning confirmed), cancelled at the warning moves nothing", async () => {
+    const menu = await choose("t:h", "space:work", { answer: "confirm" });
+    assert.equal(itemsOf(menu, "space:default").checked, true);
+    assert.equal(itemsOf(menu, "space:default").enabled, false);
+    assert.equal(dialog().title, "Move Tab to Space?");
+    assert.deepEqual(await run(`return byUrl("h").map((t) => [t.spaceId, t.windowId]);`), [["work", "w1"]]);
     await run(`return home();`);
-    await choose("t:f", "profile:work", { answer: "cancel" });
-    assert.deepEqual(await run(`return byUrl("f").map((t) => t.profileId);`), ["default"]);
+    await choose("t:f", "space:work", { answer: "cancel" });
+    assert.deepEqual(await run(`return byUrl("f").map((t) => t.spaceId);`), ["default"]);
   });
 
   await check("tab: Move to Window › New Window, then back into w1 from there (the last tab of a window)", async () => {
@@ -318,14 +318,14 @@ try {
     assert.deepEqual(await run(`return [groupOfTab(${JSON.stringify(m1)}), groupOfTab(${JSON.stringify(m2)})];`), [null, null]);
   });
 
-  await check("several tabs: Move 2 Tabs to Profile › Work", async () => {
+  await check("several tabs: Move 2 Tabs to Space › Work", async () => {
     await run(`return home();`);
     const [m1, m2] = await run(`return [idOf("m1"), idOf("m2")];`);
     await run(`return select(${JSON.stringify([m1, m2])});`);
-    const menu = await choose(`t:${m1}`, "profile:work", { answer: "confirm" });
-    assert.equal(itemsOf(menu, "moveToProfile").title, "Move 2 Tabs to Profile");
-    assert.equal(dialog().title, "Move 2 Tabs to Profile?");
-    assert.deepEqual(await run(`return [byUrl("m1")[0].profileId, byUrl("m2")[0].profileId];`), ["work", "work"]);
+    const menu = await choose(`t:${m1}`, "space:work", { answer: "confirm" });
+    assert.equal(itemsOf(menu, "moveToSpace").title, "Move 2 Tabs to Space");
+    assert.equal(dialog().title, "Move 2 Tabs to Space?");
+    assert.deepEqual(await run(`return [byUrl("m1")[0].spaceId, byUrl("m2")[0].spaceId];`), ["work", "work"]);
   });
 
   await check("several tabs: Move to Window › New Window and › an existing window, Close 2 Tabs", async () => {
@@ -413,15 +413,15 @@ try {
     await run(`st().closeWindow(${JSON.stringify(r.w)}); return settle(800);`);
   });
 
-  await check("group: Move to Profile › Work moves the group and its tabs; a pinned group too", async () => {
+  await check("group: Move to Space › Work moves the group and its tabs; a pinned group too", async () => {
     await run(`return home().then(() => { mkGroup("ToWork", ["pg1"]); return settle(500); });`);
-    await choose(`g:${await run(`return groupNamed("ToWork").id;`)}`, "profile:work", { answer: "confirm" });
-    assert.deepEqual(await run(`const g = groupNamed("ToWork"); return g && [g.profileId, byUrl("pg1").map((t) => t.profileId)];`), ["work", ["work"]]);
+    await choose(`g:${await run(`return groupNamed("ToWork").id;`)}`, "space:work", { answer: "confirm" });
+    assert.deepEqual(await run(`const g = groupNamed("ToWork"); return g && [g.spaceId, byUrl("pg1").map((t) => t.spaceId)];`), ["work", ["work"]]);
     await run(`return home().then(() => { st().groupTabs(open(["pp1"]), { pinned: true, name: "PinnedToWork" }); return settle(500); });`);
     const pinnedGroup = await run(`return groupNamed("PinnedToWork").id;`);
-    const menu = await choose(`g:${pinnedGroup}`, "profile:work", { answer: "confirm" });
+    const menu = await choose(`g:${pinnedGroup}`, "space:work", { answer: "confirm" });
     assert.ok(!itemsOf(menu, "moveToWindow"));
-    assert.deepEqual(await run(`const g = groupNamed("PinnedToWork"); return g && [g.profileId, g.pinned, [...new Set(byUrl("pp1").map((t) => t.profileId))]];`), ["work", true, ["work"]]);
+    assert.deepEqual(await run(`const g = groupNamed("PinnedToWork"); return g && [g.spaceId, g.pinned, [...new Set(byUrl("pp1").map((t) => t.spaceId))]];`), ["work", true, ["work"]]);
   });
 
   await check("Top Apps tile: Edit Pinned Page › Back to Pinned URL (disabled at the pinned URL), Open in New Window, Unpin", async () => {
@@ -485,26 +485,29 @@ try {
     await run(`st().navigate("b", "${url("b")}"); return settle(1000);`);
   });
 
-  await check("profile menu: Rename…, Color, Profile Settings… opens Settings › Profiles", async () => {
-    const open = (id) => `ac.menus.openProfileItemMenu("${id}", "sidebar", "w1")`;
+  await check("space menu: Rename…, Color, Space Settings… opens Settings › Spaces", async () => {
+    const open = (id) => `ac.menus.openSpaceItemMenu("${id}", "sidebar", "w1")`;
     await choose(null, "rename", { open: open("work"), answer: "Office" });
-    assert.equal(await run(`return st().profiles.work.name;`), "Office");
+    assert.equal(await run(`return st().spaces.work.name;`), "Office");
     const menu = await choose(null, null, { open: open("work") });
     const color = itemsOf(menu, "color").children.find((c) => !c.checked).id;
+    const before = await run(`return st().spaces.work.color;`);
     await choose(null, color, { open: open("work") });
-    assert.equal(await run(`return st().profiles.work.color;`), color.slice(6));
+    assert.notEqual(await run(`return st().spaces.work.color;`), before);
+    const changed = await choose(null, null, { open: open("work") });
+    assert.equal(itemsOf(changed, "color").children.find((c) => c.checked).id, color);
     await choose(null, "settings", { open: open("work") });
     await sleep(1200);
-    assert.deepEqual(await run(`const n = ac.settingsNav.getState(); return [n.pane, n.profileId];`), ["profiles", "work"]);
+    assert.deepEqual(await run(`const n = ac.settingsNav.getState(); return [n.pane, n.spaceId];`), ["spaces", "work"]);
   });
 
-  await check("incognito: a private window's tab can't move to a profile or window, and isn't a destination", async () => {
+  await check("incognito: a private window's tab can't move to a space or window, and isn't a destination", async () => {
     await run(`return home();`);
     const w = await run(`const w = ac.actions.openWindow({ kind: "private", url: "${url("inc")}" }); return settle(2500).then(() => w);`);
     const inc = await run(`return idOf("inc");`);
     assert.ok(inc, "a private tab");
     const items = await choose(null, null, { open: tabMenuIn(JSON.stringify(w), JSON.stringify(inc)) });
-    assert.equal(itemsOf(items, "moveToProfile").enabled, false);
+    assert.equal(itemsOf(items, "moveToSpace").enabled, false);
     assert.equal(itemsOf(items, "moveToWindow").enabled, false);
     const regularMenu = await choose("t:a");
     assert.ok(!itemsOf(regularMenu, `window:${w}`), "the private window isn't offered");
@@ -540,21 +543,23 @@ try {
     assert.equal(await run(`return st().tabs.b.url;`), url("second"), "Forward came back");
   });
 
-  await check("profile menu: Delete Profile… deletes Work, and is disabled on the last profile", async () => {
-    const open = (id) => `ac.menus.openProfileItemMenu("${id}", "sidebar", "w1")`;
+  await check("space menu: Delete Space… deletes Work, and explains why the last space stays", async () => {
+    const open = (id) => `ac.menus.openSpaceItemMenu("${id}", "sidebar", "w1")`;
     await run(`return home();`);
     await choose(null, "delete", { open: open("work"), answer: "confirm" });
     await sleep(800);
-    assert.deepEqual(await run(`return st().profileOrder;`), ["default"]);
+    assert.deepEqual(await run(`return st().spaceOrder;`), ["default"]);
     const menu = await choose(null, "delete", { open: open("default") });
-    assert.equal(itemsOf(menu, "delete").enabled, false);
-    assert.deepEqual(await run(`return st().profileOrder;`), ["default"]);
+    assert.equal(itemsOf(menu, "delete").enabled, true);
+    assert.equal(dialog().title, "Cannot Delete Space");
+    assert.match(dialog().message, /Keep at least one space/);
+    assert.deepEqual(await run(`return st().spaceOrder;`), ["default"]);
   });
 
   await check("bookmarks page: a two-bookmark selection opens both, copies both, and Delete 2 Bookmarks reaches the page's delete", async () => {
     await run(`return home();`);
-    const [b1, b2] = await run(`return [st().addBookmark({ profileId: "default", url: "${url("bm1")}", title: "BM1" }), st().addBookmark({ profileId: "default", url: "${url("bm2")}", title: "BM2" })];`);
-    const open = `ac.menus.openBookmarkRowMenu(st().bookmarks.nodes[${JSON.stringify(b1)}], { windowId: "w1", profileId: "default", showPath: false, selection: ${JSON.stringify([b1, b2])}, onOpenFolder() {}, onDelete() { globalThis.__menusDeleted = (globalThis.__menusDeleted ?? 0) + 1; } })`;
+    const [b1, b2] = await run(`return [st().addBookmark({ spaceId: "default", url: "${url("bm1")}", title: "BM1" }), st().addBookmark({ spaceId: "default", url: "${url("bm2")}", title: "BM2" })];`);
+    const open = `ac.menus.openBookmarkRowMenu(st().bookmarks.nodes[${JSON.stringify(b1)}], { windowId: "w1", spaceId: "default", showPath: false, selection: ${JSON.stringify([b1, b2])}, onOpenFolder() {}, onDelete() { globalThis.__menusDeleted = (globalThis.__menusDeleted ?? 0) + 1; } })`;
     const menu = await choose(null, "openAll", { open });
     assert.equal(itemsOf(menu, "delete").title, "Delete 2 Bookmarks");
     assert.equal(itemsOf(menu, "openAll").title, "Open 2 in New Tabs");
@@ -567,7 +572,7 @@ try {
   });
 
   await check("bookmarks bar: Delete on a bar bookmark removes it", async () => {
-    const id = await run(`return st().addBookmark({ profileId: "default", url: "${url("barbm")}", title: "BarBM" });`);
+    const id = await run(`return st().addBookmark({ spaceId: "default", url: "${url("barbm")}", title: "BarBM" });`);
     await choose(null, "delete", { open: `ac.menus.openBarMenu("w1", "default", st().bookmarks.nodes[${JSON.stringify(id)}])` });
     assert.equal(await run(`return !!st().bookmarks.nodes[${JSON.stringify(id)}];`), false);
   });
@@ -612,11 +617,11 @@ try {
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "manifest.json"), JSON.stringify({ manifest_version: 3, name: "Menus Test Extension", version: "1.0", action: { default_title: "Menus Test" } }));
     writeFileSync(join(data, "file-chooser.txt"), `${dir}\n`);
-    const list = `const profile = ac.extensions.extensionProfile(st(), "w1"); return ac.extensions.refreshExtensions(profile).then((l) => l.find((x) => x.name === "Menus Test Extension") ?? null);`;
+    const list = `const profile = ac.extensions.extensionSpace(st(), "w1"); return ac.extensions.refreshExtensions(profile).then((l) => l.find((x) => x.name === "Menus Test Extension") ?? null);`;
     await run(`return ac.extensions.loadUnpacked("w1").then(() => settle(500)).then(() => ac.extensions.confirmInstall()).then(() => settle(500));`);
     const ext = await run(list);
     assert.ok(ext, "installed");
-    const open = `Promise.resolve(ac.extensions.refreshExtensions(ac.extensions.extensionProfile(st(), "w1"))).then((l) => ac.extensions.showExtensionMenu("w1", l.find((x) => x.name === "Menus Test Extension")))`;
+    const open = `Promise.resolve(ac.extensions.refreshExtensions(ac.extensions.extensionSpace(st(), "w1"))).then((l) => ac.extensions.showExtensionMenu("w1", l.find((x) => x.name === "Menus Test Extension")))`;
     const menu = await choose(null, "pin", { open });
     assert.deepEqual(ids(menu), ["name", "options", "pin", "enable", "manage", "remove"]);
     await sleep(800);

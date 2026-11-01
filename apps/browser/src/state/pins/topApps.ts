@@ -75,7 +75,8 @@ export function mirrorTopApps(s: BrowserState, prev: BrowserState): BrowserState
   let parkedTopApps = s.parkedTopApps;
   for (const w of Object.values(s.windows)) {
     if (!mirrored(w)) continue;
-    const spaceIds = new Set([w.spaceId, ...w.tabIds.flatMap((id) => s.tabs[id]?.spaceId ? [s.tabs[id]!.spaceId] : [])]);
+    const sharing = s.spaceOrder.filter((id) => s.spaces[id]?.profileId === s.spaces[w.spaceId]?.profileId);
+    const spaceIds = new Set([w.spaceId, ...sharing, ...w.tabIds.flatMap((id) => s.tabs[id]?.spaceId ? [s.tabs[id]!.spaceId] : [])]);
     let ids = w.tabIds;
     let activeTabIds = w.activeTabIds;
     for (const spaceId of spaceIds) {

@@ -53,9 +53,9 @@ const imagesOf = (map: unknown, images: string[]): Record<string, string> =>
     ? Object.fromEntries(Object.entries(map).flatMap(([k, i]) => (typeof i === "number" && typeof images[i] === "string" ? [[k, images[i]!]] : [])))
     : {};
 
-export function seedFavicons(seed: LaunchFavicons) {
+export function seedFavicons(seed: LaunchFavicons & { profiles?: LaunchFavicons["spaces"] }) {
   const images = Array.isArray(seed.images) ? seed.images : [];
-  const seeded = Object.entries(seed.spaces ?? {}).filter(([key]) => !isIncognitoSpace(key));
+  const seeded = Object.entries(seed.spaces ?? seed.profiles ?? {}).filter(([key]) => !isIncognitoSpace(key));
   if (!seeded.length || !images.length) return;
   const themes: Favicons["themes"] = {};
   for (const [i, theme] of Object.entries(seed.themes && typeof seed.themes === "object" ? seed.themes : {})) {

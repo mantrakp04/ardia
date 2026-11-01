@@ -54,7 +54,7 @@ export function startCast() {
   };
   watch(useBrowser.getState());
   useBrowser.subscribe((s, prev) => {
-    if (s.windowOrder !== prev.windowOrder) watch(s);
+    if (s.windowOrder !== prev.windowOrder || s.windows !== prev.windows || s.spaces !== prev.spaces || s.profiles !== prev.profiles) watch(s);
   });
 }
 

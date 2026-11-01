@@ -31,6 +31,13 @@ export function scriptsTargets(s: Pick<BrowserState, "spaceOrder" | "spaces" | "
     const engine = engineProfile(s, id);
     targets.set(engine, [...(targets.get(engine) ?? []), name]);
   }
+  for (const profile of Object.values(s.profiles)) {
+    if (targets.has(profile.engineId)) continue;
+    const base = profile.name.trim() || profile.id;
+    const seen = (taken.get(base) ?? 0) + 1;
+    taken.set(base, seen);
+    targets.set(profile.engineId, [seen === 1 ? base : `${base} (${seen})`]);
+  }
   return targets;
 }
 
@@ -165,7 +172,7 @@ export function startUserScripts() {
   };
   sync(useBrowser.getState());
   useBrowser.subscribe((s, prev) => {
-    if (s.settings.cliControl !== prev.settings.cliControl || s.spaceOrder !== prev.spaceOrder || s.spaces !== prev.spaces) sync(s);
+    if (s.settings.cliControl !== prev.settings.cliControl || s.spaceOrder !== prev.spaceOrder || s.spaces !== prev.spaces || s.profiles !== prev.profiles) sync(s);
   });
 }
 

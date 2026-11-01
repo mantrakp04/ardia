@@ -1,11 +1,14 @@
 import { exportBookmarksHtml } from "../../platform/bookmarks";
 import { revealFile } from "../../platform/files";
 import { engineProfile, engineProfileForSpace, resolveWindowId } from "../browser/model";
+import { profileEngine } from "../profiles/current";
 import { useBrowser } from "../browser/store";
 import { spaceOfWindow } from "./bookmarkGroups";
 import { showToast } from "../app/toasts";
 
 const fileName = (path: string) => path.split("/").pop() ?? path;
+
+export const exportProfileBookmarks = (profileId: string): Promise<string | null> => exportBookmarksHtml(profileEngine(profileId));
 
 export const exportBookmarks = (spaceId: string): Promise<string | null> => exportBookmarksHtml(engineProfile(useBrowser.getState(), spaceId));
 

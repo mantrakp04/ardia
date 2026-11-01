@@ -2,7 +2,8 @@ import { appUrlRoute } from "@ardia/core";
 import { SETTINGS_PANES, type SettingsPane } from "../settings/settingsWindows";
 
 const PANE_ALIASES: Record<string, SettingsPane> = {
-  people: "spaces",
+  people: "profiles",
+  manageprofile: "profiles",
   managespace: "spaces",
   syncsetup: "sync",
   addresses: "autofill",

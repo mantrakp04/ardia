@@ -41,3 +41,11 @@ test("the launch favicons stay under 1 MiB serialized, each image stored once", 
   const dropped = tabs.find((t) => !look.images.includes(image(Number(t.url.match(/site(\d+)/)[1]))));
   if (dropped) assert.equal(resolveFavicon(dropped.url, null, "default"), null);
 });
+
+test("version-2 launch favicons still read the legacy Profile cache field", () => {
+  useBrowser.getState().hydrate({});
+  useFavicons.setState({ spaces: {}, themes: {} });
+  const page = "https://legacy-launch.test/";
+  seedFavicons({ images: ["data:legacy"], profiles: { "": { pages: { [page]: 0 }, srcs: {} } }, themes: {} });
+  assert.equal(resolveFavicon(page, null, "default")?.uri, "data:legacy");
+});

@@ -122,7 +122,7 @@ export const toolRows = {
         separateData: {
           advanced: true,
           title: "Separate sign-ins",
-          description: "Each engine keeps its own cookies and site data in every space. Spaces, tabs, history and settings are shared.",
+          description: "Each engine keeps its own cookies and site data within each profile. Spaces using the same profile share that data. Spaces, tabs, history and settings are shared between engines.",
           keywords: ["cookies", "site data", "sign in", "logged out"],
         },
         chromiumOnly: {
