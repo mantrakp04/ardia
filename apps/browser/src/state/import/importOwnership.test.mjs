@@ -30,7 +30,7 @@ globalThis.acTestNativeModules = {
 const api = await import("@ardia/import");
 globalThis.require = () => api;
 const { useBrowser } = await import("../browser/store.ts");
-const { importNow, patchImport, setImportTarget, backTo } = await import("./flow.ts");
+const { importNow, patchImport, setImportTarget, backTo, openFoundExtensions } = await import("./flow.ts");
 const { runImport, unlockAndImport } = await import("./runImport.ts");
 const { importSafariDirect, importSafariExport } = await import("./fileImports.ts");
 const S = () => useBrowser.getState();
@@ -87,7 +87,7 @@ for (const change of ["reassign", "delete-profile", "delete-space"]) test(`impor
 });
 
 for (const [name, entry] of [["browser", () => runImport(new Set(["cookies", "passwords", "bookmarks", "history"]))], ["Safari", importSafariDirect], ["Safari export", () => importSafariExport("fixture.zip")]])
-for (const change of ["reassign", "delete-profile"]) test(`an in-flight ${name} native import cannot redirect later passwords after ${change}`, async () => {
+for (const change of ["reassign", "delete-profile", "select-space"]) test(`an in-flight ${name} native import cannot redirect later passwords after ${change}`, async () => {
   const { owner, other, target } = setup();
   const started = deferred(), gate = deferred();
   read = async () => ({ ...result(), ...profileData, credentials, profiles: [{ history: profileData.history }] });
@@ -96,7 +96,8 @@ for (const change of ["reassign", "delete-profile"]) test(`an in-flight ${name} 
   await started.promise;
   const before = importedData();
   if (change === "reassign") S().assignSpaceProfile(target, other);
-  else S().deleteProfile(owner, other);
+  else if (change === "delete-profile") S().deleteProfile(owner, other);
+  else setImportTarget(S().createSpace({ name: "New destination", profileId: other }));
   gate.resolve(); await pending;
   assert.deepEqual(before, { bookmarks: false, history: false });
   assert.deepEqual(importedData(), { bookmarks: false, history: false });
@@ -115,7 +116,7 @@ for (const change of ["reassign", "delete-profile"]) test(`extension listing can
   else S().deleteProfile(owner, other);
   gate.resolve(); await pending;
   await assertStopped();
-  assert.deepEqual(importNow().step.extensions, { profileId: "", list: [], opened: false });
+  assert.deepEqual(importNow().step.extensions, { groups: [], opened: false });
 });
 
 test("later source imports cannot retain an extension action for a changed earlier destination", async () => {
@@ -128,7 +129,7 @@ test("later source imports cannot retain an extension action for a changed earli
   const pending = runImport(new Set(["cookies"]));
   await started.promise; S().assignSpaceProfile(target, other); gate.resolve(); await pending;
   await assertStopped();
-  assert.deepEqual(importNow().step.extensions, { profileId: "", list: [], opened: false });
+  assert.deepEqual(importNow().step.extensions, { groups: [], opened: false });
 });
 
 for (const change of ["reassign", "delete-profile"]) test(`password writes stop between credentials after ${change}`, async () => {
@@ -211,7 +212,7 @@ for (const change of ["reassign", "select-space", "delete-profile"]) test(`a fai
   gate.resolve(); await pending;
   assert.deepEqual(writes, []); assert.deepEqual(passwords, []);
   await assertStopped();
-  assert.deepEqual(importNow().step.extensions, { profileId: "", list: [], opened: false });
+  assert.deepEqual(importNow().step.extensions, { groups: [], opened: false });
 });
 
 for (const phase of ["native", "password", "listing"]) test(`a new target selection stops the captured operation during ${phase}`, async () => {
@@ -228,5 +229,37 @@ for (const phase of ["native", "password", "listing"]) test(`a new target select
   assert.deepEqual(writes, [{ token: "vault", profile: owner }]);
   assert.deepEqual(passwords, Array(phase === "native" ? 0 : phase === "password" ? 1 : 2).fill(owner));
   await assertStopped();
-  assert.deepEqual(importNow().step.extensions, { profileId: "", list: [], opened: false });
+  assert.deepEqual(importNow().step.extensions, { groups: [], opened: false });
+});
+
+for (const count of [1, 2]) test(`extension pages open in each of ${count} imported destination Profiles`, async () => {
+  const { owner } = setup();
+  const profiles = Array.from({ length: count }, (_, i) => ({ id: `source-${i}`, name: `Source ${i}`, available: ["cookies"] }));
+  patchImport({ source: { id: "chrome", family: "chromium", name: "Chrome", profiles }, sourceProfiles: profiles.map((p) => p.id) });
+  let index = 0;
+  list = async () => {
+    const i = index++;
+    return [{ id: "shared", name: "Shared", webStoreUrl: "https://chromewebstore.google.com/detail/shared" }, { id: `unique-${i}`, name: `Unique ${i}`, webStoreUrl: `https://chromewebstore.google.com/detail/unique-${i}` }];
+  };
+  await runImport(new Set(["cookies"])); await delay(1);
+  openFoundExtensions();
+  const shared = Object.values(S().tabs).filter((t) => t.url === "https://chromewebstore.google.com/detail/shared");
+  assert.equal(shared.length, count);
+  assert.equal(new Set(shared.map((t) => S().spaces[t.spaceId].profileId)).size, count);
+  for (let i = 0; i < count; i++) {
+    const tab = Object.values(S().tabs).find((t) => t.url === `https://chromewebstore.google.com/detail/unique-${i}`);
+    assert.ok(tab);
+    assert.equal(S().profiles[S().spaces[tab.spaceId].profileId].engineId, writes[i].profile);
+  }
+  assert.ok(shared.some((t) => S().spaces[t.spaceId].profileId === owner));
+});
+
+test("extension actions stop if an imported destination changes after completion", async () => {
+  const { other, target } = setup();
+  list = async () => [{ id: "fixture", name: "Fixture", webStoreUrl: "https://chromewebstore.google.com/detail/fixture" }];
+  await runImport(new Set(["cookies"])); await delay(1);
+  S().assignSpaceProfile(target, other);
+  openFoundExtensions();
+  assert.equal(Object.values(S().tabs).some((t) => t.url === "https://chromewebstore.google.com/detail/fixture"), false);
+  await assertStopped();
 });

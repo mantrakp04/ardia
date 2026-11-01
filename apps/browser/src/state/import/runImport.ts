@@ -127,9 +127,9 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
   const add = (c: ImportCounts) => (Object.keys(total) as (keyof ImportCounts)[]).forEach((k) => (total[k] += c[k]));
   let destinationIndex = 0;
 
-  const found = new Map<string, ImportedExtension>();
+  const found = new Map<string, { destination: ImportDestination; list: ImportedExtension[] }>();
+  const extensionsCurrent = () => [...found.values()].every((g) => g.destination.current());
   const left: string[] = [];
-  let extensionsDestination: ImportDestination | null = null;
   const destinationChanged = (token?: string) => {
     if (token) api.discardImported(token);
     api.forgetUnlockedKeys();
@@ -190,6 +190,7 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
       if (!names.includes(profile.name)) failed.set(k, [...names, profile.name]);
     };
 
+    let extensionsDestination: ImportDestination | null = null;
     if (bySpaces) {
       let first: ImportDestination | null = null;
       for (const space of result.spaces) {
@@ -205,7 +206,7 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
       if (!dest?.current()) return destinationChanged(result.vaultToken);
       add(await applyResult(dest.spaceId, result, source.name, profileKinds, refused, dest));
       if (!dest.current()) return destinationChanged();
-      extensionsDestination ??= dest;
+      extensionsDestination = dest;
     } else {
       const dest = await nextDestination(result.profile?.name ?? profile.name, result.profile?.color ?? profile.color);
       if (!dest) return destinationChanged(result.vaultToken);
@@ -217,16 +218,18 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
         if (!dest.current()) return destinationChanged();
         total.tabs += importAppTabs(dest.spaceId, tabs, source.profiles, profile.id, wanted);
       }
-      extensionsDestination ??= dest;
+      extensionsDestination = dest;
     }
     if (source.family === "chromium" || source.family === "arc") {
-      for (const e of await api.listExtensions(source.id, profile.id).catch(orWarn([]))) found.set(e.id, e);
+      const list = await api.listExtensions(source.id, profile.id).catch(orWarn([]));
+      const previous = found.get(extensionsDestination.profileId)?.list ?? [];
+      found.set(extensionsDestination.profileId, { destination: extensionsDestination, list: [...new Map([...previous, ...list].map((e) => [e.id, e])).values()] });
     }
-    if (!owner?.current() || !extensionsDestination?.current()) return destinationChanged();
+    if (!owner?.current() || !extensionsCurrent()) return destinationChanged();
   }
   const appTabsResult = appTabs && (await appTabs);
   if (signal.aborted) return;
-  if (!targetIsCurrent() || (extensionsDestination && !extensionsDestination.current())) return destinationChanged();
+  if (!targetIsCurrent() || !extensionsCurrent()) return destinationChanged();
   if (appTabsResult) {
     const note = "note" in appTabsResult ? appTabsResult.note : null;
     if (note) left.push(note);
@@ -238,7 +241,7 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
     counts: total,
     failures: [...failed].map(([kind, names]) => ({ kind, profiles: selected.length > 1 ? names : [] })),
     notes: left,
-    extensions: { profileId: extensionsDestination?.spaceId ?? "", list: [...found.values()], opened: false },
+    extensions: { groups: [...found.values()].filter((g) => g.list.length), opened: false },
   });
 }
 

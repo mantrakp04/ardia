@@ -7,9 +7,14 @@ export const chooseSafariExport = () => importModule().chooseImportFile("safariE
 export const openFullDiskAccessSettings = () => void importModule().openFullDiskAccessSettings();
 
 
+function selectedDestination(target: string) {
+  const destination = importDestination(target);
+  return destination && { ...destination, current: () => importNow().target === target && destination.current() };
+}
+
 export async function importSafariExport(path: string) {
   const { target } = importNow();
-  const destination = importDestination(target);
+  const destination = selectedDestination(target);
   const signal = importSignal();
   startProgress({ bookmarks: "active", history: "active", passwords: "active", autofill: "active" }, 1);
   try {
@@ -26,7 +31,7 @@ export async function importSafariExport(path: string) {
 
 export async function importSafariDirect() {
   const { target, safariCookies } = importNow();
-  const destination = importDestination(target);
+  const destination = selectedDestination(target);
   const signal = importSignal();
   const api = importModule();
   startProgress({ bookmarks: "active", history: "active", tabs: "active", ...(safariCookies ? { cookies: "active" as const } : {}) }, 1);
