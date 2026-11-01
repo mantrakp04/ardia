@@ -206,3 +206,22 @@ test("a utility window that fails to close is reported and never holds the last 
   await coordinator.accept(main);
   assert.deepEqual(log.map(([step, detail]) => step === "report" ? [step, detail] : [step]), [["begin"], ["utilities"], ["report", "Target renderer unavailable"], ["quiesce"], ["drain"], ["acknowledge"]]);
 });
+
+test("a window's departure snapshot is the state the store's own closeWindow settles to", async () => {
+  const { useBrowser } = await import("../../browser/src/state/browser/store.ts");
+  const { windowDeparture } = await import("./windowDeparture.ts");
+  useBrowser.getState().hydrate({});
+  const staying = useBrowser.getState().createWindow({ url: "https://staying.ardia.test/" });
+  const leaving = useBrowser.getState().createWindow({ url: "https://leaving.ardia.test/" });
+  useBrowser.setState({ privateSiteMutes: { [leaving]: { "leaving.ardia.test": true }, [staying]: { "staying.ardia.test": true } } });
+  const before = useBrowser.getState();
+  const departed = windowDeparture(before, leaving);
+  assert.equal(windowDeparture(before, "gone"), before);
+  useBrowser.getState().closeWindow(leaving);
+  const closed = useBrowser.getState();
+  assert.deepEqual(departed.privateSiteMutes, closed.privateSiteMutes);
+  assert.deepEqual(Object.keys(departed.privateSiteMutes), [staying]);
+  assert.deepEqual(departed.windowOrder, closed.windowOrder);
+  assert.deepEqual(Object.keys(departed.tabs).sort(), Object.keys(closed.tabs).sort());
+  assert.deepEqual(departed.closedWindows.map((entry) => entry.tabs.map((tab) => tab.url)), closed.closedWindows.map((entry) => entry.tabs.map((tab) => tab.url)));
+});

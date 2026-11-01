@@ -50,6 +50,7 @@ int main(int argc, char** argv) {
     p.Dock();
     p.host.Show(p.binding, true);
     assert(p.tools() && p.tools()->GetVisible() && p.tools()->web_contents() == &p.frontend);
+    assert(p.host.restacks == 1);
     assert(p.binding->viewport()->bounds() == gfx::Rect(100, 50, 500, 600));
     assert(p.tools()->bounds() == gfx::Rect(100, 50, 800, 600));
     assert(*p.host.GetIndexOf(p.tools()) < *p.host.GetIndexOf(p.binding->viewport()));

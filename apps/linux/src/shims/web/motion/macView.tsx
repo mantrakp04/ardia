@@ -1,16 +1,10 @@
 import { forwardRef, useEffect, useLayoutEffect, useRef, type ComponentType, type ForwardedRef, type ReactNode } from "react";
 import { Animated as WebAnimated, Pressable as WebPressable, StyleSheet, View as WebView } from "react-native-web";
 import "./leftEdge";
-import { reportMountLayout } from "../mountLayout";
-import { currentPointer, watchPointer, type PointerSample } from "./pointer";
+import { watchLayout } from "../mountLayout";
+import { macEvent, trackHover, type MouseHandler } from "./hover";
 
-type MouseHandler = (e: MacMouseEvent) => void;
-
-export type MacMouseEvent = {
-  nativeEvent: { clientX: number; clientY: number; screenX: number; screenY: number; shiftKey?: boolean; ctrlKey?: boolean; altKey?: boolean; metaKey?: boolean };
-  stopPropagation: () => void;
-  preventDefault: () => void;
-};
+export type { MacMouseEvent } from "./hover";
 
 type MacProps = {
   onDoubleClick?: (e: unknown) => void;
@@ -34,64 +28,6 @@ type MacProps = {
   style?: unknown;
   tabIndex?: number;
 };
-
-const WINDOW_SELECTOR = ".ardia-window";
-
-function macEvent(node: HTMLElement, e: PointerSample): MacMouseEvent {
-  const r = node.getBoundingClientRect();
-  const frame = node.closest(WINDOW_SELECTOR)?.getBoundingClientRect();
-  const windowX = frame ? e.clientX - frame.left : e.clientX;
-  const windowY = frame ? frame.bottom - e.clientY : window.innerHeight - e.clientY;
-  return {
-    nativeEvent: {
-      clientX: e.clientX - r.left,
-      clientY: e.clientY - r.top,
-      screenX: windowX,
-      screenY: windowY,
-      ...(e.shiftKey && { shiftKey: true }),
-      ...(e.ctrlKey && { ctrlKey: true }),
-      ...(e.altKey && { altKey: true }),
-      ...(e.metaKey && { metaKey: true }),
-    },
-    stopPropagation: () => {},
-    preventDefault: () => {},
-  };
-}
-
-type Tracked = { node: () => HTMLElement | null; enter: () => MouseHandler | undefined; leave: () => MouseHandler | undefined; inside: boolean };
-
-const tracked = new Set<Tracked>();
-const OUTSIDE: PointerSample = { clientX: -1e5, clientY: -1e5, shiftKey: false, ctrlKey: false, altKey: false, metaKey: false };
-let stopTracking: (() => void) | null = null;
-
-function contains(node: HTMLElement, p: PointerSample) {
-  if (!node.isConnected) return false;
-  const r = node.getBoundingClientRect();
-  return r.width > 0 && r.height > 0 && p.clientX >= r.left && p.clientX < r.right && p.clientY >= r.top && p.clientY < r.bottom;
-}
-
-function updateTracked(p: PointerSample | null) {
-  for (const t of [...tracked]) {
-    const node = t.node();
-    if (!node) continue;
-    const inside = !!p && contains(node, p);
-    if (inside === t.inside) continue;
-    t.inside = inside;
-    const handler = inside ? t.enter() : t.leave();
-    if (handler) handler(macEvent(node, p ?? OUTSIDE));
-  }
-}
-
-function track(entry: Tracked) {
-  tracked.add(entry);
-  stopTracking ??= watchPointer(updateTracked);
-  return () => {
-    tracked.delete(entry);
-    if (tracked.size || !stopTracking) return;
-    stopTracking();
-    stopTracking = null;
-  };
-}
 
 function assign<T>(ref: ForwardedRef<T>, value: T | null) {
   if (typeof ref === "function") ref(value);
@@ -128,11 +64,7 @@ function useMacBehaviour(props: MacProps) {
 
   useEffect(() => {
     if (!geometric) return;
-    const entry: Tracked = { node: () => node.current, enter: () => latest.current.onMouseEnter, leave: () => latest.current.onMouseLeave, inside: false };
-    const el = node.current;
-    const p = currentPointer();
-    if (el && p) entry.inside = contains(el, p);
-    return track(entry);
+    return trackHover({ node: () => node.current, enter: () => latest.current.onMouseEnter, leave: () => latest.current.onMouseLeave, inside: false });
   }, [geometric]);
 
   const domHover = geometric
@@ -184,11 +116,13 @@ export const MacView = forwardRef<unknown, MacProps>(function MacView(props, ref
   const { node, domHover } = useMacBehaviour(props);
   const layoutHandler = useRef(props.onLayout);
   layoutHandler.current = props.onLayout;
-  useLayoutEffect(() => reportMountLayout(node.current, layoutHandler.current as never, window), []);
+  const measured = !!props.onLayout;
+  useLayoutEffect(() => (measured ? watchLayout(node.current, () => layoutHandler.current as never, window) : undefined), [measured]);
   return (
     <BaseView
       {...strip(props)}
       {...domHover}
+      onLayout={undefined}
       style={clipAtBorderBox(props.style)}
       ref={(value: HTMLElement | null) => {
         node.current = value;

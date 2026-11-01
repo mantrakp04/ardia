@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
 import { CdpError, connectCdp, evaluate } from "../lib/cdp.mjs";
+import { withSignal } from "../lib/util.mjs";
 import { startMockCdp } from "./mock-cdp.mjs";
 
 describe("CDP client", () => {
@@ -34,6 +35,20 @@ describe("CDP client", () => {
   it("times out a request that never answers", async () => {
     const session = await connectCdp(mock.url());
     await assert.rejects(session.send("Echo.never", {}, { timeout: 100 }), /timed out after 100 ms/);
+    await session.close();
+  });
+
+  it("rejects a pending request and an event wait when the current signal aborts", async () => {
+    const session = await connectCdp(mock.url());
+    const controller = new AbortController();
+    const reason = new Error("check stopped");
+    const pending = withSignal(controller.signal, () => [session.send("Echo.never", {}, { timeout: 5000 }), session.waitFor("Echo.done", () => true, 5000)]);
+    setTimeout(() => controller.abort(reason), 30);
+    const started = Date.now();
+    for (const request of pending) await assert.rejects(request, (error) => error === reason);
+    assert.ok(Date.now() - started < 1000);
+    await assert.rejects(withSignal(controller.signal, () => session.send("Echo.ping", { value: 1 })), (error) => error === reason);
+    assert.deepEqual((await session.send("Echo.ping", { value: 3 })).pong, 3);
     await session.close();
   });
 

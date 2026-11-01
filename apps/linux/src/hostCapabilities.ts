@@ -38,6 +38,8 @@ export function unavailableSettingIds(capabilities: LinuxCapabilities, settingId
   return ids;
 }
 
+export const unavailableCommands = (capabilities: LinuxCapabilities): Set<string> => new Set(capabilities.externalLinks ? [] : ["emailPageLocation"]);
+
 export const unavailablePanes = (capabilities: LinuxCapabilities): Set<string> => new Set(capabilities.webkit ? [] : ["engines"]);
 
 export const unavailableError = (feature: string) => Object.assign(new Error(`${feature} is unavailable on Linux`), { code: "ERR_UNAVAILABLE" });

@@ -1,4 +1,5 @@
 import { setTimeout as delay } from "node:timers/promises";
+import { currentSignal, whenCancelled } from "./util.mjs";
 
 export class CdpError extends Error {
   constructor(method, error) {
@@ -68,10 +69,18 @@ export async function connectCdp(url, { timeout = 5000, commandTimeout = 10000, 
     url,
     get closed() { return closed; },
     get closeReason() { return closeReason; },
-    send(method, params = {}, { timeout: limit = commandTimeout, sessionId } = {}) {
+    send(method, params = {}, { timeout: limit = commandTimeout, sessionId, signal = currentSignal() } = {}) {
       if (closed) return Promise.reject(new Error(`CDP connection closed before ${method}: ${closeReason}`));
-      return new Promise((resolve, reject) => {
+      if (signal?.aborted) return Promise.reject(signal.reason);
+      return new Promise((settleResolve, settleReject) => {
         const id = ++sequence;
+        const forget = whenCancelled(signal, (reason) => {
+          clearTimeout(pending.get(id)?.timer);
+          pending.delete(id);
+          settleReject(reason);
+        });
+        const resolve = (value) => { forget(); settleResolve(value); };
+        const reject = (error) => { forget(); settleReject(error); };
         const timer = setTimeout(() => {
           pending.delete(id);
           reject(new Error(`${method} timed out after ${limit} ms`));
@@ -87,18 +96,22 @@ export async function connectCdp(url, { timeout = 5000, commandTimeout = 10000, 
       });
     },
     on,
-    waitFor(method, predicate = () => true, limit = commandTimeout) {
+    waitFor(method, predicate = () => true, limit = commandTimeout, signal = currentSignal()) {
+      if (signal?.aborted) return Promise.reject(signal.reason);
       return new Promise((resolve, reject) => {
         let off = () => {};
-        const timer = setTimeout(() => { off(); reject(new Error(`Timed out after ${limit} ms waiting for ${method}`)); }, limit);
+        let forget = () => {};
+        const timer = setTimeout(() => { off(); forget(); reject(new Error(`Timed out after ${limit} ms waiting for ${method}`)); }, limit);
+        forget = whenCancelled(signal, (reason) => { clearTimeout(timer); off(); reject(reason); });
         off = on(method, (params, sessionId) => {
           let matched = false;
           try { matched = predicate(params, sessionId); } catch {}
           if (!matched) return;
           clearTimeout(timer);
           off();
+          forget();
           resolve(params);
-        }, (reason) => { clearTimeout(timer); off(); reject(new Error(`CDP connection closed while waiting for ${method}: ${reason}`)); });
+        }, (reason) => { clearTimeout(timer); off(); forget(); reject(new Error(`CDP connection closed while waiting for ${method}: ${reason}`)); });
       });
     },
     async close() {
@@ -120,7 +133,8 @@ export async function evaluate(session, expression, { timeout = 10000, awaitProm
 }
 
 export async function fetchJson(url, timeout = 3000) {
-  const response = await fetch(url, { signal: AbortSignal.timeout(timeout) });
+  const cancelled = currentSignal();
+  const response = await fetch(url, { signal: cancelled ? AbortSignal.any([AbortSignal.timeout(timeout), cancelled]) : AbortSignal.timeout(timeout) });
   if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
   return response.json();
 }

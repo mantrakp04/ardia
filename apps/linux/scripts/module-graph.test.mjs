@@ -87,6 +87,11 @@ test("production graph uses current Linux adapters and one canonical shared stat
   assert.ok(!permissions.importedIds.includes(`${browser}state/site/webNotifications.ts`));
   assert.ok(graph.get(`${linux}notificationPermission.ts`).importedIds.includes(`${browser}state/site/webNotifications.ts`));
 
+  const csvImport = graph.get(`${browser}state/site/savedPasswords.ts`);
+  assert.ok(csvImport.importedIds.includes(`${linux}importedPasswordSave.ts`), "Settings › Passwords › Import saves CSV passwords through the Linux import-handle adapter");
+  assert.ok(!csvImport.importedIds.includes(`${browser}state/site/passwords.ts`));
+  assert.ok(graph.get(`${linux}importedPasswordSave.ts`).importedIds.includes(`${browser}state/site/passwords.ts`));
+
   const dock = graph.get(`${browser}components/window/SidebarDock.tsx`);
   assert.ok(dock.importedIds.includes(`${linux}SidebarPeekMark.tsx`), "the docked sidebar marks a peek for the page viewport");
   assert.ok(!dock.importedIds.includes(`${browser}components/sidebar/Sidebar.tsx`));
@@ -146,6 +151,11 @@ test("production graph uses current Linux adapters and one canonical shared stat
   assert.deepEqual(graph.get(`${linux}SettingsInstallDialog.tsx`)?.importers, [`${browser}components/settings/panes/Extensions.tsx`]);
   assert.ok(graph.get(`${linux}SettingsInstallDialog.tsx`).importedIds.includes(lazyOverlays));
   assert.ok(graph.get(`${linux}SettingsInstallDialog.tsx`).importedIds.includes(`${linux}installRequestSheet.ts`));
+
+  const extensionActions = graph.get(`${browser}state/extensions/actions.ts`);
+  assert.ok(extensionActions.importedIds.includes(`${linux}extensionInstalls.ts`), "an unpacked install's failure is tied back to its request through the Linux install adapter");
+  assert.ok(!extensionActions.importedIds.includes(`${browser}platform/extensions.ts`));
+  assert.ok(graph.get(`${linux}extensionInstalls.ts`).importedIds.includes(`${browser}platform/extensions.ts`));
 
   const tabDrag = graph.get(`${browser}state/drag/tabDrag.ts`);
   assert.ok(tabDrag.importedIds.includes(`${linux}dragWebviews.ts`), "a tab drag reaches page pictures through the Linux drag preview gate");

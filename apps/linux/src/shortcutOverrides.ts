@@ -10,3 +10,15 @@ export function migrateProfileShortcuts(overrides: ShortcutOverrides, profiles: 
   }
   return migrated;
 }
+
+export const SHIFTED_KEYS: Readonly<Record<string, string>> = { "+": "=", "{": "[", "}": "]" };
+
+export function unshiftedShortcutOverrides(overrides: ShortcutOverrides): ShortcutOverrides {
+  let canonical: ShortcutOverrides | undefined;
+  for (const [id, [key = "", ...modifiers]] of Object.entries(overrides)) {
+    if (!Object.hasOwn(SHIFTED_KEYS, key)) continue;
+    const base = SHIFTED_KEYS[key]!;
+    (canonical ??= { ...overrides })[id] = [base, ...modifiers.filter((modifier) => modifier !== "shift"), "shift"];
+  }
+  return canonical ?? overrides;
+}

@@ -23,7 +23,7 @@ class ExtensionHelperTests(unittest.TestCase):
         native = re.findall(r'^capability (\S+)$', output, re.M)
         script = (REPO / 'apps/linux/src/hostExtensionView.ts').read_text()
         self.assertEqual(sorted(native), sorted(set(re.findall(r'"(extensionView\.\w+)"', script))))
-        self.assertEqual(len(native), 4)
+        self.assertEqual(len(native), 5)
 
 
 class ExtensionRouteTests(unittest.TestCase):

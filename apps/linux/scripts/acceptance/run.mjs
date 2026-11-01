@@ -6,7 +6,7 @@ import { closeAllApps, killAllAppsNow } from "./lib/ardia.mjs";
 import { parseArgs, USAGE, UsageError } from "./lib/cli.mjs";
 import { startFixtures } from "./lib/fixtures.mjs";
 import { buildReport, exitCode, formatLine } from "./lib/report.mjs";
-import { cleanupActiveScenarios, runScenario } from "./lib/scenario.mjs";
+import { cleanupActiveScenarios, runScenarios } from "./lib/scenario.mjs";
 import { withDeadline } from "./lib/util.mjs";
 import { generateTls } from "./lib/tls.mjs";
 import { SCENARIOS, selectScenarios } from "./scenarios/index.mjs";
@@ -59,7 +59,7 @@ async function main() {
   log(`Ardia acceptance: ${scenarios.length} scenarios, evidence in ${resultsDir}`);
   const tls = await generateTls(join(resultsDir, "tls"));
   const fixtures = await startFixtures({ tls });
-  const results = [];
+  let results = [];
   let interrupted = false;
   const stop = (signal) => {
     if (interrupted) {
@@ -78,13 +78,15 @@ async function main() {
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
   try {
-    for (const scenario of scenarios) {
-      if (interrupted) break;
-      log(`== ${scenario.id} #${scenario.issue}: ${scenario.title}`);
-      const result = await runScenario(scenario, { options, fixtures, resultsDir, scratchRoot, log, keep: options.keep });
-      results.push(result);
-      log(formatLine(result));
-    }
+    const run = await runScenarios(scenarios, {
+      options, fixtures, resultsDir, scratchRoot, log, keep: options.keep,
+      stopped: () => interrupted,
+      onStart: (scenario) => log(`== ${scenario.id} #${scenario.issue}: ${scenario.title}`),
+      onResult: (result) => log(formatLine(result)),
+    });
+    results = run.results;
+    halted = run.halted;
+    if (halted) log("Stopped the suite: a scenario left work running that the next scenario could overlap");
   } finally {
     await closeAllApps({ graceful: false });
     await fixtures.close();
@@ -106,9 +108,13 @@ async function main() {
 
 process.on("exit", killAllAppsNow);
 
+let halted = false;
+
 process.exitCode = await main().catch(async (error) => {
   process.stderr.write(`${error.stack ?? error}\n`);
   killAllAppsNow();
   await withDeadline(cleanupActiveScenarios(), 30000, "stopping the scenarios").catch(() => {});
   return 1;
 });
+
+if (halted) process.exit();

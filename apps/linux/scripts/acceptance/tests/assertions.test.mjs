@@ -106,6 +106,8 @@ describe("command line", () => {
     assert.throws(() => parseArgs(["/x", "--bogus"], { cwd: "/" }), /Unknown option --bogus/);
     assert.throws(() => parseArgs(["/x", "/y", "/z"], { cwd: "/" }), /Unexpected argument/);
     assert.throws(() => parseArgs(["/x", "--only"], { cwd: "/" }), /--only needs/);
+    assert.throws(() => parseArgs(["/x", "--only", ","], { cwd: "/" }), /--only needs/);
+    assert.throws(() => parseArgs(["/x", "--only= , "], { cwd: "/" }), /--only needs/);
     assert.equal(parseArgs(["--list"], { cwd: "/" }).list, true);
   });
 });

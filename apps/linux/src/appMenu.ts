@@ -21,7 +21,7 @@ const hasGroupLinks = (nodes: readonly MenuBookmark[]): boolean => nodes.some((n
   return url.startsWith("http:") || url.startsWith("https:") || url.startsWith("file:");
 });
 
-export function appMenuItems(state: MenuState, shortcuts: AppMenuShortcuts = new Map()): MenuItem[] {
+export function appMenuItems(state: MenuState, shortcuts: AppMenuShortcuts = new Map(), unavailable: ReadonlySet<string> = new Set()): MenuItem[] {
   const disabled = new Set(state.disabled);
   const checked = new Set(state.checked);
   const cmd = (command: BrowserCommand, arg?: string, title?: string): MenuItem => {
@@ -37,7 +37,7 @@ export function appMenuItems(state: MenuState, shortcuts: AppMenuShortcuts = new
     };
   };
   const windowAction = (action: string, title: string): MenuItem => ({ id: `${WINDOW_ACTION_PREFIX}${action}`, title });
-  const sub = (title: string, children: MenuItem[]): MenuItem => ({ id: `menu:${title}`, title, children });
+  const sub = (title: string, children: MenuItem[]): MenuItem => ({ id: `menu:${title}`, title, children: children.filter((child) => !("id" in child && unavailable.has(child.id))) });
   const header = (title: string): MenuItem => ({ id: `header:${title}`, title, enabled: false });
   const empty: MenuItem = { id: "empty", title: "Empty", enabled: false };
   const entry = (command: BrowserCommand, current?: boolean) => (e: { id: string; title: string; current?: boolean }): MenuItem => ({

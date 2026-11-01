@@ -8,8 +8,14 @@ let last = 0;
 function loop(now: number) {
   const dt = last ? Math.min(Math.max((now - last) / 1000, 0), MAX_STEP) : 0;
   last = now;
-  for (const tick of [...tickers]) tick(dt);
   frame = tickers.size && !document.hidden ? requestAnimationFrame(loop) : 0;
+  for (const tick of [...tickers]) {
+    try {
+      tick(dt);
+    } catch (error) {
+      reportError(error);
+    }
+  }
   if (!frame) last = 0;
 }
 

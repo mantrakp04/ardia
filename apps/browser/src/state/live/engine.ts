@@ -45,8 +45,11 @@ export function manualRefresh(folderId: string): Promise<void> {
 async function run(folderId: string) {
   if (!live().folders[folderId]) return;
   const refresh = beginLiveRefresh(folderId);
-  const fence = refresh ? await refresh : undefined;
-  if (fence === null) return;
+  const fence = refresh ? await refresh.catch((error: unknown) => { console.warn("Couldn't claim the live folder refresh", error); return null; }) : undefined;
+  if (fence === null) {
+    if (live().folders[folderId]) setStatus(folderId, { state: "idle" });
+    return;
+  }
   const folder = live().folders[folderId];
   if (!folder) return;
   const before = live();

@@ -5,7 +5,7 @@ import type { ArdiaHost } from "./host";
 import { reportHostError } from "./host.ts";
 import { canonicalSessionValue, cloneSessionValue, equalSessionValue, mergeSession } from "./hostSessionMerge.ts";
 import { sessionStatePatch } from "./hostSessionState.ts";
-import { createWindowDeparture } from "./windowDeparture.ts";
+import { windowDeparture } from "./windowDeparture.ts";
 import { parkWindowPins } from "../../browser/src/state/pins/parkedPins";
 import { inPinnedContainer, isIncognitoProfile, newId, snapshotTab } from "../../browser/src/state/browser/model";
 import { withPrivateWindow } from "./hostWindowProfiles.ts";
@@ -458,7 +458,7 @@ export function startHostPersistence(host: ArdiaHost, store: SessionStore, store
   };
   const departure = (windowId: string) => {
     const state = store.getState();
-    return { base: snapshotOf(state), session: snapshotOf(createWindowDeparture(state, windowId)(state)) };
+    return { base: snapshotOf(state), session: snapshotOf(windowDeparture(state, windowId)) };
   };
   return Object.assign(dispose, { flush: () => { queue(store.getState()); clearTimeout(timer); timer = undefined; return writer.drain(); }, departure });
 }

@@ -32,7 +32,8 @@ inline constexpr int kPromptRemote = 8;
 inline constexpr int kPromptRepair = 9;
 
 inline constexpr const char* kSurfaceCapabilities[] = {"extensionView.create", "extensionView.viewport",
-                                                        "extensionView.command", "extensionView.release"};
+                                                        "extensionView.place", "extensionView.command",
+                                                        "extensionView.release"};
 
 bool ValidExtensionId(std::string_view id);
 bool ValidFolderPath(std::string_view path);

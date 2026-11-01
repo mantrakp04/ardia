@@ -9,32 +9,6 @@
 
 namespace ardiacore::linux_contract {
 
-struct LaunchOffer {
-  std::string key;
-  std::string url;
-  std::string profile;
-  int tab;
-};
-
-class LaunchDecision {
- public:
-  bool Offer(LaunchOffer offer) {
-    if (consumed_ || offer_ || offer.key.empty() || offer.url.empty() || offer.tab <= 0) return false;
-    offer_ = std::move(offer);
-    return true;
-  }
-  std::optional<int> Consume(std::string_view key, std::string_view url, std::string_view profile) {
-    if (std::exchange(consumed_, true)) return std::nullopt;
-    if (key.empty()) return 0;
-    if (!offer_ || key != offer_->key || url != offer_->url || profile != offer_->profile) return std::nullopt;
-    return offer_->tab;
-  }
-
- private:
-  bool consumed_ = false;
-  std::optional<LaunchOffer> offer_;
-};
-
 enum class UnclaimedTabStep { kDrop, kWait, kPark, kReport };
 
 inline constexpr int kUnclaimedTabBlankTries = 20;

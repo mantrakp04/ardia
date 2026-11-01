@@ -72,9 +72,6 @@ constexpr net::NetworkTrafficAnnotationTag kTrafficAnnotation =
           "service's fixed API host. No cookies are sent."
         destination: OTHER
         destination_other: "The service the user connected."
-        internal {
-          contacts { owners: "//ardia/linux/OWNERS" }
-        }
         last_reviewed: "2026-10-28"
       }
       policy {

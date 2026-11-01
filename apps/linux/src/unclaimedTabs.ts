@@ -44,11 +44,21 @@ export function adoptUnclaimedTab(store: TabStore, windowId: string, offer: unkn
 }
 
 export function watchUnclaimedTabs(host: ArdiaHost, store: TabStore, windowId = host.bootstrap.windowId) {
-  const stop = host.onEvent((module, event, payload) => {
-    if (module === "ArdiaTabs" && event === "unclaimed") adoptUnclaimedTab(store, windowId, payload);
+  let stopped = false;
+  const adopted = new Set<string>();
+  const adopt = (offer: unknown) => {
+    const adoptId = unclaimedAdoptId(offer);
+    if (stopped || !adoptId || adopted.has(adoptId)) return;
+    if (adoptUnclaimedTab(store, windowId, offer)) adopted.add(adoptId);
+  };
+  const stopEvents = host.onEvent((module, event, payload) => {
+    if (module === "ArdiaTabs" && event === "unclaimed") adopt(payload);
   });
   void Promise.resolve(host.invoke("ArdiaTabs.unclaimedTabs", { args: [] })).then((tabs) => {
-    if (Array.isArray(tabs)) for (const offer of tabs) adoptUnclaimedTab(store, windowId, offer);
-  }).catch(reportHostError);
-  return stop;
+    if (Array.isArray(tabs)) for (const offer of tabs) adopt(offer);
+  }).catch((error) => { if (!stopped) reportHostError(error); });
+  return () => {
+    stopped = true;
+    stopEvents();
+  };
 }

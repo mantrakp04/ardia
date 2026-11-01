@@ -356,14 +356,14 @@ bool ValidLinuxLiveEnvelope(const base::DictValue& envelope) {
   for (const auto& [id, tombstone] : *envelope.FindDict("tombstones"))
     if (folders->contains(id) || !tombstone.is_string() || tombstone.GetString().empty()) return false;
   for (const auto& [id, generation] : *envelope.FindDict("generations"))
-    if (!generation.is_int() || generation.GetInt() < 0 || generation.GetInt() > 2147483000) return false;
+    if (!generation.is_int() || generation.GetInt() < 0 || generation.GetInt() > kLinuxLiveMaxGeneration) return false;
   for (const auto& [id, owner] : *envelope.FindDict("owners"))
     if (!folders->contains(id) || !owner.is_string() || owner.GetString().empty()) return false;
   if (envelope.FindDict("clients")->size() > 256) return false;
   for (const auto& [id, receipt] : *envelope.FindDict("clients")) {
     if (id.empty() || id.size() > 128 || !receipt.is_dict() || receipt.GetDict().size() != 3 ||
         LinuxDocumentInteger(receipt.GetDict(), "sequence") < 1 ||
-        LinuxDocumentInteger(receipt.GetDict(), "sequence") > 2147483000 ||
+        LinuxDocumentInteger(receipt.GetDict(), "sequence") > kLinuxLiveMaxGeneration ||
         !receipt.GetDict().FindString("requestId") ||
         *receipt.GetDict().FindString("requestId") != std::string(id) + ":" + std::to_string(LinuxDocumentInteger(receipt.GetDict(), "sequence")) ||
         !receipt.GetDict().Find("operations") || !receipt.GetDict().Find("operations")->is_list() ||

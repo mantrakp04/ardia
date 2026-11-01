@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { create } from "zustand";
-import { followInstallRequest, leftoverInstallRequest, ownsInstallRequest } from "./installRequestSheet.ts";
+import { followInstallFailures, followInstallRequest, leftoverInstallRequest, ownsInstallRequest } from "./installRequestSheet.ts";
 
 const request = (windowId, name = "Fixture") => ({ windowId, profile: "", source: "unpacked", status: "ready", pkg: { name, path: `/tmp/${name}` } });
 
@@ -92,7 +92,8 @@ test("a request is shown only by its own window's sheet", () => {
   assert.equal(ownsInstallRequest(live, "settings", null), true);
   assert.equal(ownsInstallRequest(live, "main", null), false);
   assert.equal(ownsInstallRequest(null, "settings", null), false);
-  assert.equal(ownsInstallRequest({ ...live }, "settings", live), true, "an updated copy of a request is a new request");
+  assert.equal(ownsInstallRequest({ ...live, status: "installing" }, "settings", live), false, "an update of a left-behind request is still that request");
+  assert.equal(ownsInstallRequest(request("settings", "other"), "settings", live), true, "another folder's request is a new request");
 });
 
 test("a mistyped Web Store link's own error, set before the sheet mounts, is shown and closes the sheet when dismissed", () => {
@@ -106,9 +107,97 @@ test("a mistyped Web Store link's own error, set before the sheet mounts, is sho
   f.stop();
 });
 
-test("only a Load Unpacked request waiting when the sheet mounts counts as left behind", () => {
-  const stale = request("settings", "previous");
-  assert.equal(leftoverInstallRequest(stale), stale);
-  assert.equal(leftoverInstallRequest({ ...stale, status: "error", error: "bad manifest" }).source, "unpacked");
+test("Choose Folder…'s own request, stored just before its sheet mounts, is shown and closes the sheet when answered", () => {
+  const fresh = request("settings", "chosen");
+  const leftover = leftoverInstallRequest(fresh);
+  assert.equal(leftover, null);
+  assert.equal(ownsInstallRequest(fresh, "settings", leftover), true);
+  const f = sheet("settings", fresh, leftover);
+  f.store.setState({ install: null });
+  assert.deepEqual(f.closed, [null]);
+  f.stop();
+});
+
+test("a Load Unpacked request a replaced sheet left unanswered is left behind for the next sheet, and a new folder's request is not", () => {
+  const first = sheet();
+  const abandoned = request("settings", "previous");
+  first.store.setState({ install: abandoned });
+  first.stop();
+  assert.equal(leftoverInstallRequest(abandoned), abandoned);
+  assert.equal(ownsInstallRequest(abandoned, "settings", leftoverInstallRequest(abandoned)), false);
+  const fresh = request("settings", "chosen");
+  assert.equal(leftoverInstallRequest(fresh), null);
   assert.equal(leftoverInstallRequest(null), null);
+});
+
+test("a sheet that closes after its request was answered, or with another window's or a Web Store request waiting, leaves nothing behind", () => {
+  const answered = sheet();
+  const done = request("settings", "done");
+  answered.store.setState({ install: done });
+  answered.store.setState({ install: null });
+  answered.stop();
+  assert.equal(leftoverInstallRequest(done), null);
+  const other = sheet();
+  const elsewhere = request("main", "elsewhere");
+  other.store.setState({ install: elsewhere });
+  other.stop();
+  assert.equal(leftoverInstallRequest(elsewhere), null);
+  const store = sheet();
+  const prompt = { ...request("settings", "store"), source: "webStore", prompt: { requestId: "install5" } };
+  store.store.setState({ install: prompt });
+  store.stop();
+  assert.equal(leftoverInstallRequest(prompt), null);
+});
+
+test("an unpacked install whose sheet was replaced while it installed stays left behind when it fails, for a sheet mounted during the install and one mounted after", () => {
+  const replaced = sheet();
+  const failures = followInstallFailures(replaced.store);
+  const ready = request("settings", "pending");
+  replaced.store.setState({ install: ready });
+  const installing = { ...ready, status: "installing" };
+  replaced.store.setState({ install: installing });
+  replaced.stop();
+  const during = leftoverInstallRequest(installing);
+  assert.equal(during, installing);
+  failures.failed(ready.pkg);
+  replaced.store.setState({ lists: {} });
+  const failed = { windowId: "settings", profile: "", source: "unpacked", status: "error", error: "The manifest is invalid." };
+  replaced.store.setState({ install: failed });
+  assert.equal(ownsInstallRequest(failed, "settings", during), false, "a sheet mounted while it installed doesn't show its failure");
+  assert.equal(leftoverInstallRequest(failed), failed, "a sheet mounted after it failed doesn't show the failure as fresh");
+  const fresh = { windowId: "settings", profile: "", source: "unpacked", status: "error", error: "Choose a folder with a manifest." };
+  replaced.store.setState({ install: fresh });
+  assert.equal(leftoverInstallRequest(fresh), null, "the next folder's own error is fresh");
+  failures.stop();
+});
+
+test("a failed install whose sheet stayed open shows its error in that sheet", () => {
+  const f = sheet();
+  const failures = followInstallFailures(f.store);
+  const ready = request("settings", "kept");
+  f.store.setState({ install: ready });
+  f.store.setState({ install: { ...ready, status: "installing" } });
+  failures.failed(ready.pkg);
+  const failed = { windowId: "settings", profile: "", source: "unpacked", status: "error", error: "The manifest is invalid." };
+  f.store.setState({ install: failed });
+  assert.equal(leftoverInstallRequest(failed), null);
+  assert.equal(ownsInstallRequest(failed, "settings", null), true);
+  assert.deepEqual(f.closed, []);
+  f.stop();
+  failures.stop();
+});
+
+test("the Linux install adapter ties a failed unpacked install's error back to the request it came from", async () => {
+  const { installExtension } = await import("./extensionInstalls.ts");
+  const { useExtensions } = await import("./extensionsStore.ts");
+  const ready = { ...request("settings", "adapter"), pkg: { name: "adapter", path: "/tmp/adapter" } };
+  useExtensions.setState({ install: ready });
+  const stop = followInstallRequest(useExtensions, "settings", () => {});
+  useExtensions.setState({ install: { ...ready, status: "installing" } });
+  stop();
+  await assert.rejects(installExtension(ready.pkg, ""));
+  const failed = { windowId: "settings", profile: "", source: "unpacked", status: "error", error: "no extension engine in this test" };
+  useExtensions.setState({ install: failed });
+  assert.equal(leftoverInstallRequest(failed), failed);
+  useExtensions.setState({ install: null });
 });

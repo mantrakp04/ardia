@@ -17,7 +17,7 @@ export type ArdiaHost = {
     launchConfig?: LaunchConfig;
     pageProfile?: string;
     privateWindow?: { window: BrowserWindow; tabs: Record<string, Tab> };
-    typeaheadMs?: number;
+    typeaheadDeadline?: number;
     adoptTabs?: UnclaimedTab[];
     chromeMade?: boolean;
     glassPanels?: boolean;

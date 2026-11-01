@@ -14,6 +14,9 @@ export function shellPolicyDirectives(source = readFileSync(nativeHostSource, "u
   for (const match of body.matchAll(/case Directive::(\w+):\s*return\s+((?:"[^"]*"\s*)+);/g)) {
     directives.set(match[1], [...match[2].matchAll(/"([^"]*)"/g)].map((part) => part[1]).join(""));
   }
+  const declared = new Set([...body.matchAll(/case Directive::(\w+):/g)].map((match) => match[1]));
+  const unparsed = [...declared].filter((name) => !directives.has(name));
+  if (unparsed.length) throw new Error(`The native shell policy has directives that are not plain string literals: ${unparsed.join(", ")}`);
   if (!directives.has("ConnectSrc") || !directives.has("DefaultSrc")) throw new Error("The native shell policy is incomplete");
   return directives;
 }

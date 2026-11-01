@@ -62,6 +62,19 @@ const close = (id: string | null) => {
   menu?.resolve(id);
 };
 
+export function menuButtonPresses(show: () => void) {
+  let openAtPointerDown = false;
+  return {
+    pointerDown: () => void (openAtPointerDown = menuShown()),
+    click: () => {
+      const wasOpen = openAtPointerDown || menuShown();
+      openAtPointerDown = false;
+      if (!wasOpen) show();
+      else if (open) close(null);
+    },
+  };
+}
+
 type MenuAnchor = { x: number; y: number } | { row: HTMLElement };
 
 function MenuList({ items, anchor }: { items: MenuItem[]; anchor: MenuAnchor }) {

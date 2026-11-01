@@ -24,7 +24,9 @@ pnpm --filter @ardia/linux acceptance -- <path to the packaged ardia executable>
 - **`--results <dir>`** chooses where evidence goes. The default is a new temporary directory.
 - **`--keep`** keeps every scratch profile, not only failing ones.
 - **Exit status.** `0` when nothing failed, `1` when a scenario failed, `2` for a usage error.
-- **Deadlines.** A check stops after 60 s and a scenario after 3 to 8 minutes.
+- **Deadlines.** A check stops after 60 s and a scenario after 3 to 8 minutes. A check that misses its deadline is cancelled
+  and must stop within 15 s or the scenario stops; a scenario that leaves work running 15 s after it stops fails, and
+  the suite stops there so nothing overlaps the next scenario.
 
 Results go to stdout and to `<results>/results.json`. Each scenario writes its checks, details and screenshots under
 `<results>/<id>/`. A failing scenario keeps its scratch profiles, including the browser log and `*-command.json` with

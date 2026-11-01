@@ -204,7 +204,10 @@ int main(int argc, char** argv) {
     host.Binding(7)->renderer_generation = generation - 1;
     assert(!host.ClaimedBinding(args));
   } else {
+    host.shell_pass_ = {1};
+    const int inputs = host.shell_inputs;
     assert(host.ClearHandler(&a));
+    assert(host.shell_pass_.empty() && host.shell_inputs == inputs + 1);
     assert(!host.Binding(8)->live);
     assert(host.Binding(7)->live);
     assert(host.closed == 1);

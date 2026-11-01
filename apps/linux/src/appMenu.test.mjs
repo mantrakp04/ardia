@@ -65,3 +65,10 @@ test("choices resolve to commands or window actions and ignore structure rows", 
   assert.deepEqual(appMenuChoice("window:maximize"), { kind: "window", action: "maximize" });
   for (const id of ["menu:File", "header:Recent Bookmarks", "folder:f1", "empty", "window:quit"]) assert.equal(appMenuChoice(id), null);
 });
+
+test("a command the host can't carry out is left out of the menu instead of doing nothing", () => {
+  assert.ok(find(appMenuItems(state()), "emailPageLocation"));
+  const items = appMenuItems(state(), new Map(), new Set(["emailPageLocation"]));
+  assert.equal(find(items, "emailPageLocation"), undefined);
+  assert.ok(find(top(items, "File").children, "print"));
+});

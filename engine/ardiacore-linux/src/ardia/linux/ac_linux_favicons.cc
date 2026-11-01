@@ -52,9 +52,6 @@ constexpr net::NetworkTrafficAnnotationTag kTrafficAnnotation =
         trigger: "The sidebar, essentials or tab strip list a page whose icon is missing."
         data: "None: no cookies or credentials are sent."
         destination: WEBSITE
-        internal {
-          contacts { owners: "//ardia/linux/OWNERS" }
-        }
         user_data {
           type: NONE
         }

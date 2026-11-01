@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { CHOOSER_DEADLINE_MS, IMPORT_IDLE_MS, UNLOCK_DEADLINE_MS, UNLOCK_LIFETIME_MS, createHostImport, pendingPasswords } from "./hostImport.ts";
 import { applyPendingPasswords, applyResult, setImportPasswordSink } from "./importApply.ts";
-import { claimImportHandle, isImportHandle, issueImportHandles } from "./importHandles.ts";
+import { IMPORT_HANDLE_LIFETIME_MS, claimImportHandle, isImportHandle, issueImportHandles } from "./importHandles.ts";
 import { savePassword } from "./importedPasswordSave.ts";
 import { randomBytes } from "node:crypto";
 
@@ -466,5 +466,20 @@ test("the Passwords pane's savePassword claims import handles instead of saving 
   });
   assert.equal(await savePassword("work", "https://a.example", "a", row.password), true);
   assert.deepEqual(writes, [[TOKEN, "work"]]);
-  assert.equal(await savePassword("work", "https://a.example", "a", row.password).catch(() => "shared"), "shared");
+  assert.equal(await savePassword("work", "https://a.example", "a", row.password).catch(() => "shared"), false);
+  assert.deepEqual(writes, [[TOKEN, "work"]]);
+});
+
+test("import handles nobody claims expire after their lifetime and never become saved passwords", async (context) => {
+  context.mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  const writes = [];
+  const [row] = issueImportHandles(TOKEN, [{ url: "https://idle.example/", username: "idle" }], async (token, profile) => {
+    writes.push([token, profile]);
+    return { added: 1 };
+  });
+  context.mock.timers.tick(IMPORT_HANDLE_LIFETIME_MS);
+  assert.equal(isImportHandle(row.password), true);
+  assert.equal(await savePassword("work", "https://idle.example", "idle", row.password).catch(() => "shared"), false);
+  assert.equal(await claimImportHandle(row.password, "work"), false);
+  assert.deepEqual(writes, []);
 });

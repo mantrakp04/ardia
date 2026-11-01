@@ -124,6 +124,7 @@ class ShellHostView {
   void KeepPaneFocus(TabBinding* activating);
   void ReattachViewports();
   void LayoutPane(TabBinding*) { layouts++; }
+  void Restack() { restacks++; }
   void OnDidChangeFocus(views::View* before, views::View* now);
   BrowserView* browser_view_ = &browser_view;
   BrowserView browser_view;
@@ -132,6 +133,7 @@ class ShellHostView {
   std::map<int, std::unique_ptr<TabBinding>> bindings_;
   std::map<int, bool> devtools_had_focus_;
   int layouts = 0;
+  int restacks = 0;
 };
 
 ARDIA_HOST_METHODS

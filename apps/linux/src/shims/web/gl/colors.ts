@@ -37,7 +37,7 @@ export const PALETTES: Record<string, string[]> = {
 
 export function paletteColors(value: string[] | undefined): Vec4[] | null {
   if (!value) return null;
-  const named = value.length === 1 ? PALETTES[value[0]!] : undefined;
+  const named = value.length === 1 && Object.hasOwn(PALETTES, value[0]!) ? PALETTES[value[0]!] : undefined;
   const srgb = (named ?? value).map(parseHex).filter((c): c is Vec4 => !!c);
   return srgb.length ? srgb : null;
 }

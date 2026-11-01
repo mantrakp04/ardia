@@ -4,7 +4,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { connectCdp, evaluate, fetchJson } from "./cdp.mjs";
-import { js, until } from "./util.mjs";
+import { js, pause, until } from "./util.mjs";
 
 export const SHELL_PREFIX = "chrome://ardia/";
 
@@ -316,7 +316,7 @@ export class Shell {
   async mouse(x, y, { button = "left", clickCount = 1, hold = 0 } = {}) {
     await this.session.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y });
     await this.session.send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button, clickCount, buttons: button === "right" ? 2 : 1 });
-    if (hold) await delay(hold);
+    if (hold) await pause(hold);
     await this.session.send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button, clickCount, buttons: 0 });
   }
 

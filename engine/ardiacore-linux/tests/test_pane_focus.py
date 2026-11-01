@@ -129,6 +129,7 @@ int main(int argc, char** argv) {
     const int a = s.a.viewport.attaches, b = s.b.viewport.attaches;
     s.host.browser_view.active.SetWebContents(&s.a.page);
     s.host.ReattachViewports();
+    assert(s.host.restacks == 1);
     assert(s.a.viewport.attaches == a + 1 && s.b.viewport.attaches == b);
     assert(views::focus_manager.focused == &s.a.viewport && s.a.binding->host_focuses == 1 && s.b.page.focuses == 0);
     assert(!s.host.browser_view.active.web_contents() && !s.host.browser_view.active.GetVisible());

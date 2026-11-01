@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { canonicalSessionValue, cloneSessionValue, mergeSession, shareSessionValue } from "./hostSessionMerge.ts";
+import { sessionStatePatch } from "./hostSessionState.ts";
 
 test("three-way records preserve unchanged remote edits and apply local changed, added, and removed leaves", () => {
   const base = { settings: { dark: false, sidebar: true }, tabs: { a: { id: "a", url: "old-a" }, b: { id: "b", url: "old-b" } }, gone: 1 };
@@ -49,4 +50,19 @@ test("structural sharing preserves unchanged table entries and transient object 
   const next = shareSessionValue(previous, { tabs: { a: { id: "a", url: "new" }, b: { id: "b", url: "two" } } });
   assert.notEqual(next, previous);
   assert.equal(next.tabs.b, previous.tabs.b);
+});
+
+test("a tab another window saved asleep arrives asleep, and one it saved loaded arrives idle", () => {
+  const empty = Object.fromEntries([
+    ...["profiles", "windows", "tabs", "groups", "splits", "parkedPins", "pinChoices", "pinSync"].map((field) => [field, {}]),
+    ...["profileOrder", "windowOrder", "orphanedProfileData", "closedTabs", "closedWindows", "closedGroups", "deletedGroups", "cleanedTabs"].map((field) => [field, []]),
+    ["settings", {}],
+  ]);
+  const merged = { tabs: {
+    sleeping: { id: "sleeping", url: "https://asleep.example/", page: { kind: "asleep" } },
+    loaded: { id: "loaded", url: "https://loaded.example/", page: { kind: "idle" } },
+  } };
+  const patch = sessionStatePatch(empty, {}, merged);
+  assert.deepEqual(patch.tabs.sleeping.page, { kind: "asleep" });
+  assert.deepEqual(patch.tabs.loaded.page, { kind: "idle" });
 });

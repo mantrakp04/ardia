@@ -116,7 +116,7 @@ test("Memory Saver settings and kept-active site checks reach the host as engine
 test("accepting a site's notification prompt on Linux settles quietly when the desktop has no notification permission to ask", async () => {
   const { shellNativeModules } = await import("../../browser/src/test-native/index.ts");
   const { ensureNotificationPermission } = await import("./notificationPermission.ts");
-  const app = shellNativeModules.ArdiaApp;
+  const app = shellNativeModules.ArdiaNotifications;
   const original = app.notificationPermission;
   const unhandled = [];
   const record = (reason) => unhandled.push(reason);
@@ -129,6 +129,20 @@ test("accepting a site's notification prompt on Linux settles quietly when the d
   } finally {
     app.notificationPermission = original;
     process.off("unhandledRejection", record);
+  }
+});
+
+test("a notification permission failure other than Linux's unavailable answer still rejects", async () => {
+  const { shellNativeModules } = await import("../../browser/src/test-native/index.ts");
+  const { ensureNotificationPermission } = await import("./notificationPermission.ts");
+  const app = shellNativeModules.ArdiaNotifications;
+  const original = app.notificationPermission;
+  const failure = Object.assign(new Error("The host went away"), { code: "ERR_HOST_GONE" });
+  app.notificationPermission = () => Promise.reject(failure);
+  try {
+    await assert.rejects(ensureNotificationPermission("main"), (error) => error === failure);
+  } finally {
+    app.notificationPermission = original;
   }
 });
 

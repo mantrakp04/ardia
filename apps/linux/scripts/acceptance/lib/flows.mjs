@@ -5,11 +5,11 @@ import { js, until } from "./util.mjs";
 
 export async function startBrowser(t, { name = "profile", scratch, seed = true, session, onboardingComplete = true, preferences, background = true, extensions, extraArgs, env, ozone, label, coreDumps, settle = true } = {}) {
   const dir = scratch ?? (await t.scratch(name));
+  const fresh = await access(join(dir, "Default", "Preferences")).then(() => false, () => true);
   if (!scratch) {
     await writeProfileSeed(dir, { session: seed ? (session ?? sessionSeed()) : undefined, onboardingComplete });
     if (preferences) await writeChromePreferences(dir, preferences);
   }
-  const fresh = await access(join(dir, "Default", "Preferences")).then(() => false, () => true);
   const app = await t.launch({ scratch: dir, background, extensions, extraArgs, env, ozone, coreDumps, label: label ?? name });
   const shell = await app.mainShell();
   const hold = fresh && settle ? await settleNavigationHold(app, shell) : null;

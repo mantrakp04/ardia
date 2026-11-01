@@ -137,3 +137,16 @@ test("Ctrl+Shift+C, Chrome's Inspect Element key, opens Inspect Elements next to
   const remapped = keyboardCombo(event("KeyU", { ctrlKey: true, shiftKey: true }));
   assert.equal(commandAt(linuxBindings({ copyUrl: ["u", "command", "shift"] }), remapped.keyCode, remapped.flags)?.command, "copyUrl");
 });
+
+test("a saved shortcut spelled with +, { or } binds as Linux's shifted =, [ or ], as the defaults do", () => {
+  const zoom = commandAt(linuxBindings({ zoomIn: ["+", "command"] }), 187, 4 | 2);
+  assert.equal(zoom?.command, "zoomIn");
+  assert.equal(commandAt(linuxBindings({ toggleSidebar: ["{", "command", "shift"] }), 219, 4 | 2)?.command, "toggleSidebar");
+  assert.equal(commandAt(linuxBindings({ toggleSidebar: ["}", "option"] }), 221, 8 | 2)?.command, "toggleSidebar");
+  assert.equal(linuxMenuShortcuts({ zoomIn: ["+", "command"] }).find((item) => item.id === "zoomIn").key, "=");
+});
+
+test("Email Page Location isn't offered as a shortcut while the host can't open a mail link", () => {
+  assert.equal(linuxMenuShortcuts().some((item) => item.id === "emailPageLocation"), false);
+  assert.equal(linuxBindings({ emailPageLocation: ["e", "command"] }).some((binding) => binding.command === "emailPageLocation"), false);
+});

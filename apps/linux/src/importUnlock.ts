@@ -137,3 +137,9 @@ export async function unlockSource(
     return unlockFailure(source, (error as { code?: string } | null)?.code);
   }
 }
+
+export async function unlockForStep<T>(flow: () => { step: object }, unlock: () => Promise<T>): Promise<{ result: T } | null> {
+  const attempt = flow().step;
+  const result = await unlock();
+  return flow().step === attempt ? { result } : null;
+}

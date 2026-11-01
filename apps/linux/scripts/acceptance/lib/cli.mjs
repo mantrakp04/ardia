@@ -33,8 +33,9 @@ export function parseArgs(argv, { cwd = process.env.INIT_CWD || process.cwd() } 
     else if (arg === "--quiet") options.quiet = true;
     else if (arg === "--only" || arg.startsWith("--only=")) {
       const value = arg.includes("=") ? arg.slice(arg.indexOf("=") + 1) : args.shift();
-      if (!value) throw new UsageError("--only needs a list such as F01,F03");
-      options.only.push(...value.split(",").map((s) => s.trim()).filter(Boolean));
+      const ids = value?.split(",").map((s) => s.trim()).filter(Boolean) ?? [];
+      if (!ids.length) throw new UsageError("--only needs a list such as F01,F03");
+      options.only.push(...ids);
     } else if (arg === "--results" || arg.startsWith("--results=")) {
       const value = arg.includes("=") ? arg.slice(arg.indexOf("=") + 1) : args.shift();
       if (!value) throw new UsageError("--results needs a directory");
