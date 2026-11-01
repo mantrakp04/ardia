@@ -89,14 +89,19 @@ export function moveTabsInto(s: BrowserState, ids: string[], targetId: string): 
   const tabs = { ...next.tabs };
   const live = { ...next.live };
   const activeTabIds = { ...w.activeTabIds };
-  const index = newTabIndex(next, w, moving[0]!);
-  const tabIds = [...w.tabIds.slice(0, index), ...moving.map((t) => t.id), ...w.tabIds.slice(index)];
   for (const tab of moving) {
     const t = tab;
     const loaded = hasLoadedPage(tab);
     tabs[t.id] = { ...t, windowId: targetId, page: loaded ? loadedPage(navigationTo(t.url)) : hasPage(tab) ? IDLE : tab.page };
     live[t.id] = IDLE_LIVE;
     activeTabIds[t.profileId] ??= t.id;
+  }
+  let tabIds = w.tabIds;
+  for (const profileId of new Set(moving.map((t) => t.profileId))) {
+    const block = moving.filter((t) => t.profileId === profileId).map((t) => t.id);
+    const placed = { ...next, tabs, windows: { ...next.windows, [targetId]: { ...w, tabIds } } };
+    const index = newTabIndex(placed, placed.windows[targetId]!, tabs[block[0]!]!);
+    tabIds = [...tabIds.slice(0, index), ...block, ...tabIds.slice(index)];
   }
   next = {
     ...next,

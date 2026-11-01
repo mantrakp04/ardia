@@ -1,5 +1,5 @@
 import type { BrowserState } from "../browser/store";
-import { ancestorIds } from "../groups/groups";
+import { ancestorIds, commonGroup } from "../groups/groups";
 import { inPinnedContainer } from "../browser/model";
 import { groupOf, pinnedChildGroup } from "../pins/tabGrouping";
 import { splitOf, splitTabIds, splitTabIdsOf } from "../splits/splits";
@@ -46,7 +46,15 @@ export function nextToActive(s: BrowserState, windowId: string, profileId: strin
 }
 
 export function newTabIndex(s: BrowserState, w: BrowserWindow, tab: Tab): number {
-  return nextToActive(s, w.id, tab.profileId)?.index ?? listStart(s, w, tab);
+  return outsideGroup(s, w, nextToActive(s, w.id, tab.profileId)?.index ?? listStart(s, w, tab));
+}
+
+function outsideGroup(s: BrowserState, w: BrowserWindow, index: number): number {
+  const before = w.tabIds[index - 1];
+  if (!before) return index;
+  let i = index;
+  while (i < w.tabIds.length && commonGroup(s.groups, [before, w.tabIds[i]!])) i++;
+  return i;
 }
 
 const listStart = (s: BrowserState, w: BrowserWindow, tab: Tab) =>

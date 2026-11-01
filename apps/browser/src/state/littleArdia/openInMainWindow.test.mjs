@@ -36,11 +36,50 @@ for (const [position, expected] of [
   });
 }
 
-test("Move to Window places tabs from another window where a new tab goes too, keeping their order", () => {
-  const { main, a } = mainWindowWithThreeTabs("top");
-  const other = S().createWindow({ url: "https://x.example/" });
-  S().newTab(other, { url: "https://y.example/", background: true });
-  S().moveTabsToWindow(S().windows[other].tabIds, main);
-  assert.deepEqual(urlsOf(main), ["https://y.example/", "https://x.example/", "https://a.example/", "https://b.example/", "https://c.example/"]);
-  assert.equal(S().tabs[a].windowId, main);
+const PLACEMENTS = [
+  ["bottom", ["https://a.example/", "https://b.example/", "https://c.example/", "https://little.example/"]],
+  ["top", ["https://little.example/", "https://a.example/", "https://b.example/", "https://c.example/"]],
+  ["nextToCurrent", ["https://a.example/", "https://b.example/", "https://little.example/", "https://c.example/"]],
+];
+
+for (const [position, expected] of PLACEMENTS) {
+  test(`Move to Window places tabs from another window where a new tab goes with "Add new tabs" set to ${position}, keeping their order`, () => {
+    const { main } = mainWindowWithThreeTabs(position);
+    const other = S().createWindow({ url: "https://x.example/" });
+    S().newTab(other, { url: "https://y.example/", background: true });
+    const moved = [...S().windows[other].tabIds];
+    S().moveTabsToWindow(moved, main);
+    const at = expected.indexOf("https://little.example/");
+    const movedUrls = moved.map((id) => S().tabs[id].url);
+    assert.deepEqual(urlsOf(main), [...expected.slice(0, at), ...movedUrls, ...expected.slice(at + 1)]);
+    assert.ok(moved.every((id) => S().tabs[id].windowId === main));
+  });
+}
+
+test("a tab moved below a current tab that sits inside a group lands after the group, not in it", () => {
+  const { main, small, b, c, moved } = mainWindowWithThreeTabs("nextToCurrent");
+  const g = S().createGroup([b, c], { name: "G" });
+  S().activate(b);
+  openInMainWindow(small);
+  assert.deepEqual(urlsOf(main), ["https://a.example/", "https://b.example/", "https://c.example/", "https://little.example/"]);
+  assert.deepEqual(S().groups[g].tabIds, [b, c]);
+  assert.equal(S().tabs[moved].windowId, main);
+});
+
+test("tabs of several profiles moved at once each land by their own profile's current tab", () => {
+  const { main, b } = mainWindowWithThreeTabs("nextToCurrent");
+  const work = S().createProfile({ name: "Work" });
+  S().switchProfile(main, work);
+  const w1 = S().windows[main].activeTabIds[work];
+  S().newTab(main, { url: "https://w2.example/", background: true });
+  const other = S().createWindow({ url: "https://p.example/" });
+  const p = S().windows[other].tabIds[0];
+  S().switchProfile(other, work);
+  const q = S().windows[other].activeTabIds[work];
+  S().navigate(q, "https://q.example/");
+  S().mergeAllWindows(main);
+  const ids = S().windows[main].tabIds;
+  assert.equal(ids.indexOf(p), ids.indexOf(b) + 1);
+  assert.equal(ids.indexOf(q), ids.indexOf(w1) + 1);
+  assert.ok([p, q].every((id) => S().tabs[id].windowId === main));
 });
