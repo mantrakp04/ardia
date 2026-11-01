@@ -76,6 +76,7 @@ export function SearchPane() {
         <Row anchor="search.suggestions">
           <Toggle value={suggestions} onChange={(v) => updateSettings({ searchSuggestions: v })} />
         </Row>
+        <SettingToggle anchor="search.searchTabsInAllProfiles" />
       </Group>
 
       <SectionHeader title="Text selection" />

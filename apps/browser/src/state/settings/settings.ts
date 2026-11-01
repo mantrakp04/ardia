@@ -49,6 +49,7 @@ export const SETTING_SPECS = {
   customSearchEngines: shaped<CustomSearchEngine[]>([], (v) => Array.isArray(v) && v.every((e) => hasStrings(e, ["id", "name", "keyword", "url"])), SYNCED),
   extensionSearchEngines: shaped<ExtensionSearchEngine[]>([], (v) => Array.isArray(v) && v.every((e) => hasStrings(e, ["profile", "extensionId", "name", "keyword", "url"]))),
   searchSuggestions: flag(true, SYNCED),
+  searchTabsInAllProfiles: flag(false, SYNCED),
   showSelectionSearch: flag(true, SYNCED),
   commandBarPreference: oneOf(["website", "search"], "website", SYNCED),
   tabLayout: oneOf(["sidebar", "top"], "sidebar", SYNCED),

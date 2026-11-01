@@ -43,7 +43,7 @@ function SearchPanel({ windowId, windowWidth }: { windowId: string; windowWidth:
   const closedTabs = useClosedTabs();
   const closedGroups = useClosedGroups();
   const sections = useMemo(() => {
-    const { open, closed } = searchCandidates(windowId);
+    const { open, elsewhere, closed } = searchCandidates(windowId);
     const q = query.trim();
     if (!q) return [{ title: "Open Tabs", rows: open }, { title: "Recently Closed", rows: closed.slice(0, 8) }];
     const rank = (rows: Row[]) =>
@@ -52,7 +52,7 @@ function SearchPanel({ windowId, windowWidth }: { windowId: string; windowWidth:
         .filter((x) => x.score > 0)
         .sort((a, b) => b.score - a.score)
         .map((x) => x.r);
-    return [{ title: "Open Tabs", rows: rank(open) }, { title: "Recently Closed", rows: rank(closed).slice(0, 8) }];
+    return [{ title: "Open Tabs", rows: rank([...open, ...elsewhere]) }, { title: "Recently Closed", rows: rank(closed).slice(0, 8) }];
   }, [query, tabs, closedTabs, closedGroups, windowId]);
   const rows = sections.flatMap((s) => s.rows);
   const close = () => setSidebarUi({ searchTabs: null });
