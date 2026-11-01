@@ -1,3 +1,4 @@
+import { fuzzyScore, hostOf } from "@ardia/core";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { tabTitle } from "../browser/model";
 import type { Tab } from "../browser/types";
@@ -45,3 +46,20 @@ function candidates(s: BrowserState, windowId: string): { open: Row[]; elsewhere
 }
 
 export const searchCandidates = (windowId: string) => candidates(useBrowser.getState(), windowId);
+
+export type SearchSection = { title: string; rows: Row[] };
+
+const CLOSED_SHOWN = 8;
+
+export function searchSections(windowId: string, query: string): SearchSection[] {
+  const { open, elsewhere, closed } = searchCandidates(windowId);
+  const q = query.trim();
+  if (!q) return [{ title: "Open Tabs", rows: open }, { title: "Recently Closed", rows: closed.slice(0, CLOSED_SHOWN) }];
+  const rank = (rows: Row[]) =>
+    rows
+      .map((r) => ({ r, score: Math.max(fuzzyScore(q, r.title), fuzzyScore(q, hostOf(r.url)) * 0.9, fuzzyScore(q, r.url) * 0.6) }))
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map((x) => x.r);
+  return [{ title: "Open Tabs", rows: rank([...open, ...elsewhere]) }, { title: "Recently Closed", rows: rank(closed).slice(0, CLOSED_SHOWN) }];
+}

@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { buildSuggestions } from "@ardia/core";
+import { mount } from "../../test-hooks.mjs";
+
+globalThis.__DEV__ = false;
 const { useBrowser } = await import("../browser/store.ts");
 const { searchedTabs, searchesAllProfiles, withTabProfiles } = await import("./tabsInAllProfiles.ts");
-const { searchCandidates } = await import("../sidebar/searchTabs.ts");
+const { searchCandidates, searchSections } = await import("../sidebar/searchTabs.ts");
+const { useSuggestions } = await import("../../components/omnibox/useSuggestions.ts");
 const { switchFromBar } = await import("../omnibox/openFromBar.ts");
 
 const S = () => useBrowser.getState();
@@ -33,7 +37,7 @@ test("off by default: the bar and Search Tabs keep to the window's profile", () 
   assert.deepEqual(elsewhere, []);
 });
 
-test("on: other profiles' tabs come after the window's own, private windows' never", () => {
+test("on: other profiles' tabs join the window's own, a private window's never", () => {
   const { home, homeProfile, homeTab, workTab, privateTab } = setup();
   S().updateSettings({ searchTabsInAllProfiles: true });
   const all = searchesAllProfiles(S().settings.searchTabsInAllProfiles, homeProfile);
@@ -59,7 +63,7 @@ test("on, from a private window: still only that window's own tabs", () => {
   assert.deepEqual(searchCandidates(secret).elsewhere, []);
 });
 
-test("typing finds the other profile's tab, labelled with its profile, and choosing it switches profile", () => {
+test("the suggestion engine finds the other profile's tab, labelled with its profile, and choosing it switches profile", () => {
   const { home, homeProfile, homeTab, work, workTab } = setup();
   S().updateSettings({ searchTabsInAllProfiles: true });
   const source = { tabs: searchedTabs(S().tabs, homeProfile, true), history: [], bookmarks: [] };
@@ -88,4 +92,41 @@ test("a tab of another profile paged out in this same window is labelled with th
   const row = searchCandidates(home).elsewhere.find((r) => r.id === paged);
   assert.ok(row);
   assert.equal(row.where, "Work");
+});
+
+test("⌘↩ on another profile's tab opens its URL in a new tab of this profile and leaves the other profile alone", () => {
+  const { home, homeProfile, homeTab, elsewhere, work, workTab } = setup();
+  S().updateSettings({ searchTabsInAllProfiles: true });
+  const before = new Set(Object.keys(S().tabs));
+  switchFromBar(workTab, S().tabs[workTab].url, homeTab, "newTab");
+  const added = Object.values(S().tabs).filter((t) => !before.has(t.id));
+  assert.deepEqual(
+    added.map((t) => [t.url, t.profileId, t.windowId]),
+    [["https://tracker.example/board", homeProfile, home]],
+  );
+  assert.equal(S().windows[home].profileId, homeProfile);
+  assert.equal(S().windows[elsewhere].profileId, work);
+  assert.equal(S().windows[elsewhere].activeTabIds[work], workTab);
+});
+
+test("Search Tabs: a typed query finds the other profile's tab only with the setting on", () => {
+  const { home, workTab, privateTab } = setup();
+  const openRows = () => searchSections(home, "tracker").find((s) => s.title === "Open Tabs").rows.map((r) => r.id);
+  assert.deepEqual(openRows(), []);
+  S().updateSettings({ searchTabsInAllProfiles: true });
+  assert.deepEqual(openRows(), [workTab]);
+  assert.ok(!openRows().includes(privateTab));
+  assert.deepEqual(searchSections(home, "").find((s) => s.title === "Open Tabs").rows.length, 1, "the list before typing stays this profile's");
+});
+
+test("the command bar hook: other profiles' tabs only with the setting on, and a site open in both switches within this profile", () => {
+  const { home, homeProfile, homeTab, workTab } = setup();
+  const h = mount(({ text }) => useSuggestions({ text, active: true, windowId: home, profileId: homeProfile, currentTabId: homeTab, scope: null }), { props: { text: "t" } });
+  const rows = (text) => h.rerender({ text }).items.filter((x) => x.kind === "page").map((x) => ({ url: x.url, tabId: x.tabId ?? null, tabProfile: x.tabProfile ?? null }));
+  assert.deepEqual(rows("tracker"), []);
+  S().updateSettings({ searchTabsInAllProfiles: true });
+  assert.deepEqual(rows("tracker"), [{ url: "https://tracker.example/board", tabId: workTab, tabProfile: "Work" }]);
+  const ownCopy = S().newTab(home, { url: "https://tracker.example/board", background: true });
+  assert.deepEqual(rows("tracker."), [{ url: "https://tracker.example/board", tabId: ownCopy, tabProfile: null }]);
+  h.unmount();
 });
