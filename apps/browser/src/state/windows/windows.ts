@@ -116,15 +116,14 @@ function placeMovedTabs(s: BrowserState, windowId: string, ids: string[], joinab
   const w = s.windows[windowId]!;
   const { index, openerId } = newTabPlacement(s, w, s.tabs[ids[0]!]!.profileId);
   const currentGrouped = !!openerId && !inPinnedContainer(s, openerId) && !!groupOf(s, openerId);
-  const joining = currentGrouped ? ids.filter((id) => joinable.has(id)) : ids;
-  const apart = ids.filter((id) => !joining.includes(id));
-  let tabIds = inserted(w.tabIds, index, joining);
-  tabIds = inserted(tabIds, afterGroupOf(s, tabIds, openerId, index + joining.length), apart);
-  const next = { ...s, windows: { ...s.windows, [windowId]: { ...w, tabIds: orderSections(tabIds, s.tabs, s.groups) } } };
-  return joinedWithCurrent(next, joining, openerId);
+  const joins = currentGrouped && ids.every((id) => joinable.has(id));
+  const at = currentGrouped && !joins ? afterGroupOf(s, w.tabIds, openerId, index) : index;
+  const tabIds = orderSections(inserted(w.tabIds, at, ids), s.tabs, s.groups);
+  const next = { ...s, windows: { ...s.windows, [windowId]: { ...w, tabIds } } };
+  return joins ? joinedWithCurrent(next, ids, openerId) : next;
 }
 
-const inserted = (list: string[], at: number, items: string[]) => (items.length ? [...list.slice(0, at), ...items, ...list.slice(at)] : list);
+const inserted = (list: string[], at: number, items: string[]) => [...list.slice(0, at), ...items, ...list.slice(at)];
 
 function afterGroupOf(s: BrowserState, tabIds: string[], tabId: string | undefined, from: number): number {
   let i = from;

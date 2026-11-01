@@ -161,3 +161,17 @@ test("a profile with no tab yet in the target window gets its moved tab at the e
   assert.equal(S().windows[main].tabIds.at(-1), q);
   assert.equal(S().windows[main].activeTabIds[work], q);
 });
+
+test("a mixed block of grouped and plain tabs keeps its order and lands after the current tab's group as a whole", () => {
+  const { main, b, c } = mainWindowWithThreeTabs("nextToCurrent");
+  const g = S().createGroup([b, c], { name: "G" });
+  S().activate(b);
+  const other = S().createWindow({ url: "https://x.example/" });
+  S().newTab(other, { url: "https://y.example/", background: true });
+  const [x, y] = S().windows[other].tabIds;
+  S().createGroup([x], { name: "H" });
+  S().moveTabsToWindow([x, y], main);
+  assert.deepEqual(urlsOf(main), ["https://a.example/", "https://b.example/", "https://c.example/", "https://x.example/", "https://y.example/"]);
+  assert.deepEqual(S().groups[g].tabIds, [b, c]);
+  assert.equal(Object.values(S().groups).some((grp) => grp.tabIds.includes(y)), false);
+});
