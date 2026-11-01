@@ -26,7 +26,7 @@ test("file paths and file names are stripped, with the user's name", () => {
 });
 
 test("quoted text, emails, ids and long numbers are stripped", () => {
-  assert.equal(scrubText(`Profile "Bob's Work" not found`), "Profile <text>");
+  assert.equal(scrubText(`Space "Bob's Work" not found`), "Space <text>");
   assert.equal(scrubText("Cannot read property 'password' of undefined"), "Cannot read property <text>");
   assert.equal(scrubText("mail alice.smith+x@corp.example.org"), "mail <email>");
   assert.equal(scrubText("tab 3f2c1a9e-1b2c-4d5e-8f90-123456789abc gone"), "tab <id> gone");

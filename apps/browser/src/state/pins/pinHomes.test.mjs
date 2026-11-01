@@ -63,7 +63,7 @@ test("a home follows the tab between pinned places and goes when it leaves them"
   assert.ok(groupIn(w, "Uni"));
 });
 
-test("a pinned group's home mirrors to the profile's other windows", () => {
+test("a pinned group's home mirrors to the space's other windows", () => {
   reset();
   const { ids: [, a] } = windowWith("x", "a");
   S().groupTabs([a], { pinned: true, name: "Uni" });

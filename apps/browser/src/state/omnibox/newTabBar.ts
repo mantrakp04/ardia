@@ -52,7 +52,7 @@ export function openFromNewTabBar(windowId: string, target: NewTabTarget, url: s
   const into = target.kind === "into" ? s.tabs[target.tabId] : undefined;
   if (into && into.windowId === windowId && isEmptyCardTab(s, into)) return store().navigate(into.id, url);
   const group = target.kind === "group" ? s.groups[target.groupId] : undefined;
-  if (group && group.windowId === windowId && group.profileId === s.windows[windowId]!.profileId) {
+  if (group && group.windowId === windowId && group.spaceId === s.windows[windowId]!.spaceId) {
     const id = store().newTabInGroup(group.id);
     if (!id) return;
     store().navigate(id, url);

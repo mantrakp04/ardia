@@ -39,7 +39,7 @@ export async function playNudge(signal: AbortSignal) {
   const windowId = focusedWindowOf(s);
   const tab = s.tabs[TARGET_TAB];
   const win = windowId ? s.windows[windowId] : undefined;
-  if (!windowId || !tab || !win || win.profileId !== tab.profileId || win.activeTabIds[win.profileId] === TARGET_TAB) return;
+  if (!windowId || !tab || !win || win.spaceId !== tab.spaceId || win.activeTabIds[win.spaceId] === TARGET_TAB) return;
   const label = rowLabel(tab.title);
   if (!label) return;
 

@@ -23,7 +23,7 @@ function plainPage(tabId: string): boolean {
 function revealFor(s: BrowserState, prev: BrowserState, windowId: string, next: string, before: string): Switch | null {
   const w = s.windows[windowId]!;
   const was = prev.windows[windowId]!;
-  if (w.profileId !== was.profileId || w.kind === "small") return null;
+  if (w.spaceId !== was.spaceId || w.kind === "small") return null;
   if (splitOf(prev, before) || splitOf(s, next) || !plainPage(before) || !plainPage(next)) return null;
   if (Object.keys(useMedia.getState().tabShares).length) return null;
   const tab = s.tabs[next];

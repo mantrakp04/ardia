@@ -11,11 +11,11 @@ const loads = [];
 const handle = () => ({ loadUrl: async (url, options) => void loads.push({ url, userInitiated: !!options?.userInitiated }) });
 const setup = () => {
   const tab = {
-    id: "a", windowId: "w1", profileId: "default", url: "https://a.com/", title: "", favicon: null, pin: null, muted: false, zoom: 1,
+    id: "a", windowId: "w1", spaceId: "default", url: "https://a.com/", title: "", favicon: null, pin: null, muted: false, zoom: 1,
     customTitle: null, customIcon: null, pinnedUrl: null, page: { kind: "loaded", nav: { url: "https://a.com/", seq: 1 } }, openerId: null, createdAt: 0, lastActiveAt: 0,
   };
-  const win = { id: "w1", profileId: "default", kind: "main", tabIds: ["a"], activeTabIds: { default: "a" }, sidebarOpen: true, frame: null, createdAt: 0 };
-  S().hydrate({ profiles: { default: { id: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 } }, windows: { w1: win }, tabs: { a: tab }, focusedWindowId: "w1" });
+  const win = { id: "w1", spaceId: "default", kind: "main", tabIds: ["a"], activeTabIds: { default: "a" }, sidebarOpen: true, frame: null, createdAt: 0 };
+  S().hydrate({ spaces: { default: { id: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 } }, windows: { w1: win }, tabs: { a: tab }, focusedWindowId: "w1" });
   webviews.clear();
   loads.length = 0;
   const ref = webviewRef("a");

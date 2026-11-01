@@ -3,7 +3,8 @@ import { Animated, View } from "react-native";
 import { allArcHolders, restoreArcFolders } from "../../../state/bookmarks/bookmarkGroups";
 import { useBookmarks } from "../../../state/bookmarks/hooks";
 import { plural } from "../../../state/browser/model";
-import { useProfileOrder, useProfileRecords } from "../../../state/profiles/hooks";
+import { useProfileRecords } from "../../../state/profiles/hooks";
+import { useSpaceOrder, useSpaceRecords } from "../../../state/spaces/hooks";
 import type { ImportCounts } from "../../../state/import/apply";
 import { backTo, closeImport, openFoundExtensions, type ImportFlow } from "../../../state/import/flow";
 import { useOnboarding } from "../../../state/onboarding/onboarding";
@@ -27,25 +28,26 @@ function summaryOf(counts: ImportCounts) {
 function ExtensionList({ flow }: { flow: ImportFlow }) {
   const { source, step } = flow;
   const onboarding = useOnboarding((s) => s.windowId !== null);
-  if (step.name !== "done" || !step.extensions.list.length) return null;
+  if (step.name !== "done" || !step.extensions.groups.length) return null;
   const { extensions } = step;
+  const list = extensions.groups.flatMap((g) => g.list);
   const centered = { textAlign: "center" } as const;
   return (
     <View style={{ alignSelf: "stretch", marginTop: space.xl, gap: space.m }}>
       <Text size="small" tone="textSecondary" style={centered}>
-        {`${source?.name ?? "Your browser"} has ${plural(extensions.list.length, "extension")} from the Chrome Web Store. Add the ones you want there:`}
+        {`${source?.name ?? "Your browser"} has ${plural(list.length, "extension")} from the Chrome Web Store. Add the ones you want there:`}
       </Text>
       <Text size="small" style={centered} numberOfLines={3}>
-        {extensions.list.map((e) => e.name).join(", ")}
+        {list.map((e) => e.name).join(", ")}
       </Text>
       {extensions.opened ? (
         <Text size="small" tone="textSecondary" style={centered}>
-          {`${extensions.list.length === 1 ? "Its page is" : "Their pages are"} open in your sidebar${onboarding ? ", ready when you finish setting up" : ""}. Click Add to ${APP} on each one you want.`}
+          {`${list.length === 1 ? "Its page is" : "Their pages are"} open in your sidebar${onboarding ? ", ready when you finish setting up" : ""}. Click Add to ${APP} on each one you want.`}
         </Text>
       ) : (
         <View style={{ alignItems: "center" }}>
           <Button
-            title={extensions.list.length === 1 ? "Open in Chrome Web Store" : `Open ${extensions.list.length} in Chrome Web Store`}
+            title={list.length === 1 ? "Open in Chrome Web Store" : `Open ${list.length} in Chrome Web Store`}
             onPress={openFoundExtensions}
           />
         </View>
@@ -65,9 +67,10 @@ function LeftBehind({ notes, failed }: { notes: string[]; failed: boolean }) {
 
 function RestoreArcFolders() {
   const bookmarks = useBookmarks((b) => b);
+  const spaces = useSpaceRecords();
+  const spaceOrder = useSpaceOrder();
   const profiles = useProfileRecords();
-  const profileOrder = useProfileOrder();
-  const arcHolders = useMemo(() => allArcHolders({ bookmarks, profiles, profileOrder }), [bookmarks, profiles, profileOrder]);
+  const arcHolders = useMemo(() => allArcHolders({ bookmarks, spaces, profiles, spaceOrder }), [bookmarks, spaces, profiles, spaceOrder]);
   if (!arcHolders.length) return null;
   return (
     <Button

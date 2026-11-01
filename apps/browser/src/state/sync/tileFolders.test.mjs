@@ -243,15 +243,15 @@ test("a parked folder an older Mac unpins down to one tab comes back as that til
   old.with(() => S().createWindow({ url: "https://old-home.example/" }));
   await syncAll([a, old]);
   a.with(() => {
-    const work = S().createProfile({ name: "Work" });
-    S().createWindow({ profileId: work, url: "https://work.example/" });
+    const work = S().createSpace({ name: "Work", profileId: S().createProfile({ name: "Work" }) });
+    S().createWindow({ spaceId: work, url: "https://work.example/" });
     S().closeWindow(S().windowOrder[0]);
   });
   assert.ok(a.with(() => S().parkedPins.default.tabs.filter((p) => p.pin?.folder).length === 2), "parked as a folder");
   old.with(() => S().pinTabs([tile("docs")], false));
   await syncAll([old, a, old, a]);
   assert.ok(a.with(() => S().parkedPins.default.tabs.every((p) => !p.pin?.folder)), JSON.stringify(a.with(() => S().parkedPins.default.tabs.map((p) => [p.url, p.pin?.folder ?? null]))));
-  a.with(() => S().createWindow({ profileId: "default" }));
+  a.with(() => S().createWindow({ spaceId: "default" }));
   assert.deepEqual(grid(a, true), ["mail", "cal"]);
 });
 

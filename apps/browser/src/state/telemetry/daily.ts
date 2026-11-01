@@ -105,7 +105,7 @@ export function dailyProperties(flags: DailyFlags, channel: string | null): Reco
     arch: info.arch,
     channel,
     $environment: environment(),
-    $process_person_profile: false,
+    $process_person_space: false,
     $geoip_disable: true,
     ...flags,
   };

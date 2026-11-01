@@ -27,7 +27,7 @@ export async function openOverflowMenu(windowId: string) {
   const open = viewTabIds(s, windowId).map((id) => s.tabs[id]!);
   const closed = [
     ...s.closedTabs
-      .filter((c) => c.tab.profileId === w.profileId)
+      .filter((c) => c.tab.spaceId === w.spaceId)
       .map((c) => ({ value: { restore: c.id }, title: tabTitle(c.tab), symbol: "clock.arrow.circlepath", at: c.closedAt })),
     ...s.closedGroups.map((c) => ({ value: { restore: c.id }, title: `${c.group.name} (${plural(c.tabs.length, "Tab")})`, symbol: "rectangle.stack", at: c.closedAt })),
   ]
@@ -40,7 +40,7 @@ export async function openOverflowMenu(windowId: string) {
     .reverse()
     .map((c) => ({ value: { restore: c.id }, title: `${c.group.name} (${plural(c.tabs.length, "Tab")})`, symbol: "trash" }));
   const daily = s.settings.cleanUpInactiveTabsAfterMinutes !== null;
-  const synced = syncedDevicesMenuItem(w.profileId);
+  const synced = syncedDevicesMenuItem(w.spaceId);
   const choice = await chooseFromMenu<OverflowChoice, string>([
     { id: "search", title: "Search Tabs…", symbol: "magnifyingglass", ...menuShortcut("searchTabs") },
     sep,
@@ -49,7 +49,7 @@ export async function openOverflowMenu(windowId: string) {
       title: "Open Tabs",
       symbol: "square.stack",
       enabled: open.length > 0,
-      children: open.map((t) => ({ value: { open: t.id }, title: tabTitle(t), checked: w.activeTabIds[w.profileId] === t.id })),
+      children: open.map((t) => ({ value: { open: t.id }, title: tabTitle(t), checked: w.activeTabIds[w.spaceId] === t.id })),
     },
     ...(synced ? [synced] : []),
     { id: "closed", title: "Recently Closed", symbol: "clock.arrow.circlepath", enabled: closed.length > 0, children: closed.length ? closed : [{ id: "none", title: "Empty", enabled: false }] },
@@ -80,7 +80,7 @@ export async function openOverflowMenu(windowId: string) {
     else if ("restore" in choice) s.restoreClosed(choice.restore, windowId);
     else s.restoreCleaned(choice.cleaned, windowId);
   } else if (choice === "search") setSidebarUi({ searchTabs: windowId });
-  else if (openSyncedTab(choice, windowId, w.profileId)) return;
+  else if (openSyncedTab(choice, windowId, w.spaceId)) return;
   else if (choice === "restoreAll") s.restoreCleaned(undefined, windowId);
   else if (choice === "clean") s.cleanUpTabs(windowId);
   else if (choice === "daily") s.updateSettings({ cleanUpInactiveTabsAfterMinutes: daily ? null : DAILY_CLEAN_UP_MINUTES });

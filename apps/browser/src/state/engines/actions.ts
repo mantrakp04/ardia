@@ -6,7 +6,7 @@ import { useBrowser } from "../browser/store";
 import { pageOf, patchPage } from "../tabs/pageState";
 import { hideKeyedToast, showToast } from "../app/toasts";
 import { canSwitchEngine, chosenEngine, ENGINE_NAMES, siteOf, tabEngine, visitRecorder, type WebKitPage } from "./engines";
-import { engineProfile, isIncognitoProfile, navigationTo } from "../browser/model";
+import { engineProfile, engineProfileForSpace, isIncognitoSpace, navigationTo } from "../browser/model";
 import type { Tab } from "../browser/types";
 import { carrySignInToWebKit, signInCarryOn } from "./engineSignIn";
 import { wantsPage } from "../tabs/tabPages";
@@ -78,7 +78,7 @@ export async function openPageIn(tabId: string, engine: PageEngine, options: { r
   if (!t) return false;
   const url = t.url || navigationOf(t)?.url || "";
   if (!canSwitchEngine(url)) return false;
-  const saveRule = () => options.rule !== undefined && !isIncognitoProfile(t.profileId) && setWebsiteEngine(url, options.rule);
+  const saveRule = () => options.rule !== undefined && !isIncognitoSpace(t.spaceId) && setWebsiteEngine(url, options.rule);
   clearEngineOffer(tabId);
   if (tabEngine(store(), tabId) === engine) {
     saveRule();
@@ -106,7 +106,7 @@ export function offerWebKit(tabId: string, { keySystem }: ProtectedMediaRequest)
   if (rule === "chromium" || declinedSites.has(site)) return;
   if (rule === "webkit") return void moveForProtectedVideo(tabId, site);
   if (useEngineOffers.getState()[tabId]?.site === site) return;
-  useEngineOffers.setState({ [tabId]: { site, host: hostLabel(site), keySystem, canRemember: !isIncognitoProfile(t.profileId) } });
+  useEngineOffers.setState({ [tabId]: { site, host: hostLabel(site), keySystem, canRemember: !isIncognitoSpace(t.spaceId) } });
 }
 
 export function clearEngineOffer(tabId: string) {
@@ -170,7 +170,7 @@ export function followSiteChoice(tabId: string, engine: PageEngine, url: string,
 }
 
 const visits = visitRecorder(
-  (profile, visit) => void addHistoryVisits(profile, [{ url: visit.url, title: visit.title, visitTimes: [visit.at] }]).catch(() => {}),
+  (space, visit) => void addHistoryVisits(space, [{ url: visit.url, title: visit.title, visitTimes: [visit.at] }]).catch(() => {}),
   { set: (run, ms) => setTimeout(run, ms), clear: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>) },
   Date.now,
 );
@@ -194,5 +194,5 @@ export function noteWebKitPage(tabId: string, page: WebKitPage) {
   if (!t) return;
   watchClosedTabs();
   visitedTabs.add(tabId);
-  visits.note(tabId, isIncognitoProfile(t.profileId) ? null : engineProfile(useBrowser.getState(), t.profileId), page);
+  visits.note(tabId, isIncognitoSpace(t.spaceId) ? null : engineProfile(useBrowser.getState(), t.spaceId), page);
 }

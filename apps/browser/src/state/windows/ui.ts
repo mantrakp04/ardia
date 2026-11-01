@@ -1,6 +1,6 @@
 import type { StateCreator } from "zustand";
 import type { BrowserState } from "../browser/store";
-import { linkProfileOf } from "./small";
+import { linkSpaceOf } from "./small";
 import type { FindState, NewTabTarget, WindowUi } from "../browser/types";
 import { commandBarFocus, expectFocus } from "../focus/focusClaims";
 
@@ -10,7 +10,7 @@ export type UiSlice = {
   ui: {
     focusOrder: string[];
     appDark: boolean;
-    lastProfileId: string | null;
+    lastSpaceId: string | null;
   };
   windowUi: Record<string, WindowUi>;
   find: Record<string, FindState>;
@@ -31,7 +31,7 @@ export function patchWindowUi(s: BrowserState, windowId: string, patch: Partial<
 }
 
 export const createUiSlice: StateCreator<BrowserState, [], [], UiSlice> = (set, get) => ({
-  ui: { focusOrder: [], appDark: true, lastProfileId: null },
+  ui: { focusOrder: [], appDark: true, lastSpaceId: null },
   windowUi: {},
   find: {},
 
@@ -39,9 +39,9 @@ export const createUiSlice: StateCreator<BrowserState, [], [], UiSlice> = (set, 
     const s = get();
     const { ui, windows } = s;
     if (!windows[id]) return;
-    const lastProfileId = linkProfileOf(s, windows[id]) ?? ui.lastProfileId;
-    if (ui.focusOrder[0] === id && ui.lastProfileId === lastProfileId) return;
-    set({ ui: { ...ui, focusOrder: [id, ...ui.focusOrder.filter((w) => w !== id)], lastProfileId } });
+    const lastSpaceId = linkSpaceOf(s, windows[id]) ?? ui.lastSpaceId;
+    if (ui.focusOrder[0] === id && ui.lastSpaceId === lastSpaceId) return;
+    set({ ui: { ...ui, focusOrder: [id, ...ui.focusOrder.filter((w) => w !== id)], lastSpaceId } });
   },
 
   setAppDark(appDark) {

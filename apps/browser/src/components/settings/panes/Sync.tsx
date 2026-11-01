@@ -6,21 +6,27 @@ import { syncFolder } from "../../../state/settings/paneData";
 import { useResource } from "../../../state/settings/resources";
 import { Linking, View } from "react-native";
 import { useTheme } from "../../ui/theme";
-import { useProfileRecords } from "../../../state/profiles/hooks";
-import { useProfiles } from "../../../state/browser/hooks";
+import { useProfiles } from "../../../state/profiles/hooks";
+import { useSpaces } from "../../../state/browser/hooks";
 import {
+  addRemoteSpace,
+  acceptSpaceProfile,
+  keepSpaceProfile,
+  setProfileSynced,
+  setTopAppsSynced,
+  upgradeSync,
   chooseSyncFolder,
   folderInfo,
-  setProfileSynced,
+  setSpaceSynced,
   setTypeSynced,
   syncNow,
   turnOnSync,
   useSync,
 } from "../../../state/sync/engine";
 import { DATA_TYPES, type SyncStatus } from "../../../state/sync/syncDoc";
-import { ProfileBadge } from "../../profiles/ProfileIcons";
+import { SpaceBadge } from "../../spaces/SpaceIcons";
 import { Group, PaneIntro, Row, SectionHeader } from "../Form";
-import { addAllRemoteProfiles, folderLabel, lookingForProfiles, RemoteProfileRow, showConnectDevice, showPhraseEntry, showRecoveryKit, showStopSync } from "./SyncSheets";
+import { addAllRemoteSpaces, folderLabel, lookingForSpaces, RemoteSpaceRow, showConnectDevice, showPhraseEntry, showRecoveryKit, showStopSync } from "./SyncSheets";
 import { ago } from "../../../lib/time";
 
 export function SyncPane() {
@@ -39,7 +45,7 @@ export function SyncPane() {
   return (
     <Box gap="xl">
       <PaneIntro>
-        Sync your profiles, bookmarks, history, open tabs, pinned tabs, groups, passwords, extensions and settings across your Macs. It all goes through a folder
+        Sync your profiles and spaces, bookmarks, history, open tabs, pinned tabs, groups, passwords, extensions and settings across your Macs. It all goes through a folder
         you choose, like one in iCloud Drive, and it’s end-to-end encrypted: only your devices can read it.
       </PaneIntro>
       {enabled ? <SyncOn info={info} /> : <SyncOff info={info} />}
@@ -153,6 +159,8 @@ function statusLine(status: SyncStatus, lastSyncedAt: number | null, pending: nu
         return "updating";
       case "offline":
         return "offline";
+      case "upgrade":
+        return "update required";
       case "stalled":
       case "locked":
         return since ? `not syncing · last synced ${since}` : "not syncing";
@@ -170,12 +178,12 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
   const pending = useSync((s) => s.pending);
   const error = useSync((s) => s.error);
   const types = useSync((s) => s.types);
-  const links = useSync((s) => s.profiles);
+  const links = useSync((s) => s.spaces);
   const devices = useSync((s) => s.devices);
-  const remoteProfiles = useSync((s) => s.remoteProfiles);
-  const joining = useSync((s) => s.joining);
+  const remoteSpaces = useSync((s) => s.remoteSpaces);
+  const spaces = useSpaces();
   const profiles = useProfiles();
-  const allProfiles = useProfileRecords();
+  const profileLinks = useSync((s) => s.profiles);
   const [, tick] = useState(0);
   useEffect(() => {
     const t = setInterval(() => tick((n) => n + 1), 30_000);
@@ -200,11 +208,12 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
   };
 
   const locked = status === "locked";
+  const upgrading = status === "upgrade";
   return (
     <View>
       <Group>
         <Row icon={<SyncIcon on={!locked} />} anchor="sync.sync" description={statusLine(status, lastSyncedAt, pending)}>
-          {locked ? (
+          {upgrading ? <Button title="Use Spaces Sync…" kind="primary" onPress={() => void upgradeSync()} /> : locked ? (
             <Button title="Enter Recovery Phrase…" kind="primary" onPress={() => showPhraseEntry(info)} />
           ) : (
             <Button title="Connect Another Device…" onPress={showConnectDevice} />
@@ -222,34 +231,40 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
         </Box>
       ) : null}
 
-      <SectionHeader
-        title="Profiles"
-        description={
-          joining
-            ? lookingForProfiles(pending)
-            : remoteProfiles.length
-              ? "Choose which profiles sync on this Mac. Each syncs on its own. Profiles on your other devices can be added to this Mac."
-              : "Choose which profiles sync on this Mac. Each syncs on its own."
-        }
-        action={remoteProfiles.filter((p) => !p.waiting).length > 1 ? <Button title="Add All" onPress={() => addAllRemoteProfiles(remoteProfiles)} /> : undefined}
-      />
+      {upgrading ? <Text size="small" tone="textSecondary" style={{ marginTop: space.ml }}>Update every Mac to a build with Profiles and Spaces before upgrading sync. The existing encrypted sync files are kept.</Text> : null}
+      <SectionHeader title="Profiles" description="Browsing data and shared Top Apps have separate choices. Space tabs and pinned rows use the controls below." />
       <Group>
-        {profiles.map((p) => {
+        {profiles.map((profile) => {
+          const link = profileLinks[profile.id];
+          return <View key={profile.id}>
+            <Row title={profile.name} description="Bookmarks, history, passwords and extensions"><Toggle value={!!link?.enabled} disabled={!link || upgrading} onChange={(on) => setProfileSynced(profile.id, on)} /></Row>
+            <Row title={`${profile.name} Top Apps`} description="Shared tiles in every space using this profile"><Toggle value={!!link?.topAppsEnabled} disabled={!link || upgrading} onChange={(on) => setTopAppsSynced(profile.id, on)} /></Row>
+          </View>;
+        })}
+      </Group>
+      <SectionHeader title="Spaces" description="Space names, themes, pinned rows, groups and open tabs." />
+      <Group>
+        {spaces.map((p) => {
           const link = links[p.id];
-          const owner = p.dataId ? allProfiles[p.dataId] : undefined;
+
           return (
+            <View key={p.id}>
             <Row
-              key={p.id}
-              icon={<ProfileBadge profile={p} size={24} />}
+              icon={<SpaceBadge profile={p} size={24} />}
               title={p.name}
-              description={owner ? `Shares data with ${owner.name}: its tabs sync here, its data syncs with ${owner.name}.` : undefined}
+
             >
-              <Toggle value={!!link?.enabled} disabled={!link} onChange={(on) => setProfileSynced(p.id, on)} />
+              <Toggle value={!!link?.enabled} disabled={!link || upgrading} onChange={(on) => setSpaceSynced(p.id, on)} />
             </Row>
+            {link?.pendingProfileId ? <Row title="Profile change waiting" description={`${profiles.find((profile) => profile.id === link.pendingProfileId)?.name ?? "Another profile"} was assigned on another Mac. Your current pages stay open until you choose.`}>
+              <Button title="Keep Current" onPress={() => keepSpaceProfile(p.id)} />
+              <Button title="Apply…" onPress={() => void acceptSpaceProfile(p.id)} />
+            </Row> : null}
+            </View>
           );
         })}
-        {remoteProfiles.map((p) => (
-          <RemoteProfileRow key={p.syncId} profile={p} />
+        {remoteSpaces.map((p) => (
+          <RemoteSpaceRow key={p.syncId} profile={p} />
         ))}
       </Group>
 

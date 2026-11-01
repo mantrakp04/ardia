@@ -34,7 +34,8 @@ const S = () => useBrowser.getState();
 function pendingClear(engine) {
   S().hydrate({});
   const work = S().createProfile({ name: "Work" });
-  const w = S().createWindow({ url: "https://a.com/x", profileId: work });
+  const spaceId = S().createSpace({ name: "Work", profileId: work });
+  const w = S().createWindow({ url: "https://a.com/x", spaceId });
   const id = S().windows[w].tabIds[0];
   if (engine) S().updateTab(id, { engine });
   const view = { cleared: 0, reloaded: 0 };

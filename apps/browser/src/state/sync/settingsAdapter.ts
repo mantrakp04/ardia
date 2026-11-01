@@ -5,10 +5,22 @@ import { fromLegacy } from "../../lib/legacy";
 import { CLEAN_UP_KEY, hoursFromMinutes, LEGACY_CLEAN_UP_KEY, minutesFromHours } from "../settings/cleanUpAfter";
 
 const store = () => useBrowser.getState();
-const recordKey = (name: string) => `set:${name === CLEAN_UP_KEY ? LEGACY_CLEAN_UP_KEY : name}`;
-const settingOf = (key: string) => (key.slice(4) === LEGACY_CLEAN_UP_KEY ? CLEAN_UP_KEY : key.slice(4));
+const legacyNames: Record<string, string> = {
+  [CLEAN_UP_KEY]: LEGACY_CLEAN_UP_KEY,
+  spaceSwitcherIcons: "profileSwitcherIcons",
+  warnBeforeMovingTabsToSpace: "warnBeforeMovingTabsToProfile",
+};
+const currentNames = Object.fromEntries(Object.entries(legacyNames).map(([current, legacy]) => [legacy, current]));
+const recordKey = (name: string) => `set:${legacyNames[name] ?? name}`;
+const settingOf = (key: string) => currentNames[key.slice(4)] ?? key.slice(4);
 const toRecord = (name: string, value: unknown) => (name === CLEAN_UP_KEY ? hoursFromMinutes(value as number | null) : value);
 const fromRecord = (name: string, value: unknown) => (name === CLEAN_UP_KEY ? minutesFromHours(value) : value);
+
+function latestRecordKey(name: string, present: (key: string) => boolean, stamp: (key: string) => string | undefined) {
+  const canonicalKey = recordKey(name);
+  const keys = name === CLEAN_UP_KEY ? [canonicalKey] : [...new Set([canonicalKey, `set:${name}`])];
+  return keys.filter(present).reduce<string | undefined>((best, key) => !best || (stamp(key) ?? "") > (stamp(best) ?? "") ? key : best, undefined);
+}
 
 export const SYNCED_SETTINGS = SETTING_KEYS.filter((key) => SETTING_SPECS[key].synced);
 
@@ -36,12 +48,13 @@ export const settingsAdapter: Adapter = {
     }
     return { values, ignore: (key) => !values.has(key) };
   },
-  apply: (visible, changed) => {
+  apply: (visible, changed, _base, records) => {
     const patch: Record<string, unknown> = {};
-    for (const key of changed) {
-      const name = settingOf(key);
-      const record = visible.get(key) as { v: unknown } | undefined;
-      if (!record || key !== recordKey(name) || !(SYNCED_SETTINGS as readonly string[]).includes(name)) continue;
+    for (const name of new Set([...changed].map(settingOf))) {
+      if (!(SYNCED_SETTINGS as readonly string[]).includes(name)) continue;
+      const key = latestRecordKey(name, (key) => visible.has(key), (key) => records?.stamp?.(key));
+      const record = key ? visible.get(key) as { v: unknown } | undefined : undefined;
+      if (!record) continue;
       const value = fromRecord(name, record.v);
       if (validSettingValue(name as SettingKey, value)) patch[name] = value;
     }
@@ -53,7 +66,8 @@ export function settingsToReapply(records: Record<string, SyncRecord>): string[]
   const settings = store().settings;
   const chosen = new Set(store().settingsMeta.chosen);
   return SYNCED_SETTINGS.flatMap((name) => {
-    const key = recordKey(name);
+    const key = latestRecordKey(name, (key) => records[key]?.v != null, (key) => records[key]?.h);
+    if (!key) return [];
     const value = fromRecord(name, (fromLegacy(records[key]?.v) as { v?: unknown } | null | undefined)?.v);
     if (chosen.has(name) || !validSettingValue(name, value)) return [];
     return canonical(value) === canonical(settings[name]) ? [] : [key];

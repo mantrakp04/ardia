@@ -1,5 +1,5 @@
 import type { ScopeState } from "../../platform/sync";
-import type { Profile } from "../browser/types";
+import type { Space } from "../browser/types";
 import { unchanged, type Migrations } from "../../lib/savedDocument";
 
 type SyncTypeSpec = { title: string; description: string; profileData?: true };
@@ -28,21 +28,31 @@ export const DATA_TYPES = TYPE_IDS.map((id) => ({ id, title: SPECS[id].title, de
 export const typeSyncedFor = (types: Record<DataType, boolean>, type: DataType, ownsData: boolean) =>
   types[type] && (ownsData || !SPECS[type].profileData);
 
-export type ProfileLink = {
+export type SpaceLink = {
   syncId: string;
   enabled: boolean;
+  adopting?: true;
   retire?: boolean;
   themeAdopting?: true;
+  pendingProfileId?: string;
+  publishAssignment?: true;
 };
 
+export type ProfileLink = { syncId: string; enabled: boolean; retire?: boolean; adopting?: true; topAppsEnabled: boolean };
+
+export { profileScope, spaceScope } from "./records";
+
 export type SyncDoc = {
-  v: 1;
+  v: 2;
+  protocolReady: boolean;
+  legacyPending?: boolean;
+  profiles: Record<string, ProfileLink>;
   enabled: boolean;
   folder: string | null;
   deviceId: string | null;
   clock: string | null;
   types: Record<DataType, boolean>;
-  profiles: Record<string, ProfileLink>;
+  spaces: Record<string, SpaceLink>;
   scopes: Record<string, ScopeState>;
   lastSyncedAt: number | null;
   setupAt: number | null;
@@ -51,45 +61,49 @@ export type SyncDoc = {
 };
 
 export const DOC = "sync.json";
-export const DOC_VERSION = 1;
-export const DOC_MIGRATIONS: Migrations = { 0: unchanged };
-export const STATE = "sync-state.nns";
-export const JOURNAL = "sync-journal.nns";
-export const APP_SCOPE = "app";
+export const DOC_VERSION = 2;
+export const DOC_MIGRATIONS: Migrations = { 0: unchanged, 1: unchanged };
+export const STATE = "sync-spaces-state.nns";
+export const JOURNAL = "sync-spaces-journal.nns";
+export const APP_SCOPE = "workspace-v2";
+export const LEGACY_SETTINGS_SCOPE = "legacy-settings";
 
 export const defaultTypes = (): Record<DataType, boolean> => Object.fromEntries(TYPE_IDS.map((id) => [id, true])) as Record<DataType, boolean>;
 
 export const emptyDoc = (): SyncDoc => ({
-  v: 1,
+  v: 2,
+  protocolReady: true,
+  profiles: {},
   enabled: false,
   folder: null,
   deviceId: null,
   clock: null,
   types: defaultTypes(),
-  profiles: {},
+  spaces: {},
   scopes: {},
   lastSyncedAt: null,
   setupAt: null,
   joining: false,
 });
 
-export type SyncStatus = "off" | "starting" | "updating" | "updated" | "stalled" | "offline" | "locked" | "reset" | "unavailable";
+export type SyncStatus = "off" | "upgrade" | "starting" | "updating" | "updated" | "stalled" | "offline" | "locked" | "reset" | "unavailable";
 
 export type SyncedDevice = { id: string; name: string; lastSeen: number | null; current: boolean };
 export type RemoteTabs = { deviceId: string; name: string; tabs: { url: string; title: string }[] };
-export type RemoteProfile = { syncId: string; name: string; color: Profile["color"]; icon: string | null; sharesWith?: { name: string; added: boolean }; waiting?: true };
+export type RemoteSpace = { syncId: string; name: string; color: Space["color"]; icon: string | null; sharesWith?: { name: string; added: boolean }; waiting?: true };
 
 export type SyncUi = {
+  profiles: Record<string, ProfileLink>;
   status: SyncStatus;
   enabled: boolean;
   joining: boolean;
   folder: string | null;
   types: Record<DataType, boolean>;
-  profiles: Record<string, ProfileLink>;
+  spaces: Record<string, SpaceLink>;
   lastSyncedAt: number | null;
   error: string | null;
   pending: number;
   devices: SyncedDevice[];
   remoteTabs: Record<string, RemoteTabs[]>;
-  remoteProfiles: RemoteProfile[];
+  remoteSpaces: RemoteSpace[];
 };

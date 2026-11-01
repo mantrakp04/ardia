@@ -10,25 +10,28 @@ const PROFILES = {
   default: { id: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 },
   work: { id: "work", name: "Work", color: "blue", icon: null, createdAt: 0 },
 };
-S().hydrate({ profiles: PROFILES, profileOrder: ["default", "work"], windows: {}, tabs: {} });
+S().hydrate({ spaces: PROFILES, spaceOrder: ["default", "work"], windows: {}, tabs: {} });
 
-test("links native parked open in the profile it parked them in, each marked for its own page", () => {
-  assert.deepEqual(routedLinks({ profile: "work", adoptIds: ["link:0", null, "link:2"] }, 3), { profileId: "work", adoptIds: ["link:0", undefined, "link:2"] });
-  assert.deepEqual(routedLinks({ profile: "", adoptIds: ["link:1"] }, 1), { profileId: "default", adoptIds: ["link:1"] });
+test("links native parked open in the default Space when the parked browsing identity matches, each marked for its own page", () => {
+  S().setDefaultSpace("work");
+  assert.deepEqual(routedLinks({ profile: "work", adoptIds: ["link:0", null, "link:2"] }, 3), { spaceId: "work", adoptIds: ["link:0", undefined, "link:2"] });
+  S().setDefaultSpace("default");
+  assert.deepEqual(routedLinks({ profile: "", adoptIds: ["link:1"] }, 1), { spaceId: "default", adoptIds: ["link:1"] });
 });
 
-test("nothing parked, or a profile JS doesn't know: no marks, JS picks the profile as before", () => {
-  assert.deepEqual(routedLinks({}, 2), { profileId: null, adoptIds: [undefined, undefined] });
-  assert.deepEqual(routedLinks({ profile: "gone", adoptIds: ["link:0"] }, 1), { profileId: null, adoptIds: [undefined] });
+test("nothing parked, or a space JS doesn't know: no marks, JS picks the space as before", () => {
+  assert.deepEqual(routedLinks({}, 2), { spaceId: null, adoptIds: [undefined, undefined] });
+  assert.deepEqual(routedLinks({ profile: "gone", adoptIds: ["link:0"] }, 1), { spaceId: "default", adoptIds: [undefined] });
 });
 
-test("profiles sharing one engine profile: the last active one gets the links", () => {
+test("spaces sharing one engine profile: the default Space gets the links", () => {
   S().hydrate({
-    profiles: { ...PROFILES, side: { id: "side", name: "Side", color: "green", icon: null, createdAt: 0, dataId: "work" } },
-    profileOrder: ["default", "work", "side"],
+    spaces: { ...PROFILES, side: { id: "side", name: "Side", color: "green", icon: null, createdAt: 0, profileId: "work" } },
+    spaceOrder: ["default", "work", "side"],
     windows: {},
     tabs: {},
-    lastProfileId: "side",
+    lastSpaceId: "side",
+    settings: { defaultSpaceId: "side" },
   });
-  assert.deepEqual(routedLinks({ profile: "work", adoptIds: ["link:0"] }, 1), { profileId: "side", adoptIds: ["link:0"] });
+  assert.deepEqual(routedLinks({ profile: "work", adoptIds: ["link:0"] }, 1), { spaceId: "side", adoptIds: ["link:0"] });
 });

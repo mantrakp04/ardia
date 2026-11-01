@@ -47,7 +47,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
     items: [
       "Launches, updates, and whether the last session ended cleanly",
       "How many tabs and windows you open (a count, not which)",
-      "Opening split view, switching profiles and opening the command bar",
+      "Opening split view, switching spaces and opening the command bar",
       "The kind of command bar row you pick: history, bookmark, tab, address, search, calculator or action",
       "Installing an extension, turning sync on or off, translating a page, and which Settings sections you open",
       "Once a day, your on/off, pick-one and number settings (like light or dark, glass or classic, and how much tint), each with its default. Never addresses, names, search engines or anything you typed",
@@ -56,7 +56,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
   {
     title: "Speed",
     items: [
-      "Time to the first window, profile switch time, and command bar speed (a sample of keystrokes)",
+      "Time to the first window, space switch time, and command bar speed (a sample of keystrokes)",
       "How long launches, new tabs, tab switches and page loads take, step by step: times and counts only, summed up once an hour",
       "At launch, in rough ranges: how many tabs and windows came back, how much history there is, and whether it's the first launch since the Mac started",
       "Memory use and the number of tabs, once an hour",
@@ -72,7 +72,7 @@ export const WHATS_SENT: { title: string; items: string[] }[] = [
       "Web addresses, site names or page titles",
       "Anything you type or search for",
       "History, bookmarks, passwords or what's in your tabs",
-      "Profile, extension or file names",
+      "Space, extension or file names",
       "Screen recordings",
     ],
   },

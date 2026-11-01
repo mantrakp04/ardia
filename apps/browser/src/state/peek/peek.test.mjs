@@ -16,7 +16,7 @@ const S = () => useBrowser.getState();
 const PERSONAL = { id: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 };
 
 function windowWithTabs() {
-  S().hydrate({ profiles: { default: PERSONAL }, profileOrder: ["default"] });
+  S().hydrate({ spaces: { default: PERSONAL }, spaceOrder: ["default"] });
   const w = S().createWindow({ url: "https://a.example/" });
   const a = S().windows[w].tabIds[0];
   const b = S().newTab(w, { url: "https://b.example/" });
@@ -130,17 +130,17 @@ test("the source tab closing or navigating away closes the peek, a same-page has
   assert.equal(S().tabs[id], undefined);
 });
 
-test("switching the window's profile closes the peek", () => {
+test("switching the window's space closes the peek", () => {
   const { w, a } = windowWithTabs();
-  const work = S().createProfile({ name: "Work" });
+  const work = S().createSpace({ name: "Work", profileId: S().createProfile({ name: "Work" }) });
   const id = S().openPeek(a, "https://peek.example/");
-  S().switchProfile(w, work);
+  S().switchSpace(w, work);
   assert.equal(S().peeks[w], undefined);
   assert.equal(S().tabs[id], undefined);
 });
 
 test("Little Ardia doesn't peek", () => {
-  S().hydrate({ profiles: { default: PERSONAL }, profileOrder: ["default"] });
+  S().hydrate({ spaces: { default: PERSONAL }, spaceOrder: ["default"] });
   const small = S().createWindow({ kind: "small", url: "https://small.example/" });
   const tab = S().windows[small].tabIds[0];
   assert.equal(S().openPeek(tab, "https://peek.example/"), "");
@@ -173,7 +173,7 @@ test("Chrome's tab strip plan keeps the peek out of the order but makes it Chrom
 });
 
 test("the Peek modifier setting: ⇧-click by default, ⌥-click or Off, synced, unknown values fall back", () => {
-  S().hydrate({ profiles: { default: PERSONAL }, profileOrder: ["default"] });
+  S().hydrate({ spaces: { default: PERSONAL }, spaceOrder: ["default"] });
   assert.equal(DEFAULT_SETTINGS.peekModifier, "shift");
   assert.equal(peekModifierOf(S().settings), "shift");
   S().updateSettings({ peekModifier: "alt" });
@@ -181,15 +181,15 @@ test("the Peek modifier setting: ⇧-click by default, ⌥-click or Off, synced,
   assert.ok(S().settingsMeta.chosen.includes("peekModifier"));
   S().updateSettings({ peekModifier: "off" });
   assert.equal(peekModifierOf(S().settings), "off");
-  S().hydrate({ profiles: { default: PERSONAL }, profileOrder: ["default"], settings: { peekModifier: "control" } });
+  S().hydrate({ spaces: { default: PERSONAL }, spaceOrder: ["default"], settings: { peekModifier: "control" } });
   assert.equal(peekModifierOf(S().settings), "shift");
   assert.ok(SYNCED_SETTINGS.includes("peekModifier"));
-  S().hydrate({ profiles: { default: PERSONAL }, profileOrder: ["default"], settings: { peekModifier: "alt" } });
+  S().hydrate({ spaces: { default: PERSONAL }, spaceOrder: ["default"], settings: { peekModifier: "alt" } });
   assert.equal(peekModifierOf(S().settings), "alt");
 });
 
 test("the split link setting: ⌥⇧-click by default or ⌥-click, synced, never on ⌥ together with Peek", () => {
-  S().hydrate({ profiles: { default: PERSONAL }, profileOrder: ["default"] });
+  S().hydrate({ spaces: { default: PERSONAL }, spaceOrder: ["default"] });
   const keys = () => [peekModifierOf(S().settings), splitLinkModifierOf(S().settings)];
   assert.equal(DEFAULT_SETTINGS.splitLinkModifier, "altShift");
   assert.deepEqual(keys(), ["shift", "altShift"]);
@@ -207,12 +207,13 @@ test("the split link setting: ⌥⇧-click by default or ⌥-click, synced, neve
   S().updateSettings({ peekModifier: "shift", splitLinkModifier: "altShift" });
   assert.deepEqual(keys(), ["shift", "altShift"]);
   S().updateSettings({ peekModifier: "alt", splitLinkModifier: "alt" }, { fromSync: true });
+  assert.deepEqual([S().settings.peekModifier, S().settings.splitLinkModifier], ["alt", "alt"], "sync keeps the exact incoming values");
+  assert.deepEqual(keys(), ["alt", "altShift"], "the effective split modifier avoids the clash");
+  S().hydrate({ spaces: { default: PERSONAL }, spaceOrder: ["default"], settings: { peekModifier: "alt", splitLinkModifier: "alt" } });
   assert.deepEqual(keys(), ["alt", "altShift"]);
-  S().hydrate({ profiles: { default: PERSONAL }, profileOrder: ["default"], settings: { peekModifier: "alt", splitLinkModifier: "alt" } });
-  assert.deepEqual(keys(), ["alt", "altShift"]);
-  S().hydrate({ profiles: { default: PERSONAL }, profileOrder: ["default"], settings: { splitLinkModifier: "shift" } });
+  S().hydrate({ spaces: { default: PERSONAL }, spaceOrder: ["default"], settings: { splitLinkModifier: "shift" } });
   assert.deepEqual(keys(), ["shift", "altShift"]);
-  S().hydrate({ profiles: { default: PERSONAL }, profileOrder: ["default"], settings: { splitLinkModifier: "alt" } });
+  S().hydrate({ spaces: { default: PERSONAL }, spaceOrder: ["default"], settings: { splitLinkModifier: "alt" } });
   assert.deepEqual(keys(), ["shift", "alt"]);
 });
 
@@ -241,7 +242,7 @@ test("Arc and Zen setups peek links to other sites; every other setup leaves it 
 });
 
 test("another window taking a shared pin's page closes the peek opened from it", () => {
-  S().hydrate({ profiles: { default: PERSONAL }, profileOrder: ["default"] });
+  S().hydrate({ spaces: { default: PERSONAL }, spaceOrder: ["default"] });
   const a = S().createWindow({ url: "https://mail.example/" });
   const [mail] = S().windows[a].tabIds;
   S().pinTabs([mail], true);

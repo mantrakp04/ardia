@@ -86,7 +86,7 @@ function Window({ width, height, settings, accent, theme: custom, focus, switche
   const lay = useTo(shape.top ? 1 : 0, false);
   const addr = useTo(shape.addressInSidebar ? 1 : 0, false);
   const site = useTo(shape.siteColor ? 1 : 0, true, mockMotion.fade);
-  const icons = useTo(settings.profileSwitcherIcons ? 1 : 0, true, mockMotion.fade);
+  const icons = useTo(settings.spaceSwitcherIcons ? 1 : 0, true, mockMotion.fade);
   const theme = useFadeBetween(dark);
   const focusShown = useTo(focus ? 1 : 0, true, mockMotion.focus);
   const [demo, setDemo] = useState(focus);

@@ -1,7 +1,7 @@
 import { chooseFromMenu, type ChoiceItem } from "../app/menuChoice";
-import { closeGroup, moveGroupToProfile, moveGroupToWindow } from "../browser/actions";
+import { closeGroup, moveGroupToSpace, moveGroupToWindow } from "../browser/actions";
 import { useBrowser, type BrowserState } from "../browser/store";
-import { activeTabId, isIncognitoProfile } from "../browser/model";
+import { activeTabId, isIncognitoSpace } from "../browser/model";
 import { groupOf } from "../pins/tabGrouping";
 import { hasOwnGroupIcon } from "../groups/groupIcons";
 import type { GroupColor } from "../browser/types";
@@ -33,7 +33,7 @@ export function groupMenuItems(s: BrowserState, windowId: string, groupId: strin
   if (!g) return [];
   const siteColor = g.tabIds.map((id) => s.live[id]?.themeColor).find(Boolean);
   const shown = groupOf(s, activeTabId(s, windowId))?.id === groupId;
-  const incognito = isIncognitoProfile(g.profileId);
+  const incognito = isIncognitoSpace(g.spaceId);
   return sections<GroupMenuItem>(
     g.parentId ? [] : [{ id: "pin", title: g.pinned ? "Unpin Group" : "Pin Group", symbol: g.pinned ? "pin.slash" : "pin" }],
     [
@@ -42,7 +42,7 @@ export function groupMenuItems(s: BrowserState, windowId: string, groupId: strin
       { id: "duplicate", title: "Duplicate Group", symbol: "plus.square.on.square" },
     ],
     [
-      { id: "moveToProfile", title: "Move to Profile", symbol: "person", enabled: !incognito, children: profileItems(s, (id) => id === g.profileId) },
+      { id: "moveToSpace", title: "Move to Space", symbol: "person", enabled: !incognito, children: profileItems(s, (id) => id === g.spaceId) },
       ...(g.pinned ? [] : [{ id: "moveToWindow", title: "Move to Window", symbol: "macwindow", enabled: !incognito, children: windowItems(s, windowId) }]),
     ],
     [
@@ -67,7 +67,7 @@ export async function openGroupMenu(windowId: string, groupId: string) {
 
 function sendGroup(groupId: string, to: GroupChoice) {
   if (to.kind === "color") store().updateGroup(groupId, { color: to.color });
-  else if (to.kind === "profile") void moveGroupToProfile(groupId, to.profileId);
+  else if (to.kind === "profile") void moveGroupToSpace(groupId, to.spaceId);
   else if (to.kind === "window") moveGroupToWindow(groupId, to.windowId);
 }
 

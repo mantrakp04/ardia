@@ -1,0 +1,40 @@
+import { openSettings } from "../settings/settingsWindows";
+import { create } from "zustand";
+import { useBrowser } from "../browser/store";
+
+export type CreateSpacePreset = { name?: string; profileId?: string };
+export type CreateSpaceRequest = { windowId: string | null; preset: CreateSpacePreset; resolve: (id: string | null) => void };
+
+export const useCreateSpaceRequest = create<{ request: CreateSpaceRequest | null; sheet: CreateSpaceRequest | null }>()(() => ({
+  request: null,
+  sheet: null,
+}));
+
+export function requestCreateSpace(windowId?: string, preset: CreateSpacePreset = {}): Promise<string | null> {
+  return new Promise((resolve) => {
+    const { sheet, request } = useCreateSpaceRequest.getState();
+    sheet?.resolve(null);
+    if (request && request !== sheet) request.resolve(null);
+    openSettings("spaces");
+    useCreateSpaceRequest.setState({ request: null, sheet: { windowId: windowId ?? null, preset, resolve } });
+  });
+}
+
+export const isCurrentCreateSpaceRequest = (request: CreateSpaceRequest) => useCreateSpaceRequest.getState().request === request;
+
+export function endCreateSpaceRequest(request: CreateSpaceRequest, id: string | null) {
+  if (!isCurrentCreateSpaceRequest(request)) return;
+  useCreateSpaceRequest.setState({ request: null });
+  request.resolve(id);
+}
+
+export function takeCreateSpaceSheet(): CreateSpaceRequest | null {
+  const { sheet } = useCreateSpaceRequest.getState();
+  if (sheet) useCreateSpaceRequest.setState({ sheet: null, request: sheet });
+  return sheet;
+}
+
+export function spaceNames(names: string[]): string {
+  if (names.length <= 2) return names.join(" & ");
+  return `${names.slice(0, 2).join(", ")}, & ${names.length - 2} more`;
+}

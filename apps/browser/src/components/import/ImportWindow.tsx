@@ -4,7 +4,7 @@ import { space, useTheme, VisualEffect, WindowDragRegion } from "../ui";
 import { PageToolbar } from "../pages/PageLayout";
 import { ChooseBody, ChooseFooter } from "./steps/ChooseStep";
 import { DoneBody, DoneFooter } from "./steps/DoneStep";
-import { ProfilesBody, ProfilesFooter } from "./steps/ProfilesStep";
+import { SpacesBody, SpacesFooter } from "./steps/SpacesStep";
 import { ProgressBody, ProgressFooter } from "./steps/ProgressStep";
 import { AccessBody, AccessFooter, SafariBody, SafariFooter } from "./steps/SafariStep";
 import { UnlockBody, UnlockFooter } from "./steps/UnlockStep";
@@ -21,7 +21,7 @@ function Loading() {
 const STEPS: Record<ImportStepName, { Body: StepView; Footer: StepView | null }> = {
   loading: { Body: Loading, Footer: null },
   choose: { Body: ChooseBody, Footer: ChooseFooter },
-  profiles: { Body: ProfilesBody, Footer: ProfilesFooter },
+  profiles: { Body: SpacesBody, Footer: SpacesFooter },
   unlock: { Body: UnlockBody, Footer: UnlockFooter },
   safari: { Body: SafariBody, Footer: SafariFooter },
   access: { Body: AccessBody, Footer: AccessFooter },

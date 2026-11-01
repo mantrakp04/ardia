@@ -7,16 +7,16 @@ const stub = await import("../../test-native/index.ts");
 const S = () => useBrowser.getState();
 
 test("a saved At the top keeps the New Tab button at the top; the other choices leave it at the bottom", () => {
-  stub.docs.set("session.json", JSON.stringify({ version: 7, settings: { newTabPosition: "top", chosen: ["newTabPosition"], inferred: [] } }));
+  stub.docs.set("session.json", JSON.stringify({ version: 7, profiles: { default: { id: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 } }, profileOrder: ["default"], settings: { newTabPosition: "top", chosen: ["newTabPosition"], inferred: [] } }));
   S().hydrate(loadSession());
   assert.equal(S().settings.newTabButtonPosition, "top");
   assert.ok(S().settingsMeta.chosen.includes("newTabButtonPosition"), "it syncs like the choice it came from");
   for (const newTabPosition of ["bottom", "nextToCurrent"]) {
-    stub.docs.set("session.json", JSON.stringify({ version: 7, settings: { newTabPosition, chosen: ["newTabPosition"], inferred: [] } }));
+    stub.docs.set("session.json", JSON.stringify({ version: 7, profiles: { default: { id: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 } }, profileOrder: ["default"], settings: { newTabPosition, chosen: ["newTabPosition"], inferred: [] } }));
   S().hydrate(loadSession());
     assert.equal(S().settings.newTabButtonPosition, "bottom", newTabPosition);
   }
-  stub.docs.set("session.json", JSON.stringify({ version: 7, settings: { newTabPosition: "top", newTabButtonPosition: "bottom", chosen: ["newTabPosition", "newTabButtonPosition"], inferred: [] } }));
+  stub.docs.set("session.json", JSON.stringify({ version: 7, profiles: { default: { id: "default", name: "Personal", color: "plum", icon: null, createdAt: 0 } }, profileOrder: ["default"], settings: { newTabPosition: "top", newTabButtonPosition: "bottom", chosen: ["newTabPosition", "newTabButtonPosition"], inferred: [] } }));
   S().hydrate(loadSession());
   assert.equal(S().settings.newTabButtonPosition, "bottom", "a saved button position wins");
 });

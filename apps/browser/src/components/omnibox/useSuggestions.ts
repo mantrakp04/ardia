@@ -13,7 +13,7 @@ import { bookmarksByUrl } from "../../state/bookmarks/bookmarks";
 import { useMenuBarRevision } from "../../state/commands/commandShortcuts";
 import { useSettings } from "../../state/browser/hooks";
 import { useBookmarkEngine, useBookmarks } from "../../state/bookmarks/hooks";
-import { useProfileHistory } from "../../state/history/hooks";
+import { useSpaceHistory } from "../../state/history/hooks";
 import { useTabs } from "../../state/tabs/hooks";
 import { defaultSearchEngine, searchEngines } from "../../state/settings/settings";
 import type { Bookmarks } from "../../state/browser/types";
@@ -52,7 +52,7 @@ export function useSuggestions({
   text,
   active,
   windowId,
-  profileId,
+  spaceId,
   currentTabId,
   currentUrl,
   scope,
@@ -61,14 +61,14 @@ export function useSuggestions({
   text: string;
   active: boolean;
   windowId: string;
-  profileId: string;
+  spaceId: string;
   currentTabId?: string;
   currentUrl?: string;
   scope: SearchScope | null;
   preventInline?: boolean;
 }): SuggestionResult {
   const allTabs = useTabs((tabs) => tabs);
-  const history = useProfileHistory(profileId);
+  const history = useSpaceHistory(spaceId);
   const bookmarks = useBookmarks((b) => b);
   const bookmarkEngine = useBookmarkEngine(windowId);
   const engines = useSettings((st) => searchEngines(st));
@@ -79,7 +79,7 @@ export function useSuggestions({
   const shortcuts = useSettings((st) => st.shortcuts);
   const menuBar = useMenuBarRevision();
 
-  const tabs = useMemo(() => Object.values(allTabs).filter((t) => t.profileId === profileId), [allTabs, profileId]);
+  const tabs = useMemo(() => Object.values(allTabs).filter((t) => t.spaceId === spaceId), [allTabs, spaceId]);
   const bookmarkRows = useMemo(() => engineBookmarks(bookmarks, bookmarkEngine), [bookmarks, bookmarkEngine]);
   const source = useMemo(() => ({ tabs, history, bookmarks: bookmarkRows }), [tabs, history, bookmarkRows]);
 

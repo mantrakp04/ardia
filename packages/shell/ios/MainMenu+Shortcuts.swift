@@ -3,7 +3,7 @@ import ArdiaCore
 
 extension MainMenu {
   private static let dynamicCommands: Set<String> = [
-    "openBookmark", "restoreClosed", "moveTabToProfile", "moveTabToWindow", "addBookmarkToFolder",
+    "openBookmark", "restoreClosed", "moveTabToSpace", "moveTabToWindow", "addBookmarkToFolder",
     "addFolderToSidebar", "restoreArcFolders",
   ]
 
@@ -135,7 +135,7 @@ extension MainMenu {
         }
       }
     }
-    for case let item as CommandItem in profiles.items where item.commandAlternateOf != nil {
+    for case let item as CommandItem in spaces.items where item.commandAlternateOf != nil {
       item.applyAlternate(bindings[item.shortcutId] ?? [])
     }
   }

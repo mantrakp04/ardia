@@ -2,7 +2,7 @@
   "$schema": "https://www.raycast.com/schemas/extension.json",
   "name": "ardia",
   "title": "Ardia",
-  "description": "Search and switch Ardia's tabs and profiles, and open new tabs and windows",
+  "description": "Search and switch Ardia's tabs and spaces, and open new tabs and windows",
   "icon": "icon.png",
   "author": "mantrakp04",
   "contributors": [
@@ -24,10 +24,10 @@
       "mode": "view"
     },
     {
-      "name": "search-profiles",
-      "title": "Search Profiles",
+      "name": "search-spaces",
+      "title": "Search Spaces",
       "subtitle": "Ardia",
-      "description": "Search your Ardia profiles and show one in the front window or a new one",
+      "description": "Search your Ardia spaces and show one in the front window or a new one",
       "mode": "view"
     },
     {
@@ -49,11 +49,11 @@
       "name": "new-window",
       "title": "New Window",
       "subtitle": "Ardia",
-      "description": "Open a new Ardia window in the profile you name, or in the default profile",
+      "description": "Open a new Ardia window in the space you name, or in the default space",
       "mode": "no-view",
       "arguments": [
         {
-          "name": "profile",
+          "name": "space",
           "placeholder": "Profile",
           "type": "text",
           "required": false

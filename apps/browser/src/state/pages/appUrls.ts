@@ -4,6 +4,7 @@ import { SETTINGS_PANES, type SettingsPane } from "../settings/settingsWindows";
 const PANE_ALIASES: Record<string, SettingsPane> = {
   people: "profiles",
   manageprofile: "profiles",
+  managespace: "spaces",
   syncsetup: "sync",
   addresses: "autofill",
   payments: "autofill",

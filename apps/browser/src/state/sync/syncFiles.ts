@@ -1,8 +1,9 @@
 import { readDocument, removeDocument, saveDocument, writeDocument } from "../../platform/documents";
 import { Clock, emptyScope, restoreJournal, SyncNative, writtenSeq, type LogFile, type ScopeState, type SyncRecord } from "../../platform/sync";
+import { useBrowser } from "../browser/store";
+import { syncWithSpaces } from "../../lib/workspaceUpgrade";
 import { parseSaved, unchanged, versionedJson, type Migrations, type SavedObject } from "../../lib/savedDocument";
-import { profileScope } from "./records";
-import { APP_SCOPE, DOC, DOC_MIGRATIONS, DOC_VERSION, JOURNAL, STATE, defaultTypes, emptyDoc, type SyncDoc } from "./syncDoc";
+import { APP_SCOPE, profileScope, spaceScope, DOC, DOC_MIGRATIONS, DOC_VERSION, JOURNAL, STATE, defaultTypes, emptyDoc, type SyncDoc } from "./syncDoc";
 import { isFields, numberOr, stringOr } from "../../lib/decode";
 
 type Journal = Record<string, LogFile[]>;
@@ -45,7 +46,7 @@ const JOURNAL_BYTES_LIMIT = 1_000_000;
 const JOURNAL_PARTS_LIMIT = 400;
 const DOC_IDLE_MS = 5 * 60_000;
 
-const journalPart = (n: number) => `sync-journal-${n}.nns`;
+const journalPart = (n: number) => `sync-spaces-journal-${n}.nns`;
 
 const openSealed = async (sealed: string | null | undefined) => (sealed ? ((await SyncNative?.openLocal(sealed)) ?? null) : null);
 
@@ -105,7 +106,9 @@ export function syncFiles(current: () => SyncDoc) {
   function read(): SyncDoc | null {
     try {
       const json = readDocument(DOC);
-      const saved = parseSaved(json, DOC_VERSION, DOC_MIGRATIONS, "v") as SyncDoc | null;
+      const value = json ? JSON.parse(json) : null;
+      const migrated = isFields(value) && (value.v === undefined || value.v === 0 || value.v === 1) ? JSON.stringify(syncWithSpaces(value, { profiles: useBrowser.getState().profiles, spaces: useBrowser.getState().spaces })) : json;
+      const saved = parseSaved(migrated, DOC_VERSION, DOC_MIGRATIONS, "v") as SyncDoc | null;
       const loaded = saved ? { ...emptyDoc(), ...saved, types: { ...defaultTypes(), ...saved.types }, scopes: {} } : null;
       docFile.json = json ?? "";
       return loaded;
@@ -139,7 +142,7 @@ export function syncFiles(current: () => SyncDoc) {
       const { scopes, covers, clock: savedClock } = readCheckpoint(parseSaved(await openSealed(sealedState), CHECKPOINT_VERSION, CHECKPOINT_MIGRATIONS));
       const parts = await readJournal();
       const doc = current();
-      const live = new Set([APP_SCOPE, ...Object.values(doc.profiles).map((link) => profileScope(link.syncId))]);
+      const live = new Set([APP_SCOPE, ...Object.values(doc.spaces).map((link) => spaceScope(link.syncId)), ...Object.values(doc.profiles).map((link) => profileScope(link.syncId))]);
       const clock = new Clock(doc.deviceId ?? "", doc.clock);
       if (savedClock) clock.observe(savedClock);
       const batches: Journal = {};
@@ -259,7 +262,7 @@ export function syncFiles(current: () => SyncDoc) {
     return countedParts() >= JOURNAL_PARTS_LIMIT || journal.bytes >= JOURNAL_BYTES_LIMIT || Date.now() - state.savedAt >= STATE_EVERY_MS;
   }
 
-  async function saveState() {
+  async function saveState(required = false) {
     const doc = current();
     if (!doc.enabled) {
       if (state.onDisk || state.wanted) writeDocument(STATE, "");
@@ -277,10 +280,12 @@ export function syncFiles(current: () => SyncDoc) {
     if (json !== state.json) {
       try {
         const sealed = await SyncNative?.sealLocal(`{"covers":${covers},"clock":${JSON.stringify(seen.last)},"scopes":${json},"version":${CHECKPOINT_VERSION}}`);
-        if (!sealed) return;
+        if (!sealed) { if (required) throw new Error("The sync upgrade could not be saved securely. Try again."); return; }
         await saveDocument(STATE, sealed);
       } catch (error) {
         console.warn("[sync] couldn't save the sync state", error);
+        state.wanted = true;
+        if (required) throw error;
         return;
       }
       Object.assign(state, { json, onDisk: true });
@@ -291,7 +296,7 @@ export function syncFiles(current: () => SyncDoc) {
 
   function save() {
     saveDoc();
-    void serial(saveState);
+    void serial(() => saveState());
   }
 
   function startOver() {
@@ -303,11 +308,12 @@ export function syncFiles(current: () => SyncDoc) {
     });
   }
 
-  function checkpoint() {
-    saveDoc();
+  function checkpoint(required = false) {
+    if (!required) saveDoc();
     return serial(async () => {
       if (state.loaded && current().enabled) state.wanted = true;
-      await saveState();
+      await saveState(required);
+      if (required) saveDoc();
     });
   }
 

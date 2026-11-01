@@ -76,6 +76,7 @@ export type Extraction = {
 
 export type ApplyRecords = {
   known(key: string): boolean;
+  stamp?(key: string): HLC | undefined;
   now: number;
   horizon: number;
   joined: boolean;

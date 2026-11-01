@@ -1,6 +1,6 @@
 import type { StateCreator } from "zustand";
 import type { BrowserState } from "../browser/store";
-import { activeTabId, inPinnedContainer, isIncognitoProfile, pinSection, viewTabIds, without } from "../browser/model";
+import { activeTabId, inPinnedContainer, isIncognitoSpace, pinSection, viewTabIds, without } from "../browser/model";
 import { hasPage } from "../tabs/pageSession";
 import { holderOf } from "./pinShare";
 import { splitOf, splitTabIds, splitTabIdsOf } from "../splits/splits";
@@ -19,14 +19,14 @@ export type ClearedTabs = {
   tabIds: string[];
   groups: TabGroup[];
   fingerprint: string;
-  profileId: string;
+  spaceId: string;
   remoteDeletions: number;
 };
 
 const remotePinDeletions = new Map<string, number>();
 
-export function noteRemotePinDeletion(profileId: string) {
-  remotePinDeletions.set(profileId, (remotePinDeletions.get(profileId) ?? 0) + 1);
+export function noteRemotePinDeletion(spaceId: string) {
+  remotePinDeletions.set(spaceId, (remotePinDeletions.get(spaceId) ?? 0) + 1);
 }
 
 export function unpinnedTabIds(s: BrowserState, windowId: string): string[] {
@@ -56,7 +56,7 @@ function windowFingerprint(s: BrowserState, windowId: string): string {
   const inWindow = (id: string) => s.tabs[id]?.windowId === windowId;
   const tabs = w.tabIds.map((id) => {
     const t = s.tabs[id];
-    return t ? [id, t.profileId, pinSection(t), tileFolderOf(t)?.id ?? ""].join(" ") : id;
+    return t ? [id, t.spaceId, pinSection(t), tileFolderOf(t)?.id ?? ""].join(" ") : id;
   });
   const groups = Object.values(s.groups)
     .filter((g) => g.windowId === windowId)
@@ -69,7 +69,7 @@ function windowFingerprint(s: BrowserState, windowId: string): string {
   return [...tabs, "", ...groups, "", ...splits].join("\n");
 }
 
-export function undoable(before: BrowserState, after: BrowserState, windowId: string, profileId: string, entries: ClosedTab[]): ClearedTabs {
+export function undoable(before: BrowserState, after: BrowserState, windowId: string, spaceId: string, entries: ClosedTab[]): ClearedTabs {
   return {
     windowId,
     entries,
@@ -77,15 +77,15 @@ export function undoable(before: BrowserState, after: BrowserState, windowId: st
     tabIds: before.windows[windowId]!.tabIds,
     groups: Object.values(before.groups).filter((g) => g.windowId === windowId),
     fingerprint: windowFingerprint(after, windowId),
-    profileId,
-    remoteDeletions: remotePinDeletions.get(profileId) ?? 0,
+    spaceId,
+    remoteDeletions: remotePinDeletions.get(spaceId) ?? 0,
   };
 }
 
 export function canUndoClear(s: BrowserState, cleared: ClearedTabs): boolean {
   const closed = new Set(s.closedTabs.map((c) => c.id));
   return (
-    (remotePinDeletions.get(cleared.profileId) ?? 0) === cleared.remoteDeletions &&
+    (remotePinDeletions.get(cleared.spaceId) ?? 0) === cleared.remoteDeletions &&
     cleared.closedEntryIds.every((id) => closed.has(id)) &&
     windowFingerprint(s, cleared.windowId) === cleared.fingerprint
   );
@@ -155,7 +155,7 @@ export function abandonedNewTabs(s: BrowserState, windowId: string): string[] {
   const w = s.windows[windowId];
   if (!w) return [];
   const selected = new Set(Object.values(w.activeTabIds));
-  const shown = w.activeTabIds[w.profileId];
+  const shown = w.activeTabIds[w.spaceId];
   const out = w.tabIds.filter((id) => {
     const t = s.tabs[id];
     return !!t && t.windowId === w.id && !t.url && !hasPage(t) && !t.pin && id !== shown && !selected.has(id);
@@ -222,7 +222,7 @@ export const createCleanUpSlice: StateCreator<BrowserState, [], [], CleanUpSlice
       : { ...s, cleanedTabs: left };
     for (const e of entries) {
       const windowId = privateId ? (next.windows[privateId]?.kind === "private" ? privateId : undefined) : restoreTarget(next, e.windowId);
-      if (!windowId || (isIncognitoProfile(e.tab.profileId) && e.windowId !== windowId)) continue;
+      if (!windowId || (isIncognitoSpace(e.tab.spaceId) && e.windowId !== windowId)) continue;
       const [restored, [id]] = restoreSnapshots(next, windowId, [{ tab: e.tab, tabId: e.restoreFrom ?? e.tabId, index: windowId === e.windowId ? e.index : undefined }]);
       next = restored;
       if (id && e.group) next = regroupRestored(next, windowId, [e], [id]);
@@ -237,7 +237,7 @@ export const createCleanUpSlice: StateCreator<BrowserState, [], [], CleanUpSlice
     if (!ids.length) return null;
     const entries = closedEntries(s, ids);
     get().closeTabs(ids);
-    return undoable(s, get(), windowId, s.windows[windowId]!.profileId, entries);
+    return undoable(s, get(), windowId, s.windows[windowId]!.spaceId, entries);
   },
 
   undoClearTabs(cleared) {
@@ -274,7 +274,7 @@ export const createCleanUpSlice: StateCreator<BrowserState, [], [], CleanUpSlice
     const windowId = s.tabs[id]!.windowId;
     set(removeTabs(s, [id], true));
     const after = get();
-    return undoable(s, after, windowId, s.tabs[id]!.profileId, after.closedTabs.filter((c) => !s.closedTabs.includes(c)));
+    return undoable(s, after, windowId, s.tabs[id]!.spaceId, after.closedTabs.filter((c) => !s.closedTabs.includes(c)));
   },
 
   closeAbandonedNewTabs() {

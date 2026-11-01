@@ -47,7 +47,7 @@ export function searchSelection(tabId: string, text: string, modifiers: ClickMod
   const url = searchUrl(defaultSearchEngine(store().settings), query);
   const mode = openModeFor(modifiers);
   const disposition = mode === "current" || mode === "incognito" ? "foreground" : mode;
-  openFromPage({ url, disposition }, { windowId: tab.windowId, profileId: tab.profileId, tabId });
+  openFromPage({ url, disposition }, { windowId: tab.windowId, spaceId: tab.spaceId, tabId });
 }
 
 const SELECTION_CONTEXT = `(() => {

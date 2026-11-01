@@ -15,33 +15,32 @@ export const isSmall = (s: Pick<BrowserState, "windows">, windowId?: string | nu
 
 const isMain = (w: BrowserWindow | undefined): w is BrowserWindow => isRegularWindow(w) && !isWindowClosing(w.id);
 
-export function mainWindowFor(s: BrowserState, profileId?: string): string | undefined {
+export function mainWindowFor(s: BrowserState, spaceId?: string): string | undefined {
   const order = [...new Set([...s.ui.focusOrder, ...s.windowOrder])].filter((id) => isMain(s.windows[id]));
-  return (profileId ? order.find((id) => s.windows[id]!.profileId === profileId) : undefined) ?? order[0];
+  return (spaceId ? order.find((id) => s.windows[id]!.spaceId === spaceId) : undefined) ?? order[0];
 }
 
-export function originalProfile(s: Pick<BrowserState, "profiles">, w: BrowserWindow | undefined): string | undefined {
-  const id = w?.kind === "private" ? incognitoOriginal(w.profileId) : w?.profileId;
-  return id && s.profiles[id] ? id : undefined;
+export function originalSpace(s: Pick<BrowserState, "spaces">, w: BrowserWindow | undefined): string | undefined {
+  const id = w?.kind === "private" ? incognitoOriginal(w.spaceId) : w?.spaceId;
+  return id && s.spaces[id] ? id : undefined;
 }
 
-export const linkProfileOf = (s: Pick<BrowserState, "profiles">, w: BrowserWindow | undefined): string | undefined =>
-  isSmallWindow(w) ? undefined : originalProfile(s, w);
+export const linkSpaceOf = (s: Pick<BrowserState, "spaces">, w: BrowserWindow | undefined): string | undefined =>
+  isSmallWindow(w) ? undefined : originalSpace(s, w);
 
-export function privateWindowProfile(s: Pick<BrowserState, "profiles" | "profileOrder">, w: BrowserWindow | undefined, engineName?: string) {
-  const named = engineName !== undefined ? s.profileOrder.find((p) => engineProfile(s, p) === engineName) : undefined;
-  return named ?? originalProfile(s, w);
+export function privateWindowSpace(s: Pick<BrowserState, "spaces" | "spaceOrder" | "profiles">, w: BrowserWindow | undefined, engineName?: string) {
+  const original = originalSpace(s, w);
+  if (engineName === undefined || original && engineProfile(s, original) === engineName) return original;
+  const named = s.spaceOrder.find((p) => engineProfile(s, p) === engineName);
+  return named ?? originalSpace(s, w);
 }
 
-export const newWindowProfile = (s: BrowserState, windowId?: string | null): string =>
-  originalProfile(s, windowId ? s.windows[windowId] : undefined) ?? lastActiveProfile(s);
-
-export function lastActiveProfile(s: Pick<BrowserState, "profiles" | "windows" | "windowOrder" | "ui" | "settings">): string {
-  const last = s.ui.lastProfileId;
-  if (last && s.profiles[last]) return last;
+export function lastActiveSpace(s: Pick<BrowserState, "spaces" | "windows" | "windowOrder" | "ui" | "settings">): string {
+  const last = s.ui.lastSpaceId;
+  if (last && s.spaces[last]) return last;
   for (const id of [...s.ui.focusOrder, ...[...s.windowOrder].reverse()]) {
-    const profile = linkProfileOf(s, s.windows[id]);
-    if (profile) return profile;
+    const space = linkSpaceOf(s, s.windows[id]);
+    if (space) return space;
   }
-  return s.settings.defaultProfileId;
+  return s.settings.defaultSpaceId;
 }

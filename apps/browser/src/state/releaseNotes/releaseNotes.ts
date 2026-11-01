@@ -25,7 +25,7 @@ const RELEASE_NOTES: ReleaseNotes[] = [
       { title: "Tab groups and pinned tabs", body: "Group related tabs, pin the ones you live in, and let Clean Up Tabs tidy the rest." },
       { title: "Picture in Picture that stays out of the way", body: "Stash a video at the edge of the screen; click its site name to jump back to the tab." },
       { title: "Bring everything with you", body: "Import bookmarks, history, passwords and open tabs from Chrome, Safari, Arc and more." },
-      { title: "Profiles with their own colour", body: "Keep work and personal apart, each with its own theme on the New Tab page." },
+      { title: "Spaces with their own colour", body: "Keep work and personal apart, each with its own theme on the New Tab page." },
     ],
   },
 ];

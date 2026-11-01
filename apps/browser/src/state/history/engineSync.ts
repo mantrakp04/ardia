@@ -3,10 +3,10 @@ import { readDocument } from "../../platform/documents";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { afterFirstWindow } from "../../lib/afterFirstWindow";
 import { MAX_HISTORY, MAX_VISIT_TIMES } from "./history";
-import { engineProfile, isIncognitoProfile } from "../browser/model";
+import { engineProfileForSpace, isIncognitoSpace } from "../browser/model";
 import type { HistoryEntry } from "../browser/types";
 import { isWebPageUrl } from "../../lib/url";
-import { engineProfiles } from "../profiles/engineProfiles";
+import { engineSpaces } from "../spaces/engineSpaces";
 import { migrateLegacyFile } from "../app/legacyFiles";
 
 const LEGACY_FILE = "history.json";
@@ -33,7 +33,7 @@ let legacyMoved = false;
 
 function setView(engine: string, list: HistoryEntry[], floor?: number) {
   useBrowser.setState((s) => {
-    if (!engineProfiles(s).includes(engine)) return {};
+    if (!engineSpaces(s).includes(engine)) return {};
     const was = s.history[engine];
     const full = list.length >= MAX_HISTORY ? list[list.length - 1]!.lastVisit : -Infinity;
     const next = { list, floor: Math.max(floor ?? was?.floor ?? -Infinity, full), ready: legacyMoved || !!was?.ready };
@@ -115,7 +115,7 @@ function load(engine: string): Promise<void> {
         loaded.add(engine);
       } while (state.again);
     } catch (error) {
-      console.warn(`[history] couldn't read ${engine || "the default profile"}'s history`, error);
+      console.warn(`[history] couldn't read ${engine || "the default space"}'s history`, error);
     } finally {
       loads.delete(engine);
     }
@@ -165,9 +165,9 @@ export const migrateHistoryFile = (now = Date.now(), { keepMs = LEGACY_KEPT_MS }
 async function moveHistory(file: LegacyFile, now: number) {
   const s = store();
   const perEngine = new Map<string, HistoryEntry[]>();
-  for (const [profileId, list] of Object.entries(file.history ?? {})) {
-    if (!s.profiles[profileId] || isIncognitoProfile(profileId) || !Array.isArray(list)) continue;
-    const engine = engineProfile(s, profileId);
+  for (const [spaceId, list] of Object.entries(file.history ?? {})) {
+    if (!s.spaces[spaceId] || isIncognitoSpace(spaceId) || !Array.isArray(list)) continue;
+    const engine = engineProfileForSpace(spaceId);
     if (!perEngine.has(engine)) perEngine.set(engine, list);
   }
   for (const engine of perEngine.keys()) migrating.add(engine);
@@ -191,7 +191,7 @@ async function moveHistory(file: LegacyFile, now: number) {
 export function startHistory() {
   const events = onHistoryChanged(changed);
   const loadAll = (s: Pick<BrowserState, "profiles">) => {
-    for (const engine of engineProfiles(s)) if (!loaded.has(engine) && !loads.has(engine)) void load(engine);
+    for (const engine of engineSpaces(s)) if (!loaded.has(engine) && !loads.has(engine)) void load(engine);
   };
   let moving = readDocument(LEGACY_FILE) !== null;
   let stopped = false;
@@ -222,4 +222,4 @@ export function startHistory() {
   };
 }
 
-export const reloadHistory = () => Promise.all(engineProfiles(store()).map(load));
+export const reloadHistory = () => Promise.all(engineSpaces(store()).map(load));

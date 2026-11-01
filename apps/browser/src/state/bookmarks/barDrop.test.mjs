@@ -11,13 +11,13 @@ const S = () => useBrowser.getState();
 function seed() {
   useBrowser.setState({ bookmarks: { nodes: {} } });
   S().hydrate({});
-  const add = (title, parentId) => S().addBookmark({ profileId: "default", url: `https://${title.toLowerCase()}.example/`, title, parentId });
+  const add = (title, parentId) => S().addBookmark({ spaceId: "default", url: `https://${title.toLowerCase()}.example/`, title, parentId });
   const a = add("A");
   const b = add("B");
-  const f = S().addBookmarkFolder({ profileId: "default", title: "F" });
+  const f = S().addBookmarkFolder({ spaceId: "default", title: "F" });
   const c = add("C");
   const x = add("X", f);
-  const g = S().addBookmarkFolder({ profileId: "default", title: "G", parentId: f });
+  const g = S().addBookmarkFolder({ spaceId: "default", title: "G", parentId: f });
   const y = add("Y", g);
   const roots = bookmarkRoots(S(), "default");
   return { a, b, c, f, g, x, y, bar: roots.bar, other: roots.other };
@@ -159,9 +159,9 @@ test("a drop reaches Chrome's bookmarks as a move, so sync and the bookmark mana
   const stop = startBookmarks();
   await settle();
   await reloadBookmarks();
-  const add = (title, parentId) => S().addBookmark({ profileId: "default", url: `https://${title.toLowerCase()}.example/`, title, parentId });
+  const add = (title, parentId) => S().addBookmark({ spaceId: "default", url: `https://${title.toLowerCase()}.example/`, title, parentId });
   const a = add("A");
-  const f = S().addBookmarkFolder({ profileId: "default", title: "F" });
+  const f = S().addBookmarkFolder({ spaceId: "default", title: "F" });
   const x = add("X", f);
   await settle();
   const bar = bookmarkRoots(S(), "default").bar;

@@ -3,7 +3,7 @@ import { AppState } from "react-native";
 import { useBrowser, type BrowserState } from "../browser/store";
 import { activeTabId } from "../browser/model";
 import { usePages } from "../tabs/pageState";
-import { extensionProfile, useExtensions, windowExtensions } from "./store";
+import { extensionSpace, useExtensions, windowExtensions } from "./store";
 import { syncSidePanel, wantedSidePanels } from "./sidePanels";
 import { refreshExtensionsAfterChange } from "./actions";
 import { refreshActionStates } from "./actionStates";
@@ -24,11 +24,11 @@ function pollActionStates() {
   }, ACTION_POLL_MS);
 }
 
-const loadedProfiles = new Set<string>();
+const loadedSpaces = new Set<string>();
 
 export function watchActionsOf(profile: string): boolean {
-  if (loadedProfiles.has(profile)) return false;
-  loadedProfiles.add(profile);
+  if (loadedSpaces.has(profile)) return false;
+  loadedSpaces.add(profile);
   void watchExtensionActions(profile)
     .then(
       () => true,
@@ -42,7 +42,7 @@ const dirtyActions = new Set<string>();
 const dirtyLists = new Set<string>();
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
-const windowsOf = (s: BrowserState, profile: string) => s.windowOrder.filter((windowId) => extensionProfile(s, windowId) === profile);
+const windowsOf = (s: BrowserState, profile: string) => s.windowOrder.filter((windowId) => extensionSpace(s, windowId) === profile);
 
 function showsAction(profile: string, extensionId: string) {
   const s = useBrowser.getState();
@@ -55,14 +55,14 @@ function showsAction(profile: string, extensionId: string) {
 function flushActionChanges() {
   flushTimer = null;
   if (AppState.currentState !== "active") return;
-  for (const profile of dirtyLists) if (loadedProfiles.has(profile)) void refreshExtensionsAfterChange(profile);
+  for (const profile of dirtyLists) if (loadedSpaces.has(profile)) void refreshExtensionsAfterChange(profile);
   dirtyLists.clear();
   if (dirtyActions.size) {
     const profiles = [...dirtyActions];
     dirtyActions.clear();
     void refreshActionStates(profiles);
     const s = useBrowser.getState();
-    for (const [windowId] of wantedSidePanels()) if (profiles.includes(extensionProfile(s, windowId))) void syncSidePanel(windowId);
+    for (const [windowId] of wantedSidePanels()) if (profiles.includes(extensionSpace(s, windowId))) void syncSidePanel(windowId);
   }
 }
 

@@ -40,7 +40,7 @@ export function MiniPlayer({ tabId, onBackToTab }: { tabId: string; onBackToTab:
 
   return (
     <View style={{ width, height: MINI_PLAYER_HEIGHT }}>
-      <AlbumArt tabId={tabId} profileId={tab.profileId} session={session} url={tab.url} favicon={tab.favicon} tokens={tokens} muted={!!mute} onPress={onBackToTab} onUnmute={() => toggleMute(tabId)} />
+      <AlbumArt tabId={tabId} spaceId={tab.spaceId} session={session} url={tab.url} favicon={tab.favicon} tokens={tokens} muted={!!mute} onPress={onBackToTab} onUnmute={() => toggleMute(tabId)} />
       <View style={{ position: "absolute", left: TEXT_X, top: 10, width: textWidth }}>
         <Marquee id="title" text={title} group={group} height={18} background={tokens.backgroundRgb} style={{ ...font.body, fontWeight: weight.semibold, color: tokens.label }} />
       </View>
@@ -117,7 +117,7 @@ function TransportButton({
 
 function AlbumArt({
   tabId,
-  profileId,
+  spaceId,
   session,
   url,
   favicon,
@@ -127,7 +127,7 @@ function AlbumArt({
   onUnmute,
 }: {
   tabId: string;
-  profileId: string;
+  spaceId: string;
   session: Session;
   url: string;
   favicon: string | null;
@@ -159,7 +159,7 @@ function AlbumArt({
             </Animated.View>
           ) : (
             <View style={{ opacity: 0.5 }}>
-              <Favicon url={url} favicon={favicon} size={24} profileId={profileId} />
+              <Favicon url={url} favicon={favicon} size={24} spaceId={spaceId} />
             </View>
           )}
           {hovered ? (

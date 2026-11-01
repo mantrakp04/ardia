@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { goToSettingsPane, useSettingsNav, type SettingsPane } from "./settingsWindows";
-import { settingsProfileFor } from "../extensions/store";
+import { settingsSpaceFor } from "../extensions/store";
 
 type SearchUi = {
   query: string;
@@ -31,7 +31,7 @@ export const clearSettingsReveal = () => useSettingsSearch.setState({ reveal: nu
 export function revealSetting({ id, pane, section }: { id: string; pane: SettingsPane; section: string }) {
   const key = settingsSectionKey(pane, section);
   useSettingsSearch.setState((s) => (s.revealedSections.includes(key) ? {} : { revealedSections: [...s.revealedSections, key] }));
-  goToSettingsPane(pane, settingsProfileFor(pane, useSettingsNav.getState()));
+  goToSettingsPane(pane, settingsSpaceFor(pane, useSettingsNav.getState()));
   useSettingsSearch.setState({ reveal: { id, at: Date.now() } });
 }
 

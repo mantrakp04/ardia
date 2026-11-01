@@ -69,7 +69,7 @@ function barShownIn(windowId: string) {
   return mode === "always" || (mode === "newTab" && !(active && s.tabs[active]?.url));
 }
 
-export async function openBarMenu(windowId: string, profileId: string, node: BookmarkNode | null) {
+export async function openBarMenu(windowId: string, spaceId: string, node: BookmarkNode | null) {
   const s = useBrowser.getState();
   const barShown = barShownIn(windowId);
   const target: BarMenuTarget =
@@ -80,7 +80,7 @@ export async function openBarMenu(windowId: string, profileId: string, node: Boo
         : null;
   const choice = await showMenu(barMenuItems(target, { barShown, size: useBrowser.getState().settings.bookmarksBarSize }));
   if (!choice) return;
-  const bar = bookmarkRoots(s, profileId)?.bar;
+  const bar = bookmarkRoots(s, spaceId)?.bar;
   if (node?.kind === "url") {
     if (runLinkChoice(choice, [node], windowId)) return;
     if (choice === "edit") void editBookmark(node.id, windowId);
@@ -94,10 +94,10 @@ export async function openBarMenu(windowId: string, profileId: string, node: Boo
   if (choice === "delete" && node) removeBookmark(node.id);
   const parentId = node?.parentId ?? bar;
   const index = node && parentId ? (folderChildren(currentBookmarks(), parentId).findIndex((n) => n.id === node.id) + 1) : undefined;
-  if (choice === "addPage") void editBookmark(null, windowId, { profileId, parentId: parentId ?? undefined, index });
+  if (choice === "addPage") void editBookmark(null, windowId, { spaceId, parentId: parentId ?? undefined, index });
   if (choice === "addFolder") {
     const title = await prompt({ title: "New Folder", placeholder: "Folder name", confirmTitle: "Create", windowId });
-    if (title) addBookmarkFolder({ profileId, title, parentId: parentId ?? undefined, index });
+    if (title) addBookmarkFolder({ spaceId, title, parentId: parentId ?? undefined, index });
   }
   if (choice === "manage") openInternalPage("bookmarks", windowId);
   if (choice === "toggleBar") updateSettings({ bookmarksBar: barShownIn(windowId) ? "never" : "always" });

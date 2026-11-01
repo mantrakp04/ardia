@@ -8,21 +8,21 @@ import { pinnedOrderAdapter } from "./pinnedOrderAdapter";
 import { pinnedRowsAdapter } from "./pinnedRowsAdapter";
 import { tileFoldersAdapter } from "./tileFoldersAdapter";
 
-export function pinnedAreaAdapters(profileId: string): Adapter[] {
+export function pinnedAreaAdapters(spaceId: string, workspaceOnly = false): Adapter[] {
   return [
-    tileFoldersAdapter(profileId),
-    pinnedRowsAdapter(profileId),
-    pinnedOrderAdapter(profileId),
-    groupLooksAdapter(profileId),
-    inTodaysNames(pinnedHomesAdapter(profileId)),
-    inTodaysNames(pinnedAdapter(profileId)),
+    ...(!workspaceOnly ? [tileFoldersAdapter(spaceId)] : []),
+    pinnedRowsAdapter(spaceId, workspaceOnly),
+    pinnedOrderAdapter(spaceId),
+    groupLooksAdapter(spaceId),
+    inTodaysNames(pinnedHomesAdapter(spaceId)),
+    inTodaysNames(pinnedAdapter(spaceId, workspaceOnly)),
   ];
 }
 
-export function pinnedAdapter(profileId: string): Adapter {
+export function pinnedAdapter(spaceId: string, workspaceOnly = false): Adapter {
   return {
     prefix: "pin",
-    extract: (base, queued, now, _known, _remote, stamp) => extractPinned(profileId, base, queued, now, stamp),
-    apply: (visible, changed, base, records) => applyPinned(profileId, visible, changed, base, records),
+    extract: (base, queued, now, _known, _remote, stamp) => extractPinned(spaceId, base, queued, now, stamp, workspaceOnly),
+    apply: (visible, changed, base, records) => applyPinned(spaceId, visible, changed, base, records, workspaceOnly),
   };
 }

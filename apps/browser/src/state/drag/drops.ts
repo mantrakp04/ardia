@@ -133,7 +133,7 @@ export function stepDrop(s: BrowserState, tabId: string, delta: 1 | -1): Drop {
   const blocks: { key: string; ids: string[] }[] = [];
   for (const id of w.tabIds) {
     const t = s.tabs[id];
-    if (t?.profileId !== tab.profileId || lane(id) !== lane(tabId)) continue;
+    if (t?.spaceId !== tab.spaceId || lane(id) !== lane(tabId)) continue;
     const key = blockOf(id);
     if (key === null) continue;
     const last = blocks.at(-1);

@@ -4,21 +4,25 @@ import { confirm } from "../app/system";
 import { plural } from "../browser/model";
 import { MAX_DRAFT_LINKS } from "../groups/draftGroups";
 import { createProfile } from "../profiles/actions";
+import { addSpace } from "../spaces/actions";
 import {
   applyResult,
   emptyCounts,
   importArcSpace,
-  importDiaProfile,
-  profileColorFor,
-  profileNamed,
+  importDiaSpace,
+  importDestination,
+  IMPORT_DESTINATION_CHANGED,
+  spaceColorFor,
+  spaceNamed,
   type BrowserProfile,
   type DiaTabsResult,
   type ImportCounts,
   type ImportedExtension,
   type ImportKind,
   type ImportResult,
+  type ImportDestination,
 } from "./apply";
-import { diaProfilesFor } from "./diaTabs";
+import { diaSpacesFor } from "./diaTabs";
 import {
   APP_TAB_KINDS,
   ENCRYPTED_KINDS,
@@ -27,6 +31,7 @@ import {
   IMPORT_KINDS,
   importSignal,
   importsBySpaces,
+  NO_EXTENSIONS,
   patchImport,
   spacesOf,
   startProgress,
@@ -49,8 +54,9 @@ export function continueImport() {
 }
 
 export async function unlockAndImport() {
-  const { source, step } = importNow();
+  const { source, step, target } = importNow();
   if (!source) return;
+  const targetOwner = importDestination(target);
   const signal = importSignal();
   patchImport({ step: { name: "unlock", unlocking: true, error: step.name === "unlock" ? step.error : null } });
   try {
@@ -60,7 +66,7 @@ export async function unlockAndImport() {
       patchImport({ step: { name: "unlock", unlocking: false, error: `macOS didn't allow access to ${source.name}'s keychain item. Try again, or skip the encrypted data.` } });
     return;
   }
-  if (!signal.aborted) void runImport(importNow().kinds);
+  if (!signal.aborted) return runImport(importNow().kinds, false, targetOwner);
 }
 
 export function skipEncryptedData() {
@@ -71,20 +77,9 @@ export function skipEncryptedData() {
   void runImport(kinds, true);
 }
 
-async function destination(target: string, index: number, name: string, color?: string, emoji?: string, shareWith?: string | null): Promise<string> {
+async function destination(target: ImportDestination | null, index: number, name: string, color?: string, emoji?: string, profileId?: string): Promise<ImportDestination | null> {
   if (index === 0) return target;
-  const clash = profileNamed(name);
-  if (clash) {
-    const { confirmed } = await confirm({
-      title: "Import as new profile?",
-      message:
-        "Import this data as a new profile to avoid data loss. If you replace a profile, your passwords, cookies, and payment info will be replaced, while your bookmarks and history will be combined.",
-      confirmTitle: "Import as new profile",
-      cancelTitle: "Replace this profile",
-    });
-    if (!confirmed) return clash;
-  }
-  return createProfile({ name, color: profileColorFor(color), icon: emoji ?? null, shareWith });
+  return importDestination(addSpace({ name, color: spaceColorFor(color), icon: emoji ?? null, profileId }));
 }
 
 type AppTabs = { result: DiaTabsResult } | { note: string };
@@ -107,14 +102,15 @@ function readAppTabs(): Promise<AppTabs> {
 
 function importAppTabs(dest: string, tabs: AppTabs, profiles: BrowserProfile[], profileId: string, wanted: ReadonlySet<ImportKind>): number {
   if (!("result" in tabs)) return 0;
-  const dia = diaProfilesFor(tabs.result, profiles).get(profileId);
+  const dia = diaSpacesFor(tabs.result, profiles).get(profileId);
   if (!dia) return 0;
-  return importDiaProfile(dest, dia, { pinned: wanted.has("pinnedTabs"), open: wanted.has("tabs") }, tabs.result.favicons);
+  return importDiaSpace(dest, dia, { pinned: wanted.has("pinnedTabs"), open: wanted.has("tabs") }, tabs.result.favicons);
 }
 
-export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = false) {
-  const { source, sourceProfiles, spaces, target } = importNow();
+export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = false, targetOwner: ImportDestination | null = importDestination(importNow().target)) {
+  const { source, sourceProfiles, spaces } = importNow();
   if (!source) return;
+  const targetIsCurrent = () => targetOwner !== null && targetOwner.current() && importNow().target === targetOwner.spaceId;
   const api = importModule();
   const signal = importSignal();
   const bySpaces = importsBySpaces(source);
@@ -125,22 +121,43 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
   const order = IMPORT_KINDS.filter((k) => requested.includes(k));
   const fromApp = source.asksAppForTabs ? order.filter((k) => APP_TAB_KINDS.includes(k)) : [];
   const fromFiles = order.filter((k) => !fromApp.includes(k));
-  startProgress(Object.fromEntries(order.map((k) => [k, fromApp.includes(k) ? "active" : "pending"])), bySpaces ? Math.max(1, spaces.length) : selected.length);
+  startProgress(Object.fromEntries(order.map((k) => [k, fromApp.includes(k) ? "active" : "pending"])), bySpaces ? Math.max(1, selected.reduce((n, p) => n + Math.max(1, p.spaces?.filter((space) => spaces.includes(space.id)).length ?? 0), 0)) : selected.length);
   const total = emptyCounts();
   const failed = new Map<ImportKind, string[]>();
   const add = (c: ImportCounts) => (Object.keys(total) as (keyof ImportCounts)[]).forEach((k) => (total[k] += c[k]));
   let destinationIndex = 0;
-  const nextDestination = (name: string, color?: string, emoji?: string, shareWith?: string | null) =>
-    destination(target, destinationIndex++, name, color, emoji, shareWith);
-  const found = new Map<string, ImportedExtension>();
+
+  const found = new Map<string, { destination: ImportDestination; list: ImportedExtension[] }>();
+  const extensionsCurrent = () => [...found.values()].every((g) => g.destination.current());
   const left: string[] = [];
-  let extensionsProfile = "";
+  const destinationChanged = (token?: string) => {
+    if (token) api.discardImported(token);
+    api.forgetUnlockedKeys();
+    updateStatus(signal, () => Object.fromEntries(order.map((k) => [k, "failed"])));
+    finishImport(signal, {
+      counts: total, failures: order.map((kind) => ({ kind, profiles: [] })),
+      notes: [...left, IMPORT_DESTINATION_CHANGED],
+      extensions: NO_EXTENSIONS,
+    });
+  };
+  if (!targetIsCurrent()) return destinationChanged();
   const appTabs = fromApp.length ? readAppTabs() : null;
   if (source.family === "firefox" && requested.includes("passwords") && !api.isBrowserUnlocked(source.id)) {
     await api.unlockBrowser(source.id).catch(orWarn(undefined));
   }
 
   for (const profile of selected) {
+    if (!targetIsCurrent()) return destinationChanged();
+    let owner = destinationIndex === 0 ? targetOwner : null;
+    let assigned = owner?.profileId ?? "";
+    const profileForImport = () => assigned ||= createProfile({ name: profile.name });
+    const nextDestination = async (name: string, color?: string, emoji?: string) => {
+      if (!targetIsCurrent() || (owner && !owner.current())) return null;
+      const chosen = await destination(targetOwner, destinationIndex++, name, color, emoji, profileForImport());
+      const dest = chosen && { ...chosen, current: () => targetIsCurrent() && chosen.current() };
+      owner ??= dest;
+      return dest?.current() ? dest : null;
+    };
     let result: ImportResult;
     const profileKinds = tabsLocked(profile) ? fromFiles.filter((k) => k !== "tabs") : fromFiles;
     try {
@@ -158,7 +175,9 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
       if (appTabs) {
         const tabs = await appTabs;
         if (signal.aborted) return;
-        total.tabs += importAppTabs(await nextDestination(profile.name, profile.color), tabs, source.profiles, profile.id, wanted);
+        const dest = await nextDestination(profile.name, profile.color);
+        if (!dest) return destinationChanged();
+        total.tabs += importAppTabs(dest.spaceId, tabs, source.profiles, profile.id, wanted);
       }
       continue;
     }
@@ -171,35 +190,46 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
       if (!names.includes(profile.name)) failed.set(k, [...names, profile.name]);
     };
 
+    let extensionsDestination: ImportDestination | null = null;
     if (bySpaces) {
-      let first: string | null = null;
+      let first: ImportDestination | null = null;
       for (const space of result.spaces) {
         const name = space.name || "Space";
-        const dest = await nextDestination(name, space.color, space.emoji, first);
+        const dest = await nextDestination(name, space.color, space.emoji);
+        if (!dest) return destinationChanged(result.vaultToken);
         first ??= dest;
-        const r = importArcSpace(dest, space, result.favicons);
+        const r = importArcSpace(dest.spaceId, space, result.favicons);
         add({ ...emptyCounts(), tabs: r.tabs, bookmarks: r.bookmarks });
         if (r.skipped) left.push(`${plural(r.skipped, "link")} in ${name}'s folders weren't imported: each folder brings up to ${MAX_DRAFT_LINKS.toLocaleString("en-US")} links.`);
       }
       const dest = first ?? (await nextDestination(result.profile?.name ?? profile.name, result.profile?.color));
-      add(await applyResult(dest, result, source.name, profileKinds, refused));
-      extensionsProfile ||= dest;
+      if (!dest?.current()) return destinationChanged(result.vaultToken);
+      add(await applyResult(dest.spaceId, result, source.name, profileKinds, refused, dest));
+      if (!dest.current()) return destinationChanged();
+      extensionsDestination = dest;
     } else {
       const dest = await nextDestination(result.profile?.name ?? profile.name, result.profile?.color ?? profile.color);
-      add(await applyResult(dest, result, source.name, profileKinds, refused));
+      if (!dest) return destinationChanged(result.vaultToken);
+      add(await applyResult(dest.spaceId, result, source.name, profileKinds, refused, dest));
+      if (!dest.current()) return destinationChanged();
       if (appTabs) {
         const tabs = await appTabs;
         if (signal.aborted) return;
-        total.tabs += importAppTabs(dest, tabs, source.profiles, profile.id, wanted);
+        if (!dest.current()) return destinationChanged();
+        total.tabs += importAppTabs(dest.spaceId, tabs, source.profiles, profile.id, wanted);
       }
-      extensionsProfile ||= dest;
+      extensionsDestination = dest;
     }
     if (source.family === "chromium" || source.family === "arc") {
-      for (const e of await api.listExtensions(source.id, profile.id).catch(orWarn([]))) found.set(e.id, e);
+      const list = await api.listExtensions(source.id, profile.id).catch(orWarn([]));
+      const previous = found.get(extensionsDestination.profileId)?.list ?? [];
+      found.set(extensionsDestination.profileId, { destination: extensionsDestination, list: [...new Map([...previous, ...list].map((e) => [e.id, e])).values()] });
     }
+    if (!owner?.current() || !extensionsCurrent()) return destinationChanged();
   }
   const appTabsResult = appTabs && (await appTabs);
   if (signal.aborted) return;
+  if (!targetIsCurrent() || !extensionsCurrent()) return destinationChanged();
   if (appTabsResult) {
     const note = "note" in appTabsResult ? appTabsResult.note : null;
     if (note) left.push(note);
@@ -211,7 +241,7 @@ export async function runImport(wanted: ReadonlySet<ImportKind>, withoutKey = fa
     counts: total,
     failures: [...failed].map(([kind, names]) => ({ kind, profiles: selected.length > 1 ? names : [] })),
     notes: left,
-    extensions: { profileId: extensionsProfile, list: [...found.values()], opened: false },
+    extensions: { groups: [...found.values()].filter((g) => g.list.length), opened: false },
   });
 }
 

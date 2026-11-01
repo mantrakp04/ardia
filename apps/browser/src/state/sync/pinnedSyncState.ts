@@ -20,25 +20,25 @@ export const unpinnedRemotely = (recorded: (key: string) => boolean, remote: (ke
 
 type Parked = BrowserState["parkedPins"][string];
 
-export function commitPinnedEdit(s: BrowserState, profileId: string, patch: Partial<BrowserState>, parked: Partial<Parked> | null) {
-  fromSync(() => useBrowser.setState({ ...patch, ...(parked ? { parkedPins: { ...s.parkedPins, [profileId]: { ...s.parkedPins[profileId]!, ...parked } } } : {}) }));
+export function commitPinnedEdit(s: BrowserState, spaceId: string, patch: Partial<BrowserState>, parked: Partial<Parked> | null) {
+  fromSync(() => useBrowser.setState({ ...patch, ...(parked ? { parkedPins: { ...s.parkedPins, [spaceId]: { ...s.parkedPins[spaceId]!, ...parked } } } : {}) }));
 }
 
-export function homeWindow(s: BrowserState, profileId: string): Window | undefined {
+export function homeWindow(s: BrowserState, spaceId: string): Window | undefined {
   const order = [...s.ui.focusOrder, ...s.windowOrder].map((id) => s.windows[id]).filter(isRegularWindow);
-  const shows = (w: Window) => w.tabIds.some((id) => s.tabs[id]?.profileId === profileId);
-  return order.find((w) => w.profileId === profileId && shows(w)) ?? order.find(shows) ?? order.find((w) => w.profileId === profileId) ?? order[0];
+  const shows = (w: Window) => w.tabIds.some((id) => s.tabs[id]?.spaceId === spaceId);
+  return order.find((w) => w.spaceId === spaceId && shows(w)) ?? order.find(shows) ?? order.find((w) => w.spaceId === spaceId) ?? order[0];
 }
 
 export const choiceStillOut = (chosen: Record<string, HLC>, choice: string, stamp: HLC | undefined) =>
   choice in chosen && (stamp === undefined || stamp < chosen[choice]!);
 
-export function settleChoices(profileId: string, published: Record<string, HLC>) {
+export function settleChoices(spaceId: string, published: Record<string, HLC>) {
   const now = store().pinChoices;
-  const mine = now[profileId];
+  const mine = now[spaceId];
   if (!mine) return;
   const left = Object.fromEntries(Object.entries(mine).filter(([key, n]) => published[key] !== n));
   if (Object.keys(left).length === Object.keys(mine).length) return;
-  const { [profileId]: _, ...others } = now;
-  useBrowser.setState({ pinChoices: Object.keys(left).length ? { ...now, [profileId]: left } : others });
+  const { [spaceId]: _, ...others } = now;
+  useBrowser.setState({ pinChoices: Object.keys(left).length ? { ...now, [spaceId]: left } : others });
 }

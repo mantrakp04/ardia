@@ -6,7 +6,7 @@ export const useDragFallbackPane = (dragging: string | null | undefined, panes: 
   useBrowser((s) => {
     if (!dragging || Object.keys(panes).length !== 1 || !panes[dragging]) return null;
     const tab = s.tabs[dragging];
-    const others = (s.windows[windowId]?.tabIds ?? []).map((id) => s.tabs[id]!).filter((t) => t && t.id !== dragging && t.profileId === tab?.profileId);
+    const others = (s.windows[windowId]?.tabIds ?? []).map((id) => s.tabs[id]!).filter((t) => t && t.id !== dragging && t.spaceId === tab?.spaceId);
     return others.sort((a, b) => b.lastActiveAt - a.lastActiveAt)[0]?.id ?? null;
   });
 
@@ -19,7 +19,7 @@ export const useSplitSuggestions = (tabId: string) =>
       const inSplit = new Set(splitTabIdsOf(Object.values(s.splits).find((v) => splitTabIds(v).includes(tabId))) ?? [tabId]);
       return w.tabIds
         .map((id) => s.tabs[id]!)
-        .filter((t) => t && t.url && t.profileId === tab.profileId && !inSplit.has(t.id))
+        .filter((t) => t && t.url && t.spaceId === tab.spaceId && !inSplit.has(t.id))
         .sort((a, b) => b.lastActiveAt - a.lastActiveAt)
         .slice(0, 5)
         .map((t) => t.id);

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View } from "react-native";
 import { useTab, useWindow } from "../../state/browser/hooks";
-import { useProfileHistory } from "../../state/history/hooks";
+import { useSpaceHistory } from "../../state/history/hooks";
 import { removeHistory } from "../../state/history/actions";
 import type { HistoryEntry } from "../../state/browser/types";
-import { requestClearData, useClearDataRequest } from "../../state/profiles/clearDataRequest";
+import { requestClearData, useClearDataRequest } from "../../state/spaces/clearDataRequest";
 import { Button, EmptyState, Text } from "../ui";
 import { ClearDataDialog } from "./ClearDataDialog";
 import { layoutHistory } from "./historyLayout";
@@ -13,16 +13,16 @@ import { HistoryList } from "./HistoryList";
 import { hostLabel, PageHeader } from "./PageLayout";
 
 
-export function HistoryPage({ tabId, profileId, initialQuery }: { tabId: string; profileId: string; initialQuery: string }) {
+export function HistoryPage({ tabId, spaceId, initialQuery }: { tabId: string; spaceId: string; initialQuery: string }) {
   const windowId = useTab(tabId, (t) => t?.windowId ?? "");
-  const history = useProfileHistory(profileId);
+  const history = useSpaceHistory(spaceId);
   const [query, setQuery] = useState(initialQuery);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [clearOpen, setClearOpen] = useState(false);
   const lastClicked = useRef<string | null>(null);
 
   const clearRequest = useClearDataRequest((r) => r.windowId);
-  const activeHere = useWindow(windowId, (w) => w?.activeTabIds[w!.profileId] === tabId);
+  const activeHere = useWindow(windowId, (w) => w?.activeTabIds[w!.spaceId] === tabId);
   useEffect(() => {
     if (clearRequest === windowId && activeHere) {
       setClearOpen(true);
@@ -33,8 +33,8 @@ export function HistoryPage({ tabId, profileId, initialQuery }: { tabId: string;
   useEffect(() => setQuery(initialQuery), [initialQuery]);
 
   const layout = useMemo(() => layoutHistory(history, query), [history, query]);
-  const latest = useRef({ layout, profileId });
-  latest.current = { layout, profileId };
+  const latest = useRef({ layout, spaceId });
+  latest.current = { layout, spaceId };
   useEffect(() => setSelected((prev) => shownSelection(prev, layout.rows)), [layout]);
 
   const toggle = useCallback((url: string, shift: boolean) => {
@@ -56,7 +56,7 @@ export function HistoryPage({ tabId, profileId, initialQuery }: { tabId: string;
   const selection = useRef(selected);
   selection.current = selected;
   const remove = useCallback((urls: string[]) => {
-    removeHistory(latest.current.profileId, urls);
+    removeHistory(latest.current.spaceId, urls);
     setSelected((prev) => (urls.some((u) => prev.has(u)) ? new Set([...prev].filter((u) => !urls.includes(u))) : prev));
   }, []);
   const menuTargets = useCallback((entry: HistoryEntry) => {
@@ -68,7 +68,7 @@ export function HistoryPage({ tabId, profileId, initialQuery }: { tabId: string;
   const deleteSelected = async () => {
     const confirmed = await confirmRemoveSelected(windowId);
     if (!confirmed) return;
-    removeHistory(profileId, [...selected]);
+    removeHistory(spaceId, [...selected]);
     setSelected(new Set());
   };
 
@@ -94,7 +94,7 @@ export function HistoryPage({ tabId, profileId, initialQuery }: { tabId: string;
       ) : (
         <HistoryList
           layout={layout}
-          profileId={profileId}
+          spaceId={spaceId}
           windowId={windowId}
           selected={selected}
           onToggle={toggle}
@@ -103,7 +103,7 @@ export function HistoryPage({ tabId, profileId, initialQuery }: { tabId: string;
           menuTargets={menuTargets}
         />
       )}
-      {clearOpen && <ClearDataDialog profileId={profileId} onClose={() => setClearOpen(false)} />}
+      {clearOpen && <ClearDataDialog spaceId={spaceId} onClose={() => setClearOpen(false)} />}
     </View>
   );
 }

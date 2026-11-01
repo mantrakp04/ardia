@@ -9,6 +9,7 @@ final class ScriptCreateCommand: NSCreateCommand {
     case "window":
       var body: [String: Any] = ["command": "newWindow", "incognito": properties["incognito"] as? Bool ?? false]
       if let url { body["url"] = url }
+      if let space = properties["activeSpace"] as? ScriptSpace { body["spaceId"] = space.uniqueID }
       if let profile = properties["activeProfile"] as? ScriptProfile { body["profileId"] = profile.uniqueID }
       return ShellScripting.perform(body) { ($0["windowId"] as? String).flatMap { ScriptWindow(id: $0).objectSpecifier } }
     case "tab":

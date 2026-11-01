@@ -10,12 +10,12 @@ type SidebarEntries = { tiles: string[]; cells: string[]; pinned: string[]; list
 
 const memo = new Map<string, { inputs: unknown[]; result: SidebarEntries }>();
 
-export function sidebarEntries(s: BrowserState, windowId: string, profileId?: string): SidebarEntries {
+export function sidebarEntries(s: BrowserState, windowId: string, spaceId?: string): SidebarEntries {
   const inputs = [s.tabs, s.windows, s.groups, s.splits, s.settings.newTabOpens];
-  const key = profileId ? `${windowId}|${profileId}` : windowId;
+  const key = spaceId ? `${windowId}|${spaceId}` : windowId;
   const cached = memo.get(key);
   if (cached && cached.inputs.every((v, i) => v === inputs[i])) return cached.result;
-  let result = computeEntries(s, windowId, profileId);
+  let result = computeEntries(s, windowId, spaceId);
   if (cached) {
     const was = cached.result;
     const same = (a: string[], b: string[]) => a.length === b.length && a.every((id, i) => id === b[i]);
@@ -30,14 +30,14 @@ export function sidebarEntries(s: BrowserState, windowId: string, profileId?: st
   return result;
 }
 
-function computeEntries(s: BrowserState, windowId: string, profileId?: string): SidebarEntries {
+function computeEntries(s: BrowserState, windowId: string, spaceId?: string): SidebarEntries {
   const tiles: string[] = [];
   const pinned: string[] = [];
   const list: string[] = [];
   const rootGroups = groupIndex(s.groups);
   const splits = splitIndex(s.splits);
   const seen = new Set<string>();
-  for (const id of viewTabIds(s, windowId, profileId)) {
+  for (const id of viewTabIds(s, windowId, spaceId)) {
     const tab = s.tabs[id]!;
     if ((tab.liveItem && !tab.pin) || hiddenEmptyCard(s, tab)) continue;
     if (tab.pin) {
@@ -94,8 +94,8 @@ function childGroups(groups: BrowserState["groups"], parentId: string): BrowserS
   return index.get(parentId) ?? NO_CHILDREN;
 }
 
-export function keptEntry(s: BrowserState, windowId: string, profileId: string, entries: string[]): string | null {
-  const active = activeTabId(s, windowId, profileId);
+export function keptEntry(s: BrowserState, windowId: string, spaceId: string, entries: string[]): string | null {
+  const active = activeTabId(s, windowId, spaceId);
   if (!active) return null;
   return entries.find((e) => holdsTab(s, e, active)) ?? null;
 }

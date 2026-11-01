@@ -1,9 +1,9 @@
 import { WindowBackdrop, Box, Button, curve, duration, ink, Panel, proseLineHeight, radius as radii, reduceMotionKnown, space, Text, useHover, VisualEffect } from "../ui";
 import { useEffect, useRef, useState } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, View } from "react-native";
-import { profileAccent } from "../ui/theme";
+import { spaceAccent } from "../ui/theme";
 import { mix } from "../../lib/color";
-import { useWindowProfileValue } from "../../state/profiles/hooks";
+import { useWindowSpaceValue } from "../../state/spaces/hooks";
 import { useWindowId } from "../../state/browser/hooks";
 import type { ReleaseNotes } from "../../state/releaseNotes/releaseNotes";
 import { PostageStamp, PostcardPaper } from "./PostageStamp";
@@ -26,7 +26,7 @@ const cardFrame = (size: { width: number }) => ({
 
 function useArtworkColors(): [string, string] {
   const windowId = useWindowId();
-  const swatch = useWindowProfileValue(windowId, profileAccent);
+  const swatch = useWindowSpaceValue(windowId, spaceAccent);
   return [mix(swatch, postcard.artworkLight, 0.45), mix(swatch, postcard.artworkDark, 0.5)];
 }
 

@@ -34,7 +34,7 @@ import { watchNewDownloads } from "../../state/windows/downloadWatch";
 import { useDownload } from "../../state/windows/hooks";
 import { useAddressBarInSidebar, useTabLayout, useToolbarLightsCenter } from "../../state/windows/layout";
 import { SIDEBAR_FOOTER_DOWNLOADS } from "../sidebar/geometry";
-import { PROFILE_DOTS_HEIGHT } from "../profiles/ProfileDots";
+import { SPACE_DOTS_HEIGHT } from "../spaces/SpaceDots";
 import { openInternalPage } from "../../state/pages/urls";
 import { useSidebarWidth } from "../../state/sidebar/hooks";
 import { hairline, shadow } from "../ui/tokens";
@@ -86,7 +86,7 @@ function DownloadsPanel({ windowId, closing, onClosed }: { windowId: string; clo
   const topStrip = useTabLayout() === "top";
   const addressBar = useAddressBarInSidebar();
   const setOpen = (value: boolean) => setDownloadsOpen(windowId, value);
-  const { root, placement: p, onLayout } = useDownloadsPlacement(windowId, closing, { topStrip, footer: addressBar, footerBottom: PROFILE_DOTS_HEIGHT + 2 });
+  const { root, placement: p, onLayout } = useDownloadsPlacement(windowId, closing, { topStrip, footer: addressBar, footerBottom: SPACE_DOTS_HEIGHT + 2 });
   const placed = p !== null;
   const appear = usePopoverMotion(closing, onClosed, placed);
 

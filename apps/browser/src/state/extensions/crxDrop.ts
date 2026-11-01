@@ -1,6 +1,6 @@
 import { installExtensionCrx, onExtensionInstallFailed } from "../../platform/extensions";
 import { useBrowser } from "../browser/store";
-import { extensionProfile } from "./store";
+import { extensionSpace } from "./store";
 import { showToast } from "../app/toasts";
 import { focusedWindowOf } from "../windows/ui";
 
@@ -24,8 +24,8 @@ export function installDroppedCrx(windowId: string, urls: string[]): string[] {
   const s = useBrowser.getState();
   const w = s.windows[windowId];
   if (!w || w.kind === "private") return urls;
-  const profile = extensionProfile(s, windowId);
-  for (const path of paths) if (path) void installExtensionCrx(path, profile).catch((error: Error) => toast(windowId, error.message));
+  const space = extensionSpace(s, windowId);
+  for (const path of paths) if (path) void installExtensionCrx(path, space).catch((error: Error) => toast(windowId, error.message));
   return urls.filter((_, i) => !paths[i]);
 }
 

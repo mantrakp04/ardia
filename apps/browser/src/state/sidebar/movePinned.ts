@@ -12,17 +12,17 @@ const store = () => useBrowser.getState();
 
 export const movePinnedTitle = (s: BrowserState, tab: Tab | undefined) => (tab?.pin ? "Move out of Pinned" : `Move to ${pinnedSectionTitle(s, tab)}`);
 
-const listTabIds = (s: BrowserState, windowId: string, profileId: string, except: Set<string>) =>
+const listTabIds = (s: BrowserState, windowId: string, spaceId: string, except: Set<string>) =>
   (s.windows[windowId]?.tabIds ?? []).filter((id) => {
     const t = s.tabs[id];
-    return t && !t.pin && t.profileId === profileId && !except.has(id) && !groupOf(s, id)?.pinned;
+    return t && !t.pin && t.spaceId === spaceId && !except.has(id) && !groupOf(s, id)?.pinned;
   });
 
 export function togglePinnedRows(windowId: string) {
   const s = store();
   const tab = activeTab(s, windowId);
   if (!tab) return;
-  const selected = selectedTabIds(s, windowId).map((id) => s.tabs[id]!).filter((t) => t.profileId === tab.profileId);
+  const selected = selectedTabIds(s, windowId).map((id) => s.tabs[id]!).filter((t) => t.spaceId === tab.spaceId);
   if (!tab.pin) return moveToPinnedRows(s, windowId, selected.filter((t) => !t.pin));
   moveOutOfPinned(selected.filter((t) => t.pin));
 }
@@ -30,7 +30,7 @@ export function togglePinnedRows(windowId: string) {
 function moveToPinnedRows(s: BrowserState, windowId: string, tabs: Tab[]) {
   if (!tabs.length) return;
   const moving = new Set(tabs.map((t) => t.id));
-  const list = listTabIds(s, windowId, tabs[0]!.profileId, new Set()).map((id) => pinKeyOf(s.tabs[id]!));
+  const list = listTabIds(s, windowId, tabs[0]!.spaceId, new Set()).map((id) => pinKeyOf(s.tabs[id]!));
   for (const t of tabs) {
     const group = groupOf(s, t.id);
     const key = pinKeyOf(t);
@@ -76,7 +76,7 @@ function moveOutOfPinned(tabs: Tab[]) {
     const t = s.tabs[spot.tabId];
     if (!t || t.pin || t.windowId !== spot.windowId) continue;
     const pending = ordered.filter((o) => o !== spot && !placed.includes(o)).map((o) => o.tabId);
-    const now = listTabIds(s, spot.windowId, t.profileId, new Set([t.id, ...pending]));
+    const now = listTabIds(s, spot.windowId, t.spaceId, new Set([t.id, ...pending]));
     const keys = now.map((id) => pinKeyOf(s.tabs[id]!));
     const prevKey = spot.list.slice(0, spot.index).reverse().find((k) => keys.includes(k));
     const nextKey = spot.list.slice(spot.index + 1).find((k) => keys.includes(k));
@@ -84,7 +84,7 @@ function moveOutOfPinned(tabs: Tab[]) {
     const prev = after >= 0 ? now[after] : undefined;
     let beforeId = prev ? (now[after + 1] ?? null) : nextKey ? now[keys.indexOf(nextKey)]! : (now[spot.index] ?? null);
     const group = spot.groupId ? s.groups[spot.groupId] : undefined;
-    const groupId = group && !group.pinned && group.windowId === spot.windowId && group.profileId === t.profileId ? group.id : undefined;
+    const groupId = group && !group.pinned && group.windowId === spot.windowId && group.spaceId === t.spaceId ? group.id : undefined;
     if (groupId && !(beforeId && group!.tabIds.includes(beforeId))) {
       beforeId = prev && group!.tabIds.includes(prev) ? null : (group!.tabIds.find((id) => now.includes(id)) ?? null);
     }

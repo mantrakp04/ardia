@@ -5,7 +5,9 @@ globalThis.__DEV__ = false;
 
 const { useBrowser } = await import("../browser/store.ts");
 const { Clock, emptyScope, syncScope } = await import("@ardia/sync");
-const adapters = await import("./profileAdapters.ts");
+const adapters = await import("./spaceAdapters.ts");
+const { profilesAdapter } = await import("./identityAdapters.ts");
+const PROFILE_LINKS = () => ({ default: { syncId: "identity", enabled: true, topAppsEnabled: true } });
 const { settleThemeAdoption } = await import("./syncThemes.ts");
 
 const S = () => useBrowser.getState();
@@ -23,16 +25,16 @@ const THEME = {
   translucency: 1,
 };
 
-function profilesAdapterV0238(links) {
-  const linked = () => Object.entries(links()).filter(([id]) => S().profiles[id]);
+function spacesAdapterV0238(links) {
+  const linked = () => Object.entries(links()).filter(([id]) => S().spaces[id]);
   return {
     prefix: "prof:",
     adoptRemoteOnJoin: true,
     extract: () => {
       const values = new Map();
       for (const [id, { syncId }] of linked()) {
-        const p = S().profiles[id];
-        values.set(`prof:${syncId}`, { n: p.name, c: p.color, i: p.icon, ...(id === "default" ? { d: true } : {}) });
+        const p = S().spaces[id];
+        values.set(`prof:${syncId}`, { n: p.name, c: p.color, i: p.icon, p: "identity", pos: "00000000", ...(id === "default" ? { d: true } : {}) });
       }
       const mine = new Set(values.keys());
       return { values, ignore: (key) => !mine.has(key) };
@@ -41,7 +43,7 @@ function profilesAdapterV0238(links) {
       for (const [id, { syncId }] of linked()) {
         const record = visible.get(`prof:${syncId}`);
         if (!record || !changed.has(`prof:${syncId}`)) continue;
-        S().updateProfile(id, { name: record.n, color: record.c, icon: record.i });
+        S().updateSpace(id, { name: record.n, color: record.c, icon: record.i });
       }
     },
   };
@@ -77,7 +79,7 @@ class Mac {
     this.scope = emptyScope();
     this.scope.joined = !joining;
     this.clock = new Clock(id);
-    this.adapters = legacy ? [profilesAdapterV0238(LINKS)] : [adapters.profilesAdapter(LINKS), adapters.profileThemesAdapter(LINKS, () => this.scope.records)];
+    this.adapters = legacy ? [profilesAdapter(PROFILE_LINKS), spacesAdapterV0238(LINKS)] : [profilesAdapter(PROFILE_LINKS), adapters.spacesAdapter(LINKS, PROFILE_LINKS), adapters.spaceThemesAdapter(LINKS, () => this.scope.records)];
   }
   with(fn) {
     useBrowser.setState(this.browser, true);
@@ -91,7 +93,7 @@ class Mac {
     useBrowser.setState(this.browser, true);
     try {
       const result = await syncScope({
-        scope: "app",
+        scope: "workspace-v2",
         state: this.scope,
         transport: this.folder.transport(),
         adapters: this.adapters,
@@ -103,8 +105,8 @@ class Mac {
       this.browser = S();
     }
   }
-  profile() {
-    return this.browser.profiles.default;
+  space() {
+    return this.browser.spaces.default;
   }
 }
 
@@ -114,42 +116,42 @@ async function rounds(macs, n) {
   return published;
 }
 
-test("a Mac on 0.2.38 and a Mac with a custom theme settle instead of republishing the profile forever", async () => {
+test("a metadata-only writer and a Mac with a custom theme settle instead of republishing the space forever", async () => {
   const folder = new Folder();
   const fresh = new Mac("new", folder);
-  fresh.with(() => S().updateProfile("default", { color: "green", theme: THEME }));
+  fresh.with(() => S().updateSpace("default", { color: "green", theme: THEME }));
   await fresh.sync();
   const old = new Mac("old", folder, { legacy: true, joining: true });
   await rounds([fresh, old], 3);
   assert.equal(await rounds([fresh, old], 4), 0, "nothing is published once both Macs have synced");
-  assert.deepEqual(fresh.profile().theme, THEME);
-  assert.equal(old.profile().color, "green", "the older Mac keeps the preset colour");
-  assert.equal(old.profile().theme, undefined);
+  assert.deepEqual(fresh.space().theme, THEME);
+  assert.equal(old.space().color, "green", "a metadata-only writer retains the preset color");
+  assert.equal(old.space().theme, undefined);
 
-  old.with(() => S().updateProfile("default", { name: "Home" }));
+  old.with(() => S().updateSpace("default", { name: "Home" }));
   await rounds([fresh, old], 3);
-  assert.equal(fresh.profile().name, "Home");
-  assert.deepEqual(fresh.profile().theme, THEME, "a rename on the older Mac leaves the theme alone");
+  assert.equal(fresh.space().name, "Home");
+  assert.deepEqual(fresh.space().theme, THEME, "a rename on the older Mac leaves the theme alone");
   assert.equal(await rounds([fresh, old], 4), 0, "and they settle again");
 });
 
 test("a rename on one Mac doesn't undo going back to a preset on another", async () => {
   const folder = new Folder();
   const a = new Mac("a", folder);
-  a.with(() => S().updateProfile("default", { theme: THEME }));
+  a.with(() => S().updateSpace("default", { theme: THEME }));
   await a.sync();
   const b = new Mac("b", folder, { joining: true });
   await rounds([a, b], 3);
-  assert.deepEqual(b.profile().theme, THEME);
+  assert.deepEqual(b.space().theme, THEME);
 
-  a.with(() => S().updateProfile("default", { theme: null }));
-  b.with(() => S().updateProfile("default", { name: "Work" }));
+  a.with(() => S().updateSpace("default", { theme: null }));
+  b.with(() => S().updateSpace("default", { name: "Work" }));
   await a.sync();
   await b.sync();
   await rounds([a, b], 3);
   for (const mac of [a, b]) {
-    assert.equal(mac.profile().theme, null, `${mac.id} keeps the preset`);
-    assert.equal(mac.profile().name, "Work", `${mac.id} has the rename`);
+    assert.equal(mac.space().theme, null, `${mac.id} keeps the preset`);
+    assert.equal(mac.space().name, "Work", `${mac.id} has the rename`);
   }
   assert.equal(await rounds([a, b], 4), 0);
 });
@@ -159,14 +161,14 @@ test("a theme in a prof: record from a development build is adopted once and not
   const dev = new Mac("dev", folder, { legacy: true });
   dev.adapters = [
     {
-      ...profilesAdapterV0238(LINKS),
+      ...spacesAdapterV0238(LINKS),
       extract: () => ({ values: new Map([["prof:s1", { n: "Personal", c: "plum", i: null, d: true, th: THEME }]]) }),
     },
   ];
   await dev.sync();
   const fresh = new Mac("new", folder, { joining: true });
   await rounds([fresh], 2);
-  assert.deepEqual(fresh.profile().theme, THEME);
+  assert.deepEqual(fresh.space().theme, THEME);
   const prof = fresh.scope.records["prof:s1"].v;
   assert.ok(!("th" in prof) || prof.o !== "new");
   assert.ok(fresh.scope.records["pth:s1"], "the theme is published as its own record");
@@ -187,13 +189,13 @@ for (const [label, newer, expected] of [
     const dev = new Mac("dev", folder, { legacy: true });
     const older = { ...THEME, intensity: 0.2 };
     dev.adapters = [
-      { ...profilesAdapterV0238(LINKS), extract: () => ({ values: new Map([["prof:s1", { n: "Personal", c: "plum", i: null, d: true, th: older }]]) }) },
+      { ...spacesAdapterV0238(LINKS), extract: () => ({ values: new Map([["prof:s1", { n: "Personal", c: "plum", i: null, d: true, th: older }]]) }) },
       { prefix: "pth:", extract: () => ({ values: new Map([["pth:s1", newer]]) }), apply: () => {} },
     ];
     await dev.sync();
     const fresh = new Mac("new", folder, { joining: true });
     await rounds([fresh], 3);
-    assert.deepEqual(fresh.profile().theme, expected);
+    assert.deepEqual(fresh.space().theme, expected);
     const pth = Object.entries(fresh.scope.records).filter(([k]) => k === "pth:s1").map(([, r]) => r.v);
     assert.deepEqual(pth, [newer], "nothing older is published over it");
   });
@@ -206,29 +208,29 @@ test("a legacy th arriving after a pth: record never publishes the older theme o
   const dev = new Mac("dev", folder, { legacy: true });
   let devTheme = null;
   dev.adapters = [
-    { ...profilesAdapterV0238(LINKS), extract: () => ({ values: new Map([["prof:s1", { n: "Personal", c: "plum", i: null, d: true, ...(devTheme ? { th: devTheme } : {}) }]]) }) },
+    { ...spacesAdapterV0238(LINKS), extract: () => ({ values: new Map([["prof:s1", { n: "Personal", c: "plum", i: null, d: true, ...(devTheme ? { th: devTheme } : {}) }]]) }) },
     { prefix: "pth:", extract: () => ({ values: new Map([["pth:s1", { t: newer }]]) }), apply: () => {} },
   ];
   await dev.sync();
   let links = {};
   const fresh = new Mac("new", folder, { joining: true });
-  fresh.adapters = [adapters.profilesAdapter(() => links), adapters.profileThemesAdapter(() => links, () => fresh.scope.records)];
+  fresh.adapters = [adapters.spacesAdapter(() => links, PROFILE_LINKS), adapters.spaceThemesAdapter(() => links, () => fresh.scope.records)];
   await fresh.sync();
   links = LINKS();
   devTheme = older;
   await dev.sync();
   await rounds([fresh], 3);
-  assert.notDeepEqual(fresh.profile().theme, older, "the legacy th doesn't replace a known pth:");
+  assert.notDeepEqual(fresh.space().theme, older, "the legacy th doesn't replace a known pth:");
   assert.deepEqual(fresh.scope.records["pth:s1"].v, { t: newer }, "nothing older is published over it");
 });
 
 test("a joining Mac with its own theme waits for a pth: file still downloading instead of publishing over it", async () => {
   const folder = new Folder();
   const first = new Mac("first", folder);
-  first.with(() => S().updateProfile("default", { theme: THEME }));
+  first.with(() => S().updateSpace("default", { theme: THEME }));
   await first.sync();
   const themeFile = `f${folder.counter}`;
-  first.with(() => S().updateProfile("default", { name: "Home" }));
+  first.with(() => S().updateSpace("default", { name: "Home" }));
   await first.sync();
   folder.downloading.add(themeFile);
 
@@ -236,24 +238,24 @@ test("a joining Mac with its own theme waits for a pth: file still downloading i
   const joining = new Mac("joining", folder, { joining: true });
   const link = { syncId: "s1", themeAdopting: true };
   joining.adapters = [
-    adapters.profilesAdapter(LINKS),
-    adapters.profileThemesAdapter(() => ({ default: link }), () => joining.scope.records),
+    adapters.spacesAdapter(LINKS, PROFILE_LINKS),
+    adapters.spaceThemesAdapter(() => ({ default: link }), () => joining.scope.records),
   ];
-  joining.with(() => S().updateProfile("default", { theme: own }));
+  joining.with(() => S().updateSpace("default", { theme: own }));
   await rounds([joining], 3);
-  assert.equal(joining.profile().name, "Home", "prof: arrived");
+  assert.equal(joining.space().name, "Home", "prof: arrived");
   assert.equal(joining.scope.records["pth:s1"], undefined, "nothing went out while the theme's file was downloading");
 
   folder.downloading.delete(themeFile);
   await rounds([joining, first], 3);
-  assert.deepEqual(joining.profile().theme, THEME, "the downloaded theme applies");
+  assert.deepEqual(joining.space().theme, THEME, "the downloaded theme applies");
   settleThemeAdoption({ default: link }, joining.scope, true);
-  assert.equal(link.themeAdopting, undefined, "and the profile is adopted");
-  assert.deepEqual(first.profile().theme, THEME, "and the first Mac keeps it");
+  assert.equal(link.themeAdopting, undefined, "and the space is adopted");
+  assert.deepEqual(first.space().theme, THEME, "and the first Mac keeps it");
   assert.equal(await rounds([joining, first], 3), 0);
 });
 
-function profileThemesAdapterV0241(links) {
+function spaceThemesAdapterV0241(links) {
   const dropAngle = ({ angle: _angle, ...look }) => look;
   const known = (theme) => ({ ...dropAngle(theme), ...(theme.dark ? { dark: dropAngle(theme.dark) } : {}) });
   return {
@@ -262,7 +264,7 @@ function profileThemesAdapterV0241(links) {
     extract: () => {
       const values = new Map();
       for (const [id, { syncId }] of Object.entries(links())) {
-        const theme = S().profiles[id]?.theme;
+        const theme = S().spaces[id]?.theme;
         if (theme !== undefined) values.set(`pth:${syncId}`, theme ? { t: theme } : { preset: true });
       }
       const mine = new Set(values.keys());
@@ -271,8 +273,8 @@ function profileThemesAdapterV0241(links) {
     apply: (visible, changed) => {
       for (const [id, { syncId }] of Object.entries(links())) {
         const record = changed.has(`pth:${syncId}`) ? visible.get(`pth:${syncId}`) : null;
-        if (record?.preset) S().updateProfile(id, { theme: null });
-        else if (record?.t) S().updateProfile(id, { theme: known(record.t) });
+        if (record?.preset) S().updateSpace(id, { theme: null });
+        else if (record?.t) S().updateSpace(id, { theme: known(record.t) });
       }
     },
   };
@@ -283,48 +285,48 @@ test("a theme's angles sync, and a Mac that drops them can't take them away", as
   const { mode: _mode, ...look } = THEME;
   const angled = { ...THEME, angle: 270, dark: { ...look, intensity: 0.5, angle: 45 } };
   const first = new Mac("first", folder);
-  first.with(() => S().updateProfile("default", { theme: angled }));
+  first.with(() => S().updateSpace("default", { theme: angled }));
   await first.sync();
   const second = new Mac("second", folder, { joining: true });
   const old = new Mac("old", folder, { joining: true });
-  old.adapters = [adapters.profilesAdapter(LINKS), profileThemesAdapterV0241(LINKS)];
+  old.adapters = [profilesAdapter(PROFILE_LINKS), adapters.spacesAdapter(LINKS, PROFILE_LINKS), spaceThemesAdapterV0241(LINKS)];
   await rounds([first, second, old], 3);
-  assert.deepEqual(second.profile().theme, angled, "a newer Mac takes both angles");
-  assert.equal(old.profile().theme.angle, undefined, "the older Mac keeps the theme without them");
+  assert.deepEqual(second.space().theme, angled, "a newer Mac takes both angles");
+  assert.equal(old.space().theme.angle, undefined, "the older Mac keeps the theme without them");
   assert.equal(await rounds([first, second, old], 4), 0, "and they settle");
 
-  old.with(() => S().updateProfile("default", { theme: { ...S().profiles.default.theme, intensity: 0.3 } }));
+  old.with(() => S().updateSpace("default", { theme: { ...S().spaces.default.theme, intensity: 0.3 } }));
   await rounds([old, first, second], 3);
   for (const mac of [first, second]) {
-    assert.equal(mac.profile().theme.intensity, 0.3, `${mac.id} takes the older Mac's edit`);
-    assert.equal(mac.profile().theme.angle, 270, `${mac.id} keeps the angle`);
-    assert.equal(mac.profile().theme.dark.angle, 45, `${mac.id} keeps the dark look's angle`);
+    assert.equal(mac.space().theme.intensity, 0.3, `${mac.id} takes the older Mac's edit`);
+    assert.equal(mac.space().theme.angle, 270, `${mac.id} keeps the angle`);
+    assert.equal(mac.space().theme.dark.angle, 45, `${mac.id} keeps the dark look's angle`);
   }
   assert.equal(await rounds([first, second, old], 4), 0, "and they settle again");
 
-  second.with(() => S().updateProfile("default", { theme: { ...S().profiles.default.theme, angle: 0 } }));
+  second.with(() => S().updateSpace("default", { theme: { ...S().spaces.default.theme, angle: 0 } }));
   await rounds([second, first], 2);
-  assert.equal(first.profile().theme.angle, 0, "a new angle reaches the other newer Mac");
+  assert.equal(first.space().theme.angle, 0, "a new angle reaches the other newer Mac");
 });
 
 test("a new custom theme without an angle doesn't take the previous theme's angle", async () => {
   const folder = new Folder();
   const a = new Mac("a", folder);
-  a.with(() => S().updateProfile("default", { theme: { ...THEME, angle: 90 } }));
+  a.with(() => S().updateSpace("default", { theme: { ...THEME, angle: 90 } }));
   await a.sync();
   const b = new Mac("b", folder, { joining: true });
   await rounds([a, b], 3);
-  a.with(() => S().updateProfile("default", { theme: null }));
+  a.with(() => S().updateSpace("default", { theme: null }));
   await rounds([a, b], 2);
-  b.with(() => S().updateProfile("default", { theme: THEME }));
+  b.with(() => S().updateSpace("default", { theme: THEME }));
   await rounds([b, a], 3);
-  assert.deepEqual(a.profile().theme, THEME);
+  assert.deepEqual(a.space().theme, THEME);
 });
 
 test("a theme without an angle publishes no angle record", async () => {
   const folder = new Folder();
   const a = new Mac("a", folder);
-  a.with(() => S().updateProfile("default", { theme: THEME }));
+  a.with(() => S().updateSpace("default", { theme: THEME }));
   await a.sync();
   assert.ok(!Object.keys(a.scope.records).some((key) => key.endsWith(":angle")));
 });

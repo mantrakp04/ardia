@@ -50,7 +50,7 @@ function build(file, { tabs = base, active = "t1", settings = {} } = {}) {
     appearance: "light",
     searchSuggestions: false,
     warnBeforeQuitting: false,
-    profileSwitcherIcons: true,
+    spaceSwitcherIcons: true,
     peekLinksToOtherSites: true,
     sidebarWidth: 260,
     ...settings,

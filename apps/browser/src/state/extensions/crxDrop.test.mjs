@@ -14,7 +14,7 @@ test("a dropped .crx file is an extension to install, any other file or link isn
   assert.equal(crxPath("file://host/ext.crx"), null);
 });
 
-test("a .crx dropped on a window installs into its profile and opens no tab; the rest still open", async () => {
+test("a .crx dropped on a window installs into its space and opens no tab; the rest still open", async () => {
   S().hydrate({});
   const w = S().createWindow({ url: "a.com" });
   native.installedCrx.length = 0;

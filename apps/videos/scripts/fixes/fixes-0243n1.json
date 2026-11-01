@@ -43,8 +43,8 @@
     },
     {
       "scene": "spaceicons",
-      "title": "Icons in the profile switcher",
-      "body": "Turn on icons in Settings › Profiles and the switcher at the bottom of the sidebar shows each profile's icon, a planet and a flame like Arc's spaces, instead of three dots.",
+      "title": "Icons in the space switcher",
+      "body": "Turn on icons in Settings › Spaces and the switcher at the bottom of the sidebar shows each space's icon, a planet and a flame like Arc's spaces, instead of three dots.",
       "layout": "side",
       "cam": [0, 740, 260, 120],
       "lead": 0.9,

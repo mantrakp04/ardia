@@ -13,9 +13,9 @@ import {
 import { useEffect, useState, type ReactNode } from "react";
 import { Image, View } from "react-native";
 import { useTheme } from "../../ui/theme";
-import { addRemoteProfile, enterRecoveryPhrase, stopSync, useSync } from "../../../state/sync/engine";
-import type { RemoteProfile } from "../../../state/sync/syncDoc";
-import { ProfileBadge } from "../../profiles/ProfileIcons";
+import { addRemoteSpace, enterRecoveryPhrase, stopSync, useSync } from "../../../state/sync/engine";
+import type { RemoteSpace } from "../../../state/sync/syncDoc";
+import { SpaceBadge } from "../../spaces/SpaceIcons";
 import { Group, Row } from "../Form";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { useSettingsColors } from "../useSettingsColors";
@@ -188,43 +188,43 @@ function PhraseSheet({ folder, onChooseFolder }: { folder: FolderInfo | null; on
   );
 }
 
-export function remoteProfileDescription(p: Pick<RemoteProfile, "sharesWith" | "waiting">): string {
+export function remoteSpaceDescription(p: Pick<RemoteSpace, "sharesWith" | "waiting">): string {
   if (p.waiting) return "On your other devices. Waiting for the profile it shares data with to sync.";
   if (!p.sharesWith) return "On your other devices";
   const { name, added } = p.sharesWith;
   return added ? `On your other devices. Shares data with ${name}, which is added too.` : `On your other devices. Shares data with ${name}.`;
 }
 
-export function addAllRemoteProfiles(profiles: RemoteProfile[]) {
-  for (const p of profiles) if (!p.waiting) addRemoteProfile(p.syncId);
+export function addAllRemoteSpaces(profiles: RemoteSpace[]) {
+  for (const p of profiles) if (!p.waiting) addRemoteSpace(p.syncId);
 }
 
-export function RemoteProfileRow({ profile }: { profile: RemoteProfile }) {
+export function RemoteSpaceRow({ profile }: { profile: RemoteSpace }) {
   return (
     <Row
-      icon={<ProfileBadge profile={{ name: profile.name, color: profile.color, icon: profile.icon }} size={24} />}
+      icon={<SpaceBadge profile={{ name: profile.name, color: profile.color, icon: profile.icon }} size={24} />}
       title={profile.name}
-      description={remoteProfileDescription(profile)}
+      description={remoteSpaceDescription(profile)}
     >
-      <Button title="Add to This Mac" disabled={!!profile.waiting} onPress={() => addRemoteProfile(profile.syncId)} />
+      <Button title="Add to This Mac" disabled={!!profile.waiting} onPress={() => addRemoteSpace(profile.syncId)} />
     </Row>
   );
 }
 
-export function lookingForProfiles(pending: number): string {
-  const looking = "Looking for the profiles on your other devices…";
+export function lookingForSpaces(pending: number): string {
+  const looking = "Looking for the spaces on your other devices…";
   return pending ? `${looking} Waiting for ${pending === 1 ? "1 file" : `${pending} files`} to download.` : looking;
 }
 
 function joinedMessage(found: number, joining: boolean, pending: number, error: string | null): string {
-  if (found) return "These profiles are on your other devices. Add them to this Mac to sync their pinned tabs, bookmarks, history and passwords here too.";
+  if (found) return "These spaces are on your other devices. Add them to sync their tabs, saved rows, folders and themes. Browsing data and shared Top Apps have separate Profile sync choices.";
   if (error) return error;
-  if (joining) return lookingForProfiles(pending);
-  return "Every profile on your other devices is on this Mac too.";
+  if (joining) return lookingForSpaces(pending);
+  return "Every space on your other devices is on this Mac too.";
 }
 
 function JoinedSheet() {
-  const remote = useSync((s) => s.remoteProfiles);
+  const remote = useSync((s) => s.remoteSpaces);
   const joining = useSync((s) => s.joining);
   const pending = useSync((s) => s.pending);
   const error = useSync((s) => (s.status === "stalled" ? s.error : null));
@@ -236,14 +236,14 @@ function JoinedSheet() {
         <View style={SECTION_TOP}>
           <Group>
             {remote.map((p) => (
-              <RemoteProfileRow key={p.syncId} profile={p} />
+              <RemoteSpaceRow key={p.syncId} profile={p} />
             ))}
           </Group>
         </View>
       ) : null}
       <DialogActions>
         <Button title="Done" kind={addable > 1 ? "default" : "primary"} onPress={closeSettingsSheet} />
-        {addable > 1 ? <Button title="Add All" kind="primary" onPress={() => addAllRemoteProfiles(remote)} /> : null}
+        {addable > 1 ? <Button title="Add All" kind="primary" onPress={() => addAllRemoteSpaces(remote)} /> : null}
       </DialogActions>
     </Sheet>
   );

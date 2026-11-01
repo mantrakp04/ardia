@@ -73,6 +73,8 @@ final class AppDelegate: ExpoAppDelegate {
   }
 
   @objc var appleScriptWindows: [NSObject] { ShellScripting.windows }
+  @objc var appleScriptSpaces: [NSObject] { ShellScripting.spaces }
+  @objc var automationVersion: Int { ShellScripting.automationVersion }
   @objc var appleScriptProfiles: [NSObject] { ShellScripting.profiles }
   @objc var version: String { ShellScripting.version }
 }
