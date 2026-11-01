@@ -26,6 +26,10 @@ export const trackSuggestionChosen = (s: SuggestionLike) => capture("suggestion_
 
 export const trackSettingsSection = (section: string) => capture("settings_section_opened", { section });
 
+export const trackThemeEditorOpened = (source: string) => capture("theme_editor_opened", { source });
+
+export const trackProfileCreated = (source: string) => capture("profile_created", { source });
+
 const SAMPLE_EVERY = 5;
 const MAX_SAMPLES = 500;
 const latency: number[] = [];
