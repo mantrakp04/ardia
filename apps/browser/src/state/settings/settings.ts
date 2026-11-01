@@ -1,5 +1,6 @@
 import {
   allEngines,
+  normalizeCustomEngines,
   validSiteSearchOverride,
   type SiteSearchOverride,
   controllingExtensionEngine,
@@ -162,7 +163,7 @@ export function parseSettings(raw: unknown): Settings {
   const saved = isFields(raw) ? raw : {};
   const value = (key: SettingKey) => (SETTING_SPECS[key].valid(saved[key]) ? saved[key] : SETTING_SPECS[key].default);
   const settings = Object.fromEntries(SETTING_KEYS.map((key) => [key, value(key)])) as Settings;
-  return { ...settings, ...withLinkKeysApart(settings, {}) };
+  return { ...settings, customSearchEngines: normalizeCustomEngines(settings.customSearchEngines), ...withLinkKeysApart(settings, {}) };
 }
 
 export function parseSettingsMeta(raw: unknown): SettingsMeta {
@@ -267,6 +268,7 @@ export const createSettingsSlice: StateCreator<BrowserState, [], [], SettingsSli
   settings: DEFAULT_SETTINGS,
   settingsMeta: NO_SETTINGS_META,
   updateSettings(patch, { fromSync = false } = {}) {
+    if (patch.customSearchEngines) patch = { ...patch, customSearchEngines: normalizeCustomEngines(patch.customSearchEngines) };
     set((s) => (fromSync ? { settings: { ...s.settings, ...patch } } : choose(s, withLinkKeysApart(s.settings, patch))));
   },
 

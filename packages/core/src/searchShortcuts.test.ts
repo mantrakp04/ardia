@@ -109,3 +109,28 @@ test("saved aliases normalize in the same way as typed shortcuts", () => {
   assert.equal(findScope("www.workdocs", { engines: [custom] })?.name, "Work");
   assert.equal(findScope("https://schooldocs/", { engines: [custom] })?.name, "Work");
 });
+
+test("presets keep their identity and behavior when stored overrides contain extra fields", () => {
+  const site = siteSearches().find((s) => s.host === "docs.google.com")!;
+  const override = { name: "My Docs", keyword: "docs", aliases: [], url: site.url, enabled: true, host: "foreign.example", action: "ask" };
+  const changed = siteSearches({ [site.host]: override });
+  const scope = findScope("docs", { engines: [], sites: changed })!;
+  assert.equal(scope.host, "docs.google.com");
+  assert.equal(scope.action, undefined);
+  assert.equal(emptyScopedUrl(scope, "docs"), "https://docs.google.com/");
+});
+
+test("override keywords and aliases must remain usable after normalization", () => {
+  const value = { name: "Docs", keyword: "docs", aliases: [], url: "https://docs.google.com/document/?q=%s", enabled: true };
+  for (const key of ["www.", "https://", "/", "github.com/owner/repo", "github?query", "github#fragment"]) {
+    assert.equal(validSiteSearchOverride({ ...value, keyword: key }), false, key);
+    assert.equal(validSiteSearchOverride({ ...value, aliases: [key] }), false, key);
+  }
+});
+
+test("App Store searches the Mac App Store rather than Apple's general website", () => {
+  const scope = findScope("appstore", sources)!;
+  const url = new URL(scopedSearchUrl(scope, "calculator & notes", BUILT_IN_ENGINES[0]!));
+  assert.equal(url.origin + url.pathname, "https://apps.apple.com/us/mac/search");
+  assert.equal(url.searchParams.get("term"), "calculator & notes");
+});

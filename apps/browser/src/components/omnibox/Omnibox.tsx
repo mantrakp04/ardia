@@ -21,7 +21,7 @@ import { openFromNewTabBar } from "../../state/omnibox/newTabBar";
 import type { NewTabTarget } from "../../state/browser/types";
 import { showFieldMenu } from "../../state/omnibox/paste";
 import { SuggestionIcon, SuggestionList, isRemovable, type RowActions } from "./SuggestionRow";
-import { keywordScope } from "../../state/omnibox/scopes";
+import { currentScopeFor, keywordScope } from "../../state/omnibox/scopes";
 import { setPopover } from "../../state/tabs/pageState";
 import { AddChip } from "./AddChip";
 import { INCOGNITO_ICON } from "../ntp/IncognitoHeading";
@@ -145,7 +145,12 @@ export function Omnibox({
 
   const choose = (s: Suggestion | undefined, disposition: Disposition = "current", byEnter = false) => {
     bangEnter.cancel();
-    if (scope && !typed.trim()) return go(emptyScopedUrl(scope, scopeFrom), disposition);
+    if (scope) {
+      const liveScope = currentScopeFor(scope, windowId);
+      if (!liveScope) return dispatch({ kind: "leftScope", restore: null });
+      if (!typed.trim()) return go(emptyScopedUrl(liveScope, scopeFrom), disposition);
+      if (s?.kind === "search") return go(scopedSearchUrl(liveScope, s.query, engine), disposition);
+    }
     if (s || !scope) trackSuggestionChosen(s);
     const typedSearch = !s || (byEnter && selectedIndex === 0 && s.kind === "search" && !s.bang && !s.suggested);
     if (!scope && typedSearch) {
@@ -189,7 +194,12 @@ export function Omnibox({
   const forceSearch = () => {
     const text = typed.trim();
     if (!text) return;
-    go(scope ? scopedSearchUrl(scope, text, engine) : searchUrl(engine, text));
+    if (scope) {
+      const liveScope = currentScopeFor(scope, windowId);
+      if (!liveScope) return dispatch({ kind: "leftScope", restore: null });
+      return go(scopedSearchUrl(liveScope, text, engine));
+    }
+    go(searchUrl(engine, text));
   };
 
   const onKeyDown = (e: BarKeyEvent) =>

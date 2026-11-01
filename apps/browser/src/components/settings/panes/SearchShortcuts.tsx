@@ -4,7 +4,7 @@ import { Button, DialogActions, DialogTitle, Sheet, Text, TextField, Toggle } fr
 import { Favicon } from "../../favicon/Favicon";
 import { useSettings } from "../../../state/browser/hooks";
 import { currentSettings, resolvedWindowId } from "../../../state/browser/current";
-import { updateSettings } from "../../../state/settings/actions";
+import { saveSiteSearchOverride, updateSettings } from "../../../state/settings/actions";
 import { searchEngines } from "../../../state/settings/settings";
 import { newTab } from "../../../state/tabs/actions";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
@@ -52,7 +52,7 @@ function ShortcutSheet({ site }: { site: SiteSearch }) {
   const save = () => {
     const invalid = validate();
     if (invalid) return setError(invalid);
-    updateSettings({ siteSearchOverrides: { ...currentSettings().siteSearchOverrides, [site.host]: input() } });
+    saveSiteSearchOverride(site.host, input());
     closeSettingsSheet();
   };
   const field = (label: string, value: string, change: (v: string) => void, placeholder: string) => (

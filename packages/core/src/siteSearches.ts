@@ -28,7 +28,7 @@ export const SITE_SEARCH_PRESETS: readonly SiteSearch[] = [
   { host: "developer.mozilla.org", keyword: "mdn", name: "MDN", url: "https://developer.mozilla.org/en-US/search?q=%s" },
   { host: "figma.com", name: "Figma", url: "https://www.figma.com/files/search?q=%s" },
   { host: "notion.so", name: "Notion", url: "https://www.notion.so/search?q=%s" },
-  { host: "apps.apple.com", keyword: "appstore", name: "App Store", url: "https://www.apple.com/us/search/%s?src=serp" },
+  { host: "apps.apple.com", keyword: "appstore", name: "App Store", url: "https://apps.apple.com/us/mac/search?term=%s" },
   { host: "translate.google.com", keyword: "translate", name: "Google Translate", url: "https://translate.google.com/?text=%s" },
 ];
 
@@ -36,8 +36,13 @@ export function normalizeSearchKeyword(text: string): string {
   return text.trim().toLowerCase().replace(/^[a-z]+:\/\//, "").replace(/^www\./, "").replace(/\/$/, "");
 }
 
+export function validSearchKeyword(text: string): boolean {
+  const keyword = normalizeSearchKeyword(text);
+  return !!keyword && !/[\s/?#]/.test(keyword);
+}
+
 export function siteSearches(overrides: Record<string, SiteSearchOverride> = {}): SiteSearch[] {
-  return SITE_SEARCH_PRESETS.map((site) => ({ ...site, ...overrides[site.host] }));
+  return SITE_SEARCH_PRESETS.map((site) => ({ ...site, ...overrides[site.host], host: site.host, action: site.action }));
 }
 
 export function siteKeywords(site: SiteSearch): string[] {
@@ -58,7 +63,7 @@ export function validSearchTemplate(url: string): boolean {
 export function validSiteSearchOverride(value: unknown): value is SiteSearchOverride {
   if (!value || typeof value !== "object") return false;
   const v = value as SiteSearchOverride;
-  return typeof v.name === "string" && !!v.name.trim() && typeof v.keyword === "string" && !!v.keyword.trim() &&
-    !/\s/.test(v.keyword) && Array.isArray(v.aliases) && v.aliases.every((a) => typeof a === "string" && !!a && !/\s/.test(a)) &&
+  return typeof v.name === "string" && !!v.name.trim() && typeof v.keyword === "string" && validSearchKeyword(v.keyword) &&
+    !/\s/.test(v.keyword) && Array.isArray(v.aliases) && v.aliases.every((a) => typeof a === "string" && validSearchKeyword(a) && !/\s/.test(a)) &&
     typeof v.url === "string" && validSearchTemplate(v.url) && typeof v.enabled === "boolean";
 }

@@ -60,6 +60,16 @@ function engineScope(e: SearchEngine): SearchScope {
   return { kind: "engine", name: e.name, host: engineHost(e), url: e.url, engineId: e.id };
 }
 
+export function refreshScope(scope: SearchScope, { engines, sites = SITE_SEARCH_PRESETS }: ScopeSources): SearchScope | null {
+  if (scope.kind === "history") return scope;
+  if (scope.kind === "engine") {
+    const engine = engines.find((e) => e.id === scope.engineId);
+    return engine && engine.enabled !== false && validSearchTemplate(engine.url) ? engineScope(engine) : null;
+  }
+  const site = sites.find((s) => s.host === scope.host);
+  return site && site.enabled !== false && validSearchTemplate(site.url) ? siteScope(site) : null;
+}
+
 export function scopedSearchUrl(scope: SearchScope, query: string, defaultEngine: Pick<SearchEngine, "url">): string {
   if (scope.kind === "history") return searchUrl(defaultEngine, `site:${scope.host} ${query.trim()}`);
   return searchUrlFor(scope.url, query);

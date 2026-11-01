@@ -1,5 +1,5 @@
 import { hostOf, searchUrlFor } from "./omnibox.ts";
-import { normalizeSearchKeyword, validSearchTemplate } from "./siteSearches.ts";
+import { normalizeSearchKeyword, validSearchKeyword, validSearchTemplate } from "./siteSearches.ts";
 
 export type SearchEngine = {
   id: string;
@@ -142,7 +142,7 @@ export function validateEngine(input: EngineInput, engines: readonly SearchEngin
   if (!url.includes("%s")) return "The URL must contain %s where the search terms go.";
   if (!validSearchTemplate(url)) return "Enter a valid search URL with %s in its path, query, or fragment.";
   const keys = [keyword, ...(input.aliases ?? []).map(normalizeSearchKeyword)];
-  if (keys.some((k) => !k || /\s/.test(k))) return "Aliases cannot be empty or contain spaces.";
+  if (keys.some((k) => !validSearchKeyword(k))) return "Shortcuts and aliases cannot be empty or contain spaces, /, ?, or #.";
   if (new Set(keys).size !== keys.length) return "Each shortcut and alias must be different.";
   if (engines.some((e) => e.id !== ignoreId && [e.keyword, ...(e.aliases ?? [])].some((k) => keys.includes(normalizeSearchKeyword(k)))))
     return "That shortcut or alias is already used by another search engine.";
@@ -151,4 +151,23 @@ export function validateEngine(input: EngineInput, engines: readonly SearchEngin
 
 export function makeCustomEngine(input: EngineInput, id: string): CustomSearchEngine {
   return { id, name: input.name.trim(), keyword: normalizeSearchKeyword(input.keyword), url: input.url.trim(), ...(input.aliases ? { aliases: input.aliases.map(normalizeSearchKeyword) } : {}), ...(input.enabled !== undefined ? { enabled: input.enabled } : {}) };
+}
+
+export function normalizeCustomEngines(engines: readonly CustomSearchEngine[]): CustomSearchEngine[] {
+  const primary = new Map<string, number>();
+  const aliases = new Map<string, number>();
+  for (const engine of engines) {
+    const keyword = normalizeSearchKeyword(engine.keyword);
+    primary.set(keyword, (primary.get(keyword) ?? 0) + 1);
+    for (const alias of new Set((engine.aliases ?? []).map(normalizeSearchKeyword))) aliases.set(alias, (aliases.get(alias) ?? 0) + 1);
+  }
+  return engines.map((engine) => {
+    const keyword = normalizeSearchKeyword(engine.keyword);
+    return {
+      ...engine,
+      keyword,
+      ...(engine.aliases ? { aliases: [...new Set(engine.aliases.map(normalizeSearchKeyword))].filter((a) => validSearchKeyword(a) && !primary.has(a) && aliases.get(a) === 1) } : {}),
+      ...(!validSearchKeyword(keyword) || primary.get(keyword)! > 1 ? { enabled: false } : {}),
+    };
+  });
 }
