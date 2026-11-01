@@ -44,7 +44,7 @@ export function BarField({
         }
         onSelection(next);
       }}
-      placeholder={scope ? `Search ${scope.name}` : incognito ? "Search privately or enter address" : "Search or enter address"}
+      placeholder={scope ? `${scope.action === "ask" ? "Ask" : "Search"} ${scope.name}` : incognito ? "Search privately or enter address" : "Search or enter address"}
       placeholderTextColor={theme.placeholder}
       pastedTypes={PASTED_TYPES}
       selectionColor={theme.selection}

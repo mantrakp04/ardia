@@ -1,4 +1,4 @@
-import { findScope, offeredSiteSearch, type SearchScope } from "@ardia/core";
+import { findScope, offeredSiteSearch, siteSearches, type SearchScope } from "@ardia/core";
 import { useBrowser } from "../browser/store";
 import { searchEngines } from "../settings/settings";
 import { knownHosts } from "./knownHosts";
@@ -6,7 +6,7 @@ import { knownHosts } from "./knownHosts";
 function scopeSources(windowId: string) {
   const s = useBrowser.getState();
   const profileId = s.windows[windowId]?.profileId ?? "";
-  return { engines: searchEngines(s.settings), hosts: knownHosts(s, profileId) };
+  return { engines: searchEngines(s.settings), sites: siteSearches(s.settings.siteSearchOverrides), hosts: knownHosts(s, profileId) };
 }
 
 export function scopeFor(text: string, windowId: string): SearchScope | null {

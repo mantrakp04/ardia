@@ -1,16 +1,19 @@
 import { hostOf, searchUrlFor } from "./omnibox.ts";
+import { normalizeSearchKeyword, validSearchTemplate } from "./siteSearches.ts";
 
 export type SearchEngine = {
   id: string;
   name: string;
   keyword: string;
+  aliases?: string[];
+  enabled?: boolean;
   url: string;
   suggestUrl?: string;
   custom?: boolean;
   extension?: { id: string; name: string };
 };
 
-export type CustomSearchEngine = { id: string; name: string; keyword: string; url: string };
+export type CustomSearchEngine = { id: string; name: string; keyword: string; url: string; aliases?: string[]; enabled?: boolean };
 
 export type ExtensionSearchEngine = {
   profile: string;
@@ -126,21 +129,26 @@ export function parseSuggestions(body: unknown): string[] {
   return (body[1] as unknown[]).filter((s): s is string => typeof s === "string" && s.trim() !== "").map((s) => s.trim());
 }
 
-export type EngineInput = { name: string; keyword: string; url: string };
+export type EngineInput = { name: string; keyword: string; url: string; aliases?: string[]; enabled?: boolean };
 
 export function validateEngine(input: EngineInput, engines: readonly SearchEngine[], ignoreId?: string): string | null {
   const name = input.name.trim();
-  const keyword = input.keyword.trim().toLowerCase();
+  const keyword = normalizeSearchKeyword(input.keyword);
   const url = input.url.trim();
   if (!name) return "Enter a name.";
   if (!keyword) return "Enter a shortcut.";
   if (/\s/.test(keyword)) return "The shortcut can't contain spaces.";
   if (!/^https?:\/\/[^/?#\s]+/i.test(url)) return "Enter a URL that starts with http:// or https://.";
   if (!url.includes("%s")) return "The URL must contain %s where the search terms go.";
-  if (engines.some((e) => e.id !== ignoreId && e.keyword.toLowerCase() === keyword)) return `“${keyword}” is already used by another search engine.`;
+  if (!validSearchTemplate(url)) return "Enter a valid search URL with %s in its path, query, or fragment.";
+  const keys = [keyword, ...(input.aliases ?? []).map(normalizeSearchKeyword)];
+  if (keys.some((k) => !k || /\s/.test(k))) return "Aliases cannot be empty or contain spaces.";
+  if (new Set(keys).size !== keys.length) return "Each shortcut and alias must be different.";
+  if (engines.some((e) => e.id !== ignoreId && [e.keyword, ...(e.aliases ?? [])].some((k) => keys.includes(normalizeSearchKeyword(k)))))
+    return "That shortcut or alias is already used by another search engine.";
   return null;
 }
 
 export function makeCustomEngine(input: EngineInput, id: string): CustomSearchEngine {
-  return { id, name: input.name.trim(), keyword: input.keyword.trim().toLowerCase(), url: input.url.trim() };
+  return { id, name: input.name.trim(), keyword: normalizeSearchKeyword(input.keyword), url: input.url.trim(), ...(input.aliases ? { aliases: input.aliases.map(normalizeSearchKeyword) } : {}), ...(input.enabled !== undefined ? { enabled: input.enabled } : {}) };
 }

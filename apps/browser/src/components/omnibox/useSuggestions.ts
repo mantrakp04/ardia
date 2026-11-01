@@ -1,21 +1,19 @@
 import {
   buildSuggestions,
   createSuggestFetcher,
-  engineById,
   findBang,
   prepareSuggestions,
-  type SearchEngine,
   type SearchScope,
   type SuggestionResult,
 } from "@ardia/core";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { bookmarksByUrl } from "../../state/bookmarks/bookmarks";
 import { useMenuBarRevision } from "../../state/commands/commandShortcuts";
 import { useSettings } from "../../state/browser/hooks";
 import { useBookmarkEngine, useBookmarks } from "../../state/bookmarks/hooks";
 import { useProfileHistory } from "../../state/history/hooks";
 import { useTabs } from "../../state/tabs/hooks";
-import { defaultSearchEngine, searchEngines } from "../../state/settings/settings";
+import { defaultSearchEngine } from "../../state/settings/settings";
 import type { Bookmarks } from "../../state/browser/types";
 import { currentBarActions } from "../../state/omnibox/barActions";
 import { useBangs } from "../../state/omnibox/bangs";
@@ -44,10 +42,6 @@ function engineBookmarks(b: Bookmarks, engine: string): BookmarkRow[] {
   return rows;
 }
 
-function suggestEngine(scope: SearchScope | null, engines: SearchEngine[], fallback: SearchEngine): SearchEngine {
-  return scope?.kind === "engine" ? engineById(engines, scope.engineId) : fallback;
-}
-
 export function useSuggestions({
   text,
   active,
@@ -71,7 +65,8 @@ export function useSuggestions({
   const history = useProfileHistory(profileId);
   const bookmarks = useBookmarks((b) => b);
   const bookmarkEngine = useBookmarkEngine(windowId);
-  const engines = useSettings((st) => searchEngines(st));
+  const siteOverrides = useSettings((st) => st.siteSearchOverrides);
+  const customEngines = useSettings((st) => st.customSearchEngines);
   const engine = useSettings((st) => defaultSearchEngine(st));
   const preference = useSettings((st) => st.commandBarPreference);
   const suggestionsOn = useSettings((st) => st.searchSuggestions);
@@ -96,25 +91,35 @@ export function useSuggestions({
   const [remote, setRemote] = useState<{ text: string; list: string[] }>({ text: "", list: [] });
   const fetcher = useRef(createSuggestFetcher({ fetch: (url, init) => fetch(url, init) })).current;
   const query = text.trim();
-  const fromEngine = suggestEngine(scope, engines, engine);
+  const remoteEpoch = useRef(0);
+  useLayoutEffect(() => {
+    remoteEpoch.current++;
+    fetcher.cancel();
+    setRemote({ text: "", list: [] });
+  }, [scope, engine, fetcher]);
   const bangs = useBangs(active && !scope && query.includes("!"));
   const bang = useMemo(() => (bangs ? findBang(query, bangs) : null), [bangs, query]);
   useEffect(() => {
     const q = query.replace(/^\?/, "").trim();
-    if (!active || !suggestionsOn || !q || bang || /^[a-z][a-z0-9+.-]*:\/\//i.test(q) || scope?.kind === "history") {
+    if (!active || !suggestionsOn || !q || bang || /^[a-z][a-z0-9+.-]*:\/\//i.test(q) || scope) {
       fetcher.cancel();
       return;
     }
-    fetcher.request(fromEngine, q, (list) => setRemote({ text: query, list }));
-  }, [active, suggestionsOn, query, bang, fromEngine, scope, fetcher]);
+    const epoch = remoteEpoch.current;
+    fetcher.request(engine, q, (list) => {
+      if (epoch === remoteEpoch.current) setRemote({ text: query, list });
+    });
+    return () => fetcher.cancel();
+  }, [active, suggestionsOn, query, bang, engine, scope, fetcher]);
   useEffect(() => () => fetcher.cancel(), [fetcher]);
 
   const remoteList = useMemo(() => {
+    if (scope) return NO_REMOTE;
     if (remote.text === query) return remote.list;
     const q = query.toLowerCase();
     if (!remote.text || !q.startsWith(remote.text.toLowerCase())) return NO_REMOTE;
     return remote.list.filter((s) => s.toLowerCase().startsWith(q));
-  }, [remote, query]);
+  }, [remote, query, scope]);
 
   return useMemo(() => {
     if (!active || !query) return EMPTY;
@@ -130,5 +135,5 @@ export function useSuggestions({
       preventInline,
       bangs,
     });
-  }, [active, text, query, source, engine, preference, remoteList, windowId, extensions, shortcuts, menuBar, currentTabId, currentUrl, scope, preventInline, bangs]);
+  }, [active, text, query, source, engine, preference, remoteList, windowId, extensions, shortcuts, siteOverrides, customEngines, menuBar, currentTabId, currentUrl, scope, preventInline, bangs]);
 }

@@ -1,5 +1,5 @@
 import type { SearchScope } from "@ardia/core";
-import { useMemo, type RefObject } from "react";
+import { type RefObject } from "react";
 import type { TextInput } from "react-native";
 import { offeredScope } from "../../state/omnibox/scopes";
 import { useDropdownStart, useOpenTabsStart } from "./dropdownStart";
@@ -52,9 +52,6 @@ export function useBarItems({
   const value = typed + shownCompletion;
   const selectedIndex = selected < 0 && idle ? -1 : Math.min(Math.max(selected, 0), items.length - 1);
   const current = items[selectedIndex];
-  const tabScope = useMemo(
-    () => (!scope && edited ? offeredScope(typed, shownCompletion, windowId) : null),
-    [scope, edited, typed, shownCompletion, windowId],
-  );
+  const tabScope = !scope && edited ? offeredScope(typed, shownCompletion, windowId) : null;
   return { items, completion, inline, shownCompletion, value, selectedIndex, current, tabScope };
 }

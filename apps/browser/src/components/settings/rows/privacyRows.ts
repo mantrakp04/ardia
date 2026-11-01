@@ -84,10 +84,11 @@ export const privacyRows = {
     },
   ],
   search: [
+    { section: "Search shortcuts", rows: { siteShortcuts: { title: "Search shortcuts", description: "Type a shortcut, press Tab, then enter your search. Uses the site’s own search and your signed-in account.", keywords: ["docs", "sheets", "slides", "drive", "gmail", "github", "chatgpt", "claude", "keyword", "alias"] } } },
     { section: "Default search engine", rows: { defaultEngine: { title: "Default search engine", description: "Used by the command bar and the New Tab page.", keywords: ["google", "duckduckgo", "bing", "kagi", "ecosia"] } } },
     {
-      section: "Other search engines",
-      rows: { otherEngines: { advanced: true, title: "Other search engines", description: "Type a shortcut and press Tab in the command bar to search a site directly.", keywords: ["custom search", "site search", "keyword"] } },
+      section: "Custom search shortcuts",
+      rows: { otherEngines: { title: "Custom search shortcuts", description: "Type a shortcut and press Tab in the command bar to search a site directly.", keywords: ["custom search", "site search", "keyword"] } },
     },
     { section: "Suggestions", rows: { suggestions: { title: "Show search suggestions", description: "Sends what you type to your search engine to suggest searches.", keywords: ["autocomplete"] } } },
     {
