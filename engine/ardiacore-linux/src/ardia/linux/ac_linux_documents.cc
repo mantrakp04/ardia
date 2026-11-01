@@ -154,7 +154,7 @@ LinuxDocuments::CommitPreparation LinuxDocuments::PrepareCommit(
   const std::string expected_id = client.id + ":" + std::to_string(accepted + 1);
   bool duplicate = receipt && receipt->FindString("requestId") &&
                    *receipt->FindString("requestId") == *request_id;
-  if (!duplicate && accepted >= 2147483000) return {Error("ERR_DOCUMENT_LIMIT", "Document request sequence exhausted")};
+  if (!duplicate && accepted >= kLinuxLiveMaxGeneration) return {Error("ERR_DOCUMENT_LIMIT", "Document request sequence exhausted")};
   if (duplicate && *receipt->Find("operations") != *operations)
     return {Error("ERR_DOCUMENT_REQUEST", "Request identity was reused")};
   if (!duplicate && *request_id != expected_id)

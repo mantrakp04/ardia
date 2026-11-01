@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
 import { View, type ViewProps } from "react-native";
 import { ardiaHost, hostSupports, invokeHost, reportHostError } from "../../host";
-import { createFileDragGesture } from "../../fileDrag";
 import { FILE_DRAG } from "../../fileCapabilities";
+import { watchFileDragArea } from "./fileDragArea";
 
 export type MiddleClickEvent = { shiftKey: boolean; altKey: boolean; metaKey: boolean };
 
@@ -26,29 +26,7 @@ export function MouseArea({ path, onMiddleClick, ...props }: MouseAreaProps) {
   useEffect(() => {
     const element = node.current;
     if (!element || !draggable) return;
-    const gesture = createFileDragGesture(beginFileDrag);
-    const down = (e: PointerEvent) => gesture.down({ x: e.clientX, y: e.clientY, pointerId: e.pointerId, button: e.button }, latestPath.current);
-    const move = (e: PointerEvent) => {
-      if (gesture.move({ x: e.clientX, y: e.clientY, pointerId: e.pointerId, buttons: e.buttons })) e.preventDefault();
-    };
-    const up = () => gesture.up();
-    const click = (e: MouseEvent) => {
-      if (!gesture.consumeClick()) return;
-      e.preventDefault();
-      e.stopPropagation();
-    };
-    element.addEventListener("pointerdown", down);
-    element.addEventListener("pointermove", move);
-    element.addEventListener("pointerup", up);
-    element.addEventListener("pointercancel", up);
-    element.addEventListener("click", click, true);
-    return () => {
-      element.removeEventListener("pointerdown", down);
-      element.removeEventListener("pointermove", move);
-      element.removeEventListener("pointerup", up);
-      element.removeEventListener("pointercancel", up);
-      element.removeEventListener("click", click, true);
-    };
+    return watchFileDragArea(element, () => latestPath.current, beginFileDrag);
   }, [draggable]);
 
   return (

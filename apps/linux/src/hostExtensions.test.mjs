@@ -7,7 +7,7 @@ import { HostTab } from "./hostTab.ts";
 const ID = "a".repeat(32);
 const POPUP = `chrome-extension://${ID}/popup.html`;
 
-function nativeSurfaces({ capabilities = ["extensionView.create", "extensionView.viewport", "extensionView.command", "extensionView.release"] } = {}) {
+function nativeSurfaces({ capabilities = ["extensionView.create", "extensionView.viewport", "extensionView.place", "extensionView.command", "extensionView.release"] } = {}) {
   const listeners = new Set();
   const requests = [];
   const calls = [];

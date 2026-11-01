@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createHostImport } from "./hostImport.ts";
-import { asksPrimaryPassword, createSecretSlot, unlockCopy, unlockFailure, unlockSource, withoutEncrypted } from "./importUnlock.ts";
+import { asksPrimaryPassword, createSecretSlot, unlockCopy, unlockFailure, unlockForStep, unlockSource, withoutEncrypted } from "./importUnlock.ts";
 
 class ImportError extends Error {
   constructor(code, message) {
@@ -108,4 +108,17 @@ test("skipping encrypted data keeps what the source stores unencrypted", () => {
   const kinds = new Set(["bookmarks", "passwords", "cookies", "autofill"]);
   assert.deepEqual([...withoutEncrypted(CHROME, kinds)].sort(), ["autofill", "bookmarks"]);
   assert.deepEqual([...withoutEncrypted(FIREFOX, kinds)].sort(), ["autofill", "bookmarks", "cookies"]);
+});
+
+test("an unlock answer that arrives after Back and a new unlock step is dropped, and only the current attempt's answer applies", async () => {
+  let flow = { step: { name: "unlock", unlocking: true, error: null } };
+  const now = () => flow;
+  let answer;
+  const stale = unlockForStep(now, () => new Promise((resolve) => { answer = resolve; }));
+  flow = { step: { name: "profiles" } };
+  flow = { step: { name: "unlock", unlocking: false, error: null } };
+  answer(null);
+  assert.equal(await stale, null);
+  const current = unlockForStep(now, async () => "Wrong password");
+  assert.deepEqual(await current, { result: "Wrong password" });
 });

@@ -27,3 +27,12 @@ test("the policy parser joins concatenated native string literals and rejects a 
   assert.deepEqual(connectSources(source), ["https://a.example/x", "https://b.example/y/"]);
   assert.throws(() => connectSources("class Other {}"), /not found/);
 });
+
+test("the policy parser rejects a directive it cannot read instead of dropping it", () => {
+  const source = `class ShellDataSource {
+      case Directive::DefaultSrc: return "default-src 'none';";
+      case Directive::ScriptSrc: return kScriptSource;
+      case Directive::ConnectSrc: return "connect-src 'none';";
+    void StartDataRequest() {}`;
+  assert.throws(() => shellPolicyDirectives(source), /not plain string literals: ScriptSrc/);
+});

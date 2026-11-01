@@ -45,7 +45,7 @@ const probeConnect = async () => {
 
 const deadline = Date.now() + 10000;
 const verify = async () => {
-  const svgCount = gallery.querySelectorAll("svg").length;
+  const svgCount = gallery.querySelectorAll("svg[data-symbol]").length;
   const uiCount = document.querySelectorAll("#root [data-symbol] svg").length;
   if ((svgCount !== SYMBOL_NAMES.length + 1 || !uiCount) && Date.now() < deadline) return setTimeout(verify, 20);
   const errors = [...window.__ardiaCspFixture.errors];
@@ -55,7 +55,7 @@ const verify = async () => {
   check(uiCount > 0 && document.querySelector(".ardia-desktop.host"), "Host UI failed to initialize");
   check(!gallery.querySelector("script,img,foreignObject,iframe,object,embed"), "Injected non-geometry element");
   check(![...gallery.querySelectorAll("*")].some((element) => [...element.attributes].some((attribute) => /^on/i.test(attribute.name))), "Injected event attribute");
-  check(document.querySelector("#hostile-symbol svg")?.getAttribute("color") === hostileColor, "Color escaped incorrectly");
+  check(document.querySelector("#hostile-symbol svg[data-symbol] > svg")?.getAttribute("color") === hostileColor, "Color escaped incorrectly");
   check(!window.__symbolInjection, "Injected script executed");
   check(window.__ardiaCspFixture.htmlAssignments.length >= svgCount, "Missing symbol HTML assignments");
   check(window.__ardiaCspFixture.htmlAssignments.every(Boolean), "Host assigned raw HTML to a Trusted Types sink");

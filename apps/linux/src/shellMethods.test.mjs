@@ -64,9 +64,9 @@ const FORMERLY_TRACKED_IN_305 = [
   "ArdiaApp.setUpdateChannel", "ArdiaApp.setWindowActivity", "ArdiaApp.share", "ArdiaApp.shareVia", "ArdiaApp.isInDock", "ArdiaApp.addToDock",
   "ArdiaApp.appIcons", "ArdiaApp.appIcon", "ArdiaApp.setAppIcon", "ArdiaApp.notificationPermission", "ArdiaApp.requestNotificationPermission",
   "ArdiaApp.postNotification", "ArdiaApp.removeNotifications", "ArdiaApp.openNotificationSettings", "ArdiaApp.setScriptState",
-  "ArdiaApp.replyToScript", "ArdiaApp.crashReports", "ArdiaSystem.menuShortcuts", "ArdiaSystem.recordShortcut", "ArdiaSystem.cancelRecording",
+  "ArdiaApp.replyToScript", "ArdiaApp.crashReports",
   "ArdiaKeychain.get", "ArdiaKeychain.set", "ArdiaKeychain.delete", "ArdiaDockSelection.iconTheme", "ArdiaInlineCompletion.complete",
-  "ArdiaTranslate.userLanguages", "ArdiaTranslate.languageName", "ArdiaTranslate.detect", "ArdiaTranslate.status",
+  "ArdiaTranslate.detect", "ArdiaTranslate.status",
   "ArdiaTranslate.supportedLanguages", "ArdiaTranslate.prepare", "ArdiaTranslate.translate", "ArdiaTranslate.translateBlocks",
   "ArdiaApp.devCrash", "ArdiaApp.devClick", "ArdiaMagnifyArea.devMagnify", "ArdiaFileDrop.devDrag", "ArdiaFileDrop.devLastFileDrag",
 ];
@@ -151,6 +151,12 @@ test("the Mac-only methods of #305 answer on Linux with a truthful value or ERR_
     if (Object.hasOwn(ANSWERED, name)) assert.deepEqual(outcome, { value: ANSWERED[name] }, name);
     else assert.equal(outcome.error?.code, "ERR_UNAVAILABLE", name);
   }
+});
+
+test("translation's synchronous methods answer synchronously on Linux, as the shared code does when translation is absent", () => {
+  const host = linuxHost();
+  assert.deepEqual(resolveHostModule(host, "ArdiaTranslate", "userLanguages")(), []);
+  assert.equal(resolveHostModule(host, "ArdiaTranslate", "languageName")("fr"), "fr");
 });
 
 test("the ardia command and the user-scripts folder answer on Linux as the modules were absent before they became required", async () => {

@@ -36,13 +36,15 @@ export function announceCommandsReady(host: ArdiaHost) {
 export function announceTypeaheadReady(host: ArdiaHost, {
   frame = (callback: () => void) => void requestAnimationFrame(callback),
   now = () => performance.now(),
+  wallClock = () => Date.now(),
   active = (): Focused => document.activeElement as Focused,
   idle = whenIdle,
   expectsField = () => false,
-  deadline = host.bootstrap.typeaheadMs,
+  deadline = host.bootstrap.typeaheadDeadline,
 }: {
   frame?: (callback: () => void) => void;
   now?: () => number;
+  wallClock?: () => number;
   active?: () => Focused;
   idle?: (callback: () => void, timeout: number) => void;
   expectsField?: () => boolean;
@@ -50,7 +52,7 @@ export function announceTypeaheadReady(host: ArdiaHost, {
 } = {}) {
   if (!hostSupports("ArdiaShell.typeaheadReady", host)) return;
   const started = now();
-  const cutoff = typeof deadline === "number" ? deadline - DEADLINE_MARGIN_MS : Infinity;
+  const cutoff = typeof deadline === "number" ? started + deadline - wallClock() - DEADLINE_MARGIN_MS : Infinity;
   const announce = (field: boolean) => void invokeHost("ArdiaShell.typeaheadReady", { args: [field] }, host).catch(reportHostError);
   const check = () => {
     const left = cutoff - now();

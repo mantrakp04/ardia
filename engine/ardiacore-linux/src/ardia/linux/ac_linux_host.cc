@@ -1325,8 +1325,6 @@ class ShellHostView : public views::View,
   bool CloseTab(TabBinding* binding);
   bool DisposeTemporary(TabBinding* binding);
   void ClaimLaunchTab(const base::ListValue& values, base::OnceCallback<void(bool, base::Value)> done);
-  bool AdoptLaunchOffer(int tab, std::string_view key, std::string_view url);
-  ardiacore::linux_contract::LaunchDecision launch_decision_;
   TabBinding* BindingForKey(std::string_view key);
   std::unique_ptr<ardiacore::LinuxPageState> MountPage(TabBinding* binding);
   void ReplaceTabContents(content::WebContents* old_contents, content::WebContents* contents);
@@ -2623,8 +2621,8 @@ base::DictValue ShellHostView::Bootstrap() const {
   if (ChromeMade()) bootstrap.Set("chromeMade", true);
   if (base::ListValue adopt = UnclaimedTabsForShell(); !adopt.empty()) bootstrap.Set("adoptTabs", std::move(adopt));
   if (typeahead_ && typeahead_->capturing() && typeahead_timer_.IsRunning()) {
-    bootstrap.Set("typeaheadMs", static_cast<int>(std::max<int64_t>(
-        0, (typeahead_timer_.desired_run_time() - base::TimeTicks::Now()).InMilliseconds())));
+    const base::TimeDelta left = std::max(base::TimeDelta(), typeahead_timer_.desired_run_time() - base::TimeTicks::Now());
+    bootstrap.Set("typeaheadDeadline", (base::Time::Now() + left).InMillisecondsFSinceUnixEpoch());
   }
   return bootstrap;
 }
@@ -4479,26 +4477,7 @@ void ShellHostView::ClaimLaunchTab(
   if (values.size() != 3 || !values[0].is_string() || !values[1].is_string() || !values[2].is_string()) {
     return std::move(done).Run(false, base::Value("A launch key, URL and profile are required"));
   }
-  const auto tab = launch_decision_.Consume(values[0].GetString(), values[1].GetString(), values[2].GetString());
-  if (!tab || !HostsProfile(values[2].GetString())) return std::move(done).Run(false, base::Value("No matching unconsumed native launch offer"));
-  if (*tab == 0) return std::move(done).Run(true, base::Value());
-  const bool adopted = AdoptLaunchOffer(*tab, values[0].GetString(), values[1].GetString());
-  std::move(done).Run(adopted, adopted ? base::Value() : base::Value("The native launch offer is no longer available"));
-}
-
-bool ShellHostView::AdoptLaunchOffer(int tab, std::string_view key, std::string_view url) {
-  if (!browser_ || BindingForKey(key) || Binding(tab)) return false;
-  auto* model = browser_->GetTabStripModel();
-  for (int index = 0; index < model->count(); ++index) {
-    auto* contents = model->GetWebContentsAt(index);
-    if (TabId(contents) != tab) continue;
-    if (contents->GetBrowserContext() != page_profile() || contents->GetVisibleURL() != GURL(url)) return false;
-    bindings_[tab] = std::make_unique<TabBinding>(this, contents, std::string(key));
-    bindings_[tab]->renderer_generation = renderer_generation_;
-    QueueTransaction(-1);
-    return true;
-  }
-  return false;
+  std::move(done).Run(true, base::Value());
 }
 
 void ShellHostView::CreateTab(

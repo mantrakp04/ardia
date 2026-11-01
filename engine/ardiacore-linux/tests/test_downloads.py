@@ -31,6 +31,23 @@ class DownloadHelperTests(unittest.TestCase):
         self.assertEqual(sorted(native), sorted(json.loads(result.stdout)))
 
 
+class DownloadServiceTests(unittest.TestCase):
+    def test_waiting_for_history_reports_ready_only_when_the_manager_initializes(self):
+        source = LINUX / 'ac_linux_download_service.cc'
+        with tempfile.TemporaryDirectory(prefix='ardia-download-service-') as directory:
+            root = pathlib.Path(directory)
+            for header in re.findall(r'^#include "([^"]+)"', (LINUX / 'ac_linux_download_service.h').read_text()
+                                     + source.read_text(), re.M):
+                if header.startswith('ardia/'):
+                    continue
+                (root / header).parent.mkdir(parents=True, exist_ok=True)
+                (root / header).write_text('#include "download_service.h"\n')
+            output = compile_and_run(self, 'download-service', [
+                source, ROOT / 'tests/fixtures/download_service_scenarios.cc',
+            ], extra_includes=[root, ROOT / 'tests/fixtures'])
+        self.assertIn('download service scenarios passed', output)
+
+
 class DownloadWiringTests(unittest.TestCase):
     def test_contract_routes_engine_controls_and_forwards_removals(self):
         code = r'''

@@ -69,7 +69,7 @@ void DownloadsReady::Wait(content::DownloadManager* manager, base::OnceCallback<
   if (!manager) return std::move(done).Run(false);
   if (manager->IsManagerInitialized()) return std::move(done).Run(true);
   auto* waiter = new DownloadsReady(manager, std::move(done));
-  waiter->timeout_.Start(FROM_HERE, kTimeout, base::BindOnce(&DownloadsReady::Finish, base::Unretained(waiter), true));
+  waiter->timeout_.Start(FROM_HERE, kTimeout, base::BindOnce(&DownloadsReady::Finish, base::Unretained(waiter), false));
 }
 
 DownloadsReady::DownloadsReady(content::DownloadManager* manager, base::OnceCallback<void(bool)> done)

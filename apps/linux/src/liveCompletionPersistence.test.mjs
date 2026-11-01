@@ -27,7 +27,11 @@ const host = {
       if (mode === "reject") throw Object.assign(new Error("Fixture write failure"), { code: "ERR_DOCUMENT_STORAGE" });
       superseded = mode === "superseded" || operation.generation !== generations[operation.id] || operation.incarnation !== incarnations[operation.id] || operation.owner !== "a";
       if (!superseded) { payload = projectLiveIntent(payload, request.operations); generations[operation.id] = ++generation; }
-    } else if (operation.type === "claim") generations[operation.id] = ++generation;
+    } else if (operation.type === "claim") {
+      if (mode === "claimReject") throw Object.assign(new Error("Fixture claim failure"), { code: "ERR_DOCUMENT_STORAGE" });
+      if (mode === "notOwner") return JSON.stringify({ status: "conflict", reason: "notOwner", requestId: request.requestId, snapshot: snapshot() });
+      generations[operation.id] = ++generation;
+    }
     else payload = projectLiveIntent(payload, request.operations);
     watermark++; revision++;
     const response = { status: "committed", requestId: request.requestId, superseded, snapshot: snapshot() };
@@ -39,7 +43,7 @@ const host = {
   },
 };
 globalThis.window = { __ardiaHost: host };
-const { live } = await import("../../browser/src/state/live/store.ts");
+const { live, setLive } = await import("../../browser/src/state/live/store.ts");
 const { refreshFolder, COMPLETION_MS } = await import("../../browser/src/state/live/engine.ts");
 const { SOURCES } = await import("../../browser/src/state/live/sources.ts");
 const { flushLinuxDocuments } = await import("./documentFlush.ts");
@@ -91,4 +95,28 @@ test("the canonical event that arrives before a held reply cannot authorize its 
   gate.resolve(); await flushLinuxDocuments();
   assert.deepEqual(payload.items.f.map((entry) => entry.id), ["i"]);
   assert.equal(requests.filter((request) => request.operations[0].type === "refresh").length, 1);
+});
+
+const forgetStatus = () => setLive((s) => { const { f: _, ...status } = s.status; return { status }; });
+
+test("a window that loses the refresh claim to another settles to idle instead of loading forever", async (context) => {
+  await reset(context);
+  forgetStatus();
+  mode = "notOwner";
+  await refreshFolder("f");
+  mode = "accept";
+  assert.equal(live().status.f?.state, "idle");
+  assert.equal(requests.some((request) => request.operations[0].type === "refresh"), false);
+});
+
+test("a refresh claim that fails settles the folder instead of rejecting into the void", async (context) => {
+  await reset(context);
+  forgetStatus();
+  const warnings = context.mock.method(console, "warn", () => {});
+  mode = "claimReject";
+  await refreshFolder("f");
+  mode = "accept";
+  assert.equal(live().status.f?.state, "idle");
+  assert.equal(warnings.mock.callCount(), 1);
+  await flushLinuxDocuments();
 });

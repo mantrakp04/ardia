@@ -25,6 +25,7 @@ export function summarizeScenario(scenario, record) {
     durationMs: record.durationMs ?? null,
     evidence: record.evidence ?? null,
     scratch: record.keptScratch ?? null,
+    ...(record.unfinished ? { unfinished: record.unfinished } : {}),
   };
 }
 

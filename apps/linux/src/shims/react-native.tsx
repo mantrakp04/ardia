@@ -1,7 +1,7 @@
 import { forwardRef, useCallback, useLayoutEffect, useRef, type ComponentProps, type ForwardedRef, type KeyboardEvent } from "react";
 import { unstable_batchedUpdates as batchedUpdates } from "react-dom";
 import { Animated as WebAnimated, TextInput as WebTextInput, UIManager } from "react-native-web";
-import { reportMountLayout } from "./web/mountLayout";
+import { watchLayout } from "./web/mountLayout";
 
 export * from "react-native-web";
 export { MacPressable as Pressable, MacView as View } from "./web/motion/macView";
@@ -69,7 +69,8 @@ export const TextInput = forwardRef<unknown, MacTextInputProps>(function MacText
   const field = useRef<HTMLInputElement | null>(null);
   const layoutHandler = useRef(props.onLayout);
   layoutHandler.current = props.onLayout;
-  useLayoutEffect(() => reportMountLayout(field.current, layoutHandler.current as never, window), []);
+  const measured = !!props.onLayout;
+  useLayoutEffect(() => (measured ? watchLayout(field.current, () => layoutHandler.current as never, window) : undefined), [measured]);
   const attach = useCallback((node: HTMLInputElement | null) => {
     field.current = node;
     if (node)
@@ -88,5 +89,5 @@ export const TextInput = forwardRef<unknown, MacTextInputProps>(function MacText
     if (field && props.onSelectionChange) props.onSelectionChange({ nativeEvent: { selection: { start: field.selectionStart ?? 0, end: field.selectionEnd ?? 0 } } } as never);
     (props.onChange as ((event: unknown) => void) | undefined)?.(e);
   };
-  return <Input {...props} ref={attach} onChange={onChange} onKeyPress={onKeyDown || keyDownEvents ? handleKeyDown : props.onKeyPress} />;
+  return <Input {...props} onLayout={undefined} ref={attach} onChange={onChange} onKeyPress={onKeyDown || keyDownEvents ? handleKeyDown : props.onKeyPress} />;
 });

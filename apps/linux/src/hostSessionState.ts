@@ -17,12 +17,13 @@ export function sessionStatePatch(state: BrowserState, local: HydrateData, merge
       for (const [key, value] of Object.entries(next)) {
         if (!Object.hasOwn(publicValues, key) && Object.hasOwn(current, key)) continue;
         const saved = { ...(value as Record<string, unknown>) };
+        const savedKind = (saved.page as { kind?: unknown } | undefined)?.kind;
         const previous = current[key] as Record<string, unknown> | undefined;
         for (const property of transientKeys) {
           if (previous && Object.hasOwn(previous, property)) saved[property] = previous[property];
           else delete saved[property];
         }
-        if (field === "tabs" && !previous) saved.page = { kind: (saved.page as { kind?: unknown } | undefined)?.kind === "asleep" ? "asleep" : "idle" };
+        if (field === "tabs" && !previous) saved.page = { kind: savedKind === "asleep" ? "asleep" : "idle" };
         next[key] = saved;
       }
     }

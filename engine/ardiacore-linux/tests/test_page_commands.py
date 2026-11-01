@@ -302,6 +302,23 @@ int main(int argc, char** argv) {
     no_layout.Error("ERR_PAGE_UNAVAILABLE", "showDevTools");
     return 0;
   }
+  if (mode == "lease") {
+    Profile profile;
+    content::WebContents contents{&profile};
+    int early = 0;
+    int late = 0;
+    ardiacore::LinuxDevToolsLease lease(&contents, base::BindRepeating([] { return true; }));
+    lease.OnRevoke([&] { ++early; });
+    assert(lease.Matches(&contents) && early == 0);
+    lease.Revoke();
+    lease.Revoke();
+    assert(early == 1 && !lease.IsCurrent());
+    lease.OnRevoke([&] { ++late; });
+    assert(late == 1);
+    lease.Revoke();
+    assert(early == 1 && late == 1);
+    return 0;
+  }
   if (mode == "background") {
     Fixture f(false);
     f.Error("ERR_PAGE_UNAVAILABLE", "print");
@@ -372,6 +389,9 @@ class PageCommandTests(unittest.TestCase):
 
     def test_devtools_exact_pane_toggle_inspect_console_and_stale_load(self):
         self.run_case('devtools')
+
+    def test_devtools_lease_runs_revoke_callbacks_bound_after_revocation(self):
+        self.run_case('lease')
 
     def test_background_rejects_native_ui_before_dispatch(self):
         self.run_case('background')

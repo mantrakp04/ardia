@@ -304,6 +304,7 @@ class ShellHostView : public views::View {
   void LayoutPane(TabBinding* binding);
   void OnDevToolsDockChanged(content::WebContents* inspected, content::WebContents* devtools);
   void HideDevToolsViewport(TabBinding* binding);
+  void Restack() { restacks++; }
   TabBinding* Binding(int id) {
     for (auto& binding : bindings) {
       if (TabId(binding->contents()) == id) return binding.get();
@@ -367,6 +368,7 @@ class ShellHostView : public views::View {
   int handler_storage = 0;
   int* handler_ = &handler_storage;
   uint64_t renderer_generation_ = 1;
+  int restacks = 0;
   base::WeakPtrFactory<ShellHostView> weak{this};
 };
 

@@ -57,14 +57,19 @@ export function hostSuggestFetch(host: ArdiaHost, extensionEndpoints: () => read
     const cancellable = hostSupports(CANCEL_SUGGEST_METHOD, host);
     return new Promise((resolve, reject) => {
       let settled = false;
+      let sent = false;
       const abort = () => {
         if (settled) return;
         settled = true;
-        if (cancellable) void invokeHost(CANCEL_SUGGEST_METHOD, { args: [id] }, host).catch(() => {});
+        if (cancellable && sent) void invokeHost(CANCEL_SUGGEST_METHOD, { args: [id] }, host).catch(() => {});
         reject(aborted());
       };
       signal.addEventListener("abort", abort, { once: true });
-      invokeHost<unknown>(SUGGEST_METHOD, { args: [request, id] }, host).then((reply) => {
+      Promise.resolve().then(() => {
+        if (settled) return undefined;
+        sent = true;
+        return host.invoke(SUGGEST_METHOD, { args: [request, id] });
+      }).then((reply) => {
         signal.removeEventListener("abort", abort);
         if (settled) return;
         settled = true;

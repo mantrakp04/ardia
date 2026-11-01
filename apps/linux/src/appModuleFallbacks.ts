@@ -1,7 +1,7 @@
 import { hostSupports, type ArdiaHost } from "./host.ts";
 import { unavailableError } from "./hostCapabilities.ts";
 
-type Fallback = (...args: unknown[]) => Promise<unknown>;
+type Fallback = (...args: unknown[]) => unknown;
 
 const answer = (value: unknown): Fallback => () => Promise.resolve(value);
 const refuse = (feature: string): Fallback => () => Promise.reject(unavailableError(feature));
@@ -33,10 +33,14 @@ const APP_FALLBACKS: Record<string, Fallback> = {
 const MODULE_FALLBACKS: Record<string, Record<string, Fallback>> = {
   ArdiaApp: APP_FALLBACKS,
   ArdiaKeychain: { get: refuse("The keychain"), set: refuse("The keychain"), delete: refuse("The keychain") },
-  ArdiaTranslate: Object.fromEntries(["userLanguages", "languageName", "detect", "status", "supportedLanguages", "prepare", "translate", "translateBlocks"].map((method) => [method, refuse("Translation")])),
+  ArdiaTranslate: {
+    userLanguages: () => [],
+    languageName: (identifier) => identifier,
+    ...Object.fromEntries(["detect", "status", "supportedLanguages", "prepare", "translate", "translateBlocks"].map((method) => [method, refuse("Translation")])),
+  },
   ArdiaInlineCompletion: { complete: refuse("Inline completion") },
   ArdiaDockSelection: { iconTheme: refuse("Icon themes") },
-  ArdiaSystem: { menuShortcuts: refuse("The macOS menu bar"), recordShortcut: refuse("The native shortcut recorder"), cancelRecording: refuse("The native shortcut recorder"), runningAppIcon: answer(null) },
+  ArdiaSystem: { runningAppIcon: answer(null) },
   ArdiaCli: { install: refuse("The ardia command") },
   ArdiaUserScripts: { read: answer({ state: "empty" }), readStatus: answer(null), writeStatus: answer(undefined) },
   ArdiaConfig: { watch: answer(undefined), writeSchemas: answer([]) },

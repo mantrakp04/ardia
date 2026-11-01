@@ -16,3 +16,22 @@ test("a page taking focus tells every watcher before the page's own focus handle
   notingPageFocus({})?.onPageFocus();
   assert.equal(calls.length, 5);
 });
+
+test("a focus watcher that throws doesn't keep the other watchers or the page's own focus handler from running", () => {
+  const calls = [];
+  const reported = [];
+  const original = console.error;
+  console.error = (...args) => reported.push(args);
+  const stopA = watchPageFocus(() => { throw new Error("watcher failed"); });
+  const stopB = watchPageFocus(() => calls.push("b"));
+  try {
+    notingPageFocus({ onPageFocus: () => calls.push("page") }).onPageFocus();
+  } finally {
+    console.error = original;
+    stopA();
+    stopB();
+  }
+  assert.deepEqual(calls, ["b", "page"]);
+  assert.equal(reported.length, 1);
+  assert.equal(reported[0][1].message, "watcher failed");
+});

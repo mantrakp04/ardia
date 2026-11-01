@@ -28,8 +28,11 @@ bool LinuxDevToolsLease::Matches(content::WebContents* contents) const {
 }
 
 void LinuxDevToolsLease::OnRevoke(base::OnceClosure callback) {
-  if (!revoked_)
-    on_revoke_ = std::move(callback);
+  if (revoked_) {
+    std::move(callback).Run();
+    return;
+  }
+  on_revoke_ = std::move(callback);
 }
 
 void LinuxDevToolsLease::Revoke() {

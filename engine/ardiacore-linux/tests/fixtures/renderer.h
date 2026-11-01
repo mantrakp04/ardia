@@ -139,6 +139,9 @@ struct ShellHostView {
   content::WebContents* shell() const { return const_cast<content::WebContents*>(&contents_); }
   bool RetireDocuments() { return true; }
   void DetachViewports() { ++detached; }
+  std::vector<int> shell_pass_;
+  int shell_inputs = 0;
+  void ApplyShellInput() { ++shell_inputs; }
   ShellHostView* GetWeakPtr() { return this; }
   bool DisposeTemporary(TabBinding* binding) { binding->live = false; ++closed; return true; }
   TabBinding* Binding(int id) {

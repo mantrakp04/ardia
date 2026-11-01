@@ -117,11 +117,11 @@ packages/
 
 ## Run it
 
-The Linux desktop target is `apps/linux`; its source-build and packaging instructions are in
-[docs/linux-port.md](docs/linux-port.md). It builds against the dedicated Linux Chromium host, while the web demo
-continues to build independently from `apps/demo`.
+The Linux desktop target is `apps/linux`, for x86-64 Linux on Wayland or X11; its source-build and packaging
+instructions are in [docs/linux-port.md](docs/linux-port.md). It builds against the dedicated Linux Chromium host,
+while the web demo continues to build independently from `apps/demo`.
 
-Requires Xcode 26+, CocoaPods, Node 22.13+ (pinned in `.nvmrc`), pnpm 11.
+The macOS app requires Xcode 26+, CocoaPods, Node 22.13+ (pinned in `.nvmrc`), pnpm 11.
 
 ```bash
 pnpm install

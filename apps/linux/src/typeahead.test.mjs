@@ -13,12 +13,15 @@ function fakeHost(capabilities = ["ArdiaShell.typeaheadReady"]) {
   };
 }
 
-function frames() {
+const EPOCH = 1_800_000_000_000;
+
+function frames(start = 0) {
   const queue = [];
-  let time = 0;
+  let time = start;
   return {
     frame: (callback) => queue.push(callback),
     now: () => time,
+    wallClock: () => EPOCH + time,
     step(ms = 16) { time += ms; const next = queue.splice(0); for (const callback of next) callback(); },
     pending: () => queue.length,
   };
@@ -185,7 +188,7 @@ test("the window tells its host once its command listener exists, so held shortc
 test("the wait for a field ends before the host's hold runs out", async () => {
   const host = fakeHost();
   const clock = frames();
-  announceTypeaheadReady(host, { frame: clock.frame, now: clock.now, active: () => null, idle: idles().idle, expectsField: () => true, deadline: 3000 });
+  announceTypeaheadReady(host, { frame: clock.frame, now: clock.now, active: () => null, idle: idles().idle, expectsField: () => true, wallClock: clock.wallClock, deadline: EPOCH + 3000 });
   for (let i = 0; i < 1000 && clock.pending(); i++) clock.step(16);
   await tick();
   assert.deepEqual(host.calls, [["ArdiaShell.typeaheadReady", { args: [false] }]]);
@@ -197,7 +200,7 @@ test("the idle wait after a field focuses is capped at the time the host has lef
   const clock = frames();
   const timeouts = [];
   const queue = [];
-  announceTypeaheadReady(host, { frame: clock.frame, now: clock.now, active: () => ({ tagName: "INPUT", type: "text" }), idle: (callback, timeout) => { timeouts.push(timeout); queue.push(callback); }, expectsField: () => true, deadline: 1000 });
+  announceTypeaheadReady(host, { frame: clock.frame, now: clock.now, active: () => ({ tagName: "INPUT", type: "text" }), idle: (callback, timeout) => { timeouts.push(timeout); queue.push(callback); }, expectsField: () => true, wallClock: clock.wallClock, deadline: EPOCH + 1000 });
   clock.step(16);
   assert.equal(timeouts.length, 1);
   assert.ok(timeouts[0] > 0 && timeouts[0] <= 1000 - 16, String(timeouts[0]));
@@ -210,9 +213,21 @@ test("a field that focuses after the host's deadline is announced at once, witho
   const host = fakeHost();
   const clock = frames();
   let idled = 0;
-  announceTypeaheadReady(host, { frame: clock.frame, now: clock.now, active: () => ({ tagName: "INPUT", type: "text" }), idle: () => { idled++; }, expectsField: () => true, deadline: 100 });
+  announceTypeaheadReady(host, { frame: clock.frame, now: clock.now, active: () => ({ tagName: "INPUT", type: "text" }), idle: () => { idled++; }, expectsField: () => true, wallClock: clock.wallClock, deadline: EPOCH + 100 });
   clock.step(200);
   await tick();
   assert.equal(idled, 0);
   assert.deepEqual(host.calls, [["ArdiaShell.typeaheadReady", { args: [true] }]]);
+});
+
+test("the deadline counts from when the host sampled it, however late the page started", async () => {
+  const host = fakeHost();
+  const clock = frames(3000);
+  const deadline = clock.wallClock() + 7000;
+  clock.step(500);
+  announceTypeaheadReady(host, { frame: clock.frame, now: clock.now, wallClock: clock.wallClock, active: () => null, idle: idles().idle, expectsField: () => true, deadline });
+  for (let i = 0; i < 1000 && clock.pending(); i++) clock.step(16);
+  await tick();
+  assert.deepEqual(host.calls, [["ArdiaShell.typeaheadReady", { args: [false] }]]);
+  assert.ok(clock.now() >= 9700 && clock.now() < 10000, String(clock.now()));
 });

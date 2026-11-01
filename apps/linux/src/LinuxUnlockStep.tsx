@@ -5,7 +5,7 @@ import { ErrorText, Handoff, Spacer, Title } from "../../browser/src/components/
 import { backTo, importNow, importsBySpaces, patchImport, type ImportFlow } from "../../browser/src/state/import/flow";
 import { importModule } from "../../browser/src/state/import/importApi";
 import { runImport } from "../../browser/src/state/import/runImport";
-import { asksPrimaryPassword, createSecretSlot, unlockCopy, unlockSource, withoutEncrypted } from "./importUnlock";
+import { asksPrimaryPassword, createSecretSlot, unlockCopy, unlockForStep, unlockSource, withoutEncrypted } from "./importUnlock";
 
 const primaryPassword = createSecretSlot();
 
@@ -20,10 +20,10 @@ async function unlock() {
   if (!source || step.name !== "unlock" || step.unlocking) return;
   if (asksPrimaryPassword(source, sourceProfiles) && !primaryPassword.get()) return;
   unlockStep(true, null);
-  const failure = await unlockSource(importModule(), source, sourceProfiles, kinds, primaryPassword);
-  if (importNow().step.name !== "unlock") return;
-  unlockStep(false, failure);
-  if (!failure) void runImport(importNow().kinds);
+  const settled = await unlockForStep(importNow, () => unlockSource(importModule(), source, sourceProfiles, kinds, primaryPassword));
+  if (!settled) return;
+  unlockStep(false, settled.result);
+  if (!settled.result) void runImport(importNow().kinds);
 }
 
 function skipEncrypted(source: NonNullable<ImportFlow["source"]>) {

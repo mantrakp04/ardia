@@ -58,9 +58,6 @@ constexpr net::NetworkTrafficAnnotationTag kTrafficAnnotation =
         destination_other:
           "The built-in search engine the user chose, or the suggestions "
           "endpoint of a search engine an installed extension added."
-        internal {
-          contacts { owners: "//ardia/linux/OWNERS" }
-        }
         last_reviewed: "2026-10-27"
       }
       policy {

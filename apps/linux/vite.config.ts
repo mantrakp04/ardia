@@ -39,7 +39,7 @@ const replacements = new Map([
 ]);
 const importedPasswordSave = {
   source: here("../browser/src/state/site/passwords.ts"),
-  importer: here("../browser/src/components/settings/panes/Passwords.tsx"),
+  importers: new Set([here("../browser/src/components/settings/panes/Passwords.tsx"), here("../browser/src/state/site/savedPasswords.ts")]),
   replacement: here("./src/importedPasswordSave.ts"),
 };
 const tabLifecycle = here("../browser/src/state/tabs/tabLifecycle.ts");
@@ -50,6 +50,7 @@ const importerReplacements = new Map([
   [`${here("../browser/src/state/site/webNotifications.ts")}\0${here("../browser/src/state/site/permissions.ts")}`, here("./src/notificationPermission.ts")],
   [`${lazyComponentId(here("../browser/src/components/extensions/ExtensionOverlays.tsx"))}\0${here("../browser/src/components/settings/panes/Extensions.tsx")}`, here("./src/SettingsInstallDialog.tsx")],
   [`${here("../browser/src/platform/webviews.ts")}\0${here("../browser/src/state/drag/tabDrag.ts")}`, here("./src/dragWebviews.ts")],
+  [`${here("../browser/src/platform/extensions.ts")}\0${here("../browser/src/state/extensions/actions.ts")}`, here("./src/extensionInstalls.ts")],
   [`${here("../browser/src/components/ui/Panel.tsx")}\0${here("../browser/src/components/ui/Popover.tsx")}`, here("./src/GlassPanel.tsx")],
   [`${here("../browser/src/components/ui/index.ts")}\0${here("../browser/src/components/window/SidebarDock.tsx")}`, here("./src/glassUi.tsx")],
   [`${here("../browser/src/components/ui/index.ts")}\0${here("../browser/src/components/omnibox/CommandPanel.tsx")}`, here("./src/glassUi.tsx")],
@@ -68,7 +69,7 @@ function linuxComponents(): Plugin {
     async resolveId(source, importer, options) {
       if (!importer || adapters.has(importer)) return null;
       const resolved = await this.resolve(source, importer, { ...options, skipSelf: true });
-      if (resolved?.id === importedPasswordSave.source && importer === importedPasswordSave.importer) return importedPasswordSave.replacement;
+      if (resolved?.id === importedPasswordSave.source && importedPasswordSave.importers.has(importer)) return importedPasswordSave.replacement;
       const scoped = resolved && importerReplacements.get(`${resolved.id}\0${importer}`);
       if (scoped) return scoped;
       return resolved ? resolveInputAdapter(resolved.id, importer) ?? replacements.get(resolved.id) ?? null : null;

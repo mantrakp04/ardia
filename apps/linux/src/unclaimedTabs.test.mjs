@@ -76,6 +76,32 @@ test("the shell pulls tabs parked before it listened and adopts later ones from 
   assert.equal(tabsAt("https://stopped.example/").length, 0);
 });
 
+test("a tab the event delivered before the parked list answered is adopted once", async () => {
+  freshWindow();
+  let answer;
+  const host = nativeHost();
+  host.invoke = (method, args) => {
+    host.calls.push([method, structuredClone(args)]);
+    return new Promise((resolve) => { answer = resolve; });
+  };
+  const stop = watchUnclaimedTabs(host, useBrowser);
+  const offer = { adoptId: "tab:41", url: "https://twice.example/", active: true };
+  host.emit("ArdiaTabs", "unclaimed", offer);
+  answer([offer]);
+  await tick();
+  assert.equal(tabsAt("https://twice.example/").length, 1);
+  stop();
+});
+
+test("a parked list that answers after the watcher stopped adopts nothing", async () => {
+  freshWindow();
+  const host = nativeHost({ parked: [{ adoptId: "tab:51", url: "https://late.example/", active: true }] });
+  const stop = watchUnclaimedTabs(host, useBrowser);
+  stop();
+  await tick();
+  assert.equal(tabsAt("https://late.example/").length, 0);
+});
+
 test("a window Chrome made is saved with its adopted tabs instead of waiting for an opener", async (t) => {
   const previous = { window: globalThis.window, document: globalThis.document };
   globalThis.window = new EventTarget();

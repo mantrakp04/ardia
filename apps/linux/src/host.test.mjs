@@ -90,6 +90,58 @@ test("documents read back a write or removal before the native write finishes an
   assert.equal(documents.read("onboarding.json"), null);
 });
 
+test("a refresh that a local write overtakes keeps the write instead of the older stored copy", async () => {
+  let disk = '{"v":0}';
+  let answer;
+  const { host } = fixture(async (method, args) => {
+    if (method.endsWith("writeDocument")) disk = args.args[1];
+    if (!method.endsWith("readDocument")) return null;
+    const read = disk;
+    return new Promise((resolve) => { answer = () => resolve(read); });
+  });
+  host.bootstrap.documents = { "sync.json": '{"v":0}' };
+  const documents = createHostDocuments(host);
+  const refreshed = documents.refresh("sync.json");
+  await new Promise(setImmediate);
+  await documents.write("sync.json", '{"v":1}');
+  answer();
+  assert.equal(await refreshed, true);
+  assert.equal(disk, '{"v":1}');
+  assert.equal(documents.read("sync.json"), '{"v":1}');
+});
+
+test("a failed write rolls back to what is stored, whatever later writes hold", async () => {
+  const gates = [];
+  const { host } = fixture(async (method, args) => {
+    if (!method.endsWith("writeDocument")) return null;
+    const gate = {};
+    gate.done = new Promise((resolve, reject) => Object.assign(gate, { resolve, reject }));
+    gates.push(gate);
+    return gate.done;
+  });
+  host.bootstrap.documents = { "prefs.json": "p" };
+  const documents = createHostDocuments(host);
+  const failed = documents.write("prefs.json", "x");
+  const same = documents.write("prefs.json", "x");
+  await new Promise(setImmediate);
+  gates[0].reject(new Error("disk full"));
+  await assert.rejects(failed, /disk full/);
+  await new Promise(setImmediate);
+  gates[1].resolve();
+  await same;
+  assert.equal(documents.read("prefs.json"), "x");
+  const first = documents.write("prefs.json", "y");
+  const second = documents.write("prefs.json", "z");
+  await new Promise(setImmediate);
+  gates[2].reject(new Error("disk full"));
+  await assert.rejects(first, /disk full/);
+  assert.equal(documents.read("prefs.json"), "z");
+  await new Promise(setImmediate);
+  gates[3].reject(new Error("disk full"));
+  await assert.rejects(second, /disk full/);
+  assert.equal(documents.read("prefs.json"), "x");
+});
+
 test("an isolated profile's new window seeds itself in that profile before the session that opened it is saved", () => {
   const { host } = fixture();
   host.bootstrap = { windowId: "w-isolated", profileId: "default", pageProfile: "p-isolated", startup: false };
@@ -345,6 +397,22 @@ test("logical tab removal and pinned unload close once while native view unmount
   store.set({ ...store.getState(), tabs });
   await new Promise(setImmediate);
   assert.equal(requests.filter(([method]) => method === "tab.close").length, 2);
+  stop();
+});
+
+test("a tab that wakes right after it sleeps is never closed behind the wake", async () => {
+  const { host, requests } = fixture();
+  const state = browserState();
+  const key = Object.keys(state.tabs).find((id) => id !== "secret");
+  const loaded = { ...state.tabs[key], page: { kind: "loaded", nav: { url: "https://example.com", seq: 1 } } };
+  const store = mutableStore({ tabs: { [key]: loaded } });
+  const stop = startHostTabLifecycle(host, store);
+  const closes = () => requests.filter(([method]) => method === "tab.close").length;
+  let closesAtWake;
+  store.set({ tabs: { [key]: { ...loaded, page: { kind: "asleep" } } } });
+  queueMicrotask(() => { closesAtWake = closes(); store.set({ tabs: { [key]: loaded } }); });
+  await new Promise(setImmediate);
+  assert.equal(closes(), closesAtWake);
   stop();
 });
 

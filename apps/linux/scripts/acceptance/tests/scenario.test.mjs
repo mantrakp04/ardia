@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
-import { access, mkdtemp, readFile, rm } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, describe, it } from "node:test";
 import { buildReport, exitCode, formatLine, scenarioStatus } from "../lib/report.mjs";
-import { runScenario } from "../lib/scenario.mjs";
+import { startBrowser } from "../lib/flows.mjs";
+import { runScenario, runScenarios } from "../lib/scenario.mjs";
+import { until } from "../lib/util.mjs";
 import { SCENARIOS, selectScenarios } from "../scenarios/index.mjs";
 
 const exists = (path) => access(path).then(() => true, () => false);
@@ -59,15 +61,92 @@ describe("scenario runner", () => {
       deadline: 400,
       async run(t) {
         await t.launch({ scratch: await t.scratch(), label: "slow" });
-        await t.check("hangs", () => new Promise(() => {}), { timeout: 100 });
+        await t.check("hangs", ({ signal }) => new Promise((_, reject) => signal.addEventListener("abort", () => reject(signal.reason))), { timeout: 100 });
         await new Promise(() => {});
       },
-    });
+    }, { drainTimeout: 100 });
     const result = await promise;
     assert.equal(result.status, "fail");
     assert.match(result.checks[0].detail, /100 ms deadline/);
     assert.match(result.error, /400 ms deadline/);
     assert.deepEqual(closed, ["slow"]);
+  });
+
+  it("lets a timed-out scenario stop before it returns, and refuses new work after the stop", async () => {
+    const events = [];
+    const { promise } = run({ id: "T06", issue: 906, title: "late",
+      deadline: 100,
+      async run(t) {
+        await t.launch({ scratch: await t.scratch(), label: "late" });
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        events.push("body finished");
+        await t.scratch("after").catch((error) => events.push(error.constructor.name));
+      },
+    }, { drainTimeout: 5000 });
+    const result = await promise;
+    events.push("runner returned");
+    assert.match(result.error, /100 ms deadline/);
+    assert.deepEqual(events, ["body finished", "ScenarioAbort", "runner returned"]);
+  });
+
+  it("cancels a timed-out check and lets it stop before the next check starts", async () => {
+    const events = [];
+    const result = await run({ id: "T08", issue: 908, title: "overlap",
+      async run(t) {
+        await t.check("slow", () => until(() => { events.push("slow poll"); return false; }, { timeout: 5000, interval: 20 }), { timeout: 100 });
+        await t.check("next", async ({ signal }) => { events.push("next started"); await new Promise((resolve) => setTimeout(resolve, 200)); return !signal.aborted; });
+      },
+    }).promise;
+    assert.deepEqual(result.checks.map((c) => [c.name, c.status]), [["slow", "fail"], ["next", "pass"]]);
+    assert.match(result.checks[0].detail, /100 ms deadline/);
+    assert.ok(events.includes("slow poll"));
+    assert.deepEqual(events.slice(events.indexOf("next started")), ["next started"]);
+  });
+
+  it("stops the scenario when a timed-out check ignores cancellation", async () => {
+    const events = [];
+    const result = await run({ id: "T09", issue: 909, title: "deaf check",
+      async run(t) {
+        await t.check("deaf", () => new Promise((resolve) => setTimeout(resolve, 600)), { timeout: 50 });
+        await t.check("never", () => events.push("never"));
+      },
+    }, { drainTimeout: 100 }).promise;
+    assert.equal(result.status, "fail");
+    assert.match(result.error, /deaf was still running 100 ms after it failed/);
+    assert.deepEqual(result.checks.map((c) => c.name), ["deaf"]);
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    assert.deepEqual(events, []);
+  });
+
+  it("stops the suite instead of starting a scenario that unfinished work could overlap", async () => {
+    const events = [];
+    const deaf = { id: "T10", issue: 910, title: "deaf", deadline: 50, async run() { await new Promise((resolve) => setTimeout(resolve, 600)); events.push("T10 resumed"); } };
+    const next = { id: "T11", issue: 911, title: "next", async run(t) { events.push("T11 started"); await t.check("a", () => true); } };
+    const { results, halted } = await runScenarios([deaf, next], { options: { executable: "/x" }, fixtures: {}, resultsDir: join(root, "results"), scratchRoot: join(root, "scratch"), launch: fakeLaunch([]), drainTimeout: 100 });
+    assert.equal(halted, true);
+    assert.deepEqual(results.map((r) => [r.finding, r.status]), [["T10", "fail"], ["T11", "fail"]]);
+    assert.deepEqual(results[0].unfinished, ["the scenario body"]);
+    assert.match(results[0].error, /the scenario body still running 100 ms after T10 stopped/);
+    assert.match(results[1].error, /not run: T10 left work running/);
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    assert.deepEqual(events, ["T10 resumed"]);
+  });
+
+  it("runs every scenario when each one stops cleanly", async () => {
+    const { results, halted } = await runScenarios([
+      { id: "T12", issue: 912, title: "slow but cooperative", deadline: 50, run: () => until(() => false, { timeout: 5000, interval: 20 }) },
+      { id: "T13", issue: 913, title: "next", async run(t) { await t.check("a", () => true); } },
+    ], { options: { executable: "/x" }, fixtures: {}, resultsDir: join(root, "results"), scratchRoot: join(root, "scratch"), launch: fakeLaunch([]), drainTimeout: 1000 });
+    assert.equal(halted, false);
+    assert.deepEqual(results.map((r) => [r.finding, r.status]), [["T12", "fail"], ["T13", "pass"]]);
+    assert.equal(results[0].unfinished, undefined);
+  });
+
+  it("bounds the wait for a scenario that never stops", async () => {
+    const started = Date.now();
+    const result = await run({ id: "T07", issue: 907, title: "stuck", deadline: 50, run: () => new Promise(() => {}) }, { drainTimeout: 200 }).promise;
+    assert.match(result.error, /50 ms deadline/);
+    assert.ok(Date.now() - started < 2000);
   });
 
   it("passes with automated checks only, and is manual when steps remain", async () => {
@@ -76,6 +155,37 @@ describe("scenario runner", () => {
     assert.equal(pass.scratch, null);
     const manual = await run({ id: "T05", issue: 905, title: "half", manual: [{ name: "m", steps: ["x"] }], async run(t) { await t.check("a", () => true); } }).promise;
     assert.equal(manual.status, "manual");
+  });
+});
+
+describe("browser start", () => {
+  let root;
+  before(async () => { root = await mkdtemp(join(tmpdir(), "ardia-acceptance-start-")); });
+  after(() => rm(root, { recursive: true, force: true }));
+
+  const fakeContext = () => {
+    const blockerQueries = [];
+    const shell = { call: async (method) => { blockerQueries.push(method); return { ok: true, value: { stats: { ready: true } } }; } };
+    const app = { mainShell: async () => shell, logText: async () => "", exitReason: () => null };
+    let made = 0;
+    return { blockerQueries, t: { scratch: async (name) => { const dir = join(root, `${name}-${made++}`); await mkdir(dir, { recursive: true }); return dir; }, launch: async () => app } };
+  };
+
+  it("waits for the blocker's navigation hold on a new profile even when it seeds Chromium preferences", async () => {
+    const { t, blockerQueries } = fakeContext();
+    const started = await startBrowser(t, { name: "seeded", preferences: { downloads: join(root, "downloads") } });
+    assert.ok(await exists(join(started.scratch, "Default", "Preferences")));
+    assert.equal(started.hold, "ready");
+    assert.deepEqual(blockerQueries, ["contentBlocker.state"]);
+  });
+
+  it("skips the wait when it restarts a profile that has already run", async () => {
+    const { t, blockerQueries } = fakeContext();
+    const first = await startBrowser(t, { name: "again", preferences: {} });
+    blockerQueries.length = 0;
+    const restarted = await startBrowser(t, { scratch: first.scratch });
+    assert.equal(restarted.hold, null);
+    assert.deepEqual(blockerQueries, []);
   });
 });
 

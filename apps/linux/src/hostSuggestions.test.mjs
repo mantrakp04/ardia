@@ -237,3 +237,13 @@ test("a completed request is not cancelled afterwards and a host without cancell
   await settle();
   assert.equal(legacy.calls.filter((call) => call.method === CANCEL_SUGGEST_METHOD).length, 0);
 });
+
+test("a request cancelled before its call leaves never reaches the host, so nothing needs cancelling", async () => {
+  const { host, calls } = fakeHost({ reply: () => deferred().promise });
+  const controller = new AbortController();
+  const request = hostSuggestFetch(host)(suggestRequestUrl(google, "gone"), { signal: controller.signal });
+  controller.abort();
+  await assert.rejects(request, { name: "AbortError" });
+  await settle();
+  assert.deepEqual(calls, []);
+});

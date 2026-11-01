@@ -76,6 +76,26 @@ test("domain events deliver envelopes once and listener removal survives reuse a
   events.removeAll("ArdiaHistory");
 });
 
+test("a throwing event listener leaves the others running, and each subscription of one function removes alone", (t) => {
+  const events = createNativeEvents();
+  const errors = t.mock.method(console, "error", () => {});
+  const received = [];
+  const listener = (event) => received.push(event);
+  events.add("ArdiaTabs", "unclaimed", () => { throw new Error("broken listener"); });
+  const once = events.add("ArdiaTabs", "unclaimed", listener);
+  const twice = events.add("ArdiaTabs", "unclaimed", listener);
+  assert.doesNotThrow(() => events.emit("ArdiaTabs", "unclaimed", 1));
+  assert.deepEqual(received, [1, 1]);
+  assert.equal(errors.mock.callCount(), 1);
+  once.remove();
+  events.emit("ArdiaTabs", "unclaimed", 2);
+  assert.deepEqual(received, [1, 1, 2]);
+  twice.remove();
+  events.emit("ArdiaTabs", "unclaimed", 3);
+  assert.deepEqual(received, [1, 1, 2]);
+  events.removeAll("ArdiaTabs");
+});
+
 test("stable tab keys carry unique claims through reclaim, buffered events and stale cleanup", async () => {
   const { host, requests, listeners } = fixture();
   let finish;

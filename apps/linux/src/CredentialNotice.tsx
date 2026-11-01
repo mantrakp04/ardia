@@ -5,12 +5,12 @@ import { autofillStatus, credentialNotice, credentialNoticeTitle, credentialStor
 
 type Shown = { title: string; notice: string | null; storage: string | null };
 
-export function CredentialNotice({ kind }: { kind: "passwords" | "autofill" }) {
+export function CredentialNotice({ kind, profile }: { kind: "passwords" | "autofill"; profile: string }) {
   const [shown, setShown] = useState<Shown | null>(null);
   useEffect(() => {
     if (!ardiaHost) return;
     let live = true;
-    const status = kind === "passwords" ? passwordStatus(ardiaHost) : autofillStatus(ardiaHost);
+    const status = kind === "passwords" ? passwordStatus(ardiaHost, profile) : autofillStatus(ardiaHost, profile);
     status.then(
       (value) => live && setShown({ title: credentialNoticeTitle(value, kind), notice: credentialNotice(value, kind), storage: credentialStorage(value, kind) }),
       (error: unknown) =>
@@ -24,7 +24,7 @@ export function CredentialNotice({ kind }: { kind: "passwords" | "autofill" }) {
     return () => {
       live = false;
     };
-  }, [kind]);
+  }, [kind, profile]);
   if (!shown || (!shown.notice && !shown.storage)) return null;
   return (
     <Group>

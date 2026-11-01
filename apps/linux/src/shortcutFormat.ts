@@ -1,6 +1,6 @@
 import { formatShortcut as sharedFormat, resolveShortcuts as sharedResolve, type Shortcut, type ShortcutOverrides, type ShortcutSource } from "../../browser/src/state/commands/shortcuts";
 
-import { migrateProfileShortcuts } from "./shortcutOverrides";
+import { migrateProfileShortcuts, unshiftedShortcutOverrides } from "./shortcutOverrides";
 
 export * from "../../browser/src/state/commands/shortcuts";
 
@@ -19,5 +19,5 @@ export function formatShortcut({ key, modifiers }: Shortcut): string {
 
 export function resolveShortcuts(sources: readonly ShortcutSource[], overrides: ShortcutOverrides) {
   const profiles = sources.filter((source) => source.id.startsWith("switchProfile:")).map((source) => source.id.slice("switchProfile:".length));
-  return sharedResolve(sources, migrateProfileShortcuts(overrides, profiles));
+  return sharedResolve(sources, unshiftedShortcutOverrides(migrateProfileShortcuts(overrides, profiles)));
 }
