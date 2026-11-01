@@ -55,7 +55,7 @@ export function ProfileDetailsPane({ profileId }: { profileId: string }) {
       <Row title="Clear Browsing Data" description="Affects every space using this profile. Saved sidebar rows and folders stay.">
         <Button title="Clear…" onPress={() => showSettingsSheet(<ClearDataDialog profileId={profileId} onClose={closeSettingsSheet} />)} />
       </Row>
-      <Row title="Delete Profile" description={spaces.length ? "Assign its spaces to another profile first." : privateWindows ? "Close this profile’s private windows first." : profiles.length <= 1 ? "Keep at least one profile." : "Deletes its browsing data on this Mac."}>
+      <Row title="Delete Profile" description={profiles.length <= 1 ? "Keep at least one profile." : privateWindows ? "Close this profile’s private windows first." : spaces.length ? "Its spaces will be reassigned to another profile when deleted." : "Deletes its browsing data on this Mac."}>
         <Button title="Delete…" kind="destructive" onPress={() => void remove()} />
       </Row>
     </Group>

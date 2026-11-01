@@ -288,3 +288,53 @@ test("an icon the page reported during a lookup still wins after the cache start
     delete globalThis.faviconsForTest;
   }
 });
+
+function withoutInitialSpace() {
+  globalThis.storedFavicons = [];
+  const S = () => useBrowser.getState();
+  S().hydrate({});
+  const profileId = S().createProfile({ name: "Remaining identity" });
+  const spaceId = S().createSpace({ name: "Remaining space", profileId });
+  S().updateSettings({ defaultSpaceId: spaceId });
+  S().deleteSpace("default");
+  assert.equal(S().spaces.default, undefined);
+  return { S, profileId, spaceId };
+}
+
+test("favicon lookup skips the deleted initial Space and still resolves a remaining Space", () => {
+  const { spaceId } = withoutInitialSpace();
+  const page = "https://remaining-space-icon.test/";
+  adoptFavicons(spaceId, [{ page, icon: "i", png: "REMAINING" }]);
+  assert.deepEqual(resolveFavicon(page), { uri: "data:image/png;base64,REMAINING", spaceId });
+  const row = mount(() => useFavicon(page));
+  row.unmount();
+});
+
+test("favicon lookup for a deleted explicit Space returns no other Profile's icon", () => {
+  const { spaceId } = withoutInitialSpace();
+  const page = "https://deleted-space-icon.test/";
+  adoptFavicons(spaceId, [{ page, icon: "i", png: "OTHER" }]);
+  assert.equal(resolveFavicon(page, null, "default"), null);
+  for (const src of [null, "https://deleted-space-icon.test/favicon.ico"]) {
+    const row = mount(() => useFavicon(page, src, "default"));
+    row.unmount();
+  }
+});
+
+test("favicon lookup skips a Space whose Profile is unavailable", () => {
+  const { S, profileId, spaceId } = withoutInitialSpace();
+  useBrowser.setState({ profiles: Object.fromEntries(Object.entries(S().profiles).filter(([id]) => id !== profileId)) });
+  assert.equal(resolveFavicon("https://missing-profile-icon.test/", null, spaceId), null);
+  assert.equal(resolveFavicon("https://missing-profile-icon.test/"), null);
+});
+
+test("favicon lookup retains private cache precedence after the initial Space is deleted", () => {
+  const { S, spaceId } = withoutInitialSpace();
+  const windowId = S().createWindow({ kind: "private", spaceId });
+  const privateId = S().windows[windowId].spaceId;
+  const page = "https://private-space-icon.test/";
+  seedFavicons({ images: ["data:regular"], spaces: { [engineProfile(S(), spaceId)]: { pages: { [page]: 0 }, srcs: {} } }, themes: {} });
+  useFavicons.setState((f) => ({ spaces: { ...f.spaces, [privateId]: { pages: { [page]: "data:private" }, srcs: {}, appearances: {} } } }));
+  assert.deepEqual(resolveFavicon(page, null, privateId), { uri: "data:private", spaceId: privateId });
+  assert.equal(resolveFavicon("https://uncached-private-icon.test/", null, privateId), null);
+});

@@ -230,8 +230,9 @@ function lookupIn(key: string, url: string, src: string | null | undefined): str
 }
 
 function lookupOrder(spaceId?: string): string[] {
-  if (spaceId && !isIncognitoSpace(spaceId)) return [spaceId];
-  return [...new Set([...(spaceId ? [spaceId] : []), DEFAULT_SPACE_ID, ...useBrowser.getState().spaceOrder])];
+  const { spaces, profiles, spaceOrder } = useBrowser.getState();
+  const ids = spaceId && !isIncognitoSpace(spaceId) ? [spaceId] : [...new Set([...(spaceId ? [spaceId] : []), DEFAULT_SPACE_ID, ...spaceOrder])];
+  return ids.filter((id) => isIncognitoSpace(id) || !!profiles[spaces[id]?.profileId ?? ""]);
 }
 
 export function resolveFavicon(url: string, src?: string | null, spaceId?: string): ResolvedFavicon | null {
@@ -245,20 +246,22 @@ export function resolveFavicon(url: string, src?: string | null, spaceId?: strin
 
 export const useAppearanceDark = () => useBrowser((s) => s.ui.appDark);
 
-function answered(url: string, spaceId?: string): boolean {
+function answered(url: string, ids: string[]): boolean {
   const { spaces } = useFavicons.getState();
   const page = withoutFragment(url);
-  return lookupOrder(spaceId).every((id) => isIncognitoSpace(id) || spaces[cacheKey(id)]?.pages[page] !== undefined);
+  return ids.every((id) => isIncognitoSpace(id) || spaces[cacheKey(id)]?.pages[page] !== undefined);
 }
 
 type Watcher = { url: string; src?: string | null; spaceId?: string; known?: boolean };
 const watchers = new Map<string, Set<Watcher>>();
 
 function check(w: Watcher) {
-  const known = answered(w.url, w.spaceId);
+  const ids = lookupOrder(w.spaceId);
+  if (!ids.length) return;
+  const known = answered(w.url, ids);
   if (known === w.known) return;
   w.known = known;
-  if (!known) for (const id of lookupOrder(w.spaceId)) ask(cacheKey(id), withoutFragment(w.url));
+  if (!known) for (const id of ids) ask(cacheKey(id), withoutFragment(w.url));
   else if (w.src && w.spaceId && !resolveFavicon(w.url, w.src, w.spaceId)) fetchMissing(w.spaceId, w.url, w.src);
 }
 
