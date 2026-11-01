@@ -3,8 +3,8 @@ import { startNavigation } from "./earlyNavigate";
 import { cloneId } from "./adoptIds";
 import type { BrowserState } from "../browser/store";
 import { syncGroupOrder } from "../groups/groups";
-import { activeTabId, inPinnedContainer, merge, navigationTo, pinSection, snapshotTab, viewTabIds } from "../browser/model";
-import { forgetOpeners, nextToActive, switchKeepsOpeners } from "./openers";
+import { activeTabId, merge, navigationTo, pinSection, snapshotTab, viewTabIds } from "../browser/model";
+import { forgetOpeners, joinedWithCurrent, newTabPlacement, switchKeepsOpeners } from "./openers";
 import { onUrlChange } from "../pins/organize";
 import { groupWithOpener } from "../pins/tabGrouping";
 import { stepDrop } from "../drag/drops";
@@ -73,12 +73,13 @@ export const createTabsSlice: StateCreator<BrowserState, [], [], TabsSlice> = (s
       return get().newTab(main, { ...options, profileId, index: undefined });
     }
     if (options?.url && !options.adoptId && openOutsideTab(get(), resolveTyped(get().settings, options.url), windowId)) return "";
-    const beside = options?.newTabCommand && !options.openerId ? nextToActive(get(), windowId, options.profileId) : undefined;
+    const w = get().windows[windowId];
+    const beside = w && options?.newTabCommand && !options.openerId ? newTabPlacement(get(), w, options.profileId) : undefined;
     let [next, id] = withNewTab(get(), windowId, beside ? { ...options, ...beside } : options);
     const typed = beside && navigationOf(next.tabs[id]);
     if (typed) next = { ...next, tabs: { ...next.tabs, [id]: { ...next.tabs[id]!, engine: engineForUrl(next, typed.url) } } };
     if (id && options?.openerId) next = groupWithOpener(next, id, options.openerId, !!options.background);
-    else if (id && beside && !inPinnedContainer(next, beside.openerId)) next = groupWithOpener(next, id, beside.openerId, false);
+    else if (id && beside) next = joinedWithCurrent(next, id, beside.openerId);
     set(next);
     return id;
   },

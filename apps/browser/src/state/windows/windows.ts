@@ -22,7 +22,7 @@ import { settleMovedPins } from "../pins/pinMirror";
 import { returnSharedPages } from "../pins/pinShare";
 import { closedWindowEntry, MAX_CLOSED_WINDOWS } from "../pins/closedTabs";
 import { pendingRestore } from "../tabs/adoptIds";
-import { newTabIndex } from "../tabs/openers";
+import { joinedWithCurrent, newTabPlacement } from "../tabs/openers";
 import { sharedElsewhere, sharesTabs } from "../tabs/tabShare";
 import { isSmall, isSmallWindow, lastActiveProfile, linkProfileOf, mainWindowFor } from "./small";
 import { activated, apply, removeTabs, withNewTab } from "../tabs/tabs";
@@ -96,19 +96,10 @@ export function moveTabsInto(s: BrowserState, ids: string[], targetId: string): 
     live[t.id] = IDLE_LIVE;
     activeTabIds[t.profileId] ??= t.id;
   }
-  let tabIds = w.tabIds;
+  next = { ...next, tabs, live, windows: { ...next.windows, [targetId]: { ...w, activeTabIds } } };
   for (const profileId of new Set(moving.map((t) => t.profileId))) {
-    const block = moving.filter((t) => t.profileId === profileId).map((t) => t.id);
-    const placed = { ...next, tabs, windows: { ...next.windows, [targetId]: { ...w, tabIds } } };
-    const index = newTabIndex(placed, placed.windows[targetId]!, tabs[block[0]!]!);
-    tabIds = [...tabIds.slice(0, index), ...block, ...tabIds.slice(index)];
+    next = placeMovedTabs(next, targetId, moving.filter((t) => t.profileId === profileId).map((t) => t.id));
   }
-  next = {
-    ...next,
-    tabs,
-    live,
-    windows: { ...next.windows, [targetId]: { ...w, tabIds: orderSections(tabIds, tabs, next.groups), activeTabIds } },
-  };
   for (const id of sources) {
     const src = next.windows[id];
     if (!src || viewTabIds(next, id).length) continue;
@@ -116,6 +107,15 @@ export function moveTabsInto(s: BrowserState, ids: string[], targetId: string): 
     if (recent) next = apply(next, activated(next, src.activeTabIds[recent.profileId] ?? recent.id));
   }
   return settleMovedPins(s, next, moving.map((t) => t.id), targetId);
+}
+
+function placeMovedTabs(s: BrowserState, windowId: string, ids: string[]): BrowserState {
+  const w = s.windows[windowId]!;
+  const { index, openerId } = newTabPlacement(s, w, s.tabs[ids[0]!]!.profileId);
+  const tabIds = orderSections([...w.tabIds.slice(0, index), ...ids, ...w.tabIds.slice(index)], s.tabs, s.groups);
+  let next: BrowserState = { ...s, windows: { ...s.windows, [windowId]: { ...w, tabIds } } };
+  for (const id of ids) next = joinedWithCurrent(next, id, openerId);
+  return next;
 }
 
 function intoProfile(s: BrowserState, tabId: string, profileId: string): BrowserState {
