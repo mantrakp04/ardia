@@ -14,6 +14,7 @@
 #include "base/timer/timer.h"
 #include "base/values.h"
 #include "chrome/browser/ui/extensions/extension_popup_types.h"
+#include "ui/gfx/native_ui_types.h"
 
 class BrowserWindowInterface;
 class Profile;
@@ -32,8 +33,11 @@ class LinuxExtensionSurfaces {
  public:
   using Emit = base::RepeatingCallback<void(int id, base::DictValue event)>;
   using Done = base::OnceCallback<void(bool, base::Value)>;
+  using ShellZoom = base::RepeatingCallback<double()>;
+  using ShellWindow = base::RepeatingCallback<gfx::NativeView()>;
 
-  LinuxExtensionSurfaces(BrowserWindowInterface* browser, views::View* parent, Emit emit);
+  LinuxExtensionSurfaces(BrowserWindowInterface* browser, views::View* parent, Emit emit, ShellZoom zoom,
+                         ShellWindow shell_window);
   LinuxExtensionSurfaces(const LinuxExtensionSurfaces&) = delete;
   LinuxExtensionSurfaces& operator=(const LinuxExtensionSurfaces&) = delete;
   ~LinuxExtensionSurfaces();
@@ -47,6 +51,10 @@ class LinuxExtensionSurfaces {
   void ExpectPopup(std::string extension_id, ShowPopupCallback callback);
   std::optional<ShowPopupCallback> TakePendingPopup();
 
+  void SetRestack(base::RepeatingClosure restack) { restack_ = std::move(restack); }
+  void RaisePopups();
+  void Relayout();
+
   void SurfaceClosed(int id, bool report);
   void SurfaceEvent(int id, base::DictValue event);
   size_t size() const { return surfaces_.size(); }
@@ -56,6 +64,7 @@ class LinuxExtensionSurfaces {
 
   void Create(const base::DictValue& args, Profile* profile, uint64_t generation, Done done);
   void Viewport(const base::DictValue& args, uint64_t generation, double scale, Done done);
+  void Place(const base::DictValue& args, uint64_t generation, Done done);
   void Command(const base::DictValue& args, uint64_t generation, Done done);
   void Release(const base::DictValue& args, uint64_t generation, Done done);
   Surface* Owned(const base::DictValue& args, uint64_t generation);
@@ -66,8 +75,11 @@ class LinuxExtensionSurfaces {
   raw_ptr<BrowserWindowInterface> browser_;
   raw_ptr<views::View> parent_;
   Emit emit_;
+  ShellZoom zoom_;
+  ShellWindow shell_window_;
   linux_extensions::SurfaceBook book_;
   std::map<int, std::unique_ptr<Surface>> surfaces_;
+  base::RepeatingClosure restack_;
   linux_extensions::PendingPopup<ShowPopupCallback> pending_;
   base::OneShotTimer pending_timer_;
   base::WeakPtrFactory<LinuxExtensionSurfaces> weak_factory_{this};

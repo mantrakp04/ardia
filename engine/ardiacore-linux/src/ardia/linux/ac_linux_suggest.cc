@@ -5,6 +5,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "ardia/linux/ac_linux_suggest_policy.h"
 #include "base/files/file_path.h"
@@ -12,10 +13,16 @@
 #include "base/memory/raw_ptr.h"
 #include "base/no_destructor.h"
 #include "base/scoped_observation.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
+#include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/profiles/profile_observer.h"
+#include "chrome/browser/search_engines/template_url_service_factory.h"
+#include "components/search_engines/template_url.h"
+#include "components/search_engines/template_url_service.h"
 #include "content/public/browser/storage_partition.h"
 #include "net/base/load_flags.h"
 #include "net/base/net_errors.h"
@@ -27,6 +34,7 @@
 #include "services/network/public/mojom/fetch_api.mojom.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
 #include "url/gurl.h"
+#include "url/origin.h"
 #include "url/url_constants.h"
 
 namespace ardia::linux_suggest {
@@ -47,7 +55,9 @@ constexpr net::NetworkTrafficAnnotationTag kTrafficAnnotation =
         }
         data: "The typed text. No cookies or credentials are sent."
         destination: OTHER
-        destination_other: "The built-in search engine the user chose."
+        destination_other:
+          "The built-in search engine the user chose, or the suggestions "
+          "endpoint of a search engine an installed extension added."
         internal {
           contacts { owners: "//ardia/linux/OWNERS" }
         }
@@ -67,6 +77,53 @@ std::map<base::FilePath, policy::SuggestionsSetting>& Settings() {
 void PostReply(SuggestionReply reply, std::optional<std::string> body) {
   base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
       FROM_HERE, base::BindOnce(std::move(reply), std::move(body)));
+}
+
+void AddExtensionEndpoints(Profile* profile, std::vector<std::string>& endpoints) {
+  if (!profile || profile->ShutdownStarted() || !profile->IsRegularProfile()) {
+    return;
+  }
+  TemplateURLService* service = TemplateURLServiceFactory::GetForProfile(profile);
+  if (!service || !service->loaded()) {
+    return;
+  }
+  for (TemplateURL* engine : service->GetTemplateURLs()) {
+    if (engine->type() != TemplateURL::NORMAL_CONTROLLED_BY_EXTENSION) {
+      continue;
+    }
+    const std::optional<std::string> candidate =
+        policy::SuggestionTemplateCandidate(base::UTF16ToUTF8(
+            engine->suggestions_url_ref().DisplayURL(service->search_terms_data())));
+    if (!candidate) {
+      continue;
+    }
+    const GURL suggestions(*candidate);
+    if (!suggestions.is_valid() || !suggestions.SchemeIs(url::kHttpsScheme) ||
+        suggestions.has_username() || suggestions.has_password()) {
+      continue;
+    }
+    std::string endpoint =
+        url::Origin::Create(suggestions).Serialize() + suggestions.GetPath();
+    if (policy::EndpointAcceptable(endpoint)) {
+      endpoints.push_back(std::move(endpoint));
+    }
+  }
+}
+
+std::vector<std::string> ExtensionEndpoints(Profile* setting_profile) {
+  std::vector<std::string> endpoints;
+  Profile* original = setting_profile->GetOriginalProfile();
+  AddExtensionEndpoints(original, endpoints);
+  ProfileManager* manager = g_browser_process ? g_browser_process->profile_manager() : nullptr;
+  if (!manager) {
+    return endpoints;
+  }
+  for (Profile* loaded : manager->GetLoadedProfiles()) {
+    if (loaded != original) {
+      AddExtensionEndpoints(loaded, endpoints);
+    }
+  }
+  return endpoints;
 }
 
 }
@@ -142,7 +199,8 @@ base::OnceCallback<void(bool, base::Value)> NoteSuggestionsOnWrite(
 }
 
 bool CanFetchSuggestions(Profile* setting_profile, Profile* network_profile, const std::string& url) {
-  if (!setting_profile || !network_profile || network_profile->ShutdownStarted() || !policy::RequestAllowed(url)) {
+  if (!setting_profile || !network_profile || network_profile->ShutdownStarted() ||
+      url.empty() || url.size() > policy::kMaxRequestLength || !policy::PrintableUrlText(url)) {
     return false;
   }
   const auto setting = Settings().find(setting_profile->GetOriginalProfile()->GetPath());
@@ -150,8 +208,15 @@ bool CanFetchSuggestions(Profile* setting_profile, Profile* network_profile, con
     return false;
   }
   const GURL target(url);
-  return target.is_valid() && target.SchemeIs(url::kHttpsScheme) &&
-         policy::RequestAllowed(target.spec());
+  if (!target.is_valid() || !target.SchemeIs(url::kHttpsScheme)) {
+    return false;
+  }
+  if (policy::RequestAllowed(url) && policy::RequestAllowed(target.spec())) {
+    return true;
+  }
+  const std::vector<std::string> endpoints = ExtensionEndpoints(setting_profile);
+  return policy::RequestAllowed(url, endpoints) &&
+         policy::RequestAllowed(target.spec(), endpoints);
 }
 
 SuggestionClient::SuggestionClient() = default;

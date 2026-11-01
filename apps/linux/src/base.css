@@ -146,9 +146,9 @@ textarea:focus,
   background: rgba(246, 246, 246, 0.78);
   backdrop-filter: blur(30px) saturate(180%);
   -webkit-backdrop-filter: blur(30px) saturate(180%);
-  box-shadow:
-    0 0 0 0.5px rgba(0, 0, 0, 0.18),
-    0 10px 30px rgba(0, 0, 0, 0.2);
+  outline: 0.5px solid rgba(0, 0, 0, 0.18);
+  outline-offset: -0.5px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
   font-size: 13px;
   color: #1d1d1f;
   user-select: none;
@@ -207,9 +207,8 @@ textarea:focus,
 .ardia-menu.dark {
   background: rgba(40, 40, 40, 0.78);
   color: #ffffff;
-  box-shadow:
-    0 0 0 0.5px rgba(255, 255, 255, 0.16),
-    0 10px 30px rgba(0, 0, 0, 0.4);
+  outline-color: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
 }
 
 .ardia-menu.dark .ardia-menu-item.disabled {
@@ -282,4 +281,209 @@ html.embed body {
     opacity: 0;
     transform: scale(1.4);
   }
+}
+
+.ardia-shell-above,
+.ardia-shell-above body {
+  background: transparent;
+}
+
+.ardia-hole-host {
+  background-color: transparent !important;
+}
+
+.ardia-hole-host::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background-color: var(--ardia-hole-fill);
+  clip-path: var(--ardia-hole-clip);
+}
+
+.ardia-shell-above .ardia-menu {
+  background: rgb(246, 246, 246);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.ardia-shell-above .ardia-menu.dark {
+  background: rgb(40, 40, 40);
+}
+
+.ardia-pip-player {
+  position: fixed;
+  z-index: 2147483000;
+  border-radius: 6px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.17),
+    0 0 0 0.5px rgba(0, 0, 0, 0.45),
+    0 6px 18px rgba(0, 0, 0, 0.22);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.ardia-pip-controls {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 200ms ease-in-out;
+}
+
+.ardia-pip-controls.shown {
+  opacity: 1;
+}
+
+.ardia-pip-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.ardia-pip-button {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #fff;
+  cursor: default;
+}
+
+.ardia-pip-button.back,
+.ardia-pip-button.popout,
+.ardia-pip-button.close {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.ardia-pip-button.back:hover,
+.ardia-pip-button.popout:hover,
+.ardia-pip-button.close:hover {
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.ardia-pip-button svg {
+  overflow: visible;
+}
+
+.ardia-pip-button svg path {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ardia-pip-button.playpause svg rect,
+.ardia-pip-button.playpause svg path,
+.ardia-pip-button.replay svg path:not(.stroke),
+.ardia-pip-button.forward svg path:not(.stroke) {
+  fill: #fff;
+  stroke: none;
+}
+
+.ardia-pip-button.replay svg path.stroke,
+.ardia-pip-button.forward svg path.stroke {
+  stroke-width: 2;
+}
+
+.ardia-pip-button.replay svg text,
+.ardia-pip-button.forward svg text {
+  fill: #fff;
+  font: 600 9px system-ui, sans-serif;
+}
+
+.ardia-pip-origin {
+  position: absolute;
+  top: 18px;
+  height: 16px;
+  font: 400 13px/16px system-ui, sans-serif;
+  color: #fff;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.ardia-pip-progress {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 9px;
+  height: 5px;
+  border-radius: 2.5px;
+  background: rgba(255, 255, 255, 0.27);
+  overflow: hidden;
+}
+
+.ardia-pip-progress::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -8px;
+  bottom: -8px;
+}
+
+.ardia-pip-progress-played {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: #fff;
+  border-radius: inherit;
+}
+
+.ardia-shell-above .ardia-menu[data-ardia-glass="on"] {
+  background: rgba(246, 246, 246, 0.78);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+}
+
+.ardia-shell-above .ardia-menu.dark[data-ardia-glass="on"] {
+  background: rgba(40, 40, 40, 0.78);
+}
+
+[data-ardia-glass-id][data-ardia-glass="on"] {
+  background-color: var(--ardia-glass-fill) !important;
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+}
+
+[data-ardia-glass="on"] [data-ardia-visual-effect] {
+  background-color: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html.ardia-glass-diagnostic [data-ardia-glass="on"],
+html.ardia-glass-diagnostic [data-ardia-glass="on"] *,
+html.ardia-glass-diagnostic [data-ardia-glass-afterimage] {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+div:has(> div > div > [data-testid="ardia-sidebar-peek"]) > div,
+[data-testid="ardia-command-panel"],
+[data-testid="ardia-command-panel"] > [style*="scale"] {
+  will-change: transform;
+}
+
+[data-testid="ardia-downloads-popover"] > * {
+  pointer-events: none !important;
+}
+
+[data-testid="ardia-downloads-popover"][data-open="true"] > * > :not(:first-child) {
+  pointer-events: auto !important;
 }

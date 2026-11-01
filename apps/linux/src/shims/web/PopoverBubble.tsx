@@ -2,6 +2,8 @@ import type { PopoverBubbleProps } from "@ardia-real/shell";
 import { useId, useState } from "react";
 import { View, type LayoutChangeEvent } from "react-native";
 import { useBrowser } from "../../../../browser/src/state/browser/store";
+import { shellOverPages } from "../../shellAbove";
+import { opaqueColor } from "./chrome";
 
 type Point = readonly [number, number];
 type Material = NonNullable<PopoverBubbleProps["material"]>;
@@ -93,14 +95,17 @@ export function PopoverBubble({
     onLayout?.(event);
   };
   const shape = size && size.width > 0 && size.height > 0 ? bubblePath(size.width, size.height, cornerRadius, arrowEdge, arrowX, arrowWidth, arrowHeight) : null;
-  const fill = MATERIAL[material][(dark ?? appDark) ? "dark" : "light"];
+  const opaque = shellOverPages();
+  const glass = MATERIAL[material][(dark ?? appDark) ? "dark" : "light"];
+  const fill = opaque ? opaqueColor(glass) : glass;
+  const backdrop = opaque ? undefined : BACKDROP;
   const shadow = shadowOpacity > 0 && shadowRadius >= 0;
   const edge = !!edgeColor && edgeWidth > 0;
   return (
     <View pointerEvents="none" {...props} style={style} onLayout={measure}>
       {shape && size ? (
         <>
-          <div aria-hidden style={{ position: "absolute", inset: 0, background: fill, backdropFilter: BACKDROP, WebkitBackdropFilter: BACKDROP, clipPath: `path("${shape}")` }} />
+          <div aria-hidden style={{ position: "absolute", inset: 0, background: fill, backdropFilter: backdrop, WebkitBackdropFilter: backdrop, clipPath: `path("${shape}")` }} />
           <svg aria-hidden width={size.width} height={size.height} overflow="visible" style={{ position: "absolute", left: 0, top: 0, display: "block", overflow: "visible", pointerEvents: "none" }}>
             <defs>
               <clipPath id={`${id}-inside`}>

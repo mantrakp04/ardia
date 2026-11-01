@@ -1,0 +1,396 @@
+--- a/chrome/browser/ui/views/permissions/permission_prompt_factory.cc
++++ b/chrome/browser/ui/views/permissions/permission_prompt_factory.cc
+@@ -260,6 +260,17 @@
+ 
+ }  // namespace
+ 
++extern std::unique_ptr<permissions::PermissionPrompt> (
++    *g_ardia_create_permission_prompt)(
++    content::WebContents* web_contents,
++    permissions::PermissionPrompt::Delegate* delegate,
++    bool* default_handling);
++std::unique_ptr<permissions::PermissionPrompt> (
++    *g_ardia_create_permission_prompt)(
++    content::WebContents* web_contents,
++    permissions::PermissionPrompt::Delegate* delegate,
++    bool* default_handling) = nullptr;
++
+ bool ShouldShowPermissionPromptEvenIfOmniboxEditedOrEmpty(
+     content::WebContents* web_contents) {
+   if (!web_contents) {
+@@ -292,6 +303,17 @@
+ std::unique_ptr<permissions::PermissionPrompt> CreatePermissionPrompt(
+     content::WebContents* web_contents,
+     permissions::PermissionPrompt::Delegate* delegate) {
++  if (g_ardia_create_permission_prompt) {
++    bool default_handling = true;
++    auto prompt = g_ardia_create_permission_prompt(web_contents, delegate,
++                                                   &default_handling);
++    if (prompt) {
++      return prompt;
++    }
++    if (!default_handling) {
++      return nullptr;
++    }
++  }
+   if (delegate->ShouldDropCurrentRequestIfCannotShowQuietly() &&
+       IsFullScreenMode(web_contents)) {
+     return nullptr;
+--- a/components/permissions/permission_request_manager.cc
++++ b/components/permissions/permission_request_manager.cc
+@@ -69,8 +69,20 @@
+ #include "components/permissions/android/android_permission_util.h"
+ #endif
+ 
++extern int (*g_ardia_linux_permission_tab_shown)(content::WebContents*);
++int (*g_ardia_linux_permission_tab_shown)(content::WebContents*) = nullptr;
++
+ namespace permissions {
+ 
++namespace {
++bool ArdiaTabActive(content::WebContents* contents, bool chrome_says) {
++  const int shown = g_ardia_linux_permission_tab_shown && contents
++                        ? g_ardia_linux_permission_tab_shown(contents)
++                        : -1;
++  return shown < 0 ? chrome_says : shown == 1;
++}
++}  // namespace
++
+ const char kAbusiveNotificationRequestsEnforcementMessage[] =
+     "Chrome is blocking notification permission requests on this site because "
+     "the site tends to show permission requests that mislead, trick, or force "
+@@ -600,11 +612,15 @@
+ void PermissionRequestManager::OnVisibilityChanged(
+     content::Visibility visibility) {
+   // If `tab_subscriptions_` isn't empty, defer to those listeners instead.
+-  if (!tab_subscriptions_.empty()) {
++  const bool host_says =
++      g_ardia_linux_permission_tab_shown &&
++      g_ardia_linux_permission_tab_shown(web_contents()) >= 0;
++  if (!tab_subscriptions_.empty() && !host_says) {
+     return;
+   }
+   bool prior_tab_is_active_ = tab_is_active_;
+-  tab_is_active_ = visibility != content::Visibility::HIDDEN;
++  tab_is_active_ = ArdiaTabActive(
++      web_contents(), visibility != content::Visibility::HIDDEN);
+   if (prior_tab_is_active_ != tab_is_active_) {
+     OnTabActiveChanged();
+   }
+@@ -2020,7 +2036,8 @@
+   if (tab_insert_subscription_ || !tab_interface) {
+     return;
+   }
+-  tab_is_active_ = tab_interface->IsActivated();
++  tab_is_active_ =
++      ArdiaTabActive(web_contents(), tab_interface->IsActivated());
+   tab_insert_subscription_ = tab_interface->RegisterDidInsert(
+       base::BindRepeating(&PermissionRequestManager::OnTabAttached,
+                           weak_factory_.GetWeakPtr()));
+@@ -2053,7 +2070,7 @@
+     bool is_active,
+     tabs::TabInterface* tab_interface) {
+   const bool prior_tab_is_active_ = tab_is_active_;
+-  tab_is_active_ = is_active;
++  tab_is_active_ = ArdiaTabActive(web_contents(), is_active);
+   if (prior_tab_is_active_ != tab_is_active_) {
+     OnTabActiveChanged();
+   }
+--- a/chrome/browser/ui/views/file_system_access/file_system_access_restore_permission_bubble_view.cc
++++ b/chrome/browser/ui/views/file_system_access/file_system_access_restore_permission_bubble_view.cc
+@@ -225,10 +225,23 @@
+   std::move(callback_).Run(permissions::PermissionAction::DISMISSED);
+ }
+ 
++extern bool (*g_ardia_file_system_restore_prompt)(
++    const FileSystemAccessPermissionRequestManager::RequestData& request,
++    base::OnceCallback<void(permissions::PermissionAction)>& callback,
++    content::WebContents* web_contents);
++bool (*g_ardia_file_system_restore_prompt)(
++    const FileSystemAccessPermissionRequestManager::RequestData& request,
++    base::OnceCallback<void(permissions::PermissionAction)>& callback,
++    content::WebContents* web_contents) = nullptr;
++
+ void ShowFileSystemAccessRestorePermissionDialog(
+     const FileSystemAccessPermissionRequestManager::RequestData& request,
+     base::OnceCallback<void(permissions::PermissionAction)> callback,
+     content::WebContents* web_contents) {
++  if (g_ardia_file_system_restore_prompt &&
++      g_ardia_file_system_restore_prompt(request, callback, web_contents)) {
++    return;
++  }
+   FileSystemAccessRestorePermissionBubbleView::CreateAndShow(
+       request, std::move(callback), web_contents);
+ }
+--- a/chrome/browser/external_protocol/external_protocol_handler.cc
++++ b/chrome/browser/external_protocol/external_protocol_handler.cc
+@@ -56,6 +56,19 @@
+ #include "components/web_modal/web_contents_modal_dialog_manager.h"
+ #endif
+ 
++extern bool (*g_ardia_external_protocol_dialog)(
++    const GURL& url,
++    content::WebContents* web_contents,
++    const std::optional<url::Origin>& initiating_origin,
++    content::WeakDocumentPtr initiator_document,
++    const std::u16string& program_name);
++bool (*g_ardia_external_protocol_dialog)(
++    const GURL& url,
++    content::WebContents* web_contents,
++    const std::optional<url::Origin>& initiating_origin,
++    content::WeakDocumentPtr initiator_document,
++    const std::u16string& program_name) = nullptr;
++
+ namespace {
+ 
+ // Anti-flood protection controls whether we accept requests for launching
+@@ -142,6 +155,11 @@
+     const std::u16string& program_name,
+     ExternalProtocolHandler::Delegate* delegate) {
+   DCHECK(web_contents);
++  if (!delegate && g_ardia_external_protocol_dialog &&
++      g_ardia_external_protocol_dialog(url, web_contents, initiating_origin,
++                                       initiator_document, program_name)) {
++    return;
++  }
+   if (delegate) {
+     delegate->RunExternalProtocolDialog(url, web_contents, page_transition,
+                                         has_user_gesture, initiating_origin,
+--- a/chrome/browser/ui/views/autofill/autofill_bubble_handler_impl.cc
++++ b/chrome/browser/ui/views/autofill/autofill_bubble_handler_impl.cc
+@@ -49,8 +49,20 @@
+ 
+ namespace autofill {
+ 
++extern AutofillBubbleHandler* (*g_ardia_linux_autofill_bubble_handler)(
++    content::WebContents* web_contents);
++AutofillBubbleHandler* (*g_ardia_linux_autofill_bubble_handler)(
++    content::WebContents* web_contents) = nullptr;
++
+ namespace {
+ 
++AutofillBubbleHandler* ArdiaAutofillBubbleHandler(
++    content::WebContents* web_contents) {
++  return g_ardia_linux_autofill_bubble_handler && web_contents
++             ? g_ardia_linux_autofill_bubble_handler(web_contents)
++             : nullptr;
++}
++
+ template <typename View, typename... Args>
+   requires(std::derived_from<View, AutofillLocationBarBubble>)
+ View* ShowBubble(ToolbarButtonProvider* toolbar_button_provider,
+@@ -107,6 +119,10 @@
+     content::WebContents* web_contents,
+     SaveCardBubbleController* controller,
+     bool is_user_gesture) {
++  if (AutofillBubbleHandler* ardia = ArdiaAutofillBubbleHandler(web_contents)) {
++    return ardia->ShowSaveCreditCardBubble(
++        web_contents, controller, is_user_gesture);
++  }
+   switch (controller->GetPaymentsBubbleType()) {
+     case PaymentsBubbleType::kLocalSave:
+     case PaymentsBubbleType::kLocalCvcSave:
+@@ -134,6 +150,10 @@
+     IbanBubbleController* controller,
+     bool is_user_gesture,
+     IbanBubbleType bubble_type) {
++  if (AutofillBubbleHandler* ardia = ArdiaAutofillBubbleHandler(web_contents)) {
++    return ardia->ShowIbanBubble(
++        web_contents, controller, is_user_gesture, bubble_type);
++  }
+   switch (bubble_type) {
+     case IbanBubbleType::kLocalSave:
+     case IbanBubbleType::kUploadSave:
+@@ -158,6 +178,10 @@
+     content::WebContents* web_contents,
+     OfferNotificationBubbleController* controller,
+     bool is_user_gesture) {
++  if (AutofillBubbleHandler* ardia = ArdiaAutofillBubbleHandler(web_contents)) {
++    return ardia->ShowOfferNotificationBubble(
++        web_contents, controller, is_user_gesture);
++  }
+   return ShowBubble<OfferNotificationBubbleViews>(
+       toolbar_button_provider_, kActionOffersAndRewardsForPage,
+       kOfferNotificationChipElementId, is_user_gesture, web_contents,
+@@ -168,6 +192,10 @@
+     content::WebContents* web_contents,
+     std::unique_ptr<SaveAddressBubbleController> controller,
+     bool is_user_gesture) {
++  if (AutofillBubbleHandler* ardia = ArdiaAutofillBubbleHandler(web_contents)) {
++    return ardia->ShowSaveAddressProfileBubble(
++        web_contents, std::move(controller), is_user_gesture);
++  }
+   return ShowAddressProfileBubble<SaveAddressProfileView>(
+       toolbar_button_provider_, is_user_gesture, std::move(controller),
+       web_contents);
+@@ -177,6 +205,10 @@
+ AutofillBubbleBase* AutofillBubbleHandlerImpl::ShowAddressSignInPromo(
+     content::WebContents* web_contents,
+     const AutofillProfile& autofill_profile) {
++  if (AutofillBubbleHandler* ardia = ArdiaAutofillBubbleHandler(web_contents)) {
++    return ardia->ShowAddressSignInPromo(
++        web_contents, autofill_profile);
++  }
+   views::BubbleAnchor anchor = toolbar_button_provider_->GetBubbleAnchor(
+       kActionShowAddressesBubbleOrPage);
+   AddressSignInPromoView* bubble =
+@@ -194,6 +226,10 @@
+ AutofillBubbleBase* AutofillBubbleHandlerImpl::ShowSaveAutofillAiDataBubble(
+     content::WebContents* web_contents,
+     AutofillAiImportDataController* controller) {
++  if (AutofillBubbleHandler* ardia = ArdiaAutofillBubbleHandler(web_contents)) {
++    return ardia->ShowSaveAutofillAiDataBubble(
++        web_contents, controller);
++  }
+   return ShowBubble<AutofillAiImportDataBubbleView>(
+       toolbar_button_provider_, kActionShowAddressesBubbleOrPage,
+       kAutofillAddressPageActionElementId, /*is_user_gesture=*/false,
+@@ -204,6 +240,10 @@
+ AutofillBubbleHandlerImpl::ShowAutofillAiLocalSaveNotification(
+     content::WebContents* web_contents,
+     AutofillAiImportDataController* controller) {
++  if (AutofillBubbleHandler* ardia = ArdiaAutofillBubbleHandler(web_contents)) {
++    return ardia->ShowAutofillAiLocalSaveNotification(
++        web_contents, controller);
++  }
+   return ShowBubble<AutofillAiLocalSaveNotificationView>(
+       toolbar_button_provider_, kActionShowAddressesBubbleOrPage,
+       kAutofillAddressPageActionElementId, /*is_user_gesture=*/false,
+@@ -214,6 +254,10 @@
+     content::WebContents* web_contents,
+     std::unique_ptr<UpdateAddressBubbleController> controller,
+     bool is_user_gesture) {
++  if (AutofillBubbleHandler* ardia = ArdiaAutofillBubbleHandler(web_contents)) {
++    return ardia->ShowUpdateAddressProfileBubble(
++        web_contents, std::move(controller), is_user_gesture);
++  }
+   return ShowAddressProfileBubble<UpdateAddressProfileView>(
+       toolbar_button_provider_, is_user_gesture, std::move(controller),
+       web_contents);
+@@ -223,6 +267,10 @@
+     content::WebContents* web_contents,
+     FilledCardInformationBubbleController* controller,
+     bool is_user_gesture) {
++  if (AutofillBubbleHandler* ardia = ArdiaAutofillBubbleHandler(web_contents)) {
++    return ardia->ShowFilledCardInformationBubble(
++        web_contents, controller, is_user_gesture);
++  }
+   return ShowBubble<FilledCardInformationBubbleViews>(
+       toolbar_button_provider_, kActionFilledCardInformation,
+       kAutofillFilledCardInformationPageActionElementId, is_user_gesture,
+@@ -233,6 +281,10 @@
+     content::WebContents* web_contents,
+     VirtualCardEnrollBubbleController* controller,
+     bool is_user_gesture) {
++  if (AutofillBubbleHandler* ardia = ArdiaAutofillBubbleHandler(web_contents)) {
++    return ardia->ShowVirtualCardEnrollBubble(
++        web_contents, controller, is_user_gesture);
++  }
+   views::BubbleAnchor anchor =
+       toolbar_button_provider_->GetBubbleAnchor(kActionVirtualCardEnroll);
+   VirtualCardEnrollBubbleViews* bubble =
+@@ -262,6 +314,10 @@
+ AutofillBubbleHandlerImpl::ShowVirtualCardEnrollConfirmationBubble(
+     content::WebContents* web_contents,
+     VirtualCardEnrollBubbleController* controller) {
++  if (AutofillBubbleHandler* ardia = ArdiaAutofillBubbleHandler(web_contents)) {
++    return ardia->ShowVirtualCardEnrollConfirmationBubble(
++        web_contents, controller);
++  }
+   views::BubbleAnchor anchor =
+       toolbar_button_provider_->GetBubbleAnchor(kActionVirtualCardEnroll);
+   base::OnceCallback<void(PaymentsUiClosedReason)> callback =
+@@ -279,6 +335,10 @@
+     MandatoryReauthBubbleController* controller,
+     bool is_user_gesture,
+     MandatoryReauthBubbleType bubble_type) {
++  if (AutofillBubbleHandler* ardia = ArdiaAutofillBubbleHandler(web_contents)) {
++    return ardia->ShowMandatoryReauthBubble(
++        web_contents, controller, is_user_gesture, bubble_type);
++  }
+   auto anchor =
+       toolbar_button_provider_->GetBubbleAnchor(kActionAutofillMandatoryReauth);
+ 
+@@ -312,6 +372,10 @@
+ AutofillBubbleBase* AutofillBubbleHandlerImpl::ShowSaveCardConfirmationBubble(
+     content::WebContents* web_contents,
+     SaveCardBubbleController* controller) {
++  if (AutofillBubbleHandler* ardia = ArdiaAutofillBubbleHandler(web_contents)) {
++    return ardia->ShowSaveCardConfirmationBubble(
++        web_contents, controller);
++  }
+   views::BubbleAnchor anchor = toolbar_button_provider_->GetBubbleAnchor(
+       kActionShowPaymentsBubbleOrPage);
+   base::OnceCallback<void(PaymentsUiClosedReason)> callback =
+@@ -328,6 +392,10 @@
+ AutofillBubbleBase* AutofillBubbleHandlerImpl::ShowSaveIbanConfirmationBubble(
+     content::WebContents* web_contents,
+     IbanBubbleController* controller) {
++  if (AutofillBubbleHandler* ardia = ArdiaAutofillBubbleHandler(web_contents)) {
++    return ardia->ShowSaveIbanConfirmationBubble(
++        web_contents, controller);
++  }
+   views::BubbleAnchor anchor = toolbar_button_provider_->GetBubbleAnchor(
+       kActionShowPaymentsBubbleOrPage);
+   base::OnceCallback<void(PaymentsUiClosedReason)> callback =
+@@ -342,6 +410,10 @@
+ AutofillBubbleBase* AutofillBubbleHandlerImpl::ShowOmniboxAutofillBubble(
+     content::WebContents* web_contents,
+     OmniboxAutofillBubbleController* controller) {
++  if (AutofillBubbleHandler* ardia = ArdiaAutofillBubbleHandler(web_contents)) {
++    return ardia->ShowOmniboxAutofillBubble(
++        web_contents, controller);
++  }
+   return ShowBubble<OmniboxAutofillBubbleView>(
+       toolbar_button_provider_, kActionAutofillPayment,
+       kAutofillPaymentIconElementId, /*is_user_gesture=*/true, web_contents,
+@@ -352,6 +424,10 @@
+     content::WebContents* web_contents,
+     PaymentsChurnedUsersBubbleController* controller,
+     bool is_user_gesture) {
++  if (AutofillBubbleHandler* ardia = ArdiaAutofillBubbleHandler(web_contents)) {
++    return ardia->ShowPaymentsChurnedUsersBubble(
++        web_contents, controller, is_user_gesture);
++  }
+   return ShowBubble<PaymentsChurnedUsersBubbleView>(
+       toolbar_button_provider_, kActionShowPaymentsChurnedUsersBubble,
+       kPaymentsChurnedUsersBubbleId, is_user_gesture, web_contents, controller);
+@@ -361,6 +437,10 @@
+ AutofillBubbleHandlerImpl::ShowPaymentsChurnedUsersConfirmationBubble(
+     content::WebContents* web_contents,
+     PaymentsChurnedUsersBubbleController* controller) {
++  if (AutofillBubbleHandler* ardia = ArdiaAutofillBubbleHandler(web_contents)) {
++    return ardia->ShowPaymentsChurnedUsersConfirmationBubble(
++        web_contents, controller);
++  }
+   views::BubbleAnchor anchor = toolbar_button_provider_->GetBubbleAnchor(
+       kActionShowPaymentsChurnedUsersBubble);
+   base::OnceCallback<void(PaymentsUiClosedReason)> callback =
+@@ -375,6 +455,10 @@
+     content::WebContents* web_contents,
+     WalletReminderNoticeBubbleController* controller,
+     bool is_user_gesture) {
++  if (AutofillBubbleHandler* ardia = ArdiaAutofillBubbleHandler(web_contents)) {
++    return ardia->ShowWalletReminderNoticeBubble(
++        web_contents, controller, is_user_gesture);
++  }
+   return ShowBubble<WalletReminderNoticeBubbleView>(
+       toolbar_button_provider_, kActionWalletReminderNotice,
+       kPageActionWalletReminderNoticeElementId, is_user_gesture, web_contents,
+--- a/chrome/browser/ui/passwords/manage_passwords_ui_controller.cc
++++ b/chrome/browser/ui/passwords/manage_passwords_ui_controller.cc
+@@ -1552,8 +1552,14 @@
+   }
+ }
+ 
++extern void (*g_ardia_linux_password_bubble_hidden)(content::WebContents* web_contents);
++void (*g_ardia_linux_password_bubble_hidden)(content::WebContents* web_contents) = nullptr;
++
+ void ManagePasswordsUIController::HideBubble(bool initiated_by_bubble_manager) {
+   is_mouse_hovered_ = false;
++  if (g_ardia_linux_password_bubble_hidden) {
++    g_ardia_linux_password_bubble_hidden(web_contents());
++  }
+   if (TabDialogs* tab_dialogs = TabDialogs::FromWebContents(web_contents())) {
+     tab_dialogs->HideManagePasswordsBubble();
+   }

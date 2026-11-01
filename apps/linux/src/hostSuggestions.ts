@@ -6,17 +6,40 @@ export const SUGGEST_METHOD = "ArdiaSearch.suggest";
 export const CANCEL_SUGGEST_METHOD = "ArdiaSearch.cancelSuggest";
 export const SUGGEST_REPLY_LIMIT = 64 * 1024;
 
-export const suggestionEndpoints = (engines = BUILT_IN_ENGINES) => [...new Set(engines.flatMap((engine) => {
-  if (!engine.suggestUrl) return [];
-  const url = new URL(engine.suggestUrl.replaceAll("%s", "q"));
-  return [`${url.origin}${url.pathname}`];
-}))];
+type SuggestingEngine = { suggestUrl?: string };
 
-const endpoints = suggestionEndpoints();
+function endpointOf(suggestUrl: string) {
+  try {
+    const url = new URL(suggestUrl.replaceAll("%s", "q"));
+    return url.protocol === "https:" && !url.username && !url.password ? [`${url.origin}${url.pathname}`] : [];
+  } catch {
+    return [];
+  }
+}
 
-export function suggestionRequestAllowed(url: string) {
+export const suggestionEndpoints = (engines: readonly SuggestingEngine[] = BUILT_IN_ENGINES) =>
+  [...new Set(engines.flatMap((engine) => engine.suggestUrl ? endpointOf(engine.suggestUrl) : []))];
+
+const builtInEndpoints = suggestionEndpoints();
+
+const queriesEndpoint = (url: string, endpoint: string) =>
+  url.length > endpoint.length + 1 && url.startsWith(endpoint) && url[endpoint.length] === "?";
+
+export function suggestionRequestAllowed(url: string, extensionEndpoints: readonly string[] = []) {
   if (!url || url.length > 2048 || /[^\x21-\x7e]|[#\\]/.test(url)) return false;
-  return endpoints.some((endpoint) => url.length > endpoint.length + 1 && url.startsWith(endpoint) && url[endpoint.length] === "?");
+  return builtInEndpoints.some((endpoint) => queriesEndpoint(url, endpoint)) ||
+    extensionEndpoints.some((endpoint) => /^https:\/\/[^/@{}%?]+\/[^?{}]*$/.test(endpoint) && queriesEndpoint(url, endpoint));
+}
+
+export function canonicalSuggestionRequest(url: string) {
+  const query = url.indexOf("?");
+  if (query < 0 || url.length > 2048 || /[^\x21-\x7e]|[#\\]/.test(url)) return null;
+  try {
+    const parsed = new URL(url);
+    return parsed.username || parsed.password ? null : `${parsed.origin}${parsed.pathname}${url.slice(query)}`;
+  } catch {
+    return null;
+  }
 }
 
 const failure = (code: string, message: string) => Object.assign(new Error(message), { code });
@@ -24,11 +47,12 @@ const aborted = () => Object.assign(new Error("The suggestion request was cancel
 const empty = { ok: false, text: async () => "" };
 let sequence = 0;
 
-export function hostSuggestFetch(host: ArdiaHost): FetchLike {
+export function hostSuggestFetch(host: ArdiaHost, extensionEndpoints: () => readonly string[] = () => []): FetchLike {
   return (url, { signal }) => {
     if (signal.aborted) return Promise.reject(aborted());
     if (!hostSupports(SUGGEST_METHOD, host)) return Promise.reject(failure("ERR_UNAVAILABLE", "Search suggestions are unavailable in this Linux host"));
-    if (!suggestionRequestAllowed(url)) return Promise.reject(failure("ERR_SUGGEST_REFUSED", "Search suggestions are limited to the built-in engines"));
+    const request = canonicalSuggestionRequest(url);
+    if (!request || !suggestionRequestAllowed(request, extensionEndpoints())) return Promise.reject(failure("ERR_SUGGEST_REFUSED", "Search suggestions are limited to the built-in engines and engines added by extensions"));
     const id = `suggest-${++sequence}`;
     const cancellable = hostSupports(CANCEL_SUGGEST_METHOD, host);
     return new Promise((resolve, reject) => {
@@ -40,7 +64,7 @@ export function hostSuggestFetch(host: ArdiaHost): FetchLike {
         reject(aborted());
       };
       signal.addEventListener("abort", abort, { once: true });
-      invokeHost<unknown>(SUGGEST_METHOD, { args: [url, id] }, host).then((reply) => {
+      invokeHost<unknown>(SUGGEST_METHOD, { args: [request, id] }, host).then((reply) => {
         signal.removeEventListener("abort", abort);
         if (settled) return;
         settled = true;

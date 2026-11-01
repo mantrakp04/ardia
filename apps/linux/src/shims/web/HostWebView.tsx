@@ -9,10 +9,12 @@ import { hostPageScript } from "../../hostPageScripts";
 import { HostTab, type HostPageFactory, type HostTabEvent } from "../../hostTab";
 import { extensionViewsSupported } from "../../hostExtensionView";
 import { HostExtensionWebView } from "./HostExtensionWebView";
-import { backdropCovers, hostOverlayBlocked, refreshTabViewports, reportAppliedViewport, watchTabViewport, type TabViewport } from "../../hostViewport";
-import { closingMenuOnPageFocus } from "../../menus";
+import { refreshTabViewports, watchTabViewport, type TabViewport } from "../../hostViewport";
+import { inputRegions } from "../../shellAbove";
+import type { InputRegionsRegistry } from "../../inputRegions";
+import type { CornerRadii } from "../../hostExtensionView";
+import { notingPageFocus } from "../../pageFocus";
 import { withPopupDismissal } from "../../popupDismissal";
-import { useBrowser } from "../../../../browser/src/state/browser/store";
 
 export const HostWebView = forwardRef<WebViewHandle, WebViewProps>(function HostWebView(props, ref) {
   return props.extensionHost && extensionViewsSupported(ardiaHost) ? <HostExtensionWebView ref={ref} {...props} /> : <HostTabWebView ref={ref} {...props} />;
@@ -24,7 +26,6 @@ const HostTabWebView = forwardRef<WebViewHandle, WebViewProps>(function HostTabW
   const element = useRef<HTMLDivElement>(null);
   const tab = useRef<HostTab | null>(null);
   const key = useRef(props.tabId ?? `host_${crypto.randomUUID()}`);
-  const requestedUrl = useRef(props.url);
   const ready = useRef(false);
 
   const receive = (event: HostTabEvent) => {
@@ -33,7 +34,7 @@ const HostTabWebView = forwardRef<WebViewHandle, WebViewProps>(function HostTabW
     if (!ready.current) latest.current.onReady?.();
     ready.current = true;
   };
-  const page: HostPageFactory = (claim, nativeId, rebound) => new HostPageEvents(claim, nativeId, () => closingMenuOnPageFocus(withPopupDismissal(latest.current)),
+  const page: HostPageFactory = (claim, nativeId, rebound) => new HostPageEvents(claim, nativeId, () => notingPageFocus(withPopupDismissal(latest.current)),
     (reason, replaced) => { const tabId = latest.current.tabId; if (tabId) resetHostPageState(tabId, reason, replaced); },
     (state) => { const tabId = latest.current.tabId; if (tabId) applyHostPageThemeState(tabId, state); }, rebound);
 
@@ -54,12 +55,6 @@ const HostTabWebView = forwardRef<WebViewHandle, WebViewProps>(function HostTabW
   }, []);
 
   useEffect(() => {
-    if (props.url === undefined || props.url === requestedUrl.current) return;
-    requestedUrl.current = props.url;
-    void tab.current?.command("loadUrl", [toEngineUrl(props.url)]).catch(reportHostError);
-  }, [props.url]);
-
-  useEffect(() => {
     void tab.current?.presentation(props.visible !== false).catch(reportHostError);
     refreshTabViewports();
   }, [props.visible]);
@@ -71,10 +66,7 @@ const HostTabWebView = forwardRef<WebViewHandle, WebViewProps>(function HostTabW
       return async (...args: unknown[]) => {
         const current = tab.current;
         if (!current) throw new Error("Ardia tab is not mounted");
-        if (property === "loadUrl") {
-          requestedUrl.current = args[0] as string;
-          args[0] = toEngineUrl(args[0] as string);
-        }
+        if (property === "loadUrl") args[0] = toEngineUrl(args[0] as string);
         if (property === "getSecurityInfo") return current.pageResult(property, args);
         const script = hostPageScript(property, args);
         if (script) return script.map ? current.command(script.command, script.args).then(script.map, () => (script.failed ? script.failed() : script.map!(null))) : current.command(script.command, script.args);
@@ -92,90 +84,36 @@ const HostTabWebView = forwardRef<WebViewHandle, WebViewProps>(function HostTabW
 
   useEffect(() => {
     const node = element.current;
-    if (!node) return;
-    let revision = 0;
-    let last = "";
-    let backdrop: Promise<boolean> | null = null;
-    let painted: Promise<boolean> | null = null;
-    let captured: NonNullable<TabViewport["occlusions"]> = [];
-    let retryAfter = 0;
-    let retry: ReturnType<typeof setTimeout> | undefined;
-    const stop = watchTabViewport(node, () => {
-      const p = latest.current;
-      return p.visible !== false && !hostOverlayBlocked(p.tabId);
-    }, (viewport) => {
-      const current = tab.current;
-      if (!current?.identity) return;
-      if (viewport.occlusions?.length && Date.now() < retryAfter) return;
-      const json = JSON.stringify(viewport);
-      if (json === last) return;
-      last = json;
-      const mine = ++revision;
-      void (async () => {
-        if (viewport.visible && viewport.occlusions?.length) {
-          if (backdrop && !backdropCovers(captured, viewport.occlusions)) backdrop = null;
-          if (!backdrop) {
-            captured = viewport.occlusions;
-            const capture: Promise<boolean> = current.command<string | null>("captureViewport").then(async (data) => {
-              if (!data) return false;
-              const image = new Image();
-              image.src = data;
-              await image.decode();
-              if (current.disposed || backdrop !== capture) return false;
-              node.style.backgroundImage = `url("${data}")`;
-              painted = capture;
-              return true;
-            }).catch((error) => {
-              reportHostError(error);
-              return false;
-            });
-            backdrop = capture;
-          }
-          if (painted !== backdrop && viewport.occlusions.some((occlusion) => occlusion.menu)) {
-            const unbacked = { ...viewport, occlusions: viewport.occlusions.map((occlusion) => ({ ...occlusion, paintOutset: 0 })) };
-            const tabId = latest.current.tabId;
-            node.style.backgroundColor = (tabId && useBrowser.getState().live[tabId]?.themeColor) || "";
-            await current.viewport(toHost(unbacked));
-            if (mine === revision) reportAppliedViewport(node, unbacked);
-          }
-          if (!await backdrop) {
-            if (mine === revision) {
-              backdrop = null;
-              last = "";
-              retryAfter = Date.now() + 250;
-              retry = setTimeout(refreshTabViewports, 250);
-            }
-            return;
-          }
-        }
-        if (mine !== revision || current.disposed) return;
-        await current.viewport(toHost(viewport));
-        if (mine === revision) reportAppliedViewport(node, viewport);
-        if (mine === revision && !viewport.occlusions?.length) {
-          backdrop = null;
-          node.style.backgroundImage = "";
-          node.style.backgroundColor = "";
-        }
-      })().catch((error) => {
-        if (mine === revision) {
-          last = "";
-          clearTimeout(retry);
-          retry = setTimeout(refreshTabViewports, 250);
-        }
-        reportHostError(error);
-      });
-    });
-    return () => {
-      revision++;
-      backdrop = null;
-      clearTimeout(retry);
-      stop();
-      reportAppliedViewport(node, null);
-    };
+    const regions = inputRegions();
+    if (!node || !regions) return;
+    return watchPageBelowShell(node, regions, () => latest.current.visible !== false, () => tab.current);
   }, []);
 
-  return <View style={[props.style, { backgroundColor: "transparent" }]}><div ref={element} data-ardia-native-tab={key.current} style={{ position: "absolute", inset: 0, backgroundSize: "100% 100%" }} /></View>;
+  return <View style={[props.style, { backgroundColor: "transparent" }]}><div ref={element} data-ardia-native-tab={key.current} style={{ position: "absolute", inset: 0 }} /></View>;
 });
 
-const toHost = ({ occlusions, ...viewport }: TabViewport): TabViewport =>
-  occlusions ? { ...viewport, occlusions: occlusions.map(({ menu: _menu, ...occlusion }) => occlusion) } : viewport;
+export function watchPageBelowShell(node: HTMLElement, regions: InputRegionsRegistry, visible: () => boolean, page: () => { identity?: unknown; disposed?: boolean; viewport(viewport: TabViewport): Promise<void> } | null, radii?: () => CornerRadii) {
+  let last = "";
+  let revision = 0;
+  const stop = watchTabViewport(node, visible, (viewport) => {
+    if (!viewport.visible) regions.setPage(node, false, radii);
+    regions.refresh();
+    const current = page();
+    if (!current?.identity) return;
+    const json = JSON.stringify(viewport);
+    if (json === last) return;
+    last = json;
+    const mine = ++revision;
+    void current.viewport(viewport).then(() => {
+      if (mine === revision && !current.disposed && viewport.visible) regions.setPage(node, true, radii);
+    }, (error) => {
+      if (mine === revision) last = "";
+      reportHostError(error);
+    });
+  }, regions);
+  return () => {
+    revision++;
+    stop();
+    regions.dropPage(node);
+  };
+}

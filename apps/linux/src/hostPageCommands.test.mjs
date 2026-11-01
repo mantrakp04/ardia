@@ -197,26 +197,3 @@ test("a waiting Web Store request never holds back the tab's viewport, focus or 
   assert.equal(await request, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 });
 
-test("a viewport capture waiting for a frame never holds back hiding the page under a dialog", async () => {
-  const sent = [];
-  const captures = [];
-  const host = {
-    bootstrap: { windowId: "capture-wait", profileId: "default" },
-    onEvent: () => () => {},
-    invoke(method, args) {
-      sent.push(args.command ?? method);
-      if (method === "tab.create") return Promise.resolve({ browserId: 12, chromeTabId: 12 });
-      if (args.command === "captureViewport") return new Promise((resolve) => captures.push(resolve));
-      return Promise.resolve(null);
-    },
-  };
-  const tab = new HostTab(host, { key: "capture-wait" }, () => {});
-  await tab.ready;
-  const capture = tab.command("captureViewport", []);
-  await Promise.resolve();
-  const within = (promise, label) => Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} waited behind the capture`)), 1000).unref())]);
-  await within(tab.viewport({ rect: { x: 0, y: 0, width: 100, height: 100 }, visible: false }), "hiding the page");
-  assert.deepEqual(sent, ["tab.create", "captureViewport", "tab.viewport"]);
-  captures[0]("data:image/png;base64,");
-  assert.equal(await capture, "data:image/png;base64,");
-});

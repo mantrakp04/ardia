@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { View } from "react-native";
 import type { PowerUpProps, WindowBackdropProps } from "@ardia-real/shaders";
 import { useBrowser } from "../../../browser/src/state/browser/store";
@@ -10,6 +10,7 @@ import { webgl2Supported } from "./web/gl/surface";
 import { backdropUniforms, HALO, haloUniforms, POWER_UP, powerUpPalette, powerUpUniforms } from "./web/gl/uniforms";
 import { BackdropFallback, HaloFallback, PowerUpFallback } from "./web/gl/fallbacks";
 import { Vibrancy } from "./web/gl/Vibrancy";
+import { usePageHoleLayer } from "../shellAbove";
 
 export * from "@ardia-real/shaders";
 
@@ -19,8 +20,10 @@ export function WindowBackdrop({ colors, angle = 180, grainOpacity = 0.09, grain
   const dark = useBrowser((s) => s.ui.appDark);
   const key = `${colors.join()}|${angle}|${grainOpacity}|${grainScale}`;
   const uniformsAt = useMemo(() => (css: [number, number]) => backdropUniforms({ colors, angle, grainOpacity, grainScale }, css), [key]);
+  const layer = useRef<View & HTMLElement>(null);
+  usePageHoleLayer(layer);
   return (
-    <View pointerEvents="none" style={style}>
+    <View ref={layer} pointerEvents="none" style={style}>
       {vibrancy ? (
         <Vibrancy dark={dark} tintColor={tintColor} tintAlpha={tintAlpha} tintLightness={tintLightness} />
       ) : webgl2Supported() ? (

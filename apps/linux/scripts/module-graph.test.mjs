@@ -58,6 +58,8 @@ test("production graph uses current Linux adapters and one canonical shared stat
   const replacements = [
     ["components/sidebar/HoverCard.tsx", "SidebarHoverCard.tsx", ["HoverCard"]],
     ["components/site/SelectionPopover.tsx", "SelectionPopover.tsx", ["SelectionPopover"]],
+    ["components/window/PageOverlays.tsx", "PageOverlays.tsx", ["BesidePeekPopovers", "PageOverlays", "PeekPage"]],
+    ["components/downloads/Downloads.tsx", "DownloadsPopover.tsx", ["DownloadMagnet", "DownloadsPopover"]],
     ["components/profiles/ProfileIndicator.tsx", "ProfileIndicator.tsx", ["PROFILE_INDICATOR_X", "ProfileIndicator", "useProfileIndicatorWidth"]],
     ["components/sidebar/AddressBar.tsx", "SidebarAddressBar.tsx", ["SidebarAddressRow", "SidebarHeaderTools"]],
     ["components/sidebar/TileFace.tsx", "TileFace.tsx", ["FolderDropRing", "RestingTile", "TILE_RADIUS", "TileFace", "useSlotPosition"]],

@@ -81,19 +81,98 @@ inline bool Allowed(SuggestionsSetting setting) {
   return setting == SuggestionsSetting::kOn;
 }
 
-inline bool RequestAllowed(std::string_view url) {
-  if (url.empty() || url.size() > kMaxRequestLength) {
-    return false;
-  }
-  for (const char c : url) {
+inline bool PrintableUrlText(std::string_view text) {
+  for (const char c : text) {
     const unsigned char byte = static_cast<unsigned char>(c);
     if (byte <= 0x20 || byte >= 0x7f || c == '#' || c == '\\') {
       return false;
     }
   }
+  return true;
+}
+
+inline bool QueriesEndpoint(std::string_view url, std::string_view endpoint) {
+  return url.size() > endpoint.size() + 1 && url.starts_with(endpoint) &&
+         url[endpoint.size()] == '?';
+}
+
+inline bool EndpointAcceptable(std::string_view endpoint) {
+  constexpr std::string_view kHttps = "https://";
+  if (endpoint.size() >= kMaxRequestLength || !endpoint.starts_with(kHttps) ||
+      !PrintableUrlText(endpoint)) {
+    return false;
+  }
+  const std::string_view rest = endpoint.substr(kHttps.size());
+  const size_t path = rest.find('/');
+  if (path == 0 || path == std::string_view::npos) {
+    return false;
+  }
+  if (rest.substr(0, path).find_first_of("@{}%") != std::string_view::npos) {
+    return false;
+  }
+  return endpoint.find_first_of("?{}") == std::string_view::npos;
+}
+
+inline std::optional<std::string> SuggestionTemplateCandidate(
+    std::string_view display_url) {
+  constexpr std::string_view kDisplayTerms = "%s";
+  constexpr std::string_view kSchemeEnd = "://";
+  if (display_url.empty() || display_url.size() > kMaxRequestLength ||
+      display_url.find(kDisplayTerms) == std::string_view::npos) {
+    return std::nullopt;
+  }
+  const size_t scheme_end = display_url.find(kSchemeEnd);
+  if (scheme_end == std::string_view::npos ||
+      display_url.substr(0, scheme_end).find_first_of("{}") !=
+          std::string_view::npos) {
+    return std::nullopt;
+  }
+  const size_t authority = scheme_end + kSchemeEnd.size();
+  const size_t authority_end = display_url.find_first_of("/?#", authority);
+  const std::string_view host = display_url.substr(
+      authority, authority_end == std::string_view::npos
+                     ? std::string_view::npos
+                     : authority_end - authority);
+  if (host.find_first_of("{}") != std::string_view::npos) {
+    return std::nullopt;
+  }
+  std::string stripped;
+  size_t at = 0;
+  while (at < display_url.size()) {
+    if (display_url[at] == '{') {
+      const size_t close = display_url.find_first_of("{}%", at + 1);
+      if (close != std::string_view::npos && display_url[close] == '}') {
+        at = close + 1;
+        continue;
+      }
+    }
+    stripped.push_back(display_url[at]);
+    ++at;
+  }
+  std::string candidate;
+  size_t from = 0;
+  for (size_t found = stripped.find(kDisplayTerms); found != std::string::npos;
+       found = stripped.find(kDisplayTerms, from)) {
+    candidate.append(stripped, from, found - from);
+    candidate.push_back('q');
+    from = found + kDisplayTerms.size();
+  }
+  candidate.append(stripped, from, std::string::npos);
+  return candidate;
+}
+
+inline bool RequestAllowed(std::string_view url,
+                           const std::vector<std::string>& extension_endpoints = {}) {
+  if (url.empty() || url.size() > kMaxRequestLength || !PrintableUrlText(url)) {
+    return false;
+  }
   for (const std::string_view endpoint : kEndpoints) {
-    if (url.size() > endpoint.size() + 1 && url.starts_with(endpoint) &&
-        url[endpoint.size()] == '?') {
+    if (QueriesEndpoint(url, endpoint)) {
+      return true;
+    }
+  }
+  for (const std::string& endpoint : extension_endpoints) {
+    if (EndpointAcceptable(endpoint) && QueriesEndpoint(url, endpoint)) {
       return true;
     }
   }

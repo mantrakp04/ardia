@@ -45,8 +45,8 @@ export function createLinuxQuit(hooks: LinuxQuitHooks) {
   const attempt = async (): Promise<QuitOutcome> => {
     if (hooks.warnBeforeQuitting()) {
       const answer = await hooks.ask(quitWarning(hooks.appName()));
-      if (answer.suppressed) hooks.stopWarning();
       if (!answer.confirmed) return "cancelled";
+      if (answer.suppressed) hooks.stopWarning();
     }
     const downloads = await hooks.downloadsInProgress();
     if (downloads > 0 && !(await hooks.ask(downloadsWarning(hooks.appName(), downloads))).confirmed) return "cancelled";

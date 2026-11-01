@@ -85,6 +85,8 @@ inline constexpr Route kRoutes[] = {
     {"extensions.syncState", "ac_extensions_sync_state", ""},
     {"extensions.syncApply", "ac_extensions_sync_apply", ""},
     {"search.engines", "ac_search_engines_list", ""},
+    {"permissions.externalAppAllowances", "ac_external_apps_allowances", "allowances"},
+    {"permissions.removeExternalAppAllowance", "ac_external_apps_remove", "null"},
 };
 
 inline bool OwnsClaim(std::string_view active, std::string_view supplied) {

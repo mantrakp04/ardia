@@ -1,7 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { View, type ViewProps, type ViewStyle } from "react-native";
 import { useBrowser } from "../../../../browser/src/state/browser/store";
 import { ardiaHost, hostModuleMethod, hostSupports, reportHostError } from "../../host";
+import { shellOverPages, useInputRegion } from "../../shellAbove";
+import { GlassInside, GlassOptIn, useGlassSurface, useVisualEffectMark } from "../../shellGlass";
+import { watchPageFocus } from "../../pageFocus";
 import { WINDOW_DRAG_ROUTES, watchWindowDrag, type WindowDragHost } from "../../windowDrag";
 import { edgeGain, fallbackRadius, highlightMask, maskStyle, peakGain, SHADE_OUTSET, shadeMask, shapeMask, type RimCurve, type RimProfile, type ShadeProfile } from "./glassRim";
 
@@ -21,6 +24,11 @@ export function parseColor(color: string): [number, number, number, number] | nu
 }
 
 export const rgbaString = ([r, g, b, a]: [number, number, number, number]) => `rgba(${r},${g},${b},${+a.toFixed(4)})`;
+
+export function opaqueColor(color: string) {
+  const parsed = parseColor(color);
+  return parsed ? rgbaString([parsed[0], parsed[1], parsed[2], 1]) : color;
+}
 
 function withOpacity(color: string, opacity: number) {
   const c = parseColor(color);
@@ -42,6 +50,11 @@ export type SurfaceProps = ViewProps & {
 export const CA_SHADOW_BLUR = 2;
 
 export function Surface({ fill, cornerRadius = 0, borderColor, borderWidth = 0, borderColors, shadowColor: color, shadowOpacity = 0, shadowRadius = 0, shadowOffset, style, children, ...props }: SurfaceProps) {
+  const optedIn = useContext(GlassOptIn);
+  const inside = useContext(GlassInside);
+  const glass = optedIn && !inside && !!fill && shellOverPages();
+  const host = useRef<View & Element>(null);
+  useGlassSurface(host, fill, glass);
   const gradientBorder = !!borderColors && borderColors.length >= 2 && borderWidth > 0;
   const surface: Style = {
     backgroundColor: fill,
@@ -53,7 +66,7 @@ export function Surface({ fill, cornerRadius = 0, borderColor, borderWidth = 0, 
     surface.boxShadow = `${x}px ${y}px ${shadowRadius * CA_SHADOW_BLUR}px ${withOpacity(color, shadowOpacity)}`;
   }
   return (
-    <View {...props} style={[surface, style]}>
+    <View ref={host} {...props} style={[surface, style]}>
       {gradientBorder ? (
         <div
           aria-hidden
@@ -70,7 +83,7 @@ export function Surface({ fill, cornerRadius = 0, borderColor, borderWidth = 0, 
           }}
         />
       ) : null}
-      {children}
+      <GlassInside.Provider value={inside || glass}>{children}</GlassInside.Provider>
     </View>
   );
 }
@@ -86,14 +99,18 @@ const MATERIAL_FILL: Record<string, string> = {
 export type VisualEffectProps = ViewProps & { material?: string; blendingMode?: "withinWindow" | "behindWindow"; cornerRadius?: number };
 
 export function VisualEffect({ material = "popover", cornerRadius, style, ...props }: VisualEffectProps) {
+  const mark = useRef<View & Element>(null);
+  useVisualEffectMark(mark);
+  const fill = MATERIAL_FILL[material] ?? "rgba(246,246,246,0.6)";
+  const opaque = shellOverPages();
   const glass: Style = {
-    backgroundColor: MATERIAL_FILL[material] ?? "rgba(246,246,246,0.6)",
-    backdropFilter: "blur(24px) saturate(180%)",
-    WebkitBackdropFilter: "blur(24px) saturate(180%)",
+    backgroundColor: opaque ? opaqueColor(fill) : fill,
+    backdropFilter: opaque ? undefined : "blur(24px) saturate(180%)",
+    WebkitBackdropFilter: opaque ? undefined : "blur(24px) saturate(180%)",
     borderRadius: cornerRadius,
     overflow: cornerRadius ? "hidden" : undefined,
   };
-  return <View {...props} style={[glass, style]} />;
+  return <View ref={mark} {...props} style={[glass, style]} />;
 }
 
 export type GlassEffectProps = ViewProps & { cornerRadius?: number; tint?: string; glassStyle?: "regular" | "clear"; dark?: boolean };
@@ -229,18 +246,34 @@ export function ContextMenuArea({ onContextMenu, captureDescendants: _capture, .
   );
 }
 
+const COMMAND_PANEL_FRAME = '[data-testid="ardia-command-panel"]';
+
 export function OutsidePressArea({ onOutsidePress, ...props }: ViewProps & { onOutsidePress?: (event: { nativeEvent: { timestamp?: number } }) => void; children?: ReactNode }) {
   const node = useRef<HTMLElement | null>(null);
+  const frame = useRef<HTMLElement | null>(null);
   const latest = useRef(onOutsidePress);
   latest.current = onOutsidePress;
+  useInputRegion(frame, "box", false);
   useEffect(() => {
     const down = (e: PointerEvent) => {
       if (node.current && e.target instanceof Node && !node.current.contains(e.target)) latest.current?.({ nativeEvent: { timestamp: e.timeStamp } });
     };
     document.addEventListener("pointerdown", down, true);
-    return () => document.removeEventListener("pointerdown", down, true);
+    const stopPage = watchPageFocus(() => latest.current?.({ nativeEvent: { timestamp: performance.now() } }));
+    return () => {
+      document.removeEventListener("pointerdown", down, true);
+      stopPage();
+    };
   }, []);
-  return <View {...props} ref={(view) => void (node.current = view as unknown as HTMLElement | null)} />;
+  return (
+    <View
+      {...props}
+      ref={(view) => {
+        node.current = view as unknown as HTMLElement | null;
+        frame.current = node.current?.closest<HTMLElement>(COMMAND_PANEL_FRAME) ?? node.current;
+      }}
+    />
+  );
 }
 
 const windowDragHost = (): WindowDragHost | null => ardiaHost && WINDOW_DRAG_ROUTES.every((route) => hostSupports(route)) ? {

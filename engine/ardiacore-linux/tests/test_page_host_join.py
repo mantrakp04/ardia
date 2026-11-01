@@ -47,7 +47,8 @@ std::string String(const base::DictValue& value, std::string_view key) { auto* t
 namespace ardiacore::linux_contract { inline bool OwnsClaim(const std::string& owner, const std::string& claim) { return !owner.empty() && owner == claim; } }
 class ShellHostView;
 struct HostMessageHandler {};
-namespace ardiacore { struct LinuxPageChannel { int detached = 0; static std::map<const content::WebContents*, LinuxPageChannel>& All() { static std::map<const content::WebContents*, LinuxPageChannel> all; return all; } static LinuxPageChannel* FromWebContents(content::WebContents* contents) { return &All()[contents]; } void Detach() { ++detached; } }; }
+namespace ardiacore { struct LinuxPageChannel { int detached = 0; static std::map<const content::WebContents*, LinuxPageChannel>& All() { static std::map<const content::WebContents*, LinuxPageChannel> all; return all; } static LinuxPageChannel* FromWebContents(content::WebContents* contents) { return &All()[contents]; } void Detach() { ++detached; } }; inline void TrackLinuxAutofillFocus(content::WebContents*) {} inline void RedeliverLinuxPermissionPrompts(content::WebContents*) {} }
+namespace ardia::linux_pip { inline void ClearIntent(content::WebContents*) {} }
 struct AutoPictureInPictureTabHelper {
   static AutoPictureInPictureTabHelper* FromWebContents(content::WebContents*) { return nullptr; }
   void OnTabActivatedChanged(bool) {}
@@ -114,6 +115,7 @@ class TabBinding : public content::WebContentsObserver {
 struct Sent { std::string module, id; base::DictValue payload; };
 class ShellHostView {
  public:
+  void CheckPlayerSource() {}
   BrowserWindowInterface* browser_ = nullptr;
   content::WebContents* shell_contents = nullptr;
   views::Widget* widget = nullptr;

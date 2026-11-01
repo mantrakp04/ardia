@@ -188,7 +188,7 @@ function Grow({
     };
   }
   return (
-    <Animated.View onLayout={onLayout} style={[{ position: "absolute", ...frame }, outer]}>
+    <Animated.View testID="ardia-command-panel" onLayout={onLayout} style={[{ position: "absolute", ...frame }, outer]}>
       <Surface {...surface} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }} />
       <View style={box ? { overflow: "hidden", borderRadius: radius } : undefined}>
         <Animated.View style={inner}>{children}</Animated.View>

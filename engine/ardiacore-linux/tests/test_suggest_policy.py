@@ -82,13 +82,92 @@ int main() {
   assert(!ValidUtf8("\xf4\x90\x80\x80"));
 }
 '''
-        with tempfile.TemporaryDirectory(prefix='ardia-suggest-policy-test-') as scratch:
-            scratch = pathlib.Path(scratch)
-            cpp = scratch / 'suggest.cc'
-            cpp.write_text(code, encoding='latin-1')
-            binary = scratch / 'suggest'
-            subprocess.run([compiler, '-std=c++20', '-Wall', '-Werror', '-I', str(SOURCE), str(cpp), '-o', str(binary)], check=True, capture_output=True)
-            subprocess.run([str(binary)], check=True)
+        run_policy_program(compiler, code)
+
+    def test_extension_engine_endpoints_admit_only_their_own_queries(self):
+        compiler = shutil.which('clang++') or shutil.which('c++')
+        if compiler is None:
+            self.skipTest('C++ compiler is unavailable')
+        code = r'''#include <cassert>
+#include <optional>
+#include <string>
+#include <vector>
+#include "ardia/linux/ac_linux_suggest_policy.h"
+int main() {
+  using namespace ardia::linux_suggest_policy;
+  assert(SuggestionTemplateCandidate("https://ext.example/suggest?q=%s&client={google:clientName}") == "https://ext.example/suggest?q=q&client=");
+  assert(SuggestionTemplateCandidate("https://ext.example/s?q=%s&lang={language}{inputEncoding}") == "https://ext.example/s?q=q&lang=");
+  assert(SuggestionTemplateCandidate("https://ext.example/s/{a%b}?q=%s") == "https://ext.example/s/{a%b}?q=q");
+  assert(SuggestionTemplateCandidate("https://ext.example/s?a=%s&b=%s") == "https://ext.example/s?a=q&b=q");
+  assert(SuggestionTemplateCandidate("https://ext.example/s?q={x") == std::nullopt);
+  assert(SuggestionTemplateCandidate("https://ext.example/s?q={searchTerms}") == std::nullopt);
+  assert(SuggestionTemplateCandidate("https://ext.example/s?q=%S") == std::nullopt);
+  assert(SuggestionTemplateCandidate("") == std::nullopt);
+  assert(SuggestionTemplateCandidate("{google:baseURL}complete/search?q=%s") == std::nullopt);
+  assert(SuggestionTemplateCandidate("{google:baseURL}https://ext.example/s?q=%s") == std::nullopt);
+  assert(SuggestionTemplateCandidate("https://{google:host}/s?q=%s") == std::nullopt);
+  assert(SuggestionTemplateCandidate("https://ext.{tld}/s?q=%s") == std::nullopt);
+  assert(SuggestionTemplateCandidate("https://{x}ext.example?q=%s") == std::nullopt);
+  assert(SuggestionTemplateCandidate("https://user{x}@ext.example/s?q=%s") == std::nullopt);
+  assert(SuggestionTemplateCandidate("https://ext.example/s?q=%s" + std::string(kMaxRequestLength, 'a')) == std::nullopt);
+  assert(EndpointAcceptable("https://ext.example/suggest"));
+  assert(EndpointAcceptable("https://ext.example:8443/a%20b/"));
+  assert(EndpointAcceptable("https://ext.example/"));
+  assert(!EndpointAcceptable("http://ext.example/suggest"));
+  assert(!EndpointAcceptable("https://ext.example"));
+  assert(!EndpointAcceptable("https:///suggest"));
+  assert(!EndpointAcceptable("https://user@ext.example/suggest"));
+  assert(!EndpointAcceptable("https://ext%2eexample/suggest"));
+  assert(!EndpointAcceptable("https://{host}/suggest"));
+  assert(!EndpointAcceptable("https://ext.example/s{x}"));
+  assert(!EndpointAcceptable("https://ext.example/s?q"));
+  assert(!EndpointAcceptable("https://ext.example/s#q"));
+  assert(!EndpointAcceptable("https://ext.example/s\\q"));
+  assert(!EndpointAcceptable("https://ext.example/s q"));
+  assert(!EndpointAcceptable(""));
+  const std::vector<std::string> extension = {"https://ext.example/suggest"};
+  assert(!RequestAllowed("https://ext.example/suggest?q=linux"));
+  assert(RequestAllowed("https://ext.example/suggest?q=linux", extension));
+  assert(RequestAllowed("https://duckduckgo.com/ac/?q=a", extension));
+  assert(!RequestAllowed("https://ext.example/suggest", extension));
+  assert(!RequestAllowed("https://ext.example/suggest?", extension));
+  assert(!RequestAllowed("http://ext.example/suggest?q=a", extension));
+  assert(!RequestAllowed("https://ext.example:444/suggest?q=a", extension));
+  assert(!RequestAllowed("https://ext.example/suggestions?q=a", extension));
+  assert(!RequestAllowed("https://ext.example/suggest/x?q=a", extension));
+  assert(!RequestAllowed("https://ext.example/suggest/../collect?q=a", extension));
+  assert(!RequestAllowed("https://ext.example/suggest%3F?q=a", extension));
+  assert(!RequestAllowed("https://ext.example/suggest%2F..%2Fcollect?q=a", extension));
+  assert(!RequestAllowed("https://ext.example.evil.example/suggest?q=a", extension));
+  assert(!RequestAllowed("https://ext.example%2eevil.example/suggest?q=a", extension));
+  assert(!RequestAllowed("https://user@ext.example/suggest?q=a", extension));
+  assert(!RequestAllowed("https://ext.example@evil.example/suggest?q=a", extension));
+  assert(!RequestAllowed("https://ext.example/suggest?q=a#x", extension));
+  assert(!RequestAllowed("https://ext.example/suggest?q=a b", extension));
+  assert(!RequestAllowed("https://ext.example/suggest?q=a\\b", extension));
+  assert(!RequestAllowed("https://ext.example/suggest?q=" + std::string(kMaxRequestLength, 'a'), extension));
+  const std::vector<std::string> lookalikes = {"http://ext.example/suggest", "https://ext.example", "https://user@ext.example/suggest", "https://ext.example/s?x", "https://{h}/s"};
+  assert(!RequestAllowed("http://ext.example/suggest?q=a", lookalikes));
+  assert(!RequestAllowed("https://ext.example?q=a", lookalikes));
+  assert(!RequestAllowed("https://ext.example/?q=a", lookalikes));
+  assert(!RequestAllowed("https://user@ext.example/suggest?q=a", lookalikes));
+  assert(!RequestAllowed("https://ext.example/s?x?q=a", lookalikes));
+  assert(!RequestAllowed("https://{h}/s?q=a", lookalikes));
+}
+'''
+        run_policy_program(compiler, code)
+
+
+def run_policy_program(compiler, code):
+    with tempfile.TemporaryDirectory(prefix='ardia-suggest-policy-test-') as scratch:
+        scratch = pathlib.Path(scratch)
+        cpp = scratch / 'suggest.cc'
+        cpp.write_text(code, encoding='latin-1')
+        binary = scratch / 'suggest'
+        compiled = subprocess.run([compiler, '-std=c++20', '-Wall', '-Werror', '-I', str(SOURCE), str(cpp), '-o', str(binary)], capture_output=True, text=True)
+        if compiled.returncode != 0:
+            raise AssertionError(compiled.stderr)
+        subprocess.run([str(binary)], check=True)
 
 
 if __name__ == '__main__':

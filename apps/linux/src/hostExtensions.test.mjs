@@ -104,7 +104,7 @@ test("viewports are serialized after creation and identical ones are not resent"
   const f = nativeSurfaces();
   const view = new HostExtensionView(f.host, { kind: "popup", url: POPUP }, () => {});
   const rect = { x: 10, y: 20, width: 300, height: 200 };
-  await Promise.all([view.viewport({ rect, visible: false }), view.viewport({ rect, visible: false }), view.viewport({ rect, visible: true, occlusions: [rect] })]);
+  await Promise.all([view.viewport({ rect, visible: false }), view.viewport({ rect, visible: false }), view.viewport({ rect, visible: true })]);
   const viewports = f.requests.filter((r) => r.method === "extensionView.viewport");
   assert.deepEqual(viewports.map((r) => r.args), [{ id: 1, rect, visible: false }, { id: 1, rect, visible: true }]);
   assert.equal(await view.command("evaluate", ["1 + 1"]), null);
@@ -112,25 +112,33 @@ test("viewports are serialized after creation and identical ones are not resent"
   view.dispose();
 });
 
-test("a popup asked for focus before it is shown takes focus right after its first visible viewport, once", async () => {
+test("a popup asked for focus before its native view shows takes focus right after the engine reports it shown, once", async () => {
   const f = nativeSurfaces();
   const view = new HostExtensionView(f.host, { kind: "popup", url: POPUP }, () => {});
-  const rect = { x: 900, y: 48, width: 241, height: 121 };
-  const sent = () => f.requests.filter((r) => r.method !== "extensionView.create").map((r) => (r.method === "extensionView.command" ? r.args.command : `viewport ${r.args.visible}`));
+  await view.ready;
+  const shown = async (value) => {
+    f.emit(EXTENSION_VIEW_MODULE, "1", { type: "shown", value });
+    await settle();
+    await settle();
+  };
+  const sent = () => f.requests.filter((r) => r.method !== "extensionView.create").map((r) => (r.method === "extensionView.command" ? r.args.command : r.method));
   await view.command("focus");
-  await view.viewport({ rect, visible: false });
+  await view.place({ anchor: { right: 900, top: 48 }, room: { left: 9, right: 1911, bottom: 1071 }, radius: 11, fadeMs: 160, visible: true });
   await view.command("focus");
-  assert.deepEqual(sent(), ["viewport false"]);
-  await view.viewport({ rect, visible: true });
-  assert.deepEqual(sent(), ["viewport false", "viewport true", "focus"]);
-  await view.viewport({ rect: { ...rect, x: 901 }, visible: true });
-  assert.deepEqual(sent(), ["viewport false", "viewport true", "focus", "viewport true"]);
+  assert.deepEqual(sent(), ["extensionView.place"]);
+  await shown(true);
+  assert.deepEqual(sent(), ["extensionView.place", "focus"]);
+  await view.place({ anchor: { right: 901, top: 48 }, room: { left: 9, right: 1911, bottom: 1071 }, radius: 11, fadeMs: 160, visible: true });
+  assert.deepEqual(sent(), ["extensionView.place", "focus", "extensionView.place"]);
   await view.command("focus");
-  assert.deepEqual(sent(), ["viewport false", "viewport true", "focus", "viewport true", "focus"]);
-  await view.viewport({ rect, visible: false });
+  assert.deepEqual(sent().slice(3), ["focus"]);
+  await shown(false);
   await view.command("focus");
-  await view.viewport({ rect, visible: true });
-  assert.deepEqual(sent().slice(5), ["viewport false", "viewport true", "focus"]);
+  assert.equal(sent().length, 4);
+  await shown(true);
+  assert.deepEqual(sent().slice(4), ["focus"]);
+  await shown(true);
+  assert.equal(sent().length, 5);
   view.dispose();
 });
 
@@ -141,31 +149,52 @@ test("a deferred popup focus is dropped when focus moved elsewhere in the window
   let now = 0;
   const witness = { current: () => [active, documentFocused], now: () => now };
   const view = new HostExtensionView(f.host, { kind: "popup", url: POPUP }, () => {}, witness);
-  const rect = { x: 900, y: 48, width: 241, height: 121 };
+  await view.ready;
   const focuses = () => f.requests.filter((r) => r.method === "extensionView.command" && r.args.command === "focus").length;
-  const show = (x) => view.viewport({ rect: { ...rect, x }, visible: true });
-  const hide = (x) => view.viewport({ rect: { ...rect, x }, visible: false });
-  await hide(1);
+  const shown = async (value) => {
+    f.emit(EXTENSION_VIEW_MODULE, "1", { type: "shown", value });
+    await settle();
+    await settle();
+  };
   await view.command("focus");
   active = "address field";
-  await show(2);
+  await shown(true);
   assert.equal(focuses(), 0);
-  await hide(3);
+  await shown(false);
   await view.command("focus");
   documentFocused = false;
-  await show(4);
+  await shown(true);
   assert.equal(focuses(), 0);
   documentFocused = true;
-  await hide(5);
+  await shown(false);
   await view.command("focus");
   now += 1501;
-  await show(6);
+  await shown(true);
   assert.equal(focuses(), 0);
-  await hide(7);
+  await shown(false);
   await view.command("focus");
   now += 1500;
-  await show(8);
+  await shown(true);
   assert.equal(focuses(), 1);
+  view.dispose();
+  await shown(false);
+  await view.command("focus").catch(() => {});
+  await shown(true);
+  assert.equal(focuses(), 1);
+});
+
+test("viewports and placements are deduplicated per method and a hidden native view never takes focus", async () => {
+  const f = nativeSurfaces();
+  const view = new HostExtensionView(f.host, { kind: "sidePanel", url: POPUP, profile: "default" }, () => {});
+  await view.ready;
+  const rect = { x: 1551, y: 50, width: 360, height: 1021 };
+  const radii = { upperLeft: 0, upperRight: 0, lowerRight: 10, lowerLeft: 10 };
+  await view.viewport({ rect, visible: true, radii });
+  await view.viewport({ rect, visible: true, radii });
+  await view.viewport({ rect, visible: true });
+  assert.deepEqual(f.requests.filter((r) => r.method === "extensionView.viewport").map((r) => r.args), [{ id: 1, rect, visible: true, radii }, { id: 1, rect, visible: true }]);
+  await view.command("focus");
+  assert.equal(f.requests.filter((r) => r.method === "extensionView.command").length, 0);
   view.dispose();
 });
 

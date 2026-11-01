@@ -66,14 +66,14 @@ test("Quit on the warning quits once through the host", async () => {
   f.retire();
 });
 
-test("Don't ask again turns the setting off whether the answer is Quit or Cancel", async () => {
+test("Don't ask again turns the setting off only when the answer is Quit; Cancel keeps the warning", async () => {
   for (const confirmed of [true, false]) {
     const f = fixture();
     state().updateSettings({ warnBeforeQuitting: true });
     const attempt = f.quit();
     await f.respond({ confirmed, suppressed: true });
     assert.equal(await attempt, confirmed ? "quitting" : "cancelled");
-    assert.equal(state().settings.warnBeforeQuitting, false);
+    assert.equal(state().settings.warnBeforeQuitting, !confirmed);
     assert.equal(f.quits(), confirmed ? 1 : 0);
     f.retire();
   }

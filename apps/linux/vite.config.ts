@@ -18,6 +18,8 @@ const replacements = new Map([
   [here("../browser/src/state/engines/engines.ts"), here("./src/hostEngines.ts")],
   [here("../browser/src/components/sidebar/HoverCard.tsx"), here("./src/SidebarHoverCard.tsx")],
   [here("../browser/src/components/site/SelectionPopover.tsx"), here("./src/SelectionPopover.tsx")],
+  [here("../browser/src/components/window/PageOverlays.tsx"), here("./src/PageOverlays.tsx")],
+  [here("../browser/src/components/downloads/Downloads.tsx"), here("./src/DownloadsPopover.tsx")],
   [here("../browser/src/components/onboarding/HomeStep.tsx"), here("./src/LinuxHomeStep.tsx")],
   [here("../browser/src/state/settings/settingsWindows.ts"), here("./src/settingsWindows.ts")],
   [here("../browser/src/components/profiles/ProfileIndicator.tsx"), here("./src/ProfileIndicator.tsx")],
@@ -33,6 +35,7 @@ const replacements = new Map([
   [here("../browser/src/state/extensions/store.ts"), here("./src/extensionsStore.ts")],
   [here("../browser/src/state/live/sources.ts"), here("./src/liveSources.ts")],
   [here("../browser/src/state/live/net.ts"), here("./src/liveNet.ts")],
+  [here("../browser/src/components/extensions/ActionPopup.tsx"), here("./src/ExtensionActionPopup.tsx")],
 ]);
 const importedPasswordSave = {
   source: here("../browser/src/state/site/passwords.ts"),
@@ -47,6 +50,9 @@ const importerReplacements = new Map([
   [`${here("../browser/src/state/site/webNotifications.ts")}\0${here("../browser/src/state/site/permissions.ts")}`, here("./src/notificationPermission.ts")],
   [`${lazyComponentId(here("../browser/src/components/extensions/ExtensionOverlays.tsx"))}\0${here("../browser/src/components/settings/panes/Extensions.tsx")}`, here("./src/SettingsInstallDialog.tsx")],
   [`${here("../browser/src/platform/webviews.ts")}\0${here("../browser/src/state/drag/tabDrag.ts")}`, here("./src/dragWebviews.ts")],
+  [`${here("../browser/src/components/ui/Panel.tsx")}\0${here("../browser/src/components/ui/Popover.tsx")}`, here("./src/GlassPanel.tsx")],
+  [`${here("../browser/src/components/ui/index.ts")}\0${here("../browser/src/components/window/SidebarDock.tsx")}`, here("./src/glassUi.tsx")],
+  [`${here("../browser/src/components/ui/index.ts")}\0${here("../browser/src/components/omnibox/CommandPanel.tsx")}`, here("./src/glassUi.tsx")],
 ]);
 const adapters = new Set([...replacements.values(), ...importerReplacements.values(), rawBookmarkAdapter.replacement, importedPasswordSave.replacement]);
 

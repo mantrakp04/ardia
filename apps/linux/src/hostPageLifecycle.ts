@@ -20,6 +20,7 @@ const RESTORED: Record<string, Partial<PageState>> = {
   contentBlocked: { blocked: 0 },
   passwordPrompt: { passwordPrompt: null },
   autofillPrompt: { autofillPrompt: null },
+  externalApp: { externalApp: null },
   mediaAccess: { mediaAccess: null },
 };
 

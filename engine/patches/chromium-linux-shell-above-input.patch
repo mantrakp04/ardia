@@ -1,0 +1,26 @@
+The Linux shell WebView sits above the page views and passes input through wherever a page shows and no shell
+overlay covers it. BrowserView::ShouldDescendIntoChildForEventHandling asks the Ardia host first, so both aura's event
+targeting and the drag-and-drop lookup (Window::GetEventHandlerForPoint) skip the shell's native view at such points
+and reach the page below.
+--- a/chrome/browser/ui/views/frame/browser_view.cc
++++ b/chrome/browser/ui/views/frame/browser_view.cc
+@@ -441,6 +441,8 @@
+                                         bool activate) = nullptr;
+ bool (*g_ardia_linux_is_companion)(const BrowserWindowInterface*) = nullptr;
+ int (*g_ardia_linux_window_tab_count)(const BrowserWindowInterface*) = nullptr;
++bool (*g_ardia_linux_shell_passes_point)(gfx::NativeView child,
++                                         const gfx::Point& location) = nullptr;
+ 
+ namespace {
+ 
+@@ -5324,6 +5326,10 @@
+ bool BrowserView::ShouldDescendIntoChildForEventHandling(
+     gfx::NativeView child,
+     const gfx::Point& location) {
++  if (g_ardia_linux_shell_passes_point &&
++      g_ardia_linux_shell_passes_point(child, location)) {
++    return false;
++  }
+   // Window for PWAs with window-controls-overlay display override should claim
+   // mouse events that fall within the draggable region.
+   web_app::AppBrowserController* controller =
