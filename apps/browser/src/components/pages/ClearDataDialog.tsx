@@ -1,9 +1,9 @@
 import { clearBrowsingData, type BrowsingDataType } from "../../state/spaces/spaceData";
 import { useState } from "react";
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
 import { pruneSpaceFavicons } from "../../state/favicons/favicons";
 import { engineProfileForSpace, isIncognitoSpace } from "../../state/browser/model";
-import { useSpaceName, useSpaceOrder } from "../../state/profiles/hooks";
+import { useSpaceName, useSpaceOrder } from "../../state/spaces/hooks";
 import { clearHistory } from "../../state/history/actions";
 import { Box, Button, Checkbox, Dialog, DialogActions, DialogTitle, Group, PopUp, Row, space, Text } from "../ui";
 import { clearDataDialog } from "./tokens";

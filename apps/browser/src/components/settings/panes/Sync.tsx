@@ -231,7 +231,7 @@ function SyncOn({ info }: { info: FolderInfo | null }) {
         </Box>
       ) : null}
 
-      {upgrading ? <Text style={{ marginTop: 12, ...font.footnote, color: theme.textSecondary }}>Update every Mac to a build with Profiles and Spaces before upgrading sync. The existing encrypted sync files are kept.</Text> : null}
+      {upgrading ? <Text size="small" tone="textSecondary" style={{ marginTop: space.ml }}>Update every Mac to a build with Profiles and Spaces before upgrading sync. The existing encrypted sync files are kept.</Text> : null}
       <SectionHeader title="Profiles" description="Browsing data and shared Top Apps have separate choices. Space tabs and pinned rows use the controls below." />
       <Group>
         {profiles.map((profile) => {

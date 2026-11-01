@@ -95,7 +95,7 @@ export function BlockedPopupsPrompt({ tabId, right, left, top }: { tabId: string
     patchPage(tabId, { popups: [] });
     close();
   };
-  const space = () => engineProfileForSpace(currentTab(tabId)?.spaceId ?? "");
+  const sourceSpace = () => engineProfileForSpace(currentTab(tabId)?.spaceId ?? "");
   return (
     <Popover width={BLOCKED_POPUPS_WIDTH} top={top} right={right} left={left} onDismiss={close}>
       <View style={{ paddingBottom: PANEL.listPadding }}>
@@ -107,7 +107,7 @@ export function BlockedPopupsPrompt({ tabId, right, left, top }: { tabId: string
           <Button variant="pill"
             title="Always Deny"
             onPress={() => {
-              void setSiteSetting(space(), origin, "popups", "block");
+              void setSiteSetting(sourceSpace(), origin, "popups", "block");
               done();
             }}
           />

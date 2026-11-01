@@ -1,7 +1,7 @@
 import { WindowBackdrop, Box, Button, curve, duration, ink, Panel, proseLineHeight, radius as radii, reduceMotionKnown, space, Text, useHover, VisualEffect } from "../ui";
 import { useEffect, useRef, useState } from "react";
 import { Animated, Pressable, ScrollView, StyleSheet, View } from "react-native";
-import { profileAccent } from "../ui/theme";
+import { spaceAccent } from "../ui/theme";
 import { mix } from "../../lib/color";
 import { useWindowSpaceValue } from "../../state/spaces/hooks";
 import { useWindowId } from "../../state/browser/hooks";

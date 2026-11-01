@@ -22,7 +22,7 @@ export function SpacesBody({ flow }: { flow: ImportFlow }) {
     return (
       <>
         <Title title="Select spaces to import" subtitle={`We'll import your ${source.name} spaces, tabs, and folders to ${APP}.`} />
-        <Text size="small" tone="textSecondary" style={{ marginBottom: space.ml }}>{`Customize which spaces to bring over to ${APP}. Each space becomes a Space, and the spaces of one ${source.name} profile share its logins, cookies, extensions and history, as in ${source.name}.`}</Text>
+        <Text size="small" tone="textSecondary" style={{ marginBottom: space.ml }}>{`Customize which spaces to bring over to ${APP}. Each imported Space keeps its source Profile, so Spaces from one ${source.name} profile share its logins, cookies, extensions and history, as in ${source.name}.`}</Text>
         <Group>
           {spacesOf(source).map((s) => (
             <SelectRow
@@ -51,8 +51,8 @@ export function SpacesBody({ flow }: { flow: ImportFlow }) {
     );
   return (
     <>
-      <Title title="Unlock your data for import" subtitle="Select the spaces you want to import." />
-      <Text size="small" tone="textSecondary" style={{ marginBottom: space.ml }}>{`Customize which spaces to bring over to ${APP}. The first goes into your selected space; the others become new spaces.`}</Text>
+      <Title title="Unlock your data for import" subtitle="Select the profiles you want to import." />
+      <Text size="small" tone="textSecondary" style={{ marginBottom: space.ml }}>{`Customize which profiles to bring over to ${APP}. The first goes into your selected space; the others create new profiles and spaces.`}</Text>
       <Group>
         {source.profiles.map((p) => (
           <SelectRow

@@ -4,7 +4,7 @@ import { requestCreateSpace as createSpace } from "../../../state/spaces/createS
 import { useProfile, useProfiles } from "../../../state/profiles/hooks";
 import { keepSpaceProfile } from "../../../state/sync/engine";
 import { confirm } from "../../../state/app/system";
-import { ContextMenuArea, Symbol, Box, Button, font, PopUp, TextField, Toggle, useHover } from "../../ui";
+import { ContextMenuArea, Symbol, Box, Button, font, radius, space as spacing, PopUp, TextField, Toggle, useHover } from "../../ui";
 import { hapticTick, showMenu } from "../../../state/app/system";
 import { useLayoutEffect, useRef, useState } from "react";
 import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
@@ -34,7 +34,7 @@ export function SpacesPane() {
 
   return (
     <View>
-      <Text style={{ marginTop: 20, ...settingsType.lead, lineHeight: 17, color: theme.textSecondary }}>
+      <Text style={{ marginTop: spacing.xl, ...settingsType.lead, lineHeight: settingsType.lead.fontSize * 1.4, color: theme.textSecondary }}>
         Spaces keep your tabs, saved rows, folders and themes separate. Choose their browsing profiles in Space details.
       </Text>
 
@@ -69,7 +69,7 @@ export function SpacesPane() {
 
 const ROW_HEIGHT = 46;
 const settle = (value: Animated.Value, toValue: number) =>
-  Animated.timing(value, { toValue, duration: settingsMotion.spaceRowSettle, easing: curve.outCubic, useNativeDriver: true });
+  Animated.timing(value, { toValue, duration: settingsMotion.spaceRowSettle, easing: curve.enter, useNativeDriver: true });
 
 function SpaceList() {
   const order = useSpaceOrder();
@@ -124,7 +124,7 @@ function SpaceList() {
   }).current;
 
   return (
-    <Box fill="groupFill" border="groupBorder" radius="card" style={{ overflow: "hidden" }}>
+    <Box fill="groupFill" border="groupBorder" radius="panel" style={{ overflow: "hidden" }}>
       {order.map((id, i) => (
         <SpaceRow key={id} spaceId={id} first={i === 0} offset={offsetOf(id)} lifted={dragging === id} controller={controller} />
       ))}
@@ -185,24 +185,24 @@ function SpaceRow({
       style={{
         zIndex: lifted ? 1 : 0,
         transform: [{ translateY: offset }],
-        borderRadius: lifted ? 8 : 0,
+        borderRadius: lifted ? radius.tile : 0,
         backgroundColor: lifted ? hex(theme.panel) : undefined,
         borderWidth: lifted ? StyleSheet.hairlineWidth * 2 : 0,
         borderColor: theme.groupBorder,
       }}
     >
-      {!first && !lifted && <View style={{ height: StyleSheet.hairlineWidth * 2, marginHorizontal: 12, backgroundColor: theme.divider }} />}
+      {!first && !lifted && <View style={{ height: StyleSheet.hairlineWidth * 2, marginHorizontal: spacing.l, backgroundColor: theme.divider }} />}
       <ContextMenuArea onContextMenu={() => void openMenu()}>
         <View {...hoverProps}>
           <Pressable onPress={() => goToSettingsPane("spaces", spaceId)}>
             <View
               style={{
                 height: ROW_HEIGHT - (first ? 0 : StyleSheet.hairlineWidth * 2),
-                paddingLeft: 8,
-                paddingRight: 12,
+                paddingLeft: spacing.m,
+                paddingRight: spacing.l,
                 flexDirection: "row",
                 alignItems: "center",
-                gap: 10,
+                gap: spacing.ml,
                 backgroundColor: hovered && !lifted ? theme.rowHover : undefined,
               }}
             >
@@ -212,7 +212,7 @@ function SpaceRow({
               <SpaceBadge profile={space} />
               <View style={{ flex: 1 }}>
                 <Text style={{ ...font.body, color: theme.textPrimary }}>{space.name}</Text>
-                {description ? <Text style={{ ...font.footnote, marginTop: 2, color: theme.textSecondary }}>{description}</Text> : null}
+                {description ? <Text style={{ ...font.small, marginTop: spacing.xxs, color: theme.textSecondary }}>{description}</Text> : null}
               </View>
               <Button variant="icon" icon="trash" tooltip="Delete Space…" onPress={() => void deleteSpace(spaceId)} />
               <Symbol name="chevron.right" size={11} weight="semibold" color={theme.textTertiary} style={{ width: 12, height: 14 }} />

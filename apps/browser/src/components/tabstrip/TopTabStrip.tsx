@@ -7,7 +7,7 @@ import { lightsCenter, TOP_STRIP_LIGHTS_CENTER } from "../../state/windows/dockM
 import { useWindowUiOf } from "../../state/windows/hooks";
 import { usePagerPages } from "../../state/windows/spacePager";
 import { DownloadsButton } from "../downloads/DownloadsButton";
-import { SpaceIndicator, useSpaceIndicatorWidth } from "../profiles/SpaceIndicator";
+import { SpaceIndicator, useSpaceIndicatorWidth } from "../spaces/SpaceIndicator";
 import { Panel, shadow, WindowDragRegion } from "../ui";
 import { layout, useTheme } from "../ui/theme";
 import { radius } from "../ui/tokens";

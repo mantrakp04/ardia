@@ -78,7 +78,7 @@ function Root({ windowId }: { windowId: string }) {
     markFirstWindow();
     firstWindowCommitted();
   }, []);
-  if (upgradeError) return <Box pad="xxl" gap="l"><Text size="heading">Your saved workspace was kept</Text><Text>{upgradeError}</Text><Text>Quit this build and restore the matching app-data backup before trying an older build.</Text></Box>;
+  if (upgradeError) return <Box pad="xxl" gap="l"><Text size="title">Your saved workspace was kept</Text><Text>{upgradeError}</Text><Text>Quit this build and restore the matching app-data backup before trying an older build.</Text></Box>;
   if (held) return null;
   return __DEV__ ? (
     <DevErrorBoundary>

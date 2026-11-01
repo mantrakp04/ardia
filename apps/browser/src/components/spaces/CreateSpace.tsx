@@ -31,15 +31,15 @@ function CreateSpaceSheet({ preset, onDone }: { preset: CreateSpacePreset; onDon
   const [color, setColor] = useState<ProfileColor>(() => unusedSpaceColor(currentSpaces()));
   const [profileId, setProfileId] = useState(preset.profileId ?? currentSpaces()[current]?.profileId ?? profiles[0]?.id ?? "default");
   const submit = () => { if (name.trim()) onDone(addSpace({ name, color, profileId })); };
-  return <Sheet width={420} onClose={() => onDone(null)}>
+  return <Sheet size="m" onClose={() => onDone(null)}>
     <Box gap="l">
-      <Text size="heading" weight="semibold">Create Space</Text>
+      <Text size="title" weight="semibold">Create Space</Text>
       <Text tone="textSecondary">A space keeps its own tabs, saved rows, folders and theme.</Text>
       <TextField value={name} onChangeText={setName} placeholder="Space name" autoFocus onSubmit={submit} onEscape={() => onDone(null)} />
       <Box row gap="m" style={{ alignItems: "center", justifyContent: "space-between" }}>
         <Text>Profile</Text><PopUp value={profileId} options={profiles.map((p) => ({ value: p.id, title: p.name }))} onChange={setProfileId} />
       </Box>
-      <Text size="footnote" tone="textSecondary">Spaces using the same profile share logins, extensions, history and Top Apps.</Text>
+      <Text size="small" tone="textSecondary">Spaces using the same profile share logins, extensions, history and Top Apps.</Text>
       <View style={{ flexDirection: "row", gap: swatch.gap }}>{(Object.keys(PROFILE_COLORS) as ProfileColor[]).map((c) => <ColorSwatch key={c} color={c} selected={color === c} onPress={() => setColor(c)} />)}</View>
       <Box row gap="m" style={{ justifyContent: "flex-end" }}>
         <Button title="Cancel" onPress={() => onDone(null)} />
