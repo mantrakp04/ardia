@@ -1,5 +1,6 @@
 import { Image, View } from "react-native";
 import { Button, Checkbox, space, Text } from "../../ui";
+import { SectionHeader } from "../../settings/Form";
 import { APP } from "../model";
 import { ErrorText, FileDrop, FullDiskAccessSteps, Spacer, TargetPicker, Title } from "../Parts";
 import { importLayout } from "../tokens";
@@ -16,11 +17,11 @@ export function SafariBody({ flow }: { flow: ImportFlow }) {
     return (
       <>
         <Title title="Import from Safari" subtitle={`Ardia can read Safari directly. Bring your bookmarks, history, Reading List, open tabs and sign-ins into ${APP}.`} />
-        <View style={{ flexDirection: "row", alignItems: "center", gap: space.l, marginBottom: space.xlx }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: space.l }}>
           {source?.iconPath ? <Image source={{ uri: `file://${source.iconPath}` }} style={{ width: importLayout.safariIcon, height: importLayout.safariIcon }} /> : null}
           <View style={{ flex: 1 }}>
             <Text weight="semibold">Bookmarks, history, Reading List and tabs</Text>
-            <Text size="small" tone="textSecondary" style={{ marginTop: 1 }}>
+            <Text size="small" tone="textSecondary">
               Full Disk Access is granted.
             </Text>
             <View style={{ marginTop: space.m }}>
@@ -29,9 +30,7 @@ export function SafariBody({ flow }: { flow: ImportFlow }) {
           </View>
           <Button title="Import from Safari" kind="primary" onPress={() => void importSafariDirect()} />
         </View>
-        <Text size="small" weight="semibold" tone="textSecondary" style={{ marginBottom: space.m }}>
-          Passwords and payment cards can't be read directly — import them from an export file:
-        </Text>
+        <SectionHeader title="Passwords and payment cards can't be read directly — import them from an export file:" />
         {drop}
         {error && <ErrorText text={error} />}
       </>
@@ -40,9 +39,7 @@ export function SafariBody({ flow }: { flow: ImportFlow }) {
     <>
       <Title title="Give Ardia access to Safari" subtitle={`To import Safari's bookmarks, history and tabs directly, ${APP} needs Full Disk Access.`} />
       <FullDiskAccessSteps onOpen={openFullDiskAccessSettings} onRecheck={() => void recheckAccess()} />
-      <Text size="small" weight="semibold" tone="textSecondary" style={{ marginBottom: space.m }}>
-        Or import everything (including passwords) from an export file:
-      </Text>
+      <SectionHeader title="Or import everything (including passwords) from an export file:" />
       <View style={{ gap: space.s, marginBottom: space.l }}>
         {EXPORT_STEPS.map((t, i) => (
           <Text key={t} size="small" tone="textSecondary">{`${i + 1}. ${t}`}</Text>

@@ -115,7 +115,7 @@ export const pageEventOf = (handler: Handlers): PageEventName => PAGE_EVENTS[han
 const HANDLER_OF_PAGE_EVENT = new Map<string, Handlers>(Object.entries(PAGE_EVENTS).map(([handler, name]) => [name, handler as Handlers]));
 
 const unwrap: { [K in Handlers]: (e: NativeEvents[K]) => Parameters<NonNullable<WebViewProps[K]>> } = {
-  onNavigationChange: (e) => [{ ...e, url: toAppUrl(e.url) }],
+  onNavigationChange: (e) => [{ ...e, url: toAppUrl(e.url), ...(e.committedUrl === undefined ? {} : { committedUrl: toAppUrl(e.committedUrl) }) }],
   onProgress: (e) => [e.progress],
   onFavicon: (e) => [e.url, e.urls],
   onMedia: (e) => [e],

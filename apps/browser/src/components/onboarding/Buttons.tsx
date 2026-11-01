@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
-import { Pressable, Text, View } from "react-native";
-import { Symbol, useHover, type SymbolProps } from "../ui";
-import { font, weight } from "../ui/tokens";
+import { Pressable, View } from "react-native";
+import { Symbol, Text, useHover, type SymbolProps } from "../ui";
+import { space } from "../ui/tokens";
 import { useOnboardingColors } from "./Parts";
 import { onboardingButton } from "./tokens";
 
@@ -33,11 +33,13 @@ export function PrimaryButton({ title, onPress, disabled, icon }: { title: strin
             flexDirection: "row",
             alignItems: "center",
             justifyContent: "center",
-            gap: 6,
+            gap: space.s,
             backgroundColor: hovered && !disabled ? colors.primaryHover : colors.primary,
           }}
         >
-          <Text style={{ ...font.body, fontWeight: weight.semibold, color: colors.primaryText }}>{title}</Text>
+          <Text weight="semibold" color={colors.primaryText}>
+            {title}
+          </Text>
           {icon ? <Symbol name={icon} size={11} weight="semibold" color={colors.primaryText} style={{ width: 12, height: 12 }} /> : null}
         </View>
       )}
@@ -62,7 +64,9 @@ export function SecondaryButton({ title, onPress, filled }: { title: string; onP
             borderColor: colors.noThanksBorder,
           }}
         >
-          <Text style={{ ...font.body, fontWeight: weight.medium, color: filled ? colors.buttonText : colors.noThanksText }}>{title}</Text>
+          <Text weight="medium" color={filled ? colors.buttonText : colors.noThanksText}>
+            {title}
+          </Text>
         </View>
       )}
     </PressScale>

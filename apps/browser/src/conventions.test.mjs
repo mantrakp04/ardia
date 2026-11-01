@@ -24,7 +24,7 @@ const MAY_IMPORT = {
 const MAY_CALL_NATIVE = ["platform", "ui"];
 const HANDS_PLATFORM_TO_SCRIPTS = new Set(["components/dev/devHarness.ts"]);
 
-const RULES = ["layout", "imports", "native-calls", "tokens", "get-state", "set-state", "store-reads", "store-shape", "size", "env", "naming", "comments", "file-names"];
+const RULES = ["layout", "imports", "native-calls", "tokens", "scale", "get-state", "set-state", "store-reads", "store-shape", "size", "env", "naming", "comments", "file-names"];
 const SIZE_CAP = { js: 400, native: 600 };
 const SCOPES = ["apps/browser/src", "packages", "engine/ardiacore/src", "engine/chromium/src"];
 const GENERATED = new Set(["packages/core/src/bangList.ts"]);
@@ -306,6 +306,11 @@ const count = (text, pattern) => (text.match(pattern) || []).length;
 
 const COLOR_LITERAL = /#(?:[0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3,4})(?![\w-])|\b(?:rgba?|hsla?)\s*\(/gi;
 const MOTION_LITERAL = /\bEasing\s*\.\s*\w|\bduration\s*:\s*-?\.?\d|\bAnimated\s*\.\s*delay\s*\(\s*\d/g;
+const SCALE_PROPERTY =
+  /(?<![\w$.])(?:fontSize|letterSpacing|radius|[a-z]\w*Radius|padding(?:Horizontal|Vertical|Top|Bottom|Left|Right|Start|End)?|margin(?:Horizontal|Vertical|Top|Bottom|Left|Right|Start|End)?|gap|rowGap|columnGap|damping|stiffness|friction|tension|bounciness)\s*(?::|=\s*\{|=(?![=>]))/g;
+const NUMBER = String.raw`-?\s*(?:\d+(?:\.\d+)?|\.\d+)(?![\w.$])`;
+const LEADING_NUMBER = new RegExp(String.raw`^\(?\s*(${NUMBER})`);
+const NUMERIC_BRANCH = new RegExp(String.raw`[?:]\s*(${NUMBER})\s*(?=:|\)|$)`, "g");
 const ENV_READ =
   /\b(?:secure_)?getenv\s*\(|processInfo(?:\]\s*|\s*\.\s*)environment\b|ProcessInfo\s*\(\s*\)\s*\.\s*environment\b|\bprocess\s*\.\s*env\b|\bbase::Environment\b/g;
 const CEF_NAME = /(?<![A-Za-z])(?:[Cc]ef|CEF)(?![a-z])|(?<=[a-z0-9_])(?:Cef|CEF)(?![a-z])/g;
@@ -321,6 +326,33 @@ const NATIVE_GLOBAL = /\bNativeModules\b(?!\s*[,}])|\brequireNative(?:Module|Com
 const COMPONENT_FILE = /^[A-Z][A-Za-z0-9]*(?:\.(?:web|native|macos|ios))?\.tsx$/;
 const MODULE_FILE = /^[a-z][A-Za-z0-9]*(?:\.(?:web|native|macos|ios))?\.(?:ts|mjs)$/;
 const TEST_NAME = /^[A-Za-z][A-Za-z0-9]*\.test\.mjs$/;
+
+function valueAt(code, at) {
+  let depth = 0;
+  let end = at;
+  for (; end < code.length; end++) {
+    const c = code[end];
+    if (c === "(" || c === "[" || c === "{") depth++;
+    else if (c === ")" || c === "]" || c === "}") {
+      if (depth === 0) break;
+      depth--;
+    } else if (depth === 0 && (c === "," || c === ";" || c === "\n")) break;
+  }
+  return code.slice(at, end).trim();
+}
+
+const nonZero = (literal) => Number(literal.replace(/\s+/g, "")) !== 0;
+
+function scaleLiterals(code) {
+  let found = 0;
+  for (const match of code.matchAll(SCALE_PROPERTY)) {
+    const value = valueAt(code, match.index + match[0].length);
+    const leading = value.match(LEADING_NUMBER);
+    const branches = [...value.matchAll(NUMERIC_BRANCH)].map((branch) => branch[1]);
+    if ((leading && nonZero(leading[1])) || branches.some(nonZero)) found++;
+  }
+  return found;
+}
 
 function unshapedStores(code) {
   let found = 0;
@@ -382,6 +414,7 @@ function checkFile(path, src, add) {
     const bindings = hexBindings(codeAndStrings);
     const colors = strings.reduce((sum, s) => sum + count(withHexHoles(src, s, bindings), COLOR_LITERAL), 0);
     add("tokens", path, colors + count(code, MOTION_LITERAL));
+    if (rel.startsWith("components/") || rel === "App.tsx") add("scale", path, scaleLiterals(code));
   }
 
   if (rel.startsWith("components/")) {
@@ -497,7 +530,7 @@ function writeBaseline(fromHead, force) {
     previous = JSON.parse(git(["show", `HEAD:${BASELINE_PATH}`]).toString());
   } catch {}
   if (previous) {
-    const grown = RULES.filter((rule) => total(found[rule]) > total(previous[rule]));
+    const grown = RULES.filter((rule) => rule in previous && total(found[rule]) > total(previous[rule]));
     const movedOutOfOldLayout = total(found.layout) < total(previous.layout);
     const refused = grown.filter((rule) => !(rule === "imports" && movedOutOfOldLayout));
     for (const rule of RULES) {
@@ -535,6 +568,23 @@ if (process.argv.includes("--write-baseline")) {
   });
   test("a closing JSX tag doesn't hide a colour after it", () => {
     assert.deepEqual(violationsOf("apps/browser/src/components/hello/Hello.tsx", '<Text>Hello</Text>; const color = "#ff0000";\n'), { tokens: 1 });
+  });
+  test("scale literals count outside token files, layout geometry and computed values don't", () => {
+    const scale = (path, body) => violationsOf(path, `${body}\n`).scale ?? 0;
+    const component = "apps/browser/src/components/hello/Hello.tsx";
+    assert.equal(scale(component, "<View style={{ padding: 9, gap: space.m, borderRadius: 0 }} />"), 1);
+    assert.equal(scale(component, "<View style={{ width: 30, height: 30, top: 4, left: -2, flex: 1 }} />"), 0);
+    assert.equal(scale(component, "<Text style={{ fontSize: 12.5, letterSpacing: 0.4, lineHeight: 17 }} />"), 2);
+    assert.equal(scale(component, "<Surface cornerRadius={12} shadowRadius={size / 2} />"), 1);
+    assert.equal(scale(component, "<View style={{ borderRadius: 10 * g.s, marginTop: -3.5, paddingHorizontal: PAD * 2 }} />"), 2);
+    assert.equal(scale(component, "<View style={{ marginTop: active ? 4 : 0, gap: wide ? space.l : space.m }} />"), 1);
+    assert.equal(scale(component, "function Plate({ radius = 7, box = 30 }: { radius?: number; box?: number }) {}"), 1);
+    assert.equal(scale(component, "const LIFT = spring({ response: 0.2, damping: 0.5 });"), 1);
+    assert.equal(scale(component, "Animated.spring(v, { toValue: 1, friction: 9, tension: 60 });"), 2);
+    assert.equal(scale(component, "if (gap === 0 || radius !== 4) return;"), 0);
+    assert.equal(scale("apps/browser/src/components/hello/tokens.ts", "export const HELLO = { padding: 9, radius: 7 };"), 0);
+    assert.equal(scale("apps/browser/src/App.tsx", "<View style={{ paddingTop: 6 }} />"), 1);
+    assert.equal(scale("apps/browser/src/lib/hello.ts", "export const ROW = { radius: 7 };"), 0);
   });
   test("an import of a layer's own folder maps to that layer", () => {
     assert.deepEqual(violationsOf("apps/browser/src/components/ui/Button.tsx", 'import { Box } from ".";\n'), {});

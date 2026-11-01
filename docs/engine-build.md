@@ -1,8 +1,8 @@
 # Building the engine from source
 
 Ardia runs on ArdiaCore: Chrome's own framework (`//chrome:chrome_framework`) built from our Chromium tree, with our
-layers linked in (`docs/ardiacore-spike.md`). The tree is **Chromium 156.0.8078.47** (`CHROMIUM_VERSION` in
-`env.sh`), plus **Helium** 0.20.1 (helium-chromium) and 0.20.1.1 (helium-macos) minus a short skip list, then our
+layers linked in (`docs/ardiacore-spike.md`). The tree is **Chromium 156.0.8078.79** (`CHROMIUM_VERSION` in
+`env.sh`), plus **Helium** 0.20.3 (helium-chromium) and 0.20.3.1 (helium-macos) minus a short skip list, then our
 patch series. Nothing of CEF's is checked out or built. CEF left the tree
 on 2026-10-09: its 117 patches to Chrome are gone, except a few kept as `chromium-cef-carryover.patch`
 ([below](#cefs-117-patches)), and the seams of theirs ArdiaCore used are our own hooks H1–H6
@@ -32,7 +32,7 @@ What the build adds:
 | `chromium-helium-onboarding-off.patch` | Helium's onboarding page (chrome://setup) isn't built: no WebUI target, resources, strings, chrome://chrome-urls entry or first-run opener (the branding patch drops its pak and registration), so Helium's services consent stays off. chrome://credits keeps Helium's GPL-3.0 entry with its licence text in `third_party/helium/LICENSE`, and leaves out the onboarding font |
 | `chromium-helium-services-page-off.patch` | Settings has no Helium services page: no route, no view, no "set up services" button opening chrome://setup. Helium services stay off in Ardia (the branding patch, which also removes its row), so it only offered switches that do nothing |
 | `chromium-helium-search-assets-off.patch` | Built-in search provider assets are on only for Chrome-branded builds again (Helium turns them on; `enable_builtin_search_provider_assets` in `chrome_build.gni` isn't a GN argument): the build doesn't fetch Helium's non-free search engine assets |
-| `chromium-helium-bangs-off.patch` | Helium's `BangManager` (add-native-bangs) never fetches: `LoadBangs` answers at once with no bangs, so no loader is made and nothing is requested (it made a cache-only request to the services-disabled placeholder at every launch). Chromium's omnibox never uses bangs in Ardia; the address bar is the app's own (`packages/core`) |
+| `chromium-helium-bangs-off.patch` | Helium's `BangManager` (add-native-bangs) never fetches: `LoadBangs` answers at once with an empty catalogue whatever the prefs say, so no loader is made, no retry is armed and nothing is requested (before Helium 0.20.2 it made a cache-only request to the services-disabled placeholder at every launch). Chromium's omnibox never uses bangs in Ardia; the address bar is the app's own (`packages/core`) |
 | `chromium-helium-rlz-for-cdm-storage-id.patch` | `enable_rlz` can be true again (`gn_defines.sh` sets it): it reverts the `rlz/buildflags/buildflags.gni` hunk of the `disable-rlz` patch Helium applies, as our ungoogled build did. Widevine's CDM storage id (`enable_cdm_storage_id`) hashes RLZ's machine id on the Mac, so every user's storage ids and licences stay the same. RLZ itself stays inert: there's no brand code |
 | `chromium-helium-ntp-third-party.patch` | chrome://newtab opens the New Tab page Ardia 0.2.39 did: chrome://new-tab-page-third-party unless Google is the default search engine. It reverts the `search.cc` hunks of Helium's `always-use-better-ntp`, which sent every engine to Chrome's WebUI NTP (it needs a BrowserView, which ArdiaCore's browsers lack), and puts back the `search.cc` part of ungoogled's `0008-restore-classic-ntp`, which Helium leaves out |
 | `chromium-helium-context-menu-cast.patch` | The page's context menu keeps Cast…, as in 0.2.39: it reverts the `AppendPageItems` hunk of Helium's `degoogle-context-menu`. Cast works through `chromium-cast-dialog-hook.patch`, with mDNS on |
@@ -374,7 +374,7 @@ order 1, 3, 4, 2, 5 on a fresh checkout (`gn gen` once the tree is patched). Hel
 `~/chromium-build/helium` and `~/chromium-build/helium-macos` (`HELIUM_DIR`, `HELIUM_MACOS_DIR`), at the commits
 `helium-pins.ini` names.
 
-The live tree in `~/chromium-build` has been Helium's since 2026-10-23 (0.2.40-nightly.5's framework), on Chromium 156 since 2026-10-25.
+The live tree in `~/chromium-build` has been Helium's since 2026-10-23 (0.2.40-nightly.5's framework), on Chromium 156 since 2026-10-25, and on 156.0.8078.79 (Helium 0.20.3) since 2026-10-31.
 
 | Step | Script | Time (M5 Pro, shared machine) |
 |---|---|---|
@@ -424,7 +424,7 @@ Rules for editing the tree after the first build:
      checkout first and syncing again took 3.5 minutes in all, so do that up front.
   5. Step 3's `guard` stage fails when a skipped patch has left Helium's series (check what replaced it) or an
      applied one now touches what a skip protects (Safe Storage, password saving, Sparkle, the product dir, mDNS);
-     `GUARD_ALLOWED` in `03-helium.py` lists the hits reviewed for 0.19.4 (unchanged for 0.20.1). A patch that no longer applies without
+     `GUARD_ALLOWED` in `03-helium.py` lists the hits reviewed for 0.19.4 (unchanged through 0.20.3). A patch that no longer applies without
      fuzz fails `patches`, and names any skipped patch that shares its files.
   6. Our patches and the hooks may need their context refreshed; `series.py check` and `apply.sh --check` say
      which. A patch whose file moved is rewritten for the new path, and the new path's file goes into the series
@@ -433,7 +433,7 @@ Rules for editing the tree after the first build:
 ## Helium
 
 [Helium](https://github.com/imputnet/helium-chromium) is built on ungoogled-chromium. Step 3 (`03-helium.py`) applies
-helium-chromium 0.20.1's series and then helium-macos 0.20.1.1's, as `patch -p1 -l -N` with no fuzz (Helium allows 2).
+helium-chromium 0.20.3's series and then helium-macos 0.20.3.1's, as `patch -p1 -l -N` with no fuzz (Helium allows 2).
 Helium's build-time downloads (its uBlock Origin, the onboarding page, the non-free search engine data) are never
 fetched, and the hunks of its patches that edit them are left out.
 
@@ -520,6 +520,25 @@ applied them before Helium): `0005-disable-default-extensions` (without its `web
 leaves out stay out, as before: `disable-download-quarantine` (Chrome quarantines every download itself, with
 `com.apple.quarantine` and its source URL in `kMDItemWhereFroms`), `prefs-always-prompt-for-download-directory`
 (Chrome's default, save to Downloads without asking, is Ardia's) and `enable-extra-locales`.
+
+### 0.20.1 → 0.20.3 (Chromium 156.0.8078.79, 2026-10-31)
+
+Two Chromium patch releases (156.0.8078.73 and .79, Chrome's stable updates of 2026-10-28 and 2026-10-29). What changed
+in Helium, and what we did:
+
+- **Series.** Both series are unchanged: the same 369 patches in the same order (355 applied, 14 skipped); `flags.gn`, `deps.ini` and the resources are unchanged. Helium
+  refreshed context for each Chromium release, and reworked its native !bangs loading (a shared cache per URL, a retry
+  with backoff, nothing fetched while the pref is off). helium-macos only refreshed context.
+- **Skips and guards.** Every `SKIP` entry is still in the series and still a leaf, the `guard` stage finds the same
+  four reviewed hits, `domsub-keep-store.txt` keeps the same 16 store files, and both resource lists copy 56 files.
+- **Our series.** Every patch and both layers applied, but two needed work. `chromium-helium-bangs-off`: `LoadBangs` is
+  rewritten for the new loader and answers with an empty catalogue before any fetch or retry. `chromium-extension-omaha-attributes`
+  applied and then failed to compile: ungoogled's `fix-building-without-safebrowsing` now also deletes
+  `UpdateService::OnCrxStateChange`'s `should_perform_action_on_omaha_attributes`, so the patch declares it and sets it
+  for up-to-date and update-found results again, as Chromium does.
+- **Toolchain.** Xcode 27.2 ships without the Metal Toolchain, which ANGLE's Metal shaders need: the first build failed
+  with "cannot execute tool 'metal'" until `xcodebuild -downloadComponent MetalToolchain` installed it (840 MB, once per
+  Xcode).
 
 ### 0.19.4 → 0.20.1 (Chromium 156.0.8078.47, 2026-10-25)
 

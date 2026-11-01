@@ -3,13 +3,15 @@ import { chooseFromMenu } from "../../state/app/menuChoice";
 import { useRef } from "react";
 import type { View } from "react-native";
 import { activateExtension, EXTENSION_LIST_ITEMS, openWebStore, runExtensionListChoice, showExtensionMenu, useWindowExtensions, type Anchor } from "../../state/extensions/actions";
-import { ExtensionTile, SectionTitle, TileGrid } from "./SiteControlsParts";
+import { ExtensionTile, SITE_PANEL, TileGrid } from "./SiteControlsParts";
+import { SectionLabel } from "../sidebar/SectionLabel";
+import { PANEL } from "../ui";
 
 export function SiteExtensions({ windowId, tabId, columns, onClose }: { windowId: string; tabId: string; columns: number; onClose: () => void }) {
   const extensions = useWindowExtensions(windowId);
   return (
     <>
-      <SectionTitle title="Extensions" />
+      <SectionLabel title="Extensions" inset={PANEL.inset} top={SITE_PANEL.sectionTop} bottom={SITE_PANEL.sectionGap} />
       <TileGrid columns={columns}>
         {extensions.map((ext) => (
           <ExtensionGridTile key={ext.id} ext={ext} windowId={windowId} tabId={tabId} onClose={onClose} />

@@ -1,10 +1,10 @@
-import { Symbol, useHover } from "../ui";
+import { Dot, Symbol, Text, useHover } from "../ui";
 import { useEffect, useRef, useState } from "react";
-import { Animated, Image, Pressable, Text, View, type GestureResponderEvent, type TextStyle } from "react-native";
+import { Animated, Image, Pressable, View, type GestureResponderEvent, type TextStyle } from "react-native";
 import { toggleMute } from "../../state/browser/actions";
 import { hex } from "../ui/theme";
 import { duration as motionDuration } from "../ui/motion";
-import { font, ink, radius, weight } from "../ui/tokens";
+import { font, ink, radius, space, weight } from "../ui/tokens";
 import { useTab } from "../../state/browser/hooks";
 import { useMuteState } from "../../state/tabs/hooks";
 import { Favicon } from "../favicon/Favicon";
@@ -12,7 +12,7 @@ import { useArtwork } from "../../state/media/artwork";
 import { useMarqueeGroup, Marquee } from "./Marquee";
 import { formatTime, hasTrackControls, isPlaying, mediaCommand, positionOf, seekTo, skipOrTrack, transportIcons, useSession, useTicker, type Session } from "../../state/media/media";
 import { hostOf } from "@ardia/core";
-import { ART_HOVER_SCRIM, mediaType, useMediaTokens, type MediaTokens } from "./tokens";
+import { ART_HOVER_SCRIM, useMediaTokens, type MediaTokens } from "./tokens";
 
 export const MINI_PLAYER_WIDTH = 320;
 export const MINI_PLAYER_HEIGHT = 76;
@@ -145,14 +145,14 @@ function AlbumArt({
   return (
     <View {...hoverProps} style={{ position: "absolute", left: INSET, top: INSET, width: ART, height: ART }}>
       <Pressable onPress={onPress} tooltip="Back to Tab">
-        <View style={{ width: ART, height: ART, borderRadius: radius.m, overflow: "hidden", backgroundColor: tokens.artPlaceholder, alignItems: "center", justifyContent: "center" }}>
+        <View style={{ width: ART, height: ART, borderRadius: radius.tile, overflow: "hidden", backgroundColor: tokens.artPlaceholder, alignItems: "center", justifyContent: "center" }}>
           {art ? (
             <Animated.View style={{ position: "absolute", left: 0, top: 0, width: ART, height: ART, opacity: fade }}>
               <Image
                 key={art}
                 source={{ uri: art }}
                 resizeMode="cover"
-                onLoad={() => Animated.timing(fade, { toValue: 1, duration: motionDuration.fade, useNativeDriver: true }).start()}
+                onLoad={() => Animated.timing(fade, { toValue: 1, duration: motionDuration.base, useNativeDriver: true }).start()}
                 onError={() => setFailed(art)}
                 style={{ width: ART, height: ART }}
               />
@@ -171,9 +171,9 @@ function AlbumArt({
       </Pressable>
       {muted ? (
         <Pressable onPress={onUnmute} tooltip="Unmute Site" style={{ position: "absolute", right: -5, bottom: -5 }}>
-          <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: tokens.background, alignItems: "center", justifyContent: "center" }}>
+          <Dot size={20} color={tokens.background}>
             <Symbol name="speaker.slash.fill" size={10} color={hex(tokens.label)} style={{ width: 16, height: 16 }} />
-          </View>
+          </Dot>
         </Pressable>
       ) : null}
     </View>
@@ -200,10 +200,11 @@ export function TimeBar({
   };
   const duration = session.duration;
   const shownPosition = drag !== null && duration ? drag * duration : positionOf(session);
-  const label: TextStyle = { ...mediaType.time, fontVariant: ["tabular-nums"], color: tokens.secondary };
   return (
-    <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 6 }}>
-      <Text style={label}>{formatTime(shownPosition)}</Text>
+    <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: space.s }}>
+      <Text size="tiny" color={tokens.secondary} style={TIME_LABEL}>
+        {formatTime(shownPosition)}
+      </Text>
       {duration ? (
         <>
           <SeekBar
@@ -217,7 +218,9 @@ export function TimeBar({
               seekTo(tabId, session, p * duration);
             }}
           />
-          <Text style={label}>{trailing === "total" ? formatTime(duration) : `-${formatTime(duration - shownPosition)}`}</Text>
+          <Text size="tiny" color={tokens.secondary} style={TIME_LABEL}>
+            {trailing === "total" ? formatTime(duration) : `-${formatTime(duration - shownPosition)}`}
+          </Text>
         </>
       ) : (
         <View style={{ flex: 1 }} />
@@ -226,6 +229,7 @@ export function TimeBar({
   );
 }
 
+const TIME_LABEL: TextStyle = { fontVariant: ["tabular-nums"] };
 const HOVER_SEGMENTS = 40;
 
 function SeekBar({

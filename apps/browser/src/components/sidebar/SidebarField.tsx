@@ -1,16 +1,17 @@
 import { memo } from "react";
 import { StyleSheet, View } from "react-native";
-import { Button, type IconPalette } from "../ui";
+import { Button, concentric, type IconPalette } from "../ui";
 import { useTheme } from "../ui/theme";
 import { GlassFill, useGlass } from "../ui/Glass";
 import { SIDEBAR_FIELD } from "./geometry";
 import { useSidebarTokens } from "./tokens";
 
 const FIELD_BORDER = StyleSheet.hairlineWidth;
-export const FIELD_BUTTON = {
-  box: 24,
-  inset: (SIDEBAR_FIELD.height - 24) / 2,
-  radius: SIDEBAR_FIELD.radius - (SIDEBAR_FIELD.height - 24) / 2,
+const FIELD_BUTTON_BOX = 24;
+const FIELD_BUTTON = {
+  box: FIELD_BUTTON_BOX,
+  inset: (SIDEBAR_FIELD.height - FIELD_BUTTON_BOX) / 2,
+  radius: concentric(SIDEBAR_FIELD.radius, (SIDEBAR_FIELD.height - FIELD_BUTTON_BOX) / 2),
 } as const;
 
 export const SidebarFieldFill = memo(function SidebarFieldFill({
@@ -72,9 +73,7 @@ export function FieldSiteButton({
         palette={palette}
         icon={icon}
         color={color}
-        size={12}
-        box={FIELD_BUTTON.box}
-        radius={FIELD_BUTTON.radius}
+        look="field"
         active={active}
         onPress={onPress}
         tooltip={tooltip}

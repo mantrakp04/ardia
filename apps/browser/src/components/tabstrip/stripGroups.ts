@@ -1,5 +1,4 @@
 import type { StripDock, StripEntry, StripGroupEntry, StripMember } from "../../state/tabs/topStrip";
-import { spring } from "../ui/motion";
 import type { Dock, DropTarget } from "./model";
 import { DOCK_GAP, GAP, ITEM_HEIGHT, MAX_CHIP, MIN_CHIP, PINNED_CELL, PINNED_SPACING } from "./tokens";
 
@@ -8,8 +7,6 @@ export const GROUP_MARGIN_RIGHT = 4;
 export const MEMBERS_INSET = 6.5;
 const TAIL_COLLAPSED = 4.5;
 export const TAIL_EXPANDED = 30.25;
-export const GROUP_SPRING = spring({ response: 0.3, damping: 0.82 });
-export const TUCK_FADE_MS = 120;
 
 type GroupLayout = { offsets: number[]; width: number };
 

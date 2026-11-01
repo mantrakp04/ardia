@@ -1,14 +1,15 @@
 import { useState, type ReactNode } from "react";
 import { ActivityIndicator, Image, View } from "react-native";
 import { useProfiles } from "../../state/browser/hooks";
-import { Button, PopUp, radius, space, Symbol, Text, useTheme } from "../ui";
+import { Button, Dot, PopUp, space, Symbol, Text, useTheme } from "../ui";
+import { SelectableCard } from "../settings/SelectableCard";
 import { APP } from "./model";
-import { accentAlpha, importColors, importLayout, importType } from "./tokens";
+import { importLayout, importType } from "./tokens";
 
 export function Title({ title, subtitle, spinner }: { title: string; subtitle?: string; spinner?: boolean }) {
   return (
     <View style={{ marginBottom: space.xxl }}>
-      <Text weight="bold" style={{ fontSize: importType.heading }}>
+      <Text weight="bold" style={importType.heading}>
         {title}
       </Text>
       {subtitle ? (
@@ -33,7 +34,7 @@ export function Note({ text }: { text: string }) {
 
 export function ErrorText({ text }: { text: string }) {
   return (
-    <Text size="small" tone="warning" style={{ marginTop: space.l }}>
+    <Text size="caption" tone="destructive" style={{ marginTop: space.l }}>
       {text}
     </Text>
   );
@@ -58,18 +59,17 @@ export function TargetPicker({ target, onChange }: { target: string; onChange: (
 }
 
 export function SettingsSteps({ steps, openTitle, onOpen, onRecheck }: { steps: string[]; openTitle: string; onOpen: () => void; onRecheck: () => void }) {
-  const badge = importLayout.stepBadge;
   return (
     <>
       <View style={{ gap: space.ml, marginBottom: space.xl }}>
         {steps.map((t, i) => (
           <View key={t} style={{ flexDirection: "row", alignItems: "center", gap: space.ml }}>
-            <StepBadge size={badge}>{i + 1}</StepBadge>
+            <StepBadge>{i + 1}</StepBadge>
             <Text>{t}</Text>
           </View>
         ))}
       </View>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: space.ml, marginBottom: space.xlx }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: space.ml }}>
         <Button title={openTitle} kind="primary" onPress={onOpen} />
         <Button title="Check Again" onPress={onRecheck} />
       </View>
@@ -77,14 +77,14 @@ export function SettingsSteps({ steps, openTitle, onOpen, onRecheck }: { steps: 
   );
 }
 
-function StepBadge({ size, children }: { size: number; children: ReactNode }) {
+function StepBadge({ children }: { children: ReactNode }) {
   const theme = useTheme();
   return (
-    <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: theme.rowHover, alignItems: "center", justifyContent: "center" }}>
+    <Dot size={importLayout.stepBadge} color={theme.rowHover}>
       <Text size="caption" weight="semibold" tone="textSecondary">
         {children}
       </Text>
-    </View>
+    </Dot>
   );
 }
 
@@ -112,44 +112,37 @@ export function FileDrop({ onFile, onChoose }: { onFile: (path: string) => void;
         const uri = e.nativeEvent.dataTransfer?.files?.[0]?.uri;
         if (uri) onFile(decodeURIComponent(uri.replace(/^file:\/\//, "")));
       }}
-      style={{
-        height: importLayout.dropHeight,
-        borderRadius: radius.panel,
-        borderWidth: importLayout.selectedBorder,
-        borderStyle: "dashed",
-        borderColor: over ? theme.formAccent : theme.dark ? importColors.dropBorder.dark : importColors.dropBorder.light,
-        backgroundColor: over ? `${theme.formAccent}${accentAlpha.dropOver}` : undefined,
-        alignItems: "center",
-        justifyContent: "center",
-        gap: space.ml,
-      }}
     >
-      <Symbol name="doc.zipper" size={24} color={theme.textSecondary} style={{ width: 32, height: 32 }} />
-      <Text tone="textSecondary">Choose .zip file or drag it here</Text>
-      <Button
-        title="Choose .zip file"
-        onPress={() =>
-          void onChoose().then((path) => {
-            if (path) onFile(path);
-          })
-        }
-      />
+      <SelectableCard selected={over} dashed style={DROP}>
+        <Symbol name="doc.zipper" size={24} color={theme.textSecondary} style={{ width: 32, height: 32 }} />
+        <Text tone="textSecondary">Choose .zip file or drag it here</Text>
+        <Button
+          title="Choose .zip file"
+          onPress={() =>
+            void onChoose().then((path) => {
+              if (path) onFile(path);
+            })
+          }
+        />
+      </SelectableCard>
     </View>
   );
 }
 
-export function Handoff({ iconPath, symbol, lead, detail, maxWidth }: { iconPath?: string; symbol: string; lead: string; detail: string; maxWidth: number }) {
+const DROP = { height: importLayout.dropHeight, alignItems: "center", justifyContent: "center", gap: space.ml } as const;
+
+export function Handoff({ iconPath, symbol, lead, detail }: { iconPath?: string; symbol: string; lead: string; detail: string }) {
   const theme = useTheme();
   const icon = importLayout.appIcon;
   return (
-    <View style={{ alignItems: "center", marginTop: space.ml, gap: space.lx }}>
+    <View style={{ alignItems: "center", marginTop: space.ml, gap: space.xl }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: space.xl }}>
         {iconPath ? <Image source={{ uri: `file://${iconPath}` }} style={{ width: icon, height: icon }} /> : null}
         <Symbol name="arrow.right" size={16} color={theme.textTertiary} style={{ width: 20, height: 20 }} />
         <Symbol name={symbol} size={30} color={theme.icon} style={{ width: icon, height: icon }} />
       </View>
-      <Text style={{ lineHeight: importType.bodyLine, textAlign: "center", maxWidth }}>{lead}</Text>
-      <Text size="small" tone="textSecondary" style={{ lineHeight: importType.smallLine, textAlign: "center", maxWidth }}>
+      <Text style={{ lineHeight: importType.bodyLine, textAlign: "center", maxWidth: importLayout.textMax }}>{lead}</Text>
+      <Text size="small" tone="textSecondary" style={{ lineHeight: importType.smallLine, textAlign: "center", maxWidth: importLayout.textMax }}>
         {detail}
       </Text>
     </View>

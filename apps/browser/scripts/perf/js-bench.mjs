@@ -392,7 +392,8 @@ const top = (counter, n = 6) =>
     .map(([k, v]) => `${k} ${Math.round(v)}`)
     .join(", ");
 
-const harnessMs = (stats) => sum(Object.fromEntries(Object.entries(stats.timerMs ?? {}).filter(([k]) => k.includes("pollDevEval"))));
+export const isHarnessTimer = (name) => name.includes("pollDevEval") || name === "setInterval:anonymous";
+const harnessMs = (stats) => sum(Object.fromEntries(Object.entries(stats.timerMs ?? {}).filter(([k]) => isHarnessTimer(k))));
 
 function statLine(stats) {
   return {
@@ -441,7 +442,7 @@ function summarize(results, bundleSize) {
   add("persist.sessionStringifyMs", (r) => r.persistence.session.ms);
   add("persist.bookmarksStringifyMs", (r) => r.persistence.bookmarks.ms);
   statKeys("idle10s", (r) => r.idle.stats);
-  add("idle10s.timerCallbacks", (r) => sum(Object.fromEntries(Object.entries(r.idle.stats.timers).filter(([k]) => !k.includes("pollDevEval")))));
+  add("idle10s.timerCallbacks", (r) => sum(Object.fromEntries(Object.entries(r.idle.stats.timers).filter(([k]) => !isHarnessTimer(k)))));
   add("typing.keyMedianMs", (r) => median(r.typing.keys));
   add("typing.keyP95Ms", (r) => pct(r.typing.keys, 0.95));
   add("typing.keyMaxMs", (r) => Math.max(...r.typing.keys));
@@ -467,7 +468,7 @@ function summarize(results, bundleSize) {
   add("storeUpdate.medianMs", (r) => median(r.storeUpdate.steps));
   add("storeUpdate.p95Ms", (r) => pct(r.storeUpdate.steps, 0.95));
   statKeys("idleLate10s", (r) => r.idleLate.stats);
-  add("idleLate10s.timerCallbacks", (r) => sum(Object.fromEntries(Object.entries(r.idleLate.stats.timers).filter(([k]) => !k.includes("pollDevEval")))));
+  add("idleLate10s.timerCallbacks", (r) => sum(Object.fromEntries(Object.entries(r.idleLate.stats.timers).filter(([k]) => !isHarnessTimer(k)))));
   add("save.msPerCall", (r) => {
     const all = [r.idle, r.switchTabs, r.pageLoad?.runs?.at(-1), r.typing].filter(Boolean).map((x) => x.stats);
     const ms = all.reduce((a, st) => a + (st.timerMs["setTimeout:save"] ?? 0), 0);

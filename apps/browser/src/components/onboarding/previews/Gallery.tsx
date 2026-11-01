@@ -9,6 +9,7 @@ import {
 import { useMemo, useRef } from "react";
 import { Animated, StyleSheet, Text, View } from "react-native";
 import { PROFILE_COLORS, useTheme } from "../../ui/theme";
+import { radius, space } from "../../ui/tokens";
 import type { Settings } from "../../../state/settings/settings";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { openSettings, SETTINGS_WINDOW_ID } from "../../../state/settings/settingsWindows";
@@ -19,6 +20,7 @@ import type { SceneOpts } from "./scene";
 import { PREVIEW_IDS, type PreviewId } from "../../../state/onboarding/previewIds";
 import { geo } from "./geometry";
 import { lookFor } from "./look";
+import { useBasePaletteValue } from "../../../state/config/hooks";
 import { MockWindow } from "./MockWindow";
 import { mockInk } from "./tokens";
 import { devRegister } from "../../dev/devRegister";
@@ -59,22 +61,23 @@ function FixedFrame({ id, at, opts }: { id: PreviewId; at: number; opts: SceneOp
   const g = useMemo(() => geo(FRAME.width, FRAME.height), []);
   const { Scene } = DEMOS[id];
   return (
-    <View style={{ ...FRAME, borderRadius: 7, overflow: "hidden", borderWidth: StyleSheet.hairlineWidth, borderColor: dark ? mockInk.frameEdge.dark : mockInk.frameEdge.light }}>
-      <Scene g={g} look={lookFor(dark, PLUM)} p={p} opts={opts} />
+    <View style={{ ...FRAME, borderRadius: radius.tile, overflow: "hidden", borderWidth: StyleSheet.hairlineWidth, borderColor: dark ? mockInk.frameEdge.dark : mockInk.frameEdge.light }}>
+      <Scene g={g} look={lookFor(dark, PLUM, opts.palette)} p={p} opts={opts} />
     </View>
   );
 }
 
 function FramesPage({ index, addressInSidebar }: { index: number; addressInSidebar: boolean }) {
   const systemDark = useTheme().dark;
-  const opts = useMemo<SceneOpts>(() => ({ addressInSidebar, systemDark, accent: PLUM }), [addressInSidebar, systemDark]);
+  const palette = useBasePaletteValue();
+  const opts = useMemo<SceneOpts>(() => ({ addressInSidebar, systemDark, accent: PLUM, palette }), [addressInSidebar, systemDark, palette]);
   const ids = PREVIEW_IDS.slice(index * FRAMES_PER_PAGE, (index + 1) * FRAMES_PER_PAGE);
   return (
-    <View style={{ gap: 6 }}>
+    <View style={{ gap: space.s }}>
       {ids.map((id) => (
-        <View key={id} style={{ gap: 2 }}>
+        <View key={id} style={{ gap: space.xxs }}>
           <Caption text={`${id} · ${DEMOS[id].duration} ms · ${FRAME_POINTS.map((f) => Math.round(f * DEMOS[id].duration)).join(" / ")} ms${addressInSidebar ? " · sidebar address" : ""}`} />
-          <View style={{ flexDirection: "row", gap: 8 }}>
+          <View style={{ flexDirection: "row", gap: space.m }}>
             {FRAME_POINTS.map((f) => (
               <FixedFrame key={f} id={id} at={f} opts={opts} />
             ))}
@@ -87,7 +90,7 @@ function FramesPage({ index, addressInSidebar }: { index: number; addressInSideb
 
 function MockCell({ state, width, height }: { state: MockState; width: number; height: number }) {
   return (
-    <View style={{ gap: 2 }}>
+    <View style={{ gap: space.xxs }}>
       <Caption text={state.label} />
       <View style={{ width, height }}>
         <MockWindow settings={state.settings} accent={state.accent} focus={state.focus} />
@@ -98,7 +101,7 @@ function MockCell({ state, width, height }: { state: MockState; width: number; h
 
 function MockPage({ index }: { index: number }) {
   return (
-    <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: 16, rowGap: 6, width: 2 * 380 + 16 }}>
+    <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: space.xl, rowGap: space.s, width: 2 * 380 + space.xl }}>
       {(MOCK_PAGES[index] ?? []).map((state) => (
         <MockCell key={state.label} state={state} width={380} height={272} />
       ))}
@@ -115,7 +118,7 @@ function PreviewGallery() {
   const colors = useOnboardingColors();
   const page = useGallery((s) => s.page);
   return (
-    <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.card, paddingTop: 30, paddingHorizontal: 18 }]}>
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.card, paddingTop: space.huge, paddingHorizontal: space.xl }]}>
       {page.kind === "frames" && <FramesPage index={page.index} addressInSidebar={!!page.addressInSidebar} />}
       {page.kind === "mock" && <MockPage index={page.index} />}
       {page.kind === "mockLive" && <MockLivePage />}

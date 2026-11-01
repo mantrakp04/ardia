@@ -37,7 +37,7 @@ export function ProfileIndicator({ room }: { room: number }) {
   if (!shown) return null;
 
   return (
-    <View {...hoverProps} tooltip={incognito ? undefined : "Switch between profiles"} style={{ marginTop: 0.5 }}>
+    <View {...hoverProps} tooltip={incognito ? undefined : "Switch between profiles"}>
       <View pointerEvents="none" style={{ position: "absolute", width: 1000, height: 0, overflow: "hidden", opacity: 0 }}>
         <Text
           numberOfLines={1}
@@ -55,7 +55,7 @@ export function ProfileIndicator({ room }: { room: number }) {
               style={{
                 height: HEIGHT,
                 width,
-                borderRadius: radius.card,
+                borderRadius: radius.chrome,
                 flexDirection: "row",
                 alignItems: "center",
                 justifyContent: "center",

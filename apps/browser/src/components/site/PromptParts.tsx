@@ -1,36 +1,34 @@
-import { useCallback, useLayoutEffect, useRef } from "react";
-import { Pressable, View } from "react-native";
-import { useTheme } from "../ui/theme";
-import { Box, Checkbox, duration, Symbol, Text } from "../ui";
+import { useCallback, useLayoutEffect, useRef, type ReactNode } from "react";
+import { Pressable } from "react-native";
+import { Box, Checkbox, duration, IconTile, Text, type Space } from "../ui";
 import { watchWindowActivation, windowActivatedAt } from "../../state/site/promptGuard";
 import { siteLine, useSiteTokens } from "./tokens";
 
-const ICON_TILE = { width: 30, height: 30, alignItems: "center", justifyContent: "center" } as const;
-const ICON_GLYPH = { width: 20, height: 20 } as const;
+export function PromptIcon({ icon }: { icon: string }) {
+  return <IconTile symbol={icon} fill={useSiteTokens().iconTile} />;
+}
 
-export function IconTile({ icon }: { icon: string }) {
-  const theme = useTheme();
-  const site = useSiteTokens();
+export function Well({ list = false, gap, fill, children }: { list?: boolean; gap?: Space; fill?: string; children: ReactNode }) {
+  const { well } = useSiteTokens();
   return (
-    <Box radius="l" style={[ICON_TILE, { backgroundColor: site.iconTile }]}>
-      <Symbol name={icon} size={14} color={theme.icon} style={ICON_GLYPH} />
+    <Box radius="tile" padX={list ? undefined : "ml"} padY={list ? "xs" : "m"} gap={gap} style={{ backgroundColor: fill ?? well }}>
+      {children}
     </Box>
   );
 }
 
-const CHECK_ROW = { flexDirection: "row", alignItems: "flex-start", gap: 7 } as const;
-const CHECK_BOX = { marginTop: 1 } as const;
+const CHECK_ROW = { alignItems: "flex-start" } as const;
 const CHECK_LABEL = { flex: 1, lineHeight: siteLine.checkLabel } as const;
 
 export function CheckRow({ value, onChange, label }: { value: boolean; onChange: (value: boolean) => void; label: string }) {
   return (
-    <Pressable onPress={() => onChange(!value)} style={CHECK_ROW}>
-      <View style={CHECK_BOX}>
+    <Pressable onPress={() => onChange(!value)}>
+      <Box row gap="m" style={CHECK_ROW}>
         <Checkbox value={value} onChange={onChange} />
-      </View>
-      <Text size="small" style={CHECK_LABEL}>
-        {label}
-      </Text>
+        <Text size="small" style={CHECK_LABEL}>
+          {label}
+        </Text>
+      </Box>
     </Pressable>
   );
 }
@@ -42,7 +40,7 @@ export function usePromptInputGuard(promptKey: string | number | null | undefine
   const lastInputAt = useRef(0);
   useLayoutEffect(() => {
     watchWindowActivation();
-    visibleAt.current = promptKey == null ? Number.POSITIVE_INFINITY : Date.now() + duration.popoverOpen;
+    visibleAt.current = promptKey == null ? Number.POSITIVE_INFINITY : Date.now() + duration.base;
   }, [promptKey]);
   return useCallback(
     <A extends unknown[]>(action: (...args: A) => void) =>

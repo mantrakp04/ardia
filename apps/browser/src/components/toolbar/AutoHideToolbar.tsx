@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Animated, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
+import { Animated, Pressable, StyleSheet, View, type ViewStyle } from "react-native";
 import { useTheme } from "../ui/theme";
 import { pageHostLabel } from "../../lib/url";
 import { useSettings, useTab, useTabLive } from "../../state/browser/hooks";
@@ -10,15 +10,15 @@ import { useToolbarHeld } from "../../state/app/transientUi";
 import { revealToolbar, setToolbarPeek, STRIP_HEIGHT, toolbarMode, useToolbarAutoHide, type ToolbarMode } from "../../state/windows/toolbarAutoHide";
 import { Toolbar } from "./Toolbar";
 import { curve } from "../ui/motion";
-import { font, reduceMotion, weight } from "../ui";
+import { Divider, reduceMotion, space, Text } from "../ui";
 import { TOOLBAR_MOTION } from "./tokens";
 import { motionStep, tallPage, type MotionValue, type TallPage } from "./toolbarMotion";
 import { useToolbarRow } from "./useToolbarRow";
 
 const HIDE_MS = TOOLBAR_MOTION.hide;
-const HIDE_EASING = curve.outQuad;
+const HIDE_EASING = curve.enter;
 const SHOW_MS = TOOLBAR_MOTION.show;
-const SHOW_EASING = curve.outCubic;
+const SHOW_EASING = curve.enter;
 const PEEK_DELAY = 150;
 const UNPEEK_DELAY = 250;
 const SHRINK = 0.94;
@@ -145,9 +145,9 @@ export function AutoHideBackdrop({ tabId, mode, motion }: { tabId: string; mode:
         <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: band }]} />
       </Animated.View>
       {url ? (
-        <Animated.View
-          style={{ position: "absolute", left: 0, right: 0, top: H - 1, height: 1, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.divider, transform: anim ? [{ translateY: anim.dividerTop }] : undefined }}
-        />
+        <Animated.View style={{ position: "absolute", left: 0, right: 0, top: H - 1, height: 1, justifyContent: "flex-end", transform: anim ? [{ translateY: anim.dividerTop }] : undefined }}>
+          <Divider color={palette.divider} />
+        </Animated.View>
       ) : null}
     </View>
   );
@@ -223,9 +223,9 @@ export function AutoHideToolbar({
             onMouseEnter={() => modeNow.current === "collapsed" && peekLater(true, PEEK_DELAY)}
             onMouseLeave={() => modeNow.current === "collapsed" && clearTimeout(peekTimer.current)}
             tooltip="Show Toolbar"
-            style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 }}
+            style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: space.l }}
           >
-            <Text numberOfLines={1} ellipsizeMode="head" style={{ ...font.caption, fontWeight: weight.medium, color: palette.secondary }}>
+            <Text numberOfLines={1} ellipsizeMode="head" size="caption" weight="medium" color={palette.secondary}>
               {host}
             </Text>
           </Pressable>

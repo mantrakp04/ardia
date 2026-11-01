@@ -1,4 +1,5 @@
-import { curve } from "../../ui/motion";
+import { curve, duration } from "../../ui/motion";
+import { ink, type ShadowLevel } from "../../ui/tokens";
 
 export const sceneMs = {
   tabs: 1200,
@@ -20,10 +21,20 @@ export const sceneMs = {
 } as const;
 
 export const mockMotion = {
-  move: { duration: 340, easing: curve.outCubic },
-  fade: { duration: 380, easing: curve.outCubic },
-  focus: { duration: 220, easing: curve.outQuad },
+  move: { duration: duration.long, easing: curve.enter },
+  fade: { duration: duration.long, easing: curve.enter },
+  focus: { duration: duration.slow, easing: curve.enter },
 } as const;
+
+export const mockShadow = {
+  window: { color: ink.black, opacity: { dark: 0.55, light: 0.22 }, radius: 22, offset: [0, 10] },
+  lens: { color: ink.black, opacity: { dark: 0.5, light: 0.18 }, radius: 18, offset: [0, 6] },
+  banner: { color: ink.black, opacity: { dark: 0.5, light: 0.14 }, radius: 16, offset: [0, 4] },
+} satisfies Record<string, ShadowLevel>;
+
+export const mockArt = { blobRadius: 80 } as const;
+
+export const mockNtp = { barTop: 120, barMaxWidth: 520 } as const;
 
 export const tabTints = {
   notes: "#4E8A5B",

@@ -1,7 +1,7 @@
 import { engineHost, type SearchEngine } from "@ardia/core";
-import { Symbol, Button, font, Sheet, TextField, Toggle } from "../../ui";
+import { Box, Button, DialogActions, DialogTitle, Sheet, space, Symbol, Text, TextField, Toggle } from "../../ui";
 import { useState } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { useSettings } from "../../../state/browser/hooks";
 import { currentEngineProfile, currentProfileOrder } from "../../../state/browser/current";
@@ -9,7 +9,7 @@ import { addCustomEngine, removeCustomEngine, setSearchEngine, updateCustomEngin
 import { controllingSearchExtension, defaultSearchEngine, searchEngines } from "../../../state/settings/settings";
 import { extensionsProfileId, setEnabled } from "../../../state/extensions/actions";
 import { Favicon } from "../../favicon/Favicon";
-import { Group, Row, SectionHeader, SettingToggle, SheetActions, SheetTitle } from "../Form";
+import { FormField, Group, Row, SectionHeader, SettingToggle } from "../Form";
 import { closeSettingsSheet, showSettingsSheet } from "../../../state/settings/sheet";
 import { openSettings } from "../../../state/settings/settingsWindows";
 
@@ -96,22 +96,25 @@ function EngineRow({ engine, selected, locked, editable }: { engine: SearchEngin
   return (
     <Row icon={<Favicon url={`https://${engineHost(engine)}`} />} title={engine.name} description={description}>
       {editable && (
-        <Button variant="icon" icon="pencil" size={11} box={24} radius={6} onPress={() => showSettingsSheet(<EngineSheet engine={engine} />)} tooltip="Edit" />
+        <Button variant="icon" icon="pencil" size="m" onPress={() => showSettingsSheet(<EngineSheet engine={engine} />)} tooltip="Edit" />
       )}
       {selected ? (
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 5, minWidth: 92, justifyContent: "flex-end" }}>
+        <Box row gap="xs" style={DEFAULT_MARK}>
           <Symbol name="checkmark" size={11} weight="semibold" color={theme.formAccent} style={{ width: 14, height: 14 }} />
-          <Text style={{ ...font.small, color: theme.textSecondary }}>Default</Text>
-        </View>
+          <Text size="small" tone="textSecondary">
+            Default
+          </Text>
+        </Box>
       ) : (
-        <Button title="Make Default" disabled={locked} onPress={() => setSearchEngine(engine.id)} style={{ minWidth: 92 }} />
+        <View style={DEFAULT_WIDTH}>
+          <Button title="Make Default" disabled={locked} onPress={() => setSearchEngine(engine.id)} />
+        </View>
       )}
     </Row>
   );
 }
 
 function EngineSheet({ engine }: { engine?: SearchEngine }) {
-  const theme = useTheme();
   const [name, setName] = useState(engine?.name ?? "");
   const [keyword, setKeyword] = useState(engine?.keyword ?? "");
   const [url, setUrl] = useState(engine?.url ?? "");
@@ -128,20 +131,23 @@ function EngineSheet({ engine }: { engine?: SearchEngine }) {
     closeSettingsSheet();
   };
   const field = (label: string, value: string, set: (v: string) => void, placeholder: string) => (
-    <View style={{ marginTop: 12 }}>
-      <Text style={{ ...font.footnote, marginBottom: 5, color: theme.textSecondary }}>{label}</Text>
+    <FormField label={label}>
       <TextField value={value} onChangeText={set} placeholder={placeholder} onSubmit={save} onEscape={closeSettingsSheet} />
-    </View>
+    </FormField>
   );
   return (
-    <Sheet width={440} onClose={closeSettingsSheet}>
-      <SheetTitle>{engine ? "Edit Search Engine" : "Add Search Engine"}</SheetTitle>
+    <Sheet onClose={closeSettingsSheet}>
+      <DialogTitle>{engine ? "Edit Search Engine" : "Add Search Engine"}</DialogTitle>
       {field("Name", name, setName, "Wikipedia")}
       {field("Shortcut", keyword, setKeyword, "w")}
       {field("URL with %s in place of the query", url, setUrl, "https://en.wikipedia.org/w/index.php?search=%s")}
-      {error && <Text style={{ ...font.small, marginTop: 10, color: theme.destructive }}>{error}</Text>}
-      <SheetActions
-        destructive={
+      {error && (
+        <Text size="caption" tone="destructive" style={ERROR}>
+          {error}
+        </Text>
+      )}
+      <DialogActions
+        leading={
           engine ? (
             <Button
               title="Delete"
@@ -156,7 +162,11 @@ function EngineSheet({ engine }: { engine?: SearchEngine }) {
       >
         <Button title="Cancel" onPress={closeSettingsSheet} />
         <Button title={engine ? "Save" : "Add"} kind="primary" onPress={save} />
-      </SheetActions>
+      </DialogActions>
     </Sheet>
   );
 }
+
+const DEFAULT_WIDTH = { minWidth: 92 } as const;
+const DEFAULT_MARK = { ...DEFAULT_WIDTH, alignItems: "center", justifyContent: "flex-end" } as const;
+const ERROR = { marginTop: space.ml } as const;

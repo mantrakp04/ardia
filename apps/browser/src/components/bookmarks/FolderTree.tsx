@@ -40,13 +40,13 @@ export function FolderTree({
   profileId,
   selectedId,
   onSelect,
-  rowHeight = folderTree.row,
+  rowHeight,
   wrapRow,
 }: {
   profileId: string;
   selectedId: string | null;
   onSelect: (id: string) => void;
-  rowHeight?: number;
+  rowHeight: number;
   wrapRow?: (id: string, row: ReactNode) => ReactNode;
 }) {
   const [expanded, setExpanded] = useState(() => {
@@ -113,7 +113,7 @@ function FolderTreeRow({
         <View
           style={{
             height,
-            borderRadius: radius.m,
+            borderRadius: radius.control,
             flexDirection: "row",
             alignItems: "center",
             paddingLeft: folderTree.inset + row.depth * folderTree.indent,

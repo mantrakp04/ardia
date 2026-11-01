@@ -200,6 +200,8 @@ BOOL SignedForDistribution() {
               signedForDistribution:(BOOL (^)(void))signedForDistribution {
   if ((self = [super init])) {
     _dataDirectory = StandardizedDirectory(environment[kDataDirVariable]);
+    _configDirectory = _dataDirectory ? [_dataDirectory stringByAppendingPathComponent:@"config"]
+                                      : [NSHomeDirectory() stringByAppendingPathComponent:@".config/ardia"];
     _background = BackgroundValue(environment[kBackgroundVariable]);
     const NSInteger port = Trimmed(environment[kRemoteDebuggingPortVariable] ?: @"").integerValue;
     _remoteDebuggingPort = port > 0 && port < 65536 ? @(port) : nil;
@@ -323,6 +325,7 @@ BOOL SignedForDistribution() {
   [_switches enumerateKeysAndObjectsUsingBlock:^(NSString *name, NSNumber *on, BOOL *) { switches[name] = on; }];
   return @{
     @"dataDirectory" : _dataDirectory ?: NSNull.null,
+    @"configDirectory" : _configDirectory,
     @"background" : @(_background),
     @"isolated" : @(self.isolated),
     @"testInstance" : @(self.testInstance),

@@ -1,4 +1,6 @@
-export const DOWNLOADS_PANEL = { width: 300, margin: 8, arrowWidth: 20, arrowHeight: 9, arrowGap: 1 } as const;
+import { space } from "../ui/tokens";
+
+export const DOWNLOADS_PANEL = { width: 300, margin: space.m, arrowWidth: 20, arrowHeight: 9, arrowGap: 1 } as const;
 
 export type Rect = { x: number; y: number; width: number; height: number };
 export type Size = { width: number; height: number };

@@ -6,7 +6,7 @@ import { FADE_IN_MS } from "./tokens";
 export function FadeIn({ style, children }: { style: object; children: React.ReactNode }) {
   const opacity = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    Animated.timing(opacity, { toValue: 1, duration: FADE_IN_MS, easing: curve.outQuad, useNativeDriver: false }).start();
+    Animated.timing(opacity, { toValue: 1, duration: FADE_IN_MS, easing: curve.enter, useNativeDriver: false }).start();
   }, []);
   return (
     <Animated.View pointerEvents="none" style={{ position: "absolute", ...style, opacity }}>

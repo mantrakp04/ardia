@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { Animated } from "react-native";
 import type { Theme } from "./theme";
 import { duration as durations } from "./motion";
-import { colorRoles, ink, siteToolbarRoles } from "./tokens";
+import { ink, siteToolbarRoles } from "./tokens";
 import { curve } from "./motion";
 import { isHexColor, isLight } from "../../lib/color";
 
@@ -19,11 +19,13 @@ export type ToolbarPalette = {
 };
 
 
-const cache = new Map<string, ToolbarPalette>();
+const cache = new WeakMap<Theme, Map<string, ToolbarPalette>>();
 
 export function toolbarPalette(theme: Theme, websiteColor: string | null): ToolbarPalette {
-  const key = `${theme.dark}|${theme.textPrimary}|${websiteColor ?? ""}`;
-  let palette = cache.get(key);
+  const key = websiteColor ?? "";
+  let byColor = cache.get(theme);
+  if (!byColor) cache.set(theme, (byColor = new Map()));
+  let palette = byColor.get(key);
   if (palette) return palette;
   if (!websiteColor || !isHexColor(websiteColor)) {
     palette = {
@@ -41,7 +43,7 @@ export function toolbarPalette(theme: Theme, websiteColor: string | null): Toolb
     const roles = isLight(websiteColor) ? siteToolbarRoles.onLight : siteToolbarRoles.onDark;
     palette = { background: websiteColor.slice(0, 7), ...roles };
   }
-  cache.set(key, palette);
+  byColor.set(key, palette);
   return palette;
 }
 
@@ -57,7 +59,7 @@ export function siteScopedTheme(theme: Theme, palette: ToolbarPalette): Theme {
   scoped = {
     ...theme,
     dark: !light,
-    faviconTile: (light ? colorRoles.light : colorRoles.dark).faviconTile,
+    faviconTile: (light ? theme.palettes.light : theme.palettes.dark).faviconTile,
     textPrimary: palette.text,
     textTab: palette.text,
     textSecondary: palette.secondary,
@@ -72,7 +74,7 @@ export function siteScopedTheme(theme: Theme, palette: ToolbarPalette): Theme {
   return scoped;
 }
 
-export function useEasedColor(color: string | null, duration: number = durations.colorEase) {
+export function useEasedColor(color: string | null, duration: number = durations.base) {
   const progress = useRef(new Animated.Value(1)).current;
   const from = useRef<string>(color ?? ink.clear);
   const to = useRef<string>(color ?? ink.clear);
@@ -84,7 +86,7 @@ export function useEasedColor(color: string | null, duration: number = durations
   useEffect(() => {
     if (from.current === to.current) return;
     progress.setValue(0);
-    Animated.timing(progress, { toValue: 1, duration, easing: curve.outQuad, useNativeDriver: false }).start();
+    Animated.timing(progress, { toValue: 1, duration, easing: curve.enter, useNativeDriver: false }).start();
   }, [target]);
   return progress.interpolate({ inputRange: [0, 1], outputRange: [from.current, to.current] });
 }

@@ -1,0 +1,8 @@
+[
+  {"scene":"settings-dark-general","title":"Settings, one spacing scale","body":"Settings › General. Section titles, row padding and the gaps between groups now come from one spacing scale, and the sidebar list uses the same type sizes as the pane.","cam":[0,0,1640,1280]},
+  {"scene":"settings-dark-appearance","title":"Cards and toggles agree","body":"Settings › Appearance. The theme and style cards, their labels and the toggle rows share one set of corners, gaps and font sizes.","cam":[0,0,1640,1280]},
+  {"scene":"settings-light-tabs","title":"The same in light mode","body":"Settings › Tabs. The layout cards, row text and pop-up buttons line up with every other pane, in light mode too.","cam":[0,0,1640,1280]},
+  {"scene":"dia-light-clear-data","title":"Dialogs are one piece","body":"Clear Browsing Data now uses the shared dialog: the same corner radius, padding, checkbox rows and button size as every other dialog.","cam":[970,530,980,620]},
+  {"scene":"dia-dark-edit-bookmark","title":"Edit Bookmark matches","body":"Edit Bookmark takes the same dialog piece: fields, the folder list and Cancel and Save now look like Clear Browsing Data.","cam":[700,450,1200,800]},
+  {"scene":"dia-dark-switcher","title":"Menus share a size","body":"The recent tabs switcher uses the menu type size, row height and corner shared by the other menus and popovers.","cam":[860,420,840,590]}
+]

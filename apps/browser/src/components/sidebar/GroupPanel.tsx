@@ -1,14 +1,13 @@
 import { tabTitle } from "../../state/browser/model";
 import { discardKeyResponder, restoreKeyResponder, saveKeyResponder } from "../../state/windows/nativeWindow";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
-import { useTheme } from "../ui/theme";
+import { ScrollView, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent, type TextInput } from "react-native";
 import { ago } from "../../lib/time";
 import { useGroup } from "../../state/browser/hooks";
 import { sharedTabsForPanel } from "../../state/sidebar/current";
 import { useGroupPanelTabIds, useTabsById } from "../../state/sidebar/hooks";
 import type { Tab } from "../../state/browser/types";
-import { FadeLabel, menuRowFill, MenuSeparator, PANEL, PopoverSurface, Symbol } from "../ui";
+import { MenuRow, MenuSeparator, PANEL, PopoverSurface, SearchField, Text } from "../ui";
 import { clickTab, returnFocusToPage } from "../../state/sidebar/actions";
 import { byRecentUse, matchingRows, type GroupPanelTab } from "../../state/sidebar/groupPanelRows";
 import { dismissHover, holdHover } from "../../state/sidebar/hover";
@@ -25,6 +24,8 @@ const LIST_PAD = PANEL.inset - (ROW - PANEL.iconSlot) / 2;
 const MAX_ROWS = 7;
 const EDGE = 8;
 const NOW_TICK_MS = 30_000;
+const SEARCH_FIELD_ROW = { height: SEARCH_ROW, justifyContent: "center", paddingHorizontal: PANEL.inset } as const;
+const EMPTY_LINE = { paddingHorizontal: PANEL.inset, lineHeight: ROW } as const;
 
 type Row = GroupPanelTab & { favicon: string | null; icon: string | null; profileId: string };
 
@@ -41,7 +42,6 @@ function useGroupRows(groupId: string, windowId: string): Row[] {
 }
 
 export function GroupPanel({ groupId, windowId, anchor, windowHeight }: { groupId: string; windowId: string; anchor: Anchor; windowHeight: number }) {
-  const theme = useTheme();
   const exists = useGroup(groupId, (g) => !!g);
   const all = useGroupRows(groupId, windowId);
   const live = useSidebarUi((u) => u.hover?.kind === "group" && u.hover.id === groupId && u.hover.windowId === windowId);
@@ -128,10 +128,10 @@ export function GroupPanel({ groupId, windowId, anchor, windowHeight }: { groupI
       }}
       style={{ position: "absolute", left: at.left, top, width: WIDTH, height: panelHeight }}
     >
-      <View style={{ height: SEARCH_ROW, flexDirection: "row", alignItems: "center", gap: PANEL.iconGap, paddingHorizontal: PANEL.inset }}>
-        <Symbol name="magnifyingglass" size={PANEL.iconSize} weight="medium" color={theme.textSecondary} style={{ width: PANEL.iconSlot, height: PANEL.iconSlot }} />
-        <TextInput
-          ref={field}
+      <View style={SEARCH_FIELD_ROW}>
+        <SearchField
+          look="bare"
+          inputRef={field}
           value={query}
           onChangeText={(text) => {
             setQuery(text);
@@ -141,9 +141,6 @@ export function GroupPanel({ groupId, windowId, anchor, windowHeight }: { groupI
             scroll.current?.scrollTo({ y: 0, animated: false });
           }}
           placeholder="Search Tabs"
-          placeholderTextColor={theme.placeholder}
-          selectionColor={theme.selection}
-          enableFocusRing={false}
           onBlur={() => {
             if (!focused.current) return;
             focused.current = false;
@@ -152,15 +149,9 @@ export function GroupPanel({ groupId, windowId, anchor, windowHeight }: { groupI
             if (from) void from.then(discardKeyResponder);
             holdHover(false);
           }}
-          keyDownEvents={[{ key: "Enter" }, { key: "Escape" }, { key: "ArrowUp" }, { key: "ArrowDown" }]}
-          onKeyDown={(e) => {
-            const key = e.nativeEvent.key;
-            if (key === "Enter") choose(rows[current]);
-            if (key === "Escape") close();
-            if (key === "ArrowDown") move(1);
-            if (key === "ArrowUp") move(-1);
-          }}
-          style={{ flex: 1, fontSize: PANEL.titleSize, color: theme.textPrimary, paddingVertical: 0 }}
+          onSubmit={() => choose(rows[current])}
+          onEscape={close}
+          onArrow={move}
         />
       </View>
       <MenuSeparator />
@@ -175,7 +166,7 @@ export function GroupPanel({ groupId, windowId, anchor, windowHeight }: { groupI
         }}
       >
         {rows.length === 0 ? (
-          <Text numberOfLines={1} style={{ paddingHorizontal: PANEL.inset, lineHeight: ROW, fontSize: PANEL.titleSize, color: theme.textTertiary }}>
+          <Text lines={1} tone="textTertiary" style={EMPTY_LINE}>
             {q ? `No tabs match “${q}”` : "No tabs"}
           </Text>
         ) : null}
@@ -188,34 +179,16 @@ export function GroupPanel({ groupId, windowId, anchor, windowHeight }: { groupI
 }
 
 function PanelRow({ row, now, selected, onHover, onPress }: { row: Row; now: number; selected: boolean; onHover(): void; onPress(): void }) {
-  const theme = useTheme();
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={row.title}>
-      {({ pressed }) => (
-        <View
-          onMouseEnter={onHover}
-          style={{
-            height: ROW,
-            marginHorizontal: PANEL.rowInset,
-            paddingHorizontal: PANEL.rowPadding,
-            borderRadius: PANEL.rowRadius,
-            flexDirection: "row",
-            alignItems: "center",
-            gap: PANEL.iconGap,
-            backgroundColor: pressed || selected ? menuRowFill(theme, pressed) : undefined,
-          }}
-        >
-          <View style={{ width: PANEL.iconSlot, height: PANEL.iconSlot, alignItems: "center", justifyContent: "center" }}>
-            <TabIcon tabId={row.id} url={row.url} favicon={row.favicon} icon={row.icon} profileId={row.profileId} />
-          </View>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <FadeLabel text={row.title} fontSize={PANEL.titleSize} color={theme.textPrimary} style={{ height: PANEL.titleLine }} />
-            <Text numberOfLines={1} style={{ fontSize: PANEL.subtitleSize, lineHeight: PANEL.subtitleLine, color: theme.textSecondary }}>
-              {ago(row.usedAt, now)}
-            </Text>
-          </View>
-        </View>
-      )}
-    </Pressable>
+    <View onMouseEnter={onHover}>
+      <MenuRow
+        leading={<TabIcon tabId={row.id} url={row.url} favicon={row.favicon} icon={row.icon} profileId={row.profileId} />}
+        title={row.title}
+        detail={ago(row.usedAt, now)}
+        minHeight={ROW}
+        selected={selected}
+        onPress={onPress}
+      />
+    </View>
   );
 }

@@ -2,6 +2,7 @@ export type AppIcon = { id: string; name: string; preview: string | null };
 
 export type LaunchConfig = {
   dataDirectory: string | null;
+  configDirectory: string;
   background: boolean;
   isolated: boolean;
   testInstance: boolean;

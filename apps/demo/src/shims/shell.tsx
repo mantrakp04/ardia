@@ -1,10 +1,10 @@
+export * from "@ardia-real/shell";
 import type { AppEvent, CommandEvent, ConfirmOptions, InlineWrite, LaunchConfig, PromptOptions, SystemInfo, WindowEvent } from "@ardia-real/shell";
 import { unstable_batchedUpdates } from "react-dom";
 import { emitNativeEvent, provideNativeModule } from "./expo-modules-core";
 import { NATIVE_CHANGE } from "./react-native";
 import { setTrafficLightsCenter } from "./web/windowChrome";
 
-export * from "@ardia-real/shell";
 export { Symbol } from "./web/Symbol";
 export { ActivitySpinner } from "./web/motion/ActivitySpinner";
 export {
@@ -36,6 +36,7 @@ const SYSTEM_INFO: SystemInfo = {
 
 const LAUNCH_CONFIG: LaunchConfig = {
   dataDirectory: null,
+  configDirectory: "",
   background: false,
   isolated: false,
   testInstance: false,

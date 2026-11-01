@@ -8,6 +8,7 @@ import { batchStoreUpdates, useBrowser, type BrowserState } from "../browser/sto
 import { engineProfile, isIncognitoProfile } from "../browser/model";
 import { DEFAULT_PROFILE_ID } from "../settings/settings";
 import { webviews } from "../../platform/webviews";
+import { changedPages, pagesWrittenSince, withPages, type PagesPair } from "./pagesWritten";
 
 type Icons = {
   pages: Record<string, string | null>;
@@ -105,15 +106,13 @@ function lookUpPages(key: string, list: string[]) {
   void faviconsFor(key, list)
     .then((found) =>
       update(key, (icons) => {
-        let next: Record<string, string | null> | undefined;
+        const writes: [string, string | null][] = [];
         for (const [i, page] of list.entries()) {
           if (pending[i]!.entry.wrote !== pending[i]!.started) continue;
           const uri = found.pages.get(page)?.uri ?? null;
-          if (icons.pages[page] === uri) continue;
-          next ??= { ...icons.pages };
-          next[page] = uri;
+          if (icons.pages[page] !== uri) writes.push([page, uri]);
         }
-        return next ? { ...icons, pages: next } : icons;
+        return writes.length ? { ...icons, pages: withPages(icons.pages, writes) } : icons;
       }, true),
     )
     .catch((error) => {
@@ -161,7 +160,7 @@ function remember(key: string, page: string, src: string, uri: string) {
     let appearances = icons.appearances;
     if (swapped && previous && previous !== uri) appearances = { ...appearances, [page]: dark ? [previous, uri] : [uri, previous] };
     const startsOver = Object.keys(icons.pages).length >= MAX_ICONS;
-    const pages = startsOver ? { [page]: uri } : { ...icons.pages, [page]: uri };
+    const pages = startsOver ? { [page]: uri } : withPages(icons.pages, [[page, uri]]);
     return { pages, srcs: icons.srcs[src] === uri ? icons.srcs : capped(icons.srcs, src, uri), appearances };
   });
 }
@@ -179,9 +178,8 @@ export function adoptFavicons(profileId: string, known: KnownFavicon[]) {
     const fresh = [...found].filter(([page]) => !icons.pages[page]);
     if (!fresh.length) return icons;
     const startsOver = Object.keys(icons.pages).length + fresh.length > MAX_ICONS;
-    const pages: Record<string, string | null> = startsOver ? {} : { ...icons.pages };
-    for (const [page, f] of fresh) pages[page] = `${PNG_DATA_URI}${f.png}`;
-    return { ...icons, pages };
+    const writes = fresh.map(([page, f]): [string, string] => [page, `${PNG_DATA_URI}${f.png}`]);
+    return { ...icons, pages: startsOver ? Object.fromEntries(writes) : withPages(icons.pages, writes) };
   }, true);
   void (async () => {
     for (const [page, f] of found) await storeFavicon(key, page, f.icon, f.png).catch(() => null);
@@ -265,11 +263,29 @@ function check(w: Watcher) {
 }
 
 function onFavicons(f: Favicons, prev: Favicons) {
-  if (f.profiles === prev.profiles) return;
-  const keys = [...new Set([...Object.keys(f.profiles), ...Object.keys(prev.profiles)])].filter((key) => f.profiles[key]?.pages !== prev.profiles[key]?.pages);
-  if (!keys.length) return;
-  for (const [page, set] of [...watchers])
-    if (keys.some((key) => f.profiles[key]?.pages[page] !== prev.profiles[key]?.pages[page])) for (const w of [...set]) check(w);
+  if (f.profiles === prev.profiles || !watchers.size) return;
+  const pairs = changedPages(f, prev);
+  if (!pairs.length) return;
+  const due = new Set<Set<Watcher>>();
+  const unknown: PagesPair[] = [];
+  for (const pair of pairs) {
+    const written = pair.now && pagesWrittenSince(pair.now, pair.before ?? EMPTY_ICONS.pages);
+    if (!written) unknown.push(pair);
+    else
+      for (const page of written) {
+        const set = watchers.get(page);
+        if (set) due.add(set);
+      }
+  }
+  if (unknown.length)
+    watchers.forEach((set, page) => {
+      for (let i = 0; i < unknown.length; i++)
+        if (unknown[i]!.now?.[page] !== unknown[i]!.before?.[page]) {
+          due.add(set);
+          return;
+        }
+    });
+  for (const set of due) for (const w of [...set]) check(w);
 }
 
 function watch(w: Watcher) {

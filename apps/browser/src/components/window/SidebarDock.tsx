@@ -5,7 +5,6 @@ import { switchOn } from "../../state/app/switches";
 import { layout, useTheme } from "../ui/theme";
 import { spring, curve } from "../ui/motion";
 import { Panel, reduceMotion, WindowDragRegion } from "../ui";
-import { SHADOWS } from "./tokens";
 import { useShowPageFrame, useWindowId } from "../../state/browser/hooks";
 import { useSidebarDockState } from "../../state/windows/hooks";
 import { useToolbarLightsCenter } from "../../state/windows/layout";
@@ -14,13 +13,11 @@ import { dismissHoverIn } from "../../state/sidebar/hover";
 import { useSidebarUi } from "../../state/sidebar/sidebarUi";
 import { peekHeld, watchHolds } from "../../state/app/transientUi";
 import { ProfileSwipe } from "./ProfileSwipe";
+import { ARC_HIDE_MS, DOCK_SPRING, PEEK_RADIUS, SHADOWS } from "./tokens";
 import {
-  ARC_HIDE_MS,
-  DOCK_SPRING,
   PEEK_BOTTOM,
   PEEK_ORIGIN,
   PEEK_EDGE_STRIP,
-  PEEK_RADIUS,
   dockMove,
   dockState,
   inPeekHold,
@@ -65,7 +62,7 @@ function useSidebarDock(open: boolean, animate: boolean, arc: boolean): { dock: 
     if (open) setAway(false);
     setDockMoving(windowId, true);
     (move === "arcHide"
-      ? Animated.timing(dock, { toValue: 0, duration: ARC_HIDE_MS, easing: curve.outCubic, useNativeDriver: false })
+      ? Animated.timing(dock, { toValue: 0, duration: ARC_HIDE_MS, easing: curve.enter, useNativeDriver: false })
       : Animated.spring(dock, {
           toValue: open ? 1 : 0,
           ...SPRING,
@@ -240,7 +237,8 @@ function SidebarDock({
   );
 
   const leaveStrip = (e: { nativeEvent: { clientX: number; clientY: number } }) => {
-    if (peek.live && !inHold(e.nativeEvent.clientX, e.nativeEvent.clientY)) peek.hide();
+    if (!peek.live) peek.cancelPending(edgeOver.current);
+    else if (!inHold(e.nativeEvent.clientX, e.nativeEvent.clientY)) peek.hide();
   };
 
   const strip = useRef(false);
@@ -298,7 +296,7 @@ function SidebarDock({
             pointerEvents="none"
             style={[StyleSheet.absoluteFill, peekStyle, { opacity: panelOpacity }]}
           >
-            <Panel fill={theme.windowTint[0]} radius={PEEK_RADIUS} border={theme.panelBorder} shadow={SHADOWS.sidebarPeek} style={StyleSheet.absoluteFill} />
+            <Panel fill={theme.windowTint[0]} radius={PEEK_RADIUS} shadow={SHADOWS.sidebarPeek} style={StyleSheet.absoluteFill} />
           </Animated.View>
         )}
         <Animated.View style={[{ flex: 1 }, peekStyle, peeking ? { borderRadius: PEEK_RADIUS, overflow: "hidden" } : null]}>

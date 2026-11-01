@@ -1,8 +1,8 @@
-import { ContextMenuArea, Symbol, Box, Button, font, PopUp, TextField, Toggle, useHover } from "../../ui";
+import { Box, Button, ContextMenuArea, Divider, PopUp, radius, space, Symbol, Text, TextField, Toggle, useHover } from "../../ui";
 import { hapticTick } from "../../../state/app/system";
 import { chooseFromMenu } from "../../../state/app/menuChoice";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, PanResponder, Pressable, StyleSheet, View } from "react-native";
 import { useShallow } from "zustand/react/shallow";
 import { deleteProfile } from "../../../state/browser/actions";
 import { requestCreateProfile } from "../../../state/profiles/createProfileRequest";
@@ -15,7 +15,7 @@ import { useProfile, useProfiles, useSettings } from "../../../state/browser/hoo
 import { sharingProfiles } from "../../../state/profiles/profiles";
 import type { Profile } from "../../../state/browser/types";
 import { ClearDataDialog } from "../../pages/ClearDataDialog";
-import { Group, Row, SectionHeader } from "../Form";
+import { Group, PaneIntro, Row, SectionHeader } from "../Form";
 import { ColorStack } from "../../profiles/CreateProfile";
 import { iconMenuItems, PROFILE_SYMBOLS, ProfileBadge } from "../../profiles/ProfileIcons";
 import { iconSymbol } from "../../../lib/customIcon";
@@ -24,7 +24,7 @@ import { ThemeSection } from "../ThemeEditor";
 import { goToSettingsPane, SETTINGS_WINDOW_ID } from "../../../state/settings/settingsWindows";
 import { openProfileItemMenu } from "../../profiles/profileMenu";
 import { curve } from "../../ui/motion";
-import { settingsType, settingsMotion } from "../tokens";
+import { settingsMotion } from "../tokens";
 
 const listOf = (names: string[]) => (names.length <= 2 ? names.join(" and ") : `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`);
 
@@ -38,17 +38,16 @@ function useSharedWith(profileId: string): string[] {
 }
 
 export function ProfilesPane() {
-  const theme = useTheme();
   const profiles = useProfiles();
   const defaultId = useSettings((s) => s.defaultProfileId);
   const switcherIcons = useSettings((s) => s.profileSwitcherIcons);
 
   return (
     <View>
-      <Text style={{ marginTop: 20, ...settingsType.lead, lineHeight: 17, color: theme.textSecondary }}>
+      <PaneIntro>
         Profiles keep your browsing organized. Each keeps its own history, logins, cookies, and extensions, unless you turn on Share data
         when you create it: then it uses another profile's, and only the tabs are its own.
-      </Text>
+      </PaneIntro>
 
       <SectionHeader title="New windows open with" />
       <Group>
@@ -80,7 +79,7 @@ export function ProfilesPane() {
 
 const ROW_HEIGHT = 46;
 const settle = (value: Animated.Value, toValue: number) =>
-  Animated.timing(value, { toValue, duration: settingsMotion.profileRowSettle, easing: curve.outCubic, useNativeDriver: true });
+  Animated.timing(value, { toValue, duration: settingsMotion.profileRowSettle, easing: curve.enter, useNativeDriver: true });
 
 function ProfileList() {
   const order = useProfileOrder();
@@ -135,7 +134,7 @@ function ProfileList() {
   }).current;
 
   return (
-    <Box fill="groupFill" border="groupBorder" radius="card">
+    <Box fill="groupFill" border="groupBorder" radius="panel">
       {order.map((id, i) => (
         <ProfileRow key={id} profileId={id} first={i === 0} offset={offsetOf(id)} lifted={dragging === id} controller={controller} />
       ))}
@@ -185,24 +184,24 @@ function ProfileRow({
       style={{
         zIndex: lifted ? 1 : 0,
         transform: [{ translateY: offset }],
-        borderRadius: lifted ? 8 : 0,
+        borderRadius: lifted ? radius.tile : 0,
         backgroundColor: lifted ? hex(theme.panel) : undefined,
         borderWidth: lifted ? StyleSheet.hairlineWidth * 2 : 0,
         borderColor: theme.groupBorder,
       }}
     >
-      {!first && !lifted && <View style={{ height: StyleSheet.hairlineWidth * 2, marginHorizontal: 12, backgroundColor: theme.divider }} />}
+      {!first && !lifted && <Divider inset="l" thick />}
       <ContextMenuArea onContextMenu={() => void openMenu()}>
         <View {...hoverProps}>
           <Pressable onPress={() => goToSettingsPane("profiles", profileId)}>
             <View
               style={{
                 height: ROW_HEIGHT - (first ? 0 : StyleSheet.hairlineWidth * 2),
-                paddingLeft: 8,
-                paddingRight: 12,
+                paddingLeft: space.m,
+                paddingRight: space.l,
                 flexDirection: "row",
                 alignItems: "center",
-                gap: 10,
+                gap: space.ml,
                 backgroundColor: hovered && !lifted ? theme.rowHover : undefined,
               }}
             >
@@ -211,8 +210,12 @@ function ProfileRow({
               </View>
               <ProfileBadge profile={profile} />
               <View style={{ flex: 1 }}>
-                <Text style={{ ...font.body, color: theme.textPrimary }}>{profile.name}</Text>
-                {description ? <Text style={{ ...font.footnote, marginTop: 2, color: theme.textSecondary }}>{description}</Text> : null}
+                <Text>{profile.name}</Text>
+                {description ? (
+                  <Text size="caption" tone="textSecondary" style={DESCRIPTION}>
+                    {description}
+                  </Text>
+                ) : null}
               </View>
               <Symbol name="chevron.right" size={11} weight="semibold" color={theme.textTertiary} style={{ width: 12, height: 14 }} />
             </View>
@@ -230,7 +233,6 @@ function iconTitle(icon: string | null): string {
 }
 
 export function ProfileDetailsPane({ profileId }: { profileId: string }) {
-  const theme = useTheme();
   const profile = useProfile(profileId, (p) => p);
   const isDefault = useSettings((s) => s.defaultProfileId === profileId);
   const only = useProfileOrder((o) => o.length <= 1);
@@ -251,17 +253,19 @@ export function ProfileDetailsPane({ profileId }: { profileId: string }) {
 
   return (
     <View>
-      <View style={{ alignItems: "center", marginTop: 24, gap: 10 }}>
+      <Box gap="ml" style={DETAILS_HEAD}>
         <Pressable onPress={() => void pickIcon()} tooltip="Change Icon">
           <ProfileBadge profile={profile} size={64} />
         </Pressable>
-        <Text style={{ ...font.small, color: theme.textSecondary }}>{stats}</Text>
-      </View>
+        <Text size="small" tone="textSecondary">
+          {stats}
+        </Text>
+      </Box>
 
       <SectionHeader title="Profile" />
       <Group>
         <Row title="Name">
-          <TextField value={name} onChangeText={setName} onSubmit={commitName} onBlur={commitName} style={{ width: 220 }} />
+          <TextField value={name} onChangeText={setName} onSubmit={commitName} onBlur={commitName} width={220} />
         </Row>
         <Row title="Icon" description={iconTitle(profile.icon)}>
           <Button title="Change…" onPress={() => void pickIcon()} />
@@ -307,3 +311,6 @@ export function ProfileDetailsPane({ profileId }: { profileId: string }) {
     </View>
   );
 }
+
+const DESCRIPTION = { marginTop: space.xxs } as const;
+const DETAILS_HEAD = { alignItems: "center", marginTop: space.xxxl } as const;

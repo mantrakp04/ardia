@@ -1,6 +1,6 @@
 import type { IconMenuItem } from "../../state/profiles/profileMenu";
-import { Text, View } from "react-native";
-import { ink, Symbol, weight } from "../ui";
+import { Text } from "react-native";
+import { Dot, hairline, ink, Symbol, weight } from "../ui";
 import { profileAccent } from "../ui/theme";
 import type { Profile } from "../../state/browser/types";
 import { profileColors, profileSwitcher } from "./tokens";
@@ -63,25 +63,16 @@ export function SwitcherMark({ icon, color, scale = 1 }: { icon: string | null; 
         {icon}
       </Text>
     );
-  return <View style={{ width: dot * scale, height: dot * scale, borderRadius: (dot / 2) * scale, backgroundColor: color }} />;
+  return <Dot size={dot * scale} color={color} />;
 }
+
+const BADGE_EDGE_MIN = 22;
 
 export function ProfileBadge({ profile, size = 26 }: { profile: Pick<Profile, "name" | "color" | "icon"> & Partial<Pick<Profile, "theme">>; size?: number }) {
   const swatch = profileAccent(profile);
   const symbol = iconSymbol(profile.icon);
   return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size / 2,
-        backgroundColor: swatch,
-        alignItems: "center",
-        justifyContent: "center",
-        borderWidth: size >= 22 ? 0.5 : 0,
-        borderColor: profileColors.badgeEdge,
-      }}
-    >
+    <Dot size={size} color={swatch} ring={size >= BADGE_EDGE_MIN ? profileColors.badgeEdge : undefined} ringWidth={hairline.ring}>
       {symbol ? (
         <Symbol name={symbol} size={size * 0.5} weight="semibold" color={ink.white} style={{ width: size, height: size }} />
       ) : (
@@ -89,6 +80,6 @@ export function ProfileBadge({ profile, size = 26 }: { profile: Pick<Profile, "n
           {profile.icon ?? (profile.name.trim()[0] ?? "?").toUpperCase()}
         </Text>
       )}
-    </View>
+    </Dot>
   );
 }

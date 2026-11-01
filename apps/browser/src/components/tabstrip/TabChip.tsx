@@ -13,7 +13,7 @@ import { Button, FadeLabel, Symbol, useHover } from "../ui";
 import { HoverSlot } from "../ui/HoverSlot";
 import { useTheme } from "../ui/theme";
 import { toolbarPalette, useEasedColor } from "../ui/toolbarColors";
-import { font } from "../ui/tokens";
+import { font, iconButton } from "../ui/tokens";
 import { DockContext, FloatingStrip } from "./context";
 import { tabIn, tileHold } from "./dockCross";
 import { FadeIn } from "./FadeIn";
@@ -146,14 +146,12 @@ export function TabChip({ tabId, width, tuck, dragged }: { tabId: string; width:
             />
             <HoverSlot
               hovered={hovered}
-              width={20}
+              width={iconButton.xs.box}
               hover={
                 <Button variant="icon"
                   icon={tuck ? "minus" : closeControl.icon}
-                  size={9}
+                  size="xs"
                   weight="semibold"
-                  box={20}
-                  radius={5}
                   color={onBand ? palette.icon : undefined}
                   onPress={tuck ?? (() => pressTabClose(tab.id))}
                   tooltip={tuck ? "Hide in Group" : closeControl.tooltip}

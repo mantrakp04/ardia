@@ -1,5 +1,5 @@
 import { Children, createContext, isValidElement, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Animated, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { Animated, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { settingsSectionKey, useSettingsSearch } from "../../state/settings/searchState";
 import { registerAnchor } from "./anchors";
 import { useProfiles, useSettings, useTabLayout } from "../../state/browser/hooks";
@@ -8,12 +8,12 @@ import type { SettingsPane } from "../../state/settings/settingsWindows";
 import { curve } from "../ui/motion";
 import { Group as PlainGroup, Row as PlainRow } from "../ui/Row";
 import { useTheme } from "../ui/theme";
-import { font, space, weight } from "../ui/tokens";
+import { lineHeight, proseLineHeight, radius as radii, space } from "../ui/tokens";
 import { findSetting, sectionEntries, setting, unshownSettings, type SettingEntry, type SettingId } from "./settingsIndex";
 import { Toggle } from "../ui/Switch";
 import { liquidGlass } from "../ui/Glass";
 import { PopUp } from "../ui/Field";
-import { Text as UiText } from "../ui/Text";
+import { Text } from "../ui/Text";
 import { updateSettings } from "../../state/settings/actions";
 import type { Settings } from "../../state/settings/settings";
 import { settingsMotion } from "./tokens";
@@ -41,21 +41,25 @@ function useHiddenSection(pane: SettingsPane | null | undefined, section: string
   return entries.length > 0 && entries.every(hidden);
 }
 
-export function Group({ children, style, of }: { children: ReactNode; style?: StyleProp<ViewStyle>; of?: SettingId }) {
+export function Group({ children, of }: { children: ReactNode; of?: SettingId }) {
   const hidden = useHiddenSetting();
   if (of && hidden(findSetting(of))) return null;
   const rows = Children.toArray(children).filter(
     (child) => !(isValidElement<{ anchor?: unknown }>(child) && typeof child.props.anchor === "string" && hidden(findSetting(child.props.anchor))),
   );
   if (!rows.length) return null;
-  return <PlainGroup style={style}>{rows}</PlainGroup>;
+  return <PlainGroup>{rows}</PlainGroup>;
 }
 
-export function Anchor({ id, children, radius = 0, style, keep }: { id?: SettingId; children: ReactNode; radius?: number; style?: StyleProp<ViewStyle>; keep?: boolean }) {
+export type AnchorShape = "row" | "card";
+
+const ANCHOR_RADIUS: Record<AnchorShape, number> = { row: radii.control, card: radii.panel };
+
+export function Anchor({ id, children, shape, style, keep }: { id?: SettingId; children: ReactNode; shape?: AnchorShape; style?: StyleProp<ViewStyle>; keep?: boolean }) {
   const hidden = useHiddenSetting();
   if (!keep && id && hidden(findSetting(id))) return null;
   return (
-    <ShownAnchor id={id} radius={radius} style={style}>
+    <ShownAnchor id={id} radius={shape ? ANCHOR_RADIUS[shape] : 0} style={style}>
       {children}
     </ShownAnchor>
   );
@@ -71,9 +75,9 @@ function ShownAnchor({ id, children, radius, style }: { id?: SettingId; children
     if (!flash) return;
     glow.setValue(0);
     const run = Animated.sequence([
-      Animated.timing(glow, { toValue: 1, duration: settingsMotion.searchFlashIn, easing: curve.outQuad, useNativeDriver: true }),
+      Animated.timing(glow, { toValue: 1, duration: settingsMotion.searchFlashIn, easing: curve.enter, useNativeDriver: true }),
       Animated.delay(settingsMotion.searchFlashHold),
-      Animated.timing(glow, { toValue: 0, duration: settingsMotion.searchFlashOut, easing: curve.inOutQuad, useNativeDriver: true }),
+      Animated.timing(glow, { toValue: 0, duration: settingsMotion.searchFlashOut, easing: curve.move, useNativeDriver: true }),
     ]);
     run.start();
     return () => run.stop();
@@ -88,17 +92,20 @@ function ShownAnchor({ id, children, radius, style }: { id?: SettingId; children
 }
 
 export function SectionHeader({ title, description, action, anchor }: { title?: string; description?: string | null; action?: ReactNode; anchor?: SettingId }) {
-  const theme = useTheme();
   const pane = useContext(SettingsPaneContext);
   const entry = anchor ? setting(anchor) : undefined;
   const text = title ?? entry?.section ?? "";
   const detail = description === undefined ? entry?.description : description;
   if (useHiddenSection(entry?.pane ?? pane, entry?.section ?? title)) return null;
   return (
-    <Anchor id={anchor} keep radius={6} style={{ flexDirection: "row", alignItems: "flex-end", marginTop: 22, marginBottom: space.m, paddingHorizontal: space.xxs }}>
+    <Anchor id={anchor} keep shape="row" style={SECTION_HEADER}>
       <View style={{ flex: 1 }}>
-        <Text style={{ ...font.body, fontWeight: weight.semibold, color: theme.textPrimary }}>{text}</Text>
-        {detail ? <Text style={{ ...font.small, marginTop: 3, color: theme.textSecondary, lineHeight: 16 }}>{detail}</Text> : null}
+        <Text weight="semibold">{text}</Text>
+        {detail ? (
+          <Text size="small" tone="textSecondary" style={SECTION_DETAIL}>
+            {detail}
+          </Text>
+        ) : null}
       </View>
       {action}
     </Anchor>
@@ -149,20 +156,30 @@ export function ProfilePicker({ value, onChange }: { value: string; onChange: (p
   return <PopUp value={value} options={profiles.map((p) => ({ value: p.id, title: p.name }))} onChange={onChange} />;
 }
 
-export function SheetTitle({ children, style }: { children: ReactNode; style?: StyleProp<TextStyle> }) {
+const SECTION_HEADER = { flexDirection: "row", alignItems: "flex-end", marginTop: space.xxxl, marginBottom: space.m, paddingHorizontal: space.xxs } as const;
+const SECTION_DETAIL = { marginTop: space.xs, lineHeight: lineHeight.body } as const;
+
+export function PaneIntro({ children }: { children: ReactNode }) {
   return (
-    <UiText size="heading" weight="semibold" style={style}>
+    <Text size="small" tone="textSecondary" style={PANE_INTRO}>
       {children}
-    </UiText>
+    </Text>
   );
 }
 
-export function SheetActions({ destructive, children }: { destructive?: ReactNode; children: ReactNode }) {
+const PANE_INTRO = { marginTop: space.xxl, lineHeight: proseLineHeight.small } as const;
+
+export function FormField({ label, inline, children }: { label: string; inline?: boolean; children: ReactNode }) {
   return (
-    <View style={{ flexDirection: "row", gap: 8, marginTop: 18 }}>
-      {destructive}
-      <View style={{ flex: 1 }} />
+    <View style={inline ? FIELD_INLINE : FIELD}>
+      <Text size="caption" tone="textSecondary" style={inline ? undefined : FIELD_LABEL}>
+        {label}
+      </Text>
       {children}
     </View>
   );
 }
+
+const FIELD = { marginTop: space.l } as const;
+const FIELD_INLINE = { marginTop: space.l, flexDirection: "row", alignItems: "center", gap: space.ml } as const;
+const FIELD_LABEL = { marginBottom: space.xs } as const;

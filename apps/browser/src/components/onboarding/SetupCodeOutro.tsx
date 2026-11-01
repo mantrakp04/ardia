@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { Text, View } from "react-native";
 import { finishOnboarding } from "../../state/onboarding/onboarding";
 import { copySetupCode, onboardingSetupCode } from "../../state/presets/actions";
 import { StepActions, StepLayout } from "./StepLayout";
 import { SecondaryButton } from "./Buttons";
 import { useOnboardingColors } from "./Parts";
 import { MONO } from "./tokens";
-import { font } from "../ui/tokens";
+import { Text } from "../ui";
+import { proseLineHeight, radius, space } from "../ui/tokens";
+import { ChoiceCard } from "./ChoiceCard";
 import { SetupLines } from "./SetupLines";
 
 const COPIED_FOR_MS = 1800;
@@ -39,22 +40,12 @@ export function SetupCodeOutro() {
       }
       preview={<SetupLines heading="You picked:" lines={lines} />}
     >
-      <View
-        style={{
-          paddingVertical: 14,
-          paddingHorizontal: 16,
-          borderRadius: 12,
-          backgroundColor: colors.row,
-          borderWidth: 1,
-          borderStyle: "dashed",
-          borderColor: colors.rowBorder,
-        }}
-      >
-        <Text selectable accessibilityLabel={`Setup code ${code}`} style={{ fontFamily: MONO, ...font.body, lineHeight: 19, color: colors.title }}>
+      <ChoiceCard dashed radius={radius.panel} style={{ paddingVertical: space.xl, paddingHorizontal: space.xl }}>
+        <Text selectable accessibilityLabel={`Setup code ${code}`} color={colors.title} style={{ fontFamily: MONO, lineHeight: proseLineHeight.body }}>
           {code}
         </Text>
-      </View>
-      <Text style={{ ...font.small, lineHeight: 17, color: colors.rowSubtitle }}>
+      </ChoiceCard>
+      <Text size="small" color={colors.rowSubtitle} style={{ lineHeight: proseLineHeight.small }}>
         It holds your layout, look and pinned apps. Search and privacy you pick in Ardia itself.
       </Text>
     </StepLayout>

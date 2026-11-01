@@ -1,26 +1,22 @@
 import { memo, useEffect, useState } from "react";
 import { Pressable, View } from "react-native";
-import { useTheme } from "../ui/theme";
 import { webviews } from "../../state/tabs/webviewHandles";
 import { useTab } from "../../state/browser/hooks";
-import { Button, PANEL, Popover, Symbol, Text, useHover, usePopoverPresence } from "../ui";
-import { useSiteTokens } from "./tokens";
+import { Box, Button, PANEL, Popover, space, Text, usePopoverPresence } from "../ui";
 import { usePages } from "../../state/tabs/pageState";
 import { dismissZoomPopover, hoverZoomPopover, toggleZoomPopover, useIsZoomBubble } from "../../state/site/zoomBubble";
 import { markHoverProps } from "../../lib/hoverMarks";
 import { type ToolbarPalette } from "../ui/toolbarColors";
 
-export const ZoomIndicator = memo(function ZoomIndicator({ tabId, zoom, palette, box, radius, onFocus }: { tabId: string; zoom: number; palette: ToolbarPalette; box: number; radius: number; onFocus: () => void }) {
+export const ZoomIndicator = memo(function ZoomIndicator({ tabId, zoom, palette, onFocus }: { tabId: string; zoom: number; palette: ToolbarPalette; onFocus: () => void }) {
   const open = usePages((p) => p.popover[tabId] === "zoom");
   const actualSize = Math.abs(zoom - 1) < 0.001;
   if (actualSize && !open) return null;
   return (
     <Button variant="icon" toolbar
+      look="field"
       palette={palette}
       icon={actualSize ? "magnifyingglass" : zoom > 1 ? "plus.magnifyingglass" : "minus.magnifyingglass"}
-      size={13}
-      box={box}
-      radius={radius}
       onPress={() => {
         onFocus();
         toggleZoomPopover(tabId);
@@ -47,7 +43,7 @@ function ZoomPanel({ tabId, right, left, top, closing, onClosed }: ZoomPopoverPl
   useEffect(() => () => hoverZoomPopover(tabId, false), [tabId]);
   return (
     <Popover width={ZOOM_POPOVER_WIDTH} top={top} right={right} left={left} modal={!bubble} onDismiss={() => dismissZoomPopover(tabId)} closing={closing} onClosed={onClosed}>
-      <View {...hoverProps} style={{ flexDirection: "row", alignItems: "center", height: ZOOM_BAR, paddingLeft: PANEL.inset, paddingRight: (ZOOM_BAR - 28) / 2, gap: 8 }}>
+      <View {...hoverProps} style={{ flexDirection: "row", alignItems: "center", height: ZOOM_BAR, paddingLeft: PANEL.inset, paddingRight: (ZOOM_BAR - 28) / 2, gap: space.m }}>
         <Text style={TABULAR_FILL}>{`Zoom: ${Math.round(zoom * 100)}%`}</Text>
         <ZoomStepper tabId={tabId} zoom={zoom} percent={false} />
         <Button variant="pill" title="Reset" onPress={() => void webviews.get(tabId)?.zoomStep(0)} />
@@ -61,8 +57,8 @@ const TABULAR_FILL = { flex: 1, fontVariant: ["tabular-nums" as const] };
 
 export function ZoomStepper({ tabId, zoom, percent = true }: { tabId: string; zoom: number; percent?: boolean }) {
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: percent ? 2 : 4 }}>
-      <StepButton icon="minus" tooltip="Zoom Out (⌘-)" onPress={() => void webviews.get(tabId)?.zoomStep(-1)} />
+    <Box row gap={percent ? "xxs" : "xs"} style={CENTER_ROW}>
+      <Button variant="stepper" icon="minus" tooltip="Zoom Out (⌘-)" onPress={() => void webviews.get(tabId)?.zoomStep(-1)} />
       {percent ? (
         <Pressable onPress={() => void webviews.get(tabId)?.zoomStep(0)} tooltip="Reset to 100%">
           <Text size="small" tone={zoom === 1 ? "textSecondary" : "textPrimary"} style={{ width: 44, textAlign: "center", fontVariant: ["tabular-nums"] }}>
@@ -70,24 +66,10 @@ export function ZoomStepper({ tabId, zoom, percent = true }: { tabId: string; zo
           </Text>
         </Pressable>
       ) : null}
-      <StepButton icon="plus" tooltip="Zoom In (⌘+)" onPress={() => void webviews.get(tabId)?.zoomStep(1)} />
-    </View>
+      <Button variant="stepper" icon="plus" tooltip="Zoom In (⌘+)" onPress={() => void webviews.get(tabId)?.zoomStep(1)} />
+    </Box>
   );
 }
 
-function StepButton({ icon, tooltip, onPress }: { icon: string; tooltip: string; onPress: () => void }) {
-  const theme = useTheme();
-  const site = useSiteTokens();
-  const { hovered, hoverProps } = useHover();
-  return (
-    <View {...hoverProps} tooltip={tooltip}>
-      <Pressable onPress={onPress}>
-        {({ pressed }) => (
-          <View style={{ width: 24, height: 22, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: pressed ? theme.toolbarPressed : hovered ? theme.toolbarHover : site.stepper }}>
-            <Symbol name={icon} size={10} weight="semibold" color={theme.icon} style={{ width: 14, height: 14 }} />
-          </View>
-        )}
-      </Pressable>
-    </View>
-  );
-}
+const CENTER_ROW = { alignItems: "center" } as const;
+

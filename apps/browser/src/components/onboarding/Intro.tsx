@@ -1,4 +1,4 @@
-import { DIA_SPECTRUM, Meadow, meadowTextStyle, PowerUp, type MeadowTone } from "../ui";
+import { DIA_SPECTRUM, Meadow, meadowTextStyle, PowerUp, Text, type MeadowTone } from "../ui";
 import {
   playIntroMusic,
   setIntroMusicMuted,
@@ -9,11 +9,12 @@ import {
 } from "../../state/onboarding/onboarding";
 import { isWebDemo } from "../../state/onboarding/demoSteps";
 import { useEffect, useRef, useState } from "react";
-import { Animated, Image, StyleSheet, Text, View } from "react-native";
+import { Animated, Image, StyleSheet, View } from "react-native";
 import { useTheme } from "../ui/theme";
 import { CircleButton, SecondaryButton } from "./Buttons";
 import { useOnboardingColors } from "./Parts";
-import { curve } from "../ui/motion";
+import { curve, springs } from "../ui/motion";
+import { space } from "../ui/tokens";
 import { onboardingMotion, onboardingType } from "./tokens";
 
 const WORDMARK = "Ardia";
@@ -54,15 +55,15 @@ export function Intro({ onDone }: { onDone: () => void }) {
   };
 
   useEffect(() => {
-    const ease = curve.outCubic;
+    const ease = curve.enter;
     const at = (s: number) => ({ delay: ms(s), useNativeDriver: true });
     const sequence = Animated.parallel([
-      Animated.spring(icon, { toValue: 1, friction: 7, tension: 50, ...at(CUES.icon) }),
+      Animated.spring(icon, { toValue: 1, ...springs.smooth, ...at(CUES.icon) }),
       ...letters.map((l, i) =>
         Animated.timing(l, { toValue: 1, duration: ms(LETTER), easing: ease, ...at(CUES.letters + i * CUES.letterStep) }),
       ),
       Animated.timing(tagline, { toValue: 1, duration: ms(TAGLINE), easing: ease, ...at(CUES.tagline) }),
-      Animated.timing(exit, { toValue: 1, duration: ms(EXIT), easing: curve.inOutCubic, ...at(CUES.exit) }),
+      Animated.timing(exit, { toValue: 1, duration: ms(EXIT), easing: curve.move, ...at(CUES.exit) }),
     ]);
     playIntroMusic(CUES, introMusicMuted());
     sequence.start(({ finished }) => finished && finish());
@@ -71,7 +72,7 @@ export function Intro({ onDone }: { onDone: () => void }) {
 
   const skip = () => {
     stopIntroMusic(0.35);
-    Animated.timing(exit, { toValue: 1, duration: onboardingMotion.introSkip, easing: curve.outQuad, useNativeDriver: true }).start(finish);
+    Animated.timing(exit, { toValue: 1, duration: onboardingMotion.introSkip, easing: curve.enter, useNativeDriver: true }).start(finish);
   };
 
   const toggleMute = () => {
@@ -102,7 +103,7 @@ export function Intro({ onDone }: { onDone: () => void }) {
       <Animated.View
         style={{
           alignItems: "center",
-          gap: 18,
+          gap: space.xl,
           transform: [{ scale: exit.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] }) }],
         }}
       >
@@ -131,7 +132,9 @@ export function Intro({ onDone }: { onDone: () => void }) {
           ))}
         </View>
         <Animated.View style={{ opacity: tagline, transform: [{ translateY: tagline.interpolate({ inputRange: [0, 1], outputRange: [6, 0] }) }] }}>
-          <Text style={{ ...onboardingType.tagline, color: colors.subtitle, ...ink }}>Your new home on the internet</Text>
+          <Text color={colors.subtitle} style={[onboardingType.tagline, ink]}>
+            Your new home on the internet
+          </Text>
         </Animated.View>
       </Animated.View>
       <View style={{ position: "absolute", left: 28, bottom: 28 }}>

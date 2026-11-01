@@ -1,10 +1,13 @@
 import { useState, type ReactNode } from "react";
 import { View, type StyleProp, type ViewStyle } from "react-native";
+import { iconButton } from "./tokens";
+
+const HOVER_SLOT_WIDTH = iconButton.s.box;
 
 export function HoverSlot({
   hovered,
   hover,
-  width,
+  width = HOVER_SLOT_WIDTH,
   reserve = "always",
   align = "end",
   children,
@@ -12,7 +15,7 @@ export function HoverSlot({
 }: {
   hovered: boolean;
   hover: ReactNode;
-  width: number | "content";
+  width?: number | "content";
   reserve?: "always" | "hover";
   align?: "start" | "end";
   children?: ReactNode;
