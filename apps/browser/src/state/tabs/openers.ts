@@ -1,7 +1,7 @@
 import type { BrowserState } from "../browser/store";
 import { ancestorIds } from "../groups/groups";
 import { inPinnedContainer } from "../browser/model";
-import { groupOf, groupWithOpener, pinnedChildGroup } from "../pins/tabGrouping";
+import { groupOf, pinnedChildGroup } from "../pins/tabGrouping";
 import { splitOf, splitTabIds, splitTabIdsOf } from "../splits/splits";
 import type { BrowserWindow, Tab } from "../browser/types";
 import { isAsleep } from "./pageSession";
@@ -47,8 +47,13 @@ function belowCurrent(s: BrowserState, w: BrowserWindow, profileId: string): { o
   return { openerId: active.id, index: outsideSplit(s, w, Math.max(...panes.map((id) => w.tabIds.indexOf(id))) + 1) };
 }
 
-export function joinedWithCurrent(s: BrowserState, tabId: string, openerId: string | undefined): BrowserState {
-  return openerId && !inPinnedContainer(s, openerId) ? groupWithOpener(s, tabId, openerId, false) : s;
+export function joinedWithCurrent(s: BrowserState, ids: string[], openerId: string | undefined): BrowserState {
+  const group = openerId && !inPinnedContainer(s, openerId) ? groupOf(s, openerId) : undefined;
+  const joining = group ? ids.filter((id) => !inPinnedContainer(s, id) && s.tabs[id]?.profileId === group.profileId) : [];
+  if (!group || !joining.length) return s;
+  const members = new Set([...group.tabIds, ...joining]);
+  const tabIds = s.windows[group.windowId]!.tabIds.filter((id) => members.has(id));
+  return { ...s, groups: { ...s.groups, [group.id]: { ...group, tabIds } } };
 }
 
 const listStart = (s: BrowserState, w: BrowserWindow, profileId: string) =>

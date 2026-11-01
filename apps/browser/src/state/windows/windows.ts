@@ -30,7 +30,8 @@ import type { AdoptId, BrowserWindow, ClosedWindow, Frame, ParkedPins, Tab, Wind
 import { emptyWindow, smallWindow, withWindow } from "./newWindow";
 import { lastClosedEntry, lastClosedTab, restoreTab, restoreWindow } from "./reopenClosed";
 import { groupTree, regrouped, splitsWithin, withSplitsBack } from "./groupMoves";
-import { orderSections } from "../groups/groups";
+import { commonGroup, orderSections } from "../groups/groups";
+import { groupOf } from "../pins/tabGrouping";
 import { focusedWindowOf } from "./ui";
 
 export type CreateWindowOptions = {
@@ -84,22 +85,24 @@ export function moveTabsInto(s: BrowserState, ids: string[], targetId: string): 
   if (!moving.length) return s;
 
   const sources = new Set(moving.map((t) => t.windowId));
+  const joinable = new Set(moving.filter((t) => !groupOf(s, t.id) && !inPinnedContainer(s, t.id)).map((t) => t.id));
   let next = removeTabs(s, moving.map((t) => t.id), false);
-  const w = next.windows[targetId]!;
   const tabs = { ...next.tabs };
   const live = { ...next.live };
-  const activeTabIds = { ...w.activeTabIds };
   for (const tab of moving) {
     const t = tab;
     const loaded = hasLoadedPage(tab);
     tabs[t.id] = { ...t, windowId: targetId, page: loaded ? loadedPage(navigationTo(t.url)) : hasPage(tab) ? IDLE : tab.page };
     live[t.id] = IDLE_LIVE;
-    activeTabIds[t.profileId] ??= t.id;
   }
-  next = { ...next, tabs, live, windows: { ...next.windows, [targetId]: { ...w, activeTabIds } } };
+  next = { ...next, tabs, live };
   for (const profileId of new Set(moving.map((t) => t.profileId))) {
-    next = placeMovedTabs(next, targetId, moving.filter((t) => t.profileId === profileId).map((t) => t.id));
+    next = placeMovedTabs(next, targetId, moving.filter((t) => t.profileId === profileId).map((t) => t.id), joinable);
   }
+  const w = next.windows[targetId]!;
+  const activeTabIds = { ...w.activeTabIds };
+  for (const t of moving) activeTabIds[t.profileId] ??= t.id;
+  next = { ...next, windows: { ...next.windows, [targetId]: { ...w, activeTabIds } } };
   for (const id of sources) {
     const src = next.windows[id];
     if (!src || viewTabIds(next, id).length) continue;
@@ -109,13 +112,24 @@ export function moveTabsInto(s: BrowserState, ids: string[], targetId: string): 
   return settleMovedPins(s, next, moving.map((t) => t.id), targetId);
 }
 
-function placeMovedTabs(s: BrowserState, windowId: string, ids: string[]): BrowserState {
+function placeMovedTabs(s: BrowserState, windowId: string, ids: string[], joinable: Set<string>): BrowserState {
   const w = s.windows[windowId]!;
   const { index, openerId } = newTabPlacement(s, w, s.tabs[ids[0]!]!.profileId);
-  const tabIds = orderSections([...w.tabIds.slice(0, index), ...ids, ...w.tabIds.slice(index)], s.tabs, s.groups);
-  let next: BrowserState = { ...s, windows: { ...s.windows, [windowId]: { ...w, tabIds } } };
-  for (const id of ids) next = joinedWithCurrent(next, id, openerId);
-  return next;
+  const currentGrouped = !!openerId && !inPinnedContainer(s, openerId) && !!groupOf(s, openerId);
+  const joining = currentGrouped ? ids.filter((id) => joinable.has(id)) : ids;
+  const apart = ids.filter((id) => !joining.includes(id));
+  let tabIds = inserted(w.tabIds, index, joining);
+  tabIds = inserted(tabIds, afterGroupOf(s, tabIds, openerId, index + joining.length), apart);
+  const next = { ...s, windows: { ...s.windows, [windowId]: { ...w, tabIds: orderSections(tabIds, s.tabs, s.groups) } } };
+  return joinedWithCurrent(next, joining, openerId);
+}
+
+const inserted = (list: string[], at: number, items: string[]) => (items.length ? [...list.slice(0, at), ...items, ...list.slice(at)] : list);
+
+function afterGroupOf(s: BrowserState, tabIds: string[], tabId: string | undefined, from: number): number {
+  let i = from;
+  while (tabId && i < tabIds.length && commonGroup(s.groups, [tabId, tabIds[i]!])) i++;
+  return i;
 }
 
 function intoProfile(s: BrowserState, tabId: string, profileId: string): BrowserState {
