@@ -56,6 +56,8 @@ int gGestureSeq;
 
 id gMonitor;
 
+NSUInteger gSwallowedButtons;
+
 __weak NSView<ArdiaSwipeTarget> *gPrepared;
 
 struct OwnedMomentum {
@@ -375,10 +377,39 @@ BOOL HandleDiscreteSwipe(NSWindow *window, NSPoint location, CGFloat deltaX) {
 
 namespace {
 
+BOOL HandleMouseButton(NSEvent *event) {
+  NSInteger button = event.buttonNumber;
+  if (button != 3 && button != 4) return NO;
+  NSUInteger mask = 1UL << button;
+  if (event.type == NSEventTypeOtherMouseUp) {
+    BOOL swallowed = (gSwallowedButtons & mask) != 0;
+    gSwallowedButtons &= ~mask;
+    return swallowed;
+  }
+  gSwallowedButtons &= ~mask;
+  NSView<ArdiaSwipeTarget> *target = nil;
+  BOOL fallback = NO;
+  ResolveHit(event.window, event.locationInWindow, &target, &fallback);
+  if (!IsPager(target)) return NO;
+  gSwallowedButtons |= mask;
+  [target swipeEvent:@{
+    @"phase" : @"button",
+    @"direction" : button == 3 ? @"back" : @"forward",
+    @"distance" : @0,
+    @"dy" : @0,
+    @"velocity" : @0,
+    @"available" : @YES,
+    @"width" : @(NSWidth(target.bounds)),
+  }];
+  return YES;
+}
+
 void InstallMonitor() {
   if (gMonitor) return;
-  gMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskScrollWheel | NSEventMaskSwipe
+  gMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskScrollWheel | NSEventMaskSwipe | NSEventMaskOtherMouseDown | NSEventMaskOtherMouseUp
                                                    handler:^NSEvent *(NSEvent *event) {
+                                                       if (event.type == NSEventTypeOtherMouseDown || event.type == NSEventTypeOtherMouseUp)
+                                                         return HandleMouseButton(event) ? nil : event;
                                                      Diag(@{
                                                        @"diag" : @"monitorEntry",
                                                        @"type" : @(event.type),
