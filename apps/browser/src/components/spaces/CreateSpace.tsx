@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { currentSpaces } from "../../state/browser/current";
 import { useCreateSpaceShareDefault } from "../../state/spaces/hooks";
 import { useProfiles } from "../../state/profiles/hooks";
@@ -7,7 +7,8 @@ import { addSpace } from "../../state/spaces/actions";
 import { endCreateSpaceRequest, isCurrentCreateSpaceRequest, takeCreateSpaceSheet, useCreateSpaceRequest, type CreateSpacePreset } from "../../state/spaces/createSpaceRequest";
 import { unusedSpaceColor } from "../../state/spaces/spaces";
 import type { ProfileColor } from "../../state/browser/types";
-import { Box, Button, PROFILE_COLORS, PopUp, Sheet, space, Swatch, swatch, Text, TextField, useTheme } from "../ui";
+import { Box, Button, PopUp, Sheet, Text, TextField, useTheme } from "../ui";
+import { ThemeSwatches } from "../settings/ThemeEditor";
 import { spaceColors } from "./tokens";
 import { closeSettingsSheet, showSettingsSheet } from "../../state/settings/sheet";
 
@@ -40,7 +41,7 @@ function CreateSpaceSheet({ windowId, preset, onDone }: { windowId: string | nul
         <Text>Profile</Text><PopUp value={profileId} options={profiles.map((p) => ({ value: p.id, title: p.name }))} onChange={setProfileId} />
       </Box>
       <Text size="small" tone="textSecondary">Spaces using the same profile share logins, extensions, history and Top Apps.</Text>
-      <View style={{ flexDirection: "row", gap: swatch.gap }}>{(Object.keys(PROFILE_COLORS) as ProfileColor[]).map((c) => <ColorSwatch key={c} color={c} selected={color === c} onPress={() => setColor(c)} />)}</View>
+      <ThemeSwatches color={color} onPreset={setColor} />
       <Box row gap="m" style={{ justifyContent: "flex-end" }}>
         <Button title="Cancel" onPress={() => onDone(null)} />
         <Button title="Create Space" kind="primary" disabled={!name.trim()} onPress={submit} />
@@ -69,14 +70,5 @@ export function ColorStack({ colors: swatches, size = 12 }: { colors: string[]; 
         />
       ))}
     </View>
-  );
-}
-
-function ColorSwatch({ color, selected, onPress }: { color: ProfileColor; selected: boolean; onPress: () => void }) {
-  const spec = PROFILE_COLORS[color];
-  return (
-    <Pressable onPress={onPress} tooltip={spec.name}>
-      <Swatch selected={selected} ring={spec.swatch} fill={spec.swatch} />
-    </Pressable>
   );
 }

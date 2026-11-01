@@ -34,7 +34,7 @@ const MOCK_OVERLAY_PRESENCE = { show: MOCK_OVERLAY_FADE, hide: MOCK_OVERLAY_FADE
 export function MockPanel({ settings, focus, overlay, switcher }: { settings: Partial<Settings>; focus: PreviewId | null; overlay?: ReactNode; switcher?: boolean }) {
   const accent = useAccent();
   const windowId = useOnboarding((s) => s.windowId);
-  const custom = useWindowProfileValue(windowId ?? "", (p) => p?.theme ?? null);
+  const custom = useWindowSpaceValue(windowId ?? "", (p) => p?.theme ?? null);
   const { shown, appear: t } = usePresence(overlay || null, MOCK_OVERLAY_PRESENCE);
   return (
     <View style={{ alignItems: "center", justifyContent: "center" }}>

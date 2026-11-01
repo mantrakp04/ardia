@@ -42,8 +42,9 @@ const settle = async () => {
 const space = (id, name, profileId) => ({ id, name, color: "blue", icon: null, createdAt: 0, profileId: profileId ?? id });
 useBrowser.setState({ profiles: { default: { id: "default", name: "Personal", engineId: "" } }, spaces: { default: space("default", "Personal") }, spaceOrder: ["default"] });
 const lastWrite = () => {
-  const { version, ...status } = fake.writes.at(-1);
+  const { version, engines, ...status } = fake.writes.at(-1);
   assert.equal(version, 1);
+  assert.ok(engines && typeof engines === "object");
   return status;
 };
 

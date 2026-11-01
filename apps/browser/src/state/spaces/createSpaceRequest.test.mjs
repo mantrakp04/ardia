@@ -42,6 +42,7 @@ async function installCreateSpaceSheet() {
     if (context.parentURL?.endsWith("/components/spaces/CreateSpace.tsx")) {
       if (specifier === "../ui") return { url: ui, shortCircuit: true };
       if (specifier === "react-native") return { url: "data:text/javascript,export const Pressable=null,View=null;", shortCircuit: true };
+      if (specifier === "../settings/ThemeEditor") return { url: "data:text/javascript,export const ThemeSwatches=null;", shortCircuit: true };
     }
     return next(specifier, context);
   } });

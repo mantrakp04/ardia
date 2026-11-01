@@ -14,7 +14,7 @@ import { errorText } from "../../lib/errors";
 import { singleFlight, type Flight } from "../../lib/singleFlight";
 
 export type ScriptsOutcome = { ok: true } | { disabled: true } | { removed: true } | { error: string };
-type Status = { generation: number; spaces: Record<string, ScriptsOutcome> };
+type Status = { generation: number; spaces: Record<string, ScriptsOutcome>; engines?: Record<string, ScriptsOutcome> };
 
 const enabled = () => useBrowser.getState().settings.cliControl;
 
@@ -93,11 +93,10 @@ async function seed() {
   try {
     lastStatus = await readUserScriptsStatus();
     const status = parseSaved(lastStatus, STATUS_VERSION, STATUS_MIGRATIONS) as Status | null;
-    if (!status || typeof status.generation !== "number" || !status.spaces) return;
-    for (const [engine, names] of scriptsTargets(useBrowser.getState())) {
-      const outcomes = names.map((n) => status.spaces[n]);
-      const outcome = outcomes[0];
-      if (!outcome || "error" in outcome || outcomes.some((o) => JSON.stringify(o) !== JSON.stringify(outcome))) continue;
+    if (!status || typeof status.generation !== "number" || !status.engines) return;
+    for (const engine of scriptsTargets(useBrowser.getState()).keys()) {
+      const outcome = status.engines[engine];
+      if (!outcome || "error" in outcome) continue;
       applied.set(engine, { generation: status.generation, wanted: wantedBy(outcome), outcome });
     }
   } catch (error) {
@@ -137,7 +136,7 @@ async function reconcile(flight: Flight) {
     if (!enabled()) return;
   }
   if (flight.again || !enabled()) return;
-  const status: Status = { generation, spaces: {} };
+  const status: Status = { generation, spaces: {}, engines: Object.fromEntries(outcomes) };
   for (const [engine, names] of targets) for (const name of names) status.spaces[name] = outcomes.get(engine)!;
   const json = versionedJson(status, STATUS_VERSION, "version", 2);
   if (json === lastStatus) return;

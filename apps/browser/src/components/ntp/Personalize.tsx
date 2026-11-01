@@ -3,7 +3,7 @@ import { useEffect, useRef } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { PERSONALIZE_COPY, TabLayoutPicker } from "../onboarding/Personalize";
 import { ThemePicker } from "../settings/ThemeEditor";
-import { useWindowProfileValue } from "../../state/profiles/hooks";
+import { useWindowSpaceValue } from "../../state/spaces/hooks";
 import { Box, capsule, Panel, proseLineHeight, shadow, space, Symbol, Text, useHover, useTheme } from "../ui";
 import { PERSONALIZE_PANEL } from "./tokens";
 import { closePersonalizePanelOf, setPersonalizePanel as setOpen, usePersonalizePanel } from "../../state/pages/personalizePanel";
@@ -46,7 +46,7 @@ export function PersonalizeButton({ windowId }: { windowId: string }) {
 
 function PersonalizePanel({ windowId, onClose }: { windowId: string; onClose: () => void }) {
   const t = useRef(new Animated.Value(0)).current;
-  const editing = useWindowProfileValue(windowId, (p) => !!p?.theme);
+  const editing = useWindowSpaceValue(windowId, (p) => !!p?.theme);
   useEffect(() => {
     Animated.spring(t, { toValue: 1, ...PERSONALIZE_PANEL.spring, useNativeDriver: true }).start();
   }, []);

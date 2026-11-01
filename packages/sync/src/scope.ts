@@ -258,7 +258,7 @@ async function applyAdapter(state: ScopeState, adapter: Adapter, keys: Set<strin
   const landed = new Set<string>();
   let ok: boolean | void = false;
   try {
-    const records = { known: (key: string) => key in state.records, now, horizon, joined: applyAs[adapter.prefix] === "joined", held, landed: (key: string) => void landed.add(key) };
+    const records = { known: (key: string) => key in state.records, stamp: (key: string) => state.records[key]?.h, now, horizon, joined: applyAs[adapter.prefix] === "joined", held, landed: (key: string) => void landed.add(key) };
     ok = await adapter.apply(view, mine, (key) => parseBase(state.base[key]), records);
   } catch (error) {
     console.warn(`[sync] applying ${adapter.prefix} failed`, error);
