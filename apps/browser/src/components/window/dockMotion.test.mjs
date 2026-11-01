@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 globalThis.__DEV__ = false;
-const dm = { ...(await import("./dockMotion.ts")), ...(await import("../../state/windows/dockMotion.ts")) };
+const dm = { ...(await import("./dockMotion.ts")), ...(await import("./tokens.ts")), ...(await import("../../state/windows/dockMotion.ts")) };
 const motion = await import("../ui/motion.ts");
 const { toolbarGeometry } = await import("./geometry.ts");
 const { useBrowser } = await import("../../state/browser/store.ts");
@@ -46,24 +46,26 @@ test("the traffic lights go with the sidebar: at their place when it's shown, pa
   }
 });
 
-test("the peek panel covers the card's rounded corners, so no sliver of the page shows round its own", async () => {
+test("the peek panel's ends line up with the card's and its corners cover the card's, so no sliver of the page shows round its own", async () => {
   const { layout } = await import("../ui/theme.ts");
   const [px, py] = dm.PEEK_ORIGIN;
   const height = 860;
   const panel = { left: px, top: py, bottom: height - dm.PEEK_BOTTOM, r: dm.PEEK_RADIUS };
   const card = { left: layout.cardInset, top: layout.cardInset, bottom: height - layout.cardInset, r: layout.cardRadius };
-  assert.ok(panel.left <= card.left && panel.top <= card.top && panel.bottom >= card.bottom, "the panel's edges reach past the card's");
+  assert.equal(panel.top, card.top, "the panel's top lines up with the card's");
+  assert.equal(panel.bottom, card.bottom, "the panel's bottom lines up with the card's");
+  assert.ok(panel.left <= card.left, "the panel's left edge reaches past the card's");
   const insidePanel = (x, y) => {
     const cx = Math.max(panel.left + panel.r, x);
     const cy = Math.min(Math.max(panel.top + panel.r, y), panel.bottom - panel.r);
-    return x >= panel.left && y >= panel.top && y <= panel.bottom && Math.hypot(x - cx, y - cy) <= panel.r - 0.5;
+    return x >= panel.left && y >= panel.top && y <= panel.bottom && Math.hypot(x - cx, y - cy) <= panel.r + 1e-9;
   };
   for (const [cy, sy] of [[card.top + card.r, -1], [card.bottom - card.r, 1]]) {
     for (let a = 0; a <= 90; a += 1) {
       const t = (a * Math.PI) / 180;
       const x = card.left + card.r - card.r * Math.cos(t);
       const y = cy + sy * card.r * Math.sin(t);
-      assert.ok(insidePanel(x, y), `the card's corner arc at ${a}° (${x.toFixed(2)}, ${y.toFixed(2)}) stays half a point inside the panel`);
+      assert.ok(insidePanel(x, y), `the card's corner arc at ${a}° (${x.toFixed(2)}, ${y.toFixed(2)}) stays inside the panel`);
     }
   }
 });

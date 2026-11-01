@@ -1,10 +1,11 @@
 import type { SearchScope } from "@ardia/core";
 import type { ReactNode, RefObject } from "react";
 import { View } from "react-native";
-import { Button, ContextMenuArea, useTheme } from "../ui";
+import { Button, capsule, ContextMenuArea, useHover, useTheme } from "../ui";
+import { GlassFill, useGlass } from "../ui/Glass";
 import { GoButton } from "./GoButton";
 import { ScopeChip } from "./ScopeChip";
-import { BAR } from "./tokens";
+import { BAR, GO_BUTTON } from "./tokens";
 
 type FrameProps = {
   rootRef: RefObject<View | null>;
@@ -29,9 +30,9 @@ export function DropdownFrame({ rootRef, onContextMenu, leadingIcon, scope, fiel
           {onSiteControls ? (
             <Button variant="icon"
               icon="info.circle"
-              size={BAR.siteControls.icon}
-              box={BAR.siteControls.box}
-              radius={BAR.siteControls.radius}
+              size="l"
+              glyph={BAR.siteControls.glyph}
+              capsule
               color={theme.textSecondary}
               tooltip="Site Controls"
               onPress={onSiteControls}
@@ -84,8 +85,31 @@ export function BottomRow({ hero, addChip, onDictate, label, enabled, onGo }: { 
     >
       {addChip}
       <View style={{ flex: 1 }} />
-      <Button variant="icon" icon="mic" size={BAR.bottom.mic} color={theme.textTertiary} tooltip="Dictate" onPress={onDictate} />
+      <DictateButton onPress={onDictate} />
       <GoButton label={label} enabled={enabled} onPress={onGo} />
+    </View>
+  );
+}
+
+function DictateButton({ onPress }: { onPress(): void }) {
+  const theme = useTheme();
+  const glass = useGlass();
+  const { hovered, hoverProps } = useHover();
+  if (!glass) return <Button variant="icon" icon="mic" glyph={BAR.bottom.mic} color={theme.textTertiary} tooltip="Dictate" onPress={onPress} />;
+  return (
+    <View {...hoverProps}>
+      <GlassFill radius={capsule(GO_BUTTON.height)} state={hovered ? "lit" : "rest"} />
+      <Button
+        variant="icon"
+        icon="mic"
+        box={GO_BUTTON.height}
+        capsule
+        glyph={BAR.bottom.mic}
+        color={theme.textTertiary}
+        palette={{ icon: theme.textTertiary, iconDisabled: theme.iconDisabled, hover: "transparent", pressed: theme.toolbarPressed }}
+        tooltip="Dictate"
+        onPress={onPress}
+      />
     </View>
   );
 }

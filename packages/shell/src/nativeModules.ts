@@ -1,6 +1,8 @@
 import { requireNativeModule } from "expo-modules-core";
 import type { AppNative } from "./app";
+import type { AutomationNative } from "./automation";
 import type { CliNative } from "./cli";
+import type { ConfigNative } from "./config";
 import type { DevNative } from "./dev";
 import type { DialogsNative } from "./dialogs";
 import type { DocumentsNative } from "./documents";
@@ -41,6 +43,8 @@ export type ShellNativeModules = {
   ArdiaFileDrop: FileDropNative;
   ArdiaCli: CliNative;
   ArdiaUserScripts: UserScriptsNative;
+  ArdiaConfig: ConfigNative;
+  ArdiaAutomation: AutomationNative;
 };
 
 export const nativeModule = <Name extends keyof ShellNativeModules>(name: Name) => requireNativeModule<ShellNativeModules[Name]>(name);

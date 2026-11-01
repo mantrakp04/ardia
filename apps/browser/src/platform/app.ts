@@ -1,5 +1,6 @@
 export {
   setThinScrollBars,
+  isLiquidGlass,
   backgroundInstance,
   isDefaultBrowser,
   setAsDefaultBrowser,

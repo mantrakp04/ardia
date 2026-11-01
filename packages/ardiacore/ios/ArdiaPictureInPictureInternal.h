@@ -22,7 +22,6 @@ constexpr CGFloat kReturnMargin = 16;
 constexpr CGFloat kButtonMargin = 12, kButtonSize = 28;
 constexpr CGFloat kCornerRadius = 6;
 constexpr CGFloat kRimAlpha = 0.17;
-constexpr CGFloat kGlassControlTintShare = 0.15, kGlassPanelTintShare = 0.85;
 
 }
 
@@ -39,8 +38,6 @@ typedef NS_ENUM(NSInteger, ArdiaPiPEdge) { ArdiaPiPEdgeNone = 0, ArdiaPiPEdgeLef
 
 @interface ArdiaPiPOverlay : NSView
 @property (nonatomic, readonly) ArdiaPiPHandle *handle;
-- (void)presentArdiaPictureInPictureControls:(NSArray<NSDictionary<NSString *, id> *> *)controls;
-- (NSArray<NSDictionary<NSString *, id> *> *)devControls;
 @end
 
 @interface ArdiaPiPController : NSObject
@@ -129,9 +126,6 @@ typedef NS_ENUM(NSInteger, ArdiaPiPEdge) { ArdiaPiPEdgeNone = 0, ArdiaPiPEdgeLef
 namespace ardia_pip {
 
 extern NSString *const kZoomDefault;
-API_AVAILABLE(macos(26.0)) NSGlassEffectView *NewGlass(BOOL clear);
-API_AVAILABLE(macos(26.0)) void PlaceGlass(NSGlassEffectView *glass, NSRect frame);
-API_AVAILABLE(macos(26.0)) void LightGlass(NSGlassEffectView *glass, NSColor *tint, BOOL lit);
 extern const void *const kZoomKey;
 BOOL IsChromeFloatingWindow(NSWindow *window);
 BOOL IsChromeVideoPictureInPicture(NSWindow *window);

@@ -14,6 +14,7 @@ export type NavigationState = {
   initialDocumentAccessed?: boolean;
   committedInitial?: boolean;
   committedUrl?: string;
+  committedAt?: number;
 };
 
 export type MediaState = { playing: boolean; muted: boolean };

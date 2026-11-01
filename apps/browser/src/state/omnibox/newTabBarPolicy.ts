@@ -1,5 +1,5 @@
 import type { BrowserState } from "../browser/store";
-import { closesWindow } from "../browser/model";
+import { closesWindow, pinnedItemsRemain } from "../browser/model";
 import { splitOf } from "../splits/splits";
 import type { Tab } from "../browser/types";
 import { hasPage } from "../tabs/pageSession";
@@ -28,6 +28,7 @@ export function leavesEmptyWindow(s: BrowserState, id: string): boolean {
   const w = tab && s.windows[tab.windowId];
   if (!w || w.kind === "small") return false;
   if (lastTabKeepsWindow) return closesWindow(s, id);
+  if (!isEmptyCardTab(s, tab) && pinnedItemsRemain(s, id)) return closesWindow(s, id);
   if (!NEW_TAB_BAR_POLICY.closingLastTabLeavesEmptyWindow || !newTabOpensBar(s)) return false;
   if (w.kind === "private" || isEmptyCardTab(s, tab)) return false;
   return closesWindow(s, id);

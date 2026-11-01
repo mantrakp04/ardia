@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { View } from "react-native";
 import { acceptEngineOffer, stayOnPage, useEngineOffers, type EngineOffer } from "../../state/engines/actions";
-import { Button, PanelCloseButton, Popover } from "../ui";
+import { Button, PanelCloseButton, Popover, POPOVER_WIDTH } from "../ui";
 import { CheckRow } from "./PromptParts";
 import { PromptBody } from "./Prompts";
 
-export const ENGINE_OFFER_WIDTH = 320;
+export const ENGINE_OFFER_WIDTH = POPOVER_WIDTH.s;
 
 export function EngineOfferPrompt({ tabId, left, top }: { tabId: string; left: number; top: number }) {
   const offer = useEngineOffers((offers) => offers[tabId]);

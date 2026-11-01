@@ -94,7 +94,7 @@ Launch with `scripts/agent/ac launch <app> --data <dir> [--instance K=V] [--test
   `style` runs the style self-test (`pip-selftest.json`), all in the data dir.
   `tabs.devPictureInPictureAction` also takes `alpha:<0–1>` (WindowServer alpha, so a hidden run's PiP window can be
   captured with `screencapture -l`), `mouse:<moved|down|up>:<x>,<y>` (top-left points), `stash` and `handle` (toggles
-  the stash handle's hover); `tabs.devPictureInPicture` lists the glass plates under `controls`.
+  the stash handle's hover).
 - **`allowOcclusion`**: macOS posts no occlusion change for a window a band below normal, so minimizing and
   deminiaturizing post one for it (the page goes hidden as in a user's minimized window).
 - **The `ardia` command** (`cliHome`, `cliBinDir`, `cliUrl` (`file://` works), test `cliInstallScript`): a test

@@ -6,7 +6,8 @@ import { curve } from "../ui/motion";
 import { dropOnto, ontoKey, releaseDrop, reorder, type DropTarget, type Landing, type StripDrag } from "./model";
 import { raiseView } from "../../state/windows/nativeWindow";
 import { aimDrop, dragRange, dropIndex } from "./stripGroups";
-import { makeRoom, registerSlot, reorderOffsets, settleRoom, SLIDE } from "./stripReorder";
+import { makeRoom, registerSlot, reorderOffsets, settleRoom } from "./stripReorder";
+import { SLIDE } from "./tokens";
 import { LIFT_MS, LIFT_SLOP, ONTO_EDGE, TOP_STRIP_HEIGHT } from "./tokens";
 
 const IDLE = { kind: "idle" } as const;
@@ -36,7 +37,7 @@ export function useStripDrag(item: StripDrag) {
   const setLifted = (lifted: boolean) => {
     if (drag.current.lifted === lifted) return;
     drag.current.lifted = lifted;
-    Animated.timing(lift, { toValue: lifted ? 1 : 0, duration: LIFT_MS, easing: curve.outCubic, useNativeDriver: false }).start();
+    Animated.timing(lift, { toValue: lifted ? 1 : 0, duration: LIFT_MS, easing: curve.enter, useNativeDriver: false }).start();
   };
   const makeRoomAt = (to: number) => {
     const { geometry, from } = latest.current;

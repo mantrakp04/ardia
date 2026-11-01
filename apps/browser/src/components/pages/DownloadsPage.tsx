@@ -10,12 +10,11 @@ import { FileIcon } from "../downloads/Downloads";
 import { useDownloadView } from "../downloads/useDownloadView";
 import { downloadMenu } from "../../state/downloads/downloadMenu";
 import { downloadStatus } from "../../state/downloads/status";
-import { Box, Button, MouseArea, opacity, radius, space, Symbol, Text, useHover, useTheme } from "../ui";
-import { EmptyState, hostLabel, matchesQuery, PAGE_WIDTH, PageHeader } from "./PageLayout";
-import { downloadCard, EMPTY_ICON, emptyIcon, pageList, pageType } from "./tokens";
+import { Box, Button, EmptyState, MouseArea, opacity, ProgressTrack, space, Text, useHover } from "../ui";
+import { hostLabel, matchesQuery, PAGE_WIDTH, PageHeader } from "./PageLayout";
+import { downloadCard, pageList, pageType } from "./tokens";
 
 export function DownloadsPage({ tabId }: { tabId: string }) {
-  const theme = useTheme();
   const windowId = useTab(tabId, (t) => t?.windowId ?? "");
   const downloads = useDownloads(windowId, useShallow((list) => list));
   const [query, setQuery] = useState("");
@@ -27,12 +26,11 @@ export function DownloadsPage({ tabId }: { tabId: string }) {
         title="Downloads"
         query={query}
         onQuery={setQuery}
-        placeholder="Search downloads"
         actions={downloads.some((d) => d.state !== "downloading") ? <Button title="Clear All" onPress={() => clearDownloads(windowId)} /> : null}
       />
       {shown.length === 0 ? (
         <EmptyState
-          icon={<Symbol name="arrow.down.circle" size={emptyIcon.size} color={theme.textTertiary} style={EMPTY_ICON} />}
+          symbol="arrow.down.circle"
           title={query ? "No search results found" : "Files you download appear here"}
         />
       ) : (
@@ -52,15 +50,15 @@ const CARD_WIDTH = { width: PAGE_WIDTH - 2 * space.xl, maxWidth: "100%" } as con
 const CARD = { alignItems: "center" } as const;
 const CARD_TEXT = { flex: 1, gap: downloadCard.textGap } as const;
 const ROW_BUTTONS = { flexDirection: "row", gap: space.m } as const;
+const PROGRESS = { marginTop: downloadCard.progressTop } as const;
 
 function DownloadCard({ d, windowId }: { d: Download; windowId: string }) {
-  const theme = useTheme();
   const { hovered, hoverProps } = useHover();
   const { exists, done, progress, blocked } = useDownloadView(d);
   return (
     <View {...hoverProps} style={CARD_WIDTH}>
       <MouseArea path={done ? d.path : null}>
-        <Box row gap="lx" pad="lx" radius="panel" fill={hovered ? "rowHover" : "groupFill"} border="groupBorder" style={CARD}>
+        <Box row gap="xl" pad="xl" radius="panel" fill={hovered ? "rowHover" : "groupFill"} border="groupBorder" style={CARD}>
           <View style={{ opacity: exists ? 1 : opacity.disabled }}>
             <FileIcon path={d.path || d.filename} size={downloadCard.iconSize} />
           </View>
@@ -70,7 +68,7 @@ function DownloadCard({ d, windowId }: { d: Download; windowId: string }) {
                 lines={1}
                 weight="medium"
                 tone={exists ? "textPrimary" : "textSecondary"}
-                style={{ fontSize: pageType.fileName, textDecorationLine: exists ? "none" : "line-through" }}
+                style={{ ...pageType.fileName, textDecorationLine: exists ? "none" : "line-through" }}
               >
                 {d.filename || "Preparing…"}
               </Text>
@@ -81,16 +79,12 @@ function DownloadCard({ d, windowId }: { d: Download; windowId: string }) {
               </Text>
             </Pressable>
             {d.state === "downloading" && !blocked && (
-              <View style={{ height: downloadCard.progressHeight, borderRadius: downloadCard.progressRadius, marginTop: downloadCard.progressTop, backgroundColor: theme.rowHover }}>
-                <View
-                  style={{
-                    width: `${Math.max(progress, downloadCard.progressMin) * 100}%`,
-                    height: downloadCard.progressHeight,
-                    borderRadius: downloadCard.progressRadius,
-                    backgroundColor: d.paused ? theme.textTertiary : theme.accent,
-                  }}
-                />
-              </View>
+              <ProgressTrack
+                value={Math.max(progress, downloadCard.progressMin)}
+                height={downloadCard.progressHeight}
+                tone={d.paused ? "textTertiary" : "accent"}
+                style={PROGRESS}
+              />
             )}
             <Text lines={1} size="small" tone={blocked ? "destructive" : "textSecondary"}>
               {downloadStatus(d, exists)}
@@ -109,9 +103,9 @@ function DownloadCard({ d, windowId }: { d: Download; windowId: string }) {
           ) : done ? (
             <Button title="Show in Finder" onPress={() => void revealFile(d.path)} />
           ) : null}
-          <Button variant="icon" icon="ellipsis" size={13} box={downloadCard.menuBox} radius={radius.m} onPress={() => void downloadMenu(d, windowId)} tooltip="More actions" />
+          <Button variant="icon" icon="ellipsis" size="l" onPress={() => void downloadMenu(d, windowId)} tooltip="More actions" />
           {d.state !== "downloading" && (
-            <Button variant="icon" icon="xmark" size={11} box={downloadCard.menuBox} radius={radius.m} onPress={() => removeDownload(d.id)} tooltip="Remove from List" />
+            <Button variant="icon" icon="xmark" size="l" onPress={() => removeDownload(d.id)} tooltip="Remove from List" />
           )}
         </Box>
       </MouseArea>

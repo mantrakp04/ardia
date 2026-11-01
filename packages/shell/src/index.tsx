@@ -1,5 +1,7 @@
 export * from "./app";
+export * from "./automation";
 export * from "./cli";
+export * from "./config";
 export * from "./browserCommand";
 export * from "./commands";
 export * from "./dev";

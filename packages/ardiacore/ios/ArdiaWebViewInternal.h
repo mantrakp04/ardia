@@ -85,6 +85,12 @@ struct ArdiaPageReports {
   BOOL autoPictureInPictureActive{};
 };
 
+struct ArdiaCommits {
+  __weak ArdiaCoreTab *tab;
+  NSString *url;
+  double at{};
+};
+
 struct ArdiaPageFocusState {
   ArdiaPageFocus page{ArdiaPageFocus::Unknown};
   __weak NSView *devTools;
@@ -106,6 +112,7 @@ struct ArdiaPageFocusState {
   ArdiaReveal _reveal;
   ArdiaPageFocusState _focus;
   ArdiaPageReports _reports;
+  ArdiaCommits _commits;
   NSString *_profile;
   NSString *_initialURL;
   NSString *_adoptId;
@@ -237,6 +244,8 @@ struct ArdiaPageFocusState {
 @interface ArdiaWebView (NavigationInternal)
 - (void)emitNavigation;
 - (void)queueNavigation;
+- (NSString *)committedURL;
+- (void)followCommitsOfTab;
 - (void)resetBlocked:(BOOL)report;
 - (void)sendProgress;
 - (void)loadNow:(NSString *)url userInitiated:(BOOL)userInitiated;

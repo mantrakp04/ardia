@@ -216,11 +216,14 @@ function closedForLaunch(session: SavedSession): HydrateData {
   return { ...session, parkedPins, closedWindows, windows: {}, windowOrder: [], tabs: {} };
 }
 
-export function loadSession(): HydrateData | null {
+export type LaunchOverrides = { restoreSession?: boolean };
+
+export function loadSession({ restoreSession }: LaunchOverrides = {}): HydrateData | null {
   const session = parseSession(read(SESSION_DOCUMENT));
   if (!session) return null;
   const downloads = savedDownloads({ profiles: session.profiles ?? {} });
-  const data = session.settings?.restoreSession === false ? closedForLaunch(session) : session;
+  const restore = restoreSession ?? session.settings?.restoreSession !== false;
+  const data = restore ? session : closedForLaunch(session);
   return { ...data, downloads };
 }
 
@@ -239,8 +242,8 @@ export function resumePersistence() {
   resume();
 }
 
-export function startPersistence() {
-  useBrowser.getState().hydrate(loadSession() ?? {});
+export function startPersistence(overrides: LaunchOverrides = {}) {
+  useBrowser.getState().hydrate(loadSession(overrides) ?? {});
   restoreLaunchLook();
 
   const lastSources = new Map<string, unknown[]>();

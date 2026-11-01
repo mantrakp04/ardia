@@ -204,7 +204,6 @@ void VideoEntered(ArdiaWebView *view, NSString *host) {
       @"keepOnTop" : @(controller.keepOnTop),
       @"stashed" : @(controller.stashedEdge),
       @"key" : @(window.keyWindow),
-      @"controls" : controller.overlay.devControls ?: @[],
       @"host" : controller.host ?: @"",
       @"backToTab" : @(controller.view != nil),
       @"minSize" : NSStringFromSize(window.contentMinSize),

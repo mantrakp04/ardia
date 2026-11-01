@@ -47,7 +47,7 @@ import { requestAutofill } from "../site/autofill";
 import { copyPageUrl, jumpToSelection } from "../site/selection";
 import { shareTab } from "../site/share";
 import { groupOf } from "../pins/tabGrouping";
-import { isSmall, mainWindowFor, originalProfile } from "../windows/small";
+import { isSmall, mainWindowFor, newWindowProfile, originalProfile } from "../windows/small";
 import {
   closeLittleArdia,
   cycleLittleArdiaProfile,
@@ -64,7 +64,9 @@ import { findStep, openFind } from "../find/actions";
 
 const newOrId = (arg: string) => (arg === "new" ? null : arg);
 
-export function runCommand({ command, arg, windowId: requested }: CommandEvent) {
+export class NoCommandWindowError extends Error {}
+
+export function runCommand({ command, arg, windowId: requested }: CommandEvent, { strictWindow = false } = {}) {
   if (isAppCommand(command)) return APP_COMMAND_HANDLERS[command](requested);
   const s = useBrowser.getState();
 
@@ -80,7 +82,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
 
   switch (command) {
     case "newWindow":
-      return void openWindow({ profileId: arg ?? undefined });
+      return void openWindow({ profileId: arg ?? newWindowProfile(s, requested) });
     case "newIncognitoWindow":
       return void openWindow({ kind: "private", profileId: originalProfile(s, s.windows[requested ?? ""]) });
     case "newLittleArdia":
@@ -113,6 +115,7 @@ export function runCommand({ command, arg, windowId: requested }: CommandEvent) 
   const invokedFrom = requested;
   if (isSmall(s, requested) && !LITTLE_ARDIA_PAGE_COMMANDS.has(command)) {
     requested = mainWindowFor(s, s.windows[requested!]!.profileId) ?? null;
+    if (!requested && strictWindow) throw new NoCommandWindowError(`${command} needs a main window and none is open.`);
     if (requested) focus(requested);
   }
 

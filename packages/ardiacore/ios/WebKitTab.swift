@@ -33,6 +33,7 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
   }
   private var muted = false
   private var errorURL: URL?
+  private var committedAt: Double = 0
   private var showingError = false
   private var findText = ""
   private var findCount = 0
@@ -177,6 +178,7 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
     emit("navigation", [
       "url": view.url?.absoluteString ?? "",
       "committedUrl": showingError ? "" : (view.backForwardList.currentItem?.url.absoluteString ?? ""),
+      "committedAt": committedAt,
       "title": showingError ? "Can't Open This Page" : (view.title ?? ""),
       "canGoBack": view.canGoBack,
       "canGoForward": view.canGoForward,
@@ -482,6 +484,7 @@ final class WebKitTab: NSView, WKNavigationDelegate, WKUIDelegate {
 
   func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
     if !showingError { errorURL = nil }
+    committedAt = Date().timeIntervalSince1970 * 1000
     playingFrames.removeAll()
     mediaFrames.removeAll()
     resetNowPlaying()

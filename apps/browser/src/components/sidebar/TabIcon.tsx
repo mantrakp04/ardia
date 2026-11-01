@@ -1,7 +1,7 @@
 import { memo } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import { useIsSleeping } from "../../state/tabs/tabLifecycle";
-import { Symbol } from "../ui";
+import { Symbol, Text } from "../ui";
 import { useTheme } from "../ui/theme";
 import { sidebarTokens } from "./tokens";
 import { useTab } from "../../state/browser/hooks";
@@ -16,7 +16,8 @@ export const TabIcon = memo(function TabIcon({
   url,
   favicon,
   icon,
-  size = 16,
+  size: givenSize = 16,
+  compact = false,
   color,
   profileId: profile,
   direct,
@@ -27,11 +28,13 @@ export const TabIcon = memo(function TabIcon({
   favicon?: string | null;
   icon?: string | null;
   size?: number;
+  compact?: boolean;
   color?: string;
   profileId?: string;
   direct?: boolean;
   marks?: number;
 }) {
+  const size = compact ? COMPACT_ICON : givenSize;
   const sleeping = useIsSleeping(tabId ?? "");
   const marks = useIconMarks(tabId, givenMarks);
   const engine = tabId && size >= 14 ? markedEngine(marks) : null;
@@ -74,6 +77,7 @@ function TabProfileIcon({ tabId, ...props }: Omit<Parameters<typeof Icon>[0], "p
 }
 
 const SLEEPING_OPACITY = 0.45;
+const COMPACT_ICON = 14;
 
 function Icon({
   url,

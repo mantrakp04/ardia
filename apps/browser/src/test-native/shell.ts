@@ -29,6 +29,7 @@ export const bangListServer: { reply: ((etag: string | null) => Promise<BangList
 export const appInfo: Partial<SystemInfo> = { appVersion: "1.0" };
 export const launch: LaunchConfig = {
   dataDirectory: null,
+  configDirectory: "/config",
   background: false,
   isolated: false,
   testInstance: false,
@@ -276,6 +277,58 @@ const userScripts: Modules["ArdiaUserScripts"] = {
   },
 };
 
+export const configFolder = { files: new Map<string, string>(), watched: [] as string[][], schemaWrites: [] as Record<string, string>[], arming: null as Promise<void> | null };
+const configEvents = nativeEvents();
+export const emitConfigChange = () => configEvents.emit("onChange", {});
+const config: Modules["ArdiaConfig"] = {
+  addListener: configEvents.addListener,
+  readFile: (name) => {
+    const text = configFolder.files.get(name);
+    return text === undefined ? { status: "missing" } : { status: "ok", text };
+  },
+  watch: (names) => {
+    configFolder.watched.push(names);
+    return configFolder.arming ?? Promise.resolve();
+  },
+  writeSchemas: (files) => {
+    configFolder.schemaWrites.push(files);
+    return Promise.resolve([]);
+  },
+};
+
+export const controlSocket = {
+  generation: 0,
+  running: false,
+  holdWrites: false,
+  held: [] as number[],
+  replies: [] as { connection: number; line: string }[],
+  broadcasts: [] as { connections: number[]; line: string }[],
+};
+const controlEvents = nativeEvents();
+export const emitControlRequest = (request: { connection: number; generation: number; line: string }) => controlEvents.emit("onRequest", request);
+export const emitControlClose = (connection: number) => controlEvents.emit("onClose", { connection });
+export function writeHeldReplies() {
+  const tickets = controlSocket.held.splice(0);
+  if (tickets.length) controlEvents.emit("onWritten", { tickets });
+}
+const automation: Modules["ArdiaAutomation"] = {
+  start: async () => {
+    if (!controlSocket.running) controlSocket.generation++;
+    controlSocket.running = true;
+    return { state: "on", generation: controlSocket.generation, path: "/data/ArdiaControl.sock" };
+  },
+  stop: async () => {
+    controlSocket.running = false;
+  },
+  reply: (connection, line, ticket) => {
+    controlSocket.replies.push({ connection, line });
+    if (ticket > 0) controlSocket.held.push(ticket);
+    if (!controlSocket.holdWrites) writeHeldReplies();
+  },
+  broadcast: (connections, line) => void controlSocket.broadcasts.push({ connections, line }),
+  addListener: controlEvents.addListener,
+};
+
 export const shellNativeModules: Modules = {
   ArdiaShell: shell,
   ArdiaAppWindows: windowsModule,
@@ -299,4 +352,6 @@ export const shellNativeModules: Modules = {
   ArdiaFileDrop: fileDrop,
   ArdiaCli: cli,
   ArdiaUserScripts: userScripts,
+  ArdiaConfig: config,
+  ArdiaAutomation: automation,
 };

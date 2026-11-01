@@ -1,0 +1,33 @@
+{
+  "id": "fixes-0243n7",
+  "segments": [
+    {
+      "scene": "playerhover",
+      "title": "The sidebar player opens up on hover",
+      "body": "A video plays in a background tab. Click its pause straight away: it pauses. Then point at the player and rest. 0.2.43-nightly.7 grows it into a full player: artist, seek bar with time played and total, previous, play/pause and next, mute, Picture in Picture and close, and play/pause moves to the middle, so the pointer is now on Picture in Picture. 0.2.43-nightly.6 only showed close and mute beside the play button.",
+      "layout": "side",
+      "cam": [
+        0,
+        672,
+        340,
+        188
+      ],
+      "lead": 2.5,
+      "tail": 11.4
+    },
+    {
+      "scene": "glasstiles",
+      "title": "Glass on the tiles and Downloads, an even divider",
+      "body": "Point at a pinned tile, then open Downloads, in dark mode. 0.2.43-nightly.7 puts the liquid glass back on the pinned tiles and the Downloads panel, and the dashed divider under the tiles has the same space above as below. 0.2.43-nightly.6 drew them flat, with twice the space above the divider.",
+      "layout": "side",
+      "cam": [
+        0,
+        0,
+        440,
+        250
+      ],
+      "lead": 1.6,
+      "tail": 8.2
+    }
+  ]
+}

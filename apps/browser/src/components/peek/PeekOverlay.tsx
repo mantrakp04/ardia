@@ -1,8 +1,8 @@
 import { breadcrumb } from "@ardia/core";
-import { GlassFill, liquidGlass, WindowBackdrop, ink, MagnifyArea, reduceMotion, reduceMotionKnown, Surface, type MagnifyUpdate } from "../ui";
+import { WindowBackdrop, ink, MagnifyArea, Panel, reduceMotion, reduceMotionKnown, type MagnifyUpdate } from "../ui";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
-import { hex, layout, useTheme } from "../ui/theme";
+import { layout, useTheme } from "../ui/theme";
 import { usePeekSplitFull, usePeeks } from "../../state/peek/hooks";
 import { useTab } from "../../state/browser/hooks";
 import type { Peek } from "../../state/peek/peek";
@@ -163,21 +163,17 @@ function PeekCard({
             : { position: "absolute", ...frame, opacity: cardOpacity, transform: [{ translateX }, { translateY }, { scaleX }, { scaleY }] }
         }
       >
-        {!fullscreen && liquidGlass && <GlassFill kind="panel" fill={theme.panel} radius={SMALL_WINDOW_RADIUS} />}
-        {!fullscreen && !liquidGlass && (
-          <Surface
-            fill={hex(theme.panel)}
-            cornerRadius={SMALL_WINDOW_RADIUS}
-            shadowColor={ink.black}
-            shadowOpacity={windowFrame.shadowOpacity}
-            shadowRadius={windowFrame.shadowRadius}
-            shadowOffset={windowFrame.shadowOffset}
+        {!fullscreen && (
+          <Panel
+            radius={SMALL_WINDOW_RADIUS}
+            border={null}
+            shadow={{ color: ink.black, opacity: windowFrame.shadowOpacity, radius: windowFrame.shadowRadius, offset: windowFrame.shadowOffset }}
             style={StyleSheet.absoluteFill}
           />
         )}
         <MagnifyArea enabled={!fullscreen && !!motion} onMagnify={(update) => pinch.current(update)} style={{ flex: 1 }}>
           <View style={{ flex: 1, borderRadius: fullscreen ? 0 : SMALL_WINDOW_RADIUS, overflow: "hidden" }}>
-            {!fullscreen && !liquidGlass && <WindowBackdrop vibrancy {...theme.backdrop} colors={theme.windowTint} grainOpacity={theme.grain} style={StyleSheet.absoluteFill} />}
+            {!fullscreen && <WindowBackdrop vibrancy {...theme.backdrop} colors={theme.windowTint} grainOpacity={theme.grain} style={StyleSheet.absoluteFill} />}
             {!fullscreen && <PeekBar windowId={windowId} tabId={peek.tabId} />}
             <View
               style={
@@ -221,9 +217,9 @@ function PeekBar({ windowId, tabId }: { windowId: string; tabId: string }) {
       fieldLeft={SMALL_INSET}
       field={<PageLabel tab={tab} label={host ? `Peek: ${host}` : "Peek"} />}
       buttons={[
-        { icon: "rectangle.split.2x1", size: 14, disabled: splitFull, tooltip: "Open in Split View", onPress: () => openPeekInSplit(windowId) },
-        { icon: "arrow.up.left.and.arrow.down.right", size: 13, tooltip: "Open as Tab (⌘O)", onPress: () => openPeekAsTab(windowId) },
-        { icon: "xmark", size: 13, tooltip: "Close (Esc)", onPress: () => dismissPeek(windowId) },
+        { icon: "rectangle.split.2x1", disabled: splitFull, tooltip: "Open in Split View", onPress: () => openPeekInSplit(windowId) },
+        { icon: "arrow.up.left.and.arrow.down.right", tooltip: "Open as Tab (⌘O)", onPress: () => openPeekAsTab(windowId) },
+        { icon: "xmark", tooltip: "Close (Esc)", onPress: () => dismissPeek(windowId) },
       ]}
     />
   );

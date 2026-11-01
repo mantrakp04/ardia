@@ -1,0 +1,139 @@
+---
+import Legal from "../components/Legal.astro";
+import { LEGAL } from "../data/legal";
+import { pagePath } from "../data/site";
+---
+
+<Legal
+  title="Privacy Policy · Ardia"
+  kicker="Privacy"
+  heading="Your stuff stays yours."
+  description="What Ardia and ardia.dev collect, what they don't, and what you can do about it."
+  lede="Ardia has no accounts, no ads and nothing to sell. Here's what we see, what we never see, and who else might."
+>
+  <h2>The short version</h2>
+  <ul>
+    <li>Your browsing (history, tabs, passwords, bookmarks, cookies) lives on your Mac. We never receive it.</li>
+    <li>Crash reports and usage stats are <strong>off unless you turn them on</strong>, and never include the sites you visit, what you type or what you search.</li>
+    <li>The app sends one anonymous “opened today” count a day, and checks for updates.</li>
+    <li>This website counts its visitors on our own servers. No ad networks, no data brokers.</li>
+    <li>We don't sell, rent or trade personal information. To anyone. Ever.</li>
+  </ul>
+
+  <h2>Who we are</h2>
+  <p>
+    Ardia is a free, open-source web browser and ardia.dev is its website, both run by {LEGAL.operator} (“we”, “us”). This
+    policy covers the Ardia app and ardia.dev (together, the “Services”). Questions go to <strong>{LEGAL.contact}</strong>.
+  </p>
+
+  <h2>The Ardia app</h2>
+  <h3>What stays on your Mac</h3>
+  <p>
+    Everything you do in the browser: the sites you visit, your history, tabs, bookmarks, saved passwords, addresses, cards,
+    cookies, downloads and settings. We don't operate any server that receives it, and there's no Ardia account to tie it to.
+  </p>
+  <h3>Sync</h3>
+  <p>
+    If you turn on sync, your data is locked with a key only your devices hold and stored in a place you pick, such as your
+    own cloud drive. We never receive it and couldn't read it if we did. The storage provider you pick handles it under its
+    own privacy policy.
+  </p>
+  <h3>Crash reports and usage stats (optional)</h3>
+  <p>
+    Off unless you turn them on, in setup or later in Settings. When on, Ardia sends us crash and error reports, rough counts
+    of which features get used, and how fast things are, tagged with a random ID created on your Mac. It never sends the
+    sites you visit, anything you type or search, or what's in your tabs. Settings › Privacy & Security › What's Sent lists
+    every item. Turn it off any time and sending stops at once.
+  </p>
+  <h3>The daily count and updates</h3>
+  <p>
+    Whatever you choose above, Ardia sends one anonymous “opened today” count a day with its version and your macOS version,
+    and checks ardia.dev for updates. These have no lasting ID and nothing about you. We use them to know roughly how many
+    people use Ardia and which versions are still out there.
+  </p>
+
+  <h2>The website</h2>
+  <p>
+    ardia.dev measures its own traffic on our own servers: pages viewed, buttons clicked, the kind of device and browser, the
+    page that sent you, and recordings of some visits to see where the site confuses people. Anything typed into the page is
+    hidden from those recordings, and they're deleted after 30 days. We work out your rough country from your IP address
+    and don't keep the address. A random ID in your browser's storage lets us count return visits; clear your site data
+    to reset it.
+  </p>
+  <p>We don't use advertising cookies, and no ad network or social media tracker runs on the site.</p>
+
+  <h2>Other people's services</h2>
+  <p>
+    A browser's job is to talk to the rest of the internet, so some of what you do goes to other companies. They handle it
+    under their own policies, not this one, and we aren't responsible for what they do:
+  </p>
+  <ul>
+    <li><strong>Websites you visit</strong> see what any website sees when you visit it.</li>
+    <li><strong>Your search engine</strong> gets your searches, and what you type into the address bar if search suggestions are on.</li>
+    <li><strong>Extensions</strong> you install are made by others and can see whatever you allow them to.</li>
+    <li><strong>Content blocking lists</strong> are updated from the people who publish them.</li>
+    <li><strong>GitHub, Discord and the Chrome Web Store</strong>, if you follow a link to them, collect data under their own terms.</li>
+  </ul>
+
+  <h2>How we use what we get</h2>
+  <p>
+    To fix crashes and bugs, make Ardia faster, decide what to build next, ship updates, keep the Services secure and
+    answer you when you write to us. That's the list. No ads, no profiling, no selling.
+  </p>
+
+  <h2>Who we share it with</h2>
+  <p>
+    We keep this data on servers we run ourselves and don't hand it to third parties, except where the law makes us (a valid
+    court order, for example), to protect the safety or rights of people or the project, or to a successor if the project
+    changes hands, who'd be bound by this policy. Because what we hold is anonymous, there's usually nothing that points to
+    you.
+  </p>
+
+  <h2>How long we keep it</h2>
+  <p>
+    Website recordings: 30 days. Error logs: about 90 days. Anonymous usage and speed stats: as long as they're useful for
+    spotting trends. Emails you send us: as long as we need them to help you.
+  </p>
+
+  <h2>Your choices and rights</h2>
+  <ul>
+    <li>Turn crash reports and usage stats off in Settings › Privacy & Security.</li>
+    <li>Turn off update checks in Settings.</li>
+    <li>Clear this site's data in your browser to drop its visitor ID.</li>
+    <li>Delete everything Ardia stored on your Mac by deleting the app and its data.</li>
+  </ul>
+  <p>
+    Depending on where you live (for example the EU, UK or California), you may have the right to see, correct, delete or
+    move personal data about you, or object to how it's used. Write to {LEGAL.contact}. Since we deliberately don't collect
+    names, emails or accounts, we may be unable to match anonymous data to you, and we'll tell you if that's the case. You
+    may also complain to your local data protection authority.
+  </p>
+
+  <h2>Security</h2>
+  <p>
+    We take reasonable steps to protect what we hold. No system is perfectly secure, and we can't guarantee that data won't
+    be accessed, lost or changed by someone who shouldn't.
+  </p>
+
+  <h2>Children</h2>
+  <p>
+    The Services aren't aimed at children under {LEGAL.minimumAge}, and we don't knowingly collect personal information from them.
+    If you think we have, write to us and we'll delete it.
+  </p>
+
+  <h2>Where data is processed</h2>
+  <p>
+    Our servers may be in a different country from you. By using the Services you understand your information may be
+    processed there, under the protections in this policy.
+  </p>
+
+  <h2>Changes</h2>
+  <p>
+    We'll update this page when what we collect changes, and change the date at the top. If a change is significant we'll
+    mention it in the <a class="link" href={pagePath("notes")}>release notes</a>. Keeping on using the Services after a change
+    means you accept it.
+  </p>
+
+  <h2>Contact</h2>
+  <p>{LEGAL.operator} · {LEGAL.contact}</p>
+</Legal>

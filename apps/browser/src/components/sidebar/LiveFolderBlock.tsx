@@ -1,5 +1,5 @@
-import { memo, useEffect, useMemo, useRef } from "react";
-import { Animated, Pressable, Text, View } from "react-native";
+import { memo, useMemo } from "react";
+import { Animated, Pressable, View } from "react-native";
 import { errorText, manualRefresh, statusText } from "../../state/live/engine";
 import { folderRows, type FolderRow } from "../../state/live/rows";
 import { liveFolderIcon } from "../../state/live/sources";
@@ -9,9 +9,8 @@ import { usePageProfileId, useTab } from "../../state/browser/hooks";
 import { useLiveActiveTab, useLiveStrays } from "../../state/sidebar/hooks";
 import { openSettings } from "../../state/settings/settingsWindows";
 import { HoverSlot } from "../ui/HoverSlot";
-import { Button, ContextMenuArea, FadeLabel, font, ink, radius, Surface, Symbol, useHover, weight } from "../ui";
-import { curve, duration } from "../ui/motion";
-import { hex, layout, useTheme } from "../ui/theme";
+import { Badge, Button, ContextMenuArea, Dot, ink, space, Symbol, useHover } from "../ui";
+import { layout, useTheme } from "../ui/theme";
 import { useLiveColors } from "../live/tokens";
 import { TabRow } from "./TabRow";
 import { Fold, useFold, type FoldEntry } from "./Fold";
@@ -21,7 +20,9 @@ import { dismissHover } from "../../state/sidebar/hover";
 import { openLiveFolderMenu } from "../../state/sidebar/liveMenus";
 import { registerRow } from "../../state/sidebar/sidebarUi";
 import { TabIcon } from "./TabIcon";
-import { TABULAR_NUMS, useSidebarTokens } from "./tokens";
+import { TAB_ROW, useSidebarTokens } from "./tokens";
+import { RefreshSpinner } from "./RefreshSpinner";
+import { SidebarRowLabel, SidebarRowSurface } from "./SidebarRow";
 import { MoreRow, NoteRow, SectionTitle, StackRow } from "./LiveFolderRows";
 import { LiveItemRow } from "./LiveItemRow";
 import { CompletedFooter, useCompletedShown } from "./CompletedFooter";
@@ -69,7 +70,7 @@ export const LiveFolderBlock = memo(function LiveFolderBlock({ folderId, windowI
         <View ref={headerRef} {...handle} style={{ marginHorizontal: -PAD }}>
           <FolderHeader folderId={folderId} windowId={windowId} collapsed={collapsed} />
         </View>
-        <Fold fold={fold} collapsed={collapsed} entries={entries} keep={keep} gap={layout.rowGap} padBottom={PAD} />
+        <Fold fold={fold} collapsed={collapsed} entries={entries} keep={keep} padBottom={PAD} />
       </View>
     </Animated.View>
   );
@@ -126,35 +127,32 @@ function FolderHeader({ folderId, windowId, collapsed }: { folderId: string; win
           }}
         >
           {({ pressed }) => (
-            <Surface
-              fill={hex(pressed ? theme.tabPressed : hovered ? tokens.groupHeaderHover : ink.clear)}
+            <SidebarRowSurface
+              fill={pressed ? theme.tabPressed : hovered ? tokens.groupHeaderHover : ink.clear}
               cornerRadius={GROUP_HEADER_RADIUS}
-              style={{ height: layout.rowHeight, flexDirection: "row", alignItems: "center", paddingLeft: 9 + PAD, paddingRight: 6 }}
+              padLeft={TAB_ROW.contentLeft + PAD}
             >
               <TabIcon url={sourceSite} icon={icon} />
-              <FadeLabel text={folder.name} fontSize={font.body.fontSize} weight="medium" color={tokens.groupTitle} style={{ flex: 1, height: 18, marginLeft: 5 }} />
+              <SidebarRowLabel text={folder.name} weight="medium" color={tokens.groupTitle} />
               {status?.error ? (
-                <Pressable onPress={() => openSettings("liveFolders")} tooltip={errorText(status.error.kind, status.error.source)} style={{ marginRight: 2 }}>
+                <Pressable onPress={() => openSettings("liveFolders")} tooltip={errorText(status.error.kind, status.error.source)} style={{ marginRight: space.xxs }}>
                   <Symbol name="exclamationmark.triangle.fill" size={10} color={colors.pending} style={{ width: 18, height: 18 }} />
                 </Pressable>
               ) : null}
               <HoverSlot
                 hovered={hovered && !updating}
-                width={22}
                 hover={<RefreshButton spinning={false} tooltip={statusText(folderId)} onPress={() => void manualRefresh(folderId)} />}
               >
                 {updating ? (
                   <RefreshButton spinning tooltip={statusText(folderId)} onPress={() => void manualRefresh(folderId)} />
                 ) : collapsed ? (
-                  <View style={{ flexDirection: "row", alignItems: "center", marginRight: 2, gap: 5 }}>
-                    {unread ? <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: theme.accent }} /> : null}
-                    <View style={{ minWidth: 20, height: 18, borderRadius: 9, paddingHorizontal: 6, backgroundColor: tokens.countPill, alignItems: "center", justifyContent: "center" }}>
-                      <Text style={{ ...font.caption, fontWeight: weight.semibold, color: theme.textTab, fontVariant: TABULAR_NUMS }}>{count}</Text>
-                    </View>
+                  <View style={{ flexDirection: "row", alignItems: "center", marginRight: space.xxs, gap: space.xs }}>
+                    {unread ? <Dot size={7} color={theme.accent} /> : null}
+                    <Badge text={count} size="m" />
                   </View>
                 ) : null}
               </HoverSlot>
-            </Surface>
+            </SidebarRowSurface>
           )}
         </Pressable>
       </ContextMenuArea>
@@ -164,20 +162,12 @@ function FolderHeader({ folderId, windowId, collapsed }: { folderId: string; win
 
 function RefreshButton({ spinning, tooltip, onPress }: { spinning: boolean; tooltip: string; onPress(): void }) {
   const theme = useTheme();
-  const turn = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    if (!spinning) return;
-    turn.setValue(0);
-    const loop = Animated.loop(Animated.timing(turn, { toValue: 1, duration: duration.spinnerTurn, easing: curve.linear, useNativeDriver: true }));
-    loop.start();
-    return () => loop.stop();
-  }, [spinning]);
-  if (!spinning) return <Button variant="icon" icon="arrow.clockwise" size={10} weight="semibold" box={22} radius={radius.m} onPress={onPress} tooltip={tooltip} />;
+  if (!spinning) return <Button variant="icon" icon="arrow.clockwise" size="s" weight="semibold" onPress={onPress} tooltip={tooltip} />;
   return (
-    <View tooltip={tooltip} style={{ width: 22, height: 22, alignItems: "center", justifyContent: "center" }}>
-      <Animated.View style={{ transform: [{ rotate: turn.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] }) }] }}>
+    <View tooltip={tooltip} style={{ width: TAB_ROW.closeSlot, height: TAB_ROW.closeSlot, alignItems: "center", justifyContent: "center" }}>
+      <RefreshSpinner>
         <Symbol name="arrow.clockwise" size={10} weight="semibold" color={theme.textSecondary} style={{ width: 14, height: 14 }} />
-      </Animated.View>
+      </RefreshSpinner>
     </View>
   );
 }

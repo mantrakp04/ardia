@@ -105,6 +105,13 @@ export function viewTabIds(s: BrowserState, windowId: string, profileId?: string
   return w.tabIds.filter((id) => s.tabs[id]?.profileId === profile);
 }
 
+export function pinnedItemsRemain(s: BrowserState, id: string): boolean {
+  const w = s.windows[s.tabs[id]?.windowId ?? ""];
+  if (!w) return false;
+  if (viewTabIds(s, w.id).some((t) => t !== id && inPinnedContainer(s, t))) return true;
+  return Object.values(s.groups).some((g) => g.pinned && g.windowId === w.id && g.profileId === w.profileId);
+}
+
 export function closesWindow(s: BrowserState, id: string): boolean {
   const tab = s.tabs[id];
   const w = tab && s.windows[tab.windowId];

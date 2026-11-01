@@ -1,6 +1,6 @@
 import { memo, useRef } from "react";
 import { Animated, Pressable, View } from "react-native";
-import { ContextMenuArea, radius, Symbol } from "../ui";
+import { ContextMenuArea, radius, space, Symbol } from "../ui";
 import { useTheme } from "../ui/theme";
 import { sidebarTokens } from "./tokens";
 import { useTab, useWindowId } from "../../state/browser/hooks";
@@ -15,8 +15,8 @@ import { closedByPress, openTileFolderMenu, toggleFolderPanel, useFolderPanel } 
 import { entryKey } from "../../state/sidebar/entryKey";
 
 const MOSAIC_CELL = 9;
-const MOSAIC_GAP = 2;
-const MOSAIC_PAD = 3.5;
+const MOSAIC_GAP = space.xxs;
+const MOSAIC_PAD = space.xs;
 const MOSAIC = MOSAIC_PAD * 2 + MOSAIC_CELL * 2 + MOSAIC_GAP;
 
 export const FolderTile = memo(function FolderTile({ folderId, width, sliding, x, y }: { folderId: string; width: number; sliding: boolean; x: number; y: number }) {
@@ -68,7 +68,7 @@ export function FolderMosaic({ tabIds }: { tabIds: string[] }) {
       style={{
         width: MOSAIC,
         height: MOSAIC,
-        borderRadius: radius.button,
+        borderRadius: radius.tile,
         padding: MOSAIC_PAD,
         flexDirection: "row",
         flexWrap: "wrap",

@@ -9,7 +9,8 @@ import { usePageProgress } from "../../state/tabs/pageProgress";
 import { extensionsFitting, ToolbarExtensions, useToolbarExtensionsWidth } from "../extensions/ToolbarExtensions";
 import { useHistoryAvailability } from "../../state/tabs/navigation";
 import { toolbarPalette, type ToolbarPalette } from "../ui/toolbarColors";
-import { Button, type ButtonHit, FadeLabel, font, useHover } from "../ui";
+import { Button, type ButtonHit, FadeLabel, font, radius, space, ToolbarRowContext, useHover } from "../ui";
+import { TOOLBAR_ROWS } from "../../lib/toolbarRow";
 import { setUrlAnchor } from "../../state/windows/layout";
 import { SIDEBAR_FIELD } from "./geometry";
 import { SidebarFieldFill } from "./SidebarField";
@@ -23,7 +24,7 @@ const BUTTON = layout.toolbarButton;
 const { toggleX: TOGGLE_X, edge: EDGE } = HEADER_TOOLS;
 const LIGHTS_Y = ARC_LIGHTS_CENTER[1];
 const PLATE = 32;
-const PLATE_RADIUS = 6;
+const PLATE_RADIUS = radius.toolbar;
 
 export function SidebarHeaderTools({ width }: { width: number }) {
   const windowId = useWindowId();
@@ -48,7 +49,7 @@ export function SidebarHeaderTools({ width }: { width: number }) {
           {...place(at[0]!)}
           palette={palette}
           icon="sidebar.left"
-          size={GLYPH}
+          glyph={GLYPH}
           onPress={() => toggleSidebar(windowId)}
           tooltip={withShortcut("Auto-Hide Tabs", sidebarHint)}
         />
@@ -77,11 +78,11 @@ function NavigationButtons({
     <>
       {buttons.map((b, i) =>
         b === "reload" ? (
-          <ReloadButton key={b} {...slots[i]!} tab={tab} loading={loading} palette={palette} onFocus={alreadyFocused} />
+          <ReloadButton key={b} place={slots[i]} tab={tab} loading={loading} palette={palette} onFocus={alreadyFocused} />
         ) : (
           <HistoryButton
             key={b}
-            {...slots[i]!}
+            place={slots[i]}
             tabId={tab.id}
             windowId={tab.windowId}
             direction={b === "back" ? -1 : 1}
@@ -110,7 +111,9 @@ export function SidebarAddressRow({ width }: { width: number }) {
       onLayout={anchor}
       style={{ position: "absolute", left: layout.sidebarInset, right: layout.sidebarInset, top: SIDEBAR_FIELD.top, height: SIDEBAR_FIELD.height }}
     >
-      {tab?.url ? <PageField tab={tab} windowId={windowId} width={width - 2 * layout.sidebarInset} /> : <EmptyField windowId={windowId} />}
+      <ToolbarRowContext.Provider value={TOOLBAR_ROWS.regular}>
+        {tab?.url ? <PageField tab={tab} windowId={windowId} width={width - 2 * layout.sidebarInset} /> : <EmptyField windowId={windowId} />}
+      </ToolbarRowContext.Provider>
     </View>
   );
 }
@@ -150,9 +153,9 @@ function EmptyField({ windowId }: { windowId: string }) {
   return (
     <View {...hoverProps}>
       <Pressable onPress={open}>
-        <View style={{ height: SIDEBAR_FIELD.height, justifyContent: "center", paddingLeft: 11 }}>
+        <View style={{ height: SIDEBAR_FIELD.height, justifyContent: "center", paddingLeft: space.l }}>
           <SidebarFieldFill hovered={hovered} />
-          <FadeLabel text="Search or enter address" fontSize={font.body.fontSize} color={theme.placeholder} fadeWidth={14} style={{ height: 18, marginLeft: -2 }} />
+          <FadeLabel text="Search or enter address" fontSize={font.body.fontSize} color={theme.placeholder} fadeWidth={14} style={{ height: 18, marginLeft: -space.xxs }} />
         </View>
       </Pressable>
     </View>

@@ -1,16 +1,15 @@
 import type { ReactNode } from "react";
 import { View } from "react-native";
-import { Surface } from "../../../ui";
-import { at, atRect, CARD, fill, type Geo, hairline, LIGHTS_Y, type Rect, ROW, rowY, SIDEBAR_ICONS, sideCard, TOOLBAR_H } from "../geometry";
+import { at, atRect, CARD, type Geo, hairline, LIGHTS_Y, type Rect, ROW, rowY, SIDEBAR_ICONS, sideCard, TOOLBAR_H } from "../geometry";
 import { type Article, NOTES, type Suggestion, tab, type Tab } from "../content";
 import { type Look, pick } from "../look";
 import type { Tracker } from "../timeline";
-import { Backdrop, Card, Crumb, Label, Lights, NavIcons, Rows, SidebarField, TabRow, Toolbar } from "../Kit";
+import { Backdrop, Card, Crumb, Label, Lights, NavIcons, Rows, Selection, SidebarField, TabRow, Toolbar, WindowFrame } from "../Kit";
 import { Page } from "../MockPages";
 import { Keycap, SuggestionRow } from "../Floating";
 import { mockInk } from "../tokens";
-import { hex } from "../../../ui/theme";
-import { ink } from "../../../ui/tokens";
+import { font, space } from "../../../ui/tokens";
+import { SUGGESTION } from "../../../omnibox/tokens";
 import type { SceneOpts } from "../scene";
 
 export const listTop = (opts: SceneOpts) => (opts.addressInSidebar ? ROW.topWithField : ROW.top);
@@ -50,7 +49,6 @@ export function KeyPress({ g, look, t, label, ms = 0 }: { g: Geo; look: Look; t:
   return (
     <Keycap
       g={g}
-      look={look}
       x={g.W - 22}
       y={g.H - 50}
       label={label}
@@ -73,7 +71,7 @@ export const FRESH: Suggestion[] = [
 
 export function SuggestionList({ g, look, t, rows, ms }: { g: Geo; look: Look; t: Tracker; rows: Suggestion[]; ms: number }) {
   return (
-    <View style={{ paddingHorizontal: 9 * g.s, paddingTop: 4 * g.s }}>
+    <View style={{ paddingHorizontal: SUGGESTION.listX * g.s, paddingTop: space.xs * g.s }}>
       {rows.map((s, i) => (
         <SuggestionRow key={i} g={g} look={look} s={s} selected={i === 0} style={{ opacity: t.in(ms + i * 50, 200), transform: [{ translateY: t([[ms + i * 50, -3 * g.s], [ms + i * 50 + 220, 0]]) }] }} />
       ))}
@@ -83,19 +81,19 @@ export function SuggestionList({ g, look, t, rows, ms }: { g: Geo; look: Look; t
 
 export function SelectedUrl({ g, look }: { g: Geo; look: Look }) {
   return (
-    <View style={{ backgroundColor: look.t.selection, borderRadius: 2 * g.s, paddingHorizontal: 1 * g.s }}>
-      <Label g={g} size={14} color={look.t.textPrimary}>
+    <Selection g={g} look={look}>
+      <Label g={g} size={font.title.fontSize} color={look.t.textPrimary}>
         fieldnotes.blog/coast-trail
       </Label>
-    </View>
+    </Selection>
   );
 }
 
 export function Divider({ g, look }: { g: Geo; look: Look }) {
-  return <View style={{ height: hairline, marginHorizontal: 14 * g.s, backgroundColor: look.t.divider }} />;
+  return <View style={{ height: hairline, marginHorizontal: space.xl * g.s, backgroundColor: look.t.divider }} />;
 }
 
-export const PANEL_H = 52 + 3 * 35 + 14;
+export const PANEL_H = 52 + 3 * SUGGESTION.height + 14;
 
 export function centredFrame(g: Geo): Rect {
   const c = sideCard(g);
@@ -136,10 +134,9 @@ export function Desktop({ g, look }: { g: Geo; look: Look }) {
 
 export function Window({ g, look, rect, children }: { g: Geo; look: Look; rect: Rect; children: ReactNode }) {
   return (
-    <View style={atRect(g, rect)}>
-      <Surface fill={hex(look.tint[1])} cornerRadius={11 * g.s} borderColor={pick(look, [mockInk.appWindowEdge.light, mockInk.appWindowEdge.dark])} borderWidth={0.5} shadowColor={ink.black} shadowOpacity={look.dark ? 0.55 : 0.22} shadowRadius={22 * g.s} shadowOffset={[0, 10 * g.s]} style={fill} />
-      <View style={[fill, { borderRadius: 11 * g.s, overflow: "hidden" }]}>{children}</View>
-    </View>
+    <WindowFrame g={g} look={look} edge={pick(look, [mockInk.appWindowEdge.light, mockInk.appWindowEdge.dark])} style={atRect(g, rect)}>
+      {children}
+    </WindowFrame>
   );
 }
 

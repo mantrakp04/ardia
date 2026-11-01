@@ -1,6 +1,6 @@
 import { OutsidePressArea, reduceMotion, Surface } from "../ui";
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
-import { Animated, View, type LayoutChangeEvent } from "react-native";
+import { Animated, StyleSheet, View, type LayoutChangeEvent } from "react-native";
 import { hex, useTheme } from "../ui/theme";
 import { useWindowId, useWindowUi } from "../../state/browser/hooks";
 import { closePanel } from "../../state/windows/actions";
@@ -17,16 +17,16 @@ import { closePanelToHeroBar, type BarDismissal } from "../../state/omnibox/barS
 import { insecureLevel, urlTextLeft } from "../toolbar/Toolbar";
 import { useToolbarRow } from "../toolbar/useToolbarRow";
 import { compactLift, urlFieldOf } from "../../lib/toolbarRow";
-import { hairline, shadow } from "../ui/tokens";
+import { radius, shadow, space } from "../ui/tokens";
 
 const RIGHT_OF_URL = 40;
 const ABOVE_PANE = 5.5;
-const PANEL_RADIUS = 17;
+const PANEL_RADIUS = radius.hero;
 const MIN_WIDTH = 420;
-const WINDOW_MARGIN = 12;
+const WINDOW_MARGIN = space.l;
 const DROPDOWN_MIN_WIDTH = 350;
 const DROPDOWN_PAST_FIELD = 137;
-const DROPDOWN_RADIUS = 12;
+const DROPDOWN_RADIUS = radius.panel;
 const PANEL_OPEN_HEIGHT = 107;
 const CENTRED_TOP_SHARE = 0.22;
 
@@ -99,10 +99,10 @@ export function CommandPanel({ windowWidth }: { windowWidth: number }) {
 
 function panelSurface(theme: ReturnType<typeof useTheme>, radius: number) {
   return {
-    fill: hex(theme.panel),
+    fill: hex(theme.ntpBarSolid),
     cornerRadius: radius,
-    borderColor: hex(theme.panelBorder),
-    borderWidth: hairline.panel,
+    borderColor: hex(theme.ntpBarBorder),
+    borderWidth: StyleSheet.hairlineWidth,
     shadowColor: shadow.dialog.color,
     shadowOpacity: theme.panelShadowOpacity,
     shadowRadius: shadow.dialog.radius,

@@ -1,9 +1,9 @@
 import type { DownloadSettings } from "../../../state/downloads/actions";
 import { checkForUpdates, setLaunchAtLogin } from "../../../state/app/appSettings";
 import { pickFolder } from "../../../state/app/system";
-import { Symbol, Button, font, PopUp, Toggle } from "../../ui";
+import { Button, PopUp, space, Symbol, Toggle } from "../../ui";
 import { useEffect } from "react";
-import { AppState, Text, View } from "react-native";
+import { AppState, View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { updateSettings } from "../../../state/settings/actions";
 import { currentEngineProfile } from "../../../state/browser/current";
@@ -210,31 +210,18 @@ function DefaultBrowserBanner() {
     return () => sub.remove();
   }, []);
   return (
-    <Anchor
-      id="general.defaultBrowser"
-      radius={12}
-      style={{
-        marginTop: 20,
-        padding: 14,
-        borderRadius: 12,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 12,
-        backgroundColor: theme.groupFill,
-        borderWidth: 1,
-        borderColor: theme.groupBorder,
-      }}
-    >
-      <Symbol
-        name={isDefault ? "checkmark.seal.fill" : "safari"}
-        size={20}
-        color={isDefault ? theme.success : theme.icon}
-        style={{ width: 28, height: 28 }}
-      />
-      <Text style={{ flex: 1, ...font.body, color: theme.textPrimary }}>
-        {isDefault ? `${APP} is your default browser` : `${APP} works best as your default browser`}
-      </Text>
-      {!isDefault && <Button title={`Set ${APP} as Default`} kind="primary" onPress={() => void makeDefaultBrowser()} />}
+    <Anchor id="general.defaultBrowser" shape="card" style={BANNER}>
+      <Group>
+        <Row
+          icon={<Symbol name={isDefault ? "checkmark.seal.fill" : "safari"} size={20} color={isDefault ? theme.success : theme.icon} style={BANNER_ICON} />}
+          title={isDefault ? `${APP} is your default browser` : `${APP} works best as your default browser`}
+        >
+          {!isDefault && <Button title={`Set ${APP} as Default`} kind="primary" onPress={() => void makeDefaultBrowser()} />}
+        </Row>
+      </Group>
     </Anchor>
   );
 }
+
+const BANNER = { marginTop: space.xxl } as const;
+const BANNER_ICON = { width: 28, height: 28 } as const;

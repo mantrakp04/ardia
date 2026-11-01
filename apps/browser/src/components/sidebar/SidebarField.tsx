@@ -1,16 +1,17 @@
 import { memo } from "react";
 import { StyleSheet, View } from "react-native";
-import { Button, type IconPalette } from "../ui";
+import { Button, concentric, type IconPalette } from "../ui";
 import { useTheme } from "../ui/theme";
-import { GlassFill, liquidGlass } from "../ui/Glass";
+import { GlassFill, useGlass } from "../ui/Glass";
 import { SIDEBAR_FIELD } from "./geometry";
 import { useSidebarTokens } from "./tokens";
 
-const FIELD_BORDER = StyleSheet.hairlineWidth * 2;
-export const FIELD_BUTTON = {
-  box: 24,
-  inset: (SIDEBAR_FIELD.height - 24) / 2,
-  radius: SIDEBAR_FIELD.radius - (SIDEBAR_FIELD.height - 24) / 2,
+const FIELD_BORDER = StyleSheet.hairlineWidth;
+const FIELD_BUTTON_BOX = 24;
+const FIELD_BUTTON = {
+  box: FIELD_BUTTON_BOX,
+  inset: (SIDEBAR_FIELD.height - FIELD_BUTTON_BOX) / 2,
+  radius: concentric(SIDEBAR_FIELD.radius, (SIDEBAR_FIELD.height - FIELD_BUTTON_BOX) / 2),
 } as const;
 
 export const SidebarFieldFill = memo(function SidebarFieldFill({
@@ -19,14 +20,9 @@ export const SidebarFieldFill = memo(function SidebarFieldFill({
   hovered: boolean;
 }) {
   const theme = useTheme();
-  if (liquidGlass) {
+  if (useGlass()) {
     return (
-      <GlassFill
-        state={hovered ? "lit" : "rest"}
-        radius={SIDEBAR_FIELD.radius}
-        border={FIELD_BORDER}
-        fill={theme.pinnedResting}
-      />
+      <GlassFill state={hovered ? "lit" : "rest"} radius={SIDEBAR_FIELD.radius} />
     );
   }
   return (
@@ -77,9 +73,7 @@ export function FieldSiteButton({
         palette={palette}
         icon={icon}
         color={color}
-        size={12}
-        box={FIELD_BUTTON.box}
-        radius={FIELD_BUTTON.radius}
+        look="field"
         active={active}
         onPress={onPress}
         tooltip={tooltip}

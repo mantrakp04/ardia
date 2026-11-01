@@ -1,18 +1,18 @@
 import { fileExists, fileIcon } from "../../state/app/system";
 import { useEffect, useState } from "react";
-import { Image, StyleSheet, Text, View, type ImageSourcePropType } from "react-native";
-import { Symbol } from "../ui";
-import { font, weight } from "../ui/tokens";
+import { Image, View, type ImageSourcePropType } from "react-native";
+import { Checkbox, IconTile, Symbol, Text } from "../ui";
+import { radius, space } from "../ui/tokens";
 import { isWebDemo } from "../../state/onboarding/demoSteps";
 import { openImport } from "../../state/settings/settingsWindows";
-import { CONTENT_WIDTH } from "./ChoiceList";
 import { chooseSource, confirmAnswer, PRESET_NAMES, presetFor, presetPatch, skipStep, useOnboarding, type BrowserSourceId } from "../../state/onboarding/onboarding";
 import { StepActions, StepLayout } from "./StepLayout";
 import { SecondaryButton } from "./Buttons";
-import { CheckMark, SectionLabel, SelectTile, Tag, useOnboardingColors } from "./Parts";
+import { SectionLabel, SelectTile, Tag, useOnboardingColors } from "./Parts";
+import { ChoiceCard } from "./ChoiceCard";
 import { SetupCodeLink, SetupCodeStep } from "./SetupCodeStep";
 import { browserIcon } from "./browserIcons";
-import { GlassBacking, solidFill, useImageRing } from "./GlassBacking";
+import { useImageRing } from "./GlassBacking";
 
 const ICON = require("../../../assets/app-icon.png");
 
@@ -52,8 +52,6 @@ function detect(): Tile[] {
     return { id: group[0]!.id, name: families.join(" or "), app: null, icon: null };
   });
 }
-
-const TILE = (CONTENT_WIDTH - 8 * 3) / 4;
 
 export function SourceStep() {
   const colors = useOnboardingColors();
@@ -99,39 +97,27 @@ export function SourceStep() {
       preview={<SourcePreview tile={chosen ?? null} fresh={source === "fresh"} found={found} />}
     >
       {found.length ? (
-        <View style={{ gap: 8 }}>
+        <View style={{ gap: space.m }}>
           <SectionLabel title="Found on this Mac" />
           <TileGrid tiles={found} selected={source} onPress={choose} />
         </View>
       ) : null}
-      <View style={{ gap: 8 }}>
+      <View style={{ gap: space.m }}>
         <SectionLabel title={found.length ? "Others" : "Browsers"} />
         <TileGrid tiles={others} selected={source} onPress={choose} fresh />
       </View>
       {canImport && chosen ? (
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 12,
-            padding: 12,
-            borderRadius: 12,
-            backgroundColor: solidFill(colors.row),
-            borderWidth: StyleSheet.hairlineWidth * 2,
-            borderColor: colors.rowBorder,
-          }}
-        >
-          <GlassBacking fill={colors.row} radius={12} border={StyleSheet.hairlineWidth * 2} />
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text style={{ ...font.body, fontWeight: weight.medium, color: colors.title }}>
+        <ChoiceCard radius={radius.panel} style={{ flexDirection: "row", alignItems: "center", gap: space.l, padding: space.l }}>
+          <View style={{ flex: 1, gap: space.xxs }}>
+            <Text weight="medium" color={colors.title}>
               {importing === chosen.id ? `Importing from ${chosen.name}` : `Bring your stuff from ${chosen.name}`}
             </Text>
-            <Text style={{ ...font.small, color: colors.rowSubtitle }}>
+            <Text size="small" color={colors.rowSubtitle}>
               {importing === chosen.id ? "It runs in its own window. Carry on here." : "Bookmarks, history, passwords and tabs."}
             </Text>
           </View>
-          {importing === chosen.id ? <CheckMark on size={18} /> : <SecondaryButton title="Import…" filled onPress={startImport} />}
-        </View>
+          {importing === chosen.id ? <Checkbox look="ring" size="m" value /> : <SecondaryButton title="Import…" filled onPress={startImport} />}
+        </ChoiceCard>
       ) : null}
     </StepLayout>
   );
@@ -139,7 +125,7 @@ export function SourceStep() {
 
 function TileGrid({ tiles, selected, onPress, fresh }: { tiles: Tile[]; selected: BrowserSourceId | null; onPress: (id: BrowserSourceId) => void; fresh?: boolean }) {
   return (
-    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }} accessibilityRole="radiogroup">
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.m }} accessibilityRole="radiogroup">
       {tiles.map((t) => (
         <SourceTile key={t.id} title={t.name} icon={browserIcon(t.id, t.icon)} symbol="globe" selected={selected === t.id} onPress={() => onPress(t.id)} />
       ))}
@@ -152,13 +138,13 @@ function SourceTile({ title, icon, symbol, selected, onPress }: { title: string;
   const colors = useOnboardingColors();
   const ring = useImageRing(icon, selected);
   return (
-    <SelectTile title={title} width={TILE} height={68} gap={5} checkSize={13} selected={selected} role="radio" titlePad={4} titleLines={1} ring={ring} onPress={onPress}>
+    <SelectTile title={title} height={68} selected={selected} role="radio" titlePad={space.xs} titleLines={1} ring={ring} onPress={onPress}>
       {() =>
         icon ? (
           <Image source={icon} style={{ width: 30, height: 30 }} />
         ) : (
-          <View style={{ width: 26, height: 26, margin: 2, borderRadius: 7, alignItems: "center", justifyContent: "center", backgroundColor: colors.iconContainer }}>
-            <Symbol name={symbol} size={15} color={colors.subtitle} style={{ width: 20, height: 20 }} />
+          <View style={{ margin: space.xxs }}>
+            <IconTile symbol={symbol} size="s" fill={colors.iconContainer} glyph={colors.subtitle} />
           </View>
         )
       }
@@ -171,19 +157,21 @@ function SourcePreview({ tile, fresh, found }: { tile: Tile | null; fresh: boole
   const preset = presetFor(tile?.id ?? (fresh ? "fresh" : null));
   const from = tile ? [tile] : fresh ? [] : found.filter((t) => t.app).slice(0, 6);
   return (
-    <View style={{ alignItems: "center", gap: 22 }}>
+    <View style={{ alignItems: "center", gap: space.xxxl }}>
       {from.length ? (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 14, maxWidth: 300 }}>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: space.xl, maxWidth: 300 }}>
           {from.map((t) => ({ t, icon: browserIcon(t.id, t.icon) })).map(({ t, icon }) => (
-            <View key={t.id} style={{ alignItems: "center", gap: 6, width: tile ? 96 : 72 }}>
+            <View key={t.id} style={{ alignItems: "center", gap: space.s, width: tile ? 96 : 72 }}>
               {icon ? (
                 <Image source={icon} style={{ width: tile ? 88 : 56, height: tile ? 88 : 56 }} />
               ) : (
-                <View style={{ width: 72, height: 72, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.iconContainer }}>
+                <View style={{ width: 72, height: 72, borderRadius: radius.hero, alignItems: "center", justifyContent: "center", backgroundColor: colors.iconContainer }}>
                   <Symbol name="globe" size={28} color={colors.subtitle} style={{ width: 36, height: 36 }} />
                 </View>
               )}
-              <Text style={{ ...font.caption, color: colors.subtitle }}>{t.name}</Text>
+              <Text size="caption" color={colors.subtitle}>
+                {t.name}
+              </Text>
             </View>
           ))}
         </View>

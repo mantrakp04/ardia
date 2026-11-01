@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { Animated, View } from "react-native";
-import { Symbol } from "../ui";
+import { radius, Symbol } from "../ui";
 import { layout, useTheme } from "../ui/theme";
 import { useAddressBarInSidebar } from "../../state/windows/layout";
 import { listTopGap } from "./geometry";
@@ -74,7 +74,7 @@ export function PinFieldZone({ top, height }: { top: number; height: number }) {
         right: layout.sidebarInset,
         top,
         height,
-        borderRadius: 10,
+        borderRadius: radius.chrome,
         borderWidth: active ? 1.5 : 1,
         borderStyle: "dashed",
         borderColor: active ? theme.accent : tokens.dragBorder,
@@ -119,7 +119,7 @@ export function PinSlotZone() {
           top: layout.pinnedTop,
           height: layout.pinnedHeight,
           opacity,
-          borderRadius: 10,
+          borderRadius: radius.chrome,
           borderWidth: 1.5,
           borderStyle: "dashed",
           borderColor: theme.accent,

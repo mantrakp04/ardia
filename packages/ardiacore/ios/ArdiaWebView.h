@@ -39,6 +39,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (nullable NSString *)devPagePhaseOf:(NSString *)transferKey NS_SWIFT_NAME(devPagePhase(of:));
 + (BOOL)devClosePageOf:(NSString *)transferKey NS_SWIFT_NAME(devClosePage(of:));
 + (int)browserIdOfTab:(nullable NSString *)tabId NS_SWIFT_NAME(browserId(ofTab:));
+@property(class, nonatomic) BOOL reportsCommits;
 
 @end
 

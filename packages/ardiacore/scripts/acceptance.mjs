@@ -35,6 +35,7 @@
 //   secret(module, fn, …args)      ArdiaPasswords / ArdiaAutofill calls that carry a secret; a failure resolves { error }
 //   browserOf(tabId) (the tab's engine browser, to tell a reload apart) · eventsOf(tabId) · lastEvent(tabId, name, test) · live(tabId) · pipWindows()
 //   openTab(url, title, background) · closeTab(id) · shownAndMounted(id) · freshTab(url) · backToA() · startVideo(tabId, audio)
+//   closeDownloads()               closes the Downloads popover a new download opens (its backdrop takes the next click)
 //   pipByHand(tabId)               Site Controls › Picture in Picture, clicked as the user does (manual PiP needs the click)
 //   launch(log, test, args, opts) · appUp(log)   (re)start the app on the run's data dir; `exited` is set once it's gone
 //   onScreenWindows() · firstPixel(png) · writePopupExtension(opts) · fixtureCrx()
@@ -659,7 +660,9 @@ const startVideo = async (tabId, audio) => {
   await until("the video's first frames", async () => (await cdp(t, "Runtime.evaluate", { expression: "document.getElementById('v').videoWidth", returnByValue: true })).result?.value > 0, 8000);
   return t;
 };
+const closeDownloads = () => evalApp(`ac.store.getState().setDownloadsOpen(${JSON.stringify(mainWindow)}, false); return true`).catch(() => null);
 const pipByHand = async (tabId) => {
+  await closeDownloads();
   await evalApp(`ac.pageState.setState((s) => ({ popover: { ...s.popover, ${JSON.stringify(tabId)}: "siteControls" } })); return true`);
   return until("a click on Site Controls › Picture in Picture", async () => {
     const click = await evalApp(`return ac.shell.devClick(${JSON.stringify(mainWindow)}, { label: "Picture in Picture", queued: true, wait: 300 })`);
@@ -1820,8 +1823,6 @@ try {
       await evalApp(`globalThis.__acSubs?.forEach((x) => x.remove()); return true`);
     }
   });
-
-  const closeDownloads = () => evalApp(`ac.store.getState().setDownloadsOpen(${JSON.stringify(mainWindow)}, false); return true`).catch(() => null);
 
   await check("save-page", async () => {
     const file = join(scratch, "saved-page.html");
@@ -3019,6 +3020,8 @@ try {
   await check("download-navigation", async () => {
     await evalApp(`ac.store.getState().navigate("${first.id}", "${base}/file.bin?nav", { userInitiated: true }); return true`);
     const e = await until("onDownloadNavigation", async () => (await eventsOf(first.id)).find((x) => x.name === "downloadNavigation"), 15000);
+    await until("the download listed", () => evalApp(`return ac.store.getState().downloads.some((d) => d.url?.endsWith("/file.bin?nav")) || null`), 10000);
+    await closeDownloads();
     return e.payload;
   });
 
