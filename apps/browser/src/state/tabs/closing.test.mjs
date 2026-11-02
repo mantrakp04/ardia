@@ -130,3 +130,21 @@ test("a pinned item in the profile the window doesn't show keeps nothing open", 
   S().closeTab(only);
   assert.equal(S().windows[w], undefined);
 });
+
+test("closing a window warns about the tabs it loses: none while another window shares them, all of them otherwise", async () => {
+  const { closeWindowDialog, lostOnClose } = await import("../windows/windowClose.ts");
+  S().hydrate({});
+  const a = S().createWindow({ url: "https://a1.com" });
+  S().newTab(a, { url: "https://a2.com" });
+  const b = S().createWindow({ url: "https://b1.com" });
+  S().newTab(b, { url: "https://b2.com" });
+  S().updateSettings({ shareTabsAcrossWindows: false });
+  assert.equal(lostOnClose(b).length, 2);
+  assert.equal(closeWindowDialog(b).title, "Close 2 tabs?");
+  S().updateSettings({ shareTabsAcrossWindows: true });
+  assert.deepEqual(lostOnClose(b), [], "the other window keeps every tab");
+  assert.equal(lostOnClose(a).length, 0);
+  S().closeWindow(b);
+  assert.equal(lostOnClose(a).length, 4, "the last window loses them all");
+  assert.equal(closeWindowDialog(a).title, "Close 4 tabs?");
+});

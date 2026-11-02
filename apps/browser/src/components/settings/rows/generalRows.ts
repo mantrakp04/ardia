@@ -14,7 +14,7 @@ export const generalRows = {
         warnBeforeClosingWindow: {
           advanced: true,
           title: "Warn before closing a window with multiple tabs",
-          description: "Asks before ⇧⌘W or the close button closes its tabs.",
+          description: "Asks before ⇧⌘W or the close button closes unpinned tabs that no other window keeps.",
           keywords: ["close window", "confirm"],
         },
         openLinksFrom: { title: "Open links from other apps in", keywords: ["little ardia", "external links", "mini window", "discord", "slack", "mail"] },
