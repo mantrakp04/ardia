@@ -52,7 +52,7 @@ export function switcher(icons: boolean): Scene {
         <Animated.View style={[fill, { opacity: t.in(SWITCH_AT, SETTLE), transform: [{ translateX: t([[SWITCH_AT, slide], [SWITCH_AT + SETTLE, 0]]) }] }]}>
           {rows(SECOND)}
         </Animated.View>
-        <MockSwitcher g={g} look={look} icons={icons} level={level} style={{ opacity: t.in(0, 200), transform: [{ translateY: t([[0, 4 * g.s], [260, 0]]) }] }} />
+        <MockSwitcher g={g} look={look} icons={icons} size={opts.iconSize} level={level} style={{ opacity: t.in(0, 200), transform: [{ translateY: t([[0, 4 * g.s], [260, 0]]) }] }} />
         <Card g={g} look={look} rect={c}>
           {field ? null : (
             <>
