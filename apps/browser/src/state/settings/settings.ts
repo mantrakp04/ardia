@@ -1,5 +1,8 @@
 import {
   allEngines,
+  normalizeCustomEngines,
+  validSiteSearchOverride,
+  type SiteSearchOverride,
   controllingExtensionEngine,
   engineById,
   extensionEngineId,
@@ -31,9 +34,9 @@ const hasStrings = (v: unknown, keys: readonly string[]) => isFields(v) && keys.
 
 const STRING_LIST: JsonSchema = { type: "array", items: { type: "string" } };
 const WIDTH: JsonSchema = { type: "number", exclusiveMinimum: 0 };
-const engineRecords = (keys: string[]): JsonSchema => ({
+const engineRecords = (keys: string[], extra: Record<string, JsonSchema> = {}): JsonSchema => ({
   type: "array",
-  items: { type: "object", properties: Object.fromEntries(keys.map((k) => [k, { type: "string" }])), required: keys },
+  items: { type: "object", properties: { ...Object.fromEntries(keys.map((k) => [k, { type: "string" }])), ...extra }, required: keys },
 });
 const recordOf = (item: JsonSchema): JsonSchema => ({ type: "object", additionalProperties: item });
 
@@ -61,13 +64,13 @@ export const SETTING_SPECS = {
   restoreSession: flag(true),
   searchEngine: text("google", SYNCED),
   customSearchUrl: text("", SYNCED),
-  customSearchEngines: shaped<CustomSearchEngine[]>([], (v) => Array.isArray(v) && v.every((e) => hasStrings(e, ["id", "name", "keyword", "url"])), engineRecords(["id", "name", "keyword", "url"]), SYNCED),
+  siteSearchOverrides: shaped<Record<string, SiteSearchOverride>>({}, (v) => isRecordOf(v, validSiteSearchOverride), recordOf({ type: "object", properties: { name: { type: "string" }, keyword: { type: "string" }, aliases: STRING_LIST, url: { type: "string" }, enabled: { type: "boolean" } }, required: ["name", "keyword", "aliases", "url", "enabled"] }), SYNCED),
+  customSearchEngines: shaped<CustomSearchEngine[]>([], (v) => Array.isArray(v) && v.every((e) => hasStrings(e, ["id", "name", "keyword", "url"]) && isFields(e) && (e.aliases === undefined || isStringList(e.aliases)) && (e.enabled === undefined || typeof e.enabled === "boolean")), engineRecords(["id", "name", "keyword", "url"], { aliases: STRING_LIST, enabled: { type: "boolean" } }), SYNCED),
   extensionSearchEngines: shaped<ExtensionSearchEngine[]>(
     [],
     (v) => Array.isArray(v) && v.every((e) => hasStrings(e, ["profile", "extensionId", "name", "keyword", "url"])),
     engineRecords(["profile", "extensionId", "name", "keyword", "url"]),
-  ),
-  searchSuggestions: flag(true, SYNCED),
+  ),  searchSuggestions: flag(true, SYNCED),
   showSelectionSearch: flag(true, SYNCED),
   commandBarPreference: oneOf(["website", "search"], "website", SYNCED),
   tabLayout: oneOf(["sidebar", "top"], "sidebar", SYNCED),
@@ -160,7 +163,7 @@ export function parseSettings(raw: unknown): Settings {
   const saved = isFields(raw) ? raw : {};
   const value = (key: SettingKey) => (SETTING_SPECS[key].valid(saved[key]) ? saved[key] : SETTING_SPECS[key].default);
   const settings = Object.fromEntries(SETTING_KEYS.map((key) => [key, value(key)])) as Settings;
-  return { ...settings, ...withLinkKeysApart(settings, {}) };
+  return { ...settings, customSearchEngines: normalizeCustomEngines(settings.customSearchEngines), ...withLinkKeysApart(settings, {}) };
 }
 
 export function parseSettingsMeta(raw: unknown): SettingsMeta {
@@ -265,6 +268,7 @@ export const createSettingsSlice: StateCreator<BrowserState, [], [], SettingsSli
   settings: DEFAULT_SETTINGS,
   settingsMeta: NO_SETTINGS_META,
   updateSettings(patch, { fromSync = false } = {}) {
+    if (patch.customSearchEngines) patch = { ...patch, customSearchEngines: normalizeCustomEngines(patch.customSearchEngines) };
     set((s) => (fromSync ? { settings: { ...s.settings, ...patch } } : choose(s, withLinkKeysApart(s.settings, patch))));
   },
 

@@ -1,3 +1,4 @@
+import type { SiteSearchOverride } from "@ardia/core";
 import type { Shortcut } from "../commands/shortcuts";
 import { storeAction, useBrowser } from "../browser/store";
 import { tabLayoutOf } from "../browser/model";
@@ -20,4 +21,9 @@ export function chooseTabLayout(layout: "sidebar" | "top") {
   for (const id of Object.keys(useBrowser.getState().windows)) {
     if (tabLayoutOf(useBrowser.getState(), id) !== layout) useBrowser.getState().toggleTabLayout(id);
   }
+}
+
+export function saveSiteSearchOverride(host: string, value: SiteSearchOverride) {
+  const overrides = useBrowser.getState().settings.siteSearchOverrides;
+  updateSettings({ siteSearchOverrides: { ...overrides, [host]: { ...value, enabled: overrides[host]?.enabled !== false } } });
 }

@@ -11,6 +11,7 @@ export * from "./omnibox.ts";
 export * from "./openTabs.ts";
 export * from "./quickCreate.ts";
 export * from "./siteSearch.ts";
+export * from "./siteSearches.ts";
 export * from "./suggest.ts";
 export * from "./suggestFetcher.ts";
 export * from "./tabGroups.ts";

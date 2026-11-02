@@ -1,4 +1,4 @@
-import { findScope, offeredSiteSearch, type SearchScope } from "@ardia/core";
+import { findScope, offeredSiteSearch, refreshScope, siteSearches, normalizeSearchKeyword, type SearchScope } from "@ardia/core";
 import { useBrowser } from "../browser/store";
 import { searchEngines } from "../settings/settings";
 import { knownHosts } from "./knownHosts";
@@ -6,7 +6,7 @@ import { knownHosts } from "./knownHosts";
 function scopeSources(windowId: string) {
   const s = useBrowser.getState();
   const profileId = s.windows[windowId]?.profileId ?? "";
-  return { engines: searchEngines(s.settings), hosts: knownHosts(s, profileId) };
+  return { engines: searchEngines(s.settings), sites: siteSearches(s.settings.siteSearchOverrides), hosts: knownHosts(s, profileId) };
 }
 
 export function scopeFor(text: string, windowId: string): SearchScope | null {
@@ -17,6 +17,10 @@ export function offeredScope(typed: string, completion: string, windowId: string
   return offeredSiteSearch(typed, completion, scopeSources(windowId));
 }
 
+export function currentScopeFor(scope: SearchScope, windowId: string): SearchScope | null {
+  return refreshScope(scope, scopeSources(windowId));
+}
+
 export function keywordScope(text: string, windowId: string): SearchScope | null {
   const bare = text.trim().replace(/^[a-z]+:\/\//i, "").replace(/\/$/, "");
   if (/[/?#:@]/.test(bare)) return null;
@@ -25,5 +29,5 @@ export function keywordScope(text: string, windowId: string): SearchScope | null
   if (bare.includes(".")) return scope;
   if (scope.kind !== "engine") return null;
   const engine = searchEngines(useBrowser.getState().settings).find((e) => e.id === scope.engineId);
-  return engine && engine.keyword.toLowerCase() === text.toLowerCase() ? scope : null;
+  return engine && [engine.keyword, ...(engine.aliases ?? [])].some((k) => normalizeSearchKeyword(k) === normalizeSearchKeyword(text)) ? scope : null;
 }

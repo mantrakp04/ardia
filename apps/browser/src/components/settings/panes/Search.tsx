@@ -1,10 +1,12 @@
-import { engineHost, type SearchEngine } from "@ardia/core";
+import { engineHost, searchUrl, validateEngine, type SearchEngine } from "@ardia/core";
 import { Box, Button, DialogActions, DialogTitle, Sheet, space, Symbol, Text, TextField, Toggle } from "../../ui";
 import { useState } from "react";
 import { View } from "react-native";
 import { useTheme } from "../../ui/theme";
 import { useSettings } from "../../../state/browser/hooks";
-import { currentEngineProfile, currentProfileOrder } from "../../../state/browser/current";
+import { currentEngineProfile, currentProfileOrder, resolvedWindowId } from "../../../state/browser/current";
+import { newTab } from "../../../state/tabs/actions";
+import { SearchShortcuts } from "./SearchShortcuts";
 import { addCustomEngine, removeCustomEngine, setSearchEngine, updateCustomEngine, updateSettings } from "../../../state/settings/actions";
 import { controllingSearchExtension, defaultSearchEngine, searchEngines } from "../../../state/settings/settings";
 import { extensionsProfileId, setEnabled } from "../../../state/extensions/actions";
@@ -48,13 +50,15 @@ export function SearchPane() {
         ))}
       </Group>
 
+      <SearchShortcuts />
+
       <SectionHeader
         anchor="search.otherEngines"
         action={<Button title="Add…" icon="plus" onPress={() => showSettingsSheet(<EngineSheet />)} />}
       />
       <Group of="search.otherEngines">
         {custom.length === 0 ? (
-          <Row title="No custom search engines" description="Add one with a URL where %s stands for the search terms." />
+          <Row title="No custom shortcuts" description="Add a name, shortcut, and search URL. Type the shortcut and press Tab to use it." />
         ) : (
           custom.map((e) => <EngineRow key={e.id} engine={e} selected={selectedId === e.id} locked={locked} editable={e.id !== "custom"} />)
         )}
@@ -117,10 +121,13 @@ function EngineRow({ engine, selected, locked, editable }: { engine: SearchEngin
 function EngineSheet({ engine }: { engine?: SearchEngine }) {
   const [name, setName] = useState(engine?.name ?? "");
   const [keyword, setKeyword] = useState(engine?.keyword ?? "");
+  const [aliases, setAliases] = useState(engine?.aliases?.join(", ") ?? "");
+  const [enabled, setEnabledShortcut] = useState(engine?.enabled !== false);
+  const [example, setExample] = useState("example");
   const [url, setUrl] = useState(engine?.url ?? "");
   const [error, setError] = useState<string | null>(null);
   const save = () => {
-    const input = { name, keyword, url };
+    const input = { name, keyword, url, aliases: aliases.split(",").map((a) => a.trim()).filter(Boolean), enabled };
     let result: string | null;
     if (engine) result = updateCustomEngine(engine.id, input);
     else {
@@ -137,15 +144,21 @@ function EngineSheet({ engine }: { engine?: SearchEngine }) {
   );
   return (
     <Sheet onClose={closeSettingsSheet}>
-      <DialogTitle>{engine ? "Edit Search Engine" : "Add Search Engine"}</DialogTitle>
+      <DialogTitle>{engine ? "Edit Search Shortcut" : "Add Search Shortcut"}</DialogTitle>
       {field("Name", name, setName, "Wikipedia")}
       {field("Shortcut", keyword, setKeyword, "w")}
+      {field("Aliases, separated by commas", aliases, setAliases, "wiki, wikipedia")}
       {field("URL with %s in place of the query", url, setUrl, "https://en.wikipedia.org/w/index.php?search=%s")}
-      {error && (
-        <Text size="caption" tone="destructive" style={ERROR}>
-          {error}
-        </Text>
-      )}
+      <Row title="Enable shortcut"><Toggle value={enabled} onChange={setEnabledShortcut} /></Row>
+      {field("Test query", example, setExample, "example")}
+      <Text selectable size="small" tone="textSecondary" style={ERROR}>{searchUrl({ url }, example)}</Text>
+      <Button title="Test" onPress={() => {
+        const invalid = validateEngine({ name, keyword, url }, [], undefined);
+        if (invalid) return setError(invalid);
+        const windowId = resolvedWindowId();
+        if (windowId) newTab(windowId, { url: searchUrl({ url }, example) });
+      }} />
+      {error && <Text size="caption" tone="destructive" style={ERROR}>{error}</Text>}
       <DialogActions
         leading={
           engine ? (
