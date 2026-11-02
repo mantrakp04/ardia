@@ -20,6 +20,8 @@ struct ExperimentsPage: View {
 
       Section {
         Toggle("AI Features", isOn: $settings.aiFeaturesEnabled)
+      } footer: {
+        Text("Experimental. Answers come from Apple Intelligence on this iPhone and can be wrong.")
       }
 
       if settings.aiFeaturesEnabled {
@@ -34,7 +36,7 @@ struct ExperimentsPage: View {
             SettingsRowLabel("Ask About This Page", systemImage: "questionmark.bubble.fill", tint: SettingsTint.blue)
           }
         } header: {
-          Text("Features")
+          Text("Experimental Features")
         }
         .transition(.opacity.combined(with: .move(edge: .top)))
 

@@ -88,8 +88,9 @@ sizes, copy), on Apple's controls:
   The Mac's Spaces (profiles), pinned tiles, rows and groups, and its open tabs sit behind the deck's leading button.
 - **Blocking.** Ads, trackers and cookie banners: seed rules plus EasyList, EasyPrivacy and the EasyList Cookie List
   converted on device, and a reject-all script for consent platforms; off per site from the page menu.
-- **AI features** (off by default, Settings › Experiments): Browse for Me (reads the top results and writes a
-  page) and Pinch to Summarize, on Apple Intelligence's on-device model. Nothing runs while they're off.
+- **AI features** (experimental, off by default, Settings › Experiments): Browse for Me (reads the top results and writes a
+  page), Pinch to Summarize and Ask About This Page, on Apple Intelligence's on-device model. Nothing runs while they're off,
+  and every answer they show says it's experimental and can be wrong.
 - **System.** Widgets (search, the Mac's tabs, Lock Screen), Control Center controls, App Intents and Siri phrases,
   a share extension and an Open in Ardia action, Spotlight for open and archived tabs, Handoff of the current page,
   Home Screen quick actions, and http/https link handling. The default-browser entitlement is in

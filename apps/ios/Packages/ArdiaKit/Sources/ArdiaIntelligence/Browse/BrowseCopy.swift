@@ -9,6 +9,7 @@ public enum BrowseCopy {
   public static let diveDeeper = String(localized: "Dive Deeper")
   public static let topResults = String(localized: "Top Search Results")
   public static let readThesePages = String(localized: "We read these pages:")
+  public static let experimental = String(localized: "Experimental. Written by Apple Intelligence, which can get things wrong. Check the sources.")
 
   public static func reading(_ count: Int) -> String {
     String(AttributedString(localized: "Reading ^[\(count) web page](inflect: true)").characters)
@@ -21,7 +22,7 @@ public enum BrowseCopy {
 
 public enum SummaryCopy {
   public static let summarizing = String(localized: "Summarizing for you\u{2026}")
-  public static let attribution = String(localized: "Summarized by Apple Intelligence")
+  public static let attribution = String(localized: "Experimental · Summarized by Apple Intelligence, which can get things wrong")
   public static let summarize = String(localized: "Summarize")
   public static let unableToSummarize = String(localized: "Unable to Summarize Page")
 }

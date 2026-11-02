@@ -211,6 +211,14 @@ struct BrowseForMePage: View {
       FollowUpChips(questions: page.followUps, onAsk: actions.ask)
         .padding(.horizontal, -Spacing.page)
     }
+
+    if browse.phase == .done {
+      Text(BrowseCopy.experimental)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.top, 8)
+    }
   }
 
   private func openSettings() {
