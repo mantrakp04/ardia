@@ -15,6 +15,8 @@ import { useSettings } from "../../state/browser/hooks";
 import { useBookmarkEngine, useBookmarks } from "../../state/bookmarks/hooks";
 import { useProfileHistory } from "../../state/history/hooks";
 import { useTabs } from "../../state/tabs/hooks";
+import { useProfileRecords } from "../../state/profiles/hooks";
+import { searchedTabs, searchesAllProfiles, withTabProfiles } from "../../state/tabs/tabsInAllProfiles";
 import { defaultSearchEngine, searchEngines } from "../../state/settings/settings";
 import type { Bookmarks } from "../../state/browser/types";
 import { currentBarActions } from "../../state/omnibox/barActions";
@@ -78,8 +80,10 @@ export function useSuggestions({
   const extensions = useBarExtensions(windowId);
   const shortcuts = useSettings((st) => st.shortcuts);
   const menuBar = useMenuBarRevision();
+  const allProfiles = useSettings((st) => searchesAllProfiles(st.searchTabsInAllProfiles, profileId));
+  const profiles = useProfileRecords();
 
-  const tabs = useMemo(() => Object.values(allTabs).filter((t) => t.profileId === profileId), [allTabs, profileId]);
+  const tabs = useMemo(() => searchedTabs(allTabs, profileId, allProfiles), [allTabs, profileId, allProfiles]);
   const bookmarkRows = useMemo(() => engineBookmarks(bookmarks, bookmarkEngine), [bookmarks, bookmarkEngine]);
   const source = useMemo(() => ({ tabs, history, bookmarks: bookmarkRows }), [tabs, history, bookmarkRows]);
 
@@ -118,7 +122,7 @@ export function useSuggestions({
 
   return useMemo(() => {
     if (!active || !query) return EMPTY;
-    return buildSuggestions(text, source, {
+    const result = buildSuggestions(text, source, {
       engine,
       preference,
       remote: remoteList,
@@ -130,5 +134,6 @@ export function useSuggestions({
       preventInline,
       bangs,
     });
-  }, [active, text, query, source, engine, preference, remoteList, windowId, extensions, shortcuts, menuBar, currentTabId, currentUrl, scope, preventInline, bangs]);
+    return allProfiles ? withTabProfiles(result, allTabs, profileId, profiles) : result;
+  }, [active, text, query, source, engine, preference, remoteList, windowId, extensions, shortcuts, menuBar, currentTabId, currentUrl, scope, preventInline, bangs, allProfiles, allTabs, profileId, profiles]);
 }

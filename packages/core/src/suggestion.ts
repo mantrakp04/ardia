@@ -19,6 +19,7 @@ export type Suggestion =
       title: string;
       favicon: string | null;
       tabId?: string;
+      tabProfile?: string;
       bookmarked?: boolean;
       visited?: boolean;
     }
