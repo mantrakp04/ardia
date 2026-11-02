@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useLayoutEffect, useRef, type ComponentType, type ForwardedRef, type ReactNode } from "react";
 import { Animated as WebAnimated, Pressable as WebPressable, StyleSheet, View as WebView } from "react-native-web";
-import "./leftEdge";
+import "./sidebarEdge";
 import { watchLayout } from "../mountLayout";
 import { macEvent, trackHover, type MouseHandler } from "./hover";
 

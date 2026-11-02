@@ -478,7 +478,7 @@ pnpm --filter @ardia/linux acceptance -- <extracted>/ardia/bin/ardia
     leaves through the left edge of the active window, the peek opens after 90 ms. If focus moves first (Hyprland's
     `follow_mouse` focusing the window on the left), it doesn't open. A peek that is already out stays out while the
     pointer is just past the edge, and closes when the window loses focus.
-  - Engines without the capability keep the shell-side watcher (`shims/web/motion/leftEdge.ts`).
+  - Engines without the capability keep the shell-side watcher (`shims/web/motion/sidebarEdge.ts`).
 - **Fullscreen restore.** A window saved fullscreen comes back fullscreen. On Wayland the saved output's name is kept
   in the profile pref `browser.app_window_placement.ArdiaLinuxWindowOutputs`. When exactly one display carries that
   name, the window goes fullscreen there.

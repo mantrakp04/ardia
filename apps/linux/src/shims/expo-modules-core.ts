@@ -4,6 +4,7 @@ import { noteMissing } from "./missing";
 import { ardiaHost, hostSupports } from "../host";
 import { createNativeEvents } from "../hostEvents";
 import { resolveHostModule } from "../hostModules";
+import { sidebarEdgeEvent } from "../shellMethods";
 
 export type EventSubscription = { remove(): void };
 
@@ -12,7 +13,7 @@ export const uuid = { v4: (): string => crypto.randomUUID() };
 type Listener = (event: unknown) => void;
 const events = createNativeEvents();
 
-ardiaHost?.onEvent((module, event, payload) => emitNativeEvent(module, event, payload));
+ardiaHost?.onEvent((module, event, payload) => emitNativeEvent(module, event, sidebarEdgeEvent(module, event, payload)));
 
 let sharedCommand: (command: string) => boolean = () => true;
 
@@ -60,7 +61,7 @@ const inert = (module: string, key: string) => () => {
 
 const SHELL_PARTS = ["ArdiaAppWindows", "ArdiaFocus", "ArdiaMenus", "ArdiaDialogs"];
 const APP_PARTS = ["ArdiaUpdater", "ArdiaNotifications", "ArdiaScripting", "ArdiaDev"];
-const SHELL_DOCUMENT_METHODS = ["readDocument", "writeDocument", "saveDocument", "removeDocument", "refreshDocument", "deleteDocument"];
+const SHELL_DOCUMENT_METHODS = ["readDocument", "writeDocument", "saveDocument", "documentSaved", "removeDocument", "refreshDocument", "deleteDocument"];
 
 export function hostModuleName(name: string, method?: string): string {
   if (SHELL_PARTS.includes(name)) return "ArdiaShell";

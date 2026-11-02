@@ -54,6 +54,7 @@ const hostDocuments = ardiaHost ? createHostDocuments(ardiaHost) : undefined;
 export const readDocument = (name: string) => hostDocuments ? hostDocuments.read(name) : documents.get(name) ?? null;
 export const writeDocument = (name: string, contents: string) => hostDocuments ? void hostDocuments.write(name, contents).catch(reportHostError) : void documents.set(name, contents);
 export const saveDocument = async (name: string, contents: string) => hostDocuments ? hostDocuments.write(name, contents) : void documents.set(name, contents);
+export const documentSaved = async (name: string) => hostDocuments ? hostDocuments.saved(name) : undefined;
 export const removeDocument = (name: string) => hostDocuments ? void hostDocuments.remove(name).catch(reportHostError) : void documents.delete(name);
 export const refreshDocument = async (name: string) => hostDocuments ? hostDocuments.refresh(name) : documents.has(name);
 export const deleteDocument = async (name: string) => hostDocuments ? hostDocuments.remove(name) : void documents.delete(name);
@@ -93,7 +94,7 @@ const claimHostFocus = async (generation: number, tag: number) => {
 };
 const openHostWindow = ardiaHost ? createHostWindowOpener(ardiaHost, () => useBrowser.getState(), (event) => emitWindowEvent(event), (id) => dropRefusedWindow(useBrowser, id)) : undefined;
 const pickHostFolder = ardiaHost ? createFolderPicker(ardiaHost, (options) => linuxHostDialogs().confirm(options).then((answer) => answer.confirmed)) : undefined;
-const hostShellLocals: Record<string, unknown> = { readDocument, writeDocument, saveDocument, removeDocument, claimFocus: claimHostFocus, openWindow: openHostWindow, pickFolder: pickHostFolder };
+const hostShellLocals: Record<string, unknown> = { readDocument, writeDocument, saveDocument, documentSaved, removeDocument, claimFocus: claimHostFocus, openWindow: openHostWindow, pickFolder: pickHostFolder };
 const hostAppLocals: Record<string, unknown> = { systemInfo, launchConfig };
 provideNativeModuleProvider((module, method) => ardiaHost ? (module === "ArdiaShell" ? hostShellLocals[method] : module === "ArdiaApp" ? hostAppLocals[method] : undefined) : undefined);
 const shellLocals: Record<string, unknown> = {

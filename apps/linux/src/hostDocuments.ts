@@ -6,6 +6,7 @@ export function createHostDocuments(host: ArdiaHost) {
   const documents = new Map(Object.entries(host.bootstrap.documents ?? {}));
   const stored = new Map(documents);
   const latest = new Map<string, number>();
+  const landing = new Map<string, Promise<void>>();
   let operations = 0;
   let writes = Promise.resolve();
   const invoke = (method: string, args: unknown[]) => {
@@ -21,16 +22,21 @@ export function createHostDocuments(host: ArdiaHost) {
     const operation = ++operations;
     latest.set(name, operation);
     keep(documents, name, value);
-    return invoke(method, args).then(() => keep(stored, name, value), (error) => {
+    const done = invoke(method, args).then(() => keep(stored, name, value), (error) => {
       if (latest.get(name) === operation) keep(documents, name, stored.get(name));
       throw error;
     });
+    landing.set(name, done);
+    return done;
   };
   return {
     read: (name: string) => name === "live.canonical.json" ? null : name === "live.json" ? readCanonicalLiveDocument(host) : documents.get(name) ?? null,
     write: (name: string, contents: string) => {
       if (name === "live.json" || name === "live.canonical.json") return Promise.reject(Object.assign(new Error("Canonical Live documents require typed operations"), { code: "ERR_DOCUMENT_RESERVED" }));
       return change(name, contents, "writeDocument", [name, contents]);
+    },
+    saved: async (name: string) => {
+      await landing.get(name);
     },
     refresh: async (name: string) => {
       if (name === "live.json" || name === "live.canonical.json") return false;
